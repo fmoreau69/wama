@@ -42,7 +42,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from .values import missing, present
 
 #: Fin inconnue — importé du Segmenter plutôt que redéfini : c'est le MÊME `None`.
-from .segmentation import OUVERT  # noqa: F401  (réexporté : un calcul sur segments en parle)
+from .segmentation import OPEN_END  # noqa: F401  (réexporté : un calcul sur segments en parle)
 
 
 def _ecart_type(vals: List[float]) -> float:

@@ -3281,9 +3281,9 @@ DOMICILE UNIQUE de la règle « le nom se DÉRIVE des paramètres, il ne se sais
   - `abbreviate(name: str) -> str` — Préfixe minuscule d'un nom de table — `debut_bloc` → `deb`.
   - `as_int(x: float) -> str` — `0` plutôt que `0.0`, `-2.5` conservé — un nom ne porte pas de décimale inutile.
   - `normalize(text: str) -> str` — Texte quelconque → fragment de nom : minuscules, alphanumérique, `_` unique, sans bords.
-  - `derived_name(column: str, suffixe: str) -> str` — Colonne dérivée — `vitesse` + `moyenne` → `vitesse_moyenne`.
-  - `join_name(table_debut: str, table_fin: str, offset_start: float, offset_end: float) -> str` — Segmentation temporelle double — `deb_fin_0_0`, la graphie de l'outil d'origine.
-  - `annex_name(stream: str, fonction: str) -> str` — Table ANNEXE née d'un calcul qui change la clé temporelle — `vitesse_calcul_par_segment`.
+  - `derived_name(column: str, suffix: str) -> str` — Colonne dérivée — `vitesse` + `moyenne` → `vitesse_moyenne`.
+  - `join_name(start_table: str, end_table: str, offset_start: float, offset_end: float) -> str` — Segmentation temporelle double — `deb_fin_0_0`, la graphie de l'outil d'origine.
+  - `annex_name(stream: str, function: str) -> str` — Table ANNEXE née d'un calcul qui change la clé temporelle — `vitesse_calcul_par_segment`.
 
 ### Notation d'un MIDI multi-instrument (MIDI → ABC)
 
@@ -3682,11 +3682,11 @@ UN MOTEUR, N SCHÉMAS — le pendant exact du registre de lecteurs, et le premie
   - `register_schema(schema: ContainerSchema) -> ContainerSchema`
   - `available_schemas() -> List[str]`
   - `writable_extensions() -> List[str]`
-  - `schema_for(cible) -> Optional[ContainerSchema]` — Le schéma désigné par un nom de format **ou** par l'extension d'un chemin.
-  - `schema_modules() -> List[str]` — Modules de schéma du paquet — **DÉCOUVERTS, jamais cités** (G1, cf. `sources.modules_lecteurs`).
+  - `schema_for(target) -> Optional[ContainerSchema]` — Le schéma désigné par un nom de format **ou** par l'extension d'un chemin.
+  - `schema_modules() -> List[str]` — Modules de schéma du paquet — **DÉCOUVERTS, jamais cités** (G1, cf. `sources.reader_modules`).
   - `ident(name: str) -> str` — Identifiant SQL cité. Un nom de colonne vient de la DONNÉE : il ne doit jamais atterrir tel
   - `sql_value(v: Any) -> Any` — Valeur Python → valeur SQLite.
-  - `write(referentiel: TemporalReferential, path, *, format: str='', contexte: Optional[Context]=None, stream: Optional[Iterable[str]]=None, tranche: int=TRANCHE,…` — Écrit un référentiel dans un conteneur. Rend un `Report` — **y compris ce qui a été perdu**.
+  - `write(referential: TemporalReferential, path, *, format: str='', context: Optional[Context]=None, stream: Optional[Iterable[str]]=None, chunk_size: int=CHUNK_S…` — Écrit un référentiel dans un conteneur. Rend un `Report` — **y compris ce qui a été perdu**.
 
 ## Studio & surface d'outils (API)
 

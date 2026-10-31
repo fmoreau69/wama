@@ -2,7 +2,7 @@
 Chaîne conditionnelle — conditions DÉCLARÉES et assemblage logique en ARBRE.
 
 Sa spécification est `WAMA_DATA_WORLD.md §9ter.6 B`. Ce module fournit la couche qui manquait
-AU-DESSUS du moteur : `core/segmentation.py::conditionnelle()` prend déjà un masque booléen en
+AU-DESSUS du moteur : `core/segmentation.py::conditional()` prend déjà un masque booléen en
 entrée — ce qu'on ne savait pas faire, c'est **déclarer** ce masque autrement qu'en code.
 
 CE QUE LA LECTURE DU CODE D'ORIGINE A CHANGÉ (`BIND_GUI.mlapp`, extrait le 2026-08-23). Les trois
@@ -61,7 +61,7 @@ BOOLEAN = 'booleen'
 
 KINDS: Tuple[str, ...] = (NUMERIC, TEXT, BOOLEAN)
 
-_TOUTES = frozenset(KINDS)
+_ALL_KINDS = frozenset(KINDS)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -73,7 +73,7 @@ class Operator:
     """Un opérateur de comparaison DÉCLARÉ.
 
     `kinds` est ce qui rend l'UI dérivable : une colonne de texte ne se voit pas proposer `>=`.
-    `operande=False` marque les opérateurs qui ne prennent PAS de valeur de référence (`vide`) —
+    `operand=False` marque les opérateurs qui ne prennent PAS de valeur de référence (`empty`) —
     sans ce champ, l'interface afficherait une case de saisie inutile et la validation ne pourrait
     pas distinguer « valeur oubliée » de « valeur sans objet ».
     """
@@ -83,7 +83,7 @@ class Operator:
     operand: bool = True
 
 
-def _texte(v: Any) -> str:
+def _text(v: Any) -> str:
     """Vue TEXTE d'une valeur, pour les opérateurs de chaîne. `None`/NaN → chaîne vide.
 
     Comparer `str(None)` donnerait `'None'`, qui « contient » un `o` : une absence de donnée se
@@ -130,30 +130,30 @@ OPERATORS: Dict[str, Operator] = {
     '>=': Operator(_num(lambda v, r: v >= r), frozenset({NUMERIC}), 'est supérieur ou égal à'),
 
     # ── ÉGALITÉ — toutes sortes (voir la note de fusion ci-dessus).
-    '==': Operator(lambda v, r: (not missing(v)) and v == r, _TOUTES, 'est égal à'),
-    '!=': Operator(lambda v, r: (not missing(v)) and v != r, _TOUTES, "n'est pas égal à"),
+    '==': Operator(lambda v, r: (not missing(v)) and v == r, _ALL_KINDS, 'est égal à'),
+    '!=': Operator(lambda v, r: (not missing(v)) and v != r, _ALL_KINDS, "n'est pas égal à"),
 
     # ── TEXTE.
     'contains': Operator(
-        lambda v, r: _texte(r) in _texte(v), frozenset({TEXT}), 'contient'),
+        lambda v, r: _text(r) in _text(v), frozenset({TEXT}), 'contient'),
     'not_contains': Operator(
-        lambda v, r: _texte(r) not in _texte(v), frozenset({TEXT}), 'ne contient pas'),
+        lambda v, r: _text(r) not in _text(v), frozenset({TEXT}), 'ne contient pas'),
     'startswith': Operator(
-        lambda v, r: _texte(v).startswith(_texte(r)), frozenset({TEXT}), 'commence par'),
+        lambda v, r: _text(v).startswith(_text(r)), frozenset({TEXT}), 'commence par'),
     'not_startswith': Operator(
-        lambda v, r: not _texte(v).startswith(_texte(r)), frozenset({TEXT}),
+        lambda v, r: not _text(v).startswith(_text(r)), frozenset({TEXT}),
         'ne commence pas par'),
     'endswith': Operator(
-        lambda v, r: _texte(v).endswith(_texte(r)), frozenset({TEXT}), 'finit par'),
+        lambda v, r: _text(v).endswith(_text(r)), frozenset({TEXT}), 'finit par'),
     'not_endswith': Operator(
-        lambda v, r: not _texte(v).endswith(_texte(r)), frozenset({TEXT}), 'ne finit pas par'),
+        lambda v, r: not _text(v).endswith(_text(r)), frozenset({TEXT}), 'ne finit pas par'),
 
     # ── PRÉSENCE — sans opérande, et applicables à toutes les sortes. Ce sont les seuls
     #    opérateurs qui interrogent l'ABSENCE ; tous les autres la traitent comme un `False`.
     'empty': Operator(
-        lambda v, r=None: missing(v) or _texte(v) == '', _TOUTES, 'est vide', operand=False),
+        lambda v, r=None: missing(v) or _text(v) == '', _ALL_KINDS, 'est vide', operand=False),
     'not_empty': Operator(
-        lambda v, r=None: (not missing(v)) and _texte(v) != '', _TOUTES, "n'est pas vide",
+        lambda v, r=None: (not missing(v)) and _text(v) != '', _ALL_KINDS, "n'est pas vide",
         operand=False),
 }
 
@@ -165,7 +165,7 @@ def operators_for(kind: str) -> List[str]:
     Sans elle, chaque interface recopierait la liste — et divergerait, exactement comme les six
     graphies du bouton ⚙ avant qu'une brique ne les rende inutiles à discuter.
     """
-    if kind not in _TOUTES:
+    if kind not in _ALL_KINDS:
         raise ValueError(f"sorte '{kind}' inconnue (attendu : {', '.join(KINDS)})")
     return [name for name, op in OPERATORS.items() if kind in op.kinds]
 
@@ -204,7 +204,7 @@ class Condition:
             raise ValueError(
                 f"{self.key} : opérateur '{self.operator}' inconnu "
                 f"(disponibles : {', '.join(OPERATORS)})")
-        if self.kind not in _TOUTES:
+        if self.kind not in _ALL_KINDS:
             raise ValueError(f"{self.key} : sorte '{self.kind}' inconnue "
                              f"(attendu : {', '.join(KINDS)})")
         # LE contrôle qui n'existe pas dans l'outil d'origine : l'opérateur doit convenir à la
@@ -231,8 +231,8 @@ class Condition:
     def render(self) -> str:
         """Phrase lisible — `vitesse contient « FIN »`. Sert aux libellés et aux messages."""
         op = OPERATORS[self.operator]
-        cible = f"{self.stream}.{self.field}" if self.stream else self.field
-        return f"{cible} {op.label}" + (f" « {self.value} »" if op.operand else "")
+        target = f"{self.stream}.{self.field}" if self.stream else self.field
+        return f"{target} {op.label}" + (f" « {self.value} »" if op.operand else "")
 
     def to_dict(self) -> Dict[str, Any]:
         """Forme sérialisée — §9ter.6 B1 affirmait cette propriété, elle n'existait pas (§9sexies).
@@ -256,7 +256,7 @@ Tree = Union[str, Dict[str, Any]]
 @dataclass(frozen=True)
 class Connector:
     """Un connecteur logique déclaré. `arity` vaut `None` pour « deux ou plus »."""
-    calcul: Callable[[List[bool]], bool]
+    compute: Callable[[List[bool]], bool]
     arity: Optional[int]
     label: str
 
@@ -275,7 +275,7 @@ def _xor(bits: List[bool]) -> bool:
 #: courantes et incompatibles — parité (un nombre impair de vrais) ou exclusivité (exactement un
 #: vrai) — qui divergent dès `(V, V, V)`. Aucune n'est « la » bonne : on refuse la question plutôt
 #: que d'en trancher une au hasard dans un moteur d'analyse scientifique.
-CONNECTEURS: Dict[str, Connector] = {
+CONNECTORS: Dict[str, Connector] = {
     'ET':  Connector(all, None, 'et'),
     'OU':  Connector(any, None, 'ou'),
     'XOR': Connector(_xor, 2, 'ou exclusif'),
@@ -283,86 +283,86 @@ CONNECTEURS: Dict[str, Connector] = {
 }
 
 
-def validate(arbre: Tree, cles: Sequence[str], _chemin: str = 'racine') -> None:
+def validate(tree: Tree, keys: Sequence[str], _path: str = 'racine') -> None:
     """Refuse un arbre mal formé À LA DÉCLARATION, en NOMMANT le fautif et son emplacement.
 
     C'est la contrepartie directe du `try/catch` unique de l'outil d'origine, qui ne pouvait dire
     que « Probleme avec les connecteurs ». Quatre fautes sont distinguées ici, et chacune a son
     message : clé inconnue, connecteur inconnu, arité fausse, nœud malformé.
     """
-    if isinstance(arbre, str):
-        if arbre not in cles:
-            connues = ', '.join(cles) if cles else '— aucune condition déclarée'
-            raise ValueError(f"{_chemin} : condition '{arbre}' jamais déclarée (connues : {connues})")
+    if isinstance(tree, str):
+        if tree not in keys:
+            known = ', '.join(keys) if keys else '— aucune condition déclarée'
+            raise ValueError(f"{_path} : condition '{tree}' jamais déclarée (connues : {known})")
         return
 
-    if not isinstance(arbre, dict) or 'op' not in arbre:
+    if not isinstance(tree, dict) or 'op' not in tree:
         raise ValueError(
-            f"{_chemin} : nœud attendu sous la forme {{'op': …, 'args': [...]}}, reçu {arbre!r}")
+            f"{_path} : nœud attendu sous la forme {{'op': …, 'args': [...]}}, reçu {tree!r}")
 
-    op = arbre['op']
-    connecteur = CONNECTEURS.get(op)
-    if connecteur is None:
+    op = tree['op']
+    connector = CONNECTORS.get(op)
+    if connector is None:
         raise ValueError(
-            f"{_chemin} : connecteur '{op}' inconnu (disponibles : {', '.join(CONNECTEURS)})")
+            f"{_path} : connecteur '{op}' inconnu (disponibles : {', '.join(CONNECTORS)})")
 
-    args = arbre.get('args')
+    args = tree.get('args')
     if not isinstance(args, (list, tuple)) or not args:
-        raise ValueError(f"{_chemin} : le connecteur '{op}' attend une liste d'arguments non vide")
+        raise ValueError(f"{_path} : le connecteur '{op}' attend une liste d'arguments non vide")
 
-    attendue = connecteur.arity
-    if attendue is not None and len(args) != attendue:
+    expected = connector.arity
+    if expected is not None and len(args) != expected:
         raise ValueError(
-            f"{_chemin} : '{op}' prend {attendue} argument(s), {len(args)} fourni(s)")
-    if attendue is None and len(args) < 2:
+            f"{_path} : '{op}' prend {expected} argument(s), {len(args)} fourni(s)")
+    if expected is None and len(args) < 2:
         raise ValueError(
-            f"{_chemin} : '{op}' prend au moins 2 arguments, {len(args)} fourni(s)")
+            f"{_path} : '{op}' prend au moins 2 arguments, {len(args)} fourni(s)")
 
-    for i, sous in enumerate(args):
-        validate(sous, cles, f"{_chemin} › {op}[{i + 1}]")
+    for i, sub in enumerate(args):
+        validate(sub, keys, f"{_path} › {op}[{i + 1}]")
 
 
-def evaluate(arbre: Tree, masques: Mapping[str, Sequence[bool]]) -> List[bool]:
+def evaluate(tree: Tree, masks: Mapping[str, Sequence[bool]]) -> List[bool]:
     """Combine les masques des conditions selon l'arbre. Toutes de MÊME longueur.
 
     L'égalité des longueurs est vérifiée : des masques dépareillés viendraient de colonnes de
     tables différentes, et les combiner produirait un masque tronqué à la plus courte — donc des
     segments qui s'arrêtent sans raison visible.
     """
-    validate(arbre, list(masques))
-    longueurs = {len(m) for m in masques.values()}
-    if len(longueurs) > 1:
-        detail = ', '.join(f"{k}={len(v)}" for k, v in masques.items())
+    validate(tree, list(masks))
+    lengths = {len(m) for m in masks.values()}
+    if len(lengths) > 1:
+        detail = ', '.join(f"{k}={len(v)}" for k, v in masks.items())
         raise ValueError(f"masques de longueurs différentes ({detail}) — les conditions doivent "
                          "porter sur des colonnes du même échantillonnage")
-    return _evaluer(arbre, masques, longueurs.pop() if longueurs else 0)
+    return _evaluate(tree, masks, lengths.pop() if lengths else 0)
 
 
-def _evaluer(arbre: Tree, masques: Mapping[str, Sequence[bool]], n: int) -> List[bool]:
-    if isinstance(arbre, str):
-        return [bool(x) for x in masques[arbre]]
-    calcul = CONNECTEURS[arbre['op']].calcul
-    sous = [_evaluer(a, masques, n) for a in arbre['args']]
-    return [calcul([m[i] for m in sous]) for i in range(n)]
+def _evaluate(tree: Tree, masks: Mapping[str, Sequence[bool]], n: int) -> List[bool]:
+    if isinstance(tree, str):
+        return [bool(x) for x in masks[tree]]
+    compute = CONNECTORS[tree['op']].compute
+    sub = [_evaluate(a, masks, n) for a in tree['args']]
+    return [compute([m[i] for m in sub]) for i in range(n)]
 
 
-def render(arbre: Tree) -> str:
+def render(tree: Tree) -> str:
     """Rendu textuel canonique de l'arbre — `ET(C1, OU(C2, NON(C3)))`.
 
     Une seule forme, préfixe et parenthésée, pour l'affichage comme pour la relecture. L'outil
     d'origine en avait deux (celle qu'il construit et celle qu'il montre en exemple) et elles
     n'étaient pas la même : voir ② en tête de module.
     """
-    if isinstance(arbre, str):
-        return arbre
-    return f"{arbre['op']}({', '.join(render(a) for a in arbre['args'])})"
+    if isinstance(tree, str):
+        return tree
+    return f"{tree['op']}({', '.join(render(a) for a in tree['args'])})"
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # 5. SAISIE textuelle — acceptée, immédiatement convertie en arbre
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-def parse(text: str, cles: Sequence[str]) -> Tree:
+def parse(text: str, keys: Sequence[str]) -> Tree:
     """Convertit une saisie `ET(C1, OU(C2, NON(C3)))` en arbre validé.
 
     Accepte la forme de l'outil d'origine — préfixe, séparateurs virgule OU espace, espaces libres
@@ -372,82 +372,82 @@ def parse(text: str, cles: Sequence[str]) -> Tree:
     Le résultat est un arbre — le texte n'est pas conservé. C'est le point : deux saisies
     différemment espacées donnent le même modèle, donc se comparent.
     """
-    jetons = _decouper(text)
-    if not jetons:
+    tokens = _tokenize(text)
+    if not tokens:
         raise ValueError("chaîne de connecteurs vide — déclarer au moins une condition")
-    arbre, reste = _lire(jetons, 0)
-    if reste != len(jetons):
-        raise ValueError(f"texte en trop après l'expression : « {' '.join(jetons[reste:])} »")
-    validate(arbre, cles)
-    return arbre
+    tree, next_index = _read(tokens, 0)
+    if next_index != len(tokens):
+        raise ValueError(f"texte en trop après l'expression : « {' '.join(tokens[next_index:])} »")
+    validate(tree, keys)
+    return tree
 
 
-def _decouper(text: str) -> List[str]:
-    jetons: List[str] = []
-    courant = ''
+def _tokenize(text: str) -> List[str]:
+    tokens: List[str] = []
+    current = ''
     for c in text:
         if c in '(),' or c.isspace():
-            if courant:
-                jetons.append(courant)
-                courant = ''
+            if current:
+                tokens.append(current)
+                current = ''
             if c in '(),':
-                jetons.append(c)
+                tokens.append(c)
         else:
-            courant += c
-    if courant:
-        jetons.append(courant)
-    return jetons
+            current += c
+    if current:
+        tokens.append(current)
+    return tokens
 
 
-def _lire(jetons: List[str], i: int) -> Tuple[Tree, int]:
-    if i >= len(jetons):
+def _read(tokens: List[str], i: int) -> Tuple[Tree, int]:
+    if i >= len(tokens):
         raise ValueError("expression incomplète — il manque un opérande")
-    jeton = jetons[i]
-    if jeton in '(),':
-        raise ValueError(f"« {jeton} » inattendu à la position {i + 1}")
+    token = tokens[i]
+    if token in '(),':
+        raise ValueError(f"« {token} » inattendu à la position {i + 1}")
 
     # Un nom suivi d'une parenthèse est un connecteur ; seul, c'est une clé de condition.
-    if i + 1 < len(jetons) and jetons[i + 1] == '(':
-        if jeton not in CONNECTEURS:
+    if i + 1 < len(tokens) and tokens[i + 1] == '(':
+        if token not in CONNECTORS:
             raise ValueError(
-                f"connecteur '{jeton}' inconnu (disponibles : {', '.join(CONNECTEURS)})")
+                f"connecteur '{token}' inconnu (disponibles : {', '.join(CONNECTORS)})")
         args: List[Tree] = []
         j = i + 2
-        while j < len(jetons) and jetons[j] != ')':
-            if jetons[j] == ',':
+        while j < len(tokens) and tokens[j] != ')':
+            if tokens[j] == ',':
                 j += 1
                 continue
-            sous, j = _lire(jetons, j)
-            args.append(sous)
-        if j >= len(jetons):
-            raise ValueError(f"parenthèse jamais refermée après '{jeton}'")
-        return {'op': jeton, 'args': args}, j + 1
+            sub, j = _read(tokens, j)
+            args.append(sub)
+        if j >= len(tokens):
+            raise ValueError(f"parenthèse jamais refermée après '{token}'")
+        return {'op': token, 'args': args}, j + 1
 
-    if jeton in CONNECTEURS:
-        raise ValueError(f"le connecteur '{jeton}' doit être suivi de ses arguments entre "
-                         f"parenthèses — par exemple {jeton}(C1, C2)")
-    return jeton, i + 1
+    if token in CONNECTORS:
+        raise ValueError(f"le connecteur '{token}' doit être suivi de ses arguments entre "
+                         f"parenthèses — par exemple {token}(C1, C2)")
+    return token, i + 1
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # 6. SÉRIALISATION d'une condition
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-def condition_from_dict(brut: Mapping[str, Any], kind: str = NUMERIC) -> Condition:
+def condition_from_dict(raw: Mapping[str, Any], kind: str = NUMERIC) -> Condition:
     """Reconstruit une condition depuis sa forme sérialisée, en LUI IMPOSANT une sorte.
 
     La sorte est un paramètre d'appel et non une clé du dict : c'est l'appelant qui la connaît
     (l'adaptateur la lit dans le cadre), et une déclaration ne doit pas pouvoir la dicter.
     """
-    if not isinstance(brut, Mapping):
-        raise ValueError(f"condition attendue sous forme d'objet, reçu {type(brut).__name__}")
-    return Condition(key=brut.get('key', ''), field=brut.get('field', ''),
-                     operator=brut.get('operator', ''), value=brut.get('value'),
-                     stream=brut.get('stream', ''), kind=kind)
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"condition attendue sous forme d'objet, reçu {type(raw).__name__}")
+    return Condition(key=raw.get('key', ''), field=raw.get('field', ''),
+                     operator=raw.get('operator', ''), value=raw.get('value'),
+                     stream=raw.get('stream', ''), kind=kind)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
-# 7. Nom DÉRIVÉ — délégué à la brique unique `core/noms.py` (audit A, §9sexies)
+# 7. Nom DÉRIVÉ — délégué à la brique unique `core/naming.py` (audit A, §9sexies)
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
 #: Réexports : `join_name` vivait ici alors qu'elle nomme une JONCTION, pas une condition.
@@ -455,10 +455,10 @@ def condition_from_dict(brut: Mapping[str, Any], kind: str = NUMERIC) -> Conditi
 from .naming import join_name, normalize  # noqa: E402,F401
 
 
-def chain_name(arbre: Tree) -> str:
+def chain_name(tree: Tree) -> str:
     """Nom dérivé d'une chaîne conditionnelle — `et_c1_ou_c2_c3`, en minuscules et sans ponctuation.
 
     Dérivé de l'ARBRE et non du texte saisi : c'est ce qui rend deux saisies équivalentes (espaces,
     virgules) porteuses du même nom.
     """
-    return normalize(render(arbre))
+    return normalize(render(tree))

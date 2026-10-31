@@ -22,7 +22,7 @@ C'est le patron que le dépôt nomme déjà « la divergence est la trace d'une 
 que `conditions.py` puisse l'importer sans cycle, alors que `chain_name()` a besoin du rendu de
 l'arbre : la brique fournit la **normalisation**, l'appelant fournit le **texte**.
 
-⚠ `Colonne.titre` (export) reste chez lui À DESSEIN : ce n'est pas un nom dérivé de paramètres,
+⚠ `Column.title` (export) reste chez lui À DESSEIN : ce n'est pas un nom dérivé de paramètres,
 c'est un **en-tête de fichier** dont la convention (`flux.champ`) appartient au livrable chercheur
 et se surcharge colonne par colonne. Le rapprocher d'ici mêlerait deux règles qui n'ont ni la même
 source ni la même raison de changer.
@@ -32,7 +32,7 @@ from __future__ import annotations
 #: Longueur du préfixe retenu d'un nom de table. Trois caractères est la règle de l'outil
 #: d'origine (`app.tddTable1.Value(1:3)`), qui produit `deb_fin_0_0`. On la garde telle quelle :
 #: c'est un nom que les utilisateurs de ce laboratoire LISENT déjà.
-PREFIXE_TABLE = 3
+TABLE_PREFIX_LENGTH = 3
 
 #: Noms de colonne acceptés comme AXE DU TEMPS à l'ingestion, par ordre de préférence. Les données
 #: réelles n'emploient pas un nom unique — refuser tout sauf `time` rendrait l'import inutilisable.
@@ -43,7 +43,7 @@ PREFIXE_TABLE = 3
 #: une simple liste de mots. Le troisième consommateur (l'écrivain de conteneur, qui doit exclure
 #: l'axe des colonnes de données) l'aurait rendu dépendant des lecteurs à son tour. Un vocabulaire
 #: partagé n'appartient à aucun de ses usagers.
-COLONNES_TEMPS = ('time', 'timestamp', 'timecode', 't', 'temps', 'time_s', 'seconds')
+TIME_COLUMNS = ('time', 'timestamp', 'timecode', 't', 'temps', 'time_s', 'seconds')
 
 #: TOUS les noms d'axe temporel bruts — les alias d'ingestion **plus** les deux bornes du schéma
 #: `.trip` et celles du `.wdat`. C'est l'ensemble à retirer des colonnes de DONNÉES : l'instant d'un
@@ -51,13 +51,13 @@ COLONNES_TEMPS = ('time', 'timestamp', 'timecode', 't', 'temps', 'time_s', 'seco
 #:
 #: ⚠ Comparer en MINUSCULES : `startTimecode` et `starttimecode` désignent la même colonne, et
 #: SQLite ne distingue pas la casse des identifiants.
-AXES_TEMPORELS = frozenset(c.lower() for c in COLONNES_TEMPS) | {
+TIME_AXES = frozenset(c.lower() for c in TIME_COLUMNS) | {
     'starttimecode', 'endtimecode', 'start', 'end'}
 
 
 def abbreviate(name: str) -> str:
     """Préfixe minuscule d'un nom de table — `debut_bloc` → `deb`."""
-    return (name or '')[:PREFIXE_TABLE].lower()
+    return (name or '')[:TABLE_PREFIX_LENGTH].lower()
 
 
 def as_int(x: float) -> str:
@@ -78,27 +78,27 @@ def normalize(text: str) -> str:
     return out.strip('_')
 
 
-def derived_name(column: str, suffixe: str) -> str:
+def derived_name(column: str, suffix: str) -> str:
     """Colonne dérivée — `vitesse` + `moyenne` → `vitesse_moyenne`.
 
     Déterministe et sans paramètre de renommage : le nom se lit dans le tableau final sans avoir
     à retrouver quel réglage l'a produit. C'est ce qui rend deux exports comparables.
     """
-    return f"{column}_{suffixe}"
+    return f"{column}_{suffix}"
 
 
-def join_name(table_debut: str, table_fin: str,
-                 offset_start: float, offset_end: float) -> str:
+def join_name(start_table: str, end_table: str,
+              offset_start: float, offset_end: float) -> str:
     """Segmentation temporelle double — `deb_fin_0_0`, la graphie de l'outil d'origine."""
-    return (f"{abbreviate(table_debut)}_{abbreviate(table_fin)}"
+    return (f"{abbreviate(start_table)}_{abbreviate(end_table)}"
             f"_{as_int(offset_start)}_{as_int(offset_end)}")
 
 
-def annex_name(stream: str, fonction: str) -> str:
+def annex_name(stream: str, function: str) -> str:
     """Table ANNEXE née d'un calcul qui change la clé temporelle — `vitesse_calcul_par_segment`.
 
     ⚠ Remplace une f-string écrite en dur dans `vue.py` (audit A). Le nom d'une annexe est une
     production comme une autre : il doit dire de quel flux et de quelle fonction elle vient, sinon
     deux annexes du même flux deviennent indiscernables dès qu'on en produit une seconde.
     """
-    return normalize(f"{stream}_{fonction}")
+    return normalize(f"{stream}_{function}")

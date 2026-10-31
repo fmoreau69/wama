@@ -23,7 +23,7 @@ from ...core.segmentation import (around, conditional, states, join, margins, pa
 from ...core.values import missing  # noqa: F401  (réexporté pour `coding.py` et les tests)
 
 #: Champs canoniques d'un segment produit — `start`/`end` viennent de la taxonomie, le reste est
-#: la traçabilité systématique (voir `_tracer` dans l'implémentation).
+#: la traçabilité systématique (voir `_trace` dans l'implémentation).
 CHAMPS_SEGMENT = CANONICAL_FIELDS[DataType.SEGMENTS] + ['name', 'origin']
 
 

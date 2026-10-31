@@ -55,7 +55,7 @@ def lot_depuis_frames(frames: Mapping[str, TypedFrame]) -> Dict[str, List[Dict[s
     ⚠ `to_dict('records')` convertit un `NaN` pandas en `float('nan')`, PAS en `None` — et c'est
     ce qu'on veut : `missing()` reconnaît les deux, et forcer `None` ici casserait le typage
     numérique des colonnes que l'appelant pourrait vouloir relire. Le rendu texte, lui, écrit une
-    cellule vide dans les deux cas (`_cellule` dans le cœur).
+    cellule vide dans les deux cas (`_cell` dans le cœur).
     """
     return {name: frame.df.to_dict('records') for name, frame in frames.items()}
 
@@ -76,7 +76,7 @@ def apercu_frames(declarations: Sequence[Declaration],
                   *, lignes_max: int = 20) -> List[ExportFile]:
     """L'aperçu — le même chemin que l'export, borné (§9ter.6 C4)."""
     return preview(declarations, {n: lot_depuis_frames(f) for n, f in lots.items()},
-                  metas, regroupement, lignes_max=lignes_max)
+                  metas, regroupement, max_rows=lignes_max)
 
 
 def write(fichiers: Sequence[ExportFile], dossier, *, overwrite: bool = True) -> List[Path]:

@@ -37,7 +37,7 @@ DECL = Declaration(
     columns=(Column('sit_0_15', 'start'),
               Column('sit_0_15', 'label'),
               Column('indicateurs', 'vitesse_moyenne')),
-    identite=Identity(('trip_id', 'participant')),
+    identity=Identity(('trip_id', 'participant')),
 )
 
 
@@ -56,10 +56,10 @@ class ConversionTest(unittest.TestCase):
 
     def test_export_complet_depuis_des_frames(self):
         f = exporter_frames([DECL], {'A': FRAMES}, {'A': META})[0]
-        self.assertEqual(f.entetes,
+        self.assertEqual(f.headers,
                          ['trip_id', 'participant', 'sit_0_15.start', 'sit_0_15.label',
                           'indicateurs.vitesse_moyenne'])
-        self.assertEqual(f.nb_lignes, 2)
+        self.assertEqual(f.row_count, 2)
         self.assertEqual(f.rows[0][:4], ['REC_20190502', 'P07', 10.0, 'approche'])
 
     def test_apercu_est_un_prefixe_exact_de_l_export(self):
@@ -71,7 +71,7 @@ class ConversionTest(unittest.TestCase):
         f = exporter_frames([DECL], {'A': FRAMES, 'B': FRAMES}, {'A': META, 'B': META},
                             Grouping(lots=True))
         self.assertEqual(len(f), 1)
-        self.assertEqual(f[0].nb_lignes, 4)
+        self.assertEqual(f[0].row_count, 4)
 
 
 class EcritureTest(unittest.TestCase):
@@ -102,7 +102,7 @@ class EcritureTest(unittest.TestCase):
     def test_un_format_non_separe_par_un_caractere_est_REFUSE_explicitement(self):
         # Rendre un CSV sous une extension `.xlsx` serait pire que refuser.
         decl = Declaration(name='x', columns=(Column('sit_0_15', 'start'),),
-                           identite=Identity(()), format='xlsx')
+                           identity=Identity(()), format='xlsx')
         f = exporter_frames([decl], {'A': FRAMES}, {'A': META})
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):

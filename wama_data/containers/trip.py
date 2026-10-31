@@ -31,7 +31,7 @@ LE SCHÉMA EST RELEVÉ, PAS DEVINÉ (2026-08-24, sur la base réelle de 1,28 Go)
     `.wdat` refuse de reconduire ; ici on l'écrit puisque c'est la langue de l'autre.
 
 CE QUE CE SCHÉMA NE SAIT PAS PORTER — énuméré, jamais tu
-    Un `.trip` produit depuis un référentiel WAMA **perd** des faits. `Rapport.pertes` les nomme un
+    Un `.trip` produit depuis un référentiel WAMA **perd** des faits. `Report.losses` les nomme un
     par un. Le pire cas n'est pas la perte, c'est la perte silencieuse : elle laisse croire à un
     aller-retour fidèle, et c'est en la découvrant six mois plus tard qu'on doute de tout le reste.
 """
@@ -82,13 +82,13 @@ class TripSchema(ContainerSchema):
     def table_name(self, signal: Signal) -> str:
         return _prefixe(signal)[0] + normalize(signal.meta.name)
 
-    def colonnes_temps(self, signal: Signal) -> Tuple[str, ...]:
+    def time_columns(self, signal: Signal) -> Tuple[str, ...]:
         return (('startTimecode', 'endTimecode') if _prefixe(signal)[0] == 'situation_'
                 else ('timecode',))
 
     # ── Catalogue ─────────────────────────────────────────────────────────────────────────────
-    def ecrire_catalogue(self, con: sqlite3.Connection,
-                         entrees: Sequence[Entry], contexte: Context) -> None:
+    def write_catalog(self, con: sqlite3.Connection,
+                      entries: Sequence[Entry], context: Context) -> None:
         con.execute('CREATE TABLE "MetaDatas" (name TEXT PRIMARY KEY, type TEXT, '
                     'frequency INT, comments TEXT, isBase BOOL)')
         con.execute('CREATE TABLE "MetaEvents" (name TEXT PRIMARY KEY, comments TEXT, isBase BOOL)')
@@ -103,7 +103,7 @@ class TripSchema(ContainerSchema):
         con.execute('CREATE TABLE "MetaTripVideos" (filename TEXT PRIMARY KEY, offset DOUBLE, '
                     'description TEXT)')
 
-        for e in entrees:
+        for e in entries:
             prefixe = _prefixe(e.signal)[0]
             declaration, variables, rattachement = CATALOGUE[prefixe]
             base = 1 if e.meta.is_base else 0
@@ -117,72 +117,72 @@ class TripSchema(ContainerSchema):
                     f'INSERT OR REPLACE INTO {ident(declaration)} VALUES (?, ?, ?)',
                     (e.meta.name, COMMENTAIRE, base))
             # ⚠ La colonne de temps figure parmi les variables — conforme au relevé.
-            rows = [(e.meta.name, col, 'REAL', '', '') for col in e.colonnes_temps]
+            rows = [(e.meta.name, col, 'REAL', '', '') for col in e.time_columns]
             rows += [(e.meta.name, col, e.types.get(col, 'TEXT'),
                         e.meta.units.get(col, ''), COMMENTAIRE) for col in e.columns]
             con.executemany(
                 f'INSERT OR REPLACE INTO {ident(variables)} VALUES (?, ?, ?, ?, ?)', rows)
 
-        entetes = [('export_time', contexte.date()), ('exported_by', contexte.auteur or 'WAMA')]
-        entetes += [(str(k), '' if v is None else str(v)) for k, v in contexte.attributs.items()]
+        entetes = [('export_time', context.date()), ('exported_by', context.author or 'WAMA')]
+        entetes += [(str(k), '' if v is None else str(v)) for k, v in context.attributes.items()]
         con.executemany('INSERT OR REPLACE INTO "MetaTripDatas" VALUES (?, ?)', entetes)
         con.executemany(
             'INSERT OR REPLACE INTO "MetaTripVideos" VALUES (?, ?, ?)',
             [(str(m.get('file', '')), float(m.get('offset') or 0.0),
-              str(m.get('description', ''))) for m in contexte.medias])
+              str(m.get('description', ''))) for m in context.media])
 
     @staticmethod
-    def _type_dominant(entree: Entry) -> str:
+    def _type_dominant(entry: Entry) -> str:
         """Type déclaré du flux, au sens de `MetaDatas.type` — `REAL` dans toute la base relevée.
 
         On rend le type le plus fréquent parmi les colonnes plutôt qu'une constante : un flux
         entièrement textuel annoncé `REAL` induirait en erreur l'outil qui lit cette colonne.
         """
-        if not entree.types:
+        if not entry.types:
             return 'REAL'
         comptes: Dict[str, int] = {}
-        for t in entree.types.values():
+        for t in entry.types.values():
             comptes[t] = comptes.get(t, 0) + 1
         return max(comptes.items(), key=lambda kv: kv[1])[0]
 
     # ── Ce que la langue de l'autre ne sait pas dire ──────────────────────────────────────────
-    def losses(self, entrees: Sequence[Entry], contexte: Context) -> List[str]:
+    def losses(self, entries: Sequence[Entry], context: Context) -> List[str]:
         out: List[str] = []
-        devines = [e.meta.name for e in entrees if _prefixe(e.signal)[1]]
+        devines = [e.meta.name for e in entries if _prefixe(e.signal)[1]]
         if devines:
             out.append(
                 f"famille DEVINÉE (aucun `data_type` déclaré) pour {len(devines)} flux : "
                 f"{', '.join(devines[:5])} — la table de catalogue a été choisie sur la "
                 f"structure, pas sur une déclaration")
 
-        losses = [e.meta.name for e in entrees if e.meta.losses]
+        losses = [e.meta.name for e in entries if e.meta.losses]
         if losses:
             out.append(f"pertes d'acquisition non portées ({', '.join(losses[:5])}) : le schéma "
                        f"BIND n'a aucun champ pour un compte d'échantillons manquants")
 
-        lookups = [e.meta.name for e in entrees if e.meta.default_lookup]
+        lookups = [e.meta.name for e in entries if e.meta.default_lookup]
         if lookups:
             out.append(f"politique de résolution (`default_lookup`) non portée pour "
                        f"{len(lookups)} flux — BIND la fixe par famille, elle n'est pas déclarable")
 
-        decales = [e.meta.name for e in entrees if e.offset]
+        decales = [e.meta.name for e in entries if e.offset]
         if decales:
             out.append(f"décalage par flux non porté ({', '.join(decales[:5])}) : seul un décalage "
                        f"par MÉDIA existe (`MetaTripVideos.offset`)")
 
-        fractions = [e.meta.name for e in entrees
+        fractions = [e.meta.name for e in entries
                      if e.meta.fs and float(e.meta.fs) != int(e.meta.fs)]
         if fractions:
             out.append(f"cadence ARRONDIE pour {', '.join(fractions[:5])} : `MetaDatas.frequency` "
                        f"est un entier")
 
-        sans_frequence = [e.meta.name for e in entrees
+        sans_frequence = [e.meta.name for e in entries
                           if e.meta.fs and _prefixe(e.signal)[0] != 'data_']
         if sans_frequence:
             out.append(f"cadence PERDUE pour {', '.join(sans_frequence[:5])} : `MetaEvents` et "
                        f"`MetaSituations` n'ont pas de colonne `frequency`")
 
-        open_ones = self._segments_ouverts(entrees)
+        open_ones = self._segments_ouverts(entries)
         if open_ones:
             out.append(
                 f"{open_ones} segment(s) OUVERT(s) écrits avec une fin NULL : BIND n'a pas de "
@@ -190,18 +190,18 @@ class TripSchema(ContainerSchema):
                 f"Mesuré sur la base réelle : 0 fin NULL sur 84 situations — le cas ne s'y "
                 f"présente jamais, donc son traitement par l'outil n'est pas connu")
 
-        if contexte.manifestes:
+        if context.manifests:
             out.append(
-                f"{len(contexte.manifestes)} copie(s) projetée(s) du protocole NON embarquée(s) : "
+                f"{len(context.manifests)} copie(s) projetée(s) du protocole NON embarquée(s) : "
                 f"le schéma BIND n'a pas de table de manifestes. Le conteneur produit n'est donc "
                 f"pas autoportant — il faut le protocole à côté")
         return out
 
     @staticmethod
-    def _segments_ouverts(entrees: Sequence[Entry]) -> int:
+    def _segments_ouverts(entries: Sequence[Entry]) -> int:
         total = 0
-        for e in entrees:
-            if not e.a_des_fins:
+        for e in entries:
+            if not e.has_ends:
                 continue
             total += sum(1 for i in range(len(e.signal)) if e.signal.end_at(i) is None)
         return total

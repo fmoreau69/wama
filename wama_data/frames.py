@@ -69,7 +69,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 
-from .core.naming import AXES_TEMPORELS as _AXES_BRUTS  # noqa: F401 — nom local historique
+from .core.naming import TIME_AXES
 from .core.temporal import NEAREST, PREVIOUS, Signal, SignalMeta, TemporalReferential
 
 
@@ -153,7 +153,7 @@ def frame_from_signal(signal: Signal, *, t0: Optional[float] = None,
         else:
             ligne['time'] = signal.time_at(k) + offset
         for key, val in brute.items():
-            if key.lower() in _AXES_BRUTS:
+            if key.lower() in TIME_AXES:
                 continue                      # ② colonne d'axe brute : retirée
             if garde is not None and key not in garde:
                 continue

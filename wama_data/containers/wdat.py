@@ -79,7 +79,7 @@ class WdatSchema(ContainerSchema):
     def table_name(self, signal: Signal) -> str:
         return PREFIXE + normalize(signal.meta.name)
 
-    def colonnes_temps(self, signal: Signal) -> Tuple[str, ...]:
+    def time_columns(self, signal: Signal) -> Tuple[str, ...]:
         """`time`, ou `start`/`end` pour des segments — la graphie tranchée par **D9**.
 
         ⚠ Pas `timecode` : ce mot est **déjà pris dans WAMA** au sens AV positionnel (`mm:ss`, une
@@ -89,30 +89,30 @@ class WdatSchema(ContainerSchema):
         return ('start', 'end') if signal.is_segments else ('time',)
 
     # ── Catalogue ─────────────────────────────────────────────────────────────────────────────
-    def ecrire_catalogue(self, con: sqlite3.Connection,
-                         entrees: Sequence[Entry], contexte: Context) -> None:
-        self._meta(con, entrees, contexte)
-        self._flux(con, entrees)
-        self._variables(con, entrees)
-        self._medias(con, contexte)
-        self._manifestes(con, contexte)
+    def write_catalog(self, con: sqlite3.Connection,
+                      entries: Sequence[Entry], context: Context) -> None:
+        self._meta(con, entries, context)
+        self._flux(con, entries)
+        self._variables(con, entries)
+        self._medias(con, context)
+        self._manifestes(con, context)
 
     @staticmethod
-    def _meta(con, entrees: Sequence[Entry], contexte: Context) -> None:
+    def _meta(con, entries: Sequence[Entry], context: Context) -> None:
         con.execute('CREATE TABLE "WamaMeta" (key TEXT PRIMARY KEY, value TEXT)')
         rows = [
             ('format', 'wdat'),
             ('schema_version', VERSION),
-            ('created_at', contexte.date()),
-            ('created_by', contexte.auteur),
-            ('streams', str(len(entrees))),
+            ('created_at', context.date()),
+            ('created_by', context.author),
+            ('streams', str(len(entries))),
         ]
         rows += [(str(k), '' if v is None else str(v))
-                   for k, v in contexte.attributs.items()]
+                   for k, v in context.attributes.items()]
         con.executemany('INSERT OR REPLACE INTO "WamaMeta" (key, value) VALUES (?, ?)', rows)
 
     @staticmethod
-    def _flux(con, entrees: Sequence[Entry]) -> None:
+    def _flux(con, entries: Sequence[Entry]) -> None:
         """Un flux = une ligne. Tout ce que `SignalMeta` porte est écrit, y compris ce que le
         schéma de BIND n'a jamais su dire (`data_type`, `losses`, `offset`, `default_lookup`)."""
         con.execute(
@@ -124,10 +124,10 @@ class WdatSchema(ContainerSchema):
             'INSERT INTO "WamaStreams" VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [(e.meta.name, e.table, e.meta.data_type, e.meta.fs,
               1 if e.meta.is_base else 0, e.meta.default_lookup, int(e.meta.losses),
-              float(e.offset), e.rows, e.meta.comments) for e in entrees])
+              float(e.offset), e.rows, e.meta.comments) for e in entries])
 
     @staticmethod
-    def _variables(con, entrees: Sequence[Entry]) -> None:
+    def _variables(con, entries: Sequence[Entry]) -> None:
         """Une colonne = une ligne, avec son unité. ⚠ C'est le champ que `.trip` déclare et
         n'alimente jamais ; ici il vient de `SignalMeta.units`, donc il vaut ce que la source a su
         dire — vide quand elle n'a rien dit, et alors c'est un fait, pas un oubli."""
@@ -135,19 +135,19 @@ class WdatSchema(ContainerSchema):
             'CREATE TABLE "WamaVariables" ('
             'stream TEXT, name TEXT, unit TEXT, storage TEXT, PRIMARY KEY (stream, name))')
         rows = [(e.meta.name, col, e.meta.units.get(col, ''), e.types.get(col, 'TEXT'))
-                  for e in entrees for col in e.columns]
+                  for e in entries for col in e.columns]
         con.executemany('INSERT OR REPLACE INTO "WamaVariables" VALUES (?, ?, ?, ?)', rows)
 
     @staticmethod
-    def _medias(con, contexte: Context) -> None:
+    def _medias(con, context: Context) -> None:
         con.execute('CREATE TABLE "WamaMedia" (file TEXT, offset REAL, description TEXT)')
         con.executemany(
             'INSERT INTO "WamaMedia" VALUES (?, ?, ?)',
             [(str(m.get('file', '')), float(m.get('offset') or 0.0),
-              str(m.get('description', ''))) for m in contexte.medias])
+              str(m.get('description', ''))) for m in context.media])
 
     @staticmethod
-    def _manifestes(con, contexte: Context) -> None:
+    def _manifestes(con, context: Context) -> None:
         """Les COPIES PROJETÉES — estampillées, et destinées à être relues en lecture seule.
 
         ⚠ Le refus d'une copie anonyme est délibéré : voir l'en-tête du module. `read_only` est
@@ -159,7 +159,7 @@ class WdatSchema(ContainerSchema):
             'manifest_kind TEXT, key TEXT, version TEXT, read_only INTEGER, body TEXT, '
             'PRIMARY KEY (manifest_kind, key))')
         rows = []
-        for m in contexte.manifestes:
+        for m in context.manifests:
             kind, key = str(m.get('manifest_kind') or m.get('kind') or ''), str(m.get('key') or '')
             if not kind or not key:
                 raise ValueError(
@@ -170,7 +170,7 @@ class WdatSchema(ContainerSchema):
                            1, json.dumps(m, ensure_ascii=False, default=str)))
         con.executemany('INSERT OR REPLACE INTO "WamaManifests" VALUES (?, ?, ?, ?, ?)', rows)
 
-    def losses(self, entrees: Sequence[Entry], contexte: Context) -> List[str]:
+    def losses(self, entries: Sequence[Entry], context: Context) -> List[str]:
         """Le format natif porte tout ce que le référentiel sait dire — par construction."""
         return []
 

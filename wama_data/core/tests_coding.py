@@ -7,7 +7,7 @@ automatique suit exactement le même chemin qu'un codage humain**.
 """
 import unittest
 
-from .coding import (ETAT, MOD_NOMBRE, MOD_PLUSIEURS_PARMI, MOD_UN_PARMI, PONCTUEL, CodingRefused,
+from .coding import (STATE, MOD_NUMBER, MOD_MANY_OF, MOD_ONE_OF, POINT, CodingRefused,
                      Behavior, Modifier, Protocol, InvalidProtocol, CodingSession,
                      agreement, replay)
 
@@ -16,12 +16,12 @@ def _protocole() -> Protocol:
     return Protocol(
         name='conduite',
         behaviors=(
-            Behavior('AUTO', 'Conduite automatisée', ETAT, exclusive='mode', hotkey='a'),
-            Behavior('MANUEL', 'Conduite manuelle', ETAT, exclusive='mode', hotkey='m'),
-            Behavior('REGARD_ROUTE', 'Regard route', ETAT, hotkey='r'),
-            Behavior('FREINAGE', 'Freinage', PONCTUEL, hotkey='f', modificateurs=(
-                Modifier('gravite', type=MOD_UN_PARMI, values=('faible', 'fort'), required=True),
-                Modifier('vitesse', type=MOD_NOMBRE),
+            Behavior('AUTO', 'Conduite automatisée', STATE, exclusive='mode', hotkey='a'),
+            Behavior('MANUEL', 'Conduite manuelle', STATE, exclusive='mode', hotkey='m'),
+            Behavior('REGARD_ROUTE', 'Regard route', STATE, hotkey='r'),
+            Behavior('FREINAGE', 'Freinage', POINT, hotkey='f', modifiers=(
+                Modifier('gravite', type=MOD_ONE_OF, values=('faible', 'fort'), required=True),
+                Modifier('vitesse', type=MOD_NUMBER),
             )),
         ))
 
@@ -35,7 +35,7 @@ class ProtocoleTest(unittest.TestCase):
     def test_ponctuel_exclusif_refuse(self):
         # Un ponctuel n'a pas de durée : il n'y a rien à fermer, donc l'exclusion est un non-sens.
         with self.assertRaises(InvalidProtocol):
-            Protocol('p', (Behavior('X', nature=PONCTUEL, exclusive='g'),))
+            Protocol('p', (Behavior('X', nature=POINT, exclusive='g'),))
 
     def test_nature_inconnue_refusee(self):
         with self.assertRaises(InvalidProtocol):
@@ -45,7 +45,7 @@ class ProtocoleTest(unittest.TestCase):
         p = _protocole()
         r = Protocol.from_dict(p.to_dict())
         self.assertEqual(r.to_dict(), p.to_dict())
-        self.assertEqual(r.get('FREINAGE').modificateurs[0].values, ('faible', 'fort'))
+        self.assertEqual(r.get('FREINAGE').modifiers[0].values, ('faible', 'fort'))
 
     def test_comportement_inconnu_nomme_les_declares(self):
         with self.assertRaises(CodingRefused) as ctx:
@@ -63,16 +63,16 @@ class SessionTest(unittest.TestCase):
             CodingSession(_protocole(), media='')
 
     def test_bascule_ouvre_puis_ferme(self):
-        self.s.marquer(10.0, 'REGARD_ROUTE')
+        self.s.mark(10.0, 'REGARD_ROUTE')
         self.assertEqual(len(self.s.open_ones()), 1)
-        self.s.marquer(25.0, 'REGARD_ROUTE')
+        self.s.mark(25.0, 'REGARD_ROUTE')
         segs = self.s.segments()
         self.assertEqual((segs[0]['start'], segs[0]['end']), (10.0, 25.0))
         self.assertEqual(self.s.open_ones(), [])
 
     def test_exclusion_mutuelle_ferme_le_concurrent(self):
-        self.s.marquer(0.0, 'MANUEL')
-        self.s.marquer(30.0, 'AUTO')          # ouvrir AUTO doit fermer MANUEL
+        self.s.mark(0.0, 'MANUEL')
+        self.s.mark(30.0, 'AUTO')          # ouvrir AUTO doit fermer MANUEL
         segs = self.s.segments()
         clos = [x for x in segs if x['end'] is not None]
         self.assertEqual((clos[0]['value'], clos[0]['end']), ('MANUEL', 30.0))
@@ -81,40 +81,40 @@ class SessionTest(unittest.TestCase):
         self.assertEqual([x['value'] for x in self.s.open_ones()], ['AUTO'])
 
     def test_etat_non_exclusif_survit_a_la_bascule_de_mode(self):
-        self.s.marquer(0.0, 'REGARD_ROUTE')
-        self.s.marquer(5.0, 'MANUEL')
-        self.s.marquer(10.0, 'AUTO')
+        self.s.mark(0.0, 'REGARD_ROUTE')
+        self.s.mark(5.0, 'MANUEL')
+        self.s.mark(10.0, 'AUTO')
         self.assertIn('REGARD_ROUTE', [x['value'] for x in self.s.open_ones()])
 
     def test_ponctuel_a_une_duree_nulle(self):
-        e = self.s.marquer(12.5, 'FREINAGE', modificateurs={'gravite': 'fort'})
+        e = self.s.mark(12.5, 'FREINAGE', modifiers={'gravite': 'fort'})
         self.assertEqual((e['start'], e['end']), (12.5, 12.5))
         self.assertEqual(self.s.segments(), [], "un ponctuel n'est pas un état")
-        self.assertEqual(len(self.s.evenements()), 1)
+        self.assertEqual(len(self.s.events()), 1)
 
     def test_modificateur_requis_manquant_refuse(self):
         with self.assertRaises(CodingRefused):
-            self.s.marquer(1.0, 'FREINAGE')
+            self.s.mark(1.0, 'FREINAGE')
 
     def test_modificateur_hors_valeurs_refuse(self):
         with self.assertRaises(CodingRefused):
-            self.s.marquer(1.0, 'FREINAGE', modificateurs={'gravite': 'moyen'})
+            self.s.mark(1.0, 'FREINAGE', modifiers={'gravite': 'moyen'})
 
     def test_modificateur_non_declare_refuse(self):
         with self.assertRaises(CodingRefused):
-            self.s.marquer(1.0, 'FREINAGE', modificateurs={'gravite': 'fort', 'meteo': 'pluie'})
+            self.s.mark(1.0, 'FREINAGE', modifiers={'gravite': 'fort', 'meteo': 'pluie'})
 
     def test_modificateur_numerique_converti(self):
-        e = self.s.marquer(1.0, 'FREINAGE', modificateurs={'gravite': 'fort', 'vitesse': '42'})
+        e = self.s.mark(1.0, 'FREINAGE', modifiers={'gravite': 'fort', 'vitesse': '42'})
         self.assertEqual(e['vitesse'], 42.0)
 
     def test_geste_en_arriere_refuse(self):
-        self.s.marquer(10.0, 'REGARD_ROUTE')
+        self.s.mark(10.0, 'REGARD_ROUTE')
         with self.assertRaises(CodingRefused):
-            self.s.marquer(5.0, 'MANUEL')
+            self.s.mark(5.0, 'MANUEL')
 
     def test_origine_et_codeur_traces(self):
-        seg = self.s.marquer(1.0, 'AUTO')
+        seg = self.s.mark(1.0, 'AUTO')
         self.assertEqual(seg['origin'], 'codage')
         self.assertEqual(seg['coder'], 'humain')
         self.assertEqual(seg['protocol'], 'conduite')
@@ -128,9 +128,9 @@ class OuvertureExpliciteTest(unittest.TestCase):
         self.s = CodingSession(_protocole(), media='m.mp4')
 
     def test_ouvrir_deux_fois_refuse(self):
-        self.s.ouvrir(0.0, 'AUTO')
+        self.s.open(0.0, 'AUTO')
         with self.assertRaises(CodingRefused):
-            self.s.ouvrir(10.0, 'AUTO')
+            self.s.open(10.0, 'AUTO')
 
     def test_fermer_ce_qui_n_est_pas_ouvert_refuse(self):
         with self.assertRaises(CodingRefused):
@@ -138,7 +138,7 @@ class OuvertureExpliciteTest(unittest.TestCase):
 
     def test_ouvrir_un_ponctuel_refuse(self):
         with self.assertRaises(CodingRefused):
-            self.s.ouvrir(1.0, 'FREINAGE')
+            self.s.open(1.0, 'FREINAGE')
 
 
 class EtatOuvertTest(unittest.TestCase):
@@ -148,13 +148,13 @@ class EtatOuvertTest(unittest.TestCase):
         self.s = CodingSession(_protocole(), media='m.mp4')
 
     def test_etat_reste_ouvert_en_fin_de_session(self):
-        self.s.marquer(100.0, 'AUTO')
+        self.s.mark(100.0, 'AUTO')
         seg = self.s.segments()[0]
         self.assertIsNone(seg['end'])
         self.assertTrue(seg['open'])
 
     def test_fermeture_de_fin_de_session_est_TRACEE(self):
-        self.s.marquer(100.0, 'AUTO')
+        self.s.mark(100.0, 'AUTO')
         seg = self.s.segments(session_end=180.0)[0]
         self.assertEqual(seg['end'], 180.0)
         self.assertEqual(seg['closed_at'], 180.0,
@@ -164,32 +164,32 @@ class EtatOuvertTest(unittest.TestCase):
 class SujetsTest(unittest.TestCase):
 
     def setUp(self):
-        self.p = Protocol('obs', (Behavior('TRAVERSE', nature=ETAT),),
+        self.p = Protocol('obs', (Behavior('TRAVERSE', nature=STATE),),
                            subjects=('pieton', 'cycliste'))
         self.s = CodingSession(self.p, media='m.mp4')
 
     def test_deux_sujets_tiennent_le_meme_etat(self):
-        self.s.marquer(0.0, 'TRAVERSE', sujet='pieton')
-        self.s.marquer(1.0, 'TRAVERSE', sujet='cycliste')
+        self.s.mark(0.0, 'TRAVERSE', subject='pieton')
+        self.s.mark(1.0, 'TRAVERSE', subject='cycliste')
         self.assertEqual(len(self.s.open_ones()), 2)
 
     def test_fermer_un_sujet_ne_ferme_pas_l_autre(self):
-        self.s.marquer(0.0, 'TRAVERSE', sujet='pieton')
-        self.s.marquer(1.0, 'TRAVERSE', sujet='cycliste')
-        self.s.marquer(5.0, 'TRAVERSE', sujet='pieton')
+        self.s.mark(0.0, 'TRAVERSE', subject='pieton')
+        self.s.mark(1.0, 'TRAVERSE', subject='cycliste')
+        self.s.mark(5.0, 'TRAVERSE', subject='pieton')
         self.assertEqual([x['subject'] for x in self.s.open_ones()], ['cycliste'])
 
     def test_sujet_requis_quand_plusieurs_declares(self):
         with self.assertRaises(CodingRefused):
-            self.s.marquer(0.0, 'TRAVERSE')
+            self.s.mark(0.0, 'TRAVERSE')
 
     def test_sujet_unique_implicite(self):
         s = CodingSession(Protocol('o', (Behavior('X'),), subjects=('seul',)), media='m.mp4')
-        self.assertEqual(s.marquer(0.0, 'X')['subject'], 'seul')
+        self.assertEqual(s.mark(0.0, 'X')['subject'], 'seul')
 
     def test_sujet_inconnu_refuse(self):
         with self.assertRaises(CodingRefused):
-            self.s.marquer(0.0, 'TRAVERSE', sujet='voiture')
+            self.s.mark(0.0, 'TRAVERSE', subject='voiture')
 
 
 class RetourArriereTest(unittest.TestCase):
@@ -199,29 +199,29 @@ class RetourArriereTest(unittest.TestCase):
         self.s = CodingSession(_protocole(), media='m.mp4')
 
     def test_annuler_une_ouverture(self):
-        self.s.marquer(10.0, 'AUTO')
-        self.s.annuler_dernier()
+        self.s.mark(10.0, 'AUTO')
+        self.s.undo_last()
         self.assertEqual(self.s.open_ones(), [])
 
     def test_annuler_une_fermeture_ROUVRE(self):
-        self.s.marquer(10.0, 'AUTO')
-        self.s.marquer(20.0, 'AUTO')
+        self.s.mark(10.0, 'AUTO')
+        self.s.mark(20.0, 'AUTO')
         self.assertEqual(self.s.open_ones(), [])
-        self.s.annuler_dernier()
+        self.s.undo_last()
         self.assertEqual([x['value'] for x in self.s.open_ones()], ['AUTO'])
 
     def test_annuler_un_ponctuel(self):
-        self.s.marquer(1.0, 'FREINAGE', modificateurs={'gravite': 'faible'})
-        self.s.annuler_dernier()
-        self.assertEqual(self.s.evenements(), [])
+        self.s.mark(1.0, 'FREINAGE', modifiers={'gravite': 'faible'})
+        self.s.undo_last()
+        self.assertEqual(self.s.events(), [])
 
     def test_annuler_a_vide(self):
-        self.assertIsNone(self.s.annuler_dernier())
+        self.assertIsNone(self.s.undo_last())
 
     def test_annuler_puis_recoder_au_meme_instant(self):
-        self.s.marquer(10.0, 'AUTO')
-        self.s.annuler_dernier()
-        self.s.marquer(10.0, 'MANUEL')          # le garde-fou de monotonie ne doit pas bloquer
+        self.s.mark(10.0, 'AUTO')
+        self.s.undo_last()
+        self.s.mark(10.0, 'MANUEL')          # le garde-fou de monotonie ne doit pas bloquer
         self.assertEqual([x['value'] for x in self.s.open_ones()], ['MANUEL'])
 
 
@@ -321,13 +321,13 @@ class AdaptateurDePortsTest(unittest.TestCase):
 class ModificateurMultipleTest(unittest.TestCase):
 
     def test_plusieurs_parmi(self):
-        p = Protocol('p', (Behavior('X', nature=PONCTUEL, modificateurs=(
-            Modifier('causes', type=MOD_PLUSIEURS_PARMI, values=('a', 'b', 'c')),)),))
+        p = Protocol('p', (Behavior('X', nature=POINT, modifiers=(
+            Modifier('causes', type=MOD_MANY_OF, values=('a', 'b', 'c')),)),))
         s = CodingSession(p, media='m.mp4')
-        self.assertEqual(s.marquer(0.0, 'X', modificateurs={'causes': ['a', 'c']})['causes'],
+        self.assertEqual(s.mark(0.0, 'X', modifiers={'causes': ['a', 'c']})['causes'],
                          ['a', 'c'])
         with self.assertRaises(CodingRefused):
-            s.marquer(1.0, 'X', modificateurs={'causes': ['a', 'z']})
+            s.mark(1.0, 'X', modifiers={'causes': ['a', 'z']})
 
 
 if __name__ == "__main__":

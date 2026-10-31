@@ -71,8 +71,13 @@ Lot = Mapping[str, Table]
 class Column:
     """Une colonne exportée : de quel FLUX elle vient, quel CHAMP, et sous quel en-tête elle sort.
 
-    `entete` est un CHAMP, pas une reconstruction : c'est ce qui règle ③ ci-dessus. Laissé vide,
+    `header` est un CHAMP, pas une reconstruction : c'est ce qui règle ③ ci-dessus. Laissé vide,
     il vaut `flux.champ` — la convention du livrable chercheur (`0_15.startTimecode`).
+
+    ⚠ Frontière des DONNÉES (renommage du 2026-10-31) : l'attribut Python est `header`, la clé
+    SÉRIALISÉE reste `entete` — comme `colonnes` et `identite` dans `Declaration.to_dict`. Ces clés
+    sont saisies et STOCKÉES dans les réglages du nœud « Export de données » (`io/nodes.py`) ;
+    les renommer rendrait illisibles les déclarations déjà enregistrées.
 
     ⚠ `stream` et non `source` (renommé le 2026-08-23, §9sexies) : dans ce monde, **`source`
     désigne déjà un fichier/format à lire** (`SourceReader`, `SourceInfo`, `sources/`). L'employer
@@ -80,18 +85,18 @@ class Column:
     """
     stream: str
     field: str
-    entete: str = ''
+    header: str = ''
 
     def __post_init__(self) -> None:
         if not self.stream or not self.field:
             raise ValueError("une colonne exportée doit nommer son flux ET son champ")
 
     @property
-    def titre(self) -> str:
-        return self.entete or f"{self.stream}.{self.field}"
+    def title(self) -> str:
+        return self.header or f"{self.stream}.{self.field}"
 
     def to_dict(self) -> Dict[str, Any]:
-        return {'stream': self.stream, 'field': self.field, 'entete': self.entete}
+        return {'stream': self.stream, 'field': self.field, 'entete': self.header}
 
 
 @dataclass(frozen=True)
@@ -105,16 +110,16 @@ class Identity:
     ⚠ Sans identité, une concaténation entre lots produit un fichier où l'on ne peut plus dire de
     quel enregistrement vient une ligne. C'est pour cela que le défaut n'est pas « aucune ».
     """
-    champs: Tuple[str, ...] = ('trip_id',)
+    fields: Tuple[str, ...] = ('trip_id',)
 
-    def entetes(self) -> List[str]:
-        return list(self.champs)
+    def headers(self) -> List[str]:
+        return list(self.fields)
 
     def values(self, meta: Mapping[str, Any]) -> List[Any]:
         """Valeurs d'identité d'un lot. Un champ absent des méta rend `None`, jamais une erreur :
         un corpus hétérogène (un lot sans participant déclaré) doit s'exporter quand même, avec un
         trou visible plutôt qu'un export refusé."""
-        return [meta.get(c) for c in self.champs]
+        return [meta.get(c) for c in self.fields]
 
 
 @dataclass(frozen=True)
@@ -131,7 +136,7 @@ class Grouping:
     declarations: bool = False
 
     @property
-    def mode_origine(self) -> str:
+    def legacy_mode(self) -> str:
         """Le nom qu'aurait ce groupement dans l'outil d'origine. Sert à la relecture par ceux
         qui connaissent l'ancien vocabulaire — jamais à choisir un chemin d'exécution."""
         return {(False, False): 'normal',
@@ -144,15 +149,15 @@ class Grouping:
 class Format:
     """Une CAPACITÉ de sortie déclarée.
 
-    ⚠ `ecrivain=None` signifie « format DÉCLARÉ, écrivain PAS ENCORE ÉCRIT » — et cette distinction
+    ⚠ `writer=None` signifie « format DÉCLARÉ, écrivain PAS ENCORE ÉCRIT » — et cette distinction
     est le cœur du modèle. §9ter.5 recense `.csv`, `.txt`, `.xlsx`, `.mat` comme formats du livrable
     chercheur : les quatre sont donc des cibles légitimes qu'une déclaration d'export a le droit de
     nommer. Mais deux d'entre eux demandent une bibliothèque, donc un écrivain vivant dans
     l'adaptateur. Les taire ferait croire qu'ils n'existent pas ; les accepter en silence ferait
     écrire un CSV sous une extension `.xlsx`. On les déclare, et l'écriture échoue en le disant.
     """
-    separateur: Optional[str] = None
-    ecrivain: Optional[Any] = None
+    separator: Optional[str] = None
+    writer: Optional[Any] = None
     description: str = ''
 
 
@@ -163,11 +168,11 @@ class Format:
 FORMATS: Dict[str, Format] = {}
 
 
-def register_format(extension: str, *, separateur: Optional[str] = None,
-                       ecrivain: Optional[Any] = None, description: str = '') -> None:
+def register_format(extension: str, *, separator: Optional[str] = None,
+                    writer: Optional[Any] = None, description: str = '') -> None:
     """Déclare une capacité de sortie. Idempotent par extension — le dernier inscrit gagne,
     ce qui permet à un adaptateur de FOURNIR l'écrivain d'un format déclaré sans lui."""
-    FORMATS[extension] = Format(separateur=separateur, ecrivain=ecrivain,
+    FORMATS[extension] = Format(separator=separator, writer=writer,
                                 description=description)
 
 
@@ -181,15 +186,15 @@ def writable_formats() -> List[str]:
     """Extensions qui ont RÉELLEMENT un écrivain. Toujours un sous-ensemble de `available_formats`
     — l'écart est la dette, et elle est ainsi mesurable au lieu d'être supposée."""
     return [e for e, f in FORMATS.items()
-            if f.ecrivain is not None or f.separateur is not None]
+            if f.writer is not None or f.separator is not None]
 
 
 # ── Formats natifs du cœur : ceux qui ne demandent aucune bibliothèque ────────────────────────
 # `;` et non `,` pour le CSV — c'est la convention de l'outil d'origine (`writecell`
 # `'Delimiter', ';'`) et celle qu'attend un tableur en locale française.
-register_format('csv', separateur=';', description='Tableur, séparateur point-virgule')
-register_format('tsv', separateur='\t', description='Tabulations')
-register_format('txt', separateur='\t', description='Texte, tabulations')
+register_format('csv', separator=';', description='Tableur, séparateur point-virgule')
+register_format('tsv', separator='\t', description='Tabulations')
+register_format('txt', separator='\t', description='Texte, tabulations')
 # Déclarés SANS écrivain : ils appartiennent au livrable (§9ter.5) mais demandent une bibliothèque.
 register_format('xlsx', description='Classeur — écrivain à fournir par un adaptateur')
 register_format('mat', description='MATLAB — écrivain à fournir par un adaptateur')
@@ -206,7 +211,7 @@ class Declaration:
     """
     name: str
     columns: Tuple[Column, ...]
-    identite: Identity = field(default_factory=Identity)
+    identity: Identity = field(default_factory=Identity)
     decimation: int = 1
     format: str = 'csv'
 
@@ -222,56 +227,58 @@ class Declaration:
         if self.format not in FORMATS:
             raise ValueError(f"« {self.name} » : format '{self.format}' inconnu "
                              f"(disponibles : {', '.join(FORMATS)})")
-        titres = [c.titre for c in self.columns]
-        doublons = sorted({t for t in titres if titres.count(t) > 1})
+        titles = [c.title for c in self.columns]
+        duplicates = sorted({t for t in titles if titles.count(t) > 1})
         # Deux colonnes de même en-tête produiraient un fichier que rien ne permet de relire :
         # l'outil d'origine ne le voit pas, parce que ses en-têtes sont reconstruits par chemin.
-        if doublons:
-            raise ValueError(f"« {self.name} » : en-têtes en double ({', '.join(doublons)}) — "
+        if duplicates:
+            raise ValueError(f"« {self.name} » : en-têtes en double ({', '.join(duplicates)}) — "
                              "préciser `entete` sur l'une des colonnes")
 
     @property
     def stream(self) -> List[str]:
         """Tables citées par la déclaration, dans l'ordre de première apparition."""
-        vues: List[str] = []
+        seen: List[str] = []
         for c in self.columns:
-            if c.stream not in vues:
-                vues.append(c.stream)
-        return vues
+            if c.stream not in seen:
+                seen.append(c.stream)
+        return seen
 
-    def entetes(self) -> List[str]:
+    def headers(self) -> List[str]:
         """Ligne d'en-tête : identité d'abord, puis les colonnes DANS L'ORDRE DÉCLARÉ.
 
         L'ordre est celui de la déclaration (`▲▼✕` de l'interface d'origine) : c'est une donnée,
         pas un tri. Un export dont les colonnes se réordonnent tout seules cesse d'être comparable
         à celui de la semaine précédente.
         """
-        return self.identite.entetes() + [c.titre for c in self.columns]
+        return self.identity.headers() + [c.title for c in self.columns]
 
     # ── Sérialisation — §9quater C1 l'affirmait (« c'est un manifeste ») sans l'écrire (§9sexies)
+    #    ⚠ Les clés `colonnes` / `identite` / `entete` sont des DONNÉES stockées (cf. `Column`) :
+    #    elles ne suivent pas les noms Python `columns` / `identity` / `header`.
     def to_dict(self) -> Dict[str, Any]:
         return {
             'name': self.name,
             'colonnes': [c.to_dict() for c in self.columns],
-            'identite': list(self.identite.champs),
+            'identite': list(self.identity.fields),
             'decimation': self.decimation,
             'format': self.format,
         }
 
 
-def declaration_from_dict(brut: Mapping[str, Any]) -> Declaration:
+def declaration_from_dict(raw: Mapping[str, Any]) -> Declaration:
     """Reconstruit une déclaration d'export. Valide comme à la construction — une déclaration
     relue d'un manifeste ne mérite pas moins de contrôles qu'une déclaration écrite en code."""
-    if not isinstance(brut, Mapping):
-        raise ValueError(f"déclaration attendue sous forme d'objet, reçu {type(brut).__name__}")
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"déclaration attendue sous forme d'objet, reçu {type(raw).__name__}")
     return Declaration(
-        name=brut.get('name', ''),
+        name=raw.get('name', ''),
         columns=tuple(Column(stream=c.get('stream', ''), field=c.get('field', ''),
-                               entete=c.get('entete', ''))
-                       for c in (brut.get('colonnes') or ())),
-        identite=Identity(tuple(brut.get('identite') or ())),
-        decimation=int(brut.get('decimation') or 1),
-        format=brut.get('format') or 'csv',
+                             header=c.get('entete', ''))
+                      for c in (raw.get('colonnes') or ())),
+        identity=Identity(tuple(raw.get('identite') or ())),
+        decimation=int(raw.get('decimation') or 1),
+        format=raw.get('format') or 'csv',
     )
 
 
@@ -289,7 +296,7 @@ def _table(lot: Lot, name: str, declaration: str) -> Table:
 
 
 def rows(declaration: Declaration, lot: Lot, meta: Optional[Mapping[str, Any]] = None,
-           *, limite: Optional[int] = None) -> List[List[Any]]:
+           *, limit: Optional[int] = None) -> List[List[Any]]:
     """Lignes produites par une déclaration sur un lot — identité en tête, ordre déclaré.
 
     ⚠ TOUTES LES COLONNES DOIVENT VENIR DE TABLES DE MÊME HAUTEUR. Une déclaration mêlant une
@@ -298,28 +305,28 @@ def rows(declaration: Declaration, lot: Lot, meta: Optional[Mapping[str, Any]] =
     et l'avale dans un `try … catch` à corps vide (②) — l'export sort alors tronqué, sans un mot.
     Ici c'est une erreur nommée, à l'endroit où on peut encore la corriger.
 
-    `limite` borne le nombre de lignes rendues. C'est l'APERÇU : le même chemin, pas un second
+    `limit` borne le nombre de lignes rendues. C'est l'APERÇU : le même chemin, pas un second
     (§9ter.6 C4). Chez l'outil d'origine l'aperçu est une fonction distincte — deux chemins qui
     peuvent diverger, donc un aperçu qui finit par mentir.
     """
     meta = meta or {}
-    hauteurs = {name: len(_table(lot, name, declaration.name)) for name in declaration.stream}
-    if len(set(hauteurs.values())) > 1:
-        detail = ', '.join(f"{n}={h}" for n, h in hauteurs.items())
+    heights = {name: len(_table(lot, name, declaration.name)) for name in declaration.stream}
+    if len(set(heights.values())) > 1:
+        detail = ', '.join(f"{n}={h}" for n, h in heights.items())
         raise ValueError(
             f"« {declaration.name} » : tables de hauteurs différentes ({detail}) — une ligne "
             "d'export ne peut pas mêler des tables sans correspondance ligne à ligne ; "
             "exporter séparément, ou restreindre à un contexte commun")
 
-    hauteur = next(iter(hauteurs.values()), 0)
-    identite = declaration.identite.values(meta)
+    height = next(iter(heights.values()), 0)
+    identity = declaration.identity.values(meta)
     out: List[List[Any]] = []
     # Décimation = un PAS, pas une troncature (④). L'aperçu s'applique APRÈS elle : montrer les
     # N premières lignes brutes d'un export décimé au 1000ᵉ ne montrerait pas l'export.
-    for i in range(0, hauteur, declaration.decimation):
-        out.append(list(identite) + [_table(lot, c.stream, declaration.name)[i].get(c.field)
+    for i in range(0, height, declaration.decimation):
+        out.append(list(identity) + [_table(lot, c.stream, declaration.name)[i].get(c.field)
                                      for c in declaration.columns])
-        if limite is not None and len(out) >= limite:
+        if limit is not None and len(out) >= limit:
             break
     return out
 
@@ -332,89 +339,89 @@ def rows(declaration: Declaration, lot: Lot, meta: Optional[Mapping[str, Any]] =
 class ExportFile:
     """Un fichier d'export produit : son nom, ses en-têtes, ses lignes."""
     name: str
-    entetes: List[str]
+    headers: List[str]
     rows: List[List[Any]]
     format: str = 'csv'
 
     @property
-    def nb_lignes(self) -> int:
+    def row_count(self) -> int:
         return len(self.rows)
 
 
 def export(declarations: Sequence[Declaration], lots: Mapping[str, Lot],
              metas: Optional[Mapping[str, Mapping[str, Any]]] = None,
-             regroupement: Optional[Grouping] = None,
-             *, limite: Optional[int] = None) -> List[ExportFile]:
+             grouping: Optional[Grouping] = None,
+             *, limit: Optional[int] = None) -> List[ExportFile]:
     """LE point de passage unique de l'export. Les quatre modes d'origine en sont des paramètres.
 
     `lots` : nom du lot → son contenu. L'ordre d'itération est celui du mapping — donc stable, donc
     reproductible : deux exécutions de la même déclaration sur le même corpus rendent le même
     fichier, ligne pour ligne.
 
-    `limite` borne CHAQUE fichier produit : c'est l'aperçu, le même chemin que l'export réel.
+    `limit` borne CHAQUE fichier produit : c'est l'aperçu, le même chemin que l'export réel.
 
     ⚠ Concaténer des déclarations aux colonnes différentes est REFUSÉ. C'est le cas que l'outil
     d'origine traite en gardant l'en-tête de la dernière déclaration et en empilant les données de
     toutes (②) : le fichier obtenu a des colonnes qui ne décrivent pas son contenu.
     """
     metas = metas or {}
-    regroupement = regroupement or Grouping()
+    grouping = grouping or Grouping()
 
     # Étape 1 — la matrice (déclaration × lot), exactement celle de l'outil d'origine, mais
     # calculée UNE fois et lue par un seul groupement au lieu de quatre.
-    matrice: Dict[Tuple[str, str], List[List[Any]]] = {}
+    matrix: Dict[Tuple[str, str], List[List[Any]]] = {}
     for d in declarations:
-        for nom_lot, lot in lots.items():
-            matrice[(d.name, nom_lot)] = rows(d, lot, metas.get(nom_lot), limite=limite)
+        for lot_name, lot in lots.items():
+            matrix[(d.name, lot_name)] = rows(d, lot, metas.get(lot_name), limit=limit)
 
-    par_nom = {d.name: d for d in declarations}
+    by_name = {d.name: d for d in declarations}
 
-    def _entetes(naming: Sequence[str]) -> List[str]:
+    def _headers(naming: Sequence[str]) -> List[str]:
         """En-têtes d'un groupe de déclarations — identiques ou refus."""
-        formes = {tuple(par_nom[n].entetes()) for n in naming}
-        if len(formes) > 1:
+        shapes = {tuple(by_name[n].headers()) for n in naming}
+        if len(shapes) > 1:
             raise ValueError(
                 f"regroupement impossible : les déclarations {', '.join(naming)} n'ont pas les "
                 "mêmes colonnes — les concaténer produirait un fichier dont l'en-tête ne décrit "
                 "pas les lignes")
-        return list(next(iter(formes)))
+        return list(next(iter(shapes)))
 
-    noms_decl = [d.name for d in declarations]
-    noms_lots = list(lots)
+    decl_names = [d.name for d in declarations]
+    lot_names = list(lots)
 
     # Étape 2 — LE groupement. Les deux axes décident seulement ce qu'on met dans une même clé.
-    groupes: Dict[str, Tuple[List[str], List[List[Any]]]] = {}
-    for nom_d in noms_decl:
-        for nom_l in noms_lots:
-            cle_d = '' if regroupement.declarations else nom_d
-            cle_l = '' if regroupement.lots else nom_l
-            nom_fichier = '_'.join(p for p in (cle_d, cle_l) if p) or 'export'
-            if nom_fichier not in groupes:
-                membres = noms_decl if regroupement.declarations else [nom_d]
-                groupes[nom_fichier] = (_entetes(membres), [])
-            groupes[nom_fichier][1].extend(matrice[(nom_d, nom_l)])
+    groups: Dict[str, Tuple[List[str], List[List[Any]]]] = {}
+    for decl_name in decl_names:
+        for lot_name in lot_names:
+            decl_key = '' if grouping.declarations else decl_name
+            lot_key = '' if grouping.lots else lot_name
+            file_name = '_'.join(p for p in (decl_key, lot_key) if p) or 'export'
+            if file_name not in groups:
+                members = decl_names if grouping.declarations else [decl_name]
+                groups[file_name] = (_headers(members), [])
+            groups[file_name][1].extend(matrix[(decl_name, lot_name)])
 
     fmt = declarations[0].format if declarations else 'csv'
-    return [ExportFile(name=n, entetes=e, rows=l, format=fmt) for n, (e, l) in groupes.items()]
+    return [ExportFile(name=n, headers=e, rows=l, format=fmt) for n, (e, l) in groups.items()]
 
 
 def preview(declarations: Sequence[Declaration], lots: Mapping[str, Lot],
            metas: Optional[Mapping[str, Mapping[str, Any]]] = None,
-           regroupement: Optional[Grouping] = None, *, lignes_max: int = 20) -> List[ExportFile]:
+           grouping: Optional[Grouping] = None, *, max_rows: int = 20) -> List[ExportFile]:
     """L'aperçu EST l'export borné (§9ter.6 C4) — pas un second chemin, par construction.
 
     Cette fonction n'a aucune logique propre : elle appelle `export` avec une limite. C'est
     voulu. Un aperçu qui recalcule autrement finit par montrer autre chose que ce qui sera écrit,
     et c'est précisément l'erreur qu'on ne peut pas détecter en relisant le fichier produit.
     """
-    return export(declarations, lots, metas, regroupement, limite=lignes_max)
+    return export(declarations, lots, metas, grouping, limit=max_rows)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # 4. Rendu texte — pour les formats séparés par un caractère
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-def _cellule(v: Any, separateur: str) -> str:
+def _cell(v: Any, separator: str) -> str:
     """Une valeur en texte. Une absence rend une cellule VIDE, jamais « None » ni « nan ».
 
     Écrire `None` dans un CSV crée une valeur textuelle que le tableur relira comme une chaîne :
@@ -425,30 +432,30 @@ def _cellule(v: Any, separateur: str) -> str:
         return ''
     text = str(v)
     # Un séparateur présent dans une valeur casserait l'alignement des colonnes en aval.
-    if separateur in text or '"' in text or '\n' in text:
+    if separator in text or '"' in text or '\n' in text:
         return '"' + text.replace('"', '""') + '"'
     return text
 
 
-def render(fichier: ExportFile) -> str:
+def render(export_file: ExportFile) -> str:
     """Contenu texte d'un fichier d'export (formats `csv` / `tsv` / `txt`).
 
     Les formats `xlsx` et `mat` ne passent pas par ici : ils ne sont pas séparés par un caractère
     et relèvent de l'adaptateur, qui a les bibliothèques. Le refuser explicitement vaut mieux que
     rendre un CSV sous une extension `.xlsx`.
     """
-    fmt = FORMATS.get(fichier.format)
+    fmt = FORMATS.get(export_file.format)
     if fmt is None:
-        raise ValueError(f"format '{fichier.format}' non enregistré "
+        raise ValueError(f"format '{export_file.format}' non enregistré "
                          f"(déclarés : {', '.join(available_formats())})")
-    if fmt.ecrivain is not None:
-        return fmt.ecrivain(fichier)
-    if fmt.separateur is None:
+    if fmt.writer is not None:
+        return fmt.writer(export_file)
+    if fmt.separator is None:
         raise ValueError(
-            f"le format '{fichier.format}' est DÉCLARÉ mais aucun écrivain n'est enregistré — "
+            f"le format '{export_file.format}' est DÉCLARÉ mais aucun écrivain n'est enregistré — "
             "il demande une bibliothèque, donc un adaptateur "
-            "(`register_format('{0}', ecrivain=…)`)".format(fichier.format))
-    sep = fmt.separateur
-    out = [sep.join(_cellule(e, sep) for e in fichier.entetes)]
-    out += [sep.join(_cellule(v, sep) for v in ligne) for ligne in fichier.rows]
+            "(`register_format('{0}', writer=…)`)".format(export_file.format))
+    sep = fmt.separator
+    out = [sep.join(_cell(e, sep) for e in export_file.headers)]
+    out += [sep.join(_cell(v, sep) for v in row) for row in export_file.rows]
     return '\n'.join(out) + '\n'

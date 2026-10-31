@@ -15,7 +15,7 @@ from pathlib import Path
 
 from wama.common.manifests.builtin.dataset import validate_dataset_body
 
-from .dataset import (Discrepancy, _indice_de_prefixe, coordinate_attributes, declared_axes,
+from .dataset import (Discrepancy, _prefix_hint, coordinate_attributes, declared_axes,
                       load, path, declared_signals, locate, verify)
 
 
@@ -42,7 +42,7 @@ class LectureDuManifesteTest(unittest.TestCase):
     def test_chemin_relatif_resolu_sous_la_RACINE_jamais_le_cwd(self):
         # Un manifeste doit être rejouable ailleurs : dépendre du cwd le rendrait valide sur une
         # machine et faux sur une autre, sans que rien ne le dise.
-        p = path({'source': {'ref': 'sous/x.csv'}}, racine='/base')
+        p = path({'source': {'ref': 'sous/x.csv'}}, root='/base')
         self.assertEqual(p, Path('/base') / 'sous' / 'x.csv')
 
     def test_source_sans_ref_refusee(self):
@@ -66,25 +66,25 @@ class EcartTest(unittest.TestCase):
 
     def test_conforme_quand_tout_est_la(self):
         e = verify(_manifeste('capteur.csv', ['capteur']), self.dossier)
-        self.assertTrue(e.conforme, e.render())
-        self.assertEqual(e.manquants, ())
+        self.assertTrue(e.compliant, e.render())
+        self.assertEqual(e.missing, ())
 
     def test_un_signal_DECLARE_et_absent_est_un_MANQUANT(self):
         e = verify(_manifeste('capteur.csv', ['capteur', 'gps']), self.dossier)
-        self.assertFalse(e.conforme)
-        self.assertEqual(e.manquants, ('gps',))
+        self.assertFalse(e.compliant)
+        self.assertEqual(e.missing, ('gps',))
         self.assertIn('gps', e.render())
 
     def test_un_flux_present_NON_declare_ne_rend_PAS_non_conforme(self):
         # Asymétrie voulue : une source peut contenir plus qu'on n'en décrit. Seule la promesse
         # non tenue compte.
         e = verify(_manifeste('capteur.csv', []), self.dossier)
-        self.assertTrue(e.conforme)
-        self.assertEqual(e.non_declares, ('capteur',))
+        self.assertTrue(e.compliant)
+        self.assertEqual(e.undeclared, ('capteur',))
 
     def test_source_introuvable_le_DIT(self):
         e = verify(_manifeste('absent.csv', ['x']), self.dossier)
-        self.assertFalse(e.conforme)
+        self.assertFalse(e.compliant)
         self.assertTrue(any('introuvable' in n for n in e.notes), e.notes)
 
     def test_aucun_lecteur_pour_le_format_le_DIT(self):
@@ -105,8 +105,8 @@ class EcartTest(unittest.TestCase):
         apprend à ignorer le compte-rendu.**
         """
         e = verify(_manifeste('capteur.csv', ['capteur'], type_source='rtmaps'), self.dossier)
-        self.assertTrue(e.conforme)
-        self.assertEqual(e.lecteur, 'tabular')      # informatif : qui a lu
+        self.assertTrue(e.compliant)
+        self.assertEqual(e.reader, 'tabular')      # informatif : qui a lu
         self.assertIn('conforme', e.render())       # et surtout : PAS un écart
 
     def test_le_rendu_dit_QUI_a_lu(self):
@@ -137,7 +137,7 @@ class ChargementTest(unittest.TestCase):
         # inutilisable. On charge ce qui est là, on RAPPORTE le reste.
         ref, ecart = load(_manifeste('capteur.csv', ['capteur', 'gps']), self.dossier)
         self.assertEqual(ref.names, ['capteur'])
-        self.assertEqual(ecart.manquants, ('gps',))
+        self.assertEqual(ecart.missing, ('gps',))
 
     def test_strict_refuse_une_promesse_non_tenue(self):
         with self.assertRaises(ValueError) as ctx:
@@ -184,7 +184,7 @@ class ChaineDeclarativeTest(unittest.TestCase):
 
         # ① le jeu — une déclaration
         ref, ecart = load(_manifeste('vitesse.csv', ['vitesse']), self.dossier)
-        self.assertTrue(ecart.conforme, ecart.render())
+        self.assertTrue(ecart.compliant, ecart.render())
 
         # ② ce qu'on regarde — une déclaration
         view = View(name='exploration', pistes=(Track('vitesse'),),
@@ -198,7 +198,7 @@ class ChaineDeclarativeTest(unittest.TestCase):
             name='livrable',
             columns=(Column('vitesse', 'time'), Column('vitesse', 'value'),
                       Column('vitesse', 'value_mean')),
-            identite=Identity(('trip_id',)))
+            identity=Identity(('trip_id',)))
         fichiers = exporter_frames([decl], {'A': resultat.tables}, {'A': {'trip_id': 'ESSAI'}})
 
         text = render(fichiers[0])
@@ -217,7 +217,7 @@ class ChaineDeclarativeTest(unittest.TestCase):
         manifeste = _manifeste('vitesse.csv', ['vitesse'])
         view = View(name='v', pistes=(Track('vitesse'),))
         decl = Declaration(name='d', columns=(Column('vitesse', 'time'),),
-                           identite=Identity(()))
+                           identity=Identity(()))
 
         self.assertEqual(json.loads(json.dumps(manifeste)), manifeste)
         self.assertEqual(from_dict(json.loads(json.dumps(view.to_dict()))), view)
@@ -272,7 +272,7 @@ class AllerRetourDesCoordonneesTest(unittest.TestCase):
     `locate()`. Sans lui, « le `.wdat` porte son rangement » resterait une affirmation.
 
     C'est le quick win ④ (`WAMA_DATA_WORLD §13.12`), et il ne demandait **aucun changement de
-    schéma** : `Contexte.attributs` alimente déjà `WamaMeta`, et les quatre lecteurs exposent déjà
+    schéma** : `Context.attributes` alimente déjà `WamaMeta`, et les quatre lecteurs exposent déjà
     `SourceInfo.attributes`.
     """
 
@@ -299,8 +299,8 @@ class AllerRetourDesCoordonneesTest(unittest.TestCase):
         coords = {'passation': 'Passation_01', 'scenario': 'nuit'}
         with tempfile.TemporaryDirectory() as d:
             cible = Path(d) / 'essai.wdat'
-            write(ref, cible, contexte=Context(
-                auteur='test', attributs=coordinate_attributes(coords)))
+            write(ref, cible, context=Context(
+                author='test', attributes=coordinate_attributes(coords)))
 
             trouvees, absents = locate(self.AXES, sources.probe(cible).attributes)
 
@@ -322,15 +322,15 @@ class EcartDesAxesTest(unittest.TestCase):
     def test_un_axe_sans_coordonnee_ne_rend_PAS_l_ecart_non_conforme(self):
         # Tous les axes ne sont pas des coordonnées de conteneur : une fenêtre d'analyse indexe
         # des LIGNES. Sonner dessus ferait sonner le contrôle sur tout manifeste correct.
-        e = Discrepancy(axes_sans_coordonnee=('fenetre',))
-        self.assertTrue(e.conforme)
+        e = Discrepancy(axes_without_coordinate=('fenetre',))
+        self.assertTrue(e.compliant)
 
     def test_le_rendu_montre_les_coordonnees_situees(self):
-        e = Discrepancy(coordonnees=(('scenario', 'Test'),))
+        e = Discrepancy(coordinates=(('scenario', 'Test'),))
         self.assertIn('scenario=Test', e.render())
 
     def test_le_rendu_nomme_les_axes_sans_coordonnee(self):
-        e = Discrepancy(axes_sans_coordonnee=('groupe',))
+        e = Discrepancy(axes_without_coordinate=('groupe',))
         self.assertIn('groupe', e.render())
 
 
@@ -341,7 +341,7 @@ class IndiceDePrefixeTest(unittest.TestCase):
     d'annoncer « tout est absent » sur un fichier qui contient tout."""
 
     def test_un_ecart_total_recouvert_par_un_prefixe_est_EXPLIQUE(self):
-        notes = _indice_de_prefixe(('CADISP', 'BIOPAC_MP150'),
+        notes = _prefix_hint(('CADISP', 'BIOPAC_MP150'),
                                    {'event_CADISP', 'data_BIOPAC_MP150'})
         self.assertEqual(len(notes), 1)
         self.assertIn('PRÉFIXÉ', notes[0])
@@ -349,15 +349,15 @@ class IndiceDePrefixeTest(unittest.TestCase):
         self.assertIn('event_CADISP', notes[0])
 
     def test_l_exemple_traverse_les_familles(self):
-        notes = _indice_de_prefixe(('BIOPAC_MP150',), {'data_BIOPAC_MP150'})
+        notes = _prefix_hint(('BIOPAC_MP150',), {'data_BIOPAC_MP150'})
         self.assertIn('data_BIOPAC_MP150', notes[0])
 
     def test_un_manque_REEL_ne_declenche_aucun_indice(self):
         # Si un seul des manquants n'est pas recouvert, l'explication serait fausse : on se tait.
-        self.assertEqual(_indice_de_prefixe(('CADISP', 'ABSENT_PARTOUT'), {'event_CADISP'}), ())
+        self.assertEqual(_prefix_hint(('CADISP', 'ABSENT_PARTOUT'), {'event_CADISP'}), ())
 
     def test_aucun_manquant_aucun_indice(self):
-        self.assertEqual(_indice_de_prefixe((), {'data_X'}), ())
+        self.assertEqual(_prefix_hint((), {'data_X'}), ())
 
 
 if __name__ == '__main__':

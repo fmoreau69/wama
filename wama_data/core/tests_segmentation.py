@@ -38,7 +38,7 @@ class AutourTest(unittest.TestCase):
 
     def test_nommage_et_attributs(self):
         s = around([10.0, 20.0], 0, 5, name='TAG',
-                   attributs=[{'level': 1}, {'level': 3}])
+                   attributes=[{'level': 1}, {'level': 3}])
         self.assertEqual([x['name'] for x in s], ['TAG_01', 'TAG_02'])
         self.assertEqual(s[1]['level'], 3)
 
@@ -164,7 +164,7 @@ class HysteresisDeValeurTest(unittest.TestCase):
         # Sortir plus tôt qu'on entre n'est pas une hystérésis : c'est un piège silencieux.
         with self.assertRaises(ValueError) as ctx:
             hysteresis_mask([1.0], 40.0, 20.0)
-        self.assertIn('seuil_sortie', str(ctx.exception))
+        self.assertIn('exit_threshold', str(ctx.exception))
         with self.assertRaises(ValueError):
             hysteresis_mask([1.0], 30.0, 40.0, operator='>=')
 

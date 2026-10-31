@@ -103,7 +103,7 @@ class EcritureTest(unittest.TestCase):
         write(self.ref, cible)
         with self.assertRaises(FileExistsError):
             write(self.ref, cible)
-        write(self.ref, cible, ecraser=True)   # explicite → autorisé
+        write(self.ref, cible, overwrite=True)   # explicite → autorisé
 
     def test_une_ecriture_qui_echoue_ne_laisse_NI_fichier_NI_partiel(self):
         """Le fichier de travail est tout ou rien : un conteneur à moitié rempli s'ouvre
@@ -126,7 +126,7 @@ class EcritureTest(unittest.TestCase):
         casse.add(_signal('boum', [0.0], None))
         casse.get('boum')._rows = lambda i0, i1: (_ for _ in ()).throw(RuntimeError('disque'))
         with self.assertRaises(RuntimeError):
-            write(casse, cible, ecraser=True)
+            write(casse, cible, overwrite=True)
         self.assertEqual(cible.read_bytes(), before,
                          "un échec a remplacé un conteneur valide par rien")
 
@@ -179,7 +179,7 @@ class EcritureTest(unittest.TestCase):
         ref = TemporalReferential()
         rows = [{'a': 1}, {'a': 2}, {'a': 3, 'surprise': 9}]
         ref.add(_signal('x', [0.0, 1.0, 2.0], rows))
-        rapport = write(ref, self.dossier / 'a.wdat', tranche=2)
+        rapport = write(ref, self.dossier / 'a.wdat', chunk_size=2)
         self.assertTrue(any('surprise' in p for p in rapport.losses),
                         "une variable entière a disparu sans trace")
 
@@ -250,10 +250,10 @@ class WdatTest(unittest.TestCase):
         self.assertEqual(self._table('SELECT losses FROM "WamaStreams"'), [(3,)])
 
     def test_la_copie_projetee_est_embarquee_et_estampillee(self):
-        contexte = Context(auteur='fabien', manifestes=[
+        contexte = Context(author='fabien', manifests=[
             {'manifest_kind': 'pipeline', 'key': 'protocole-a', 'schema_version': '2',
              'body': {'nodes': []}}])
-        write(self.ref, self.cible, contexte=contexte)
+        write(self.ref, self.cible, context=contexte)
         rows = self._table('SELECT manifest_kind, key, version, read_only, body '
                              'FROM "WamaManifests"')
         self.assertEqual(len(rows), 1)
@@ -263,15 +263,15 @@ class WdatTest(unittest.TestCase):
 
     def test_une_copie_projetee_SANS_ESTAMPILLE_est_REFUSEE(self):
         """Sans estampille, la copie cesse d'être une projection et devient une seconde source."""
-        contexte = Context(manifestes=[{'body': {'nodes': []}}])
+        contexte = Context(manifests=[{'body': {'nodes': []}}])
         with self.assertRaises(ValueError) as ctx:
-            write(self.ref, self.cible, contexte=contexte)
+            write(self.ref, self.cible, context=contexte)
         self.assertIn('estampille', str(ctx.exception))
         self.assertFalse(self.cible.exists(), "un refus a quand même laissé un conteneur")
 
     def test_l_auteur_et_la_date_sont_ecrits(self):
         """L'usage visé est collaboratif : sans qui/quand, le suivi exige une base partagée."""
-        write(self.ref, self.cible, contexte=Context(auteur='fabien', horodatage='2026-08-24'))
+        write(self.ref, self.cible, context=Context(author='fabien', timestamp='2026-08-24'))
         meta = dict(self._table('SELECT key, value FROM "WamaMeta"'))
         self.assertEqual(meta['created_by'], 'fabien')
         self.assertEqual(meta['created_at'], '2026-08-24')
@@ -279,7 +279,7 @@ class WdatTest(unittest.TestCase):
 
     def test_le_format_natif_ne_declare_AUCUNE_perte(self):
         rapport = write(self.ref, self.cible)
-        self.assertTrue(rapport.fidele, rapport.losses)
+        self.assertTrue(rapport.lossless, rapport.losses)
 
 
 class TripCompatibiliteTest(unittest.TestCase):
@@ -356,8 +356,8 @@ class TripCompatibiliteTest(unittest.TestCase):
         self.assertTrue(any('OUVERT' in p for p in rapport.losses), rapport.losses)
 
     def test_une_copie_projetee_est_declaree_NON_embarquee(self):
-        contexte = Context(manifestes=[{'manifest_kind': 'pipeline', 'key': 'p'}])
-        rapport = write(self.ref, self.cible, contexte=contexte)
+        contexte = Context(manifests=[{'manifest_kind': 'pipeline', 'key': 'p'}])
+        rapport = write(self.ref, self.cible, context=contexte)
         self.assertTrue(any('autoportant' in p for p in rapport.losses), rapport.losses)
 
     def test_les_pertes_d_acquisition_sont_declarees_PERDUES(self):
@@ -388,7 +388,7 @@ class TripCompatibiliteTest(unittest.TestCase):
 
     def test_le_rapport_dit_qu_il_N_EST_PAS_fidele(self):
         rapport = write(self.ref, self.cible)
-        self.assertFalse(rapport.fidele)
+        self.assertFalse(rapport.lossless)
         self.assertIn('perte', rapport.notes)
 
 
@@ -452,7 +452,7 @@ class EncodageLecteurTest(unittest.TestCase):
 
 class RapportTest(unittest.TestCase):
     def test_un_rapport_sans_perte_est_fidele(self):
-        self.assertTrue(Report(path='a', format='wdat', tables={'t': 2}).fidele)
+        self.assertTrue(Report(path='a', format='wdat', tables={'t': 2}).lossless)
 
     def test_un_rapport_compte_toutes_ses_lignes(self):
         self.assertEqual(Report(path='a', format='wdat',
@@ -467,7 +467,7 @@ class WdatAllerRetourTest(unittest.TestCase):
         self.dossier = Path(tempfile.mkdtemp(prefix='wama_ar_'))
         self.cible = self.dossier / 'essai.wdat'
         self.ref = _referentiel()
-        self.contexte = Context(auteur='fabien', horodatage='2026-08-24', manifestes=[
+        self.contexte = Context(author='fabien', timestamp='2026-08-24', manifests=[
             {'manifest_kind': 'pipeline', 'key': 'protocole-a', 'schema_version': '2',
              'body': {'nodes': [{'id': 'n1'}]}}])
 
@@ -477,18 +477,18 @@ class WdatAllerRetourTest(unittest.TestCase):
         self.dossier.rmdir()
 
     def _relire(self):
-        write(self.ref, self.cible, contexte=self.contexte)
+        write(self.ref, self.cible, context=self.contexte)
         return {s.meta.name: s for s in lecteur_wdat.WdatReader().read(self.cible)}
 
     def test_le_lecteur_natif_reconnait_ce_que_l_ecrivain_produit(self):
-        write(self.ref, self.cible, contexte=self.contexte)
+        write(self.ref, self.cible, context=self.contexte)
         self.assertTrue(lecteur_wdat.WdatReader().can_read(self.cible))
 
     def test_un_wdat_n_est_PAS_pris_pour_un_trip(self):
         """Les deux sont du SQLite et le registre rend le PREMIER lecteur qui accepte : sans
         reniflage du contenu, l'un mangerait les fichiers de l'autre."""
         from .. import sources
-        write(self.ref, self.cible, contexte=self.contexte)
+        write(self.ref, self.cible, context=self.contexte)
         self.assertEqual(sources.reader_for(self.cible).format, 'wdat')
 
     def test_les_flux_les_instants_et_les_valeurs_reviennent(self):
@@ -546,7 +546,7 @@ class WdatAllerRetourTest(unittest.TestCase):
         self.assertTrue(relu['vitesse'].meta.is_base)
 
     def test_l_inventaire_COMPTE_les_protocoles_embarques(self):
-        write(self.ref, self.cible, contexte=self.contexte)
+        write(self.ref, self.cible, context=self.contexte)
         info = lecteur_wdat.WdatReader().probe(self.cible)
         self.assertIn('1 protocole(s) embarqué(s)', info.notes)
         self.assertIn('pipeline:protocole-a', info.notes)
@@ -554,7 +554,7 @@ class WdatAllerRetourTest(unittest.TestCase):
 
     def test_les_protocoles_sont_EXPOSES_mais_jamais_ingeres(self):
         """Rouvrir un conteneur ne doit pas écrire dans le magasin par effet de bord (D16)."""
-        write(self.ref, self.cible, contexte=self.contexte)
+        write(self.ref, self.cible, context=self.contexte)
         protos = lecteur_wdat.WdatReader().protocoles(self.cible)
         self.assertEqual(len(protos), 1)
         self.assertEqual(protos[0]['manifest_kind'], 'pipeline')
@@ -562,14 +562,14 @@ class WdatAllerRetourTest(unittest.TestCase):
         self.assertEqual(protos[0]['body']['body'], {'nodes': [{'id': 'n1'}]})
 
     def test_un_flux_INCONNU_est_refuse_en_nommant_les_flux_reels(self):
-        write(self.ref, self.cible, contexte=self.contexte)
+        write(self.ref, self.cible, context=self.contexte)
         with self.assertRaises(ValueError) as ctx:
             lecteur_wdat.WdatReader().read(self.cible, streams=['fantome'])
         self.assertIn('vitesse', str(ctx.exception))
 
     def test_le_point_d_entree_UNIVERSEL_charge_un_wdat_sans_savoir_qui_le_lit(self):
         from .. import sources
-        write(self.ref, self.cible, contexte=self.contexte)
+        write(self.ref, self.cible, context=self.contexte)
         referentiel = sources.load(self.cible)
         self.assertEqual(referentiel.names, ['marqueurs', 'phases', 'vitesse'])
         self.assertEqual(referentiel.at('vitesse', 0.11), 1)

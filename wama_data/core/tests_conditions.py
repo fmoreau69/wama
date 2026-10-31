@@ -7,7 +7,7 @@ test — sans quoi « on a corrigé » ne serait qu'une affirmation de message d
 """
 import unittest
 
-from .conditions import (BOOLEAN, CONNECTEURS, NUMERIC, OPERATORS, TEXT, Condition,
+from .conditions import (BOOLEAN, CONNECTORS, NUMERIC, OPERATORS, TEXT, Condition,
                          parse, condition_from_dict, evaluate, chain_name,
                          join_name, operators_for,
                          render, validate)
@@ -165,7 +165,7 @@ class ArbreTest(unittest.TestCase):
 
     def test_et_ou_sont_n_aires(self):
         validate({'op': 'ET', 'args': ['C1', 'C2', 'C3']}, self.CLES)
-        self.assertIsNone(CONNECTEURS['ET'].arity)
+        self.assertIsNone(CONNECTORS['ET'].arity)
 
     def test_xor_reste_binaire_et_le_refuse_a_trois(self):
         # Décision assumée : à trois arguments « ou exclusif » a deux lectures incompatibles.

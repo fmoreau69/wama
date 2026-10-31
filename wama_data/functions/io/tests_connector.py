@@ -41,7 +41,7 @@ def _base(path: Path, participant: str, offset: float = 0.0) -> Path:
         [{'time': 0.0, 'value': 1.0}, {'time': 0.1, 'value': 2.0}, {'time': 0.2, 'value': 3.0}],
         DataType.TIMESERIES)
     path.parent.mkdir(parents=True, exist_ok=True)
-    write_container(ref, path, contexte=Context(attributs={'participant': participant}))
+    write_container(ref, path, context=Context(attributes={'participant': participant}))
     return path
 
 

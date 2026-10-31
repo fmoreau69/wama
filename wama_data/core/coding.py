@@ -12,7 +12,7 @@ est tout l'intérêt :
 Autrement dit : le schéma-driven appliqué au codage, sept ans avant qu'on le nomme ainsi ici. La
 conséquence qui compte pour WAMA est celle-ci — **une IA de vision n'est qu'un producteur de plus
 des mêmes segments**. Même sortie, même type, origine tracée. Il n'y a donc PAS de « module de
-codage IA » à écrire à côté : il y a un `codeur` qui change.
+codage IA » à écrire à côté : il y a un `coder` qui change.
 
 CE QUI VIENT DE CHAQUE MONDE (aucun de ces points ne s'invente) :
   • l'outil MATLAB → protocole SÉPARÉ de l'outil d'analyse, interface générique, session qui refuse
@@ -33,21 +33,21 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .segmentation import OUVERT, Segment, _tracer, _tri
+from .segmentation import OPEN_END, Segment, _trace, _sorted_segments
 
 #: Les deux natures d'un comportement. La distinction est structurante, pas cosmétique : un
 #: PONCTUEL n'a pas de durée (il ne se referme jamais), un ÉTAT en a une et peut rester OUVERT.
-PONCTUEL = 'point'
-ETAT = 'state'
-NATURES = (PONCTUEL, ETAT)
+POINT = 'point'
+STATE = 'state'
+NATURES = (POINT, STATE)
 
 #: Types de modificateur. `libre` accepte tout ; les autres CONTRAIGNENT — et cette contrainte est
 #: la moitié de l'intérêt d'un protocole : elle rend deux codages comparables.
-MOD_UN_PARMI = 'one'
-MOD_PLUSIEURS_PARMI = 'many'
-MOD_NOMBRE = 'number'
-MOD_LIBRE = 'free'
-TYPES_MODIFICATEUR = (MOD_UN_PARMI, MOD_PLUSIEURS_PARMI, MOD_NOMBRE, MOD_LIBRE)
+MOD_ONE_OF = 'one'
+MOD_MANY_OF = 'many'
+MOD_NUMBER = 'number'
+MOD_FREE = 'free'
+MODIFIER_TYPES = (MOD_ONE_OF, MOD_MANY_OF, MOD_NUMBER, MOD_FREE)
 
 
 class InvalidProtocol(ValueError):
@@ -75,7 +75,7 @@ class Modifier:
     """
     key: str
     label: str = ''
-    type: str = MOD_UN_PARMI
+    type: str = MOD_ONE_OF
     values: Tuple[Any, ...] = ()
     required: bool = False
 
@@ -85,26 +85,26 @@ class Modifier:
             if self.required:
                 raise CodingRefused(f"modificateur '{self.key}' requis")
             return None
-        if self.type == MOD_NOMBRE:
+        if self.type == MOD_NUMBER:
             try:
                 return float(value)
             except (TypeError, ValueError):
                 raise CodingRefused(f"modificateur '{self.key}' : nombre attendu, reçu {value!r}")
-        if self.type == MOD_LIBRE:
+        if self.type == MOD_FREE:
             return value
-        if self.type == MOD_UN_PARMI:
+        if self.type == MOD_ONE_OF:
             if self.values and value not in self.values:
                 raise CodingRefused(
                     f"modificateur '{self.key}' : {value!r} hors des valeurs déclarées "
                     f"({', '.join(map(str, self.values))})")
             return value
-        # MOD_PLUSIEURS_PARMI
-        recu = list(value) if isinstance(value, (list, tuple, set)) else [value]
+        # MOD_MANY_OF
+        received = list(value) if isinstance(value, (list, tuple, set)) else [value]
         if self.values:
-            hors = [v for v in recu if v not in self.values]
-            if hors:
-                raise CodingRefused(f"modificateur '{self.key}' : {hors!r} hors des valeurs déclarées")
-        return recu
+            outside = [v for v in received if v not in self.values]
+            if outside:
+                raise CodingRefused(f"modificateur '{self.key}' : {outside!r} hors des valeurs déclarées")
+        return received
 
 
 @dataclass(frozen=True)
@@ -112,12 +112,12 @@ class Behavior:
     """Une entrée de l'éthogramme : ce qu'on peut coder, et sous quelle forme."""
     code: str
     label: str = ''
-    nature: str = ETAT
+    nature: str = STATE
     #: Groupe d'exclusion mutuelle. Deux comportements du même groupe ne peuvent pas être ouverts
     #: ensemble : ouvrir l'un FERME l'autre. C'est ce qui modélise un mode de conduite, une phase,
     #: une posture — tout ce dont il n'existe qu'une valeur à la fois.
     exclusive: str = ''
-    modificateurs: Tuple[Modifier, ...] = ()
+    modifiers: Tuple[Modifier, ...] = ()
     #: Touche de l'interface générée. Déclarée ici parce que c'est une propriété du PROTOCOLE
     #: (le codeur l'apprend par cœur pour la campagne), pas un réglage d'écran.
     hotkey: str = ''
@@ -126,7 +126,7 @@ class Behavior:
 
     @property
     def is_state(self) -> bool:
-        return self.nature == ETAT
+        return self.nature == STATE
 
 
 @dataclass(frozen=True)
@@ -146,13 +146,13 @@ class Protocol:
     description: str = ''
 
     def __post_init__(self):
-        vus = set()
+        seen = set()
         for c in self.behaviors:
             if not c.code:
                 raise InvalidProtocol("un comportement sans code")
-            if c.code in vus:
+            if c.code in seen:
                 raise InvalidProtocol(f"code de comportement en double : '{c.code}'")
-            vus.add(c.code)
+            seen.add(c.code)
             if c.nature not in NATURES:
                 raise InvalidProtocol(
                     f"'{c.code}' : nature '{c.nature}' inconnue (attendu {' ou '.join(NATURES)})")
@@ -160,8 +160,8 @@ class Protocol:
                 raise InvalidProtocol(
                     f"'{c.code}' : un comportement PONCTUEL ne peut pas être exclusif — il n'a pas "
                     f"de durée, donc rien à fermer")
-            for m in c.modificateurs:
-                if m.type not in TYPES_MODIFICATEUR:
+            for m in c.modifiers:
+                if m.type not in MODIFIER_TYPES:
                     raise InvalidProtocol(f"'{c.code}.{m.key}' : type '{m.type}' inconnu")
 
     def get(self, code: str) -> Behavior:
@@ -184,24 +184,24 @@ class Protocol:
                  'key': c.hotkey, 'color': c.color, 'description': c.description,
                  'modifiers': [{'key': m.key, 'label': m.label, 'type': m.type,
                                 'values': list(m.values), 'required': m.required}
-                               for m in c.modificateurs]}
+                               for m in c.modifiers]}
                 for c in self.behaviors],
         }
 
     @classmethod
-    def from_dict(cls, d: dict) -> "Protocole":
+    def from_dict(cls, d: dict) -> "Protocol":
         return cls(
             name=d.get('name', ''), version=str(d.get('version', '1')),
             description=d.get('description', ''),
             subjects=tuple(d.get('subjects') or ()),
             behaviors=tuple(
                 Behavior(
-                    code=b['code'], label=b.get('label', ''), nature=b.get('nature', ETAT),
+                    code=b['code'], label=b.get('label', ''), nature=b.get('nature', STATE),
                     exclusive=b.get('exclusive', ''), hotkey=b.get('key', ''),
                     color=b.get('color', ''), description=b.get('description', ''),
-                    modificateurs=tuple(
+                    modifiers=tuple(
                         Modifier(key=m['key'], label=m.get('label', ''),
-                                     type=m.get('type', MOD_UN_PARMI),
+                                     type=m.get('type', MOD_ONE_OF),
                                      values=tuple(m.get('values') or ()),
                                      required=bool(m.get('required')))
                         for m in (b.get('modifiers') or ())))
@@ -220,19 +220,19 @@ class CodingSession:
     du modèle : coder sans support, c'est produire des bornes temporelles que plus personne ne peut
     vérifier. Le mécanisme d'origine posait déjà la règle en 2019.
 
-    Le `codeur` est libre — « fabien », « qwen3-vl », « detector:locate-anything ». C'est ce champ,
+    Le `coder` est libre — « fabien », « qwen3-vl », « detector:locate-anything ». C'est ce champ,
     et lui seul, qui distingue un codage humain d'un codage automatique : le reste du chemin est
     identique, ce qui est exactement le but.
     """
-    protocole: Protocol
+    protocol: Protocol
     media: str
     coder: str = ''
     #: États ouverts, indexés par (sujet, code). Un état par sujet : deux sujets peuvent tenir le
     #: même comportement simultanément sans se fermer l'un l'autre.
-    _ouverts: Dict[Tuple[str, str], Segment] = field(default_factory=dict, repr=False)
-    _clos: List[Segment] = field(default_factory=list, repr=False)
-    _ponctuels: List[Segment] = field(default_factory=list, repr=False)
-    _dernier_t: Optional[float] = field(default=None, repr=False)
+    _open: Dict[Tuple[str, str], Segment] = field(default_factory=dict, repr=False)
+    _closed: List[Segment] = field(default_factory=list, repr=False)
+    _points: List[Segment] = field(default_factory=list, repr=False)
+    _last_t: Optional[float] = field(default=None, repr=False)
 
     def __post_init__(self):
         if not self.media:
@@ -242,164 +242,164 @@ class CodingSession:
 
     # ── gestes ────────────────────────────────────────────────────────────────────────────────
 
-    def marquer(self, t: float, code: str, *, sujet: str = '', modificateurs: Optional[dict] = None,
-                commentaire: str = '') -> Segment:
+    def mark(self, t: float, code: str, *, subject: str = '', modifiers: Optional[dict] = None,
+             comment: str = '') -> Segment:
         """LE geste unique du codage. Ponctuel → un segment de durée nulle. État → il OUVRE, ou il
         FERME s'il est déjà ouvert (bascule), en fermant au passage l'état exclusif concurrent.
 
-        Une seule fonction plutôt que `ouvrir`/`close`/`evenement` : c'est ce que fait le codeur —
+        Une seule fonction plutôt que `open`/`close`/`event` : c'est ce que fait le codeur —
         il appuie sur une touche. La nature du comportement est déclarée dans le protocole, donc
         l'exécution n'a pas à être commandée deux fois.
         """
-        comp = self.protocole.get(code)
-        sujet = self._sujet(sujet)
-        mods = self._valider_modificateurs(comp, modificateurs)
-        self._verifier_monotone(t)
+        comp = self.protocol.get(code)
+        subject = self._subject(subject)
+        mods = self._validate_modifiers(comp, modifiers)
+        self._check_monotonic(t)
 
         if not comp.is_state:
-            seg = _tracer({'start': t, 'end': t, 'value': code, 'label': comp.label or code,
-                           'subject': sujet or None, 'nature': PONCTUEL},
-                          'codage', coder=self.coder or None, protocol=self.protocole.name,
-                          media=self.media, comment=commentaire or None)
+            seg = _trace({'start': t, 'end': t, 'value': code, 'label': comp.label or code,
+                          'subject': subject or None, 'nature': POINT},
+                         'codage', coder=self.coder or None, protocol=self.protocol.name,
+                         media=self.media, comment=comment or None)
             seg.update(mods)
-            self._ponctuels.append(seg)
+            self._points.append(seg)
             return seg
 
-        key = (sujet, code)
-        if key in self._ouverts:                       # bascule : le même geste referme
-            return self._fermer_cle(key, t)
+        key = (subject, code)
+        if key in self._open:                           # bascule : le même geste referme
+            return self._close_key(key, t)
 
         if comp.exclusive:                              # ouvrir ferme le concurrent du groupe
-            for (s, c) in list(self._ouverts):
-                if s == sujet and self.protocole.group(c) == comp.exclusive:
-                    self._fermer_cle((s, c), t, cause='exclusive')
+            for (s, c) in list(self._open):
+                if s == subject and self.protocol.group(c) == comp.exclusive:
+                    self._close_key((s, c), t, cause='exclusive')
 
-        seg = _tracer({'start': t, 'end': OUVERT, 'value': code, 'label': comp.label or code,
-                       'subject': sujet or None, 'nature': ETAT, 'open': True},
-                      'codage', coder=self.coder or None, protocol=self.protocole.name,
-                      media=self.media, comment=commentaire or None)
+        seg = _trace({'start': t, 'end': OPEN_END, 'value': code, 'label': comp.label or code,
+                      'subject': subject or None, 'nature': STATE, 'open': True},
+                     'codage', coder=self.coder or None, protocol=self.protocol.name,
+                     media=self.media, comment=comment or None)
         seg.update(mods)
-        self._ouverts[key] = seg
+        self._open[key] = seg
         return seg
 
-    def ouvrir(self, t: float, code: str, **kw) -> Segment:
-        """Ouverture EXPLICITE — refuse si l'état est déjà ouvert, là où `marquer` basculerait.
+    def open(self, t: float, code: str, **kw) -> Segment:
+        """Ouverture EXPLICITE — refuse si l'état est déjà ouvert, là où `mark` basculerait.
 
         Utile au codage automatique, où un modèle propose des ouvertures sans savoir ce qui court
         déjà : la bascule silencieuse y refermerait un état au lieu de signaler l'incohérence.
         """
-        comp = self.protocole.get(code)
+        comp = self.protocol.get(code)
         if not comp.is_state:
-            raise CodingRefused(f"'{code}' est PONCTUEL — il n'a pas d'ouverture, utiliser `marquer`")
-        if (self._sujet(kw.get('subject', '')), code) in self._ouverts:
+            raise CodingRefused(f"'{code}' est PONCTUEL — il n'a pas d'ouverture, utiliser `mark`")
+        if (self._subject(kw.get('subject', '')), code) in self._open:
             raise CodingRefused(f"'{code}' est déjà ouvert pour ce sujet")
-        return self.marquer(t, code, **kw)
+        return self.mark(t, code, **kw)
 
-    def close(self, t: float, code: str, *, sujet: str = '') -> Segment:
+    def close(self, t: float, code: str, *, subject: str = '') -> Segment:
         """Fermeture EXPLICITE — refuse si rien n'est ouvert, plutôt que d'ouvrir par surprise."""
-        key = (self._sujet(sujet), code)
-        self.protocole.get(code)
-        if key not in self._ouverts:
+        key = (self._subject(subject), code)
+        self.protocol.get(code)
+        if key not in self._open:
             raise CodingRefused(f"'{code}' n'est pas ouvert pour ce sujet — rien à fermer")
-        self._verifier_monotone(t)
-        return self._fermer_cle(key, t)
+        self._check_monotonic(t)
+        return self._close_key(key, t)
 
-    def annuler_dernier(self) -> Optional[Segment]:
+    def undo_last(self) -> Optional[Segment]:
         """Retire la dernière production. Le codage en temps réel produit des erreurs de doigt : ne
         pas offrir le retour arrière, c'est obliger à reprendre la passation."""
-        candidats: List[Tuple[float, str, Any]] = []
-        if self._ponctuels:
-            candidats.append((self._ponctuels[-1]['start'], 'ponctuel', None))
-        if self._clos:
-            candidats.append((self._clos[-1]['end'], 'clos', None))
-        for key, seg in self._ouverts.items():
-            candidats.append((seg['start'], 'ouvert', key))
-        if not candidats:
+        candidates: List[Tuple[float, str, Any]] = []
+        if self._points:
+            candidates.append((self._points[-1]['start'], 'ponctuel', None))
+        if self._closed:
+            candidates.append((self._closed[-1]['end'], 'clos', None))
+        for key, seg in self._open.items():
+            candidates.append((seg['start'], 'ouvert', key))
+        if not candidates:
             return None
-        t, quoi, key = max(candidats, key=lambda x: x[0])
-        if quoi == 'ponctuel':
-            return self._ponctuels.pop()
-        if quoi == 'clos':                             # un segment refermé redevient OUVERT
-            seg = self._clos.pop()
-            seg['end'] = OUVERT
+        t, what, key = max(candidates, key=lambda x: x[0])
+        if what == 'ponctuel':
+            return self._points.pop()
+        if what == 'clos':                             # un segment refermé redevient OUVERT
+            seg = self._closed.pop()
+            seg['end'] = OPEN_END
             seg['open'] = True
             seg.pop('closed_by', None)
-            self._ouverts[(seg.get('subject') or '', seg['value'])] = seg
+            self._open[(seg.get('subject') or '', seg['value'])] = seg
             return seg
-        return self._ouverts.pop(key)
+        return self._open.pop(key)
 
     # ── sorties ───────────────────────────────────────────────────────────────────────────────
 
     def segments(self, *, session_end: Optional[float] = None) -> List[Segment]:
         """Tous les états, y compris ceux restés OUVERTS.
 
-        `fin_de_session` ferme d'office les états en cours et TRACE cette fermeture (`closed_at`) :
+        `session_end` ferme d'office les états en cours et TRACE cette fermeture (`closed_at`) :
         une durée refermée par la fin de l'enregistrement n'a pas le statut d'une durée observée, et
         confondre les deux fausse toute statistique de durée.
         """
-        out = list(self._clos) + list(self._ouverts.values())
+        out = list(self._closed) + list(self._open.values())
         if session_end is not None:
-            from .segmentation import close as _fermer_seg
-            out = _fermer_seg(out, session_end)
-        return _tri(out)
+            from .segmentation import close as _close_segments
+            out = _close_segments(out, session_end)
+        return _sorted_segments(out)
 
-    def evenements(self) -> List[Segment]:
+    def events(self) -> List[Segment]:
         """Les comportements ponctuels — même forme, durée nulle. Ils rejoignent le flux `events`."""
-        return sorted(self._ponctuels, key=lambda s: s['start'])
+        return sorted(self._points, key=lambda s: s['start'])
 
     def open_ones(self) -> List[Segment]:
-        return sorted(self._ouverts.values(), key=lambda s: s['start'])
+        return sorted(self._open.values(), key=lambda s: s['start'])
 
-    def resume(self) -> dict:
+    def summary(self) -> dict:
         """De quoi alimenter un bandeau d'interface sans que celle-ci connaisse le modèle."""
-        return {'protocol': self.protocole.name, 'media': self.media, 'coder': self.coder,
-                'states': len(self._clos) + len(self._ouverts), 'open': len(self._ouverts),
-                'events': len(self._ponctuels), 'last_time': self._dernier_t}
+        return {'protocol': self.protocol.name, 'media': self.media, 'coder': self.coder,
+                'states': len(self._closed) + len(self._open), 'open': len(self._open),
+                'events': len(self._points), 'last_time': self._last_t}
 
     # ── interne ───────────────────────────────────────────────────────────────────────────────
 
-    def _sujet(self, sujet: str) -> str:
-        if self.protocole.subjects:
-            if not sujet:
-                if len(self.protocole.subjects) == 1:
-                    return self.protocole.subjects[0]
+    def _subject(self, subject: str) -> str:
+        if self.protocol.subjects:
+            if not subject:
+                if len(self.protocol.subjects) == 1:
+                    return self.protocol.subjects[0]
                 raise CodingRefused(
-                    f"sujet requis (déclarés : {', '.join(self.protocole.subjects)})")
-            if sujet not in self.protocole.subjects:
-                raise CodingRefused(f"sujet '{sujet}' absent du protocole")
-        return sujet
+                    f"sujet requis (déclarés : {', '.join(self.protocol.subjects)})")
+            if subject not in self.protocol.subjects:
+                raise CodingRefused(f"sujet '{subject}' absent du protocole")
+        return subject
 
-    def _valider_modificateurs(self, comp: Behavior, recus: Optional[dict]) -> dict:
-        recus = dict(recus or {})
-        connus = {m.key for m in comp.modificateurs}
-        inconnus = set(recus) - connus
-        if inconnus:
+    def _validate_modifiers(self, comp: Behavior, received: Optional[dict]) -> dict:
+        received = dict(received or {})
+        known = {m.key for m in comp.modifiers}
+        unknown = set(received) - known
+        if unknown:
             raise CodingRefused(
-                f"'{comp.code}' : modificateur(s) non déclaré(s) {sorted(inconnus)}")
+                f"'{comp.code}' : modificateur(s) non déclaré(s) {sorted(unknown)}")
         out = {}
-        for m in comp.modificateurs:
-            v = m.validate(recus.get(m.key))
+        for m in comp.modifiers:
+            v = m.validate(received.get(m.key))
             if v is not None:
                 out[m.key] = v
         return out
 
-    def _verifier_monotone(self, t: float) -> None:
+    def _check_monotonic(self, t: float) -> None:
         """Le codage suit le temps du média. Un geste antérieur au précédent signale un transport
         qui a sauté en arrière sans que la session le sache — mieux vaut le dire que produire un
         segment à durée négative."""
-        if self._dernier_t is not None and t < self._dernier_t:
+        if self._last_t is not None and t < self._last_t:
             raise CodingRefused(
-                f"geste à t={t:g} antérieur au précédent (t={self._dernier_t:g}) — reprendre le "
+                f"geste à t={t:g} antérieur au précédent (t={self._last_t:g}) — reprendre le "
                 f"codage après un retour arrière du transport exige de rouvrir la session")
-        self._dernier_t = t
+        self._last_t = t
 
-    def _fermer_cle(self, key: Tuple[str, str], t: float, *, cause: str = '') -> Segment:
-        seg = self._ouverts.pop(key)
+    def _close_key(self, key: Tuple[str, str], t: float, *, cause: str = '') -> Segment:
+        seg = self._open.pop(key)
         seg['end'] = t
         seg.pop('open', None)
         if cause:
             seg['closed_by'] = cause
-        self._clos.append(seg)
+        self._closed.append(seg)
         return seg
 
 
@@ -407,9 +407,9 @@ class CodingSession:
 # 3. REJOUER un codage — la même session, alimentée par une liste de gestes
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def replay(protocole: Protocol, media: str, gestures: Iterable[dict], *, coder: str = '',
+def replay(protocol: Protocol, media: str, gestures: Iterable[dict], *, coder: str = '',
             session_end: Optional[float] = None) -> Tuple[List[Segment], List[Segment]]:
-    """Rejoue une liste de gestes `{t, code, sujet?, modificateurs?, commentaire?}`.
+    """Rejoue une liste de gestes `{t, code, subject?, modifiers?, comment?}`.
 
     C'est le point d'entrée du codage AUTOMATIQUE : un modèle de vision produit une liste de gestes,
     on la rejoue, et l'on obtient exactement la même sortie qu'un codage humain — validée par le
@@ -417,11 +417,11 @@ def replay(protocole: Protocol, media: str, gestures: Iterable[dict], *, coder: 
 
     Renvoie `(segments, événements)`.
     """
-    s = CodingSession(protocole=protocole, media=media, coder=coder)
+    s = CodingSession(protocol=protocol, media=media, coder=coder)
     for g in gestures:
-        s.marquer(g['t'], g['code'], sujet=g.get('subject', ''),
-                  modificateurs=g.get('modifiers'), commentaire=g.get('comment', ''))
-    return s.segments(session_end=session_end), s.evenements()
+        s.mark(g['t'], g['code'], subject=g.get('subject', ''),
+               modifiers=g.get('modifiers'), comment=g.get('comment', ''))
+    return s.segments(session_end=session_end), s.events()
 
 
 def agreement(a: Sequence[Segment], b: Sequence[Segment], *, tolerance: float = 1.0) -> dict:
@@ -432,19 +432,19 @@ def agreement(a: Sequence[Segment], b: Sequence[Segment], *, tolerance: float = 
     correspond-il à ce que l'humain a codé », qui est la question posée quand on valide un codage
     assisté. Le calcul d'indicateurs d'accord plus fins est du ressort du module Calculator.
     """
-    restants = list(b)
-    apparies: List[Tuple[Segment, Segment]] = []
+    remaining = list(b)
+    matched: List[Tuple[Segment, Segment]] = []
     for sa in sorted(a, key=lambda s: s['start']):
-        proche, ecart = None, None
-        for sb in restants:
+        nearest, gap = None, None
+        for sb in remaining:
             if sb.get('value') != sa.get('value') or sb.get('subject') != sa.get('subject'):
                 continue
             d = abs(sb['start'] - sa['start'])
-            if d <= tolerance and (ecart is None or d < ecart):
-                proche, ecart = sb, d
-        if proche is not None:
-            restants.remove(proche)
-            apparies.append((sa, proche))
-    return {'matched': len(apparies), 'only_a': len(a) - len(apparies), 'only_b': len(restants),
-            'mean_offset': (sum(abs(y['start'] - x['start']) for x, y in apparies) / len(apparies)
-                            if apparies else None)}
+            if d <= tolerance and (gap is None or d < gap):
+                nearest, gap = sb, d
+        if nearest is not None:
+            remaining.remove(nearest)
+            matched.append((sa, nearest))
+    return {'matched': len(matched), 'only_a': len(a) - len(matched), 'only_b': len(remaining),
+            'mean_offset': (sum(abs(y['start'] - x['start']) for x, y in matched) / len(matched)
+                            if matched else None)}

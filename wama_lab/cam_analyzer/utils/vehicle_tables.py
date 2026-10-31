@@ -202,7 +202,7 @@ _OVERTAKE_FIELDS = (
 
 def _table_export(name, fields):
     from wama_data.core.export import Column, Declaration, Identity
-    return Declaration(name, tuple(Column(name, key, label) for key, label in fields), identite=Identity(()))
+    return Declaration(name, tuple(Column(name, key, label) for key, label in fields), identity=Identity(()))
 
 
 #: Les deux exports, déclarés comme tout export du monde Data (`wama_data/core/export.py`) : une

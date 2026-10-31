@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from wama.common.catalog.data_types import DataType
 
-from ..core.naming import COLONNES_TEMPS  # noqa: F401 — réexporté : consommateurs historiques
+from ..core.naming import TIME_COLUMNS
 from ..core.temporal import NEAREST, SignalMeta
 from . import SourceInfo, SourceReader, StreamSpec, register_reader
 
@@ -127,7 +127,7 @@ class TabularReader(SourceReader):
     @staticmethod
     def _colonne_temps(entetes: List[str]) -> Optional[int]:
         bas = [h.strip().lower() for h in entetes]
-        for candidat in COLONNES_TEMPS:
+        for candidat in TIME_COLUMNS:
             if candidat in bas:
                 return bas.index(candidat)
         return None
@@ -138,7 +138,7 @@ class TabularReader(SourceReader):
         idx = self._colonne_temps(entetes)
         note = (f"{len(rows)} ligne(s), {len(entetes)} colonne(s) ; "
                 + (f"axe du temps = '{entetes[idx]}'" if idx is not None
-                   else f"AUCUNE colonne temporelle (attendu l'un de : {', '.join(COLONNES_TEMPS)})"))
+                   else f"AUCUNE colonne temporelle (attendu l'un de : {', '.join(TIME_COLUMNS)})"))
         # Un fichier plat = un seul flux, nommé d'après le fichier.
         return SourceInfo(format=self.format, path=str(path),
                           streams=[path.stem] if idx is not None else [],
@@ -153,7 +153,7 @@ class TabularReader(SourceReader):
         if idx is None:
             raise ValueError(
                 f"'{path.name}' n'a pas de colonne temporelle reconnue "
-                f"(attendu l'un de : {', '.join(COLONNES_TEMPS)})")
+                f"(attendu l'un de : {', '.join(TIME_COLUMNS)})")
 
         name = path.stem
         if streams is not None and name not in list(streams):

@@ -1137,10 +1137,14 @@ sens ». Chacun doit être un contrôle exécutable, pas une règle écrite.
 > donnés sous leur nom RÉEL, celui d'après la migration D28 (code anglais depuis le 2026-08-26,
 > §14.5) — remplacés le 2026-10-31 par correspondance avec `wama_data/`. Les passages barrés, ceux
 > qui citent un renommage et les états datés qui décrivent l'ancien nom gardent l'ancien. Table de
-> correspondance : §14.2. Restent français dans le code lui-même (dette de nommage, budget de
+> correspondance : §14.2. ~~Restent français dans le code lui-même (dette de nommage, budget de
 > `check_identifier_language`) : `CodingSession.marquer`, `Column.entete` / `Column.titre`,
 > `Declaration.identite`, `Discrepancy.lecteur` / `coordonnees`, `Context.attributs`,
-> `Report.fidele`, `Grouping.mode_origine`, `around(ancres, …)`.
+> `Report.fidele`, `Grouping.mode_origine`, `around(ancres, …)`.~~ ✅ **Soldés le 2026-10-31
+> (soir)** avec le reste des sept modules (`core/coding`, `core/export`, `core/conditions`,
+> `core/segmentation`, `core/naming`, `dataset`, `containers`) — correspondance en §14.2bis.
+> Seules les clés SÉRIALISÉES d'une déclaration d'export (`colonnes`, `identite`, `entete`)
+> restent françaises : ce sont des données stockées dans les réglages du nœud d'export.
 
 > ⚠ **Rectification.** J'avais déclaré la cartographie « complète » alors que **BIND_GUI n'avait
 > pas été lu** — or c'est là que vivent le Segmenter, le Calculator et l'Exporter. 478 Ko de source
@@ -1195,7 +1199,7 @@ Chaque source apporte ce que les autres n'ont pas :
 | 2 | ajouter le mode **jonction de deux flux** | ✅ `join()` — appariement par le TEMPS, pas par index |
 | 3 | l'hystérésis (`durée_min`, `trou_toléré`) est un **paramètre du mode conditionnel** | ✅ `conditional()` |
 | 4 | « présent dans » est une **opération ensembliste sur segments** (inclusion stricte), réutilisée **aussi à l'export** — donc une fonction du catalogue, pas un bout de Segmenter | ✅ `within()` / `overlapping()`, déclarées |
-| 5 | `Signal` doit accepter une **fin `None`** = segment ouvert (D15) | ✅ `OUVERT = None` — **pas** de sentinelle numérique |
+| 5 | `Signal` doit accepter une **fin `None`** = segment ouvert (D15) | ✅ `OPEN_END = None` — **pas** de sentinelle numérique |
 | 6 | le **codage** (manuel ou IA) produit des segments comme les autres modes — même sortie, origine tracée | ✅ `coding.py` — le `codeur` est le SEUL champ qui les distingue |
 | 7 | une segmentation **se sauvegarde et se rejoue** → c'est un manifeste `pipeline`, pas un réglage d'écran | 🔄 protocole sérialisable des deux sens ; ~~kind `protocol` pas encore enregistré~~ (corrigé le 2026-09-15 : pas de kind `protocol` — le protocole EST un manifeste `pipeline`, D13 §9undecies.2) |
 
@@ -1226,7 +1230,7 @@ Le découpage ci-dessus est repris **tel quel**, moteur d'abord :
 |---|---|---|
 | le protocole `.pro` | `Protocol` / `Behavior` / `Modifier` — gelés, sérialisables JSON dans les deux sens | prêt pour un kind de manifeste ; l'éditeur reste une app à part, comme dans le modèle |
 | l'interface générique | ⏳ **pas écrite, et c'est volontaire** | elle doit se GÉNÉRER du protocole ; l'écrire avant la vue déclarative rejouerait la rigidité qu'on combat |
-| la session | `CodingSession` — refuse de démarrer **sans média**, un seul geste (`marquer`) qui ouvre/ferme | la règle « pas de codage sans support » vient du modèle, pas d'un excès de prudence |
+| la session | `CodingSession` — refuse de démarrer **sans média**, un seul geste (`mark`) qui ouvre/ferme | la règle « pas de codage sans support » vient du modèle, pas d'un excès de prudence |
 
 Ce que le codage comportemental apporte et que le modèle MATLAB n'avait pas : l'**état ouvert**
 (`end = None`), les **modificateurs typés**, les **sujets** (deux personnes tiennent le même état
@@ -1284,7 +1288,7 @@ existé. C'est le module que WAMA écrira **sans modèle**, et le seul de la cha
 
 | BIND (diapo 12 + captures) | WAMA au 22/08 | au 23/08 |
 |---|---|---|
-| Temporelle **simple** : ancre ± inf/sup | ✅ `around(ancres, offset_start, offset_end)` | ✅ inchangé |
+| Temporelle **simple** : ancre ± inf/sup | ✅ `around(anchors, offset_start, offset_end)` | ✅ inchangé |
 | Temporelle **double** : Table 1 **+ offset**, Table 2 **+ offset** | ❌ `join()` n'a **aucun offset** | ✅ `offset_start` / `offset_end`, appliqués APRÈS l'appariement |
 | ☐ **Répéter sur les prochains segments** | ❌ absent | ✅ `repeat` — défaut **inversé** (voir ci-dessous) |
 | Conditionnelle : **liste de conditions** `(C1) (C2)…` | ❌ **un seul** prédicat | ✅ `Condition` déclarée, N par chaîne |
@@ -1435,7 +1439,7 @@ parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
 
 2. **Les 4 modes de concaténation sont DEUX AXES, pas quatre branches.** BIND croise deux cases
    (`ConcatTrip`, `ConcatSituationEvents`) en quatre `elseif` qui recopient chacun la même boucle
-   d'écriture. WAMA déclare `regroupement = {lots: bool, declarations: bool}` et **une seule**
+   d'écriture. WAMA déclare `grouping = {lots: bool, declarations: bool}` et **une seule**
    implémentation de groupement : les quatre modes deviennent une conséquence, pas un chemin de code.
 
    > ✅ **CONFIRMÉ SUR LE CODE (2026-08-23).** Les quatre branches de `exportation` (`normal`,
@@ -1465,7 +1469,7 @@ parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
    sa branche multi-occurrences est du **code mort** qui référence une variable jamais définie
    (`i_occurrence`) — elle lèverait si on l'atteignait. Deux chemins, deux conventions, dont une
    qui ne peut pas s'exécuter. C'est pourquoi l'en-tête est ici un **CHAMP de la colonne déclarée**
-   (`Column.entete`, défaut `source.champ`) et non une reconstruction par chemin.
+   (`Column.header`, clé sérialisée `entete`, défaut `source.champ`) et non une reconstruction par chemin.
 
 3. **L'interface ne s'écrit pas, elle se génère de la déclaration.** Le sélecteur à trois niveaux
    (type → table → variables), l'ordre `▲▼✕`, l'aperçu : ce sont des **rendus** du schéma. WAMA a
@@ -1605,7 +1609,7 @@ Ce n'était pas un arbitrage de goût : la mesure tranche seule.
    une **chaîne** (`transcriber/.../edit.js`, `edit.html`, `app_registry.py`). Celui de BIND est un
    **flottant en secondes**. Adopter le mot donnerait **deux types incompatibles au même mot dans
    la même plateforme** — exactement la juxtaposition de vocabulaires que WAMA s'interdit.
-3. **La normalisation existe déjà et fonctionne** : `core/naming.py:46` (`COLONNES_TEMPS`, réimporté par `sources/tabular.py`) accepte
+3. **La normalisation existe déjà et fonctionne** : `core/naming.py:46` (`TIME_COLUMNS`, réimporté par `sources/tabular.py`) accepte
    `('time', 'timestamp', 'timecode', 't', 'temps', 'time_s', 'seconds')` en entrée et rend `time` ;
    `sources/trip.py` lit les colonnes `timecode` / `startTimecode` de BIND et produit
    `time` / `start` / `end`. **Il n'y a rien à écrire, seulement à ne pas défaire.**
@@ -1663,7 +1667,7 @@ informatif qu'une table à part, puisqu'on lit le contexte dans la donnée elle-
 #### D10 complété — où vit la table annexe, et comment elle se déclare
 
 La table annexe n'est **pas un concept à inventer** : c'est un `TypedFrame` de plus, qui se
-distingue par sa **PROVENANCE DÉCLARÉE**. Le patron existe déjà un cran plus bas — `_tracer()` du
+distingue par sa **PROVENANCE DÉCLARÉE**. Le patron existe déjà un cran plus bas — `_trace()` du
 Segmenter pose `origin` sur **chaque segment produit**, pour qu'on puisse distinguer plus tard un
 segment codé par un humain d'un segment proposé par un modèle. Même geste, au niveau de la table :
 
@@ -1737,7 +1741,7 @@ ce qu'on y écrit devient irremplaçable sans qu'on l'ait décidé.
 
 > **D13 est la précondition du droit d'écrire dans le fichier de travail**, pas un détail de canvas.
 
-Les briques de contrôle existent déjà : `SignalMeta.is_base` sépare acquis et dérivé, `_tracer`
+Les briques de contrôle existent déjà : `SignalMeta.is_base` sépare acquis et dérivé, `_trace`
 pose l'`origin` sur chaque segment produit, `replay()` ferme la boucle.
 
 ⚠ **Et « régénérable » est une propriété à EXERCER, pas à déclarer.** Le même jour, une docstring
@@ -2093,7 +2097,7 @@ tourner la nuit** — il n'y a plus rien à alimenter.
 | # | question |
 |---|---|
 | ~~**G1**~~ | ~~le registre de types de source dans le substrat, alimenté par les mondes (§9quinquies.4)~~ — ⚠ glose fausse, G1 fermé autrement (§9decies, 2026-08-24) |
-| — | **écrivains `xlsx` / `mat`** : déclarés, sans écrivain. Le geste est prévu (`register_format('xlsx', ecrivain=…)` depuis l'adaptateur) |
+| — | **écrivains `xlsx` / `mat`** : déclarés, sans écrivain. Le geste est prévu (`register_format('xlsx', writer=…)` depuis l'adaptateur) |
 | — | le **Connector** partage le registre des lecteurs — à confirmer quand il aura une surface : une base branchée « en connexion » est-elle un lecteur comme un autre, ou une capacité distincte (connexion vivante vs import figé) ? |
 
 ---
@@ -2178,7 +2182,7 @@ redéfinir, et un test vérifie **l'identité des fonctions** (`assertIs`) : une
 même à l'identique, échoue. La brique **n'a aucune dépendance** — condition pour que
 `conditions.py` l'importe sans cycle, ce qu'un test garde par AST.
 
-> ⚠ **`Column.titre` reste dans `export.py`, à dessein** : ce n'est pas un nom dérivé de
+> ⚠ **`Column.title` reste dans `export.py`, à dessein** : ce n'est pas un nom dérivé de
 > paramètres mais un **en-tête de fichier**, dont la convention (`flux.champ`) appartient au
 > livrable chercheur et se surcharge colonne par colonne. Le rapprocher mêlerait deux règles qui
 > n'ont ni la même source ni la même raison de changer.
@@ -2366,8 +2370,8 @@ complète, et débranchée. C'est la troisième de la journée — le motif mér
 
 | | |
 |---|---|
-| `verify(body, racine)` → `Discrepancy` | confronte le manifeste à la source **sans la charger** (`probe` seul) — sur 1,28 Go, la différence compte |
-| `load(body, racine)` → **`(référentiel, Discrepancy)`** | ouvre le jeu, ne charge que les signaux **déclarés** |
+| `verify(body, root)` → `Discrepancy` | confronte le manifeste à la source **sans la charger** (`probe` seul) — sur 1,28 Go, la différence compte |
+| `load(body, root)` → **`(référentiel, Discrepancy)`** | ouvre le jeu, ne charge que les signaux **déclarés** |
 
 **La doctrine du §9bis commande tout le module** — *« le LLM propose, la machine dispose ; un
 manifeste qui VALIDE ensuite l'import est CIRCULAIRE ; le manifeste déclare des attentes
@@ -2568,7 +2572,7 @@ symptôme.
 > mon propre contrôle, pas du système.**
 >
 > ⚠ **Un contrôle qui sonne sur TOUT cas valide n'est pas un contrôle : il apprend à ignorer le
-> compte-rendu.** Le champ devient `Discrepancy.lecteur` — informatif (« qui a lu »), jamais un verdict.
+> compte-rendu.** Le champ devient `Discrepancy.lecteur` (`reader` depuis le 2026-10-31, §14.2bis) — informatif (« qui a lu »), jamais un verdict.
 
 ### 9decies.4 La leçon, et elle vaut au-delà de ce fil
 
@@ -2740,7 +2744,7 @@ modules) — troisième fois que la découverte paie le jour même.
 Une écriture interrompue ne doit pas laisser un conteneur à moitié rempli : **il s'ouvrirait
 normalement** et mentirait sur son contenu. Un `.partiel` est écrit puis renommé ; une version
 existante n'est remplacée qu'une fois la nouvelle complète, et un échec la laisse intacte. Un
-conteneur existant n'est jamais écrasé sans `ecraser=True` — c'est un fichier de **travail**, il
+conteneur existant n'est jamais écrasé sans `overwrite=True` — c'est un fichier de **travail**, il
 porte des traitements.
 
 ### 9duodecies.3 Ce que `.wdat` corrige — quatre faits que `.trip` connaît sans les porter
@@ -2794,7 +2798,7 @@ aucune n'est déclarée.
 
 > **Le pire cas n'est pas la perte, c'est la perte SILENCIEUSE** : elle laisse croire à un
 > aller-retour fidèle, et c'est en la découvrant six mois plus tard qu'on doute de tout le reste.
-> `Report.fidele` répond par oui ou non, et « non » n'est pas une erreur — c'est un fait à lire.
+> `Report.lossless` répond par oui ou non, et « non » n'est pas une erreur — c'est un fait à lire.
 
 ### 9duodecies.6 Deux défauts trouvés par la mesure, dont un dans mon propre récit
 
@@ -2817,7 +2821,7 @@ d'usage*, la leçon de la veille appliquée à moi le lendemain.
 ⭐ **Le vrai trou était à côté, et la même mesure l'a montré** : `json.dumps([nan])` produit le
 littéral `[NaN]`, **que la spécification JSON n'accepte pas**. Une valeur composite contenant une
 absence était donc écrite sous une forme qu'aucun analyseur standard ne relit — couvert ni par
-`missing()` ni par SQLite. D'où `_sans_nan`, récursif, et un test qui mord.
+`missing()` ni par SQLite. D'où `_without_nan`, récursif, et un test qui mord.
 
 `wama_data` : **541 → 590 tests** (44 pour l'écrivain, 4 pour son registre, +1 pour le trou JSON).
 
@@ -2912,13 +2916,13 @@ de Fabien du 2026-08-24.
 
 | écran d'origine | notre code | |
 |---|---|---|
-| « Concaténation : ☐ Trips ☐ Situation/Events » | `Grouping(lots, declarations)` | ⭐ **1:1** — `mode_origine` rend littéralement `concat_trip` / `concat_event_situation` / `concat_all` |
+| « Concaténation : ☐ Trips ☐ Situation/Events » | `Grouping(lots, declarations)` | ⭐ **1:1** — `legacy_mode` rend littéralement `concat_trip` / `concat_event_situation` / `concat_all` |
 | « Vos fichiers » (la file d'export) | `export(declarations, …)` — N déclarations | ✅ |
 | « Aperçu » | `preview()` — l'aperçu EST l'export borné | ✅ |
 | « Format : tsv ▾ » | registre `FORMATS` (5 déclarés, 3 écrivables) | ✅ |
 | « Votre fichier » + ▲▼✕ | `Declaration.columns` — tuple ORDONNÉ, l'ordre est une donnée | ✅ |
 | « Sous-échantillonnage : 1 » | `Declaration.decimation` | ✅ |
-| en-têtes `table.column` | `Column.titre` → `flux.champ` | ✅ |
+| en-têtes `table.column` | `Column.title` → `flux.champ` | ✅ |
 | identité de ligne | `Identity`, dont la docstring cite déjà « nom du trip, participant, scénario » | ✅ |
 
 **Le geste, tel que Fabien le décrit** : choisir une FAMILLE (1ʳᵉ colonne) → une ou des TABLES
@@ -3884,7 +3888,7 @@ La réponse est **déjà à moitié dans le dépôt** :
 2. **une table d'alias PAR SOURCE** — le mécanisme existe **en germe**, et il a GRANDI depuis la
    rédaction de ce §. ⚠ **Ce paragraphe disait « codé en dur pour une seule clé (`timecode`),
    `sources/tabular.py` » — c'est FAUX depuis le 2026-08-24** (relevé mécaniquement à la clôture
-   du 09/09) : les alias d'ingestion de l'axe du temps sont **7** (`COLONNES_TEMPS`, `core/naming.py`)
+   du 09/09) : les alias d'ingestion de l'axe du temps sont **7** (`TIME_COLUMNS`, `core/naming.py`)
    et ont été **remontés au commun parce qu'ils avaient déjà trois consommateurs** (le lecteur, le
    pont de cadres, l'écrivain de conteneur). *Un vocabulaire partagé n'appartient à aucun de ses
    usagers* — la note y est écrite. Ce qui reste vrai : c'est une liste **globale**, pas une carte
@@ -3908,7 +3912,7 @@ La réponse est **déjà à moitié dans le dépôt** :
 | où | ce que ça donne | verdict |
 |---|---|---|
 | **dans la fonction** (`champ_lat='lat'` en paramètre) | existe déjà, et c'est le **dernier recours** : chaque fonction re-déclare le vocabulaire de chaque source. `distance_to_point` porte `champ_lat`/`champ_lon` — utile pour un cas isolé, ruineux comme convention | ❌ n'échelle pas |
-| **une liste GLOBALE**, comme `COLONNES_TEMPS` | marche pour l'axe du temps parce qu'il est **universel et unique** : aucune source n'appelle `temps` autre chose que le temps. **Ne marche PLUS dès qu'un mot est ambigu entre sources** — deux corpus peuvent employer `largeur` pour la largeur de voie et pour la largeur d'un véhicule. Une liste globale les CONFONDRAIT sans rien signaler | ❌ ambigu par nature |
+| **une liste GLOBALE**, comme `TIME_COLUMNS` | marche pour l'axe du temps parce qu'il est **universel et unique** : aucune source n'appelle `temps` autre chose que le temps. **Ne marche PLUS dès qu'un mot est ambigu entre sources** — deux corpus peuvent employer `largeur` pour la largeur de voie et pour la largeur d'un véhicule. Une liste globale les CONFONDRAIT sans rien signaler | ❌ ambigu par nature |
 | **une carte déclarée dans le manifeste `dataset`** | l'alias est attaché au **corpus qui l'emploie**, donc jamais imposé aux autres. C'est aussi le seul objet qui accompagne les données quand elles se déplacent (bundle `.wds`, D26) | ✅ |
 
 **Ce qui a changé le 2026-09-09 et rend la carte contrôlable.** Jusque-là, une carte d'alias
@@ -4039,7 +4043,7 @@ manque à notre modèle, qui décrit les variables produites sans nommer l'outil
 | ① | ~~corpus sans axe temporel~~ | ✅ **LEVÉ le 2026-08-26** (§13.14) |
 | ② | ~~plusieurs unités d'observation dans un même corpus~~ | ✅ **LEVÉ le 2026-08-26** — plusieurs `observation` sont acceptées, et **dès qu'il y en a deux le rattachement devient obligatoire** (§13.14) |
 | ②bis | ⚠ **ET J'AVAIS SURESTIMÉ CE TROU.** « mesures par participant **et** par trajet » — question de Fabien : *« en quoi on ne peut pas le faire avec l'existant ? »* — **était DÉJÀ exprimable** : le trajet est le grain, le participant le contient (`contains`), et chaque attribut nomme son niveau de rattachement (`attached_to`). Le cas réellement manquant était **deux grains NON emboîtés** (dyade conducteur+passager, plusieurs *subjects* BORIS). J'ai décrit comme structurel un besoin dont une moitié était déjà couverte | ✅ corrigé |
-| ③ | **plan déséquilibré déclaré** — un participant qui n'a fait que 3 scénarios sur 4. L'`Discrepancy` le **signale**, mais on ne peut pas le **déclarer comme attendu** ; tout écart légitime sonnera donc comme un défaut | ⚠ un contrôle qui sonne toujours n'est plus lu (leçon `Discrepancy.lecteur`) |
+| ③ | **plan déséquilibré déclaré** — un participant qui n'a fait que 3 scénarios sur 4. L'`Discrepancy` le **signale**, mais on ne peut pas le **déclarer comme attendu** ; tout écart légitime sonnera donc comme un défaut | ⚠ un contrôle qui sonne toujours n'est plus lu (leçon `Discrepancy.reader`, ex-`lecteur`) |
 | ④ | **vagues / longitudinal** — DDI a l'héritage de série entre vagues, nous non | ⚠ |
 | ⑤ | **`universe`** — ce que le corpus vise, pas seulement ce qu'il contient (D25) | ⏳ |
 | ⑥ | ⭐ ~~facteur DÉRIVÉ D'UN MODÈLE~~ | ✅ **LEVÉ le 2026-08-26** — `derived_from` accepte une référence de manifeste `{kind, key}`. Un profil de conducteur issu d'un clustering **est un facteur** dont la provenance est déclarée. ⭐ Fabien : *« si on peut ajouter un profil comme nouveau facteur, on peut alors relier un conducteur à un profil par comparaison »* — c'est exactement ce que la boucle avec `WAMA_APPRENTISSAGE` permet |
@@ -4205,14 +4209,15 @@ cessent d'être enfouis dans un nom de table (`situation_0_15`) pour devenir **i
 > Quick win ⑤. `wama_data/dataset.py` + 12 tests (`tests_dataset.py`), **640 au vert**.
 > Confronté au `.trip` réel, pas à une fixture.
 
-**Ce qui est livré** — `Discrepancy` gagne `coordonnees` (axes situés) et `axes_sans_coordonnee`, et
+**Ce qui est livré** — `Discrepancy` gagne `coordonnees` (axes situés) et `axes_sans_coordonnee`
+(`coordinates` / `axes_without_coordinate` depuis le 2026-10-31, §14.2bis), et
 `locate()` résout **trois graphies**, dans cet ordre : `axe.<clé>` (convention WAMA) · `<clé>`
 (convention de l'outil d'origine, **relevée** au §13.15) · `source_key` (alias déclaré par l'axe).
 
-> ⚠ **`axes_sans_coordonnee` est INFORMATIF, jamais un verdict.** Tous les axes ne sont pas des
+> ⚠ **`axes_without_coordinate` est INFORMATIF, jamais un verdict.** Tous les axes ne sont pas des
 > coordonnées de conteneur : `participant` et `scenario` valent pour tout le fichier, une fenêtre
 > d'analyse indexe des **lignes**. Faire échouer la conformité dessus ferait sonner le contrôle sur
-> tout manifeste correct — le défaut déjà corrigé une fois sur `Discrepancy.lecteur`.
+> tout manifeste correct — le défaut déjà corrigé une fois sur `Discrepancy.reader` (ex-`lecteur`).
 
 **Résultat sur le fichier réel**, et il est exactement celui qu'on espérait :
 
@@ -4309,10 +4314,10 @@ choisi d'en décrire) et `debScn_finVirage_0_0`.
 ### 13.19 ✅ L'ALLER-RETOUR DES COORDONNÉES EST PROUVÉ — D21 close (2026-08-26)
 
 Quick win ④. `coordinate_attributes()` rend la forme **canonique d'écriture** `axe.<clé>`,
-destinée à `Context.attributs` ; `locate()` la relit par sa première graphie. **649 tests au vert.**
+destinée à `Context.attributes` ; `locate()` la relit par sa première graphie. **649 tests au vert.**
 
 ⭐ **Aucun changement de schéma n'a été nécessaire** — et c'est le résultat intéressant :
-`Context.attributs` alimentait déjà `WamaMeta`, et **les quatre lecteurs** (`trip`, `wdat`,
+`Context.attributes` alimentait déjà `WamaMeta`, et **les quatre lecteurs** (`trip`, `wdat`,
 `rtmaps`, `tabular`) exposent déjà `SourceInfo.attributes`. La pièce manquante n'était pas un
 mécanisme, c'était **une convention de nommage et sa preuve**.
 
@@ -4463,6 +4468,48 @@ descendantes→rising/falling` · `nom→name`
 **Ce qui ne bouge PAS** : les tests (méthodes françaises = la règle), la prose/docstrings
 (français), les champs canoniques (`time`/`start`/`end` — déjà anglais, glu inter-mondes), la
 famille driving/geometry/kinematics/io (déjà anglaise), les données déjà écrites.
+
+### 14.2bis ✅ Seconde passe — les identifiants que D28 avait laissés (2026-10-31, soir)
+
+> D28 avait renommé les noms PUBLICS ; restaient les champs, arguments, constantes et variables
+> de sept modules (relevé `check_identifier_language --detail` + relevé à l'œil). Passe
+> TOKENISÉE (jetons `NAME` seuls : chaînes, commentaires et docstrings intacts), consommateurs
+> compris (tests, `containers/trip.py`/`wdat.py`, `frames.py`, `sources/tabular.py`,
+> `functions/io/export.py`, `wama_lab/cam_analyzer/utils/vehicle_tables.py`). Budget code
+> 2623 → 2560.
+
+- `coding` : `PONCTUEL/ETAT→POINT/STATE` · `MOD_UN_PARMI/PLUSIEURS_PARMI/NOMBRE/LIBRE→
+  MOD_ONE_OF/MANY_OF/NUMBER/FREE` · `TYPES_MODIFICATEUR→MODIFIER_TYPES` ·
+  `Behavior.modificateurs→modifiers` · `CodingSession.protocole→protocol` · `marquer→mark`
+  (`sujet/modificateurs/commentaire→subject/modifiers/comment`) · `ouvrir→open` ·
+  `annuler_dernier→undo_last` · `evenements→events` · `resume→summary`
+- `export` : `Column.entete/titre→header/title` · `Identity.champs→fields` ·
+  `entetes()→headers()` (et `ExportFile.entetes→headers`) · `ExportFile.nb_lignes→row_count` ·
+  `Grouping.mode_origine→legacy_mode` · `Format.separateur/ecrivain→separator/writer` (et les
+  arguments de `register_format`) · `Declaration.identite→identity` · `limite→limit` ·
+  `regroupement→grouping` · `lignes_max→max_rows`
+- `conditions` : `CONNECTEURS→CONNECTORS` · `Connector.calcul→compute` · `arbre/cles/masques→
+  tree/keys/masks` · `brut→raw`
+- `segmentation` : `OUVERT→OPEN_END` · `_tracer→_trace` · `around(ancres, attributs=)→
+  around(anchors, attributes=)` · `conditional/edges(masque)→(mask)` ·
+  `hysteresis_mask(seuil_entree, seuil_sortie)→(enter_threshold, exit_threshold)` ·
+  `spatial_margins(abscisses)→(abscissas)`
+- `naming` : `PREFIXE_TABLE→TABLE_PREFIX_LENGTH` · `COLONNES_TEMPS→TIME_COLUMNS` ·
+  `AXES_TEMPORELS→TIME_AXES` · `join_name(table_debut, table_fin)→(start_table, end_table)`
+- `dataset` : `Discrepancy.manquants/non_declares/lecteur/coordonnees/axes_sans_coordonnee/
+  conforme→missing/undeclared/reader/coordinates/axes_without_coordinate/compliant` ·
+  `racine→root` · `PREFIXE_AXE→AXIS_PREFIX`
+- `containers` : `Context.auteur/horodatage/attributs/medias/manifestes→author/timestamp/
+  attributes/media/manifests` · `Entry.colonnes_temps→time_columns` · `a_des_fins→has_ends` ·
+  `Report.fidele→lossless` · `ContainerSchema.colonnes_temps()/ecrire_catalogue()→
+  time_columns()/write_catalog()` · `write(referentiel, contexte=, tranche=, ecraser=)→
+  write(referential, context=, chunk_size=, overwrite=)` · `TRANCHE→CHUNK_SIZE`
+
+**Ce qui ne bouge PAS** : les clés sérialisées d'une déclaration d'export (`colonnes`,
+`identite`, `entete` — saisies et stockées dans les réglages du nœud « Export de données »), les
+valeurs de vocabulaire (`'point'`, `'state'`, `'montante'`, `'etat'`, `'codage'`…), les noms des
+tests, et les identifiants propres aux consommateurs (`apercu_frames(lignes_max=)`,
+`exporter_frames(regroupement=)`…), hors périmètre de cette passe.
 
 ### 14.3 Le plan — quatre passes commitées séparément, instances STOPPÉES
 
