@@ -219,20 +219,12 @@ def render_index(manifest: dict) -> tuple:
     # commun (comme `formats` ici), jamais écrire un resolver dans l'app ou dans ce gabarit.
     # (schéma primaire : calculé plus haut. Les options dynamiques sont résolues par le
     # MOTEUR depuis le registre commun — le gabarit n'en émet aucune fonction.)
-    # La card porte un data-* pour CHAQUE champ du schéma (pas seulement les colonnes) : les
-    # valeurs hors-colonnes sont aplaties sur l'instance par `_decorer` (idiome params_storage
-    # dérivé, views_gen) — c'est ce qui remplit le volet PARAMÈTRES et pré-remplit la modale
-    # avec les MÊMES valeurs que celles que `update` écrit (constats Fabien 31/08).
-    # ⚠ GRAPHIE = LE CONTRAT DU PARC (`card_gear`, 01/09) : `data-<champ-à-tirets>` →
-    # `dataset.<camelCase>`, ce que le lecteur commun (`WamaInspector.gearValues`, cardSettings
-    # par défaut d'initFromSchema) lit. L'ancien idiome `data-param-<champ>` était un
-    # VOCABULAIRE PRIVÉ du générateur : son propre ouvreur de modale le relisait, mais le
-    # cardSettings dérivé (volet) et `sharedGearValues` (modale de lot) cherchaient la graphie
-    # du contrat et ne trouvaient RIEN — deux moitiés d'une paire qui ne se parlaient plus
-    # (constaté le 02/09 : intersection des filles toujours vide).
-    noms_schema = [str(p.get('name')) for p in schema_primaire
-                   if isinstance(p, dict) and p.get('name')]
-    champs_card = list(dict.fromkeys([*champs_params, *noms_schema]))
+    # Les valeurs courantes d'un élément : les data-* du bouton ⚙, émis par la brique `card_gear`
+    # (`elem.gear_data`, propriété du modèle — 2026-10-31), en graphie DU CONTRAT
+    # (`data-<champ-à-tirets>` → `dataset.<camelCase>`) que lisent le lecteur commun
+    # (`WamaInspector.gearValues`), le cardSettings du volet et `sharedGearValues` (modale de lot).
+    # Le générateur les écrivait lui-même sur la racine de la card, d'une liste FIGÉE à la
+    # génération ; l'idiome privé `data-param-<champ>` (avant le 02/09) ne doit pas revenir.
 
     params_js = ''
     if route_update and champs_params:
@@ -242,8 +234,10 @@ def render_index(manifest: dict) -> tuple:
             var card = btn.closest('.wama-card[data-id]');
             // Valeurs courantes lues sur la CARD par le lecteur COMMUN (`gearValues` : le bouton ⚙
             // porte les data-* de la brique `card_gear`) — la lecture des dix apps (2026-10-31).
+            // Les NOMS sont ceux du schéma SERVI par la page, jamais une liste figée à la génération.
             var v = (card && window.WamaInspector && WamaInspector.gearValues)
-                ? WamaInspector.gearValues(card, {champs_card!r}) : {{}};
+                ? WamaInspector.gearValues(card, ({{{{ params_json|safe }}}}).map(function (p) {{ return p.name; }}))
+                : {{}};
             WamaParams.settingsModal({{
                 id: id,
                 title: 'Paramètres — élément #' + id,
