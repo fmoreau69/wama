@@ -1534,7 +1534,7 @@
             "mode": "select — Mode de lecture (choix : auto | printed | handwritten) (défaut : 'auto')",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)"
           },
-          "description": "Ajoute un élément à la file d'attente de Reader (OCR) (Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR)) et renvoie son item_id."
+          "description": "Ajoute un élément à la file d'attente de Reader (OCR) (Extraction de texte par OCR — le moteur vient du catalogue, selon la tâche) et renvoie son item_id."
         },
         "get_reader_status": {
           "args": {},
@@ -1580,7 +1580,7 @@
       }
     }
   },
-  "description": "Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR).",
+  "description": "Extraction de texte par OCR — le moteur vient du catalogue, selon la tâche.",
   "key": "reader",
   "manifest_kind": "app",
   "name": "Reader (OCR)",

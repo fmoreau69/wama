@@ -1692,7 +1692,7 @@ APP_CATALOG = {
         'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-book-open',
         'url_name':    'reader:index',
-        'description': 'Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR).',
+        'description': 'Extraction de texte par OCR — le moteur vient du catalogue, selon la tâche.',
         'input_extensions': OCR_INPUT_EXTENSIONS,
         'input_types': ('document', 'image'),
         'batch_type':  'media_list',
@@ -2178,7 +2178,7 @@ _DESCRIPTION_LONG = {
     'describer': "Description et résumé automatiques d'images, vidéos, audio et documents par modèles multimodaux (Ollama local — gemma/qwen-vl — ou cloud). Le prompt de vision est émis dans la langue de sortie choisie ; plusieurs formats de rendu (résumé, points clés, description structurée). Sous-page de compréhension de documents scientifiques (OpenScholar) prévue.",
     'enhancer': "Amélioration de la qualité média. Image/vidéo : upscaling et restauration IA. Audio : amélioration et débruitage (Resemble Enhance génératif, DeepFilterNet discriminatif). Le préprocessing DeepFilterNet est mutualisé avec le Transcriber (singleton keep_loaded).",
     'imager': "Génération et édition d'images et de vidéos par IA depuis des prompts texte : diffusion (Stable Diffusion XL, Hunyuan, Qwen-Image), logos (FLUX LoRA), vidéo (Mochi, LTX, CogVideoX). Modes img2img / style / describe2img via image de référence. Prompts traduits et enrichis par la PromptPipeline commune.",
-    'reader': "Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR) depuis images, scans et documents. Brique d'extraction réutilisable par d'autres traitements (compréhension de fichiers de référence, RAG à venir).",
+    'reader': "Extraction de texte par OCR depuis images, scans et documents — le moteur vient du catalogue, selon la tâche (docTR en local, et les modèles OCR que sert le catalogue). Brique d'extraction réutilisable par d'autres traitements (compréhension de fichiers de référence, RAG à venir).",
     'synthesizer': "Synthèse vocale (TTS) multi-moteurs : XTTS, Higgs Audio, Kokoro… Voix prédéfinies, voix personnalisées et clonage à partir d'un échantillon. Toute synthèse est encapsulée dans un batch (upload simple = batch de 1, fichier = batch de N). Le texte est dit tel quel — jamais traduit.",
     'transcriber': "Transcription audio/vidéo en texte (Whisper large-v3 et autres moteurs). Diarisation des locuteurs, horodatage par mot, résumé et contrôle de cohérence. Éditeur de correction manuelle assistée (onde + heatmap, navigation clavier, timecode « aller à », auto-save) — voir wama/transcriber/TRANSCRIBER_CORRECTION.md.",
 }
