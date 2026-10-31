@@ -7,10 +7,23 @@
 > 🔴 **LES SECTIONS §0 À §33 CI-DESSOUS SONT DES PHOTOS DE JUIN-JUILLET 2026** — elles se lisent
 > EN PREMIER et **surestiment ou sous-estiment** l'état réel. Balayage de vérification au code
 > commencé le **2026-09-10** (demande de Fabien) : §0, §6, §9 corrigés et datés ; les autres
-> **ne sont pas encore re-mesurés**. **L'état consolidé et MESURÉ vit dans
+> **ne sont pas encore re-mesurés**. *(Corrigé le 2026-10-31 : ce constat était dépassé — des
+> corrections datées du 2026-09-10 portent aussi sur §1, §2bis, §15, §18, et une passe d'audit
+> doc ↔ code du **2026-10-31** a re-vérifié au code les TITRES, listes ⏳ et l'« Ordre de reprise »
+> de §0-§42 ; les corps restent des photos datées.)* **L'état consolidé et MESURÉ vit dans
 > [`ROADMAP.md §24`](ROADMAP.md)** ; le récit à jour, dans les `§REPRISE` de fin de fichier.
 > *Ne prendre aucune section de tête pour argent comptant sans la confronter au code.*
 > Marqueurs : ✅ fait · 🔄 en cours · ⏳ à faire. Détails par chantier dans les docs/mémoire référencés.
+>
+> 📤 **« non poussé » dans les blocs datés (vérifié le 2026-10-31)** : tout ce que les `§PALIER` /
+> `§CLÔTURE` / `§REPRISE` disent « non poussé », « commits d'avance » ou « ⏳ pousser » jusqu'au
+> §CLÔTURE 2026-10-29 (soir) « MULTI-AGENTS » compris **est sur `origin/dev`** (tête `d4e7ad1e`,
+> 2026-10-30 08:48) : des 1 090 SHA cités dans ce fichier (relevé avant cette passe), 1 036 sont connus du dépôt local et
+> 1 030 d'entre eux sont ancêtres de `origin/dev` (`git merge-base --is-ancestor`) ; les 6 autres,
+> aucune branche ne les contient (`2b5b92c5`, `32c28606`,
+> `42157a42`, `7b8e9510`, `b24ca53e`, `b75d6b31` — commits réécrits) ; 54 sont inconnus du dépôt.
+> Ne restent non poussés que les commits postérieurs (`git log origin/dev..dev`). Les mentions
+> d'origine ne sont pas réécrites : ce sont des traces datées.
 >
 > 🔜 **REPRISE session neuve** : le handoff `REPRISE_2026-07-22.md` est **ARCHIVÉ**
 > (`docs/construction/archive/`, 2026-07-25 — plan doc B8) après migration de son vivant : backlog → **§40**,
@@ -41,7 +54,7 @@
 | Plafond allocateur CUDA | ✅ **universel** — par process, aucune action par app |
 | Priorités | ✅ **universel** — par le routage, toutes les routes GPU couvertes |
 | Déclaration VRAM auto | ⚠️ **conditionnelle** — 21 backends concrets, 9 sous-classes directes (imager 9, **transcriber 4** dont pyannote, **anonymizer 3**, enhancer 2, reader 2, composer 1) — les 7 ajouts du 29/07 sont venus de 3 classes intermédiaires, pas de 7 rattachements |
-| Déclaration des SOUS-PROCESSUS GPU | ⚠️ **explicite** — brique `vram_reservation()` ; adoptée par avatarizer (MuseTalk, CodeFormer), reste le service TTS |
+| Déclaration des SOUS-PROCESSUS GPU | ⚠️ **explicite** — brique `vram_reservation()` ; adoptée par avatarizer (MuseTalk, CodeFormer), reste le service TTS — ✅ *service TTS couvert (constaté le 2026-10-31) : ses moteurs dérivent de `BaseModelBackend` (empreinte mesurée au chargement) + battement de réservation commun, `wama/common/tts/service.py:199-205, 722-729`* |
 | Garde de redélivrance | ⚠️ **par tâche** — 10 / 42 |
 
 **Reste ⏳ — par ordre de risque :**
@@ -65,9 +78,14 @@
      `run_item_task`) : `wama_lab/cam_analyzer` **15**, `model_manager` **9**, `common` **6**,
      `studio` **1**, `face_analyzer` **1**, `celery.py` **1**. → le **Lab et le transversal**,
      plus le monde média.
-3. `reconcile_orphaned_running` **manquant** : anonymizer, avatarizer, translator, apps lab.
+3. ~~`reconcile_orphaned_running` **manquant** : anonymizer, avatarizer, translator, apps lab.~~
    ⚠ Non re-mesuré le 10/09 — à vérifier avant de s'en servir (les 5 lignes ci-dessus montrent
    ce que vaut un relevé de juillet).
+   ✅ *Re-mesuré le 2026-10-31 : les **10 apps média** réconcilient à l'index, par
+   `reconcile_queue_of` (`common/utils/process_control.py`, qui appelle
+   `reconcile_orphaned_running` — grep dans les `views.py` des dix apps) ; « translator » n'est
+   pas une app (`common/utils/translator.py`). ⏳ Reste le **Lab** : aucun appel dans
+   `wama_lab/` (grep `reconcile_orphan|reconcile_queue_of` → 0).*
 3bis. ~~**CONTRAT BACKEND CONCURRENT — transcriber**~~ ✅ **PORTÉ 2026-07-29** —
    `SpeechToTextBackend` hérite désormais de `BaseModelBackend` et n'est plus qu'une
    **spécialisation métier** (verbe `transcribe()`, `TranscriptionResult/Segment`, capacités,
@@ -94,6 +112,10 @@
    ⏳ Reste le **service TTS** (process uvicorn séparé) : sa déclaration doit venir de
    l'intérieur du service, au chargement de son modèle (il reste résident entre deux appels,
    donc l'envelopper depuis l'appelant HTTP serait faux).
+   ✅ *Fait (constaté le 2026-10-31) : c'est bien de l'intérieur — moteurs TTS sous
+   `BaseModelBackend`, `start_reservation_heartbeat()` au démarrage du service
+   (`wama/common/tts/service.py:199-205, 728-729` ; le service a quitté `tts_service.py` le
+   2026-10-28).*
 3ter. ~~**DIARISEUR PYANNOTE — VRAM hors contrat**~~ ✅ **PORTÉ 2026-07-29** —
    `pyannote_diarizer.py` n'était pas une classe backend mais un module à pipeline global
    (`_pipeline`, `.to("cuda")`), chargé dans `workers.py` **par-dessus** un ASR déjà résident :
@@ -160,7 +182,7 @@
    | composer | ✅ commune | 1ᵉʳ adopteur ; son appariement entrée↔modèle est **remonté en commun** le 30/07 |
    | transcriber | ✅ commune | + `BACKEND_PRIORITY` en **repli statique** assumé (whisper-first) |
    | imager | ✅ commune | 3ᵉ adopteur 29-30/07 ; listage UI **et** tirage sur la même route |
-   | **anonymizer** | 🔴 **SÉLECTEUR CONCURRENT** | `utils/model_selector.py` — `select_model_by_precision()`, `select_best_model()`, ~800 lignes. **Le dernier vrai divergent.** |
+   | **anonymizer** | 🔴 **SÉLECTEUR CONCURRENT** | `utils/model_selector.py` — `select_model_by_precision()`, `select_best_model()`, ~800 lignes. **Le dernier vrai divergent.** — ✅ *2026-10-12 : couverture commune `common/services/model_coverage.couvrir_classes` (`:210`), sélecteur mono-modèle retiré (`REMOVAL_LEDGER R117`, en-tête de `anonymizer/utils/model_selector.py`) — constaté le 2026-10-31* |
    | describer | ⚠️ modèle fixe | `get_blip_model()` — pas un tirage ; à instruire si plusieurs modèles |
    | enhancer, reader, converter, synthesizer, avatarizer, translator, studio | — | pas de tirage (modèle fixe ou pas de modèle) |
 
@@ -175,8 +197,9 @@
    l'aurait **ignorée** ; filtrer sur `task='image-to-video'` écartait au contraire LTX, qui sait
    l'animer ET tient sur la carte. Effet mesuré : i2v passe de cogvideox (21 Go, offload) à
    ltx-13b-distilled (14 Go, FULL_GPU).
-   ⏳ **Reste** : (a) **anonymizer** — migration vers `select_model(classes=…)`, paramètre déjà
-   prévu POUR lui ; (b) doublons de `model_key` au catalogue (`audiogen-medium` **et**
+   ⏳ **Reste** : (a) ~~**anonymizer** — migration vers `select_model(classes=…)`, paramètre déjà
+   prévu POUR lui~~ ✅ *2026-10-12, par la couverture commune `couvrir_classes` (R117 ; constaté
+   le 2026-10-31)* ; (b) doublons de `model_key` au catalogue (`audiogen-medium` **et**
    `composer:audiogen-medium` coexistent — cf. commande `dedup_models`) ; (c) `cogvideox-5b`,
    retiré du manifeste imager, subsiste au catalogue via une **autre découverte** que
    `_discover_imager_models` — deux chemins d'ingest pour une même source.
@@ -196,8 +219,10 @@
    pas le manifeste.
 5. **Aucune validation GPU réelle** des correctifs (règle : pas de charge GPU WSL2 par Claude).
    Preuve attendue au prochain qwen-image : `Strategy: MODEL_OFFLOAD` et non `FULL_GPU`.
-6. Grille de conformité **non re-mesurée** depuis l'ajout de `reconcile_orphaned_running` à
-   l'imager (`python manage.py check_app_conformity`, skill `/conformite`).
+6. ~~Grille de conformité **non re-mesurée** depuis l'ajout de `reconcile_orphaned_running` à
+   l'imager (`python manage.py check_app_conformity`, skill `/conformite`).~~ ✅ *re-mesurée
+   maintes fois depuis (relevés datés dans `AGENTS.md` §Conventions UI) ; critère dédié
+   `reconcile_orphans` (`common/services/conformity_checker.py:2609`) — constaté le 2026-10-31.*
 
 ## 1. PromptPipeline (prompts centralisés §16.6 / §10.B) — bien avancé
 Doc : [`WAMA_LLM.md`](../ia/WAMA_LLM.md).
@@ -206,9 +231,14 @@ Doc : [`WAMA_LLM.md`](../ia/WAMA_LLM.md).
 - ✅ C Transparence console (🌐 traduit / ✨ enrichi / 📎 référence ; silence si direct)
 - ✅ D Composer câblé (MusicGen EN) + synthesizer tranché (TTS jamais traduit)
 - ✅ Hook compréhension fichiers de référence (`reference_comprehension.py`, dormant)
-- ⏳ Hook RAG — ⚠ **la dépendance annoncée était `wama/rag/` : ce paquet N'EXISTE PAS et
+- 🔄 Hook RAG — ⚠ **la dépendance annoncée était `wama/rag/` : ce paquet N'EXISTE PAS et
   n'existera pas** (vérifié 2026-09-10). Le socle est LIVRÉ ailleurs : `wama/common/memory/`
-  sur pgvector (§6). Le hook lui-même reste à câbler ; il n'attend plus rien.
+  sur pgvector (§6). ~~Le hook lui-même reste à câbler ; il n'attend plus rien.~~
+  ✅ *Hook CÂBLÉ (constaté le 2026-10-31) : `common/utils/prompt_pipeline.py:239-246`
+  (`if rag and user is not None …` → `_rappel_rag`, l. 31), OPT-IN `rag=True` — cf.
+  `WAMA_MEMORY.md` jalon 6. ⏳ reste un 1ᵉʳ adopteur : aucun appelant de `process_prompt` ne passe
+  `rag=` (grep `[^_a-z]rag=` dans `wama/`, `wama_lab/`, `wama_data/` → seules les déclarations
+  `AssistantDomain(..., rag=True)` de `assistant_skills.py:68-89`, autre chemin).*
 - ⏳ Choisir le 1er adopteur `reference_field` (reco : sous-page describer doc-understanding)
 - ⏳ Câbler QC (`qc.py`) en post-génération ; (option) preview pré-lancement
 
@@ -239,6 +269,10 @@ Doc : [`WAMA_LLM.md`](../ia/WAMA_LLM.md).
 > PROPRES (`select_model_for_role` Ollama, tiers `llm_utils`, précision anonymizer) — l'« étape 3
 > adaptateurs » ⏳ ci-dessous EST ce chantier ; l'imager choisit par priorité/disponibilité, pas
 > par VRAM libre.
+> ⚠ *ⓐ est une photo du 2026-07-24 (constaté le 2026-10-31) : le tirage commun
+> `common/utils/auto_model.py:332` `resolve_model_choice` / `select_model()` est consommé par
+> imager, composer, enhancer, reader, describer, transcriber… — l'état courant de l'adoption est
+> le critère `select_model`/`quality_intent` de `check_app_conformity`, pas cette ligne.*
 > **1er adopteur : COMPOSER — CÂBLÉ 2026-07-21 ✅** (validé sur base live + VRAM réelle :
 > sans réf → musicgen-medium, avec réf → musicgen-melody, sfx → audiogen-medium).
 > Design conforme à la décision 2026-07-02 (pas de switch de type) : pseudo-modèles
@@ -254,7 +288,8 @@ Doc : [`WAMA_LLM.md`](../ia/WAMA_LLM.md).
 > headroom_gb, exclude=)` (`model_manager/services/memory_manager.py`) décharge les unloaders
 > déclarés (`register_vram_unloader`) puis re-mesure ; 1er déclarant : transcriber (`apps.py`).
 > ⚠ Adoption = 0 appelant applicatif à ce jour (le call-site diariseur a été annulé par le revert
-> 6cc37ec) ; reste aussi à déclarer un unloader pour les 9 autres apps ; ⓒ pas de **coordination
+> 6cc37ec) *(dépassé, constaté le 2026-10-31 : 1 appelant, le pré-contrôle FULL_GPU de
+> `model_manager/services/memory_manager.py:951`)* ; reste aussi à déclarer un unloader pour les 9 autres apps ; ⓒ pas de **coordination
 > inter-process** — `ensure_free_vram` ne voit que les unloaders du process courant (dict en
 > mémoire) ; Django + workers Celery gardent chacun leur registre → double chargement concurrent
 > encore possible ; seul le nightly sérialise ; ⓓ `keep_loaded` = comportement `prefer_loaded`/`is_loaded`, pas un flag persistant
@@ -307,7 +342,9 @@ Doc : [`WAMA_LLM.md`](../ia/WAMA_LLM.md).
   Preuve : `gemma4:12b` (qualité 42,7 / **7,6 Go**) passe devant `gemma4:e4b` (35,0 / 9,6 Go) —
   le plus petit est le meilleur, et l'ancien tri choisissait l'inverse. Les LLM entrent enfin
   dans `select_model()` : `llm_utils` n'a plus aucun nom de modèle en dur.
-- 🔄 **Anonymizer — extraire la COUVERTURE vers `common/`, pas « porter puis supprimer »
+- ✅ *(fait le 2026-10-12, constaté le 2026-10-31 : `common/services/model_coverage.py:210`
+  `couvrir_classes`, consommée par `anonymizer/utils/model_selector.select_best_models_by_precision` ;
+  sélecteur mono-modèle et découverte disque retirés, `REMOVAL_LEDGER R117`)* ~~🔄~~ **Anonymizer — extraire la COUVERTURE vers `common/`, pas « porter puis supprimer »
   (analyse 2026-08-04)** : `anonymizer/utils/model_selector.py` (1 139 lignes, 4 consommateurs)
   ressemble à une route parallèle de `select_model()`, mais **ne s'y réduit pas**.
   `select_best_models_by_precision()` résout un problème de **couverture** — quelle COMBINAISON
@@ -336,7 +373,9 @@ Doc : [`WAMA_LLM.md`](../ia/WAMA_LLM.md).
   `WAMA_APP_GENERATION_ROUTE.md` + `WAMA_MANIFEST_SPEC.md`, §38 ; ex-`GENERALIZATION_PLAN`
   archivé `docs/construction/archive/`). Toujours humain-dans-la-boucle, jamais
   d'auto-application. Cf. `memory/project_queue_solitaire_prospection.md`.
-- ⏳ Étape 3 centralisation (adaptateurs anonymizer/transcriber + migration per-model)
+- ⏳ Étape 3 centralisation (adaptateurs anonymizer/transcriber + migration per-model) —
+  *anonymizer ✅ (couverture commune, R117, 2026-10-12) ; transcriber : tirage commun depuis le
+  2026-07-24 (ⓐ ci-dessus) ; constaté le 2026-10-31*
 - ⏳ Chargeur générique ; agents cloud pour confronter ; recherche web benchmarks
 - ✅ **Backup distant, ARCHIVE CUMULATIVE (2026-06-24, vocabulaire corrigé 2026-07-28)** :
   `remote_backup` réplique l'arbo locale `AI-models/models/`
@@ -406,17 +445,22 @@ Doc : [`WAMA_LLM.md`](../ia/WAMA_LLM.md).
   fixtures (assertions + nettoyage IDs) ; timeout dur (Celery soft_time_limit) ; page de résultats ;
   activer le beat après validation WSL.
 
-## 2bis. Inspecteur volet droit unifié (modèles + apps) — 🔄
+## 2bis. Inspecteur volet droit unifié (modèles + apps) — ✅ (reste : lacunes catalogue) *(titre corrigé le 2026-10-31 ; il disait 🔄)*
 Un seul composant `WamaInspector`, deux catalogues, contenu généré depuis la métadonnée.
-- 🔄 **Apps** (`/apps/` ← `common/app_registry.py::APP_CATALOG`, 10 apps génériques) : ajout d'un champ
+- ✅ **Apps** (`/apps/` ← `common/app_registry.py::APP_CATALOG`, 10 apps génériques) : ajout d'un champ
   `description_long` par app → volet droit = inspecteur d'app (description complète + I/O + batch +
   **score conformité live + conventions manquantes** via `get_conformity_summary`).
-- ⏳ **Modèles** : idem §2 (inspecteur par-modèle depuis `AIModel.to_dict()`).
-- ⏳ **Lacunes catalogue** : `media_library` et apps **WAMA Lab** (cam_analyzer, face_analyzer) absents
+  *(Constaté le 2026-10-31 : `_DESCRIPTION_LONG`, `app_registry.py:2173-2186`.)*
+- ✅ **Modèles** : idem §2 (inspecteur par-modèle depuis `AIModel.to_dict()`). *(Constaté le
+  2026-10-31 : `model_manager/templates/model_manager/index.html:1524`, WamaInspector + WamaDetails ;
+  §2 le dit ✅.)*
+- ⏳ **Lacunes catalogue** *(toujours ouvert le 2026-10-31 : `app_registry.py` ne cite ni
+  `media_library`, ni `cam_analyzer`, ni `face_analyzer`)* : `media_library` et apps **WAMA Lab** (cam_analyzer, face_analyzer) absents
   de `APP_CATALOG` (catalogue = apps génériques seulement) → décider de les inclure (flag `lab`/`hub`).
-- ⏳ **Grille §15** (WAMA_APP_CONVENTIONS) = photo manuelle (2026-05-16) dérivée du registre live →
+- ✅ **Grille §15** (WAMA_APP_CONVENTIONS) = photo manuelle (2026-05-16) dérivée du registre live →
   remplacer par un pointeur vers `/apps/` (`get_conformity_summary()`, seule source à jour ; NE PAS
-  recopier de scores figés ici, ils dérivent).
+  recopier de scores figés ici, ils dérivent). *(Fait le 2026-07-11, constaté le 2026-10-31 :
+  `WAMA_APP_CONVENTIONS.md §15` « SOURCE LIVE = `/apps/` », tables figées supprimées.)*
   🔴 **~~Scores live 2026-07-02 : transcriber 76 % · describer/enhancer/reader 68 % · converter
   62 % · synthesizer 61 % · anonymizer 59 % · composer 57 % · imager 42 %, avatarizer 40 %~~ —
   RETIRÉS le 2026-09-10, ils étaient FAUX de 20 à 50 points.** Mesure du jour : converter et
@@ -437,8 +481,12 @@ Doc consolidé : [`WAMA_APP_GENERATION_ROUTE.md`](../architecture/WAMA_APP_GENER
 `COMMON_REFACTORING.md`, archivé → `docs/construction/archive/`). Transcriber = référence.
 - ✅ Briques extraites (wama-app-base, wama-inspector, wama-model-help, partials cards, eta…)
 - ✅ `backend_selector` **annulé/remplacé** par `model_manager/services/model_selector.py::select_model()`
-  (cf. §2 — ne pas créer le fichier) ; ⏳ `_settings_modal.html` générique
-- ⏳ Adoption app par app (converter, describer, enhancer, imager, reader, synthesizer, anonymizer, composer)
+  (cf. §2 — ne pas créer le fichier) ; ~~⏳ `_settings_modal.html` générique~~ ✅ *LIVRÉ
+  AUTREMENT (constaté le 2026-10-31) : modale GÉNÉRÉE `WamaParams.settingsModal()`
+  (`common/static/common/js/wama-params.js:1961`), appelée par les 10 apps ; le partial ne sera
+  pas créé (`AGENTS.md` §Roadmap refactoring, point 3)*
+- ~~⏳ Adoption app par app (converter, describer, enhancer, imager, reader, synthesizer, anonymizer, composer)~~
+  *→ l'état de l'adoption se lit dans `check_app_conformity` (`/apps/`), pas ici (2026-10-31)*
 
 ## 5. Cam Analyzer (WAMA Lab) — consigné, à finaliser
 Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne+conception) + `CAM_ANALYZER_CHANGELOG.md` (historique+backlog « État courant & RESTE ») ; spécificités projet → `projects/ENA_CASA.md` ; ROADMAP §9.
@@ -492,9 +540,18 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
   ⭐ **TOUJOURS OUVERT et REDEVENU d'actualité** (vérifié 2026-09-10 : les deux outils sont
   **ABSENTS** des 59 exposés). C'est une **DÉCISION DÉJÀ PRISE** pour le chantier « compléter
   l'API » (`ROADMAP §24.4① quater`) — la chercher avant de reconcevoir des lectures d'items.
+  ✅ *LIVRÉ (constaté le 2026-10-31) : `wama/tool_api.py:2979` `list_my_items`, `:3055`
+  `get_item_detail`, inscrits au registre l. 4051-4052. Il reste 4 `def get_*_status` dans
+  `tool_api.py` (leur retrait n'est pas fait).*
 
-## 7. Anonymisation multimodale (§16.4) — décidé, non construit
-- ⏳ Presidio + GLiNER FR ; mode « texte » = porte privacy avant-cloud (même composant) ; audio (PII + biométrie) ; dispatcher par modalité
+## 7. Anonymisation multimodale (§16.4) — 🔄 texte construit le 2026-10-28 *(titre corrigé le 2026-10-31 ; il disait « décidé, non construit »)*
+- ~~⏳ Presidio + GLiNER FR ; mode « texte » = porte privacy avant-cloud (même composant) ;~~ audio (PII + biométrie) ; dispatcher par modalité
+  ✅ *texte (constaté le 2026-10-31) : brique `wama/common/privacy/` (`engine`, `gate`,
+  `recognizers`, `service`), détecteurs `common/backends/gliner2_pii_backend.py` et
+  `bardsai_pii_backend.py` sous `pii_detection_base.py` ; porte avant-cloud câblée
+  (`common/utils/llm_utils.py:827-828` `privacy_gate`, aussi `common/services/dev_tools.py:510`).
+  ⏳ audio (PII + biométrie), dispatcher par modalité, domaine `document` de l'Anonymizer — état
+  courant : `ROADMAP §16.4bis`.*
 - 🔄 *2026-10-28* : repris (un objectif) — décisions D1–D5 du 17/10 et du 28/10, recherche et ordre au `ROADMAP §16.4bis`
 
 ## 8. Translator (§10)
@@ -520,7 +577,7 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
   rapport appris sur des audios courts annonçait 11 h pour une transcription de 141 min (9 min 13 s
   réelles). `relearn_lines_from_runs` l'a amorcée une fois sur l'historique des lignes de process.
   La VITESSE comparée par le curseur (`comparable_speeds`) reste le rapport.
-- ⏳ Reste : **valider sur données réelles** (restart WSL2) ; calibrer les a-priori par modèle (`AIModel.extra_info['eta']` ou test nocturne) ; ETA agrégé batch ; anonymizer (pas encore câblé — vérifier).
+- ⏳ Reste : **valider sur données réelles** (restart WSL2) ; calibrer les a-priori par modèle (`AIModel.extra_info['eta']` ou test nocturne) ; ~~ETA agrégé batch ; anonymizer (pas encore câblé — vérifier).~~ ✅ *câblés (constaté le 2026-10-31) : anonymizer `anonymizer/tasks.py:43-45` (clés `anonymizer:blur:vid/img`) et `:491` ; ETA agrégée de lot `common/templates/common/_batch_card.html:21, 134-135` (`batch_info.eta_ids`).*
 - ✅ **L'ETA d'un distant sous sa SOURCE, et aucun chargement pour un modèle CHAUD (décision de
   Fabien, 2026-10-26)**. Deux règles communes de `eta_estimator`, sans aucune déclaration neuve :
   `compute_place` range une durée sous la source d'un modèle distant (le premier segment de la
@@ -569,13 +626,20 @@ Doc : `wama/transcriber/TRANSCRIBER_CORRECTION.md`.
 ## 13. Déploiement — note d'architecture
 - ⏳ Migration Apache Windows → Nginx Linux ; plan serveur prod (LiteLLM orchestrateur). Voir `memory/project_deployment_roadmap.md`.
 
-## 14. WamaModes (clé de voûte modes) + Mots-clés de prompt — palier 2026-06-25
+## 14. WamaModes (clé de voûte modes) + Mots-clés de prompt — palier 2026-06-25 *(⚠ l'« app de référence » imager est défaite — vérifié le 2026-10-31, cf. ci-dessous)*
 Doc : `MODES_QUEUE_UX.md` (P1 schéma), `memory/project_prompt_keywords.md`.
 - ✅ Schéma déclaratif domaines→modes (`common/utils/app_modes.py`) + générateur JS (`common/static/common/js/wama-modes.js`) + endpoint `/common/api/app-modes/<app>/`.
-- ✅ **Imager (app de référence)** : WamaModes **pilote les barres de mode** image+vidéo (`renderInputs:false`) ; radios natifs = source de vérité (cachés si rendu OK, résilient sinon). Apparence préservée via `domain.variant` (image=bleu, vidéo=vert), `block` (pleine largeur), `modesLabel`. Schéma vidéo aligné `txt2vid`/`img2vid`.
+- ~~✅~~ ⚠ *DÉFAIT (constaté le 2026-10-31) : l'imager n'a plus de barre de mode — mode dérivé des
+  entrées par `input_card.js` (`imager/templates/imager/index.html:130-135`) ; aucun `WamaModes`
+  dans `wama/imager/`. Adopteurs de WamaModes : anonymizer et enhancer (onglets de domaine,
+  `renderInputs: false`).* ~~**Imager (app de référence)** : WamaModes **pilote les barres de mode** image+vidéo (`renderInputs:false`) ; radios natifs = source de vérité (cachés si rendu OK, résilient sinon). Apparence préservée via `domain.variant` (image=bleu, vidéo=vert), `block` (pleine largeur), `modesLabel`. Schéma vidéo aligné `txt2vid`/`img2vid`.~~
 - ✅ **Mots-clés de prompt** : modèle `PromptKeyword` (tronc commun + perso) dans la médiathèque, seed 52, 3 endpoints, brique commune `wama-prompt-chips.js` (chips par catégorie, insère/retire dans le prompt, + perso, badge `onCount`). Câblé Imager (prompt image+vidéo) + onglet « Mots-clés » médiathèque.
 - 🔄 **À confirmer visuellement** (Fabien teste après restart serveur) : chips affichés + badge 52.
 - ⏳ Prochain palier WamaModes : `renderInputs:true` (entrées typées + réglages par mode sur la card « Nouveau ») — **touche la soumission, à faire délibérément** (pas en cours de test). Puis réplication du pilotage de modes sur anonymizer (yolo/sam3) / synthesizer (temps réel).
+  *(Constaté le 2026-10-31 : `renderInputs:true` n'a AUCUNE app adopteuse — seule la page de
+  démonstration `common/modes_demo.html` le rend ; anonymizer (`index.html:309`) et enhancer
+  (`index.html:344`), seules apps à monter WamaModes, passent `renderInputs: false` ; la card d'entrée commune `_new_item_card` a
+  pris les entrées typées.)*
 - ⚠️ Règle : préserver la mise en forme à l'identique en généralisant (`memory/feedback_preserve_formatting.md`).
 
 ## 15. Méta-app studio + vision production AV — palier 2026-06-25
@@ -592,6 +656,12 @@ Docs : `STUDIO_VISION.md`, `memory/project_meta_app_studio.md`, `memory/project_
   ailleurs : **exécuter un pipeline de FONCTIONS depuis le bouton ▶** (jamais fait) et la
   **marche E** (recharger un manifeste `pipeline` dans le canvas — l'export existe, l'import
   non). Voir `ROADMAP §24.5-3`.
+  ✅ *Exécution d'un pipeline de FONCTIONS par ▶ : faite (constaté le 2026-10-31) — `api_run`
+  (`studio/views.py:279`) → `run_pipeline_task`, qui dispatche les nœuds `function`
+  (`studio/tasks.py:13, 457-466`, D13) ; palette des fonctions `studio/services/palette.py`.
+  🔄 marche E : les pipelines DÉCLARÉS s'ouvrent au canvas (`studio/views.py:179-187`
+  `api_declared_pipeline_detail` + `body_to_graph`) ; l'import d'un manifeste FICHIER n'est pas
+  vérifié ici (annoncé `studio/tasks.py:23`).*
 
 ## 16. Profils / permissions / notifications / rétention — palier 2026-06-25
 Doc : `PROFILES_PERMISSIONS.md` + `memory/project_profiles_permissions.md`.
@@ -600,7 +670,7 @@ Doc : `PROFILES_PERMISSIONS.md` + `memory/project_profiles_permissions.md`.
 - ✅ **Rétention médias** : `media_retention_days` (page profil) + `common/services/retention.py` (purge par introspection) + beat quotidien + pré-avis.
 - ⚠️ Bases Postgres **distinctes** Windows/WSL2 (cf. `memory/reference_infra_wsl_windows`) — agir via `wsl.exe` pour le live.
 
-## 17. Uniformisation — gold standard Transcriber (⭐ PHASE COURANTE)
+## 17. Uniformisation — gold standard Transcriber (~~⭐ PHASE COURANTE~~ phase de juin-juillet 2026 — l'état courant des chantiers vit dans `ROADMAP §24` et les derniers `§CLÔTURE` ; titre corrigé le 2026-10-31)
 Voir `memory/feedback_transcriber_gold_standard`. Stratégie : finir **Transcriber** à 100 % (conformité + esthétique file Solitaire épurée) → recette, puis dérouler à toutes (Imager en dernier). **Garde-fous** : préserver temps réel (Speak) + page de correction (laissée telle quelle, bouton non généralisé).
 
 **Réaffirmé 2026-06-29 (Fabien)** : on FINIT le Transcriber AVANT la généralisation §18 (« finir 1 app
@@ -612,6 +682,9 @@ puis généraliser »). Déjà avancé : briques communes (`_new_item_card`/`_ca
   Speak à côté de drop/fichier/URL/batch), à la place du **sélecteur de mode** en haut de page (entrée
   progressive, cf. accordéon prototypé sur Synthesizer). **Préserver Speak intact** (garde-fou). = le
   morceau central.
+  ✅ *Speak + accordéon dans la card commune (constaté le 2026-10-31) :
+  `common/templates/common/_new_item_card.html:35-37` (capacité `has_live_input`, 2026-09-28 ;
+  le transcriber passe `live_btn_id='transcriber-speak-btn'`) et `:9-14` (`collapsible`).*
 - ✅ **Staging supprimé (2026-06-29)** — décidé Q2, cf. `CARD_DESIGN §8.5`. « Staging » = statut `DRAFT`.
   `_auto_wrap_orphans` n'exclut plus `DRAFT` → brouillons rendus **dans la file** comme cards BROUILLON
   (config via inspecteur, lancement via `start` qui gère DRAFT). Retirés : `staging_list` + `#stagingZone`
@@ -625,11 +698,12 @@ puis généraliser »). Déjà avancé : briques communes (`_new_item_card`/`_ca
 
 → Transcriber à 100 % **d'abord**, puis §18 (généralisation) + Synthesizer/Imager.
 
-## 18. File Solitaire — focus, card mère homogène, animation (décidé 2026-06-29) — ⏳
+## 18. File Solitaire — focus, card mère homogène, animation (décidé 2026-06-29) — 🔄 (reste P2 éventail `translateY`, P3 polish) *(titre corrigé le 2026-10-31 ; il disait ⏳)*
 Doc : `CARD_DESIGN.md §8`. Affine §17 (file épurée) + §3ter (pile Solitaire).
 **Séquencement : APRÈS §17** — ces items reçoivent leur implémentation de référence SUR le Transcriber
 (dans le cadre de « finir le Transcriber »), puis sont extraits en briques communes pour les autres apps.
-- ⏳ **Focus à l'ajout + nav** : helper commun `WamaQueue.focusCard(id, {scroll:'center',select,pulse})`
+- ✅ *(constaté le 2026-10-31 : `common/static/common/js/wama-queue.js:360` `function focusCard`,
+  partagé ajout et nav clavier)* ~~⏳~~ **Focus à l'ajout + nav** : helper commun `WamaQueue.focusCard(id, {scroll:'center',select,pulse})`
   (scrollIntoView centré + halo + sélection inspecteur), partagé ajout ET nav clavier. Inspecteur non
   bloquant à l'ajout (PAS de modale auto). `scroll-margin-top` = hauteur header (bug card du haut masquée).
   Le bug « card en bas de pile » est **app-spécifique** (PAS commun) → remède = **centraliser une
@@ -638,8 +712,9 @@ Doc : `CARD_DESIGN.md §8`. Affine §17 (file épurée) + §3ter (pile Solitaire
   (`apply_queue_sort_filter`, persisté en session, clés partagées entre apps) + partial
   `common/_queue_toolbar.html` (tri + filtre + toggle Ligne/Mosaïque + `_queue_actions`, option
   `download_url`). **Consommé : Transcriber (pilote 2026-06-29, basculé sur la brique) + Composer
-  (hérite, 2026-07-03)**. Défaut chronologique récent = acté partout. **Reste** : porter aux 8 autres
-  apps (le **reader** a encore son tri batch-first app-spécifique) ; options sort type/durée.
+  (hérite, 2026-07-03)**. Défaut chronologique récent = acté partout. **Reste** : ~~porter aux 8 autres
+  apps (le **reader** a encore son tri batch-first app-spécifique)~~ ✅ *10/10 (constaté le
+  2026-10-31 : `apply_queue_sort_filter`/`queue_toolbar` dans les `views.py` des dix apps)* ; options sort type/durée.
   **CSS mosaïque aussi globalisé** (contrat `.wama-card`, wama-inspector.css) : solitaire (batch
   replié = cellule mosaïque, déplié = pleine largeur), empilement VERTICAL des sections en grille,
   fan-in — corrige la régression solitaire Transcriber ET la compression horizontale Composer.
@@ -668,7 +743,8 @@ Doc : `CARD_DESIGN.md §8`. Affine §17 (file épurée) + §3ter (pile Solitaire
   `translateY` ∝ distance à la card sélectionnée + stagger ; P3 durée ~0,35–0,45 s easing (trop rapide
   aujourd'hui). Lié `wama-queue.js`.
 
-- ⏳ **Card d'import homogène (DIFFÉRÉ passe visuelle/globalisation)** : la rendre card-like + 1ʳᵉ card
+- ✅ *(accordéon de la card d'entrée commune : `_new_item_card.html:9-14` `collapsible`, constaté
+  le 2026-10-31 ; « retirer la répétition File d'attente de l'en-tête » non vérifié)* ~~⏳~~ **Card d'import homogène (DIFFÉRÉ passe visuelle/globalisation)** : la rendre card-like + 1ʳᵉ card
   de la file (accordéon : replié compact homogène ↔ déplié = modalités d'import avec de la place ; NE PAS
   miniaturiser les champs). Décision/impl **une seule fois** dans `_new_item_card` après globalisation.
   + retirer la répétition « File d'attente » de l'en-tête. Détail : `CARD_DESIGN §8.6`.
@@ -682,6 +758,9 @@ est fini** (P2 éventail, manipulation in/out, esthétique 2 états, nav clavier
 - ⏳ Conformité conventions par app + **MAJ table §15** ; MAJ conventions avec les décisions de session
   (staging supprimé, card mère, focusCard, entrée universelle, local-first…) ; chasse aux conventions
   obsolètes/contradictoires.
+  *(2026-10-31 : « conformité par app » et « MAJ table §15 » sont ✅ — grille MESURÉE
+  `manage.py check_app_conformity` (`common/services/conformity_checker.py`), §15 réduit à un
+  pointeur `/apps/` ; le reste de la puce n'est pas vérifié.)*
 - ⏳ **Homogénéité du formalisme** (card/file/inspecteur/modes) + **compatibilité inter-apps**.
 - ⏳ **Logique de nommage des fonctions** (vues/handlers JS/helpers/URLs/ids) → convention de nommage +
   normalisation des divergences (`start`/`launch`/`commit`, `batch_*`, `*_all`…).
@@ -692,7 +771,7 @@ est fini** (P2 éventail, manipulation in/out, esthétique 2 états, nav clavier
   app-spécifique irréductible = `process()` + pages d'édition).
 - Méthode : passes read-only volumineuses délégables à **wama-dev-ai**, validées par Claude.
 
-## 20. Consolidation des mécanismes de génération d'UI (⏳ TÂCHE 1 avant tout travail UI par app) — 2026-07-01
+## 20. Consolidation des mécanismes de génération d'UI (~~⏳ TÂCHE 1 avant tout travail UI par app~~ ✅ inventaire produit et absorbé par `WAMA_APP_GENERATION_ROUTE.md` — titre corrigé le 2026-10-31) — 2026-07-01
 Spec précise : `memory/project_ui_mechanisms_consolidation.md`. **Le registre de modèles est UNIQUE**
 (`ModelRegistry` + `ModelInfo` + `capabilities`) — MAIS plusieurs **chemins concurrents de génération
 d'UI** coexistent : modale `WamaParams.render(item)` [transcriber/converter/reader/describer] vs
@@ -708,16 +787,24 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
   + aide modèle courte/longue + **couche capacités pièce 1/3** (moteurs audio resemble/deepfilternet au
   catalogue avec `capabilities.params`). **Reste enhancer** : pièce 2 (WamaModelCaps niveau-**champ**) +
   pièce 3 (câblage capacités→visibilité + **retrait du `show_if` hardcodé**).
+  ✅ *pièce 3 faite le 2026-10-13 (constaté le 2026-10-31) : le `show_if engine == RESEMBLE_KEY`
+  est remplacé par `cap_from={'field': 'engine', 'capability': 'params', 'mode': 'reads'}`
+  (`enhancer/params.py:167-192`).*
 
 ## Bugs / dettes connus
 
 > Repris de ROADMAP §0 (2026-07-20, contrat des niveaux — à revalider) :
--  **Qwen3-ASR** (Transcriber) — Backend implémenté (`qwen_asr_backend.py`) mais non fonctionnel — erreurs de dépendances à l'import — 🐛 Bloqué — Résoudre conflits deps pip (transformers, torchaudio, accelerate) 
+-  ~~**Qwen3-ASR** (Transcriber) — Backend implémenté (`qwen_asr_backend.py`) mais non fonctionnel — erreurs de dépendances à l'import — 🐛 Bloqué — Résoudre conflits deps pip (transformers, torchaudio, accelerate)~~
+   ✅ *débloqué le 2026-09-28 (constaté au code le 2026-10-31, non exécuté ici) : install
+   `--no-deps` + patch 7 (`import nagisa` rendu paresseux, `patches/apply_patches.py:404-420`,
+   dont le commentaire mesure « le chemin transformers tourne avec NOTRE transformers 4.57.6 ») ;
+   backend `wama/common/backends/qwen_asr_backend.py`, routé `transcriber/backends/manager.py:32`.*
 - 🐞 Higgs Audio V2 : ~5 s d'audio dégradé malgré tous les patches — non résolu.
 - 🔧 Patches venv → toujours via `patches/apply_patches.py`.
 - 🌐 Headroom code-aware : `Mode: token` actuel → activer via terminal neuf + vérifier `headroom_stats`.
-- 🩹 **`show_if engine=resemble` hardcodé** (enhancer audio, `params.py`) = anti-pattern à remplacer par
-  capacités-driven (WamaModelCaps) — pièce 3 de la couche capacités (§20). Cf. `feedback_ui_from_model_capabilities`.
+- ~~🩹 **`show_if engine=resemble` hardcodé** (enhancer audio, `params.py`) = anti-pattern à remplacer par
+  capacités-driven (WamaModelCaps) — pièce 3 de la couche capacités (§20). Cf. `feedback_ui_from_model_capabilities`.~~
+  ✅ *2026-10-13 : capacités-driven par `cap_from` (`enhancer/params.py:177`) — constaté le 2026-10-31.*
 - 🔐 **Secrets externalisés (✅ 2026-07-23)** : `SECRET_KEY` + mot de passe DB + proxy sortis de
   `settings.py` vers `.env` (gitignoré) ; `.env.example` commité ; contrôle `check_secret_leaks`
   à **0 fuite**. Commande `rotate_secrets --all --also-wsl` (2 bases Postgres).
@@ -726,7 +813,9 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
 - ✅ **Tâches RUNNING orphelines après crash worker (2026-07-24/25)** : brique commune
   `reconcile_orphaned_running` (`common/utils/process_control.py`) — 93329c4 puis 32df89c (preuve
   positive de mort : le worker propriétaire doit avoir RÉPONDU, fin des faux échecs sur worker
-  `--pool=solo` occupé). Adoptée par **transcriber seul** ; ⏳ à propager aux 9 autres apps.
+  `--pool=solo` occupé). Adoptée par **transcriber seul** ; ~~⏳ à propager aux 9 autres apps.~~
+  ✅ *adoptée par les 10 apps média, via `reconcile_queue_of` (constaté le 2026-10-31) ; le Lab
+  reste sans (cf. §0 point 3).*
 - ✅ **Le stop survit au redémarrage worker (2026-07-24)** : revokes persistants
   `celery --statedb=$LOG_DIR/celery-{gpu,default}.state` dans `start_wama_dev.sh`/`start_wama_prod.sh`
   (3e38994).
@@ -748,7 +837,10 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
   start_all + batch_start + audio_start_all (options globales déplacées dans le reset callback) et
   synthesizer start_all + batch_start (reset partagé `_reset_synthesis_for_relaunch`, options
   persistées AVANT le verrou). `anti_race` mesuré ✅ sur les deux.
-- 🐞 **Constats d'audit 2026-07-25 restants** : enhancer
+- ✅ *SOLDÉ (constaté le 2026-10-31) : 0 `alert(` dans `wama/enhancer/static/` ; `during_preview=True`
+  pour les 10 apps (`common/app_registry.py:1327-1824`) ; grille MESURÉE par `check_app_conformity`
+  (`common/services/conformity_checker.py`) — la puce ci-dessous est la photo du 2026-07-25.*
+  ~~🐞~~ **Constats d'audit 2026-07-25 restants** : enhancer
   8 `alert()` résiduels (audio-enhancer.js) ; `during_preview` transcriber/describer : texte
   partiel existe (cache) mais PAS branché au mécanisme commun de preview « pendant » (flag False
   = capacité runtime, ne pas flipper sans câbler). Scores honnêtes (24 crit.) : reader 21✅ ·
@@ -756,14 +848,25 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
   anonymizer 8✅ · imager 6✅. La grille live = 35 booléens DÉCLARATIFS (rien n'est mesuré) —
   chantier : critères M1-M26 automatisables proposés (rapport d'audit session 2026-07-25).
 
-## Ordre de reprise recommandé
-1. **Consolidation des mécanismes de génération d'UI (§20)** — inventaire + plan de convergence AVANT tout
+## ~~Ordre de reprise recommandé~~ Ordre de reprise de juillet 2026 — PÉRIMÉ
+
+> 🔴 *Vérifié le 2026-10-31 : cette liste n'est PLUS l'ordre de reprise.* ① §20 : inventaire
+> produit et absorbé par `WAMA_APP_GENERATION_ROUTE.md` ; ② volet droit du model_manager livré
+> (`model_manager/templates/model_manager/index.html:1524`, WamaInspector + WamaDetails) ;
+> ③ Cam Analyzer : calibration 2a/2b livrée, reste la validation terrain (§5,
+> `CAM_ANALYZER_CHANGELOG.md`) ; ④ **`wama/rag/` n'existe pas et n'existera pas** — le RAG est
+> construit dans `wama/common/memory/` (§6, `WAMA_MEMORY.md`) et le hook du PromptPipeline est
+> câblé (§1) ; ⑤ le refactoring par app se mesure par `check_app_conformity`.
+> **Le point d'entrée courant est le dernier `§CLÔTURE` / `§REPRISE` en fin de fichier** ; l'état
+> consolidé, `ROADMAP §24`.
+
+~~1. **Consolidation des mécanismes de génération d'UI (§20)** — inventaire + plan de convergence AVANT tout
    travail UI par app (sinon on aggrave la divergence). Idéalement session neuve. → puis uniformisation
-   des 10 apps → manifests → chaîne de génération (`project_manifest_generation_priority`).
-2. Model Manager volet droit (débloque le test prospection — ROI immédiat).
-3. Cam Analyzer Phase 3 (calibration + vitesses).
-4. Fondation RAG (`wama/rag/`) — débloque hook PromptPipeline + Media Library.
-5. Refactoring common app par app (par petites sessions).
+   des 10 apps → manifests → chaîne de génération (`project_manifest_generation_priority`).~~
+~~2. Model Manager volet droit (débloque le test prospection — ROI immédiat).~~
+~~3. Cam Analyzer Phase 3 (calibration + vitesses).~~
+~~4. Fondation RAG (`wama/rag/`) — débloque hook PromptPipeline + Media Library.~~
+~~5. Refactoring common app par app (par petites sessions).~~
 
 ---
 
@@ -1222,8 +1325,9 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
   sa route spécifique (`imager:enhance_prompt` + vue supprimées, JS/template → endpoint commun).
   Invariant studio : l'EXÉCUTION des nœuds doit passer par « instance + tâche Celery » → skills
   hérités by design, aucun câblage par card.
-- ⏳ Suites possibles : skills pour anonymizer (kind concept ?), enhancer ; UI pour éditer les
-  skills (niveau labo/utilisateur → jonction RAG).
+- ⏳ Suites possibles : ~~skills pour anonymizer (kind concept ?)~~, enhancer ; UI pour éditer les
+  skills (niveau labo/utilisateur → jonction RAG). *(Anonymizer ✅ — constaté le 2026-10-31 :
+  `wama/common/prompt_skills/anonymizer-detection.md` ; aucun `enhancer-*`.)*
 
 ## 23. Audit + nettoyage documentation racine (2026-07-09)
 
@@ -1326,16 +1430,20 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 1. ✅ SANS OBJET (2026-07-23) : `AUDIT_ROUTE_COMMUNE_2026-07-06.md` archivé — plus de correction
    à porter sur un doc archivé.
 2. ✅ SANS OBJET (2026-07-22) : `GENERALIZATION_PLAN.md` archivé.
-3. `INPUT_MODEL_MATCHING.md` : cocher étapes 1-4/6 déjà exécutées.
+3. ✅ SOLDÉ (constaté le 2026-10-31 : `INPUT_MODEL_MATCHING.md §5` « État mesuré (2026-08-17 —
+   adoption SOLDÉE) ») : ~~`INPUT_MODEL_MATCHING.md` : cocher étapes 1-4/6 déjà exécutées.~~
 4. ✅ SOLDÉ (2026-07-25, plan doc B7) : `MEDIA_STORAGE_TIERING.md` §A/§B supprimés — les réglages
    sont LIVRÉS sous d'autres noms (`media_retention_days`, `notify_email`/`notify_on`, câblés
    10 apps) ; renvoi vers `PROFILES_PERMISSIONS.md` §2/§3 posé.
 5. ✅ SOLDÉ (2026-07-25, B6) : `MODAL_ACTIONS_AUDIT.md` archivé ; le suivi d'adoption de
    `_settings_modal_footer.html` = critère `settings_modal_footer` de `check_app_conformity`.
-6. `REMOVAL_LEDGER.md` : resynchroniser la table §1 avec le journal (R1/R2 → ✅).
-7. `README.md` : étoffer la table de doc (8/26 référencés seulement).
-8. `WAMA_APP_CONVENTIONS.md` §15.1 : ETA et bouton Dupliquer Avatarizer marqués ❌ alors que faits.
-9. `TRANSCRIBER_REFERENCE_AUDIT.md` : renvoi croisé vers `WAMA_APP_GENERATION_ROUTE.md` pour
+6. ✅ SOLDÉ (constaté le 2026-10-31 : `REMOVAL_LEDGER.md:23-24`, R1/R2 ✅) : ~~`REMOVAL_LEDGER.md` : resynchroniser la table §1 avec le journal (R1/R2 → ✅).~~
+7. ✅ SOLDÉ (constaté le 2026-10-31 : l'arbre de docs de `README.md` est GÉNÉRÉ depuis
+   `wama/common/docs_catalog.py`, bloc `WAMA:FAITS(arborescence_docs)`) : ~~`README.md` : étoffer la table de doc (8/26 référencés seulement).~~
+8. ✅ SOLDÉ (constaté le 2026-10-31 : les tables figées de `WAMA_APP_CONVENTIONS.md §15` sont
+   supprimées depuis le 2026-07-11, pointeur `/apps/`) : ~~`WAMA_APP_CONVENTIONS.md` §15.1 : ETA et bouton Dupliquer Avatarizer marqués ❌ alors que faits.~~
+9. ⏳ *(toujours ouvert le 2026-10-31 : `TRANSCRIBER_REFERENCE_AUDIT.md` ne cite pas
+   `WAMA_APP_GENERATION_ROUTE`)* `TRANSCRIBER_REFERENCE_AUDIT.md` : renvoi croisé vers `WAMA_APP_GENERATION_ROUTE.md` pour
    éviter la contradiction implicite (transcriber = référence sémantique, pas cible technique).
 10. ✅ SANS OBJET (2026-07-22) : `UI_MECHANISMS_CONSOLIDATION.md` archivé (la contradiction P0
     params.py est de plus purgée, cf. §31.6).
@@ -1682,7 +1790,7 @@ inchangée : `/apps/` (`get_conformity_summary()`).
 ### 31.2 Scores APRÈS correction de grille (avant : §27.2)
 | App | Score | Écarts restants (issues de la grille) |
 |---|---|---|
-| transcriber | **93 %** (28/30) | recursive_import, toast (1 alert+confirm edit.js:675) |
+| transcriber | **93 %** (28/30) | recursive_import, toast (1 alert+confirm ex-edit.js l.675, supprimé depuis) |
 | describer | **93 %** (28/30) | recursive_import, modes (pas déclaré APP_MODES) |
 | composer | **92 %** (26/28) | recursive_import, toast (4 alert index.js) |
 | reader | **90 %** (28/31) | recursive_import, modes, toast (2 alert reader.js) |
@@ -1759,7 +1867,7 @@ reader à valider avant propagation), profils (capacité non déclarée), WamaMo
 ### 31.7 Exécution du plan §31.5 (2026-07-11) — FAIT
 | App | Avant | Après | Actions |
 |---|---|---|---|
-| transcriber | 93 % | **96 %** | alert() edit.js:675 → toast (confirm() conservé = décision utilisateur, pas une notification) |
+| transcriber | 93 % | **96 %** | alert() ex-edit.js l.675 (supprimé depuis) → toast (confirm() conservé = décision utilisateur, pas une notification) |
 | composer | 92 % | **96 %** | 4 alert() → toast ; couleurs card alignées outline (⚙/⬇/🗑) ; ⚙ VISIBLE pendant RUNNING (le `{% if != RUNNING %}` masquait la modale en cours de traitement) |
 | describer | 93 % | 93 % | couleurs card alignées (⚙ outline-secondary, ⧉ outline-warning, 🗑 outline-danger, 👁 adouci en outline-success — conservé, bouton légitime hors référence) |
 | reader | 90 % | **93 %** | 2 alert() reader.js → toast |
@@ -2283,8 +2391,10 @@ rétro-compat. **Lecture de page web complète PRÉSERVÉE** (à améliorer plus
 → Adopter l'URL sur une app = déclarer `WAMA_INGEST` + appeler `ensure_local_input` en tête de tâche.
 **Côté manifeste : ✅ FAIT 2026-07-23 (b5edbc4)** — capacité **F2** `accepts_url` (dérivée de
 `has_url_import` ∪ présence d'un `WAMA_INGEST`) + facette **F5** `ingest:{…}` (extract-only pour
-l'instant). **Reste** : la projection F5 en **write-back** vers `WAMA_INGEST` + adoption sur les
-apps sans `WAMA_INGEST`. Voir `WAMA_APP_GENERATION_ROUTE.md §11` trou #14.
+l'instant). **Reste** : la projection F5 en **write-back** vers `WAMA_INGEST` + ~~adoption sur les
+apps sans `WAMA_INGEST`~~. Voir `WAMA_APP_GENERATION_ROUTE.md §11` trou #14.
+*(Constaté le 2026-10-31 : adoption ✅ 10/10 — `WAMA_INGEST =` dans les `models.py` des dix apps ;
+la projection F5 reste extract-only, `common/manifests/builtin/app.py:654-657`.)*
 
 **23.4 Download HTTP : nommage fiable.**
 `video_utils._filename_from_response` : Content-Disposition (filename*/filename UTF-8) → basename URL →
@@ -2356,8 +2466,15 @@ l'ancienne note « à ajouter » n'avait jamais été exécutée).
 - ✅ Trou #14 côté manifeste : capacité F2 `accepts_url` + facette F5 `ingest` en extract (b5edbc4)
 - ✅ Write-back réel sur **3 kinds** (app/`access`, library=registre entier, model=`license`/
   `platform_ref`) — hooks renommés `write_back`/`un_write_back` le 2026-08-05
+  *(2026-10-31 : **4 kinds** — + `function`, `common/manifests/builtin/function.py:118`
+  `write_back_function`)*
 - ⏳ Code-gen des **9** facettes d'app restantes (`codegen_required`) ; trou #15 réduit à
   `system_tools` (§23.6, MAJ 2026-08-11)
+  *(Dépassé, constaté le 2026-10-31 : 10 facettes projetées — `PROJECTED_FACETS` =
+  access, identity, ports, capabilities, studio, modes, prompts, params, inspector, tool_api
+  (`common/manifests/builtin/app.py:836-837`) — plus `processing` en partiel (`:865`) ;
+  `codegen_required` (`manifests/projection.py:78-79`) ne garde que les facettes `code` non
+  projetées, soit `models` et le reste de `processing`.)*
 
 ## 39. Monde WAMA Data → **l'état vit ailleurs, et il est MESURÉ**
 
@@ -2375,21 +2492,29 @@ maintenir ici en parallèle reproduirait le défaut.
   `wama_lab/`. Réalise la cible de `ROADMAP §18` (« un monde = un package frère »). Le registre de
   fonctions et la taxonomie de types RESTENT dans `wama/common/catalog/` : glu inter-mondes, le Lab
   y déclare ses propres fonctions. Règles écrites dans `AGENTS.md` (nommage + structure en mondes).
-- ⏳ UI de chaînage (canvas), exposition `tool_api` du catalogue
+- ⏳ ~~UI de chaînage (canvas),~~ exposition `tool_api` du catalogue
+  *(2026-10-31 : UI de chaînage ✅ = canvas du Studio, nœuds fonction exécutés (`studio/tasks.py:457-466`),
+  pipeline lançable par l'assistant (`tool_api.py:1926` `run_studio_pipeline`) ; exposition du
+  catalogue de fonctions ⏳ — grep `function_catalog` dans `wama/tool_api.py` → 0.)*
 
 ## 40. Backlog repris du handoff REPRISE_2026-07-22 (archivé 2026-07-25) — état re-vérifié
 
 > Les 6 items « à reprendre » du handoff, TOUS encore ouverts au 2026-07-25 (vérif agents).
+> *Re-vérifié au code le 2026-10-31 : items 2, 3 et 5 soldés (marqués ci-dessous) ; 1, 4 et 6 non
+> re-vérifiés ici.*
 > Les 2 duplications (ex-items 2 et 4) sont tracées en `REMOVAL_LEDGER R18/R19`.
 
 1. ⏳ **`describer.result_file` orphelin** : retrait en passe ISOLÉE (migration describer.00xx sur
    les DEUX bases) — ~32 occurrences restantes (views 17, models 3).
-2. ⏳ **`common/_result_tabs.html`** : cf. `REMOVAL_LEDGER R18` (créé le 2026-09-07) — supprimé le 2026-10-13, `REMOVAL_LEDGER R127`.
-3. ⏳ **Streaming MusicGen mid-génération** : `audiocraft_backend.on_audio` n'est appelé qu'UNE fois
-   en fin de génération — pas de token-callback ; `emit_streaming_peaks` prêt côté tasks.
+2. ✅ *(soldé le 2026-09-07, R18, puis retiré le 2026-10-13, R127 — constaté le 2026-10-31)* ~~⏳~~ **`common/_result_tabs.html`** : cf. `REMOVAL_LEDGER R18` (créé le 2026-09-07) — supprimé le 2026-10-13, `REMOVAL_LEDGER R127`.
+3. ✅ *(2026-10-20, constaté le 2026-10-31 : aperçu audio pas à pas, `common/backends/audiocraft_backend.py:27`
+   `_follow_tokens`, `on_audio(...)` l. 64 PENDANT la génération)* ~~⏳ **Streaming MusicGen mid-génération** : `audiocraft_backend.on_audio` n'est appelé qu'UNE fois
+   en fin de génération — pas de token-callback ; `emit_streaming_peaks` prêt côté tasks.~~
 4. ⏳ **Fusion des 2 renderers waveform** : cf. `REMOVAL_LEDGER R19` (calcul déjà unifié).
 5. 🔶 **Preview filemanager → composant commun** : partiellement branché (`setupPreviewModal`
-   manipule déjà `#wamaMediaPreviewModal`) ; reste à retirer la modale locale `filePreviewModal`.
+   manipule déjà `#wamaMediaPreviewModal`) ; ~~reste à retirer la modale locale `filePreviewModal`.~~
+   ✅ *modale locale retirée (`REMOVAL_LEDGER R123` ; `filemanager/static/filemanager/js/filemanager.js:2089`
+   n'en garde que la mention — constaté le 2026-10-31).*
 6. ⏳ **Composer pt7/pt8/pt9** : `_card_state`/`_card_progress` non inclus ; ETA via
    `model_config.estimate_seconds` statique (cible : catalogue) ; export médiathèque spécifique
    (cible : action commune pilotée par `output_types`).
@@ -2413,7 +2538,7 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
 - Prochain pas : valider l'inférence sur Linux natif (serveur R760xa) ou venv Windows natif, PUIS
   brique commune détection (absorber les 2 wrappers SAM3 — voir ROADMAP §17 étape 2).
 
-## 42. Sauvegarde base + espace de stockage distant 🔄 (ouvert 2026-07-27)
+## 42. Sauvegarde base + espace de stockage distant ✅ (ouvert 2026-07-27 ; reste : `api_backup_db` synchrone, `model_manager/views.py:621-626` — titre corrigé le 2026-10-31, il disait 🔄)
 
 - **Brique** : `python manage.py backup_db` (`wama/model_manager/management/commands/backup_db.py`)
   — `pg_dump --format=custom` + copie distante + **rotation** (`--keep`, défaut 10 de chaque côté),
@@ -2536,7 +2661,10 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
 **🔴 Deux trous mesurés le 2026-08-10 — une réinstallation ÉCHOUERAIT aujourd'hui même avec les
 trois sauvegardes en main :**
 
-1. **Les secrets ne sont sauvegardés NULLE PART.** `.env` (2 440 o) est ignoré par git
+1. ✅ *SOLDÉ le 2026-08-10 au soir (la sous-section « TIRAGE LIVRÉ + 4ᵉ domaine (SECRETS) »
+   ci-dessus ; constaté le 2026-10-31 : `common/services/config_backup.py`, beat
+   `backup-config-daily` → `common.backup_config`, `wama/settings.py:1039-1040`). Le constat
+   ci-dessous est la photo d'avant.* ~~**Les secrets ne sont sauvegardés NULLE PART.**~~ `.env` (2 440 o) est ignoré par git
    (`.gitignore:94`) et **absent du NAS** (`DEEP_LEARNING/` = `DB`, `MEDIAS`, `MODELS`, … pas de
    dossier de configuration). Sans lui, une installation neuve ne peut se connecter ni à Postgres
    ni à Redis. `.env.example` sert de gabarit mais ne contient aucune valeur.
@@ -4950,7 +5078,7 @@ trancher sur un cas réel vaut mieux que sur une spéc abstraite.
   par timer, 3 réglages de vitesse, 2 frame-steppers. Le commun couvre l'**audio** seulement
   (`WamaAudioPlayer` — ni vitesse, ni volume, ni skip) ; **rien pour la vidéo**. ⚠ Fait vérifié :
   `wama-shuttle.js` n'est chargé QUE par `cam_analyzer/base.html:924` — le transcriber ne PEUT pas
-  l'utiliser et l'a réimplémenté (`edit.js:291-328`), alors que la brique le nomme dans son en-tête.
+  l'utiliser et l'a réimplémenté (ex-`edit.js` l.291-328, supprimé depuis), alors que la brique le nomme dans son en-tête.
 - **Mondes — question ouverte, rien d'implémenté** → `docs/construction/mondes/WAMA_VISION_COMPLET.md §2.4 (traçabilité
   des mondes)`. Fait mesuré bloquant : `world` est **dérivé du groupe d'UI** (`app.py:202`) →
   describer/reader/transcriber sortent en *data*, converter en *transverse*. Préalable : le
@@ -17988,6 +18116,11 @@ sélecteur de médiathèque.
   ne servirait que la dédup par empreinte) ;
 - ⏳ **le sélecteur de médiathèque d’une card** copie encore (fetch → blob → renvoi) : c’est le
   dernier geste qui duplique des octets.
+  🔄 *(Constaté le 2026-10-31 : la tuile médiathèque d'une card DÉSIGNE désormais —
+  `common/static/common/js/wama-app-base.js:975-997` `pickFromLibrary` → `onPick` →
+  `WamaImport.handleDesignations` / `designateInto`. Copient encore : le repli
+  `filesFromServerPaths` (`:1000`) et le bouton médiathèque de `WamaModes`
+  (`wama-modes.js:206-214`, `onSelect` → `File`). Date du passage non retrouvée.)*
 
 ⚠ **Rouges et dérives NON MIENS, mesurés cette nuit** (déclarés, pas corrigés) :
 - `tests_tool_api_lectures.AddItemToMediaLibraryTest.test_ne_DEVINE_pas_le_role_et_rend_les_candidats`
@@ -19093,8 +19226,12 @@ l'instance de `cam_analyzer`), versionnement des migrations (décision), rouges 
   `tests_backend_adoption` (`wama/transcriber/apps.py:146`, `PyannoteDiarizerBackend`) ; 2 réfs
   cassées + 1 périmée de `check_docs` (PROJECT_STATUS 17217/17277, ROUTE:224). `44bf7809` ne porte
   que la dérive d'autres commits (la carte n'affiche pas les annexes).
-- ⏳ Restent : `librarian --repo` doit proposer `install.vendor` ; YuE/ACE-Step et avatars lourds
-  comme clients suivants ; MuseTalk v1.5 lent (3 s de vidéo en 505 s, non instruit) ; libellé
+- ⏳ Restent : ~~`librarian --repo` doit proposer `install.vendor`~~ *(✅ le soir même —
+  `wama-dev-ai/role_utils.py:573` `enforce_install_channel`, appelé par `run_librarian.py:136` ;
+  §PALIER « AVATARIZER 3D + ROUTE VENDOR » plus bas)* ; YuE/ACE-Step et avatars lourds
+  comme clients suivants ; ~~MuseTalk v1.5 lent (3 s de vidéo en 505 s, non instruit)~~ *(✅ instruit
+  le soir même, 505 s → 256 s : §PALIER « LENTEUR MUSETALK + CLIENTS VENDOR » plus bas — constaté
+  le 2026-10-31)* ; libellé
   technique de la tuile objet 3D ; onglet Lot à 3 ports qui passe à la ligne.
 
 ## §PALIER — 2026-09-30 (après-midi), « SORTIE ET TAILLES : CE QUE LE MODÈLE SAIT FAIRE, L'APP LE PROPOSE » — ✅ `4f4f3d61` `59ad80cb` `9e7094d` `903b6153` `e0c7c43` — 🔴 RELANCER WAMA (migration imager/0024), puis VALIDER la proposition de manifeste Supra2-IMG
@@ -19320,13 +19457,21 @@ doc porte du WIP d'autrui).
 - ✅ Celery relancé le 01/10 (11:39 / 12:37) : le tirage « auto » du worker porte le code neuf.
 
 **Pendings, nommés :**
-1. ⏳ **Test Albert sur audio déjà découpé par notre filtre de parole** — proposé, NON lancé, attend
-   le GO de Fabien.
+1. ~~⏳ **Test Albert sur audio déjà découpé par notre filtre de parole** — proposé, NON lancé, attend
+   le GO de Fabien.~~ ✅ *mené le 01/10 après-midi (§PALIER « ALBERT SUR AUDIO PRÉ-DÉCOUPÉ »
+   plus bas : FLEURS-CS 44,5 → 39,8 %) ; `common/backends/albert_asr_backend.py:81`
+   `supports_vad_filter = True` — constaté le 2026-10-31.*
 2. ⏳ **Verrou « sensibilité »** (`ROADMAP §8d` ③) : l'audio quitte la machine — non tranché (Fabien).
-3. ⏳ `--mcp-config` absent de l'abonnement Claude Code (`ROADMAP §8d` 5) — hors de notre main.
+3. ~~⏳ `--mcp-config` absent de l'abonnement Claude Code (`ROADMAP §8d` 5) — hors de notre main.~~
+   ✅ *2026-10-23 (`087ac79a`, §PALIER 2026-10-23 « TOUS LES CERVEAUX ») :
+   `common/services/claude_code.py:215` `wama_mcp_config`, `:273` `--mcp-config … --strict-mcp-config`
+   — constaté le 2026-10-31.*
 4. ⏳ Données du catalogue à corriger À LEUR SOURCE (hors de ce portage) : Kyutai STT sans
-   capacités (chaîne d'intégration) ; `describer:whisper` libellé « whisper-base » alors qu'il
-   sert large-v3 (doublon au menu).
+   capacités (chaîne d'intégration) ; ~~`describer:whisper` libellé « whisper-base » alors qu'il
+   sert large-v3 (doublon au menu).~~ *(2026-10-31 : `describer:whisper` ✅ retiré le 01/10,
+   R28 — `model_manager/services/model_registry.py:994`, aucun `manifests/models/describer__whisper*` ;
+   Kyutai : le backend `common/backends/stt_1b_en_fr_trfs_backend.py:71-75` et son manifeste
+   déclarent désormais leurs `supports_*` — à confronter à la ligne de catalogue en base.)*
 5. ⏳ WAMA client de serveurs MCP EXTERNES (mail, messagerie, dépôts) : rien encore (`ROADMAP §8d`).
 
 **Rouges vus à la clôture, pas à moi :** `tests_intent_vision.EveryAutoSelectCarriesTheSliderTest`
@@ -19372,9 +19517,14 @@ débruitage : `workers.py`, `params.py`, `models.py`, `tests_editor.py`, gabarit
 2. ⏳ **Lot #489 (Bonneuil)** : cards #724/#725 de Fabien + #1048-#1051, #1070 ajoutées pour le banc
    (et `users/1/transcriber/input/Bonneuil_plateforme_partagee_021225_nivele.wav`, 750 Mo) — à ranger
    dans `evaluation` ou à retirer : décision de Fabien. Les 3 cards « female » (voix système) restent.
-3. ⏳ **Session dédiée preview/transport** à lancer (brief `ROUTE §F3b`).
-4. ⏳ **Chaîne d'intégration** : rejouer le rôle `model` corrigé (`5a5d430e`) sur LinTO, FrWhisper,
-   Kyutai, puis le rôle `backend` — pas fait.
+3. ~~⏳ **Session dédiée preview/transport** à lancer (brief `ROUTE §F3b`).~~ ✅ *lancée le 20/10,
+   close le 28/10 (`§CLÔTURE 2026-10-28, « APERÇU »` plus bas) — constaté le 2026-10-31.*
+4. ~~⏳ **Chaîne d'intégration** : rejouer le rôle `model` corrigé (`5a5d430e`) sur LinTO, FrWhisper,
+   Kyutai, puis le rôle `backend` — pas fait.~~ ✅ *02/10 (`§PALIER 2026-10-02, « TROIS MOTEURS DE
+   TRANSCRIPTION PAR LES RÔLES »`) : `common/backends/frwhisper_backend.py`,
+   `stt_1b_en_fr_trfs_backend.py`, manifestes `huggingface__aihpi~FrWhisper`,
+   `huggingface__kyutai~stt-1b-en_fr-trfs`, `huggingface__linagora~linto_stt_fr_fastconformer_pc` —
+   constaté le 2026-10-31.*
 5. ⏳ Non mesuré : Resemble avec la langue IMPOSÉE (aucun réglage de card pour l'imposer) ; seuil du
    VAD « auto » (couper le VAD aidait CFPP 3/3 alors que la sonde l'a gardé).
 6. ⏳ Attributs des variantes (`base`, `reference`, `degradation`, `leveled`, `enhancement`) à déclarer
@@ -19708,9 +19858,11 @@ lignes de ce journal). Rouges CONNUS hors périmètre, relevés dans la passe la
   lot (fichier commun à deux cards : déplacé une fois). Route `api_transfer` + `nature=lot`.
 - Mesures : `TransferringACardTest` 5/5 (dont le lot, 10 apps + jumelles) ; voisins 111 OK ; gestes
   `common.batch_transfer` 6/6, `common.card_transfer` toujours 5/5 après le remaniement.
-- ⏳ **Ouvert, nommé** : les LISTES DE CHEMINS (imager `generated_images`…) ne suivent ni le
+- ~~⏳ **Ouvert, nommé** : les LISTES DE CHEMINS (imager `generated_images`…) ne suivent ni le
   transfert ni la duplication d'une card reçue — à brancher sur `file_references.listed_paths`,
-  en cours chez l'instance des fichiers libérés (signalé à elle). Point 1 de la clôture : SOLDÉ.
+  en cours chez l'instance des fichiers libérés (signalé à elle).~~ Point 1 de la clôture : SOLDÉ.
+  ✅ *soldé le 02/10 (`§PALIER 2026-10-02, « LISTES DE CHEMINS BRANCHÉES… »` plus bas ;
+  `common/services/card_transfer.py:148-156, 203`) — constaté le 2026-10-31.*
 
 ## §PALIER — 2026-10-01 (nuit), « QUATRE APPS SUR `WamaApp.addToQueue` + GESTE N°7 `<app>.add` » — ✅ commit ci-dessous
 
@@ -19744,8 +19896,10 @@ lignes de ce journal). Rouges CONNUS hors périmètre, relevés dans la passe la
    distant. L'ouvrir (profil + clé Albert) est une décision de Fabien.
 2. ⏳ **Verrou « sensibilité »** d'Albert (l'audio quitte la machine, `ROADMAP §8d` ③) : non tranché.
 3. ⏳ **Pousser** : la branche a 24 commits d'avance (toutes instances), aucun poussé ici.
-4. ⏳ Kyutai STT : grisé faute de backend — un backend est en cours chez une autre instance
-   (`stt_1b_en_fr_trfs_backend.py` modifié dans l'arbre, pas à moi).
+4. ~~⏳ Kyutai STT : grisé faute de backend — un backend est en cours chez une autre instance
+   (`stt_1b_en_fr_trfs_backend.py` modifié dans l'arbre, pas à moi).~~ ✅ *backend versionné le
+   02/10 (`§PALIER 2026-10-02 « TROIS MOTEURS »` plus bas ; `common/backends/stt_1b_en_fr_trfs_backend.py:50`
+   `KyutaiSttBackend`) — constaté le 2026-10-31.*
 5. Pas à moi, constatés : budgets de langue des noms de test dépassés (classes 133 > 132,
    méthodes > 1310) ; `writer_01` sans curseur (`tests_intent_vision`) ; `check_docs` 3 cassées
    (`ROUTE:327` de `323dfa85`, `PROJECT_STATUS` 17217/17277) ; 19 manifestes périmés d'autres
@@ -19809,8 +19963,9 @@ générées (171 mécanismes écrits pour 176), 2 cam_analyzer, 1 codegen, 1 `au
 **Restes nommés** :
 1. Jumelles du bac à sable à RÉGÉNÉRER, puis retirer `file_fields` de la signature de
    `make_batch_views` (R90).
-2. Transfert de card et duplication d'une card reçue : les fichiers LISTÉS ne sont ni déplacés ni
-   copiés (instance « partage », `WAMA_COLLABORATION §3bis.1` — `repoint` fait suivre l'entrée).
+2. ~~Transfert de card et duplication d'une card reçue : les fichiers LISTÉS ne sont ni déplacés ni
+   copiés (instance « partage », `WAMA_COLLABORATION §3bis.1` — `repoint` fait suivre l'entrée).~~
+   ✅ *soldé le 02/10 (`§PALIER « LISTES DE CHEMINS BRANCHÉES… »` juste après) — constaté le 2026-10-31.*
 3. `check_media_integrity` : son relevé des références vives ne lit que les champs fichier
    (budgets à remesurer avant d'y ajouter les listes).
 4. Transcriber : `_cleanup_output_files` efface encore `.txt` / `.srt` hors champ au retrait — à
@@ -20903,7 +21058,7 @@ la card, fin notifiée aux deux ; verrou doux + trace ; retrait à effet immédi
 - 🔚 Ouverts : mode MODIFICATION (variantes, marche 8b ; V2 / V3 / M3 à trancher) ; N1 (notifier un
   partage reçu, proposition non validée) ; conflit MONTRÉ (attend les révisions sur tout le parc).
 
-## §PALIER — 2026-10-03, « ASSISTANT : VOIX, AVATAR 3D, SECOND AXE DU CLOUD » — ✅ non commité (fichiers listés ci-dessous) — 🔴 RELANCER le service TTS et les workers GPU (gunicorn recharge seul) — 🔚 sélecteur du modèle d'animation de l'avatarizer · voix de l'assistant TIRÉE (auto + curseur) · lexique de prononciation
+## §PALIER — 2026-10-03, « ASSISTANT : VOIX, AVATAR 3D, SECOND AXE DU CLOUD » — ✅ non commité (fichiers listés ci-dessous) — 🔴 RELANCER le service TTS et les workers GPU (gunicorn recharge seul) — 🔚 ~~sélecteur du modèle d'animation de l'avatarizer~~ (✅ 03/10, `AvatarJob.animation_model` — vérifié le 2026-10-31) · voix de l'assistant TIRÉE (auto + curseur) · lexique de prononciation
 
 Parti d'un échange réel de Fabien avec l'assistant (fil #16). Cinq constats mesurés, quatre soldés.
 - ✅ **L'assistant ne savait pas qu'il a une voix et un avatar** — consigne de surface web
@@ -20929,7 +21084,8 @@ Parti d'un échange réel de Fabien avec l'assistant (fil #16). Cinq constats me
   rendu par un double. Corrigé dans `talkinghead_backend` (rappel dans un fil à part) ; rejoué
   avec le code du disque : 5,5 s de vidéo en 30 s. Garde : `tests_talkinghead_progress`
   (contre-épreuve comprise). 🔴 Le worker GPU porte l'ancien code tant qu'il n'est pas relancé.
-- ⏳ **Avatarizer : pas de choix du modèle d'animation** — constat, rien de câblé. `AvatarJob`
+- ✅ *(soldé le 03/10, constaté le 2026-10-31 : `avatarizer/models.py:163` `animation_model`,
+  `avatarizer/params.py:46` select « Modèle d'animation »)* ~~⏳~~ **Avatarizer : pas de choix du modèle d'animation** — constat, rien de câblé. `AvatarJob`
   n'a AUCUN champ de modèle d'animation : le worker tire toujours en « auto » d'après la nature
   de l'avatar (`workers.py`, `resolve_model_choice('', …)`), et le catalogue n'a qu'UN modèle par
   nature (photo → `musetalk-v1.5`, GLB → `talkinghead`). L'avatar 3D se choisit donc en déposant
@@ -21303,7 +21459,7 @@ une réinvention, retirée). Équivalence mesurée sur 200 éléments réels ava
 - ⏳ Manifestes `avatarizer`/`enhancer`/`transcriber` non régénérés (travail d'autres sessions
   dans le fichier) ; docs générées (`WAMA_MECANISMES`, `docs/dev/briques`) à régénérer depuis HEAD.
 
-## §PALIER — 2026-10-04 (suite), « MODÈLES CLOUD : SONDE NOCTURNE + ORIGINE SOUS LE SÉLECTEUR » — ✅ commit ci-dessous, non poussé — 🔴 RECHARGER gunicorn, relancer workers + beat — 🔚 modèles de l'abonnement Claude (décision) · voix française masculine (autre moteur) · corpus SYSTÈME de l'assistant (décision)
+## §PALIER — 2026-10-04 (suite), « MODÈLES CLOUD : SONDE NOCTURNE + ORIGINE SOUS LE SÉLECTEUR » — ✅ commit ci-dessous, non poussé — 🔴 RECHARGER gunicorn, relancer workers + beat — 🔚 ~~modèles de l'abonnement Claude (décision)~~ (✅ `--model` passé) · voix française masculine (autre moteur) · ~~corpus SYSTÈME de l'assistant (décision)~~ (✅ `search_docs`/`read_doc`) — *vérifié le 2026-10-31*
 
 Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en constat.
 - ✅ **Listes cloud figées** : relues seulement au geste « Enregistrer » du profil — toutes les
@@ -21311,13 +21467,15 @@ Cinq questions de Fabien sur l'assistant, mesurées. Deux soldées, trois en con
   exécution réelle : `claude-opus-5-5` et `claude-sonnet-5-5` entrés. Détail : `ROADMAP §8d`.
 - ✅ **Origine du modèle** sous les sélecteurs (`AIModel.origin_label` + `WamaModelHelp`), et aide
   contextuelle déclarée sur le sélecteur de l'assistant, qui n'en avait aucune.
-- ⏳ **Abonnement : un modèle unique et anonyme** — ligne déclarée `claude_code:default`, aucun
+- ~~⏳~~ ✅ *(soldé — constaté le 2026-10-31 : `common/services/claude_code.py:267`
+  `commande += ['--model', model]`)* **Abonnement : un modèle unique et anonyme** — ligne déclarée `claude_code:default`, aucun
   `--model` passé, modèle réel non lu dans la réponse du CLI. Piste consignée (`ROADMAP §8d`).
 - ⏳ **Pas de voix française masculine** : Kokoro n'en a pas. Mesuré sur le disque : 55 voix, UNE
   française (`ff_siwis`). La table la donnait déjà pour les deux genres, d'où une seule entrée
   au menu. Une voix d'homme en français demande un AUTRE moteur — même chantier que « la voix de
   l'assistant se TIRE » (`WAMA_LLM §1bis`).
-- ⏳ **L'assistant n'a accès à AUCUNE doc de WAMA.** Mesuré : la mémoire porte 28 éléments, tous
+- ~~⏳~~ ✅ *(soldé — constaté le 2026-10-31 : corpus de docs `common/memory/docs_corpus.py`, outils
+  `tool_api.py:2779` `search_docs` et `:2823` `read_doc`)* **L'assistant n'a accès à AUCUNE doc de WAMA.** Mesuré : la mémoire porte 28 éléments, tous
   privés ; rien n'ingère `docs/` ; le RAG n'est lu que par deux domaines (`science`, `design`) ;
   le skill de développement dit lui-même « You do not have direct access to the repository
   files » et renvoie à `ask_claude_code`. Ce qu'il sait de WAMA : la liste des outils, l'état des
@@ -22407,7 +22565,10 @@ de cette session (modèles, `anonymizer` ci-dessus).
    (14,7 après un run) ;
 4. restes antérieurs de la session, inchangés : imager et audio_enhancer en spec de détail
    (trois formes), jumelles R90 (`imager_01` sans socle), contexte `batch` du synthesizer,
-   converter : visiteur bloqué par `@login_required`.
+   ~~converter : visiteur bloqué par `@login_required`.~~ *(faux dès l'écriture — ouvert au
+   visiteur le 04/10, `§PALIER 2026-10-04` plus haut : `accounts/visitors.py:171-201` pose une
+   identité de visiteur dans `request.user` des routes d'une app publique, la page garde son
+   `AnonymousUser`, `converter/views.py:84-88` ; constaté le 2026-10-31.)*
 
 **Artefacts** : scripts de mesure (équivalence, coût de page, essai réel, mutations, commits)
 dans le scratchpad de session, jetables. Effets de bord : une card anonymizer créée puis
@@ -22655,7 +22816,10 @@ la chaîne comblés par des faits mécaniques ; deux chemins parallèles écrits
 relecture de Fabien. Détail : `PROSPECTION_PIPELINE §Session du 2026-10-06`, `ROUTE §F4b ⑤`.
 - Migrations : `enhancer/0018_model_catalog_keys` (non versionnée, `.gitignore`) — sur le disque,
   NON appliquée à la base.
-- 🔚 Restes : voie « poids depuis une version GitHub » (SPAN, GaterV3) ; `video-to-video` et
+- 🔚 Restes : ~~voie « poids depuis une version GitHub » (SPAN, GaterV3)~~ *(✅ §PALIER 2026-10-07
+  (soir) « POIDS D'UNE VERSION GITHUB » et §PALIER 2026-10-10 « GaterV3 » plus bas ; manifestes
+  `manifests/models/github__Phhofm~models__4xNomosUni_span_multijpg.json` et
+  `…__1xgaterv3_r_restore.json` — constaté le 2026-10-31)* ; `video-to-video` et
   `APP_TASKS['enhancer']` ; description périmée du balayage générique ; valeurs recopiées par le
   rôle `backend` dans `SUPPORTED_MODELS` ; critère `model_options_catalog` aveugle au domaine par
   source ; `AUDIO_SPEC` encore par source.
@@ -22716,7 +22880,9 @@ aussi sur les paramètres »).
 - ⚠ Comportement changé pour l'assistant : le transcriber n'annonce plus ses modèles dans l'outil
   et sa porte ne refuse plus une valeur absurde — refus au LANCEMENT (« aucun backend de
   transcription ne sert ce modèle »).
-- 🔚 Restes : 10 manifestes d'app portent encore la clé `options_domain` (inerte, export à venir).
+- 🔚 Restes : ~~10 manifestes d'app portent encore la clé `options_domain` (inerte, export à venir).~~
+  ✅ *11/10 (`ff290948`, corpus régénéré par `manifest_export`) — constaté le 2026-10-31 : grep
+  `options_domain` dans `manifests/apps/` → 0.*
 
 ## §PALIER — 2026-10-07 (après-midi), « CONFLIT DE CORRECTION + COMPLÉTION DES PERSONNES + GESTES + TRANSFERT EN 500 » — livré (commit de ce bloc, non poussé) — 🔴 RECHARGER gunicorn (complétion, correction de `file_references`) — 🔚 conflit MONTRÉ (marche 2, attend 8a) · mode modification (V2/V3/M3)
 
@@ -22772,6 +22938,9 @@ SPAN installé par la chaîne et servi sur CPU (×4). Détail : `PROSPECTION_PIP
   seule ET après mes modules).
 - 🔚 GaterV3 : tâche à trancher (Fabien) — candidat semé `image-to-image`, NON installé ; ligne
   `github:…1xgaterv3_r_restore` désinstallée (rangée `vision` au premier passage).
+  *(→ traité au §PALIER 2026-10-10 « GaterV3 + 1ʳᵉ ADOPTION DU TÉLÉCHARGEMENT COMMUN » ;
+  manifeste `manifests/models/github__Phhofm~models__1xgaterv3_r_restore.json` — renvoi posé le
+  2026-10-31.)*
 - 🔚 Adoptions à venir du pilote : téléchargeurs écrits par app (enhancer, anonymizer, Cam
   Analyzer, avatarizer). `WAMA_MECANISMES.md` à régénérer.
 
@@ -23003,8 +23172,10 @@ pose les fichiers sous le dossier de l'app, `pull_model <clé>` = jumeau CLI du 
 « Installer ». Détail : `PROSPECTION_PIPELINE §Suite du 2026-10-10 (soir)`.
 - Smoke live (10/10) : select « Modèle AI » de l'enhancer → SPAN + GaterV3 proposés, non grisés,
   0 erreur JS ; model manager (compte de test dev déclaré) → CodeFormer, SPAN, GaterV3 « Ready ».
-- 🔚 Les cartes `github` du model manager n'affichent pas le lien de leur version (les cartes HF
-  ont le leur) — `platform_url` le sait, le gabarit ne le montre pas.
+- ~~🔚 Les cartes `github` du model manager n'affichent pas le lien de leur version (les cartes HF
+  ont le leur) — `platform_url` le sait, le gabarit ne le montre pas.~~ ✅ *soldé (§PALIER
+  2026-10-10 nuit, plus bas) : le lien de carte est `model.platform_url` pour toute plateforme,
+  `model_manager/templates/model_manager/index.html:1304-1311` — constaté le 2026-10-31.*
 
 ## §PALIER — 2026-10-10 (nuit), « audit : rien de réinventé, aucun chemin parallèle » — livré (commit de ce palier, non poussé)
 
@@ -23046,7 +23217,10 @@ sélectionnée → ses réglages au volet, ✕ → ceux de la file. Retraits : `
   sélecteur) ; six réglages mémorisés mais invisibles (bords arrondis, interpolation,
   segmentation…) apparaîtraient sous « Avancé ».
 - 🔚 `ROUTE §F3` l.177 (« 1/10 ») à porter à 9/10 — fichier en cours d'édition par une autre
-  instance le 11/10, non touché.
+  instance le 11/10, non touché. *(Toujours ouvert le 2026-10-31 : `WAMA_APP_GENERATION_ROUTE.md:188`
+  dit encore « 1/10 au 2026-09-27 » ; le code donne 10/10 — les dix apps rendent un volet par
+  `WamaParams.render(…, {context: 'panel'})`, l'anonymizer pour sa seule section Sortie. À corriger
+  dans la ROUTE.)*
 - 🔚 `tts_model_help_meta` sans appelant (gardée, retrait à décider) ; aide technique « Clé
   catalogue du moteur TTS (AIModel.model_key) » sous le modèle TTS (volet et modale) ; même
   `resolveKey` recomposé (`anonymizer:` + clé entière) dans `WamaModelCaps` de l'anonymizer — déduit,
@@ -23438,7 +23612,9 @@ Tri complet dans `WAMA_VERIFICATION §9`, établi sur le passage complet de la n
 - 167 + 296 + 52 + 40 tests verts sur les modules touchés ; `check_docs` 0/0 ; aucun identifiant
   français ajouté.
 
-**🔚 Reste à décider (Fabien)** : la campagne nocturne tourne SUR le worker `gpu` (`--pool=solo`).
+✅ *Tranché le 13/10 (`40299a95`) : la campagne a sa file dédiée — `wama/settings.py:851`
+`'common.run_nightly_tests': {'queue': 'nightly', …}` ; constaté le 2026-10-31.*
+~~**🔚 Reste à décider (Fabien)**~~ : la campagne nocturne tourne SUR le worker `gpu` (`--pool=solo`).
 Ses gestes `processing` et `batch_processing` y lancent des tâches qui ne démarrent qu'après elle.
 C'est le cas de 6 apps chaque nuit. Le Studio a déjà résolu ce blocage en donnant à son
 orchestrateur une file dédiée. Seuls `transcriber.asr_load` et `enhancer.deepfilternet_load`
@@ -24109,7 +24285,7 @@ l'API) […] en réutilisant l'existant. On ne réinvente rien »*. Détail et d
   (5) ⏳ Fabien enregistrera son oral et le transcrira dans WAMA : affiner les slides dessus ;
   (6) pousser.
 
-## §CLÔTURE — 2026-10-13→16, « CURSEUR · PAGES DU COMPTE DANS L'ASSISTANT · VECTORISATION DU RAG » — ✅ LIVRÉ — 🔚 trois définitions d'« administrateur » à trancher
+## §CLÔTURE — 2026-10-13→16, « CURSEUR · PAGES DU COMPTE DANS L'ASSISTANT · VECTORISATION DU RAG » — ✅ LIVRÉ — 🔚 ~~trois définitions d'« administrateur » à trancher~~ (✅ 21/10, `182f4a0f` — vérifié le 2026-10-31)
 
 Suite de la §CLÔTURE du 13/10 « ASSISTANT VOCAL », même session. Demandes de Fabien, dans l'ordre :
 les graduations du curseur de qualité mal placées sur l'accueil ; « ajouter l'accès aux pages du
@@ -24152,10 +24328,12 @@ rouge antérieur ci-dessus ; 10 + 6 + 1 mutations rouges ; `check_docs` 0 cassé
 caché quand rien n'attend, comme voulu) ; 🔴 relancer gunicorn une fois de plus pour les retouches
 de la revérification (refus des outils, navigation) · pousser les commits de la session.
 
-**🔚 POINT D'ENTRÉE** : trancher la définition d'« administrateur » ; éprouver au vrai micro la
+**🔚 POINT D'ENTRÉE** : ~~trancher la définition d'« administrateur »~~ *(✅ 21/10, `182f4a0f` :
+une seule définition, le niveau du profil — `wama/accounts/views.py:39-43` → `permissions.is_admin_tier` ;
+constaté le 2026-10-31)* ; éprouver au vrai micro la
 conversation vocale (§CLÔTURE du 13/10).
 
-## §CLÔTURE — 2026-10-14→16, « ENVOYER LE LOT · AGRANDIR AVANT DE DÉTECTER · RÉSOLUTION D'ORIGINE » — ✅ LIVRÉ — 🔚 regroupement à l'arrivée (imager, synthesizer)
+## §CLÔTURE — 2026-10-14→16, « ENVOYER LE LOT · AGRANDIR AVANT DE DÉTECTER · RÉSOLUTION D'ORIGINE » — ✅ LIVRÉ — 🔚 ~~regroupement à l'arrivée (imager, synthesizer)~~ (✅ 17/10, `99ca99e8` — vérifié le 2026-10-31)
 
 Demandes de Fabien, dans l'ordre : vérifier que la file de l'enhancer lit l'état des étapes en
 une requête (« des tests génériques sur toutes les apps ») ; envoyer un LOT d'une app à une
@@ -24211,7 +24389,8 @@ d'entrée, `tasks.py` d'avant `a4c669ff`, lot illisible (11 surfaces) ; `check_d
 envoi de lot) puis Ctrl+F5 · pousser les commits de la session · le bouton n'a pas été éprouvé au
 navigateur.
 
-**🔚 POINT D'ENTRÉE** : décider du regroupement à l'arrivée commun (imager, synthesizer) — puis
+**🔚 POINT D'ENTRÉE** : ~~décider du regroupement à l'arrivée commun (imager, synthesizer)~~ *(✅ 17/10,
+`99ca99e8` : `common/utils/queue_manipulation.py:82` `consolidate_arrival` — constaté le 2026-10-31)* — puis
 éprouver « Garder la résolution d'origine » sur une vraie image et une vraie vidéo.
 
 ## §PALIER 2026-10-16 — « 3 apps pas à 100 % » : la page `/apps/` réconciliée avec la grille, et l'ETA de LOT devenue commune et mesurée — non poussé — 🔴 relancer gunicorn
@@ -24709,8 +24888,9 @@ contre-épreuves par mutation sur les gardes depuis `a87fb679` (4 + 7 + 2 + 3 à
 branchement du tour du canal, tour en flux, tâches de développement), toutes rouges.
 
 🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : faire trancher par Fabien les zones de dépôt de
-l'accueil simplifié et « Ouama », puis porter les pauses au synthesizer (`tts_text.pause_segments`,
-contrat `options` des backends).
+l'accueil simplifié et « Ouama », puis ~~porter les pauses au synthesizer (`tts_text.pause_segments`,
+contrat `options` des backends)~~ *(✅ 18/10, `b3cbfa08` : `synthesizer/utils/speech_render.py:74-75`
+importe `pause_segments` — constaté le 2026-10-31)*.
 
 ## §PALIER 2026-10-18 — le front du synthesizer lit ses réglages par le SCHÉMA (R147) — non poussé — 🔴 relancer gunicorn (vues + gabarit + JS servi)
 
@@ -25989,7 +26169,10 @@ Demandes de Fabien du 2026-10-22.
   `prompt` sans effet ; le nivellement AGGRAVE chez Albert (484 → 262 mots). **ILaaS ne sert aucun
   modèle de parole** (ses deux passerelles listées avec nos clés). ⏳ Décision : (a) écarter Albert
   de l'automatique pour la parole lointaine, (b) garde commune « temps couvert / temps actif »,
-  (c) signaler à la DINUM.
+  (c) signaler à la DINUM. *(État au 2026-10-31 : (a) ✅ 28/10 — défaut déclaré au manifeste
+  `manifests/models/albert__whisper-large-v3.json` (`defect`), lu par
+  `model_manager/services/model_quality.py:169` `declared_defect` ; (b) ✅ 26/10 —
+  `common/utils/speech_activity.py:129` `speech_coverage` ; (c) ⏳.)*
 - ✅ **Confirmé par un test** : tâche complète sans prétraitement → nivellement activé et lancé SEUL →
   audio produit, gardé, écoutable → la transcription périmée, son ▶ écoute l'audio nivelé.
 - ✅ **Relance complète** : un prétraitement désactivé perd sa ligne et sa sortie, LIBÉRÉE (sur le
@@ -26050,7 +26233,8 @@ la card ». Domicile `ROUTE §10.6` 4.6 (restes soldés).
   `derive_from_model` refuse désormais une surcharge sans champ.
 - ⏳ **Reste nouveau** : le générateur compte les entrées de référence comme des sorties (ports
   sans champ) — `ROUTE §10.6` 4.6.
-- ⏳ **Albert** : décision de Fabien (a / b / c, `WAMA_QUALITE §9bis`).
+- ⏳ **Albert** : décision de Fabien (a / b / c, `WAMA_QUALITE §9bis`). *(2026-10-31 : (a) ✅ 28/10,
+  (b) ✅ 26/10, reste (c) — cf. ci-dessus.)*
 - Gardes : 6 tests neufs + 2 étendus ; contre-épreuves rouges (6). Corpus `manifests/apps/
   transcriber.json` régénéré (seul : les autres manifestes périmés portent le travail d'autres
   instances — `seed`, `top_p`).
@@ -26405,8 +26589,9 @@ latérales, on a qu'à le faire »*. Domicile `WAMA_VOLETS §3-ter`.
   `common.surface_layout` 9/9 SUR LE LIVE ; trois contre-épreuves rouges jouées dans le
   navigateur du scénario (feuille et noyau réécrits par `page_hook`, rien sur le disque).
   Préchauffage au journal du live : `app_pipelines` 5,7 à 8,0 s par worker, en arrière-plan.
-- ⏳ Décision de Fabien : **retirer le mode simplifié** ou l'aligner sur le repli des volets
-  (`WAMA_VOLETS §7`) · détachement d'un panneau en vraie fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`) ·
+- ⏳ Décision de Fabien : ~~**retirer le mode simplifié** ou l'aligner sur le repli des volets
+  (`WAMA_VOLETS §7`)~~ *(✅ retiré le 27/10, `39e486b6`, `REMOVAL_LEDGER R182` — constaté le
+  2026-10-31)* · détachement d'un panneau en vraie fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`) ·
   smoke sur une surface temporelle (transcriber : transport + ligne de temps + écriture empilés en
   bas) une fois gunicorn relancé.
 
@@ -26527,7 +26712,8 @@ EMPILÉS et ÉPINGLÉS à quatre bords, puis deux revérifications.
   l'exigeait ; `Surface.page_settings` lit les deux, déclarés une fois.
 - 🔚 **POINT D'ENTRÉE** : rien de bloquant côté code. Ce qui attend Fabien : (1) essayer, sur la
   correction du transcriber, transport + ligne de temps + écriture empilés puis épinglés en bas ;
-  (2) décisions — **mode simplifié** retiré ou aligné sur le repli des volets (`WAMA_VOLETS §7`),
+  (2) décisions — ~~**mode simplifié** retiré ou aligné sur le repli des volets (`WAMA_VOLETS §7`),~~
+  *(✅ retiré le 27/10, `39e486b6`, R182 — constaté le 2026-10-31)*
   détachement d'un panneau en vraie fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`), préchauffage (dérivation
   paresseuse des ports du studio 17 s, patch `torch.library` 20 s, 142 s par worker),
   ~~318 005~~ **1 366 lignes de process orphelines** (réglées le 2026-10-28) (`ROUTE §10.6` 4.1 : purge + geste de retrait
@@ -26581,8 +26767,9 @@ Constat, datation, cause, restauration, vérification de la base et effet de bor
   `check_redundancy` 89, aucune dans mes fichiers ; `check_docs` 0 cassée, 6 périmées (renvois
   vers `home.html` et un `views.py` raccourcis par d'autres) ; `doc_facts --check` à jour ;
   `check_skills` sans défaut.
-- ⏳ Limites de CETTE session : une sortie INTERMÉDIAIRE perdue ne se voit plus sur la card
-  (`§10` ⏳ « sortie perdue » dans la bande, non fait) · la garde ne voit ni un `rm -rf` de shell,
+- ⏳ Limites de CETTE session : ~~une sortie INTERMÉDIAIRE perdue ne se voit plus sur la card
+  (`§10` ⏳ « sortie perdue » dans la bande, non fait)~~ *(✅ 27/10, `9a207fff` :
+  `common/services/process_runs.py:239` `output_lost`, lu par la bande — constaté le 2026-10-31)* · la garde ne voit ni un `rm -rf` de shell,
   ni une boucle d'`unlink`, ni un `rmtree` importé avant `ready()` · `DATA_HOMES` déclaré dans la
   garde, lié par commentaire à `media_paths` (pas de constante de racine là-bas) · geste
   « restaurer `media/` depuis le NAS + vérifier la base sur une restauration SÉPARÉE » non
@@ -26591,7 +26778,7 @@ Constat, datation, cause, restauration, vérification de la base et effet de bor
   (Fabien : marginal).
 - Pendings système : relancer gunicorn + workers + beat, Ctrl+F5 ; pousser (rien n'est poussé).
 
-## §CLÔTURE 2026-10-28 — « PERTE DE `media/`, SUITE : sortie perdue DITE, CAUSE GARDÉE, AUDIT DE TOUS LES TESTS, RESTAURATION PAR LA ROUTE » — ✅ LIVRÉ, non poussé — 🔚 relancer gunicorn + workers + beat, puis trancher les deux décisions ci-dessous
+## §CLÔTURE 2026-10-28 — « PERTE DE `media/`, SUITE : sortie perdue DITE, CAUSE GARDÉE, AUDIT DE TOUS LES TESTS, RESTAURATION PAR LA ROUTE » — ✅ LIVRÉ, non poussé — 🔚 relancer gunicorn + workers + beat, puis ~~trancher les deux décisions ci-dessous~~ (✅ décisions 1 et 2 FAITES le 28/10, `e80303c6` — vérifié le 2026-10-31)
 
 Suite du §CLÔTURE 2026-10-27 « PERTE TOTALE DE `media/` » (même session), à la demande de Fabien :
 « ok pour tes 3 propositions… on ne laisse rien de côté », puis « aucun risque de casse restant
@@ -26624,7 +26811,10 @@ dans tous les tests ». Domicile du récit et des chiffres : `MEDIA_STORAGE_TIER
   `tests_doc_plans`, `tests_settings_surfaces`, `tests_tool_api_lectures`, `tests_touch`,
   `tests_display_format`) ; 4 hors session (`openpyxl` absent ×2, `data-key` du converter,
   `wama/common/privacy/`) ; 2 de la session corrigés ; 3 passagers.
-- ⏳ DÉCISIONS de Fabien : (1) faire suivre `ProcessRun.output_ref` par le gestionnaire de fichiers
+- ✅ *FAITES le 28/10 (`e80303c6`), constaté le 2026-10-31 : (1) `common/utils/file_references.py:447-456`
+  (`repoint` fait suivre `ProcessRun.output_ref`) ; (2) `restore_backup --known-only`
+  (`common/management/commands/restore_backup.py:78, 141`).*
+  ~~⏳~~ DÉCISIONS de Fabien : (1) faire suivre `ProcessRun.output_ref` par le gestionnaire de fichiers
   (`file_references.repoint`) et l'annoncer à la suppression (`usage`) — aujourd'hui « conséquence
   assumée » (`ROUTE §10.6`), c'est ce qui perd une sortie intermédiaire hors accident ; (2) une
   option de PÉRIMÈTRE à `restore_backup` (écarter comptes de test / supprimés / anciens dossiers
@@ -26705,19 +26895,19 @@ la généraliser aux sorties intermédiaires ? »
   l'annonce (`release_card_files`). Les lignes « portées par aucune card » ont toutes un fichier
   absent et sont des comptes de test : les lignes orphelines que balaie `forget_orphans` (autre
   session, en cours).
-- ⏳ **Décision 1 — précisée par la mesure.** Puisque `output_ref` RECOPIE le champ de la card, le
+- ~~⏳~~ ✅ *(faite : 1 (a), `e80303c6`, juste ci-dessous — vérifié le 2026-10-31)* **Décision 1 — précisée par la mesure.** Puisque `output_ref` RECOPIE le champ de la card, le
   gestionnaire de fichiers crée un écart : DÉPLACER ou renommer le fichier repointe le champ
   (`file_references.repoint`) mais pas la ligne. La bande dit alors « sortie perdue » pour un fichier
   qui a seulement bougé, et une relance rejoue l'étape (avant le 27/10 : aval périmé à jamais). Les
   surfaces suivent déjà la ligne quand elles remplacent un fichier (`surface_views`). Options :
   (a) `repoint` réécrit aussi `ProcessRun.output_ref` — recommandé ; (b) garder la « conséquence
   assumée » de `ROUTE §10.6`.
-- ⏳ **Décision 2 — périmètre de `restore_backup`.** Le tirage ramène TOUT l'arbre sauvegardé hors
+- ~~⏳~~ ✅ *(faite : 2 (a), `--known-only`, juste ci-dessous — vérifié le 2026-10-31)* **Décision 2 — périmètre de `restore_backup`.** Le tirage ramène TOUT l'arbre sauvegardé hors
   `~Archives` : dossiers de comptes de test, de comptes supprimés, anciens dossiers d'app. Options :
   (a) une option qui écarte ce que la base ne connaît plus (comptes réels seulement) ; (b) rien — de
   l'encombrement, jamais une casse.
 
-### §CLÔTURE 2026-10-28 (fin) — décisions 1 (a) et 2 (a) FAITES (`e80303c6`) — 🔚 relancer gunicorn (WAMA relancé à 00:39, AVANT ce commit) puis pousser
+### §CLÔTURE 2026-10-28 (fin) — décisions 1 (a) et 2 (a) FAITES (`e80303c6`) — 🔚 relancer gunicorn (WAMA relancé à 00:39, AVANT ce commit) puis ~~pousser~~ (✅ `e80303c6` est sur `origin/dev` — vérifié le 2026-10-31)
 
 - ✅ 1 (a), « un comportement universel » : `file_references.repoint` fait suivre les lignes
   d'exécution (`ProcessRun.output_ref`) de tous les mondes, fichier et dossier — la « conséquence
@@ -26837,7 +27027,9 @@ clôture (revérification : contre-épreuve du grisage, note de doctrine en `ROU
   distante explicite).
 - ⚠ **Doctrine** : `ROUTE §F4b` disait « pas de grisage à la main » (02/09, exécutabilité) ; la note
   ajoutée dit pourquoi un défaut de QUALITÉ mesuré se déclare, et la version système (dériver le
-  verdict des couvertures que mesure la garde (b)) reste ⏳.
+  verdict des couvertures que mesure la garde (b)) reste ⏳. *(✅ le jour même — §CLÔTURE « DÉFAUT
+  MESURÉ : VERSION SYSTÈME (proposer → valider) » plus bas ; `model_manager/services/model_quality.py:234`
+  `propose_defect` — constaté le 2026-10-31.)*
 - Hypothèse de Fabien sur un filtre de parole : consignée avec la mesure (`WAMA_QUALITE`) — plutôt
   le saut de fenêtre de Whisper (`no_speech_threshold`) qu'un Silero. Message à la DINUM rédigé,
   gardé par Fabien : (c) reste ⏳.
@@ -27089,8 +27281,9 @@ D1–D5 du 17/10 retrouvées dans le fil de l'assistant n° 46, jamais consigné
 - Le dossier `wama/common/privacy/` écrit le 17/10 (jamais versionné) est REMPLACÉ ; copie gardée
   hors dépôt.
 - 🔚 Restes : décision de Fabien sur la porte de l'assistant (`§16.4bis`) · domaine `document` de
-  l'Anonymizer → Portage Apps (relevé des 16 trous transmis, à confronter par elle) · brancher le
-  Translator sur `document_text` · mesure WAMA (jeu relu à la main, seuils) · `WAMA_MECANISMES.md`
+  l'Anonymizer → Portage Apps (relevé des 16 trous transmis, à confronter par elle) · ~~brancher le
+  Translator sur `document_text`~~ *(✅ 28/10, `96724de7` : `common/utils/translator.py:253`
+  `translate_document` lit et réécrit par `document_text` — constaté le 2026-10-31)* · mesure WAMA (jeu relu à la main, seuils) · `WAMA_MECANISMES.md`
   et `docs/dev/briques.md` à régénérer (co-édités : une même ligne mêle mon texte et celui de la
   session des voix) · ce que l'assistant écrit n'est consigné nulle part (sa consigne à Claude Code
   interdisait de toucher la doc ; ses « spécifications » vivent dans `logs/`, non versionné) —

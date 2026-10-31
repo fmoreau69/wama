@@ -20,7 +20,7 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
   ⚠ Ne plus chercher de `REPRISE_<date>.md` : il n'en existe plus (le dernier est archivé sous
   `docs/construction/archive/`), et un `.md` nouveau doit être déclaré à `wama/common/docs_catalog.py`
   — `PROJECT_STATUS` y est déclaré `journal` : *ce qui y est écrit était vrai à sa date*.
-- Lire l'en-tête + les sections pertinentes de `docs/construction/suivi/PROJECT_STATUS.md` (ne pas tout relire : cibler le chantier demandé + « Ordre de reprise recommandé »). ⚠ Le fichier dépasse 1 Mo : lire par `offset`/`limit` ou par `grep -n`, jamais en entier.
+- Lire l'en-tête + les sections pertinentes de `docs/construction/suivi/PROJECT_STATUS.md` (ne pas tout relire : cibler le chantier demandé ; l'ordre de reprise vit dans les 🔚 du dernier `§CLÔTURE`/`§REPRISE` et dans `ROADMAP §24` — la section « Ordre de reprise recommandé » est marquée PÉRIMÉE depuis le 2026-10-31). ⚠ Le fichier dépasse 1 Mo : lire par `offset`/`limit` ou par `grep -n`, jamais en entier.
 - Pour un chantier UI/apps : relire la section correspondante de `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` (facettes F1–F8) avant de coder.
 
 ## 3. Confrontation au réel (obligatoire)
