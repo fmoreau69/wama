@@ -318,7 +318,7 @@ class EmissionsDuGabaritTest(SimpleTestCase):
                          'wcv3-sec--output', 'wcv3-sec--state', 'wcv3-sec--actions',
                          'wcv3-bar', '_cycle_button.html', '_card_chips.html',
                          'duplicate-btn', 'delete-btn', 'settings-btn',
-                         'unified_preview', 'data-output-format',
+                         'unified_preview', 'elem.gear_data.items',
                          # La bande des PROCESS (P5, 5.2) : rendue vide sous deux process.
                          '_card_processes.html', 'elem.shown_state|default:elem.status'):
             self.assertIn(marqueur, self.card, f'card générée sans {marqueur}')
@@ -361,9 +361,16 @@ class EmissionsDuGabaritTest(SimpleTestCase):
         # générateur : son propre ouvreur le relisait, mais le cardSettings dérivé (volet)
         # et sharedGearValues (modale de lot) cherchaient la graphie du contrat et ne
         # trouvaient RIEN — deux moitiés d'une paire qui ne se parlaient plus.
-        self.assertIn('data-quality', self.card,
-                      'un champ du schéma doit avoir son data-* en graphie du contrat')
-        self.assertIn('data-output-format', self.card)
+        # Depuis le 2026-10-31 ces data-* ne sont plus ÉCRITS à la génération : le bouton ⚙ les
+        # porte par la brique `card_gear` (`elem.gear_data`, propriété du modèle généré — tout le
+        # schéma de contexte item, en graphie du contrat), et l'ouvreur les lit par le lecteur
+        # commun `WamaInspector.gearValues` — comme dans les dix apps.
+        from wama.common.manifests.codegen.models_gen import render_models
+        models_src, _raison = render_models(_manifeste(SOURCE))
+        self.assertIn('def gear_data(self):', models_src or '')
+        self.assertIn('from wama.common.utils.card_gear import gear_data', models_src or '')
+        self.assertIn('{% for k, v in elem.gear_data.items %}data-{{ k }}', self.card)
+        self.assertIn('WamaInspector.gearValues(card,', self.src)
         self.assertNotIn('data-param-', self.card,
                          'le vocabulaire privé data-param-* ne doit pas revenir')
 

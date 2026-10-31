@@ -149,7 +149,7 @@ def _is_django_model(path: str) -> bool:
 
 
 def _render_from_data(app_id: str, data: dict, ingest: dict = None,
-                      item_name: str = '') -> str:
+                      item_name: str = '', params_symbol: str = '') -> str:
     """Rendu FIDÈLE depuis la facette `data` (marche S2) : chaque modèle avec ses champs tels
     que les migrations les sérialisent (`MigrationWriter.serialize` à l'extraction) — la
     fidélité de schéma est PAR CONSTRUCTION, verdict mesurable = makemigrations « No
@@ -218,6 +218,19 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
             for val in list(f.get('args') or []) + list((f.get('kwargs') or {}).values()):
                 imports.update(i for i in (val.get('imports') or []) if i != f'import {own_module}')
             corps.append(f"    {f['name']} = {cls_expr}({', '.join(morceaux)})")
+        # Les data-* du bouton ⚙ de la card : la brique COMMUNE `card_gear`, dérivés du schéma
+        # comme dans les dix sources (`gear_data(self, PARAMS)`, 2026-10-31). Une PROPRIÉTÉ :
+        # aucun champ, aucune migration. Les réglages hors colonnes viennent du conteneur
+        # `options` quand le modèle en a un. Sans elle, la card générée écrivait ses data-* à la
+        # génération (critère `card_gear`) et son bouton ⚙ ne portait rien.
+        if params_symbol and item_name and m.get('name') == item_name:
+            has_options = any(f.get('name') == 'options' for f in m.get('fields') or [])
+            values = ', values=dict(self.options or {})' if has_options else ''
+            corps += ['', '    @property', '    def gear_data(self):',
+                      '        """data-* du bouton ⚙ — brique commune `card_gear` (dérivés du schéma)."""',
+                      '        from wama.common.utils.card_gear import gear_data',
+                      f'        from .params import {params_symbol}',
+                      f'        return gear_data(self, {params_symbol}{values})']
         meta = m.get('meta') or {}
         if meta:
             corps.append('')
@@ -297,6 +310,8 @@ def render_models(manifest: dict) -> tuple:
             app_id, data,
             ingest=ingest,
             item_name=((proc.get('model_spec') or {}).get('item') or {}).get('name') or '',
+            params_symbol=(((body.get('params') or {}).get('schemas') or {}) and
+                           ((body.get('params') or {}).get('primary') or 'PARAMS_JSON')) or '',
         ), None
     spec = proc.get('model_spec') or {}
     item = spec.get('item') or {}

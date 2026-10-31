@@ -1130,12 +1130,12 @@ def duplicate(request, pk):
     vues['start_all'] = f"start_all = app_access({app!r})(_iv['start_all'])"
     vues['clear_all'] = "clear_all = _iv['clear_all']"
 
-    if out_file or out_text:
-        # Le ZIP de FILE par la fabrique (2026-10-17) : la file que compte `_pv`, les entrées
-        # écrites comme celles du lot (déclarées à `make_batch_views`, `bv_output` plus bas).
-        vues['download_all'] = "download_all = _pv['download_all']"
-    else:
-        vues['download_all'] = stub('download_all')
+    # Le ZIP de FILE par la fabrique (2026-10-17) : la file que compte `_pv`, les entrées écrites
+    # comme celles du lot. TOUJOURS émis (2026-10-31) : la fabrique lit d'abord les fichiers de
+    # résultat que DÉCLARE la spec de détail (`sorties_de`, la lecture d'« Envoyer vers… »), puis
+    # la colonne ou le texte déclarés à `make_batch_views` (`bv_output` plus bas). Le bouchon 501
+    # émis faute de colonne déclarée coupait cinq jumelles d'un ZIP que la fabrique savait faire.
+    vues['download_all'] = "download_all = _pv['download_all']"
 
     # Contrat du COMPOSANT COMMUN (`wama-global-progress.js`) : rendu par la fabrique (`_pv`).
     vues['global_progress'] = "global_progress = _pv['global_progress']"

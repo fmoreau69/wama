@@ -236,19 +236,14 @@ def render_index(manifest: dict) -> tuple:
 
     params_js = ''
     if route_update and champs_params:
-        lect = '\n'.join(
-            f"                v['{c}'] = card.getAttribute('data-{c.replace('_', '-')}') || '';"
-            for c in champs_card)
         params_js = f'''
     if (window.WamaQueueActions && window.WamaParams) {{
         WamaQueueActions.onSettings(function (id, btn) {{
             var card = btn.closest('.wama-card[data-id]');
-            // Valeurs courantes lues sur la CARD (graphie du contrat card_gear, à tirets) :
-            // pas de route de lecture à inventer, la card les porte déjà pour l'inspecteur.
-            var v = {{}};
-            if (card) {{
-{lect}
-            }}
+            // Valeurs courantes lues sur la CARD par le lecteur COMMUN (`gearValues` : le bouton ⚙
+            // porte les data-* de la brique `card_gear`) — la lecture des dix apps (2026-10-31).
+            var v = (card && window.WamaInspector && WamaInspector.gearValues)
+                ? WamaInspector.gearValues(card, {champs_card!r}) : {{}};
             WamaParams.settingsModal({{
                 id: id,
                 title: 'Paramètres — élément #' + id,
@@ -655,9 +650,9 @@ document.addEventListener('DOMContentLoaded', function () {{
     # lecture supplémentaire. C'est le même choix que `data-status` pour `autoSync` — la card
     # est auto-suffisante (CARD_DESIGN). ⚠ Ne pas revenir à un préfixe (`data-param-*`) : ce
     # vocabulaire privé rendait la card ILLISIBLE aux lecteurs communs (02/09).
-    attrs_params = ''.join(
-        f''' data-{c.replace('_', '-')}="{{{{ elem.{c}|default:'' }}}}"'''
-        for c in champs_card)
+    # (2026-10-31) Ces data-* ne sont plus écrits sur la RACINE à la génération : le bouton ⚙
+    # les porte par la brique `card_gear` (`elem.gear_data`, propriété du modèle généré), et
+    # `WamaInspector.gearValues` les lit là — comme dans les dix apps.
 
     # Routes de card LUES au manifeste (jamais supposées — leçon `stop` vs `cancel`).
     route_download = resolve_route('download', noms_routes)
@@ -708,7 +703,7 @@ silence (Django rend '' sur un attribut manquant : la card reste juste, jamais c
 On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et on RÉGÉNÈRE.{{% endcomment %}}
 <div class="job-card card bg-body border-secondary wama-card {{% if in_batch %}}mb-1 wcv3--batch-child{{% else %}}mb-2{{% endif %}}"
      data-id="{{{{ elem.id }}}}" data-status="{{{{ elem.status }}}}"
-     data-preview-url="{{% url 'common:unified_preview' '{app}' elem.id %}}"{attrs_params}>
+     data-preview-url="{{% url 'common:unified_preview' '{app}' elem.id %}}">
   <div class="card-body py-2">
     <div class="wcv3-head">#{{{{ elem.id }}}}<span class="sep">·</span>{{{{ elem.created_at|date:"d/m H:i" }}}}</div>
     <div class="wcv3">

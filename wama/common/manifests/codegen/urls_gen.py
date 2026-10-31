@@ -262,7 +262,13 @@ def routes_target(manifest: dict) -> tuple:
         if name in manquantes:
             continue
         if name in extras and extras[name][1]:
-            cible[name] = extras[name]
+            # Un geste que la source MULTIPLEXE sur sa page (`IndexView.post` : le `upload/` de
+            # l'anonymizer) prend la vue CONVENTIONNELLE émise par `views_gen` : l'`IndexView`
+            # générée ne répond qu'au GET — la route recopiée rendait 405 au dépôt
+            # (`anonymizer_01.import`, mesuré le 2026-10-31).
+            multiplexed = (name != 'index' and name in ROUTE_TABLE
+                           and extras[name][1] == 'views.IndexView.as_view()')
+            cible[name] = ROUTE_TABLE[name] if multiplexed else extras[name]
         elif name in ROUTE_TABLE:
             cible[name] = ROUTE_TABLE[name]
         else:
