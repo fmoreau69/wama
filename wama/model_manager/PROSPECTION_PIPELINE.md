@@ -3604,15 +3604,21 @@ l'assistant ne recommandait rien.
      commune. ⏳ Question ouverte : une ligne qu'aucune source ne note PLUS garde sa dernière mesure
      (`synchronize` ne la retire pas ; son rapport dit pourtant « benchmark_index reste NULL », vrai
      seulement pour une ligne jamais appariée).
-   - 🔄 (b) **La variante servie se SAIT, elle n'est pas dans les méta-infos** : la liste d'ILaaS ne
+   - ✅ (b) **La variante servie se SAIT, elle n'est pas dans les méta-infos** : la liste d'ILaaS ne
      dit rien (`{"id", "object", "owned_by"}`), et WAMA n'envoie aucun réglage de raisonnement à un
      distant (`think` est « Ollama only », `llm_utils.py:566`). Mesuré par trois appels : ILaaS
      raisonne par défaut (`reasoning_content`, `reasoning_tokens`), et refuse un effort inconnu en
      nommant le sien — *« Supported types are xhigh (default), medium, and low »*. La variante AA qui
      correspond est donc « Qwen3.8 27B (Xhigh) » = 20,1 (slug `qwen3-8-27b`), pas « Low » = 15,7, que
-     `_choose_variant` retenait par similarité de chaîne. ⏳ À DÉCLARER (pas encore écrit) : un
-     `ALIAS` ne convient pas — il apparie par égalité de slug dans TOUTES les sources, et qwen3.8
-     perdrait son Arena (`Qwen3.8-27B`).
+     `_choose_variant` retenait par similarité de chaîne. ✅ **Déclaré le 2026-10-31** (accord de
+     Fabien) : `benchmark_sync.SERVED_VARIANT` (`ilaas:qwen-3.8-27b` → `xhigh`, la mesure en
+     commentaire), lu au SEUL choix de variante — un `ALIAS` aurait apparié par égalité de slug dans
+     toutes les sources, et qwen3.8 perdait son Arena (`Qwen3.8-27B`). Resynchronisé : 20,1 (AA v5),
+     19,7ᵉ centile ; le tirage reste gemma-4-31b. Garde
+     `TroisiemeBancEtSensTest.test_the_served_variant_picks_the_entry_and_keeps_the_other_boards`
+     (contre-épreuve rouge, déclaration vidée). ⏳ Non déclarés faute de mesure :
+     `openrouter:qwen/qwen3.8-27b` (le fournisseur sous-jacent varie) et `ollama:qwen3.8:latest`
+     (Ollama règle `think`, pas un effort).
    - ✅ (c) **Égalité Albert / ILaaS sur le même modèle : rien à changer** (Fabien : *« on compte les
      requêtes pour ne pas atteindre la limite de quota, autant utiliser Albert, puis basculer sur
      ILaaS »*) — l'égalité donne Albert, la saturation notée le fait basculer (`source_quota`).

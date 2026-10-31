@@ -2837,6 +2837,31 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
         self.assertEqual([('aa_intelligence_index_v5', 20.1), ('arena_elo_text', 1438.4)],
                          [(s['scale'], s['value']) for s in benchmark['scales']])
 
+    def test_the_served_variant_picks_the_entry_and_keeps_the_other_boards(self):
+        """2026-10-31, mesuré chez ILaaS : « xhigh (default), medium, and low ». La variante SERVIE
+        choisit l'entrée AA ; l'Arena, qui nomme le modèle autrement, reste appariée. Un modèle sans
+        déclaration garde le choix d'avant (contre-épreuve)."""
+        from ..models import AIModel
+        from ..services import benchmark_sync as bs
+        ident = ('qwen', (3, 8), 27.0)
+
+        def aa(name, slug, value):
+            return {'name': name, 'slug': slug, 'value': value, 'identity': ident,
+                    'scale': 'aa_intelligence_index_v5', 'family_scores': {}}
+        sources = {'aa': {'llm': [aa('Qwen3.8 27B (Medium)', 'qwen3-8-27b-medium', 17.5),
+                                  aa('Qwen3.8 27B (Low)', 'qwen3-8-27b-low', 15.7),
+                                  aa('Qwen3.8 27B (Xhigh)', 'qwen3-8-27b', 20.1)]},
+                   'arena': {'llm': [{'name': 'Qwen3.8-27B', 'elo': 1438.4, 'votes': 9,
+                                      'identity': ident}]}}
+
+        def benchmark_of(key):
+            row = AIModel(model_key=key, name='qwen-3.8-27b')
+            return bs._benchmark_for_category(row, 'llm', None, sources)[0]
+        served = benchmark_of('ilaas:qwen-3.8-27b')
+        self.assertEqual((20.1, 'Qwen3.8 27B (Xhigh)'), (served['value'], served['aa_name']))
+        self.assertEqual(1438.4, served['arena_elo'])
+        self.assertEqual(15.7, benchmark_of('openrouter:qwen/qwen3.8-27b')['value'])
+
     # ── (2) le sens de l'échelle ────────────────────────────────────────────────────────
 
     def test_un_taux_d_erreur_se_lit_a_l_envers(self):

@@ -250,6 +250,20 @@ ALIAS: dict[str, str] = {
     'composer:minimax-music3': 'MiniMax Music 3.0',
 }
 
+#: VARIANTE SERVIE, confirmée par une mesure : model_key → le mot qui qualifie la variante que la
+#: source exécute réellement (effort de raisonnement, mode). Lue au seul CHOIX DE VARIANTE
+#: (`_choose_variant`), jamais à l'appariement : un `ALIAS` apparierait par égalité de slug dans
+#: TOUTES les sources, et le modèle y perdrait les bancs qui le nomment autrement (l'Arena écrit
+#: « Qwen3.8-27B »). Chaque ligne se justifie, comme un alias.
+SERVED_VARIANT: dict[str, str] = {
+    # 2026-10-31, mesuré : ILaaS raisonne par défaut (`reasoning_content`, `reasoning_tokens`)
+    # et refuse un effort inconnu en nommant le sien — « Supported types are xhigh (default),
+    # medium, and low ». WAMA ne lui envoie aucun effort (`think` ne vaut que pour Ollama) : la
+    # variante servie est « Qwen3.8 27B (Xhigh) » (20,1 en AA v5), pas « (Low) » (15,7), que la
+    # similarité de chaîne retenait faute de qualificatif dans notre nom.
+    'ilaas:qwen-3.8-27b': 'xhigh',
+}
+
 
 #: Mots qui nomment un TIRAGE d'un modèle, pas le modèle — écartés de la famille (cf.
 #: `_with_prefix`). Liste volontairement COURTE : chaque entrée doit être un mot qui ne
@@ -1656,6 +1670,9 @@ def _benchmark_for_category(m, cat, alias, sources):
     « identité illisible ».
     """
     local_name = m.name or m.model_key
+    # Le choix de variante lit aussi la variante SERVIE déclarée ; l'appariement, non.
+    served = SERVED_VARIANT.get(m.model_key)
+    variant_name = f'{local_name} {served}' if served else local_name
     idents = []
     cands = {}
     how = {}        # source → comment elle a apparié : 'alias' | 'repo' | 'identity'
@@ -1702,7 +1719,7 @@ def _benchmark_for_category(m, cat, alias, sources):
         if not candidates:
             continue
         # La variante qui CORRESPOND, pas la mieux notée (cf. `_choose_variant`).
-        chosen = _choose_variant(local_name, candidates, s['value'], _direction(s, candidates[0]))
+        chosen = _choose_variant(variant_name, candidates, s['value'], _direction(s, candidates[0]))
         benchmark.update(s['meta'](chosen, candidates))
         if s['value'](chosen) is not None:
             scales.append({'scale': s['scale'](chosen, cat), 'value': s['value'](chosen),
