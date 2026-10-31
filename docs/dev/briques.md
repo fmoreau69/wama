@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**215 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**223 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -19,15 +19,16 @@ Garde une valeur calculée depuis un fichier (lecture AST, rendu markdown, compt
 
 ### Client du service TTS
 
-L'appel POST /tts UNIQUE vers le microservice TTS (payload contractuel, 503 « loading » → TTSServiceLoadingError, WAV temporaire ou bytes) ; les POLITIQUES (retry Celery, chunking, replis) restent aux appelants — extrait 2026-08-28 : 4 exemplaires vivaient dans le dépôt, un seul détectait le 503. Depuis le 2026-10-10 le service ÉCOUTE aussi : `stt_via_service` (POST /stt, Whisper chaud, conversation vocale de l'assistant) partage le même appel et la même traduction d'erreurs (`_post`)
+L'appel POST /tts UNIQUE vers le microservice TTS (payload contractuel, 503 « loading » → TTSServiceLoadingError, WAV temporaire ou bytes) ; les POLITIQUES (retry Celery, chunking, replis) restent aux appelants — extrait 2026-08-28 : 4 exemplaires vivaient dans le dépôt, un seul détectait le 503. Depuis le 2026-10-10 le service ÉCOUTE aussi : `stt_via_service` (POST /stt, Whisper chaud, conversation vocale de l'assistant) partage le même appel et la même traduction d'erreurs (`_post`). Le service lui-même (uvicorn :8001) vit à côté du client depuis le 2026-10-28 (`service.py`, ex-`tts_service.py` à la racine). Et la voix AU FIL DE L'EAU (2026-10-28) : `tts_stream_via_service` → POST /tts/stream (PCM 16 bits, `TTSBackend.synthesize_stream`), joué par le canal commun (`WamaApp.Speech.stream`) ou l'avatar (`WamaAvatar.streamPlayer`)
 
 - **Domicile** : `wama/common/tts/service_client.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md §2bis](../construction/ui/MODES_QUEUE_UX.md)
-- **Module** : Client COMMUN du microservice TTS (`tts_service.py`, FastAPI, uvicorn :8001).
-- **API publique** (7) :
+- **Module** : Client COMMUN du microservice TTS (`common/tts/service.py`, FastAPI, uvicorn :8001).
+- **API publique** (8) :
   - `class TTSServiceLoadingError(Exception)` — Le service TTS répond 503 « loading » (démarrage/chargement d'un moteur) —
   - `service_url() -> str` — URL du service TTS : settings Django si disponibles, sinon env, sinon défaut.
   - `tts_eta_key_size(text, model)` — (clé, taille, unité) de l'ETA d'une synthèse par le service : durée ∝ longueur du texte,
   - `tts_via_service(text, model, *, language='fr', voice_preset='default', speaker_wav=None, multi_speaker=False, scene_description='', options=None, read_timeout=…` — Synthétise `text` via le microservice TTS et renvoie le chemin d'un WAV TEMPORAIRE
+  - `tts_stream_via_service(text, model, *, language='fr', voice_preset='default', speaker_wav=None, options=None, read_timeout=30, user=None)` — La même demande AU FIL DE L'EAU (2026-10-28, voix de l'assistant) : rend `(rate, morceaux)`,
   - `stt_via_service(audio, *, content_type='audio/wav', language='', model=None, read_timeout=90)` — Transcrit un extrait COURT (octets audio) par le même service — la conversation vocale de
   - `speech_only_via_service(audio, *, content_type='audio/wav', read_timeout=90)` — Les seuls passages PARLÉS d'un extrait (WAV 16 kHz mono), b'' s'il n'y en a aucun — le
   - `end_of_turn_via_service(audio, *, model_path, read_timeout=1.5)` — Probabilité que la personne ait FINI sa phrase (0 à 1), d'après les 8 dernières
@@ -255,7 +256,7 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
 
 ### Lignes d'exécution des process
 
-UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process sur les six états communs, photo des réglages surveillés, modèle EMPLOYÉ (lisible pendant un « auto »), sortie, durée. Dit ce qui est périmé (`stale_nodes` : réglage surveillé changé, puis cascade) et déduit l'état d'une card de ses process (`aggregate`). L'élément reste la vérité lue par l'interface tant qu'il porte `status` ; l'arrêt et la réconciliation referment les lignes ouvertes. Le lancement y écrit son PLAN (`plan` : ses process `PENDING`, avec sa tâche) ; l'ETA d'un process (`step_eta_seconds`, règle des passes du cam_analyzer) et celle d'une card, la somme de ce que joue son lancement (`launch_eta`, 2026-10-05). 2026-10-27 : une sortie PERDUE (fichier désigné, absent du disque, `output_lost`) ne périme pas son aval — seule une empreinte DIFFÉRENTE périme — : elle se dit (bande des process, résultats du studio) et se rejoue
+UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process sur les six états communs, photo des réglages surveillés, modèle EMPLOYÉ (lisible pendant un « auto »), sortie, durée. Dit ce qui est périmé (`stale_nodes` : réglage surveillé changé, puis cascade) et déduit l'état d'une card de ses process (`aggregate`). L'élément reste la vérité lue par l'interface tant qu'il porte `status` ; l'arrêt et la réconciliation referment les lignes ouvertes. Le lancement y écrit son PLAN (`plan` : ses process `PENDING`, avec sa tâche) ; l'ETA d'un process (`step_eta_seconds`, règle des passes du cam_analyzer) et celle d'une card, la somme de ce que joue son lancement (`launch_eta`, 2026-10-05). 2026-10-27 : une sortie PERDUE (fichier désigné, absent du disque, `output_lost`) ne périme pas son aval — seule une empreinte DIFFÉRENTE périme — : elle se dit (bande des process, résultats du studio) et se rejoue. 2026-10-28 : une ligne dont l'élément a disparu sans passer par son retrait (cascade, témoins du nocturne, jumelle retirée) se balaie chaque nuit (`forget_orphans`)
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
@@ -417,7 +418,7 @@ Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/con
 Le JEU DE CHOIX unique de la parole synthétique — moteurs, langues, presets de voix, cartes moteur↔langue — et sa résolution (voix pour une langue, langue d'une voix). Distinct du client de service : celui-ci TRANSPORTE, celui-là NOMME. Les deux apps TTS, `accounts` (langue de profil) et l'assistant y puisent les mêmes libellés
 
 - **Domicile** : `wama/common/tts/constants.py`
-- **Module** : WAMA Common TTS Constants ========================= Source unique des constantes TTS partagées entre : - wama.avatarizer (AvatarJob) - wama.synthesizer (VoiceSynthesis) - tts_service.py (service FastAPI)
+- **Module** : WAMA Common TTS Constants ========================= Source unique des constantes TTS partagées entre : - wama.avatarizer (AvatarJob) - wama.synthesizer (VoiceSynthesis) - common/tts/service.py (service FastAPI)
 - **API publique** (1) :
   - `tts_catalog_key(name: str) -> str` — Nom de moteur saisi (`coqui-xtts`, fichier batch, outil de l'assistant) → CLÉ DE CATALOGUE.
 
@@ -429,7 +430,7 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
 
 - **Domicile** : `wama/common/utils/auto_model.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Auto-sélection de modèle — brique COMMUNE (valeur « auto » d'un select de modèle).
-- **API publique** (18) :
+- **API publique** (20) :
   - `read_quality_intent(value) -> int` — Valeur 0-100 SÛRE depuis un POST/JSON : bornée, défaut équilibré, ne lève jamais.
   - `posted_quality_intent(source)` — Curseur POSTÉ (POST ou dict JSON) → entier borné, ou **None** s'il n'est pas posté ou
   - `preset_key_for_intent(intent) -> str` — La POSITION NOMMÉE la plus proche d'une valeur de curseur (`QUALITY_PRESETS` du sélecteur :
@@ -442,6 +443,8 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
   - `declared_cloud_keys(app_id: str, user)` — Les modèles DISTANTS que le tirage AUTOMATIQUE de `app_id` peut retenir pour `user`, ou
   - `declared_resolution(app_id: str) -> dict` — Les affinages du tirage « auto » DÉCLARÉS au schéma de `app_id` (`options_resolution`),
   - `read_needs(text: str) -> dict` — `needs` tel que le navigateur le transmet (`scale:4,autre:x`) → `{capacité: valeur}`.
+  - `read_refinement(key: str, text: str)` — Un affinage du tirage tel que le navigateur le transmet à la prévision : `needs` en paires,
+  - `narrow_by_voice(domain: dict, voice: str, fallback=None)` — Applique au domaine du tirage ce que la voix choisie impose (`voice_draw_constraint`) et rend
   - `need_candidates(needs: dict, domain: dict)` — Les clés du DOMAINE qui satisfont TOUS les besoins `{capacité: valeur}` — None quand aucun
   - `intent_field_for(app_id: str)` — Nom du champ « curseur » déclaré au schéma de l'app (`type='intent'`), ou None.
   - `quality_intent_of(item=None, app_id=None, user=None) -> int` — La valeur du curseur qui vaut pour CE lancement, en UN endroit (chantier C, 2026-09-20).
@@ -477,14 +480,19 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
 
 - **Domicile** : `wama/model_manager/services/benchmark_sync.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Signal qualité « BENCHMARK TIERS CONFRONTÉ » — 2e étage de l'échelle des signaux.
-- **API publique** (12) :
+- **API publique** (17) :
   - `class SourceUnavailable(Exception)` — Réseau/clé/format absents — la source est SKIPPÉE, jamais un score partiel inventé.
+  - `aa_scale(spec: dict, version=None) -> str` — L'échelle d'une catégorie AA, VERSIONNÉE quand la réponse déclare la version de son indice.
   - `load_aa()` — {'categorie': [{'nom','slug','valeur','echelle','identite'}]} ; motifs par catégorie.
   - `load_arena()` — {'categorie': [{'nom','elo','votes','identite'}]} depuis le dataset HF officiel
   - `load_open_asr()` — {'categorie': [{'nom','slug','wer','identite','rtfx','licence','taille_b','jeux'}]}
   - `load_hf_benchmarks()` — {'catégorie': [entrées]} depuis le CLASSEMENT des jeux de référence OFFICIELS du Hub
+  - `load_linagora_asr()` — {'speech-to-text-fr-linagora': [entrées]} — moyenne des WER (sans casse ni ponctuation)
+  - `table_rows(text: str, spec: dict) -> list` — `[(nom de la ligne, valeur)]` du tableau que `spec` désigne dans `text` — le PREMIER tableau
+  - `load_published_tables()` — {catégorie: [entrées]} des tableaux DÉCLARÉS (`PUBLISHED_TABLES`). Une entrée porte son
   - `load_mteb()` — {'embedding': [{'nom','slug','score','identite','taches','revision'}]} depuis le dépôt
   - `benchmarks_comparable(pool) -> bool` — Vrai si les `benchmark_index` du lot peuvent être ORDONNÉS entre eux.
+  - `common_scale_values(pool) -> dict` — `{id(m): valeur ordonnable}` sur la première échelle (priorité des sources) que TOUT le lot
   - `orderable_value(m)` — La valeur d'un `benchmark_index` telle qu'on peut la TRIER (plus grand = meilleur), ou
   - `category_task(cat: str)` — La tâche du catalogue qu'un banc mesure — lecture INVERSE de `TASK_TO_BENCH_CATEGORY`,
   - `leaderboard_repos(cache: str='read')` — Les CLASSEMENTS comme source de DÉCOUVERTE (2026-10-10, demande de Fabien) :
@@ -563,7 +571,7 @@ Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisat
 
 ### Découverte de modèles
 
-Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel. Ollama (2026-10-12) : un manifeste INTERNE du démon (étiquette = empreinte sha256, `is_ollama_runner_alias`) n'est pas un modèle ; seul un relevé du DÉMON (`ollama_listed`) prouve un retrait fait hors de WAMA — la ligne reçoit alors la marque d'une désinstallation (`uninstalled_q`)
+Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel. Ollama (2026-10-12) : un manifeste INTERNE du démon (étiquette = empreinte sha256, `is_ollama_runner_alias`) n'est pas un modèle ; seul un relevé du DÉMON (`ollama_listed`) prouve un retrait fait hors de WAMA — la ligne reçoit alors la marque d'une désinstallation (`uninstalled_q`). Une DESCRIPTION que la découverte ne connaît pas (texte de remplissage marqué) n'efface jamais une vraie ; les lignes marquées se comblent depuis la fiche du modèle ou le web, résumées en français, la source tracée (`describe_models`, 2026-10-29)
 
 - **Domicile** : `wama/model_manager/services/model_registry.py`
 - **Module** : Model Registry - Unified model discovery across all WAMA apps and external sources.
@@ -610,11 +618,11 @@ Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×a
 
 ### Installation de modèles
 
-Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10, MuScriptor le 16/10 — le jeton d'un dépôt du Hub à accès contrôlé n'est envoyé qu'aux origines `huggingface` ; la désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`). Dépôt à ACCÈS CONTRÔLÉ (`AIModel.gated`) : le jeton est celui du compte qui lance (`api_keys.download_token`), sinon celui de l'instance (`HF_TOKEN`, `.env`). Route `library` (`install_library`) : PyPI par nom, pin exact — refuse URL, `git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par `-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, 2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle `tests_install_route`, budget des dérives existantes qui ne peut que descendre
+Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10, MuScriptor le 16/10 — le jeton d'un dépôt du Hub à accès contrôlé n'est envoyé qu'aux origines `huggingface` ; la désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`). Dépôt à ACCÈS CONTRÔLÉ (`AIModel.gated`) : le jeton est celui du compte qui lance (`api_keys.download_token`), sinon celui de l'instance (`HF_TOKEN`, `.env`). Route `library` (`install_library`) : PyPI par nom, pin exact — refuse URL, `git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par `-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, 2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle `tests_install_route`, budget des dérives existantes qui ne peut que descendre. Les options d'installation disent ce qui TOURNE ici et la recommandation (la plus précise qui tient sur la carte), pour la page et l'assistant ; une désinstallation retire des choix des apps (option cochée), une MISE À JOUR installée succède à l'ancienne version partout où elle était choisie (`succession.py`, 2026-10-29)
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (49) :
+- **API publique** (51) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(repo_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -647,7 +655,9 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `install_candidate(cand, progress=None, token=None, owner=None) -> dict` — Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
   - `weights_dir_of(model, index: dict | None=None) -> Path | None` — Dossier des POIDS d'une ligne de catalogue installée, ou None s'il ne se désigne pas.
   - `rows_depending_on(model, target: Path, index: dict | None=None) -> tuple[list, list]` — Les AUTRES lignes installées que retirer `target` toucherait — `(sharing, dependents)`.
-  - `uninstall_model(model_key: str, include_shared: bool=False, via: str='') -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
+  - `withdraw_from_choices(rows, stamp: str, *, by: str='', superseded_by: str='') -> list` — Retire ces lignes des CHOIX des applications : `is_available=False` + `exclusion` datée,
+  - `restore_withdrawn(keys) -> list` — Rend aux choix des applications les lignes qu'une DÉSINSTALLATION en avait retirées — appelé
+  - `uninstall_model(model_key: str, include_shared: bool=False, via: str='', withdraw: bool=True) -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
   - `forget_in_corpus(model_keys) -> None` — Le corpus de manifestes SUIT la désinstallation, comme il suit l'installation
   - `spec_for_catalog_row(model) -> dict | None` — Spec d'installation DÉRIVÉ d'une ligne de catalogue non téléchargée — le geste « Installer »
   - `patterns_from_composition(composition) -> list | None` — `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
@@ -671,7 +681,7 @@ Date chaque installation et désinstallation (modèle, librairie) avec son issue
 
 - **Domicile** : `wama/model_manager/services/install_history.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Journal DATÉ des installations — l'écriture (`opened`/`record`) et la couche du calendrier.
-- **API publique** (5) :
+- **API publique** (6) :
   - `opened(kind, key, *, name='', action='install', via='')` — Ouvre un événement `RUNNING` ; le bloc remplit `outcome` avec le résultat du driver.
   - `record(kind, key, *, name='', action='install', via='', result=None, started_at=None)` — Un événement déjà TERMINÉ (désinstallation : un geste court et synchrone).
   - `queued(kind, key, *, name='', via='')` — Ouvre l'événement AU DISPATCH, avec sa voie — la tâche le reprendra (`resumed`).
@@ -720,7 +730,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (33) :
+- **API publique** (36) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
@@ -730,9 +740,12 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
   - `safetensors_facts(path)` — `{'params': nombre de paramètres, 'dtypes': [...]}` lus dans l'EN-TÊTE seul d'un
   - `precision_of_files(revision, files_by_role) -> dict` — `{rôle: {'params', 'dtypes'}}` — la PRÉCISION de chaque composant, lue dans les en-têtes
   - `remote_precision(repo_id: str, files_by_role) -> dict` — JUMEAU DISTANT de `precision_of_files`, même forme `{rôle: {params, dtypes,
+  - `names_the_same_model(base_repo: str, variant_repo: str) -> bool` — Le dépôt `variant_repo` porte-t-il le NOM COMPLET du modèle `base_repo` (alphanumérique, sans
   - `quantized_variants(repo_id: str, limit: int=5) -> list[dict]` — Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
   - `analyze_license(repo_id: str, license_id: str='', base_model=None, _profondeur: int=0)` — Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
   - `install_options(cand) -> dict` — Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
+  - `hub_raw_file(repo_id: str, filename: str, timeout=(5, 20))` — La réponse HTTP d'UN fichier d'un dépôt du Hub, lu par son adresse `raw` (`hf_hub_url`) —
+  - `recommended_option(options) -> int | None` — L'option que WAMA RECOMMANDE, par son indice : parmi celles qui tournent ici et dont le
   - `needs_variant_choice(cand) -> bool` — Le candidat n'a-t-il AUCUN choix par défaut ? — vrai quand ses options ne portent pas de
   - `spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | None` — Le SPEC d'installation qui respecte le choix validé par l'utilisateur, ou None si le choix
   - `catalogue_repos(rows) -> set` — Dépôts du Hub que des lignes de catalogue PORTENT, en minuscules : celui d'où viennent
@@ -761,8 +774,9 @@ Identité chez l'éditeur (licence, auteur, plateforme, publications arXiv de la
 
 - **Domicile** : `wama/model_manager/services/provenance.py`
 - **Module** : Identité d'un modèle chez son éditeur — et pose de cette identité PAR LE MANIFESTE.
-- **API publique** (7) :
+- **API publique** (8) :
   - `huggingface_identity(repo_id: str) -> Optional[dict]` — `{license, author, platform_ref, gated}` lu sur la carte du dépôt, ou None si injoignable.
+  - `quantized_base_identity(tags, repo_id: str='') -> dict` — `{base_model, base_model_relation: 'quantized'}` quand le dépôt se DÉCLARE la quantification
   - `arxiv_ids(tags) -> list` — Les identifiants arXiv qu'une carte Hugging Face rattache au modèle, dans son ordre.
   - `ollama_identity(name: str) -> Optional[dict]` — Identité d'un modèle Ollama. La plateforme n'expose ni licence ni auteur exploitables par
   - `cloud_identity(item: dict) -> Optional[dict]` — Identité d'un modèle DISTANT : le dépôt HuggingFace que le fournisseur sert, quand il le
@@ -785,11 +799,13 @@ Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit
 
 - **Domicile** : `wama/common/surfaces.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : SURFACES et BRIQUES UI — le registre (2026-10-10, ouverture du chantier SURFACES).
-- **API publique** (13) :
+- **API publique** (15) :
   - `thumbnail_path(key: str)` — Le fichier de la vignette d'une brique (qu'il existe ou non).
   - `thumbnail(key: str) -> Optional[dict]` — La vignette d'une brique — `{'url', 'taken_at'}`, ou None tant qu'aucune capture n'existe
   - `validate_text(value) -> str` — Le texte d'un champ fichier édité, assaini : une chaîne, fins de ligne `\n`, plafonnée.
   - `source_file(path: str) -> Optional[str]` — Le fichier SOURCE d'un chemin nommé comme une page le nomme — un gabarit comme
+  - `key_label(key: str) -> str` — `Shift+ArrowLeft` → `Maj+←`, `KeyJ` → `J`, `Ctrl+Space` → `Ctrl+Espace`.
+  - `class Shortcut` — Un raccourci clavier DÉCLARÉ par une brique — la source unique de la liste que montrent la
   - `class UIBrick`
   - `class BrickSlot` — Une brique placée sur une surface : position et taille PAR DÉFAUT (l'utilisateur les
   - `class Surface`
@@ -1222,11 +1238,11 @@ Distance d'une sortie texte à sa RÉFÉRENCE (port `reference_result`) : substi
 
 ### Outils de DÉVELOPPEMENT (surface MCP « wama-dev »)
 
-Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sable d'apps, exposés à un client MCP. ⚠ JAMAIS chargé dans le process de PRODUCTION (ROADMAP §16 : défense en profondeur > scope de jeton) — ni dans `TOOL_REGISTRY` ni importé par `tool_api` ; seul `run_mcp_server --surface dev` l'importe, et `tests_mcp_dev_tools` le garde. Les rôles écrivent une PROPOSITION dans `wama-dev-ai/outputs/` et n'appliquent rien
+Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sable d'apps, exposés à un client MCP. ⚠ JAMAIS chargé dans le process de PRODUCTION (ROADMAP §16 : défense en profondeur > scope de jeton) — ni dans `TOOL_REGISTRY` ni importé par `tool_api` ; seul `run_mcp_server --surface dev` l'importe, et `tests_mcp_dev_tools` le garde. Les rôles écrivent une PROPOSITION dans `wama-dev-ai/outputs/` et n'appliquent rien. Outils d'INSPECTION réservés aux administrateurs (`dev_inspect` : base en lecture, logs, code ; colonnes sensibles jamais rendues)
 
 - **Domicile** : `wama/common/services/dev_tools.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Outils de DÉVELOPPEMENT de WAMA — la surface du serveur MCP « wama-dev » (ROADMAP §8d Phase 3, étape 3).
-- **API publique** (23) :
+- **API publique** (25) :
   - `class DevToolError(ValueError)` — Refus LISIBLE — rendu comme `{'error': …}`, jamais comme une trace.
   - `base_dir() -> Path`
   - `jobs_dir() -> Path`
@@ -1404,10 +1420,10 @@ Un seul contrat d'outils pour TOUS les cerveaux (Ollama, Claude Code, Albert, un
 
 ### Service de vectorisation
 
-Un ESPACE de vecteurs par nature de média — `text` (qwen3-embedding, celui du RAG) et `media` (EmbeddingGemma-2, texte ET image : une requête écrite retrouve une image) —, un moteur UNIQUE (préparation des entrées, appel au fournisseur, contrôle des dimensions) exécuté par un service uvicorn 127.0.0.1:8002 (`vector_service.py`, à la racine comme `tts_service.py`) et son client ; service éteint, le même moteur tourne dans le process appelant. Deux espaces ne se comparent jamais ; un fournisseur distant n'entre que s'il sert le MÊME espace ; le modèle local manquant s'installe par la route (`model_key`) ; la VRAM se demande au gouverneur sur la ligne de RÉSIDENCE du modèle à l'Ollama hôte (`ollama_host_owner`, une par modèle), pour le besoin que porte sa ligne de catalogue — un chargement observé se MESURE à la carte et y est rendu (`ollama_host.measured_load`, 2026-10-20, qui mesure aussi les conversations)
+Un ESPACE de vecteurs par nature de média — `text` (qwen3-embedding, celui du RAG) et `media` (EmbeddingGemma-2, texte ET image : une requête écrite retrouve une image) —, un moteur UNIQUE (préparation des entrées, appel au fournisseur, contrôle des dimensions) exécuté par un service uvicorn 127.0.0.1:8002 (`service.py`, dans son paquet comme le service TTS depuis le 2026-10-28 — ex-`vector_service.py` à la racine) et son client ; service éteint, le même moteur tourne dans le process appelant. Deux espaces ne se comparent jamais ; un fournisseur distant n'entre que s'il sert le MÊME espace ; le modèle local manquant s'installe par la route (`model_key`) ; la VRAM se demande au gouverneur sur la ligne de RÉSIDENCE du modèle à l'Ollama hôte (`ollama_host_owner`, une par modèle), pour le besoin que porte sa ligne de catalogue — un chargement observé se MESURE à la carte et y est rendu (`ollama_host.measured_load`, 2026-10-20, qui mesure aussi les conversations)
 
 - **Domicile** : `wama/common/vectors/service_client.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7sexies](../construction/ia/WAMA_MEMORY.md)
-- **Module** : Client COMMUN du service de vectorisation (`vector_service.py`, FastAPI, uvicorn 127.0.0.1:8002). Doc : `WAMA_MEMORY.md §7sexies`. Même patron que `common/tts/service_client.py` : tout le monde vectorise par ici — le RAG (`memory/embed.py`), l'indexation des médias, le Describer.
+- **Module** : Client COMMUN du service de vectorisation (`common/vectors/service.py`, FastAPI, uvicorn 127.0.0.1:8002). Doc : `WAMA_MEMORY.md §7sexies`. Même patron que `common/tts/service_client.py` : tout le monde vectorise par ici — le RAG (`memory/embed.py`), l'indexation des médias, le Describer.
 - **API publique** (9) :
   - `service_url() -> str`
   - `embed(space_key: str, items, *, query: bool=False, timeout: float=TIMEOUT_S, keep_alive: str | None=None) -> list` — Les vecteurs de `items` dans l'espace `space_key` (même ordre), ou `[]` si indisponible.
@@ -1509,7 +1525,7 @@ Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama loca
 
 - **Domicile** : `wama/common/utils/llm_utils.py`
 - **Module** : WAMA Common — LLM utilities Shared Ollama client for use in Celery workers (transcriber, describer, ...).
-- **API publique** (23) :
+- **API publique** (24) :
   - `get_describer_model(content_type: str, output_style: str) -> str` — Return the Ollama model name to use for a given (content_type, output_style) pair.
   - `designated_local_model(key: str, role: str='langage', owner: str='Cette application') -> str` — Le nom Ollama d'une clé `ollama:<nom>` ; `ValueError` pour toute autre source.
   - `card_llm(key: str, auto=None, owner: str='Cette application')` — `(nom, fournisseur)` du modèle de langage qu'une card demande : sous « auto », `auto()`
@@ -1694,7 +1710,7 @@ Les pages du menu Applications — apps du catalogue et surfaces déclarées, lu
 
 - **Domicile** : `wama/common/services/navigation.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 - **Module** : Les PAGES qu'un utilisateur peut ouvrir — ce que l'assistant propose quand on lui demande « emmène-moi sur… » (outil `open_page`, 2026-10-11), et le menu du compte (2026-10-14).
-- **API publique** (5) :
+- **API publique** (6) :
   - `account_pages_for(user, allowed_apps=None) -> list` — Les pages du COMPTE que `user` peut ouvrir, dans l'ordre du menu : `[{'key', 'label',
   - `account_menu(user, allowed_apps=None) -> list` — Le menu du COMPTE de `user` : `[{'key', 'label', 'pages': […]}]`, une entrée par section
   - `navigable_pages(user) -> list` — Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world',
@@ -2439,10 +2455,11 @@ Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v
 
 - **Domicile** : `wama/common/utils/card_chips.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §10.3](../construction/ui/CARD_DESIGN.md)
 - **Module** : WAMA Common — CHIPS méta des cards (CARD_DESIGN §10.3, pilote Reader 2026-07-06).
-- **API publique** (6) :
+- **API publique** (7) :
   - `field_unit(field) -> str` — L'UNITÉ d'un champ numérique : `unit` s'il est déclaré, sinon un `chip_label` COURT en
   - `chips_for(instance, params_json, extra=None, values=None)` — Construit la liste des chips d'une card depuis le schéma sérialisé (schema_to_dicts).
   - `input_props_for(instance, file_field='input_file', name='')` — Sous-ligne « propriétés RÉELLES du média » de la section ENTRÉE (CARD_DESIGN §11).
+  - `notice_chips(rows) -> list` — Les pastilles des REMARQUES qu'ont rendues les process d'une card sur leur résultat — une
   - `common_chips_for_items(items, params_json, values_of=None)` — Chips des réglages COMMUNS aux filles d'un lot — pour la card MÈRE (slot
   - `varying_chips_for_items(items, params_json, values_of=None)` — Le PENDANT de `common_chips_for_items` : les réglages `chip=True` qui DIFFÈRENT d'une fille
   - `chips_by_section(instance, params_json, extra=None, values=None)` — Mêmes chips que `chips_for`, mais GROUPÉS par section de card v3 (CARD_DESIGN §11).
@@ -2511,9 +2528,11 @@ Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais ajo
 
 - **Domicile** : `wama/common/utils/volet.py` · **doc** : [docs/construction/ui/WAMA_VOLETS.md §8](../construction/ui/WAMA_VOLETS.md)
 - **Module** : Déclaration du VOLET DROIT par la page — `WAMA_VOLETS.md §8 n°2`.
-- **API publique** (9) :
+- **API publique** (11) :
   - `volet(*, tete: bool=False, medias: bool=True, parametres: bool=True, actions: bool=True, arrangeable: bool=True) -> dict` — Déclaration de volet, toujours COMPLÈTE (cf. le pourquoi dans l'en-tête du module).
   - `class PanelSlot` — Une section du volet comme emplacement de la disposition commune : la COLONNE du volet
+  - `centre_slots(page: str) -> tuple` — Les briques du centre de la page `page` : un jeu par domaine quand l'app en a plusieurs
+  - `declaration(page: str) -> _PanelDeclaration` — Les emplacements de la page `page` : les sections du volet, puis les briques du centre.
   - `page_key(request) -> str` — La page dont on garde la disposition du volet : l'espace de noms de sa route — le plus
   - `layout_of(user, key: str) -> dict` — La disposition du volet que `user` a gardée pour la page `key` (`clean_layout`), `stored` à
   - `is_arranged(layout: dict) -> bool` — Le compte a-t-il disposé ce volet ? Sinon il reste celui d'avant, sans grille.
@@ -2626,7 +2645,7 @@ Un clic sur la cloche ouvre ses notifications SANS quitter la page (2026-10-13) 
 
 ### Preview unifiée
 
-Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Les faces entre Entrée et Sortie sont les PROCESS du pipeline de la card, DÉRIVÉES de ce qu'il déclare (`_process_faces`, 2026-10-12 — elles se déclaraient à la main, `register(faces=)`, R119) : libellé du process, résultat lisible (`ProcessSpec.result`, un texte) ou fichiers (`outputs`), rendu par le TYPE du port de sortie — des `detections` dessinées sur l'entrée par `WamaPreviewOverlay` (options de dessin : `register(overlay_options=)`) ; une face qui montre ce que montre déjà une autre n'est pas une étape de plus. La dernière face qui montre l'entrée est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet (`followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément). Depuis le 2026-10-12 : la face Entrée se lit, comme la Sortie, dans les clés canoniques du detail (`source_file`, sinon `source_text`) sous la règle des ports (travail, sinon prompt, jamais référence) ; UNE fabrique de face fichier (`file_face`, texte d'un .docx extrait) sert les cards ET le filemanager ; un texte inline voyage sous la seule clé `content` ; une card ouvre son entrée par le geste commun `.preview-media-link` (geste nocturne `<app>.preview`). Depuis le 2026-10-13, UNE brique front (`media-preview.js`, `WamaMediaPreview`) porte tout l'aperçu : rendu en ligne (cards, volet, fenêtre de sélection), bascule des faces COMMUNE au volet et à la visionneuse (`sidesBar`, Pendant compris — le volet en avait sa copie), Comparer (`compareFaces`, `compareView` ; fichier par fichier pour une sortie multiple, titré par ses deux fichiers), suiveur Pendant, visionneuse, et UNE navigation : une séquence (les cards de la file, les fichiers d'un dossier du gestionnaire, une galerie) puis les fichiers d'une sortie multiple — ←/→ fichier par fichier puis élément voisin, ↑/↓ d'élément en élément, face gardée, volet resynchronisé à la fermeture ; le volet et le gestionnaire de fichiers en sont consommateurs (geste nocturne `common.preview_navigation`). Depuis le soir du 2026-10-13, la FORME d'un résultat de process se déclare (`ProcessSpec.result_format`) : markdown mis en forme, RAPPORT de cohérence (score coloré, version proposée en regard du texte vérifié), tours de PAROLE (`segments`, le locuteur dans sa couleur) ; la face « Évaluation » (mesure contre la référence, `result_evaluation`) vient APRÈS la Sortie (`sides.after`) ; la visionneuse offre les TÉLÉCHARGEMENTS que l'app déclare (`export_formats`) et compte les mots de toute face texte — ce que portaient les modales propres du describer et du transcriber, retirées (R125, R126). Depuis le 2026-10-20, la CARD suit la face PENDANT comme le volet et la visionneuse (`followCard`, par le même suiveur et le même rendu en ligne) : son hôte de sortie, ou l'hôte d'attente `data-card-during` que chaque card pose à l'adresse de son élément — le describer y écrivait seul son texte partiel, le transcriber le recopiait dans le panneau de Speak (R158, R162). Depuis le 2026-10-28, la VIGNETTE d'un fichier est une brique (`tileHtml` : l'image, la 1ʳᵉ image d'une vidéo, sinon l'icône de la famille du type), décidée par le type que le serveur résout — lue par la grille d'une sortie multiple, la fenêtre de sélection et la médiathèque, qui l'écrivaient chacune et dont la dernière décidait par la nature de l'onglet (R183)
+Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps ; un MIME `model/…` ouvre la visionneuse 3D commune (`wama-3d-viewer.js`, three vendorisé), chargée À LA DEMANDE par l'importmap — sans importmap, téléchargement (2026-09-13, §17ter trou 2). Les faces entre Entrée et Sortie sont les PROCESS du pipeline de la card, DÉRIVÉES de ce qu'il déclare (`_process_faces`, 2026-10-12 — elles se déclaraient à la main, `register(faces=)`, R119) : libellé du process, résultat lisible (`ProcessSpec.result`, un texte) ou fichiers (`outputs`), rendu par le TYPE du port de sortie — des `detections` dessinées sur l'entrée par `WamaPreviewOverlay` (options de dessin : `register(overlay_options=)`) ; une face qui montre ce que montre déjà une autre n'est pas une étape de plus. La dernière face qui montre l'entrée est la référence de Comparer, ouvert aux VIDÉOS synchronisées (2026-10-05). La modale porte les mêmes faces d'où qu'on l'ouvre (volet, vignette de card), suit la face PENDANT en direct avec ses vues — par le MÊME suiveur que le volet (`followDuring`) —, et son PLEIN ÉCRAN est elle-même agrandie (la surcouche image seule ne sert plus qu'aux galeries sans élément). Depuis le 2026-10-12 : la face Entrée se lit, comme la Sortie, dans les clés canoniques du detail (`source_file`, sinon `source_text`) sous la règle des ports (travail, sinon prompt, jamais référence) ; UNE fabrique de face fichier (`file_face`, texte d'un .docx extrait) sert les cards ET le filemanager ; un texte inline voyage sous la seule clé `content` ; une card ouvre son entrée par le geste commun `.preview-media-link` (geste nocturne `<app>.preview`). Depuis le 2026-10-13, UNE brique front (`media-preview.js`, `WamaMediaPreview`) porte tout l'aperçu : rendu en ligne (cards, volet, fenêtre de sélection), bascule des faces COMMUNE au volet et à la visionneuse (`sidesBar`, Pendant compris — le volet en avait sa copie), Comparer (`compareFaces`, `compareView` ; fichier par fichier pour une sortie multiple, titré par ses deux fichiers), suiveur Pendant, visionneuse, et UNE navigation : une séquence (les cards de la file, les fichiers d'un dossier du gestionnaire, une galerie) puis les fichiers d'une sortie multiple — ←/→ fichier par fichier puis élément voisin, ↑/↓ d'élément en élément, face gardée, volet resynchronisé à la fermeture ; le volet et le gestionnaire de fichiers en sont consommateurs (geste nocturne `common.preview_navigation`). Depuis le soir du 2026-10-13, la FORME d'un résultat de process se déclare (`ProcessSpec.result_format`) : markdown mis en forme, RAPPORT de cohérence (score coloré, version proposée en regard du texte vérifié), tours de PAROLE (`segments`, le locuteur dans sa couleur) ; la face « Évaluation » (mesure contre la référence, `result_evaluation`) vient APRÈS la Sortie (`sides.after`) ; la visionneuse offre les TÉLÉCHARGEMENTS que l'app déclare (`export_formats`) et compte les mots de toute face texte — ce que portaient les modales propres du describer et du transcriber, retirées (R125, R126). Depuis le 2026-10-20, la CARD suit la face PENDANT comme le volet et la visionneuse (`followCard`, par le même suiveur et le même rendu en ligne) : son hôte de sortie, ou l'hôte d'attente `data-card-during` que chaque card pose à l'adresse de son élément — le describer y écrivait seul son texte partiel, le transcriber le recopiait dans le panneau de Speak (R158, R162). Depuis le 2026-10-28, la VIGNETTE d'un fichier est une brique (`tileHtml` : l'image, la 1ʳᵉ image d'une vidéo, sinon l'icône de la famille du type), décidée par le type que le serveur résout — lue par la grille d'une sortie multiple, la fenêtre de sélection et la médiathèque, qui l'écrivaient chacune et dont la dernière décidait par la nature de l'onglet (R183). Le même jour, l'AFFICHEUR DE FACES d'un élément devient commun (`faceViewer` : face par défaut, Pendant suivi puis Sortie, onglets, Comparer, double-clic vers la visionneuse) — le volet le portait seul pour son hôte unique ; il l'emprunte, et chaque ligne de job de l'échange de l'assistant le monte sous sa barre (geste `common.preview_chat_job`)
 
 - **Domicile** : `wama/common/utils/preview_registry.py`
 - **Module** : WAMA Common - Preview Registry
@@ -2656,6 +2675,12 @@ Un clic sur la FRONTIÈRE d'un volet (explorateur, panneau) le replie ou le rouv
 
 - **Domicile** : `wama/common/static/common/js/wama-panel-toggle.js` · **doc** : [docs/construction/ui/WAMA_VOLETS.md](../construction/ui/WAMA_VOLETS.md)
 
+### Règles des segments (portions de temps bornées)
+
+Les règles d'une suite de SEGMENTS (le type `segments`), sans DOM donc testées sous V8 : scinder et fusionner en gardant les mots horodatés, les silences, une borne qui n'avale jamais sa voisine, la sévérité d'un segment, le recalage demandé au serveur. Déplacées de la page de correction du transcriber le 2026-10-21 ; partagées par la liste des segments, la ligne de temps, l'écriture à la lecture et les intervenants
+
+- **Domicile** : `wama/common/static/common/js/wama-segments.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+
 ### Résultat instantané de la saisie
 
 Sous la consigne de la card d'entrée, ce que l'app rendrait — PENDANT la frappe, sans rien mettre en file. Capacité d'app DÉCLARÉE (`instant_preview`, lue par `instant_result_url`) ; une source, la route `instant` du manifeste, d'où dérivent la vue générée (la glu `tasks.instant_result` sur un élément NON enregistré, réglages par la cascade de l'ajout), sa route et le trou de glu. Délai de saisie, seule la dernière réponse s'affiche (`CARD_DESIGN §11.11 D bis`)
@@ -2668,7 +2693,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (41) :
+- **API publique** (42) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
@@ -2679,6 +2704,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `temperature_param(model_field: str, **overrides) -> dict` — Surcouche STANDARD du réglage de température, liée au choix de modèle `model_field` du
   - `seed_param(model_field: str, **overrides) -> dict` — Surcouche STANDARD de la graine, liée au choix de modèle `model_field` : colonne
   - `top_p_param(model_field: str, **overrides) -> dict` — Surcouche STANDARD du top_p, liée au choix de modèle `model_field` : colonne
+  - `voices_of(model_field: str) -> dict` — La liaison `cap_from` d'un select de VOIX (`options_source='voices'`) au choix de modèle
   - `sampling_of(source, prefix: str='') -> dict` — Les réglages de tirage d'un élément (ses colonnes `<prefix>temperature`, `<prefix>seed`,
   - `sampling_options(source, prefix: str='') -> dict` — `sampling_of` réduit à ce qui est RÉGLÉ — le `options` d'un moteur (le contrat uniforme de
   - `condition_fields(cond) -> List[str]` — Les champs qu'une condition `show_if` LIT — un seul, ou ceux de chaque branche d'un `any`.
@@ -2868,10 +2894,11 @@ Résolution centralisée du binaire et des conversions (échappatoire FFMPEG_BIN
 
 - **Domicile** : `wama/common/utils/ffmpeg_utils.py`
 - **Module** : Résolution CENTRALISÉE de l'exécutable ffmpeg/ffprobe — brique commune WAMA.
-- **API publique** (4) :
+- **API publique** (5) :
   - `is_wsl() -> bool` — True si on tourne sous WSL (Windows Subsystem for Linux).
   - `get_ffmpeg_exe() -> str` — Chemin d'un ffmpeg QUI FONCTIONNE (jamais None).
   - `get_ffprobe_exe() -> str` — Chemin de ffprobe. On le prend de PRÉFÉRENCE à côté du ffmpeg retenu (même install
+  - `test_pattern_video(path: str, *, size: str='64x48', rate: int=20, seconds: float=3, audio_codec: str=None, video_filter: str=None, faststart: bool=False) -> str` — Une vidéo RÉELLE de mire (`testsrc`) en H.264, écrite à `path` par l'ffmpeg que WAMA
   - `adapt_path_for_ffmpeg(path: str, ffmpeg_exe: str=None) -> str` — Adapte un chemin pour ffmpeg quand on utilise un ffmpeg WINDOWS (.exe) depuis WSL :
 
 ### Accès scopé aux objets
@@ -3173,7 +3200,7 @@ La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr =
 
 ### Le texte À DIRE (préparation avant vocalisation)
 
-`text_for_speech` (la chaîne, dans un ordre dont chaque place se justifie) et `make_audible` (la mise en forme visuelle traduite en respirations : puce de tête, point en fin de ligne non ponctuée, tiret d'incise → virgule, `/` → « ou »). ⚠ Le domaine était écrit DEUX FOIS, sous le MÊME NOM de fonction : la vue de vocalisation avait les emojis, le Markdown et les respirations, `synthesizer/utils/text_extractor.py` avait les URL et les e-mails — donc le synthesizer, dont le métier est de lire un document à voix haute, lisait les listes d'un trait. Unifié le 2026-09-26 (demande de Fabien) ; le nom du synthesizer DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc toute surface qui vocalise — accueil, volet, canaux) et le synthesizer. Depuis le 2026-10-18 (défauts entendus, mesurés par aller-retour voix → transcription) : parenthèses dites en incises (`say_incises`), emphase courte en majuscules (`say_emphasis`), code en ligne dit, et `pause_segments` — où la voix respire, et combien : les réglages de pauses (déclarés une fois, `common/tts/constants.VOICE_PAUSE_SETTINGS`) de l'assistant et du synthesizer, posés pour TOUT moteur par leur contrat commun (`tts_base.TTSBackend.synthesize`). Le second nettoyage du navigateur est RETIRÉ. Depuis le 2026-10-27, le LEXIQUE de prononciation (`lexicon`) : le fichier système `common/tts/pronunciations.json` et les lignes d'un compte (registre `pronunciations`), qu'un moteur dit par l'orthographe (`respell_with_lexicon`, au contrat commun) ou par les phonèmes (`phonemes_with_lexicon`, Kokoro) — joint à la demande par `tts_via_service(user=)`, le service vocal n'ayant pas Django
+`text_for_speech` (la chaîne, dans un ordre dont chaque place se justifie) et `make_audible` (la mise en forme visuelle traduite en respirations : puce de tête, point en fin de ligne non ponctuée, tiret d'incise → virgule, `/` → « ou »). ⚠ Le domaine était écrit DEUX FOIS, sous le MÊME NOM de fonction : la vue de vocalisation avait les emojis, le Markdown et les respirations, `synthesizer/utils/text_extractor.py` avait les URL et les e-mails — donc le synthesizer, dont le métier est de lire un document à voix haute, lisait les listes d'un trait. Unifié le 2026-09-26 (demande de Fabien) ; le nom du synthesizer DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc toute surface qui vocalise — accueil, volet, canaux) et le synthesizer. Depuis le 2026-10-18 (défauts entendus, mesurés par aller-retour voix → transcription) : parenthèses dites en incises (`say_incises`), emphase courte en majuscules (`say_emphasis`), code en ligne dit, et `pause_segments` — où la voix respire, et combien : les réglages de pauses (déclarés une fois, `common/tts/constants.VOICE_PAUSE_SETTINGS`) de l'assistant et du synthesizer, posés pour TOUT moteur par leur contrat commun (`tts_base.TTSBackend.synthesize`). Le second nettoyage du navigateur est RETIRÉ. Depuis le 2026-10-27, le LEXIQUE de prononciation (`lexicon`) : le fichier système `common/tts/pronunciations.json` et les lignes d'un compte (registre `pronunciations`), qu'un moteur dit par l'orthographe (`respell_with_lexicon`, au contrat commun) ou par les phonèmes (`phonemes_with_lexicon`, Kokoro) — joint à la demande par `tts_via_service(user=)`, le service vocal n'ayant pas Django ; une entrée `exact_case` ne vaut que dans sa casse (les unités, « 8 Go », 2026-10-28)
 
 - **Domicile** : `wama/common/utils/tts_text.py` · **doc** : [docs/construction/ia/WAMA_LLM.md §1bis](../construction/ia/WAMA_LLM.md)
 - **Module** : Le texte À DIRE — brique commune de préparation d'un texte pour la synthèse vocale.
@@ -3409,7 +3436,7 @@ Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la s
 
 - **Domicile** : `wama/common/external_sources.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
-- **API publique** (34) :
+- **API publique** (35) :
   - `cost_label(tier: str) -> str` — « gratuit (quota) », « facturé à l'usage », « abonnement » — '' pour un coût inconnu.
   - `remote_origin_label(source: str, cost_tier: str='') -> str` — LE libellé d'un modèle distant, calculé de ce qui est DÉCLARÉ : hébergement · fournisseur ·
   - `source_origin_label(source: str) -> str` — Où partent les données d'un FOURNISSEUR et ce qu'il coûte, sans son nom (que l'écran
@@ -3425,6 +3452,7 @@ Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la s
   - `hf_platform_ref(repo) -> str` — Le `platform_ref` d'un dépôt du Hub (`org/nom` → `huggingface:org/nom`), '' sans dépôt.
   - `github_release_of(ref) -> tuple` — `owner/repo:tag` → (`owner/repo`, `tag`) ; ('', '') si la forme n'y est pas.
   - `github_platform_ref(ref) -> str` — `owner/repo:tag` → `github:owner/repo/releases/tag/<tag>` ('' si la forme n'y est pas).
+  - `github_repo(platform_ref) -> str` — Le dépôt GitHub (`owner/repo`) qu'un `platform_ref` désigne — le dépôt seul
   - `github_ref_of_platform(platform_ref) -> str` — L'inverse : `github:owner/repo/releases/tag/<tag>` → `owner/repo:tag`, sinon ''.
   - `serves_many_tasks(key: str) -> bool` — La source `key` sert-elle des modèles de plusieurs tâches sous un même moteur, hors du
   - `llm_engine_inventory() -> dict` — {moteur: porteur} des fournisseurs LLM distants — un par source `llm` (2026-09-15).
@@ -3617,11 +3645,11 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 ### Voix de référence (médiathèque) et voix de clonage
 
-LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur, jamais par un nom de moteur, et qui TRANSMET la langue depuis le 2026-09-27), `resolve_speaker_wav` (sa_/ua_/cv_/nom d'avant), `default_voice_for_language` (« Voix par défaut » = la voix de référence de la LANGUE choisie, dans l'ordre du menu ; sans elle c'était un clip anglophone quelle que soit la langue), `describe_voice`, `voice_reference_groups` (optgroups dérivés d'une REQUÊTE sur `SystemAsset(voice)` + `attributes`), `ingest_voice_file` (le seul point d'entrée, ingest initial ET téléchargements). Les voix VIVENT en médiathèque depuis le 2026-09-13 (28 versées, dossier `voice_references/` retiré) ; `tts_service.py` ne résout plus rien. Quatre consommateurs : synthesizer, avatarizer, `voice_options` (menus), assistant
+LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur, jamais par un nom de moteur, et qui TRANSMET la langue depuis le 2026-09-27), `resolve_speaker_wav` (sa_/ua_/cv_/nom d'avant), `default_voice_for_language` (« Voix par défaut » = la voix de référence de la LANGUE choisie, dans l'ordre du menu ; sans elle c'était un clip anglophone quelle que soit la langue), `describe_voice`, `voice_reference_groups` (optgroups dérivés d'une REQUÊTE sur `SystemAsset(voice)` + `attributes`), `ingest_voice_file` (le seul point d'entrée, ingest initial ET téléchargements). Les voix VIVENT en médiathèque depuis le 2026-09-13 (28 versées, dossier `voice_references/` retiré) ; le service TTS ne résout plus rien. Quatre consommateurs : synthesizer, avatarizer, `voice_options` (menus), assistant. Depuis le 2026-10-28, les voix PROPRES d'un moteur (Phonon, Kokoro, Bark — `TTSBackend.VOICES`, portées par le catalogue) : un groupe par jeu de modèles qui les nomment (`engine_voice_groups`, `data-models`), jugées dans les DEUX sens par une règle commune du navigateur (`WamaModelCaps.voiceFits` : sous un modèle, ses voix ; une voix choisie grise les autres modèles, `WamaInputMatch.voiceSlot`), et portées au tirage « auto » (`voice_draw_constraint`, clé `voice` d'`options_resolution` — lancement et prévision) ; et la voix de l'ASSISTANT — modèle choisi ou tiré « auto », le plus rapide en temps réel sauf voix choisie (`assistant_voice`)
 
 - **Domicile** : `wama/common/tts/voice_refs.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9.4](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Voix de RÉFÉRENCE — la brique COMMUNE : résolution d'un preset en fichier, groupes du menu, libellés, téléchargement. Les voix VIVENT EN MÉDIATHÈQUE (`SystemAsset(asset_type='voice')`, `media_library/system/`) depuis le 2026-09-13 — plan `MEDIA_STORAGE_TIERING §9.4`.
-- **API publique** (14) :
+- **API publique** (17) :
   - `attributes_from_voice_id(voice_id: str) -> Dict` — Les `attributes` (nature `voice`) qu'un identifiant de preset PORTE.
   - `voice_reference_groups() -> List[Dict]` — Les optgroups du menu « voix de référence », DÉRIVÉS de la médiathèque :
   - `readable_voice_assets(user)` — Les voix de médiathèque qu'un utilisateur a le DROIT d'employer : les SIENNES **et celles
@@ -3629,6 +3657,9 @@ LA brique TTS des voix : `speaker_wav_for` (décidée par la CAPACITÉ du moteur
   - `class VoiceUnavailable(ValueError)` — La voix CHOISIE (`sa_<id>`, `ua_<id>`) ne peut plus être employée : supprimée, retirée
   - `resolve_speaker_wav(voice_preset: str, user=None, language: str='') -> Optional[str]` — Résout un voice_preset en chemin `speaker_wav` (audio de référence) pour le CLONAGE
   - `is_cloned_voice(voice_preset: str) -> bool` — Cette voix est-elle un CLONAGE (`ua_<id>`, voix de la médiathèque d'un utilisateur) ?
+  - `is_reference_voice(voice_preset: str) -> bool` — Cette voix est-elle un ENREGISTREMENT que seul un moteur qui clone sait dire — une voix de la
+  - `models_naming_voice(voice_preset: str) -> List[str]` — Les clés des modèles dont les voix PROPRES comptent `voice_preset` (`capabilities.voices`,
+  - `voice_draw_constraint(voice_preset: str) -> Dict` — Ce qu'une voix CHOISIE impose au tirage « auto » (2026-10-28) — `{}` quand elle n'impose
   - `model_supports_cloning(model_key: str) -> Optional[bool]` — Le moteur du modèle `model_key` CLONE-t-il ? — `True`/`False` si quelque chose le dit,
   - `speaker_wav_for(model_key: str, voice_preset: str, user=None, reference_path: Optional[str]=None, language: str='') -> Optional[str]` — LA porte des workers et des aperçus : le `speaker_wav` à passer au service TTS.
   - `ingest_voice_file(name: str, path, *, source_url: str='', license: str='', description: str='', replace: bool=False)` — Verse UN fichier de voix dans la médiathèque comme `SystemAsset(voice)` nommé `name`,
@@ -3692,7 +3723,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (95) :
+- **API publique** (97) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -3731,7 +3762,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `list_studio_pipelines(user) -> dict` — List the user's saved studio pipelines (méta-app graphs), most recent first.
   - `run_studio_pipeline(user, pipeline_id: int=None, pipeline_name: str=None) -> dict` — Run a SAVED studio pipeline, by id or exact name. Validates the graph
   - `get_studio_run_status(user, run_id: int=None) -> dict` — Return the status of a studio run (or the last 5 runs if run_id is omitted).
-  - `list_ai_models(user, app: str=None, task: str=None, modality: str=None, downloaded_only: bool=False, include_proposed: bool=False, limit: int=50) -> dict` — List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
+  - `list_ai_models(user, app: str=None, task: str=None, modality: str=None, downloaded_only: bool=False, include_proposed: bool=False, limit: int=50, query: str=No…` — List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
   - `get_ai_model(user, model_key: str) -> dict` — Full catalogue record of ONE model (read-only). `model_key` = '<app>:<id>'
   - `list_installations(user, kind: str='model', limit: int=20) -> dict` — The DATED history of model (or library) installations and uninstallations, most recent first:
   - `search_models(user, query: str, limit: int=10, max_results: int=5) -> dict` — SEARCH HuggingFace for models matching `query` and record them as prospection
