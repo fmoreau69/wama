@@ -95,9 +95,8 @@
       values: data.values || {},
       formClass: 'anon-settings-form',
       footerTplId: 'mediaSettingsFooterTpl',
-      saveUrl: cfg.settingsSaveUrl,
+      saveUrl: getUrl(cfg.settingsSaveUrlTemplate, id),   // `settings/<id>/` (§3.1)
       csrf: cfg.csrfToken,
-      idField: 'media_id',
       decorate: function (host) {
         appendClassesSection(host, data.classes2blur);
         appendSam3Badge(host);
@@ -111,22 +110,20 @@
           });
         }
       },
-      collect: function (fd, host, d, restart) {
-        // classes2blur : multi-sélection bespoke (hors schéma) + drapeau de relance
+      collect: function (fd, host) {
+        // classes2blur : multi-sélection bespoke (hors schéma)
         host.querySelectorAll('input[name="classes2blur"]:checked')
             .forEach(function (cb) { fd.append('classes2blur', cb.value); });
-        fd.append('restart', restart ? '1' : '0');
       },
       errorOf: function (resp) {
         return resp && resp.success ? null : ((resp && resp.error) || 'Enregistrement impossible');
       },
-      onSaved: function (mid, restart, resp) {
-        if (window.WamaEta && resp.restarted) WamaEta.reset(mid);
-        if (window.AnonQueue) {
-          Promise.resolve(AnonQueue.refreshCard(mid)).then(function () {
-            if (resp.restarted) AnonQueue.startPolling(parseInt(mid, 10));
-          });
-        }
+      // « Enregistrer & relancer » : le ▶ de la card, après l'enregistrement (comme les autres
+      // apps) — la route de réglages ne relance plus elle-même.
+      onSaved: function (mid, restart) {
+        if (!window.AnonQueue) return;
+        if (restart) return AnonQueue.startMedia(mid);
+        return AnonQueue.refreshCard(mid);
       },
     });
   }

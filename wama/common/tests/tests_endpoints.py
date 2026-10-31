@@ -341,11 +341,9 @@ class ItemEditRouteConventionTest(TestCase):
 
     #: Apps still on another name — each with its reason. An entry that has become conforming
     #: fails the test: the exemption must go with the debt.
-    NAME_PENDING = {
-        'anonymizer': "`save_media_settings/` SANS identifiant (le `media_id` est posté) — et son "
-                      "`update_settings` est une route GLOBALE sans pk, qui prendrait le nom "
-                      "canonique : la renommer d'abord (right_panel.js, update.js)",
-    }
+    #: (anonymizer retiré le 2026-10-31 : `save_media_settings/`, `media_id` posté, remplacé par
+    #: `settings/<int:pk>/` — la route globale qui occupait le nom était partie avec ses tables.)
+    NAME_PENDING = {}
     #: Apps on the canonical name but another path — each with its reason.
     #: (imager retiré le 2026-09-29 : lecture et écriture fusionnées sur `settings/<int:pk>/`.)
     PATH_EXCEPTIONS = {}
@@ -373,7 +371,7 @@ class ItemEditRouteConventionTest(TestCase):
                 wrong.append(f'{app}: chemin `{route}` (attendu `{self.CANONICAL_PATH}`)')
         self.assertEqual([], wrong)
         conforming = [a for a, (n, r) in routes.items() if n == self.CANONICAL_NAME]
-        self.assertGreaterEqual(len(conforming), 8, f'only {sorted(conforming)} — guard weakened')
+        self.assertGreaterEqual(len(conforming), 10, f'only {sorted(conforming)} — guard weakened')
 
     def test_every_exemption_is_still_needed(self):
         routes = self._item_edit_routes()

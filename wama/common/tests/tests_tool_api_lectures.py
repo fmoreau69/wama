@@ -379,9 +379,10 @@ class VerbesDeCycleTest(TestCase):
         """🔴 RECTIFICATION du 2026-09-12 (relevé de Fabien). La version du 11/09 affirmait
         « `duplicate` n'existe pas sur anonymizer, ni aucune des trois sur audio_enhancer ».
         LES DEUX ÉTAIENT FAUX, pour deux raisons différentes :
-          • anonymizer nomme ses gestes d'après son modèle (`duplicate_media`,
+          • anonymizer nommait ses gestes d'après son modèle (`duplicate_media`,
             `clear_all_media`) — j'avais mesuré un NOM DE ROUTE et conclu sur l'existence d'un
-            GESTE. Alias ajoutés à `ROUTE_ALIASES`, qui existe exactement pour ça ;
+            GESTE. Alias ajoutés à `ROUTE_ALIASES`, qui existe exactement pour ça (celui de
+            `duplicate_media` retiré le 2026-10-31 : la route a pris le nom commun) ;
           • `audio_enhancer` n'est PAS une app : c'est la branche audio d'`enhancer`, et
             `TOOL_APP_ALIAS` le déclarait déjà.
         ⭐ *Un relevé par motif ne conclut pas.* Ce test remplace l'affirmation par la mesure."""

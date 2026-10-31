@@ -90,25 +90,28 @@
     });
   }
 
+  // ▶ d'un média (ou d'UN de ses process, `start/<id>/<process>/`) — deux appelants : le cycle
+  // de la card et « Enregistrer & relancer » de la modale ⚙, qui enchaîne ici après l'enregistrement.
+  async function startMedia(id, process) {
+    try {
+      const url = process && window.WamaCycleButton
+        ? WamaCycleButton.processUrl(getUrl(cfg.startUrlTemplate, id), process)
+        : getUrl(cfg.startUrlTemplate, id);
+      const d = await (await fetch(url, { method: 'POST', headers: csrfHeaders() })).json();
+      if (d.error) {
+        if (window.WamaApp) WamaApp.toast(d.error, 'warning');
+        return;
+      }
+      if (window.WamaEta) WamaEta.reset(id);
+      await refreshCard(id);
+      startPolling(parseInt(id, 10));
+    } catch (e) { /* réseau */ }
+  }
+
   // ── Cycle ▶/⏹/↻ — brique commune, un seul listener sur la file ─────────
   if (window.WamaCycleButton) {
     WamaCycleButton.wire(queue, {
-      start: async (id, btn) => {
-        try {
-          // ▶ d'UN process (bande des process, `data-process`) : route `start/<id>/<process>/`.
-          const process = WamaCycleButton.processOf(btn);
-          const d = await (await fetch(WamaCycleButton.processUrl(getUrl(cfg.startUrlTemplate, id), process), {
-            method: 'POST', headers: csrfHeaders(),
-          })).json();
-          if (d.error) {
-            if (window.WamaApp) WamaApp.toast(d.error, 'warning');
-            return;
-          }
-          if (window.WamaEta) WamaEta.reset(id);
-          await refreshCard(id);
-          startPolling(parseInt(id, 10));
-        } catch (e) { /* réseau */ }
-      },
+      start: (id, btn) => startMedia(id, WamaCycleButton.processOf(btn)),
       stop: async (id) => {
         try {
           await fetch(getUrl(cfg.stopUrlTemplate, id), { method: 'POST', headers: csrfHeaders() });
@@ -238,11 +241,10 @@
       saveItem: async (id) => {
         const vals = panelValues();
         const fd = new FormData();
-        fd.append('media_id', id);
         Object.keys(vals).forEach(k => fd.append(k, vals[k]));
-        fd.append('restart', '0');
         fd.append('csrfmiddlewaretoken', cfg.csrfToken);
-        const d = await (await fetch(cfg.settingsSaveUrl, { method: 'POST', body: fd })).json();
+        const d = await (await fetch(getUrl(cfg.settingsSaveUrlTemplate, id),
+                                     { method: 'POST', body: fd })).json();
         if (d && d.success) refreshCard(id);
       },
       saveBatch: async (bid) => {
@@ -287,5 +289,5 @@
   // ne règlent que les défauts de l'utilisateur, jusqu'au rendu du volet depuis le schéma.
   const saveUserSettings = (values) => (window._anonInspector && window._anonInspector.saveUserValues
     ? window._anonInspector.saveUserValues(values) : Promise.resolve(null));
-  window.AnonQueue = { refreshCard, startPolling, stopPolling, pollAllCards, saveUserSettings };
+  window.AnonQueue = { refreshCard, startMedia, startPolling, stopPolling, pollAllCards, saveUserSettings };
 })();

@@ -362,12 +362,13 @@ urlpatterns = [
 > avatarizer, synthesizer, converter, enhancer, reader ; l'imager gardait `settings/<int:pk>/save/`
 > (sa LECTURE occupait `settings/<id>/`) — **aligné le 2026-09-29** : lecture et écriture sur la
 > même route (`imager/urls.py:51`, `generation_settings` nommée `update_settings` ;
-> `tests_endpoints.py:350-351`, `PATH_EXCEPTIONS = {}`). ~~Restent
-> transcriber (autre session) et~~ Reste l'anonymizer : `save_media_settings/` sans identifiant
-> (`anonymizer/urls.py:64`) — l'ex-`update_settings` GLOBAL est devenu `user_settings/` le
-> 2026-09-27 (`anonymizer/urls.py:25-28`) — le transcriber s'est aligné le 2026-09-25
-> (`7a9a4dbb`, remesuré le 26/09). *(Corrigé le 2026-10-31 ; la raison de `NAME_PENDING`,
-> `tests_endpoints.py:345-347`, cite encore la route globale : périmée.)* Tenu par le critère `settings_route` et par
+> `tests_endpoints.py:350-351`, `PATH_EXCEPTIONS = {}`). Le transcriber s'est aligné le
+> 2026-09-25 (`7a9a4dbb`, remesuré le 26/09) ; **l'anonymizer, dernier, le 2026-10-31** :
+> `save_media_settings/` (`media_id` posté) remplacé par `settings/<int:pk>/`
+> (`anonymizer/urls.py`, `REMOVAL_LEDGER R192`) — l'ex-`update_settings` GLOBAL, qui occupait le
+> nom, était devenu `user_settings/` le 2026-09-27. `NAME_PENDING = {}` : **10/10**. Son corps est
+> celui du reader (`read_settings_payload` + LA fonction de réglage que la fabrique de lot reçoit,
+> `apply_settings`), « Enregistrer & relancer » enchaîne le ▶ côté page. Tenu par le critère `settings_route` et par
 > `tests_endpoints.ItemEditRouteConventionTest`, qui échoue aussi quand une exemption devient
 > inutile. Les CORPS diffèrent encore (lecture JSON/FormData, refus RUNNING, relance, forme de
 > réponse) : les ramener au corps généré (`read_settings_payload` + `apply_item_settings`) est un

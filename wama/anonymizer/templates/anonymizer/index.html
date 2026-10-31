@@ -240,6 +240,8 @@ les actions de FILE vivent dans la toolbar commune (queue.js). {% endcomment %}
 chargement (leçon smoke 03/08 — config après scripts = cfg vide, toutes URLs mortes).
 Schéma params = source unique modale item/batch + inspecteur ; gabarits '/0/' résolus
 par remplacement d'id côté JS (pattern enhancer). {% endcomment %}
+{# `as` : le gabarit est relu à chaud, les routes au rechargement — une route neuve ne doit pas rendre la page en 500 entre les deux. #}
+{% url "anonymizer:update_settings" 0 as settings_save_url_template %}
 <script>
 window.WAMA_ANONYMIZER_SCHEMA = {{ params_json|safe }};
 window.WAMA_ANONYMIZER_GROUPS = {{ groups_json|safe }};
@@ -252,7 +254,7 @@ window.WAMA_ANON = {
     stopUrlTemplate:     '{% url "anonymizer:stop" 0 %}',
     progressUrlTemplate: '{% url "anonymizer:progress" 0 %}',
     settingsGetUrlTemplate: '{% url "anonymizer:get_media_settings" 0 %}',
-    settingsSaveUrl:     '{% url "anonymizer:save_media_settings" %}',
+    settingsSaveUrlTemplate: '{{ settings_save_url_template }}',
     {% comment %}`clearMediaUrl` RETIRÉ le 2026-08-23 : la suppression passe par la brique
     commune (`data-delete-url` → `anonymizer:delete`), plus aucun JS ne lisait cette clé.
     Laisser une URL morte dans la config d'app, c'est promettre un chemin qui n'existe plus.

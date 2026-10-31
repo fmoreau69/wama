@@ -110,14 +110,14 @@ ROUTE_ALIASES = {
     # (`<int:pk>`) — les harmoniser est un chantier de PORTAGE de l'imager, pas un alias. Ses
     # ▶ / ↻ / « tout lancer » y sont revenus le 2026-10-29 (fabrique `item_views`).
     'upload': ('generate', 'create'),
-    # anonymizer nomme ses gestes d'après son modèle (`Media`) : `duplicate_media` et
-    # `clear_all_media`. Ajoutés le 2026-09-12 après une erreur de mesure QUI A COÛTÉ UN FAUX
-    # CONSTAT : j'avais mesuré `reverse('anonymizer:duplicate')` → NoReverseMatch et conclu
-    # « l'app n'a pas le geste », alors qu'elle l'a — et qu'elle passe par la brique commune
-    # `duplicate_instance` comme les 13 autres (vérifié : 14/14, zéro implémentation maison).
+    # anonymizer nomme ses gestes d'après son modèle (`Media`) : `clear_all_media`. Ajouté le
+    # 2026-09-12 après une erreur de mesure QUI A COÛTÉ UN FAUX CONSTAT : j'avais mesuré
+    # `reverse('anonymizer:duplicate')` → NoReverseMatch et conclu « l'app n'a pas le geste »,
+    # alors qu'elle l'avait sous `duplicate_media`.
     # ⭐ *Mesurer un NOM DE ROUTE et conclure sur l'existence d'un GESTE est un relevé par motif.*
     # C'est exactement ce que cette table existe pour absorber, comme le dit `progress` ci-dessus.
-    'duplicate': ('duplicate_media',),
+    # (`duplicate_media` RETIRÉ le 2026-10-31 : l'anonymizer est passé à `duplicate/<int:pk>/`
+    # — l'alias ne nommait plus rien, et le kwarg `media_id` cassait la vue générée.)
     # ⚠ `clear_media` (au singulier) N'EST PAS un alias : il supprime UN élément par `media_id`
     # et délègue au même travail que `delete` (views.py:1389). L'aliaser ferait vider la file
     # quand on demande une suppression — pire que l'absence. Seul `clear_all_media` efface tout

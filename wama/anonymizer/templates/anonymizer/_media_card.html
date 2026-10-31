@@ -109,8 +109,10 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
         geste ; `download_media/` délègue au même corps en attendant son retrait.{% endcomment %}
         {% url 'anonymizer:download' elem.id as url_dl %}
         {% download_button 'anonymizer' url_dl elem.processed title='Télécharger le média traité' %}
+        {# ⧉ route au FORMAT COMMUN (`duplicate/<pk>/`) ; `as` : le gabarit est relu à chaud, les routes au rechargement. #}
+        {% url 'anonymizer:duplicate' elem.id as url_dup %}
         <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn"
-                data-duplicate-url="{% url 'anonymizer:duplicate_media' elem.id %}"
+                data-duplicate-url="{{ url_dup }}"
                 title="Dupliquer (tester d'autres paramètres)">
           <i class="fas fa-copy"></i>
         </button>

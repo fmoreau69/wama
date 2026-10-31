@@ -89,7 +89,7 @@ class ItemSettingsRouteContractTest(TestCase):
     def test_the_fleet_is_measured(self):
         """Non-vacuity: without the apps, the sub-tests would guard nothing."""
         surfaces = _surfaces()
-        self.assertGreaterEqual(len(surfaces), 8, [a for a, *_ in surfaces])
+        self.assertGreaterEqual(len(surfaces), 10, [a for a, *_ in surfaces])
         unmeasured = [a for a, m, s in surfaces if not _writable_fields(m, s)]
         self.assertEqual([], unmeasured, 'apps whose settings route this contract cannot write')
 
@@ -235,7 +235,7 @@ class BatchSettingsFollowTheItemRouteTest(TestCase):
 
     def test_the_fleet_is_measured(self):
         surfaces = _batch_surfaces()
-        self.assertGreaterEqual(len(surfaces), 8, [a for a, *_ in surfaces])
+        self.assertGreaterEqual(len(surfaces), 10, [a for a, *_ in surfaces])
         routeless = sorted(a for a, _m, _s, route in surfaces if route is None)
         self.assertEqual([], routeless, 'apps with batches but no `<app>:batch_update` route')
         stale = sorted(set(BATCH_SETTINGS_STILL_LOCAL) - {a for a, *_ in surfaces})
@@ -345,4 +345,4 @@ class OutsideTheRequestTheSettingsFollowTheItemRouteTest(TestCase):
                     self.assertEqual(_settings_of(by_route, model, schema),
                                      _settings_of(by_writer, model, schema))
                 measured.append(app)
-        self.assertGreaterEqual(len(set(measured)), 8, sorted(set(measured)))
+        self.assertGreaterEqual(len(set(measured)), 10, sorted(set(measured)))

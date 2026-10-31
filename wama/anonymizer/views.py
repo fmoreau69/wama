@@ -536,6 +536,45 @@ def _mark_customised(media):
     return ['MSValues_customised']
 
 
+#: Champs du schéma pour qui `''` EST une valeur : un prompt vidé s'efface, un modèle vidé revient
+#: au choix automatique — lu par la route d'élément ET par la fabrique de lot.
+SETTINGS_EMPTY_IS_VALUE = ('sam3_prompt', 'model_to_use')
+
+
+def _apply_media_settings(media, data):
+    """LES réglages d'un média, posés sans sauver — rend les champs touchés. La route d'un élément
+    (`update_settings`) ET la fabrique des vues de lot passent ici, comme au reader : le lot ne
+    validait pas le prompt SAM3 que la route d'élément refusait. Restent explicites les seuls cas à
+    sémantique PROPRE ; le reste du schéma passe par l'écrivain COMMUN (choix, longueurs).
+    Lève `ValueError` sur un prompt SAM3 invalide (rien n'est sauvé)."""
+    from wama.common.utils.batch_views import apply_item_settings
+    from wama.anonymizer.params import CLASSES_SETTING, clean_classes
+    data = dict(data)
+    touched = []
+    if 'sam3_prompt' in data:
+        prompt = str(data.pop('sam3_prompt') or '').strip()
+        if prompt:
+            is_valid, error = validate_sam3_prompt(prompt)
+            if not is_valid:
+                raise ValueError(f'Invalid SAM3 prompt: {error}')
+        media.sam3_prompt = prompt or None
+        touched.append('sam3_prompt')
+    if 'model_to_use' in data:
+        # Clé de catalogue, ou « auto » / vide = choix automatique au lancement ; un identifiant
+        # d'avant est normalisé par `Media.save` (route F4b ⑤).
+        from wama.common.utils.auto_model import AUTO, is_auto
+        model = data.pop('model_to_use')
+        media.model_to_use = AUTO if is_auto(model) else str(model).strip()
+        touched.append('model_to_use')
+    # Les classes à flouter : multi-sélection hors schéma — une liste vide ne touche à rien.
+    classes = data.pop(CLASSES_SETTING, None)
+    if isinstance(classes, list) and classes:
+        media.classes2blur = clean_classes(classes)
+        touched.append(CLASSES_SETTING)
+    names = tuple(p['name'] for p in _ANON_PARAMS_JSON if p.get('name'))
+    return touched + apply_item_settings(media, data, params_fields=names)
+
+
 def _forget_outputs(media):
     """Ce qu'aucune brique ne connaît d'un média : ses verrous et son cache. Appelé par la
     fabrique (`on_delete`) AVANT les fichiers — la sortie floutée, champ fichier depuis le
@@ -574,8 +613,8 @@ _bv = make_batch_views(
     # (`AppPipeline.produced_fields`, 2026-10-21).
     output_fields=('output_file',),
     read_lookup=_read_batch,
-    params_fields=tuple(p['name'] for p in _ANON_PARAMS_JSON if p.get('name')),
-    schema=_ANON_PARAMS_JSON, after_update=_mark_customised,
+    schema=_ANON_PARAMS_JSON, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
+    apply_settings=_apply_media_settings, after_update=_mark_customised,
     item_model=BatchAnonymizerItem, fk_name='media',
     reset_on_duplicate={'status': 'PENDING', 'blur_progress': 0},
     on_delete=_forget_outputs,
@@ -979,93 +1018,38 @@ def get_media_settings(request, media_id):
 
 
 @require_POST
-def save_media_settings(request):
-    """Réglages d'un média depuis la modale — SCHÉMA-DRIVEN (typage/bornes = params.py).
+def update_settings(request, pk: int):
+    """Réglages d'UN média — route au FORMAT COMMUN (`WAMA_APP_CONVENTIONS §3.1`,
+    `settings/<int:pk>/`), qui remplace `save_media_settings/` (le `media_id` y était posté).
 
-    Les listes en dur slider_fields/bool_fields recopiaient les noms ET les types du
-    schéma (redondance résorbée, ROADMAP §16.9 ②) : `coerce_schema_values` fait foi.
-    Restent explicites les seuls cas à sémantique PROPRE : classes2blur (liste),
-    sam3_prompt (validation + None), model_to_use ('' = retour à l'auto/global).
-    """
+    Lecteur COMMUN des réglages postés (JSON ou FormData, coercés au schéma ; un champ vide = « ne
+    pas toucher », sauf `SETTINGS_EMPTY_IS_VALUE`), puis LA fonction de réglage que la ⚙ de lot
+    appelle aussi. « Enregistrer & relancer » enchaîne le ▶ côté page, comme les autres apps : la
+    relance ici recopiait la vue de lancement (`begin_processing` + envoi de la tâche)."""
+    from wama.common.utils.scoping import editable_or_404
+    from wama.common.utils.batch_views import read_settings_payload
+    from wama.anonymizer.params import CLASSES_SETTING
+    media = editable_or_404(Media, _get_user(request), pk=pk)
+    data = read_settings_payload(request, _ANON_PARAMS_JSON,
+                                 [p['name'] for p in _ANON_PARAMS_JSON if p.get('name')],
+                                 empty_is_value=SETTINGS_EMPTY_IS_VALUE)
+    # Les classes à flouter sont une LISTE : le lecteur commun n'en garde que la première valeur.
+    if (request.content_type or '').startswith('application/json'):
+        try:
+            classes = (json.loads(request.body or '{}') or {}).get(CLASSES_SETTING)
+        except (ValueError, TypeError, AttributeError):
+            classes = None
+    else:
+        classes = request.POST.getlist(CLASSES_SETTING)
+    data[CLASSES_SETTING] = classes if isinstance(classes, list) else []
     try:
-        media_id = request.POST.get('media_id')
-        if not media_id:
-            return JsonResponse({'success': False, 'error': 'No media_id provided'}, status=400)
-
-        # Scope par UTILISATEUR : l'ancien get(pk=…) laissait éditer le média d'autrui.
-        from wama.common.utils.scoping import can_edit
-        media = Media.objects.get(pk=media_id)
-        if not can_edit(request.user, media):     # le sien, ou en collaboration (E1)
-            raise Media.DoesNotExist
-
-        # Save classes2blur (checkboxes)
-        classes2blur = request.POST.getlist('classes2blur')
-        if classes2blur:
-            media.classes2blur = classes2blur
-
-        from wama.common.utils.param_schema import coerce_schema_values, schema_for_app
-        valeurs = coerce_schema_values(schema_for_app('anonymizer'), request.POST)
-        for cle in ('sam3_prompt', 'model_to_use', 'classes2blur'):
-            valeurs.pop(cle, None)
-        for champ, valeur in valeurs.items():
-            setattr(media, champ, valeur)
-
-        sam3_prompt = request.POST.get('sam3_prompt')
-        if sam3_prompt is not None:
-            prompt = sam3_prompt.strip()
-            if prompt:
-                # Validate prompt
-                is_valid, error = validate_sam3_prompt(prompt)
-                if not is_valid:
-                    return JsonResponse({
-                        'success': False,
-                        'error': f'Invalid SAM3 prompt: {error}'
-                    }, status=400)
-            media.sam3_prompt = prompt if prompt else None
-
-        # Modèle : clé de catalogue, ou « auto » / vide = choix automatique au lancement ; un
-        # identifiant d'avant est normalisé par `Media.save` (route F4b ⑤).
-        model_to_use = request.POST.get('model_to_use')
-        if model_to_use is not None:
-            from wama.common.utils.auto_model import AUTO, is_auto
-            media.model_to_use = AUTO if is_auto(model_to_use) else model_to_use.strip()
-
-        # Mark as customized
-        media.MSValues_customised = True
-        media.save()
-
-        # « Enregistrer & relancer » (contrat composer) : restart=1 → relance sous verrou.
-        if request.POST.get('restart', '0') == '1':
-            from wama.common.utils.process_control import begin_processing
-            locked, err = begin_processing(Media, media.pk, user=request.user,
-                                           reset=_reset_for_relaunch)
-            if err:
-                return JsonResponse({'success': True, 'restarted': False, 'error': err})
-            cache.delete(f"media_progress_{locked.id}")
-            task = process_single_media.delay(locked.id, force_individual=True)
-            locked.task_id = task.id
-            locked.save(update_fields=['task_id'])
-            return JsonResponse({'success': True, 'restarted': True,
-                                 'status': 'RUNNING', 'task_id': task.id})
-
-        return JsonResponse({
-            'success': True,
-            'restarted': False,
-            'status': media.status,
-            'message': 'Settings saved successfully'
-        })
-
-    except Media.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'error': 'Media not found'
-        }, status=404)
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
-
+        touched = _apply_media_settings(media, data)
+    except ValueError as refusal:
+        return JsonResponse({'success': False, 'error': str(refusal)}, status=400)
+    if touched:
+        touched += [f for f in _mark_customised(media) if f not in touched]
+        media.save(update_fields=touched)
+    return JsonResponse({'success': True, 'status': media.status})
 
 # ----------------------------------------------------------------------
 # SAM3 Endpoints
@@ -1101,11 +1085,14 @@ def get_sam3_examples(request):
 
 
 @require_POST
-def duplicate_media(request, media_id):
-    """Duplicate a Media item sharing the same input file, resetting processing state."""
+def duplicate(request, pk):
+    """Duplicate a Media item sharing the same input file, resetting processing state.
+    Route au FORMAT COMMUN (`duplicate/<int:pk>/`, nommée `duplicate`, 2026-10-31) — ex-
+    `duplicate_media(request, media_id)`, nom et argument que la jumelle générée ne savait pas
+    servir (`REMOVAL_LEDGER R192`)."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     from wama.common.utils.scoping import duplicable_or_404
-    media = duplicable_or_404(Media, user, pk=media_id)
+    media = duplicable_or_404(Media, user, pk=pk)
     new_media = duplicate_instance(
         media,
         for_user=user,

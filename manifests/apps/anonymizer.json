@@ -2165,7 +2165,7 @@
         "download",
         "download_all_media",
         "download_media",
-        "duplicate_media",
+        "duplicate",
         "get_media_settings",
         "get_user_settings",
         "global_progress",
@@ -2173,7 +2173,6 @@
         "index",
         "merge",
         "move_to_batch",
-        "process",
         "progress",
         "queue_count",
         "remove_from_batch",
@@ -2182,13 +2181,13 @@
         "reset_user_settings",
         "sam3_examples",
         "sam3_status",
-        "save_media_settings",
         "save_user_settings",
         "start",
         "start_all",
         "start_process",
         "stop",
         "stop_process",
+        "update_settings",
         "upload",
         "validate_prompt"
       ],
@@ -2197,11 +2196,6 @@
           "name": "upload",
           "pattern": "upload/",
           "view": "views.IndexView.as_view()"
-        },
-        {
-          "name": "process",
-          "pattern": "process/",
-          "view": "views.ProcessView.as_view()"
         },
         {
           "name": "queue_count",
@@ -2294,9 +2288,9 @@
           "view": "views.debug_media_status"
         },
         {
-          "name": "duplicate_media",
-          "pattern": "duplicate/<int:media_id>/",
-          "view": "views.duplicate_media"
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
         },
         {
           "name": "get_media_settings",
@@ -2304,9 +2298,9 @@
           "view": "views.get_media_settings"
         },
         {
-          "name": "save_media_settings",
-          "pattern": "save_media_settings/",
-          "view": "views.save_media_settings"
+          "name": "update_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.update_settings"
         },
         {
           "name": "sam3_status",
@@ -2389,12 +2383,6 @@
           "function": "process_single_media",
           "lifecycle": true,
           "task_name": null
-        },
-        {
-          "file": "tasks.py",
-          "function": "process_user_media_batch",
-          "lifecycle": false,
-          "task_name": null
         }
       ]
     },
@@ -2462,17 +2450,18 @@
         }
       },
       "start": "start_anonymizer",
+      "start_selection": {
+        "pending": {},
+        "pending_exclude": {
+          "status": "SUCCESS"
+        }
+      },
       "status": "get_anonymizer_status",
       "triad_spec": {
         "empty_msg": "Aucun média en attente de traitement.",
         "id_kwarg": "media_id",
         "model": "wama.anonymizer.models.Media",
-        "pending": {},
-        "pending_exclude": {
-          "status": "SUCCESS"
-        },
         "progress_key": "media_progress_{pk}",
-        "reset": "wama.anonymizer.views._reset_and_forget_progress",
         "status_fields": {
           "id": "id",
           "name": {
@@ -2496,8 +2485,7 @@
           "status": "status",
           "target_mode": "target_mode"
         },
-        "status_order": "-id",
-        "task": "wama.anonymizer.tasks.process_single_media"
+        "status_order": "-id"
       }
     }
   },

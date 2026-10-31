@@ -57,11 +57,13 @@ urlpatterns = [
     path('debug/media-status/', views.debug_media_status, name='debug_media_status'),
 
     # Duplication
-    path('duplicate/<int:media_id>/', views.duplicate_media, name='duplicate_media'),
+    path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),   # FORMAT COMMUN (2026-10-31)
 
     # Modern Modal-Based Settings
     path('get_media_settings/<int:media_id>/', views.get_media_settings, name='get_media_settings'),
-    path('save_media_settings/', views.save_media_settings, name='save_media_settings'),
+    # Réglages d'UN élément au FORMAT COMMUN (`WAMA_APP_CONVENTIONS §3.1`, 2026-10-31) — remplace
+    # `save_media_settings/`, où le `media_id` était posté.
+    path('settings/<int:pk>/', views.update_settings, name='update_settings'),
 
     # SAM3 (Segment Anything Model 3) Endpoints
     path('sam3/status/', views.get_sam3_status_view, name='sam3_status'),
