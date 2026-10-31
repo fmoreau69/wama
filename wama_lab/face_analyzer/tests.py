@@ -16,7 +16,7 @@ from importlib.util import find_spec
 from pathlib import Path
 
 from django.conf import settings
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 _FER_PRESENT = find_spec('fer') is not None
 _DEEPFACE_PRESENT = find_spec('deepface') is not None
@@ -163,3 +163,74 @@ class AppDansLeVenvPrincipalTest(SimpleTestCase):
         from django.apps import apps
         self.assertTrue(apps.is_installed('wama_lab.face_analyzer'),
                         "app absente d'INSTALLED_APPS : sa tâche Celery ne serait pas routée")
+
+
+class EmotionBackendReachesTheVideoTaskTest(TestCase):
+    """The emotion engine picked on the VIDEO page reaches the analysis.
+
+    Found on 2026-10-31 (doc <-> code audit): `video.html` posts `emotion_backend` and
+    `enable_age_gender`, but `create_session` did not store them and the task built its
+    `PipelineConfig` without them — a video analysis always ran on the default (DeepFace), while
+    the real-time path (`process_frame_realtime`) honoured the choice.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import GROUP_PREFIX
+        self.user = get_user_model().objects.create_user('face-emotion-backend-test', password='x')
+        # The app's declared policy (`DEFAULT_APP_ACCESS['face_analyzer']`): a research role.
+        self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')[0])
+        self.client.force_login(self.user)
+
+    def _create(self, **fields):
+        from django.urls import reverse
+        response = self.client.post(reverse('wama_lab:face_analyzer:create_session'),
+                                    {'mode': 'video', **fields})
+        self.assertEqual(response.status_code, 200, response.content)
+        from .models import AnalysisSession
+        return AnalysisSession.objects.get(pk=response.json()['session_id'])
+
+    def test_the_session_keeps_the_chosen_engine_and_age_gender_switch(self):
+        session = self._create(emotion_backend='fer', enable_age_gender='false')
+        self.assertEqual(session.config['emotion_backend'], 'fer')
+        self.assertIs(session.config['enable_age_gender'], False)
+
+    def test_an_unknown_engine_falls_back_to_the_default(self):
+        """Counter-check: what is stored is a known engine, never the raw posted text."""
+        session = self._create(emotion_backend='not-an-engine')
+        self.assertEqual(session.config['emotion_backend'], 'deepface')
+        self.assertIs(session.config['enable_age_gender'], True)
+
+    def test_the_task_builds_its_pipeline_with_the_stored_choice(self):
+        import shutil
+        import tempfile
+        from unittest import mock
+        from django.conf import settings as live_settings
+        from .models import AnalysisSession
+        from .tasks import process_video_task
+
+        folder = tempfile.mkdtemp(prefix='face-emotion-', dir=live_settings.MEDIA_ROOT)
+        self.addCleanup(shutil.rmtree, folder, ignore_errors=True)
+        video = Path(folder) / 'clip.mp4'
+        video.write_bytes(b'\0')
+        session = AnalysisSession.objects.create(
+            user=self.user, mode='video',
+            config={'emotion_backend': 'fer', 'enable_age_gender': False})
+        session.input_file.name = os.path.relpath(video, live_settings.MEDIA_ROOT)
+        session.save()
+
+        seen = {}
+
+        def stop_at_construction(config):
+            seen['config'] = config
+            raise RuntimeError('stop: only the configuration is under test')
+
+        # `close_old_connections` would close the test's own connection (one transaction).
+        with mock.patch('wama_lab.face_analyzer.tasks.close_old_connections'),                 mock.patch('wama_lab.face_analyzer.pipeline.FaceAnalysisPipeline',
+                           side_effect=stop_at_construction):
+            outcome = process_video_task.run(str(session.pk))
+
+        self.assertIn('config', seen, outcome)
+        self.assertEqual(seen['config'].emotion_backend, 'fer')
+        self.assertIs(seen['config'].enable_age_gender, False)

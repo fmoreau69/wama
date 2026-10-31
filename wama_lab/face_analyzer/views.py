@@ -116,6 +116,12 @@ def create_session(request):
             'enable_emotions': request.POST.get('enable_emotions', 'true') == 'true',
             'enable_respiration': request.POST.get('enable_respiration', 'true') == 'true',
             'rppg_method': request.POST.get('rppg_method', 'chrom'),
+            # Le choix du moteur d'émotions, envoyé par `video.html`, était jeté ici : la tâche
+            # tournait toujours sur le défaut (DeepFace). Même lecture que le temps réel.
+            'emotion_backend': (request.POST.get('emotion_backend')
+                                if request.POST.get('emotion_backend') in ('fer', 'deepface')
+                                else 'deepface'),
+            'enable_age_gender': request.POST.get('enable_age_gender', 'true') == 'true',
         }
         logger.debug(f"Session config: mode={mode}, config={config}")
 

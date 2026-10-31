@@ -110,6 +110,8 @@ def process_video_task(self, session_id: str):
             enable_emotions=session.config.get('enable_emotions', True),
             enable_respiration=session.config.get('enable_respiration', True),
             rppg_method=RPPGMethod(session.config.get('rppg_method', 'chrom')),
+            emotion_backend=session.config.get('emotion_backend', 'deepface'),
+            enable_age_gender=session.config.get('enable_age_gender', True),
             mode=AnalysisMode.POSTPROCESS,
             enable_overlay=True
         )
