@@ -99,9 +99,10 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
     """
     Traite un prompt selon les métadonnées (KIND + capacités du modèle cible).
 
-    `enrich` : si True ET kind='generative', tente l'enrichissement (« upsampling »). Reste
-    sans effet tant que `settings.WAMA_PROMPT_ENRICH` est faux (interrupteur maître, OFF par
-    défaut → coût ressources nul) — cf. [[prompt_enrichment]].
+    `enrich` : si True ET kind='generative', tente l'enrichissement (« upsampling »), si
+    `enrichment_enabled(user)` le permet : la préférence `UserProfile.prompt_enrich` (défaut
+    vrai) sous le kill switch plateforme `settings.WAMA_PROMPT_ENRICH` (défaut ON depuis le
+    2026-07-30) — cf. [[prompt_enrichment]].
 
     `app`/`domain` : sélection du SKILL de consignes d'enrichissement ([[prompt_skills]],
     résolution `<app>-<domain>` → `<app>` → défaut). `domain` replie sur `model_type`.
@@ -169,8 +170,8 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
                             f"la génération utilise la version traduite.")
 
         # ── Hook A : enrichissement génératif (§16.6), piloté par KIND + flag metadata ──
-        # OFF par défaut (interrupteur maître `WAMA_PROMPT_ENRICH`) → aucun coût ressources
-        # tant que non activé. Enrichi dans la langue du prompt APRÈS routing (pivot si traduit,
+        # Actif par défaut, coupé par la préférence de l'utilisateur ou le kill switch plateforme
+        # `WAMA_PROMPT_ENRICH` (`enrichment_enabled`). Enrichi dans la langue du prompt APRÈS routing (pivot si traduit,
         # sinon langue d'entrée que le modèle gère).
         if kind == 'generative' and enrich:
             from .prompt_enrichment import enrich_generative, enrichment_enabled

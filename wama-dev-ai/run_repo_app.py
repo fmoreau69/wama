@@ -3,8 +3,9 @@
 Chaîne « dépôt → app » en UNE tâche — `librarian` → `app` → naissance au bac à sable.
 
 POURQUOI UNE CHAÎNE (2026-10-15, demande de Fabien : « que l'assistant gère ça tout seul »). Les
-rôles sont des tâches de fond ; leur fin est ANNONCÉE dans le fil (`notify_finished_jobs` →
-`gateway.core._dev_job_follow_up`), elle ne RELANCE pas l'assistant. Lancée rôle par rôle, la
+rôles sont des tâches de fond ; leur fin est ANNONCÉE dans le fil (`notify_finished_jobs` → la
+brique `common/services/job_follow_ups.py`, relevée par `gateway.core.collect_job_follow_ups` —
+l'ex-`gateway.core._dev_job_follow_up` en est sorti le 2026-10-18), elle ne RELANCE pas l'assistant. Lancée rôle par rôle, la
 route attendait un « continue » humain à chaque marche. Ici les marches s'enchaînent de façon
 DÉTERMINISTE — chacune est le rôle existant, lancé tel quel, avec ses propres contrôles ; ce
 pilote n'ajoute aucun jugement, il passe la sortie de l'un à l'entrée du suivant.

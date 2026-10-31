@@ -288,7 +288,9 @@ APP_MODES = {
     # dans la card d'entrée gérée via la PREVIEW ». Les deux modes déclarés ici étaient
     # IDENTIQUES (mêmes inputs, mêmes settings — la définition même de ce qui n'est pas un
     # mode) et AUCUNE UI ne les consommait (0 WamaModes dans l'app, mesuré). La tension
-    # MODES_QUEUE_UX §5bis est close ; l'aperçu SSE de la card reste l'affordance temps réel.
+    # MODES_QUEUE_UX §5bis est close ; l'aperçu de voix de la card reste l'affordance temps réel
+    # (`voice-preview/`, par la chaîne de la synthèse `speech_render` — le flux SSE à part est
+    # retiré, REMOVAL_LEDGER R79 ; commentaire corrigé le 2026-10-31).
     'synthesizer': {
         'domains': [
             {'id': 'audio', 'label': 'Audio', 'icon': 'fa-volume-high',

@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 PROMPT_TARGETS = {
     'imager': [
         # `enrich=True` : le prompt positif est « upsamplé » si l'enrichissement est activé
-        # (settings.WAMA_PROMPT_ENRICH, OFF par défaut). PAS le négatif (liste de choses à éviter,
+        # (`prompt_enrichment.enrichment_enabled` : préférence de l'utilisateur, défaut vrai, sous le
+        # kill switch `settings.WAMA_PROMPT_ENRICH`, défaut ON). PAS le négatif (liste de choses à éviter,
         # l'étoffer n'aurait pas de sens).
         # `model` : nomme le modèle Django porteur du prompt → le branchement de l'enrichissement
         # À L'INGESTION en est DÉDUIT ([[prompt_ingest]]). Aucune app n'écrit de récepteur ni de
@@ -76,8 +77,8 @@ PROMPT_TARGETS = {
         # anglais → un prompt FR doit être traduit. default_model_type='music' mappe sur ['en']
         # ([[lang_routing]]) tant que les modèles composer ne sont pas catalogués avec leurs langues.
         # enrich activé 2026-07-08 : le blocage était les consignes visuelles uniques — levé par
-        # le skill dédié `composer-music.md` ([[prompt_skills]]). Reste gaté par l'interrupteur
-        # maître WAMA_PROMPT_ENRICH (OFF par défaut).
+        # le skill dédié `composer-music.md` ([[prompt_skills]]). Reste gaté par
+        # `enrichment_enabled` (préférence de l'utilisateur sous le kill switch WAMA_PROMPT_ENRICH).
         # `model` (2026-10-04, la route de l'imager) : `ComposerGeneration` hérite de
         # `PromptScoped` — enrichi à l'ingestion, éditable à deux états, annulable.
         {'field': 'prompt', 'kind': 'generative', 'model_field': 'model',

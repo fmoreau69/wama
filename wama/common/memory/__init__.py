@@ -8,9 +8,11 @@ un module mémoire.
 
 CE QU'ELLE NE FAIT PAS : juger, résumer à l'écriture, ni appliquer une fusion toute seule.
 
-⚠ ÉTAT : AUCUN APPELANT (jalon 3 de `WAMA_MEMORY.md §10`). La brique est complète et testable,
-mais rien dans WAMA ne l'invoque : le Hook B de `prompt_pipeline` (jalon 6) reste un no-op.
-Ne pas la brancher sans avoir soldé les jalons 4-5 (projections + indexation).
+ÉTAT (2026-10-31) : appelée par le Hook B de `prompt_pipeline` (`_rappel_rag`, opt-in `rag=True`
+— aucune app ne l'active encore) et par l'assistant : ses domaines déclarés `rag=True`
+(`assistant_skills`) et ses outils (`tool_api` : rappel, indexation par geste).
+Jalons et suite : `WAMA_MEMORY.md §10`. *(Cette ligne disait « AUCUN APPELANT » : c'était l'état
+du jalon 3.)*
 """
 
 from .store import expire, forget, merge, recall, reindex, remember

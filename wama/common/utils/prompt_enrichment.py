@@ -5,8 +5,10 @@ Enrichissement de prompt génératif (ROADMAP §16.6, hook « A » de la PromptP
 (sujet PRÉSERVÉ + détails visuels / lumière / composition / style) pour de meilleures images.
 
 Garde-fous RESSOURCES (préoccupation récurrente de l'utilisateur — pas de cascade) :
-- **OFF par défaut** : ne fait quoi que ce soit que si `settings.WAMA_PROMPT_ENRICH` est vrai
-  (interrupteur maître global) ET si le champ est marqué `enrich=True` en métadonnée.
+- **Deux étages** (`enrichment_enabled`) : la préférence `UserProfile.prompt_enrich` (défaut
+  vrai), sous le **kill switch plateforme** `settings.WAMA_PROMPT_ENRICH` (défaut ON depuis le
+  2026-07-30 — ce n'est plus un interrupteur maître OFF) ; et le champ doit être marqué
+  `enrich=True` en métadonnée.
 - **Une seule passe LLM locale** (`llm_chat`, défaut `qwen3.5:9b`), `think=False`, `num_ctx`
   plafonné, `keep_alive=0` → empreinte VRAM contenue ET non résidente.
   Le 9b est un choix MESURÉ (bench 2026-07-29, 4 prompts × 2 modèles + 3 tirages de contrôle) :

@@ -101,8 +101,9 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
     option refusée.
 
     « Deux mesures qui ne répondent pas à la même question ne divergent pas » : ici, elles
-    doivent répondre à la MÊME — la liste des fournisseurs (`chat_provider_choices`) applique
-    le prédicat unique de la garde.
+    doivent répondre à la MÊME — la liste des modèles servie par le sélecteur commun
+    (l'endpoint d'options, `OPTIONS` ci-dessous ; l'ex-`chat_provider_choices` est retirée)
+    applique le prédicat unique de la garde.
 
     2026-09-15 : l'option exige en plus le jeton PERSONNEL et un niveau cloud qui l'autorise
     (même règle que les clés d'API). Les profils ci-dessous les posent donc, pour que la seule

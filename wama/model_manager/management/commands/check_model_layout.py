@@ -26,7 +26,7 @@ muté l'environnement, pas lequel — `wama/common/tests/tests_hf_cache_routing.
 sites restants.
 
 ⚠ Un composant LÉGITIME (pipeline pyannote, tokenizer publié à part) se DÉCLARE dans
-`common/utils/model_locations.COMPOSANTS_DECLARES` ; il n'est jamais deviné. *Un contrôle qui
+`common/utils/model_locations.composants_declares()` ; il n'est jamais deviné. *Un contrôle qui
 crie au loup finit par être ignoré.*
 
 ⚠ PAS DE GATE PAR DÉFAUT (`--strict` pour la CI). Les 8 étrangers présents au 2026-09-03 sont
@@ -150,7 +150,7 @@ class Command(BaseCommand):
                 "\n    et le vrai correctif est de retirer la mutation d'environnement du "
                 "\n    backend qui l'a déposée (ROADMAP §5b) ;"
                 "\n  → soit c'est un COMPOSANT du modèle : le déclarer dans "
-                "\n    `common/utils/model_locations.COMPOSANTS_DECLARES` — jamais deviné.")
+                "\n    `common/utils/model_locations.composants_declares()` — jamais deviné.")
 
         if options['locks']:
             traces = verrous_orphelins()

@@ -27,7 +27,9 @@ SOURCE = 'converter'
 #: DÉCROÎTRE : y ajouter une clé est une décision, pas un réflexe (résorber = déclarer la source
 #: au registre commun de `wama-params.js`, jamais écrire un resolver dans une app).
 #: `avatar_gallery` en est sortie le 2026-10-12 : endpoint `avatarizer:api_avatar_gallery`.
-SOURCES_NON_RESOLUES = {'backends'}
+#: `backends` en est sortie le 2026-10-31 : plus aucun schéma ne la déclare (les sélecteurs de
+#: moteur passent par `options_source="catalog"`, route F4b) — liste VIDE.
+SOURCES_NON_RESOLUES = set()
 
 _JS = 'wama/common/static/common/js/'
 

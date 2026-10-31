@@ -30,8 +30,10 @@ def api_nodes(request):
     `services/palette.py`, où la construction vit depuis le 2026-10-19).
     Vocabulaire unifié en catégories média → « typage par connexion » cohérent côté JS. Filtré par
     accès. ⚠ (précisé le 2026-09-15 → WAMA_APP_GENERATION_ROUTE.md §10.6 5.4) : les pipelines
-    SAUVEGARDÉS n'y figurent pas (ils passent par `api_pipelines`) ; cible = un « Catalogue » en
-    sections qui les inclut.
+    SAUVEGARDÉS n'y figurent pas (ils passent par `api_pipelines`) ; la cible d'alors — un
+    « Catalogue » en sections qui les inclut — est la palette de la page (`studio/index.html:55`,
+    section Pipelines de `wama-studio.js:213-224` : les miens et ceux déclarés par les apps ;
+    précisé le 2026-10-31).
 
     RÉGLAGES servis avec le catalogue (`schemas`, ROUTE §10.6 3.3bis, R2 — 2026-10-18) : le schéma
     `Param` de chaque nœud servi ici (`node_params.node_schema`), sous le MÊME filtre d'accès. Ils
