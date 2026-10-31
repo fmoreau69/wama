@@ -535,8 +535,38 @@ class ModelRegistry:
             composition['runtime'] = {**(composition.get('runtime') or {}), 'engine': moteur}
             info.composition = composition
 
+        self._overlay_engines_named_by_backends()
         self._overlay_engines_derived_from_disk()
         self._overlay_components_derived_from_disk()
+
+    def _overlay_engines_named_by_backends(self):
+        """Le moteur d'une ligne que son BACKEND nomme par sa clé de catalogue (2026-10-31).
+
+        L'autre moitié du lien « le modèle porte son moteur, le backend s'en dérive » : un backend
+        qui écrit `{'model_key': '<clé>'}` dans son `SUPPORTED_MODELS` DÉCLARE servir cette ligne
+        (`backend_inventory.BackendEntry.served_keys`, lu par AST, sans import). Mesuré le jour de
+        l'inventaire des modèles installés sans backend : `huggingface:pyannote/speaker-diarization-
+        community-1`, arrivée par la prospection sans moteur, était CONDAMNÉE par `backend_missing`
+        alors que `PyannoteDiarizerBackend` la nomme depuis le 2026-09-30. Ne comble que le vide,
+        comme la passe des apps : une ligne qui déclare son moteur reste l'autorité."""
+        try:
+            from wama.common.services.backend_inventory import resolvable_entries
+            entries = resolvable_entries()
+        except Exception as e:
+            logger.debug(f"[engines] inventaire des backends illisible : {e}")
+            return
+        for entry in entries:
+            if not entry.engine:
+                continue
+            for key in entry.served_keys:
+                info = self._models.get(key)
+                if info is None or ((getattr(info, 'composition', None) or {})
+                                    .get('runtime') or {}).get('engine'):
+                    continue
+                composition = dict(getattr(info, 'composition', None) or {})
+                composition['runtime'] = {**(composition.get('runtime') or {}),
+                                          'engine': entry.engine}
+                info.composition = composition
 
     def _overlay_components_derived_from_disk(self):
         """Complète les COMPOSANTS d'un modèle composé — depuis son snapshot, sans réseau.
@@ -638,7 +668,10 @@ class ModelRegistry:
             deja_declares = set()
 
         for cle, info in list(self._models.items()):
-            if (getattr(info, 'composition', None) or {}).get('runtime', {}).get('engine'):
+            runtime = (getattr(info, 'composition', None) or {}).get('runtime', {})
+            # `loaded_by` (2026-10-31) : son exécutant est DÉCLARÉ — un moteur deviné du disque
+            # (`onnxruntime` pour un `.onnx`) dirait une route qui n'est pas la sienne.
+            if runtime.get('engine') or runtime.get('loaded_by'):
                 continue
             if cle in deja_declares:           # le catalogue sait mieux : on ne dégrade pas
                 continue
@@ -1395,7 +1428,10 @@ class ModelRegistry:
                             'declared_files': FACE_LANDMARKER_FILES},
                 capabilities={'task': 'face-analysis', 'modalities': ['image', 'video'],
                               'inputs_required': ['work_file']},
-                composition={'runtime': {'engine': 'mediapipe'}},
+                # Aucun backend ne le pilote : le Face Analyzer l'ouvre lui-même (`loaded_by`,
+                # 2026-10-31 — sans quoi `backend_missing` le disait sans route d'exécution).
+                composition={'runtime': {'engine': 'mediapipe',
+                                         'loaded_by': 'wama_lab.face_analyzer.utils.preprocessing'}},
             )
         except Exception as e:
             self.discovery_errors.append(f'face_analyzer:mediapipe-face-landmarker: {e}')
@@ -1492,8 +1528,10 @@ class ModelRegistry:
                 extra_info={'path': str(root / YOLOPV2_FILES[0]['path']),
                             'install_dir': str(root), 'declared_files': YOLOPV2_FILES,
                             'size_bytes': YOLOPV2_FILES[0]['size']},
-                # Pas de `composition.runtime` : aucun backend commun ne le charge — le Lab le lit
-                # par son segmenteur (`cam_analyzer.utils.yolopv2_segmenter`, `torch.jit`).
+                # Aucun backend commun ne le charge — le Lab le lit par son segmenteur
+                # (`torch.jit`). DÉCLARÉ en chaîne (`loaded_by`, 2026-10-31) : la ligne vit ici pour
+                # ne pas importer le Lab, le nom de son module ne crée aucune dépendance.
+                composition={'runtime': {'loaded_by': 'wama_lab.cam_analyzer.utils.yolopv2_segmenter'}},
                 capabilities={'task': 'road-segmentation', 'modalities': ['image', 'video'],
                               'inputs_required': ['work_file']},
             )
@@ -1506,6 +1544,7 @@ class ModelRegistry:
         que `torch.hub` tirait au premier banc ; aucune sélection d'app ne tire cette tâche. La
         déclaration vit à côté de l'instrument (`bench.LPIPS_FILES`)."""
         try:
+            from wama.model_manager.services import bench
             from wama.model_manager.services.bench import LPIPS_FILES, LPIPS_KEY, lpips_folder
             from wama.common.utils.model_keys import split_key
             from wama.model_manager.services.model_installer import declared_files_present
@@ -1526,7 +1565,8 @@ class ModelRegistry:
                 extra_info={'path': str(root / LPIPS_FILES[0]['path']),
                             'install_dir': str(root), 'declared_files': LPIPS_FILES,
                             'size_bytes': LPIPS_FILES[0]['size']},
-                # Pas de `composition.runtime` : le banc le charge lui-même (`lpips_metric`).
+                # Le banc le charge lui-même (`lpips_metric`) : `loaded_by`, lu sur le module.
+                composition={'runtime': {'loaded_by': bench.__name__}},
                 capabilities={'task': 'quality-metric', 'modalities': ['image'],
                               'inputs_required': ['work_file']},
             )
@@ -1562,7 +1602,9 @@ class ModelRegistry:
                             'size_bytes': sum(f['size'] for f in GESTURE_FILES),
                             'install_dir': str(gesture_folder()),
                             'declared_files': GESTURE_FILES},
-                # Pas de `composition.runtime` : aucun moteur Python ne le charge, le navigateur oui.
+                # Aucun moteur Python ne le charge, le navigateur oui : `loaded_by` nomme le module
+                # qui OUVRE le fichier pour le lui servir (`scene_views.hand_model_view`).
+                composition={'runtime': {'loaded_by': 'wama.common.scene_views'}},
                 capabilities={'task': 'hand-gesture', 'modalities': ['image', 'video'],
                               'inputs_required': ['work_file']},
             )
@@ -1599,7 +1641,8 @@ class ModelRegistry:
                             'size_bytes': sum(f['size'] for f in TURN_FILES),
                             'install_dir': str(model_folder()),
                             'declared_files': TURN_FILES},
-                # Pas de `composition.runtime` : aucun backend ne le charge, le service vocal oui.
+                # Aucun backend ne le charge, le service vocal oui (`_end_of_turn_clip`).
+                composition={'runtime': {'loaded_by': 'wama.common.tts.service'}},
                 capabilities={'task': 'end-of-turn', 'modalities': ['audio'],
                               'inputs_required': ['work_audio'],
                               # Les 23 langues du banc de l'éditeur (v3.2, 2026-01-07).

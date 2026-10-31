@@ -10,7 +10,11 @@
       ],
       "task": "hand-gesture"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "loaded_by": "wama.common.scene_views"
+      }
+    },
     "extra_info": {
       "declared_files": [
         {

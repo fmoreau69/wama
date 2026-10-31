@@ -12,7 +12,8 @@
     },
     "composition": {
       "runtime": {
-        "engine": "mediapipe"
+        "engine": "mediapipe",
+        "loaded_by": "wama_lab.face_analyzer.utils.preprocessing"
       }
     },
     "extra_info": {

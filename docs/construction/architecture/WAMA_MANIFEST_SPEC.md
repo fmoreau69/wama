@@ -603,6 +603,20 @@ général inchangé. Motif : MiniMax-Music3, 5 GGUF = 1 modèle — l'anatomie �
 main en `allow_patterns` le 27/08, désormais elle est DÉCLARÉE (premier manifeste porteur :
 `manifests/models/huggingface__Serveurperso~MiniMax-Music3-GGUF.json`).
 
+**2026-10-31 — `runtime.loaded_by`** (demande de Fabien après l'inventaire des modèles installés
+sans backend) : le MODULE qui charge le modèle lui-même, hors de tout backend —
+`{"runtime": {"loaded_by": "wama.model_manager.services.bench"}}`. `runtime` exige désormais
+`engine` OU `loaded_by` (`builtin/model.py::_validate_composition`). Cinq lignes le portent, posées
+par leur découverte (`model_registry`) : LPIPS (le banc), Smart Turn (le service vocal), le
+reconnaisseur de gestes (servi au navigateur par `scene_views`), le Face Landmarker et YOLOPv2 (le
+Lab). Le verdict d'exécutabilité ne condamne plus une ligne qui le déclare
+(`backends.manager.backend_missing`), la dérivation du moteur depuis le disque ne lui en invente
+pas, `check_backend_links` la range parmi les cas normaux, et une garde exige que chaque module
+nommé existe (`model_manager/tests/tests_model_loaded_by.py`). Le même jour, la moitié BACKEND
+du lien est lue : un backend qui écrit `{'model_key': …}` dans son `SUPPORTED_MODELS` donne son
+moteur à la ligne qui n'en a pas (`backend_inventory.BackendEntry.served_keys`,
+`model_registry._overlay_engines_named_by_backends` — pyannote community-1).
+
 #### 7.1 ter — hooks par kind, MESURÉ le 2026-08-05
 
 > Les hooks s'appellent `write_back`/`un_write_back` depuis le 2026-08-05 (`kinds.py:52-57` —

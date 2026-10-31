@@ -502,7 +502,13 @@ def backend_missing(model) -> Optional[str]:
     # au registre des backends (`lien='backend_ref'`). Son retrait complet reste un chantier —
     # il suppose que les 95 modèles qui le portent déclarent leur moteur (14 aujourd'hui).
     composition = getattr(model, 'composition', None) or {}
-    engine = (composition.get('runtime') or {}).get('engine') or ''
+    runtime = composition.get('runtime') or {}
+    # Un modèle qu'une BRIQUE ou une app charge elle-même, hors de tout backend (`loaded_by`,
+    # 2026-10-31 — le banc, la diarisation… le navigateur) a sa route : il n'est pas condamné.
+    # Le module nommé est VÉRIFIÉ par une garde (`tests_model_loaded_by`), pas importé ici.
+    if runtime.get('loaded_by'):
+        return None
+    engine = runtime.get('engine') or ''
     if engine:
         if engine not in known_engines():
             return f"moteur « {engine} » sans backend installé"

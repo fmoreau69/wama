@@ -9,7 +9,11 @@
       ],
       "task": "quality-metric"
     },
-    "composition": {},
+    "composition": {
+      "runtime": {
+        "loaded_by": "wama.model_manager.services.bench"
+      }
+    },
     "extra_info": {
       "declared_files": [
         {

@@ -33,9 +33,14 @@ class Command(BaseCommand):
 
         moteurs = known_engines()
         reels = [m for m in AIModel.objects.all() if not m.is_proposed]
-        avec, sans_moteur = [], []
+        avec, sans_moteur, hors_backend = [], [], []
         for m in reels:
-            moteur = ((m.composition or {}).get('runtime') or {}).get('engine') or ''
+            runtime = (m.composition or {}).get('runtime') or {}
+            moteur = runtime.get('engine') or ''
+            if runtime.get('loaded_by'):
+                # Chargé par une brique ou une app elle-même (2026-10-31) : sa route est déclarée.
+                hors_backend.append((m, runtime['loaded_by']))
+                continue
             (avec if moteur else sans_moteur).append((m, moteur))
 
         resolus, hors_processus, moteur_absent, sans_backend = [], [], [], []
@@ -60,6 +65,12 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(
                 f'  {len(hors_processus)} hors processus — NORMAL '
                 f'(le moteur n’est pas du code Python qu’on charge)'))
+        if hors_backend:
+            self.stdout.write(self.style.SUCCESS(
+                f'  {len(hors_backend)} chargé(s) hors backend — NORMAL (`loaded_by` : une brique '
+                f'ou une app les ouvre elle-même)'))
+            for m, module in hors_backend:
+                self.stdout.write(f'      {m.model_key} ← {module}')
         for m, moteur in moteur_absent:
             self.stdout.write(self.style.WARNING(
                 f'  ⚠ {m.model_key} — moteur « {moteur} » qu’AUCUN backend ne pilote'))

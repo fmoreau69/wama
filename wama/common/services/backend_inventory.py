@@ -76,6 +76,12 @@ class BackendEntry:
     #: différentes (mesuré le 06/09). Sans cette liste, résoudre par moteur rendrait le
     #: PREMIER backend venu — un modèle Mochi se serait vu servir par CogVideoX.
     supported_models: List[str] = field(default_factory=list)
+    #: Les CLÉS DE CATALOGUE que le backend écrit lui-même dans son `SUPPORTED_MODELS`
+    #: (`{'model_key': …}`, 2026-10-31) — l'autre moitié du lien, quand l'identifiant servi n'est
+    #: pas le dernier segment de la clé (`pyannote/speaker-diarization-community-1` contre
+    #: `speaker-diarization-community-1`). La découverte en tire le moteur d'une ligne qui n'en
+    #: déclare pas (`model_registry._overlay_engines_named_by_backends`).
+    served_keys: List[str] = field(default_factory=list)
     #: Module ABSOLU où la classe est définie (`wama.transcriber.backends.whisper_backend`).
     #: Le balayage le connaît depuis toujours ; il ne sortait pas. C'est LUI qui permet la
     #: résolution PARESSEUSE d'un backend par son moteur — sans lui, un appelant devrait
@@ -218,6 +224,14 @@ def _literal_value(noeud):
         return None
 
 
+def _served_keys(supported) -> list:
+    """Les clés de catalogue (`model_key`) qu'un `SUPPORTED_MODELS` littéral déclare."""
+    if not isinstance(supported, dict):
+        return []
+    return [v['model_key'] for v in supported.values()
+            if isinstance(v, dict) and isinstance(v.get('model_key'), str) and v['model_key']]
+
+
 #: Lecture AST PAR FICHIER, gardée sur l'empreinte du fichier (`common/file_cache.py`). La
 #: résolution appelle l'inventaire en boucle (une fois par modèle) : sans ce cache, chaque appel
 #: ré-analysait tous les paquets `backends/` — 6 237 `ast.parse` pour UNE extraction de
@@ -237,12 +251,13 @@ def _file_classes(f) -> tuple:
     # (vérifié sur les 8). Le lire dans le corps de classe seul le raterait entièrement.
     # On l'attribue à toute classe du fichier : un fichier de backend en déclare une, et
     # une déclaration de module vaut pour son module.
-    supported = []
+    supported, served = [], []
     for n in arbre.body:
         if isinstance(n, ast.Assign) and len(n.targets) == 1                     and getattr(n.targets[0], 'id', '') == 'SUPPORTED_MODELS':
             valeur = _literal_value(n.value)
             if isinstance(valeur, dict):
                 supported = [str(k) for k in valeur]
+                served = _served_keys(valeur)
 
     for n in arbre.body:
         if not isinstance(n, ast.ClassDef):
@@ -266,6 +281,7 @@ def _file_classes(f) -> tuple:
         classes[n.name] = {
             'nom': n.name, 'bases': frozenset(bases),
             'fichier': f.stem, 'attrs': attrs, 'supported': tuple(supported),
+            'served': tuple(served),
             'propres_abstraites': frozenset(propres_abstraites),
             'definies': frozenset(definies)}
     return classes, ''
@@ -453,6 +469,8 @@ def inventory() -> List[AppBackends]:
                 # j'avais généralisé après avoir ouvert deux fichiers.
                 supported_models=sorted(set(info.get('supported') or [])
                                         | set(info['attrs'].get('SUPPORTED_MODELS') or [])),
+                served_keys=sorted(set(info.get('served') or [])
+                                   | set(_served_keys(info['attrs'].get('SUPPORTED_MODELS')))),
                 natures=[], flavor=flavor, kind='classe',
                 packages=list(info['attrs'].get('REQUIRED_PACKAGES') or []),
                 vram_gb=info['attrs'].get('recommended_vram_gb'),

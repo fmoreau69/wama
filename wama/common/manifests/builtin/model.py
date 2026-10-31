@@ -223,9 +223,14 @@ def _validate_composition(compo) -> list[str]:
     if runtime is not None:
         if not isinstance(runtime, dict):
             errs.append("composition.runtime doit être un dict")
-        elif not runtime.get('engine') or not isinstance(runtime.get('engine'), str):
-            errs.append("composition.runtime : 'engine' requis (chaîne — le moteur que le "
-                        "backend composé invoque)")
+        else:
+            # `loaded_by` (2026-10-31) : le module qui charge le modèle lui-même, hors backend.
+            for name in ('engine', 'loaded_by'):
+                if name in runtime and (not runtime[name] or not isinstance(runtime[name], str)):
+                    errs.append(f"composition.runtime : '{name}' doit être une chaîne non vide")
+            if not runtime.get('engine') and not runtime.get('loaded_by'):
+                errs.append("composition.runtime : 'engine' (le moteur que le backend invoque) ou "
+                            "'loaded_by' (le module qui charge le modèle hors backend) requis")
 
     inconnues = set(compo) - {'components', 'runtime'}
     if inconnues:
