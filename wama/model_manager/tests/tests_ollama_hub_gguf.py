@@ -424,6 +424,42 @@ class ModelsOfAnAppTest(TestCase):
         self.assertIn('proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6', keys)
         self.assertNotIn('proposed:hf:someone/some-tts', keys)   # counter-check: another task
 
+    def test_proposals_are_not_buried_under_the_catalogue_by_the_limit(self):
+        """`include_proposed` mixes proposals into the catalogue (sorted by source, cut at
+        `limit`): they fell past the cut and the assistant saw none. `proposed_only` reads them
+        alone, and every row says whether it is a proposal."""
+        from django.contrib.auth import get_user_model
+        from wama import tool_api
+        _candidate('ocr')
+        AIModel.objects.create(model_key='aaa:installed', name='installed', model_type='speech',
+                               source='aaa', is_available=True)
+        user = get_user_model().objects.create_user('proposals_only', password='x')
+        out = tool_api.list_ai_models(user, include_proposed=True, limit=1)
+        self.assertEqual('proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6',
+                         out['models'][0]['key'])                    # proposals sort first
+        only = tool_api.list_ai_models(user, proposed_only=True, limit=200)['models']
+        self.assertEqual(['proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6'], [m['key'] for m in only])
+        self.assertTrue(all(m['proposed'] for m in only))
+        # counter-check: without the flag the installed model is listed, and not a proposal
+        plain = tool_api.list_ai_models(user, limit=200)['models']
+        self.assertIn('aaa:installed', [m['key'] for m in plain])
+        self.assertFalse(any(m['proposed'] for m in plain))
+
+    def test_proposed_only_lists_no_installed_model(self):
+        from django.contrib.auth import get_user_model
+        from wama import tool_api
+        _candidate('ocr')
+        AIModel.objects.create(model_key='aaa:installed', name='installed', model_type='speech',
+                               source='aaa', is_available=True, is_downloaded=True)
+        user = get_user_model().objects.create_user('proposed_only_strict', password='x')
+        for extra in ({}, {'include_proposed': False}, {'downloaded_only': False}):
+            keys = [m['key'] for m in tool_api.list_ai_models(
+                user, proposed_only=True, limit=200, **extra)['models']]
+            self.assertNotIn('aaa:installed', keys)
+            self.assertTrue(keys)
+        self.assertEqual([], tool_api.list_ai_models(
+            user, proposed_only=True, downloaded_only=True)['models'])
+
     def test_a_row_without_modalities_is_read_by_those_its_task_implies(self):
         # Thread n° 40: `modality='image'` dropped every proposal (none carried modalities).
         from django.contrib.auth import get_user_model

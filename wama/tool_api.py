@@ -1952,7 +1952,7 @@ def get_studio_run_status(user, run_id: int = None) -> dict:
 @tool_effect(READ)
 def list_ai_models(user, app: str = None, task: str = None, modality: str = None,
                    downloaded_only: bool = False, include_proposed: bool = False,
-                   limit: int = 50, query: str = None) -> dict:
+                   limit: int = 50, query: str = None, proposed_only: bool = False) -> dict:
     """
     List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
 
@@ -1965,12 +1965,15 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
         task: filter by canonical capability task (e.g. 'detect', 'tts', 'asr').
         modality: filter by capability modality (e.g. 'image', 'audio', 'video').
         downloaded_only: only models whose weights are present on disk.
-        include_proposed: also list prospection PROPOSALS (not installed models).
+        include_proposed: also list prospection PROPOSALS (not installed models) among the
+                          catalogue, listed FIRST so the `limit` cut does not bury them;
+                          use proposed_only to read just the proposals.
+        proposed_only: list ONLY the prospection proposals (implies include_proposed).
         limit: max results (default 50).
 
     Returns:
         {"models": [{"key","name","source","origin","type","vram_gb","task","modalities",
-                     "downloaded","loaded","quality_index","benchmark","description"}],
+                     "downloaded","loaded","proposed","quality_index","benchmark","description"}],
          "count", "truncated"} — `source` = the catalogue source of the key (an app, a remote
          provider or the platform it was found on — NOT always an app); `origin` = where the model
          runs, who serves it and what it costs (« WAMA local », « Cloud commercial · Claude Code ·
@@ -1982,7 +1985,15 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
 
     # Les modèles que CE compte voit (ROADMAP §29) : système, publics, les siens, sa portée.
     qs = AIModel.objects.catalogue_visible_to(user).order_by('source', 'model_key')
-    if not include_proposed:
+    # Avec `include_proposed` seul, les propositions se mêlent au catalogue (tri par source, coupe
+    # à `limit`) : elles tombaient sous la coupe et l'assistant concluait « aucune proposition »
+    # alors que la page en montrait 173. `proposed_only` les lit seules.
+    if proposed_only:
+        qs = qs.filter(is_proposed=True)
+    elif include_proposed:
+        # Mélangées au catalogue, elles passent EN TÊTE : la coupe à `limit` ne les enterre plus.
+        qs = qs.order_by('-is_proposed', 'source', 'model_key')
+    else:
         qs = qs.filter(is_proposed=False)
     if app:
         # Les modèles de sa source, OU ceux du DOMAINE que ses selects de modèle déclarent
@@ -2036,6 +2047,7 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
         'modalities': (m.capabilities or {}).get('modalities'),
         'downloaded': m.is_downloaded,
         'loaded': m.is_loaded,
+        'proposed': m.is_proposed,
         'quality_index': m.quality_index,
         'benchmark': _benchmark_summary(m),
         'description': m.description_short or '',
@@ -2215,7 +2227,7 @@ def prospect_models(user) -> dict:
     the confidence jury, follow in the background.
 
     Takes a few minutes. Then read the proposals with
-    list_ai_models(include_proposed=True, task=...) — compare them by `benchmark` — and install
+    list_ai_models(proposed_only=True, task=...) — compare them by `benchmark` — and install
     one with install_model. To look for a model you can NAME, use search_models instead.
 
     Returns:
