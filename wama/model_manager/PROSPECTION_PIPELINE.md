@@ -3618,7 +3618,11 @@ l'assistant ne recommandait rien.
      `TroisiemeBancEtSensTest.test_the_served_variant_picks_the_entry_and_keeps_the_other_boards`
      (contre-épreuve rouge, déclaration vidée). ⏳ Non déclarés faute de mesure :
      `openrouter:qwen/qwen3.8-27b` (le fournisseur sous-jacent varie) et `ollama:qwen3.8:latest`
-     (Ollama règle `think`, pas un effort).
+     (Ollama règle `think`, pas un effort). ⏳ Relevé à la revérification : la ligne
+     `ilaas:qwen-3.8-27b` ne déclare pas la capacité `thinking` (`model_capabilities.py:69`) alors
+     qu'elle raisonne par défaut — la découverte distante n'écrit que tâche, paramètres, complétion
+     et modalités ; ce n'est pas la même donnée que l'effort servi (POUVOIR raisonner / CE QUI
+     s'exécute), mais elle manque pour le même modèle.
    - ✅ (c) **Égalité Albert / ILaaS sur le même modèle : rien à changer** (Fabien : *« on compte les
      requêtes pour ne pas atteindre la limite de quota, autant utiliser Albert, puis basculer sur
      ILaaS »*) — l'égalité donne Albert, la saturation notée le fait basculer (`source_quota`).

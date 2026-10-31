@@ -399,6 +399,10 @@ Bloc d'état 2026-07-11 archivé (`docs/construction/archive/ROADMAP_ARCHIVE_202
 > d'auteurs figés à un commit) notent 30 modèles de plus (`233fd35a`) ; une description de
 > remplissage n'écrase plus une vraie, et `describe_models` comble les autres depuis la fiche ou le
 > web (`7f1165bf`). Détail : `PROSPECTION_PIPELINE.md §Session du 2026-10-29`.
+> *2026-10-30→31* : ✅ l'indice d'AA est VERSIONNÉ (v5 ne se compare plus à v4, `a304adc1`) ; un
+> étage « échelle commune » passe avant le rang centile (`0116608dc`) ; la variante qu'un fournisseur
+> SERT se déclare (`SERVED_VARIANT`, ILaaS qwen3.8 en « xhigh », mesuré, `1521bdf34`). Le tirage de
+> l'assistant reste gemma-4-31b, mesuré : `PROSPECTION_PIPELINE.md` point 7.
 
 ### Concept
 Tâche Celery nocturne qui compare les modèles installés dans WAMA avec les dernières
