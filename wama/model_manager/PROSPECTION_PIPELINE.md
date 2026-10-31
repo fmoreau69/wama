@@ -3593,3 +3593,29 @@ l'assistant ne recommandait rien.
    en français pour le tirage de l'assistant, à confronter avant tout branchement (`SOURCES`).
    Tests : `TroisiemeBancEtSensTest.test_the_index_version_sent_by_the_source_names_the_scale`,
    `SubsetScaleTest.test_sub_scores_of_two_index_versions_are_not_compared` (contre-épreuves rouges).
+   **Suite du 2026-10-31 — les trois questions, tranchées par Fabien** :
+   - ✅ (a) **Étage « échelle commune »** : la synchro écrit TOUTES les échelles qui notent un modèle
+     (`benchmark_meta['scales']`, liste ordonnée par priorité des sources, sens compris) ; la
+     sélection classe sur la première que tout le sous-ensemble mesuré porte, avant le rang centile
+     (`benchmark_sync.common_scale_values`, lu par `model_selector._quality_scalars` ET par son
+     jumeau `AIModel.best_installed`). Resynchronisé. ⚠ Mesuré après : il ne joue PAS sur le lot de
+     l'assistant — `ilaas:qwen-3.6-35b-instruct`, `ollama:gemma4:12b` et `ollama:gemma4:e4b` gardent
+     une mesure v4 (AA v5 ne les note pas encore, l'Arena non plus) : le lot n'a aucune échelle
+     commune. ⏳ Question ouverte : une ligne qu'aucune source ne note PLUS garde sa dernière mesure
+     (`synchronize` ne la retire pas ; son rapport dit pourtant « benchmark_index reste NULL », vrai
+     seulement pour une ligne jamais appariée).
+   - 🔄 (b) **La variante servie se SAIT, elle n'est pas dans les méta-infos** : la liste d'ILaaS ne
+     dit rien (`{"id", "object", "owned_by"}`), et WAMA n'envoie aucun réglage de raisonnement à un
+     distant (`think` est « Ollama only », `llm_utils.py:566`). Mesuré par trois appels : ILaaS
+     raisonne par défaut (`reasoning_content`, `reasoning_tokens`), et refuse un effort inconnu en
+     nommant le sien — *« Supported types are xhigh (default), medium, and low »*. La variante AA qui
+     correspond est donc « Qwen3.8 27B (Xhigh) » = 20,1 (slug `qwen3-8-27b`), pas « Low » = 15,7, que
+     `_choose_variant` retenait par similarité de chaîne. ⏳ À DÉCLARER (pas encore écrit) : un
+     `ALIAS` ne convient pas — il apparie par égalité de slug dans TOUTES les sources, et qwen3.8
+     perdrait son Arena (`Qwen3.8-27B`).
+   - ✅ (c) **Égalité Albert / ILaaS sur le même modèle : rien à changer** (Fabien : *« on compte les
+     requêtes pour ne pas atteindre la limite de quota, autant utiliser Albert, puis basculer sur
+     ILaaS »*) — l'égalité donne Albert, la saturation notée le fait basculer (`source_quota`).
+   Tests : `CommonScaleTest` (5, dont le référentiel installé),
+   `TroisiemeBancEtSensTest.test_every_source_that_rates_the_model_is_recorded_in_priority_order`
+   — contre-épreuves rouges (étage neutralisé, liste réduite au porteur).

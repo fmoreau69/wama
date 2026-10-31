@@ -1243,6 +1243,37 @@ def benchmarks_comparable(pool) -> bool:
             and all(getattr(m, 'benchmark_index', None) is not None for m in batch))
 
 
+def common_scale_values(pool) -> dict:
+    """`{id(m): valeur ordonnable}` sur la première échelle (priorité des sources) que TOUT le lot
+    porte — `{}` s'il n'y en a aucune, ou moins de deux modèles.
+
+    L'étage entre la valeur du porteur et le rang centile (2026-10-30, décision de Fabien). Deux
+    modèles portés par des échelles différentes (qwen3.8 par AA, gemma-4-31b par l'Arena) se
+    comparaient au rang centile, ordinal et dépendant de deux populations distinctes ; or tous
+    deux sont notés par l'Arena (1438 et 1443). Une valeur sur une même échelle dit plus qu'un
+    rang sur deux. Les échelles viennent de la synchro (`benchmark_meta['scales']`) ; le sens
+    voyage avec chacune (un taux d'erreur se lit à l'envers)."""
+    batch = list(pool)
+    if len(batch) < 2:
+        return {}
+
+    def carried(m):
+        meta = getattr(m, 'benchmark_meta', None) or {}
+        return [(e.get('scale'), e.get('value'), e.get('direction') or 'higher')
+                for e in meta.get('scales') or [] if e.get('value') is not None]
+
+    for scale, _value, direction in carried(batch[0]):
+        values = {}
+        for m in batch:
+            hit = next((v for s, v, d in carried(m) if s == scale and d == direction), None)
+            if hit is None:
+                break
+            values[id(m)] = -float(hit) if direction == 'lower' else float(hit)
+        else:
+            return values
+    return {}
+
+
 # ── Catégorie d'un modèle du catalogue ───────────────────────────────────────────────────
 
 def _local_categories(m):
@@ -1661,6 +1692,11 @@ def _benchmark_for_category(m, cat, alias, sources):
     benchmark = {'category': cat}
     value = scale = None
     carrier = carried = None
+    # TOUTES les échelles qui notent ce modèle, dans l'ordre de priorité des sources (2026-10-30,
+    # décision de Fabien) : le porteur seul ne disait pas qu'un modèle porté par AA est AUSSI
+    # noté par l'Arena — or c'est sur une échelle commune que deux modèles de porteurs différents
+    # se comparent le mieux (`common_scale_values`). Une liste, l'ordre compte (jsonb trie les clés).
+    scales = []
     for s in SOURCES_BY_PRIORITY:
         candidates = cands.get(s['key']) or []
         if not candidates:
@@ -1668,11 +1704,15 @@ def _benchmark_for_category(m, cat, alias, sources):
         # La variante qui CORRESPOND, pas la mieux notée (cf. `_choose_variant`).
         chosen = _choose_variant(local_name, candidates, s['value'], _direction(s, candidates[0]))
         benchmark.update(s['meta'](chosen, candidates))
+        if s['value'](chosen) is not None:
+            scales.append({'scale': s['scale'](chosen, cat), 'value': s['value'](chosen),
+                           'direction': _direction(s, chosen)})
         if value is None:      # la PREMIÈRE source appariée porte l'index ; les autres non
             value, scale = s['value'](chosen), s['scale'](chosen, cat)
             benchmark['source'] = s['source_name']
             carrier, carried = s, chosen
     benchmark['value'], benchmark['scale'] = value, scale
+    benchmark['scales'] = scales
     # FIABILITÉ, déclarée et tracée (2026-10-10) : COMMENT la valeur a été rattachée au modèle
     # (égalité confirmée, dépôt exact, ou famille + version) et QUI l'a produite — la source le
     # déclare, une entrée peut le préciser (classements HF : `verified` ou auto-déclaré).

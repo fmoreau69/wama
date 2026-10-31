@@ -179,7 +179,11 @@ synchro… et la sélection ne le lisait pas : mesuré le 26/09, **55 modèles m
 portent un, sur 11 échelles. Un lot mixte (Albert en `aa_intelligence_index`, Anthropic en
 `arena_elo_text`, Ollama en `aa_intelligence_index`) tombait donc d'un cran — et le cran
 d'après est la TAILLE. Ordre des étages : sous-indice de domaine → **valeur brute à échelle
-unique** → **rang centile (inter-échelles)** → a priori → VRAM (local seulement). Le rang vient
+unique** → **valeur sur une échelle COMMUNE** (ajouté le 2026-10-30, décision de Fabien : des
+porteurs différents, mais une échelle que tout le lot mesuré porte aussi — l'Arena derrière un
+porteur AA ; la synchro écrit toutes les échelles d'un modèle, `benchmark_meta['scales']`, lues par
+`benchmark_sync.common_scale_values`) → **rang centile (inter-échelles)** → a priori → VRAM (local
+seulement). Le rang vient
 APRÈS la valeur brute, jamais avant : à échelle unique, le score exact dit plus que le rang. Il
 ne perd personne au passage (il est écrit en même temps que `benchmark_index`, donc il couvre
 le même sous-ensemble). ⚠ Ses deux réserves restent entières et se redisent partout où il

@@ -271,7 +271,7 @@ def _quality_scalars(pool, family=None):
     def _family_score(m):
         return ((getattr(m, 'benchmark_meta', None) or {}).get('family_scores') or {}).get(family)
 
-    from .benchmark_sync import benchmarks_comparable, orderable_value
+    from .benchmark_sync import benchmarks_comparable, common_scale_values, orderable_value
 
     batch = list(pool)
     if not batch:
@@ -298,6 +298,13 @@ def _quality_scalars(pool, family=None):
     measured = [m for m in batch if getattr(m, 'benchmark_index', None) is not None]
     if measured and benchmarks_comparable(measured):
         return {id(m): orderable_value(m) for m in measured}, False
+
+    # Étage ÉCHELLE COMMUNE (2026-10-30, décision de Fabien) : des porteurs différents, mais une
+    # échelle que TOUT le sous-ensemble mesuré porte aussi (l'Arena derrière un porteur AA) — la
+    # valeur sur cette échelle avant le rang centile (`benchmark_sync.common_scale_values`).
+    common = common_scale_values(measured)
+    if common:
+        return common, False
 
     # Étage RANG CENTILE — la lecture INTER-ÉCHELLES (branché le 2026-09-26, demande de Fabien).
     # `benchmark_sync.percentile_rank` a été écrit le 01/09 pour exactement cette question

@@ -2820,6 +2820,23 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
                          scales_with({'intelligence_index_version': 5, 'data': [entry]}))
         self.assertEqual(['aa_intelligence_index'], scales_with({'data': [entry]}))
 
+    def test_every_source_that_rates_the_model_is_recorded_in_priority_order(self):
+        """2026-10-30 : le porteur seul ne disait pas que qwen3.8 (porté par AA) est AUSSI noté par
+        l'Arena — l'échelle commune de la sélection lit cette liste."""
+        from ..models import AIModel
+        from ..services import benchmark_sync as bs
+        ident = ('qwen', (3, 8), 27.0)
+        sources = {'aa': {'llm': [{'name': 'Qwen3.8 27B', 'slug': 'qwen3-8-27b', 'value': 20.1,
+                                   'scale': 'aa_intelligence_index_v5', 'identity': ident,
+                                   'family_scores': {}}]},
+                   'arena': {'llm': [{'name': 'Qwen3.8-27B', 'elo': 1438.4, 'votes': 9,
+                                      'identity': ident}]}}
+        row = AIModel(model_key='ilaas:qwen-3.8-27b', name='qwen-3.8-27b')
+        benchmark, _ = bs._benchmark_for_category(row, 'llm', None, sources)
+        self.assertEqual('aa_intelligence_index_v5', benchmark['scale'])
+        self.assertEqual([('aa_intelligence_index_v5', 20.1), ('arena_elo_text', 1438.4)],
+                         [(s['scale'], s['value']) for s in benchmark['scales']])
+
     # ── (2) le sens de l'échelle ────────────────────────────────────────────────────────
 
     def test_un_taux_d_erreur_se_lit_a_l_envers(self):

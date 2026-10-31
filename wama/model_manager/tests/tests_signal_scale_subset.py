@@ -30,7 +30,7 @@ from wama.model_manager.services.model_selector import (
 
 
 def _row(key, *, vram=None, coding=None, quality_index=None, cloud=False,
-           benchmark_index=None, scale=None, rank=None):
+           benchmark_index=None, scale=None, rank=None, scales=None):
     meta = {}
     if coding is not None:
         meta['family_scores'] = {'coding': coding}
@@ -38,6 +38,8 @@ def _row(key, *, vram=None, coding=None, quality_index=None, cloud=False,
         meta['scale'] = scale
     if rank is not None:
         meta['percentile_rank'] = rank
+    if scales is not None:
+        meta['scales'] = [{'scale': s, 'value': v, 'direction': d} for s, v, d in scales]
     return AIModel(model_key=key, name=key, vram_gb=vram, quality_index=quality_index,
                    benchmark_index=benchmark_index, benchmark_meta=meta or None,
                    execution=EXECUTION_CLOUD if cloud else EXECUTION_LOCAL)
@@ -117,6 +119,68 @@ class SubsetScaleTest(TestCase):
                       rank=40.0, vram=5.0)]
         values, _ = _quality_scalars(batch, 'coding')
         self.assertEqual([80.0, 40.0], [values[id(m)] for m in batch])
+
+
+class CommonScaleTest(TestCase):
+    """2026-10-30, décision de Fabien : deux porteurs différents, mais une échelle que tout le lot
+    porte AUSSI (l'Arena derrière un porteur AA) — la valeur sur cette échelle passe avant le rang
+    centile. Le cas mesuré : qwen3.8 (AA v5, 11ᵉ centile sur 73) contre gemma-4-31b (Arena, 79,5ᵉ),
+    alors que l'Arena les note tous deux, 1438 et 1443."""
+
+    def _pair(self, qwen_elo=1438.4, gemma_scales=True):
+        qwen = _row('ilaas:qwen-3.8-27b', benchmark_index=20.1, scale='aa_intelligence_index_v5',
+                    rank=95.0, cloud=True, vram=0,
+                    scales=[('aa_intelligence_index_v5', 20.1, 'higher'),
+                            ('arena_elo_text', qwen_elo, 'higher')])
+        gemma = _row('albert:gemma-4-31b-it', benchmark_index=1443.0, scale='arena_elo_text',
+                     rank=79.5, cloud=True, vram=0,
+                     scales=[('arena_elo_text', 1443.0, 'higher')] if gemma_scales else None)
+        return qwen, gemma
+
+    def test_a_scale_the_whole_lot_carries_ranks_before_the_percentile(self):
+        qwen, gemma = self._pair(qwen_elo=1450.0)
+        values, proxy_vram = _quality_scalars([qwen, gemma], None)
+        self.assertFalse(proxy_vram)
+        self.assertEqual([1450.0, 1443.0], [values[id(m)] for m in (qwen, gemma)])
+        best = _best_by_vram([qwen, gemma], budget_gb=None, family=None, quality_intent=100)
+        self.assertEqual('ilaas:qwen-3.8-27b', best.model_key, 'le rang (95 > 79,5) aurait dit pareil')
+        qwen, gemma = self._pair(qwen_elo=1438.4)
+        best = _best_by_vram([qwen, gemma], budget_gb=None, family=None, quality_intent=100)
+        self.assertEqual('albert:gemma-4-31b-it', best.model_key,
+                         "l'Elo commun tranche, pas le rang de deux populations")
+
+    def test_without_a_shared_scale_the_percentile_still_decides(self):
+        qwen, gemma = self._pair(gemma_scales=False)
+        values, _ = _quality_scalars([qwen, gemma], None)
+        self.assertEqual([95.0, 79.5], [values[id(m)] for m in (qwen, gemma)])
+
+    def test_two_directions_are_not_one_scale(self):
+        a = _row('a', benchmark_index=4.0, scale='x', rank=60.0, scales=[('wer', 4.0, 'lower')])
+        b = _row('b', benchmark_index=70.0, scale='y', rank=40.0, scales=[('wer', 6.0, 'higher')])
+        values, _ = _quality_scalars([a, b], None)
+        self.assertEqual([60.0, 40.0], [values[id(m)] for m in (a, b)])
+
+    def test_an_error_rate_shared_by_the_lot_reads_lower_is_better(self):
+        a = _row('a', benchmark_index=1.0, scale='x', rank=10.0, scales=[('wer', 4.0, 'lower')])
+        b = _row('b', benchmark_index=2.0, scale='y', rank=90.0, scales=[('wer', 6.0, 'lower')])
+        best = _best_by_vram([a, b], budget_gb=None, family=None, quality_intent=100)
+        self.assertEqual('a', best.model_key)
+
+    def test_the_installed_reference_reads_the_same_stage(self):
+        """`AIModel.best_installed` (le référentiel de la prospection) se dit « même règle d'étage
+        que la sélection » : il lit le même domicile."""
+        from wama.model_manager.models import AIModel
+        # Créé en second et nommé après l'autre : sans l'étage, le repli le rangerait derrière.
+        for key, scale, value, elo in (('x:a-arena', 'arena_elo_text', 1443.0, 1443.0),
+                                       ('x:z-aa', 'aa_intelligence_index_v5', 20.1, 1450.0)):
+            scales = [{'scale': 'arena_elo_text', 'value': elo, 'direction': 'higher'}]
+            if scale != 'arena_elo_text':
+                scales.insert(0, {'scale': scale, 'value': value, 'direction': 'higher'})
+            AIModel.objects.create(model_key=key, name=key, model_type='llm', is_downloaded=True,
+                                   benchmark_index=value,
+                                   benchmark_meta={'scale': scale, 'scales': scales})
+        self.assertEqual(['x:z-aa', 'x:a-arena'],
+                         [m.model_key for m in AIModel.best_installed('llm', limit=2)])
 
 
 class LocalAndCloudAreDistinctTest(TestCase):

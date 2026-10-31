@@ -1115,7 +1115,8 @@ class AIModel(ScopedVisibility):
         qui l'exercent (`capabilities.task` ou `tasks`, vocabulaire canonique). Lot vide =
         aucun concurrent installé pour ce métier : on le dit, on ne retombe pas sur un autre.
         """
-        from .services.benchmark_sync import benchmarks_comparable, orderable_value
+        from .services.benchmark_sync import (benchmarks_comparable, common_scale_values,
+                                              orderable_value)
         lot = list(cls.objects.filter(model_type=model_type, is_downloaded=True,
                                       is_proposed=False))
         wanted = canonical_task((task or '').strip().lower()) if task else None
@@ -1129,6 +1130,12 @@ class AIModel(ScopedVisibility):
             # `orderable_value`, pas `benchmark_index` : un taux d'erreur (WER) se trie à
             # l'envers d'un score, et c'est l'échelle qui le dit (`direction`), pas ce code.
             lot.sort(key=orderable_value, reverse=True)
+            return lot[:limit]
+        # Porteurs différents, échelle commune à tout le lot (2026-10-30) : la même règle que
+        # l'étage de la sélection (`model_selector._quality_scalars`), lue au même domicile.
+        common = common_scale_values(lot)
+        if common:
+            lot.sort(key=lambda m: common[id(m)], reverse=True)
             return lot[:limit]
         # Repli a priori, `None` en dernier (l'ordre de l'ancien `order_by(...nulls_last)`).
         lot.sort(key=lambda m: (m.quality_index is None, -(m.quality_index or 0)))
