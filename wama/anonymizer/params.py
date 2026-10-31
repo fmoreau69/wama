@@ -62,7 +62,7 @@ PARAMS = derive_from_model(
         "blur_ratio", "rounded_edges", "roi_enlargement", "progressive_blur",
         # ── Temporel (vidéo) ──
         "interpolate_detections", "max_interpolation_frames", "max_extrapolation_frames",
-        # ── Segmentation ── (consommé par save_media_settings/tasks : le schéma est la
+        # ── Segmentation ── (consommé par la route de réglages/tasks : le schéma est la
         # source, un champ consommé mais non déclaré y était invisible — leçon converter)
         "use_segmentation",
         # ── Quoi afficher ──

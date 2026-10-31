@@ -203,11 +203,13 @@ class SuppressionDansChaqueAppTest(TestCase):
         Même routage que le filet nocturne (`ui_smoke._test_session_key`) : le compte standard
         pour les apps, le compte développeur DÉDIÉ pour une jumelle de bac à sable (dev-gated
         par conception, `sandbox.py`). Mesuré : `converter_01` rendait 302 au compte standard.
+        La règle est LUE au filet (`ui_smoke._uses_dev_account`), jamais recopiée : la copie
+        d'ici ne voyait que `generated_from`, pas une app née d'un manifeste — writer_01 et
+        translator_01 rendaient 302 (mesuré le 2026-10-31).
         """
-        from wama.common.app_registry import APP_CATALOG
         from wama.common.services.nightly_tests import get_test_dev_user, get_test_user
-        compte = (get_test_dev_user() if (APP_CATALOG.get(surface) or {}).get('generated_from')
-                  else get_test_user())
+        from wama.common.services.ui_smoke import _uses_dev_account
+        compte = get_test_dev_user() if _uses_dev_account(surface) else get_test_user()
         self.client.force_login(compte)
         return compte
 

@@ -85,8 +85,9 @@ ROUTE_ALIASES = {
     # transcriber the next day (7a9a4dbb): only frozen sandbox twins (copied views) still use
     # another name — the aliases stay until they are regenerated (criterion `settings_route`,
     # `tests_endpoints.ItemEditRouteConventionTest`).
-    # ⚠ `update_settings` is ALSO the anonymizer's name for a GLOBAL settings route, without pk.
-    # Hence `ITEM_ROUTES` below: for these, an alias counts only if its declared pattern takes
+    # ⚠ `update_settings` WAS also the anonymizer's name for a GLOBAL settings route, without pk
+    # (until 2026-09-27, `9fe592d9c`: the panel moved to `user_settings/`). Hence `ITEM_ROUTES`
+    # below, kept as a RULE: for these, an alias counts only if its declared pattern takes
     # `<int:pk>` — the same trap as `clear_media` further down, closed by a rule, not by memory.
     'update': ('update_job', 'update_options', 'update_settings', 'save_settings'),
     # Cadrage A0 : « status n'existe QUE chez converter ; la convention réelle est
@@ -138,7 +139,8 @@ def route_variants(canonique: str) -> tuple:
 
 
 #: Conventional routes that act on ONE element. For them an alias is only an alias if its
-#: declared pattern takes `<int:pk>` (2026-09-24 — anonymizer's `update_settings` is global).
+#: declared pattern takes `<int:pk>` (2026-09-24 — the anonymizer's `update_settings` was then
+#: global; no app has such a route since 2026-09-27, the rule stays for the next one).
 ITEM_ROUTES = frozenset({'update'})
 
 

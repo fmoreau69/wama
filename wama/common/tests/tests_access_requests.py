@@ -278,7 +278,10 @@ class CollaborationAcrossTheFleetTest(TestCase):
                 self.assertEqual(404, self.client.post(reverse(delete_route, args=[card.pk])).status_code,
                                  'le collaborateur supprime la card (E2)')
                 checked += 1
-        self.assertGreaterEqual(checked, 6, f'trop peu d’apps mesurées : {checked}')
+        # Plancher = les DIX apps versionnées (les jumelles sont gitignorées) : l'anonymizer, la
+        # dixième, a pris la route de convention le 2026-10-31 (`REMOVAL_LEDGER R192`) — avant, ses
+        # réglages de collaborateur n'étaient pas tracés, et ce test le sautait sans rien dire.
+        self.assertGreaterEqual(checked, 10, f'trop peu d’apps mesurées : {checked}')
 
 
 class GestureLogAppNameTest(TestCase):

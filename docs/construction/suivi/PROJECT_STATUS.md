@@ -18403,7 +18403,9 @@ qui borne le menu de modèles), `099733ac` (3 fichiers oubliés par une autre in
    (`NOT_YET_DERIVED`) + l'enhancer.
 4. Le générateur (`views_gen._reglages_du_depot`) refait la cascade du dépôt en ligne : émettre
    `new_element_settings`.
-5. Route d'élément de l'anonymizer hors convention (`save_media_settings`, critère `settings_route`).
+5. ✅ **Soldé le 2026-10-31** (`94d81d261`, `REMOVAL_LEDGER R192`) — route d'élément de
+   l'anonymizer hors convention (`save_media_settings`) : `settings/<int:pk>/` nommée
+   `update_settings`, critère `settings_route` 10/10.
 6. L'aperçu commun rend 500 pour un média SANS fichier (lot pas encore téléchargé) — antérieur.
 
 **Rouges du jour NON imputés à ce chantier** : budget langue (`code` 2768 > 2735 — mes fichiers
@@ -21236,8 +21238,11 @@ générées depuis un worktree de HEAD). NON POUSSÉS.
   3. **conflit MONTRÉ** (E4 complet) — attend les révisions sur tout le parc ;
   4. ranger une card reçue dans **SES** lots — proposition « dupliquer / variante » non tranchée ;
   5. la cloche est un **lien**, pas un panneau ; la page Partages n'a pas de « depuis quand » ;
-  6. l'**anonymizer** enregistre ses réglages hors de la route de convention : les réglages d'un
-     collaborateur n'y sont pas tracés (`save_media_settings`, `settings_route` FAUX connu) ;
+  6. ✅ *(soldé le 2026-10-31, `94d81d261`)* l'**anonymizer** enregistre ses réglages hors de la
+     route de convention : les réglages d'un collaborateur n'y sont pas tracés
+     (`save_media_settings`, `settings_route` FAUX connu) — il enregistre désormais par
+     `update_settings`, que le journal capte ; `CollaborationAcrossTheFleetTest` le mesure
+     (plancher 6 → 10) ;
   7. jumelles alignées sur disque seulement (non versionnées ; régénération R90) ;
   8. push (décision de Fabien).
 

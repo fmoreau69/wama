@@ -79,10 +79,10 @@ def _posted(value):
 class ItemSettingsRouteContractTest(TestCase):
 
     def _login_for(self, app):
-        from wama.common.app_registry import APP_CATALOG
+        # The nightly net's rule, written ONCE (a twin, or an app born from a manifest).
         from wama.common.services.nightly_tests import get_test_dev_user, get_test_user
-        user = (get_test_dev_user() if (APP_CATALOG.get(app) or {}).get('generated_from')
-                else get_test_user())
+        from wama.common.services.ui_smoke import _uses_dev_account
+        user = get_test_dev_user() if _uses_dev_account(app) else get_test_user()
         self.client.force_login(user)
         return user
 
