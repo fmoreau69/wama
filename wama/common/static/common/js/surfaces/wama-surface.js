@@ -480,7 +480,15 @@
             if (!def.mount) {
                 rec.body.textContent = 'Brique « ' + rec.slot.brick + ' » non chargée.';
             } else {
-                rec.brick = def.mount(rec.body, ctx, rec.slot.options || {}) || {};
+                // Une brique à la hauteur de son contenu (`slot.fit` : la colonne du volet) se monte
+                // dans une ENVELOPPE — celle que la disposition mesure, marges comprises.
+                var host = rec.body;
+                if (rec.slot.fit) {
+                    host = document.createElement('div');
+                    host.className = 'wama-fit-body';
+                    rec.body.appendChild(host);
+                }
+                rec.brick = def.mount(host, ctx, rec.slot.options || {}) || {};
                 if (rec.brick.tools) {
                     rec.head.appendChild(rec.brick.tools);
                     rec.head.classList.add('has-tools');

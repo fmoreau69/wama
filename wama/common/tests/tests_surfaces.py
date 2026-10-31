@@ -80,6 +80,21 @@ class RegistryTest(SimpleTestCase):
         self.assertEqual('common/js/wama-detections.js', review.scripts()[0],
                          'a dependency loads before the bricks that need it')
 
+    def test_a_brick_of_the_panel_follows_its_content_height(self):
+        """2026-10-31 (Fabien : « avoir un scroll dans une section d'un volet qui scrolle, ce n'est
+        pas une bonne idée ») : dans la colonne du volet, une brique est à la hauteur de son contenu
+        — DÉRIVÉ de la zone — et le noyau la monte dans une enveloppe, celle que la disposition
+        mesure ; une brique de la grille garde sa hauteur."""
+        from wama.common.surfaces import SURFACES
+        slots = [slot for found in SURFACES.values() for slot in found.slots]
+        self.assertTrue([s for s in slots if s.zone == 'panel'], 'des briques au volet existent')
+        for slot in slots:
+            with self.subTest(slot=slot.id):
+                self.assertEqual(slot.zone == 'panel', slot.to_dict()['fit'])
+        source = _js('common/js/surfaces/wama-surface.js')
+        self.assertIn("host.className = 'wama-fit-body'", source)
+        self.assertIn('def.mount(host, ctx', source)
+
     def test_the_kept_version_setting_is_read_and_written_without_being_said_twice(self):
         """`Surface.sources_setting` (2026-10-22) is one of the settings the page reads and
         writes (`page_settings`), declared once at its place — the 2026-10-27 reverification:

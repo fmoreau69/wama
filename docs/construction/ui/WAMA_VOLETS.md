@@ -434,6 +434,16 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     geste de `common.panel_layout` (contenu +300 px → le panneau suit sans défiler, puis revient) ;
     contre-épreuves rouges (déclaration sans `fit`, section sans enveloppe, observateur retiré au
     navigateur → 279 px cachés).
+    **Étendu le 2026-10-31 aux briques du volet des PAGES D'ÉDITION** (Fabien : *« avoir un scroll
+    dans une section d'un volet qui scrolle, ce n'est pas une bonne idée »*) : une règle DÉRIVÉE
+    de la zone, `BrickSlot.fit = (zone == 'panel')`, jamais déclarée brique par brique ; le noyau
+    (`wama-surface.js`) monte la brique dans une enveloppe `.wama-fit-body` (`flow-root`, qui
+    retient les marges des enfants). Mesuré sur témoins : correction du transcriber, « document »
+    216/258 → 262/262 ; partition du composer, « versions » 276 px fixes → 92. Limite connue :
+    la hauteur se compte en rangées de 46 px, une brique garde jusqu'à une rangée de vide sous son
+    contenu (changer la rangée casserait les dispositions gardées). Garde :
+    `tests_surfaces.RegistryTest.test_a_brick_of_the_panel_follows_its_content_height`, deux
+    contre-épreuves rouges.
   - **Une section que la page masque retire son panneau** sans laisser de trou (l'aperçu et les
     infos, tant que rien n'est sélectionné), et il revient à son RANG, quel que soit l'ordre où la
     page montre ses sections (`setShown`). Retiré, il reste dans le document : l'inspecteur le
