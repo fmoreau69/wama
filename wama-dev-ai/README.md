@@ -29,7 +29,14 @@ python wama-dev-ai/run_librarian.py …     # manifestes de librairies
 python wama-dev-ai/run_model_manifest.py … # manifestes de MODÈLES (identité, capacités, moteur)
 python wama-dev-ai/run_scout.py …         # prospection de modèles (fiches candidates)
 python wama-dev-ai/run_integrator.py …    # propositions d'intégration
+python wama-dev-ai/run_backend.py …       # backend PROPOSÉ (porte « Valider » du model manager)
+python wama-dev-ai/run_task.py …          # tâche de développement bornée (cf. rôle `task`)
+python wama-dev-ai/run_app_manifest.py …  # brouillon du manifeste `app` (cf. rôles `app`/`repo_app`)
+python wama-dev-ai/run_repo_app.py …      # dépôt → app née au bac à sable
 ```
+
+*(Liste complétée le 2026-10-31 : `run_backend.py`, `run_task.py`, `run_app_manifest.py`,
+`run_repo_app.py` existent dans le dossier et n'y figuraient pas.)*
 
 **Modèle des rôles — tiré par WAMA, pour le COMPTE (2026-10-13)** : lancé depuis l'assistant ou
 un client MCP (surface de développement, `dev_tools.dev_run_role`), un rôle reçoit le modèle que
@@ -46,7 +53,8 @@ développement (2026-09-22) et **s'arrête en le disant** s'il n'y en a pas — 
 `config.py` ne sert plus qu'au cas « catalogue injoignable » (`WAMA_LLM.md §1ter`). ⚠ Un
 fournisseur distant nommé sans `--model` prend encore son modèle par défaut.
 
-⚠ **Garde GPU commune** (`role_utils.local_llm_guard`, les six rôles et l'audit depuis le
+⚠ **Garde GPU commune** (`role_utils.local_llm_guard`, ~~les six rôles~~ tous les rôles — huit au
+2026-10-31 : task, backend, integrator, codegen, scout, librarian, app, model — et l'audit, depuis le
 2026-10-13 — elle vivait dans le seul `run_model_manifest.py`) : le mode dépannage
 (`WAMA_GPU_SAFE_MODE`) réduit la SUPERPOSITION de charges, il n'interdit pas de charger. La garde
 attend donc la VRAM que le CATALOGUE dit nécessaire (`wait_for_free_vram`, pas d'empilement) et
@@ -62,7 +70,9 @@ l'accord explicite `--free-vram` — règle du gouverneur : on attend, on ne dé
 ## Les rôles (le cœur actuel de l'outil)
 
 Chaque rôle est un **pilote borné** construit sur `role_utils.py` : un squelette mécanique
-prépare le contexte, **un seul appel Ollama** produit la proposition, des contrôles la valident,
+prépare le contexte, **un seul appel LLM** (~~Ollama~~ Ollama local par défaut, ou le fournisseur
+que le compte ouvre — `role_utils.call_llm`, `--provider` ci-dessus ; corrigé le 2026-10-31) produit
+la proposition, des contrôles la valident,
 et la sortie atterrit dans `outputs/` en `PENDING_HUMAN_VALIDATION`. Les prompts vivent dans
 `prompts/*.txt` (un par rôle). Détail de la chaîne prospection (scout/integrator) :
 `wama/model_manager/PROSPECTION_PIPELINE.md §rôles`.
@@ -85,6 +95,15 @@ il écrit le rapport et `*.manifest.json`, la forme que lit `app_sandbox create 
 `run_repo_app.py` mène un dépôt jusqu'à l'app née au bac à sable en UNE tâche (`librarian` →
 `app` → naissance → rechargement), parce qu'une fin de tâche annoncée ne relance pas l'assistant.
 Valider et installer la librairie, juger l'app et la promouvoir restent humains.
+
+**Le rôle `backend` et le geste « Valider » (2026-09-29, levée ciblée — `AGENTS.md §Collaboration
+wama-dev-ai`)** *(ajouté le 2026-10-31)* : `run_backend.py` (consigne `prompts/backend.txt`) écrit
+un backend PROPOSÉ (`write_output('backend', …)`) ; `run_model_manifest.py` et `run_librarian.py`
+déposent leurs manifestes aux propositions (`propose()`). La section « Propositions à valider » du
+model manager les APPLIQUE après décision d'un administrateur : manifestes par
+`wama/common/manifests/proposals.py`, backends par `wama/common/services/backend_proposals.py`
+(contrôles refaits, écriture dans `wama/common/backends/`, jamais par-dessus un module existant,
+rien commité). Chaîne et trous : `wama/model_manager/PROSPECTION_PIPELINE.md §Session du 2026-09-29`.
 
 ## Workflows et commandes
 
@@ -117,8 +136,10 @@ posture rend une sortie plausible et fausse.
 > (`audit_YYYY-MM-DD.json`, `model_watch_*`…) que **le code n'a jamais émises** — archivé
 > (`docs/construction/archive/WAMA_DEV_AI_AUDIT_FORMAT.md`). Le réel, produit par `role_utils.py::write_output` :
 
-- **Nommage** : `outputs/{role}_{slug}_{AAAA-MM-JJ_HH-MM}.json` (rôles émetteurs : audit,
-  codegen, librarian/library, scout, integrator) ; les autosaves d'audit sont en `.md`.
+- **Nommage** : `outputs/{role}_{slug}_{AAAA-MM-JJ_HH-MM}.json` (rôles émetteurs : ~~audit,
+  codegen, librarian/library, scout, integrator~~ codegen, scout, integrator, model, backend, task,
+  app, repo_app ; le librarian écrit son propre fichier puis le dépose aux propositions, l'audit a
+  son format — appelants de `write_output` relevés le 2026-10-31) ; les autosaves d'audit sont en `.md`.
 - **Schéma** : objet **plat** `{"status": "PENDING_HUMAN_VALIDATION", "role": "...", **payload}` —
   pas d'enveloppe.
 - **La seule règle non négociable** : le statut est **toujours** `PENDING_HUMAN_VALIDATION`

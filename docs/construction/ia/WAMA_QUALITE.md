@@ -41,7 +41,9 @@
 
 **L'échelle des signaux** (déjà câblée pour A, `wama/model_manager/services/model_selector.py`
 `_quality_scalars`) : *a priori structurel* (`model_quality.py`) < *banc tiers confronté*
-(`benchmark_sync.py`, échelles AA / Arena / Open ASR / MTEB) < **mesure interne** (vide aujourd'hui).
+(`benchmark_sync.py`, échelles AA / Arena / Open ASR / MTEB) < **mesure interne** (~~vide aujourd'hui~~
+branchée le 2026-10-14 : `model_selector._internal_values`, `model_selector.py:195`, lu en tête de
+`_quality_scalars` `:283` — §4.1 / §5 ⑨ ; corrigé le 2026-10-31).
 Règle intangible : **on ne compare que des valeurs qui partagent la même échelle** ; jamais
 deux échelles mélangées, jamais de min-max qui inventerait une équivalence
 (`benchmark_sync.percentile_rank` : le rang, pas le score).
@@ -102,6 +104,9 @@ Ce qui reste, et pourquoi :
   proposition de successeur (`huggingface:allenai/olmOCR-2-7B-1025`, poids pleins BF16), servi par
   le backend olmOCR comme sa fiche le prescrit (1288 px, consigne v4 de la boîte à outils, en-tête
   YAML retiré) ; la ligne `reader:olmocr` dit désormais ce qu'elle est (v1 « preview »).
+  ⚠ *Même jour, plus tard (ajouté le 2026-10-31)* : la v1 est RETIRÉE (`REMOVAL_LEDGER R190`,
+  succession `supersede_model`) — `reader:olmocr` n'est plus une ligne active, son identifiant est
+  redirigé vers olmOCR-2 (`reader/utils/model_config.py:69-71`, `RETIRED_IDS`).
   ⚠ Il n'a AUCUNE note : le classement officiel d'olmOCR-Bench sur le Hub ne liste aucun olmOCR, son
   82,3 n'est que sur sa fiche — le tirage ne le retient donc pas (choix manuel possible). Le remède
   est la mesure interne ; une note déclarée depuis une fiche serait un mécanisme neuf (décision).
@@ -115,7 +120,7 @@ Ce qui reste, et pourquoi :
   reader → glm-ocr (75,2 sur olmOCR-Bench, seul noté ; chandra-ocr-2 installé n'a pas hérité du
   85,8 de son modèle d'origine — sa ligne n'a pas de `quantized_base`, alors que la carte du dépôt
   GGUF déclare `base_model:quantized:datalab-to/chandra-ocr-2` ; olmOCR n'a aucune note et sa
-  fiche est encore la v1 « preview ») ; transcriber et describer → whisper (seul noté, et c'est
+  fiche est encore la v1 « preview » — *v1 retirée le même jour, R190, cf. ci-dessus*) ; transcriber et describer → whisper (seul noté, et c'est
   aussi le meilleur MESURÉ sur entretiens) ; composer → minimax-music3 (banc AA par `ALIAS` depuis
   le 10/10 : il écrase les a priori déclarés — **régression** du constat du 03/10 plus bas,
   « rapide → MusicGen Small, qualité → YuE2 ») ; enhancer → 4xNomosUni. Vivant : synthesizer,
@@ -291,7 +296,7 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
 - **Extension due** : texte **non horodaté** (OCR par page ou par boîte ; description, résumé,
   génération : alignement par document entier, similarité de séquence de mots). Pas écrite.
 
-### M2 — Accord géométrique ⏳ (nommé comme « prochain consommateur » de M1, jamais écrit)
+### M2 — Accord géométrique 🔄 (support par objet livré le 2026-10-16, `detections.support` ; F1 symétrique ⏳ — titre corrigé le 2026-10-31, il disait « ⏳ … jamais écrit »)
 - **Mesure** : pour des boîtes, masques, points-clés ou boîtes orientées produits par deux modèles
   sur la même image : appariement par IoU (seuil déclaré, 0,5 par défaut, affectation optimale),
   puis **F1 symétrique** (chaque sortie tour à tour référence). Segmentation : IoU de masques ;
@@ -316,7 +321,7 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
   échelle, et l'étage de mesure interne du sélecteur s'abstiendrait (« une échelle ou aucune »). Le F1
   symétrique deux à deux reste à écrire.
 
-### M3 — Métrique à vérité terrain ⏳ (une seule vivante : la magnitude de correction)
+### M3 — Métrique à vérité terrain 🔄 (WER/CER `text_metrics`, cpWER/DER `diarization_metrics`, rappel/précision sur vraies boîtes `bench._bench_boxes`, LPIPS `bench._bench_upscale` livrés, rangés en `ResultEvaluation` ; mAP, PSNR/SSIM ⏳ — titre corrigé le 2026-10-31, il disait « ⏳ une seule vivante : la magnitude de correction »)
 - **Mesure** : (sortie, référence) → nombre, sens déclaré. Par famille :
   transcription **WER/CER** ; OCR **CER** par page ; détection **mAP@0,5** ; classification
   exactitude / F1 ; recherche par embeddings **nDCG@10** sur un jeu déclaré ; agrandissement
@@ -377,7 +382,11 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
 - **Code** : `wama/common/utils/qc.py` (`assess_output_quality`, garde-fous en tête) — 0 appelant,
   `bench` compris (re-vérifié le 27/08, `WAMA_LLM.md §5` ligne 12) ;
   `wama/model_manager/services/vision_probe.py` (description d'image par VLM local, consommée par
-  le banc de légendage et le triage du smoke).
+  le banc de légendage et le triage du smoke). *(Corrigé le 2026-10-31, mesuré : `describe_image_ollama`
+  est devenu le client de vision COMMUN — describer `describer/backends/image_backend.py`,
+  compréhension des références `common/utils/reference_comprehension.py`, outil de l'assistant
+  `tool_api.py`, triage du smoke `common/services/ui_smoke.py:270`, banc de légendage `bench.py` —
+  aucun usage comme JUGE.)*
 
 ### M6 — Accord multi-modèles (consensus) 🔄 (transcription livrée le 2026-09-23)
 - ✅ **Transcription** : `result_evaluation.batch_agreement` — cards d'une même entrée d'un lot,
@@ -392,14 +401,16 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
   trois généralistes, cas mesuré le 2026-08-12 : le meilleur modèle était le plus petit).
 - **Règle** : signal d'attention et départage **à égalité** seulement ; **jamais un tri seul** ; se
   calibre contre M3 là où une vérité existe (le transcriber, dès que le corpus le permet).
-- **Code** : rien ; `bench.run_bench` produit la matière (une sortie par modèle) sans la confronter.
+- **Code** : ~~rien ; `bench.run_bench` produit la matière (une sortie par modèle) sans la confronter.~~
+  `result_evaluation.batch_agreement` (`result_evaluation.py:625`, transcription, 2026-09-23 — cf.
+  ci-dessus) ; rien pour les boîtes (M2 n'est rangé nulle part) ni hors lot *(corrigé le 2026-10-31)*.
 
 ### M7 — Signaux d'usage ✅ (captation générique livrée, gisement encore mince)
 - **Mesure** : des **gestes** — `produit`, `echec`, `telecharge`, `corrige`, `relance`, `supprime` —
   captés par middleware sur les routes de file des 10 apps (`wama/common/middleware.py`,
   `WAMA_MEMORY.md §7bis`) et par le squelette de tâche (`task_skeleton`, `produit`/`echec`/`relance`),
   plus la correction du transcriber à la finalisation. Agrégés **par modèle** sur les exécutions à
-  **un seul** modèle (`run_outcome.par_modele` — sur du multi-modèles, un geste ne dit pas lequel a
+  **un seul** modèle (`run_outcome.by_model` — ex-`par_modele`, renommé ; sur du multi-modèles, un geste ne dit pas lequel a
   démérité).
 - **Ne dit pas** : pourquoi. « Supprimé » ne veut pas dire « mauvais » (en-tête de
   `run_outcome.py`). Un taux de relance ou de correction **par modèle, sur assez d'exécutions, avec
@@ -508,7 +519,7 @@ l'état de la mesure interne aujourd'hui.
 | spécialisation `translation` — translategemma, `TranslatorService` | humaine (rare) | **M10** aller-retour ; M6 entre modèles multilingues | M5 LLM d'une autre famille | — (AA n'expose pas la traduction) | **glossaire** ne-pas-traduire, découpage, modèle | ⏳ |
 | `text-to-speech` — synthesizer, service TTS | par construction : le texte d'entrée | **M10** voix → ASR qualifié → WER ; M4 intelligibilité | M5 (faible : un juge ne « voit » pas la prosodie) | AA Elo TTS, Arena TTS (XTTS : 919, seul du lot) | voix, moteur, paramètres ; M8 (subjectif) | ⏳ |
 | `audio-enhance`, `denoise` — enhancer | **par construction** : bruiter un audio propre → SNR gagné, ou ASR-après vs ASR-avant | M4 DNSMOS | — | — | moteur, paramètres | ⏳ (gratuit à construire) |
-| `detect`, `segment`, `obb`, `pose`, `classify` — anonymizer, cam_analyzer, face_analyzer, banc | **tierce/humaine** : jeux annotés déclarés (`dataset`) ; ⚠ aucune vérité sur les collisions de cam_analyzer (mesuré 13/09) ; **par construction** : le simulateur (`WAMA_APPRENTISSAGE.md §6.4`) | **M2** + **M6** support par objet ; M9 (seuils) | M5 VLM (« y a-t-il un visage ici ? ») — filet RGPD **secondaire** seulement | aucun flux tiers neutre (PwC mort, Roboflow = éditeur) — **mesure interne seule** | couverture de classes (`model_coverage`), seuils de confiance, concepts SAM3 (KIND `concept`, skill `anonymizer-detection.md`), **finetuning** détecteur sur données du labo (§4.3) | M2 ⏳ · saturation ✅ (`bench`) |
+| `detect`, `segment`, `obb`, `pose`, `classify` — anonymizer, cam_analyzer, face_analyzer, banc | **tierce/humaine** : jeux annotés déclarés (`dataset`) ; ⚠ aucune vérité sur les collisions de cam_analyzer (mesuré 13/09) ; **par construction** : le simulateur (`WAMA_APPRENTISSAGE.md §6.4`) | **M2** + **M6** support par objet ; M9 (seuils) | M5 VLM (« y a-t-il un visage ici ? ») — filet RGPD **secondaire** seulement | aucun flux tiers neutre (PwC mort, Roboflow = éditeur) — **mesure interne seule** | couverture de classes (`model_coverage`), seuils de confiance, concepts SAM3 (KIND `concept`, skill `anonymizer-detection.md`), **finetuning** détecteur sur données du labo (§4.3) | ~~M2 ⏳~~ rappel/précision sur WIDER FACE val ✅ (`bench --task detect-boxes`, 2026-10-10/11, lu au tri `model_coverage.py:315-320`) · rappel par contenant ✅ (`detect-recall`) · M2 support 🔄 (`detections.support`) · saturation ✅ (`bench`) *(corrigé le 2026-10-31)* |
 | `depth-estimation` — cam_analyzer, banc | **par construction** : simulateur ; **aval** : `placement_spread` du re-calage du plan de sol (métrique de tâche déjà utilisée par l'app) | **M2** cartes (RMSE invariante d'échelle) | — | — | modèle, résolution d'entrée | banc ✅ (couverture, médiane, focale) · confrontation ⏳ |
 | `text-to-image`, `image-to-image` — imager | quasi nulle (subjectif) | **M10** légende VLM ↔ prompt ; M4 CLIPScore, qualité perceptive ; M9 graines | M5 VLM d'une autre famille | AA Elo / Arena Elo (t2i, image edit) | **skill** `imager-image.md`, `prompt_contract` du modèle, prompt négatif, pas/guidance ; M8 | ⏳ |
 | `text-to-video`, `image-to-video` — imager | quasi nulle | M10 sur trames-clés ; M4 constance temporelle | M5 VLM | AA / Arena Elo (t2v, i2v) | skill `imager-video.md`, contrat, paramètres ; M8 | ⏳ |
@@ -699,18 +710,18 @@ catégorie est un réglage à part) ; où la catégorie vit sur la card.
 
 | # | chaînon | ce qu'il fait | existe ? | où / ce qui manque |
 |---|---|---|---|---|
-| ① | **jeux d'échantillons déclarés** par tâche | un jeu = des entrées + éventuellement des références, **déclaré** (kind `dataset`, provenance réel / synthétique A2), versionné, en français quand ce sont des données du labo | ⏳ | rien de déclaré ; le banc prend un fichier à la main (`--media`). ⚠ Un jeu se choisit sur ce que le catalogue sait faire (leçon MTEB) |
-| ② | **exécution comparative** | le même jeu sur **tous** les modèles capables de la tâche | ✅ partiel | `bench.run_bench` (7 tâches : detect/segment/obb/pose/classify, captioning, depth, text-generation). Un échantillon à la fois ; pas de lot ; pas de nocturne (`nightly_scenarios` n'appelle pas `bench`) |
+| ① | **jeux d'échantillons déclarés** par tâche | un jeu = des entrées + éventuellement des références, **déclaré** (kind `dataset`, provenance réel / synthétique A2), versionné, en français quand ce sont des données du labo | ~~⏳~~ 🔄 | ~~rien de déclaré ; le banc prend un fichier à la main (`--media`)~~ *(corrigé le 2026-10-31)* : références de banc DÉSIGNÉES sous la racine des jeux (`bench --benchmark <nom>` → `<DATASETS>/benchmarks/<nom>/reference.json`, `bench.benchmark_reference` `bench.py:470` ; WIDER FACE val, DIV2K val) ; corpus ASR déclarés en manifestes `dataset` (`manifests/datasets/{summ-re,cfpp,fleurs-cs,madison-simulateur}.json`) ; pas encore « un jeu par tâche ». ⚠ Un jeu se choisit sur ce que le catalogue sait faire (leçon MTEB) |
+| ② | **exécution comparative** | le même jeu sur **tous** les modèles capables de la tâche | ✅ partiel | `bench.run_bench` (~~7 tâches : detect/segment/obb/pose/classify, captioning, depth, text-generation. Un échantillon à la fois ; pas de lot~~ — *corrigé le 2026-10-31 : 12 protocoles, `bench.py:831-849`, dont 4 de qualité sur jeu annoté ou par construction : `detect-recall`, `detect-boxes`, `detect-speed`, `upscale` ; `detect-boxes`/`upscale` parcourent un JEU entier, `--limit` échantillonne, `SAMPLING` `:857`*) ; pas de nocturne (`nightly_scenarios` n'appelle pas `bench`) |
 | ③ | **collecte des SORTIES** | persister ce que chaque modèle a produit (texte, boîtes, carte, fichier), pas seulement les mesures | ⏳ | le banc **jette** les sorties (boîtes) ou les garde en mémoire (texte) ; rien en base. Sans sorties conservées : ni confrontation différée, ni A/B humain, ni calibration |
-| ④ | **confrontation** (M1-M2-M6-M9-M10) | désaccord chiffré entre sorties | 🔄 | M1 ✅ (texte horodaté) ; M2, M6, M9, M10 ⏳ — **calcul pur, constructible sans GPU** |
+| ④ | **confrontation** (M1-M2-M6-M9-M10) | désaccord chiffré entre sorties | 🔄 | M1 ✅ (texte horodaté) ; ~~M2, M6, M9, M10 ⏳~~ M6 ✅ transcription (`result_evaluation.batch_agreement`) ; M2 🔄 (`detections.support`) ; M9, M10 ⏳ *(corrigé le 2026-10-31)* — **calcul pur, constructible sans GPU** |
 | ⑤ | **vérité terrain** — entrée et appariement | faire entrer les références (corrections, corpus externes, dégradations par construction) et les apparier aux entrées | 🔄 | corrections du transcriber ✅ (captées, `correction_magnitude`) ; **corpus externe ✅ (2026-09-23)** : la porte est le port `reference_result` de la CARD (appariement = la card elle-même : son audio + sa référence), posé sur un élément ou un lot — Q6 tranchée ; transcriptions externes lues (SRT, VTT, TXT, DOCX, Sonal) ; résultat d'un AUTRE outil comparable par le port `work_result` ; références par construction (upscale, denoise, OCR, TTS) ⏳ |
 | ⑥ | **métriques** (M3, M4) | (sortie, référence) → nombre au sens déclaré | 🔄 | **WER/CER ✅** (`text_metrics`), mesure CONSERVÉE par élément (`ResultEvaluation` : modèle, échelle + protocole, sens, identité de la référence) par la brique `result_evaluation`, adoptée par le transcriber ; **rappel par CONTENANT ✅ (2026-10-10)** : `bench --task detect-recall --record` — une détection de la classe doit tomber dans un contenant connu (plaque ⊂ véhicule suivi), taux MANQUÉ rangé en `ResultEvaluation` (métrique `miss_<classe>`, protocole `containment_v1`, une ligne par modèle) ; mesure par le MÊME chemin que l'anonymizer (`detection_ensemble`) ; **rappel et précision sur VRAIES boîtes ✅ (2026-10-10)** : `bench --task detect-boxes --benchmark <nom> --record` — la référence DÉSIGNE l'annotation publiée et son format (`common/utils/dataset_formats`, lecteur WIDER FACE) en chemins relatifs sous la racine des jeux (`resolve_remote_root('DATASETS')`, déplaçable), appariement glouton à IoU 0,5, objets `invalid` du jeu ignorés, rappel par TAILLE d'objet ; ligne `ResultEvaluation` (protocole `boxes_iou50_v1`) ; 1er banc : WIDER FACE val (`faces_wider_val_v1`), 19 détecteurs mesurés le 2026-10-11 (meilleur rappel 82,4 %, `yolov9e-face-lindevs` ; `PROSPECTION_PIPELINE §Session du 2026-10-10`, blocs du 11/10) ; le choix automatique de l'anonymizer classe désormais les visages sur cette mesure ; **rapport GÉNÉRÉ** `/reports/anonymizer/` (`scripts/reports/build_anonymizer_report.py`) ; ⚠ l'IoU 0,5 pénalise un détecteur qui encadre la tête au lieu du visage — un critère de FLOUTAGE (couverture, union avec l'IoU) a été **écarté** le 2026-10-11 (Fabien : le gain vient de meilleurs modèles, pas d'un autre critère) ; **VITESSE ✅ (2026-10-11)** : le temps PROPRE d'un détecteur (copie locale, modèle chargé, chauffe écartée — `bench --task detect-speed`, et chaque passe `detect-boxes`/`detect-recall`) n'est PAS une métrique de qualité et n'entre pas en `ResultEvaluation` : il va dans la boucle d'ETA commune (`eta_estimator.record_run`, secondes par `image`, clé de catalogue, empreinte matérielle), comme les jetons du banc LLM. Le curseur rapide/qualité de TOUTES les apps la compare quand tout le lot est chronométré dans une seule unité (`comparable_speeds` → `model_selector.intent_choice`, sinon la VRAM comme avant) ; pour une classe mesurée de `couvrir_classes`, le premier modèle se choisit par la même règle entre rappel et vitesse, au-dessus d'un PLANCHER de rappel que l'app déclare (anonymizer `RECALL_FLOOR` = 90 % du meilleur : sans lui, « Rapide » retenait pour les visages un 2-en-1 qui en trouve 2,6 %). Mesuré le 11/10 : visages 43 à 174 ms par photo, plaques 38 à 431 ms par image de vidéo ; « Rapide » = `yolov9c-face-lindevs` (80 ms, 82,0 %) + EgoBlur plaques (79 ms). ⚠ La vitesse a d'abord été rangée dans `ResultEvaluation.detail` — un magasin parallèle à l'ETA, retiré le jour même (Fabien : *« on ne réinvente rien, on complète et on aligne »*). ⏳ l'ETA du mode auto reste apprise sous une clé unique (`anonymizer:img:auto`) quel que soit l'ensemble retenu ; **LPIPS ✅ (2026-10-14)** : `bench --task upscale --record` (agrandissement par construction, cf. la ligne `upscale` de la matrice §3) — métrique `lpips`, sens `lower`, protocole `bicubic_x<N>_v1`, détail `errors`/`reference_length` en images (le taux de corpus d'`internal_scores` est alors la moyenne) ; poids AlexNet aiguillés sous `MODEL_PATHS['vision']['lpips']` (pas le $HOME) ; mAP, PSNR ⏳ |
-| ⑦ | **juge** (M5) | avis d'un modèle indépendant, **calibré** contre ⑤ | 🔄 | `qc.py` et `vision_probe` présents, 0 consommateur ; calibration impossible tant que ⑤ est vide |
+| ⑦ | **juge** (M5) | avis d'un modèle indépendant, **calibré** contre ⑤ | 🔄 | ~~`qc.py` et `vision_probe` présents, 0 consommateur ; calibration impossible tant que ⑤ est vide~~ *(corrigé le 2026-10-31)* `qc.py` : 0 consommateur (`assess_output_quality`, `common/utils/qc.py:27`, aucun appelant) ; aucun JUGE branché — `vision_probe` sert de client de vision commun, pas de juge ; calibration possible depuis que ⑤ porte des références (SUMM-RE, CFPP, Bonneuil, §9bis) |
 | ⑧ | **agrégation → indice** | par (tâche, modèle) : valeur, échelle, sens, population, version, date → `benchmark_meta` source `internal` | 🔄 | ✅ **LECTURE livrée (2026-09-23)** : `model_manager/services/internal_quality.py` (étage 3, à côté de `model_quality` et `benchmark_sync`) agrège par modèle — taux de corpus, échelle `internal_<métrique>_<protocole>`, sens, rang parmi les modèles mesurés sur les MÊMES références, accumulation dite ; affichée dans la section « Qualité » du détail de modèle. **Rabattue à la lecture, pas écrite** : Q8 vérifiée au code, `sync_benchmarks` REMPLACE `benchmark_meta` entier (`benchmark_sync.synchronize`) — une clé `internal` y serait effacée ; et ne rien écrire garantit Q3 (hors du tri) par construction. Reste : la PROJECTION dans le tri, le jour où Q3 est tranchée. ✅ **Projection LUE (2026-10-14)** : Q3 tranchée, le tri lit `internal_scores` (étage ⑨) ; chaque échelle porte l'empreinte de son jeu de références (`reference_set`) pour que la sélection ne compare que des mesures d'une même population. Historique de cette ligne : la MATIÈRE existe (`ResultEvaluation`, 2026-09-23 : chaque ligne porte déjà modèle, métrique + protocole, sens, référence = population) ; l'agrégation par modèle d'UN lot existe (`batch_evaluation`, taux de corpus) ; reste l'agrégat INTER-lots vers `benchmark_meta` (Q8) — demande explicite de Fabien : « réutiliser cette évaluation comme note de chaque modèle » ; règle de lot déjà écrite dans `_quality_scalars` |
 | ⑨ | **consommation** par la sélection et l'UI | 3ᵉ étage de l'échelle ; cards du model_manager ; heatmap (boucle B) | 🔄 | ✅ **l'étage est BRANCHÉ (2026-10-14, Q3 tranchée par Fabien : générique)** — `model_selector._internal_values`, EN TÊTE de `_quality_scalars` : au moins deux modèles du lot mesurés sur la même échelle ET le même jeu de références, une seule telle échelle (sinon l'étage s'abstient), le sens de l'échelle respecté. Effet mesuré ce jour sur les mesures en base : agrandisseurs ×4 (LPIPS, 1ᵉʳ adoptant — le curseur de l'enhancer était inerte), diarisation (DER, 2 modèles) ; transcription ABSTENUE (WER et CER sur les mêmes références : la métrique principale d'une tâche n'est pas déclarée), détecteurs abstenus dès qu'un lot couvre visages ET plaques. Historique : l'étage était **nommé** dans `_quality_scalars`, vide ; heatmap : divergence prévue en 1ʳᵉ priorité, **rien de branché** (§8.3). **1ʳᵉ projection dans un tri (2026-10-10, à confirmer par Fabien — Q3)** : `model_coverage.couvrir_classes` départage les détecteurs d'une classe par leur taux manqué mesuré, AVANT le proxy de spécialisation, et seulement quand le lot ENTIER de la classe est mesuré sur la même référence (règle de lot) ; rien n'est écrit au catalogue, la note reste calculée (`internal_scores`) |
 | ⑩ | **diagnostic → levier** | attribuer un écart à un levier (modèle fixé, un facteur à la fois) | ⏳ | aucun outillage ; la table §4.2 est la carte |
 | ⑪ | **variante + A/B objectif + adoption gouvernée** | proposer, mesurer sur le même jeu, valider (humain), journaliser | ⏳ | rien ; le contrat `PENDING_HUMAN_VALIDATION` de wama-dev-ai est le modèle |
-| ⑫ | **surveillance et déclenchement** | M7 par modèle, régression N vs N+1 ; candidat au finetuning (A3/A4) | 🔄 | M7 ✅ captation ; agrégation `par_modele` ✅ ; rien ne lit ces agrégats ; A2/A3/A4 ⏳ |
+| ⑫ | **surveillance et déclenchement** | M7 par modèle, régression N vs N+1 ; candidat au finetuning (A3/A4) | 🔄 | M7 ✅ captation ; agrégation `by_model` (ex-`par_modele`) ✅ ; rien ne lit ces agrégats ; A2/A3/A4 ⏳ |
 
 **Ce que la chaîne impose, et qu'aucun chaînon ne peut ignorer** :
 - **③ avant ④** : sans sorties conservées, chaque confrontation exige de rejouer les modèles, donc
@@ -728,7 +739,7 @@ catégorie est un réglage à part) ; où la catégorie vit sur la card.
 |---|---|---|
 | banc par tâche | `wama/model_manager/services/bench.py`, commande `bench` | ② ; protocoles detect/segment/obb/pose/classify (comptes, confiance, saturation), captioning (texte), depth (couverture, médiane, focale), text-generation (débit, prefill, chargement → ETA) |
 | divergence | `wama/common/services/divergence.py`, `manage.py divergence_asr` | ④ M1 (texte horodaté) ; confronte aussi ASR ↔ correction humaine |
-| gestes d'usage | `wama/common/services/run_outcome.py`, `wama/common/middleware.py`, `wama/common/utils/task_skeleton.py` | ⑫ M7 ; `correction_magnitude` (⑥ minimal) ; `par_modele` |
+| gestes d'usage | `wama/common/services/run_outcome.py`, `wama/common/middleware.py`, `wama/common/utils/task_skeleton.py` | ⑫ M7 ; `correction_magnitude` (⑥ minimal) ; `by_model` (ex-`par_modele`) |
 | juge LLM | `wama/common/utils/qc.py` | ⑦ M5 (0 consommateur) |
 | sonde vision | `wama/model_manager/services/vision_probe.py` | ⑦ M5 visuel ; banc de légendage ; triage du smoke (gardé par `WAMA_GPU_SAFE_MODE`) |
 | bancs tiers | `wama/model_manager/services/benchmark_sync.py`, `sync_benchmarks` | l'étage 2 ; **le modèle du schéma d'indice** (échelle, sens, rang, population, alias déclarés) |
@@ -749,7 +760,14 @@ catégorie est un réglage à part) ; où la catégorie vit sur la card.
   ② et ⑦ ne se **jouent** pas ici ; ③, ④, ⑥, ⑧ se **construisent** ici (calcul pur, schéma,
   tests contre des sorties synthétiques ou un faux service — comme le débit du 15/09). Les chiffres
   réels viendront d'une machine où le GPU ne tue pas l'hôte (R760xa).
-- **Le corpus de vérité humaine est quasi vide** (§2 M3) et le corpus externe n'a pas de porte.
+  *(Règle du 15/09 — levée DE FAIT depuis la stabilisation de l'hôte, 2026-09-28/30, cf. Q7 : les
+  bancs WIDER (11/10), LPIPS (14/10) et les campagnes ASR (§9bis) ont été joués sur la RTX 4090 de
+  l'hôte. Daté le 2026-10-31 ; aucune décision écrite ne lève la règle, à confirmer par Fabien.)*
+- ~~**Le corpus de vérité humaine est quasi vide** (§2 M3) et le corpus externe n'a pas de porte.~~
+  *(Corrigé le 2026-10-31 : le corpus de vérité humaine du labo reste MINCE — 2 audios de Fabien —,
+  mais la porte existe, port `reference_result`, Q6 tranchée le 2026-09-23,
+  `result_evaluation.attach_reference` `result_evaluation.py:712` ; et des corpus open data la
+  complètent, SUMM-RE / CFPP / FLEURS-CS / Bonneuil, §9bis.)*
   Rien de ce qui dépend d'une calibration (⑦, M6 pondéré) n'est mûr.
 - **Les bancs tiers ne couvriront jamais la détection** ni les tâches audio/vidéo de l'enhancer : la
   mesure interne y est la seule source.
@@ -765,9 +783,9 @@ catégorie est un réglage à part) ; où la catégorie vit sur la card.
 
 | # | décision | ce qui en dépend | proposition |
 |---|---|---|---|
-| **Q1** | **où vivent les jeux d'échantillons** : manifestes `dataset` (provenance A2) pointant vers la médiathèque ? un dossier de référence sous `AI-models` ? | ① | manifeste `dataset` + fichiers en médiathèque (déjà la voie d'entrée des médias, copie et dédup) ; un jeu par tâche, petit, français, versionné |
+| **Q1** | **où vivent les jeux d'échantillons** : manifestes `dataset` (provenance A2) pointant vers la médiathèque ? un dossier de référence sous `AI-models` ? | ① | manifeste `dataset` + fichiers en médiathèque (déjà la voie d'entrée des médias, copie et dédup) ; un jeu par tâche, petit, français, versionné. 🔄 **Appliqué de fait (constaté le 2026-10-31)** : manifestes `dataset` + médiathèque SYSTÈME (`media_library/system_files.py`, `ingest_system_file`) pour les corpus ASR (2026-09-29) ; racine déplaçable des jeux pour les bancs (`mirror_sync.resolve_remote_root('DATASETS', 'WAMA_DATASETS_ROOT')`, lue par `bench.benchmark_reference`, 2026-10-10) — décision générale à confirmer par Fabien |
 | **Q2** | **persistance des sorties du banc** : une table (`BenchRun` : tâche, jeu, modèle, version, sortie sérialisée ou chemin, mesures) ou des fichiers seuls | ③ ④ ⑧ | une table — c'est ce que confrontent ④ et ce que lit ⑧ ; les fichiers lourds (images, audio) en médiathèque, la ligne pointe. ✅ **Tranché pour les MESURES (Fabien, 2026-09-23)** : table COMMUNE `ResultEvaluation` (une ligne par élément et métrique, le résultat COURANT — la sortie, elle, reste dans l'élément de l'app). La persistance des sorties d'un banc HORS des apps (③) reste ouverte |
-| **Q3** | **l'indice interne entre-t-il dans le TRI**, ou reste-t-il en lecture (phase 1) | ⑨ | lecture d'abord, tri quand une tâche a ≥ N passes sur le même jeu (N à fixer) — même règle que le rang centile. 🔄 **Appliquée à UN cas le 2026-10-10, à confirmer** : le choix des détecteurs d'une classe par l'anonymizer (lot entier mesuré sur la même référence, une passe) — sans elle, le curseur « Équilibré » retenait un YOLO plaques au rappel mesuré de 13 % devant EgoBlur (59,5 %). Revenir en arrière = retirer le terme `_mesure` de `couvrir_classes`. ✅ **TRANCHÉ par Fabien le 2026-10-14 : « étage 3 générique »** — la mesure interne entre dans le tri de TOUTES les sélections (`model_selector._internal_values`, en tête de l'échelle), avec la règle de population (même échelle, même jeu de références, ≥ 2 modèles) et une seule échelle comparable par lot. Le cas de l'anonymizer (`couvrir_classes`) reste le sien. Le « N passes » n'a pas été fixé : une passe complète sur un jeu figé suffit (le jeu EST la population). Déclencheur : le curseur de l'enhancer, inerte faute de toute note de qualité au catalogue |
+| **Q3** | **l'indice interne entre-t-il dans le TRI**, ou reste-t-il en lecture (phase 1) | ⑨ | lecture d'abord, tri quand une tâche a ≥ N passes sur le même jeu (N à fixer) — même règle que le rang centile. 🔄 **Appliquée à UN cas le 2026-10-10, à confirmer** : le choix des détecteurs d'une classe par l'anonymizer (lot entier mesuré sur la même référence, une passe) — sans elle, le curseur « Équilibré » retenait un YOLO plaques au rappel mesuré de 13 % devant EgoBlur (59,5 %). Revenir en arrière = retirer le terme ~~`_mesure`~~ `measured` (`measured_miss_rates`, `model_coverage.py:193`, `:315-320` — relocalisé le 2026-10-31) de `couvrir_classes`. ✅ **TRANCHÉ par Fabien le 2026-10-14 : « étage 3 générique »** — la mesure interne entre dans le tri de TOUTES les sélections (`model_selector._internal_values`, en tête de l'échelle), avec la règle de population (même échelle, même jeu de références, ≥ 2 modèles) et une seule échelle comparable par lot. Le cas de l'anonymizer (`couvrir_classes`) reste le sien. Le « N passes » n'a pas été fixé : une passe complète sur un jeu figé suffit (le jeu EST la population). Déclencheur : le curseur de l'enhancer, inerte faute de toute note de qualité au catalogue |
 | **Q4** | **M8 (vote A/B humain)** : geste ajouté, contraire au principe de `§16.7` — l'admettre pour les tâches subjectives seulement ? | M8, génératifs | admettre, **opt-in**, cantonné aux tâches sans vérité (image, musique, voix), jamais dans le flux normal |
 | **Q5** | **gouvernance de l'auto-amélioration** : humain toujours pour les consignes ; auto-ajustement borné pour les paramètres numériques ? | ⑪ | oui à la séparation ; l'auto-ajustement borné vient **en dernier**, après que M3/M9 aient prouvé la stabilité de la mesure |
 | **Q6** | **porte d'entrée des corpus externes** (audio + transcription tierce + correction manuelle de Fabien) : médiathèque ? commande d'import ? formats acceptés (SRT, VTT, TXT, DOCX ?) | ⑤, calibration de tout juge | ✅ **Tranché (Fabien, 2026-09-23)** : les jeux vivent comme n'importe quel média d'app ; la porte est la CARD — ses ports du RÉSULTAT `reference_result` (comparer la sortie) et `work_result` (reprendre un résultat fait ailleurs), `INPUT_MODEL_MATCHING §6.7` ; l'appariement audio ↔ texte EST la card (plus de convention de nom) ; formats SRT, VTT, TXT, MD, DOCX, PDF, exports Sonal compris (`TRANSCRIBER_CORRECTION §10`) |
@@ -781,15 +799,15 @@ catégorie est un réglage à part) ; où la catégorie vit sur la card.
 
 Chaque palier est **attestable sans GPU** jusqu'au P4 ; chacun livre une brique commune et sa garde.
 
-| palier | contenu | méthodes | sans GPU ? |
-|---|---|---|---|
-| **P0** | trancher Q1, Q2, Q6, Q8 ; déclarer un premier jeu par tâche (transcription, détection, upscale, OCR) | — | oui |
-| **P1** | ③ persistance des sorties du banc ; ④ **M2** (appariement IoU, F1 symétrique, support), **M6** (isolement), M1 non horodaté, **M9** ; tests sur sorties synthétiques | M1 M2 M6 M9 | oui |
-| **P2** | ⑤ vérités **par construction** : upscale (sous-échantillonnage → PSNR/SSIM), denoise (bruitage → SNR), OCR (rendu → image) ; ⑥ métriques ; ⑧ schéma d'indice interne + affichage sur les cards (lecture seule) | M3 | oui (les métriques ; les modèles se jouent ailleurs) |
-| **P3** | ⑤ **porte d'entrée du corpus externe** (Q6) ; WER transcriber ; **calibration** de M1 et du juge de cohérence contre la correction humaine (`§8.5` : précision / rappel de chaque signal) ; branchement de la divergence dans la heatmap (boucle B) | M3 M5 | oui pour l'import et la WER ; la calibration du juge rejoue le LLM |
-| **P4** | ② **nocturne comparative** sur machine stable : scénario `bench` par tâche, tous les modèles capables, jeu déclaré → ③ → ④ → ⑧ ; M10 pour TTS et génératifs | toutes | **non** |
-| **P5** | ⑩ ⑪ boucle d'amélioration : A/B objectif d'un levier (skill, contrat, paramètre) sur le même jeu ; adoption gouvernée (Q5) ; journal | selon tâche | partiellement |
-| **P6** | ⑨ l'indice entre dans le tri (Q3) ; ⑫ agrégats M7 lus par le model_manager ; A2/A3/A4 déclarés, déclencheur de finetuning ASR / détection (§4.3) | — | oui |
+| palier | contenu | méthodes | sans GPU ? | état (ajouté le 2026-10-31, d'après les §2, §5, §8 de ce document) |
+|---|---|---|---|---|
+| **P0** | trancher Q1, Q2, Q6, Q8 ; déclarer un premier jeu par tâche (transcription, détection, upscale, OCR) | — | oui | 🔄 Q6 ✅ (2026-09-23), Q8 ✅ close (2026-10-14), Q2 ✅ pour les mesures ; Q1 appliquée de fait ; jeux déclarés pour la transcription, la détection de visages et l'upscale — OCR ⏳ |
+| **P1** | ③ persistance des sorties du banc ; ④ **M2** (appariement IoU, F1 symétrique, support), **M6** (isolement), M1 non horodaté, **M9** ; tests sur sorties synthétiques | M1 M2 M6 M9 | oui | 🔄 M6 ✅ (transcription), M2 support 🔄 ; ③, F1 symétrique, M1 non horodaté, M9 ⏳ |
+| **P2** | ⑤ vérités **par construction** : upscale (sous-échantillonnage → PSNR/SSIM), denoise (bruitage → SNR), OCR (rendu → image) ; ⑥ métriques ; ⑧ schéma d'indice interne + affichage sur les cards (lecture seule) | M3 | oui (les métriques ; les modèles se jouent ailleurs) | 🔄 upscale par construction ✅ (LPIPS, 2026-10-14, au lieu de PSNR/SSIM) ; ⑧ en lecture ✅ (2026-09-23) ; denoise, OCR ⏳ |
+| **P3** | ⑤ **porte d'entrée du corpus externe** (Q6) ; WER transcriber ; **calibration** de M1 et du juge de cohérence contre la correction humaine (`§8.5` : précision / rappel de chaque signal) ; branchement de la divergence dans la heatmap (boucle B) | M3 M5 | oui pour l'import et la WER ; la calibration du juge rejoue le LLM | 🔄 porte ✅ et WER ✅ (2026-09-23) ; calibration et heatmap ⏳ |
+| **P4** | ② **nocturne comparative** sur machine stable : scénario `bench` par tâche, tous les modèles capables, jeu déclaré → ③ → ④ → ⑧ ; M10 pour TTS et génératifs | toutes | **non** | ⏳ (à la demande seulement, décision du 28/09 ci-dessous) |
+| **P5** | ⑩ ⑪ boucle d'amélioration : A/B objectif d'un levier (skill, contrat, paramètre) sur le même jeu ; adoption gouvernée (Q5) ; journal | selon tâche | partiellement | ⏳ |
+| **P6** | ⑨ l'indice entre dans le tri (Q3) ; ⑫ agrégats M7 lus par le model_manager ; A2/A3/A4 déclarés, déclencheur de finetuning ASR / détection (§4.3) | — | oui | 🔄 ⑨ ✅ (2026-10-14, `model_selector._internal_values`) ; ⑫ lecture des agrégats et A2/A3/A4 ⏳ |
 
 **P4 précisé (Fabien, 2026-09-30) — réévaluer ce qui a CHANGÉ, jamais rejouer le même test.** On
 ne refait pas deux fois une évaluation identique : on change le corpus, on intègre des modèles.
@@ -802,7 +820,8 @@ le reste ne se rejoue pas. *On ne s'occupe que de tenir les modèles et les corp
 qui tranche la question de la « répétition » (`ROUTE §13.9`) : pas d'interface de récurrence pour ça.
 ⏳ Le lancement reste soumis à la décision du 28/09 (*à la demande seulement*, §9bis), à lever.
 
-**Le premier geste rentable, si un seul** : **Q6, la porte d'entrée du corpus de Fabien.** C'est le
+**Le premier geste rentable, si un seul** : **Q6, la porte d'entrée du corpus de Fabien** *(✅ fait le
+2026-09-23 — noté le 2026-10-31)*. C'est le
 seul jeu de vérité humaine disponible, il débloque M3 (WER), la calibration de M1 et de M5, et le
 finetuning ASR — quatre chaînons pour un import.
 
@@ -1142,7 +1161,9 @@ confié à des cards du même lot (mêmes réglages, même référence).
   écrite dans les deux cas (`da7a9a0b`). Corpus du banc tranché par Fabien : **les deux**.
 - Ordre dans le worker (`workers.py:486-498`) aujourd'hui : débruitage → nivellement → VAD (dans
   le moteur). Ne pas l'inverser avant le banc : sur cet entretien, c'est le VAD, pas l'ordre, qui
-  décide du résultat. → voir le banc ci-dessous.
+  décide du résultat. → voir le banc ci-dessous. *(État du 30/09 — l'ordre est aujourd'hui
+  nivellement → débruitage, déclaré par les process : `transcriber/function_specs.py:212-218`
+  (`denoise` dépend de `level`), glu `workers.py:441-447` ; noté le 2026-10-31.)*
 
 **BANC DES PRÉTRAITEMENTS (2026-09-30 → 10-01, 72 cards Whisper, commande `asr_eval_corpus`)** —
 demande de Fabien : fixer l'ordre sur des audios de qualité MOYENNE, et vérifier si une
@@ -1190,6 +1211,10 @@ d'avance, `--leveled-input`). VAD « auto » sauf 5 et 6. WER de corpus (Σ erre
   quand les deux sont demandés ; (b) ne jamais débruiter un audio non nivelé (le débruitage seul
   sur un enregistrement bas rend un texte vide sans prévenir) ; (c) garder le débruitage en
   option, réservée aux fonds très bruyants — rien ne le justifie sur ces corpus.
+  ✅ *(constaté le 2026-10-31)* **(a) et (b) appliquées** : process déclarés `level` → `denoise`
+  (`denoise` `depends_on=('level',)`, `transcriber/function_specs.py:215`), et la glu le dit — « on
+  ne débruite jamais un audio non nivelé » (`workers.py:516-521`, `_level_step`). (c) reste un
+  réglage par défaut (débruitage OPTIONNEL).
 - ⚠ Deux relances de WAMA pendant les traitements (30/09 14:25 et 20:51) ont coupé une tâche
   GPU chacune (#1048, #1118, relancées à la main) ; la file elle-même a survécu (sauvegarde
   RDB de Redis : 35 messages retrouvés).
@@ -1224,7 +1249,8 @@ comme en sortie), ≈ 14 × le temps réel. WER de corpus :
 - Non mesuré : Resemble avec la langue IMPOSÉE (isolerait l'effet acoustique de la dérive de
   langue) ; d'autres réglages de Resemble (force, évaluations).
 - 🔜 Décisions (a)-(c) ci-dessus inchangées ; s'y ajoute (d) : ne pas proposer l'amélioration
-  de l'enhancer comme prétraitement du transcriber.
+  de l'enhancer comme prétraitement du transcriber. *((a) et (b) appliquées depuis, cf. ci-dessus —
+  noté le 2026-10-31.)*
 
 **Suite (2026-10-21) — « sans nivellement 44,5 %, avec 65,2 % » sur le lot #489 : ce n'est PAS le
 nivellement.** Question de Fabien, sur l'entretien de Bonneuil (141 min, même référence). Les deux
@@ -1414,7 +1440,7 @@ langue « Auto », VAD auto, sans débruitage ; WER moyen par enregistrement :
   rien d'une file de modèles différents : seule une campagne mélangée l'éprouve.*
 - Non mesuré : CFPP (LinTO biaisé, et les entretiens longs coûtent ~1 h de GPU par card Kyutai).
 
-#### ⏳ Rapports d'évaluation GÉNÉRÉS — à construire sur l'exemple de la transcription (demande de Fabien, 2026-10-03)
+#### 🔄 Rapports d'évaluation GÉNÉRÉS — à construire sur l'exemple de la transcription (demande de Fabien, 2026-10-03) — *celui des détecteurs de l'Anonymizer est généré depuis `ResultEvaluation` (`scripts/reports/build_anonymizer_report.py`, 2026-10-11) ; celui de la transcription reste une graine recopiée (`build_transcription_report.py:10-12`) — statut corrigé le 2026-10-31, il disait ⏳*
 
 Le rapport « Évaluation des moteurs de transcription » a été fait À LA MAIN du 29/09 au 02/10 :
 rédigé dans Claude Docs, chiffres relevés en base par des scripts de session, puis figé en page

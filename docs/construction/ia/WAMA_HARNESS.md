@@ -139,7 +139,7 @@ déchargement (*offloading*), isolation, récupération, compaction, cache.
 
 | standard | état 2026-09 | WAMA |
 |---|---|---|
-| **MCP** | spécification **2026-07-28** : cœur sans état, requêtes multi-allers-retours, routage par en-têtes (`Mcp-Method`, `Mcp-Name`), **résultats de liste cachables** (`ttlMs`, `cacheScope`). Un **serveur** expose `resources`, `prompts`, `tools` ; un **client** expose `sampling`, `roots`, `elicitation` | serveur ✅ **mais outils SEULS** (`list_tools`/`call_tool`, `mcp_server.py:209,217`) — ni `resources` ni `prompts`. Client ⏳ (`ROADMAP §8d Ph3 étape 5`) → **écart 10** |
+| **MCP** | spécification **2026-07-28** : cœur sans état, requêtes multi-allers-retours, routage par en-têtes (`Mcp-Method`, `Mcp-Name`), **résultats de liste cachables** (`ttlMs`, `cacheScope`). Un **serveur** expose `resources`, `prompts`, `tools` ; un **client** expose `sampling`, `roots`, `elicitation` | serveur ✅ **mais outils SEULS** (`list_tools`/`call_tool`, `mcp_server.py:213,221`) — ni `resources` ni `prompts`. Client ~~⏳~~ 🔄 (`ROADMAP §8d Ph3 étape 5`) : client MCP INTERNE de l'assistant vers la surface `wama-dev` depuis le 2026-09-22 (`common/services/mcp_client.py`, appelé par la boucle `assistant_engine.py:2332-2334`, `:2612`) ; consommer un serveur MCP TIERS ⏳ (corrigé le 2026-10-31) → **écart 10** |
 | ⚠ **MCP `sampling`** | **DÉPRÉCIÉ** au 2026-07-28 (SEP-2577) : *les nouvelles implémentations NE DEVRAIENT PAS l'adopter*, les existantes devraient migrer vers un appel direct au fournisseur | **piège évité de justesse** : « le serveur MCP demande une complétion au client » est le genre d'idée qu'on aurait proposée comme moderne. Elle est morte trois semaines avant cette cartographie. *Un fait externe non daté est un fait faux en puissance* |
 | **AGENTS.md** | convention devenue commune à plusieurs harnais (Codex, Copilot, autres) | ✅ **déjà en place, et mieux découpé** : `AGENTS.md` = doctrine lisible par tout agent ; `CLAUDE.md` = le harnais Claude Code seul. Rien à faire |
 | **Agent Skills / règles** | convergence générale : un dossier de consignes versionnées, chargées par description ou par portée | ✅ **en avance** : deux natures distinctes et assumées (`common/prompt_skills/` résolu par le CODE pour un modèle qui ne sait pas choisir ; `.claude/skills/` choisi par l'agent d'après sa description) + un écrivain (`/skill-forge`) + un contrôle (`check_skills`) |
@@ -161,17 +161,17 @@ déchargement (*offloading*), isolation, récupération, compaction, cache.
 | # | axe | ce que fait l'état de l'art | WAMA, mesuré | écart |
 |---|---|---|---|---|
 | 1 | **boucle de contrôle** | 11/13 composent plusieurs primitives (ReAct, plan-exécute, générer-tester-réparer, reprise, arbre) | ReAct simple, ~~5 tours max (`assistant_engine.py:694`)~~ **8 appels d'outils puis un dernier appel sans outil pour répondre** (`MAX_TOOL_ITERATIONS`, depuis le 2026-10-05 — remesuré le 28/10), pas de reprise sur échec d'outil : un outil qui rend une erreur repart tel quel au modèle (`:726-734`) | **une seule primitive** |
-| 2 | **approbation humaine** | déclarée hors du code de l'outil : `approval_policy` (Codex), Plan/Act (Cline), interruptions (deepagents), `pre_tool_call` → `block`/`approve` (Hermes) | **autorisation ✅, approbation ✗** — et il faut séparer deux cas (mesuré 2026-09-20). **Ajouter une capacité** est déjà fermé : `install_model` est gardé `model_manager`, dont `AppAccessPolicy.min_tier` vaut **`developpeur`**. **Agir sur ses propres données** ne l'est pas : `_refus_app()` répond « peut-il agir dans cette app » (`tool_api.py:2901`), puis l'exécution est immédiate (`assistant_engine.py:726`) ; `grep -c confirm` sur `home.html` → **0** | **écart 1** (recadré) |
+| 2 | **approbation humaine** | déclarée hors du code de l'outil : `approval_policy` (Codex), Plan/Act (Cline), interruptions (deepagents), `pre_tool_call` → `block`/`approve` (Hermes) | **autorisation ✅, approbation ✗** — et il faut séparer deux cas (mesuré 2026-09-20). **Ajouter une capacité** est déjà fermé : ~~`install_model` est gardé `model_manager`, dont `AppAccessPolicy.min_tier` vaut **`developpeur`**~~ *(corrigé le 2026-10-31, mesuré : depuis le 2026-10-14, `a44b890a`, les outils de gestion des modèles relèvent de `registries` — `tool_api.py:4232-4236` — et le geste est refusé DANS LE CORPS hors développeur : `_registry_management_refusal` `tool_api.py:2247` → `can_manage_registries` `accounts/permissions.py:326`, décidé par le niveau du PROFIL)*. **Agir sur ses propres données** ne l'est pas : `_refus_app()` répond « peut-il agir dans cette app » (`tool_api.py:3389`), puis l'exécution est immédiate (`assistant_engine.py:726`) ; `grep -c confirm` sur `home.html` → **0** | **écart 1** (recadré) |
 | 3 | **planification** | mode plan séparé de l'exécution (Claude Code, Cline, OpenCode) | aucun côté assistant. Le plan EXISTE ailleurs, sous forme déclarative : `StudioPipeline` (nœuds typés, exécution topologique) | l'assistant ne sait pas **proposer** un plan |
-| 4 | **sous-agents** | délégation à fenêtre de contexte **isolée** (deepagents, Goose, Claude Code) | **0 occurrence** de « sous-agent » dans `ROADMAP.md` + `WAMA_LLM.md` | **écart 3** |
-| 5 | **surface d'outils** | 0 à 37 outils ; Pi en expose 4 | **71** (`len(TOOL_REGISTRY)`, mesuré ce jour ; la doc disait 69 au 12/09, +2 le 19/09) | pas un retard — une **nature** (surface métier). Mais 71 descriptions par prompt système |
-| 6 | **registre de fournisseurs** | entrée déclarative par fournisseur : adresse, clé, protocole, **reprises et délais** | ✅ `external_sources.ExternalSource` porte `base`/`setting`/`env`/`api_key_env`/`hosting`/`cost_tier` **et `protocol`** (= le `wire_api` de Codex) `external_sources.py:91-127`. ✗ mais **deux tables coexistent** : `CLOUD_DEFAULT_MODELS` (9 fournisseurs, dont **8 sans entrée** au registre) et `OPENAI_COMPATIBLE_PROVIDERS = {'albert': 'albert'}` — **dérivable** de `protocol == 'openai'` (`llm_utils.py:256-270`). ✗ aucun délai ni reprise par fournisseur (`timeout=180.0` en signature, `llm_utils.py:291`) | **écart 5** |
+| 4 | **sous-agents** | délégation à fenêtre de contexte **isolée** (deepagents, Goose, Claude Code) | **0 occurrence** de « sous-agent » dans `ROADMAP.md` + `WAMA_LLM.md` *(état du 19/09)*. ✅ **2026-10-29** — délégation en lecture seule : verbe `delegate` de la boucle (`DELEGATE_TOOL`, `assistant_engine.py:1384` ; `_delegate` `:1893`), contexte neuf, profondeur 1 (`MAX_AGENT_DEPTH`), couloirs par serveur, council — §7.4 (remesuré le 2026-10-31). Présélection d'outils / `tool_search` toujours ouverts | **écart 3** 🔄 |
+| 5 | **surface d'outils** | 0 à 37 outils ; Pi en expose 4 | **71** (`len(TOOL_REGISTRY)`, mesuré le 19/09 ; la doc disait 69 au 12/09, +2 le 19/09) — **90 au 2026-10-28** (§9, « sous-agents ») | pas un retard — une **nature** (surface métier). Mais 71 descriptions par prompt système |
+| 6 | **registre de fournisseurs** | entrée déclarative par fournisseur : adresse, clé, protocole, **reprises et délais** | ✅ `external_sources.ExternalSource` porte `base`/`setting`/`env`/`api_key_env`/`hosting`/`cost_tier` **et `protocol`** (= le `wire_api` de Codex) `external_sources.py:91-127`. ✗ mais **deux tables coexistent** : `CLOUD_DEFAULT_MODELS` (9 fournisseurs, dont **8 sans entrée** au registre) et `OPENAI_COMPATIBLE_PROVIDERS = {'albert': 'albert'}` — **dérivable** de `protocol == 'openai'` (`llm_utils.py:256-270`). ✗ aucun délai ni reprise par fournisseur (`timeout=180.0` en signature, `llm_utils.py:291`) *(état du 19/09)*. ✅ **Refermé le 2026-10-11** (chantier 5, R113) : les deux tables n'existent plus dans `wama/` — `llm_utils.declared_llm_source` / `openai_compatible_source` / `default_cloud_model` (`llm_utils.py:324-360`) les dérivent du registre (remesuré le 2026-10-31) | **écart 5** ✅ |
 | 7 | **isolation d'exécution** | point de **convergence** de tous les harnais : bac à sable OS, conteneur, VM | WAMA n'exécute **pas** de code arbitraire pour l'utilisateur : les outils sont des **verbes métier** fermés. Le seul chemin d'exécution large est `ask_claude_code`, gardé développeur **dans son corps** et en lecture seule par défaut (`claude_code.py:102-237`) | **rien à faire — frontière voulue** (§6) |
-| 8 | **standards** | MCP serveur (resources/prompts/tools) + client | serveur = **outils seuls** (`mcp_server.py:209,217`) ; client ⏳ ; `AGENTS.md` ✅ | **écart 10** |
+| 8 | **standards** | MCP serveur (resources/prompts/tools) + client | serveur = **outils seuls** (`mcp_server.py:213,221`) ; client 🔄 (interne, surface `wama-dev`, 2026-09-22 — `mcp_client.py` ; serveur MCP tiers ⏳ ; corrigé le 2026-10-31) ; `AGENTS.md` ✅ | **écart 10** |
 | 9 | **index du domaine** | plongements vectoriels du dépôt (Cursor), carte mécanique (Aider), graphe (Windsurf) | **15 registres** (`registries.py::overview`), `WAMA_MECANISMES` généré depuis `mecanismes.py`, `doc_facts`, `docs_catalog` — un index **déclaré**, jamais deviné | **en avance conceptuellement** ; l'assistant n'y accède que par `list_registries` |
-| 10 | **contexte** | écrire / choisir / **compresser** / **isoler** ; compaction auto à ~95 % ; déchargement des gros résultats d'outils vers un FS | troncature fixe `[-20:]` (`assistant_engine.py:661`) + **escalade de modèle** `_route_model_by_context` (`:258`) — mais appelée **une seule fois, AVANT la boucle** (`:670`) et **seulement sur le chemin local**, pendant que chaque résultat d'outil est réinjecté **brut** par `json.dumps` (`:733`) | **écart 2** |
-| 11 | **persistance de session** | format unique repris par toutes les surfaces | ✅ **les trois surfaces partagent le store serveur** (mesuré 2026-09-20) : `views.py:166`, `api/v1/views.py:132`, `gateway/core.py:208` appellent tous `conversation_turn` ; l'historique `localStorage` est mort et effacé (`home.html:101-102`). MCP n'en a pas — il n'exécute aucun tour | **écart 4 REFERMÉ** ⚠ ma 1ʳᵉ version citait la doc, pas le code |
-| 12 | **observabilité** | traçage comme **primitive** (Agents SDK) ; flux action/observation (OpenHands) | `tool_steps` persisté par tour (`models.py:1145`) sur les trois surfaces (cf. axe 11) — mais **rien n'en fait une mesure** : aucune vue, aucun agrégat ; `cost_usd` accumulé (`assistant_engine.py:704`). Aucune latence, aucun taux d'échec par outil, aucune vue | **écart 6** |
+| 10 | **contexte** | écrire / choisir / **compresser** / **isoler** ; compaction auto à ~95 % ; déchargement des gros résultats d'outils vers un FS | troncature fixe `[-20:]` (`assistant_engine.py:661`) + **escalade de modèle** `_route_model_by_context` (`:258`) — mais appelée **une seule fois, AVANT la boucle** (`:670`) et **seulement sur le chemin local**, pendant que chaque résultat d'outil est réinjecté **brut** par `json.dumps` (`:733`) *(lignes du 19/09)*. ✅ **Refermé le 2026-10-28** (`61e3e947`, chantier 1) : résultat borné à `TOOL_RESULT_CHARS = 24_000` en le disant (`assistant_engine.py:1943`, injection `:2644`) et bascule rejugée après chaque résultat (`:2660`) — remesuré le 2026-10-31 | **écart 2** ✅ |
+| 11 | **persistance de session** | format unique repris par toutes les surfaces | ✅ **les trois surfaces partagent le store serveur** (mesuré 2026-09-20) : `views.py:326` (et `:562` pour le flux), `api/v1/views.py:133`, `gateway/core.py:245` appellent tous `conversation_turn` ; l'historique `localStorage` est mort et effacé (`home.html:53-54`) *(lignes remesurées le 2026-10-31)*. MCP n'en a pas — il n'exécute aucun tour | **écart 4 REFERMÉ** ⚠ ma 1ʳᵉ version citait la doc, pas le code |
+| 12 | **observabilité** | traçage comme **primitive** (Agents SDK) ; flux action/observation (OpenHands) | `tool_steps` persisté par tour (`common/models.py:2062`, écriture `conversation_store.py:92`) sur les trois surfaces (cf. axe 11) — mais **rien n'en fait une mesure** : aucune vue, aucun agrégat ; `cost_usd` accumulé (`assistant_engine.py:2449`) *(lignes remesurées le 2026-10-31)*. Aucune latence, aucun taux d'échec par outil, aucune vue | **écart 6** |
 | 13 | **économie / cache** | cache de prompt côté fournisseur ; listes MCP cachables (`ttlMs`) | **0 occurrence** de `cache_control` dans `wama/` ; le prompt système (outils + contexte + skills) est renvoyé entier à chaque tour | **écart 9** |
 | 14 | **mémoire procédurale** | skills par description, règles par portée, règles écrites par l'agent | ✅ **deux natures assumées** (`prompt_skills/` résolu par le code ; `.claude/skills/` choisi par l'agent), **11 skills de prompt** (12 fichiers moins le README), un écrivain (`/skill-forge`) et un contrôle (`check_skills`) | **en avance** — rien à prendre |
 
@@ -200,7 +200,7 @@ contrôle sur ce qui existe déjà**.
 
 | | **(a) AJOUTER une capacité** (modèle, librairie, app) | **(b) AGIR sur SES PROPRES données** (`delete_item`, `duplicate_item`, `clear_my_queue`) |
 |---|---|---|
-| état **mesuré** le 2026-09-20 | **déjà fermé** : `search_models` et `install_model` sont gardés sur l'app `model_manager` (`tool_api.py:3345-3346`), et `AppAccessPolicy` donne à `model_manager` **`min_tier='developpeur'`** — relevé en base : c'est l'une des **4 apps** sur 19 à porter ce palier (avec les jumelles de bac à sable `*_01`) | **ouvert** : le modèle émet l'appel (`assistant_engine.py:707`), `execute_tool` s'exécute **immédiatement** (`:726`), la vue réelle de l'app est POSTée par requête synthétique (`tool_api.py:2928-2944`) ; **0 occurrence** de `confirm` dans `home.html` |
+| état **mesuré** le 2026-09-20 | **déjà fermé** : `search_models` et `install_model` sont gardés sur l'app `model_manager` (`tool_api.py:3345-3346`), et `AppAccessPolicy` donne à `model_manager` **`min_tier='developpeur'`** — relevé en base : c'est l'une des **4 apps** sur 19 à porter ce palier (avec les jumelles de bac à sable `*_01`). ⚠ **Périmé depuis le 2026-10-14** (`a44b890a`, corrigé le 2026-10-31) : `search_models`, `install_model`, `prospect_models`, `get_install_options` relèvent de `registries` (`tool_api.py:4232-4236`, la LECTURE) et le geste est refusé dans le corps hors développeur (`_registry_management_refusal`, `tool_api.py:2247` → `can_manage_registries`, `accounts/permissions.py:326` = `is_developer` : le PROFIL décide) | **ouvert** : le modèle émet l'appel, `execute_tool` s'exécute **immédiatement** (`assistant_engine.py:2614`), la vue réelle de l'app est POSTée par requête synthétique (`_poster_vue`, `tool_api.py:3409`) ; **0 occurrence** de `confirm` dans `home.html` *(lignes remesurées le 2026-10-31)* |
 | gravité réelle | **faible aujourd'hui** — un utilisateur ordinaire ne peut pas faire entrer une capacité dans WAMA | **moyenne** — destructif, mais borné à ce que l'utilisateur possède déjà et pourrait supprimer d'un bouton |
 | ce qui reste à faire | **rien tant que c'est dev-only** ; tout le jour où on ouvre (voir ci-dessous) | une confirmation avant exécution |
 
@@ -211,6 +211,13 @@ ne prenne le relais. C'est exactement le défaut déjà nommé pour la médiath�
 `WAMA_LLM.md` — *une garde qui dépend d'une politique modifiable ne protège pas ce qu'elle a l'air
 de protéger, elle le rend fragile.* **Le besoin d'approbation n'est donc pas hypothétique : il est
 à un clic d'admin.**
+
+> ⚠ **Corrigé le 2026-10-31 (mesuré)** — le paragraphe ci-dessus est l'état du 20/09. Depuis le
+> 2026-10-14 (`a44b890a`), ce qui garde (a) n'est plus une politique d'app en base mais une
+> **règle de code** : `_registry_management_refusal` (`tool_api.py:2247`), appelée dans le corps
+> des outils de gestion, refuse hors `can_manage_registries` (`accounts/permissions.py:326`), donc
+> le **niveau du profil**. Le constat de fond tient à moitié : ce niveau est lui aussi modifiable
+> par un admin — passer un compte en développeur ouvre l'ajout de capacité sans approbation.
 
 ⭐ **Position de Fabien (2026-09-20), à tenir comme cadre** : *« le jour où on permet à un
 utilisateur d'ajouter des capacités dans WAMA, il faut une approbation »*. Donc l'approbation de
@@ -226,8 +233,8 @@ Cline sépare Plan et Act ; deepagents interrompt.
 
 **⭐ La brique existe déjà chez nous, trois fois, et jamais sur les outils** :
 `MemoryItem.approved=False` par défaut, un souvenir non approuvé étant **invisible au rappel**
-(`memory/store.py:104`) · `AIModel.is_proposed` — *« un candidat est une PROPOSITION, visible sur
-la page et rejetable d'un clic »* (`prospector.py:879`) · `dry_run` dans **12 modules**
+(`memory/store.py:108`) · `AIModel.is_proposed` — *« un candidat est une PROPOSITION, visible sur
+la page et rejetable d'un clic »* (`prospector.py:1834`) · `dry_run` dans **12 modules**
 (`purge_media`, `restore_backup`, `rotate_secrets`, `sync_memory`, `mirror_sync`…).
 **La doctrine « l'agent propose, l'humain valide » est écrite partout et câblée nulle part sur le
 chemin de l'assistant.**
@@ -259,6 +266,11 @@ lignes citées ci-dessus sont celles du 19/09 : l'injection vit aujourd'hui dans
 
 ### Écart 3 — Pas de sous-agents : 71 outils dans un seul contexte
 
+> 🔄 **2026-10-29 — sous-agents en lecture seule LIVRÉS** (§7.4 étapes 0 à 5 : `delegate`,
+> couloirs par serveur, council, « Auto » au cran Qualité). Reste : la présélection d'outils par
+> requête (ci-dessous) et l'approbation avant d'ouvrir l'écriture à un sous-agent (chantier 2).
+> Les chiffres ci-dessous sont ceux du 19/09 — 90 outils au 2026-10-28 (§9). *(Ajouté le 2026-10-31.)*
+
 **Mesuré** : 0 occurrence de la notion dans nos documents ; 71 outils exposés au même prompt.
 Les harnais de l'état de l'art tiennent entre 4 et 37 outils et **isolent** dès que ça dépasse.
 
@@ -288,17 +300,22 @@ qu'une similarité seule, et une mesure (tours où l'outil utile manquait) avant
 
 | surface | appel | ligne |
 |---|---|---|
-| web | `conversation_turn(user, message, surface='web', …)` | `wama/views.py:166` |
-| API v1 | `conversation_turn(request.user, message, surface='api', …)` | `wama/api/v1/views.py:132` |
-| canaux (Discord) | `conversation_turn(user, invite, surface=msg.channel, …)` | `wama/gateway/core.py:208` |
+| web | `conversation_turn(user, message, surface='web', …)` | `wama/views.py:326` (flux : `:562`) |
+| API v1 | `conversation_turn(request.user, message, surface='api', …)` | `wama/api/v1/views.py:133` |
+| canaux (Discord) | `conversation_turn(user, invite, surface=msg.channel, …)` | `wama/gateway/core.py:245` |
+
+*(Lignes remesurées le 2026-10-31 ; le 20/09 : `views.py:166`, `api/v1/views.py:132`, `gateway/core.py:208`.)*
 
 Et l'historique navigateur est **mort et nettoyé**, pas seulement inutilisé :
 `home.html:101-102` — *« localStorage n'a plus de lecteur — elle est effacée »* + un
-`removeItem` de l'ancienne clé. Ce qui reste en `localStorage` est le **seul réglage de voix**
-(`:107,188`), qui est bien une préférence propre au navigateur.
+`removeItem` de l'ancienne clé. ~~Ce qui reste en `localStorage` est le **seul réglage de voix**
+(`:107,188`), qui est bien une préférence propre au navigateur.~~ *(Corrigé le 2026-10-31,
+mesuré : plus rien en `localStorage` — la voix est une préférence DURABLE depuis le 2026-09-22,
+`assistant/params.py` `voice`, et son ancienne clé est effacée elle aussi, `home.html:58-61` ;
+l'historique, `home.html:51-54`.)*
 
 **Reste, et c'est tout** : MCP n'a pas d'historique — mais MCP **n'exécute pas de tour
-d'assistant** (il expose des outils, `mcp_server.py:209,217`), donc ce n'est pas une divergence,
+d'assistant** (il expose des outils, `mcp_server.py:213,221`), donc ce n'est pas une divergence,
 c'est une absence d'objet. **Cet écart est refermé** ; le chantier `ROADMAP §8d Phase 3` garde les
 autres divergences de la table §A (choix du modèle, fichiers, commandes, voix), pas celle-ci.
 
@@ -307,6 +324,11 @@ principe et le plus périmé sur les faits. Une analyse qui lit nos docs sans li
 de nos propres retards de doc.*
 
 ### Écart 5 — Deux tables de fournisseurs coexistent
+
+> ✅ **Refermé le 2026-10-11** (chantier 5 du §9, `REMOVAL_LEDGER` R113) — les lignes ci-dessous
+> sont celles du 19/09. `CLOUD_DEFAULT_MODELS` et `OPENAI_COMPATIBLE_PROVIDERS` n'existent plus
+> dans `wama/` ; `llm_utils.declared_llm_source` / `openai_compatible_source` /
+> `default_cloud_model` (`llm_utils.py:324-360`) les dérivent du registre. *(Ajouté le 2026-10-31.)*
 
 **Mesuré** : `external_sources` déclare 3 fournisseurs LLM avec leur `protocol` ;
 `CLOUD_DEFAULT_MODELS` en liste **9**, dont **8 n'ont aucune entrée au registre**
@@ -325,8 +347,8 @@ valeur** (`responses`) — le « `chat` ou `responses` » qu'on nous citait est 
 ### Écart 6 — Aucune trace exploitable de ce que l'assistant a fait
 
 **Mesuré (corrigé le 2026-09-20)** : `tool_steps` **est** persisté par tour, et sur les trois
-surfaces depuis que toutes passent par `conversation_turn` (cf. écart 4) — `models.py:1145`,
-écriture `conversation_store.py:79`. **La matière première existe donc déjà.** Ce qui manque n'est
+surfaces depuis que toutes passent par `conversation_turn` (cf. écart 4) — `common/models.py:2062`,
+écriture `conversation_store.py:92` *(lignes remesurées le 2026-10-31)*. **La matière première existe donc déjà.** Ce qui manque n'est
 pas l'écriture, c'est **tout ce qui en ferait une mesure** : le pas de temps (aucune durée par
 appel d'outil), le verdict (aucun champ ne dit si l'appel a abouti — l'échec est **dans le corps** du résultat,
 donc illisible sans réinterpréter chaque outil : `assistant_engine.py:727`), et le
@@ -351,6 +373,15 @@ risque ; avec l'approbation, ça redevient un confort.
 
 ### Écart 8 — Aucun retour en direct
 
+> ✅ **Refermé pour le web — 2026-09-26 (local) / 2026-10-04 (distant déclaré)** : flux SSE des
+> fragments ET des étapes (`views.py:513` `ai_chat_stream`, `StreamingHttpResponse` en
+> `text/event-stream` `:586` ; chaque étape publiée dès qu'elle est jouée,
+> `on_event({'type': 'step', …})` `assistant_engine.py:2639` ; chemin distant par
+> `chat_with_source(on_delta=…)` `:871`) — `WAMA_LLM.md` §1bis leviers 5 et ③. Reste : l'abonnement
+> Claude Code (synchrone), l'API v1 et Discord (sans écouteur), et les étapes des sous-agents à
+> l'écran (§7.4 étape 4). Le paragraphe ci-dessous est l'état du 19/09 ; « 5 tours » vaut **8**
+> depuis le 2026-10-05 (`MAX_TOOL_ITERATIONS`, `:1365`). *(Ajouté le 2026-10-31.)*
+
 **Mesuré** : aucune réponse en flux côté assistant (aucun `StreamingHttpResponse` ni
 `text/event-stream` dans `wama/` hors la sonde MCP) ; les étapes d'outils sont affichées **après**
 le tour (`home.html`, alors). Avec un modèle local et jusqu'à 5 tours d'outils, l'utilisateur
@@ -365,7 +396,7 @@ contexte + skills) repart entier à chaque tour, y compris sur les chemins factu
 
 ### Écart 10 — Le serveur MCP n'expose que des outils
 
-**Mesuré** : `list_tools` / `call_tool` seulement (`mcp_server.py:209,217`). La spécification
+**Mesuré** : `list_tools` / `call_tool` seulement (`mcp_server.py:213,221`, remesuré le 2026-10-31). La spécification
 2026-07-28 prévoit aussi `resources` et `prompts` côté serveur. Nos **15 registres** et nos docs
 (`docs_catalog`) sont exactement ce qu'on appelle des *resources* : un client tiers pourrait les
 lire sans qu'on écrive un outil par registre. ⚠ En revanche **`sampling` est déprécié** depuis
@@ -710,7 +741,7 @@ code** passe par les rôles de développement en tâche de fond (`dev_run_role`,
 | 1 | socle : `run_assistant_turn` gagne outils autorisés, nombre d'itérations, échéance, profondeur — **défauts qui laissent le comportement actuel inchangé** ; propagés au jumeau `_invented_turn` ; aucun outil `dev_*` ; exécution **synchrone et séquentielle** d'abord (le parent attend de toute façon ; un seul GPU ; broker `memory://` hors côté autorisé) | ✅ 2026-10-29 : `allowed_tools` (liste du prompt **et** déclaration native réduites — `build_tools_list(names)` coupe la liste déjà construite, sans recalcul ; un outil hors bornes est refusé **avant** `execute_tool`, le refus entre à la trace ; pas d'annonce des compétences sans `charger_competence`), `max_iterations`, `deadline` (horloge monotone, lue seulement si une échéance est posée ; passée, dernier appel sans outil avec `_DEADLINE_PROMPT`), `depth` (`MAX_AGENT_DEPTH = 1` ; au-delà de 0, les outils sont **ramenés** à `sub_agent_tools()` quoi que l'appelant demande — la lecture seule tient dans le moteur, pas chez l'appelant). Garde `tests_turn_bounds` (13 tests, 10 contre-épreuves rouges) |
 | 2 | l'outil de délégation. ⚠ Tout ce qui entre dans `TOOL_REGISTRY` est aussi servi par MCP et `/api/v1/tools/` : l'appel doit être **impossible** hors d'un tour d'assistant — de préférence par construction (un verbe de la boucle, aiguillé par son nom comme les `dev_*`), sinon par une garde de contexte du tour | ✅ 2026-10-29 : `delegate(task, domain)` est un verbe de la boucle (`DELEGATE_TOOL`, hors `TOOL_REGISTRY` — garde `tests_delegation`), annoncé et accepté seulement si `run_assistant_turn(can_delegate=True)` et hors abonnement. Jamais à un sous-agent, **par construction** : ses outils sont des lectures du registre, où `delegate` n'est pas (une condition de profondeur écrite en plus s'est révélée MORTE à la contre-épreuve, et a été retirée). Le sous-agent (`_delegate`) : tour de la même boucle, contexte neuf, profondeur 1 donc lecture seule, `SUB_AGENT_MAX_ITERATIONS = 5`, échéance `SUB_AGENT_SECONDS = 300` bornée par celle du parent (des choix de départ, non mesurés), même fournisseur et même modèle, domaine du registre hors développement. Le parent ne lit que le **rapport** ; les étapes du sous-agent vont à la trace (`sub_agents`, depuis l'étape 2 bis), l'usage s'additionne. ⚠ Trou de l'étape 1 fermé au passage : sur l'**abonnement**, Claude Code tourne sa propre boucle avec tous les outils du compte par MCP (`_claude_code_call`) — un tour borné y aurait écrit ; il est désormais refusé avant tout appel |
 | 2 bis | le **parallèle**, par serveur (décision de Fabien du 29/10, ci-dessous) : les sous-agents d'un même appel partent ensemble, chacun vers son serveur — le local et les clouds souverains disponibles (Albert, ILaaS) —, et le tour attend le plus lent, non la somme. Le profil d'exposition se juge par sous-agent, les limites de débit déclarées (`rate_limit_wait_s`) s'appliquent | ✅ 2026-10-29 : `delegate(tasks=[…])` lance une **vague** ; chaque tâche prend un **couloir** — un serveur, donc une source du catalogue (`_sub_agent_lanes`) : le premier est le modèle du tour, les suivants le **tirage commun rejoué** en écartant les sources prises (même lot `agent_candidates`, même admission `allowed_cloud_keys` : c'est le profil qui dit jusqu'où une requête sort, aucune règle « souverain » écrite à côté), abonnement exclu. Les couloirs tournent en même temps (un fil chacun, connexions refermées), les tâches d'un même couloir l'une après l'autre ; un profil « 100 % local » n'a qu'un couloir et la vague redevient séquentielle. La panne d'un sous-agent devient son rapport, le tour continue. **Mesuré le jour même** (`fabien.moreau` — `fmoreau` est en « 100 % local » —, messages uniques : la première passe était servie par un cache de réponses, 0,2 s par appel) : 3 modèles d'Albert en simultané, **aucun refus** (6,0 s contre 8,7 s en série) ; un appel par serveur (local `gemma4:e4b`, Albert `gpt-oss-120b`, ILaaS `qwen-3.8-27b`) **4,9 s en simultané contre 11,1 s en série**. Une passe, forte variance (ILaaS 7,1 s puis 2,7 s) : un ordre de grandeur, pas un banc. Garde `tests_delegation.ParallelWaveTest` (la simultanéité prouvée par une barrière : en série, elle casse) |
-| 3 | garde-fous : interrupteur déclaré (l'outil n'est alors pas annoncé), qui peut déléguer, plafond d'**appels au modèle** (un coût en dollars n'est pas mesurable : le chemin cloud ne rapporte pas de coût), journal par sous-agent | ✅ 2026-10-29 : l'**interrupteur** est un réglage de l'assistant (`sub_agents`, `assistant/params.py`, panneau et modale ⚙), **éteint par défaut** — *devenu le menu « Auto · Toujours · Jamais » à l'étape 5, « Auto » suivant le curseur* ; `conversation_turn` le lit pour les trois surfaces (web, API, Discord). **Qui peut déléguer** : tout compte qui a l'assistant et allume le réglage — un visiteur anonyme reste aux défauts. Le **plafond** passe par le nombre de sous-agents d'un tour (`MAX_DELEGATIONS_PER_TURN = 3`, **porté à 6 à l'étape 4**, compté en sous-agents, pas en appels de `delegate`) : avec leurs bornes, au plus 6 × 7 appels de sous-agents en plus de ceux du parent (choix non mesuré). Le **journal** : la trace porte `sub_agents` — par sous-agent, sa tâche, son modèle, ses étapes, sa durée —, et une ligne `[ai_chat] sous-agent` au journal du serveur. ⚠ Non mesuré : un tour long en **API v1** (sans flux) reste exposé au délai d'Apache sur connexion muette (130 s) |
+| 3 | garde-fous : interrupteur déclaré (l'outil n'est alors pas annoncé), qui peut déléguer, plafond d'**appels au modèle** (un coût en dollars n'est pas mesurable : le chemin cloud ne rapporte pas de coût), journal par sous-agent | ✅ 2026-10-29 : l'**interrupteur** est un réglage de l'assistant (`sub_agents`, `assistant/params.py`, panneau et modale ⚙), **éteint par défaut** — *devenu le menu « Auto · Toujours · Jamais » à l'étape 5, « Auto » suivant le curseur* ; `conversation_turn` le lit pour les trois surfaces (web, API, Discord). **Qui peut déléguer** : tout compte qui a l'assistant ~~et allume le réglage~~ — *depuis l'étape 5 : « Auto » (défaut, `assistant/params.py:76-77`) au cran Qualité du curseur, « Toujours », ou « Jamais » (`delegation_wanted`, `assistant_engine.py:519` ; corrigé le 2026-10-31)* — un visiteur anonyme reste aux défauts. Le **plafond** passe par le nombre de sous-agents d'un tour (`MAX_DELEGATIONS_PER_TURN = 3`, **porté à 6 à l'étape 4**, compté en sous-agents, pas en appels de `delegate`) : avec leurs bornes, au plus 6 × 7 appels de sous-agents en plus de ceux du parent (choix non mesuré). Le **journal** : la trace porte `sub_agents` — par sous-agent, sa tâche, son modèle, ses étapes, sa durée —, et une ligne `[ai_chat] sous-agent` au journal du serveur. ⚠ Non mesuré : un tour long en **API v1** (sans flux) reste exposé au délai d'Apache sur connexion muette (130 s) |
 | 4 | le council : N couples (modèle, compétence), relecture anonymisée, synthèse — sur le motif de `prospect_agents` ; séquentiel en local | ✅ 2026-10-29 — **une COMPOSITION, pas un mode** (Fabien : « je ne veux pas juste un mode council figé » — multiplier les skills, ou des agents spécialisés appelables de 1 à n). Les **agents** sont des rôles du registre (`assistant_skills.DOMAINES` + `prompt_skills/assistant-<rôle>.md`) : en ajouter un = une entrée et un fichier. Deux premiers agents de réflexion : `critique` (contradicteur) et `methodology` ; déclarés `announced=False` — l'outil `delegate` les nomme, l'annonce du tour principal ne grossit pas (borne de 600 caractères, `tests_assistant_skills`), `charger_competence` les charge quand même. La **même question à 1..n agents** : `delegate(task, agents=[…])` (un domaine répété donne plusieurs modèles). La **façon de conclure** : `decide="vote"` sur `options` — décompte DÉTERMINISTE des lignes `VERDICT:` (`_tally`, le principe de `prospect_agents._consolider` : majorité stricte des voix exprimées, accord, abstentions ; une égalité se DIT) — ou `decide="synthesis"` — un **décideur** (`_synthesise`) sans aucun outil, qui lit les rapports ANONYMES et MÉLANGÉS, cite l'avis qui fonde chaque point et garde les désaccords visibles ; tiré au curseur « Qualité » HORS des modèles qui ont donné un avis (`_decider_lane`), la correspondance lettre → agent dans la trace — ou `decide="review"` : le **LLM Council de Karpathy** (`karpathy/llm-council`, référence donnée par Fabien, **lu dans son code** le 29/10 : le module `council` de son backend) — avant le décideur, chaque agent **classe** les avis anonymes sur son propre couloir, sans outil (`_peer_review`, format `CLASSEMENT FINAL:` comme son `FINAL RANKING:`), et le classement s'agrège en **rang moyen** (`_aggregate_rankings`, comme son `calculate_aggregate_rankings`). Trois écarts VOULUS : le rang qu'un agent donne à **sa** réponse ne compte pas (chez Karpathy, il compte) ; la lecture du classement retire doublons et lettres inconnues (là-bas, gardés) ; le décideur reçoit le **classement agrégé** et reste **anonyme** (là-bas, il lit les noms des modèles et pas l'agrégat). Une relecture est un appel sans outil, pas un sous-agent : elle ne compte pas dans le plafond. Le décideur compte dans le plafond, porté à **6** (cinq agents et lui). Au-delà des serveurs, les couloirs prennent un **autre modèle d'un serveur distant** (jamais un second local). Les sous-agents et le décideur appellent **en flux** : une requête muette est coupée vers 165-175 s chez ILaaS (mesuré, `WAMA_LLM` § ILaaS) — c'était la « limite temporelle » d'ILaaS. Garde `tests_delegation.CouncilTest`. **Éprouvé par l'assistant le jour même** (compte `fabien.moreau`, parent Albert `gpt-oss-120b`, tour sans persistance) : le modèle a composé seul `delegate(task, agents=[science, critique, methodology], decide="synthesis")` ; trois couloirs en même temps — Albert `gpt-oss-120b` 47,9 s, ILaaS `gemma-4-31b` 30,5 s, local `qwen3.8` **444,1 s** — ; décideur Albert `gemma-4-31b-it` (hors participants) 19 s ; réponse appuyée sur la décision. Rejoué en `decide="review"` : agents 25,9 s (Albert), 34,2 s (ILaaS), **738,8 s (local)** ; relectures 10,7 s, 2,7 s, **303,9 s (local)** ; décideur 40,4 s ; décision qui cite les avis (« [A, B, C] ») ; **tour de 1 176 s**. ⚠ **Tour de 550 s, puis de 1 176 s : le couloir LOCAL fait la durée du council.** L'échéance d'un sous-agent (300 s) arrête ses outils, pas l'appel en cours ni son dernier appel (180 s chacun). ✅ **Tranché par Fabien le jour même : le local sort du council quand les distants suffisent.** Un council (`agents`, ou une `decide`) tire ses couloirs parmi les modèles DISTANTS ; UN couloir local ne complète que s'ils manquent (celui du tour s'il est local). Le décideur aussi est tiré distant quand il y en a. Local ou distant se lit au **catalogue** (`cloud_models.is_cloud_key`, `AIModel.execution`) — le cas particulier `ollama` écrit à l'étape 4 (« jamais un second couloir local ») est retiré du même geste. ⚠ Jumeau relevé à la revérification, hors de ce chantier : le transcriber juge « distant » par la SOURCE déclarée (`transcriber/backends/manager.py`, `_is_remote_key`), pas par `AIModel.execution` — deux lectures d'une même nature, à réunir par ses auteurs. Des tâches indépendantes gardent leur couloir local. ⏳ Faire remonter les étapes des sous-agents à l'écran (`§9` chantier 4) — l'utilisateur attend aujourd'hui sans rien voir |
 | 5 | **déclenchement automatique** selon la complexité de la tâche (question de Fabien, 29/10, « comme le fait Claude ou ChatGPT ») | ✅ ① et ② **le soir même** (Fabien : « pars sur les points 1 et 2 ») : la description de `delegate` porte les règles d'**effort proportionné** (« SCALE THE EFFORT TO THE REQUEST ») ; le réglage « Sous-agents » devient le menu `Auto (selon le curseur) · Toujours proposés · Jamais`, « Auto » par défaut, sur la forme de la voix du composer (`composer/utils/vocals.py`) ; « Auto » propose les sous-agents au cran **Qualité** du curseur, celui de la réflexion (`delegation_wanted`, `DELEGATION_PRESET = THINKING_PRESET`). L'ancien interrupteur se lit sans migration : allumé = « toujours », éteint (son défaut) = « auto ». La route de réglage de l'assistant borne désormais tout menu à choix DÉCLARÉS (`invalid_choice_values`, la règle de `user_settings`) — elle n'en avait aucun jusque-là. Garde `tests_delegation.GuardrailsTest`. ③ **MESURÉ le soir même** (compte `fabien.moreau`, sous-agents proposés, sans persistance ; trois
 questions : simple / trois sous-questions indépendantes / recherche ouverte). Avec les règles dans
@@ -825,9 +856,9 @@ voit donc une coupure quand il y en a une. ⚠ Avec `threads > 1`, gunicorn remp
 Ce qui reste, et n'est **pas** mesuré :
 - **Apache** (`C:/Apache24/conf/extra/wama-common.conf:23`, `ProxyPass … timeout=130`, et
   `ProxyTimeout 120` ligne 7) coupe une connexion restée **sans octet** ce temps-là. Le chat web
-  en flux n'y est pas exposé (un commentaire SSE toutes les 15 s, `views.py:569-571`) ; le chat
-  sans flux (repli, `views.py:326`) et l'API v1 (`api/v1/views.py:132`) le sont. La passerelle
-  Discord appelle le moteur dans son processus (`gateway/core.py:226`), sans Apache ni gunicorn.
+  en flux n'y est pas exposé (un commentaire SSE toutes les 15 s, `views.py:578-580`) ; le chat
+  sans flux (repli, `views.py:326`) et l'API v1 (`api/v1/views.py:133`) le sont. La passerelle
+  Discord appelle le moteur dans son processus (`gateway/core.py:245`), sans Apache ni gunicorn.
 - **Les places** : 4 workers × 2 fils = 8 requêtes à la fois ; un tour avec sous-agents en tient
   une tout du long.
 
@@ -866,8 +897,13 @@ de sa doc), c'est une passe `/cartographie` à part entière, avec son corpus d�
 
 > ⚠ **Réécrit le 2026-09-20** : la version du 19/09 était une table de six questions, jugée
 > *« encore vaporeuse »* — à raison. Chaque chantier dit maintenant **quoi**, **où** (le fichier),
-> **quel contrat**, **ce qui l'atteste**, et **de quoi il dépend**. Aucun n'est commencé : cette
-> page reste un document de veille, pas un journal de travaux.
+> **quel contrat**, **ce qui l'atteste**, et **de quoi il dépend**. ~~Aucun n'est commencé : cette
+> page reste un document de veille, pas un journal de travaux.~~
+>
+> **État au 2026-10-29 (corrigé le 2026-10-31, d'après les blocs d'état de chaque chantier
+> ci-dessous)** : chantier 1 ✅ (`61e3e947`) · 2 🔄 (la marque `@tool_effect` livrée,
+> l'approbation non) · 3 ⏳ · 4 ✅ pour le web (flux SSE des étapes, écart 8) · 5 ✅ SOLDÉ
+> (2026-10-11).
 >
 > **Le fil qui les ordonne** : on rend la boucle **correcte** (1), puis **sûre** (2), puis
 > **mesurable** (3), puis **lisible** (4) ; la dette de configuration (5) n'attend personne.
@@ -897,7 +933,7 @@ de sa doc), c'est une passe `/cartographie` à part entière, avec son corpus d�
 | | |
 |---|---|
 | **quoi** | deux corrections au même endroit : (a) tout résultat d'outil est **borné** avant d'être réinjecté, et la troncature est **dite au modèle** (« 47 éléments, 5 montrés — rappelle l'outil avec un filtre ») plutôt que silencieuse ; (b) `_route_model_by_context` est appelé **à chaque itération**, pas une fois avant la boucle |
-| **où** | `wama/common/services/assistant_engine.py` — l'injection `:730-734`, l'appel de bascule `:670`, la boucle `:696` |
+| **où** | `wama/common/services/assistant_engine.py` — l'injection `:730-734`, l'appel de bascule `:670`, la boucle `:696` *(lignes du 20/09 ; au 2026-10-31 : injection `:2644`, bascule `:2660`)* |
 | **contrat** | un budget de caractères **unique et déclaré** (pas un par appelant) ; la bordure produit un texte qui reste **actionnable** par le modèle ; la bascule ne redescend jamais de modèle en cours de tour (sinon le tour change de voix au milieu) |
 | **atteste** | un test avec un faux outil rendant 200 ko : le message injecté tient dans le budget, contient la mention de troncature, et la fonction de bascule a été appelée **autant de fois que d'itérations** |
 | **dépend de** | rien. C'est le seul chantier qui peut commencer aujourd'hui |
@@ -959,18 +995,18 @@ aucune migration, aucun changement de contrat de surface.
 | | |
 |---|---|
 | **quoi** | un outil qui écrit le **déclare sur lui-même** ; la boucle, voyant la marque, **n'exécute pas** : elle rend une action *en attente* que la surface fait confirmer |
-| **où** | déclaration : `wama/tool_api.py` (sur les fonctions `delete_item`, `duplicate_item`, `clear_my_queue`, `add_item_to_media_library`, `search_models`, `install_model`) · effet : la boucle d'`assistant_engine.py:707-734` · surfaces : `wama/views.py` (web) puis `gateway/` |
+| **où** | déclaration : `wama/tool_api.py` (sur les fonctions `delete_item`, `duplicate_item`, `clear_my_queue`, `add_item_to_media_library`, `search_models`, `install_model`) · effet : la boucle d'`assistant_engine.py:707-734` *(au 2026-10-31 : boucle de `run_assistant_turn` → exécution `:2614`)* · surfaces : `wama/views.py` (web) puis `gateway/` |
 | **contrat** | ⚠ **surtout pas une table `TOOL_APPROVAL` à côté de `TOOL_APP_OVERRIDE`** — ce serait exactement la coexistence dénoncée à l'écart 5. La marque vit **sur la fonction** (un petit décorateur posant un attribut), donc un outil ne peut pas exister sans dire sa nature. L'action en attente vit dans le **cache** avec un jeton à usage unique et un TTL — même brique que la progression de file (`common/utils/task_progress.py`), donc **aucune migration** |
 | **atteste** | ① un test qui appelle un verbe destructeur par la boucle et vérifie que **rien n'a bougé en base** tant que la confirmation n'est pas venue ; ② le jeton est **à usage unique** et refusé pour un autre utilisateur ; ③ un test **par AST** — sur le modèle de `tests_hf_cache_routing` — qui échoue si une fonction de `TOOL_REGISTRY` appelle `_poster_vue`/`_refus_app` **sans porter la marque**. C'est ce troisième qui empêche l'oubli : *une règle qui demande de s'en souvenir n'est pas un contrôle* |
 | **dépend de** | rien techniquement, mais **passe après le chantier 1** : confirmer une action dans une boucle dont le contexte déborde, c'est faire approuver une décision prise à l'aveugle |
-| **portée** | ⚠ ce chantier ne traite **que** le cas (b) — agir sur ses propres données. Le cas (a), ajouter une capacité, est **fermé aujourd'hui** par `min_tier='developpeur'` : voir la décision de gouvernance ci-dessous |
+| **portée** | ⚠ ce chantier ne traite **que** le cas (b) — agir sur ses propres données. Le cas (a), ajouter une capacité, est **fermé aujourd'hui** par ~~`min_tier='developpeur'`~~ `can_manage_registries` dans le corps des outils de gestion (depuis le 2026-10-14, `tool_api.py:2247` ; corrigé le 2026-10-31) : voir la décision de gouvernance ci-dessous |
 
 ### Chantier 3 — Faire de la trace une MESURE *(écart 6 — et la graine de `RunOutcome`)*
 
 | | |
 |---|---|
 | **quoi** | chaque étape d'outil gagne **deux champs** : a-t-elle abouti, et en combien de temps. Puis **un lecteur** : une commande qui agrège par outil (nombre d'appels, taux d'échec, durée médiane) |
-| **où** | écriture `assistant_engine.py:727` et `common/services/conversation_store.py:79` · le champ `ConversationTurn.tool_steps` est un **JSON** (`models.py:1145`) donc **aucune migration** · lecteur : une commande de gestion, à côté de `check_docs`/`check_skills` |
+| **où** | écriture `assistant_engine.py:727` et `common/services/conversation_store.py:79` *(au 2026-10-31 : `assistant_engine.py:2633`, `conversation_store.py:92`)* · le champ `ConversationTurn.tool_steps` est un **JSON** (`common/models.py:2062`) donc **aucune migration** · lecteur : une commande de gestion, à côté de `check_docs`/`check_skills` |
 | **contrat** | l'échec se lit **dans un champ**, jamais en réinterprétant le corps du résultat outil par outil. La trace est **par tour**, déjà scopée à l'utilisateur par la conversation — donc pas un nouveau stockage, pas une nouvelle question de rétention |
 | **atteste** | un outil qui échoue produit une étape marquée comme telle ; la commande d'agrégat la compte ; un tour sans outil ne produit aucune étape |
 | **dépend de** | rien. ⚠ Mais **c'est le chantier à ne pas repousser** : le signal non écrit ne se rattrape pas, et c'est la même brique (`RunOutcome`) qui bloque l'auto-amélioration depuis juillet **et** qui permettrait de mesurer le harnais lui-même (§1) |
@@ -986,6 +1022,7 @@ aucune migration, aucun changement de contrat de surface.
 | **atteste** | un tour avec deux appels d'outil publie deux étapes **avant** la réponse finale ; la clé expire toute seule ; un tour sans outil ne publie rien |
 | **dépend de** | le chantier 3 (les étapes portent déjà leur verdict et leur durée : autant les publier une fois enrichies) |
 | **question ouverte** | le flux **token par token** est un autre sujet, plus coûteux (il change le contrat de réponse de toutes les surfaces). Les étapes suffisent probablement : ce qui est pénible n'est pas d'attendre, c'est d'attendre **sans savoir** |
+| **état (ajouté le 2026-10-31)** | ✅ **web, 2026-09-26**, câblé AUTREMENT que le contrat ci-dessus : les étapes sont publiées par `on_event({'type': 'step', …})` (`assistant_engine.py:2639`) et portées par le flux SSE du levier 5 (`views.py:513` `ai_chat_stream`, `WAMA_LLM.md` §1bis) avec les fragments de texte — le contrat « pas de SSE, réutiliser `task_progress` » a été écarté au profit du flux de jetons. ⏳ les étapes des SOUS-AGENTS à l'écran (§7.4 étape 4) ; API v1 et Discord sans flux |
 
 ### Chantier 5 — Une seule table de fournisseurs, et des délais déclarés *(écart 5)*
 
@@ -1012,7 +1049,9 @@ aucune migration, aucun changement de contrat de surface.
 
 - **Gouvernance de l'ajout de capacité** *(écart 1a — position de Fabien, 2026-09-20)* : l'entrée
   d'un modèle, d'une librairie ou d'une app est aujourd'hui réservée aux développeurs par
-  `min_tier`, **en base**. La règle posée : *le jour où on l'ouvre à un utilisateur, il faut une
+  ~~`min_tier`, **en base**~~ le niveau du PROFIL, vérifié dans le corps des outils de gestion
+  (`_registry_management_refusal` → `can_manage_registries`, depuis le 2026-10-14 ; corrigé le
+  2026-10-31). La règle posée : *le jour où on l'ouvre à un utilisateur, il faut une
   approbation.* Donc l'approbation n'est pas un projet à planifier — c'est une **condition
   d'ouverture**, à construire **dans** la première surface qui ouvrira, et une raison de plus de
   livrer le chantier 2 avant d'en avoir besoin. ⚠ À écrire aussi là où la décision d'ouvrir se

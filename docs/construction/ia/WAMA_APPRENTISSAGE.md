@@ -19,7 +19,7 @@
 |---|---|
 | entraînement dans WAMA | **zéro ligne** — `model_manager` ne sait qu'inférer |
 | statistiques dans `wama_data` | **zéro** — uniquement des méthodes de traitement (`core/`, `functions/`) |
-| MLflow | **rejeté** par `ROADMAP §16.2` sur la prémisse « pas d'entraînement » → **amendée le 2026-08-25**, voir §4 |
+| MLflow | **rejeté** par `ROADMAP §16.2` sur la prémisse « pas d'entraînement » → ~~**amendée le 2026-08-25**~~ rejet d'INTÉGRATION maintenu, COMPLÉMENTARITÉ ajoutée le 2026-08-25, voir §4 (« Rien à amender ») *(corrigé le 2026-10-31)* |
 | `RunOutcome` / `ModelRuntimeStat` | existent, tracent l'**exécution** et l'**inférence** — jamais un entraînement |
 | kind `model` | existe, décrit un modèle **pré-entraîné ailleurs** (`platform_ref`, `vram_gb`, backend) — **aucune provenance** |
 | la vision le prévoit | `docs/construction/mondes/WAMA_VISION_COMPLET.md` Partie 8 (Data Comprehender, « DeepMind labo », boucle de découverte) — classé **H3** |
@@ -301,7 +301,7 @@ travail (VM + forge institutionnelle + IDE distant).
 
 | apport de l'offre | équivalent WAMA | recouvrement |
 |---|---|---|
-| qualité des données (sélection de caractéristiques, déséquilibre de classes, mise à l'échelle, aberrantes/manquantes) | Calculator + Explorer + Visualizer — **Calculator non implémenté** | **moyen** — même geste, une UI contre un notebook |
+| qualité des données (sélection de caractéristiques, déséquilibre de classes, mise à l'échelle, aberrantes/manquantes) | Calculator + Explorer + Visualizer — ~~**Calculator non implémenté**~~ **Calculator écrit** (moteur `wama_data/core/calculation.py`, 49 tests — sans UI ni corpus réel, `WAMA_DATA_WORLD §9quater.6` ; corrigé le 2026-10-31) | **moyen** — même geste, une UI contre un notebook |
 | entraînement (gradient, learning rate, early stopping, Optuna/Hyperopt, sur/sous-apprentissage) | **rien** | **nul — c'est le trou** |
 | MLflow **Tracking** | `RunOutcome`, `ModelRuntimeStat` (exécution/inférence, pas entraînement) | **faible, complémentaire** → §4 |
 | MLflow **Models** + **Registry** | `AIModel`, `model_manager`, kind `model`, `select_model()` | **fort — danger de duplication** |
@@ -352,7 +352,7 @@ se retrouve pas limité par des capacités qu'il ne pourrait plus ingérer dans 
 
 ---
 
-## 8bis. Les JEUX D'ENTRAÎNEMENT du labo — inventaire mesuré et proposition (2026-10-10) ⏳
+## 8bis. Les JEUX D'ENTRAÎNEMENT du labo — inventaire mesuré et proposition (2026-10-10) 🔄 *(point 4 fait pour les visages — statut corrigé le 2026-10-31)*
 
 > Demande de Fabien : *« investiguer tous les datasets que j'ai déjà récupérés pour de futurs
 > entraînements […] il faudra peut-être revoir l'arborescence et l'organisation […] on pourra
@@ -391,6 +391,10 @@ VGGFace2) ; noms avec `&`, `~`, statuts (`_OK`, `_NOK`, ` - Copie`).
    sous-ensembles easy/medium/hard officiels) pour les visages ; la validation de « License Plate
    Recognition v11 » (2 048 images) pour les plaques — des boîtes vraies, donc un rappel ET une
    précision, à côté du banc par contenant des caméras de véhicule.
+   ✅ *Fait pour les visages le 2026-10-10* (`bae0f1c8`) : `bench --task detect-boxes --benchmark
+   faces_wider_val_v1` — rappel ET précision sur les vraies boîtes (`bench._bench_boxes`,
+   `bench.py:552`), 19 détecteurs mesurés le 2026-10-11 (`WAMA_QUALITE §5` ⑥). Plaques (LPR v11
+   val) ⏳. *(Ajouté le 2026-10-31.)*
 5. Nommage : anglais, minuscules, sans `&` ni `~` ; l'état d'un jeu (validé, rejeté) vit dans son
    manifeste, pas dans son nom.
 
@@ -401,8 +405,12 @@ Fabien, le partage étant aussi le sien hors WAMA.
 ✅ **Décidé le 2026-10-10 (Fabien)** : il regroupe d'abord dans ce dossier les jeux dispersés
 ailleurs, puis demandera la RÉORGANISATION complète selon cette proposition. **D'ici là, le
 déplacement est prévu** — trois règles, pour qu'il ne casse rien :
-- **aucun chemin absolu du partage dans WAMA** : une seule racine déclarée (`DATASETS_ROOT`,
-  posée dans `settings.py` le jour où un jeu y est branché — rien ne la lit aujourd'hui), et des
+- **aucun chemin absolu du partage dans WAMA** : une seule racine déclarée (~~`DATASETS_ROOT`,
+  posée dans `settings.py` le jour où un jeu y est branché — rien ne la lit aujourd'hui~~ —
+  *corrigé le 2026-10-31 : `<partage>/DATASETS`, résolue par
+  `mirror_sync.resolve_remote_root('DATASETS', 'WAMA_DATASETS_ROOT')` (`mirror_sync.py:96`,
+  surcharge par l'environnement, rien dans `settings.py`) et lue par le banc
+  (`bench.benchmark_reference`, `bench.py:470-476`) depuis le 2026-10-10, `bae0f1c8`*), et des
   chemins RELATIFS à elle dans les manifestes `dataset` et les références de banc ; un jeu
   désigné par son identité (nom + version), jamais par son emplacement ;
 - **la réorganisation se fait en deux temps** : un PLAN écrit (inventaire avec empreintes,
@@ -454,7 +462,7 @@ déclaré tant qu'aucun lecteur ne s'en sert — les lignes entrent avec le prem
 - `WAMA_DATA_WORLD.md` — le monde Data : chaîne, Segmenter, Calculator, conteneur `.wdat`, décisions D1-D19
 - `docs/construction/mondes/WAMA_VISION_COMPLET.md` Partie 8 — Data Comprehender, « DeepMind labo », garde-fous
   méthodologiques (§8.4) ; état par section intégré au document
-- `ROADMAP.md` §16.2 — outils tiers évalués (**entrée MLflow amendée le 2026-08-25**, voir §4)
+- `ROADMAP.md` §16.2 — outils tiers évalués (**entrée MLflow ~~amendée~~ PRÉCISÉE, non amendée, le 2026-08-25**, voir §4 — corrigé le 2026-10-31)
 - `WAMA_MANIFEST_SPEC.md` — formalisme des kinds `dataset`, `model`, `pipeline`
 - `project_model_meta_unification` (mémoire) — `AIModel` = source unique du catalogue
 - ⚠ **PAS** `WAMA_LLM.md` — vérifié le 2026-08-25 : ses 19 sections traitent prompts,

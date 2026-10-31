@@ -62,7 +62,7 @@ et la méta-app.
 
 ## Garde-fous ressources (récurrent)
 - **Traduction** : seulement si le modèle ne gère pas la langue ; passthrough/`direct` sinon → aucun chargement.
-- **Enrichissement** : interrupteur maître `WAMA_PROMPT_ENRICH` (OFF) + garde longueur + cache.
+- **Enrichissement** : interrupteur maître `WAMA_PROMPT_ENRICH` (~~OFF~~ kill switch, **ON par défaut** — `settings.py:1189` ; corrigé le 2026-10-31) + `UserProfile.prompt_enrich` + garde longueur + cache.
 - **Fichiers de référence** : data-gated (rien si pas de fichier).
 - **Transparence** : messages console user-facing (🌐 traduit / ✨ enrichi / 📎 référence) ; **silence si direct**.
 
@@ -91,6 +91,10 @@ ex. imager `output_type` image|video), repli sur le `model_type` du modèle cibl
   et **lu nulle part**. wama-dev-ai a ses propres consignes (`wama-dev-ai/prompts/*.txt`,
   8 fichiers réellement consommés) — ce qui est légitime (**le dev n'est pas l'usage**), mais
   le pont documenté ici n'existe pas. Soit on le construit, soit on retire la promesse.
+  ✅ **Tranché le 2026-09-09** (constaté le 2026-10-31) : `PROMPT_SKILLS_DIR` est RETIRÉ de
+  `wama-dev-ai/config.py` (`:19`, garde `tests_dev_ai_bridge.py:66-69`) ; le pont réel est
+  `role_utils.skill_wama()` → `prompt_skills.resolve_skill` (`wama-dev-ai/role_utils.py:870-895`)
+  et `catalogue_skills()` (`:898`).
 
 Règles DANS LE CODE (mécanisme, pas skills) : clause de langue d'émission + préservation
 verbatim des mots-clés forcés (`glossary`). Contrat : `wama/common/prompt_skills/README.md`.
@@ -304,7 +308,7 @@ inutile ou un assistant sans posture.
 |---|---|---|
 | **Spécialisés MODÈLE** (format exact attendu par un modèle) | les KINDs de `PROMPT_TARGETS` (`concept` → concepts EN pour SAM3, `generative`…) + résolution du modèle cible par target | partiel — les KINDs couvrent le cas langue/forme, pas un gabarit par modèle |
 | **DOMAINE** (app × métier) | `prompt_skills/<app>-<domaine>.md` (imager-image, composer-music, cam-analyzer-transport…) + rôles assistant `assistant-*` (`DOMAINES` : general, science, design, dev) | ✅ les deux registres vivent (`PROMPT_TARGETS`, `assistant_skills.DOMAINES`) |
-| **DÉVELOPPEUR / workflow** | rôle `assistant-dev` ✅ ; outil `ask_claude_code` ✅ ; ⚠ wama-dev-ai a ses PROPRES consignes (`wama-dev-ai/prompts/*.txt`, 8 fichiers consommés) — il **n'importe PAS** `PROMPT_SKILLS_DIR` (cf. §« Skills de prompt », note du 21/08) | partiel |
+| **DÉVELOPPEUR / workflow** | rôle `assistant-dev` ✅ ; outil `ask_claude_code` ✅ ; wama-dev-ai a ses PROPRES consignes (`wama-dev-ai/prompts/*.txt`) ~~— il **n'importe PAS** `PROMPT_SKILLS_DIR`~~ et, depuis le 2026-09-09, un pont réel vers les skills de prompt : `role_utils.skill_wama()` / `catalogue_skills()` (`PROMPT_SKILLS_DIR` retiré ; cf. §« Skills de prompt » — corrigé le 2026-10-31) | ✅ |
 | **INSTITUTIONNELS** (université, instances — « souvent couplés au RAG organisationnel ») | — | ❌ **substrat désormais prêt** (RAG niveau `unit`) ; aucun skill écrit, aucun contenu org indexé |
 | **UTILISATEUR** (préférences, habitudes, formats favoris) | langue du profil + enrich on/off ; depuis le 2026-10-20, ses **skills de prompt** (`common.PromptSkill`, page `/common/skills/`) | 🔄 **un skill par utilisateur existe** (`ROADMAP §29`, piste 2 de Fabien) : il porte le NOM d'un skill de prompt et passe devant le système POUR SON AUTEUR (`resolve_skill(…, user=)`) ; il naît privé, se partage par une portée et se COPIE (il ne s'impose à personne), un admin seul le rend système (`services/user_skills`). ⏳ Les skills de RÔLE de l'assistant (`assistant_skills.DOMAINES`) restent des fichiers seuls |
 
@@ -319,18 +323,22 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
   │     3 gardes : DÉCLARÉ · DATA-GATED (rien de pertinent ⇒ prompt inchangé) · FAIL-SAFE ('')
   │     chaque extrait injecté AVEC sa référence ([transcriber:134] …)
   │
-  └─ boucle LLM à outils (69 outils, gating F7) — c'est ICI que tout se rejoint :
+  └─ boucle LLM à outils (90 outils au 2026-10-28, gating F7) — c'est ICI que tout se rejoint :
        • charger_competence(domaine)  → l'ASSISTANT charge LUI-MÊME posture + contexte labo
          (jamais la surface : un adaptateur de canal ne devine pas le domaine)
        • memory_recall(query, niveaux=…) → recall() souvenirs + RAG, sélecteur de niveaux,
          HYBRIDE — résidence de l'embedder (qwen3-embedding:4b depuis le 2026-10-19, WAMA_MEMORY §7)
          arbitrée par le GOUVERNEUR (~5 s à froid, mesuré encore avec le nouveau modèle)
        • add_to_<app> / start_<app> → tâches d'app ⇒ la pipeline d'app s'applique (§2)
+       • delegate(task | tasks | agents, decide) → SOUS-AGENTS en lecture seule (2026-10-29) :
+         verbe de la BOUCLE, hors TOOL_REGISTRY (`assistant_engine.DELEGATE_TOOL`), réglage
+         « Sous-agents » Auto/Toujours/Jamais (`assistant/params.py`), trace `tool_steps[].sub_agents`
+         — détail et décisions : WAMA_HARNESS §7.4 (ajouté le 2026-10-31)
   [le message lui-même : kind='intent' via process_prompt_for('assistant','message') —
    routage langue seul, pas d'enrichissement]
 ```
 
-**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **73 outils** *(mesuré 2026-10-04 — dont `search_docs` / `read_doc`, la doc de WAMA elle-même, `WAMA_MEMORY §7quinquies` ; 69 au 2026-09-12 ;
+**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **90 outils** *(remesuré le 2026-10-28, levier 3 « Réduire le prompt d'outils » plus bas ; 73 au 2026-10-04 — dont `search_docs` / `read_doc`, la doc de WAMA elle-même, `WAMA_MEMORY §7quinquies` ; 69 au 2026-09-12 ;
 disait **51**, périmé — le compte vit ICI, c'est donc ici qu'il se re-mesure : `len(tool_descriptions())`)*
 — dont **6 LECTURES TRANSVERSES** livrées le 2026-09-11 (`list_my_items`, `get_item_detail`,
 `get_item_preview`, `list_registries`, `get_my_access`, `list_my_memories`), **3 VERBES DE
@@ -358,7 +366,9 @@ complet et ses trous vivent dans `WAMA_APP_GENERATION_ROUTE.md §11` (trou #18),
 appartient à CE document : les outils **IA-transverses** (gating `None` — aucune app ne les
 garde) : `translate_text` (§2bis) · `memory_recall` (§3-4) ·
 `charger_competence` (§0bis) · `list_ai_models`/`get_ai_model` (§2ter) · `list_user_files` ·
-`switch_ui_mode` · `ask_claude_code` (garde développeur écrite DANS son corps, pas dans le
+~~`switch_ui_mode`~~ `fold_side_panels` (repli commun des volets ; `switch_ui_mode` retiré avec le
+mode simplifié le 2026-10-27, `39e486b6` — garde `tests_assistant_reach.py:255` ; corrigé le
+2026-10-31) · `ask_claude_code` (garde développeur écrite DANS son corps, pas dans le
 registre — ne pas « corriger ») · les outils **`dev_*`** (2026-09-22), qui ne sont PAS dans
 `TOOL_REGISTRY` : annoncés aux seuls développeurs et RELAYÉS par `mcp_client` à la surface MCP
 « wama-dev » (§1ter) · les **6 lectures transverses** et les **3 verbes de cycle**
@@ -478,9 +488,12 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
      ne pouvait lever : un intermédiaire qui tamponne **annule le levier sans rien casser** — la
      réponse arrive complète, l'écran se remplit d'un coup, le code reste correct et le gain a
      disparu. La démo passera par Apache : il fallait le mesurer là.
-   - **Le flux n'existe que sur le chemin LOCAL** : `llm_chat` (LiteLLM) rend un texte entier et
+   - ~~**Le flux n'existe que sur le chemin LOCAL** : `llm_chat` (LiteLLM) rend un texte entier et
      l'abonnement Claude Code lance un process qui finit avant de parler. Un tour cloud reste
-     synchrone, et la surface le sait (elle affiche son attente).
+     synchrone, et la surface le sait (elle affiche son attente).~~ *(État du 26/09, levé par le
+     levier ③ du 2026-10-04 plus bas : une source DÉCLARÉE passe par `chat_with_source(on_delta=…)`,
+     `assistant_engine.py:871` ; seul l'abonnement Claude Code reste synchrone, `:843-846` —
+     corrigé le 2026-10-31.)*
    - **Les ÉTAPES d'outils partent aussi**, dès qu'elles sont jouées — c'est ce que
      `WAMA_HARNESS §9 chantier 4` demandait (*ce qui est pénible n'est pas d'attendre, c'est
      d'attendre sans savoir*), obtenu par le même canal au lieu d'un mécanisme à part.
@@ -1223,8 +1236,10 @@ prompt tapé
 **Bouton ✨** (à la demande) : `common/views` → `enrich_on_demand` — mêmes skills, PAS gaté (le
 clic vaut demande). **Studio** : `generic_runner` → `execute_tool('add_to_<app>' / 'start_…')` →
 chemin ci-dessus — le studio n'implémente **rien**, il hérite tout des apps. ⚠ **wama-dev-ai
-n'entre PAS dans cette chaîne** : il a ses propres consignes (`wama-dev-ai/prompts/*.txt`) et
-n'importe pas `PROMPT_SKILLS_DIR` — le pont est déclaré, jamais lu (note du 21/08 ci-dessus).
+n'entre PAS dans cette chaîne** : il a ses propres consignes (`wama-dev-ai/prompts/*.txt`) ~~et
+n'importe pas `PROMPT_SKILLS_DIR` — le pont est déclaré, jamais lu (note du 21/08 ci-dessus)~~ ;
+depuis le 2026-09-09, `PROMPT_SKILLS_DIR` est retiré et le pont réel est `role_utils.skill_wama()`
+(→ `resolve_skill`) — cf. la note de « Skills de prompt » ci-dessus (corrigé le 2026-10-31).
 
 ### 2bis. Traduction automatique ENTRÉE / SORTIE (vision §12) — l'entrée vit, la sortie n'est pas branchée
 
@@ -1255,21 +1270,35 @@ sortie : modèle (pivot)   ──routage──▶ [output_translate ? traduire p
 La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RAG → Sélection du modèle
 → traduction → adaptateur → dispatch`). Ce qui existe, mesuré :
 
-- **Assistant** : rôle → tier (`_ROLE_TIER` → `modele_par_tier`, catalogue — plus de table de
-  tags, elle mourait à chaque remplacement de modèle) + **escalade par taille de contexte**
+- **Assistant** : ~~rôle → tier (`_ROLE_TIER` → `modele_par_tier`, catalogue — plus de table de
+  tags, elle mourait à chaque remplacement de modèle)~~ *(corrigé le 2026-10-31, mesuré :
+  `_ROLE_TIER` n'existe plus — réglage durable `model` de l'utilisateur, sinon tirage « auto »
+  commun, `resolve_turn_model` `assistant_engine.py:323` → `resolve_model_choice` : curseur,
+  domaine → famille de banc, plancher `agent_candidates`, distants ouverts par ses clés ; les
+  anciens rôles valent « auto », `_LEGACY_ROLES` `:184`)* + **escalade par taille de contexte**
   (`_route_model_by_context` : conversation trop longue ⇒ modèle à plus grande fenêtre) +
   fournisseurs **cloud** via `llm_chat` (LiteLLM, ROADMAP §8d — livré). Le CATALOGUE est
   exposé à l'assistant par **quatre** outils : deux LECTURES transverses (`list_ai_models` /
   `get_ai_model`, §1) et, depuis le **2026-09-19**, les **deux gestes du bouton** —
   `search_models` (= `seed_hf_search` : écrit des PROPOSITIONS, visibles et rejetables) et
   `install_model` (= `model_installer.request_install` : garde d'espace disque, choix de
-  variante, idempotence, tâche de fond). Ces deux-là **écrivent**, donc ils sont gardés par
-  l'app `model_manager` dans `TOOL_APP_OVERRIDE` — et non transverses comme les lectures.
+  variante, idempotence, tâche de fond). Ces deux-là **écrivent**, donc ils sont gardés ~~par
+  l'app `model_manager` dans `TOOL_APP_OVERRIDE`~~ — et non transverses comme les lectures.
+  *(Corrigé le 2026-10-31, mesuré : depuis le 2026-10-14, `a44b890a`, gardés par `registries`
+  dans `TOOL_APP_OVERRIDE` — la LECTURE, `tool_api.py:4232-4236` — et le geste réservé aux
+  développeurs dans le corps : `_registry_management_refusal` `tool_api.py:2247` →
+  `can_manage_registries`, `accounts/permissions.py:326`.)*
   ⚠ `install_model` n'installe QUE ce qui est déjà proposé ou déjà au catalogue : l'entrée par
   descripteur nu a été retirée de l'endpoint le même jour, donc **une phrase en langage naturel
   ne peut pas faire télécharger un dépôt arbitraire**. `prepare_install_spec` n'existera pas :
   le spec est celui du candidat (détail : `PROSPECTION_PIPELINE.md`, session du 19/09).
-- **Albert API (DINUM) — branchée le 2026-09-15** : `llm_chat(provider='albert')`. Albert parle
+- **Albert API (DINUM) — branchée le 2026-09-15** *(trace du 15/09 — ⚠ corrigé le 2026-10-31 :
+  `OPENAI_COMPATIBLE_PROVIDERS` et `CLOUD_DEFAULT_MODELS` ont été retirés les 07/10 et 11/10, cf.
+  plus bas et `llm_utils.openai_compatible_source` / `default_cloud_model`, `llm_utils.py:341-360` ;
+  Discord n'est plus figé : il suit le réglage durable du compte ou le tirage commun, « le MÊME
+  choix au web, à l'API et aux canaux », `assistant_engine.py:2291-2296` ; et le tirage de
+  l'assistant inclut les distants que les clés du compte ouvrent, `resolve_turn_model` `:358`)* :
+  `llm_chat(provider='albert')`. Albert parle
   le protocole OpenAI depuis sa propre adresse ; `llm_utils.OPENAI_COMPATIBLE_PROVIDERS` le route
   en `openai/<modèle>` (préfixe TOUJOURS posé : ses identifiants contiennent un « / ») avec
   l'adresse et la clé du registre `external_sources` (clé `albert`, `ALBERT_API_KEY` dans `.env`)
@@ -1507,7 +1536,7 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
 |---|---|---|
 | Pipeline LLM (traduction, enrichissement, skills) | `llm_utils.ollama_chat` → `/api/chat` | `ollama_base()` |
 | AI-Assistant (web, API v1, canaux) | `services/assistant_engine.py` | `ollama_base()` |
-| RAG / embeddings | `common/memory/embed.py` → `/api/embed`, `/api/tags` | `ollama_base()` |
+| RAG / embeddings ~~(`common/memory/embed.py` → `/api/embed`, `/api/tags`)~~ — et vecteurs de médias | depuis le 2026-10-19 : `common/memory/embed.py` → `common/vectors/service_client.py` → `common/vectors/engine.py` (service de vectorisation ou en process) → `/api/embed` (`engine.py:83-112`) *(corrigé le 2026-10-31)* | `external_sources.effective_url` |
 | model_manager — **prospection** | `prospect_ollama` → `ollama_registry` + `update_checker` | `ollama_base()` |
 | model_manager — bancs & registre | `benchmark_sync`, `model_registry` → `/api/show` | `ollama_base()` |
 | model_manager — chargement | `memory_manager` → `/api/generate` | `ollama_base()` |
@@ -1680,8 +1709,10 @@ c'est voulu : il n'existe aucune autre porte d'écriture.
 
 `RunOutcome` (gestes captés par middleware) ──projection mécanique──▶ `MemoryItem` auto-approuvé ·
 imports LLM (dev-ai : 25 souvenirs) ──▶ **NON approuvés** (invisibles au rappel, file de revue) ·
-surfaces : journal `/common/journal/` + `memory_recall`. Producteur `PROV_ASSISTANT` : **aucun**
-— un fil de conversation clos pourra se PROJETER en souvenir (jonction canaux §19.5, seul point
+surfaces : journal `/common/journal/` + `memory_recall`. Producteur `PROV_ASSISTANT` : ~~**aucun**~~
+1ᵉʳ producteur depuis le 2026-10-11 : l'outil `remember_fact` (`tool_api.py:4085`), souvenir
+PROPOSÉ, invisible au rappel avant validation — `WAMA_MEMORY §6` (corrigé le 2026-10-31) ;
+un fil de conversation clos pourra se PROJETER en souvenir (jonction canaux §19.5, seul point
 de rencontre entre les deux chantiers).
 
 ### 5. Ce que la VISION prévoit et que le code N'A PAS (confronté le 2026-08-22)
@@ -1689,7 +1720,7 @@ de rencontre entre les deux chantiers).
 | # | Élément (vision) | État réel | Note |
 |---|---|---|---|
 | 1 | Niveau d'enrichissement ORGANISATIONNEL (§10) + skills INSTITUTIONNELS (§9) | ❌ | le substrat existe désormais (RAG niveau `unit`) ; aucun skill org écrit |
-| 2 | Skills UTILISATEUR (§9-10 : habitudes, formats favoris) | ❌ | seules préférences réelles : langue, enrich on/off |
+| 2 | Skills UTILISATEUR (§9-10 : habitudes, formats favoris) | ~~❌~~ 🔄 2026-10-20 | ~~seules préférences réelles : langue, enrich on/off~~ skills de prompt d'utilisateur (`common.PromptSkill`, `resolve_skill(…, user=)`, §0bis) ; les skills de RÔLE restent des fichiers *(corrigé le 2026-10-31)* |
 | 3 | Classification d'INTENTION amont pilotant skills + niveau de RAG (§11, §15) | partiel | le choix est aujourd'hui à l'ASSISTANT (`charger_competence` ✅) ; pas de classification auto, pas de sélecteur d'UI |
 | 4 | RAG dans l'enrichissement d'app (chemin B) | ❌ **arbitré À FAIRE** (21/08) | ouvrir le passe-plat `rag` dans `process_prompt_for` + déclaration `PROMPT_TARGETS` |
 | 5 | Sélection de MODÈLE croisant intention + fichiers + RAG (§15) | ❌ | la sélection réelle est tier/VRAM/contexte (§2ter) ; escalade cloud par VRAM saturée non vécue (§8d) |
@@ -1738,7 +1769,7 @@ bibliothèque des méthodes et métiers d'app.
 
 | brique | état | où |
 |---|---|---|
-| fetch page → texte lisible | ✅ commun (extrait du Describer) | `common/utils/url_ingest.py` (`fetch_html_as_text`, `html_to_readable_text`) |
+| fetch page → texte lisible | ✅ commun (extrait du Describer) | `common/utils/url_ingest.py` (~~`fetch_html_as_text`~~ `fetch_html_page`, `html_to_readable_text` — `fetch_html_as_text` n'existe plus, remesuré le 2026-10-31) |
 | garde SSRF + redirections | ✅ (+ trou du HEAD corrigé 29/08, 4 tests `tests_url_guard.py`) | `common/utils/url_guard.py` |
 | appel VLM commun | ✅ | `model_manager/services/vision_probe.py::describe_image_ollama` (3 appelants) |
 | image → bloc de contexte borné | ✅ | `common/utils/reference_comprehension.py` (`_MAX_IMAGES=2`, budgets) |
@@ -1746,7 +1777,7 @@ bibliothèque des méthodes et métiers d'app.
 | moteur de recherche web | ✅ **LIVRÉ 29/08** (DuckDuckGo sans clé, hôte fixe, encapsulé) | `common/utils/web_search.py` |
 | outils assistant `search_web` / `read_web_page` | ✅ **LIVRÉS 29/08** (refus des non-identifiés DANS le corps — un outil sans app est autorisé à tous) | `wama/tool_api.py` |
 | domaine `investigation` + skill de rôle | ✅ **LIVRÉS 29/08** (registre `DOMAINES`, chargé via `charger_competence`) | `common/utils/assistant_skills.py`, `prompt_skills/assistant-investigation.md` |
-| entrée image de l'assistant | ❌ vue JSON pur, input text seul | `wama/views.py::ai_chat`, `home.html` |
+| entrée image de l'assistant | ❌ vue JSON pur, input text seul — 🔄 **depuis le 2026-10-18** : fichiers glissés sur le chat (`views.py:273` `_turn_message`), regardés par `look_at_image` ; ⏳ images NATIVES au modèle (aucune clé `images` dans `assistant_engine.py`) *(ajouté le 2026-10-31)* | `wama/views.py::ai_chat`, `home.html` |
 | plafond octets / allowlist MIME | ✅ dans `web_search` (2 Mo / 12 k chars) ; ❌ toujours RIEN dans l'ingest | `url_ingest`/`video_utils` |
 
 ### ⚠ État MESURÉ le 2026-09-26 (question de Fabien : « et le proxy ? ») — le moteur refuse
@@ -1841,7 +1872,9 @@ describer (inversion de dépendance). Fixer = faire passer le describer par
 depuis WSL2) ; ② prompt-skill de méthode « assistant-investigation » — ✅ **LIVRÉ 29/08**
 (texte récupéré = DONNÉES, jamais des instructions — injection de prompt = risque n°1 ;
 recouper 2 sources ; réponse SOURCÉE ; budget 1 recherche + 2 pages) ; ③ entrée image de
-l'assistant (pont le plus économique : `comprehend_files` existe) — ⏳ ; ④ persistance des
+l'assistant (pont le plus économique : `comprehend_files` existe) — ~~⏳~~ 🔄 *(2026-10-31 :
+fichier déposé sur le chat web depuis le 2026-10-18, `views.py:273` `_turn_message`, regardé par
+`look_at_image` ; ⏳ images natives au modèle, `_ollama_call`)* ; ④ persistance des
 distillats en RAG (proposée à la clôture, jamais auto) — ⏳.
 **Gouvernance** : chaque investigation = plusieurs passes LLM/VLM sur le GPU hôte (le
 déclencheur des crashs d'août) — user-déclenchée seulement, routée gouverneur sous
@@ -1867,7 +1900,8 @@ lancement, anti-double-passe), donc indépendant de la surface qui dépose la ca
    outil `look_at_image` (synchrone dans le tour, via `vision_probe`, user-déclenché,
    `keep_alive='0'` sous `WAMA_GPU_SAFE_MODE`) — depuis Discord, une photo déposée peut
    désormais être REGARDÉE dans le tour (photo → `look_at_image` → investigation web).
-   RESTENT : le web ne laisse toujours pas entrer l'image (`ai_chat` JSON pur, champ texte) ;
+   RESTENT : le web ne laisse toujours pas entrer l'image (`ai_chat` JSON pur, champ texte)
+   *(levé le 2026-10-18 : fichiers glissés sur le chat, `views.py:273` — constaté le 2026-10-31)* ;
    `_ollama_call` sans champ `images` natif ; `comprehend_files` toujours data-gated à vide
    (aucun `reference_field` déclaré).
 2. ✅ corrigé 29/08 — **le rappel de `charger_competence` reçoit la QUESTION de
@@ -2127,6 +2161,13 @@ L'excédent restant sur les trois budgets ne vient d'aucun fichier de ce palier 
 ⚠ Restent : une tâche lancée depuis le WEB ne poste rien dans Discord (décision de Fabien) ; une
 relève arrêtée entre la lecture du curseur et l'envoi perd un message de fil (au plus une fois —
 la cloche le garde) ; les runs du Studio notifient encore par `notify_job` seul (pas d'élément).
+
+> **2026-10-18 — la fin d'une tâche revient aussi dans le FIL WEB** (ajouté le 2026-10-31,
+> mesuré) : la logique de relève est extraite de `gateway/core.py` vers la brique commune
+> `common/services/job_follow_ups.py` (web + canaux) — `web_follow_ups` (`:268`), lue par la vue
+> `ai_chat_follow_ups` (`views.py:389`, la cloche), et `notices_of_turn` (`:214`), qui joint au
+> résultat d'un tour ses `job_notices` (`assistant_engine.py:2206-2212`). La passerelle n'en garde
+> que la relève (`gateway/core.collect_job_follow_ups`, `:516`).
 
 **Revérification de session (2026-10-06, demande de Fabien : « aligné, schéma-driven, rien
 réinventé ? »)** — trois écarts trouvés à la relecture, corrigés, chacun prouvé par mutation :
@@ -2544,8 +2585,10 @@ d'abord un OCR en échec maquillé en succès.**
   1. **fin de tâche ANNONCÉE, plus jamais suivie dans le tour** : le serveur de dev, qui possède
      les tâches, émet à leur fin une notification `app='dev'` (`dev_tools.notify_finished_jobs`,
      veilleur lancé par `run_mcp_server --surface dev`) ; la cloche du web l'affiche et la
-     passerelle la poste dans le fil d'origine (`gateway.core._dev_job_follow_up`, étape
-     `dev_job_status` réellement jouée) — le chemin des tâches d'app, pas un second. Un second
+     passerelle la poste dans le fil d'origine (~~`gateway.core._dev_job_follow_up`~~ — depuis le
+     2026-10-18, la brique commune `common/services/job_follow_ups.py`, `status_step` `:82` ;
+     relève de la passerelle `gateway/core.collect_job_follow_ups` `:516` ; corrigé le 2026-10-31 —
+     étape `dev_job_status` réellement jouée) — le chemin des tâches d'app, pas un second. Un second
      `dev_job_status` d'une tâche en cours dans le même tour n'est plus relayé (contrôle de la
      boucle, `_already_polled`) ; le résultat d'un lancement le dit (`JOB_STARTED_NOTICE`) ;
   2. **Claude Code en tâche de fond** : `dev_claude_code(task, write, model)` sur la surface de
@@ -2568,7 +2611,7 @@ le gouverneur, à généraliser »).
 
 | couche | où | lue par | état au 13/10 |
 |---|---|---|---|
-| `MODELS` (14 entrées : rôle, priorité, RAM), `MODEL_FALLBACK_CHAINS`, `select_model_for_role` (VRAM libre par nvidia-smi − 2 Go, filtrée par `/api/tags`) et **13 `WORKFLOWS`** — des enchaînements de MODÈLES (`standard` = dev → debug, `full` = dev → debug → architect, `ui` = vision → coder…) | `wama-dev-ai/config.py:91-501,654` | l'agent interactif `cli.py` (`run_task` joue un workflow : chaque modèle RÉÉCRIT chaque fichier en entier, pris dans `MODELS` sans mesure de mémoire ni chaîne, consignes pour dev/debug/architect seules) ; `run_audit.py` (chaîne `audit` MESURÉE le 20/08 : les Qwen échouent sur un long prompt d'outils) | un catalogue PARALLÈLE à `AIModel` ; jamais joint par WAMA (la surface ne lance que les six rôles, `dev_tools.ROLES`) |
+| `MODELS` (14 entrées : rôle, priorité, RAM), `MODEL_FALLBACK_CHAINS`, `select_model_for_role` (VRAM libre par nvidia-smi − 2 Go, filtrée par `/api/tags`) et **13 `WORKFLOWS`** — des enchaînements de MODÈLES (`standard` = dev → debug, `full` = dev → debug → architect, `ui` = vision → coder…) | `wama-dev-ai/config.py:91-501,650` | l'agent interactif `cli.py` (`run_task` joue un workflow : chaque modèle RÉÉCRIT chaque fichier en entier, pris dans `MODELS` sans mesure de mémoire ni chaîne, consignes pour dev/debug/architect seules) ; `run_audit.py` (chaîne `audit` MESURÉE le 20/08 : les Qwen échouent sur un long prompt d'outils) | un catalogue PARALLÈLE à `AIModel` ; jamais joint par WAMA (la surface ne lance que les six rôles, `dev_tools.ROLES`) |
 | bridage « niveau développement » (22/09) | `development_models.development_model` → `select_model` | les six rôles (`role_utils.resolve_model`) | le sélecteur COMMUN, mais tiré SANS compte (`user=None`) — donc local seulement, profil cloud et clés ignorés ; un `provider` distant prenait le modèle par défaut du fournisseur ; le rôle `model` y échappait (chaîne de `config.py`, besoin VRAM de sa table) |
 | gouverneur | `resource_governor` | le rôle `model` seul (attente en mode dépannage), `backend` (keep_alive) | l'AUDIT déchargeait TOUT Ollama au début et à la fin de chaque run — le modèle de l'assistant compris — et vidait par l'API web (mot de passe dans `.env`) un process qui ne tient pas la carte |
 
@@ -2687,7 +2730,7 @@ restent comptées dans la file GPU, comme avant — consigné, non tranché.~~ �
 le gouverneur est au grain du PROCESS (`WAMA_APP_GENERATION_ROUTE §10.6` 4.5) — une conversion
 CPU ne se déclare plus, le post-traitement IA se joue sur la file GPU.
 
-## Intake universel de fichiers par l'assistant — inventaire MESURÉ 2026-08-29, plan PROPOSÉ (⏳ validation Fabien)
+## Intake universel de fichiers par l'assistant — inventaire MESURÉ 2026-08-29, étapes 0-3 ✅ LIVRÉES 2026-08-29, étape 4 ⏳
 
 > Demande de Fabien : livrer n'importe quel fichier via l'assistant (Discord/web) en précisant
 > son RÔLE — ou que l'assistant DEMANDE l'usage sans bloquer la conversation — puis cibler les
@@ -2862,27 +2905,35 @@ Chantier à ouvrir quand Fabien le décide — pas avant la stabilisation hôte 
 
 ### A. Le moteur et ses surfaces
 
+> ⚠ **Lignes du 15/09** (relevé du 2026-10-31) — elles ont bougé. Au 2026-10-31 :
+> `run_assistant_turn` `assistant_engine.py:2219` · `conversation_turn` `:2105` · `_llm_call` `:806` ·
+> `_route_model_by_context` `:462` · `_ollama_call` `:540` · `WAMA_TOOLS_PROMPT` `:72` ·
+> `_build_wama_context` `:415` · `charger_competence` `tool_api.py:2838` · `execute_tool`
+> `tool_api.py:5281` · `TOOL_APP_OVERRIDE` `tool_api.py:4180` · `ai_chat` `views.py:287` ·
+> `api_model_options` `model_manager/views.py:1336`. Les cellules marquées « corrigé le
+> 2026-10-31 » disent l'état présent ; les autres restent la photo du 15/09.
+
 | mécanisme | où | état au 15/09 |
 |---|---|---|
-| tour sans état `run_assistant_turn` (garde abonnement, résolution du modèle, prompt, boucle d'outils ≤ 5) | `common/services/assistant_engine.py:562-743` | complet |
+| tour sans état `run_assistant_turn` (garde abonnement, résolution du modèle, prompt, boucle d'outils ~~≤ 5~~ ≤ 8 + un dernier appel sans outil — `MAX_TOOL_ITERATIONS = 8`, `assistant_engine.py:1365`, depuis le 05/10 ; corrigé le 2026-10-31) | `common/services/assistant_engine.py:562-743` | complet |
 | tour avec historique SERVEUR `conversation_turn` (best-effort sur le stockage, jamais sur la réponse) | `assistant_engine.py:522-559` ; store `conversation_store.py`, `Conversation`/`ConversationTurn` `common/models.py:950-1026` | ⚠ **périmé au 15/09, corrigé le 2026-09-20 sur MESURE** : adopté par les **trois** surfaces — `views.py:166` (web), `api/v1/views.py:132` (api), `gateway/core.py:208` (canaux). Restent `conversations_of`/`clear` sans vue, et `matrix` sans producteur |
 | routage `_llm_call` (local / abonnement / distant), clé personnelle + `cloud_refusal` + modèle ouvert par la clé | `assistant_engine.py:418-474` | ~~⚠ **trou** : un fournisseur SANS source déclarée (`openai`, `mistral`…) n'a ni garde ni clé personnelle (`:447`) — atteignable par l'API v1 et un POST forgé~~ — **constat périmé, corrigé le 2026-10-11 sur mesure** : `_llm_call` refusait déjà un fournisseur non déclaré pour un utilisateur connecté ; depuis ce jour `llm_chat` le refuse aussi sans utilisateur (`declared_llm_source`, R113) |
-| rôles `_ROLE_TIER` → tier → `llm_utils.modele_par_tier` ; bascule de contexte long `_route_model_by_context` | `assistant_engine.py:102-109`, `:177-188`, `:261-287` | complet ; `debug` absent de l'UI (`views.py:52-58`) |
+| rôles `_ROLE_TIER` → tier → `llm_utils.modele_par_tier` ; bascule de contexte long `_route_model_by_context` | `assistant_engine.py:102-109`, `:177-188`, `:261-287` | complet ; `debug` absent de l'UI (`views.py:52-58`) — *corrigé le 2026-10-31 : `_ROLE_TIER` retiré, les anciens rôles valent « auto » (`_LEGACY_ROLES`, `:184`), cf. §2ter* |
 | appel Ollama `_ollama_call` | `assistant_engine.py:294-360` | complet, mais **4ᵉ implémentation** d'un chat Ollama (cf. §C) |
 | prompt d'outils `WAMA_TOOLS_PROMPT`, contexte `_build_wama_context` | `assistant_engine.py:66-89`, `:222-258` | partiel : phrases FR et liste de 8 apps en dur |
 | skills de rôle, annonce, `charger_competence`, rappel labo | `assistant_skills.py:84,100,123` ; `tool_api.py:2493` | complet — le DOMAINE est choisi par l'assistant, jamais déduit du canal |
 | routage de langue `process_prompt_for('assistant')` | `assistant_engine.py:676-683` | local seulement |
-| fournisseurs du sélecteur `chat_provider_choices` + `PROVIDER_SOURCES` | `assistant_engine.py:129-174` | web seulement ; dernière table à la main |
+| fournisseurs du sélecteur ~~`chat_provider_choices` +~~ `PROVIDER_SOURCES` | `assistant_engine.py:129-174` (au 2026-10-31 : `PROVIDER_SOURCES` `:204`, « la seule table à la main qui reste » ; `chat_provider_choices` n'existe plus) | web seulement ; dernière table à la main |
 | surface WEB `ai_chat` → **`conversation_turn`** (fil serveur `web`) | `views.py:135-180` ; `home.html` | ⚠ **corrigé le 2026-09-20** : l'historique n'est plus dans le navigateur — `localStorage` est **sans lecteur et effacé** (`home.html:101-102`), seul le réglage de voix y reste (`:107,188`). Le choix de modèle se résout par le réglage durable + tirage auto (`:146-149`) |
-| voix (Kokoro/service TTS, `WamaApp.Speech`), avatar, micro, étapes d'outil, `switch_mode`, accueil déclaré + mot d'attente | `views.py:207-445` ; `home.html:212-331,334-389,565` ; `assistant_skills.py:205-239` | complet, **web seulement** ; accueil déclaré seulement après « Effacer » (`home.html:138-146`) ; JS du chat inline (§19.6② : à sortir) |
+| voix (Kokoro/service TTS, `WamaApp.Speech`), avatar, micro, étapes d'outil, `switch_mode` (*retiré avec le mode simplifié le 2026-10-27, `39e486b6` ; remplaçant : outil `fold_side_panels` — corrigé le 2026-10-31*), accueil déclaré + mot d'attente | `views.py:207-445` ; `home.html:212-331,334-389,565` ; `assistant_skills.py:205-239` | complet, **web seulement** ; accueil déclaré seulement après « Effacer » (`home.html:138-146`) ; JS du chat inline (§19.6② : à sortir) |
 | surface API v1 `AssistantChatView` → `run_assistant_turn`, historique fourni par le client | `api/v1/views.py:86-135` | complet ; aucun test |
-| passerelle : appariement `ChannelLink`, `!lier/!delier/!code/!aide`, pièces jointes → espace WAMA, fichiers produits joints, réponses privées | `gateway/models.py`, `services.py`, `core.py:101-325`, `adapters/discord_bot.py` | complet ; **n'envoie ni fournisseur ni modèle** (`core.py:208`) ; Matrix, slash, rate-limit, notifications : ⏳ |
+| passerelle : appariement `ChannelLink`, `!lier/!delier/!code/!aide`, pièces jointes → espace WAMA, fichiers produits joints, réponses privées | `gateway/models.py`, `services.py`, `core.py:101-325`, `adapters/discord_bot.py` | complet ; **n'envoie ni fournisseur ni modèle** (`core.py:208`) — *et n'en a plus besoin (corrigé le 2026-10-31) : `run_assistant_turn` DÉRIVE le fournisseur du réglage durable du compte ou du tirage commun, « le MÊME choix au web, à l'API et aux canaux » (`assistant_engine.py:2291-2296`) ; appel actuel `gateway/core.py:245`* ; Matrix, slash, rate-limit, notifications : ⏳ |
 | `tool_api` : porte unique `execute_tool`, `tool_accessible`, `TOOL_APP_OVERRIDE` (None = transverse) | `tool_api.py:3224-3268,3770-3825` | complet |
-| MCP : surface `wama` (outils) et `wama-dev` (process séparé) ; **n'expose pas le tour d'assistant** | `common/services/mcp_server.py`, `dev_tools.py` | complet ; non supervisé ; moteur client MCP ⏳ (étape 5) |
+| MCP : surface `wama` (outils) et `wama-dev` (process séparé) ; **n'expose pas le tour d'assistant** | `common/services/mcp_server.py`, `dev_tools.py` | complet ; non supervisé ; moteur client MCP ⏳ (étape 5) — *corrigé le 2026-10-31 : 🔄 client MCP de l'assistant vers `wama-dev` depuis le 2026-09-22 (`mcp_client.py`, §1ter) ; et depuis le 2026-10-23 (`087ac79a`) l'abonnement Claude Code CONSOMME la surface `wama` (`--mcp-config` + `--strict-mcp-config`, `claude_code.py:273`) ; serveur MCP tiers ⏳* |
 | Claude Code (abonnement) : env explicite sans `ANTHROPIC_API_KEY`, jeton personnel, `cloud_refusal`, lecture seule par défaut | `common/services/claude_code.py:102-237` | complet ; chemin CLI en dur (`:94`) |
 
 **Divergences entre surfaces (à résorber par le commun)** : ~~historique~~ **RÉSORBÉ le 15/09, mesuré le 2026-09-20** (les 3 surfaces sur `conversation_turn` ; MCP n'exécute aucun tour, donc sans objet) ; point d'entrée (`run_assistant_turn` vs `conversation_turn`) ; choix du
-modèle (web limité, API libre, Discord figé) ; domaine (API seule) ; fichiers entrants et produits
+modèle (web limité, API libre, Discord figé — *corrigé le 2026-10-31 : choix du modèle COMMUN aux trois surfaces, réglage durable + tirage, `assistant_engine.py:2291-2296`*) ; domaine (API seule) ; fichiers entrants et produits
 (Discord seul) ; commandes (Discord seul) ; coût affiché (`!code` seul) ; voix/avatar/étapes (web
 seul) ; validation de `history` (API seule) ; découpage de longueur (Discord seul).
 
@@ -2892,6 +2943,10 @@ seul) ; validation de `history` (API seule) ; découpage de longueur (Discord se
   **L'assistant ne fait que LIRE** : aucun producteur `PROV_ASSISTANT` (`common/models.py:810`),
   projection conversation → souvenir ⏳ (`ROADMAP §19.5`), approbation sans outil, Hook B RAG jamais
   activé (`prompt_pipeline.py:178`), bascule d'embedder et index vectoriel ⏳.
+  *(Corrigé le 2026-10-31 : 1ᵉʳ producteur `PROV_ASSISTANT` = l'outil `remember_fact` depuis le
+  2026-10-11, souvenir PROPOSÉ — `tool_api.py:3981`, `WAMA_MEMORY §6` ; bascule d'embedder ✅
+  2026-10-19 vers `qwen3-embedding:4b`, `WAMA_MEMORY §7` ; index vectoriel : aucun index HNSW
+  déclaré dans le code versionné, cf. `WAMA_MEMORY §7`.)*
 - Préférences qu'il lit : `UserProfile.preferred_language`, `cloud_policy`, `rag_niveaux_rappel` ;
   `prompt_enrich` sans case dans l'UI.
 
@@ -2932,9 +2987,9 @@ seul) ; validation de `history` (API seule) ; découpage de longueur (Discord se
 | catalogue d'apps | `app_registry.py:596-1100` ; régime transversal = `extra_links` à `gate` (`:509-517,552-558` — depuis le 2026-10-02 : surfaces déclarées par `register_surface`) | ⚠ le code dit « transversal = HORS `APP_CATALOG` » (contrat d'app de fichiers) ; une entrée sans `input_extensions`/`has_batch` vide le catalogue JS de TOUTES les apps (`accounts/context_processors.py:58-59,69-70`) ; aide par défaut écrite pour une file (`app_modern_base.html:236-244`) |
 | accès | `permissions.py` `DEFAULT_APP_ACCESS`, `accessible`, `app_id_for_path` | ⚠ la garde par app ne voit que le 1ᵉʳ segment d'URL : `/api/ai-chat/`, API v1 et Discord y échappent (`:181`) ; app non déclarée = commune (`:275-276`) |
 | schéma de réglages | `param_schema.py` (`derive_from_model` accepte un champ sans modèle Django `:166-167` ; `schema_for_app` exige `wama.<app_id>.params` `:355`) | défauts de volet non dérivés en commun (`applicable_defaults` = contexte `item` seul `:236`) |
-| sélecteur de modèle | `wama-params.js` source `catalog` + `options_auto` + type `intent` ; `api_model_options` `model_manager/views.py:1172-1252` ; `auto_model.resolve_model_choice` | ⚠ l'endpoint n'a ni utilisateur ni `cloud_keys` (`:1205-1206`) : aucun modèle distant listé ni prévu ; la source `catalog` REMPLACE tout le select (`wama-params.js:511`) ; tirage sans source = `model_key` entier (`model_selector.py:575`) vs moteur `(provider, model)` |
+| sélecteur de modèle | `wama-params.js` source `catalog` + `options_auto` + type `intent` ; `api_model_options` `model_manager/views.py:1172-1252` ; `auto_model.resolve_model_choice` | ~~⚠ l'endpoint n'a ni utilisateur ni `cloud_keys` (`:1205-1206`) : aucun modèle distant listé ni prévu~~ *(levée, constaté le 2026-10-31 : drapeau `cloud=1` → `allowed_cloud_keys` de l'utilisateur, `model_manager/views.py:1375-1381`)* ; la source `catalog` REMPLACE tout le select (`wama-params.js:511`) ; tirage sans source = `model_key` entier (`model_selector.py:575`) vs moteur `(provider, model)` |
 | réglages utilisateur | `user_settings.py` (cache 30 j, 3 fonctions) — appelants : transcriber, avatarizer, synthesizer, converter (clé dynamique), composer, describer, imager, reader + générateur | bascule durable : garder `timeout=`, `None` écrit tel quel, clés à recopier (noms d'app avec `_`) ; `anonymizer.UserSettings` influence la TÂCHE (`anonymizer/tasks.py:192-240`) — pas un simple confort |
-| volet droit | `volet.py`, `base.html:179-259` | un contenu dans `right_panel_top` est écrasé par la page qui surcharge le bloc ; pages `VOLET_AUCUN` sans aside ; mode simplifié masque les volets (`WAMA_VOLETS.md §7-§9`) |
+| volet droit | `volet.py`, `base.html:179-259` | un contenu dans `right_panel_top` est écrasé par la page qui surcharge le bloc ; pages `VOLET_AUCUN` sans aside ; ~~mode simplifié masque les volets (`WAMA_VOLETS.md §7-§9`)~~ *(mode simplifié retiré le 2026-10-27, R182 — un bouton d'en-tête replie les volets ; corrigé le 2026-10-31)* |
 
 ### D-bis. La TAXONOMIE des modèles était imprécise — corrigée à la source (2026-09-16)
 
@@ -2966,7 +3021,7 @@ re-typer. Et `check_model_taxonomy` signale 4 tâches non déclarées (`diarizat
 
 `WAMA_MEMORY.md:3-4`, `AGENTS.md` (ligne « Mémoire & RAG »), `ROADMAP §24.5.7`, `PROJECT_STATUS §6` : le
 jalon 12 est LIVRÉ · `WAMA_MEMORY §5/§6.4/§7/§7ter` (`approve`, `expire`, HNSW, `indexer`) · ce document :
-l.65 (enrichissement « OFF » — faux, `settings.py:884`), l.89-93/256/358-360 (pont wama-dev-ai → skills :
+l.65 (enrichissement « OFF » — faux, `settings.py:1189` ; ✅ corrigé le 2026-10-31), l.89-93/256/358-360 (pont wama-dev-ai → skills :
 en place), l.255 (5 domaines avec `investigation`), l.406-409 (option `home.html` désormais dynamique,
 registre des fournisseurs abandonné) · `ROADMAP §19.0/19.1/19.3/19.6④/19.7`, l.1432 (69 outils) · `AGENTS.md`
 §Collaboration et `ROADMAP §6` (phases de wama-dev-ai) · `WAMA_VISION_COMPLET §12.3/§5.7` · docstrings

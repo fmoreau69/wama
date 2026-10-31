@@ -6,6 +6,33 @@
 >
 > **Mise à jour : 2026-08-04** — confrontation au réel après l'arrivée de la couche manifestes
 > (voir « Mise en conformité » plus bas). L'état des briques et l'ordre ont été révisés.
+>
+> ⚠ **Identifiants renommés le 2026-08-29** (dette de nommage, `AGENTS.md` §nommage) — les blocs
+> datés d'août les citent sous leur ANCIEN nom, qu'on ne réécrit pas. Correspondance, chaque nom
+> actuel vérifié au code le 2026-10-31 (`def <nom>`) :
+>
+> | ancien | actuel |
+> |---|---|
+> | `installer_candidat` | `model_installer.install_candidate` |
+> | `_modele_remplace` / `modele_remplace` | `model_installer.replaced_model` |
+> | `_juger` | `prospect_agents._judge` |
+> | `ecrire_candidat` | `prospect_ollama.write_candidate` |
+> | `_cle_de_rang` | `model_selector._rank_key` |
+> | `_ligne_benchmark` | `prospect_agents._benchmark_line` |
+> | `_modele_local_resolu` | `prospect_agents._resolved_local_model` |
+> | `_choisir_variante` / `_mots` | `benchmark_sync._choose_variant` / `_words` |
+> | `meilleurs_installes` | `AIModel.best_installed` |
+> | `ollama_registry.digest_distant` / `_manifeste_brut` / `taille_go` | `remote_digest` / `_raw_manifest` / `size_gb` |
+> | `update_checker.digests_locaux` | `local_digests` |
+> | `_contexte_hf` | `prospect_agents._hf_context` |
+> | `prospector.variantes_quantisees` / `_attacher_variantes_quantisees` | `quantized_variants` / `prospect_agents._attach_quantized_variants` |
+> | `_MOTIFS_BRUIT` / `_MOTIFS_QUANT` | `prospector._NOISE_MARKERS` / `_QUANT_MARKERS` |
+> | `options_installation` / `spec_pour_choix` | `prospector.install_options` / `spec_for_choice` |
+> | `prospector.analyse_licence` | `analyze_license` |
+> | `yolo_asset_gb` | `model_installer._yolo_asset_gb` |
+>
+> Depuis, d'autres déplacements sont dits à leur place (ex. `views._enqueue_after_prospect` →
+> `prospector.enqueue_after_prospection`, 2026-10-10).
 
 ## Le pipeline en 6 étapes
 
@@ -29,10 +56,10 @@
 
 | Étape | État | Brique |
 |---|---|---|
-| 1 | ✅ | AI-Assistant + `tool_api.py` — **un SEUL fichier central `wama/tool_api.py`** (`TOOL_REGISTRY`, `/api/v1/tools/`), pas un par app. ~~zéro outil model_manager~~ **LIVRÉS** : lectures `list_ai_models` / `get_ai_model` (2026-09-03), puis les **deux gestes du bouton** le 2026-09-19 — `search_models` (= `seed_hf_search`, écrit des PROPOSITIONS) et `install_model` (= `request_install`, garde d'espace comprise), gardés `model_manager` dans `TOOL_APP_OVERRIDE`. ⚠ `prepare_install_spec` **n'a pas à exister** (décision du 19/09) : le spec est celui du CANDIDAT (`spec_for_choice`) — un outil qui fabriquerait un spec rouvrirait l'entrée nue qu'on vient de fermer |
+| 1 | ✅ | AI-Assistant + `tool_api.py` — **un SEUL fichier central `wama/tool_api.py`** (`TOOL_REGISTRY`, `/api/v1/tools/`), pas un par app. ~~zéro outil model_manager~~ **LIVRÉS** : lectures `list_ai_models` / `get_ai_model` (2026-09-03), puis les **deux gestes du bouton** le 2026-09-19 — `search_models` (= `seed_hf_search`, écrit des PROPOSITIONS) et `install_model` (= `request_install`, garde d'espace comprise), gardés `model_manager` dans `TOOL_APP_OVERRIDE` *(depuis le 2026-10-14 : gardés `registries` — `wama/tool_api.py:4232-4233` —, le geste réservé aux développeurs dans le corps, `_registry_management_refusal` → `can_manage_registries` ; corrigé le 2026-10-31)*. ⚠ `prepare_install_spec` **n'a pas à exister** (décision du 19/09) : le spec est celui du CANDIDAT (`spec_for_choice`) — un outil qui fabriquerait un spec rouvrirait l'entrée nue qu'on vient de fermer |
 | 2 | 🟡 | `services/prospector.py` (HF API : `pipeline_tag`, librairie, downloads, **`--search`, métrique `model-index`, licence, URL** depuis 2026-08-05) + `prospect_agents.py` (évaluation LLM des candidats) — chaîne Ollama-first opérationnelle ; **moitié « HF vision » de l'extension livrée** (cf. §2 bis), reste le beat releases Ultralytics |
 | 3 | ✅ | **SUBSUMÉ par la couche manifestes** (2026-08-02) : le kind `library` (SPEC §7.4-3) porte dépôt/licence/version/`install.pip`, extrait mécaniquement par `extract_library()` ; la « passe LLM » est le rôle wama-dev-ai « librarian » (§7.4-4, `run_librarian.py`). Reste à **brancher** sur la prospection, plus à écrire |
-| 4 | 🟡 | Capacités d'apps déclarées (`APP_CATALOG`, `app_registry`) ; le matching besoin↔capacité est à écrire |
+| 4 | ~~🟡~~ 🔄 | Capacités d'apps déclarées (`APP_CATALOG`, `app_registry`) ; ~~le matching besoin↔capacité est à écrire~~ *(corrigé le 2026-10-31)* matching par le rôle `integrator` (`wama-dev-ai/run_integrator.py` : app existante ou génération, contexte `APP_CATALOG`, sortie `PENDING_HUMAN_VALIDATION`) et `run_app_manifest.py --need` ; la fonction PURE de matching reste à écrire |
 | 5 | ✅ | `install_from_spec()` (descripteur déclaratif, ce commit) + drivers `pull_ollama_model` / `pull_hf_model` / `pull_yolo_weights` / `pip_install_packages` + `register_after_install` |
 | 6 | 🔄 | = chantier « manifests → génération LLM » DÉJÀ priorisé (voir **`WAMA_APP_GENERATION_ROUTE.md`** — `UI_MECHANISMS_CONSOLIDATION.md` est archivé dans `docs/construction/archive/` — et `WAMA_MANIFEST_SPEC.md`) — la vision s'y branche, ne pas dupliquer. Avancé depuis : 7 kinds, enveloppe `requires`, ingest, corpus |
 
@@ -211,16 +238,26 @@ suffit, l'application n'est pas requise — le plan gratuit restrictif n'est don
 
 ## Ordre de réalisation recommandé
 
+> *(État au 2026-10-31, d'après ce document et le code — la liste ci-dessous est celle d'août.)*
+> 1-3 sont faits ou remplacés ; 5 est 🔄 (rôle `integrator`). Voir chaque point.
+
 1. ✅ `install_from_spec` (fait — point d'entrée unique, endpoint `{'spec': …}`).
-2. `model.body.install` (bloc + validation, sur le patron de `library`) puis levée de la
-   restriction Ollama-only de `api_prospect_install` : c'est ce qui débloque 3.
-3. `tool_api.py` du model_manager : exposer `search_models` (prospector), `model_catalog`
+   *(L'entrée `{'spec': …}` de l'endpoint est RETIRÉE le 2026-09-19 — cf. « Mise en conformité »
+   plus haut ; `install_from_spec` reste le pilote interne des tâches.)*
+2. ~~`model.body.install` (bloc + validation, sur le patron de `library`) puis levée de la
+   restriction Ollama-only de `api_prospect_install` : c'est ce qui débloque 3.~~ *(Décision
+   REMPLACÉE le 2026-08-27 par `body.composition` ; la restriction Ollama-only est levée — cf. plus
+   haut.)*
+3. ~~`tool_api.py` du model_manager : exposer `search_models` (prospector), `model_catalog`
    (AIModel), `prepare_install_spec` (retourne le spec SANS exécuter), `install_model`
-   (exécute un spec validé) à l'assistant.
+   (exécute un spec validé) à l'assistant.~~ ✅ *(2026-09-03 / 09-19 : `search_models`,
+   `install_model` à l'outil de l'assistant — `wama/tool_api.py:4102-4103` ; `list_ai_models` tient
+   lieu de `model_catalog` ; `prepare_install_spec` écarté — cf. l'étape 1 du tableau d'état.)*
 4. Beat de prospection vision : candidats `is_proposed` avec `body.install` renseigné (Ultralytics
    releases + HF `pipeline_tag` vision), même UI « Proposés par IA » qu'Ollama. Remplace le stub
    jamais exécutable `AI-models/weekly_model_discovery.py` (à supprimer alors).
-5. Matching besoin↔app (capacités APP_CATALOG) — fonction pure, testable.
+5. Matching besoin↔app (capacités APP_CATALOG) — fonction pure, testable. 🔄 *(le rôle
+   `integrator` le fait par LLM sous validation humaine ; la fonction pure reste à écrire.)*
 6. Génération d'app : rejoindre le chantier manifeste existant (P0).
 
 ## État livré — session du 2026-08-18 : install asynchrone + confiance LLM des `new` + journal applicatif
@@ -328,7 +365,14 @@ RESTE (mis à jour) : beat hebdo (Ollama + génération) ; vision (YOLO) auto-pr
 pour EXPLOITER un modèle diffusion fraîchement installé (installé+catalogué ≠ utilisable,
 cf. note pull_hf_model).
 
-## ÉTAT DES LIEUX DE LA COUVERTURE (mesuré le 2026-08-18 soir — LA table de référence)
+## ÉTAT DES LIEUX DE LA COUVERTURE (mesuré le 2026-08-18 soir — ~~LA table de référence~~ table AU 2026-08-18)
+
+> ⚠ *(Ajouté le 2026-10-31, mesuré)* — table du 18/08, dépassée sur trois points :
+> `prospector.HF_TASKS` compte **12** tâches (`prospector.py:333-359` : + `image-text-to-video`,
+> `text-to-audio-video`, `text-generation`) ; la découverte passe aussi par les **classements**
+> (`seed_benchmark_candidates`, `:1524`) et les **successeurs déclarés** par l'auteur
+> (`seed_hf_successors`, `:1664`, candidats `update`) depuis le 2026-10-10 — §« Session du
+> 2026-10-10 (suite) » ; et par la recherche nommée (`seed_hf_search`, `:2181`).
 
 Catalogue réel : 95 modèles installés (49 vision, 12 llm, 10 speech, 9 diffusion,
 7 upscaling, 3 music, 2 ocr, 2 lipsync, 1 vlm).
@@ -346,7 +390,9 @@ Catalogue réel : 95 modèles installés (49 vision, 12 llm, 10 speech, 9 diffus
 **Trous restants (par ordre d'intérêt) :**
 1. **MAJ des installés HF** : `check_updates(do_hf=True)` produit des signaux (CLI
    `check_model_updates`) mais AUCUN candidat UI `update` — le remplacement auto n'existe
-   que côté Ollama.
+   que côté Ollama. 🔄 *(2026-10-10 : successeurs DÉCLARÉS par l'auteur — champ `new_version` —
+   proposés en candidats `update`, `seed_hf_successors` ; sans retrait automatique. Noté le
+   2026-10-31.)*
 2. **Vision spécialisée** (visage/plaque/YOLO) : install à la demande OK (`pull_yolo_weights`,
    spec `yolo`) mais pas de VEILLE auto (releases ultralytics + `search` HF ciblé).
 3. **Beat hebdo** : aucune prospection périodique — tout est au clic.
@@ -1375,9 +1421,9 @@ faute de licence connue, de VRAM crédible ou de backend. Rien ne le disait.*
 > effectif de bout en bout »). Il l'EST.** La première rédaction de cette section affirmait
 > que « 16 modèles installés ne sont signalés nulle part » : **c'est faux**, et le mot
 > « angle mort » laissait entendre un trou dans la chaîne de grisage. Vérification maillon
-> par maillon — `backend_missing()` → `get_registry_models` (`model_selector.py:636`) →
-> `data-backend-missing` (`wama-params.js:524`) → respect du marqueur serveur
-> (`wama-input-match.js:93`) → exclusion du tirage (`model_selector.py:326`) : **la chaîne
+> par maillon — `backend_missing()` → `get_registry_models` (`model_selector.py:636` ; *au 2026-10-31 : `:1004-1008`, dans `get_registry_models` `:871`*) →
+> `data-backend-missing` (`wama-params.js:524` ; *au 2026-10-31 : `common/static/common/js/wama-params.js:67-71`*) → respect du marqueur serveur
+> (`wama-input-match.js:93` ; *au 2026-10-31 : `:188`*) → exclusion du tirage (`model_selector.py:326` ; *au 2026-10-31 : `:630-631`*) : **la chaîne
 > est complète.** Ce qui reste vrai est beaucoup plus étroit, ci-dessous.
 
 `backend_missing()` est **permissif par construction** : pas de moteur déclaré ⇒ pas de
@@ -1389,7 +1435,7 @@ périmètre du verdict**, ce qui n'est pas la même chose que des modèles cass�
 
 | famille | n | statut réel |
 |---|---|---|
-| lignes `huggingface:*` non rattachées à une app | 10 | `get_registry_models` filtre par `source` (`model_selector.py:573`) → **elles n'apparaissent dans aucun select d'app**. Poids installés pas encore attachés = ce que la table du 02/09 liste déjà comme « backend à écrire ». |
+| lignes `huggingface:*` non rattachées à une app | 10 | `get_registry_models` filtre par `source` (`model_selector.py:573` ; *au 2026-10-31 : `get_registry_models`, `:871` et suiv.*) → **elles n'apparaissent dans aucun select d'app**. Poids installés pas encore attachés = ce que la table du 02/09 liste déjà comme « backend à écrire ». |
 | `composer` ×3, `reader` ×3 | 6 | **fonctionnent** — leurs apps les routent par leur propre gestionnaire de backends (audiocraft, backends du reader), antérieur à l'inventaire commun. Rien ne manque, donc rien à griser. |
 
 ### Le risque RÉEL de la permissivité — reproduit, puis BORNÉ
@@ -1405,8 +1451,9 @@ Un modèle **sans aucun backend** (runtime NeMo absent) gagne le tirage et écho
 chargement — le verdict permissif ne l'exclut pas.
 
 **MAIS ce chemin n'a aucun appelant en production.** `select_model` exige `source` **ou**
-`model_type` (`model_selector.py:293`) ; or les deux seuls appels qui passent `model_type`
-passent AUSSI une source — `assistant_engine.py:226` et `llm_utils.py:150` disent tous deux
+`model_type` (`model_selector.py:293` ; *au 2026-10-31 : `:590`*) ; or les deux seuls appels qui passent `model_type`
+passent AUSSI une source — `assistant_engine.py:226` et `llm_utils.py:150` *(au 2026-10-31 :
+`assistant_engine.py:478`, `llm_utils.py:196`)* disent tous deux
 `select_model('ollama', model_type='llm', …)`. → **risque LATENT, pas actif.**
 
 > 🔴 **PRÉCISION du 2026-09-03** (Fabien : « la vocalisation est en place. C'est un trou dans
@@ -1431,6 +1478,12 @@ passent AUSSI une source — `assistant_engine.py:226` et `llm_utils.py:150` dis
 > latence que ce service existe pour garantir. Ce qui pourrait légitimement venir du registre,
 > c'est **le choix du moteur à garder chaud** (une fois, au démarrage du service), pas une
 > sélection par appel. **Arbitrage Fabien, non tranché ici.**
+>
+> ✅ **Tranché le 2026-10-28** (`REMOVAL_LEDGER` R184 ; noté le 2026-10-31) : le moteur de la voix
+> de l'assistant est un réglage DURABLE du compte (`assistant/params.py` : `voice_model`), « auto »
+> tirant par le catalogue le plus rapide en temps réel dans la langue du profil
+> (`common/tts/assistant_voice`) ; `ASSISTANT_TTS_ENGINE` et `WAMA_ASSISTANT_TTS_ENGINE` sont
+> retirés (`common/tts/constants.py:17-20`).
 
 ### Le seul constat sans réserve : `table-transformer` n'est relié à rien
 
@@ -1449,7 +1502,7 @@ Reste un cas d'une autre nature, `timm/resnet18` — ci-dessous.
 > mon propre constat précédent**, qui annonçait « deux sources du même chiffre » et « 1
 > désaccord réel ». Les deux affirmations étaient fausses.
 
-**Ce que la table EST**, lu au code (`memory_manager.py:64-143`, fichier créé le 2026-01-29) :
+**Ce que la table EST**, lu au code (`memory_manager.py:64-143` ; *au 2026-10-31 : `MODEL_SIZE_PRESETS` `:108`* — fichier créé le 2026-01-29) :
 un registre de **VRAM d'exécution MESURÉE** de pipelines diffusers, indexé par **FAMILLE**
 (`'flux'`, `'mochi'`, `'cogvideox'`…), avec la provenance de chaque valeur en commentaire —
 Qwen-Image 38 Go *mesurés au journal worker le 29/07*, CogVideoX « 20.34 GiB allocated by
@@ -1481,7 +1534,7 @@ variante fp8 tombe d'ailleurs pile (8 vs 8,0), grâce à la clé `'distilled-fp8
 ça. *J'avais confondu « les deux chiffres diffèrent » avec « ils se contredisent ».*
 
 **Le SEUL résidu trouvé, et il est minuscule** : `fits_full_gpu()`
-(`memory_manager.py:163`) n'a **aucun consommateur** — vérifié sur tout le dépôt, seule sa
+(`memory_manager.py:163` ; *au 2026-10-31 : `:401`, toujours sans consommateur*) n'a **aucun consommateur** — vérifié sur tout le dépôt, seule sa
 définition existe. `preset_vram_gb()`, lui, n'est appelé que par le garde de cohérence.
 *Ironie : ma première rédaction citait `fits_full_gpu` comme « le consommateur » de la table.
 Il ne consomme rien.*
@@ -1518,7 +1571,8 @@ est mesurable : le fichier existe **AUX DEUX endroits**
 `snapshot_download(cache_dir=…)` « **SANS muter `HF_HUB_CACHE` global** » (sa docstring le dit,
 et la dispersion est la raison invoquée) — et il ne tire qu'un dépôt.
 
-Le coupable est le **chargement** : `common/backends/table_transformer_backend.py:90` fait
+Le coupable est le **chargement** : `common/backends/table_transformer_backend.py:90` *(ligne du
+03/09 ; la mutation est retirée, commentaire du retrait `:101-106`)* fait
 `os.environ['HF_HUB_CACHE'] = cache_det` avant l'import transformers. Table Transformer est un
 DETR dont la config déclare un **backbone timm** ; celui-ci se résout par le hub, donc atterrit
 dans `HF_HUB_CACHE` — c'est-à-dire dans le dossier du modèle principal. *La mutation d'env est
@@ -1534,6 +1588,11 @@ corrigé**, pas une découverte isolée.
 `local_files_only=True` et `HF_HUB_CACHE` pointant là — le retirer sans corriger le routage
 peut casser le chargement. L'ordre est : poser `HF_HOME` au démarrage et retirer la mutation
 per-modèle (ROADMAP §5b), *puis* nettoyer, *puis* purger la ligne de catalogue.
+
+✅ **Soldé** *(noté le 2026-10-31, mesuré)* : la mutation est retirée le 2026-09-03
+(`table_transformer_backend.py:106` — « PAS de `os.environ['HF_HUB_CACHE'] = cache_det` ici » ;
+`_cache_dir_for` `:37`) ; budget de mutations à 0 et aucun snapshot étranger au 2026-09-14
+(`AGENTS.md` §« Ajout d'un nouveau modèle AI », `tests_hf_cache_routing`, `check_model_layout`).
 
 **La ligne de catalogue est un SYMPTÔME, pas la maladie** : la découverte balaie
 `AI-models/models/` et y trouve un snapshot ; elle a raison de le voir. Si le backbone était
@@ -1752,6 +1811,9 @@ ouvert**) est listé dans `PLATFORM_TASKS_NOT_CARRIED`, donc `LocateAnything-3B`
 catalogué — n'a **aucune** tâche, et sort de toute sélection comme de tout banc. Deux voies : le
 ranger en `detect` (il détecte, mais on perd « le vocabulaire est ouvert », qui est justement son
 intérêt pour le detector), ou déclarer la tâche. Rien n'est tranché ici.
+✅ **Tranché le 2026-10-07** (décision de Fabien, route F4b ⑤ ; noté le 2026-10-31) : la tâche est
+DÉCLARÉE — `ModelTask.ZERO_SHOT_OBJECT_DETECTION` (`model_manager/models.py:59-68`) ;
+LocateAnything porte sa tâche.
 
 ### Même jour — les 22 lignes CLOUD n'entraient dans AUCUN banc (et rien ne le disait)
 
@@ -1799,11 +1861,11 @@ modèles (cas FastWan).
 
 | bouton | tâche | périmètre | ressource |
 |---|---|---|---|
-| **Prospecter** | `prospect_ollama` + `seed_hf_candidates` (synchrone), puis **`_enqueue_after_prospect`** | écrit des candidats `proposed:` | réseau |
+| **Prospecter** | `prospect_ollama` + `seed_hf_candidates` (synchrone), puis **`_enqueue_after_prospect`** *(devenu `prospector.enqueue_after_prospection` le 2026-10-10)* | écrit des candidats `proposed:` | réseau |
 | **Mesurer la performance** | `sync_benchmarks_task` (indicateur 3, bancs TIERS) | installés + cloud + proposés | réseau, file `default` |
 | **Évaluer la confiance** | `assess_proposed_task` (indicateur 1, jury LLM) | candidats `new` **sans** confiance | GPU (Ollama hôte), file `gpu` palier basse |
 
-**Livré** : `views._enqueue_after_prospect` — « Prospecter » enchaîne `sync_benchmarks_task.si() |
+**Livré** : `views._enqueue_after_prospect` *(devenu `prospector.enqueue_after_prospection`, `services/prospector.py:1749`, le 2026-10-10 — noté le 2026-10-31)* — « Prospecter » enchaîne `sync_benchmarks_task.si() |
 assess_proposed_task.si()` : le jury part **après** les bancs, parce qu'il les LIT
 (`_benchmark_line`) ; deux `.delay()` côte à côte l'auraient fait juger des candidats encore
 sans banc. Gardes : réglage `PROSPECT_ASSESS_AUTO` (**défaut 1** désormais, `=0` le détache),
@@ -1960,6 +2022,7 @@ chantier, comme le synthesizer) ; la provenance d'un reconditionnement (décisio
 `base_model` désigne déjà la dorsale d'une LoRA) ; puis l'option (b), les poids officiels.
 ⚠ Relevé en passant : `Flux2KleinBackend.generate` lit `params.num_inference_steps`, absent de
 `GenerationParams` (le champ est `steps`) — toute génération FLUX.2 Klein lève.
+✅ *Corrigé* (noté le 2026-10-31) : le backend lit `params.steps` (`common/backends/flux2_klein_backend.py:184-187`).
 
 ## Session du 2026-09-30 : la chaîne ÉPROUVÉE par qwen3.8 sur les avatars — deux trous du scout
 
@@ -2061,6 +2124,7 @@ génération sur GPU (le GPU servait une campagne d'évaluation du transcriber �
 pas une option) ; et l'emploi par le COMPOSER, qui appelle `composer:<modèle>` — un modèle venu
 du catalogue (`huggingface:…`) n'y paraît qu'avec l'étape F4b du composer (sélecteur tiré du
 catalogue par tâche, faite pour l'imager et le transcriber).
+✅ *Fait le 2026-10-03* (noté le 2026-10-31) : génération GPU et emploi par le composer — cover #314, §« Session du 2026-10-03 : SheetSage2 » (rendu 145 s, YuE2 `cot=melody`).
 
 ## Session du 2026-10-01 (soir) : trois modèles de transcription par les rôles — le rôle `backend` sans essai écrit du code qui ÉCHOUE à chaque appel
 
@@ -2139,7 +2203,7 @@ workers) : extraction 104 s (SheetSage2 chargé puis DÉCHARGÉ), rendu 145 s (Y
 lu au journal du worker), 29,3 s d'audio stéréo non silencieux. **Fidélité MESURÉE** : la
 partition ré-extraite du cover ressemble à celle de la source à 84 % (contre-épreuve aléatoire :
 19 %), même tempo (♩=129), même tonalité, même mesure. A priori de qualité de la musique :
-`WAMA_QUALITE.md` (étage a priori). ⏳ **Pas encore** : la 1ʳᵉ reprise réelle sur GPU ;
+`WAMA_QUALITE.md` (étage a priori). ⏳ **Pas encore** : ~~la 1ʳᵉ reprise réelle sur GPU ;~~ *(faite, cf. ci-dessus — reste du brouillon, barré le 2026-10-31)*
 rechargement des workers pour importer le backend et le process. ⚠ Relevé au passage, hors de ce périmètre : `$HOME/.cache/huggingface/hub` porte 13 Go de
 dépôts déposés hors `AI-models` (Supra2-IMG, LinTO, MuseTalk, Higgs, Kokoro…).
 
@@ -2555,6 +2619,9 @@ Fabien) sur les commits `0ec1d92e` → `9073a06b`.** Chaque ajout confronté à 
   model manager écrit son lien vers HuggingFace depuis `hf_id` (gabarit), alors que
   `platform_url` sert déjà l'action « Voir sur la plateforme » ; l'étape 4 de
   `setup_avatarizer.sh` (MuseTalk) télécharge encore elle-même.
+  → *Soldés plus bas (renvois ajoutés le 2026-10-31)* : jeton GitHub → ✅ 2026-10-12, clé facultative
+  (`ExternalSource.api_key_optional`, `external_sources.py:783`) ; garde d'espace du marcheur → ✅
+  2026-10-10, « Suite (nuit, 2) » ci-dessous ; MuseTalk → ✅ 2026-10-11, « Suite (après-midi) ».
 
 **Suite du 2026-10-10 (nuit, 2) — UNE route d'installation, tenue par des tests (Fabien : « 1 seule
 route, universelle » ; « la garde d'espace disque existe… il faut la remettre »).**
@@ -2585,15 +2652,22 @@ route, universelle » ; « la garde d'espace disque existe… il faut la remettr
   1. `pull_model <nom Ollama>` télécharge encore en direct (`pull_ollama_model`) — seul écart
      nommé dans la garde : aucune « proposition nommée » Ollama n'existe (la recherche nommée est
      HF). Soit on écrit ce semis (pendant de `seed_yolo_candidate`), soit on retire la branche.
+     → ✅ 2026-10-11 : `prospector.seed_ollama_candidate` (« Suite du 2026-10-11 », 1A ;
+     `pull_model.py:20-24`).
   2. Jeton GitHub : `GITHUB_TOKEN` lu dans l'environnement par deux lecteurs, hors de
      `external_sources` (qui gère les clés de toutes les autres sources) ; le déclarer ferait
      passer la source pour « non configurée » sans jeton (`is_configured`), alors qu'il est
      facultatif. Il faut un drapeau « clé facultative » — fichier en cours chez une autre instance.
+     → ✅ 2026-10-12 : `ExternalSource.api_key_optional` (`external_sources.py:783`, « Suite du
+     2026-10-12 — fin du chantier « fichiers déclarés » »).
   3. Téléchargeurs d'app hors route, sans garde : enhancer (QualityScaler, au démarrage de
      `runserver`), anonymizer (`.pt` YOLO au traitement — autre instance), face_analyzer
      (MediaPipe, dans le dossier de l'app, hors `AI-models`).
+     → ✅ 2026-10-11 : pilote `files` (`model_installer.pull_declared_files`), enhancer et
+     face_analyzer déclarés (« Suite du 2026-10-11 (après-midi) »).
   4. MuseTalk (`setup_avatarizer.sh` étape 4) : le script du dépôt tire plusieurs dépôts ;
      à déclarer comme CodeFormer après MESURE de ce que le code lit.
+     → ✅ 2026-10-11 : onze fichiers déclarés (même « Suite (après-midi) »).
 
 **Suite du 2026-10-10 (nuit, 3) — un GGUF du Hub installé PAR OLLAMA : la route existante, un
 seul geste étendu.** Décision de Fabien : « ajouter les meilleurs » OCR des classements. Les

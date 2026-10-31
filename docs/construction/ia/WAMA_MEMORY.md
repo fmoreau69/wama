@@ -1,7 +1,8 @@
 # WAMA_MEMORY.md — Mémoire & RAG : référence unique du domaine
 
-> **Statut : CONSTRUIT ET OUVERT AUX UTILISATEURS** (mis à jour 2026-08-22). Jalons 1-11 et
-> 13-14 livrés (le 12 — outillage assistant list/detail — reste dû, cf. tableau §10) —
+> **Statut : CONSTRUIT ET OUVERT AUX UTILISATEURS** (mis à jour 2026-08-22). Jalons 1-14 livrés
+> — le 12 (outillage assistant list/detail, `list_my_items` / `get_item_detail`) le 2026-09-11,
+> cf. tableau §10 ; reste la dépréciation des `get_<app>_status` (§9ter) *(corrigé le 2026-10-31)* —
 > brique `wama/common/memory/`, journal `/common/journal/`, `memory_recall` **hybride** (résidence
 > de l'embedder — `qwen3-embedding:4b` depuis le 2026-10-19, §7 — arbitrée par le gouverneur), 25 souvenirs dev-ai en file de revue, **entrée au RAG
 > par GESTE avec niveaux user/labo** (§7ter) et, depuis le 2026-08-22, **ses SURFACES** :
@@ -36,7 +37,7 @@ technique. D'où : **une brique, `wama/common/memory/`** — pas un module RAG +
 
 ## 2. Le point qui décide tout : WAMA possède déjà la gouvernance
 
-`OrgUnit` + `Project` + `ScopedVisibility` + `scoped_visible_q()` (`common/models.py:74-219`)
+`OrgUnit` + `Project` + `ScopedVisibility` + `scoped_visible_q()` (`common/models.py:293`, `:392`, `:575`, `:596` — remesuré le 2026-10-31)
 implémentent **déjà** la hiérarchie université → labo/service → équipe → utilisateur, plus un scope
 `project` qui traverse les organisations. Le docstring d'`OrgUnit` le dit : « COLONNE VERTÉBRALE
 unique : sert **l'héritage RAG**, les scopes de partage ET le gating d'accès. »
@@ -173,6 +174,10 @@ S'y ajoute **`keep_alive='0'`** sur chaque appel d'embedding (`embed.py`) — le
 aussitôt au lieu de résider 5 minutes (défaut Ollama). Sans ça, une série d'écritures laisse
 l'embedder squatter la VRAM entre deux appels, en concurrence avec un traitement utilisateur. C'est
 le motif que `llm_utils.ollama_chat` documentait déjà ; il n'avait pas été repris.
+*(Précisé le 2026-10-31, mesuré : `'0'` n'est plus que le DÉFAUT, celui du moteur de vectorisation
+— `memory/embed.py:83-85`, `:139-140`. Le rappel demande une résidence courte de 5 min que le
+gouverneur accorde ou refuse (`RESIDENCE_RAPPEL`, `embed_text(resident=True)` `:113-118`), et le
+réindex par lot passe une résidence courte puis décharge une fois, `:142-146`.)*
 
 **`recall()` est hybride, fusionné par RRF** (Reciprocal Rank Fusion) : recherche vectorielle
 pgvector (cosinus) + recherche lexicale Postgres full-text FR. Pas de max ni de somme pondérée —
@@ -220,7 +225,7 @@ runtime WAMA       ─┘   ⚠ RunOutcome / items de file / Manifest ne sont   
 ```
 
 **La mémoire de travail utilisateur est une projection, pas une copie.** `RunOutcome`
-(`common/models.py:475`) est déjà le journal append-only des gestes réels — produit, échec,
+(`common/models.py:1262`) est déjà le journal append-only des gestes réels — produit, échec,
 téléchargé, corrigé, relancé, supprimé — avec `app`, `object_type/id`, `user`, `model_keys`. Il
 reste **la source de vérité** ; `project.py` n'y ajoute qu'un texte rappelable et un vecteur.
 Recopier ces faits créerait deux vérités qui divergent — exactement la maladie déjà diagnostiquée
@@ -239,8 +244,9 @@ sur les `.md`.
 > posé **dans les scripts de démarrage**, avant `migrate` (`start_wama_prod.sh` §PostgreSQL et
 > `start_wama_dev.sh`) — seul endroit versionné qui précède la migration. Idempotent.
 
-> **Correction d'un plan périmé.** `PROJECT_STATUS §6`, `prompt_pipeline.py:116-118` et la vision
-> §11 annoncent **ChromaDB**. C'est abandonné, et pas par goût : un store séparé (a) ne peut pas
+> **Correction d'un plan périmé.** `PROJECT_STATUS §6`, ~~`prompt_pipeline.py:116-118`~~ et la vision
+> §11 annoncent **ChromaDB** *(le code ne l'annonce plus : `prompt_pipeline.py:237` le dit périmé —
+> constaté le 2026-10-31)*. C'est abandonné, et pas par goût : un store séparé (a) ne peut pas
 > être filtré par `scoped_visible_q()` — la gouvernance devrait être ré-implémentée en filtres de
 > métadonnées, sans jointure possible ; (b) ajoute une 2ᵉ surface d'état à sauvegarder, hors du
 > périmètre `mirror_sync`/backup ; (c) contredit `ROADMAP §16.2`, qui avait **déjà adopté pgvector**
@@ -251,11 +257,16 @@ c'était `bge-m3` depuis le 2026-08-20 — pas `nomic-embed-text`, anglo-centré
 en français). Banc `mteb_fr_retrieval` : Qwen3-Embedding-4B 70,0 (1ᵉʳ/116), bge-m3 61,5 (16ᵉ).
 `embedding_model` est stocké par ligne : une bascule de modèle devient un réindex explicite, jamais
 une corruption silencieuse. Index HNSW (dispo depuis pgvector 0.5 ; plafond 2000 dims, 1024 passe).
+*(Corrigé le 2026-10-31, mesuré : AUCUN index vectoriel n'est déclaré — les `Meta.indexes` de
+`MemoryItem`/`RagChunk` sont des B-tree, et `hnsw`/`ivfflat` (insensible à la casse) n'apparaît ni
+dans le code versionné ni dans les migrations présentes sur disque, `wama/common/migrations/`
+compris : la recherche vectorielle est EXACTE. Un index HNSW reste possible si le volume l'exige ;
+un index créé à la main en base n'est pas vérifiable d'ici.)*
 
 ✅ **La bascule du 2026-10-19, telle que faite** (`memory/embed.py` porte chaque raison) :
 - **1024 dimensions demandées** (`dimensions`) : le modèle en rend 2560, entraîné pour être tronqué
-  (Matryoshka) ; Ollama tronque et renormalise. La colonne `vector(1024)` et son index restent —
-  pas de migration.
+  (Matryoshka) ; Ollama tronque et renormalise. La colonne `vector(1024)` ~~et son index~~ reste —
+  pas de migration *(aucun index vectoriel déclaré, cf. ci-dessus — corrigé le 2026-10-31)*.
 - **Fenêtre bornée** (`num_ctx` = 2048) : **9,3 Go** de VRAM mesurés sans elle, **3,8 Go** avec
   (`VRAM_GB`, déclaré au gouverneur). Les textes font au plus ~1 000 caractères : rien n'est tronqué.
 - **Une instruction sur la REQUÊTE seule** (`embed_query`, `QUERY_INSTRUCTION`) — l'usage prescrit
@@ -738,7 +749,10 @@ issue, **voie**). Elle ne nomme personne (décision ② ci-dessus), elle dit la 
 recopié ici il avait divergé) suit une **triade par app** :
 `add_to_<app>` · `start_<app>` · `get_<app>_status`. Les deux premiers sont irréductiblement
 spécifiques — les paramètres d'une transcription ne sont pas ceux d'une génération d'image. Le
-troisième, non : `get_transcriber_status` (l.1459) est une projection maison des 10 derniers items
+troisième, non : `get_transcriber_status` (l.1459 ; *depuis le 2026-10-12, marche A4, plus de
+fonction écrite : la triade est GÉNÉRÉE depuis `TRIAD_SPECS` — `tool_api.py:4294`, `_register_triads`
+`:4696` —, mais chaque app y déclare encore ses propres clés `status_fields`, donc le constat tient ;
+relocalisé le 2026-10-31*) est une projection maison des 10 derniers items
 avec ses **propres noms de clés** (`filename`, `duration_display`, `used_backend`, `text_preview`),
 et chacune des 10 apps a son équivalent avec des clés **différentes**. L'assistant doit donc
 apprendre 10 vocabulaires pour lire la même chose : l'état d'un item.
@@ -1020,7 +1034,8 @@ pas la détection des sources. Trois pistes, à arbitrer par qui possède ce mod
    de médiathèque). C'est ce que décrit Fabien. ⚠ **Corrigé le 2026-09-26** : cette ligne disait
    que « l'encart RAG de l'accueil le promet déjà visuellement sans rien faire ». L'encart a été
    RETIRÉ depuis — précisément parce qu'il promettait sans rien faire (le pourquoi est resté dans
-   le gabarit, `home.html:698-709` : *l'entrée au RAG doit être un GESTE, pas un balayage*,
+   le gabarit, ~~`home.html:698-709`~~ *(ce commentaire n'y est plus : 0 occurrence de « RAG » ni de
+   « balayage » dans `wama/templates/home.html`, relevé le 2026-10-31)* : *l'entrée au RAG doit être un GESTE, pas un balayage*,
    arbitrage de Fabien du 21/08). Le constat était donc juste et sa cible n'existe plus ; c'est le
    portage du chat de l'accueil en brique commune qui l'a rendu visible, en raccourcissant le
    fichier de 282 lignes.
@@ -1166,7 +1181,10 @@ les jalons 6/8/14 livrés depuis : appelants réels dans `assistant_engine.py`, 
 - **Traçage des process + génération de code réutilisable hors WAMA** → scope **wama-data**. Point
   de jonction : le type `procedural`, dont le format de stockage est **déjà** `common/prompt_skills/`
   (ROADMAP §16.7 : « ce qui manque n'est pas le dossier mais **l'écrivain** » — cette brique est
-  l'écrivain).
+  l'écrivain). *(Corrigé le 2026-10-31, en accord avec `WAMA_HARNESS §7.1` et `WAMA_LLM §0bis` :
+  le procédural de DÉVELOPPEMENT s'écrit dans `.claude/skills/` — l'écrivain existe, c'est
+  `/skill-forge`, contrôle `check_skills` ; `prompt_skills/` est un autre format, résolu par le
+  CODE pour un modèle qui ne choisit pas. Deux formats, deux mécanismes de sélection.)*
 - **Anonymisation du texte avant écriture** (PII dans un souvenir partagé au labo) → `ROADMAP §16.4`,
   Presidio + GLiNER FR. À rebrancher ici quand ce composant existera : un `MemoryItem` de scope
   `unit` ou `public` devra passer la porte privacy.
