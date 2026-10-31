@@ -4,12 +4,15 @@
 >
 > **Statut : socle IMPLÉMENTÉ (MAJ 2026-08-11).** Enveloppe + registre + ingest + les **7 kinds**
 > vivent dans `wama/common/manifests/` (envelope/kinds/ingest/projection + `builtin/{app,dataset,
-> function,library,model,pipeline,project}.py`, modèle DB `common.Manifest`) ; extract `app` = 12
-> clés `APP_FACETS` ; **write-back réel sur 3 kinds** — `app` : 1 facette écrite au runtime
-> (`access` → AppAccessPolicy, a75c01d) et **9** rapportées en `codegen_required` ; `library` :
-> registre entier ; `model` : champs déclaratifs. Cette spec fixe le formalisme COMMUN + le schéma
-> du kind `app` (8 facettes fonctionnelles F1–F8 = 12 clés). Les blocs annotés « cible » ci-dessous
-> décrivent le schéma VISÉ, pas encore l'extract réel.
+> function,library,model,pipeline,project}.py`, modèle DB `common.Manifest`) ; extract `app` = 13
+> clés `APP_FACETS` (dont `data`, 2026-08-18 — `builtin/app.py:41-42`) ; **write-back réel sur 4
+> kinds** (`kinds.py:14-23`) — `app` : **10** facettes projetées (`PROJECTED_FACETS`,
+> `builtin/app.py:836-837` : `access` en base → AppAccessPolicy + 9 en code), `processing` en
+> projection partielle (urls), `models` en code-gen ; `library` : registre entier ; `model` : champs
+> déclaratifs ; `function` : binding `user` seul. *(MAJ 2026-10-31 — ce bandeau disait « 12 clés,
+> write-back sur 3 kinds, 1 facette écrite et 9 en `codegen_required` ».)* Cette spec fixe le
+> formalisme COMMUN + le schéma du kind `app` (8 facettes fonctionnelles F1–F8 = 13 clés). Les blocs
+> annotés « cible » ci-dessous décrivent le schéma VISÉ, pas encore l'extract réel.
 
 ---
 
@@ -21,7 +24,7 @@ empêche de mélanger des manifestes sans rapport, et ce qui rend le formalisme 
 
 ```yaml
 # ── Enveloppe commune (TOUS les kinds) ───────────────────────────────
-manifest_kind: app            # app | function | dataset | model | pipeline | project
+manifest_kind: app            # app | function | dataset | model | pipeline | project | library
 schema_version: "1.0"
 key: transcriber              # identifiant unique dans le kind
 name: Transcriber
@@ -39,7 +42,8 @@ body: { ... }                 # spécifique au kind (voir §3 pour app)
 Kinds prévus : **`app`** (§3), **`function`** (= `FunctionSpec`, déjà fait, `WAMA_DATA_FUNCTION_CARDS.md`),
 **`dataset`** (style modèle tiers : channels/signals/reference_tables), **`model`** (= `AIModel`), **`pipeline`**
 (= `StudioPipeline.graph` **OU un registre de code** — `register_pipeline_source`, 1er cas `cam_analyzer.PASSES`,
-2026-09-09 ; précisé le 2026-09-15), **`project`** (= `Project`, déjà fait).
+2026-09-09 ; précisé le 2026-09-15), **`project`** (= `Project`, déjà fait), **`library`** (= `common.Library`,
+§7.1 ; enregistré `builtin/library.py`, ajouté à cette liste le 2026-10-31).
 > ⏳ **Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`** : le kind `pipeline` porte les nœuds
 > `source | sink | app | function` (`function` codé le 2026-09-09) et gagnera un TYPE DE NŒUD `pipeline`
 > (un pipeline enregistré réutilisé comme nœud) — pas de nouveau kind. Une card porte une instance de
@@ -169,7 +173,8 @@ body:                                   # (sous l'enveloppe commune)
     # ports ; le manifeste les GÉNÈRE. Aujourd'hui, extract_app() ET la preview lisent la MÊME source :
     # `studio_node_ports(app_id)` (app_registry+app_modes). Demain, quand la projection inverse le sens,
     # `studio_node_ports` devient une projection DU manifeste — la preview hérite sans changer sa logique.
-    # ÉTANCHÉITÉ : preview ET extract passent par UN SEUL accesseur (`studio_node_ports`/`app_ports`),
+    # ÉTANCHÉITÉ : preview ET extract passent par UN SEUL accesseur (`studio_node_ports` ; `app_ports`
+    # n'existe pas dans `wama/` — retiré de cette ligne le 2026-10-31),
     # jamais par app_modes/app_registry en direct → un seul point de bascule le jour de la projection.
     # Le « PENDANT » (le média de sortie OBSERVÉ pendant qu'il se construit — texte, image courante,
     # audio par segment, fichier lu pendant son écriture ; le streaming « à la Suno » en est un cas) =
@@ -195,15 +200,18 @@ body:                                   # (sous l'enveloppe commune)
   # `edits` doit être un FICHIER produit par un process déclaré (`pipeline.outputs`) : il s'édite
   # comme TEXTE, validation/disponibilité/écriture communes. Une couche de DONNÉES (corrections de
   # l'anonymizer) porte sa validation en Python : elle s'écrit dans l'app, le gabarit la REFUSE.
-  # ⏳ Non encore EXTRAITE des apps existantes (`builtin/app.py`) : seule une app née d'un
-  # manifeste la porte. L'extraire demandera de dire quoi faire d'une validation en Python.
+  # ⏳ Non encore EXTRAITE (`builtin/app.py` ne lit pas les surfaces) — alors que l'anonymizer, le
+  # composer et le transcriber en déclarent dans `<app>/surfaces.py` (corrigé le 2026-10-31 : la
+  # ligne disait « seule une app née d'un manifeste la porte »). L'extraire demandera de dire quoi
+  # faire d'une validation en Python.
   # SORTIE = 3 CONCERNS SÉPARÉS (jamais surchargés — corrigé 2026-07-22, détail WAMA_APP_GENERATION_ROUTE §F2) :
   #   output_type   = catégorie média FIXE (ports/preview/routage) ; converter = 'mirror/any'
   #   output_format = mécanisme COMMUN hérité du converter (générique-par-catégorie ∪ app-spécifique) ; sélecteur download
   #   domains       = onglets, hint DÉCLARATIF, NON dérivé du type (converter=0 onglet ; imager≠enhancer même modalités)
   # ⚠ Corrigé le 2026-10-21 sur mesure : ces deux lignes décrivaient `domains` et `modes` comme deux
   # clés sœurs, et des modes « DÉRIVÉS des capacités-modèle » portant `settings:[param_name]`. Le code
-  # extrait UNE facette `modes: {domains: [...]}`, recopie d'`APP_MODES` (`builtin/app._project_modes`) ;
+  # extrait UNE facette `modes: {domains: [...]}`, recopie d'`APP_MODES` (`builtin/app._modes` ;
+  # réécrite par `_project_modes` au write-back — renvoi corrigé le 2026-10-31) ;
   # les modes y sont DÉCLARÉS, et aucune liste `settings` n'y a de lecteur (retirées, MODES_QUEUE_UX §3).
   modes: {domains: [{id, label, icon, variant?, accepts, params_schema?, route_prefix?, mode_param?,
                      inputs?, library_natures?, modes: [{id, label, icon, variant?, realtime?, inputs}]}]}
@@ -211,7 +219,12 @@ body:                                   # (sous l'enveloppe commune)
   # F3 UI / INSTANCIATION  [params.py PARAMS_JSON — déjà source unique, inchangé]
   params: [ Param{name,type,label,icon,default,choices,options_source,show_if,
                   contexts:[item|batch|panel],advanced,chip,help_source,...} ]
-  # ⚠ TROU DE FORMALISME MESURÉ le 2026-08-29 — `options_source` nomme une CLÉ de source
+  # ✅ RÉSORBÉ (constaté le 2026-10-31) : une clé `options_source` se résout par l'un des DEUX
+  # registres communs de `wama-params.js` — `OPTION_SOURCES` (l. 969, endpoint) et
+  # `PAGE_OPTION_SOURCES` (l. 1266, donnée de page, dont `formats` : `converter.js:382`). Une clé
+  # absente des deux se NOMME dans le select (`codegen/templates_gen.py:215-219`) ; y répondre =
+  # ajouter la source au registre commun. Le bloc ci-dessous est la trace du 2026-08-29.
+  # ~~⚠ TROU DE FORMALISME MESURÉ le 2026-08-29~~ — `options_source` nomme une CLÉ de source
   # d'options (4 clés dans le parc : voices, backends, formats, avatar_gallery) et RIEN, ni
   # dans `Param` ni ici, ne déclare COMMENT elle se résout. Deux résolutions coexistent dans
   # le code, aucune n'est déclarée : (1) registre commun `OPTION_SOURCES` de `wama-params.js`
@@ -224,7 +237,8 @@ body:                                   # (sous l'enveloppe commune)
   # lieu d'un select vide, mais la RÉSORPTION est une décision de formalisme, pas de gabarit :
   # déclarer par source son mode de résolution (endpoint commun, ou champ de contexte de page).
   #
-  # ⏳ NON TRANCHÉ — à arbitrer avant la marche B. Le trou est celui d'`options_source` SEUL.
+  # ~~⏳ NON TRANCHÉ — à arbitrer avant la marche B. Le trou est celui d'`options_source` SEUL.~~
+  # (résorbé par les deux registres communs, cf. tête de ce bloc)
   #
   # ⚠⚠ CE BLOC A ANNONCÉ UNE « SECONDE MOITIÉ » QUI N'EXISTAIT PAS (écrite puis RETIRÉE le
   # 2026-08-29, dans la même journée — la trace reste, la raison plus encore que le fait).
@@ -249,7 +263,9 @@ body:                                   # (sous l'enveloppe commune)
   # une facette DÉCLARÉE et non projetée est un manque de GABARIT, jamais un trou de glu ; la
   # classer « trou » la rend invisible en la déclarant normale.)
   inspector: {model, detail_adapter, preview_adapter, file_field, user_field}   # Detail/PreviewRegistry
-  # (cible ; extract actuel = detail_registered/preview_registered — présence, pas contenu)
+  # (cible ; extract actuel = `detail_registered` + `detail_spec` (spec déclarative, A3a) +
+  #  `preview_registered` + `preview{file_field, user_field}` — `builtin/app.py:433-462` ; un adapter
+  #  code reste un booléen. Corrigé le 2026-10-31 : disait « présence, pas contenu »)
 
   # F4 MODÈLES IA          [model_config.py + model_selector.select_model] — CIBLE, pas l'extract
   # réel : extract actuel = {catalog_keys, source_attr} (lecture best-effort de <APP>_MODELS) ;
@@ -261,14 +277,20 @@ body:                                   # (sous l'enveloppe commune)
 
   # F5 TRAITEMENT          [models.py + tasks.py + urls.py — pattern répété, À DÉCLARER]
   processing:
-    item_model, statuses:[PENDING,RUNNING,SUCCESS,FAILURE],
-    # ⏳ précisé le 2026-09-15 : vocabulaire commun = les 5 états JOB_* (AWAITING_RESOURCES existe,
-    # common/models.py:41-61) + STALE cible — WAMA_APP_GENERATION_ROUTE.md §10.6 4.2
+    item_model, statuses: job_status_values(),   # les 5 états JOB_* (common/models.py:42-56)
+    # précisé le 2026-09-15 : vocabulaire commun = les 5 états JOB_* (AWAITING_RESOURCES existe,
+    # common/models.py:42-56) + STALE — ✅ `STALE` existe depuis le 2026-09-17 comme état de PROCESS
+    # (`JOB_STALE`, `PROCESS_STATUS_CHOICES`, common/models.py:98-102 ; constaté le 2026-10-31) —
+    # WAMA_APP_GENERATION_ROUTE.md §10.6 4.2
     result_fields:[output_file|result_text, used_backend, used_model],
     batch: {strategy: fk|through, nature_of},
-    task, endpoints: STANDARD_ENDPOINTS                        # = ['index','upload','start','status',
-    # 'download','delete','duplicate','update','start_all','clear_all','download_all',
-    # 'global_progress'] (builtin/app.py:38) ; item_model/result_fields/batch/task = cible non extraite
+    task, endpoints: <routes RÉELLES de l'URLconf>          # `urls_gen.app_routes` (A1) ;
+    # `STANDARD_ENDPOINTS` = ['index','upload','start','status','download','delete','duplicate',
+    # 'update','start_all','clear_all','download_all','global_progress'] (builtin/app.py:51) n'est
+    # plus qu'une CIBLE documentaire. Extraits aussi : `item_model`, `tasks`, `backend_routes`,
+    # `batch_link_model`, `model_spec` (dont `batch`) — `builtin/app.py:507-583`. Reste non extrait :
+    # `result_fields`. (Corrigé le 2026-10-31 : disait « item_model/result_fields/batch/task = cible
+    # non extraite ».)
     ingest: {source: source_url, target: <field>, mode: audio|media|smart}  # trou #14 : projette vers
     # WAMA_INGEST (common/utils/source_ingest.ensure_local_input). Capté par extract (transcriber/describer) ;
     # projection = write-back futur. Va de pair avec capabilities.accepts_url (→ génère la card d'import URL).
@@ -277,6 +299,10 @@ body:                                   # (sous l'enveloppe commune)
     # `kept_outputs`), `apps_gen` appelle `revisions.keep_outputs` et déclare la liste à la
     # rétention (`register_retention_model`). WAMA_COLLABORATION §7.2 (reste 2), V3 tranché.
     # Premier adoptant : le Writer (bac à sable) — on l'éprouve avant de le porter aux autres apps.
+  data: {…}   # ✅ 2026-08-18 (marche S2 ; ajouté à ce schéma le 2026-10-31) — SPINE DE DONNÉES :
+  # les modèles Django de l'app, champs sérialisés par le MÊME sérialiseur que les migrations ;
+  # consommée par `codegen/models_gen` ; verdict = `makemigrations` « No changes » sur la jumelle
+  # (`builtin/app.py:36-42`). Présente dans les 10 manifestes `manifests/apps/*.json`.
 
   # F6 PROMPTS / IA        [PROMPT_TARGETS + prompt_skills + tool_api]
   prompts: {targets:[{field,kind,model_field,source,default_model_type,enrich,domain_field,reference_field}],
@@ -286,8 +312,10 @@ body:                                   # (sous l'enveloppe commune)
   # cette ligne a figé comme source. Il est SUPPRIMÉ : `tool_api.tool_descriptions()` les DÉRIVE
   # (APP_CATALOG + docstring + schéma `params.py` + signature). Même source unique que F3 —
   # l'alignement de F3 avait été fait à la création du manifeste (2026-07-21), pas celui de F6.
-  # `_tool_api()` importe encore `TOOL_DESCRIPTIONS` : un `__getattr__` de module lui rend la
-  # version dérivée. **Passer l'appel à `tool_descriptions()` et retirer la béquille.**
+  # ~~`_tool_api()` importe encore `TOOL_DESCRIPTIONS` : un `__getattr__` de module lui rend la
+  # version dérivée. **Passer l'appel à `tool_descriptions()` et retirer la béquille.**~~
+  # ✅ Fait (constaté le 2026-10-31) : `_tool_api()` appelle `tool_descriptions()`
+  # (`builtin/app.py:715,722`) et `wama/tool_api.py` ne définit plus de `__getattr__`.
 
   # F7 PERMISSIONS & SCOPE [accounts/permissions.py AppAccessPolicy + ScopedVisibility]
   access: {roles:[...], public: bool, min_tier: null}
@@ -323,7 +351,7 @@ Writer (alors « Editor ») rédige le fond PUIS le met en forme.
 
 **Pourquoi c'était faux** (confronté aux décisions et au code) :
 - un pipeline se déclare par le kind `pipeline` existant (nœuds `source | sink | app | function`,
-  `builtin/pipeline.py:35`) — pas par un second formalisme dans le manifeste d'app ;
+  `builtin/pipeline.py:42`) — pas par un second formalisme dans le manifeste d'app ;
 - **un process d'application EST un pipeline à UN nœud** (Fabien, 30/08 : `WAMA_MANIFEST_ARCHITECTURE
   §8` ; « un cas normal », `WAMA_APP_GENERATION_ROUTE §10.6` 7) : entrée → process de l'app → sortie ;
 - ~~les **fonctions** du catalogue sont des process du monde **Data** (`§10.6` 6.3 B) ; les process
@@ -332,7 +360,8 @@ Writer (alors « Editor ») rédige le fond PUIS le met en forme.
   un constat, faux pour le Lab (les passes du cam_analyzer sont des `FunctionSpec binding: app`
   depuis le 09/09) et levé pour les Médias par la décision n°11 (encadré ci-dessus). Le pilote
   est le composer (`plan` → `render`), le transcriber vient ensuite ;
-- deux tris topologiques existaient déjà (`studio/tasks.py:56`, `cam_analyzer/utils/pass_tracking.py:220`)
+- deux tris topologiques existaient déjà (celui du Studio, aujourd'hui `manifests/builtin/pipeline.py:253`
+  `topo_order`, importé par `studio/tasks.py:68` ; `cam_analyzer/utils/pass_tracking.py:260` — lignes mises à jour le 2026-10-31)
   et l'enchaîneur était la « quatrième pièce » que `§10.6` 4.5 interdit d'écrire à côté du moteur commun.
 
 **Comment une app Médias se déclare AUJOURD'HUI** (le Writer, `manifests/app_drafts/writer.json`) :
@@ -365,6 +394,14 @@ d'item/statuts/champs résultat** (répété par app, statuts non uniformes), le
 pas manifeste), le **layout dossiers filemanager** (ajout manuel), la **stratégie batch** (fk vs through),
 les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
 
+> *MAJ 2026-10-31 (mesuré)* : la liste ci-dessus est celle de juillet. Sont désormais DÉCLARÉS ou
+> EXTRAITS : `world` (déclaré dans `APP_CATALOG`, lu par `app_registry.app_world`, `app_registry.py:1290`),
+> les drapeaux de capacité (lus par l'accesseur `app_capabilities`, `builtin/app.py:383-413`), le
+> modèle d'item, les endpoints RÉELS et les tâches (`builtin/app.py:507-583`), les statuts
+> (`job_status_values()`), la stratégie batch (`batch_link_model`, `model_spec`) et les modèles
+> (facette `models`, références au catalogue). **Restent à formaliser** : `version`, les champs
+> RÉSULTAT, le layout dossiers filemanager.
+
 > **Réserve de fidélité (recadrage 2026-07-21)** : la grille de conformité SURESTIME l'avancement ;
 > plusieurs mécanismes ne sont généralisés que sur l'app de référence **Transcriber**. Le schéma décrit
 > la CIBLE ; le round-trip révélera où le code réel diverge de la cible (double usage : trous de schéma
@@ -381,19 +418,25 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
 
 ## 6. Plan de construction (proposé)
 
-1. **Socle** : modèle `Manifest` (enveloppe + `body` JSON + `manifest_kind` + ScopedVisibility) +
+1. ✅ **Socle** : modèle `Manifest` (enveloppe + `body` JSON + `manifest_kind` + ScopedVisibility) +
    registre `MANIFEST_KINDS` (schéma + ingest_fn + projection par kind) + validation.
-2. **Ingest** générique : `validate → sandbox(private) → test → promote`, idempotent/transactionnel/
+2. ✅ **Ingest** générique : `validate → sandbox(private) → test → promote`, idempotent/transactionnel/
    réversible + `verify` (diff). Back-link `_manifest_key` sur les entrées dérivées.
 3. **Kind `app`** de bout en bout : projection vers les registres du §5 (ingest) + **extraction** inverse
    (générer le manifeste d'une app existante depuis les registres) pour le round-trip.
-   - ✅ **Extraction** : `extract_app` (12 facettes) — fait.
+   - ✅ **Extraction** : `extract_app` (12 facettes ; 13 depuis `data`, 2026-08-18) — fait.
    - ✅ **Projection `access`** (write-back) : `write_back_app`/`un_write_back_app` (hooks renommés
      2026-08-05, ex-`project_*`) → `AppAccessPolicy`, dry-run/idempotent/réversible, round-trip non
      destructif validé (2026-07-23). **1re facette réellement écrite.**
-   - ⏳ **Projection des 9 autres facettes = CODE-GEN** (models.py/urls/params/nœud studio…) — chantier.
-4. **Round-trip** : extraire le manifeste d'une app existante → régénérer en sandbox → diff → itérer.
-5. Puis kind `dataset` (modèle tiers généralisé), et convergence `app` (APP_CATALOG ⟷ GENERIC_APPS).
+   - ~~⏳ **Projection des 9 autres facettes = CODE-GEN** (models.py/urls/params/nœud studio…) — chantier.~~
+     🔄 *(MAJ 2026-10-31)* : **10 facettes projetées** (`PROJECTED_FACETS`, `builtin/app.py:836-837` —
+     `access` + 9 en code) ; `processing` en projection partielle (urls ; tasks/models CREATE-ONLY,
+     `builtin/app.py:843-845`) ; `models` reste en code-gen.
+4. ✅ **Round-trip** : extraire le manifeste d'une app existante → régénérer en sandbox → diff → itérer
+   (`manage.py manifest_roundtrip`, `manage.py app_regen_check` — constaté le 2026-10-31).
+5. ✅ Puis kind `dataset` (modèle tiers généralisé — enregistré `builtin/dataset.py:255`), et
+   convergence `app` (APP_CATALOG ⟷ GENERIC_APPS : les E/S de `GENERIC_APPS` sont DÉRIVÉES des
+   ports, `studio/services/generic_runner.py:125` `_derive_io_from_ports`) — constaté le 2026-10-31.
 
 ---
 
@@ -438,6 +481,12 @@ Le formalisme **résout déjà ce cas sans nouveau kind** grâce à la distincti
   propres et l'inventaire des fonctions qu'il expose.
 **À acter explicitement avant la première librairie autorée** — sinon les deux sens cohabiteront
 en silence.
+
+> ⚠ *Constaté le 2026-10-31 (mesuré sur `manifests/libraries/*.json`, champ `source.type`)* :
+> **38 `extract`, 17 `authored`, 1 `manual`**. `authored` sert déjà — au sens « librairie TIERCE non
+> extractible par pip » (voie vendor, dépôt GitHub : `libretranslate.json`, `source.ref =
+> github:LibreTranslate/LibreTranslate@…` ; §7.4-3), pas au sens « ensemble WAMA-interne ». La
+> collision annoncée a donc eu lieu : **le sens d'`authored` reste une décision de Fabien**.
 
 ## 7. COMPOSITION des manifestes — « une app = app + model(s) + library(ies) »
 
@@ -547,15 +596,16 @@ Rôles OUVERTS (chaque architecture a les siens), forme FERMÉE (`role` unique +
 requis ; `runtime.engine` requis si `runtime` présent). **Deux consommateurs, une
 déclaration** : l'installation dérive ses `allow_patterns` des patterns
 (`model_installer.patterns_from_composition` — le jeu COHÉRENT, jamais le dépôt entier d'un
-repack multi-quantisations, jamais un composant isolé) ; le backend composé (à venir, étape 4
-du plan Music3) dérive quoi charger et avec quel moteur. Vide = modèle mono-fichier, cas
+repack multi-quantisations, jamais un composant isolé) ; le backend composé (~~à venir, étape 4
+du plan Music3~~ livré — `common/backends/audiocpp_backend.py:139-151` `_composition()`, constaté le
+2026-10-31) dérive quoi charger et avec quel moteur. Vide = modèle mono-fichier, cas
 général inchangé. Motif : MiniMax-Music3, 5 GGUF = 1 modèle — l'anatomie était passée à la
 main en `allow_patterns` le 27/08, désormais elle est DÉCLARÉE (premier manifeste porteur :
 `manifests/models/huggingface__Serveurperso~MiniMax-Music3-GGUF.json`).
 
 #### 7.1 ter — hooks par kind, MESURÉ le 2026-08-05
 
-> Les hooks s'appellent `write_back`/`un_write_back` depuis le 2026-08-05 (`kinds.py:35-38` —
+> Les hooks s'appellent `write_back`/`un_write_back` depuis le 2026-08-05 (`kinds.py:52-57` —
 > `project` était homonyme du kind `project`). Fonctions réelles : `write_back_app`,
 > `write_back_library`, `write_back_model`.
 
@@ -654,6 +704,9 @@ que le catalogue n'a pas. Autre facette, pas redondance.
    2026-08-02 18:09). Reste : passe de revue humaine des sorties, puis semis au corpus des
    libraries validées. Prochain cas `--repo` acté : **LibreTranslate** (lib NON installée —
    manifeste depuis le dépôt), préalable de la 11ᵉ app Translator générée de zéro.
+   ✅ *2026-10-16* : LibreTranslate semé (`manifests/libraries/libretranslate.json`, `authored`, depuis
+   le dépôt — commit `5a673baa`) ; le Translator est né au bac à sable (`wama/translator_01/`).
+   Reste 🔄 la revue humaine générale des sorties.
 5. ✅ **FAIT (2026-08-12) — semis de la composition du pilote B + STRATES de dépendances.**
    8 libraries semées mécaniquement (`manifest_export --kind library` : transformers, torch,
    torchaudio, pyannote-audio, librosa, soundfile, openai-whisper, vibevoice — extraction

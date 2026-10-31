@@ -91,7 +91,7 @@ flowchart LR
         A["app<br/>(APP_CATALOG+8 facettes)"]
         M["model<br/>(AIModel, N lignes DB)"]
         P["pipeline<br/>(StudioPipeline.graph)"]
-        F["function<br/>(FUNCTION_CATALOG, 19)"]
+        F["function<br/>(FUNCTION_CATALOG)"]
     end
     subgraph AU["AUTORÉS — le manifeste EST l'origine → validate + store → PROJECTION"]
         D["dataset<br/>(généralisation d'un modèle tiers)"]
@@ -122,6 +122,7 @@ flowchart LR
         f4["models (select_model)"]
         f5["processing (statuses/endpoints)"]
         f5b["processing.ingest + accepts_url"]
+        f5c["data (spine Django)"]
         f6["prompts (targets/skills)"]
         f6b["tool_api"]
         f7["access + data_scope"]
@@ -138,6 +139,7 @@ flowchart LR
     f4 --> u4["Sélection VRAM-aware<br/>keep_loaded"]
     f5 --> u5["models.py (spine+statuts)<br/>urls/views (endpoints)<br/>tasks Celery"]
     f5b --> u5b["source_ingest.ensure_local_input<br/>(WAMA_INGEST) + card import URL"]
+    f5c --> u5c["models.py<br/>(codegen/models_gen)"]
     f6 --> u6["Traduction/enrichissement prompt"]
     f6b --> u6b["API assistant IA"]
     f7 --> u7["Gating tier/rôles + scope données"]
@@ -146,7 +148,8 @@ flowchart LR
 
 **Round-trip = test de cette carte** : régénérer une app depuis son manifeste doit reproduire
 models.py + urls/views + modales + inspecteur + nœud studio + gating + câblage prompts/tool_api.
-Les écarts révèlent trous du schéma ET mécanismes non généralisés (aujourd'hui : `modes`=5 apps,
+Les écarts révèlent trous du schéma ET mécanismes non généralisés (aujourd'hui : ~~`modes`=5 apps~~
+`modes` = 10/10 apps (`app_modes.APP_MODES`, et dans les 10 manifestes — corrigé le 2026-10-31),
 `imager`=détail sans preview, apps lab hors APP_CATALOG).
 
 ---
@@ -261,8 +264,9 @@ models.py/urls, GENERIC_APPS…). Facettes MANQUANTES fréquentes (trou de sché
 lever au cas par cas) : `modes` (absent hors 5 apps), `prompts` (apps non génératives : normal), `models`
 (apps sans catalogue `<APP>_MODELS`).
 
-> **✅ 1re PROJECTION RÉELLE (write-back) IMPLÉMENTÉE 2026-07-23** — `builtin/app.py::project_app` +
-> `un_project_app`, exposée `manifests.project(manifest, apply=False)`. La facette `access` s'écrit
+> **✅ 1re PROJECTION RÉELLE (write-back) IMPLÉMENTÉE 2026-07-23** — `builtin/app.py::write_back_app` +
+> `un_write_back_app` (ex-`project_app` / `un_project_app`, renommés le 2026-08-05), exposée
+> `manifests.write_back(manifest, apply=False)`. La facette `access` s'écrit
 > réellement dans `AppAccessPolicy` : **dry-run par défaut**, **idempotent** (get_or_create par app_id),
 > **transactionnel**, **réversible** (`un_project` supprime → retombe sur le seed `DEFAULT_APP_ACCESS`).
 > Round-trip validé NON DESTRUCTIF (extract→project→`_policy_for` match→un_project→rollback, rien laissé).
@@ -306,6 +310,9 @@ la surface des registres.**
   à l'import (ordre = priorité préservé) ; une E/S écrite à la main sans `io_scope` déclaré est
   désormais signalée `drift` par `studio_redundancy`.
 - **Apps lab** (`cam_analyzer`, `face_analyzer`) absentes d'APP_CATALOG → à réconcilier.
+  🔄 *(2026-10-31)* : toujours hors `APP_CATALOG`, mais DÉCLARÉES comme surfaces depuis le
+  2026-10-02 (`register_surface(..., world='lab')`, `wama_lab/cam_analyzer/apps.py:21`,
+  `wama_lab/face_analyzer/apps.py:14`) — leur manifeste `app` reste à faire.
 - **Déclaratif, pas runtime** : exclure du manifeste l'état volatile (modèle chargé, x/y canvas...).
 - **Langue** : manifeste en EN canonique → registre i18n central (pas de traduction embarquée).
 
@@ -367,7 +374,9 @@ python manage.py manifest_export --check    # sort en erreur si le corpus est p�
 - **JSON trié, indentation stable** → le `git diff` du corpus devient la **revue de ce qui change
   dans la surface déclarée d'une app**. C'est la raison de le versionner malgré son caractère dérivé.
 
-État : **10 apps, 11–12 facettes chacune, 100 % validées** (~5 500 lignes).
+État : **10 apps, 11–12 facettes chacune, 100 % validées** (~5 500 lignes). *(Remesuré le
+2026-10-31 sur le corpus : 11 à 13 facettes déclaratives par app — 13 clés `APP_FACETS`, dont
+`data` ; la table générée ci-dessous fait foi.)*
 
 > ⚠ Préalable rempli in extremis (`30a89ac`) : `_ports()` lisait `outputs` (pluriel) là où
 > `studio_node_ports()` renvoie `output` (singulier) → la facette `ports` du manifeste sortait
@@ -396,7 +405,7 @@ python manage.py manifest_export --check    # sort en erreur si le corpus est p�
 > L'état de la régénération se jugeait jusqu'ici sur des `.md`, qui **surestiment**. Les briques
 > (`extract`/`validate`/`verify`/`project`/`facet_report`/`studio_redundancy`) existaient
 > séparément ; **aucune commande ne les reliait**. C'est fait, et ça ne modifie rien
-> (`project(apply=False)`).
+> (`write_back(apply=False)`, ex-`project`).
 
 ```
 python manage.py manifest_roundtrip transcriber          # détail d'une app
@@ -426,7 +435,7 @@ en code sauf pour `access`.
 
 > ⚠ **MAJ 2026-08-11** : la mesure ci-dessus (« 1/11, personne ne sait rendre en code sauf
 > `access` ») est l'état HISTORIQUE du 2026-08-02, conservé comme jalon. L'état courant est
-> §6quater (8 facettes écrites) et la table auto-générée ci-dessous.
+> §6quater (10 facettes écrites — corrigé le 2026-10-31, disait 8) et la table auto-générée ci-dessous.
 
 **État courant des 10 apps** (couche factuelle auto-générée, §16.9 ①) :
 
@@ -551,7 +560,9 @@ décision de conception, pas un manque d'outillage.
 sont massivement celles des mondes **Data**, **Lab** et du **studio** ; le monde Média n'en
 porte qu'à la marge (fonctions de traitement). Mesuré : les modules déclarants sont
 `wama_data/functions/` (paquet) et `wama_lab/cam_analyzer/function_specs.py`, pour **58
-manifestes** au corpus. `load_all()` reste **agnostique du monde** par construction — il
+manifestes** au corpus. *(2026-10-31 : 119 manifestes `function` ; depuis la décision n°11 du
+2026-10-02, chaque app Médias déclare ses process en `FunctionSpec binding: app` dans son
+`function_specs.py` — 36 manifestes — : le Média n'est plus « à la marge ».)* `load_all()` reste **agnostique du monde** par construction — il
 parcourt les apps installées et importe leur module déclarant : *le registre ne connaît
 jamais ses producteurs.*
 
@@ -571,10 +582,11 @@ jamais ses producteurs.*
 sens **génératif** (manifeste → réalité) existe pour **4 kinds sur 7** : `app` (10 facettes via le
 moteur commun marqué + gabarits de squelette complets), `library` (registre entier), `model` (champs déclaratifs) et `function`
 (binding `user` → `UserFunction`). **Un manifeste de modèle ne crée aujourd'hui aucun `AIModel`**
-— c'est voulu (un modèle se DÉCOUVRE, `builtin/model.py:145-148`). Le manifeste est la source
+— c'est voulu (un modèle se DÉCOUVRE, `builtin/model.py:479-511`). Le manifeste est la source
 **par architecture** ; le registre l'est encore **en pratique** pour `pipeline`/`project`/
-`dataset` et pour les 4 facettes code-gen d'`app` (`inspector`, `models`, `processing`,
-`tool_api`).
+`dataset` et pour les ~~4 facettes code-gen d'`app` (`inspector`, `models`, `processing`,
+`tool_api`)~~ 2 facettes encore en code-gen d'`app` : `models` et `processing` (partiel) —
+`inspector` et `tool_api` sont projetées (`PROJECTED_FACETS`, `builtin/app.py:836-837` ; corrigé le 2026-10-31).
 
 **`apply` n'est PAS une sur-couche de l'ingest** — ce sont les **deux moitiés de la même traversée** :
 `ingest` = le pont gaté qui fait *entrer* le manifeste et le commit dans le store ; `project` = la
@@ -598,8 +610,10 @@ contrepartie de la persistance, pas un retard.
 Deux régimes supportés par le formalisme s'y combinent **champ par champ** :
 - **constaté** (`extract` via `importlib.metadata.distributions()`, écarts inter-environnements
   remontés par `verify`) : version installée, dérive dev/prod ;
-- **déclaré** (le manifeste est l'origine, précédent `dataset`) : `apps_dépendantes`,
-  `fonctions_exposées`, `criticité`, `version_min`, `licence`, `dernier_audit`.
+- **déclaré** (le manifeste est l'origine, précédent `dataset`) : licence, version, `install`
+  (pip ou vendor), points d'entrée, contraintes (`builtin/library.py:24-63`) ; ⏳ visés et non
+  implémentés : `apps_dépendantes`, `fonctions_exposées`, `criticité`, `version_min`,
+  `dernier_audit` *(corrigé le 2026-10-31 : ils étaient donnés comme déclarés)*.
 
 ⚠ `library` ne peut PAS être « Python seulement » : une UI spécialisée tire presque toujours une lib
 **front** (cartographie pour le Lab, forme d'onde pour le Transcriber). Prévoir un axe

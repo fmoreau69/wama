@@ -139,8 +139,9 @@ décors et des personnages** d'un plan à l'autre.
 
 #### Ce que le pipeline REFUSE aujourd'hui — et pourquoi ce n'est pas bloquant
 
-- **Le graphe est ACYCLIQUE, par construction** : `studio/tasks.py` calcule un ordre topologique et
-  **lève** `ValueError('Le graphe contient un cycle')`. La « boucle de rétroaction » Imager →
+- **Le graphe est ACYCLIQUE, par construction** : `manifests/builtin/pipeline.topo_order`
+  (`pipeline.py:253-283`, utilisé par `studio/tasks.py` ; renvoi mis à jour le 2026-10-31) calcule un
+  ordre topologique et **lève** `ValueError('Le graphe contient un cycle — exécution impossible.')`. La « boucle de rétroaction » Imager →
   Movie Director ne peut donc pas être une arête de retour.
 - **Mais ce n'en est pas une.** Fabien a lui-même **déroulé** la boucle pour l'étape 2 (« un
   SECOND Movie Director »). Le même geste vaut à l'intérieur de l'étape 1 : *Director-découpage →

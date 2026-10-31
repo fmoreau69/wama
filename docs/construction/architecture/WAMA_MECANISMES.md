@@ -30,7 +30,7 @@ sa propre documentation : l'affichage se remplit depuis les métadonnées, il ne
 **Ajouter un mécanisme transversal = ajouter une entrée au registre**, pas une ligne ici.
 
 La carte est rendue en **une sous-table par domaine** (le domaine est posé par groupe dans le
-registre, via `_domaine()`) : un tableau unique de 60 lignes ne se lisait plus. La couche **UI
+registre, via `_domain()`, `mecanismes.py:107`) : un tableau unique de 60 lignes ne se lisait plus. La couche **UI
 générée** (2026-08-13) déclare les briques front **au grain mécanisme** : le js/partial d'un
 mécanisme déjà déclaré est son ANNEXE (wama-params.js ↔ param_schema), pas une entrée de plus ;
 l'inventaire fin par facette reste dans `WAMA_APP_GENERATION_ROUTE.md`, qu'il ne double pas.
@@ -48,7 +48,7 @@ du nom de fichier** (balise `<script>`, include) dans les gabarits et le front (
 | `n` | nombre de modules qui s'en servent |
 
 > ⚠⚠ **LE COMPTE INCLUT LES COMMENTAIRES — il SURESTIME l'adoption** (mesuré le 2026-08-23).
-> `consommateurs()` cherche le nom de fichier de la brique dans la source **brute** : une ligne
+> `mecanismes_scan.consumers()` (`services/mecanismes_scan.py:120`) cherche le nom de fichier de la brique dans la source **brute** : une ligne
 > qui se contente de la CITER (« brique commune `queue-actions.js` — ne pas re-binder ici »)
 > compte autant qu'un `<script src=…>`. Écart mesuré sur les 88 mécanismes : **21 sont
 > affectés**, dont
@@ -56,7 +56,7 @@ du nom de fichier** (balise `<script>`, include) dans les gabarits et le front (
 > | mécanisme | affiché | consommateurs RÉELS (code seul) |
 > |---|---|---|
 > | `queue_front` | 60 | **18** |
-> | `rag_geste` | 23 | **5** |
+> | `rag_gesture` (ex-`rag_geste`) | 23 | **5** |
 > | `new_item_card` | 27 | 16 |
 > | `app_base_js` | 17 | 6 |
 >
@@ -87,7 +87,7 @@ dossier prend une fonction transversale — et la leçon s'est **rejouée quatre
 brique). Se souvenir n'est donc pas le geste : **ajouter le dossier au balayage dans le commit qui
 crée son premier fichier**. Un utilitaire strictement
 local ne se déclare pas : il s'**assume**, et assumer est un acte déclaré lui aussi —
-`ASSUMES_LOCAUX` (wama/common/mecanismes.py), une raison datée par entrée, soustrait du backlog
+`ASSUMED_LOCAL` (wama/common/mecanismes.py:3261), une raison datée par entrée, soustrait du backlog
 (ajouté au triage du 2026-08-13 : sans lui la liste plafonnait à 45 noms et ne convergeait
 jamais). Ce qui reste dans la liste est donc VRAIMENT à trancher. Deux gardes : un module
 assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
@@ -492,8 +492,11 @@ Ce que la carte rend visible et qu'il ne faut pas masquer :
 - **Des mécanismes sans document de référence** (colonne « Doc » à `—`). Leur intention n'est
   écrite que dans les docstrings et les messages de commit. Ce n'est pas rédhibitoire — un
   docstring exhaustif vaut mieux qu'un `.md` qui dérive — mais ça se sait.
-- **Le RAG n'apparaît pas** : il n'est pas implémenté (ROADMAP §8c). Il entrera au registre le
-  jour où il aura un domicile, pas avant — déclarer une intention comme un mécanisme rendrait la
-  carte menteuse.
-- **La couverture de `RunOutcome` est partielle** : deux apps sur dix, celles qui ont adopté le
-  squelette de tâche. La carte compte les consommateurs du mécanisme, pas les apps couvertes.
+- **Le RAG est au registre** (corrigé le 2026-10-31, mesuré : `memory` `mecanismes.py:705`,
+  `vector_service` `:716`, `rag_gesture` `:940`) ; aucune APP ne l'active encore dans son pipeline
+  de prompts (Hook B opt-in, `rag=False`, `prompt_pipeline.py`). *Ce passage disait « il n'est pas
+  implémenté » : c'était l'état d'avant `wama/common/memory/`.*
+- **La captation `RunOutcome` couvre les dix apps** (corrigé le 2026-10-31, mesuré : le squelette
+  enregistre l'issue, `task_skeleton.py:329`, et les dix apps passent par `run_item_task` — `tasks.py`
+  de six apps, `workers.py` de describer, synthesizer, avatarizer, transcriber). La carte compte les
+  consommateurs du MODULE, pas les apps couvertes.

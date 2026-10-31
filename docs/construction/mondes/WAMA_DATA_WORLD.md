@@ -58,7 +58,7 @@
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
 - **Exporter** — MOTEUR écrit et éprouvé le 2026-08-23 (49 tests — 37 sur le cœur pur, 12 sur la frontière pandas) sur le modèle RÉEL cette fois : une DÉCLARATION sérialisable, DEUX axes de regroupement au lieu des quatre branches recopiées, l'aperçu qui EST l'export borné. ⚠ Il n'est PAS au catalogue de fonctions et ce n'est pas un oubli : un puits n'a pas de `FunctionCategory` honnête. ⚠ MAIS SON BLOCAGE A CHANGÉ DE NATURE le 2026-08-24 : **D13 est TRANCHÉE** (§9undecies.2 — un seul kind `pipeline`, étendu d'un nœud `function`). Ce n'est donc plus une décision qu'on attend, c'est une IMPLÉMENTATION qui manque, et l'abstention de `functions/io/export.py` — écrite « tant que D13 n'est pas tranchée » — doit être relue à cette lumière. Le nœud `function` du kind est CODÉ depuis le 2026-09-09 (corrigé le 2026-09-15). Forme PRÉCISÉE par Fabien le 2026-09-15 (§11.8 ⑨ ; ~~« décision ouverte 6 »~~ corrigé le 2026-10-11) : l'export est un NŒUD DE SORTIE qui porte sa `Declaration` — N exports (tables, événements, situations) = N nœuds de sortie — et un pipeline SANS process (entrée → sortie) doit être accepté. ✅ LIVRÉ le 2026-10-11 : nœud de sortie `data_export` (`functions/io/export.export_lots`), pipeline sans process accepté par `studio/services/launch.py` (`WAMA_APP_GENERATION_ROUTE §10.6` point 3.6). Restent : l'ÉDITEUR des déclarations (famille → tables → colonnes ordonnées → aperçu, §11.1 — saisie JSON en attendant), les formats `xlsx`/`mat` (refusés explicitement, pas écrits), et l'app qui le pilote (l'Analyzer)
 - **Recorder** — périmètre v1 non tranché (D5)
-- **Analyzer** — D13 TRANCHÉE le 2026-08-24 (§9undecies.2) et CODÉE le 2026-09-09 : le kind `pipeline` accepte le nœud `function`, l'exécuteur du Studio (`studio/tasks.py`) dispatche sur le kind — app = job de file asynchrone, fonction pure = transformation typée synchrone, fonction app-bound = `impl` pollée — et le registre `cam_analyzer.PASSES` s'exporte en manifeste `pipeline` (`manifests/pipelines/`). Depuis, le moteur commun est LIVRÉ (P3, P5, P6 : `ProcessRun`, états communs dont `STALE`, bande des process de la card, promotion fille ↔ mère, dix apps Médias dessus). Ce qui manque à l'Analyzer (relevé le 2026-10-11) : l'APP-FILE elle-même (entrée au catalogue sous le monde `data`, décidée le 2026-09-15) ; les réglages d'un nœud `ParamSpec` rendus par `WamaParams` comme ceux d'un process Médias (seul le Studio les affiche, par son propre formulaire — route tous mondes : `WAMA_APP_GENERATION_ROUTE §10.6` 3.3bis, marche P7a) ; un pipeline porté PAR LA CARD (composition exploratoire — aujourd'hui un pipeline est déclaré par app, en code) ; ~~l'export en nœuds de sortie et le pipeline sans process~~ (✅ 2026-10-11) ; l'empreinte des entrées connectées ; la porte d'ingestion d'un manifeste de pipeline (marche E) — séquence : `WAMA_APP_GENERATION_ROUTE §10.6` marche P7
+- **Analyzer** — D13 TRANCHÉE le 2026-08-24 (§9undecies.2) et CODÉE le 2026-09-09 : le kind `pipeline` accepte le nœud `function`, l'exécuteur du Studio (`studio/tasks.py`) dispatche sur le kind — app = job de file asynchrone, fonction pure = transformation typée synchrone, fonction app-bound = `impl` pollée — et le registre `cam_analyzer.PASSES` s'exporte en manifeste `pipeline` (`manifests/pipelines/`). Depuis, le moteur commun est LIVRÉ (P3, P5, P6 : `ProcessRun`, états communs dont `STALE`, bande des process de la card, promotion fille ↔ mère, dix apps Médias dessus). Ce qui manque à l'Analyzer (relevé le 2026-10-11) : l'APP-FILE elle-même (entrée au catalogue sous le monde `data`, décidée le 2026-09-15) ; les réglages d'un nœud `ParamSpec` rendus dans l'Analyzer lui-même (le Studio les rend déjà par `WamaParams`, depuis `f1c3d4e1`, marche R1 — route tous mondes : `WAMA_APP_GENERATION_ROUTE §10.6` 3.3bis, marche P7a) ; un pipeline porté PAR LA CARD (composition exploratoire — aujourd'hui un pipeline est déclaré par app, en code) ; ~~l'export en nœuds de sortie et le pipeline sans process~~ (✅ 2026-10-11) ; l'empreinte des entrées connectées ; la porte d'ingestion d'un manifeste de pipeline (marche E) — séquence : `WAMA_APP_GENERATION_ROUTE §10.6` marche P7
 
 </details>
 <!-- /WAMA:FAITS(wama_data) -->
@@ -366,7 +366,7 @@ détaillé ci-dessus).
 |---|---|---|
 | `configurators` | schéma `Param` + `WamaParams` (registry de renderers depuis le 19/08) | ✅ existe |
 | `loading` | `data_types.py` + `FUNCTION_CATALOG` (compatibilité de types) | 🔄 domicile décidé |
-| `plugins` | registre de rendus (cascade mime → registre) | ⏳ palier annoncé (`mecanismes.py:329`) |
+| `plugins` | registre de rendus (cascade mime → registre) | ⏳ palier annoncé (`mecanismes.py:2194-2200`) |
 | `widgets` | mécanismes d'interface : des PIÈCES réutilisées par les briques (`media_picker`, `filter_bar`…) — ⚠ pas des briques UI, corrigé le 2026-10-19 (trois niveaux, `ROUTE §F3b`) | ✅ existe |
 | noyau de plugins (cycle de vie, pairs, axe) | — | ❌ **le trou** |
 
@@ -390,9 +390,12 @@ position · « fermer tous les plugins » · « ramener tous les plugins au 1ᵉ
 **Télécommande ShuttlePro** : molette → slider de vitesse · bague centrale → slider de position ·
 boutons → raccourcis clavier.
 
-**Écart avec l'existant WAMA** : `WamaShuttle` (`wama/common/static/common/js/wama-shuttle.js`)
+**Écart avec l'existant WAMA** : ~~`WamaShuttle` (`wama/common/static/common/js/wama-shuttle.js`)
 n'a que J/K/L par **paliers discrets** (`DEFAULT_LEVELS`), pas de pas image, pas de timeline, pas
-de ShuttlePro. Le Transcriber en a une **copie locale** (`transcriber/static/transcriber/js/edit.js:283-320` (supprimé le 2026-10-21, R166))
+de ShuttlePro.~~ *Écart restant (corrigé le 2026-10-31)* : pas image fps-aware, slider de vitesse
+logarithmique continu, ShuttlePro. Le transport commun (`wama-transport.js`), l'axe partagé
+(`wama-axis.js` : `seek`, `jump`, `setSpeed`, `shuttle`) et la ligne de temps (`wama-timeline.js`)
+existent depuis le 2026-10-15/21, cf. §8.4. Le Transcriber en a une **copie locale** (`transcriber/static/transcriber/js/edit.js:283-320` (supprimé le 2026-10-21, R166))
 avec lecture arrière par pas manuel — duplication à résorber APRÈS que le commun ait rattrapé la spec.
 
 ⚠ **Question ouverte (Fabien, 19/08)** : dans BIND le magneto est un *plugin* (fenêtre indépendante
@@ -440,11 +443,12 @@ créées dynamiquement, une par élément**.
 |---|---|---|
 | **Data** | `timecode` — échantillonné, fréquence déclarée | `SIGNAL` / `TIMESERIES` ✅ |
 | **Event** | `timecode` — occurrence ponctuelle | `EVENTS` ✅ |
-| **Situation** | `startTimecode` + `endTimecode` — **intervalle** | ❌ **rien n'existe** |
+| **Situation** | `startTimecode` + `endTimecode` — **intervalle** | ✅ `SEGMENTS` (`data_types.py:42`, ex-`SECTIONS` renommé le 2026-08-20) — *corrigé le 2026-10-31 ; disait « ❌ rien n'existe »* |
 
-> ⚠ **Trou identifié dans WAMA** : la taxonomie n'a pas de type « intervalle ». Or c'est
+> ~~⚠ **Trou identifié dans WAMA** : la taxonomie n'a pas de type « intervalle ». Or c'est
 > exactement ce que produit le **Segmenter** et ce que consomme le **Calculator** (« indicateurs
-> par situation »). À arbitrer : nouveau `DataType.INTERVALS`, ou sous-type d'`EVENTS` avec durée.
+> par situation »). À arbitrer : nouveau `DataType.INTERVALS`, ou sous-type d'`EVENTS` avec durée.~~
+> (faux dès l'écriture : `SECTIONS` existait — cf. Journal 2026-08-21 ; c'est `DataType.SEGMENTS`)
 
 Noms réservés (`Trip.m:18`) : `timecode`, `startTimecode`, `endTimecode`.
 > Divergence de vocabulaire : WAMA utilise `time` (`CANONICAL_FIELDS`). À réconcilier au moment de
@@ -778,15 +782,15 @@ Ce que WAMA a déjà et qui sert directement :
 
 | # | BIND | WAMA | verdict |
 |---|---|---|---|
-| 1 | 3 familles `Data` / `Event` / `Situation` | `SIGNAL`/`TIMESERIES`, `EVENTS`, **rien pour l'intervalle** | ⚠ **trou** — bloque Segmenter ET Calculator (**D8**) |
+| 1 | 3 familles `Data` / `Event` / `Situation` | `SIGNAL`/`TIMESERIES`, `EVENTS`, `SEGMENTS` (`data_types.py:42`) | ✅ *(corrigé le 2026-10-31 — disait « rien pour l'intervalle, ⚠ trou, D8 » : `SEGMENTS` existe, ex-`SECTIONS`)* |
 | 2 | 1 table SQLite **par signal**, indexée ; transactions | — | ✅ à reprendre tel quel, c'est la bonne réponse au haut débit |
-| 3 | `unit` par variable, `frequency` par Data, `isBase` (acquis/dérivé) | `Param` a l'unité ; pas d'équivalent `frequency`/`isBase` | ⚠ à ajouter — `isBase` est le socle de la provenance |
-| 4 | alignement **à l'ingestion** (`Timestamper` ×3 stratégies) | — | ✅ modèle à copier ; déplace l'effort vers l'Importer |
+| 3 | `unit` par variable, `frequency` par Data, `isBase` (acquis/dérivé) | `SignalMeta.units`, `SignalMeta.fs`, `SignalMeta.is_base` (`wama_data/core/temporal.py:71,83,86`) | ✅ *(corrigé le 2026-10-31 — disait « pas d'équivalent, ⚠ à ajouter »)* — `is_base` est le socle de la provenance |
+| 4 | alignement **à l'ingestion** (`Timestamper` ×3 stratégies) | `Timestamper`, `TimestampTS`, `TimeOfIssueTS`, `ResamplingTS` (`wama_data/sources/__init__.py:44-80`, 2026-10-31) | ✅ modèle copié ; déplace l'effort vers l'Importer |
 | 5 | **jamais d'interpolation** (`at`/`near` seulement) | — | **D6** — position pressentie : reprendre pour la VALEUR, interpolation en option d'AFFICHAGE |
 | 6 | manifeste de plugin = **méthodes statiques** + balayage du path | registres déclaratifs (`MANIFEST_KINDS`, `FUNCTION_CATALOG`, `mecanismes.py`) | ✅ WAMA est **plus fort** — registre explicite > convention de nommage |
 | 7 | `Argument` **non typé** (chaîne ou tableau de chaînes) + **18 GUI à la main** (~4000 l.) | `Param` typé (type, choix, unité, bornes, `show_if`) + **UI générée** | ✅✅ **WAMA génère ce que BIND écrit à la main** — c'est LE gain de l'intégration |
 | 8 | `validateConfiguration(metaInfos, config)` écrite par configurateur | `is_compatible()` sur les types | ✅ WAMA la **dérive** au lieu de l'écrire |
-| 9 | synchro = **un canal Observer**, messages typés | — | ✅ contrat à reprendre (c'est §7ter point 4) |
+| 9 | synchro = **un canal Observer**, messages typés | l'axe partagé, `axis.subscribe(fn)` (`wama/common/static/common/js/wama-axis.js:19`, 2026-10-15 ; §8.4) | ✅ contrat repris (c'est §7ter point 4) |
 | 10 | environnement = plugins + configurations + trips, dans un fichier | kinds `project`/`dataset`, diffables | ✅ **c'est un manifeste**, position confirmée |
 | 11 | fenêtres OS flottantes (conséquence de MATLAB) | navigateur | ❌ **ne pas reproduire** — layout dockable + détachement `window.open` + `BroadcastChannel` |
 
@@ -795,15 +799,20 @@ temporelle et la couche plugins ne le sont pas. Elles se rebâtissent, elles ne 
 
 ### 8.2 Ce qui manque à WAMA, par ordre de blocage
 
-1. **type « intervalle »** dans `data_types.py` (**D8**) — le moins cher, et il débloque le plus ;
-2. **le référentiel temporel** (§3) — rien n'existe ; sa difficulté réelle est à l'**ingestion**, pas
+1. ✅ **type « intervalle »** dans `data_types.py` (**D8**) — le moins cher, et il débloque le plus ;
+   *livré (corrigé le 2026-10-31) : `DataType.SEGMENTS`, `data_types.py:42`* ;
+2. ✅ **le référentiel temporel** (§3) — ~~rien n'existe~~ ; sa difficulté réelle est à l'**ingestion**, pas
    à la consultation, ce qui la rend beaucoup plus abordable qu'estimé au 19/08 ;
+   *livré le 2026-08-21 (corrigé le 2026-10-31) : `wama_data/core/temporal.py:361`
+   `TemporalReferential` (`at`, `range`, `decimate`, `next_event`)* ;
 3. **le noyau de plugins** : cycle de vie, pairs, souscription au canal (§4.3) ;
+   🔄 *la souscription au canal est tenue par l'axe partagé (`wama-axis.js:19`, 2026-10-15) ; le
+   reste — point d'extension, pairs — est confronté aux briques UI des surfaces en §8.4* ;
 4. **la vue déclarative** — le verrou §7ter point 3. On sait maintenant ce qu'elle remplace : les
    18 configurateurs de BIND. ⚠ Garde-fou §7ter maintenu : **ne pas spécifier dans l'abstrait** —
    écrire 2-3 plugins d'abord, extraire ensuite ;
 5. **le conteneur de vues** : layout dockable + détachement en vraie fenêtre.
-   > Amorce existante : `audio_player` gère déjà l'exclusivité **inter-onglets** (`mecanismes.py:333`).
+   > Amorce existante : `audio_player` gère déjà l'exclusivité **inter-onglets** (`mecanismes.py:2201`).
    > 🔄 **2026-10-26 — le layout dockable existe, commun à tous les mondes** : les SURFACES
    > (`wama-surface.js`) disposent des briques sur une grille magnétique par compte, les EMPILENT en
    > un panneau et les ÉPINGLENT à un bord de la fenêtre (haut, bas, gauche, droite) — le transport
@@ -820,18 +829,20 @@ temporelle et la couche plugins ne le sont pas. Elles se rebâtissent, elles ne 
 
 ### 8.3 Plan d'intégration ordonné
 
-> Chaque marche est **utile seule** et ne présuppose que les précédentes. Aucune n'est engagée.
+> Chaque marche est **utile seule** et ne présuppose que les précédentes. ~~Aucune n'est engagée.~~
+> *(corrigé le 2026-10-31 : la colonne « état » dit ce que le code porte ; A→D sont faites,
+> E et F engagées.)*
 
-| # | marche | pourquoi ici | dépend de |
-|---|---|---|---|
-| **A** | `DataType.INTERVALS` + champs `frequency` / `is_base` dans la taxonomie | quelques dizaines de lignes, déverrouille Segmenter + Calculator, et rend la compatibilité vérifiable | — |
-| **B** | **Importer** : `Timestamper` (3 stratégies) + lecture `.trip` SQLite | c'est là qu'est la vraie difficulté temporelle ; pynd donne le code de référence à 90 % | A |
-| **C** | **Référentiel** : `at(t)`, `range(t₀,t₁)`, `next_event(t)` + **vue décimée** (min/max par pixel) | sans la décimation aucun plugin de visualisation n'est viable (§3.5) ; BIND l'a résolu par `TripStreamingPlugin`, template dominant | B |
-| **D** | **Curseur de session** + canal de messages typés (souscription) | couche 2 : trois valeurs et un canal ; c'est le contrat explicite de §7ter point 4 | C |
-| **E** | **`WamaShuttle` émet une commande** au lieu d'appliquer une vitesse + spec magneto BIND | débloque la forme fenêtrée ET l'adoption Transcriber ; la brique existe déjà | D |
-| **F** | **2-3 plugins écrits à la main** (courbe, carte, bandes d'événements) | la règle du 2ᵉ consommateur interdit d'extraire avant | C, D |
-| **G** | **Extraire la vue déclarative** de ces 2-3 plugins | remplace les 18 configurateurs de BIND par de la génération | F |
-| **H** | Segmenter, Calculator, Visualizer, Analyzer | deviennent minces une fois A→D en place | A, C |
+| # | marche | pourquoi ici | dépend de | état (2026-10-31) |
+|---|---|---|---|---|
+| **A** | `DataType.INTERVALS` + champs `frequency` / `is_base` dans la taxonomie | quelques dizaines de lignes, déverrouille Segmenter + Calculator, et rend la compatibilité vérifiable | — | ✅ 2026-08-21 — `INTERVALS` réalisé sous le nom `SEGMENTS` (`data_types.py:42`) ; `SignalMeta.fs` / `is_base` (`core/temporal.py:71,86`) |
+| **B** | **Importer** : `Timestamper` (3 stratégies) + lecture `.trip` SQLite | c'est là qu'est la vraie difficulté temporelle ; pynd donne le code de référence à 90 % | A | ✅ `Timestamper` + `TimestampTS` / `TimeOfIssueTS` / `ResamplingTS` (`sources/__init__.py:44-80`), lecteurs `sources/trip.py`, `sources/rtmaps.py` ; alignement par triggers ⏳ (D12) |
+| **C** | **Référentiel** : `at(t)`, `range(t₀,t₁)`, `next_event(t)` + **vue décimée** (min/max par pixel) | sans la décimation aucun plugin de visualisation n'est viable (§3.5) ; BIND l'a résolu par `TripStreamingPlugin`, template dominant | B | ✅ `TemporalReferential.at` / `range` / `decimate` / `next_event` (`core/temporal.py:420-450`) |
+| **D** | **Curseur de session** + canal de messages typés (souscription) | couche 2 : trois valeurs et un canal ; c'est le contrat explicite de §7ter point 4 | C | ✅ 2026-10-15 — l'axe partagé, `axis.subscribe(…)` (`wama/common/static/common/js/wama-axis.js:19`), un axe par page (D7, §8.4) |
+| **E** | **`WamaShuttle` émet une commande** au lieu d'appliquer une vitesse + spec magneto BIND | débloque la forme fenêtrée ET l'adoption Transcriber ; la brique existe déjà | D | 🔄 la commande va à l'axe (`axis.shuttle`, `wama-axis.js:25` ; mécanisme `shuttle`, `mecanismes.py:2206-2210`) ; reste de la spec magneto : pas image, slider logarithmique, ShuttlePro (§5) |
+| **F** | **2-3 plugins écrits à la main** (courbe, carte, bandes d'événements) | la règle du 2ᵉ consommateur interdit d'extraire avant | C, D | 🔄 deux plugins écrits le 2026-10-29→30 (`timeseries_chart`, `video_view` — §8.4) |
+| **G** | **Extraire la vue déclarative** de ces 2-3 plugins | remplace les 18 configurateurs de BIND par de la génération | F | ⏳ |
+| **H** | Segmenter, Calculator, Visualizer, Analyzer | deviennent minces une fois A→D en place | A, C | 🔶 moteurs Segmenter / Calculator livrés, UI absente ; Visualizer et Analyzer ⏳ (§0) |
 
 **Non planifié, à trancher avant d'y toucher** : Recorder temps réel (LSL/RTMaps/ROS) — **D5** ;
 conteneur de vues détachables — après F (~~détacher en vraie fenêtre~~ : fait au noyau commun le
@@ -1016,13 +1027,13 @@ ou deux avant d'extraire quoi que ce soit) :
 | module | consomme → produit | brique commune | app/UI |
 |---|---|---|---|
 | **Recorder** | flux temps réel → `dataset` | ⏳ (LSL/RTMaps/ROS) | app — **D5, différable** |
-| **Importer** | fichiers + `dataset` → référentiel | ✅ `data/sources/` (registre) | app |
+| **Importer** | fichiers + `dataset` → référentiel | ✅ `wama_data/sources/` (registre `READERS`, `sources/__init__.py:190` ; corrigé le 2026-10-31, ex-`wama/common/data/`) | app |
 | **Connector** | base existante → référentiel | ✅ lecteur `.trip` (cas particulier) | module |
 | **Explorer** | référentiel → vues table/graphe | ~~⏳~~ 🔶 cœur livré (`frames.py`, `view.py`), UI absente (corrigé le 2026-09-15) | app |
 | **Segmenter** | signal/events → `segments`/`events` (5 modes) | 🔶 moteur, cf. §9ter.6 pour les manques | app |
 | **Calculator** | colonnes dérivées · indicateurs par segment | 🔶 écrit (49 tests) | app |
 | **Visualizer** | référentiel → plugins synchronisés | ⏳ | app |
-| **Exporter** | TOUT le contenu d'un trip (données, méta, events, situations) → fichiers | ~~⏳~~ 🔶 moteur écrit (`core/export.py`), UI absente (corrigé le 2026-09-15) · cf. §9ter.6 | module |
+| **Exporter** | TOUT le contenu d'un trip (données, méta, events, situations) → fichiers | ~~⏳~~ ~~🔶 moteur écrit (`core/export.py`), UI absente (corrigé le 2026-09-15)~~ ✅ moteur + nœud de sortie `data_export` au Studio (2026-10-11, `functions/io/nodes.py`) ; éditeur des déclarations ⏳ (corrigé le 2026-10-31) · cf. §9ter.6 | module |
 | **Analyzer** | ~~orchestre les précédents~~ **app-file du monde Data** : ses cards portent un pipeline de modules (précisé le 2026-09-15) | ⏳ | app |
 
 > ⚠ **Précisé le 2026-09-15** (`WAMA_APP_GENERATION_ROUTE.md §10.6`) — la colonne « app/UI »
@@ -1045,7 +1056,7 @@ Les pièces existent et il faut **les relier, pas les refaire** :
 - **Kind `pipeline`** : il **existe déjà** et porte exactement ce qu'il faut — `{nodes, links}` avec
   la **présentation (`layout`) séparée du fonctionnel**. ~~Il ne connaît que `source|sink|app` : il
   faut y ajouter le nœud **fonction**.~~ ✅ **FAIT le 2026-09-09** (D13 codée : `source|sink|app|function`,
-  `common/manifests/builtin/pipeline.py:29-31` — corrigé le 2026-09-15). C'est une extension, pas un
+  `common/manifests/builtin/pipeline.py:42` — corrigé le 2026-09-15, ligne remise à jour le 2026-10-31). C'est une extension, pas un
   nouveau kind. Le trou suivant, décidé le 2026-09-15, est le type de nœud **`pipeline`** (un pipeline
   enregistré utilisé comme nœud) → `WAMA_APP_GENERATION_ROUTE.md §10.6` point 3.1.
 - **Canvas studio** : le chaînage se dessine là. ⚠ **Ne JAMAIS créer un second canvas** — l'héritage
@@ -1112,6 +1123,15 @@ sens ». Chacun doit être un contrôle exécutable, pas une règle écrite.
 
 ### 9ter. LE SEGMENTER — spécification tirée des trois sources (passe 6, 2026-08-22)
 
+> ⚠ **Identifiants (2026-10-31).** De §9ter à §13, les identifiants de code entre backticks sont
+> donnés sous leur nom RÉEL, celui d'après la migration D28 (code anglais depuis le 2026-08-26,
+> §14.5) — remplacés le 2026-10-31 par correspondance avec `wama_data/`. Les passages barrés, ceux
+> qui citent un renommage et les états datés qui décrivent l'ancien nom gardent l'ancien. Table de
+> correspondance : §14.2. Restent français dans le code lui-même (dette de nommage, budget de
+> `check_identifier_language`) : `CodingSession.marquer`, `Column.entete` / `Column.titre`,
+> `Declaration.identite`, `Discrepancy.lecteur` / `coordonnees`, `Context.attributs`,
+> `Report.fidele`, `Grouping.mode_origine`, `around(ancres, …)`.
+
 > ⚠ **Rectification.** J'avais déclaré la cartographie « complète » alors que **BIND_GUI n'avait
 > pas été lu** — or c'est là que vivent le Segmenter, le Calculator et l'Exporter. 478 Ko de source
 > MATLAB (8791 lignes, 151 fonctions) étaient restés fermés. Voici la passe qui manquait.
@@ -1161,10 +1181,10 @@ Chaque source apporte ce que les autres n'ont pas :
 
 | # | conséquence | statut |
 |---|---|---|
-| 1 | la signature du Segmenter est **`(ancre, o₁, o₂)`**, pas `(ancre, durée)` | ✅ `autour()` + `segment_autour_event` |
-| 2 | ajouter le mode **jonction de deux flux** | ✅ `jonction()` — appariement par le TEMPS, pas par index |
-| 3 | l'hystérésis (`durée_min`, `trou_toléré`) est un **paramètre du mode conditionnel** | ✅ `conditionnelle()` |
-| 4 | « présent dans » est une **opération ensembliste sur segments** (inclusion stricte), réutilisée **aussi à l'export** — donc une fonction du catalogue, pas un bout de Segmenter | ✅ `present_dans()` / `chevauche()`, déclarées |
+| 1 | la signature du Segmenter est **`(ancre, o₁, o₂)`**, pas `(ancre, durée)` | ✅ `around()` + `segment_around_events` |
+| 2 | ajouter le mode **jonction de deux flux** | ✅ `join()` — appariement par le TEMPS, pas par index |
+| 3 | l'hystérésis (`durée_min`, `trou_toléré`) est un **paramètre du mode conditionnel** | ✅ `conditional()` |
+| 4 | « présent dans » est une **opération ensembliste sur segments** (inclusion stricte), réutilisée **aussi à l'export** — donc une fonction du catalogue, pas un bout de Segmenter | ✅ `within()` / `overlapping()`, déclarées |
 | 5 | `Signal` doit accepter une **fin `None`** = segment ouvert (D15) | ✅ `OUVERT = None` — **pas** de sentinelle numérique |
 | 6 | le **codage** (manuel ou IA) produit des segments comme les autres modes — même sortie, origine tracée | ✅ `coding.py` — le `codeur` est le SEUL champ qui les distingue |
 | 7 | une segmentation **se sauvegarde et se rejoue** → c'est un manifeste `pipeline`, pas un réglage d'écran | 🔄 protocole sérialisable des deux sens ; ~~kind `protocol` pas encore enregistré~~ (corrigé le 2026-09-15 : pas de kind `protocol` — le protocole EST un manifeste `pipeline`, D13 §9undecies.2) |
@@ -1194,26 +1214,26 @@ Le découpage ci-dessus est repris **tel quel**, moteur d'abord :
 
 | pièce du modèle | dans WAMA | note |
 |---|---|---|
-| le protocole `.pro` | `Protocole` / `Comportement` / `Modificateur` — gelés, sérialisables JSON dans les deux sens | prêt pour un kind de manifeste ; l'éditeur reste une app à part, comme dans le modèle |
+| le protocole `.pro` | `Protocol` / `Behavior` / `Modifier` — gelés, sérialisables JSON dans les deux sens | prêt pour un kind de manifeste ; l'éditeur reste une app à part, comme dans le modèle |
 | l'interface générique | ⏳ **pas écrite, et c'est volontaire** | elle doit se GÉNÉRER du protocole ; l'écrire avant la vue déclarative rejouerait la rigidité qu'on combat |
-| la session | `SessionCodage` — refuse de démarrer **sans média**, un seul geste (`marquer`) qui ouvre/ferme | la règle « pas de codage sans support » vient du modèle, pas d'un excès de prudence |
+| la session | `CodingSession` — refuse de démarrer **sans média**, un seul geste (`marquer`) qui ouvre/ferme | la règle « pas de codage sans support » vient du modèle, pas d'un excès de prudence |
 
 Ce que le codage comportemental apporte et que le modèle MATLAB n'avait pas : l'**état ouvert**
 (`end = None`), les **modificateurs typés**, les **sujets** (deux personnes tiennent le même état
 sans se fermer l'une l'autre), et l'**exclusion mutuelle** — ouvrir un mode ferme le concurrent, et
 cette fermeture SUBIE est tracée (`closed_by='exclusive'`) séparément d'une fermeture voulue.
 
-> **Le point qui justifie tout le module** : `rejouer(protocole, média, gestes, codeur=…)` est le
+> **Le point qui justifie tout le module** : `replay(protocole, media, gestures, coder=…)` est le
 > point d'entrée du codage AUTOMATIQUE. Un modèle de vision produit une liste de gestes, on la
 > rejoue, et l'on obtient **exactement** la sortie d'un codage humain — validée par le même
 > protocole, refusée aux mêmes endroits (un code hors éthogramme est rejeté que la faute vienne
 > d'un doigt ou d'une hallucination). Il n'y a donc PAS de « module de codage IA » à écrire :
-> il y a un champ `codeur` qui change. `codage_accord` mesure ensuite l'écart entre les deux.
+> il y a un champ `coder` qui change. `coding_agreement` mesure ensuite l'écart entre les deux.
 
 ⚠ **Trois fois** le même piège dans la couche d'adaptation vers pandas : une valeur absente devient
 `NaN`, qui n'est ni `None` ni faux et traverse tous les tests d'absence naïfs — réintroduisant la
 sentinelle numérique que le modèle refuse. La détection est désormais **une seule fonction**
-(`manquant()`), et une régression versionnée la garde.
+(`missing()`), et une régression versionnée la garde.
 
 ### 9ter.5 L'EXPORT — ce que le livrable chercheur doit produire
 
@@ -1254,20 +1274,20 @@ existé. C'est le module que WAMA écrira **sans modèle**, et le seul de la cha
 
 | BIND (diapo 12 + captures) | WAMA au 22/08 | au 23/08 |
 |---|---|---|
-| Temporelle **simple** : ancre ± inf/sup | ✅ `autour(ancres, offset_debut, offset_fin)` | ✅ inchangé |
-| Temporelle **double** : Table 1 **+ offset**, Table 2 **+ offset** | ❌ `jonction()` n'a **aucun offset** | ✅ `offset_debut` / `offset_fin`, appliqués APRÈS l'appariement |
-| ☐ **Répéter sur les prochains segments** | ❌ absent | ✅ `repeter` — défaut **inversé** (voir ci-dessous) |
+| Temporelle **simple** : ancre ± inf/sup | ✅ `around(ancres, offset_start, offset_end)` | ✅ inchangé |
+| Temporelle **double** : Table 1 **+ offset**, Table 2 **+ offset** | ❌ `join()` n'a **aucun offset** | ✅ `offset_start` / `offset_end`, appliqués APRÈS l'appariement |
+| ☐ **Répéter sur les prochains segments** | ❌ absent | ✅ `repeat` — défaut **inversé** (voir ci-dessous) |
 | Conditionnelle : **liste de conditions** `(C1) (C2)…` | ❌ **un seul** prédicat | ✅ `Condition` déclarée, N par chaîne |
 | **Connecteur logique** `ET / OU / XOR / NON` + imbrication | ❌ absent | ✅ **arbre** validé à la déclaration |
 | Opérateurs **texte** (`contient`) | ❌ 6 opérateurs numériques | ✅ **14 opérateurs**, filtrés par la SORTE de colonne |
 | Cible **Event \| Situation** au choix | ❌ produit toujours des `segments` | ✅ deux **ports** du même masque |
-| « Présent dans » **dans le geste** | 🔶 `present_dans` existe, mais à part | 🔶 inchangé — c'est un CONTEXTE d'export (point 5), traité côté Exporter |
+| « Présent dans » **dans le geste** | 🔶 `within` existe, mais à part | 🔶 inchangé — c'est un CONTEXTE d'export (point 5), traité côté Exporter |
 | **Filtrage manuel** occurrence par occurrence | ❌ absent | ⏳ **c'est la CARD** (point 6) — mécanisme existant, aucune interface à écrire |
-| Nom **auto-dérivé** des paramètres (`deb_fin_0_0`) | 🔶 `nom` libre | ✅ `nom_jonction()` / `nom_chaine()`, `nom` libre restant possible |
+| Nom **auto-dérivé** des paramètres (`deb_fin_0_0`) | 🔶 `nom` libre | ✅ `join_name()` / `chain_name()`, `nom` libre restant possible |
 
-> **Le défaut de `repeter` est INVERSÉ par rapport à BIND, délibérément.** Chez lui, ne pas cocher
-> la case produit UN segment ; ici, `repeter=True` est le défaut et produit toute la série. Deux
-> raisons : c'est le comportement historique de `jonction()` (l'inverser serait une régression
+> **Le défaut de `repeat` est INVERSÉ par rapport à BIND, délibérément.** Chez lui, ne pas cocher
+> la case produit UN segment ; ici, `repeat=True` est le défaut et produit toute la série. Deux
+> raisons : c'est le comportement historique de `join()` (l'inverser serait une régression
 > silencieuse pour les chaînes existantes), et produire la série est le cas courant d'une analyse
 > — le cas particulier mérite d'être demandé plutôt que subi.
 
@@ -1275,7 +1295,7 @@ existé. C'est le module que WAMA écrira **sans modèle**, et le seul de la cha
 > segments » n'est pas seulement une case : son implémentation (`appliquer_prochainSeg`) apparie
 > les deux tables **par INDEX** et, quand elles n'ont pas le même nombre d'occurrences, ne sait que
 > refuser — « Impossible de répéter sur les prochains segments puisque la taille des tableaux sont
-> differents. Veuillez filtrer les tables. » L'appariement **par le temps** que `jonction()` faisait
+> differents. Veuillez filtrer les tables. » L'appariement **par le temps** que `join()` faisait
 > déjà n'a pas ce cas d'échec : le choix WAMA était bon, et on sait maintenant contre quoi.
 
 #### B. La chaîne conditionnelle — le morceau qui demande une vraie traduction
@@ -1338,7 +1358,7 @@ parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
    >   `TypedFrame` n'expose que `.fields`, une liste de NOMS. Rien n'y type une colonne. La
    >   vérification a donc coûté une notion neuve — la **SORTE** (numérique / texte / booléen),
    >   trois valeurs et pas une de plus — et sa dérivation depuis un `dtype`
-   >   (`functions/temporal/conditions.py::sorte_de_colonne`). Elle vit dans l'ADAPTATEUR : le
+   >   (`functions/temporal/conditions.py::column_kind`). Elle vit dans l'ADAPTATEUR : le
    >   cœur reste sans pandas.
    >
    > **Et la sorte n'est jamais DÉCLARÉE, elle est LUE dans la donnée** — une `sorte` présente
@@ -1348,13 +1368,13 @@ parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
 4. **« Que créer ? Event | Situation » devient un PORT DE SORTIE, pas un bouton radio.**
    La chaîne produit un **masque booléen**. Deux fonctions déclarées le consomment :
    `masque → events` (instants de bascule) et `masque → segments` (plages, avec l'hystérésis
-   `duree_min`/`trou_tolere` déjà écrite). C'est composable, typé, et **le cœur ne bouge pas** :
-   `conditionnelle()` prend DÉJÀ un masque en entrée — c'est la couche déclarative au-dessus qui
+   `min_duration`/`gap_tolerance` déjà écrite). C'est composable, typé, et **le cœur ne bouge pas** :
+   `conditional()` prend DÉJÀ un masque en entrée — c'est la couche déclarative au-dessus qui
    manquait, pas le moteur.
 
 5. **« Présent dans » est un CONTEXTE déclaré, appliqué par la brique commune.**
    BIND le recopie dans quatre fonctions (`ExportConcatPresentDans`, `ExportConEveSitPresentDans`,
-   `exporterPresentDans`, `exporterTousNormalPresentDans`). WAMA a `present_dans()` : il devient un
+   `exporterPresentDans`, `exporterTousNormalPresentDans`). WAMA a `within()` : il devient un
    **champ** du geste (`contexte=[…]`), pas une quatrième variante de chaque fonction.
 
 6. **Le filtrage manuel n'est pas une UI à écrire — c'est la CARD.**
@@ -1365,7 +1385,7 @@ parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
    « porter le concept plutôt que le code ».
 
 7. **Le nom se DÉRIVE des paramètres.** `deb_fin_0_0` chez BIND est construit des deux tables et
-   des deux offsets. Même règle que `nom_produit()` du Calculator (`vitesse` + `moyenne` →
+   des deux offsets. Même règle que `derived_name()` du Calculator (`vitesse` + `moyenne` →
    `vitesse_moyenne`) : une règle déclarée, pas une saisie à retenir.
 
 #### C. L'Exporter — la déclaration remplace la struct de session
@@ -1435,7 +1455,7 @@ parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
    sa branche multi-occurrences est du **code mort** qui référence une variable jamais définie
    (`i_occurrence`) — elle lèverait si on l'atteignait. Deux chemins, deux conventions, dont une
    qui ne peut pas s'exécuter. C'est pourquoi l'en-tête est ici un **CHAMP de la colonne déclarée**
-   (`Colonne.entete`, défaut `source.champ`) et non une reconstruction par chemin.
+   (`Column.entete`, défaut `source.champ`) et non une reconstruction par chemin.
 
 3. **L'interface ne s'écrit pas, elle se génère de la déclaration.** Le sélecteur à trois niveaux
    (type → table → variables), l'ordre `▲▼✕`, l'aperçu : ce sont des **rendus** du schéma. WAMA a
@@ -1467,7 +1487,7 @@ Les deux chantiers étant indépendants, les deux ont été faits dans la même 
 | livré | briques | preuve |
 |---|---|---|
 | **Chaîne conditionnelle** (B, points 1-4 et 7) | `core/conditions.py`, `functions/temporal/conditions.py` | 41 tests cœur + 26 frontière |
-| **Manques temporels** (A : offsets de jonction, `repeter`, second port) | `core/segmentation.py` (`jonction`, `bascules`) | 15 tests |
+| **Manques temporels** (A : offsets de jonction, `repeat`, second port) | `core/segmentation.py` (`join`, `edges`) | 15 tests |
 | **Exporter** (C, points 1-4) | `core/export.py`, `functions/io/export.py` | 37 tests cœur + 12 frontière |
 
 `wama_data` passe de **198 à 327 tests**, tous verts. Les gardes centrales ont été vérifiées
@@ -1479,7 +1499,7 @@ harnais qui avaient annoncé « 0 FAIL » sur du vide.
 1. **Le filtrage manuel** (A, point 6) — c'est la **file de cards + l'inspecteur**, mécanisme
    existant. Rien à écrire dans le monde Data : le geste est de brancher une collection de
    segments sur la file. À faire quand une app pilotera le Segmenter.
-2. **« Présent dans » dans le geste** (B, point 5) — `present_dans()` existe et reste à part. Sa
+2. **« Présent dans » dans le geste** (B, point 5) — `within()` existe et reste à part. Sa
    place est un **champ `contexte` de la déclaration d'export**, pas une variante de fonction ;
    il n'est pas encore câblé dans `Declaration`.
 3. **L'Exporter n'est PAS au catalogue de fonctions**, et c'est une décision. Un puits ne rend
@@ -1575,7 +1595,7 @@ Ce n'était pas un arbitrage de goût : la mesure tranche seule.
    une **chaîne** (`transcriber/.../edit.js`, `edit.html`, `app_registry.py`). Celui de BIND est un
    **flottant en secondes**. Adopter le mot donnerait **deux types incompatibles au même mot dans
    la même plateforme** — exactement la juxtaposition de vocabulaires que WAMA s'interdit.
-3. **La normalisation existe déjà et fonctionne** : `sources/tabular.py:23` accepte
+3. **La normalisation existe déjà et fonctionne** : `core/naming.py:46` (`COLONNES_TEMPS`, réimporté par `sources/tabular.py`) accepte
    `('time', 'timestamp', 'timecode', 't', 'temps', 'time_s', 'seconds')` en entrée et rend `time` ;
    `sources/trip.py` lit les colonnes `timecode` / `startTimecode` de BIND et produit
    `time` / `start` / `end`. **Il n'y a rien à écrire, seulement à ne pas défaire.**
@@ -1601,7 +1621,7 @@ que le prochain module pourrait contredire sans s'en apercevoir.
 
 **(a) Deux colonnes de la MÊME table** (« multiplier une colonne par une autre, comme dans Excel »)
 → même clé temporelle → **même table**, une colonne de plus. Le nom se **dérive** par règle
-(`nom_produit()` existe : `vitesse` + `moyenne` → `vitesse_moyenne`), jamais saisi — mêmes motifs
+(`derived_name()` existe : `vitesse` + `moyenne` → `vitesse_moyenne`), jamais saisi — mêmes motifs
 qu'en §9ter.6 B7.
 
 **(b) Deux colonnes de tables à PAS DIFFÉRENTS** → trois options, et **l'interpolation est la pire** :
@@ -1609,13 +1629,13 @@ qu'en §9ter.6 B7.
 | option | verdict |
 |---|---|
 | **Interpoler** pour aligner, puis multiplier | ❌ — c'est ce que **D6** refuse (« jamais d'interpolation », admise en **affichage** seulement). Multiplier deux colonnes interpolées fabrique des valeurs que personne n'a mesurées, et rien dans la sortie ne le dit |
-| **Agréger** le flux rapide sur les intervalles du flux lent | ✅ **défaut recommandé** — `calcul_par_segment` **existe déjà**, n'invente aucune valeur, et répond au besoin réel dans la majorité des cas |
+| **Agréger** le flux rapide sur les intervalles du flux lent | ✅ **défaut recommandé** — `calc_per_segment` **existe déjà**, n'invente aucune valeur, et répond au besoin réel dans la majorité des cas |
 | **Rééchantillonner** vers une **table annexe** | ✅ **en option, explicite et tracée** — sanctionné par D10. La grille change, donc c'est *nécessairement* une nouvelle table |
 
 > **Ne jamais offrir l'interpolation silencieuse.** Si l'utilisateur veut croiser deux cadences,
 > on lui propose l'agrégation ; s'il veut vraiment une grille commune, il la **déclare**.
 
-**(c) Calcul sur une PORTION, via `present_dans`** → **pas de nouvelle table.** Restreindre à un
+**(c) Calcul sur une PORTION, via `within`** → **pas de nouvelle table.** Restreindre à un
 contexte ne change pas la clé temporelle : ce sont les mêmes instants, en moins. La colonne revient
 donc dans la table d'origine **avec des trous** (`None` hors contexte) — ce qui est *plus*
 informatif qu'une table à part, puisqu'on lit le contexte dans la donnée elle-même.
@@ -1675,7 +1695,7 @@ Les valeurs ne s'écrivent **en dur** qu'à l'**export**, où elles sont précis
 |---|---|---|
 | **raw data** — `.rec`, CSV, vidéos, hors dépôt | ❌ **jamais** | — c'est l'origine |
 | **fichier de travail** — le `.wdat` | ✅ **oui** | raw + protocole + gestes |
-| **déclarations** — `Vue`, `Declaration`, conditions, protocole | ✅ | elles SONT la source |
+| **déclarations** — `View`, `Declaration`, conditions, protocole | ✅ | elles SONT la source |
 
 > **Le critère tient en une ligne : on écrit là où c'est RÉGÉNÉRABLE.** Le fichier de travail est
 > writable *précisément parce que* le perdre ne perd rien d'irremplaçable.
@@ -1690,7 +1710,7 @@ travail n'est pas dérivable des raw data : le **codage humain**. Un chercheur q
 de vidéo crée de l'information qui n'existe nulle part ailleurs.
 
 Sauf que `core/coding.py` l'a déjà résolu : le codage n'est pas stocké comme un RÉSULTAT, il est
-capturé comme une suite de **GESTES REJOUABLES** — `rejouer(protocole, media, gestes, codeur=…)`,
+capturé comme une suite de **GESTES REJOUABLES** — `replay(protocole, media, gestures, coder=…)`,
 même point d'entrée pour un humain et pour un modèle de vision. **La formule exacte est donc
 `raw + protocole + gestes`** : les gestes sont l'apport humain irréductible, ils sont petits,
 déclaratifs, et se rangent avec le protocole, pas avec le conteneur.
@@ -1708,7 +1728,7 @@ ce qu'on y écrit devient irremplaçable sans qu'on l'ait décidé.
 > **D13 est la précondition du droit d'écrire dans le fichier de travail**, pas un détail de canvas.
 
 Les briques de contrôle existent déjà : `SignalMeta.is_base` sépare acquis et dérivé, `_tracer`
-pose l'`origin` sur chaque segment produit, `rejouer()` ferme la boucle.
+pose l'`origin` sur chaque segment produit, `replay()` ferme la boucle.
 
 ⚠ **Et « régénérable » est une propriété à EXERCER, pas à déclarer.** Le même jour, une docstring
 promettait une isolation qui n'existait pas faute d'un `try` (§9decies). Tant qu'aucun test ne
@@ -1745,7 +1765,7 @@ qu'un explorateur demande :
 |---|---|
 | arbre des tables / colonnes / cadences | `sources.probe()` → `SourceInfo` |
 | charger un enregistrement | `sources.load()` → `TemporalReferential` |
-| **courbe zoomable sur des millions de points** | **`decimate_values(nom, t0, t1, buckets, colonne)`** — et la décimation rend les **min/max RÉELS** (premier+dernier de tranche perdrait une pointe) |
+| **courbe zoomable sur des millions de points** | **`decimate_values(name, t0, t1, buckets, column)`** — et la décimation rend les **min/max RÉELS** (premier+dernier de tranche perdrait une pointe) |
 | ligne du curseur (toutes les colonnes à l'instant *t*) | `snapshot(t)` |
 | navigation d'événement en événement | `next_event` / `previous_event` / `containing` / `overlapping` |
 | étendue commune à des flux de cadences différentes | `common_span()` |
@@ -1781,8 +1801,8 @@ l'export (§9quater.5). Zéro UI, **zéro bibliothèque**.
 
 #### ✅ LE PONT est livré — `wama_data/frames.py` (2026-08-23, 34 tests)
 
-`frame_depuis_referentiel()` / `frame_depuis_signal()` à l'aller, `signal_depuis_frame()` /
-`adjoindre()` au retour. **Le blocage déclaré du Référentiel est levé** : un flux chargé traverse
+`frame_from_referential()` / `frame_from_signal()` à l'aller, `signal_from_frame()` /
+`adjoin()` au retour. **Le blocage déclaré du Référentiel est levé** : un flux chargé traverse
 une fonction du catalogue et revient interrogeable (test `PontCompletTest`, sur le Calculator ET
 sur la chaîne conditionnelle).
 
@@ -1798,7 +1818,7 @@ alimenter). C'est une frontière à part entière, au même niveau que `modules.
 | ① | **le temps de session ≠ le temps du flux** | le référentiel travaille en temps de SESSION, chaque `Signal` en temps LOCAL (`± offset`). Un pont bâti sur le `Signal` seul **désalignerait silencieusement** deux flux d'offsets différents dans le même cadre |
 | ② | **la colonne temporelle brute peut être PÉRIMÉE** | les accesseurs font un `SELECT *`, donc les lignes portent encore `timecode`. Or les instants ont pu être **ré-horodatés** à l'import : la colonne brute rendrait l'ANCIENNE valeur. Le temps vient donc **toujours** des `times`, et l'axe brut est **retiré** du cadre — le laisser mettrait deux colonnes de temps contradictoires dans le même tableau |
 | ③ | **le contrat des lignes est réel mais N'ÉTAIT PAS DÉCLARÉ** | `StreamSpec.rows` est typé `Callable[[int,int], Any]` alors que les deux lecteurs rendent en fait une `List[Dict]`. Le pont le **vérifie** au lieu de l'espérer : un 3ᵉ lecteur rendant des tuples échoue ici avec un message clair, pas trois couches plus loin |
-| ④ | **un cadre qui revient d'un calcul n'est pas une donnée acquise** | `SignalMeta.is_base` existait DÉJÀ pour ça (« la PROVENANCE : sans elle, impossible de savoir ce qu'un recalcul peut écraser sans perte ») et n'était pas employé en ce sens. `signal_depuis_frame()` force `is_base=False`, **sans paramètre pour le contourner** |
+| ④ | **un cadre qui revient d'un calcul n'est pas une donnée acquise** | `SignalMeta.is_base` existait DÉJÀ pour ça (« la PROVENANCE : sans elle, impossible de savoir ce qu'un recalcul peut écraser sans perte ») et n'était pas employé en ce sens. `signal_from_frame()` force `is_base=False`, **sans paramètre pour le contourner** |
 
 > ⚠ **Ce que le pont ne sait PAS faire, et qui n'est pas un oubli** : distinguer un flux de DONNÉES
 > d'un flux d'ÉVÉNEMENTS. Un `Signal` ne porte pas sa famille — structurellement, « des instants +
@@ -1807,16 +1827,16 @@ alimenter). C'est une frontière à part entière, au même niveau que `modules.
 > (« data · 3 colonne(s) ») serait prendre une TRACE pour une RÈGLE** — l'erreur déjà consignée.
 > C'est un manque réel du modèle `Signal`, à traiter avec D8 (type « intervalle »).
 
-> ⚠ **`adjoindre()` REFUSE d'écraser un flux existant** — `TemporalReferential.add()` le refusait
+> ⚠ **`adjoin()` REFUSE d'écraser un flux existant** — `TemporalReferential.add()` le refusait
 > déjà, et on ne contourne pas : écraser en place rendrait irrécupérable ce qui l'a produit. Un
 > recalcul se range sous un nom dérivé, comme une colonne calculée.
 
 #### ✅ LE VIEW-MODEL est livré — `wama_data/view.py` (ex-vue, anglicisé par D28 ; 2026-08-23, 31 tests)
 
-Seconde moitié du cœur. Une `Vue` déclare **quels flux (`Piste`), quelle fenêtre et quelle
-résolution (`Fenetre`), quelles colonnes dérivées (`ColonneDerivee`)** — et elle est
+Seconde moitié du cœur. Une `View` déclare **quels flux (`Track`), quelle fenêtre et quelle
+résolution (`Window`), quelles colonnes dérivées (`DerivedColumn`)** — et elle est
 **sérialisable en JSON pur, aller-retour vérifié**. C'est donc une déclaration au sens de
-§9quater.5 : *on persiste ça, pas les valeurs.* `appliquer()` calcule à la demande et **n'écrit
+§9quater.5 : *on persiste ça, pas les valeurs.* `apply()` calcule à la demande et **n'écrit
 rien** (test à l'appui : le référentiel ne gagne aucun flux au passage).
 
 **⚠ CE QU'IL APPORTE VRAIMENT : la règle de §9quater.4 devient EXÉCUTABLE — et DÉRIVÉE DU
@@ -1835,7 +1855,7 @@ d'un côté ; « produit des events », « produit un scalaire », « **change l
 cas (b) de §9quater.4.
 
 > **Conséquence pratique : ajouter une fonction au catalogue la range automatiquement du bon côté,
-> sans toucher `vue.py`.** Un test le vérifie sur **tout** le catalogue, et un autre refuse qu'une
+> sans toucher `view.py`.** Un test le vérifie sur **tout** le catalogue, et un autre refuse qu'une
 > catégorie non classée tombe d'un côté par défaut — elle lève, en demandant qu'on tranche.
 
 > ⚠ **`Resultat` sépare `tables` et `annexes` À DESSEIN** : c'est la règle rendue **visible**.
@@ -1843,7 +1863,7 @@ cas (b) de §9quater.4.
 > qui s'ouvre. C'est ce que §9quater.6 annonçait : *« la règle n'a pas à être expliquée, elle se
 > montre »*.
 
-> ⚠ **`serie()` ne passe PAS par `appliquer()`** — un tracé qui matérialiserait un cadre pandas
+> ⚠ **`series()` ne passe PAS par `apply()`** — un tracé qui matérialiserait un cadre pandas
 > annulerait la décimation, qui existe précisément pour ne pas charger 5 M points. Il appelle
 > `decimate_values` du référentiel, qui agrège **dans la source** quand elle sait le faire. Et il
 > exige une fenêtre bornée avec `buckets > 0` : `buckets = 0` signifie « table, échantillons
@@ -1879,8 +1899,10 @@ qui tranche).
   une app d'`INSTALLED_APPS` qui n'existe que pour son `ready()`. L'Explorer en sera la première :
   c'est un geste d'architecture, pas un détail d'écran.
 - **Aucun point d'entrée « quel dataset j'explore »** — pas de modèle `Dataset`, et
-  `DATASET_SOURCES` n'est qu'une liste de validation du kind de manifeste, non réconciliée avec le
-  registre des lecteurs (c'est déjà le garde-fou **G1**, cité dans le blocage de l'Importer).
+  `DATASET_SOURCES` n'est qu'une liste de validation du kind de manifeste~~, non réconciliée avec le
+  registre des lecteurs (c'est déjà le garde-fou **G1**, cité dans le blocage de l'Importer)~~.
+  ⚠ *glose fausse, G1 fermé autrement — §9decies (2026-08-24) ; `DATASET_SOURCES` (PROVENANCE) n'a
+  pas à coïncider avec les lecteurs (CAPACITÉ, `sources.reader_modules()`)* (marqué le 2026-10-31).
 
 ---
 
@@ -1900,9 +1922,9 @@ qui tranche).
 |---|---|---|---|---|
 | 1 | `wama_data/sources/__init__.py` | lecteurs d'entrée (`register_reader`, `reader_for`, `supported_extensions`) | **CAPACITÉ** — un lecteur est du CODE qui sait lire | ✅ vrai registre… mais **il n'était pas au registre des registres** |
 | 2 | `wama_data/core/export.py::FORMATS` | formats de sortie | **CAPACITÉ** | ❌ **dict en dur** — écrit le matin du 23/08, **corrigé l'après-midi** |
-| 3 | `manifests/builtin/dataset.py::DATASET_SOURCES` | 8 chaînes de validation | **vocabulaire figé** | ❌ tuple en dur — c'est le garde-fou **G1**, toujours ouvert (voir §9quinquies.4) |
+| 3 | `manifests/builtin/dataset.py::DATASET_SOURCES` | 8 chaînes de validation | **vocabulaire figé** | ❌ tuple en dur — ~~c'est le garde-fou **G1**, toujours ouvert (voir §9quinquies.4)~~ ⚠ *glose fausse, G1 fermé autrement — §9decies (2026-08-24) : tuple gardé, la provenance n'est pas une capacité* |
 | 4 | `app_registry.py::MEDIA_CATEGORIES` + `*_EXTENSIONS` | taxonomie média | **TAXONOMIE fermée** | ❌ **et c'est juste** — domicile unique déclaré, gardé par `check_redundancy.py` |
-| 5 | `common/utils/export_formats.py::VOCABULAIRE` | libellé / icône / groupe (téléchargement) | **PRÉSENTATION** | ❌ et c'est juste |
+| 5 | `common/utils/export_formats.py::VOCABULARY` | libellé / icône / groupe (téléchargement) | **PRÉSENTATION** | ❌ et c'est juste |
 | 6 | `common/utils/output_formats.py` | formats early-binding (réglage avant génération) | **PRÉSENTATION** | ❌ et c'est juste |
 
 **Le désalignement était donc réel mais étroit** : deux entrées sur six, et l'une des deux (2) était
@@ -1985,12 +2007,17 @@ substrat importerait `wama_data`, c'est-à-dire exactement le défaut corrigé a
 **La forme juste est l'inverse** : un registre de types de source vit dans le substrat (comme
 `FUNCTION_CATALOG` vit dans `wama/common/catalog/`) et **chaque monde y pousse ses types depuis
 son `apps.py:ready()`**. `DATASET_SOURCES` devient alors la vue de ce registre, et non une liste.
-⏳ **Non fait** — c'est une modification du substrat, à coordonner.
+~~⏳ **Non fait** — c'est une modification du substrat, à coordonner.~~
+> ⚠ *glose fausse, G1 fermé autrement — §9decies (2026-08-24)* : G1 dit « le moteur ne cite aucun
+> format », corrigé par la découverte des lecteurs (`wama_data/sources/__init__.py:248`
+> `reader_modules()`) ; `DATASET_SOURCES` reste un tuple (`builtin/dataset.py:34`) — la PROVENANCE
+> n'a pas à coïncider avec les CAPACITÉS de lecture. Cette section garde son raisonnement (le
+> substrat ne tire jamais un monde), pas sa prémisse (marqué le 2026-10-31).
 
 ### 9quinquies.5 Ce qui a été FAIT le 2026-08-23
 
-- **`core/export.py::FORMATS` est devenu un REGISTRE** (`enregistrer_format()`,
-  `formats_disponibles()`, `formats_ecrivables()`). ⚠ La distinction qui porte le modèle :
+- **`core/export.py::FORMATS` est devenu un REGISTRE** (`register_format()`,
+  `available_formats()`, `writable_formats()`). ⚠ La distinction qui porte le modèle :
   **un format DÉCLARÉ n'est pas un format ÉCRIVABLE.** `xlsx` et `mat` appartiennent au livrable
   (§9ter.5) donc une déclaration a le droit de les nommer, mais leur écrivain demande une
   bibliothèque et vit dans l'adaptateur. **L'écart entre déclaré et écrivable EST la dette, et il
@@ -2055,8 +2082,8 @@ tourner la nuit** — il n'y a plus rien à alimenter.
 
 | # | question |
 |---|---|
-| **G1** | le registre de types de source dans le substrat, alimenté par les mondes (§9quinquies.4) |
-| — | **écrivains `xlsx` / `mat`** : déclarés, sans écrivain. Le geste est prévu (`enregistrer_format('xlsx', ecrivain=…)` depuis l'adaptateur) |
+| ~~**G1**~~ | ~~le registre de types de source dans le substrat, alimenté par les mondes (§9quinquies.4)~~ — ⚠ glose fausse, G1 fermé autrement (§9decies, 2026-08-24) |
+| — | **écrivains `xlsx` / `mat`** : déclarés, sans écrivain. Le geste est prévu (`register_format('xlsx', ecrivain=…)` depuis l'adaptateur) |
 | — | le **Connector** partage le registre des lecteurs — à confirmer quand il aura une surface : une base branchée « en connexion » est-elle un lecteur comme un autre, ou une capacité distincte (connexion vivante vs import figé) ? |
 
 ---
@@ -2064,7 +2091,7 @@ tourner la nuit** — il n'y a plus rien à alimenter.
 ## 9sexies. AUDIT A — les trois déclarations confrontées entre elles (2026-08-23)
 
 > **Demande de Fabien** : avant toute UI et avant l'API assistant, vérifier que ce qui a été écrit
-> dans la journée **tient ensemble**. `Vue`, `Declaration` d'export et l'arbre de conditions ont été
+> dans la journée **tient ensemble**. `View`, `Declaration` d'export et l'arbre de conditions ont été
 > écrits **le même jour, sans jamais être confrontés**.
 
 ### 9sexies.1 Ce qui tenait déjà, et n'était pas garanti
@@ -2081,7 +2108,7 @@ tourner la nuit** — il n'y a plus rien à alimenter.
 
 | | `to_dict` / aller-retour, AVANT l'audit |
 |---|---|
-| `Vue` | ✅ testé |
+| `View` | ✅ testé |
 | `Declaration` (export) | ❌ **rien** |
 | `Condition` | ❌ **rien** |
 
@@ -2090,11 +2117,11 @@ donc **sérialisable**, donc **entrant dans un manifeste** » ; §9quater C1 —
 **c'est un manifeste** ».
 
 > ⚠ **C'est le défaut reproché le matin même à §9ter.6 (« une spec écrite depuis une intuition ment
-> dans le sens optimiste »), reproduit l'après-midi dans mes propres docstrings.** `Vue` avait la
+> dans le sens optimiste »), reproduit l'après-midi dans mes propres docstrings.** `View` avait la
 > propriété uniquement parce qu'elle a été écrite en dernier, en y pensant.
 
-**Corrigé** : `Condition.to_dict()` / `condition_depuis_dict()`, `Declaration.to_dict()` /
-`declaration_depuis_dict()`, aller-retour **JSON pur** testé pour les deux, et **relecture validée
+**Corrigé** : `Condition.to_dict()` / `condition_from_dict()`, `Declaration.to_dict()` /
+`declaration_from_dict()`, aller-retour **JSON pur** testé pour les deux, et **relecture validée
 comme à la construction** — un manifeste ne doit pas être la porte d'entrée des états impossibles.
 L'arbre logique, lui, **était déjà du JSON pur par construction** : rien à sérialiser.
 
@@ -2141,7 +2168,7 @@ redéfinir, et un test vérifie **l'identité des fonctions** (`assertIs`) : une
 même à l'identique, échoue. La brique **n'a aucune dépendance** — condition pour que
 `conditions.py` l'importe sans cycle, ce qu'un test garde par AST.
 
-> ⚠ **`Colonne.titre` reste dans `export.py`, à dessein** : ce n'est pas un nom dérivé de
+> ⚠ **`Column.titre` reste dans `export.py`, à dessein** : ce n'est pas un nom dérivé de
 > paramètres mais un **en-tête de fichier**, dont la convention (`flux.champ`) appartient au
 > livrable chercheur et se surcharge colonne par colonne. Le rapprocher mêlerait deux règles qui
 > n'ont ni la même source ni la même raison de changer.
@@ -2153,7 +2180,7 @@ même à l'identique, échoue. La brique **n'a aucune dépendance** — conditio
 
 | # | point |
 |---|---|
-| 1 | **Deux fonctions `valider`** exportées (`core.conditions`, `vue`) → collision à l'import. Non traité : les renommer touche des appelants, et la collision n'a encore mordu personne |
+| 1 | **Deux fonctions `validate`** (ex-`valider`, D28) exportées (`core.conditions`, `view` — toujours deux le 2026-10-31 : `core/conditions.py:286`, `view.py:185`) → collision à l'import. Non traité : les renommer touche des appelants, et la collision n'a encore mordu personne |
 | 2 | **Aucun rattachement manifeste** pour les trois déclarations, alors que §7 tranche « c'est un manifeste, pas un dump de session ». Le kind `pipeline` est le candidat (§9bis : « aucun nouveau kind à créer »), mais il lui manque le nœud fonction — **D13** *(nœud codé le 2026-09-09 ; le rattachement des trois déclarations reste à faire — note du 2026-09-15)* |
 | 3 | **Rien ne câble Vue → export** : la composition marche, elle n'est ni exposée ni testée hors de l'audit. Une composition qui marche par accident se casse au premier changement |
 
@@ -2213,8 +2240,8 @@ else:               … ferme
 #        et jette les fenêtres < min_duration_s
 ```
 
-C'est **`conditionnelle()` avec hystérésis**, à un masque près — `merge_gap_s` = `trou_tolere`,
-`min_duration_s` = `duree_min`.
+C'est **`conditional()` avec hystérésis**, à un masque près — `merge_gap_s` = `gap_tolerance`,
+`min_duration_s` = `min_duration`.
 
 > **La segmentation spatiale n'est donc pas un mode : c'est une COLONNE DÉRIVÉE suivie de la
 > chaîne conditionnelle existante.** La distance a la même clé temporelle que la trace dont elle
@@ -2233,12 +2260,12 @@ pas esthétique.**
 
 ### 9septies.4 Les DEUX manques réels, tous deux trouvés par la mesure
 
-**① L'hystérésis de VALEUR n'existait pas.** `conditionnelle()` porte une hystérésis **de TEMPS**
-(`duree_min`, `trou_tolere`). `cam_analyzer` a en plus `exit_distance_factor` — « ne referme pas si
+**① L'hystérésis de VALEUR n'existait pas.** `conditional()` porte une hystérésis **de TEMPS**
+(`min_duration`, `gap_tolerance`). `cam_analyzer` a en plus `exit_distance_factor` — « ne referme pas si
 le sujet n'est jamais *vraiment* sorti ». **Sans ce mécanisme, porter cam_analyzer serait une
 RÉGRESSION** : un GPS qui tremble sur la frontière découperait un passage unique en confettis.
 
-→ `core/segmentation.py::masque_hysteresis()` — le **déclencheur de Schmitt**, deux seuils, dans
+→ `core/segmentation.py::hysteresis_mask()` — le **déclencheur de Schmitt**, deux seuils, dans
 les deux sens (`<=` pour une distance, `>=` pour une vitesse). ⚠ **Pas bit-à-bit l'équivalent** de
 la fusion a posteriori de cam_analyzer, et le module le dit : lui ouvre deux fenêtres puis les
 recolle, le Schmitt n'en ouvre jamais qu'une. Les deux coïncident dans le cas courant et diffèrent
@@ -2258,11 +2285,11 @@ sujet au large de l'Afrique — énorme, plausible, et faux.
 | | |
 |---|---|
 | `core/geo.py` | haversine + distances à un point — domicile unique (11 tests) |
-| `core/segmentation.py::masque_hysteresis` | hystérésis de valeur, deux seuils, deux sens (8 tests) |
-| `functions/geo/spatial.py::distance_a_point` | **ENRICHER** déclaré au catalogue — le nom de colonne se dérive du nom du POINT (11 tests) |
+| `core/segmentation.py::hysteresis_mask` | hystérésis de valeur, deux seuils, deux sens (8 tests) |
+| `functions/geo/spatial.py::distance_to_point` | **ENRICHER** déclaré au catalogue — le nom de colonne se dérive du nom du POINT (11 tests) |
 
 ⚠ **PAS de `segment_dans_rayon()`.** Elle ne demanderait aucune brique neuve (distance +
-`segment_chaine_conditionnelle`) et dupliquerait le seuil et l'hystérésis. Même arbitrage, mot pour
+`segment_condition_chain`) et dupliquerait le seuil et l'hystérésis. Même arbitrage, mot pour
 mot, que le « temps passé au-dessus d'un seuil » déjà écarté de `core/calculation.py`.
 
 **Le portage de cam_analyzer est attesté, pas promis** : `tests_spatial.py::CasCamAnalyzerTest`
@@ -2283,7 +2310,7 @@ seule chaîne. Le portage lui-même reste à faire — périmètre `wama_lab`.
 | cas | verdict |
 |---|---|
 | **zone RECTANGULAIRE** | ✅ **gratuite aujourd'hui** — `ET(C1, C2, C3, C4)` sur `lat`/`lon`, sans rien ajouter |
-| **colonne BOOLÉENNE** (ce que rendrait un point-dans-polygone) | ✅ la chaîne la consomme : `sorte_de_colonne` rend `booleen`, `== True` s'applique |
+| **colonne BOOLÉENNE** (ce que rendrait un point-dans-polygone) | ✅ la chaîne la consomme : `column_kind` rend `booleen`, `== True` s'applique |
 | **booléen ✕ prédicat temporel** | ✅ `ET(dans_zone, vitesse >= 30)` fonctionne |
 
 **Tout l'aval d'un masque spatial est donc déjà en place.** Il ne manque que l'`ENRICHER` qui
@@ -2329,8 +2356,8 @@ complète, et débranchée. C'est la troisième de la journée — le motif mér
 
 | | |
 |---|---|
-| `verifier(body, racine)` → `Ecart` | confronte le manifeste à la source **sans la charger** (`probe` seul) — sur 1,28 Go, la différence compte |
-| `charger(body, racine)` → **`(référentiel, Ecart)`** | ouvre le jeu, ne charge que les signaux **déclarés** |
+| `verify(body, racine)` → `Discrepancy` | confronte le manifeste à la source **sans la charger** (`probe` seul) — sur 1,28 Go, la différence compte |
+| `load(body, racine)` → **`(référentiel, Discrepancy)`** | ouvre le jeu, ne charge que les signaux **déclarés** |
 
 **La doctrine du §9bis commande tout le module** — *« le LLM propose, la machine dispose ; un
 manifeste qui VALIDE ensuite l'import est CIRCULAIRE ; le manifeste déclare des attentes
@@ -2376,7 +2403,7 @@ fait**, car il touche le substrat.
 
 `sources/tabular.py` ne typait **aucune** colonne : `csv.reader` rend des chaînes, et le lecteur ne
 convertissait que l'axe du temps servant à l'indexation. Un jeu importé depuis un CSV traversait
-donc le référentiel, le pont et la `Vue` sans broncher — **puis levait dans le Calculator**
+donc le référentiel, le pont et la `View` sans broncher — **puis levait dans le Calculator**
 (`fmean` : « must be real number, not str »). Le test existant `test_acces_aux_valeurs` assertait
 même `"1.0"` en **chaîne**, sans justification : **il enregistrait le défaut au lieu d'une décision.**
 
@@ -2423,7 +2450,7 @@ TRACE, pas une règle*. **Le fait existait ; il n'était pas porté comme DONNÉ
 la règle `ENRICHER`/`AGGREGATE` non écrite, et `SignalMeta.is_base` inemployé.
 
 **Corrigé** : `SignalMeta.data_type`, rempli par les lecteurs avec les constantes de la taxonomie
-**partagée** (jamais recopiées). `type_par_defaut()` préfère la famille **déclarée** et ne retombe
+**partagée** (jamais recopiées). `default_type()` préfère la famille **déclarée** et ne retombe
 sur la structure que si la source se tait. ⚠ Le champ est typé `str` et non `DataType` à dessein —
 `core/` reste sans dépendance ; ce sont les lecteurs, un étage plus haut, qui connaissent la
 taxonomie.
@@ -2498,7 +2525,7 @@ G1 exige littéralement l'inverse. **Troisième occurrence en deux jours du mêm
 une énumération là où une découverte s'impose (après la liste des suites nocturnes et celle des
 lecteurs dans le rafraîchisseur).
 
-**Corrigé** : `sources.modules_lecteurs()` découvre par `pkgutil`, et c'est le **domicile unique**
+**Corrigé** : `sources.reader_modules()` découvre par `pkgutil`, et c'est le **domicile unique**
 — le rafraîchisseur du registre (`apps.py`) en tenait une seconde copie, désormais supprimée.
 
 ⚠ **Et un second défaut est tombé avec** : la docstring promettait « isolé pour qu'un format
@@ -2531,7 +2558,7 @@ symptôme.
 > mon propre contrôle, pas du système.**
 >
 > ⚠ **Un contrôle qui sonne sur TOUT cas valide n'est pas un contrôle : il apprend à ignorer le
-> compte-rendu.** Le champ devient `Ecart.lecteur` — informatif (« qui a lu »), jamais un verdict.
+> compte-rendu.** Le champ devient `Discrepancy.lecteur` — informatif (« qui a lu »), jamais un verdict.
 
 ### 9decies.4 La leçon, et elle vaut au-delà de ce fil
 
@@ -2590,7 +2617,7 @@ que de créer un kind `data_process` :
 (synchrone, produit un `TypedFrame`). Ce n'est pas une raison de séparer le kind — c'est une raison
 de **dispatcher sur `kind`**, ce que l'exécuteur fait déjà.
 
-> **Codé le 2026-09-09** (`common/manifests/builtin/pipeline.py:29-57`, `studio/tasks.py`) — les deux
+> **Codé le 2026-09-09** (`common/manifests/builtin/pipeline.py:42-200` — `NODE_KINDS`, `node_kind`, `function_key` —, `studio/tasks.py`) — les deux
 > premières lignes de cette section décrivent l'état d'AVANT. **Précisé le 2026-09-15**
 > (`WAMA_APP_GENERATION_ROUTE.md §10.6`) : un nœud `app` et un nœud `function` sont **deux PROCESS** —
 > chacun a sa ligne d'exécution et son état dans le moteur commun ; seul le mode d'exécution diffère
@@ -2603,7 +2630,7 @@ contrat de données ». Je l'ai reprise et ÉTENDUE À TOUS LES LANGAGES. C'éta
 relevé : on a le dataset, les segments, les colonnes, et un manifeste qui dit quelle fonction
 s'applique sur quoi — il ne manque rien.
 
-**Mesuré** : `FunctionSpec.fn` **est le callable réel** (`function_catalog.py:67`). Donc
+**Mesuré** : `FunctionSpec.fn` **est le callable réel** (`function_catalog.py:222`). Donc
 `fn.__module__` + `fn.__qualname__` donnent le chemin d'import exact. Un script Python généré
 n'imite pas le traitement, il **appelle le même code** :
 
@@ -2748,7 +2775,7 @@ prouverait que sa cohérence interne. Même geste que la contre-épreuve CSV du 
 
 ### 9duodecies.5 Ce que la langue de l'autre ne sait pas dire — **compté**
 
-`Rapport.pertes` énumère, fait par fait, ce qu'un `.trip` ne porte pas : pertes d'acquisition ·
+`Report.losses` énumère, fait par fait, ce qu'un `.trip` ne porte pas : pertes d'acquisition ·
 `default_lookup` · décalage **par flux** (seul un décalage par média existe) · cadence **arrondie**
 (`frequency` est un entier) · cadence **perdue** sur un événement ou une situation (pas de colonne)
 · **segments ouverts** (D15 — aucune représentation de « fin non observée ») · **copies projetées**
@@ -2757,7 +2784,7 @@ aucune n'est déclarée.
 
 > **Le pire cas n'est pas la perte, c'est la perte SILENCIEUSE** : elle laisse croire à un
 > aller-retour fidèle, et c'est en la découvrant six mois plus tard qu'on doute de tout le reste.
-> `Rapport.fidele` répond par oui ou non, et « non » n'est pas une erreur — c'est un fait à lire.
+> `Report.fidele` répond par oui ou non, et « non » n'est pas une erreur — c'est un fait à lire.
 
 ### 9duodecies.6 Deux défauts trouvés par la mesure, dont un dans mon propre récit
 
@@ -2771,7 +2798,7 @@ corpus valide. Corrigé par un décodeur UTF-8 → cp1252 qui **rend le texte** 
 ⚠ L'ORDRE des codecs est l'argument : cp1252 associe un caractère à 251 octets sur 256, donc essayé
 en premier il rendrait « AjoutÃ© » **sans jamais lever**. On teste le codec qui sait dire non.
 
-⚠⚠ **Et une morsure sur six n'a pas mordu — la mienne.** J'avais écrit que `manquant()` protégeait
+⚠⚠ **Et une morsure sur six n'a pas mordu — la mienne.** J'avais écrit que `missing()` protégeait
 du piège pandas à l'écriture. Neutraliser l'appel n'a fait échouer **aucun** test, et la mesure dit
 pourquoi : **SQLite coerce lui-même `NaN` en `NULL`**. Le garde-fou n'était pas porteur, et mon test
 prouvait le résultat sans rien prouver du mécanisme — *un test de stockage n'est pas un test
@@ -2780,7 +2807,7 @@ d'usage*, la leçon de la veille appliquée à moi le lendemain.
 ⭐ **Le vrai trou était à côté, et la même mesure l'a montré** : `json.dumps([nan])` produit le
 littéral `[NaN]`, **que la spécification JSON n'accepte pas**. Une valeur composite contenant une
 absence était donc écrite sous une forme qu'aucun analyseur standard ne relit — couvert ni par
-`manquant()` ni par SQLite. D'où `_sans_nan`, récursif, et un test qui mord.
+`missing()` ni par SQLite. D'où `_sans_nan`, récursif, et un test qui mord.
 
 `wama_data` : **541 → 590 tests** (44 pour l'écrivain, 4 pour son registre, +1 pour le trou JSON).
 
@@ -2806,14 +2833,14 @@ d'agrégation. Le lecteur natif en avait besoin **à l'identique, à deux noms d
 connaissance du schéma est le seul propre de chacun. Ce n'est pas une coïncidence — lire et écrire
 un conteneur posent le même problème, et il se résout du même côté.
 
-⚠ Le module s'appelle `_sqlite.py` **par contrat, pas par politesse** : `modules_lecteurs()`
+⚠ Le module s'appelle `_sqlite.py` **par contrat, pas par politesse** : `reader_modules()`
 découvre les modules du paquet pour les enregistrer comme lecteurs (G1), et le préfixe `_` est ce
 qui l'en exclut.
 
 ⚠ Et une règle a été **récupérée** au passage : `_times` et `_ends` ne différaient que par la
 colonne lue, mais **seule la seconde** portait la remarque qui vaut pour les deux — *les fins
 doivent sortir dans le même ordre que les débuts*. Une règle écrite dans une seule de deux copies
-est une règle qu'on perd en touchant l'autre. `_values(table, colonne, tri)` la porte une fois.
+est une règle qu'on perd en touchant l'autre. `_values(path, table, column, order_by)` la porte une fois.
 
 ### 9terdecies.2 Ce que le lecteur natif relit et que `.trip` ne sait pas dire
 
@@ -2875,14 +2902,14 @@ de Fabien du 2026-08-24.
 
 | écran d'origine | notre code | |
 |---|---|---|
-| « Concaténation : ☐ Trips ☐ Situation/Events » | `Regroupement(lots, declarations)` | ⭐ **1:1** — `mode_origine` rend littéralement `concat_trip` / `concat_event_situation` / `concat_all` |
-| « Vos fichiers » (la file d'export) | `exporter(declarations, …)` — N déclarations | ✅ |
-| « Aperçu » | `apercu()` — l'aperçu EST l'export borné | ✅ |
+| « Concaténation : ☐ Trips ☐ Situation/Events » | `Grouping(lots, declarations)` | ⭐ **1:1** — `mode_origine` rend littéralement `concat_trip` / `concat_event_situation` / `concat_all` |
+| « Vos fichiers » (la file d'export) | `export(declarations, …)` — N déclarations | ✅ |
+| « Aperçu » | `preview()` — l'aperçu EST l'export borné | ✅ |
 | « Format : tsv ▾ » | registre `FORMATS` (5 déclarés, 3 écrivables) | ✅ |
-| « Votre fichier » + ▲▼✕ | `Declaration.colonnes` — tuple ORDONNÉ, l'ordre est une donnée | ✅ |
+| « Votre fichier » + ▲▼✕ | `Declaration.columns` — tuple ORDONNÉ, l'ordre est une donnée | ✅ |
 | « Sous-échantillonnage : 1 » | `Declaration.decimation` | ✅ |
-| en-têtes `table.colonne` | `Colonne.titre` → `flux.champ` | ✅ |
-| identité de ligne | `Identite`, dont la docstring cite déjà « nom du trip, participant, scénario » | ✅ |
+| en-têtes `table.column` | `Column.titre` → `flux.champ` | ✅ |
+| identité de ligne | `Identity`, dont la docstring cite déjà « nom du trip, participant, scénario » | ✅ |
 
 **Le geste, tel que Fabien le décrit** : choisir une FAMILLE (1ʳᵉ colonne) → une ou des TABLES
 (2ᵉ colonne) → si **une seule** table, accès aux COLONNES ; si **plusieurs**, elles partent entières
@@ -2911,8 +2938,8 @@ exactement le fichier incohérent que l'outil d'origine interdit.
 > corrigé le même jour dans le `.wdat` (§9duodecies.3).
 
 **② Le filtrage / « présent dans » n'est pas câblé.** Zéro occurrence de filtre ou de condition
-dans tout `core/export.py`. Mais `present_dans()` existe (`core/segmentation.py`, exposé au
-catalogue sous `segment_present_dans`) et la chaîne conditionnelle complète aussi (14 opérateurs,
+dans tout `core/export.py`. Mais `within()` existe (`core/segmentation.py`, exposé au
+catalogue sous `segment_within`) et la chaîne conditionnelle complète aussi (14 opérateurs,
 arbre ET/OU/XOR/NON, 46 tests). **C'est un câblage, pas un moteur à écrire.**
 
 ⚠ **Et il ne sera pas dessiné d'intuition.** C'est ce qui a coûté le revert du premier Exporter :
@@ -2923,17 +2950,17 @@ les OCCURRENCES retenues, ou les deux ? par déclaration ou globalement ?
 
 > ✅ **RÉSOLU le 2026-08-26 — par le témoignage de l'AUTEUR, corroboré par l'écran.** Fabien
 > précise : le « filtre » du panneau d'export porte sur les **COLONNES** (choisir ce qui entre dans
-> « Votre fichier » — couvert 1:1 par `Declaration.colonnes`, §11.1) ; le filtrage des **LIGNES**
-> n'a jamais été une option d'export — il passe par **`present_dans`** (« Sélectionnez vos
+> « Votre fichier » — couvert 1:1 par `Declaration.columns`, §11.1) ; le filtrage des **LIGNES**
+> n'a jamais été une option d'export — il passe par **`within`** (« Sélectionnez vos
 > situations » sur l'écran), et une sélection de lignes particulière se **PRÉPARE dans le
-> Segmenter** puis s'applique par `present_dans`. Le screenshot le confirme : aucun widget de
+> Segmenter** puis s'applique par `within`. Le screenshot le confirme : aucun widget de
 > lignes sur le panneau. **Le champ `filtre` envisagé ci-dessus n'a donc pas lieu d'être** — le
-> câblage requis est `present_dans` seul.
+> câblage requis est `within` seul.
 >
 > ⭐ **TRANCHÉ (recommandation du 26/08, VALIDÉE par Fabien le jour même — « d'où l'intérêt du
 > Segmenter qui, lui, s'adapte à chaque `.wdat` ») : PAS d'option « sélection de lignes » à
 > l'Exporter.** ① Dans le modèle §11.8, un pipeline promu à la card mère doit se
-> **REJOUER sur chaque fille** : `present_dans(segment déclaré)` se rejoue ; une liste de lignes
+> **REJOUER sur chaque fille** : `within(segment déclaré)` se rejoue ; une liste de lignes
 > cochées est une coordonnée **par fichier**, qui ne veut rien dire chez les sœurs — l'option
 > créerait des exports non promouvables. ② *On persiste la DÉCLARATION, pas les valeurs* : le
 > segment dit **POURQUOI** ces lignes (condition, plage), la liste ne dit que **LESQUELLES** — et
@@ -2950,13 +2977,13 @@ décider quelle ligne va avec quelle ligne. ⚠ Et **D6/D10 interdisent l'interp
 honnêtes :
 
 - **refuser** — un fichier par cadence ;
-- **agréger** vers la plus lente — `calcul_par_segment` existe et n'invente aucune valeur ;
+- **agréger** vers la plus lente — `calc_per_segment` existe et n'invente aucune valeur ;
 - **joindre au plus proche** sans interpoler (`at(how=NEAREST)`) — c'est une *jointure*, elle répète
   ou omet des lignes mais ne fabrique rien.
 
 ⚠ Dans les deux derniers cas, **il faut le DIRE dans le livrable** : une colonne à 10 Hz alignée sur
 une base à 1000 Hz répète 100 fois la même valeur, et le chercheur croira avoir mesuré à 1000 Hz.
-`Rapport.pertes` (§9duodecies.5) est déjà le mécanisme fait pour ça.
+`Report.losses` (§9duodecies.5) est déjà le mécanisme fait pour ça.
 
 **④ « Trip réf » vs « Sélection » n'existe nulle part** dans `wama_data` — voir 11.4.
 
@@ -2965,15 +2992,15 @@ une base à 1000 Hz répète 100 fois la même valeur, et le chercheur croira av
 **⭐ Les méta-données ne sont pas une 4ᵉ famille — elles sont l'IDENTITÉ.** Question ouverte de
 Fabien (« à voir pour rajouter les meta-data et comment le faire »). Réponse : une méta **ne varie
 pas dans le temps**, donc elle n'a **pas de clé temporelle**, donc elle ne peut pas être une table
-qu'on concatène. Sa place est **en tête de ligne** — ce que `Identite` fait déjà.
+qu'on concatène. Sa place est **en tête de ligne** — ce que `Identity` fait déjà.
 ⚠ Exception : Audio/Video portent un *offset*, ce sont des **médias liés**, pas des métas de ligne.
 
 **Le nom du fichier doit rester DÉRIVABLE.** L'écran d'origine offre « Renommer ». Or la doctrine du
-monde (§9ter.6 B7, `core/noms.py`) est que **le nom se dérive des paramètres** : un nom saisi
+monde (§9ter.6 B7, `core/naming.py`) est que **le nom se dérive des paramètres** : un nom saisi
 librement rompt le lien entre le fichier lu et le réglage qui l'a produit. Proposition — nom **dérivé
 par défaut**, renommage possible mais **tracé comme une surcharge**, jamais un champ libre silencieux.
 
-**L'aperçu doit montrer la PERTE, pas seulement les lignes.** `apercu()` rend l'export borné ; avec
+**L'aperçu doit montrer la PERTE, pas seulement les lignes.** `preview()` rend l'export borné ; avec
 ③, il doit aussi dire « cette colonne est répétée 100× » ou « ces deux tables ont été agrégées ».
 
 ### 11.4 « Trip réf » vs « Sélection » — un MODE transverse, pas une option d'Exporter
@@ -3002,8 +3029,8 @@ liste, permet de désigner **un fichier de référence** et/ou **une sélection*
 
 ⚠ **En amont** : sur un dataset non indexé, un LLM cartographie le dossier et propose le manifeste
 `dataset` — sinon l'utilisateur le fournit. C'est exactement « le LLM propose, la machine dispose »
-(§9bis) : le manifeste déclare des attentes **vérifiables**, et `dataset.charger()` **mesure l'écart**
-(`Ecart`, §9octies).
+(§9bis) : le manifeste déclare des attentes **vérifiables**, et `dataset.load()` **mesure l'écart**
+(`Discrepancy`, §9octies).
 
 ⚠ Le crayon (renommer) demande une garde explicite, et Fabien la pose lui-même : **on ne renomme pas
 une table si elle diffère alors du manifeste `dataset`**. Si tout est passé par les mécanismes, il
@@ -3206,8 +3233,9 @@ Trois points, issus d'une confrontation de la cartographie du moteur commun à c
 
 3. **L'export est un MODULE porté par les cards, pas un réglage de sortie.** Il exporte TOUT le
    contenu, de façon entièrement configurable (`Declaration` : famille → tables → colonnes ordonnées,
-   identité, « présent dans », décimation, format ; §9ter.6 C, §11.1) — tables, colonnes, segments
-   et leurs indicateurs, sur UNE base ou sur toutes celles d'un lot (`Regroupement(lots=…)`). Il est
+   identité, « présent dans » (⏳ pas encore un champ de `Declaration`, `core/export.py:207-211` —
+   précisé le 2026-10-31), décimation, format ; §9ter.6 C, §11.1) — tables, colonnes, segments
+   et leurs indicateurs, sur UNE base ou sur toutes celles d'un lot (`Grouping(lots=…)`). Il est
    donc porté par les cards **unitaires, filles et mères** (§11.4 : item vs lot ; ⑧ : la mère porte
    aussi le bundle `.wds`). ⚠ Concaténer les essais d'un lot est une opération de LOT : un pipeline
    qui tourne une fois par card ne peut pas la faire. ⏳ **Ouvert** (Fabien : « l'intégrer dans le
@@ -3226,31 +3254,31 @@ filtrage manuel events/situations optionnel en bout de toutes les chaînes.
 
 | écran d'origine | notre code | |
 |---|---|---|
-| Temporelle **Simple** — Event + marges inf/sup (s) | `autour()` → `segment_autour_event` — 2 offsets **indépendants** | ✅ |
-| Temporelle **Double** — 2 tables, occurrence de départ, offsets, « Répéter » | `jonction()` — `depuis_debut`/`depuis_fin` (= les curseurs `tddAvant`/`tddApres` d'origine), `offset_debut`/`offset_fin`, `repeter`, segments **ouverts** au lieu de jetés | ✅ ⭐ et l'appariement est **TEMPOREL**, pas par index : le cas d'échec de l'original (« Veuillez filtrer les tables ») **n'existe plus** |
-| Sous-segmentation « Présent dans » | `present_dans()` (strict) → `segment_present_dans`, + `chevauche()` | ✅ |
-| **Conditionnelle** — conditions, saisie `ET(C1, C2)`, `NON/OU/XOR`, texte « contient » | `segment_chaine_conditionnelle` — 14 opérateurs typés par SORTE (refus AVANT exécution), et la saisie préfixe de l'écran est littéralement `analyser()` | ✅ |
-| « fusion des trous / rejet des courtes » + hystérésis | `duree_min`, `trou_tolere`, `masque_hysteresis` | ✅ |
-| « **Que créer ?** Event / Situation » | `segment_` / `event_chaine_conditionnelle` — un choix de **SORTIE**, deux fonctions chaînables | ✅ |
-| **Codage vidéo** — Créer/Charger/Éditer protocole, Lancer | `Protocole`, `SessionCodage`, `rejouer()`, `accord()` + `codage_segments`/`codage_evenements`/`codage_accord` | ✅ (l'interface se GÉNÈRE du protocole — délibérément non écrite, dépend du Visualizer) |
-| **Spatiale** (question de Fabien 26/08 : « ajoutée mais câblée ? ») | ✅ **câblée PAR CONSTRUCTION, pas comme un mode** (§9septies) : `distance_a_point` → colonne dérivée → chaîne conditionnelle. **Prouvé par test** : `test_spatial_ET_temporel_dans_la_MEME_chaine` mêle `distance ≤ 40 ET vitesse > 30`. + `ign_buildings`/`ign_roads`/`road_branches`/`sky_mask` au catalogue | ✅ |
+| Temporelle **Simple** — Event + marges inf/sup (s) | `around()` → `segment_around_events` — 2 offsets **indépendants** | ✅ |
+| Temporelle **Double** — 2 tables, occurrence de départ, offsets, « Répéter » | `join()` — `skip_starts`/`skip_ends` (= les curseurs `tddAvant`/`tddApres` d'origine), `offset_start`/`offset_end`, `repeat`, segments **ouverts** au lieu de jetés | ✅ ⭐ et l'appariement est **TEMPOREL**, pas par index : le cas d'échec de l'original (« Veuillez filtrer les tables ») **n'existe plus** |
+| Sous-segmentation « Présent dans » | `within()` (strict) → `segment_within`, + `overlapping()` | ✅ |
+| **Conditionnelle** — conditions, saisie `ET(C1, C2)`, `NON/OU/XOR`, texte « contient » | `segment_condition_chain` — 14 opérateurs typés par SORTE (refus AVANT exécution), et la saisie préfixe de l'écran est littéralement `parse()` | ✅ |
+| « fusion des trous / rejet des courtes » + hystérésis | `min_duration`, `gap_tolerance`, `hysteresis_mask` | ✅ |
+| « **Que créer ?** Event / Situation » | `segment_` / `event_condition_chain` — un choix de **SORTIE**, deux fonctions chaînables | ✅ |
+| **Codage vidéo** — Créer/Charger/Éditer protocole, Lancer | `Protocol`, `CodingSession`, `replay()`, `agreement()` + `coding_segments`/`coding_events`/`coding_agreement` | ✅ (l'interface se GÉNÈRE du protocole — délibérément non écrite, dépend du Visualizer) |
+| **Spatiale** (question de Fabien 26/08 : « ajoutée mais câblée ? ») | ✅ **câblée PAR CONSTRUCTION, pas comme un mode** (§9septies) : `distance_to_point` → colonne dérivée → chaîne conditionnelle. **Prouvé par test** : `test_spatial_ET_temporel_dans_la_MEME_chaine` mêle `distance ≤ 40 ET vitesse > 30`. + `ign_buildings`/`ign_roads`/`road_branches`/`sky_mask` au catalogue | ✅ |
 
 **Les QUATRE trous mesurés :**
 
 ~~**① Marges sur une SITUATION**~~ — ✅ **SOLDÉ le 2026-08-26, ÉLARGI AU SPATIAL à la demande de
 Fabien** (« il faut aussi gérer les ajustements de bornes temporelles/**spatiales** »). Deux
-fonctions au catalogue : **`segment_marges`** (`start − avant`, `end + apres` ; négatif = rétrécir,
-segment inversé **écarté** — même geste que `duree_min` —, fin ouverte inchangée, origine d'avant
-la marge gardée dans `source`) et **`segment_marges_spatiales`** (marges en **MÈTRES PARCOURUS**,
-converties en bornes par l'**abscisse curviligne** — `core/geo.py::abscisse_curviligne`, nouvelle
+fonctions au catalogue : **`segment_margins`** (`start − before`, `end + after` ; négatif = rétrécir,
+segment inversé **écarté** — même geste que `min_duration` —, fin ouverte inchangée, origine d'avant
+la marge gardée dans `source`) et **`segment_spatial_margins`** (marges en **MÈTRES PARCOURUS**,
+converties en bornes par l'**abscisse curviligne** — `core/geo.py::arc_length`, nouvelle
 primitive : cumul monotone, trou GPS → `None` reporté, jamais inventé). ⭐ Même généralisation que
 §9septies : la marge spatiale n'est pas un mode, c'est une marge sur une **COLONNE** monotone au
 lieu de `time`. Les bornes rendues sont des **échantillons existants** (comme `at()`) : marge
 rendue ≥ marge demandée, bornée là où la donnée s'arrête.
 
 ~~**② Le `FunctionSpec` de `segment_jonction` n'expose que `nom` + `fermer_dernier`**~~ — ✅
-**SOLDÉ le 2026-08-26** : les 5 `ParamSpec` déclarés (`offset_debut`/`offset_fin`,
-`depuis_debut`/`depuis_fin`, `repeter`), traversée testée, et un test qui garde la **DÉCLARATION**
+**SOLDÉ le 2026-08-26** : les 5 `ParamSpec` déclarés (`offset_start`/`offset_end`,
+`skip_starts`/`skip_ends`, `repeat`), traversée testée, et un test qui garde la **DÉCLARATION**
 elle-même (`functions/temporal/tests_segmentation.py` — *une capacité non déclarée est une
 capacité invisible de l'UI générée*). `wama_data` : **645 tests** au vert.
 
@@ -3269,9 +3297,9 @@ mot pour mot). Couvre en **déclaratif** l'essentiel du filtrage manuel de ④.
 > accepte EVENTS **et** SEGMENTS et teste leurs **colonnes**. « Durée > 1 min » : la durée se
 > dérive (`end − start` ; un segment **ouvert** n'a pas de durée — à écarter explicitement, jamais
 > en silence). « Vitesse moyenne > 30 » : l'indicateur par segment est **déjà le Calculator**
-> (`calcul_par_segment` adjoint `moyenne_vitesse` à la table de segments), puis le même filtre
+> (`calc_per_segment` adjoint `moyenne_vitesse` à la table de segments), puis le même filtre
 > s'applique. Deux fonctions chaînées — exactement le motif « un choix de sortie, pas un mode »
-> déjà acté pour `segment_`/`event_chaine_conditionnelle`.
+> déjà acté pour `segment_`/`event_condition_chain`.
 
 **④ Le filtrage MANUEL par occurrence** — ✅ **le CAS RÉEL, précisé par Fabien le 2026-08-28,
 est SOLDÉ en déclaratif** ; le résiduel manuel devient marginal.
@@ -3774,7 +3802,7 @@ Trois choses que la dérivation ne peut pas faire, et qui ne sont pas des raffin
 2. **dire si un axe est niché ou croisé** — l'agrégation voit des **valeurs**, jamais des
    **relations**. C'est `contains`/`crosses`, donc le test licite, qui lui échappe entièrement ;
 3. ⭐ **signaler un MANQUE** — si un `.wdat` ne porte pas son `participant`, l'agrégation ne
-   proteste pas : elle rend simplement un ensemble plus petit. C'est précisément l'**`Ecart`** que
+   proteste pas : elle rend simplement un ensemble plus petit. C'est précisément l'**`Discrepancy`** que
    la déclaration rend possible (§13.6), et la raison pour laquelle « déclarer puis mesurer »
    n'est pas une redite de ce qui existe.
 
@@ -3796,7 +3824,7 @@ LLM ? »* — **a déjà sa réponse écrite ET implémentée** dans `wama_data/
 
 > *« Le LLM propose, la machine dispose. Un manifeste généré par LLM qui VALIDE ensuite l'import est
 > CIRCULAIRE. Le manifeste déclare des attentes **vérifiables mécaniquement** et l'importer
-> **MESURE L'ÉCART**. »* — et `charger()` rend le couple `(référentiel, écart)`, jamais le
+> **MESURE L'ÉCART**. »* — et `load()` rend le couple `(référentiel, écart)`, jamais le
 > référentiel seul, pour qu'ignorer l'écart soit un **geste délibéré**.
 
 Appliqué aux axes, la réfutation est **arithmétique** :
@@ -3900,10 +3928,10 @@ colonne** ; et une source rebaptisée après coup périme tous les manifestes qu
 
 | pièce WAMA | ce que les axes y changent | état |
 |---|---|---|
-| kind `dataset` | **+ `axes[]`, + `source.layout`** | ⏳ deux champs à ajouter |
+| kind `dataset` | **+ `axes[]`, + `source.layout`** | 🔄 `axes[]` ✅ (2026-08-26, `builtin/dataset.py:51-173`) ; `source.layout` ⏳ (D22) — *corrigé le 2026-10-31* |
 | `reference_tables` | domicile des **niveaux** d'un facteur (= `Levels` BIDS, *codelist* SDMX) | ✅ existe |
 | `signals[]` | = les ***measures*** SDMX — inchangés, orthogonaux aux axes | ✅ existe |
-| `Ecart` / `charger()` | la **réfutation arithmétique** du patron et du croisement | ✅ existe, à étendre |
+| `Discrepancy` / `load()` | la **réfutation arithmétique** du patron et du croisement | ✅ existe, à étendre |
 | `WamaMeta` du `.wdat` | les **coordonnées**, préfixées `axe.` | ✅ existe (D21) |
 | `.wds` — bundle corpus (D26) | transporte **manifeste + coordonnées ensemble** quand le corpus se déplace | ✅ tranché le 25/08 |
 | explorateur & file Data (§11.8) | ⭐ **filtrage et group-by par axe → création de batch** | ✅ déjà relié |
@@ -4001,7 +4029,7 @@ manque à notre modèle, qui décrit les variables produites sans nommer l'outil
 | ① | ~~corpus sans axe temporel~~ | ✅ **LEVÉ le 2026-08-26** (§13.14) |
 | ② | ~~plusieurs unités d'observation dans un même corpus~~ | ✅ **LEVÉ le 2026-08-26** — plusieurs `observation` sont acceptées, et **dès qu'il y en a deux le rattachement devient obligatoire** (§13.14) |
 | ②bis | ⚠ **ET J'AVAIS SURESTIMÉ CE TROU.** « mesures par participant **et** par trajet » — question de Fabien : *« en quoi on ne peut pas le faire avec l'existant ? »* — **était DÉJÀ exprimable** : le trajet est le grain, le participant le contient (`contains`), et chaque attribut nomme son niveau de rattachement (`attached_to`). Le cas réellement manquant était **deux grains NON emboîtés** (dyade conducteur+passager, plusieurs *subjects* BORIS). J'ai décrit comme structurel un besoin dont une moitié était déjà couverte | ✅ corrigé |
-| ③ | **plan déséquilibré déclaré** — un participant qui n'a fait que 3 scénarios sur 4. L'`Ecart` le **signale**, mais on ne peut pas le **déclarer comme attendu** ; tout écart légitime sonnera donc comme un défaut | ⚠ un contrôle qui sonne toujours n'est plus lu (leçon `Ecart.lecteur`) |
+| ③ | **plan déséquilibré déclaré** — un participant qui n'a fait que 3 scénarios sur 4. L'`Discrepancy` le **signale**, mais on ne peut pas le **déclarer comme attendu** ; tout écart légitime sonnera donc comme un défaut | ⚠ un contrôle qui sonne toujours n'est plus lu (leçon `Discrepancy.lecteur`) |
 | ④ | **vagues / longitudinal** — DDI a l'héritage de série entre vagues, nous non | ⚠ |
 | ⑤ | **`universe`** — ce que le corpus vise, pas seulement ce qu'il contient (D25) | ⏳ |
 | ⑥ | ⭐ ~~facteur DÉRIVÉ D'UN MODÈLE~~ | ✅ **LEVÉ le 2026-08-26** — `derived_from` accepte une référence de manifeste `{kind, key}`. Un profil de conducteur issu d'un clustering **est un facteur** dont la provenance est déclarée. ⭐ Fabien : *« si on peut ajouter un profil comme nouveau facteur, on peut alors relier un conducteur à un profil par comparaison »* — c'est exactement ce que la boucle avec `WAMA_APPRENTISSAGE` permet |
@@ -4023,8 +4051,8 @@ un corpus réel.
 | ① | ✅ **FAIT 2026-08-26** — `axes[]` dans `validate_dataset_body` (+ 20 tests) ; `source.layout` reste à faire (D22) | un validateur | zéro UI, zéro migration, zéro dépendance |
 | ② | ⭐ **écrire À LA MAIN le manifeste `dataset` du `.trip` réel** qu'on a déjà | une heure | **c'est le juge de tout le reste.** Le risque documenté n'est pas la couverture insuffisante, c'est **le vocabulaire trop large que personne n'annote** (mode d'échec d'OWL-S). Un manifeste réel, volontairement pauvre, dira où ça casse |
 | ③ | ✅ **FAIT 2026-08-26** — `signals` facultatif si `axes` présent | 3 lignes | débloque les **questionnaires** (§13.10) |
-| ④ | ✅ **FAIT 2026-08-26** — `attributs_de_coordonnees()` + aller-retour prouvé (§13.19) | petit | ferme **D21**, rend les `.wdat` **autoportants** |
-| ⑤ | étendre `Ecart` aux axes (taux d'appariement, complétude du croisement, contradiction dure) | moyen | c'est **toute** la confiance accordée à une proposition LLM (§13.6) |
+| ④ | ✅ **FAIT 2026-08-26** — `coordinate_attributes()` + aller-retour prouvé (§13.19) | petit | ferme **D21**, rend les `.wdat` **autoportants** |
+| ⑤ | étendre `Discrepancy` aux axes (taux d'appariement, complétude du croisement, contradiction dure) | moyen | c'est **toute** la confiance accordée à une proposition LLM (§13.6) |
 | ⑥ | exposer les axes en **facettes de filtre** de l'explorateur Data (§11.8) | dépend de l'UI en cours | premier bénéfice **visible**, et il sert le fil parallèle |
 
 > ⚠ **J'avais écrit « l'ordre ① → ② n'est pas négociable ». Formulation à retirer — Fabien a
@@ -4057,11 +4085,11 @@ motif que le lecteur `.trip` sans couverture (§9nonies.2).
 | ④ | **facteur dérivé d'un modèle** | `derived_from: {kind: model, key: …}` — le profil de conducteur appris est un facteur à provenance déclarée |
 | ⑤ | **nidification récursive** | `contains` s'enchaîne sans limite de profondeur ; seule la **boucle** est refusée |
 
-#### ⭐ `present_dans` était DÉJÀ récursif — et son défaut est ailleurs
+#### ⭐ `within` était DÉJÀ récursif — et son défaut est ailleurs
 
-Précision de Fabien : *« `present_dans` peut être récursif — une situation de suivi de véhicule
+Précision de Fabien : *« `within` peut être récursif — une situation de suivi de véhicule
 avec des sous-situations à l'intérieur, ça a déjà été fait au laboratoire »*. **Vérifié dans le
-code** : `present_dans(segments, reference)` est une **opération ensembliste fermée** (elle prend
+code** : `within(segments, reference)` est une **opération ensembliste fermée** (elle prend
 des segments, elle rend des segments) — la réappliquer sur son propre résultat EST la récursion.
 **Rien à ajouter.**
 
@@ -4167,14 +4195,14 @@ cessent d'être enfouis dans un nom de table (`situation_0_15`) pour devenir **i
 > Quick win ⑤. `wama_data/dataset.py` + 12 tests (`tests_dataset.py`), **640 au vert**.
 > Confronté au `.trip` réel, pas à une fixture.
 
-**Ce qui est livré** — `Ecart` gagne `coordonnees` (axes situés) et `axes_sans_coordonnee`, et
-`situer()` résout **trois graphies**, dans cet ordre : `axe.<clé>` (convention WAMA) · `<clé>`
+**Ce qui est livré** — `Discrepancy` gagne `coordonnees` (axes situés) et `axes_sans_coordonnee`, et
+`locate()` résout **trois graphies**, dans cet ordre : `axe.<clé>` (convention WAMA) · `<clé>`
 (convention de l'outil d'origine, **relevée** au §13.15) · `source_key` (alias déclaré par l'axe).
 
 > ⚠ **`axes_sans_coordonnee` est INFORMATIF, jamais un verdict.** Tous les axes ne sont pas des
 > coordonnées de conteneur : `participant` et `scenario` valent pour tout le fichier, une fenêtre
 > d'analyse indexe des **lignes**. Faire échouer la conformité dessus ferait sonner le contrôle sur
-> tout manifeste correct — le défaut déjà corrigé une fois sur `Ecart.lecteur`.
+> tout manifeste correct — le défaut déjà corrigé une fois sur `Discrepancy.lecteur`.
 
 **Résultat sur le fichier réel**, et il est exactement celui qu'on espérait :
 
@@ -4270,11 +4298,11 @@ choisi d'en décrire) et `debScn_finVirage_0_0`.
 
 ### 13.19 ✅ L'ALLER-RETOUR DES COORDONNÉES EST PROUVÉ — D21 close (2026-08-26)
 
-Quick win ④. `attributs_de_coordonnees()` rend la forme **canonique d'écriture** `axe.<clé>`,
-destinée à `Contexte.attributs` ; `situer()` la relit par sa première graphie. **649 tests au vert.**
+Quick win ④. `coordinate_attributes()` rend la forme **canonique d'écriture** `axe.<clé>`,
+destinée à `Context.attributs` ; `locate()` la relit par sa première graphie. **649 tests au vert.**
 
 ⭐ **Aucun changement de schéma n'a été nécessaire** — et c'est le résultat intéressant :
-`Contexte.attributs` alimentait déjà `WamaMeta`, et **les quatre lecteurs** (`trip`, `wdat`,
+`Context.attributs` alimentait déjà `WamaMeta`, et **les quatre lecteurs** (`trip`, `wdat`,
 `rtmaps`, `tabular`) exposent déjà `SourceInfo.attributes`. La pièce manquante n'était pas un
 mécanisme, c'était **une convention de nommage et sa preuve**.
 
@@ -4286,14 +4314,14 @@ et les retrouve toutes les deux — écriture et lecture appariées de bout en b
 `WamaMeta` est un espace **partagé** : il porte déjà `format`, `schema_version`, `created_at`,
 `created_by`, `streams`. Une clé `participant` posée à plat y côtoierait une clé de format — et un
 axe qu'on appellerait `format` capterait la méta technique. Un test le fixe :
-`situer([{key: 'format'}], {'format': 'wdat', 'axe.format': 'A4'})` rend **`A4`**.
+`locate([{key: 'format'}], {'format': 'wdat', 'axe.format': 'A4'})` rend **`A4`**.
 
 C'est la fusion des deux tables de `.trip` en une seule (`§9duodecies.3`) qui rend le préfixe
 obligatoire : là où l'outil d'origine séparait `MetaTripDatas` et `MetaParticipantDatas`, nous
 n'avons qu'un espace, donc il faut le nommer.
 
 > ⚠ **Et la compatibilité descendante n'est pas négociable** : les corpus existants n'ont **pas**
-> le préfixe (§13.15 : `scenario`, `participant_id` depuis 2019). `situer()` lit donc les trois
+> le préfixe (§13.15 : `scenario`, `participant_id` depuis 2019). `locate()` lit donc les trois
 > graphies — `axe.<clé>`, `<clé>`, `source_key`. Écrire la forme canonique n'oblige personne à
 > réécrire ses fichiers.
 
@@ -4512,15 +4540,15 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
 
 | # | question | qui tranche |
 |---|---|---|
-| D1 | domicile du référentiel temporel : `wama_data/` ou module dédié ? | après passe 1 |
-| D2 | le magneto : une brique à deux chromes, ou brique + plugin distincts ? | après passe 2 |
+| ~~D1~~ | ✅ **TRANCHÉE de fait** (constaté le 2026-10-31) — ~~domicile du référentiel temporel : `wama_data/` ou module dédié ?~~ → `wama_data/core/temporal.py` (`TemporalReferential`, 2026-08-21) | après passe 1 |
+| D2 | le magneto : une brique à deux chromes, ou brique + plugin distincts ? — 🔄 *appliqué de fait (constaté le 2026-10-31)* : une brique de commandes, `WamaTransport.mount(hôte, cfg)`, montable partout (`wama-transport.js:5-8`), position « une brique, deux présentations » de §5bis ; le magnéto du monde Data n'est pas encore monté | après passe 2 |
 | ~~D3~~ | ✅ **TRANCHÉE 2026-08-23 (§9quater.2)** — `.trip` reste un format **importé, en lecture seule** ; WAMA a un conteneur **natif distinct**. ⚠ D3 a tranché le PRINCIPE et proposé le nom `.wrec` ; **le nom est repris par D17** (2026-08-24) — lire les deux ensemble, D3 seule est périmée sur ce point. `TripReader` garde son nom : il lit le format de BIND, pas le nôtre | Fabien |
 | D4 | quels 2-3 plugins écrire en premier (pour extraire la vue déclarative ensuite) ? | après passe 3 |
 | D5 | Recorder temps réel (LSL/RTMaps/ROS) : dans le périmètre v1 ou différé ? | Fabien |
-| D6 | reprendre le « **jamais d'interpolation** » de BIND ? (position pressentie : oui pour la VALEUR, interpolation autorisée en option d'AFFICHAGE seulement) | Fabien, §3bis |
-| D7 | le curseur appartient-il au **jeu de données** (choix BIND : un trip = une horloge) ou à la **session** (plusieurs sources hétérogènes) ? | après passe 2 |
-| D8 | type « **intervalle** » dans `data_types.py` : nouveau `DataType.INTERVALS`, ou sous-type d'`EVENTS` avec durée ? (sans lui, pas de Segmenter ni de Calculator) | après passe 3 |
-| ~~D9~~ | ✅ **TRANCHÉE 2026-08-23 (§9quater.3)** — `time` / `start` / `end`, et `timecode` reste un **alias d'entrée** (`tabular.py:23`). Ce n'était pas un arbitrage : `timecode` est **déjà pris dans WAMA** au sens AV positionnel (`mm:ss`, une CHAÎNE — Transcriber), là où BIND en fait un flottant en secondes | mesure |
+| D6 | reprendre le « **jamais d'interpolation** » de BIND ? (position pressentie : oui pour la VALEUR, interpolation autorisée en option d'AFFICHAGE seulement) — 🔄 *appliqué pour la VALEUR (constaté le 2026-10-31)* : `core/temporal.py:17-41` (« On n'interpole JAMAIS une valeur », politiques `NEAREST` / `PREVIOUS` / `EXACT`, pas d'`INTERPOLATE`) ; reste l'option d'AFFICHAGE, et la ratification | Fabien, §3bis |
+| ~~D7~~ | ✅ **TRANCHÉE de fait le 2026-10-15** (§8.4) — ~~le curseur appartient-il au **jeu de données** (choix BIND : un trip = une horloge) ou à la **session** (plusieurs sources hétérogènes) ?~~ → à la SESSION : un axe par PAGE (`wama-axis.js`) | après passe 2 |
+| ~~D8~~ | ✅ **TRANCHÉE** (constaté le 2026-10-31) — ~~type « **intervalle** » dans `data_types.py` : nouveau `DataType.INTERVALS`, ou sous-type d'`EVENTS` avec durée ?~~ → `DataType.SEGMENTS` (`data_types.py:42`, ex-`SECTIONS` renommé le 2026-08-20) | après passe 3 |
+| ~~D9~~ | ✅ **TRANCHÉE 2026-08-23 (§9quater.3)** — `time` / `start` / `end`, et `timecode` reste un **alias d'entrée** (`core/naming.py:46`, réimporté par `tabular.py`). Ce n'était pas un arbitrage : `timecode` est **déjà pris dans WAMA** au sens AV positionnel (`mm:ss`, une CHAÎNE — Transcriber), là où BIND en fait un flottant en secondes | mesure |
 | D10 | **rééchantillonnage : jamais systématique** (Fabien, 20/08) — mais **TROIS opérations distinctes**, cf. §6.6 : le **ré-horodatage** par fréquence théorique est ✅ à l'import et par flux (il n'interpole pas) ; le **rééchantillonnage sur grille commune** est ❌ ; le **rééchantillonnage à la demande vers une table annexe** est ✅ en option. Le **pas de temps variable est une capacité à porter**, pas un défaut à corriger. ✅ **RESTE CLOS le 2026-08-23 (§9quater.4)** : la table annexe vit **dans le même `.wdat`** que ses sources, porte sa **provenance en méta** (jamais dans son nom — D11), se nomme par règle dérivée, et n'est **jamais créée implicitement**. Et le défaut recommandé pour croiser deux cadences n'est PAS le rééchantillonnage mais l'**agrégation** (`calcul_par_segment`), qui n'invente aucune valeur | ✅ close |
 | D11 | les paramètres de fenêtre d'une situation : **colonnes/métadonnées** (interrogeables) plutôt que dans le NOM de la table comme BIND (`situation_0_15`) ? | ⚠ **MÛRE** — « après A », et A est faite (§9ter.6). Le principe est déjà **appliqué un cran plus bas** par §9quater.4 (le contexte se trace sur la COLONNE) et par la table annexe (provenance en méta, jamais dans le nom). Reste à le ratifier au niveau de la situation elle-même |
 | D12 | **alignement par TRIGGERS** (§9bis.6) : où vit l'appariement d'événements entre flux — dans l'Importer, ou comme fonction du catalogue applicable après import ? | avant l'Importer v2 |
@@ -4804,7 +4832,7 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
 
 | # | axe | verdict | fait décisif |
 |---|---|---|---|
-| 1 | taxonomie nature×rôle | **ALIGNÉ** | DEUX taxonomies parallèles d'intersection VIDE (`data_types.py` 11 types de donnée vs `MEDIA_CATEGORIES` 7 natures) ; `text` ABSENT de Data (0 hit taxonomique) → le retrait de `text` est un chantier 100 % `wama/` (la ligne contraire de `ROUTE §S2bis.6bis` pt 3 est RECTIFIÉE). ⚠ `.trip/.wdat` ne sont dans AUCUNE taxonomie de fichier : `category_of_path` les classe `document` ; seule la SONDE d'intake (`wama_data/apps.py:39-53`) sait dire « monde Data » |
+| 1 | taxonomie nature×rôle | **ALIGNÉ** | DEUX taxonomies parallèles d'intersection VIDE (`data_types.py` 11 types de donnée vs `MEDIA_CATEGORIES` 7 natures) ; `text` ABSENT de Data (0 hit taxonomique) → le retrait de `text` est un chantier 100 % `wama/` (la ligne contraire de `ROUTE §S2bis.6bis` pt 3 est RECTIFIÉE). ⚠ `.trip/.wdat` ne sont dans AUCUNE taxonomie de fichier : `category_of_path` les classe `document` ; seule la SONDE d'intake (`wama_data/apps.py:47-61`) sait dire « monde Data » *(levé par B, ci-dessous — marqué le 2026-10-31)* |
 | 2 | rôles/ports | **ÉCART structurel** | `PortSpec` (function_catalog) n'a AUCUN rôle (mais a champs requis + optionnalité, que Médias n'a pas — aucun n'est sous-ensemble de l'autre) ; `studio_node_ports` ne connaît aucun type Data ; ~~le validateur du kind `pipeline` REFUSE un nœud `function` ; studio↔Data = 0 référence croisée~~ (corrigé le 2026-09-15 : nœud `function` codé le 2026-09-09, marche D ci-dessous ; `PortSpec` a gagné `group` à la marche C) |
 | 3 | files (UI Data) | **TROU total** | Segmenter/Exporter/Explorer sont des MODULES-MOTEURS, pas des apps UI — `wama_data/` n'a AUCUNE surface Django (0 views/urls/templates, écrit dans `modules.py` même). Briques de file : Médias 10/10 · Lab 0 (6356 lignes d'UI propre) · Data 0 |
 | 4 | reproductibilité | **ALIGNÉ papier / TROU code** | UN seul formalisme voulu — D13 (close 24/08) l'avait décidé AVANT nous : « UNE représentation (pipeline étendu d'un nœud `function`), DEUX éditeurs » ; le `.wdat` embarque déjà son protocole estampillé. ~~Le nœud `function` n'est pas écrit.~~ (corrigé le 2026-09-15 : codé le 2026-09-09.) Process Médias = params plats, process Data = suite ordonnée → ~~le 1-nœud est bien le cas DÉGÉNÉRÉ, pas la forme cible~~ précisé le 2026-09-15 (`WAMA_APP_GENERATION_ROUTE.md §10.6`) : une card porte un pipeline de **0..N process** — un seul process est un cas NORMAL, et une card Data peut démarrer avec un pipeline **VIDE** (~~place `open`~~ — sans degré propre, corrigé le 2026-10-21, §11.8 ⑩) qu'on compose au fil de l'exploration |
@@ -4814,7 +4842,7 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
 
 **Plan de convergence (ordonné par dépendance — détail dans le rapport de vérification du 30/08) :**
 - **A (fait le 30/08, coût nul)** : ① `modules.py` corrigé (`vue.py`→`view.py`, `valeurs.py`→`values.py` — les briques déclarées avaient dérivé au renommage D28, Explorer/Calculator s'affichaient partiels à tort ; bloc doc_facts régénéré) ; ② rectification `ROUTE §S2bis.6bis` pt 3. ⏳ Reste de A : une garde « brique déclarée introuvable = ÉCHEC » dans `measure()` (sinon récidive au prochain renommage) ;
-- **B — le pivot** : une nature `dataset` dans `MEDIA_CATEGORIES` + `_CAT_OF` alimenté par la SONDE des lecteurs Data, **dans le même geste que le retrait de `text`** (le rayon taxonomie ne se paie qu'une fois) → `TYPE_GROUPS` médiathèque et l'intake suivent PAR DÉRIVATION ;
+- ✅ **FAIT le 2026-08-30** (`app_registry.py:78`, `wama_data/apps.py:65-75` `_register_media_nature()` ; marqué le 2026-10-31) — **B — le pivot** : une nature `dataset` dans `MEDIA_CATEGORIES` + `_CAT_OF` alimenté par la SONDE des lecteurs Data, **dans le même geste que le retrait de `text`** (le rayon taxonomie ne se paie qu'une fois) → `TYPE_GROUPS` médiathèque et l'intake suivent PAR DÉRIVATION ;
 - **C** ✅ **FAIT le 2026-09-09** (GO Fabien, avec la facette estimateur ⑤b du cam_analyzer — les deux modèlent `PortSpec`, décidées ensemble) : `group` (rôle) sur `PortSpec` — vocabulaire emprunté à `INPUT_TYPES`, jamais un 3ᵉ enum ; références de fait requalifiées (`track`/`road_map` du cam_analyzer, `road_map` du map-matching) ; accesseur `function_catalog.function_node_ports()` rendant la MÊME forme que `studio_node_ports` (test de forme dans `FunctionCatalogConformiteTest`) → la card v4 couvre Data sans une ligne par consommateur. Détail : `CAM_ANALYZER_CHANGELOG 2026-09-09`, `WAMA_DATA_FUNCTION_CARDS §2` ;
 - **D** ✅ **FAIT le 2026-09-09** (GO Fabien « C + D, Studio inclus ») : le nœud `function` du kind pipeline (D13) — `pipeline.node_kind()`/`function_key()` sont les deux seuls lecteurs de la convention de palette `function:<clé>` ; dispatch dans l'EXÉCUTEUR `studio/tasks.py::run_pipeline_task` (app = job de file async ; fonction `pure` = `spec.fn(TypedFrame, ports suivants par nom, **params)` SYNCHRONE dans le process, la facette estimateur du port posée sur `meta['estimate']` ; fonction `app`-bound = `impl` lancée avec les params du nœud puis POLLÉE, arguments requis par introspection), jamais dans le schéma ; palette `api_nodes` = fonctions par `function_node_ports` + `data_types` ; nœud-source `dataset_input` (CSV → `TypedFrame` du type DIT) ; la Sortie range un `TypedFrame` en CSV. **Et ③** : `cam_analyzer.pass_tracking.PASSES` s'exporte en manifeste `pipeline` à 13 nœuds `function` (`register_pipeline_source`, `manifests/pipelines/cam_analyzer.json`) — « une représentation, deux éditeurs ». 9 tests `studio/tests/tests_function_nodes` (chaîne pure exécutée en process, bout en bout, jusqu'à la médiathèque) + 3 `tests_pass_registry`. ⚠ Aucun nœud fonction n'a été exécuté depuis le NAVIGATEUR (smoke : palette servie, 0 erreur JS) ;
 - **E** : émetteur card→manifeste de ~~process~~ **pipeline** (vocabulaire précisé le 2026-09-15, `WAMA_APP_GENERATION_ROUTE.md §10.6`) (2ᵉ source d'`extract_pipeline`) + importeur = la PORTE d'ingestion que `intake._sniff_manifest` attend déjà (« `ingest()` sans appelant ») + `-i` batch pointant un manifeste (réutiliser `_UNIFIED_FLAG_MAP`, pas de 2ᵉ format) ;

@@ -269,7 +269,7 @@ scope de visibilité. L'accès à un MONDE est un gate grossier au-dessus des r�
 (ex. *chercheur* → Lab + Data + Transversal ; *utilisateur* de base → Médias) — ce gate reste ⏳,
 verrouillé par la question ci-dessous.
 
-## 2.4 Question ouverte : la traçabilité des mondes ⏳
+## 2.4 Question ouverte : la traçabilité des mondes 🔄
 
 Fait mesuré : `world` n'est aujourd'hui **ni déclaré ni fiable** — il est dérivé du groupe de
 navigation de l'UI, ce qui contredit la doctrine (un renommage d'étiquette déplacerait une app de
@@ -291,8 +291,11 @@ transcriber, reader, describer et converter, qu'elle rangeait `data` ou `transve
 `media` dans `manifests/apps/`. ✅ *Même jour* : les surfaces hors catalogue (Lab, Studio,
 médiathèque, model manager) se déclarent par `register_surface(…, world=…)`, et le monde d'une
 fonction se dérive de l'app qui la porte (`manifests/builtin/function.py` `_spec_world`) —
-*constaté le 2026-10-26*. ⏳ Restent les surfaces dérivées (menu, accueil et `/apps/` groupés par
-monde — même point 6.1) et le gate d'accès par monde. La piste `origine`/`portee` ci-dessus reste une
+*constaté le 2026-10-26*. ~~⏳ Restent les surfaces dérivées (menu, accueil et `/apps/` groupés par
+monde — même point 6.1) et le gate d'accès par monde.~~ ✅ *Constaté le 2026-10-31* : menu, accueil
+et `/apps/` sont groupés par monde, en une lecture (`app_registry.get_app_groups`, lue par
+`common/services/navigation.py`) ; ⏳ reste le gate d'accès par monde (`accounts/permissions.py` ne
+fait que TRIER par monde). La piste `origine`/`portee` ci-dessus reste une
 proposition non actée.
 
 ---
@@ -304,7 +307,9 @@ proposition non actée.
 ## 3.1 Le manifeste comme contrat ✅ (formalisme) 🔄 (write-back)
 
 Le manifeste est le concept fondamental de WAMA. **Il ne génère pas de code : il décrit une
-capacité existante.** Il constitue un contrat entre une application, des modèles, des données,
+capacité existante.** *(Précisé le 2026-10-31 : il n'EST pas du code — des générateurs,
+`common/manifests/codegen/`, en DÉRIVENT le code d'une app, au bac à sable et sous revue humaine,
+§3.5.)* Il constitue un contrat entre une application, des modèles, des données,
 un utilisateur et des ressources matérielles : capacités (verbe, modalités), entrées/sorties
 typées, paramètres (schéma), contraintes (VRAM, dépendances, licences).
 
@@ -384,6 +389,11 @@ workflows scientifiques**.
 *Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`* : le Studio est l'**éditeur en graphe
 des pipelines** — le même objet que porte chaque card de file ; l'**exécution est commune** à toutes
 les files (un moteur, une ligne par process), pas propre au Studio.
+*Constaté le 2026-10-31* : chaque app Médias DÉCLARE les process de sa card
+(`common/services/process_pipeline.py` — `ProcessSpec`, `register_app_pipeline`, appelé par les
+`function_specs.py` des 10 apps ; `manifests/pipelines/<app>.json`) ; ce moteur commun dit ce qu'un
+lancement rejoue, ce qui est périmé (`STALE`) et l'état de la card. ⏳ Le Studio n'exécute pas
+encore ces pipelines comme un nœud (type de nœud `pipeline`, §4.2).
 
 État réel : canvas, persistance et **exécution réelle** (moteur d'exécution topologique via l'API
 d'outils, suivi par nœud, cards d'entrée/sortie reliées à la médiathèque) sont livrés ;
@@ -427,7 +437,8 @@ Les skills de prompt par application sont livrés (résolution par app et domain
 skills institutionnels (couplés au RAG organisationnel, ⏳), skills utilisateur.
 *Constaté le 2026-10-26* : ✅ les rôles de l'assistant existent — cinq domaines déclarés
 (général, scientifique, graphisme, développement, investigation), un seul actif à la fois
-(`common/utils/assistant_skills.py`, 2026-08-21) ; 🔄 un skill utilisateur a un auteur et une
+(`common/utils/assistant_skills.py`, 2026-08-21 ; *+ le 2026-10-29, deux postures de réflexion non
+annoncées, Contradicteur et Méthodologie, chargées par l'assistant ou un sous-agent — §5.7*) ; 🔄 un skill utilisateur a un auteur et une
 portée, et se promeut par un administrateur (2026-10-20).
 
 ## 5.2 La chaîne unifiée du prompt au modèle ✅ (socle) 🔄 (RAG branché, QC)
@@ -453,7 +464,7 @@ anglais si nécessaire — livré, transparent (🌐 en console). En **sortie** 
 n'est pas câblée au dernier relevé ; l'i18n statique de l'interface reste à faire. Règle : on
 câble la **langue**, jamais la **traduction** en dur.
 
-## 5.4 Traduction consciente de la structure documentaire ⏳ `[INGÉNIERIE]`
+## 5.4 Traduction consciente de la structure documentaire ⏳→🔄 `[INGÉNIERIE]`
 
 La difficulté d'une traduction ou d'une analyse de document n'est pas linguistique mais
 structurelle : texte courant, figures, images contenant du texte. WAMA vise une brique commune —
@@ -462,7 +473,8 @@ des documents composites) : `document → parseur (texte / figures / images-text
 ciblé → réassemblage, mise en page conservée`. Le texte intégré aux images suit OCR → traduction
 → réinsertion.
 
-🔄 *2026-10-28* : premier maillon décidé — la **couche texte** d'un document (extraire les passages
+🔄 *2026-10-28* : premier maillon décidé — et construit le jour même (`common/utils/document_text.py`,
+mécanisme `document_text` ; précisé le 2026-10-31) — la **couche texte** d'un document (extraire les passages
 avec leur emplacement, les réécrire sur place), commune à l'Anonymizer (domaine document : occulter
 en conservant exactement la forme) et au Translator (`ROADMAP §16.4bis`). Le Writer reste le geste
 de qui veut REVOIR la mise en forme, par chaînage, jamais celui qui la conserve.
@@ -856,21 +868,28 @@ Une couche d'abstraction (LiteLLM, ✅ câblée, routage local-d'abord vers Olla
 locaux et cloud. La politique de sélection croise besoin, confidentialité, coût et ressources :
 données sensibles → local uniquement ; tâche complexe ponctuelle → cloud si le contexte
 l'autorise ; traitement massif → local optimisé. La **porte de confidentialité avant-cloud**
-(détection et masquage d'informations personnelles avant tout envoi externe) est décidée et non
-construite — elle est le prérequis du routage cloud sûr.
+(détection et masquage d'informations personnelles avant tout envoi externe) ~~est décidée et non
+construite~~ — elle est le prérequis du routage cloud sûr. ✅ *Construite le 2026-10-28* (voir
+ci-dessous).
 
 🔄 *Constaté le 2026-10-26* : la politique côté utilisateur est en place — 100 % local par défaut,
 puis « cloud si saturé » ou « cloud autorisé », plafond d'hébergement (souverain par défaut : Albert,
 ILaaS ; commercial : OpenRouter, Anthropic), modèle facturé jamais tiré d'office
-(`accounts/models.py`, refus commun `cloud_models.cloud_refusal`). ⚠ La porte de confidentialité
+(`accounts/models.py`, refus commun `cloud_models.cloud_refusal`). ~~⚠ La porte de confidentialité
 avant-cloud reste NON construite dans le code versionné : le routage cloud existe donc sans elle,
-sous le seul consentement du profil. Ce report est une décision de Fabien du 2026-10-26 (« on
-fera plus tard ») : l'intention est gardée ⏳.
+sous le seul consentement du profil.~~ Ce report était une décision de Fabien du 2026-10-26 (« on
+fera plus tard »), levée le 2026-10-28 (paragraphe suivant).
 
 🔄 *Repris le 2026-10-28* (Fabien : « un objectif ») : la même brique sert le domaine document de
 l'Anonymizer et cette porte — union de détecteurs multilingues orchestrée par Presidio,
 occultation par libellé entre crochets, forme d'origine conservée ; décisions et ordre au
-`ROADMAP §16.4bis`.
+`ROADMAP §16.4bis`. ✅ *Constaté le 2026-10-31* : **la porte existe** (`common/privacy/gate.py`,
+commit `f8ff1641` du 2026-10-28) — par niveau d'hébergement, le geste choisi au profil
+(`UserProfile.cloud_privacy` : pseudonymisation réversible par défaut chez un cloud commercial,
+rien chez un souverain ou un privé) ; détection impossible ⇒ rien ne part ; branchée sur
+`llm_utils.chat_with_source` (`llm_utils.py:863-867`) et l'abonnement Claude Code
+(`services/claude_code.py:320-322`). Hors de sa portée (consigné dans `gate.py`) : les images
+jointes, et les résultats d'outils que le CLI Claude Code obtient par MCP.
 
 ## 12.2 Priorité aux solutions ouvertes ✅
 

@@ -87,7 +87,9 @@ PortSpec:
     estimate_field:  str        # colonne qui porte la valeur ('' = `value`)
 
 ParamSpec:
-    key, type (float|int|bool|enum|str), default, min/max/choices, unit, description
+    key, type ∈ PARAM_TYPES (float|int|bool|enum|str|json), default, min/max,
+    puis NOMMÉS (keyword-only depuis le 2026-10-12) : choices, unit, description
+    # corrigé le 2026-10-31 — function_catalog.py:30 (PARAM_TYPES), :51 (_: KW_ONLY)
 ```
 
 **Règle d'or** : une fonction ne connaît QUE ses `data_type` + `required_fields`. Elle ne sait pas
@@ -122,12 +124,16 @@ parlent la même langue. Proposition de départ (extensible) :
 | `table` | lignes × colonnes (tabulaire) | colonnes libres |
 | `column` | une colonne isolée (applicable colonne-à-colonne) | `value` |
 | `scalar` | valeur unique / indicateur agrégé | `value` |
-| `sections` | intervalles routiers/temporels typés | `start, end[, type, id]` |
+| `segments` | portions de temps bornées (situations, états, sections) — ex-`sections`, renommé le 2026-08-20 (`data_types.py:42`, alias de lecture `LEGACY_TYPE_ALIASES`) | `start, end[, type, id]` |
+| `depth_map` | raster H×W de profondeur métrique, non tabulaire (`data_types.py:45`) | — |
 | `road_map` | polylignes routières (référentiel) | `geometry, id[, type]` — `geometry` = liste de **(lat, lon)** ; le WKT n'est qu'un format d'ENTRÉE du lecteur CSV, jamais la forme qui circule |
 | `detections` | objets détectés par frame (spécifique cam) | `frame, bbox, class, track_id…` |
 
 **Sous-typage / compatibilité** : `geo_track ⊂ timeseries ⊂ table` (une géo-trace EST une timeseries
 qui EST une table). La compatibilité de port suit cette relation + la satisfaction des `required_fields`.
+
+> La liste VIVANTE des types est `data_types.known_types()` (`data_types.py:99`) ; la table
+> ci-dessus en est une lecture datée, complétée le 2026-10-31 (`segments`, `depth_map`).
 
 ---
 
@@ -187,7 +193,8 @@ Ne PAS coder ces fonctions dans une app : brique commune d'abord (règle de cent
 **Placement par DOMAINE (refactoring 2026-07-22, 9945ca8/a06f3be)** : les implémentations vivent
 sous `wama_data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing, ex. RTMaps .rec),
 `geometry/` (primitives + métriques), `kinematics/` (extrapolation, collision), `driving/`
-(fonctions métier conduite, dont les 4 fonctions portées). Le domaine est un **3ᵉ axe orthogonal** à
+(fonctions métier conduite, dont les 4 fonctions portées) — *7 sous-paquets au 2026-10-31 : + `geo/`,
+`temporal/`, `fusion/` ; la liste vivante est le dossier `wama_data/functions/`*. Le domaine est un **3ᵉ axe orthogonal** à
 `data_type` et `category` (cf. docstring `functions/__init__.py`). Les anciens paquets
 `common/rtmaps/` et `common/prediction/` sont SUPPRIMÉS (consolidés ici).
 
@@ -379,7 +386,7 @@ qu'APRÈS 10 apps réelles. Écrire 2-3 plugins d'abord, extraire ensuite (règl
 ## 8. Reste à trancher (quand on implémentera)
 
 - ✅ TRANCHÉ (2026-07-20, c3b009c) — représentation runtime : wrapper **`TypedFrame`**
-  (DataFrame + `data_type` + `meta`), cf. `common/catalog/data_types.py:69`, consommé par les
+  (DataFrame + `data_type` + `meta`), cf. `common/catalog/data_types.py:144`, consommé par les
   fonctions (`placement_metrics` retourne un `TypedFrame(DataType.SCALAR)`).
 - ~~Persistance des chaînes (comme les graphes studio) + exécution (réutiliser Celery + le scheduling
   par `cost`).~~ ✅ **TRANCHÉ** (corrigé le 2026-09-15) : une chaîne est un manifeste `pipeline` (D13,
@@ -396,22 +403,23 @@ qu'APRÈS 10 apps réelles. Écrire 2-3 plugins d'abord, extraire ensuite (règl
 > n'écrit **que son code** (le champ `impl`) — à la main ou **généré par le LLM**. Ports typés,
 > `params`, catégorie, visibilité et portée suivent le formalisme de ce document ; la fonction entre
 > au registre (`UserFunction`, `binding: user`), s'exporte et se ré-importe par le kind `function`
-> (`manifests/builtin/function.py:112-173`, tag `_manifest-gen`, réversible), et devient **appelable
+> (`manifests/builtin/function.py:114-198`, tag `_manifest-gen`, réversible), et devient **appelable
 > dans un pipeline comme n'importe quelle fonction**.
 
 - **Où** : dans le **Calculator**, ouvert depuis une card du **Data Analyzer** (surface « page
   dédiée » de `WAMA_DATA_WORLD §11.8 ①`). On crée/édite, on applique à sa card, puis on promeut au
   lot (garde-fou : entrées requises ⊆ ∩ des catalogues des filles).
 - **Ce qui manque dans le CODE** (mesuré le 2026-09-16 — le formalisme, lui, est complet) :
-  1. `Binding` ne déclare que `PURE` et `APP` (`common/catalog/function_catalog.py:192-196`) — pas
+  1. `Binding` ne déclare que `PURE` et `APP` (`common/catalog/function_catalog.py:208-212`) — pas
      de `USER`, alors que le kind manifeste et `UserFunction.to_dict()` l'emploient déjà ;
   2. une `UserFunction` n'est **jamais fusionnée au `FUNCTION_CATALOG`** — ses seuls lecteurs sont
-     l'admin, le kind `function` et la page catalogue (`model_manager/views.py:1906-1907`) — donc
-     l'exécuteur de pipeline refuse sa clé (`studio/tasks.py:397-399`). ⚠ La docstring du modèle
-     annonce pourtant « fusionnée au catalogue selon la visibilité » (`common/models.py:492`) : c'est
-     une INTENTION, pas un état ;
-  3. `impl` est un **chemin** pour une fonction d'app (`function_catalog.py:208`) et le champ du
-     modèle porte « référence/code (à venir) » (`common/models.py:503`) : pour une fonction
+     l'admin, le kind `function` et la page catalogue (`model_manager/views.py:2257-2259`) — donc
+     l'exécuteur de pipeline refuse sa clé (`studio/tasks.py:463-465`). ⚠ La docstring du modèle
+     annonce pourtant « fusionnée au catalogue par le filtre des catalogues (`catalogue_visible_to`) »
+     (`common/models.py:913-919`, relu le 2026-10-31) : ce filtre est celui de la PAGE catalogue, pas
+     du `FUNCTION_CATALOG` — pour l'exécution, c'est une INTENTION, pas un état ;
+  3. `impl` est un **chemin** pour une fonction d'app (`function_catalog.py:224`) et le champ du
+     modèle porte « référence/code (à venir) » (`common/models.py:930`) : pour une fonction
      utilisateur, `impl` EST le code, et rien ne l'exécute.
 - **La seule décision à prendre** : comment exécuter ce code (bac à sable Python, runtime MATLAB,
   droits, quotas, dépendances autorisées) — `WAMA_APP_GENERATION_ROUTE.md §10.6`, décision ouverte n°7.
