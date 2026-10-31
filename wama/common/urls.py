@@ -14,33 +14,30 @@ from . import surface_views
 from . import views
 from . import panel_views
 from .vectors import views as vector_views
+from . import url_converters  # noqa: F401 — enregistre `<item:…>` (un numéro OU un UUID)
 
 app_name = 'common'
 
+# `<item:pk>` : la clé d'un ÉLÉMENT d'app, un numéro ou un UUID (2026-10-31, `url_converters`) —
+# les apps du monde Lab ont des clés UUID. Les objets propres au substrat (demandes, droits,
+# notifications, planification) gardent `<int:…>`.
 urlpatterns = [
     # Unified preview endpoint: /common/preview/<app_name>/<pk>/
-    path('preview/<str:app_name>/<int:pk>/', preview_utils.unified_preview, name='unified_preview'),
+    path('preview/<str:app_name>/<item:pk>/', preview_utils.unified_preview, name='unified_preview'),
     # Unified detail (infos inspecteur) : /common/detail/<app_name>/<pk>/
-    path('detail/<str:app_name>/<int:pk>/', detail_registry.unified_detail, name='unified_detail'),
+    path('detail/<str:app_name>/<item:pk>/', detail_registry.unified_detail, name='unified_detail'),
     # SURFACES (2026-10-10) : page d'édition COMPOSÉE de briques, déclarée par l'app
     # (`common/surfaces.py`) — page, lecture des données, enregistrement du champ édité.
-    path('surface/<str:app>/<str:key>/<int:pk>/', surface_views.surface_page, name='surface'),
-    path('surface/<str:app>/<str:key>/<int:pk>/data/', surface_views.surface_data,
+    path('surface/<str:app>/<str:key>/<item:pk>/', surface_views.surface_page, name='surface'),
+    path('surface/<str:app>/<str:key>/<item:pk>/data/', surface_views.surface_data,
          name='surface_data'),
-    path('surface/<str:app>/<str:key>/<int:pk>/save/', surface_views.surface_save,
+    path('surface/<str:app>/<str:key>/<item:pk>/save/', surface_views.surface_save,
          name='surface_save'),
     # Les VERSIONS gardées du fichier édité (2026-10-13, `WAMA_COLLABORATION §7.2`).
-    path('surface/<str:app>/<str:key>/<int:pk>/revisions/', surface_views.surface_revisions,
+    path('surface/<str:app>/<str:key>/<item:pk>/revisions/', surface_views.surface_revisions,
          name='surface_revisions'),
-    path('surface/<str:app>/<str:key>/<int:pk>/revisions/<int:number>/',
+    path('surface/<str:app>/<str:key>/<item:pk>/revisions/<int:number>/',
          surface_views.surface_revision_value, name='surface_revision_value'),
-    # Un élément à clé UUID (2026-10-29 : les SESSIONS du monde Lab, `face_analyzer`) — les mêmes
-    # vues sous les MÊMES noms : `reverse` choisit le motif que la clé satisfait.
-    path('surface/<str:app>/<str:key>/<uuid:pk>/', surface_views.surface_page, name='surface'),
-    path('surface/<str:app>/<str:key>/<uuid:pk>/data/', surface_views.surface_data,
-         name='surface_data'),
-    path('surface/<str:app>/<str:key>/<uuid:pk>/save/', surface_views.surface_save,
-         name='surface_save'),
     # La DISPOSITION de chacun (2026-10-21) : places des panneaux et état figé, par compte.
     path('surface/<str:app>/<str:key>/layout/', surface_views.surface_layout,
          name='surface_layout'),
@@ -167,7 +164,7 @@ urlpatterns = [
     # sert déjà « Envoyer vers… » — on ne duplique pas ses gardes.
     path('api/envoyer-vers/chemins/', views.api_envoyer_vers_chemins,
          name='api_envoyer_vers_chemins'),
-    path('api/envoyer-vers/<str:surface>/<int:pk>/', views.api_envoyer_vers,
+    path('api/envoyer-vers/<str:surface>/<item:pk>/', views.api_envoyer_vers,
          name='api_envoyer_vers'),
     # …et pour un LOT (card mère) : les sorties de tous ses éléments, même envoi (2026-10-14).
     path('api/envoyer-vers/<str:surface>/lot/<int:pk>/', views.api_send_batch_to,
@@ -181,10 +178,10 @@ urlpatterns = [
          name='api_queue_content_search'),
     # RÉSULTAT DE RÉFÉRENCE (port `reference_result`) — même forme que le partage : un élément
     # ou un lot, une route pour toutes les surfaces qui DÉCLARENT leur évaluation.
-    path('api/result-reference/<str:surface>/<str:nature>/<int:pk>/',
+    path('api/result-reference/<str:surface>/<str:nature>/<item:pk>/',
          views.api_result_reference, name='api_result_reference'),
     # RÉSULTAT EXISTANT (port `work_result`) — un élément seulement.
-    path('api/result-import/<str:surface>/<int:pk>/', views.api_result_import,
+    path('api/result-import/<str:surface>/<item:pk>/', views.api_result_import,
          name='api_result_import'),
     # L'INVERSE : de quel élément un fichier de l'arbre est-il la SORTIE ? Rend les coordonnées
     # `(surface, pk)` — celles qu'une card porte — pour que l'arbre offre les MÊMES gestes
