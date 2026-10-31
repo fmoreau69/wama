@@ -55,7 +55,7 @@ communes) et des vues partielles/simplifiées (GENERIC_APPS, modales hand-built)
 ## 1. La carte des registres — « qui déclare, qui tire » (réponse à la question de fond)
 
 **L'App Manager EXISTE** — c'est la surface qui gère/présente toutes les applications : `apps_catalog_view`
-(`common/views.py:197` → `/apps/` → `common/apps.html`) + son API `api_apps` (`:170`), pilotée par
+(`common/views.py:287` → `/apps/` → `common/apps.html`) + son API `api_apps` (`:193`), pilotée par
 `APP_CATALOG` + `get_conformity_summary()` (live). **C'est un CONSOMMATEUR** : il lit les registres, il n'en
 est pas la source. Ce qui manque n'est pas l'App Manager, mais **une source unique ÉCRIVABLE** que lui et les
 autres surfaces tireraient — aujourd'hui l'identité + le câblage sont déclarés dans **4 registres tenus à la
@@ -64,17 +64,21 @@ chacun de leur côté :
 
 | Registre | Fichier:ligne | Déclare | Consommé par |
 |---|---|---|---|
-| `APP_CATALOG` | `common/app_registry.py:345` | identité, `input/output_types`, `input_extensions`, drapeaux batch, matrice `conventions` | **App Manager** (`/apps/` `common/views.py:197`), nav, `studio_node_ports`, manifeste, filemanager |
-| `APP_MODES` / `INPUT_TYPES` | `common/utils/app_modes.py:43` / `:19` | domaines→modes→inputs typés, **ports de référence** | `studio_node_ports` (ports `reference` seulement), 5 apps |
-| `GENERIC_APPS` | `studio/services/generic_runner.py:28` | contrat d'exécution studio : `primary_input`/`input_kinds`, pointeur `params_module/attr`, `output_type`, câblage runner | `build_generic_runner`, studio |
-| `CONVERTER_OUTPUT_FORMATS` | `converter/utils/format_router.py` (ré-exporté `app_registry.py:800`) | formats de fichier de sortie par domaine | `output_formats.py`, apps early-binding |
-| `AIModel` (DB) | `model_manager/models.py:49` | catalogue modèles + `capabilities` JSON | `select_model`, `WamaModelCaps`, découverte |
+| `APP_CATALOG` | `common/app_registry.py:1306` | identité, `input/output_types`, `input_extensions`, drapeaux batch, matrice `conventions` | **App Manager** (`/apps/` `common/views.py:287`), nav, `studio_node_ports`, manifeste, filemanager |
+| `APP_MODES` / `INPUT_TYPES` | `common/utils/app_modes.py:226` / `:108` | domaines→modes→inputs typés, **ports de référence** | `studio_node_ports` (`INPUT_TYPES` : ports dérivés des modèles ; `APP_MODES` : ports `reference` du repli — corrigé le 2026-10-31), 5 apps |
+| `GENERIC_APPS` | `studio/services/generic_runner.py:34` | contrat d'exécution studio : `primary_input`/`input_kinds`, pointeur `params_module/attr`, `output_type`, câblage runner | `build_generic_runner` (`:292`), studio |
+| `CONVERTER_OUTPUT_FORMATS` | `converter/utils/format_router.py` (ré-exporté `app_registry.py:1859-1863`) | formats de fichier de sortie par domaine | `output_formats.py`, apps early-binding |
+| `AIModel` (DB) | `model_manager/models.py:664` | catalogue modèles + `capabilities` JSON | `select_model`, `WamaModelCaps`, découverte |
 | **Modèle Django d'app** | `wama/<app>/models.py` | l'item (spine : user/status/task_id/progress…) | lié au runtime via `Detail/PreviewRegistry` dans `apps.py::ready()` |
 
 **Points clés de la carte :**
-- **`studio_node_ports()`** (`app_registry.py:127`) = **l'accesseur UNIQUE de ports** : construit les ports
+- **`studio_node_ports()`** (`app_registry.py:233`) = **l'accesseur UNIQUE de ports** : ~~construit les ports
   `travail`/`prompt` depuis `APP_CATALOG.input/output_types`, PUIS relit `APP_MODES` **uniquement** pour
-  ajouter les ports `reference` (`:152-168`). C'est le point de jonction card⟷nœud⟷preview.
+  ajouter les ports `reference`~~ *(corrigé le 2026-10-31, mesuré : `app_registry.py:253-283`)* construit
+  les ports d'entrée depuis les MODÈLES de l'app (`app_input_ports`, `:415`, 2026-09-10,
+  `INPUT_MODEL_MATCHING §6.3`) + ceux que l'app consomme elle-même (`app_own_input_ports`, `:610`) ;
+  repli sans modèle déclarant (converter, app née d'un manifeste) : `input_types` + ports `reference`
+  d'`APP_MODES` (`:285-334`). C'est le point de jonction card⟷nœud⟷preview.
 - ~~**`GENERIC_APPS` re-déclare les E/S à la main** → redondance réelle~~ **RÉSORBÉE (2026-08-11,
   `b91f875`, §10.1)** : `GENERIC_APPS` **dérive** ses E/S de `studio_node_ports()` à l'import
   (`_fill_io_from_ports`, ordre = priorité préservé — la redéclaration manuelle avait fait perdre
@@ -82,9 +86,10 @@ chacun de leur côté :
   déclaré (imager V1 txt2img, enhancer média seul, avatarizer audio seul), sinon `studio_redundancy`
   la nomme `drift`. Les champs de **câblage runner** (`params_module/attr`, `input_kwarg`,
   `fixed_kwargs`, `auto_start`) restent déclarés — ce n'est pas de la redondance.
-- **`INSTALLED_APPS`** (`settings.py:268`) = liste plate hand-maintenue, disjointe des registres.
+- **`INSTALLED_APPS`** (`settings.py:467`) = liste plate hand-maintenue, disjointe des registres.
 - **Le manifeste `app`** (`manifests/builtin/app.py`) **agrège DÉJÀ les 4 registres + Django** en un
-  body 12 facettes ; **write-back : 10 facettes** (`PROJECTED_FACETS` — `access` DB +
+  body de 13 facettes (`APP_FACETS`, `app.py:41-42` — corrigé le 2026-10-31 ; plus `surfaces`, déclarée
+  au manifeste et rendue par `codegen/surfaces_gen.py:36-38`, pas extraite) ; **write-back : 10 facettes** (`PROJECTED_FACETS` — `access` DB +
   identity/ports/capabilities/studio/modes/prompts/params/inspector/tool_api en CODE marqué
   `[manifest-gen]`) **+ `processing` partiel** (urls.py régénérable, tasks.py mince — gabarits
   `common/manifests/codegen/`, §10.3 marches A — models.py A5 en CREATE-ONLY) ; les corps
@@ -102,23 +107,23 @@ Pour chaque facette : **source de vérité** · **adoption réelle** · **trous/
 manifeste** (ce que le kind `app` capte + cible de projection).
 
 ### F1 — Identité & enregistrement  ⟷ `SPEC §F1`
-- **Source** : `APP_CATALOG` (`app_registry.py:345`). `color` = **DÉRIVÉ** (HSL par catégorie,
-  `_assign_derived_colors:845`), pas déclaré. `description_long` fusionné à l'import (`:908`).
-- **Trous** : la matrice `conventions` (`_conv:181`) **dérive** (flags périmés corrigés en commentaires) —
-  la source vivante est `get_conformity_summary()` (`:863`), pas les listes figées.
-- **Manifeste** : capté (`app.py:86-92`). ⚠ garder `color` marqué *dérivé* (projection, pas donnée saisie).
+- **Source** : `APP_CATALOG` (`app_registry.py:1306`). `color` = **DÉRIVÉ** (HSL par catégorie,
+  `_assign_derived_colors:1962`), pas déclaré. `description_long` fusionné à l'import (`:2188`).
+- **Trous** : la matrice `conventions` (`_conv:815`) **dérive** (flags périmés corrigés en commentaires) —
+  la source vivante est `get_conformity_summary()` (`:2118`), pas les listes figées.
+- **Manifeste** : capté (`manifests/builtin/app.py:238`, `extract_app`). ⚠ garder `color` marqué *dérivé* (projection, pas donnée saisie).
 
 ### F2 — Ports, typage E/S & capacités  ⟷ `SPEC §F2` (règle preview)
 - **Source ports** : `studio_node_ports()` (accesseur unique). **Source typage sortie** (chaîne RÉELLE, PAS
   un trou) : `output_types`(APP_CATALOG) → `_domain_from_output_types` → `get_output_formats()` réutilise
   `CONVERTER_OUTPUT_FORMATS` → `output_format_params_for_app()` injecte les Param format/qualité **seulement
-  si `export_binding='early'`** (`output_formats.py:90`), sinon choix au téléchargement (late). **Converter =
+  si `export_binding='early'`** (`output_formats.py:216`, test `late` `:238`), sinon choix au téléchargement (late). **Converter =
   source unique** des formats. Depuis le 2026-09-30 la brique porte aussi l'APPLICATION des réglages
   de sortie (`apply_output_settings` : agrandissement tiré du catalogue, puis format) — cf.
   `WAMA_APP_CONVENTIONS §6.4`.
 - **⚠ SURCHARGE `output_types` (à corriger proprement, 2026-07-22)** : 5 apps y mettent des FORMATS au lieu
   de catégories — composer `(wav,mp3)`, describer `(txt)`, reader `(txt,markdown)`, synthesizer `(mp3,wav)`,
-  transcriber `(txt,srt,vtt,json)`. `normalize_types()` (def `:80`, appels `:139-140`, `:166`) est la BÉQUILLE qui rattrape. **MODÈLE
+  transcriber `(txt,srt,vtt,json)`. `normalize_types()` (def `:155`, appels `:249-250`, `:332`) est la BÉQUILLE qui rattrape. **MODÈLE
   PROPRE = 3 concerns SÉPARÉS, jamais surchargés :**
   | Concern | Nature | Ex. | Consommé par |
   |---|---|---|---|
@@ -129,10 +134,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   domaine converter ; transcriber srt/vtt/json = app-spécifiques, sourcés d'où ils vivent déjà, ex.
   `download_srt`). **Prérequis : tracer les consommateurs de formats BRUTS** (sélecteurs de téléchargement
   des 5 apps) — les consommateurs de catégorie normalisent déjà. UI inchangée.
-- **Redondance** : `GENERIC_APPS.input_kinds/output_type` redéclare l'E/S ; sentinelle `'auto'` propre au
-  studio (absente d'APP_CATALOG). `derive_io_from_ports()` (`projection.py:80`) prouve la reconstructibilité.
+- **Redondance** : ~~`GENERIC_APPS.input_kinds/output_type` redéclare l'E/S~~ ✅ résorbé le 2026-08-11
+  (§10.1, `generic_runner._fill_io_from_ports` `:147`) ; reste la sentinelle `'auto'` propre au
+  studio (absente d'APP_CATALOG). `derive_io_from_ports()` (`projection.py:92`) prouve la reconstructibilité.
 - **Manifeste** : ports captés via l'accesseur unique ; **typage de sortie = CAPACITÉ** (`export_binding`
-  early/late), les formats restent au converter. **Cible : GENERIC_APPS devient projection des ports.**
+  early/late), les formats restent au converter. ~~**Cible : GENERIC_APPS devient projection des ports.**~~
+  ✅ 2026-08-11 (§10.1).
 
 **DÉCISION 2026-07-22 (Fabien) — DOMAINE vs MODE (deux affordances UI distinctes) :**
 - **DOMAINE = onglets** : bifurcation de *but* (imager : Images/Vidéos ; enhancer : Image-Vidéo/Audio).
@@ -155,8 +162,8 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   Principe : **but qui change → domaine/onglet ; mêmes but, contrôles qui changent → mode/switch dérivé.**
 
 ### F3 — Paramètres & UI générée  ⟷ `SPEC §F3`
-- **Source** : `params.py` `PARAMS_JSON` (dataclass `Param`, `param_schema.py:24`), **une seule source
-  déclarative, 10/10 apps l'ont**. `coerce_params()` (`:147`) = validation serveur (bornes = le schéma).
+- **Source** : `params.py` `PARAMS_JSON` (dataclass `Param`, `param_schema.py:28`), **une seule source
+  déclarative, 10/10 apps l'ont**. `coerce_params()` (`:729`) = validation serveur (bornes = le schéma).
 - **Renderer commun** : `WamaParams` (`wama-params.js`) rend item/panel ; **MAIS** :
   - ~~modale batch JAMAIS rendue par WamaParams~~ — **PÉRIMÉ, mesuré 2026-08-06** : anonymizer,
     avatarizer et imager rendent `context:'batch'`. Ce qui reste écrit à la main est la **coquille**
@@ -166,19 +173,20 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     WamaParams).~~ ✅ **2026-10-12 (marche R1)** : l'inspecteur du Studio rend tous ses nœuds par
     `WamaParams` (contexte `item`), depuis leur schéma `Param` (`studio/services/node_params.py`) —
     `REMOVAL_LEDGER R116`. Route tracée, tous mondes : **§10.6 point 3.3bis** (une forme `Param`, un
-    rendu, une coercition — fonctions Data, nœuds intégrés et profil Lab compris ; restent R2-R4).
+    rendu, une coercition — fonctions Data, nœuds intégrés et profil Lab compris ; restent R2-R4 —
+    R2 ✅ 2026-10-18, restent R3-R4 au 2026-10-31).
 - **Adoption réelle — RE-MESURÉE le 2026-08-31** (balayage exhaustif des 10 apps, fichier:ligne
   au §S2ter ; la table qui vivait ici datait du 06/08 et disait 3/10 là où le parc est à 10/10) :
 
   | Surface | Mesure 31/08 | Le vrai déficit |
   |---|---|---|
   | déclencheur ⚙ commun (`WamaQueueActions.onSettings`) | **10/10** | — |
-  | **cycle complet** de modale item (`WamaParams.settingsModal`) | ~~2/10~~ **9/10 au 2026-09-24** (anonymizer, imager, enhancer 21/09, reader · synthesizer · composer · describer · avatarizer · converter 24/09) | 1 app réécrit encore ouvrir→rendre→sauver→fermer à la main : transcriber (autre session). **Converter** : valeurs lues par `status` avant ouverture, `collect` → `output_format` + `options_json` par le lecteur schéma, `decorate` → garde RUNNING, relance, « Par défaut », « Sauver comme profil » (par classe). ⚠ Le geste `<app>.settings` a été ÉTENDU (fidélité au ⚙, réouverture, actions du pied — `WAMA_VERIFICATION §3` geste 2) et a trouvé au 1er passage une régression de la modale générée : valeur enregistrée perdue au remplissage asynchrone des options — corrigée À LA BRIQUE (`wama-params.js`). **Avatarizer** : sa modale câble `WamaModelCaps` + `WamaInputMatch` à chaque ouverture (`decorate`) ; préalable levé À LA BRIQUE — l'écouteur ✕ de `WamaInputMatch` est unique pour la page (il en posait un par `init`) ; geste d'appariement mesuré sur une modale ROUVERTE, 10/10 (`INPUT_MODEL_MATCHING §6.7`). ⚠ Ne pas confondre les deux lignes : c'est la confusion déclencheur/cycle qui a rendu toutes les tables précédentes fausses |
+  | **cycle complet** de modale item (`WamaParams.settingsModal`) | ~~2/10~~ ~~9/10 au 2026-09-24~~ **10/10 au 2026-09-26** (anonymizer, imager, enhancer 21/09, reader · synthesizer · composer · describer · avatarizer · converter 24/09, transcriber 26/09 — `transcriber/js/index.js:430` ; corrigé le 2026-10-31) | ~~1 app réécrit encore ouvrir→rendre→sauver→fermer à la main : transcriber (autre session).~~ — **Converter** : valeurs lues par `status` avant ouverture, `collect` → `output_format` + `options_json` par le lecteur schéma, `decorate` → garde RUNNING, relance, « Par défaut », « Sauver comme profil » (par classe). ⚠ Le geste `<app>.settings` a été ÉTENDU (fidélité au ⚙, réouverture, actions du pied — `WAMA_VERIFICATION §3` geste 2) et a trouvé au 1er passage une régression de la modale générée : valeur enregistrée perdue au remplissage asynchrone des options — corrigée À LA BRIQUE (`wama-params.js`). **Avatarizer** : sa modale câble `WamaModelCaps` + `WamaInputMatch` à chaque ouverture (`decorate`) ; préalable levé À LA BRIQUE — l'écouteur ✕ de `WamaInputMatch` est unique pour la page (il en posait un par `init`) ; geste d'appariement mesuré sur une modale ROUVERTE, 10/10 (`INPUT_MODEL_MATCHING §6.7`). ⚠ Ne pas confondre les deux lignes : c'est la confusion déclencheur/cycle qui a rendu toutes les tables précédentes fausses |
   | rendu batch `context:'batch'` (WamaParams) | **10/10** | la coquille de modale reste à la main hors anonymizer/imager ; le GÉNÉRATEUR émet désormais l'ouvreur de lot complet (§S2ter) |
   | chips métadonnée (`card_chips`) | **10/10** (11 décorateurs, 6 noms — §S2ter) | l'assiette `values` (JSON) n'est passée que par converter |
   | `gear_data` (property modèle) | **10/10** | — |
   | écran DÉRIVÉ des capacités du modèle (`cap_from` au schéma, ou `WamaModelCaps`) | ~~synthesizer seul~~ ~~8/8 apps au 2026-10-02~~ **8/8 au 2026-10-13** (grille `model_caps_ui` ; 9 apps à sélecteur de moteur, le describer non applicable) : `cap_from` pour imager, composer, reader, transcriber et enhancer (mode `reads`, 13/10), `WamaModelCaps` appelé pour synthesizer, avatarizer et anonymizer | la forme déclarative (`cap_from`) est la cible. ⚠ Le « 8/8 » du 02/10 comptait le transcriber et l'enhancer VERTS par un commentaire annonçant le retrait de leur brique : le critère compte un APPEL depuis le 13/10 (`INPUT_MODEL_MATCHING §7`) |
-  | **champ de VOLET généré** (`WamaParams.render(context:'panel')` + source d'options) | **1/10 au 2026-09-27** — synthesizer, le seul champ de voix | Les autres champs de volet restent écrits à la main, avec leur `name=` ; l'inspecteur lit les DEUX formes (`[name=]`,`[data-param=]`), donc une app peut porter ses champs UN PAR UN. ⚠ Ce qui bloquait n'était pas technique : une phrase (« les options sont SERVER-RENDERED, on NE remplace donc PAS les champs ») recopiée du schéma vers DEUX briques communes **et cette route**. Le portage a d'abord consisté à la retirer. ⚠ Piège mesuré : un champ généré n'a **pas** de `name=` en contexte `panel` — tout lecteur qui n'interroge que `[name=]` cesse d'enregistrer, sans erreur |
+  | **champ de VOLET généré** (`WamaParams.render(context:'panel')` + source d'options) | ~~1/10 au 2026-09-27 — synthesizer, le seul champ de voix~~ **10/10 apps ont au moins un champ de volet généré** (corrigé le 2026-10-31, mesuré : `context: 'panel'` dans le gabarit `index.html` des dix apps — l'anonymizer `index.html:280`) ; la PART générée de chaque volet n'est pas mesurée ici | Les champs non portés restent écrits à la main, avec leur `name=` ; l'inspecteur lit les DEUX formes (`[name=]`,`[data-param=]`), donc une app peut porter ses champs UN PAR UN. ⚠ Ce qui bloquait n'était pas technique : une phrase (« les options sont SERVER-RENDERED, on NE remplace donc PAS les champs ») recopiée du schéma vers DEUX briques communes **et cette route**. Le portage a d'abord consisté à la retirer. ⚠ Piège mesuré : un champ généré n'a **pas** de `name=` en contexte `panel` — tout lecteur qui n'interroge que `[name=]` cesse d'enregistrer, sans erreur |
   | **réglages utilisateur persistés** (`user_settings`) | ~~8/10~~ **10/10** (remesuré le 2026-10-18 : l'anonymizer est passé à la brique le 27/09, l'enhancer le 29/09 — la ligne disait encore « table Django maison ») | — |
   | **naissance d'un élément par la cascade COMMUNE** (`user_settings.new_element_settings` : défauts du schéma ← préférences retenues de l'auteur ← le posté ; critère `birth_settings_common`, 2026-10-18) | ~~9/10~~ **10/10** (le converter le 2026-10-19, `59dc82d1` — son format reste retenu PAR NATURE, `format_router.output_format_for`, hors de la cascade) | Mesuré le jour du critère : 2/10. Chaque app avait sa cascade — défauts du schéma recopiés en dictionnaire, défauts du schéma sans les préférences, défauts écrits à la lecture du POST — et le GÉNÉRATEUR émettait la sienne (`_reglages_du_depot`, noms de réglages figés : le reste n°4 du `PROJECT_STATUS §CLÔTURE 2026-09-27`). Les spécificités restent des RÈGLES DÉCLARÉES de l'app, appliquées après la cascade : clé de stockage (`params.user_setting_key` : ce qui se retient et sous quel nom — la voix de l'avatarizer, les `preferred_*` du synthesizer), défauts du modèle choisi en PRÉRÉGLAGE (imager), valeur vide qui est un choix (`empty_is_value` : la graine), refus et normalisations (modèle du composer, facteur de l'enhancer). ✅ La naissance de l'amélioration AUDIO de l'enhancer le 2026-10-28 (`c23363e4` : le réglage porte le nom de sa colonne, `denoising_strength`), et ses DEUX outils de l'assistant le 2026-10-29 (`add_to_enhancer`, `add_to_audio_enhancer` : `new_enhancement_settings` / `new_audio_settings`, comme le dépôt). ⚠ Reste : les sept autres créateurs de `tool_api` (anonymizer, imager, composer, describer, transcriber, reader, avatarizer) — signatures à défauts écrits, puis `schema_model_kwargs` de ce qu'ils reçoivent : les réglages retenus de l'auteur n'y jouent pas |
 - **Manifeste** : `params` = `{primary, schemas}` **multi-schémas depuis le palier params**
@@ -188,9 +196,11 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 ### F3b — Inspecteur, preview & progression  ⟷ `SPEC §F3 (inspector)`
 - **Inspecteur** : `DetailRegistry` + `build_detail` (dict canonique plat ; labels/sections en JS
   `DETAIL_SCHEMA`). **11 apps** enregistrées.
-- **Preview** : `PreviewRegistry` + `unified_preview` ; **10/11** (imager exclu, décision documentée). Règle
+- **Preview** : `PreviewRegistry` + `unified_preview` ; ~~**10/11** (imager exclu, décision documentée)~~
+  **11/11** (corrigé le 2026-10-31, mesuré : l'imager s'est enregistré, `imager/apps.py:58`, entrée =
+  `reference_image`). Règle
   **entrée = port `travail` sinon `prompt`, JAMAIS `reference`** — **implémentée et vérifiée** via l'accesseur
-  unique (`preview_utils.py:66-85`). Face sortie dérivée de l'adapter Detail (couplage Preview→Detail).
+  unique (`preview_utils.py` : `_input_port_group` `:218`, `_work_natures` `:240`, `_input_preview` `:293`). Face sortie dérivée de l'adapter Detail (couplage Preview→Detail).
   ⚠ **Corrigé le 2026-10-12** (Describer « No media URL available », entrée du Reader inerte —
   Fabien) : « vérifiée » était un constat PÉRIMÉ. La règle des ports décidait bien du GROUPE, mais
   le port `travail` lisait alors le `file_field` du registre d'aperçu, seconde déclaration de
@@ -209,7 +219,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   d'un port de travail (`_work_natures`, `category_of_path`), sinon la face prend `source_text`.
   Limite dite : une référence de MÊME nature qu'un port de travail ne serait pas distinguée.
 - **« PENDANT » (preview progressive)** : **chaîne COMPLÈTE** (composer `emit_streaming_peaks` →
-  capacité `during_preview=True` `app_registry.py:455` → face `?side=during` `preview_utils.py:255`
+  capacité `during_preview=True` `app_registry.py:1439` → face `?side=during` `preview_utils.py:883-885`
   → **consommée par `wama-inspector.js` `_startDuring`** (polling 1300 ms, auto-arrêt en fin de run).
   ⚠ **Correction 2026-07-30** : ce doc affirmait « `media-preview.js` ne le consomme pas → maillon
   FRONTEND manquant ». C'était **faux** — le consommateur est l'inspecteur, `media-preview.js` ne fait
@@ -416,13 +426,19 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   qu'au fil d'une autre : le chantier touche l'éditeur du transcriber, outil de travail quotidien.
   - **Déclencheur mesuré (2026-09-30)** : la preview d'ENTRÉE du volet droit n'affiche pas l'onde
     d'un audio long — et attendre n'y change rien. Le lecteur commun ne décode lui-même qu'en deçà
-    de 30 Mo (`wama-audio-player.js:188`, `MAX_DECODE_BYTES`) et `unified_preview` ne fournit des
-    pics qu'à la face « pendant » (`preview_utils.py:254-257`), jamais à l'entrée. Or le
+    de 30 Mo (`wama-audio-player.js:194`, `MAX_DECODE_BYTES`) et `unified_preview` ne fournit des
+    pics qu'à la face « pendant » (`preview_utils.py:883-885`), jamais à l'entrée. Or le
     transcriber CALCULE déjà ces pics pour son éditeur (`workers.compute_waveform_peaks`, statut
-    `Transcript.waveform_status`, lecture `wama/transcriber/views.py:677` `waveform_peaks`) : ils existaient pour les deux cards du
+    `Transcript.waveform_status`, lecture `wama/transcriber/views.py:677` `waveform_peaks` —
+    retirés le 2026-10-21, `REMOVAL_LEDGER R165`, remplacés par `waveform.dense_peaks` /
+    `data/?only=peaks`) : ils existaient pour les deux cards du
     lot #489 (MP3 de 136 Mo, 2 h 22) sans que le volet s'en serve. Le calcul de pics est déjà
     commun (`common/utils/waveform.compute_peaks`) ; leur **stockage et leur service** ne le sont
     pas.
+    ✅ *Constat du 30/09, levé (vérifié le 2026-10-31)* : pics serveur pour toute face audio lourde
+    depuis le 2026-10-04 (`preview_utils._add_server_peaks` `:176`, appliqué après le choix de la
+    face `:899`, entrée comprise), pics fins stockés et servis au commun depuis le 2026-10-21
+    (`waveform.dense_peaks` `:72`, R165).
   - **Ce qui est déjà consigné — à relire AVANT de proposer** : `PROJECT_STATUS §Addendum 19/08 (soir) —
     ARBITRAGES D'ARCHITECTURE` (inventaire de 4 transports indépendants — transcriber `edit.js`, cam_analyzer, face_analyzer
     `video.html`, filemanager — + 5 rendus « mime → aperçu » concurrents ; doublons comptés) ;
@@ -1018,7 +1034,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       `attach(el, {play, seek})`, par lesquels le LECTEUR QUI POSSÈDE le média le fait jouer et le
       positionne avec SES règles — lecture exclusive (`WamaAudioPlayer.play`), position reposée
       quand le fichier devient positionnable et métadonnées réclamées à un player à pics serveur
-      (`WamaAudioPlayer.seek`, `wama-audio-player.js:473`). ⚠ Une première version recopiait cette
+      (`WamaAudioPlayer.seek`, `wama-audio-player.js:465`). ⚠ Une première version recopiait cette
       dernière règle dans l'axe et dans l'éditeur : retirée à la relecture (consigne de Fabien, *« ne
       rien réinventer »*), et la brique `media_transport`, qui forçait elle aussi `preload` et
       jouait le média sans la lecture exclusive, passe par les mêmes crochets. Plus la virgule
@@ -1421,7 +1437,10 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       AFFICHÉS sont ceux que nomme le titre ; contre-épreuve sur HEAD : ces 8 gestes rouges, les
       27 autres verts.
 - **ETA** : `WamaEta` (1 moteur, 3 niveaux carte/batch/global) + backend apprenant `eta_estimator` +
-  `ModelRuntimeStat`. ~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).
+  `ModelRuntimeStat`. ~~~9 apps enregistrent `record_run` (reader/anonymizer = front sans apprentissage).~~
+  Les 10 apps apprennent (corrigé le 2026-10-31, mesuré) : `record_run` par `run_item_task`
+  (`task_skeleton._record_eta` `:763-772`), clé déclarée par la glu (`'eta'` rendu par le process —
+  ex. `reader/tasks.py:188` `reader_eta_key_size`, `anonymizer/tasks.py:23` `anonymizer_eta_key_size`).
 - **Manifeste** : inspector adapter (mapping champs→clés canoniques), preview binding sur port,
   capacité `during_preview` (`streaming`, son doublon sans lecteur, retiré le 2026-10-06),
   profil ETA (unit + a-priori load/per_unit).
@@ -1435,13 +1454,13 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   que le vocabulaire canonique existait. **Une facette qui ne pointe pas vers son document de domaine
   produit exactement la duplication que la route combat.**
 - **Catalogue** = `AIModel` (source unique), `capabilities` JSON canonique (`CANONICAL_CAPABILITIES`,
-  `model_capabilities.py:30`). **Découverte** : `_discover_<app>_models()` importe le `model_config.py` de
+  `wama/common/utils/model_capabilities.py:38`). **Découverte** : `_discover_<app>_models()` importe le `model_config.py` de
   l'app et construit les capabilities (`model_registry.py`). **Déclaration app** : `<APP>_MODELS` + `*_DIR`.
 - **Tirage runtime** : `settings.MODEL_PATHS → *_DIR → ~~HF_HUB_CACHE (avant import) →~~ cache_dir → from_pretrained`
   (backends imager conformes AGENTS.md) — **indépendant de `select_model()`**. ⚠ La mutation de
   `HF_HUB_CACHE` est INTERDITE depuis le 2026-09-03 (`AGENTS.md`, « le modèle par `cache_dir=`, ses
   dépendances par le cache partagé ») ; budget de mutations 0 (`tests_hf_cache_routing`).
-- **Sélection VRAM-aware** `select_model()` (`model_selector.py:66`) : ~~**adoptée par 2/10** — composer
+- **Sélection VRAM-aware** `select_model()` (`model_selector.py:509`) : ~~**adoptée par 2/10** — composer
   (`auto_model.py:43`) + **transcriber depuis 2026-07-24** (`transcriber/backends/manager.py`,
   `_select_backend_via_model_manager` = fin adaptateur, **fallback intégral** sur la priorité statique si
   catalogue vide/model_manager KO ; pont granularité backend↔model_key via `_backend_for_model_key`).
@@ -1462,8 +1481,9 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   **Levier retenu** : `BaseModelBackend` enveloppant déjà `load`/`unload` à toute profondeur, il tient
   désormais un registre d'instances résidentes (`_LIVE_BACKENDS`, WeakSet) et **enregistre l'unloader de
   l'app à la première résidence réelle** → 6 apps couvertes **sans boilerplate**, présentes et futures.
-  Déclaration explicite réservée au hors-contrat (describer/BLIP en variable de module,
-  transcriber/pyannote), **dans l'`apps.py` de l'app** — auparavant le model_manager devait connaître
+  Déclaration explicite réservée au hors-contrat (~~describer/BLIP en variable de module,~~
+  transcriber/pyannote seul, `transcriber/apps.py:29` — corrigé le 2026-10-31 : BLIP du describer est
+  passé au contrat, `common/backends/blip_backend.py:22` `BlipBackend(BaseModelBackend)`), **dans l'`apps.py` de l'app** — auparavant le model_manager devait connaître
   les internes de chaque app. `unload_model()` route par préfixe d'app et répond `False` en l'absence
   d'unloader. Hors process (sous-processus) → `vram_reservation` (avatarizer).
   ⚠ Non applicable au synthesizer : il ne charge **rien** en process (aucun `torch`, aucun
@@ -1483,7 +1503,8 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   `process` est enveloppé à son tour pour horodater l'USAGE — c'est ce qui rend la RÉSIDENCE et
   l'INACTIVITÉ visibles d'un process à l'autre (`resident_models()` / `idle_models()`), là où
   `AIModel.is_loaded` ne pouvait rien dire : rien ne l'écrit, et un singleton Python ne traverse pas
-  les process. **ADOPTION 7/10 apps** — imager,
+  les process. **ADOPTION 7/10 apps au 2026-07-29** (depuis : + describer, BLIP au contrat ; tous les
+  backends vivent sous `wama/common/backends/` — compte non remesuré le 2026-10-31) — imager,
   **transcriber** (2026-07-29 : `SpeechToTextBackend` était un contrat CONCURRENT hérité d'`ABC`, ses
   3 moteurs échappaient donc à tout le mécanisme, + `PyannoteDiarizerBackend`), **anonymizer** (29/07 :
   aucun `backends/`, 3 porteurs de modèle rattachés par `DetectionBackend`), enhancer, reader, composer.
@@ -1501,7 +1522,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **⚠ À réintégrer depuis l'archive** : le détail par backend (ex-`BACKEND_CARTOGRAPHY.md`) n'a pas été
   re-tracé en profondeur ici — pointeur `docs/construction/archive/BACKEND_CARTOGRAPHY.md` en attendant sa fusion en F4.
 
-#### 🔴 F4b — La DERNIÈRE JAMBE manquante : les OPTIONS du select ne viennent pas du catalogue (mesuré 2026-08-31)
+#### ✅ F4b — Les OPTIONS du select viennent du catalogue (ouvert le 2026-08-31 comme « la DERNIÈRE JAMBE manquante », soldé le 2026-10-07 : 9/9 apps à modèles)
+
+> *Titre corrigé le 2026-10-31, mesuré : `options_source="catalog"` déclaré dans les `params.py` des
+> 9 apps à modèles (anonymizer, avatarizer, composer, describer, enhancer, imager, reader,
+> synthesizer, transcriber — ex. `anonymizer/params.py:99`, `composer/params.py:44`). Le diagnostic
+> du 31/08 ci-dessous est conservé comme trace datée.*
 
 > **La route n'est PAS à double sens — et le dire ainsi était une erreur de ma part (recadrage
 > Fabien, 31/08).** Le sens est unique et il est celui écrit ci-dessus : *déclaration d'app
@@ -1522,7 +1548,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 | **Scan disque** (hors catalogue) | anonymizer (`utils/model_manager.py:317`) |
 | Aucun select | describer, converter (N/A) |
 
-⚠ **`get_registry_models` (`model_selector.py:377`) est la SEULE brique catalogue→options, et elle
+⚠ **`get_registry_models` (`model_selector.py:871`) est la SEULE brique catalogue→options, et elle
 n'a qu'UN consommateur applicatif** (vérifié par grep exhaustif). Elle existe, elle marche, elle
 n'est pas câblée.
 
@@ -1535,7 +1561,8 @@ venaient du catalogue, il n'y aurait rien à re-clé. Elles sont la cicatrice du
 pièce de l'architecture — et elles disparaissent avec lui.
 
 **Le BLOQUANT technique à traiter en premier (sinon le câblage ne montrera rien)** : `model_sync`
-réécrit `capabilities` EN ENTIER depuis la découverte (`model_sync.py:206`). Un modèle installé
+réécrit `capabilities` EN ENTIER depuis la découverte (`model_sync.py:206` au 31/08 ; depuis, la
+règle « ne jamais écraser un fait curé par une absence » est en `model_sync.py:411-415`). Un modèle installé
 par la prospection et catalogué par le **balayage générique des snapshots HF** naît donc avec
 `capabilities={}` et `backend_ref=''` — invisible d'un filtre par capacité. Vécu le 31/08 :
 Kokoro-ONNX, chatterbox et Audio8 sont au catalogue, licenciés, avec `composition`… et sans une
@@ -1550,18 +1577,22 @@ découverte gardant les FAITS : présence, format, taille, VRAM mesurée) → `g
 **filtré par CAPACITÉ** (`task`/`modalities`/`inputs`, jamais par `source` — un modèle sert
 plusieurs surfaces : l'avatarizer emprunte le parc TTS, l'assistant vocalise, le studio et le Lab
 consomment) → `params.py` déclare `options_source: "catalog"` → `WamaParams` rend le select
-(mécanisme `OPTION_SOURCES`, `wama-params.js:340`, **déjà déclaratif et déjà extensible**).
+(mécanisme `OPTION_SOURCES`, `wama-params.js:969`, `PAGE_OPTION_SOURCES` `:1266`, **déjà déclaratif et déjà extensible**).
 Au lancement, le backend est dispatché par `composition.runtime.engine` — deux précédents qui
 tournent : `AudioCppBackend` (Music3) et `KokoroOnnxBackend` (31/08).
 
 **Ordre de portage** (chaque étape livrable seule) : ① socle sans changement d'UI (capacités au
 manifeste + filtre par capacité + source `catalog`) ; ② **synthesizer** (pilote — ⚠ piège :
 `VoiceSynthesis.tts_model` porte `choices=`, donc *toute liste dans un champ de modèle exige une
-migration* : preuve par l'absurde que la liste ne doit pas y vivre) ; ③ **avatarizer** (valide le
-multi-surface) ; ④ composer + reader (déjà rendus par WamaParams : seule la source change) ;
+migration* : preuve par l'absurde que la liste ne doit pas y vivre) — ✅ **livrée le 2026-09-01** ;
+③ **avatarizer** (valide le multi-surface) — ✅ **livrée le 2026-09-01** ; ④ composer + reader
+(déjà rendus par WamaParams : seule la source change) — ✅ reader le 2026-09-08, composer le
+2026-10-01 (`composer/params.py:30`) ;
 ⑤ enhancer (7 modèles déclarés **4 fois**) — ✅ **livrée le 2026-10-06**, cf. ci-dessous ; ⑥ imager (aligner l'image sur la vidéo, replier les
 8 `SUPPORTED_MODELS` sur `composition.runtime`) — ✅ **livrée le 2026-09-29**, cf. ci-dessous ; ⑦ transcriber (pont backend↔catalogue) — ✅ **livrée le 2026-09-30**, cf. ci-dessous ;
-⑧ anonymizer (scan disque conservé en repli jusqu'à preuve) ; ⑨ surfaces transverses (assistant,
+⑧ anonymizer (scan disque conservé en repli jusqu'à preuve) — ✅ **livrée le 2026-10-07**
+(`anonymizer/0036`, `anonymizer/params.py:97-99` ; le scan disque subsiste,
+`anonymizer/utils/model_manager.py:342`) ; ⑨ surfaces transverses (assistant,
 studio, Lab — `cam_analyzer` n'a **aucun** usage du catalogue : chantier à part).
 
 ##### ✅ Étapes ② et ③ LIVRÉES le 2026-09-01 (`c27f134e`, `b039ec51`)
@@ -1975,9 +2006,10 @@ et il alimente l'étage qui manque au tirage automatique (voir ci-dessous).
 - ~~**L'INTENTION manque au contrat commun**~~ → **✅ LIVRÉE le 2026-09-02** (curseur de
   qualité CONTINU 0-100, `select_model(quality_intent=…)` — détail au §brique
   d'auto-sélection ci-dessus).
-  Le prototype `precision_level` 0-100 de l'anonymizer (`params.py:107`) reste app-local :
+  ~~Le prototype `precision_level` 0-100 de l'anonymizer (`params.py:107`) reste app-local :
   il pilote AUSSI des couplages propres à l'app (chemin de floutage au-delà de 50) qui ne
-  doivent pas monter au commun — son ralliement au curseur commun = chantier séparé.
+  doivent pas monter au commun — son ralliement au curseur commun = chantier séparé.~~ → rallié
+  le 2026-09-02 (`anonymizer/params.py:122`, `intent_param`), cf. plus bas.
 - **Modèles réputés DÉFAILLANTS** (bark saturé, vibevoice-asr « voix au ralenti » — constats
   de Fabien) : le levier EXISTE et il est déjà documenté comme tel — `is_available=False` est
   une **décision humaine** que la découverte n'a pas autorité pour écraser (`model_sync`).
@@ -2028,8 +2060,9 @@ légitime déclarée (correspondance mode→domaine imager, musique/ambiance com
   contrat, liaison déléguée), tricolore par zone, visible seulement sur « auto »,
   PRÉVISION qui suit le curseur en direct. Adopteurs : synthesizer (toutes surfaces) et
   avatarizer (modale item) — champ `quality_intent` (IntegerField défaut 50) ; lecture
-  POST par la brique (`read_quality_intent`, bornée, ne lève jamais). Ralliement
-  converter/anonymizer = suite du portage (le commun est prêt).
+  POST par la brique (`read_quality_intent`, bornée, ne lève jamais). ~~Ralliement
+  converter/anonymizer = suite du portage (le commun est prêt).~~ → anonymizer rallié le 2026-09-02,
+  converter le 2026-09-20 (cf. plus bas).
 - **La DONNÉE de qualité reste le maillon faible — et son plan est acté (Fabien, 02/09)** :
   tant que le parc d'une tâche n'a ni benchmark ni indice, le score pondère le proxy VRAM
   (= « le plus gros ≈ le meilleur », faux pour l'usage réel : XTTS/Kokoro, les plus
@@ -2206,9 +2239,10 @@ sur un repli qui a l'air de marcher.*
 réconciliées avec ce que chaque app dispatche — c'est `composition.runtime.engine` qui
 répond ; ② durcir la règle en validation BLOQUANTE casserait aujourd'hui les 10 manifestes
 (tous encore en dur) : on durcit APRÈS le portage — décision de séquencement, pas un oubli ;
-③ l'INTENTION (latence ↔ qualité) manque au contrat commun — le curseur `precision_level` de
+③ ~~l'INTENTION (latence ↔ qualité) manque au contrat commun — le curseur `precision_level` de
 l'anonymizer en est le prototype, mais il pilote AUSSI des couplages propres à l'app
-(chemin de floutage au-delà de 50) qui ne doivent PAS monter au commun.
+(chemin de floutage au-delà de 50) qui ne doivent PAS monter au commun.~~ → l'intention est au
+contrat depuis le 2026-09-02 ; anonymizer rallié le 2026-09-02, converter le 2026-09-20 (cf. plus haut).
 
 **⚠ Découverte 1 — `matches_inputs` est PERMISSIF par choix documenté** :
 `if task and caps.get('task') and caps.get('task') != task` → **un modèle qui ne DÉCLARE rien
@@ -2230,26 +2264,37 @@ Refait après le redémarrage de 21:43 → 100 modèles synchronisés **par le w
 le passé.*
 
 ### F5 — Traitement / cycle de vie  ⟷ `SPEC §F5`
-- **Spine item** : `ProcessingTimeMixin` (`common/models.py:19`) + `BatchMixin` (`:43`). Champs communs de
-  fait, mais **noms divergents** (`input_file` vs `audio`) et **`error_message` absent de transcriber**.
+- **Spine item** : `ProcessingTimeMixin` (`common/models.py:167`) + `BatchMixin` (`:256`). Champs communs de
+  fait, mais **noms divergents** (`input_file` vs `audio`) ~~et **`error_message` absent de transcriber**~~
+  (présent, `transcriber/models.py:95` — corrigé le 2026-10-31).
 - **Statuts NON uniformes** [dette réelle] : converter contraint (`STATUS_CHOICES`) / transcriber **libre** /
   reader `DONE/ERROR` → réconciliés à l'affichage par **3 tables d'alias dupliquées** (`detail_registry.
   normalize_status`, `batch_common._ALIAS`, `wama-cycle-button.js stateFor`). ~~Pas d'enum commune.~~
   *(corrigé le 2026-09-15 : l'enum commune EXISTE — `JOB_STATUS_CHOICES`, 5 états dont
-  `AWAITING_RESOURCES`, `common/models.py:41-61` ; les tables d'alias sont à RE-MESURER. Le studio
+  `AWAITING_RESOURCES`, `common/models.py:56` ; les tables d'alias sont à RE-MESURER. Le studio
   (littéraux) et cam_analyzer (`pending/…/stale`) ont chacun LEUR vocabulaire. Cible : un vocabulaire
   commun + `STALE`, et une ligne d'exécution PAR PROCESS — §10.6 point 4.)*
+  ✅ *Remesuré le 2026-10-31 : UNE table d'alias, `common/models.JOB_STATUS_ALIASES` (`:140`) /
+  `normalize_job_status` (`:156`), à laquelle `detail_registry.normalize_status` délègue
+  (`detail_registry.py:37-40`), que `batch_common` ré-exporte (`batch_common.py:253-256`) et que le
+  studio emploie ; `stateFor` (JS) classe l'action du bouton, sans alias. Vocabulaire commun +
+  `STALE` livré (§10.6 P2).*
 - **Task Celery** : `@shared_task`, **dual-write progress** (cache + `.update`), seeding ETA `record_run`.
 - **Reprise après crash worker** : `process_control.reconcile_orphaned_running()` (93329c4 puis
   32df89c = bascule en échec sur **preuve positive de mort** du worker propriétaire seulement) —
-  adopté **8/11** (2026-07-29 : + imager ; manquent anonymizer, avatarizer, translator + apps lab).
+  adopté ~~**8/11** (2026-07-29 : + imager ; manquent anonymizer, avatarizer, translator + apps lab)~~
+  **10/10 apps Médias** (remesuré le 2026-10-31 : appel dans les `views.py` des dix, anonymizer et
+  avatarizer compris, et dans la vue générée `codegen/views_gen.py`) ; manquent les apps Lab
+  (`cam_analyzer`, `face_analyzer` : aucun appel dans `wama_lab/`).
   *(2026-09-21 : 2ᵉ preuve `is_task_lost` — crash de l'HÔTE entier, Redis repart de son
   instantané, la méta `STARTED` est perdue et l'état retombe `PENDING` ; `is_task_orphaned` ne
   pouvait plus rien prouver (trou consigné le 28/08, vécu sur la transcription #525). Preuve =
   `PENDING` + absente des files ET d'`unacked` + **tous** les nœuds `pidbox` ont répondu + état
   relu après le parcours. Dans la brique : aucune app ne bouge.)* ⚠ Le garde-temps de 30 min
   (`task_skeleton._time_guard`) ne remplace pas cette réconciliation : il vit DANS le process
-  worker et meurt avec lui — et le transcriber, pas encore porté sur `run_item_task`, ne l'a pas.
+  worker et meurt avec lui — ~~et le transcriber, pas encore porté sur `run_item_task`, ne l'a pas~~
+  le transcriber l'a depuis son portage sur `run_item_task` (2026-09-25, `transcriber/workers.py:268-282` ;
+  garde-temps `task_skeleton.py:686`).
 - **Garde anti-BOUCLE-de-crash** : `process_control.refuse_crash_redelivery()` — un message
   `redelivered` vient d'un worker mort SANS acquitter (freeze/panic machine) ; le rejouer relance
   l'exécution qui a tué le worker, à CHAQUE démarrage. Distinct de la réconciliation ci-dessus, et
@@ -2262,10 +2307,17 @@ le passé.*
   la version d'origine, posée sur un seul chemin de chargement, laissait passer tous les backends
   qui font `.to('cuda')` en direct. Détail + reste-à-faire : `ROADMAP.md` §Gouvernance des ressources.
 - **Rendu HTML→PDF** : brique commune `common/utils/html_render.py` (Chromium headless → WeasyPrint,
-  1329638) — consommateur unique converter `document_backend`.
-  **`start` anti-race conforme** (transaction.atomic + select_for_update + revoke, `converter/views.py:243`).
-- **Endpoints** : converter⟷transcriber **~80% de recouvrement**, nommage non aligné (`cancel`↔`stop`,
-  `update`↔`save_settings`) + endpoints spécifiques déclarés (`edit`, `realtime`, `waveform_peaks`…).
+  1329638) — consommateurs (corrigé le 2026-10-31) : converter `document_backend`,
+  `services/page_pdf.py:64` (page → PDF, `render_page_to_pdf`), avatarizer TalkingHead
+  (`common/backends/talkinghead_backend.py:153`, `launch_chromium`).
+  **`start` anti-race conforme** (transaction.atomic + select_for_update + revoke, `converter/views.py:243`
+  au 30/07 ; depuis, `start = login_required(_iv['start'])` `converter/views.py:361` — l'anti-race vit
+  dans la fabrique commune, `begin_processing`).
+- **Endpoints** : converter⟷transcriber **~80% de recouvrement** ; nommage : `cancel`↔`stop` seul écart
+  restant — la route de réglages d'élément est `update_settings` partout sauf l'anonymizer (convention
+  §3.1, 2026-09-26 ; `transcriber/urls.py:58`, `anonymizer/urls.py:25`) ; endpoints spécifiques
+  déclarés : `edit` (redirige vers la surface), `save_realtime`… (`waveform_peaks` retiré, R165 —
+  corrigé le 2026-10-31).
 - **Batch = 2 schémas** : FK directe (converter `ConversionJob.batch`) vs through-model (transcriber
   `BatchTranscript`+`BatchTranscriptItem`). Comportement unifié par `BatchMixin`, schéma non. Helpers communs
   `group_into_batches_by_nature()`, `duplicate_instance()`, `release_card_files()` (retirer une
@@ -2274,16 +2326,19 @@ le passé.*
   progress pattern, batch:{kind:fk|through}, endpoints: socle standard vs spécifiques}`.
 
 ### F6 — Prompts/IA & tool_api  ⟷ `SPEC §F6`
-- **Prompts** : `PROMPT_TARGETS` (`app_metadata.py:26`) source unique + `process_prompt_for()` + skills
+- **Prompts** : `PROMPT_TARGETS` (`app_metadata.py:37`) source unique + `process_prompt_for()` + skills
   (`resolve_skill` : `<app>-<domain>` → `<app>` → `default-<kind>`). Adopté sur les apps génératives
   (imager/composer/anonymizer/cam_analyzer/assistant) ; synthesizer=`[]` (choix), describer interne.
 - **tool_api = LE pivot** : triade normalisée `add_to_<app>`/`start_<app>`/`get_<app>_status` (`TOOL_REGISTRY`
-  `tool_api.py:2065`). **Deux consommateurs du MÊME contrat** : l'assistant IA (`api/v1/views.py:18`) ET le
-  studio (`build_generic_runner:149` fait `getattr(tool_api,f'add_to_{app}')` + filtre par
-  `inspect.signature` + exige `item_id` en retour). **Le studio ne connaît aucune app en dur.**
+  `tool_api.py:4046`). **Deux consommateurs du MÊME contrat** : l'assistant IA (`api/v1/views.py:23`) ET le
+  studio (~~`build_generic_runner:149` fait `getattr(tool_api,f'add_to_{app}')` + filtre par
+  `inspect.signature`~~ — corrigé le 2026-10-31 : `build_generic_runner` `generic_runner.py:292` passe
+  `create`/`start` par `execute_tool` `:339`, `:357`, coercition et filtre de signature au commun —
+  `sanitize_tool_args`, `primary_arg_name`, cf. ci-dessous — + exige `item_id` en retour). **Le studio ne connaît aucune app en dur.**
   Depuis A4 (2026-08-12) : `start`/`status` d'une app portée sont CONSTRUITS à l'import depuis
-  l'entrée déclarative `TRIAD_SPECS` (`tool_api.py:2152`, signature synthétisée — descriptions
-  dérivées inchangées) ; `add_to_<app>` reste de la glu d'app (marche B). Converter + reader portés.
+  l'entrée déclarative `TRIAD_SPECS` (`tool_api.py:4294`, signature synthétisée — descriptions
+  dérivées inchangées) ; `add_to_<app>` reste de la glu d'app (marche B). ~~Converter + reader portés.~~
+  Les 10 apps + l'audio de l'enhancer portés (soldé le 2026-10-12, cf. A4).
 - ✅ **Point d'exécution UNIQUE (2026-08-01, `86889ca`)** — le studio ne court-circuite plus
   `execute_tool` : `create`/`start` passent par lui. La logique que le runner avait ré-implémentée chez
   lui est promue au commun : `sanitize_tool_args()` (coercition par schéma + filtre de signature) et
@@ -2293,9 +2348,11 @@ le passé.*
   `coerce_schema_values()` (délègue les bornes à `coerce_params`). Gains : l'assistant et l'API
   filtrent/coercent comme le studio (avant : `TypeError` sur argument inconnu) ; le studio applique
   enfin les **bornes** du schéma (son `_coerce` local typait sans clamper) ; le cas spécial
-  `if tool_name == 'sam3_examples'` disparaît. ⚠ Reste à migrer : `manifests/builtin/app.py::_params`
-  garde sa propre copie de la résolution (territoire d'une autre instance).
-- **Trous** : garde MEDIA_ROOT dupliquée ~8× ; **pas de test de contrat** sur la triade (bug describer
+  `if tool_name == 'sam3_examples'` disparaît. ~~⚠ Reste à migrer : `manifests/builtin/app.py::_params`
+  garde sa propre copie de la résolution (territoire d'une autre instance).~~ ✅ 2026-08-13 : `_params`
+  délègue à `param_schema.declared_param_schemas` (`manifests/builtin/app.py:424-430`).
+- **Trous** : garde MEDIA_ROOT dupliquée ~8× (non remesuré) ; ~~**pas de test de contrat** sur la triade~~
+  → `tests_tool_api_start` (`EveryTriadIsDeclaredTest`, `TriadStatusFormsTest`, 2026-10-12) (bug describer
   output_format→output_style découvert au runtime).
   - ✅ **CONTRAT ALIGNÉ (2026-08-02, `14332b8`) — 34/71 → 71/71 sur les 10 apps.** Avant : anonymizer
     3/17, converter 1/12, describer/transcriber/composer −3 ou −2 ; ces params étaient réglables dans
@@ -2309,12 +2366,15 @@ le passé.*
     Pièges traités : collision `describer output_format`↔`output_style` (kwarg public ≠ champ modèle) ;
     `converter.media_type` DÉTECTÉ depuis le fichier, exclu pour qu'un appelant ne l'écrase pas ;
     converter auto-démarre → `options` posé À LA CRÉATION, pas après coup.
-  - ⚠ **3e copie restante** : `converter/views.py:229` re-liste **14 clés d'options en dur** avec son
+  - ~~⚠ **3e copie restante** : `converter/views.py:229` re-liste **14 clés d'options en dur** avec son
     propre casting, alors que le schéma les déclare. À faire adopter `schema_extra_params()` (app en
-    lecture seule pendant le chantier design des cards).
+    lecture seule pendant le chantier design des cards).~~ ✅ soldé (vérifié le 2026-10-31) : le
+    converter pose ses réglages par la cascade commune (`apply_birth_settings` → `new_element_settings`,
+    `converter/views.py:218-242`) et `poser_reglages` (colonnes, `_apply_job_settings` `:418-476`) —
+    plus de liste en dur.
   - **Le chantier « supprimer `TOOL_DESCRIPTIONS` » est maintenant DÉBLOQUÉ** : il était nuisible tant
     que le contrat était rompu (on aurait annoncé à l'assistant des params que la fonction refuse).
-  - ✅ **Tranché (2026-08-01)** : l'alias `add_to_imager` EXISTE (`tool_api.py:2088`, bloc « aliases
+  - ✅ **Tranché (2026-08-01)** : l'alias `add_to_imager` EXISTE (`tool_api.py:1889`, entrée du registre `:4144`, bloc « aliases
     normalisés » STUDIO_VISION 2026-07-12) — le runner studio fonctionne. Mais il n'a **pas de description**.
 - ✅ **CHAÎNE CONCURRENTE SUPPRIMÉE (2026-08-02, `6650617`)** — `TOOL_DESCRIPTIONS` (dict manuel de
   278 lignes) remplacé par `tool_descriptions()`, **dérivé** : `APP_CATALOG` (phrase FR) + docstring +
@@ -2344,8 +2404,11 @@ le passé.*
   proposé par l'UI et **refusé par l'outil**. Valeurs désormais dérivées du schéma, kwarg public
   renommé `output_style` (son nom entrait en collision de sens avec le `output_format` de
   reader/converter, qui désigne un vrai format de fichier).
-  ⚠ **Reste** : `describer/utils/text_describer.py:128,172` lisent encore `description.output_format`
-  → même AttributeError au traitement (app en lecture seule pendant le chantier cards).
+  ~~⚠ **Reste** : `describer/utils/text_describer.py:128,172` lisent encore `description.output_format`
+  → même AttributeError au traitement (app en lecture seule pendant le chantier cards).~~ ✅ soldé
+  (vérifié le 2026-10-31) : `describer/utils/` ne garde que `content_analyzer.py` et `model_config.py`,
+  les describers sont des `backends/` ; plus aucune lecture de `.output_format` dans `wama/describer`
+  ni `wama/common/backends` hors migration.
 - ~~⚠ CHAÎNE CONCURRENTE MESURÉE (2026-08-01) — `TOOL_DESCRIPTIONS` double `PARAMS_JSON`.~~ (soldé)
   Les params sont déclarés une fois, typés, dérivés du modèle Django (`params.py` → `derive_from_model`,
   consommé par les modales, l'inspecteur ET le studio via `params_module/params_attr`). `TOOL_DESCRIPTIONS`
@@ -2371,7 +2434,7 @@ le passé.*
 - **Surface OUTILS gardée ✅ (2026-08-01)** — `tool_accessible()` + `app_id_for_tool()` (`permissions.py`,
   pendant de `app_id_for_path` : dérive l'app de la triade F6, `TOOL_APP_OVERRIDE` pour les noms historiques
   `create_image`/`synthesize_text`/`compose_music`/`convert_file`, alias `audio_enhancer`→`enhancer`).
-  **Mesuré : 40 outils gardés / 43, 3 transverses assumés** (`list_user_files`, `translate_text`,
+  **Mesuré : 40 outils gardés / 43 (au 2026-08-01), 3 transverses assumés** (`list_user_files`, `translate_text`,
   `switch_ui_mode`), 0 app inconnue. `TOOL_REGISTRY` a **4 consommateurs** : 2 d'EXÉCUTION (`execute_tool`
   et `generic_runner` qui le court-circuite via `getattr`), 1 de LISTAGE (`ListToolsView`), 1 de PROMPT
   (`build_tools_list`, qui itère en fait `TOOL_DESCRIPTIONS` — cf. divergence F6 ci-dessous).
@@ -2380,6 +2443,14 @@ le passé.*
   `AppAccessMiddleware._deny`), `ListToolsView` (**`tools/list` filtré** — il annonçait des outils que
   `run` refuse), et la boucle de nœuds de `studio/tasks.py:181` (**clôt le trou #7**, le RUN ne repassait
   pas par `accessible()` et `generic_runner` court-circuite `execute_tool` via `getattr(tool_api, …)`).
+  ✅ *État au 2026-10-31 (mesuré — la puce ci-dessus est la photo du 01/08)* : `tool_accessible()`
+  reste dans `accounts/permissions.py:289` ; `app_id_for_tool()` (`tool_api.py:4747`) et
+  `TOOL_APP_OVERRIDE` (`tool_api.py:4180`) vivent dans `tool_api`. `TOOL_REGISTRY` : 1 point
+  d'exécution (`execute_tool`, emprunté par l'assistant, l'API ET le studio — `generic_runner.py:339`,
+  `:357`), 1 listage (`ListToolsView`), 1 prompt (`build_tools_list` `tool_api.py:5438` →
+  `tool_descriptions()`, donc le registre). La garde locale de `studio/tasks.py` est retirée : c'est
+  `execute_tool` qui applique `tool_accessible()` (commentaire `studio/tasks.py:586`). Nombre d'outils :
+  fait généré `WAMA:FAITS(outils)` en F6.
   ⚠ Ce n'était pas un trou théorique : `AppAccessMiddleware` ne voit pas `/api/v1/…` (`app_id_for_path`
   → `None`) **et** l'auth DRF par token s'exécute APRÈS le middleware → un token contournait tier+rôles.
 - **Scope données** (`ScopedVisibility` : private/project/unit/public + `OrgUnit`/`Project`) = **orthogonal**
@@ -2388,8 +2459,9 @@ le passé.*
   choix** (ScopedVisibility porte sur les données produites, pas sur l'app) — à trancher.
 
 ### F8 — Studio (orchestration)  ⟷ `SPEC §F8`
-- **`GENERIC_APPS`** (~10 lignes/app) + `build_generic_runner()` : `create` via `getattr(tool_api,
-  add_to_<app>)` + `inspect.signature` ; `poll` via `DetailRegistry.get(app)['model']`. **10/10 normalisées**,
+- **`GENERIC_APPS`** (~10 lignes/app) + `build_generic_runner()` : `create`/`start` via `execute_tool`
+  (coercition et filtre de signature au commun : `sanitize_tool_args`, `primary_arg_name` — corrigé le
+  2026-10-31, `generic_runner.py:339`, `:357` ; ex-`getattr(tool_api, add_to_<app>)` + `inspect.signature`) ; `poll` via `DetailRegistry.get(app)['model']`. **10/10 normalisées**,
   shim `runners.py` vidé.
 - **Graphe** : `StudioPipeline.graph` (nodes/links JSON) + `StudioRun.node_states`. Un nœud référence l'app
   **par string**. `run_pipeline_task` : `topo_order()` DAG, nœuds source (`text_input`/`media_import`) et sink
@@ -2398,7 +2470,8 @@ le passé.*
   `dataset_input` ; type de nœud `pipeline` décidé le 15/09, non implémenté. `node_states` (un JSON par
   run) sera remplacé par une ligne d'exécution PAR PROCESS — §10.6 point 4.1.*
 - ~~**Trou** : `renderNodeParams` appauvri (cf. F3).~~ ✅ 2026-10-12 : réglages des nœuds par `WamaParams`
-  (§10.6 point 3.3bis, R1). **Cible : E/S du nœud DÉRIVÉES des ports**, pas re-saisies.
+  (§10.6 point 3.3bis, R1). ~~**Cible : E/S du nœud DÉRIVÉES des ports**, pas re-saisies.~~ ✅ résorbé
+  le 2026-08-11 (§10.1, `_fill_io_from_ports`) ; reste la sentinelle `'auto'` propre au studio.
 - **Manifeste** : `studio.{runnable, primary_input, input_kwarg, fixed_kwargs, auto_start}` — ports/output_type
   **lus depuis `ports`** (fin de la double saisie).
 
@@ -2426,6 +2499,12 @@ WamaParams sur les apps hand-built restantes + modale batch + ~~studio→WamaPar
 `renderNodeParams` — route : §10.6 point 3.3bis, marche R1)~~ ✅ 2026-10-12 ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
 d'alias) ; `during_preview` émission (9 apps).
 
+> ✅ *État au 2026-10-31 (mesuré, la liste ci-dessus est celle d'août)* : cycle `settingsModal` 10/10
+> (§F3) ; rendu de lot `context:'batch'` 10/10 (§F3) ; chips 10/10 (§F3) ; résolution commune des
+> modèles par les 9 apps à modèles (§F4) ; UNE table d'alias de statut (`common/models.JOB_STATUS_ALIASES`,
+> §F5) ; `during_preview` 10/10 apps émettent (§F3b, `app_registry.py` : 10 `during_preview=True`).
+> Reste 🔄 : la coquille de modale à la main, les champs de VOLET générés (§F3, 1/10 au 27/09).
+
 **✅ Ajout du 2026-08-23 — les ACTIONS DE CARD sont sorties de ce chantier.** ⚙ Paramètres et
 🗑 Supprimer ont rejoint `queue-actions.js` (déjà domicile de ⧉ Dupliquer) : **11 cards portées**,
 six graphies résorbées par action, critères `settings_wiring` et `delete_wiring` verts 10/10, et
@@ -2433,7 +2512,7 @@ les deux gestes PROUVÉS au clic (`<app>.settings` et `<app>.duplicate_delete`, 
 ⚠ **Ne pas confondre avec la ligne WamaParams ci-dessus** : la brique prend le BOUTON et la
 DÉLÉGATION ; le CONTENU des modales est déjà schéma-driven partout (`WamaParams.render(host,
 schema, {context:'item'})`), ce qui reste à porter est l'ORCHESTRATEUR `WamaParams.settingsModal()`
-(2/10) — deux couches distinctes qu'un raccourci de lecture confond facilement.
+(2/10 → 10/10 au 2026-09-26, §F3) — deux couches distinctes qu'un raccourci de lecture confond facilement.
 
 **⚠ TROU DE LA ROUTE, fermé le 2026-09-15 — supprimer une card de LOT.** Le portage du 23/08
 (`145e738f`) a rendu le rechargement après 🗑 CONDITIONNEL à un champ `batch_changed` que chaque
@@ -2460,7 +2539,8 @@ gabarit↔JS de l'entrée unitaire) et le geste navigateur `<app>.delete_from_ba
 rajouter ») — `delete_wiring` attestait le bouton, jamais la réponse : 5 critères F5 ajoutés,
 `delete_batch_state`, `card_in_batch`, `batch_semantics`, `queue_order` (verts 10/10) et
 `card_refresh_common` (**0/10** : les copies locales du rafraîchissement de card, 12 sites sous
-5 noms, sont le portage restant vers `WamaApp.fetchCard`). Au passage, 3 critères existants
+5 noms, sont le portage restant vers `WamaApp.fetchCard` → 10/10 au 2026-09-22, `AGENTS.md`
+§conformité). Au passage, 3 critères existants
 rattachés à leur vrai mécanisme (`init_from_schema`, `inspector_actions` → `inspector` ;
 `result_tabs` → `result_tabs`), que `mechanisms_without_criterion` (ex-`mecanismes_sans_critere`)
 déclarait non vérifiés.
@@ -2619,7 +2699,10 @@ par sa brique — §F3b ; `REMOVAL_LEDGER`.)*
 >   backend TTS déclare : la classe ne se dérive pas de la porte `backend_for_model` (laissée en
 >   place par `397cbe25` car consommée par le service TTS, sans Django) ;
 > - **anonymizer** — SAM3 passe par le catalogue, mais la voie YOLO instancie
->   `anonymize.Anonymize` par son chemin de module (`anonymizer/tasks.py:621`). Angle mort de
+>   `anonymize.Anonymize` par son chemin de module (`anonymizer/tasks.py:621` au 06/10 ; *depuis le
+>   2026-10-10, l'appel passe par `common/services/detection_ensemble.detect_with_models`
+>   (`anonymizer/tasks.py:625-629`), qui importe `Anonymize` (`detection_ensemble.py:59`) — ce reste
+>   est à revoir à cette lumière, relevé le 2026-10-31*). Angle mort de
 >   `tests_backend_adoption`, qui ne compte que les `from … import Classe` : le critère le voit
 >   désormais (`_backend_instantiated_by_path`).
 > La mesure est PAR APP : une porte présente suffit au vert, sauf contournement détecté.
@@ -2900,7 +2983,8 @@ outillé avant d'ouvrir cette marche.
   > reste — une personne qui veut sa propre version d'une app existante, ou essayer une page
   > d'édition dans une app, a besoin de la même chose : une copie isolée, jugée, retirable, et
   > mesurée contre l'original par `converge`.
-  > **Tests de ces gardes** : `wama/common/tests/tests_sandbox_coherence.py` (14) +
+  > **Tests de ces gardes** : `wama/common/tests/tests_sandbox_coherence.py` (14 à l'écriture ; 71 tests,
+  > 22 classes au 2026-10-31) +
   > `wama/filemanager/tests.py` (invariant importeurs).
 
   **✅ S1 LIVRÉE (2026-08-18)** — jumelle TÉMOIN opérationnelle : `manage.py app_sandbox
@@ -3064,8 +3148,9 @@ outillé avant d'ouvrir cette marche.
      - `.md/.txt/.csv` → `text` vs `document` : c'est l'**HOMONYME `text`** (sens « texte brut,
        le prompt » dans `input_types`/`accepts`/`INPUT_TYPES['prompt'].kind` ; sens « FICHIER
        texte » dans `category_of_path`). **Le code le savait déjà** : `studio_node_ports`
-       (`app_registry.py:153`) doit écrire `c != 'text'` pour le sortir du port travail, et donne
-       au port prompt le jeton `'prompt'` — **hors `MEDIA_CATEGORIES` (`:67`)**. Il a fallu
+       (`app_registry.py:153` au 30/08 ; `:233` au 2026-10-31, le filtre est devenu `c != 'prompt'`
+       `:251`) doit écrire `c != 'text'` pour le sortir du port travail, et donne
+       au port prompt le jeton `'prompt'` — **hors `MEDIA_CATEGORIES` (`:67`, `:78` au 2026-10-31)**. Il a fallu
        inventer un mot pour ce que `text` ne pouvait plus dire.
      *Deux déclarations qui « divergent » sur des axes différents ne divergent pas : elles ne
      répondent pas à la même question. Avant d'appeler un écart une faute, vérifier que les deux
@@ -3098,8 +3183,8 @@ outillé avant d'ouvrir cette marche.
        cloche. »* Il y avait bien quelque chose qui clochait : **ma phrase.** J'avais écrit
        « aucune déclaration ne le porte » — c'est FAUX, et la jumelle générée en est la preuve
        vivante. La chaîne est complète et entièrement déclarative :
-       `APP_CATALOG['converter'].input_extensions` (`app_registry.py:536`) → projeté au manifeste
-       (`manifests/builtin/app.py:212`, champ retenu par `IDENTITY_FIELDS` `:823`) →
+       `APP_CATALOG['converter'].input_extensions` (`app_registry.py:1474`) → projeté au manifeste
+       (`manifests/builtin/app.py:258`, champ retenu par `IDENTITY_FIELDS` `:929`) →
        **LU par le générateur** (`codegen/templates_gen.py:46`,
        `accept = ','.join(ident['input_extensions'])`) → injecté en `file_accept`
        (`templates_gen.py:300`) → **68 extensions dans le sélecteur de
@@ -3133,7 +3218,7 @@ outillé avant d'ouvrir cette marche.
        Ce qui reste vrai, et qui est le SEUL manque : **trois** sources décrivent ce qu'une app
        accepte, et **aucune ne type PAR SLOT hors d'un mode** —
        1. `APP_CATALOG[app].input_extensions` — une liste **PLATE** par app, toutes entrées
-          confondues (`app_registry.py:686` : imager = `TEXT_EXTENSIONS + IMAGE_EXTENSIONS`) —
+          confondues (`app_registry.py:1635` : imager = `TEXT_EXTENSIONS + IMAGE_EXTENSIONS`) —
           **déclarative, lue par le générateur, et la seule qui alimente une card générée** ;
        2. `APP_MODES[app].modes[].inputs[]` + `INPUT_TYPES[slot]['accept']` — le **SEUL** endroit
           qui type par slot (`work_image → 'image'`, `reference_voice → 'audio'`,
@@ -3242,7 +3327,7 @@ outillé avant d'ouvrir cette marche.
      ⚠⚠ **Et mon premier commentaire de correctif rangeait ça en TROU DU FORMALISME** — « rien, ni
      dans `Param` ni au manifeste, ne dit d'où viennent ces options ». **Faux** : la table
      `CONVERTER_OUTPUT_FORMATS` est posée sur **toutes** les pages par un processeur de contexte
-     global (`accounts/context_processors.py:56`), et `converter.js` la lisait déjà. C'est la
+     global (`accounts/context_processors.py:71-72`), et `converter.js` la lisait déjà. C'est la
      **4ᵉ fois cette semaine dans ce seul fichier** (après `accepts_url`, la facette `inspector`,
      puis le vocabulaire d'entrée du point 4) : *ce qui manque n'est pas la prudence, c'est le grep.*
      Corrigé au niveau COMMUN, pas dans le gabarit : 2ᵉ registre `PAGE_OPTION_SOURCES`
@@ -3253,6 +3338,10 @@ outillé avant d'ouvrir cette marche.
      tests) : `backends` (transcriber) et `avatar_gallery` (studio, déclarée hors schéma d'app).
      ✅ **`avatar_gallery` résolue le 2026-10-12** (R1 du §10.6 point 3.3bis) : endpoint
      `avatarizer:api_avatar_gallery` au registre `OPTION_SOURCES` — reste `backends`.
+     ✅ **`backends` disparue le 2026-09-30** (transcriber au catalogue, étape ⑦ de F4b ; vérifié le
+     2026-10-31 : aucune `options_source` `backends` dans le dépôt) — plus aucune clé non résolue.
+     Seule l'exemption du test la cite encore (`common/tests/tests_codegen_templates.py:30`,
+     `SOURCES_NON_RESOLUES = {'backends'}`), devenue inutile.
   10. **La barre de file n'était câblable que par une app — donc jamais par un gabarit.** Le
      partial `_queue_actions.html` reçoit des **ids** et son contrat dit « handlers JS de l'app » ;
      or un gabarit ne peut pas écrire de handler, il ne peut que passer une URL. La jumelle naissait
@@ -3290,7 +3379,8 @@ outillé avant d'ouvrir cette marche.
      `queueAction` était une copie de `batchAction` **amputée de `body` et de `followUp`**. Or le
      relevé des 10 `start_all` montre que la divergence y est RÉELLE, comme au niveau lot :
      6 rechargent, 3 insèrent + pollent (describer/transcriber/enhancer), et **le synthesizer
-     PORTE ses réglages dans le POST** (`wama/synthesizer/views.py:922` lit `tts_model`, `language`,
+     PORTE ses réglages dans le POST** (`wama/synthesizer/views.py:922` au 29/08 — depuis, vue de
+     fabrique `start_all = app_access('synthesizer')(_iv['start_all'])` `:350` — lit `tts_model`, `language`,
      `voice_preset`, `speed`, `pitch`, `voice_reference` — « démarrer tout » y vaut « appliquer à
      tout »). Sans ces deux hooks, **4 apps sur 10 étaient inportables** et auraient gardé leur
      handler : *une brique dont le contrat est plus pauvre que le code qu'elle remplace ne résorbe
@@ -3432,9 +3522,9 @@ où on le lit, et aucune des deux ne peut céder la place à l'autre sans casser
 | **« FICHIER texte »** — une nature de média sur disque | `category_of_path`, `MEDIA_CATEGORIES` | `notes.txt` → catégorie `text` |
 
 **Ce que ça produit déjà, mesuré :**
-- `studio_node_ports` (`app_registry.py:153`) doit écrire `c != 'text'` pour empêcher le prompt
+- `studio_node_ports` (`app_registry.py:153` au 30/08 ; `:233` au 2026-10-31, filtre devenu `c != 'prompt'` `:251`) doit écrire `c != 'text'` pour empêcher le prompt
   d'entrer dans le port de travail, puis **inventer le jeton `'prompt'`, absent de
-  `MEDIA_CATEGORIES` (`:67`)** — le code a fabriqué le mot qui manquait, sans le déclarer ;
+  `MEDIA_CATEGORIES` (`:67`, `:78` au 2026-10-31)** — le code a fabriqué le mot qui manquait, sans le déclarer ;
 - `common/utils/intake.py:10` consigne que `input_extensions` est « FAUX à 100 % sur
   `.txt`/`.md`/`.csv` » **pour cette raison précise** ;
 - le repli du vocabulaire d'entrée (point 6 ci-dessus) a dû poser une « exclusion explicite de
@@ -3560,7 +3650,7 @@ ci-dessous, jugé « trop étroit » car raisonné sur le cas .txt/.md/.csv) :**
    ce risque : le rôle « texte brut » existe, il s'épelle `prompt`. **Reste à Fabien de trancher
    entre les lignes 2 et 3.**
 2. **L'origine de l'exception est identifiée** — la catégorie `text` posée sur `.txt/.md/.csv`
-   (le `prime sur document` de `_build_cat_of`, `app_registry.py:76-78`) servait à **différencier
+   (le `prime sur document` de `_build_cat_of`, `app_registry.py:93`) servait à **différencier
    fichiers de travail et fichiers BATCH**. Malgré l'auto-détection, l'unification des deux dans
    le même encart « reste ambivalente dans certains cas » (Fabien). Or la card v3.5 **sépare les
    rôles de fichiers en zones explicites** (travail / référence / batch…) : le rôle redevient
@@ -3681,7 +3771,7 @@ ci-dessous, jugé « trop étroit » car raisonné sur le cas .txt/.md/.csv) :**
 - **Le harnais a attrapé un écart RÉEL au passage** (reader NON CONFORME au 1er run) : les
   descriptions tool_api rendaient le défaut de schéma par `%r` — `ReadingItem.Backend.AUTO`
   (params main `derive_from_model`) vs `'auto'` (params régénéré littéral), deux surfaces
-  pour une même valeur. Normalisé À LA SOURCE (`tool_api._describe_arg` : un défaut
+  pour une même valeur. Normalisé À LA SOURCE (`tool_api._arg_text`, `tool_api.py:4841` — nom corrigé le 2026-10-31, aucun `_describe_arg` dans le fichier : un défaut
   str-compatible se rend par sa valeur). Harnais reader ensuite **CONFORME** (strip 4 cibles,
   grille 87 % identique, smoke identique) — **2ᵉ app à passer le strip-régénération complet**.
 **Vérification post-A5 (2026-08-12, 5ᵉ session) — régénération transcriber HORS ARBRE,
@@ -3768,7 +3858,7 @@ bac « porter » avant leur régénération.
 > comme détail d'implémentation d'une facette) est ce qui rend ces retombées possibles.
 >
 > ⚠ Et un rappel de prudence gagné le même jour : `unified_detail` **est consommé** par
-> `wama-inspector.js::fillDetail()` (l.328), qui dérive l'URL par
+> `wama-inspector.js::fillDetail()` (l.439, dérivation l.444), qui dérive l'URL par
 > `replace('/preview/', '/detail/')` — invisible à toute recherche du chemin. Ne pas conclure
 > qu'un endpoint dort sans avoir cherché les URL **construites**.
 
@@ -3921,8 +4011,10 @@ recopier NULLE PART, re-mesurer)** :
   généré et le banc. Une app
   générée et une app à la main ne chargent pas leur JS ni n'importent leurs fichiers par le
   même chemin : toute doc qui décrit la chaîne générée comme « la » voie décrit un parc de
-  zéro app. Le transcriber charge `wama-import.js` par une balise DIRECTE dans son gabarit (pas
-  par `_app_scripts.html`, qui rechargerait `wama-global-progress.js` déjà inclus) — l'adoption
+  zéro app. ~~Le transcriber charge `wama-import.js` par une balise DIRECTE dans son gabarit (pas
+  par `_app_scripts.html`, qui rechargerait `wama-global-progress.js` déjà inclus)~~ *(depuis le
+  2026-10-03, par `_app_scripts.html` comme les neuf autres — §11 #25 ;
+  `transcriber/index.html:104`, `common/_app_scripts.html:48`)* — l'adoption
   se mesure désormais par le critère **`import_front`** (F2, jonction `import_front`).
 - **`_is_app_owned` (propriété des fichiers) : 1/10** — le converter SEUL protège les
   fichiers utilisateur seulement référencés ; l'avatarizer fait l'OPPOSÉ (rattachement par
@@ -3930,6 +4022,9 @@ recopier NULLE PART, re-mesurer)** :
   généraliserait la suppression de fichiers utilisateur ; se caler sur le converter sans le
   dire casserait la galerie avatarizer. À trancher AVANT de dériver la suppression dans le
   gabarit.
+  ✅ **Tranché le 2026-09-22** : la règle du converter devient commune (`queue_duplication.owns_file`
+  `:53`, appelée par `safe_delete_file` / `release_card_files` pour tout le parc ; `_is_app_owned`
+  retiré, `converter/views.py:44-48`).
 - **Le graphe transverse app→app n'est déclaré nulle part** : `common/` importe 6 apps
   médias, `inline_convert` (converter) sert 5 apps, `speakers` (transcriber) sert
   `document_export`/`llm_utils`, `voice_refs` (jadis `synthesizer/utils/voice_utils`, porté au commun le 2026-09-12) sert l'avatarizer et
@@ -4150,7 +4245,7 @@ anonymizer) — ce que chaque app fait AUJOURD'HUI que la brique ne sait pas fai
 | **enhancer** (audio) | `file` / `id` | JSON `ids` | **détection MAISON** (`AUDIO_BATCH_EXTS`, `batch_file`, `#audioBatchDetectBar`) | `appendAudioRow` | filtre d'extension bloquant + lot hors `WamaBatchImport` ; **2 voies sur la même page** | ❌ sans évolution |
 | **synthesizer** | `file` / `id` | JSON `ids` | par fichier, instance **locale** | reload | voies FileManager (`server_path`, `confirm()`) | ⚠ exposer `_batchImport` |
 | **reader** | **`files` × N en UNE requête** / `{created:[…], multi}` (`views.py:291,351`) | **aucune** (le serveur groupe) | si 1 | `multi` → reload, sinon `upsertCard` | la brique = 1 POST par fichier et un id **scalaire** | ❌ **multi-upload + réponse liste** |
-| **anonymizer** | `file` (jQuery-file-upload) / **`added[]`** (`views.py:112`) | JSON, **débouncée**, URL en dur | oui | reload | modale de progression `#modal-progress`, réponse liste | ❌ **réponse liste + hooks de progression** — câblage naïf = page **inerte et muette** (`identifiant()` rend `null` → `ids` vide → sortie silencieuse, `wama-import.js:113`) |
+| **anonymizer** | `file` (jQuery-file-upload) / **`added[]`** (`views.py:112`) | JSON, **débouncée**, URL en dur | oui | reload | modale de progression `#modal-progress`, réponse liste | ❌ **réponse liste + hooks de progression** — câblage naïf = page **inerte et muette** (`identifiant()` rend `null` → `ids` vide → sortie silencieuse, `wama-import.js:113` au 05/09 ; `identifiant` `:223`, `identifiants` `:239` au 2026-10-31) |
 | **imager** | **aucun upload** — `routeFile` (`.txt/.csv` → lot, image → slot référence, sinon toast) | — | oui | reload après Générer | dépôt = **ATTACHE** au formulaire | ❌ **mode `attach`** |
 | **avatarizer** | **aucun upload** — `handleAudioFile` (whitelist MIME, aperçu) | — (route existe, jamais appelée) | oui | insertion DOM | dépôt = **ATTACHE** | ❌ **mode `attach`** |
 | **composer** | **aucun upload, aucun handler** : la zone n'est câblée que par `WamaBatchImport.hookDropZone` | — | oui (hook) | — | 🔴 **un fichier NON-lot déposé est AVALÉ SANS TRACE** (`batch-import.js:256` : « let the app deal with it » — personne) | ⚠ **gain net** dès qu'une vue `upload` existe |
@@ -4165,7 +4260,8 @@ avant), contrat vérifié en navigateur avec le réseau intercepté (aucune card
 3. ✅ **`beforeFile(file) → false`** écarte AVANT l'envoi — mesuré : 3 fichiers, le 2ᵉ refusé →
    2 POST puis la consolidation ;
 4. ✅ **drop de DOSSIER + `folderInputId`** — `converter_01.folder_import` ✓ par la brique ;
-5. ⏳ **mode `attach`** — le fichier va dans un `<input>` cible, pas vers `uploadUrl` (imager,
+5. ~~⏳~~ ✅ **mode `attach`** — livré le 2026-09-08 (composer, imager, avatarizer ; options `attach`,
+   `afterAttach`, `wama-import.js:34-36`, `:149`, `:345` ; statut corrigé le 2026-10-31) — le fichier va dans un `<input>` cible, pas vers `uploadUrl` (imager,
    avatarizer, mélodie du composer) : 3 apps sur 10 ne postent jamais fichier par fichier.
    ⚠ C'est le même mouvement que `WamaApp.injectFiles` (drag depuis l'explorateur) — une seule
    mécanique, deux entrées. **À faire avec la card v4** (c'est sa modalité « attache ») ;
@@ -4236,6 +4332,11 @@ complexité d'app — c'est elle qui lève l'incohérence « tout chaînage = st
 l'enhancer. ⚠ PAS gratuit : le preprocessing fenêtré disque→disque a été construit contre un
 OOM vécu ; le passage par la capacité change l'ordonnancement VRAM (gouverneur), l'ETA et
 ajoute un intermédiaire — **A/B OBJECTIF obligatoire** (qualité + VRAM + durée), jamais au jugé.
+*2026-10-21 (relevé le 2026-10-31) : l'agrément existe comme process `optional` `denoise` du
+pipeline du transcriber (§10.6 4.6, `transcriber/function_specs.py:215-218`, interrupteur
+`preprocess_audio`), modèle `enhancer:deepfilternet` tiré par la porte commune
+`backend_for_key` (`transcriber/utils/audio_preprocessor.py:57-60`) ; l'arête `uses` / `provides`
+au manifeste reste ⏳ (aucune occurrence dans `wama/common/manifests`).*
 
 **Portage wama-lab (séquence actée, du plus outillé au moins formalisé)** :
 ① modèles → catalogue `AIModel` + manifestes `model` (write-back + export corpus : FAITS) ;
@@ -4255,7 +4356,8 @@ maillon de l'interop) ; ④ plugins de visualisation → monde DATA (dernier, le
 > tronçon et redécouvrait le reste. *Un maillon manquant se redécouvre ; une chaîne non écrite
 > se réinvente.*
 
-**Les six rôles `wama-dev-ai`, relevés dans le code — entrée → sortie** :
+**Les six rôles `wama-dev-ai`, relevés dans le code — entrée → sortie** *(six au 2026-09-07 ; DIX
+`run_*.py` au 2026-10-31 — les quatre dernières lignes, ajoutées ce jour-là, sont nées après)* :
 
 | rôle | fichier | produit |
 |---|---|---|
@@ -4265,6 +4367,10 @@ maillon de l'interop) ; ④ plugins de visualisation → monde DATA (dernier, le
 | `integrator` | `run_integrator.py` | **décision** : app EXISTANTE (vérifiée contre `APP_CATALOG`) vs `new_app` |
 | `codegen` | `run_codegen.py` | **corps de glu** d'une tâche, depuis le manifeste COMPOSÉ |
 | `audit` | `run_audit.py` | audit read-only |
+| `backend` | `run_backend.py` | **module backend** d'un modèle installé dont le moteur n'a pas d'exécutant (marche B2, 2026-09-29) |
+| `app` | `run_app_manifest.py` | manifeste **`app`** de départ (2026-10-15, cf. ci-dessous) |
+| `repo_app` | `run_repo_app.py` | la chaîne `librarian` → `app` → bac à sable en une tâche (2026-10-15) |
+| `task` | `run_task.py` | tâche de développement bornée : réponse citée, ou édits PROPOSÉS (levée du 2026-10-15) |
 
 Tous suivent la même discipline bornée : matière mécanique → **un** appel Ollama → contrôles
 mécaniques → `outputs/` en `PENDING_HUMAN_VALIDATION`, jamais d'auto-application.
@@ -4305,7 +4411,9 @@ n'est écrit que par `manifests/builtin/app.py` (l'extraction d'une app EXISTANT
 >   brouillon de `manifests/app_drafts/` ou une sortie du rôle seulement ;
 > - **rôle `repo_app`** (`run_repo_app.py`) : la chaîne entière en UNE tâche — `librarian` →
 >   `app` → `app_sandbox create --from-manifest` → rechargement —, parce qu'une fin de tâche est
->   ANNONCÉE au fil sans relancer l'assistant (`gateway/core.py::_dev_job_follow_up`) ;
+>   ANNONCÉE au fil sans relancer l'assistant (`gateway/core.py::_dev_job_follow_up` à l'écriture ;
+>   depuis le 2026-10-18, brique commune passerelle + fil web `common/services/job_follow_ups.py`,
+>   `dev_origin_conversation` `:75`) ;
 > - ⚠ l'`integrator` ne juge que des manifestes `model` (`run_integrator.py`, refus du kind) : pour
 >   un dépôt-LIBRAIRIE, le catalogue montré au rôle `app` et la recherche des décisions déjà prises
 >   (skill de l'assistant `assistant-dev.md`) tiennent sa place.
@@ -4360,7 +4468,8 @@ place du Translator comme 11ᵉ app de zéro (§10.3). Règles :
 **✅ Joué le soir même — la 1ʳᵉ app de WAMA créée DE ZÉRO depuis un manifeste** (`editor_01`, bac
 à sable). Manifeste autoré : `manifests/app_drafts/editor.json` (validé par le balayage des
 manifestes autorés de `manifest_export --check`). Commande : `app_sandbox create
---from-manifest manifests/app_drafts/editor.json` — **deux temps**, parce que les vues se
+--from-manifest manifests/app_drafts/editor.json` *(devenu `manifests/app_drafts/writer.json` au
+renommage Editor → Writer, cf. plus bas)* — **deux temps**, parce que les vues se
 génèrent depuis les MODÈLES : (1) apps / models / params / tasks → `makemigrations` + `migrate` ;
 (2) introspection des modèles créés (`_data`, le même extracteur que pour une app existante) →
 facette `data` → urls / views / templates / base. Juges : paquet cohérent, `check`, page 200, file
@@ -4377,7 +4486,7 @@ qu'une jumelle COPIE ce qu'un générateur ne sait pas produire :
 | `templates/<app>/base.html` : aucun générateur, les jumelles le copient | `templates_gen.render_base` — cible OPT-IN pour une jumelle (son base copié porte encore du propre à l'app) | smoke de la création |
 | une app cassée bloquait `app_sandbox` entier, `drop` compris (check système au démarrage) | `requires_system_checks = []` ; `drop` sans migration ne lance plus `migrate zero` | vécu, rejoué |
 | l'entrée de catalogue d'une app SANS source | calculée à la création, stockée au registre, relue au boot (`sandbox.py` reste pur) | `ManifestBornAppJoinsTheCatalogTest` |
-| le rôle `codegen` ne lisait que l'app VIVANTE (donc sans ses `requires`) et ne montrait AUCUNE brique commune | `--manifest` ; briques DÉRIVÉES du type des modèles requis (`COMMON_BRICKS_BY_MODEL_TYPE`) | exécution réelle |
+| le rôle `codegen` ne lisait que l'app VIVANTE (donc sans ses `requires`) et ne montrait AUCUNE brique commune | `--manifest` ; briques DÉRIVÉES du type des modèles requis (`COMMON_BRICKS_BY_MODEL_TYPE` — *table retirée le 2026-10-01 : déclencheur → clé de mécanisme, `run_codegen.BRICKS_BY_TRIGGER` `:162`, cf. la revérification du 01/10 plus bas*) | exécution réelle |
 
 Et une **brique commune manquante** : appeler un LLM désigné par une CLÉ DE CATALOGUE (le réglage
 « Modèle » F4b) — le geste ne vivait qu'en privé dans l'assistant →
@@ -4435,7 +4544,7 @@ render_format_2026-10-01_02-02}.json` (`PENDING_HUMAN_VALIDATION`).
 l'Editor, app créée DE ZÉRO, a produit une **vraie présentation HTML**, écrite de bout en bout par
 les glues de `qwen3.8` (aucune ligne d'app écrite par Claude). Le chemin :
 1. `batch_parsers.extract_batch_file_text` ajouté à la matière (briques DÉRIVÉES des TYPES DE PORTS,
-   `COMMON_BRICKS_BY_PORT_TYPE`) → la glu `draft_content` régénérée lit désormais pdf/docx par la
+   `COMMON_BRICKS_BY_PORT_TYPE` — *table retirée le 2026-10-01 : `run_codegen.BRICKS_BY_TRIGGER`*) → la glu `draft_content` régénérée lit désormais pdf/docx par la
    brique, ses deux erreurs prévues traitées et dites ;
 2. **geste manquant ajouté** : `app_sandbox glue <label> <sortie.json>` — « valider → appliquer »
    existait pour les modèles et les backends (`backend_proposals.apply`), pas pour une glu d'app.
@@ -4467,7 +4576,7 @@ mécanismes et dupliqué deux briques** — tous testés, tous verts. Corrigé :
 
 | réinvention | ce qui existait | correction |
 |---|---|---|
-| facette `pipelines` + nœud `kind: process` | kind `pipeline` (`builtin/pipeline.py:35`) ; « un process d'app EST un pipeline à 1 nœud » (30/08) ; étapes internes d'une app Médias = décision n°11 / P4 | retirée (`WAMA_MANIFEST_SPEC §3.1` garde le récit) ; le Writer était UN process jusqu'à la décision n°11 (02/10) — ~~UN process~~ deux process sur le patron composer, position commune du 05/10 (`§10.6` point 9) |
+| facette `pipelines` + nœud `kind: process` | kind `pipeline` (`builtin/pipeline.py:35` au 01/10 ; `register_kind` `:434`, `NODE_KINDS` `:42` au 2026-10-31) ; « un process d'app EST un pipeline à 1 nœud » (30/08) ; étapes internes d'une app Médias = décision n°11 / P4 | retirée (`WAMA_MANIFEST_SPEC §3.1` garde le récit) ; le Writer était UN process jusqu'à la décision n°11 (02/10) — ~~UN process~~ deux process sur le patron composer, position commune du 05/10 (`§10.6` point 9) |
 | `pipeline_process_order` | `studio/tasks.py:56`, `pass_tracking.py:220` | retiré |
 | `task_skeleton.run_process_steps` | `_run_app_function` (`studio/tasks.py:250`) ; §10.6 4.5 interdit une 4ᵉ pièce | retiré |
 | port `source_document` écrit à la main | ports DÉRIVÉS (`app_registry.py:440-497`) des jetons `INPUT_TYPES` | jeton `reference_document` (rôle × nature, règle du `work_object3d`) dans `modes.inputs` |
@@ -4532,8 +4641,11 @@ Supra2-IMG et comblés : recherche par URL / dépôt nommé (`prospector.named_r
 (l'anatomie jugée par le scout y VOYAGE désormais, `record_after_install`) → rôle `model` →
 **Valider** (`manifests/proposals.py` : le cycle sandbox → promu reçoit son 1ᵉʳ appelant) → rôle
 `backend` (marche B2, §10.3) → **Valider** (écrit le module) → résolution par le vivier. Joué de bout
-en bout par gpt-oss-120b le 29/09. ⏳ Le dernier maillon est côté APP : l'imager ne lit pas le
-catalogue (route F4b non portée), un modèle texte→image validé n'y apparaît donc pas encore.
+en bout par gpt-oss-120b le 29/09. ~~⏳ Le dernier maillon est côté APP : l'imager ne lit pas le
+catalogue (route F4b non portée), un modèle texte→image validé n'y apparaît donc pas encore.~~
+✅ Dernier maillon côté app porté le 2026-09-29 (statut corrigé le 2026-10-31) : l'imager lit le
+catalogue par tâche (`options_source="catalog"`, `imager/params.py:66-72`, étape ⑥ de F4b) —
+Supra2-IMG y apparaît.
 
 **Variante de cette chaîne : l'architecture absente de notre transformers, publiée en GGUF
 (2026-10-10).** Une architecture que notre transformers ne connaît pas (PaddleOCR-VL-1.6,
@@ -4578,7 +4690,11 @@ le fasse seul, il lui manquerait un outil de capture de page (`read_web_page` ne
 
 ### §10.6 — LE PIPELINE, PORTEUR UNIVERSEL DES PROCESS : une card = une instance de pipeline, dans TOUS les mondes (ACTÉ 2026-09-15)
 
-> **Statut : ACTÉ avec Fabien le 2026-09-15 — modèle de CONCEPTION, aucun code écrit.** Cette
+> **Statut : ACTÉ avec Fabien le 2026-09-15 — modèle de CONCEPTION, aucun code écrit à cette date.**
+> **Depuis (relevé le 2026-10-31) : P1, P2, P5 et P6 livrés, P3 en grande partie — moteur commun
+> écrit et enregistré (`common/services/process_runs.py`, `process_pipeline.py` ; mécanismes
+> `process_runs` / `process_pipeline`, `common/mecanismes.py:175`, `:196`) ; état des marches au
+> point 11.** Cette
 > section est le **domicile unique** du modèle ; les autres documents y RENVOIENT (liste des
 > consignations corrigées le même jour au point 12). Elle n'invente rien de ce qui existe : elle
 > RELIE des décisions déjà prises (process d'app = pipeline, 30/08, `WAMA_MANIFEST_ARCHITECTURE §8` ;
@@ -4643,6 +4759,8 @@ le fasse seul, il lui manquerait un outil de capture de page (`read_web_page` ne
 > que descendre** (`generic_runner.UNWIRED_PORTS_BUDGET` (geste nocturne `studio.node_ports_wired`)) : composer `reference_melody`,
 > imager `work_image`, transcriber `work_result`/`reference_result`, enhancer `work_audio`,
 > avatarizer `prompt`/`work_image`/`work_object3d`, anonymizer `prompt` — 9 ports, 6 apps.
+> *(2026-10-31 : 7 ports, 5 apps — composer soldé le 03/10, avatarizer `prompt` le 18/10 ; source
+> vivante `generic_runner.UNWIRED_PORTS_BUDGET`, `generic_runner.py:243-253`)*
 > Le geste par app est celui du pilote : un service de création unique par port, appelé par la
 > vue ET par l'outil. Les `io_scope` « le port n'est pas exposé au nœud » (imager, enhancer,
 > avatarizer, `generic_runner.GENERIC_APPS`) sont PÉRIMÉS depuis que les ports dérivent des modèles.
@@ -4650,11 +4768,12 @@ le fasse seul, il lui manquerait un outil de capture de page (`read_web_page` ne
 #### 3. Couche 1 — la DÉFINITION : le manifeste `pipeline` (existe) et ce qui lui manque
 
 **3.1 Forme.** Le kind `pipeline` existe : nœuds `source | sink | app | function`
-(`common/manifests/builtin/pipeline.py:29-31`), liens `from/to/to_port`, graphe ACYCLIQUE (cycle
-refusé par `studio/tasks.py::topo_order` ; une rétroaction se DÉROULE en nœuds successifs,
+(`common/manifests/builtin/pipeline.py:42`, `NODE_KINDS` ; le ⏳ du nœud `pipeline` `:40-41`), liens `from/to/to_port`, graphe ACYCLIQUE (cycle
+refusé par `topo_order` — défini `common/manifests/builtin/pipeline.py:253`, ré-exporté par `studio/tasks.py` ; une rétroaction se DÉROULE en nœuds successifs,
 `STUDIO_VISION §2bis`). Deux sources d'extraction : le canvas (`StudioPipeline`) et les registres de
 code (`register_pipeline_source`, 1er cas `cam_analyzer.PASSES` → `manifests/pipelines/cam_analyzer.json`,
-13 process, 18 liens, avec branches et jonctions — **16 process, 22 liens au 2026-09-29**, mesuré).
+13 process, 18 liens, avec branches et jonctions — **16 process, 22 liens au 2026-09-29**, mesuré ;
+**21 nœuds, 29 liens au corpus le 2026-10-31**).
 **Ouvrir au studio un pipeline déclaré** — ✅ **2026-09-29** : `pipeline.body_to_graph` (inverse de
 `graph_to_body` : disposition automatique en colonnes par profondeur quand le manifeste n'a pas de
 `layout`, port d'arrivée résolu par TYPE quand un lien n'en dit pas), routes
@@ -4787,7 +4906,7 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
 
 **3.3 Réglages et péremption.** Chaque process porte le schéma de SES réglages (le `params.py` de
 l'app pour un process d'app, `FunctionSpec` pour une fonction) et la liste des réglages qu'il
-**surveille** (`watched`, repris de `cam_analyzer/utils/pass_tracking.py:35-37`). Un réglage non
+**surveille** (`watched`, repris de `cam_analyzer/utils/pass_tracking.py:38`, `class Pass(ProcessSpec)` `:65`). Un réglage non
 surveillé ne rend rien périmé : c'est voulu (yolo ne surveille pas `target_classes`, le filtre est à
 la lecture).
 
@@ -4969,7 +5088,10 @@ n'atteignait pas toujours l'élément ; un geste enregistrait l'instantané de t
   l'actualisation du registre `functions`.
 - **Les jumelles** (point 2) : une jumelle sans outil de création n'est plus offerte à la palette
   (la règle du lancement, `runners.runner_for`) — elle y figurait sans réglages et le lancement la
-  refusait. ⏳ Les rendre exécutables est un manque du GÉNÉRATEUR (l'outil `add_to_<jumelle>`).
+  refusait. ~~⏳ Les rendre exécutables est un manque du GÉNÉRATEUR (l'outil `add_to_<jumelle>`).~~
+  ✅ 2026-10-29 : `add_to_<jumelle>` dérivé de l'outil de la source, re-ciblé par `app_label`
+  (`tool_api._register_twin_creators` `tool_api.py:4707`, `generic_runner._twin_can_create` `:110`,
+  §11 #40) — par dérivation, pas par le générateur.
 - **Gardes** (`studio.tests.tests_node_settings`, toutes à contre-épreuve rouge sur HEAD) : chaque réglage
   affiché d'un nœud d'app arrive sur l'élément créé par le runner (création réelle, valeurs
   DÉCIDÉES ≠ défaut) ; durée du composer ; réglages de chaque étape = ceux qu'elle surveille (50
@@ -5149,7 +5271,7 @@ Nom anglais de l'objet : décision ouverte n°1.
 > de BASE. Purge appliquée : 1 366 retirées, table sauvegardée avant (`backups/db/`, non versionné).
 > Garde : `tests_process_runs.OrphanLinesTest` (deux contre-épreuves rouges : marge, jumelle).
 
-**4.2 Les états — UN vocabulaire, au commun** (`common/models.py:41-61`, étendu) :
+**4.2 Les états — UN vocabulaire, au commun** (`common/models.py` : `JOB_PENDING` `:42`, `JOB_STATUS_CHOICES` `:56`, `JOB_STALE` `:98`, `PROCESS_STATUS_CHOICES` `:102`, étendu) :
 
 | état | sens | posé par |
 |---|---|---|
@@ -5199,7 +5321,8 @@ panneau parle `JOB_*`).
 > la source, on ne la renomme pas.
 > ⚠⚠ **La mesure a trouvé DEUX écritures de plus que les trois que `§10.3` comptait**, toutes deux
 > dans la chaîne de GÉNÉRATION et toutes deux figées à **QUATRE** états — écrites avant
-> `AWAITING_RESOURCES` (02/09) et jamais suivies : `manifests/builtin/app.py::STATUS_VOCAB` et le
+> `AWAITING_RESOURCES` (02/09) et jamais suivies : `manifests/builtin/app.py::STATUS_VOCAB` (l'ex-`STATUS_VOCAB`,
+> retirée depuis — `common/models.py:109`) et le
 > repli codé en dur de `codegen/views_gen.py`. La première tenait **deux rôles à la fois** — ce que
 > chaque manifeste DÉCLARE *et* ce que le validateur ACCEPTE : un manifeste énonçant l'état du
 > gouverneur de ressources aurait été **rejeté « hors vocabulaire canonique »**, et une app
@@ -5286,7 +5409,13 @@ panneau parle `JOB_*`).
 > n'a pas été dérivé mais RENDU à ce qu'il est dans le modèle commun — une passe sans ligne est
 > `PENDING` (`AppPipeline.card_rows`). ⏳ Reste la table de `face_analyzer`.
 >
-> ⏳ **RESTE de P2 — DEUX morceaux, tous deux suspendus à P3** (rectifié le 17/09 au soir : la
+> ✅ *Soldé (relevé le 2026-10-31)* : 1. agrégation écrite au palier A de P3 le 2026-10-02
+> (`process_runs.aggregate`, `process_runs.py:579`) ; 2. canvas du Studio à six états le 2026-10-03
+> (P5 ; `wama-studio.js:1148-1155`, `RUN_STATES`, `run-<état>`). Restent deux tables déclarées hors
+> du vocabulaire commun : `reader/js/reader.js:40-41` (`DONE`/`ERROR`, tolérance) et
+> `face_analyzer/index.html:205-211`.
+>
+> ~~⏳~~ **RESTE de P2 — DEUX morceaux, tous deux suspendus à P3** (rectifié le 17/09 au soir : la
 > première rédaction disait « la brique d'agrégation seule », ce qui omettait le second) :
 > 1. la **brique d'agrégation** (« l'état d'une card se déduit de ses process », 4.4) — sa règle est
 >    **validée telle quelle** depuis le 17/09, il reste à l'écrire, et elle s'appuie sur la ligne
@@ -5491,7 +5620,7 @@ panneau parle `JOB_*`).
 >   |---|---|---|
 >   | une empreinte de fichier à moi (taille + condensé du début) pour « entrée remplacée » | `provenance.sha256_of` — la brique commune, celle que la révision garde déjà de chaque sortie (`revisions.output_references`) | `output_fingerprint` l'appelle ; un fichier trop gros est suivi par sa taille |
 >   | `process_runs.plain()` pour écrire un réglage sous sa forme JSON | `revisions._json_safe` — même besoin, même règle (« telle qu'un JSONField la gardera ») | rendue publique (`json_safe`), `process_runs.snapshot` l'emploie ; `plain` retirée |
->   | `process_pipeline.app_pipeline()` | — aucun lecteur | retirée ; `APP_PIPELINES` a un lecteur : la garde générique ci-dessous |
+>   | `process_pipeline.app_pipeline()` | — aucun lecteur | retirée ; `APP_PIPELINES` a un lecteur : la garde générique ci-dessous *(réintroduite le 2026-10-26, `9f8bacf8`, avec un lecteur : `accounts/context_processors.py:211`, sections par process — `process_pipeline.py:1197`)* |
 >
 >   Vérifié SANS écart : l'adressage de `ProcessRun` suit la convention de `RunOutcome` et
 >   d'`InputProvenance` (`app` + `object_type` + `object_id`) ; le drapeau de moteur se lit sur
@@ -5530,11 +5659,12 @@ panneau parle `JOB_*`).
 >   apprise (sa glu ne rend pas de taille).
 > ⏳ **Restent de P3** : les entrées rapatriées avant de résoudre modèle et VRAM, l'adoption par
 > le cam_analyzer (`Pass` → `ProcessSpec`, `AnalysisPass` → `ProcessRun`, coordonnée avec
-> l'instance qui y travaille — ✅ faites les 2026-10-03 et 04, cf. « ALIGNEMENTS » plus bas) et par l'exécuteur du studio (`node_states`), le type de nœud
+> l'instance qui y travaille — ✅ faites les 2026-10-03 et 04, cf. « ALIGNEMENTS » plus bas) et par l'exécuteur du studio (`node_states` — ✅ 2026-10-03, lignes `ProcessRun` : `studio/tasks.py:393-405`, `:672` ; relevé le 2026-10-31), le type de nœud
 > `pipeline`, ~~le pipeline sans process (§11 #35)~~ (✅ 2026-10-11, point 3.6).
 
 **4.3 `STALE` — ce que c'est exactement** (repris de cam_analyzer, décision du 07/05,
-`ROADMAP §9.2.bis` ; code `pass_tracking.py:250-302`).
+`ROADMAP §9.2.bis` ; code `pass_tracking.py:250-302` à l'écriture — au 2026-10-31 `recompute_stale`
+`pass_tracking.py:795`, qui délègue à `process_runs.stale_nodes` `process_runs.py:531`).
 Un process est `STALE` quand il a **réussi**, mais qu'une de ses conditions a changé depuis :
 1. **un réglage qu'il surveille a changé** — la photo prise au lancement ne correspond plus aux
    réglages courants ;
@@ -5548,11 +5678,11 @@ qui est périmé** (geste « compléter manquant + périmé », 4.5), au lieu de
 ⚠ **4ᵉ cas, à traiter dès la conception : le résultat CORRIGÉ À LA MAIN** (relevé par Fabien le
 2026-09-16 ; le transcriber en porte déjà le précédent, à généraliser). Aujourd'hui l'ASR brut est
 **immuable** et la correction vit à part (`corrected_segments_json` + `correction_status`,
-`transcriber/models.py:83-84`, décision de `TRANSCRIBER_CORRECTION §4`) ; l'éditeur lit la
+`transcriber/models.py:149-150`, décision de `TRANSCRIBER_CORRECTION §4`) ; l'éditeur lit la
 correction si elle existe, sinon l'ASR (`transcriber/views.py:589-609`) ; et quand une nouvelle
 génération existe, il propose « charger la dernière transcription », **en remplaçant la correction**
 (`transcriber/views.py:653-663`, `templates/transcriber/edit.html:232-236` (supprimé le 2026-10-21, R166)). Relancer la
-transcription ne détruit donc rien (`_reset_for_relaunch`, `views.py:50-60`, ne touche pas la
+transcription ne détruit donc rien (`_reset_for_relaunch`, `views.py:49`, ne touche pas la
 correction), mais **l'utilisateur n'a que deux issues : garder sa correction périmée, ou la perdre**.
 Dans le modèle : la correction est un **process** (« correction manuelle ») dont l'amont est
 l'ASR ; relancer l'ASR le rend `STALE`, ce qui **NOMME** l'état au lieu de forcer le choix, et la
@@ -5902,6 +6032,10 @@ transcriber (`enrich_transcript`) et l'analyse du reader sont aujourd'hui **hors
 squelette, parce qu'ils corrompraient l'état de l'item (`task_skeleton.py:30-32`). Avec une ligne par
 process et un état de card DÉDUIT, cette corruption n'existe plus : ce sont des process `optional`
 comme les autres.
+✅ *Réalisé (relevé le 2026-10-31)* : `summarize` (transcriber, 03/10, `transcriber/function_specs.py:240`)
+et `analyze` (reader, 13/10, `reader/function_specs.py:101`) sont des process `optional` ; reste à
+retirer la route et la tâche `enrich_transcript` (`transcriber/workers.py:964-965`,
+`transcriber/views.py:1032-1033`).
 
 **4.8 La leçon à ne pas refaire.** Les étapes vivent DANS le moteur commun, jamais dans une chaîne
 posée à côté. L'anonymizer a eu une vraie chaîne Celery (détection × N → floutage), supprimée le
@@ -5988,7 +6122,9 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   test) : voix 108 s + animation 255 s ; amélioration demandée → CodeFormer SEUL, 112 s ;
 >   retirée → 0,4 s. ⏳ L'ETA d'une card « qualité » reste lue sous une clé (`avatarizer:quality`)
 >   que plus aucun process n'apprend : chaque process apprend la sienne (`avatarizer:fast`,
->   `avatarizer:codeformer`), la vue n'en additionne pas deux.
+>   `avatarizer:codeformer`), la vue n'en additionne pas deux. ✅ *2026-10-05 (relevé le 2026-10-31) :
+>   la vue lit la clé de l'animation (`avatarizer_eta_key_size`, `avatarizer/workers.py:109-125` :
+>   `avatarizer:fast` / `talkinghead`, plus de clé de qualité) — cf. 4.5.*
 > - **transcriber, process `import`** (demande de Fabien) : une card qui porte un document
 >   (port `work_result`) joue le MÊME pipeline, `import` à la place de `transcribe` — deux
 >   process `required` qui s'excluent par `applies`, et dont dépendent locuteurs, résumé et
@@ -6398,7 +6534,8 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   `converter/tasks.py:113-128`), l'enhancer tire le modèle « auto » avant l'appel
 >   (`enhancer/tasks.py:169`). Un corps composé ferait autre chose que la glu, sans le dire : ces
 >   process gardent leur TROU marqué (marche B, `app_sandbox glue`). Ce qui se génère ce jour-là,
->   ce sont les fonctions que d'autres déclarations nomment par chaîne (§S, ligne du 19/10).
+>   ce sont les fonctions que d'autres déclarations nomment par chaîne (§S, ligne du 19/10 — ⚠ relevé
+>   le 2026-10-31 : ce document n'a pas de titre `§S`, seuls `§S2bis.6bis` et `§S2ter` ; cible à préciser).
 > - Gardes : `converter/tests_pipeline.py` ; contre-épreuves ROUGES (post-traitement qui repart de
 >   la sortie, conversion qui ne surveille plus la demande, lanceur qui efface). Grille :
 >   converter **100 %** (86/86).
@@ -6479,8 +6616,10 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   d'attache commun (`card_view` / `decorate` : rien sans pipeline déclaré), que le composer
 >   consomme aussi (`_pipeline_view` n'est plus qu'un appel). Une app générée qui déclare un
 >   pipeline a donc sa bande, son état montré et ses ⚙/▶ par process sans rien écrire.
-> - ⏳ **Reste de 5.1** : case des process `optional` (aucune app n'en déclare encore —
->   transcriber à P6) ; studio (5.4) — lot (5.3) : ✅ ci-dessous.
+> - ~~⏳~~ **Reste de 5.1** : case des process `optional` (aucune app n'en déclare encore —
+>   transcriber à P6) — ✅ livrée le 2026-10-03 (`ProcessSpec.toggle`, P4 ; ex.
+>   `transcriber/function_specs.py:216`, `toggle='preprocess_audio'` ; relevé le 2026-10-31) ;
+>   studio (5.4) — lot (5.3) : ✅ ci-dessous.
 > - ✅ **Les BRANCHES dans la bande (2026-10-26, demande de Fabien : « la dérivation comme c'est
 >   natif dans le studio »)** : la bande se dispose comme le canvas du studio, une colonne par
 >   profondeur du graphe — la MÊME fonction, `manifests/builtin/pipeline.node_depths` (ex-
@@ -6572,7 +6711,7 @@ qui DIT quelle fille manque de quoi (`WAMA_DATA_WORLD.md:2913-2916`).
 **5.4 Studio.** Le canvas édite le même objet. Trois corrections relevées le 15/09 :
 - le **catalogue** de gauche s'intitule « Apps » (`studio/templates/studio/index.html:47`) → le
   renommer **« Catalogue »** (pas « Library » : ce mot désigne déjà les paquets pip, modèle `Library`
-  `common/models.py:593` et route `library`), en **sections repliables** (Entrées · Sorties ·
+  `common/models.py:1159` et route `library`), en **sections repliables** (Entrées · Sorties ·
   Pipelines — mes pipelines et ceux des apps · Apps · Fonctions par catégorie · Modules Data) ;
 - les **pipelines sauvegardés** n'y apparaissent pas : la palette ne lit que les apps et les fonctions
   (`studio/views.py:18-70`), les pipelines passent par une autre API (`api_pipelines`, `:131`) ;
@@ -6713,8 +6852,8 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   distant (→ `external_sources.remote_origin_label` — l'abonnement Claude Code reste distinct
 >   de l'API Anthropic, précision voulue par Fabien), un modèle trouvé par balayage hors app
 >   (Hugging Face, Ollama, GitHub → le libellé du registre des sources). Alignements relevés au
->   même moment : les libellés de `ModelSource` (`model_manager/models.py:481`) recopient des
->   noms d'apps et de sources, `AIModel.platform_label` (`:897`) recopie des noms de
+>   même moment : les libellés de `ModelSource` (`model_manager/models.py:543`) recopient des
+>   noms d'apps et de sources, `AIModel.platform_label` (`:1077`) recopie des noms de
 >   plateformes, et la page d'admin des droits affiche la clé de l'app
 >   (`app_access_matrix.html:45`). Rien n'est décidé.
 >   ✅ **Livré le 2026-10-20 (Fabien : « on passe au filtre Source »)** — UNE lecture,
@@ -6735,8 +6874,8 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   adresses des plateformes que porte `external_sources`, mais la clé de plateforme
 >   `ollama` désigne `ollama_site` du registre, pas `ollama` : aligner demande que le
 >   registre déclare l'adresse d'une fiche de modèle. Relevé à la revérification du même
->   jour : les outils de l'assistant `list_ai_models` et `get_ai_model` (`wama/tool_api.py:1750`,
->   `:1793`) rendent la source sous la clé `app`, valeur brute — la confusion de l'ancien
+>   jour : les outils de l'assistant `list_ai_models` et `get_ai_model` (`wama/tool_api.py:1992`,
+>   `:2138`) rendent la source sous la clé `app`, valeur brute — la confusion de l'ancien
 >   filtre, sur une surface que lit le LLM (`anthropic` ou `huggingface` y passent pour une
 >   app) ; renommer la clé touche le contrat de l'outil, donc à décider avec le reste.
 >   **Mesuré le même jour, pour décider** : (1) 13 libellés de `ModelSource` sur 19 diffèrent du
@@ -6905,8 +7044,8 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 
 | monde | forme du pipeline | exemples mesurés |
 |---|---|---|
-| **Médias** | `required` + `optional` | transcriber : transcription → diarisation → résumé → cohérence, aujourd'hui des blocs `if` dans une fonction (`transcriber/workers.py:402-592`) dont les échecs optionnels sont avalés et l'item passe `SUCCESS` (`:484`, `:551`, `:567`, `:592`, `:601`) ; anonymizer : détection/segmentation → floutage, aujourd'hui fusionnés en mémoire ; avatarizer : TTS (optionnel, dérivé du texte, `MODES_QUEUE_UX.md:93-100`) → animation → amélioration (optionnelle) |
-| **Lab** | `required`, par étages | cam_analyzer : 13 process, étages analyse / calcul, clé d'instance = caméra. **Cible (Fabien, 17/09)** : la SESSION Lab devient une **card qui porte le pipeline**, l'UI de l'app s'ouvre par « Éditer » comme dans Médias — **non câblé tant que le Lab n'est pas aligné** sur les autres mondes (y compris pour le partage, `docs/construction/exploitation/WAMA_COLLABORATION.md §3`) |
+| **Médias** | `required` + `optional` | transcriber : transcription → diarisation → résumé → cohérence, ~~aujourd'hui des blocs `if` dans une fonction (`transcriber/workers.py:402-592`) dont les échecs optionnels sont avalés et l'item passe `SUCCESS` (`:484`, `:551`, `:567`, `:592`, `:601`)~~ — *état livré (relevé le 2026-10-31) : 8 process déclarés, `level`, `denoise`, `transcribe`, `import`, `align`, `diarize`, `summarize`, `coherence` (03/10 puis 21/10, `manifests/pipelines/transcriber.json`)* ; anonymizer : détection/segmentation → floutage, ~~aujourd'hui fusionnés en mémoire~~ *Détection → Floutage → Sortie depuis le 2026-10-04 (`anonymizer/function_specs.py:70`)* ; avatarizer : TTS (optionnel, dérivé du texte, `MODES_QUEUE_UX.md:93-100`) → animation → amélioration (optionnelle) |
+| **Lab** | `required`, par étages | cam_analyzer : 13 process au 15/09 (21 nœuds au corpus le 2026-10-31), étages analyse / calcul, clé d'instance = caméra. **Cible (Fabien, 17/09)** : la SESSION Lab devient une **card qui porte le pipeline**, l'UI de l'app s'ouvre par « Éditer » comme dans Médias — **non câblé tant que le Lab n'est pas aligné** sur les autres mondes (y compris pour le partage, `docs/construction/exploitation/WAMA_COLLABORATION.md §3`) |
 | **Data** | ~~place `open`~~ pipeline composé par la card, vide au départ (corrigé le 2026-10-21, cf. 3.2) | Data Analyzer : la card porte une source (`.wdat`, `.trip`, dossier d'expérimentation…) et un pipeline composé de modules |
 | **Studio** (transverse) | tout, en graphe | compose et enregistre des pipelines de tous les mondes |
 
@@ -6923,8 +7062,8 @@ expérimentation, `.trip`, `.wdat` existant, import dans un nouveau `.wdat`…) 
 sorties** (déclarations d'export) ; les cards naissent `PENDING`, rien ne se lance seul.
 Existant : la doctrine « le LLM propose, la machine dispose » et la place exacte de l'IA
 (`WAMA_DATA_WORLD §9bis.4`, lignes 957-971) ; le contrôle `verify` ; la validation structurelle du
-kind. **Manques** : aucun rôle ne produit de manifeste `pipeline` ni `dataset` (les 6 rôles de §10.5
-n'en ont pas), aucun lien RAG → génération de pipeline n'est écrit, et un manifeste reconnu par
+kind. **Manques** : aucun rôle ne produit de manifeste `pipeline` ni `dataset` (aucun rôle de §10.5 n'en
+produit — six au 15/09, dix au 2026-10-31), aucun lien RAG → génération de pipeline n'est écrit, et un manifeste reconnu par
 l'intake ne peut pas encore être ingéré (`common/utils/intake.py:112-114`).
 
 **B. On explore.** La card naît avec **ses entrées et un pipeline vide** (~~place `open`~~ —
@@ -6946,7 +7085,7 @@ le résultat n'est plus rejouable et « une représentation, deux éditeurs » (
 2026-09-16 — ma première rédaction en faisait un type de process à part, c'était faux).
 - **Rien de neuf dans le formalisme.** L'utilisateur **nomme** sa fonction et n'écrit **que son
   code** — le champ `impl`. Tout le reste suit le formalisme des fonctions déjà en place : ports
-  typés, `params`, `category`, visibilité et portée (`UserFunction`, `common/models.py:488-525`,
+  typés, `params`, `category`, visibilité et portée (`UserFunction`, `common/models.py:913`,
   scopée par `ScopedVisibility`), kind `function` avec `binding: user` et sa projection
   manifeste → registre (`manifests/builtin/function.py:112-173`, réversible par le tag
   `_manifest-gen`). Le code peut être **écrit à la main ou généré par le LLM** : c'est la même
@@ -6959,12 +7098,12 @@ le résultat n'est plus rejouable et « une représentation, deux éditeurs » (
   garde-fou qu'en 5.3).
 - **Les trois manques, mesurés le 2026-09-16** (le formalisme est là, le chemin d'exécution non) :
   ① le code ne connaît que deux bindings — `Binding.PURE` et `Binding.APP`
-  (`common/catalog/function_catalog.py:192-196`) ; ② une `UserFunction` n'est **jamais fusionnée au
+  (`common/catalog/function_catalog.py:210-211`) ; ② une `UserFunction` n'est **jamais fusionnée au
   `FUNCTION_CATALOG`** (ses seuls lecteurs sont l'admin, le kind `function` et la page
-  `/model-manager/functions/` — `model_manager/views.py:1906-1907`), donc l'exécuteur refuse sa clé
-  (« absent du catalogue », `studio/tasks.py:397-399`) ; ③ `impl` est aujourd'hui un **chemin**
+  `/model-manager/functions/` — `model_manager/views.py:2257-2258`), donc l'exécuteur refuse sa clé
+  (« absent du catalogue », `studio/tasks.py:465`) ; ③ `impl` est aujourd'hui un **chemin**
   (`"cam_analyzer.tasks:compute_distance_task"`, `function_catalog.py:208`) et le champ du modèle
-  porte encore « référence/code (à venir) » (`models.py:503`) — pour une fonction utilisateur, `impl`
+  porte encore « référence/code (à venir) » (`models.py:930`) — pour une fonction utilisateur, `impl`
   EST le code, et personne ne l'exécute.
 - **Décision ouverte n°7** : comment on exécute ce code (bac à sable Python, runtime MATLAB, droits,
   quotas, dépendances autorisées) — c'est le seul vrai verrou, et il ne touche ni au formalisme ni au
@@ -7100,7 +7239,7 @@ possible **sans aucun process**.
     monde media dans les fonctions ? »*, puis *« faut-il rester sur process d'app ? »*.
     - **UN catalogue pour tout ce qui devient un NŒUD** — calculs Data, passes du Lab, process
       d'une app Médias. Le kind `pipeline` ne connaît que `source | sink | app | function`
-      (`builtin/pipeline.py:35`) : un process n'est dessinable au Studio (`5dcfdea1`, pipelines
+      (`builtin/pipeline.py:42`, `NODE_KINDS`) : un process n'est dessinable au Studio (`5dcfdea1`, pipelines
       déclarés ouverts en diagramme) que s'il est au catalogue. C'est la « glu INTER-mondes »
       d'`AGENTS.md`, pas un catalogue du monde Data.
     - **La CATÉGORIE est le rôle, le RATTACHEMENT une propriété.** Le cam_analyzer range ses passes
@@ -7126,7 +7265,8 @@ possible **sans aucun process**.
       que le nœud du Studio renseignerait, sur un élément CRÉÉ depuis ses ports par le runner des
       nœuds `app` (`generic_runner`). ⏳ reste du 5.4 ; d'ici là, une ligne de console dit l'entrée
       jetée — ✅ 05/10 (`_run_app_function(console=)`, avertissement dans la console du Studio,
-      tenu par `tests_image_to_3d`).
+      tenu par `tests_image_to_3d`). ✅ **Résolu le 2026-10-18** (D2, point 3.3bis ; relevé le
+      2026-10-31) : l'étape se lance comme son ▶ (`studio/tasks.py:219-227`, `_run_app_process`).
     - **Trois formes au Studio** : entrée → app → sortie (nœud `app`, existe) ; entrée → UN
       process → sortie (le nœud `function` du process — affiché, exécution ci-dessus) ; entrée →
       pipeline de l'app → sortie (le diagramme déclaré, chargé à PLAT aujourd'hui ; le nœud
@@ -7179,7 +7319,7 @@ possible **sans aucun process**.
     - 🔎 **Revérification « rien réinventé » (05/10, demande de Fabien), après le commit
       `f98aa625`** — sept écarts, tous corrigés :
       1. `pipeline_decl` lisait `node['kind']`/`node['function']` → `node_kind()`/`function_key()`,
-         « les DEUX seuls lecteurs » de la convention (`builtin/pipeline.py:22`) ; ses dossiers
+         « les DEUX seuls lecteurs » de la convention (`builtin/pipeline.py:30`, docstring ; `node_kind` `:158`) ; ses dossiers
          viennent de `manifest_export.DOSSIERS` ; la clé du process « Sortie » est importée
          d'`output_process`, plus recopiée ;
       2. `function_specs_gen` recopiait les catégories → dérivées de `FunctionCategory` ; une
@@ -7227,7 +7367,9 @@ possible **sans aucun process**.
   (point 3.3bis, règle 6).
 - Appeler « library » le catalogue du studio.
 - Qualifier de « pipeline » l'exécution multi-modèles de l'anonymizer : c'est une tâche unique depuis
-  le 13/08.
+  le 13/08. *(Précisé le 2026-10-31 : depuis le 2026-10-04 l'app déclare un pipeline Détection →
+  Floutage → Sortie, `anonymizer/function_specs.py:70-78` ; la couverture multi-modèles reste
+  INTERNE au process `detect` — c'est elle qu'on ne qualifie pas de pipeline.)*
 
 #### 11. Ordre du chantier — et le portage des apps Médias EN PARALLÈLE
 
@@ -7235,12 +7377,12 @@ possible **sans aucun process**.
 |---|---|---|
 | **P0** ✅ 15/09 | consigner le modèle (cette section) + corriger les consignations (point 12) | — |
 | **P1** ✅ 02/10 | déclarer le monde (`world`) et dériver menus/accueil/pages/catalogues — quatre pièces livrées (point 6.1) : déclaration (catalogue ET hors catalogue), journal / calendrier / fonctions, groupage par monde du menu, de l'accueil et de `/apps/`, explorateur de fichiers | — (indépendant, petit) |
-| **P2** | vocabulaire d'états commun + `STALE` + brique d'agrégation ; studio et cam_analyzer alignés | — |
-| **P3** | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté | P2 |
-| **P4** | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») ; génération réelle JOUÉE le soir même sur le moteur (plan → render, puis render seul) — rejouée par le worker en service le 03/10 (dont ▶ du rendu seul). ✅ Le **transcriber** en 4 process livré le 03/10, A/B objectif fait (point 4, bloc « P4, 2ᵉ pilote ») | P3 |
+| **P2** ✅ 04/10 | vocabulaire d'états commun + `STALE` + brique d'agrégation ; studio et cam_analyzer alignés — *statut posé le 2026-10-31 (mesuré) : six états 17-18/09, agrégation `process_runs.aggregate` 02/10, canvas du Studio à six états (`wama-studio.js:1148`) 03/10, cam_analyzer aligné 04/10 ; restent deux tables déclarées (`reader/js/reader.js:40-41`, `face_analyzer/index.html:205-211`)* | — |
+| **P3** 🔄 | moteur commun + ligne d'exécution, **extraits de cam_analyzer** (1er utilisateur : sémantique complète et testée) et de l'exécuteur du studio ; type de nœud `pipeline` ; pipeline sans process accepté — *statut posé le 2026-10-31 : livrés la ligne d'exécution (`ProcessRun`), le moteur multi-process (`process_runs.py`, `process_pipeline.py`, paliers A-C 02/10), les alignements studio / cam_analyzer (03-04/10), le pipeline sans process (11/10) ; restent le type de nœud `pipeline` (`builtin/pipeline.py:40-42`) et le rapatriement des entrées avant modèle/VRAM (`task_skeleton.py` : modèle résolu `:915-923`, `ensure_local_input` après, `:932` — atténué : une entrée par URL est téléchargée dès la création depuis le 2026-10-13, `source_ingest`, commentaire `:928-930`)* | P2 |
+| **P4** ✅ 03/10 *(statut posé le 2026-10-31 : les deux pilotes livrés et joués)* | pilote Médias — ✅ **arbitré le 2026-10-02 (Fabien) : le COMPOSER**, YuE2 en deux process (`plan` consigne → partition, `render` partition → audio ; éditer la partition rend le rendu `STALE`). 🔄 **Code livré le 02/10** (point 4, « paliers B et C ») ; génération réelle JOUÉE le soir même sur le moteur (plan → render, puis render seul) — rejouée par le worker en service le 03/10 (dont ▶ du rendu seul). ✅ Le **transcriber** en 4 process livré le 03/10, A/B objectif fait (point 4, bloc « P4, 2ᵉ pilote ») | P3 |
 | **P5** ✅ 03/10 | UI de card générée du pipeline ; studio (catalogue repliable, glisser-déposer, pipelines sauvegardés, états communs) — livré en six pièces le 03/10 (point 5 : bande des process, état montré, ▶ / ⚙ / case à cocher par process, gabarit généré, promotion fille ↔ mère, catalogue du studio) | P3 (le renommage et le glisser-déposer : à tout moment) |
-| **P6** ✅ 03/10 | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les apps qui ne l'ont pas. ✅ Les dix apps passent par `run_item_task` ; SEPT déclarent un pipeline et le montrent sur leur card : transcriber (6 process dont `import` et `align`), avatarizer, et les cinq apps du process « Sortie » commun (imager, composer, synthesizer, anonymizer, enhancer) — point 4, bloc « P6 ENGAGÉE ». Restent à un seul process : describer, reader, converter (rien à ne pas rejouer) | P4 |
-| **P7a** | une forme de réglages, un rendu, une coercition et une déclaration de nœud dans tous les mondes (point 3.3bis) : R1 pont `ParamSpec → Param` + inspecteur du Studio par `WamaParams` — ✅ **2026-10-12** (+ porte commune des refus, porte des outils comprise) ; R2 déclaration unique des nœuds intégrés ; R3 profil Lab au schéma ; R4 ⚙ des process de la card Data | R1 : — ; R2-R4 : les arbitrages (a)-(c) du point 3.3bis |
+| **P6** ✅ 03/10 | les autres apps Médias sur le moteur commun — **remplace** l'adoption du squelette actuel par les apps qui ne l'ont pas. ✅ Les dix apps passent par `run_item_task` ; SEPT déclarent un pipeline et le montrent sur leur card : transcriber (6 process dont `import` et `align`), avatarizer, et les cinq apps du process « Sortie » commun (imager, composer, synthesizer, anonymizer, enhancer) — point 4, bloc « P6 ENGAGÉE ». ~~Restent à un seul process : describer, reader, converter (rien à ne pas rejouer)~~ — *corrigé le 2026-10-31 (mesuré : `register_app_pipeline` dans les dix `function_specs.py`, corpus `manifests/pipelines/*.json`) : DIX déclarent un pipeline (describer, reader, converter le 13/10) ; transcriber à 8 process (`level`, `denoise` le 21/10)* | P4 |
+| **P7a** | une forme de réglages, un rendu, une coercition et une déclaration de nœud dans tous les mondes (point 3.3bis) : R1 pont `ParamSpec → Param` + inspecteur du Studio par `WamaParams` — ✅ **2026-10-12** (+ porte commune des refus, porte des outils comprise) ; R2 déclaration unique des nœuds intégrés — ✅ **2026-10-18** (+ R2bis ; `builtin/pipeline.py:126` `register_builtin_node`, `studio/services/builtin_nodes.py`) ; R3 profil Lab au schéma ⏳ ; R4 ⚙ des process de la card Data ⏳ | R1 : — ; R2-R4 : les arbitrages (a)-(c) du point 3.3bis |
 | **P7** | Data Analyzer (app-file, monde `data`) : entrées, exports en nœuds de sortie, composition exploratoire, script. 1ʳᵉ marche ✅ 2026-10-11 (`7159838e` : entrée `data_connector`, sortie `data_export`, pipeline sans process) | P3, P5, P7a (R1, R2 ; R4 pour le ⚙ des process) ; décision n°7 pour le seul process « script » (les n°5 et 6 n'étaient pas ouvertes — corrigé le 2026-10-11) |
 | **P8** | rôle assistant → manifeste `pipeline` / `dataset` | P3 |
 
@@ -7287,7 +7429,8 @@ possible **sans aucun process**.
 >   portant le composer :
 >   1. *(vérifié dans le code)* le squelette résout `vram_needed` (`task_skeleton.py:358-365`)
 >      puis `model_key` (`:384-391`) AVANT de rapatrier l'entrée (`ensure_local_input`,
->      `:393-397`). Pour un process dont le modèle tiré dépend d'une entrée téléchargée (mélodie
+>      `:393-397`) *(lignes du 02/10 ; au 2026-10-31 : `run_item_task` `:824`, modèle résolu
+>      `:915-923`, `ensure_local_input` `:932-933` — l'ordre reste vrai)*. Pour un process dont le modèle tiré dépend d'une entrée téléchargée (mélodie
 >      par URL du composer), l'ordre compte : le moteur commun devra rapatrier les entrées d'un
 >      process avant de résoudre son modèle et son besoin en VRAM. Le composer le contourne en
 >      comptant une mélodie DÉCLARÉE par URL dans son tirage, sans toucher au squelette.
@@ -7304,7 +7447,7 @@ possible **sans aucun process**.
 **Le portage des apps Médias continue EN PARALLÈLE** sur tout ce qui ne dépend pas de la façon dont
 une tâche s'exécute (classement des critères rouges de la grille au 15/09,
 `logs/conformity_report.json`, fonctions de `common/services/conformity_checker.py`) :
-- **à faire maintenant** : ~~`card_refresh_common` (10 apps)~~ (10/10 le 22/09), `settings_modal_cycle` (~~8~~ 1 au 24/09 : transcriber), rangée
+- **à faire maintenant** : ~~`card_refresh_common` (10 apps)~~ (10/10 le 22/09), `settings_modal_cycle` (~~8~~ ~~1 au 24/09 : transcriber~~ 10/10 le 26/09), rangée
   d'actions commune (décision 6, avec l'adaptateur d'état du bouton de cycle), défauts du trou #29,
   `_app_scripts.html` (#25), code mort (#27), `model_caps_ui` (3), `model_options_catalog` (4),
   `recursive_import` (2), `user_settings` (2), `detail_spec` (7), lecture front de `during_preview`,
@@ -7315,7 +7458,8 @@ une tâche s'exécute (classement des critères rouges de la grille au 15/09,
   commun les redéfinit ; les porter maintenant serait les faire deux fois ;
 - **au cas par cas** : `output_naming` et `select_model` de l'anonymizer.
 
-⏳ **Nuance PROPOSÉE le 15/09, à confirmer par Fabien (coordination avec l'instance « squelette / VRAM »,
+~~⏳~~ ✅ **Nuance confirmée par Fabien le 2026-10-02** (cf. le brief du 01/10 ci-dessus, mise à jour
+du 02/10 ; les dix apps sont sur `run_item_task` — statut corrigé le 2026-10-31). **Nuance PROPOSÉE le 15/09, à confirmer par Fabien (coordination avec l'instance « squelette / VRAM »,
 commit `5d9e7bdc`)** : l'attente ci-dessus vaut pour les apps dont le traitement a PLUSIEURS étapes
 (transcriber, anonymizer, avatarizer, enhancer vidéo) — leur glu sera redécoupée en process. Une app à
 **un seul process** (le composer : une seule tâche, `composer/tasks.py:29-30`) peut adopter
@@ -7363,7 +7507,8 @@ Cette route (§0, F5, F8, §10.4, §11 #6 et #32-#35) ; `WAMA_MANIFEST_ARCHITECT
   l'horloge ;
 - **le QUAND** : `run_at` ou une récurrence `rrule` (RFC 5545, `dateutil`), et une fenêtre
   `not_before` / `deadline` ;
-- **`placement` ∈ `manual | asap | off_peak`** — le motif « auto + curseur + manuel », jamais un faux
+- **`placement` ∈ `manual | asap | off_peak`** (+ `auto`, par défaut depuis l'étape 4 du 2026-09-28 —
+  `scheduled_actions.py:77`, `PLACEMENT_AUTO`) — le motif « auto + curseur + manuel », jamais un faux
   choix ;
 - **les réglages se lisent AU LANCEMENT** (décision de Fabien, 28/09) : la card reste éditable
   jusque-là ; programmer n'en fige pas une photo.
@@ -7384,7 +7529,7 @@ la fin de la plage — décision de Fabien : les tests nocturnes ne se partagent
 superposée les rallonge et fausse leurs durées. `calendar.reserved_windows()` et
 `calendar.reserved_window_conflicts()` sont les deux lectures que le placement consommera.
 
-**13.4 Le placement automatique — le « gouverneur du temps »** (étape 4, ⏳). Il choisit un créneau
+**13.4 Le placement automatique — le « gouverneur du temps »** (étape 4, ~~⏳~~ ✅ 2026-09-28 — cf. 13.8 ; statut corrigé le 2026-10-31). Il choisit un créneau
 à partir de ce qui est déjà mesuré : durée prévue (`eta_estimator`, `ModelRuntimeStat`), empreinte
 VRAM mesurée et `fits_alone`, plages réservées, et activité habituelle des utilisateurs (histogramme
 de `RunOutcome`). ⚠ **Il ne réserve pas la VRAM à l'avance** : l'admission reste celle du
@@ -7428,7 +7573,8 @@ d'exécution par process (4.1, moteur P3) ; tout le reste est indépendant de P3
   abonnement `.ics` à jeton régénérable (`CalendarFeed` — régénérer révoque).
 - Gardes : `tests_scheduled_actions` (30, dont le vrai `batch_create` du describer ; contre-épreuve :
   branchement batch neutralisé → rouge).
-- ⏳ Reste : étape 4 (placement MESURÉ sur l'activité au lieu des heures creuses déclarées) ; la
+- ⏳ Reste : ~~étape 4 (placement MESURÉ sur l'activité au lieu des heures creuses déclarées)~~
+  (✅ 2026-09-28, 13.8 ; `scheduled_actions.py:288`, `quiet_hours` `:171`) ; la
   récurrence à l'interface ; les mails et posts quand leurs outils existeront.
 
 **13.8 Étape 4 (2026-09-28) — la FILE GLOBALE : placer d'après elle, et dire où en est chaque tâche.**
@@ -7526,21 +7672,21 @@ de répétition n'est ajouté pour les cards.
 | # | Trou | Facette | Nature |
 |---|---|---|---|
 | 1 | ✅ **fait (2026-08-11, §10.1)** — describer `input_types` `text`→`document` : le port travail porte `document`, le port prompt fantôme a disparu | F2 | ✅ |
-| 2 | ✅ **clos comme trou d'adoption — RE-MESURÉ 2026-08-31 : `context:'batch'` est à 10/10** (avatarizer compris, `index.html:367` — la ligne précédente « 5/10, avatarizer jamais » était périmée par le bas ; 3ᵉ recomptage de cette ligne, toujours faux). Le générateur émet désormais l'ouvreur de lot COMPLET (`onBatchSettings` + `settingsModal context:'batch'`, §S2ter). Le déficit RÉEL a changé de nom : le **cycle complet** `settingsModal` n'est qu'à **2/10** (8 apps gardent leur coquille + save maison) — c'est la ligne « cycle » de la table F3, pas celle-ci | F3 | ✅ re-qualifié |
+| 2 | ✅ **clos comme trou d'adoption — RE-MESURÉ 2026-08-31 : `context:'batch'` est à 10/10** (avatarizer compris, `index.html:367` — la ligne précédente « 5/10, avatarizer jamais » était périmée par le bas ; 3ᵉ recomptage de cette ligne, toujours faux). Le générateur émet désormais l'ouvreur de lot COMPLET (`onBatchSettings` + `settingsModal context:'batch'`, §S2ter). Le déficit RÉEL a changé de nom : le **cycle complet** `settingsModal` n'est qu'à **2/10** (8 apps gardent leur coquille + save maison) — c'est la ligne « cycle » de la table F3, pas celle-ci. ✅ *Cycle complet 10/10 au 2026-09-26 (transcriber rallié, `transcriber/js/index.js:430` ; relevé le 2026-10-31)* | F3 | ✅ re-qualifié |
 | 3 | studio `renderNodeParams` appauvri (réinvente WamaParams en dégradant) — **re-mesuré le 2026-10-11 et élargi** : le studio projette TROIS sources (schéma d'app, `ParamSpec`, listes de nœuds intégrés) vers son format propre, et coerce les fonctions sans bornes ; la route qui le résorbe dans tous les mondes est le **§10.6 point 3.3bis** (marche R1) — ✅ **soldé le 2026-10-12** : `WamaParams` pour tous les nœuds, une porte commune, `REMOVAL_LEDGER R116` | F3/F8 | ✅ résorbé (§10.6 3.3bis R1) |
-| 4 | ✅ **périmé (2026-07-30)** — le front consomme bien `?side=during` (`wama-inspector.js::_startDuring`). Trou RÉEL reformulé : l'**émission** de partiels n'existe que dans le composer (1/10) | F3b | adoption, pas frontend |
+| 4 | ✅ **périmé (2026-07-30)** — le front consomme bien `?side=during` (`wama-inspector.js::_startDuring`). Trou RÉEL reformulé : l'**émission** de partiels n'existe que dans le composer (1/10). ✅ *Émission adoptée par le parc : 10/10 apps émettent depuis le 2026-10-06 (§F3b ; `app_registry.py` : 10 `during_preview=True`, critère `during_preview` ; relevé le 2026-10-31)* | F3b | ✅ adoption |
 | 5 | `select_model()` : composer, transcriber, imager, **reader** (2026-07-31, `61a666f`). Reclaim VRAM ✅ **unifié** (cf. F4). Ce qui restait n'était PAS un trou : enhancer/avatarizer/synthesizer n'ont **aucune sélection automatique à faire** (l'utilisateur désigne, ou le modèle vit hors process) ; describer = unification différée par AGENTS.md (Phase 4) ; anonymizer = `select_best_models()` couvre un **jeu de classes avec plusieurs modèles** là où la brique n'en choisit qu'un, et lit déjà le catalogue → sur-ensemble légitime | F4 | ✅ pour l'essentiel |
 | 5b | **Capacités canoniques** ✅ (2026-07-31, `8ffac24`) : `inputs_required/optional` n'était produit que par **2 découvertes sur 9** → `WamaInputMatch` n'avait rien à comparer (c'est la cause de `input_match_ui` 9/10 KO, pas un défaut d'UI). Les 98 modèles portent désormais `task` + `modalities` + `inputs_*`, zéro clé hors `CANONICAL_CAPABILITIES`. ⚠ La canonicalisation se fait **à la DÉCOUVERTE**, pas dans les `model_config` d'app : frontière **délibérée** (l'app déclare en son vocabulaire, le catalogue est la source unique) | F4 | ✅ |
-| 6 | **statuts non uniformes** → 3 tables d'alias. *Précisé le 2026-09-15 : l'enum commune existe (`common/models.py:41-61`) ; s'y ajoutent les vocabulaires propres du studio et de cam_analyzer. Traité par la marche **P2** de §10.6 (vocabulaire commun + `STALE` + agrégation) — ne pas le traiter isolément avant* | F5 | dette de schéma → §10.6 P2 |
+| 6 | **statuts non uniformes** → 3 tables d'alias. *Précisé le 2026-09-15 : l'enum commune existe (`common/models.py:56`, `JOB_STATUS_CHOICES`) ; s'y ajoutent les vocabulaires propres du studio et de cam_analyzer. Traité par la marche **P2** de §10.6 (vocabulaire commun + `STALE` + agrégation) — ne pas le traiter isolément avant.* ✅ *Soldé (P2, 17/09-04/10 ; relevé le 2026-10-31) : UNE table, `common/models.py:140` `JOB_STATUS_ALIASES`, `:156` `normalize_job_status` ; restent `reader/js/reader.js:40-41` et `face_analyzer/index.html:205-211`* | F5 | ✅ soldé (§10.6 P2) |
 | 7 | ✅ **clos (2026-08-01)** — gating ré-appliqué **par nœud** au RUN (`studio/tasks.py:181`) ET sur toute la surface outils (`tool_accessible`, cf. F7). Le trou était plus large que décrit : `/api/v1/tools/run/` n'était gardé par RIEN (middleware aveugle à `/api/v1/`, auth DRF postérieure au middleware) et `tools/list` annonçait 43 outils à tous. Mesuré après correctif : 22/43 annoncés à un compte `recherche` seul, `create_image` → 403 | F7 | ✅ |
-| 8 | **pas de test de contrat** sur la triade tool_api | F6 | robustesse |
-| 9 | imager : ✅ résolu — alias `add_to_imager` (`tool_api.py:2042`, `functools.wraps(create_image)` + remap `generation_id`→`item_id`) | F6 | clos |
+| 8 | **pas de test de contrat** sur la triade tool_api — 🔄 *partiellement couvert (relevé le 2026-10-31) : `tests_tool_api_start` (`EveryTriadIsDeclaredTest` `:218`, `TriadStatusFormsTest` `:259` — `start_*` des dix apps), `tests_item_views`, `tests_tool_api_lectures`, `tests_tool_api_twins` (§11 #40) ; reste un contrat `add`/`status` complet à mesurer* | F6 | robustesse |
+| 9 | imager : ✅ résolu — alias `add_to_imager` (`tool_api.py:1889`, inscription au registre `:4144`, `functools.wraps(create_image)` + remap `generation_id`→`item_id`) | F6 | clos |
 | 10 | ✅ **résolu (2026-08-11, palier params)** — la facette capte TOUS les `*PARAMS_JSON` (`{primary, schemas}`) ; imager 2 schémas, enhancer 2 schémas | F3 | ✅ |
 | 19 | **Divergence store⟷réalité non détectée** (avis critique 2026-08-11) : l'apply est un geste explicite (voulu, sûreté §2.1) mais RIEN ne signale une dérive entre manifestes ingérés et registres — discipline Terraform : jamais d'apply auto, mais un plan/verify qui TOURNE et signale. Brancher `manifest_roundtrip --all` + `verify` dans les contrôles nocturnes (charpente §18 existante). → ✅ **CLOS — confirmé le 2026-08-22** : le scénario `common.consistency.manifest_roundtrip` est enregistré dans la charpente (`nightly_scenarios.py:338-340`, étage `consistency`, timeout 300 s) et `doc_facts` l'appelle aussi (`doc_facts.py:77`). La détection TOURNE ; l'apply reste un geste explicite, comme voulu | transverse | ✅ |
 | 11 | `APP_MODES` (hand-maintained) à dissoudre : domaine=hint UI, mode=dérivé capacités | F2 | dette de conception |
 | 12 | anonymizer : refactor yolo/SAM3 en sélecteur modèle groupé + switch capacités (pas un « mode ») | F2/F3 | refactor UX |
 | 13 | avatarizer (rapide/qualité=param) + composer (music/bruitage=sélection modèle) : sortir du mécanisme modes | F2 | simplification |
-| 14 | **ingest média** (`source_url`→fichier local). ✅ **Mécanisme commun bâti** (2026-07-22, `d8960e5`) : `common/utils/source_ingest.ensure_local_input(instance)`, piloté par une déclaration modèle `WAMA_INGEST = {source, target, mode: media\|audio\|smart, name_field?, size_field?, title_field?}` (stopgap). Les 2 wrappers describer/transcriber sont **fusionnés** dessus (le transcriber **crashait** sans ce maillon). Réutilise `url_ingest.fetch_url_content` / `video_utils.upload_media_from_url`/`download_youtube_audio`. **Reste (côté instance manifeste) :** capacité **F2** `accepts_url`/`accepts_local_path` (→ génère la card au lieu du `show_url` manuel) + **facette F5** `ingest:{…}` qui *projette* vers `WAMA_INGEST` (remplacer le stopgap). Adopter l'URL sur une app = déclarer `WAMA_INGEST` + appeler `ensure_local_input` en tête de tâche. **✅ EXTRACT fait 2026-07-23** : `extract_app` capte `capabilities.accepts_url` + `processing.ingest` (lit `WAMA_INGEST` du modèle d'item via DetailRegistry ; transcriber/describer remontent leur spec, apps sans ingest → None). Reste = la **projection write-back** (manifeste → `WAMA_INGEST`), avec le reste de l'app_gen. | F2/F5 | extract ✅, projection ⏳ |
+| 14 | **ingest média** (`source_url`→fichier local). ✅ **Mécanisme commun bâti** (2026-07-22, `d8960e5`) : `common/utils/source_ingest.ensure_local_input(instance)`, piloté par une déclaration modèle `WAMA_INGEST = {source, target, mode: media\|audio\|smart, name_field?, size_field?, title_field?}` (stopgap). Les 2 wrappers describer/transcriber sont **fusionnés** dessus (le transcriber **crashait** sans ce maillon). Réutilise `url_ingest.fetch_url_content` / `video_utils.upload_media_from_url`/`download_youtube_audio`. **Reste (côté instance manifeste) :** capacité **F2** `accepts_url`/`accepts_local_path` (→ génère la card au lieu du `show_url` manuel) + **facette F5** `ingest:{…}` qui *projette* vers `WAMA_INGEST` (remplacer le stopgap). Adopter l'URL sur une app = déclarer `WAMA_INGEST` + appeler `ensure_local_input` en tête de tâche. **✅ EXTRACT fait 2026-07-23** : `extract_app` capte `capabilities.accepts_url` + `processing.ingest` (lit `WAMA_INGEST` du modèle d'item via DetailRegistry ; transcriber/describer remontent leur spec, apps sans ingest → None). Reste = la **projection write-back** (manifeste → `WAMA_INGEST`), avec le reste de l'app_gen. ✅ *Projection faite le 2026-08-22 (relevé le 2026-10-31) : `codegen/models_gen.py:159-194` émet `WAMA_INGEST` depuis `processing.ingest` (« les 10 apps … toutes le perdaient ») ; la capacité `accepts_url` est lue par le générateur (`codegen/templates_gen.py:406`)* | F2/F5 | extract ✅, projection ✅ |
 | 16 | **drapeaux de `capabilities` non régénérables** (mesuré 2026-08-11, pilote converter) : la facette mélange 3 natures — (a) 4 scalaires déclaratifs (✅ projetés), (b) drapeaux d'ÉTAT de conformité (inspector, layout, during_preview… : `_conv()` écrasé par la grille — ils convergeront par la MESURE une fois le code de l'app régénéré, ne JAMAIS les projeter), (c) N/A déclarés (`None` dans `_conv`, ex. `model_help=None` du converter) qui SONT du déclaratif mais vivent dans l'appel `_conv(...)` — leur projection exigerait d'écrire un appel `_conv(model_help=None, …)`, à trancher | F2 | manifeste/frontière déclaré-mesuré |
 | 18 | **Couverture tool_api hors catalogue** (audit 2026-08-11 : 43→46 outils ; re-vérifié RUNTIME 2026-08-17 : 46→**48**) : les 10 apps du catalogue ont leur triade COMPLÈTE (+ double triade enhancer/audio_enhancer, + verbes primaires aliasés) ; le **studio** est ✅ ; **model_manager LECTURE ✅ (2026-08-17)** — `list_ai_models` (filtres app/task/modality/downloaded, proposés exclus par défaut) + `get_ai_model` (fiche complète licence/auteur/capacités/empreintes), **transverses** (alignés sur l'ouverture du méta-catalogue à tous les selects via WamaModelHelp ; une future action d'ÉCRITURE serait gardée `model_manager`). Restent à trancher par usage réel : **wama_lab** (cam_analyzer, face_analyzer — 13 tâches Celery sans surface outil), **media_library en écriture** (import ; la lecture existe). ⚠ À VÉRIFIER (constat 17/08) : `/model-manager/api/models/db/` (source de WamaModelHelp) est sous le gating PAR CHEMIN de l'app model_manager (dev-only) — l'aide-modèle est-elle silencieusement INERTE pour un compte non-dev ? (le fetch avale l'échec sans erreur console). NB : la facette `tool_api` du manifeste ne capte que la triade canonique — la double triade enhancer lui est invisible (rattacher à #17) | F6 | couverture |
 | 17 | **3 facettes dont l'extract ne capte pas (que) du déclaratif** (mesuré 2026-08-11) : `inspector` = booléens de PRÉSENCE (detail/preview_registered) — rien à projeter, le déclaratif réel est la spec Detail d'`apps.py` (même diagnostic que `studio` avant correction) ; `prompts.skills` = NOMS de fichiers `.md` sans contenu ; `tool_api` = présence de la triade + descriptions DÉRIVÉES (les fonctions elles-mêmes = code, tier difficile avec `processing`) | F3/F6 | trous d'extract |
@@ -7552,14 +7698,14 @@ de répétition n'est ajouté pour les cards.
 | 24 | **Contrat de réponse d'`upload` non normalisé** : converter renvoie `job_id`, le gabarit généré `id`, d'autres `pk`. `converter.js` lisait `data.job_id` là où la vue générée renvoyait `id` → identifiant `undefined`, liste vide, pas de rechargement, **aucune card, sans erreur**. `wama-import.js` lit désormais les trois graphies (filet), mais la normalisation des vues reste à faire — l'affichage ne doit pas dépendre d'un nom de clé. **Précisé le 2026-08-22 :** le trou n'est plus côté GÉNÉRATEUR — `views_gen.py` renvoie uniformément `{'id': …}` sur toutes ses vues. → ✅ **CLOS côté parc aussi (constaté à l'audit du 2026-08-31)** : `grep "'job_id':" wama/*/views.py` = 0 occurrence — le converter a TRADUIT vers `id` avec la justification écrite (`converter/views.py:261-272`). Le filet à trois graphies de `wama-import.js` n'a plus de cas connu ; il reste comme ceinture, plus comme nécessité. | F1 | ✅ |
 | 25 | **8 doubles inclusions de JS** (mesuré 2026-08-22) : `wama-model-help` ×4 (composer, converter, reader, transcriber), `wama-queue` ×2 (composer, describer), `wama-cycle-button` ×1 (composer), `console` ×1 (anonymizer) — tous DÉJÀ chargés globalement par `base.html`/`app_modern_base.html`. Même famille que le bug du player audio muet du 18/08 (deux BroadcastChannel). Disparaissent à l'adoption de `_app_scripts.html` — ⚠ **adoption à 0/10 dans le parc réel au 31/08** (le partial ne vit que dans le gabarit GÉNÉRÉ) : ce trou ne se refermera pas tout seul, il attend le portage. ✅ **SOLDÉ le 2026-10-03 (demande de Fabien)** : socle adopté **10/10** — 74 balises du socle recopiées remplacées par une inclusion par app, à la place de la PREMIÈRE balise du socle (aucun script ne se charge plus tard qu'avant), options mesurées app par app ; **les 8 doubles du global retirés**, exactement ceux du relevé (`wama-model-help` ×4, `wama-queue` ×2, `wama-cycle-button`, `console`). Trouvés en route : l'anonymizer ne chargeait pas `wama-global-progress.js` (barre figée, corrigé avant l'adoption) ; deux doubles légitimes DÉCLARÉS (`wama-new-item-card.js`, `wama-input-slots.js`, gardés contre la double initialisation, portés par la card d'entrée qui vit aussi hors des apps). Mécanisme `app_scripts` au registre (il n'était qu'une annexe d'`import_front`) et critère `app_scripts_common` **10/10** ; garde `tests_item_lifecycle_contract.test_every_app_page_loads_the_common_app_scripts_once` (contre-épreuve : un double remis → rouge) ; `eta_individual` et `batch_import` reconnaissent désormais le socle et le partial commun (ils n'étaient verts que par la balise). Smoke 8011 : 10 pages, globaux du socle tous définis, 0 erreur console | F3 | ✅ soldé |
 | 26 | **Aucun critère ne voit une zone de dépôt que rien n'écoute** : la grille mesure la présence du markup, pas l'existence d'un écouteur. C'est ce qui a laissé converter_01 inerte sans qu'aucune mesure ne baisse. Critère à écrire : une app qui rend `[data-wama-nic]`/dropzone sans charger de voie d'import échoue. ~~Confirmé OUVERT le 2026-08-22~~ → ✅ **LE CRITÈRE EXISTE (constaté à l'audit du 31/08)** : `Criterion('import_wired', 'F2', « Voie d'import CHARGÉE par le gabarit (dépôt non inerte) »)`, `conformity_checker.py` — avec exactement les subtilités réclamées ici (`data-wama-depot`, exemption « aucune card d'entrée »). La ligne « confirmé ouvert » a survécu à l'écriture du critère qu'elle spécifiait — le réécrire aurait fait un doublon pur. Reste vrai le corollaire : ⚠ Devenu plus facile à écrire depuis : la card d'entrée commune porte `data-wama-depot` (`cree`\|`attache`), donc le critère peut distinguer « rien n'écoute » (défaut) de « le dépôt joint, le bouton primaire crée » (conception légitime d'avatarizer/imager) — distinction qu'aucune heuristique de DOM ne savait faire, et qui est la raison pour laquelle ce critère n'avait pas été écrit. **⚠ Le PATRON existe désormais (2026-08-23) : `settings_wiring`** mesure exactement cette forme — le markup ET l'écouteur, en exigeant les DEUX (`.settings-btn[data-id]` dans le gabarit + `WamaQueueActions.onSettings` déclaré), et rend `partial` quand un seul des deux est là (« bouton au contrat, mais AUCUN ouvreur déclaré — clic inerte »). Le critère de dépôt se calque dessus. Corollaire appris le même jour : un critère de ce genre est passé **vert 10/10 le jour de son écriture** — il faut donc l'accompagner d'un scénario qui CLIQUE, sinon il atteste une adoption qu'on prendra pour un fonctionnement. | F3 | grille |
-| 27 | **`compact_preview` (reader) orphelin + 3e copie** : le filtre templatetag n'a plus d'appelant depuis le portage du 22/08 (le commun rend l'extrait), et la MÊME logique existe une troisième fois dans `reader/views.py::_compact_preview`, toujours utilisée pour la charge d'API. Candidat REMOVAL_LEDGER. Idem `imager` : `openImagePreview`/`openVideoPreview` sans appelant depuis le portage du mécanisme n°30. | F3 | dette |
+| 27 | **`compact_preview` (reader) orphelin + 3e copie** : le filtre templatetag n'a plus d'appelant depuis le portage du 22/08 (le commun rend l'extrait), et la MÊME logique existe une troisième fois dans `reader/views.py::_compact_preview`, toujours utilisée pour la charge d'API. Candidat REMOVAL_LEDGER. Idem `imager` : `openImagePreview`/`openVideoPreview` sans appelant depuis le portage du mécanisme n°30. ✅ *Filtre et fonctions imager retirés le 31/08 (`reader/_item_card.html:175-176`, `imager/index.html:273` ; relevé le 2026-10-31) ; reste la copie serveur `reader.views._compact_preview` (`reader/views.py:29`, servie par l'API `:66`)* | F3 | ✅ pour l'essentiel |
 | 28 | **La boucle codegen exige un REDÉMARRAGE** : `gunicorn_conf.py` n'a ni `reload` ni `preload_app`, donc aucune modification Python (`apps.py`, `views.py`, briques communes) n'est prise sans relance. Trois diagnostics de la session du 22/08 s'y sont heurtés — **un QUATRIÈME le 2026-08-23**, et sous une forme plus traître : `max_requests = 1000` recycle les workers **un par un**, donc la pile se retrouve MIXTE (mesuré : 2 workers sur 4 dataient d'avant la modification). Une route Python ajoutée existait donc pour la moitié des requêtes seulement, et un gabarit qui la référence rendait `NoReverseMatch` → **500 INTERMITTENT**. Coût : un A/B complet contre HEAD pour écarter une fausse régression. ⚠ **Une hypothèse « workers périmés » avait d'abord été REJETÉE à tort sur 6 sondes toutes vertes** — il en fallait 30 pour voir les 2/30 en 404 : sur un parc mixte, un petit échantillon ne décide rien. **Remède mesuré : `kill -HUP <maître>`** — sans `preload_app`, les workers réimportent l'application, le socket n'est pas lâché, et c'est instantané ; inutile de relancer la pile. ~~Les gabarits, eux, se relisent à chaque requête~~ ⚠ **FAUX, mesuré le 2026-09-05** : en production Django met le **loader de gabarits en cache PAR WORKER** (`DEBUG=False`, `APP_DIRS=True` → `cached.Loader` implicite). Après `app_sandbox substitute converter_01 templates`, **5 requêtes sur 6** servaient le gabarit régénéré et **1 sur 6** l'ancien — 4 workers d'âges 37 782 s / 26 344 s / 3 667 s / 311 s. Trois gestes nocturnes (`url_import`, `folder_import`, `batch_import`) tombaient sur la jumelle **au hasard du worker touché**, avec des symptômes qui accusaient le gabarit précédent — j'ai d'abord cherché la cause dans le code. **Un gabarit régénéré exige le même `kill -HUP <maître>` qu'une modification Python.** Après HUP : 6/6 à jour, 4/4 gestes verts. À écrire dans la recette de génération — et à trancher : `reload = True` en dev ? | — | outillage |
 | 29 | **Actions de card et barre de file : trous de PORTAGE relevés le 2026-09-15** (inventaire des 10 apps, vérifié ligne à ligne) — reader : actions de lot déclenchées DEUX fois (`reader.js:610-623` + `actions_communes=True`) ; converter : 🗑 sans `data-id` (`_job_card.html:135-137`) ; transcriber : cycle perdu au rafraîchissement d'une card (`index.js:1212`, `:276`) ; barre de file : **0/12** passent `start_url`/`clear_url` au partial commun, « Télécharger tout » désactivé à vie sur plusieurs apps. → ✅ **barre de file SOLDÉE le 2026-10-17** : **12/12** passent les deux URLs, les handlers des dix apps sont retirés (`REMOVAL_LEDGER` R136), les spécificités déclarées aux hooks `onQueueStarted` / `onQueueStartBody` ; tenu par le critère `queue_actions_common` (il lit le câblage, là où `start_all`/`clear_all` ne lisent que la route) et par la page RENDUE (`tests_declared_conventions`). → ✅ **« Télécharger tout » SOLDÉ le même jour** (R141) : le ⬇ des 12 barres est la brique `_download_button.html` (`queue=True`, formats DÉCLARÉS par `app`), « prêt » = au moins un élément terminé, compté par le serveur et appliqué par la barre de progression globale de la file ; six clics morts et quatre bascules locales retirés, `anonymizer.download_all_media` en GET ; le critère couvre désormais les trois boutons. → ✅ **et le ZIP qu'il sert** (R142, #37) : la vue de la fabrique, sur la file déclarée — l'imager zippe enfin ses vidéos, et gagne son ZIP de lot. ⚠ Les critères `delete_wiring`/`settings_wiring` restent VERTS sur ces défauts : ils mesurent l'adoption du bouton, pas l'absence d'écouteur local ni le rafraîchissement — gestes navigateur à écrire avec le portage. Détail : `PROJECT_STATUS §PALIER 2026-09-15`, suite. | F5 | portage |
 | 30 | ~~**Jumelles incomplètement générées** (mesuré par la marque `[manifest-gen]`, 2026-09-15) : `converter_01` 8 fichiers conventionnels, `describer_01` 4, `composer_01` 1, `imager_01` 0. Bloquant commun : `views_gen` v1 = forme FK-DIRECTE seule~~ → ✅ **Le bloquant est LEVÉ le 2026-09-22** (forme à liaison LUE au manifeste, §10.3 marche S). État MESURÉ au registre `sandbox_apps.json` le soir même, par régénération seule (jamais une jumelle retouchée à la main) : **`describer_01`** views + templates GÉNÉRÉS (reste `models:revert`, champs de résultat hors spine — marche B) ; **`composer_01`** views + templates GÉNÉRÉS (reste `apps` refusé : détail en adapter CODE → `register_app_detail_spec`, portage) ; **`converter_01`** 7/7 régénérés ; **`imager_01`** urls + tasks générés, **views/templates REVENUS en couple** — ses routes portent `<int:generation_id>` et des vues `*_generation` là où la convention dit `<int:pk>` (`card_html() got an unexpected keyword argument 'generation_id'`), et son `params.py` porte de la glu (`USER_SETTINGS_DEFAULTS`, `panel_values_by_name`, `*_GROUPS_JSON`) que les vues copiées importent : deux chantiers de PORTAGE de l'imager, pas du gabarit. Ce que la régénération a révélé et corrigé dans le COMMUN et l'OUTIL ce jour-là : `workers.py` copié à côté du `tasks.py` généré (Celery autodécouvre les deux), `gear_data` @property sans setter, champs FICHIER lus à la facette `data`, `b.delete()` sur un lot déjà purgé, aliases de routes `import_batch`/`generate`/`create`, `index` en fonction, `default:reference_hint` d'un partial commun, registre non concurrent, cause d'un smoke illisible, couple views↔templates mesuré par `card_html`. Gate suivante : la batterie `run_nightly_tests --id <label>.` sur les trois jumelles générées (non lancée ce jour). | codegen | ✅ levé ; imager = portage |
 | 31 | **Registre des mécanismes : 18 fichiers portés par plusieurs mécanismes** (mesuré 2026-09-15) — relation cachée dans des annexes croisées, consommateurs comptés deux fois. Décision Fabien : champ `depends_on` (posé), un fichier = un mécanisme. Rangement NON appliqué ; `wama_actions.py` (4 balises de 4 briques) et mémoire/RAG à trancher d'abord. | — | registre |
-| 32 | **Trois exécutions de « suite de traitements », trois vocabulaires d'états** (mesuré 2026-09-15) : squelette de tâche (`task_skeleton.py:185`, un process), exécuteur du studio (`studio/tasks.py:323`, littéraux, sans `AWAITING_RESOURCES`), suivi de passes cam_analyzer (`AnalysisPass`, `pending/…/stale`). Aucune ne connaît les deux autres ; le moteur commun et la ligne d'exécution par process ne sont pas enregistrés au registre des mécanismes (`mecanismes.py` n'a d'entrée ni pour l'exécuteur du studio ni pour `pass_tracking`). Chantier : **§10.6 marches P2-P6** | F5/F8 | moteur commun |
+| 32 | **Trois exécutions de « suite de traitements », trois vocabulaires d'états** (mesuré 2026-09-15) : squelette de tâche (`task_skeleton.py:185`, un process), exécuteur du studio (`studio/tasks.py:323`, littéraux, sans `AWAITING_RESOURCES`), suivi de passes cam_analyzer (`AnalysisPass`, `pending/…/stale`). Aucune ne connaît les deux autres ; le moteur commun et la ligne d'exécution par process ne sont pas enregistrés au registre des mécanismes (`mecanismes.py` n'a d'entrée ni pour l'exécuteur du studio ni pour `pass_tracking`). Chantier : **§10.6 marches P2-P6**. ✅ *Moteur commun livré et enregistré (relevé le 2026-10-31 : `common/mecanismes.py:175` `process_runs`, `:196` `process_pipeline` ; P2, P5, P6 livrés, P3 en grande partie) ; restent hors registre l'exécuteur du studio et `pass_tracking` (cité seulement en commentaire, `mecanismes.py:173`)* | F5/F8 | ✅ moteur commun ; reste registre |
 | 33 | **Le monde d'une app n'est pas déclaré, il est DÉDUIT** du groupe de la matrice d'accès (`GROUP_TO_WORLD`, `manifests/builtin/app.py:36-44`) → corpus faux : transcriber, reader, describer en `data`, converter en `transverse` ; menus/accueil/`/apps/` regroupent par `category` (qui mêle nature d'opération et pseudo-mondes), blocs Studio et Lab écrits en dur (`home.html`, alors), journal qui force `media`. Décision du 15/09 : chaque app déclare son monde, tout en dérive — **§10.6 point 6.1, marche P1**. 🔄 2026-10-02 : la déclaration est livrée — dix apps du catalogue (`app_registry.app_world()`, `GROUP_TO_WORLD` retiré, corpus corrigé) et surfaces hors catalogue (`register_surface` depuis leur `ready()`, `extra_links` retirés) ; le journal ne force plus `media` et n'invente plus de monde `studio`, le monde d'une fonction se déduit de son app ; `category` réduit à trois sous-groupes, menu / accueil / `/apps/` lisent un seul groupage par monde (`get_app_groups`), les blocs en dur de l'accueil sont retirés ; l'arborescence d'apps de l'explorateur est dérivée (`app_media_folders`). ✅ SOLDÉ le 2026-10-02 | F1 | déclaration |
-| 34 | **Catalogue du studio** : titre « Apps » (`studio/templates/studio/index.html:47`), pipelines sauvegardés absents (`studio/views.py:18-70` ne lit que apps + fonctions), ajout au clic avec empilement (`wama-studio.js:93`, `:122-123`), aucune section repliable. Décisions du 15/09 : « Catalogue », sections repliables, pipelines sauvegardés, glisser-déposer — **§10.6 point 5.4** (le renommage et le glisser-déposer ne dépendent de rien) | F8 | UX studio |
+| 34 | **Catalogue du studio** : titre « Apps » (`studio/templates/studio/index.html:47`), pipelines sauvegardés absents (`studio/views.py:18-70` ne lit que apps + fonctions), ajout au clic avec empilement (`wama-studio.js:93`, `:122-123`), aucune section repliable. Décisions du 15/09 : « Catalogue », sections repliables, pipelines sauvegardés, glisser-déposer — **§10.6 point 5.4** (le renommage et le glisser-déposer ne dépendent de rien). ✅ *Livré le 2026-10-03 (point 5.4 ; relevé le 2026-10-31 : titre « Catalogue » `studio/index.html:55`, sections `paletteSection`, garde `studio/tests/tests_catalogue.py`), glisser-déposer seul le 07/10* | F8 | ✅ UX studio |
 | 35 | ~~**Un pipeline sans process est refusé** : `studio/services/launch.py` exige au moins un nœud app ou fonction → l'export seul (entrée → sortie, ex. extraire les tables de situations d'une base connectée) est impossible, alors qu'il est valide dans le modèle du 15/09 — **§10.6 point 3.6**~~ ✅ **2026-10-11** : accepté, et le cas cité s'exécute (`data_connector` → `data_export`, `studio/tests/tests_data_nodes.py`) | F8 | moteur |
 | 36 | **Les six VUES DE LOT n'ont pas de fabrique commune** (mesuré 2026-09-22, question de Fabien « le fonctionnement batch est commun et porté ? ») : le MODÈLE de lot (`BatchMixin`, `register_batch_sync`), la FILE (`build_batches_list`, `_queue_entry.html`) et la MANIPULATION (`make_queue_manipulation_views` : réordonner/déplacer/sortir/fusionner) sont communs et à 10/10 ; mais `batch_start`, `batch_delete`, `batch_duplicate`, `batch_download`, `batch_update`, `batch_status` sont écrites À LA MAIN dans les 10 apps, même forme à chaque fois — 60 lectures de lot recopiées sous cinq graphies (`.items.select_related(fk).order_by('row_index')`, `.all()`, sans ordre là où l'ordre compte), **0/10** sur la brique `batch_elements`. ~~La fabrique manquante est DÉJÀ ÉCRITE : ce sont les corps conventionnels de `views_gen`~~ → ✅ **BRIQUE LIVRÉE le soir même** : `common/utils/batch_views.make_batch_views` (les six vues, paramétrée comme la fabrique de file — `task`, champs FICHIER, sorties vidées à la duplication, réglages + schéma, forme par `item_model`/`fk_name` ou `batch_attr`/`row_field`, `batch_extra`) + `read_settings_payload`/`apply_item_settings` partagés avec la vue `update` d'un élément. Le générateur la CONSOMME (plus aucun corps de lot émis : le fichier généré du describer perd 80 lignes) ; `tests_batch_views` (12, les deux formes) ; mécanisme `batch_views` au registre. **Portage des apps réelles — pilote describer FAIT le soir même** (1ʳᵉ app après le générateur) : cinq vues remplacées par `_bv = make_batch_views(...)`, spécificités en kwargs (`reset_on_start` = `_reset_for_relaunch` + cache à 0, `progress_of`/`on_delete` sur le cache `describer_progress_<id>`, `result_text` vidé à la duplication, `@app_access` gardé sur le démarrage) ; `update_options` passe par `read_settings_payload`/`apply_item_settings` (l'ancien typage à la main `int`/`bool` = ce que le schéma déclare) ; `batch_list` et `batch_download` lisent le lot par `batch_elements` (qui lit désormais le CACHE d'un lot préchargé : 0 requête). `batch_download` reste LOCAL (multi-format `?fmt=`, §9.10) → `batch_views_common` = partiel ASSUMÉ, `batch_read_common` VRAI ; describer 87/89. **Puis reader et transcriber (23/09)** — même recette, deux hooks de plus nés du réel : `empty_is_value` (reader : `language` vide = auto-détection, une VALEUR) et `task_for` (transcriber : la tâche se choisit par élément, avec ou sans pré-traitement) ; les réponses portent `success: True` (le front du reader le lit). Trois apps à `batch_read_common` VRAI et `batch_views_common` partiel ASSUMÉ (`batch_download` multi-format local, §9.10). **Puis avatarizer et composer (23/09)** — quatre hooks de plus, tous nés d'une spécificité MESURÉE : `start_only_pending` (composer : « créer ≠ démarrer » ; le défaut de la fabrique = l'idiome majoritaire, ▶ de lot RELANCE tout ce qui ne tourne pas, échecs et succès compris — mon premier jet ne lançait que les PENDING, corrigé), `after_update` (avatarizer : `quality_mode` dérivé de `use_enhancer`), `item_extra(copie, original)` (composer : `output_filename` de la ligne de liaison), `read_lookup` (avatarizer : un lot PARTAGÉ se télécharge par `visible_or_404`). Avatarizer : les cinq vues par la fabrique, plus aucune lecture locale (86/93). Composer : `batch_update` (validation du modèle contre le catalogue, `generation_type` dérivé, curseur) et `batch_download` (nom d'archive = ligne de liaison) restent LOCAUX, écarts assumés, lus par `batch_elements` (89/97). **Puis enhancer et imager (23/09)** — deux hooks de plus : `start_reset_for(request)` (enhancer : la remise à zéro du ▶ audio se fabrique depuis la requête) et `output_name` (nom de fichier dans l'archive). Enhancer = DEUX files, donc deux fabriques sur la même page (`_bv` média, `_abv` audio), `batch_update` local (91/94). Imager : ses routes passent de `<int:batch_id>` à `<int:pk>` (dernière graphie déviante des 10 apps) ; start/delete/duplicate par la fabrique (`start_only_pending`, `task_for` image/vidéo, cache de progression oublié au démarrage et à la suppression, `generated_images` purgées par `_forget_outputs` — extrait de `_purger_generation`, qui supprimait aussi la LIGNE ; `domain` du lot conservé à la duplication) ; `batch_update` (un schéma PAR élément) et `get_batch_children` (lecture PARTAGÉE) restent locaux, lus par `batch_elements` (88/98). **Puis synthesizer, anonymizer et converter (23/09) — 10/10.** Deux ajouts au commun, nés du réel : `startable(élément)` (converter : un job sans format de sortie n'est ni lancé ni compté) et **`batch_link`**, posé par `batch_elements` sur chaque élément — la LIGNE qui le porte (ligne de liaison, ou l'élément lui-même en FK directe) — ce qui permet aux hooks de nommer d'après la ligne (`output_name`/`item_label`/`item_extra` = `s.batch_link.output_filename`) : c'était la seule raison pour laquelle composer et synthesizer gardaient un `batch_download` local. Synthesizer : les CINQ vues par la fabrique, `batch_utils.duplicate_synthesizer_batch` (une « brique commune » à un seul appelant, qui importait l'app) RETIRÉ (`REMOVAL_LEDGER` R68), fichier de lot partagé à la duplication par `batch_extra` ; `batch_update_settings` et `batch_list` locaux, lus par la brique (88/94, `batch_views_common` VRAI). Anonymizer : quatre vues, réglages = `PARAMS_JSON` coercé + `MSValues_customised` par `after_update`, purge des verrous/cache/sortie floutée par `on_delete` ; `batch_download` local (la sortie n'est pas un FileField, 89/98). Converter (FK directe) : quatre vues, `@login_required` gardé ; `batch_update` local (`poser_reglages` + geste de qualité, 81/83). Le ZIP commun est DEFLATED (idiome des trois). **Restent locaux, assumés** : `batch_download` multi-format (describer, reader, transcriber, §9.10), `batch_update` à logique propre (composer, enhancer, imager, converter) et `batch_download` de l'anonymizer (sortie hors FileField). Celui du composer est passé sur la fabrique dans la foulée (`output_name=_link_name` par `batch_link`). ✅ **2026-10-02 — le `batch_download` multi-format n'est PAS une spécificité (décision de Fabien : « ce ne sont pas des spécificités, on uniformise au mieux »).** Confronté au code : les trois vues locales (describer, reader, transcriber) étaient la MÊME vue, à trois détails près — et ces trois détails étaient déjà DÉCLARÉS ailleurs : les formats au catalogue (`export_formats`, `export_binding='late'`), le rendu par app au registre (`export_formats.register_export_builder`), tous deux lus depuis le 23-30/08 par le bouton ⬇ de la card et celui de la barre de file. Seul le niveau LOT ne les lisait pas : il recopiait les formats en dur dans la vue ET dans un partial `_batch_download_menu.html` par app, avec une query à lui (`?fmt=` contre `?format=`). La fabrique lit désormais ces deux déclarations (aucun paramètre neuf : `export_formats.requested_format` borne le format aux déclarés ; `output_name` donne la souche de chaque entrée) ; la card mère rend son bouton ZIP par la brique du ⬇ commun (`_batch_card.html` → `download_button … split=False`), les trois partials et les trois vues sont retirés (`REMOVAL_LEDGER` R91). Gardes : `tests_batch_views.LateBindingBatchDownloadTest` (chaque app late-binding du catalogue par sa VRAIE route, jumelle comprise), `tests_downloads.BatchCardZipButtonTests`. Describer **100 %**. ✅ **2026-10-02 (suite) — les `batch_update` « à logique propre » n'en étaient pas non plus.** Confronté au code, app par app : la vue de lot RÉÉCRIVAIT les règles de la route d'élément à côté d'elle (sa lecture de `request.POST`, sa validation, ses champs dérivés) — deux codes pour une règle, et celui du lot avait perdu des validations en route (composer : modèle invalide ignoré en silence ; converter : format validé deux fois, par deux messages ; synthesizer : JSON seul, `speed`/`pitch` remis à 1.0 quand ils n'étaient pas postés). La fabrique reçoit `apply_settings` : LA fonction de l'app qui pose des réglages sur UN élément, celle que sa route `update_settings` appelle aussi (`_apply_job_settings`, `_apply_generation_settings` ×2, `_apply_enhancement_settings`, `_apply_synthesis_settings`, `_apply_reading_settings`) ; `schema` peut dépendre de l'élément (imager : image ou vidéo) ; l'écriture est en DEUX TEMPS (poser sur toutes les filles, puis sauver) : un réglage refusé (`ValueError`) répond 400 et n'écrit AUCUNE fille. Six vues locales retirées (`REMOVAL_LEDGER` R92) : composer, converter, enhancer, imager, synthesizer (sous le nom `batch_update_settings`, que le critère ne voyait pas : l'app était VERTE avec une vue à la main — motif élargi) ; route du synthesizer alignée (`batch/<pk>/update/`, nom `batch_update`, comme les neuf autres). ⚠ Trouvé par la garde, pas par la lecture : le **reader**, déjà sur la fabrique, déclarait ses champs à DEUX endroits (route d'élément : quatre ; fabrique : trois) — sa modale de lot affichait un format de sortie que le serveur n'écrivait pas. Garde GÉNÉRIQUE, aucune app nommée : `tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest` poste chaque réglage postable par un lot à la route d'élément ET à la route de lot et compare ce qui est écrit (9 apps à lots, toutes mesurées) ; `tests_batch_views` tient le crochet (deux temps, schéma par élément) et le critère sous ses deux graphies. `batch_views_common` : **VRAI 10/10** | F5 | brique ✅ ; portage **10/10** |
 | 37 | **La PROGRESSION n'a pas de fabrique commune** (mesuré le 2026-10-03, question de Fabien « dix apps ont chacune leur propre fonction de progression, à centraliser ») : DEUX familles écrites à la main dans chaque app. ① `global_progress` ×10 (+ `process_progress` de l'anonymizer, + `audio_global_progress` de l'enhancer) : chacune recompte total / en cours / terminés / échoués et une progression d'ensemble — **trois formules** (moyenne de tous les `progress` ; terminés = 100 + cache des en-cours ; moyenne SQL `Avg`) et **quatre vocabulaires** de clés (`done`/`success`, `failed`/`failure`/`error`) que le JS COMMUN `wama-global-progress.js` absorbe en acceptant toutes les graphies. ② `progress(request, pk)` ×8 (+ audio enhancer) : même squelette partout — `visible_or_404` (lecture → partage F7), progression lue au cache `<app>_progress_<id>` sinon en base, `status`, erreur (sous `error` OU `error_message`, parfois seulement en échec), `estimated_seconds` par `eta_estimator.estimate(clé, taille, unité)` dont le triplet est écrit à la main dans chaque vue (trois apps ont déjà un helper `*_eta_key_size` ; le composer ajoute un repli a-priori `gen_factor`) ; autour, les clés PROPRES que son JS lit (`partial_text`, `status_message`, URLs de résultat, `processes`/`shown_state`, split image/vidéo de l'imager) ; le reader rend `_item_to_dict` entier. **La forme commune** : `make_progress_views(work_model, get_user, cache_prefix, eta_for=…, extra=…, error_key=…, queryset=…)` → `{'progress', 'global_progress'}`, UNE formule de progression globale et un payload au vocabulaire COMPLET (`total, pending, running, success, failure, done, failed, overall_progress`), les spécificités en crochets — le modèle de `make_batch_views` (#36), et le triplet d'ETA DÉCLARÉ une fois par app (le squelette de tâche le rend déjà à `record_run` : `'eta': (clé, taille, unité)` — un seul lieu pour l'a-priori et l'appris). Méthode : équivalence MESURÉE par app sur témoins avant bascule (payload clé pour clé, comme B et C), contrat générique « chaque `<app>:progress` et `<app>:global_progress` rend les clés communes », URL de l'imager `<int:generation_id>` → `<int:pk>`. ✅ **BRIQUE LIVRÉE et PORTÉE 10/10 le 2026-10-03 (soir)** : `common/utils/progress_views.make_progress_views` → `{'progress', 'global_progress'}`. ⚠ La formule n'est PAS une nouvelle décision : c'est celle du CONTRAT de la barre commune (`wama-global-progress.js` dérive `done / total`, sa ligne de stats sépare « terminé » et « échoué ») et de l'app de référence (describer) — réussi = 100, en cours = sa progression vivante, échec et attente = 0 : **un échec est échoué, pas terminé** (Fabien, 03/10 ; le composer, qui comptait un échec 100, et les apps qui le comptaient à sa progression étaient en DÉRIVE). Crochets : `eta_for` (le triplet d'ETA déclaré une fois, `(clé, taille, unité[, modèle chargé])`), `eta_fallback` (a-priori du composer), `extra` (clés propres que lit le JS), `progress_of` (même crochet que `make_batch_views` : le dict `{'pct'}` du reader, `media_progress_<id>` de l'anonymizer), `progress_field`, `pipeline_model` (bande des process : `processes`/`shown_state` rendus seulement si l'app déclare un pipeline), `queryset` (converter : sans les jobs éphémères), `domains` (imager : image / vidéo, le premier à plat). Erreur : `error` ET `error_message`, vides hors échec (un message d'un échec passé ne se montre plus sur une card relancée). **Équivalence MESURÉE avant bascule** sur 200 éléments réels de 10 files, en lecture seule (ancienne vue contre fabrique) : clés ajoutées seulement, valeurs communes identiques, barres de file à quelques points près (l'alignement sur la formule). Lecteurs locaux de la barre (describer, enhancer, reader, synthesizer) déjà neutralisés : seul le composant commun la lit. URL de l'imager `<int:generation_id>` → `<int:pk>` ; l'anonymizer gagne `progress/<int:pk>/` au format commun, `process_progress/?media_id=` retiré (`REMOVAL_LEDGER` R95). Le générateur la CONSOMME (`_pv` en tête du module généré). Gardes : `tests_progress_views` (formule, crochets), `tests_item_lifecycle_contract` (clés d'une card et de la file, TOUTES les apps), critère `progress_views_common` **VRAI 10/10**. Le **composer** est passé le même soir, dès son `views.py` libéré par la session cover YuE (équivalence mesurée : sa barre comptait les éléments EN ATTENTE comme « en cours », écart aligné ; bande des process identique) — l'exemption `NOT_YET_ON_THE_FACTORY` est vide. ✅ **Revérification du même soir (demande de Fabien) — deux restes du plan soldés** : ① le **triplet d'ETA est déclaré UNE fois par app**, dans le module de tâches (`<app>_eta_key_size(item, model=None)`, l'idiome qu'enhancer et anonymizer avaient déjà ; describer : `eta.py`) — la glu le rend à `record_run` avec le modèle tiré, la vue le lit. Six apps l'écrivaient deux fois, et l'avatarizer DIVERGEAIT : la vue estimait un avatar 3D sous `avatarizer:<qualité>`, la tâche apprenait sous `avatarizer:talkinghead` (la vue lit désormais la nature de l'avatar par `input_match.work_token_for`, la brique du tirage). Garde générique `tests_progress_views.OneEtaPlacePerAppTest` + `avatarizer/tests_pipeline.OneEtaKeyForTheTaskAndTheViewTest` ; ② la règle « connecté, sinon anonyme » est le DÉFAUT de la fabrique (`progress_views.request_user`) — recopiée en lambda dans six apps au portage, retirée. ⚠ **2026-10-05** : pour une card à PROCESS, l'ETA est celle de ses process (`process_runs.launch_eta`, §10.6 4.5) — `eta_for` / `eta_fallback` ont quitté les vues des sept apps à pipeline, ils ne servent plus qu'aux trois apps à un seul process. ✅ **2026-10-17 — troisième vue, `download_all`** : le ZIP de la file que compte `global_progress`, sur la MÊME déclaration (`queryset`, `domains` ; `?domain=` pour l'imager) — onze vues d'app et celle du générateur retirées (`REMOVAL_LEDGER` R142) ; les entrées s'écrivent par `batch_views.zip_elements`, l'écrivain du ZIP de lot, qui lit les sorties DÉCLARÉES de la card (`send_to.sorties_de`). Critère `download_all` (il lisait la route), `tests_queue_zip` | F5 | ✅ brique | portage 10/10 |
