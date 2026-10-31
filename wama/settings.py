@@ -264,6 +264,12 @@ os.environ.setdefault('DEEPFACE_HOME', str(MODEL_PATHS['vision']['deepface']))
 # `<DOCTR_CACHE_DIR>/models`. Sans cette ligne, la brique d'orientation, appelée hors du moteur
 # docTR (qui posait la variable lui-même dans `run()`), les aurait rangés dans `~/.cache/doctr`.
 os.environ.setdefault('DOCTR_CACHE_DIR', str(MODEL_PATHS['ocr']['doctr']))
+# Coqui (XTTS v2) — MÊME IDIOME (2026-10-31) : la librairie range ses poids sous `<TTS_HOME>/tts`
+# (`trainer.io.get_user_data_dir`, qui lit `TTS_HOME` puis `XDG_DATA_HOME`). `coqui_backend.load`
+# posait la variable lui-même, pour tout le processus — jamais dans un backend (AGENTS.md). Le
+# service de voix, qui n'initialise pas Django, la pose dans son amorce (`common/tts/service.py`).
+os.environ.setdefault('TTS_HOME', str(MODEL_PATHS['speech']['coqui']))
+os.environ.setdefault('COQUI_TOS_AGREED', '1')
 
 # HuggingFace access token — required for gated models (pyannote/speaker-diarization-3.1,
 # FLUX.1-schnell…). Generate at https://huggingface.co/settings/tokens (read access), and

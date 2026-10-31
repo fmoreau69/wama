@@ -14,7 +14,7 @@ import tempfile
 
 from wama.common.tts.constants import COQUI_MODEL_MAPPING
 
-from .tts_base import CATALOG_KEYS, TTSBackend, _device, project_root, speech_dir
+from .tts_base import CATALOG_KEYS, TTSBackend, _device, project_root
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +56,8 @@ class CoquiBackend(TTSBackend):
         if self._tts is not None and self.loaded_model == model:
             return True
 
-        cache_dir = speech_dir('coqui')
-        # TTS_HOME AVANT l'import : c'est lui qui fixe où Coqui télécharge/lit ses poids.
-        os.environ.setdefault('COQUI_TOS_AGREED', '1')
-        os.environ['TTS_HOME'] = str(cache_dir)
+        # Où Coqui lit ses poids (`TTS_HOME`) se décide UNE fois au démarrage du processus —
+        # `settings.py` (Django) et l'amorce du service de voix —, jamais ici (2026-10-31).
 
         # torchaudio.load → soundfile : torchcodec est cassé sur ce poste et Coqui lit
         # ses références via torchaudio — BRIQUE COMMUNE (partagée avec l'enhancer).

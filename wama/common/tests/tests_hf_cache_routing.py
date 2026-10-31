@@ -55,8 +55,13 @@ from pathlib import Path
 #: ⚠ `XDG_CACHE_HOME` AJOUTÉ LE 2026-10-19 : la racine GÉNÉRIQUE des caches (HF quand `HF_HOME`
 #: manque, torch.hub, toute librairie qui suit XDG). `bark_backend.load` la posait pour UN moteur,
 #: pour tout le processus du service de voix — même défaut que le cache HF, une variable plus haut.
+#: ⚠ `TTS_HOME` et `XDG_DATA_HOME` AJOUTÉS LE 2026-10-31 : les deux variables que Coqui lit pour
+#: ranger ses poids (`trainer.io.get_user_data_dir`, dans cet ordre). `coqui_backend.load`
+#: posait `TTS_HOME` pour tout le processus du service de voix ; elle est désormais posée par
+#: `settings.py` et l'amorce du service (`CoquiWeightsHomeTest` ci-dessous).
 VARS_HF = {'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE', 'HF_HOME',
-           'HF_TOKEN', 'HUGGING_FACE_HUB_TOKEN', 'HUGGINGFACE_TOKEN', 'XDG_CACHE_HOME'}
+           'HF_TOKEN', 'HUGGING_FACE_HUB_TOKEN', 'HUGGINGFACE_TOKEN', 'XDG_CACHE_HOME',
+           'TTS_HOME', 'XDG_DATA_HOME'}
 
 #: Sites de mutation MESURÉS le 2026-09-03, après les retraits de `table_transformer` (1er),
 #: puis du goulot `model_config.setup_hf_cache_for_model` et des replis de `wan_video_backend`
@@ -459,3 +464,39 @@ class BasculeDEnvironnementResteUnDERNIERRECOURSTest(SimpleTestCase):
             self.assertEqual(os.environ.get(k), v, f"{k} non restauré")
         if temoin is not None:
             os.environ['WAMA_TEMOIN_ABSENT'] = temoin
+
+
+class CoquiWeightsHomeTest(SimpleTestCase):
+    """Coqui reads its weights from `<TTS_HOME>/tts` — set ONCE per process, never in a backend.
+
+    Until 2026-10-31 `coqui_backend.load` assigned `TTS_HOME` for the whole voice-service process,
+    and `scripts/wama_services.sh` exported it to `AI-models/synthesizer/tts`, a folder that no
+    longer exists (the backend's assignment hid it). Now: `settings.py` for Django processes, the
+    voice-service bootstrap for the one process that does not start Django.
+    """
+
+    def test_django_processes_point_coqui_at_its_family_folder(self):
+        import os
+        self.assertEqual(Path(os.environ['TTS_HOME']).resolve(),
+                         Path(settings.MODEL_PATHS['speech']['coqui']).resolve())
+
+    def test_the_voice_service_bootstrap_sets_the_same_folder(self):
+        """The service does not import Django: its fallback path must be the same folder."""
+        from wama.common.backends.tts_base import speech_dir
+        self.assertEqual(speech_dir('coqui').resolve(),
+                         Path(settings.MODEL_PATHS['speech']['coqui']).resolve())
+        source = (_racine() / 'wama' / 'common' / 'tts' / 'service.py').read_text(encoding='utf-8')
+        calls = [n for n in ast.parse(source).body
+                 if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
+                 and getattr(n.value.func, 'attr', None) == 'setdefault'
+                 and n.value.args and getattr(n.value.args[0], 'value', None) == 'TTS_HOME']
+        self.assertEqual(len(calls), 1, "the voice service must set TTS_HOME once, at module level")
+
+    @unittest.skipUnless(__import__('importlib.util').util.find_spec('trainer'),
+                         "Coqui's `trainer` package absent from this venv")
+    def test_the_library_resolves_that_folder(self):
+        """Counter-check: setting the variable is not enough, the library must read it."""
+        import os
+        from trainer.io import get_user_data_dir
+        self.assertEqual(Path(get_user_data_dir('tts')).resolve(),
+                         (Path(os.environ['TTS_HOME']) / 'tts').resolve())

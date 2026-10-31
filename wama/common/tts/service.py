@@ -65,6 +65,13 @@ def _patched_torch_load(*args, **kwargs):
     return _original_torch_load(*args, **kwargs)
 torch.load = _patched_torch_load
 
+# Où Coqui range ses poids (`<TTS_HOME>/tts`) — préparation PROCESS, comme `settings.py` pour un
+# processus Django (2026-10-31 : `coqui_backend.load` la posait lui-même). Le même dossier que
+# `MODEL_PATHS['speech']['coqui']` : `speech_dir` en est le repli sans Django.
+from wama.common.backends.tts_base import speech_dir as _speech_dir
+os.environ.setdefault("TTS_HOME", str(_speech_dir("coqui")))
+os.environ.setdefault("COQUI_TOS_AGREED", "1")
+
 
 # ---------------------------------------------------------------------------
 # FastAPI app

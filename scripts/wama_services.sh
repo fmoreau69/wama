@@ -32,8 +32,9 @@ wama_runtime_env() {
 wama_worker_env() {
     # Limite de descripteurs relevée à la limite dure (le démarrage tente d'abord `prlimit`).
     ulimit -Sn "$(ulimit -Hn)" 2>/dev/null || true
-    export COQUI_TOS_AGREED=1
-    export TTS_HOME=$PROJECT_DIR/AI-models/synthesizer/tts
+    # `TTS_HOME` / `COQUI_TOS_AGREED` : posés par `settings.py` et l'amorce du service de voix
+    # (2026-10-31). L'export qui vivait ici visait `AI-models/synthesizer/tts`, un dossier qui
+    # n'existe plus — et, exporté, il aurait primé sur le `setdefault` de `settings.py`.
     export CUDA_LAUNCH_BLOCKING=0
     # WAMA est 100 % PyTorch : on EMPÊCHE transformers d'importer TensorFlow/Flax. TF saisirait
     # un contexte CUDA parallèle → « CUDA error: unknown error » (cudaErrorUnknown) en WSL2.
