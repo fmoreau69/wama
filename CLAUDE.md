@@ -33,6 +33,21 @@ architecture · collaboration wama-dev-ai · modèles imager actifs.
 - ✅ `cp a b` (chemins relatifs au repo) ou chemins **absolus** si besoin d'un autre dossier.
 - Pour exécuter dans WSL2 : `wsl.exe -e bash -lc '... && python ...'` (le `cd` est alors **dans** la
   chaîne WSL, pas un préfixe de la commande Bash hôte — c'est toléré).
+- Appliqué par `.claude/hooks/block_cd_prefix.py`.
+
+---
+
+## 🔴 HOOKS BRANCHÉS (constat du 2026-10-31, mesuré : `.claude/settings.json:3-21`)
+
+> Les hooks sont déclarés dans `.claude/settings.json` (versionné, qui porte aussi un socle de
+> permissions `allow`/`ask`) ; les permissions propres au poste dans `.claude/settings.local.json`.
+> Trois hooks `PreToolUse` sur `Bash|PowerShell` :
+
+- `block_cd_prefix.py` — refuse un `cd` en tête de commande (règle ci-dessus) ;
+- `block_shell_file_read.py` — refuse la LECTURE d'un fichier par one-liner shell (`sed -n`,
+  `head`, `Get-Content … | ForEach-Object`…) quand l'outil Read/Grep a l'équivalent exact ; ce
+  qui écrit, transforme ou agrège passe ;
+- `block_composite_oneliner.py` — règle ci-dessous.
 
 ---
 

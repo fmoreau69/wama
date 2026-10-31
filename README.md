@@ -24,9 +24,9 @@ The platform is **metadata-driven**: each app declares its identity, ports (type
 | **Describer** | `/describer/` | AI-powered description and summarisation of images, videos and audio. Uses multimodal LLMs (Ollama local or cloud). |
 | **Enhancer** | `/enhancer/` | Resolution upscaling for images/videos (Real-ESRGAN, HAT) and audio quality improvement (Resemble Enhance, DeepFilterNet). |
 | **Imager** | `/imager/` | Text-to-image, image-to-image, text-to-video and logo generation. Models: HunyuanImage 2.1, Qwen-Image 2 (+ Edit), SDXL, Mochi-1, LTX-Video, CogVideoX-5B I2V, Flux LoRA logo (live list: Model Manager catalogue). |
-| **Reader** | `/reader/` | OCR for printed and handwritten documents. Models: olmOCR (PDF-native, GPU), EasyOCR. Markdown output with optional LLM formatting. |
-| **Synthesizer** | `/synthesizer/` | Text-to-speech voice synthesis with voice cloning. Models: Higgs Audio V2, Coqui XTTS v2. Batch import from text/CSV files. |
-| **Transcriber** | `/transcriber/` | Automatic audio/video transcription — three engines (faster-Whisper, VibeVoice ASR, Qwen3-ASR) with VRAM-aware selection, audio preprocessing (DeepFilterNet), speaker diarisation (pyannote) and an AI-assisted manual correction editor. Outputs: plain text, SRT, VTT, JSON. |
+| **Reader** | `/reader/` | OCR for printed and handwritten documents. Models: docTR (local), olmOCR-2 (GPU), GLM-OCR and Chandra (Ollama), offered by task (live list: Model Manager catalogue). Markdown output with optional LLM formatting. |
+| **Synthesizer** | `/synthesizer/` | Text-to-speech voice synthesis with voice cloning. Models: Coqui XTTS v2, Higgs Audio V2, Kokoro, Bark (live list: Model Manager catalogue). Batch import from text/CSV files. |
+| **Transcriber** | `/transcriber/` | Automatic audio/video transcription — engines resolved from the catalogue (faster-Whisper, VibeVoice ASR, Qwen3-ASR, NVIDIA NeMo Canary/Parakeet, and validated backends such as FrWhisper or Kyutai) with VRAM-aware selection, audio preprocessing (DeepFilterNet), speaker diarisation (pyannote) and an AI-assisted manual correction editor. Outputs: plain text, SRT, VTT, JSON. |
 
 ### Lab tools (`wama_lab/`)
 
@@ -41,7 +41,7 @@ The platform is **metadata-driven**: each app declares its identity, ports (type
 |-----|-------|-------------|
 | **Studio** | `/studio/` | Meta-app: chain the apps above as **nodes on a canvas** (typed ports derived from each app's declared I/O), save pipelines, run them through Celery with per-node status. Also drivable by the AI assistant (`list_studio_pipelines` / `run_studio_pipeline` / `get_studio_run_status`). |
 | **FileManager** | `/filemanager/` | Persistent sidebar file browser. Supports drag & drop upload, folder creation, preview, rename/move/delete. Mounts network folders (CIFS/SMB) and local paths without copying files. |
-| **Model Manager** | `/model-manager/` | Discovery, download and status monitoring of all AI models. Registry of all models organised by domain (`detect`, `speech`, `vision`, `diffusion`, `segment`), with canonical capabilities (task, modalities, required inputs). |
+| **Model Manager** | `/model-manager/` | Discovery, download and status monitoring of all AI models. Registry of all models organised by category (`ModelType`: vision, diffusion, speech, vlm, llm, embedding, upscaling, lipsync, music, ocr, nlp), with canonical capabilities (task, modalities, required inputs). |
 | **Media Library** | `/media-library/` | Centralised asset library: custom voices, images, documents. Custom voices are shared across all synthesizer sessions. |
 | **Accounts** | `/accounts/` | User management with LDAP authentication support. Role/tier-based app access policies (also enforced on the assistant tool surface), per-user API tokens, language preference. |
 
@@ -73,15 +73,24 @@ Django 5.2  ──── PostgreSQL (WSL2)
   │          └── Redis (WSL2)
   │
   ├── Celery GPU worker  (queue: gpu)     ← 1 task at a time, solo pool
-  │     anonymizer · imager · enhancer · synthesizer · transcriber · describer · reader
+  │     anonymizer · avatarizer · composer · describer · enhancer · imager · reader ·
+  │     synthesizer · transcriber · face_analyzer · cam_analyzer · studio GPU nodes ·
+  │     memory / media indexing
   │
   ├── Celery Default worker (queue: default, celery)  ← autoscale 1–4, prefork
   │     model_manager · periodic tasks
   │
+  ├── Celery Studio worker (queue: studio) ← solo pool, pipeline orchestration
+  ├── Celery Nightly worker (queue: nightly) ← solo pool, nightly tests
   ├── Celery Beat                         ← scheduled tasks
   │
-  └── TTS Service — FastAPI/uvicorn (port 8001)
-        Higgs Audio V2 · Coqui XTTS v2
+  ├── TTS Service — FastAPI/uvicorn (port 8001)
+  │     Higgs Audio V2 · Coqui XTTS v2 · Kokoro …
+  ├── Vector Service — uvicorn (127.0.0.1:8002)   ← embeddings
+  ├── Privacy Service — uvicorn (127.0.0.1:8003)  ← personal-data detection
+  └── Channel gateway (`manage.py run_gateway`, Discord)
+
+  (full service map: docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 
 Ollama (Windows, port 11434)             ← local LLMs for Describer / Reader
 ```
@@ -114,7 +123,7 @@ Ollama (Windows, port 11434)             ← local LLMs for Describer / Reader
 ./start_wama_prod.sh --fast
 ```
 
-The script handles: stop of existing processes · WSL2 clock resync · WSL2→Windows portproxy (netsh) · PostgreSQL · Redis · Django migrations · collectstatic · Gunicorn · GPU CUDA cleanup · TTS service · CIFS share remount · Celery workers (gpu + default) · Celery Beat.
+The script handles: stop of existing processes · WSL2 clock resync · WSL2→Windows portproxy (netsh) · PostgreSQL · Redis · Django migrations · collectstatic · Gunicorn · GPU CUDA cleanup · TTS service · vector (8002) and privacy (8003) services · network share remount · Celery workers (gpu, default, studio, nightly — `scripts/wama_services.sh`) · Celery Beat · channel gateway.
 
 ---
 
@@ -217,9 +226,14 @@ python patches/apply_patches.py
 | 4 | `start_wama_prod.sh` | `HIGGS_DISABLE_CUDA_GRAPHS=1` must be exported | Verified, not re-applied |
 | 5 | `site-packages/xformers/ops/seqpar.py` | `GroupName` removed from `torch.distributed` in torch 2.9.x | `try/except` fallback import |
 | 6 | `site-packages/vibevoice/.../modeling_vibevoice_asr.py` | `lm_head` int32 GEMM overflow on long audio (CUDA `cudaErrorUnknown`) | logits computed on last token only |
+| 7 | `site-packages/qwen_asr/inference/qwen3_forced_aligner.py` | top-level `import nagisa` (Japanese tokenizer) while `qwen-asr` is installed `--no-deps` | lazy import |
+| 8 | `site-packages/nv_one_logger/.../pytorch_lightning.py` | `save_checkpoint(weights_only: bool)` rejected against Lightning 2.6 (`Optional[bool]`), blocking `import nemo.collections.asr` | signature aligned |
+| 9 | `site-packages/diffusers/utils/import_utils.py` | `packages_distributions()` called at import (tens of seconds per process on `/mnt/d`) | module → distribution table built on demand |
+| 10 | `site-packages`: `onnxruntime` + `onnxruntime-gpu` | both installed: the CPU build masks the GPU one | Verified, repair command printed |
 
 > **Adding a new patch:** use `apply_patch(path, search, replace, description)` in `patches/apply_patches.py`.
-> Every manual fix applied to a file in `venv_linux/` must be recorded here so it survives future `pip upgrade`.
+> Every manual fix applied to a file in `venv_linux/` must be recorded in `patches/apply_patches.py` so it
+> survives future `pip upgrade` — that script is the list that counts (register: `patches/README.md`).
 
 ---
 
@@ -295,10 +309,11 @@ references (an app cites its models and libraries).
 
 The reverse direction — **write-back** — regenerates registries from the manifest, as an explicit,
 idempotent and reversible gesture (dry-run by default, generated entries are marked and can be
-removed; hand-written entries are never overwritten). As of 2026-08-11, 7 facets project back
+removed; hand-written entries are never overwritten). As of 2026-08-11, 7 facets projected back
 (`access` → DB policy; `identity`/`ports`/`capabilities` → app catalogue; `studio` → pipeline
-runner; `modes`; `prompts`); the remaining facets (`params`, `inspector`, `processing`,
-`tool_api`) are the code-generation frontier. Derived values (app colours, node I/O) and measured
+runner; `modes`; `prompts`); `params`, `inspector` and `tool_api` have followed since, and only
+`processing` remains a partial projection — the code-generation frontier (see
+`WAMA_APP_GENERATION_ROUTE.md §10.3`). Derived values (app colours, node I/O) and measured
 values (conformity flags) are never written back — they are recomputed or re-measured.
 
 Instrumentation (all read-only):
@@ -323,8 +338,8 @@ python manage.py check_docs                # doc → code reference integrity
 | ultralytics (YOLO) | Object detection and tracking |
 | diffusers / transformers | Image/video generation models |
 | Coqui TTS / Higgs Audio | Voice synthesis |
-| olmOCR | PDF/document OCR (GPU) |
-| EasyOCR | Lightweight OCR |
+| olmOCR-2 | PDF/document OCR (GPU) |
+| docTR | Lightweight local OCR |
 | AudioCraft | Music and SFX generation |
 | Resemble Enhance / DeepFilterNet | Audio enhancement |
 | Ollama | Local LLM inference (Windows host) |

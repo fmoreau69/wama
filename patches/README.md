@@ -37,7 +37,9 @@ python patches/apply_patches.py
    `AudioMetaData` (supprimé en torchaudio 2.x) est enveloppé d'un `try/except` avec une
    dataclass de repli — **perdu à chaque `pip install --upgrade deepfilternet`, à rejouer** ;
 2. un shim runtime dans :
-`wama/enhancer/utils/audio_enhancer.py` → `DeepFilterNetBackend._patch_torchaudio_compat()`
+`wama/common/backends/audio_enhancer.py` → `_patch_torchaudio_compat()` (fonction de module,
+appliquée à l'import, l.27-41 ; elle délègue à la brique `common/utils/torchaudio_compat.py`) —
+*chemin corrigé le 2026-10-31 : le fichier a quitté `wama/enhancer/utils/`*
 
 Ce que le shim corrige :
 - `torchaudio.backend.common.AudioMetaData` → supprimé en torchaudio 2.0
@@ -118,8 +120,13 @@ nom `onnxruntime`. Le script ne répare pas (des services en marche ont chargé 
 `musetalk_local_2026-09-07.diff` et `triposr_pymcubes_lazy_rembg.diff` ne passent pas par
 `apply_patches.py` : ils s'appliquent au code tiers VENDORISÉ (`wama/common/backends/vendor/`).
 Leur domicile — dépôt d'origine, commit épinglé, backend consommateur — est
-**`wama/common/backends/vendor/README.md`** ; il ne se recopie pas ici. ⚠ Le diff MuseTalk
-(7 fichiers) n'est réappliqué par aucun script : « à outiller » (`PROJECT_STATUS`, 2026-09-07).
+**`wama/common/backends/vendor/README.md`** ; il ne se recopie pas ici. ~~⚠ Le diff MuseTalk
+(7 fichiers) n'est réappliqué par aucun script : « à outiller » (`PROJECT_STATUS`, 2026-09-07).~~
+✅ Outillé depuis le 2026-09-30 (constaté le 2026-10-31) : les deux diffs sont déclarés dans leur
+manifeste `library` (`manifests/libraries/musetalk.json:32`, `triposr.json:23`, champ
+`vendor.patch`) et appliqués par la route `library`, voie vendor
+(`model_manager/services/vendor_installer.py:184`, `git apply`), donc par
+`manage.py install_library <clé> --allow --apply` (`avatarizer/setup_avatarizer.sh:59`).
 
 > ⚠ Ce README décrivait les patchs 1 à 6 seulement jusqu'au 2026-10-10 : 7 à 10 et les deux
 > diffs y manquaient. La liste qui fait foi reste `apply_patches.py` (et la table de `AGENTS.md
@@ -129,23 +136,34 @@ Leur domicile — dépôt d'origine, commit épinglé, backend consommateur — 
 
 ## Installation deepfilternet
 
-deepfilternet 0.5.6 requiert une compilation Rust (deepfilterlib) :
+> ⚠ *(Corrigé le 2026-10-31)* Cette section prescrivait `pip install deepfilternet` à la main,
+> contre la règle « librairies et modèles par la ROUTE » d'`AGENTS.md`. Une librairie s'installe
+> par son manifeste `library` : `manifests/libraries/DeepFilterNet.json` (`DeepFilterNet==0.5.6`),
+> puis `install_library` (`model_manager/management/commands/install_library.py:6-10`).
+
+deepfilternet 0.5.6 requiert une compilation Rust (deepfilterlib) — le prérequis Rust reste un
+geste SYSTÈME :
 
 ```bash
 # Installer Rust si absent
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source ~/.cargo/env
 
-# Installer deepfilternet (compile deepfilterlib ~2-3 min)
-pip install deepfilternet
-
-# Le modèle se télécharge automatiquement au premier lancement depuis AI-models/models/speech/deepfilternet/
+# Installer deepfilternet par la route (compile deepfilterlib ~2-3 min)
+python manage.py install_library DeepFilterNet              # plan (dry-run)
+python manage.py install_library DeepFilterNet --allow --apply   # --allow = décision humaine
 ```
+
+Les poids se rangent sous `MODEL_PATHS['speech']['deepfilternet']`. ⚠ Constat du 2026-10-31 : au
+premier chargement, le backend laisse encore la librairie télécharger `DeepFilterNet3` dans ce
+dossier (`common/backends/audio_enhancer.py:333-342`) — ce n'est pas une installation par le
+catalogue.
 
 ## Installation resemble-enhance
 
 ```bash
-pip install resemble-enhance soundfile
+python manage.py install_library resemble-enhance --allow --apply   # manifests/libraries/resemble-enhance.json
 ```
 
-Le shim deepspeed (mock via MagicMock) est géré à l'exécution dans `audio_enhancer.py`.
+Le shim deepspeed (meta-path finder qui intercepte les imports `deepspeed.*`) est géré à
+l'exécution dans `wama/common/backends/audio_enhancer.py` (l.45-88).

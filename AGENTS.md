@@ -43,9 +43,15 @@
    sélection de modèle VRAM-aware, auto-maintenance (libs, modèles, audits) : centralisés et
    réutilisables. Chaque app expose son API à l'assistant IA (`tool_api.py`).
 
-6. **RAG = prochain grand chantier (pas encore implémenté).** Niveaux d'héritage prévus :
+6. **RAG = grand chantier, socle livré, extension en cours.** Niveaux d'héritage visés :
    université → labo/service → équipe → utilisateur. Le RAG utilisateur est la base ; l'utilisateur
    peut opter pour des niveaux plus globaux. Tout élément descriptible héritera du RAG.
+   *(Constat corrigé le 2026-10-31 — la ligne disait « pas encore implémenté ». Mesuré : ✅ la
+   brique `wama/common/memory/` (Postgres + pgvector) et le choix des niveaux à la lecture,
+   `recall(..., rag_niveaux=…)` sur `('user', 'unit', 'project', 'public')`, les unités héritées
+   (labo/équipe, sous-unités comprises) — `store.py:173-184`, jalon 13 de `WAMA_MEMORY.md §10`
+   (2026-08-21). ⏳ le niveau université en tant que tel, et l'héritage de TOUT élément
+   descriptible.)*
 
 > En cas de doute sur « où mettre le code » ou « comment présenter une UI » : relire ces 6 points,
 > puis `docs/construction/architecture/WAMA_APP_CONVENTIONS.md` et `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md`.
@@ -66,7 +72,7 @@
 | ce qu'on cherche | où | pourquoi celle-là |
 |---|---|---|
 | la brique existe-t-elle déjà ? | `docs/construction/architecture/WAMA_MECANISMES.md` — table **GÉNÉRÉE** depuis `wama/common/mecanismes.py` | seul index exhaustif du substrat. ⚠ **Y compris les mécanismes qu'on a écrits soi-même** : c'est le cas vécu le 07/09, un mécanisme rédigé trois jours plus tôt et non relu |
-| la question est-elle déjà tranchée ? | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` **§S** (« ce qu'une génération ne doit plus redécouvrir ») et **§10.5** (chaîne dépôt→app + briques à ne PAS réécrire) | ces deux blocs n'existent que **parce que** des sessions ont reproposé de l'existant. Les ignorer, c'est refaire exactement ce qu'ils documentent |
+| la question est-elle déjà tranchée ? | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` **§S** (« ce qu'une génération ne doit plus redécouvrir » — ⚠ constat du 2026-10-31 : **aucun titre ne porte ce nom** dans la ROUTE, seuls `§S2bis.6bis` et `§S2ter` existent ; la ROUTE le relève elle-même, « à corriger dans AGENTS.md (décision de Fabien) » — en attendant, lire `§S2bis`/`§S2ter` et le bloc « Ce qui est déjà posé, et qu'il ne faut pas redécouvrir » de `§F3b`) et **§10.5** (chaîne dépôt→app + briques à ne PAS réécrire) | ces deux blocs n'existent que **parce que** des sessions ont reproposé de l'existant. Les ignorer, c'est refaire exactement ce qu'ils documentent |
 | l'objet a-t-il déjà un registre ? | `wama/common/registries.py` → `overview()` (nature comprise : mesure / dérivé / redéclaration / scan) | un registre dit ce que WAMA sait NOMMER, et sa `description` dit la RELATION entre ses objets — ex. `backends` : *le modèle porte son moteur, le backend s'en dérive, un moteur est une librairie*. Chercher un lieu pour une famille sans registre, c'est en inventer une |
 | est-ce cohérent entre les MONDES ? | la règle « un monde n'est pas un sous-dossier du substrat » (plus bas) | la cohérence visée est INTER-mondes — substrat ↔ Médias ↔ Data ↔ Lab —, pas la propreté d'une app |
 
@@ -122,7 +128,8 @@ ne l'est jamais.
 
 ⚠ **Une frontière VOULUE se lit comme une réponse, jamais comme un trou à combler.** Exemple
 mesuré : la route `library` refuse `git+`, les URL, `file:`, `-e` et les contraintes lâches
-**avant** de toucher pip (verrous `ROADMAP §16.7`, câblés le 2026-08-31 — PyPI par nom seul, pin
+**avant** de toucher pip (verrous `ROADMAP §16.7` — section déplacée le 2026-09-19 vers
+`WAMA_HARNESS.md §7.1`, son point 3 —, câblés le 2026-08-31 — PyPI par nom seul, pin
 exact). Proposer d'y faire entrer un dépôt cloné est **mort au verrou** : ce n'est pas un manque
 d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
 
@@ -177,7 +184,7 @@ d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
   fichier **gitignoré** est absent d'un arbre neuf :
   | test | ce qui manque | verdict |
   |---|---|---|
-  | `tests_capabilities_languages.VendoringTest` | `staticfiles/vendors/three-*/…` | artefact |
+  | `tests_capabilities_languages.VendoringTest` | `staticfiles/vendors/three-*/…` | artefact — **soldé le 2026-09-12** (`three.module.js` versionné, cf. ci-dessous) |
   | `reader.tests_table_transformer.IntegrationReelleTest` | les poids d'`AI-models` | artefact |
   **La contre-épreuve est obligatoire** : relancer LE MÊME test sur l'arbre principal. Vert
   ici + rouge là-bas = artefact ; rouge des deux côtés = régression. Sans ce geste, on lit un
@@ -189,6 +196,9 @@ d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
   de three sont suivis. **Un clone frais n'a pas le cœur du 3D.** Le test a raison sur le fond
   et tort sur le lieu : c'est un trou de VERSIONNEMENT, comme les migrations — décision de
   Fabien (négation `!wama/static/vendors/**/build/` + `git add`), signalée, pas prise.
+  ✅ **Prise le 2026-09-12** (constat ajouté le 2026-10-31, mesuré : `.gitignore:155-163`, négations
+  `!wama/static/vendors/**/build/` et `!staticfiles/vendors/**/build/` ; `git ls-files` liste les
+  deux `three-0.180.0/build/three.module.js`).
   ⚠ **Harnais** : lancer `<worktree>/manage.py` depuis le dépôt principal met le **cwd en
   `sys.path[0]`** → `wama` vient du worktree, `wama_data`/`wama_lab` du dépôt principal →
   `ImportError: 'tests…' module incorrectly imported from …` (3 runs perdus le 05/09, rien à
@@ -328,7 +338,7 @@ apply_patch(
 | identifiant | importé ? | langue | pourquoi |
 |---|---|---|---|
 | module, classe, fonction, champ de modèle | **oui** — il se lit dans un `import`, une signature, un gabarit | **anglais** | c'est une API ; 97 % du dépôt l'est déjà |
-| méthode `test_*` | **jamais** | ~~français~~ → **anglais depuis le 2026-09-19** | l'argument « elle se lit dans un rapport d'échec » défendait en réalité le **STYLE** (une phrase qui énonce un COMPORTEMENT, pas un nom de cible) — et ce style se garde en anglais : `test_refreshing_twice_changes_nothing_the_second_time`. Décision de Fabien : « on bascule tout le code y compris les tests en anglais ». ⚠ Les 1296 noms français restants se soldent app par app, **en dernier** (aucun appelant, donc aucun risque — mais un diff qui noierait tout le reste) |
+| méthode `test_*` | **jamais** | ~~français~~ → **anglais depuis le 2026-09-19** | l'argument « elle se lit dans un rapport d'échec » défendait en réalité le **STYLE** (une phrase qui énonce un COMPORTEMENT, pas un nom de cible) — et ce style se garde en anglais : `test_refreshing_twice_changes_nothing_the_second_time`. Décision de Fabien : « on bascule tout le code y compris les tests en anglais ». ⚠ Les noms français restants (1296 le 19/09, 1289 au 2026-10-31 — `BUDGET_TEST_NAMES`) se soldent app par app, **en dernier** (aucun appelant, donc aucun risque — mais un diff qui noierait tout le reste) |
 | **fichier `.js` / global `window.Wama*`** | **oui** — il se lit dans un `<script src>` et dans les gabarits | **anglais** | même nature qu'un module importé (ajouté le 2026-08-29) |
 | **identifiant privé d'un IIFE `.js`** | non, au sens strict | **anglais quand même** | voir ci-dessous |
 
@@ -375,8 +385,11 @@ apply_patch(
   radicaux français ; un accent est un signal certain. `--detail` donne fichier:ligne, `--json`
   la sortie machine, `--strict-classes` compte aussi les noms de classes de test.
 - **TROIS BUDGETS QUI NE PEUVENT QUE DESCENDRE** (motif de `tests_hf_cache_routing`, qui a fini à
-  zéro), tous appliqués depuis la décision du 19/09 — **code 2653**, **noms de classes de test
-  132**, **noms de méthodes de test 1296**, soit **4081**. Ils n'exigent **aucun** chantier de
+  zéro), tous appliqués depuis la décision du 19/09 — valeurs du 19/09 : code 2653, noms de
+  classes de test 132, noms de méthodes de test 1296, soit 4081 ; **mesuré le 2026-10-31 : code
+  2626, classes 132, méthodes 1289** (`check_identifier_language.py:117,129,130`, total
+  `BUDGET_TOTAL` l.139). ⚠ La valeur vivante est dans la commande, que le test importe
+  (`tests_identifier_language.py:26`) : ne pas la recopier ailleurs. Ils n'exigent **aucun** chantier de
   renommage : ils rendent l'**ajout** impossible. Tenus par
   `wama/common/tests/tests_identifier_language.py`, donc ils tournent dans la suite.
 - **Où porter les passes, dans cet ordre** — `--by-root` le dit : la dette de code est
@@ -509,7 +522,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | **Apprentissage** — modèles APPRIS (ML/DL), couche statistique, connecteur MLflow, boucle de simulation, complémentarité DAR | **`docs/construction/ia/WAMA_APPRENTISSAGE.md`** — ⚠ **cadre, PAS un chantier ouvert** ; de son §3, A1/A5 sont LIVRÉES (plan d'expérience `axes[]` au kind `dataset`, 26/08), restent A2/A3/A4. Règle : **WAMA n'entraîne pas, il DÉCLARE / DÉCLENCHE / RÉINGÈRE** |
 | **Qualité des modèles et des résultats** — méthodes de confrontation par tâche, mesure interne (3ᵉ étage de l'échelle des signaux), auto-amélioration des leviers (skills, contrats, paramètres, RAG), déclencheur de finetuning | **`docs/construction/ia/WAMA_QUALITE.md`** — créé le 2026-09-16 (demande Fabien) : **cartographie et démarche, rien de lancé** ; relie `ROUTE §F4b` (plan acté), `ROADMAP §16.5/§16.7` (garde-fous, ordre), `TRANSCRIBER_CORRECTION §8` (divergence) sans les recopier. Les bancs TIERS restent dans `PROSPECTION_PIPELINE.md` |
 | **Harnais d'agents** — état de l'art externe (Codex, Cursor, Claude Code, Hermes, deepagents, Cline, Aider, OpenHands, Goose, frameworks, standards MCP/AGENTS.md) et **écarts de capacité de WAMA**, axe par axe | **`docs/construction/ia/WAMA_HARNESS.md`** — créé le 2026-09-19 (demande de Fabien) : doc de **VEILLE**, pas un chantier. ⚠ Ne dit PAS comment marche notre couche LLM (→ `WAMA_LLM.md`), ni comment on trouve un modèle (→ `PROSPECTION_PIPELINE.md`), ni quels COMPOSANTS tiers on adopte (→ `ROADMAP §16.2`). A absorbé `ROADMAP §16.7` (Hermes, déplacé **mot pour mot**, renvoi laissé en place) et consigné pour la 1ʳᵉ fois la décision Cordis/DeepSeek Harness du 2026-08-20 |
-| **Mémoire & RAG** + **journal utilisateur** (mémoire agent + mémoire de travail + RAG = UN mécanisme) | **`docs/construction/ia/WAMA_MEMORY.md`** — jalons 1-11 et 13-14 LIVRÉS (brique `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`, journal `/common/journal/`, surfaces RAG par GESTE), reste le seul jalon 12 (outillage assistant list/detail). Le plan ChromaDB est MORT ; `docs/construction/mondes/WAMA_VISION_COMPLET.md §5.5` reflète le substrat réel. |
+| **Mémoire & RAG** + **journal utilisateur** (mémoire agent + mémoire de travail + RAG = UN mécanisme) | **`docs/construction/ia/WAMA_MEMORY.md`** — jalons 1 à 14 LIVRÉS (brique `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`, journal `/common/journal/`, surfaces RAG par GESTE) — le jalon 12, lecture générique de l'assistant (`tool_api.list_my_items` / `get_item_detail`), le 2026-09-11 (corrigé le 2026-10-31, mesuré : `WAMA_MEMORY.md §10` l.1148, `tool_api.py:2979,3055`) ; reste la dépréciation des ~10 `get_<app>_status`. Le plan ChromaDB est MORT ; `docs/construction/mondes/WAMA_VISION_COMPLET.md §5.5` reflète le substrat réel. |
 | Transcriber — correction assistée | `wama/transcriber/TRANSCRIBER_CORRECTION.md` |
 | Enhancer (upscaling image/vidéo + branche audio) | `wama/enhancer/README.md` — promu référence du domaine le 2026-08-27 (a absorbé les ex-docs/ENHANCER_APP et ENHANCER_AUTO_DOWNLOAD, archivés — l'Enhancer était le seul domaine sans ligne ici, et 4 docs divergents avaient poussé dans le trou) |
 | Formalisme de card (anatomie, 3 densités v1/v2/v3, batchs) | `docs/construction/ui/CARD_DESIGN.md` |
@@ -614,7 +627,14 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
    (1er adopteur 2026-07-21, `utils/auto_model.py`), **transcriber** (2e, 2026-07-24,
    `backends/manager.py` via `priority` whisper-first) et **imager** (vérifié 2026-08-06 :
    `imager/utils/auto_model.py::resolve_auto_model` délègue à `select_model_id()`, appelé AU
-   LANCEMENT dans `tasks.py:88/439`) ; reste describer + anonymizer.
+   LANCEMENT dans `tasks.py:231/590`) ; reste describer + anonymizer.
+   *(Constat corrigé le 2026-10-31, mesuré : l'adoption passe désormais par la brique
+   d'auto-sélection `common/utils/auto_model.py::resolve_model_choice`, qui délègue à
+   `select_model_id()` (l.398-399) — imager (`imager/utils/auto_model.py:55`), **describer** (`describer/workers.py:86-88`), reader
+   (`reader/tasks.py:75-77`), enhancer (`enhancer/utils/auto_model.py:57`) ; l'**anonymizer** par la
+   brique de COUVERTURE `common/services/model_coverage.py`, seul sélecteur depuis R117
+   (`conformity_checker.py:2244-2248`). Plus aucun reste : la mesure vivante est le critère
+   `select_model` de `check_app_conformity`.)*
 
 5. **Le JS de base** (polling, csrfFetch, urlFor, actions batch, toast) vient de
    `wama/common/static/common/js/wama-app-base.js` (**existant**, monté global dans `base.html`) :
@@ -624,7 +644,7 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 
 - `queue_duplication.py` : `duplicate_instance()`, `release_card_files()` (retirer une card LIBÈRE tout ce qu'elle porte — champs fichier et listes de chemins déclarées —, jamais d'effacement silencieux — `MEDIA_STORAGE_TIERING` D34/D35 ; `release_card_file()` = le même geste pour UN champ), `safe_delete_file()` (relance seule : remplacer l'ancien résultat)
 - `batch_parsers.py` : parsing fichiers batch (txt/csv/pdf/docx)
-- `batch_import.js` : UI import batch avec détection automatique
+- `batch-import.js` : UI import batch avec détection automatique
 - `wama-queue.js` : batch collapse + persistance localStorage
 - `console_utils.py` : logs Redis structurés
 - `media_paths.py` : helpers `upload_to_user_input/output`
@@ -645,7 +665,10 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
    AVANT l'existence de `WamaParams` : à l'époque les modales étaient 100 % manuelles, donc les
    factoriser voulait dire un partial. Adoptée par anonymizer + imager, puis enhancer (21/09), reader,
    synthesizer, composer, describer, avatarizer et converter (24/09) — **9/10 mesuré**
-   (`settings_modal_cycle`) ; reste le transcriber (`ROUTE §F3`).
+   (`settings_modal_cycle`) ; reste le transcriber (`ROUTE §F3`). → **10/10 depuis le
+   2026-09-26** (le transcriber porté le 25/09 — `transcriber/static/transcriber/js/index.js:430`
+   `WamaParams.settingsModal({` ; remesure citée plus bas, « Remesuré le 2026-09-26 » ; constat
+   ajouté le 2026-10-31).
 
 ### Pipeline de prompts commune
 
@@ -759,8 +782,8 @@ def load(self, ...):
 > `resnet18` dans table-transformer — 8 au relevé brut, moins les 3 composants légitimes une
 > fois DÉCLARÉS : pipeline pyannote et `hubert_base`) et des verrous orphelins
 > qui datent les contaminations passées — **11 rien que dans `speech/kokoro`** (Qwen3-ASR,
-> olmOCR, musicgen, pyannote ×4, t5 ×2). C'est ce que racontent déjà `wama/views.py:223`, le
-> `--workers 1` **structurant** de `start_wama_prod.sh:271`, et la commande `dedup_models`,
+> olmOCR, musicgen, pyannote ×4, t5 ×2). C'est ce que racontent déjà `wama/views.py:653`, le
+> `--workers 1` **structurant** de `start_wama_prod.sh:283`, et la commande `dedup_models`,
 > née comme « séquelle de la course `os.environ['HF_HUB_CACHE']` ».
 >
 > **⚠⚠ Deux backends mutent DÈS L'IMPORT** — `wan_video_backend.py:41` et
@@ -781,6 +804,9 @@ def load(self, ...):
 > `check_model_layout` : **aucun snapshot étranger**. ⚠ Soldé ≠ mort : les FAMILLES Wan et
 > Hunyuan sont vivantes (FastWan 2.2 au catalogue, 23 Go ; HunyuanImage 2.1, 50 Go) — seules
 > les classes VIDÉO `WanVideoBackend`/`HunyuanVideoBackend` sont déclarées `DEPRECATED`.
+> → *Périmé dès le lendemain (constat ajouté le 2026-10-31, mesuré) : seule `HunyuanVideoBackend`
+> reste `DEPRECATED` (`hunyuan_video_backend.py:132`) ; celui de `WanVideoBackend` est RETIRÉ
+> depuis le 2026-09-15, la classe servant FastWan 2.2 (`wan_video_backend.py:170-172`).*
 
 #### 4. `wama/<app>/utils/model_config.py` — Ajouter le modèle
 ```python
@@ -881,6 +907,11 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > `logs/conformity_report.json` qui **écrase les booléens déclarés** de `_conv(...)`. Ne plus
 > éditer ces booléens à la main pour les critères mesurés ; re-lancer la commande après un palier
 > de portage (skill `/conformite`).
+> ⚠ **Compté dans le code le 2026-10-31 : 113 critères** — F1:4 F2:12 F3:24 F4:11 F5:49 F6:6
+> F7:5 F8:2 (les entrées `Criterion('<clé>', 'F<n>', …` de la liste `CRITERIA`,
+> `conformity_checker.py:2430-2834`, comptées par facette). `result_tabs` n'en fait plus partie
+> (retiré le 2026-10-13, `conformity_checker.py:2556`). La chaîne datée ci-dessous (96 → 100
+> critères) est historique ; le nombre vivant est `len(CRITERIA)`, à ne plus recopier ici.
 > ⚠ **Ce paragraphe annonçait 89 critères et « 72–88 » jusqu'au 2026-09-18** — périmé, corrigé à la
 > mesure lors d'une revérification de session. Les 7 critères gagnés depuis le 07/09 sont en **F3
 > (+2)** et **F5 (+5)** ; ils ne sont pas nommés ici, faute d'avoir la liste du 07/09 sous la main
@@ -1047,7 +1078,11 @@ toujours `PENDING_HUMAN_VALIDATION` (l'ex-`AUDIT_FORMAT.md`, jamais conforme au 
 
 ### Lecture des rapports par Claude
 Au début de chaque session collaborative, lire les rapports récents dans `wama-dev-ai/outputs/`.
-Le champ `claude_review_notes` contient les questions spécifiques à analyser.
+~~Le champ `claude_review_notes` contient les questions spécifiques à analyser.~~ *(Constat
+corrigé le 2026-10-31, mesuré : ce champ n'existe que dans le format archivé
+`docs/construction/archive/WAMA_DEV_AI_AUDIT_FORMAT.md:50` ; une sortie réelle est l'objet plat
+`{'status': 'PENDING_HUMAN_VALIDATION', 'role': role, **payload}` (`wama-dev-ai/role_utils.py:1186`)
+— lire le `payload` du rôle.)*
 
 ### Sélection de modèles — wama-dev-ai vs WAMA
 
@@ -1057,7 +1092,8 @@ Le champ `claude_review_notes` contient les questions spécifiques à analyser.
 > confirmé le 13/10 : *« automatiser au maximum à partir du model manager et des registres pour
 > ne pas créer de chemin parallèle »*.
 
-- **Les six rôles** tirent leur modèle par le sélecteur commun (`select_model`, niveau
+- **Les rôles** (« six » le 13/10 ; neuf entrées de `wama/common/services/dev_tools.py::ROLES`
+  au 2026-10-31 — la liste vivante est là, pas ici) tirent leur modèle par le sélecteur commun (`select_model`, niveau
   développement), et depuis le 13/10 la surface de développement le tire POUR LE COMPTE qui les
   lance (local ou distant selon son profil) ; la VRAM passe par le gouverneur
   (`role_utils.local_llm_guard`). Détail : `docs/construction/ia/WAMA_LLM.md` §« 2026-10-13 ».
@@ -1072,35 +1108,42 @@ Le champ `claude_review_notes` contient les questions spécifiques à analyser.
 
 - **Django** + **Celery** (Redis) pour les tâches async
 - **Modèles AI** : `AI-models/` à la racine du projet, organisé par `models/<domaine>/<famille>/`
-- **Cache HuggingFace global** : `AI-models/cache/huggingface/` (fallback uniquement)
+- **Cache HuggingFace PARTAGÉ** : `AI-models/cache/huggingface/` — place des sous-dépendances
+  (t5, tokenizers, backbones…), le modèle principal allant dans son dossier de famille par
+  `cache_dir=` (corrigé le 2026-10-31 : la ligne disait « fallback uniquement », contre la règle
+  « Le modèle par `cache_dir=`, ses dépendances par le cache partagé » plus haut ;
+  `settings.py:208-209` `MODEL_PATHS['cache']['huggingface']`)
 - **Static files** : dupliquer `wama/<app>/static/` → `staticfiles/<app>/` pour les fichiers JS/CSS modifiés
 - **Gestion centralisée** : `wama/model_manager/` + `model_registry.py` pour la découverte
 
 ## Modèles imager actifs (RTX 4090 24GB)
 
 > ⚠ Liste INDICATIVE (dérive) — source vivante : `wama/imager/utils/model_config.py` + catalogue
-> `AIModel` (model_manager). D'autres modèles y sont déclarés (SD 1.5/2.1, dreamshaper,
-> flux2-klein-4b…) sans figurer ici.
+> `AIModel` (model_manager). D'autres modèles y sont déclarés (SD 1.5, flux2-klein-4b,
+> flux-1-dev…) sans figurer ici.
+> *(Corrigé le 2026-10-31, mesuré dans `imager/utils/model_config.py` : SD 2.1 et dreamshaper-8
+> sont RETIRÉS depuis le 2026-07-28 (l.434) ; les VRAM ci-dessous sont les `vram_gb` déclarés —
+> une SOMME de composants, pas le jeu de travail en déchargement.)*
 
 ### Images
 | Modèle | VRAM | Dir |
 |--------|------|-----|
 | hunyuan-image-2.1 | 16GB | `diffusion/hunyuan/` |
-| qwen-image-2 | 16GB | `diffusion/qwen-image/` |
-| qwen-image-edit | 12GB | `diffusion/qwen-image/` |
+| qwen-image-2 | 38GB | `diffusion/qwen-image/` |
+| qwen-image-edit | 38GB | `diffusion/qwen-image/` |
 | stable-diffusion-xl | 10GB | `diffusion/stable-diffusion/` |
 
 ### Logos
 | Modèle | VRAM | Dir | Notes |
 |--------|------|-----|-------|
-| flux-lora-logo-design | 16GB | `diffusion/logo/` | Shakker-Labs FLUX LoRA — guidance=3.5, steps=24, 1024×1024 |
+| flux-lora-logo-design | 24GB | `diffusion/logo/` | Shakker-Labs FLUX LoRA — guidance=3.5, steps=24, 1024×1024 |
 
 ### Vidéos
 | Modèle | VRAM | Dir |
 |--------|------|-----|
 | mochi-1-preview | 22GB | `diffusion/mochi/` |
-| ltx-video-13b-0.9.8-distilled (+ variante fp8) | 6GB | `diffusion/ltx/` |
-| cogvideox-5b-i2v | 5GB | `diffusion/cogvideox/` |
+| ltx-video-13b-0.9.8-distilled (+ variante fp8) | 14GB (fp8 : 8GB) | `diffusion/ltx/` |
+| cogvideox-5b-i2v | 21GB (somme ; ~11 Go de jeu de travail en déchargement, l.186-189) | `diffusion/cogvideox/` |
 | fastwan-2.2-ti2v-5b | 23GB (somme des composants, déchargement CPU) | `diffusion/FastWan2.2-TI2V-5B-FullAttn-Diffusers/` — T2V seul, DMD 3 pas ; génération GPU pas encore validée |
 
 ### Supprimés (obsolètes/redondants)
@@ -1111,3 +1154,4 @@ Le champ `claude_review_notes` contient les questions spécifiques à analyser.
 - Wan 2.2 (remplacé par CogVideoX 5B I2V)
 - logo-redmond-v2 (SDXL 2023, obsolète)
 - amazing-logos-v2 (SD 1.5 2023, obsolète)
+- stable-diffusion-2-1, dreamshaper-8, anything-v5 (retirés le 2026-07-28, `imager/utils/model_config.py:434`)

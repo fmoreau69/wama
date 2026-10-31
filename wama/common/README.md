@@ -1,6 +1,9 @@
-# WAMA Common — la couche MANIFESTE (workflow de génération d'une app)
+# WAMA Common — carte d'entrée des briques communes (workflow de génération d'une app)
 
-> **Ce document est LA référence du workflow d'auto-génération des applications généralistes.**
+> ⚠ *(Corrigé le 2026-10-31)* La référence du workflow d'auto-génération est
+> `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` (table des domaines d'`AGENTS.md`) ;
+> ce fichier n'en est que la **carte d'entrée** — il se disait « LA référence ». Ses états
+> d'adoption sont datés : la mesure vivante est `check_app_conformity`.
 > Objectif final : une app = des **déclarations** (manifeste) → l'UI et les comportements sont
 > **générés** par les briques communes — zéro hardcode par app, zéro divergence possible entre
 > surfaces. Mis à jour le 2026-07-02 (audit empirique — cf. `docs/construction/archive/UI_MECHANISMS_CONSOLIDATION.md`,
@@ -53,7 +56,7 @@ elle lit le **catalogue**.
 | `Param` / `derive_from_model` | `utils/param_schema.py` | schéma déclaratif (dérivé du modèle Django + overrides UI) |
 | `WamaParams.render(host, schema, {context, values, optionsResolver})` | `static/common/js/wama-params.js` | **génère les champs** : toggle/select/radio/text/textarea/number/range (avec bornes min/max), optgroups, `show_if`, aide modèle |
 | `WamaParams.renderSettingsModal({…})` | idem | **génère la coquille** de modale per-item (pattern enhancer/reader) |
-| `WamaParams.settingsModal({…})` | idem | **ORCHESTRE le cycle complet** d'une modale d'item : charger les valeurs → rendre (schéma + groupes) → greffer le pied (`footerTplId`) → afficher → lire → POST → toaster → enchaîner. Hooks d'app : `decorate(host,data)`, `collect(fd,host,data,restart)`, `onSaved(id,restart,resp)`, `errorOf(resp)`. Adoptée par anonymizer + imager (2026-08-06) ; **à porter aux autres apps** (elles réécrivent encore ce cycle). Délégation liée à LA MODALE, pas au document → pas d'accumulation de listeners à la réouverture |
+| `WamaParams.settingsModal({…})` | idem | **ORCHESTRE le cycle complet** d'une modale d'item : charger les valeurs → rendre (schéma + groupes) → greffer le pied (`footerTplId`) → afficher → lire → POST → toaster → enchaîner. Hooks d'app : `decorate(host,data)`, `collect(fd,host,data,restart)`, `onSaved(id,restart,resp)`, `errorOf(resp)`. Adoptée par anonymizer + imager (2026-08-06), puis par les dix apps — critère `settings_modal_cycle` 10/10 depuis le 2026-09-26 (corrigé le 2026-10-31 ; ex. `transcriber/static/transcriber/js/index.js:430`). Délégation liée à LA MODALE, pas au document → pas d'accumulation de listeners à la réouverture |
 | `ParamGroup` / `Param.group` / `Param.pills` / `columns` | `utils/param_schema.py` + `wama-params.js` | **sections déclarées** d'une surface de saisie (titre, icône, `show_if` de groupe, `collapsed`, 2 colonnes) ; `advanced` sans groupe → repli « Avancé » automatique. Les champs `advanced` AVEC groupe restent visibles dans leur section |
 | `WamaInspector.init` / `initFromSchema` | `static/common/js/wama-inspector.js` | **câble** le volet : sélection card, read/apply dérivés du schéma, save |
 | `_settings_modal_footer.html` | `templates/common/` | **pied de modale conforme** — Annuler / Enregistrer / Enregistrer & démarrer (+ slot gauche) ; convention `WAMA_APP_CONVENTIONS.md §6.5` (ex-MODAL_ACTIONS_AUDIT, archivé) |
@@ -79,14 +82,14 @@ elle lit le **catalogue**.
 | `WamaInputMatch` | `static/common/js/wama-input-match.js` | **appariement entrées ⇄ modèles** (`INPUT_MODEL_MATCHING.md`) : entrée fournie → modèles incompatibles **grisés + raison** (jamais cachés), bascule auto, réversible par chip ; modèle choisi → slots requis (ambre, lancement gaté) / suggérés (info). Déclaratif : `capabilities.inputs_required/optional` (catalogue) + `INPUT_TYPES`. Pilote : composer (mélodie Melody). |
 | `WamaFolderImport` | `static/common/js/wama-folder-import.js` (GLOBAL, base.html) | **import de DOSSIER récursif** (F2 `recursive_import`) — extraite du filemanager 2026-08-13 : `collect(dataTransfer)` (drop mixte fichiers/dossiers, `webkitGetAsEntry` + batching `readEntries`), `fromInput(fileList)` (input `webkitdirectory`), `files(liste)`. Adoption = 2 lignes dans le handler de drop + `folder_input_id=` sur `_new_item_card.html` (lien « importer un dossier »). Consommé : filemanager + 9 apps (slots mono-fichier avatarizer/imager = drop récursif sans lien dossier) ; composer non adopté (prompt-primaire, candidat N/A). |
 | `wama-queue.js`, `_queue_actions.html`, `_card_progress.html`, `_card_state.html`, `_cycle_button.html` | | file (batch collapse), actions de file, barres de progression, **bouton cycle ▶/⏹/↻** (toujours VERT, seule l'icône change) |
-| Recette « card rendue SERVEUR » | | LA règle card (CARD_DESIGN) : partial d'app (`_transcript_card` / `_generation_card` / `_description_card`) = SOURCE UNIQUE du markup + endpoint `<app>:card_html` + `refreshCard(id)` JS (remplace/insère + **re-bind si events par card**). Tue les rebuilds JS divergents. Consommé : transcriber, composer, describer (2026-07-04/05). |
+| Recette « card rendue SERVEUR » | | LA règle card (CARD_DESIGN) : partial d'app (`_transcript_card` / `_generation_card` / `_description_card`) = SOURCE UNIQUE du markup + endpoint `<app>:card_html` + `refreshCard(id)` JS (remplace/insère + **re-bind si events par card**). Tue les rebuilds JS divergents. Consommé : transcriber, composer, describer (2026-07-04/05), puis les dix apps (`card_html` dans chaque `urls.py`, critère `card_refresh_common` — constaté le 2026-10-31). |
 | Parseur batch UNIFIÉ (superset) | `utils/batch_parsers.py` | 3 syntaxes auto-détectées : balises CLI (-i/-p/-r/-o/--option), tableur à EN-TÊTES (délimiteur sniffé , ; \| tab + alias FR modele/duree/voix…), positionnel hérité. + `build_batch_template(fields, example)` = template téléchargeable GÉNÉRÉ de la déclaration (A5-23). |
-| `_queue_toolbar.html` + `utils/queue_view.py` | | **barre d'outils de file** : tri + filtre par statut (`apply_queue_sort_filter(request, batches_list, name_of=…)`, persistés en session — clés PARTAGÉES entre apps) + toggle Ligne/Mosaïque + `_queue_actions` (option `download_url` = lien ZIP direct). Contrat : entries avec `success/running/failure_count`. Consommé : transcriber, composer. |
+| `_queue_toolbar.html` + `utils/queue_view.py` | | **barre d'outils de file** : tri + filtre par statut (`apply_queue_sort_filter(request, batches_list, name_of=…)`, persistés en session — clés PARTAGÉES entre apps) + toggle Ligne/Mosaïque + `_queue_actions` (option `download_url` = lien ZIP direct). Contrat : entries avec `success/running/failure_count`. Consommé : transcriber, composer — puis les dix apps : la barre est portée par la FILE commune `common/_queue.html` (l.45), incluse par chaque `index.html`, et `apply_queue_sort_filter` est appelé par les dix `views.py` (constaté le 2026-10-31). |
 | CSS mosaïque commun | `static/common/css/wama-inspector.css` | **contrat `.wama-card`** sur la racine de TOUTE card (individuelle, mère `.is-batch`, fille) ; filles = enfants **DIRECTS** du `.collapse[data-wama-batch-key]`. Fournit : grille, solitaire (batch replié = cellule, déplié = pleine largeur), **empilement vertical des `.row` internes** (sinon compression horizontale), fan-in, `.wama-layout-btn.active`, look pointillés `.wama-new-item-card`. |
-| `wama-new-item-card.js` | `static/common/js/` | card d'entrée **DÉPLIABLE** (mécanisme synthesizer globalisé ; 1ʳᵉ étape vers la card miniaturisée en file) : `_new_item_card collapsible=True` → en-tête+prompt+bouton primaire visibles, zone médiane d'import repliée ; dépliage clic/focus/drag. Auto-init (`data-wama-nic`). Consommé : composer. |
+| `wama-new-item-card.js` | `static/common/js/` | card d'entrée **DÉPLIABLE** (mécanisme synthesizer globalisé ; 1ʳᵉ étape vers la card miniaturisée en file) : `_new_item_card collapsible=True` → en-tête+prompt+bouton primaire visibles, zone médiane d'import repliée ; dépliage clic/focus/drag. Auto-init (`data-wama-nic`). Consommé : composer — puis les dix apps et la médiathèque (`collapsible=True` dans leurs `index.html`, constaté le 2026-10-31). |
 | Compteur d'items sur l'ONGLET | `app_modern_base.html` | badge `#queueCount` sur l'onglet « File d'attente » (rendu si la vue passe `queue_count`) — remplace le titre doublon dans l'onglet. Ordre d'onglet canonique : card d'entrée → progression globale → `_queue_toolbar` → file. |
 | `_global_progress.html` + `wama-eta.js` (+ `eta_estimator` serveur) | | barre globale + moteur ETA — **jamais d'ETA par app** |
-| `queue_duplication.py`, `batch_parsers.py`, `batch_import.js`, `media-picker.js` (chargé globalement) | `utils/`, `static/` | duplication/suppression sûres, imports batch, médiathèque |
+| `queue_duplication.py`, `batch_parsers.py`, `batch-import.js`, `media-picker.js` (chargé globalement) | `utils/`, `static/` | duplication/suppression sûres, imports batch, médiathèque |
 | `output_format_params_for_app` | `utils/output_formats.py` | params format/qualité de sortie (domaine + early/late binding déduits d'APP_CATALOG) ; `include_upscale` ajoute l'agrandissement |
 | `apply_output_settings` | `utils/output_formats.py` | APPLIQUE les réglages de sortie après n'importe quel backend : agrandissement (upscaler tiré du catalogue) puis format — jamais une boucle de conversion recopiée par app |
 | Réception « Envoyer vers app » | `static/common/js/wama-app-base.js` | listener `wama:fileimported` **GÉNÉRIQUE** (2026-07-31) : cible l'app via `window.WAMA_CURRENT_APP` (posé par `base.html` depuis `APP_CATALOG`). Il était recopié à l'identique dans **7 apps**, dont 3 l'avaient oublié. Une app qui sait intégrer l'item SANS recharger (reader : insertion de card) pose `detail.handled = true` ; le repli commun est reporté d'un tick pour rendre cette échappatoire possible. |
@@ -95,11 +98,13 @@ elle lit le **catalogue**.
 | Brique | Fichier | Rôle |
 |---|---|---|
 | Registre d'instances RÉSIDENTES | `backends/base.py` (`_LIVE_BACKENDS`, `unload_live_backends`) | `BaseModelBackend` enveloppe déjà `load`/`unload` à **toute profondeur d'héritage** : il tient donc un `WeakSet` des backends chargés, que `MemoryManager.release_vram` / `unload_model` déchargent **au grain du MODÈLE** (clé catalogue résolue par `backends.manager.catalog_keys_for_owner`). Une app sous contrat n'a **rien à déclarer**. ⚠ Jusqu'au 2026-09-14 il inscrivait un unloader PAR APP, l'app étant déduite du chemin du module — `common` pour tous depuis le déménagement des backends. |
-| `register_vram_unloader(name, fn)` | `model_manager/services/memory_manager.py` | déclaration EXPLICITE, réservée à ce qui échappe au contrat de backend : modèle en variable de module (describer/BLIP), pipeline caché (transcriber/pyannote). Plusieurs unloaders par app admis (`<app>` + `<app>-suffixe`). |
+| `register_vram_unloader(name, fn)` | `model_manager/services/memory_manager.py` | déclaration EXPLICITE, réservée à ce qui échappe au contrat de backend : pipeline caché (transcriber/pyannote, `transcriber/apps.py:29` — seul appelant, mesuré le 2026-10-31) ; modèle en variable de module (l'ex-exemple describer/BLIP est passé sous contrat : `common/backends/blip_backend.py:22`). Plusieurs unloaders par app admis (`<app>` + `<app>-suffixe`). |
 | `vram_reservation(owner, gb)` | `common/services/resource_governor.py` | modèles **HORS PROCESS** (sous-processus) — l'héritage ne s'y applique pas, rien n'est résident dans le worker. Adopté : avatarizer. |
 
-> ⚠ **Deux `release_vram` homonymes, sémantiques opposées** — ne pas les confondre :
-> `resource_governor.release_vram(owner)` efface une ligne de **comptabilité** Redis ;
+> ⚠ **Deux libérations, sémantiques opposées** — ne pas les confondre :
+> `resource_governor.release_reservation(owner)` efface une ligne de **comptabilité** Redis
+> (ex-`release_vram`, renommée le 2026-08-04 pour lever l'homonymie — `resource_governor.py:338` ;
+> constat corrigé le 2026-10-31) ;
 > `MemoryManager.release_vram(exclude)` **décharge réellement** les modèles via le registre.
 > Les unloaders codés en dur par app (`_unload_<app>_model`) ont été SUPPRIMÉS : ils formaient une
 > seconde liste à tenir à jour, et trois d'entre eux (anonymizer, synthesizer, enhancer) faisaient
@@ -113,8 +118,8 @@ elle lit le **catalogue**.
 ### Briques historiques (toujours valides)
 `app_base.html` — blocs : `title`, `extra_scripts`, `app_scripts`, `console_content_id`,
 `console_hint_id`, `console_url`, `app_menu`, `app_content`. · `console.js` (auto-détection
-`data-console-url`, refresh 4 s) · `console_utils.py` (`push_console_line`, `get_console_lines`,
-`get_celery_worker_logs`) · `media_paths.py` (`upload_to_user_input/output`).
+`data-console-url`, refresh 4 s) · `utils/console_utils.py` (`push_console_line`, `get_console_lines`)
+· `media_paths.py` (`upload_to_user_input/output`).
 
 ---
 
@@ -127,6 +132,9 @@ elle lit le **catalogue**.
 2. **Modale** : champs hand-built → host `<div class="wama-params">` + `WamaParams.render(host,
    schema, {context:'item'})`. Coquille per-item → `renderSettingsModal`. **Pied** →
    `{% include 'common/_settings_modal_footer.html' with save_id=… %}`.
+   *(Depuis le portage des dix apps, constaté le 2026-10-31 : la modale entière passe par
+   `WamaParams.settingsModal({…})` ; le gabarit ne garde que le pied commun — ex.
+   `synthesizer/templates/synthesizer/index.html`, « plus de markup ici ».)*
 3. **Volet (P2)** : mêmes champs via `render(…, {context:'panel'})`, après **enrichissement du
    schéma** (placeholder, aides, formats/unités, `help_source`) pour que les deux surfaces
    héritent des mêmes richesses — la divergence devient impossible par construction.
