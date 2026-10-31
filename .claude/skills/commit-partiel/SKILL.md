@@ -376,6 +376,13 @@ cette seule ligne prend la valeur de l'arbre, posé par `hash-object` + `update-
 (dans l'index temporaire de l'appelant). Il échoue si le préfixe n'est pas unique des deux côtés ou
 si la ligne n'a pas changé ; la garde du script de commit exige ensuite `1	1	<doc>` au `numstat`
 et la présence de son ancre (`R<n>`, symbole) dans le diff indexé.
+⚠ **Et la fin de ligne est celle de HEAD, dans les deux sens** (vécu le 2026-10-31, `ba387246c`) :
+le script ne savait qu'AJOUTER le `\r` d'une ligne CRLF de HEAD ; une copie de travail en CRLF
+(Windows) a fait entrer un `\r` dans `docs/dev/briques.md`, blob LF. Le `numstat` du commit disait
+juste (`1 1`), mais git a cessé de normaliser le fichier : le diff suivant le montrait ENTIER changé
+(3 817 / 3 791). Corrigé dans `stage_line.py` ; le contrôle qui l'a vu est le diff de l'arbre contre
+le nouveau HEAD. ⚠ Et compter les `\r` en OCTETS (Python) : `grep -c $'\r'` sous Git-Bash rend 0
+sur un fichier CRLF.
 
 ## 5. Avant de livrer le commit
 

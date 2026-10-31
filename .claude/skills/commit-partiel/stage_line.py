@@ -19,8 +19,13 @@ hi = [i for i, l in enumerate(h) if l.startswith(prefix)]
 ti = [l for l in t if l.startswith(prefix)]
 assert len(hi) == 1 and len(ti) == 1, (path, len(hi), len(ti))
 new = ti[0]
+# La fin de ligne est celle de HEAD, dans les DEUX sens : une copie de travail en CRLF (Windows) ne
+# doit pas faire entrer un `\r` dans un blob LF — git cesse alors de normaliser le fichier, et tout
+# diff le montre entièrement changé (vécu le 2026-10-31, `docs/dev/briques.md`).
 if h[hi[0]].endswith(b'\r') and not new.endswith(b'\r'):
     new += b'\r'
+elif not h[hi[0]].endswith(b'\r') and new.endswith(b'\r'):
+    new = new[:-1]
 assert h[hi[0]].rstrip(b'\r') != new.rstrip(b'\r'), 'ligne inchangée'
 h[hi[0]] = new
 blob = subprocess.run(['git', 'hash-object', '-w', '--stdin'], input=b'\n'.join(h),
