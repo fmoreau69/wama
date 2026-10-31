@@ -299,6 +299,9 @@ body:                                   # (sous l'enveloppe commune)
     # `kept_outputs`), `apps_gen` appelle `revisions.keep_outputs` et déclare la liste à la
     # rétention (`register_retention_model`). WAMA_COLLABORATION §7.2 (reste 2), V3 tranché.
     # Premier adoptant : le Writer (bac à sable) — on l'éprouve avant de le porter aux autres apps.
+    # `fields: [...]` (✅ 2026-11-01) : les seules sorties gardées (le composer : ses partitions,
+    # pas le rendu). EXTRAIT de la déclaration du `ready()` (`revisions.kept_declaration`) : avant,
+    # la jumelle du composer avait le champ sans la déclaration à la rétention.
   data: {…}   # ✅ 2026-08-18 (marche S2 ; ajouté à ce schéma le 2026-10-31) — SPINE DE DONNÉES :
   # les modèles Django de l'app, champs sérialisés par le MÊME sérialiseur que les migrations ;
   # consommée par `codegen/models_gen` ; verdict = `makemigrations` « No changes » sur la jumelle

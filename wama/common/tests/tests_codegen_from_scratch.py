@@ -287,13 +287,13 @@ class DeclaredRevisionKeepingIsGeneratedTest(SimpleTestCase):
                 return [getattr(b, 'id', '') for b in node.bases]
         return []
 
-    def _render(self, keep):
+    def _render(self, keep, fields=None):
         from wama.common.manifests.codegen.apps_gen import render_apps
         from wama.common.manifests.codegen.models_gen import render_models
         manifest = json.loads(DRAFT.read_text(encoding='utf-8'))
         proc = manifest['body']['processing']
         if keep:
-            proc['revisions'] = {'keep': keep}
+            proc['revisions'] = {'keep': keep, **({'fields': fields} if fields else {})}
         else:
             proc.pop('revisions', None)
         models_src, reason = render_models(manifest)
@@ -319,6 +319,37 @@ class DeclaredRevisionKeepingIsGeneratedTest(SimpleTestCase):
         self.assertNotIn('KeptOutputsMixin', models_src)
         self.assertNotIn('keep_outputs', apps_src)
         self.assertNotIn('register_retention_model', apps_src)
+
+    def test_the_kept_fields_are_replayed(self):
+        """The composer keeps its scores, not its render (`keep_outputs(fields=…)`) : a twin that
+        kept everything would copy ~100 MB of audio per revision (2026-11-01)."""
+        _models_src, apps_src = self._render(5, ['score_a', 'score_b'])
+        call = next(c for c in ast.walk(ast.parse(apps_src))
+                    if isinstance(c, ast.Call) and getattr(c.func, 'id', '') == 'keep_outputs')
+        fields = next(k.value for k in call.keywords if k.arg == 'fields')
+        self.assertEqual(('score_a', 'score_b'), ast.literal_eval(fields))
+
+
+class KeptRevisionsAreExtractedTest(SimpleTestCase):
+    """An app that keeps its versions declares it in its `ready()` (`revisions.keep_outputs`) ; the
+    extraction carries that declaration to `processing.revisions`, which `models_gen` and
+    `apps_gen` replay. Measured on 2026-11-01 : the composer's manifest did not carry it, so
+    `composer_01` had the list (copied model) without its declaration to retention."""
+
+    def test_every_keeping_app_carries_its_declaration_to_its_manifest(self):
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.manifests.builtin.app import _processing
+        from wama.common.services.revisions import _KEEPING, kept_declaration
+        keeping = [app for app in _KEEPING if not (APP_CATALOG.get(app) or {}).get('generated_from')
+                   and not (APP_CATALOG.get(app) or {}).get('sandbox') and app in APP_CATALOG]
+        self.assertIn('composer', keeping, 'the composer keeps its scores (composer/apps.py)')
+        for app in keeping:
+            with self.subTest(app=app):
+                extracted = _processing(APP_CATALOG[app], app).get('revisions')
+                self.assertIsNotNone(extracted, 'the manifest does not carry the kept versions')
+                self.assertEqual(kept_declaration(app), extracted)
+                self.assertTrue(extracted.get('fields') or app != 'composer',
+                                'the composer keeps only some of its outputs')
 
 
 class ABornAppRegeneratesItsModelLikeAtItsCreationTest(SimpleTestCase):

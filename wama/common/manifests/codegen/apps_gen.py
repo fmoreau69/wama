@@ -115,9 +115,12 @@ def render_apps(manifest: dict) -> tuple:
         # Fichiers de RÉVISION gardés (`processing.revisions`, 2026-10-13, `WAMA_COLLABORATION
         # §7.2`) : la brique les copie, la rétention les voit par la liste déclarée.
         keep = (revisions.get('keep') if isinstance(revisions, dict) else None) or 20
+        # `fields` (le composer, 2026-11-01) : les seules sorties dont la copie se garde.
+        fields = (revisions.get('fields') if isinstance(revisions, dict) else None) or ()
+        kept_fields = f', fields={tuple(fields)!r}' if fields else ''
         lignes += [
             '        from wama.common.services.revisions import KEPT_FIELD, keep_outputs',
-            f"        keep_outputs('{app_id}', keep={int(keep)})",
+            f"        keep_outputs('{app_id}', keep={int(keep)}{kept_fields})",
             '        from wama.common.services.retention import register_retention_model',
             f"        register_retention_model({item_model}._meta.label, path_lists=(KEPT_FIELD,))",
         ]

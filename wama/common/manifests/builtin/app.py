@@ -540,6 +540,12 @@ def _processing(cat: dict, app_id: str) -> dict:
             out['item_model'] = entree['model'].__name__
     except Exception:
         pass
+    # Versions GARDÉES (`revisions.keep_outputs`, déclaré au `ready()` de l'app) : ce que
+    # `apps_gen` rejoue et `models_gen` lit pour le mixin (2026-11-01, ROUTE §11 #41).
+    from wama.common.services.revisions import kept_declaration
+    kept = kept_declaration(app_id)
+    if kept:
+        out['revisions'] = kept
     # ── ROUTAGE nature → backend (marche B1, 2026-09-02) : la déclaration `ROUTES` de
     # `wama/<app>/backends/__init__.py` monte au manifeste — c'est elle que `tasks_gen`
     # COMPOSE (le corps `_process_*` généré appelle le backend au CONTRAT COMMUN au lieu

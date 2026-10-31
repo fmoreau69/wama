@@ -191,6 +191,17 @@ def kept_count(app_id: str) -> int:
     return _KEEPING.get(app_id, (0, None))[0]
 
 
+def kept_declaration(app_id: str):
+    """La déclaration de `app_id` telle que le manifeste la porte (`processing.revisions`) :
+    `{'keep': n}`, plus `'fields'` quand seules certaines sorties se gardent ; None si l'app ne
+    garde rien. Lue par l'extraction (2026-11-01) : sans elle, la jumelle d'une app qui garde ses
+    versions (le composer) naissait avec le champ mais sans la déclaration à la rétention."""
+    keep, fields = _KEEPING.get(app_id, (0, None))
+    if not keep:
+        return None
+    return {'keep': keep, **({'fields': list(fields)} if fields else {})}
+
+
 def keeps_field(app_id: str, field: str) -> bool:
     """La copie de la sortie `field` se garde-t-elle pour `app_id` ?"""
     keep, fields = _KEEPING.get(app_id, (0, None))

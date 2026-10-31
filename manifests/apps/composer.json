@@ -1844,6 +1844,16 @@
         }
       },
       "processing_time": true,
+      "revisions": {
+        "fields": [
+          "planned_score",
+          "extracted_score",
+          "parts_score",
+          "rendered_parts_score",
+          "reference_score"
+        ],
+        "keep": 20
+      },
       "statuses": [
         "PENDING",
         "AWAITING_RESOURCES",
@@ -1920,13 +1930,19 @@
         }
       },
       "start": "start_composer",
+      "start_selection": {
+        "pending": {
+          "status__in": [
+            "PENDING",
+            "FAILURE"
+          ]
+        }
+      },
       "status": "get_composer_status",
       "triad_spec": {
         "empty_msg": "Aucune composition en attente.",
         "id_kwarg": "generation_id",
         "model": "wama.composer.models.ComposerGeneration",
-        "reset": "wama.composer.views._reset_for_relaunch",
-        "reset_for_process": "wama.composer.views._reset_for_relaunch",
         "status_fields": {
           "audio_url": {
             "attr": "audio_output",
@@ -1943,8 +1959,7 @@
           },
           "status": "status"
         },
-        "status_order": "-id",
-        "task_for": "wama.composer.views._task_for"
+        "status_order": "-id"
       }
     }
   },
