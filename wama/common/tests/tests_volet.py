@@ -510,13 +510,12 @@ class PanelBricksTest(TestCase):
     def test_every_section_of_the_panel_follows_its_content_height(self):
         """2026-10-30 (Fabien : « sinon on se retrouve avec du scroll dans toutes les briques ») :
         une section du volet est à la hauteur de son contenu, et le module la monte dans une
-        ENVELOPPE — celle que mesure la brique, marges comprises (le corps nu oubliait les siennes)."""
+        ENVELOPPE, avec sa marge. La règle elle-même est celle de la disposition commune, selon la
+        zone où la brique EST (`tests_surfaces.RegistryTest…follows_its_content_height`)."""
         from pathlib import Path
 
         from django.conf import settings
 
-        from wama.common.utils.volet import PANEL_SLOTS
-        self.assertEqual([], [s.id for s in PANEL_SLOTS if not s.fit], 'à la hauteur de son contenu')
         script = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / self.PANEL_JS).read_text(
             encoding='utf-8')
         self.assertIn("wrap.className = 'wama-panel-body'", script)
@@ -792,8 +791,11 @@ class CentreBricksTest(TestCase):
         self.assertIn('if (headings[rec.slot.id]) wrap.appendChild(headings[rec.slot.id]);', module)
         self.assertIn("(!pane || pane.classList.contains('active'))", module)
         self.assertIn('root: grid, panelRoot: column, page: grid || column', module)
-        self.assertIn("at.resizeToContentParent = '.wama-brick-body';", engine)
-        self.assertIn('node.grid.resizeToContent(rec.el);', engine)
+        # Une brique `fit` suit son contenu — mesuré sur TOUS les enfants de son corps (2026-10-31 ;
+        # gridstack, `resizeToContent`, n'en lisait que le premier).
+        self.assertIn('try { node.grid.update(rec.el, { h: rows }); } finally { resetting = was; }',
+                      engine)
+        self.assertIn('Array.prototype.forEach.call(body.children', engine)
         self.assertIn("card.closest('[data-wama-queue]') || card.closest('.tab-pane')", viewer)
         self.assertIn('.wama-centre-grid.is-frozen > .grid-stack-item > .grid-stack-item-content', sheet)
 

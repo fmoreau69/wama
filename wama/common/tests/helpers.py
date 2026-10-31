@@ -25,18 +25,11 @@ def video_with_sound(folder: str, name: str, audio_codec: str, video_filter: str
     """Une vidéo RÉELLE de 3 s (mire 64×48 à 20 i/s, la 440 Hz en son), au conteneur que dit
     `name` et au codec audio `audio_codec` ; `video_filter` (avec cadence variable) pour retirer
     des images. Écrite par ffmpeg dans `folder`. Née dans les tests du floutage (2026-10-28),
-    partagée le 2026-10-29 quand l'agrandissement vidéo de l'enhancer a rejoint le même rendu."""
-    import subprocess
-    from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
-    path = os.path.join(folder, name)
-    command = [get_ffmpeg_exe(), '-y', '-loglevel', 'error',
-               '-f', 'lavfi', '-i', 'testsrc=size=64x48:rate=20:duration=3',
-               '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=3']
-    if video_filter:
-        command += ['-vf', video_filter, '-fps_mode', 'vfr']
-    command += ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', audio_codec, path]
-    subprocess.run(command, check=True)
-    return path
+    partagée le 2026-10-29 quand l'agrandissement vidéo de l'enhancer a rejoint le même rendu ;
+    faite par la brique commune depuis le 2026-10-31 (`ffmpeg_utils.test_pattern_video`)."""
+    from wama.common.utils.ffmpeg_utils import test_pattern_video
+    return test_pattern_video(os.path.join(folder, name), audio_codec=audio_codec,
+                              video_filter=video_filter)
 
 
 def media_streams(path: str):

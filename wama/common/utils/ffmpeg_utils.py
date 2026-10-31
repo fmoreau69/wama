@@ -110,6 +110,31 @@ def get_ffprobe_exe() -> str:
     return found or "ffprobe"
 
 
+def test_pattern_video(path: str, *, size: str = '64x48', rate: int = 20, seconds: float = 3,
+                       audio_codec: str = None, video_filter: str = None,
+                       faststart: bool = False) -> str:
+    """Une vidéo RÉELLE de mire (`testsrc`) en H.264, écrite à `path` par l'ffmpeg que WAMA
+    résout ; avec `audio_codec`, la 440 Hz en son ; `video_filter` (et une cadence variable) pour
+    retirer des images ; `faststart` pour qu'un navigateur la lise avant de l'avoir reçue en
+    entier. LE fabricant des vidéos témoins (2026-10-31) : il était écrit trois fois — le témoin
+    des vignettes (`ui_smoke`), les doublures des tests (`tests/helpers.video_with_sound`) et un
+    test du floutage."""
+    import subprocess
+    command = [get_ffmpeg_exe(), '-y', '-loglevel', 'error',
+               '-f', 'lavfi', '-i', f'testsrc=size={size}:rate={rate}:duration={seconds}']
+    if audio_codec:
+        command += ['-f', 'lavfi', '-i', f'sine=frequency=440:sample_rate=48000:duration={seconds}']
+    if video_filter:
+        command += ['-vf', video_filter, '-fps_mode', 'vfr']
+    command += ['-c:v', 'libx264', '-pix_fmt', 'yuv420p']
+    if audio_codec:
+        command += ['-c:a', audio_codec]
+    if faststart:
+        command += ['-movflags', '+faststart']
+    subprocess.run(command + [path], check=True, timeout=120)
+    return path
+
+
 def adapt_path_for_ffmpeg(path: str, ffmpeg_exe: str = None) -> str:
     """
     Adapte un chemin pour ffmpeg quand on utilise un ffmpeg WINDOWS (.exe) depuis WSL :

@@ -2230,10 +2230,22 @@ MECHANISMS = (
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/static/common/js/wama-transport.js',
                        'wama/common/static/common/js/wama-timeline.js',
-                       'wama/common/static/common/js/wama-segments.js',
                        'wama/common/utils/waveform.py',
                        'wama/common/services/ui_smoke_editor.py'),
               depends_on=('shuttle',)),
+    # Sorties des annexes de l'axe le 2026-10-31 (relais `WAMA_DATA_WORLD §8.4`) : elles n'en
+    # dépendent pas, et la brique « Intervenants », qui les charge sans suivre l'axe, comptait parmi
+    # ses consommateurs — « synchronisable » se lit aux briques qui chargent `wama-axis.js`.
+    Mechanism('segment_rules', 'Règles des segments (portions de temps bornées)',
+              "Les règles d'une suite de SEGMENTS (le type `segments`), sans DOM donc testées sous "
+              "V8 : scinder et fusionner en gardant les mots horodatés, les silences, une borne "
+              "qui n'avale jamais sa voisine, la sévérité d'un segment, le recalage demandé au "
+              "serveur. Déplacées de la page de correction du transcriber le 2026-10-21 ; "
+              "partagées par la liste des segments, la ligne de temps, l'écriture à la lecture et "
+              "les intervenants",
+              'wama/common/static/common/js/wama-segments.js',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              annexes=()),
     Mechanism('brick_keys', 'Clavier des briques (une touche, un propriétaire)',
               "Le module unique qui reçoit les frappes et les distribue selon la règle décidée par "
               "Fabien le 2026-10-29 : une touche déjà prise plus près du focus n'est pas "

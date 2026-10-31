@@ -83,17 +83,19 @@ class RegistryTest(SimpleTestCase):
     def test_a_brick_of_the_panel_follows_its_content_height(self):
         """2026-10-31 (Fabien : « avoir un scroll dans une section d'un volet qui scrolle, ce n'est
         pas une bonne idée ») : dans la colonne du volet, une brique est à la hauteur de son contenu
-        — DÉRIVÉ de la zone — et le noyau la monte dans une enveloppe, celle que la disposition
-        mesure ; une brique de la grille garde sa hauteur."""
+        — selon la zone où elle EST (une brique se glisse d'une zone à l'autre), décidé une fois par
+        la disposition commune pour les pages d'apps comme pour les surfaces. La mesure couvre TOUS
+        les enfants du corps (gridstack ne lit que le premier), et un changement de zone recale."""
+        layout = _js(LAYOUT_JS)
+        self.assertIn('return !!rec.slot.fit || !!(panel && node && node.grid === panel);', layout)
+        self.assertIn('if (!node || !node.grid || rec.section.hidden || !followsContent(rec)) return;',
+                      layout)
+        self.assertIn('Array.prototype.forEach.call(body.children', layout)
+        self.assertNotIn('resizeToContent(rec.el)', layout, "gridstack ne mesure que le 1er enfant")
+        self.assertIn('if (n.id && frames[n.id]) refit(frames[n.id]);', layout)
         from wama.common.surfaces import SURFACES
-        slots = [slot for found in SURFACES.values() for slot in found.slots]
-        self.assertTrue([s for s in slots if s.zone == 'panel'], 'des briques au volet existent')
-        for slot in slots:
-            with self.subTest(slot=slot.id):
-                self.assertEqual(slot.zone == 'panel', slot.to_dict()['fit'])
-        source = _js('common/js/surfaces/wama-surface.js')
-        self.assertIn("host.className = 'wama-fit-body'", source)
-        self.assertIn('def.mount(host, ctx', source)
+        self.assertFalse([s for found in SURFACES.values() for s in found.slots
+                          if 'fit' in s.to_dict()], 'la règle ne se déclare pas par emplacement')
 
     def test_the_kept_version_setting_is_read_and_written_without_being_said_twice(self):
         """`Surface.sources_setting` (2026-10-22) is one of the settings the page reads and

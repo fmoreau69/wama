@@ -230,40 +230,71 @@
         function mountBrick(rec) {
             if (opts.mount) opts.mount(rec);
             layoutTools(rec);
-            // Une brique qui suit son contenu le suit aussi quand il change (une card dépliée).
-            if (rec.slot.fit && global.ResizeObserver && rec.body.firstElementChild) {
-                new global.ResizeObserver(function () { refit(rec); }).observe(rec.body.firstElementChild);
-            }
+            watchContent(rec);
             return rec;
         }
 
         // ── Une brique À LA HAUTEUR DE SON CONTENU (2026-10-28, étape ④ : la card d'entrée, la
         // progression, la barre de la file — une hauteur fixe y laissait un vide, ou faisait défiler
-        // une card dépliée dans sa brique). L'emplacement le déclare (`slot.fit`) ; `refit` la
-        // retaille par gridstack (`resizeToContent`, qui mesure le premier enfant du corps) au
-        // montage, quand son contenu change et quand la disposition se fige ; on la déplace et on
-        // règle sa largeur, pas sa hauteur (`gs-resize-handles`). Seule dans son panneau : une pile
-        // partage sa hauteur. ⚠ L'option `sizeToContent` de gridstack n'y ajoutait rien : la
-        // contre-épreuve qui la retirait restait verte, celle qui retirait `refit` rougissait.
+        // une card dépliée dans sa brique). L'emplacement le déclare (`slot.fit`) ; ET toute brique
+        // posée dans la COLONNE DU VOLET (2026-10-31, Fabien : « avoir un scroll dans une section
+        // d'un volet qui scrolle, ce n'est pas une bonne idée ») — selon la zone où elle EST, pas
+        // celle qu'elle déclare : une brique se glisse d'une zone à l'autre. `refit` la retaille au
+        // montage, quand son contenu change, quand elle change de zone et quand la disposition se
+        // fige ; une brique déclarée `fit` se déplace et se règle en largeur, pas en hauteur
+        // (`gs-resize-handles`). Seule dans son panneau : une pile partage sa hauteur.
+        function followsContent(rec) {
+            var node = rec.el.gridstackNode;
+            return !!rec.slot.fit || !!(panel && node && node.grid === panel);
+        }
         function sized(key, at) {
             var rec = frames[key];
-            if (rec && rec.slot.fit && !shells[key]) {
-                at.resizeToContentParent = '.wama-brick-body';
-                rec.el.setAttribute('gs-resize-handles', 'e,w');
-            }
+            if (rec && rec.slot.fit && !shells[key]) rec.el.setAttribute('gs-resize-handles', 'e,w');
             return at;
         }
-        /** Recalée sur son contenu — après un changement de contenu, ou de son titre (figé, il se
-         *  masque). */
+        /** La hauteur que demande le contenu du corps : le bas de son enfant le plus bas, marges
+         *  comprises. ⚠ Pas `resizeToContent` de gridstack, qui ne mesure que le PREMIER enfant :
+         *  une brique de surface monte les siens directement dans son corps, et certaines font
+         *  défiler ce corps (la partition, les segments) — une enveloppe le leur aurait retiré. */
+        function contentHeight(body) {
+            var bottom = 0;
+            Array.prototype.forEach.call(body.children, function (child) {
+                if (!child.offsetParent && global.getComputedStyle(child).position !== 'fixed') return;
+                var margin = parseFloat(global.getComputedStyle(child).marginBottom) || 0;
+                bottom = Math.max(bottom, child.offsetTop + child.offsetHeight + margin);
+            });
+            return bottom + (parseFloat(global.getComputedStyle(body).paddingBottom) || 0);
+        }
+        /** Recalée sur son contenu — après un changement de contenu, de zone, ou de son titre
+         *  (figé, il se masque). Le calcul de gridstack : rangées = (contenu + habillage) / rangée. */
         function refit(rec) {
-            var node = rec.el.gridstackNode;
-            if (!rec.slot.fit || !node || !node.grid || rec.section.hidden) return;
+            var node = rec && rec.el.gridstackNode;
+            if (!node || !node.grid || rec.section.hidden || !followsContent(rec)) return;
+            var cell = node.grid.getCellHeight(true);
+            if (!cell || !rec.el.clientHeight) return;
+            var chrome = rec.el.clientHeight - rec.body.clientHeight;
+            var rows = Math.max(1, Math.ceil((contentHeight(rec.body) + chrome) / cell));
+            if (rows === node.h) return;
             // Ce n'est pas un geste : la hauteur suit le contenu, rien ne se garde pour autant.
             var was = resetting;
             resetting = true;
-            try { node.grid.resizeToContent(rec.el); } finally { resetting = was; }
+            try { node.grid.update(rec.el, { h: rows }); } finally { resetting = was; }
         }
         function refitAll() { Object.keys(frames).forEach(function (id) { refit(frames[id]); }); }
+        /** Le contenu change de taille (une card dépliée, une liste qui s'allonge) ou d'enfants :
+         *  la brique suit — observée quelle que soit sa zone, elle peut changer de zone. */
+        function watchContent(rec) {
+            if (!global.ResizeObserver) return;
+            var sizes = new global.ResizeObserver(function () { refit(rec); });
+            var watch = function () {
+                Array.prototype.forEach.call(rec.body.children, function (child) { sizes.observe(child); });
+            };
+            watch();
+            if (global.MutationObserver) {
+                new global.MutationObserver(function () { watch(); refit(rec); })
+                    .observe(rec.body, { childList: true });
+            }
+        }
 
         // ── EMPILER des briques en UN panneau (2026-10-26, Fabien : « empiler/imbriquer des
         // briques pour les compacter en une seule, uniquement en affichage » — le transport, la
@@ -1319,6 +1350,10 @@
             g.on('change added removed', layoutChanged);
             g.on('resizestop', function () { emit('resize'); });
             g.on('added', function () { emit('resize'); });      // la brique a changé de largeur
+            // Une brique arrivée dans la colonne du volet y suit son contenu (`followsContent`).
+            g.on('added', function (e, items) {
+                (items || []).forEach(function (n) { if (n.id && frames[n.id]) refit(frames[n.id]); });
+            });
         });
         // Une brique venue du volet arrive dans la grille avec la largeur de la colonne (1) : on lui
         // donne celle de la colonne de droite d'une surface (un tiers), qu'on retaille ensuite.

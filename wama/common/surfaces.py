@@ -337,17 +337,9 @@ class BrickSlot:
     options: dict = field(default_factory=dict)
     zone: str = 'grid'
 
-    @property
-    def fit(self) -> bool:
-        """Dans la colonne du volet, une brique est à la hauteur de son contenu (2026-10-31,
-        Fabien : « avoir un scroll dans une section d'un volet qui scrolle, ce n'est pas une bonne
-        idée ») — DÉRIVÉ de la zone, jamais déclaré brique par brique : la même règle que les
-        sections du volet des pages (`volet.PANEL_SLOTS`)."""
-        return self.zone == 'panel'
-
     def to_dict(self) -> dict:
         return {'id': self.id, 'brick': self.brick, 'x': self.x, 'y': self.y, 'w': self.w,
-                'h': self.h, 'options': dict(self.options), 'zone': self.zone, 'fit': self.fit}
+                'h': self.h, 'options': dict(self.options), 'zone': self.zone}
 
 
 @dataclass(frozen=True)

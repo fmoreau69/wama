@@ -9,7 +9,6 @@ the detected zone and nothing else ; a media is re-rendered frame by frame.
 """
 import os
 import shutil
-import subprocess
 import tempfile
 
 import cv2
@@ -577,10 +576,8 @@ class RewriteVideoKeepsItsSoundTest(SimpleTestCase):
         self.assertEqual('mp3', streams['audio']['codec_name'], 'its mp3 audio copied')
 
     def test_a_video_without_sound_stays_silent_and_does_not_fail(self):
-        path = os.path.join(self.folder, 'mute.mp4')
-        subprocess.run([self.ffmpeg, '-y', '-loglevel', 'error', '-f', 'lavfi',
-                        '-i', 'testsrc=size=64x48:rate=20:duration=1', '-c:v', 'libx264',
-                        '-pix_fmt', 'yuv420p', path], check=True)
+        from wama.common.utils.ffmpeg_utils import test_pattern_video
+        path = test_pattern_video(os.path.join(self.folder, 'mute.mp4'), seconds=1)
         written = self._rewrite(path, 'mute_blurred.mp4')
         self.assertNotIn('audio', self._streams(written)[1])
 

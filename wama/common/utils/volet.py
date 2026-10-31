@@ -79,9 +79,11 @@ def volet(*, tete: bool = False, medias: bool = True,
 class PanelSlot:
     """Une section du volet comme emplacement de la disposition commune : la COLONNE du volet
     (`zone='panel'`, une colonne), son ordre (`y`) et sa hauteur de départ (`h`, en rangées de la
-    grille, 46 px) — une section du volet est à la hauteur de son contenu (`fit`, 2026-10-30) : la
-    colonne défile d'un seul tenant, jamais chaque brique. `element` : l'identifiant que
-    `base.html` donne à la section, jamais renommé (l'inspecteur le lit)."""
+    grille, 46 px) — dans la colonne du volet, une brique est à la hauteur de son contenu
+    (2026-10-30 ; la règle vit dans la disposition commune, `wama-brick-layout.js`
+    `followsContent`, selon la zone où la brique EST) : la colonne défile d'un seul tenant,
+    jamais chaque brique. `element` : l'identifiant que `base.html` donne à la section, jamais
+    renommé (l'inspecteur le lit)."""
     id: str
     element: str
     y: int
@@ -109,13 +111,10 @@ class PanelSlot:
 
 def _stacked(*sections) -> tuple:
     """Les emplacements dans l'ordre donné, chacun sous le précédent : `(id, élément, hauteur)`,
-    et la brique du registre qu'il porte en quatrième quand il en porte une. Tous à la hauteur de
-    leur contenu (2026-10-30, Fabien : « sinon on se retrouve avec du scroll dans toutes les
-    briques ») — mesuré avant : les réglages montraient 446 px sur 1 158 à 1 871, l'assistant 400
-    sur 531 en plus du défilement de sa conversation."""
+    et la brique du registre qu'il porte en quatrième quand il en porte une."""
     out, y = [], 0
     for slot_id, element, h, *brick in sections:
-        out.append(PanelSlot(slot_id, element, y, h, brick=(brick or [''])[0], fit=True))
+        out.append(PanelSlot(slot_id, element, y, h, brick=(brick or [''])[0]))
         y += h
     return tuple(out)
 

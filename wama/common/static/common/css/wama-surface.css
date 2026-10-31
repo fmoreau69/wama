@@ -24,9 +24,6 @@
 .wama-brick-title { font-size: .78rem; font-weight: 600; color: var(--wama-edit-brick-text); margin-right: auto; }
 .wama-brick-body { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; color: var(--wama-edit-brick-text);
   container: wama-brick / inline-size; }
-/* L'enveloppe d'une brique À LA HAUTEUR DE SON CONTENU (la colonne du volet, 2026-10-31) : celle que
-   la disposition mesure. `flow-root` y retient les marges de ses enfants, que la mesure oublierait. */
-.wama-fit-body { display: flow-root; }
 /* Réglages en 2 colonnes (`ParamGroup.columns=2`) dans une brique : c'est la LARGEUR DE LA BRIQUE
    qui décide, pas celle de la fenêtre — une brique rétrécie passe sur une colonne, élargie en
    retrouve deux, où qu'elle soit posée (la colonne du volet garde ses deux colonnes). */

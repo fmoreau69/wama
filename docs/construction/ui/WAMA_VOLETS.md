@@ -442,15 +442,26 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     contre-épreuves rouges (déclaration sans `fit`, section sans enveloppe, observateur retiré au
     navigateur → 279 px cachés).
     **Étendu le 2026-10-31 aux briques du volet des PAGES D'ÉDITION** (Fabien : *« avoir un scroll
-    dans une section d'un volet qui scrolle, ce n'est pas une bonne idée »*) : une règle DÉRIVÉE
-    de la zone, `BrickSlot.fit = (zone == 'panel')`, jamais déclarée brique par brique ; le noyau
-    (`wama-surface.js`) monte la brique dans une enveloppe `.wama-fit-body` (`flow-root`, qui
-    retient les marges des enfants). Mesuré sur témoins : correction du transcriber, « document »
-    216/258 → 262/262 ; partition du composer, « versions » 276 px fixes → 92. Limite connue :
-    la hauteur se compte en rangées de 46 px, une brique garde jusqu'à une rangée de vide sous son
-    contenu (changer la rangée casserait les dispositions gardées). Garde :
-    `tests_surfaces.RegistryTest.test_a_brick_of_the_panel_follows_its_content_height`, deux
-    contre-épreuves rouges.
+    dans une section d'un volet qui scrolle, ce n'est pas une bonne idée »*). Mesuré sur témoins :
+    correction du transcriber, « document » 216/258 → 262/262 ; partition du composer,
+    « versions » 276 px fixes → 92. Limite connue : la hauteur se compte en rangées de 46 px, une
+    brique garde jusqu'à une rangée de vide sous son contenu (changer la rangée casserait les
+    dispositions gardées).
+    ⚠ **Corrigé à la revérification du même jour** — la première écriture posait la règle TROIS
+    fois (`PanelSlot.fit` en dur, `BrickSlot.fit` dérivé de la zone DÉCLARÉE, une enveloppe
+    `.wama-fit-body` dans le noyau des surfaces) et la figeait sur la zone déclarée : une brique de
+    la grille glissée dans le volet y gardait sa hauteur et défilait (le cas même que Fabien
+    écartait), une brique du volet glissée au centre continuait de suivre son contenu. **La règle
+    vit désormais UNE fois, dans la disposition commune** (`wama-brick-layout.js`,
+    `followsContent`) : déclarée (`slot.fit`, les briques du centre) OU posée dans la colonne du
+    volet, selon la zone où elle EST — recalée au montage, quand son contenu change, quand elle
+    change de zone, quand la disposition se fige. La MESURE couvre tous les enfants du corps
+    (`contentHeight`) : `resizeToContent` de gridstack ne lit que le premier, et une enveloppe
+    universelle aurait retiré leur défilement à la partition et aux segments (`body.scrollTop`).
+    Gardes : `tests_surfaces.RegistryTest.test_a_brick_of_the_panel_follows_its_content_height`,
+    `tests_volet` (centre, volet) et un geste de `common.surface_layout` (la brique Actions glissée
+    de la grille au volet y suit son contenu) ; contre-épreuves au navigateur ROUGES (règle de zone
+    retirée : les deux scénarios ; mesure du seul premier enfant : la surface, 33 px cachés).
   - **Une section que la page masque retire son panneau** sans laisser de trou (l'aperçu et les
     infos, tant que rien n'est sélectionné), et il revient à son RANG, quel que soit l'ordre où la
     page montre ses sections (`setShown`). Retiré, il reste dans le document : l'inspecteur le

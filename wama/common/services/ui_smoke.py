@@ -653,18 +653,13 @@ def _witness_detections() -> bytes:
 
 def _witness_video(seconds: int = 2) -> bytes:
     """La VIDÉO témoin (2026-10-29, la surface d'analyse du face_analyzer) : une mire de quelques
-    secondes en H.264, lisible par tout navigateur, faite par l'ffmpeg que WAMA résout
-    (`ffmpeg_utils.get_ffmpeg_exe`)."""
-    import subprocess
+    secondes en H.264, lisible par tout navigateur (`ffmpeg_utils.test_pattern_video`)."""
     import tempfile
 
-    from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
+    from wama.common.utils.ffmpeg_utils import test_pattern_video
     with tempfile.TemporaryDirectory() as folder:
-        out = os.path.join(folder, 'witness.mp4')
-        subprocess.run([get_ffmpeg_exe(), '-y', '-loglevel', 'error', '-f', 'lavfi',
-                        '-i', f'testsrc=size=320x240:rate=15:duration={seconds}',
-                        '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-movflags', '+faststart', out],
-                       check=True, timeout=60)
+        out = test_pattern_video(os.path.join(folder, 'witness.mp4'), size='320x240', rate=15,
+                                 seconds=seconds, faststart=True)
         with open(out, 'rb') as source:
             return source.read()
 

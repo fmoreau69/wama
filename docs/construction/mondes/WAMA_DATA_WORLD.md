@@ -943,6 +943,16 @@ ou deux avant d'extraire quoi que ce soit) :
   `Signal` ou d'un référentiel de dataset) ; et les traitements du face_analyzer ne sont PAS encore
   déclarés au catalogue de fonctions — ils le seront avec son passage à la file commune.
 - Points 1-4 ci-dessus : inchangés, toujours confiés.
+- *(Revérification du 2026-10-31)* ⚠ **Deux autres chemins de courbes subsistent**, antérieurs et
+  hors de la route (Chart.js chargé par CDN, couleurs écrites) : l'onglet analytics du
+  **cam_analyzer** (`wama_lab/cam_analyzer/templates/cam_analyzer/base.html`,
+  `wama_lab/cam_analyzer/static/cam_analyzer/js/index.js`) et les anciennes pages du
+  **face_analyzer** (`wama_lab/face_analyzer/templates/face_analyzer/video.html`,
+  `wama_lab/face_analyzer/templates/face_analyzer/realtime.html`). Ils se portent sur
+  `timeseries_chart` avec le portage du Lab, jamais à côté. ✅ Le mécanisme `media_axis` ne compte
+  plus les règles des segments : `wama-segments.js` a sa propre entrée au registre
+  (`segment_rules`, `mecanismes.py`) — le constat « compte à tort la brique Intervenants »
+  ci-dessus est soldé.
 
 ---
 

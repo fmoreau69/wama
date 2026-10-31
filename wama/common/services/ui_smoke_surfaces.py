@@ -232,6 +232,17 @@ _TO_PANEL_JS = """([id, h]) => {
     panel.gridstack.makeWidget(el, {id: id, x: 0, y: 0, w: 1, h: h});
     return true; }"""
 
+#: Une brique passée dans le volet y suit son contenu (2026-10-31) : ce que son corps cache
+#: (défilement) et le vide sous son contenu, à moins d'une rangée (46 px).
+_FITTED_JS = """(id) => {
+    const el = document.querySelector('[data-smoke-moved="' + id + '"]');
+    const body = el && el.querySelector('.wama-brick-body');
+    if (!body) return null;
+    const bottom = Math.max(0, ...[...body.children].filter(c => c.offsetParent)
+        .map(c => c.offsetTop + c.offsetHeight));
+    return {hidden: body.scrollHeight - body.clientHeight, slack: body.clientHeight - bottom};
+}"""
+
 #: L'élément marqué est-il toujours là, et dans quelle zone ?
 _MOVED_JS = """(id) => { const el = document.querySelector('[data-smoke-moved="' + id + '"]');
     return el ? (el.closest('.wama-surface-panel') ? 'panel' : 'grid') : null; }"""
@@ -382,6 +393,10 @@ def _layout_gestures(page, url, surface, declared, stored, verdict, errors):
         verdict(moved and in_panel.get('zone') == 'panel' and (in_panel.get('x'), in_panel.get('w')) == (0, 1)
                 and page.evaluate(_MOVED_JS, to_panel) == 'panel',
                 f"panneau passé dans la colonne du volet → gardé avec sa zone, même élément ({in_panel})")
+        page.wait_for_timeout(400)
+        fitted = page.evaluate(_FITTED_JS, to_panel)
+        verdict(fitted and fitted['hidden'] <= 1 and 0 <= fitted['slack'] < 46,
+                f"dans le volet, il est à la hauteur de son contenu, sans défiler ({fitted})")
 
         page.click('#wamaLayoutToggle')
         state = page.evaluate(_GRID_STATE_JS)
