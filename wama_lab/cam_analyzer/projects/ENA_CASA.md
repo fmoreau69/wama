@@ -54,7 +54,8 @@ Dernière mise à jour : 2026-07-21.
 ## §1 — Données (miroir du kind `dataset`)
 
 > Structure = `body` d'un manifeste `dataset` : `source` + `signals[]` typés + `reference_tables{}`
-> + `records[]`. À terme : `ingest_manifest()` (`wama/common/manifests/ingest.py`).
+> + `records[]`. À terme : `ingest()` (`wama/common/manifests/ingest.py:79` ; « `ingest_manifest()` »
+> ici jusqu'au 2026-10-31).
 
 ### `source`
 - **Vidéo** : composant **quad RTMaps** — **4 vues dans UN SEUL flux** h264 `800×500 @ 12 fps`
@@ -113,8 +114,20 @@ Dernière mise à jour : 2026-07-21.
   110° H), latérales **31°** (AXIS **F1015** réglées ~**55° H**).
 - ⚠️ Vari-focale F1015 **probablement restée au réglage LARGE ~97° H** (à confirmer à l'écran, audit
   #4) : un FOV réel plus large **surestime** les distances latérales → correction `dist_scale`.
-- Optique **quasi-rectiligne** sur ENA_CASA (grand-angle modéré) → **k1/distorsion testé et ÉCARTÉ**
-  (pas de gain). `fx ≈ 134 px` sur ~384 px → **plafond de précision** à assumer.
+- ~~Optique **quasi-rectiligne** sur ENA_CASA (grand-angle modéré) → **k1/distorsion testé et ÉCARTÉ**
+  (pas de gain).~~ → **distorsion NON négligeable** (corrigé le 2026-10-31) : mesurée le 2026-10-06
+  par les lignes droites — avant 0,69, arrière 0,55, gauche 0,53, droite 0,62 —, appliquée sous
+  ⚑ `lens_distortion` / `measured_lens_distortion` (OFF, `utils/features.py:194`, `:233`) ; sans
+  elle un garé « avance » de 17-22 % sur les latérales. L'essai k1 de la calib 2a (07-20) n'avait
+  pas de gain. `fx ≈ 134 px` sur ~384 px → **plafond de précision** à assumer.
+
+#### Mesuré sur données (oct. 2026 — ajouté le 2026-10-31)
+| grandeur | valeur ENA_CASA | source |
+|---|---|---|
+| lacet de montage droite / gauche | **67,5°** / **−77,5°** (saisis ±75°), avant −0,5° (contrôle) | passe `camera_intrinsics`, 2026-10-02 (`utils/camera_intrinsics.py:28-35`), ⚑ `measured_camera_yaw` |
+| champ horizontal caméra avant | **~75°** (fiche : 110°) | passe `camera_intrinsics`, 2026-09-30 (`utils/features.py:178-181`), ⚑ `measured_camera_fov` |
+| latence du GPS sur la vidéo | **+0,55 s** | passe `visual_yaw`, 2026-10-13 (`utils/features.py:64-69`), ⚑ `gps_latency` |
+| largeur de voie estimée | **2,8 m** | `AnalysisSession.lane_width_m` (`models.py:296` ; CHAINE § Doctrine « calculs GÉNÉRIQUES ») |
 
 ### Calibration sol (ground_calib, par caméra — ⚑ `auto_ground_calib`)
 | Caméra | pitch estimé | hauteur | Étalement monde | Retenue ? |
@@ -125,8 +138,10 @@ Dernière mise à jour : 2026-07-21.
 | gauche | — | — | > 2,5 m | ❌ rejetée |
 
 - Hauteur caméra défaut si non calibrée : **`H cam ≈ 2,4 m`**.
-- **Offset ortho 2b** mesuré (recalage absolu IGN) : **~5,1 m** (2,93 E / 4,2 N) — **RAPPORT seul,
-  NON appliqué** (bascule à venir).
+- **Offset ortho 2b** mesuré (recalage absolu IGN) : **~5,1 m** (2,93 E / 4,2 N) — appliqué
+  derrière ⚑ `ortho_correction` (OFF) depuis le 2026-09-28 (`utils/ego_pose.py:408`) ; sur
+  `4da52df3` tout part en biais caméra, correction locale nulle (CHAINE §INVENTAIRE A). *(Corrigé le
+  2026-10-31 : « RAPPORT seul, NON appliqué (bascule à venir) ».)*
 
 ### Références métriques (normes FR, surchargeables au profil)
 `lane_width_m` 3,5 · `dash_mark_length_m` 3,0 · `dash_gap_length_m` 9,0 ·
@@ -144,7 +159,7 @@ Zones nommées `{lat, lon, radius}` du site CASA — définies dans `AnalysisPro
 ## Chantiers manifeste révélés par ce projet
 
 1. **§1 ingestable maintenant** : le kind `dataset` est prêt → écrire le `body` JSON depuis le XML
-   modèle tiers source et `ingest_manifest()`. Reste : le **reader source-agnostique** (projection) pour
+   modèle tiers source et `ingest()`. Reste : le **reader source-agnostique** (projection) pour
    que les apps consomment le dataset (chantier `dataset` projection).
 2. **§2 sans foyer** : la **calibration/rig** n'a pas de kind → concevoir soit une **extension du
    body `project`**, soit un kind **`calibration`** (par session/caméra, avec époques de dérive), +

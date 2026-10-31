@@ -40,8 +40,9 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 - **Attribution de voie** : chaque objet est rattaché à une voie ; identification de la voie navette.
 - **Calibration** : yaw/FOV/levier antenne GPS réglables par session ; **calibration sol semi-automatique**
   (pitch caméra estimé par ego-motion) ; voies croisantes et marquages d'intersection reconstruits.
-- **Bascules de comparaison ⚑** : 11 leviers A/B (correction FOV, cap, filtre d'artefacts, cap des garés,
-  branches apprises, marquages monde, calibration sol…) pour mesurer chaque amélioration avec/sans.
+- **Bascules de comparaison ⚑** : leviers A/B (correction FOV, cap, filtre d'artefacts, cap des garés,
+  branches apprises, marquages monde, calibration sol…) pour mesurer chaque amélioration avec/sans —
+  registre `utils/features.py` (56 bascules au 2026-10-31 ; « 11 » ici jusque-là).
 - **Timeline de proximité** colorée (vert → rouge) synchronisée à la lecture.
 - **Segmentation temporelle** automatique (suivi rapproché, dépassement, croisement, arrêt/insertion
   aux intersections).
@@ -75,6 +76,8 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
   `features` (bascules ⚑), `ground_calib` (pitch estimé), `analyzed_ranges` (couverture).
 - **CameraView** — position, fichier vidéo, fps/résolution/durée, `time_offset` (synchro).
 - **DetectionFrame** — détections frame par frame (`bbox`, classe, confiance, `track_id`, proximité).
+- **DepthFrame** — cartes de profondeur (`.npz`) par caméra et frame, étage 1 de la profondeur
+  (`models.py:396`, passe `depth`).
 - **TemporalSegment** — segments typés (suivi rapproché, dépassement, croisement, arrêt/insertion).
 - **LaneEvent** — passage d'un objet dans une voie (`lane_id`, `in_shuttle_lane`, t_enter/t_exit).
 - **ConflictEvent** — conflit consolidé par objet (type, navette passée avant/après, Δt, distance min,
@@ -105,15 +108,32 @@ de la route (détection d'objets, segmentation de voie, proximité, conflits aux
 | `intersection_branches.py` | **Voies croisantes apprises du trafic** (trajectoires monde des véhicules). |
 | `marking_world.py` | **Marquages SAM3 agrégés en monde** (stop_line/crossing projetés multi-passages → bornes d'intersection). |
 | `coverage.py` | Registre de couverture d'analyse (`analyzed_ranges` par caméra) pour la complétion incrémentale et le mode Live. |
-| `features.py` | Registre des **bascules de comparaison** (11 flags A/B, cf. `CAM_ANALYZER_CHAINE_TRAITEMENT.md`). |
+| `features.py` | Registre des **bascules de comparaison** (`FEATURES` : 56 au 2026-10-31 — « 11 » ici jusque-là ; cf. `CAM_ANALYZER_CHAINE_TRAITEMENT.md`). |
 | `ego_pose.py` | **Ego-pose GPS + accéléromètre** (parse CSV RecFile_Data ; cap = course GPS tenue à l'arrêt ; priorité API navette si dispo). |
 | `pass_tracking.py`, `window_recompute.py` | Passes incrémentales (STALE + cascade) et recalcul ciblé. |
+| `depth_estimator.py` | Profondeur monoculaire en 3 étages (ZoeDepth-KITTI par défaut, Depth Pro au choix) : cartes `DepthFrame`, plan de sol, cross-check des distances. |
+| `ortho_markings.py` | Recalage absolu 2b : passages piétons segmentés par SAM3 sur l'orthophoto IGN, appariés aux crossings caméra. |
+| `camera_intrinsics.py` | Champ de vue, lacet de montage et distorsion MESURÉS (passe `camera_intrinsics`). |
+| `visual_yaw.py` | Cap visuel de la navette (rotation vue par la caméra avant) et latence du GPS (passe `visual_yaw`). |
+| `lane_estimator.py` | Largeur de voie estimée depuis les lignes YOLOPv2 projetées au sol. |
+| `lane_map_recalage.py` | Recalage latéral et de cap de la navette par la voie vue + l'axe routier IGN (⚑ `lane_map_recalage`). |
+| `segmentation_bridge.py` | Pont masque de segmentation → détection bbox standard (point de contact au sol). |
+| `window_clips.py` | Plages d'images des fenêtres d'intersection et extrait vidéo exact d'une plage. |
+| `display_anonymization.py` | Anonymisation des vidéos pour l'AFFICHAGE (passes `anonymize_detect` / `anonymize_blur`). |
+| `vehicle_tables.py` | Tableaux par véhicule (insertions aux intersections, dépassements — passe `vehicle_tables`). |
+| `video_processing.py` | Script ffmpeg ad hoc (retournement d'une vidéo), hors pipeline. |
 
 ### Tâches Celery (`tasks.py`, queue `gpu`)
 `process_session_task` (pipeline complet ; paramètre `completion_scope` pour la **complétion
 incrémentale**), `compute_lane_events_task`, `compute_distance_task`, `compute_temporal_segments_task`,
 `compute_conflict_events_task`, `compute_global_tracking_task` (**tracking 360°** seul), `analyze_sam3_only_task`,
 `live_analysis_task` (**mode Live**, analyse au fil de la lecture), `extract_rtmaps_task`.
+Et une tâche par passe déclarée (complété le 2026-10-31 ; **la source est `pass_tracking.PASSES`,
+champ `task`**) : `compute_depth_task`, `compute_depth_calc_task`, `compute_anonymize_detect_task`,
+`compute_anonymize_blur_task`, `compute_lane_map_recalage_task`, `compute_camera_intrinsics_task`,
+`compute_visual_yaw_task`, `compute_ortho_recalage_task`, `compute_ortho_correction_task`,
+`compute_indicators_task`, `compute_vehicle_tables_task` ; hors passes : `release_calc_chain_task`,
+`sam3_test_frame_task`.
 `_run_global_tracking()` = cœur partagé (gids + trajectoires lissées + ancres + branches + marquages),
 enchaîné automatiquement en fin de complétion et de mode Live.
 
@@ -121,7 +141,9 @@ enchaîné automatiquement en fin de complétion et de mode Live.
 - **YOLO** : `AI-models/models/vision/yolo/detect/` (`yolo11{n,s,m,l,x}.pt` + `-seg`). Classes COCO
   routières : person(0), bicycle(1), car(2), motorcycle(3), bus(5), truck(7).
 - **YOLOPv2** : https://github.com/CAIC-AD/YOLOPv2 (TorchScript).
-- **Segmentation route** : `keremberke/yolov8m-bdd100k-seg` (auto-download).
+- **Segmentation route** : modèle YOLO-seg BDD100K **fourni au profil** (`road_model_path`) — plus de
+  téléchargement automatique (corrigé le 2026-10-31 : « `keremberke/yolov8m-bdd100k-seg`
+  (auto-download) » ; `road_segmenter.py:58` attend un `.pt`, `download_road_model` installe YOLOPv2).
 - **SAM3** : marquages au sol prompts.
 - **rosbags** : https://github.com/rpng/rosbags.
 
@@ -143,6 +165,11 @@ enchaîné automatiquement en fin de complétion et de mode Live.
 - **Route** : `api/road-model/download/` (demande l'installation de YOLOPv2 au model manager).
 - **RTMaps** : `<id>/rtmaps/upload/`, `.../upload-avi/`, `.../status/`.
 - **Console** : `console/`.
+- **Autres** (complété le 2026-10-31 ; **liste complète : `urls.py`**) : `<id>/duplicate/`,
+  `<id>/gps-offset/`, `<id>/sync-rec/`, `<id>/prediction/`, `cameras/<cid>/anonymize-detections/`,
+  `<id>/buildings/`, `<id>/road-zones/`, `<id>/sam3-test/` + `sam3-test-result/`,
+  `<id>/export/{insertions,overtakes}/`, `<id>/vehicle-tables/`,
+  `profiles/<pid>/anonymize-threshold/`.
 
 ## Entrées / sorties
 `media/cam_analyzer/{user_id}/input/` et `.../output/` (vidéos annotées, exports). Géré aussi via le
@@ -162,8 +189,10 @@ FileManager (WAMA Lab → Cam Analyzer).
   **Homographie sol** (`ground_projection.py`) activée par caméra quand une calibration existe : soit
   manuelle via `calibrate/` (4 coins → DLT), soit **AUTO** via `homography_estimator.py` (pitch estimé par
   ego-motion, bascule `auto_ground_calib`). Le désaccord des deux canaux sur session réelle (14,55 m au
-  pitch nul → 3,05 m au pitch estimé) a montré que **l'angle** était la grosse erreur. **Reste** :
-  l'échelle absolue (étape 2b — passages piétons segmentés sur l'ortho + matching) et la calib jointe (2c).
+  pitch nul → 3,05 m au pitch estimé) a montré que **l'angle** était la grosse erreur. L'échelle
+  absolue (étape 2b — passages piétons segmentés sur l'ortho + matching) est **livrée** : mesure
+  (`ortho_markings.py`, passe `ortho_recalage`) + correction derrière ⚑ `ortho_correction` (OFF,
+  2026-09-28, `ego_pose.py:408`). **Reste** : la calib jointe (2c). *(Corrigé le 2026-10-31.)*
 - **Attribution de voie** : heuristique par franchissements de lignes ; renvoie `-1` quand les pointillés
   sont trop fragmentés (intersections).
 - **Reflets de vitrage** : les « fantômes géants » fragmentés (bbox ~90 % image, conf basse) échappent au

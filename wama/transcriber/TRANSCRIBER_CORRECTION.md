@@ -49,11 +49,19 @@ l'onde, façon diagramme de proximité du cam_analyzer) + options de nettoyage.
 - **Cohérence par-segment = 1 SEUL appel LLM** (liste `{segment, sévérité, note}`),
   exécutée **à la demande** (ouverture de l'éditeur), pour ne pas ralentir la transcription.
 
+🔄 **État au 2026-10-31** : le pipeline est ✅ depuis le 2026-10-03 (`function_specs.PIPELINE =
+register_app_pipeline(...)`, `function_specs.py:203` — level, denoise, transcribe, import, align,
+diarize, summarize, coherence : chaque étape se relance seule, `STALE` compris) ; ⏳ reste la
+**correction comme process** périmé par l'ASR (aucun `ProcessSpec('correct', …)`,
+`function_specs.py:212-248`), et le rebasage ci-dessous.
+
 ⏳ **Ajout 2026-09-16 (Fabien) — ce que le modèle PIPELINE apportera ici, et ce qu'il n'apportera
 pas.** Le transcriber porte déjà le bon socle : ASR immuable + correction à part, donc relancer la
 transcription **ne détruit pas** la correction (`transcriber/views.py:50-60`). Ce qui manque est le
 NOM de l'état intermédiaire : quand une nouvelle génération existe, l'éditeur ne propose que
-« charger la dernière transcription (cela remplacera votre correction) » (`transcriber/views.py:653-663`,
+« charger la dernière transcription (cela remplacera votre correction) » (`transcriber/views.py:653-663` à
+l'époque ; le geste vit depuis dans la brique commune `wama/common/static/common/js/surfaces/brick-segment-list.js:331`,
+option `latest` déclarée `transcriber/surfaces.py:79`, `:92` — noté le 2026-10-31 ;
 `templates/transcriber/edit.html:232-236` (supprimé le 2026-10-21, R166)) — garder une correction périmée, ou la perdre.
 Avec le modèle du 15/09 (`WAMA_APP_GENERATION_ROUTE.md §10.6`), la correction devient un **process**
 dont l'amont est l'ASR : relancer l'ASR la marque **`STALE`** (« ta correction ne correspond plus à
@@ -93,7 +101,8 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
 - **NVIDIA NeMo — Canary 1B v2 et Parakeet TDT 0.6B v3** : ✅ **en service depuis le 2026-09-28**,
   les deux meilleurs du banc FR ouvert (4,79 % / 5,38 %), poids installés depuis septembre sans
   moteur. Backend commun `NemoASRBackend` (`ENGINE='nemo'`, deux modèles déclarés dans
-  `SUPPORTED_MODELS` avec leur langue exigée et leur passe maximale) ; runtime `nemo_toolkit==3.0.0`
+  `SUPPORTED_MODELS` avec leur langue exigée et leur passe maximale — trois depuis le 2026-10-01,
+  LinTO compris, `nemo_asr_backend.py:55-67`) ; runtime `nemo_toolkit==3.0.0`
   en `--no-deps` avec ses 28 dépendances NOUVELLES listées (ses pins rétrogradaient lightning,
   protobuf, fsspec) + patch venv n°8 ; **heure au MOT native** (22 mots datés sur l'extrait d'essai).
   Même essai par l'assistant (items 738 canary, 739 parakeet) : texte exact, `used_backend=nemo`,
@@ -151,6 +160,9 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
     `eval-asr-installation-2026-09-29` ; `search_models` → proposition → `install_model`) :
     **LinTO FR** (0,85 Go), **FrWhisper** (5,8 Go), **Kyutai STT fr/en** (2,5 Go), rangés sous
     `AI-models/models/speech/<nom>/`. ⚠ Poids seulement : aucun moteur ne les charge encore.
+    → **moteurs livrés depuis** (noté le 2026-10-31) : LinTO dans `NemoASRBackend`
+    (`wama/common/backends/nemo_asr_backend.py:55-67`, 2026-10-01), `FrWhisperBackend`
+    (`frwhisper_backend.py:51`), `KyutaiSttBackend` (`stt_1b_en_fr_trfs_backend.py:50`).
     Non installés : `pyannote/speaker-diarization-community-1` (proposé ; accès restreint → la
     garde disque refuse faute de taille lisible, et le téléchargement exige d'avoir accepté ses
     conditions sur HF) ; `Voxtral-Mini-3B-2507` (aucune tâche déclarée sur HF) et
@@ -281,8 +293,10 @@ détectée ; la card ne gardait que la langue du **premier** passage (`workers._
 - ⏳ **Ce qui ne lit encore qu'UNE langue** : résumé, cohérence, aligneur acoustique (choisi par
   langue) et mesure `text_v2` (nombres en chiffres dans la langue de la card). Les faire lire la
   langue PAR SEGMENT est l'étape suivante ; et Canary serait plus sûr découpé AUX CHANGEMENTS de
-  langue qu'à intervalle fixe. ⏳ **Rien n'est encore MESURÉ** sur un audio réellement multilingue :
-  il faut un corpus de bascules de langue, licence vérifiée (comme SUMM-RE, `WAMA_QUALITE §9bis`).
+  langue qu'à intervalle fixe. ~~⏳ **Rien n'est encore MESURÉ** sur un audio réellement multilingue :
+  il faut un corpus de bascules de langue, licence vérifiée (comme SUMM-RE, `WAMA_QUALITE §9bis`).~~
+  → phrase antérieure à la mesure FLEURS-CS du 2026-09-29 ci-dessus (15 enregistrements, 2 à 8
+  langues) — barrée le 2026-10-31.
 
 ## 5ter. Forme d'onde — fichiers longs & overlay (décision d'archi)
 
@@ -310,7 +324,8 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
 
 1. **Éditeur core** : page + forme d'onde commune étendue (sync + ticks) + édition segments
    (inline/split/merge/compact + locuteur) + persistance corrigé/auto-save. (= Whispurge intégré)
-   → **🔶 Phase 1a livrée** : page `/transcriber/edit/<id>/` (vue `edit` + `save_correction`),
+   → **🔶 Phase 1a livrée** : page `/transcriber/edit/<id>/` (vue `edit` + `save_correction` —
+   remplacée le 2026-10-21 par la surface et `views.correction_saved`, `views.py:762`, cf. 2f ; noté le 2026-10-31),
    modèle `corrected_segments_json` + `correction_status` (migration 0010), forme d'onde via
    le composant commun (étendu **additivement** : `getAudio`/`seek`/`ensureInit`), liste de
    segments **synchronisée + éditable inline** (texte + locuteur), clic ▶ segment → seek,
@@ -395,7 +410,8 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
    écarté : Alt+L est déjà le verrou « suivre la lecture »). Parité : partie « Clavier après un
    clic » (4 gestes, sans rendre le clavier à la page) — **75/75**, contre-épreuve rouge en servant
    l'ancien axe au seul navigateur du scénario ; garde V8 `TransportKeysOwnershipTest`. Suite : les
-   raccourcis DÉCLARÉS par les briques, au registre (`WAMA_VOLETS §3-ter`).
+   raccourcis DÉCLARÉS par les briques, au registre (`WAMA_VOLETS §3-ter`) → étape 2 livrée le
+   2026-10-29 (`WamaKeys.register`, `wama/common/static/common/js/wama-keys.js:1-3` ; noté le 2026-10-31).
 3. **Confiance** (mot/segment) — déjà la source de la heatmap 2a.
 4. **Guidage** (slider rigueur + hésitations/silences/redondances) en suggestions accept/reject
    (règles FR + gaps de segments + LLM).
@@ -553,6 +569,7 @@ touches servent à taper ; `Échap` revient à la navigation.
 | touche | en navigation | en édition |
 |---|---|---|
 | `Espace` | lecture / pause | (tape un espace) |
+| `Ctrl+Espace` | lecture / pause | lecture / pause (même en saisie) |
 | `J` · `K` · `L` | un cran vers l'arrière · arrêt · un cran vers l'avant (plus rapide à chaque appui) | — |
 | `←` · `→` | recule · avance de 5 secondes (avec `Maj` : 30 secondes) | — |
 | `Début` · `Fin` | va au début · à la fin | — |
@@ -765,8 +782,11 @@ morceau d'audio quels mots du texte lui reviennent.
     plus long que la capacité se coupe ENTRE deux mots, aux heures estimées ; une fenêtre qui
     échoue garde l'estimation de l'étage A. Les mots repris deviennent **`aligned`**, avec leur
     confiance acoustique dans `probability`.
-  - **Déclenchement** : automatique, après l'import d'un résultat existant qui garde des mots
-    incertains (`transaction.on_commit` → `align_existing_result`, file GPU). Le résultat est
+  - **Déclenchement** : ~~automatique, après l'import d'un résultat existant qui garde des mots
+    incertains (`transaction.on_commit` → `align_existing_result`, file GPU)~~ → process `align`
+    (optionnel) du pipeline, joué **au lancement de la card**, après `import` et avant `diarize`
+    (`function_specs.py:231`, glu `workers._align_step`, `workers.py:937` ; décision de Fabien du
+    2026-10-03 — corrigé le 2026-10-31, `align_existing_result` n'existe plus). Le résultat est
     utilisable dès l'étage A ; l'étage B l'améliore ensuite. Sans aucune sortie ASR de l'audio,
     Whisper transcrit d'abord pour fournir les ancres, et sa sortie ne sert qu'à ancrer.
   - **Mesuré avec les vrais poids** (CPU, parole française INVENTÉE synthétisée par Kokoro, trois
@@ -784,10 +804,13 @@ morceau d'audio quels mots du texte lui reviennent.
     lu sur ces seules secondes). Déclencheur mesuré : LinTO, entraîné sur des énoncés ≤ 30 s,
     rendait la moitié des mots en passes de 300 s (WER 54 %) ; en fenêtres de 30 s coupées dans
     une pause, 39 %. Vaut pour tout moteur découpé (Kyutai, VibeVoice, NeMo).
-  - ⏳ **Pas de réglage utilisateur** pour l'instant : les modales du Transcriber sont encore
+  - ⏳ **Pas de réglage utilisateur** pour l'instant : ~~les modales du Transcriber sont encore
     câblées à la main (`index.js`, et non `WamaParams.settingsModal`). Ajouter un interrupteur
-    obligerait à toucher 8 endroits du code de production. Il viendra par le schéma
-    (`params.py`), une fois la modale portée au cycle commun.
+    obligerait à toucher 8 endroits du code de production.~~ La modale est **portée au cycle
+    commun depuis le 2026-09-25** (`static/transcriber/js/index.js:402-430`, `WamaParams.settingsModal`
+    — 10/10 apps ; corrigé le 2026-10-31). Reste l'interrupteur lui-même : le process `align` est
+    OPTIONAL mais sans `toggle=` (`function_specs.py:231`), donc toujours actif quand il s'applique
+    (`process_pipeline.py:637`). Il viendra par le schéma (`params.py`) et un `toggle` déclaré.
 - **Écartés, avec la raison (prospection du 2026-09-23)** : Qwen3-ForcedAligner-0.6B (Apache-2.0,
   français) exige `qwen-asr` — simulation : `accelerate` 1.6 → 1.12, `nvidia-nccl-cu12` déplacé,
   + DyNet/nagisa/soynlp — et sa variante `-hf` un transformers installé depuis les sources ;

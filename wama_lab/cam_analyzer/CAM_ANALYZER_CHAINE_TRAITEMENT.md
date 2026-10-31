@@ -26,11 +26,11 @@ corrections §[2] IMU, §[4] voie ancienne, §[7] paramètres). Photo précéden
 vidéos 4 caméras (RTMaps)          données véhicule (RTMaps)
         │                                   │
    [1] Analyse par caméra              [2] Piste GPS + capteurs
-   YOLO+ByteTrack, YOLOPv2, SAM3       (ego_pose.py : cap = bearing entre fixes)
+   YOLO+BoTSORT, YOLOPv2, SAM3         (ego_pose.py : cap = bearing entre fixes)
         │                                   │
    [3] Distances & vitesses (pinhole)       │
    [4] Projection sol (⚑ auto_ground_calib  │
-       OFF ; recalage ortho 2b = rapport)   │
+       OFF ; ortho 2b ⚑ortho_correction)    │
         │                                   │
         └────────────┬──────────────────────┘
                      ▼
@@ -47,11 +47,16 @@ vidéos 4 caméras (RTMaps)          données véhicule (RTMaps)
 
 ---
 
-## [1] Analyse par caméra — `tasks.py` (`analyze_session_task`)
+## [1] Analyse par caméra — `tasks.py` (`process_session_task`)
+
+*(Corrigé le 2026-10-31 : `analyze_session_task` n'existe pas, la tâche est
+`process_session_task`, `tasks.py:699` ; et le tracker est BoTSORT, pas ByteTrack.)*
 
 Chaque caméra (`front`, `rear`, `left`, `right`) est analysée indépendamment :
 
-- **YOLO + ByteTrack** : détections avec `track_id` **par-caméra** (⚠ le même véhicule a un
+- **YOLO + BoTSORT** (défaut Ultralytics : `profile.tracker` vaut `'botsort'`, `models.py:112`,
+  mais n'atteint pas `model.track()` — `_track_base` ne passe aucun `tracker=`, `tasks.py:1045`,
+  cf. §H ①) : détections avec `track_id` **par-caméra** (⚠ le même véhicule a un
   `track_id` différent sur chaque vue — l'ID unifié est `global_track_id`, étape [7]).
 - **YOLOPv2** (caméra avant, option 4 vues) : zone roulable + lignes de voie (`road_mask`).
 - **SAM3** : marquages au sol (`sam3_marking`), fenêtré sur les intersections.
@@ -82,7 +87,10 @@ de chaque caméra** (front 384×248, left 408×244, rear 408×248, right 384×24
   en interpolation CIRCULAIRE** (plus court arc ; l'ancien lerp linéaire passait par 180°
   au wrap 359°→1° — navette plein nord = wrap permanent).
 - Rendu JS : cap lissé par **moyenne circulaire sur ±2 fixes** (`updateTopDown`).
-- ⚠ **Accéléromètre : parsé, stocké, JAMAIS CONSOMMÉ** (mesuré 2026-09-05, `git log -S` : un seul
+- ⚠ **Accéléromètre : parsé, stocké, JAMAIS CONSOMMÉ** (mesuré 2026-09-05 — → consommé depuis le
+  2026-09-11 comme COMMANDE du filtre navette, ⚑ `imu_command`, OFF, §D.4 ⑦ : `ego_pose.py:270`
+  lit `session.imu_track`, `:339` la bascule ; `profile.use_imu` reste sans effet, mesuré le
+  2026-10-31 ; `git log -S` : un seul
   commit, celui qui a créé `imu_track` le 2026-07-09). `EgoPose.accel` n'est lu par aucune méthode ;
   `profile.use_imu` n'a aucun consommateur. **Aucun filtre (Kalman ou autre) ne s'applique à la
   navette** : position = GPS brut interpolé linéairement, cap = bearing entre fixes. Le Kalman+RTS
@@ -124,8 +132,12 @@ de chaque caméra** (front 384×248, left 408×244, rear 408×248, right 384×24
   stocké dans `session.config['ground_calib']`. Le tracker 360° l'applique via `ground_ego`
   **UNIQUEMENT si `auto_ground_calib` est ON** (défaut **OFF**) ; sinon → placement pinhole `[3]`.
 - **Recalage ortho 2b** (`ortho_markings.py`, `compute_ortho_recalage_task`) : offset absolu par
-  intersection via passages piétons SAM3 sur ortho IGN (~5,1 m mesuré). **RAPPORT SEUL —
-  `results_summary['ortho_recalage']`, NON appliqué au positionnement** (bascule à venir).
+  intersection via passages piétons SAM3 sur ortho IGN (~5,1 m mesuré). La MESURE reste un
+  rapport (`results_summary['ortho_recalage']`) ; son **APPLICATION** passe depuis le 2026-09-28
+  par la passe `ortho_correction` et ⚑ `ortho_correction` (défaut OFF), côté serveur
+  (`ego_pose.effective_gps_track`, `utils/ego_pose.py:408`) et JS — cf. §INVENTAIRE A « Recalage
+  ortho 2b ». *(Corrigé le 2026-10-31 : cette ligne disait « RAPPORT SEUL, NON appliqué au
+  positionnement (bascule à venir) ».)*
 
 > ⚠ **Placement mixte quand `auto_ground_calib` = ON** (gap G7, cf. CHANGELOG) : `ground_ego` retombe
 > **silencieusement** sur le pinhole hors de portée utile → un A/B « ON vs OFF » compare *pinhole* à
@@ -163,7 +175,7 @@ GPS (repère local est/nord). Toute erreur de cap ego balaye les objets en arc (
 ## [7] Tracking global 360° — `multicam_tracker.py` (`annotate_global_tracks`)
 
 Lancé par `compute_indicators_task` (bouton « Calculer les indicateurs »), par la passe dédiée
-`compute_global_tracking_task`, et en fin de mode Live — via `_run_global_tracking` (`tasks.py:2359`).
+`compute_global_tracking_task`, et en fin de mode Live — via `_run_global_tracking` (`tasks.py:2683`).
 *(Corrigé 2026-09-05 : `annotate_prediction_task` cité ici n'existe pas.)* Ordre interne complet :
 §INVENTAIRE A.11.
 
@@ -341,7 +353,8 @@ Design retenu (validé sur le principe avec Fabien) :
 3. **Complétion** : scope demandé − couverture = intervalles manquants → l'analyse ne
    traite QUE ces tranches (l'itérateur fenêtré `_use_window_iter` sait déjà itérer des
    plages de frames ; timecodes = frame/fps, inchangés).
-4. **Coutures** : les `track_id` ByteTrack ne se recollent pas entre tranches — c'est le
+4. **Coutures** : les `track_id` BoTSORT (défaut Ultralytics ; « ByteTrack » ici jusqu'au
+   2026-10-31) ne se recollent pas entre tranches — c'est le
    TRACKER 360° qui répare (verrou de chaîne + stitching en repère monde, déjà validé
    sur des trous > 2 s). Après complétion : relancer « Indicateurs » (obligatoire).
 5. **Vidéo annotée** : PAS de patch incrémental (coût ≫ gain) — l'overlay live du player
@@ -399,6 +412,14 @@ une bascule ne périmait RIEN au panneau (seuls les Indicateurs le voyaient, en 
 tracking — y compris pour une bascule du TTC/PET, qu'il ne lit pas).
 Règle : **jamais de if ad hoc dispersé** pour une amélioration comparable.
 
+⚠ **Table NON exhaustive** (précisé le 2026-10-31) : elle garde les bascules historiques ; le
+registre en déclare **56** (`FEATURES`, `utils/features.py:30-525`, mesuré le 2026-10-31) — dont
+`imu_command`, `prediction_kalman`, `visual_heading`, `measured_camera_fov`,
+`measured_lens_distortion`, `measured_camera_yaw`, `lens_distortion`, `lane_map_recalage`,
+`map_buildings`, `depth_estimation`, les `parked_*`, `stitch_*` et `prediction_*`. **La source est
+le registre** (libellé, défaut, scope, passes lues : panneau ⚑) ; le détail de chacune vit dans la
+section qui la concerne et dans le CHANGELOG.
+
 | Bascule | Défaut | Scope | Effet |
 |---|---|---|---|
 | `fov_dist_correction` | ON | hybrid | correction des distances annotées avec un ancien FOV V |
@@ -448,19 +469,24 @@ Règle : **jamais de if ad hoc dispersé** pour une amélioration comparable.
   décider de basculer le défaut ; (ii) corriger le **placement mixte G7** (fallback pinhole
   silencieux) pour que l'A/B soit propre. La bascule seule ne « termine » pas 2a — la métrique si.
 - **2b — Recalage ABSOLU via marquages ortho** (idée Fabien, l'échelle manquante) —
-  ✅ **FAIT (rapport + affichage)**, commit `034912c`, `utils/ortho_markings.py`. SAM3 segmente
+  ✅ **FAIT (mesure + application derrière ⚑ `ortho_correction`, OFF, depuis le 2026-09-28)** —
+  mesure : commit `034912c`, `utils/ortho_markings.py`. SAM3 segmente
   les passages piétons **sur l'orthophoto IGN** (mosaïque WMTS z19 ≈ 0,22 m/px, géo-transform
   Web Mercator exacte), puis MATCHING avec nos crossings agrégés depuis les caméras
   (`marking_world.py`). Tâche `compute_ortho_recalage_task`, lancée par la passe « Recalage ortho »
   du pipeline (et la correction par la passe « Correction de trajectoire ortho ») ; crossings ortho
   tracés en orange sur la mini-carte. **MESURÉ** :
   2 passages piétons/intersection (conf ~0,7), offset global caméra→ortho **2,93 m E / 4,2 m N
-  (~5,1 m)** = biais GPS + projection résiduel. **RAPPORT SEUL** : l'offset est stocké
+  (~5,1 m)** = biais GPS + projection résiduel. ~~**RAPPORT SEUL** : l'offset est stocké
   (`results_summary.ortho_recalage`) mais PAS appliqué au positionnement — validation visuelle
-  d'abord. Amers = marquages PERMANENTS uniquement (les véhicules statiques de l'ortho datent
+  d'abord.~~ → **appliqué depuis le 2026-09-28** (corrigé le 2026-10-31) : la passe
+  `ortho_correction` (`tasks.py:3069`) en tire des ancres (biais caméra écarté), appliquées sous
+  ⚑ `ortho_correction` (OFF) côté serveur par `ego_pose.effective_gps_track` (`utils/ego_pose.py:408`)
+  et côté JS ; sur `4da52df3` la correction locale est nulle (§INVENTAIRE A). Amers = marquages PERMANENTS uniquement (les véhicules statiques de l'ortho datent
   d'un autre jour ; piste secondaire = repérer les ZONES DE STATIONNEMENT). NB : les crossings
   n'ont pas de correspondance inter-frame → ils entrent par la GÉOMÉTRIE CONNUE, pas par le
-  solveur d'étalement 2a. **Reste 2b-app** : appliquer l'offset derrière une bascule.
+  solveur d'étalement 2a. ~~**Reste 2b-app** : appliquer l'offset derrière une bascule.~~ —
+  fait le 2026-09-28 (⚑ `ortho_correction`, `utils/features.py:92`).
 - **2c — Calibration jointe** : une fois 2a+2b mesurés, résoudre angle+échelle+distorsion
   ensemble (contraintes mouvement ET marquages), écrire `camera.ground_homography` par caméra,
   brancher sur le placement des objets (fusion bas-de-bbox ⟷ pinhole).
@@ -519,8 +545,10 @@ Règle : **jamais de if ad hoc dispersé** pour une amélioration comparable.
 > ×0,33**, et retrouve le **même facteur** contre le pinhole (avant ×0,30, arrière ×0,34) ; DA-V2 Metric
 > Small ×2,2 à ×3,4 selon l'arbitre ; Depth Pro forme cassée. **La forme est juste, l'échelle est à
 > ANCRER** — de préférence par la hauteur connue de la caméra, pour que la profondeur reste
-> indépendante du pinhole (§E.2). ⚠ Le rig a une focale **anisotrope** (fx ≈ 134, fy ≈ 210 px) que
-> `deproject_depth` ne sait pas porter (une seule focale) : défaut aussi de la production.
+> indépendante du pinhole (§E.2). ⚠ Le rig a une focale **anisotrope** (fx ≈ 134, fy ≈ 210 px) ~~que
+> `deproject_depth` ne sait pas porter (une seule focale) : défaut aussi de la production~~ → corrigé
+> le 2026-09-28 (`2f1aa9b6`) : `deproject_depth(…, focal_y_px=…)` porte fy
+> (`wama_data/functions/geometry/depth_geometry.py:32`, `:51`).
 >
 > ✅ **BRANCHÉ le même jour** (détail : CHANGELOG 2026-09-28) : `depth_engine.DEPTH_MODELS` porte
 > Depth Pro ET ZoeDepth (**défaut**), choix par `config['depth_model']` ; l'étage 1 écrit
@@ -562,6 +590,9 @@ l'intrinsèque que le re-calage du plan de sol consomme (§Conception). Écarté
 (`depth_anything_3`, package custom), UniDepth v2 (ops CUDA custom), DA V2 Metric (exige les
 intrinsèques connus). ⚠ Piège : `apple/DepthPro` (sans `-hf`) est le checkpoint d'origine
 (`depth_pro.pt`, non chargeable par `transformers`) — c'est bien `apple/DepthPro-hf` qu'il faut.
+*(Choix du 2026-08-05. Depuis le 2026-09-28 le défaut est **ZoeDepth-KITTI**, Depth Pro restant au
+choix via `config['depth_model']` — `DEFAULT_DEPTH_MODEL`, `wama/common/backends/depth_engine.py:56` ;
+noté le 2026-10-31.)*
 
 ### Ce que la profondeur apporterait, par usage
 
@@ -630,7 +661,7 @@ ON, chaque usage porté s'active.
 | **3. Réciproque du pinhole** | `depth_distance_report` (post-tracking) → champ `depth_distance_m` | désaccord médian profondeur↔pinhole / ↔homographie | ✅ **mesure-et-rapport** (non fumé GPU) |
 | **1. Reflets** (limite n°7) | `depth_distance_report` : désaccord des `artifact` vs propres | reflet_pinhole_m vs clean_pinhole_m | ✅ **mesure-et-rapport** (non fumé GPU) |
 | **5. Ordre d'occlusion** | logique hand-off du tracker | #3 discontinuité au hand-off | ⏳ conception (profondeur ordonnée au hand-off — 2ᵉ passe) |
-| **2. Statique vs mobile** | détection stationnés `multicam_tracker.py:405-425` | stabilité classif. statique/mobile | ⏳ conception (exige profondeur COMPENSÉE de l'ego — 2ᵉ passe) |
+| **2. Statique vs mobile** | détection stationnés `multicam_tracker.py:1480-1510` | stabilité classif. statique/mobile | ⏳ conception (exige profondeur COMPENSÉE de l'ego — 2ᵉ passe) |
 
 **Ordre de déroulé** : usage **4 d'abord** (fait, 1ère passe) — il se valide sur `placement_spread`
 déjà en place et attaque le biais 23,5 vs 6,8 m qui avait fait débrancher l'homographie ([3]). A/B
@@ -646,7 +677,9 @@ homographie vs pinhole.
   §3 (logique pure ↦ `common/`, jamais dans une app) est respectée ; pas d'inversion de dépendance.
 - **ÉTAGE 1 (ANALYSE, GPU)** — `utils/depth_estimator.run_depth_analysis(session)`, déclenché par la
   **passe `depth`** (`tasks.compute_depth_task` ← `views.dispatch_map['depth']`). UNE inférence Depth Pro
-  échantillonnée (≤24 frames/cam, `load`/`estimate_depth` : keep_loaded, `HF_HUB_CACHE` avant import HF, fp16,
+  (ZoeDepth-KITTI par défaut depuis le 2026-09-28, Depth Pro au choix via `config['depth_model']`)
+  échantillonnée (≤24 frames/cam, `load`/`estimate_depth` : keep_loaded, ~~`HF_HUB_CACHE` avant import HF~~ `cache_dir=` sans mutation d'environnement
+  depuis — `wama/common/backends/depth_engine.py:117`, noté le 2026-10-31 —, fp16,
   `post_process_depth_estimation`). **STOCKE la donnée brute** : (a) carte downsamplée (long-side ≤384) en
   **float16 `.npz` disque** (`DepthFrame` + `depth_output_dir`, focale **déjà mise à l'échelle de la carte**
   pour une déprojection auto-cohérente) ; (b) profondeur de contact `depth_distance_m` en **champ additif** du
@@ -743,21 +776,23 @@ de l'étage Analyse ; « SAM3 seul » (2 exemplaires) retiré = ▶ de la ligne 
 
 | # | passe | ét. | fonction | entrées | traitement | sorties écrites | état |
 |---|---|---|---|---|---|---|---|
-| 1 | `extraction` | A | `tasks.extract_rtmaps_task` (3045) → `quadrature_video`, `rtmaps_parser`, `ego_pose.parse_gps_position/parse_accel/annotate_gps_heading_speed` | `.rec` RTMaps + CSV par canal + vidéo quad 800×500 | découpe 4 vues (~384×248 après split) ; GPS NMEA → lat/lon/ts ; **cap = bearing entre fixes, tenu si déplacement < 0,30 m** ; vitesse = distance/temps ; accéléro X/Y/Z fusionnés par ts ; synchro auto `gps_time_scale/offset` | `CameraView`×4, `session.gps_track [{ts,lat,lon,heading,speed_kmh}]`, `session.imu_track [{ts,ax,ay,az}]`, `gps_time_*` | CÂBLÉ — **sauf `imu_track` : écrit, JAMAIS LU** (voir §D.1) |
+| 1 | `extraction` | A | `tasks.extract_rtmaps_task` (3644) → `quadrature_video`, `rtmaps_parser`, `ego_pose.parse_gps_position/parse_accel/annotate_gps_heading_speed` | `.rec` RTMaps + CSV par canal + vidéo quad 800×500 | découpe 4 vues (~384×248 après split) ; GPS NMEA → lat/lon/ts ; **cap = bearing entre fixes, tenu si déplacement < 0,30 m** ; vitesse = distance/temps ; accéléro X/Y/Z fusionnés par ts ; synchro auto `gps_time_scale/offset` | `CameraView`×4, `session.gps_track [{ts,lat,lon,heading,speed_kmh}]`, `session.imu_track [{ts,ax,ay,az}]`, `gps_time_*` | CÂBLÉ — **sauf `imu_track` : écrit, JAMAIS LU** (voir §D.1) → lu depuis le 2026-09-11 par ⚑ `imu_command` (OFF, §D.4 ⑦) |
 | 2 | `intersection_windows` | A | `window_recompute.recompute_intersection_windows` | `gps_track` + `profile.intersections [{lat,lon,radius_m}]` | fenêtres temporelles où la navette est à < `radius_m` d'une intersection déclarée ; `bearing_deg` d'entrée | `session.intersection_windows [{t_enter,t_exit,lat,lon,bearing_deg,radius_m}]` | CÂBLÉ (sync, CPU) |
-| 3 | `yolo_detect` | A | `tasks.process_session_task` (670) → ultralytics YOLO + BoTSORT ; inline : `lane_partition`, `distance_speed`, `ground_projection` (conditionné), `coverage` | vidéos, `profile.model_path/confidence/iou/tracker`, fenêtres (si `restrict_to_intersection_windows`) | détection+tracking **par caméra** (`track_id` local) ; attribution de voie (avant) ; **distance pinhole** `H_classe·f_y/h_bbox` + vitesse rel./TTC ; homographie sol **si** `profile.geometry_enabled ∧ camera.ground_homography` ; registre de couverture | `DetectionFrame.detections [{bbox,class_name,confidence,track_id,proximity,distance_m,relative_speed_kmh,ttc_s,lane_id,in_shuttle_lane[,ground_xy,dist_*_m,distance_source]}]`, `config.fov_v_used`, `config.analyzed_ranges` | CÂBLÉ ; volet homographie **CONDITIONNÉ** (§D.2) |
+| 3 | `yolo_detect` | A | `tasks.process_session_task` (699) → ultralytics YOLO + BoTSORT ; inline : `lane_partition`, `distance_speed`, `ground_projection` (conditionné), `coverage` | vidéos, `profile.model_path/confidence/iou/tracker`, fenêtres (si `restrict_to_intersection_windows`) | détection+tracking **par caméra** (`track_id` local) ; attribution de voie (avant) ; **distance pinhole** `H_classe·f_y/h_bbox` + vitesse rel./TTC ; homographie sol **si** `profile.geometry_enabled ∧ camera.ground_homography` ; registre de couverture | `DetectionFrame.detections [{bbox,class_name,confidence,track_id,proximity,distance_m,relative_speed_kmh,ttc_s,lane_id,in_shuttle_lane[,ground_xy,dist_*_m,distance_source]}]`, `config.fov_v_used`, `config.analyzed_ranges` | CÂBLÉ ; volet homographie **CONDITIONNÉ** (§D.2) |
 | 4 | `yolopv2_lanes` | A | `yolopv2_segmenter` (TorchScript CAIC-AD) | vue avant (4 vues si `yolopv2_all_views`) | zone roulable + lignes de voie → polygones | `detections` type `road_mask` (drivable) et `lane (yolopv2)` | CÂBLÉ |
-| 5 | `sam3_markings` | A | `tasks.analyze_sam3_only_task` (2720) → `sam3_road_analyzer.SAM3RoadAnalyzer` ; option `calibrate` → `_auto_calibrate_from_crossings` → `calibration.homography_from_quad` (DLT) → `_reannotate_ground_distances` | frames DANS les fenêtres à `sam3_fps`, prompts texte (`stop_line`, `crossing`, …) | segmentation open-vocab → polygone+bbox par marquage ; **option** : le plus grand polygone `crossing` → 4 coins → homographie DLT (dimensions FR 0,5 m) → écrit `camera.ground_homography` **et force `profile.geometry_enabled=True`**, puis ré-annote `ground_xy` sur tout l'existant | `detections` type `sam3_marking {label,polygon,bbox,confidence}` ; **`camera.ground_homography`** (si calibrate) | CÂBLÉ ; la calibration DLT est **le PRODUCTEUR de la voie « ancienne »** (§D.2) |
-| 6 | `depth` (ét. 1) | A | `depth_estimator.run_depth_analysis` (227) — Apple Depth Pro | ≤ 24 frames/caméra + détections | carte métrique + focale estimée ; profondeur au point de contact de chaque bbox | `DepthFrame` (`.npz` float16, `focal_px`), `detections.depth_distance_m` | CÂBLÉ ; **exécuté le 2026-09-28** (96 cartes) — cartes **aberrantes** sur ce rig, cf. §[E] |
-| 7 | `lane_events` | C | `tasks._compute_lane_events` (436) | `detections.lane_id` + fenêtres | entrées/sorties de voie par track | `LaneEvent {track_id,lane_id,in_shuttle_lane,t_enter,t_exit,window_idx}` | CÂBLÉ |
-| 8 | `temporal_segments` | C | `tasks.detect_temporal_segments` (633) : `_detect_close_following/_overtaking/_crossing/_intersection_insertion` + `intersection_analyzer` | détections + fenêtres + `gps_track` (vitesse) | arrêté→INSERTION/WAIT/TURN (t0/t1/t2, `D0_relative = h_frame/h_bbox`), suivi rapproché, dépassement, traversée | `TemporalSegment {type,start,end,metadata}` | CÂBLÉ |
-| 9 | `distance` | C | `tasks.compute_distance_task` (1766) → `distance_speed` | détections stockées (bbox, classe, ts) | **ré-annote** distance/vitesse/TTC avec les FOV V RÉELS, trace `fov_v_used` (→ `dist_scale` = 1) | `detections.distance_m/relative_speed_kmh/ttc_s`, `config.fov_v_used` | CÂBLÉ |
-| 10 | `depth_calc` (ét. 2) | C | `tasks.compute_depth_calc_task` (1877) → `depth_estimator.estimate_ground_plane_ph` (RANSAC sur roulable, briques pures `geometry.depth_geometry`), `depth_distance_report` | `DepthFrame` + `road_mask` + `depth_distance_m` | plan de sol → (pitch, hauteur) source `depth` ; désaccord profondeur↔pinhole↔homographie ; confirmation reflets | `config.ground_calib[pos]{source:'depth'}`, `results_summary.depth_report` | CÂBLÉ ; **exécuté le 2026-09-28** — 0 plan retenu (4 rejetés par les gardes physiques), cf. §[E] |
+| 5 | `sam3_markings` | A | `tasks.analyze_sam3_only_task` (3310) → `sam3_road_analyzer.SAM3RoadAnalyzer` ; option `calibrate` → `_auto_calibrate_from_crossings` → `calibration.homography_from_quad` (DLT) → `_reannotate_ground_distances` | frames DANS les fenêtres à `sam3_fps`, prompts texte (`stop_line`, `crossing`, …) | segmentation open-vocab → polygone+bbox par marquage ; **option** : le plus grand polygone `crossing` → 4 coins → homographie DLT (dimensions FR 0,5 m) → écrit `camera.ground_homography` **et force `profile.geometry_enabled=True`**, puis ré-annote `ground_xy` sur tout l'existant | `detections` type `sam3_marking {label,polygon,bbox,confidence}` ; **`camera.ground_homography`** (si calibrate) | CÂBLÉ ; la calibration DLT est **le PRODUCTEUR de la voie « ancienne »** (§D.2) |
+| 6 | `depth` (ét. 1) | A | `depth_estimator.run_depth_analysis` (166) — ZoeDepth-KITTI par défaut depuis le 2026-09-28 (Apple Depth Pro au choix, `config['depth_model']`) | ≤ 24 frames/caméra + détections | carte métrique + focale estimée ; profondeur au point de contact de chaque bbox | `DepthFrame` (`.npz` float16, `focal_px`), `detections.depth_distance_m` | CÂBLÉ ; **exécuté le 2026-09-28** (96 cartes) — cartes **aberrantes** sur ce rig, cf. §[E] |
+| 7 | `lane_events` | C | `tasks._compute_lane_events` (438) | `detections.lane_id` + fenêtres | entrées/sorties de voie par track | `LaneEvent {track_id,lane_id,in_shuttle_lane,t_enter,t_exit,window_idx}` | CÂBLÉ |
+| 8 | `temporal_segments` | C | `tasks.detect_temporal_segments` (636) : `_detect_close_following/_overtaking/_crossing/_intersection_insertion` + `intersection_analyzer` | détections + fenêtres + `gps_track` (vitesse) | arrêté→INSERTION/WAIT/TURN (t0/t1/t2, `D0_relative = h_frame/h_bbox`), suivi rapproché, dépassement, traversée | `TemporalSegment {type,start,end,metadata}` | CÂBLÉ |
+| 9 | `distance` | C | `tasks.compute_distance_task` (1761) → `distance_speed` | détections stockées (bbox, classe, ts) | **ré-annote** distance/vitesse/TTC avec les FOV V RÉELS, trace `fov_v_used` (→ `dist_scale` = 1) | `detections.distance_m/relative_speed_kmh/ttc_s`, `config.fov_v_used` | CÂBLÉ |
+| 10 | `depth_calc` (ét. 2) | C | `tasks.compute_depth_calc_task` (2025) → `depth_estimator.estimate_ground_plane_ph` (RANSAC sur roulable, briques pures `geometry.depth_geometry`), `depth_distance_report` | `DepthFrame` + `road_mask` + `depth_distance_m` | plan de sol → (pitch, hauteur) source `depth` ; désaccord profondeur↔pinhole↔homographie ; confirmation reflets | `config.ground_calib[pos]{source:'depth'}`, `results_summary.depth_report` | CÂBLÉ ; **exécuté le 2026-09-28** — 0 plan retenu (4 rejetés par les gardes physiques), cf. §[E] |
 | 10b | `lane_map_recalage` | C | `tasks.compute_lane_map_recalage_task` → `utils.lane_map_recalage.compute_lane_map_recalage` → briques pures `driving.lane_map_matching.lane_map_recalage` + `gps_map_match.match_track` (Viterbi) ; `geo.ign_vector.fetch_roads` (réseau IGN) | lignes `lane (yolopv2)` de la caméra avant (projetées par `ground_calib`), `gps_track` (filtre navette appliqué, jamais sa propre correction), tronçons BD TOPO le long du parcours | écart au centre de voie + cap relatif (échelle latérale MESURÉE contre la carte), rattachement continu, centre attendu de la voie de droite → correction latérale + cap par ancre, interpolée en vecteur est/nord | `results_summary.lane_map_recalage {track:[{ts,de_m,dn_m,dh_deg,anchored}], report}` — lu par ⚑ `lane_map_recalage` (OFF) dans `ego_pose.effective_gps_track` + miroir JS | CÂBLÉ 2026-09-28 ; mesuré en lecture seule (75 % ancré), **pas encore exécuté par le worker** |
 | 10c | `ortho_correction` | C | `tasks.compute_ortho_correction_task` → `trajectory_offset.decompose/build_anchors` + `ign_vector.sky_mask_at` | `results_summary.ortho_recalage` (passe `ortho_recalage`, étage A, GPU) | biais caméra écarté (médiane globale), écart LOCAL par intersection → ancres atténuées par le masque de ciel | `results_summary.ortho_correction {anchors, camera_bias, sky_mask_deg, report}` — lu par ⚑ `ortho_correction` dans `ego_pose.effective_gps_track` + miroir JS | CÂBLÉ 2026-09-28 (passe) ; correction nulle sur `4da52df3` (voir « Recalage ortho 2b » ci-dessous) |
-| 11 | `global_tracking` | C | `tasks._run_global_tracking` (2359) → `multicam_tracker.annotate_global_tracks` (101) puis `intersection_branches.learn_branches`, `marking_world.aggregate_markings` | détections des caméras analysées, `gps_track`, bascules | **§A.11 ci-dessous** (le cœur) | `detections.global_track_id/world_en/stable_class/artifact` + fantômes `{type:'ghost',predicted,vehicle_xy,world_en}` ; `results_summary.stationary_global_tracks/stationary_anchors/placement_spread/intersection_branches/intersection_markings[/depth_report]` ; `config.ground_calib` (si ⚑) | CÂBLÉ |
-| 12 | `indicators` | C | `tasks.compute_indicators_task` (2610) = `_run_global_tracking` **+** `prediction_adapter.annotate_prediction_indicators` (303) | détections + `gps_track` | trajectoire monde par gid (pinhole_ego → véhicule → monde), **moyenne glissante 5 pts**, extrapolation `speed_accel` (défaut) ou `kalman`, pas 0,2 s, horizon 4 s, collision SAT navette↔objet | `detections.prediction_ttc/prediction_pet` | CÂBLÉ — c'est le bouton « Calculer les indicateurs ». ⚠ **Mais il RE-DÉRIVE les positions objets au pinhole et ne lit JAMAIS `world_en`** (0 occurrence dans le fichier, mesuré 11/09) : il hérite de la correction EGO mais d'aucune correction OBJET — §D.5 |
-| 13 | `conflicts` | C | `tasks._compute_conflict_events` (518) | fenêtres + détections + `_gps_speed_at` | conflits en voie navette (qui passe premier, Δt, distance min, TTC min, sévérité) | `ConflictEvent` | CÂBLÉ |
+| 10d | `camera_intrinsics` | C | `tasks.compute_camera_intrinsics_task` (2139) → `utils.camera_intrinsics.measure_camera_intrinsics` (`geometry.ego_rotation`, `known_motion_yaw`) | vidéos avant/arrière (et latérales pour le lacet) aux virages de la trace, `gps_track` | champ de vue avant/arrière par rotation vue contre cap GPS ; lacet de montage par le mouvement connu (contrôle : avant ≈ 0°) ; distorsion par les lignes droites | `results_summary.camera_intrinsics` — lu par `camera_geometry` sous ⚑ `measured_camera_fov`, `measured_camera_yaw`, `measured_lens_distortion` (OFF) | CÂBLÉ 2026-09-30 (ligne ajoutée le 2026-10-31 ; ENA_CASA : avant ~75° au lieu de 110°, droite 67,5°, gauche −77,5°) |
+| 10e | `visual_yaw` | C | `tasks.compute_visual_yaw_task` (2215) → `utils.visual_yaw.compute_visual_yaw` + `measure_gps_latency` | vidéo avant (focale MESURÉE par `camera_intrinsics`, refus sans elle), `gps_track` | rotation de la navette vue par la caméra avant quand elle roule ; latence du GPS sur la vidéo | `results_summary.visual_yaw {fx_px, step, rows, gps_latency}` — lu par le filtre navette sous ⚑ `visual_heading` et par la synchro sous ⚑ `gps_latency` (OFF) | CÂBLÉ 2026-09-30 (ligne ajoutée le 2026-10-31 ; latence +0,55 s sur ENA_CASA, 2026-10-13) |
+| 11 | `global_tracking` | C | `tasks._run_global_tracking` (2683) → `multicam_tracker.annotate_global_tracks` (924) puis `intersection_branches.learn_branches`, `marking_world.aggregate_markings` | détections des caméras analysées, `gps_track`, bascules | **§A.11 ci-dessous** (le cœur) | `detections.global_track_id/world_en/stable_class/artifact` + fantômes `{type:'ghost',predicted,vehicle_xy,world_en}` ; `results_summary.stationary_global_tracks/stationary_anchors/placement_spread/intersection_branches/intersection_markings[/depth_report]` ; `config.ground_calib` (si ⚑) | CÂBLÉ |
+| 12 | `indicators` | C | `tasks.compute_indicators_task` (3150) = `_run_global_tracking` **+** `prediction_adapter.annotate_prediction_indicators` (493) | détections + `gps_track` | trajectoire monde par gid (pinhole_ego → véhicule → monde), **moyenne glissante 5 pts**, extrapolation `speed_accel` (défaut) ou `kalman`, pas 0,2 s, horizon 4 s, collision SAT navette↔objet | `detections.prediction_ttc/prediction_pet` | CÂBLÉ — c'est le bouton « Calculer les indicateurs ». ⚠ **Mais il RE-DÉRIVE les positions objets au pinhole et ne lit JAMAIS `world_en`** (0 occurrence dans le fichier, mesuré 11/09) : il hérite de la correction EGO mais d'aucune correction OBJET — §D.5 |
+| 13 | `conflicts` | C | `tasks._compute_conflict_events` (520) | fenêtres + détections + `_gps_speed_at` | conflits en voie navette (qui passe premier, Δt, distance min, TTC min, sévérité) | `ConflictEvent` | CÂBLÉ |
 
 **Branche d'AFFICHAGE — anonymisation** (2026-10-12 ; consignée ici le 2026-10-26, le tableau
 ci-dessus est daté du 05/09) : `anonymize_detect` (étage A, GPU, par caméra, sur les seules
@@ -789,7 +824,7 @@ seule (2 passages piétons), marquages caméra agrégés PAR LIEU (les 14 fenêt
 même écart) → tout part en biais caméra, **correction GPS locale nulle par construction**. Pour que
 2b corrige la dérive de CHAQUE passage, il faut des marquages placés par passage — décision de
 Fabien. `live_analysis_task`
-(1931) = étape 3 incrémentale au fil de la lecture, puis enchaîne `_run_global_tracking`.
+(2263) = étape 3 incrémentale au fil de la lecture, puis enchaîne `_run_global_tracking`.
 
 #### A.11 — `annotate_global_tracks` : l'ordre INTERNE (c'est là que se jouent position et cap)
 
@@ -862,7 +897,7 @@ monde (est/nord local)
 persisté : world_en | stationary_anchors | (rien pour les frames postérieures au dernier calcul)
  │  [affichage JS]  ① ancre  >  ② world_en  >  ③ RECONSTRUCTION par frame : EMA distance α=0,3 + EMA latéral α=0,3
  │                  cap objet : trace (EMA 0,25, MAJ si >0,8 m) ⊕ ratio bbox (⚑heading_ratio, poids (2−v)/2)
- │                  cap navette : moyenne circulaire ±2 fixes (JS seul)  ·  ortho ⚑ortho_correction (JS seul)
+ │                  cap navette : moyenne circulaire ±2 fixes (JS seul)  ·  ortho ⚑ortho_correction (serveur ET JS depuis le 2026-09-28)
  ▼
 mini-carte
 ```
@@ -899,14 +934,14 @@ de « monde » est repris par le tracking ; tout ce qui touche la **pose navette
 | 13 | interpolation **linéaire** de la position entre fixes (~2,7 s) | position ego | GPS brut | `_shuttle_pose_at`, JS | — | CÂBLÉ | aucune |
 | 14 | synchro GPS↔vidéo `scale/offset` | temps | `.rec` | `extract_rtmaps_task` + réglage manuel | manuel | CÂBLÉ | aucune |
 | 15 | **filtre de Kalman + RTS sur la navette**, cap dérivé de la vitesse lissée (tenu < 1 m/s) | position/vitesse/cap ego | `gps_track` | `driving.ego_trajectory_filter` (pur) → `ego_pose.compute_shuttle_filter` → `effective_gps_track` (serveur, 6 consommateurs) + `_applyShuttleFilter` (JS) | ⚑ `shuttle_filter` **OFF** | **LIVRÉ 2026-09-05** (était INEXISTANT le matin même) ; **accéléro en commande CÂBLÉ le 2026-09-11** (⚑ `imu_command`, défaut OFF — §D.4 ⑦ : +14,8 % à σa identique, +4,0 % net) ; ⚠ mesuré le 10/09 : ce filtre **ATTÉNUE l'accélération de ~35 %** (σ(dv/dt) 0,163 m/s² en sortie contre **0,246** au Doppler) — 1ʳᵉ mesure objective sur `σa = 0,8`, et le témoin du ⑦ montre que le baisser SEUL dégrade | rapport : déplacement RMS, écart de cap médian, part tenue ; puis `placement_spread` OFF/ON |
-| 16 | **fusion accéléromètre + GPS** | position/vitesse ego | `session.imu_track` (stocké) | **nulle part** — `EgoPose.accel` assigné jamais relu ; `profile.use_imu` (défaut True) **0 consommateur** | — | **DÉCLARÉ-MORT** depuis 2026-07-09 — mais **le verrou est levé le 2026-09-10** : les axes sont MESURÉS (§D.4) et le résidu de `ax` vaut **0,20 m/s²** contre `σa = 0,8` du Kalman, soit **4× mieux** | résidu vs σa ; dérive à l'intégration (§D.4) |
+| 16 | **fusion accéléromètre + GPS** | position/vitesse ego | `session.imu_track` (stocké) | **nulle part** — `EgoPose.accel` assigné jamais relu ; `profile.use_imu` (défaut True) **0 consommateur** | — | **DÉCLARÉ-MORT** depuis 2026-07-09 — mais **le verrou est levé le 2026-09-10** : les axes sont MESURÉS (§D.4) et le résidu de `ax` vaut **0,20 m/s²** contre `σa = 0,8` du Kalman, soit **4× mieux** → **consommé depuis le 2026-09-11** comme COMMANDE du filtre navette (⚑ `imu_command`, OFF, §D.4 ⑦ ; `ego_pose.py:270`, `:339`) ; `profile.use_imu` reste sans effet (seule occurrence `models.py:228`, noté le 2026-10-31) | résidu vs σa ; dérive à l'intégration (§D.4) |
 | **Position au sol (l'ANGLE)** ||||||||
 | 17 | homographie sol par **DLT sur passage piéton SAM3** (« ancienne voie ») | distance/latéral (`ground_xy`, `dist_*_m`) | polygone `crossing` + dimensions FR | `calibration.homography_from_quad` ← `tasks._calibrate_from_crossing_polygons` → `camera.ground_homography` ; appliqué par `GroundProjector.distances_for_bbox` dans l'analyse | ⚑ `sam3_homography` **ON** (depuis 2026-09-05) ∧ `profile.geometry_enabled` (défaut False, forcé True par la calibration SAM3 — désormais annoncé en console) | **COMMUTABLE** — prouvée biaisée (#546, #537), ON = historique ; OFF coupe les 3 consommateurs sans toucher au profil (§D.2) | RMS de reprojection du quad seulement |
 | 18 | pitch/hauteur auto par **étalement des stationnés** (2a) | angle → position | stationnés d'un run précédent + `distance_m` + ego GPS (ancre) | `homography_estimator.estimate_camera/store_ground_calib` → `ground_projector_for` → `ground_ego` | ⚑ `auto_ground_calib` **OFF** | ⚑ OFF ; garde-fous : ≥ 6 objets, étalement ≤ 2,5 m ; **repli pinhole silencieux (G7)** | `placement_spread` ; désaccord 14,55 → 3,05 m (caméra avant) |
 | 19 | plan de sol par **profondeur monoculaire** (Depth Pro, RANSAC) | angle → position | `DepthFrame` + `road_mask` | `depth_estimator.estimate_ground_plane_ph` → `store_ground_calib(seed)` | ⚑ `depth_estimation` **OFF** | exécuté 2026-09-28 : **4/4 plans rejetés** (h 0,04–1,1 m, pitch −12…+6,5°) → repli homographie | `placement_spread` (même scoring que 18) — non atteint |
 | 20 | **cross-check** distance profondeur ↔ pinhole ↔ homographie | (contrôle) | `depth_distance_m` | `depth_estimator.depth_distance_report` | ⚑ `depth_estimation` | MESURE SEULE, exécuté 2026-09-28 | désaccord médian profondeur↔pinhole **10,57 m**, ↔homographie 5,08 m |
 | 21 | recalage **absolu** ortho 2b (SAM3 sur orthophoto IGN vs crossings caméra) | position absolue | tuiles WMTS z19 + `intersection_markings` | `ortho_markings` → `compute_ortho_recalage_task` | bouton | MESURE SEULE | offset par intersection (2,93 E / 4,2 N m mesurés) |
-| 22 | **correction** de trajectoire par ancres ortho, biais caméra écarté, atténuée par masque de ciel BD TOPO | position GPS | `results_summary.ortho_correction` + `geo.ign_vector.sky_mask` | `driving.trajectory_offset` (pur) → `compute_ortho_correction_task` ; **appliqué côté JS** (`_applyOrthoCorrection` au point d'ingestion de la trace) | ⚑ `ortho_correction` **OFF** | ⚑ OFF | rapport chiffré (décalage moyen/max, atténuation) |
+| 22 | **correction** de trajectoire par ancres ortho, biais caméra écarté, atténuée par masque de ciel BD TOPO | position GPS | `results_summary.ortho_correction` + `geo.ign_vector.sky_mask` | `driving.trajectory_offset` (pur) → `compute_ortho_correction_task` ; **appliqué côté serveur** (`ego_pose.effective_gps_track`, `utils/ego_pose.py:408`, depuis le 2026-09-28) **ET côté JS** (`_applyOrthoCorrection` au point d'ingestion de la trace) — corrigé le 2026-10-31 (« côté JS » seul) | ⚑ `ortho_correction` **OFF** | ⚑ OFF | rapport chiffré (décalage moyen/max, atténuation) |
 | **Tracking 360° (étage CALCUL)** ||||||||
 | 23 | filtre artefacts **cinématique** (bbox fixe ≥ 10 s, navette ≥ 8 m) + reflet géant | faux positifs | bbox + trajectoire navette | `artifact_filter` | ⚑ `artifact_filter` ON | CÂBLÉ | 91 artefacts marqués (run 07-19) |
 | 24 | association NN gate croissant `3,5 + 1,5·Δt` m, trou 2,5 s | identité | positions monde | `annotate_global_tracks` | param | CÂBLÉ | aucune (hand-off qualitatif) |
@@ -930,7 +965,7 @@ de « monde » est repris par le tracking ; tout ce qui touche la **pose navette
 | 41 | interpolation des marquages SAM3 entre keyframes | rendu marquages | `sam3_marking` | `index.js:2045-2128` | ⚑ `sam3_interp` ON | CÂBLÉ (JS) | aucune |
 | **Structure & indicateurs** ||||||||
 | 42 | branches apprises du trafic (rectitude, ≥ 4 véh., span ≥ 14 m) / marquages SAM3 agrégés en monde (2-12 m) | géométrie d'intersection | `world_en` / `sam3_marking` + `GroundProjector` (`ground_homography` **si présent**, sinon pitch 0) | `intersection_branches`, `marking_world` | ⚑ `learned_branches`, ⚑ `world_markings` ON | CÂBLÉ ; **aucune vérité terrain** (→ `geo.osm_control_nodes`, 2026-09-04) | aucune |
-| 43 | moyenne glissante 5 pts + extrapolation `speed_accel`\|`kalman` + SAT | TTC/PET | trajectoires monde | `prediction_adapter.smooth_trajectory`, `ttc_pet_shuttle_object`, `kinematics.extrapolation` | param `method` — ⚠ **AUCUN APPELANT ne le pose** | **`speed_accel` CÂBLÉ · `kalman` INATTEIGNABLE** (`tasks.py:2680` appelle `annotate_prediction_indicators(session)` sans `method`) — mesuré 2026-09-11, §D.5 | aucune |
+| 43 | moyenne glissante 5 pts + extrapolation `speed_accel`\|`kalman` + SAT | TTC/PET | trajectoires monde | `prediction_adapter.smooth_trajectory`, `ttc_pet_shuttle_object`, `kinematics.extrapolation` | param `method` — ⚠ **AUCUN APPELANT ne le pose** | **`speed_accel` CÂBLÉ · `kalman` INATTEIGNABLE** (`tasks.py:3182` appelle `annotate_prediction_indicators(session)` sans `method`) — mesuré 2026-09-11, §D.5 → **atteignable depuis le 2026-09-12** via ⚑ `prediction_kalman` (`utils/features.py:421`) | aucune |
 
 **Déclaré, jamais implémenté** : ⚑ `track_speed_unified` (défaut OFF, 0 consommateur — le CHANGELOG le dit).
 **Non câblé, mesurable** : `geometry.ego_rotation` (rotation caméra par flux de points, 2026-09-04) —
@@ -955,7 +990,7 @@ La navette roule sur GPS brut interpolé linéairement. *Conséquence : avant to
 que c'est un TROU et pas une régression — rien n'a été retiré.*
 → **Ce trou n'est plus un trou d'IGNORANCE depuis le 2026-09-10** : les axes sont mesurés et le
 résidu de l'accéléromètre est chiffré (**§D.4**). Ce qui reste à faire est du CÂBLAGE, plus une
-question ouverte.
+question ouverte. → câblé le 2026-09-11 (⚑ `imu_command`, OFF, §D.4 ⑦ — noté le 2026-10-31).
 
 **Asymétrie à connaître** : le seul lissage du cap navette (moyenne circulaire ±2 fixes) vit dans le
 JS, donc ne sert que le repli d'affichage ③ ; tout ce que le SERVEUR calcule (`world_en`, ancres,
@@ -966,7 +1001,7 @@ GPS) — c'est le premier trou à combler, derrière un ⚑ `shuttle_filter`.
 **D.2 — « Ancienne voie (homographie SAM3) débranchée »** (`§[4]`) : **CONDITIONNÉE, pas débranchée.**
 `process_session_task` l'applique dès que `profile.geometry_enabled ∧ camera.ground_homography`
 (l. 1274-1292, 1383-1392) et écrit `distance_source='homography'`. Or la calibration SAM3
-(`_calibrate_from_crossing_polygons`, l. 2272-2274) **force `geometry_enabled=True`** et
+(`_calibrate_from_crossing_polygons`, `tasks.py:2533`, forçage l. 2592-2594) **force `geometry_enabled=True`** et
 `analyze_sam3_only_task` l'appelle avec `calibrate`. `marking_world._projector_for` l'utilise
 **sans condition** dès que `ground_homography` existe (`calibrated:true`), et `lane_estimator` en
 dépend. Une session qui a lancé « Calib. SAM3 » remet donc en service une voie **prouvée biaisée**
@@ -1022,7 +1057,7 @@ sûr de ce que tu avances ? »** — non, et voici pourquoi.
 
 *Le biais* : j'avais sélectionné ces candidats par un **étalement < 6 m**, calculé sur les
 `world_en` PERSISTÉS. Or (a) ce champ est la position **LISSÉE** (Kalman+RTS,
-`multicam_tracker.py:576-606`), pas celle que le filtre juge — il travaille sur `track_hist`,
+`multicam_tracker.py:1873-1884`), pas celle que le filtre juge — il travaille sur `track_hist`,
 BRUT ; (b) il n'est **pas écrit du tout** pour les stationnés ni pour les tracks < 5
 observations ; (c) surtout, **un track court a mécaniquement un faible étalement**. J'ai donc
 sur-sélectionné les tracks courts, puis « découvert » qu'ils étaient courts. *Une sélection
@@ -1471,21 +1506,21 @@ l'EXTRAPOLATION reste causale à partir de t0.*
 **② La prédiction est en bout de chaîne pour l'EGO et au plus près du BRUT pour les OBJETS.**
 Mesuré : `grep -c world_en prediction_adapter.py` → **0**. Elle prend `effective_gps_track`
 (donc ⚑ `shuttle_filter` s'applique) mais **re-dérive chaque position objet au pinhole**
-(`:352-357` — `pinhole_ego` puis `ego_to_world`). Conséquence : **ni la projection sol (⚑
+(`:602`, dans `annotate_prediction_indicators` — `pinhole_ego` puis `ego_to_world`). Conséquence : **ni la projection sol (⚑
 `auto_ground_calib`) ni le lissage Kalman+RTS du tracker n'atteignent le TTC.**
 ⚠ Ce n'est pas forcément un bug : `world_en` est **PARTIEL par conception** (absent pour les
 stationnés et sous 5 observations, §D.1), donc la re-dérivation est un repli légitime. Le
 défaut est qu'elle est le chemin **UNIQUE** : la forme juste est « `world_en` quand il existe,
 pinhole sinon », derrière un ⚑ et avec l'A/B chiffré. **Arbitrage, pas évidence.**
 
-**③ Un TROISIÈME idiome de lissage, local.** `prediction_adapter.smooth_trajectory` (`:396`)
+**③ Un TROISIÈME idiome de lissage, local.** `prediction_adapter.smooth_trajectory` (`:663`)
 est une moyenne glissante `window=5`, définie dans le fichier — ni la brique commune
 (`kinematics.rts_smoother`), ni le RTS. La chaîne lisse donc les objets deux fois, de deux
 manières, sur deux dérivations différentes de la même position.
 
 **④ `extrapolate_kalman` est INATTEIGNABLE.** Le paramètre `method` existe, la fonction est
 testée (`kinematics/test_prediction.py`), et **aucun appelant ne la choisit** :
-`tasks.py:2680` appelle `annotate_prediction_indicators(session)` sans `method`, donc toujours
+`tasks.py:3182` appelle `annotate_prediction_indicators(session)` sans `method`, donc toujours
 `speed_accel`. Le §C annonçait « param `method` · CÂBLÉ » — corrigé le même jour.
 *Un paramètre qu'aucun appelant ne pose n'est pas un réglage, c'est une branche morte.*
 
@@ -1562,8 +1597,8 @@ exactement la grandeur cherchée.
 
 | ce qui est légitime en entrée de la prédiction | ce qui ne l'est pas |
 |---|---|
-| la **projection sol** (⚑ `auto_ground_calib`) : une *meilleure mesure à l'instant t* — et `ground_projector_for` / `ground_ego` sont **définis dans `prediction_adapter` lui-même** (`:210`, `:234`), le module possède la brique sans l'utiliser | le **lissage RTS** (`world_en`) : il voit tout le futur du track |
-| | la **moyenne glissante CENTRÉE** de `smooth_trajectory` (`:396`, ±2 points ≈ 0,17 s) — elle triche déjà, de peu, mais elle triche |
+| la **projection sol** (⚑ `auto_ground_calib`) : une *meilleure mesure à l'instant t* — et `ground_projector_for` / `ground_ego` sont **définis dans `prediction_adapter` lui-même** (`:318`, `:349`), le module possède la brique sans l'utiliser | le **lissage RTS** (`world_en`) : il voit tout le futur du track |
+| | la **moyenne glissante CENTRÉE** de `smooth_trajectory` (`:663`, ±2 points ≈ 0,17 s) — elle triche déjà, de peu, mais elle triche |
 
 *La question n'est donc pas « brut ou bout de chaîne » mais « corrigé, oui — informé du futur,
 jamais ».*
@@ -1663,7 +1698,7 @@ de signe #546. Elle a pu être « prouvée cassée » pendant que son indicateur
 **③ Le matériau disponible, mesuré** (session `4da52df3`) : **1 365** polygones `crossing`
 segmentés (+ 9 749 `stop_line`), tous sur `front`, d'aires **36 → 26 326 px²** (rapport 730×),
 avec un étalement en profondeur réel (bas de bbox 0,40 → 1,00). **Le code en retient UN**
-(`_polygon_area` max, `tasks.py:2264`) — *un sur mille trois cent soixante-cinq*, et
+(`_polygon_area` max, appel `tasks.py:2580`, définition l. 2522) — *un sur mille trois cent soixante-cinq*, et
 mécaniquement **le plus proche**, donc la zone où le pinhole est déjà le moins mauvais. Le
 champ lointain, où l'erreur croît, **ne contraint rien**.
 
@@ -1699,10 +1734,12 @@ et `homography_estimator`/`calibration` **ne se parlent pas** aujourd'hui (grep 
 **⑥ Le recalage de la navette et les bâtiments** (hypothèse de Fabien : les erreurs de position
 dans la voie viennent en grande partie des bâtiments à droite). **Le mécanisme existe déjà en
 partie** : `geo.ign_vector.fetch_buildings` charge la BD TOPO **avec les hauteurs**, `sky_mask()`
-en dérive un **masquage satellite par azimut** (*urban canyon*), et `tasks.py:2627` l'appelle
+en dérive un **masquage satellite par azimut** (*urban canyon*), et `tasks.py:3113` l'appelle
 par fenêtre d'intersection (`sky_mask_at`, rayon 300 m) → `sky_mask_deg`. **Mais il ne sert qu'à
 ATTÉNUER** la correction ortho là où le ciel est dégagé ; il ne corrige rien, et **rien ne les
-affiche** (pending `#7 bâtiments IGN`).
+affiche** (pending `#7 bâtiments IGN`) → **affichés depuis** sous ⚑ `map_buildings` (OFF,
+`utils/features.py:164`, route `api/sessions/<id>/buildings/`, `urls.py:42` — noté le
+2026-10-31) ; reste : les bâtiments comme ENTRÉE de correction.
 → **Test disponible sans une ligne de code neuve** : la même tâche 2b produit l'**offset latéral
 par intersection** ET le **profil de masquage par azimut**. Si l'offset pointe systématiquement
 à l'**opposé** des azimuts bouchés, le multitrajet est confirmé et les bâtiments passent
@@ -1712,7 +1749,8 @@ d'atténuateur à **entrée de correction**. ⚠ Le signe n'est pas préjugé : 
 **vision + GPU** (SAM3 sur les tuiles ortho) — interdit sur ce poste (WSL2, 7 crashs hôte) ;
 `ortho_correction`, l'application, est du calcul pur. Ordre et lectures attendues :
 1. lancer **2b** sur `4da52df3` → `results_summary['ortho_correction']` : `anchors`,
-   `camera_bias_m`, `sky_mask_deg`, `report` ;
+   `camera_bias`, `sky_mask_deg`, `report` (clé `camera_bias`, `tasks.py:3126` — `camera_bias_m`
+   ici jusqu'au 2026-10-31) ;
 2. lire l'**offset par intersection** et le confronter au **masque ciel** (⑥) ;
 3. extraire les **coins géoréférencés** des passages ortho et les confronter au quad supposé
    4,0 × 2,5 m (⑤) — c'est la première mesure de ce que l'homographie vaut réellement ;
@@ -1734,8 +1772,8 @@ d'atténuateur à **entrée de correction**. ⚠ Le signe n'est pas préjugé : 
 
 | levier | état RÉEL |
 |---|---|
-| **type d'objet stable** | ✅ **la proposition de Fabien EST implémentée** — `cls_votes[gid][classe] += confiance` puis `max` (`multicam_tracker:409` et `:755`), écrit en `stable_class` sur **100 %** des 4 352 gids (`3dab195`, 16/07) |
-| **couleur** | ❌ **rien**. BoTSORT *sait* faire du ReID par apparence mais `with_reid: False` dans la config installée — et le projet **ne passe même pas `tracker=`** à `model.track()` (`_track_base`, `tasks.py:1014`) : il prend le défaut d'Ultralytics. La voie peu coûteuse existe (`model: auto` = « uses detector features if available »), éteinte |
+| **type d'objet stable** | ✅ **la proposition de Fabien EST implémentée** — `cls_votes[gid][classe] += confiance` puis `max` (`multicam_tracker.py:1278-1281`), écrit en `stable_class` sur **100 %** des 4 352 gids (`3dab195`, 16/07) |
+| **couleur** | ❌ **rien**. BoTSORT *sait* faire du ReID par apparence mais `with_reid: False` dans la config installée — et le projet **ne passe même pas `tracker=`** à `model.track()` (`_track_base`, `tasks.py:1045`) : il prend le défaut d'Ultralytics. La voie peu coûteuse existe (`model: auto` = « uses detector features if available »), éteinte |
 | **sortie de champ** | ⚠ **connue partout, déclarée nulle part** (voir ③) |
 | **distance estimée** | présente (`distance_m`), la confrontation profondeur attend la passe GPU |
 
@@ -1781,7 +1819,7 @@ chaîne (4 s) le rattache encore. **Faux deux fois**, vérifié dans la source i
    revérifient dans `venv_linux/lib/python3.12/site-packages/ultralytics/trackers/` ;
 2. ce redémarrage est **délibéré et documenté** : *« persist=False on the FIRST frame of each
    window resets BoTSORT, so **track_ids are window-local**. This is correct semantically — no
-   object survives between two intersections separated by minutes »* (`tasks.py:1034-1038`).
+   object survives between two intersections separated by minutes »* (`tasks.py:1065-1069`).
    La fenêtre de 4 s du verrou est là **pour ça**, et elle est bien dimensionnée : sur cette
    session, **28 fenêtres, écart minimum 19,3 s** (médiane 49 s) — **zéro** en dessous de 4 s.
 
@@ -1880,9 +1918,9 @@ indépendantes (levier 15, `ego_rotation`) ne sont pas câblées ensemble (§CHA
 | 1 | **YOLO** (ultralytics, `profile.model_path`) + **BoTSORT** | `yolo_detect` | frame | bbox, classe, confiance, `track_id` par caméra | l'objet et sa hauteur (→ distance) ; l'identité locale (→ tracking) | CÂBLÉ |
 | 2 | **YOLOPv2** (TorchScript, CAIC-AD) | `yolopv2_lanes` | frame avant (ou 4) | polygones zone roulable + lignes de voie | voie de la navette et des objets ; masque roulable pour le plan de sol profondeur | CÂBLÉ |
 | 3 | **SAM3** (prompts texte) | `sam3_markings` | frames dans les fenêtres | polygones `stop_line`/`crossing` | bornes d'intersection en monde ; amers du recalage ortho ; **et** homographie DLT (§D.2) | CÂBLÉ |
-| 4 | **SAM3 sur orthophoto IGN** | bouton recalage | tuiles WMTS z19 | crossings géoréférencés | l'échelle/position **absolue** que 2a ne donne pas | MESURE SEULE |
-| 5 | **Apple Depth Pro** | `depth` / `depth_calc` | frames échantillonnées | carte métrique + focale | plan de sol (angle) sans stationnés ; 3ᵉ source de distance ; discriminant reflets | exécuté 2026-09-28 : **sortie inexploitable sur ce rig** (route à 0,2–1 m, champ estimé faux ×2 avant/arrière) — §[E] |
-| 6 | **NVIDIA LocateAnything-3B** (détection open-vocab) | — | — | — | amers élargis pour 2b (lignes d'arrêt, flèches, îlots) ; auto-labeling | **poids présents, capacité absente** (`capabilities={}`, `backend_ref` vide, PoC seul) — licence non-commerciale |
+| 4 | **SAM3 sur orthophoto IGN** | `ortho_recalage` (et bouton recalage) | tuiles WMTS z19 | crossings géoréférencés | l'échelle/position **absolue** que 2a ne donne pas | MESURE, appliquée par la passe `ortho_correction` sous ⚑ `ortho_correction` (OFF) depuis le 2026-09-28 (corrigé le 2026-10-31 : « MESURE SEULE ») |
+| 5 | **ZoeDepth-KITTI** (défaut depuis le 2026-09-28, `depth_engine.py:56`) / **Apple Depth Pro** (au choix, `config['depth_model']`) | `depth` / `depth_calc` | frames échantillonnées | carte métrique + focale | plan de sol (angle) sans stationnés ; 3ᵉ source de distance ; discriminant reflets | exécuté 2026-09-28 : **sortie inexploitable sur ce rig** (route à 0,2–1 m, champ estimé faux ×2 avant/arrière) — §[E] |
+| 6 | **NVIDIA LocateAnything-3B** (détection open-vocab) | — | — | — | amers élargis pour 2b (lignes d'arrêt, flèches, îlots) ; auto-labeling | ~~poids présents, capacité absente (`capabilities={}`, `backend_ref` vide, PoC seul)~~ → **backend au contrat commun écrit le 2026-09-08** (`wama/common/backends/locate_anything_backend.py`), jamais chargé en réel (« non éprouvé de bout en bout », l. 24) ; **aucun consommateur** côté cam_analyzer ni anonymizer (`wama/anonymizer/tasks.py:203`) — corrigé le 2026-10-31, ligne de catalogue non relue en base — licence non-commerciale |
 
 ---
 
@@ -1913,6 +1951,9 @@ indépendantes (levier 15, `ego_rotation`) ne sont pas câblées ensemble (§CHA
    ⚠ **DÉCISION NON APPLIQUÉE** (mesuré 2026-09-05) : le design la déclarait faite (schéma
    `GPS + IMU ──▶ ego_pose.py (fusion)`), le code l'a **préparée** (parse + stockage + `use_imu`) et
    **jamais câblée**. C'est une intention, pas un état — voir §INVENTAIRE D.1 et levier 16.
+   → **En partie réalisée le 2026-09-11** : l'accéléromètre est consommé comme COMMANDE du filtre
+   navette (⚑ `imu_command`, OFF, §D.4 ⑦ ; `utils/features.py:444`) ; `profile.use_imu` reste sans
+   effet (noté le 2026-10-31).
 8. **Vue de dessus** = tracé des `(X, Y)` autour d'une silhouette navette dimensionnée (profil).
 9. **Filtrage véhicules d'intérêt** — règle `of_interest` (implémentée, non destructive) : chaque
    segment d'intersection est tagué `of_interest = (event_type ∈ {insertion, wait}) ET (classe ∈

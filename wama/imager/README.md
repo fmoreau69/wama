@@ -10,14 +10,20 @@ avec fichiers de référence, mots-clés imposés, enrichissement de prompt ✨ 
 
 ## Architecture réelle : des backends interchangeables
 
-La génération passe par `wama/imager/backends/` — **une dizaine de moteurs** derrière un manager
-commun (`backends/manager.py`), **`diffusers` étant le défaut** :
+Les backends vivent au **substrat** (`wama/common/backends/`) — `wama/imager/backends/` ne garde
+que `manager.py`. **Le modèle porte son moteur** : la classe d'un modèle se DÉRIVE du catalogue
+(`backend_for_key`, `wama/common/backends/manager.py`, appelé par `tasks.py:55-58` pour l'image et
+`:647-648` pour la vidéo). Le manager de l'app (`backends/manager.py:36-65`) n'enregistre que les
+génériques partagés (diffusers, imaginairy) et les dédiés image (Qwen, FLUX.2 Klein) ;
+**`diffusers` est le défaut**. *(Corrigé le 2026-10-31 : ce paragraphe disait « la génération passe
+par `wama/imager/backends/` — une dizaine de moteurs derrière un manager commun ».)*
 
-| Backend | Domaine |
+| Backend (`wama/common/backends/`) | Domaine |
 |---|---|
 | `diffusers_backend` | images (SDXL, Qwen-Image, Hunyuan…) — **défaut** |
 | `qwen_image_backend`, `flux2_klein_backend` | images spécialisées (édition, logos) |
-| `wan_video_backend`, `ltx_video_backend`, `cogvideox_backend`, `mochi_backend`, `hunyuan_video_backend` | **vidéo** (t2v, i2v) |
+| `wan_video_backend`, `ltx_video_backend`, `cogvideox_backend`, `mochi_backend` | **vidéo** (t2v, i2v) |
+| `hunyuan_video_backend` | vidéo — **déclaré `DEPRECATED`** (aucun modèle HunyuanVideo au catalogue, conservé comme exemple : `hunyuan_video_backend.py:132`) |
 | `imaginairy_backend` | historique, conservé comme moteur optionnel |
 
 **Sources vivantes — ne pas recopier de listes de modèles ici** (elles dérivent, c'est ce qui a

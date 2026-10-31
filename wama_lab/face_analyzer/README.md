@@ -13,11 +13,12 @@ n'est qu'un stub d'arguments, ne pas s'en servir.
 | Point | État | Mesure |
 |---|---|---|
 | Venv | **venv principal** (`venv_linux`) | import réel de `pipeline`, `emotions`, `tasks` + tâche Celery `process_video_task` |
-| Backend **FER** (défaut) | ✅ réparé ce jour | il était **CASSÉ** : `fer` 25.10.3 a retiré `FER` de sa racine (classe déplacée dans `fer.fer`) et `requirements/linux.txt` demandait `fer>=22.5.0`, sans borne haute — la montée s'est faite seule |
+| Backend **FER** (défaut de `EmotionRecognizer` seul — le défaut EFFECTIF de l'app est **DeepFace**, `pipeline.py:48`, `views.py:760` ; précisé le 2026-10-31) | ✅ réparé ce jour | il était **CASSÉ** : `fer` 25.10.3 a retiré `FER` de sa racine (classe déplacée dans `fer.fer`) et `requirements/linux.txt` demandait `fer>=22.5.0`, sans borne haute — la montée s'est faite seule |
 | Backend **DeepFace** | ✅ fonctionnel | détection réelle sur image de synthèse, hors ligne |
-| Poids DeepFace | ✅ rangés dans `AI-models` | **1,1 Go** déplacés de `$HOME/.deepface` vers `AI-models/models/vision/deepface` via `DEEPFACE_HOME` (posé dans `settings.py`) |
-| Poids FER / MediaPipe | embarqués dans les paquets pip | 2,3 Mo (`fer`), `.tflite` internes (`mediapipe`) — rien à ranger |
-| Gardes | `tests.py` (7) | aucune ne charge de modèle ; elles tiennent les **jonctions** |
+| Poids DeepFace | ✅ rangés dans `AI-models` | **1,1 Go** déplacés de `$HOME/.deepface` vers `AI-models/models/vision/deepface` via `DEEPFACE_HOME` (posé dans `settings.py`) → **DÉCLARÉS** (origine GitHub, empreinte) et installables / désinstallables par la route depuis le 2026-10-12 (`utils/model_config.py:62-107`, `tests_deepface_weights.py`) |
+| Poids FER / MediaPipe | embarqués dans les paquets pip | 2,3 Mo (`fer`), `.tflite` internes (`mediapipe`) — rien à ranger (ne vaut plus que pour FER, cf. ligne suivante) |
+| Face landmarker MediaPipe (ajouté le 2026-10-31) | ✅ déclaré, installé par le model manager (2026-10-11) | `face_landmarker.task`, origine Google, `FACE_LANDMARKER_FILES` sous `MODEL_PATHS['vision']['mediapipe']` (`utils/model_config.py:110-119`) ; l'app ne le télécharge plus (`tests_mediapipe_weights.py`) |
+| Gardes | `tests.py` (7) → au 2026-10-31 : `tests.py` (8), `tests_deepface_weights.py` (3), `tests_mediapipe_weights.py` (7), `tests_surfaces.py` (5) | aucune ne charge de modèle ; elles tiennent les **jonctions** |
 
 ⚠ **Aucun test ne couvrait cette app** avant ce jour : elle a pourri en silence pendant des mois.
 Le défaut FER n'était visible qu'en la lançant — d'où les gardes ajoutées.
@@ -26,13 +27,18 @@ Le défaut FER n'était visible qu'en la lançant — d'où les gardes ajoutées
 
 | Module | Fichier | Sorties |
 |---|---|---|
-| Émotions | `emotions.py` | 2 backends au choix : **FER** (rapide, émotions seules) ou **DeepFace** (plus précis + âge/genre — `enable_age_gender` DeepFace-only) |
+| Émotions | `wama/common/backends/emotions.py` (substrat depuis le 2026-09-07 ; « `emotions.py` » de l'app jusqu'au 2026-10-31) | 2 backends au choix : **FER** (rapide, émotions seules) ou **DeepFace** (plus précis + âge/genre — `enable_age_gender` DeepFace-only) |
 | rPPG | `rppg.py` | fréquence cardiaque estimée par photopléthysmographie à distance |
 | Respiration | `respiration.py` | fréquence respiratoire |
 | Regard | `eye_tracking.py` | indicateurs oculométriques |
 
 Détection de visage : **MediaPipe**. Le backend émotions se choisit dans l'interface
 (« Backend émotions : FER (rapide) / DeepFace (complet) », « Âge & Genre » activable en DeepFace).
+⚠ **Défaut effectif : DeepFace** (`PipelineConfig.emotion_backend`, `pipeline.py:48`), et le choix
+n'est appliqué **qu'en temps réel** (`views.py:760-771`) : en mode **vidéo**, `video.html:613-614`
+l'envoie, mais ni la config de session (`views.py:113-119`) ni la tâche (`tasks.py:107-115`) ne le
+reprennent — DeepFace avec âge et genre est toujours employé (mesuré le 2026-10-31 ; défaut de code
+signalé, non corrigé).
 
 ## La surface d'analyse (2026-10-29) — les mesures en courbes synchronisées
 

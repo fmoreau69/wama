@@ -7,7 +7,8 @@
 Elle exploite la librairie **[QualityScaler](https://github.com/Djdefrag/QualityScaler)** pour fournir :
 - Upscaling x2/x4 avec plusieurs modèles AI
 - Débruitage intelligent
-- Support GPU via DirectML (Windows)
+- Support GPU via CUDA (Linux) ou DirectML (Windows) — `onnx_providers`, `wama/common/utils/onnx_utils.py:35-50`
+  (« DirectML (Windows) » seul jusqu'au 2026-10-31)
 - Traitement par lots
 - **Choix « Automatique » (2026-09-21)** : le modèle est tiré AU LANCEMENT par la brique commune
   d'auto-sélection (catalogue + VRAM libre), restreint au **facteur d'agrandissement** demandé
@@ -27,7 +28,9 @@ Elle exploite la librairie **[QualityScaler](https://github.com/Djdefrag/Quality
 ## ✨ Fonctionnalités
 
 ### Images
-- ✅ **7 modèles AI** disponibles (RealESR, BSRGAN, IRCNN)
+- ✅ **7 modèles AI** déclarés par l'app (RealESR, BSRGAN, IRCNN) + les agrandisseurs installés
+  depuis le model manager (Swin2SR, SPAN, GaterV3 — `SUPPORTED_MODELS`, 10 entrées,
+  `wama/common/backends/ai_upscaler.py:30-95`, compté le 2026-10-31)
 - ✅ **Upscaling** jusqu'à 4x la résolution originale
 - ✅ **Débruitage** avec modèles spécialisés
 - ✅ **Blending** pour mélanger avec l'original
@@ -76,7 +79,8 @@ jour (ci-dessous).
 ### Audio (branche dédiée)
 
 L'app porte aussi une **amélioration audio** complète (modèle `AudioEnhancement`,
-`backends/audio_enhancer.py`, ~20 routes `audio/*` dans `urls.py`) : débruitage DeepFilterNet et
+`backends/audio_backend.py` — moteur : `common/backends/audio_enhancer.py` —, ~30 routes `audio/*`
+dans `urls.py` : 31 au 2026-10-31) : débruitage DeepFilterNet et
 resemble-enhance, avec sa propre file. Les batchs (import multi-fichiers, actions de lot) sont
 câblés sur les deux branches.
 
@@ -170,6 +174,8 @@ VRAM et fichier sont lus au registre). Premier cas : **Swin2SR realworld ×4**
 (`onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX`, Apache-2.0), le plus FIDÈLE au banc
 du 2026-10-06 (rendu doux, peu d'invention). Détail, banc et restes (SPAN, GaterV3 : poids publiés
 hors HuggingFace) : `wama/model_manager/PROSPECTION_PIPELINE.md §Session du 2026-10-06`.
+→ SPAN et GaterV3 **servis depuis le 2026-10-07** (version GitHub, pilote `github` ;
+`ai_upscaler.py:84-94` — noté le 2026-10-31).
 ⚠ **Jusqu'au 2026-10-14, Swin2SR plantait** sur toute image dont un côté n'est pas multiple de 8
 (`Reshape /swin2sr/patch_unembed`, onnxruntime) : ses fenêtres découpent l'image en carreaux de
 8 px. Le modèle le DÉCLARE dans son `preprocessor_config.json` (`do_pad`, `pad_size: 8`) ;
@@ -436,7 +442,9 @@ python manage.py test wama.enhancer --keepdb
 
 ## 📝 TODO / Améliorations Futures
 
-- [ ] Support CUDA natif pour Linux
+- [x] Support CUDA natif pour Linux — `onnx_providers` met `CUDAExecutionProvider` en tête
+  (`wama/common/utils/onnx_utils.py:35`), utilisé par `AIUpscaler` (`ai_upscaler.py:271-272`) ;
+  coché le 2026-10-31
 - [ ] Batch processing optimisé
 - [ ] Aperçu avant/après
 - [ ] Crop & Enhance (améliorer une zone)
