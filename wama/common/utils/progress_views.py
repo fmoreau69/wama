@@ -122,10 +122,22 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
                          ceux de l'utilisateur (`filter(user=user)`).
         domains        : dict `{nom: callable(queryset) -> queryset}` — barres PAR DOMAINE
                          (imager : image / vidéo). Le payload porte chaque domaine sous son nom,
-                         et le PREMIER à plat (les clés historiques de la page).
+                         et le PREMIER à plat (les clés historiques de la page). Absent : DÉRIVÉ
+                         de la déclaration (2026-11-01, `app_modes.domain_filters`) quand plusieurs
+                         domaines partagent la card de `work_model` — l'imager l'écrivait à la main.
         read_lookup    : callable(user, pk) -> élément, quand la lecture n'est pas
                          `visible_or_404(work_model, user, pk=pk)`.
     """
+
+    def _domains():
+        # Lu à la REQUÊTE, pas à l'appel de la fabrique : la spec de détail s'enregistre au
+        # `ready()` de l'app, que l'import d'un module de vues peut précéder.
+        if domains is not None:
+            return domains
+        from wama.common.utils.app_modes import domain_filters
+        from wama.common.utils.detail_registry import DetailRegistry
+        surface = DetailRegistry.surface_of(work_model)
+        return domain_filters(work_model._meta.app_label, surface) if surface else {}
 
     def _live(item):
         if progress_of is not None:
@@ -234,10 +246,11 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
     def global_progress(request):
         user = get_user(request)
         qs = queryset(user) if queryset is not None else work_model.objects.filter(user=user)
-        if not domains:
+        by_domain = _domains()
+        if not by_domain:
             return JsonResponse(_counts(qs))
         payload, first = {}, None
-        for name, narrow in domains.items():
+        for name, narrow in by_domain.items():
             payload[name] = _counts(narrow(qs))
             first = first or payload[name]
         return JsonResponse({**first, **payload})
@@ -259,9 +272,10 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
         qs = queryset(user) if queryset is not None else work_model.objects.filter(user=user)
         domain = request.GET.get('domain') or ''
         if domain:
-            if domain not in (domains or {}):
+            by_domain = _domains()
+            if domain not in by_domain:
                 return JsonResponse({'error': f'file inconnue : {domain}'}, status=400)
-            qs = domains[domain](qs)
+            qs = by_domain[domain](qs)
         qs = qs.filter(status='SUCCESS').order_by('pk')
         if not qs.exists():
             return JsonResponse({'error': 'Aucun résultat à télécharger'}, status=404)

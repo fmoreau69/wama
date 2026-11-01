@@ -96,7 +96,7 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
   |---|---|---|---|
   | valeur | `'champ'` | le champ du modèle | — |
   | valeur | `{'const': x}` | une constante | reader (`document`) |
-  | valeur | `{'field': f, 'map': table}` | le champ TRADUIT par une table | rôle d'asset (`MEDIA_CATEGORY_ROLE`) |
+  | valeur | `{'field': f, 'map': table, 'default'?: x}` | le champ TRADUIT par une table ; `default` *(2026-11-01)* pour une valeur absente de la table | rôle d'asset (`MEDIA_CATEGORY_ROLE`) ; le schéma d'un élément de l'imager (`generation_mode` : les modes vidéo → `VIDEO_PARAMS_JSON`, le reste → `IMAGE_PARAMS_JSON`) — la forme qui désigne un DOMAINE quand deux domaines partagent un modèle, parce qu'une valeur de champ se cherche aussi en base (`app_modes.domain_filter`) |
   | valeur | `['a', 'b']` *(2026-10-03)* | le PREMIER champ non vide | avatarizer (avatar, sinon audio) |
   | valeur | `{'when_any': [champs], 'then': x, 'else': y}` *(2026-10-03)* | une valeur selon la PRÉSENCE d'un champ | synthesizer (type « texte » dès qu'un texte existe) |
   | `extra` | `{'field', 'label'?, 'display'?}` | un réglage ; `display` = `get_<f>_display()` | reader |

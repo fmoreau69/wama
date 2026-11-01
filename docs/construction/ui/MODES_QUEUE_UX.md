@@ -125,6 +125,9 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
   `route_prefix` — `audio_enhancer`) est la clé de son modèle d'élément au registre de détail, et le
   domaine d'un élément se DÉRIVE (`element_domain`) : la surface de son modèle, ou — deux domaines sur un
   même modèle, l'imager — le schéma que la spec de détail choisit pour lui. Aucune déclaration par app.
+  Depuis le 2026-11-01, la même déclaration retrouve les éléments d'un domaine EN BASE
+  (`domain_filter`) : la spec désigne le domaine par la valeur d'un champ (imager :
+  `generation_mode`), et les barres de file par onglet s'en déduisent.
 - **Sources d'une entrée fichier = upload OU MÉDIATHÈQUE (déjà en place, composé auto)** : brique commune
   **`MediaPicker`** (`common/js/media-picker.js` + endpoint `media_library:api_list`) ouvre une modale
   filtrée par `asset_type` et renvoie un **`File`** (drop-in de l'upload). Déjà consommée par imager/

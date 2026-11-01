@@ -129,6 +129,12 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
         ('txt2vid', 'Text to Video'),
         ('img2vid', 'Image to Video'),
     ]
+    #: Les modes de génération qui produisent une VIDÉO — LA liste (2026-11-01). Un mode reste un
+    #: workflow du MOTEUR, choisi d'après les entrées ; cette liste dit seulement lesquels sortent
+    #: une vidéo. La spec de détail en tire le DOMAINE d'un élément (`apps.py`, `params_schema`),
+    #: et tout le reste le lit là (`app_modes.element_domain`, `domain_filter`). Elle était écrite
+    #: quatre fois (cette propriété, `save`, `views.VIDEO_MODES`, la modale JS).
+    VIDEO_MODES = ('txt2vid', 'img2vid')
 
     OUTPUT_TYPE_CHOICES = [
         ('image', 'Image'),
@@ -321,16 +327,16 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
     @property
     def is_video_generation(self):
         """Check if this is a video generation task"""
-        return self.generation_mode in ('txt2vid', 'img2vid')
+        return self.generation_mode in self.VIDEO_MODES
 
     @property
     def gear_data(self):
         """data-* de réglages de la card (reflet dans le volet inspecteur) — brique COMMUNE
-        card_gear dérivée du schéma du DOMAINE (image/vidéo), remplace les attributs écrits
-        à la main sur la racine de card (18/08)."""
+        card_gear dérivée du schéma du DOMAINE de l'élément (`app_modes.element_domain` →
+        `domain_schema`), remplace les attributs écrits à la main sur la racine de card (18/08)."""
+        from wama.common.utils.app_modes import domain_schema, element_domain
         from wama.common.utils.card_gear import gear_data
-        from .params import IMAGE_PARAMS, VIDEO_PARAMS
-        return gear_data(self, VIDEO_PARAMS if self.is_video_generation else IMAGE_PARAMS)
+        return gear_data(self, domain_schema(self._meta.app_label, element_domain(self)))
 
     @property
     def output_images(self):
@@ -376,7 +382,7 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
         from wama.common.utils.model_keys import catalog_key
         self.model = catalog_key(self.model, 'imager')
         # Auto-set output_type based on generation mode
-        if self.generation_mode in ('txt2vid', 'img2vid'):
+        if self.is_video_generation:
             self.output_type = 'video'
             # Calculate video frames if not set
             if self.video_frames == 81:  # default value

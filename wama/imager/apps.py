@@ -51,8 +51,14 @@ class ImagerConfig(AppConfig):
             'result_role': {'when_any': ['output_video'], 'then': 'video', 'else': 'image'},
             'source_text': 'prompt',
             'extra': [{'label': 'Prompt', 'field': 'prompt', 'max_chars': 60}],
-            'params_schema': {'when_any': ['is_video_generation'],
-                              'then': 'VIDEO_PARAMS_JSON', 'else': 'IMAGE_PARAMS_JSON'},
+            # Le DOMAINE de l'élément, par la valeur d'un CHAMP (2026-11-01) : la même déclaration
+            # le lit sur un élément (`app_modes.element_domain`) et le cherche en base
+            # (`domain_filter` — la file et la barre de chaque onglet). `when_any` lisait une
+            # propriété, qu'aucune requête ne sait filtrer.
+            'params_schema': {'field': 'generation_mode',
+                              'map': {mode: 'VIDEO_PARAMS_JSON'
+                                      for mode in ImageGeneration.VIDEO_MODES},
+                              'default': 'IMAGE_PARAMS_JSON'},
             'extra_from_params': True,
         })
         register_app_preview(

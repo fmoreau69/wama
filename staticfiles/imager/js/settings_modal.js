@@ -24,7 +24,8 @@
     }
 
     function CFG() { return window.IMAGER_CONFIG || { urls: {} }; }
-    function isVideo(mode) { return ['txt2vid', 'img2vid'].indexOf(mode) !== -1; }
+    // Le DOMAINE d'un élément vient du serveur (`data.domain`, la spec de détail — 2026-11-01) :
+    // la liste des modes vidéo recopiée ici (`isVideo`) est retirée.
 
 
 
@@ -131,8 +132,8 @@
         return fetch(WamaApp.getUrl(CFG().urls.getSettings, id))
             .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
             .then(function (data) {
-                const video = isVideo(data.generation_mode);
-                const domain = video ? 'video' : 'image';
+                const domain = data.domain || 'image';
+                const video = domain === 'video';
                 return WamaParams.settingsModal({
                     id: id,
                     title: (video ? 'Paramètres de la vidéo #' : 'Paramètres de la génération #') + id,

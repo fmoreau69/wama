@@ -901,11 +901,12 @@
         ],
         "extra_from_params": true,
         "params_schema": {
-          "else": "IMAGE_PARAMS_JSON",
-          "then": "VIDEO_PARAMS_JSON",
-          "when_any": [
-            "is_video_generation"
-          ]
+          "default": "IMAGE_PARAMS_JSON",
+          "field": "generation_mode",
+          "map": {
+            "img2vid": "VIDEO_PARAMS_JSON",
+            "txt2vid": "VIDEO_PARAMS_JSON"
+          }
         },
         "result_file": [
           "output_video",
@@ -2464,8 +2465,8 @@
         },
         {
           "name": "start",
-          "pattern": "start/<int:generation_id>/",
-          "view": "views.start_generation"
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
         },
         {
           "name": "start_process",
@@ -2474,13 +2475,8 @@
         },
         {
           "name": "restart",
-          "pattern": "restart/<int:generation_id>/",
-          "view": "views.restart_generation"
-        },
-        {
-          "name": "start_all",
-          "pattern": "start-all/",
-          "view": "views.start_all_generations"
+          "pattern": "restart/<int:pk>/",
+          "view": "views.start"
         },
         {
           "name": "progress",
@@ -2684,7 +2680,7 @@
         "add_to_imager": {
           "args": {
             "guidance_scale": "range — À quel point suivre le prompt. [1–20] (défaut : 7.5)",
-            "height": "int (défaut : 512)",
+            "height": "int",
             "image_strength": "range — Influence de l'image de référence (img2img / style). 0=ignorer, 1=copier. [0–1] (défaut : 0.75)",
             "model": "select — Modèle de génération (Auto = tirage VRAM-aware au lancement). (défaut : 'auto')",
             "negative_prompt": "textarea — Ce qu'il faut éviter dans l'image.",
@@ -2696,7 +2692,7 @@
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "seed": "seed — Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine. [0–2147483647]",
             "steps": "range — Nombre d'étapes de diffusion. [1–100] (défaut : 30)",
-            "width": "int (défaut : 512)"
+            "width": "int"
           },
           "description": "Ajoute un élément à la file d'attente de Imager (Génération d'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…)) et renvoie son item_id."
         },
@@ -2718,7 +2714,6 @@
         "empty_msg": "Aucune génération en attente.",
         "id_kwarg": "generation_id",
         "model": "wama.imager.models.ImageGeneration",
-        "reset": "wama.imager.views._reset_and_forget_progress",
         "status_fields": {
           "id": "id",
           "model": "model",
@@ -2744,8 +2739,7 @@
             }
           }
         },
-        "status_order": "-id",
-        "task_for": "wama.imager.views._task_for"
+        "status_order": "-id"
       }
     }
   },

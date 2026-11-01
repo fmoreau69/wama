@@ -149,9 +149,9 @@ def register_app_detail_spec(app_name, model_class, spec):
 
 def spec_value(instance, form):
     """UNE valeur de spec résolue contre l'instance — le vocabulaire entier tient ici :
-    nom de champ · `{'const': x}` · `{'field': f, 'map': table}` · LISTE de champs (le premier
-    non vide — d'une COLLECTION, son premier élément) · `{'when_any': [champs], 'then': x,
-    'else': y}` (selon la présence)."""
+    nom de champ · `{'const': x}` · `{'field': f, 'map': table, 'default'?: x}` · LISTE de champs
+    (le premier non vide — d'une COLLECTION, son premier élément) · `{'when_any': [champs],
+    'then': x, 'else': y}` (selon la présence)."""
     if not form:
         return None
     if isinstance(form, (list, tuple)):
@@ -168,9 +168,13 @@ def spec_value(instance, form):
             return form.get('then') if present else form.get('else')
         # `{'field': 'media_type', 'map': {...}}` (2026-09-18) : la valeur d'un champ TRADUITE
         # par une table — né pour `result_role` (la catégorie d'un média n'est pas un rôle
-        # d'asset). Sinon `{'const': …}`.
+        # d'asset). `default` (2026-11-01) : la valeur d'une clé absente de la table — un domaine
+        # qui prend « tout le reste » (l'imager : image, sauf les modes vidéo) se déclare sans
+        # recopier chaque mode. Une valeur de CHAMP désigne l'élément, donc la même déclaration
+        # sait aussi le chercher en base (`app_modes.domain_filter`). Sinon `{'const': …}`.
         if 'map' in form:
-            return (form['map'] or {}).get(getattr(instance, form.get('field', ''), None))
+            return (form['map'] or {}).get(getattr(instance, form.get('field', ''), None),
+                                           form.get('default'))
         return form.get('const')
     return getattr(instance, form, None)
 

@@ -61,8 +61,8 @@ def _generation_domain(gen):
     prescrit : « une app qui fige une nature sur le lot passe le `group_key` jumeau »).
     Lu dans la déclaration commune (`app_modes.element_domain`, 2026-10-21) : le schéma que la
     spec de détail choisit pour l'élément désigne son domaine."""
-    from wama.common.utils.app_modes import element_domain
-    return element_domain(gen) or 'image'
+    from wama.common.utils.app_modes import element_domain, get_domains
+    return element_domain(gen) or get_domains(gen._meta.app_label)[0]['id']
 
 
 def _batch_domain(gen):
@@ -111,28 +111,10 @@ def index(request):
     # désormais `options_source: "catalog"` (params.py) : le catalogue EST la liste, bornée par
     # la tâche, et un modèle installé depuis le model manager y entre sans code.
 
-    # Generation mode choices for UI - Images
-    # Modes sourcés depuis le schéma COMMUN (app_modes) = source unique de vérité (métadonnée-driven).
-    # Mêmes valeurs qu'avant (txt2img/img2img/style2img/file2img/describe2img) → radios + JS inchangés ;
-    # seuls libellés/ordre/icônes viennent du schéma. Repli sur l'ancienne liste si le schéma manque.
-    from wama.common.utils.app_modes import get_domain as _get_domain
-    _img_modes = _get_domain('imager', 'image').get('modes', [])
-    if _img_modes:
-        image_modes = [(m['id'], m['label'], 'fas ' + m.get('icon', 'fa-circle')) for m in _img_modes]
-    else:
-        image_modes = [
-            ('txt2img', 'Text to Image', 'fas fa-keyboard'),
-            ('file2img', 'File (Batch)', 'fas fa-file-alt'),
-            ('describe2img', 'Describe', 'fas fa-search-plus'),
-            ('style2img', 'Style Transfer', 'fas fa-palette'),
-            ('img2img', 'Img2Img', 'fas fa-exchange-alt'),
-        ]
-
-    # Generation mode choices for UI - Videos
-    video_modes = [
-        ('txt2vid', 'Text to Video', 'fas fa-keyboard'),
-        ('img2vid', 'Image to Video', 'fas fa-image'),
-    ]
+    # Les listes de modes de la page (`image_modes`, `video_modes`, `generation_modes`) sont
+    # RETIRÉES le 2026-11-01 : aucun gabarit ni script ne les lisait plus depuis le retrait des
+    # switches de mode (2026-08-23), et la déclaration n'ayant plus de modes, c'est leur liste de
+    # REPLI, écrite ici, qui partait au contexte (`REMOVAL_LEDGER`).
 
     # ── Card d'entrée commune (une instance PAR DOMAINE) ─────────────────────────
     from wama.imager.params import (
@@ -216,9 +198,6 @@ def index(request):
         # reste clé par dom_id — cf. params.panel_values_by_name.
         'image_panel_values_json': json.dumps(panel_values_by_name(panel_settings, IMAGE_PARAMS)),
         'video_panel_values_json': json.dumps(panel_values_by_name(panel_settings, VIDEO_PARAMS)),
-        'image_modes': image_modes,
-        'video_modes': video_modes,
-        'generation_modes': image_modes,  # Keep for backward compatibility
         # Méta d'appariement de la card d'entrée (les OPTIONS des selects de modèle viennent du
         # catalogue par WamaParams — route F4b, plus de groupes construits ici).
         'input_match_meta': json.dumps(input_match_meta),
@@ -253,9 +232,7 @@ def create_generation(request):
         # routage unique — par l'écrivain COMMUN du volet (`save_panel_settings`, 2026-10-18 : un
         # réglage remis à son défaut retire la préférence, au lieu de la figer).
         from wama.common.utils.user_settings import save_panel_settings
-        from .params import IMAGE_PARAMS, VIDEO_PARAMS
-        _params = VIDEO_PARAMS if generation_mode in VIDEO_MODES else IMAGE_PARAMS
-        save_panel_settings(user, 'imager', _params, request.POST)
+        save_panel_settings(user, 'imager', _born_schema(generation_mode), request.POST)
 
         # Route to appropriate handler
         if generation_mode == 'file2img':
@@ -281,10 +258,20 @@ def create_generation(request):
 from wama.common.utils.user_settings import inputs_by_port  # noqa: E402
 
 
+def _born_schema(mode, model=None):
+    """Le schéma d'une génération NAISSANTE de ce mode : celui du domaine que la spec de détail
+    choisit pour un élément de ce mode (`app_modes.element_domain`, sur l'élément pas encore
+    sauvé). Avant l'élément comme après, une seule règle (2026-11-01) — la vue testait le mode
+    contre sa propre liste `VIDEO_MODES`."""
+    from wama.common.utils.app_modes import domain_schema, element_domain
+    born = (model or ImageGeneration)(generation_mode=mode)
+    return domain_schema(born._meta.app_label, element_domain(born))
+
+
 def new_generation_settings(user, mode, post=None, model=None, app='imager', inputs=None) -> dict:
     """Les colonnes de réglage d'une génération NAISSANTE, quel que soit son mode, par la cascade
-    COMMUNE (`user_settings.new_element_settings`, 2026-10-18) sur le schéma de son DOMAINE (vidéo
-    pour `VIDEO_MODES`, image sinon) : défauts du schéma ← défauts DÉCLARÉS du modèle choisi
+    COMMUNE (`user_settings.new_element_settings`, 2026-10-18) sur le schéma de son DOMAINE
+    (`_born_schema`) : défauts du schéma ← défauts DÉCLARÉS du modèle choisi
     (`get_model_defaults`, en préréglage — 512×512 / 30 étapes / 7.5 sont les valeurs de l'ère
     SD 1.5) ← réglages retenus de l'auteur ← ce qui est posté. Avant, chacun des six modes lisait
     le POST champ par champ, avec ses défauts écrits dans la vue (la vidéo : 5 s, 16 i/s, 480p,
@@ -293,9 +280,8 @@ def new_generation_settings(user, mode, post=None, model=None, app='imager', inp
     schéma : l'appelant les lit (POST, sinon défauts du modèle). `model`/`app` : une jumelle de
     bac à sable passe les siens."""
     from wama.common.utils.user_settings import new_element_settings
-    from .params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
-    schema = VIDEO_PARAMS_JSON if mode in VIDEO_MODES else IMAGE_PARAMS_JSON
     item_model = model or ImageGeneration
+    schema = _born_schema(mode, item_model)
     # Une graine postée VIDE est un choix (un tirage neuf) : la règle COMMUNE des réglages de tirage
     # (`param_schema.EMPTY_IS_NONE_TYPES`, 2026-10-22) — elle était déclarée ici.
     kwargs = dict(post=post, inputs=inputs)
@@ -391,7 +377,12 @@ def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=
     GenerationBatchItem = django_apps.get_model(app_label, 'GenerationBatchItem')
 
     r = dict(reglages or {})
-    domain = 'video' if domain == 'video' else 'image'
+    # Le domaine reçu (card, studio) est l'un des DÉCLARÉS, sinon le premier — jamais un nom en dur.
+    from wama.common.utils.app_modes import get_domains
+    declared = [d['id'] for d in get_domains(app_label)]
+    domain = domain if domain in declared else declared[0]
+    # Le WORKFLOW d'une ligne sans image : celui du moteur pour ce domaine (règle de la card,
+    # `input_card.js` `deriveMode`).
     mode = 'txt2vid' if domain == 'video' else 'txt2img'
     # Chaque génération du lot naît par la cascade COMMUNE (`new_generation_settings`) ; une ligne
     # surcharge ce qu'elle précise. Les colonnes que le modèle de l'app (ou d'une jumelle) n'a pas
@@ -882,10 +873,6 @@ start_process = make_process_start_view(
     work_model=ImageGeneration, task_for=_task_for, reset_on_start=_reset_and_forget_progress)
 
 
-#: Les modes de génération VIDÉO — la barre de file a un domaine image et un domaine vidéo.
-VIDEO_MODES = ('txt2vid', 'img2vid')
-
-
 def _progress_extra(generation):
     """Les clés PROPRES que le JS de l'imager lit : les sorties et leur nature."""
     data = {
@@ -900,15 +887,13 @@ def _progress_extra(generation):
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
-# 2026-10-03) — l'app n'y déclare que ses clés propres et ses deux domaines de file (image,
-# vidéo). L'ETA est celle de ses PROCESS (`function_specs.PIPELINE`, 2026-10-05).
+# 2026-10-03) — l'app n'y déclare que ses clés propres. Ses deux barres de domaine (image, vidéo)
+# se DÉDUISENT de la spec de détail depuis le 2026-11-01 (`app_modes.domain_filters`) : la vue
+# les écrivait avec sa propre liste de modes vidéo. L'ETA est celle de ses PROCESS
+# (`function_specs.PIPELINE`, 2026-10-05).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(
-    work_model=ImageGeneration,
-    app_id='imager', extra=_progress_extra,
-    domains={'image': lambda qs: qs.exclude(generation_mode__in=VIDEO_MODES),
-             'video': lambda qs: qs.filter(generation_mode__in=VIDEO_MODES)})
+_pv = make_progress_views(work_model=ImageGeneration, app_id='imager', extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
@@ -1185,6 +1170,9 @@ def get_generation_settings(request, generation_id):
         data = {p['name']: getattr(generation, p['name'], None) for p in schema}
         data.update({
             'id': generation.id,
+            # Le DOMAINE de l'élément (2026-11-01) : la modale le lit au lieu de le redéduire du
+            # mode avec sa propre liste.
+            'domain': _generation_domain(generation),
             'generation_mode': generation.generation_mode,
             'status': generation.status,
             # Champ prompt à DEUX ÉTATS ([[wama-prompt-enrich]]) : `prompt` reste ce que

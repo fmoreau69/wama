@@ -89,6 +89,10 @@ Ce que le domaine ne déclare PAS, parce que c'est déjà déclaré ailleurs :
   • le domaine d'un élément quand deux domaines partagent un modèle (imager) — la spec de détail
     choisit déjà le schéma PAR ÉLÉMENT (`params_schema`), et un schéma désigne un domaine.
 D'où `element_domain(élément)` et `domain_schema(app, domaine)`, sans une ligne par app.
+Et, depuis le 2026-11-01, `domain_filter(app, domaine)` : la même déclaration retrouve les
+éléments d'un domaine EN BASE — la spec désigne alors le domaine par la valeur d'un champ
+(`{'field', 'map', 'default'}`, imager : `generation_mode`), ce que `when_any` (une propriété) ne
+permettait pas. La file et la barre de chaque onglet s'en déduisent.
 
 Hiérarchie : App → Domaine (son schéma) → Mode → {entrées typées}. Tout est métadonnée-driven :
 l'UI (onglets, switch de mode, champs, sections) se GÉNÈRE depuis ce schéma (générateur JS `WamaModes`).
@@ -532,6 +536,42 @@ def element_domain(element) -> str | None:
                         .get('params_schema'))
     named = [d for d in served if chosen and domain_schema_name(app, d) == chosen]
     return named[0] if len(named) == 1 else None
+
+
+def domain_filter(app: str, domain_id: str):
+    """Les éléments de ce domaine EN BASE : `callable(queryset) -> queryset`, ou None quand le
+    domaine a sa card à lui (aucun tri à faire : tous les éléments de son modèle sont à lui).
+
+    Dérivé de la MÊME déclaration que `element_domain` (2026-11-01) : quand deux domaines
+    partagent un modèle, la spec de détail choisit le schéma par la valeur d'un CHAMP
+    (`{'field', 'map', 'default'}`) — les clés de la table qui donnent le schéma de ce domaine
+    sont ses valeurs ; le domaine du `default` prend tout le reste. L'imager l'écrivait à la main
+    (`generation_mode__in=VIDEO_MODES`, en double de sa propriété `is_video_generation`).
+    Lève `ValueError` si la spec désigne le domaine par une forme qui ne se cherche pas en base
+    (`when_any` lit des propriétés) : c'est une déclaration à porter, pas un cas à deviner."""
+    from wama.common.utils.detail_registry import DetailRegistry
+    surface = domain_surface(app, domain_id)
+    if len(surface_domains(app, surface)) <= 1:
+        return None
+    form = ((DetailRegistry.get(surface) or {}).get('spec') or {}).get('params_schema')
+    if not (isinstance(form, dict) and form.get('field') and 'map' in form):
+        raise ValueError(f'{surface}: la spec ne désigne pas le domaine par un champ ({form!r})')
+    name = domain_schema_name(app, domain_id)
+    table = form.get('map') or {}
+    if form.get('default') == name:
+        others = [k for k, v in table.items() if v != name]
+        return lambda qs: qs.exclude(**{f"{form['field']}__in": others})
+    mine = [k for k, v in table.items() if v == name]
+    return lambda qs: qs.filter(**{f"{form['field']}__in": mine})
+
+
+def domain_filters(app: str, surface: str) -> dict:
+    """`{domaine: filtre}` des domaines qui PARTAGENT la surface `surface` ({} quand elle n'en sert
+    qu'un) — ce que la fabrique de progression attend pour une barre par domaine."""
+    served = surface_domains(app, surface)
+    if len(served) <= 1:
+        return {}
+    return {d: domain_filter(app, d) for d in served}
 
 
 def accepts(app: str, domain_id: str) -> tuple:

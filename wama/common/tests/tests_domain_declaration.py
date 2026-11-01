@@ -14,7 +14,7 @@ domain. No app is named below except to build witness elements.
 """
 from unittest import mock
 
-from django.test import SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 
 from wama.common.utils import app_modes
 from wama.common.utils.app_modes import (APP_MODES, domain_schema, domain_schema_name,
@@ -93,10 +93,35 @@ class EveryDomainHasItsElementTest(SimpleTestCase):
                 if len(served) < 2:
                     continue
                 form = ((DetailRegistry.get(surface) or {}).get('spec') or {}).get('params_schema')
-                picks = ({form.get('then'), form.get('else')} if isinstance(form, dict) and 'when_any' in form
-                         else {form.get('const')} if isinstance(form, dict) else set())
                 with self.subTest(app=app, surface=surface):
-                    self.assertEqual({domain_schema_name(app, d) for d in served}, picks - {None})
+                    self.assertEqual({domain_schema_name(app, d) for d in served}, _picks(form) - {None})
+
+
+def _picks(form) -> set:
+    """The schema names a detail-spec form can give, whatever its shape."""
+    if not isinstance(form, dict):
+        return set()
+    if 'when_any' in form:
+        return {form.get('then'), form.get('else')}
+    if 'map' in form:
+        return set((form.get('map') or {}).values()) | {form.get('default')}
+    return {form.get('const')}
+
+
+def _cases(app, model, form, served):
+    """(unsaved element, expected domain) — one per domain of a surface, built from its form."""
+    if len(served) == 1:
+        return [((model(), []), served[0])]
+    schema_of = {domain_schema_name(app, d): d for d in served}
+    if 'map' in form:
+        table = form.get('map') or {}
+        out = [((model(**{form['field']: key}), []), schema_of[name]) for key, name in table.items()]
+        if form.get('default'):
+            out.append(((model(**{form['field']: 'wama_other'}), []),
+                        schema_of[form['default']]))
+        return out
+    return [(_witness(model, form['when_any']), schema_of[form['then']]),
+            (_witness(model, form['when_any'], falsy=True), schema_of[form['else']])]
 
 
 def _witness(model, truthy_fields=(), falsy=False):
@@ -121,12 +146,7 @@ class ElementDomainTest(SimpleTestCase):
                 model = DetailRegistry.get(surface)['model']
                 served = surface_domains(app, surface)
                 form = (DetailRegistry.get(surface).get('spec') or {}).get('params_schema')
-                cases = [(_witness(model), served[0])] if len(served) == 1 else [
-                    (_witness(model, form['when_any']), next(
-                        d for d in served if domain_schema_name(app, d) == form['then'])),
-                    (_witness(model, form['when_any'], falsy=True), next(
-                        d for d in served if domain_schema_name(app, d) == form['else']))]
-                for (element, patches), expected in cases:
+                for (element, patches), expected in _cases(app, model, form, served):
                     with self.subTest(app=app, surface=surface, expected=expected):
                         for p in patches:
                             p.start()
@@ -164,6 +184,69 @@ class TheSettingsOfAnElementAreThoseOfItsDomainTest(SimpleTestCase):
             with self.subTest(surface=surface):
                 self.assertEqual(domain_schema(app, dom),
                                  spec_schema(entry['model'](), entry.get('spec') or {}, surface))
+
+
+def _shared_surfaces():
+    """(app, surface, model, form, served) for every surface that two domains or more share."""
+    out = []
+    for app, decl in sorted(APP_MODES.items()):
+        for surface in sorted({domain_surface(app, d['id']) for d in decl.get('domains', [])}):
+            served = surface_domains(app, surface)
+            if len(served) > 1:
+                entry = DetailRegistry.get(surface)
+                out.append((app, surface, entry['model'],
+                            (entry.get('spec') or {}).get('params_schema'), served))
+    return out
+
+
+class DomainsAreFoundInTheDatabaseTest(TestCase):
+    """The SAME declaration finds a domain's elements in the database (2026-11-01): the queue and
+    the bar of each tab (`app_modes.domain_filter`, `progress_views` without `domains=`). The
+    imager wrote these filters by hand, with its own copy of the list of video modes."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user = User.objects.create_user('domain_filter_owner', password='x')
+
+    def test_the_fleet_has_a_shared_surface_to_measure(self):
+        self.assertTrue(_shared_surfaces(), 'no surface shared by two domains: the guard is empty')
+
+    def test_each_domain_filter_keeps_exactly_the_elements_of_its_domain(self):
+        from wama.common.tests.tests_queue_delete_contract import _instance
+        from wama.common.utils.app_modes import domain_filter
+        for app, surface, model, form, served in _shared_surfaces():
+            with self.subTest(surface=surface):
+                made = {}
+                for (element, _patches), expected in _cases(app, model, form, served):
+                    field = form['field']
+                    saved = _instance(model, self.user, **{field: getattr(element, field)})
+                    made.setdefault(expected, set()).add(saved.pk)
+                    self.assertEqual(expected, element_domain(saved))
+                mine = model.objects.filter(pk__in=set().union(*made.values()))
+                for dom in served:
+                    kept = set(domain_filter(app, dom)(mine).values_list('pk', flat=True))
+                    self.assertEqual(made.get(dom, set()), kept, f'{dom}: wrong elements')
+
+    def test_the_progress_factory_gives_one_bar_per_shared_domain_without_being_told(self):
+        import json
+
+        from wama.common.utils.progress_views import make_progress_views
+        for app, surface, model, _form, served in _shared_surfaces():
+            with self.subTest(surface=surface):
+                views = make_progress_views(work_model=model, app_id=app,
+                                            get_user=lambda request: self.user)
+                payload = json.loads(views['global_progress'](RequestFactory().get('/')).content)
+                self.assertTrue(set(served) <= set(payload), payload)
+
+    def test_a_shared_surface_names_its_domains_by_a_field(self):
+        """`when_any` reads properties, which no query filters: a shared surface that used it
+        would have per-element domains and no queue. The derivation refuses it, saying so."""
+        from wama.common.utils.app_modes import domain_filter
+        for app, surface, _model, form, served in _shared_surfaces():
+            with self.subTest(surface=surface):
+                self.assertTrue(isinstance(form, dict) and form.get('field') and 'map' in form, form)
+                for dom in served:
+                    self.assertTrue(callable(domain_filter(app, dom)))
 
 
 class StartToolFollowsTheSurfaceTest(SimpleTestCase):
