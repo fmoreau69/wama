@@ -72,9 +72,10 @@ modèle) et les encadrés d'information.{% endcomment %}
 {% block enhancer_content %}
 <div style="overflow-x:clip;">
 
-<!-- Onglets de DOMAINE : brique commune WamaModes (schéma app_modes ; conditionnel si >1 domaine).
-     Remplace les nav-tabs hand-written → multi-domaine géré uniformément (réutilisable Imager/Anonymizer). -->
-<div id="enhancerModes" class="mb-4"></div>
+{% comment %}Onglets de DOMAINE : pièce commune (2026-11-01, ROUTE §11 #42 ②) — un onglet par domaine
+déclaré, son nombre d'éléments, le domaine retenu (même clé qu'avant, `enhancerDomain`). Remplace
+l'hôte `#enhancerModes` et le script de bascule (`switchDomain`) que cette page portait.{% endcomment %}
+{% include 'common/_domain_tabs.html' with app='enhancer' %}
 
 <div class="tab-content" id="enhancerTabsContent">
 
@@ -95,8 +96,8 @@ modèle) et les encadrés d'information.{% endcomment %}
 {% url 'enhancer:batch_template' as enhancer_batch_template_url %}
 {% include 'common/_new_item_card_v4.html' with app_id='enhancer' card_domain='image_video' card_id='mediaNewCard' drop_zone_id='dropZoneEnhancer' file_input_id='enhancer-file' folder_input_id='enhancerFolderInput' formats_label='Images · Vidéos' show_batch_bar=True batch_template_url=enhancer_batch_template_url url_input_id='enhancerUrlInput' url_submit_id='enhancerUrlSubmit' url_placeholder='https://… (média distant, page, YouTube)' collapsible=True %}
 
-{# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
-{% include 'common/_global_progress.html' %}
+{# Barre globale + ETA — brique commune, celle du domaine image/vidéo (adresse lue de la déclaration). #}
+{% include 'common/_global_progress.html' with app='enhancer' domain='image_video' queue_id='enhancer-queue' %}
 
 <div class="row">
     <div class="col-12">
@@ -121,16 +122,9 @@ modèle) et les encadrés d'information.{% endcomment %}
 <style>#audioNewCard { --batch-accent:var(--bs-success); --batch-text:var(--wama-text-on-accent); --batch-bg:var(--wama-batch-bar-bg-alt); }</style>
 {% include 'common/_new_item_card_v4.html' with app_id='enhancer' card_domain='audio' card_id='audioNewCard' drop_zone_id='dropZoneAudio' file_input_id='audio-enhancer-file' folder_input_id='audioEnhFolderInput' formats_label='Audio — WAV, MP3, FLAC, M4A…' show_batch_bar=True batch_bid='audioBatch' batch_label='Batch audio' collapsible=True %}
 
-<div id="audioGlobalStatus" style="opacity:0; pointer-events:none;">
-    <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted" id="audioGlobalProgressStats"></small>
-        <small class="text-muted" id="audioGlobalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
-    </div>
-    <div class="wama-progress-track">
-        <div class="wama-progress-fill active" id="audioGlobalProgressBar" style="width:0%"></div>
-    </div>
-    <div style="height:12px;"></div>
-</div>
+{% comment %}La barre du domaine audio : la MÊME pièce, sur la route du domaine (`audio_global_progress`,
+`route_prefix`). Elle était recopiée ici en HTML et démarrée par audio-enhancer.js.{% endcomment %}
+{% include 'common/_global_progress.html' with app='enhancer' domain='audio' queue_id='audio-enhancer-queue' %}
 
 <div class="row">
     <div class="col-12">
@@ -159,7 +153,6 @@ modèle) et les encadrés d'information.{% endcomment %}
       deleteUrlTemplate: '{% url "enhancer:delete" 0 %}',
       downloadUrlTemplate: '{% url "enhancer:download" 0 %}',
       updateSettingsUrlTemplate: '{% url "enhancer:update_settings" 0 %}',
-      globalProgressUrl: '{% url "enhancer:global_progress" %}',
       // Batch URLs
       batchPreviewUrl: '{% url "enhancer:batch_preview" %}',
       batchCreateUrl: '{% url "enhancer:batch_create" %}',
@@ -182,7 +175,6 @@ modèle) et les encadrés d'information.{% endcomment %}
       audioDeleteUrlTemplate: '{% url "enhancer:audio_delete" 0 %}',
       audioDownloadUrlTemplate: '{% url "enhancer:audio_download" 0 %}',
       audioUpdateUrlTemplate: '{% url "enhancer:audio_update" 0 %}',
-      audioGlobalProgressUrl: '{% url "enhancer:audio_global_progress" %}',
       // Audio batch URLs
       audioBatchPreviewUrl: '{% url "enhancer:audio_batch_preview" %}',
       audioBatchCreateUrl: '{% url "enhancer:audio_batch_create" %}',
@@ -208,14 +200,12 @@ modèle) et les encadrés d'information.{% endcomment %}
     été écrite (relevée à `null`). Trois des cinq ancres qu'elle manipulait — `imgActions`,
     `audioActions`, `dropZoneUrl` — n'existent nulle part dans `wama/` ; les deux barres de batch
     restantes vivent DANS les panes, donc basculent avec eux.
-    La bascule réelle est `switchDomain()` plus bas, câblée sur l'`onChange` de WamaModes.
-    Rien n'avait signalé cette mort : des gardes `if (x)` sur des ancres absentes ne lèvent pas.
+    La bascule réelle est celle de la pièce commune `_domain_tabs.html` (`WamaModes.domainTabs`,
+    2026-11-01), qui a remplacé le `switchDomain()` de cette page. Rien n'avait signalé cette mort : des gardes `if (x)` sur des ancres absentes ne lèvent pas.
     {% endcomment %}
 </script>
 {% include 'common/_app_scripts.html' with with_input_match=True with_model_caps=True with_modes=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 <script src="{% static_v 'enhancer/js/index.js' %}"></script>
-<!-- Barre globale commune (balayage permanent + ETA agrégée) : son URL — le composant vient du socle (_app_scripts.html). -->
-<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'enhancer:global_progress' %}";</script>
 <script src="{% static_v 'enhancer/js/audio-enhancer.js' %}"></script>
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 <link rel="stylesheet" href="{% static_v 'common/css/wama-params.css' %}">
@@ -308,43 +298,6 @@ document.addEventListener('DOMContentLoaded', function () {
     (`show_if` engine = Resemble, la même que la modale). ⚠ Déduit, non rejoué : son `resolveKey`
     (`'enhancer:' + v`) recomposait `enhancer:enhancer:resemble` sur les clés entières que sert le
     select depuis la route F4b ⑤ (2026-10-07) — le défaut déjà relevé au synthesizer.{% endcomment %}
-});
-</script>
-<script>
-// Onglets de DOMAINE via WamaModes (brique commune). renderInputs=false : WamaModes rend juste les
-// onglets ; onChange bascule les panes du domaine (image/vidéo ↔ audio), qui contiennent dropzone/
-// réglages/file. Remplace le switch Bootstrap hand-written → multi-domaine uniforme.
-document.addEventListener('DOMContentLoaded', function () {
-    var host = document.getElementById('enhancerModes');
-    if (!host || !window.WamaModes) return;
-    // Bascule par `data-domain` — AUCUNE comparaison à un id de domaine en dur. C'en était une,
-    // `domain === 'media'`, qui a survécu au renommage du domaine `media` → `image_video` (palier 2)
-    // sans lever la moindre erreur : la comparaison rendait `false` pour toujours, donc la page
-    // affichait la file AUDIO alors que l'onglet actif était Image/Vidéo. Le ⚙ d'une card
-    // image/vidéo devenait ainsi invisible — c'est ce que `enhancer.settings` mesurait.
-    // Scoper sur `.tab-pane[data-domain]` et non `[data-domain]` : le palier 2 a posé le même
-    // attribut sur les CARDS, qu'un sélecteur global raflerait.
-    function switchDomain(domain) {
-        // 1) Panes de file (dropzone + barre de batch + file : tout est DANS le pane).
-        document.querySelectorAll('.tab-pane[data-domain]').forEach(function (p) {
-            var actif = (p.dataset.domain === domain);
-            p.classList.toggle('show', actif);
-            p.classList.toggle('active', actif);
-        });
-        // 2) Réglages du VOLET DROIT — hors des panes, d'où un attribut distinct.
-        document.querySelectorAll('[data-domain-settings]').forEach(function (s) {
-            s.style.display = (s.dataset.domainSettings === domain) ? '' : 'none';
-        });
-        try { localStorage.setItem('enhancerDomain', domain); } catch (e) {}
-    }
-    WamaModes.fetch('enhancer').then(function (schema) {
-        var doms = (schema && schema.domains) || [];
-        var initial = localStorage.getItem('enhancerDomain');
-        if (!doms.some(function (d) { return d.id === initial; })) initial = doms[0] && doms[0].id;
-        WamaModes.create({ container: host, schema: schema, renderInputs: false, domain: initial,
-                           onChange: function (s) { switchDomain(s.domain); } });
-        switchDomain(initial);
-    });
 });
 </script>
 <script>

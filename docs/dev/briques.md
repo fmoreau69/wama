@@ -2497,11 +2497,11 @@ data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui li
 
 ### Domaines → modes
 
-Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`)
+Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines rend leurs onglets par la pièce `_domain_tabs.html` (`WamaModes.domainTabs` : volets de file, réglages du volet, domaine retenu, 2026-11-01)
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (19) :
+- **API publique** (21) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs.
@@ -2515,6 +2515,8 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
   - `domain_schema_name(app: str, domain_id: str) -> str` — Le nom du schéma de réglages de ce domaine (`*PARAMS_JSON` du module `params` de l'app),
   - `domain_schema(app: str, domain_id: str) -> list` — Le schéma de réglages de ce domaine : celui qu'il nomme, sinon le principal de l'app.
   - `element_domain(element) -> str | None` — Le domaine d'un ÉLÉMENT, dérivé de ce qui est déjà déclaré : la surface de son modèle
+  - `domain_filter(app: str, domain_id: str)` — Les éléments de ce domaine EN BASE : `callable(queryset) -> queryset`, ou None quand le
+  - `domain_filters(app: str, surface: str) -> dict` — `{domaine: filtre}` des domaines qui PARTAGENT la surface `surface` ({} quand elle n'en sert
   - `accepts(app: str, domain_id: str) -> tuple` — Catégories média (MEDIA_CATEGORIES) que ce domaine prend en ENTRÉE.
   - `domain_for_category(app: str, categorie: str) -> str | None` — Domaine d'une app capable d'accueillir cette catégorie média — base du ROUTAGE d'un
   - `mode_param(app: str, domain_id: str) -> str` — Le param du schéma qui porte le mode de ce domaine ('' si le domaine n'en déclare pas).
@@ -2655,7 +2657,7 @@ Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas d
 
 ### Progression & ETA (front)
 
-Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale
+Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale — la globale lit son adresse de la déclaration (`queue_context`) et démarre seule, une par domaine (2026-11-01)
 
 - **Domicile** : `wama/common/static/common/js/wama-eta.js` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §10](../construction/suivi/PROJECT_STATUS.md)
 

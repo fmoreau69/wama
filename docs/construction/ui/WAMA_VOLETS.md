@@ -584,9 +584,11 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     déclaré) ; des briques déclarées collées se chevauchaient en grandissant et gridstack les
     permutait (d'où des places espacées, que la grille remonte) ; l'option `sizeToContent` de
     gridstack, d'abord posée, n'ajoutait rien à `refit` (sa contre-épreuve restait verte) : retirée.
-  - ⚠ **Limites, connues** : la progression AUDIO de l'enhancer est écrite à la main dans sa page
+  - ⚠ **Limites, connues** : ~~la progression AUDIO de l'enhancer est écrite à la main dans sa page
     (pas `_global_progress.html`) : elle n'est pas une brique et reste au-dessus de la grille sous
-    son onglet ; le gabarit est en cours chez une autre session, à porter avec elle. La jumelle
+    son onglet~~ — soldée le 2026-11-01 (`ROUTE §11 #42` ②, `REMOVAL_LEDGER R196`) : la barre de
+    chaque domaine est la pièce commune, marquée de son domaine (`data-wama-brick-domain`), à
+    l'enhancer (audio) comme à l'imager (vidéo, qui avait la même limite sans qu'elle soit notée). La jumelle
     `translator_01` (bac à sable, non versionnée) rend encore sa file à la main : régénérée, elle
     prend `_queue.html`. Une page sans volet n'a pas de cadenas, donc pas de centre à disposer.
 - ✅ **Les RACCOURCIS CLAVIER attachés aux briques — étapes 0 et 1, 2026-10-29** (demande de Fabien

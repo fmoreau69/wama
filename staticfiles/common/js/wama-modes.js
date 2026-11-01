@@ -70,6 +70,11 @@
         // renderInputs=false : rend SEULEMENT les onglets domaine + switch de mode (l'app garde ses
         // propres champs d'entrée). Utile pour piloter une UI existante sans la dupliquer.
         this.renderInputs = cfg.renderInputs !== false;
+        // modes=false : les onglets de DOMAINE seuls — l'instance de PAGE (`domainTabs`), à côté
+        // de laquelle le switch de mode d'un domaine a sa propre instance (anonymizer).
+        this.renderModes = cfg.modes !== false;
+        // counts : un badge par onglet, le nombre d'éléments du domaine (`wama:domain-stats`).
+        this.counts = cfg.counts ? {} : null;
         // Présentation du switch de mode : couleur Bootstrap (modeVariant ou schéma `domain.variant`,
         // défaut 'secondary') + block (btn-group pleine largeur, comme l'UI Imager d'origine).
         this.modeVariant = cfg.modeVariant || null;
@@ -103,7 +108,7 @@
     WamaModes.prototype._applySections = function () {
         // Seulement quand le mode est un RÉGLAGE déclaré : sans `mode_param`, le switch n'est
         // qu'un affichage et ne décide de rien d'autre sur la page.
-        if (!this._param()) return;
+        if (!this.renderModes || !this._param()) return;
         const mode = this.mode;
         (this.sectionsRoot || document).querySelectorAll('[data-mode-section]').forEach(el => {
             const modes = (el.dataset.modeSection || '').split(/\s+/).filter(Boolean);
@@ -132,14 +137,17 @@
         if (ds.length > 1) {
             html += '<ul class="wm-domains nav nav-tabs mb-3" role="tablist">';
             ds.forEach(d => {
+                const n = this.counts ? this.counts[d.id] : null;
+                const badge = this.counts
+                    ? ` <span class="badge bg-secondary ms-1 wm-domain-count" data-domain-count="${esc(d.id)}">${n == null ? '' : n}</span>` : '';
                 html += `<li class="nav-item" role="presentation">
                     <button type="button" class="nav-link ${d.id === this.domain ? 'active' : ''} wm-domain" data-domain="${d.id}" role="tab">
-                        ${d.icon ? `<i class="fas ${esc(d.icon)} me-1"></i>` : ''}${esc(d.label)}</button></li>`;
+                        ${d.icon ? `<i class="fas ${esc(d.icon)} me-1"></i>` : ''}${esc(d.label)}${badge}</button></li>`;
             });
             html += '</ul>';
         }
         // Switch de MODE (si >1 mode dans le domaine)
-        if (modes.length > 1) {
+        if (this.renderModes && modes.length > 1) {
             if (this.modesLabel) {
                 html += `<label class="form-label text-body-emphasis">${esc(this.modesLabel)}</label>`;
             }
@@ -158,7 +166,7 @@
         // Le champ du RÉGLAGE de mode (si le domaine le déclare) : ce que lisent l'inspecteur,
         // les préférences et `WamaParams` (`options_mode`) — jamais les boutons eux-mêmes.
         const param = this._param();
-        if (param && modes.length > 1) {
+        if (this.renderModes && param && modes.length > 1) {
             html += `<input type="hidden" class="wm-param" name="${esc(param)}" data-param="${esc(param)}" value="${esc(this.mode)}">`;
         }
         // ENTRÉES typées du mode (sautées si renderInputs=false : l'app garde les siennes)
@@ -236,8 +244,75 @@
         return { domain: this.domain, mode: this.mode, inputs: inputs };
     };
 
+    // ── Les DOMAINES d'une page (2026-11-01, ROUTE §11 #42 ②) ─────────────────────────────
+    // Une page à plusieurs domaines rend un ONGLET par domaine déclaré, et chaque onglet montre
+    // ce que la page a rangé sous ce domaine : ses volets de file (`.tab-pane[data-domain]` —
+    // card d'entrée, barre de progression, file) et ses réglages du volet droit
+    // (`[data-domain-settings]`). Le domaine choisi se retient pour l'utilisateur, par app. Avant :
+    // l'enhancer le faisait dans un script de sa page, l'imager par des onglets Bootstrap écrits à
+    // la main et un script de bascule à lui, avec sa propre clé.
+    function storageKey(app) { return app + 'Domain'; }
+
+    /** Montre le domaine `domain` dans `root` (la page) : ses volets de file et ses réglages.
+     *  Par `data-domain`, jamais par un id de domaine écrit dans la page (l'enhancer comparait à
+     *  `'media'`, qui a survécu au renommage en `image_video` : la page montrait la file audio
+     *  sous l'onglet image/vidéo) ; sur `.tab-pane[data-domain]`, jamais `[data-domain]` seul,
+     *  que les CARDS portent aussi. */
+    function showDomain(domain, root) {
+        root = root || document;
+        root.querySelectorAll('.tab-pane[data-domain]').forEach(function (p) {
+            const on = p.dataset.domain === domain;
+            p.classList.toggle('show', on);
+            p.classList.toggle('active', on);
+        });
+        root.querySelectorAll('[data-domain-settings]').forEach(function (s) {
+            s.style.display = s.dataset.domainSettings === domain ? '' : 'none';
+        });
+    }
+
+    /** Les onglets de domaine de la page dans `container` (`data-wama-domain-tabs="<app>"`). */
+    function domainTabs(container) {
+        const app = container.dataset.wamaDomainTabs;
+        if (!app || container._wamaDomainTabs) return;
+        container._wamaDomainTabs = true;
+        return global.WamaModes.fetch(app).then(function (schema) {
+            const ds = (schema && schema.domains) || [];
+            if (ds.length < 2) return null;
+            let initial = null;
+            try { initial = global.localStorage.getItem(storageKey(app)); } catch (e) { /* stockage refusé */ }
+            if (!ds.some(function (d) { return d.id === initial; })) initial = ds[0].id;
+            const wm = new WamaModes({
+                container: container, schema: schema, renderInputs: false, modes: false,
+                counts: true, domain: initial,
+                onChange: function (s) {
+                    showDomain(s.domain);
+                    try { global.localStorage.setItem(storageKey(app), s.domain); } catch (e) { /* idem */ }
+                    document.dispatchEvent(new CustomEvent('wama:domain-change',
+                        { detail: { app: app, domain: s.domain } }));
+                },
+            });
+            // Le compte de chaque domaine vient de SA barre de progression (le serveur compte).
+            document.addEventListener('wama:domain-stats', function (e) {
+                const d = e.detail || {};
+                if (!d.domain || wm.counts[d.domain] === d.total) return;
+                wm.counts[d.domain] = d.total;
+                const badge = container.querySelector('[data-domain-count="' + d.domain + '"]');
+                if (badge) badge.textContent = d.total;
+            });
+            return wm;
+        });
+    }
+
     global.WamaModes = {
         create: function (cfg) { return new WamaModes(cfg); },
         fetch: function (app) { return fetch('/common/api/app-modes/' + app + '/').then(r => r.json()); },
+        domainTabs: domainTabs,
+        showDomain: showDomain,
     };
+
+    function autoInit() {
+        document.querySelectorAll('[data-wama-domain-tabs]').forEach(domainTabs);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', autoInit);
+    else autoInit();
 })(window);

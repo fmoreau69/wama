@@ -120,11 +120,11 @@
 
     document.addEventListener('DOMContentLoaded', function() {
         initializeEventListeners();
-        initializeTabPersistence();
+        // Onglets de domaine et barres de file : pièces communes (`_domain_tabs.html`,
+        // `_global_progress.html`), qui démarrent seules (2026-11-01).
         renderRightPanel();
         initInspector();          // après renderRightPanel : le volet doit exister
         initializeResolutionSelectors();
-        startProgressPolling();
 
         // Flag active processing for file manager (bg-warning = RUNNING status)
         if (document.querySelector('#generationsQueue .badge.bg-warning, #videoGenerationsQueue .badge.bg-warning')) {
@@ -220,47 +220,6 @@
     }
 
 
-    /**
-     * Initialize tab persistence - remember active tab across page reloads
-     */
-    function initializeTabPersistence() {
-        const imageTab = document.getElementById('image-tab');
-        const videoTab = document.getElementById('video-tab');
-        const imageSettings = document.getElementById('imageSettings');
-        const videoSettings = document.getElementById('videoSettings');
-
-        // Restore active tab from localStorage
-        const savedTab = localStorage.getItem('imager_active_tab');
-        if (savedTab === 'video' && videoTab) {
-            // Activate video tab
-            const tab = new bootstrap.Tab(videoTab);
-            tab.show();
-            // Switch settings panel
-            if (imageSettings) imageSettings.style.display = 'none';
-            if (videoSettings) videoSettings.style.display = 'block';
-        }
-
-        // Save tab state when switching
-        if (imageTab) {
-            imageTab.addEventListener('shown.bs.tab', function() {
-                localStorage.setItem('imager_active_tab', 'image');
-                // Switch settings panel
-                if (imageSettings) imageSettings.style.display = 'block';
-                if (videoSettings) videoSettings.style.display = 'none';
-            });
-        }
-
-        if (videoTab) {
-            videoTab.addEventListener('shown.bs.tab', function() {
-                localStorage.setItem('imager_active_tab', 'video');
-                // Switch settings panel
-                if (imageSettings) imageSettings.style.display = 'none';
-                if (videoSettings) videoSettings.style.display = 'block';
-            });
-        }
-    }
-
-
 
     /**
      * Prompt de l'UTILISATEUR pour un champ (et non l'enrichi affiché).
@@ -290,46 +249,16 @@
         updateVideoQueueCount();
     });
 
-    /**
-     * Start polling for progress updates
-     */
-    function startProgressPolling() {
-        // DEUX barres globales SÉPARÉES — une par file : file IMAGES et file VIDÉOS.
-        // On réutilise la fonction commune WamaGlobalProgress (zéro duplication) ; `dataKey`
-        // isole le domaine dans l'endpoint imbriqué {image:{…}, video:{…}}. Chaque barre est
-        // indépendante (sa part de données, ses propres éléments DOM), chacune s'auto-poll.
-        if (window.WamaGlobalProgress) {
-            // File images → IDs par défaut (#globalProgressBar/Stats/Pct, partial commun).
-            // `download` : le ⬇ de CETTE file, que la barre rend prêt dès qu'un élément du domaine
-            // est terminé (règle commune, 2026-10-17).
-            // (Ids tirés du conteneur par la file commune : `<queue_id>-download-all`.)
-            WamaGlobalProgress.init({ url: config.urls.globalProgress, dataKey: 'image',
-                                      download: 'generationsQueue-download-all' });
-            // File vidéos → IDs dédiés de la barre vidéo.
-            WamaGlobalProgress.init({
-                url: config.urls.globalProgress, dataKey: 'video',
-                bar: 'videoGlobalProgressBar', stats: 'videoGlobalProgressStats',
-                pct: 'videoGlobalProgressPct', status: 'videoGlobalStatus', eta: 'videoGlobalEta',
-                download: 'videoGenerationsQueue-download-all',
-            });
-        }
-
-        // Progression PAR-CARTE (cartes en cours) — propre à imager, inchangé.
-        // Polling par card : assuré par queue.js (WamaApp.Poller + refreshCard sur
-        // l'endpoint card_html). Les fonctions de repaint DOM manuel ont été SUPPRIMÉES
-        // avec les cards inline — seules les barres globales restent pilotées ici.
-    }
-
+    // Barres de file : la pièce commune démarre seule, une par domaine (2026-11-01). Progression
+    // PAR CARD : queue.js (WamaApp.Poller + refreshCard sur l'endpoint card_html).
 
     /**
-     * Update image queue count badge
+     * Update image queue count badge (titre de la file ; l'onglet compte par sa barre de file)
      */
     function updateQueueCount() {
         const count = document.querySelectorAll('#generationsQueue [data-id]').length;
         const badge = document.getElementById('queueCount');
-        const tabBadge = document.getElementById('imageQueueCount');
         if (badge) badge.textContent = count;
-        if (tabBadge) tabBadge.textContent = count;
     }
 
     /**
@@ -338,9 +267,7 @@
     function updateVideoQueueCount() {
         const count = document.querySelectorAll('#videoGenerationsQueue [data-id]').length;
         const badge = document.getElementById('videoQueueCountInner');
-        const tabBadge = document.getElementById('videoQueueCount');
         if (badge) badge.textContent = count;
-        if (tabBadge) tabBadge.textContent = count;
     }
 
     /**

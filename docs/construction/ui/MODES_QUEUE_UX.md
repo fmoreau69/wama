@@ -128,6 +128,14 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
   Depuis le 2026-11-01, la même déclaration retrouve les éléments d'un domaine EN BASE
   (`domain_filter`) : la spec désigne le domaine par la valeur d'un champ (imager :
   `generation_mode`), et les barres de file par onglet s'en déduisent.
+- ✅ **La PAGE d'un domaine est faite des pièces communes** (2026-11-01, `ROUTE §11 #42` ②). Les onglets
+  viennent de `common/_domain_tabs.html` (`WamaModes.domainTabs`, sans switch de mode : celui d'un domaine
+  garde sa propre instance) — un onglet par domaine déclaré, le nombre de ses éléments, le domaine retenu
+  par app (`<app>Domain`). Chaque onglet montre ce que la page a rangé sous lui : `.tab-pane[data-domain]`
+  (card d'entrée, barre, file) et `[data-domain-settings]` au volet droit ; la bascule émet
+  `wama:domain-change`. La barre de progression (`_global_progress.html` avec `app`, `domain`,
+  `queue_id`) lit son adresse et sa clé de la déclaration (`queue_context`) et démarre seule : imager et
+  enhancer n'ont plus ni onglets ni barre écrits à la main (`REMOVAL_LEDGER R196`).
 - **Sources d'une entrée fichier = upload OU MÉDIATHÈQUE (déjà en place, composé auto)** : brique commune
   **`MediaPicker`** (`common/js/media-picker.js` + endpoint `media_library:api_list`) ouvre une modale
   filtrée par `asset_type` et renvoie un **`File`** (drop-in de l'upload). Déjà consommée par imager/

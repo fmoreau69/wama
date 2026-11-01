@@ -75,7 +75,7 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
         </h6>
 
         {# Barre de progression globale (toujours visible) — composant commun #}
-        {% include 'common/_global_progress.html' %}
+        {% include 'common/_global_progress.html' with app='avatarizer' %}
 
         {% comment %}Card « Nouvel élément » v4 (2026-09-29, étape 7 du plan (d) — CARD_DESIGN §11.11) :
         un ONGLET PAR PORT, dérivés des modèles MuseTalk — l'AUDIO à dire (port principal : ids
@@ -208,7 +208,6 @@ window.AVATARIZER_CONFIG = {
     mediaUrl:  "{{ MEDIA_URL }}",
     csrfToken: "{{ csrf_token }}",
 };
-window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 </script>
 {% include 'common/_app_scripts.html' with with_input_match=True with_model_caps=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 {% comment %}

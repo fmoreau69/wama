@@ -1,0 +1,17 @@
+{% comment %}
+Les ONGLETS DE DOMAINE d'une page — pièce commune (2026-11-01, ROUTE §11 #42 ②).
+
+PARAMÈTRE
+  app   (requis) nom de l'app : ses domaines se lisent de sa déclaration (`app_modes`), servie
+        par `/common/api/app-modes/<app>/`. `WamaModes.domainTabs` (wama-modes.js, chargé par le
+        socle d'app avec `with_modes=True`) rend un onglet par domaine, avec le nombre de ses
+        éléments, et rien pour une app d'un seul domaine.
+
+CE QUE LA PAGE RANGE SOUS CHAQUE DOMAINE
+  • `<div class="tab-pane fade" data-domain="<domaine>">` — sa card d'entrée, sa barre de
+    progression (`_global_progress.html` avec `domain`), sa file (`_queue.html` avec `domain`) ;
+    le premier volet porte `show active` (rendu avant que le JS ne restaure le domaine retenu) ;
+  • `[data-domain-settings="<domaine>"]` au volet droit — ses réglages.
+Le domaine choisi se retient par utilisateur et par app ; la bascule émet `wama:domain-change`.
+{% endcomment %}
+<div class="wama-domain-tabs mb-4" data-wama-domain-tabs="{{ app }}"></div>

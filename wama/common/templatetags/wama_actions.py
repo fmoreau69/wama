@@ -213,6 +213,11 @@ def queue_context(app, domain=None):
     (l'imager : image et vidéo), le ⬇ se borne au sien par `?domain=` — la lecture de
     `progress_views.download_all`.
 
+    La BARRE DE PROGRESSION de la file (`common/_global_progress.html`, 2026-11-01) lit ici son
+    adresse et sa clé, par la même règle : la route `global_progress` du domaine, et quand les
+    domaines partagent leurs routes, la clé du domaine dans la réponse imbriquée
+    (`progress_views.global_progress`, `{image: {…}, video: {…}}`).
+
     L'icône est celle du domaine, sinon celle de l'app (`app_registry.app_identity`)."""
     from django.urls import reverse
     from wama.common.app_registry import app_identity
@@ -228,13 +233,16 @@ def queue_context(app, domain=None):
 
     download = _url('download_all')
     shared = sum(1 for d in get_domains(app) if not d.get('route_prefix')) > 1
-    if download and domain and not p and shared:
+    narrowed = bool(domain and not p and shared)
+    if download and narrowed:
         download += f'?domain={domain}'
     icon = (get_domain(app, domain).get('icon') if domain else '') or ''
     if icon and ' ' not in icon:        # le domaine la déclare courte (`fa-image`)
         icon = f'fas {icon}'
     return {'start_url': _url('start_all'), 'clear_url': _url('clear_all'),
             'download_url': download,
+            'progress_url': _url('global_progress'),
+            'progress_key': domain if narrowed else '',
             'empty_icon': icon or app_identity(app).get('icon') or 'fas fa-inbox'}
 
 

@@ -108,7 +108,6 @@ def render_index(manifest: dict) -> tuple:
     route_consolidate = resolve_route('consolidate', noms_routes) or 'consolidate'
     route_batch_preview = resolve_route('batch_preview', noms_routes) or 'batch_preview'
     route_batch_template = resolve_route('batch_template', noms_routes) or 'batch_template'
-    route_global_progress = resolve_route('global_progress', noms_routes) or 'global_progress'
     # Item-edit route: an alias counts only if its declared pattern takes `<int:pk>`
     # (`urls_gen.ITEM_ROUTES`, 2026-09-24) — without it no ⚙ opener is emitted.
     motifs_routes = {str(e.get('name') or ''): str(e.get('pattern') or '')
@@ -575,7 +574,9 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
 {{% block {app}_content %}}
 <div style="overflow-x:clip;">
 
-    {{% include 'common/_global_progress.html' %}}
+    {{% comment %}}La barre de file porte son adresse, lue de la déclaration (`queue_context`), et
+    démarre seule (2026-11-01) : le gabarit n'écrit plus `WAMA_GLOBAL_PROGRESS_URL`.{{% endcomment %}}
+    {{% include 'common/_global_progress.html' with app='{app}' %}}
 
     {{% url '{app}:{route_batch_template}' as batch_tpl_url %}}
     {{% comment %}}Card d'entrée v4 (CARD_DESIGN §11.11 B) — DÉRIVÉE de la v3, mêmes ids, mêmes
@@ -615,8 +616,6 @@ des briques communes. On ne déclare donc ici que ce qui est propre à l'app —
 <template id="{app}SettingsFooterTpl">{{% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' %}}</template>
 <template id="{app}BatchSettingsFooterTpl">{{% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' save_label='Appliquer' save_start_label='Appliquer et lancer' %}}</template>
 <script>
-window.WAMA_GLOBAL_PROGRESS_URL = "{{% url '{app}:{route_global_progress}' %}}";
-
 document.addEventListener('DOMContentLoaded', function () {{
     var CSRF = '{{{{ csrf_token }}}}';
 {routes_js}

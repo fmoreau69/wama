@@ -276,9 +276,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Global progress ───────────────────────────────────────────────────────
 
-  // Barre globale AUDIO + bouton « tout télécharger » : pilotés par la fonction commune
-  // WamaGlobalProgress (voir l'init en fin de fichier), qui se rafraîchit seule. Le no-op
-  // `updateAudioGlobalProgress` et ses appels sont retirés le 2026-10-13.
+  // Barre globale AUDIO + bouton « tout télécharger » : pilotés par la pièce commune de la page
+  // (`_global_progress.html`), qui se rafraîchit seule. Le no-op `updateAudioGlobalProgress` et
+  // ses appels sont retirés le 2026-10-13.
 
   // ── Button handlers ───────────────────────────────────────────────────────
 
@@ -350,15 +350,6 @@ document.addEventListener('DOMContentLoaded', function () {
   initAudioImport();
   initButtons();
 
-  // Barre globale AUDIO : réutilise la fonction commune (zéro duplication), endpoint audio dédié.
-  // `download` : le ⬇ de la file audio, que la barre rend prêt dès qu'un élément est terminé
-  // (règle commune ; c'était un `onData` écrit ici, le seul des quatre à lire le compte serveur).
-  if (window.WamaGlobalProgress && cfg.audioGlobalProgressUrl) {
-    WamaGlobalProgress.init({
-      url: cfg.audioGlobalProgressUrl,
-      bar: 'audioGlobalProgressBar', stats: 'audioGlobalProgressStats',
-      pct: 'audioGlobalProgressPct', status: 'audioGlobalStatus', eta: 'audioGlobalEta',
-      download: 'audio-enhancer-queue-download-all',   // `<queue_id>-download-all` (file commune)
-    });
-  }
+  // Barre globale AUDIO : la pièce commune de la page (`_global_progress.html`, domaine audio)
+  // porte son adresse et sa file, et démarre seule (2026-11-01) — elle était initialisée ici.
 });

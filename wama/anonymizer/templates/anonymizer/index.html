@@ -245,7 +245,6 @@ par remplacement d'id côté JS (pattern enhancer). {% endcomment %}
 <script>
 window.WAMA_ANONYMIZER_SCHEMA = {{ params_json|safe }};
 window.WAMA_ANONYMIZER_GROUPS = {{ groups_json|safe }};
-window.WAMA_GLOBAL_PROGRESS_URL = '{% url "anonymizer:global_progress" %}';
 window.WAMA_ANON = {
     uploadUrl:           '{% url "anonymizer:upload" %}',
     consolidateUrl:      '{% url "anonymizer:consolidate" %}',  {# était écrite EN DUR dans upload.js ('/anonymizer/batch/consolidate/') jusqu'au 07/09 #}
@@ -383,7 +382,7 @@ la file n'est pas vide. La DESCRIPTION des objets à flouter reste un réglage d
 
 {% comment %} Barre de progression globale — composant commun (wama-global-progress.js). {% endcomment %}
 <div class="mb-3 mt-3">
-    {% include 'common/_global_progress.html' %}
+    {% include 'common/_global_progress.html' with app='anonymizer' %}
 </div>
 
 <h4 class="mb-2">

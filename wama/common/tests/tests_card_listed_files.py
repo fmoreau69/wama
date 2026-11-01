@@ -39,8 +39,15 @@ class RemovingACardReleasesItsListedFilesTest(TestCase):
         return [name for declared, name in path_list_fields() if declared is model]
 
     def _fleet(self):
-        """Le parc du contrat générique, restreint aux modèles qui déclarent une liste de chemins."""
-        return [entry for entry in self._base._fleet(self) if self._lists_of(entry[3])]
+        """Le parc du contrat générique, restreint aux modèles qui déclarent une liste de chemins.
+
+        Un GÉNÉRATEUR, comme celui qu'il filtre : le contrat connecte le compte de chaque surface
+        juste avant de la rendre. Une liste construite d'avance les connectait tous d'un coup, le
+        dernier gagnait, et une jumelle gardée par le compte développeur (`writer_01`,
+        `composer_01`) recevait le compte standard — 302 (mesuré le 2026-11-01)."""
+        for entry in self._base._fleet(self):
+            if self._lists_of(entry[3]):
+                yield entry
 
     def _witness(self, model, account, folder, el=None):
         """Le témoin du contrat générique, plus UN fichier par liste déclarée — chemin ABSOLU,
@@ -57,7 +64,7 @@ class RemovingACardReleasesItsListedFilesTest(TestCase):
 
     def test_a_path_list_is_declared(self):
         """Non-vacuité : sans liste déclarée dans le parc, les autres tests ne garderaient rien."""
-        self.assertTrue(self._fleet(), 'aucune app de file ne déclare de liste de chemins')
+        self.assertTrue(list(self._fleet()), 'aucune app de file ne déclare de liste de chemins')
 
     def test_every_deletion_gesture_releases_the_listed_files_the_app_owns(self):
         for surface, route, account, model, app_home in self._fleet():

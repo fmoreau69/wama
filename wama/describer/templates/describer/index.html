@@ -45,7 +45,7 @@ Ids dropZone/fileInput/describerFolderInput/media_url/mediaUrlSubmit conservés.
 {% url 'describer:batch_template' as describer_batch_template_url %}
 {% include 'common/_new_item_card_v4.html' with app_id='describer' collapsible=True drop_zone_id='dropZone' file_input_id='fileInput' folder_input_id='describerFolderInput' formats_label='Images · Vidéos · Audio · PDF · DOCX…' batch_template_url=describer_batch_template_url show_batch_bar=True url_input_id='media_url' url_submit_id='mediaUrlSubmit' url_placeholder='https://… ou YouTube' %}
 
-{% include 'common/_global_progress.html' %}
+{% include 'common/_global_progress.html' with app='describer' %}
 
 <!-- Descriptions Queue -->
 <div class="row">
@@ -170,8 +170,6 @@ ré-inclure : double BroadcastChannel → l'exclusivité audio fait taire son pr
 })();
 </script>
 <script src="{% static_v 'describer/js/index.js' %}"></script>
-<!-- Barre globale commune (balayage permanent + ETA agrégée) : son URL — le composant vient du socle (_app_scripts.html). -->
-<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'describer:global_progress' %}";</script>
 <script>
 // Import URL depuis la card d'entrée : réutilise le FORMALISME BATCH commun.
 // L'URL = un batch d'1 ligne → même parseur + consolidation qu'un fichier batch

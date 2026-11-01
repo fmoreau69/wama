@@ -567,9 +567,18 @@ def domain_filter(app: str, domain_id: str):
 
 def domain_filters(app: str, surface: str) -> dict:
     """`{domaine: filtre}` des domaines qui PARTAGENT la surface `surface` ({} quand elle n'en sert
-    qu'un) — ce que la fabrique de progression attend pour une barre par domaine."""
+    qu'un) — ce que la fabrique de progression attend pour une barre par domaine.
+
+    {} aussi quand la spec ne désigne le domaine d'AUCUNE façon (pas de `params_schema`) : ses
+    éléments ne se distinguent pas, la file est une (la jumelle `translator_01`, née d'un
+    manifeste à deux domaines sur un modèle — le générateur ignore encore les domaines,
+    `ROUTE §11 #42` ⑦). Une spec qui les désigne par une forme qu'on ne cherche pas en base lève,
+    elle (`domain_filter`)."""
+    from wama.common.utils.detail_registry import DetailRegistry
     served = surface_domains(app, surface)
     if len(served) <= 1:
+        return {}
+    if ((DetailRegistry.get(surface) or {}).get('spec') or {}).get('params_schema') is None:
         return {}
     return {d: domain_filter(app, d) for d in served}
 

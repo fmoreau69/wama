@@ -67,7 +67,8 @@ class QueueContextTest(SimpleTestCase):
                          queue_context('transcriber')['empty_icon'])
 
     def test_a_missing_route_gives_an_empty_url_never_a_guess(self):
-        self.assertEqual({'start_url': '', 'clear_url': '', 'download_url': ''},
+        self.assertEqual({'start_url': '', 'clear_url': '', 'download_url': '',
+                          'progress_url': '', 'progress_key': ''},
                          {k: v for k, v in queue_context('no_such_app').items() if k != 'empty_icon'})
 
 

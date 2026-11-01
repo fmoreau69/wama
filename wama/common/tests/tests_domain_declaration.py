@@ -248,6 +248,20 @@ class DomainsAreFoundInTheDatabaseTest(TestCase):
                 for dom in served:
                     self.assertTrue(callable(domain_filter(app, dom)))
 
+    def test_domains_the_spec_does_not_tell_apart_have_one_queue(self):
+        """Une spec qui ne désigne le domaine d'AUCUNE façon : ses éléments ne se distinguent pas,
+        une seule barre (la jumelle `translator_01`, deux domaines nés d'un manifeste sur un
+        modèle — sa barre rendait une erreur serveur le jour de l'étape 1). Une spec qui les
+        désigne par une propriété lève toujours, en le disant."""
+        from wama.common.utils.app_modes import domain_filters
+        shared = mock.patch.object(app_modes, 'surface_domains', return_value=['text', 'document'])
+        with shared, mock.patch.object(DetailRegistry, 'get', return_value={'spec': {}}):
+            self.assertEqual({}, domain_filters('twin', 'twin'))
+        by_property = {'spec': {'params_schema': {'when_any': [], 'default': 'X'}}}
+        with shared, mock.patch.object(DetailRegistry, 'get', return_value=by_property):
+            with self.assertRaises(ValueError):
+                domain_filters('twin', 'twin')
+
 
 class StartToolFollowsTheSurfaceTest(SimpleTestCase):
 

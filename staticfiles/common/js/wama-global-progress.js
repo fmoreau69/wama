@@ -3,12 +3,16 @@
  * ===========================================================================
  * Composant inter-apps. Pilote le partial common/_global_progress.html.
  *
- * Apps MONO-domaine (1 barre) — auto-init : poser sur la page
- *   window.WAMA_GLOBAL_PROGRESS_URL = "<endpoint>"
+ * DÉMARRAGE SEUL (2026-11-01, ROUTE §11 #42 ②) : une barre rendue par le partial avec `app`
+ * porte son adresse (`data-progress-url`), sa clé de domaine (`data-progress-key`) et sa file
+ * (`data-progress-queue`) — lues de la déclaration de l'app (`queue_context`). Chaque barre de la
+ * page démarre d'elle-même, une par domaine : aucune page ne l'initialise plus, et aucune ne
+ * recopie la barre d'un second domaine en HTML (l'imager et l'enhancer le faisaient).
  *
- * Apps MULTI-domaines (N barres : imager image/vidéo, enhancer audio…) — réutiliser
- * la MÊME fonction, 1 appel par barre (pas de poller bespoke par app) :
- *   WamaGlobalProgress.init({ url, dataKey, bar, stats, pct, eta, status, interval, download, onData })
+ * Forme d'avant, gardée pour les pages qui n'ont pas été régénérées : une barre sans adresse
+ * démarre sur `window.WAMA_GLOBAL_PROGRESS_URL`, et `init({ url, dataKey, bar, stats, pct, eta,
+ * status, interval, download, onData })` reste l'appel de bas niveau (`root` : l'élément de la
+ * barre, ses parties se trouvent alors par leurs classes `wama-gp-*`).
  *
  * L'endpoint renvoie un JSON tolérant : { total, done|success|completed,
  *   running, failed|failure|error, overall_progress? }  (overall_progress dérivé si absent).
@@ -90,20 +94,38 @@
         });
     }
 
+    // Les ids des éléments de la file `queueId` (les cards portent `data-id`) — l'ETA d'une barre
+    // de domaine est celle de SES cards, pas de toutes celles de la page.
+    function queueIds(queueId) {
+        var queue = queueId && document.getElementById(queueId);
+        if (!queue) return null;
+        var ids = [];
+        Array.prototype.forEach.call(queue.querySelectorAll('[data-id]'), function (el) {
+            if (ids.indexOf(el.dataset.id) < 0) ids.push(el.dataset.id);
+        });
+        return ids;
+    }
+
     function startBar(opts) {
         opts = opts || {};
         var url = opts.url;
-        var bar = document.getElementById(opts.bar || 'globalProgressBar');
+        var root = opts.root || null;
+        function part(id, cls) {
+            return root ? root.querySelector('.' + cls) : document.getElementById(id);
+        }
+        var bar = part(opts.bar || 'globalProgressBar', 'wama-gp-bar');
         if (!url || !bar) return;
 
-        var stats    = document.getElementById(opts.stats || 'globalProgressStats');
-        var pct      = document.getElementById(opts.pct   || 'globalProgressPct');
-        var statusEl = document.getElementById(opts.status || 'globalStatus');
-        var etaId    = opts.eta || 'globalEta';
+        var stats    = part(opts.stats || 'globalProgressStats', 'wama-gp-stats');
+        var pct      = part(opts.pct   || 'globalProgressPct', 'wama-gp-pct');
+        var statusEl = root || document.getElementById(opts.status || 'globalStatus');
+        var etaEl    = part(opts.eta || 'globalEta', 'wama-gp-eta');
         var interval = opts.interval || 1500;
         var dataKey  = opts.dataKey || null;
+        var domain   = opts.domain || dataKey || null;
+        var queueId  = opts.queue || null;
         var onData   = (typeof opts.onData === 'function') ? opts.onData : null;
-        var download = opts.download || null;
+        var download = opts.download || (queueId ? queueId + '-download-all' : null);
         if (download) claimedDownloads.push(download);
         var lastDone = -1;
 
@@ -144,15 +166,27 @@
             // jusqu'à la première désélection (constat Fabien sur converter_01, vrai
             // sur les 10 apps : même course, même code). Le poller ANNONCE donc ses
             // stats ; l'inspecteur ré-affiche si rien n'est sélectionné.
-            var premiereFois = !window.WamaQueueStats;
-            window.WamaQueueStats = { total: total, done: done, running: running, failed: failed };
-            if (premiereFois) {
-                document.dispatchEvent(new CustomEvent('wama:queue-stats'));
+            // Sur une page à plusieurs domaines, la file que l'utilisateur regarde est celle de
+            // l'onglet montré : seule sa barre renseigne les compteurs (les deux barres de
+            // l'imager les écrivaient à tour de rôle).
+            var pane = statusEl && statusEl.closest ? statusEl.closest('.tab-pane[data-domain]') : null;
+            if (!pane || pane.classList.contains('active')) {
+                var firstTime = !window.WamaQueueStats;
+                window.WamaQueueStats = { total: total, done: done, running: running, failed: failed };
+                if (firstTime) {
+                    document.dispatchEvent(new CustomEvent('wama:queue-stats'));
+                }
+            }
+            // Le compte d'un domaine, pour son onglet (`WamaModes.domainTabs`).
+            if (domain) {
+                document.dispatchEvent(new CustomEvent('wama:domain-stats',
+                    { detail: { domain: domain, total: total } }));
             }
 
-            if (window.WamaEta) {
-                var etaEl = document.getElementById(etaId);
-                if (etaEl) window.WamaEta.render(etaEl, window.WamaEta.aggregateAll());
+            if (window.WamaEta && etaEl) {
+                var ids = queueIds(queueId);
+                window.WamaEta.render(etaEl, ids ? window.WamaEta.aggregate(ids)
+                                                 : window.WamaEta.aggregateAll());
             }
 
             if (lastDone >= 0 && done > lastDone) {
@@ -201,9 +235,22 @@
 
     global.WamaGlobalProgress = { init: startBar, setDownloadReady: setDownloadReady };
 
-    // Auto-init de la barre par défaut (apps mono-domaine) si l'URL est posée.
+    // Chaque barre de la page démarre sur l'adresse qu'elle porte ; une barre sans adresse (page
+    // d'avant le 2026-11-01) sur `WAMA_GLOBAL_PROGRESS_URL`.
     function autoInit() {
-        if (window.WAMA_GLOBAL_PROGRESS_URL) startBar({ url: window.WAMA_GLOBAL_PROGRESS_URL });
+        var started = false;
+        Array.prototype.forEach.call(
+            document.querySelectorAll('[data-wama-brick="global_progress"][data-progress-url]'),
+            function (el) {
+                started = true;
+                startBar({ root: el, url: el.dataset.progressUrl,
+                           dataKey: el.dataset.progressKey || null,
+                           domain: el.dataset.progressDomain || null,
+                           queue: el.dataset.progressQueue || null });
+            });
+        if (!started && window.WAMA_GLOBAL_PROGRESS_URL) {
+            startBar({ url: window.WAMA_GLOBAL_PROGRESS_URL });
+        }
     }
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', autoInit);

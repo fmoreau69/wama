@@ -136,8 +136,6 @@ cycle délègue. Pas de « Enregistrer & relancer » : la modale OCR n'en avait 
     {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_label='Enregistrer' %}
 </template>
 <script src="{% static_v 'reader/js/reader.js' %}"></script>
-<!-- Barre globale commune (balayage permanent + ETA agrégée) : son URL — le composant vient du socle (_app_scripts.html). -->
-<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'reader:global_progress' %}";</script>
 {% comment %}Inspecteur contextuel : câblé dans reader.js (initInspector → WamaInspector.initFromSchema),
 où csrfFetch/upsertCard/urlFor sont accessibles. Plus d'init minimal ici (évite le double-init).{% endcomment %}
 <script>
@@ -173,7 +171,7 @@ window._batchImport = WamaBatchImport({
 
     <!-- Global progress bar -->
     {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
-    {% include 'common/_global_progress.html' %}
+    {% include 'common/_global_progress.html' with app='reader' %}
 
     {# La FILE : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20. #}
     {% include 'common/_queue.html' with app='reader' queue_id='queueContainer' batches=batches_list card_template='reader/_item_card.html' card_class='reader-card' meta_template='common/_batch_meta_chips.html' empty_text="File d'attente vide" empty_hint='Importez des documents pour commencer' %}

@@ -2172,9 +2172,13 @@ MECHANISMS = (
               "NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle "
               "d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en "
               "base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode "
-              "est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`)",
+              "est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une "
+              "page à plusieurs domaines rend leurs onglets par la pièce `_domain_tabs.html` "
+              "(`WamaModes.domainTabs` : volets de file, réglages du volet, domaine retenu, "
+              "2026-11-01)",
               'wama/common/utils/app_modes.py', 'docs/construction/ui/MODES_QUEUE_UX.md',
-              annexes=('wama/common/static/common/js/wama-modes.js',)),
+              annexes=('wama/common/static/common/js/wama-modes.js',
+                       'wama/common/templates/common/_domain_tabs.html')),
     Mechanism('app_base_js', 'Socle JS des apps',
               "Plomberie commune file/cards : csrfFetch, urls et `Poller` — LA boucle "
               "d'interrogation du navigateur : jamais deux requêtes en vol, muette en onglet caché "
@@ -2392,7 +2396,9 @@ MECHANISMS = (
               annexes=('wama/common/templates/common/_cycle_button.html',),
               symbol='WamaCycleButton'),    # global de base.html : compté par son symbole
     Mechanism('progress_ui', 'Progression & ETA (front)',
-              "Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale",
+              "Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale — la "
+              "globale lit son adresse de la déclaration (`queue_context`) et démarre seule, une "
+              "par domaine (2026-11-01)",
               'wama/common/static/common/js/wama-eta.js', 'docs/construction/suivi/PROJECT_STATUS.md §10',
               annexes=('wama/common/static/common/js/wama-global-progress.js',
                        'wama/common/templates/common/_global_progress.html',

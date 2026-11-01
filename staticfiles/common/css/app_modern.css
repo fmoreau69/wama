@@ -306,9 +306,7 @@ textarea {
 }
 
 /* === WAMA Global Progress Bar (thin, shimmer) === */
-#globalStatus,
-#videoGlobalStatus,
-#audioGlobalStatus {
+.wama-global-progress {
     transition: opacity 0.4s ease;
 }
 

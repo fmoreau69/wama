@@ -110,7 +110,9 @@ class ItemLifecycleContractTest(TestCase):
             with self.subTest(app=app):
                 self._login_for(app)
                 html = self.client.get(url).content.decode(errors='replace')
-                if 'id="globalProgressBar"' not in html:
+                # La marque de la pièce, pas son id : une barre de domaine a le sien
+                # (`globalProgressBar-<domaine>`, 2026-11-01).
+                if 'data-wama-brick="global_progress"' not in html:
                     continue
                 self.assertIn('common/js/wama-global-progress.js', html,
                               f'{app} montre la barre de file sans charger son composant')

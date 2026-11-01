@@ -237,7 +237,6 @@ window.CONVERTER_APP = {
     groups: {{ groups_json|safe }},   {# groupes 2 colonnes (mécanisme commun, adopté de l'imager 02/09) #}
     engineHelp: {{ engine_help_json|safe }},   {# descriptif moteur par TYPE du job #}
 };
-window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
 </script>
 {% include 'common/_app_scripts.html' %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 {# wama-inspector.css chargé globalement (base.html) #}
@@ -366,7 +365,7 @@ document.addEventListener('DOMContentLoaded', function () {
     {% endif %}
 
     {# Barre de progression globale (toujours visible) — composant commun #}
-    {% include 'common/_global_progress.html' %}
+    {% include 'common/_global_progress.html' with app='converter' %}
 
     {% comment %}Card d'entrée commune, en TÊTE DE FILE (2026-07-10 — alignement reader/composer/
     transcriber/describer ; batch_detect_bar déplacé dedans via show_batch_bar).{% endcomment %}

@@ -83,7 +83,7 @@ comme l'imager et l'avatarizer — le drapeau `primary_import_self` du 03/10 est
 
 {# ── Barre de progression globale : brique COMMUNE (_global_progress + wama-global-progress.js #}
 {# + endpoint composer:global_progress au contrat {total,done,running,failed,overall_progress}). #}
-{% include 'common/_global_progress.html' %}
+{% include 'common/_global_progress.html' with app='composer' %}
 
 {# ── File d'attente : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20 ── #}
 {# Son état vide TOUJOURS rendu et basculé par la brique est l'idiome que le composer avait (audit B4-11). #}
@@ -136,7 +136,6 @@ ce que la modale de lot poste : modèle/durée/format/qualité — le prompt res
     };
     window.COMPOSER_QUEUE_COUNT = {{ active_count }};{# items actifs (amorçage barre globale) #}
 </script>
-<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'composer:global_progress' %}";</script>
 {% include 'common/_app_scripts.html' with with_input_match=True with_model_caps=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 <script>
 // Import batch COMMUN (WamaBatchImport, pattern transcriber) : aperçu serveur dans la detect bar,

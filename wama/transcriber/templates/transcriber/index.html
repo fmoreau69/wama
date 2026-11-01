@@ -156,8 +156,6 @@ par fillDetail.{% endcomment %}
 })();
 </script>
 <script src="{% static_v 'transcriber/js/index.js' %}"></script>
-<!-- Barre globale commune : son URL — le composant (socle _app_scripts.html) démarre au DOMContentLoaded. -->
-<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'transcriber:global_progress' %}";</script>
 <!-- Card « Nouvel élément » : EN TÊTE D'ONGLET, au-dessus de la progression globale (décision
      2026-07-03, comme Imager) — plus de déplacement DOM dans la file. Provisoire jusqu'à la card
      intégrée-miniaturisée (MODES_QUEUE_UX). Look « nouveau » : CSS commun .wama-new-item-card. -->
@@ -212,7 +210,7 @@ ne sont PAS des onglets : ils portent sur une card existante, leur geste est son
 <!-- Barre de progression globale + ETA agrégée — brique commune _global_progress.html.
      Toujours visible ; texte « X/Y terminé · N en cours · N échoué » ; balayage coloré commun
      (.wama-progress-fill.active, app_modern.css) hérité par toutes les apps qui l'incluent. -->
-{% include 'common/_global_progress.html' %}
+{% include 'common/_global_progress.html' with app='transcriber' %}
 
 <!-- Staging (« à valider ») SUPPRIMÉ 2026-06-29 : doublon avec l'inspecteur. Les fichiers ajoutés
      deviennent directement des cards BROUILLON dans la file (config via inspecteur, lancement via Lancer). -->

@@ -2,30 +2,43 @@
 Barre de progression globale de la file d'attente — composant commun WAMA.
 TOUJOURS visible : reste affichée même quand tout est terminé ou la file vide.
 
-IDs standard pilotés par common/js/wama-global-progress.js :
-  #globalStatus  #globalProgressStats  #globalProgressBar  #globalProgressPct
+PARAMÈTRES (2026-11-01, ROUTE §11 #42 ②)
+  app       nom de l'app : l'adresse de la barre se LIT de la déclaration (`queue_context` — la
+            route `global_progress` du domaine, la clé du domaine quand les domaines partagent
+            leurs routes). La barre porte son adresse (`data-progress-url`) et
+            `wama-global-progress.js` la démarre seule : la page n'a plus rien à écrire.
+  domain    (option) le domaine de la barre, sur une page à plusieurs domaines — une barre PAR
+            domaine, dans l'onglet du domaine. Ses identifiants prennent le suffixe `-<domaine>`.
+  queue_id  (option) la file que la barre renseigne : son ⬇ « Télécharger tout »
+            (`<queue_id>-download-all`), son menu ▾, et l'ETA de SES cards. Sans lui, la barre
+            prend les ⬇ que nulle autre ne réclame (une page à une seule file).
 
-Prérequis côté page :
-  - définir window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'app:global_progress' %}"
-  - charger {% static 'common/js/wama-global-progress.js' %}
-  - l'endpoint renvoie un JSON {total, done, running, overall_progress}
+Sans `app`, la barre garde ses identifiants standard (#globalStatus #globalProgressStats
+#globalProgressBar #globalProgressPct #globalEta) et attend `window.WAMA_GLOBAL_PROGRESS_URL` —
+la forme des pages écrites avant le 2026-11-01 (jumelles non régénérées).
 
 Styles .wama-progress-track / .wama-progress-fill : common/css/app_modern.css
 (chargé globalement par base.html → disponible dans toutes les apps).
 
 `data-wama-brick` (2026-10-28, `WAMA_VOLETS §3-ter` étape ④) : une brique du centre de la page ; son
-domaine, sur une page à onglets, est celui des briques de son onglet.
+domaine est celui qu'elle déclare, sinon celui des briques de son onglet.
 {% endcomment %}
-<div id="globalStatus" class="wama-global-progress mb-2" data-wama-brick="global_progress">
+{% load wama_actions %}
+{% if app %}{% queue_context app domain as q %}{% endif %}
+<div id="globalStatus{% if domain %}-{{ domain }}{% endif %}" class="wama-global-progress mb-2" data-wama-brick="global_progress"
+     {% if domain %}data-wama-brick-domain="{{ domain }}" data-progress-domain="{{ domain }}"{% endif %}
+     {% if q.progress_url %}data-progress-url="{{ q.progress_url }}"{% endif %}
+     {% if q.progress_key %}data-progress-key="{{ q.progress_key }}"{% endif %}
+     {% if queue_id %}data-progress-queue="{{ queue_id }}"{% endif %}>
     <div class="d-flex justify-content-between align-items-baseline mb-1">
         <small class="text-muted">
-            <span id="globalProgressStats">0/0 terminé</span>
-            <span class="wama-eta ms-2" id="globalEta"></span>
+            <span id="globalProgressStats{% if domain %}-{{ domain }}{% endif %}" class="wama-gp-stats">0/0 terminé</span>
+            <span class="wama-eta wama-gp-eta ms-2" id="globalEta{% if domain %}-{{ domain }}{% endif %}"></span>
         </small>
-        <small class="text-muted" id="globalProgressPct"
+        <small class="text-muted wama-gp-pct" id="globalProgressPct{% if domain %}-{{ domain }}{% endif %}"
                style="font-variant-numeric: tabular-nums;"></small>
     </div>
     <div class="wama-progress-track">
-        <div class="wama-progress-fill active" id="globalProgressBar" style="width:0%"></div>
+        <div class="wama-progress-fill wama-gp-bar active" id="globalProgressBar{% if domain %}-{{ domain }}{% endif %}" style="width:0%"></div>
     </div>
 </div>

@@ -98,7 +98,7 @@ Le titre reste dans la zone étendue (il nomme l'ENTRÉE ; voix, vitesse et aper
 
 
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
-{% include 'common/_global_progress.html' %}
+{% include 'common/_global_progress.html' with app='synthesizer' %}
 
 <!-- Syntheses Queue -->
 <div class="row">
@@ -174,8 +174,6 @@ son pied, avec le libellé de relance qu'elle portait. La modale écrite dans ce
 {% include 'common/_app_scripts.html' with with_input_match=True with_model_caps=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 <script src="{% static_v 'synthesizer/js/index.js' %}"></script>
-<!-- Barre globale commune (balayage permanent + ETA agrégée) : son URL — le composant vient du socle (_app_scripts.html). -->
-<script>window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'synthesizer:global_progress' %}";</script>
 <script>
 // Schéma de paramètres = UNE déclaration pour toute la page (volet, modale d'item, modale de lot).
 window.SYNTH_PARAMS_SCHEMA = {{ params_json|safe }};

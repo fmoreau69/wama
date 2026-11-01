@@ -47,7 +47,7 @@ Usage, dans le gabarit d'une app :
 <script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>
 <script src="{% static_v 'common/js/wama-import.js' %}"></script>
 
-{# Barre de progression globale de la file (9 apps sur 10 ; inerte sans WAMA_GLOBAL_PROGRESS_URL) #}
+{# Barre de progression globale de la file : chaque barre démarre sur l'adresse qu'elle porte (`_global_progress.html` avec `app`) #}
 <script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 
 {% if with_input_match %}<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>{% endif %}

@@ -22,7 +22,7 @@ HORS SCHÉMA volontairement (widget à présets, pas un champ scalaire) : la RÉ
 Elle reste écrite ici et index.js la greffe dans le groupe « Sortie » — même échappatoire que
 la modale d'item (settings_modal.js, hook `decorate` + groupBody).
 {% endcomment %}
-<div id="imageSettings">
+<div id="imageSettings" data-domain-settings="image">
     <h6 class="text-body-emphasis mb-3 border-bottom border-secondary pb-2">
         <i class="fas fa-image text-primary"></i> Paramètres Image
     </h6>
@@ -80,7 +80,7 @@ la modale d'item (settings_modal.js, hook `decorate` + groupBody).
 </div>
 
 <!-- VIDEO SETTINGS -->
-<div id="videoSettings" style="display: none;">
+<div id="videoSettings" data-domain-settings="video" style="display: none;">
     <h6 class="text-body-emphasis mb-3 border-bottom border-success pb-2">
         <i class="fas fa-film text-success"></i> Paramètres Vidéo
     </h6>
@@ -104,28 +104,15 @@ SÉLECTION, cloné par WamaInspector.{% endcomment %}
 {% endblock %}
 
 {% block imager_content %}
-<!-- Tab Navigation -->
-<ul class="nav nav-tabs mb-4" id="generatorTabs" role="tablist">
-    <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="image-tab" data-bs-toggle="tab" data-bs-target="#imageTab"
-                type="button" role="tab" aria-controls="imageTab" aria-selected="true">
-            <i class="fas fa-image"></i> Images
-            <span class="badge bg-secondary ms-1" id="imageQueueCount">{{ image_generations|length }}</span>
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="video-tab" data-bs-toggle="tab" data-bs-target="#videoTab"
-                type="button" role="tab" aria-controls="videoTab" aria-selected="false">
-            <i class="fas fa-film"></i> Videos
-            <span class="badge bg-secondary ms-1" id="videoQueueCount">{{ video_generations|length }}</span>
-        </button>
-    </li>
-</ul>
+{% comment %}Onglets de DOMAINE : pièce commune (2026-11-01, ROUTE §11 #42 ②) — un onglet par domaine
+déclaré (`app_modes`), son nombre d'éléments, le domaine retenu. Remplace les onglets Bootstrap
+écrits ici et leur script de bascule (index.js, `initializeTabPersistence`).{% endcomment %}
+{% include 'common/_domain_tabs.html' with app='imager' %}
 
 <!-- Tab Content -->
 <div class="tab-content" id="generatorTabsContent">
     <!-- IMAGE TAB -->
-    <div class="tab-pane fade show active" id="imageTab" role="tabpanel" aria-labelledby="image-tab">
+    <div class="tab-pane fade show active" id="imageTab" role="tabpanel" data-domain="image">
 
 {% comment %} Card d'entrée COMMUNE (brique _new_item_card, une instance PAR DOMAINE) — remplace
 le formulaire manuel (~190 lignes). Aucun radio de mode : input_card.js dérive generation_mode
@@ -142,8 +129,8 @@ bouton AJOUTE (la création ne lance rien — règle des deux temps, Étape 3 po
 {% include 'common/_new_item_card_v4.html' with app_id='imager' card_domain='image' card_id='imgNewCard' collapsible=True prompt_input_id='imgPrompt' prompt_rows=2 prompt_placeholder='Décrivez ce que vous voulez générer… (le ✨ traduit et enrichit)' drop_zone_id='imgDropZone' file_input_id='imgFileInput' formats_label='Image de travail' show_batch_bar=True batch_format='prompt|modele|steps|seed' batch_hint='Un prompt par ligne ; en-têtes ou balises -p aussi acceptés (détection automatique).' batch_template_url=batch_tpl_url batch_template_id='imgBatchTemplateLink' match_status_id='imgMatchStatus' url_input_id='imgUrlInput' url_placeholder='https://…/image.jpg' url_hint='Téléchargée au lancement (WAMA_INGEST) ; un fichier joint prime. Mode dérivé : img2img.' primary_btn_id='imgGenerateBtn' primary_btn_label='Ajouter à la file d’attente' primary_btn_icon='fa-plus' %}
 <hr class="border-secondary">
 
-{# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
-{% include 'common/_global_progress.html' %}
+{# Barre globale + ETA — brique commune, celle du domaine image (adresse lue de la déclaration). #}
+{% include 'common/_global_progress.html' with app='imager' domain='image' queue_id='generationsQueue' %}
 
 <!-- Generations Queue -->
 <div class="row">
@@ -164,7 +151,7 @@ leurs routes. {% endcomment %}
     </div><!-- End Image Tab -->
 
     <!-- VIDEO TAB -->
-    <div class="tab-pane fade" id="videoTab" role="tabpanel" aria-labelledby="video-tab">
+    <div class="tab-pane fade" id="videoTab" role="tabpanel" data-domain="video">
 
 {% comment %} Card d'entrée vidéo — même brique v4, domaine vidéo (modèles t2v/i2v) : l'image de
 départ est le même port `work_image` (requise par CogVideoX i2v, optionnelle pour LTX/FastWan) ;
@@ -172,16 +159,9 @@ sa propre voie de lot (`vidBatch`). {% endcomment %}
 {% include 'common/_new_item_card_v4.html' with app_id='imager' card_domain='video' card_id='vidNewCard' collapsible=True prompt_input_id='vidPrompt' prompt_rows=2 prompt_placeholder='Décrivez la vidéo à obtenir… (le ✨ traduit et enrichit)' drop_zone_id='vidDropZone' file_input_id='vidFileInput' formats_label='Image de départ (image → vidéo)' show_batch_bar=True batch_bid='vidBatch' batch_label='Batch vidéo' batch_format='prompt|modele|steps|seed' batch_hint='Un prompt par ligne ; réglages vidéo (durée, fps, résolution) du volet.' batch_template_url=batch_tpl_url batch_template_id='vidBatchTemplateLink' match_status_id='vidMatchStatus' url_input_id='vidUrlInput' url_placeholder='https://…/image.jpg' url_hint='Téléchargée au lancement (WAMA_INGEST) ; un fichier joint prime. Mode dérivé : image → vidéo.' primary_btn_id='vidGenerateBtn' primary_btn_label='Ajouter à la file d’attente' primary_btn_icon='fa-plus' %}
 
 <hr class="border-secondary">
-<div id="videoGlobalStatus" style="opacity:0; pointer-events:none;">
-    <div class="d-flex justify-content-between align-items-baseline mb-1">
-        <small class="text-muted" id="videoGlobalProgressStats"></small>
-        <small class="text-muted" id="videoGlobalProgressPct" style="font-variant-numeric: tabular-nums;"></small>
-    </div>
-    <div class="wama-progress-track">
-        <div class="wama-progress-fill active" id="videoGlobalProgressBar" style="width:0%"></div>
-    </div>
-    <div style="height:12px;"></div>
-</div>
+{% comment %}La barre du domaine vidéo : la MÊME pièce (elle était recopiée ici en HTML, sans ETA,
+sans marque de brique — la grille du centre ne la voyait pas).{% endcomment %}
+{% include 'common/_global_progress.html' with app='imager' domain='video' queue_id='videoGenerationsQueue' %}
 
 <!-- Video Queue -->
 <div class="row">
@@ -279,7 +259,6 @@ media-picker.js est une brique GLOBALE montée par base.html (avant `app_scripts
             start: "{% url 'imager:start' 0 %}",
             restart: "{% url 'imager:restart' 0 %}",
             progress: "{% url 'imager:progress' 0 %}",
-            globalProgress: "{% url 'imager:global_progress' %}",
             download: "{% url 'imager:download' 0 %}",
             delete: "{% url 'imager:delete' 0 %}",
             getSettings: "{% url 'imager:update_settings' 0 %}",   {# même adresse : GET lit, POST enregistre #}
@@ -296,9 +275,8 @@ media-picker.js est une brique GLOBALE montée par base.html (avant `app_scripts
 </script>
 {% include 'common/_app_scripts.html' with with_input_match=True with_modes=True with_prompt_chips=True %}  {# socle JS d'app commun (ROUTE §11 #25) #}
 <link rel="stylesheet" href="{% static_v 'common/css/wama-prompt-chips.css' %}">
-{% comment %}Fonction commune de barre globale, chargée par le socle AVANT index.js (qui appelle
-WamaGlobalProgress.init 2 fois : 1 barre par file, images et vidéos). Pas de
-WAMA_GLOBAL_PROGRESS_URL → pas d'auto-init.{% endcomment %}
+{% comment %}Barres de file : chacune démarre sur l'adresse qu'elle porte (wama-global-progress.js,
+chargé par le socle) — index.js ne les initialise plus (2026-11-01).{% endcomment %}
 <script>
 /* Config de la card d'entrée (input_card.js) — méta d'appariement servie par la vue. */
 window.IMAGER_CARD = {
