@@ -27759,3 +27759,50 @@ Demande de Fabien : « a-t-on laissé des choses de côté ? tout est aligné ? 
   restaurés et vérifiés ; une suite d'autrui lancée dans ces fenêtres a pu voir un FAUX rouge
   (`tests_hf_cache_routing`, « 1 mutation … coqui_backend.py »), signalé à « Portage Apps ». Et
   les commits partiels sans `/commit-partiel` (déjà au §CLÔTURE).
+
+## §CLÔTURE 2026-11-01, « MODÈLES : INSTALLATION RECOMMANDÉE, SUCCESSION, BANCS OFFICIELS, DESCRIPTIONS — puis TIRAGE DE L'ASSISTANT (AA v5, échelle commune, variante servie) » — non poussé — 🔴 relancer gunicorn + workers — 🔚 trancher le sort de la ligne `reader:olmocr` (ci-dessous)
+
+Périmètre : `model_manager` (installeur, succession, bancs, descriptions, sélection) et le chat de
+l'assistant (étiquette du modèle). Domiciles : `PROSPECTION_PIPELINE.md` §Session du 2026-10-29
+(points 1 à 7), `WAMA_QUALITE.md` (ordre des étages), `WAMA_LLM.md` (étiquette), ROADMAP §5.
+
+**Livré (16 commits)** — `6d9b5cc1` installeur RECOMMANDE + désinstallation RETIRE des choix ;
+`d84c401e` succession (`supersede_model`) + R190 (olmOCR v1) ; `4cec68af` revérif ; `233fd35a`
+tableaux officiels (Linagora, auteurs) ; `7f1165bf` `046290eb` `ff9e106b` `9ed0dffe` `45484b4e`
+descriptions (`describe_models`) ; `d4e7ad1e` faux chat du test de dépôt ; `a304adc1` étiquette du
+modèle dans les DEUX densités + indice AA VERSIONNÉ (v5) + sous-indices à échelle unique ;
+`0116608dc` étage « échelle commune » (+ jumeau `best_installed`, `scales` écrites par la synchro) ;
+`1521bdf34` `SERVED_VARIANT` (ILaaS qwen3.8 = « xhigh », mesuré) ; `b925628e5` docs ; `5198374f9`
+docs générées (briques.md = HEAD, ma ligne des mécanismes) ; `86d014382` manifeste du Reader (aide
+v2). Appliqué en base PAR LA ROUTE : `supersede_model`, `sync_models`, `describe_models --apply`
+(63), trois `sync_benchmarks` (30/10 et 31/10).
+
+**Mesuré** : le tirage de l'assistant reste `albert:gemma-4-31b-it` à tous les crans — les bancs
+le placent devant qwen3.8 (Arena 1443 / 1438 ; AA v5 20,1 au 19,7ᵉ centile) ; l'échelle commune ne
+joue pas sur ce lot (trois locaux n'ont qu'une mesure v4). Égalité Albert/ILaaS : Albert, puis
+bascule à saturation — décision de Fabien (c), rien à changer.
+
+**🔴 Décision ouverte (Fabien)** — la ligne `reader:olmocr` (v1, poids retirés) a perdu sa marque
+`uninstalled_at` au sync qui a suivi sa désinstallation et précédé R190 (l'app la déclarait encore,
+comportement documenté `models.py:322`). Elle est donc « écartée » (`superseded`) et non plus
+« désinstallée » : `manifest_export --check` veut recréer son manifeste, et le manifeste d'app du
+Reader la cite encore (`app.py:483` liste toutes les lignes de l'app). La route refuse de la
+re-désinstaller (« pas de poids », `model_installer.py:1777`). Deux voies : reposer la marque en base
+(écriture hors route, non faite sans accord), ou décider qu'une ligne REMPLACÉE sort des `requires`
+de son app (changer `_models`, effet sur tout le corpus).
+
+**⏳ Restes, à cette session** (tous consignés au point 7 de `PROSPECTION_PIPELINE`) : une ligne
+qu'aucune source ne note plus garde sa dernière mesure (le rapport dit « reste NULL ») ; variantes
+servies non déclarées faute de mesure (OpenRouter, Ollama) ; capacité `thinking` absente de la ligne
+ILaaS qwen3.8 ; compar:IA (arène française) à confronter avant tout branchement ; et les restes du
+29/10 (graphes du Studio hors succession, grisage des réglages d'olmOCR-2, sources absentes pour
+agrandissement/profondeur/vidéo/lip-sync, limites de la recommandation d'installation).
+
+**Héritages constatés, à d'autres** : budget de langue « code » MESURÉ 2560 pour 2561 déclaré (un
+identifiant français retiré ailleurs, rien dans mes fichiers — liste nominative vide) ; doc générée
+`WAMA_MECANISMES.md` périmée par le WIP d'autres sessions ; 283 manifestes périmés (WIP d'autrui).
+
+**Contrôles attendus au prochain /reprise** : `check_docs` 0 cassée sur 3689 ; tests de ce
+périmètre 277 OK (dernière écriture de code incluse) + 974 plus tôt (hors deux modules mal nommés,
+relancés : 122 OK) ; `check_redundancy` 100 (aucune dans les fonctions de la session) ;
+`check_skills` 0 défaut. 52 commits non poussés sur `dev` au moment de la clôture (toutes sessions).
