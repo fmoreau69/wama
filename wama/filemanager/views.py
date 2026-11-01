@@ -1301,6 +1301,12 @@ def api_import_to_app(request):
         if isinstance(result, dict) and result.get('path') and 'error' not in result:
             from wama.common.utils.provenance import kind_of, record_origin
             record_origin(result['path'], kind=kind_of(fp), ref=fp, source_path=source_path)
+        # Le DOMAINE qui a reçu le fichier, pour une app qui en a plusieurs : la page de l'app
+        # s'ouvrira sur lui (`WamaSendTo` le retient, `ROUTE §11 #42` ③). La règle de l'importeur.
+        if isinstance(result, dict) and 'error' not in result:
+            from wama.common.utils.app_modes import arrival_domain, has_domain_tabs
+            if has_domain_tabs(target_app):
+                result.setdefault('domain', arrival_domain(target_app, source_path.name))
         return result
 
     results = []
@@ -1406,18 +1412,21 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
 
     `app_label` re-cible une JUMELLE de bac à sable (contrat `importer_for()`) — les 10
     importeurs sont paramétrés le 2026-09-03 : chaque nouvelle jumelle dérive le sien,
-    plus jamais un cas à la fois (converter 30/08, describer 03/09 = 2 occurrences)."""
+    plus jamais un cas à la fois (converter 30/08, describer 03/09 = 2 occurrences).
+
+    Le DOMAINE qui reçoit le fichier est celui de sa nature (`app_modes.arrival_domain`, 2026-11-01
+    — `ROUTE §11 #42` ③) : trois listes d'extensions vivaient ici, plus courtes que celles que le
+    menu « Envoyer vers » offre (`.m4v`, `.avif`, `.aiff`… offerts puis refusés)."""
     from django.apps import apps as django_apps
+    from wama.common.utils.app_modes import arrival_domain, domain_surface, file_nature
     from wama.common.utils.media_paths import reference_or_copy
     from wama.common.utils.user_settings import inputs_by_port
 
-    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic'}
-    video_extensions = {'.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp'}
-    audio_extensions = {'.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma'}
-
     ext = source_path.suffix.lower()
+    domain = arrival_domain(app_label, source_path.name)
 
-    if ext in audio_extensions:
+    # Le domaine qui a SA surface (`audio_enhancer`, son modèle d'élément) : la branche audio.
+    if domain and domain_surface(app_label, domain) != app_label:
         # ── Audio ─────────────────────────────────────────────────────────────
         AudioEnhancement = django_apps.get_model(app_label, 'AudioEnhancement')
 
@@ -1449,7 +1458,7 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
             'path': relative_path,
         }
 
-    elif ext in image_extensions or ext in video_extensions:
+    elif domain:
         # ── Image / Video ─────────────────────────────────────────────────────
         # Réglages de l'auteur, comme au dépôt de la card (`new_enhancement_settings`,
         # 2026-10-13) — la branche audio aussi depuis le 2026-10-28 (`new_audio_settings`).
@@ -1457,7 +1466,7 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
         from wama.enhancer.views import new_enhancement_settings
 
         Enhancement = django_apps.get_model(app_label, 'Enhancement')
-        media_type = 'image' if ext in image_extensions else 'video'
+        media_type = file_nature(app_label, domain, source_path.name)
         dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input/media')
 
         media_info = get_media_info(str(dest_path))
@@ -1493,6 +1502,8 @@ def import_to_imager(source_path, user, app_label='imager'):
     from django.apps import apps as django_apps
     from wama.common.utils.media_paths import reference_or_copy
 
+    from wama.common.utils.app_modes import arrival_domain
+
     ImageGeneration = django_apps.get_model(app_label, 'ImageGeneration')
     ext = source_path.suffix.lower()
 
@@ -1501,7 +1512,10 @@ def import_to_imager(source_path, user, app_label='imager'):
         file_type = 'prompt_file'
         generation_mode = 'file2img'
         subfolder = 'input/prompts'
-    elif ext in ('.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'):
+    # Une image : le domaine de sa nature (`arrival_domain` — le premier déclaré qui la prend,
+    # `image`), comme toute arrivée hors de la card. La liste écrite ici refusait `.tif`, `.heic`,
+    # `.avif`, que le menu « Envoyer vers » offrait.
+    elif arrival_domain(app_label, source_path.name):
         file_type = 'reference_image'
         generation_mode = 'describe2img'  # Default, user can change mode
         subfolder = 'input/references'

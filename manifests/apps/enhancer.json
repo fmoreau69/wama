@@ -1236,6 +1236,9 @@
             "image",
             "video"
           ],
+          "extension_natures": {
+            "gif": "video"
+          },
           "icon": "fa-photo-film",
           "id": "image_video",
           "label": "Image / Vidéo",

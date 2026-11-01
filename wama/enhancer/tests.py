@@ -507,6 +507,10 @@ class MediaRouteHelpersTest(SimpleTestCase):
         self.assertEqual(item2.media_type, '')
         item3 = type('E', (), {'media_type': 'image'})()
         self.assertEqual(_derive_media_type(item3, '/x/a.mp4', 'a.mp4'), [])
+        # Le GIF par la route vidéo, comme aux autres portes (`extension_natures`, 2026-11-01).
+        item4 = type('E', (), {'media_type': ''})()
+        _derive_media_type(item4, '/x/a.gif', 'a.gif')
+        self.assertEqual(item4.media_type, 'video')
 
 
 class RoutesContractTest(SimpleTestCase):

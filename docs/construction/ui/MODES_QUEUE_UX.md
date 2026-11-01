@@ -136,6 +136,13 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
   `wama:domain-change`. La barre de progression (`_global_progress.html` avec `app`, `domain`,
   `queue_id`) lit son adresse et sa clé de la déclaration (`queue_context`) et démarre seule : imager et
   enhancer n'ont plus ni onglets ni barre écrits à la main (`REMOVAL_LEDGER R196`).
+- ✅ **Un fichier arrivé HORS de sa card rejoint le domaine de sa nature** (2026-11-01, `ROUTE §11 #42` ③) —
+  « Envoyer vers », importeurs du gestionnaire de fichiers, outils de l'assistant : `app_modes.arrival_domain`
+  (l'extension que l'app déclare, sa nature commune, le premier domaine déclaré qui l'accepte). Un domaine qui
+  lit une extension autrement le DÉCLARE (`extension_natures` : le GIF de l'enhancer passe par sa route vidéo).
+  La réponse de l'import dit le domaine qui a reçu, et la page de l'app s'ouvre sur lui (« Envoyer vers » le
+  retient, `WamaApp.rememberDomain` — la même clé que les onglets). Un envoi qui en remplit plusieurs laisse le
+  choix de l'utilisateur intact (`REMOVAL_LEDGER R198`).
 - **Sources d'une entrée fichier = upload OU MÉDIATHÈQUE (déjà en place, composé auto)** : brique commune
   **`MediaPicker`** (`common/js/media-picker.js` + endpoint `media_library:api_list`) ouvre une modale
   filtrée par `asset_type` et renvoie un **`File`** (drop-in de l'upload). Déjà consommée par imager/

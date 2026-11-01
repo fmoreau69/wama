@@ -2181,7 +2181,10 @@ MECHANISMS = (
               "est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une "
               "page à plusieurs domaines rend leurs onglets par la pièce `_domain_tabs.html` "
               "(`WamaModes.domainTabs` : volets de file, réglages du volet, domaine retenu, "
-              "2026-11-01)",
+              "2026-11-01) ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE "
+              "(`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un "
+              "domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine "
+              "pour la page de l'app (2026-11-01)",
               'wama/common/utils/app_modes.py', 'docs/construction/ui/MODES_QUEUE_UX.md',
               annexes=('wama/common/static/common/js/wama-modes.js',
                        'wama/common/templates/common/_domain_tabs.html')),

@@ -523,6 +523,23 @@
     setTimeout(function () { if (!detail.handled) global.location.reload(); }, 0);
   });
 
+  // ── Le DOMAINE retenu d'une app (2026-11-01, ROUTE §11 #42 ③) ────────────────────────
+  // La page d'une app à plusieurs domaines s'ouvre sur celui qu'on a choisi la dernière fois
+  // (`WamaModes.domainTabs`) — ou sur celui qui vient de RECEVOIR un fichier envoyé d'ailleurs
+  // (« Envoyer vers », `WamaSendTo`) : un son envoyé à l'enhancer s'y retrouve sous l'onglet
+  // Audio. La clé vit ICI, une fois, parce que les deux briques la lisent et que seule celle-ci
+  // est chargée sur toutes les pages.
+  function domainKey(app) { return app + 'Domain'; }
+
+  function rememberedDomain(app) {
+    try { return global.localStorage.getItem(domainKey(app)); } catch (e) { return null; }
+  }
+
+  function rememberDomain(app, domain) {
+    if (!app || !domain) return;
+    try { global.localStorage.setItem(domainKey(app), domain); } catch (e) { /* stockage refusé */ }
+  }
+
   // ── Lecture exclusive globale (source UNIQUE ; fix transcriber edit.js porté 2026-08-04) ──
   // Démarrer un média met en pause tous les autres <audio>/<video> de la page (cards
   // avatarizer, aperçus du volet droit…). 'play' ne bulle pas → phase de capture.
@@ -1505,6 +1522,8 @@
     normalizeStatus: normalizeStatus,
     statusLabel: statusLabel,
     statusBadge: statusBadge,
+    rememberedDomain: rememberedDomain,
+    rememberDomain: rememberDomain,
   };
 
   // ══ NOTIFICATIONS EN DIRECT (2026-10-03, question de Fabien) ═══════════════════════════════

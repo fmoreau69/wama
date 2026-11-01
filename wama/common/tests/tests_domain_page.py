@@ -210,6 +210,9 @@ class DomainSwitchTest(SimpleTestCase):
         from py_mini_racer import MiniRacer
         self.v8 = MiniRacer()
         self.v8.eval(FAKE_DOM + self.PAGE)
+        # La clé du domaine retenu est celle de la brique globale (`WamaApp.rememberedDomain`).
+        self.v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
+        self.v8.eval('var WamaApp = window.WamaApp;')   # `window` est l'objet global d'une page
         self.v8.eval((JS / 'wama-modes.js').read_text(encoding='utf-8'))
 
     def _js(self, expr):

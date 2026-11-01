@@ -322,16 +322,21 @@ def upload(request):
 
     logger.info(f"Upload by user: {user.username} (ID: {user.id})")
 
-    image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic']
-    video_extensions = ['.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp']
-
     # URL : la SOURCE est enregistrée, le récepteur commun la télécharge dès la création, HORS
     # de la requête (`source_ingest`, 2026-10-13) — même geste que `batch_create`. Une nature
     # connue d'avance hors image/vidéo est refusée ici ; inconnue, le `derive` la pose à l'arrivée.
     if media_url and not file:
+        from urllib.parse import unquote, urlparse
+        from wama.common.utils.app_modes import surface_file_nature
         from wama.common.utils.url_ingest import url_nature
         nature = url_nature(media_url)
-        if nature and nature not in ('image', 'video'):
+        url_path = unquote(urlparse(media_url).path)
+        if os.path.splitext(url_path)[1]:
+            # Un fichier nommé : la même lecture que le dépôt (domaine, `extension_natures`).
+            nature = surface_file_nature('enhancer', 'enhancer', url_path)
+            if not nature:
+                return JsonResponse({'error': 'Format non supporté'}, status=400)
+        elif nature and nature not in ('image', 'video'):
             return JsonResponse({'error': 'Format non supporté'}, status=400)
         enhancement = Enhancement.objects.create(
             user=user, media_type=nature, source_url=media_url,
@@ -344,16 +349,14 @@ def upload(request):
         return JsonResponse({'id': enhancement.id, 'media_type': enhancement.media_type,
                              'source_url': media_url, 'status': enhancement.status})
 
-    # Handle regular file upload
-    # Detect media type
+    # La nature du fichier, lue à la déclaration du domaine que cette porte sert (`app_modes`) —
+    # deux listes d'extensions vivaient ici, qui refusaient `.m4v`, `.avif`… que la zone offrait.
+    from wama.common.utils.app_modes import surface_file_nature
     file_ext = os.path.splitext(file.name)[1].lower()
     logger.info(f"File: {file.name} (extension: {file_ext}, size: {file.size} bytes)")
 
-    if file_ext in image_extensions:
-        media_type = 'image'
-    elif file_ext in video_extensions:
-        media_type = 'video'
-    else:
+    media_type = surface_file_nature('enhancer', 'enhancer', file.name)
+    if not media_type:
         logger.error(f"Unsupported format: {file_ext}")
         return JsonResponse({'error': 'Format non supporté'}, status=400)
 
@@ -651,15 +654,13 @@ def batch_template(request):
 @require_POST
 def batch_preview(request):
     """Parse a batch file (one URL/path per line) and return the list for preview."""
+    from wama.common.utils.app_modes import surface_file_nature
     from wama.common.utils.batch_parsers import batch_media_list_preview_response
-    from wama.common.app_registry import normalize_types
 
     def _enrich(item):
-        # Même geste de classement que `tasks._derive`, défaut différent ('media' ici) :
-        # c'est la POLITIQUE qui diffère, pas la classification.
-        ext_item = item['filename'].rsplit('.', 1)[-1] if '.' in item['filename'] else ''
-        cat = (normalize_types([ext_item]) or [''])[0]
-        item['detected_type'] = cat if cat in ('image', 'video') else 'media'
+        # Même lecture que le dépôt et `tasks._derive` (`surface_file_nature`), défaut différent
+        # ('media' ici) : c'est la POLITIQUE qui diffère, pas la classification.
+        item['detected_type'] = surface_file_nature('enhancer', 'enhancer', item['filename']) or 'media'
 
     return batch_media_list_preview_response(request, item_enricher=_enrich)
 
@@ -667,8 +668,8 @@ def batch_preview(request):
 @require_POST
 def batch_create(request):
     """Parse batch file (URLs/paths), create BatchEnhancement + Enhancement entries."""
+    from wama.common.utils.app_modes import surface_file_nature
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
-    from wama.common.app_registry import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     # Chaque fille naît par la cascade COMMUNE d'un dépôt (2026-10-18) : elle lisait quatre
@@ -682,9 +683,6 @@ def batch_create(request):
 
     if not items:
         return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
-
-    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic'}
-    video_extensions = {'.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp'}
 
     # parse_batch_file_from_request a consommé FILES['batch_file'] : on le re-lit
     # pour l'archiver sur le batch (NameError avant 2026-08-03).
@@ -701,13 +699,9 @@ def batch_create(request):
     for i, item in enumerate(items):
         url_or_path = item['path']
         fname = url_or_path.split('/')[-1].split('\\')[-1] or url_or_path
-        ext_item = '.' + fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
-        if ext_item in image_extensions:
-            media_type = 'image'
-        elif ext_item in video_extensions:
-            media_type = 'video'
-        else:
-            media_type = 'image'  # default
+        # La lecture du dépôt (`surface_file_nature`) ; une ligne sans nature lisible reste une
+        # image, comme avant.
+        media_type = surface_file_nature('enhancer', 'enhancer', fname) or 'image'
 
         enhancement = Enhancement.objects.create(
             **settings_values,
@@ -826,15 +820,14 @@ batch_realign = _bv['batch_realign']
 # Audio Enhancement Views
 # ===========================================================================
 
-# Jeu d'extensions audio : LE commun (`app_registry.AUDIO_EXTENSIONS`), pas une copie.
-# La copie locale qui vivait ici omettait `.aif`/`.aiff` — deux portes (dépôt médiathèque et
-# upload direct) rendaient donc un 400 « Format audio non supporté » sur un fichier que la
-# dropzone (`audio/*`) laissait choisir et que la médiathèque classe en audio. Divergence
-# MUETTE : un sous-ensemble ne lève rien, il refuse. Décodage vérifié avant d'élargir —
-# soundfile (vers qui torchaudio est patché) écrit et relit l'AIFF.
-def _audio_extensions() -> set:
-    from wama.common.app_registry import AUDIO_EXTENSIONS
-    return {e if e.startswith('.') else '.' + e for e in AUDIO_EXTENSIONS}
+# Ce que prend la porte audio : la déclaration du domaine (`app_modes.surface_file_nature`),
+# comme la porte image/vidéo. Une copie locale de la liste omettait `.aif`/`.aiff` — un 400
+# « Format audio non supporté » sur un fichier que la dropzone (`audio/*`) laissait choisir ;
+# divergence MUETTE : un sous-ensemble ne lève rien, il refuse. Décodage vérifié avant
+# d'élargir — soundfile (vers qui torchaudio est patché) écrit et relit l'AIFF.
+def _takes_audio(name) -> bool:
+    from wama.common.utils.app_modes import surface_file_nature
+    return bool(surface_file_nature('enhancer', 'audio_enhancer', name))
 
 
 @require_POST
@@ -861,7 +854,7 @@ def audio_upload(request):
             src, _ = resolve_under_media_root(file_path)
         except (OutsideMediaRoot, FileNotFoundError):
             return JsonResponse({'error': 'Fichier introuvable ou accès refusé'}, status=400)
-        if src.suffix.lower() not in _audio_extensions():
+        if not _takes_audio(src.name):
             return JsonResponse({'error': f'Format audio non supporté : {src.suffix}'}, status=400)
 
         try:
@@ -899,7 +892,7 @@ def audio_upload(request):
     file = received[0]
 
     ext = os.path.splitext(file.name)[1].lower()
-    if ext not in _audio_extensions():
+    if not _takes_audio(file.name):
         return JsonResponse({'error': f'Format audio non supporté : {ext}'}, status=400)
 
     try:

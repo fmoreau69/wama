@@ -121,9 +121,15 @@ pas de `choices`). Garde : `PanelMemoryTest.test_the_assistant_tool_is_born_with
 
 ### Formats Supportés
 
-**Images** : `.jpg`, `.jpeg`, `.png`, `.bmp`, `.tif`, `.tiff`, `.webp`, `.heic`
+Les extensions sont celles de la taxonomie commune (`app_registry.IMAGE_EXTENSIONS`,
+`VIDEO_EXTENSIONS`, `AUDIO_EXTENSIONS`, déclarées à `APP_CATALOG['enhancer']['input_extensions']`)
+— la liste qui vivait ici, et les trois que les portes d'arrivée recopiaient, étaient plus courtes
+(`ROUTE §11 #42` ③, 2026-11-01). Le domaine qui reçoit un fichier est celui de sa nature
+(`app_modes.arrival_domain`) : image ou vidéo → Image / Vidéo, son → Audio.
 
-**Vidéos** : `.mp4`, `.webm`, `.mkv`, `.flv`, `.gif`, `.avi`, `.mov`, `.mpg`, `.qt`, `.3gp`
+**Le GIF passe par la route VIDÉO** : la taxonomie le range en image, mais un GIF animé n'aurait
+que sa première image agrandie par la route image. Le domaine Image / Vidéo le déclare
+(`APP_MODES['enhancer']`, `extension_natures`), et toutes les portes le lisent.
 
 ## 📦 Installation
 

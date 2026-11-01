@@ -24,7 +24,7 @@ from wama.common.utils.detail_registry import DetailRegistry
 #: The vocabulary a declaration may use — a key outside it is read by nothing (the per-mode
 #: `settings` lists were exactly that, and drifted for four months without a signal).
 DOMAIN_KEYS = {'id', 'label', 'icon', 'variant', 'accepts', 'params_schema', 'route_prefix',
-               'mode_param', 'inputs', 'library_natures', 'modes'}
+               'mode_param', 'inputs', 'library_natures', 'extension_natures', 'modes'}
 MODE_KEYS = {'id', 'label', 'icon', 'variant', 'realtime', 'inputs'}
 
 

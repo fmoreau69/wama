@@ -120,13 +120,12 @@ def _audio_engine(ae) -> str:
 
 def _derive_media_type(inst, path, fname):
     """Hook `derive` de l'ingest URL (WAMA_INGEST) : renseigne media_type au téléchargement.
-    CLASSER est le geste du commun (`normalize_types`) ; ce qu'on RETIENT du classement est la
-    politique de l'app — ici image/vidéo, '' pour tout le reste."""
+    La lecture du DÉPÔT (`app_modes.surface_file_nature` : le domaine que sert la surface de
+    l'élément, et sa lecture des extensions) — '' pour ce qu'il ne prend pas."""
     if inst.media_type:
         return []
-    from wama.common.app_registry import normalize_types
-    cat = (normalize_types([os.path.splitext(fname)[1]]) or [''])[0]
-    inst.media_type = cat if cat in ('image', 'video') else ''
+    from wama.common.utils.app_modes import surface_file_nature
+    inst.media_type = surface_file_nature('enhancer', 'enhancer', fname) or ''
     return ['media_type'] if inst.media_type else []
 
 

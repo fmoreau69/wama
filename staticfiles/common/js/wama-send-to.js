@@ -114,6 +114,13 @@
             // elle apparaîtrait sans sa card de lot — et laisse le repli commun recharger la page.
             // Relevé à l'audit du 14/09 : `reader.js` insérait N cards filles orphelines.
             var inBatch = received.length > 1;
+            // Le DOMAINE qui a reçu (dit par le serveur, `app_modes.arrival_domain`) : la page de
+            // l'app s'ouvrira sur lui. Un envoi qui en remplit plusieurs ne change rien au choix.
+            var domains = received.map(function (res) { return res.domain || ''; })
+                .filter(function (d, i, all) { return all.indexOf(d) === i; });
+            if (domains.length === 1 && domains[0] && global.WamaApp && WamaApp.rememberDomain) {
+                WamaApp.rememberDomain(app, domains[0]);
+            }
             received.forEach(function (res) {
                 document.dispatchEvent(new CustomEvent('wama:fileimported', {
                     detail: Object.assign({ imported: true, app: app }, res, { batch: inBatch }),

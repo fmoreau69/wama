@@ -474,16 +474,16 @@ def add_to_enhancer(
                       **params}).items() if name in declared}
 
     # Le fichier est DÉSIGNÉ (2026-09-28) : pointé s'il est dans l'espace de l'utilisateur, jamais
-    # recopié ; format et nature lus au CATALOGUE (`accepts_file`, `category_of_path`), pas dans
-    # une liste d'extensions de plus.
-    from wama.common.app_registry import accepts_file, category_of_path
+    # recopié ; sa nature lue à la déclaration du domaine que sert cet outil
+    # (`app_modes.surface_file_nature`, la lecture du dépôt de la card), pas dans une liste de plus.
+    from wama.common.utils.app_modes import surface_file_nature
     from wama.common.utils.media_paths import InputRefused, designate
     try:
         received = designate(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
-    media_type = category_of_path(received.name)
-    if not accepts_file('enhancer', received.name) or media_type not in ('image', 'video'):
+    media_type = surface_file_nature(app_label, app_label, received.name)
+    if not media_type:
         return {'error': f"Format non supporté pour l'enhancer : {Path(received.name).suffix}"}
 
     try:
@@ -586,14 +586,14 @@ def add_to_audio_enhancer(
               _given({'engine': engine, 'mode': mode, 'denoising_strength': denoising_strength,
                       'quality': quality, **params}).items() if name in declared}
 
-    # Désigné, pointé, nature lue au catalogue (2026-09-28) — cf. `add_to_enhancer`.
-    from wama.common.app_registry import accepts_file, category_of_path
+    # Désigné, pointé, nature lue à la déclaration du domaine (2026-09-28) — cf. `add_to_enhancer`.
+    from wama.common.utils.app_modes import surface_file_nature
     from wama.common.utils.media_paths import InputRefused, designate
     try:
         received = designate(file_path, user, 'enhancer', 'input/audio')
     except InputRefused as e:
         return {'error': str(e)}
-    if not accepts_file('enhancer', received.name) or category_of_path(received.name) != 'audio':
+    if not surface_file_nature('enhancer', 'audio_enhancer', received.name):
         return {'error': f'Format audio non supporté : {Path(received.name).suffix}'}
 
     try:

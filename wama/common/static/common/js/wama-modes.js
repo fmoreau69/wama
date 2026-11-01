@@ -250,8 +250,9 @@
     // card d'entrée, barre de progression, file) et ses réglages du volet droit
     // (`[data-domain-settings]`). Le domaine choisi se retient pour l'utilisateur, par app. Avant :
     // l'enhancer le faisait dans un script de sa page, l'imager par des onglets Bootstrap écrits à
-    // la main et un script de bascule à lui, avec sa propre clé.
-    function storageKey(app) { return app + 'Domain'; }
+    // la main et un script de bascule à lui, avec sa propre clé. La clé est celle de
+    // `WamaApp.rememberedDomain` / `rememberDomain` (chargée sur toutes les pages : « Envoyer
+    // vers » y retient le domaine qui reçoit).
 
     /** Montre le domaine `domain` dans `root` (la page) : ses volets de file et ses réglages.
      *  Par `data-domain`, jamais par un id de domaine écrit dans la page (l'enhancer comparait à
@@ -278,15 +279,14 @@
         return global.WamaModes.fetch(app).then(function (schema) {
             const ds = (schema && schema.domains) || [];
             if (ds.length < 2) return null;
-            let initial = null;
-            try { initial = global.localStorage.getItem(storageKey(app)); } catch (e) { /* stockage refusé */ }
+            let initial = global.WamaApp ? global.WamaApp.rememberedDomain(app) : null;
             if (!ds.some(function (d) { return d.id === initial; })) initial = ds[0].id;
             const wm = new WamaModes({
                 container: container, schema: schema, renderInputs: false, modes: false,
                 counts: true, domain: initial,
                 onChange: function (s) {
                     showDomain(s.domain);
-                    try { global.localStorage.setItem(storageKey(app), s.domain); } catch (e) { /* idem */ }
+                    if (global.WamaApp) global.WamaApp.rememberDomain(app, s.domain);
                     document.dispatchEvent(new CustomEvent('wama:domain-change',
                         { detail: { app: app, domain: s.domain } }));
                 },

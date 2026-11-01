@@ -225,7 +225,7 @@ INPUT_TYPES = {
 
 # ── Schéma par app : domaines → modes ────────────────────────────────────────
 # domaine = {id, label, icon, variant?, accepts, params_schema?, route_prefix?, mode_param?,
-#            inputs?, library_natures?, modes:[…]}
+#            inputs?, library_natures?, extension_natures?, modes:[…]}
 # mode    = {id, label, icon, variant?, realtime?, inputs:[input_type_id]}
 APP_MODES = {
     # ── IMAGER (app de référence — le plus de modes) ─────────────────────────
@@ -268,7 +268,13 @@ APP_MODES = {
         'domains': [
             {'id': 'image_video', 'label': 'Image / Vidéo', 'icon': 'fa-photo-film',
              'variant': 'primary', 'accepts': ('image', 'video'),
-             'params_schema': 'MEDIA_PARAMS_JSON', 'modes': [
+             'params_schema': 'MEDIA_PARAMS_JSON',
+             # Un GIF est une IMAGE pour la taxonomie, ANIMÉE : il passe par la route vidéo, qui
+             # agrandit toutes ses images — la route image n'en lirait que la première
+             # (`README.md` « Vidéos : … `.gif` », aide de l'app). Trois portes le disaient par
+             # leur liste d'extensions, trois autres le rangeaient en image (`file_nature`).
+             'extension_natures': {'gif': 'video'},
+             'modes': [
                 {'id': 'enhance', 'label': 'Amélioration', 'icon': 'fa-wand-magic-sparkles',
                  'inputs': ['work_file']},
             ]},
@@ -595,6 +601,52 @@ def domain_for_category(app: str, categorie: str) -> str | None:
     for d in get_domains(app):
         if categorie in (d.get('accepts') or ()):
             return d.get('id')
+    return None
+
+
+def file_nature(app: str, domain_id: str, path) -> str | None:
+    """La nature d'un fichier DANS ce domaine — la clé que ses routes de backend lisent
+    (`backends.ROUTES`) —, ou None quand le domaine ne le prend pas.
+
+    Trois lectures, toutes déclarées ailleurs : l'extension que l'app accepte (`accepts_file`,
+    la liste que la zone de dépôt et « Envoyer vers » proposent), la nature commune du fichier
+    (`category_of_path`), et ce que le domaine accepte (`accepts`). Le domaine peut LIRE une
+    extension autrement que la taxonomie (`extension_natures` : le GIF animé de l'enhancer passe
+    par sa route vidéo) — une spécificité déclarée, jamais une liste d'extensions de plus."""
+    import os
+
+    from wama.common.app_registry import accepts_file, category_of_path
+    if not accepts_file(app, os.path.basename(str(path or ''))):
+        return None
+    if category_of_path(path) not in accepts(app, domain_id):
+        return None
+    ext = os.path.splitext(str(path or ''))[1].lstrip('.').lower()
+    return (get_domain(app, domain_id).get('extension_natures') or {}).get(ext) \
+        or category_of_path(path)
+
+
+def arrival_domain(app: str, path) -> str | None:
+    """Le domaine qui REÇOIT un fichier arrivé hors de sa card — « Envoyer vers », importeurs du
+    gestionnaire de fichiers, outils de l'assistant (`ROUTE §11 #42` ③) : l'extension que l'app
+    déclare, puis le premier domaine, dans l'ordre déclaré, qui prend sa nature
+    (`domain_for_category`). None : l'app ne le prend pas. L'enhancer le décidait par trois listes d'extensions écrites à la main, qui
+    refusaient ce que le menu offrait (`.m4v`, `.avif`, `.aiff`…)."""
+    import os
+
+    from wama.common.app_registry import accepts_file, category_of_path
+    if not accepts_file(app, os.path.basename(str(path or ''))):
+        return None
+    return domain_for_category(app, category_of_path(path))
+
+
+def surface_file_nature(app: str, surface: str, path) -> str | None:
+    """La nature d'un fichier qui entre par une SURFACE (la vue d'upload d'une famille de routes,
+    l'outil `add_to_<surface>`) : celle du premier des domaines qu'elle sert à le prendre, None
+    sinon — le refus de la porte, lu à la même déclaration que le domaine d'arrivée."""
+    for d in surface_domains(app, surface):
+        nature = file_nature(app, d, path)
+        if nature:
+            return nature
     return None
 
 
