@@ -27721,3 +27721,15 @@ skill (4ᵉ récidive) ; le contrôle a posteriori des recouvrements avec un par
 **Contrôles attendus au prochain /reprise.** `check_docs` : 0 cible cassée ; `doc_facts --check` :
 `mecanismes` et `dev-briques` périmés tant que leur propriétaire n'a pas régénéré ;
 `check_identifier_language` : code 2561 sur HEAD ; tests `wama_data` 965 OK, face_analyzer 26 OK.
+
+## §PASSATION — 2026-11-01, « audit doc ↔ code + défauts de code » → session « Portage Apps »
+
+Transmis par message (demande de Fabien) : ce qui touche son périmètre, détaillé au §CLÔTURE
+2026-10-31→11-01 ci-dessus. ① `BUDGET_CODE` 2561 à baisser à 2560 par le commit de `wama/views.py`
+(travail non commité d'une autre session) ; ② renommage de sept modules de `wama_data` (`5de8b303`,
+correspondance `WAMA_DATA_WORLD §14.2bis`) ; ③ gestes de `WAMA_APP_CONVENTIONS` corrigés (§9.8, §15,
+§21) et états de ROUTE §10.6/§11 ; ④ `SOURCES_NON_RESOLUES` vidée ; ⑤ rouges d'autrui à vérifier
+(jumelles hors porte des voix, `docs/dev/briques.md` / `WAMA_MECANISMES.md` à régénérer,
+`PURE_CHAINABLE`) ; ⑥ `manifests/apps/reader.json` à ré-exporter après `builtin/model.py` ;
+⑦ défauts d'apps non corrigés (enrichissement de l'anonymizer, `localStorage`, CDN, héritage lot →
+élément). Ce qu'elle rapportera se vérifie (`git show --stat`) avant d'être relayé.
