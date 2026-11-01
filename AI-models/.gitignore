@@ -4,18 +4,10 @@
 # This file excludes large AI model files from Git while preserving
 # the directory structure needed for the application to function.
 #
-# Models are downloaded automatically when needed by WAMA.
-#
-# Directory layout:
-#   models/
-#     diffusion/    - Image & Video generation (SD, FLUX, Wan, Hunyuan, etc.)
-#     llm/          - Large Language Models (reserved)
-#     speech/       - TTS & STT (Coqui XTTS, Bark, Whisper, Higgs, VibeVoice)
-#     upscaling/    - Super-resolution (ONNX enhancer models)
-#     vision/       - Detection, Segmentation, Pose (YOLO, SAM)
-#     vision-language/ - Captioning & NLP (BLIP, BART, BERT)
-#   cache/          - HuggingFace download cache
-#   external/       - External tools
+# Les modèles s'installent PAR LA ROUTE (catalogue → `install_from_spec`, AGENTS.md
+# « LIBRAIRIES ET MODÈLES S'INSTALLENT PAR LA ROUTE ») ; rien ne se télécharge « au premier usage ».
+# Arborescence : `models/<domaine>/<famille>/`, déclarée par `MODEL_PATHS` (`wama/settings.py`) ;
+# `cache/` = cache HuggingFace PARTAGÉ (sous-dépendances).
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -49,70 +41,13 @@ xet/
 hub/
 
 # -----------------------------------------------------------------------------
-# models/speech/ - TTS & STT
+# models/<domaine>/ — TOUS les dossiers de domaine, ENTIERS (2026-11-01).
+# L'énumération par famille dérivait (leçon du 2026-08-11 pour vision/, ~14 Go dans git status) :
+# le 2026-11-01, `nlp/`, `ocr/`, `vlm/`, `embedding/` n'étaient pas couverts, ni `speech/phonon/`
+# (config et tokenizer non suivis dans git status). Seul `models/README.md` est versionné sous
+# `models/` ; `models/*/` n'atteint que les SOUS-dossiers.
 # -----------------------------------------------------------------------------
-models/speech/coqui/
-models/speech/bark/
-models/speech/whisper/
-models/speech/higgs/
-models/speech/vibevoice/
-models/speech/deepfilternet/
-models/speech/kokoro/
-models/speech/qwen_asr/
-models/speech/resemble-enhance/
-models/speech/diarization/
-
-# -----------------------------------------------------------------------------
-# models/lipsync/ - Lip sync (MuseTalk…)
-# -----------------------------------------------------------------------------
-models/lipsync/
-
-# -----------------------------------------------------------------------------
-# models/reader/ - Document OCR backends (docTR, olmOCR…)
-# -----------------------------------------------------------------------------
-models/reader/
-
-# -----------------------------------------------------------------------------
-# models/music/ - Music generation
-# -----------------------------------------------------------------------------
-models/music/
-
-# -----------------------------------------------------------------------------
-# models/diffusion/ - Image & Video generation
-# -----------------------------------------------------------------------------
-models/diffusion/stable-diffusion/
-models/diffusion/flux/
-models/diffusion/wan/
-models/diffusion/hunyuan/
-models/diffusion/cogvideox/
-models/diffusion/ltx/
-models/diffusion/mochi/
-models/diffusion/logo/
-
-# -----------------------------------------------------------------------------
-# models/vision/ - Detection, Segmentation, Pose
-# Dossier ENTIER (comme llm/, reader/, music/) : l'énumération par famille dérivait —
-# depth-pro/ et locate-anything/ (chantier LocateAnything, ROADMAP §17) étaient apparus
-# non ignorés (2026-08-11, ~14 Go dans git status).
-# -----------------------------------------------------------------------------
-models/vision/
-
-# -----------------------------------------------------------------------------
-# models/upscaling/ - Super-resolution ONNX models
-# -----------------------------------------------------------------------------
-models/upscaling/
-
-# -----------------------------------------------------------------------------
-# models/vision-language/ - Captioning & NLP
-# -----------------------------------------------------------------------------
-models/vision-language/bart/
-models/vision-language/bert/
-models/vision-language/blip/
-
-# -----------------------------------------------------------------------------
-# models/llm/ - Large Language Models
-# -----------------------------------------------------------------------------
-models/llm/
+models/*/
 
 # -----------------------------------------------------------------------------
 # External tools

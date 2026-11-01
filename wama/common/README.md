@@ -116,8 +116,11 @@ elle lit le **catalogue**.
 (+ point de branchement RAG). Voir `WAMA_LLM.md`.
 
 ### Briques historiques (toujours valides)
-`app_base.html` — blocs : `title`, `extra_scripts`, `app_scripts`, `console_content_id`,
-`console_hint_id`, `console_url`, `app_menu`, `app_content`. · `console.js` (auto-détection
+~~`app_base.html` — blocs : `title`, `extra_scripts`, `app_scripts`, `console_content_id`,
+`console_hint_id`, `console_url`, `app_menu`, `app_content`.~~ *(constat du 2026-11-01, mesuré :
+AUCUN gabarit ne l'étend — ni les apps, ni les jumelles, ni le générateur ; le fichier vit encore
+dans `common/templates/common/`. À ne pas prendre pour base d'une app ; son retrait est à décider.)*
+· `console.js` (auto-détection
 `data-console-url`, refresh 4 s) · `utils/console_utils.py` (`push_console_line`, `get_console_lines`)
 · `media_paths.py` (`upload_to_user_input/output`).
 
