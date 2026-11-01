@@ -27733,3 +27733,29 @@ correspondance `WAMA_DATA_WORLD §14.2bis`) ; ③ gestes de `WAMA_APP_CONVENTION
 `PURE_CHAINABLE`) ; ⑥ `manifests/apps/reader.json` à ré-exporter après `builtin/model.py` ;
 ⑦ défauts d'apps non corrigés (enrichissement de l'anonymizer, `localStorage`, CDN, héritage lot →
 élément). Ce qu'elle rapportera se vérifie (`git show --stat`) avant d'être relayé.
+
+## §REVÉRIFICATION 2026-11-01 (WAMA relancé), « audit doc ↔ code » — seconde passe — `9a79c3db`
+
+Demande de Fabien : « a-t-on laissé des choses de côté ? tout est aligné ? rien réinventé ? »
+- **En service** : service de voix redémarré à 01:17, prêt sans erreur (`logs/tts-service.log`),
+  `/health` 200 — l'amorce `TTS_HOME` tient hors Django (import vérifié sans réglages configurés).
+- **Laissé de côté, ramené** (`9a79c3db`) : `AI-models/.gitignore` ignore tous les dossiers de
+  domaine (`models/*/` ; 10 fichiers de modèles non suivis fuyaient : `nlp/`, `speech/phonon/`) ;
+  `app_base.html` dit orphelin (aucun gabarit ne l'étend — retrait à décider) ; phase 4 de
+  `WAMA_VERIFICATION §6` remesurée : **57** mécanismes de niveau app sans critère.
+- **Laissé de côté, nommé** (en plus du §CLÔTURE) : REMOVAL_LEDGER R58 (`tests_lot` toujours
+  produit par `tests_codegen_lot`) et R27 (🔄, `CATALOG_KEYS` survit) à préciser ; ROUTE P4 ✅ et
+  §11 #8 🔄 à confirmer ; VISION §3.1 « il ne génère pas de code » gardée avec précision ; idiome
+  « compte de test + rôle » recopié dans une douzaine de tests (candidat d'aide de test).
+- **Mesure de la doc** — la passe mécanique de l'audit rejouée sous WSL (même plateforme que le
+  29/10) : doc cassée 1 → 0, fichier cassé 18 → 13, symbole absent du fichier 7 → 1, symbole
+  inconnu 644 → 604 ; **ligne décalée 137 → 155** : les 17 lignes écrites ce jour relevées sont
+  JUSTES à la lecture (listes de renvois et traces datées « au 30/08 … au 2026-10-31 », le script
+  ne compare que le premier renvoi) ; le reste préexiste — d'où la recommandation d'outillage
+  (contrôle de dérive dans `check_docs` ou forme `fichier::symbole`), décision de Fabien.
+- **Réinventé, de ma main** : le harnais de contre-épreuve (script maison qui ÉDITAIT l'arbre
+  partagé, contre `/contre-epreuve §4` du 2026-10-29 : préférer `mock.patch`) — fenêtres de 1 à
+  2 min sur `face_analyzer/views.py`, `tasks.py`, `coqui_backend.py`, `settings.py`, octets
+  restaurés et vérifiés ; une suite d'autrui lancée dans ces fenêtres a pu voir un FAUX rouge
+  (`tests_hf_cache_routing`, « 1 mutation … coqui_backend.py »), signalé à « Portage Apps ». Et
+  les commits partiels sans `/commit-partiel` (déjà au §CLÔTURE).
