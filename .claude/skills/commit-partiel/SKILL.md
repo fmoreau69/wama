@@ -324,6 +324,19 @@ mais c'est défaire son geste dans son dos.
   cherchait son texte ne l'a plus trouvé. ✅ Écrire les fichiers d'outillage en octets ou avec
   `newline='\n'`, et exiger le NOMBRE de fichiers indexés avant de commiter (`[ "$N" = <attendu> ]`).
 
+- 🔴 **2026-10-31 — 4ᵉ récidive SANS avoir ouvert ce skill, sur QUINZE commits** (application de
+  l'audit doc ↔ code, deux autres sessions commitant en parallèle). Script maison : hunks recomposés
+  par numéros ANCIENS (juste), mais `git commit` sur index temporaire après un `[ HEAD = BASE ]` —
+  la fenêtre du piège du 28/09 reste ouverte entre le test et le commit. Elle a joué une fois
+  (abandon propre, HEAD avait bougé) ; rien n'a été défait, mais il a fallu le PROUVER après coup.
+  ✅ **Le contrôle a posteriori qui manquait ici** — pour chaque commit dont le PARENT est d'une
+  autre session : `comm -12` entre ses fichiers et ceux du parent. Vide = rien à défaire possible ;
+  un fichier commun = exiger que les lignes ajoutées par le parent soient dans le blob du commit
+  (`git show <sha>:<f> | grep -cF "<ligne>"` = 1) et absentes des lignes retirées
+  (`git diff <parent> <sha> -- <f> | grep '^-' | grep -cF …` = 0). Le compte de fichiers seul ne
+  le voit pas quand le commit d'autrui touche un fichier qui est aussi le mien.
+  ⭐ *Charger ce skill coûte une lecture ; ne pas le charger a coûté une preuve sur quinze commits.*
+
 ## 4. Docs générées
 
 Un bloc régénéré (`doc_facts`) projette le REGISTRE tel qu'il est dans l'arbre, WIP d'autrui

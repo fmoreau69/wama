@@ -27632,3 +27632,92 @@ Auto et curseur sur Qualité, ou « réunis un council », sur `fabien.moreau` (
 **Artefacts** : les scripts de contre-épreuve et de mesure vivent dans le scratchpad de la session,
 jetables ; les essais réels par l'assistant n'ont rien persisté (aucun fil créé), ils ont consommé
 du quota Albert et ILaaS ; le worktree « prunable » sous `/tmp` n'est pas de cette session.
+
+## §CLÔTURE 2026-10-31→11-01, « AUDIT DOC ↔ CODE APPLIQUÉ (≈650 écarts, 47 docs) + DÉFAUTS DE CODE CORRIGÉS » — non poussé — 🔴 relancer gunicorn, workers ET service de voix — 🔚 trancher les 3 décisions BLOQUANTES ci-dessous
+
+**Périmètre.** L'audit « doc de construction ↔ code » fait le 2026-10-29 par Claude Code web (base
+`origin/dev` `3b497863`, branche `claude/nifty-darwin-qfkqog`) a été récupéré dans `claude/` (dossier
+ignoré par git, non versionné) et appliqué document par document, chaque écart REVÉRIFIÉ sur le code
+du 2026-10-31 avant correction, chaque correction datée « corrigé le 2026-10-31, mesuré : … », aucune
+intention retirée. Puis les défauts de CODE relevés au passage ont été corrigés (décision de Fabien :
+« corriger le code d'abord »), et `/reverif` déroulé.
+
+**Commits (15, tous locaux).**
+- Docs (8) : `d7e5ba36` ROUTE · `c92b39ee` ROADMAP · `c4003a6c` PROJECT_STATUS (« Ordre de reprise »
+  marqué PÉRIMÉ — il renvoyait vers `wama/rag/`) + skill `reprise` · `32e1ea81` CONVENTIONS (§9.8
+  double POST et §15 `os.environ` retirés), VERIFICATION, docs UI · `2fb98fe1` DATA_WORLD (noms D28),
+  MANIFEST_*, VISION, STUDIO, prose de MECANISMES, source du bloc §0 (`wama_data/modules.py`) ·
+  `6a6541dc` AGENTS.md (constats remesurés : RAG livré, `select_model`, `settings_modal_cycle` 10/10,
+  budgets, 113 critères, Wan), CLAUDE.md, README, AI-models READMEs réécrits, exploitation ·
+  `1a8fbc6f` docs IA · `129471cb` cam_analyzer, transcriber, READMEs d'apps.
+- Code (7) : `be0b533e` + `5abb1d16` face_analyzer — le moteur d'émotions choisi en mode VIDÉO
+  atteint enfin la tâche (`views.py:121-123`, `tasks.py:113-114`), un moteur inconnu reste la règle
+  du backend (`emotions.py:203-206`) · `2fd87d92` `TTS_HOME` posé une fois par processus
+  (`settings.py`, amorce de `common/tts/service.py`), plus dans `coqui_backend.load` ; l'export vers
+  `AI-models/synthesizer/tts` (dossier disparu) retiré de `wama_services.sh` — **R193** ·
+  `e628d982` dix commentaires/docstrings remis au code (enrichissement actif par défaut, mémoire
+  appelée, `job_follow_ups`, R79, palette du Studio…) + exemption morte `SOURCES_NON_RESOLUES`
+  vidée · `dbf33cfe` description du Reader (plus de Tesseract/PaddleOCR/EasyOCR) · `5de8b303` sept
+  modules de `wama_data` en anglais (skill `renommage-api`), budget code 2623 → **2561** ·
+  `fc6c4232` DeepFilterNet 3 et `AUDIOCRAFT_CACHE_DIR` consignés (enhancer README, AGENTS.md).
+
+**Preuves mesurées.** Worktree de HEAD (+ renommage) : **1073 tests OK** (wama_data, budgets,
+cam_analyzer, face_analyzer, routage des caches, gabarits générés). Gardes neuves :
+`EmotionBackendReachesTheVideoTaskTest` (3), `CoquiWeightsHomeTest` (3) + `TTS_HOME`/`XDG_DATA_HOME`
+dans `VARS_HF` — contre-épreuves faites, toutes ROUGES sur mutation. `check_docs` : **0 cassée,
+0 périmée sur 3696**. `check_redundancy` : 100 trouvailles, **0 dans les fichiers de la session**.
+Aucun commit n'a défait le travail d'autrui (fichiers des 15 commits = fichiers construits, aucune
+suppression ; les deux recouvrements avec un parent d'autrui — `WAMA_COLLABORATION`, ROUTE §11 #41 —
+vérifiés ligne à ligne). Aucune ligne d'attribution.
+
+**Rouges connus, À AUTRUI (prouvé).**
+- `tests_identifier_language` (arbre de travail) : budget code 2561 déclaré, 2560 mesuré — le −1 est
+  le travail NON COMMITÉ de `wama/views.py` d'une autre session (HEAD en worktree : 2561, vert). La
+  session qui commitera `wama/views.py` baisse `BUDGET_CODE` à 2560 dans son commit.
+- `tests_docs_catalog.DocDeveloppeurTest` 222 ≠ 223 et `tests_doc_plans` : `docs/dev/briques.md` /
+  `WAMA_MECANISMES.md` à régénérer (`doc_facts`) — 223ᵉ mécanisme de `66bb0fef` + travail en cours.
+- `tests_voice_refs` : jumelles `synthesizer_01` / `avatarizer_01` (générées le 31/10 à 03 h, non
+  versionnées) hors de la porte des voix — à régénérer par le générateur.
+- `tests_catalogues…PURE_CHAINABLE` : `shuttle_overtakes` (fonction cam_analyzer d'un autre travail).
+
+**🔴 Décisions BLOQUANTES (rien ne se fait sans Fabien).**
+1. **DeepFilterNet 3 hors de la route** (`enhancer/README.md` §Audio) : pas d'origine figée
+   acceptable par le pilote `files` (officiel = archive dans l'arbre du dépôt ; aucun miroir du Hub
+   aux mêmes octets). Pilote d'ARCHIVE dans la route, ou miroir converti (autre chargeur) ?
+2. **`ROUTE §S`** cité par `AGENTS.md` comme source obligatoire : aucun titre ne porte ce nom.
+   Créer le titre ou réécrire les citations ?
+3. **`AUDIOCRAFT_CACHE_DIR`** posé dans le backend, par modèle (`audiocraft_backend.py:196`,
+   choix ROADMAP §5b) contre la règle d'`AGENTS.md` que la même variable illustre.
+
+**Décisions ouvertes (non bloquantes)** — détail et preuves dans les rapports de l'audit :
+héritage lot → élément (la ⚙ de lot écrase les filles non RUNNING, `batch_views.py:635-687`) ·
+ROADMAP §19.5 (domaine par salon écarté par le code, `domains_for_ui` sans appelant), §24.7 ②,
+§8d 4c · WAMA_QUALITE §7 et Q1 « appliqués de fait » · DATA_WORLD D2/D6, `rolling` comme corpus réel,
+sens d'`authored` (SPEC §6bis.1) · 6 SHA cités sans branche dans PROJECT_STATUS (`2b5b92c5`,
+`32c28606`, `42157a42`, `7b8e9510`, `b24ca53e`, `b75d6b31`) · 7 docs du catalogue sans ligne dans la
+table des domaines d'`AGENTS.md` · `api_manifest_proposals` sans filtre `visible_to` · forme
+`fichier::symbole` ou contrôle de dérive dans `check_docs` (232 renvois décalés à ±12 lignes) ·
+`toggle` de l'alignement du transcriber · table des bascules du cam_analyzer générée depuis `FEATURES` ?
+
+**Restes de code NOMMÉS (non faits).** `WHISPER_CACHE` (`transcriber/utils/model_config.py:232`)
+posé à l'import et lu par rien · identifiants français des CONSOMMATEURS de `wama_data`
+(`apercu_frames(lignes_max=)`, `exporter_frames(regroupement=)`, `lot_depuis_frames`, `wdat.py`…) ·
+deux `validate` exportées en collision (`core/conditions.py`, `view.py`) · enrichissement
+inatteignable dans l'anonymizer (pas de `trigger`) · `localStorage` du reader et du describer ·
+chargements par CDN · `fits_full_gpu` sans appelant (R46) · commentaire « Discord = fournisseur
+local » de `gateway/core.py:202` (travail en cours d'une autre session, non touché) ·
+`manifests/apps/reader.json` : seule la description est commitée, ré-exporter quand
+`manifests/builtin/model.py` (travail d'autrui) le sera.
+
+**Pendings système.** Relancer **gunicorn** (vue face_analyzer, `settings.py`), les **workers**
+et le **service de voix** (`TTS_HOME` ne se pose plus que par eux) · pousser `dev` (44 commits
+locaux au 2026-11-01, ceux d'autres sessions compris) · l'audit vit dans `claude/` (non versionné) ;
+la branche `claude/nifty-darwin-qfkqog` peut être supprimée quand Fabien le décide · scripts de
+la session (découpe de hunks, commit sur index privé, contre-épreuve) dans le scratchpad, jetables.
+
+**Leçon portée dans le rituel** (`/commit-partiel §3`, 2026-10-31) : commits faits SANS charger le
+skill (4ᵉ récidive) ; le contrôle a posteriori des recouvrements avec un parent d'autrui y est écrit.
+
+**Contrôles attendus au prochain /reprise.** `check_docs` : 0 cible cassée ; `doc_facts --check` :
+`mecanismes` et `dev-briques` périmés tant que leur propriétaire n'a pas régénéré ;
+`check_identifier_language` : code 2561 sur HEAD ; tests `wama_data` 965 OK, face_analyzer 26 OK.
