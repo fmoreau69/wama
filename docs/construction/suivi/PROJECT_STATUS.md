@@ -27677,7 +27677,7 @@ vérifiés ligne à ligne). Aucune ligne d'attribution.
 - `tests_docs_catalog.DocDeveloppeurTest` 222 ≠ 223 et `tests_doc_plans` : `docs/dev/briques.md` /
   `WAMA_MECANISMES.md` à régénérer (`doc_facts`) — 223ᵉ mécanisme de `66bb0fef` + travail en cours.
 - `tests_voice_refs` : jumelles `synthesizer_01` / `avatarizer_01` (générées le 31/10 à 03 h, non
-  versionnées) hors de la porte des voix — à régénérer par le générateur.
+  versionnées) hors de la porte des voix — ~~à régénérer par le générateur~~ *(corrigé le 2026-11-01 par « Portage Apps », vérifié : les jumelles n'ont plus de `workers.py` depuis la substitution des tâches du 29/10, ni leurs `tasks.py` ni leurs vues n'appellent `speaker_wav_for` — un TROU DU GÉNÉRATEUR, consigné par elle à ROUTE §11 #41)*.
 - `tests_catalogues…PURE_CHAINABLE` : `shuttle_overtakes` (fonction cam_analyzer d'un autre travail).
 
 **🔴 Décisions BLOQUANTES (rien ne se fait sans Fabien).**
@@ -27729,7 +27729,7 @@ Transmis par message (demande de Fabien) : ce qui touche son périmètre, détai
 (travail non commité d'une autre session) ; ② renommage de sept modules de `wama_data` (`5de8b303`,
 correspondance `WAMA_DATA_WORLD §14.2bis`) ; ③ gestes de `WAMA_APP_CONVENTIONS` corrigés (§9.8, §15,
 §21) et états de ROUTE §10.6/§11 ; ④ `SOURCES_NON_RESOLUES` vidée ; ⑤ rouges d'autrui à vérifier
-(jumelles hors porte des voix, `docs/dev/briques.md` / `WAMA_MECANISMES.md` à régénérer,
+(jumelles hors porte des voix — un trou du générateur, pas une régénération, précisé par elle —, `docs/dev/briques.md` / `WAMA_MECANISMES.md` à régénérer,
 `PURE_CHAINABLE`) ; ⑥ `manifests/apps/reader.json` à ré-exporter après `builtin/model.py` ;
 ⑦ défauts d'apps non corrigés (enrichissement de l'anonymizer, `localStorage`, CDN, héritage lot →
 élément). Ce qu'elle rapportera se vérifie (`git show --stat`) avant d'être relayé.
