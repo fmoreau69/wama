@@ -81,10 +81,10 @@
           },
           {
             "chip": true,
-            "choices": [["presentation", "Présentation"], ["report", "Rapport"], ["page", "Page web"]],
+            "choices": [["presentation", "Présentation"], ["report", "Rapport"], ["page", "Page web"], ["cv", "CV"]],
             "contexts": ["item", "batch", "panel"],
             "default": "presentation",
-            "help": "La nature du document : elle oriente la structure du fond (diapositives, sections, page).",
+            "help": "La nature du document : elle oriente la structure du fond (diapositives, sections, page, curriculum vitæ).",
             "icon": "fa-shapes",
             "label": "Type de document",
             "name": "document_kind",

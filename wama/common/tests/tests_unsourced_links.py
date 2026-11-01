@@ -163,6 +163,25 @@ class InventedTurnTest(TestCase):
         self.assertEqual(['small:4b', 'big:8b'], models)
         self.assertEqual('Aucune tâche en cours.', result['response'])
 
+    def test_a_dev_job_status_written_without_any_tool_is_an_invented_turn(self):
+        """Fil Discord n° 43, 01/11 : « Statut » → `{"job_id": …, "status": "done"}` sans aucun
+        outil, quatre minutes avant la fin réelle de la tâche. Aucun lien : seul l'identifiant
+        de tâche, tiré de l'historique, trahit le résultat cité."""
+        invented = '{\n  "job_id": "20261101-143154-d135ab",\n  "status": "done"\n}'
+
+        def llm(messages, model, *a, **k):
+            return (invented if model == 'small:4b' else 'Je regarde.'), {}
+        result, models = self._turn(llm)
+        self.assertEqual(['small:4b', 'big:8b'], models)
+        self.assertEqual('Je regarde.', result['response'])
+
+    def test_a_job_id_the_user_wrote_has_a_source(self):
+        """Contre-épreuve : l'identifiant vient du message — rien d'inventé."""
+        from wama.common.services.assistant_engine import _unsourced_job_ids
+        text = 'La tâche 20261101-143154-d135ab : je vérifie son état.'
+        self.assertEqual([], _unsourced_job_ids(text, [], message='et 20261101-143154-d135ab ?'))
+        self.assertEqual(['20261101-143154-d135ab'], _unsourced_job_ids(text, []))
+
 
 class ToolLimitTest(TestCase):
     """Ce qui sort de la boucle quand la limite d'outils est atteinte (2026-10-05).

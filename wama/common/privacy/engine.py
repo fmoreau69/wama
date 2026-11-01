@@ -18,6 +18,7 @@ Occulter = remplacer par le libellé du type entre crochets, dans la langue du t
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from typing import Iterable, List, Optional
 
@@ -105,13 +106,28 @@ def _merge(results) -> list:
     return spans
 
 
+#: Un identifiant de CODE — minuscules, chiffres, au moins un souligné (`writer_01`,
+#: `dev_sandbox`). Ni un numéro de pièce, ni de sécurité sociale, ni de compte n'a cette forme.
+_CODE_IDENTIFIER = re.compile(r'[a-z][a-z0-9]*(?:_[a-z0-9]+)+')
+
+
+def _is_code_identifier(text: str, span: dict) -> bool:
+    """Un passage « identifiant » qui n'est qu'un nom de code (2026-11-01, fil Discord n° 43) : la
+    tâche confiée à Claude Code est partie avec `[IDENTIFIANT_1]` à la place de `dev_sandbox`, puis
+    `[IDENTIFIANT_2]` à la place de `writer_01` — Claude Code a dû deviner de quoi on lui parlait.
+    Seul le type ID_NUMBER est concerné : un NOM écrit `jean_dupont` reste une personne."""
+    return (span['entity'] == 'ID_NUMBER'
+            and _CODE_IDENTIFIER.fullmatch(text[span['start']:span['end']].strip(' `\'"')) is not None)
+
+
 def _detect_one(analyzer, text: str, language: str, entities, threshold) -> list:
     if not (text or '').strip():
         return []
     results = analyzer.analyze(text=text, language=language,
                                entities=list(entities) if entities else None,
                                score_threshold=threshold)
-    return [s for s in _merge(results) if s['entity'] in ENTITY_TYPES]
+    return [s for s in _merge(results)
+            if s['entity'] in ENTITY_TYPES and not _is_code_identifier(text, s)]
 
 
 def _detectors_for(language: str, detectors: Optional[Iterable[str]]) -> tuple:

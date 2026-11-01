@@ -74,6 +74,27 @@ class FinishedJobIsAnnouncedOnceTest(TestCase):
         dev_tools.notify_finished_jobs()
         self.assertEqual('Le builder du reader est déclaré dans apps.py.', self._notes().get().body)
 
+    def test_a_claude_code_write_job_says_there_is_nothing_to_validate_before_the_cut(self):
+        """2026-11-01, fil n° 43 : le rapport coupé avait perdu « relancer gunicorn », et le
+        modèle a inventé une proposition « à valider en base ». La note passe AVANT la coupure."""
+        long_answer = 'Le Writer est joignable. ' + 'détail ' * 600 + 'Relancer gunicorn.'
+        answer = json.dumps({'result': long_answer, 'total_cost_usd': 0.9, 'modelUsage': {}})
+        _job(self.tmp, '20261101-143154-d135ab', 'dev_follow', log=answer, tool='claude_code:write')
+        dev_tools.notify_finished_jobs()
+        body = self._notes().get().body
+        self.assertTrue(body.startswith(dev_tools.CLAUDE_CODE_WRITE_NOTE))
+        self.assertIn('rapport tronqué', body)
+        status = dev_tools.dev_job_status(self.user, '20261101-143154-d135ab')
+        self.assertEqual(dev_tools.CLAUDE_CODE_WRITE_NOTE, status['next_step'])
+
+    def test_a_read_only_claude_code_job_carries_no_such_note(self):
+        """Contre-épreuve : sans écriture, rien n'a bougé dans le dépôt — la note serait fausse."""
+        answer = json.dumps({'result': 'Rien à signaler.', 'total_cost_usd': 0.1, 'modelUsage': {}})
+        _job(self.tmp, '20261101-150000-dddddd', 'dev_follow', log=answer, tool='claude_code')
+        dev_tools.notify_finished_jobs()
+        self.assertEqual('Rien à signaler.', self._notes().get().body)
+        self.assertNotIn('next_step', dev_tools.dev_job_status(self.user, '20261101-150000-dddddd'))
+
 
 class ChannelFollowUpOfADevJobTest(TestCase):
     """La fin d'une tâche de dev revient dans le fil Discord qui l'a lancée."""

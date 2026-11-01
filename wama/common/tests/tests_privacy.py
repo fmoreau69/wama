@@ -127,6 +127,33 @@ class MergeAndOccultTest(SimpleTestCase):
         self.assertEqual(0, detections.count(fixed))
 
 
+class CodeIdentifierTest(SimpleTestCase):
+    """Discord thread n° 43, 2026-11-01 : a development task left for Claude Code with
+    `[IDENTIFIANT_2]` in place of `writer_01` — a detector read the app's code name as an ID
+    number. A lowercase snake_case name is not personal data ; a person is still a person."""
+
+    def _found(self, text, results):
+        from presidio_analyzer import RecognizerResult
+        from wama.common.privacy.engine import _detect_one
+        analyzer = mock.Mock()
+        analyzer.analyze.return_value = [
+            RecognizerResult(entity, text.index(value), text.index(value) + len(value), 0.9,
+                             recognition_metadata={'recognizer_name': 'model'})
+            for value, entity in results]
+        return [text[s['start']:s['end']] for s in _detect_one(analyzer, text, 'fr', None, None)]
+
+    def test_a_code_name_read_as_an_id_number_is_not_hidden(self):
+        text = 'Le Writer existe en bac à sable sous `writer_01`, créé par dev_sandbox.'
+        self.assertEqual([], self._found(text, [('writer_01', 'ID_NUMBER'),
+                                                ('dev_sandbox', 'ID_NUMBER')]))
+
+    def test_a_real_id_number_and_a_person_written_like_code_are_still_hidden(self):
+        """Counter-proof : the exemption is the code SHAPE under the ID type, nothing wider."""
+        text = 'Passeport 12AB34567, dossier de jean_dupont.'
+        self.assertEqual(['12AB34567', 'jean_dupont'],
+                         self._found(text, [('12AB34567', 'ID_NUMBER'), ('jean_dupont', 'PERSON')]))
+
+
 class UnavailableDetectorTest(SimpleTestCase):
 
     def test_a_detector_that_cannot_load_is_named_and_the_analyzer_not_kept(self):

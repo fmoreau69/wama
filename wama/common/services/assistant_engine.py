@@ -1127,6 +1127,12 @@ _URL_IN_TEXT = re.compile(r'(?:https?://|/media/)[^\s)\]>"\'`]+')
 _UNSOURCED_MARK = '(lien non vérifié — retiré)'
 
 
+def _turn_sources(tool_steps: list, message: str = '') -> str:
+    """Ce dont une réponse peut tirer un résultat : les résultats d'outils DE CE TOUR et le
+    message de l'utilisateur — jamais l'historique (cf. `_strip_unsourced_urls`)."""
+    return json.dumps(tool_steps or [], ensure_ascii=False) + '\n' + (message or '')
+
+
 def _strip_unsourced_urls(text: str, tool_steps: list, message: str = '',
                           removed: list = None) -> str:
     """Retire d'une réponse les URL dont AUCUN résultat d'outil de ce tour n'a parlé.
@@ -1151,7 +1157,7 @@ def _strip_unsourced_urls(text: str, tool_steps: list, message: str = '',
     """
     if not text:
         return text
-    sources = json.dumps(tool_steps or [], ensure_ascii=False) + '\n' + (message or '')
+    sources = _turn_sources(tool_steps, message)
 
     if removed is None:
         removed = []
@@ -1188,6 +1194,24 @@ def _strip_unsourced_urls(text: str, tool_steps: list, message: str = '',
     return text
 
 
+def _unsourced_job_ids(text: str, tool_steps: list, message: str = '') -> list:
+    """Les identifiants de tâche de développement qu'une réponse cite sans qu'aucun résultat
+    d'outil de ce tour ni le message n'en parle — le signal de `_invented_turn`, au même titre
+    qu'un lien sans source.
+
+    ⚠⚠ LE DÉFAUT MESURÉ (2026-11-01, fil Discord n° 43, `ilaas:qwen-3.6-35b-instruct`). Deux
+    tours SANS AUCUN outil ont répondu par un objet JSON tiré de l'historique : « Statut » →
+    `{"job_id": …, "status": "done"}` quatre minutes AVANT la fin réelle de la tâche, puis « je
+    valide » → `{"job_id": …, "action": "validate_and_apply"}`, une action qui n'existe pas.
+    Aucun lien, donc `_strip_unsourced_urls` restait muet."""
+    if not text:
+        return []
+    from wama.common.services.dev_tools import JOB_ID_FORM
+    sources = _turn_sources(tool_steps, message)
+    return [job for job in dict.fromkeys(re.findall(rf'\b{JOB_ID_FORM}\b', text))
+            if job not in sources]
+
+
 #: Ce que dit un tour inventé qu'aucun modèle plus fort ne peut reprendre. Remplace TOUTE la
 #: réponse : un « c'est terminé » sans outil est faux en entier, pas seulement son lien.
 _INVENTED_TURN_NOTICE = (
@@ -1208,7 +1232,8 @@ def _invented_turn(user, message, *, provider, llm_model, local, etiquette, tota
     l'utilisateur a pris pour un lien de téléchargement cassé. Retirer l'adresse ne suffit pas
     quand c'est la phrase entière qui est fausse.
 
-    Le signal est MESURÉ, pas deviné dans la langue : aucun `tool_step` ET un lien sans source.
+    Le signal est MESURÉ, pas deviné dans la langue : aucun `tool_step` ET un lien sans source,
+    ou un identifiant de tâche de développement sans source (`_unsourced_job_ids`, 2026-11-01).
     Un tour sans outil qui ne cite aucun résultat (« bonjour », une explication) n'est pas visé.
 
     Remède, dans cet ordre : reprendre UNE fois le tour avec un modèle plus fort
@@ -2499,6 +2524,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
             removed = []
             clean_text = _strip_unsourced_urls(_math_symbols_to_text(_strip_think_tags(text)),
                                                tool_steps, message, removed=removed)
+            if not tool_steps:
+                removed += _unsourced_job_ids(clean_text, tool_steps, message)
             if removed and not tool_steps and user is not None:
                 return _invented_turn(user, message, provider=provider, llm_model=llm_model,
                                       local=local, etiquette=etiquette, total_usage=total_usage,

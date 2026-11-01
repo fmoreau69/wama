@@ -1885,6 +1885,93 @@ def add_to_converter(user, *args, **kwargs):
 
 
 @tool_effect(WRITE)
+def add_to_writer_01(
+    user,
+    prompt: str = '',
+    reference_document: str = '',
+    reference_layout: str = '',
+    document_kind: str = None,
+    output_format: str = None,
+    style_instruction: str = None,
+    language: str = None,
+    model: str = None,
+    app_label: str = 'writer_01',
+    **params,
+) -> dict:
+    """
+    Add a document to the Writer queue (bac à sable `writer_01`) — it is written by an LLM from
+    a brief and an optional reference document, then laid out. Born like a card deposit; it is
+    NOT started: call `start_writer_01`, then `get_writer_01_status` / `get_item_result`.
+
+    Args:
+        user:               Django User instance
+        prompt:             What the document must say and for whom (port `prompt`) — or give
+                            `reference_document`
+        reference_document: Path (from find_user_files) of the document to rely on
+                            (TXT/MD/HTML/PDF/DOCX; port `reference_document`)
+        reference_layout:   Path (from find_user_files) of a document whose FORM to follow
+                            (port `reference_layout`)
+        document_kind:      'presentation' | 'report' | 'page' | 'cv'
+        output_format:      output format ('html')
+        style_instruction:  the form wanted, in words ("sober style…")
+        language:           'fr' | 'en'
+        model:              'auto' or a catalogue key
+        A setting left out takes the author's retained panel setting, else the schema default.
+        app_label:          INTERNE (jamais annoncé) — la jumelle visée
+
+    Returns:
+        {"document_id": int, "item_id": int, "filename": str, "status": "pending"}
+    """
+    from django.apps import apps as django_apps
+    from wama.common.app_registry import accepts_file
+    from wama.common.utils.batch_common import wrap_in_batch
+    from wama.common.utils.media_paths import InputRefused, designate
+    from wama.common.utils.user_settings import new_element_settings
+    from wama.writer_01.params import PARAMS_JSON
+
+    try:
+        received = {port: designate(path, user, app_label)
+                    for port, path in (('reference_document', reference_document),
+                                       ('reference_layout', reference_layout)) if path}
+    except InputRefused as e:
+        return {'error': str(e)}
+    for port, got in received.items():
+        if not accepts_file(app_label, got.name):
+            return {'error': f'Format non supporté par le Writer ({port}) : {Path(got.name).suffix}'}
+    prompt = (prompt or '').strip()
+    if not prompt and 'reference_document' not in received:
+        return {'error': 'Rien à rédiger : donner une consigne (`prompt`) ou un document de référence.'}
+
+    try:
+        Document = django_apps.get_model(app_label, 'WriterDocument')
+        posted = _given({**params, 'document_kind': document_kind, 'output_format': output_format,
+                         'style_instruction': style_instruction, 'language': language,
+                         'model': model})
+        values = new_element_settings(user, app_label, PARAMS_JSON, Document, post=posted,
+                                      inputs=inputs_by_port(app_label, *received.values()))
+        values.pop('prompt', None)
+        document = Document.objects.create(
+            user=user, prompt=prompt,
+            **{port: got.value for port, got in received.items()}, **values)
+        wrap_in_batch(document, batch_model=django_apps.get_model(app_label, 'WriterBatch'),
+                      item_model=django_apps.get_model(app_label, 'WriterBatchItem'),
+                      fk_name='document')
+        for port, got in received.items():
+            got.record(document, port)
+    except Exception as e:
+        return {'error': f'Erreur création WriterDocument : {e}'}
+
+    return {
+        'document_id': document.id,
+        'item_id': document.id,     # clé UNIFORME du contrat méta-app
+        'filename': document.filename,
+        'document_kind': document.document_kind,
+        'language': document.language,
+        'status': 'pending',
+    }
+
+
+@tool_effect(WRITE)
 @functools.wraps(create_image)
 def add_to_imager(user, *args, **kwargs):
     return create_image(user, *args, **kwargs)
@@ -4157,6 +4244,7 @@ TOOL_REGISTRY = {
     'add_to_composer':        add_to_composer,   # alias canonique §17.2 (runner générique)
     'add_to_describer':       add_to_describer,
     'add_to_transcriber':     add_to_transcriber,
+    'add_to_writer_01':       add_to_writer_01,   # jumelle née de zéro : pas de source à re-cibler
     'add_to_reader':          add_to_reader,
     'convert_file':           convert_file,
     'add_to_converter':       add_to_converter,   # alias canonique §17.2 (runner générique)
@@ -4477,6 +4565,28 @@ TRIAD_SPECS = {
             'status': 'status',
             'progress': 'progress',
             'text_preview': {'attr': 'text', 'preview': 300, 'partial_fallback': True},
+        },
+    },
+    # Bac à sable `writer_01` (app née de zéro, sans app source : rien à emprunter). Le ▶ lit la
+    # tâche et la remise à zéro par process que l'app donne à `process_views`.
+    'writer_01': {
+        'model': 'wama.writer_01.models.WriterDocument',
+        'id_kwarg': 'document_id',
+        'task': 'wama.writer_01.tasks.write_document_task',
+        'reset_for_process': 'wama.writer_01.views._reset_for_process',
+        'empty_msg': 'Aucun document en attente.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'filename': 'filename',
+            'document_kind': 'document_kind',
+            'language': 'language',
+            'model': 'model',
+            'status': 'status',
+            'progress': 'progress',
+            'error_message': {'attr': 'error_message', 'or_none': True},
+            'draft_url': {'attr': 'draft_file', 'url': True},
+            'output_url': {'attr': 'output_file', 'url': True, 'when': {'status': 'SUCCESS'}},
         },
     },
 }

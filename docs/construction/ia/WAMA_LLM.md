@@ -2712,6 +2712,48 @@ d'abord un OCR en échec maquillé en succès.**
      battement 60 s → pile de tous les fils dans `gateway-discord.log` (la cause des coupures,
      enfin lisible) ; 300 s gelée ou 600 s déconnectée → le process se relance (`os.execv`).
 
+### ⭐ 2026-11-01 — « régénère une présentation avec le Writer » : quatre défauts sous le même fil (n° 43)
+
+> Mesuré au fil PERSISTÉ (`ConversationTurn.tool_steps`, skill `/diagnostic-assistant`), 14:25 →
+> 14:47 UTC. Modèles : `albert:gemma-4-31b-it`, puis `ilaas:qwen-3.6-35b-instruct`.
+
+- **Pas d'outil Writer** : vrai au premier tour — le bac à sable `writer_01`, né de zéro, n'avait
+  aucune glu d'assistant. ✅ Écrite par la tâche Claude Code `20261101-143154-d135ab` (Fabien l'a
+  validée) : `tool_api.add_to_writer_01` (glu d'app, marche B) et `TRIAD_SPECS['writer_01']`
+  (start/status), `tests_tool_api_writer`. ⏳ L'entrée `TRIAD_SPECS` est écrite MAIN : le brouillon
+  `manifests/app_drafts/writer.json` ne porte pas la facette `tool_api.triad_spec`, qui la
+  projetterait (`builtin/app.py::_project_tool_api`) — mais sous la clé du manifeste (`writer`),
+  pas de la jumelle (`writer_01`). Décision : comment une app NÉE DE ZÉRO déclare sa triade avant
+  sa promotion.
+- **Deux tours inventés SANS outil, aucun lien** : « Statut » → `{"job_id": …, "status": "done"}`
+  quatre minutes avant la fin réelle ; « je valide » → `{"job_id": …, "action":
+  "validate_and_apply"}`, action inexistante. `_invented_turn` ne voyait que les liens. ✅ Un
+  identifiant de tâche de développement cité sans source du tour (`_unsourced_job_ids`, forme
+  `dev_tools.JOB_ID_FORM`, sources `_turn_sources` partagées avec `_strip_unsourced_urls`) déclenche
+  la même reprise. Garde : `tests_unsourced_links.InventedTurnTest` (2 tests, contre-épreuve : un
+  identifiant que l'utilisateur a écrit a une source).
+- **Une proposition « à valider en base » inventée** : le rapport de Claude Code, coupé à
+  `SUMMARY_CHARS`, avait perdu sa dernière phrase (« relancer gunicorn et les workers »). ✅ La
+  DONNÉE le dit : une tâche `claude_code:write` terminée porte `CLAUDE_CODE_WRITE_NOTE` EN TÊTE de
+  sa notification (avant la coupure) et en `next_step` de `dev_job_status` — rien à valider, déjà
+  sur disque, non commité, quoi relancer. Garde : `tests_dev_job_follow_up` (2 tests, contre-épreuve
+  en lecture seule).
+- **« /reverif » traduit en `dev_sandbox create writer_01` + `dev_regen_check`, puis en rôle
+  `codegen`** (trois échecs). ✅ Consigne d'OUTIL (description de `dev_claude_code`) : une demande
+  « /<nom> » est un skill de Claude Code, confiée telle quelle. ⚠ C'est une consigne, pas un
+  contrôle — à mesurer à l'usage.
+- **La porte de confidentialité masquait des noms de code** : `dev_sandbox` et `writer_01` partis
+  en `[IDENTIFIANT_n]` vers Claude Code. 🔄 Réponse PARTIELLE à la décision ouverte plus haut (« que
+  la porte épargne-t-elle ? ») : un passage typé `ID_NUMBER` qui n'est qu'un nom en minuscules à
+  soulignés n'est plus retenu (`privacy/engine._is_code_identifier`, `tests_privacy.CodeIdentifierTest`
+  avec contre-épreuve : un numéro réel, une PERSONNE écrite `jean_dupont`). Les clés de catalogue
+  (`huggingface:org/nom`) et les chemins restent à trancher. Le nom du PDF (une personne) reste
+  masqué : c'est voulu.
+- ⏳ Mises en service : gunicorn, passerelle, serveur MCP, service de confidentialité (:8003).
+- ⚠ `tests_dev_job_follow_up.NoPollingInsideATurnTest` rouge, hors de ce palier : le chargement
+  automatique de la compétence `dev` (point 9 du 2026-10-31) ajoute une étape
+  `charger_competence` au tour ; le test attend 3 étapes, il en voit 4.
+
 ### ⭐ 2026-10-13 — wama-dev-ai sur la route commune : le modèle tiré pour le COMPTE, la VRAM au gouverneur
 
 Question de Fabien : *« on avait géré les choix de modèles via des workflows dans wama-dev-ai…

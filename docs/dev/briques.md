@@ -3725,7 +3725,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (97) :
+- **API publique** (98) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -3760,6 +3760,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_synthesizer(user, *args, **kwargs)`
   - `add_to_composer(user, *args, **kwargs)`
   - `add_to_converter(user, *args, **kwargs)`
+  - `add_to_writer_01(user, prompt: str='', reference_document: str='', reference_layout: str='', document_kind: str=None, output_format: str=None, style_instructio…` — Add a document to the Writer queue (bac à sable `writer_01`) — it is written by an LLM from
   - `add_to_imager(user, *args, **kwargs)`
   - `list_studio_pipelines(user) -> dict` — List the user's saved studio pipelines (méta-app graphs), most recent first.
   - `run_studio_pipeline(user, pipeline_id: int=None, pipeline_name: str=None) -> dict` — Run a SAVED studio pipeline, by id or exact name. Validates the graph

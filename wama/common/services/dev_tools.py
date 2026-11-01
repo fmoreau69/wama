@@ -91,7 +91,10 @@ ROLES = {
 SANDBOX_ACTIONS = ('create', 'substitute', 'revert', 'remove', 'list')
 
 _UNSAFE_CHARS = re.compile(r'[\x00-\x1f]')
-_JOB_ID = re.compile(r'^\d{8}-\d{6}-[0-9a-f]{6}$')
+#: La forme d'un identifiant de tâche (`start_job`) — lue aussi par le contrôle des tours
+#: inventés de l'assistant (`assistant_engine._unsourced_job_ids`).
+JOB_ID_FORM = r'\d{8}-\d{6}-[0-9a-f]{6}'
+_JOB_ID = re.compile(rf'^{JOB_ID_FORM}$')
 _OUTPUT_LINE = re.compile(r'(wama-dev-ai/outputs/[^\s\'"]+\.json)')
 LOG_TAIL_CHARS = 6000
 
@@ -339,11 +342,33 @@ def cut_with_notice(text: str, limit: int, job_id: str) -> str:
             f"`dev_read_report` avec job_id={job_id} le donne en entier)")
 
 
+#: Ce que laisse une tâche Claude Code AVEC écriture, dit par la DONNÉE (2026-11-01, fil Discord
+#: n° 43). Le rapport, coupé à `SUMMARY_CHARS`, avait perdu sa dernière phrase (« relancer
+#: gunicorn et les workers ») ; sur « je valide », le modèle a INVENTÉ une proposition « à valider
+#: en base » et un `validate_and_apply` qui n'existent pas. Une tâche Claude Code n'écrit aucune
+#: proposition : ses changements sont déjà dans les fichiers.
+CLAUDE_CODE_WRITE_NOTE = (
+    "Rien à valider ni à appliquer : ce que Claude Code a modifié est DÉJÀ dans les fichiers du "
+    "dépôt, non commité. Pour le servir : dev_reload_web (gunicorn) ; les workers, la passerelle "
+    "et le serveur MCP chargent le code à leur démarrage et se relancent par un humain. Une "
+    "revérification (/reverif) ou un commit se confient à dev_claude_code.")
+
+
+def _write_note(state: dict) -> str:
+    """La note ci-dessus pour une tâche `claude_code:write` terminée, sinon rien."""
+    if state.get('tool') == f'{CLAUDE_CODE_TOOL}:write' and state.get('status') == 'done':
+        return CLAUDE_CODE_WRITE_NOTE
+    return ''
+
+
 def _job_summary(state: dict) -> str:
     """Le corps de la notification : la réponse (Claude Code), les propositions écrites (rôles),
     sinon la fin du journal — de quoi décider sans rouvrir la tâche."""
     if state.get('response'):
-        return cut_with_notice(state['response'], SUMMARY_CHARS, state.get('id', ''))
+        note = _write_note(state)
+        # La note EN TÊTE : c'est la fin du rapport que la coupure emporte.
+        return (f"{note}\n\n" if note else '') + cut_with_notice(
+            state['response'], SUMMARY_CHARS, state.get('id', ''))
     lines = []
     if state.get('outputs'):
         lines.append("Propositions écrites (en attente de validation) : "
@@ -495,6 +520,9 @@ def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> di
 
     task : la tâche en clair. write : autoriser la modification du dépôt (sinon lecture seule).
     model : un modèle déclaré de l'abonnement (opus, sonnet…) — vide = choix du CLI.
+    Une demande « /<nom> » (/reverif, /palier, /cloture, /conformite…) est un SKILL de Claude
+    Code : la confier ICI telle quelle (task="/reverif …", write=true) — jamais la traduire en
+    dev_sandbox, dev_regen_check ou un rôle.
     """
     from wama.common.services.claude_code import (ClaudeCodeIndisponible, prepare,
                                                   subscription_allowed)
@@ -536,6 +564,8 @@ def dev_job_status(user, job_id: str) -> dict:
         # La réponse d'une tâche Claude Code tient lieu de journal (qui n'est que son JSON brut).
         state.pop('log_tail', None)
         state['response'] = cut_with_notice(state['response'], LOG_TAIL_CHARS, job_id)
+    if _write_note(state):
+        state['next_step'] = _write_note(state)
     return state
 
 
