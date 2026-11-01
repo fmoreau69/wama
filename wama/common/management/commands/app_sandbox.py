@@ -562,6 +562,30 @@ def _born_manifest(label: str, entry: dict) -> tuple:
     return manifest, manifest.get('key') or ''
 
 
+#: Les facettes qu'une app NÉE D'UN MANIFESTE garde au registre, pour les accesseurs qui la lisent
+#: sans source (`sandbox.born_declaration`) : modes (→ ports dérivés, card d'entrée v4), cibles de
+#: prompts (→ pipeline de prompts, fichiers de référence), et depuis le 2026-11-01 triade de
+#: l'assistant (`tool_api.triad_spec` → `TRIAD_SPECS`) et nœud du Studio (`studio` →
+#: `GENERIC_APPS`), injectées par `sandbox.inject_sandbox_registry(born=…)`.
+BORN_DECLARED_FACETS = ('modes', 'prompts', 'tool_api', 'studio')
+
+
+def born_registry_facts(manifest: dict, label: str) -> dict:
+    """Ce que le registre retient d'une app née d'un manifeste : sa fiche de CATALOGUE (calculée
+    ici, Django chargé, relue au boot sans rien importer) et ses DÉCLARATIONS. Une seule lecture
+    du manifeste pour la naissance ET la régénération (`substitute`) — jusqu'au 2026-11-01 la
+    naissance seule les écrivait : une facette ajoutée au manifeste (la triade du Writer) ne
+    l'atteignait jamais sans la retirer, données comprises."""
+    from wama.common.manifests.builtin.app import (_capabilities_target, _identity_target,
+                                                   _ports_target)
+    body = manifest.get('body') or {}
+    catalog = {**_identity_target(manifest), **_ports_target(manifest),
+               **_capabilities_target(manifest)}
+    catalog['url_name'] = f"{label}:{(catalog.get('url_name') or 'x:index').split(':', 1)[-1]}"
+    return {'catalog': catalog,
+            'declarations': {f: body.get(f) for f in BORN_DECLARED_FACETS if body.get(f)}}
+
+
 def render_payload(manifest: dict, target: str, born: bool) -> dict:
     """Le manifeste que le gabarit de `target` reçoit lors d'une substitution.
 
@@ -934,9 +958,6 @@ class Command(BaseCommand):
         import importlib
         import json
 
-        from wama.common.manifests.builtin.app import (_capabilities_target, _identity_target,
-                                                       _ports_target)
-
         manifest, manifest_path = _app_manifest_file(path)
         key = manifest.get('key') or ''
         error = new_app_key_error(key)
@@ -983,22 +1004,14 @@ class Command(BaseCommand):
         (pkg / 'migrations' / '__init__.py').write_text('', encoding='utf-8')
         write(first)
 
-        # L'entrée de catalogue est calculée ICI (Django chargé) et STOCKÉE au registre :
-        # `inject_sandbox_catalog` la relit au boot sans rien importer (sandbox.py reste pur).
-        catalog = {**_identity_target(manifest), **_ports_target(manifest),
-                   **_capabilities_target(manifest)}
-        catalog['url_name'] = f"{label}:{(catalog.get('url_name') or 'x:index').split(':', 1)[-1]}"
+        # La fiche de catalogue et les déclarations, STOCKÉES au registre (`born_registry_facts`) :
+        # `inject_sandbox_catalog` et les accesseurs les relisent au boot sans rien importer.
         try:
             rel_manifest = manifest_path.relative_to(BASE_DIR).as_posix()
         except ValueError:
             rel_manifest = str(manifest_path)
-        # Les DÉCLARATIONS que les accesseurs des registres indexés par nom d'app relisent pour une
-        # app sans source (`sandbox.born_declaration`) : modes (→ ports dérivés, card d'entrée v4)
-        # et cibles de prompts (→ pipeline de prompts, fichiers de référence).
-        declarations = {f: (manifest.get('body') or {}).get(f)
-                        for f in ('modes', 'prompts') if (manifest.get('body') or {}).get(f)}
         entry = {'label': label, 'generated_from': '', 'from_manifest': rel_manifest,
-                 'catalog': catalog, 'declarations': declarations,
+                 **born_registry_facts(manifest, label),
                  'created': datetime.now(timezone.utc).isoformat(timespec='seconds'),
                  'created_by': owner, 'stage': 'S0-de-zero'}
         _save_entry(entry)
@@ -1428,6 +1441,14 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.SUCCESS(
                 f'{requested} : GÉNÉRÉ tient ({" ; ".join(details) or "aucun écart"})'))
+            if born:
+                # Régénérer une app née d'un manifeste RELIT aussi ce que le registre en retient
+                # (fiche de catalogue, déclarations) : sinon une facette ajoutée au manifeste ne
+                # l'atteint jamais. Servi au prochain démarrage, comme les fichiers générés.
+                facts = born_registry_facts(manifest, label)
+                moved = sorted(k for k, v in facts.items() if entry.get(k) != v)
+                entry.update(facts)
+                self.stdout.write(f"registre relu du manifeste : {', '.join(moved) or 'inchangé'}")
         for c in targets:
             entry.setdefault('substituted', {})[c] = {
                 'verdict': verdict, 'details': details,

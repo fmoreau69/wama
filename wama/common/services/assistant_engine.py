@@ -1342,6 +1342,28 @@ def _parse_tool_call(text: str) -> dict | None:
     return None
 
 
+def _bare_call(text: str, known) -> dict | None:
+    """Une réponse qui n'est QU'UN appel sans argument — `{"tool": "<nom>"}`, rien autour — à un
+    outil ANNONCÉ au tour : c'est un appel (`args` vide), pas du texte.
+
+    ⚠⚠ LE DÉFAUT MESURÉ (2026-11-01, épreuve du Writer par l'assistant, `ilaas:qwen-3.6-35b`) :
+    après `start_reader`, la réponse entière était `{"tool": "get_reader_status"}` — affichée à
+    l'utilisateur comme réponse. `_parse_tool_call` laisse un appel nu en texte, à raison : « sans
+    argument, rien ne le distingue d'un exemple de format cité dans une phrase ». Ici rien ne
+    l'entoure et le nom est celui d'un outil du tour : ce n'est jamais un exemple. Un nom inconnu
+    reste du texte (garde `tests_tool_call_parsing`)."""
+    clean = _strip_think_tags(text or '').strip()
+    if not (clean.startswith('{') and clean.endswith('}')):
+        return None
+    try:
+        call = json.loads(clean)
+    except ValueError:
+        return None
+    if isinstance(call, dict) and set(call) == {'tool'} and call['tool'] in known:
+        return {'tool': call['tool'], 'args': {}}
+    return None
+
+
 #: Appels d'outils dans UN tour. 5 jusqu'au 2026-10-05 : le parcours ordinaire d'une demande
 #: (inspection → ajout → lancement → statut) en prend 4, une seule correction de réglage refusé
 #: par le schéma épuisait la boucle avant la réponse (Discord, card #1036).
@@ -2515,6 +2537,10 @@ def run_assistant_turn(user, message: str, provider: str = None,
 
         # Detect tool call in response
         tool_call = _parse_tool_call(text) if user else None
+        if not tool_call and user:
+            from wama.tool_api import TOOL_REGISTRY
+            tool_call = _bare_call(text, set(TOOL_REGISTRY) | dev_names
+                                   | {'charger_competence', DELEGATE_TOOL})
 
         if not tool_call:
             # No tool call → this is the final answer

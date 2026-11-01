@@ -2719,12 +2719,14 @@ d'abord un OCR en échec maquillé en succès.**
 
 - **Pas d'outil Writer** : vrai au premier tour — le bac à sable `writer_01`, né de zéro, n'avait
   aucune glu d'assistant. ✅ Écrite par la tâche Claude Code `20261101-143154-d135ab` (Fabien l'a
-  validée) : `tool_api.add_to_writer_01` (glu d'app, marche B) et `TRIAD_SPECS['writer_01']`
-  (start/status), `tests_tool_api_writer`. ⏳ L'entrée `TRIAD_SPECS` est écrite MAIN : le brouillon
-  `manifests/app_drafts/writer.json` ne porte pas la facette `tool_api.triad_spec`, qui la
-  projetterait (`builtin/app.py::_project_tool_api`) — mais sous la clé du manifeste (`writer`),
-  pas de la jumelle (`writer_01`). Décision : comment une app NÉE DE ZÉRO déclare sa triade avant
-  sa promotion.
+  validée) : `tool_api.add_to_writer_01` et `TRIAD_SPECS['writer_01']` (start/status), écrits MAIN
+  dans `tool_api.py` — contre la décision du 2026-10-29 (« jamais une ligne écrite au registre
+  pour une jumelle »), et qu'aucune régénération ne reprenait. ✅ **DÉRIVÉS le même jour**
+  (décision de Fabien : « on porte tout, régénérable ») — une app NÉE D'UN MANIFESTE reçoit sa
+  triade de SA déclaration (`tool_api.triad_spec` du manifeste, chemins écrits pour la clé
+  `writer`, re-ciblés sur `writer_01` : `sandbox.inject_sandbox_registry(born=…)`), son créateur
+  de la vue de dépôt de sa card (`tool_api._born_creator`) et son nœud du Studio de sa facette
+  `studio` ; détail et gardes : `WAMA_APP_GENERATION_ROUTE §11 #43`.
 - **Deux tours inventés SANS outil, aucun lien** : « Statut » → `{"job_id": …, "status": "done"}`
   quatre minutes avant la fin réelle ; « je valide » → `{"job_id": …, "action":
   "validate_and_apply"}`, action inexistante. `_invented_turn` ne voyait que les liens. ✅ Un
@@ -2749,6 +2751,19 @@ d'abord un OCR en échec maquillé en succès.**
   avec contre-épreuve : un numéro réel, une PERSONNE écrite `jean_dupont`). Les clés de catalogue
   (`huggingface:org/nom`) et les chemins restent à trancher. Le nom du PDF (une personne) reste
   masqué : c'est voulu.
+- **L'ÉPREUVE PAR L'ASSISTANT a trouvé deux trous de plus** (tour réel, `ilaas:qwen-3.6-35b`,
+  « avec le Writer, rédige un CV moderne à partir de ce PDF », fil d'essai effacé ensuite) : outils
+  dérivés en place, il a pris le **Reader** (élément #2047 créé et lancé sur le compte de Fabien).
+  ① `inspect_user_file` ne proposait JAMAIS le Writer : l'intake écarte tout le bac à sable
+  (`intake._ports_for_category`), pour une raison qui ne vise que les JUMELLES (« `converter_01`
+  remonte dans les trois voies sinon »). ✅ Une app NÉE D'UN MANIFESTE, qui ne double rien, y entre
+  pour qui peut l'ouvrir (`sandbox.born_apps` + `accounts.permissions.accessible`) ; garde
+  `tests_intake.BornAppIntakeTest` (développeur oui, compte sans accès non, sans compte non).
+  ② sa réponse finale était `{"tool": "get_reader_status"}`, AFFICHÉE : un appel nu reste du
+  texte (`_parse_tool_call`, « rien ne le distingue d'un exemple cité dans une phrase »). ✅ Une
+  réponse qui n'est QUE cet objet, nommant un outil du tour, est un appel (`_bare_call`) ; un nom
+  inconnu ou un appel cité dans une phrase restent du texte. Garde
+  `tests_tool_call_parsing.BareCallTest` / `BareCallInTheLoopTest`.
 - ⏳ Mises en service : gunicorn, passerelle, serveur MCP, service de confidentialité (:8003).
 - ⚠ `tests_dev_job_follow_up.NoPollingInsideATurnTest` rouge, hors de ce palier : le chargement
   automatique de la compétence `dev` (point 9 du 2026-10-31) ajoute une étape

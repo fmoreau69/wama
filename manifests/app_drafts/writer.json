@@ -281,9 +281,31 @@
         ],
         "witness": {"draft_file": ".md", "output_file": ".html"}
       }
-    ]
+    ],
+    "tool_api": {
+      "triad_spec": {
+        "model": "wama.writer.models.WriterDocument",
+        "id_kwarg": "document_id",
+        "task": "wama.writer.tasks.write_document_task",
+        "reset_for_process": "wama.writer.views._reset_for_process",
+        "empty_msg": "Aucun document en attente.",
+        "status_order": "-id",
+        "status_fields": {
+          "id": "id",
+          "filename": "filename",
+          "document_kind": "document_kind",
+          "language": "language",
+          "model": "model",
+          "status": "status",
+          "progress": "progress",
+          "error_message": {"attr": "error_message", "or_none": true},
+          "draft_url": {"attr": "draft_file", "url": true},
+          "output_url": {"attr": "output_file", "url": true, "when": {"status": "SUCCESS"}}
+        }
+      }
+    }
   },
-  "description": "Rédige un document (présentation, rapport, page web) à partir d'une consigne et d'un document de référence : le fond est écrit par un LLM, puis mis en forme dans le format de sortie (HTML d'abord). Cas d'épreuve de la route « app de zéro » (ROADMAP §21.5, ROUTE §10.5).",
+  "description": "Rédige un document (présentation, rapport, page web, CV) à partir d'une consigne et d'un document de référence : le fond est écrit par un LLM, puis mis en forme dans le format de sortie (HTML d'abord). Cas d'épreuve de la route « app de zéro » (ROADMAP §21.5, ROUTE §10.5).",
   "key": "writer",
   "manifest_kind": "app",
   "name": "Writer",

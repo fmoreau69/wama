@@ -5415,12 +5415,14 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
      (comme « Voix ») est possible : une entrée de `media_library/natures.py`, mais une migration
      des choix de la médiathèque et ses tests figés à mettre à jour — décision de Fabien.
    ✅ 2026-11-01 — **le Writer depuis l'assistant, et le type « CV »** (demandes de Fabien sur
-   Discord) : outils `add_to_writer_01` / `start_writer_01` / `get_writer_01_status`
-   (`WAMA_LLM.md` §2026-11-01 — triade écrite main, facette `tool_api` à trancher) ; mesuré : une
-   présentation « style jardinier » depuis un PDF de référence (document 396, SUCCESS). Type de
-   document `cv` déclaré au manifeste (`app_drafts/writer.json`), schéma et modèle de la jumelle
-   alignés (comparés au manifeste : identiques), migration `0003` ; les deux process passent au
-   modèle le LIBELLÉ du type (`get_document_kind_display`), plus la clé.
+   Discord) : outils `add_to_writer_01` / `start_writer_01` / `get_writer_01_status`, DÉRIVÉS de
+   la déclaration du manifeste comme ceux d'une jumelle le sont de sa source (facette `tool_api`,
+   créateur depuis la vue de dépôt, nœud du Studio — `WAMA_APP_GENERATION_ROUTE §11 #43`) ; mesuré :
+   une présentation « style jardinier » depuis un PDF de référence (document 396, SUCCESS). Type de
+   document `cv` déclaré au manifeste (`app_drafts/writer.json`) et RÉGÉNÉRÉ par la route
+   (`app_sandbox substitute writer_01 params+models`), migration `0003`. La glu des process
+   transmet la CLÉ du type (`cv`) : une retouche à la main pour passer son libellé a été retirée
+   — la glu se régénère par le rôle `codegen` (D5), jamais à la main.
 2. Publier (capacité commune).
 3. PDF par Chromium.
 4. docx / tex / pptx par Pandoc.

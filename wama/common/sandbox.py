@@ -200,22 +200,45 @@ def resolves(dotted: str, root: Path = None) -> bool:
     return False
 
 
-def inject_sandbox_registry(registry: dict, *, runnable=None) -> None:
+def manifest_key(label: str) -> str:
+    """La clé du manifeste d'où est NÉE une app de zéro : la base de son label —
+    `app_sandbox create --from-manifest` la nomme `<clé>_NN` (`_next_label`). Ses déclarations
+    écrivent leurs chemins pour cette clé (`wama.writer.params`), comme le corpus."""
+    match = LABEL_RE.match(label or '')
+    return match.group('base') if match else ''
+
+
+def inject_sandbox_registry(registry: dict, *, runnable=None, born=None) -> None:
     """Entrées d'un registre INDEXÉ PAR APP pour les jumelles : la déclaration de la source,
     chemins re-ciblés (`_retarget`). Décision de Fabien (2026-10-06) : une jumelle expose ce que
     son app source expose — mais SEULEMENT ce que l'exécution peut réellement faire tourner :
     chaque chemin re-ciblé doit se RÉSOUDRE dans le paquet de la jumelle (`resolves`), et
     `runnable(label)` écarte en plus une entrée qui mènerait à un appel impossible (le nœud studio
     d'une jumelle sans outil de création). Consommateurs : `TRIAD_SPECS` (tool_api),
-    `GENERIC_APPS` (studio). Une app née d'un manifeste (sans source) n'emprunte rien ici."""
+    `GENERIC_APPS` (studio).
+
+    Une app NÉE D'UN MANIFESTE (sans source) reçoit l'entrée que SA déclaration porte (2026-11-01,
+    décision de Fabien : « on porte tout, régénérable ») : `born(declarations)` la tire des
+    facettes stockées à sa naissance (`born_declaration`), chemins écrits pour la clé du manifeste
+    et re-ciblés de même, sous le même juge `resolves`. Sans `born`, ou sans déclaration, rien."""
     import copy
     for e in load_registry():
         label, src = e.get('label'), e.get('generated_from')
-        if not label or not src or label in registry or src not in registry:
+        if not label or label in registry:
+            continue
+        if src:
+            if src not in registry:
+                continue
+            declared, written_for = registry[src], src
+        elif born is not None and e.get('from_manifest'):
+            declared, written_for = born(e.get('declarations') or {}), manifest_key(label)
+            if not declared or not written_for:
+                continue
+        else:
             continue
         if label not in sandbox_labels() or (runnable is not None and not runnable(label)):
             continue
-        entry = _retarget(copy.deepcopy(registry[src]), src, label)
+        entry = _retarget(copy.deepcopy(declared), written_for, label)
         if all(resolves(p) for p in _paths_in(entry, f'wama.{label}.')):
             registry[label] = entry
 
@@ -363,3 +386,11 @@ def non_sandbox_apps(app_catalog: dict) -> list:
     """Apps RÉELLES du catalogue (les jumelles sont exclues de la grille de conformité :
     on ne mesure pas un bac à sable, on le COMPARE à sa source)."""
     return sorted(k for k, v in app_catalog.items() if not (v or {}).get('sandbox'))
+
+
+def born_apps(app_catalog: dict) -> list:
+    """Apps du bac à sable NÉES D'UN MANIFESTE (sans source) — à la différence d'une jumelle, elles
+    ne doublent aucune app réelle : ce qu'elles font, aucune autre ne le fait (le Writer)."""
+    return sorted(k for k, v in app_catalog.items()
+                  if (v or {}).get('sandbox') and not v.get('generated_from')
+                  and v.get('from_manifest'))

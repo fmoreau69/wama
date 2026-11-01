@@ -174,6 +174,17 @@ class EveryShownSettingReachesTheElementTest(TestCase):
         from wama.common.services.nightly_tests import get_test_user
         self.user = get_test_user()
 
+    def _developer(self):
+        """Un compte développeur : le bac à sable leur est ouvert (`inject_sandbox_access`)."""
+        from django.contrib.auth import get_user_model
+
+        from wama.accounts.models import UserProfile
+        user, _ = get_user_model().objects.get_or_create(username='node_settings_developer')
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.account_tier = 'developpeur'
+        profile.save()
+        return get_user_model().objects.get(pk=user.pk)
+
     def _input(self, app):
         """L'entrée principale du nœud : un prompt, ou un témoin du premier type qu'il accepte."""
         from pathlib import Path
@@ -215,8 +226,12 @@ class EveryShownSettingReachesTheElementTest(TestCase):
                 # posés pour que la création aboutisse, jamais relus comme des colonnes.
                 own = {e['name']: 'witness'
                        for e in GENERIC_APPS[app].get('extra_params_spec') or []}
+                # Une app NÉE D'UN MANIFESTE (bac à sable, sans source) se mesure seule — elle n'a
+                # rien à quoi se comparer —, par un compte qui peut l'ouvrir (2026-11-01).
+                user = (self._developer() if (APP_CATALOG.get(app) or {}).get('sandbox')
+                        else self.user)
                 with self.subTest(app=app), transaction.atomic():
-                    item_id = build_generic_runner(app)['create'](self.user, self._input(app),
+                    item_id = build_generic_runner(app)['create'](user, self._input(app),
                                                                  {**decided, **own})
                     item = DetailRegistry.get(app)['model'].objects.get(pk=item_id)
                     expected = coerce_schema_values(schema_for_app(app), decided)

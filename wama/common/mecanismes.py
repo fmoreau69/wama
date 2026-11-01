@@ -1771,10 +1771,16 @@ MECHANISMS = (
               "a,b+c,…`, seconde passe des groupes revenus, puis leur union — `models` compris quand "
               "le modèle copié tient le nœud), et UN sous-processus de juge par "
               "substitution (`check`, page, file habitée) — un démarrage de Django coûte ≈ 60 s "
-              "sous WSL",
+              "sous WSL. Une app NÉE D'UN MANIFESTE (`create --from-manifest`, sans source) : le "
+              "registre retient ses facettes (`born_registry_facts` — modes, prompts, tool_api, "
+              "studio) et sa fiche de catalogue, RELUES à chaque `substitute` réussi ; sa triade et "
+              "son nœud du Studio viennent de SA déclaration (`inject_sandbox_registry(born=…)`, "
+              "chemins écrits pour la clé et re-ciblés), son outil de création de la vue de dépôt "
+              "de sa card (`tool_api._born_creator`) — 2026-11-01, ROUTE §11 #43",
               'wama/common/sandbox.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/management/commands/app_sandbox.py',
-                       'wama/common/tests/tests_sandbox_coherence.py')),
+                       'wama/common/tests/tests_sandbox_coherence.py',
+                       'wama/common/tests/tests_born_app_tools.py')),
 
     )),
 

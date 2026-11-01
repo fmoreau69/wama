@@ -1533,7 +1533,7 @@ def inspect_user_file(user, file_path: str) -> dict:
         return err
     try:
         from wama.common.utils.intake import capabilities_for_path
-        result = capabilities_for_path(str(src))
+        result = capabilities_for_path(str(src), user)
         result['size_mb'] = round(src.stat().st_size / 1_048_576, 2)
         return result
     except Exception as e:
@@ -1882,93 +1882,6 @@ def add_to_converter(user, *args, **kwargs):
 
 
 # `start_converter` : construit depuis TRIAD_SPECS['converter'] (marche A4).
-
-
-@tool_effect(WRITE)
-def add_to_writer_01(
-    user,
-    prompt: str = '',
-    reference_document: str = '',
-    reference_layout: str = '',
-    document_kind: str = None,
-    output_format: str = None,
-    style_instruction: str = None,
-    language: str = None,
-    model: str = None,
-    app_label: str = 'writer_01',
-    **params,
-) -> dict:
-    """
-    Add a document to the Writer queue (bac à sable `writer_01`) — it is written by an LLM from
-    a brief and an optional reference document, then laid out. Born like a card deposit; it is
-    NOT started: call `start_writer_01`, then `get_writer_01_status` / `get_item_result`.
-
-    Args:
-        user:               Django User instance
-        prompt:             What the document must say and for whom (port `prompt`) — or give
-                            `reference_document`
-        reference_document: Path (from find_user_files) of the document to rely on
-                            (TXT/MD/HTML/PDF/DOCX; port `reference_document`)
-        reference_layout:   Path (from find_user_files) of a document whose FORM to follow
-                            (port `reference_layout`)
-        document_kind:      'presentation' | 'report' | 'page' | 'cv'
-        output_format:      output format ('html')
-        style_instruction:  the form wanted, in words ("sober style…")
-        language:           'fr' | 'en'
-        model:              'auto' or a catalogue key
-        A setting left out takes the author's retained panel setting, else the schema default.
-        app_label:          INTERNE (jamais annoncé) — la jumelle visée
-
-    Returns:
-        {"document_id": int, "item_id": int, "filename": str, "status": "pending"}
-    """
-    from django.apps import apps as django_apps
-    from wama.common.app_registry import accepts_file
-    from wama.common.utils.batch_common import wrap_in_batch
-    from wama.common.utils.media_paths import InputRefused, designate
-    from wama.common.utils.user_settings import new_element_settings
-    from wama.writer_01.params import PARAMS_JSON
-
-    try:
-        received = {port: designate(path, user, app_label)
-                    for port, path in (('reference_document', reference_document),
-                                       ('reference_layout', reference_layout)) if path}
-    except InputRefused as e:
-        return {'error': str(e)}
-    for port, got in received.items():
-        if not accepts_file(app_label, got.name):
-            return {'error': f'Format non supporté par le Writer ({port}) : {Path(got.name).suffix}'}
-    prompt = (prompt or '').strip()
-    if not prompt and 'reference_document' not in received:
-        return {'error': 'Rien à rédiger : donner une consigne (`prompt`) ou un document de référence.'}
-
-    try:
-        Document = django_apps.get_model(app_label, 'WriterDocument')
-        posted = _given({**params, 'document_kind': document_kind, 'output_format': output_format,
-                         'style_instruction': style_instruction, 'language': language,
-                         'model': model})
-        values = new_element_settings(user, app_label, PARAMS_JSON, Document, post=posted,
-                                      inputs=inputs_by_port(app_label, *received.values()))
-        values.pop('prompt', None)
-        document = Document.objects.create(
-            user=user, prompt=prompt,
-            **{port: got.value for port, got in received.items()}, **values)
-        wrap_in_batch(document, batch_model=django_apps.get_model(app_label, 'WriterBatch'),
-                      item_model=django_apps.get_model(app_label, 'WriterBatchItem'),
-                      fk_name='document')
-        for port, got in received.items():
-            got.record(document, port)
-    except Exception as e:
-        return {'error': f'Erreur création WriterDocument : {e}'}
-
-    return {
-        'document_id': document.id,
-        'item_id': document.id,     # clé UNIFORME du contrat méta-app
-        'filename': document.filename,
-        'document_kind': document.document_kind,
-        'language': document.language,
-        'status': 'pending',
-    }
 
 
 @tool_effect(WRITE)
@@ -3500,13 +3413,14 @@ def _route_dispo(app: str, canonique: str, args):
     return served_route(app, canonique, args)
 
 
-def _poster_vue(user, app: str, nom_route: str, args):
-    """POST la vue de l'app par une requête synthétique. Rend (status_code, charge|texte)."""
+def _poster_vue(user, app: str, nom_route: str, args, data=None):
+    """POST la vue de l'app par une requête synthétique, `data` en champs de formulaire. Rend
+    (status_code, charge|texte)."""
     from django.test import RequestFactory
     from django.urls import reverse
 
     url = reverse(f'{app}:{nom_route}', args=args)
-    requete = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE).post(url)
+    requete = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE).post(url, data or {})
     requete.user = user
     from django.urls import resolve
     vue, v_args, v_kwargs = resolve(url)
@@ -4244,7 +4158,6 @@ TOOL_REGISTRY = {
     'add_to_composer':        add_to_composer,   # alias canonique §17.2 (runner générique)
     'add_to_describer':       add_to_describer,
     'add_to_transcriber':     add_to_transcriber,
-    'add_to_writer_01':       add_to_writer_01,   # jumelle née de zéro : pas de source à re-cibler
     'add_to_reader':          add_to_reader,
     'convert_file':           convert_file,
     'add_to_converter':       add_to_converter,   # alias canonique §17.2 (runner générique)
@@ -4567,28 +4480,6 @@ TRIAD_SPECS = {
             'text_preview': {'attr': 'text', 'preview': 300, 'partial_fallback': True},
         },
     },
-    # Bac à sable `writer_01` (app née de zéro, sans app source : rien à emprunter). Le ▶ lit la
-    # tâche et la remise à zéro par process que l'app donne à `process_views`.
-    'writer_01': {
-        'model': 'wama.writer_01.models.WriterDocument',
-        'id_kwarg': 'document_id',
-        'task': 'wama.writer_01.tasks.write_document_task',
-        'reset_for_process': 'wama.writer_01.views._reset_for_process',
-        'empty_msg': 'Aucun document en attente.',
-        'status_order': '-id',
-        'status_fields': {
-            'id': 'id',
-            'filename': 'filename',
-            'document_kind': 'document_kind',
-            'language': 'language',
-            'model': 'model',
-            'status': 'status',
-            'progress': 'progress',
-            'error_message': {'attr': 'error_message', 'or_none': True},
-            'draft_url': {'attr': 'draft_file', 'url': True},
-            'output_url': {'attr': 'output_file', 'url': True, 'when': {'status': 'SUCCESS'}},
-        },
-    },
 }
 
 
@@ -4810,11 +4701,18 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
     return tool_effect(WRITE)(_start), tool_effect(READ)(_status)
 
 
+def _born_triad_spec(declarations: dict):
+    """La triade qu'une app NÉE D'UN MANIFESTE déclare (`tool_api.triad_spec`) — l'entrée même
+    que `write_back` projetterait dans `TRIAD_SPECS` à sa promotion (`builtin/app._project_tool_api`)."""
+    return (declarations.get('tool_api') or {}).get('triad_spec')
+
+
 def _register_triads():
     # Les JUMELLES du bac à sable reçoivent la triade déclarée de leur source, chemins re-ciblés
-    # sur leur paquet (décision de Fabien, 2026-10-06 — `sandbox.inject_sandbox_registry`).
+    # sur leur paquet (décision de Fabien, 2026-10-06 — `sandbox.inject_sandbox_registry`) ; une
+    # app NÉE D'UN MANIFESTE, celle de son manifeste (2026-11-01).
     from wama.common.sandbox import inject_sandbox_registry
-    inject_sandbox_registry(TRIAD_SPECS)
+    inject_sandbox_registry(TRIAD_SPECS, born=_born_triad_spec)
     for app_id, spec in TRIAD_SPECS.items():
         for fn in _triad_fns(app_id, spec):
             globals()[fn.__name__] = fn
@@ -4827,19 +4725,127 @@ def _register_twin_creators():
     est celle des importeurs (`sandbox.retarget_callable`) : `app_label` FIXÉ, et une source qui ne
     sait pas être re-ciblée ne donne pas d'outil. Le paramètre est interne
     (`INTERNAL_TOOL_PARAMS`) : un appelant ne peut pas viser une autre app. Avec lui, la jumelle a
-    sa triade entière, et son nœud du Studio (`generic_runner._twin_can_create`)."""
+    sa triade entière, et son nœud du Studio (`generic_runner._twin_can_create`). Une app NÉE D'UN
+    MANIFESTE, sans source, reçoit le sien de la vue de dépôt de sa card (`_born_creator`)."""
     from wama.common.sandbox import load_registry, retarget_callable, sandbox_labels
     installed = set(sandbox_labels())
     for entry in load_registry():
-        label, src = entry.get('label'), entry.get('generated_from')
-        source = TOOL_REGISTRY.get(f'add_to_{src}') if src else None
+        label = entry.get('label')
         name = f'add_to_{label}'
-        if label not in installed or source is None or name in TOOL_REGISTRY:
+        if label not in installed or name in TOOL_REGISTRY:
             continue
-        creator = retarget_callable(source, label)
+        origin = _creator_origin(entry)
+        if origin == 'twin':
+            creator = retarget_callable(TOOL_REGISTRY[f"add_to_{entry['generated_from']}"], label)
+        elif origin == 'born':
+            creator = _born_creator(label)
+        else:
+            creator = None
         if creator is not None:
             creator.__name__ = creator.__qualname__ = name
             globals()[name] = TOOL_REGISTRY[name] = creator
+
+
+def _creator_origin(entry: dict):
+    """D'où vient l'outil de création d'une app du bac à sable — `'twin'` (l'outil de sa source,
+    re-ciblable), `'born'` (née d'un manifeste qui déclare sa triade, et sert sa vue de dépôt),
+    sinon None. LA règle, que `_register_twin_creators` applique et que le Studio lit
+    (`creator_derivable`) : il ne la recompose pas, et ne dépend pas de l'ORDRE de chargement.
+
+    ⚠ Vécu le 2026-11-01 : construire le créateur d'une app née d'un manifeste lit ses ports
+    (`studio_node_ports`), ce qui charge `generic_runner` PENDANT le chargement de ce module — le
+    Studio y cherchait `add_to_writer_01` dans un registre où il n'était pas encore, et
+    n'offrait pas de nœud du Writer (vu par `tests_born_app_tools`, invisible en shell)."""
+    from wama.common.sandbox import resolves, retarget_callable
+    label, src = entry.get('label'), entry.get('generated_from')
+    if src:
+        source = TOOL_REGISTRY.get(f'add_to_{src}')
+        return 'twin' if source is not None and retarget_callable(source, label) else None
+    # Une app née d'un manifeste ENTRE à l'assistant par sa triade déclarée (facette `tool_api`) :
+    # sans elle, un créateur seul ferait une famille sans lancement ni suivi.
+    if (entry.get('from_manifest') and label in TRIAD_SPECS
+            and resolves(f'wama.{label}.views.upload')):
+        return 'born'
+    return None
+
+
+def creator_derivable(label: str) -> bool:
+    """`label` (app du bac à sable installée) a-t-il un outil de création dérivé ? — la règle de
+    `_creator_origin`, lisible même pendant que ce module se charge."""
+    from wama.common.sandbox import load_registry, sandbox_labels
+    if label not in sandbox_labels():
+        return False
+    entry = next((e for e in load_registry() if e.get('label') == label), None)
+    return entry is not None and _creator_origin(entry) is not None
+
+
+def _born_creator(label: str):
+    """`add_to_<label>` d'une app NÉE D'UN MANIFESTE (2026-11-01, décision de Fabien : « on porte
+    tout, régénérable ») — DÉRIVÉ, comme celui d'une jumelle : elle n'a pas de source dont re-cibler
+    l'outil, mais elle a le GESTE de création de sa card, la vue `upload` que le générateur écrit
+    depuis ses ports (`views_gen`). L'outil POSTE cette vue (`_poster_vue`, la règle de
+    `_preview_face` : réutiliser l'endpoint plutôt que refaire sa logique — sinon deux vérités).
+    Jusque-là le Writer avait un créateur écrit MAIN dans ce fichier, qu'aucune régénération ne
+    reprenait, et `generic_runner._twin_can_create` le disait : « le manque est celui du
+    GÉNÉRATEUR ».
+
+    Signature : un argument PAR PORT d'entrée, du MÊME NOM (`studio_node_ports`, l'accesseur
+    commun — le contrat du Studio : « un port arrive dans l'argument du même nom »), puis
+    `**params` pour les réglages du schéma (`sanitize_tool_args` les accepte au schéma). Un port de
+    consigne arrive en texte ; un port fichier, en CHEMIN désigné (`find_user_files`), passé par les
+    gardes de la désignation (`designated_file`) et par les extensions de l'app (`accepts_file`)
+    AVANT d'écrire : un fichier refusé fait refuser l'appel, rien n'est créé à moitié. Ce que la vue
+    refuse (rien à ajouter…) revient tel qu'elle le dit."""
+    import inspect
+
+    from wama.common.app_registry import studio_node_ports
+
+    ports = [p for p in ((studio_node_ports(label) or {}).get('inputs') or []) if p.get('id')]
+
+    @tool_effect(WRITE)
+    def creator(user, **kwargs) -> dict:
+        from wama.common.app_registry import accepts_file
+        from wama.common.utils.media_paths import InputRefused, designated_file, designation_field
+        if refusal := _refus_app(user, label):
+            return refusal
+        route = _route_dispo(label, 'upload', None)
+        if not route:
+            return {'error': f"{label} ne sert aucune route de dépôt (`upload`)."}
+        post = {}
+        for port in ports:
+            given = kwargs.pop(port['id'], None)
+            values = [v.strip() for v in (given if isinstance(given, (list, tuple)) else [given])
+                      if isinstance(v, str) and v.strip()]
+            if not values:
+                continue
+            if port.get('group') == 'prompt':
+                post[port['id']] = values[0]
+                continue
+            for value in values:
+                try:
+                    found = designated_file(value, user)
+                except InputRefused as e:
+                    return {'error': f"{port.get('label') or port['id']} : {e}"}
+                if not accepts_file(label, found):
+                    return {'error': f"{port.get('label') or port['id']} : format non accepté "
+                                     f"par l'app ({Path(found).suffix or 'sans extension'})."}
+            post[designation_field(port['id'])] = values
+        post.update({k: v for k, v in kwargs.items() if v is not None})
+        status, payload = _poster_vue(user, label, route, None, post)
+        if refused := _verdict(status, payload, f'Ajout à {label}'):
+            return refused
+        return {'item_id': payload.get('id'), 'status': payload.get('status'),
+                **({'warning': payload['warning']} if payload.get('warning') else {})}
+
+    creator.__doc__ = (f"Add an element to `{label}` (app born from a manifest) exactly like a "
+                       f"deposit on its card — it is NOT started: call `start_{label}`.")
+    creator.__signature__ = inspect.Signature(
+        [inspect.Parameter('user', inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+        + [inspect.Parameter(p['id'], inspect.Parameter.KEYWORD_ONLY, default='', annotation=str)
+           for p in ports]
+        + [inspect.Parameter('params', inspect.Parameter.VAR_KEYWORD)],
+        return_annotation=dict)
+    return creator
 
 
 _register_triads()

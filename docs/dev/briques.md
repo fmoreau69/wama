@@ -1681,7 +1681,7 @@ Que peut faire WAMA de ce fichier ? — ports d'app + lot + manifeste + médiath
 - **Module** : intake — « Que peut faire WAMA de ce fichier ? » : l'index inverse type → capacités (COMMUN).
 - **API publique** (2) :
   - `register_intake_probe(key: str, fn) -> None` — Un monde déclare sa sonde d'intake (appelé depuis son `apps.py:ready()`).
-  - `capabilities_for_path(path) -> dict` — Chemin de fichier → cibles typées AVEC leur rôle, composées des déclarations.
+  - `capabilities_for_path(path, user=None) -> dict` — Chemin de fichier → cibles typées AVEC leur rôle, composées des déclarations — pour `user`
 
 ### Moteur de l'assistant IA
 
@@ -1836,11 +1836,11 @@ Vue dérivée : licences+auteurs des 4 registres, traversée par app. Ne voit PA
 
 ### Bac à sable d'apps (jumelles exécutables)
 
-Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (route §10.3 marches S/S2) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue) ; create/drop symétriques + `substitute <label> <cible>` : remplace UN fichier copié par sa version GÉNÉRÉE (cibles = gabarits `codegen`), témoin `.temoin` préservé, re-mesure, auto-revert sur échec — verdicts journalisés au registre ; `revert <label> <cible>` ramène une cible au témoin à la demande. TROIS JUGES depuis le 03/09, chacun né d'un défaut qui RENDAIT (page 200) sans FONCTIONNER : ① cohérence de paquet par AST (tout `from .x import Y` intra-paquet, imports PARESSEUX compris, doit résoudre) ; ② couple views↔templates (substituer les templates seuls = boutons morts) ; ③ smoke « file HABITÉE » (témoin créé→page rendue→supprimé : une file vide ne rend AUCUNE card, donc ne teste rien du rendu de card). Le gate d'acceptation d'une jumelle reste sa BATTERIE UI auto-dérivée (11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11. Depuis le 2026-10-20 : la chaîne en UNE commande (`substitute <label> a,b+c,…`, seconde passe des groupes revenus, puis leur union — `models` compris quand le modèle copié tient le nœud), et UN sous-processus de juge par substitution (`check`, page, file habitée) — un démarrage de Django coûte ≈ 60 s sous WSL
+Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (route §10.3 marches S/S2) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue) ; create/drop symétriques + `substitute <label> <cible>` : remplace UN fichier copié par sa version GÉNÉRÉE (cibles = gabarits `codegen`), témoin `.temoin` préservé, re-mesure, auto-revert sur échec — verdicts journalisés au registre ; `revert <label> <cible>` ramène une cible au témoin à la demande. TROIS JUGES depuis le 03/09, chacun né d'un défaut qui RENDAIT (page 200) sans FONCTIONNER : ① cohérence de paquet par AST (tout `from .x import Y` intra-paquet, imports PARESSEUX compris, doit résoudre) ; ② couple views↔templates (substituer les templates seuls = boutons morts) ; ③ smoke « file HABITÉE » (témoin créé→page rendue→supprimé : une file vide ne rend AUCUNE card, donc ne teste rien du rendu de card). Le gate d'acceptation d'une jumelle reste sa BATTERIE UI auto-dérivée (11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11. Depuis le 2026-10-20 : la chaîne en UNE commande (`substitute <label> a,b+c,…`, seconde passe des groupes revenus, puis leur union — `models` compris quand le modèle copié tient le nœud), et UN sous-processus de juge par substitution (`check`, page, file habitée) — un démarrage de Django coûte ≈ 60 s sous WSL. Une app NÉE D'UN MANIFESTE (`create --from-manifest`, sans source) : le registre retient ses facettes (`born_registry_facts` — modes, prompts, tool_api, studio) et sa fiche de catalogue, RELUES à chaque `substitute` réussi ; sa triade et son nœud du Studio viennent de SA déclaration (`inject_sandbox_registry(born=…)`, chemins écrits pour la clé et re-ciblés), son outil de création de la vue de dépôt de sa card (`tool_api._born_creator`) — 2026-11-01, ROUTE §11 #43
 
 - **Domicile** : `wama/common/sandbox.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Bac à sable d'apps — jumelles EXÉCUTABLES (route §10.3, marche S, actée Fabien 2026-08-18).
-- **API publique** (19) :
+- **API publique** (21) :
   - `load_registry() -> list` — Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
   - `twin_owner(label: str) -> str` — Username du créateur d'une jumelle ('' si CLI/inconnu) — consommé par la dérogation
   - `twin_source(label: str) -> str` — App SOURCE d'une jumelle ('' si ce label n'en est pas une).
@@ -1848,7 +1848,8 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `retarget_callable(fn, label: str)` — Un geste de l'app SOURCE re-ciblé sur une jumelle : `fn` appelé avec `app_label=label` FIXÉ
   - `exposed_names(tree) -> set` — Les noms qu'un module EXPOSE (arbre AST) : définis, affectés ou importés au niveau du
   - `resolves(dotted: str, root: Path=None) -> bool` — Le chemin pointé `wama.<…>` désigne-t-il un module, ou un nom DÉFINI au niveau d'un module,
-  - `inject_sandbox_registry(registry: dict, *, runnable=None) -> None` — Entrées d'un registre INDEXÉ PAR APP pour les jumelles : la déclaration de la source,
+  - `manifest_key(label: str) -> str` — La clé du manifeste d'où est NÉE une app de zéro : la base de son label —
+  - `inject_sandbox_registry(registry: dict, *, runnable=None, born=None) -> None` — Entrées d'un registre INDEXÉ PAR APP pour les jumelles : la déclaration de la source,
   - `born_declaration(label: str, facet: str)` — Facette DÉCLARÉE d'une app créée DE ZÉRO (`app_sandbox create --from-manifest`), telle que
   - `save_registry(entries: list) -> None`
   - `sandbox_labels() -> list` — Labels des jumelles dont le PACKAGE existe réellement (garde anti-registre orphelin :
@@ -1860,6 +1861,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `inject_sandbox_access(default_app_access: dict, app_group: dict) -> None` — Gating DEV-ONLY des jumelles (contrat marche S §3) + groupe d'affichage dédié.
   - `inject_sandbox_catalog(app_catalog: dict) -> None` — Entrées APP_CATALOG des jumelles : CLONE de l'app source (mêmes conventions — la
   - `non_sandbox_apps(app_catalog: dict) -> list` — Apps RÉELLES du catalogue (les jumelles sont exclues de la grille de conformité :
+  - `born_apps(app_catalog: dict) -> list` — Apps du bac à sable NÉES D'UN MANIFESTE (sans source) — à la différence d'une jumelle, elles
 
 ### Backends PROPOSÉS par un rôle LLM (marche B2)
 
@@ -3760,7 +3762,6 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_synthesizer(user, *args, **kwargs)`
   - `add_to_composer(user, *args, **kwargs)`
   - `add_to_converter(user, *args, **kwargs)`
-  - `add_to_writer_01(user, prompt: str='', reference_document: str='', reference_layout: str='', document_kind: str=None, output_format: str=None, style_instructio…` — Add a document to the Writer queue (bac à sable `writer_01`) — it is written by an LLM from
   - `add_to_imager(user, *args, **kwargs)`
   - `list_studio_pipelines(user) -> dict` — List the user's saved studio pipelines (méta-app graphs), most recent first.
   - `run_studio_pipeline(user, pipeline_id: int=None, pipeline_name: str=None) -> dict` — Run a SAVED studio pipeline, by id or exact name. Validates the graph
@@ -3800,6 +3801,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `get_my_profile(user) -> dict` — Read the user's profile ("Profil"): identity, preferences (language, interface mode,
   - `remember_fact(user, content: str, kind: str='semantic', subject: str='') -> dict` — Save something the user wants WAMA to remember — a fact, a correction, a preference, the
   - `job_progress(user, family: str, pk) -> dict | None` — Où en est UN élément de `user` lancé depuis l'assistant — la barre de progression de
+  - `creator_derivable(label: str) -> bool` — `label` (app du bac à sable installée) a-t-il un outil de création dérivé ? — la règle de
   - `tool_role(tool_name)` — Rôle d'un outil dans la triade : 'add' | 'start' | 'status', sinon None.
   - `app_id_for_tool(tool_name)` — app_id gardé correspondant à un outil, ou None si l'outil est transverse.
   - `tool_family(tool_name)` — La FAMILLE d'un outil : la clé d'adapter de détail (`DetailRegistry`) des éléments qu'il

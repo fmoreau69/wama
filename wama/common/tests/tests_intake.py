@@ -41,6 +41,15 @@ class PortsParCategorieTests(SimpleTestCase):
             apps = {p['app'] for p in caps['ports']}
             self.assertNotIn('converter_01', apps, temoin)
 
+    def test_a_born_app_is_told_apart_from_a_twin(self):
+        """2026-11-01 : l'exclusion vise les JUMELLES (elles doublent leur source) ; une app NÉE
+        D'UN MANIFESTE ne double rien."""
+        from wama.common.sandbox import born_apps
+        catalog = {'reader': {}, 'converter_01': {'sandbox': True, 'generated_from': 'converter'},
+                   'writer_01': {'sandbox': True, 'generated_from': '',
+                                 'from_manifest': 'manifests/app_drafts/writer.json'}}
+        self.assertEqual(['writer_01'], born_apps(catalog))
+
     def test_un_pdf_atteint_les_ports_travail_des_apps_document(self):
         caps = intake.capabilities_for_path('rapport.pdf')
         apps = {p['app'] for p in caps['ports'] if p['group'] == 'travail'}
@@ -122,6 +131,34 @@ class OutilsIntakeTests(TestCase):
             self.assertIn('non admise', rendu['error'])
         finally:
             abs_path.unlink(missing_ok=True)
+
+
+class BornAppIntakeTest(TestCase):
+    """Fil Discord n° 43 (2026-11-01) : « Que puis-je en faire ? » sur un PDF ne proposait jamais le
+    Writer, et l'assistant, sur le Writer demandé, s'est rabattu sur le Reader."""
+
+    def setUp(self):
+        from wama.common.sandbox import sandbox_labels
+        if 'writer_01' not in sandbox_labels():
+            self.skipTest('the Writer sandbox (unversioned) is not installed')
+
+    def _user(self, name, tier=None):
+        from django.contrib.auth import get_user_model
+
+        from wama.accounts.models import UserProfile
+        user = get_user_model().objects.create_user(name, password='x')
+        if tier:
+            profile, _ = UserProfile.objects.get_or_create(user=user)
+            profile.account_tier = tier
+            profile.save()
+        return get_user_model().objects.get(pk=user.pk)
+
+    def test_a_born_app_is_offered_to_whoever_can_open_it_and_only_to_them(self):
+        def apps(user):
+            return {p['app'] for p in intake.capabilities_for_path('cv.pdf', user)['ports']}
+        self.assertIn('writer_01', apps(self._user('intake_dev', 'developpeur')))
+        self.assertNotIn('writer_01', apps(self._user('intake_plain')))
+        self.assertNotIn('writer_01', apps(None), 'sans compte, aucune app du bac à sable')
 
 
 class OutilsChaineAssistantTests(TestCase):

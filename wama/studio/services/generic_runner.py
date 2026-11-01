@@ -110,16 +110,30 @@ GENERIC_APPS = {
 def _twin_can_create(label: str) -> bool:
     """Un nœud studio CRÉE l'élément par l'outil `add_to_<app>` : une jumelle sans cet outil
     afficherait un nœud qui ne peut pas tourner. Elle n'entre donc au registre que s'il existe —
-    le manque est celui du GÉNÉRATEUR (l'outil de création n'est pas encore produit depuis le
-    manifeste), il ne se maquille pas ici."""
-    from wama.tool_api import TOOL_REGISTRY
-    return f'add_to_{label}' in TOOL_REGISTRY
+    le manque est celui du GÉNÉRATEUR, il ne se maquille pas ici. (Une app née d'un manifeste a le
+    sien depuis le 2026-11-01, dérivé de la vue de dépôt de sa card : `tool_api._born_creator`.)
+    La règle de dérivation est lue telle quelle (`creator_derivable`) : ce module peut se charger
+    PENDANT `tool_api`, avant que l'outil ne soit enregistré."""
+    from wama.tool_api import TOOL_REGISTRY, creator_derivable
+    return f'add_to_{label}' in TOOL_REGISTRY or creator_derivable(label)
+
+
+def _born_studio_entry(declarations: dict):
+    """Le nœud qu'une app NÉE D'UN MANIFESTE déclare (facette `studio`, `runnable` vrai), réduit au
+    DÉCLARATIF que `write_back` écrirait dans ce registre (`builtin/app._studio_target`,
+    `STUDIO_FIELDS`) — la même projection, jamais une seconde liste de champs."""
+    studio = declarations.get('studio') or {}
+    if not studio.get('runnable'):
+        return None
+    from wama.common.manifests.builtin.app import _studio_target
+    return _studio_target({'body': {'studio': studio}}) or None
 
 
 # Les JUMELLES du bac à sable : le nœud de leur source, module de params re-ciblé sur leur paquet
-# (décision de Fabien, 2026-10-06 — `sandbox.inject_sandbox_registry`), AVANT la dérivation des E/S.
+# (décision de Fabien, 2026-10-06 — `sandbox.inject_sandbox_registry`), AVANT la dérivation des E/S ;
+# une app NÉE D'UN MANIFESTE, celui que son manifeste déclare (2026-11-01).
 from wama.common.sandbox import inject_sandbox_registry  # noqa: E402
-inject_sandbox_registry(GENERIC_APPS, runnable=_twin_can_create)
+inject_sandbox_registry(GENERIC_APPS, runnable=_twin_can_create, born=_born_studio_entry)
 
 
 def _derive_io_from_ports(app_id):

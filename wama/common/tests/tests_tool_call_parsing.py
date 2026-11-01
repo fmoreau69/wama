@@ -7,7 +7,7 @@ outil dont un argument est un objet (les rôles de la chaîne d'intégration de 
 
 ⚠ Identifiants en anglais ; commentaires et docstrings en français.
 """
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.services.assistant_engine import _parse_tool_call
 
@@ -51,3 +51,42 @@ class ToolCallParsingTest(SimpleTestCase):
         self.assertIsNone(_parse_tool_call('Bonjour, rien à faire.'))
         self.assertIsNone(_parse_tool_call('{"tool": "x", "args": {"a": 1}'))
         self.assertIsNone(_parse_tool_call('{"tool": "x"}'))
+
+
+class BareCallTest(SimpleTestCase):
+    """2026-11-01, épreuve du Writer par l'assistant : la réponse ENTIÈRE était
+    `{"tool": "get_reader_status"}`, affichée à l'utilisateur. Rien ne l'entoure et le nom est celui
+    d'un outil du tour : c'est un appel. Un nom inconnu, ou un appel cité dans une phrase, reste du
+    texte — la raison de la garde ci-dessus."""
+
+    KNOWN = {'get_reader_status'}
+
+    def test_a_whole_answer_that_is_a_bare_call_to_an_announced_tool_is_a_call(self):
+        from wama.common.services.assistant_engine import _bare_call
+        self.assertEqual({'tool': 'get_reader_status', 'args': {}},
+                         _bare_call(' {"tool": "get_reader_status"}\n', self.KNOWN))
+
+    def test_an_unknown_name_or_a_call_quoted_in_prose_stays_text(self):
+        from wama.common.services.assistant_engine import _bare_call
+        self.assertIsNone(_bare_call('{"tool": "x"}', self.KNOWN))
+        self.assertIsNone(_bare_call('Le format est {"tool": "get_reader_status"}.', self.KNOWN))
+        self.assertIsNone(_bare_call('{"tool": "get_reader_status", "note": 1}', self.KNOWN))
+
+
+class BareCallInTheLoopTest(TestCase):
+
+    def test_the_loop_runs_it_instead_of_showing_it(self):
+        from unittest import mock
+
+        from django.contrib.auth.models import User
+
+        from wama.common.services import assistant_engine
+        user = User.objects.create(username='bare_call')
+        answers = iter([('{"tool": "get_reader_status"}', {}), ('Rien en cours.', {})])
+        with mock.patch.object(assistant_engine, '_llm_call',
+                               side_effect=lambda *a, **k: next(answers)), \
+                mock.patch('wama.tool_api.execute_tool', return_value={'jobs': []}) as run:
+            result = assistant_engine.run_assistant_turn(user, 'statut ?', provider='ollama',
+                                                         model='m')
+        self.assertEqual('Rien en cours.', result['response'])
+        self.assertEqual('get_reader_status', run.call_args.args[0])

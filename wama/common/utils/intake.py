@@ -14,7 +14,8 @@ le 2026-08-29). PURE COMPOSITION de déclarations existantes, aucun vocabulaire 
   • un fichier texte sans port n'est pas « aucune cible » : c'est le déclencheur des
     détecteurs de LOT (`batch_parsers`) et de la question à poser à l'utilisateur ;
   • les jumelles bac à sable sont exclues (`non_sandbox_apps` — `converter_01` remonte
-    dans les trois voies sinon, mesuré) ;
+    dans les trois voies sinon, mesuré) ; une app NÉE D'UN MANIFESTE, qui ne double rien, est
+    proposée à qui peut l'ouvrir (`sandbox.born_apps`, 2026-11-01) ;
   • les MONDES se déclarent ici par sonde (`register_intake_probe`, appelé depuis leur
     `apps.py` — même sens que `lecteurs_data` au registre des registres) : ce module ne
     cite JAMAIS un monde en dur (doctrine des mondes, AGENTS.md) ;
@@ -44,14 +45,22 @@ def register_intake_probe(key: str, fn) -> None:
     INTAKE_PROBES[key] = fn
 
 
-def _ports_for_category(category: str) -> list:
-    """Tous les ports FICHIER (travail/référence) des apps réelles qui acceptent cette nature."""
+def _ports_for_category(category: str, user=None) -> list:
+    """Tous les ports FICHIER (travail/référence) des apps réelles qui acceptent cette nature —
+    et des apps NÉES D'UN MANIFESTE que `user` peut ouvrir (2026-11-01, fil Discord n° 43 : le
+    Writer n'était jamais proposé, l'assistant se rabattait sur le Reader). L'exclusion du bac à
+    sable vise les JUMELLES, qui doublent leur source ; une app née d'un manifeste ne double rien,
+    mais elle reste fermée à qui n'y a pas accès (`inject_sandbox_access`)."""
     from wama.common.app_registry import APP_CATALOG, file_ports_for
-    from wama.common.sandbox import non_sandbox_apps
+    from wama.common.sandbox import born_apps, non_sandbox_apps
 
+    apps = list(non_sandbox_apps(APP_CATALOG))
+    if user is not None:
+        from wama.accounts.permissions import accessible
+        apps += [a for a in born_apps(APP_CATALOG) if accessible(user, 'app', a)]
     return [{'app': app_id, 'port': port.get('id'), 'group': port.get('group'),
              'label': port.get('label', '')}
-            for app_id in sorted(non_sandbox_apps(APP_CATALOG))
+            for app_id in sorted(apps)
             for port in file_ports_for(app_id, category)]
 
 
@@ -115,9 +124,10 @@ def _asset_types_for(path: Path, category: str) -> list:
     )
 
 
-def capabilities_for_path(path) -> dict:
+def capabilities_for_path(path, user=None) -> dict:
     """
-    Chemin de fichier → cibles typées AVEC leur rôle, composées des déclarations.
+    Chemin de fichier → cibles typées AVEC leur rôle, composées des déclarations — pour `user`
+    quand il est donné (les apps nées d'un manifeste qu'il peut ouvrir s'y ajoutent).
 
     Retour :
       {'category', 'ports': [{'app','port','group','label'}], 'batch': {...}|None,
@@ -133,7 +143,7 @@ def capabilities_for_path(path) -> dict:
 
     result = {
         'category': category,
-        'ports': _ports_for_category(category),
+        'ports': _ports_for_category(category, user),
         'batch': _sniff_batch(p) if p.exists() else None,
         'manifest': _sniff_manifest(p) if p.exists() else None,
         'asset_types': _asset_types_for(p, category),
