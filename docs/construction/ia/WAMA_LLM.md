@@ -2948,7 +2948,7 @@ image → vision, document → lecteurs de lot, budgets bornés) et les replie d
    **L'assistant** : même brique, durée de vie = la CONVERSATION (`conversation_store`), via son
    dépôt en mode « sas » (card v4, décision du 2026-09-28).
 3. **Vers le RAG persistant : un GESTE, jamais automatique** (décision du 2026-08-21) — sur chaque
-   fichier de contexte, « + Ajouter à mon RAG », même endpoint que l'inspecteur et le menu « … »
+   fichier de contexte, « + Ajouter à mon RAG », même endpoint que le menu « … »
    (`/common/api/rag/ajouter/`), niveau par défaut du profil. 4ᵉ surface du geste
    (`WAMA_MEMORY §9quater`).
    ✅ **Le geste sur un FICHIER existe depuis le 2026-10-14** (arbre de fichiers + outils de

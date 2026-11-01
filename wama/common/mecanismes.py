@@ -938,20 +938,22 @@ MECHANISMS = (
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=('wama/common/tests/tests_global_queue.py',)),
     Mechanism('rag_gesture', "Ajout au RAG (geste explicite)",
-              "Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, "
-              "aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision. "
-              "Surfaces : inspecteur, menu « … » des cards, arbre de fichiers et assistant "
-              "(outils `add_item_to_rag` / `add_file_to_rag`) — UN endpoint, deux gestes de la "
+              "Entrée « Ajouter au RAG » du menu « … » (card, sélection, arbre de fichiers) + page "
+              "« Mon RAG » ; texte pris au schéma canonique, aucune ligne par app. Pas de "
+              "balayage : l'entrée au RAG est un geste, par décision. Surfaces : menu « … » des "
+              "cards, arbre de fichiers et assistant (outils `add_item_to_rag` / "
+              "`add_file_to_rag`) — le bouton de l'INSPECTEUR, doublon du menu, est retiré le "
+              "2026-11-01 (décision de Fabien). UN endpoint, deux gestes de la "
               "brique (`memory.index.add_item_to_rag` / `add_file_to_rag`, 2026-10-14) : un "
               "élément par son texte canonique, un FICHIER remonté à l'élément dont il est la "
               "sortie, sinon lu s'il porte déjà du texte (`reference_comprehension.read_document_text`) "
               "et refusé, en le disant, s'il n'en porte pas",
-              'wama/common/static/common/js/wama-inspector.js', 'docs/construction/ia/WAMA_MEMORY.md §7ter',
-              # Le domicile est le JS : c'est LUI qui rend le geste universel (inspecteur global).
+              'wama/common/static/common/js/wama-card-menu.js', 'docs/construction/ia/WAMA_MEMORY.md §7ter',
+              # Le domicile est le JS : c'est LUI qui rend le geste universel (menu « … » global).
               # Les vues sont l'annexe serveur — la seule porte d'écriture offerte à l'UI.
               annexes=('wama/common/templates/common/rag.html',),
               symbol='rag/ajouter',
-              depends_on=('inspector', 'memory')),
+              depends_on=('card_menu', 'memory')),
     Mechanism('qc', 'Contrôle qualité de sortie',
               "Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade humaine",
               'wama/common/utils/qc.py', 'docs/construction/suivi/ROADMAP.md §16.5',

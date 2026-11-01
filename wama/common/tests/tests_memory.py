@@ -343,7 +343,8 @@ class NiveauxRappelTests(TestCase):
 
 class SurfacesDuGesteTests(TestCase):
     """
-    JALON 14 — les SURFACES du geste (bouton d'inspecteur + page « Mon RAG »).
+    JALON 14 — les SURFACES du geste (menu « … » — bouton d'inspecteur jusqu'au 2026-11-01 — et
+    page « Mon RAG »).
 
     Ce qui est protégé ici n'est pas l'ergonomie mais les INVARIANTS de la décision du 21/08 :
     l'écriture passe par un geste sur UN élément, l'élément doit porter du texte, il doit
@@ -466,6 +467,21 @@ class SurfacesDuGesteTests(TestCase):
         self.client.force_login(self.autre)
         r = self.client.get('/common/rag/')
         self.assertEqual(r.context['total'], 0)
+
+    def test_the_gesture_lives_in_the_action_menu_and_no_longer_in_the_panel(self):
+        """Décision de Fabien (2026-11-01) : le bouton du volet doublait l'entrée du menu « … » —
+        l'ajout au RAG se fait par les actions. Les deux copies de l'inspecteur (source et
+        servie) sont lues : c'est la servie que voit le navigateur."""
+        from django.conf import settings
+        base = settings.BASE_DIR
+        menu = (base / 'wama/common/static/common/js/wama-card-menu.js').read_text(encoding='utf-8')
+        self.assertIn('/common/api/rag/ajouter/', menu)
+        self.assertIn("libelle: 'Ajouter au RAG'", menu)
+        for path in ('wama/common/static/common/js/wama-inspector.js',
+                     'staticfiles/common/js/wama-inspector.js'):
+            inspector = (base / path).read_text(encoding='utf-8')
+            self.assertNotIn('rag/ajouter', inspector, path)
+            self.assertNotIn('Ajouter au RAG', inspector, path)
 
 
 class RattachementMultipleTests(TestCase):

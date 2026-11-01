@@ -195,7 +195,7 @@ def item_text(detail):
 
 
 def add_item_to_rag(user, app_name, pk, *, level='', org_unit=''):
-    """Ajoute au RAG le texte d'un ÉLÉMENT d'app — le geste de l'inspecteur et du menu « … ».
+    """Ajoute au RAG le texte d'un ÉLÉMENT d'app — le geste du menu « … ».
 
     Générique par construction : `app_name`/`pk` suffisent, le texte vient du schéma canonique
     (`DetailRegistry`). `source_id` = `<app>:<pk>` — stable, donc le geste est IDEMPOTENT

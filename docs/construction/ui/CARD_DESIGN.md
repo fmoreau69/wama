@@ -153,9 +153,10 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   menu ne propose jamais ce que le POST refuserait. Même règle que le pivot assistant — *le rôle
   est FOURNI, jamais deviné*.
 - ⚠ **« Ajouter au RAG » existait déjà**, mais **uniquement dans l'inspecteur**, dans sa section
-  RAG : il fallait ouvrir le volet pour le trouver. Les deux surfaces coexistent volontairement
-  et appellent **le même endpoint** — l'inspecteur garde l'avantage de dire l'ÉTAT (« 3 fragments
-  · en attente de vectorisation »), le menu celui d'être à un clic.
+  RAG : il fallait ouvrir le volet pour le trouver. Les deux surfaces ont coexisté sur le même
+  endpoint jusqu'au **2026-11-01**, où le bouton du volet est retiré (décision de Fabien : un
+  doublon, « l'ajout au RAG se fait par les boutons d'actions ») — le toast du menu dit le même
+  état (« 3 fragments · en attente de vectorisation »).
 - ⭐ **UN menu contextuel dans WAMA, en CASCADE** (2026-09-14, retour de Fabien). Un sous-menu
   s'ouvre **à côté** de son parent, au survol (délai d'intention de 140 ms) et au clic ; le parent
   reste ouvert et allumé. Il s'ouvrait au clic et **remplaçait** son parent. L'arbre de fichiers a
@@ -225,7 +226,7 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   dans l'arbre, un fichier qui n'est la sortie de rien (dépôt temporaire, entrée d'app, dossier
   connecté) a « Ajouter au RAG » sur le fichier, et une sélection de N fichiers « Ajouter N
   fichiers au RAG » — entrées de la brique (`WamaCardMenu.entreesPourChemins`), MÊME endpoint que la
-  card, l'inspecteur et l'outil `add_file_to_rag` de l'assistant (`WAMA_MEMORY §9quater`).
+  card et l'outil `add_file_to_rag` de l'assistant (`WAMA_MEMORY §9quater`).
 - ⚠ **Le bouton DÉDIÉ du composer est retiré** (2026-09-18, demande de Fabien). La card composer
   portait encore, dans sa rangée, un bouton « Exporter vers médiathèque » (`.export-btn`, plus une
   coche « Déjà exporté ») — la seule app du parc à le faire, mesuré : il **dupliquait** l'entrée

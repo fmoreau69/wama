@@ -198,13 +198,15 @@ c'est ce qui rend `source_text` / `result_text` structurants et non décoratifs 
 | Consommateur | Ce qu'il lit | Où |
 |---|---|---|
 | **Aperçu d'entrée** (face Entrée, fichier OU texte — 2026-10-12) | `source_file`, sinon `source_text` (port `prompt` : `source_text` seul) | `preview_utils._input_preview` — symétrique de la face Sortie (`result_file`/`result_text`) ; le `file_field` du registre d'aperçu ne désigne plus l'entrée |
-| **Geste « Ajouter au RAG »** | `result_text`, sinon `source_text` — **data-gated** : pas de texte ⇒ pas de bouton | `wama-inspector.js` (`_ragChip`) |
+| ~~**Geste « Ajouter au RAG »**~~ | ~~`result_text`, sinon `source_text` — data-gated~~ — **retiré de l'inspecteur le 2026-11-01** (doublon du menu « … », décision de Fabien) : le geste vit dans `wama-card-menu.js`, et le serveur refuse un élément sans texte | ligne suivante |
 | **Ingestion RAG** | `result_text` (sortie) puis `source_text` (entrée) | `common/views.py` — boucle `('result_text','sortie'),('source_text','entrée')` (ancre symbolique : les numéros de ligne de ce fichier dérivent) |
 | **Runner du studio** | `result_text` (chaînage texte → synthesizer) | cf. §Ajout 2026-07-13 |
 
-> Le geste RAG vit dans l'inspecteur **parce que** le schéma canonique y est déjà : les 10 apps
-> l'obtiennent sans une ligne de code par app. C'est l'argument qui a fait choisir cet
-> emplacement (`WAMA_MEMORY.md` §7ter, jalon 14) — il appartient donc à ce document aussi.
+> Le geste RAG a vécu dans l'inspecteur (2026-08-22 → 2026-11-01) **parce que** le schéma
+> canonique y est déjà : les 10 apps l'obtenaient sans une ligne de code par app (`WAMA_MEMORY.md`
+> §7ter, jalon 14). Le menu « … », global lui aussi, l'offre depuis le 2026-09-11 ; le bouton du
+> volet, devenu doublon, est retiré (`WAMA_MEMORY.md §9quater`). Le texte reste lu au schéma
+> canonique, côté serveur (ligne « Ingestion RAG »).
 
 ## Mapping par app
 Voir l'audit (transcriber `backend→engine` `audio→source_file` … ; reader `backend→engine`

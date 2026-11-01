@@ -6,7 +6,8 @@
 > brique `wama/common/memory/`, journal `/common/journal/`, `memory_recall` **hybride** (résidence
 > de l'embedder — `qwen3-embedding:4b` depuis le 2026-10-19, §7 — arbitrée par le gouverneur), 25 souvenirs dev-ai en file de revue, **entrée au RAG
 > par GESTE avec niveaux user/labo** (§7ter) et, depuis le 2026-08-22, **ses SURFACES** :
-> bouton « Ajouter au RAG » dans l'**inspecteur** (donc les 10 apps, sans une ligne par app) +
+> entrée « Ajouter au RAG » du menu « … » (card, sélection, arbre de fichiers — donc toutes les
+> apps, sans une ligne par app ; le bouton de l'inspecteur, doublon, est retiré le 2026-11-01) +
 > page **« Mon RAG »** `/common/rag/` (défauts de niveaux, liste, retrait, état des vecteurs).
 > ⚠ Le RAG reste **vide tant que personne n'a cliqué** — c'est l'état **voulu** : le balayage
 > initial a été purgé (939 → 0) et il n'existe aucune autre porte d'écriture.
@@ -802,7 +803,17 @@ surfaces le portent désormais, et le **placement** est la seule vraie décision
 > Consigné aussi dans `CARD_DESIGN §2bis` (la règle « les sorties complémentaires vont dans le
 > "…" », dont ce geste est le 4ᵉ client).
 
-**① Le geste vit dans l'INSPECTEUR, pas sur les cards des apps.**
+> ✂ **Le bouton de l'INSPECTEUR est RETIRÉ le 2026-11-01** (décision de Fabien : *« un bouton
+> ajouter au RAG est toujours présent dans le volet droit en doublon de ce qu'on a fait
+> proprement. […] Il n'a plus de sens. L'ajout au RAG se fait par les boutons d'actions »*). Le
+> geste vit dans le menu « … » seul (`wama-card-menu.js`, `entreesGarder`), qui dit le même
+> état par son toast (« N fragments · niveau · en attente de vectorisation »). Ce que ① ci-dessous
+> défendait — **zéro ligne par app**, le texte pris au schéma canonique — reste vrai : le menu est
+> global, et c'est le SERVEUR qui refuse un élément sans texte (400, en le disant), là où le
+> bouton se cachait. ① est gardé comme trace de la décision d'origine.
+
+**① Le geste vit dans l'INSPECTEUR, pas sur les cards des apps.** *(décision du 2026-08-22 —
+retirée le 2026-11-01, voir ci-dessus)*
 `renderDetailChips` ajoute un bouton « Ajouter au RAG » quand l'item porte du texte. Pourquoi
 là et pas ailleurs :
 
@@ -1162,7 +1173,7 @@ Ne rien arbitrer sur ces chiffres.
 | 11 | Journal `/common/journal/` (couche 1) + captation générique (couche 2) | ✅ 2026-08-20 — §9bis |
 | 12 | **tool_api : lecture générique** (`list_my_items` / `get_item_detail`) — §9ter | ✅ 2026-09-11 — 13 gardes ; les 2 réserves traitées (date ISO + bloc `raw` ; aucun adapter au listing). Reste la dépréciation des ~10 `get_<app>_status` |
 | 13 | **Niveaux de RAG** — `rag_niveaux` dans `recall()` + `memory_recall(niveaux=…)` + niveaux à l'écriture | ✅ 2026-08-21 — 31 tests, héritage équipe→labo prouvé |
-| 14 | **Surfaces du geste** : bouton « Ajouter au RAG » + **page de gestion** (défauts de niveaux, liste, retrait, état des vecteurs) | ✅ 2026-08-22 — **placement tranché : l'INSPECTEUR**, pas les cards (§9quater) ; page `/common/rag/` ; 10 tests |
+| 14 | **Surfaces du geste** : bouton « Ajouter au RAG » + **page de gestion** (défauts de niveaux, liste, retrait, état des vecteurs) | ✅ 2026-08-22 — **placement tranché : l'INSPECTEUR**, pas les cards (§9quater) ; page `/common/rag/` ; 10 tests — → menu « … » seul depuis le 2026-11-01 (§9quater) |
 
 **Validation empirique du jalon 3** (2026-08-20, 21 contrôles, 0 échec) — écriture verbatim, dédup
 par `content_hash`, garde-fou « approbation sans approbateur » refusée, brouillon LLM invisible au

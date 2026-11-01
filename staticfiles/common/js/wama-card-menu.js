@@ -208,9 +208,10 @@
     }
 
     /**
-     * Indexe l'élément au RAG. MÊME endpoint que le bouton de l'inspecteur
-     * (`wama-inspector.js:405`) — deux surfaces, un seul geste : si elles divergeaient, on
-     * déboguerait deux chemins pour la même promesse.
+     * Indexe l'élément au RAG — le SEUL geste d'interface qui le fait, offert par le menu « … »
+     * de la card, de la sélection et de l'arbre de fichiers. L'inspecteur portait un second
+     * bouton sur le même endpoint : retiré le 2026-11-01 (décision de Fabien, « il n'a plus de
+     * sens, l'ajout au RAG se fait par les boutons d'actions »).
      * Le NIVEAU n'est pas demandé ici non plus : il vient du défaut de profil (décision du
      * 21/08 — le changer reste possible depuis « Mon RAG », où l'on voit ce qu'on a partagé).
      * `champs` désigne un ÉLÉMENT (`{app, pk}`) ou, depuis le 2026-10-14, un FICHIER de l'arbre
@@ -229,7 +230,7 @@
             var refus = refusRag(res);
             if (refus) { dire('RAG — ' + refus, 'error'); return; }
             // « en attente de vectorisation » est DIT, pas tu : sans embedding le document ne
-            // remonte pas encore au rappel sémantique (mêmes mots que l'inspecteur, exprès).
+            // remonte pas encore au rappel sémantique.
             dire(res.fragments + ' fragment' + (res.fragments > 1 ? 's' : '')
                 + ' au RAG · ' + (res.niveau || '') + ' · en attente de vectorisation', 'ok');
         });
@@ -283,10 +284,9 @@
      * (`[⚙][▶][⬇][⧉][🗑]`), et l'arbitrage du 2026-09-08 dit déjà que « les sorties manquantes
      * vont dans les "..." ».
      *
-     * ⚠ « Ajouter au RAG » EXISTAIT DÉJÀ, mais seulement dans l'inspecteur, dans sa section
-     * RAG (`wama-inspector.js:374`). Il fallait donc ouvrir le volet pour le trouver. Les
-     * deux surfaces coexistent volontairement — c'est le MÊME endpoint, et l'inspecteur
-     * garde l'avantage de dire l'état (« 3 fragments · en attente de vectorisation »).
+     * « Ajouter au RAG » n'existait d'abord que dans l'inspecteur : il fallait ouvrir le volet
+     * pour le trouver. Il vit ici depuis le 2026-09-11, et ici seulement depuis le 2026-11-01
+     * (le bouton du volet faisait doublon).
      */
     function entreesGarder(co) {
         return [
