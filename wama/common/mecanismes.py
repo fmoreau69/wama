@@ -1428,7 +1428,8 @@ MECHANISMS = (
               "Extraction/validation/projection des 7 kinds vers les registres. Le corpus "
               "versionné suit le registre À CHAUD par UNE porte (`corpus.follow` : installation, "
               "validation d'une proposition, désinstallation — 2026-10-12), que le runner de "
-              "tests coupe",
+              "tests coupe ; un modèle suivi entraîne, en tâche de fond, les manifestes d'app qui "
+              "le citent ou doivent le citer (`corpus.follow_apps`, 2026-11-02)",
               'wama/common/manifests/ingest.py', 'docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md',
               # Annexes complétées le 2026-08-31 (audit) : le dossier `manifests/` entrait au
               # balayage et ces modules — enveloppe, vocabulaire des kinds, table de projection,

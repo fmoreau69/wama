@@ -1540,8 +1540,8 @@ Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama loca
   - `provider_error_text(label: str, model: str, exc) -> str` — L'échec d'un fournisseur distant DIT à l'utilisateur : qui, quoi, que faire (2026-10-30,
   - `llm_chat(messages: list, model: str=None, provider: str=None, num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, api_k…` — Unified LLM chat function — provider-agnostic entry point.
   - `tool_call_text(name: str, arguments) -> str` — Un appel d'outil NATIF (nom + arguments JSON du fournisseur) rendu dans la forme texte de
-  - `chat_with_catalog_model(catalog_key: str, messages: list, *, user=None, num_predict: Optional[int]=None, think: bool=False, timeout: Optional[float]=None, temp…` — Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
-  - `chat_with_source(source: str, model_id: Optional[str], messages: list, *, user=None, num_predict: Optional[int]=None, think: bool=False, timeout: Optional[floa…` — Un appel à un fournisseur LLM DÉCLARÉ (`external_sources`, type `llm` : Albert, API
+  - `chat_with_catalog_model(catalog_key: str, messages: list, *, user=None, num_predict: Optional[int]=None, think: Optional[bool]=None, timeout: Optional[float]=N…` — Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
+  - `chat_with_source(source: str, model_id: Optional[str], messages: list, *, user=None, num_predict: Optional[int]=None, think: Optional[bool]=None, timeout: Opti…` — Un appel à un fournisseur LLM DÉCLARÉ (`external_sources`, type `llm` : Albert, API
   - `extract_json_from_llm(text: str) -> Optional[dict]` — Extract the first valid JSON object from an LLM response.
   - `generate_meeting_summary(text: str, language: str='fr', speakers: Optional[list]=None, model: str='', provider: Optional[str]=None, temperature: Optional[float…` — Generate a structured meeting summary (compte-rendu de réunion).
   - `verify_text_coherence(text: str, content_hint: str='transcription', language: str='fr', model: str='', provider: Optional[str]=None, temperature: Optional[floa…` — Verify text coherence and suggest corrections.
@@ -1977,7 +1977,7 @@ Mesure les 8 facettes F1–F8 des apps par analyse du code réel
 
 ### Manifestes
 
-Extraction/validation/projection des 7 kinds vers les registres. Le corpus versionné suit le registre À CHAUD par UNE porte (`corpus.follow` : installation, validation d'une proposition, désinstallation — 2026-10-12), que le runner de tests coupe
+Extraction/validation/projection des 7 kinds vers les registres. Le corpus versionné suit le registre À CHAUD par UNE porte (`corpus.follow` : installation, validation d'une proposition, désinstallation — 2026-10-12), que le runner de tests coupe ; un modèle suivi entraîne, en tâche de fond, les manifestes d'app qui le citent ou doivent le citer (`corpus.follow_apps`, 2026-11-02)
 
 - **Domicile** : `wama/common/manifests/ingest.py` · **doc** : [docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md](../construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md)
 - **Module** : Moteur d'INGEST — validate → (sandbox) store → verify → promote → un-ingest.
@@ -2736,6 +2736,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `schema_arg_names(app_id: str) -> set` — Noms de params qu'une app DÉCLARE — surface d'arguments acceptable d'un outil `**params`.
   - `choice_values(p) -> List[str]` — Valeurs VALIDES d'un select/radio : ses `choices` statiques. UNE fonction pour la porte
   - `catalog_options(p) -> List[Tuple[str, str]]` — [(valeur, libellé)] d'un select tiré du CATALOGUE (`options_source='catalog'`), lus sur le
+  - `catalog_choice_keys(app_id: str) -> List[Tuple[dict, List[str]]]` — [(champ, [clés de catalogue])] des selects de catalogue d'une app, dans l'ordre du schéma —
   - `invalid_choice_values(schema, data) -> dict` — {nom: (valeurs_refusées, choices_valides_triés)} pour chaque valeur PRÉSENTE hors
   - `unapplicable_numeric_values(schema, data) -> dict` — {nom: (valeur_refusée, explication)} pour chaque nombre PRÉSENT que le schéma ne peut
   - `schema_choice_values(app_id, name) -> set` — Valeurs valides d'un param à `choices`, DÉRIVÉES du schéma — jamais recopiées.
