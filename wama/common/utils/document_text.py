@@ -310,6 +310,13 @@ def _scrub_docx(document) -> None:
 OCR_JOIN = '\n'
 
 
+def _ocr_scale(page, ocr_page) -> tuple:
+    """(sx, sy) : des coordonnées d'un OCR (l'unité de SA page, `OCRBackend.read_lines`) aux points
+    de la page du PDF — lue par les deux lectures de ses lignes (`_ocr_words`, `_ocr_lines`)."""
+    return (page.rect.width / (ocr_page.get('width') or page.rect.width),
+            page.rect.height / (ocr_page.get('height') or page.rect.height))
+
+
 def _ocr_words(page, ocr_page) -> list:
     """Les lignes qu'un OCR a lues sur une page (`ocr=`), dans l'unité PAGE : `[(texte, [(début,
     fin, boîte)])]` — le texte de la ligne et, pour chaque mot, sa plage de caractères dans ce
@@ -318,8 +325,7 @@ def _ocr_words(page, ocr_page) -> list:
     import fitz
     out = []
     ocr_page = ocr_page or {}
-    sx = page.rect.width / (ocr_page.get('width') or page.rect.width)
-    sy = page.rect.height / (ocr_page.get('height') or page.rect.height)
+    sx, sy = _ocr_scale(page, ocr_page)
     for line in (ocr_page.get('lines') or []) + (ocr_page.get('figure_lines') or []):
         words = [w for w in line.get('words') or [] if str(w.get('text') or '').strip()] \
             or [{'text': line.get('text') or '', 'bbox': line['bbox']}]
@@ -860,8 +866,7 @@ def _ocr_lines(page, ocr_page, pixmap) -> list:
     — ce que lisent `_pdf_unit`, `_stack` et `_alignment` : boîte en points de la page, un seul
     morceau par ligne, taille tirée de la hauteur de la boîte (`OCR_SIZE_RATIO`), couleur de son
     encre ; ni police (la famille par défaut), ni gras : un scan ne les dit pas."""
-    sx = page.rect.width / (ocr_page.get('width') or page.rect.width)
-    sy = page.rect.height / (ocr_page.get('height') or page.rect.height)
+    sx, sy = _ocr_scale(page, ocr_page)
     import fitz
     lines = []
     for line in ocr_page.get('lines') or []:

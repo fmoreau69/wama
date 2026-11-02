@@ -106,6 +106,23 @@ class EachDomainHasItsProcessesTest(SimpleTestCase):
                                  self._keys(Media(media_type=nature, ocr_scanned_pages=True)))
 
 
+class TheBatchModalOpensOnTheDomainOfItsBatchTest(SimpleTestCase):
+    """The ⚙ of a batch opens the schema of ITS domain: one opener per declared domain, which the
+    common brick picks by the button's `data-domain` (`onBatchSettings(fn, {domain})`) — the app
+    does not read the DOM for it (the revérification of 2026-11-02 found that reading)."""
+
+    def test_the_page_script_has_one_opener_per_domain(self):
+        from pathlib import Path
+        from django.conf import settings
+        from wama.common.utils.app_modes import get_domains
+        code = (Path(settings.BASE_DIR) / 'wama' / 'anonymizer' / 'static' / 'anonymizer' / 'js'
+                / 'queue.js').read_text(encoding='utf-8')
+        for domain in get_domains('anonymizer'):
+            with self.subTest(domain=domain['id']):
+                self.assertIn(f"{{ domain: '{domain['id']}' }}", code)
+        self.assertNotIn("closest('[data-domain]')", code)
+
+
 class DocumentBirthTest(TestCase):
     """A deposited document is BORN in its domain, with its domain's schema — and the file
     proposes the OCR (`Param.default_from`, `needs_ocr`): a scan ticks it, a native PDF does not."""

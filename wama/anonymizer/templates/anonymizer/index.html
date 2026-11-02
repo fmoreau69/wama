@@ -320,6 +320,17 @@ window._batchImport = WamaBatchImport({
         location.reload();
     },
 });
+// La barre de lot de la card DOCUMENT (2026-11-02) : la même brique, sa base d'ids (`idBase`, la
+// règle de la card audio de l'enhancer), les mêmes routes de lot.
+window._batchImportDocument = WamaBatchImport({
+    idBase:          'anonDocBatch',
+    batchPreviewUrl: '{% url "anonymizer:batch_preview" %}',
+    batchCreateUrl:  '{% url "anonymizer:batch_create" %}',
+    csrfToken:       '{{ csrf_token }}',
+    afterCreate: function(data, autoStart) {
+        location.reload();
+    },
+});
 
 // Switch de MODE depuis le schéma déclaratif (brique commune WamaModes). Il porte le réglage
 // `target_mode` (mode_param) : l'inspecteur, les préférences et le menu de modèle le lisent.
@@ -436,9 +447,11 @@ pièce les lit. {% endcomment %}
 
 {% comment %}Card d'entrée du domaine DOCUMENT (2026-11-02) : la même brique, `card_domain='document'`
 (port `work_file` restreint aux documents : PDF, DOCX). `card_id` et ids DÉCLARÉS : deux cards
-d'entrée sur une page = deux jeux d'ids (règle de l'enhancer et de l'imager). Le lot et l'URL
-restent à la card image / vidéo : un descripteur de lot range chaque ligne par sa nature.{% endcomment %}
-{% include 'common/_new_item_card_v4.html' with app_id='anonymizer' card_domain='document' card_id='anonDocNewItem' drop_zone_id='dropZoneAnonDocument' file_input_id='anonDocFileInput' folder_input_id='anonDocFolderInput' formats_label='Documents — PDF, DOCX' url_input_id='anonDocUrlInput' url_submit_id='anonDocUrlSubmit' url_placeholder='https://… (un PDF, un DOCX)' collapsible=True %}
+d'entrée sur une page = deux jeux d'ids (règle de l'enhancer et de l'imager). Sa barre de LOT est
+la sienne (`batch_bid`, comme la card audio de l'enhancer), sur les routes de lot de l'app : chaque
+ligne y est rangée par sa nature. Sans elle, la tuile « Lot » versait dans la barre de l'autre
+onglet (mesuré au geste nocturne `anonymizer.tree_drop`).{% endcomment %}
+{% include 'common/_new_item_card_v4.html' with app_id='anonymizer' card_domain='document' card_id='anonDocNewItem' drop_zone_id='dropZoneAnonDocument' file_input_id='anonDocFileInput' folder_input_id='anonDocFolderInput' formats_label='Documents — PDF, DOCX' show_batch_bar=True batch_bid='anonDocBatch' batch_label='Lot de documents' batch_template_url=anon_batch_template_url url_input_id='anonDocUrlInput' url_submit_id='anonDocUrlSubmit' url_placeholder='https://… (un PDF, un DOCX)' collapsible=True %}
 
 {% comment %}La barre du domaine document : la MÊME pièce, sur sa file (`domain_filters`).{% endcomment %}
 <div class="mb-3 mt-3">

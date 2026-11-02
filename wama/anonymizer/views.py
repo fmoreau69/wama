@@ -275,14 +275,10 @@ def handle_uploaded_media_file(media_file, output_path):
 
 def add_media_to_db(media, vid_or_path):
     """Populate the Media model with metadata from a video or image using common utility.
-    Un DOCUMENT (2026-11-02) n'a ni dimensions ni durée : la sonde commune (`media_probe`) en dit
-    les pages."""
+    Un DOCUMENT (2026-11-02) n'a ni dimensions, ni cadence, ni durée : seule sa nature se pose."""
     from wama.common.app_registry import category_of_path
     if isinstance(vid_or_path, str) and category_of_path(vid_or_path) == 'document':
-        from wama.common.utils.media_probe import probe_media
-        pages = ((probe_media(vid_or_path) or {}).get('attributes') or {}).get('pages')
         media.media_type = 'document'
-        media.properties = f"{pages} page(s)" if pages else os.path.splitext(vid_or_path)[1].lstrip('.').upper()
         media.save()
         return
     if isinstance(vid_or_path, str):

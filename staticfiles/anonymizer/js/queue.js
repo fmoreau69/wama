@@ -141,18 +141,13 @@
   });
 
   // ── Batch : lancer / paramètres (modale commune context:'batch') ────────
-  // Le schéma est celui du DOMAINE du lot (2026-11-02) — l'onglet qui le porte (`data-domain`).
+  // Le schéma est celui du DOMAINE du lot (2026-11-02) : un ouvreur par domaine, que la brique
+  // choisit par le `data-domain` du bouton (`onBatchSettings(fn, {domain})`, plus bas).
   let batchParamsDomain = null;
 
-  function batchDomain(btn) {
-    const pane = btn && btn.closest && btn.closest('[data-domain]');
-    return (pane && pane.dataset.domain) || 'image_video';
-  }
-
-  function openBatchModal(batchId, btn) {
+  function openBatchModal(batchId, domain) {
     const modal = document.getElementById('batchSettingsModal');
     if (!modal || !window.WamaParams) return;
-    const domain = batchDomain(btn);
     if (batchParamsDomain !== domain) {
       const host = document.getElementById('anonBatchParams');
       host.innerHTML = '';
@@ -224,7 +219,10 @@
   // gestionnaire de fichiers (`signalerFichiers`) + rechargement, ce que faisaient les
   // handlers retirés de `update.js`.
   WamaQueueActions.onBatchStarted(appliquerDemarrageLot);
-  WamaQueueActions.onBatchSettings(function (batchId, btn) { openBatchModal(batchId, btn); });
+  WamaQueueActions.onBatchSettings(function (batchId) { openBatchModal(batchId, 'image_video'); },
+                                   { domain: 'image_video' });
+  WamaQueueActions.onBatchSettings(function (batchId) { openBatchModal(batchId, 'document'); },
+                                   { domain: 'document' });
 
   document.addEventListener('click', function (e) {
     if (e.target.closest('#saveBatchSettingsBtn')) saveBatchSettings(false);

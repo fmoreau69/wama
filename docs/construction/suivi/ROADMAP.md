@@ -3571,7 +3571,14 @@ eds-pseudo, privacy-filter dès transformers ≥ 5.6 ou par l'ONNX).
   son schéma, un inspecteur par domaine, modale ⚙ et modale de lot au schéma du domaine.
   Gardes : `anonymizer/tests_document_domain.py` (déclaration, porte, process par domaine,
   naissance avec l'OCR proposé, détection puis occultation de bout en bout) — quatre
-  contre-épreuves rouges. ⏳ Restent : la page de CORRECTION par passage (`surfaces.py` la dit
+  contre-épreuves rouges. ✅ **Vérifié sur WAMA EN SERVICE le 2026-11-02 au soir** (après la
+  relance de Fabien, compte de test nocturne, outils de l'assistant, workers réels) : un PDF natif
+  naît `document` sans OCR, un PDF scanné avec l'OCR coché ; détection 3 passages, occultation
+  `[PERSON]` / `[EMAIL]` / `[PHONE]` à leur place, le nom et l'adresse absents du fichier produit,
+  l'image du scan gardée — cards et fichiers retirés ensuite. Gestes nocturnes de l'anonymizer :
+  21 scénarios verts, après qu'`anonymizer.tree_drop` eut trouvé la tuile « Lot » de la card
+  document sans barre à elle (elle versait dans celle de l'autre onglet) — sa barre de lot
+  (`anonDocBatch`) posée à la revérification, comme la card audio de l'enhancer. ⏳ Restent : la page de CORRECTION par passage (`surfaces.py` la dit
   à venir ; la couche `detection_corrections` accepte déjà les `span`, relue à l'occultation) ;
   un document reçu par URL naît avec les réglages de l'image avant que son fichier n'arrive ;
   les jumelles (`anonymizer_01`) n'ont pas le domaine tant que le générateur ignore les domaines

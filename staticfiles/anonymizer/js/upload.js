@@ -56,9 +56,9 @@ $(function () {
         location.reload();
       },
     });
-    // La card d'entrée du domaine DOCUMENT (2026-11-02) : la même voie commune, sur ses ids, vers la
-    // même route de dépôt — le serveur range le fichier dans le domaine de sa nature. Sans lot : un
-    // `.txt` de lot passe par la card image / vidéo, qui range chaque ligne par sa nature.
+    // La card d'entrée du domaine DOCUMENT (2026-11-02) : la même voie commune, sur ses ids et sa
+    // barre de lot (`anonDocBatch`), vers la même route de dépôt — le serveur range le fichier dans
+    // le domaine de sa nature.
     if (document.getElementById('dropZoneAnonDocument')) {
       window._importDocument = WamaImport({
         uploadUrl:        cfg.uploadUrl,
@@ -68,6 +68,8 @@ $(function () {
         dropZoneId:       'dropZoneAnonDocument',
         fileInputId:      'anonDocFileInput',
         folderInputId:    'anonDocFolderInput',
+        batch:            window._batchImportDocument,
+        batchScope:       'each',
         afterImport:      function (_ids, reponses) {
           reponses.forEach(function (r) {
             if (r && r.errors && r.errors.length) console.warn("Erreurs lors de l'ajout de documents :", r.errors);
@@ -107,9 +109,11 @@ $(function () {
         inputId: 'anonDocUrlInput',
         buttonId: 'anonDocUrlSubmit',
         onEmpty: function () { WamaApp.toast("Veuillez entrer l'URL d'un document.", 'warning'); },
+        // La barre de lot de SA card (`anonDocBatch`), celle que l'utilisateur voit dans l'onglet.
         onSubmit: function (url) {
-          if (!window._batchImport) throw new Error("Import batch non initialisé");
-          return window._batchImport.ingestText(url + '\n', 'url.txt');
+          const batch = window._batchImportDocument || window._batchImport;
+          if (!batch) throw new Error("Import batch non initialisé");
+          return batch.ingestText(url + '\n', 'url.txt');
         },
       });
     }
