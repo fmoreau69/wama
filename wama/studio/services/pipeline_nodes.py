@@ -14,6 +14,11 @@ fournit le RÉSOLVEUR d'un compte. Périmètre de la 1ʳᵉ marche :
 """
 
 
+#: Couleur d'un pipeline enregistré : celle de la section « Pipelines » du canvas
+#: (`wama-studio.js`, ses éléments non offerts comme nœud) — le nœud posé garde celle de l'élément.
+PIPELINE_COLOR = '#f7c46c'
+
+
 def resolver(user):
     """`resolve(clé) -> (nom, graphe canvas)` pour `user` — lève `ValueError` en nommant la clé
     pour une référence qui n'est pas un pipeline enregistré, supprimé ou non visible du compte."""
@@ -66,7 +71,8 @@ def pipeline_palette_nodes(user, offered: dict) -> dict:
         nodes[f'{PIPELINE_NODE_PREFIX}{key}'] = {
             'label': row.name,
             'icon': 'fas fa-diagram-project',
-            'color': '#b9d7a8',
+            # La couleur de son élément dans la section « Pipelines » du canvas, qui la lit ici.
+            'color': PIPELINE_COLOR,
             'description': f"Pipeline enregistré — {len(inner)} nœud(s), référencé sans être "
                            f"recopié.",
             'inputs': [{'id': n['id'], 'label': offered[n['app']].get('label', n['id']),

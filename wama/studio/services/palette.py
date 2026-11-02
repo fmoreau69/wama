@@ -109,6 +109,7 @@ def palette_nodes(user) -> dict:
 REASONS = {
     'inaccessible': 'non accessible à ce compte',
     'not_executable': 'app non exécutable dans un pipeline',
+    'not_deployable': 'pipeline qui ne se déploie pas',
     'unknown': 'inconnu de WAMA',
 }
 
@@ -147,11 +148,27 @@ def unavailable_reason(user, node: dict, offered=None):
     app = node.get('app') or ''
     if app in offered:
         return None
-    if executable(node):
+    if executable(node) and node_kind(node) == 'pipeline':
+        # Un pipeline enregistré absent de la palette : il ne se déploie pas pour ce compte
+        # (non visible, cycle, port ou sortie ambigus — le motif EXACT du lancement), ou l'un de
+        # ses nœuds ne lui est pas offert.
+        from wama.common.manifests.builtin.pipeline import expand_pipeline_nodes
+        from .pipeline_nodes import resolver
+        key, resolve = pipeline_key(node), resolver(user)
+        code, message = 'inaccessible', (f"Nœud pipeline « {key} » : un de ses nœuds n'est pas "
+                                         f"accessible à ce compte.")
+        try:
+            _name, graph = resolve(key)
+        except ValueError:
+            message = f"Nœud pipeline « {key} » : non accessible à ce compte."
+        else:
+            try:
+                expand_pipeline_nodes(graph, resolve, (key,))
+            except ValueError as exc:
+                code, message = 'not_deployable', f"Nœud pipeline « {key} » : {exc}"
+    elif executable(node):
         code = 'inaccessible'
-        what = (f"fonction « {function_key(node)} »" if is_function_node(node)
-                else f"pipeline « {pipeline_key(node)} »" if node_kind(node) == 'pipeline'
-                else f"« {app} »")
+        what = f"fonction « {function_key(node)} »" if is_function_node(node) else f"« {app} »"
         message = f"Nœud {what} : non accessible à ce compte."
     elif node_kind(node) == 'app' and app in APP_CATALOG:
         code = 'not_executable'

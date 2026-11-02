@@ -389,3 +389,17 @@ class PipelineNodeInTheStudioTest(TestCase):
         self.assertIn(f'pipeline « {self.saved.pk} »', hidden['message'])
         gone = unavailable_reason(self.user, {'app': 'pipeline:999999'}, {})
         self.assertEqual('unknown', gone['code'])
+
+    def test_a_pipeline_that_does_not_deploy_says_the_launch_reason(self):
+        from wama.studio.models import StudioPipeline
+        from wama.studio.services.palette import palette_nodes, unavailable_reason
+        looped = StudioPipeline.objects.create(user=self.user, name='Boucle', graph={})
+        looped.graph = {'nodes': [{'id': 'x', 'app': f'pipeline:{looped.pk}'}], 'links': []}
+        looped.save()
+        key = f'pipeline:{looped.pk}'
+        offered = palette_nodes(self.user)
+        self.assertNotIn(key, offered)
+        reason = unavailable_reason(self.user, {'app': key}, offered)
+        self.assertEqual(('not_deployable', 'pipeline qui ne se déploie pas'),
+                         (reason['code'], reason['label']))
+        self.assertIn('se référence lui-même', reason['message'], 'the exact reason of the launch')

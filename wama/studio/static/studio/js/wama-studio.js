@@ -220,7 +220,10 @@
 
         var pipes = savedPipelines.map(function (p) {
             var nodeId = apps['pipeline:' + p.id] ? 'pipeline:' + p.id : null;
-            return { value: String(p.id), label: p.name, icon: 'fas fa-diagram-project', color: '#f7c46c',
+            // La couleur du nœud qu'il pose (`pipeline_nodes.PIPELINE_COLOR`) ; la même pour un
+            // pipeline que la palette n'offre pas comme nœud.
+            return { value: String(p.id), label: p.name, icon: 'fas fa-diagram-project',
+                     color: nodeId ? apps[nodeId].color : '#f7c46c',
                      nodeId: nodeId,
                      title: 'Ouvrir « ' + p.name + ' » (' + p.nodes + ' nœuds · ' + p.updated_at + ')'
                             + (nodeId ? ' — ou le glisser sur le canvas pour l\'y poser comme nœud' : '') };
