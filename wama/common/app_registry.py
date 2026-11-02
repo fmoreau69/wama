@@ -90,9 +90,16 @@ MEDIA_CATEGORY_LABELS = {'image': 'Images', 'video': 'Vidéos', 'audio': 'Audio'
 # d'un refus à la porte) et les ferait apparaître au menu « Envoyer vers Converter ».
 STRUCTURED_TEXT_EXTENSIONS = ('.srt', '.vtt', '.json', '.csv')
 
+# Icônes (`.ico`, 2026-11-01, Fabien : « un icône, plutôt image ») : nature 'image', mais elles ne
+# rejoignent PAS IMAGE_EXTENSIONS, qui est la politique d'acceptation de six apps : aucun de leurs
+# moteurs n'a été éprouvé sur un `.ico` (le describer en envoie les octets TELS QUELS au modèle de
+# vision, `vision_probe.describe_image_ollama`). Même geste que STRUCTURED_TEXT_EXTENSIONS : la
+# nature, pas l'accueil.
+ICON_EXTENSIONS = ('.ico',)
+
 def _build_cat_of():
     m = {}
-    for cat, exts in (('image', IMAGE_EXTENSIONS), ('video', VIDEO_EXTENSIONS),
+    for cat, exts in (('image', IMAGE_EXTENSIONS + ICON_EXTENSIONS), ('video', VIDEO_EXTENSIONS),
                       ('audio', AUDIO_EXTENSIONS), ('archive', ARCHIVE_EXTENSIONS),
                       ('document', DOCUMENT_EXTENSIONS + STRUCTURED_TEXT_EXTENSIONS),
                       ('3d', OBJECT3D_EXTENSIONS), ('score', SCORE_EXTENSIONS)):

@@ -9543,7 +9543,7 @@ dérive même quand le code, lui, est juste.*
 
 **Adoption sur le BON dénominateur : 1 sur 3** (pas 1/12). Les 2 restantes sont bloquées **côté
 SERVEUR** : `?format=` n'est lu que par leur download d'ITEM (`reader/views.py:441`,
-`describer/views.py:558`) ; leur `download_all` (`reader/views.py:559`, `describer/views.py:737`)
+`describer/views.py:558`) ; leur `download_all` (`reader/views.py:559`, `describer/views.py`, vue retirée le 2026-10-17, R142)
 zippe sans regarder la query. Les porter = « vert d'ADOPTION, faux en FONCTIONNEMENT ».
 ⚠ Le GÉNÉRATEUR n'est pas opté : il passe `download_url` sans `download_ready` → `app=`
 transformerait son lien actif en bouton désactivé.

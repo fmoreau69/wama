@@ -1732,7 +1732,11 @@ MECHANISMS = (
               "PÉRIMÈTRES (`START_SCOPES` / `CLEAR_SCOPES`, `?scope=`), grisés quand ils sont "
               "vides d'après les compteurs de la file. Trente copies dans dix apps. La fabrique "
               "INSCRIT sa déclaration par modèle (`declaration_for`) : l'outil `start_<app>` de "
-              "l'assistant la lit — un geste, deux portes, comme `start_one_process`",
+              "l'assistant la lit — un geste, deux portes, comme `start_one_process`. Et les "
+              "autres gestes d'une card, ⏹ ⬇ 🗑 ⧉ ⚙ (2026-11-01, ROUTE §11 #42 ④), lus à la "
+              "déclaration que l'app donne à sa fabrique de lot (`batch_views.element_declaration`) : "
+              "la copie rangée par `batch_common.place_copy`, le résultat servi comme son ZIP "
+              "l'écrit (`ResultArchive`)",
               'wama/common/utils/item_views.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11',
               depends_on=('progress_views',)),
@@ -2184,7 +2188,8 @@ MECHANISMS = (
               "2026-11-01) ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE "
               "(`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un "
               "domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine "
-              "pour la page de l'app (2026-11-01)",
+              "pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit "
+              "sans la porte (`domain_nature`)",
               'wama/common/utils/app_modes.py', 'docs/construction/ui/MODES_QUEUE_UX.md',
               annexes=('wama/common/static/common/js/wama-modes.js',
                        'wama/common/templates/common/_domain_tabs.html')),

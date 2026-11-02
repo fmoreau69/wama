@@ -408,6 +408,21 @@ confirmation d'effacement dit « sauf les éléments en cours ». Le geste noctu
 `<app>.queue_scopes` ouvre les deux menus et exige chaque entrée grisée exactement quand elle est
 vide, confrontée aux compteurs du serveur (le grisé est du JS : aucun test Python ne le voit).
 
+**Les autres gestes d'une card — ⏹ ⬇ 🗑 ⧉ ⚙ — viennent de la même fabrique** (2026-11-01,
+`ROUTE §11 #42` ④) : `_iv['stop']`, `_iv['delete']`, `_iv['duplicate']`, `_iv['download']`,
+`_iv['update_settings']`. Rien à passer de plus : ils lisent ce que l'app déclare déjà à
+`make_batch_views` pour le même modèle (`batch_views.element_declaration` — remise à zéro et sorties
+de la copie, rattachement au lot, nettoyage, schéma et écrivain de réglages, nom du résultat). La
+copie se range par `batch_common.place_copy` : sœur de l'original dans un vrai lot de celui qui
+duplique, sinon son propre lot d'un. Tenu par le critère `element_views_common` et
+`tests_element_gestures` ; les apps qui écrivent encore les leurs sont listées (`NOT_YET_PORTED`).
+
+```python
+stop = app_access('<app>')(_iv['stop'])
+delete, duplicate = _iv['delete'], _iv['duplicate']
+download, update_settings = _iv['download'], _iv['update_settings']
+```
+
 ### 3.3 Vues de PROGRESSION — fabrique commune (`progress` + `global_progress`)
 
 > ⚠ **Ne plus écrire ces deux vues à la main** (2026-10-03, `ROUTE §11 #37`). Elles l'étaient

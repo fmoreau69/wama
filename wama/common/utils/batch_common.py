@@ -188,6 +188,36 @@ def attach_to_batch(element, batch, row_index, *, item_model=None, fk_name=None,
     return element
 
 
+def place_copy(copy, original, *, batch_model, item_model=None, fk_name=None, item_extra=None,
+               batch_attr='batch', row_field='batch_row_index'):
+    """La COPIE d'un élément (⧉) prend sa place dans la file : sœur de l'original quand celui-ci
+    est la fille d'un VRAI lot (plus d'un élément) qui appartient à celui qui duplique ; sinon dans
+    son propre lot d'un. Rend le lot qui la reçoit.
+
+    La règle du composer et du transcriber (2026-07-03 : dupliquer une card seule la changeait en
+    lot de deux) et de la card reçue (2026-10-01 : sa copie se range chez celui qui duplique,
+    jamais dans le lot d'autrui). Extraite le 2026-11-01 de dix vues `duplicate` écrites à la main :
+    l'avatarizer et le describer rejoignaient encore un lot d'un, l'audio de l'enhancer ne
+    rejoignait jamais le sien.
+    `item_extra` : callable(copie, original)->dict — champs de la LIGNE de liaison (composer :
+    `output_filename` de la ligne d'origine), la signature de `make_batch_views`.
+    """
+    from django.db.models import Max
+    extra = item_extra(copy, original) if item_extra is not None else None
+    link = {'item_model': item_model, 'fk_name': fk_name, 'item_extra': extra or None,
+            'batch_attr': batch_attr, 'row_field': row_field}
+    lot = batch_of(original)
+    if lot is not None and not lot.is_unitary and lot.user_id == copy.user_id:
+        row = 'row_index' if item_model is not None else row_field
+        attach_to_batch(copy, lot, (lot.items.aggregate(m=Max(row))['m'] or 0) + 1, **link)
+        lot.total = lot.items.count()
+        lot.save(update_fields=['total'])
+        return lot
+    lot = batch_model.objects.create(user=copy.user, total=1)
+    attach_to_batch(copy, lot, 0, **link)
+    return lot
+
+
 def load_in_import_order(model, ids, user):
     """Charge les objets d'un lot d'ids DANS L'ORDRE des ids (= ordre d'arrivée d'un import)."""
     items = list(model.objects.filter(id__in=ids, user=user))

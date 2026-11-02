@@ -10,7 +10,7 @@ import logging
 import mimetypes
 from pathlib import Path
 
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse, FileResponse
 from django.views.generic import TemplateView
 from django.views.decorators.http import require_POST, require_GET
@@ -20,7 +20,6 @@ from django.conf import settings
 from django.utils.http import content_disposition_header
 
 from .models import Description, BatchDescription, BatchDescriptionItem
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 from ..accounts.views import get_or_create_anonymous_user
 
 # Retiré par erreur le 2026-07-22 (portage de url_ingest) : les 9 `logger.*` de ce module levaient
@@ -60,15 +59,8 @@ def get_user(request):
     return get_or_create_anonymous_user()
 
 
-# Jeux d'extensions : domicile unique de l'app (content_analyzer) — trois copies
-# divergeaient en silence (heic accepté à l'upload, inconnu du routage).
-from wama.describer.utils.content_analyzer import (
-    DESCRIBER_AUD_EXTS as _DESCRIBER_AUD_EXTS,
-    DESCRIBER_DOC_EXTS as _DESCRIBER_DOC_EXTS,
-    DESCRIBER_IMG_EXTS as _DESCRIBER_IMG_EXTS,
-    DESCRIBER_TEXT_LIKE_EXTS as _DESCRIBER_TEXT_LIKE_EXTS,
-    DESCRIBER_VID_EXTS as _DESCRIBER_VID_EXTS,
-)
+# La nature d'un fichier : la taxonomie commune, lue par le domaine du describer (2026-11-01).
+from wama.describer.utils.content_analyzer import file_nature
 
 
 def _describer_nature(description):
@@ -77,14 +69,7 @@ def _describer_nature(description):
     if dt in ('image', 'video', 'audio', 'document'):
         return dt
     name = (description.input_file.name if description.input_file else '') or (description.source_url or '')
-    ext = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
-    if ext in _DESCRIBER_IMG_EXTS:
-        return 'image'
-    if ext in _DESCRIBER_VID_EXTS:
-        return 'video'
-    if ext in _DESCRIBER_AUD_EXTS:
-        return 'audio'
-    return 'document'
+    return file_nature(name)
 
 
 def _wrap_description_in_batch(description):
@@ -252,9 +237,7 @@ def upload(request):
     # Handle regular file upload
     filename = uploaded_file.name
 
-    # Detect content type from extension
-    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-    detected_type = detect_type_from_extension(ext)
+    detected_type = file_nature(filename)
 
     # Réglages : la cascade COMMUNE d'un dépôt, et ce que le fichier propose.
     from wama.common.utils.user_settings import inputs_by_port
@@ -292,21 +275,6 @@ def upload(request):
     })
 
 
-def detect_type_from_extension(ext):
-    """Detect content type from file extension (jeux d'extensions : content_analyzer).
-
-    Vocabulaire de retour : image/video/audio/document — 'text' et 'pdf' ont fusionné dans
-    'document' (2026-08-30, arbitrage taxonomie ; les deux routaient déjà vers describe_text).
-    """
-    if ext in _DESCRIBER_IMG_EXTS:
-        return 'image'
-    if ext in _DESCRIBER_VID_EXTS:
-        return 'video'
-    if ext in _DESCRIBER_AUD_EXTS:
-        return 'audio'
-    return 'document'
-
-
 def _source_nature(source, fname):
     """Nature d'une ligne de lot AVANT son téléchargement. Une URL se lit d'abord par la table
     commune (`url_ingest.url_nature` : une vidéo YouTube `watch?v=…` est une vidéo, pas un
@@ -316,8 +284,7 @@ def _source_nature(source, fname):
     nature = url_nature(source) if source.lower().startswith(('http://', 'https://')) else ''
     if nature in ('image', 'video', 'audio'):
         return nature
-    ext = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
-    return detect_type_from_extension(ext) if ext else 'document'
+    return file_nature(fname)
 
 
 def get_file_properties(description):
@@ -356,28 +323,6 @@ def get_file_properties(description):
     return f"{ext.upper()} - {size}"
 
 
-@require_POST
-@app_access('describer')
-def stop(request, pk):
-    """
-    Stoppe la description en cours (révoque la tâche Celery) → item relançable (bouton de cycle ↻).
-    Brique commune : wama.common.utils.process_control.stop_instance.
-    """
-    user = get_user(request)
-    try:
-        from wama.common.utils.scoping import can_edit
-        description = Description.objects.get(pk=pk)
-        if not can_edit(user, description):     # le sien, ou en collaboration (E1)
-            raise Description.DoesNotExist
-    except Description.DoesNotExist:
-        return JsonResponse({'error': 'Not found'}, status=404)
-    if description.status not in ('RUNNING', 'PENDING'):
-        return JsonResponse({'id': description.id, 'status': description.status})
-    from wama.common.utils.process_control import stop_instance
-    new_status = stop_instance(description, error_field='error_message')
-    return JsonResponse({'id': description.id, 'status': new_status})
-
-
 def _reset_for_relaunch(description):
     """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race.
 
@@ -404,8 +349,7 @@ DUPLICATE_RESET = {'result_text': '', 'transcript': '', 'frame_captions': [], 's
 # (`export_binding='late'`), donc la fabrique lit les formats DÉCLARÉS au catalogue et le rendu
 # ENREGISTRÉ (`build_description_bytes`, `apps.py`) — la vue locale recopiait les deux en dur.
 # Seule la souche du nom de chaque entrée reste dite ici (`_output_stem`).
-from wama.common.utils.batch_views import (DEFAULT_RESET, apply_item_settings, make_batch_views,
-                                           read_settings_payload)
+from wama.common.utils.batch_views import DEFAULT_RESET, make_batch_views
 from wama.describer.params import PARAMS_JSON as _SCHEMA
 from .workers import describe_content as _describe_content
 
@@ -466,6 +410,13 @@ _iv = make_item_views(work_model=Description, app_id='describer', task=_describe
 start = app_access('describer')(_iv['start'])
 start_all = app_access('describer')(_iv['start_all'])
 clear_all = _iv['clear_all']
+# ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la même fabrique (2026-11-01, ROUTE §11 #42 ④), qui les lit à la
+# déclaration de `_bv` ci-dessus — remise à zéro de la copie (`DUPLICATE_RESET`), sortie vidée,
+# cache purgé, nom du rendu (`_output_stem`), schéma. La copie d'une card seule a désormais son
+# propre lot : elle rejoignait le lot d'un de l'original, qui devenait un lot de deux.
+stop = app_access('describer')(_iv['stop'])
+delete, duplicate = _iv['delete'], _iv['duplicate']
+download, update_settings = _iv['download'], _iv['update_settings']
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -540,78 +491,6 @@ from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 _pv = make_progress_views(work_model=Description, app_id='describer', extra=_progress_extra)
 progress = _pv['progress']
 global_progress = require_GET(_pv['global_progress'])
-
-
-@require_GET
-def download(request, pk):
-    """Download result in requested format: txt (default), pdf, docx."""
-    user = get_user(request)
-    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
-    from wama.common.utils.scoping import visible_or_404
-    description = visible_or_404(Description, user, pk=pk)
-
-    if description.status != 'SUCCESS':
-        return JsonResponse({'error': 'No result available'}, status=400)
-
-    # Le format demandé, rendu par LE rendu du describer (`build_description_bytes`, celui du ZIP
-    # de lot, de la médiathèque et de l'assistant) — brique commune `download_response`. Souche :
-    # règle commune `compose_output_name` + tag `description` (`_output_stem`, celle du ZIP).
-    from wama.common.utils.export_formats import download_response
-    response = download_response('describer', description, request.GET, _output_stem(description))
-    if response is None:
-        return JsonResponse({'error': 'No result available in this format'}, status=400)
-    return response
-
-
-@require_POST
-def duplicate(request, pk):
-    """Duplicate a Description sharing the same input file, resetting results."""
-    user = get_user(request)
-    from wama.common.utils.scoping import duplicable_or_404
-    description = duplicable_or_404(Description, user, pk=pk)
-    new_desc = duplicate_instance(
-        description,
-        for_user=user,
-        reset_fields={
-            'status': 'PENDING',
-            'progress': 0,
-            'task_id': '',
-            'properties': '',
-            'error_message': '',
-            **DUPLICATE_RESET,
-        },
-        clear_fields=['result_file'],
-    )
-    # Dupliquer DANS le même batch que l'original (élément frère).
-    orig_item = BatchDescriptionItem.objects.filter(description=description).select_related('batch').first()
-    if orig_item:
-        from django.db.models import Max
-        batch = orig_item.batch
-        next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
-        BatchDescriptionItem.objects.create(batch=batch, description=new_desc, row_index=next_idx)
-        batch.total = batch.items.count()
-        batch.save(update_fields=['total'])
-    else:
-        _wrap_description_in_batch(new_desc)
-    return JsonResponse({'duplicated': new_desc.id})
-
-
-@require_POST
-def delete(request, pk):
-    """Delete a description."""
-    user = get_user(request)
-    description = get_object_or_404(Description, pk=pk, user=user)
-
-    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(description)
-
-    # Fichiers LIBÉRÉS par la brique, à l'échelle de la card
-    release_card_files(description)
-
-    description.delete()  # signal batch_sync : recale total / supprime le batch vidé
-
-    return JsonResponse({'deleted': True, 'id': pk, 'batch': batch_state(snapshot, Description)})
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
@@ -826,20 +705,3 @@ def console_content(request):
     return JsonResponse({'lines': lines})
 
 
-@require_POST
-def update_settings(request, pk):
-    """Réglages d'UN élément — même lecture (coercition par le schéma) et même affectation que
-    `batch_update` de la fabrique : `read_settings_payload` + `apply_item_settings`. L'ancien
-    `_apply_description_options` typait à la main (`int`, `bool`) ce que le schéma déclare."""
-    user = get_user(request)
-    from wama.common.utils.scoping import editable_or_404
-    description = editable_or_404(Description, user, pk=pk)
-
-    data = read_settings_payload(request, _SCHEMA, SETTINGS_FIELDS)
-    touched = apply_item_settings(description, data, params_fields=SETTINGS_FIELDS)
-    if touched:
-        description.save(update_fields=touched)
-
-    # Les réglages tels qu'ENREGISTRÉS — la liste du schéma, pas une seconde liste à tenir.
-    return JsonResponse({'id': description.id,
-                         **{name: getattr(description, name) for name in SETTINGS_FIELDS}})

@@ -1023,6 +1023,9 @@ def _delete_batch_state(f: _AppFiles):
                        "`batch_common.batch_snapshot` / `batch_state`")
     if releve and etat:
         return True, f"{releve} + {etat}"
+    factory = _factory_gesture(f, 'delete')     # le 🗑 de la fabrique relève et répond le lot
+    if factory:
+        return True, f"{factory} (`make_item_views` : `batch_snapshot` + `batch_state`)"
     if releve or etat:
         return 'partial', (f"{releve or etat} (il faut les DEUX : relever le lot avant la "
                            "suppression, et le répondre)")
@@ -1049,7 +1052,7 @@ def _release_card_file(f: _AppFiles):
     les trois gestes de retrait, sur chaque app — est tenu par `tests_queue_delete_contract`
     (champs fichier) et `tests_card_listed_files` (listes).
     """
-    release = f.find_code(VIEWS, r'\brelease_card_files\(')
+    release = f.find_code(VIEWS, r'\brelease_card_files\(') or _factory_gesture(f, 'delete')
     if release:
         return True, release
     per_field = f.find_code(VIEWS, r'\brelease_card_file\(')
@@ -1248,6 +1251,45 @@ def _item_views_common(f: _AppFiles):
         return False, (f"▶ / tout lancer / tout effacer écrits à la main ({local}) — fabrique "
                        "`item_views.make_item_views`")
     return None, 'aucune vue de lancement ni d’effacement de file'
+
+
+#: Les gestes d'une card que `make_item_views` fabrique depuis le 2026-11-01 (ROUTE §11 #42 ④),
+#: et les graphies sous lesquelles les apps les écrivent encore à la main.
+ELEMENT_GESTURES = ('stop', 'delete', 'duplicate', 'download', 'update_settings')
+_LOCAL_ELEMENT_GESTURE = (r'(?m)^def ((audio_)?(stop|delete|duplicate|download|update_settings)'
+                          r'|audio_update|update_job|cancel)\(')
+
+
+def _factory_gesture(f: _AppFiles, gesture: str):
+    """La preuve que les vues prennent le geste `gesture` d'une card à la fabrique commune
+    (`<vues>['<geste>']` d'un `make_item_views`), ou None."""
+    if not f.find_code(VIEWS, r'\bmake_item_views\('):
+        return None
+    return f.find_code(VIEWS, rf"\[\s*'{gesture}'\s*\]")
+
+
+def _duplicate_instance(f: _AppFiles):
+    """⧉ par la brique `duplicate_instance` — appelée dans les vues, ou par la fabrique dont les
+    vues prennent le ⧉ (`make_item_views`, 2026-11-01)."""
+    found = f.find(VIEWS, r'duplicate_instance') or _factory_gesture(f, 'duplicate')
+    return (True, found) if found else (False, None)
+
+
+def _element_views_common(f: _AppFiles):
+    """⏹ ⬇ 🗑 ⧉ ⚙ d'une card par la fabrique commune (`make_item_views`, 2026-11-01), qui les lit
+    à la déclaration que l'app donne à sa fabrique de lot. VRAI : les cinq, aucun écrit à la main ;
+    PARTIEL : certains ; FAUX : aucun. Mesuré le jour de sa naissance : l'enhancer seul, les neuf
+    autres apps écrivant encore les leurs (≈ 45 vues)."""
+    taken = [g for g in ELEMENT_GESTURES if _factory_gesture(f, g)]
+    local = f.find_code(VIEWS, _LOCAL_ELEMENT_GESTURE)
+    if len(taken) == len(ELEMENT_GESTURES) and not local:
+        return True, _factory_gesture(f, 'duplicate')
+    if taken:
+        return 'partial', (f"fabrique : {', '.join(taken)}"
+                           + (f" ; encore à la main : {local}" if local else ''))
+    if local:
+        return False, f"gestes d'une card écrits à la main ({local}) — `make_item_views`"
+    return None, "aucun geste d'une card"
 
 
 def _settings_route(f: _AppFiles):
@@ -2758,9 +2800,14 @@ CRITERIA: list[Criterion] = [
               _static_versioning, mechanism='static_versioning'),
     Criterion('fm_notify', 'F5', 'Gestionnaire de fichiers prévenu par les briques communes',
               _fm_notify, mechanism='fm_notify'),
+    # 2026-11-01 : les autres gestes d'une card, extraits en fabrique (ROUTE §11 #42 ④) — la
+    # grille suit le mécanisme le jour où il naît ; les deux critères de brique ci-dessous
+    # reconnaissent la fabrique, qui appelle la brique pour l'app.
+    Criterion('element_views_common', 'F5',
+              "⏹ ⬇ 🗑 ⧉ ⚙ d'une card par la fabrique commune (make_item_views)",
+              _element_views_common, mechanism='item_views'),
     Criterion('duplicate_instance', 'F5', 'duplicate_instance() (brique commune)',
-              lambda f: _present(f, VIEWS, r'duplicate_instance'),
-              mechanism='queue_duplication'),
+              _duplicate_instance, mechanism='queue_duplication'),
     Criterion('release_card_file', 'F5', 'Retirer une card libère ses fichiers (release_card_files)',
               _release_card_file, mechanism='queue_duplication'),
     Criterion('user_settings', 'F5', 'Réglages user persistés (brique user_settings)', _user_settings,

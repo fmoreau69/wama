@@ -38,9 +38,8 @@ def describe_content(self, description_id: int, process: str = None):
 def _derive_detected_type(inst, path, fname):
     """Hook `derive` de l'ingest URL, DÉCLARÉ dans `WAMA_INGEST` : renseigne detected_type au
     téléchargement (une page web gardée en `.html` est un document)."""
-    ext = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
-    from .views import detect_type_from_extension
-    inst.detected_type = detect_type_from_extension(ext)
+    from .utils.content_analyzer import file_nature
+    inst.detected_type = file_nature(fname)
     return ['detected_type']
 
 
@@ -53,12 +52,8 @@ def _settle_nature(description_id: int) -> None:
         'detected_type', 'content_type', 'input_file').first()
     if d is None or nature_of(d) != 'auto' or not d.input_file:
         return
-    from .utils.content_analyzer import detect_content_type
-    try:
-        nature = detect_content_type(d.input_file.path)
-    except Exception:
-        return
-    Description.objects.filter(pk=description_id).update(detected_type=nature)
+    from .utils.content_analyzer import file_nature
+    Description.objects.filter(pk=description_id).update(detected_type=file_nature(d.input_file.name))
 
 
 def _options(item) -> dict:

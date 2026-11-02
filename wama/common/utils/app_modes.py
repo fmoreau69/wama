@@ -615,9 +615,20 @@ def file_nature(app: str, domain_id: str, path) -> str | None:
     par sa route vidéo) — une spécificité déclarée, jamais une liste d'extensions de plus."""
     import os
 
-    from wama.common.app_registry import accepts_file, category_of_path
+    from wama.common.app_registry import accepts_file
     if not accepts_file(app, os.path.basename(str(path or ''))):
         return None
+    return domain_nature(app, domain_id, path)
+
+
+def domain_nature(app: str, domain_id: str, path) -> str | None:
+    """La nature d'un fichier DÉJÀ REÇU, lue par ce domaine — `file_nature` sans la porte : un
+    fichier téléchargé depuis une URL, ou nommé par une ligne de lot, n'est pas passé par la zone
+    de dépôt (le describer garde une page web en `.html`, et range sa nature avant de l'avoir).
+    None quand le domaine ne prend pas cette nature."""
+    import os
+
+    from wama.common.app_registry import category_of_path
     if category_of_path(path) not in accepts(app, domain_id):
         return None
     ext = os.path.splitext(str(path or ''))[1].lstrip('.').lower()

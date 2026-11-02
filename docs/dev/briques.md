@@ -2151,10 +2151,10 @@ La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_vie
 
 ### ▶ d'une card, ▶ et 🗑 de la file (fabrique commune)
 
-Les vues `start`, `start_all` et `clear_all` d'une app — `make_item_views` (2026-10-29, ROUTE §11 #39) : anti-course (`begin_processing`), remise à zéro de l'app sous le verrou, cache de progression purgé, tâche envoyée ; « tout lancer » selon la sélection DÉCLARÉE (`pending` / `pending_exclude`, noms de `TRIAD_SPECS`) et, s'il en porte, les réglages postés vérifiés sur toute la file avant le premier lancement ; « tout effacer » sans les éléments en vol, par le geste de retrait de `batch_delete` (`discard_element`). Le menu ▾ de la barre de file offre les PÉRIMÈTRES (`START_SCOPES` / `CLEAR_SCOPES`, `?scope=`), grisés quand ils sont vides d'après les compteurs de la file. Trente copies dans dix apps. La fabrique INSCRIT sa déclaration par modèle (`declaration_for`) : l'outil `start_<app>` de l'assistant la lit — un geste, deux portes, comme `start_one_process`
+Les vues `start`, `start_all` et `clear_all` d'une app — `make_item_views` (2026-10-29, ROUTE §11 #39) : anti-course (`begin_processing`), remise à zéro de l'app sous le verrou, cache de progression purgé, tâche envoyée ; « tout lancer » selon la sélection DÉCLARÉE (`pending` / `pending_exclude`, noms de `TRIAD_SPECS`) et, s'il en porte, les réglages postés vérifiés sur toute la file avant le premier lancement ; « tout effacer » sans les éléments en vol, par le geste de retrait de `batch_delete` (`discard_element`). Le menu ▾ de la barre de file offre les PÉRIMÈTRES (`START_SCOPES` / `CLEAR_SCOPES`, `?scope=`), grisés quand ils sont vides d'après les compteurs de la file. Trente copies dans dix apps. La fabrique INSCRIT sa déclaration par modèle (`declaration_for`) : l'outil `start_<app>` de l'assistant la lit — un geste, deux portes, comme `start_one_process`. Et les autres gestes d'une card, ⏹ ⬇ 🗑 ⧉ ⚙ (2026-11-01, ROUTE §11 #42 ④), lus à la déclaration que l'app donne à sa fabrique de lot (`batch_views.element_declaration`) : la copie rangée par `batch_common.place_copy`, le résultat servi comme son ZIP l'écrit (`ResultArchive`)
 
 - **Domicile** : `wama/common/utils/item_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
-- **Module** : WAMA Common — Les vues d'ÉLÉMENT et de FILE : ▶ d'une card, ▶ de la file, 🗑 de la file (`make_item_views`, `WAMA_APP_GENERATION_ROUTE.md §11 #39`).
+- **Module** : WAMA Common — Les vues d'ÉLÉMENT et de FILE : ▶ d'une card, ▶ de la file, 🗑 de la file (`make_item_views`, `WAMA_APP_GENERATION_ROUTE.md §11 #39`) ; puis les autres gestes d'une card, ⏹ ⬇ 🗑 ⧉ ⚙ (2026-11-01, `§11 #42` ④), lus à la déclaration que l'app donne déjà à sa fabrique de lot (`batch_views.element_declaration`) — l'enhancer les écrivait deux fois, une par domaine.
 - **API publique** (7) :
   - `queue_scopes(action: str) -> list` — Les entrées du menu ▾ d'une action de file (`start` | `clear`) : `{key, label, counter}` —
   - `class ItemStart` — Ce qu'une app déclare de son ▶ — lu par les vues ET par l'outil de l'assistant.
@@ -2372,11 +2372,12 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
 
 - **Domicile** : `wama/common/utils/batch_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les VUES DE LOT : fabrique commune (`make_batch_views`).
-- **API publique** (11) :
+- **API publique** (12) :
   - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
   - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
   - `columns_snapshot(item) -> dict` — Les colonnes de `item` telles qu'elles sont À CET INSTANT — à prendre juste après l'avoir
   - `columns_changed(item, before: dict) -> list` — Les colonnes que l'écriture des réglages a CHANGÉES depuis `columns_snapshot` — ce que
+  - `element_declaration(work_model)` — La déclaration d'élément de `work_model` (`_ELEMENT_DECLARATIONS`), ou None. Inscrite au
   - `write_element_settings(item, data) -> list` — Pose `data` sur l'élément `item` par l'écrivain de réglages DÉCLARÉ de son app — celui de sa
   - `element_label(item, item_label=None) -> str` — Le nom LISIBLE d'un élément : celui que l'app déclare (`item_label`), sinon le premier de ses
   - `zip_elements(work_model, items, request, declaration=None)` — Le ZIP des RÉSULTATS de `items` (seuls les éléments réussis y entrent) : `(tampon, format)`.
@@ -2499,11 +2500,11 @@ data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui li
 
 ### Domaines → modes
 
-Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines rend leurs onglets par la pièce `_domain_tabs.html` (`WamaModes.domainTabs` : volets de file, réglages du volet, domaine retenu, 2026-11-01) ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE (`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine pour la page de l'app (2026-11-01)
+Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines rend leurs onglets par la pièce `_domain_tabs.html` (`WamaModes.domainTabs` : volets de file, réglages du volet, domaine retenu, 2026-11-01) ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE (`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit sans la porte (`domain_nature`)
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (24) :
+- **API publique** (25) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs.
@@ -2522,6 +2523,7 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
   - `accepts(app: str, domain_id: str) -> tuple` — Catégories média (MEDIA_CATEGORIES) que ce domaine prend en ENTRÉE.
   - `domain_for_category(app: str, categorie: str) -> str | None` — Domaine d'une app capable d'accueillir cette catégorie média — base du ROUTAGE d'un
   - `file_nature(app: str, domain_id: str, path) -> str | None` — La nature d'un fichier DANS ce domaine — la clé que ses routes de backend lisent
+  - `domain_nature(app: str, domain_id: str, path) -> str | None` — La nature d'un fichier DÉJÀ REÇU, lue par ce domaine — `file_nature` sans la porte : un
   - `arrival_domain(app: str, path) -> str | None` — Le domaine qui REÇOIT un fichier arrivé hors de sa card — « Envoyer vers », importeurs du
   - `surface_file_nature(app: str, surface: str, path) -> str | None` — La nature d'un fichier qui entre par une SURFACE (la vue d'upload d'une famille de routes,
   - `mode_param(app: str, domain_id: str) -> str` — Le param du schéma qui porte le mode de ce domaine ('' si le domaine n'en déclare pas).

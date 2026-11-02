@@ -1,6 +1,8 @@
 """
 WAMA Common — Les vues d'ÉLÉMENT et de FILE : ▶ d'une card, ▶ de la file, 🗑 de la file
-(`make_item_views`, `WAMA_APP_GENERATION_ROUTE.md §11 #39`).
+(`make_item_views`, `WAMA_APP_GENERATION_ROUTE.md §11 #39`) ; puis les autres gestes d'une card,
+⏹ ⬇ 🗑 ⧉ ⚙ (2026-11-01, `§11 #42` ④), lus à la déclaration que l'app donne déjà à sa fabrique
+de lot (`batch_views.element_declaration`) — l'enhancer les écrivait deux fois, une par domaine.
 
 Trois vues écrites à la main dans les dix apps jusqu'au 2026-10-29 — trente copies d'un même corps
 (`begin_processing`, puis la tâche, puis `task_id`), quatre formes de refus, six vocabulaires de
@@ -29,7 +31,7 @@ from dataclasses import dataclass
 
 from django.core.cache import cache
 from django.http import JsonResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_FAILURE, JOB_PENDING, JOB_RUNNING,
                                 JOB_SUCCESS)
@@ -307,13 +309,27 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
                           réglages (synthesizer : la voix de référence remplacée, l'ancienne
                           LIBÉRÉE), fait sous le verrou seulement, jamais à la vérification.
         on_delete       : callable(élément) appelé avant le retrait (verrous, fichiers hors
-                          champ) — le crochet de `make_batch_views`.
+                          champ). Absent : le nettoyage déclaré à `make_batch_views` pour le même
+                          modèle (2026-11-01) — trois apps le redisaient ici, à retirer au portage.
         batch_model     : le modèle de lot : « tout effacer » retire aussi les lots devenus vides.
 
     « Tout effacer » retire la FILE, sauf les éléments EN VOL (`IN_FLIGHT`) : on ne retire pas sous
     une tâche qui écrit encore (elle se stoppe d'abord, ⏹) — la règle du composer, qui la seule
     tenait. Les deux actions de file acceptent un PÉRIMÈTRE (`?scope=`, menu ▾ de la barre
     commune, `START_SCOPES` / `CLEAR_SCOPES`) ; sans lui, la règle de l'app.
+
+    LES AUTRES GESTES D'UNE CARD (2026-11-01) — `stop`, `delete`, `duplicate`, `download`,
+    `update_settings` : rien à passer de plus, ils lisent ce que l'app déclare à `make_batch_views`
+    pour le même modèle (`batch_views.element_declaration`) :
+      ⏹ arrête ce qui tourne ou attend (`stop_instance` : relançable, la règle du bouton de cycle) ;
+      🗑 retire la card de son propriétaire par le geste de « tout effacer » (`discard_element`) et
+         dit ce que devient son lot (`batch_state`) ;
+      ⧉ copie la card (`reset_on_duplicate`, `output_fields`) pour celui qui duplique, rangée par
+         `batch_common.place_copy` ;
+      ⬇ sert son résultat comme son ZIP l'écrit (`ResultArchive` : format rendu, texte, sorties de
+         la spec, champ servi) — une entrée telle quelle, plusieurs en ZIP ;
+      ⚙ pose les réglages postés par l'écrivain de l'app (le même que la ⚙ de lot), seules les
+         colonnes changées s'écrivant (une card en cours garde son statut et ses sorties).
     """
     declaration = ItemStart(
         work_model=work_model, app_id=app_id, task=task, task_for=task_for,
@@ -326,6 +342,20 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
     owner = work_model._meta.app_config.name
     if (caller == owner or caller.startswith(owner + '.')) and '.tests' not in caller:
         _DECLARATIONS[work_model] = declaration
+
+    def _cleanup():
+        """Ce que l'app sait d'un élément qu'elle retire : celui passé ici, sinon le nettoyage
+        DÉCLARÉ à sa fabrique de lot (`on_delete`, celui de ses lots)."""
+        if on_delete is not None:
+            return on_delete
+        from wama.common.utils.batch_views import element_declaration
+        return (element_declaration(work_model) or {}).get('on_delete')
+
+    def _state(item):
+        """L'élément tel que la card le relit (`id`, `status`, `progress`) — les clés communes de
+        sa vue de progression : le front d'une app re-rend la card avec (reader : `upsertCard`)."""
+        return {'id': item.pk, 'status': getattr(item, 'status', ''),
+                'progress': getattr(item, 'progress', 0) or 0}
 
     def _refusal(refused):
         status, message = refused
@@ -372,9 +402,10 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
         except ValueError as refusal:
             return JsonResponse({'error': str(refusal)}, status=400)
         key = progress_key or f'{app_id}_progress_{{pk}}'
+        cleanup = _cleanup()
         removed = 0
         for item in list(declaration.to_clear(user, scope)):
-            discard_element(item, progress_key=key, on_delete=on_delete)
+            discard_element(item, progress_key=key, on_delete=cleanup)
             removed += 1
         if batch_model is not None:
             # Les lots VIDÉS par ce retrait sont purgés par le signal du lot ; restent ceux qui
@@ -388,4 +419,103 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
                 empty.delete()
         return JsonResponse({'success': True, 'deleted': removed})
 
-    return {'start': start, 'start_all': start_all, 'clear_all': clear_all}
+    def _element():
+        """La déclaration d'élément du modèle — lue à la requête : la fabrique de lot de l'app
+        l'inscrit, souvent APRÈS celle-ci dans le module de vues."""
+        from django.core.exceptions import ImproperlyConfigured
+        from wama.common.utils.batch_views import element_declaration
+        found = element_declaration(work_model)
+        if found is None:
+            raise ImproperlyConfigured(f'{work_model.__name__} : aucune fabrique de lot ne déclare '
+                                       "l'élément (`make_batch_views` dans les vues de son app)")
+        return found
+
+    @require_POST
+    def stop(request, pk):
+        from wama.common.utils.process_control import stop_instance
+        from wama.common.utils.scoping import editable_or_404
+        item = editable_or_404(work_model, get_user(request), pk=pk)   # le sien, ou en collaboration
+        if item.status not in (JOB_RUNNING, JOB_PENDING):
+            return JsonResponse({'id': item.pk, 'status': item.status})
+        error_field = 'error_message' if hasattr(item, 'error_message') else None
+        return JsonResponse({'id': item.pk,
+                             'status': stop_instance(item, error_field=error_field)})
+
+    @require_POST
+    def delete(request, pk):
+        from django.shortcuts import get_object_or_404
+        from wama.common.utils.batch_common import batch_snapshot, batch_state
+        item = get_object_or_404(work_model, pk=pk, user=get_user(request))   # son propriétaire
+        snapshot = batch_snapshot(item)               # avant : la liaison part avec l'élément
+        discard_element(item, progress_key=progress_key or f'{app_id}_progress_{{pk}}',
+                        on_delete=_cleanup())
+        return JsonResponse({'success': True, 'deleted': pk, 'id': pk,
+                             'batch': batch_state(snapshot, work_model)})
+
+    @require_POST
+    def duplicate(request, pk):
+        from wama.common.utils.batch_common import place_copy
+        from wama.common.utils.queue_duplication import duplicate_instance
+        from wama.common.utils.scoping import duplicable_or_404
+        user = get_user(request)
+        item = duplicable_or_404(work_model, user, pk=pk)   # le sien OU reçu : la copie est à soi
+        found = _element()
+        copy = duplicate_instance(item, for_user=user, reset_fields=dict(found['reset_on_duplicate']),
+                                  clear_fields=list(found['output_fields']))
+        place_copy(copy, item, batch_model=found['batch_model'], item_extra=found['item_extra'],
+                   **found['link'])
+        # `duplicated` : la copie que `queue-actions.js` met en avant.
+        return JsonResponse({'success': True, 'duplicated': copy.pk, **_state(copy)})
+
+    @require_GET
+    def download(request, pk):
+        import mimetypes
+        from pathlib import Path
+
+        from django.http import FileResponse, HttpResponse
+        from django.utils.http import content_disposition_header
+        from wama.common.utils.batch_views import ResultArchive, export_stem
+        from wama.common.utils.scoping import visible_or_404
+        item = visible_or_404(work_model, get_user(request), pk=pk)        # LECTURE
+        declared = _element()['zip']
+        archive = ResultArchive()
+        archive.add_elements(work_model, [item], request, declared)
+        if not archive.entries:
+            return JsonResponse({'error': 'Aucun résultat à télécharger'}, status=404)
+        if len(archive.entries) > 1:
+            return FileResponse(archive.zip(), as_attachment=True,
+                                filename=f'{export_stem(work_model, item, declared)}.zip')
+        name, data = archive.entries[0]
+        if isinstance(data, Path):
+            return FileResponse(open(data, 'rb'), as_attachment=True, filename=name)
+        response = HttpResponse(data, content_type=mimetypes.guess_type(name)[0]
+                                or 'application/octet-stream')
+        response['Content-Disposition'] = content_disposition_header(True, name)
+        return response
+
+    @require_POST
+    def update_settings(request, pk):
+        from wama.common.utils.batch_views import (columns_changed, columns_snapshot,
+                                                   read_settings_payload)
+        from wama.common.utils.scoping import editable_or_404
+        item = editable_or_404(work_model, get_user(request), pk=pk)   # le sien, ou en collaboration
+        found = _element()
+        schema = found['schema'](item) if callable(found['schema']) else found['schema']
+        names = [p['name'] for p in (schema or []) if isinstance(p, dict) and p.get('name')]
+        before = columns_snapshot(item)               # en cours compris : seules les colonnes changées
+        try:
+            found['write'](item, read_settings_payload(request, schema, names,
+                                                       found['empty_is_value']))
+        except ValueError as refusal:
+            return JsonResponse({'error': str(refusal)}, status=400)
+        updated = columns_changed(item, before)
+        if updated:
+            item.save(update_fields=updated)
+        # Les réglages tels qu'ENREGISTRÉS, lus au schéma de l'élément (le contrat du describer).
+        from wama.common.services.revisions import json_safe
+        saved = {name: json_safe(getattr(item, name)) for name in names if hasattr(item, name)}
+        return JsonResponse({**saved, 'success': True, 'updated': updated, **_state(item)})
+
+    return {'start': start, 'start_all': start_all, 'clear_all': clear_all,
+            'stop': stop, 'delete': delete, 'duplicate': duplicate, 'download': download,
+            'update_settings': update_settings}

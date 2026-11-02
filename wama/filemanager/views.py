@@ -1287,6 +1287,13 @@ def api_import_to_app(request):
 
         if not source_path.exists():
             return {'error': 'Source file not found'}
+        # La PORTE, une fois pour tous les importeurs (2026-11-01) : les extensions que l'app
+        # déclare, celles que le menu « Envoyer vers » propose (`accepts_file`). Le reader et le
+        # synthesizer en recopiaient la liste ; describer, anonymizer et transcriber n'en avaient
+        # aucune et créaient une card pour n'importe quel fichier envoyé par l'API.
+        from wama.common.app_registry import accepts_file
+        if not accepts_file(target_app, source_path.name):
+            return {'error': f'Format non pris en charge : {source_path.suffix or source_path.name}'}
 
         try:
             result = importer(source_path, user)
@@ -1378,16 +1385,15 @@ def import_to_describer(source_path, user, app_label='describer'):
     from django.apps import apps as django_apps
     from wama.common.utils.media_paths import reference_or_copy
     from wama.common.utils.user_settings import element_columns, inputs_by_port
-    from wama.describer.views import (detect_type_from_extension, get_file_properties,
-                                      new_description_settings)
+    from wama.describer.utils.content_analyzer import file_nature
+    from wama.describer.views import get_file_properties, new_description_settings
 
     Description = django_apps.get_model(app_label, 'Description')
 
     dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input')
 
-    ext = dest_path.suffix.lstrip('.').lower()
     description = Description.objects.create(
-        user=user, detected_type=detect_type_from_extension(ext),
+        user=user, detected_type=file_nature(dest_path.name, app=app_label),
         **element_columns(new_description_settings(
             user, app=app_label, inputs=inputs_by_port(app_label, str(dest_path))), Description))
     description.input_file.name = relative_path
@@ -1640,9 +1646,7 @@ def import_to_synthesizer(source_path, user, app_label='synthesizer'):
     from wama.common.utils.user_settings import inputs_by_port
     from wama.synthesizer.views import synthesis_params
 
-    allowed_exts = {'.txt', '.pdf', '.docx', '.csv', '.md'}
-    dest_path, relative_path = reference_or_copy(
-        source_path, app_label, user.id, 'input', allowed_exts=allowed_exts)
+    dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input')
 
     # Batch detection — try to parse as a pipe-separated batch file first
     try:
@@ -1695,9 +1699,7 @@ def import_to_reader(source_path, user, app_label='reader'):
     from wama.reader.views import _wrap_reading_in_batch, new_reading_settings
 
     ReadingItem = django_apps.get_model(app_label, 'ReadingItem')
-    reader_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.webp', '.bmp'}
-    dest_path, relative_path = reference_or_copy(
-        source_path, app_label, user.id, 'input', allowed_exts=reader_extensions)
+    dest_path, relative_path = reference_or_copy(source_path, app_label, user.id, 'input')
 
     # Les COLONNES de la cascade commune (le curseur, réglage d'APP sans colonne, n'y est pas).
     settings_values = new_reading_settings(user, app=app_label,

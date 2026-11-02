@@ -1,10 +1,10 @@
 import os
 import logging
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render
 from wama.accounts.permissions import app_access
 from wama.common.utils.input_match import input_labels as _input_labels
 from django.views import View
-from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponseBadRequest
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.utils.encoding import smart_str
@@ -18,8 +18,6 @@ from .models import (Enhancement, AudioEnhancement,
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import get_media_info
-from ..common.utils.queue_duplication import release_card_files, duplicate_instance
-from ..common.utils.scoping import visible_or_404
 
 logger = logging.getLogger(__name__)
 
@@ -289,15 +287,6 @@ def _apply_audio_settings(ae, data):
         ae.quality_intent = _intent_posted(data)
 
 
-def _read_audio_settings(request):
-    """Les réglages audio postés — JSON (inspecteur) OU FormData (modale ⚙), lecteur COMMUN."""
-    from wama.common.utils.batch_views import read_settings_payload
-    from wama.enhancer.params import AUDIO_PARAMS_JSON
-    return read_settings_payload(request, AUDIO_PARAMS_JSON,
-                                 [p['name'] for p in AUDIO_PARAMS_JSON],
-                                 empty_is_value=SETTINGS_EMPTY_IS_VALUE)
-
-
 @require_POST
 @app_access('enhancer')
 def upload(request):
@@ -415,19 +404,6 @@ def _analyze_media(enhancement: Enhancement):
         logger.error(f"[_analyze_media] FAILED for {file_path}: {e}", exc_info=True)
 
 
-@require_POST
-def stop(request, pk: int):
-    """Stoppe l'amélioration image/vidéo en cours → item relançable (↻). Brique commune process_control."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    enhancement = editable_or_404(Enhancement, user, pk=pk)
-    if enhancement.status not in ('RUNNING', 'PENDING'):
-        return JsonResponse({'id': enhancement.id, 'status': enhancement.status})
-    from wama.common.utils.process_control import stop_instance
-    new_status = stop_instance(enhancement, error_field='error_message')
-    return JsonResponse({'id': enhancement.id, 'status': new_status})
-
-
 def _queue_panel(request, _user):
     """Le volet que « tout lancer » POSTE (JSON, ou formulaire) — « démarrer tout vaut appliquer
     à tout » ; rien de posté = chaque élément garde ses réglages."""
@@ -444,6 +420,11 @@ def _queue_panel(request, _user):
 # `start_enhancer` et `start_audio_enhancer`. Le ▶ de la card lance avec les réglages STOCKÉS
 # (corps vide, modèle événementiel) ; « tout lancer » relance TOUTE la file avec le volet posté,
 # par la fonction de réglage d'un élément — celle de sa route `update_settings` et de ses lots.
+# Et les autres gestes d'une card, ⏹ ⬇ 🗑 ⧉ ⚙, d'un domaine comme de l'autre (2026-11-01, ROUTE
+# §11 #42 ④) : la fabrique les lit à la déclaration de chaque fabrique de lot plus bas (remise à
+# zéro de la copie, nom du résultat, cache purgé, schéma et fonction de réglage). L'app les
+# écrivait deux fois — cinq vues `audio_*` et leurs cinq jumelles image / vidéo —, et le ⧉ audio
+# ne rejoignait jamais le lot de l'original.
 from wama.common.utils.item_views import make_item_views  # noqa: E402
 
 _iv = make_item_views(work_model=Enhancement, app_id='enhancer',
@@ -455,6 +436,8 @@ _iv = make_item_views(work_model=Enhancement, app_id='enhancer',
 start = app_access('enhancer')(_iv['start'])
 start_all = app_access('enhancer')(_iv['start_all'])
 clear_all = _iv['clear_all']
+stop, delete, duplicate = _iv['stop'], _iv['delete'], _iv['duplicate']
+download, update_settings = _iv['download'], _iv['update_settings']
 _aiv = make_item_views(work_model=AudioEnhancement, app_id='audio_enhancer',
                        task_for=lambda a: _audio_task(a),
                        reset_on_start={'progress': 0, 'error_message': ''}, pending={},
@@ -464,6 +447,8 @@ _aiv = make_item_views(work_model=AudioEnhancement, app_id='audio_enhancer',
 audio_start = app_access('enhancer')(_aiv['start'])
 audio_start_all = app_access('enhancer')(_aiv['start_all'])
 audio_clear_all = _aiv['clear_all']
+audio_stop, audio_delete, audio_duplicate = _aiv['stop'], _aiv['delete'], _aiv['duplicate']
+audio_download, audio_update = _aiv['download'], _aiv['update_settings']
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
@@ -477,96 +462,6 @@ _apv = make_progress_views(work_model=AudioEnhancement, app_id='audio_enhancer')
 audio_progress, audio_global_progress = _apv['progress'], _apv['global_progress']
 
 
-def download(request, pk: int):
-    """Download enhanced file."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancement = visible_or_404(Enhancement, user, pk=pk)   # LECTURE
-
-    logger.info(f"Download request for enhancement {pk}")
-    logger.info(f"  - output_file field: {enhancement.output_file}")
-    logger.info(f"  - output_file.name: {enhancement.output_file.name if enhancement.output_file else 'None'}")
-
-    if not enhancement.output_file:
-        logger.error(f"No output file available for enhancement {pk}")
-        return HttpResponseBadRequest('No output file available')
-
-    # Check if file exists in storage
-    from django.core.files.storage import default_storage
-    if not default_storage.exists(enhancement.output_file.name):
-        logger.error(f"Output file does not exist in storage: {enhancement.output_file.name}")
-        return HttpResponseBadRequest(f'Output file not found in storage: {enhancement.output_file.name}')
-
-    logger.info(f"Opening file for download: {enhancement.output_file.name}")
-    try:
-        return FileResponse(
-            enhancement.output_file.open('rb'),
-            as_attachment=True,
-            filename=enhancement.get_output_filename()
-        )
-    except Exception as e:
-        logger.error(f"Error opening file for download: {e}", exc_info=True)
-        return HttpResponseBadRequest(f'Error opening file: {e}')
-
-
-@require_POST
-def delete(request, pk: int):
-    """Delete enhancement."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
-
-    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(enhancement)
-
-    # Entrée et sortie LIBÉRÉES par la brique (une entrée partagée avec un doublon reste)
-    release_card_files(enhancement)
-
-    enhancement.delete()  # signal batch_sync : recale total / supprime le batch vidé
-    cache.delete(f"enhancer_progress_{pk}")
-
-    return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, Enhancement)})
-
-
-@require_POST
-def duplicate(request, pk: int):
-    """Duplicate an Enhancement sharing the same input_file, resetting results."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import duplicable_or_404
-    enhancement = duplicable_or_404(Enhancement, user, pk=pk)
-    new_e = duplicate_instance(
-        enhancement,
-        for_user=user,
-        reset_fields={
-            'status': 'PENDING',
-            'progress': 0,
-            'task_id': '',
-            'error_message': '',
-            'output_width': 0,
-            'output_height': 0,
-            'output_file_size': 0,
-            'processing_time': 0,
-        },
-        clear_fields=['output_file'],
-    )
-    # Aligné sur le Synthesizer (référence) : un doublon va dans SON PROPRE batch-of-1.
-    # On ne rejoint le batch de l'original QUE si c'est un VRAI batch multi-éléments (>1).
-    # Sinon une carte seule (batch-of-1) deviendrait un batch en la dupliquant (bug).
-    orig_item = BatchEnhancementItem.objects.filter(enhancement=enhancement).select_related('batch').first()
-    if orig_item and orig_item.batch.items.count() > 1:
-        from django.db.models import Max
-        batch = orig_item.batch
-        next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
-        BatchEnhancementItem.objects.create(batch=batch, enhancement=new_e, row_index=next_idx)
-        batch.total = batch.items.count()
-        batch.save(update_fields=['total'])
-    else:
-        try:
-            _wrap_enhancement_in_batch(new_e)
-        except Exception:
-            pass
-    return JsonResponse({'duplicated': new_e.id})
-
-
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
 # par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
 download_all = _pv['download_all']
@@ -575,18 +470,6 @@ download_all = _pv['download_all']
 #: Réglages pour lesquels une valeur postée VIDE est une valeur (curseur effacé) — lus par la
 #: route d'un élément ET par la fabrique de lots : une seule déclaration pour les deux.
 SETTINGS_EMPTY_IS_VALUE = ('quality_intent',)
-
-
-def _read_enhancement_settings(request):
-    """Les réglages postés — JSON (inspecteur) OU FormData (modale ⚙), par le lecteur COMMUN.
-    La vue lisait `request.POST` seul : le JSON de l'inspecteur n'était jamais écrit (relevé
-    par le contrat générique `tests_item_settings_contract`, 2026-09-26). Un curseur posé VIDE
-    reste une valeur (curseur effacé)."""
-    from wama.common.utils.batch_views import read_settings_payload
-    from wama.enhancer.params import MEDIA_PARAMS_JSON
-    return read_settings_payload(request, MEDIA_PARAMS_JSON,
-                                 [p['name'] for p in MEDIA_PARAMS_JSON],
-                                 empty_is_value=SETTINGS_EMPTY_IS_VALUE)
 
 
 def _apply_enhancement_settings(e, data):
@@ -606,29 +489,6 @@ def _apply_enhancement_settings(e, data):
     e.upscale_factor = _factor_posted(data, e.upscale_factor)
     if 'quality_intent' in data:
         e.quality_intent = _intent_posted(data)
-
-
-@require_POST
-def update_settings(request, pk: int):
-    """Update enhancement settings."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    enhancement = editable_or_404(Enhancement, user, pk=pk)
-    # Réglages enregistrables PENDANT un traitement (2026-10-22) : seules les colonnes CHANGÉES
-    # s'écrivent, jamais le statut ni les sorties que la tâche pose en base.
-    from wama.common.utils.batch_views import columns_changed, columns_snapshot
-    before = columns_snapshot(enhancement)
-    _apply_enhancement_settings(enhancement, _read_enhancement_settings(request))
-    enhancement.save(update_fields=columns_changed(enhancement, before))
-
-    return JsonResponse({
-        'id': enhancement.id,
-        'ai_model': enhancement.ai_model,
-        'denoise': enhancement.denoise,
-        'blend_factor': enhancement.blend_factor,
-        'upscale_factor': enhancement.upscale_factor,
-        'quality_intent': enhancement.quality_intent,
-    })
 
 
 # ===========================================================================
@@ -932,102 +792,6 @@ def audio_upload(request):
         'duration': ae.duration,
         'status': ae.status,
     })
-
-
-@require_POST
-def audio_stop(request, pk: int):
-    """Stoppe le débruitage audio en cours → item relançable (↻). Brique commune process_control."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    ae = editable_or_404(AudioEnhancement, user, pk=pk)
-    if ae.status not in ('RUNNING', 'PENDING'):
-        return JsonResponse({'id': ae.id, 'status': ae.status})
-    from wama.common.utils.process_control import stop_instance
-    new_status = stop_instance(ae, error_field='error_message')
-    return JsonResponse({'id': ae.id, 'status': new_status})
-
-
-@require_POST
-def audio_update(request, pk: int):
-    """Met à jour les réglages d'un item audio (inspecteur/modale). Miroir de update_settings."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    ae = editable_or_404(AudioEnhancement, user, pk=pk)
-    from wama.common.utils.batch_views import columns_changed, columns_snapshot
-    before = columns_snapshot(ae)      # en cours compris : seules les colonnes changées s'écrivent
-    # Les réglages par LE schéma audio (JSON de l'inspecteur ou formulaire de la modale), posés par
-    # la fonction unique du domaine (2026-10-28) — la liste écrite ici en était une recopie.
-    _apply_audio_settings(ae, _read_audio_settings(request))
-    ae.save(update_fields=columns_changed(ae, before))
-    return JsonResponse({'id': ae.id, 'engine': ae.engine, 'mode': ae.mode,
-                         'denoising_strength': ae.denoising_strength, 'quality': ae.quality,
-                         'quality_intent': ae.quality_intent,
-                         'output_format': ae.output_format, 'output_quality': ae.output_quality})
-
-
-def audio_download(request, pk: int):
-    """Download enhanced audio file."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ae = visible_or_404(AudioEnhancement, user, pk=pk)        # LECTURE
-
-    if not ae.output_file:
-        return HttpResponseBadRequest('No output file available')
-
-    from django.core.files.storage import default_storage
-    if not default_storage.exists(ae.output_file.name):
-        return HttpResponseBadRequest('Output file not found in storage')
-
-    return FileResponse(
-        ae.output_file.open('rb'),
-        as_attachment=True,
-        filename=ae.get_output_filename(),
-    )
-
-
-@require_POST
-def audio_delete(request, pk: int):
-    """Delete audio enhancement and clean up parent batch-of-1 if empty."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
-
-    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(ae)
-
-    # Entrée et sortie LIBÉRÉES par la brique (une entrée partagée avec un doublon reste)
-    release_card_files(ae)
-
-    ae.delete()  # signal batch_sync : recale total / supprime le batch vidé (+ fichier batch)
-    cache.delete(f"audio_enhancer_progress_{pk}")
-
-    return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, AudioEnhancement)})
-
-
-@require_POST
-def audio_duplicate(request, pk: int):
-    """Duplicate an AudioEnhancement sharing the same input_file, resetting results."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import duplicable_or_404
-    ae = duplicable_or_404(AudioEnhancement, user, pk=pk)
-    new_ae = duplicate_instance(
-        ae,
-        for_user=user,
-        reset_fields={
-            'status': 'PENDING',
-            'progress': 0,
-            'task_id': '',
-            'error_message': '',
-            'processing_time': 0,
-        },
-        clear_fields=['output_file'],
-    )
-    # Aligné sur l'image/vidéo + le Synthesizer : doublon dans SON PROPRE batch-of-1.
-    # Sinon il reste orphelin et l'auto-wrap le groupe par nature → effet « batch » surprenant.
-    try:
-        _wrap_audio_in_batch(new_ae)
-    except Exception:
-        pass
-    return JsonResponse({'duplicated': new_ae.id})
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,

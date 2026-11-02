@@ -16,6 +16,14 @@ Ce que ce fichier tient :
   • l'élément né d'un « Envoyer vers » est dans le domaine que la réponse annonce ;
   • « Envoyer vers » retient ce domaine pour la page de l'app (V8) ;
   • aucune porte de l'enhancer ni de l'imager ne réécrit une liste d'extensions à côté.
+
+Puis (2026-11-01, Fabien : « Pour le Describer, on aligne… `.ico` est un icône, plutôt image… Et on
+porte pour le reader ») :
+  • le describer lit la nature d'un fichier à la taxonomie commune — il décrivait comme des
+    documents un `.aiff`, un `.heif`, un `.qt` ou un `.ts` que sa zone de dépôt acceptait ;
+  • une icône est une image, qu'aucune app n'accueille encore ;
+  • « Envoyer vers » refuse, pour TOUTES les apps, ce qu'elles ne déclarent pas — le reader et le
+    synthesizer en recopiaient la liste, le describer créait une card pour un `.xyz`.
 """
 import importlib.util
 import inspect
@@ -30,8 +38,9 @@ from django.test import SimpleTestCase
 
 from wama.common.app_registry import APP_CATALOG, category_of_path
 from wama.common.tests.tests_cap_from_js import FAKE_DOM
-from wama.common.utils.app_modes import (APP_MODES, accepts, arrival_domain, element_domain,
-                                         file_nature, get_domains, surface_file_nature)
+from wama.common.utils.app_modes import (APP_MODES, accepts, arrival_domain, domain_nature,
+                                         element_domain, file_nature, get_domains,
+                                         surface_file_nature)
 from wama.filemanager.tests_send_to_settings import SendToTestBase
 
 HAS_V8 = importlib.util.find_spec('py_mini_racer') is not None
@@ -86,21 +95,73 @@ class ArrivalDomainIsTheFileNatureTest(SimpleTestCase):
         self.assertEqual('image', surface_file_nature('enhancer', 'enhancer', 'photo.heif'))
 
 
-class NoDoorWritesItsExtensionListTest(SimpleTestCase):
-    """Les portes d'arrivée de l'enhancer et de l'imager lisent la déclaration (`app_modes`)."""
+class DescriberReadsTheCommonNatureTest(SimpleTestCase):
+    """Le describer range un fichier par la taxonomie commune, lue par son domaine."""
 
-    MEDIA_LITERAL = re.compile(r"""['"]\.(?:jpe?g|png|webp|bmp|tiff?|heic|gif|mp4|webm|mkv|"""
-                               r"""avi|mov|flv|3gp|mp3|wav|flac|ogg|m4a|aac|opus|wma)['"]""")
+    def test_every_extension_the_describer_takes_has_its_common_nature(self):
+        from wama.describer.utils.content_analyzer import DOMAIN, file_nature as describer_nature
+        taken = accepts('describer', DOMAIN)
+        for ext in _offered('describer'):
+            common = category_of_path('x' + ext)
+            with self.subTest(ext=ext):
+                self.assertEqual(common if common in taken else 'document',
+                                 describer_nature('x' + ext))
+        for name, nature in (('take.aiff', 'audio'), ('take.aif', 'audio'), ('photo.heif', 'image'),
+                             ('clip.qt', 'video'), ('broadcast.ts', 'video')):
+            with self.subTest(name=name):
+                self.assertEqual(nature, describer_nature(name),
+                                 'accepted at the door, described as a document before')
+
+    def test_a_received_file_is_read_without_the_door(self):
+        """Un fichier téléchargé d'une URL n'est pas passé par la zone de dépôt : sa nature se lit
+        sans elle (`domain_nature`), et ce que le describer ne voit ni n'entend est un document."""
+        from wama.describer.utils.content_analyzer import file_nature as describer_nature
+        self.assertIsNone(file_nature('describer', 'description', 'icon.ico'), 'not offered')
+        self.assertEqual('image', domain_nature('describer', 'description', 'icon.ico'))
+        self.assertEqual('image', describer_nature('icon.ico'))
+        for name in ('page.json', 'feed.xml', 'page', 'archive.zip'):
+            with self.subTest(name=name):
+                self.assertEqual('document', describer_nature(name))
+
+    def test_the_queue_groups_and_the_batch_lines_by_the_same_reading(self):
+        from types import SimpleNamespace
+
+        from wama.describer.views import _describer_nature, _source_nature
+        card = SimpleNamespace(detected_type='', input_file=None, source_url='https://x.org/take.aiff')
+        self.assertEqual('audio', _describer_nature(card))
+        self.assertEqual('video', _source_nature('/data/broadcast.ts', 'broadcast.ts'))
+
+    def test_an_icon_is_an_image_that_no_app_takes_yet(self):
+        self.assertEqual('image', category_of_path('favicon.ico'))
+        self.assertEqual([], [app for app in sorted(APP_CATALOG) if '.ico' in _offered(app)],
+                         'accepting an icon is a decision: no engine is proven on one')
+
+
+class NoDoorWritesItsExtensionListTest(SimpleTestCase):
+    """Les portes d'arrivée lisent la déclaration (`app_modes`, `accepts_file`) : enhancer, imager,
+    describer, et les importeurs du reader et du synthesizer."""
+
+    MEDIA_LITERAL = re.compile(r"""['"]\.?(?:jpe?g|png|webp|bmp|tiff?|heic|heif|avif|ico|gif|"""
+                               r"""mp4|webm|mkv|avi|mov|qt|flv|3gp|m4v|wmv|mp3|wav|flac|ogg|"""
+                               r"""m4a|aac|opus|wma|aiff?|docx|odt|rtf)['"]""")
 
     def _doors(self):
         from wama import tool_api
+        from wama.describer import views as describer_views
+        from wama.describer import workers as describer_workers
+        from wama.describer.utils import content_analyzer
         from wama.enhancer import tasks as enhancer_tasks
         from wama.enhancer import views as enhancer_views
         from wama.filemanager import views as filemanager_views
         return [enhancer_views.upload, enhancer_views.batch_preview, enhancer_views.batch_create,
                 enhancer_views.audio_upload, enhancer_tasks._derive_media_type,
                 filemanager_views.import_to_enhancer, filemanager_views.import_to_imager,
-                tool_api.add_to_enhancer, tool_api.add_to_audio_enhancer]
+                tool_api.add_to_enhancer, tool_api.add_to_audio_enhancer,
+                describer_views.upload, describer_views._describer_nature,
+                describer_views._source_nature, describer_workers._derive_detected_type,
+                describer_workers._settle_nature, content_analyzer,
+                filemanager_views.import_to_describer, filemanager_views.import_to_reader,
+                filemanager_views.import_to_synthesizer, tool_api.add_to_describer]
 
     def test_no_arrival_door_lists_media_extensions(self):
         found = []
@@ -153,6 +214,28 @@ class SentFileLandsInItsDomainTest(SendToTestBase):
     def test_a_single_domain_app_answers_no_domain(self):
         body = self.send_to('converter', self.author, 'photo.png', _png())
         self.assertNotIn('domain', body)
+
+    def test_what_an_app_does_not_list_is_refused_and_nothing_is_created(self):
+        """La porte de tous les importeurs : `accepts_file`, ce que le menu propose."""
+        from django.apps import apps as django_apps
+        from django.urls import reverse
+        self.client.force_login(self.author)
+        for app, name, model in (('describer', 'notes.xyz', 'describer.Description'),
+                                 ('reader', 'letter.docx', 'reader.ReadingItem'),
+                                 ('transcriber', 'photo.png', 'transcriber.Transcript')):
+            with self.subTest(app=app, name=name):
+                before = django_apps.get_model(model).objects.count()
+                body = self.client.post(
+                    reverse('filemanager:api_import'),
+                    json.dumps({'path': self._temp_file(self.author, name, b'x'), 'app': app}),
+                    content_type='application/json').json()
+                self.assertFalse(body.get('imported'), body)
+                self.assertIn('Format non pris en charge', json.dumps(body, ensure_ascii=False))
+                self.assertEqual(before, django_apps.get_model(model).objects.count())
+
+    def test_a_sent_file_the_describer_takes_is_described_by_its_nature(self):
+        body = self.send_to('describer', self.author, 'take.aiff', b'FORM0000AIFF')
+        self.assertEqual('audio', self._element(body).detected_type)
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')

@@ -8,9 +8,9 @@ import json
 import logging
 import tempfile
 
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render
 from django.views import View
-from django.http import JsonResponse, FileResponse, HttpResponse, HttpResponseBadRequest
+from django.http import JsonResponse, FileResponse, HttpResponse
 from django.core.cache import cache
 from django.views.decorators.http import require_POST
 from django.db import transaction
@@ -21,7 +21,6 @@ from .tasks import read_document_task, _count_pdf_pages, _extract_natural_text
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels as _input_labels, select_match_meta
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 
 logger = logging.getLogger(__name__)
 
@@ -75,8 +74,8 @@ def _progress_extra(item: ReadingItem) -> dict:
 
 
 def _item_to_dict(item: ReadingItem) -> dict:
-    """La card à jour, rendue par les vues qui la créent ou la modifient (dépôt, duplication,
-    réglages) — les mêmes clés que la vue de progression (`_pv`). L'ETA est celle du LANCEMENT :
+    """La card à jour, rendue par le dépôt — les mêmes clés que la vue de progression (`_pv`) ; la
+    duplication et les réglages viennent de la fabrique commune (`_iv`, 2026-11-01). L'ETA est celle du LANCEMENT :
     la somme des process qu'il jouerait (`process_runs.launch_eta`, 2026-10-13)."""
     eta = 0.0
     if item.status in ('PENDING', 'RUNNING'):
@@ -355,23 +354,6 @@ def upload(request):
         return JsonResponse({'created': created})
 
 
-@require_POST
-@app_access('reader')
-def stop(request, pk: int):
-    """
-    Stoppe l'OCR en cours (révoque la tâche Celery) → item relançable (bouton de cycle ↻).
-    Brique commune : wama.common.utils.process_control.stop_instance.
-    """
-    user = _get_user(request)
-    from wama.common.utils.scoping import editable_or_404
-    item = editable_or_404(ReadingItem, user, pk=pk)
-    if item.status not in ('RUNNING', 'PENDING'):
-        return JsonResponse({'id': item.id, 'status': item.status})
-    from wama.common.utils.process_control import stop_instance
-    new_status = stop_instance(item, to_status='FAILURE')   # FAILURE = état terminal relançable côté Reader
-    return JsonResponse({'id': item.id, 'status': new_status})
-
-
 def _reset_for_relaunch(item):
     """Remise à zéro avant (re)lancement — appliquée SOUS le verrou anti-race.
 
@@ -462,6 +444,13 @@ _iv = make_item_views(work_model=ReadingItem, app_id='reader', task=read_documen
 start = app_access('reader')(_iv['start'])
 start_all = app_access('reader')(_iv['start_all'])
 clear_all = _iv['clear_all']
+# ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la même fabrique (2026-11-01, ROUTE §11 #42 ④), qui les lit à la
+# déclaration de `_bv` ci-dessus — `DUPLICATE_RESET`, cache purgé, rendu nommé par `_output_stem`,
+# `_apply_reading_settings`. La copie d'une card a désormais sa place dans la file dès sa naissance
+# (elle restait orpheline jusqu'au prochain affichage de la page).
+stop = app_access('reader')(_iv['stop'])
+delete, duplicate = _iv['delete'], _iv['duplicate']
+download, update_settings = _iv['download'], _iv['update_settings']
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -495,75 +484,9 @@ _pv = make_progress_views(work_model=ReadingItem, app_id='reader',
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
-def download(request, pk: int):
-    """Download the OCR result. Supported formats: txt (default), md, pdf, docx, json."""
-    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
-    item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
-
-    # Le format demandé, rendu par LE rendu du reader (`build_reading_bytes`, celui du ZIP de lot,
-    # de la médiathèque et de l'assistant) — brique commune `export_formats.download_response`.
-    # La souche est celle du ZIP (`_output_stem`, règle commune `compose_output_name` + tag `ocr`).
-    from wama.common.utils.export_formats import download_response
-    response = download_response('reader', item, request.GET, _output_stem(item))
-    if response is None:
-        return HttpResponseBadRequest('Pas de résultat dans ce format')
-    return response
-
-
-@require_POST
-def delete(request, pk: int):
-    """Delete an item and its input file (if not shared). Also removes parent batch-of-1."""
-    item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
-    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(item)
-    release_card_files(item)
-    cache.delete(f'reader_progress_{pk}')
-    item.delete()  # signal batch_sync : recale total / supprime le batch vidé (+ son fichier batch)
-    return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, ReadingItem)})
-
-
-@require_POST
-def duplicate(request, pk: int):
-    """Duplicate an item, sharing the input file but resetting all results."""
-    user = _get_user(request)
-    from wama.common.utils.scoping import duplicable_or_404
-    item = duplicable_or_404(ReadingItem, user, pk=pk)
-    new_item = duplicate_instance(
-        item,
-        for_user=user,
-        reset_fields={
-            'status': 'PENDING',
-            'progress': 0,
-            'task_id': '',
-            'error_message': '',
-            **DUPLICATE_RESET,
-        },
-    )
-    # 'duplicated' = contrat de la brique commune queue-actions.js (focus + reload)
-    return JsonResponse({**_item_to_dict(new_item), 'duplicated': new_item.id})
-
-
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
 # par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
 download_all = _pv['download_all']
-
-
-@require_POST
-def update_settings(request, pk: int):
-    """Update per-item OCR settings (backend, mode, language, LLM, optional processes)."""
-    from wama.common.utils.scoping import editable_or_404
-    item = editable_or_404(ReadingItem, _get_user(request), pk=pk)
-    # JSON (inspecteur) OU FormData (modale ⚙ par le cycle commun `WamaParams.settingsModal`,
-    # portage 2026-09-24) : le lecteur COMMUN des réglages postés, coercé au schéma — `language`
-    # vide EST une valeur (auto-détection), comme pour la vue de lot, qui appelle la même fonction.
-    from wama.common.utils.batch_views import read_settings_payload
-    data = read_settings_payload(request, _SCHEMA, [p['name'] for p in _SCHEMA],
-                                 empty_is_value=SETTINGS_EMPTY_IS_VALUE)
-    touched = _apply_reading_settings(item, data)
-    if touched:
-        item.save(update_fields=touched)
-    return JsonResponse(_item_to_dict(item))
 
 
 @require_POST

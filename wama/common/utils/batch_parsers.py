@@ -141,7 +141,7 @@ def batch_media_list_preview_response(request, item_enricher: Optional[Callable]
     With an enricher::
 
         def _enrich(item):
-            item['detected_type'] = detect_type_from_extension(...)
+            item['detected_type'] = file_nature(item['filename'])
 
         @require_POST
         def batch_preview(request):

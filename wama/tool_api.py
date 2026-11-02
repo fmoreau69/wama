@@ -911,8 +911,8 @@ def add_to_describer(
     if not accepts_file('describer', received.name):
         return {'error': f'Format non supporté par le Describer : {ext}'}
 
-    from wama.describer.views import detect_type_from_extension
-    detected_type = detect_type_from_extension(ext.lstrip('.'))
+    from wama.describer.utils.content_analyzer import file_nature
+    detected_type = file_nature(received.name, app=app_label)
 
     try:
         from django.apps import apps as django_apps

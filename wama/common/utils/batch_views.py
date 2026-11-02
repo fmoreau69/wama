@@ -174,6 +174,27 @@ _ZIP_DECLARATIONS = {}
 #: l'avatarizer).
 _SETTINGS_WRITERS = {}
 
+#: Ce qu'un ÉLÉMENT de la file déclare à sa fabrique de lot, et que ses propres gestes relisent
+#: (`item_views.make_item_views` : ⧉, 🗑, ⬇, ⚙ d'une card — 2026-11-01) : la remise à zéro et les
+#: sorties vidées de sa copie, sa forme de rattachement au lot, son nettoyage au retrait, son
+#: schéma et son écrivain de réglages, le nommage de son résultat. Les dix apps le déclaraient
+#: déjà ici pour leurs lots, et le redisaient à la main dans leurs vues d'élément.
+_ELEMENT_DECLARATIONS = {}
+
+
+def element_declaration(work_model):
+    """La déclaration d'élément de `work_model` (`_ELEMENT_DECLARATIONS`), ou None. Inscrite au
+    chargement des vues de son app : un processus qui ne les a pas chargées les importe ici."""
+    found = _ELEMENT_DECLARATIONS.get(work_model)
+    if found is None:
+        import importlib
+        try:
+            importlib.import_module(f'{work_model._meta.app_config.name}.views')
+        except Exception:
+            return None
+        found = _ELEMENT_DECLARATIONS.get(work_model)
+    return found
+
 
 def write_element_settings(item, data) -> list:
     """Pose `data` sur l'élément `item` par l'écrivain de réglages DÉCLARÉ de son app — celui de sa
@@ -351,7 +372,16 @@ class ResultArchive:
             if out:
                 entry = self.named(name, Path(out.name).suffix) or \
                     (output_name(item) if output_name is not None else '') or Path(out.name).name
-                self.add_bytes(entry, out.read())
+                # Le fichier par son CHEMIN quand il en a un : une vidéo n'est pas lue en mémoire
+                # (le ⬇ d'une card sert l'entrée telle quelle, `item_views`).
+                try:
+                    local = Path(out.path)
+                except (NotImplementedError, ValueError):
+                    local = Path()
+                if local.name and local.is_file():
+                    self.add_file(local, entry)
+                else:
+                    self.add_bytes(entry, out.read())
         return fmt
 
 
@@ -631,6 +661,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
 
     if (caller == owner or caller.startswith(owner + '.')) and '.tests' not in caller:
         _SETTINGS_WRITERS[work_model] = _write_outside_request
+        _ELEMENT_DECLARATIONS[work_model] = {
+            'batch_model': batch_model, 'link': link_kwargs, 'item_extra': item_extra,
+            'reset_on_duplicate': dup_reset, 'output_fields': tuple(output_fields),
+            'on_delete': on_delete, 'zip': zip_declaration,
+            'schema': schema, 'empty_is_value': tuple(empty_is_value or ()), 'write': _write_one}
 
     def _apply_to_elements(request, b, data_for, *, skip=()):
         """Pose `data_for(élément)` sur chaque élément du lot qui ne tourne pas (hors `skip`),
