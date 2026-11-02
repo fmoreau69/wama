@@ -27873,8 +27873,55 @@ passer par la route de wama »*, puis `/reverif`.
   ⚠ **Constat de la synchro** : une synchronisation complète du catalogue tourne toutes les ~5 min
   depuis un processus en service (`ModelSyncLog` 8844→8849) ; démarré à 15 h 26, il réécrit la ligne
   `enhancer:resemble` avec l'ancien code (`is_downloaded=True`, aucun fichier déclaré) — juste qu'à
-  la RELANCE. 🔚 **Décision de Fabien** : l'ancien clone `site-packages/resemble_enhance/model_repo`
-  (1,9 Go dans `venv_linux`, plus rien ne le lit) — à retirer.
+  la RELANCE. ~~🔚 **Décision de Fabien** : l'ancien clone `site-packages/resemble_enhance/model_repo`
+  (1,9 Go dans `venv_linux`, plus rien ne le lit) — à retirer.~~ ✅ retiré sur sa demande ; Resemble
+  restaure toujours, et la librairie ne l'a pas recréé.
+- **Inventaire des librairies qui téléchargent d'elles-mêmes** (demande de Fabien, même soir). Angle
+  mort mesuré de `tests_install_route` : il ne voit que les téléchargements APPELÉS par notre code
+  (`DOWNLOAD_CALLS`), jamais une librairie qui télécharge parce qu'on l'appelle sans chemin. Méthode :
+  (1) relevé mécanique des gestes de téléchargement dans le code des 56 librairies importées qui en
+  portent, étalonné sur les trois cas avérés (DeepFilterNet, resemble-enhance, openai-whisper) ;
+  (2) poids rangés hors des lieux de la route (`$HOME`, `site-packages`, racine, `/tmp`) ; (3) lecture
+  des appels. **Même famille que R203/R208, à porter** (🔚 décision de Fabien) :
+  - **docTR** (reader, et l'orientation de page d'`ocr_base`) — `ocr_predictor(pretrained=True)` : la
+    librairie tire ses poids au premier usage (`doctr-static.mindee.com`, dans `DOCTR_CACHE_DIR`) ;
+    la ligne ne déclare aucun fichier et se dit installée si un `.pt` traîne… ou si `import doctr`
+    réussit (`model_registry.py:2782-2789`). Une mise à jour (1.1.0) a retiré en silence un second
+    `crnn_vgg16_bn` : l'ancien (`-9762b0b0`, 63 Mo) est mort dans `AI-models`. Origine à déclarer :
+    une source « poids » d'`external_sources`, comme l'EnCodec de Bark ;
+  - **Coqui XTTS v2** — `TTS(full_id)` tire `model.pth` + `speakers_xtts.pth` au premier usage
+    (levier C, `TTS_HOME`) ; aucun fichier déclaré, alors que l'origine est sur le Hub
+    (`coqui/XTTS-v2`) ;
+  - **faster-whisper `tiny`** (langue parlée pour les moteurs NeMo, `spoken_language.py:36`) — chargé
+    par NOM, tiré au premier usage, SANS ligne de catalogue (le balayage générique l'écarte, la
+    famille appartenant au transcriber qui ne le déclare pas) : jamais demandé à la route, jamais
+    désinstallable ;
+  - **Whisper du transcriber** — sans `install_dir` par choix écrit (`model_registry.py:1959-1961` :
+    la ligne déclare `openai/whisper-large-v3`, le moteur charge `Systran/faster-whisper-*`) ; il
+    garde le téléchargement au premier usage tant que la ligne ne nomme pas le dépôt réellement lu.
+  **Latent** : `misaki` (G2P anglais de Kokoro) lance `spacy.cli.download("en_core_web_sm")` — un pip
+  hors route — si le modèle spaCy manque (`misaki/en.py:500-501`) ; il est installé aujourd'hui, mais
+  ce n'est pas une distribution PyPI (roue GitHub) : la route `library` la refuserait (verrou « PyPI
+  par nom seul »). **Code mort** : `transcriber/utils/model_config.load_whisper_model` (+
+  `setup_model_environment`, qui écrit `WHISPER_CACHE` dans l'environnement) — aucun appelant, seul
+  importateur d'`openai-whisper`. **Restes morts sur disque** (≈ 2,6 Go) : `~/.local/share/tts`
+  (2,1 Go, doublon octet pour octet d'`AI-models`, d'avant R193), `~/.cache/whisper/base.pt` et
+  `AI-models/models/speech/whisper/base.pt` (code mort), les Coqui retirés par R32 dans `AI-models`
+  (vits, tacotron2, speedy-speech, hifigan : 320 Mo), l'ancien `crnn` de docTR, deux copies docTR
+  dans `/tmp` (09/10). **En règle** : DeepFilterNet, Resemble, AudioCraft, Bark + EnCodec, DeepFace,
+  CodeFormer, MuScriptor, GLiNER2, bardsai, Phonon (fichiers déclarés) ; Kokoro, pyannote, NeMo
+  (archive par chemin), ultralytics (chemins complets), la famille transformers/diffusers (leviers
+  A/B, garde du cache HF).
+- **Registre des librairies — ce qui y manque** (règle `WAMA_MANIFEST_SPEC §7.4` : strate 2, semis
+  EXPLICITE, critère tiré de « un moteur est une librairie ») : 16 distributions qu'un backend exige
+  (`REQUIRED_PACKAGES`, `backend_inventory`) ne sont pas au registre — `coqui-tts` (moteur Coqui),
+  `nemo-toolkit` + `lhotse` (NeMo), `qwen-asr`, `basicsr` + `facexlib` (CodeFormer), `mmpose` +
+  `mmcv` + `mmengine` (MuseTalk), `PyMCubes` + `trimesh` (TripoSR — ⚠ ABSENTS de `venv_linux` : le
+  moteur ne peut pas tourner, à installer par `install_library`), `sox` (Qwen3-TTS), `torchvision`,
+  `httpx` (Ollama), `playwright` (TalkingHead), `pillow` ; plus, par l'inventaire, `misaki`, `spacy`,
+  `encodec`, `lpips`. ⚠ `opencv` est installé en TROIS variantes (`opencv-python`,
+  `-contrib-python`, `-python-headless`) — la maladie d'`onnxruntime` (`AGENTS.md` patch 10) : une
+  seule à déclarer. 🔚 Semis par `manifest_export --kind library <clé>` sur décision de Fabien.
 
 ## §CLÔTURE 2026-11-01, « MODÈLES : INSTALLATION RECOMMANDÉE, SUCCESSION, BANCS OFFICIELS, DESCRIPTIONS — puis TIRAGE DE L'ASSISTANT (AA v5, échelle commune, variante servie) » — non poussé — 🔴 relancer gunicorn + workers — 🔚 trancher le sort de la ligne `reader:olmocr` (ci-dessous)
 
