@@ -1093,7 +1093,9 @@ def _card_in_batch(f: _AppFiles):
     """
     if not f.find_code(URLS, r'card_html'):
         return None, None
-    brique = f.find_code(VIEWS, r'\bis_batch_child\(')
+    # La fabrique de la card rendue seule (`item_views.make_card_view`, 2026-11-02) pose
+    # `in_batch` par `is_batch_child` : une vue qui la prend n'a plus l'appel sous les yeux.
+    brique = f.find_code(VIEWS, r'\bis_batch_child\(') or f.find_code(VIEWS, r'\bmake_card_view\(')
     main = f.find_code(VIEWS, r'batch__total__gt|\bin_batch\s*=\s*(?!is_batch_child\b)[\w(]')
     if brique and not main:
         return True, brique

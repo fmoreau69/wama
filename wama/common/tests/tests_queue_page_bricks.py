@@ -38,7 +38,11 @@ class TheGridMeasuresTheCallTest(SimpleTestCase):
     """Les quatre critères mesurent l'APPEL de la brique, plus son nom : chaque app réelle y est
     verte, et une vue écrite à la main à côté de la route n'y est pas."""
 
-    CRITERIA = ('card_html_endpoint', 'batch_template', 'auto_wrap_orphans', 'build_batches_list')
+    #: `card_in_batch` aussi : la fabrique pose `in_batch`, et le critère qui cherchait
+    #: `is_batch_child` dans la vue a rougi l'anonymizer le jour du portage (relevé par une autre
+    #: instance, 2026-11-02) — un critère doit suivre la brique qu'il mesure.
+    CRITERIA = ('card_html_endpoint', 'batch_template', 'auto_wrap_orphans', 'build_batches_list',
+                'card_in_batch')
 
     def test_every_real_app_calls_the_bricks(self):
         from wama.common.services import conformity_checker as checker
