@@ -30,12 +30,16 @@ logger = logging.getLogger(__name__)
 _DENOISE_MODEL = 'IRCNN_Mx1'   # débruitage pur ×1 (quand denoise coché SANS upscale)
 
 
-def apply_cross_app_options(job, output_path: str, console, progress) -> None:
+def apply_cross_app_options(job, output_path: str, console, progress, ensure_model=None) -> None:
     """Applique les options cross-app du job sur `output_path` (remplacé en place).
 
     Filtre par le catalogue du media_type (une option enregistrée puis sortie du
     catalogue est ignorée). Une exception = FAILURE du job : le post-traitement a été
     demandé explicitement, un résultat silencieusement non traité serait un mensonge.
+
+    `ensure_model` : celui du squelette (`ctx.ensure_model`, 2026-11-02) — le modèle d'un
+    post-traitement absent, la ROUTE l'installe et la tâche attend (`model_readiness`), au moment
+    où l'on sait qu'il servira ; jamais le moteur qui le tire lui-même.
     """
     from .format_router import CROSS_APP_OPTIONS
     xa = job.cross_app_options or {}
@@ -47,9 +51,16 @@ def apply_cross_app_options(job, output_path: str, console, progress) -> None:
     if job.media_type == 'image':
         _enhance_image(xa, output_path, console, progress, job=job)
     elif job.media_type == 'audio':
-        _enhance_audio_file(job, xa, output_path, console, progress)
+        _enhance_audio_file(job, xa, output_path, console, progress, ensure_model)
     elif job.media_type == 'video':
-        _enhance_video_audio(xa, output_path, console, progress)
+        _enhance_video_audio(xa, output_path, console, progress, ensure_model)
+
+
+def _ensure_denoiser(ensure_model) -> None:
+    """Le débruiteur demandé à la route avant de le charger (cf. `apply_cross_app_options`)."""
+    if ensure_model is not None:
+        from wama.common.backends.deepfilternet_files import DEEPFILTERNET_KEY
+        ensure_model(DEEPFILTERNET_KEY)
 
 
 def _enhance_image(xa, output_path, console, progress, job=None):
@@ -86,10 +97,11 @@ def _enhance_image(xa, output_path, console, progress, job=None):
         _cleanup(tmp)
 
 
-def _enhance_audio_file(job, xa, output_path, console, progress):
+def _enhance_audio_file(job, xa, output_path, console, progress, ensure_model=None):
     """Enhancement DeepFilterNet (enhancer inline) ; sortie WAV ré-encodée au format cible."""
     if not xa.get('audio_enhance'):
         return
+    _ensure_denoiser(ensure_model)
     from wama.common.backends.audio_enhancer import run_audio_enhancement
 
     console("Post-traitement IA : enhancement audio (DeepFilterNet)…")
@@ -116,7 +128,7 @@ def _enhance_audio_file(job, xa, output_path, console, progress):
         _cleanup(tmp_wav, tmp_out)
 
 
-def _enhance_video_audio(xa, output_path, console, progress):
+def _enhance_video_audio(xa, output_path, console, progress, ensure_model=None):
     """Enhancement DeepFilterNet de la PISTE AUDIO d'une vidéo : demux → enhance → remux
     (flux vidéo copié tel quel — pas de ré-encodage vidéo)."""
     if not xa.get('audio_enhance'):
@@ -133,6 +145,7 @@ def _enhance_video_audio(xa, output_path, console, progress):
         console("Enhancement audio ignoré : la vidéo n'a pas de piste audio.")
         return
 
+    _ensure_denoiser(ensure_model)
     from wama.common.backends.audio_enhancer import run_audio_enhancement
     console("Post-traitement IA : enhancement de la piste audio (DeepFilterNet)…")
     _ff = get_ffmpeg_exe()

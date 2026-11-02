@@ -233,7 +233,8 @@ def _enhance(job, ctx):
         # `cross_app` parle de 90 à 98 % (il suivait la conversion dans la même étape) : ramené
         # à l'étendue de CE process.
         apply_cross_app_options(job, work, ctx.console,
-                                lambda p: ctx.progress(max(0, min(99, int((p - 90) * 12)))))
+                                lambda p: ctx.progress(max(0, min(99, int((p - 90) * 12)))),
+                                ensure_model=ctx.ensure_model)
         output_rel_dir, output_dir, output_name, _ = _final_place(job, ctx)
         rel_path = f"{output_rel_dir}{output_name}"
         if job.output_file and job.output_file.name != rel_path:

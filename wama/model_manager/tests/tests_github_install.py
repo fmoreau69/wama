@@ -7,8 +7,11 @@ Lot 1 : la primitive de téléchargement extraite de `pull_yolo_weights`, que le
 partagent. Le réseau est simulé : aucun test ne télécharge.
 """
 import hashlib
+import io
 import os
+import shutil
 import tempfile
+import zipfile
 from unittest.mock import patch
 
 from django.test import SimpleTestCase, TestCase
@@ -803,6 +806,112 @@ class DeclaredFilesTest(TestCase):
         """A mirror is not an author: the model's identity is the one its discovery declares."""
         from wama.model_manager.services.provenance import identity_for_spec
         self.assertIsNone(identity_for_spec(self._spec()))
+
+
+#: Le commit de l'archive officielle de DeepFilterNet 3 (2026-11-02) — la forme qu'elle exerce.
+ARCHIVE_COMMIT = '82b0c7ad33fc756284104053817d1e855d8d8386'
+
+
+class DeclaredArchiveMemberTest(SimpleTestCase):
+    """A file the author publishes only INSIDE an archive, in the tree of a GitHub repository —
+    the official DeepFilterNet 3 (2026-11-02). The repository file is frozen at a commit like a Hub
+    revision; the archive is pinned to its digest, each member to its own, read by its NAME."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+        cm = self.settings(AI_MODELS_DIR=self.root)
+        cm.enable()
+        self.addCleanup(cm.disable)
+        self.app_dir = os.path.join(self.root, 'models', 'speech', 'deepfilternet')
+        self.members = {'M/config.ini': b'[df]\n', 'M/checkpoints/model.best': b'w' * 4096}
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as archive:
+            for name, data in self.members.items():
+                archive.writestr(name, data)
+            archive.writestr('../outside.txt', b'x')     # an entry that would climb out
+        self.archive = buffer.getvalue()
+        self.files = [self._member(name) for name in self.members]
+
+    def _member(self, name, **origin):
+        data = self.members.get(name, b'')
+        return {'path': name, 'size': len(data) or 1, 'sha256': hashlib.sha256(data).hexdigest(),
+                'origin': {'source': 'github', 'repo': 'Rikorose/DeepFilterNet',
+                           'revision': ARCHIVE_COMMIT, 'file': 'models/M.zip',
+                           'archive_sha256': hashlib.sha256(self.archive).hexdigest(),
+                           'member': name, **origin}}
+
+    def _spec(self, files=None):
+        return {'kind': 'files', 'ref': 'enhancer:deepfilternet', 'files': files or self.files,
+                'target_dir': self.app_dir}
+
+    def _serve(self):
+        """`download_asset` writes the archive where asked — the network is not the subject."""
+        def fake(url, target, **kwargs):
+            with open(target, 'wb') as fh:
+                fh.write(self.archive)
+            return {'ok': True, 'path': target}
+        return patch.object(mi, 'download_asset', side_effect=fake)
+
+    def _leftovers(self):
+        return sorted(name for _, _, names in os.walk(self.root) for name in names
+                      if name.startswith('.archive-') or name.endswith('.part'))
+
+    def test_a_repository_file_is_frozen_at_a_commit_and_its_address_derives_from_github(self):
+        from wama.common.external_sources import base_url
+        self.assertIsNone(mi.declared_files_error(self._spec()))
+        self.assertEqual(f"{base_url('github')}/Rikorose/DeepFilterNet/raw/{ARCHIVE_COMMIT}/"
+                         "models/M.zip", mi.declared_file_url(self.files[0]['origin']))
+        refused = mi.declared_files_error(self._spec([self._member('M/config.ini',
+                                                                   revision='main')]))
+        self.assertIn('COMMIT exact', refused or '', 'a branch serves other bytes tomorrow')
+
+    def test_a_member_needs_a_zip_its_pinned_digest_and_a_relative_name(self):
+        for origin, motive in (({'file': 'models/M.tar.gz'}, 'archive refusée'),
+                               ({'archive_sha256': ''}, 'archive_sha256'),
+                               ({'member': '../escape'}, 'membre refusé')):
+            with self.subTest(origin=origin):
+                self.assertIn(motive, mi.declared_files_error(
+                    self._spec([self._member('M/config.ini', **origin)])) or '')
+
+    def test_the_archive_is_fetched_once_and_each_member_lands_verified(self):
+        with self._serve() as dl:
+            res = mi.pull_declared_files(self._spec())
+        self.assertTrue(res['ok'], res)
+        self.assertEqual(1, dl.call_count, 'one archive for all its members')
+        self.assertEqual(hashlib.sha256(self.archive).hexdigest(), dl.call_args.kwargs['sha256'],
+                         'the archive itself is pinned')
+        for name, data in self.members.items():
+            with open(os.path.join(self.app_dir, *name.split('/')), 'rb') as fh:
+                self.assertEqual(data, fh.read())
+        self.assertEqual(set(self.members), {d['member'] for d in res['files']},
+                         'the provenance names the member')
+        self.assertEqual([], self._leftovers(), 'the archive goes once read')
+        self.assertFalse(os.path.exists(os.path.join(self.root, 'models', 'speech', 'outside.txt')),
+                         'an entry the app did not declare is never written')
+
+    def test_a_member_with_another_digest_is_refused_and_leaves_nothing(self):
+        files = [{**self.files[0], 'sha256': 'a' * 64}]
+        with self._serve():
+            res = mi.pull_declared_files(self._spec(files))
+        self.assertFalse(res['ok'])
+        self.assertIn('empreinte', res['error'])
+        self.assertFalse(os.path.exists(os.path.join(self.app_dir, 'M', 'config.ini')))
+        self.assertEqual([], self._leftovers())
+
+    def test_a_member_announcing_another_size_is_refused_before_reading(self):
+        files = [{**self.files[1], 'size': self.files[1]['size'] + 1}]
+        with self._serve():
+            res = mi.pull_declared_files(self._spec(files))
+        self.assertFalse(res['ok'])
+        self.assertIn('pèse', res['error'])
+
+    def test_an_absent_member_is_said(self):
+        with self._serve():
+            res = mi.pull_declared_files(self._spec([self._member('M/absent.bin')]))
+        self.assertFalse(res['ok'])
+        self.assertIn('illisible', res['error'])
+        self.assertEqual([], self._leftovers())
 
 
 class UninstallingDeclaredFilesTest(TestCase):

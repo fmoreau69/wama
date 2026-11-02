@@ -2419,16 +2419,30 @@ class ModelRegistry:
                 'engine': 'deepfilternet',   # cf. `DeepFilterNetBackend.ENGINE`
             },
         }
+        # DeepFilterNet 3 a des fichiers DÉCLARÉS à côté de son moteur (2026-11-02) : sa ligne est
+        # présente ou INSTALLABLE par le pilote `files`, comme Phonon. ⚠ Resemble, lui, tire encore
+        # ses poids au premier usage DANS SON PAQUET (`ResembleEnhanceBackend.__init__`) — hors de
+        # la route, consigné dans `enhancer/README.md` §Audio.
+        from wama.common.backends.deepfilternet_files import (
+            DEEPFILTERNET_FILES, DEEPFILTERNET_KEY, deepfilternet_folder, deepfilternet_installed,
+        )
+        _declared = {DEEPFILTERNET_KEY: (deepfilternet_installed, {
+            'install_dir': str(deepfilternet_folder()),
+            'declared_files': DEEPFILTERNET_FILES,
+            'size_bytes': sum(f['size'] for f in DEEPFILTERNET_FILES)})}
         for _eng_id, _eng in _audio_engines.items():
-            self._models[f'enhancer:{_eng_id}'] = ModelInfo(
-                id=f'enhancer:{_eng_id}',
+            _key = f'enhancer:{_eng_id}'
+            _installed, _extra = _declared.get(_key, (lambda: True, {}))
+            self._models[_key] = ModelInfo(
+                id=_key,
                 name=_eng['name'],
                 model_type=ModelType.SPEECH,
                 source=ModelSource.WAMA_ENHANCER,
                 description=_eng['long'],
                 description_short=_eng['short'],
                 vram_gb=_eng['vram'],
-                is_downloaded=True,
+                is_downloaded=_installed(),
+                extra_info=_extra,
                 backend_ref='enhancer',
                 # Lien modele<->moteur, LU dans la declaration `_audio_engines`.
                 composition={'runtime': {'engine': _eng['engine']}},

@@ -1605,7 +1605,7 @@ MECHANISMS = (
               "sous-dépendances au cache partagé » (ROADMAP §5b), et le choix est imposé par la "
               "LIB, pas par le goût : A `cache_dir=` — B un CHEMIN local (`poids_locaux`) — "
               "C la variable propre à la lib, posée dans settings (`DEEPFACE_HOME`, "
-              "`AUDIOCRAFT_CACHE_DIR`) — D `hf_cache_scope`, DERNIER RECOURS déclaré. "
+              "`TTS_HOME`) — D `hf_cache_scope`, DERNIER RECOURS déclaré. "
               "⚠ D restaure l'environnement mais JAMAIS LES FICHIERS : ce que la lib télécharge "
               "pendant la fenêtre reste dans le dossier du modèle — c'est ainsi que "
               "`timm/resnet18` a atterri chez table-transformer. Zéro mutation d'environnement "

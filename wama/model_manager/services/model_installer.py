@@ -829,10 +829,18 @@ def pull_github_asset(spec: dict, timeout: int = 600, dry_run: bool = False) -> 
 # déclarée par l'app, posée sur la ligne du catalogue (`extra_info['declared_files']`), rendue
 # fichier par fichier dans le résultat (donc dans le journal des installations).
 #
-# Trois formes d'origine, toutes FIGÉES — pas d'URL libre, jamais « latest » ni une branche :
+# Quatre formes d'origine, toutes FIGÉES — pas d'URL libre, jamais « latest » ni une branche :
 #   {'source': 'huggingface', 'repo': 'org/nom', 'revision': '<commit, 40 hex>', 'file': 'a/b'}
 #   {'source': 'github', 'release': 'owner/repo:tag', 'file': '<nom de l'asset>'}
+#   {'source': 'github', 'repo': 'owner/repo', 'revision': '<commit, 40 hex>', 'file': 'a/b'}
 #   {'source': '<source déclarée « Outillage et poids »>', 'file': '<chemin sous son adresse>'}
+# La troisième (2026-11-02, DeepFilterNet 3) : un fichier de l'ARBRE d'un dépôt GitHub, figé au
+# COMMIT comme une révision du Hub — quand l'auteur publie ses poids dans son dépôt et non dans
+# une version (les versions v0.5.2 à v0.5.6 de DeepFilterNet ne portent que des binaires).
+# Et toute origine peut désigner un MEMBRE d'une archive zip (`member` + `archive_sha256`) : la
+# version officielle n'existe parfois qu'en archive. L'archive est épinglée à son empreinte, le
+# membre à la sienne ; l'archive est tirée une fois, lue par NOM de membre (jamais extraite en
+# bloc : aucun chemin de l'archive n'écrit sur le disque) et retirée après extraction.
 # Verrous communs : empreinte ET taille épinglées (la taille nourrit la garde d'espace disque),
 # chemin RELATIF sous le dossier de l'app, lui-même sous la racine des modèles, téléchargement
 # commun (`download_asset`), un fichier DIFFÉRENT en place arrête tout avant le moindre octet.
@@ -849,31 +857,50 @@ def _relative_path_error(path) -> bool:
     return not path or any(not _GITHUB_ASSET_RE.match(p) or '..' in p for p in parts)
 
 
+def _repo_at_commit_error(origin, file) -> str | None:
+    """Un dépôt `org/nom` figé à un COMMIT, et un chemin relatif dedans (Hub, ou arbre GitHub)."""
+    from wama.common.manifests.builtin.library import _VENDOR_REPO_RE
+    repo = str(origin.get('repo') or '')
+    if not _VENDOR_REPO_RE.match(repo) or '..' in repo:
+        return f"dépôt refusé : {repo!r} — forme exigée « org/nom »"
+    if not _HF_COMMIT_RE.match(str(origin.get('revision') or '')):
+        return ("revision : le COMMIT exact du dépôt (40 hex), jamais une branche — « main » "
+                "sert d'autres octets demain")
+    return f"file refusé : {file!r}" if _relative_path_error(file) else None
+
+
+def _archive_member_error(origin, file) -> str | None:
+    """Le membre d'archive d'une origine (`member`), ou None s'il n'y en a pas : une archive zip,
+    épinglée à son empreinte, et un chemin relatif dedans."""
+    if 'member' not in origin:
+        return None
+    member = str(origin.get('member') or '')
+    if not file.endswith('.zip'):
+        return f"archive refusée : {file!r} — seule une archive zip se lit par membre"
+    if not _SHA256_RE.match(str(origin.get('archive_sha256') or '')):
+        return f"archive_sha256 manquant ou invalide pour {file!r} — l'empreinte de l'ARCHIVE"
+    return f"membre refusé : {member!r}" if _relative_path_error(member) else None
+
+
 def declared_origin_error(origin) -> str | None:
     """Motif de refus de l'ORIGINE d'un fichier déclaré, ou None (pur, aucune I/O)."""
     from wama.common.external_sources import by_key
-    from wama.common.manifests.builtin.library import _VENDOR_REPO_RE
 
     origin = origin if isinstance(origin, dict) else {}
     source, file = origin.get('source') or '', str(origin.get('file') or '')
-    if source == 'huggingface':
-        repo = str(origin.get('repo') or '')
-        if not _VENDOR_REPO_RE.match(repo) or '..' in repo:
-            return f"dépôt refusé : {repo!r} — forme exigée « org/nom »"
-        if not _HF_COMMIT_RE.match(str(origin.get('revision') or '')):
-            return ("revision : le COMMIT exact du dépôt (40 hex), jamais une branche — « main » "
-                    "sert d'autres octets demain")
-        return f"file refusé : {file!r}" if _relative_path_error(file) else None
-    if source == 'github':
+    if source == 'huggingface' or (source == 'github' and 'release' not in origin):
+        error = _repo_at_commit_error(origin, file)
+    elif source == 'github':
         error = github_release_error(origin.get('release'))
-        if error:
-            return error
-        return None if _GITHUB_ASSET_RE.match(file) else f"asset refusé : {file!r}"
-    declared = by_key().get(source)
-    if declared is None or declared.kind != _FILE_HOST_KIND:
-        return (f"source refusée : {source!r} — `huggingface`, `github` ou une source DÉCLARÉE "
-                "de la famille « Outillage et poids » (`external_sources`)")
-    return f"file refusé : {file!r}" if _relative_path_error(file) else None
+        if not error and not _GITHUB_ASSET_RE.match(file):
+            error = f"asset refusé : {file!r}"
+    else:
+        declared = by_key().get(source)
+        if declared is None or declared.kind != _FILE_HOST_KIND:
+            return (f"source refusée : {source!r} — `huggingface`, `github` ou une source "
+                    "DÉCLARÉE de la famille « Outillage et poids » (`external_sources`)")
+        error = f"file refusé : {file!r}" if _relative_path_error(file) else None
+    return error or _archive_member_error(origin, file)
 
 
 def declared_files_error(spec: dict) -> str | None:
@@ -908,6 +935,8 @@ def declared_file_url(origin: dict) -> str:
     source, file = origin['source'], origin['file']
     if source == 'huggingface':
         return f"{base_url('huggingface')}/{origin['repo']}/resolve/{origin['revision']}/{file}"
+    if source == 'github' and 'release' not in origin:
+        return f"{base_url('github')}/{origin['repo']}/raw/{origin['revision']}/{file}"
     if source == 'github':
         return github_asset_url({'ref': origin['release'], 'asset': file})
     return f"{base_url(source)}/{file}"
@@ -1030,21 +1059,82 @@ def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False,
 
     def provenance(f, target, action):
         return {'path': str(target), 'url': declared_file_url(f['origin']),
-                'sha256': f['sha256'].lower(), 'action': action}
+                'sha256': f['sha256'].lower(), 'action': action,
+                **({'member': f['origin']['member']} if 'member' in f['origin'] else {})}
 
     done = [provenance(f, t, 'kept') for f, t in kept]
-    for f, target in missing:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        hub = f['origin']['source'] == 'huggingface'
-        res = download_asset(declared_file_url(f['origin']), str(target), timeout=timeout,
-                             sha256=f['sha256'], proxies=proxies_for(f['origin']['source']),
-                             headers={'Authorization': f'Bearer {token}'} if hub and token else None)
-        if not res.get('ok'):
-            return {'ok': False, 'error': res.get('error'), 'files': done}
-        done.append(provenance(f, target, 'downloaded'))
+    archives = {}                         # adresse de l'archive → chemin local, tirée UNE fois
+    try:
+        for f, target in missing:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            origin = f['origin']
+            hub = origin['source'] == 'huggingface'
+            headers = {'Authorization': f'Bearer {token}'} if hub and token else None
+            if 'member' in origin:
+                res = _pull_archive_member(f, target, root, archives, timeout=timeout,
+                                           proxies=proxies_for(origin['source']), headers=headers)
+            else:
+                res = download_asset(declared_file_url(origin), str(target), timeout=timeout,
+                                     sha256=f['sha256'], proxies=proxies_for(origin['source']),
+                                     headers=headers)
+            if not res.get('ok'):
+                return {'ok': False, 'error': res.get('error'), 'files': done}
+            done.append(provenance(f, target, 'downloaded'))
+    finally:
+        for path in archives.values():
+            if os.path.exists(path):
+                os.remove(path)
     downloaded = [d['path'] for d in done if d['action'] == 'downloaded']
     return {'ok': True, 'path': str(root), 'files': done, 'downloaded': downloaded,
             'kept': [str(t) for _, t in kept], 'already': not downloaded}
+
+
+def _pull_archive_member(f: dict, target: Path, root: Path, archives: dict, *, timeout: int,
+                         proxies, headers) -> dict:
+    """Pose UN fichier déclaré tiré d'un membre d'archive zip (cf. l'en-tête du pilote).
+
+    L'archive se télécharge par le geste commun (`download_asset`, son empreinte ÉPINGLÉE) sous
+    le dossier de l'app, une seule fois pour tous ses membres (`archives`, que l'appelant vide).
+    Le membre se lit par son NOM : sa taille déclarée est confrontée à celle de l'archive AVANT
+    lecture (une archive qui annonce autre chose est refusée sans rien décompresser), puis son
+    empreinte au fil du flux ; écrit dans `<cible>.part`, remplacé atomiquement."""
+    import hashlib
+    import zipfile
+
+    origin = f['origin']
+    url = declared_file_url(origin)
+    if url not in archives:
+        local = str(root / f".archive-{origin['archive_sha256'][:12].lower()}.zip")
+        res = download_asset(url, local, timeout=timeout, sha256=origin['archive_sha256'],
+                             proxies=proxies, headers=headers)
+        if not res.get('ok'):
+            return res
+        archives[url] = local
+    part = str(target) + '.part'
+    try:
+        with zipfile.ZipFile(archives[url]) as archive:
+            info = archive.getinfo(origin['member'])
+            if info.file_size != f['size']:
+                return {'ok': False,
+                        'error': f"{origin['member']} pèse {info.file_size} o dans l'archive, "
+                                 f"{f['size']} o déclarés — membre refusé : {url}"}
+            digest = hashlib.sha256()
+            with archive.open(info) as src, open(part, 'wb') as out:
+                for chunk in iter(lambda: src.read(1 << 20), b''):
+                    out.write(chunk)
+                    digest.update(chunk)
+        if digest.hexdigest() != f['sha256'].lower():
+            os.remove(part)
+            return {'ok': False,
+                    'error': f"empreinte de {origin['member']} différente de celle épinglée "
+                             f"({f['sha256'][:12]}… attendu, {digest.hexdigest()[:12]}… lu) : {url}"}
+        os.replace(part, target)
+        return {'ok': True, 'path': str(target), 'url': url, 'sha256': digest.hexdigest()}
+    except (KeyError, zipfile.BadZipFile, OSError) as e:
+        if os.path.exists(part):
+            os.remove(part)
+        return {'ok': False, 'error': f"membre {origin['member']!r} illisible ({type(e).__name__}: "
+                                      f"{e}) : {url}"}
 
 
 def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int = 0,

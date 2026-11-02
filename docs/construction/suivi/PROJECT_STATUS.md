@@ -27683,15 +27683,18 @@ vérifiés ligne à ligne). Aucune ligne d'attribution.
 - `tests_catalogues…PURE_CHAINABLE` : `shuttle_overtakes` (fonction cam_analyzer d'un autre travail).
 
 **🔴 Décisions BLOQUANTES (rien ne se fait sans Fabien).**
-1. **DeepFilterNet 3 hors de la route** (`enhancer/README.md` §Audio) : pas d'origine figée
+1. ~~**DeepFilterNet 3 hors de la route** (`enhancer/README.md` §Audio) : pas d'origine figée
    acceptable par le pilote `files` (officiel = archive dans l'arbre du dépôt ; aucun miroir du Hub
-   aux mêmes octets). Pilote d'ARCHIVE dans la route, ou miroir converti (autre chargeur) ?
+   aux mêmes octets). Pilote d'ARCHIVE dans la route, ou miroir converti (autre chargeur) ?~~
+   ✅ *Soldée le 2026-11-02 par le pilote d'archive DANS la route (`REMOVAL_LEDGER R203`, §PALIER
+   2026-11-02 ci-dessous).*
 2. ~~**`ROUTE §S`** cité par `AGENTS.md` comme source obligatoire : aucun titre ne porte ce nom.
    Créer le titre ou réécrire les citations ?~~ *(Retirée le 2026-11-02, constat FAUX : le titre
    `🔒 S` existe depuis le 2026-09-03 dans un bloc cité du ROUTE §10.3 — cf. §REVÉRIFICATION
    2026-11-02.)*
-3. **`AUDIOCRAFT_CACHE_DIR`** posé dans le backend, par modèle (`audiocraft_backend.py:196`,
-   choix ROADMAP §5b) contre la règle d'`AGENTS.md` que la même variable illustre.
+3. ~~**`AUDIOCRAFT_CACHE_DIR`** posé dans le backend, par modèle (`audiocraft_backend.py:196`,
+   choix ROADMAP §5b) contre la règle d'`AGENTS.md` que la même variable illustre.~~ ✅ *Soldée le
+   2026-11-02 par le levier B, `poids_locaux` (`REMOVAL_LEDGER R204`, §PALIER 2026-11-02 ci-dessous).*
 
 **Décisions ouvertes (non bloquantes)** — détail et preuves dans les rapports de l'audit :
 héritage lot → élément (la ⚙ de lot écrase les filles non RUNNING, `batch_views.py:635-687` —
@@ -27810,6 +27813,40 @@ ci-dessus relu sur le code de `e91973131`.
   dans le dépôt ; `WHISPER_CACHE` lu par rien (ni WAMA, ni `venv_linux`) ; `fits_full_gpu` sans
   appelant ; `domains_for_ui` appelé par son seul test ; six SHA sans branche ; R27 (`tts_base.py:62`) ;
   `wama/views.py` toujours non commité (budget 2561 tenu).
+
+## §PALIER 2026-11-02, « DeepFilterNet 3 et AudioCraft par la ROUTE » — les deux décisions bloquantes du 31/10 soldées — 🔴 relancer gunicorn + workers
+
+Demande de Fabien : *« Il faut corriger ça, parfaitement aligné sur le fonctionnement de wama en
+passer par la route de wama »*, puis `/reverif`.
+- **DeepFilterNet 3 (`R203`)** — le manque était DANS la route, il s'y comble (`AGENTS.md` : « un
+  manque de la route se comble dans la route ») : le pilote `files` lit un fichier de l'ARBRE d'un
+  dépôt GitHub figé au commit (`{'source': 'github', 'repo', 'revision', 'file'}`) et un MEMBRE
+  d'archive zip (`member` + `archive_sha256`, `model_installer._pull_archive_member` : archive tirée
+  une fois par `download_asset`, membre lu par nom, taille confrontée avant lecture, empreinte au
+  fil du flux, archive retirée). Déclaration à côté du moteur, patron de Phonon :
+  `common/backends/deepfilternet_files.py` (module léger — `audio_enhancer` importe torch).
+  Découverte : présence MESURÉE (était `is_downloaded=True` écrit). Moteur : dossier lu par chemin,
+  `log_file=None`, refus qui nomme la route. Glus : le post-traitement audio du convertisseur
+  demande le modèle à la route (`ctx.ensure_model`, comme le `denoise` du transcriber, dont la clé
+  est désormais lue à la déclaration).
+- **AudioCraft (`R204`)** — levier B : `poids_locaux(<dépôt>, <dossier de la famille>,
+  patterns=<composants déclarés>)` → `get_pretrained(<snapshot>)` (`loaders.py:54-56` : un dossier
+  local ne télécharge rien). `AUDIOCRAFT_CACHE_DIR` ajoutée aux variables comptées par
+  `tests_hf_cache_routing` (budget 0) — elle y manquait, d'où son maintien en silence.
+- **Mesuré** : archive officielle au commit `82b0c7ad` (7 986 207 o) ; ses deux membres IDENTIQUES
+  octet pour octet aux fichiers en place. Geste réel (shell, dossier jetable sous la racine des
+  modèles) : la route installe depuis GitHub, aucun reste, dossier retiré ; DeepFilterNet charge et
+  débruite sans écrire de `enhance.log` ; MusicGen small chargé avec `HF_HUB_OFFLINE=1`.
+- **Tests** (WSL) : 401 lancés, 400 OK — le rouge `tests_backend_inventory…shared_engine…
+  (bardsai_pii_backend)` PRÉEXISTE (garde du 2026-09-30, `bardsai` partage `onnxruntime` depuis
+  `87911aa4`, 2026-10-28, chantier « privacy » ; aucun des fichiers en cause touché). Sept
+  contre-épreuves par `mock.patch` (aucune mutation de l'arbre partagé), toutes ROUGES sur la
+  garde visée. `check_docs` 0/3732 ; langue et redondance : rien dans les lignes de la session.
+- **Restes, nommés** : ⚠ Resemble Enhance tire encore ses poids hors route (`git clone`/`pull`
+  dans son paquet à chaque chargement, `resemble_enhance/enhancer/download.py:21-40`) — même nature,
+  décision de Fabien ; la ligne `enhancer:deepfilternet` en base reçoit ses fichiers déclarés à la
+  prochaine synchronisation du catalogue ; `WAMA_MECANISMES.md` / `docs/dev/briques.md` (description
+  de `hf_weights`) à régénérer par `doc_facts` — elles portent le travail en cours d'autres sessions.
 
 ## §CLÔTURE 2026-11-01, « MODÈLES : INSTALLATION RECOMMANDÉE, SUCCESSION, BANCS OFFICIELS, DESCRIPTIONS — puis TIRAGE DE L'ASSISTANT (AA v5, échelle commune, variante servie) » — non poussé — 🔴 relancer gunicorn + workers — 🔚 trancher le sort de la ligne `reader:olmocr` (ci-dessous)
 

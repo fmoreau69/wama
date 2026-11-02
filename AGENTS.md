@@ -698,7 +698,7 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 |---|---|---|
 | une **librairie** | manifeste `library` → `write_back` → `manage.py install_library <clé> --apply` (allowlist, pin exact, `constraints.pip` / `no_deps`, journal, patches rejoués) | `pip install` à la main, un `pip` en sous-processus, `pip_install_packages` hors de l'installeur |
 | un **modèle** | une ligne de catalogue → `install_from_spec` (bouton, `pull_model`, assistant) et ses pilotes `hf` / `github` / `files` / `yolo` / `ollama` | un téléchargement écrit dans un backend, une app, une commande |
-| un **fichier hors du Hub** (point de contrôle, poids publié par un auteur, miroir) | DÉCLARÉ `{path, size, sha256, origin}` sur la ligne (`extra_info['declared_files']` + `install_dir`), origine FIGÉE : Hub à un commit, version GitHub, ou source « poids » d'`external_sources` — pilote `files`, qui installe, vérifie et désinstalle | une URL en dur, un « tiré au premier usage » |
+| un **fichier hors du Hub** (point de contrôle, poids publié par un auteur, miroir) | DÉCLARÉ `{path, size, sha256, origin}` sur la ligne (`extra_info['declared_files']` + `install_dir`), origine FIGÉE : Hub à un commit, version GitHub, fichier de l'ARBRE d'un dépôt GitHub à un commit, ou source « poids » d'`external_sources` — et, quand l'officiel n'existe qu'en archive, un MEMBRE d'archive zip (archive et membre épinglés, 2026-11-02, DeepFilterNet 3) — pilote `files`, qui installe, vérifie et désinstalle | une URL en dur, un « tiré au premier usage » |
 | un modèle **absent au moment d'une tâche** | `model_readiness.ensure_installed` : la route l'installe (`request_install`, la même que le bouton), l'utilisateur est PRÉVENU, la tâche ATTEND sans tenir son worker (`ServiceNotReady`, re-livraison) puis reprend ; un refus ou un échec fait échouer la tâche EN LE DISANT. Appelé par le squelette (modèle de la card), par TOUTE glu au moment où elle connaît la clé du modèle qu'elle va charger (`ctx.ensure_model(clé)` — un process d'un pipeline, un modèle tiré au lancement, un secondaire ; une attente n'est jamais l'échec d'un process optionnel ; une cascade, chacun de ses modèles, son repli compris ; un adaptateur, sa dorsale d'abord), et hors squelette par une re-livraison Celery (`redeliver_later` : studio, cam_analyzer) ; `install_and_wait` pour une commande | un téléchargement « au premier usage » écrit dans le backend |
 | le **chargement** d'un modèle installé | les leviers A–D de `common/utils/hf_weights.py` (`cache_dir=`, `poids_locaux`, variable de la lib posée dans `settings.py`, `hf_cache_scope` déclaré) — seuls admis à télécharger au chargement, pour une ligne que la route ne sait pas installer (aucun emplacement déclaré : l'annonce `warn_if_weights_missing` le dit) | — |
 
@@ -842,7 +842,7 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
   gender 512 Mo, expression 5,7 Mo) — hors d'`AI-models`, hors catalogue, invisibles de toute
   page WAMA, et jamais comptés dans le disque des modèles.
   **Le réflexe** : quand une lib télécharge des poids, chercher **sa** variable d'aiguillage
-  (`DEEPFACE_HOME`, `AUDIOCRAFT_CACHE_DIR`, `TORCH_HOME`…) et la poser **UNE FOIS dans
+  (`DEEPFACE_HOME`, `TTS_HOME`, `TORCH_HOME`…) et la poser **UNE FOIS dans
   `settings.py`** — jamais dans un backend, exactement comme le socle HF. Une variable propre à
   UNE lib n'a pas les effets de bord de `HF_HUB_CACHE` (qui, lui, emporte tout ce que le
   processus télécharge ensuite) : c'est le 4ᵉ idiome d'aiguillage légitime, à côté de
@@ -851,10 +851,11 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
   sorti de `coqui_backend.load` le 2026-10-31, R193) par
   `wama/common/tests/tests_hf_cache_routing.py::CoquiWeightsHomeTest` — un processus sans Django
   (le service de voix) la pose dans son AMORCE, pas dans un backend.
-  ⚠ *Constat du 2026-10-31, mesuré : `AUDIOCRAFT_CACHE_DIR`, cité ci-dessus en exemple, est encore
-  posé DANS le backend, à chaque chargement et par modèle* (`common/backends/audiocraft_backend.py:196`,
-  un dossier par famille — musicgen, audiogen — choix du `ROADMAP §5b` du 2026-09-04) : l'écart à
-  cette règle est à trancher (décision de Fabien), pas recopié.
+  ✅ *Soldé le 2026-11-02 (`REMOVAL_LEDGER R204`, constat du 2026-10-31) : `AUDIOCRAFT_CACHE_DIR`, cité ici en
+  exemple, était posé DANS le backend, à chaque chargement et par modèle. Une variable de processus
+  ne servait pas deux familles (musicgen, audiogen) ; audiocraft acceptant un CHEMIN local, c'est le
+  levier B qui la remplace (`hf_weights.poids_locaux` → `get_pretrained(<snapshot>)`), et la garde
+  `tests_hf_cache_routing` compte désormais cette variable (`AudioCraftLocalWeightsTest`).*
 
 > ⚠ « Laisser un modèle se télécharger dans `AI-models/cache/huggingface/` » figurait ici comme
 > INTERDIT. **Retiré le 2026-09-03 : c'était faux pour les SOUS-DÉPENDANCES**, et cette

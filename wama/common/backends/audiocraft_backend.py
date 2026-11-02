@@ -3,13 +3,13 @@ AudioCraft Backend — MusicGen + AudioGen
 
 Handles music and SFX generation via Meta's AudioCraft library.
 
-AGENTS.md rule: HF_HUB_CACHE is set BEFORE any audiocraft/transformers import.
+Weights: the snapshot the install route put in the family folder, handed to audiocraft as a
+local path (`hf_weights.poids_locaux`, lever B) — no environment variable (2026-11-02).
 """
 
 import gc
 import io
 import logging
-import os
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -100,7 +100,7 @@ class AudioCraftBackend(MusicGenerationBackend):
     """
     Unified backend for MusicGen (music) and AudioGen (SFX).
 
-    Each call to generate() sets HF_HUB_CACHE, loads the model, runs
+    Each call to generate() resolves the local weights, loads the model, runs
     inference, unloads the model, and returns the output path.
     Models are NOT cached in memory between calls — the 4090 has 24GB
     but other apps share it; we load/unload like every other WAMA backend.
@@ -183,17 +183,19 @@ class AudioCraftBackend(MusicGenerationBackend):
         sample_rate = config['sample_rate']
         model_type = config['type']
 
-        # ── AGENTS.md: env vars BEFORE any audiocraft import ──────────────
-        # ROADMAP §5b (2026-09-04) — audiocraft n'accepte pas `cache_dir=` sur
-        # `MusicGen.get_pretrained`, MAIS il expose SA PROPRE variable : `loaders.py:36`
-        # (`get_audiocraft_cache_dir`) la lit, et `_get_state_dict` la passe à
-        # `hf_hub_download(cache_dir=…)`. On route donc audiocraft par SA variable au lieu
-        # des variables HF GLOBALES.
-        # ⚠ La différence n'est pas cosmétique : `HF_HUB_CACHE` est lue par TOUT consommateur
-        # du hub dans le processus — elle emportait les sous-dépendances (t5-base, t5-large :
-        # les résidus encore visibles dans `music/musicgen` et `music/audiogen`). Celle-ci
-        # n'oriente qu'audiocraft.
-        os.environ['AUDIOCRAFT_CACHE_DIR'] = cache_dir
+        # ── Les poids : levier B de `hf_weights` (2026-11-02), aucune variable d'environnement ──
+        # `get_pretrained` lit un DOSSIER local sans rien télécharger (`audiocraft/models/
+        # loaders.py:54-56`) : on lui donne le snapshot que la route a installé dans le dossier de
+        # la famille — ses composants DÉCLARÉS (`composition`, les deux fichiers que lit le
+        # chargeur), pas le dépôt entier. Avant, `AUDIOCRAFT_CACHE_DIR` était posé ICI, à chaque
+        # chargement et par modèle (ROADMAP §5b, 2026-09-04) — une variable de processus écrite
+        # dans un backend, contre la règle d'AGENTS.md ; et la poser une fois dans `settings.py`
+        # aurait mêlé MusicGen et AudioGen, rangés dans deux familles. Les sous-dépendances (T5,
+        # codec) vont au cache PARTAGÉ, leur place.
+        from wama.common.external_sources import hf_repo
+        from wama.common.utils.hf_weights import poids_locaux
+        weights = poids_locaux(hf_repo(config['platform_ref']), cache_dir,
+                               patterns=[c['pattern'] for c in config['composition']['components']])
 
         # ── torch 2.9.x / xformers 0.0.35 compat ─────────────────────────
         # GroupName was removed from torch.distributed.distributed_c10d in
@@ -205,7 +207,7 @@ class AudioCraftBackend(MusicGenerationBackend):
             _c10d.GroupName = str  # type: ignore[attr-defined]
         # ──────────────────────────────────────────────────────────────────
 
-        logger.info(f"[Composer] Loading {model_id} (cache: {cache_dir})")
+        logger.info(f"[Composer] Loading {model_id} ({weights})")
 
         if progress_callback:
             progress_callback(5)
@@ -218,11 +220,11 @@ class AudioCraftBackend(MusicGenerationBackend):
             if model_type == 'music':
                 wav = self._generate_music(
                     audiocraft_name, prompt, duration, melody_path,
-                    progress_callback, on_audio, temperature=temperature,
+                    progress_callback, on_audio, temperature=temperature, weights=weights,
                 )
             else:
                 wav = self._generate_sfx(
-                    audiocraft_name, prompt, duration, progress_callback, on_audio,
+                    weights, prompt, duration, progress_callback, on_audio,
                     temperature=temperature,
                 )
 
@@ -277,14 +279,16 @@ class AudioCraftBackend(MusicGenerationBackend):
         progress_callback: Optional[Callable],
         on_audio: Optional[Callable] = None,
         temperature: float = 1.0,
+        weights: str = '',
     ):
-        """Load MusicGen, generate, unload."""
+        """Load MusicGen from its local `weights` folder, generate, unload. `audiocraft_name`
+        still decides the melody conditioning."""
         from audiocraft.models import MusicGen
 
         if progress_callback:
             progress_callback(15)
 
-        model = MusicGen.get_pretrained(audiocraft_name)
+        model = MusicGen.get_pretrained(weights)
         model.set_generation_params(duration=duration, temperature=temperature)
 
         if progress_callback:
@@ -319,20 +323,20 @@ class AudioCraftBackend(MusicGenerationBackend):
 
     def _generate_sfx(
         self,
-        audiocraft_name: str,
+        weights: str,
         prompt: str,
         duration: float,
         progress_callback: Optional[Callable],
         on_audio: Optional[Callable] = None,
         temperature: float = 1.0,
     ):
-        """Load AudioGen, generate, unload."""
+        """Load AudioGen from its local `weights` folder, generate, unload."""
         from audiocraft.models import AudioGen
 
         if progress_callback:
             progress_callback(15)
 
-        model = AudioGen.get_pretrained(audiocraft_name)
+        model = AudioGen.get_pretrained(weights)
         model.set_generation_params(duration=duration, temperature=temperature)
 
         if progress_callback:

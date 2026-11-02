@@ -449,12 +449,11 @@ class TheEngineSaysItsTemperatureTest(SimpleTestCase):
                 self.assertEqual(expected, spoken.call_args.kwargs['options'])
 
     def test_musicgen_samples_at_the_cards_temperature_or_its_own(self):
-        import os
-
         from wama.common.backends.audiocraft_backend import AudioCraftBackend
         engine = AudioCraftBackend()
         for asked, expected in ((0.4, 0.4), (None, 1.0)):
-            with self.subTest(asked=asked), mock.patch.dict(os.environ), \
+            with self.subTest(asked=asked), \
+                    mock.patch('wama.common.utils.hf_weights.poids_locaux', return_value='/w'), \
                     mock.patch.object(AudioCraftBackend, '_generate_music',
                                       side_effect=RuntimeError('stop')) as music, \
                     self.assertRaises(RuntimeError):

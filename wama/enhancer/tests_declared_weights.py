@@ -11,6 +11,7 @@ import importlib.util
 import re
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from django.conf import settings
 from django.test import SimpleTestCase
@@ -90,6 +91,77 @@ class DiscoveryListsDeclaredModelsTest(SimpleTestCase):
                          | {'enhancer:Handmade_x4'},
                          {k for k in models if k not in ('enhancer:resemble',
                                                          'enhancer:deepfilternet')})
+
+
+class DeepFilterNetIsInstalledByTheRouteTest(SimpleTestCase):
+    """DeepFilterNet 3 (2026-11-02): its files are DECLARED next to its engine, the official
+    archive frozen at a commit; its catalogue row is present or installable by the `files` driver,
+    and the engine only reads its folder — `init_df("DeepFilterNet3")` used to fetch the archive of
+    the `main` BRANCH at first use, outside the catalogue."""
+
+    def test_the_declaration_passes_the_lock_and_names_the_official_archive(self):
+        from wama.common.backends import deepfilternet_files as dfn
+        from wama.model_manager.services.model_installer import declared_files_error
+        self.assertIsNone(declared_files_error(
+            {'kind': 'files', 'ref': dfn.DEEPFILTERNET_KEY, 'files': dfn.DEEPFILTERNET_FILES,
+             'target_dir': str(dfn.deepfilternet_folder())}))
+        self.assertEqual({('github', 'Rikorose/DeepFilterNet', dfn.DEEPFILTERNET_REVISION,
+                           'models/DeepFilterNet3.zip')},
+                         {(f['origin']['source'], f['origin']['repo'], f['origin']['revision'],
+                           f['origin']['file']) for f in dfn.DEEPFILTERNET_FILES})
+        self.assertEqual([f['path'] for f in dfn.DEEPFILTERNET_FILES],
+                         [f['origin']['member'] for f in dfn.DEEPFILTERNET_FILES],
+                         'each file sits where the archive puts it')
+
+    def test_an_absent_engine_is_listed_installable_by_its_declared_files(self):
+        from wama.common.backends import deepfilternet_files as dfn
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.model_installer import spec_for_catalog_row
+        from wama.model_manager.services.model_registry import ModelRegistry
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root) / 'models' / 'speech' / 'deepfilternet'
+            speech = {**settings.MODEL_PATHS.get('speech', {}), 'deepfilternet': folder}
+            with self.settings(AI_MODELS_DIR=Path(root),
+                               MODEL_PATHS={**settings.MODEL_PATHS, 'speech': speech}):
+                registry = ModelRegistry()
+                registry._models = {}
+                registry._discover_enhancer_models()
+                info = registry._models[dfn.DEEPFILTERNET_KEY]
+                spec = spec_for_catalog_row(AIModel(model_key=info.id, extra_info=info.extra_info))
+        self.assertFalse(info.is_downloaded, 'measured, no longer written « True »')
+        self.assertEqual(('files', str(folder), dfn.DEEPFILTERNET_FILES),
+                         (spec['kind'], spec['target_dir'], spec['files']))
+
+    def test_the_engine_never_downloads_and_says_the_route(self):
+        import sys
+        import types
+        from unittest.mock import Mock
+        from wama.common.backends import audio_enhancer
+        init = Mock()
+        with tempfile.TemporaryDirectory() as root, \
+                patch.object(audio_enhancer, 'deepfilternet_folder', return_value=Path(root)), \
+                patch('wama.common.backends.deepfilternet_files.deepfilternet_folder',
+                      return_value=Path(root)), \
+                patch.dict(sys.modules, {'df': types.SimpleNamespace(init_df=init)}):
+            with self.assertRaisesRegex(RuntimeError, 'model manager'):
+                audio_enhancer.DeepFilterNetBackend().load()
+        init.assert_not_called()
+
+    def test_an_installed_engine_loads_its_folder_by_path_without_a_log_file_in_it(self):
+        import sys
+        import types
+        from wama.common.backends import audio_enhancer
+        seen = {}
+
+        def init_df(model_base_dir, **kwargs):
+            seen.update(kwargs, path=model_base_dir)
+            return object(), object(), ''
+        with patch.object(audio_enhancer, 'deepfilternet_installed', return_value=True), \
+                patch.dict(sys.modules, {'df': types.SimpleNamespace(init_df=init_df)}):
+            self.assertTrue(audio_enhancer.DeepFilterNetBackend().load())
+        self.assertEqual(str(audio_enhancer.deepfilternet_model_dir()), seen['path'],
+                         'a PATH: the library downloads only for a published model NAME')
+        self.assertIsNone(seen['log_file'])
 
 
 class NoParallelDownloaderTest(SimpleTestCase):

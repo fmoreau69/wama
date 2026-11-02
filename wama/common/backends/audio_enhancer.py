@@ -5,8 +5,10 @@ Engines:
   - Resemble Enhance (MIT): dual-stage denoising + enhancement, 44.1kHz output
   - DeepFilterNet 3 (MIT): real-time noise suppression, 48kHz, ultra-fast
 
-⚠️  HF_HUB_CACHE is set BEFORE resemble_enhance import to redirect model download
-    to AI-models/models/speech/resemble-enhance/ (same rule as other HF models).
+Poids de DeepFilterNet 3 : DÉCLARÉS (`deepfilternet_files`), installés par la route, lus dans
+leur dossier — le moteur ne télécharge rien (2026-11-02). ⚠ Cet en-tête disait que `HF_HUB_CACHE`
+était posé avant l'import de resemble_enhance : la mutation est retirée depuis le 2026-09-04
+(`ResembleEnhanceBackend.__init__`).
 """
 
 import gc
@@ -104,16 +106,11 @@ def _get_resemble_cache() -> Path:
         return d
 
 
-def _get_deepfilternet_cache() -> Path:
-    try:
-        from django.conf import settings
-        d = Path(settings.MODEL_PATHS['speech']['deepfilternet'])
-        d.mkdir(parents=True, exist_ok=True)
-        return d
-    except Exception:
-        d = Path.home() / ".cache" / "DeepFilterNet"
-        d.mkdir(parents=True, exist_ok=True)
-        return d
+# DeepFilterNet 3 : ses fichiers sont DÉCLARÉS dans un module léger (la découverte du catalogue
+# le lit sans payer l'import de torch que ce module-ci fait) ; la route les installe.
+from wama.common.backends.deepfilternet_files import (  # noqa: E402
+    DEEPFILTERNET_KEY, deepfilternet_folder, deepfilternet_installed, deepfilternet_model_dir,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +148,7 @@ class ResembleEnhanceBackend(BaseModelBackend):
         # consulte jamais le cache HF. Son seul effet réel était donc de détourner les
         # téléchargements HF des AUTRES libs vers le dossier resemble, pour toute la durée du
         # processus. Un cas à part dans ce chantier : une mutation sans bénéfice, même
-        # apparent — le `cache_dir` reste utile au voisin DeepFilterNet (l. ~317).
+        # apparent.
         self._warm = False
 
     @classmethod
@@ -296,7 +293,6 @@ class DeepFilterNetBackend(BaseModelBackend):
     def __init__(self):
         self._model = None
         self._df_state = None
-        self._cache_dir = _get_deepfilternet_cache()
 
     @classmethod
     def is_available(cls) -> bool:
@@ -325,24 +321,19 @@ class DeepFilterNetBackend(BaseModelBackend):
     def _ensure_loaded(self):
         if self._model is None:
             logger.info("[DeepFilterNet] Loading model…")
-            # Model lives at: <cache_dir>/DeepFilterNet3/config.ini
-            # Pass the model directory directly; deepfilternet skips download
-            # when the path is not one of the PRETRAINED_MODELS names.
-            import df.enhance as _df_enhance
-            model_dir = self._cache_dir / "DeepFilterNet3"
-            if not (model_dir / "config.ini").exists():
-                # First run: redirect get_cache_dir so maybe_download_model()
-                # saves to our AI-models directory.
-                _orig = _df_enhance.get_cache_dir
-                _df_enhance.get_cache_dir = lambda: str(self._cache_dir)
-                try:
-                    from df import init_df
-                    self._model, self._df_state, _ = init_df("DeepFilterNet3")
-                finally:
-                    _df_enhance.get_cache_dir = _orig
-            else:
-                from df import init_df
-                self._model, self._df_state, _ = init_df(str(model_dir))
+            # Les fichiers DÉCLARÉS, installés par la route (`DEEPFILTERNET_FILES`). Absents, on le
+            # DIT : la glu qui appelle le moteur demande d'abord le modèle à la route
+            # (`ctx.ensure_model(DEEPFILTERNET_KEY)`, qui l'installe et fait attendre la tâche) —
+            # le moteur ne télécharge jamais lui-même.
+            if not deepfilternet_installed():
+                raise RuntimeError(
+                    f"DeepFilterNet 3 n'est pas installé ({deepfilternet_folder()}) — il "
+                    f"s'installe par le model manager (ligne « {DEEPFILTERNET_KEY} »).")
+            from df import init_df
+            # Un CHEMIN : `get_model_basedir` ne télécharge que pour un NOM de modèle publié
+            # (`df/enhance.py:92-98`). `log_file=None` : la librairie écrivait son `enhance.log`
+            # DANS le dossier du modèle, à côté des fichiers déclarés.
+            self._model, self._df_state, _ = init_df(str(deepfilternet_model_dir()), log_file=None)
             logger.info("[DeepFilterNet] Model loaded ✓")
 
     # ── Garde-fou mémoire (2026-07-25) ───────────────────────────────────────
@@ -544,7 +535,8 @@ def run_audio_enhancement(
     if engine == "deepfilternet":
         if not DeepFilterNetBackend.is_available():
             raise RuntimeError(
-                "DeepFilterNet non installé. Exécutez : pip install deepfilternet"
+                "DeepFilterNet non installé — par la route library : "
+                "python manage.py install_library DeepFilterNet"
             )
         backend = get_deepfilternet_backend()  # singleton keep_loaded
         return backend.enhance(input_path, output_path, progress_callback=progress_callback)
@@ -552,7 +544,8 @@ def run_audio_enhancement(
     else:  # resemble (default)
         if not ResembleEnhanceBackend.is_available():
             raise RuntimeError(
-                "Resemble Enhance non installé. Exécutez : pip install resemble-enhance"
+                "Resemble Enhance non installé — par la route library : "
+                "python manage.py install_library resemble-enhance"
             )
         backend = ResembleEnhanceBackend()
         return backend.enhance(

@@ -255,7 +255,7 @@ os.environ.setdefault('HUGGINGFACE_HUB_CACHE', str(HF_DEFAULT_CACHE))
 # sous `<DEEPFACE_HOME>/.deepface/weights`. Sans cette ligne, `get_deepface_home()` retombe sur
 # `~` — mesuré le 2026-09-05 : **1,1 Go dans `$HOME/.deepface`** (age 514 Mo + gender 512 Mo +
 # expression 5,7 Mo), hors d'`AI-models`, hors catalogue, invisible de toute page WAMA.
-# `DEEPFACE_HOME` est l'aiguillage prévu PAR la librairie — même idiome qu'`AUDIOCRAFT_CACHE_DIR` :
+# `DEEPFACE_HOME` est l'aiguillage prévu PAR la librairie — même idiome que `TTS_HOME` plus bas :
 # une variable propre à UNE lib, posée au démarrage, n'a aucun des effets de bord de `HF_HUB_CACHE`
 # (qui, lui, emporte tout ce que la lib télécharge ensuite — cf. la règle du AGENTS.md).
 os.environ.setdefault('DEEPFACE_HOME', str(MODEL_PATHS['vision']['deepface']))

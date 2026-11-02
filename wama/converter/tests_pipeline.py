@@ -18,7 +18,7 @@ from pathlib import Path
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from wama.common.models import JOB_FAILURE, JOB_SUCCESS
@@ -55,9 +55,10 @@ class _Jobs(TestCase):
         self.conversions += 1
         Path(output_path).write_bytes(b'converted')
 
-    def _enhance(self, job, path, console, progress):
+    def _enhance(self, job, path, console, progress, ensure_model=None):
         if self.enhance_error:
             raise self.enhance_error
+        self.ensure_model = ensure_model
         self.enhanced_from.append(Path(path).read_bytes())
         Path(path).write_bytes(Path(path).read_bytes() + b'+' + (job.upscale or 'ai').encode())
 
@@ -131,6 +132,43 @@ class ConversionRunTest(_Jobs):
         self.assertEqual('FAILURE', job.status)
         self.assertEqual(JOB_FAILURE, self._states(job)['enhance'])
         self.assertEqual(b'converted', self._read(job.converted_file))
+
+    def test_the_post_processing_receives_the_skeletons_route_to_its_models(self):
+        """2026-11-02: the post-processing loads a model (DeepFilterNet for sound) — it asks the
+        route first, through the skeleton's `ensure_model`, like every glue."""
+        self._run(self._job(upscale='x2'))
+        self.assertEqual('ensure_model', getattr(self.ensure_model, '__name__', None))
+
+
+class TheDenoiserIsAskedFromTheRouteTest(SimpleTestCase):
+    """The converter's audio post-processing loads DeepFilterNet 3. Absent, the ROUTE installs it
+    and the task waits (`model_readiness`), as for the transcriber's `denoise` step — the engine
+    never fetches it (2026-11-02)."""
+
+    def _apply(self, options):
+        import os
+        import tempfile as _tempfile
+        from types import SimpleNamespace
+
+        from wama.converter.utils import cross_app
+        calls = []
+        fd, path = _tempfile.mkstemp(suffix='.wav')
+        os.close(fd)
+        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
+        job = SimpleNamespace(media_type='audio', cross_app_options=options, output_format='wav',
+                              options={})
+        with mock.patch('wama.common.backends.audio_enhancer.run_audio_enhancement',
+                        side_effect=lambda *a, **k: calls.append('denoise')):
+            cross_app.apply_cross_app_options(job, path, lambda *a: None, lambda p: None,
+                                              ensure_model=calls.append)
+        return calls
+
+    def test_the_denoiser_is_asked_before_it_is_loaded(self):
+        from wama.common.backends.deepfilternet_files import DEEPFILTERNET_KEY
+        self.assertEqual([DEEPFILTERNET_KEY, 'denoise'], self._apply({'audio_enhance': True}))
+
+    def test_counter_proof_nothing_is_asked_when_no_post_processing_is(self):
+        self.assertEqual([], self._apply({}))
 
 
 class ViewsTest(_Jobs):

@@ -59,9 +59,12 @@ from pathlib import Path
 #: ranger ses poids (`trainer.io.get_user_data_dir`, dans cet ordre). `coqui_backend.load`
 #: posait `TTS_HOME` pour tout le processus du service de voix ; elle est désormais posée par
 #: `settings.py` et l'amorce du service (`CoquiWeightsHomeTest` ci-dessous).
+#: ⚠ `AUDIOCRAFT_CACHE_DIR` AJOUTÉE LE 2026-11-02 : `audiocraft_backend.generate` la posait à chaque
+#: chargement, pour tout le processus — invisible ici, faute d'être listée. Le backend donne
+#: désormais le dossier local des poids à la librairie (levier B, `hf_weights.poids_locaux`).
 VARS_HF = {'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE', 'HF_HOME',
            'HF_TOKEN', 'HUGGING_FACE_HUB_TOKEN', 'HUGGINGFACE_TOKEN', 'XDG_CACHE_HOME',
-           'TTS_HOME', 'XDG_DATA_HOME'}
+           'TTS_HOME', 'XDG_DATA_HOME', 'AUDIOCRAFT_CACHE_DIR'}
 
 #: Sites de mutation MESURÉS le 2026-09-03, après les retraits de `table_transformer` (1er),
 #: puis du goulot `model_config.setup_hf_cache_for_model` et des replis de `wan_video_backend`
@@ -399,8 +402,8 @@ class BasculeDEnvironnementResteUnDERNIERRECOURSTest(SimpleTestCase):
     tenir, dans cet ordre de préférence — le choix n'est pas un goût, il est imposé par la lib :
 
       A. `cache_dir=` sur `from_pretrained()`               majorité (transformers, diffusers…)
-      B. un CHEMIN local (3ᵉ voie, `hf_weights.poids_locaux`)  sam3, kokoro
-      C. la variable propre à LA lib, posée dans `settings.py`  DEEPFACE_HOME, AUDIOCRAFT_CACHE_DIR
+      B. un CHEMIN local (3ᵉ voie, `hf_weights.poids_locaux`)  sam3, kokoro, audiocraft
+      C. la variable propre à LA lib, posée dans `settings.py`  DEEPFACE_HOME, TTS_HOME
       D. `hf_cache_scope` — la lib n'offre AUCUN levier          ← dernier recours
 
     Le coût de D, qui justifie son rang : la bascule restaure l'environnement, **jamais les
@@ -500,3 +503,49 @@ class CoquiWeightsHomeTest(SimpleTestCase):
         from trainer.io import get_user_data_dir
         self.assertEqual(Path(get_user_data_dir('tts')).resolve(),
                          (Path(os.environ['TTS_HOME']) / 'tts').resolve())
+
+class AudioCraftLocalWeightsTest(SimpleTestCase):
+    """AudioCraft loads the snapshot the install route put in its family folder, handed as a LOCAL
+    PATH (lever B, `hf_weights.poids_locaux`) — its declared components only, and no environment
+    variable. Until 2026-11-02 `audiocraft_backend.generate` assigned `AUDIOCRAFT_CACHE_DIR` for the
+    whole process at every load, one folder per family (MusicGen, AudioGen)."""
+
+    def _generate(self, model_id):
+        import os
+        import sys
+        import types
+        from unittest import mock
+
+        from wama.common.backends.audiocraft_backend import AudioCraftBackend
+
+        class Stop(Exception):
+            pass
+        seen = []
+
+        def pretrained(name):
+            seen.append(name)
+            raise Stop
+        models = types.ModuleType('audiocraft.models')
+        models.MusicGen = models.AudioGen = types.SimpleNamespace(get_pretrained=pretrained)
+        env = {k: v for k, v in os.environ.items() if k != 'AUDIOCRAFT_CACHE_DIR'}
+        with mock.patch.dict(sys.modules, {'audiocraft': types.ModuleType('audiocraft'),
+                                           'audiocraft.models': models}),                 mock.patch.dict(os.environ, env, clear=True),                 mock.patch('wama.common.utils.hf_weights.poids_locaux',
+                           return_value='/snapshot') as local:
+            with self.assertRaises(Stop):
+                AudioCraftBackend().generate(model_id, 'rain on a roof', 5, '/tmp/never.wav')
+            left = os.environ.get('AUDIOCRAFT_CACHE_DIR')
+        return seen, local, left
+
+    def test_each_family_loads_its_route_installed_snapshot_by_path(self):
+        from wama.common.utils.model_declarations import declaration
+        for model_id in ('musicgen-small', 'audiogen-medium'):
+            config = declaration('composer', model_id)
+            with self.subTest(model=model_id):
+                seen, local, left = self._generate(model_id)
+                self.assertEqual(['/snapshot'], seen, 'the library receives the local folder')
+                self.assertEqual(
+                    ((config['platform_ref'].partition(':')[2], str(config['cache_dir'])),
+                     [c['pattern'] for c in config['composition']['components']]),
+                    (local.call_args.args, local.call_args.kwargs['patterns']),
+                    'the declared components, in the family folder')
+                self.assertIsNone(left, 'no process-wide variable is written')

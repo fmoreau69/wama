@@ -14,9 +14,13 @@ de `cache_dir=` », était vraie et a masqué pendant 3 semaines qu'il acceptait
     A. la lib accepte `cache_dir=`     →  `from_pretrained(repo_id, cache_dir=<dossier>)`
                                           transformers, diffusers, pyannote… : la MAJORITÉ
     B. elle accepte un CHEMIN local    →  CE MODULE : on télécharge nous-mêmes DANS le
-                                          dossier, on donne le chemin (sam3, kokoro)
+                                          dossier, on donne le chemin (sam3, kokoro,
+                                          audiocraft depuis le 2026-11-02)
     C. elle a SA variable d'env        →  posée UNE FOIS dans `settings.py`, jamais ailleurs
-                                          (`DEEPFACE_HOME`, `AUDIOCRAFT_CACHE_DIR`)
+                                          (`DEEPFACE_HOME`, `TTS_HOME`). ⚠ audiocraft a SA
+                                          variable aussi, mais deux familles (MusicGen,
+                                          AudioGen) : une variable de processus n'en sert
+                                          qu'une — B les sert toutes deux.
     D. elle n'offre AUCUN levier       →  `common/utils/hf_cache.hf_cache_scope`, DERNIER
                                           RECOURS, à déclarer dans `RECOURS_ASSUMES`
                                           (`tests_hf_cache_routing`)
