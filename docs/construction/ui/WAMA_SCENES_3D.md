@@ -330,7 +330,7 @@ de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une foi
 - Hors domaine, relevé au passage : le face_analyzer charge Chart.js depuis un CDN
   (`wama_lab/face_analyzer/templates/face_analyzer/realtime.html`, `video.html`), contre la règle
   « assets locaux, aucun CDN ». *(Complété le 2026-10-31, mesuré : aussi le cam_analyzer, Chart.js —
-  `wama_lab/cam_analyzer/templates/cam_analyzer/base.html:962` — et la page de démonstration des
+  `wama_lab/cam_analyzer/templates/cam_analyzer/base.html:682` — et la page de démonstration des
   modes, Bootstrap et Font Awesome — `wama/common/templates/common/modes_demo.html:8-9`.)*
 
 ## 7. À trancher (Fabien)

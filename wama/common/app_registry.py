@@ -1364,8 +1364,8 @@ APP_CATALOG = {
         'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-user-circle',
         'url_name':    'avatarizer:index',
-        'description': 'Génération de vidéos d\'avatars parlants : une photo animée par IA (MuseTalk + '
-                       'CodeFormer) ou un avatar 3D riggé rendu par TalkingHead.',
+        'description': 'Génération de vidéos d\'avatars parlants : une photo animée par IA ou un '
+                       'avatar 3D riggé, dont les lèvres suivent la voix.',
         # `.glb` (2026-09-30) : l'avatar 3D du moteur `talkinghead`. GLB seul — un `.gltf` à
         # tampons externes ne se charge pas depuis un fichier unique.
         'input_extensions': AUDIO_EXTENSIONS + IMAGE_EXTENSIONS + ('.glb',),
@@ -1477,7 +1477,7 @@ APP_CATALOG = {
         'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-exchange-alt',
         'url_name':    'converter:index',
-        'description': 'Conversion de formats : image, vidéo, audio, documents, archives (Pillow + FFmpeg + Pandoc).',
+        'description': 'Conversion de formats : image, vidéo, audio, documents, archives.',
         'input_extensions': (IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS
                              + DOCUMENT_EXTENSIONS + ARCHIVE_EXTENSIONS),
         'input_types': ('image', 'video', 'audio', 'document', 'archive'),
@@ -1590,7 +1590,7 @@ APP_CATALOG = {
         'media_folders': (('input/media', 'Input (Image/Vidéo)'), ('input/audio', 'Input (Audio)'),
                           ('output/media', 'Output (Image/Vidéo)'),
                           ('output/audio', 'Output (Audio)')),
-        'description': 'Upscaling IA d\'images/vidéos et amélioration audio (Resemble, DeepFilterNet).',
+        'description': 'Agrandissement IA d\'images et de vidéos, débruitage et restauration audio.',
         'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS,
         'input_types': ('image', 'video', 'audio'),
         'batch_type':  'media_list',
@@ -1638,7 +1638,7 @@ APP_CATALOG = {
         # Entrées et sorties rangées par nature — cf. app_media_folders().
         'media_folders': (('input/prompts', 'Prompts'), ('input/references', 'References'),
                           ('output/image', 'Images'), ('output/video', 'Vidéos')),
-        'description': 'Génération d\'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…).',
+        'description': 'Génération d\'images et de vidéos par IA, depuis un texte ou une image.',
         'input_extensions': TEXT_EXTENSIONS + IMAGE_EXTENSIONS,  # fichier de prompts (lot) + image reference
         'input_types': ('prompt', 'image'),  # ⚠ l'ordre EST la priorité de résolution (generic_runner)
         # Batch LIVRÉ le 2026-08-06 (`9922f65`) : GenerationBatch(BatchMixin, ScopedVisibility)
@@ -1744,7 +1744,7 @@ APP_CATALOG = {
         'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-microphone',
         'url_name':    'synthesizer:index',
-        'description': 'Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…).',
+        'description': 'Synthèse vocale : un texte dit par une voix de synthèse ou clonée.',
         'input_extensions': TEXT_EXTENSIONS,
         'input_types': ('prompt',),
         'batch_type':  'pipe',   # Type B: filename|text|voice|speed
@@ -1800,7 +1800,7 @@ APP_CATALOG = {
         'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-file-alt',
         'url_name':    'transcriber:index',
-        'description': 'Transcription audio/vidéo en texte (Whisper).',
+        'description': 'Transcription audio/vidéo en texte, locuteurs compris, avec page de correction.',
         'input_extensions': AUDIO_EXTENSIONS + VIDEO_EXTENSIONS,
         'input_types': ('audio', 'video'),
         'batch_type':  'media_list',
@@ -2191,25 +2191,16 @@ def get_conformity_summary() -> dict:
     return summary
 
 
-# ── Descriptions longues (inspecteur volet droit `/apps/`, cf. PROJECT_STATUS §2bis) ──────────
-# Source unique des descriptions détaillées, plus riches que le one-liner `description` des cards.
-# Fusionnées dans APP_CATALOG à l'import ; consommées par l'inspecteur d'app (WamaInspector).
-_DESCRIPTION_LONG = {
-    'anonymizer': "Détection puis floutage automatique de visages et de plaques d'immatriculation sur images et vidéos. Modèles YOLO de détection/segmentation, suivi inter-frames avec interpolation pour combler les trous entre détections, et floutage progressif. Un chemin parallèle (détection → cache → floutage fusionné) gère les requêtes multi-modèles. Généralisation multimodale (documents, audio, texte via Presidio) prévue.",
-    'avatarizer': "Génère une vidéo d'avatar parlant lip-sync à partir d'une image de visage et d'un audio — ou directement d'un texte synthétisé en voix (mode pipeline TTS). Pipeline MuseTalk (synchronisation labiale) + CodeFormer (restauration faciale).",
-    'composer': "Génération de musique et d'effets sonores à partir de prompts texte : chansons complètes avec paroles chantées (MiniMax-Music3, sections [verse]/[chorus], jusqu'à 5 min, moteur audio.cpp), pistes instrumentales (Meta AudioCraft — MusicGen), bruitages (AudioGen). Référence de mélodie optionnelle (MusicGen Melody uniquement — Music3 est conditionné par le texte seul). Import batch et conversion du format de sortie inline via le Converter. Prompts traduits si besoin, et enrichis selon le contrat déclaré du modèle cible (prompt_contract).",
-    'converter': "Conversion de formats sur cinq modalités — images, vidéo, audio, documents et archives (Pillow, FFmpeg, Pandoc, py7zr/rarfile) — avec presets de qualité. Sert aussi de couche de conversion partagée : les autres apps importent ses formats de sortie et réutilisent apply_inline_conversion pour convertir leurs résultats sans dupliquer la logique.",
-    'describer': "Description et résumé automatiques d'images, vidéos, audio et documents par modèles multimodaux (Ollama local — gemma/qwen-vl — ou cloud). Le prompt de vision est émis dans la langue de sortie choisie ; plusieurs formats de rendu (résumé, points clés, description structurée). Sous-page de compréhension de documents scientifiques (OpenScholar) prévue.",
-    'enhancer': "Amélioration de la qualité média. Image/vidéo : upscaling et restauration IA. Audio : amélioration et débruitage (Resemble Enhance génératif, DeepFilterNet discriminatif). Le préprocessing DeepFilterNet est mutualisé avec le Transcriber (singleton keep_loaded).",
-    'imager': "Génération et édition d'images et de vidéos par IA depuis des prompts texte : diffusion (Stable Diffusion XL, Hunyuan, Qwen-Image), logos (FLUX LoRA), vidéo (Mochi, LTX, CogVideoX). Modes img2img / style / describe2img via image de référence. Prompts traduits et enrichis par la PromptPipeline commune.",
-    'reader': "Extraction de texte par OCR depuis images, scans et documents — le moteur vient du catalogue, selon la tâche (docTR en local, et les modèles OCR que sert le catalogue). Brique d'extraction réutilisable par d'autres traitements (compréhension de fichiers de référence, RAG à venir).",
-    'synthesizer': "Synthèse vocale (TTS) multi-moteurs : XTTS, Higgs Audio, Kokoro… Voix prédéfinies, voix personnalisées et clonage à partir d'un échantillon. Toute synthèse est encapsulée dans un batch (upload simple = batch de 1, fichier = batch de N). Le texte est dit tel quel — jamais traduit.",
-    'transcriber': "Transcription audio/vidéo en texte (Whisper large-v3 et autres moteurs). Diarisation des locuteurs, horodatage par mot, résumé et contrôle de cohérence. Éditeur de correction manuelle assistée (onde + heatmap, navigation clavier, timecode « aller à », auto-save) — voir wama/transcriber/TRANSCRIBER_CORRECTION.md.",
-}
+# ── Descriptions longues (inspecteur volet droit `/apps/`, onglet « À propos ») ─────────────────
+# DÉRIVÉES des déclarations « À propos » (`common/app_about.py`, 2026-11-02) : le résumé de ce que
+# fait l'app, sans aucun nom de modèle. Elles vivaient ici en prose (`_DESCRIPTION_LONG`) et
+# nommaient des modèles qui avaient changé ; les moteurs actuels se DÉRIVENT désormais du catalogue
+# (`app_about.engines`). Fusionnées à l'import, AVANT les jumelles (le clone les emporte).
+from wama.common.app_about import ABOUT as _ABOUT  # noqa: E402
 
-for _app_id, _long in _DESCRIPTION_LONG.items():
-    if _app_id in APP_CATALOG:
-        APP_CATALOG[_app_id]['description_long'] = _long
+for _app_id, _declared in _ABOUT.items():
+    if _app_id in APP_CATALOG and _declared.get('summary'):
+        APP_CATALOG[_app_id]['description_long'] = _declared['summary']
 
 
 # ── Bac à sable (route §10.3 marche S) : entrées APP_CATALOG des jumelles ────────────────

@@ -251,9 +251,58 @@ def born_declaration(label: str, facet: str):
     return None
 
 
+#: Le VRAI registre, retenu à l'import : un test peut rediriger `REGISTRY_PATH`, jamais l'écrire.
+_REAL_REGISTRY_PATH = REGISTRY_PATH
+
+
 def save_registry(entries: list) -> None:
+    """Réécrit le registre. ⚠ Jamais le VRAI pendant `manage.py test` (2026-11-02, vécu) : un test qui
+    simulait la LECTURE du registre sans son ÉCRITURE a fait écrire ses entrées témoins par
+    `record_contributor` dans `wama/sandbox_apps.json` — le registre réel, non versionné, a été
+    remplacé par deux lignes de test (restauré depuis une copie). Même règle que `media_guard` :
+    ce qu'un test ne doit pas toucher refuse, au lieu de compter sur chaque test."""
+    from wama.common.services.runtime_side import running_tests
+    if running_tests() and Path(REGISTRY_PATH).resolve() == Path(_REAL_REGISTRY_PATH).resolve():
+        raise PermissionError("le registre réel des bacs à sable ne s'écrit pas pendant les tests : "
+                              "simuler `save_registry`, ou rediriger `REGISTRY_PATH`")
     REGISTRY_PATH.write_text(
         json.dumps(entries, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+
+
+# ── Les DÉVELOPPEURS d'une app du bac à sable (2026-11-02, décision de Fabien) ────────────────
+# *« La génération d'une application par le système (l'assistant par exemple), demandée par un
+# utilisateur développeur, doit porter le nom du ou des développeurs concernés. Si plusieurs
+# utilisateurs participent à la génération d'une application, l'ensemble des utilisateurs doit
+# apparaître. »* `created_by` reste le premier ; `contributors` porte les suivants, dans l'ordre
+# où ils ont pris part. La règle d'accès (`accounts.app_access`) et « À propos » les lisent ici.
+
+def entry_contributors(entry: dict) -> list:
+    """Les développeurs d'une entrée du registre, sans doublon, le créateur d'abord."""
+    names = [entry.get('created_by') or ''] + list(entry.get('contributors') or [])
+    return list(dict.fromkeys(n for n in names if n))
+
+
+def app_contributors(label: str) -> list:
+    """Les développeurs de l'app `label` — [] : app d'opérateur (ligne de commande) ou inconnue."""
+    return next((entry_contributors(e) for e in load_registry() if e.get('label') == label), [])
+
+
+def record_contributor(label: str, username: str) -> bool:
+    """`username` prend part à l'app `label` : il rejoint ses développeurs (le premier devient son
+    créateur). Le registre est RELU à l'instant et seule cette entrée change — la règle de
+    `app_sandbox._save_entry`. Rend True si quelque chose a changé."""
+    if not username:
+        return False
+    entries = load_registry()
+    entry = next((e for e in entries if e.get('label') == label), None)
+    if entry is None or username in entry_contributors(entry):
+        return False
+    if not entry.get('created_by'):
+        entry['created_by'] = username
+    else:
+        entry['contributors'] = list(entry.get('contributors') or []) + [username]
+    save_registry(entries)
+    return True
 
 
 def sandbox_labels() -> list:

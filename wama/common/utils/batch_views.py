@@ -856,7 +856,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         return JsonResponse({'batch_id': pk, 'status': overall, 'total': total,
                              'counts': counts, 'items': rows})
 
-    return {
+    views = {
         'batch_start': batch_start,
         'batch_update': batch_update,
         'batch_delete': batch_delete,
@@ -866,3 +866,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         'batch_promote': batch_promote,
         'batch_realign': batch_realign,
     }
+    # Les gestes du lot, retenus avec la déclaration de l'élément (2026-11-02) : les outils de
+    # l'assistant (`tool_api.*_batch`) appellent LA vue que le bouton poste — une app à deux
+    # familles de lots (l'enhancer : image et audio) y est sans nom de route à reconstruire.
+    if work_model in _ELEMENT_DECLARATIONS:
+        _ELEMENT_DECLARATIONS[work_model]['batch_views'] = views
+    return views

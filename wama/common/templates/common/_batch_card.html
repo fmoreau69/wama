@@ -28,9 +28,10 @@ Slots/options (tous optionnels) :
                            brique commune `queue-actions.js` prend ▶ ⧉ 🗑 en charge. À poser au
                            moment EXACT où l'app retire ses handlers locaux (sinon double-fire).
                            Portées au 2026-08-23 : transcriber, composer, describer.
-                           Depuis le 2026-10-03 aussi `data-batch-realign-url` (bouton ↓) et
-                           `data-batch-promote-url` (sur l'en-tête, lu par le menu des filles) —
-                           émis seulement si l'app route `batch_realign`/`batch_promote`.
+                           Depuis le 2026-10-03 aussi `data-batch-realign-url` et
+                           `data-batch-promote-url` (sur l'en-tête, lus par le menu « … » de la
+                           mère et des filles depuis le 2026-11-02) — émis seulement si l'app
+                           route `batch_realign`/`batch_promote`.
                            `batch_info.reference` (de `build_batches_list`) dit si le lot a une
                            référence à reposer.
   domain                 : id du DOMAINE de ce lot. Porté au DOM (`data-domain`, pour que les
@@ -81,6 +82,7 @@ lot… » du menu de la card.{% endcomment %}
      data-batch-created="{{ batch_info.obj.created_at|date:'d/m/Y H:i' }}"
      {% if domain %}data-domain="{{ domain }}"{% endif %}
      {% if u_batch_promote %}data-batch-promote-url="{{ u_batch_promote }}"{% endif %}
+     {% if u_batch_realign %}data-batch-realign-url="{{ u_batch_realign }}" data-batch-reference="{% if batch_info.reference %}1{% else %}0{% endif %}"{% endif %}
      data-batch-total="{{ batch_info.obj.total }}" data-batch-success="{{ batch_info.success_count }}"
      data-batch-running="{{ batch_info.running_count }}" data-batch-failure="{{ batch_info.failure_count }}">
     <div class="row align-items-center">
@@ -143,25 +145,16 @@ lot… » du menu de la card.{% endcomment %}
                 {% if show_settings|default:True %}
                 <button class="btn btn-sm btn-outline-secondary batch-settings-btn py-0 px-2"
                         data-batch-id="{{ batch_info.obj.id }}"
-                        title="Paramètres du batch (appliqués à tous les éléments)">
+                        title="Régler tout le lot — appliqué à toutes ses cards, et retenu comme référence">
                     <i class="fas fa-cog"></i>
                 </button>
                 {% endif %}
                 {% comment %}↓ RÉALIGNER (2026-10-03, `MODES_QUEUE_UX §5ter` / `ROUTE §10.6` 5.3) : reposer
-                sur toutes les filles les réglages de RÉFÉRENCE du lot — ceux que la mère a posés
-                (⚙) ou qu'une fille a PROMUS (menu « … » de la fille : « Promouvoir ses réglages au
-                lot », qui lit `data-batch-promote-url` sur cet en-tête). Sans référence le bouton
-                est désactivé et son titre dit quoi faire ; le serveur le redit en 400. Rendu dès
-                que la route existe (`actions_communes`), tenu par `queue-actions.js`.{% endcomment %}
-                {% if u_batch_realign %}
-                <button class="btn btn-sm btn-outline-secondary batch-realign-btn py-0 px-2"
-                        data-batch-id="{{ batch_info.obj.id }}"
-                        data-batch-realign-url="{{ u_batch_realign }}"
-                        {% if not batch_info.reference %}disabled{% endif %}
-                        title="{% if batch_info.reference %}Réaligner toutes les cards du lot sur ses réglages de référence{% else %}Aucun réglage de référence : réglez le lot (⚙) ou promouvez une de ses cards{% endif %}">
-                    <i class="fas fa-arrows-down-to-line"></i>
-                </button>
-                {% endif %}
+                sur toutes les filles les réglages de RÉFÉRENCE du lot. C'était un bouton ici, grisé
+                sans référence ; depuis le 2026-11-02 (décision de Fabien) c'est une entrée du menu
+                « … » de la mère, qui lit `data-batch-realign-url` / `data-batch-reference` sur
+                l'en-tête et dit quoi faire sans référence — comme « Promouvoir » dans celui d'une
+                fille. La ⚙ du lot, elle, règle toutes les cards et devient la référence.{% endcomment %}
                 {% if show_start|default:True %}
                 {# ▶ Lancer/Relancer (pos. 2, comme les cards individuelles — conventions §6) #}
                 <button class="btn btn-sm btn-outline-success batch-start-btn py-0 px-2"

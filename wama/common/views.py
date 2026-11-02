@@ -1910,6 +1910,56 @@ def app_about_models(request, app_id: str):
         raise Http404
     return render(request, 'common/_about_models.html', {'groups': app_models(app_id)})
 
+
+def _closed_app(user, app_id: str) -> bool:
+    """L'app est-elle GARDÉE (catalogue, Lab, bac à sable) et fermée à `user` ?"""
+    from wama.accounts.permissions import accessible, all_gated_apps
+    from .app_registry import APP_CATALOG
+    return (app_id in APP_CATALOG or app_id in all_gated_apps()) and not accessible(user, 'app', app_id)
+
+
+@login_required
+def app_about(request, app_id: str):
+    """L'onglet « À propos » entier (2026-11-02, `common/app_about.py`) : ce que l'app DÉCLARE (ce
+    qu'elle fait, ses pages propres) et ce qui se DÉRIVE — ses moteurs actuels, entrées, sorties,
+    capacités, son origine (WAMA, ou le bac à sable et ses développeurs) — puis ses modèles et
+    leurs publications. Chargé à l'ouverture de l'onglet, comme l'était la seule section des
+    modèles : le rendu d'une page d'app n'interroge pas le catalogue pour un onglet caché."""
+    from django.http import Http404
+    from django.shortcuts import render
+
+    from wama.model_manager.models import ModelSource
+
+    from .app_about import ABOUT, about_facts
+    from .app_registry import APP_CATALOG
+    from .services.model_publications import app_models
+
+    if app_id not in APP_CATALOG and app_id not in ModelSource.values and app_id not in ABOUT:
+        raise Http404
+    # Une app gardée garde son droit : l'« À propos » d'une app fermée n'est pas lisible.
+    if _closed_app(request.user, app_id):
+        raise Http404
+    groups = app_models(app_id)
+    return render(request, 'common/_app_about.html',
+                  {'about': about_facts(app_id, groups), 'groups': groups})
+
+
+@login_required
+def app_help(request, app_id: str):
+    """L'onglet « Aide » (2026-11-02, `common/app_about.py`) : les gestes communs, ceux que les
+    capacités déclarées ajoutent, et l'aide PROPRE que l'app déclare. Même garde que l'À-propos."""
+    from django.http import Http404
+    from django.shortcuts import render
+
+    from .app_about import ABOUT, help_facts
+    from .app_registry import APP_CATALOG
+
+    if app_id not in APP_CATALOG and app_id not in ABOUT:
+        raise Http404
+    if _closed_app(request.user, app_id):
+        raise Http404
+    return render(request, 'common/_app_help.html', {'help': help_facts(app_id)})
+
 @login_required
 def api_partage(request, surface: str, nature: str, pk: int):
     """PARTAGE d'un élément ou d'un LOT de file — l'interface du mécanisme de visibilité (§7).

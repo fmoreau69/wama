@@ -1,0 +1,99 @@
+{% comment %}L'onglet « À PROPOS » d'une app — chargé à son ouverture (`common.views.app_about`,
+2026-11-02). Deux natures, jamais mêlées (`common/app_about.py`) : ce que l'app DÉCLARE (ce qu'elle
+fait, ses pages propres — aucun nom de modèle) et ce qui se DÉRIVE (moteurs actuels, entrées,
+sorties, capacités, origine). Les modèles et leurs publications suivent. Couleurs : les jetons du
+thème seuls (`tests_theme`) ; la couleur de l'app vient de sa déclaration.{% endcomment %}
+<style>
+  .wama-about { display: grid; gap: 1rem; }
+  .wama-about-head { display: flex; gap: 1rem; align-items: flex-start; }
+  .wama-about-icon { flex: 0 0 3rem; height: 3rem; border-radius: .75rem; display: grid; place-items: center;
+                     font-size: 1.35rem; background: rgba(var(--wama-accent-rgb), .12); }
+  .wama-about-head h3 { margin: 0 0 .25rem; font-size: 1.3rem; color: var(--wama-text-strong); }
+  .wama-about-lead { margin: 0; color: var(--wama-text-body); line-height: 1.55; }
+  .wama-about-origin { display: inline-flex; gap: .4rem; align-items: center; font-size: .8rem;
+                       color: var(--wama-text-secondary); margin-top: .35rem; flex-wrap: wrap; }
+  .wama-about-features { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); }
+  .wama-about-feature { border: 1px solid var(--wama-border-subtle); border-radius: .6rem; padding: .7rem .85rem;
+                        background: var(--wama-surface-faint); }
+  .wama-about-feature h5 { font-size: .95rem; margin: 0 0 .3rem; color: var(--wama-text-strong); }
+  .wama-about-feature h5 i { color: var(--wama-accent-text); margin-right: .35rem; }
+  .wama-about-feature p { margin: 0; font-size: .87rem; color: var(--wama-text-body); line-height: 1.45; }
+  .wama-about-facts { display: grid; grid-template-columns: minmax(8rem, max-content) 1fr; gap: .45rem 1rem;
+                      margin: 0; font-size: .9rem; }
+  .wama-about-facts dt { color: var(--wama-text-label); font-weight: 500; }
+  .wama-about-facts dd { margin: 0; color: var(--wama-text-body); }
+  .wama-about-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .1rem .55rem; margin: 0 .3rem .3rem 0;
+                     border-radius: 999px; font-size: .8rem; border: 1px solid var(--wama-border-subtle);
+                     background: var(--wama-surface-raised); color: var(--wama-text-body); }
+  .wama-about-chip.is-engine { border-color: rgba(var(--wama-accent-rgb), .45); }
+  .wama-about-group { color: var(--wama-text-secondary); font-size: .8rem; margin-right: .35rem; }
+  .wama-about-section-title { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase;
+                              color: var(--wama-text-secondary); margin: 0 0 .5rem; }
+</style>
+<div class="info-card wama-about" data-about-app="{{ about.app }}">
+    <div class="wama-about-head">
+        <div class="wama-about-icon"{% if about.color %} style="color:{{ about.color }};"{% endif %}><i class="{{ about.icon }}"></i></div>
+        <div>
+            <h3>{{ about.label }}</h3>
+            <p class="wama-about-lead">{{ about.summary }}</p>
+            <div class="wama-about-origin" data-about-origin="{{ about.origin.kind }}">
+                {% if about.origin.kind == 'wama' %}
+                <i class="fas fa-circle-check"></i> {{ about.origin.label }}
+                {% else %}
+                <i class="fas fa-flask"></i> Bac à sable
+                {% if about.origin.developers %} · développée par <strong data-about-developers>{{ about.origin.developers|join:", " }}</strong>
+                {% else %} · créée par un administrateur (ligne de commande){% endif %}
+                {% if about.origin.source %} · jumelle de {{ about.origin.source }}{% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if about.features %}
+    <div>
+        <p class="wama-about-section-title">Ce qu'elle fait</p>
+        <div class="wama-about-features">
+            {% for f in about.features %}
+            <div class="wama-about-feature"><h5><i class="fas fa-check"></i>{{ f.title }}</h5><p>{{ f.text }}</p></div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div>
+        <p class="wama-about-section-title">En bref</p>
+        <dl class="wama-about-facts">
+            {% if about.engines %}
+            <dt>Moteurs actuels</dt>
+            <dd data-about-engines>
+                {% for g in about.engines %}
+                <div class="mb-1">{% if about.engines|length > 1 %}<span class="wama-about-group">{{ g.label }}</span>{% endif %}
+                    {% for name in g.names %}<span class="wama-about-chip is-engine"><i class="fas fa-microchip"></i>{{ name }}</span>{% endfor %}
+                    {% if g.more %}<span class="wama-about-chip">+{{ g.more }} autre{{ g.more|pluralize }}</span>{% endif %}
+                </div>
+                {% endfor %}
+            </dd>
+            {% endif %}
+            {% if about.inputs %}
+            <dt>Entrées</dt>
+            <dd>{% for t in about.inputs %}<span class="wama-about-chip">{{ t }}</span>{% endfor %}
+                {% if about.extensions %}<div class="small text-body-secondary mt-1">{{ about.extensions|join:" " }}</div>{% endif %}</dd>
+            {% endif %}
+            {% if about.outputs %}
+            <dt>Sorties</dt>
+            <dd>{% for t in about.outputs %}<span class="wama-about-chip">{{ t }}</span>{% endfor %}</dd>
+            {% endif %}
+            {% if about.capabilities %}
+            <dt>Capacités</dt>
+            <dd>{% for c in about.capabilities %}<span class="wama-about-chip"><i class="{{ c.icon }}"></i>{{ c.label }}</span>{% endfor %}</dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    {% if about.links %}
+    <div class="d-flex flex-wrap gap-2">
+        {% for link in about.links %}<a class="btn btn-sm btn-outline-emphasis" href="{{ link.url }}"><i class="fas fa-arrow-up-right-from-square me-1"></i>{{ link.label }}</a>{% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% include 'common/_about_models.html' %}

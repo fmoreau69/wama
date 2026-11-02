@@ -717,12 +717,12 @@
         // quelle card peut servir de référence (régler plusieurs filles, comparer, promouvoir la
         // gagnante). L'URL est lue sur l'en-tête du lot (`data-batch-promote-url`, émise par
         // `_batch_card.html` quand la route existe) : une app non câblée ne se voit rien
-        // proposer. Le pendant « ↓ réaligner » est un bouton de la mère (`queue-actions.js`).
+        // proposer. Le pendant « ↓ réaligner » est une entrée du menu de la MÈRE (plus bas).
         var childLot = (!estLot && !recue && cibles.length === 1) ? lotDe(card) : null;
         var promoteHeader = childLot ? childLot.querySelector('[data-batch-promote-url]') : null;
         if (promoteHeader && card.dataset.id) {
             entrees.push({
-                icone: 'fas fa-arrows-up-to-line', libelle: 'Promouvoir ses réglages au lot',
+                icone: 'fas fa-arrows-up-to-line', libelle: 'Faire de ses réglages la référence du lot',
                 agir: function () {
                     poster(promoteHeader.getAttribute('data-batch-promote-url'),
                            { source: card.dataset.id })
@@ -738,6 +738,35 @@
                             setTimeout(function () { location.reload(); }, 600);
                         });
                 },
+            });
+        }
+
+        // ↓ RÉALIGNER LE LOT (2026-11-02, Fabien : « la gestion de l'alignement des réglages
+        // devrait se gérer dans la modale des paramètres ou dans le menu complémentaire "…" ») :
+        // la référence du lot (sa ⚙, ou les réglages promus d'une fille) reposée sur toutes ses
+        // filles. C'était un bouton de la barre d'actions de la mère, GRISÉ tant que le lot n'a pas
+        // de référence — il prenait la place d'un geste fréquent pour un geste rare, et grisé il
+        // ne disait rien. Ici, sans référence, l'entrée dit quoi faire.
+        if (estLot && !recue && cibles.length === 1 && card.dataset.batchRealignUrl) {
+            entrees.push(card.dataset.batchReference === '1' ? {
+                icone: 'fas fa-arrows-down-to-line', libelle: 'Réaligner toutes les cards sur la référence',
+                agir: function () {
+                    if (!global.confirm('Réaligner toutes les cards du lot sur ses réglages de '
+                                        + 'référence ? Les réglages individuels seront remplacés.')) return;
+                    poster(card.dataset.batchRealignUrl, {}).then(function (res) {
+                        if (!res || res.success === false || res.error) {
+                            dire('Réalignement impossible — '
+                                 + ((res && (res.error || res.reason)) || 'refusé'), 'error');
+                            return;
+                        }
+                        var n = res.updated || 0;
+                        dire('Lot réaligné · ' + n + ' card' + (n > 1 ? 's' : ''), 'success');
+                        setTimeout(function () { location.reload(); }, 600);
+                    });
+                },
+            } : {
+                icone: 'fas fa-arrows-down-to-line', desactive: true,
+                libelle: 'Réaligner : aucune référence — réglez le lot (⚙) ou promouvez une card',
             });
         }
 
@@ -1448,7 +1477,7 @@
     // écoutent à la remontée) et ouvre l'encart. ⚙ d'une CARD reste actif : la modale s'ouvre en
     // CONSULTATION (option 2). Le serveur refuse de toute façon ces gestes (`owned_or_404`) : ceci
     // dit POURQUOI au lieu de laisser un refus sec.
-    var OWNER_ONLY = '.wama-cycle-btn, .delete-btn, .batch-start-btn, .batch-delete-btn, .batch-settings-btn, .batch-realign-btn';
+    var OWNER_ONLY = '.wama-cycle-btn, .delete-btn, .batch-start-btn, .batch-delete-btn, .batch-settings-btn';
     // En COLLABORATION (E1-E5, 2026-10-03) le destinataire règle et relance : seule la SUPPRESSION
     // reste au propriétaire (E2) — elle seule ouvre encore l'encart.
     var OWNER_ONLY_COLLAB = '.delete-btn, .batch-delete-btn';

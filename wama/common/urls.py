@@ -210,6 +210,8 @@ urlpatterns = [
     # l'ouverture de l'onglet. ⚠ Le gabarit commun cite cette adresse en LITTÉRAL, jamais par
     # `{% url %}` : il est relu à chaud par la prod, la route ne l'est qu'au rechargement.
     path('about/models/<slug:app_id>/', views.app_about_models, name='app_about_models'),
+    path('about/<slug:app_id>/', views.app_about, name='app_about'),
+    path('help/<slug:app_id>/', views.app_help, name='app_help'),
 
     # Sources externes : la PAGE du registre `sources_externes` (8ᵉ registre, 2026-09-01).
     # La déclaration dérive du code ; la sonde (clé, joignabilité) est le rapport écrit par

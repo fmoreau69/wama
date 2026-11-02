@@ -513,8 +513,7 @@ common/app_modern_base.html   ← base de toutes les apps
 | `queue_content` | Contenu de l'onglet File d'attente |
 | `console_content_id` | ID du div console (défaut : `console-content`) |
 | `console_app_name` | Nom de l'app pour les logs (défaut : `system`) |
-| `about_content` | Contenu de l'onglet À propos |
-| `help_content` | Contenu de l'onglet Aide |
+| `about_app` / `help_app` | L'app que décrivent les onglets À propos et Aide — à surcharger par une app HORS du catalogue (monde Lab) seulement ; jamais `about_content` / `help_content` (§4.3) |
 | `app_right_panel_settings` | Panneau droit — section paramètres |
 | `app_right_panel_actions` | Panneau droit — boutons d'action globaux |
 | `app_scripts` | JS inline (config window.*) |
@@ -532,18 +531,29 @@ common/app_modern_base.html   ← base de toutes les apps
 
 ### 4.3 Onglets obligatoires
 
-La base fournit 4 onglets automatiquement. Chaque app **doit** remplir les 4 :
+La base fournit 4 onglets automatiquement. Une app ne remplit que la file ; l'À-propos et l'Aide
+se DÉCLARENT (2026-11-02) :
 
-| Onglet | Bloc | Contenu attendu |
+| Onglet | Où | Contenu |
 |--------|------|----------------|
-| File d'attente | `queue_content` | Zone de drop + liste des cards |
+| File d'attente | bloc `queue_content` | Zone de drop + liste des cards |
 | Console | *(fourni par la base)* | Logs Celery filtrés par app |
-| À propos | `about_content` | Description, modèles utilisés, technologie |
-| Aide | `help_content` | Guide d'utilisation, conseils, FAQ |
+| À propos | `common/app_about.py::ABOUT` + dérivés | Ce que fait l'app (résumé, fonctionnalités — SANS nom de modèle), puis le DÉRIVÉ : moteurs actuels, entrées, sorties, capacités, ORIGINE (WAMA, WAMA Lab, ou le bac à sable et TOUS ses développeurs), puis modèles et publications |
+| Aide | `common/app_about.py::ABOUT` + gestes communs | L'aide PROPRE à l'app, puis les gestes communs et ceux que ses capacités ajoutent |
+
+> **Pourquoi (2026-11-02, demande de Fabien : « le corps "À propos" ne porte pas la mise à jour des
+> modèles »).** Les dix apps et les deux du Lab réécrivaient ces onglets en HTML (≈ 2 300 lignes)
+> et y recopiaient leurs moteurs — l'imager présentait des modèles retirés. Les déclarations ont été
+> RELUES contre le code (chaque point cite sa ligne, `# verified:`), le reste retiré
+> (`REMOVAL_LEDGER R209`). Les deux onglets se chargent à leur ouverture (`common.views.app_about`,
+> `app_help`, `/common/about|help/<app>/`) : un gabarit est relu à chaud, une balise neuve ne
+> l'est pas. Une jumelle lit la déclaration de sa source, une app née d'un manifeste sa fiche.
+> Gardes : `tests_app_about` (aucun gabarit d'app ne réécrit ces onglets ; aucune déclaration ni
+> description du catalogue ne cite un modèle des manifestes ; fragments, origine, développeurs).
 
 > **Modèles et publications — GÉNÉRÉS, jamais écrits par app (2026-10-10, demande de Fabien).**
-> Sous le bloc `about_content` (donc aussi dans les apps qui le réécrivent), la base charge à
-> l'ouverture de l'onglet le fragment `common/_about_models.html` (`/common/about/models/<app>/`,
+> L'onglet charge à son ouverture le fragment `common/_about_models.html` (inclus depuis le
+> 2026-11-02 par l'À-propos commun, `/common/about/<app>/` ; `/common/about/models/<app>/` reste servi,
 > `services/model_publications.app_models`) : les modèles proposés par les selects de catalogue de
 > l'app (même déclaration et même lecture que le select), chacun avec sa fiche et les publications
 > que l'AUTEUR rattache à sa carte Hugging Face (étiquettes `arxiv:<id>`, posées par la provenance
@@ -552,7 +562,7 @@ La base fournit 4 onglets automatiquement. Chaque app **doit** remplir les 4 :
 > ne plus en écrire. Rattrapage des installés : `backfill_platform_refs --licenses --ecrire`.
 > Une app SANS select de catalogue (monde Lab : Face Analyzer, servie sous `/lab/`, donc sans
 > `current_app`) liste les modèles qu'elle DÉCLARE (`AIModel.source`) et se nomme en surchargeant
-> le bloc `about_models`. Une publication hors arXiv se déclare par son DOI (`10.…` →
+> le bloc `about_app` (le bloc `about_models` jusqu'au 2026-11-02). Une publication hors arXiv se déclare par son DOI (`10.…` →
 > doi.org) — cas des poids DeepFace, dont l'auteur cite un article de revue.
 
 ---

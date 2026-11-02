@@ -465,16 +465,41 @@ def dev_run_role(user, role: str, args: dict = None, provider: str = '', model: 
     modèle retenu — la fin de la tâche est annoncée ; dev_read_output lit la proposition.
     """
     role_command(role, args)          # les arguments d'abord : on ne tire pas pour une commande refusée
+    target = (args or {}).get('app') if role == 'codegen' else ''
+    if target and (refused := _sandbox_development_refusal(user, target)):
+        return refused
     chosen = role_model(user, provider, model)
     # Le COMPTE suit le rôle dans son process : sa clé et sa garde cloud servent l'appel.
     from wama.common.services.development_models import ROLE_USER_ENV
     env = {**os.environ, ROLE_USER_ENV: str(user.pk)}
     job = start_job(user, f'role:{role}',
                     role_command(role, args, chosen['provider'], chosen['model']), env=env)
+    if target:
+        _record_participation(user, target)
     job['model'] = chosen['key']
     if chosen['note']:
         job['model_note'] = chosen['note']
     return job
+
+
+def _sandbox_development_refusal(user, app: str):
+    """Développer une app du bac à sable (la régénérer, revenir en arrière, la retirer, écrire sa
+    glu) : ses développeurs et les administrateurs seuls (2026-11-02) ; un accès accordé ne
+    donne que l'usage (`accounts.app_access.can_develop`). None hors du bac à sable."""
+    from wama.accounts.app_access import can_develop, sandbox_owners
+    if app in sandbox_owners() and not can_develop(user, app):
+        return {'error': 'forbidden',
+                'detail': f"« {app} » : seuls ses développeurs et les administrateurs la font "
+                          "évoluer (un accès accordé ne donne que l'usage)."}
+    return None
+
+
+def _record_participation(user, app: str) -> None:
+    """Le compte qui fait évoluer une app du bac à sable rejoint ses DÉVELOPPEURS (décision de
+    Fabien, 2026-11-02 : « si plusieurs utilisateurs participent à la génération d'une
+    application, l'ensemble des utilisateurs doit apparaître »)."""
+    from wama.common.sandbox import record_contributor
+    record_contributor(app, getattr(user, 'username', ''))
 
 
 def dev_sandbox(user, action: str, app: str = '', target: str = '', manifest: str = '') -> dict:
@@ -489,15 +514,13 @@ def dev_sandbox(user, action: str, app: str = '', target: str = '', manifest: st
     """
     owner = getattr(user, 'username', '') if action == 'create' else ''
     if action in ('substitute', 'revert', 'remove') and app:
-        # Développer l'app d'un autre (2026-11-02) : son créateur et les administrateurs seuls ;
-        # un accès accordé ne donne que l'usage (`accounts.app_access.can_develop`).
-        from wama.accounts.app_access import can_develop, sandbox_owners
-        if app in sandbox_owners() and not can_develop(user, app):
-            return {'error': 'forbidden',
-                    'detail': f"« {app} » : seuls son créateur et les administrateurs la font "
-                              "évoluer (un accès accordé ne donne que l'usage)."}
-    return start_job(user, f'sandbox:{action}',
-                     sandbox_command(action, app, target, owner, manifest))
+        if refused := _sandbox_development_refusal(user, app):
+            return refused
+    job = start_job(user, f'sandbox:{action}',
+                    sandbox_command(action, app, target, owner, manifest))
+    if action in ('substitute', 'revert') and app:
+        _record_participation(user, app)
+    return job
 
 
 def dev_regen_check(user, app: str) -> dict:

@@ -29,11 +29,12 @@ class AppAccessRefused(Exception):
 # ── Les faits du bac à sable ───────────────────────────────────────────────────────────────────
 
 def sandbox_owners() -> dict:
-    """`{label: username du créateur}` des apps du registre des bacs à sable ('' : ligne de
-    commande). Une lecture du registre (mis en cache sur son horodatage, `sandbox.load_registry`)."""
+    """`{label: (développeurs…)}` des apps du registre des bacs à sable — son créateur puis ceux
+    qui ont pris part à sa génération (`sandbox.entry_contributors`) ; `()` : ligne de commande.
+    Une lecture du registre (mise en cache sur son horodatage, `sandbox.load_registry`)."""
     try:
-        from wama.common.sandbox import load_registry
-        return {e.get('label'): e.get('created_by') or '' for e in load_registry()
+        from wama.common.sandbox import entry_contributors, load_registry
+        return {e.get('label'): tuple(entry_contributors(e)) for e in load_registry()
                 if isinstance(e, dict) and e.get('label')}
     except Exception:
         return {}
@@ -56,7 +57,8 @@ def sandbox_facts(user) -> tuple:
 
 def sandbox_decision(user, app_id, owners, granted):
     """None si `app_id` n'est pas au bac à sable ; sinon la décision : un administrateur, toutes ;
-    un développeur, celles qu'il a créées ou qu'on lui a ouvertes ; personne d'autre."""
+    un développeur, celles qu'il a créées — seul ou avec d'autres — ou qu'on lui a ouvertes ;
+    personne d'autre."""
     if app_id not in owners:
         return None
     from wama.accounts.permissions import is_admin_tier, is_developer
@@ -64,8 +66,7 @@ def sandbox_decision(user, app_id, owners, granted):
         return True
     if not is_developer(user):
         return False
-    owner = owners[app_id]
-    return bool(owner and owner == getattr(user, 'username', None)) or app_id in granted
+    return getattr(user, 'username', None) in owners[app_id] or app_id in granted
 
 
 # ── Qui accorde, à qui ─────────────────────────────────────────────────────────────────────────
@@ -74,22 +75,23 @@ def _is_sandbox(app_id) -> bool:
     return app_id in sandbox_owners()
 
 
-def owner_of(app_id):
-    """Le compte CRÉATEUR d'une app du bac à sable, ou None (ligne de commande, compte disparu)."""
+def developers_of(app_id) -> list:
+    """Les comptes DÉVELOPPEURS d'une app du bac à sable (créateur d'abord), ceux qui existent."""
     from django.contrib.auth import get_user_model
-    name = sandbox_owners().get(app_id) or ''
-    return get_user_model().objects.filter(username=name).first() if name else None
+    names = list(sandbox_owners().get(app_id) or ())
+    found = {u.username: u for u in get_user_model().objects.filter(username__in=names)}
+    return [found[n] for n in names if n in found]
 
 
 def can_grant(user, app_id) -> bool:
-    """Le CRÉATEUR (développeur) d'une app du bac à sable, ou un administrateur."""
+    """Un DÉVELOPPEUR de l'app (son créateur ou un participant) qui l'est encore, ou un
+    administrateur."""
     from wama.accounts.permissions import is_admin_tier, is_developer
     if not _is_sandbox(app_id) or not getattr(user, 'pk', None):
         return False
     if is_admin_tier(user):
         return True
-    owner = sandbox_owners().get(app_id)
-    return bool(is_developer(user) and owner and owner == user.get_username())
+    return bool(is_developer(user) and user.get_username() in sandbox_owners().get(app_id, ()))
 
 
 def can_develop(user, app_id) -> bool:
@@ -100,13 +102,13 @@ def can_develop(user, app_id) -> bool:
 
 
 def granters_of(app_id) -> list:
-    """Ceux qu'une demande prévient : le créateur, s'il est encore développeur, et les
+    """Ceux qu'une demande prévient : les développeurs de l'app qui le sont encore, et les
     administrateurs."""
     from wama.accounts.permissions import administrators, is_developer
     found = list(administrators())
-    owner = owner_of(app_id)
-    if owner is not None and is_developer(owner) and owner not in found:
-        found.insert(0, owner)
+    for developer in reversed(developers_of(app_id)):
+        if is_developer(developer) and developer not in found:
+            found.insert(0, developer)
     return found
 
 
@@ -161,7 +163,7 @@ def grant_access(granter, app_id, beneficiary, expires_at=None) -> AccessGrant:
     une demande en attente de ce développeur est accordée par le même geste."""
     from wama.common.utils.notifications import notify_in_app
     if not can_grant(granter, app_id):
-        raise AppAccessRefused("seuls le créateur de l'app et les administrateurs accordent l'accès")
+        raise AppAccessRefused("seuls les développeurs de l'app et les administrateurs accordent l'accès")
     _check_beneficiary(beneficiary, app_id)
     now = timezone.now()
     with transaction.atomic():
@@ -185,7 +187,7 @@ def answer(granter, grant: AccessGrant, accept: bool) -> dict:
     """Le créateur ou un administrateur accepte ou refuse une demande en attente."""
     from wama.common.utils.notifications import notify_in_app
     if grant.kind != KIND_APP or not can_grant(granter, grant.element_id):
-        raise AppAccessRefused("seuls le créateur de l'app et les administrateurs répondent")
+        raise AppAccessRefused("seuls les développeurs de l'app et les administrateurs répondent")
     if grant.state != AccessGrant.STATE_REQUESTED:
         raise AppAccessRefused('cette demande a déjà reçu une réponse')
     beneficiary = grant.subject_user()
@@ -208,7 +210,7 @@ def revoke(granter, grant: AccessGrant) -> AccessGrant:
     les droits à chaque geste), un traitement déjà lancé va à son terme."""
     from wama.common.utils.notifications import notify_in_app
     if grant.kind != KIND_APP or not can_grant(granter, grant.element_id):
-        raise AppAccessRefused("seuls le créateur de l'app et les administrateurs retirent un accès")
+        raise AppAccessRefused("seuls les développeurs de l'app et les administrateurs retirent un accès")
     if grant.state != AccessGrant.STATE_GRANTED:
         raise AppAccessRefused("cet accès n'est pas en vigueur")
     grant.state, grant.answered_at = AccessGrant.STATE_REVOKED, timezone.now()
@@ -267,7 +269,8 @@ def overview(user) -> dict:
             shared.append({'app': app_id, 'app_label': _label(app_id), 'persons': persons,
                            'url': _app_url(app_id)})
     received = [{'app': g.element_id, 'app_label': _label(g.element_id),
-                 'owner': owners.get(g.element_id) or 'administration', 'grant': grant_row(g),
+                 'owner': ', '.join(owners.get(g.element_id) or ()) or 'administration',
+                 'grant': grant_row(g),
                  'url': _app_url(g.element_id)}
                 for g in live.filter(subject_id=user.pk)]
     pending = rows.filter(state=AccessGrant.STATE_REQUESTED)
@@ -286,6 +289,6 @@ def requestable_apps(user) -> list:
     pending = dict(AccessGrant.objects.filter(
         subject_type=AccessGrant.SUBJECT_USER, subject_id=user.pk, kind=KIND_APP,
         state=AccessGrant.STATE_REQUESTED).values_list('element_id', 'pk'))
-    return [{'app': a, 'app_label': _label(a), 'owner': owners[a] or 'administration',
+    return [{'app': a, 'app_label': _label(a), 'owner': ', '.join(owners[a]) or 'administration',
              'pending': pending.get(a)}
             for a in sorted(owners) if not sandbox_decision(user, a, owners, granted)]

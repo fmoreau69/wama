@@ -90,7 +90,7 @@ utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription 
 |---|---|
 | `hideOnInspect` | 4 / 16 |
 | `onDeselect` | 2 / 16 |
-| `keepMediaSection` | **2 / 16** (model_manager ; + avatarizer le 22/08, cf. §4③) — + journal et calendrier le 2026-10-18. ⚠ *Au 2026-10-31 (mesuré)* : il ne reste que model_manager (`'no-selection'`, `model_manager/index.html:2211`) — avatarizer retiré le 2026-09-29 (`avatarizer/index.html:297`), journal et calendrier le 2026-10-28 (§3, `journal.html:149`) |
+| `keepMediaSection` | **2 / 16** (model_manager ; + avatarizer le 22/08, cf. §4③) — + journal et calendrier le 2026-10-18. ⚠ *Au 2026-10-31 (mesuré)* : il ne reste que model_manager (`'no-selection'`, `model_manager/index.html:2211`) — avatarizer retiré le 2026-09-29 (`avatarizer/index.html:240`), journal et calendrier le 2026-10-28 (§3, `journal.html:149`) |
 | `showOnInspect` · `settingsTitleInspect` | **1 / 16** chacune — `showOnInspect` + calendrier le 2026-10-18 |
 
 > Chiffres du 22/08, non remesurés depuis : seuls les ajouts du 2026-10-18 sont comptés à la main.

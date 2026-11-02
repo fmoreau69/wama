@@ -894,6 +894,9 @@ class Command(BaseCommand):
 
         if action == 'glue':
             self._apply_glue(app, opts.get('target'), applied_by=opts.get('owner') or '')
+            # Qui applique la glu prend part à l'app : il rejoint ses développeurs (2026-11-02).
+            from wama.common.sandbox import record_contributor
+            record_contributor(app, opts.get('owner') or '')
         elif action == 'create':
             self._create(app, owner=opts.get('owner') or '')
         elif action == 'substitute' and ',' in (opts.get('target') or ''):

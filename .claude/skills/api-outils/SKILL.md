@@ -23,7 +23,8 @@ FABRIQUE de l'app (le même geste que le bouton), jamais un second chemin.
 | **app réelle** neuve | triade `add_to_<app>` / `start_<app>` / `get_<app>_status` | `start`/`status` : entrée `TRIAD_SPECS` (construite à l'import) ; `add_to_<app>` : créateur avec `app_label='<app>'` en dernier argument (sinon aucune jumelle ne pourra le recibler — `tests_tool_api_twins`) |
 | **jumelle** (`generated_from`) | rien à écrire | dérivée de sa source (`_register_twin_creators`) |
 | app **née d'un manifeste** | rien à écrire dans `tool_api.py` | facette `tool_api.triad_spec` du manifeste (`manifests/app_drafts/<clé>.json`, chemins `wama.<clé>.…`), puis `app_sandbox substitute <label> params` qui relit le registre (`born_registry_facts`) ; le créateur se dérive de la vue de dépôt et des ports (`_born_creator`) |
-| **geste neuf** d'une card (`make_item_views`) ou d'un lot (`make_batch_views`) | un verbe TRANSVERSE (`<geste>_item`) qui poste la vue par `_card_gesture` | `TOOL_REGISTRY` + ligne `GESTURE_TOOLS` de `tests_tool_api_coverage` |
+| **geste neuf** d'une card (`make_item_views`) | un verbe TRANSVERSE (`<geste>_item`) qui poste la vue par `_card_gesture` | `TOOL_REGISTRY` + ligne `GESTURE_TOOLS` de `tests_tool_api_coverage` |
+| **geste neuf** d'un lot (`make_batch_views`) | un verbe TRANSVERSE (`<geste>_batch`) qui appelle la vue retenue par la fabrique (`_batch_view` ; une ÉCRITURE passe d'abord par `_batch_write_refusal`) — jamais un nom en `start_…`/`get_…_status`, pris pour une triade | idem |
 | route d'action propre à une app | un outil de l'app, ou un argument d'un outil existant | `TOOL_REGISTRY` (+ `TOOL_APP_OVERRIDE` si le nom ne suit pas la triade) |
 | **page** neuve | rien, si elle est au registre de navigation | `open_page` la trouve (`navigation`) ; une page du compte qui se LIT a son `get_my_<page>` |
 | process / étape d'un pipeline | rien | `start_<app>(…, process=…)` lit la fabrique (`process_views`) |

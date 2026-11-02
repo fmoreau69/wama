@@ -289,6 +289,14 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   - **↑ promouvoir** : depuis une card fille, faire remonter SES réglages à la mère, qui les
     applique à tout le batch ;
   - **↓ réaligner** : depuis la mère, réaligner toutes les filles (effacer les overrides).
+  - ✅ Livrés le 2026-10-03 (`batch_promote` / `batch_realign`). **Où ils vivent depuis le
+    2026-11-02** (décision de Fabien : « la gestion de l'alignement des réglages devrait se gérer
+    dans la modale des paramètres ou dans le menu complémentaire "…" ») : dans le menu « … » — « Faire
+    de ses réglages la référence du lot » sur une fille, « Réaligner toutes les cards sur la
+    référence » sur la mère, qui dit quoi faire quand le lot n'a pas de référence. Le bouton ↓ de la
+    barre d'actions de la mère est retiré (grisé sans référence, il prenait la place d'un geste
+    fréquent) ; la ⚙ du lot règle toutes ses cards et devient la référence. L'assistant les fait
+    par `update_batch_settings` (`settings` / `promote_from` / `realign`).
 - **Conséquences** : n'importe quelle card peut servir de référence ; on peut régler PLUSIEURS
   filles en parallèle (comparaison A/B) puis promouvoir la gagnante.
 - ⚠ **Charge utile DÉCLARÉE, pas codée en dur** : monde Médias = le dict de paramètres ; monde

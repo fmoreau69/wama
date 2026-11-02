@@ -45,7 +45,12 @@ class _Sandbox(TestCase):
 
     def setUp(self):
         policy = {'roles': ['ingenierie'], 'min_tier': 'developpeur'}
-        for patch in (mock.patch('wama.common.sandbox.load_registry', return_value=REGISTRY),
+        # Lecture ET écriture simulées : une écriture du registre (un développeur qui régénère
+        # rejoint ses développeurs) ne doit jamais atteindre le vrai fichier (2026-11-02, vécu).
+        # Une copie NEUVE à chaque lecture : une écriture d'un test ne déborde pas sur le suivant.
+        for patch in (mock.patch('wama.common.sandbox.load_registry',
+                                 side_effect=lambda: [dict(e) for e in REGISTRY]),
+                      mock.patch('wama.common.sandbox.save_registry'),
                       mock.patch.dict(DEFAULT_APP_ACCESS, {APP: policy, CLI_APP: policy})):
             patch.start()
             self.addCleanup(patch.stop)

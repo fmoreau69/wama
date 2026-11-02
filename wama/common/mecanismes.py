@@ -1890,8 +1890,10 @@ MECHANISMS = (
               "la révision ; le monde Data y mettra son protocole — même geste, deux charges. Les "
               "trois gestes écrivent par le chemin de la ⚙ de lot (deux temps, un refus n'écrit "
               "rien) ; la référence suit la duplication et part avec la suppression. Surfaces : "
-              "bouton ↓ de la card mère (désactivé et DISANT pourquoi sans référence), entrée "
-              "« Promouvoir ses réglages au lot » du menu « … » d'une fille. 9 apps câblées + le "
+              "le menu « … » — « Réaligner toutes les cards sur la référence » sur la mère (DISANT "
+              "quoi faire sans référence), « Faire de ses réglages la référence du lot » sur une "
+              "fille ; le bouton ↓ de la barre d'actions est retiré le 2026-11-02 (décision de "
+              "Fabien) — et l'outil d'assistant `update_batch_settings`. 9 apps câblées + le "
               "générateur ; le composer suit avec son câblage pipeline",
               'wama/common/services/batch_settings.py', 'docs/construction/ui/MODES_QUEUE_UX.md §5ter',
               annexes=('wama/common/tests/tests_batch_views.py',),
@@ -2164,6 +2166,21 @@ MECHANISMS = (
               'wama/common/utils/export_formats.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3',
               annexes=('wama/common/templates/common/_download_button.html',
                        'wama/common/templatetags/wama_actions.py')),
+    # Ajouté le 2026-11-02 (demande de Fabien : « les "À propos" et "Aide" de toutes les
+    # applications sont à revérifier […] le corps pourrait aussi se mettre à jour en fonction des
+    # déclarations des modèles utilisés »).
+    Mechanism('app_about', "Onglets « À propos » et « Aide » d'une app",
+              "Ce que l'app DÉCLARE (résumé, fonctionnalités, aide propre — jamais un nom de "
+              "modèle) et ce qui se DÉRIVE : moteurs actuels (la lecture de « Modèles et "
+              "publications »), entrées, sorties, capacités du catalogue, ORIGINE (WAMA, WAMA Lab, "
+              "ou le bac à sable et TOUS ses développeurs). Rendus par le gabarit commun, chargés à "
+              "l'ouverture de l'onglet (`/common/about|help/<app>/`) ; aucune app ne réécrit ces "
+              "onglets. Une jumelle lit la déclaration de sa source ; `description_long` du "
+              "catalogue en dérive",
+              'wama/common/app_about.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §4.3',
+              annexes=('wama/common/templates/common/_app_about.html',
+                       'wama/common/templates/common/_app_help.html',
+                       'wama/common/tests/tests_app_about.py')),
     Mechanism('volet', 'Déclaration du volet par la page',
               "Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais "
               "ajout) ; sans déclaration, l'état d'avant — les apps n'écrivent rien "

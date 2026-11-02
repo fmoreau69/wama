@@ -442,8 +442,9 @@ class PromotionBetweenChildAndMotherTest(TestCase):
 
 
 class BatchCardReferenceRenderTest(TestCase):
-    """La card mère porte les deux coordonnées des gestes (`_batch_card.html`) : ↓ désactivé tant
-    que le lot n'a pas de référence, `data-batch-promote-url` sur l'en-tête pour ses filles."""
+    """La card mère porte les coordonnées des gestes d'alignement sur son EN-TÊTE
+    (`_batch_card.html`), lues par le menu « … » de la mère (réaligner) et des filles (promouvoir) ;
+    depuis le 2026-11-02 aucun bouton ↓ ne prend place dans sa barre d'actions."""
 
     def _render(self, reference):
         from django.template.loader import render_to_string
@@ -455,17 +456,16 @@ class BatchCardReferenceRenderTest(TestCase):
         return render_to_string('common/_batch_card.html',
                                 {'batch_info': info, 'app': 'converter', 'actions_communes': True})
 
-    def test_without_a_reference_the_realign_button_is_disabled_and_says_what_to_do(self):
+    def test_the_header_carries_the_gestures_and_says_whether_there_is_a_reference(self):
         html = self._render(None)
         self.assertRegex(html, r'data-batch-promote-url="[^"]*/batch/\d+/promote/"')
         self.assertRegex(html, r'data-batch-realign-url="[^"]*/batch/\d+/realign/"')
-        self.assertRegex(html, r'batch-realign-btn[^>]*\bdisabled\b')
-        self.assertIn('Aucun réglage de référence', html)
+        self.assertIn('data-batch-reference="0"', html)
 
-    def test_with_a_reference_the_realign_button_is_live(self):
+    def test_a_reference_is_said_and_no_realign_button_takes_a_place_in_the_actions(self):
         html = self._render({'source': ''})
-        self.assertNotRegex(html, r'batch-realign-btn[^>]*\bdisabled\b')
-        self.assertIn('Réaligner toutes les cards du lot', html)
+        self.assertIn('data-batch-reference="1"', html)
+        self.assertNotIn('batch-realign-btn', html)
 
 
 class LinkFormBatchViewsTest(TestCase):

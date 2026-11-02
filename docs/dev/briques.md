@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**223 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**224 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1840,7 +1840,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
 
 - **Domicile** : `wama/common/sandbox.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Bac à sable d'apps — jumelles EXÉCUTABLES (route §10.3, marche S, actée Fabien 2026-08-18).
-- **API publique** (20) :
+- **API publique** (23) :
   - `load_registry() -> list` — Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
   - `twin_source(label: str) -> str` — App SOURCE d'une jumelle ('' si ce label n'en est pas une).
   - `declaring_app(app: str) -> str` — L'app dont la DÉCLARATION fait foi pour `app` : elle-même, ou sa SOURCE si c'est une
@@ -1850,7 +1850,10 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `manifest_key(label: str) -> str` — La clé du manifeste d'où est NÉE une app de zéro : la base de son label —
   - `inject_sandbox_registry(registry: dict, *, runnable=None, born=None) -> None` — Entrées d'un registre INDEXÉ PAR APP pour les jumelles : la déclaration de la source,
   - `born_declaration(label: str, facet: str)` — Facette DÉCLARÉE d'une app créée DE ZÉRO (`app_sandbox create --from-manifest`), telle que
-  - `save_registry(entries: list) -> None`
+  - `save_registry(entries: list) -> None` — Réécrit le registre. ⚠ Jamais le VRAI pendant `manage.py test` (2026-11-02, vécu) : un test qui
+  - `entry_contributors(entry: dict) -> list` — Les développeurs d'une entrée du registre, sans doublon, le créateur d'abord.
+  - `app_contributors(label: str) -> list` — Les développeurs de l'app `label` — [] : app d'opérateur (ligne de commande) ou inconnue.
+  - `record_contributor(label: str, username: str) -> bool` — `username` prend part à l'app `label` : il rejoint ses développeurs (le premier devient son
   - `sandbox_labels() -> list` — Labels des jumelles dont le PACKAGE existe réellement (garde anti-registre orphelin :
   - `is_test_module(rel_parts) -> bool` — Le fichier (chemin RELATIF au paquet, en parties) est-il un module de TEST ?
   - `is_copied_twin_test(module_name: str, labels=None) -> bool` — Le module de test `module_name` (`wama.<jumelle>.tests_x`) est-il un test COPIÉ d'une
@@ -2344,7 +2347,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 ### Réglages de référence d'un lot (promotion fille ↔ mère)
 
-UNE ligne par lot (`BatchSettings`, adressée comme `ProcessRun`) : ce que la mère TIENT pour référence — posé par sa ⚙ (`batch_update` la retient désormais) ou PROMU d'une fille (`batch_promote`, POST `source=`) ; « ↓ réaligner » (`batch_realign`) la repose sur toutes les filles et efface les écarts individuels. La charge utile est DÉCLARÉE (`promote_payload`), par défaut les réglages du SCHÉMA lus par la règle de la révision ; le monde Data y mettra son protocole — même geste, deux charges. Les trois gestes écrivent par le chemin de la ⚙ de lot (deux temps, un refus n'écrit rien) ; la référence suit la duplication et part avec la suppression. Surfaces : bouton ↓ de la card mère (désactivé et DISANT pourquoi sans référence), entrée « Promouvoir ses réglages au lot » du menu « … » d'une fille. 9 apps câblées + le générateur ; le composer suit avec son câblage pipeline
+UNE ligne par lot (`BatchSettings`, adressée comme `ProcessRun`) : ce que la mère TIENT pour référence — posé par sa ⚙ (`batch_update` la retient désormais) ou PROMU d'une fille (`batch_promote`, POST `source=`) ; « ↓ réaligner » (`batch_realign`) la repose sur toutes les filles et efface les écarts individuels. La charge utile est DÉCLARÉE (`promote_payload`), par défaut les réglages du SCHÉMA lus par la règle de la révision ; le monde Data y mettra son protocole — même geste, deux charges. Les trois gestes écrivent par le chemin de la ⚙ de lot (deux temps, un refus n'écrit rien) ; la référence suit la duplication et part avec la suppression. Surfaces : le menu « … » — « Réaligner toutes les cards sur la référence » sur la mère (DISANT quoi faire sans référence), « Faire de ses réglages la référence du lot » sur une fille ; le bouton ↓ de la barre d'actions est retiré le 2026-11-02 (décision de Fabien) — et l'outil d'assistant `update_batch_settings`. 9 apps câblées + le générateur ; le composer suit avec son câblage pipeline
 
 - **Domicile** : `wama/common/services/batch_settings.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md §5ter](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Les RÉGLAGES D'UN LOT — ce que la card MÈRE tient pour référence (`MODES_QUEUE_UX §5ter`, `WAMA_APP_GENERATION_ROUTE §10.6` 5.3 ; marche P5, 2026-10-03).
@@ -2639,6 +2642,21 @@ Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivi
 Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales (bouton édition compris — décision Fabien 2026-09-08). Modèle HYBRIDE : les actions EXISTANTES sont LUES sur le `.btn-group-actions` de la card (contrat de `cloneActions`, donc zéro ligne par app et clic PROXIFIÉ vers le vrai bouton), les TRANSVERSES sont déclarées et leurs URLs viennent de `queue_dnd_attrs` — une route absente n'émet pas son attribut, donc l'entrée n'apparaît pas. Sous-menus en CASCADE, au survol et au clic, le parent restant ouvert (2026-09-14) et DIFFÉRÉS (« Recherche… » puis rempli : il n'attend pas le réseau). Se ferme sur un geste de l'UTILISATEUR hors du menu, jamais sur un `scroll` (un focus programmatique le refermait en 7 ms). 2ᵉ surface : l'arbre de fichiers (`ouvrir()` depuis `filemanager.js`, 2026-09-14), qui obtient depuis le 2026-09-18 les gestes d'ÉLÉMENT (Partager…, Ajouter à la médiathèque…, Ajouter au RAG) sur un fichier de SORTIE par `entreesPourChemin` — le serveur remonte à l'élément (`send_to.item_for_output_path`), les entrées sont CELLES de la card (`entreesPourElement`, une seule liste), posées en ENTRÉE DIFFÉRÉE à la racine du menu (`{chargement, charger}` : « Recherche… » puis remplacement, le menu n'attend pas le réseau). Depuis le 2026-10-14, un fichier qui n'est la sortie de RIEN (dépôt temporaire, entrée d'app, dossier connecté) a « Ajouter au RAG » sur le FICHIER, et une sélection de N fichiers « Ajouter N fichiers au RAG » (`entreesPourChemins`). ⚠ Le menu est posé sur `document.body` : une card vit dans un conteneur à `overflow` qui le rognerait. Le « … » suit les cards INSÉRÉES ou REMPLACÉES après le chargement (observation de la file, 2026-09-15)
 
 - **Domicile** : `wama/common/static/common/js/wama-card-menu.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
+
+### Onglets « À propos » et « Aide » d'une app
+
+Ce que l'app DÉCLARE (résumé, fonctionnalités, aide propre — jamais un nom de modèle) et ce qui se DÉRIVE : moteurs actuels (la lecture de « Modèles et publications »), entrées, sorties, capacités du catalogue, ORIGINE (WAMA, WAMA Lab, ou le bac à sable et TOUS ses développeurs). Rendus par le gabarit commun, chargés à l'ouverture de l'onglet (`/common/about|help/<app>/`) ; aucune app ne réécrit ces onglets. Une jumelle lit la déclaration de sa source ; `description_long` du catalogue en dérive
+
+- **Domicile** : `wama/common/app_about.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §4.3](../construction/architecture/WAMA_APP_CONVENTIONS.md)
+- **Module** : « À PROPOS » et « AIDE » de chaque app — ce qui est DÉCLARÉ, et ce qui se DÉRIVE (2026-11-02).
+- **API publique** (7) :
+  - `declaration_key(app_id: str) -> str` — La clé de déclaration d'une app : la sienne, ou celle de sa SOURCE pour une jumelle.
+  - `declared(app_id: str) -> dict`
+  - `origin(app_id: str) -> dict` — D'où vient l'app : WAMA, ou le bac à sable — ses DÉVELOPPEURS (créateur d'abord, puis ceux
+  - `short_name(name: str) -> str` — Le nom COURT d'un modèle pour une pastille : avant le tiret qui ouvre sa description
+  - `engines(app_id: str, groups=None) -> list` — Les MOTEURS actuels, par groupe (un select de catalogue) : `[{label, names, more}]` — la
+  - `about_facts(app_id: str, groups=None) -> dict` — Ce que l'onglet « À propos » montre : le déclaré et le dérivé, prêts à rendre.
+  - `help_facts(app_id: str) -> dict` — Ce que l'onglet « Aide » montre : les gestes COMMUNS (le gabarit), les capacités déclarées
 
 ### Panneau de la cloche
 
@@ -3734,7 +3752,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (105) :
+- **API publique** (111) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -3796,6 +3814,12 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `duplicate_item(user, app: str, pk: int) -> dict` — Duplicate ONE of the user's items, so it can be re-run with different settings.
   - `stop_item(user, app: str, pk: int) -> dict` — Stop ONE of the user's items that is waiting or running — the stop button of its card.
   - `update_item_settings(user, app: str, pk: int, settings: dict=None) -> dict` — Change the settings of ONE of the user's items — the settings button of its card.
+  - `launch_batch(user, app: str, batch_id: int) -> dict` — Start (or restart) every item of one of the user's batches — the ▶ button of the batch card.
+  - `update_batch_settings(user, app: str, batch_id: int, settings: dict=None, promote_from: int=None, realign: bool=False) -> dict` — Set the settings of a whole batch — ONE of three gestures:
+  - `duplicate_batch(user, app: str, batch_id: int) -> dict` — Duplicate one of the user's batches with all its items, to run it again with other
+  - `delete_batch(user, app: str, batch_id: int, confirm: bool=False) -> dict` — Delete one of the user's batches AND all its items. Destructive and not undoable: say how
+  - `get_batch_state(user, app: str, batch_id: int) -> dict` — State of a batch: its overall status, the counts (success, running, pending, failure) and
+  - `get_batch_result(user, app: str, batch_id: int) -> dict` — The results of a whole batch: its state and the address of the ZIP of its outputs — the
   - `list_app_access(user) -> dict` — Sandbox apps and who may use them: the ones you open to developers (creator or
   - `request_app_access(user, app: str, reason: str='') -> dict` — Ask to use and test a sandbox app you did not create (developers only). Its creator and the
   - `grant_app_access(user, app: str, username: str) -> dict` — Open a sandbox app to a developer so they can use and test it — for its creator or an

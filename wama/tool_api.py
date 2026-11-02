@@ -3565,6 +3565,188 @@ def update_item_settings(user, app: str, pk: int, settings: dict = None) -> dict
                        'settings': {k: payload[k] for k in settings if k in payload}}
 
 
+# Les gestes d'un LOT (2026-11-02, demande de Fabien : « dans la foulée ») : ce que la fabrique
+# `batch_views.make_batch_views` donne à la card mère d'un lot — ▶, ⚙ (régler, promouvoir,
+# réaligner), ⧉, 🗑, l'état et le ZIP. Les huit vues sont retenues avec la déclaration de
+# l'élément (`element_declaration(...)['batch_views']`) : l'outil appelle LA vue du bouton, sous
+# la garde d'app, un lot audio de l'enhancer compris (surface `audio_enhancer`).
+def _batch_view(user, app: str, gesture: str, batch_id: int, what: str, *, method: str = 'post',
+                data=None):
+    """(échec, None) ou (None, réponse de la vue) — `app` est la SURFACE de l'élément du lot. La
+    vue garde le lot (propriétaire, collaborateur, ou lecteur pour un lot reçu) ; une ÉCRITURE
+    passe d'abord par `_batch_write_refusal` (la garde d'app des verbes transverses)."""
+    from django.http import Http404
+    from django.test import RequestFactory
+    from wama.common.utils.batch_views import element_declaration
+    from wama.common.utils.preview_registry import PreviewRegistry
+    model = PreviewRegistry.get_model(app)
+    view = (((element_declaration(model) or {}).get('batch_views') or {}).get(gesture)
+            if model is not None else None)
+    if view is None:
+        return {'error': f"L'app '{app}' ne déclare aucun lot ({what})."}, None
+    factory = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE)
+    request = factory.get('/') if method == 'get' else factory.post('/', data or {})
+    request.user = user
+    try:
+        response = view(request, batch_id)
+    except Http404:
+        return {'error': f"{what} : lot {app}#{batch_id} introuvable."}, None
+    except Exception as e:
+        logger.warning(f"[tool_api] {gesture} {app}#{batch_id} : {e}")
+        return {'error': f"{what} impossible pour le lot {app}#{batch_id} : {e}"}, None
+    try:
+        payload = json.loads(getattr(response, 'content', b'') or b'{}')
+    except ValueError:
+        payload = {}
+    failure = _verdict(getattr(response, 'status_code', 500), payload,
+                       f"{what} du lot {app}#{batch_id}")
+    return (failure, None) if failure else (None, payload or {})
+
+
+def _batch_write_refusal(user, app: str):
+    """La garde d'app d'une écriture de lot — celle des verbes de cycle (`_refus_app`)."""
+    return _refus_app(user, TOOL_APP_ALIAS.get(app, app))
+
+
+@tool_effect(WRITE)
+def launch_batch(user, app: str, batch_id: int) -> dict:
+    """
+    Start (or restart) every item of one of the user's batches — the ▶ button of the batch card.
+
+    Args:
+        app:      app id the batch belongs to (e.g. transcriber, audio_enhancer).
+        batch_id: the batch id (`list_my_items` shows each item's batch).
+
+    Returns:
+        {"started": true, "app", "batch_id", "ids"} or {"error"}
+    """
+    if refusal := _batch_write_refusal(user, app):
+        return refusal
+    failure, payload = _batch_view(user, app, 'batch_start', batch_id, 'Lancement')
+    return failure or {'started': True, 'app': app, 'batch_id': batch_id,
+                       'ids': payload.get('started') or payload.get('ids') or []}
+
+
+@tool_effect(WRITE)
+def update_batch_settings(user, app: str, batch_id: int, settings: dict = None,
+                          promote_from: int = None, realign: bool = False) -> dict:
+    """
+    Set the settings of a whole batch — ONE of three gestures:
+      - settings: write these settings on every item and keep them as the batch's reference;
+      - promote_from: take the settings of that item of the batch as the reference, and write
+        them on its sister items;
+      - realign: write the batch's reference settings back on every item (individual changes
+        are replaced).
+    Items still running are left untouched.
+
+    Args:
+        app:          app id the batch belongs to.
+        batch_id:     the batch id.
+        settings:     {setting name: value}, as for `update_item_settings`.
+        promote_from: id of the item whose settings become the reference.
+        realign:      true to re-apply the reference.
+
+    Returns:
+        {"updated": n, "app", "batch_id", "mode"} or {"error"}
+    """
+    if isinstance(settings, str):
+        try:
+            settings = json.loads(settings)
+        except ValueError:
+            settings = None
+    realign = _truthy(realign)
+    chosen = [m for m, on in (('settings', bool(settings)), ('promote', promote_from not in (None, '')),
+                              ('realign', realign)) if on]
+    if len(chosen) != 1:
+        return (_signed_in_refusal(user, "Écriture")
+                or {'error': "indiquer UN geste : settings, promote_from ou realign=true."})
+    mode = chosen[0]
+    gesture, data = {'settings': ('batch_update', settings),
+                     'promote': ('batch_promote', {'source': promote_from}),
+                     'realign': ('batch_realign', None)}[mode]
+    if refusal := _batch_write_refusal(user, app):
+        return refusal
+    failure, payload = _batch_view(user, app, gesture, batch_id, 'Réglages', data=data)
+    return failure or {'updated': payload.get('updated', 0), 'app': app, 'batch_id': batch_id,
+                       'mode': mode}
+
+
+@tool_effect(WRITE)
+def duplicate_batch(user, app: str, batch_id: int) -> dict:
+    """
+    Duplicate one of the user's batches with all its items, to run it again with other
+    settings. The copies share the input files and start empty.
+
+    Returns:
+        {"duplicated": true, "app", "source_id", "new_id"} or {"error"}
+    """
+    if refusal := _batch_write_refusal(user, app):
+        return refusal
+    failure, payload = _batch_view(user, app, 'batch_duplicate', batch_id, 'Duplication')
+    return failure or {'duplicated': True, 'app': app, 'source_id': batch_id,
+                       'new_id': payload.get('new_batch_id') or payload.get('batch_id')
+                       or payload.get('id')}
+
+
+@tool_effect(DESTROY)
+def delete_batch(user, app: str, batch_id: int, confirm: bool = False) -> dict:
+    """
+    Delete one of the user's batches AND all its items. Destructive and not undoable: say how
+    many items will go (`get_batch_state`), get the user's explicit agreement, then call again
+    with confirm=true.
+
+    Returns:
+        {"deleted": true, "app", "batch_id"} or {"error"}
+    """
+    if not _truthy(confirm):
+        return (_signed_in_refusal(user, "Écriture")
+                or {'error': "Geste destructif non confirmé : dites combien d'éléments partent, "
+                             "obtenez l'accord de l'utilisateur, puis rappelez avec confirm=true.",
+                    'app': app, 'batch_id': batch_id})
+    if refusal := _batch_write_refusal(user, app):
+        return refusal
+    failure, _payload = _batch_view(user, app, 'batch_delete', batch_id, 'Suppression')
+    return failure or {'deleted': True, 'app': app, 'batch_id': batch_id}
+
+
+@tool_effect(READ)
+def get_batch_state(user, app: str, batch_id: int) -> dict:
+    """
+    State of a batch: its overall status, the counts (success, running, pending, failure) and
+    each item with its status, progress and error.
+
+    Returns:
+        {"batch_id", "status", "total", "counts", "items"} or {"error"}
+    """
+    failure, payload = _batch_view(user, app, 'batch_status', batch_id, 'État', method='get')
+    return failure or _local_times(payload)
+
+
+@tool_effect(READ)
+def get_batch_result(user, app: str, batch_id: int) -> dict:
+    """
+    The results of a whole batch: its state and the address of the ZIP of its outputs — the
+    ZIP button of the batch card. Give the `link` to the user to download it.
+
+    Returns:
+        {"batch_id", "status", "counts", "download_url", "link"} or {"error"}
+    """
+    failure, payload = _batch_view(user, app, 'batch_status', batch_id, 'Résultats', method='get')
+    if failure:
+        return failure
+    from wama.common.manifests.codegen.urls_gen import served_route
+    from wama.common.services.navigation import absolute_url
+    from django.urls import reverse
+    base = TOOL_APP_ALIAS.get(app, app)
+    prefix = app[:-len(base)] if app != base and app.endswith(base) else ''
+    route = served_route(base, 'batch_download', [batch_id], prefix=prefix)
+    url = reverse(f'{base}:{route}', args=[batch_id]) if route else ''
+    done = (payload.get('counts') or {}).get('success', 0)
+    return {'batch_id': batch_id, 'status': payload.get('status'), 'counts': payload.get('counts'),
+            'download_url': url if done else '', 'link': absolute_url(url) if (url and done) else '',
+            **({} if done else {'message': "Aucun résultat à télécharger pour l'instant."})}
+
+
 # L'ACCÈS aux apps du bac à sable (2026-11-02, `accounts.app_access`) : un développeur DEMANDE à
 # utiliser une app qu'il n'a pas créée, son créateur ou un administrateur l'ACCORDE ou la RETIRE.
 # Transverses : les droits sont décidés dans le service, à chaque geste.
@@ -4254,6 +4436,13 @@ TOOL_REGISTRY = {
     'stop_item':        stop_item,
     'update_item_settings': update_item_settings,
     'clear_my_queue':   clear_my_queue,
+    # Les gestes d'un LOT (2026-11-02) : ceux de la card mère, par la vue que le bouton poste.
+    'launch_batch':          launch_batch,
+    'update_batch_settings': update_batch_settings,
+    'duplicate_batch':       duplicate_batch,
+    'delete_batch':          delete_batch,
+    'get_batch_state':       get_batch_state,
+    'get_batch_result':      get_batch_result,
     # L'accès aux apps du bac à sable (2026-11-02) : demander, accorder, répondre, retirer.
     'list_app_access':    list_app_access,
     'request_app_access': request_app_access,

@@ -196,72 +196,49 @@
 
         <!-- Onglet À propos -->
         <div class="tab-pane fade" id="about-pane" role="tabpanel">
-            {% block about_content %}
-            {% comment %}Contenu par DÉFAUT auto-généré des métadonnées (current_app_spec =
-            entrée APP_CATALOG, via le context processor accounts). Une app n'écrit ce bloc
-            que pour une spécificité au-delà du catalogue — soigner les métadonnées À LA
-            SOURCE est ce qui remplit cette page (AGENTS.md, principe 3).{% endcomment %}
-            <div class="info-card">
-                {% if current_app_spec %}
-                <h3><i class="{{ current_app_spec.icon }} me-2"></i>À propos de {{ current_app_spec.label }}</h3>
-                <p class="text-body-emphasis">{{ current_app_spec.description_long|default:current_app_spec.description }}</p>
-                <hr>
-                <dl class="row text-body-emphasis mb-0">
-                    <dt class="col-sm-3">Entrées acceptées</dt>
-                    <dd class="col-sm-9">{{ current_app_spec.input_types|join:", "|default:"—" }}
-                        {% if current_app_spec.input_extensions %}
-                        <br><small class="text-muted">{{ current_app_spec.input_extensions|join:" " }}</small>
-                        {% endif %}</dd>
-                    <dt class="col-sm-3">Sorties produites</dt>
-                    <dd class="col-sm-9">{{ current_app_spec.output_types|join:", "|default:"—" }}</dd>
-                </dl>
-                {% else %}
-                <h3>À propos de cette application</h3>
-                <p class="text-body-emphasis">Informations sur l'application...</p>
-                {% endif %}
+            {% comment %}« À propos » (2026-11-02, `common/app_about.py`) : ce que l'app DÉCLARE et ce qui
+            se DÉRIVE — moteurs actuels, entrées, sorties, capacités, origine — puis ses modèles et
+            leurs publications, chargés à l'ouverture de l'onglet (`common.views.app_about`, par le
+            chargeur de `wama-app-base.js`). Le contenu ci-dessous ne sert que jusque-là, ou si la
+            route n'est pas encore servie. Aucune app ne réécrit ce bloc (`tests_app_about`) : une
+            spécificité se DÉCLARE dans `app_about.ABOUT`. Adresse LITTÉRALE : ce gabarit est relu à
+            chaud par la prod, la route ne l'est qu'au rechargement.
+            `about_app` : l'app décrite — une app hors du catalogue (monde Lab) la nomme elle-même.{% endcomment %}
+            <div data-about-models="/common/about/{% block about_app %}{{ current_app }}{% endblock %}/">
+                {% block about_content %}
+                <div class="info-card">
+                    {% if current_app_spec %}
+                    <h3><i class="{{ current_app_spec.icon }} me-2"></i>À propos de {{ current_app_spec.label }}</h3>
+                    <p class="text-body-emphasis mb-0">{{ current_app_spec.description_long|default:current_app_spec.description }}</p>
+                    {% else %}
+                    <h3>À propos de cette application</h3>
+                    {% endif %}
+                </div>
+                {% endblock %}
             </div>
-            {% endblock %}
-            {% comment %}Modèles de l'app et leurs publications — HORS du bloc, donc présents aussi
-            dans les apps qui réécrivent leur À-propos. Chargés à l'ouverture de l'onglet
-            (`wama-app-base.js`). Adresse LITTÉRALE : ce gabarit est relu à chaud par la prod, la
-            route ne l'est qu'au rechargement — une balise url casserait toutes les apps d'ici là.{% endcomment %}
-            {% comment %}Bloc surchargeable : une app hors du catalogue des apps (monde Lab, servie
-            sous /lab/) n'a pas de current_app — elle nomme son identifiant elle-même.{% endcomment %}
-            {% block about_models %}{% if current_app %}
-            <div data-about-models="/common/about/models/{{ current_app }}/"></div>
-            {% endif %}{% endblock %}
+            {% block about_models %}{% endblock %}
         </div>
 
         <!-- Onglet Aide -->
         <div class="tab-pane fade" id="help-pane" role="tabpanel">
+            {% comment %}« Aide » (2026-11-02) : les gestes COMMUNS, ceux que les capacités déclarées
+            ajoutent et l'aide PROPRE que l'app déclare (`common.views.app_help`), chargés à
+            l'ouverture de l'onglet ; la liste commune ci-dessous sert jusque-là.{% endcomment %}
+            <div data-about-models="/common/help/{% block help_app %}{{ current_app }}{% endblock %}/">
             {% block help_content %}
-            {% comment %}Aide par DÉFAUT : les gestes sont COMMUNS par construction (mêmes
-            boutons, même file, même volet partout — AGENTS.md principe 2), donc un texte
-            commun est exact pour toute app du gabarit ; les puces conditionnelles viennent
-            des capacités déclarées au catalogue.{% endcomment %}
             <div class="info-card">
                 <h3><i class="fas fa-question-circle me-2"></i>Aide</h3>
                 <ul class="text-body-emphasis mb-0">
                     <li><strong>Déposer</strong> : glissez vos fichiers sur la card d'entrée (ou cliquez pour parcourir).</li>
                     <li><strong>Régler</strong> : le volet droit porte vos réglages par défaut ; la modale ⚙ de chaque
                         élément permet l'édition fine avant lancement.</li>
-                    <li><strong>Lancer</strong> : ▶ sur l'élément, ou « Tout lancer » dans la barre de file.
-                        La progression et l'ETA s'affichent sur chaque card.</li>
-                    <li><strong>Récupérer</strong> : ⬇ télécharge le résultat ; ⧉ duplique un élément avec ses
-                        réglages ; 🗑 supprime.</li>
-                    <li><strong>Inspecter</strong> : cliquez une card pour ouvrir l'aperçu et les détails dans le
-                        volet droit.</li>
-                    {% if current_app_spec.has_batch %}
-                    <li><strong>Batch</strong> : un fichier de liste (txt/csv) crée un lot ; les lots se replient
-                        dans la file et se pilotent d'un geste.</li>
-                    {% endif %}
-                    {% if current_app_spec.has_url_import %}
-                    <li><strong>Import URL</strong> : collez une adresse{% if current_app_spec.has_youtube %}
-                        (YouTube compris){% endif %} — le fichier est rapatrié automatiquement.</li>
-                    {% endif %}
+                    <li><strong>Lancer</strong> : ▶ sur l'élément, ou « Tout lancer » dans la barre de file.</li>
+                    <li><strong>Récupérer</strong> : ⬇ télécharge le résultat ; ⧉ duplique ; 🗑 supprime.</li>
+                    <li><strong>Inspecter</strong> : cliquez une card pour ouvrir l'aperçu et les détails dans le volet droit.</li>
                 </ul>
             </div>
             {% endblock %}
+            </div>
         </div>
         {% block extra_tab_panes %}{% endblock %}
     </div>

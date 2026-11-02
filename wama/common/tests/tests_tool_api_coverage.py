@@ -40,15 +40,18 @@ GESTURE_TOOLS = {
         'stop': 'stop_item', 'delete': 'delete_item', 'duplicate': 'duplicate_item',
         'download': 'get_item_result', 'update_settings': 'update_item_settings',
     },
-    # A BATCH has no tool yet : the assistant reaches its elements one by one (the item gestures
-    # above). ⏳ consigned at ROUTE §11 #44 — the budget below can only go down.
+    # A BATCH : the gestures of its mother card (2026-11-02) — the three ways of setting a whole
+    # batch (write, promote one item, realign on the reference) are one tool with one mode each.
     'batch': {
-        'batch_start': None, 'batch_update': None, 'batch_delete': None, 'batch_duplicate': None,
-        'batch_download': None, 'batch_status': None, 'batch_promote': None, 'batch_realign': None,
+        'batch_start': 'launch_batch', 'batch_update': 'update_batch_settings',
+        'batch_promote': 'update_batch_settings', 'batch_realign': 'update_batch_settings',
+        'batch_duplicate': 'duplicate_batch', 'batch_delete': 'delete_batch',
+        'batch_download': 'get_batch_result', 'batch_status': 'get_batch_state',
     },
 }
 #: Gestures without a tool. The value of the measure ; LOWER it in the commit that adds a tool.
-GESTURES_WITHOUT_TOOL_BUDGET = 8
+#: 8 → 0 on 2026-11-02 : the batch tools.
+GESTURES_WITHOUT_TOOL_BUDGET = 0
 
 FACTORIES = {'item': ('wama/common/utils/item_views.py', 'make_item_views'),
              'batch': ('wama/common/utils/batch_views.py', 'make_batch_views')}
@@ -60,8 +63,12 @@ def factory_gestures(path: str, function: str) -> set:
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef) and node.name == function:
             returned = [n.value for n in node.body if isinstance(n, ast.Return)]
-            if returned and isinstance(returned[-1], ast.Dict):
-                return {k.value for k in returned[-1].keys if isinstance(k, ast.Constant)}
+            value = returned[-1] if returned else None
+            if isinstance(value, ast.Name):      # `views = {...}` … `return views`
+                value = next((n.value for n in node.body if isinstance(n, ast.Assign)
+                              and any(getattr(t, 'id', None) == value.id for t in n.targets)), None)
+            if isinstance(value, ast.Dict):
+                return {k.value for k in value.keys if isinstance(k, ast.Constant)}
     raise AssertionError(f'{path} : {function} ne rend plus un dict de vues')
 
 
@@ -108,11 +115,15 @@ class EveryGestureHasItsToolTest(SimpleTestCase):
         without = [g for gestures in GESTURE_TOOLS.values() for g, t in gestures.items() if t is None]
         self.assertEqual(GESTURES_WITHOUT_TOOL_BUDGET, len(without), without)
 
-    def test_the_new_card_tools_are_cross_app_and_state_their_effect(self):
-        for name in ('stop_item', 'update_item_settings'):
+    def test_the_new_card_and_batch_tools_are_cross_app_and_state_their_effect(self):
+        effects = {'stop_item': 'write', 'update_item_settings': 'write', 'launch_batch': 'write',
+                   'update_batch_settings': 'write', 'duplicate_batch': 'write',
+                   'delete_batch': 'destroy', 'get_batch_state': 'read', 'get_batch_result': 'read'}
+        for name, effect in effects.items():
             with self.subTest(tool=name):
                 self.assertIsNone(T.app_id_for_tool(name), 'transverse : gardé dans son corps')
-                self.assertEqual('write', T.effect_of(name)['effect'])
+                self.assertIsNone(T.tool_role(name), 'never taken for a triad tool')
+                self.assertEqual(effect, T.effect_of(name)['effect'])
 
 
 def _account(username, tier='utilisateur', role=''):
@@ -172,6 +183,71 @@ class StopAndSettingsToolsTest(TestCase):
         from django.contrib.auth.models import AnonymousUser
         self.assertIn('error', T.update_item_settings(self.me, 'imager', self.mine.pk))
         self.assertIn('error', T.stop_item(AnonymousUser(), 'imager', self.mine.pk))
+
+
+class BatchToolsTest(TestCase):
+    """The gestures of a batch through their tools — by the view the button posts, on a real app
+    (the transcriber : its batch is linked by a row model), and on another user's batch : nothing."""
+
+    def setUp(self):
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.common.utils.preview_registry import PreviewRegistry
+        self.me = _account('batch_me', role='recherche')
+        self.other = _account('batch_other', role='recherche')
+        self.model = PreviewRegistry.get_model('transcriber')
+        self.batch, self.items = _lot_de(self.model, self.me, 2)
+        self.theirs, _ = _lot_de(self.model, self.other, 1)
+
+    def test_state_and_result_read_the_batch(self):
+        state = T.execute_tool('get_batch_state', {'app': 'transcriber', 'batch_id': self.batch.pk},
+                               self.me)
+        self.assertEqual((2, sorted(i.pk for i in self.items)),
+                         (state['total'], sorted(r['id'] for r in state['items'])))
+        result = T.get_batch_result(self.me, 'transcriber', self.batch.pk)
+        self.assertEqual(('', "Aucun résultat à télécharger pour l'instant."),
+                         (result['download_url'], result.get('message')))
+
+    def test_realign_without_reference_says_so_and_one_gesture_at_a_time(self):
+        out = T.update_batch_settings(self.me, 'transcriber', self.batch.pk, realign=True)
+        self.assertIn('référence', out['error'])
+        self.assertIn('error', T.update_batch_settings(self.me, 'transcriber', self.batch.pk))
+        self.assertIn('error', T.update_batch_settings(self.me, 'transcriber', self.batch.pk,
+                                                       realign=True, promote_from=self.items[0].pk))
+
+    def test_duplicate_then_delete_with_confirmation(self):
+        batch_model = type(self.batch)
+        copy = T.execute_tool('duplicate_batch', {'app': 'transcriber', 'batch_id': self.batch.pk},
+                              self.me)
+        self.assertTrue(copy.get('duplicated'), copy)
+        self.assertIn('error', T.delete_batch(self.me, 'transcriber', copy['new_id']))
+        self.assertTrue(batch_model.objects.filter(pk=copy['new_id']).exists(), 'not confirmed')
+        self.assertTrue(T.delete_batch(self.me, 'transcriber', copy['new_id'], confirm=True)['deleted'])
+        self.assertFalse(batch_model.objects.filter(pk=copy['new_id']).exists())
+
+    @mock.patch('celery.app.task.Task.apply_async', return_value=mock.Mock(id='no-task'))
+    def test_launch_starts_its_items(self, _no_task):
+        out = T.launch_batch(self.me, 'transcriber', self.batch.pk)
+        self.assertTrue(out.get('started'), out)
+
+    def test_another_users_batch_is_out_of_reach(self):
+        for out in (T.get_batch_state(self.me, 'transcriber', self.theirs.pk),
+                    T.delete_batch(self.me, 'transcriber', self.theirs.pk, confirm=True),
+                    T.launch_batch(self.me, 'transcriber', self.theirs.pk)):
+            self.assertIn('error', out)
+        self.assertTrue(type(self.theirs).objects.filter(pk=self.theirs.pk).exists())
+
+    def test_an_app_closed_to_the_account_rejects_its_batch_writes(self):
+        """The app guard of a batch WRITE (`_batch_write_refusal`) : the view alone would let the
+        owner act, whatever the app's policy — a cycle verb is gated in its body."""
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        closed = _account('batch_closed')                        # no role : the transcriber is closed
+        batch, _ = _lot_de(self.model, closed, 1)
+        self.assertEqual('forbidden', T.delete_batch(closed, 'transcriber', batch.pk,
+                                                     confirm=True).get('error'))
+        self.assertTrue(type(batch).objects.filter(pk=batch.pk).exists())
+
+    def test_an_app_without_batches_says_so(self):
+        self.assertIn('error', T.get_batch_state(self.me, 'nosuchapp', 1))
 
 
 class SandboxAppsThroughTheToolsTest(TestCase):

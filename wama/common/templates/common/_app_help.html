@@ -1,0 +1,39 @@
+{% comment %}L'onglet « AIDE » d'une app (`common.views.app_help`, 2026-11-02, `common/app_about.py`) : les
+gestes COMMUNS — mêmes boutons, même file, même volet partout (AGENTS.md principe 2) —, ceux que
+les capacités déclarées au catalogue ajoutent, puis l'aide PROPRE que l'app déclare.{% endcomment %}
+<div class="info-card">
+    <h3><i class="fas fa-question-circle me-2"></i>Aide</h3>
+    {% if help.items %}
+    <h5 class="mt-3">Propre à {{ help.label }}</h5>
+    <dl class="text-body-emphasis mb-3" data-help-own>
+        {% for item in help.items %}
+        <dt>{{ item.title }}</dt>
+        <dd class="mb-2">{{ item.text }}</dd>
+        {% endfor %}
+    </dl>
+    {% if help.links %}<p class="mb-3">{% for link in help.links %}<a class="btn btn-sm btn-outline-emphasis me-2" href="{{ link.url }}">{{ link.label }}</a>{% endfor %}</p>{% endif %}
+    <h5>Les gestes communs</h5>
+    {% endif %}
+    <ul class="text-body-emphasis mb-0">
+        <li><strong>Déposer</strong> : glissez vos fichiers sur la card d'entrée (ou cliquez pour parcourir).</li>
+        <li><strong>Régler</strong> : le volet droit porte vos réglages par défaut ; la modale ⚙ de chaque
+            élément permet l'édition fine avant lancement.</li>
+        <li><strong>Lancer</strong> : ▶ sur l'élément, ou « Tout lancer » dans la barre de file.
+            La progression et l'ETA s'affichent sur chaque card.</li>
+        <li><strong>Récupérer</strong> : ⬇ télécharge le résultat ; ⧉ duplique un élément avec ses
+            réglages ; 🗑 supprime.</li>
+        <li><strong>Inspecter</strong> : cliquez une card pour ouvrir l'aperçu et les détails dans le
+            volet droit ; le menu « … » porte les autres gestes (partager, envoyer vers une autre app…).</li>
+        {% if help.has_batch %}
+        <li><strong>Lots</strong> : un fichier de liste (txt/csv) crée un lot ; sa ⚙ règle toutes ses
+            cards, et son menu « … » les réaligne sur sa référence — celui d'une card fait de ses
+            réglages la référence du lot.</li>
+        {% endif %}
+        {% if help.has_url_import %}
+        <li><strong>Import URL</strong> : collez une adresse{% if help.has_youtube %}
+            (YouTube compris){% endif %} — le fichier est rapatrié automatiquement.</li>
+        {% endif %}
+        <li><strong>Assistant</strong> : tout ce que cette page fait, l'assistant de WAMA sait aussi le
+            faire — demandez-le-lui.</li>
+    </ul>
+</div>
