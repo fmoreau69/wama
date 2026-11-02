@@ -69,13 +69,13 @@ def occult(text: str, doc: dict, language: str = '', segment: int = 0) -> str:
     return engine.occult(text, doc, language, segment)
 
 
-def detect_file(path, language: str = '', **kwargs) -> dict:
-    """Le document de détections d'un fichier : segments lus ICI (couche texte commune), détection
-    par le service."""
+def detect_file(path, language: str = '', ocr=None, **kwargs) -> dict:
+    """Le document de détections d'un fichier : segments lus ICI (couche texte commune, `ocr` :
+    les lignes de l'étape OCR), détection par le service."""
     from wama.common.utils.document_text import read_segments
-    return detect_segments(read_segments(path), language, **kwargs)
+    return detect_segments(read_segments(path, ocr=ocr), language, **kwargs)
 
 
-def occult_file(path, out_path, doc: dict, language: str = '') -> dict:
+def occult_file(path, out_path, doc: dict, language: str = '', ocr=None) -> dict:
     """Le fichier occulté sur place, et sa contre-épreuve (`engine.occult_file`) — aucun modèle."""
-    return engine.occult_file(path, out_path, doc, language)
+    return engine.occult_file(path, out_path, doc, language, ocr=ocr)

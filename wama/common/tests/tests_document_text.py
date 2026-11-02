@@ -705,3 +705,110 @@ class OccultFileTest(_TempDir):
         report = engine.occult_file(src, self.dir / 'out2.docx', doc)
         self.assertEqual(['Anne Martin'], report['remaining'])
         self.assertEqual('[PERSONNE], encore Anne Martin.', docx.Document(report['path']).paragraphs[1].text)
+
+
+def _scan_with_words(dir_, lines):
+    """A one-page SCAN of `lines` — `(x, y, text)` at 11 pt — and the OCR a positioned engine
+    would give for it, WITH its words (contract of `OCRBackend.read_lines`): the native boxes."""
+    import fitz
+    with fitz.open() as native:
+        page = native.new_page()
+        for x, y, text in lines:
+            page.insert_text((x, y), text, fontsize=11)
+        by_line = {}
+        for x0, y0, x1, y1, word, block, line, _ in page.get_text('words'):
+            by_line.setdefault((block, line), []).append(
+                {'bbox': [x0, y0, x1, y1], 'text': word, 'conf': 0.99})
+        ocr_lines = [{'bbox': [min(w['bbox'][0] for w in words), min(w['bbox'][1] for w in words),
+                               max(w['bbox'][2] for w in words), max(w['bbox'][3] for w in words)],
+                      'text': ' '.join(w['text'] for w in words), 'conf': 0.99, 'words': words}
+                     for _, words in sorted(by_line.items())]
+        pixmap, size = page.get_pixmap(dpi=150), page.rect
+    path = dir_ / 'scan_words.pdf'
+    with fitz.open() as pdf:
+        pdf.new_page(width=size.width, height=size.height).insert_image(
+            fitz.Rect(0, 0, size.width, size.height), pixmap=pixmap)
+        pdf.save(str(path))
+    return path, {0: {'width': size.width, 'height': size.height, 'unit': 'pt',
+                      'lines': ocr_lines}}
+
+
+def _scan_darkness(pdf, rect):
+    """Dark pixels of the SCAN IMAGE itself under `rect` (page points), not of the rendered page."""
+    import fitz
+    page = pdf[0]
+    image = fitz.Pixmap(pdf, page.get_images()[0][0])
+    scale = image.width / page.rect.width
+    samples = image.samples
+    return sum(1 for y in range(int(rect.y0 * scale), int(rect.y1 * scale))
+               for x in range(int(rect.x0 * scale), int(rect.x1 * scale))
+               if samples[(y * image.width + x) * image.n] < 128)
+
+
+class ScannedPageOccultationTest(_TempDir):
+    """2026-11-02 (domain `document` of the Anonymizer) — by PAGE, the unit that anonymizes: a
+    page without a text layer is read from its OCR lines (`ocr=`), and a passage found there is
+    redacted in its WORD boxes, the scan's pixels under them erased — the rest of the scan kept
+    exactly as it was (anonymizing keeps the original form)."""
+
+    LINES = [(72, 100, 'Contact: Anne Martin, Paris'), (72, 130, 'Second line of the letter')]
+
+    def test_a_scanned_page_is_read_by_page_from_its_ocr_lines(self):
+        from wama.common.utils.document_text import read_segments
+        path, ocr = _scan_with_words(self.dir, self.LINES)
+        self.assertEqual([''], [s.strip() for s in read_segments(path)])      # no OCR, no text
+        self.assertEqual(['Contact: Anne Martin, Paris\nSecond line of the letter'],
+                         read_segments(path, ocr=ocr))
+        self.assertEqual(read_segments(path, ocr=ocr), read_segments(path, ocr={'0': ocr[0]}))
+
+    def test_occulting_a_scanned_passage_erases_its_pixels_and_only_them(self):
+        import fitz
+        from wama.common.utils.document_text import read_segments, write_replacements
+        path, ocr = _scan_with_words(self.dir, self.LINES)
+        [segment] = read_segments(path, ocr=ocr)
+        start = segment.index('Anne Martin')
+        out = write_replacements(path, self.dir / 'out.pdf',
+                                 {0: [(start, start + len('Anne Martin'), '[PERSONNE]')]}, ocr=ocr)
+        words = {w['text']: fitz.Rect(w['bbox']) for w in ocr[0]['lines'][0]['words']}
+        # « Martin, » : what the passage leaves of the word is a comma — the whole word goes.
+        name = words['Anne'] | words['Martin,']
+        with fitz.open(path) as before, fitz.open(out) as pdf:
+            self.assertGreater(_scan_darkness(before, name), 50)
+            self.assertEqual(0, _scan_darkness(pdf, name))
+            for kept in (words['Contact:'], words['Paris'],
+                         fitz.Rect(ocr[0]['lines'][1]['bbox'])):
+                self.assertEqual(_scan_darkness(before, kept), _scan_darkness(pdf, kept))
+            self.assertIn('[PERSONNE]', pdf[0].get_text())
+
+    def test_without_words_the_line_box_is_cut_by_characters(self):
+        import fitz
+        from wama.common.utils.document_text import read_segments, write_replacements
+        path, ocr = _scan_of(self.dir, [(72, 100, 'Contact: Anne Martin')])
+        [segment] = read_segments(path, ocr=ocr)
+        start = segment.index('Anne Martin')
+        out = write_replacements(path, self.dir / 'out.pdf',
+                                 {0: [(start, len(segment), '[PERSONNE]')]}, ocr=ocr)
+        line = fitz.Rect(ocr[0]['lines'][0]['bbox'])
+        head = fitz.Rect(line.x0, line.y0, line.x0 + line.width * 0.3, line.y1)   # « Contact: »
+        tail = fitz.Rect(line.x0 + line.width * 0.5, line.y0, line.x1, line.y1)    # the name
+        with fitz.open(path) as before, fitz.open(out) as pdf:
+            self.assertEqual(_scan_darkness(before, head), _scan_darkness(pdf, head))
+            self.assertGreater(_scan_darkness(before, tail), 50)
+            self.assertEqual(0, _scan_darkness(pdf, tail))
+
+    def test_the_occultation_takes_the_same_ocr_as_the_detection(self):
+        """`occult_file(ocr=)` : the indexes of a span are those the detection read WITH the OCR."""
+        import fitz
+        from wama.common.privacy import engine
+        from wama.common.utils import detections
+        path, ocr = _scan_with_words(self.dir, self.LINES)
+        doc = detections.new_document(media='text', width=0, height=0, frame_count=1,
+                                      engine='presidio', models=[], classes=['PERSON'])
+        doc['language'] = 'fr'
+        start = 'Contact: Anne Martin, Paris'.index('Anne Martin')
+        detections.add(doc, 0, [detections.text_span(start=start, end=start + 11, label='PERSON')])
+        doc.pop('_index', None)
+        report = engine.occult_file(path, self.dir / 'out.pdf', doc, ocr=ocr)
+        self.assertEqual([], report['remaining'])
+        with fitz.open(report['path']) as pdf:
+            self.assertIn('[PERSONNE]', pdf[0].get_text())

@@ -24,10 +24,11 @@ FORMATS (v1) — un segment est :
     dessous est SUPPRIMÉ (`apply_redactions` — un rectangle posé par-dessus le laisserait
     extractible : une fuite) et le nouveau texte écrit dans la zone ; métadonnées effacées
     (`scrub`), fichier réécrit en entier (`garbage=4`, jamais en incrémental : les anciens objets
-    resteraient dans le fichier). Un PDF scanné n'a pas de texte : ⏳ c'est le domaine document
-    de l'Anonymizer qui le traitera (OCR, boîtes ; décision du 2026-10-28, ROADMAP §16.4bis — en
-    construction, en pause le temps du chantier de Portage Apps), en gardant sa forme. Il lui
-    faut l'OCR À POSITIONS, le même maillon que l'étape préalable du Translator et la forme d'un
+    resteraient dans le fichier). Un PDF scanné n'a pas de texte : avec `ocr=` (2026-11-02, domaine
+    document de l'Anonymizer, ROADMAP §16.4bis), les lignes que l'OCR À POSITIONS a lues — pages
+    scannées, images des pages natives — suivent le texte natif de leur page (`OCR_JOIN`), et un
+    passage qui s'y trouve est caviardé dans ses boîtes de MOTS, les pixels dessous effacés : le
+    reste du scan est intact. Le même maillon que l'étape préalable du Translator et la forme d'un
     scan au Reader (ROADMAP §10.B).
 
 PAGES SANS COUCHE TEXTE (2026-10-29) : `pages_without_text` les dit, `read_pages_without_text`
@@ -305,19 +306,103 @@ def _scrub_docx(document) -> None:
 
 
 # ── PDF ───────────────────────────────────────────────────────────────────────────────────────
-def _read_pdf(path) -> list:
+#: Dans le segment d'une page (unité page), entre son texte natif et celui que l'OCR y a lu.
+OCR_JOIN = '\n'
+
+
+def _ocr_words(page, ocr_page) -> list:
+    """Les lignes qu'un OCR a lues sur une page (`ocr=`), dans l'unité PAGE : `[(texte, [(début,
+    fin, boîte)])]` — le texte de la ligne et, pour chaque mot, sa plage de caractères dans ce
+    texte et sa boîte en points de la page. Les lignes d'une page scannée (`lines`) comme les
+    étiquettes lues dans ses images (`figure_lines`, sans mots : la ligne en fait un seul)."""
     import fitz
+    out = []
+    ocr_page = ocr_page or {}
+    sx = page.rect.width / (ocr_page.get('width') or page.rect.width)
+    sy = page.rect.height / (ocr_page.get('height') or page.rect.height)
+    for line in (ocr_page.get('lines') or []) + (ocr_page.get('figure_lines') or []):
+        words = [w for w in line.get('words') or [] if str(w.get('text') or '').strip()] \
+            or [{'text': line.get('text') or '', 'bbox': line['bbox']}]
+        text, pieces = '', []
+        for word in words:
+            piece = ' '.join(str(word['text']).split())
+            if not piece:
+                continue
+            text += ' ' if text else ''
+            x0, y0, x1, y1 = word['bbox']
+            pieces.append((len(text), len(text) + len(piece),
+                           fitz.Rect(x0 * sx, y0 * sy, x1 * sx, y1 * sy)))
+            text += piece
+        if text:
+            out.append((text, pieces))
+    return out
+
+
+def _page_text(page, read) -> tuple:
+    """Le segment d'une page (unité page) : son texte natif, puis les lignes que l'OCR y a lues
+    (`_ocr_words`), et l'index où celles-ci commencent dans le segment."""
+    native = page.get_text('text')
+    if not read:
+        return native, len(native)
+    start = len(native) + (len(OCR_JOIN) if native else 0)
+    return (native + (OCR_JOIN if native else '') + '\n'.join(text for text, _ in read)), start
+
+
+def _ocr_boxes(read, start: int, end: int) -> list:
+    """Les boîtes (une par ligne touchée) du passage `[start, end)` des lignes lues par l'OCR —
+    index comptés depuis le début de ces lignes. Les mots entiers par leur boîte ; un mot pris en
+    partie par la part de sa boîte qui revient à ses caractères, élargie d'un caractère de chaque
+    côté coupé. Un scan ne dit pas la largeur de ses lettres : occulter un peu trop vaut mieux
+    qu'en laisser dépasser une. Ce qui reste du mot n'est que ponctuation (« Martin, ») : le mot
+    entier."""
+    boxes, offset = [], 0
+    for text, pieces in read:
+        box = None
+        for first, last, rect in pieces:
+            a, b = max(start, offset + first), min(end, offset + last)
+            if a >= b:
+                continue
+            word = text[first:last]
+            head, tail = word[:a - offset - first], word[b - offset - first:]
+            width = rect.width / max(last - first, 1)
+            x0 = rect.x0 if not any(c.isalnum() for c in head) \
+                else rect.x0 + (len(head) - 1) * width
+            x1 = rect.x1 if not any(c.isalnum() for c in tail) \
+                else rect.x1 - (len(tail) - 1) * width
+            part = type(rect)(x0, rect.y0, x1, rect.y1)
+            box = part if box is None else box | part
+        if box is not None:
+            boxes.append(box)
+        offset += len(text) + 1
+    return boxes
+
+
+def _read_pdf(path, ocr=None) -> list:
+    import fitz
+    ocr = _ocr_by_page(ocr)
     with fitz.open(str(path)) as pdf:
-        return [page.get_text('text') for page in pdf]
+        return [_page_text(page, _ocr_words(page, ocr.get(page.number)))[0] for page in pdf]
 
 
-def _rewrite_pdf(path, out_path, replacements, segments) -> None:
+def _rewrite_pdf(path, out_path, replacements, ocr=None) -> None:
+    """L'unité page (l'Anonymizer) : chaque passage du texte natif caviardé partout où il se
+    retrouve sur sa page, son libellé à sa place ; un passage lu par l'OCR (`ocr=`, page scannée
+    ou image d'une figure) caviardé dans ses boîtes de mots, les PIXELS dessous effacés — le reste
+    du scan intact. Deux passes : leurs règles d'image diffèrent."""
     import fitz
+    ocr = _ocr_by_page(ocr)
     with fitz.open(str(path)) as pdf:
         for index, changes in replacements.items():
             page = pdf[int(index)]
+            read = _ocr_words(page, ocr.get(page.number))
+            text, read_from = _page_text(page, read)
+            scanned = []
             for start, end, new in changes:
-                passage = segments[int(index)][start:end].strip()
+                if start >= read_from and read:
+                    scanned += [(box, new if n == 0 else '') for n, box in
+                                enumerate(_ocr_boxes(read, start - read_from, end - read_from))]
+                    continue
+                passage = text[start:end].strip()
                 if not passage:
                     continue
                 for quad in page.search_for(passage, quads=True):
@@ -325,6 +410,12 @@ def _rewrite_pdf(path, out_path, replacements, segments) -> None:
                     page.add_redact_annot(quad, text=new, fill=(1, 1, 1), text_color=(0, 0, 0),
                                           fontsize=max(min(rect.height * 0.75, 11), 4))
             page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
+            if scanned:
+                for box, new in scanned:
+                    page.add_redact_annot(box, text=new, fill=(1, 1, 1), text_color=(0, 0, 0),
+                                          fontsize=max(min(box.height * 0.75, 11), 4))
+                page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS,
+                                      graphics=fitz.PDF_REDACT_LINE_ART_NONE)
         pdf.scrub()
         pdf.save(str(out_path), garbage=4, deflate=True)
 
@@ -1008,7 +1099,9 @@ def read_segments(path, unit: str = '', markup: bool = False, ocr=None) -> list:
     """Le texte de chaque segment du document (voir l'en-tête pour ce qu'est un segment ;
     `unit='block'` : un PDF par blocs ; `markup` : le texte BALISÉ de sa mise en forme, pour un
     DOCX et un PDF par blocs — voir « Balises de mise en forme » ; `ocr` : les lignes des pages
-    sans couche texte, `read_pages_without_text`, pour un PDF par blocs)."""
+    sans couche texte, `read_pages_without_text`, et celles des images, `read_figure_text` —
+    d'un PDF par blocs comme par pages : par pages, elles suivent le texte natif de la leur,
+    après `OCR_JOIN`)."""
     ext = _ext(path)
     if ext in TEXT_EXTS:
         return [_read_plain(path)[0]]
@@ -1017,7 +1110,7 @@ def read_segments(path, unit: str = '', markup: bool = False, ocr=None) -> list:
         if markup:
             return [_docx_groups(p)[2] for p in paragraphs]
         return [_paragraph_text(p) for p in paragraphs]
-    return _read_pdf_blocks(path, markup, ocr) if unit == 'block' else _read_pdf(path)
+    return _read_pdf_blocks(path, markup, ocr) if unit == 'block' else _read_pdf(path, ocr)
 
 
 def write_replacements(path, out_path, replacements: dict, unit: str = '',
@@ -1047,5 +1140,5 @@ def write_replacements(path, out_path, replacements: dict, unit: str = '',
         _scrub_docx(document)
         document.save(str(out_path))
     else:
-        _rewrite_pdf(path, out_path, changes, _read_pdf(path))
+        _rewrite_pdf(path, out_path, changes, ocr)
     return str(out_path)

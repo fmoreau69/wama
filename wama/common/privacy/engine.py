@@ -183,23 +183,27 @@ def occult_segment(text: str, spans: list, language: str = DEFAULT_LANGUAGE) -> 
                                         operators=operators).text
 
 
-def detect_file(path, language: str = '', **kwargs) -> dict:
-    """Le document de détections d'un FICHIER (PDF natif, DOCX, TXT) : ses segments lus par la
-    couche texte commune (`common/utils/document_text`), un segment par « frame »."""
+def detect_file(path, language: str = '', ocr=None, **kwargs) -> dict:
+    """Le document de détections d'un FICHIER (PDF, DOCX, TXT) : ses segments lus par la couche
+    texte commune (`common/utils/document_text`), un segment par « frame ». `ocr` : les lignes
+    lues par l'étape OCR (`ocr_process.read_ocr_file`) — un scan, le texte d'une image."""
     from wama.common.utils.document_text import read_segments
-    return detect_segments(read_segments(path), language, **kwargs)
+    return detect_segments(read_segments(path, ocr=ocr), language, **kwargs)
 
 
-def occult_file(path, out_path, doc: dict, language: str = '') -> dict:
+def occult_file(path, out_path, doc: dict, language: str = '', ocr=None) -> dict:
     """Le fichier réécrit SUR PLACE, chaque passage du document (corrigé ou non) remplacé par son
-    libellé — la forme d'origine conservée (`document_text.write_replacements`).
+    libellé — la forme d'origine conservée (`document_text.write_replacements`). `ocr` : le MÊME
+    qu'à la détection (les index des segments en dépendent).
 
     Puis la CONTRE-ÉPREUVE (revue d'opus du 2026-10-17) : le fichier produit est RELU, et tout
     passage d'origine qui s'y trouve encore est rendu dans `remaining` — le même nom ailleurs, non
     détecté, ou un passage que le format n'a pas su atteindre. Rend `{'path', 'remaining'}` ;
-    à l'appelant de ne pas livrer un fichier dont `remaining` n'est pas vide sans le dire."""
+    à l'appelant de ne pas livrer un fichier dont `remaining` n'est pas vide sans le dire. Elle
+    relit la couche texte du fichier produit, sans OCR : un passage lu sur un scan y est effacé
+    avec ses pixels, et le relire demanderait un second OCR."""
     from wama.common.utils.document_text import read_segments, write_replacements
-    segments = read_segments(path)
+    segments = read_segments(path, ocr=ocr)
     language = language or doc.get('language') or DEFAULT_LANGUAGE
     replacements, passages = {}, set()
     for frame in doc.get('frames') or []:
@@ -212,7 +216,7 @@ def occult_file(path, out_path, doc: dict, language: str = '') -> dict:
             passage = segments[index][start:end].strip()
             if len(passage) >= 3:
                 passages.add(passage)
-    write_replacements(path, out_path, replacements)
+    write_replacements(path, out_path, replacements, ocr=ocr)
     produced = '\n'.join(read_segments(out_path))
     return {'path': str(out_path), 'remaining': sorted(p for p in passages if p in produced)}
 
