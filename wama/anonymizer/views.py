@@ -517,8 +517,8 @@ def _apply_media_settings(media, data):
 def _media_schema(media):
     """Le schéma du DOMAINE du média (image / vidéo, ou document — `app_modes.domain_schema`) :
     la ⚙ d'une card, celle d'un lot et l'écrivain des réglages lisent le même objet."""
-    from wama.common.utils.app_modes import domain_schema, element_domain_or_first
-    return domain_schema('anonymizer', element_domain_or_first(media))
+    from wama.common.utils.app_modes import element_schema
+    return element_schema(media)
 
 
 def _forget_outputs(media):
@@ -755,10 +755,9 @@ def new_media_settings(user, model=None, app='anonymizer', post=None, inputs=Non
     siens (import du gestionnaire de fichiers). `nature` : celle du fichier reçu — le schéma est
     celui du domaine où elle range le média (`app_modes.element_domain`, sur le média pas encore
     sauvé, la règle de l'imager) ; inconnue, celui de l'image / vidéo."""
-    from wama.common.utils.app_modes import domain_schema_name, element_domain_or_first
+    from wama.common.utils.app_modes import element_schema_name
     item_model = model or Media
-    born = item_model(media_type=nature) if nature else None
-    name = domain_schema_name('anonymizer', element_domain_or_first(born)) if born else ''
+    name = element_schema_name(item_model(media_type=nature)) if nature else ''
     params, settings = _BIRTH.get(name, _BIRTH['PARAMS_JSON'])
     return new_element_settings(user, app, params, item_model, post=post, inputs=inputs, **settings)
 

@@ -342,11 +342,11 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
     @property
     def gear_data(self):
         """data-* de réglages de la card (reflet dans le volet inspecteur) — brique COMMUNE
-        card_gear dérivée du schéma du DOMAINE de l'élément (`app_modes.element_domain` →
-        `domain_schema`), remplace les attributs écrits à la main sur la racine de card (18/08)."""
-        from wama.common.utils.app_modes import domain_schema, element_domain
+        card_gear dérivée du schéma du DOMAINE de l'élément (`app_modes.element_schema`),
+        remplace les attributs écrits à la main sur la racine de card (18/08)."""
+        from wama.common.utils.app_modes import element_schema
         from wama.common.utils.card_gear import gear_data
-        return gear_data(self, domain_schema(self._meta.app_label, element_domain(self)))
+        return gear_data(self, element_schema(self))
 
     @property
     def output_images(self):

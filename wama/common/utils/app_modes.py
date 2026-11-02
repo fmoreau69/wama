@@ -562,6 +562,23 @@ def element_domain_or_first(element) -> str | None:
     return domains[0]['id'] if domains else None
 
 
+def element_schema_name(element) -> str:
+    """Le nom du schéma de réglages du domaine d'un élément (`element_domain_or_first`), '' : le
+    schéma principal de son app (`domain_schema_name`)."""
+    app = getattr(getattr(type(element), '_meta', None), 'app_label', None)
+    return domain_schema_name(app, element_domain_or_first(element)) if app else ''
+
+
+def element_schema(element) -> list:
+    """Le schéma de réglages d'un ÉLÉMENT — celui du domaine où il se range, de son app (une
+    jumelle comprise, par son `app_label`). Une lecture (2026-11-02, relevé par l'instance du
+    domaine document) : l'imager et l'anonymizer l'écrivaient en cinq endroits, sous deux formes
+    (`element_domain` seul, ou avec le repli — le même schéma aujourd'hui, le premier domaine de
+    chaque app portant son schéma principal). Vaut pour un élément pas encore sauvé (un dépôt)."""
+    app = getattr(getattr(type(element), '_meta', None), 'app_label', None)
+    return domain_schema(app, element_domain_or_first(element)) if app else []
+
+
 def domain_filter(app: str, domain_id: str):
     """Les éléments de ce domaine EN BASE : `callable(queryset) -> queryset`, ou None quand le
     domaine a sa card à lui (aucun tri à faire : tous les éléments de son modèle sont à lui).

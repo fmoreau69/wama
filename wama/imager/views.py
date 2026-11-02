@@ -262,9 +262,8 @@ def _born_schema(mode, model=None):
     choisit pour un élément de ce mode (`app_modes.element_domain`, sur l'élément pas encore
     sauvé). Avant l'élément comme après, une seule règle (2026-11-01) — la vue testait le mode
     contre sa propre liste `VIDEO_MODES`."""
-    from wama.common.utils.app_modes import domain_schema, element_domain
-    born = (model or ImageGeneration)(generation_mode=mode)
-    return domain_schema(born._meta.app_label, element_domain(born))
+    from wama.common.utils.app_modes import element_schema
+    return element_schema((model or ImageGeneration)(generation_mode=mode))
 
 
 def new_generation_settings(user, mode, post=None, model=None, app='imager', inputs=None) -> dict:
@@ -907,9 +906,9 @@ progress, global_progress = _pv['progress'], _pv['global_progress']
 
 def _schema_for(gen):
     """Schéma du DOMAINE de la génération (image | vidéo), celui que le domaine nomme
-    (`app_modes.domain_schema`) : vues de réglages, chips de card et modale ⚙ lisent le même objet."""
-    from wama.common.utils.app_modes import domain_schema
-    return domain_schema('imager', _generation_domain(gen))
+    (`app_modes.element_schema`) : vues de réglages, chips de card et modale ⚙ lisent le même objet."""
+    from wama.common.utils.app_modes import element_schema
+    return element_schema(gen)
 
 
 def _apply_generation_settings(generation, data):

@@ -59,6 +59,29 @@ class NoRememberedSettingIsLostTest(SimpleTestCase):
                     self.assertEqual([], lost, 'remembered before, forgotten by the common rule')
 
 
+class ASettingOutsideTheSchemaFollowsThePrincipalSchemaTest(SimpleTestCase):
+    """A panel setting outside the schema (the anonymizer's `classes2blur`) is read and kept with
+    the app's PRINCIPAL schema (`PANEL_SETTINGS`) : its key is that of the domain carrying it. Before
+    2026-11-02 a second domain (the anonymizer's `document`) made the alignment refuse the app."""
+
+    def test_the_classes_to_blur_belong_to_the_image_and_video_domain(self):
+        from wama.common.management.commands.align_setting_keys import app_mapping
+        surfaces, moves = app_mapping('anonymizer')
+        homes = [dom for dom, s in surfaces.items() if s['extra']]
+        self.assertEqual(['image_video'], homes)
+        self.assertIn('image_video.classes2blur', moves['classes2blur'])
+
+    def test_two_domains_on_the_principal_schema_are_refused_not_guessed(self):
+        from unittest import mock
+
+        from wama.common.management.commands import align_setting_keys as command
+        same = [{'name': 'x', 'contexts': ['panel']}]
+        with mock.patch('wama.common.utils.app_modes.domain_schema', return_value=same), \
+                mock.patch('wama.common.utils.param_schema.schema_for_app', return_value=same), \
+                self.assertRaises(CommandError):
+            command.app_mapping('anonymizer')
+
+
 class AlignmentCommandTest(TestCase):
     """The command on TEST rows: plan and proof, apply, refusal, revert."""
 

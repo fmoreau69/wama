@@ -2509,7 +2509,7 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (26) :
+- **API publique** (28) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs.
@@ -2524,6 +2524,8 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
   - `domain_schema(app: str, domain_id: str) -> list` — Le schéma de réglages de ce domaine : celui qu'il nomme, sinon le principal de l'app.
   - `element_domain(element) -> str | None` — Le domaine d'un ÉLÉMENT, dérivé de ce qui est déjà déclaré : la surface de son modèle
   - `element_domain_or_first(element) -> str | None` — Le domaine d'un élément (`element_domain`), sinon le PREMIER que son app déclare — celui
+  - `element_schema_name(element) -> str` — Le nom du schéma de réglages du domaine d'un élément (`element_domain_or_first`), '' : le
+  - `element_schema(element) -> list` — Le schéma de réglages d'un ÉLÉMENT — celui du domaine où il se range, de son app (une
   - `domain_filter(app: str, domain_id: str)` — Les éléments de ce domaine EN BASE : `callable(queryset) -> queryset`, ou None quand le
   - `domain_filters(app: str, surface: str) -> dict` — `{domaine: filtre}` des domaines qui PARTAGENT la surface `surface` ({} quand elle n'en sert
   - `accepts(app: str, domain_id: str) -> tuple` — Catégories média (MEDIA_CATEGORIES) que ce domaine prend en ENTRÉE.

@@ -185,6 +185,28 @@ class TheSettingsOfAnElementAreThoseOfItsDomainTest(SimpleTestCase):
                 self.assertEqual(domain_schema(app, dom),
                                  spec_schema(entry['model'](), entry.get('spec') or {}, surface))
 
+    def test_the_schema_of_any_element_is_read_once_for_its_domain(self):
+        """`app_modes.element_schema` — the gear of a card, its ⚙, the writer of its settings and
+        the settings of a drop read it (2026-11-02 : five copies in the imager and the
+        anonymizer)."""
+        from wama.common.utils.app_modes import element_schema, element_schema_name
+        for app, decl in sorted(APP_MODES.items()):
+            for surface in sorted({domain_surface(app, d['id']) for d in decl.get('domains', [])}):
+                model = DetailRegistry.get(surface)['model']
+                served = surface_domains(app, surface)
+                form = (DetailRegistry.get(surface).get('spec') or {}).get('params_schema')
+                for (element, patches), expected in _cases(app, model, form, served):
+                    with self.subTest(app=app, surface=surface, expected=expected):
+                        for p in patches:
+                            p.start()
+                        try:
+                            self.assertEqual(domain_schema(app, expected), element_schema(element))
+                            self.assertEqual(domain_schema_name(app, expected),
+                                             element_schema_name(element))
+                        finally:
+                            for p in patches:
+                                p.stop()
+
 
 def _shared_surfaces():
     """(app, surface, model, form, served) for every surface that two domains or more share."""

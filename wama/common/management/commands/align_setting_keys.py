@@ -52,25 +52,31 @@ def app_mapping(app):
     ou (None, None) si elle ne déclare aucun domaine. `old`/`new` : la règle de clé, en fonction ;
     `extra` : {nom hors schéma: (ancienne clé, nouvelle clé, défaut)}."""
     from wama.common.utils.app_modes import domain_schema, get_domains
-    from wama.common.utils.param_schema import domain_key
+    from wama.common.utils.param_schema import domain_key, schema_for_app
     domains = [d.get('id') for d in get_domains(app)]
     if not domains:
         return None, None
     old_key, extra = legacy_rule(app)
+    # Un réglage hors schéma va avec le schéma PRINCIPAL de l'app — c'est avec lui que le volet le
+    # lit et le garde (`PANEL_SETTINGS`, l'anonymizer : `classes2blur` et l'image / vidéo, pas le
+    # document, 2026-11-02). Il appartient donc au domaine qui porte ce schéma, s'il est seul ;
+    # sinon la question n'a pas de réponse ici, et on refuse de deviner.
+    principal = schema_for_app(app) or []
+    homes = domains if len(domains) == 1 else [d for d in domains if domain_schema(app, d) == principal]
     surfaces, moves = {}, {}
     for dom in domains:
         schema = domain_schema(app, dom)
         new_key = domain_key(dom)
-        # Un réglage hors schéma appartient au domaine quand il n'y en a qu'un ; à plusieurs, la
-        # question n'a pas de réponse ici — aucune app ne le fait (mesuré), on refuse de deviner.
-        dom_extra = {n: (n, f'{dom}.{n}', dflt) for n, dflt in extra.items()} if len(domains) == 1 else {}
+        dom_extra = ({n: (n, f'{dom}.{n}', dflt) for n, dflt in extra.items()}
+                     if homes == [dom] else {})
         surfaces[dom] = {'schema': schema, 'old': old_key, 'new': new_key, 'extra': dom_extra}
         pairs = [(old_key(p), new_key(p)) for p in schema] + [(o, n) for o, n, _d in dom_extra.values()]
         for old, new in pairs:
             if old and new and new not in moves.setdefault(old, []):
                 moves[old].append(new)
-    if extra and len(domains) > 1:
-        raise CommandError(f'{app} : réglages hors schéma sur une app à {len(domains)} domaines')
+    if extra and len(homes) != 1:
+        raise CommandError(f'{app} : réglages hors schéma sur une app à {len(domains)} domaines, '
+                           f'dont {len(homes)} portent son schéma principal')
     return surfaces, moves
 
 
