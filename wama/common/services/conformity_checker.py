@@ -284,8 +284,18 @@ def _scoped_reads(f: _AppFiles):
     Un `get_object_or_404(Model, pk=pk, user=user)` écrit machinalement dans une nouvelle vue
     désactive le partage pour cette route — sans erreur, sans test rouge, sans trace. Ce critère
     rend l'oubli visible (PROFILES_PERMISSIONS §7.4).
+
+    Depuis le 2026-11-02 la lecture d'un élément de file est celle des FABRIQUES (`make_card_view`
+    lit par `visible_or_404`, comme les gestes de `make_item_views` et `make_progress_views`) : six
+    apps n'en avaient plus d'écrite à la main, et rougissaient de l'avoir confiée à la brique.
     """
-    return _present(f, VIEWS, r'visible_or_404|objects\.visible_to\(')
+    state, evidence = _present(f, VIEWS, r'visible_or_404|objects\.visible_to\(')
+    if state is True:
+        return state, evidence
+    factory = f.find_code(VIEWS, r'\bmake_card_view\(')
+    if factory:
+        return True, f"{factory} (lecture par la fabrique : `visible_or_404`)"
+    return state, evidence
 
 
 def _url_ingest(f: _AppFiles):
