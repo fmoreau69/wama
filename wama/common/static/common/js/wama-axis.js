@@ -63,9 +63,13 @@
     /** Un média qui se tait n'est recalé qu'à cet intervalle (pas une tempête de seeks). */
     var SEEK_EVERY_MS = 90;
     /** Le recalage d'un suiveur, en secondes (des RÉGLAGES — Fabien, 2026-11-02) : sous
-     *  `tolerance`, rien ; jusqu'à `reseek`, une vitesse corrigée d'au plus `maxNudge` (5 %), qui
-     *  rattrape l'écart en `window` secondes ; au-delà, un repositionnement. */
-    var SYNC = { tolerance: 0.02, reseek: 0.15, maxNudge: 0.05, window: 1 };
+     *  `tolerance`, rien ; jusqu'à `reseek`, un RATTRAPAGE à vitesse FIXE (± `maxNudge`, 5 %) tenu
+     *  jusqu'à ce que l'écart s'annule ; au-delà, un repositionnement. L'écart est LISSÉ (`smoothing`) :
+     *  `currentTime` avance par paliers. ⚠ Mesuré sur une card réelle (composer #880, 2026-11-02) :
+     *  une vitesse corrigée en proportion de l'écart changeait à chaque battement, chaque changement
+     *  coûtait au lecteur, et l'audio restait ~30 ms derrière en jouant à ×1,03 en permanence ; à
+     *  vitesse fixe, la vitesse ne change que deux fois par rattrapage. */
+    var SYNC = { tolerance: 0.02, reseek: 0.15, maxNudge: 0.05, smoothing: 0.3 };
     /** Un `play` / `pause` du média dans ce délai après que l'axe l'a demandé est le sien (les
      *  événements du média arrivent après coup ; une lecture refusée n'en envoie aucun). */
     var OWN_EVENT_MS = 500;
@@ -153,6 +157,8 @@
         function place(f) {
             var t = Math.max(0, target(f));
             f.placedTo = t;
+            f.drift = null;                  // un écart d'avant le positionnement ne dit plus rien
+            f.catching = 0;
             // Le crochet du lecteur qui possède le média (`WamaAudioPlayer.seek` : il repose une
             // position demandée avant que le fichier ne soit positionnable, et réclame ses
             // métadonnées à un player à pics serveur) — l'axe ne le refait pas.
@@ -188,16 +194,20 @@
                 return;
             }
             if (f.el.readyState === 0 || f.el.seeking) { sound(f); return; }
-            var drift = (f.el.currentTime - f.offset) - s.time;      // > 0 : le média est en avance
+            var raw = (f.el.currentTime - f.offset) - s.time;        // > 0 : le média est en avance
             var c = f.sync;
-            if (Math.abs(drift) > c.reseek) {
+            if (Math.abs(raw) > c.reseek) {                          // un décrochage : on repose
                 rateOf(f, s.rate);
                 place(f);
-            } else if (Math.abs(drift) > c.tolerance) {
-                rateOf(f, s.rate * (1 - clamp(drift / c.window, -c.maxNudge, c.maxNudge)));
-            } else {
-                rateOf(f, s.rate);
+                sound(f);
+                return;
             }
+            f.drift = f.drift == null ? raw : f.drift + c.smoothing * (raw - f.drift);
+            // Un rattrapage commence au-delà de la tolérance et se TIENT jusqu'à ce que l'écart
+            // s'annule (en retard : +maxNudge ; en avance : −maxNudge) — deux changements de vitesse.
+            if (!f.catching && Math.abs(f.drift) > c.tolerance) f.catching = f.drift < 0 ? 1 : -1;
+            else if (f.catching * f.drift >= 0) f.catching = 0;
+            rateOf(f, s.rate * (1 + f.catching * c.maxNudge));
             sound(f);
         }
         function followAll(at) { followers.forEach(function (f) { follow(f, at); }); }
@@ -416,7 +426,8 @@
                           play: typeof o.play === 'function' ? o.play : null,
                           seek: typeof o.seek === 'function' ? o.seek : null,
                           sync: Object.assign({}, sync, o.sync || {}),
-                          lastSeek: 0, pausedAt: null, playedAt: null, placedTo: null };
+                          lastSeek: 0, pausedAt: null, playedAt: null, placedTo: null,
+                          drift: null, catching: 0 };
                 var dropCadence = o.fps ? axis.cadence(o.fps) : null;
                 /** Le média EST-il censé jouer ? Sinon une pause qui arrive est la nôtre. */
                 function expected() { return audible() && covers(f); }

@@ -989,22 +989,40 @@ class AxisTest(SimpleTestCase):
         self.assertAlmostEqual(0.516, out['back'][1], places=3, msg='the silent medium is set back in step')
         self.assertTrue(out['resumed'], 'forward again : the medium plays again')
 
-    def test_a_follower_is_nudged_for_a_small_drift_and_repositioned_for_a_large_one(self):
+    def test_a_follower_catches_up_at_a_fixed_speed_and_is_repositioned_when_far(self):
+        """Measured on a real card (composer #880, 2026-11-02) : a speed corrected IN PROPORTION to
+        the drift changed at every tick, each change cost the player, and the audio stayed ~30 ms
+        behind while playing ×1.03 for good. The catch-up now holds ONE fixed speed until the
+        (smoothed) drift crosses zero : two speed changes per catch-up."""
         out = self._eval('''
             var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts)), m = fakeMedia(60);
             axis.attach(m); axis.play(); step(16);
-            function drifted(by) { m.currentTime = axis.time() + 0.016 + by; step(16);
-                                   return [m.playbackRate, m.currentTime - axis.time()]; }
-            return {inside: drifted(0.01), ahead: drifted(0.04), behind: drifted(-0.08),
-                    far: drifted(0.5), defaults: window.WamaAxis.SYNC};
+            // The medium held at `by` from the axis for `n` frames (its own clock keeps pace).
+            function hold(by, n) { var r = []; for (var i = 0; i < n; i++) {
+                m.currentTime = axis.time() + 0.016 + by; step(16); r.push(m.playbackRate); } return r; }
+            var out = {inside: hold(0.01, 8)};
+            // ONE noisy reading (`currentTime` moves by steps) is smoothed away : no catch-up.
+            out.blip = hold(0, 3).concat(hold(-0.06, 1), hold(0, 6));
+            Object.assign(out, {behind: hold(-0.06, 8), stillBehind: hold(-0.01, 2),
+                       crossed: hold(0.01, 8), ahead: hold(0.06, 8)});
+            out.far = hold(0.5, 1); out.farGap = m.currentTime - axis.time();
+            out.defaults = window.WamaAxis.SYNC;
+            return out;
         ''')
-        self.assertEqual(1, out['inside'][0], 'within the tolerance, the speed is the axis speed')
-        self.assertAlmostEqual(0.96, out['ahead'][0], places=3, msg='ahead : a little slower')
-        self.assertAlmostEqual(0.04, out['ahead'][1], places=3, msg='a small drift is never a jump')
-        self.assertAlmostEqual(1.05, out['behind'][0], places=3, msg='behind : faster, at most 5 %')
-        self.assertEqual([1, 0], [out['far'][0], round(out['far'][1], 6)],
-                         'beyond the threshold : repositioned on the axis, at the axis speed')
-        self.assertEqual({'tolerance': 0.02, 'reseek': 0.15, 'maxNudge': 0.05, 'window': 1}, out['defaults'])
+        changes = lambda rates: sum(1 for a, b in zip(rates, rates[1:]) if a != b)
+        self.assertEqual({1}, set(out['inside']), 'within the tolerance, the speed is the axis speed')
+        self.assertEqual({1}, set(out['blip']), 'one noisy reading is smoothed : no catch-up')
+        self.assertEqual(1.05, out['behind'][-1], 'behind : faster, 5 %')
+        self.assertEqual(1, changes(out['behind']), 'ONE speed change to start the catch-up')
+        self.assertEqual([1.05, 1.05], out['stillBehind'],
+                         'the catch-up is HELD while behind, even within the tolerance')
+        self.assertEqual(1, out['crossed'][-1], 'the drift crossed zero : back to the axis speed')
+        self.assertEqual(1, changes(out['crossed']), 'ONE speed change to end it')
+        self.assertEqual(0.95, out['ahead'][-1], 'ahead : slower, 5 %')
+        self.assertEqual([1], out['far'], 'beyond the threshold : at the axis speed')
+        self.assertAlmostEqual(0, out['farGap'], places=6, msg='and repositioned on the axis')
+        self.assertEqual({'tolerance': 0.02, 'reseek': 0.15, 'maxNudge': 0.05, 'smoothing': 0.3},
+                         out['defaults'])
 
     def test_the_correction_thresholds_are_settings_of_the_axis_and_of_each_medium(self):
         out = self._eval('''

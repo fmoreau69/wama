@@ -1243,9 +1243,17 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     - l'axe avance en secondes réelles et ne dépend de rien ; sa durée couvre ce qui s'y pose ;
     - un média est un SUIVEUR (`attach` rend son propre détacheur ; autant de suiveurs qu'il en
       faut, un `offset` chacun) : il joue lui-même — l'écoute reste audible — et l'axe le RECALE en
-      deux niveaux, vitesse corrigée d'au plus 5 % pour un petit écart, repositionnement au-delà
-      d'un seuil ; seuils RÉGLABLES (`WamaAxis.SYNC` : tolérance 20 ms, repositionnement 150 ms —
-      Fabien jugeait 300 ms « un peu élevé » —, par axe et par média) ; muet et recalé en arrière ;
+      deux niveaux, un RATTRAPAGE à vitesse fixe (±5 %) tenu jusqu'à ce que l'écart lissé s'annule,
+      un repositionnement au-delà d'un seuil ; seuils RÉGLABLES (`WamaAxis.SYNC` : tolérance 20 ms,
+      repositionnement 150 ms — Fabien jugeait 300 ms « un peu élevé » —, lissage 0,3 ; par axe et
+      par média) ; muet et recalé en arrière ;
+      ⚠ mesuré sur des cards RÉELLES (composer #880, transcriber #2522, revérification du même
+      soir) : la première forme, une vitesse corrigée EN PROPORTION de l'écart, changeait à chaque
+      battement ; chaque changement coûtait au lecteur, et l'audio restait ~30 ms derrière en jouant
+      ×1,03 en permanence (l'horloge du média seul est juste : rapport 0,9999). À vitesse fixe :
+      écart moyen 2,7 ms (#880) et 4,2 ms (#2522, 2 h 22 d'entretien), vitesse ×1 de 75 à 91 % du
+      temps, deux changements de vitesse par rattrapage ; reste le rattrapage du départ (l'audio
+      démarre ~60-80 ms après l'axe), ~1,2 s à ×1,05 ;
       un geste sur le média est une COMMANDE ; sa fin n'arrête pas l'axe ; il ne retient pas l'axe
       s'il refuse de jouer ou charge ;
     - deux suiveurs jouent ENSEMBLE : la lecture exclusive de la page les couperait l'un l'autre,
