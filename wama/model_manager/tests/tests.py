@@ -660,6 +660,27 @@ class DesinstallationTest(TestCase):
         self.assertFalse(row.is_downloaded)
         self.assertIn('uninstalled_at', row.extra_info)
 
+    def test_a_row_without_weights_that_lost_its_mark_gets_it_back(self):
+        """2026-11-01, olmOCR v1: uninstalled while its app still declared it, a sync dropped the
+        mark, then the declaration left the code — no folder designated it any more, and the route
+        refused (« pas de poids »). The row is marked, nothing is removed; marked twice, it says so."""
+        import tempfile
+        row = AIModel.objects.create(
+            model_key='reader:gone-v1', name='Gone v1', model_type='ocr', source='reader',
+            is_downloaded=False, is_available=False,
+            extra_info={'exclusion': {'by': 'superseded', 'superseded_by': 'reader:v2'}})
+        with tempfile.TemporaryDirectory() as tmp:
+            res = self._uninstall(Path(tmp), 'reader:gone-v1')
+            self.assertTrue(res['ok'], res)
+            self.assertEqual('already_absent', res['kind'])
+            self.assertEqual(0.0, res['freed_gb'])
+            again = self._uninstall(Path(tmp), 'reader:gone-v1')
+        row.refresh_from_db()
+        self.assertIn('uninstalled_at', row.extra_info)
+        self.assertEqual('superseded', row.extra_info['exclusion']['by'],
+                         "the succession keeps its reason")
+        self.assertFalse(again['ok'])
+
     def test_a_family_root_is_never_removed(self):
         """`speech/qwen_asr` is declared by BOTH Qwen3-ASR sizes: a family root holds other
         models and must never be the target of a rm, whatever the catalogue says."""

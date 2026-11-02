@@ -503,6 +503,15 @@ class ModelSyncService:
             for _k in _sticky:
                 if _k in _existing and _k not in _merged:
                     _merged[_k] = _existing[_k]
+            # La marque de désinstallation se perd au sync d'une ligne qu'une app déclare : elle
+            # redevient « non téléchargée », installable (`models.uninstalled_q`). Pas si la
+            # désinstallation l'a aussi RETIRÉE DES CHOIX (`withdraw_from_choices`, option cochée
+            # par défaut) : elle n'est plus proposée, elle reste désinstallée — sinon son manifeste
+            # revenait au corpus (2026-11-01, olmOCR v1). Seulement tant que les poids manquent.
+            from ..models import WITHDRAWN_ORIGINS
+            if ('uninstalled_at' in _existing and not model_info.is_downloaded
+                    and (_merged.get('exclusion') or {}).get('by') in WITHDRAWN_ORIGINS):
+                _merged['uninstalled_at'] = _existing['uninstalled_at']
             # Le modèle CANONIQUE d'une quantification (`base_model` + `base_model_relation`,
             # vocabulaire du Hub, 2026-10-27) : posé par le manifeste à l'installation d'un GGUF,
             # que la découverte d'Ollama ne connaît pas. Collant comme `publications`, mais par

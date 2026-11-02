@@ -108,3 +108,34 @@ class NoStaleWriteOverAnUninstallTest(TestCase):
                                extra_info={'uninstalled_at': (seen_at - timedelta(hours=1)).isoformat()})
         ModelSyncService()._sync_model('huggingface:Org/Gone', self._info(), seen_at=seen_at)
         self.assertTrue(AIModel.objects.get(model_key='huggingface:Org/Gone').is_downloaded)
+
+
+class WithdrawnUninstallKeepsItsMarkTest(TestCase):
+    """2026-11-01, olmOCR v1: uninstalled AND withdrawn from the choices, still declared by its
+    app — the next sync erased the mark, so its manifest came back to the corpus."""
+
+    def _sync(self, exclusion, is_downloaded=False):
+        from wama.model_manager.services.model_registry import ModelInfo
+        from wama.model_manager.services.model_sync import ModelSyncService
+        info = {'uninstalled_at': (timezone.now() - timedelta(days=1)).isoformat()}
+        if exclusion:
+            info['exclusion'] = exclusion
+        AIModel.objects.create(model_key='reader:old', name='Old', model_type='ocr',
+                               source='reader', is_downloaded=False, is_available=not exclusion,
+                               extra_info=info)
+        declared = ModelInfo(id='old', name='Old', model_type=ModelType.OCR,
+                             source=ModelSource.WAMA_READER, is_downloaded=is_downloaded)
+        ModelSyncService()._sync_model('reader:old', declared, seen_at=timezone.now())
+        return AIModel.objects.get(model_key='reader:old')
+
+    def test_a_withdrawn_row_stays_uninstalled(self):
+        row = self._sync({'by': 'superseded', 'superseded_by': 'reader:new'})
+        self.assertIn('uninstalled_at', row.extra_info)
+        self.assertEqual('reader:new', row.extra_info['exclusion']['superseded_by'])
+
+    def test_counter_proof_a_row_left_in_the_choices_is_installable_again(self):
+        self.assertNotIn('uninstalled_at', self._sync(None).extra_info)
+
+    def test_counter_proof_weights_back_on_disk_drop_the_mark(self):
+        row = self._sync({'by': 'uninstall'}, is_downloaded=True)
+        self.assertNotIn('uninstalled_at', row.extra_info)

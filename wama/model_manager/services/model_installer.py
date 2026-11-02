@@ -1774,14 +1774,22 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '',
     if model.is_loaded:
         return {'ok': False, 'error': f"« {model.name} » est chargé en mémoire — "
                                       "le décharger avant de le désinstaller."}
-    if not model.is_downloaded:
-        return {'ok': False, 'error': f"« {model.name} » n'a pas de poids sur cette machine."}
+    if not model.is_downloaded and 'uninstalled_at' in (model.extra_info or {}):
+        return {'ok': False, 'error': f"« {model.name} » est déjà désinstallé."}
 
     freed_gb = float(model.disk_gb or 0)
     marked = [model]
     dependents = []
 
-    if model.source == 'ollama':
+    if not model.is_downloaded:
+        # Aucun poids, et pourtant pas la marque : une synchro l'a effacée pendant que son app le
+        # déclarait encore, puis la déclaration est partie (2026-11-01, olmOCR v1 : désinstallé,
+        # resynchronisé, retiré du code — son dossier n'étant plus déclaré, plus rien ne le
+        # désignait). Même recalage que des poids déjà partis : la marque, rien de supprimé.
+        # Déjà hors des choix, elle garde la raison qu'elle porte (« remplacé par … »).
+        freed_gb, kind = 0.0, 'already_absent'
+        withdraw = withdraw and model.is_available
+    elif model.source == 'ollama':
         name = model.model_key.split(':', 1)[1] if ':' in model.model_key else model.name
         res = delete_ollama_model(name)
         if not res.get('ok'):

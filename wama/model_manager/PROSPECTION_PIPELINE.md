@@ -3484,6 +3484,22 @@ l'assistant ne recommandait rien.
    HUMAINE garde sa raison et ne se lève jamais en silence. La ligne retirée reste visible au model
    manager (badge « retiré des choix ») : c'est là qu'on la réinstalle.
    Tests : `tests_install_recommendation`, `tests_uninstall_withdraws`.
+   ✅ **2026-11-02 — la marque de désinstallation tient** (olmOCR v1 l'avait perdue : désinstallé
+   pendant que le reader le déclarait, la synchro suivante a effacé `uninstalled_at` — règle
+   `models.uninstalled_q` —, puis la déclaration est partie du code ; son manifeste est revenu au
+   corpus et la route refusait de le redésinstaller, « pas de poids »). Deux gestes :
+   la synchro GARDE la marque d'une ligne retirée des choix tant que ses poids manquent
+   (`model_sync._sync_model`, garde `WithdrawnUninstallKeepsItsMarkTest`) ; la désinstallation
+   d'une ligne sans poids ni marque POSE la marque sans rien supprimer, et garde la raison qu'elle
+   porte (« remplacé par … ») — `uninstall_model`, garde
+   `DesinstallationTest.test_a_row_without_weights_that_lost_its_mark_gets_it_back`. Contre-épreuves
+   rouges contre le code d'avant. Appliqué par la route à `reader:olmocr` : marqué, manifeste sorti
+   du corpus. ⏳ **Le manifeste d'APP le cite encore** (`manifests/apps/reader.json`) : la facette
+   `models` ne liste que les lignes dont la SOURCE est l'app (`builtin/app.py:_models`), alors que
+   l'app tire aussi des modèles d'autres sources par sa tâche (olmOCR-2 est `huggingface:`). Retirer
+   la v1 seule faisait tomber `torch` et `transformers` des librairies requises du reader — qui ne
+   lui venaient que de la v1 (mesuré, export du 2026-11-02, annulé). Remède : lister ce que l'app
+   PROPOSE (ses choix), pas sa source — touche les 10 manifestes d'apps, décision de Fabien.
 3. ✅ **La SUCCESSION : une nouvelle version remplace l'ancienne partout où elle était choisie**
    (Fabien : *« quand on a une montée de version, il faudrait que le remplacement se fasse le plus
    naturellement possible à tous les endroits où le modèle plus ancien était »*). Le lien existait
