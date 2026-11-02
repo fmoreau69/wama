@@ -805,7 +805,10 @@
         "composer:minimax-music3",
         "composer:musicgen-medium",
         "composer:musicgen-melody",
-        "composer:musicgen-small"
+        "composer:musicgen-small",
+        "huggingface:ACE-Step/Ace-Step1.5",
+        "huggingface:MuScriptor/muscriptor-large",
+        "huggingface:m-a-p/YuE2-3B"
       ],
       "source_attr": "COMPOSER_MODELS"
     },
@@ -1990,11 +1993,39 @@
       "kind": "model"
     },
     {
+      "key": "huggingface:ACE-Step/Ace-Step1.5",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:MuScriptor/muscriptor-large",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:m-a-p/YuE2-3B",
+      "kind": "model"
+    },
+    {
       "key": "audiocraft",
       "kind": "library"
     },
     {
+      "key": "beat-this",
+      "kind": "library"
+    },
+    {
+      "key": "mido",
+      "kind": "library"
+    },
+    {
+      "key": "muscriptor",
+      "kind": "library"
+    },
+    {
       "key": "pretty_midi",
+      "kind": "library"
+    },
+    {
+      "key": "rotary-embedding-torch",
       "kind": "library"
     },
     {

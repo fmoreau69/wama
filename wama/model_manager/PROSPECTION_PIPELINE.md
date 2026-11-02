@@ -3494,12 +3494,32 @@ l'assistant ne recommandait rien.
    porte (« remplacé par … ») — `uninstall_model`, garde
    `DesinstallationTest.test_a_row_without_weights_that_lost_its_mark_gets_it_back`. Contre-épreuves
    rouges contre le code d'avant. Appliqué par la route à `reader:olmocr` : marqué, manifeste sorti
-   du corpus. ⏳ **Le manifeste d'APP le cite encore** (`manifests/apps/reader.json`) : la facette
-   `models` ne liste que les lignes dont la SOURCE est l'app (`builtin/app.py:_models`), alors que
+   du corpus. ✅ **Le manifeste d'APP le citait encore** (`manifests/apps/reader.json`) : la facette
+   `models` ne listait que les lignes dont la SOURCE est l'app (`builtin/app.py:_models`), alors que
    l'app tire aussi des modèles d'autres sources par sa tâche (olmOCR-2 est `huggingface:`). Retirer
    la v1 seule faisait tomber `torch` et `transformers` des librairies requises du reader — qui ne
-   lui venaient que de la v1 (mesuré, export du 2026-11-02, annulé). Remède : lister ce que l'app
-   PROPOSE (ses choix), pas sa source — touche les 10 manifestes d'apps, décision de Fabien.
+   lui venaient que de la v1 (mesuré, export du 2026-11-02, annulé). **Soldé le même jour**
+   (décision de Fabien : lister ce que l'app PROPOSE ; « c'est en double sens, une correction des
+   applications doit être projetée dans le manifeste aussi ») :
+   - la facette unit ses lignes (`source == app`) et ce que ses selects de catalogue proposent
+     (`param_schema.catalog_choice_keys`, la lecture de l'À-propos, sortie en brique) ; une ligne
+     DÉSINSTALLÉE n'est dans aucune des deux — la règle qui retire son manifeste du corpus
+     (`_gone_model_keys`). ⚠ « Ce que l'app propose » SEUL aurait perdu de vraies dépendances
+     (mesuré) : étapes internes (CodeFormer, pyannote, l'aligneur), branche audio de l'enhancer
+     (DeepFilterNet, torchaudio), modèles vidéo de l'imager ;
+   - le corpus SUIT : `corpus.follow` d'un modèle (installation, désinstallation, synchro,
+     validation) réexporte en tâche de fond les apps qui le citent ou doivent le citer
+     (`corpus.follow_apps`, `model_manager.follow_apps_in_corpus` — 8,7 s pour les trouver, trop
+     pour la requête du bouton de désinstallation) ; la succession y passe aussi
+     (`forget_in_corpus` après `withdraw_from_choices`). Le sens inverse n'écrit rien : la facette
+     `models` est déclarée « code » (`projection.FACET_TARGETS`, hors `PROJECTED_FACETS`) ;
+   - corpus régénéré par la route (`manifest_export <app>`) : le Reader ne requiert plus
+     `reader:olmocr` et garde torch/transformers par olmOCR-2 ; avatarizer 3 → 11 modèles,
+     describer 1 → 15, reader 2 → 9, synthesizer 4 → 8, transcriber 8 → 11, composer 5 → 8,
+     enhancer 9 → 12, imager 13 → 15 ; anonymizer et converter inchangés. Gardes
+     `AppManifestFollowsItsModelsTest` (5),
+     `SupersedeTest.test_the_corpus_follows_the_withdrawn_row_and_its_dry_run_does_not` ;
+     contre-épreuves rouges (facette et porte de HEAD, marque ignorée, corpus illisible).
 3. ✅ **La SUCCESSION : une nouvelle version remplace l'ancienne partout où elle était choisie**
    (Fabien : *« quand on a une montée de version, il faudrait que le remplacement se fasse le plus
    naturellement possible à tous les endroits où le modèle plus ancien était »*). Le lien existait

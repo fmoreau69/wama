@@ -941,6 +941,8 @@
     },
     "models": {
       "catalog_keys": [
+        "huggingface:Bartholomheow/Supra2-IMG-ONNX",
+        "huggingface:unsloth/flux-3-image-klein-GGUF",
         "imager:cogvideox-5b-i2v",
         "imager:fastwan-2.2-ti2v-5b",
         "imager:flux-1-dev",
@@ -2750,6 +2752,14 @@
   "projects": [],
   "requires": [
     {
+      "key": "huggingface:Bartholomheow/Supra2-IMG-ONNX",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:unsloth/flux-3-image-klein-GGUF",
+      "kind": "model"
+    },
+    {
       "key": "imager:cogvideox-5b-i2v",
       "kind": "model"
     },
@@ -2810,7 +2820,15 @@
       "kind": "library"
     },
     {
+      "key": "onnxruntime-gpu",
+      "kind": "library"
+    },
+    {
       "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
       "kind": "library"
     }
   ],

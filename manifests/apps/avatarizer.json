@@ -765,7 +765,15 @@
       "catalog_keys": [
         "avatarizer:codeformer",
         "avatarizer:musetalk-v1.5",
-        "avatarizer:talkinghead"
+        "avatarizer:talkinghead",
+        "huggingface:Audio8/Audio8-TTS-Preview-0.6b",
+        "huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+        "huggingface:gradium/phonon-40m-fr",
+        "huggingface:onnx-community/Kokoro-82M-v1.0-ONNX",
+        "synthesizer:bark",
+        "synthesizer:coqui-xtts",
+        "synthesizer:higgs-audio",
+        "synthesizer:kokoro"
       ],
       "source_attr": "AVATARIZER_MODELS"
     },
@@ -1997,7 +2005,83 @@
       "kind": "model"
     },
     {
+      "key": "huggingface:Audio8/Audio8-TTS-Preview-0.6b",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:gradium/phonon-40m-fr",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:onnx-community/Kokoro-82M-v1.0-ONNX",
+      "kind": "model"
+    },
+    {
+      "key": "synthesizer:bark",
+      "kind": "model"
+    },
+    {
+      "key": "synthesizer:coqui-xtts",
+      "kind": "model"
+    },
+    {
+      "key": "synthesizer:higgs-audio",
+      "kind": "model"
+    },
+    {
+      "key": "synthesizer:kokoro",
+      "kind": "model"
+    },
+    {
+      "key": "boson_multimodal",
+      "kind": "library"
+    },
+    {
+      "key": "kokoro",
+      "kind": "library"
+    },
+    {
+      "key": "kokoro-onnx",
+      "kind": "library"
+    },
+    {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
+      "key": "onnxruntime-gpu",
+      "kind": "library"
+    },
+    {
+      "key": "ptts",
+      "kind": "library"
+    },
+    {
+      "key": "qwen-tts",
+      "kind": "library"
+    },
+    {
+      "key": "scipy",
+      "kind": "library"
+    },
+    {
       "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "suno-bark",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
       "kind": "library"
     }
   ],

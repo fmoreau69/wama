@@ -67,24 +67,16 @@ def app_models(app_id: str) -> list:
     select de catalogue de l'app, dans l'ordre du schéma. Un modèle déjà montré par un groupe
     précédent n'est pas répété.
 
-    Aucune lecture recopiée (revérification du 2026-10-10) : un select se lit par
-    `param_schema.catalog_options` (LA lecture côté serveur d'un select de catalogue), sa valeur
-    devient une clé par `model_keys.catalog_key` ; une app SANS select de catalogue (Face
-    Analyzer, monde Lab) montre les modèles qu'elle déclare, par la facette `models` de son
-    manifeste (`manifests.builtin.app._models` : `AIModel.source == app`).
+    Aucune lecture recopiée (revérification du 2026-10-10) : les selects se lisent par
+    `param_schema.catalog_choice_keys` (la lecture côté serveur `catalog_options`, valeurs
+    devenues clés) ; une app SANS select de catalogue (Face Analyzer, monde Lab) montre les
+    modèles qu'elle déclare, par la facette `models` de son manifeste
+    (`manifests.builtin.app._models`).
     """
-    from wama.common.utils.auto_model import is_auto
-    from wama.common.utils.model_keys import catalog_key
-    from wama.common.utils.param_schema import catalog_options, schema_for_app
+    from wama.common.utils.param_schema import catalog_choice_keys
 
     groups, seen = [], set()
-    for field in schema_for_app(app_id) or []:
-        options = catalog_options(field)          # [] hors select de catalogue
-        if not options:
-            continue
-        source = (field.get('options_query') or {}).get('source') or ''
-        keys = [catalog_key(value, source) if source else value
-                for value, _label in options if not is_auto(value)]
+    for field, keys in catalog_choice_keys(app_id):
         models = _model_rows(keys, seen)
         if models:
             groups.append({'label': field.get('label') or field.get('name') or '', 'models': models})

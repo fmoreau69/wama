@@ -839,6 +839,10 @@
     },
     "models": {
       "catalog_keys": [
+        "huggingface:Audio8/Audio8-TTS-Preview-0.6b",
+        "huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+        "huggingface:gradium/phonon-40m-fr",
+        "huggingface:onnx-community/Kokoro-82M-v1.0-ONNX",
         "synthesizer:bark",
         "synthesizer:coqui-xtts",
         "synthesizer:higgs-audio",
@@ -2027,6 +2031,22 @@
   "projects": [],
   "requires": [
     {
+      "key": "huggingface:Audio8/Audio8-TTS-Preview-0.6b",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:gradium/phonon-40m-fr",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:onnx-community/Kokoro-82M-v1.0-ONNX",
+      "kind": "model"
+    },
+    {
       "key": "synthesizer:bark",
       "kind": "model"
     },
@@ -2051,7 +2071,23 @@
       "kind": "library"
     },
     {
+      "key": "kokoro-onnx",
+      "kind": "library"
+    },
+    {
       "key": "librosa",
+      "kind": "library"
+    },
+    {
+      "key": "onnxruntime-gpu",
+      "kind": "library"
+    },
+    {
+      "key": "ptts",
+      "kind": "library"
+    },
+    {
+      "key": "qwen-tts",
       "kind": "library"
     },
     {

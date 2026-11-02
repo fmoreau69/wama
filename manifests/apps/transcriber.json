@@ -1169,6 +1169,9 @@
     },
     "models": {
       "catalog_keys": [
+        "huggingface:aihpi/FrWhisper",
+        "huggingface:kyutai/stt-1b-en_fr-trfs",
+        "huggingface:linagora/linto_stt_fr_fastconformer_pc",
         "transcriber:canary-1b-v2",
         "transcriber:parakeet-tdt-0.6b-v3",
         "transcriber:pyannote-diarization",
@@ -2519,6 +2522,18 @@
   "name": "Transcriber",
   "projects": [],
   "requires": [
+    {
+      "key": "huggingface:aihpi/FrWhisper",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:kyutai/stt-1b-en_fr-trfs",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:linagora/linto_stt_fr_fastconformer_pc",
+      "kind": "model"
+    },
     {
       "key": "transcriber:canary-1b-v2",
       "kind": "model"

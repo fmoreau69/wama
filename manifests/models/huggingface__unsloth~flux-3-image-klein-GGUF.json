@@ -1,0 +1,74 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "prompt",
+        "work_image"
+      ],
+      "languages": [
+        "en"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "image-to-image"
+    },
+    "composition": {},
+    "extra_info": {
+      "category": "diffusion",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/unsloth/flux-3-image-klein-GGUF"
+        ]
+      },
+      "family": "flux-3-image-klein",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "unsloth",
+      "base_model": "black-forest-labs/flux-3-image-klein",
+      "base_model_relation": "quantized",
+      "description_short": "Version quantifiée GGUF du modèle FLUX 3 Image Klein (5.6B) pour la génération d'images et l'édition, utilisant la méthode Unsloth Dynamic.",
+      "license": "other",
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:unsloth/flux-3-image-klein-GGUF",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 10.335270792245865,
+      "ram_gb": 0.0,
+      "vram_gb": 13.3
+    }
+  },
+  "description": "Ce modèle est une version quantifiée GGUF du transformer image de 5.6B paramètres de Black Forest Labs, conçu pour la génération text-to-image et l'édition d'image. Il intègre un encodage de texte via Qwen3-VL-4B-Instruct et utilise la méthode Unsloth Dynamic 2.0 qui sélectionne une précision mixte par couche pour optimiser le rapport qualité/poids. Les entrées sont des prompts (optionnellement avec boîtes de délimitation) et références d'image, tandis que les sorties sont des images générées ou modifiées. Il est disponible sous plusieurs niveaux de quantification allant de 2 à 8 bits, avec une licence FLUX Kommunity autorisant un usage non commercial et des exceptions commerciales pour utilisateurs qualifiés.",
+  "key": "huggingface:unsloth/flux-3-image-klein-GGUF",
+  "manifest_kind": "model",
+  "name": "flux-3-image-klein-GGUF",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:unsloth/flux-3-image-klein-GGUF",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

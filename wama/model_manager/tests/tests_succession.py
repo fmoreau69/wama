@@ -106,6 +106,15 @@ class SupersedeTest(TestCase):
         s.supersede(OLD, NEW)
         self.assertEqual(human, AIModel.objects.get(model_key=OLD).extra_info['exclusion'])
 
+    def test_the_corpus_follows_the_withdrawn_row_and_its_dry_run_does_not(self):
+        """2026-11-02: the old row's sheet carries its exclusion, and the apps that proposed it no
+        longer do — through the corpus door that uninstalling uses (`forget_in_corpus`)."""
+        with mock.patch('wama.model_manager.services.model_installer.forget_in_corpus') as follow:
+            s.supersede(OLD, NEW, apply=False)
+            follow.assert_not_called()
+            s.supersede(OLD, NEW)
+        follow.assert_called_once_with([OLD])
+
     def test_an_unknown_row_is_refused(self):
         self.assertIn('error', s.supersede(OLD, 'reader:nowhere'))
         self.assertIn('error', s.supersede(OLD, OLD))

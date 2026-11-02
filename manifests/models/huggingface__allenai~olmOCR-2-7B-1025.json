@@ -1,0 +1,77 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "languages": [
+        "en"
+      ],
+      "modalities": [
+        "image",
+        "document"
+      ],
+      "task": "ocr"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "transformers"
+      }
+    },
+    "extra_info": {
+      "category": "ocr",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/allenai/olmOCR-2-7B-1025"
+        ]
+      },
+      "family": "olmOCR-2-7B-1025",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "allenai",
+      "description_short": "Modèle OCR vision linguistique fin-tuné pour la reconnaissance de texte, mathématiques et tableaux dans les documents PDF.",
+      "gated": "no",
+      "license": "apache-2.0",
+      "model_type": "ocr",
+      "platform_ref": "huggingface:allenai/olmOCR-2-7B-1025",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 15.4562360169366,
+      "ram_gb": 0.0,
+      "vram_gb": 19.9
+    }
+  },
+  "description": "olmOCR-2-7B-1025 est une version BF16 du modèle olmOCR-2-7B-1025, fine-tuné à partir de Qwen2.5-VL-7B-Instruct sur des données OCR et renforcé par GRPO RL pour les équations mathématiques et tableaux complexes. Il accepte comme entrée une image de document (PDF rendu en PNG) avec une dimension maximale de 1288 pixels et un prompt contenant des métadonnées, produisant une sortie textuelle structurée incluant la langue, la rotation et le type de contenu. Ce modèle est sous licence Apache 2.0 pour la recherche et l'éducation.",
+  "key": "huggingface:allenai/olmOCR-2-7B-1025",
+  "manifest_kind": "model",
+  "name": "olmOCR-2-7B-1025",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:allenai/olmOCR-2-7B-1025",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

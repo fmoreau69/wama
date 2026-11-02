@@ -1225,7 +1225,10 @@
         "enhancer:RealESR_Animex4",
         "enhancer:RealESR_Gx4",
         "enhancer:deepfilternet",
-        "enhancer:resemble"
+        "enhancer:resemble",
+        "github:Phhofm/models:1xgaterv3_r_restore",
+        "github:Phhofm/models:4xNomosUni_span_multijpg",
+        "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX"
       ],
       "source_attr": "ENHANCER_MODELS"
     },
@@ -2877,6 +2880,18 @@
     },
     {
       "key": "enhancer:resemble",
+      "kind": "model"
+    },
+    {
+      "key": "github:Phhofm/models:1xgaterv3_r_restore",
+      "kind": "model"
+    },
+    {
+      "key": "github:Phhofm/models:4xNomosUni_span_multijpg",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
       "kind": "model"
     },
     {

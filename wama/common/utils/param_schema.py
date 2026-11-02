@@ -954,6 +954,26 @@ def catalog_options(p) -> List[Tuple[str, str]]:
     return head + [(str(key), label) for key, label in choices]
 
 
+def catalog_choice_keys(app_id: str) -> List[Tuple[dict, List[str]]]:
+    """[(champ, [clés de catalogue])] des selects de catalogue d'une app, dans l'ordre du schéma —
+    les modèles que l'app PROPOSE, « auto » écarté. La valeur d'une option devient une clé par
+    `model_keys.catalog_key` sur la source du domaine déclaré.
+
+    Sortie le 2026-11-02 de `model_publications.app_models` (l'À-propos), dont la facette `models`
+    du manifeste d'app a besoin à son tour : une seule lecture, deux lecteurs."""
+    from wama.common.utils.auto_model import is_auto
+    from wama.common.utils.model_keys import catalog_key
+    out = []
+    for field in schema_for_app(app_id) or []:
+        options = catalog_options(field)          # [] hors select de catalogue
+        if not options:
+            continue
+        source = (_pget(field, 'options_query') or {}).get('source') or ''
+        out.append((field, [catalog_key(value, source) if source else value
+                            for value, _label in options if not is_auto(value)]))
+    return out
+
+
 def invalid_choice_values(schema, data) -> dict:
     """{nom: (valeurs_refusées, choices_valides_triés)} pour chaque valeur PRÉSENTE hors
     des valeurs valides du schéma (`choice_values` : choix déclarés + domaine déclaré).

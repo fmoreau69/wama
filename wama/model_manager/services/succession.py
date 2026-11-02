@@ -146,6 +146,11 @@ def supersede(old_key: str, new_key: str, *, apply: bool = True) -> dict:
             from ..models import WITHDRAWN_SUPERSEDED
             withdrawn = withdraw_from_choices([old], timezone.now().isoformat(),
                                               by=WITHDRAWN_SUPERSEDED, superseded_by=new_key)
+            # Le corpus SUIT (2026-11-02) : la fiche de l'ancien porte son exclusion, et les apps
+            # qui le proposaient ne le proposent plus — la porte commune, que la désinstallation
+            # emprunte aussi (`forget_in_corpus`).
+            from .model_installer import forget_in_corpus
+            forget_in_corpus(withdrawn)
     result = {'old': old_key, 'new': new_key, 'applied': apply, 'cards': cards,
               'user_settings': settings_n, 'batch_settings': batches_n, 'withdrawn': withdrawn}
     logger.info("[succession] %s → %s : %s", old_key, new_key, result)

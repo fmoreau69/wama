@@ -73,6 +73,14 @@ def register_cloud_key_task(key_id: int, instance: bool = False):
     return {'registered': True, 'source': row.source, 'open_models': len(row.open_models or [])}
 
 
+@shared_task(name='model_manager.follow_apps_in_corpus')
+def follow_apps_in_corpus_task(model_key: str):
+    """Les manifestes d'app SUIVENT un modèle installé, désinstallé ou remplacé
+    (`manifests.corpus.follow_apps`, 2026-11-02) — hors de la requête du geste."""
+    from wama.common.manifests.corpus import follow_apps
+    return {'model': model_key, 'apps': follow_apps(model_key)}
+
+
 @shared_task(name='model_manager.refresh_cloud_keys')
 def refresh_cloud_keys_task():
     """Sonde NOCTURNE des fournisseurs cloud : relit les modèles ouverts à chaque clé d'API posée

@@ -477,13 +477,35 @@ def _models(app_id):
 
     `model_config` reste cité comme provenance (`source_attr`) : il porte le câblage runtime
     par app, que le catalogue n'a pas. Ce n'est pas une redondance, c'est une autre facette.
+
+    DEUX jambes, unies (2026-11-02, décision de Fabien) :
+      • les lignes de l'app (`source == app`). Elles portent ce qu'aucun select ne propose :
+        étapes internes (CodeFormer, pyannote, l'aligneur), branche audio de l'enhancer, modèles
+        vidéo de l'imager ;
+      • les modèles que ses selects de catalogue PROPOSENT (`param_schema.catalog_choice_keys`) :
+        olmOCR-2 est une ligne `huggingface:` que le Reader propose — sans elle, ses librairies
+        (torch, transformers) sortaient du `requires` de l'app.
+    Une ligne DÉSINSTALLÉE (`uninstalled_q`) n'est dans aucune — la règle même qui retire son
+    manifeste du corpus (`manifest_export._gone_model_keys`) : olmOCR v1 restait requis par le
+    Reader, et une ligne désinstallée mais laissée aux choix (réinstallable à la demande) aurait
+    cité un manifeste absent. Une ligne écartée garde sa place : elle existe, son manifeste aussi.
+    Le corpus suit à chaud : `corpus.follow` d'un modèle réexporte les apps qui le citent ou
+    doivent le citer.
     """
+    found = set()
     try:
-        from wama.model_manager.models import AIModel
-        cles = sorted(AIModel.objects.filter(source=app_id)
-                      .values_list('model_key', flat=True))
+        from wama.common.utils.param_schema import catalog_choice_keys
+        found |= {k for _field, keys in catalog_choice_keys(app_id) for k in keys}
     except Exception:
-        cles = []
+        logger.debug("[manifest:app] selects de catalogue illisibles (%s)", app_id, exc_info=True)
+    try:
+        from wama.model_manager.models import AIModel, uninstalled_q
+        found |= set(AIModel.objects.filter(source=app_id).values_list('model_key', flat=True))
+        found -= set(AIModel.objects.filter(uninstalled_q(), model_key__in=found)
+                     .values_list('model_key', flat=True))
+    except Exception:
+        pass
+    keys = sorted(found)
 
     provenance = None
     try:
@@ -496,9 +518,9 @@ def _models(app_id):
     except Exception:
         pass
 
-    if not cles and not provenance:
+    if not keys and not provenance:
         return None
-    out = {'catalog_keys': cles}
+    out = {'catalog_keys': keys}
     if provenance:
         out['source_attr'] = provenance
     return out

@@ -684,6 +684,12 @@ que le catalogue n'a pas. Autre facette, pas redondance.
 
 1. ✅ **FAIT (`ad68e75`)** — `body.models.catalog_keys` porte les clés canoniques du catalogue :
    **91/91 résolvables**.
+   ⚠ *Constat corrigé le 2026-11-02 (décision de Fabien)* : la facette ne lit plus le seul
+   `AIModel.source`. Elle unit les lignes de l'app et les modèles que ses selects de catalogue
+   PROPOSENT (`param_schema.catalog_choice_keys`), sans les lignes DÉSINSTALLÉES — un modèle
+   `huggingface:` que l'app sert (olmOCR-2 pour le Reader) en était absent, avec ses librairies.
+   Le corpus la suit à chaud (`manifests/corpus.follow_apps`). Détail :
+   `wama/model_manager/PROSPECTION_PIPELINE.md` §« Session du 2026-10-29 », point 2.
 2. ✅ **FAIT (2026-08-03)** — Champ `requires` dans l'enveloppe (`envelope.py`, validé en forme),
    émis par `extract_app` depuis la facette `models` (même source, deux projections) ;
    `ingest.resolve_requires(manifest)` → `(résolus, pendantes)`, kind-agnostique via
