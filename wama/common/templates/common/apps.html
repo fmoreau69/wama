@@ -182,10 +182,26 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                                    id="abo-{{ item.name }}" data-abo-toggle data-abo-id="{{ item.name }}"
                                    {% if item.abonne %}checked{% endif %}>
                         </div>
+                        {% elif item.access_request.pending %}
+                        <a class="badge bg-secondary text-decoration-none" href="{% url 'accounts:app-access-page' item.access_request.pending %}"
+                           title="Votre demande attend la réponse du créateur de l'app ou d'un administrateur">
+                            <i class="fas fa-hourglass-half me-1"></i>Demande en attente
+                        </a>
+                        {% elif item.access_request %}
+                        <button type="button" class="btn btn-sm btn-outline-emphasis py-0" data-app-access-request="{{ item.name }}"
+                                title="App du bac à sable : demander à l'utiliser et la tester (le créateur et les administrateurs sont prévenus)">
+                            <i class="fas fa-hand me-1"></i>Demander l'accès
+                        </button>
                         {% else %}
                         <span class="badge bg-secondary" title="Votre profil ne donne pas accès à cette application">
                             <i class="fas fa-lock me-1"></i>Sans accès
                         </span>
+                        {% endif %}
+                        {% if item.can_grant %}
+                        <button type="button" class="btn btn-sm btn-link py-0" data-app-access-grant="{{ item.name }}"
+                                title="Ouvrir cette app du bac à sable à un développeur (utiliser / tester) — les accès accordés se retirent depuis « Partages »">
+                            <i class="fas fa-user-plus"></i>
+                        </button>
                         {% endif %}
                     </div>
                     {% endif %}
@@ -585,6 +601,56 @@ fond/bordure viennent de la règle #inspectorBanner), libellé seul sans « Rég
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 {# Abonnement : brique COMMUNE, montage automatique sur `[data-abo]` (PROFILES_PERMISSIONS §8). #}
 <script src="{% static_v 'common/js/wama-subscription.js' %}"></script>
+{% comment %}Forme `as` : un gabarit est lu à chaud par le serveur en service — une route neuve
+qu'il ne connaît pas encore ne doit pas faire tomber la page avant sa relance.{% endcomment %}
+{% url 'accounts:app-access-request' as app_access_request_url %}{% url 'accounts:app-access-grant' as app_access_grant_url %}
+<script>
+// L'accès aux apps du BAC À SABLE (2026-11-02, `accounts.app_access`) : demander, ouvrir.
+(function () {
+  const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+  function post(url, fields) {
+    const fd = new FormData();
+    Object.keys(fields).forEach(function (k) { fd.append(k, fields[k]); });
+    return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd })
+      .then(function (r) { return r.json(); });
+  }
+  function say(msg, type) { if (window.WamaApp && WamaApp.toast) WamaApp.toast(msg, type || 'info'); }
+  document.querySelectorAll('[data-app-access-request]').forEach(function (b) {
+    b.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      WamaApp.ask({
+        text: "Demander à utiliser et tester cette app du bac à sable ? Son créateur et les administrateurs sont prévenus.",
+        okLabel: "Demander", danger: false,
+        input: { label: 'Pourquoi (facultatif)', placeholder: 'ce que vous voulez tester' },
+      }).then(function (answer) {
+        if (!answer.ok) return;
+        post("{{ app_access_request_url }}", { app: b.dataset.appAccessRequest, reason: answer.value })
+        .then(function (res) {
+          if (res.done) { say('Demande envoyée.', 'success'); b.disabled = true; b.textContent = 'Demande en attente'; }
+          else say('Impossible — ' + (res.reason || 'refusé'), 'error');
+        });
+      });
+    });
+  });
+  document.querySelectorAll('[data-app-access-grant]').forEach(function (b) {
+    b.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      WamaApp.ask({
+        text: "Ouvrir cette app du bac à sable à un développeur, pour qu'il l'utilise et la teste ? L'accès se retire depuis « Partages ».",
+        okLabel: "Ouvrir l'accès", danger: false,
+        input: { label: 'Développeur', placeholder: 'identifiant' },
+      }).then(function (answer) {
+        if (!answer.ok || !answer.value) return;
+        post("{{ app_access_grant_url }}", { app: b.dataset.appAccessGrant, username: answer.value })
+          .then(function (res) {
+            say(res.done ? 'Accès ouvert à ' + answer.value + '.' : 'Impossible — ' + (res.reason || 'refusé'),
+                res.done ? 'success' : 'error');
+          });
+      });
+    });
+  });
+})();
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const dataEl = document.getElementById('apps-data');

@@ -516,27 +516,26 @@ def _provenance_accessible(user, kind, element_id):
     return not app or accessible(user, 'app', app)
 
 
-def _app_accessible(user, app_id, policies=None, owners=None):
+def _app_accessible(user, app_id, policies=None, sandbox=None):
     """
     Décision pour la famille `app` :
-      créateur de jumelle → min_tier → bypass dev/admin → anonymous(public) → app commune
+      bac à sable → min_tier → bypass dev/admin → anonymous(public) → app commune
       → intersection rôles.
-    `policies` / `owners` : lectures GROUPÉES faites par `accessible_apps` (même décision).
+    `policies` / `sandbox` : lectures GROUPÉES faites par `accessible_apps` (même décision) —
+    `sandbox` = `(propriétaires, apps accordées)` d'`app_access.sandbox_facts`.
     """
-    # Jumelle de bac à sable : son CRÉATEUR y accède quel que soit son tier (décision Fabien
-    # 2026-09-03 — chacun voit SES jumelles, pas celles des autres ; dev/admin voient tout
-    # par la voie tier normale). Dérogation AVANT min_tier : c'est lui qui bloquerait un
-    # créateur non-dev. Une jumelle sans `created_by` (CLI) reste dev/admin-only.
-    try:
-        if owners is not None:
-            _owner = owners.get(app_id, '')
-        else:
-            from wama.common.sandbox import twin_owner
-            _owner = twin_owner(app_id)
-        if _owner and getattr(user, 'username', '') == _owner:
-            return True
-    except Exception:
-        pass
+    # Le BAC À SABLE a UNE règle, partout — pages, menu, assistant, API, MCP, Studio (décisions de
+    # Fabien, 2026-11-02) : un administrateur voit toutes ses apps ; un DÉVELOPPEUR, celles qu'il
+    # a créées et celles qu'on lui a ouvertes (`AccessGrant`, accordé par le créateur ou un
+    # administrateur) ; un utilisateur simple, aucune — il demande à devenir développeur. Avant
+    # la politique de l'app : une politique éditée en base ne l'élargit pas. Remplace la
+    # dérogation du 2026-09-03 (le créateur y entrait quel que soit son niveau, R202).
+    from wama.accounts import app_access
+    owners, granted = sandbox if sandbox is not None else (app_access.sandbox_owners(), None)
+    if app_id in owners:
+        if granted is None:
+            granted = app_access.granted_apps(user) if is_developer(user) else set()
+        return app_access.sandbox_decision(user, app_id, owners, granted)
     pol = _policy_for(app_id, policies)
     tier = user_tier(user)
     if pol['min_tier'] and tier_rank(tier) < tier_rank(pol['min_tier']):
@@ -554,18 +553,17 @@ def accessible_apps(user, app_ids):
     """Sous-ensemble d'app_ids accessibles à user (préserve l'ordre).
 
     MÊME décision que `accessible(user, 'app', …)` app par app, mais les politiques et les
-    propriétaires de jumelles se lisent UNE fois pour la liste (2026-10-02 : le menu de chaque
+    faits du bac à sable se lisent UNE fois pour la liste (2026-10-02 : le menu de chaque
     page faisait 52 requêtes et 26 lectures du registre des bacs à sable)."""
+    from wama.accounts import app_access
     app_ids = list(app_ids)
     if KIND_DECISION.get('app') != 'ici':
         return [a for a in app_ids if accessible(user, 'app', a)]
     policies = _all_policies()
-    try:
-        from wama.common.sandbox import load_registry
-        owners = {e.get('label'): e.get('created_by') or '' for e in load_registry()}
-    except Exception:
-        owners = None
-    return [a for a in app_ids if _app_accessible(user, a, policies, owners)]
+    owners = app_access.sandbox_owners()
+    granted = (app_access.granted_apps(user)
+               if is_developer(user) and set(app_ids) & set(owners) else set())
+    return [a for a in app_ids if _app_accessible(user, a, policies, (owners, granted))]
 
 
 class _CaseUser:

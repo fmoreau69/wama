@@ -174,14 +174,16 @@ class EveryShownSettingReachesTheElementTest(TestCase):
         from wama.common.services.nightly_tests import get_test_user
         self.user = get_test_user()
 
-    def _developer(self):
-        """Un compte développeur : le bac à sable leur est ouvert (`inject_sandbox_access`)."""
+    def _sandbox_user(self):
+        """Un compte administrateur : par les OUTILS (que le runner du Studio appelle), le bac à
+        sable s'ouvre à un administrateur ou au développeur qui l'a créé
+        (`tool_app_accessible`, 2026-11-02) — les apps nées en ligne de commande n'en ont pas."""
         from django.contrib.auth import get_user_model
 
         from wama.accounts.models import UserProfile
-        user, _ = get_user_model().objects.get_or_create(username='node_settings_developer')
+        user, _ = get_user_model().objects.get_or_create(username='node_settings_sandbox_admin')
         profile, _ = UserProfile.objects.get_or_create(user=user)
-        profile.account_tier = 'developpeur'
+        profile.account_tier = 'admin'
         profile.save()
         return get_user_model().objects.get(pk=user.pk)
 
@@ -228,7 +230,7 @@ class EveryShownSettingReachesTheElementTest(TestCase):
                        for e in GENERIC_APPS[app].get('extra_params_spec') or []}
                 # Une app NÉE D'UN MANIFESTE (bac à sable, sans source) se mesure seule — elle n'a
                 # rien à quoi se comparer —, par un compte qui peut l'ouvrir (2026-11-01).
-                user = (self._developer() if (APP_CATALOG.get(app) or {}).get('sandbox')
+                user = (self._sandbox_user() if (APP_CATALOG.get(app) or {}).get('sandbox')
                         else self.user)
                 with self.subTest(app=app), transaction.atomic():
                     item_id = build_generic_runner(app)['create'](user, self._input(app),

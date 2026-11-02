@@ -863,9 +863,11 @@ class Command(BaseCommand):
                                  "(ex. manifests/app_drafts/writer.json) — sans app source "
                                  "(route « app de zéro », WAMA_APP_GENERATION_ROUTE §10.5)")
         parser.add_argument('--owner', default='',
-                            help="create : username du CRÉATEUR de la jumelle (visibilité "
-                                 "« créateur + dev + admin », demande Fabien 03/09) ; "
-                                 "vide = jumelle d'opérateur, dev/admin seuls ; glue : qui applique")
+                            help="create : username du développeur CRÉATEUR (le bac à sable est "
+                                 "aux développeurs et administrateurs ; par les outils de "
+                                 "l'assistant, un développeur n'atteint que les siennes — "
+                                 "2026-11-02) ; vide = app d'opérateur, administrateurs seuls "
+                                 "par les outils ; glue : qui applique")
 
     def handle(self, *args, **opts):
         action = opts['action']

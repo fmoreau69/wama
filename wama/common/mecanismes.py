@@ -3122,10 +3122,15 @@ MECHANISMS = (
               "montre ces décisions compte par compte, avec unités, projets, partages, apports et "
               "activité — page admin, intégrée à la présentation, jouée chaque nuit "
               "(`accounts.constellation.ui`) ; les deux vues montrent les mêmes outils "
-              "(`presented_apps`)",
+              "(`presented_apps`). Depuis le 2026-11-02, le BAC À SABLE a UNE règle (un "
+              "administrateur toutes ses apps, un développeur les siennes et celles qu'on lui "
+              "OUVRE, un utilisateur simple aucune) et la 1ʳᵉ ligne d'`AccessGrant` (S3) : le "
+              "créateur ou un administrateur ouvre une app à un développeur, pour l'utiliser — "
+              "`accounts/app_access.py`",
               'wama/accounts/permissions.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               annexes=('wama/accounts/tests/tests_anonymous_closure.py', 'wama/accounts/tests/tests_access_points.py',
-                       'wama/accounts/constellation.py', 'wama/common/services/ui_smoke_accounts.py'),
+                       'wama/accounts/constellation.py', 'wama/common/services/ui_smoke_accounts.py',
+                       'wama/accounts/app_access.py', 'wama/accounts/tests/tests_app_access.py'),
               symbol='accessible'),
     # Ajouté le 2026-10-21 (GO de Fabien : « une brique commune réutilisable pour différents
     # registres »). La constellation des utilisateurs en fut extraite, sans changement visible.
@@ -3282,9 +3287,12 @@ MECHANISMS = (
     Mechanism('tool_api', "Surface d'outils",
               "Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas. "
               "Chaque outil DÉCLARE son effet sur sa fonction (`tool_effect` : lecture / écriture / destruction, 2026-10-28) — "
-              "les outils d'un sous-agent (`sub_agent_tools`) et les annotations MCP en DÉRIVENT",
+              "les outils d'un sous-agent (`sub_agent_tools`) et les annotations MCP en DÉRIVENT. "
+              "Tout ajout fonctionnel la complète (2026-11-02) : chaque app du catalogue a sa triade, "
+              "chaque geste des fabriques de vues son outil (`tests_tool_api_coverage`, skill `/api-outils`)",
               'wama/tool_api.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
-              annexes=('wama/common/tests/tests_tool_effects.py',)),
+              annexes=('wama/common/tests/tests_tool_effects.py',
+                       'wama/common/tests/tests_tool_api_coverage.py')),
     Mechanism('api_v1', 'API REST v1',
               "Passerelle générique (token+session) sur TOOL_REGISTRY : lister/exécuter, gating F7 à l'annonce ET à l'exécution",
               'wama/api/v1/views.py', '',

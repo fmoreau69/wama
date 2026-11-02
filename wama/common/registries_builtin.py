@@ -76,7 +76,7 @@ register(Registry(
     refresh=_refresh_apps, count=_count_apps, entries=_entries_apps,
     url_name='common:apps_catalog', manifest_kind='app',
     periodic='nightly-consistency',
-    # Les jumelles ont un créateur (`sandbox.twin_owner`, registre gitignoré), pas une portée
+    # Les jumelles ont un créateur (`created_by` de `sandbox.load_registry`, registre gitignoré), pas une portée
     # `ScopedVisibility` (ROADMAP §29, étape 5).
     provenance=TO_CARRY, access_kind='app',
     doc='docs/construction/architecture/WAMA_APP_CONVENTIONS.md',

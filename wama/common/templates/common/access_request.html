@@ -9,6 +9,10 @@ suivent) — un élément qui porte une personne demande d'abord le consentement
 Une demande de PROMOTION (niveau `system`, `ROADMAP §29` 6a, 2026-10-20) emprunte la même page :
 un ADMINISTRATEUR la tranche (Valider / Refuser) après avoir INSPECTÉ l'élément — sa famille, son
 auteur, sa portée, et le lien vers la page qui le montre. `is_owner` y désigne celui qui décide.
+
+Une demande d'ACCÈS À UNE APP du bac à sable (`accounts.AccessGrant`, `app_grant`, 2026-11-02)
+emprunte aussi la même page : son créateur ou un administrateur la tranche. L'adresse de la
+réponse vient de la vue (`answer_url`), une par famille de demande.
 {% endcomment %}
 
 {% block title %}WAMA — {% if promotion %}Demande de promotion{% else %}Demande d'accès{% endif %}{% endblock %}
@@ -38,6 +42,14 @@ auteur, sa portée, et le lien vers la page qui le montre. `is_owner` y désigne
       <dt>État</dt><dd data-request-state>{% if grant.state == 'granted' %}Validée{% elif grant.state == 'refused' %}Refusée{% else %}{{ grant.get_state_display }}{% endif %}{% if grant.answered_at %} le {{ grant.answered_at|date:"d/m/Y H:i" }}{% if grant.granted_by %} par {{ grant.granted_by.username }}{% endif %}{% endif %}</dd>
     </dl>
     {% if inspect_url %}<p class="small mb-3"><a href="{{ inspect_url }}" class="btn btn-sm btn-outline-emphasis"><i class="fas fa-magnifying-glass me-1"></i>Inspecter l'élément</a></p>{% endif %}
+    {% elif app_grant %}
+    <dl class="mb-3">
+      <dt>Demandé par</dt><dd>{{ requester }}</dd>
+      <dt>Ce qui est demandé</dt><dd>{{ grant.get_level_display }} l'app du bac à sable « {{ element_label }} » ({{ element_app }})</dd>
+      {% if grant.reason %}<dt>Pourquoi</dt><dd>{{ grant.reason }}</dd>{% endif %}
+      <dt>Le</dt><dd>{{ grant.created_at|date:"d/m/Y H:i" }}</dd>
+      <dt>État</dt><dd data-request-state>{{ grant.get_state_display }}{% if grant.answered_at %} le {{ grant.answered_at|date:"d/m/Y H:i" }}{% if grant.granted_by %} par {{ grant.granted_by.username }}{% endif %}{% endif %}</dd>
+    </dl>
     {% else %}
     <dl class="mb-3">
       <dt>Demandé par</dt><dd>{{ grant.beneficiary.get_full_name|default:grant.beneficiary.username }}</dd>
@@ -63,14 +75,14 @@ auteur, sa portée, et le lien vers la page qui le montre. `is_owner` y désigne
     </div>
     <div class="small mt-2" data-request-message></div>
     {% elif not is_owner and grant.state == 'requested' %}
-    <p class="small text-body-secondary mb-0">Votre demande attend la réponse {% if promotion %}d'un administrateur{% else %}du propriétaire{% endif %}.</p>
+    <p class="small text-body-secondary mb-0">Votre demande attend la réponse {% if promotion %}d'un administrateur{% elif app_grant %}du créateur de l'app ou d'un administrateur{% else %}du propriétaire{% endif %}.</p>
     {% endif %}
   </div>
 </div>
 {% if is_owner and grant.state == 'requested' %}
 <script>
 (function () {
-  const url = "{% url 'common:access_request_answer' grant.pk %}";
+  const url = "{% if answer_url %}{{ answer_url }}{% else %}{% url 'common:access_request_answer' grant.pk %}{% endif %}";
   const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
   const msg = document.querySelector('[data-request-message]');
   const consentBox = document.querySelector('[data-request-consent]');

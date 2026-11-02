@@ -488,6 +488,14 @@ def dev_sandbox(user, action: str, app: str = '', target: str = '', manifest: st
     revert ou remove : dev_reload_web pour servir le changement.
     """
     owner = getattr(user, 'username', '') if action == 'create' else ''
+    if action in ('substitute', 'revert', 'remove') and app:
+        # Développer l'app d'un autre (2026-11-02) : son créateur et les administrateurs seuls ;
+        # un accès accordé ne donne que l'usage (`accounts.app_access.can_develop`).
+        from wama.accounts.app_access import can_develop, sandbox_owners
+        if app in sandbox_owners() and not can_develop(user, app):
+            return {'error': 'forbidden',
+                    'detail': f"« {app} » : seuls son créateur et les administrateurs la font "
+                              "évoluer (un accès accordé ne donne que l'usage)."}
     return start_job(user, f'sandbox:{action}',
                      sandbox_command(action, app, target, owner, manifest))
 

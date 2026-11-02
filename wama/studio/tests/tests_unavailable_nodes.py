@@ -104,11 +104,18 @@ class PaletteIsTheLaunchRuleTest(TestCase):
 
     def test_an_app_that_cannot_run_in_a_pipeline_is_named_as_such(self):
         from wama.common.app_registry import APP_CATALOG
+        from wama.studio.services import runners
         from wama.studio.services.palette import executable, palette_nodes, unavailable_reason
-        offered = palette_nodes(self.user)
-        idle = [k for k in APP_CATALOG if k not in offered and not executable({'app': k})]
-        self.assertTrue(idle, 'precondition: an app of the catalogue has no pipeline runner')
-        reason = unavailable_reason(self.user, {'app': idle[0]}, offered)
+        # The idle app is POSED : since 2026-11-02 every app of the catalogue has its tools, hence
+        # its runner (`tests_tool_api_coverage`) — the Translator, which had none, was the case.
+        idle_app = sorted(APP_CATALOG)[0]
+        real = runners.runner_for
+        with mock.patch.object(runners, 'runner_for',
+                               side_effect=lambda app: None if app == idle_app else real(app)):
+            offered = palette_nodes(self.user)
+            idle = [k for k in APP_CATALOG if k not in offered and not executable({'app': k})]
+            self.assertEqual([idle_app], idle, 'precondition: one app has no pipeline runner')
+            reason = unavailable_reason(self.user, {'app': idle[0]}, offered)
         self.assertEqual('not_executable', reason['code'])
         self.assertIn(idle[0], reason['message'])
 

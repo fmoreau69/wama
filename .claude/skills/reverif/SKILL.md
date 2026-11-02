@@ -93,7 +93,9 @@ de donnée), jamais par le nom de ce qui a déménagé.
   domaine** (vécu le 2026-10-21, constellation des utilisateurs) : `tests_theme` (couleurs écrites
   en dur — budget `.css` à ZÉRO : une feuille neuve à hexadécimaux le fait rougir),
   `tests_identifier_language` (un identifiant français), `tests_test_layout` (un fichier de test de
-  trop à la racine d'une app), `tests_install_route`, `tests_hf_cache_routing`. Les tests du
+  trop à la racine d'une app), `tests_install_route`, `tests_hf_cache_routing`, et
+  `tests_tool_api_coverage` (une app ou un geste sans son outil d'assistant — `/api-outils`,
+  2026-11-02). Les tests du
   périmètre passaient ; ces cinq-là ont trouvé TROIS écarts de ma main. Un rouge préexistant y
   reste à son propriétaire, mais s'il est AGGRAVÉ par la session, il est à elle.
   🔴 **« Préexistant » se PROUVE par la liste nominative filtrée sur SES fichiers, avant d'être

@@ -34,9 +34,10 @@ _REGISTRY_CACHE = {'stamp': None, 'data': []}
 
 def load_registry() -> list:
     """Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
-    absent/illisible. `created_by` (2026-09-03, demande Fabien) = username du CRÉATEUR :
-    porte la visibilité « créateur + dev + admin » ; absent/vide = jumelle d'opérateur CLI
-    (visible des seuls dev/admin, comportement historique).
+    absent/illisible. `created_by` (2026-09-03, demande Fabien) = username du CRÉATEUR ;
+    absent/vide = app d'opérateur CLI. Le bac à sable est aux développeurs et aux administrateurs
+    (`accounts.permissions._app_accessible`, 2026-11-02) ; par les OUTILS, un développeur n'atteint
+    que les apps qu'il a créées (`tool_app_accessible`), qui lit ce champ.
 
     Relu seulement s'il a CHANGÉ (2026-10-02) : le menu le lisait 26 fois par page, une lecture
     et une analyse JSON sur /mnt/d à chaque fois. Un `stat` suffit à savoir s'il a bougé ; la
@@ -51,15 +52,6 @@ def load_registry() -> list:
         return [dict(e) if isinstance(e, dict) else e for e in _REGISTRY_CACHE['data']]
     except Exception:
         return []
-
-
-def twin_owner(label: str) -> str:
-    """Username du créateur d'une jumelle ('' si CLI/inconnu) — consommé par la dérogation
-    d'accès (`accounts.permissions._app_accessible`)."""
-    for e in load_registry():
-        if e.get('label') == label:
-            return e.get('created_by') or ''
-    return ''
 
 
 def twin_source(label: str) -> str:

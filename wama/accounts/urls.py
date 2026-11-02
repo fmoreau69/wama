@@ -34,6 +34,12 @@ urlpatterns = [
     path('profile/api-keys/', views.api_keys_list, name='profile-api-keys'),
     path('profile/api-keys/<slug:slug>/', views.api_key_save, name='profile-api-key-save'),
     path('manage/app-access/', views.app_access_matrix, name='app-access-matrix'),
+    # L'accès aux apps du bac à sable (2026-11-02) : demande, page, réponse, accord, retrait.
+    path('app-access/request/', views.app_access_request, name='app-access-request'),
+    path('app-access/grant/', views.app_access_grant, name='app-access-grant'),
+    path('app-access/<int:pk>/', views.app_access_request_page, name='app-access-page'),
+    path('app-access/<int:pk>/answer/', views.app_access_answer, name='app-access-answer'),
+    path('app-access/<int:pk>/revoke/', views.app_access_revoke, name='app-access-revoke'),
     path('manage/app-access/toggle/', views.app_access_toggle, name='app-access-toggle'),
     path('profile/token/regenerate/', views.token_regenerate, name='token-regenerate'),
     # Passerelle de canaux (ROADMAP §19) — l'écran qui SCELLE l'appariement : c'est cette

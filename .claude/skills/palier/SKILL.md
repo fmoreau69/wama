@@ -26,6 +26,9 @@ Objectif : ne jamais laisser un palier non consigné ni non validé. À déroule
 - 🔴 **Passe courte `/doc-sync §1`** (2026-10-26, Fabien : « pas seulement à la clôture ») : le doc du domaine, le STATUT de la section de `ROADMAP` qui planifiait le livrable (⏳ → 🔄/✅, daté, sha) et la MARQUE de la section de vision qui en porte l'intention — rien ne les faisait suivre.
 - Mécanisme transversal créé/déplacé/supprimé → entrée du registre `wama/common/mecanismes.py` puis `python manage.py doc_facts` (la table de `docs/construction/architecture/WAMA_MECANISMES.md` est GÉNÉRÉE, ne jamais l'éditer à la main).
 - Un registre déclaratif a bougé (params, capacités, tool_api, modèles…) → `python manage.py manifest_export` puis `manifest_export --check` **depuis WSL2** (la vue venv_win donne de faux « périmés » sur les libraries — dépendances de wheel différentes).
+- 🔴 **Un ajout FONCTIONNEL (app, geste d'une card ou d'un lot, route d'action) → `/api-outils`**
+  (décision de Fabien, 2026-11-02 : « l'API doit être complétée systématiquement ») : l'assistant
+  doit pouvoir le faire, et `tests_tool_api_coverage` le tient.
 - Cam Analyzer : entrée `CAM_ANALYZER_CHANGELOG.md` obligatoire si le comportement a changé.
 - Mémoire persistante : seulement le non-dérivable du code (décisions, pièges, feedback).
 

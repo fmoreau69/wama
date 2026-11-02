@@ -291,6 +291,19 @@ def get_test_dev_user():
     user.groups.add(group)                     # idempotent
     from wama.accounts.permissions import set_account_tier
     set_account_tier(user, 'developpeur')      # le seul écrivain du niveau (2026-10-21)
+    # Depuis le 2026-11-02 un développeur ne voit que SES apps du bac à sable et celles qu'on lui
+    # OUVRE (`accounts.app_access`) : ce compte reçoit, déclarativement comme ses rôles, l'accès
+    # d'USAGE à chacune — sinon le filet ne mesure plus aucune jumelle. Une ligne `AccessGrant`
+    # sans auteur (`granted_by` vide) : le système l'accorde, aucune personne.
+    from django.utils import timezone
+    from wama.accounts.app_access import KIND_APP, sandbox_owners
+    from wama.accounts.models import AccessGrant
+    mine = dict(subject_type=AccessGrant.SUBJECT_USER, subject_id=user.pk, kind=KIND_APP)
+    opened = set(AccessGrant.in_force().filter(**mine).values_list('element_id', flat=True))
+    for label in set(sandbox_owners()) - opened:
+        AccessGrant.objects.create(**mine, element_id=label, state=AccessGrant.STATE_GRANTED,
+                                   answered_at=timezone.now(),
+                                   reason='compte de test nocturne (accordé par le système)')
     return user
 
 

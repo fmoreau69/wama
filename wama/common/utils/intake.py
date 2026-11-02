@@ -50,7 +50,8 @@ def _ports_for_category(category: str, user=None) -> list:
     et des apps NÉES D'UN MANIFESTE que `user` peut ouvrir (2026-11-01, fil Discord n° 43 : le
     Writer n'était jamais proposé, l'assistant se rabattait sur le Reader). L'exclusion du bac à
     sable vise les JUMELLES, qui doublent leur source ; une app née d'un manifeste ne double rien,
-    mais elle reste fermée à qui n'y a pas accès (`inject_sandbox_access`)."""
+    mais elle ne s'offre qu'à qui la décision commune l'ouvre — un administrateur, ou un
+    développeur qui l'a créée ou qu'on lui a ouverte (`permissions._app_accessible`)."""
     from wama.common.app_registry import APP_CATALOG, file_ports_for
     from wama.common.sandbox import born_apps, non_sandbox_apps
 

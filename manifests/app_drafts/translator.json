@@ -540,6 +540,25 @@
       "params_attr": "PARAMS_JSON",
       "params_module": "wama.translator.params",
       "runnable": true
+    },
+    "tool_api": {
+      "triad_spec": {
+        "model": "wama.translator.models.TranslatorText",
+        "id_kwarg": "text_id",
+        "empty_msg": "Aucune traduction en attente.",
+        "status_order": "-created_at",
+        "status_fields": {
+          "id": "id",
+          "filename": "filename",
+          "source_language": "source_language",
+          "target_language": "target_language",
+          "model": "model",
+          "status": "status",
+          "progress": "progress",
+          "error_message": {"attr": "error_message", "or_none": true},
+          "output_url": {"attr": "output_file", "url": true, "when": {"status": "SUCCESS"}}
+        }
+      }
     }
   }
 }

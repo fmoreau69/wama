@@ -295,12 +295,21 @@ def apps_catalog_view(request):
     # Le catalogue montre TOUT — c'est sa raison d'être : masquer ici priverait l'utilisateur du
     # seul endroit où retrouver ce qu'il a lui-même masqué (et, plus tard, où DEMANDER un accès
     # qu'il n'a pas). Chaque card porte donc son état, jamais son absence.
-    from wama.accounts.permissions import accessible
+    from wama.accounts import app_access
+    from wama.accounts.permissions import accessible, is_developer
     from .services.subscriptions import masques as _masques, resume as _resume_abo
     apps_masquees = _masques(request.user, 'app')
+    # Le BAC À SABLE (2026-11-02, décisions de Fabien) : un utilisateur simple ne le voit PAS,
+    # même ici ; un développeur y voit aussi les apps qu'il n'a pas, avec « Demander l'accès » ;
+    # le créateur d'une app et les administrateurs l'ouvrent à un développeur.
+    sandbox_owners = app_access.sandbox_owners()
+    developer = is_developer(request.user)
+    requestable = {r['app']: r for r in app_access.requestable_apps(request.user)}
 
     apps_list = []
     for name, spec in APP_CATALOG.items():
+        if name in sandbox_owners and not developer:
+            continue
         try:
             url = reverse(spec['url_name']) if spec.get('url_name') else ''
         except NoReverseMatch:
@@ -318,6 +327,8 @@ def apps_catalog_view(request):
             # n'est pas « décochée », elle est absente — sinon elle laisserait croire qu'un clic
             # ouvre un droit (§8.1 : une préférence ne peut jamais élargir).
             'abonne':     autorisee and name not in apps_masquees,
+            'access_request': requestable.get(name),
+            'can_grant':  app_access.can_grant(request.user, name),
         })
 
     # ── Groupage par CATÉGORIE (APP_CATEGORIES, déclaratif + dérivable — décision 2026-07-05).
@@ -329,7 +340,7 @@ def apps_catalog_view(request):
     apps_grouped = []
     for group in get_app_groups():
         cid, meta = group['id'], group['meta']
-        items = [by_name[n] for n, _spec in group['apps']]
+        items = [by_name[n] for n, _spec in group['apps'] if n in by_name]
         links = []
         for link in group['links']:
             try:

@@ -305,6 +305,76 @@ class AppAccessPolicy(models.Model):
         return f"AppAccessPolicy({self.app_id})"
 
 
+class AccessGrant(models.Model):
+    """Un DROIT sur un élément de CATALOGUE — et la DEMANDE de ce droit : la même ligne.
+
+    La table dessinée à `PROFILES_PERMISSIONS §8.2` (étape S3) : *« une dérogation nominative,
+    tracée, sans toucher au barème »*. ⚠ Pas `common.ObjectGrant`, qui porte les droits sur une
+    INSTANCE (une card, un lot) ; celle-ci, sur un élément du catalogue (une app), qui n'est pas
+    une ligne en base. Les deux partagent le vocabulaire `state / granted_by / expires_at`, pour
+    que la demande et sa réponse soient le même geste des deux côtés.
+
+    Premier usage (décision de Fabien, 2026-11-02) : ouvrir une app du BAC À SABLE à un
+    développeur qui ne l'a pas créée, pour qu'il la TESTE — *« créateur et admin accordent, aux
+    devs seulement, pour le moment : utiliser/tester »*. Seuls `subject_type='user'`,
+    `kind='app'`, `effect='allow'` et `level='use'` sont honorés aujourd'hui ; les autres valeurs
+    du dessin (rôle, unité, projet ; refus ; développer) sont déclarées pour qu'une suite les
+    ajoute sans migration — `accounts.app_access` refuse de les écrire.
+    """
+    SUBJECT_ROLE, SUBJECT_ORGUNIT, SUBJECT_PROJECT, SUBJECT_USER = 'role', 'orgunit', 'project', 'user'
+    SUBJECT_CHOICES = [(SUBJECT_ROLE, 'Rôle'), (SUBJECT_ORGUNIT, 'Unité'),
+                       (SUBJECT_PROJECT, 'Projet'), (SUBJECT_USER, 'Personne')]
+    EFFECT_ALLOW, EFFECT_DENY = 'allow', 'deny'
+    EFFECT_CHOICES = [(EFFECT_ALLOW, 'Autoriser'), (EFFECT_DENY, 'Refuser')]
+    LEVEL_USE, LEVEL_DEVELOP = 'use', 'develop'
+    LEVEL_CHOICES = [(LEVEL_USE, 'Utiliser / tester'), (LEVEL_DEVELOP, 'Développer')]
+    STATE_REQUESTED, STATE_GRANTED, STATE_REFUSED, STATE_REVOKED = (
+        'requested', 'granted', 'refused', 'revoked')
+    STATE_CHOICES = [(STATE_REQUESTED, 'Demandé'), (STATE_GRANTED, 'Accordé'),
+                     (STATE_REFUSED, 'Refusé'), (STATE_REVOKED, 'Retiré')]
+
+    subject_type = models.CharField(max_length=16, choices=SUBJECT_CHOICES, default=SUBJECT_USER)
+    subject_id = models.PositiveBigIntegerField()
+    kind = models.CharField(max_length=32)               # famille de `accessible()` : 'app'
+    element_id = models.CharField(max_length=128)        # sa clé : le label de l'app
+    effect = models.CharField(max_length=8, choices=EFFECT_CHOICES, default=EFFECT_ALLOW)
+    level = models.CharField(max_length=16, choices=LEVEL_CHOICES, default=LEVEL_USE)
+    state = models.CharField(max_length=12, choices=STATE_CHOICES, default=STATE_REQUESTED,
+                             db_index=True)
+    granted_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                   related_name='+')
+    reason = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['kind', 'element_id']),
+                   models.Index(fields=['subject_type', 'subject_id'])]
+        verbose_name = "Droit sur un élément du catalogue (ou sa demande)"
+        verbose_name_plural = "Droits sur des éléments du catalogue (et demandes)"
+
+    @classmethod
+    def in_force(cls):
+        """Les droits EN VIGUEUR : accordés et non expirés — la seule lecture qui décide."""
+        from django.db.models import Q
+        from django.utils import timezone
+        return cls.objects.filter(state=cls.STATE_GRANTED).filter(
+            Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now()))
+
+    def subject_user(self):
+        """Le compte bénéficiaire d'une ligne `subject_type='user'`, ou None."""
+        if self.subject_type != self.SUBJECT_USER:
+            return None
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.filter(pk=self.subject_id).first()
+
+    def __str__(self):
+        return (f'{self.subject_type}#{self.subject_id} · {self.effect} {self.level} · '
+                f'{self.kind}:{self.element_id} · {self.state}')
+
+
 class ProviderKey(models.Model):
     """Ce qu'une clé d'API porte, qu'elle soit d'un UTILISATEUR (`UserApiKey`) ou de l'INSTANCE
     (`InstanceApiKey`) : la clé chiffrée et ce que le fournisseur a répondu quand on l'a lue.

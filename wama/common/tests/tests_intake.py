@@ -153,10 +153,14 @@ class BornAppIntakeTest(TestCase):
             profile.save()
         return get_user_model().objects.get(pk=user.pk)
 
-    def test_a_born_app_is_offered_to_whoever_can_open_it_and_only_to_them(self):
+    def test_a_born_app_is_offered_to_whoever_its_tools_open_to_and_only_to_them(self):
+        """The intake proposes what the ASSISTANT will do : a sandbox app opens to the tools of an
+        administrator, or of the developer who created it (2026-11-02, `tool_app_accessible`) —
+        the Writer was created by the command line."""
         def apps(user):
             return {p['app'] for p in intake.capabilities_for_path('cv.pdf', user)['ports']}
-        self.assertIn('writer_01', apps(self._user('intake_dev', 'developpeur')))
+        self.assertIn('writer_01', apps(self._user('intake_admin', 'admin')))
+        self.assertNotIn('writer_01', apps(self._user('intake_dev', 'developpeur')))
         self.assertNotIn('writer_01', apps(self._user('intake_plain')))
         self.assertNotIn('writer_01', apps(None), 'sans compte, aucune app du bac à sable')
 

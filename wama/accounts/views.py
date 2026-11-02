@@ -1394,3 +1394,88 @@ def user_toggle_active(request, user_id):
             return JsonResponse({'success': False, 'error': str(e)})
 
     return JsonResponse({'success': False, 'error': 'Méthode non autorisée'})
+
+
+# ── L'ACCÈS aux apps du bac à sable (2026-11-02, `accounts.app_access`) ──────────────────────────
+# La demande, l'accord, la réponse et le retrait passent par le service ; la page de la demande
+# est celle des demandes d'accès d'une card (`common/access_request.html`), où mène la
+# notification. Chaque geste a son outil d'assistant (`tool_api.*_app_access`).
+
+def _app_access_reply(run):
+    from .app_access import AppAccessRefused
+    try:
+        return JsonResponse({'done': True, **(run() or {})})
+    except AppAccessRefused as exc:
+        return JsonResponse({'done': False, 'reason': str(exc)})
+
+
+@login_required
+def app_access_request_page(request, pk: int):
+    """Une DEMANDE d'accès à une app du bac à sable : ce qui est demandé, par qui ; Accepter /
+    Refuser pour son créateur et les administrateurs, l'état pour le demandeur. Personne d'autre
+    ne la voit."""
+    from django.http import Http404
+    from .app_access import _label, can_grant
+    from .models import AccessGrant
+    grant = AccessGrant.objects.filter(pk=pk, kind='app').select_related('granted_by').first()
+    if grant is None:
+        raise Http404
+    decider = can_grant(request.user, grant.element_id)
+    if not (decider or grant.subject_id == request.user.pk):
+        raise Http404
+    requester = grant.subject_user()
+    return render(request, 'common/access_request.html', {
+        'grant': grant, 'is_owner': decider, 'app_grant': True,
+        'requester': requester.get_username() if requester else f'#{grant.subject_id}',
+        'element_label': _label(grant.element_id), 'element_app': grant.element_id,
+        'answer_url': reverse('accounts:app-access-answer', args=[grant.pk]),
+        'volet': VOLET_AUCUN,
+    })
+
+
+@login_required
+@require_POST
+def app_access_answer(request, pk: int):
+    """POST `accept` (1|0) — le créateur ou un administrateur répond à une demande."""
+    from .app_access import answer
+    from .models import AccessGrant
+    grant = AccessGrant.objects.filter(pk=pk, kind='app').first()
+    if grant is None:
+        return JsonResponse({'done': False, 'reason': 'demande introuvable'}, status=404)
+    return _app_access_reply(lambda: answer(request.user, grant,
+                                            request.POST.get('accept') in ('1', 'true')))
+
+
+@login_required
+@require_POST
+def app_access_request(request):
+    """POST `app` (+ `reason`) — un développeur demande à utiliser une app du bac à sable."""
+    from .app_access import request_access
+    return _app_access_reply(lambda: {'id': request_access(
+        request.user, request.POST.get('app') or '', request.POST.get('reason') or '').pk})
+
+
+@login_required
+@require_POST
+def app_access_grant(request):
+    """POST `app`, `username` — le créateur ou un administrateur ouvre l'app à un développeur."""
+    from .app_access import AppAccessRefused, grant_access
+
+    def run():
+        beneficiary = User.objects.filter(username=request.POST.get('username') or '').first()
+        if beneficiary is None:
+            raise AppAccessRefused('compte inconnu')
+        return {'id': grant_access(request.user, request.POST.get('app') or '', beneficiary).pk}
+    return _app_access_reply(run)
+
+
+@login_required
+@require_POST
+def app_access_revoke(request, pk: int):
+    """Le créateur ou un administrateur retire un accès accordé."""
+    from .app_access import revoke
+    from .models import AccessGrant
+    grant = AccessGrant.objects.filter(pk=pk, kind='app').first()
+    if grant is None:
+        return JsonResponse({'done': False, 'reason': 'accès introuvable'}, status=404)
+    return _app_access_reply(lambda: {'id': revoke(request.user, grant).pk})

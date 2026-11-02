@@ -105,54 +105,65 @@ class DeuxAxesDuModeleDAccesTests(TestCase):
 
 
 class VisibiliteDesJumellesDeBacASableTests(TestCase):
-    """Visibilité des jumelles (demande Fabien 2026-09-03) : créateur + dev + admin.
-
-    La dérogation créateur vit dans `_app_accessible` AVANT le min_tier (qui bloquerait un
-    créateur non-dev) ; le menu regroupe les jumelles visibles dans un groupe dédié en queue
-    (« Bac à sable ») au lieu de les mêler aux catégories.
+    """Le bac à sable a UNE règle (décisions de Fabien, 2026-11-02) : un administrateur voit toutes
+    ses apps, un développeur les siennes (et celles qu'on lui ouvre), un utilisateur simple aucune —
+    « s'il souhaite y accéder ou développer une application, il demande à devenir développeur ».
+    La dérogation du 2026-09-03 (le CRÉATEUR y accédait quel que soit son niveau) est retirée, et
+    une politique éditée en base ne la rouvre pas. Le menu regroupe les jumelles visibles dans un
+    groupe dédié en queue (« Bac à sable »).
     """
 
-    def _utilisateur(self, nom):
-        u = User.objects.create_user(nom, password='x')
-        UserProfile.objects.get_or_create(user=u)   # tier par défaut : utilisateur
-        return u
+    def _account(self, name, tier='utilisateur'):
+        u = User.objects.create_user(name, password='x')
+        profile, _ = UserProfile.objects.get_or_create(user=u)
+        profile.account_tier = tier
+        profile.save()
+        return User.objects.get(pk=u.pk)
 
-    def _politique_jumelle_posee(self):
-        """Politique dev-only de la jumelle POSÉE PAR LE TEST (patch.dict) — le registre
-        sandbox_apps.json est GITIGNORÉ : sur un arbre frais (worktree HEAD, clone),
-        `inject_sandbox_access` n'a rien semé et la politique par défaut est OUVERTE.
-        Mesuré le 2026-09-03 : la V1 de ces tests lisait l'arbre COURANT et échouait sur
+    def _sandbox_posed(self, policy=None):
+        """Registre et politique de la jumelle POSÉS PAR LE TEST — le registre
+        sandbox_apps.json est GITIGNORÉ : sur un arbre frais (worktree HEAD, clone), il est
+        absent. Mesuré le 2026-09-03 : la V1 de ces tests lisait l'arbre COURANT et échouait sur
         HEAD — un test qui dépend d'un fichier gitignoré mesure l'arbre, pas la logique."""
+        from contextlib import ExitStack
         from unittest.mock import patch
         from wama.accounts.permissions import DEFAULT_APP_ACCESS
-        return patch.dict(DEFAULT_APP_ACCESS, {
-            'converter_01': {'roles': ['ingenierie'], 'min_tier': 'developpeur'}})
+        stack = ExitStack()
+        stack.enter_context(patch.dict(DEFAULT_APP_ACCESS, {'converter_01': policy or {
+            'roles': ['ingenierie'], 'min_tier': 'developpeur'}}))
+        stack.enter_context(patch('wama.common.sandbox.load_registry', return_value=[
+            {'label': 'converter_01', 'generated_from': 'converter', 'created_by': 'sandbox_creator'}]))
+        return stack
 
-    def test_le_createur_accede_a_sa_jumelle_meme_sans_tier_dev(self):
-        from unittest.mock import patch
-        createur = self._utilisateur('temoin_createur')
-        autre = self._utilisateur('temoin_autre')
-        self.assertEqual(user_tier(createur), 'utilisateur')
-        with self._politique_jumelle_posee(), \
-             patch('wama.common.sandbox.twin_owner',
-                   side_effect=lambda label: 'temoin_createur' if label == 'converter_01' else ''):
-            self.assertTrue(accessible(createur, 'app', 'converter_01'),
-                            'le créateur doit voir SA jumelle, quel que soit son tier')
-            self.assertFalse(accessible(autre, 'app', 'converter_01'),
-                             "un autre utilisateur standard ne voit pas la jumelle d'autrui")
+    def test_a_plain_user_does_not_see_the_sandbox_even_one_they_created(self):
+        from wama.accounts.permissions import accessible_apps
+        creator = self._account('sandbox_creator')
+        self.assertEqual(user_tier(creator), 'utilisateur')
+        with self._sandbox_posed():
+            self.assertFalse(accessible(creator, 'app', 'converter_01'))
+            self.assertEqual([], accessible_apps(creator, ['converter_01']), 'the grouped read too')
 
-    def test_une_jumelle_sans_proprietaire_reste_reservee_aux_dev_admin(self):
-        # Une jumelle SANS created_by (CLI) : le gating dev-only seul décide.
-        standard = self._utilisateur('temoin_standard')
-        with self._politique_jumelle_posee():
-            self.assertFalse(accessible(standard, 'app', 'converter_01'))
+    def test_a_policy_edited_in_the_database_does_not_open_it_to_a_plain_user(self):
+        plain = self._account('sandbox_plain')
+        with self._sandbox_posed({'roles': [], 'public': True, 'min_tier': None}):
+            self.assertFalse(accessible(plain, 'app', 'converter_01'))
+
+    def test_its_developer_and_the_administrators_see_it_another_developer_does_not(self):
+        """« Une seule règle partout, un dev ne voit que ses propres apps, admin toutes »
+        (Fabien, 2026-11-02) — l'accès qu'on ouvre à un autre : `tests_app_access`."""
+        creator = self._account('sandbox_creator', 'developpeur')
+        with self._sandbox_posed():
+            self.assertTrue(accessible(creator, 'app', 'converter_01'))
+            self.assertTrue(accessible(self._account('sandbox_admin', 'admin'), 'app', 'converter_01'))
+            self.assertFalse(accessible(self._account('sandbox_other_dev', 'developpeur'), 'app',
+                                        'converter_01'))
 
     def test_le_menu_range_les_jumelles_dans_un_groupe_dedie_en_queue(self):
         from django.test import RequestFactory
         from wama.accounts.context_processors import user_role
-        from wama.common.services.nightly_tests import get_test_dev_user
         req = RequestFactory().get('/')
-        req.user = get_test_dev_user()
+        # Un administrateur : il voit TOUT le bac à sable (un développeur, ses seules apps).
+        req.user = self._account('sandbox_menu_admin', 'admin')
         groupes = user_role(req)['nav_apps_grouped']
         ids = [g['id'] for g in groupes]
         if 'sandbox' not in ids:
@@ -178,7 +189,7 @@ class VisibiliteDesJumellesDeBacASableTests(TestCase):
         if not jumelles:
             self.skipTest('aucune jumelle enregistrée sur cet arbre (registre gitignoré)')
         req = RequestFactory().get('/')
-        req.user = self._utilisateur('temoin_catalogue_js')
+        req.user = self._account('temoin_catalogue_js')
         catalogue = user_role(req)['app_catalog_json']
         for label in jumelles:
             self.assertNotIn(label, catalogue,

@@ -3398,8 +3398,9 @@ def _refus_app(user, app: str):
     if refusal := _signed_in_refusal(user, "Écriture"):
         return refusal
     from wama.accounts.permissions import accessible, all_gated_apps
-    # Une app hors périmètre gardé (jumelle de bac à sable…) n'a pas de politique : on ne
-    # l'invente pas, on laisse l'ownership de la vue trancher.
+    # Une app hors périmètre gardé n'a pas de politique : on ne l'invente pas, on laisse
+    # l'ownership de la vue trancher. Une app de bac à sable est gardée par LA décision commune
+    # (un administrateur, ou un développeur qui l'a créée ou qu'on lui a ouverte).
     if app in all_gated_apps() and not accessible(user, 'app', app):
         return {'error': 'forbidden',
                 'detail': f"Accès non autorisé à l'application « {app} »."}
@@ -3447,6 +3448,25 @@ def _verdict(statut, charge, quoi):
     return {'error': f"{quoi} : {detail}"}
 
 
+def _card_gesture(user, app: str, gesture: str, pk: int, what: str, route_kind: str, data=None):
+    """Un geste d'une card (🗑 ⧉ ⏹ ⚙) fait par la VUE de l'app, sous la garde d'app : rend
+    (échec, None) ou (None, réponse de la vue). `gesture` est le nom conventionnel de la route
+    (`urls_gen.served_route`), `what` le nom du geste dans les messages, `route_kind` le
+    complément de « aucune route … »."""
+    if refusal := _refus_app(user, app):
+        return refusal, None
+    route = _route_dispo(app, gesture, [pk])
+    if not route:
+        return {'error': f"L'app '{app}' ne déclare aucune route {route_kind}."}, None
+    try:
+        status_code, payload = _poster_vue(user, app, route, [pk], data=data)
+    except Exception as e:
+        logger.warning(f"[tool_api] {gesture} {app}#{pk} : {e}")
+        return {'error': f"{what} impossible pour {app}#{pk} : {e}"}, None
+    failure = _verdict(status_code, payload, f"{what} de {app}#{pk}")
+    return (failure, None) if failure else (None, payload or {})
+
+
 @tool_effect(DESTROY)
 def delete_item(user, app: str, pk: int) -> dict:
     """
@@ -3465,19 +3485,8 @@ def delete_item(user, app: str, pk: int) -> dict:
     Returns:
         {"deleted": true, "app", "id"} or {"error"}
     """
-    refus = _refus_app(user, app)
-    if refus:
-        return refus
-    route = _route_dispo(app, 'delete', [pk])
-    if not route:
-        return {'error': f"L'app '{app}' ne déclare aucune route de suppression."}
-    try:
-        statut, charge = _poster_vue(user, app, route, [pk])
-    except Exception as e:
-        logger.warning(f"[tool_api] delete_item {app}#{pk} : {e}")
-        return {'error': f"Suppression impossible pour {app}#{pk} : {e}"}
-    mauvais = _verdict(statut, charge, f"Suppression de {app}#{pk}")
-    return mauvais or {'deleted': True, 'app': app, 'id': pk}
+    failure, _payload = _card_gesture(user, app, 'delete', pk, 'Suppression', 'de suppression')
+    return failure or {'deleted': True, 'app': app, 'id': pk}
 
 
 @tool_effect(WRITE)
@@ -3495,23 +3504,195 @@ def duplicate_item(user, app: str, pk: int) -> dict:
     Returns:
         {"duplicated": true, "app", "source_id", "new_id"} or {"error"}
     """
-    refus = _refus_app(user, app)
-    if refus:
-        return refus
-    route = _route_dispo(app, 'duplicate', [pk])
-    if not route:
-        return {'error': f"L'app '{app}' ne déclare aucune route de duplication."}
-    try:
-        statut, charge = _poster_vue(user, app, route, [pk])
-    except Exception as e:
-        logger.warning(f"[tool_api] duplicate_item {app}#{pk} : {e}")
-        return {'error': f"Duplication impossible pour {app}#{pk} : {e}"}
-    mauvais = _verdict(statut, charge, f"Duplication de {app}#{pk}")
-    if mauvais:
-        return mauvais
+    failure, payload = _card_gesture(user, app, 'duplicate', pk, 'Duplication', 'de duplication')
+    if failure:
+        return failure
     # L'id du double n'est pas normalisé entre apps : on le REND s'il est là, on ne l'invente pas.
-    nouveau = (charge or {}).get('new_id') or (charge or {}).get('id')
-    return {'duplicated': True, 'app': app, 'source_id': pk, 'new_id': nouveau}
+    return {'duplicated': True, 'app': app, 'source_id': pk,
+            'new_id': payload.get('new_id') or payload.get('id')}
+
+
+# ⏹ et ⚙ d'une card (2026-11-02, demande de Fabien : « l'API doit être complétée à chaque ajout
+# fonctionnel ») : les deux gestes de la fabrique (`item_views.make_item_views`) que l'assistant
+# n'avait pas. Même porte que les verbes ci-dessus — la vue de l'app, garde `_refus_app`.
+@tool_effect(WRITE)
+def stop_item(user, app: str, pk: int) -> dict:
+    """
+    Stop ONE of the user's items that is waiting or running — the stop button of its card.
+
+    The item is kept, marked as stopped, and can be started again later. A finished item is
+    left as it is.
+
+    Args:
+        app: app id the item belongs to.
+        pk:  item id.
+
+    Returns:
+        {"stopped": true, "app", "id", "status"} or {"error"}
+    """
+    failure, payload = _card_gesture(user, app, 'stop', pk, 'Arrêt', "d'arrêt")
+    return failure or {'stopped': bool(payload.get('success')), 'app': app, 'id': pk,
+                       'status': payload.get('status')}
+
+
+@tool_effect(WRITE)
+def update_item_settings(user, app: str, pk: int, settings: dict = None) -> dict:
+    """
+    Change the settings of ONE of the user's items — the settings button of its card.
+
+    Only the settings of the app's form are written, checked and converted as the form does;
+    an empty value leaves a setting unchanged. Start the item again for them to apply.
+
+    Args:
+        app:      app id the item belongs to.
+        pk:       item id.
+        settings: {setting name: value} — the names `get_item_detail` shows for this item.
+
+    Returns:
+        {"updated": [names], "app", "id", "settings"} or {"error"}
+    """
+    if isinstance(settings, str):        # un modèle passe parfois l'objet en texte JSON
+        try:
+            settings = json.loads(settings)
+        except ValueError:
+            settings = None
+    if not isinstance(settings, dict) or not settings:
+        return (_signed_in_refusal(user, "Écriture")
+                or {'error': "settings : indiquer {nom du réglage: valeur}."})
+    failure, payload = _card_gesture(user, app, 'update', pk, 'Réglages', 'de réglages',
+                                     data=settings)
+    return failure or {'updated': payload.get('updated') or [], 'app': app, 'id': pk,
+                       'settings': {k: payload[k] for k in settings if k in payload}}
+
+
+# L'ACCÈS aux apps du bac à sable (2026-11-02, `accounts.app_access`) : un développeur DEMANDE à
+# utiliser une app qu'il n'a pas créée, son créateur ou un administrateur l'ACCORDE ou la RETIRE.
+# Transverses : les droits sont décidés dans le service, à chaque geste.
+def _truthy(value) -> bool:
+    return value if isinstance(value, bool) else str(value).strip().lower() in ('1', 'true', 'yes', 'oui')
+
+
+def _app_access_call(user, run):
+    if refusal := _signed_in_refusal(user, "Accès"):
+        return refusal
+    from wama.accounts.app_access import AppAccessRefused
+    try:
+        return run()
+    except AppAccessRefused as exc:
+        return {'error': str(exc)}
+
+
+@tool_effect(READ)
+def list_app_access(user) -> dict:
+    """
+    Sandbox apps and who may use them: the ones you open to developers (creator or
+    administrator) with each developer's access, the ones opened to you, the requests waiting
+    for your answer, your own pending requests, and the sandbox apps you may request.
+
+    Returns:
+        {"opened_by_me", "opened_to_me", "to_answer", "my_requests", "requestable"}
+    """
+    from wama.accounts import app_access
+
+    def run():
+        data = app_access.overview(user)
+        return {'opened_by_me': data['shared'], 'opened_to_me': data['received'],
+                'to_answer': data['incoming'], 'my_requests': data['outgoing'],
+                'requestable': app_access.requestable_apps(user)}
+    return _local_times(_app_access_call(user, run))
+
+
+@tool_effect(WRITE)
+def request_app_access(user, app: str, reason: str = '') -> dict:
+    """
+    Ask to use and test a sandbox app you did not create (developers only). Its creator and the
+    administrators are notified and answer; a request already waiting is returned, not repeated.
+
+    Args:
+        app:    the sandbox app id (e.g. writer_01).
+        reason: why you need it, shown to whoever answers.
+
+    Returns:
+        {"requested": true, "request_id", "app"} or {"error"}
+    """
+    from wama.accounts import app_access
+    return _app_access_call(user, lambda: {
+        'requested': True, 'app': app,
+        'request_id': app_access.request_access(user, app, reason).pk})
+
+
+@tool_effect(WRITE)
+def grant_app_access(user, app: str, username: str) -> dict:
+    """
+    Open a sandbox app to a developer so they can use and test it — for its creator or an
+    administrator. A request that developer left waiting is granted by the same gesture.
+
+    Args:
+        app:      the sandbox app id.
+        username: the developer's username.
+
+    Returns:
+        {"granted": true, "app", "username", "grant_id"} or {"error"}
+    """
+    from django.contrib.auth import get_user_model
+    from wama.accounts import app_access
+
+    def run():
+        beneficiary = get_user_model().objects.filter(username=username).first()
+        if beneficiary is None:
+            return {'error': f"Compte inconnu : {username!r}."}
+        grant = app_access.grant_access(user, app, beneficiary)
+        return {'granted': True, 'app': app, 'username': username, 'grant_id': grant.pk}
+    return _app_access_call(user, run)
+
+
+@tool_effect(WRITE)
+def answer_app_access(user, request_id: int, accept: bool) -> dict:
+    """
+    Accept or refuse a developer's request to use a sandbox app — for its creator or an
+    administrator (`list_app_access` lists the requests to answer).
+
+    Args:
+        request_id: the request id.
+        accept:     true to open the app, false to refuse.
+
+    Returns:
+        {"answered": true, "request_id", "state"} or {"error"}
+    """
+    from wama.accounts import app_access
+    from wama.accounts.models import AccessGrant
+
+    def run():
+        grant = AccessGrant.objects.filter(pk=request_id).first()
+        if grant is None:
+            return {'error': f"Demande #{request_id} introuvable."}
+        return {'answered': True, 'request_id': grant.pk,
+                **app_access.answer(user, grant, _truthy(accept))}
+    return _app_access_call(user, run)
+
+
+@tool_effect(WRITE)
+def revoke_app_access(user, grant_id: int) -> dict:
+    """
+    Withdraw a developer's access to a sandbox app — for its creator or an administrator.
+    Takes effect at once; a task already started runs to its end.
+
+    Args:
+        grant_id: the access id (`list_app_access`, opened_by_me → persons).
+
+    Returns:
+        {"revoked": true, "grant_id"} or {"error"}
+    """
+    from wama.accounts import app_access
+    from wama.accounts.models import AccessGrant
+
+    def run():
+        grant = AccessGrant.objects.filter(pk=grant_id).first()
+        if grant is None:
+            return {'error': f"Accès #{grant_id} introuvable."}
+        app_access.revoke(user, grant)
+        return {'revoked': True, 'grant_id': grant.pk}
+    return _app_access_call(user, run)
 
 
 @tool_effect(DESTROY)
@@ -4070,7 +4251,15 @@ TOOL_REGISTRY = {
     # (`_refus_app`). Ne jamais leur donner un nom d'app sans relire ce bloc.
     'delete_item':      delete_item,
     'duplicate_item':   duplicate_item,
+    'stop_item':        stop_item,
+    'update_item_settings': update_item_settings,
     'clear_my_queue':   clear_my_queue,
+    # L'accès aux apps du bac à sable (2026-11-02) : demander, accorder, répondre, retirer.
+    'list_app_access':    list_app_access,
+    'request_app_access': request_app_access,
+    'grant_app_access':   grant_app_access,
+    'answer_app_access':  answer_app_access,
+    'revoke_app_access':  revoke_app_access,
     # Ranger une SORTIE d'app en médiathèque — 3ᵉ surface du même geste (menu « … » + route
     # d'app + ici). Transverse : c'est la médiathèque DE L'APPELANT, garde = ownership.
     'add_item_to_media_library': add_item_to_media_library,

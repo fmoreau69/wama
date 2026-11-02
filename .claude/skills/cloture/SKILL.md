@@ -279,6 +279,8 @@ que le livrable déclare ?*). Si `/reverif` a été déroulé dans la session AP
 de code, citer son verdict ; sinon le refaire.
 
 ### 2b. Les autres — seulement ceux que la session a rendus nécessaires
+- Un ajout FONCTIONNEL de la session (app, geste, route d'action) a-t-il son outil ? →
+  `/api-outils` §3 (`tests_tool_api_coverage`, décision de Fabien du 2026-11-02).
 - Un REGISTRE a bougé (APP_CATALOG, params, capacités, tool_api, mecanismes.py…) →
   `manifest_export --check` (⚠ depuis WSL2 — venv_win = faux périmés sur les libraries) ;
   régénérer si périmé. `doc_facts --check` si un fait généré a pu bouger.

@@ -58,11 +58,11 @@ y figure aussi : sa page est celle de son registre, « Retirer le partage » le 
     {% for r in incoming %}
     <div class="d-flex justify-content-between align-items-center gap-2 mb-1" data-incoming="{{ r.id }}">
       <span><b>{{ r.who }}</b> demande : {{ r.level }} — « {{ r.label }} » ({{ r.app }})</span>
-      <a class="btn btn-sm btn-outline-emphasis" href="/common/requests/{{ r.id }}/">Répondre</a>
+      <a class="btn btn-sm btn-outline-emphasis" href="{% if r.url %}{{ r.url }}{% else %}/common/requests/{{ r.id }}/{% endif %}">Répondre</a>
     </div>
     {% endfor %}
     {% for r in outgoing %}
-    <div class="small">Votre demande : {{ r.level }} — « {{ r.label }} » ({{ r.app }}) · <a href="/common/requests/{{ r.id }}/">voir</a></div>
+    <div class="small">Votre demande : {{ r.level }} — « {{ r.label }} » ({{ r.app }}) · <a href="{% if r.url %}{{ r.url }}{% else %}/common/requests/{{ r.id }}/{% endif %}">voir</a></div>
     {% endfor %}
   </div>
   {% endif %}
@@ -75,7 +75,7 @@ y figure aussi : sa page est celle de son registre, « Retirer le partage » le 
     {% for s in items %}
     <div class="wama-cat-card" data-id="{{ s.label }}"
          data-f-sens="{{ s.direction }}" data-f-app="{{ s.app_label }}"
-         data-f-nature="{% if s.nature == 'catalogue' %}Élément de catalogue{% elif s.nature == 'lot' %}Lot{% else %}Élément{% endif %}"
+         data-f-nature="{% if s.nature == 'catalogue' %}Élément de catalogue{% elif s.nature == 'app' %}App du bac à sable{% elif s.nature == 'lot' %}Lot{% else %}Élément{% endif %}"
          data-f-partage="{{ s.scope|default:'Personnes' }}"
          {% if s.owner %}data-f-auteur="{{ s.owner }}"{% endif %}
          {% if s.mode %}data-f-mode="{{ s.mode.label }}"{% endif %}
@@ -87,11 +87,11 @@ y figure aussi : sa page est celle de son registre, « Retirer le partage » le 
         {% if s.scope %}<span class="share-pill">{{ s.scope }} · {{ scope_mode.icon }} {{ scope_mode.label }}{% if s.scope_since %} · depuis le {{ s.scope_since|date:'d/m/Y' }}{% endif %}</span>{% endif %}
         {% for p in s.persons %}<span class="share-pill" data-person="{{ p.grant }}" title="Depuis le {{ p.since|date:'d/m/Y H:i' }}">{{ p.mode.icon }} {{ p.name }} · {{ p.mode.label }} · depuis le {{ p.since|date:'d/m/Y' }}
           <button type="button" class="btn btn-link btn-sm p-0 ms-1" style="color:var(--wama-danger-softer);font-size:.72rem;"
-                  data-revoke="{{ p.grant }}" title="Retirer le partage avec {{ p.name }}">retirer</button></span>{% endfor %}
+                  data-revoke="{{ p.grant }}"{% if p.revoke_url %} data-revoke-url="{{ p.revoke_url }}"{% endif %} title="Retirer le partage avec {{ p.name }}">retirer</button></span>{% endfor %}
       </div>
       <div class="share-gestes">
         {% if s.url %}<a class="btn btn-sm btn-outline-emphasis py-0" href="{{ s.url }}">{% if s.nature == 'catalogue' %}Ouvrir la page{% else %}Ouvrir l'app{% endif %}</a>{% endif %}
-        {% if s.direction == 'Partagé par moi' %}
+        {% if s.direction == 'Partagé par moi' and s.nature != 'app' %}
           {% if s.nature == 'catalogue' %}
           <button type="button" class="btn btn-sm btn-outline-danger py-0" data-unshare-catalogue
                   data-registry="{{ s.registry }}" data-pk="{{ s.pk }}">Retirer le partage</button>
@@ -125,7 +125,7 @@ y figure aussi : sa page est celle de son registre, « Retirer le partage » le 
     });
   }
   gesture('[data-revoke]', function (b) {
-    post('/common/api/grants/' + b.dataset.revoke + '/revoke/').then(function (res) {
+    post(b.dataset.revokeUrl || ('/common/api/grants/' + b.dataset.revoke + '/revoke/')).then(function (res) {
       if (res && res.done) { b.closest('[data-person]').remove(); say('Partage retiré pour cette personne.', 'success'); }
       else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
     });

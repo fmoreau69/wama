@@ -130,6 +130,8 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `docs/construction/a
     dans `tool_api.py` (A4, 2026-08-12 — fonctions CONSTRUITES à l'import par
     `_register_triads()`), pas de squelette recopié ; `add_to_<app>` reste de la glu. Une triade
     à VRAIE logique (routage, purge, clés spéciales — ex. transcriber) reste code main, assumée.
+    Tout geste que le portage AJOUTE à l'app passe aussi par `/api-outils` (garde
+    `tests_tool_api_coverage`, 2026-11-02).
 14. **Sélecteur de modèle (route F4b, `ROUTE §F4b` étapes ⑤ ⑥ ⑦)** — COPIER le précédent
     (imager ⑥, enhancer ⑤), ne rien ajouter :
     - `options_source='catalog'`, `options_query` = une CAPACITÉ (`task`), **jamais `source`**

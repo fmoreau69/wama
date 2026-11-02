@@ -2,8 +2,8 @@
 
 CE QUE CES GARDES TIENNENT :
   1. une fonction du CODE n'a pas d'auteur à elle : elle suit l'app qui la PORTE
-     (`function_catalog.spec_app`) — système dans une app réelle, à son créateur dans une
-     jumelle. La décision unique (`accessible(user, 'function', clé)`), la liste
+     (`function_catalog.spec_app`) — système dans une app réelle, à son développeur et aux
+     administrateurs dans une jumelle (2026-11-02). La décision unique (`accessible(user, 'function', clé)`), la liste
      (`accessible_specs`), la palette du Studio, la page du catalogue, le lancement d'un graphe
      et les pipelines déclarés en code disent la MÊME chose ;
   2. une fonction d'UTILISATEUR suit sa ligne : son auteur et l'administrateur la voient
@@ -40,7 +40,9 @@ def _account(username, tier, *roles):
 
 class _TwinAndAccounts(TestCase):
     """Une jumelle comme celles du bac à sable : réservée aux développeurs (politique mesurée le
-    2026-10-19 sur les 14 jumelles), son créateur y accède quel que soit son profil."""
+    2026-10-19 sur les 14 jumelles) et créée par `fprov_dev` : depuis le 2026-11-02 (décisions de
+    Fabien), un administrateur voit tout le bac à sable, un développeur ses seules apps, un
+    utilisateur simple aucune — `fprov_creator`, auteur de la fonction d'utilisateur, ne la voit pas."""
 
     @classmethod
     def setUpTestData(cls):
@@ -60,12 +62,11 @@ class _TwinAndAccounts(TestCase):
                                     binding=fc.Binding.APP, app=TWIN, impl='x.tasks:run')
         fc.FUNCTION_CATALOG[TWIN_FUNCTION] = self.spec
         self.addCleanup(fc.FUNCTION_CATALOG.pop, TWIN_FUNCTION, None)
-        registry = [{'label': TWIN, 'created_by': CREATOR}]
-        for target, value in (('load_registry', mock.Mock(return_value=registry)),
-                              ('twin_owner', lambda label: CREATOR if label == TWIN else '')):
-            patcher = mock.patch(f'wama.common.sandbox.{target}', value)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        # La jumelle est au DÉVELOPPEUR qui l'a créée : un développeur ne voit que ses apps.
+        registry = [{'label': TWIN, 'created_by': 'fprov_dev'}]
+        patcher = mock.patch('wama.common.sandbox.load_registry', mock.Mock(return_value=registry))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
 
 class ACodeFunctionFollowsTheAppThatCarriesItTest(_TwinAndAccounts):
@@ -76,7 +77,7 @@ class ACodeFunctionFollowsTheAppThatCarriesItTest(_TwinAndAccounts):
 
     def test_the_decision_and_the_list_say_the_same_thing(self):
         specs = [self.spec, fc.get(SYSTEM_FUNCTION)]
-        for user, sees_twin in ((self.creator, True), (self.dev, True), (self.admin, True),
+        for user, sees_twin in ((self.creator, False), (self.dev, True), (self.admin, True),
                                 (self.other, False)):
             self.assertEqual(sees_twin, accessible(user, 'function', TWIN_FUNCTION), user)
             self.assertTrue(accessible(user, 'function', SYSTEM_FUNCTION), user)
@@ -93,7 +94,7 @@ class ACodeFunctionFollowsTheAppThatCarriesItTest(_TwinAndAccounts):
 
     def test_the_studio_palette_and_the_catalogue_page_list_the_same_code_functions(self):
         import json
-        for user, sees in ((self.creator, True), (self.other, False)):
+        for user, sees in ((self.dev, True), (self.other, False)):
             self.client.force_login(user)
             nodes = self.client.get(reverse('studio:api_nodes')).json()['nodes']
             self.assertEqual(sees, f'function:{TWIN_FUNCTION}' in nodes, user)
@@ -113,9 +114,9 @@ class ACodeFunctionFollowsTheAppThatCarriesItTest(_TwinAndAccounts):
         self.assertIn('non accessible', err)
         with mock.patch('wama.studio.tasks.run_pipeline_task') as task:
             task.delay.return_value.id = 'task-id'
-            run, err = launch_graph(self.creator, graph)
+            run, err = launch_graph(self.dev, graph)
         self.assertIsNone(err)
-        self.assertEqual(self.creator, run.user)
+        self.assertEqual(self.dev, run.user)
 
     def test_a_pipeline_declared_by_a_twin_opens_for_who_may_run_it(self):
         from wama.common.manifests.builtin.pipeline import PIPELINE_SOURCES, register_pipeline_source
@@ -126,7 +127,7 @@ class ACodeFunctionFollowsTheAppThatCarriesItTest(_TwinAndAccounts):
                                         'function': TWIN_FUNCTION}], 'links': []}}
         register_pipeline_source(TWIN, lambda: manifest)
         self.addCleanup(PIPELINE_SOURCES.pop, TWIN, None)
-        self.assertIn(TWIN, _declared_pipelines(self.creator, [TWIN]))
+        self.assertIn(TWIN, _declared_pipelines(self.dev, [TWIN]))
         self.assertNotIn(TWIN, _declared_pipelines(self.other, [TWIN]))
         self.client.force_login(self.other)
         url = reverse('studio:api_declared_pipeline_detail', args=[TWIN])

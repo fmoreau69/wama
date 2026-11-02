@@ -165,8 +165,39 @@ def shares_overview(user, limit: int = 200) -> dict:
     # Les éléments de CATALOGUE qu'un compte possède (skills de prompt, thèmes de charte,
     # fonctions et modèles d'utilisateur — `ROADMAP §29`) : la même page, pas une seconde.
     cat_shared, cat_received = _catalogue_shares(user, limit)
-    return {'shared': shared + cat_shared, 'received': received + cat_received,
-            'incoming': incoming, 'outgoing': outgoing}
+    app_shared, app_received, app_incoming, app_outgoing = _sandbox_app_shares(user)
+    return {'shared': shared + cat_shared + app_shared,
+            'received': received + cat_received + app_received,
+            'incoming': incoming + app_incoming, 'outgoing': outgoing + app_outgoing}
+
+
+def _sandbox_app_shares(user):
+    """Les apps du BAC À SABLE ouvertes à des développeurs (`accounts.AccessGrant`, 2026-11-02) —
+    par `user` (créateur, ou administrateur), à lui, et les demandes dans les deux sens : la même
+    page que les autres partages, jamais une liste à côté."""
+    from django.urls import reverse
+    from wama.accounts import app_access
+    data = app_access.overview(user)
+    mode = app_access.USE_MODE
+
+    def person(row):
+        return {'grant': row['id'], 'name': row['who'], 'mode': mode, 'since': row['since'],
+                'revoke_url': reverse('accounts:app-access-revoke', args=[row['id']])}
+
+    def request(row):
+        return {'id': row['id'], 'level': row['level'], 'label': row['app_label'],
+                'app': row['app'], 'who': row['who'], 'created_at': row['created_at'],
+                'url': row['url']}
+    shared = [{'app': s['app'], 'app_label': s['app_label'], 'nature': 'app', 'pk': s['app'],
+               'label': s['app_label'], 'scope': '', 'scope_since': s['persons'][0]['since'],
+               'url': s['url'], 'preview_url': '', 'persons': [person(p) for p in s['persons']]}
+              for s in data['shared']]
+    received = [{'app': r['app'], 'app_label': r['app_label'], 'nature': 'app', 'pk': r['app'],
+                 'label': r['app_label'], 'scope': '', 'scope_since': r['grant']['since'],
+                 'url': r['url'], 'preview_url': '', 'owner': r['owner'], 'mode': mode}
+                for r in data['received']]
+    return (shared, received, [request(r) for r in data['incoming']],
+            [request(r) for r in data['outgoing']])
 
 
 def scope_label(element) -> str:

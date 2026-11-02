@@ -1840,9 +1840,8 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
 
 - **Domicile** : `wama/common/sandbox.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Bac à sable d'apps — jumelles EXÉCUTABLES (route §10.3, marche S, actée Fabien 2026-08-18).
-- **API publique** (21) :
+- **API publique** (20) :
   - `load_registry() -> list` — Liste des jumelles [{label, generated_from, created, created_by?}] — [] si registre
-  - `twin_owner(label: str) -> str` — Username du créateur d'une jumelle ('' si CLI/inconnu) — consommé par la dérogation
   - `twin_source(label: str) -> str` — App SOURCE d'une jumelle ('' si ce label n'en est pas une).
   - `declaring_app(app: str) -> str` — L'app dont la DÉCLARATION fait foi pour `app` : elle-même, ou sa SOURCE si c'est une
   - `retarget_callable(fn, label: str)` — Un geste de l'app SOURCE re-ciblé sur une jumelle : `fn` appelé avec `app_label=label` FIXÉ
@@ -2870,7 +2869,7 @@ PRÉFÉRENCE d'affichage, appliquée APRÈS le droit et seulement à l'affichage
 
 ### Accès aux éléments (apps aujourd'hui)
 
-Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du compte (anonymous < utilisateur < developpeur < admin, tranche en premier) et les RÔLES métier (groupes `role:*`, intersection avec la politique de l'app). Le compte de service `anonymous` y est FERMÉ par code, pas par état de base. Signature GÉNÉRALE depuis S2 — accessible(user, kind, element_id) : chaque FAMILLE d'élément déclare dans KIND_DECISION qui décide pour elle, un kind inconnu LÈVE, et une décision unique ne garde que ce que ses POINTS D'APPLICATION lisent réellement (§8.9). Un outil gardé est une PAGE (card ou `register_surface`) ou, depuis le 2026-10-13, un OUTIL SANS PAGE (`register_pageless_tool` : gestionnaire de fichiers, assistant — routes résolues comme celles de toute app, l'assistant gardé aussi dans `conversation_turn`). `access_cases()` énumère tous les cas pour la présentation ; depuis le 2026-10-20, la CONSTELLATION des utilisateurs (`accounts/constellation.py`) montre ces décisions compte par compte, avec unités, projets, partages, apports et activité — page admin, intégrée à la présentation, jouée chaque nuit (`accounts.constellation.ui`) ; les deux vues montrent les mêmes outils (`presented_apps`)
+Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du compte (anonymous < utilisateur < developpeur < admin, tranche en premier) et les RÔLES métier (groupes `role:*`, intersection avec la politique de l'app). Le compte de service `anonymous` y est FERMÉ par code, pas par état de base. Signature GÉNÉRALE depuis S2 — accessible(user, kind, element_id) : chaque FAMILLE d'élément déclare dans KIND_DECISION qui décide pour elle, un kind inconnu LÈVE, et une décision unique ne garde que ce que ses POINTS D'APPLICATION lisent réellement (§8.9). Un outil gardé est une PAGE (card ou `register_surface`) ou, depuis le 2026-10-13, un OUTIL SANS PAGE (`register_pageless_tool` : gestionnaire de fichiers, assistant — routes résolues comme celles de toute app, l'assistant gardé aussi dans `conversation_turn`). `access_cases()` énumère tous les cas pour la présentation ; depuis le 2026-10-20, la CONSTELLATION des utilisateurs (`accounts/constellation.py`) montre ces décisions compte par compte, avec unités, projets, partages, apports et activité — page admin, intégrée à la présentation, jouée chaque nuit (`accounts.constellation.ui`) ; les deux vues montrent les mêmes outils (`presented_apps`). Depuis le 2026-11-02, le BAC À SABLE a UNE règle (un administrateur toutes ses apps, un développeur les siennes et celles qu'on lui OUVRE, un utilisateur simple aucune) et la 1ʳᵉ ligne d'`AccessGrant` (S3) : le créateur ou un administrateur ouvre une app à un développeur, pour l'utiliser — `accounts/app_access.py`
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
@@ -3730,11 +3729,11 @@ Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique
 
 ### Surface d'outils
 
-Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas. Chaque outil DÉCLARE son effet sur sa fonction (`tool_effect` : lecture / écriture / destruction, 2026-10-28) — les outils d'un sous-agent (`sub_agent_tools`) et les annotations MCP en DÉRIVENT
+Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas. Chaque outil DÉCLARE son effet sur sa fonction (`tool_effect` : lecture / écriture / destruction, 2026-10-28) — les outils d'un sous-agent (`sub_agent_tools`) et les annotations MCP en DÉRIVENT. Tout ajout fonctionnel la complète (2026-11-02) : chaque app du catalogue a sa triade, chaque geste des fabriques de vues son outil (`tests_tool_api_coverage`, skill `/api-outils`)
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (98) :
+- **API publique** (105) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -3794,6 +3793,13 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `get_item_result(user, app: str, pk: int, output_format: str='') -> dict` — Read the RESULT of a finished item — the extracted text of an OCR, a transcript, a
   - `delete_item(user, app: str, pk: int) -> dict` — Delete ONE of the user's items from an app queue.
   - `duplicate_item(user, app: str, pk: int) -> dict` — Duplicate ONE of the user's items, so it can be re-run with different settings.
+  - `stop_item(user, app: str, pk: int) -> dict` — Stop ONE of the user's items that is waiting or running — the stop button of its card.
+  - `update_item_settings(user, app: str, pk: int, settings: dict=None) -> dict` — Change the settings of ONE of the user's items — the settings button of its card.
+  - `list_app_access(user) -> dict` — Sandbox apps and who may use them: the ones you open to developers (creator or
+  - `request_app_access(user, app: str, reason: str='') -> dict` — Ask to use and test a sandbox app you did not create (developers only). Its creator and the
+  - `grant_app_access(user, app: str, username: str) -> dict` — Open a sandbox app to a developer so they can use and test it — for its creator or an
+  - `answer_app_access(user, request_id: int, accept: bool) -> dict` — Accept or refuse a developer's request to use a sandbox app — for its creator or an
+  - `revoke_app_access(user, grant_id: int) -> dict` — Withdraw a developer's access to a sandbox app — for its creator or an administrator.
   - `clear_my_queue(user, app: str, confirm: bool=False) -> dict` — Empty the user's WHOLE queue for one app — every item, at once.
   - `add_item_to_media_library(user, app: str, pk: int, asset_type: str='', name: str='', output_format: str='') -> dict` — Keep the RESULT of one of the user's items in their media library, so it can be reused as
   - `add_file_to_rag(user, path: str, level: str='', org_unit: str='') -> dict` — Add one of the user's FILES to their RAG, so `memory_recall` (and the lab context of every

@@ -41,7 +41,10 @@
 
 5. **L'IA est dans la chaîne, pas à côté.** Traduction/enrichissement de prompts, correction assistée,
    sélection de modèle VRAM-aware, auto-maintenance (libs, modèles, audits) : centralisés et
-   réutilisables. Chaque app expose son API à l'assistant IA (`tool_api.py`).
+   réutilisables. Chaque app expose son API à l'assistant IA (`tool_api.py`) — **et tout ajout
+   fonctionnel la complète dans le même livrable** (décision de Fabien, 2026-11-02 : app, geste
+   d'une card ou d'un lot, route d'action ; l'API REST, le MCP et le Studio en dérivent). Tenu
+   par `wama/common/tests/tests_tool_api_coverage.py`, recette : skill `/api-outils`.
 
 6. **RAG = grand chantier, socle livré, extension en cours.** Niveaux d'héritage visés :
    université → labo/service → équipe → utilisateur. Le RAG utilisateur est la base ; l'utilisateur

@@ -42,8 +42,9 @@ class GroupedAccessDecisionTest(TestCase):
         AppAccessPolicy.objects.create(app_id='imager').roles.add(communication)
         AppAccessPolicy.objects.create(app_id='model_manager', min_tier='developpeur')
         AppAccessPolicy.objects.create(app_id='converter')             # app commune
-        # Jumelle RESTREINTE : seul son créateur (non développeur) y entre, par la dérogation du
-        # créateur — sans restriction, une lecture groupée qui oublierait le créateur passerait.
+        # Jumelle RESTREINTE : son créateur simple utilisateur n'y entre pas (le bac à sable est aux
+        # développeurs et aux administrateurs, 2026-11-02) — la lecture groupée doit lire le
+        # registre comme la décision unitaire, sinon elle le laisserait entrer.
         AppAccessPolicy.objects.create(app_id='converter_42', min_tier='developpeur')
         User = get_user_model()
         self.researcher = User.objects.create_user('grouped_research', password='x')
