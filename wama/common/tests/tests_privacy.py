@@ -186,12 +186,29 @@ class ClientTest(SimpleTestCase):
             with self.assertRaises(service_client.PrivacyUnavailable):
                 service_client.detect('Anne Martin', 'fr')
 
+    def test_a_service_still_loading_says_so_and_stays_an_unavailability(self):
+        """2026-11-02 : 503 « loading » while the detectors load — a task waits on it, and the
+        gate of the assistant, which refuses on any unavailability, still refuses."""
+        from wama.common.privacy import service_client
+        loading = mock.Mock(status_code=503, text='{"detail": {"status": "loading"}}')
+        with mock.patch('requests.post', return_value=loading):
+            with self.assertRaises(service_client.PrivacyServiceLoading) as caught:
+                service_client.detect('Anne Martin', 'fr')
+        self.assertIsInstance(caught.exception, service_client.PrivacyUnavailable)
+
 
 class ServiceTest(SimpleTestCase):
 
+    def _ready(self, ready=True):
+        from wama.common.privacy import service
+        was = service._ready.is_set()
+        (service._ready.set if ready else service._ready.clear)()
+        self.addCleanup(service._ready.set if was else service._ready.clear)
+        return service
+
     def test_detect_answers_a_document_and_health_lists_the_detectors(self):
         from fastapi.testclient import TestClient
-        from wama.common.privacy import service
+        service = self._ready()
         api = TestClient(service.app)
         with mock.patch.object(service.engine, 'installed_detectors', return_value=[('k', ['fr'])]):
             self.assertEqual(['k'], api.get('/health').json()['detectors'])
@@ -199,6 +216,71 @@ class ServiceTest(SimpleTestCase):
                                         'detectors': []}).json()
         self.assertEqual('text', doc['media'])
         self.assertIn('EMAIL_ADDRESS', [label for label, _ in _spans(doc)])
+
+    def test_while_it_warms_up_the_service_says_loading_and_answers_503(self):
+        """2026-11-02 : the first document after a restart waited 3 min for the detectors to load,
+        past the client's delay — the service now warms up at start and SAYS it is loading."""
+        from fastapi.testclient import TestClient
+        service = self._ready(False)
+        api = TestClient(service.app)
+        with mock.patch.object(service.engine, 'installed_detectors', return_value=[]):
+            self.assertEqual('loading', api.get('/health').json()['status'])
+        response = api.post('/detect', json={'segments': ['x'], 'language': 'fr', 'detectors': []})
+        self.assertEqual(503, response.status_code)
+        self.assertEqual('loading', response.json()['detail']['status'])
+
+    def test_the_warm_up_loads_each_base_language_then_opens_even_when_a_load_fails(self):
+        from wama.common.privacy import engine
+        service = self._ready(False)
+        with mock.patch.object(service.engine, 'detect_segments',
+                               side_effect=[{}, RuntimeError('a detector broke')]) as detect:
+            service._warm_up()
+        self.assertEqual([mock.call(['WAMA'], lang) for lang in engine.BASE_LANGUAGES],
+                         detect.call_args_list)
+        self.assertTrue(service._ready.is_set())
+
+    def test_the_service_bootstrap_keeps_tensorflow_out(self):
+        """`USE_TF=0` before Django (hence `transformers`) is imported : the cold import of Presidio
+        took 125 s with TensorFlow, 80 s without (measured 2026-11-02)."""
+        from pathlib import Path
+        from wama.common.privacy import service
+        source = Path(service.__file__).read_text(encoding='utf-8')
+        self.assertLess(source.index("os.environ.setdefault('USE_TF', '0')"),
+                        source.index('django.setup()'))
+
+
+class DetectorLoadsOnceTest(SimpleTestCase):
+    """2026-11-02 : three first requests at once loaded each detector three times on the card."""
+
+    def test_concurrent_first_calls_load_the_model_once(self):
+        import threading
+        import time
+        from wama.common.backends.pii_detection_base import PIIDetectionBackend
+
+        class Slow(PIIDetectionBackend):
+            loads = 0
+
+            def load(self, model=None):
+                time.sleep(0.05)
+                Slow.loads += 1
+                self._loaded = True
+                return True
+
+            def unload(self):
+                self._loaded = False
+
+            def detect_entities(self, model_id, text, language, entities=None, threshold=None):
+                self.ensure_loaded(model_id)
+                return []
+
+        backend = Slow()
+        threads = [threading.Thread(target=backend.detect_entities, args=('m', 'x', 'fr'))
+                   for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(1, Slow.loads)
 
 
 class DetectorDeclarationTest(SimpleTestCase):

@@ -3578,7 +3578,14 @@ eds-pseudo, privacy-filter dès transformers ≥ 5.6 ou par l'ONNX).
   l'image du scan gardée — cards et fichiers retirés ensuite. Gestes nocturnes de l'anonymizer :
   21 scénarios verts, après qu'`anonymizer.tree_drop` eut trouvé la tuile « Lot » de la card
   document sans barre à elle (elle versait dans celle de l'autre onglet) — sa barre de lot
-  (`anonDocBatch`) posée à la revérification, comme la card audio de l'enhancer. ⏳ Restent : la page de CORRECTION par passage (`surfaces.py` la dit
+  (`anonDocBatch`) posée à la revérification, comme la card audio de l'enhancer. ✅ *Même soir,
+  premier document de Fabien (#2297)* : « service de confidentialité : délai dépassé (180 s) » — le
+  service, relancé avec WAMA, chargeait ses détecteurs à la PREMIÈRE requête, 3 min mesurées
+  (import de Presidio 125 s à froid, dont ~45 s de TensorFlow inutile, puis bardsai et GLiNER2,
+  chacun chargé TROIS fois par trois requêtes simultanées). Le service se PRÉCHAUFFE désormais à son
+  démarrage (patron du service de voix : « loading » puis prêt, 503 sur `/detect` d'ici là), la tâche
+  ATTEND (`ServiceNotReady`, 60 × 10 s) au lieu d'échouer, un détecteur se charge une fois
+  (`PIIDetectionBackend.ensure_loaded`), `USE_TF=0` à l'amorce du service. ⏳ Restent : la page de CORRECTION par passage (`surfaces.py` la dit
   à venir ; la couche `detection_corrections` accepte déjà les `span`, relue à l'occultation) ;
   un document reçu par URL naît avec les réglages de l'image avant que son fichier n'arrive ;
   les jumelles (`anonymizer_01`) n'ont pas le domaine tant que le générateur ignore les domaines

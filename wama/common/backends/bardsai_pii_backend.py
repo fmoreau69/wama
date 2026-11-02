@@ -259,8 +259,7 @@ class BardsaiPIIBackend(PIIDetectionBackend):
     def detect_entities(self, model_id: str, text: str, language: str,
                         entities: Optional[List[str]] = None,
                         threshold: Optional[float] = None) -> List[dict]:
-        if not self._loaded:
-            self.load(model_id)
+        self.ensure_loaded(model_id)
         if not (text or '').strip():
             return []
         spans = [s for s in self._word_spans(text) if _plausible(text, s[0], s[1], s[2])]

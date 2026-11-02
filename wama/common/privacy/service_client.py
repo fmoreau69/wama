@@ -23,12 +23,20 @@ from . import engine
 
 logger = logging.getLogger(__name__)
 
-#: Le premier appel du service paie le chargement des détecteurs (~30 s mesurés le 2026-10-28).
+#: Le délai d'UNE détection, service chargé. Le chargement des détecteurs ne s'y compte plus depuis
+#: le 2026-11-02 : le service se préchauffe à son démarrage et répond 503 « loading » d'ici là
+#: (`PrivacyServiceLoading`) — il prenait 3 min à froid, au-delà de ce délai.
 TIMEOUT_S = 180
 
 
 class PrivacyUnavailable(RuntimeError):
     """La détection n'a pas pu se faire — l'appelant doit REFUSER, jamais continuer sans elle."""
+
+
+class PrivacyServiceLoading(PrivacyUnavailable):
+    """Le service DÉMARRE (503 « loading » : ses détecteurs se chargent, 2 à 3 min à froid) — une
+    indisponibilité qui va cesser. La porte de l'assistant refuse comme pour toute indisponibilité ;
+    une tâche ATTEND (`task_skeleton.ServiceNotReady`), la politique du service de voix."""
 
 
 def service_url() -> str:
@@ -55,6 +63,8 @@ def detect_segments(segments, language: str = '', *, entities=None, detectors=No
                                       detectors=detectors, threshold=threshold)
     except requests.Timeout as exc:
         raise PrivacyUnavailable(f'service de confidentialité : délai dépassé ({timeout} s)') from exc
+    if resp.status_code == 503:
+        raise PrivacyServiceLoading('service de confidentialité en chargement')
     if resp.status_code != 200:
         raise PrivacyUnavailable(f'service de confidentialité : HTTP {resp.status_code} '
                                  f'({resp.text[:200]})')

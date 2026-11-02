@@ -196,3 +196,22 @@ class DocumentGluesTest(TestCase):
             text = pdf[0].get_text()
         self.assertNotIn('anne.martin@exemple.fr', text)
         self.assertIn('Écrire à', text)                    # the rest of the text is kept
+
+
+class AStartingPrivacyServiceIsWaitedForTest(SimpleTestCase):
+    """2026-11-02, document #2297 : the privacy service was loading its detectors after a restart,
+    and the task failed « délai dépassé (180 s) ». A service that says it is loading makes the task
+    WAIT (`ServiceNotReady`, re-delivered by the common skeleton) — the TTS service's policy."""
+
+    def test_the_detection_glue_waits_for_a_loading_service(self):
+        from wama.anonymizer import tasks
+        from wama.anonymizer.models import Media
+        from wama.common.privacy.service_client import PrivacyServiceLoading
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        media = Media(media_type='document', file='in/lettre.pdf', user=User(pk=1, username='x'))
+        with mock.patch('wama.common.privacy.service_client.detect_file',
+                        side_effect=PrivacyServiceLoading('loading')),                 mock.patch('wama.common.services.ocr_process.read_ocr_file', return_value=None),                 mock.patch.object(type(media.file), 'path', new_callable=mock.PropertyMock,
+                                  return_value='/x/lettre.pdf'),                 mock.patch.object(tasks, '_console'):
+            with self.assertRaises(ServiceNotReady) as caught:
+                tasks._detect_text(media, mock.Mock())
+        self.assertGreaterEqual(caught.exception.countdown * caught.exception.max_attempts, 300)

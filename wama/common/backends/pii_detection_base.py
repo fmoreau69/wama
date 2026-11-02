@@ -13,6 +13,7 @@ déclare la correspondance de ses étiquettes (`ENTITY_MAP`) et TAIT celles qu'i
 Les langues qu'il couvre sont celles de sa ligne de catalogue (`capabilities['languages']`), pas
 une liste écrite ici.
 """
+import threading
 from abc import abstractmethod
 from typing import List, Optional
 
@@ -31,10 +32,22 @@ class PIIDetectionBackend(BaseModelBackend):
     def __init__(self):
         self._loaded = False
         self._current_model = None
+        self._load_lock = threading.Lock()
 
     @property
     def is_loaded(self) -> bool:
         return self._loaded
+
+    def ensure_loaded(self, model_id: str = None) -> None:
+        """Le modèle chargé UNE fois, quels que soient les appels simultanés — ce que
+        `detect_entities` appelle avant de travailler. Mesuré le 2026-11-02 au service de
+        confidentialité : trois premières requêtes concurrentes chargeaient chaque détecteur trois
+        fois sur la carte (`[bardsai PII] chargé` ×3 dans la même milliseconde)."""
+        if self._loaded:
+            return
+        with self._load_lock:
+            if not self._loaded:
+                self.load(model_id)
 
     def process(self, **kwargs):
         """Point d'entrée générique (contrat commun) → délègue à `detect_entities()`."""

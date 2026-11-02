@@ -618,7 +618,17 @@ def _detect_text(media, ctx):
     user = media.user
     _console(user.id, f"Détection des données personnelles — document {media.id}…")
     ctx.progress(5)
-    doc = detect_file(media.file.path, ocr=read_ocr_file(media, 'ocr_file'))
+    from wama.common.privacy.service_client import PrivacyServiceLoading
+    try:
+        doc = detect_file(media.file.path, ocr=read_ocr_file(media, 'ocr_file'))
+    except PrivacyServiceLoading as e:
+        # Le service démarre (ses détecteurs se chargent) : la tâche rend son worker et revient —
+        # la politique du squelette commun, celle du service de voix (60 × 10 s, puis échec dit).
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        raise ServiceNotReady(
+            "Service de confidentialité en chargement", countdown=10, max_attempts=60,
+            gave_up="Service de confidentialité non disponible après 10 minutes d'attente "
+                    "(60 tentatives)") from e
     rel, target = ctx.output_place('.json', nature='detections', source_name=media.file.path,
                                    model='presidio')
     detections.write(target, doc)
