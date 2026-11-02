@@ -4592,9 +4592,11 @@ d'assistant, son créateur et son nœud du Studio, relus à chaque régénérati
 **Les quatre causes** (consignées en mémoire `feedback_route_verifiee_a_chaque_brique`) : recherche
 faite au départ et pas à chaque brique ; « à formaliser » lu comme « à inventer » ; manifeste autoré
 recopié d'un manifeste EXTRAIT (une projection prise pour une entrée) ; tests verts pris pour une
-preuve d'alignement. ⚠ Et un défaut de la doctrine : le `§S` « ce qu'une génération ne doit plus
+preuve d'alignement. ~~⚠ Et un défaut de la doctrine : le `§S` « ce qu'une génération ne doit plus
 redécouvrir » que cite `AGENTS.md` comme source obligatoire **n'existe pas** sous ce titre ici (seuls
-`§S2bis`, `§S2ter`) — à corriger dans AGENTS.md (décision de Fabien). Le catalogue de fonctions et
+`§S2bis`, `§S2ter`) — à corriger dans AGENTS.md (décision de Fabien).~~ *(Corrigé le 2026-11-02 :
+il existe depuis le 2026-09-03, titre `🔒 S` dans un bloc CITÉ du §10.3 — une recherche de titres
+en `^#` ne le voit pas ; c'est ce relevé, recopié par l'audit du 2026-10-31, qui était faux.)* Le catalogue de fonctions et
 l'exécuteur du studio ne figurent pas non plus au registre des mécanismes.
 **Renommé : l'Editor est le Writer** (`writer`, décision de Fabien — paire avec Reader).
 
@@ -6537,8 +6539,8 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 >   `converter/tasks.py:113-128`), l'enhancer tire le modèle « auto » avant l'appel
 >   (`enhancer/tasks.py:169`). Un corps composé ferait autre chose que la glu, sans le dire : ces
 >   process gardent leur TROU marqué (marche B, `app_sandbox glue`). Ce qui se génère ce jour-là,
->   ce sont les fonctions que d'autres déclarations nomment par chaîne (§S, ligne du 19/10 — ⚠ relevé
->   le 2026-10-31 : ce document n'a pas de titre `§S`, seuls `§S2bis.6bis` et `§S2ter` ; cible à préciser).
+>   ce sont les fonctions que d'autres déclarations nomment par chaîne (§S, ligne du 19/10 — le titre
+>   `🔒 S` du bloc cité du §10.3 ; la note du 2026-10-31 qui le disait absent est retirée le 2026-11-02, elle était fausse).
 > - Gardes : `converter/tests_pipeline.py` ; contre-épreuves ROUGES (post-traitement qui repart de
 >   la sortie, conversion qui ne surveille plus la demande, lanceur qui efface). Grille :
 >   converter **100 %** (86/86).

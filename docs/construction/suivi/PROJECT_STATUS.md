@@ -19789,7 +19789,9 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
   (portage avec leurs gestes nocturnes) ; référence de MISE EN PAGE (`reference_layout`, lecture
   des références selon l'usage) ; sources cards/RAG, hébergement, promotion hors bac à sable ;
   `RunOutcome` garde aussi des lignes d'une jumelle retirée (même classe que les révisions) ;
-  `AGENTS.md` cite un `§S` de la route qui n'existe pas sous ce titre (décision de Fabien).
+  ~~`AGENTS.md` cite un `§S` de la route qui n'existe pas sous ce titre (décision de Fabien).~~
+  *(Corrigé le 2026-11-02 : il existe depuis le 2026-09-03, titre `🔒 S` dans un bloc cité du
+  ROUTE §10.3 — invisible à une recherche de titres en `^#`.)*
 
 ## §PALIER — 2026-10-01 (nuit), « TRANSFÉRER À… » — ✅ commit ci-dessous — 🔴 RELANCER WAMA (route neuve) — 🔚 transférer un LOT entier ; files du converter et de l'imager (cards reçues invisibles)
 
@@ -27684,27 +27686,43 @@ vérifiés ligne à ligne). Aucune ligne d'attribution.
 1. **DeepFilterNet 3 hors de la route** (`enhancer/README.md` §Audio) : pas d'origine figée
    acceptable par le pilote `files` (officiel = archive dans l'arbre du dépôt ; aucun miroir du Hub
    aux mêmes octets). Pilote d'ARCHIVE dans la route, ou miroir converti (autre chargeur) ?
-2. **`ROUTE §S`** cité par `AGENTS.md` comme source obligatoire : aucun titre ne porte ce nom.
-   Créer le titre ou réécrire les citations ?
+2. ~~**`ROUTE §S`** cité par `AGENTS.md` comme source obligatoire : aucun titre ne porte ce nom.
+   Créer le titre ou réécrire les citations ?~~ *(Retirée le 2026-11-02, constat FAUX : le titre
+   `🔒 S` existe depuis le 2026-09-03 dans un bloc cité du ROUTE §10.3 — cf. §REVÉRIFICATION
+   2026-11-02.)*
 3. **`AUDIOCRAFT_CACHE_DIR`** posé dans le backend, par modèle (`audiocraft_backend.py:196`,
    choix ROADMAP §5b) contre la règle d'`AGENTS.md` que la même variable illustre.
 
 **Décisions ouvertes (non bloquantes)** — détail et preuves dans les rapports de l'audit :
-héritage lot → élément (la ⚙ de lot écrase les filles non RUNNING, `batch_views.py:635-687`) ·
+héritage lot → élément (la ⚙ de lot écrase les filles non RUNNING, `batch_views.py:635-687` —
+*au 2026-11-02 : `_apply_to_elements` l.681-702, appelé par `batch_update` l.728*) ·
 ROADMAP §19.5 (domaine par salon écarté par le code, `domains_for_ui` sans appelant), §24.7 ②,
 §8d 4c · WAMA_QUALITE §7 et Q1 « appliqués de fait » · DATA_WORLD D2/D6, `rolling` comme corpus réel,
 sens d'`authored` (SPEC §6bis.1) · 6 SHA cités sans branche dans PROJECT_STATUS (`2b5b92c5`,
-`32c28606`, `42157a42`, `7b8e9510`, `b24ca53e`, `b75d6b31`) · 7 docs du catalogue sans ligne dans la
-table des domaines d'`AGENTS.md` · `api_manifest_proposals` sans filtre `visible_to` · forme
+`32c28606`, `42157a42`, `7b8e9510`, `b24ca53e`, `b75d6b31` — *objets présents, aucune branche ne les
+contient, remesuré le 2026-11-02*) · ~~7~~ docs du catalogue sans ligne dans la table des domaines
+d'`AGENTS.md` (*remesuré le 2026-11-02, chemin par chemin : 9 docs de construction —
+`TRANSCRIBER_REFERENCE_AUDIT`, `patches/README`, `AI-models/README` et `models/README`, `vendor/README`,
+`wama-dev-ai/README`, `imager/README`, `face_analyzer/README`, `projects/ENA_CASA` — plus les 4 docs
+dérivées `docs/dev/*` et `docs/utilisateur/*`*) · `api_manifest_proposals` sans filtre `visible_to` · forme
 `fichier::symbole` ou contrôle de dérive dans `check_docs` (232 renvois décalés à ±12 lignes) ·
 `toggle` de l'alignement du transcriber · table des bascules du cam_analyzer générée depuis `FEATURES` ?
 
 **Restes de code NOMMÉS (non faits).** `WHISPER_CACHE` (`transcriber/utils/model_config.py:232`)
 posé à l'import et lu par rien · identifiants français des CONSOMMATEURS de `wama_data`
-(`apercu_frames(lignes_max=)`, `exporter_frames(regroupement=)`, `lot_depuis_frames`, `wdat.py`…) ·
-deux `validate` exportées en collision (`core/conditions.py`, `view.py`) · enrichissement
-inatteignable dans l'anonymizer (pas de `trigger`) · `localStorage` du reader et du describer ·
-chargements par CDN · `fits_full_gpu` sans appelant (R46) · commentaire « Discord = fournisseur
+(`apercu_frames(lignes_max=)`, `exporter_frames(regroupement=)`, `lot_depuis_frames`, ~~`wdat.py`~~…
+— *remesuré le 2026-11-02 : `wdat.py` n'en porte plus ; `functions/io/export.py` oui, et ses noms
+`apercu_frames`, `exporter_frames`, `lot_depuis_frames`, `regroupement` ÉCHAPPENT à la liste noire de
+`check_identifier_language` (seuls `lignes_max`, `fichiers`, `dossier`, `ecrits` y sont comptés)*) ·
+deux `validate` ~~exportées en collision~~ homonymes (`core/conditions.py:286`, `view.py:185` ;
+*précisé le 2026-11-02 : aucun module ne les importe ensemble, une homonymie, pas une collision*) · enrichissement
+~~inatteignable~~ sans déclencheur ✨ À LA DEMANDE dans l'anonymizer (pas de `trigger` ; *précisé le
+2026-11-02 : au lancement, il s'applique — `anonymizer/tasks.py:211`, `process_prompt_for`*) · `localStorage` du reader et du describer (*précisé le 2026-11-02 : le reader
+persiste moteur, mode et langue du volet dans le navigateur, `reader.js:489-495` (ids rendus par
+`WamaParams` depuis `reader/params.py:42,78,85`), à côté des réglages en base ; le describer n'a plus
+qu'un `removeItem` de clés que rien n'écrit, `index.js:397`*) ·
+chargements par CDN (*précisé le 2026-11-02 : un seul gabarit servi, `common/modes_demo.html:8-9`,
+route `common/modes-demo/` ; les autres sont des exemples d'une librairie vendorisée*) · `fits_full_gpu` sans appelant (R46) · commentaire « Discord = fournisseur
 local » de `gateway/core.py:202` (travail en cours d'une autre session, non touché) ·
 `manifests/apps/reader.json` : seule la description est commitée, ré-exporter quand
 `manifests/builtin/model.py` (travail d'autrui) le sera.
@@ -27759,6 +27777,30 @@ Demande de Fabien : « a-t-on laissé des choses de côté ? tout est aligné ? 
   restaurés et vérifiés ; une suite d'autrui lancée dans ces fenêtres a pu voir un FAUX rouge
   (`tests_hf_cache_routing`, « 1 mutation … coqui_backend.py »), signalé à « Portage Apps ». Et
   les commits partiels sans `/commit-partiel` (déjà au §CLÔTURE).
+
+## §REVÉRIFICATION 2026-11-02, « audit doc ↔ code » — la liste des restes confrontée au code
+
+Demande de Fabien : « on ne suppose pas, on confronte la doc au code » — chaque reste du §CLÔTURE
+ci-dessus relu sur le code de `e91973131`.
+- **Constat FAUX, retiré** : la décision ② (« `ROUTE §S` n'existe pas »). Le titre `🔒 S — CE QU'UNE
+  GÉNÉRATION NE DOIT PLUS REDÉCOUVRIR` existe depuis le 2026-09-03, DANS un bloc cité du §10.3 —
+  une recherche de titres en `^#` ne le voit pas. Le relevé faux date du 2026-10-01 (ROUTE, trace
+  de la session « Writer ») ; l'audit l'a recopié, je l'ai propagé le 31/10 dans `AGENTS.md`, la
+  ROUTE (§10.6 couche 2) et ici. Les quatre endroits corrigés, `AGENTS.md` rendu à sa citation
+  d'origine. *Trois affirmations descendaient d'une même phrase — la règle « une mesure bat N
+  citations » d'`AGENTS.md`.*
+- **Précisés** (sur place ci-dessus) : l'enrichissement de l'anonymizer s'applique AU LANCEMENT
+  (`tasks.py:211`), seul le ✨ à la demande manque ; les deux `validate` sont homonymes, pas en
+  collision ; `wdat.py` n'a plus d'identifiant français, `export.py` en a, dont quatre noms que la
+  liste noire ne voit pas ; 9 docs de construction (et non 7) hors table des domaines ; le CDN se
+  réduit à `common/modes_demo.html` ; `localStorage` : le reader persiste trois réglages, le describer
+  n'a qu'un reste mort.
+- **Confirmés à la ligne** : DeepFilterNet 3 (`common/backends/audio_enhancer.py:325-345`, pilote
+  `files` sans archive — origines `huggingface`/`github` seules, `model_installer.py:833-834,905-911`) ;
+  `AUDIOCRAFT_CACHE_DIR` (`audiocraft_backend.py:196`) ; `app_base.html` sans aucun `extends`/`include`
+  dans le dépôt ; `WHISPER_CACHE` lu par rien (ni WAMA, ni `venv_linux`) ; `fits_full_gpu` sans
+  appelant ; `domains_for_ui` appelé par son seul test ; six SHA sans branche ; R27 (`tts_base.py:62`) ;
+  `wama/views.py` toujours non commité (budget 2561 tenu).
 
 ## §CLÔTURE 2026-11-01, « MODÈLES : INSTALLATION RECOMMANDÉE, SUCCESSION, BANCS OFFICIELS, DESCRIPTIONS — puis TIRAGE DE L'ASSISTANT (AA v5, échelle commune, variante servie) » — non poussé — 🔴 relancer gunicorn + workers — 🔚 trancher le sort de la ligne `reader:olmocr` (ci-dessous)
 
