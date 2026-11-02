@@ -264,6 +264,11 @@ SERVED_VARIANT: dict[str, str] = {
     'ilaas:qwen-3.8-27b': 'xhigh',
 }
 
+#: Clé de `benchmark_meta` : la date de la première synchro où aucune source ne notait plus la
+#: ligne — sa note est gardée, PÉRIMÉE (`synchronize`). Une synchro qui la note à nouveau réécrit
+#: la méta entière, la marque part avec.
+STALE_KEY = 'stale_since'
+
 
 #: Mots qui nomment un TIRAGE d'un modèle, pas le modèle — écartés de la famille (cf.
 #: `_with_prefix`). Liste volontairement COURTE : chaque entrée doit être un mot qui ne
@@ -1778,6 +1783,7 @@ def synchronize(dry_run: bool = False, include_proposed: bool = True, keys=None,
             unavailable[s['key']] = str(e)
     if not sources:
         raise SourceUnavailable(' ; '.join(f'{k}: {v}' for k, v in unavailable.items()))
+    unavailable_names = {s['source_name'] for s in SOURCES_BY_PRIORITY if s['key'] in unavailable}
 
     # Les quatre issues sont EXHAUSTIVES et disjointes : leur somme vaut le nombre de lignes
     # examinées. Ce n'était pas le cas avant le 2026-09-01 — `without_identity` n'existait pas et
@@ -1787,7 +1793,9 @@ def synchronize(dry_run: bool = False, include_proposed: bool = True, keys=None,
     report = {'sources': {k: {c: len(v) for c, v in cats.items()} for k, cats in sources.items()},
                'reasons': reasons_by_category, 'unavailable': unavailable,
                'matched': [], 'unmatched': [], 'without_identity': [],
-               'without_category': 0, 'inversions': []}
+               'without_category': 0, 'inversions': [],
+               # Parmi les deux précédentes : celles qui gardent la note d'une synchro passée.
+               'kept_stale': []}
 
     # ⚠ UN MODÈLE CLOUD N'EST PAS TÉLÉCHARGÉ, et il est utilisable quand même (2026-09-19).
     # `is_downloaded=True` voulait dire « utilisable ici » — vrai tant que tout était local.
@@ -1829,6 +1837,18 @@ def synchronize(dry_run: bool = False, include_proposed: bool = True, keys=None,
                 # pas posée. Distinct d'un « sans banc » — le remède n'est pas un ALIAS mais
                 # une identité (nom, `platform_ref` ou modèle de base exploitable).
                 report['without_identity'].append(f'{m.model_key} [{cats[0]}]')
+            if m.benchmark_index is not None:
+                # Une note qu'aucune source ne donne PLUS (2026-11-02, décision de Fabien : la
+                # garder, marquée) : AA v5 ne note plus gemma4:12b, sa note v4 reste. La retirer
+                # ferait retomber le modèle à l'a priori ; la marque dit depuis quand elle n'est
+                # plus confirmée. Pas de marque quand une source qui la notait MANQUAIT : rien ne
+                # dit alors qu'elle ne la note plus.
+                old = m.benchmark_meta or {}
+                rated_by = {old.get('source')} | {b.get('source') for b in old.get('benchmarks') or []}
+                report['kept_stale'].append(m.model_key)
+                if not dry_run and not old.get(STALE_KEY) and not (rated_by & unavailable_names):
+                    m.benchmark_meta = {**old, STALE_KEY: timezone.now().date().isoformat()}
+                    m.save(update_fields=['benchmark_meta'])
             continue
 
         # Le banc PORTEUR est le premier apparié, donc celui du métier principal quand il l'est.

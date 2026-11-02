@@ -48,8 +48,13 @@ class Command(BaseCommand):
             self.stdout.write(f"  {key:40s} [{cat}] {val:>8} ({scale})"
                               + (f"  Elo={elo}" if elo is not None else ''))
         if r['unmatched']:
-            self.stdout.write(f"Non appariés (benchmark_index reste NULL) : "
+            self.stdout.write(f"Non appariés (aucune source ne les note) : "
                               f"{', '.join(r['unmatched'])}")
+        if r.get('kept_stale'):
+            # Le message disait « benchmark_index reste NULL » : faux pour une ligne déjà notée,
+            # qui GARDE sa dernière note (2026-11-02).
+            self.stdout.write(f"Dont gardant leur dernière note, marquée périmée : "
+                              f"{', '.join(r['kept_stale'])}")
         if r['without_identity']:
             # Ces lignes ne tombaient dans AUCUN compteur avant le 2026-09-01 : le total
             # affiché était inférieur au catalogue examiné, sans que rien ne le signale.

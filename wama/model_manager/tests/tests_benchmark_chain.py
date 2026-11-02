@@ -264,3 +264,41 @@ class InstallationQueuesItsBenchmarkTest(TestCase):
         entry = settings.CELERY_BEAT_SCHEDULE['benchmarks-refresh']
         self.assertEqual(('model_manager.sync_benchmarks', 'default'),
                          (entry['task'], entry['options']['queue']))
+
+
+class StaleBenchmarkTest(_SourcesFactices, TestCase):
+    """2026-11-02, Fabien's decision: a value no source gives any more is KEPT, marked stale
+    (AA v5 no longer rates gemma4:12b; its v4 value stays). The report said « stays NULL »."""
+
+    def _rated(self, source):
+        return _row('imager:old', 'Old Model 1', benchmark_index=40.0,
+                    platform_ref='huggingface:org/old-model',
+                    benchmark_meta={'source': source, 'scale': 'aa_intelligence_index',
+                                    'benchmarks': [{'source': source, 'value': 40.0}]})
+
+    def test_a_value_no_source_gives_any_more_is_kept_and_marked(self):
+        self._rated('artificial-analysis')
+        with self._sources({'text-to-image': []}):
+            r = bs.synchronize(dry_run=False)
+        row = AIModel.objects.get(model_key='imager:old')
+        self.assertEqual(40.0, row.benchmark_index)
+        self.assertIn(bs.STALE_KEY, row.benchmark_meta)
+        self.assertEqual(['imager:old'], r['kept_stale'])
+
+    def test_counter_proof_a_missing_source_does_not_make_its_value_stale(self):
+        self._rated('arena')                       # the fake Arena is unavailable
+        with self._sources({'text-to-image': []}):
+            bs.synchronize(dry_run=False)
+        self.assertNotIn(bs.STALE_KEY, AIModel.objects.get(model_key='imager:old').benchmark_meta)
+
+    def test_rated_again_the_mark_goes(self):
+        row = self._rated('artificial-analysis')
+        row.benchmark_meta = {**row.benchmark_meta, bs.STALE_KEY: '2026-11-01'}
+        row.save()
+        entry = {'name': 'org/old-model', 'slug': 'org/old-model', 'identity': None,
+                 'repo': 'org/old-model', 'value': 41.0, 'scale': 'aa_elo_text_to_image'}
+        with self._sources({'text-to-image': [entry]}):
+            bs.synchronize(dry_run=False)
+        row.refresh_from_db()
+        self.assertEqual(41.0, row.benchmark_index)
+        self.assertNotIn(bs.STALE_KEY, row.benchmark_meta)

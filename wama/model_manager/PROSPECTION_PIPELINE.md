@@ -3617,9 +3617,16 @@ l'assistant ne recommandait rien.
      jumeau `AIModel.best_installed`). Resynchronisé. ⚠ Mesuré après : il ne joue PAS sur le lot de
      l'assistant — `ilaas:qwen-3.6-35b-instruct`, `ollama:gemma4:12b` et `ollama:gemma4:e4b` gardent
      une mesure v4 (AA v5 ne les note pas encore, l'Arena non plus) : le lot n'a aucune échelle
-     commune. ⏳ Question ouverte : une ligne qu'aucune source ne note PLUS garde sa dernière mesure
-     (`synchronize` ne la retire pas ; son rapport dit pourtant « benchmark_index reste NULL », vrai
-     seulement pour une ligne jamais appariée).
+     commune. ✅ **Tranché le 2026-11-02** (Fabien : la garder, marquée) : une ligne qu'aucune
+     source ne note PLUS garde sa dernière note, marquée `benchmark_meta['stale_since']`
+     (`benchmark_sync.STALE_KEY`, date de la 1ʳᵉ synchro qui ne la confirme plus) — jamais quand
+     une source qui la notait était injoignable ; une synchro qui la note à nouveau réécrit la méta,
+     la marque part. Le rapport ne dit plus « reste NULL » (faux pour une ligne déjà notée) et nomme
+     ces lignes ; la fiche du model manager l'écrit (« périmée : plus notée par sa source depuis
+     le … »). Appliqué : **40 lignes** marquées, dont les trois du lot de l'assistant
+     (`logs/benchmarks/sync_2026-11-02_stale.log`). Le tirage les lit toujours. Garde
+     `StaleBenchmarkTest` (contre-épreuves rouges : code d'avant, règle de la source injoignable
+     neutralisée).
    - ✅ (b) **La variante servie se SAIT, elle n'est pas dans les méta-infos** : la liste d'ILaaS ne
      dit rien (`{"id", "object", "owned_by"}`), et WAMA n'envoie aucun réglage de raisonnement à un
      distant (`think` est « Ollama only », `llm_utils.py:566`). Mesuré par trois appels : ILaaS

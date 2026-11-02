@@ -1604,7 +1604,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (m.benchmark_index == null) return '';
                 const meta = m.benchmark_meta || {};
                 return benchVal(m.benchmark_index) + (meta.source ? ' — ' + meta.source : '')
-                    + (meta.direction === 'lower' ? ' (plus bas = mieux)' : '');
+                    + (meta.direction === 'lower' ? ' (plus bas = mieux)' : '')
+                    + (meta.stale_since ? ' — périmée : plus notée par sa source depuis le '
+                        + meta.stale_since : '');
             } },
             {% comment %} Le NOM TIERS apparié est affiché exprès : c'est le seul moyen pour
             un humain de repérer un mauvais appariement (l'appariement est automatique et
