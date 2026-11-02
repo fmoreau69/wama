@@ -89,7 +89,12 @@
             '<label class="form-label small mb-1"><i class="fas fa-expand me-1"></i>Résolution</label>' +
             '<select class="form-select form-select-sm" id="msResolution"></select>' +
             '<input type="hidden" name="width" value="' + esc(data.width) + '">' +
-            '<input type="hidden" name="height" value="' + esc(data.height) + '">';
+            '<input type="hidden" name="height" value="' + esc(data.height) + '">' +
+            // Guidée par une image : la sortie garde le RATIO de l'entrée, la taille choisie en
+            // fixe le plus grand côté (tâche `_output_size`, 2026-11-02).
+            (data.reference_size
+                ? '<div class="form-text">Le ratio de l\'image d\'entrée est conservé : la taille ' +
+                  'choisie fixe le plus grand côté.</div>' : '');
         body.appendChild(wrap);
 
         const sel = wrap.querySelector('select');
@@ -102,7 +107,9 @@
 
         function load() {
             const model = (modelSel && modelSel.value) || data.model || '';
-            fetch(CFG().urls.modelResolutions + '?model=' + encodeURIComponent(model))
+            const ref = data.reference_size
+                ? '&ref=' + data.reference_size[0] + 'x' + data.reference_size[1] : '';
+            fetch(CFG().urls.modelResolutions + '?model=' + encodeURIComponent(model) + ref)
                 .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
                 .then(function (res) {
                     const list = res.resolutions || [];

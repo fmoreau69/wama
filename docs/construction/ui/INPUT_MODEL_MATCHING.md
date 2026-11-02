@@ -754,6 +754,23 @@ catalogue. Un modèle FIXE ne propose que sa taille ; le volet grise les autres,
 ⏳ Le widget de résolution image reste un widget d'app (préréglages) et non un `cap_from` : le
 porter au schéma est un chantier de l'imager, pas un manque de la capacité.
 
+**2026-11-02 — guidée par une image, la sortie garde le RATIO de l'entrée.** Constat de Fabien :
+« Comparer » confrontait l'entrée à une sortie d'un autre ratio (cards #47 et #58 — une photo
+1024×768 sortie en 896×512 et 512×512). Ce n'était pas le modèle : SD/SDXL en img2img produisent
+la taille de l'image qu'on leur donne, et deux backends ÉTIRAIENT l'entrée à la largeur×hauteur
+de la card (`diffusers_backend._generate_img2img`, `flux2_klein_backend`). Désormais, en
+`img2img`/`style2img` (`imager.tasks.REFERENCE_GUIDED_MODES`), la taille de la card fixe le PLUS
+GRAND CÔTÉ, borné par `min/max_resolution`, et l'autre suit l'entrée, arrondi à 16
+(`image_generation_base.size_following_reference`, appelée par `tasks._output_size` — la card
+n'est pas réécrite) ; les backends posent l'entrée par `fit_reference` (recadrage centré, jamais
+d'étirement — un modèle à taille FIXE, Supra2, garde la sienne et l'entrée est recadrée). La ⚙
+propose en tête « taille de l'image d'entrée » (`get_recommended_resolutions(…, reference_size)`,
+endpoint `?ref=LxH`, même règle que la tâche). Comparer affichait déjà les deux faces en `contain`
+dans la boîte de la référence (`media-preview.css`) : rien à y changer. Gardes :
+`imager.tests.OutputFollowsTheReferenceRatioTest`. ⏳ Restent ÉTIRÉES : l'image d'entrée d'une
+vidéo (image→vidéo, CogVideoX en 720×480 natif) et les bornes par côté des chemins texte→image
+FLUX et HunyuanImage (`diffusers_backend.py`, `max(min, min(max, côté))` sur chaque côté).
+
 **2026-10-02 — la DURÉE du composer suit la même route.** Mesuré dans le code : le curseur du
 composer proposait jusqu'à 10 min (`params.py`, `max=600`) alors que MusicGen et AudioGen
 produisent 30 s et Music 3 300 s ; la tâche réduisait la durée EN SILENCE au lancement

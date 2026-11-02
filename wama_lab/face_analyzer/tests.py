@@ -236,3 +236,43 @@ class EmotionBackendReachesTheVideoTaskTest(TestCase):
         self.assertIn('config', seen, outcome)
         self.assertEqual(seen['config'].emotion_backend, 'fer')
         self.assertIs(seen['config'].enable_age_gender, False)
+
+
+class RealtimeFrameAnswersJsonTest(TestCase):
+    """The real-time frame answers JSON whatever numpy scalars the modules return.
+
+    Found on 2026-11-02 after a restart: about fifty frames in a row answered 500 — « Object of
+    type int64 is not JSON serializable » (`views.py`, `process_frame_realtime`). The video task
+    converted its result (`tasks.convert_numpy_types`); the real-time view did not.
+    """
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import GROUP_PREFIX
+        self.user = get_user_model().objects.create_user('face-realtime-json-test', password='x')
+        self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')[0])
+        self.client.force_login(self.user)
+
+    def test_numpy_scalars_in_the_result_do_not_break_the_answer(self):
+        import base64
+        import json
+        from unittest import mock
+
+        import cv2
+        import numpy as np
+        from django.urls import reverse
+
+        ok, jpeg = cv2.imencode('.jpg', np.zeros((8, 8, 3), np.uint8))
+        result = mock.Mock(face_detected=np.bool_(True), frame_with_overlay=None,
+                           processing_time_ms=np.float64(3.0))
+        result.to_dict.return_value = {'heart_rate': np.int64(72), 'blinks': [np.int32(1)],
+                                       'score': np.float32(0.5)}
+        with mock.patch('wama_lab.face_analyzer.views.FaceAnalysisPipeline') as pipeline:
+            pipeline.return_value.process_frame.return_value = result
+            response = self.client.post(
+                reverse('wama_lab:face_analyzer:process_frame'),
+                json.dumps({'image': base64.b64encode(jpeg.tobytes()).decode()}),
+                content_type='application/json')
+        self.assertEqual(response.status_code, 200, response.content[:300])
+        self.assertEqual(response.json()['data'], {'heart_rate': 72, 'blinks': [1], 'score': 0.5})

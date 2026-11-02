@@ -184,6 +184,11 @@ def _track_live(instance) -> None:
     # Plus d'unloader inscrit par app (2026-09-14) : `MemoryManager.release_vram` /
     # `unload_model` interrogent ce registre directement, au grain du modèle.
     _LIVE_BACKENDS.add(instance)
+    # Le battement part avec le PREMIER résident du process, où qu'il tourne (2026-11-02) : seuls
+    # les workers Celery et le service TTS le lançaient. Le service privacy (:8003) et gunicorn
+    # publiaient leurs modèles sans le battre — leur ligne expirait au bout du TTL (1 h) pendant
+    # que le modèle restait en mémoire, et le tirage croyait la carte plus libre qu'elle ne l'était.
+    start_reservation_heartbeat()
 
 
 def _untrack_live(instance) -> None:

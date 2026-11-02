@@ -1104,9 +1104,12 @@ class DiffusersBackend(ImageGenerationBackend):
                 )
 
             # Load and prepare reference image
-            init_image = Image.open(params.reference_image).convert("RGB")
-            init_image = init_image.resize((params.width, params.height), Image.LANCZOS)
-            logger.info(f"Reference image resized to {params.width}x{params.height}")
+            # Mise à la taille SANS déformation (recadrage au centre) : la tâche a déjà choisi une
+            # taille au ratio de l'entrée (`size_following_reference`).
+            from wama.common.backends.image_generation_base import fit_reference
+            init_image = fit_reference(Image.open(params.reference_image).convert("RGB"),
+                                       (params.width, params.height))
+            logger.info(f"Reference image fitted to {params.width}x{params.height}")
 
             # Setup generator for reproducibility
             seed_used = params.seed

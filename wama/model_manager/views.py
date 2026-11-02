@@ -446,15 +446,19 @@ def api_tracked_models(request):
     process (workers Celery, service TTS, web).
     """
     from wama.common.services.resource_governor import (
-        idle_models as idle_partages, resident_models,
+        idle_models as idle_partages, other_holders, resident_models,
     )
 
     residents = resident_models()
     inactifs = {m['model_key'] for m in idle_partages(300)}
+    # Les détenteurs sans modèle du catalogue (sous-processus…) comptent dans le total : le
+    # panneau les taisait (2026-11-02).
+    others = other_holders()
 
     return JsonResponse({
         'success': True,
-        'total_tracked_mb': round(sum(residents.values()) * 1024, 1),
+        'total_tracked_mb': round((sum(residents.values()) + sum(others.values())) * 1024, 1),
+        'other_holders': {name: round(gb, 2) for name, gb in others.items()},
         'total_registered': len(residents),
         'active_count': len(residents) - len(inactifs & set(residents)),
         'idle_count': len(inactifs & set(residents)),

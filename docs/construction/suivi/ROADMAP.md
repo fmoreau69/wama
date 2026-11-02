@@ -966,6 +966,27 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    réduction choisie automatiquement doit-elle être MÉMORISÉE par modèle (préférence
    utilisateur) ou recalculée à chaque tirage selon l'état de la carte ?
 
+**2026-11-02 — LES DÉTENTEURS HORS DU WORKER, en venv unique (bilan demandé par Fabien avant de
+reparler du multi-venv).** Mesuré au code : le registre partagé ne garantissait la même gestion
+que pour ce qui passe par le contrat de backend DANS un worker Celery ou le service TTS. Quatre
+défauts soldés le jour même : ① le battement des lignes part avec le PREMIER résident de tout
+process (`base._track_live` → `start_reservation_heartbeat`) — le service privacy et gunicorn
+publiaient sans battre, leur ligne expirait au bout d'1 h, modèle toujours chargé ; ② les
+sous-processus Python (MuseTalk, CodeFormer) reçoivent le plafond CUDA du parent par une amorce
+(`resource_governor.capped_child_env` → `common/services/child_boot/sitecustomize.py`, qui charge
+le gouverneur PAR SON CHEMIN, sans le paquet `wama`) ; ③ l'Ollama HÔTE : sa ligne est posée dès
+qu'un appel le garde chargé (`ModelRegistry.publish_ollama_load`, depuis `ollama_host.measured_load`)
+au lieu d'attendre le relevé de 10 min, et une libération ACCORDÉE le décharge
+(`release_ollama_host`, appelée par `obtain_vram`) ; ④ les détenteurs sans modèle du catalogue
+sont NOMMÉS (`other_holders`) dans la card en attente (`holders_summary`) et comptés au total du
+panneau du model manager (`api_tracked_models`). Gardes : `common/tests/tests_out_of_process_holders.py`
+(l'enfant est un vrai processus, avec un faux torch). ⏳ Restent, nommés : le service privacy et
+gunicorn ne sont pas TENANTS (« Libérer la carte » ne les décharge pas) ; un enfant en cours ne se
+libère ni ne s'annule (⏹ n'atteint pas le sous-processus) ; un accord « Libérer la carte » non
+consommé vit 24 h (`task_skeleton._differer_faute_de_vram` ne le retire que s'il sert) ; les trois
+services uvicorn démarrent AVANT `wama_worker_env` (`start_wama_prod.sh`). Le multi-venv lui-même :
+`INFRA_WSL_VS_WINDOWS.md §Venvs isolés`, bloc du même jour.
+
 ### Warm-loading VRAM — modèles temps réel chauds (chantier prod)
 > But : sur serveur de prod (grosse VRAM), garder chargés les modèles **temps réel**
 > (AI-Assistant LLM+vocalisation+traduction, preview synthesizer, speak Transcriber).

@@ -1046,6 +1046,20 @@ def console_content(request):
 # endpoint aurait maintenu un second chemin d'écriture contradictoire.
 
 
+def _reference_size(generation):
+    """`[L, H]` de l'image d'entrée quand elle GUIDE l'image produite (`REFERENCE_GUIDED_MODES`),
+    sinon None. L'en-tête seul est lu."""
+    from .tasks import REFERENCE_GUIDED_MODES
+    if not generation.reference_image or generation.generation_mode not in REFERENCE_GUIDED_MODES:
+        return None
+    try:
+        from PIL import Image
+        with Image.open(generation.reference_image.path) as ref:
+            return list(ref.size)
+    except Exception:
+        return None
+
+
 def get_generation_settings(request, generation_id):
     """Get settings for a specific generation"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -1076,6 +1090,9 @@ def get_generation_settings(request, generation_id):
             'width': generation.width,
             'height': generation.height,
             'reference_image_url': generation.reference_image.url if generation.reference_image else None,
+            # Guidée par une image, la sortie en suit le RATIO (`tasks._output_size`) : la modale
+            # propose sa taille et le dit.
+            'reference_size': _reference_size(generation),
         })
 
         return JsonResponse(data)
@@ -1134,7 +1151,10 @@ def api_model_resolutions(request):
     model_name = _model_id(model_key)
 
     config = get_model_resolution_config(model_key)
-    resolutions = get_recommended_resolutions(model_key)
+    # `ref=LxH` : la card est guidée par une image — sa taille entre en tête des choix.
+    ref_w, _, ref_h = (request.GET.get('ref') or '').partition('x')
+    reference_size = (int(ref_w), int(ref_h)) if ref_w.isdigit() and ref_h.isdigit() else None
+    resolutions = get_recommended_resolutions(model_key, reference_size)
 
     # Pas et guidage RECOMMANDÉS (capacités canoniques `recommended_steps` / `_guidance`), puis
     # la déclaration d'app, puis les valeurs historiques.

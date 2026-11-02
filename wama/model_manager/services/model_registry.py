@@ -491,6 +491,32 @@ class ModelRegistry:
                 release_reservation(owner)
         return len(vivants)
 
+    @staticmethod
+    def publish_ollama_load(name: str, *, keep_alive=None) -> bool:
+        """Après un appel à l'Ollama hôte qui GARDE `name` chargé : sa ligne de résidence au
+        gouverneur, tout de suite (`refresh_ollama_residency`). Rend True si le relevé a eu lieu.
+
+        Jusqu'au 2026-11-02 un chargement de conversation, de vision ou de l'assistant n'écrivait
+        que sa MESURE (`measure_ollama_load`) : la ligne n'arrivait qu'au relevé périodique (10 min),
+        et d'ici là ni la garde des tâches ni le tirage ne voyaient ces Go — le pilote vu de WSL ne
+        voit rien de l'hôte. Une ligne déjà posée n'est pas relue (le relevé périodique la tient) :
+        un tour d'assistant appelle le modèle plusieurs fois. Hors du côté autorisé, rien."""
+        from django.conf import settings
+        if str(keep_alive).strip() in ('0', '0s', '0m'):
+            return False
+        if not getattr(settings, 'WAMA_TASKS_DISPATCHED', True):
+            return False
+        try:
+            from wama.common.services.resource_governor import ollama_host_owner, reservations
+            from wama.common.utils.ollama_host import full_tag
+            if ollama_host_owner(full_tag(name)) in reservations():
+                return False
+            ModelRegistry.refresh_ollama_residency()
+            return True
+        except Exception:
+            logger.debug("[ModelRegistry] résidence de %s non déclarée", name, exc_info=True)
+            return False
+
     #: Âge sous lequel une ligne de résidence absente de `/api/ps` est une ANNONCE (le chargement
     #: n'a pas encore abouti) et non un modèle déchargé. Un modèle d'espace se charge en quelques
     #: secondes ; la marge couvre un disque lent.

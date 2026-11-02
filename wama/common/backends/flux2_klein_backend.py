@@ -200,7 +200,9 @@ class Flux2KleinBackend(ImageGenerationBackend):
         if params.reference_image:
             try:
                 from PIL import Image
-                reference_image = Image.open(params.reference_image).convert("RGB").resize((width, height))
+                from wama.common.backends.image_generation_base import fit_reference
+                reference_image = fit_reference(Image.open(params.reference_image).convert("RGB"),
+                                                (width, height))
                 logger.info(f"[Flux2Klein] Image-conditioned mode, ref: {params.reference_image}")
             except Exception as e:
                 logger.warning(f"[Flux2Klein] Could not load reference image: {e}")

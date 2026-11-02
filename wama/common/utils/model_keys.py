@@ -82,3 +82,24 @@ def catalog_key(value: str, default_source: str) -> str:
         return value
     source, _ = split_key(value)
     return value if source else f'{default_source}:{value}'
+
+
+def resolve_catalog_key(value: str, default_source: str) -> str:
+    """`catalog_key`, plus la PROVENANCE : une valeur qui n'est la clé d'aucune ligne mais la
+    `platform_ref` d'une ligne (`huggingface:black-forest-labs/FLUX.1-dev`) rend la clé de cette
+    ligne (`imager:flux-1-dev`). Les deux s'écrivent `<plateforme>:<identifiant>` : l'assistant,
+    qui lit l'une et l'autre au catalogue, a écrit la provenance à la place de la clé (génération
+    #1163, 2026-10-30 → « aucun backend résolu »). Une seule requête, et seulement quand la
+    valeur n'est pas déjà une clé du catalogue ; hors Django, `catalog_key` seul."""
+    key = catalog_key(value, default_source)
+    if not split_key(key)[0]:
+        return key
+    try:
+        from wama.model_manager.models import AIModel
+        if AIModel.objects.filter(model_key=key).exists():
+            return key
+        owner = (AIModel.objects.filter(platform_ref__iexact=key, is_proposed=False)
+                 .values_list('model_key', flat=True).first())
+        return owner or key
+    except Exception:
+        return key

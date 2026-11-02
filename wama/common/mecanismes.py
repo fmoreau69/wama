@@ -412,7 +412,10 @@ MECHANISMS = (
               "portages, pas en passe aveugle. `backend_model_id` (2026-10-07) est l'AUTRE "
               "lecture : l'identifiant qu'un backend déclare dans `SUPPORTED_MODELS` (dernier "
               "segment, règle de `backend_for_model`, écrite quatre fois en ligne jusque-là) — "
-              "elle seule sépare de `model_id` une clé à trois segments (`github:owner/repo:tag`)",
+              "elle seule sépare de `model_id` une clé à trois segments (`github:owner/repo:tag`). "
+              "`resolve_catalog_key` (2026-11-02) ramène une PROVENANCE à la clé de sa ligne "
+              "(`huggingface:black-forest-labs/FLUX.1-dev` → `imager:flux-1-dev`) : l'assistant "
+              "avait écrit l'une pour l'autre (génération #1163, « aucun backend résolu »)",
               # Pas de `symbol` : `catalog_key` est aussi un nom de VARIABLE locale (composer,
               # enhancer, avatarizer) — compté par symbole, il leur attribuait une adoption fausse.
               # Le repli « feuille » compte l'import du module, qui est la vraie adoption.

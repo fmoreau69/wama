@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 
 from wama.common.backends.base import BaseModelBackend
-from wama.common.services.resource_governor import vram_reservation
+from wama.common.services.resource_governor import capped_child_env, vram_reservation
 
 # ── Étape 2 (2026-09-06) : plus d'import du `model_config` de l'app ──────────────────────
 # Ces valeurs venaient de `wama.avatarizer.utils.model_config`, ce qui interdisait au backend
@@ -74,7 +74,8 @@ def _build_musetalk_env() -> dict:
     # MuseTalk tourne sur torch : sans ceci, `transformers` importe TensorFlow (et keras) parce
     # qu'il est installé — ~30 s MESURÉES à chaque job (2026-09-30, `-X importtime`), pour rien.
     env['USE_TF'] = '0'
-    return env
+    # Le plafond CUDA du parent, posé dans l'enfant par l'amorce commune (2026-11-02).
+    return capped_child_env(env)
 
 
 def _ensure_models_link() -> None:

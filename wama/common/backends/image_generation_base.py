@@ -53,6 +53,49 @@ def enable_vae_memory_savings(pipe, label: str = "VAE") -> list:
     return done
 
 
+#: Multiple de taille commun aux moteurs d'image : les latents des VAE de diffusion (facteur 8) et
+#: les patchs 2×2 des transformeurs FLUX / Qwen-Image exigent un multiple de 16 — qui vaut donc
+#: pour tous (un multiple de 16 en est un de 8).
+SIZE_MULTIPLE = 16
+
+
+def size_following_reference(reference_size, requested_size, *, min_side=None, max_side=None,
+                             fixed_size=None, multiple: int = SIZE_MULTIPLE) -> tuple:
+    """La taille de SORTIE d'une génération guidée par une image (img2img, style) : le RATIO de
+    l'image d'entrée, le PLUS GRAND CÔTÉ de la taille demandée (borné par le modèle), arrondi au
+    multiple du moteur. Un modèle à taille FIXE garde la sienne (`fixed_size`) : l'entrée y est
+    alors recadrée (`fit_reference`), jamais étirée.
+
+    Jusqu'au 2026-11-02, l'image d'entrée était étirée à la largeur×hauteur de la card : une
+    photo 4:3 générée en 896×512 sortait déformée, et Comparer la confrontait à une image d'un
+    autre ratio (cards #47 et #58, constat de Fabien)."""
+    if fixed_size:
+        return int(fixed_size[0]), int(fixed_size[1])
+    ref_w, ref_h = (int(v) for v in reference_size)
+    req_w, req_h = (int(v) for v in requested_size)
+    longest = max(req_w, req_h)
+    if max_side:
+        longest = min(longest, int(max_side))
+    if min_side:
+        longest = max(longest, int(min_side))
+    if ref_w >= ref_h:
+        width, height = longest, longest * ref_h / ref_w
+    else:
+        width, height = longest * ref_w / ref_h, longest
+
+    def snap(value):
+        return max(multiple, int(round(value / multiple)) * multiple)
+    return snap(width), snap(height)
+
+
+def fit_reference(image: Image.Image, size) -> Image.Image:
+    """L'image d'entrée mise à `size` SANS déformation : recadrée au centre au ratio cible, puis
+    redimensionnée. Quand `size` suit déjà son ratio (`size_following_reference`), le recadrage
+    ne retire que l'arrondi au multiple du moteur."""
+    from PIL import ImageOps
+    return ImageOps.fit(image, (int(size[0]), int(size[1])), Image.LANCZOS)
+
+
 @dataclass
 class GenerationParams:
     """Parameters for image generation."""

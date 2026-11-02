@@ -791,10 +791,14 @@ def process_frame_realtime(request):
         logger.debug(f"Frame processed: face_detected={result.face_detected}, "
                      f"processing_time={result.processing_time_ms:.1f}ms, total_time={total_time:.1f}ms")
 
+        # Les modules rendent des scalaires numpy (`int64`…) : convertis comme le fait la tâche
+        # vidéo, sinon chaque image sortait en 500 (« int64 is not JSON serializable »,
+        # 2026-11-02, une cinquantaine d'images à 16:03).
+        from .tasks import convert_numpy_types
         return JsonResponse({
             'success': True,
-            'face_detected': result.face_detected,
-            'data': result.to_dict(),
+            'face_detected': bool(result.face_detected),
+            'data': convert_numpy_types(result.to_dict()),
             'overlay': overlay_base64
         })
 

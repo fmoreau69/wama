@@ -155,6 +155,25 @@ def configure_cuda_process_when_torch_loads() -> None:
         configure_cuda_process()
 
 
+#: Dossier de l'amorce des sous-processus (`child_boot/sitecustomize.py`).
+CHILD_BOOT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'child_boot')
+
+
+def capped_child_env(env: dict | None = None) -> dict:
+    """L'environnement d'un SOUS-PROCESSUS Python qui charge torch, avec le plafond CUDA du
+    processus parent (2026-11-02). L'amorce `child_boot/sitecustomize.py` passe en tête du
+    `PYTHONPATH` : elle pose `configure_cuda_process` au premier import de torch dans l'enfant.
+
+    Jusque-là MuseTalk et CodeFormer tournaient sans plafond — un enfant qui dépasse la VRAM
+    physique déborde en RAM hôte à travers WDDM, le scénario des paniques du noyau WSL2 décrit
+    à `configure_cuda_process`. Un binaire natif (audio.cpp) n'est pas concerné."""
+    env = dict(os.environ if env is None else env)
+    existing = env.get('PYTHONPATH', '')
+    env['PYTHONPATH'] = CHILD_BOOT_DIR + (os.pathsep + existing if existing else '')
+    env['WAMA_CUDA_CAP_FRACTION'] = str(ALLOCATOR_CAP_FRACTION)
+    return env
+
+
 #: VRAM de la carte une fois MESURÉE (elle ne change pas pendant la vie du processus).
 _CARD_GB = 0.0
 
@@ -534,7 +553,8 @@ def resident_models() -> dict[str, float]:
 
     Les détenteurs qui ne déclarent pas de modèle (sous-processus MuseTalk/CodeFormer
     via `vram_reservation`) sont ignorés : ils occupent de la VRAM sans qu'un modèle du
-    catalogue soit résident — c'est `reserved_gb()` qui les compte, pas cette fonction.
+    catalogue soit résident — c'est `reserved_gb()` qui les compte, et `other_holders()` qui
+    les NOMME (2026-11-02).
     """
     par_modele: dict[str, float] = {}
     for owner, gb in reservations().items():
@@ -1183,15 +1203,40 @@ def close_release_request(request_id: str) -> None:
     _hdel(_ACKS_KEY, request_id)
 
 
+def release_ollama_host() -> int:
+    """Décharge les modèles de l'Ollama HÔTE que le registre tient résidents (`keep_alive: 0`,
+    `MemoryManager.unload_model`, qui retire aussi leur ligne). Rend le nombre déchargé.
+
+    Réservé à une libération ACCORDÉE par l'utilisateur (`obtain_vram`) : jamais d'office. Le
+    suffixe de la ligne est la clé du catalogue (`ollama_host_owner`)."""
+    owners = [o for o in reservations() if o.startswith(OLLAMA_HOST_OWNER_PREFIX)]
+    if not owners:
+        return 0
+    from wama.model_manager.services.memory_manager import MemoryManager
+    freed = 0
+    for owner in owners:
+        try:
+            if MemoryManager.unload_model(owner[len(OLLAMA_HOST_OWNER_PREFIX):]):
+                freed += 1
+        except Exception:
+            logger.debug("Déchargement de %s ignoré", owner, exc_info=True)
+    return freed
+
+
 def obtain_vram(needed_gb: float, requester: str, *, reason: str = '',
                 timeout_s: float = 120.0, poll_s: float = 2.0, console=None) -> tuple[bool, float]:
     """Demande la libération, puis ATTEND que la SONDE rende `needed_gb` (bornée : le pilote
     rend la mémoire en secondes, pas en minutes — au-delà, quelque chose ne libère pas et on le
-    dit). Rend (obtenu, libre mesuré). La demande est close dans tous les cas."""
+    dit). Rend (obtenu, libre mesuré). La demande est close dans tous les cas.
+
+    L'Ollama HÔTE n'est le tenant d'aucun process WAMA : c'est le requérant qui le décharge
+    (`release_ollama_host`, 2026-11-02) — il restait jusque-là sur la carte, et la demande
+    expirait au bout de `timeout_s` quand il était le détenteur qui manquait."""
     import time
     request_id = request_release(needed_gb, requester, reason)
     if request_id is None:
         return False, effective_free_gb()
+    release_ollama_host()
     fin = time.monotonic() + max(0.0, timeout_s)
     try:
         while True:
@@ -1233,12 +1278,34 @@ def holders_summary(limit: int = 4) -> str:
         shown = ', '.join(f"{k} ({gb:.1f} Go)" for k, gb in residents[:limit])
         extra = len(residents) - limit
         parts.append("résidents : " + shown + (f" +{extra}" if extra > 0 else ''))
+    others = sorted(other_holders().items(), key=lambda kv: -kv[1])
+    if others:
+        parts.append("autres détenteurs : " + ', '.join(
+            f"{name} ({gb:.1f} Go)" for name, gb in others[:limit]))
     tasks = running_tasks()
     if tasks:
         parts.append("en cours : " + ', '.join(
             f"{t['app']} #{t['item']}" + (f" ({t['process']})" if t.get('process') else '')
             for t in tasks[:limit]))
     return ' ; '.join(parts)
+
+
+def other_holders() -> dict[str, float]:
+    """Ce qui tient de la VRAM SANS être un modèle du catalogue — nom lisible → Go : un
+    sous-processus (`avatarizer.musetalk:<pid>` → `avatarizer.musetalk`), un juge, ou un backend
+    dont le nom local ne se résout pas (`…Backend:<pid>#@nom` → `nom`).
+
+    `resident_models` les écarte, à raison (aucun modèle n'y est résident) ; mais jusqu'au
+    2026-11-02 RIEN ne les montrait : la card « En attente de ressources » et le panneau du
+    model manager taisaient les 8 Go de MuseTalk, et l'attente ressemblait à une panne."""
+    out: dict[str, float] = {}
+    for owner, gb in reservations().items():
+        if model_keys_of(owner):
+            continue
+        holder, sep, local = owner.partition(OWNER_MODEL_SEP)
+        name = local.lstrip('@') if sep and local.strip('@') else holder.rsplit(':', 1)[0]
+        out[name] = out.get(name, 0.0) + gb
+    return out
 
 
 # ── Durée max d'UN traitement ──────────────────────────────────────────────────────────

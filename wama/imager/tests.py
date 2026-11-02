@@ -937,3 +937,100 @@ class GenerationBornByTheCommonCascadeTest(TestCase):
         born = views.new_generation_settings(self.user, 'txt2vid', {})
         for name in ('video_duration', 'video_fps', 'video_resolution'):
             self.assertEqual(declared[name], born[name], name)
+
+
+class OutputFollowsTheReferenceRatioTest(TestCase):
+    """Guided by an image (img2img, style), the output keeps the INPUT's ratio and the card's size
+    sets its longest side (2026-11-02). Cards #47 and #58: a 1024×768 photo came out stretched to
+    896×512 and 512×512, and Compare set it against an image of another ratio (Fabien)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('imager_ratio', password='x')
+
+    def _model(self, key, **caps):
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.create(
+            model_key=key, name=key, model_type='diffusion', source=key.split(':')[0],
+            vram_gb=1.0, is_available=True, is_downloaded=True, is_proposed=False,
+            capabilities={'task': 'image-to-image', **caps})
+
+    def _reference(self, size):
+        import tempfile
+        from PIL import Image
+        handle = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+        handle.close()
+        Image.new('RGB', size, 'gray').save(handle.name)
+        self.addCleanup(__import__('os').remove, handle.name)
+        return handle.name
+
+    def test_the_common_rule_keeps_the_ratio_and_bounds_the_longest_side(self):
+        from wama.common.backends.image_generation_base import size_following_reference
+        self.assertEqual((896, 672), size_following_reference((1024, 768), (896, 512)))
+        self.assertEqual((384, 512), size_following_reference((768, 1024), (512, 512)))
+        self.assertEqual((1536, 1152), size_following_reference(
+            (4000, 3000), (2048, 2048), max_side=1536), 'the declared maximum wins')
+        self.assertEqual((256, 256), size_following_reference(
+            (1024, 768), (896, 512), fixed_size=(256, 256)), 'a fixed size is kept')
+        for size in size_following_reference((1000, 333), (1024, 1024)):
+            self.assertEqual(0, size % 16, 'a multiple the engines accept')
+
+    def test_fitting_the_reference_never_stretches_it(self):
+        from PIL import Image
+        from wama.common.backends.image_generation_base import fit_reference
+        source = Image.new('RGB', (1024, 768))
+        source.paste((255, 0, 0), (0, 0, 256, 768))           # a red band, the left quarter
+        fitted = fit_reference(source, (512, 512))           # a square: cropped, not squeezed
+        self.assertEqual((512, 512), fitted.size)
+        red = sum(1 for x in range(512) if fitted.getpixel((x, 256))[0] > 128)
+        # Cropped to the centre square (x 128→896), the band keeps 128 of 768 px → ~85 at 512 ;
+        # squeezed, it would keep its quarter → 128.
+        self.assertAlmostEqual(85, red, delta=3)
+
+    def test_a_guided_launch_receives_the_input_ratio_and_a_text_launch_the_card_size(self):
+        from unittest import mock
+        from wama.imager import tasks
+        self._model('imager:ratio-model', native_resolution='1024x1024', min_resolution=256,
+                    max_resolution=1024)
+        ref = self._reference((1024, 768))
+        guided = ImageGeneration(user=self.user, prompt='p', generation_mode='img2img',
+                                 width=896, height=512)
+        text = ImageGeneration(user=self.user, prompt='p', generation_mode='txt2img',
+                               width=896, height=512)
+        with mock.patch.object(tasks, '_console'):
+            self.assertEqual((896, 672), tasks._output_size(guided, 'imager:ratio-model', ref, 0))
+            self.assertEqual((896, 512), tasks._output_size(text, 'imager:ratio-model', ref, 0))
+
+    def test_the_settings_offer_the_input_size_first(self):
+        from wama.imager.models import get_recommended_resolutions
+        self._model('imager:ratio-model', native_resolution='1024x1024', min_resolution=256,
+                    max_resolution=1024)
+        first = get_recommended_resolutions('imager:ratio-model', (1600, 1200))[0]
+        self.assertEqual(('1024x768', True), (first['key'], first['reference']))
+        self.assertNotIn('reference', get_recommended_resolutions('imager:ratio-model')[0])
+
+
+class ProvenanceIsReadAsItsCatalogueKeyTest(TestCase):
+    """A card holding a model's PROVENANCE (`huggingface:black-forest-labs/FLUX.1-dev`) instead of
+    its catalogue key (`imager:flux-1-dev`) — written by the assistant, generation #1163 — failed
+    with « aucun backend résolu » (2026-11-02)."""
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        self.user = User.objects.create_user('imager_provenance', password='x')
+        AIModel.objects.create(model_key='imager:flux-like', name='flux-like',
+                               model_type='diffusion', source='imager', is_proposed=False,
+                               platform_ref='huggingface:org/FLUX-like')
+
+    def test_a_provenance_is_stored_as_the_key_of_its_row(self):
+        gen = ImageGeneration.objects.create(user=self.user, prompt='p',
+                                             model='huggingface:org/FLUX-like')
+        self.assertEqual('imager:flux-like', gen.model)
+
+    def test_a_row_written_before_is_resolved_at_launch(self):
+        from wama.common.utils.model_keys import resolve_catalog_key
+        self.assertEqual('imager:flux-like',
+                         resolve_catalog_key('huggingface:org/FLUX-like', 'imager'))
+        self.assertEqual('huggingface:Org/Unknown',
+                         resolve_catalog_key('huggingface:Org/Unknown', 'imager'),
+                         'an unknown key is left as it is')
+        self.assertEqual('auto', resolve_catalog_key('auto', 'imager'))

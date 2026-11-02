@@ -99,8 +99,8 @@ def _declared_model_key(generation):
     from wama.imager.utils.auto_model import AUTO
     if (generation.model or AUTO).strip() in ('', AUTO):
         return None
-    from wama.common.utils.model_keys import catalog_key
-    return catalog_key(generation.model, 'imager')
+    from wama.common.utils.model_keys import resolve_catalog_key
+    return resolve_catalog_key(generation.model, 'imager')
 
 
 def _rendered_field(generation) -> str:
@@ -215,6 +215,42 @@ def _partial_frames(generation):
     return PartialFrames('imager', generation.id, folder)
 
 
+#: Les modes où l'image d'entrée GUIDE l'image produite — sa taille de sortie suit son ratio.
+REFERENCE_GUIDED_MODES = ('img2img', 'style2img')
+
+
+def _output_size(generation, model_key, reference_path, user_id) -> tuple:
+    """La taille que reçoit le backend. Guidée par une image (`REFERENCE_GUIDED_MODES`), elle suit
+    le RATIO de l'entrée et la taille de la card en fixe le plus grand côté, dans les bornes que le
+    modèle déclare (`size_following_reference`) — la card n'est pas réécrite : c'est la taille de
+    CE lancement. Sinon, celle de la card."""
+    requested = (generation.width, generation.height)
+    if not reference_path or (generation.generation_mode or 'txt2img') not in REFERENCE_GUIDED_MODES:
+        return requested
+    from PIL import Image
+    from wama.common.backends.image_generation_base import size_following_reference
+    from wama.imager.models import get_model_resolution_config
+    try:
+        with Image.open(reference_path) as ref:
+            ref_size = ref.size
+    except Exception as exc:
+        logger.warning(f"[Imager] taille de l'image d'entrée illisible ({exc}) : taille de la card")
+        return requested
+    config = get_model_resolution_config(model_key)
+    fixed = None
+    if config['fixed']:
+        w, _, h = config['default'].partition('x')
+        fixed = (int(w), int(h))
+    size = size_following_reference(ref_size, requested, min_side=config['min_size'],
+                                    max_side=config['max_size'], fixed_size=fixed)
+    _console(user_id, f"[Imager] Taille de sortie {size[0]}×{size[1]} — "
+                      + (f"taille fixe du modèle, entrée {ref_size[0]}×{ref_size[1]} recadrée"
+                         if fixed else
+                         f"ratio de l'image d'entrée ({ref_size[0]}×{ref_size[1]}), plus grand côté "
+                         f"de la card ({max(requested)} px)"))
+    return size
+
+
 def _generate_image(generation, ctx):
     """La GLU de la génération d'IMAGES : tirage « auto », backend résolu par le catalogue,
     chargement, génération, enregistrement, réglages de sortie. Toute erreur LÈVE."""
@@ -253,9 +289,10 @@ def _generate_image(generation, ctx):
         logger.info(f"Available backends: {available}")
 
         # La valeur stockée est une CLÉ de catalogue (`imager:…`, `huggingface:…`, route F4b) ;
-        # une valeur nue d'avant la migration est lue dans l'espace de l'imager (`model_keys`).
-        from wama.common.utils.model_keys import catalog_key, model_id
-        model_key = catalog_key(generation.model, 'imager')
+        # une valeur nue d'avant la migration est lue dans l'espace de l'imager, une provenance
+        # écrite avant le 2026-11-02 ramenée à sa ligne (`model_keys.resolve_catalog_key`).
+        from wama.common.utils.model_keys import model_id, resolve_catalog_key
+        model_key = resolve_catalog_key(generation.model, 'imager')
         backend_model = model_id(model_key)          # ce que les backends connaissent
         backend, error_msg = _image_backend_for(model_key)
         if backend is None:
@@ -317,13 +354,15 @@ def _generate_image(generation, ctx):
         _negative = process_prompt_for('imager', 'negative_prompt', generation.negative_prompt,
                                        instance=generation, user=generation.user)
 
+        width, height = _output_size(generation, model_key, reference_image_path, user_id)
+
         # Create generation parameters with multi-modal support
         params = GenerationParams(
             prompt=_prompt,
             negative_prompt=_negative,
             model=backend_model,
-            width=generation.width,
-            height=generation.height,
+            width=width,
+            height=height,
             steps=generation.steps,
             guidance_scale=generation.guidance_scale,
             seed=generation.seed,
@@ -342,7 +381,7 @@ def _generate_image(generation, ctx):
 
         # Generate images
         logger.info(f"[Imager] >>> Calling backend.generate() with {generation.num_images} image(s), model={model_key}")
-        logger.info(f"[Imager]     size={generation.width}x{generation.height}, steps={generation.steps}, guidance={generation.guidance_scale}")
+        logger.info(f"[Imager]     size={width}x{height}, steps={generation.steps}, guidance={generation.guidance_scale}")
 
         import time
         gen_start = time.time()
@@ -620,8 +659,8 @@ def _generate_video(generation, ctx):
         # Clé de CATALOGUE (résolution) et IDENTIFIANT (ce que le backend connaît, et la
         # politique de cadence par famille ci-dessous) — route F4b, 2026-09-29 : la valeur
         # stockée est une clé entière, une valeur nue d'avant la migration se lit dans l'imager.
-        from wama.common.utils.model_keys import catalog_key, model_id
-        model_key = catalog_key(generation.model, 'imager')
+        from wama.common.utils.model_keys import model_id, resolve_catalog_key
+        model_key = resolve_catalog_key(generation.model, 'imager')
         model_name = model_id(model_key)
         backend_type = None
 

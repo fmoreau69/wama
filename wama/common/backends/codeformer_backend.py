@@ -18,7 +18,7 @@ from pathlib import Path
 import yaml
 
 from wama.common.backends.base import BaseModelBackend
-from wama.common.services.resource_governor import vram_reservation
+from wama.common.services.resource_governor import capped_child_env, vram_reservation
 
 # ── Étape 2 (2026-09-06) : plus d'import du `model_config` de l'app ──────────────────────
 # Ces valeurs venaient de `wama.avatarizer.utils.model_config`, ce qui interdisait au backend
@@ -147,6 +147,8 @@ def _codeformer_dans(video_path: str, travail: Path):
                     '-s', '2',     # upscale ×2
                 ],
                 cwd=str(CODEFORMER_DIR),
+                # Le plafond CUDA du parent, posé dans l'enfant par l'amorce commune (2026-11-02).
+                env=capped_child_env(),
                 capture_output=True,
                 text=True,
                 timeout=1800,   # 30 min — chargement modèle + traitement vidéo longue

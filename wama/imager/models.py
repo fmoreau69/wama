@@ -88,10 +88,14 @@ def get_model_resolution_config(model_key: str) -> dict:
             "fixed": bounds["fixed"]}
 
 
-def get_recommended_resolutions(model_key: str) -> list:
+def get_recommended_resolutions(model_key: str, reference_size=None) -> list:
     """Préréglages de taille que le modèle accepte : la taille NATIVE d'abord, puis les
     préréglages dont le PLUS GRAND côté tient dans ses bornes. Un modèle à résolution FIXE ne
-    se propose qu'à sa taille — même si aucun préréglage ne la porte (256×256)."""
+    se propose qu'à sa taille — même si aucun préréglage ne la porte (256×256).
+
+    `reference_size` (L, H) : la card est guidée par une image — la taille de l'image d'ENTRÉE
+    est proposée en tête, ramenée aux bornes du modèle par la même règle que la tâche
+    (`size_following_reference`, 2026-11-02)."""
     config = get_model_resolution_config(model_key)
     lo, hi, default = config["min_size"], config["max_size"], config["default"]
     w, _, h = default.partition("x")
@@ -103,7 +107,13 @@ def get_recommended_resolutions(model_key: str) -> list:
                if lo <= max(p["width"], p["height"]) <= hi]
     rest = [p for p in presets if p["key"] != default]
     first = next((p for p in presets if p["key"] == default), native)
-    return [first] + rest
+    if not reference_size:
+        return [first] + rest
+    from wama.common.backends.image_generation_base import size_following_reference
+    rw, rh = size_following_reference(reference_size, reference_size, min_side=lo, max_side=hi)
+    from_input = {"key": f"{rw}x{rh}", "width": rw, "height": rh, "ratio": "",
+                  "label": f"{rw}x{rh} (taille de l'image d'entrée)", "reference": True}
+    return [from_input] + [p for p in [first] + rest if p["key"] != from_input["key"]]
 
 
 class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, ScopedVisibility):
@@ -378,9 +388,10 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
         # Valeur de modèle = CLÉ DE CATALOGUE (route F4b, 2026-09-29). Normalisée ICI, point de
         # passage de TOUS les écrivains (vues, modale, assistant `add_to_imager`, fichiers de lot,
         # duplication) : un identifiant nu posté par une surface pas encore portée est lu dans
-        # l'espace de l'imager. `auto` et le vide restent (brique `model_keys`).
-        from wama.common.utils.model_keys import catalog_key
-        self.model = catalog_key(self.model, 'imager')
+        # l'espace de l'imager. `auto` et le vide restent (brique `model_keys`). Une PROVENANCE
+        # (`huggingface:org/nom`) est ramenée à la clé de sa ligne (`resolve_catalog_key`).
+        from wama.common.utils.model_keys import resolve_catalog_key
+        self.model = resolve_catalog_key(self.model, 'imager')
         # Auto-set output_type based on generation mode
         if self.is_video_generation:
             self.output_type = 'video'

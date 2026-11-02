@@ -97,7 +97,9 @@ def measured_load(name: str, call, *, keep_alive=None):
         from wama.model_manager.services.model_registry import ModelRegistry
     except Exception:
         return call()
-    return ModelRegistry.measure_ollama_load(name, call, keep_alive=keep_alive)
+    result = ModelRegistry.measure_ollama_load(name, call, keep_alive=keep_alive)
+    ModelRegistry.publish_ollama_load(name, keep_alive=keep_alive)
+    return result
 
 
 def ollama_proxies() -> dict:
