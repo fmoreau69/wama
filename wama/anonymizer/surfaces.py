@@ -33,6 +33,9 @@ def validate_corrections(value) -> dict:
 
 
 def _review_available(media) -> tuple:
+    if getattr(media, 'media_type', '') == 'document':
+        return False, ("La correction des passages d'un document viendra avec sa surface "
+                       "(les corrections par passage sont déjà relues à l'occultation).")
     if getattr(media, 'media_type', '') != 'image':
         return False, "La correction s'ouvre sur une image ; la vidéo viendra avec le lecteur commun."
     if not media.detections_file:

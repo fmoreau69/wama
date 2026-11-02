@@ -225,6 +225,32 @@ PARAMS_JSON = schema_to_dicts(PARAMS)
 GROUPS_JSON = groups_to_dicts(GROUPS)
 
 
+# ── Domaine DOCUMENT (2026-11-02) — son schéma, que le domaine nomme (`app_modes`, `params_schema`) ──
+# Un document se lit, ses données personnelles se détectent (Presidio + détecteurs installés,
+# `common/privacy`) et s'occultent dans le fichier même, sa forme gardée. Son seul réglage est
+# l'étape commune « OCR des scans et des images » (`ocr_process`), que le fichier PROPOSE : un PDF
+# sans couche texte la coche, avec la raison dite sous le réglage — le réglage du Translator, mot
+# pour mot (`manifests/app_drafts/translator.json`).
+from wama.common.services.ocr_process import OCR_LABEL  # noqa: E402
+
+DOCUMENT_PARAMS = derive_from_model(
+    Media,
+    include=["ocr_scanned_pages"],
+    overrides={
+        "ocr_scanned_pages": dict(
+            type="toggle", label=OCR_LABEL, icon="fa-file-image", section="settings",
+            chip=True, chip_label="OCR", contexts=("item", "batch", "panel"),
+            default_from={"port": "work_file", "property": "needs_ocr"},
+            help="Lit par OCR les pages d'un PDF qui n'ont pas de texte (un scan) et le texte "
+                 "dessiné dans ses images, pour y trouver les données personnelles et les occulter "
+                 "à leur place. Coché d'office quand le document a des pages scannées — "
+                 "décochable ; à cocher pour lire le texte de ses images.",
+        ),
+    },
+)
+DOCUMENT_PARAMS_JSON = schema_to_dicts(DOCUMENT_PARAMS)
+
+
 # ── Réglages UTILISATEUR du volet — brique commune `user_settings` (2026-09-27) ─────────────
 # Le volet EST la surface des défauts de l'utilisateur, et un média NAÎT avec eux (modèle
 # événementiel, ROADMAP §23.2quater). Lire, garder, remettre à zéro : `user_settings.*_panel_*`.

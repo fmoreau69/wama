@@ -225,11 +225,14 @@ def add_to_anonymizer(
     **params,
 ) -> dict:
     """
-    Copy a file into the anonymizer input queue and create a Media DB entry.
+    Copy a file into the anonymizer input queue and create a Media DB entry. An image or a video
+    is blurred; a DOCUMENT (PDF, DOCX — domain `document`, 2026-11-02) has its personal data
+    detected in its text and blacked out in the file itself, its form kept (its OCR proposes
+    itself for a scan; the settings below do not apply to it).
 
     Args:
         user:            Django User instance
-        file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder)  (e.g. "users/1/temp/biovam.mp4")
+        file_path:       Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder)  (e.g. "users/1/temp/biovam.mp4", "users/1/temp/lettre.pdf")
         sam3_prompt:     describe what to blur in text (e.g. "all human faces") — given alone,
                          it selects the DESCRIPTION mode (`target_mode`, a schema setting that
                          can also be passed explicitly: 'classes' | 'description')

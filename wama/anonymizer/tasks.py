@@ -162,7 +162,9 @@ def process_single_media(self, media_id, force_individual=False, process=None):
             forget_lost_generation(known, 'output_file', 'blur')
         run_item_task(self, app_id='anonymizer', model=Media, item_id=media_id,
                       pipeline=PIPELINE,
-                      processes={'detect': _detect, 'blur': _blur, 'output': _output},
+                      processes={'detect': _detect, 'blur': _blur, 'output': _output,
+                                 'ocr': _ocr, 'detect_text': _detect_text,
+                                 'occult_text': _occult_text},
                       notify_label='Anonymizer', only=process,
                       progress_fn=lambda item, pct, msg: set_media_progress(item.pk, pct))
     finally:
@@ -565,6 +567,119 @@ def _blur(media, ctx):
         eta=anonymizer_blur_eta_key_size(media),
         label=os.path.basename(getattr(media.file, 'name', '') or '') or f"média #{media.id}",
         console_success=f"Floutage ✔ ({detections.count(doc)} objet(s))")
+
+
+# ----------------------------------------------------------------------
+# Domaine DOCUMENT (2026-11-02, ROADMAP §16.4bis) — trois glus, la forme d'origine gardée
+# ----------------------------------------------------------------------
+def _document_eta(media, process):
+    """Clé + taille ETA d'un process du DOCUMENT : APPRISE seulement (a priori nul, la règle de
+    `blur_eta`), à la taille du fichier — un coût qui suit le volume à lire, sans ouvrir le fichier
+    à chaque relecture de la barre."""
+    try:
+        size = max(os.path.getsize(media.file.path) / 1_000_000.0, 0.01)
+    except (OSError, ValueError):
+        size = 1.0
+    return (f'anonymizer:{process}:doc', size, 'mb', True, 0.0)   # l'unité du converter
+
+
+def ocr_eta(media):
+    return _document_eta(media, 'ocr')
+
+
+def detect_text_eta(media):
+    return _document_eta(media, 'detect_text')
+
+
+def occult_text_eta(media):
+    return _document_eta(media, 'occult_text')
+
+
+def _ocr(media, ctx):
+    """GLU du process `ocr` : le process COMMUN « OCR des scans et des images » (`ocr_process`) —
+    les pages sans couche texte et les images des pages natives, leurs lignes rangées sur la card
+    (`ocr_file`)."""
+    from wama.common.services.ocr_process import ocr_step
+    return ocr_step('file', 'ocr_file')(media, ctx)
+
+
+def _detect_text(media, ctx):
+    """GLU du process `detect_text` : les données personnelles du document, par la brique de
+    confidentialité (`common/privacy` : Presidio orchestre les motifs et les détecteurs installés,
+    service :8003 ou moteur dans ce process) sur la couche texte commune, les lignes de l'OCR
+    comprises (`read_ocr_file`) — le document `detections` en forme texte (`span`), posé sur la
+    card comme celui d'une image. Un détecteur qui n'a pas pu se charger est NOMMÉ."""
+    from wama.common.privacy.service_client import detect_file
+    from wama.common.services.ocr_process import read_ocr_file
+    from wama.common.services.output_process import drop_previous_outputs
+    from wama.common.utils import detections
+    if not media.file:
+        raise ValueError("Document sans fichier (ni URL rapatriée) : rien à traiter.")
+    user = media.user
+    _console(user.id, f"Détection des données personnelles — document {media.id}…")
+    ctx.progress(5)
+    doc = detect_file(media.file.path, ocr=read_ocr_file(media, 'ocr_file'))
+    rel, target = ctx.output_place('.json', nature='detections', source_name=media.file.path,
+                                   model='presidio')
+    detections.write(target, doc)
+    drop_previous_outputs(media, 'detections_file', keep=[target], natives=False)
+    media.detections_file.name = rel
+    found = detections.count(doc)
+    missing = list(doc.get('unavailable') or [])
+    if missing:
+        _console(user.id, "Détecteur(s) indisponible(s), la détection s'est faite sans eux : "
+                          + ', '.join(missing), 'warning')
+    _console(user.id, f"Détection : {found} passage(s) à occulter"
+             + ("" if found else " — rien ne sera occulté"), 'info' if found else 'warning')
+    return {
+        'fields': {'detections_file': rel},
+        'output_ref': rel,
+        'label': f"{found} passage(s)" + (f", sans {', '.join(missing)}" if missing else ''),
+        'console_success': f"Détection : {found} passage(s) ✔",
+        'models': list(doc.get('models') or []) or None,
+    }
+
+
+def _occult_text(media, ctx):
+    """GLU du process `occult_text` : le document réécrit SUR PLACE, chaque passage détecté (les
+    corrections humaines réappliquées, comme au floutage) remplacé par son libellé, sa forme
+    gardée ; sur un scan, les pixels du passage effacés (`privacy.occult_file`, le MÊME OCR qu'à
+    la détection). Le fichier produit est relu : un passage qui y reste est DIT, jamais tu."""
+    from wama.common.privacy.service_client import occult_file
+    from wama.common.services.ocr_process import read_ocr_file
+    from wama.common.utils import detections
+    if not media.detections_file:
+        raise RuntimeError("Occultation : aucune détection — relancer la détection.")
+    try:
+        doc = detections.read(media.detections_file.path)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"Occultation : détections illisibles ({exc}) — relancer la "
+                           "détection.") from exc
+    doc = detections.apply_corrections(doc, media.detection_corrections)
+    source = media.file.path
+    _rel, target = ctx.output_place(os.path.splitext(source)[1], source_name=source,
+                                    model='presidio')
+    ctx.progress(10)
+    report = occult_file(source, target, doc, ocr=read_ocr_file(media, 'ocr_file'))
+    try:
+        media.refresh_from_db(fields=['output_file'])
+    except media.__class__.DoesNotExist:
+        raise RuntimeError("Le média a été supprimé pendant son traitement.")
+    _record_output(media, report['path'])
+    if not media.output_file.name:
+        raise RuntimeError("L'occultation n'a écrit aucun fichier.")
+    remaining = report.get('remaining') or []
+    if remaining:
+        _console(media.user.id, f"⚠ {len(remaining)} passage(s) encore lisible(s) dans le "
+                                f"document produit : " + ', '.join(remaining[:5])
+                 + ('…' if len(remaining) > 5 else ''), 'warning')
+    return {
+        'fields': {'output_file': media.output_file.name},
+        'output_ref': media.output_file.name,
+        'label': (f"⚠ {len(remaining)} passage(s) encore lisible(s)" if remaining
+                  else f"{detections.count(doc)} passage(s) occulté(s)"),
+        'console_success': "Occultation ✔",
+    }
 
 
 # ----------------------------------------------------------------------

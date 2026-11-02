@@ -183,11 +183,15 @@ def process_media(video_path, user, post=None, app='anonymizer'):
         except (OutsideMediaRoot, FileNotFoundError):
             relative_path = get_relative_media_path(app, user.id, 'input', filename)
         # Le média NAÎT avec les réglages de son auteur ; ce que le dépôt poste prime ; le fichier
-        # PROPOSE les siens (`inputs_by_port`, `Param.default_from`, 2026-10-29).
+        # PROPOSE les siens (`inputs_by_port`, `Param.default_from`, 2026-10-29). Sa NATURE dit son
+        # domaine, donc son schéma (2026-11-02 : un document naît avec celui du domaine document).
+        from wama.common.app_registry import category_of_path
         from wama.common.utils.user_settings import inputs_by_port
-        media = model.objects.create(file=relative_path, file_ext=ext, user=user,
+        nature = category_of_path(video_path)
+        media = model.objects.create(file=relative_path, file_ext=ext, user=user, media_type=nature,
                                      **new_media_settings(user, model=model, app=app, post=post,
-                                                          inputs=inputs_by_port(app, str(video_path))))
+                                                          inputs=inputs_by_port(app, str(video_path)),
+                                                          nature=nature))
 
         mime_type, _ = mimetypes.guess_type(video_path)
         if mime_type and mime_type.startswith("video/"):
@@ -242,14 +246,17 @@ def upload_from_url(request, user, media_file=None):
 
 
 def _check_media_type(name):
-    """Le filtre de types de l'anonymizer — pour un fichier téléversé comme désigné."""
-    allowed_mime_types = [
-        'video/mp4', 'video/x-msvideo', 'video/quicktime', 'video/x-matroska',
-        'image/jpeg', 'image/png', 'image/jpg', 'image/bmp'
-    ]
-    mime_type, _ = mimetypes.guess_type(name)
-    if mime_type not in allowed_mime_types:
-        raise ValueError(f"Unsupported file type: {mime_type}")
+    """La porte de l'anonymizer — pour un fichier téléversé comme désigné : la porte COMMUNE de sa
+    surface (`app_modes.surface_file_nature` : les extensions déclarées, puis un domaine qui prend
+    sa nature), celle que lisent « Envoyer vers », les importeurs et l'outil de l'assistant. Une
+    liste de types MIME écrite ici la remplaçait (2026-11-02) : elle refusait un document, et des
+    formats d'image et de vidéo que la zone de dépôt proposait (`.webp`, `.webm`, `.tif`…).
+    Rend la nature du fichier."""
+    from wama.common.utils.app_modes import surface_file_nature
+    nature = surface_file_nature('anonymizer', 'anonymizer', name)
+    if not nature:
+        raise ValueError(f"Unsupported file type: {os.path.splitext(str(name))[1] or name}")
+    return nature
 
 
 def handle_uploaded_media_file(media_file, output_path):
@@ -267,7 +274,17 @@ def handle_uploaded_media_file(media_file, output_path):
 
 
 def add_media_to_db(media, vid_or_path):
-    """Populate the Media model with metadata from a video or image using common utility."""
+    """Populate the Media model with metadata from a video or image using common utility.
+    Un DOCUMENT (2026-11-02) n'a ni dimensions ni durée : la sonde commune (`media_probe`) en dit
+    les pages."""
+    from wama.common.app_registry import category_of_path
+    if isinstance(vid_or_path, str) and category_of_path(vid_or_path) == 'document':
+        from wama.common.utils.media_probe import probe_media
+        pages = ((probe_media(vid_or_path) or {}).get('attributes') or {}).get('pages')
+        media.media_type = 'document'
+        media.properties = f"{pages} page(s)" if pages else os.path.splitext(vid_or_path)[1].lstrip('.').upper()
+        media.save()
+        return
     if isinstance(vid_or_path, str):
         # It's a file path - use the common utility
         info = get_media_info(vid_or_path)
@@ -435,7 +452,7 @@ def _reset_for_relaunch(media):
 # désormais celui de la fabrique : il n'était local que parce que la sortie n'était pas un
 # champ fichier — et il cherchait le nom `<entrée>_blurred`, que plus rien n'écrit.
 from wama.common.utils.batch_views import make_batch_views
-from .params import CLASSES_SETTING, PARAMS_JSON as _ANON_PARAMS_JSON
+from .params import CLASSES_SETTING
 
 
 def _get_user(request):
@@ -497,8 +514,15 @@ def _apply_media_settings(media, data):
     if isinstance(classes, list) and classes:
         media.classes2blur = clean_classes(classes)
         touched.append(CLASSES_SETTING)
-    names = tuple(p['name'] for p in _ANON_PARAMS_JSON if p.get('name'))
+    names = tuple(p['name'] for p in _media_schema(media) if p.get('name'))
     return touched + apply_item_settings(media, data, params_fields=names)
+
+
+def _media_schema(media):
+    """Le schéma du DOMAINE du média (image / vidéo, ou document — `app_modes.domain_schema`) :
+    la ⚙ d'une card, celle d'un lot et l'écrivain des réglages lisent le même objet."""
+    from wama.common.utils.app_modes import domain_schema, element_domain_or_first
+    return domain_schema('anonymizer', element_domain_or_first(media))
 
 
 def _forget_outputs(media):
@@ -545,11 +569,11 @@ def _read_batch(user, pk):
 _bv = make_batch_views(
     work_model=Media, batch_model=BatchAnonymizer, get_user=_get_user,
     task=process_single_media, reset_on_start=_reset_and_forget_progress,
-    # Les détections : ce que les process ont écrit, la brique le vide elle-même
-    # (`AppPipeline.produced_fields`, 2026-10-21).
-    output_fields=('output_file',),
+    # Les détections, la sortie et les lignes de l'OCR : ce que les process ont écrit, la brique le
+    # vide elle-même (`AppPipeline.produced_fields`, 2026-10-21) — `output_file` est déclaré par le
+    # floutage et l'occultation depuis le 2026-11-02 (le lister ici le disait deux fois).
     read_lookup=_read_batch,
-    schema=_ANON_PARAMS_JSON, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
+    schema=_media_schema, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
     list_settings=(CLASSES_SETTING,),
     apply_settings=_apply_media_settings, after_update=_mark_customised,
     item_model=BatchAnonymizerItem, fk_name='media',
@@ -601,15 +625,15 @@ def _decorate_card(media, preloaded=False):
     from wama.common.services.process_pipeline import decorate
     from wama.common.utils.card_chips import chips_by_section
     decorate(media, preloaded=preloaded)
-    from wama.anonymizer.params import PARAMS_JSON
+    schema = _media_schema(media)
     extra = []
-    if media.target_mode == 'classes' and media.classes2blur:
+    if 'target_mode' in {p['name'] for p in schema} and media.target_mode == 'classes' and media.classes2blur:
         extra.append({'label': ', '.join(media.classes2blur[:3])
                                 + ('…' if len(media.classes2blur) > 3 else ''),
                       'icon': 'fa-eye-slash',
                       'title': 'Objets floutés : ' + ', '.join(media.classes2blur),
                       'section': 'settings'})
-    media.chips = chips_by_section(media, PARAMS_JSON, extra=extra)
+    media.chips = chips_by_section(media, schema, extra=extra)
     return media
 
 
@@ -624,14 +648,14 @@ def _queue_context(request, user):
 
     def _extra(batch, items, medias):
         from wama.common.utils.card_chips import common_chips_for_items
-        from wama.anonymizer.params import PARAMS_JSON
         success_count = sum(1 for m in medias if m.status == 'SUCCESS')
         return {
             'success_pct': int(success_count / batch.total * 100) if batch.total else 0,
             # (l'ETA agrégée de la card mère, `eta_ids`, vient de `build_batches_list`)
             # Réglages COMMUNS aux filles (slot meta_template, mécanisme du parc — porté
             # le 31/08 depuis le pilote transcriber, brique commune schéma-driven).
-            'common_chips': common_chips_for_items(medias, PARAMS_JSON),
+            # Un lot ne mêle pas les natures (`group_key`) : le schéma de son premier média.
+            'common_chips': common_chips_for_items(medias, _media_schema(medias[0]) if medias else []),
         }
 
     batches_list = build_batches_list(user, batch_model=BatchAnonymizer,
@@ -648,14 +672,27 @@ def _queue_context(request, user):
         return (m.get_filename() or '').lower() if m else ''
 
     batches_list, q_sort, q_filter = apply_queue_sort_filter(request, batches_list, name_of=_name)
+    # Une file PAR DOMAINE (2026-11-02) : un lot ne mêle pas les natures (`group_key`), son
+    # premier média dit son domaine — la règle de la card (`element_domain_or_first`).
+    from wama.common.utils.app_modes import element_domain_or_first
+    from wama.anonymizer.params import DOCUMENT_PARAMS_JSON
+
+    def _domain_of(b):
+        first = b['items'][0].media if b['items'] and b['items'][0].media else None
+        return element_domain_or_first(first) if first is not None else 'image_video'
+
+    image_batches = [b for b in batches_list if _domain_of(b) != 'document']
+    document_batches = [b for b in batches_list if _domain_of(b) == 'document']
 
     return {
-        'batches_list': batches_list,
-        'queue_count': sum(len(b['items']) for b in batches_list),
+        'batches_list': image_batches,
+        'document_batches': document_batches,
+        'queue_count': sum(len(b['items']) for b in image_batches),
         'q_sort': q_sort,
         'q_filter': q_filter,
         # Schéma params (source unique modale item/batch + inspecteur). Voir params.py.
         'params_json': _json.dumps(PARAMS_JSON),
+        'document_params_json': _json.dumps(DOCUMENT_PARAMS_JSON),
         # Groupes de la modale (sections calquées sur le volet droit). Voir params.py GROUPS.
         'groups_json': _json.dumps(GROUPS_JSON),
     }
@@ -693,24 +730,41 @@ consolidate       = _qm['consolidate']
 # Remplacent les tables `UserSettings` / `GlobalSettings`. Lire, garder, remettre à zéro, faire
 # naître un média et les deux routes JSON : la brique commune, sur la déclaration de params.py.
 from wama.anonymizer.params import PANEL_SETTINGS, PARAMS as _PARAMS  # noqa: E402
+from wama.anonymizer.params import DOCUMENT_PARAMS as _DOCUMENT_PARAMS  # noqa: E402
 from wama.common.utils.user_settings import (  # noqa: E402
     make_panel_settings_views, new_element_settings, read_panel_settings, reset_panel_settings,
 )
 
+#: Le VOLET porte les réglages des DEUX domaines (2026-11-02) : leurs noms ne se recoupent pas, une
+#: seule mémoire de l'utilisateur les garde, une seule remise à zéro les rend.
+_PANEL_PARAMS = list(_PARAMS) + list(_DOCUMENT_PARAMS)
+
 get_user_anonymizer_settings, save_user_anonymizer_settings = make_panel_settings_views(
-    'anonymizer', _PARAMS, **PANEL_SETTINGS)
+    'anonymizer', _PANEL_PARAMS, **PANEL_SETTINGS)
 
 
 def _request_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
 
-def new_media_settings(user, model=None, app='anonymizer', post=None, inputs=None):
+#: Le schéma de NAISSANCE de chaque domaine, par le nom que le domaine déclare (`params_schema`) —
+#: le volet de l'image / vidéo porte en plus les classes à flouter (hors schéma).
+_BIRTH = {'PARAMS_JSON': (_PARAMS, PANEL_SETTINGS),
+          'DOCUMENT_PARAMS_JSON': (_DOCUMENT_PARAMS, {'key': PANEL_SETTINGS['key']})}
+
+
+def new_media_settings(user, model=None, app='anonymizer', post=None, inputs=None, nature=None):
     """Les colonnes de réglage d'un média NAISSANT (brique commune : défauts ← réglages de
     l'auteur ← ce que le dépôt poste). `model`/`app` : une jumelle de bac à sable passe les
-    siens (import du gestionnaire de fichiers)."""
-    return new_element_settings(user, app, _PARAMS, model or Media, post=post, inputs=inputs,
-                                **PANEL_SETTINGS)
+    siens (import du gestionnaire de fichiers). `nature` : celle du fichier reçu — le schéma est
+    celui du domaine où elle range le média (`app_modes.element_domain`, sur le média pas encore
+    sauvé, la règle de l'imager) ; inconnue, celui de l'image / vidéo."""
+    from wama.common.utils.app_modes import domain_schema_name, element_domain_or_first
+    item_model = model or Media
+    born = item_model(media_type=nature) if nature else None
+    name = domain_schema_name('anonymizer', element_domain_or_first(born)) if born else ''
+    params, settings = _BIRTH.get(name, _BIRTH['PARAMS_JSON'])
+    return new_element_settings(user, app, params, item_model, post=post, inputs=inputs, **settings)
 
 
 def get_context(request):
@@ -718,7 +772,7 @@ def get_context(request):
     vient de `_queue_context` (briques communes)."""
     user = _request_user(request)
     # `gs_values` : nom historique du gabarit du volet, qui lit ces valeurs par NOM de param.
-    gs_values = read_panel_settings(user, 'anonymizer', _PARAMS, **PANEL_SETTINGS)
+    gs_values = read_panel_settings(user, 'anonymizer', _PANEL_PARAMS, **PANEL_SETTINGS)
     gs_values['sam3_prompt'] = gs_values.get('sam3_prompt') or ''
     # Le menu de modèle est rempli par le CATALOGUE (source `catalog`, `options_mode`) : sa
     # valeur est une CLÉ de catalogue ou « auto » (route F4b ⑤, 2026-10-07) — un réglage
@@ -735,6 +789,9 @@ def get_context(request):
         # et `<` échappé : la chaîne est posée telle quelle dans un `<script>`.
         'panel_values_json': _json.dumps({k: v for k, v in gs_values.items()
                                           if k in OUTPUT_PARAM_NAMES}).replace('<', '\\u003c'),
+        # Celles du volet du domaine DOCUMENT (2026-11-02), généré de son schéma.
+        'document_panel_values_json': _json.dumps(
+            {p.name: gs_values.get(p.name) for p in _DOCUMENT_PARAMS}).replace('<', '\\u003c'),
         'classes': get_all_class_choices(),
         # Appariement entrée↔modèles (brique commune input_match) — JSON déjà sérialisé, clé =
         # identifiant du catalogue (valeur d'option du menu).
@@ -829,7 +886,7 @@ def check_all_processed(request):
 def reset_user_settings(request):
     """Remet les réglages de l'utilisateur sur les défauts du schéma (brique commune : ses
     préférences sont RETIRÉES, jamais réécrites avec les défauts du jour)."""
-    values = reset_panel_settings(_request_user(request), 'anonymizer', _PARAMS, **PANEL_SETTINGS)
+    values = reset_panel_settings(_request_user(request), 'anonymizer', _PANEL_PARAMS, **PANEL_SETTINGS)
     return JsonResponse({"success": True, "settings": values})
 
 
@@ -851,31 +908,40 @@ def get_media_settings(request, media_id):
     disparu avec settings_modal.js (port 2026-08-03) : la modale est rendue par
     WamaParams.renderSettingsModal depuis le schéma."""
     try:
+        from wama.common.utils.app_modes import domain_schema_name, element_domain_or_first
         from wama.common.utils.scoping import visible_or_404
-        from wama.anonymizer.params import PARAMS_JSON
+        from wama.anonymizer.params import GROUPS_JSON
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
         media = visible_or_404(Media, user, pk=media_id)
+        # Le schéma du DOMAINE du média (2026-11-02) : un document a le sien — la modale le rend
+        # tel que servi ici, avec ses groupes (seul le schéma image / vidéo en déclare).
+        schema = _media_schema(media)
+        names = {field['name'] for field in schema}
+        domain = element_domain_or_first(media)
 
         values = {}
-        for field in PARAMS_JSON:
+        for field in schema:
             v = getattr(media, field['name'], None)
             if v is not None:
                 values[field['name']] = v
-        # La modale resélectionne la valeur STOCKÉE parmi ses options : même espace de clés.
-        from .utils.yolo_utils import catalogue_key_for
-        values['model_to_use'] = catalogue_key_for(media.model_to_use) or 'auto'
-        values['sam3_prompt'] = media.sam3_prompt or ''
-
-        from .utils.yolo_utils import get_all_class_choices
-        media_classes = media.classes2blur or []
-        classes2blur_list = [
-            {'value': code, 'label': label, 'checked': code in media_classes}
-            for code, label in get_all_class_choices()
-        ]
+        classes2blur_list = []
+        if 'model_to_use' in names:
+            # La modale resélectionne la valeur STOCKÉE parmi ses options : même espace de clés.
+            from .utils.yolo_utils import catalogue_key_for, get_all_class_choices
+            values['model_to_use'] = catalogue_key_for(media.model_to_use) or 'auto'
+            values['sam3_prompt'] = media.sam3_prompt or ''
+            media_classes = media.classes2blur or []
+            classes2blur_list = [
+                {'value': code, 'label': label, 'checked': code in media_classes}
+                for code, label in get_all_class_choices()
+            ]
         # Les options du menu de modèle ne partent plus d'ici : la modale les tire du CATALOGUE
         # (source `catalog`, bornées par le mode de l'élément — `options_mode`).
         return JsonResponse({
             'success': True,
+            'domain': domain,
+            'schema': schema,
+            'groups': GROUPS_JSON if domain_schema_name('anonymizer', domain) == 'PARAMS_JSON' else [],
             'values': values,
             'classes2blur': classes2blur_list,
         })

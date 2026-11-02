@@ -1,0 +1,55 @@
+{
+  "body": {
+    "app": "anonymizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "anonymizer.tasks:process_single_media",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le document (PDF, DOCX).",
+        "group": "travail",
+        "key": "work_file",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "anonymizer.detect_text",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Les passages détectés, segment par segment (page, paragraphe).",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "document",
+      "pii",
+      "nlp"
+    ]
+  },
+  "description": "Détecte les données personnelles d'un document (noms, adresses, courriels, téléphones, identifiants…) : Presidio orchestre les motifs et les modèles installés (`common/privacy`) sur la couche texte du document, les lignes de l'OCR comprises. Rend un document de détections en forme texte (passages).",
+  "key": "anonymizer.detect_text",
+  "manifest_kind": "function",
+  "name": "Anonymizer — détecter les données personnelles",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:anonymizer.detect_text",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

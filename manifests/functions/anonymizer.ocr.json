@@ -1,0 +1,55 @@
+{
+  "body": {
+    "app": "anonymizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "anonymizer.tasks:process_single_media",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le document déposé : seules ses pages sans couche texte et ses images sont lues.",
+        "group": "travail",
+        "key": "work_file",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "anonymizer.ocr",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Les lignes lues, avec la place de chaque mot (JSON sur la card) : la détection les lit avec le document.",
+        "key": "read_lines",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "document",
+      "ocr",
+      "gpu"
+    ]
+  },
+  "description": "Lit par OCR les pages d'un PDF qui n'ont pas de couche texte et le texte dessiné dans les images de ses pages natives, en gardant la PLACE de chaque mot ; les lignes sont gardées sur la card pour que la détection les lise et que l'occultation les efface à leur place. Brique commune : `common/services/ocr_process.ocr_step`.",
+  "key": "anonymizer.ocr",
+  "manifest_kind": "function",
+  "name": "Anonymizer — OCR des scans et des images",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:anonymizer.ocr",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

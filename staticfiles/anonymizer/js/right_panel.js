@@ -257,6 +257,8 @@
         // Les réglages du SCHÉMA (mode compris) : l'applicateur de l'inspecteur commun, qui
         // connaît chaque champ du volet — plus de recopie champ par champ ici.
         if (window._anonInspector && window._anonInspector.apply) window._anonInspector.apply(settings);
+        // Le volet du domaine document (2026-11-02) : son inspecteur applique ses réglages.
+        if (window._anonDocInspector && window._anonDocInspector.apply) window._anonDocInspector.apply(settings);
         // Classes à flouter : hors schéma (cases de la modale des classes).
         if (settings.classes2blur) {
             document.querySelectorAll('.classes2blur-checkbox').forEach(function(cb) {

@@ -90,8 +90,10 @@
       id: id,
       title: 'Paramètres du média #' + id,
       titleIcon: 'fa-user-secret',
-      schema: window.WAMA_ANONYMIZER_SCHEMA || [],
-      groups: window.WAMA_ANONYMIZER_GROUPS || [],   // sections calquées sur le volet droit
+      // Le schéma du DOMAINE du média, servi avec ses valeurs (2026-11-02 : un document a le
+      // sien) ; à défaut, celui de la page.
+      schema: data.schema || window.WAMA_ANONYMIZER_SCHEMA || [],
+      groups: data.groups || window.WAMA_ANONYMIZER_GROUPS || [],   // sections calquées sur le volet droit
       values: data.values || {},
       formClass: 'anon-settings-form',
       footerTplId: 'mediaSettingsFooterTpl',

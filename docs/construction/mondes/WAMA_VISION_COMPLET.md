@@ -489,6 +489,11 @@ et au Reader. 🔄 *30/10* : le texte dessiné DANS les images d'un PDF natif su
 dans les pixels de l'image, effacé, réécrit à sa place) ; deux passages mis en forme que la
 traduction inverse gardent chacun leur style. ⏳ Reste le jugement sur un vrai scan.
 
+🔄 *2026-11-02* : **l'Anonymizer occulte un document** — son domaine `document` (PDF, DOCX) détecte
+les données personnelles du texte, lignes de l'OCR comprises, et les remplace par leur libellé dans
+le fichier même ; un passage lu sur un scan s'efface dans ses boîtes de mots, le reste du scan
+intact (`ROADMAP §16.4bis`). ⏳ La correction humaine par passage, et la mesure sur un vrai jeu.
+
 ## 5.5 Mémoire et RAG : livrés sur Postgres + pgvector, extension par l'usage ✅🔄
 
 > ⚠ Cette section remplace le plan antérieur (« ChromaDB, zéro code ») : la brique a été
@@ -889,7 +894,8 @@ commit `f8ff1641` du 2026-10-28) — par niveau d'hébergement, le geste choisi 
 rien chez un souverain ou un privé) ; détection impossible ⇒ rien ne part ; branchée sur
 `llm_utils.chat_with_source` (`llm_utils.py:863-867`) et l'abonnement Claude Code
 (`services/claude_code.py:320-322`). Hors de sa portée (consigné dans `gate.py`) : les images
-jointes, et les résultats d'outils que le CLI Claude Code obtient par MCP.
+jointes, et les résultats d'outils que le CLI Claude Code obtient par MCP. ✅ *2026-11-02* : le
+domaine document de l'Anonymizer, sur la même brique (`ROADMAP §16.4bis`).
 
 ## 12.2 Priorité aux solutions ouvertes ✅
 

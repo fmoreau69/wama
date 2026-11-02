@@ -512,7 +512,9 @@ MECHANISMS = (
               "geste choisi au profil (`cloud_privacy`) — pseudonymiser de façon réversible par "
               "défaut chez un cloud commercial, valeurs remises dans la réponse et dans le flux ; "
               "détection impossible ⇒ rien ne part. Branchée sur `chat_with_source` et l'abonnement "
-              "Claude Code. Consommateurs prévus : domaine document de l'Anonymizer, mémoire",
+              "Claude Code. Domaine document de l'Anonymizer (2026-11-02) : `detect_file` / "
+              "`occult_file` sur la couche texte, lignes de l'étape OCR comprises (`ocr=`, le même "
+              "aux deux). Consommateur prévu : la mémoire",
               'wama/common/privacy/engine.py',
               'docs/construction/suivi/ROADMAP.md §16.4bis',
               annexes=('wama/common/privacy/recognizers.py',
@@ -544,6 +546,9 @@ MECHANISMS = (
               "native (2026-10-30) : `raster_figures`, `native_figures` (celles à lire, page par page "
               "— la lecture commune de la sonde et de l'étape OCR), `read_figure_text` (les pixels de l'image, "
               "étiquettes par leurs mots, le dessin écarté) → `figure_lines`, réécrites de même. "
+              "Par PAGE aussi (2026-11-02, l'unité qui anonymise) : les lignes de l'OCR suivent le "
+              "texte natif de leur page (`OCR_JOIN`), un passage qui s'y trouve est caviardé dans ses "
+              "boîtes de MOTS, pixels effacés — le reste du scan intact. "
               "Deux passages balisés que la traduction inverse : un CLONE du morceau d'origine "
               "(DOCX). Le Writer reste le geste "
               "de qui veut REVOIR la mise en forme — ROADMAP §10.B, §16.4bis, vision §5.4",

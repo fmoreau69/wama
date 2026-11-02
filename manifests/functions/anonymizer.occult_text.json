@@ -1,0 +1,64 @@
+{
+  "body": {
+    "app": "anonymizer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "anonymizer.tasks:process_single_media",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le document d'origine.",
+        "group": "travail",
+        "key": "work_file",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Ce qu'il faut occulter.",
+        "group": "travail",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "anonymizer.occult_text",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le document occulté, dans son format et sa forme d'origine.",
+        "key": "result",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "document",
+      "pii"
+    ]
+  },
+  "description": "Réécrit le document sur place, chaque passage détecté (et corrigé) remplacé par son libellé (`[PERSONNE]`…) — sa forme d'origine gardée ; sur un scan, les pixels du passage sont effacés. Relit le fichier produit et dit ce qui y reste. Aucun modèle n'est chargé.",
+  "key": "anonymizer.occult_text",
+  "manifest_kind": "function",
+  "name": "Anonymizer — occulter les données personnelles",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:anonymizer.occult_text",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

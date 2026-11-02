@@ -50,4 +50,8 @@ class AnonymizerConfig(AppConfig):
             # Même catégorie que l'entrée (image → image, vidéo → vidéo) — table COMMUNE.
             'result_role': {'field': 'media_type', 'map': MEDIA_CATEGORY_ROLE},
             'extra_from_params': True,
+            # Le DOMAINE d'un média (2026-11-02) : sa nature le range — un document a le schéma de
+            # son domaine (`app_modes.element_domain` / `domain_filter`, la forme champ + table).
+            'params_schema': {'field': 'media_type', 'map': {'document': 'DOCUMENT_PARAMS_JSON'},
+                              'default': 'PARAMS_JSON'},
         })

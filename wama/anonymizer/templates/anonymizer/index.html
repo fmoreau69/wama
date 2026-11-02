@@ -20,6 +20,10 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card_v4` en tête d
 <!-- CSRF Token for AJAX -->
 <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
+{% comment %}Un hôte de réglages PAR DOMAINE (`data-domain-settings`, basculé par la pièce commune des
+onglets — 2026-11-02, domaine `document`) : l'image / vidéo garde son volet ; celui du document est
+GÉNÉRÉ de son schéma (`DOCUMENT_PARAMS`, script du bas).{% endcomment %}
+<div id="anonImageSettings" data-domain-settings="image_video">
 <!-- Section : désignation (MODE de l'élément) -->
 <div class="right-panel-section">
     <div class="right-panel-section-title">
@@ -217,6 +221,18 @@ la qualité toujours affichée, et une valeur figée — le choix retenu n'étai
 ids (`output_format`, `output_quality`) sont ceux que lisent le dépôt et l'inspecteur.{% endcomment %}
 <hr class="border-secondary my-2">
 <div id="anonPanelOutput"></div>
+</div>{# /#anonImageSettings #}
+
+<div id="anonDocumentSettings" data-domain-settings="document" style="display:none;">
+    <div class="right-panel-section">
+        <div class="right-panel-section-title">
+            <i class="fas fa-file-shield"></i> Données personnelles
+        </div>
+        <p class="small text-body-secondary mb-2">Détectées dans le texte (noms, adresses, courriels,
+            téléphones, identifiants…) et occultées dans le fichier même, sa forme gardée.</p>
+        <div id="anonDocumentPanel"></div>
+    </div>
+</div>
 
 <!-- Reset Button -->
 <button type="button" id="reset-global-settings-btn" class="btn btn-outline-secondary btn-sm w-100 mt-2">
@@ -245,6 +261,8 @@ par remplacement d'id côté JS (pattern enhancer). {% endcomment %}
 <script>
 window.WAMA_ANONYMIZER_SCHEMA = {{ params_json|safe }};
 window.WAMA_ANONYMIZER_GROUPS = {{ groups_json|safe }};
+// Le schéma du domaine DOCUMENT (2026-11-02) : son volet, la modale de ses lots, son inspecteur.
+window.WAMA_ANONYMIZER_DOCUMENT_SCHEMA = {{ document_params_json|safe }};
 window.WAMA_ANON = {
     uploadUrl:           '{% url "anonymizer:upload" %}',
     consolidateUrl:      '{% url "anonymizer:consolidate" %}',  {# était écrite EN DUR dans upload.js ('/anonymizer/batch/consolidate/') jusqu'au 07/09 #}
@@ -279,6 +297,13 @@ window.WAMA_ANON = {
     var group = (window.WAMA_ANONYMIZER_GROUPS || []).filter(function (g) { return g.key === 'sortie'; });
     WamaParams.render(host, (window.WAMA_ANONYMIZER_SCHEMA || []).filter(function (p) { return p.group === 'sortie'; }),
                       { context: 'panel', values: {{ panel_values_json|default:"{}"|safe }}, groups: group });
+})();
+// Volet du domaine DOCUMENT (2026-11-02), GÉNÉRÉ de son schéma avec les valeurs RETENUES.
+(function renderDocumentPanel() {
+    var host = document.getElementById('anonDocumentPanel');
+    if (!host || !window.WamaParams) return;
+    WamaParams.render(host, window.WAMA_ANONYMIZER_DOCUMENT_SCHEMA || [],
+                      { context: 'panel', values: {{ document_panel_values_json|default:"{}"|safe }} });
 })();
 </script>
 <script src="{% static_v 'anonymizer/js/update.js' %}"></script>
@@ -371,28 +396,61 @@ if (window.WamaModelCaps) {
 {% block anonymizer_content %}
 <div style="overflow-x:clip;">
 
-{% comment %} Card « Nouvel élément » v4 (2026-09-29, CARD_DESIGN §11.11) : un onglet par PORT,
-dérivé des modèles — ici le seul port de travail `work_file` (images, vidéos). Ses modalités
-(importer fichier ou dossier, médiathèque, URL) viennent du port : `file_accept`,
-`show_media_library` et `show_url` ne sont plus des littéraux de la page. Ids historiques
-conservés (upload.js, appariement, gestes nocturnes). Repliable : repliée avec en-tête quand
-la file n'est pas vide. La DESCRIPTION des objets à flouter reste un réglage du volet. {% endcomment %}
-{% url 'anonymizer:batch_template' as anon_batch_template_url %}
-{% include 'common/_new_item_card_v4.html' with app_id='anonymizer' card_id='anonNewItem' drop_zone_id='dropZoneAnonymizer' file_input_id='fileupload' folder_input_id='anonFolderInput' formats_label='Images · Vidéos — JPG, PNG, MP4, AVI, MKV…' show_batch_bar=True batch_template_url=anon_batch_template_url url_input_id='anonUrlInput' url_submit_id='anonUrlSubmit' url_placeholder='https://… ou YouTube' collapsible=True %}
+{% comment %}Onglets de DOMAINE : pièce commune (ROUTE §11 #42 ②) — image / vidéo, et document depuis le
+2026-11-02 (ROADMAP §16.4bis) : un onglet par domaine déclaré, son nombre d'éléments, le domaine
+retenu. Chaque domaine a sa card d'entrée, sa barre et sa file, comme à l'enhancer.{% endcomment %}
+{% include 'common/_domain_tabs.html' with app='anonymizer' %}
 
-{% comment %} Barre de progression globale — composant commun (wama-global-progress.js). {% endcomment %}
+<div class="tab-content" id="anonymizerTabsContent">
+
+<div class="tab-pane fade show active" id="anonImageTab" role="tabpanel" data-domain="image_video">
+
+{% comment %} Card « Nouvel élément » v4 (2026-09-29, CARD_DESIGN §11.11) : un onglet par PORT,
+dérivé des modèles — ici le seul port de travail `work_file`, restreint aux natures du domaine
+(`card_domain` : images, vidéos). Ses modalités (importer fichier ou dossier, médiathèque, URL)
+viennent du port : `file_accept`, `show_media_library` et `show_url` ne sont plus des littéraux de
+la page. Ids historiques conservés (upload.js, appariement, gestes nocturnes). Repliable : repliée
+avec en-tête quand la file n'est pas vide. La DESCRIPTION des objets à flouter reste un réglage du
+volet. {% endcomment %}
+{% url 'anonymizer:batch_template' as anon_batch_template_url %}
+{% include 'common/_new_item_card_v4.html' with app_id='anonymizer' card_domain='image_video' card_id='anonNewItem' drop_zone_id='dropZoneAnonymizer' file_input_id='fileupload' folder_input_id='anonFolderInput' formats_label='Images · Vidéos — JPG, PNG, MP4, AVI, MKV…' show_batch_bar=True batch_template_url=anon_batch_template_url url_input_id='anonUrlInput' url_submit_id='anonUrlSubmit' url_placeholder='https://… ou YouTube' collapsible=True %}
+
+{# Barre globale + ETA — brique commune, celle du domaine image / vidéo (adresse lue de la déclaration). #}
 <div class="mb-3 mt-3">
-    {% include 'common/_global_progress.html' with app='anonymizer' %}
+    {% include 'common/_global_progress.html' with app='anonymizer' domain='image_video' queue_id='anonymizer-queue' %}
 </div>
 
 <h4 class="mb-2">
-    <i class="fas fa-list"></i> File d'attente
+    <i class="fas fa-list"></i> File d'attente — Images &amp; Vidéos
     <span class="badge bg-secondary" id="queueCount">{{ queue_count }}</span>
 </h4>
 
-{% comment %} La FILE : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20 — ses routes
-`clear_all_media` / `download_all_media` sont des orthographes admises, la pièce les lit. {% endcomment %}
-{% include 'common/_queue.html' with app='anonymizer' queue_id='anonymizer-queue' batches=batches_list card_template='anonymizer/_media_card.html' card_class='anon-card' meta_template='common/_batch_meta_chips.html' empty_text="Aucun fichier dans la file d'attente" empty_hint='Déposez des photos/vidéos ci-dessus pour commencer' %}
+{% comment %} La FILE : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20 — une par
+domaine ; ses routes `clear_all_media` / `download_all_media` sont des orthographes admises, la
+pièce les lit. {% endcomment %}
+{% include 'common/_queue.html' with app='anonymizer' domain='image_video' queue_id='anonymizer-queue' batches=batches_list card_template='anonymizer/_media_card.html' card_class='anon-card' meta_template='common/_batch_meta_chips.html' empty_text="Aucun fichier dans la file d'attente" empty_hint='Déposez des photos/vidéos ci-dessus pour commencer' %}
+
+</div><!-- #anonImageTab -->
+
+<div class="tab-pane fade" id="anonDocumentTab" role="tabpanel" data-domain="document">
+
+{% comment %}Card d'entrée du domaine DOCUMENT (2026-11-02) : la même brique, `card_domain='document'`
+(port `work_file` restreint aux documents : PDF, DOCX). `card_id` et ids DÉCLARÉS : deux cards
+d'entrée sur une page = deux jeux d'ids (règle de l'enhancer et de l'imager). Le lot et l'URL
+restent à la card image / vidéo : un descripteur de lot range chaque ligne par sa nature.{% endcomment %}
+{% include 'common/_new_item_card_v4.html' with app_id='anonymizer' card_domain='document' card_id='anonDocNewItem' drop_zone_id='dropZoneAnonDocument' file_input_id='anonDocFileInput' folder_input_id='anonDocFolderInput' formats_label='Documents — PDF, DOCX' url_input_id='anonDocUrlInput' url_submit_id='anonDocUrlSubmit' url_placeholder='https://… (un PDF, un DOCX)' collapsible=True %}
+
+{% comment %}La barre du domaine document : la MÊME pièce, sur sa file (`domain_filters`).{% endcomment %}
+<div class="mb-3 mt-3">
+    {% include 'common/_global_progress.html' with app='anonymizer' domain='document' queue_id='anonymizer-document-queue' %}
+</div>
+
+<h4 class="mb-2"><i class="fas fa-file-shield"></i> File d'attente — Documents</h4>
+{% include 'common/_queue.html' with app='anonymizer' domain='document' queue_id='anonymizer-document-queue' batches=document_batches card_template='anonymizer/_media_card.html' card_class='anon-card' collapse_prefix='anonDocBatchItems' meta_template='common/_batch_meta_chips.html' empty_text='Aucun document en attente.' empty_hint='Déposez un PDF ou un DOCX ci-dessus pour commencer' %}
+
+</div><!-- #anonDocumentTab -->
+
+</div><!-- #anonymizerTabsContent -->
 
 </div>
 {% endblock %}

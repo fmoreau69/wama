@@ -114,7 +114,7 @@ class EveryPageIsThePiecesTest(SimpleTestCase):
                 self.assertNotIn('wama-progress-track', code, 'a progress bar written by hand')
 
     def test_a_page_with_several_domains_has_one_bar_one_pane_and_settings_per_domain(self):
-        self.assertEqual(['enhancer', 'imager'], MULTI)
+        self.assertEqual(['anonymizer', 'enhancer', 'imager'], MULTI)   # document : 2026-11-02
         for app in MULTI:
             with self.subTest(app=app):
                 code = _page(app)

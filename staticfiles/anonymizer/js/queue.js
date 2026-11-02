@@ -15,7 +15,9 @@
 
   const cfg = window.WAMA_ANON || {};
   const getUrl = (tpl, id) => (tpl || '').replace('/0/', '/' + id + '/');
-  const queue = document.getElementById('anonymizer-queue');
+  // Les FILES de la page : une par domaine depuis le 2026-11-02 (image / vidéo, document), dans
+  // leurs onglets — le suivi, le cycle ▶/⏹ et le rafraîchissement d'une card les couvrent toutes.
+  const queue = document.getElementById('anonymizerTabsContent') || document.getElementById('anonymizer-queue');
   if (!queue) return;
 
   function csrfHeaders() {
@@ -139,17 +141,27 @@
   });
 
   // ── Batch : lancer / paramètres (modale commune context:'batch') ────────
-  let batchParamsRendered = false;
+  // Le schéma est celui du DOMAINE du lot (2026-11-02) — l'onglet qui le porte (`data-domain`).
+  let batchParamsDomain = null;
 
-  function openBatchModal(batchId) {
+  function batchDomain(btn) {
+    const pane = btn && btn.closest && btn.closest('[data-domain]');
+    return (pane && pane.dataset.domain) || 'image_video';
+  }
+
+  function openBatchModal(batchId, btn) {
     const modal = document.getElementById('batchSettingsModal');
     if (!modal || !window.WamaParams) return;
-    if (!batchParamsRendered) {
-      WamaParams.render(document.getElementById('anonBatchParams'),
-                        window.WAMA_ANONYMIZER_SCHEMA || [],
+    const domain = batchDomain(btn);
+    if (batchParamsDomain !== domain) {
+      const host = document.getElementById('anonBatchParams');
+      host.innerHTML = '';
+      const doc = domain === 'document';
+      WamaParams.render(host,
+                        (doc ? window.WAMA_ANONYMIZER_DOCUMENT_SCHEMA : window.WAMA_ANONYMIZER_SCHEMA) || [],
                         // mêmes sections que la modale item (groupes déclarés dans params.py)
-                        { context: 'batch', values: {}, groups: window.WAMA_ANONYMIZER_GROUPS || [] });
-      batchParamsRendered = true;
+                        { context: 'batch', values: {}, groups: doc ? [] : (window.WAMA_ANONYMIZER_GROUPS || []) });
+      batchParamsDomain = domain;
     }
     modal.dataset.batchId = batchId;
     const idBadge = document.getElementById('batchSettingsBatchId');
@@ -212,7 +224,7 @@
   // gestionnaire de fichiers (`signalerFichiers`) + rechargement, ce que faisaient les
   // handlers retirés de `update.js`.
   WamaQueueActions.onBatchStarted(appliquerDemarrageLot);
-  WamaQueueActions.onBatchSettings(function (batchId) { openBatchModal(batchId); });
+  WamaQueueActions.onBatchSettings(function (batchId, btn) { openBatchModal(batchId, btn); });
 
   document.addEventListener('click', function (e) {
     if (e.target.closest('#saveBatchSettingsBtn')) saveBatchSettings(false);
@@ -227,16 +239,18 @@
   // Le volet lu par le lecteur DÉRIVÉ du schéma (inspecteur commun) — jamais tout le conteneur,
   // qui porte aussi les cases des classes à flouter : leurs valeurs brutes (`'false'`) finissaient
   // dans `classes2blur` de l'élément.
-  const panelValues = () => (window._anonInspector ? window._anonInspector.read() : {});
-
-  // ── Inspecteur (volet droit) — dérivé du SCHÉMA (dom_id.panel = ids legacy) ──
-  if (window.WamaInspector && WamaInspector.initFromSchema) {
-    window._anonInspector = WamaInspector.initFromSchema({
-      queueContainer: queue,
+  // ── Inspecteur (volet droit) — dérivé du SCHÉMA (dom_id.panel = ids legacy), UN PAR DOMAINE
+  // (2026-11-02, comme l'enhancer) : une card document reflète le volet du document. ──
+  function initInspector(queueEl, panelEl, schema) {
+    if (!queueEl || !window.WamaInspector || !WamaInspector.initFromSchema) return null;
+    let inspector = null;
+    const panelValues = () => (inspector ? inspector.read() : {});
+    inspector = WamaInspector.initFromSchema({
+      queueContainer: queueEl,
       cardSelector: '.anon-card',
       batchSelector: '.batch-group',
-      panelContainer: document.getElementById('global-settings-container'),
-      schema: window.WAMA_ANONYMIZER_SCHEMA || [],
+      panelContainer: panelEl || document.getElementById('global-settings-container'),
+      schema: schema || [],
       itemLabel: id => "le média #" + id,
       saveItem: async (id) => {
         const vals = panelValues();
@@ -273,7 +287,14 @@
         WamaInspector.cloneBatchActions(host, batchId);
       },
     });
+    return inspector;
   }
+  window._anonInspector = initInspector(document.getElementById('anonymizer-queue'),
+                                        document.getElementById('anonImageSettings'),
+                                        window.WAMA_ANONYMIZER_SCHEMA);
+  window._anonDocInspector = initInspector(document.getElementById('anonymizer-document-queue'),
+                                           document.getElementById('anonDocumentSettings'),
+                                           window.WAMA_ANONYMIZER_DOCUMENT_SCHEMA);
 
   // ── Enrichissement ✨ du prompt SAM3 du volet droit (pipeline commune) ──
   if (window.WamaPromptEnrich && document.getElementById('user_setting_sam3_prompt')) {

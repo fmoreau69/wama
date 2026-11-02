@@ -28,6 +28,7 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
         <span class="wcv3-thumb">
           {% if elem.media_type == 'image' %}<i class="fas fa-image text-info"></i>
           {% elif elem.media_type == 'video' %}<i class="fas fa-video text-warning"></i>
+          {% elif elem.media_type == 'document' %}<i class="fas fa-file-shield text-success"></i>
           {% else %}<i class="fas fa-file text-secondary"></i>{% endif %}
         </span>
         <div class="wcv3-in-lines">
@@ -130,8 +131,11 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
       </div>
     </div>
 
-    {# Les PROCESS de la card (floutage → sortie) : bande commune, générée des lignes d'exécution. #}
-    {% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id %}
+    {% comment %}Les PROCESS de la card (floutage → sortie ; OCR → détection → occultation pour un
+    document) : bande commune, générée des lignes d'exécution. Sa route de réglages DESSINE la case
+    d'un process optionnel (l'OCR, 2026-11-02) — sans elle, il ne s'allumait que par la ⚙.{% endcomment %}
+    {% url 'anonymizer:update_settings' elem.id as url_settings %}
+    {% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id settings_url=url_settings %}
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.
     Progression = blur_progress (champ propre à l'anonymizer).{% endcomment %}

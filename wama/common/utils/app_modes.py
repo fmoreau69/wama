@@ -380,7 +380,7 @@ APP_MODES = {
     'anonymizer': {
         'domains': [
             {'id': 'image_video', 'label': 'Image / Vidéo', 'icon': 'fa-photo-film',
-             'accepts': ('image', 'video'),
+             'accepts': ('image', 'video'), 'params_schema': 'PARAMS_JSON',
              # Le réglage du schéma qui PORTE le mode (valeurs = ids ci-dessous).
              'mode_param': 'target_mode',
              'modes': [
@@ -390,7 +390,13 @@ APP_MODES = {
                 {'id': 'description', 'label': 'Description', 'icon': 'fa-comment-dots',
                  'variant': 'info', 'inputs': ['work_file', 'prompt']},
             ]},
-            # futurs : {'id':'audio',…}, {'id':'document',…}
+            # Domaine DOCUMENT (2026-11-02, ROADMAP §16.4bis) : les données personnelles d'un
+            # document, occultées dans le fichier même, sa forme gardée. Même élément (`Media`,
+            # sa nature le range ici : la spec de détail le dit), son schéma à lui.
+            {'id': 'document', 'label': 'Document', 'icon': 'fa-file-shield',
+             'accepts': ('document',), 'params_schema': 'DOCUMENT_PARAMS_JSON',
+             'inputs': ['work_file']},
+            # futur : {'id':'audio',…}
         ],
     },
 

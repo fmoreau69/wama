@@ -177,7 +177,8 @@ class EveryQueueIsThePieceTest(SimpleTestCase):
         self.assertEqual([], by_hand, '\n'.join(by_hand))
         self.assertEqual(10, len(mounted), mounted)
         self.assertTrue(all(mounted.values()), mounted)
-        self.assertEqual(12, sum(mounted.values()), 'imager and enhancer have one queue per domain')
+        self.assertEqual(13, sum(mounted.values()),
+                         'imager, enhancer and anonymizer (document, 2026-11-02) have one queue per domain')
 
     def test_the_grid_reads_the_pieces_of_the_queue_through_the_piece(self):
         """Seven criteria read a piece of the queue in the app's files ; once the piece holds it,

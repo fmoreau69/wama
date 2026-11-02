@@ -39,7 +39,10 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     title = models.CharField(max_length=255, blank=True)
     file = models.FileField(upload_to=upload_to_user_input('anonymizer'))
     file_ext = models.CharField(max_length=255)
-    media_type = models.CharField(max_length=10, choices=[('video', 'Vidéo'), ('image', 'Image'), ('audio', 'Audio'),], default='video')
+    # La NATURE du fichier, qui désigne aussi le DOMAINE de l'élément (`app_modes.element_domain`,
+    # par la spec de détail) : un document appartient au domaine `document` (2026-11-02).
+    media_type = models.CharField(max_length=10, choices=[('video', 'Vidéo'), ('image', 'Image'), ('audio', 'Audio'),
+                                                          ('document', 'Document')], default='video')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     # Statut canonique WAMA (audit 2026-07-11) — remplace le booléen `processed` (hors norme
@@ -71,6 +74,13 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # (`detections.apply_corrections`) : une détection relancée ne les efface pas, et ils sont
     # la vérité terrain du banc. Surveillé par le Floutage : corriger le périme.
     detection_corrections = models.JSONField(blank=True, default=dict, db_default={})
+    # Domaine DOCUMENT (2026-11-02) — l'étape commune « OCR des scans et des images »
+    # (`ocr_process`) : son interrupteur, que le fichier PROPOSE (`Param.default_from`, propriété
+    # `needs_ocr` : un PDF scanné le coche), et les lignes qu'elle a lues, relues par la détection
+    # et l'occultation du texte (`read_ocr_file`). Un fichier de la card comme les détections.
+    ocr_scanned_pages = models.BooleanField(default=False, db_default=False)
+    ocr_file = models.FileField(upload_to=upload_to_user_output('anonymizer'), max_length=500,
+                                blank=True, default='', db_default='')
 
     @property
     def processed(self):

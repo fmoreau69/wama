@@ -11,6 +11,16 @@
         "from": "blur",
         "to": "output",
         "to_port": null
+      },
+      {
+        "from": "ocr",
+        "to": "detect_text",
+        "to_port": null
+      },
+      {
+        "from": "detect_text",
+        "to": "occult_text",
+        "to_port": null
       }
     ],
     "nodes": [
@@ -52,6 +62,9 @@
           "eta": "anonymizer.tasks:blur_eta",
           "gpu": false,
           "label": "Floutage",
+          "outputs": [
+            "output_file"
+          ],
           "share": 3,
           "watched": [
             "blur_ratio",
@@ -81,13 +94,73 @@
             "output_upscale"
           ]
         }
+      },
+      {
+        "app": null,
+        "function": "anonymizer.ocr",
+        "id": "ocr",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "eta": "anonymizer.tasks:ocr_eta",
+          "gpu": true,
+          "label": "OCR des scans et des images",
+          "outputs": [
+            "ocr_file"
+          ],
+          "share": 2,
+          "toggle": "ocr_scanned_pages",
+          "watched": [
+            "file"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "anonymizer.detect_text",
+        "id": "detect_text",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "required",
+          "eta": "anonymizer.tasks:detect_text_eta",
+          "gpu": false,
+          "label": "Détection des données personnelles",
+          "outputs": [
+            "detections_file"
+          ],
+          "share": 3,
+          "watched": [
+            "file"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "anonymizer.occult_text",
+        "id": "occult_text",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "required",
+          "eta": "anonymizer.tasks:occult_text_eta",
+          "gpu": false,
+          "label": "Occultation",
+          "outputs": [
+            "output_file"
+          ],
+          "watched": [
+            "detection_corrections"
+          ]
+        }
       }
     ]
   },
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "anonymizer",
   "manifest_kind": "pipeline",
-  "name": "Anonymizer — détection, floutage, réglages de sortie (3 process)",
+  "name": "Anonymizer — détection, floutage, réglages de sortie ; document : OCR, détection et occultation des données personnelles (6 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

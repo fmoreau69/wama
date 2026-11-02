@@ -1318,14 +1318,18 @@ APP_CATALOG = {
         'world': 'media',  # monde DÉCLARÉ, jamais déduit — cf. app_world()
         'icon':        'fas fa-user-secret',
         'url_name':    'anonymizer:index',
-        'description': 'Floutage automatique de visages et plaques sur images et vidéos.',
-        'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS,
-        'input_types': ('image', 'video'),
+        'description': 'Floutage automatique de visages et plaques sur images et vidéos ; '
+                       'données personnelles occultées dans les documents, leur forme gardée.',
+        # Les documents (2026-11-02, domaine `document`) : ceux que la couche texte réécrit en
+        # gardant leur forme (`document_text.SUPPORTED_EXTS`), sauf le texte brut — un `.txt` ou un
+        # `.md` déposé ici est un DESCRIPTEUR DE LOT (une URL ou un chemin par ligne, `batch_type`).
+        'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + ('.pdf', '.docx'),
+        'input_types': ('image', 'video', 'document'),
         'batch_type':  'media_list',  # Type A: one URL/path per line
         'has_batch':   True,
         'has_url_import': True,
         'has_youtube': True,
-        'output_types': ('image', 'video'),
+        'output_types': ('image', 'video', 'document'),
         'conventions': _conv(
             settings_modal_item=True,  # ⚠ modale hand-built (settings_modal.js innerHTML l.287) ;
                                        # params.py existe mais ORPHELIN (aucun consommateur WamaParams)

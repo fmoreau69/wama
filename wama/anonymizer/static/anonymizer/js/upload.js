@@ -56,6 +56,26 @@ $(function () {
         location.reload();
       },
     });
+    // La card d'entrée du domaine DOCUMENT (2026-11-02) : la même voie commune, sur ses ids, vers la
+    // même route de dépôt — le serveur range le fichier dans le domaine de sa nature. Sans lot : un
+    // `.txt` de lot passe par la card image / vidéo, qui range chaque ligne par sa nature.
+    if (document.getElementById('dropZoneAnonDocument')) {
+      window._importDocument = WamaImport({
+        uploadUrl:        cfg.uploadUrl,
+        consolidateUrl:   cfg.consolidateUrl,
+        consolidateField: 'ids',
+        csrfToken:        cfg.csrfToken,
+        dropZoneId:       'dropZoneAnonDocument',
+        fileInputId:      'anonDocFileInput',
+        folderInputId:    'anonDocFolderInput',
+        afterImport:      function (_ids, reponses) {
+          reponses.forEach(function (r) {
+            if (r && r.errors && r.errors.length) console.warn("Erreurs lors de l'ajout de documents :", r.errors);
+          });
+          location.reload();
+        },
+      });
+    }
   } else {
     // Défaut le plus silencieux qui soit (une zone de dépôt que rien n'écoute) → on le DIT.
     WamaApp.toast("Voie d'import non chargée (wama-import.js) — dépôt impossible", 'error');
@@ -81,5 +101,17 @@ $(function () {
         return window._batchImport.ingestText(url + '\n', 'url.txt');
       },
     });
+    // L'URL d'un document (2026-11-02) : le même formalisme, la nature du fichier rapatrié le range.
+    if (document.getElementById('anonDocUrlInput')) {
+      WamaApp.initUrlImport({
+        inputId: 'anonDocUrlInput',
+        buttonId: 'anonDocUrlSubmit',
+        onEmpty: function () { WamaApp.toast("Veuillez entrer l'URL d'un document.", 'warning'); },
+        onSubmit: function (url) {
+          if (!window._batchImport) throw new Error("Import batch non initialisé");
+          return window._batchImport.ingestText(url + '\n', 'url.txt');
+        },
+      });
+    }
   }
 });

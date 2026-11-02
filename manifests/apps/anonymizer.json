@@ -98,7 +98,7 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('video', 'Vidéo'), ('image', 'Image'), ('audio', 'Audio')]",
+                  "expr": "[('video', 'Vidéo'), ('image', 'Image'), ('audio', 'Audio'), ('document', 'Document')]",
                   "imports": []
                 },
                 "default": {
@@ -248,6 +248,50 @@
                 }
               },
               "name": "detection_corrections"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
+              "name": "ocr_scanned_pages"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('anonymizer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "ocr_file"
             },
             {
               "args": [],
@@ -884,7 +928,9 @@
         ".3gp",
         ".wmv",
         ".ts",
-        ".m4v"
+        ".m4v",
+        ".pdf",
+        ".docx"
       ],
       "url_name": "anonymizer:index",
       "verbose_name": "Anonymizer"
@@ -894,6 +940,13 @@
       "detail_spec": {
         "engine": "model_to_use",
         "extra_from_params": true,
+        "params_schema": {
+          "default": "PARAMS_JSON",
+          "field": "media_type",
+          "map": {
+            "document": "DOCUMENT_PARAMS_JSON"
+          }
+        },
         "result_file": "output_file",
         "result_role": {
           "field": "media_type",
@@ -1005,13 +1058,79 @@
               "label": "Description",
               "variant": "info"
             }
-          ]
+          ],
+          "params_schema": "PARAMS_JSON"
+        },
+        {
+          "accepts": [
+            "document"
+          ],
+          "icon": "fa-file-shield",
+          "id": "document",
+          "inputs": [
+            "work_file"
+          ],
+          "label": "Document",
+          "params_schema": "DOCUMENT_PARAMS_JSON"
         }
       ]
     },
     "params": {
       "primary": "PARAMS_JSON",
       "schemas": {
+        "DOCUMENT_PARAMS_JSON": [
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": true,
+            "chip_label": "OCR",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "default_from": {
+              "port": "work_file",
+              "property": "needs_ocr"
+            },
+            "display_format": "",
+            "dom_id": "",
+            "group": "",
+            "help": "Lit par OCR les pages d'un PDF qui n'ont pas de texte (un scan) et le texte dessiné dans ses images, pour y trouver les données personnelles et les occulter à leur place. Coché d'office quand le document a des pages scannées — décochable ; à cocher pour lire le texte de ses images.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-file-image",
+            "inline": false,
+            "label": "OCR des scans et des images",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "ocr_scanned_pages",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          }
+        ],
         "PARAMS_JSON": [
           {
             "advanced": false,
@@ -2124,7 +2243,8 @@
           "required": true,
           "types": [
             "image",
-            "video"
+            "video",
+            "document"
           ]
         }
       ],
@@ -2134,7 +2254,8 @@
           "label": "Sortie",
           "types": [
             "image",
-            "video"
+            "video",
+            "document"
           ]
         }
       ]
@@ -2423,7 +2544,7 @@
             "target_mode": "radio — Classes : une liste d'objets à flouter. Description : ce qu'il faut flouter, décrit en texte. (choix : classes | description) (défaut : 'classes')",
             "use_segmentation": "toggle — Masque au contour de l'objet plutôt qu'au rectangle détecté. (défaut : True)"
           },
-          "description": "Ajoute un élément à la file d'attente de Anonymizer (Floutage automatique de visages et plaques sur images et vidéos) et renvoie son item_id."
+          "description": "Ajoute un élément à la file d'attente de Anonymizer (Floutage automatique de visages et plaques sur images et vidéos ; données personnelles occultées dans les documents, leur forme gardée) et renvoie son item_id."
         },
         "get_anonymizer_status": {
           "args": {},
@@ -2477,7 +2598,7 @@
       }
     }
   },
-  "description": "Floutage automatique de visages et plaques sur images et vidéos.",
+  "description": "Floutage automatique de visages et plaques sur images et vidéos ; données personnelles occultées dans les documents, leur forme gardée.",
   "key": "anonymizer",
   "manifest_kind": "app",
   "name": "Anonymizer",
@@ -2716,11 +2837,27 @@
       "kind": "model"
     },
     {
+      "key": "PyMuPDF",
+      "kind": "library"
+    },
+    {
+      "key": "opencv-python",
+      "kind": "library"
+    },
+    {
+      "key": "pillow",
+      "kind": "library"
+    },
+    {
       "key": "sam3",
       "kind": "library"
     },
     {
       "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "torchvision",
       "kind": "library"
     },
     {

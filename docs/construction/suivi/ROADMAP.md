@@ -136,8 +136,9 @@
    `§16.4bis`. ✅ librairies, catalogue `nlp`/`pii-detection`, détecteurs, couche texte de document
    et **porte avant un modèle distant** livrées (`common/privacy/gate.py::privacy_gate`, appelée par
    `llm_utils.py:828` et `claude_code.py:322` ; geste choisi au profil, `UserProfile.cloud_privacy` ;
-   `f8ff1641`) ; ⏳ domaine `document` de l'Anonymizer, mesure WAMA — détail `§16.4bis`
-   *(corrigé le 2026-10-31, mesuré sur le code)*.
+   `f8ff1641`) ; ✅ *2026-11-02* domaine `document` de l'Anonymizer (OCR des scans, détection et
+   occultation dans le fichier même) ; ⏳ page de correction par passage, mesure WAMA — détail
+   `§16.4bis` *(corrigé le 2026-10-31, mesuré sur le code)*.
 5. Évaluation continue : jeux de test par capacité + QC câblé ; la veille ne propose un modèle
    qu'avec delta mesuré. Prospection suites (multi-agents, routing capacité→app Phase A).
 6. Face Analyzer : intégration au catalogue (flag lab) + premier flux exploitable.
@@ -3494,7 +3495,7 @@ les candidats sur nos propres clips (`WAMA_QUALITE`) avant de choisir.
 | D1 | Presidio = colonne vertébrale | **Presidio ORCHESTRE l'union** des détecteurs : chaque détecteur est un BACKEND du contrat `pii-detection` (catalogue, `select_model`, gouverneur), branché dans l'analyseur par un fin ADAPTATEUR de recognizer (réconciliation proposée par opus le 17/10) — on en ajoute sans toucher au reste |
 | D2 | le GLiNER le plus large | `fastino/gliner2-privacy-filter-PII-multi` (librairie `gliner2`) ; recherche complète du 28/10 ci-dessous |
 | D3 | sortie = texte portable, rendu par le Writer | **corrigée** : anonymiser CONSERVE EXACTEMENT la forme d'origine — on ne fait que détecter et occulter, dans le fichier même. Le Writer ne vient qu'en DERNIER, par chaînage (Studio, « Envoyer vers »), si l'utilisateur veut REVOIR la mise en forme. Un export du TEXTE anonymisé s'ajoute en late binding multi-format (`document_export`) |
-| D4 | `Media` + `media_type='document'` | domaine et intégration à l'Anonymizer confiés à l'instance Portage Apps |
+| D4 | `Media` + `media_type='document'` | domaine et intégration à l'Anonymizer confiés à l'instance Portage Apps — ✅ *2026-11-02* : tels quels, rendus à la session privacy par Portage Apps une fois les domaines alignés (`ROUTE §11 #42`) |
 | D5 | v1 sans modèle (motifs), modèles ensuite | les motifs (Presidio + détecteurs FRANÇAIS à écrire : NIR, SIREN/SIRET, téléphone) restent le plancher déterministe ; les modèles s'y ajoutent dans la même union |
 
 Décidé le 28/10, en plus :
@@ -3548,11 +3549,33 @@ avant les appels distants (quand l'activer : décision à part) ; domaine `docum
 contrat (`437f6b78`) · ✅ détecteurs bardsai v3 (ONNX) et GLiNER2-PII installés par la route, union
 orchestrée par Presidio, document de détections en forme texte, service :8003 (`87911aa4`) ·
 ✅ couche texte de document, occultation de fichiers et contre-épreuve par relecture (`bbb0a162`) ·
-🔄 domaine `document` de l'Anonymizer : relevé des trous transmis à Portage Apps (à confronter par
-elle) · ✅ porte avant un modèle distant — décidée et livrée, ci-dessous · ✅ Translator sur
+✅ domaine `document` de l'Anonymizer (2026-11-02, ci-dessous) · ✅ porte avant un modèle distant — décidée et livrée, ci-dessous · ✅ Translator sur
 `document_text` (traduire en gardant la forme, `§10.B` « Traduction en place ») · ⏳ mesure WAMA (petit jeu relu à la main, `WAMA_QUALITE`) : seuils
 par type, détecteurs suivants (urchade en référence, knowledgator EN, piiranha, camembert-ner,
 eds-pseudo, privacy-filter dès transformers ≥ 5.6 ou par l'ONNX).
+- **Domaine `document` de l'Anonymizer (2026-11-02, passé par Portage Apps une fois les domaines
+  alignés, `ROUTE §11 #42`)** — rien d'inventé : une DÉCLARATION (`app_modes`, domaine `document`,
+  son schéma `DOCUMENT_PARAMS_JSON` ; l'image / vidéo nomme désormais le sien, `PARAMS_JSON`), le
+  même élément (`Media`, `media_type='document'` : D4 ; la spec de détail range un média dans le
+  domaine de sa nature — `element_domain`, `domain_filter`), la porte COMMUNE de sa surface
+  (`_check_media_type` → `app_modes.surface_file_nature` : la liste MIME écrite à la main refusait
+  tout document, et `.webp`, `.webm`, `.tif` que la zone de dépôt offrait), et trois process DANS
+  le pipeline unique de l'app, chacun réservé à son domaine (`ProcessSpec.applies`, comme
+  détection / floutage / sortie le sont à l'image et à la vidéo) : `ocr` (le process COMMUN
+  `ocr_process`, optionnel, son interrupteur PROPOSÉ par le fichier — `needs_ocr`), `detect_text`
+  (`common/privacy`, lignes de l'OCR comprises), `occult_text` (`occult_file`, le même OCR ; un
+  passage encore lisible est DIT). Le passage lu sur un SCAN s'occulte dans ses boîtes de mots,
+  pixels effacés, le reste du scan intact (`document_text` : l'unité page reçoit `ocr=`,
+  `97afa1b64`). Formats : PDF et DOCX — `.txt` et `.md` sont ici des descripteurs de lot. Page :
+  onglets, card d'entrée, barre et file par domaine (pièces communes), volet du document GÉNÉRÉ de
+  son schéma, un inspecteur par domaine, modale ⚙ et modale de lot au schéma du domaine.
+  Gardes : `anonymizer/tests_document_domain.py` (déclaration, porte, process par domaine,
+  naissance avec l'OCR proposé, détection puis occultation de bout en bout) — quatre
+  contre-épreuves rouges. ⏳ Restent : la page de CORRECTION par passage (`surfaces.py` la dit
+  à venir ; la couche `detection_corrections` accepte déjà les `span`, relue à l'occultation) ;
+  un document reçu par URL naît avec les réglages de l'image avant que son fichier n'arrive ;
+  les jumelles (`anonymizer_01`) n'ont pas le domaine tant que le générateur ignore les domaines
+  (`ROUTE §11 #42` ⑦) ; le contrôle `remaining` ne relit pas un scan (second OCR) ; la mesure WAMA.
 - **Vidéo : l'image ET le son (décision de Fabien, 2026-10-28)** — une option « piste audio » du
   domaine vidéo de l'Anonymizer, qui appelle la brique du futur domaine audio (voix du locuteur,
   données dites — transcription mot à mot → union de détecteurs → bip sur leurs instants), plutôt
