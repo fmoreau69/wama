@@ -1,0 +1,36 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy",
+      "scipy",
+      "torch",
+      "torchvision",
+      "tqdm"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Richard Zhang",
+      "license": "UNKNOWN",
+      "repository": "https://github.com/richzhang/PerceptualSimilarity",
+      "summary": "LPIPS Similarity metric",
+      "version": "0.1.4"
+    },
+    "install": {
+      "pip": "lpips==0.1.4",
+      "requires_python": null
+    }
+  },
+  "description": "LPIPS Similarity metric",
+  "key": "lpips",
+  "manifest_kind": "library",
+  "name": "lpips",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:lpips==0.1.4",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

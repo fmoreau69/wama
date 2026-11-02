@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "addict",
+      "regex"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "hexgrad <hello@hexgrad.com>",
+      "license": "Apache Software License",
+      "repository": null,
+      "summary": "G2P engine for TTS",
+      "version": "0.9.4"
+    },
+    "install": {
+      "pip": "misaki==0.9.4",
+      "requires_python": "<3.13,>=3.8"
+    }
+  },
+  "description": "G2P engine for TTS",
+  "key": "misaki",
+  "manifest_kind": "library",
+  "name": "misaki",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:misaki==0.9.4",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,39 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "Pillow",
+      "addict",
+      "mmengine",
+      "numpy",
+      "packaging",
+      "pyyaml",
+      "regex",
+      "yapf"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "MMCV Contributors",
+      "license": "Apache Software License",
+      "repository": "https://github.com/open-mmlab/mmcv",
+      "summary": "OpenMMLab Computer Vision Foundation",
+      "version": "2.2.0"
+    },
+    "install": {
+      "pip": "mmcv==2.2.0",
+      "requires_python": ">=3.7"
+    }
+  },
+  "description": "OpenMMLab Computer Vision Foundation",
+  "key": "mmcv",
+  "manifest_kind": "library",
+  "name": "mmcv",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:mmcv==2.2.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

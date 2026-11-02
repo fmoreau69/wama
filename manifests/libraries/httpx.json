@@ -1,0 +1,39 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "anyio",
+      "certifi",
+      "httpcore",
+      "idna"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "httpx"
+      ]
+    },
+    "identity": {
+      "author": "Tom Christie <tom@tomchristie.com>",
+      "license": "BSD-3-Clause",
+      "repository": "https://github.com/encode/httpx",
+      "summary": "The next generation HTTP client.",
+      "version": "0.28.1"
+    },
+    "install": {
+      "pip": "httpx==0.28.1",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "The next generation HTTP client.",
+  "key": "httpx",
+  "manifest_kind": "library",
+  "name": "httpx",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:httpx==0.28.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

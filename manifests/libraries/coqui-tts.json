@@ -1,0 +1,61 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "anyascii",
+      "coqpit-config",
+      "coqui-tts-trainer",
+      "einops",
+      "encodec",
+      "fsspec",
+      "gruut",
+      "inflect",
+      "ko-speech-tools",
+      "librosa",
+      "matplotlib",
+      "monotonic-alignment-search",
+      "num2words",
+      "numba",
+      "numpy",
+      "packaging",
+      "pysbd",
+      "pyyaml",
+      "scipy",
+      "soundfile",
+      "torch",
+      "torchaudio",
+      "tqdm",
+      "transformers",
+      "typing-extensions"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "tts",
+        "tts-server"
+      ]
+    },
+    "identity": {
+      "author": "Eren Gölge <egolge@coqui.ai>",
+      "license": "MPL-2.0",
+      "repository": "https://github.com/idiap/coqui-ai-TTS",
+      "summary": "Deep learning for Text to Speech.",
+      "version": "0.27.3"
+    },
+    "install": {
+      "pip": "coqui-tts==0.27.3",
+      "requires_python": "<3.14,>=3.10"
+    }
+  },
+  "description": "Deep learning for Text to Speech.",
+  "key": "coqui-tts",
+  "manifest_kind": "library",
+  "name": "coqui-tts",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:coqui-tts==0.27.3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

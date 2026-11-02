@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "\"Jeffrey A. Clark\" <aclark@aclark.net>",
+      "license": "MIT-CMU",
+      "repository": "https://github.com/python-pillow/Pillow",
+      "summary": "Python Imaging Library (Fork)",
+      "version": "11.3.0"
+    },
+    "install": {
+      "pip": "pillow==11.3.0",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Python Imaging Library (Fork)",
+  "key": "pillow",
+  "manifest_kind": "library",
+  "name": "pillow",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:pillow==11.3.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

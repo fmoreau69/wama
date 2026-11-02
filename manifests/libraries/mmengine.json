@@ -1,0 +1,40 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "addict",
+      "matplotlib",
+      "numpy",
+      "opencv-python",
+      "pyyaml",
+      "regex",
+      "rich",
+      "termcolor",
+      "yapf"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "MMEngine Authors",
+      "license": "Apache Software License",
+      "repository": "https://github.com/open-mmlab/mmengine",
+      "summary": "Engine of OpenMMLab projects",
+      "version": "0.10.7"
+    },
+    "install": {
+      "pip": "mmengine==0.10.7",
+      "requires_python": ">=3.7"
+    }
+  },
+  "description": "Engine of OpenMMLab projects",
+  "key": "mmengine",
+  "manifest_kind": "library",
+  "name": "mmengine",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:mmengine==0.10.7",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy",
+      "typing-extensions"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Rachel Bittner",
+      "license": "BSD-3-Clause",
+      "repository": "https://github.com/rabitt/pysox",
+      "summary": "Python wrapper around SoX.",
+      "version": "1.5.0"
+    },
+    "install": {
+      "pip": "sox==1.5.0",
+      "requires_python": null
+    }
+  },
+  "description": "Python wrapper around SoX.",
+  "key": "sox",
+  "manifest_kind": "library",
+  "name": "sox",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:sox==1.5.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

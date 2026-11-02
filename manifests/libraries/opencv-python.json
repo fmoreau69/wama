@@ -1,0 +1,32 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": null,
+      "license": "Apache 2.0",
+      "repository": "https://github.com/opencv/opencv-python",
+      "summary": "Wrapper package for OpenCV python bindings.",
+      "version": "4.10.0.84"
+    },
+    "install": {
+      "pip": "opencv-python==4.10.0.84",
+      "requires_python": ">=3.6"
+    }
+  },
+  "description": "Wrapper package for OpenCV python bindings.",
+  "key": "opencv-python",
+  "manifest_kind": "library",
+  "name": "opencv-python",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:opencv-python==4.10.0.84",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

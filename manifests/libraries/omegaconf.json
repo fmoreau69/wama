@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "PyYAML",
+      "antlr4-python3-runtime",
+      "dataclasses"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Omry Yadan",
+      "license": "BSD License",
+      "repository": "https://github.com/omry/omegaconf",
+      "summary": "A flexible configuration library",
+      "version": "2.3.0"
+    },
+    "install": {
+      "pip": "omegaconf==2.3.0",
+      "requires_python": ">=3.6"
+    }
+  },
+  "description": "A flexible configuration library",
+  "key": "omegaconf",
+  "manifest_kind": "library",
+  "name": "omegaconf",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:omegaconf==2.3.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

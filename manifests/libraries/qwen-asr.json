@@ -1,0 +1,48 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "accelerate",
+      "flask",
+      "gradio",
+      "librosa",
+      "nagisa",
+      "pytz",
+      "qwen-omni-utils",
+      "soundfile",
+      "sox",
+      "soynlp",
+      "transformers"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "qwen-asr-demo",
+        "qwen-asr-demo-streaming",
+        "qwen-asr-serve"
+      ]
+    },
+    "identity": {
+      "author": "Alibaba Qwen Team",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/Qwen/Qwen3-ASR",
+      "summary": "Qwen-ASR python package",
+      "version": "0.0.6"
+    },
+    "install": {
+      "pip": "qwen-asr==0.0.6",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Qwen-ASR python package",
+  "key": "qwen-asr",
+  "manifest_kind": "library",
+  "name": "qwen-asr",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:qwen-asr==0.0.6",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

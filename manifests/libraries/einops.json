@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "Alex Rogozhnikov",
+      "license": "MIT",
+      "repository": "https://github.com/arogozhnikov/einops",
+      "summary": "A new flavour of deep learning operations",
+      "version": "0.8.1"
+    },
+    "install": {
+      "pip": "einops==0.8.1",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "A new flavour of deep learning operations",
+  "key": "einops",
+  "manifest_kind": "library",
+  "name": "einops",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:einops==0.8.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

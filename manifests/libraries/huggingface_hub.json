@@ -1,0 +1,45 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "filelock",
+      "fsspec",
+      "hf-xet",
+      "packaging",
+      "pyyaml",
+      "requests",
+      "tqdm",
+      "typing-extensions"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "hf",
+        "huggingface-cli",
+        "tiny-agents"
+      ]
+    },
+    "identity": {
+      "author": "Hugging Face, Inc.",
+      "license": "Apache",
+      "repository": "https://github.com/huggingface/huggingface_hub",
+      "summary": "Client library to download and publish models, datasets and other repos on the huggingface.co hub",
+      "version": "0.36.2"
+    },
+    "install": {
+      "pip": "huggingface_hub==0.36.2",
+      "requires_python": ">=3.8.0"
+    }
+  },
+  "description": "Client library to download and publish models, datasets and other repos on the huggingface.co hub",
+  "key": "huggingface_hub",
+  "manifest_kind": "library",
+  "name": "huggingface_hub",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:huggingface_hub==0.36.2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

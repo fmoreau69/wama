@@ -1,0 +1,46 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "Pillow",
+      "addict",
+      "future",
+      "lmdb",
+      "numpy",
+      "opencv-python",
+      "pyyaml",
+      "requests",
+      "scikit-image",
+      "scipy",
+      "tb-nightly",
+      "torch",
+      "torchvision",
+      "tqdm",
+      "yapf"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Xintao Wang",
+      "license": "Apache License 2.0",
+      "repository": "https://github.com/xinntao/BasicSR",
+      "summary": "Open Source Image and Video Super-Resolution Toolbox",
+      "version": "1.4.2"
+    },
+    "install": {
+      "pip": "basicsr==1.4.2",
+      "requires_python": null
+    }
+  },
+  "description": "Open Source Image and Video Super-Resolution Toolbox",
+  "key": "basicsr",
+  "manifest_kind": "library",
+  "name": "basicsr",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:basicsr==1.4.2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

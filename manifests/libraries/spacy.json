@@ -1,0 +1,53 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "catalogue",
+      "cymem",
+      "jinja2",
+      "murmurhash",
+      "numpy",
+      "packaging",
+      "preshed",
+      "pydantic",
+      "requests",
+      "setuptools",
+      "spacy-legacy",
+      "spacy-loggers",
+      "srsly",
+      "thinc",
+      "tqdm",
+      "typer-slim",
+      "wasabi",
+      "weasel"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "spacy"
+      ]
+    },
+    "identity": {
+      "author": "Explosion",
+      "license": "MIT",
+      "repository": "https://github.com/explosion/spaCy",
+      "summary": "Industrial-strength Natural Language Processing (NLP) in Python",
+      "version": "3.8.11"
+    },
+    "install": {
+      "pip": "spacy==3.8.11",
+      "requires_python": "<3.15,>=3.9"
+    }
+  },
+  "description": "Industrial-strength Natural Language Processing (NLP) in Python",
+  "key": "spacy",
+  "manifest_kind": "library",
+  "name": "spacy",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:spacy==3.8.11",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

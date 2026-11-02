@@ -1,0 +1,37 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "greenlet",
+      "pyee"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "playwright"
+      ]
+    },
+    "identity": {
+      "author": "Microsoft Corporation",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/Microsoft/playwright-python",
+      "summary": "A high-level API to automate web browsers",
+      "version": "1.61.0"
+    },
+    "install": {
+      "pip": "playwright==1.61.0",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "A high-level API to automate web browsers",
+  "key": "playwright",
+  "manifest_kind": "library",
+  "name": "playwright",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:playwright==1.61.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

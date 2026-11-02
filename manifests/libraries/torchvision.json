@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy",
+      "pillow",
+      "torch"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "PyTorch Core Team",
+      "license": "BSD",
+      "repository": "https://github.com/pytorch/vision",
+      "summary": "image and video datasets and models for torch deep learning",
+      "version": "0.24.1+cu128"
+    },
+    "install": {
+      "pip": "torchvision==0.24.1+cu128",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "image and video datasets and models for torch deep learning",
+  "key": "torchvision",
+  "manifest_kind": "library",
+  "name": "torchvision",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:torchvision==0.24.1+cu128",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

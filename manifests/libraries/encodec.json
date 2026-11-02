@@ -1,0 +1,39 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "einops",
+      "numpy",
+      "torch",
+      "torchaudio"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "encodec"
+      ]
+    },
+    "identity": {
+      "author": "Alexandre Défossez, Jade Copet, Yossi Adi, Gabriel Synnaeve",
+      "license": "Creative Commons Attribution-NonCommercial 4.0 International",
+      "repository": "https://github.com/facebookresearch/encodec",
+      "summary": "High fidelity neural audio codec",
+      "version": "0.1.1"
+    },
+    "install": {
+      "pip": "encodec==0.1.1",
+      "requires_python": ">=3.8.0"
+    }
+  },
+  "description": "High fidelity neural audio codec",
+  "key": "encodec",
+  "manifest_kind": "library",
+  "name": "encodec",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:encodec==0.1.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
