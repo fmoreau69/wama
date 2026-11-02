@@ -6120,7 +6120,8 @@ utilisateurs guident l'API). `run_nightly_tests --list` catalogue **14 familles 
 Décision Fabien : *« on rend commun et on porte sur les apps de façon universelle ; c'est à
 ajouter dans les "…", pas comme bouton d'action principal »*. Mesuré avant de coder : le geste
 **existait déjà, écrit TROIS fois**, et **8 apps sur 10 ne l'avaient pas du tout**
-(`composer/views.py:669`, sa jumelle, `synthesizer/views.py:897`).
+(`composer/views.py:669`, sa jumelle, et l'ajout d'une voix du synthesizer — vue retirée le
+2026-09-30, `REMOVAL_LEDGER R89`).
 
 - ✅ **Brique commune** `media_library/services.py::export_item_to_library` + une route unique,
   générique par construction (résultat lu au schéma canonique) — 20 gardes.
@@ -6137,7 +6138,7 @@ ajouter dans les "…", pas comme bouton d'action principal »*. Mesuré avant d
   **Smoke navigateur** : les 4 entrées rendues, sous-menu `[Voix, Musique, Bruitage]`, **0 erreur
   console**, fixture nettoyée.
 - ✅ **Dépréciation FAITE le 2026-09-12** — et le relevé du 11/09 qui annonçait « 3 copies »
-  était **faux d'un tiers** : `synthesizer/views.py:897` n'est PAS le même geste, c'est
+  était **faux d'un tiers** : la vue du synthesizer (retirée le 2026-09-30, R89) n'est PAS le même geste, c'est
   l'**upload d'une voix personnalisée** (`request.FILES`, nom requis, extensions de voix), qui
   ne part d'aucun résultat d'app. *Compter une ressemblance de surface comme une duplication est
   la même faute que conclure d'un nom de route.* Les **2** vraies copies (composer + sa jumelle)

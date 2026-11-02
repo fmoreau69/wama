@@ -3423,8 +3423,8 @@ outillé avant d'ouvrir cette marche.
      `queueAction` était une copie de `batchAction` **amputée de `body` et de `followUp`**. Or le
      relevé des 10 `start_all` montre que la divergence y est RÉELLE, comme au niveau lot :
      6 rechargent, 3 insèrent + pollent (describer/transcriber/enhancer), et **le synthesizer
-     PORTE ses réglages dans le POST** (`wama/synthesizer/views.py:922` au 29/08 — depuis, vue de
-     fabrique `start_all = app_access('synthesizer')(_iv['start_all'])` `:350` — lit `tts_model`, `language`,
+     PORTE ses réglages dans le POST** (sa vue `start_all` au 29/08 — depuis, vue de
+     fabrique `start_all = app_access('synthesizer')(_iv['start_all'])`, `wama/synthesizer/views.py:334` au 2026-11-02 — lit `tts_model`, `language`,
      `voice_preset`, `speed`, `pitch`, `voice_reference` — « démarrer tout » y vaut « appliquer à
      tout »). Sans ces deux hooks, **4 apps sur 10 étaient inportables** et auraient gardé leur
      handler : *une brique dont le contrat est plus pauvre que le code qu'elle remplace ne résorbe

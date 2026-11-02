@@ -537,7 +537,7 @@ actions du volet désignent un élément que l'utilisateur ne voit plus sélecti
 >   constat.
 >
 > **Et un vrai défaut d'app, que ces deux-là masquaient** : sur le **transcriber**, un élément créé
-> par **fichier de lot** naît `audio=''` (`transcriber/views.py:1340` — le fichier n'est téléchargé qu'au
+> par **fichier de lot** naît `audio=''` (`batch_create`, `transcriber/views.py:1083` au 2026-11-02 — le fichier n'est téléchargé qu'au
 > lancement), or sa card ne portait `data-preview-url` que `{% if elem.audio %}`. Sans cette URL,
 > `fillDetail` abandonne **avant même d'émettre la requête** : ni volet Infos, ni ✕. Ces éléments
 > étaient **sélectionnables et non inspectables**, dans l'app de référence. L'URL est désormais
