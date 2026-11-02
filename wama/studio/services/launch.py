@@ -141,6 +141,18 @@ def launch_graph(user, graph, *, pipeline_id=None):
     nodes = graph.get('nodes', [])
     if not nodes:
         return None, 'Graphe vide'
+    # Les nœuds PIPELINE sont DÉPLOYÉS d'abord (ROUTE §10.6 3.1, 2026-11-02) : chaque
+    # vérification ci-dessous porte ensuite sur le graphe déployé — l'accès à chaque nœud interne
+    # est donc revérifié —, et c'est lui que le run fige (`StudioRun.graph`). Une référence morte
+    # ou non visible du compte se refuse ici, en nommant le nœud et la clé.
+    from wama.common.manifests.builtin.pipeline import expand_pipeline_nodes
+    from wama.studio.services.pipeline_nodes import resolver
+    try:
+        graph = expand_pipeline_nodes(graph, resolver(user),
+                                      (str(pipeline_id),) if pipeline_id else ())
+    except ValueError as exc:
+        return None, str(exc)
+    nodes = graph.get('nodes', [])
     try:
         topo_order(graph)
     except ValueError as exc:

@@ -94,6 +94,10 @@ def palette_nodes(user) -> dict:
             'app': spec.app,
             'category': spec.category,
         }
+    # ⏳ Nœuds PIPELINE (ROUTE §10.6 3.1, 2026-11-02) : `pipeline_nodes.pipeline_palette_nodes`
+    # existe, mais ne s'ajoute ici qu'à la marche 2, avec la section « Pipelines » du canvas et
+    # l'état agrégé du nœud — le canvas rangerait sinon ces entrées parmi les apps, et un nœud posé
+    # n'y montrerait aucun état (ils sont rangés sous `<nœud>/…`).
     return nodes
 
 
@@ -116,10 +120,14 @@ def is_function_node(node: dict) -> bool:
 
 def executable(node: dict) -> bool:
     """Le nœud sait-il s'exécuter, quel que soit le compte : app du runner, nœud intégré (card
-    d'entrée ou de sortie du registre commun), ou fonction du catalogue."""
-    from wama.common.manifests.builtin.pipeline import builtin_nodes
+    d'entrée ou de sortie du registre commun), fonction du catalogue, ou pipeline enregistré
+    qu'un nœud `pipeline` référence (déployé au lancement)."""
+    from wama.common.manifests.builtin.pipeline import builtin_nodes, node_kind, pipeline_key
+    from .pipeline_nodes import pipeline_exists
     from .runners import runner_for
     app = node.get('app') or ''
+    if node_kind(node) == 'pipeline':
+        return pipeline_exists(pipeline_key(node))
     return runner_for(app) is not None or app in builtin_nodes() or is_function_node(node)
 
 
@@ -130,7 +138,7 @@ def unavailable_reason(user, node: dict, offered=None):
     `offered` : la palette déjà construite (`palette_nodes(user)`), pour ne pas la refaire à
     chaque nœud d'un graphe."""
     from wama.common.app_registry import APP_CATALOG
-    from wama.common.manifests.builtin.pipeline import function_key, node_kind
+    from wama.common.manifests.builtin.pipeline import function_key, node_kind, pipeline_key
     if offered is None:
         offered = palette_nodes(user)
     app = node.get('app') or ''
@@ -138,7 +146,9 @@ def unavailable_reason(user, node: dict, offered=None):
         return None
     if executable(node):
         code = 'inaccessible'
-        what = f"fonction « {function_key(node)} »" if is_function_node(node) else f"« {app} »"
+        what = (f"fonction « {function_key(node)} »" if is_function_node(node)
+                else f"pipeline « {pipeline_key(node)} »" if node_kind(node) == 'pipeline'
+                else f"« {app} »")
         message = f"Nœud {what} : non accessible à ce compte."
     elif node_kind(node) == 'app' and app in APP_CATALOG:
         code = 'not_executable'

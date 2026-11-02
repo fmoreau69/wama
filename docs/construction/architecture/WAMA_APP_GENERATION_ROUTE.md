@@ -2528,7 +2528,8 @@ le passé.*
   **par string**. `run_pipeline_task` : `topo_order()` DAG, nœuds source (`text_input`/`media_import`) et sink
   (`studio_output`→`UserAsset` médiathèque).
   *(précisé le 2026-09-15) : depuis le 2026-09-09, nœuds `function` (`function:<clé>`) et source
-  `dataset_input` ; type de nœud `pipeline` décidé le 15/09, non implémenté. `node_states` (un JSON par
+  `dataset_input` ; type de nœud `pipeline` décidé le 15/09 (codé le 2026-11-02 pour les pipelines
+  enregistrés, déployé au lancement — §10.6 3.1). `node_states` (un JSON par
   run) sera remplacé par une ligne d'exécution PAR PROCESS — §10.6 point 4.1.*
 - ~~**Trou** : `renderNodeParams` appauvri (cf. F3).~~ ✅ 2026-10-12 : réglages des nœuds par `WamaParams`
   (§10.6 point 3.3bis, R1). ~~**Cible : E/S du nœud DÉRIVÉES des ports**, pas re-saisies.~~ ✅ résorbé
@@ -4853,6 +4854,43 @@ des passes, non fait.
 version), sans le recopier. C'est le sous-graphe de ComfyUI, en plus simple : pas de « groupe »
 visuel à part, un pipeline est un nœud comme un autre. Pas de nouveau KIND de manifeste (décision du
 30/08 maintenue) : un nouveau TYPE DE NŒUD dans le kind existant.
+✅ **Marche 1 codée le 2026-11-02** (accord Briques UI ↔ Monde Data, go de Fabien). Le cadrage
+d'abord : composer des pipelines À PARTIR DE PIPELINES D'APPS existait déjà — le nœud APP crée une
+card qui joue tout le pipeline déclaré de son app (`studio/tasks.py`) ; le manque était le pipeline
+qu'AUCUNE app ne porte. D'où :
+- **périmètre** : seuls les `StudioPipeline` enregistrés se posent (`app = 'pipeline:<pk>'`). Le
+  pipeline d'une app reste le nœud app (deux gestes pour une même chose, sinon) ; les étages du Lab
+  restent hors du Studio jusqu'à l'alignement de ses apps (décision n°8, 6.1) ;
+- **référence** : par `extract_pipeline` (aucun registre neuf), vue par la règle d'`api_pipelines`
+  (`listable_by`), revérifiée au lancement — `studio/services/pipeline_nodes.resolver` ;
+- **exécution : DÉPLOIEMENT au lancement, pas de sous-run** — `builtin/pipeline.expand_pipeline_nodes`,
+  pure, à côté de `topo_order` : chaque nœud `pipeline` est remplacé par son corps, ids préfixés
+  `<nœud>/<id interne>`, récursivement. UN exécuteur, UNE table d'états, des lignes `ProcessRun`
+  inchangées ; toutes les vérifications de `launch_graph` portent sur le graphe déployé, que le run
+  fige (`StudioRun.graph`) ;
+- **ports** = les cards internes : une source alimentée de l'extérieur est remplacée, une source
+  non alimentée RESTE avec ses réglages ; la sortie est le nœud UNIQUE qui alimente les sorties
+  internes (retirées s'il y a un lien en aval, gardées sinon). Entrée de palette
+  (`pipeline_palette_nodes`) : ports dérivés du sous-graphe déployé ; un pipeline dont un nœud
+  interne n'est pas offert au compte n'est pas offert — ⚠ PAS encore branchée dans
+  `palette.palette_nodes` : le canvas la rangerait parmi les apps et n'afficherait aucun état ;
+  elle le sera à la marche 2 ;
+- **refus nommés, rien deviné** : cycle (direct ou transitif, pipeline lancé compris), port
+  d'entrée non précisé face à plusieurs sources ou inconnu, sortie ambiguë ou absente, réglages
+  posés sur le nœud lui-même, référence morte ou non visible, identifiant déployé > 64 caractères
+  (`ProcessRun.node_id`). Gardes : `studio/tests/tests_pipeline_nodes.py`.
+⏳ Restent : **marche 2**, le canvas (section « Pipelines » de la palette et branchement de
+`pipeline_palette_nodes`, nœud replié à l'état agrégé de ses ids préfixés, sous-graphe ouvert en
+lecture seule, et le CYCLE refusé aussi à l'ENREGISTREMENT — il ne l'est qu'au lancement : même
+`expand_pipeline_nodes`, la clé du pipeline enregistré dans la pile) ; le **coût de la palette**
+(chaque pipeline enregistré visible y est déployé : deux requêtes chacun, négligeable à 2 lignes en
+base le 2026-11-02 — remesurer par `/audit-lenteurs` avant tout cache) ; la **version** de la référence
+(clé seule aujourd'hui — `StudioPipeline` n'a pas de version ; le run, lui, fige le corps déployé) ;
+la **surcharge des réglages** d'un nœud interne depuis le parent (refusée en marche 1) ; la
+**dépendance déclarée** — un manifeste `pipeline` exporté qui contient un nœud `pipeline` n'en dit
+rien (`graph_to_body` rend la clé, aucun `requires`) : un export ou un partage perdrait le
+sous-pipeline (composition par `requires`, `WAMA_MANIFEST_SPEC`) ; `AppPipeline.extended()` ouvert au
+nœud `pipeline` (Monde Data) ; plusieurs ports de SORTIE (un lien ne porte pas de port de départ).
 
 **3.2 Le degré de liberté de chaque process** (champ à ajouter au nœud) :
 

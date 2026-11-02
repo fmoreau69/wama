@@ -17,7 +17,9 @@ toutes deux dans `params` : un geste de l'inspecteur pouvait donc effacer la dé
 Un nœud dont `app` est un nœud INTÉGRÉ du registre `BUILTIN_NODES` (ci-dessous, R2 du
 2026-10-18 — il remplace les ensembles `SOURCE_NODES`/`SINK_NODES`) n'est pas une app mais une
 SOURCE/SINK (cf. studio_node_ports / GENERIC_APPS) → classé `kind` = source|sink|app|function
-(corrigé le 2026-09-15 : `function` existe depuis le 2026-09-09, cf. D13 ci-dessous).
+(corrigé le 2026-09-15 : `function` existe depuis le 2026-09-09, cf. D13 ci-dessous) — et
+`pipeline` depuis le 2026-11-02 (`app = 'pipeline:<clé>'`, lu par `pipeline_key`, déployé au
+lancement par `expand_pipeline_nodes`).
 
 D13 (`WAMA_DATA_WORLD §9undecies.2`, tranchée le 2026-08-24, CODÉE le 2026-09-09) : UN seul kind
 `pipeline`, étendu d'un nœud **`function`** — une fonction du catalogue (`FUNCTION_CATALOG`,
@@ -37,11 +39,19 @@ from typing import Callable, Optional
 
 from ..kinds import ManifestKind, register_kind
 
-# ⏳ Type de nœud `pipeline` (un pipeline enregistré réutilisé comme nœud, sous-graphe) décidé le
-# 2026-09-15, NON implémenté — WAMA_APP_GENERATION_ROUTE.md §10.6 3.1.
-NODE_KINDS = ('source', 'sink', 'app', 'function')
+# Type de nœud `pipeline` (décidé le 2026-09-15, codé le 2026-11-02 — WAMA_APP_GENERATION_ROUTE.md
+# §10.6 3.1) : un pipeline ENREGISTRÉ réutilisé comme nœud, RÉFÉRENCÉ par sa clé sans être recopié.
+# Il ne s'exécute pas : il est DÉPLOYÉ au lancement (`expand_pipeline_nodes`), et le moteur ne voit
+# que des nœuds des quatre autres types.
+NODE_KINDS = ('source', 'sink', 'app', 'function', 'pipeline')
 #: Préfixe d'identifiant de palette d'un nœud fonction (`app` du graphe canvas).
 FUNCTION_NODE_PREFIX = 'function:'
+#: Préfixe d'identifiant de palette d'un nœud pipeline (`app` du graphe canvas) : `pipeline:<clé>`.
+PIPELINE_NODE_PREFIX = 'pipeline:'
+#: Séparateur des identifiants d'un sous-graphe déployé : `<id du nœud pipeline>/<id interne>`.
+EXPANDED_ID_SEP = '/'
+#: Longueur maximale d'un identifiant de nœud déployé — celle de `ProcessRun.node_id`.
+NODE_ID_MAX = 64
 #: Les deux rôles d'un nœud INTÉGRÉ : une card d'ENTRÉE (produit une valeur depuis ses réglages)
 #: ou une card de SORTIE (range ce qu'elle reçoit). Ni l'une ni l'autre n'est un process.
 BUILTIN_ROLES = ('source', 'sink')
@@ -128,9 +138,10 @@ def register_builtin_node(node: BuiltinNode) -> BuiltinNode:
     if node.role not in BUILTIN_ROLES:
         raise ValueError(f"nœud intégré « {node.key} » : rôle '{node.role}' invalide "
                          f"({'|'.join(BUILTIN_ROLES)})")
-    if node.key.startswith(FUNCTION_NODE_PREFIX):
-        raise ValueError(f"nœud intégré « {node.key} » : le préfixe '{FUNCTION_NODE_PREFIX}' "
-                         f"désigne un nœud fonction")
+    for prefix, what in ((FUNCTION_NODE_PREFIX, 'fonction'), (PIPELINE_NODE_PREFIX, 'pipeline')):
+        if node.key.startswith(prefix):
+            raise ValueError(f"nœud intégré « {node.key} » : le préfixe '{prefix}' désigne un "
+                             f"nœud {what}")
     BUILTIN_NODES[node.key] = node
     return node
 
@@ -151,6 +162,8 @@ def builtin_node(key: str) -> Optional[BuiltinNode]:
 def _node_kind(app: str) -> str:
     if (app or '').startswith(FUNCTION_NODE_PREFIX):
         return 'function'
+    if (app or '').startswith(PIPELINE_NODE_PREFIX):
+        return 'pipeline'
     builtin = builtin_node(app)
     return builtin.role if builtin else 'app'
 
@@ -167,6 +180,15 @@ def function_key(node: dict) -> str:
         return str(node['function'])
     app = node.get('app') or ''
     return app[len(FUNCTION_NODE_PREFIX):] if app.startswith(FUNCTION_NODE_PREFIX) else ''
+
+
+def pipeline_key(node: dict) -> str:
+    """Clé du pipeline RÉFÉRENCÉ par un nœud `pipeline` ('' sinon) — forme manifeste
+    (`pipeline`) ou canvas (`app = 'pipeline:<clé>'`), comme `function_key`."""
+    if node.get('pipeline'):
+        return str(node['pipeline'])
+    app = node.get('app') or ''
+    return app[len(PIPELINE_NODE_PREFIX):] if app.startswith(PIPELINE_NODE_PREFIX) else ''
 
 
 def validate_pipeline_body(body: dict) -> list[str]:
@@ -199,6 +221,9 @@ def validate_pipeline_body(body: dict) -> list[str]:
             if kind == 'function' and not function_key(n):
                 errs.append(f"nodes[{nid or i}] : 'function' (clé du catalogue) manquante "
                             f"pour un nœud fonction")
+            if kind == 'pipeline' and not pipeline_key(n):
+                errs.append(f"nodes[{nid or i}] : 'pipeline' (clé du pipeline référencé) "
+                            f"manquante pour un nœud pipeline")
             if 'process' in n and not isinstance(n['process'], dict):
                 errs.append(f"nodes[{nid or i}] : 'process' (déclaration du process) doit être "
                             f"un dict")
@@ -232,10 +257,12 @@ def graph_to_body(graph: dict) -> dict:
         app = n.get('app', '')
         kind = node_kind(n)
         node = {'id': nid, 'kind': kind,
-                'app': None if kind == 'function' else (app or None),
+                'app': None if kind in ('function', 'pipeline') else (app or None),
                 'params': n.get('params', {}) or {}}
         if kind == 'function':
             node['function'] = function_key(n)
+        if kind == 'pipeline':
+            node['pipeline'] = pipeline_key(n)
         if n.get('process'):
             node['process'] = n['process']
         nodes.append(node)
@@ -282,6 +309,95 @@ def topo_order(graph):
         if not progressed:
             raise ValueError('Le graphe contient un cycle — exécution impossible.')
     return [nodes[nid] for nid in order]
+
+
+def expand_pipeline_nodes(graph: dict, resolve: Callable, stack: tuple = ()) -> dict:
+    """Le graphe CANVAS où chaque nœud `pipeline` est remplacé par le corps qu'il RÉFÉRENCE —
+    récursivement, ses identifiants préfixés `<id du nœud>/<id interne>`. Le moteur ne voit
+    ensuite que des nœuds des quatre autres types : UN exécuteur, UNE table d'états, des lignes
+    `ProcessRun` inchangées (accord Briques UI ↔ Monde Data du 2026-11-02, ROUTE §10.6 3.1).
+
+    `resolve(clé) -> (nom, graphe canvas)` est fourni par l'appelant — c'est lui qui dit ce qu'un
+    compte peut référencer — et lève `ValueError` pour une référence morte ou refusée. `stack` :
+    les clés déjà en cours de déploiement (celle du pipeline lancé, s'il est enregistré).
+
+    Les ports du nœud sont les cards d'entrée et de sortie du sous-graphe :
+      • ENTRÉE : chaque source interne est un port (son id). Un lien extérieur la REMPLACE —
+        ses liens internes partent de l'amont extérieur, la source disparaît ; une source qu'aucun
+        lien n'alimente RESTE et joue ses propres réglages (un sous-pipeline autonome les garde).
+        Un lien qui ne nomme pas son port n'est admis que face à UNE seule source ;
+      • SORTIE : le nœud qui alimente les sorties internes, s'il est UNIQUE. Avec un lien en aval,
+        il est recâblé vers l'aval et les sorties internes disparaissent ; sans lien en aval, elles
+        restent et rangent leur résultat comme dans le pipeline enregistré.
+    Refus NOMMÉS : cycle, port d'entrée ambigu ou inconnu, sortie ambiguë ou absente, réglages
+    posés sur le nœud lui-même (ils se font dans le pipeline référencé), identifiant déployé plus
+    long que `NODE_ID_MAX`."""
+    nodes = list((graph or {}).get('nodes') or [])
+    links = list((graph or {}).get('links') or [])
+    if not any(node_kind(n) == 'pipeline' for n in nodes):
+        return {**(graph or {}), 'nodes': nodes, 'links': links}
+    out_nodes, out_links = [], [l for l in links]
+    for node in nodes:
+        if node_kind(node) != 'pipeline':
+            out_nodes.append(node)
+            continue
+        nid, key = node['id'], pipeline_key(node)
+        if key in stack:
+            raise ValueError(f"Nœud « {nid} » : le pipeline {key} se référence lui-même "
+                             f"({' → '.join(stack + (key,))}).")
+        if node.get('params'):
+            raise ValueError(f"Nœud « {nid} » : un nœud pipeline n'a pas de réglages — ils se "
+                             f"font dans le pipeline référencé ({key}).")
+        try:
+            name, sub = resolve(key)
+        except ValueError as exc:
+            raise ValueError(f"Nœud « {nid} » : {exc}") from exc
+        sub = expand_pipeline_nodes(sub, resolve, stack + (key,))
+        prefixed = {n['id']: f"{nid}{EXPANDED_ID_SEP}{n['id']}" for n in sub['nodes']}
+        too_long = [p for p in prefixed.values() if len(p) > NODE_ID_MAX]
+        if too_long:
+            raise ValueError(f"Nœud « {nid} » : le pipeline « {name} » est imbriqué trop "
+                             f"profondément (identifiant « {too_long[0]} » > {NODE_ID_MAX} "
+                             f"caractères).")
+        inner = [dict(n, id=prefixed[n['id']]) for n in sub['nodes']]
+        inner_links = [dict(l, **{'from': prefixed.get(l['from'], l['from']),
+                                  'to': prefixed.get(l['to'], l['to'])}) for l in sub['links']]
+        sources = [n['id'] for n in inner if node_kind(n) == 'source']
+        sinks = {n['id'] for n in inner if node_kind(n) == 'sink'}
+        removed = set()
+
+        incoming = [l for l in out_links if l['to'] == nid]
+        for l in incoming:
+            port = l.get('to_port')
+            target = f"{nid}{EXPANDED_ID_SEP}{port}" if port else None
+            if target is None and len(sources) == 1:
+                target = sources[0]
+            if target not in sources:
+                ports = ', '.join(s.split(EXPANDED_ID_SEP, 1)[1] for s in sources) or 'aucun'
+                raise ValueError(f"Nœud « {nid} » : port d'entrée "
+                                 f"{'« ' + port + ' » inconnu' if port else 'non précisé'} pour "
+                                 f"le pipeline « {name} » (ports : {ports}).")
+            removed.add(target)
+            inner_links += [dict(il, **{'from': l['from']}) for il in inner_links
+                            if il['from'] == target]
+
+        outgoing = [l for l in out_links if l['from'] == nid]
+        if outgoing:
+            feeders = list(dict.fromkeys(il['from'] for il in inner_links
+                                         if il['to'] in sinks and il['from'] not in removed))
+            if len(feeders) != 1:
+                why = (f"ambiguë ({len(feeders)} nœuds alimentent ses sorties)" if feeders
+                       else "absente (aucune sortie interne alimentée)")
+                raise ValueError(f"Nœud « {nid} » : la sortie du pipeline « {name} » est {why} "
+                                 f"— un lien en aval ne sait pas d'où partir.")
+            removed |= sinks
+            inner_links += [dict(l, **{'from': feeders[0]}) for l in outgoing]
+
+        out_links = [l for l in out_links if l['to'] != nid and l['from'] != nid]
+        out_nodes += [n for n in inner if n['id'] not in removed]
+        out_links += [l for l in inner_links
+                      if l['from'] not in removed and l['to'] not in removed]
+    return {**(graph or {}), 'nodes': out_nodes, 'links': out_links}
 
 
 #: Pas de la disposition automatique (px) : une colonne par profondeur, une rangée par nœud.
@@ -354,7 +470,9 @@ def body_to_graph(body: dict) -> dict:
     for n in raw_nodes:
         nid = n.get('id')
         kind = node_kind(n)
-        app = f'{FUNCTION_NODE_PREFIX}{function_key(n)}' if kind == 'function' else n.get('app')
+        app = (f'{FUNCTION_NODE_PREFIX}{function_key(n)}' if kind == 'function'
+               else f'{PIPELINE_NODE_PREFIX}{pipeline_key(n)}' if kind == 'pipeline'
+               else n.get('app'))
         pos = layout.get(str(nid)) or {}
         if pos.get('x') is None or pos.get('y') is None:
             d = depth.get(nid, 0)
