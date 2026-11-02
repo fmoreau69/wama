@@ -7,8 +7,11 @@
  * l'emplacement donne (`options.source`, défaut `series`). L'emplacement choisit ses colonnes
  * (`options.columns`, défaut : toutes) — une surface pose plusieurs graphes sur la même donnée.
  *
- * Abonnée à l'AXE partagé (`ctx.axis()`) : un trait marque l'instant joué ; un clic dans le graphe
- * y amène la lecture. Elle ne pilote jamais une autre vue (`WAMA_DATA_WORLD §5bis`).
+ * Abonnée à l'AXE partagé (`ctx.axis()`), la seule horloge : un trait marque l'instant joué, et la
+ * légende dit les valeurs de l'échantillon le PLUS PROCHE de cet instant (BIND n'interpole jamais —
+ * la recherche est celle de uPlot, `valToIdx`) tant que le pointeur n'est pas sur le graphe ; un
+ * clic y amène la lecture. Elle DÉCLARE sa cadence à l'axe (`cadenceOf`) : le pas image est celui
+ * de la donnée la plus fine. Elle ne pilote jamais une autre vue (`WAMA_DATA_WORLD §5bis`).
  *
  * Le dessin est uPlot (vendorisé, MIT — le candidat retenu par `WAMA_DATA_WORLD`, « Position sur
  * les BIBLIOTHÈQUES » : une bibliothèque qui DESSINE, jamais une qui décide de la mise en page). Ses
@@ -42,6 +45,19 @@
         return declared.unit ? label + ' (' + declared.unit + ')' : label;
     }
 
+    /** La cadence (Hz) d'une colonne de temps : l'inverse de l'écart MÉDIAN entre deux instants
+     *  (un trou ne la fausse pas) ; 0 si elle ne se lit pas. Pure (V8). */
+    function cadenceOf(times) {
+        var gaps = [];
+        for (var i = 1; i < (times || []).length; i++) {
+            var g = times[i] - times[i - 1];
+            if (g > 0 && isFinite(g)) gaps.push(g);
+        }
+        if (!gaps.length) return 0;
+        gaps.sort(function (a, b) { return a - b; });
+        return 1 / gaps[Math.floor(gaps.length / 2)];
+    }
+
     function mount(body, ctx, options) {
         options = options || {};
         var source = options.source || 'series';
@@ -55,7 +71,7 @@
         body.appendChild(host);
         body.appendChild(empty);
 
-        var plot = null, now = null, frame = 0, fitting = 0;
+        var plot = null, now = null, frame = 0, fitting = 0, dropCadence = null;
 
         /** La place du graphe : le corps de la brique, moins la légende que uPlot pose dessous. */
         function size() {
@@ -89,9 +105,11 @@
 
         function build() {
             if (plot) { plot.destroy(); plot = null; }
+            if (dropCadence) { dropCadence(); dropCadence = null; }
             var payload = (ctx.context() || {})[source];
             var names = chartColumns(payload, options.columns);
             var time = payload && payload.columns && payload.columns.time;
+            if (axis && axis.cadence && time) dropCadence = axis.cadence(cadenceOf(time));
             empty.hidden = !!(Plot && time && time.length && names.length);
             host.hidden = !empty.hidden;
             if (!empty.hidden) {
@@ -137,7 +155,13 @@
                 now = s.time;
                 if (!plot || frame) return;
                 // Un rendu par image au plus : la lecture notifie plus vite que l'écran.
-                frame = global.requestAnimationFrame(function () { frame = 0; if (plot) plot.redraw(false); });
+                frame = global.requestAnimationFrame(function () {
+                    frame = 0;
+                    if (!plot) return;
+                    plot.redraw(false);
+                    // Le pointeur hors du graphe : la légende dit l'échantillon le plus proche de t.
+                    if (now != null && !(plot.cursor.left >= 0)) plot.setLegend({ idx: plot.valToIdx(now) });
+                });
             });
         }
         ctx.on('change', function () { if (!plot) build(); });
@@ -148,5 +172,5 @@
 
     global.WamaSurface.registerBrick('timeseries_chart', { title: 'Courbes', mount: mount });
     // Les lectures pures, gardées en V8 (`tests_surfaces.TimeseriesChartTest`).
-    global.WamaTimeseriesChart = { chartColumns: chartColumns, seriesLabel: seriesLabel };
+    global.WamaTimeseriesChart = { chartColumns: chartColumns, seriesLabel: seriesLabel, cadenceOf: cadenceOf };
 })(window);

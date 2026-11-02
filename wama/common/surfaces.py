@@ -882,7 +882,7 @@ register_brick(UIBrick(
 register_brick(UIBrick(
     key='media_transport', name='Transport média',
     description="Le magnéto de la surface : un média attaché à l'AXE partagé (`wama-axis.js`), "
-                "dont il devient l'horloge, joué par le lecteur commun (son onde, pics serveur pour "
+                "qu'il SUIT — l'axe est la seule horloge —, joué par le lecteur commun (son onde, pics serveur pour "
                 "un long fichier — qu'une surface à ligne de temps tait), et les COMMANDES du temps "
                 "(le transport commun `wama-transport.js`, aussi celui de l'aperçu et du monde "
                 "Data) : lecture / pause, début, sauts, vitesse (liste ou par pas), aller à, shuttle "
@@ -1014,9 +1014,11 @@ register_brick(UIBrick(
 register_brick(UIBrick(
     key='timeseries_chart', name='Courbes dans le temps',
     description="Des courbes d'une série temporelle (`timeseries`), abonnées à l'axe partagé : un "
-                "trait marque l'instant joué, un clic dans le graphe y amène la lecture, la légende "
-                "dit les valeurs sous le curseur. L'emplacement choisit ses colonnes ; libellés et "
-                "unités sont ceux que la donnée déclare. Dessinées par uPlot (vendorisé).",
+                "trait marque l'instant joué et la légende dit l'échantillon le PLUS PROCHE de cet "
+                "instant (jamais interpolé ; sous le pointeur, celui du pointeur) ; un clic dans le "
+                "graphe y amène la lecture ; la cadence de la donnée entre au pas de l'axe. "
+                "L'emplacement choisit ses colonnes ; libellés et unités sont ceux que la donnée "
+                "déclare. Dessinées par uPlot (vendorisé).",
     script='common/js/surfaces/brick-timeseries-chart.js',
     requires=('vendors/uplot-1.6.32/uPlot.iife.min.js', 'vendors/uplot-1.6.32/uPlot.min.css',
               'common/js/wama-axis.js'),
@@ -1024,9 +1026,10 @@ register_brick(UIBrick(
 
 register_brick(UIBrick(
     key='video_view', name='Vidéo',
-    description="Une vidéo lue, HORLOGE de l'axe partagé : les autres vues (courbes, segments) la "
-                "suivent sans la connaître. Ses commandes sont celles du transport commun, posé "
-                "sans son propre média ; un clic sur l'image lance ou arrête la lecture.",
+    description="Une vidéo lue, qui SUIT l'axe partagé comme tout média : l'axe est la seule "
+                "horloge et la recale ; les autres vues (courbes, segments) suivent l'axe, jamais "
+                "elle. Ses commandes sont celles du transport commun, posé sans média ; un clic sur "
+                "l'image lance ou arrête la lecture ; sa cadence (`fps`) entre au pas de l'axe.",
     script='common/js/surfaces/brick-video-view.js',
     requires=('common/js/wama-axis.js',),
     consumes=('video',)))

@@ -905,7 +905,8 @@ class ScoreRulesTest(SimpleTestCase):
 
 class AxisTest(SimpleTestCase):
     """`wama-axis.js` — the shared time axis, run under V8 with an injected clock : commands move
-    the axis, observers follow, an attached medium is the CLOCK forward and is silenced backward."""
+    the axis, observers follow. The axis is the ONLY clock (Fabien, 2026-11-02 — BIND's model) : a
+    medium FOLLOWS it, corrected softly then repositioned, and is silenced backward."""
 
     SETUP = '''
         var window = {}; var T = 0, pending = null;
@@ -913,13 +914,19 @@ class AxisTest(SimpleTestCase):
                     cancelFrame: function () { pending = null; }};
         function step(ms) { T += ms; var fn = pending; pending = null; if (fn) fn(T); }
         function fakeMedia(duration) {
-            var listeners = {};
-            var m = {currentTime: 0, duration: duration, paused: true, playbackRate: 1,
+            var listeners = {}, attrs = {};
+            var m = {currentTime: 0, duration: duration, paused: true, playbackRate: 1, readyState: 4,
+                     seeking: false, ended: false,
                      addEventListener: function (k, fn) { (listeners[k] = listeners[k] || []).push(fn); },
-                     removeEventListener: function () {},
+                     removeEventListener: function (k, fn) {
+                         listeners[k] = (listeners[k] || []).filter(function (g) { return g !== fn; }); },
                      fire: function (k) { (listeners[k] || []).forEach(function (fn) { fn(); }); },
                      play: function () { m.paused = false; m.fire('play'); return null; },
-                     pause: function () { m.paused = true; m.fire('pause'); }};
+                     pause: function () { m.paused = true; m.fire('pause'); },
+                     setAttribute: function (k, v) { attrs[k] = String(v); },
+                     getAttribute: function (k) { return k in attrs ? attrs[k] : null; },
+                     hasAttribute: function (k) { return k in attrs; },
+                     removeAttribute: function (k) { delete attrs[k]; }};
             return m;
         }
     '''
@@ -953,33 +960,198 @@ class AxisTest(SimpleTestCase):
         self.assertEqual(1, out['rate'], 'the shuttle stop resets the speed')
         self.assertEqual('subscribe', out['first'], 'an observer gets the present state at once')
 
-    def test_an_attached_medium_is_the_clock_forward_and_silent_backward(self):
+    def test_the_axis_is_the_only_clock_and_a_medium_follows_it(self):
+        """Until 2026-11-02 a medium playing forward WAS the clock (`s.time = media.currentTime`).
+        Now the axis walks on its own and the medium is set back on it."""
         out = self._eval('''
             var axis = window.WamaAxis.create(opts), media = fakeMedia(8);
             axis.attach(media);
             var duration = axis.duration();
             axis.play(); var audible = !media.paused;
-            media.currentTime = 3; step(16); var followed = axis.time();
+            media.currentTime = 3; step(16);
+            var kept = axis.time(), placed = media.currentTime;
+            step(1000); var walked = axis.time();
             axis.setRate(-1); var silenced = media.paused; var stillPlaying = axis.playing();
-            step(1000);
+            step(500);
             var back = [axis.time(), media.currentTime];
             axis.setRate(1); var resumed = !media.paused;
-            media.pause(); var userPaused = !axis.playing();
-            media.currentTime = 6; media.fire('seeked');
-            return {duration: duration, audible: audible, followed: followed, silenced: silenced,
-                    stillPlaying: stillPlaying, back: back, resumed: resumed, userPaused: userPaused,
-                    sought: axis.time()};
+            return {duration: duration, audible: audible, kept: kept, placed: placed, walked: walked,
+                    silenced: silenced, stillPlaying: stillPlaying, back: back, resumed: resumed};
         ''')
-        self.assertEqual(8, out['duration'], 'the medium gives its duration')
-        self.assertTrue(out['audible'])
-        self.assertEqual(3, out['followed'], "forward, the medium's time is the axis time")
-        self.assertTrue(out['silenced'])
-        self.assertTrue(out['stillPlaying'], 'pausing the medium for backward play does not stop the axis')
-        self.assertAlmostEqual(2.0, out['back'][0], places=2)
-        self.assertAlmostEqual(2.0, out['back'][1], places=2, msg='the medium is set back in step')
+        self.assertEqual(8, out['duration'], 'the axis spans what is put on it')
+        self.assertTrue(out['audible'], 'the medium plays itself : the listening stays audible')
+        self.assertAlmostEqual(0.016, out['kept'], msg='a medium that jumps on its own does not move the axis')
+        self.assertAlmostEqual(0.016, out['placed'], msg='it is set back on the axis time')
+        self.assertAlmostEqual(1.016, out['walked'], msg='the axis walks in real seconds, whatever the medium')
+        self.assertTrue(out['silenced'], 'backward, the medium is silent')
+        self.assertTrue(out['stillPlaying'], 'silencing the medium for backward play does not stop the axis')
+        self.assertAlmostEqual(0.516, out['back'][0], places=3)
+        self.assertAlmostEqual(0.516, out['back'][1], places=3, msg='the silent medium is set back in step')
         self.assertTrue(out['resumed'], 'forward again : the medium plays again')
-        self.assertTrue(out['userPaused'], 'a pause made on the medium itself stops the axis')
-        self.assertEqual(6, out['sought'], 'a seek made on the medium itself moves the axis')
+
+    def test_a_follower_is_nudged_for_a_small_drift_and_repositioned_for_a_large_one(self):
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts)), m = fakeMedia(60);
+            axis.attach(m); axis.play(); step(16);
+            function drifted(by) { m.currentTime = axis.time() + 0.016 + by; step(16);
+                                   return [m.playbackRate, m.currentTime - axis.time()]; }
+            return {inside: drifted(0.01), ahead: drifted(0.04), behind: drifted(-0.08),
+                    far: drifted(0.5), defaults: window.WamaAxis.SYNC};
+        ''')
+        self.assertEqual(1, out['inside'][0], 'within the tolerance, the speed is the axis speed')
+        self.assertAlmostEqual(0.96, out['ahead'][0], places=3, msg='ahead : a little slower')
+        self.assertAlmostEqual(0.04, out['ahead'][1], places=3, msg='a small drift is never a jump')
+        self.assertAlmostEqual(1.05, out['behind'][0], places=3, msg='behind : faster, at most 5 %')
+        self.assertEqual([1, 0], [out['far'][0], round(out['far'][1], 6)],
+                         'beyond the threshold : repositioned on the axis, at the axis speed')
+        self.assertEqual({'tolerance': 0.02, 'reseek': 0.15, 'maxNudge': 0.05, 'window': 1}, out['defaults'])
+
+    def test_the_correction_thresholds_are_settings_of_the_axis_and_of_each_medium(self):
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60, sync: {reseek: 0.03}}, opts));
+            var a = fakeMedia(60), b = fakeMedia(60);
+            axis.attach(a); axis.attach(b, {sync: {tolerance: 0.05, reseek: 0.15}});
+            axis.play(); step(16);
+            a.currentTime = b.currentTime = axis.time() + 0.016 + 0.04; step(16);
+            return {a: [a.playbackRate, a.currentTime - axis.time()],
+                    b: [b.playbackRate, b.currentTime - axis.time()], reseek: axis.sync().reseek};
+        ''')
+        self.assertEqual([1, 0], [out['a'][0], round(out['a'][1], 6)], 'the axis threshold : repositioned')
+        self.assertEqual([1, 0.04], [out['b'][0], round(out['b'][1], 6)],
+                         "the medium's own tolerance : left alone, neither nudged nor moved")
+        self.assertEqual(0.03, out['reseek'])
+
+    def test_several_media_follow_one_axis_each_with_its_offset(self):
+        out = self._eval('''
+            var axis = window.WamaAxis.create(opts), a = fakeMedia(10), b = fakeMedia(5), c = fakeMedia(10);
+            c.setAttribute('data-wama-multiplay', '');
+            axis.attach(a); var dropB = axis.attach(b, {offset: 2});
+            var duration = axis.duration();
+            var together = [a.getAttribute('data-wama-multiplay'), b.getAttribute('data-wama-multiplay')];
+            axis.seek(1); var placed = [a.currentTime, b.currentTime];
+            axis.play(); var bothPlay = [!a.paused, !b.paused];
+            axis.pause(); axis.seek(4); axis.play(); var past = [!a.paused, b.paused];
+            axis.pause();
+            var count = axis.medias().length;
+            dropB(); var alone = [a.getAttribute('data-wama-multiplay'), b.getAttribute('data-wama-multiplay'),
+                                  axis.medias().length];
+            axis.attach(c); axis.detach(c);
+            return {duration: duration, together: together, placed: placed, bothPlay: bothPlay,
+                    past: past, count: count, alone: alone, own: c.getAttribute('data-wama-multiplay')};
+        ''')
+        self.assertEqual(10, out['duration'], 'the longest span, offsets applied')
+        self.assertEqual(['axis', 'axis'], out['together'],
+                         'two followers play together : the page exclusivity is told so')
+        self.assertEqual([1, 3], out['placed'], 'each medium at the axis time plus its offset')
+        self.assertEqual([True, True], out['bothPlay'])
+        self.assertEqual([True, True], out['past'], 'a medium the axis has gone past stays silent')
+        self.assertEqual(2, out['count'])
+        self.assertEqual([None, None, 1], out['alone'], 'alone again : exclusive again, mark removed')
+        self.assertEqual('', out['own'], 'a mark the page set itself is never removed by the axis')
+
+    def test_a_gesture_on_a_medium_is_a_command_and_its_end_does_not_stop_the_axis(self):
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 30}, opts));
+            var a = fakeMedia(10), v = fakeMedia(30);
+            axis.attach(a); axis.attach(v);
+            a.play(); var started = [axis.playing(), !v.paused];
+            step(16);
+            a.ended = true; a.pause(); var goesOn = axis.playing();
+            v.pause(); var stopped = [axis.playing(), a.paused];
+            v.currentTime = 6; v.fire('seeked'); var sought = [axis.time(), a.currentTime];
+            axis.play(); axis.pause(); var ownPause = axis.playing();
+            return {started: started, goesOn: goesOn, stopped: stopped, sought: sought, ownPause: ownPause};
+        ''')
+        self.assertEqual([True, True], out['started'], "the medium's own button plays the AXIS, hence all")
+        self.assertTrue(out['goesOn'], 'a medium reaching its own end does not end the axis')
+        self.assertEqual([False, True], out['stopped'], 'a pause made on a medium pauses the axis')
+        self.assertEqual([6, 6], out['sought'], 'a seek made on a medium moves the axis, and the others')
+        self.assertFalse(out['ownPause'], 'the pauses the axis makes are not taken for gestures')
+
+    def test_events_the_axis_caused_arrive_late_and_are_not_taken_for_gestures(self):
+        """A browser fires `pause` / `play` AFTER the call : backward then forward again, the late
+        `pause` of the silencing must not pause the axis, nor the late `play` replay it."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 30}, opts)), m = fakeMedia(30), queue = [];
+            m.play = function () { m.paused = false; queue.push('play'); return null; };
+            m.pause = function () { m.paused = true; queue.push('pause'); };
+            function flush() { var q = queue; queue = []; q.forEach(function (k) { m.fire(k); }); }
+            axis.attach(m); axis.play(); flush(); step(16);
+            axis.setRate(-1); axis.setRate(1); flush();
+            var stillPlaying = axis.playing();
+            axis.pause(); flush();
+            axis.play(); axis.pause(); flush(); var paused = axis.playing();
+            return {stillPlaying: stillPlaying, paused: paused};
+        ''')
+        self.assertTrue(out['stillPlaying'], 'the late pause of the silencing is the axis own')
+        self.assertFalse(out['paused'], 'the late play of a resume does not start the axis again')
+
+    def test_a_play_from_zero_survives_a_first_frame_with_no_elapsed_time(self):
+        """A frame timestamp can come BEFORE the instant the play started (rAF gives the frame's
+        start) : the backward edge rule stopped a forward play from 0 — measured in the browser."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 30}, opts));
+            axis.play(); var fn = pending; pending = null; fn(T - 5);
+            var afterFirst = axis.playing(); step(500);
+            return [afterFirst, axis.playing(), axis.time() > 0];
+        ''')
+        self.assertEqual([True, True, True], out)
+
+    def test_a_medium_that_refuses_to_play_does_not_hold_the_axis(self):
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 30}, opts)), m = fakeMedia(30);
+            axis.attach(m, {play: function () { return null; }});
+            axis.play(); step(1000);
+            return [axis.time(), axis.playing(), m.paused];
+        ''')
+        self.assertAlmostEqual(1.0, out[0])
+        self.assertEqual([True, True], out[1:], 'the axis depends on nothing')
+
+    def test_the_step_is_one_period_of_the_finest_declared_cadence(self):
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts));
+            var sizes = [axis.stepSize()];
+            var drop25 = axis.cadence(25); sizes.push(axis.stepSize());
+            var drop2k = axis.cadence(2000); sizes.push(axis.stepSize());
+            drop2k(); sizes.push(axis.stepSize());
+            axis.attach(fakeMedia(60), {fps: 50}); sizes.push(axis.stepSize());
+            axis.cadence(0); axis.cadence(Infinity); sizes.push(axis.stepSize());
+            axis.seek(1); axis.play(); axis.step(2); var stepped = [axis.time(), axis.playing()];
+            axis.step(-1);
+            return {sizes: sizes, stepped: stepped, back: axis.time()};
+        ''')
+        self.assertEqual([round(1 / 30, 9), 0.04, 0.0005, 0.04, 0.02, 0.02], [round(x, 9) for x in out['sizes']])
+        self.assertEqual([1.04, False], [round(out['stepped'][0], 9), out['stepped'][1]],
+                         'a step pauses the axis : the STEP of TimerTrip')
+        self.assertAlmostEqual(1.02, out['back'])
+
+    def test_under_load_notices_thin_out_but_the_time_stays_right(self):
+        """BIND's rule (`TimerTrip.m:369-376`) : refresh degrades, never the coherence of time."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 600}, opts));
+            var heavy = true, notices = 0, lastAt = 0;
+            axis.subscribe(function (s) { if (s.reason !== 'tick') return; notices++; if (heavy) T += 15; });
+            axis.play();
+            function frames(n) { for (var i = 0; i < n; i++) { T += 16; lastAt = T; var fn = pending;
+                                 pending = null; if (fn) fn(T); } }
+            frames(60); var heavyNotices = notices;
+            var exact = Math.abs(axis.time() - lastAt / 1000) < 1e-9;
+            heavy = false; notices = 0; frames(30); var recovering = notices;
+            notices = 0; frames(30);
+            return {heavy: heavyNotices, exact: exact, recovering: recovering, light: notices,
+                    exactAfter: Math.abs(axis.time() - lastAt / 1000) < 1e-9};
+        ''')
+        self.assertLess(out['heavy'], 30, 'a costly observer is told less often')
+        self.assertTrue(out['exact'], 'and the axis time is still the real elapsed time')
+        self.assertGreater(out['recovering'], out['heavy'] / 2, 'it comes back, one notch a frame')
+        self.assertEqual(30, out['light'], 'a light observer again : every frame again')
+        self.assertTrue(out['exactAfter'])
+
+    def test_no_line_of_the_axis_takes_its_time_from_a_medium(self):
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'wama-axis.js').read_text(
+            encoding='utf-8')
+        self.assertNotRegex(source, r's\.time\s*=[^;\n]*currentTime',
+                            'the medium master is gone : the axis is the only clock')
 
     def test_times_are_written_and_read_back(self):
         self.assertEqual('1:23.4', self._eval('return window.WamaAxis.formatTime(83.45, true);'))
@@ -1028,7 +1200,9 @@ class AxisTest(SimpleTestCase):
                     playing: !media.paused};
         ''')
         self.assertEqual(1.25, out['pausedRate'], 'the chosen speed reaches the medium while paused')
-        self.assertEqual([6], out['sought'], "the owner's seek positions the medium (offset applied)")
+        self.assertEqual(1, out['sought'][0], 'attached, the medium is set at the axis time (offset applied)')
+        self.assertEqual(6, out['sought'][1], "the owner's seek positions the medium (offset applied)")
+        self.assertEqual({1, 6}, set(out['sought']), 'never anywhere else')
         self.assertEqual(0, out['direct'], 'the axis does not set the medium time itself')
         self.assertEqual(1, out['played'], "the owner's play hook plays the medium (exclusive playback)")
         self.assertTrue(out['playing'])
@@ -1818,8 +1992,9 @@ class SegmentRulesTest(SimpleTestCase):
 class DataPluginBricksTest(SimpleTestCase):
     """The first GRAPHIC PLUGINS of the Data world (2026-10-29, `WAMA_DATA_WORLD §8.4`) : universal
     bricks that read a TYPED datum (`TypedFrame.to_payload`) and follow the shared axis — curves
-    (`timeseries_chart`, drawn by the vendored uPlot) and a video that is the axis' clock
-    (`video_view`), its commands being the common transport mounted WITHOUT its own media."""
+    (`timeseries_chart`, drawn by the vendored uPlot) and a video that FOLLOWS the axis like any
+    medium (`video_view` — until 2026-11-02 it became the clock), its commands being the common
+    transport mounted WITHOUT media."""
 
     SERVED = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'surfaces'
 
@@ -1851,8 +2026,53 @@ class DataPluginBricksTest(SimpleTestCase):
         self.assertEqual(['Fréquence (BPM)', 'SpO2', 'raw'],
                          run("[C.seriesLabel(p, 'hr'), C.seriesLabel(p, 'spo2'), C.seriesLabel(p, 'raw')]"))
 
+    def test_the_chart_reads_the_cadence_of_its_datum(self):
+        """`cadenceOf` : the inverse of the MEDIAN gap — a hole in the data does not change it."""
+        from py_mini_racer import MiniRacer
+        engine = MiniRacer()
+        engine.eval('var window = {WamaSurface: {registerBrick: function () {}}};'
+                    + (self.SERVED / 'brick-timeseries-chart.js').read_text(encoding='utf-8'))
+        run = lambda expr: json.loads(engine.eval('JSON.stringify(window.WamaTimeseriesChart.%s)' % expr))
+        self.assertAlmostEqual(2000, run('cadenceOf([0, 0.0005, 0.001, 0.0015, 0.5, 0.5005])'), places=6)
+        self.assertEqual(0, run('cadenceOf([1])'))
+        self.assertEqual(0, run('cadenceOf(null)'))
+
+    def test_the_chart_tells_the_nearest_sample_and_declares_its_cadence_to_the_axis(self):
+        source = (self.SERVED / 'brick-timeseries-chart.js').read_text(encoding='utf-8')
+        self.assertIn('plot.setLegend({ idx: plot.valToIdx(now) })', source,
+                      "the nearest sample to the axis time, by uPlot's own search — never interpolated")
+        self.assertIn('axis.cadence(cadenceOf(time))', source)
+
+    def test_the_video_view_attaches_its_video_as_a_follower_and_drops_only_it(self):
+        from py_mini_racer import MiniRacer
+        engine = MiniRacer()
+        engine.eval('''
+            var calls = [];
+            function element() { return {hidden: false, className: '', src: '', textContent: '',
+                                         addEventListener: function () {}}; }
+            var document = {createElement: function () { return element(); }};
+            var body = {classList: {add: function () {}}, appendChild: function () {}};
+            var axis = {pause: function () { calls.push('pause'); },
+                        detach: function () { calls.push('detach-all'); },
+                        setDuration: function () { calls.push('setDuration'); },
+                        attach: function (el, o) { calls.push(['attach', o.offset, o.fps]);
+                                                   return function () { calls.push('drop'); }; }};
+            var url = '/v1.mp4', handlers = {};
+            var ctx = {axis: function () { return axis; },
+                       on: function (k, fn) { handlers[k] = fn; },
+                       source: function () { return {url: url}; }};
+            var window = {WamaSurface: {registerBrick: function (k, d) { window.def = d; }}};
+        ''' + (self.SERVED / 'brick-video-view.js').read_text(encoding='utf-8'))
+        out = json.loads(engine.eval('''
+            window.def.mount(body, ctx, {offset: 2, fps: 25});
+            url = '/v2.mp4'; handlers.source({role: 'video'});
+            JSON.stringify(calls)
+        '''))
+        self.assertEqual(['pause', ['attach', 2, 25], 'drop', 'pause', ['attach', 2, 25]], out,
+                         'its own follower dropped, never every medium ; no duration set by hand')
+
     def test_a_transport_without_media_mounts_only_the_commands(self):
-        """`options.media: false` : another brick holds the axis' clock — no player is injected."""
+        """`options.media: false` : the axis holds the clock on its own — no player is injected."""
         from py_mini_racer import MiniRacer
         engine = MiniRacer()
         engine.eval(

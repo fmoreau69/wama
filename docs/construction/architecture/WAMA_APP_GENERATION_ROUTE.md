@@ -1230,6 +1230,50 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       SOURCE attachée à l'axe, le transport se monte dessous, les surcouches sont des VUES, Comparer
       demande N médias sur un axe ; cam_analyzer et face_analyzer ; le pas image et la vitesse
       continue de BIND iront au transport et à l'axe, pas ailleurs.
+  - ✅ **2026-11-02 — L'AXE EST LA SEULE HORLOGE ; médias et vues le SUIVENT** (décision de Fabien :
+    *« c'est le transport qui doit être la source de l'axe temporel indépendamment des plugins qui
+    s'y synchronisent […] il donne le tempo […] le timestamp le plus proche d'une source est pris
+    pour afficher la donnée »* ; puis *« on part sur le modèle universel »*). Depuis le 15/10, un
+    média qui jouait en avant DEVENAIT l'horloge (`s.time = media.currentTime`, « média maître ») :
+    une session sans média, plusieurs médias sur un axe, une durée propre à l'axe et une lecture
+    arrière propre étaient impossibles, et l'axe changeait de comportement selon qu'un média était
+    attaché. Le correctif d'une autre session le même jour (la vidéo « source du transport ») gardait
+    la faute ; il a été retiré avant commit. C'est le modèle de BIND (`WAMA_DATA_WORLD §2` : `TimerTrip`
+    avance seul, `VideoPlayer` l'observe) :
+    - l'axe avance en secondes réelles et ne dépend de rien ; sa durée couvre ce qui s'y pose ;
+    - un média est un SUIVEUR (`attach` rend son propre détacheur ; autant de suiveurs qu'il en
+      faut, un `offset` chacun) : il joue lui-même — l'écoute reste audible — et l'axe le RECALE en
+      deux niveaux, vitesse corrigée d'au plus 5 % pour un petit écart, repositionnement au-delà
+      d'un seuil ; seuils RÉGLABLES (`WamaAxis.SYNC` : tolérance 20 ms, repositionnement 150 ms —
+      Fabien jugeait 300 ms « un peu élevé » —, par axe et par média) ; muet et recalé en arrière ;
+      un geste sur le média est une COMMANDE ; sa fin n'arrête pas l'axe ; il ne retient pas l'axe
+      s'il refuse de jouer ou charge ;
+    - deux suiveurs jouent ENSEMBLE : la lecture exclusive de la page les couperait l'un l'autre,
+      ils portent donc l'échappatoire déclarée `data-wama-multiplay` (posée et retirée par l'axe
+      seul ; un suiveur seul reste exclusif). ⚠ Deux suiveurs du lecteur commun (`WamaAudioPlayer`,
+      hors DOM, sans échappatoire) se couperaient encore — aucun cas aujourd'hui ;
+    - une vue de donnée montre l'échantillon le PLUS PROCHE de t (les courbes : `uPlot.valToIdx`,
+      légende à l'instant joué) ; ce qui se pose DÉCLARE sa cadence (`axis.cadence(hz)`,
+      `attach(el, {fps})`) et le PAS (`axis.step`) est celui de la plus fine — 2 000 Hz ne demandent
+      pas 2 000 battements ; sous charge les avis aux abonnés s'espacent (règle 80 % / 20 % de
+      `TimerTrip.m:369-376`), jamais la justesse du temps ;
+    - ⚠ une SURCOUCHE dessinée sur une vidéo suit l'image affichée (`el.currentTime`), pas l'axe —
+      la règle que le cam_analyzer applique déjà ;
+    - défaut trouvé au navigateur : la règle du bord ARRIÈRE (`temps ≤ 0` → arrêt) s'appliquait
+      aussi en avant, et un premier battement à écart nul arrêtait une lecture partie de 0 — caché
+      jusqu'ici parce que le média donnait son temps. Le bord se juge dans le sens de la lecture.
+    - **preuves** : `tests_surfaces.AxisTest` (seule horloge, recalage doux puis repositionnement,
+      seuils réglables par axe et par média, N médias avec décalages et marque de lecture commune,
+      gestes = commandes et fin d'un média, événements tardifs du navigateur, refus de jouer, pas,
+      charge, premier battement) et `DataPluginBricksTest` (cadence des courbes, échantillon le plus
+      proche, vue vidéo qui ne détache que son suiveur) ; contre-épreuve : dix-huit mutations, chacune
+      rouge. Scénario nocturne NEUF `common.axis_follow` (chaque surface dont une brique attache un
+      média : posé, audible et sous le seuil en lecture, arrêté à son temps, muet et recalé en
+      arrière, légende des courbes, zéro erreur JS).
+    - ⏳ **restes** : le pas image au clavier (touches à choisir avec le clavier commun) ; plusieurs
+      flux d'un dataset sur UN graphe et la route qui sert une fenêtre d'un flux (`WAMA_DATA_WORLD
+      §8.4`, points 1-2) ; l'aperçu, Comparer et le cam_analyzer à porter sur l'axe (ils gardent
+      leurs lecteurs, inchangés).
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS

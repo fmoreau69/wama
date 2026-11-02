@@ -1,7 +1,7 @@
 /**
  * wama-axis.js — L'AXE DE TEMPS PARTAGÉ (chantier « preview globale + transport commun »,
  * `WAMA_APP_GENERATION_ROUTE.md §F3b`, né le 2026-10-15 avec la page d'édition de la partition
- * du composer ; spécification cible : `WAMA_DATA_WORLD.md §5`, le magnéto de BIND, et §5bis).
+ * du composer ; spécification cible : `WAMA_DATA_WORLD.md §2` et §5, le magnéto de BIND, et §5bis).
  *
  * Le constat de la cartographie du 2026-10-01 : aucun transport de WAMA n'avait d'objet AXE —
  * chacun prenait un élément média pour source de vérité et appelait ses vues lui-même. Ici
@@ -9,20 +9,40 @@
  * COMMANDES, les vues s'y ABONNENT et ne se parlent jamais. La synchronisation est une
  * conséquence du graphe d'observateurs, comme dans `Magneto.m`.
  *
- * Un MÉDIA s'y attache (`attach`) : tant qu'il joue en avant à une vitesse qu'il sait tenir, il
- * est l'HORLOGE (son temps fait foi, la lecture est audible) ; en arrière ou au-delà de
- * `MEDIA_MAX_RATE`, l'axe avance seul et recale le média à intervalles — la lecture arrière
- * silencieuse de l'éditeur du transcriber, écrite une fois. Un `offset` par média le décale
- * (la caméra du cam_analyzer, plus tard).
+ * L'AXE EST LA SEULE HORLOGE (décision de Fabien, 2026-11-02 — le modèle de BIND, où `TimerTrip`
+ * avance seul et où le lecteur vidéo n'est qu'un observateur). Il avance en secondes réelles,
+ * `temps + écoulé × vitesse` (`TimerTrip.m:354`), sans rien connaître des cadences de ce qui s'y
+ * synchronise, et ne dépend de rien : ni d'un média, ni d'une donnée. Jusqu'à cette date, un média
+ * qui jouait en avant DEVENAIT l'horloge — « média maître » : une session sans média, plusieurs
+ * médias sur un axe ou une durée propre à l'axe étaient impossibles.
+ *
+ * Un MÉDIA est un SUIVEUR (`attach`, autant qu'il en faut, un `offset` chacun) : il joue lui-même
+ * (la lecture reste audible) à la vitesse de l'axe, et l'axe le RECALE en deux niveaux — un petit
+ * écart se rattrape par une vitesse à peine corrigée (le navigateur garde la hauteur du son), un
+ * grand par un repositionnement. Les deux seuils sont des RÉGLAGES (`SYNC`, `create({sync})`,
+ * `attach(el, {sync})`). En arrière ou au-delà de `MEDIA_MAX_RATE`, il se tait et l'axe le recale
+ * à intervalles — la lecture arrière silencieuse de l'éditeur du transcriber. Un geste fait sur le
+ * média lui-même (son bouton, un clic dans son onde) est une COMMANDE à l'axe, jamais une horloge.
+ * L'axe n'attend pas un média qui charge : son image se fige, puis rattrape le temps juste.
+ * ⚠ Une surcouche dessinée SUR un média suit l'image que ce média affiche (`el.currentTime`), pas
+ * l'axe : un cadre de détection doit tomber sur l'image montrée.
+ *
+ * Une VUE de donnée montre l'échantillon le plus PROCHE du temps de l'axe (BIND n'interpole jamais,
+ * `WAMA_DATA_WORLD §3`). L'axe bat au rythme de l'écran, quelle que soit la cadence des données
+ * (2 000 Hz ne demandent pas 2 000 battements) ; ce qui s'y pose DÉCLARE sa cadence (`cadence(hz)`,
+ * `attach(el, {fps})`), et le PAS (`step`) est celui de la plus fine. Sous charge, il espace ses
+ * avis aux abonnés, jamais la justesse du temps (`TimerTrip.m:369-376` : au-delà de 80 % du temps
+ * d'une image, un avis sur deux, puis sur trois… ; sous 20 %, il revient).
  *
  *   var axis = WamaAxis.create({duration: 0});
  *   var off  = axis.subscribe(function (s) { … s.time, s.duration, s.playing, s.rate, s.reason });
- *   axis.attach(audioElement, {offset: 0});
+ *   var drop = axis.attach(audioElement, {offset: 0});   // un suiveur ; `drop()` le détache
  *   axis.play(); axis.pause(); axis.toggle(); axis.seek(12.5); axis.jump(-5);
  *   axis.seek(83, 'goto');                         // un temps NOMMÉ : les vues le montrent
  *   axis.playFrom(20);                             // écouter depuis : le shuttle se rend
  *   axis.setSpeed(1.5);                            // la vitesse CHOISIE (avant), celle de la lecture
  *   axis.shuttle(-2);                              // un cran de shuttle : 0 = arrêt, < 0 = arrière
+ *   var gone = axis.cadence(2000); axis.step(1);   // un échantillon plus loin (0,5 ms)
  *   axis.bindKeys({jump: 5});                      // Espace, ←/→, Début/Fin (+ J/K/L par WamaShuttle)
  *
  * VITESSE ET SHUTTLE (2026-10-20, portage de l'éditeur du transcriber) : la vitesse choisie et le
@@ -31,17 +51,31 @@
  * DÉSENGAGE et rend la vitesse choisie — l'axe repassait à ×1, et le sélecteur de vitesse du
  * cam_analyzer avait le défaut inverse (matrice de parité, `§F3b`).
  *
- * Ce qu'il ne fait PAS encore (la matrice de parité de `§F3b` le dit, ligne par ligne) : le pas
- * image fps-aware, N médias synchronisés avec correction de dérive, la position persistée. Le
- * cam_analyzer n'est pas porté : contrainte de Fabien (19/08), « ne rien casser ».
+ * Ce qu'il ne fait PAS encore (la matrice de parité de `§F3b` le dit, ligne par ligne) : la
+ * position persistée. Le cam_analyzer n'est pas porté : contrainte de Fabien (19/08), « ne rien
+ * casser ».
  */
 (function (global) {
     'use strict';
 
-    /** Au-delà, un <audio> coupe le son (Chrome) : l'axe avance seul, silencieux. */
+    /** Au-delà, un <audio> coupe le son (Chrome) : le média se tait, l'axe le recale. */
     var MEDIA_MAX_RATE = 4;
-    /** En lecture silencieuse, le média n'est recalé qu'à cet intervalle (pas une tempête de seeks). */
+    /** Un média qui se tait n'est recalé qu'à cet intervalle (pas une tempête de seeks). */
     var SEEK_EVERY_MS = 90;
+    /** Le recalage d'un suiveur, en secondes (des RÉGLAGES — Fabien, 2026-11-02) : sous
+     *  `tolerance`, rien ; jusqu'à `reseek`, une vitesse corrigée d'au plus `maxNudge` (5 %), qui
+     *  rattrape l'écart en `window` secondes ; au-delà, un repositionnement. */
+    var SYNC = { tolerance: 0.02, reseek: 0.15, maxNudge: 0.05, window: 1 };
+    /** Un `play` / `pause` du média dans ce délai après que l'axe l'a demandé est le sien (les
+     *  événements du média arrivent après coup ; une lecture refusée n'en envoie aucun). */
+    var OWN_EVENT_MS = 500;
+    /** Le pas quand rien n'a déclaré sa cadence. */
+    var DEFAULT_STEP = 1 / 30;
+    /** Les avis aux abonnés s'espacent au plus jusqu'à un sur `MAX_SKIP` images. */
+    var MAX_SKIP = 6;
+    /** Le temps d'une image (ms) : le budget d'un avis. Pas l'écart mesuré entre deux battements,
+     *  qui contient déjà le temps passé chez les abonnés — un abonné lent n'y paraîtrait jamais lent. */
+    var FRAME_MS = 1000 / 60;
 
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
@@ -79,12 +113,15 @@
         var cancelFrame = opts.cancelFrame || function (id) {
             if (global.cancelAnimationFrame) global.cancelAnimationFrame(id); else clearTimeout(id);
         };
+        var sync = Object.assign({}, SYNC, opts.sync || {});
 
         var s = { time: 0, duration: Number(opts.duration) || 0, playing: false, rate: 1,
                   speed: 1, shuttling: false };
         var observers = [];
-        var media = null, offset = 0, unlisten = null, playHook = null, seekHook = null;
-        var loop = null, last = 0, lastSeek = 0;
+        var followers = [];
+        var cadences = [];
+        var loop = null, last = 0;
+        var skip = 1, skipped = 0;
 
         function snapshot(reason) {
             return { time: s.time, duration: s.duration, playing: s.playing, rate: s.rate,
@@ -103,36 +140,75 @@
         }
         function end() { return s.duration > 0 ? s.duration : Infinity; }
 
-        /** Le média joue-t-il lui-même (horloge audible) ? */
-        function mediaIsClock() { return !!media && s.playing && s.rate > 0 && s.rate <= MEDIA_MAX_RATE; }
-
-        function setMediaTime(t) {
-            if (!media) return;
+        // ── Les suiveurs ────────────────────────────────────────────────────────────────────
+        /** Les médias joueraient-ils eux-mêmes (lecture audible) ? */
+        function audible() { return s.playing && s.rate > 0 && s.rate <= MEDIA_MAX_RATE; }
+        /** Le temps du média qui correspond au temps de l'axe. */
+        function target(f) { return s.time + f.offset; }
+        /** L'axe est-il dans ce que le média couvre ? (un média décalé commence plus tard) */
+        function covers(f) {
+            var t = target(f), d = f.el.duration;
+            return t >= 0 && !(isFinite(d) && d > 0 && t >= d);
+        }
+        function place(f) {
+            var t = Math.max(0, target(f));
             // Le crochet du lecteur qui possède le média (`WamaAudioPlayer.seek` : il repose une
             // position demandée avant que le fichier ne soit positionnable, et réclame ses
             // métadonnées à un player à pics serveur) — l'axe ne le refait pas.
-            if (seekHook) { seekHook(Math.max(0, t + offset)); return; }
-            try { media.currentTime = Math.max(0, t + offset); } catch (e) { /* métadonnées pas encore là */ }
+            if (f.seek) { f.seek(t); return; }
+            try { f.el.currentTime = t; } catch (e) { /* métadonnées pas encore là */ }
         }
-
-        function pauseMedia() {
-            if (media && !media.paused) media.pause();
+        function rateOf(f, r) {
+            try { if (f.el.playbackRate !== r) f.el.playbackRate = r; } catch (e) { /* vitesse refusée */ }
         }
-
-        /** Le média suit l'état de l'axe : il joue (horloge) ou se tait (lecture silencieuse). */
-        function syncMedia() {
-            if (!media) return;
-            if (mediaIsClock()) {
-                try { media.playbackRate = s.rate; } catch (e) { /* vitesse refusée : 1 */ }
-                if (media.paused) {
-                    // Le crochet du lecteur qui possède le média (la lecture EXCLUSIVE de
-                    // `WamaAudioPlayer.play`, qui coupe les autres lecteurs de la page).
-                    var p = playHook ? playHook() : media.play();
-                    if (p && p.catch) p.catch(function () { s.playing = false; notify('state'); });
+        function hush(f) {
+            if (f.el.paused) return;
+            f.pausedAt = now();
+            f.el.pause();
+        }
+        function sound(f) {
+            if (!f.el.paused) return;
+            f.playedAt = now();
+            // Le crochet du lecteur qui possède le média (la lecture EXCLUSIVE de
+            // `WamaAudioPlayer.play`, qui coupe les autres lecteurs de la page).
+            var p = f.play ? f.play() : f.el.play();
+            // Lecture refusée (navigateur) : le média se tait, l'axe continue — il ne dépend de rien.
+            if (p && p.catch) p.catch(function () { /* rien à défaire */ });
+        }
+        function ours(at) { return at != null && now() - at < OWN_EVENT_MS; }
+        /** Recale UN suiveur sur l'axe. `at` : l'instant (ms) du battement, pour espacer les seeks. */
+        function follow(f, at) {
+            if (!audible() || !covers(f)) {
+                hush(f);
+                if (at == null || !s.playing || at - f.lastSeek >= SEEK_EVERY_MS) {
+                    f.lastSeek = at == null ? now() : at;
+                    place(f);
                 }
-            } else {
-                pauseMedia();
+                return;
             }
+            if (f.el.readyState === 0 || f.el.seeking) { sound(f); return; }
+            var drift = (f.el.currentTime - f.offset) - s.time;      // > 0 : le média est en avance
+            var c = f.sync;
+            if (Math.abs(drift) > c.reseek) {
+                rateOf(f, s.rate);
+                place(f);
+            } else if (Math.abs(drift) > c.tolerance) {
+                rateOf(f, s.rate * (1 - clamp(drift / c.window, -c.maxNudge, c.maxNudge)));
+            } else {
+                rateOf(f, s.rate);
+            }
+            sound(f);
+        }
+        function followAll(at) { followers.forEach(function (f) { follow(f, at); }); }
+        /** L'axe arrêté : chaque média se tait, posé au temps de l'axe — l'image dit l'instant. */
+        function settleAll() {
+            followers.forEach(function (f) { hush(f); place(f); });
+        }
+        /** Une vitesse que le média sait tenir lui est posée TOUT DE SUITE, même à l'arrêt : une
+         *  lecture lancée depuis le média lui-même (son bouton) part à la vitesse choisie. */
+        function rateToFollowers() {
+            if (!(s.rate > 0 && s.rate <= MEDIA_MAX_RATE)) return;
+            followers.forEach(function (f) { rateOf(f, s.rate); });
         }
 
         function tick(ts) {
@@ -141,39 +217,62 @@
             var t = typeof ts === 'number' ? ts : now();
             var dt = Math.max(0, (t - last) / 1000);
             last = t;
-            if (mediaIsClock()) {
-                s.time = clamp(media.currentTime - offset, 0, end());
-            } else {
-                s.time += dt * s.rate;
-                if (s.time <= 0) { s.time = 0; s.playing = false; }
-                else if (s.time >= end()) { s.time = end(); s.playing = false; }
-                if (!s.playing && s.shuttling) disengage();      // arrivé au bord : shuttle rendu
-                if (media && (t - lastSeek >= SEEK_EVERY_MS || !s.playing)) { lastSeek = t; setMediaTime(s.time); }
+            s.time += dt * s.rate;
+            // Le bord se juge dans le SENS de la lecture : le premier battement peut arriver avec un
+            // écart nul (l'instant d'une image précède parfois celui du lancement), et une lecture
+            // partie de 0 s'arrêtait — tant qu'un média jouait, il le cachait en donnant son temps.
+            if (s.rate < 0 && s.time <= 0) { s.time = 0; s.playing = false; }
+            else if (s.rate > 0 && s.time >= end()) { s.time = end(); s.playing = false; }
+            if (!s.playing && s.shuttling) disengage();      // arrivé au bord : shuttle rendu
+            if (s.playing) followAll(t); else settleAll();
+            if (!s.playing) {
+                notify('state');
+                return;
             }
-            notify(s.playing ? 'tick' : 'state');
-            if (s.playing) loop = frame(tick);
+            // Sous charge, les avis s'espacent — le temps, lui, reste juste (`TimerTrip.m:369-376`).
+            if (++skipped >= skip) {
+                skipped = 0;
+                var started = now();
+                notify('tick');
+                var cost = now() - started;
+                if (cost > 0.8 * FRAME_MS && skip < MAX_SKIP) skip++;
+                else if (cost < 0.2 * FRAME_MS && skip > 1) skip--;
+            }
+            loop = frame(tick);
         }
         function run() {
             if (loop) return;
             last = now();
+            skipped = 0;
             loop = frame(tick);
         }
         function halt() {
             if (loop) { cancelFrame(loop); loop = null; }
         }
-
-        /** Une vitesse que le média sait tenir lui est posée TOUT DE SUITE, même à l'arrêt : une
-         *  lecture lancée depuis le média lui-même (son bouton) part à la vitesse choisie. */
-        function rateToMedia() {
-            if (media && s.rate > 0 && s.rate <= MEDIA_MAX_RATE) {
-                try { media.playbackRate = s.rate; } catch (e) { /* vitesse refusée */ }
-            }
-        }
         function applyRate(r) {
             s.rate = r;
-            rateToMedia();
-            if (s.playing) { syncMedia(); last = now(); run(); }
+            rateToFollowers();
+            if (s.playing) { followAll(null); last = now(); run(); }
             notify('rate');
+        }
+        /** Plusieurs suiveurs jouent ENSEMBLE : la lecture exclusive de la page (`WamaApp`, un
+         *  média qui joue coupe les autres) les couperait l'un l'autre, et l'axe prendrait cette
+         *  pause pour un geste. Ils portent alors l'échappatoire déclarée de cette exclusivité,
+         *  `data-wama-multiplay` — posée par l'axe, retirée par lui seul. Un suiveur SEUL reste
+         *  exclusif, comme avant. ⚠ Un lecteur commun (`WamaAudioPlayer`, hors DOM) n'a pas
+         *  d'échappatoire : deux suiveurs de ce lecteur sur un même axe se couperaient encore. */
+        function markTogether() {
+            var together = followers.length > 1;
+            followers.forEach(function (f) {
+                var el = f.el;
+                if (!el.setAttribute) return;
+                if (together && !el.hasAttribute('data-wama-multiplay')) el.setAttribute('data-wama-multiplay', 'axis');
+                else if (!together && el.getAttribute('data-wama-multiplay') === 'axis') el.removeAttribute('data-wama-multiplay');
+            });
+        }
+        /** La durée de l'axe couvre ce qui s'y pose : un média plus long l'étend. */
+        function cover(span) {
+            if (isFinite(span) && span > s.duration) axis.setDuration(span);
         }
 
         var axis = {
@@ -181,7 +280,11 @@
             duration: function () { return s.duration; },
             playing: function () { return s.playing; },
             rate: function () { return s.rate; },
-            media: function () { return media; },
+            /** Le premier média suivi (null sans média) ; `medias()` les rend tous. */
+            media: function () { return followers.length ? followers[0].el : null; },
+            medias: function () { return followers.map(function (f) { return f.el; }); },
+            /** Le recalage en vigueur (les seuils de l'axe). */
+            sync: function () { return Object.assign({}, sync); },
 
             /** S'abonner : `fn(état)` à chaque changement — et tout de suite, avec l'état présent.
              *  Rend la fonction qui désabonne. */
@@ -204,7 +307,7 @@
                 if (s.rate > 0 && s.duration > 0 && s.time >= s.duration) axis.seek(0);
                 if (s.rate < 0 && s.time <= 0) return;
                 s.playing = true;
-                syncMedia();
+                followAll(null);
                 run();
                 notify('state');
             },
@@ -212,10 +315,7 @@
                 if (!s.playing) return;
                 s.playing = false;
                 halt();
-                if (media) {
-                    pauseMedia();
-                    s.time = clamp(media.currentTime - offset, 0, end());
-                }
+                settleAll();
                 notify('state');
             },
             speed: function () { return s.speed; },
@@ -239,8 +339,9 @@
              *  qui s'y trouve. L'axe ne connaît aucune vue : il le dit, elles décident. */
             seek: function (t, reason) {
                 s.time = clamp(Number(t) || 0, 0, end());
-                setMediaTime(s.time);
                 last = now();
+                if (s.playing) followers.forEach(function (f) { place(f); follow(f, null); });
+                else settleAll();
                 notify(reason || 'seek');
             },
             jump: function (dt) { axis.seek(s.time + (Number(dt) || 0)); },
@@ -278,71 +379,98 @@
                 axis.play();
             },
 
-            /** Attache un <audio>/<video> : il devient l'horloge quand il joue en avant. Un geste
-             *  sur le média lui-même (son bouton, un clic dans son onde) est suivi par l'axe.
-             *  `o.offset` le décale ; `o.play` et `o.seek(t)` le font jouer et le positionnent à la
-             *  place de `el.play()` / `el.currentTime` — le lecteur qui le possède garde ainsi SES
-             *  règles (lecture exclusive, position reposée quand le fichier devient positionnable).
-             *  Rend la fonction qui détache. */
+            /** Ce qui se pose sur l'axe DÉCLARE sa cadence (Hz) : le pas est celui de la plus fine.
+             *  Rend la fonction qui la retire. */
+            cadence: function (hz) {
+                hz = Number(hz);
+                if (!(hz > 0) || !isFinite(hz)) return function () {};
+                var entry = { hz: hz };
+                cadences.push(entry);
+                return function () { cadences = cadences.filter(function (c) { return c !== entry; }); };
+            },
+            /** Le pas : une période de la cadence la plus fine déclarée (`DEFAULT_STEP` sinon). */
+            stepSize: function () {
+                var finest = 0;
+                cadences.forEach(function (c) { if (c.hz > finest) finest = c.hz; });
+                return finest ? 1 / finest : DEFAULT_STEP;
+            },
+            /** `n` pas plus loin (arrière si négatif), l'axe arrêté — le STEP de `TimerTrip`. */
+            step: function (n) {
+                axis.pause();
+                axis.seek(s.time + (Number(n) || 1) * axis.stepSize());
+            },
+
+            /** Attache un <audio>/<video> comme SUIVEUR de l'axe — autant qu'il en faut. Un geste
+             *  sur le média lui-même (son bouton, un clic dans son onde) est suivi par l'axe, comme
+             *  une commande. `o.offset` le décale ; `o.play` et `o.seek(t)` le font jouer et le
+             *  positionnent à la place de `el.play()` / `el.currentTime` — le lecteur qui le
+             *  possède garde ainsi SES règles (lecture exclusive, position reposée quand le fichier
+             *  devient positionnable) ; `o.sync` règle SON recalage ; `o.fps` déclare sa cadence.
+             *  Rend la fonction qui le détache, lui seul. */
             attach: function (el, o) {
-                axis.detach();
                 if (!el) return function () {};
+                axis.detach(el);
                 o = o || {};
-                media = el;
-                offset = Number(o.offset) || 0;
-                playHook = typeof o.play === 'function' ? o.play : null;
-                seekHook = typeof o.seek === 'function' ? o.seek : null;
+                var f = { el: el, offset: Number(o.offset) || 0,
+                          play: typeof o.play === 'function' ? o.play : null,
+                          seek: typeof o.seek === 'function' ? o.seek : null,
+                          sync: Object.assign({}, sync, o.sync || {}),
+                          lastSeek: 0, pausedAt: null, playedAt: null };
+                var dropCadence = o.fps ? axis.cadence(o.fps) : null;
+                /** Le média EST-il censé jouer ? Sinon une pause qui arrive est la nôtre. */
+                function expected() { return audible() && covers(f); }
                 var handlers = {
                     loadedmetadata: function () {
-                        if (isFinite(el.duration) && el.duration > 0 && !s.duration) axis.setDuration(el.duration - offset);
+                        if (isFinite(el.duration) && el.duration > 0) cover(el.duration - f.offset);
+                        if (!s.playing) place(f);
                     },
                     play: function () {
+                        if (ours(f.playedAt)) { f.playedAt = null; return; }
                         if (s.playing) return;
+                        // Le bouton du média : une COMMANDE à l'axe, à une vitesse que le média tient.
                         if (!(s.rate > 0 && s.rate <= MEDIA_MAX_RATE)) disengage();
-                        rateToMedia();
-                        s.playing = true;
-                        run();
-                        notify('state');
+                        axis.play();
                     },
                     pause: function () {
-                        // Une pause que l'axe a faite lui-même (lecture arrière ou trop rapide,
-                        // `pause()`) le trouve déjà hors horloge : seule celle de l'utilisateur
-                        // sur le média arrête l'axe.
-                        if (!mediaIsClock()) return;
-                        s.playing = false;
-                        halt();
-                        s.time = clamp(el.currentTime - offset, 0, end());
-                        notify('state');
-                    },
-                    ended: function () {
-                        s.playing = false;
-                        if (s.shuttling) disengage();
-                        halt();
-                        s.time = end() === Infinity ? el.currentTime - offset : end();
-                        notify('state');
+                        if (ours(f.pausedAt)) { f.pausedAt = null; return; }
+                        // La fin du média n'arrête pas l'axe : un autre suiveur, ou une donnée, peut
+                        // continuer (la fin de l'axe est la sienne).
+                        if (el.ended || !expected()) return;
+                        axis.pause();
                     },
                     seeked: function () {
-                        if (s.playing) return;           // pendant la lecture, l'horloge suffit
-                        var t = clamp(el.currentTime - offset, 0, end());
-                        if (Math.abs(t - s.time) > 0.01) { s.time = t; notify('seek'); }
+                        if (s.playing) return;           // pendant la lecture, l'axe recale lui-même
+                        var t = clamp(el.currentTime - f.offset, 0, end());
+                        if (Math.abs(t - s.time) > 0.01) axis.seek(t);
                     },
                 };
                 Object.keys(handlers).forEach(function (k) { el.addEventListener(k, handlers[k]); });
-                handlers.loadedmetadata();
-                unlisten = function () {
+                f.drop = function () {
                     Object.keys(handlers).forEach(function (k) { el.removeEventListener(k, handlers[k]); });
+                    if (dropCadence) dropCadence();
                 };
-                if (s.time) setMediaTime(s.time);
-                rateToMedia();
-                return axis.detach;
+                followers.push(f);
+                markTogether();
+                if (isFinite(el.duration) && el.duration > 0) cover(el.duration - f.offset);
+                if (s.playing) follow(f, null); else place(f);
+                rateToFollowers();
+                notify('media');
+                return function () { axis.detach(el); };
             },
-            detach: function () {
-                if (unlisten) unlisten();
-                unlisten = null;
-                if (media) pauseMedia();
-                media = null;
-                playHook = null;
-                seekHook = null;
+            /** Détache le média `el` — ou TOUS les médias, sans argument. Un média détaché se tait. */
+            detach: function (el) {
+                var gone = followers.filter(function (f) { return !el || f.el === el; });
+                if (!gone.length) return;
+                followers = followers.filter(function (f) { return gone.indexOf(f) < 0; });
+                gone.forEach(function (f) {
+                    f.drop();
+                    hush(f);
+                    if (f.el.getAttribute && f.el.getAttribute('data-wama-multiplay') === 'axis') {
+                        f.el.removeAttribute('data-wama-multiplay');
+                    }
+                });
+                markTogether();
+                notify('media');
             },
 
             /** Le clavier du magnéto (`WAMA_DATA_WORLD §5`) : Espace, ←/→ (±`jump` s), Début/Fin,
@@ -400,6 +528,6 @@
 
     global.WamaAxis = {
         create: create, formatTime: formatTime, parseTime: parseTime,
-        MEDIA_MAX_RATE: MEDIA_MAX_RATE,
+        MEDIA_MAX_RATE: MEDIA_MAX_RATE, SYNC: SYNC, DEFAULT_STEP: DEFAULT_STEP,
     };
 })(window);

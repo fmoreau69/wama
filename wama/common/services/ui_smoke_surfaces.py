@@ -1762,6 +1762,160 @@ def check_image_boxes_keys(page_hook=None):
     return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
 
 
+#: Les briques qui ATTACHENT un média à l'axe (un transport avec sa source, une vue vidéo) — lues
+#: aux emplacements déclarés : le scénario ne nomme aucune app.
+def _carries_medium(slot) -> bool:
+    if slot.brick == 'video_view':
+        return True
+    return slot.brick == 'media_transport' and (slot.options or {}).get('media') is not False
+
+
+#: L'axe de la page, sans rien ajouter au code servi : `WamaAxis.create` est enveloppé AVANT que
+#: le module ne se charge, et chaque axe créé est retenu.
+_AXIS_SPY_JS = """(() => { let held;
+    Object.defineProperty(window, 'WamaAxis', {configurable: true, get() { return held; },
+        set(v) { const create = v.create;
+                 v.create = function (o) { const a = create(o); (window.__wamaAxes = window.__wamaAxes || []).push(a); return a; };
+                 held = v; }}); })()"""
+
+_AXIS_STATE_JS = """() => { const a = (window.__wamaAxes || [])[0];
+    if (!a) return null;
+    const legend = document.querySelector('.wama-brick-chart .u-legend .u-series:first-child .u-value');
+    return {time: a.time(), playing: a.playing(), duration: a.duration(),
+            media: a.medias().map(m => ({tag: m.tagName, t: m.currentTime, paused: m.paused,
+                                         ready: m.readyState})),
+            legend: legend ? legend.textContent : null}; }"""
+
+
+def check_axis_follow(page_hook=None):
+    """L'axe est la SEULE horloge (2026-11-02) : sur chaque surface dont une brique attache un média,
+    le média SUIT l'axe — posé au temps de l'axe, audible et à moins d'un seuil de recalage pendant
+    la lecture, arrêté au temps de l'axe à la pause, muet et recalé en arrière ; les courbes disent
+    l'échantillon le plus proche de l'instant joué ; zéro erreur JS. (ok, détail)"""
+    from django.urls import reverse
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    surfaces, refused = _witness_surfaces()
+    surfaces = [s for s in surfaces if any(_carries_medium(slot) for slot in s.slots)]
+    if not surfaces:
+        raise SkipScenario("aucune surface à témoin n'attache de média à l'axe")
+    verdicts, sessions_before = [], _session_keys()
+
+    def verdict(ok, text):
+        verdicts.append((bool(ok), text))
+
+    with ExitStack() as guards:
+        for app in sorted({s.app for s in surfaces}):
+            guards.enter_context(_garde_de_montage(app, 'axis'))
+        plan = []
+        for surface in surfaces:
+            token, uid = _test_session_key(surface.app), _test_account_id(surface.app)
+            if not (token and uid):
+                verdict(False, f"{surface.id} : aucun compte de test")
+                continue
+            plan.append((surface, token, _in_plain_thread(mount_witness, surface, uid)))
+        with sync_playwright() as p:
+            # Une lecture lancée par la sonde n'est pas un geste : sans ce drapeau, le navigateur
+            # la refuserait et l'on mesurerait la politique de lecture automatique.
+            browser = p.chromium.launch(args=['--autoplay-policy=no-user-gesture-required'])
+            try:
+                for surface, token, pk in plan:
+                    context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                    try:
+                        _axis_gestures(context, token, surface, pk, verdict, reverse, page_hook)
+                    except Exception as error:
+                        verdict(False, f"{surface.id} : {type(error).__name__} — {str(error)[:200]}")
+                    finally:
+                        context.close()
+            finally:
+                browser.close()
+    _drop_new_sessions(sessions_before)
+    failed = [text for ok, text in verdicts if not ok]
+    detail = (f"{len(plan)} surface(s) : {', '.join(s.id for s, _t, _p in plan)} — "
+              f"{len(verdicts) - len(failed)}/{len(verdicts)} gestes")
+    return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
+
+
+def _axis_gestures(context, token, surface, pk, verdict, reverse, page_hook=None):
+    context.add_cookies(_cookie(token))
+    context.add_init_script(_AXIS_SPY_JS)
+    page = context.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+    page.on('console', lambda m: errors.append(f'console: {m.text}') if m.type == 'error' else None)
+    url = BASE_URL.rstrip('/') + reverse('common:surface', args=[surface.app, surface.key, pk])
+    page.goto(url, wait_until='load', timeout=45000)
+    page.wait_for_selector('.grid-stack-item .wama-brick-body', timeout=20000)
+    page.wait_for_function("() => (window.__wamaAxes || []).length && window.__wamaAxes[0].medias().length",
+                           timeout=15000)
+    if page_hook:
+        page_hook(page)
+    state = lambda: page.evaluate(_AXIS_STATE_JS)
+    sid = surface.id
+
+    # ① Posé : chaque média va au temps de l'axe.
+    page.evaluate("() => window.__wamaAxes[0].seek(0.6)")
+    page.wait_for_timeout(1200)
+    s = state()
+    verdict(all(abs(m['t'] - 0.6) < 0.05 for m in s['media']),
+            f"{sid} : chaque média posé au temps de l'axe ({[round(m['t'], 3) for m in s['media']]})")
+
+    # ② La lecture : l'axe avance en temps réel, le média joue et reste à moins d'un seuil.
+    page.evaluate("() => window.__wamaAxes[0].seek(0)")
+    page.wait_for_timeout(500)
+    page.evaluate("() => window.__wamaAxes[0].play()")
+    started = page.evaluate("() => performance.now()")
+    samples = []
+    for _ in range(12):
+        page.wait_for_timeout(100)
+        sample = state()
+        # Un témoin dure 2 s : un échantillon pris après sa fin mesurerait la fin du média.
+        if sample['duration'] and sample['time'] > sample['duration'] - 0.3:
+            break
+        samples.append(sample)
+    elapsed = (page.evaluate("() => performance.now()") - started) / 1000
+    page.evaluate("() => window.__wamaAxes[0].pause()")
+    walked = samples[-1]['time']
+    verdict(abs(walked - elapsed) < 0.35 * elapsed,
+            f"{sid} : l'axe avance en temps réel ({walked:.2f} s pour {elapsed:.2f} s)")
+    settled = samples[4:]
+    drifts = [abs(m['t'] - x['time']) for x in settled for m in x['media']]
+    verdict(drifts and max(drifts) < 0.15,
+            f"{sid} : le média suit l'axe à moins du seuil de recalage (écart max "
+            f"{max(drifts or [0]) * 1000:.0f} ms)")
+    verdict(all(not m['paused'] for x in settled for m in x['media']),
+            f"{sid} : le média JOUE pendant la lecture (audible)")
+
+    # ③ La pause : tout s'arrête, le média au temps de l'axe.
+    page.wait_for_timeout(600)
+    s = state()
+    verdict(not s['playing'] and all(m['paused'] and abs(m['t'] - s['time']) < 0.05 for m in s['media']),
+            f"{sid} : à la pause, l'axe s'arrête et le média se pose à son temps "
+            f"({s['time']:.3f} / {[round(m['t'], 3) for m in s['media']]})")
+
+    # ④ En arrière : le média se tait et suit l'axe.
+    page.evaluate("() => { const a = window.__wamaAxes[0]; a.seek(1.6); a.shuttle(-1); }")
+    page.wait_for_timeout(600)
+    s = state()
+    page.evaluate("() => window.__wamaAxes[0].shuttle(0)")
+    verdict(s['time'] < 1.5 and all(m['paused'] and abs(m['t'] - s['time']) < 0.25 for m in s['media']),
+            f"{sid} : en arrière, le média se tait et suit ({s['time']:.3f} / "
+            f"{[round(m['t'], 3) for m in s['media']]})")
+
+    # ⑤ Les courbes : l'échantillon le plus proche de l'instant joué.
+    if page.locator('.wama-brick-chart .u-legend').count():
+        page.evaluate("() => window.__wamaAxes[0].seek(1.0)")
+        page.wait_for_timeout(500)
+        s = state()
+        shown = float((s['legend'] or 'nan').split()[0].replace(',', '.'))
+        verdict(abs(shown - 1.0) < 0.2, f"{sid} : la légende dit l'échantillon le plus proche de 1,0 s ({s['legend']})")
+
+    shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
+    verdict(not shown, f"{sid} : aucune erreur JS ({shown[:3]})")
+
+
 def register_surface_scenarios():
     """Les scénarios communs des surfaces (vignettes de briques, disposition, clavier) — aucun GPU."""
     from wama.common.services.nightly_tests import register
@@ -1773,6 +1927,15 @@ def register_surface_scenarios():
                      "catalogue des briques UI (aucune tâche lancée, témoins retirés en sortie)"),
         run=lambda ctx: capture_brick_thumbnails(),
         timeout_s=300, vram_gb=0.0,
+    )
+    register(
+        id='common.axis_follow', app='common', stage='ui',
+        description=("Axe de temps, SEULE horloge (2026-11-02) : sur chaque surface dont une brique "
+                     "attache un média, le média suit l'axe — posé à son temps, audible et à moins "
+                     "du seuil de recalage en lecture, arrêté à son temps à la pause, muet et recalé "
+                     "en arrière ; les courbes disent l'échantillon le plus proche ; zéro erreur JS"),
+        run=lambda ctx: check_axis_follow(),
+        timeout_s=240, vram_gb=0.0,
     )
     register(
         id='common.surface_layout', app='common', stage='ui',

@@ -7,8 +7,9 @@
  * pendant la lecture) :
  *   • la SOURCE : le média d'un rôle lu (`options.role`, défaut `audio`), joué par le lecteur
  *     COMMUN (`WamaAudioPlayer` — lecture exclusive, position reposée) et ATTACHÉ à l'axe partagé
- *     de la surface (`ctx.axis()`), dont il devient l'horloge. Le lecteur montre sa propre onde
- *     (`options.wave`, vrai par défaut) ; une surface qui monte la ligne de temps la tait ;
+ *     de la surface (`ctx.axis()`), qu'il SUIT : l'axe est la seule horloge (2026-11-02, le média
+ *     n'en est plus le maître). Le lecteur montre sa propre onde (`options.wave`, vrai par
+ *     défaut) ; une surface qui monte la ligne de temps la tait ;
  *   • le TRANSPORT commun (`wama-transport.js`, montable hors surface), à qui passent les options
  *     de l'emplacement (`jump`, `speed`, `goto`).
  * L'onde fenêtrée et ses couches sont la brique `media_timeline`, les modes d'écriture la brique
@@ -19,8 +20,9 @@
  * RECHARGEMENT du média quand ce process et son aval ont fini : on écoute le rendu refait, à la
  * même place.
  *
- * SANS SOURCE (`options.media: false`, 2026-10-29) : les commandes seules — une autre brique tient
- * l'horloge de l'axe (la vue vidéo `video_view`, les analyses du face_analyzer).
+ * SANS SOURCE (`options.media: false`, 2026-10-29) : les commandes seules. L'axe tient l'horloge
+ * sans aucun média ; une vidéo, s'il y en a, est une vue qui le suit (`video_view`, les analyses
+ * du face_analyzer).
  *
  * La VERSION écoutée (2026-10-21, demande de Fabien : « se rendre compte à l'oreille de
  * l'amélioration ou de la détérioration de l'audio ») : quand le média lu a plusieurs versions
@@ -60,9 +62,13 @@
         var playerHost = document.createElement('div');
         playerHost.className = 'wama-transport-wave' + (showWave ? '' : ' wama-transport-player-hidden');
         body.appendChild(playerHost);
+        // Le suiveur de CETTE brique : on ne détache que lui (l'axe en suit d'autres, peut-être).
+        var dropMedia = null;
+        function drop() { if (dropMedia) { dropMedia(); dropMedia = null; } }
 
         function load(url, serverPeaks, bust) {
             if (!url) {
+                drop();
                 if (Player) Player.destroy(playerId);
                 playerHost.textContent = 'Aucun média à lire pour l’instant.';
                 return;
@@ -70,7 +76,7 @@
             if (!Player || !axis) { playerHost.textContent = 'Lecteur commun indisponible.'; return; }
             var keep = axis.time();
             axis.pause();
-            axis.detach();
+            drop();
             playerHost.textContent = '';
             var full = bust ? url + (url.indexOf('?') < 0 ? '?' : '&') + 'v=' + Date.now() : url;
             Player.inject(full, playerId, playerHost, { height: Number(options.height) || 64 });
@@ -81,7 +87,7 @@
             if (serverPeaks && serverPeaks.duration) axis.setDuration(serverPeaks.duration);
             // Le média joue et se positionne par le lecteur commun : sa lecture EXCLUSIVE, et sa
             // position reposée quand le fichier devient positionnable — l'axe ne les refait pas.
-            axis.attach(media, {
+            dropMedia = axis.attach(media, {
                 offset: Number(options.offset) || 0,
                 play: function () { return Player.play(playerId); },
                 seek: function (t) { Player.seek(playerId, t, false); },

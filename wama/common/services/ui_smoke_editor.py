@@ -73,6 +73,9 @@ JS_EDITOR_STATE = """(M) => {
         t: a ? Math.round(a.currentTime * 100) / 100 : null,
         paused: a ? a.paused : null,
         rate: a ? a.playbackRate : null,
+        // L'axe est la seule horloge (2026-11-02) : la vitesse de l'audio est celle de l'axe à la
+        // correction près de son recalage, dont la borne est déclarée par l'axe.
+        nudge: window.WamaAxis ? WamaAxis.SYNC.maxNudge : 0,
         speed: ((q(M.speed_label) || {}).textContent || '').trim(),
         zoom: ((q(M.zoom_label) || {}).textContent || '').trim(),
         active: index('.seg-row.seg-active'),
@@ -207,10 +210,10 @@ def _transport(ed, checks):
     checks.append((s['paused'] is True, "Espace remet en pause"))
     ed.click('speed_up')
     s = ed.click('speed_up')
-    checks.append((s['rate'] == 1.5 and s['speed'] == '1.5×', f"+ + = vitesse 1,5 ({s['rate']}, « {s['speed']} »)"))
+    checks.append((_plays_at(s, 1.5) and s['speed'] == '1.5×', f"+ + = vitesse 1,5 ({s['rate']}, « {s['speed']} »)"))
     ed.click('speed_down')
     s = ed.click('speed_down')
-    checks.append((s['rate'] == 1 and s['speed'] == '1.0×', f"− − = vitesse 1 ({s['rate']}, « {s['speed']} »)"))
+    checks.append((_plays_at(s, 1) and s['speed'] == '1.0×', f"− − = vitesse 1 ({s['rate']}, « {s['speed']} »)"))
     s = ed.click('skip_fwd')
     s2 = ed.click('skip_back')
     checks.append((_near(s['t'] - s2['t'], 5), f"boutons ±5 s ({s['t']} → {s2['t']})"))
@@ -226,14 +229,21 @@ def _transport(ed, checks):
     checks.append((left, f"Échap dans « aller à » rend le clavier ({left})"))
 
 
+def _plays_at(s, speed) -> bool:
+    """L'audio joue à `speed` — à la correction près de son recalage sur l'axe (`SYNC.maxNudge`) :
+    au départ, il a quelques dizaines de millisecondes de retard, que l'axe rattrape en le
+    pressant un peu (2026-11-02)."""
+    return s['rate'] is not None and abs(s['rate'] - speed) <= speed * (s.get('nudge') or 0) + 1e-6
+
+
 def _shuttle(ed, checks):
     """J/K/L : l'échelle, l'arrière silencieux, Espace qui désengage."""
     ed.goto('0:10')
     s = ed.key('l')
-    checks.append((s['paused'] is False and s['rate'] == 1 and s['speed'] == '▶▶ 1×',
+    checks.append((s['paused'] is False and _plays_at(s, 1) and s['speed'] == '▶▶ 1×',
                    f"L = avant ×1 ({s['paused']}, {s['rate']}, « {s['speed']} »)"))
     s = ed.key('l')
-    checks.append((s['rate'] == 1.25 and s['speed'] == '▶▶ 1.25×', f"L L = ×1,25 ({s['rate']}, « {s['speed']} »)"))
+    checks.append((_plays_at(s, 1.25) and s['speed'] == '▶▶ 1.25×', f"L L = ×1,25 ({s['rate']}, « {s['speed']} »)"))
     s = ed.key('k')
     checks.append((s['paused'] is True and s['speed'] == '1.0×', f"K = arrêt ({s['paused']}, « {s['speed']} »)"))
     ed.goto('0:40')
@@ -252,7 +262,7 @@ def _shuttle(ed, checks):
     checks.append((s['paused'] is True and s['speed'] == '1.0×',
                    f"Espace pendant le shuttle = pause, échelle remise à zéro ({s['paused']}, « {s['speed']} »)"))
     s = ed.key('Space', wait=500)
-    checks.append((s['paused'] is False and s['rate'] == 1, f"puis Espace = lecture à la vitesse réglée ({s['rate']})"))
+    checks.append((s['paused'] is False and _plays_at(s, 1), f"puis Espace = lecture à la vitesse réglée ({s['rate']})"))
     ed.ensure_paused()
 
 

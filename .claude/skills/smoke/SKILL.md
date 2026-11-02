@@ -227,6 +227,17 @@ le RENDU RÉEL, pas la structure du code.
   vivant et a servi les passes suivantes (avec le Python de SON démarrage) ; lancé par `( … &)`, il
   meurt avec la session `wsl.exe`. Avant d'en lancer un : `pgrep -af "python manage.py runserver"`,
   et après : le même, qui doit être vide — sinon la passe suivante mesure un AUTRE code.
+- 🔴 **8011 n'est PAS un port réservé : chaque session prend le SIEN, et n'arrête que le processus
+  qu'ELLE a lancé** (vécu le 2026-11-02). Deux sessions suivaient cette recette en même temps sur
+  `127.0.0.1:8011` : le lancement de la seconde échouait à se lier au port (sans bruit, sortie
+  redirigée), ses scénarios jouaient contre le serveur de la PREMIÈRE, puis elle a « arrêté son
+  serveur resté vivant » — celui de l'autre session, dont la série a pris des refus de connexion en
+  plein passage. Et la garde de montage de chaque passage retirait les fichiers témoins de l'autre
+  (même compte de test) : 404 sur les médias témoins, lus comme un défaut du code mesuré.
+  ✅ Un port propre à la session (vérifier qu'il est LIBRE avant : `ss -ltn | grep -q ":<port> "`
+  → arrêt), le PID retenu au lancement (`( … & echo $! > /tmp/<session>_srv.pid )`) et arrêté par
+  lui seul — jamais par motif. ✅ Avant une série de scénarios sur le compte de test,
+  `pgrep -af "[r]un_nightly_tests"` : une autre série en cours, on attend ou on se coordonne.
 - ⚠ **Une scène 3D (three.js) se mesure aussi sans GPU** (2026-10-21, constellation des
   utilisateurs) : `chromium.launch(args=['--use-gl=swiftshader', '--enable-webgl',
   '--ignore-gpu-blocklist'])` — sans quoi la page affiche son repli « WebGL indisponible ». Les

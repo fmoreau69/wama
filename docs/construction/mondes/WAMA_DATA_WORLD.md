@@ -868,8 +868,12 @@ temporelle :
   `TimerMessage` de BIND (§4.3) ; `subscribe` rend sa désinscription ;
 - *quelle granularité* : des secondes réelles (flottant), jamais un indice d'échantillon — la règle
   de `TimerTrip.m` (§2) ;
-- *qui est maître* : le média attaché tant qu'il joue en avant à une vitesse qu'il tient ; sinon
-  l'axe avance seul et recale le média (lecture arrière silencieuse) ; un `offset` par média ;
+- *qui est maître* : ~~le média attaché tant qu'il joue en avant à une vitesse qu'il tient ; sinon
+  l'axe avance seul et recale le média~~ — **l'AXE, toujours, depuis le 2026-11-02** (décision de
+  Fabien, le modèle de BIND du §2) : il ne dépend de rien ; les médias le SUIVENT, autant qu'il en
+  faut, un `offset` chacun, recalés en deux niveaux réglables (`WamaAxis.SYNC`), muets en arrière ;
+  une vue montre l'échantillon le plus proche de t ; le pas est celui de la cadence la plus fine
+  déclarée (`ROUTE §F3b`, bloc du 2026-11-02) ;
 - *les commandes* : le transport (`wama-transport.js`, brique `media_transport`) les envoie à l'axe,
   jamais à une vue ; les vues ne se parlent jamais (§5bis) ;
 - **D7 tranché de fait** : un axe par PAGE (la surface), donc le curseur appartient à la SESSION,
@@ -889,7 +893,7 @@ temporelle :
 | les réglages d'une vue (les 18 configurateurs de BIND) | `BrickSlot.options` est un DICT LIBRE, non typé : rien n'est généré | ⚠ |
 | le montage à chaud par l'utilisateur (le Visualizer) | une surface est DÉCLARÉE par l'app : on déplace, empile, détache une brique, on n'en AJOUTE pas | ⚠ |
 | ne lire qu'une fenêtre de temps (`TripStreamingPlugin`) | seule la ligne de temps lit une onde fenêtrée (pics fins) ; aucune route ne sert une fenêtre d'un flux du monde Data | ⚠ |
-| plusieurs sources sur un même axe | l'axe a UNE horloge (un média + `offset`) ; « N médias synchronisés avec correction de dérive » est dans ce qu'il ne fait PAS encore (en-tête de `wama-axis.js`) | ⏳ |
+| plusieurs sources sur un même axe | ✅ 2026-11-02 : l'axe est la seule horloge, N médias le suivent avec correction de dérive (un `offset` chacun), chaque vue déclare sa cadence ; ⏳ plusieurs flux d'un dataset sur UN graphe (les courbes lisent une donnée) | 🔄 |
 
 **« Synchronisable » ne se déclare pas, il se LIT** : les cinq briques qui chargent `wama-axis.js`
 (`requires`) sont exactement celles qui suivent l'axe — transport (PILOTE), ligne de temps,
@@ -902,7 +906,8 @@ catalogue des briques ; un champ déclaré à la main pourrait diverger du code.
 1. **Plusieurs sources sur un même axe** — plusieurs flux d'un dataset, à cadences différentes,
    sur UN graphe synchronisé (le référentiel temporel `at` / `range`, §3) ; et N médias sur un axe
    avec correction de dérive. C'est une extension de `wama-axis.js` (substrat commun) : la faire
-   AVEC le contrat ci-dessus, pas à côté.
+   AVEC le contrat ci-dessus, pas à côté. ✅ **2026-11-02 : l'axe, seule horloge, et N médias qui
+   le suivent** (avec le « qui est maître » ci-dessus) ; ⏳ plusieurs flux sur UN graphe.
 2. **La route qui sert une FENÊTRE d'un flux** à une brique (vue décimée, `wama_data/view.py`,
    §9quater.7) — `wama_data` n'a encore aucune vue Django.
 3. **Les réglages typés d'une vue** (`ParamSpec` rendus par `WamaParams` au lieu des configurateurs
