@@ -54,7 +54,7 @@ class NoAppRewritesTheTabsTest(SimpleTestCase):
         self.assertEqual([], offenders, 'un onglet se DÉCLARE dans common/app_about.py')
 
 
-class EveryAppDeclaresItsAboutTest(SimpleTestCase):
+class EveryAppStatesItsAboutTest(SimpleTestCase):
 
     def test_every_app_and_lab_app_has_a_summary_and_features(self):
         for app in _real_apps() + list(LAB_APPS):
