@@ -228,15 +228,44 @@ class DomainsAreFoundInTheDatabaseTest(TestCase):
                     self.assertEqual(made.get(dom, set()), kept, f'{dom}: wrong elements')
 
     def test_the_progress_factory_gives_one_bar_per_shared_domain_without_being_told(self):
+        """The bar the PAGE calls: the app's own `global_progress`, found among its routes. A
+        factory rebuilt here with the defaults missed what the app passes it — the anonymizer's
+        progress lives in `blur_progress` (2026-11-02, its `document` domain)."""
         import json
-
-        from wama.common.utils.progress_views import make_progress_views
         for app, surface, model, _form, served in _shared_surfaces():
             with self.subTest(surface=surface):
-                views = make_progress_views(work_model=model, app_id=app,
-                                            get_user=lambda request: self.user)
-                payload = json.loads(views['global_progress'](RequestFactory().get('/')).content)
+                request = RequestFactory().get('/')
+                request.user = self.user
+                payload = json.loads(_wired_view(app, model, 'global_progress')(request).content)
                 self.assertTrue(set(served) <= set(payload), payload)
+
+    def test_a_wired_view_is_found_by_its_model_only(self):
+        # Counterpart: the progress of ANOTHER model of the same app is not taken for this one.
+        from django.contrib.auth.models import User
+        for app, _surface, model, _form, _served in _shared_surfaces():
+            with self.subTest(app=app):
+                self.assertIsNone(_wired_view(app, User, 'global_progress', required=False))
+
+
+def _wired_view(app, model, name, required=True):
+    """The view `name` the app's routes serve for `model` — the factory marks its views with their
+    model (`progress_views.make_progress_views`), decorators keep the mark."""
+    from django.urls import get_resolver
+
+    def callbacks(patterns):
+        for pattern in patterns:
+            if hasattr(pattern, 'url_patterns'):
+                yield from callbacks(pattern.url_patterns)
+            else:
+                yield pattern.callback
+
+    _prefix, resolver = get_resolver().namespace_dict[app]
+    found = {cb for cb in callbacks(resolver.url_patterns)
+             if getattr(cb, '__name__', '') == name and getattr(cb, 'work_model', None) is model}
+    if not required and not found:
+        return None
+    assert len(found) == 1, f'{app}: {len(found)} wired view(s) {name} for {model.__name__}'
+    return found.pop()
 
     def test_a_shared_surface_names_its_domains_by_a_field(self):
         """`when_any` reads properties, which no query filters: a shared surface that used it

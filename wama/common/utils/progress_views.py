@@ -285,6 +285,12 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
 
     progress.__name__, global_progress.__name__ = 'progress', 'global_progress'
     download_all.__name__ = 'download_all'
+    # Chaque vue porte son modèle (2026-11-02) : on retrouve parmi les routes d'une app LA vue
+    # qu'elle a câblée, avec SES réglages (`progress_field`, `progress_of`…) — une fabrique
+    # reconstruite avec les défauts ne lit pas la progression de l'anonymizer (`blur_progress`).
+    # Un décorateur (`require_GET`, `login_required`) recopie l'attribut (`functools.wraps`).
+    for view in (progress, global_progress, download_all):
+        view.work_model = work_model
     return {'progress': progress, 'global_progress': global_progress, 'download_all': download_all}
 
 
