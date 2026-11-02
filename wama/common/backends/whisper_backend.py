@@ -57,13 +57,9 @@ WHISPER_FILES = {
 def whisper_folder() -> Path:
     """Le dossier de famille de Whisper (`MODEL_PATHS['speech']['whisper']`) — et, hors Django
     (service vocal, uvicorn :8001), le MÊME dossier par le repli des moteurs de parole : jamais le
-    `$HOME` (cache HF par défaut de faster-whisper)."""
-    try:
-        from django.conf import settings
-        return Path(settings.MODEL_PATHS['speech']['whisper'])
-    except Exception:
-        from wama.common.backends.tts_base import ai_models_dir
-        return ai_models_dir() / 'models' / 'speech' / 'whisper'
+    `$HOME` (cache HF par défaut de faster-whisper) — `tts_base.speech_folder`."""
+    from wama.common.backends.tts_base import speech_folder
+    return speech_folder('whisper')
 
 
 def ct2_model_dir(files) -> Path:

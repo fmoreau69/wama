@@ -20,7 +20,7 @@ from pathlib import Path
 
 from wama.common.tts.constants import COQUI_MODEL_MAPPING
 
-from .tts_base import CATALOG_KEYS, TTSBackend, _device, project_root
+from .tts_base import CATALOG_KEYS, TTSBackend, _device, project_root, speech_folder
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +63,8 @@ COQUI_FILES = {
 
 def coqui_folder() -> Path:
     """`MODEL_PATHS['speech']['coqui']` — et, hors Django (le service de voix, où Coqui tourne),
-    le même dossier sous `AI-models` : jamais le `$HOME`."""
-    try:
-        from django.conf import settings
-        return Path(settings.MODEL_PATHS['speech']['coqui'])
-    except Exception:
-        from .tts_base import ai_models_dir
-        return ai_models_dir() / 'models' / 'speech' / 'coqui'
+    le même dossier sous `AI-models` : jamais le `$HOME` (`tts_base.speech_folder`)."""
+    return speech_folder('coqui')
 
 
 def coqui_model_dir(model: str) -> Path:

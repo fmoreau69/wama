@@ -83,13 +83,9 @@ AUDIO_ENGINE_FILES = {
 def engine_folder(key: str) -> Path:
     """`MODEL_PATHS['speech'][…]` du moteur — et, sans Django, le même dossier sous `AI-models`
     (`tts_base.ai_models_dir`), jamais le `$HOME` (AGENTS.md)."""
+    from .tts_base import speech_folder
     setting, dirname, _files = AUDIO_ENGINE_FILES[key]
-    try:
-        from django.conf import settings
-        return Path(settings.MODEL_PATHS['speech'][setting])
-    except Exception:
-        from .tts_base import ai_models_dir
-        return ai_models_dir() / 'models' / 'speech' / dirname
+    return speech_folder(setting, dirname)
 
 
 def engine_files(key: str) -> list:

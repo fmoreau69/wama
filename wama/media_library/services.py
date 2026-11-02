@@ -132,7 +132,10 @@ def _converted_to_pivot(uploaded, source, filename: str, pivot: str):
 
 
 def _estimate_spoken_language(path):
-    """(langue, confiance) entendue — faster-whisper `tiny` sur CPU, la brique du transcriber."""
+    """(langue, confiance) entendue — faster-whisper `tiny` sur CPU, la brique du transcriber. Son
+    modèle est une ligne du catalogue (`spoken_language.MODEL_KEY`, 2026-11-02) : absent, la brique
+    REFUSE et l'estimation s'abstient — rien n'est téléchargé dans une requête, et une installation
+    ne s'attend pas dans une page."""
     from wama.common.utils.audio_decode import decode_audio
     from wama.common.utils.spoken_language import SAMPLE_RATE, detect_spoken_language
     audio, _ = decode_audio(path, target_sr=SAMPLE_RATE)

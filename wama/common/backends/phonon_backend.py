@@ -20,7 +20,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .tts_base import TTSBackend, ai_models_dir, write_wav_int16
+from .tts_base import TTSBackend, speech_folder, write_wav_int16
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +62,8 @@ PHONON_FILES = [
 
 def model_folder() -> Path:
     """`MODEL_PATHS['speech']['phonon']` — et, sans Django (le service vocal), le même dossier
-    sous `AI-models` (`tts_base.ai_models_dir`)."""
-    try:
-        from django.conf import settings
-        return Path(settings.MODEL_PATHS['speech']['phonon'])
-    except Exception:
-        return ai_models_dir() / 'models' / 'speech' / 'phonon'
+    sous `AI-models` (`tts_base.speech_folder`)."""
+    return speech_folder('phonon')
 
 
 def model_installed() -> bool:

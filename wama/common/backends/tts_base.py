@@ -54,6 +54,19 @@ def speech_dir(engine: str) -> Path:
     return d
 
 
+def speech_folder(setting: str, dirname: str = None) -> Path:
+    """Le dossier DÉCLARÉ d'un modèle de parole — `MODEL_PATHS['speech'][setting]` (`settings.py`) —
+    et, hors Django (le service vocal), le même dossier sous `AI-models` (`dirname`, à défaut la
+    clé) : jamais le `$HOME`. Sans effet de bord, à la différence de `speech_dir`, qui le crée et
+    ne lit pas la déclaration. Une lecture, quatre moteurs (2026-11-02 : Phonon, Whisper, Coqui,
+    les moteurs audio de l'enhancer la recopiaient chacun)."""
+    try:
+        from django.conf import settings
+        return Path(settings.MODEL_PATHS['speech'][setting])
+    except Exception:
+        return ai_models_dir() / 'models' / 'speech' / (dirname or setting)
+
+
 #: Suffixe de `AIModel.model_key` (catalogue) par nom de modèle UI. Table devenue IDENTITÉ
 #: le 18/08 : l'app est ALIGNÉE sur les clés canoniques du catalogue (route SPEC §356 —
 #: xtts_v2→coqui-xtts, higgs_audio→higgs-audio, speedy_speech→speedy-speech ; lignes

@@ -142,6 +142,31 @@ class CatalogueRowsAreMeasuredTest(SimpleTestCase):
         self.assertFalse(models[doctr_backend.DOCTR_KEY].is_downloaded)
 
 
+class SpeechFolderTest(SimpleTestCase):
+    """ONE reading of a speech model's folder (`tts_base.speech_folder`) for Phonon, Whisper, Coqui
+    and the enhancer's audio engines — they each carried a copy until 2026-11-02."""
+
+    def test_the_declared_setting_is_read_without_creating_anything(self):
+        from wama.common.backends.tts_base import speech_folder
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root) / 'nowhere' / 'whisper'
+            speech = {**settings.MODEL_PATHS.get('speech', {}), 'whisper': folder}
+            with self.settings(MODEL_PATHS={**settings.MODEL_PATHS, 'speech': speech}):
+                self.assertEqual(folder, speech_folder('whisper'))
+                self.assertEqual(folder, whisper_backend.whisper_folder())
+            self.assertFalse(folder.exists(), 'no side effect, unlike `speech_dir`')
+
+    def test_without_settings_the_same_folder_under_AI_models_never_the_home(self):
+        """The voice service runs without Django."""
+        from wama.common.backends import tts_base
+        broken = mock.PropertyMock(side_effect=RuntimeError('settings not configured'))
+        with mock.patch.object(type(settings), 'MODEL_PATHS', broken, create=True), \
+                mock.patch.object(tts_base, 'ai_models_dir', return_value=Path('/ai')):
+            self.assertEqual(Path('/ai/models/speech/resemble-enhance'),
+                             tts_base.speech_folder('resemble_enhance', 'resemble-enhance'))
+            self.assertEqual(Path('/ai/models/speech/coqui'), coqui_backend.coqui_folder())
+
+
 class _FakeWhisperModel:
     seen = []
 

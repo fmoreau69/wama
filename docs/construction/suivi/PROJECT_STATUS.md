@@ -27980,6 +27980,17 @@ passer par la route de wama »*, puis `/reverif`.
   `opencv-python-headless` 4.13 (tiré par `pdf2docx`) ÉCRASE `opencv-python` 4.10 à l'exécution, et
   `requirements.txt` demande `>=4.11` ; `misaki` lancerait un `pip` hors route si `en_core_web_sm`
   manquait — une roue GitHub que la route `library` refuse par verrou.
+  **Revérification** (`/reverif`, même nuit) : la lecture du dossier d'un modèle de parole
+  (`MODEL_PATHS['speech'][…]`, repli sous `AI-models` hors Django) était écrite QUATRE fois —
+  `phonon_backend` (28/10) et trois copies de ma main (`whisper_backend`, `coqui_backend`,
+  `audio_enhancer_files`) : ramenées à UNE brique, `tts_base.speech_folder` (sans effet de bord, à
+  la différence de `speech_dir`), gardée par `SpeechFolderTest` (contre-épreuve rouge). Un troisième
+  consommateur de tiny, que l'inventaire des appelants n'avait pas vu : l'estimateur de langue de la
+  médiathèque (`media_library.services._estimate_spoken_language`, appelé dans une REQUÊTE) — sans
+  le modèle il s'abstient, comme pour tout échec d'estimation ; rien n'est téléchargé, rien
+  n'attend. Limite NOMMÉE : un appelant hors transcriber (describer, avatarizer, par
+  `whisper_utils`) ne demande pas tiny à la route ; s'il manquait, NeMo refuserait en nommant la
+  route au lieu de télécharger.
   🔴 **Après la RELANCE** (gunicorn, workers, service vocal) : retirer les anciens snapshots
   `speech/whisper/models--Systran--faster-whisper-{large-v3,tiny}` (≈ 3,1 Go — un processus lancé
   avant a pu charger l'ancien code, qui les lit par nom) ; `manifest_export` (32 manifestes
