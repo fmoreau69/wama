@@ -27794,7 +27794,16 @@ ci-dessus relu sur le code de `e91973131`.
   collision ; `wdat.py` n'a plus d'identifiant français, `export.py` en a, dont quatre noms que la
   liste noire ne voit pas ; 9 docs de construction (et non 7) hors table des domaines ; le CDN se
   réduit à `common/modes_demo.html` ; `localStorage` : le reader persiste trois réglages, le describer
-  n'a qu'un reste mort.
+  n'a qu'un reste mort ; l'idiome « compte de test + rôle » n'est pas dans « une douzaine » de tests
+  mais dans **54 fichiers de tests** (motif `GROUP_PREFIX` + groupe), sans aide commune.
+- **Contrôles** (WSL, arbre de travail) : `check_docs` 0 cassée, 4 périmées sur 3722 — renvois vers
+  `transcriber/views.py` et `synthesizer/views.py`, raccourcis par du travail NON COMMITÉ d'autrui ;
+  `doc_facts --check` : `conformite`, `mecanismes`, `outils` (ROUTE), `dev-briques` périmés, aucun
+  bloc touché ici. `tests_identifier_language` ROUGE dans l'arbre (code 2564 > 2561, noms de tests
+  1291 > 1289) — attribué fichier par fichier : aucun changement entre `5de8b303` et HEAD (HEAD
+  tient 2561 / 1289), tout le dépassement est du WIP d'autrui (`tool_api.py` +2, `ui_smoke.py` +1,
+  `tests_vram_wait.py` +1, `views.py` −1 ; `tests_element_gestures.py` et
+  `tests_tool_api_coverage.py` +1 nom de test chacun).
 - **Confirmés à la ligne** : DeepFilterNet 3 (`common/backends/audio_enhancer.py:325-345`, pilote
   `files` sans archive — origines `huggingface`/`github` seules, `model_installer.py:833-834,905-911`) ;
   `AUDIOCRAFT_CACHE_DIR` (`audiocraft_backend.py:196`) ; `app_base.html` sans aucun `extends`/`include`
