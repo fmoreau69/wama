@@ -270,6 +270,13 @@ os.environ.setdefault('DOCTR_CACHE_DIR', str(MODEL_PATHS['ocr']['doctr']))
 # service de voix, qui n'initialise pas Django, la pose dans son amorce (`common/tts/service.py`).
 os.environ.setdefault('TTS_HOME', str(MODEL_PATHS['speech']['coqui']))
 os.environ.setdefault('COQUI_TOS_AGREED', '1')
+# torch — `torch.cuda.is_available()` par NVML (2026-11-02). Sans elle, ce simple test INITIALISE le
+# pilote CUDA ; appelé dans le processus PARENT d'un pool qui forke (worker Celery `default` en
+# prefork, gunicorn), il empoisonne les enfants : « Cannot re-initialize CUDA in forked
+# subprocess », plafond de l'allocateur non posé (relevé à CHAQUE enfant du worker `default` depuis
+# au moins le 31/10, et un « Failed to clear GPU cache » en série le 31/10). Mesuré sur un worker
+# prefork jetable : avec la variable, l'enfant initialise CUDA lui-même et le plafond s'applique.
+os.environ.setdefault('PYTORCH_NVML_BASED_CUDA_CHECK', '1')
 
 # HuggingFace access token — required for gated models (pyannote/speaker-diarization-3.1,
 # FLUX.1-schnell…). Generate at https://huggingface.co/settings/tokens (read access), and

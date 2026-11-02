@@ -631,6 +631,10 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
     except Exception:
         return False                      # sonde indisponible → on tente, comme avant
     if libre >= besoin_gb:
+        # L'item part sans l'accord : il ne survit pas à ce lancement (« l'accord sert une fois »).
+        # Il restait valable 24 h (`GRANT_TTL_S`) et aurait vidé la carte, sans nouvel accord, à
+        # une relance du même item (constat du 2026-11-02, accord de la génération #1261).
+        gov.revoke_grant(app_id, item_id)
         return False
 
     if gov.fits_alone(besoin_gb) is False:

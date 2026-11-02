@@ -1001,10 +1001,17 @@ sont NOMMÉS (`other_holders`) dans la card en attente (`holders_summary`) et co
 panneau du model manager (`api_tracked_models`). Gardes : `common/tests/tests_out_of_process_holders.py`
 (l'enfant est un vrai processus, avec un faux torch). ⏳ Restent, nommés : le service privacy et
 gunicorn ne sont pas TENANTS (« Libérer la carte » ne les décharge pas) ; un enfant en cours ne se
-libère ni ne s'annule (⏹ n'atteint pas le sous-processus) ; un accord « Libérer la carte » non
-consommé vit 24 h (`task_skeleton._differer_faute_de_vram` ne le retire que s'il sert) ; les trois
-services uvicorn démarrent AVANT `wama_worker_env` (`start_wama_prod.sh`). Le multi-venv lui-même :
+libère ni ne s'annule (⏹ n'atteint pas le sous-processus) ; les trois services uvicorn démarrent
+AVANT `wama_worker_env` (`start_wama_prod.sh`). Le multi-venv lui-même :
 `INFRA_WSL_VS_WINDOWS.md §Venvs isolés`, bloc du même jour.
+Soldés le soir, après relance : ⑤ un accord « Libérer la carte » que le lancement n'a pas utilisé
+ne lui survit plus (`_differer_faute_de_vram` le retire quand l'item part — il valait 24 h et aurait
+vidé la carte sans nouvel accord à une relance) ; ⑥ les enfants du worker `default` (prefork) ne
+naissent plus EMPOISONNÉS pour CUDA : `torch.cuda.is_available()` initialisait le pilote dans le
+PARENT, d'où « Cannot re-initialize CUDA in forked subprocess » et le plafond non posé à chaque
+enfant depuis au moins le 31/10 — `PYTORCH_NVML_BASED_CUDA_CHECK=1` posé une fois dans `settings.py`,
+mesuré sur un worker prefork jetable (avec : l'enfant pose le plafond ; sans : l'avertissement).
+Gardes : `tests_vram_wait.ThreeCasesTest`, `tests_out_of_process_holders.ForkSafeCudaCheckTest`.
 
 ### Warm-loading VRAM — modèles temps réel chauds (chantier prod)
 > But : sur serveur de prod (grosse VRAM), garder chargés les modèles **temps réel**

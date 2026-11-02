@@ -92,6 +92,14 @@ class ThreeCasesTest(_Base):
         self.assertEqual(obtain.call_args.args[0], 20.0)
         self.assertIsNone(gov.release_granted('synthesizer', self.item.pk))
 
+    def test_a_grant_the_launch_did_not_need_does_not_outlive_it(self):
+        """L'accord sert une fois : un item parti sans lui ne le garde pas pour sa relance."""
+        gov.grant_release('synthesizer', self.item.pk, user_id=self.user.pk)
+        with mock.patch.object(gov, 'obtain_vram') as obtain:
+            self.assertFalse(self._defer(20.0, free=22.0))
+        obtain.assert_not_called()
+        self.assertIsNone(gov.release_granted('synthesizer', self.item.pk))
+
     def test_a_stranger_s_grant_is_ignored_and_the_item_waits(self):
         gov.grant_release('synthesizer', self.item.pk, user_id=self.other.pk)
         with mock.patch.object(gov, 'obtain_vram') as obtain:

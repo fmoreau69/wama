@@ -79,6 +79,16 @@ class CappedChildTest(SimpleTestCase):
         self.assertIn('env=capped_child_env()', inspect.getsource(codeformer_backend._codeformer_dans))
 
 
+class ForkSafeCudaCheckTest(SimpleTestCase):
+    """Le test de disponibilité de CUDA ne doit pas empoisonner les enfants d'un pool qui forke
+    (2026-11-02) : chaque enfant du worker `default` (prefork) relevait « Cannot re-initialize CUDA
+    in forked subprocess », plafond de l'allocateur non posé. Mesuré sur un worker jetable : la
+    variable posée par `settings.py` suffit."""
+
+    def test_the_settings_make_torch_check_cuda_through_nvml(self):
+        self.assertEqual(os.environ.get('PYTORCH_NVML_BASED_CUDA_CHECK'), '1')
+
+
 class OllamaHostTest(_WithRegistry):
 
     def test_a_granted_release_unloads_every_resident_of_the_host(self):
