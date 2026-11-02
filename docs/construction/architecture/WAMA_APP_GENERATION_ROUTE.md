@@ -1262,6 +1262,15 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     - défaut trouvé au navigateur : la règle du bord ARRIÈRE (`temps ≤ 0` → arrêt) s'appliquait
       aussi en avant, et un premier battement à écart nul arrêtait une lecture partie de 0 — caché
       jusqu'ici parce que le média donnait son temps. Le bord se juge dans le sens de la lecture.
+    - défaut trouvé à la revérification (même jour) : un clic dans l'ONDE du lecteur commun PENDANT
+      la lecture (visible sur la partition du composer) était recalé là où était l'axe — l'axe
+      n'écoutait un positionnement du média qu'à l'arrêt. C'est une commande (événement `seeking`).
+      Les positionnements de l'axe lui-même se reconnaissent à la POSITION qu'il a demandée, jamais
+      à leur instant : une première version par fenêtre de temps prenait un clic fait juste après le
+      départ pour un positionnement de l'axe — vu au navigateur, pas au test, qui attendait avant de
+      cliquer. Garde `test_a_click_in_the_wave_of_a_playing_medium_moves_the_axis` (le clic juste
+      après le départ), deux contre-épreuves rouges ; geste au scénario `common.axis_follow`
+      (37/37, contre-épreuve rouge sur les cinq surfaces).
     - **preuves** : `tests_surfaces.AxisTest` (seule horloge, recalage doux puis repositionnement,
       seuils réglables par axe et par média, N médias avec décalages et marque de lecture commune,
       gestes = commandes et fin d'un média, événements tardifs du navigateur, refus de jouer, pas,

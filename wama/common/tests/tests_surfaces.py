@@ -1068,6 +1068,24 @@ class AxisTest(SimpleTestCase):
         self.assertEqual([6, 6], out['sought'], 'a seek made on a medium moves the axis, and the others')
         self.assertFalse(out['ownPause'], 'the pauses the axis makes are not taken for gestures')
 
+    def test_a_click_in_the_wave_of_a_playing_medium_moves_the_axis(self):
+        """Revérification du 2026-11-02 : pendant la lecture, un positionnement fait sur le média (un
+        clic dans l'onde du lecteur commun, visible sur la partition du composer) était RECALÉ là
+        où était l'axe. C'est une commande ; les positionnements de l'axe lui-même n'en sont pas."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 30}, opts)), m = fakeMedia(30);
+            axis.attach(m, {offset: 1}); axis.play(); step(16);
+            // Juste après le départ, où l'axe vient lui-même de poser le média : le cas mesuré au
+            // navigateur (une fenêtre de temps prenait le clic pour un positionnement de l'axe).
+            m.currentTime = 21; m.fire('seeking'); step(16);
+            var moved = [axis.time(), m.currentTime];
+            axis.seek(4); m.fire('seeking'); step(16);
+            return {moved: moved, own: axis.time()};
+        ''')
+        self.assertAlmostEqual(20.016, out['moved'][0], places=3, msg='the axis goes where the click put the medium')
+        self.assertAlmostEqual(21.016, out['moved'][1], places=1, msg='and the medium is not set back')
+        self.assertAlmostEqual(4.016, out['own'], places=3, msg="the axis' own placement is no gesture")
+
     def test_events_the_axis_caused_arrive_late_and_are_not_taken_for_gestures(self):
         """A browser fires `pause` / `play` AFTER the call : backward then forward again, the late
         `pause` of the silencing must not pause the axis, nor the late `play` replay it."""

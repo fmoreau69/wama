@@ -1904,6 +1904,24 @@ def _axis_gestures(context, token, surface, pk, verdict, reverse, page_hook=None
             f"{sid} : en arrière, le média se tait et suit ({s['time']:.3f} / "
             f"{[round(m['t'], 3) for m in s['media']]})")
 
+    # ④bis L'onde du lecteur commun, quand la surface la montre (la partition du composer) : un clic
+    # PENDANT la lecture, juste après son départ, y amène l'axe (il était recalé là où était l'axe —
+    # revérification du 2026-11-02). Le bouton lecture du lecteur n'est pas montré sur une surface
+    # (largeur nulle, mesuré) : les commandes sont celles du transport.
+    wave = page.locator('.wama-transport-wave canvas')
+    if wave.count() and wave.first.is_visible():
+        page.evaluate("() => { const a = window.__wamaAxes[0]; a.seek(0); a.play(); }")
+        page.wait_for_timeout(250)
+        box = wave.first.bounding_box()
+        page.mouse.click(box['x'] + box['width'] * 0.6, box['y'] + box['height'] / 2)
+        page.wait_for_timeout(300)
+        s = state()
+        expected = 0.6 * (s['duration'] or 0)
+        verdict(s['time'] > expected - 0.05 and all(abs(m['t'] - s['time']) < 0.15 for m in s['media']),
+                f"{sid} : un clic dans l'onde pendant la lecture y amène l'axe (≈ {expected:.2f} s → "
+                f"{s['time']:.3f} / {[round(m['t'], 3) for m in s['media']]})")
+        page.evaluate("() => window.__wamaAxes[0].pause()")
+
     # ⑤ Les courbes : l'échantillon le plus proche de l'instant joué.
     if page.locator('.wama-brick-chart .u-legend').count():
         page.evaluate("() => window.__wamaAxes[0].seek(1.0)")

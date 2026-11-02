@@ -152,6 +152,7 @@
         }
         function place(f) {
             var t = Math.max(0, target(f));
+            f.placedTo = t;
             // Le crochet du lecteur qui possède le média (`WamaAudioPlayer.seek` : il repose une
             // position demandée avant que le fichier ne soit positionnable, et réclame ses
             // métadonnées à un player à pics serveur) — l'axe ne le refait pas.
@@ -415,7 +416,7 @@
                           play: typeof o.play === 'function' ? o.play : null,
                           seek: typeof o.seek === 'function' ? o.seek : null,
                           sync: Object.assign({}, sync, o.sync || {}),
-                          lastSeek: 0, pausedAt: null, playedAt: null };
+                          lastSeek: 0, pausedAt: null, playedAt: null, placedTo: null };
                 var dropCadence = o.fps ? axis.cadence(o.fps) : null;
                 /** Le média EST-il censé jouer ? Sinon une pause qui arrive est la nôtre. */
                 function expected() { return audible() && covers(f); }
@@ -438,8 +439,19 @@
                         if (el.ended || !expected()) return;
                         axis.pause();
                     },
+                    // Un positionnement fait sur le média PENDANT la lecture (un clic dans l'onde du
+                    // lecteur commun) : une commande — sinon l'axe le recalerait là où il était. Les
+                    // siens, l'axe les reconnaît à la POSITION qu'il a demandée (`place`), jamais à
+                    // leur instant : il en fait un au départ de la lecture, et un clic juste après
+                    // passait pour le sien (mesuré au navigateur, partition du composer).
+                    seeking: function () {
+                        if (!s.playing) return;
+                        if (f.placedTo != null && Math.abs(el.currentTime - f.placedTo) < 0.05) return;
+                        var t = clamp(el.currentTime - f.offset, 0, end());
+                        if (Math.abs(t - s.time) > f.sync.reseek) axis.seek(t);
+                    },
                     seeked: function () {
-                        if (s.playing) return;           // pendant la lecture, l'axe recale lui-même
+                        if (s.playing) return;           // pendant la lecture, `seeking` l'a dit
                         var t = clamp(el.currentTime - f.offset, 0, end());
                         if (Math.abs(t - s.time) > 0.01) axis.seek(t);
                     },
