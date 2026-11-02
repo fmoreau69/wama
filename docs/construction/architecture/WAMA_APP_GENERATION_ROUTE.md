@@ -5801,7 +5801,11 @@ process** (clé ETA du process, pas de l'app), signal `RunOutcome` par process, 
 >   (conversion, floutage, sortie, import) ne tient pas la carte et n'attend rien ;
 > - **le besoin** est celui que l'app déclare (`vram_needed`), sinon celui du modèle de la card au
 >   catalogue (`auto_model.vram_needed_gb`), MOINS ce que le worker en tient déjà
->   (`resource_governor.resident_here_gb`) — sans ce décompte, le rendu du composer attendrait pour
+>   (`resource_governor.resident_here_gb`) ; ce besoin du catalogue est le pic EN DÉCHARGEMENT
+>   (plus gros composant) quand le backend du modèle le déclare (`BaseModelBackend.OFFLOADS`,
+>   2026-11-01), la somme sinon — FLUX.1-dev, 31,4 Go de somme et 22,2 au plus gros composant,
+>   était refusé « il ne tiendra jamais » ; un test par AST tient la déclaration égale au code
+>   qui décharge (`tests_vram_wait.OffloadDeclarationTwinTest`) — sans ce décompte, le rendu du composer attendrait pour
 >   toujours le modèle que sa partition vient de charger (et le même cas existait d'une card à la
 >   suivante). Le composer et l'enhancer déclaraient ce besoin à la main, à l'identique : copies
 >   retirées (`REMOVAL_LEDGER R129`) ; le transcriber et l'imager, qui disent leur modèle,

@@ -408,7 +408,8 @@ class TheCardAndTheGraphicsCardTest(TestCase):
                 mock.patch('wama.common.services.resource_governor.resident_here_gb',
                            return_value=0.0):
             self.assertEqual(7.3, _vram_need(gen, None, tasks._model_key(gen)))
-        need.assert_called_once_with(SCORE_MODEL)
+        need.assert_called_once()
+        self.assertEqual(need.call_args.args, (SCORE_MODEL,))   # `offload=` suit le backend
 
     def test_a_card_that_does_not_fit_now_waits_instead_of_starting(self):
         gen = self._generation()

@@ -126,6 +126,7 @@ class QwenImageBackend(ImageGenerationBackend):
     # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'diffusers'
+    OFFLOADS = True   # composants déchargés vers le processeur (cf. BaseModelBackend.OFFLOADS)
     REQUIRED_PACKAGES = ['torch', 'diffusers']
 
     name = "qwen_image"

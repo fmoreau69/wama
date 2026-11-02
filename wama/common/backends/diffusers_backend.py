@@ -56,6 +56,7 @@ class DiffusersBackend(ImageGenerationBackend):
     # backend (SD/SDXL/Hunyuan) sur une machine sans lui.
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'diffusers'
+    OFFLOADS = True   # composants déchargés vers le processeur (cf. BaseModelBackend.OFFLOADS)
     REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "diffusers"
     display_name = "Diffusers (Hugging Face)"

@@ -438,6 +438,7 @@ def vram_needed_gb(model_key: str, *, offload: bool = False):
     d'attendre. Écrite dans l'enhancer le 2026-09-21, remontée ici le 2026-10-02 avec son 2ᵉ
     consommateur : le composer, dont la 1ʳᵉ génération YuE2 réelle est partie sans rien
     déclarer sur une carte pleine — elle a échoué faute de mémoire au lieu d'attendre.
+    Le squelette passe `offload=True` quand le backend du modèle déclare `OFFLOADS` (2026-11-01).
     """
     try:
         from wama.model_manager.models import AIModel

@@ -528,6 +528,15 @@ class BaseModelBackend(ABC):
     #: lancement, en `RuntimeError`).
     VENDORED: bool = False
 
+    #: Le moteur sait DÉCHARGER ses composants vers le processeur (`enable_model_cpu_offload`,
+    #: séquentiel, `MemoryManager.apply_offload_strategy`) : seul le plus gros composant doit
+    #: tenir sur la carte. Le besoin VRAM que la garde du squelette compare est alors le pic EN
+    #: DÉCHARGEMENT de la cascade commune (`model_footprint_gb(offload=True)`), pas la somme.
+    #: Déclaré le 2026-11-01 : sans lui, la garde comparait la somme pour tout le monde et
+    #: refusait « il ne tiendra jamais » à FLUX.1-dev (31,4 Go de somme, 22,2 au plus gros
+    #: composant), que son moteur charge en 8 bits ou déchargé (`DiffusersBackend._get_flux_strategy`).
+    OFFLOADS: bool = False
+
     #: Clé de CATALOGUE du modèle pour lequel CETTE instance a été résolue (`<source>:<id>`) —
     #: posée par la porte commune (`manager.backend_instance_for_key`). Un moteur LOCAL qui sert
     #: plusieurs modèles la lit pour savoir lequel charger ; un moteur hors processus (Ollama, un

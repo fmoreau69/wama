@@ -545,7 +545,12 @@ def _vram_need(item, vram_needed, model_key):
     à la main, à l'identique (`vram_needed_gb(model_key(élément))`) ; les autres apps qui disent
     leur modèle (transcriber, imager) n'attendaient rien. ⚠ C'est le modèle de la CARD : un
     process qui en charge un autre (la diarisation après la transcription) se le voit appliquer
-    — le décompte de ce que le worker tient en retire l'essentiel."""
+    — le décompte de ce que le worker tient en retire l'essentiel.
+
+    Le pic dérivé est celui de la stratégie que le moteur SAIT appliquer (2026-11-01) : le pic en
+    déchargement si son backend le déclare (`BaseModelBackend.OFFLOADS`), la somme sinon. Sans
+    cela, FLUX.1-dev (31,4 Go de somme, 22,2 au plus gros composant) était refusé « il ne tiendra
+    jamais » par la garde d'un moteur qui le charge déchargé ou en 8 bits."""
     need = None
     if vram_needed is not None:
         try:
@@ -554,8 +559,10 @@ def _vram_need(item, vram_needed, model_key):
             logger.warning("besoin VRAM illisible (%s) — on tente sans différer", exc)
             return None
     elif model_key:
+        from wama.common.backends.manager import backend_for_key
         from wama.common.utils.auto_model import vram_needed_gb
-        need = vram_needed_gb(model_key)
+        backend = backend_for_key(model_key)
+        need = vram_needed_gb(model_key, offload=bool(getattr(backend, 'OFFLOADS', False)))
     if not need:
         return None
     if model_key:

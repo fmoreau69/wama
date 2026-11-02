@@ -115,6 +115,75 @@ class ThreeCasesTest(_Base):
         self.assertEqual(self._status(), 'AWAITING_RESOURCES')
 
 
+class OffloadingEngineNeedTest(TestCase):
+    """Le besoin dérivé du modèle est le pic de la stratégie que son moteur SAIT appliquer
+    (2026-11-01) : FLUX.1-dev, relevé réel 31,42 Go de somme pour 22,17 de transformer, était
+    refusé « il ne tiendra jamais » sur une carte de 24 Go que son moteur sait occuper déchargé."""
+
+    KEY = 'imager:flux-1-dev'
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(
+            model_key=self.KEY, name='flux-1-dev', model_type='image', source='imager',
+            is_downloaded=True, capabilities={'task': 'text-to-image'},
+            composition={'runtime': {'engine': 'diffusers'}},
+            extra_info={'weights': {'total_gb': 31.42, 'largest_gb': 22.17}})
+
+    def _need(self):
+        from wama.common.utils.task_skeleton import _vram_need
+        with mock.patch.object(gov, 'resident_here_gb', return_value=0.0):
+            return _vram_need(None, None, self.KEY)
+
+    def test_an_engine_that_offloads_is_judged_on_its_largest_component(self):
+        self.assertEqual(self._need(), 22.17)
+
+    def test_an_engine_that_does_not_offload_keeps_the_sum(self):
+        class _Resident:
+            OFFLOADS = False
+        with mock.patch('wama.common.backends.manager.backend_for_key', return_value=_Resident):
+            self.assertEqual(self._need(), 31.42)
+
+    def test_the_flux_row_resolves_to_a_backend_that_offloads(self):
+        from wama.common.backends.manager import backend_for_key
+        backend = backend_for_key(self.KEY)
+        self.assertIsNotNone(backend)
+        self.assertTrue(backend.OFFLOADS, backend.__name__)
+
+
+class OffloadDeclarationTwinTest(TestCase):
+    """`OFFLOADS` dit ce que le code FAIT : une classe de `common/backends/` qui appelle un
+    déchargement le déclare, et une classe qui le déclare en appelle un. Lu par AST."""
+
+    CALLS = {'enable_model_cpu_offload', 'enable_sequential_cpu_offload', 'apply_offload_strategy'}
+
+    def test_offloading_backends_and_their_declaration_agree(self):
+        import ast
+        from pathlib import Path
+        from django.conf import settings
+        folder = Path(settings.BASE_DIR) / 'wama' / 'common' / 'backends'
+        calls_without, flagged_without, seen = [], [], 0
+        for path in sorted(folder.glob('*.py')):
+            for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+                if not isinstance(node, ast.ClassDef):
+                    continue
+                offloads = any(
+                    isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
+                    and c.func.attr in self.CALLS for c in ast.walk(node))
+                declared = any(
+                    isinstance(s, ast.Assign) and any(getattr(t, 'id', '') == 'OFFLOADS'
+                                                      for t in s.targets)
+                    and getattr(s.value, 'value', None) is True for s in node.body)
+                seen += offloads
+                if offloads and not declared:
+                    calls_without.append(f'{path.name}:{node.name}')
+                if declared and not offloads:
+                    flagged_without.append(f'{path.name}:{node.name}')
+        self.assertGreaterEqual(seen, 8, "le relevé ne voit plus les backends qui déchargent")
+        self.assertEqual(calls_without, [], "déchargent sans déclarer OFFLOADS = True")
+        self.assertEqual(flagged_without, [], "déclarent OFFLOADS = True sans décharger")
+
+
 class TaskLineAndTimeGuardTest(_Base):
 
     def _run(self, glu, limit_s=None):

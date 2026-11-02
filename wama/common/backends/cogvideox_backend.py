@@ -91,6 +91,7 @@ class CogVideoXBackend(ImageGenerationBackend):
     # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'diffusers'
+    OFFLOADS = True   # composants déchargés vers le processeur (cf. BaseModelBackend.OFFLOADS)
     #: Classe de PARAMÈTRES déclarée par le backend (2026-09-07) — lue sur la classe RÉSOLUE.
     PARAMS = CogVideoXParams
     REQUIRED_PACKAGES = ['torch', 'diffusers']
