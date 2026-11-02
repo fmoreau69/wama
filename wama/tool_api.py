@@ -3417,24 +3417,31 @@ def _route_dispo(app: str, canonique: str, args):
     return served_route(app, canonique, args)
 
 
+def _call_view(user, view, args=(), kwargs=None, *, url: str = '/', method: str = 'post',
+               data=None):
+    """Appelle une vue par une requête synthétique au nom de `user` (`data` en champs de
+    formulaire). Rend (status_code, charge JSON | {})."""
+    from django.test import RequestFactory
+
+    factory = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE)
+    request = factory.get(url) if method == 'get' else factory.post(url, data or {})
+    request.user = user
+    response = view(request, *args, **(kwargs or {}))
+    try:
+        return (getattr(response, 'status_code', 500),
+                json.loads(getattr(response, 'content', b'').decode('utf-8')))
+    except Exception:
+        return getattr(response, 'status_code', 500), {}
+
+
 def _poster_vue(user, app: str, nom_route: str, args, data=None):
     """POST la vue de l'app par une requête synthétique, `data` en champs de formulaire. Rend
     (status_code, charge|texte)."""
-    from django.test import RequestFactory
-    from django.urls import reverse
+    from django.urls import resolve, reverse
 
     url = reverse(f'{app}:{nom_route}', args=args)
-    requete = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE).post(url, data or {})
-    requete.user = user
-    from django.urls import resolve
     vue, v_args, v_kwargs = resolve(url)
-    reponse = vue(requete, *v_args, **v_kwargs)
-    statut = getattr(reponse, 'status_code', 500)
-    contenu = getattr(reponse, 'content', b'')
-    try:
-        return statut, json.loads(contenu.decode('utf-8'))
-    except Exception:
-        return statut, {}
+    return _call_view(user, vue, v_args, v_kwargs, url=url, data=data)
 
 
 def _verdict(statut, charge, quoi):
@@ -3579,7 +3586,6 @@ def _batch_view(user, app: str, gesture: str, batch_id: int, what: str, *, metho
     vue garde le lot (propriétaire, collaborateur, ou lecteur pour un lot reçu) ; une ÉCRITURE
     passe d'abord par `_batch_write_refusal` (la garde d'app des verbes transverses)."""
     from django.http import Http404
-    from django.test import RequestFactory
     from wama.common.utils.batch_views import element_declaration
     from wama.common.utils.preview_registry import PreviewRegistry
     model = PreviewRegistry.get_model(app)
@@ -3587,22 +3593,14 @@ def _batch_view(user, app: str, gesture: str, batch_id: int, what: str, *, metho
             if model is not None else None)
     if view is None:
         return {'error': f"L'app '{app}' ne déclare aucun lot ({what})."}, None
-    factory = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE)
-    request = factory.get('/') if method == 'get' else factory.post('/', data or {})
-    request.user = user
     try:
-        response = view(request, batch_id)
+        status_code, payload = _call_view(user, view, [batch_id], method=method, data=data)
     except Http404:
         return {'error': f"{what} : lot {app}#{batch_id} introuvable."}, None
     except Exception as e:
         logger.warning(f"[tool_api] {gesture} {app}#{batch_id} : {e}")
         return {'error': f"{what} impossible pour le lot {app}#{batch_id} : {e}"}, None
-    try:
-        payload = json.loads(getattr(response, 'content', b'') or b'{}')
-    except ValueError:
-        payload = {}
-    failure = _verdict(getattr(response, 'status_code', 500), payload,
-                       f"{what} du lot {app}#{batch_id}")
+    failure = _verdict(status_code, payload, f"{what} du lot {app}#{batch_id}")
     return (failure, None) if failure else (None, payload or {})
 
 

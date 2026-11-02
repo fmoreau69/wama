@@ -26,6 +26,8 @@ ne cite un modèle du catalogue.
 """
 from django.urls import NoReverseMatch, reverse
 
+from wama.common.sandbox import SANDBOX_BADGE
+
 #: Les déclarations, app par app — relues contre le CODE le 2026-11-02 à partir des onglets écrits à
 #: la main qu'elles remplacent ; chaque point cite la ligne qui le fonde (`# verified:`). Ce qui
 #: n'était plus vrai a été retiré (modèles retirés, réglages disparus, fourchettes périmées).
@@ -740,9 +742,6 @@ CAPABILITIES = (
 #: Nombre de moteurs nommés par groupe dans le corps (la liste entière suit, avec leurs publications).
 ENGINES_SHOWN = 6
 
-#: Le badge que le menu accole au nom d'une app du bac à sable (`sandbox.inject_sandbox_catalog`) :
-#: l'« À propos » le dit par sa ligne d'origine, son titre garde le seul nom.
-SANDBOX_BADGE = ' ⚠ BAC À SABLE'
 
 
 def _spec(app_id: str) -> dict:
@@ -797,8 +796,12 @@ def origin(app_id: str) -> dict:
     née. Un développeur se nomme comme son compte l'affiche (nom complet, sinon identifiant)."""
     spec = _spec(app_id)
     if not spec.get('sandbox'):
-        lab = not spec and _identity(app_id).get('world') == 'lab'
-        return {'kind': 'wama', 'label': 'Application de WAMA Lab' if lab else 'Application de WAMA'}
+        # Le monde se LIT (`app_identity` → `app_world`) et se nomme par son libellé déclaré
+        # (`world_label`) : le substrat ne cite aucun monde.
+        from wama.common.app_registry import world_label
+        world = _identity(app_id).get('world')
+        return {'kind': 'wama', 'label': 'Application de WAMA',
+                'world': world_label(world) if world else ''}
     from django.contrib.auth import get_user_model
     from wama.common.sandbox import app_contributors
     names = app_contributors(app_id)

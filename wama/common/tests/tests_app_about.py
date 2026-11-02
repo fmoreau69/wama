@@ -167,7 +167,10 @@ class FragmentsTest(TestCase):
         self.assertIn('menu « … » les réaligne', page)            # batches : the transcriber has them
 
     def test_a_lab_app_and_a_twin_read_their_declaration(self):
-        self.assertEqual('Application de WAMA Lab', app_about.origin('face_analyzer')['label'])
+        # The world is READ (app_identity) and named by its declared label, never cited here.
+        from wama.common.app_registry import app_world, world_label
+        self.assertEqual(world_label(app_world('face_analyzer')), app_about.origin('face_analyzer')['world'])
+        self.assertNotEqual(app_about.origin('face_analyzer')['world'], app_about.origin('transcriber')['world'])
         self.assertTrue(app_about.about_facts('face_analyzer', groups=[])['links'])
         from wama.common.app_registry import APP_CATALOG
         with mock.patch.dict(APP_CATALOG, {'reader_42': {**APP_CATALOG['reader'], 'sandbox': True,

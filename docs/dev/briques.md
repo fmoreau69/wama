@@ -2649,7 +2649,7 @@ Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE)
 
 ### Onglets « À propos » et « Aide » d'une app
 
-Ce que l'app DÉCLARE (résumé, fonctionnalités, aide propre — jamais un nom de modèle) et ce qui se DÉRIVE : moteurs actuels (la lecture de « Modèles et publications »), entrées, sorties, capacités du catalogue, ORIGINE (WAMA, WAMA Lab, ou le bac à sable et TOUS ses développeurs). Rendus par le gabarit commun, chargés à l'ouverture de l'onglet (`/common/about|help/<app>/`) ; aucune app ne réécrit ces onglets. Une jumelle lit la déclaration de sa source ; `description_long` du catalogue en dérive
+Ce que l'app DÉCLARE (résumé, fonctionnalités, aide propre — jamais un nom de modèle) et ce qui se DÉRIVE : moteurs actuels (la lecture de « Modèles et publications »), entrées, sorties, capacités du catalogue, ORIGINE (WAMA et son monde, lu par `app_identity` et nommé par `world_label`, ou le bac à sable et TOUS ses développeurs). Rendus par le gabarit commun, chargés à l'ouverture de l'onglet (`/common/about|help/<app>/`) ; aucune app ne réécrit ces onglets. Une jumelle lit la déclaration de sa source ; `description_long` du catalogue en dérive
 
 - **Domicile** : `wama/common/app_about.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §4.3](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : « À PROPOS » et « AIDE » de chaque app — ce qui est DÉCLARÉ, et ce qui se DÉRIVE (2026-11-02).

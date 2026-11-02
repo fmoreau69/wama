@@ -131,7 +131,8 @@ def user_role(request):
                 # illisibles). Libellé = source + identifiant (le badge « ⚠ BAC À SABLE »
                 # du catalogue serait redondant sous cet en-tête de groupe).
                 if _spec.get('sandbox'):
-                    _base = _spec['label'].replace(' ⚠ BAC À SABLE', '').strip()
+                    from wama.common.sandbox import SANDBOX_BADGE
+                    _base = _spec['label'].replace(SANDBOX_BADGE, '').strip()
                     _entry['label'] = f"{_base} ({_name})"
                     _sandbox_entries.append(_entry)
                     continue

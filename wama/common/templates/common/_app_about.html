@@ -38,7 +38,7 @@ thème seuls (`tests_theme`) ; la couleur de l'app vient de sa déclaration.{% e
             <p class="wama-about-lead">{{ about.summary }}</p>
             <div class="wama-about-origin" data-about-origin="{{ about.origin.kind }}">
                 {% if about.origin.kind == 'wama' %}
-                <i class="fas fa-circle-check"></i> {{ about.origin.label }}
+                <i class="fas fa-circle-check"></i> {{ about.origin.label }}{% if about.origin.world %} · monde {{ about.origin.world }}{% endif %}
                 {% else %}
                 <i class="fas fa-flask"></i> Bac à sable
                 {% if about.origin.developers %} · développée par <strong data-about-developers>{{ about.origin.developers|join:", " }}</strong>

@@ -538,7 +538,7 @@ se DÉCLARENT (2026-11-02) :
 |--------|------|----------------|
 | File d'attente | bloc `queue_content` | Zone de drop + liste des cards |
 | Console | *(fourni par la base)* | Logs Celery filtrés par app |
-| À propos | `common/app_about.py::ABOUT` + dérivés | Ce que fait l'app (résumé, fonctionnalités — SANS nom de modèle), puis le DÉRIVÉ : moteurs actuels, entrées, sorties, capacités, ORIGINE (WAMA, WAMA Lab, ou le bac à sable et TOUS ses développeurs), puis modèles et publications |
+| À propos | `common/app_about.py::ABOUT` + dérivés | Ce que fait l'app (résumé, fonctionnalités — SANS nom de modèle), puis le DÉRIVÉ : moteurs actuels, entrées, sorties, capacités, ORIGINE (WAMA et son monde — lu par `app_identity`, nommé par `world_label` : aucun monde cité par le substrat, revérification du 2026-11-02 —, ou le bac à sable et TOUS ses développeurs), puis modèles et publications |
 | Aide | `common/app_about.py::ABOUT` + gestes communs | L'aide PROPRE à l'app, puis les gestes communs et ceux que ses capacités ajoutent |
 
 > **Pourquoi (2026-11-02, demande de Fabien : « le corps "À propos" ne porte pas la mise à jour des

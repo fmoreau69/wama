@@ -2182,8 +2182,9 @@ MECHANISMS = (
     Mechanism('app_about', "Onglets « À propos » et « Aide » d'une app",
               "Ce que l'app DÉCLARE (résumé, fonctionnalités, aide propre — jamais un nom de "
               "modèle) et ce qui se DÉRIVE : moteurs actuels (la lecture de « Modèles et "
-              "publications »), entrées, sorties, capacités du catalogue, ORIGINE (WAMA, WAMA Lab, "
-              "ou le bac à sable et TOUS ses développeurs). Rendus par le gabarit commun, chargés à "
+              "publications »), entrées, sorties, capacités du catalogue, ORIGINE (WAMA et son monde, "
+              "lu par `app_identity` et nommé par `world_label`, ou le bac à sable et TOUS ses "
+              "développeurs). Rendus par le gabarit commun, chargés à "
               "l'ouverture de l'onglet (`/common/about|help/<app>/`) ; aucune app ne réécrit ces "
               "onglets. Une jumelle lit la déclaration de sa source ; `description_long` du "
               "catalogue en dérive",

@@ -413,6 +413,12 @@ def inject_sandbox_access(default_app_access: dict, app_group: dict) -> None:
         app_group.setdefault(label, 'Bac à sable')
 
 
+#: Le badge accolé au label d'une app du bac à sable dans le catalogue — posé ici, retiré par
+#: ceux qui la nomment autrement (menu : sous l'en-tête de son groupe ; « À propos » : par sa
+#: ligne d'origine).
+SANDBOX_BADGE = ' ⚠ BAC À SABLE'
+
+
 def inject_sandbox_catalog(app_catalog: dict) -> None:
     """Entrées APP_CATALOG des jumelles : CLONE de l'app source (mêmes conventions — la
     jumelle témoin EST le même code) + marqueurs `sandbox`/`generated_from` + badge dans le
@@ -428,7 +434,7 @@ def inject_sandbox_catalog(app_catalog: dict) -> None:
         # ce module reste pur (aucun import de la couche manifestes au boot).
         if not src and entry.get('catalog'):
             born = dict(entry['catalog'])
-            born['label'] = f"{born.get('label', label)} ⚠ BAC À SABLE"
+            born['label'] = born.get('label', label) + SANDBOX_BADGE
             born['sandbox'] = True
             born['generated_from'] = ''
             born['from_manifest'] = entry.get('from_manifest', '')
@@ -438,7 +444,7 @@ def inject_sandbox_catalog(app_catalog: dict) -> None:
         if src not in app_catalog:
             continue
         clone = copy.deepcopy(app_catalog[src])
-        clone['label'] = f"{clone.get('label', src)} ⚠ BAC À SABLE"
+        clone['label'] = clone.get('label', src) + SANDBOX_BADGE
         clone['sandbox'] = True
         clone['generated_from'] = src
         clone['generation_run'] = entry.get('created', '')
