@@ -236,3 +236,33 @@ class NativeTextTest(SimpleTestCase):
             pdf.save(str(folder / 'annex.pdf'))
         self.assertIn(line, tasks._try_direct_extraction(str(folder / 'native.pdf')))
         self.assertEqual('', tasks._try_direct_extraction(str(folder / 'annex.pdf')))
+
+
+class PageOrientationModelAskedTest(_Cards):
+    """2026-11-02 — the page orientation classifier that straightens an image before ANY OCR
+    engine is a catalogue row of its own, installed by the route: the reading asks for it (it used
+    to be fetched by docTR at first use). A refused installation does not fail the reading — the
+    straightening is a comfort."""
+
+    def _asked(self, refuse=False):
+        from wama.common.backends.ocr_base import PAGE_ORIENTATION_KEY
+        from wama.common.utils.model_readiness import ModelInstallRefused
+        asked = []
+
+        def ensure(key, **kwargs):
+            asked.append((key, self.engine_runs))
+            if refuse and key == PAGE_ORIENTATION_KEY:
+                raise ModelInstallRefused('espace disque insuffisant')
+        with mock.patch('wama.common.utils.model_readiness.ensure_installed', side_effect=ensure):
+            card = self._run(self._card(format_markdown=False))
+        return card, asked, PAGE_ORIENTATION_KEY
+
+    def test_the_classifier_is_asked_before_the_engine_reads(self):
+        card, asked, key = self._asked()
+        self.assertEqual('SUCCESS', card.status)
+        self.assertIn((key, 0), asked, 'asked before the engine ran')
+
+    def test_a_refused_classifier_does_not_fail_the_reading(self):
+        card, asked, key = self._asked(refuse=True)
+        self.assertEqual('SUCCESS', card.status)
+        self.assertEqual(1, self.engine_runs)

@@ -27711,8 +27711,10 @@ dérivées `docs/dev/*` et `docs/utilisateur/*`*) · `api_manifest_proposals` sa
 `fichier::symbole` ou contrôle de dérive dans `check_docs` (232 renvois décalés à ±12 lignes) ·
 `toggle` de l'alignement du transcriber · table des bascules du cam_analyzer générée depuis `FEATURES` ?
 
-**Restes de code NOMMÉS (non faits).** `WHISPER_CACHE` (`transcriber/utils/model_config.py:232`)
-posé à l'import et lu par rien · identifiants français des CONSOMMATEURS de `wama_data`
+**Restes de code NOMMÉS (non faits).** ~~`WHISPER_CACHE` posé à l'import et lu par rien~~ ✅ retiré
+le 2026-11-02 avec tout le premier jet du transcriber (R212) — *et le constat était inexact : la
+variable n'était posée que par `setup_model_environment`, appelée par le seul `load_whisper_model`,
+lui-même sans appelant* · identifiants français des CONSOMMATEURS de `wama_data`
 (`apercu_frames(lignes_max=)`, `exporter_frames(regroupement=)`, `lot_depuis_frames`, ~~`wdat.py`~~…
 — *remesuré le 2026-11-02 : `wdat.py` n'en porte plus ; `functions/io/export.py` oui, et ses noms
 `apercu_frames`, `exporter_frames`, `lot_depuis_frames`, `regroupement` ÉCHAPPENT à la liste noire de
@@ -27900,7 +27902,7 @@ passer par la route de wama »*, puis `/reverif`.
     la ligne déclare `openai/whisper-large-v3`, le moteur charge `Systran/faster-whisper-*`) ; il
     garde le téléchargement au premier usage tant que la ligne ne nomme pas le dépôt réellement lu.
   **Latent** : `misaki` (G2P anglais de Kokoro) lance `spacy.cli.download("en_core_web_sm")` — un pip
-  hors route — si le modèle spaCy manque (`misaki/en.py:500-501`) ; il est installé aujourd'hui, mais
+  hors route — si le modèle spaCy manque (module `misaki.en`, `G2P.__init__`) ; il est installé aujourd'hui, mais
   ce n'est pas une distribution PyPI (roue GitHub) : la route `library` la refuserait (verrou « PyPI
   par nom seul »). **Code mort** : `transcriber/utils/model_config.load_whisper_model` (+
   `setup_model_environment`, qui écrit `WHISPER_CACHE` dans l'environnement) — aucun appelant, seul
@@ -27921,7 +27923,67 @@ passer par la route de wama »*, puis `/reverif`.
   `httpx` (Ollama), `playwright` (TalkingHead), `pillow` ; plus, par l'inventaire, `misaki`, `spacy`,
   `encodec`, `lpips`. ⚠ `opencv` est installé en TROIS variantes (`opencv-python`,
   `-contrib-python`, `-python-headless`) — la maladie d'`onnxruntime` (`AGENTS.md` patch 10) : une
-  seule à déclarer. 🔚 Semis par `manifest_export --kind library <clé>` sur décision de Fabien.
+  seule à déclarer. ~~🔚 Semis par `manifest_export --kind library <clé>` sur décision de Fabien.~~
+  ✅ fait le soir même (ci-dessous).
+- **Suite de la nuit — les quatre points, sur l'accord de Fabien** (*« Ok pour les 4 points. Surtout
+  attention à ne rien casser. Et fais encore plus attention au Transcriber… On ne suppose rien, on
+  mesure tout »*) :
+  1. **Cinq modèles par la route (`R211`)** — fichiers DÉCLARÉS à côté de leur consommateur, origine
+     figée, installés par le pilote `files`, lus par CHEMIN. AUCUNE brique neuve.
+     - *Whisper large-v3* (`transcriber:whisper`) : `whisper_backend.WHISPER_FILES` (dépôt
+       CTranslate2 `Systran/faster-whisper-large-v3` au commit `edaa852e`), lu par son dossier
+       `faster-whisper-large-v3/` ; la ligne GARDE l'identité `openai/whisper-large-v3` (bancs,
+       licence), ses fichiers priment pour l'installer. Une taille non déclarée (un
+       `WAMA_ASSISTANT_STT_MODEL` réglé autrement) garde son ancien chemin, levier A.
+     - *Whisper tiny* : ligne NEUVE `huggingface:Systran/faster-whisper-tiny` (tâche neuve
+       `language-identification`), déclarée dans `spoken_language.py` (patron de Smart Turn) ;
+       demandée par la sonde des langues du worker AVANT d'écouter (`_language_plan`, hors de
+       l'essai : une attente remonte au squelette, un refus = une sonde échouée comme avant). La
+       sonde l'emploie pour tout moteur par passages (Canary, Parakeet, Qwen3-ASR), NeMo aussi.
+     - *Coqui XTTS v2* : `coqui_backend.COQUI_FILES` (`coqui/XTTS-v2` au commit `6c2b0d75`), au
+       dossier que la librairie employait ; chargé par `Synthesizer(model_dir=…)`, le même chemin
+       que `TTS(<nom>)` SANS son gestionnaire — qui relisait à chaque chargement le `config.json`
+       distant. ⚠ Pas `TTS(model_path=…)` : son chargeur lit `sample_rate` (22 050) au lieu
+       d'`output_sample_rate` (24 000).
+     - *docTR* (`reader:doctr`) et son *classifieur d'orientation* (ligne NEUVE
+       `github:mindee/doctr:v0.8.1`, tâche neuve `page-orientation`) : assets des versions GitHub de
+       `mindee/doctr` (le serveur de Mindee y redirige — mesuré), déclarés là où la librairie
+       cherche d'abord (`DOCTR_CACHE_DIR/models`, préfixe d'empreinte du nom vérifié) ; la ligne ne
+       se dit plus installée parce que le paquet s'importe. Le reader demande le classifieur avant
+       de redresser ; un refus ne fait pas échouer la lecture. `classify` aurait envoyé ces deux
+       modèles au banc de détection (`bench.py:836`) : deux tâches propres, comme `end-of-turn`.
+  2. **Code mort du transcriber (`R212`)** — mesuré symbole par symbole sur tout le dépôt
+     (`wama-dev-ai`, scripts, docs, appels par chaîne) : `load_whisper_model`,
+     `setup_model_environment` (+ `WHISPER_CACHE`), `get_model_info`, `list_available_models`,
+     `get_whisper_download_root`, `DEFAULT_MODEL = 'whisper-base'`, et `WHISPER_DIR` devenu sans
+     lecteur. Le seul importateur du module (`model_registry`) n'en lisait aucun. La librairie
+     `openai-whisper` reste : le code vendorisé de MuseTalk l'importe.
+  3. **Registre des librairies** : 22 semées (`manifest_export --kind library`, puis projetées par
+     `apply_manifests --kind library --apply`) — les 16 exigées par un backend moins `PyMCubes` et
+     `trimesh`, plus `einops`, `omegaconf`, `huggingface_hub` (TripoSR, oubliés de la liste
+     annoncée, mesurés), `misaki`, `spacy`, `encodec`, `lpips`, et `opencv-python` (la variante que
+     déclarent `requirements.txt` et 14 librairies). Reste hors registre, expliqué :
+     `numpy`/`requests` (socle), les `pyannote-*` (dépendances de `pyannote-audio`, semé),
+     `opencv-contrib-python` et `opencv-python-headless`.
+  4. **Restes retirés : 2,83 Go** — `~/.local/share/tts` (doublon d'avant R193),
+     `~/.cache/whisper`, `~/.cache/DeepFilterNet` (vide), `speech/whisper/base.pt`, les quatre Coqui
+     de R32, l'ancien `crnn` de docTR, deux copies dans `/tmp` ; aucune ligne du catalogue ne les
+     nommait (mesuré en base). Ne restent dans les dossiers de Coqui et de docTR que les fichiers
+     déclarés.
+  **Mesuré** : la route a installé Whisper large-v3 (189 s) et tiny (160 s), empreintes déclarées,
+  rien en trop. Geste réel, téléchargeurs des librairies piégés : Whisper transcrit la voix de
+  référence française par dossier ; tiny la dit `fr` (0,95) ; Coqui chargé par dossier = chargé par
+  nom (poids tenseur par tenseur, configuration, 24 000 Hz, 58 locuteurs, même sortie à appel égal) ;
+  docTR lit une page, son dossier inchangé. Treize contre-épreuves, toutes rouges.
+  🔚 **Décisions de Fabien** : `PyMCubes` et `trimesh` — ABSENTS de `venv_linux`, TripoSR ne peut pas
+  tourner : `install_library --allow --apply` (l'allowlist est une décision humaine) ;
+  `opencv-python-headless` 4.13 (tiré par `pdf2docx`) ÉCRASE `opencv-python` 4.10 à l'exécution, et
+  `requirements.txt` demande `>=4.11` ; `misaki` lancerait un `pip` hors route si `en_core_web_sm`
+  manquait — une roue GitHub que la route `library` refuse par verrou.
+  🔴 **Après la RELANCE** (gunicorn, workers, service vocal) : retirer les anciens snapshots
+  `speech/whisper/models--Systran--faster-whisper-{large-v3,tiny}` (≈ 3,1 Go — un processus lancé
+  avant a pu charger l'ancien code, qui les lit par nom) ; `manifest_export` (32 manifestes
+  périmés, dont 5 de cette session) et `doc_facts` — avec le travail des autres sessions.
 
 ## §CLÔTURE 2026-11-01, « MODÈLES : INSTALLATION RECOMMANDÉE, SUCCESSION, BANCS OFFICIELS, DESCRIPTIONS — puis TIRAGE DE L'ASSISTANT (AA v5, échelle commune, variante servie) » — non poussé — 🔴 relancer gunicorn + workers — 🔚 trancher le sort de la ligne `reader:olmocr` (ci-dessous)
 

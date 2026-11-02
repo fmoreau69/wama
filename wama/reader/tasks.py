@@ -272,8 +272,16 @@ def _read(item, ctx):
         # `if/elif` par moteur vivait ici : un OCR installé demain — Ollama, un fournisseur — n'aurait
         # pas eu sa branche.
         from wama.common.backends.manager import backend_instance_for_key, run_contract
-        from wama.common.backends.ocr_base import upright_image
+        from wama.common.backends.ocr_base import PAGE_ORIENTATION_KEY, upright_image
+        from wama.common.utils.model_readiness import ModelInstallRefused
         from wama.common.utils.work_dir import work_dir
+        # Le classifieur d'orientation que le redressement charge (image reçue, ou pages d'un PDF
+        # chez GLM-OCR) : demandé à la route comme le moteur (2026-11-02). Un REFUS ne fait pas
+        # échouer la lecture — le redressement est un confort, l'image part alors telle quelle.
+        try:
+            ctx.ensure_model(PAGE_ORIENTATION_KEY)
+        except ModelInstallRefused as exc:
+            ctx.console(f"[Reader] Redressement des pages indisponible ({exc}) — lecture sans.")
         engine = backend_instance_for_key(backend, user=item.user)
         with work_dir('reader_upright') as travail:
             # Une IMAGE est redressée avant tout moteur (EXIF, puis classifieur d'orientation de

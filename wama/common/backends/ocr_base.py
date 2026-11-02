@@ -24,6 +24,7 @@ Ce que le contrat NE fait pas : choisir le modèle. La clé de catalogue choisie
 import logging
 import re
 import zlib
+from pathlib import Path
 from abc import abstractmethod
 from typing import Callable, Optional
 
@@ -57,12 +58,50 @@ def is_degenerate_output(text: str) -> bool:
 ORIENTATION_MIN_CONFIDENCE = 0.6
 _ORIENTATION_PREDICTOR = []
 
+#: Les poids de docTR sont publiés en versions GitHub de son dépôt (le serveur de Mindee y redirige).
+DOCTR_RELEASES = 'mindee/doctr'
+
+
+def doctr_folder() -> Path:
+    """`MODEL_PATHS['ocr']['doctr']` — la valeur de `DOCTR_CACHE_DIR` que pose `settings.py` ;
+    docTR range ses poids sous `<DOCTR_CACHE_DIR>/models`."""
+    from django.conf import settings
+    return Path(settings.MODEL_PATHS['ocr']['doctr'])
+
+
+def doctr_release_file(tag: str, name: str, size: int, sha256: str) -> dict:
+    """Un poids de docTR : l'asset `name` de la version `tag`, rangé là où la librairie le cherche."""
+    return {'path': f'models/{name}', 'size': size, 'sha256': sha256,
+            'origin': {'source': 'github', 'release': f'{DOCTR_RELEASES}:{tag}', 'file': name}}
+
+
+#: Le classifieur d'orientation de PAGE — une ligne du catalogue à lui (`page-orientation`,
+#: `model_registry._discover_page_orientation_models`) : il sert TOUS les moteurs d'OCR, docTR
+#: absent compris (GLM-OCR redresse aussi les pages d'un PDF). Clé de la version GitHub qui le
+#: publie (forme de YOLOPv2). Taille MESURÉE le 2026-11-02 = l'asset ; empreinte conforme au nom.
+PAGE_ORIENTATION_KEY = f'github:{DOCTR_RELEASES}:v0.8.1'
+PAGE_ORIENTATION_FILES = [
+    doctr_release_file('v0.8.1', 'mobilenet_v3_small_page_orientation-8e60325c.pt', 6233146,
+                       '8e60325c099cf70ba4203923d8ec15546b11d33f0f18fdd9d526040d60337674'),
+]
+
+
+def page_orientation_installed() -> bool:
+    from wama.model_manager.services.model_installer import declared_files_present
+    return declared_files_present(doctr_folder(), PAGE_ORIENTATION_FILES)
+
 
 def _orientation_predictor():
     """Le classifieur d'orientation de PAGE de docTR (`mobilenet_v3_small_page_orientation`,
-    6 Mo, CPU, ~0,04 s par image), chargé une fois par process. Poids sous `DOCTR_CACHE_DIR`
-    (posé dans `settings.py`). None si docTR manque : le redressement est un confort."""
+    6 Mo, CPU, ~0,04 s par image), chargé une fois par process. Ses poids sont DÉCLARÉS
+    (`PAGE_ORIENTATION_FILES`) et installés par la route — la glu du reader le demande avant
+    (`ctx.ensure_model(PAGE_ORIENTATION_KEY)`). None s'il n'est pas installé ou si docTR manque :
+    le redressement est un confort, et la librairie ne doit pas le télécharger d'elle-même."""
     if not _ORIENTATION_PREDICTOR:
+        if not page_orientation_installed():
+            logger.warning("[OCR] classifieur d'orientation non installé (%s, ligne « %s ») — "
+                           "images non redressées", doctr_folder(), PAGE_ORIENTATION_KEY)
+            return None          # rien de retenu : installé plus tard, il servira
         try:
             from doctr.models import page_orientation_predictor
             _ORIENTATION_PREDICTOR.append(page_orientation_predictor(pretrained=True))

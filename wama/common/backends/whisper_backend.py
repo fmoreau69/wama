@@ -5,10 +5,17 @@ Uses CTranslate2 (float16 on GPU, int8 on CPU) for significantly faster
 inference than the original openai-whisper while keeping the same accuracy.
 
 Default model: large-v3 (best accuracy, ≈10 GB VRAM).
+
+Poids : ceux du modèle du catalogue (`transcriber:whisper`, large-v3) sont DÉCLARÉS ici
+(`WHISPER_FILES`, dépôt CTranslate2 `Systran/faster-whisper-large-v3` figé à un commit), installés
+par la route et lus par CHEMIN (2026-11-02). Avant, `WhisperModel('large-v3', download_root=…)`
+tirait le dépôt au premier usage : la ligne déclarait `openai/whisper-large-v3` (le modèle
+d'origine, qui garde son identité), la route ne pouvait donc pas l'installer.
 """
 
 import gc
 import logging
+from pathlib import Path
 from typing import Optional
 
 from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, TranscriptionSegment
@@ -16,6 +23,57 @@ from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, Trans
 logger = logging.getLogger(__name__)
 
 DEFAULT_WHISPER_MODEL = 'large-v3'
+
+
+def ct2_files(repo: str, revision: str, files) -> list:
+    """Les fichiers d'un dépôt CTranslate2 de faster-whisper, rangés dans `faster-whisper-<nom>/`
+    sous le dossier de famille — la forme que `WhisperModel(<dossier>)` lit sans rien télécharger."""
+    folder = repo.rsplit('/', 1)[-1]
+    return [{'path': f'{folder}/{name}', 'size': size, 'sha256': sha256,
+             'origin': {'source': 'huggingface', 'repo': repo, 'revision': revision, 'file': name}}
+            for name, size, sha256 in files]
+
+
+#: Le modèle du catalogue, par la taille que les appelants demandent. Tailles et empreintes PUBLIÉES
+#: par le Hub au commit (blob git des petits fichiers, LFS du poids) — et MESURÉES le 2026-11-02
+#: sur le snapshot que la librairie avait posé : identiques.
+WHISPER_FILES = {
+    'large-v3': ct2_files(
+        'Systran/faster-whisper-large-v3', 'edaa852ec7e145841d8ffdb056a99866b5f0a478', (
+            ('config.json', 2394,
+             'a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9'),
+            ('model.bin', 3087284237,
+             '69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1'),
+            ('preprocessor_config.json', 340,
+             '7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711'),
+            ('tokenizer.json', 2480617,
+             '6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca'),
+            ('vocabulary.json', 1068114,
+             'c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1'),
+        )),
+}
+
+
+def whisper_folder() -> Path:
+    """Le dossier de famille de Whisper (`MODEL_PATHS['speech']['whisper']`) — et, hors Django
+    (service vocal, uvicorn :8001), le MÊME dossier par le repli des moteurs de parole : jamais le
+    `$HOME` (cache HF par défaut de faster-whisper)."""
+    try:
+        from django.conf import settings
+        return Path(settings.MODEL_PATHS['speech']['whisper'])
+    except Exception:
+        from wama.common.backends.tts_base import ai_models_dir
+        return ai_models_dir() / 'models' / 'speech' / 'whisper'
+
+
+def ct2_model_dir(files) -> Path:
+    """Le dossier que lit `WhisperModel`, DÉRIVÉ des fichiers déclarés."""
+    return whisper_folder() / Path(files[0]['path']).parent
+
+
+def ct2_installed(files) -> bool:
+    from wama.model_manager.services.model_installer import declared_files_present
+    return declared_files_present(whisper_folder(), files)
 
 
 class WhisperBackend(SpeechToTextBackend):
@@ -92,21 +150,26 @@ class WhisperBackend(SpeechToTextBackend):
         return 'cpu', 'int8'
 
     def _get_download_root(self) -> Optional[str]:
-        """Return the centralized Whisper model cache, or None."""
-        try:
-            # Étape 2 (complétée le 06/09) : dossier lu à sa SOURCE. Ces constantes dérivaient
-            # déjà de `settings.MODEL_PATHS` ; l'import d'app n'ajoutait qu'une indirection —
-            # et il était RELATIF, donc invisible à la 1ʳᵉ version de la garde, qui ne
-            # cherchait que les imports ABSOLUS. *Une garde ne couvre que la forme qu'elle
-            # sait lire.*
-            from django.conf import settings
-            return str(settings.MODEL_PATHS.get('speech', {}).get('whisper') or '')
-        except Exception:
-            # Hors Django (service vocal, uvicorn :8001 — conversation de l'assistant, 2026-10-10) :
-            # le MÊME dossier, par le repli repo-relatif des moteurs de parole. Rendre None ici
-            # laissait faster-whisper télécharger dans le `$HOME` (cache HF par défaut).
-            from wama.common.backends.tts_base import ai_models_dir
-            return str(ai_models_dir() / 'models' / 'speech' / 'whisper')
+        """Le dossier de famille (`whisper_folder`) — là où faster-whisper range une taille que le
+        catalogue ne déclare pas. ⚠ Hors Django, rendre None ici laissait faster-whisper
+        télécharger dans le `$HOME` (2026-10-10)."""
+        return str(whisper_folder())
+
+    @staticmethod
+    def _model_source(model_name: str) -> str:
+        """Ce que reçoit `WhisperModel` : le DOSSIER de la taille déclarée au catalogue — la route
+        l'installe, il se lit sans rien télécharger ; s'il manque, on le dit (`RuntimeError`, le
+        moteur ne télécharge pas lui-même). Une taille que le catalogue ne déclare pas (un
+        `WAMA_ASSISTANT_STT_MODEL` réglé autrement) garde son nom : faster-whisper la range dans le
+        dossier de famille (`download_root`), le levier A d'`hf_weights`."""
+        files = WHISPER_FILES.get(model_name)
+        if files is None:
+            return model_name
+        if not ct2_installed(files):
+            raise RuntimeError(
+                f"Whisper {model_name} n'est pas installé ({ct2_model_dir(files)}) — il s'installe "
+                f"par le model manager (ligne « transcriber:whisper »).")
+        return str(ct2_model_dir(files))
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -147,7 +210,7 @@ class WhisperBackend(SpeechToTextBackend):
             )
 
             self._model = WhisperModel(
-                model_name,
+                self._model_source(model_name),
                 device=self._device,
                 compute_type=self._compute_type,
                 download_root=download_root,

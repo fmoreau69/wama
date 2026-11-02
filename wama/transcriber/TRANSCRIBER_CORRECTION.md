@@ -112,7 +112,9 @@ chaque étape (diarisation, résumé, cohérence) se relance seule au lieu de to
   modèle servi par son propre moteur (`honours`) ; ⑤ **Canary a TRADUIT au lieu de transcrire** : le
   transcriber ne connaît pas la langue d'un élément avant de le transcrire, et le repli sur la langue
   du site (`LANGUAGE_CODE = 'en-us'`) a sorti un extrait français EN ANGLAIS. La langue est désormais
-  ENTENDUE (brique `common/utils/spoken_language.py`, faster-whisper `tiny` sur CPU, déjà sur disque)
+  ENTENDUE (brique `common/utils/spoken_language.py`, faster-whisper `tiny` sur CPU — *depuis le
+  2026-11-02 une ligne du catalogue à lui, `huggingface:Systran/faster-whisper-tiny`, installée par
+  la route et demandée par la sonde avant d'écouter, R211 ; il se tirait au premier usage*)
   et une langue que le moteur ne transcrit pas est REFUSÉE, jamais traduite.
   ⚠ Constat sur l'assistant (qwen3.8) : il atteint la limite d'itérations d'outils en suivant une
   tâche longue (sa réponse finit par un appel d'outil écrit en texte), et il a INVENTÉ une cause

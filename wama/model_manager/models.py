@@ -82,6 +82,10 @@ class ModelTask(models.TextChoices):
     FACE_ANALYSIS = 'face-analysis', 'Analyse de visage'
     FACE_RESTORATION = 'face-restoration', 'Restauration de visage'
     IMAGE_TO_3D = 'image-to-3d', 'Image → 3D'
+    # Le SENS d'une page photographiée (0, 90, 180, 270°), redressée avant tout moteur d'OCR
+    # (`common/backends/ocr_base.upright_image`, 2026-11-02) — pas un classifieur d'objets :
+    # `classify` le ferait passer au banc de détection (`bench.py`) et aux classements ImageNet.
+    PAGE_ORIENTATION = 'page-orientation', 'Orientation de page'
     # audio / parole
     TRANSCRIPTION = 'transcription', 'Transcription'
     DIARIZATION = 'diarization', 'Diarisation'
@@ -93,6 +97,10 @@ class ModelTask(models.TextChoices):
     # conversation vocale de l'assistant). Ni une transcription (aucun texte), ni un filtre de
     # parole (il ne dit pas OÙ l'on parle, mais si l'on a FINI).
     END_OF_TURN = 'end-of-turn', 'Fin de tour de parole'
+    # Quelle LANGUE est parlée ? (2026-11-02) — le petit Whisper qu'écoute la sonde des langues du
+    # transcriber (`common/utils/spoken_language.py`) avant un moteur qui transcrit par passages.
+    # Ni une transcription (il ne garde aucun texte) ni un classifieur d'audio générique.
+    LANGUAGE_IDENTIFICATION = 'language-identification', 'Identification de la langue parlée'
     AUDIO_ENHANCE = 'audio-enhance', 'Débruitage audio'
     DENOISE = 'denoise', 'Débruitage'
     # texte / multimodal
@@ -230,6 +238,11 @@ TASK_TO_PLATFORM_TAGS = {
     # parole ordinaires (Silero) : projeter ce tag sur la fin de tour ferait de tout VAD un juge
     # de fin de phrase.
     ModelTask.END_OF_TURN:        (None,                           None,        None,        None),
+    # HuggingFace range l'un sous `audio-classification`, l'autre sous `image-classification` :
+    # projeter ces tags ferait de tout classifieur d'audio un juge de langue, de toute image un sens
+    # de page (même raison que la fin de tour).
+    ModelTask.LANGUAGE_IDENTIFICATION: (None,                      None,        None,        None),
+    ModelTask.PAGE_ORIENTATION:   (None,                           None,        None,        None),
     ModelTask.LIP_SYNC:           (None,                           None,        None,        None),
 }
 REFERENCE_PLATFORMS = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
@@ -283,6 +296,8 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.QUALITY_METRIC:     ModelType.VISION,
     ModelTask.HAND_GESTURE:       ModelType.VISION,
     ModelTask.END_OF_TURN:        ModelType.SPEECH,
+    ModelTask.LANGUAGE_IDENTIFICATION: ModelType.SPEECH,
+    ModelTask.PAGE_ORIENTATION:   ModelType.VISION,
     ModelTask.LIP_SYNC:           ModelType.LIPSYNC,
 }
 
@@ -406,6 +421,9 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.HAND_GESTURE:       (('image', 'video'),             ('work_file',),            ()),
     # La phrase en cours, captée au micro par l'écoute de l'assistant.
     ModelTask.END_OF_TURN:        (('audio',),                     ('work_audio',),           ()),
+    ModelTask.LANGUAGE_IDENTIFICATION: (('audio',),                ('work_audio',),           ()),
+    # La photo d'une page, avant sa lecture.
+    ModelTask.PAGE_ORIENTATION:   (('image', 'document'),          ('work_file',),            ()),
     ModelTask.LIP_SYNC:          (('image', 'audio', 'video'),    ('work_image', 'work_audio'), ()),
 }
 

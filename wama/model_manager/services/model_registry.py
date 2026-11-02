@@ -389,6 +389,8 @@ class ModelRegistry:
         self._discover_face_analyzer_models()
         self._discover_hand_gesture_models()
         self._discover_turn_end_models()
+        self._discover_language_identification_models()
+        self._discover_page_orientation_models()
         self._discover_phonon_models()
         self._discover_pii_models()
 
@@ -1679,6 +1681,86 @@ class ModelRegistry:
         except Exception as e:
             self.discovery_errors.append(f'end-of-turn: {e}')
 
+    def _discover_language_identification_models(self):
+        """Langue PARLÉE (task=language-identification, 2026-11-02) — le petit Whisper qu'écoute la
+        sonde des langues du transcriber avant un moteur qui transcrit par passages
+        (`common/utils/spoken_language.py`). Patron de Smart Turn : le consommateur est une brique
+        commune, la déclaration vit à côté d'elle ; la ligne existe absente, installable par le
+        pilote `files` depuis le Hub à un commit figé. Il se tirait au premier usage, sans ligne
+        (le balayage générique l'écarte : le dossier de famille de Whisper appartient au
+        transcriber, qui ne le déclarait pas)."""
+        try:
+            from wama.common.backends.whisper_backend import whisper_folder
+            from wama.common.utils.spoken_language import (
+                HF_REPO, LANGUAGE_ID_FILES, MODEL_KEY, model_folder, model_installed,
+            )
+            self._models[MODEL_KEY] = ModelInfo(
+                id=MODEL_KEY,
+                name='Whisper tiny (langue parlée)',
+                model_type=ModelType.SPEECH,
+                source=ModelSource.HUGGINGFACE,
+                description="Whisper tiny (CTranslate2, MIT) : dit quelle langue est parlée, fenêtre "
+                            "par fenêtre. Le transcriber l'écoute avant un moteur qui transcrit par "
+                            "passages (Canary, Parakeet, Qwen3-ASR) — une seule langue imposée, ou "
+                            "chaque passage dans la sienne. Processeur, aucune VRAM.",
+                description_short="Langue parlée (sonde du transcriber)",
+                platform_ref=hf_platform_ref(HF_REPO),
+                vram_gb=0.0,
+                format='pt',
+                preferred_format='pt',
+                is_downloaded=model_installed(),
+                extra_info={'path': str(model_folder()),
+                            'size_bytes': sum(f['size'] for f in LANGUAGE_ID_FILES),
+                            'install_dir': str(whisper_folder()),
+                            'declared_files': LANGUAGE_ID_FILES},
+                # Aucun backend ne le charge : la brique commune, par chemin (`_model`).
+                composition={'runtime': {'loaded_by': 'wama.common.utils.spoken_language'}},
+                capabilities={'task': 'language-identification', 'modalities': ['audio'],
+                              'inputs_required': ['work_audio'], 'languages': ['*']},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'language-identification: {e}')
+
+    def _discover_page_orientation_models(self):
+        """Orientation de PAGE (task=page-orientation, 2026-11-02) — le classifieur de docTR qui
+        redresse une photo avant TOUT moteur d'OCR (`common/backends/ocr_base.upright_image`).
+        Même patron : sa déclaration vit à côté de la brique qui le charge ; la ligne existe
+        absente, installable par le pilote `files` depuis la version GitHub qui le publie. La
+        librairie le tirait au premier usage."""
+        try:
+            from wama.common.backends.ocr_base import (
+                DOCTR_RELEASES, PAGE_ORIENTATION_FILES, PAGE_ORIENTATION_KEY, doctr_folder,
+                page_orientation_installed,
+            )
+            from wama.common.external_sources import github_platform_ref
+            self._models[PAGE_ORIENTATION_KEY] = ModelInfo(
+                id=PAGE_ORIENTATION_KEY,
+                name="Orientation de page (docTR)",
+                model_type=ModelType.VISION,
+                source=ModelSource.GITHUB,
+                description="Classifieur d'orientation de page de docTR (Mindee, Apache-2.0, "
+                            "MobileNet v3) : dit de combien une page photographiée est tournée "
+                            "(0, 90, 180, 270°). Le reader redresse ainsi une image avant tout "
+                            "moteur d'OCR — une note prise de côté est illisible couchée. "
+                            "Processeur, 6 Mo.",
+                description_short="Redressement des pages avant l'OCR",
+                platform_ref=github_platform_ref(PAGE_ORIENTATION_KEY.split(':', 1)[1]),
+                vram_gb=0.0,
+                format='pt',
+                preferred_format='pt',
+                is_downloaded=page_orientation_installed(),
+                extra_info={'path': str(doctr_folder() / PAGE_ORIENTATION_FILES[0]['path']),
+                            'size_bytes': sum(f['size'] for f in PAGE_ORIENTATION_FILES),
+                            'install_dir': str(doctr_folder()),
+                            'declared_files': PAGE_ORIENTATION_FILES},
+                composition={'runtime': {'loaded_by': 'wama.common.backends.ocr_base'},
+                             'components': [{'repo': DOCTR_RELEASES, 'role': 'page_orientation'}]},
+                capabilities={'task': 'page-orientation', 'modalities': ['image', 'document'],
+                              'inputs_required': ['work_file']},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'page-orientation: {e}')
+
     def _discover_phonon_models(self):
         """Phonon 40m fr (Gradium, 2026-10-28, adopté par Fabien après écoute contre Kokoro). Ligne
         à fichiers déclarés (`common/backends/phonon_backend.py`), installée par le pilote `files`,
@@ -1872,7 +1954,7 @@ class ModelRegistry:
         """Discover Transcriber app models (Whisper, VibeVoice, Qwen3-ASR)."""
         try:
             from wama.transcriber.utils.model_config import (
-                TRANSCRIBER_MODELS, WHISPER_DIR, VIBEVOICE_DIR, QWEN_ASR_DIR, ALIGNMENT_DIR,
+                TRANSCRIBER_MODELS, VIBEVOICE_DIR, QWEN_ASR_DIR, ALIGNMENT_DIR,
             )
             # Descriptions = SOURCE UNIQUE : les CLASSES backend (contrat BaseModelBackend,
             # attributs `description`/`description_long` — c'est ce que l'app AFFICHE via
@@ -1883,7 +1965,6 @@ class ModelRegistry:
             from wama.common.backends.manager import backend_for_engine
 
             preferred = self._get_preferred_format(ModelType.SPEECH)
-            whisper_dir = Path(WHISPER_DIR)
             vibevoice_dir = Path(VIBEVOICE_DIR)
             qwen_asr_dir = Path(QWEN_ASR_DIR)
             from django.conf import settings as _s
@@ -1956,42 +2037,24 @@ class ModelRegistry:
                     fmt = 'safetensors'
                     extra = {'path': str(ALIGNMENT_DIR),
                              'install_dir': str(ALIGNMENT_DIR)}
-                # ⚠ Whisper ne reçoit PAS d'`install_dir` : sa ligne déclare `openai/whisper-large-v3`
-                # quand le moteur charge `Systran/faster-whisper-*` — installer depuis la ligne
-                # tirerait le MAUVAIS dépôt. Il garde le téléchargement au premier usage.
-
                 else:
-                    # Whisper : plusieurs formats possibles sur disque. On CONSTATE le
-                    # contenu (helper robuste) au lieu de DEVINER les noms de dossiers.
-                    # La variante réelle vient du dépôt déclaré ('openai/whisper-large-v3'
-                    # → 'large-v3'), car model_id peut être abrégé ('large').
-                    short_id = config.get('model_id', model_id.replace('whisper-', ''))
-                    variant = (repo_id.split('/')[-1].replace('whisper-', '') if repo_id else short_id)
-                    pt_file = whisper_dir / f"{short_id}.pt"          # openai-whisper .pt
-                    pt_file_v = whisper_dir / f"{variant}.pt"
-                    ct2_dir = whisper_dir / short_id                  # CTranslate2 direct
-                    ct2_dir_v = whisper_dir / variant
-                    # faster-whisper (Systran) et openai HF, via le helper robuste (gère
-                    # models--org--name/snapshots, scan tolérant) — corrige le faux négatif
-                    # 'faster-whisper-large' vs réel 'faster-whisper-large-v3'.
-                    hf_ok = (
-                        _check_hf_model_downloaded(whisper_dir, f"Systran/faster-whisper-{variant}")
-                        or _check_hf_model_downloaded(whisper_dir, repo_id)
+                    # Whisper : les fichiers du dépôt CTranslate2 que le moteur LIT, DÉCLARÉS à côté
+                    # de lui (`whisper_backend.WHISPER_FILES`, 2026-11-02). La ligne garde l'identité
+                    # du modèle d'origine (`openai/whisper-large-v3`) ; ses fichiers priment pour
+                    # l'installer (`spec_for_catalog_row`). Avant, sans `install_dir` — installer
+                    # depuis la ligne aurait tiré le dépôt d'ORIGINE, pas celui que le moteur lit —,
+                    # il se tirait au premier usage, et la présence se devinait parmi cinq formes.
+                    from wama.common.backends.whisper_backend import (
+                        WHISPER_FILES, ct2_installed, ct2_model_dir, whisper_folder,
                     )
-                    is_downloaded = (
-                        pt_file.exists() or pt_file_v.exists()
-                        or (ct2_dir.exists() and ct2_dir.is_dir())
-                        or (ct2_dir_v.exists() and ct2_dir_v.is_dir())
-                        or hf_ok
-                    )
+                    short_id = config['model_id']
+                    files = WHISPER_FILES[short_id]
+                    is_downloaded = ct2_installed(files)
                     name = f"Whisper {short_id.capitalize()}"
                     fmt = 'pt'
-                    path = (str(pt_file) if pt_file.exists()
-                            else str(pt_file_v) if pt_file_v.exists()
-                            else str(whisper_dir / f"models--Systran--faster-whisper-{variant}") if hf_ok
-                            else str(ct2_dir_v) if ct2_dir_v.exists()
-                            else str(ct2_dir))
-                    extra = {'path': path if is_downloaded else ''}
+                    extra = {'path': str(ct2_model_dir(files)) if is_downloaded else '',
+                             'install_dir': str(whisper_folder()), 'declared_files': files,
+                             'size_bytes': sum(f['size'] for f in files)}
 
                 # Capacités CANONIQUES — LUES sur `_cls` (lot 4b, 2026-08-20), la même classe
                 # backend qui sert déjà de « SOURCE UNIQUE » aux descriptions 60 lignes plus haut.
@@ -2180,22 +2243,17 @@ class ModelRegistry:
                 speech_dir = getattr(settings, 'AI_MODELS_DIR', Path('.')) / 'models' / 'speech'
             speech_dir = Path(speech_dir)
 
-            # Check for Coqui XTTS v2
-            coqui_downloaded = False
+            # Coqui XTTS v2 : ses fichiers DÉCLARÉS (2026-11-02), que la route installe et que le
+            # moteur lit par dossier — la présence se devinait jusque-là parmi trois emplacements,
+            # et le fichier venait de la librairie, au premier usage.
+            from wama.common.backends.coqui_backend import (
+                COQUI_FILES, coqui_folder, coqui_installed, coqui_model_dir,
+            )
+            coqui_files = COQUI_FILES['coqui-xtts']
+            coqui_downloaded = coqui_installed('coqui-xtts')
             coqui_format = 'pth'
-            coqui_paths = [
-                speech_dir / 'coqui' / 'tts' / 'tts_models--multilingual--multi-dataset--xtts_v2' / 'model.pth',
-                speech_dir / 'coqui' / 'XTTS-v2' / 'model.pth',
-                speech_dir / 'coqui' / 'xtts_v2' / 'model.pth',
-            ]
-            coqui_model_path = None
-            for cpath in coqui_paths:
-                if cpath.exists():
-                    coqui_downloaded = True
-                    coqui_model_path = cpath
-                    coqui_format = cpath.suffix.lstrip('.') or 'pth'
-                    logger.debug(f"[ModelRegistry] Found Coqui XTTS at: {cpath}")
-                    break
+            coqui_model_path = (coqui_model_dir('coqui-xtts') / 'model.pth'
+                                if coqui_downloaded else None)
 
             self._models["synthesizer:coqui-xtts"] = ModelInfo(
                 id="synthesizer:coqui-xtts",
@@ -2217,7 +2275,9 @@ class ModelRegistry:
                 # toujours. L'ONNX d'un TTS s'INSTALLE (export officiel), il ne se fabrique
                 # pas ici.
                 can_convert_to=['safetensors'],
-                extra_info={'path': str(coqui_model_path) if coqui_model_path else ''},
+                extra_info={'path': str(coqui_model_path) if coqui_model_path else '',
+                            'install_dir': str(coqui_folder()), 'declared_files': coqui_files,
+                            'size_bytes': sum(f['size'] for f in coqui_files)},
                 capabilities=_tts_caps(
                     engine_key='coqui-xtts',   # clonage LU sur CoquiBackend
                     languages=_synth_languages('coqui-xtts'),
@@ -2772,21 +2832,19 @@ class ModelRegistry:
                 # Un moteur SERVI par Ollama n'a pas de ligne ici : il est découvert sous sa
                 # source (`ollama:glm-ocr:latest`, `FAMILLES_OLLAMA`) — la branche qui en faisait
                 # une seconde ligne `reader:` est partie avec ce doublon (2026-10-07).
+                declared = {}
                 if repo_id:
                     is_downloaded = _check_hf_model_downloaded(str(cache_dir), repo_id)
                 else:
-                    # docTR : les poids vivent dans DOCTR_DIR (DOCTR_CACHE_DIR, posé par le
-                    # backend) — critère DISQUE d'abord ; l'import du paquet n'est qu'un
-                    # repli (propriété du venv, pas du modèle : mesuré faux positif depuis
-                    # venv_win le 2026-08-12, doctr n'étant installé que côté venv_linux).
-                    is_downloaded = any(Path(cache_dir).rglob('*.pt')) \
-                        if cache_dir and Path(cache_dir).is_dir() else False
-                    if not is_downloaded:
-                        try:
-                            import doctr  # noqa
-                            is_downloaded = True
-                        except ImportError:
-                            pass
+                    # docTR : ses deux fichiers DÉCLARÉS à côté de son moteur (2026-11-02), que la
+                    # route installe sous `DOCTR_CACHE_DIR/models`. Jusque-là, un `.pt` quelconque
+                    # du dossier — ou, à défaut, l'import du PAQUET, propriété du venv et pas du
+                    # modèle — le disait installé, et la librairie tirait ses poids au premier usage.
+                    from wama.common.backends.doctr_backend import DOCTR_FILES, doctr_installed
+                    from wama.common.backends.ocr_base import doctr_folder
+                    is_downloaded = doctr_installed()
+                    declared = {'install_dir': str(doctr_folder()), 'declared_files': DOCTR_FILES,
+                                'size_bytes': sum(f['size'] for f in DOCTR_FILES)}
 
                 model_info = ModelInfo(
                     id=model_id,
@@ -2799,7 +2857,7 @@ class ModelRegistry:
                     platform_ref=platform_ref or None,
                     vram_gb=config['vram_gb'],
                     is_downloaded=is_downloaded,
-                    extra_info={'type': config['type']},
+                    extra_info={'type': config['type'], **declared},
                     # Capacités CANONIQUES : OCR sur images/documents. Langues non déclarées
                     # (olmOCR/docTR sont multi-écritures ; ne pas sur-affirmer un jeu de langues).
                     capabilities={

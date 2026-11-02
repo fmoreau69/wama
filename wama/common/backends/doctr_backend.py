@@ -5,14 +5,38 @@ Installation : pip install "python-doctr[torch]"
 
 Avantages : pas de GPU requis, bonne précision sur texte imprimé propre,
 formulaires, reçus, documents structurés.
+
+Poids : DÉCLARÉS ici (`DOCTR_FILES`, versions GitHub de `mindee/doctr` — le serveur de Mindee y
+redirige), installés par la route sous `DOCTR_CACHE_DIR/models`, exactement là où la librairie les
+cherche : un fichier présent dont l'empreinte commence par le préfixe de son nom se lit sans rien
+télécharger (`doctr/utils/data.py`, `download_from_url`). Avant (2026-11-02), `ocr_predictor(
+pretrained=True)` les tirait au premier usage, et la ligne du catalogue se disait installée dès
+que le paquet s'importait.
 """
 import logging
 from pathlib import Path
 from typing import Callable, Optional
 
-from wama.common.backends.ocr_base import OCRBackend
+from wama.common.backends.ocr_base import OCRBackend, doctr_folder, doctr_release_file
 
 logger = logging.getLogger(__name__)
+
+#: Les deux réseaux que charge `ocr_predictor(pretrained=True)` (docTR 1.1.0 : détection
+#: `fast_base`, reconnaissance `crnn_vgg16_bn`). Tailles MESURÉES le 2026-11-02 sur les fichiers en
+#: place = celles des assets GitHub ; empreintes conformes au préfixe du nom (et, pour `crnn`, au
+#: condensé que GitHub publie).
+DOCTR_FILES = [
+    doctr_release_file('v0.8.1', 'fast_base-688a8b34.pt', 65814772,
+                       '688a8b3489e9f5d0290c476c6272ec3b18de3ee646c8a0dc158203b1a9c62ace'),
+    doctr_release_file('v0.12.0', 'crnn_vgg16_bn-0417f351.pt', 63303144,
+                       '0417f3511f5c75369bdcbe06539853b9c2d170aa3baceb2acc454c775ddac087'),
+]
+DOCTR_KEY = 'reader:doctr'
+
+
+def doctr_installed() -> bool:
+    from wama.model_manager.services.model_installer import declared_files_present
+    return declared_files_present(doctr_folder(), DOCTR_FILES)
 
 
 class DocTRBackend(OCRBackend):
@@ -98,17 +122,24 @@ class DocTRBackend(OCRBackend):
         points pour un PDF (lue par PyMuPDF, celle de `document_text`), pixels de l'image d'origine
         sinon (avant l'agrandissement d'une image trop fine : la géométrie de docTR est RELATIVE).
         Le cache des poids est `DOCTR_CACHE_DIR`, posé une fois dans `settings.py` (le backend le
-        reposait à chaque appel jusqu'au 2026-10-29, à la même valeur)."""
+        reposait à chaque appel jusqu'au 2026-10-29, à la même valeur) ; ses fichiers, la route."""
         if progress_callback:
             progress_callback(10, "Chargement docTR…")
+
+        # Les fichiers DÉCLARÉS, installés par la route : absents, on le DIT — la glu du reader
+        # demande le modèle de la card à la route avant (`ctx.ensure_model`).
+        if not doctr_installed():
+            raise RuntimeError(
+                f"docTR n'est pas installé ({doctr_folder()}) — il s'installe par le model manager "
+                f"(ligne « {DOCTR_KEY} »).")
 
         try:
             from doctr.io import DocumentFile
             from doctr.models import ocr_predictor
         except ImportError:
             raise RuntimeError(
-                "docTR n'est pas installé. "
-                "Exécutez : pip install \"python-doctr[torch]\""
+                "La librairie docTR n'est pas installée — par la route library : "
+                "python manage.py install_library python-doctr"
             )
 
         path = Path(work_file)

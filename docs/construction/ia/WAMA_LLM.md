@@ -2708,6 +2708,11 @@ d'abord un OCR en échec maquillé en succès.**
   (empreinte refusée) : fichier récupéré par curl, empreinte vérifiée (`8e60325c…`), déposé à la
   main. Tesseract écarté : paquet système absent, docTR déjà au venv. Mesuré bout à bout :
   photo redressée → note lue, boucle coupée au premier passage (`trim_repetition`).
+  ✅ *Le dépôt « à la main » est réglé le 2026-11-02 (`REMOVAL_LEDGER R211`) : le classifieur est
+  une ligne du catalogue à lui (`github:mindee/doctr:v0.8.1`, tâche `page-orientation`), son fichier
+  DÉCLARÉ à côté d'`ocr_base` et installé par la route depuis la version GitHub de docTR — le
+  serveur de Mindee y redirige ; le reader le demande avant de redresser, et un classifieur absent
+  n'est plus téléchargé par la librairie (l'image part telle quelle).*
 - **L'assistant reste disponible pendant le développement** (« il faut que l'assistant reste
   toujours disponible ») — trois points, gardés par `tests_dev_job_follow_up` :
   1. **fin de tâche ANNONCÉE, plus jamais suivie dans le tour** : le serveur de dev, qui possède

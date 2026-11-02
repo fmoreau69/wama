@@ -402,7 +402,7 @@ def _vad_filter_for(t, audio_path: str) -> bool:
     return True
 
 
-def _language_plan(t, audio_path: str, backend) -> tuple:
+def _language_plan(t, audio_path: str, backend, ensure_model=None) -> tuple:
     """Le réglage `language_mode` de la card → (« single » | « multi », langue imposée ou None,
     langue de repli ou None).
 
@@ -415,12 +415,26 @@ def _language_plan(t, audio_path: str, backend) -> tuple:
     Rend aussi la langue de REPLI (la plus entendue par la sonde) : un moteur par passages s'en
     sert pour un passage dont la détection est incertaine ou hors de ses langues (2026-09-29) ;
     en « plusieurs », la sonde n'écoute que pour cela, et seulement pour ces moteurs.
+
+    `ensure_model` (celui du squelette, 2026-11-02) : la sonde écoute avec le modèle
+    d'identification de langue (`spoken_language.MODEL_KEY`), que NeMo réécoute aussi passage par
+    passage — il est demandé à la ROUTE avant, HORS de l'essai : attendre son installation n'est pas
+    un échec de la sonde. Un REFUS, lui, en est un (dit, et le comportement d'avant ce réglage).
     """
     mode = getattr(t, 'language_mode', 'auto') or 'auto'
     cap = getattr(backend, 'max_audio_seconds', None)
     in_passes = isinstance(cap, (int, float)) and cap > 0
     if (mode == 'multi' or mode == 'single') and not in_passes:
         return mode, None, None
+    if ensure_model is not None:
+        from wama.common.utils.model_readiness import ModelInstallRefused
+        from wama.common.utils.spoken_language import MODEL_KEY as LANGUAGE_ID_KEY
+        try:
+            ensure_model(LANGUAGE_ID_KEY)
+        except ModelInstallRefused as exc:
+            _console(t.user_id, f"Sonde des langues impossible ({exc}) — une langue par passage.",
+                     level='warning')
+            return ('multi' if mode == 'multi' else 'single'), None, None
     try:
         from wama.common.utils.spoken_language import languages_heard, probe_languages
         heard = languages_heard(probe_languages(audio_path, float(t.duration_seconds or 0)))
@@ -679,7 +693,8 @@ def _transcribe_step(t, ctx):
         # `whisper` — Albert le reçoit depuis le 2026-10-01 (même jumeau que la diarisation).
         if getattr(backend, 'supports_vad_filter', False):
             transcribe_kwargs['vad_filter'] = _vad_filter_for(t, cleaned_path)
-        language_mode, forced_language, fallback_language = _language_plan(t, cleaned_path, backend)
+        language_mode, forced_language, fallback_language = _language_plan(
+            t, cleaned_path, backend, ensure_model=ctx.ensure_model)
         if language_mode == 'multi' and backend.name == 'whisper':
             transcribe_kwargs['multilingual'] = True
         elif forced_language:

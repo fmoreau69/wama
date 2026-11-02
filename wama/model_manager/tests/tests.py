@@ -294,11 +294,13 @@ class SnapshotsInstallesTest(TestCase):
             full = _faux_snapshot(root, 'speech', 'qwen_asr', 'Org', 'Full')
             self.assertTrue(_check_hf_model_downloaded(full.parent, 'Org/Full'))
 
-    def test_transcriber_rows_state_where_they_install_except_whisper(self):
+    def test_every_transcriber_row_states_where_it_installs(self):
         """The assistant test of 2026-09-28: `install_model('transcriber:qwen3-asr-1.7b')` answered
         « no_install_location » — the transcriber discovery never declared `install_dir`, so neither
-        the Install button nor the tool could fetch its weights. Whisper stays without: its row
-        names `openai/whisper-large-v3` while the engine loads `Systran/faster-whisper-*`."""
+        the Install button nor the tool could fetch its weights. Whisper stayed without until
+        2026-11-02: its row names `openai/whisper-large-v3` while the engine loads
+        `Systran/faster-whisper-large-v3` — it now DECLARES the files its engine reads, which
+        prevail over the row's repo (`spec_for_catalog_row`)."""
         from ..services.model_installer import spec_for_catalog_row
         registry = ModelRegistry()
         registry._models = {}
@@ -309,7 +311,11 @@ class SnapshotsInstallesTest(TestCase):
             row = AIModel(model_key=key, platform_ref=info.platform_ref or '',
                           extra_info=info.extra_info)
             if key == 'transcriber:whisper':
-                self.assertIsNone(spec_for_catalog_row(row), 'whisper would pull the wrong repo')
+                spec = spec_for_catalog_row(row)
+                self.assertEqual('files', spec['kind'])
+                self.assertEqual({'Systran/faster-whisper-large-v3'},
+                                 {f['origin']['repo'] for f in spec['files']},
+                                 'the repo the engine reads, never the original one')
                 continue
             spec = spec_for_catalog_row(row)
             self.assertIsNotNone(spec, f'{key} cannot be installed from the catalogue')
