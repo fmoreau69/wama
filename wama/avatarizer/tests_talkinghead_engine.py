@@ -63,6 +63,12 @@ class EngineFromAvatarNatureTest(TestCase):
         keep_connection = patch('wama.common.utils.task_skeleton.close_old_connections')
         keep_connection.start()
         self.addCleanup(keep_connection.stop)
+        # Un avatar 3D fait TOUJOURS transcrire sa voix (mots datés, 2026-11-02) : par défaut, une
+        # transcription qui n'entend rien — un test qui veut des mots pose la sienne par-dessus.
+        heard_nothing = patch('wama.common.utils.whisper_utils.transcribe_audio',
+                              return_value=self._heard([]))
+        heard_nothing.start()
+        self.addCleanup(heard_nothing.stop)
 
     def _job(self, avatar_rel, text='Bonjour, voici une consigne.'):
         return AvatarJob.objects.create(
@@ -190,6 +196,34 @@ class EngineFromAvatarNatureTest(TestCase):
         call = FakeRender.calls[0]
         self.assertEqual(words, call['words'], 'les mots datés vont au moteur tels quels')
         self.assertEqual('en', call['language'], 'la langue ENTENDUE choisit les visèmes')
+
+    def test_a_text_takes_the_time_of_the_words_heard_in_its_voice(self):
+        """Card #1532 (2026-11-02) : le texte seul était RÉPARTI sur la durée de l'audio, et les
+        lèvres bougeaient pendant les silences. Le texte connu s'ANCRE sur les mots entendus dans
+        la voix synthétisée (`word_anchoring.anchor_turns`) : ses mots, aux heures où ils sont dits."""
+        self._register_talkinghead()
+        heard = [{'word': ' Bonjour,', 'start': 0.2, 'end': 0.6}, {'word': ' voici', 'start': 2.1, 'end': 2.4},
+                 {'word': ' une', 'start': 2.4, 'end': 2.5}, {'word': ' consigne.', 'start': 2.5, 'end': 3.0}]
+        with patch('wama.common.utils.whisper_utils.transcribe_audio', return_value=self._heard(heard)):
+            job, keys = self._run(self._job(self._talking_glb()))
+        self.assertEqual('SUCCESS', job.status, job.error_message)
+        call = FakeRender.calls[0]
+        self.assertEqual('Bonjour, voici une consigne.', call['text'])
+        self.assertEqual([('Bonjour,', 0.2, 0.6, 'exact'), ('voici', 2.1, 2.4, 'exact'),
+                          ('une', 2.4, 2.5, 'exact'), ('consigne.', 2.5, 3.0, 'exact')],
+                         [(w['word'].strip(), w['start'], w['end'], w['timing']) for w in call['words']],
+                         'the words of the TEXT, at the times they are said — a silence stays still')
+
+    def test_a_voice_that_cannot_be_transcribed_still_renders_from_its_text(self):
+        """La voix ne se transcrit pas : la vidéo se fait quand même, sur l'estimation du texte —
+        on ne perd jamais l'avatar faute de mots datés."""
+        self._register_talkinghead()
+        with patch('wama.common.utils.whisper_utils.transcribe_audio', side_effect=RuntimeError('no ASR')):
+            job, keys = self._run(self._job(self._talking_glb()))
+        self.assertEqual('SUCCESS', job.status, job.error_message)
+        call = FakeRender.calls[0]
+        self.assertIsNone(call['words'])
+        self.assertEqual('Bonjour, voici une consigne.', call['text'])
 
     def test_an_audio_with_no_speech_fails_with_a_reason(self):
         with patch('wama.common.utils.whisper_utils.transcribe_audio', return_value=self._heard([])):

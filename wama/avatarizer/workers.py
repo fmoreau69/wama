@@ -356,16 +356,41 @@ def _animate(job, ctx):
 
         with work_dir(f'avatarizer_job{job_id}') as travail:
             if avatar_3d:
-                # Les lèvres viennent des MOTS. Un texte (pipeline TTS) les donne ; un AUDIO seul
-                # passe par la transcription — le sens inverse du TTS, par la brique commune qui
-                # délègue au backend Whisper du transcriber (mots DATÉS : timings mesurés).
+                # Les lèvres viennent des MOTS, AUX HEURES OÙ ILS SONT DITS : l'audio est transcrit
+                # (brique commune qui délègue au backend Whisper du transcriber — mots DATÉS).
+                # • un AUDIO seul : les mots entendus sont ceux qu'on anime ;
+                # • un TEXTE (pipeline TTS) : on le CONNAÎT, il prend l'heure des mots entendus —
+                #   l'étage A de l'alignement forcé (`word_anchoring.anchor_turns`, le même que
+                #   pour une transcription reprise). Jusqu'au 2026-11-02, le texte seul était RÉPARTI
+                #   sur la durée de l'audio : les lèvres bougeaient pendant les silences (card #1532 :
+                #   1,6 s de silence au milieu, et la fin muette).
                 words, lang = None, (job.language or 'fr')
-                if not (job.text_content or '').strip():
-                    _console(job.user_id, "Avatar 3D : transcription de l'audio (mots datés)…", 'info')
-                    from wama.common.utils.whisper_utils import transcribe_audio
+                text = (job.text_content or '').strip()
+                _console(job.user_id, "Avatar 3D : transcription de l'audio (mots datés)…", 'info')
+                from wama.common.utils.whisper_utils import transcribe_audio
+                try:
                     heard = transcribe_audio(audio_path, language=(job.language or None),
                                              word_timestamps=True)
-                    words = [w for seg in heard.segments for w in (seg.words or [])]
+                    heard_words = [w for seg in (heard.segments or []) for w in (seg.words or [])]
+                except Exception as exc:
+                    if not text:
+                        raise
+                    # Le texte est là : la vidéo se fait quand même, sur l'estimation d'avant.
+                    heard, heard_words = None, []
+                    logger.warning("[Avatarizer] transcription des mots du job #%s : %s", job_id, exc)
+                if text:
+                    from wama.common.services.word_anchoring import anchor_turns
+                    anchored = anchor_turns([{'text': text}], heard_words) if heard_words else None
+                    if anchored:
+                        words = anchored[0][0].get('words')
+                        report = anchored[1]
+                        _console(job.user_id, f"Mots datés : {report['exact']} sur {report['tokens']} "
+                                              f"retrouvés à l'écoute de la voix.", 'info')
+                    else:
+                        _console(job.user_id, "Avatar 3D : la voix n'a pas pu être transcrite — les "
+                                              "lèvres suivent une estimation du texte.", 'warning')
+                else:
+                    words = heard_words
                     if not words:
                         raise ValueError("Avatar 3D : aucune parole reconnue dans l'audio — "
                                          "fournissez le texte dit.")

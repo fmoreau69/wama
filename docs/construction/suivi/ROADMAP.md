@@ -215,6 +215,19 @@
   ✅ Soldés le même jour : verdict d'attributs DÈS L'AJOUT, tirage du modèle d'animation par
   `resolve_model_choice`, avatars 3D cités par NOM (lot, Studio — objets au visage ARKit seuls),
   retrait de `musetalk-v1.0` (R85). Route vendor (D-a) : cf. la décision D-a plus bas.
+  ✅ **2026-11-02 — les lèvres d'un TEXTE suivent les mots DITS** (card #1532, relevé de Fabien :
+  « l'avatar continue de bouger les lèvres à la fin de l'audio ») : en pipeline texte → voix, le
+  texte était RÉPARTI sur la durée de l'audio (l'estimation de `wama-avatar.js`) et la bouche
+  articulait pendant les silences. Désormais la voix synthétisée est transcrite (mêmes mots datés que
+  l'audio seul) et le texte connu s'y ANCRE — l'étage A de l'alignement forcé, sans modèle de plus
+  (`word_anchoring.anchor_turns`) ; une voix non transcrite garde l'estimation, jamais d'échec.
+  Mesuré sur les fichiers de la #1532 : 24 mots sur 24 retrouvés ; mouvement du visage pendant le
+  silence de 1,6 s ramené de 1,87 au niveau de repos (0,76), bouche fermée sur la planche. La fin
+  muette ajoutée au rendu (`frame_count`, 500 ms) n'est PAS en cause : bouche fermée dans les deux
+  versions — elle reste. Gardes `tests_talkinghead_engine` (texte ancré, voix non transcrite),
+  contre-épreuves rouges. ⏳ Le CADRAGE de l'avatar : plan consigné le 2026-09-22
+  (`PROJECT_STATUS`, « le cadrage de l'avatar, réglage utilisateur durable ») — décisions de Fabien
+  attendues.
   ✅ **2026-10-21 — l'avatar de l'assistant en médiathèque** (Fabien : *« pas d'objet 3D disponible
   dans la médiathèque, ajouter au moins celui de base de l'assistant »*) : `manage.py
   ingest_vendored_avatars` verse les `.glb` de `vendors/avatars/` (posés par
