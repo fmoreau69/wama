@@ -2640,7 +2640,12 @@ de **dispatcher sur `kind`**, ce que l'exécuteur fait déjà.
 > premières lignes de cette section décrivent l'état d'AVANT. **Précisé le 2026-09-15**
 > (`WAMA_APP_GENERATION_ROUTE.md §10.6`) : un nœud `app` et un nœud `function` sont **deux PROCESS** —
 > chacun a sa ligne d'exécution et son état dans le moteur commun ; seul le mode d'exécution diffère
-> (job suivi ou transformation synchrone). Prochaine extension du kind : le type de nœud `pipeline`.
+> (job suivi ou transformation synchrone). ~~Prochaine extension du kind : le type de nœud
+> `pipeline`.~~ ✅ **Codé le 2026-11-02** (`ROUTE §10.6` 3.1, sessions Briques UI et Monde Data) : un
+> pipeline ENREGISTRÉ du Studio se pose comme nœud, référencé par sa clé, jamais recopié. Il n'est
+> pas un troisième mode d'exécution : le lancement le DÉPLOIE (`expand_pipeline_nodes`), et le moteur
+> ne voit que des nœuds `app` / `function` / source / sink. Les étages du Lab n'y entrent pas avant
+> l'alignement de ses apps (décision n°8).
 
 ### 9undecies.3 Le script généré : clé en main, et la borne n'est PAS où je l'avais mise
 
