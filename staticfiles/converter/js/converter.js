@@ -242,12 +242,13 @@
         }
     }
 
-    // ⏹ Stop : annule la conversion en cours (revoke + reset PENDING côté serveur) → relançable.
+    // ⏹ Stop : arrête la conversion en cours (le geste commun : révoquée, en échec « Interrompu
+    // par l'utilisateur ») → relançable.
     async function cancelJob(jobId) {
         try {
             await csrfPost(urlFor(APP.urls.cancel, jobId));
             stopPolling(jobId);
-            // cancel → PENDING côté serveur : la card est REDESSINÉE (libellé, point, bouton ▶),
+            // arrêt côté serveur : la card est REDESSINÉE (libellé, point, bouton ↻),
             // jamais seulement son `data-status` — même défaut que `startJob` (2026-09-14).
             await refreshCard(jobId);
         } catch (err) {

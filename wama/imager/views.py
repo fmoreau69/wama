@@ -10,7 +10,7 @@ Image generation using Diffusers with multi-modal support:
 
 from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse, HttpResponse, FileResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
@@ -18,7 +18,6 @@ from django.core.cache import cache
 from django.utils import timezone
 from django.conf import settings
 from django.db.models import Q
-from django.utils.http import content_disposition_header
 import os
 import json
 import logging
@@ -26,7 +25,7 @@ from pathlib import Path
 
 from wama.accounts.permissions import app_access
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
-from wama.common.utils.scoping import owned_or_404, visible_or_404
+from wama.common.utils.scoping import visible_or_404
 from .models import GenerationBatch, GenerationBatchItem, ImageGeneration
 from .utils.model_config import (
     DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_I2V_MODEL, get_model_defaults,
@@ -40,7 +39,7 @@ def _qm_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
 
-# Champs remis à zéro par TOUTE duplication de génération — élément (`duplicate_generation`)
+# Champs remis à zéro par TOUTE duplication de génération — élément (⧉ de la fabrique commune)
 # comme lot (`batch_duplicate`). Une seule liste : deux copies auraient divergé au premier
 # champ de sortie ajouté, et le doublon d'un lot serait reparti avec les images de l'original.
 _RESET_DUPLICATION = {
@@ -863,6 +862,16 @@ _iv = make_item_views(work_model=ImageGeneration, app_id='imager',
 start = app_access('imager')(_iv['start'])
 start_all = app_access('imager')(_iv['start_all'])
 clear_all = _iv['clear_all']
+# ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
+# déclare à sa fabrique de lot — le schéma du DOMAINE de chaque génération, LA fonction de
+# réglage, le domaine figé sur le lot (`batch_extra` : la copie seule naît dans l'onglet de sa
+# nature) et les sorties DÉCLARÉES (une image servie telle quelle, plusieurs en ZIP, la vidéo).
+# Le ⏹ était « forcer la réinitialisation » (`force_reset`, gardé comme adresse de ce geste).
+stop = app_access('imager')(_iv['stop'])
+download = _iv['download']
+delete = _iv['delete']
+duplicate = _iv['duplicate']
+update_settings = _iv['update_settings']
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -896,111 +905,6 @@ from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 _pv = make_progress_views(work_model=ImageGeneration, app_id='imager', extra=_progress_extra)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
-
-
-def download(request, generation_id):
-    """Download generated images or video"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        generation = visible_or_404(ImageGeneration, user, id=generation_id)   # LECTURE
-
-        # Handle video download
-        if generation.is_video_generation:
-            if not generation.output_video:
-                return HttpResponse("No video generated yet", status=404)
-
-            video_path = generation.output_video.path
-            if os.path.exists(video_path):
-                return FileResponse(
-                    open(video_path, 'rb'),
-                    as_attachment=True,
-                    filename=f"video_{generation.id}.mp4",
-                    content_type='video/mp4'
-                )
-            return HttpResponse("Video file not found", status=404)
-
-        # Handle image download
-        if not generation.generated_images:
-            return HttpResponse("No images generated yet", status=404)
-
-        # If single image, return it directly
-        if len(generation.generated_images) == 1:
-            image_path = generation.generated_images[0]
-            if os.path.exists(image_path):
-                return FileResponse(open(image_path, 'rb'),
-                                  as_attachment=True,
-                                  filename=os.path.basename(image_path))
-
-        # Multiple images - create zip
-        import zipfile
-        from io import BytesIO
-
-        zip_buffer = BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for image_path in generation.generated_images:
-                if os.path.exists(image_path):
-                    zip_file.write(image_path, os.path.basename(image_path))
-
-        zip_buffer.seek(0)
-        response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
-        response['Content-Disposition'] = content_disposition_header(True, f"generation_{generation.id}.zip")
-        return response
-
-    except Http404:
-        raise
-    except Exception as e:
-        logger.error(f"Error downloading: {str(e)}")
-        return HttpResponse(f"Error: {str(e)}", status=500)
-
-
-def _purger_generation(generation):
-    """Fichiers et tâche Celery d'UNE génération, puis la ligne — le retrait de « Supprimer »
-    comme de « Tout effacer » (le lot passe par la fabrique, qui fait le même geste).
-
-    Les fichiers sont LIBÉRÉS par la brique, à l'échelle de la card (`release_card_files`,
-    2026-10-01) : ses champs fichier ET ses images (`generated_images`, liste de chemins
-    déclarée à la rétention). Jusque-là les images étaient effacées ici par un `os.remove`,
-    sans règle de propriété ni de partage, pendant que la vidéo était libérée — le reste que
-    la décision D34 de `MEDIA_STORAGE_TIERING` avait laissé. `duplicate_instance` PARTAGE les
-    fichiers d'entrée : la brique ne libère que ce que plus aucune ligne ne désigne.
-    """
-    _forget_progress(generation)
-    from wama.common.utils.queue_duplication import release_card_files
-    release_card_files(generation)
-
-    # Revoke Celery task if still queued/running
-    if generation.task_id:
-        try:
-            from celery.result import AsyncResult
-            AsyncResult(generation.task_id).revoke(terminate=False)
-        except Exception:
-            pass
-
-    generation.delete()
-
-
-@require_http_methods(["POST"])
-def delete_generation(request, generation_id):
-    """Delete a specific generation"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        generation = owned_or_404(ImageGeneration, user, id=generation_id)   # MUTATION
-        # Lot de l'élément, relevé AVANT la purge — brique commune (`batch_common`).
-        from wama.common.utils.batch_common import batch_snapshot, batch_state
-        snapshot = batch_snapshot(generation)
-        _purger_generation(generation)
-        logger.info(f"Deleted generation #{generation_id}")
-
-        return JsonResponse({'success': True, 'message': 'Generation deleted',
-                             'batch': batch_state(snapshot, ImageGeneration)})
-
-    except Http404:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting generation: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
 
 
 def _schema_for(gen):
@@ -1078,21 +982,6 @@ def card_html(request, generation_id):
                             {'elem': generation, 'domain': _generation_domain(generation),
                              'in_batch': is_batch_child(generation)}, request=request)
     return HttpResponse(html)
-
-
-@require_http_methods(["POST"])
-def duplicate_generation(request, generation_id):
-    """Duplicate a generation (share reference_image, reset outputs)"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # `duplicable_or_404` (2026-10-01, `WAMA_COLLABORATION §3bis`) : dupliquer ne modifie pas la
-    # source — on duplique tout ce qu'on peut VOIR ; la copie d'une card reçue est À SOI
-    # (propriétaire, privée, fichiers copiés chez soi : `duplicate_instance(for_user=…)`).
-    from wama.common.utils.scoping import duplicable_or_404
-    generation = duplicable_or_404(ImageGeneration, user, id=generation_id)
-    from wama.common.utils.queue_duplication import duplicate_instance
-    new_gen = duplicate_instance(generation, reset_fields=_RESET_DUPLICATION,
-                                 clear_fields=['output_video'], for_user=user)
-    return JsonResponse({'duplicated': new_gen.id})
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, patron des 8 autres apps) ──────────
@@ -1204,49 +1093,8 @@ def generation_settings(request, pk):
     LIT (`get_generation_settings`), POST les ENREGISTRE (`update_settings`). Les deux vues
     vivaient à deux adresses, l'écriture sous `save/` — le seul écart au chemin de la convention."""
     if request.method == 'POST':
-        return update_settings(request, pk)
+        return update_settings(request, pk)      # la ⚙ de la fabrique commune
     return get_generation_settings(request, pk)
-
-
-@require_http_methods(["POST"])
-def update_settings(request, pk):
-    """Save settings for a specific generation"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        from wama.common.utils.scoping import editable_or_404
-        generation = editable_or_404(ImageGeneration, user, id=pk)   # ÉDITION (sien ou collaboration)
-        # Réglages enregistrables PENDANT un traitement (2026-10-22) : seules les colonnes
-        # CHANGÉES s'écrivent, jamais le statut ni les sorties que la tâche pose en base.
-        from wama.common.utils.batch_views import columns_changed, columns_snapshot
-        before = columns_snapshot(generation)
-
-        # JSON (inspecteur) OU FormData (modale ⚙) par le lecteur COMMUN — la vue lisait
-        # `request.POST` seul (contrat générique `tests_item_settings_contract`, 2026-09-26).
-        # Il coerce aussi PAR LE SCHÉMA (types + bornes de params.py) : les 13 blocs
-        # `if ... int()/float()` qui vivaient ici en étaient une 3ᵉ copie.
-        from wama.common.utils.batch_views import read_settings_payload
-        schema = _schema_for(generation)
-        names = [p['name'] for p in schema]
-        data = read_settings_payload(request, schema, names)
-        try:
-            _apply_generation_settings(generation, data)   # la même fonction que le lot
-        except ValueError as refusal:
-            return JsonResponse({'error': str(refusal)}, status=400)
-        generation.save(update_fields=columns_changed(generation, before))
-
-        logger.info(f"Updated settings for generation #{generation.id}")
-
-        return JsonResponse({
-            'success': True,
-            'message': 'Settings saved successfully'
-        })
-
-    except Http404:
-        raise
-    except Exception as e:
-        logger.error(f"Error saving generation settings: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
 
 
 @require_http_methods(["GET"])
@@ -1347,51 +1195,9 @@ def api_all_resolutions(request):
     })
 
 
-@require_http_methods(["POST"])
 def force_reset_generation(request, generation_id):
-    """
-    Force reset a stuck generation's status to FAILURE.
-    This allows the user to restart a generation that got stuck in RUNNING state.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        from wama.common.utils.scoping import editable_or_404
-        generation = editable_or_404(ImageGeneration, user, id=generation_id)   # ÉDITION (sien ou collaboration)
-
-        old_status = generation.status
-        old_task_id = generation.task_id
-
-        # Revoke the Celery task so it won't be picked up / re-executed after restart
-        if old_task_id:
-            try:
-                from celery.result import AsyncResult
-                AsyncResult(old_task_id).revoke(terminate=True, signal='SIGTERM')
-                logger.info(f"Revoked Celery task {old_task_id} for generation #{generation.id}")
-            except Exception as e:
-                logger.warning(f"Could not revoke task {old_task_id}: {e}")
-
-        # Reset status to FAILURE and clear task_id
-        generation.status = 'FAILURE'
-        generation.progress = 0
-        generation.task_id = ''
-        generation.error_message = f"Génération réinitialisée manuellement (ancien statut: {old_status})"
-        generation.save()
-
-        # Clear progress cache
-        cache.delete(f"imager_progress_{generation_id}")
-
-        logger.info(f"Force reset generation #{generation.id} from {old_status} to FAILURE")
-
-        return JsonResponse({
-            'success': True,
-            'old_status': old_status,
-            'new_status': 'FAILURE',
-            'message': 'Generation reset to FAILURE. You can now restart it.'
-        })
-
-    except Http404:
-        raise
-    except Exception as e:
-        logger.error(f"Error force resetting generation: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+    """Ancienne adresse du ⏹ de l'imager (`force-reset/<id>/`) : le geste commun (`stop`, la
+    fabrique — révoquée, en échec « Interrompu par l'utilisateur », relançable), gardé le temps
+    que la page servie passe à la route `stop` (gabarit relu à chaud, REMOVAL_LEDGER). Il
+    remettait en échec une génération de TOUT statut, réussie comprise."""
+    return stop(request, generation_id)

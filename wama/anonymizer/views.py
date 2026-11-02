@@ -1,6 +1,5 @@
 import os
 import re
-import json
 import cv2
 import yt_dlp
 import mimetypes
@@ -10,7 +9,7 @@ from urllib.parse import urlparse
 from celery.result import AsyncResult
 
 from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.db import close_old_connections, transaction
@@ -25,7 +24,6 @@ from django.utils.decorators import method_decorator
 from wama.accounts.permissions import app_access
 
 from .models import Media, BatchAnonymizer, BatchAnonymizerItem
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 from .tasks import process_single_media, stop_process
 from .utils.media_utils import get_unique_filename
 from .utils.yolo_utils import get_model_path
@@ -381,26 +379,10 @@ def task_status(request, task_id):
     return JsonResponse({"status": res.status})
 
 
-def download(request, pk: int):
-    """Télécharge le média traité — route au FORMAT COMMUN `download/<pk>/` (2026-08-23).
-
-    POURQUOI, ALORS QUE LE TÉLÉCHARGEMENT MARCHAIT. Comme pour la suppression, c'est la FORME
-    qui divergeait : l'anonymizer était la seule app dont le ⬇ n'était pas un lien mais un
-    `<form method="post">` postant `media_id`. La brique commune `_download_button.html` rend un
-    `<a href>` — elle ne pouvait donc pas le servir.
-
-    Ce que le formulaire coûtait à l'utilisateur, au-delà de l'homogénéité : un POST n'est pas
-    une navigation. Pas de clic-droit « Enregistrer sous », pas d'ouverture dans un nouvel
-    onglet, et un rechargement de page qui redemande la soumission. Un téléchargement est un GET.
-    """
-    from wama.common.utils.scoping import visible_or_404
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    return _servir_media_traite(request, visible_or_404(Media, user, pk=pk))
-
-
 def download_media(request):
-    """Ancienne forme (POST + `media_id`). Conservée le temps de vérifier qu'aucun appelant
-    externe n'en dépend, et DÉLÈGUE au même travail — pas de second chemin. Cf. REMOVAL_LEDGER."""
+    """Ancienne forme (POST + `media_id`) du ⬇, sans appelant dans le dépôt : conservée le temps de
+    vérifier qu'aucun appelant externe n'en dépend (REMOVAL_LEDGER). Le ⬇ d'une card est celui de
+    la fabrique commune (`download/<pk>/`, GET — un téléchargement est une navigation)."""
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
 
@@ -476,28 +458,6 @@ def _reset_for_relaunch(media):
     media.error_message = ''
 
 
-@require_POST
-@app_access('anonymizer')
-def stop(request, pk):
-    """Arrête UN média (bouton de cycle ⏹) : revoke + libération des verrous."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    media = editable_or_404(Media, user, pk=pk)
-    if media.task_id:
-        try:
-            AsyncResult(media.task_id).revoke(terminate=False)
-        except Exception:
-            pass
-    cache.delete(f"anon_lock:media:{media.id}")
-    cache.delete(f"anon_task_owner:media:{media.id}")
-    cache.delete(f"media_progress_{media.id}")
-    if media.status == 'RUNNING':
-        media.status = 'PENDING'
-        media.blur_progress = 0
-        media.save(update_fields=['status', 'blur_progress'])
-    return JsonResponse({'success': True, 'status': media.status})
-
-
 # ── Quatre vues de lot par la fabrique COMMUNE (`batch_views.make_batch_views`, portage
 # 2026-09-23, 9ᵉ app réelle — ROUTE §11 #36). Spécificités DÉCLARÉES : la remise à zéro du ▶ est
 # celle de `start` (`_reset_for_relaunch`) plus l'oubli du cache de progression ; les réglages
@@ -509,7 +469,7 @@ def stop(request, pk):
 # désormais celui de la fabrique : il n'était local que parce que la sortie n'était pas un
 # champ fichier — et il cherchait le nom `<entrée>_blurred`, que plus rien n'écrit.
 from wama.common.utils.batch_views import make_batch_views
-from .params import PARAMS_JSON as _ANON_PARAMS_JSON
+from .params import CLASSES_SETTING, PARAMS_JSON as _ANON_PARAMS_JSON
 
 
 def _get_user(request):
@@ -593,11 +553,21 @@ from wama.common.utils.item_views import make_item_views  # noqa: E402
 _iv = make_item_views(work_model=Media, app_id='anonymizer', task=process_single_media,
                       get_user=_get_user, reset_on_start=_reset_for_relaunch,
                       pending={}, pending_exclude={'status': 'SUCCESS'},
-                      progress_key='media_progress_{pk}', on_delete=_forget_outputs,
+                      progress_key='media_progress_{pk}', on_stop=_forget_outputs,
                       batch_model=BatchAnonymizer)
 start = app_access('anonymizer')(_iv['start'])
 start_all = app_access('anonymizer')(_iv['start_all'])
 clear_all_media = _iv['clear_all']
+# ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
+# déclare à sa fabrique de lot (`_bv`, plus bas) : le nettoyage de ses verrous (`_forget_outputs`,
+# au retrait comme à l'arrêt), LA fonction de réglage d'un média et ses classes à flouter, une
+# liste (`list_settings`). ⏹ suit la règle commune : la card s'arrête en échec « Interrompu par
+# l'utilisateur », relançable — elle revenait en attente sans le dire, ses process restant ouverts.
+stop = app_access('anonymizer')(_iv['stop'])
+download = _iv['download']
+delete = _iv['delete']
+duplicate = _iv['duplicate']
+update_settings = _iv['update_settings']
 
 
 def _read_batch(user, pk):
@@ -614,6 +584,7 @@ _bv = make_batch_views(
     output_fields=('output_file',),
     read_lookup=_read_batch,
     schema=_ANON_PARAMS_JSON, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
+    list_settings=(CLASSES_SETTING,),
     apply_settings=_apply_media_settings, after_update=_mark_customised,
     item_model=BatchAnonymizerItem, fk_name='media',
     reset_on_duplicate={'status': 'PENDING', 'blur_progress': 0},
@@ -873,71 +844,19 @@ def _input_labels():
 
 
 @require_POST
-def delete(request, pk: int):
-    """Supprime UN média — route au format commun `delete/<pk>/` (2026-08-23).
-
-    POURQUOI CETTE VUE EXISTE, ALORS QUE LA SUPPRESSION MARCHAIT DÉJÀ. Le bouton de
-    l'anonymizer supprimait bien : il postait `media_id` en champ de formulaire vers
-    `clear_media/`. Ce qui n'était pas conforme, c'est la FORME de la route — les neuf autres
-    apps exposent `delete/<pk>/` et disent le LOT de l'élément. Tant que l'anonymizer divergeait,
-    la brique commune `queue-actions.js` ne pouvait pas le servir : elle poste un corps JSON
-    vide vers `data-delete-url`, donc `media_id` serait arrivé VIDE — et une suppression sans
-    cible est précisément ce qu'on ne veut pas laisser partir au hasard.
-
-    Deux défauts de `clear_media` sont corrigés ici, et ils ne sont pas cosmétiques :
-      1. **Aucun scope utilisateur** — `Media.objects.filter(pk=media_id)` acceptait l'id de
-         N'IMPORTE QUEL utilisateur. Toutes les autres apps écrivent
-         `get_object_or_404(Model, pk=pk, user=user)` ; l'anonymizer était le seul à ne pas le
-         faire, sur des médias que l'app est faite pour anonymiser.
-      2. **L'appartenance à un lot absente de la réponse** — le JS devait la deviner en
-         inspectant le DOM. Le serveur sait ; il le dit, comme partout ailleurs (depuis le
-         2026-09-15 : l'état du lot après suppression, `batch_state`).
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    media = get_object_or_404(Media, pk=pk, user=user)
-
-    # Lot de l'élément, relevé AVANT la cascade — brique commune (`batch_common`).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(media)
-
-    _supprimer_media(media, user)
-    # batch.total / suppression du lot vidé : gérés par le signal batch_sync.
-    return JsonResponse({'success': True, 'deleted': pk,
-                         'batch': batch_state(snapshot, Media)})
-
-
-def _supprimer_media(media, user):
-    """Travail de suppression proprement dit — partagé par `delete` et `clear_media`.
-
-    Extrait le 2026-08-23 pour qu'il n'existe pas DEUX chemins de suppression : les verrous de
-    déduplication sont un effet de bord qu'on ne peut pas se permettre d'oublier d'un côté.
-    """
-    cache.delete(f"anon_lock:media:{media.pk}")
-    cache.delete(f"anon_task_owner:media:{media.pk}")
-
-    release_card_files(media)
-    media.delete()  # signal batch_sync : recale total / supprime le batch vidé
-
-
 def clear_media(request):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    media_id = request.POST.get('media_id')
-    media = Media.objects.filter(pk=media_id).first()
-
-    if not media:
-        return JsonResponse({'success': False, 'error': 'Media not found'}, status=404)
-
+    """Ancienne forme (POST + `media_id`) de la 🗑, sans appelant dans le dépôt depuis que la card
+    passe par la brique commune — conservée le temps de vérifier qu'aucun appelant externe n'en
+    dépend (REMOVAL_LEDGER). Elle DÉLÈGUE à la 🗑 de la fabrique : un seul chemin de suppression.
+    Elle acceptait l'id de N'IMPORTE QUEL utilisateur (`Media.objects.filter(pk=media_id)`) —
+    la 🗑 commune ne retire que la card de son propriétaire."""
     try:
-        # DÉLÈGUE au même travail que `delete` (2026-08-23) : un seul chemin de suppression,
-        # sinon les effets de bord (verrous de dédup)
-        # divergent au premier oubli. Cette vue n'a plus AUCUN consommateur dans le dépôt
-        # depuis que la card passe par la brique commune — elle est conservée le temps de
-        # vérifier qu'aucun appelant externe n'en dépend, puis à retirer (REMOVAL_LEDGER).
-        _supprimer_media(media, user)
-        return JsonResponse({'success': True})
-    except Exception as e:
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        media_id = int(request.POST.get('media_id') or 0)
+    except (TypeError, ValueError):
+        media_id = 0
+    if not media_id:
+        return JsonResponse({'success': False, 'error': 'Media not found'}, status=404)
+    return delete(request, media_id)
 
 
 # `reset_media_settings` RETIRÉ le 2026-09-27 : sans consommateur, il remettait un média sur les
@@ -1017,40 +936,6 @@ def get_media_settings(request, media_id):
         }, status=500)
 
 
-@require_POST
-def update_settings(request, pk: int):
-    """Réglages d'UN média — route au FORMAT COMMUN (`WAMA_APP_CONVENTIONS §3.1`,
-    `settings/<int:pk>/`), qui remplace `save_media_settings/` (le `media_id` y était posté).
-
-    Lecteur COMMUN des réglages postés (JSON ou FormData, coercés au schéma ; un champ vide = « ne
-    pas toucher », sauf `SETTINGS_EMPTY_IS_VALUE`), puis LA fonction de réglage que la ⚙ de lot
-    appelle aussi. « Enregistrer & relancer » enchaîne le ▶ côté page, comme les autres apps : la
-    relance ici recopiait la vue de lancement (`begin_processing` + envoi de la tâche)."""
-    from wama.common.utils.scoping import editable_or_404
-    from wama.common.utils.batch_views import read_settings_payload
-    from wama.anonymizer.params import CLASSES_SETTING
-    media = editable_or_404(Media, _get_user(request), pk=pk)
-    data = read_settings_payload(request, _ANON_PARAMS_JSON,
-                                 [p['name'] for p in _ANON_PARAMS_JSON if p.get('name')],
-                                 empty_is_value=SETTINGS_EMPTY_IS_VALUE)
-    # Les classes à flouter sont une LISTE : le lecteur commun n'en garde que la première valeur.
-    if (request.content_type or '').startswith('application/json'):
-        try:
-            classes = (json.loads(request.body or '{}') or {}).get(CLASSES_SETTING)
-        except (ValueError, TypeError, AttributeError):
-            classes = None
-    else:
-        classes = request.POST.getlist(CLASSES_SETTING)
-    data[CLASSES_SETTING] = classes if isinstance(classes, list) else []
-    try:
-        touched = _apply_media_settings(media, data)
-    except ValueError as refusal:
-        return JsonResponse({'success': False, 'error': str(refusal)}, status=400)
-    if touched:
-        touched += [f for f in _mark_customised(media) if f not in touched]
-        media.save(update_fields=touched)
-    return JsonResponse({'success': True, 'status': media.status})
-
 # ----------------------------------------------------------------------
 # SAM3 Endpoints
 # ----------------------------------------------------------------------
@@ -1082,26 +967,6 @@ def get_sam3_examples(request):
     return JsonResponse({
         'examples': get_recommended_prompt_examples()
     })
-
-
-@require_POST
-def duplicate(request, pk):
-    """Duplicate a Media item sharing the same input file, resetting processing state.
-    Route au FORMAT COMMUN (`duplicate/<int:pk>/`, nommée `duplicate`, 2026-10-31) — ex-
-    `duplicate_media(request, media_id)`, nom et argument que la jumelle générée ne savait pas
-    servir (`REMOVAL_LEDGER R192`)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import duplicable_or_404
-    media = duplicable_or_404(Media, user, pk=pk)
-    new_media = duplicate_instance(
-        media,
-        for_user=user,
-        reset_fields={'status': 'PENDING', 'blur_progress': 0},
-        # L'entrée se partage, la sortie jamais (2026-09-27) ; les détections : ce que les process
-        # ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21).
-        clear_fields=['output_file'],
-    )
-    return JsonResponse({'duplicated': new_media.id})
 
 
 # =============================================================================

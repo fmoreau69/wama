@@ -1257,7 +1257,8 @@ def _item_views_common(f: _AppFiles):
 #: et les graphies sous lesquelles les apps les écrivent encore à la main.
 ELEMENT_GESTURES = ('stop', 'delete', 'duplicate', 'download', 'update_settings')
 _LOCAL_ELEMENT_GESTURE = (r'(?m)^def ((audio_)?(stop|delete|duplicate|download|update_settings)'
-                          r'|audio_update|update_job|cancel)\(')
+                          r'|audio_update|update_job|cancel'
+                          r'|(delete|duplicate|force_reset)_generation)\(')
 
 
 def _factory_gesture(f: _AppFiles, gesture: str):
@@ -1275,13 +1276,39 @@ def _duplicate_instance(f: _AppFiles):
     return (True, found) if found else (False, None)
 
 
+#: Une vue qui DÉLÈGUE au geste de la fabrique — `_iv['stop'](request, pk)`, ou la vue du module
+#: qui le porte, `stop(request, pk)` — n'est pas une vue écrite à la main : c'est l'adresse d'une
+#: spécificité déclarée (le converter : `cancel`, qui retire d'abord une conversion rapide ;
+#: l'imager : son ancienne adresse `force_reset`).
+_DELEGATES_TO_FACTORY = re.compile(r"\[\s*'(?:{g})'\s*\]\s*\(|(?<![\w.])(?:{g})\(\s*request\b"
+                                   .format(g='|'.join(ELEMENT_GESTURES)))
+
+
+def _hand_written_gesture(f: _AppFiles):
+    """La preuve (`chemin:ligne`) d'un geste de card écrit à la main dans les vues, ou None — une
+    définition de `_LOCAL_ELEMENT_GESTURE` dont le corps ne délègue pas à la fabrique."""
+    head = re.compile(_LOCAL_ELEMENT_GESTURE)
+    for path in [p for pattern in VIEWS for p in f.glob(pattern)]:
+        text = _sans_commentaires(f._read(path), path.suffix)
+        for m in head.finditer(text):
+            end = re.compile(r'(?m)^\S').search(text, m.end())
+            if _DELEGATES_TO_FACTORY.search(text[m.end():end.start() if end else len(text)]):
+                continue
+            try:
+                rel = path.relative_to(WAMA_ROOT).as_posix()
+            except ValueError:
+                rel = path.as_posix()
+            return f"{rel}:{text.count(chr(10), 0, m.start()) + 1}"
+    return None
+
+
 def _element_views_common(f: _AppFiles):
     """⏹ ⬇ 🗑 ⧉ ⚙ d'une card par la fabrique commune (`make_item_views`, 2026-11-01), qui les lit
     à la déclaration que l'app donne à sa fabrique de lot. VRAI : les cinq, aucun écrit à la main ;
     PARTIEL : certains ; FAUX : aucun. Mesuré le jour de sa naissance : l'enhancer seul, les neuf
-    autres apps écrivant encore les leurs (≈ 45 vues)."""
+    autres apps écrivant encore les leurs (≈ 45 vues) ; les dix le 2026-11-02."""
     taken = [g for g in ELEMENT_GESTURES if _factory_gesture(f, g)]
-    local = f.find_code(VIEWS, _LOCAL_ELEMENT_GESTURE)
+    local = _hand_written_gesture(f)
     if len(taken) == len(ELEMENT_GESTURES) and not local:
         return True, _factory_gesture(f, 'duplicate')
     if taken:

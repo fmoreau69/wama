@@ -1736,7 +1736,8 @@ MECHANISMS = (
               "autres gestes d'une card, ⏹ ⬇ 🗑 ⧉ ⚙ (2026-11-01, ROUTE §11 #42 ④), lus à la "
               "déclaration que l'app donne à sa fabrique de lot (`batch_views.element_declaration`) : "
               "la copie rangée par `batch_common.place_copy`, le résultat servi comme son ZIP "
-              "l'écrit (`ResultArchive`)",
+              "l'écrit (`ResultArchive`) — les dix apps le 2026-11-02, leurs spécificités "
+              "déclarées (`on_stop`, `item_settings`, `item_empty_is_value`, `settings_file`)",
               'wama/common/utils/item_views.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11',
               depends_on=('progress_views',)),

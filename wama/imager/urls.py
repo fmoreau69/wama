@@ -35,11 +35,13 @@ urlpatterns = [
     path('batch/<int:pk>/realign/', views.batch_realign, name='batch_realign'),
     path('global-progress/', views.global_progress, name='global_progress'),
 
-    # Download and delete
-    path('download/<int:generation_id>/', views.download, name='download'),
+    # ⏹ ⬇ 🗑 ⧉ d'une card : la fabrique commune (`item_views`, 2026-11-02) — `<int:pk>`, les
+    # chemins n'ont pas bougé.
+    path('stop/<int:pk>/', views.stop, name='stop'),
+    path('download/<int:pk>/', views.download, name='download'),
     path('download-all/', views.download_all, name='download_all'),
-    path('delete/<int:generation_id>/', views.delete_generation, name='delete'),
-    path('duplicate/<int:generation_id>/', views.duplicate_generation, name='duplicate'),
+    path('delete/<int:pk>/', views.delete, name='delete'),
+    path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
     path('clear-all/', views.clear_all, name='clear_all'),
 
     # Console and settings
@@ -49,6 +51,7 @@ urlpatterns = [
     # GET lit, POST enregistre, à la même adresse. La lecture occupait `settings/<id>/` et
     # l'écriture avait dû prendre `settings/<pk>/save/` ; les deux vues sont aiguillées ici.
     path('settings/<int:pk>/', views.generation_settings, name='update_settings'),
+    # Ancienne adresse du ⏹, qui délègue au geste commun (`stop`) — REMOVAL_LEDGER.
     path('force-reset/<int:generation_id>/', views.force_reset_generation, name='force_reset'),
 
     # Multi-modal generation endpoints

@@ -8,10 +8,10 @@ from wama.accounts.permissions import app_access
 import logging
 from pathlib import Path
 from django.conf import settings
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render
 from django.views import View
 from django.views.generic import TemplateView
-from django.http import JsonResponse, FileResponse, HttpResponse, HttpResponseBadRequest
+from django.http import JsonResponse, HttpResponse
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 from django.core.cache import cache
@@ -32,8 +32,7 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels as _input_labels
 from wama.common.utils.media_paths import received_inputs
 from wama.accounts.views import get_or_create_anonymous_user
-from wama.common.utils.queue_duplication import (safe_delete_file, duplicate_instance, release_card_file,
-                                                  release_card_files)
+from wama.common.utils.queue_duplication import safe_delete_file, release_card_file
 
 logger = logging.getLogger(__name__)
 
@@ -282,22 +281,6 @@ def upload_text(request):
     return _card_created_response(synthesis, success=True)
 
 
-@app_access('synthesizer')
-def stop(request, pk: int):
-    """
-    Stoppe la synthèse en cours (révoque la tâche Celery) → item relançable (bouton de cycle ↻).
-    Brique commune : wama.common.utils.process_control.stop_instance.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    synthesis = editable_or_404(VoiceSynthesis, user, pk=pk)
-    if synthesis.status not in ('RUNNING', 'PENDING'):
-        return JsonResponse({'id': synthesis.id, 'status': synthesis.status})
-    from wama.common.utils.process_control import stop_instance
-    new_status = stop_instance(synthesis, error_field='error_message')
-    return JsonResponse({'id': synthesis.id, 'status': new_status})
-
-
 def _reset_synthesis_for_relaunch(s):
     """Reset partagé (start / start_all / batch_start) pour begin_processing."""
     s.progress = 0
@@ -345,10 +328,20 @@ _iv = make_item_views(
     queue_settings=_queue_panel,
     apply_settings=lambda s, data: _apply_synthesis_settings(
         s, {k: v for k, v in data.items() if k != 'voice_reference'}),
-    on_queue_settings=_replace_voice, batch_model=BatchSynthesis)
+    on_queue_settings=_replace_voice, batch_model=BatchSynthesis,
+    settings_file='voice_reference')
 start = app_access('synthesizer')(_iv['start'])
 start_all = app_access('synthesizer')(_iv['start_all'])
 clear_all = _iv['clear_all']
+# ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
+# déclare à sa fabrique de lot. Spécificité déclarée : la ⚙ reçoit la voix de référence,
+# téléversée ou désignée (`settings_file`) — refusée, rien n'est écrit ; reçue, l'ancienne est
+# libérée.
+stop = app_access('synthesizer')(_iv['stop'])
+download = _iv['download']
+delete = _iv['delete']
+duplicate = _iv['duplicate']
+update_settings = _iv['update_settings']
 
 
 def _decorate_synthesis(s, preloaded=False):
@@ -400,91 +393,6 @@ progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
 
-def download(request, pk: int):
-    """
-    Télécharge le fichier audio généré.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
-    from wama.common.utils.scoping import visible_or_404
-    synthesis = visible_or_404(VoiceSynthesis, user, pk=pk)
-
-    if not synthesis.audio_output:
-        return HttpResponseBadRequest('Aucun audio généré')
-
-    return FileResponse(
-        synthesis.audio_output.open('rb'),
-        as_attachment=True,
-        filename=os.path.basename(synthesis.audio_output.name)
-    )
-
-
-@require_POST
-def delete(request, pk: int):
-    """
-    Supprime une synthèse vocale.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
-
-    # Lot de l'élément, relevé AVANT la cascade — brique commune (`batch_common`).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(synthesis)
-
-    # Révoquer la tâche Celery si elle est en file ou en cours (libère le worker GPU)
-    if synthesis.task_id:
-        try:
-            from celery.result import AsyncResult
-            AsyncResult(synthesis.task_id).revoke(terminate=False)
-        except Exception:
-            pass
-
-    # Texte, voix de référence et sortie : LIBÉRÉS par la brique (un fichier partagé reste)
-    release_card_files(synthesis)
-
-    synthesis.delete()
-    cache.delete(f"synthesizer_progress_{pk}")
-
-    # batch.total / suppression du batch vidé : gérés centralement par le signal batch_sync (post_delete).
-    return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, VoiceSynthesis)})
-
-
-@require_POST
-def duplicate(request, pk: int):
-    """Duplicate a VoiceSynthesis sharing the same text_file, resetting all results."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import duplicable_or_404
-    synthesis = duplicable_or_404(VoiceSynthesis, user, pk=pk)
-    new_s = duplicate_instance(
-        synthesis,
-        for_user=user,
-        reset_fields={
-            'status': 'PENDING',
-            'progress': 0,
-            'task_id': '',
-            'properties': '',
-            'error_message': '',
-        },
-        clear_fields=['audio_output'],
-    )
-    # Dupliquer DANS le même batch que l'original (élément frère) — pas dans un
-    # nouveau batch hors groupe. Cas d'usage : relancer une variante d'un élément
-    # (autre voix/modèle) sans dupliquer tout le batch.
-    orig_item = BatchSynthesisItem.objects.filter(synthesis=synthesis).select_related('batch').first()
-    if orig_item:
-        from django.db.models import Max
-        batch = orig_item.batch
-        next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
-        from .services import batch_link_extra
-        BatchSynthesisItem.objects.create(batch=batch, synthesis=new_s, row_index=next_idx,
-                                          **batch_link_extra(new_s))
-        batch.total = batch.items.count()
-        batch.save(update_fields=['total'])
-    else:
-        _wrap_synthesis_in_batch(new_s)
-    return JsonResponse({'duplicated': new_s.id})
-
-
 # ⚠ Les vues « Custom Voices » (liste, ajout, suppression — `/custom-voices/…`) sont RETIRÉES
 # le 2026-09-30 (REMOVAL_LEDGER R89) : les voix d'un utilisateur s'ajoutent, s'écoutent et se
 # suppriment dans la MÉDIATHÈQUE — sa page ou la fenêtre commune, que tout champ de voix ouvre
@@ -526,59 +434,6 @@ def _apply_synthesis_settings(synthesis, data):
         synthesis.scene_description = data['scene_description']
     synthesis.update_metadata(save=False)
     return None
-
-
-@require_POST
-def update_settings(request, pk: int):
-    """
-    Met à jour les options d'une synthèse.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    synthesis = editable_or_404(VoiceSynthesis, user, pk=pk)
-    # Réglages enregistrables PENDANT un traitement (2026-10-22) : seules les colonnes CHANGÉES
-    # s'écrivent, jamais le statut ni les sorties que la tâche pose en base.
-    from wama.common.utils.batch_views import columns_changed, columns_snapshot
-    before = columns_snapshot(synthesis)
-
-    # Les réglages du SCHÉMA — JSON (inspecteur) OU FormData (modale ⚙) — par le lecteur et
-    # l'écrivain COMMUNS (coercition au schéma, valeur hors choix ignorée). La vue lisait
-    # `request.POST` champ par champ : le JSON de l'inspecteur n'était jamais écrit (relevé par
-    # le contrat générique `tests_item_settings_contract`, 2026-09-26).
-    from wama.common.utils.batch_views import read_settings_payload
-    data = read_settings_payload(request, _SYNTH_PARAMS_JSON,
-                                 [p['name'] for p in _SYNTH_PARAMS_JSON])
-    # Voice reference — téléversée ou DÉSIGNÉE (médiathèque, arbre) : pointée. Lue AVANT
-    # d'appliquer quoi que ce soit : une désignation refusée refuse l'enregistrement entier,
-    # au lieu de garder l'ancienne voix sans le dire (2026-10-13).
-    voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
-    if not voice_received and voice_received.refusal:
-        return JsonResponse({'error': voice_received.refusal}, status=400)
-    try:
-        _apply_synthesis_settings(synthesis, data)
-    except ValueError as refusal:
-        return JsonResponse({'error': str(refusal)}, status=400)
-
-    if voice_received:
-        # L'ancienne voix est LIBÉRÉE, comme dans « Démarrer tout » (`start_all`) : remplacée
-        # sans un mot, elle restait orpheline sur le disque (2026-10-20).
-        release_card_file(synthesis, 'voice_reference')
-        synthesis.voice_reference = voice_received[0].value
-
-    synthesis.save(update_fields=columns_changed(synthesis, before))
-    if voice_received:
-        voice_received[0].record(synthesis, 'voice_reference')
-
-    return JsonResponse({
-        'success': True,
-        'options': {
-            'model': synthesis.get_tts_model_display(),
-            'language': synthesis.get_language_display(),
-            'voice': synthesis.get_voice_preset_display(),
-            'speed': synthesis.speed,
-            'pitch': synthesis.pitch,
-        }
-    })
 
 
 @require_POST
@@ -841,6 +696,12 @@ def _shared_batch_file(batch):
             if batch.batch_file and batch.batch_file.name else {})
 
 
+def _line_name(s):
+    """Le nom de sortie que porte la LIGNE de lot de la synthèse (`batch_link`, posé par
+    `batch_elements` et par les gestes d'une card), `''` sans ligne."""
+    return getattr(getattr(s, 'batch_link', None), 'output_filename', '') or ''
+
+
 def _zip_name(batch):
     import datetime
     return f"batch_{batch.pk}_{datetime.date.today()}.zip"
@@ -854,11 +715,12 @@ _bv = make_batch_views(
     item_model=BatchSynthesisItem, fk_name='synthesis',
     reset_on_duplicate={'status': 'PENDING', 'progress': 0, 'task_id': '', 'properties': '',
                         'error_message': ''},
-    item_extra=lambda copy, original: {'output_filename': original.batch_link.output_filename},
+    item_extra=lambda copy, original: {'output_filename': _line_name(original)
+                                       or batch_link_extra(copy)['output_filename']},
     batch_extra=_shared_batch_file,
     progress_of=lambda s: cache.get(f"synthesizer_progress_{s.id}", s.progress or 0),
-    item_label=lambda s: s.batch_link.output_filename,
-    output_name=lambda s: s.batch_link.output_filename,
+    item_label=_line_name,
+    output_name=_line_name,
     zip_name=_zip_name,
     on_delete=lambda s: cache.delete(f"synthesizer_progress_{s.id}"),
     schema=_SYNTH_PARAMS_JSON,

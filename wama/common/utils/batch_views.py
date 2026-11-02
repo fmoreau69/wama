@@ -53,8 +53,13 @@ from wama.common.utils.queue_duplication import duplicate_instance, release_card
 DEFAULT_RESET = {'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''}
 
 
-def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=()):
+def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=(), list_names=()):
     """Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
+
+    `list_names` : les réglages qui sont une LISTE (anonymizer : les classes à flouter, cases à
+    cocher) — gardés entiers, une valeur par case postée ; les autres n'en gardent que la première.
+    Jusqu'au 2026-11-02 seule la route d'élément de l'anonymizer les relisait à la main : la ⚙ de
+    lot n'en recevait que la première.
 
     ⚠ `request.body` n'est lu QUE sur un POST JSON : sur un `FormData`, le middleware CSRF a déjà
     consommé le flux et `request.body` lève `RawPostDataException` (leçon de `ids_from_request`).
@@ -72,7 +77,9 @@ def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=
             data = {}
     else:
         data = dict(request.POST)
-    data = {k: (v[0] if isinstance(v, list) else v) for k, v in data.items()}
+    lists = set(list_names or ())
+    data = {k: (v if k in lists else (v[0] if v else '')) if isinstance(v, list) else v
+            for k, v in data.items()}
     if schema:
         try:
             from wama.common.utils.param_schema import coerce_schema_values
@@ -435,7 +442,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      empty_is_value=(), task_for=None, start_only_pending=False,
                      after_update=None, item_extra=None, read_lookup=None,
                      output_name=None, start_reset_for=None, startable=None, output_text=None,
-                     apply_settings=None, promote_payload=None):
+                     apply_settings=None, promote_payload=None, list_settings=()):
     """Retourne les huit vues de lot : {'batch_start', 'batch_update', 'batch_delete',
     'batch_duplicate', 'batch_download', 'batch_status', 'batch_promote', 'batch_realign'}
     (vues Django, `pk` = id du lot).
@@ -521,6 +528,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                           texte (`RESULT = {'kind': 'text', 'field': …}`, describer généré) —
                           une entrée `.txt` par élément, nommée par `compose_output_name` ;
                           prime sur `output_field`.
+        list_settings   : réglages qui sont une LISTE (anonymizer : `classes2blur`), lus entiers
+                          par la ⚙ de lot et par celle d'un élément (`read_settings_payload`).
         promote_payload : callable(élément)->dict — CE QU'UNE FILLE PROMEUT. Défaut : ses
                           réglages lus du SCHÉMA de l'app (`revisions.settings_snapshot`, la
                           règle de la révision — jamais une liste de champs écrite ici), bornés
@@ -626,7 +635,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         item_schema = schema(item)
         names = tuple(p.get('name') for p in (item_schema or [])
                       if isinstance(p, dict) and p.get('name'))
-        return read_settings_payload(request, item_schema, names, empty_is_value)
+        return read_settings_payload(request, item_schema, names, empty_is_value, list_settings)
 
     def _write_one(item, data):
         """Pose `data` sur UN élément, sans sauver — LA règle de réglage de l'app : sa fonction
@@ -663,9 +672,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         _SETTINGS_WRITERS[work_model] = _write_outside_request
         _ELEMENT_DECLARATIONS[work_model] = {
             'batch_model': batch_model, 'link': link_kwargs, 'item_extra': item_extra,
+            'batch_extra': batch_extra,
             'reset_on_duplicate': dup_reset, 'output_fields': tuple(output_fields),
             'on_delete': on_delete, 'zip': zip_declaration,
-            'schema': schema, 'empty_is_value': tuple(empty_is_value or ()), 'write': _write_one}
+            'schema': schema, 'empty_is_value': tuple(empty_is_value or ()),
+            'list_settings': tuple(list_settings or ()), 'write': _write_one}
 
     def _apply_to_elements(request, b, data_for, *, skip=()):
         """Pose `data_for(élément)` sur chaque élément du lot qui ne tourne pas (hors `skip`),
@@ -712,7 +723,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     def batch_update(request, pk):
         b = _batch_edit(request, pk, trace='regle')
         shared = (None if callable(schema)
-                  else read_settings_payload(request, schema, schema_names, empty_is_value))
+                  else read_settings_payload(request, schema, schema_names, empty_is_value,
+                                             list_settings))
         written, refusal = _apply_to_elements(
             request, b, lambda item: shared if shared is not None else _posted_settings(request, item))
         if refusal is not None:

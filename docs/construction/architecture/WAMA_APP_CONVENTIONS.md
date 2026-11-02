@@ -414,8 +414,24 @@ vide, confrontée aux compteurs du serveur (le grisé est du JS : aucun test Pyt
 `make_batch_views` pour le même modèle (`batch_views.element_declaration` — remise à zéro et sorties
 de la copie, rattachement au lot, nettoyage, schéma et écrivain de réglages, nom du résultat). La
 copie se range par `batch_common.place_copy` : sœur de l'original dans un vrai lot de celui qui
-duplique, sinon son propre lot d'un. Tenu par le critère `element_views_common` et
-`tests_element_gestures` ; les apps qui écrivent encore les leurs sont listées (`NOT_YET_PORTED`).
+duplique, sinon son propre lot d'un (qui garde la nature du lot d'origine, `batch_extra`). ⏹ arrête
+ce qui attend, tourne ou attend ses ressources, en échec « Interrompu par l'utilisateur »
+(relançable), et oublie la progression du run. Les dix apps depuis le 2026-11-02 (`R200`, `R201`).
+Tenu par le critère `element_views_common` et `tests_element_gestures` (`NOT_YET_PORTED`, vide).
+
+Une app ne déclare que ce qu'elle a de PROPRE, et jamais une vue de plus :
+
+| crochet (`make_item_views`) | quand | exemple |
+|---|---|---|
+| `on_stop` | ce que l'app oublie d'un élément arrêté, hors de sa progression | anonymizer : ses verrous ; transcriber : son message d'état |
+| `item_settings` | la ⚙ d'une card pose PLUS que celle du lot | transcriber : titre, date, intervenants |
+| `item_empty_is_value` | `''` est une valeur sur la card, pas au lot | converter : format vide = automatique ; composer : paroles vidées |
+| `settings_file` | un fichier arrive avec les réglages | synthesizer : la voix de référence (refusée : rien n'est écrit) |
+| à `make_batch_views` : `list_settings` | un réglage est une LISTE, lue entière par la card ET le lot | anonymizer : les classes à flouter |
+
+Une adresse propre à l'app (le `cancel` du converter, qui retire d'abord une conversion rapide)
+DÉLÈGUE au geste (`return _iv['stop'](request, pk)`) — le critère la reconnaît comme telle.
+« Enregistrer et relancer » d'une modale ⚙ enchaîne le ▶ côté page (`onSaved`), jamais dans la vue.
 
 ```python
 stop = app_access('<app>')(_iv['stop'])

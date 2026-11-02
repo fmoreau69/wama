@@ -275,7 +275,8 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
                     unstartable_message: str = '', pending=None, pending_exclude=None,
                     queryset=None, progress_key: str = '', queue_settings=None,
                     apply_settings=None, on_queue_settings=None, on_delete=None,
-                    batch_model=None, items_related: str = 'items'):
+                    batch_model=None, items_related: str = 'items', on_stop=None,
+                    item_settings=None, item_empty_is_value=None, settings_file: str = ''):
     """Les vues `start(request, pk)`, `start_all(request)` et `clear_all(request)` d'une app.
 
     Args:
@@ -312,6 +313,18 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
                           champ). Absent : le nettoyage déclaré à `make_batch_views` pour le même
                           modèle (2026-11-01) — trois apps le redisaient ici, à retirer au portage.
         batch_model     : le modèle de lot : « tout effacer » retire aussi les lots devenus vides.
+        on_stop         : callable(élément) — ce que l'app OUBLIE d'un élément qu'on arrête, hors
+                          de sa progression que la fabrique purge (anonymizer : ses verrous de
+                          lancement ; transcriber : son message d'état).
+        item_settings   : callable(élément, réglages)->champs touchés | None — l'écrivain de la
+                          route d'UN élément quand elle pose PLUS que la ⚙ de lot (transcriber :
+                          titre, date, intervenants, propres à une card). Défaut : celui du lot.
+        item_empty_is_value : les réglages pour qui `''` EST une valeur sur la route d'un élément,
+                          quand ce n'est pas le cas au lot (converter : format vide = automatique).
+                          Défaut : ceux du lot.
+        settings_file   : le champ FICHIER qu'un enregistrement de réglages peut recevoir, téléversé
+                          ou désigné (synthesizer : `voice_reference`) — refusé, rien n'est écrit ;
+                          reçu, il remplace l'ancien, qui est LIBÉRÉ.
 
     « Tout effacer » retire la FILE, sauf les éléments EN VOL (`IN_FLIGHT`) : on ne retire pas sous
     une tâche qui écrit encore (elle se stoppe d'abord, ⏹) — la règle du composer, qui la seule
@@ -319,9 +332,10 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
     commune, `START_SCOPES` / `CLEAR_SCOPES`) ; sans lui, la règle de l'app.
 
     LES AUTRES GESTES D'UNE CARD (2026-11-01) — `stop`, `delete`, `duplicate`, `download`,
-    `update_settings` : rien à passer de plus, ils lisent ce que l'app déclare à `make_batch_views`
-    pour le même modèle (`batch_views.element_declaration`) :
-      ⏹ arrête ce qui tourne ou attend (`stop_instance` : relançable, la règle du bouton de cycle) ;
+    `update_settings` : ils lisent ce que l'app déclare à `make_batch_views` pour le même modèle
+    (`batch_views.element_declaration`), plus les quatre crochets ci-dessus (2026-11-02) :
+      ⏹ arrête ce qui tourne ou attend (`stop_instance` : relançable, la règle du bouton de cycle),
+         sa progression oubliée (une relance ne l'affiche plus) et ce que l'app déclare (`on_stop`) ;
       🗑 retire la card de son propriétaire par le geste de « tout effacer » (`discard_element`) et
          dit ce que devient son lot (`batch_state`) ;
       ⧉ copie la card (`reset_on_duplicate`, `output_fields`) pour celui qui duplique, rangée par
@@ -435,11 +449,16 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
         from wama.common.utils.process_control import stop_instance
         from wama.common.utils.scoping import editable_or_404
         item = editable_or_404(work_model, get_user(request), pk=pk)   # le sien, ou en collaboration
-        if item.status not in (JOB_RUNNING, JOB_PENDING):
+        if item.status not in (JOB_PENDING, *IN_FLIGHT):     # en attente, en cours, ou attend ses ressources
             return JsonResponse({'id': item.pk, 'status': item.status})
         error_field = 'error_message' if hasattr(item, 'error_message') else None
-        return JsonResponse({'id': item.pk,
-                             'status': stop_instance(item, error_field=error_field)})
+        status = stop_instance(item, error_field=error_field)
+        # La trace du run arrêté : sinon une valeur périmée (ex. 20 %) « collait » à la card et au
+        # run suivant jusqu'à sa première écriture — la purge du transcriber, faite pour tous.
+        _purge_traces(declaration, item.pk)
+        if on_stop is not None:
+            on_stop(item)
+        return JsonResponse({'success': True, 'id': item.pk, 'status': status})
 
     @require_POST
     def delete(request, pk):
@@ -463,7 +482,7 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
         copy = duplicate_instance(item, for_user=user, reset_fields=dict(found['reset_on_duplicate']),
                                   clear_fields=list(found['output_fields']))
         place_copy(copy, item, batch_model=found['batch_model'], item_extra=found['item_extra'],
-                   **found['link'])
+                   batch_extra=found['batch_extra'], **found['link'])
         # `duplicated` : la copie que `queue-actions.js` met en avant.
         return JsonResponse({'success': True, 'duplicated': copy.pk, **_state(copy)})
 
@@ -476,7 +495,11 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
         from django.utils.http import content_disposition_header
         from wama.common.utils.batch_views import ResultArchive, export_stem
         from wama.common.utils.scoping import visible_or_404
+        from wama.common.utils.batch_common import link_row_of
         item = visible_or_404(work_model, get_user(request), pk=pk)        # LECTURE
+        # Sa ligne de lot, comme un élément lu par `batch_elements` : le nom déclaré d'une entrée
+        # peut s'y lire (synthesizer, composer : `output_filename` de la ligne).
+        item.batch_link = link_row_of(item)
         declared = _element()['zip']
         archive = ResultArchive()
         archive.add_elements(work_model, [item], request, declared)
@@ -498,19 +521,37 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
         from wama.common.utils.batch_views import (columns_changed, columns_snapshot,
                                                    read_settings_payload)
         from wama.common.utils.scoping import editable_or_404
-        item = editable_or_404(work_model, get_user(request), pk=pk)   # le sien, ou en collaboration
+        user = get_user(request)
+        item = editable_or_404(work_model, user, pk=pk)   # le sien, ou en collaboration
         found = _element()
         schema = found['schema'](item) if callable(found['schema']) else found['schema']
         names = [p['name'] for p in (schema or []) if isinstance(p, dict) and p.get('name')]
+        received = None
+        if settings_file:
+            # Lu AVANT d'écrire quoi que ce soit : une désignation refusée refuse l'enregistrement
+            # entier, au lieu de garder l'ancien fichier sans le dire (synthesizer, 2026-10-13).
+            from wama.common.utils.media_paths import received_inputs
+            received = received_inputs(request, user, app_id, field=settings_file)
+            if not received and received.refusal:
+                return JsonResponse({'error': received.refusal}, status=400)
         before = columns_snapshot(item)               # en cours compris : seules les colonnes changées
+        empty = found['empty_is_value'] if item_empty_is_value is None else item_empty_is_value
+        data = read_settings_payload(request, schema, names, empty, found['list_settings'])
+        data.pop(settings_file, None)                 # le fichier passe par `received_inputs` seul
         try:
-            found['write'](item, read_settings_payload(request, schema, names,
-                                                       found['empty_is_value']))
+            (item_settings or found['write'])(item, data)
         except ValueError as refusal:
             return JsonResponse({'error': str(refusal)}, status=400)
+        if received:
+            # Le fichier reçu remplace l'ancien, LIBÉRÉ — comme « tout lancer » (`on_queue_settings`).
+            from wama.common.utils.queue_duplication import release_card_file
+            release_card_file(item, settings_file)
+            setattr(item, settings_file, received[0].value)
         updated = columns_changed(item, before)
         if updated:
             item.save(update_fields=updated)
+        if received:
+            received[0].record(item, settings_file)
         # Les réglages tels qu'ENREGISTRÉS, lus au schéma de l'élément (le contrat du describer).
         from wama.common.services.revisions import json_safe
         saved = {name: json_safe(getattr(item, name)) for name in names if hasattr(item, name)}

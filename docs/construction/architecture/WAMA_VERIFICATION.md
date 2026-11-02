@@ -692,6 +692,20 @@ model_manager, studio) ; les 2 échecs étaient deux VRAIS défauts d'app, tous 
 | **⬇ Télécharger** | lien, **ou split ▾ si N formats** | ✅ *depuis le 2026-08-23* — `common/_download_button.html` + tag `download_button` (ex-`bouton_telecharger`, renommé le 2026-08-30 — `wama_actions.py:18`, relevé le 2026-10-31) ; la FORME se déduit de `export_formats` déclaré au catalogue | `.download-btn` dans le partial commun | **12/12** |
 | **✏ Éditer** | ouvre une page/vue | ~~❌ *aucune* — **1 seule implémentation**~~ ✅ *depuis le 2026-10-10* — tag `surface_button` (`wama_actions.py:484`), déduit de la surface déclarée (`<app>/surfaces.py`) — relevé le 2026-10-31 | `.edit-btn` (anonymizer, composer, transcriber) | ~~1/12 — à généraliser~~ 3 apps (celles qui déclarent une surface d'édition) |
 
+> ⚠⚠ **2026-11-02 — un bouton uniforme ne dit rien de son EFFET** (question de Fabien : *« comment
+> c'est possible qu'on ait des divergences de comportement sur un code qui a déjà été porté et qui
+> est censé être commun ? »*). La ligne ⧉ dit « 12/12 » : vrai pour le BOUTON et sa brique JS.
+> Côté serveur, chaque app écrivait sa vue autour de la brique `duplicate_instance` — la brique
+> copiait, la VUE décidait où ranger la copie : quatre règles pour dix apps (sœur dans tout lot,
+> dans un vrai lot seulement, jamais, aucun lot). Les trois grilles étaient vertes : le critère
+> `duplicate_instance` cherchait le MOT dans `views.py`, et `<app>.duplicate_delete` ne comptait que
+> « la file grandit d'une card » — il DÉPLIAIT même le lot de deux né d'une card seule, l'accommodant
+> au lieu de le dire. Soldé : les gestes d'une card par la fabrique (`ROUTE §11 #42` ④, R200/R201),
+> le critère `element_views_common` qui exige la vue de la fabrique, et le scénario qui juge où la
+> copie atterrit (`_copy_placement_verdict`). ⭐ *« Porté » voulait dire « appelle la brique » ; le
+> geste n'est commun que si la VUE l'est.* Reste à passer au même crible les 34 critères qui ne
+> cherchent qu'un mot : ceux où la brique est appelée depuis une vue écrite par l'app.
+>
 > ⚠⚠ **CE TABLEAU S'EST TROMPÉ QUATRE FOIS, TOUJOURS DANS LE MÊME SENS — il SOUS-ESTIME.**
 > ⚙ : avatarizer donné pour « rien » alors qu'il avait `btn-settings-job`, et enhancer absent de
 > la table avec ses DEUX graphies. ▶ Cycle : annoncé **2/10**, mesuré **12/12** — les douze cards

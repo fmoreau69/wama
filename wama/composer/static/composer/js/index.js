@@ -183,7 +183,7 @@
     // statique `#settingsModal` du gabarit, le remplissage par id et `_postSettings` vivaient ici).
     // Les VALEURS viennent des data-* du gear (brique `card_gear`), lues par LE lecteur unique
     // `WamaInspector.gearValues` ; l'app ne garde que ses hooks : l'estimation dans la modale
-    // (`decorate`), le drapeau `restart` que la vue lit (`collect`), la card re-rendue (`onSaved`).
+    // (`decorate`), le prompt à deux états (`collect`), la card re-rendue et relancée (`onSaved`).
     WamaQueueActions.onSettings(function (id, settingsBtn) {
         const schema = window.COMPOSER_PARAMS_SCHEMA || [];
         const card = (settingsBtn && settingsBtn.closest('.wama-card')) || settingsBtn;
@@ -202,8 +202,7 @@
                 _wireSettingsPrompt(host, card);
                 _wireSettingsMatching();
             },
-            collect: function (fd, host, data, restart) {
-                fd.append('restart', restart ? '1' : '0');
+            collect: function (fd, host) {
                 // Prompt à DEUX ÉTATS : le texte affiché + son état — `apply_prompt_state` (vue)
                 // l'écrit dans `prompt` (le sien) ou `prompt_processed` (l'enrichi).
                 const p = host.querySelector('#settingsPrompt');
@@ -214,12 +213,12 @@
                 }
             },
             errorOf: function (resp) { return resp && resp.success ? null : ((resp && resp.error) || 'inconnue'); },
-            onSaved: function (gid, restart, resp) {
-                // Re-rend la card serveur (SOURCE UNIQUE du markup) → data-* frais : modale ET
-                // inspecteur relisent les valeurs ENREGISTRÉES ; le statut réel vient du rendu.
-                if (window.WamaEta && resp.restarted) WamaEta.reset(gid);
+            onSaved: function (gid, restart) {
+                // « Enregistrer et relancer » : le ▶ commun, comme les autres apps. Sinon la card
+                // re-rendue serveur (SOURCE UNIQUE du markup) → data-* frais : modale ET inspecteur
+                // relisent les valeurs ENREGISTRÉES.
+                if (restart) return startGeneration(gid);
                 insertRenderedCard(gid);
-                if (resp.restarted) startPolling(parseInt(gid));
             },
         });
     });
@@ -485,23 +484,7 @@
                 }
                 // ▶ d'UN process (bande des process, `data-process`) : lancement BORNÉ, route
                 // `start/<id>/<process>/` ; sans attribut, le ▶ de la card lance tout ce qui est dû.
-                const process = WamaCycleButton.processOf(btn);
-                const startUrl = WamaCycleButton.processUrl(WamaApp.getUrl(APP.startUrlTemplate, id), process);
-                try {
-                    const r = await fetch(startUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
-                    if (!r.ok) {
-                        let why = 'lancement refusé';
-                        try { why = (await r.json()).error || why; } catch (e) {}
-                        if (window.WamaApp && WamaApp.toast) WamaApp.toast(why, 'error');
-                        return;
-                    }
-                    if (card) card.dataset.status = 'RUNNING';
-                    // Re-rendu SERVEUR, comme au ⏹ : une card rendue en attente n'a pas de barre
-                    // (`_generation_card.html`, `status != 'PENDING'`) — le suivi n'avait rien à
-                    // remplir et la barre n'apparaissait qu'au rechargement (Fabien, 2026-10-04).
-                    insertRenderedCard(id);
-                    startPolling(parseInt(id));
-                } catch (e) {}
+                await startGeneration(id, WamaCycleButton.processOf(btn));
             },
             stop: async (id) => {
                 const card = q.querySelector(`.generation-card[data-id="${id}"]`);
@@ -523,6 +506,31 @@
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------
+
+    // ▶ d'une génération — le bouton de cycle ET « Enregistrer et relancer » de la modale ⚙ : la
+    // route commune `start` (la relance se faisait côté serveur dans la vue de réglages, seule de
+    // son espèce — 2026-11-02, ROUTE §11 #42 ④). `process` borne le lancement à UN process.
+    async function startGeneration(id, process) {
+        const card = document.querySelector(`#composerQueue .generation-card[data-id="${id}"]`);
+        const startUrl = WamaCycleButton.processUrl(WamaApp.getUrl(APP.startUrlTemplate, id), process || '');
+        try {
+            const r = await fetch(startUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+            if (!r.ok) {
+                let why = 'lancement refusé';
+                try { why = (await r.json()).error || why; } catch (e) {}
+                if (window.WamaApp && WamaApp.toast) WamaApp.toast(why, 'error');
+                return false;
+            }
+            if (card) card.dataset.status = 'RUNNING';
+            if (window.WamaEta) WamaEta.reset(id);
+            // Re-rendu SERVEUR, comme au ⏹ : une card rendue en attente n'a pas de barre
+            // (`_generation_card.html`, `status != 'PENDING'`) — le suivi n'avait rien à
+            // remplir et la barre n'apparaissait qu'au rechargement (Fabien, 2026-10-04).
+            insertRenderedCard(id);
+            startPolling(parseInt(id));
+            return true;
+        } catch (e) { return false; }
+    }
 
     // Card RENDUE SERVEUR — SOURCE UNIQUE du markup (partial _generation_card.html via
     // composer:card_html ; CARD_DESIGN « partial server-side + update JS en place »).

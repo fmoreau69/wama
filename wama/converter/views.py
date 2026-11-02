@@ -22,10 +22,9 @@ from django.shortcuts import render, get_object_or_404
 from wama.common.utils.scoping import visible_or_404
 from wama.accounts.permissions import app_access
 from django.views import View
-from django.http import JsonResponse, FileResponse, Http404
+from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_GET, require_POST
-from django.utils.encoding import smart_str
 from django.core.cache import cache
 from django.db import transaction
 
@@ -33,7 +32,6 @@ from .models import ConversionJob, ConversionProfile, ConversionBatch
 from .utils.format_router import (SUPPORTED_CONVERSIONS, detect_media_type, get_output_formats,
                                   output_format_for, remember_output_format)
 from ..accounts.views import get_or_create_anonymous_user
-from ..common.utils.queue_duplication import release_card_files, duplicate_instance
 # Le chemin d'un fichier d'app se COMPOSE (`get_relative_media_path`), il ne
 # s'écrit pas — préalable au domicile unique par utilisateur (2026-09-11).
 from wama.common.utils.media_paths import get_relative_media_path
@@ -352,10 +350,18 @@ _iv = make_item_views(
     startable=lambda job: bool(job.output_format),
     unstartable_message="Format de sortie non défini — le choisir dans ⚙ Paramètres avant de lancer.",
     queryset=lambda user: ConversionJob.objects.filter(user=user, ephemeral=False),
-    batch_model=ConversionBatch)
+    batch_model=ConversionBatch, item_empty_is_value=('output_format',))
 start = login_required(_iv['start'])
 start_all = login_required(_iv['start_all'])
 clear_all = login_required(_iv['clear_all'])
+# ⬇ 🗑 ⧉ ⚙ d'une card (⏹ : `cancel`, plus bas) : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42
+# ④), qui lit ce que l'app déclare à sa fabrique de lot — dont son lot à FK directe et la nature
+# figée sur le lot (`batch_extra` : la copie seule naît dans un lot de sa nature). Spécificité
+# déclarée : un format de sortie VIDE vaut « Automatique » sur la card (au lot, « ne pas toucher »).
+update_settings = login_required(_iv['update_settings'])
+download = login_required(_iv['download'])
+delete = login_required(_iv['delete'])
+duplicate = login_required(_iv['duplicate'])
 
 
 def _progress_extra(job):
@@ -386,33 +392,6 @@ _pv = make_progress_views(
     queryset=lambda user: ConversionJob.objects.filter(user=user, ephemeral=False))
 status = login_required(_pv['progress'])
 global_progress = login_required(_pv['global_progress'])
-
-
-@login_required
-@require_POST
-def update_settings(request, pk):
-    """Update a job's output_format and options."""
-    import json as _json
-
-    from wama.common.utils.scoping import editable_or_404
-    job = editable_or_404(ConversionJob, request.user, pk=pk)
-
-    # JSON (inspecteur) OU FormData (modale ⚙), par le lecteur COMMUN : la vue ne lisait que
-    # `request.POST`, et seulement le blob `options_json` — un réglage posté à plat n'était
-    # jamais écrit (contrat générique `tests_item_settings_contract`, 2026-09-26).
-    from wama.common.utils.batch_views import read_settings_payload
-    from wama.converter.params import PARAMS_JSON as _SCH
-    # `output_format` VIDE est une valeur sur la route d'un élément : « Automatique » (le format
-    # selon la nature) — la modale de LOT, elle, garde « vide = ne pas toucher » (sa fabrique).
-    data = read_settings_payload(request, _SCH, [p['name'] for p in _SCH],
-                                 empty_is_value=('output_format',))
-    try:
-        touched = _apply_job_settings(job, data)
-    except ValueError as refusal:
-        return JsonResponse({'error': str(refusal)}, status=400)
-    if touched:
-        job.save(update_fields=touched)
-    return JsonResponse({'success': True, 'output_format': job.output_format, 'options': job.options})
 
 
 def _apply_job_settings(job, data) -> list:
@@ -523,69 +502,6 @@ def api_presets(request):
     """
     from .utils.quality_presets import _PRESETS
     return JsonResponse({'presets': _PRESETS})
-
-
-@login_required
-def download(request, pk):
-    """Serve the converted output file."""
-    job = visible_or_404(ConversionJob, request.user, pk=pk)   # LECTURE
-    if not job.output_file:
-        raise Http404("Fichier de sortie indisponible")
-
-    try:
-        file_path = job.output_file.path
-    except Exception:
-        raise Http404("Fichier introuvable")
-
-    if not Path(file_path).exists():
-        raise Http404("Fichier introuvable sur le disque")
-
-    response = FileResponse(
-        open(file_path, 'rb'),
-        as_attachment=True,
-        filename=smart_str(job.output_filename),
-    )
-    return response
-
-
-@login_required
-@require_POST
-def delete(request, pk):
-    """Delete a ConversionJob and its files.
-
-    For in-place/ephemeral quick-convert jobs the files belong to the user
-    (Filemanager) — only the DB row is removed, the files are kept.
-    """
-    job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
-    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(job)
-
-    # Entrée et sortie LIBÉRÉES par la brique : seulement ce qui vit dans le dossier média
-    # du Converter — jamais les fichiers utilisateur seulement référencés.
-    release_card_files(job)
-
-    job.delete()   # signal post_delete (batch_sync) : recale le total / supprime le lot vidé
-    return JsonResponse({'success': True, 'batch': batch_state(snapshot, ConversionJob)})
-
-
-@login_required
-@require_POST
-def duplicate(request, pk):
-    """Duplicate a ConversionJob (shared input file, no output)."""
-    from wama.common.utils.scoping import duplicable_or_404
-    job = duplicable_or_404(ConversionJob, request.user, pk=pk)
-    new_job = duplicate_instance(
-        instance=job,
-        for_user=request.user,
-        reset_fields={
-            'status':        'PENDING',
-            'progress':      0,
-            'task_id':       '',
-            'error_message': '',
-        },
-    )
-    return JsonResponse({'success': True, 'id': new_job.id})   # contrat commun (cf. upload)
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
@@ -837,28 +753,25 @@ def profile_delete(request, pk):
 @login_required
 @require_POST
 def cancel(request, pk):
-    """Cancel a running conversion (revoke the Celery task).
+    """⏹ d'une conversion — le nom de la route du converter (`<pk>/cancel/`, que le générateur
+    connaît), le geste de la fabrique commune (`_iv['stop']`, 2026-11-02) : la card s'arrête en
+    échec « Interrompu par l'utilisateur », relançable — elle revenait en attente sans le dire.
 
-    Ephemeral quick-convert jobs are deleted outright; queue jobs are reset to
-    PENDING so they can be restarted. The atomic-output design guarantees no
-    partial file is left next to the source on a killed in-place conversion.
-    """
+    Spécificité : une conversion RAPIDE (éphémère, lancée du gestionnaire de fichiers, jamais en
+    file) n'a pas de card à relancer — elle est révoquée puis retirée. La sortie atomique garantit
+    qu'aucun fichier partiel ne reste à côté de la source."""
     from wama.common.utils.scoping import editable_or_404
     job = editable_or_404(ConversionJob, request.user, pk=pk)
+    if not job.ephemeral:
+        return _iv['stop'](request, pk)
     if job.task_id:
         try:
             from celery import current_app
             current_app.control.revoke(job.task_id, terminate=True, signal='SIGTERM')
         except Exception:
             pass
-    if job.ephemeral:
-        job.delete()
-    else:
-        job.status = 'PENDING'
-        job.task_id = ''
-        job.progress = 0
-        job.save(update_fields=['status', 'task_id', 'progress'])
-    return JsonResponse({'success': True})
+    job.delete()
+    return JsonResponse({'success': True, 'id': pk, 'deleted': pk})
 
 
 @login_required

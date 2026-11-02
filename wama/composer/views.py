@@ -8,15 +8,14 @@ import logging
 import os
 
 from django.core.cache import cache
-from django.http import FileResponse, JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.http import JsonResponse
+from django.shortcuts import render
 from django.views import View
 from django.views.decorators.http import require_POST, require_GET
-from django.utils.http import content_disposition_header
 
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
-from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance, release_card_files
+from wama.common.utils.queue_duplication import safe_delete_file
 from .models import ComposerBatch, ComposerBatchItem, ComposerGeneration
 from .utils.model_choice import (AUTO_MUSIC, AUTO_SFX, DEFAULT_MODEL, accepts_input, is_valid,
                                  normalize)
@@ -522,10 +521,20 @@ from wama.common.utils.item_views import make_item_views  # noqa: E402
 
 _iv = make_item_views(work_model=ComposerGeneration, app_id='composer', task_for=_task_for,
                       reset_on_start=_reset_for_relaunch,
-                      pending={'status__in': ('PENDING', 'FAILURE')}, batch_model=ComposerBatch)
+                      pending={'status__in': ('PENDING', 'FAILURE')}, batch_model=ComposerBatch,
+                      item_empty_is_value=('lyrics',))
 start = app_access('composer')(_iv['start'])
 start_all = app_access('composer')(_iv['start_all'])
 clear_all = _iv['clear_all']
+# ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
+# déclare à sa fabrique de lot. Spécificité déclarée : des paroles VIDÉES s'effacent sur la card
+# (au lot, vide = ne pas toucher). « Enregistrer et relancer » enchaîne le ▶ côté page, comme les
+# autres apps : la vue de réglages relançait elle-même (`restart=1`).
+stop = app_access('composer')(_iv['stop'])
+update_settings = _iv['update_settings']
+download = _iv['download']
+delete = _iv['delete']
+duplicate = _iv['duplicate']
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -534,23 +543,6 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 # DÉCLARÉES du process lancé sont remplacées (`_reset_for_relaunch(gen, only)`).
 start_process = app_access('composer')(make_process_start_view(
     work_model=ComposerGeneration, task_for=_task_for, reset_for_process=_reset_for_relaunch))
-
-
-@require_POST
-@app_access('composer')
-def stop(request, pk):
-    """
-    Stoppe la génération en cours (révoque la tâche Celery) → composition relançable (bouton ↻).
-    Brique commune : wama.common.utils.process_control.stop_instance.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    gen = editable_or_404(ComposerGeneration, user, id=pk)
-    if gen.status not in ('RUNNING', 'PENDING'):
-        return JsonResponse({'id': gen.id, 'status': gen.status})
-    from wama.common.utils.process_control import stop_instance
-    new_status = stop_instance(gen, error_field='error_message')
-    return JsonResponse({'id': gen.id, 'status': new_status})
 
 
 def _input_match_meta():
@@ -655,52 +647,6 @@ def _plain_settings():
             if p['name'] in columns and p['name'] not in _SETTINGS_WITH_RULES]
 
 
-@require_POST
-def update_settings(request, pk):
-    """Update model and/or duration on an existing generation, then re-run."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    gen = editable_or_404(ComposerGeneration, user, id=pk)
-    # Réglages enregistrables PENDANT un traitement (2026-10-22) : seules les colonnes CHANGÉES
-    # s'écrivent, jamais le statut ni les sorties que la tâche pose en base.
-    from wama.common.utils.batch_views import columns_changed, columns_snapshot
-    before = columns_snapshot(gen)
-
-    # JSON (inspecteur) OU FormData (modale ⚙) par le lecteur COMMUN — la vue lisait
-    # `request.POST` seul (contrat générique `tests_item_settings_contract`, 2026-09-26).
-    from wama.common.utils.batch_views import read_settings_payload
-    data = read_settings_payload(request, _SETTINGS_SCHEMA,
-                                 [p['name'] for p in _SETTINGS_SCHEMA], empty_is_value=('lyrics',))
-
-    try:
-        _apply_generation_settings(gen, data)
-    except ValueError as refusal:
-        return JsonResponse({'error': str(refusal)}, status=400)
-
-    # Pied de modale CONFORME : « Enregistrer » (restart=0) sauve SANS purger la sortie ni
-    # relancer ; « Enregistrer et relancer » (restart=1) purge + re-run. ⚠ Le défaut était
-    # `1` : un enregistrement qui ne le posait pas (JSON de l'inspecteur) RELANÇAIT la
-    # génération. La modale le pose toujours (`index.js` collect) ; absent = on ne relance pas.
-    restart = str(data.get('restart', '0')) == '1'
-    if not restart:
-        gen.save(update_fields=columns_changed(gen, before))
-        return JsonResponse({'success': True, 'status': gen.status, 'restarted': False})
-
-    # Sauvegarde des réglages PUIS relance ANTI-RACE (brique commune : verrou + revoke + reset)
-    gen.save(update_fields=columns_changed(gen, before))
-    from wama.common.utils.process_control import begin_processing
-    gen, err = begin_processing(ComposerGeneration, gen.pk, user=user, reset=_reset_for_relaunch)
-    if err:
-        return JsonResponse({'success': True, 'status': 'RUNNING', 'restarted': False})
-
-    from .tasks import compose_task
-    task = compose_task.apply_async(args=(gen.id,))
-    gen.task_id = task.id
-    gen.save(update_fields=['task_id'])
-
-    return JsonResponse({'success': True, 'status': 'RUNNING', 'restarted': True})
-
-
 # ---------------------------------------------------------------------------
 # Progress
 # ---------------------------------------------------------------------------
@@ -726,49 +672,6 @@ global_progress = _pv['global_progress']
 
 
 # ---------------------------------------------------------------------------
-# Download
-# ---------------------------------------------------------------------------
-
-def download(request, pk):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
-    gen = visible_or_404(ComposerGeneration, user, id=pk)
-    if not gen.audio_output:
-        return JsonResponse({'error': 'Aucun fichier disponible'}, status=404)
-
-    filename = os.path.basename(gen.audio_output.name)
-    response = FileResponse(gen.audio_output.open('rb'), content_type='audio/wav')
-    response['Content-Disposition'] = content_disposition_header(True, f"{filename}")
-    return response
-
-
-# ---------------------------------------------------------------------------
-# Delete
-# ---------------------------------------------------------------------------
-
-@require_POST
-def delete(request, pk):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
-
-    # Lot de l'élément, relevé AVANT la cascade — brique commune (`batch_common`).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(gen)
-
-    # Sortie et références (mélodie, partition) : LIBÉRÉES par la brique, à l'échelle de la card.
-    release_card_files(gen)
-
-    gen.delete()
-
-    # batch.total / suppression du batch vidé (+ fichier batch) : gérés par le signal batch_sync.
-    return JsonResponse({'success': True, 'batch': batch_state(snapshot, ComposerGeneration)})
-
-
-# ---------------------------------------------------------------------------
-# Batch delete
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 # Export to media library — RETIRÉ (2026-09-18, décision Fabien ; `REMOVAL_LEDGER R64`)
 # ---------------------------------------------------------------------------
 # La route `export/<pk>/` était une SECONDE PORTE du geste commun (elle déléguait déjà à
@@ -777,53 +680,6 @@ def delete(request, pk):
 # que la brique fait déjà par provenance. Le seul savoir qu'elle portait — une génération
 # `music` est une musique, le reste un bruitage — est DÉCLARÉ dans le détail canonique
 # (`apps.py`, `result_role`) et lu par le geste commun, pour toutes les apps.
-
-
-# ---------------------------------------------------------------------------
-# Duplicate & Download All
-# ---------------------------------------------------------------------------
-
-@require_POST
-def duplicate(request, pk):
-    """Duplicate a single generation sharing the source, resetting the result."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import duplicable_or_404
-    gen = duplicable_or_404(ComposerGeneration, user, id=pk)
-    try:
-        output_filename = gen.batch_item.output_filename
-    except ComposerBatchItem.DoesNotExist:
-        output_filename = ''
-
-    new_gen = duplicate_instance(
-        gen,
-        for_user=user,
-        reset_fields={
-            'status': 'PENDING', 'progress': 0,
-            'task_id': None, 'error_message': '',
-            'exported_to_library': False,
-        },
-        # Le rendu et les partitions : ce que les process ont écrit, la brique le vide elle-même
-        # (`AppPipeline.produced_fields`, 2026-10-21) — la liste écrite ici oubliait `parts_score`.
-    )
-    # Fille d'un VRAI batch (total > 1) : dupliquer en frère DANS le batch.
-    # Card UNITAIRE (batch-de-1) : la copie devient une card indépendante (nouveau batch-de-1) —
-    # sinon la duplication transformait la card en batch de 2 (bug signalé 2026-07-03).
-    # La copie d'une card REÇUE se range chez celui qui duplique, jamais dans le lot d'autrui.
-    orig_item = (ComposerBatchItem.objects.filter(generation=gen).select_related('batch').first()
-                 if new_gen.user_id == gen.user_id else None)
-    if orig_item and orig_item.batch.total > 1:
-        from django.db.models import Max
-        batch = orig_item.batch
-        next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
-        ComposerBatchItem.objects.create(
-            batch=batch, generation=new_gen, output_filename=output_filename, row_index=next_idx)
-        batch.total = batch.items.count()
-        batch.save(update_fields=['total'])
-    else:
-        _wrap_generation_in_batch(new_gen)
-    # `duplicated` = contrat de la brique queue-actions.js : elle focalise la copie
-    # après rechargement (sessionStorage wama_focus_card).
-    return JsonResponse({'success': True, 'id': new_gen.id, 'duplicated': new_gen.id})
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,

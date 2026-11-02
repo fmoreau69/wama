@@ -33,6 +33,7 @@ recréent au passage suivant (sinon le triage se déclenche chaque nuit et le si
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import time
 from contextlib import contextmanager
@@ -2734,6 +2735,31 @@ def _visible(sel):
     return ', '.join(s.strip() + ':visible' for s in sel.split(','))
 
 
+def _copy_placement_verdict(model, source_id, copy_id) -> str:
+    """Où la copie ⧉ a atterri, jugée à LA règle (`batch_common.place_copy`) : sœur dans le lot de
+    l'original quand c'est un VRAI lot (plus d'un élément) de celui qui duplique, sinon son propre
+    lot d'un. `''` si elle est juste, sinon ce qui ne va pas. À lire hors du contexte Playwright
+    (`_in_plain_thread`). Mesuré avant la règle (2026-11-02) : quatre placements pour dix apps,
+    dont un que ce scénario ACCOMMODAIT (il dépliait le lot de deux né d'une card seule)."""
+    from wama.common.utils.batch_common import batch_of
+    source = model.objects.filter(pk=source_id).first()
+    copy = model.objects.filter(pk=copy_id).first()
+    if source is None or copy is None:
+        return ''
+    lot, own = batch_of(source), batch_of(copy)
+    if own is None:
+        return f'la copie #{copy_id} est restée sans lot'
+    if lot is None:
+        return ''
+    joined = own.pk == lot.pk
+    real_before = (lot.total - (1 if joined else 0)) > 1 and lot.user_id == copy.user_id
+    if real_before and not joined:
+        return f'la copie #{copy_id} d’une fille du lot #{lot.pk} n’a pas rejoint son lot'
+    if joined and not real_before:
+        return f'la copie #{copy_id} d’une card seule l’a changée en lot de deux (#{lot.pk})'
+    return ''
+
+
 # ── Gestes 3 et 4 : DUPLIQUER puis SUPPRIMER un élément ────────────────────────────────
 #
 # POURQUOI CE SCÉNARIO EXISTE (WAMA_VERIFICATION.md §3, phase 1). Sur les ~16 gestes que la
@@ -2878,7 +2904,12 @@ def check_app_duplicate_delete(app: str, url_path: str):
                 # Diagnostiqué au navigateur — le bouton était visible, actif, `pointer-events:
                 # auto`, et `elementFromPoint` renvoyait bien son icône : rien n'était masqué.
                 # Un locator RE-RÉSOUT le sélecteur à chaque tentative : il suit le re-rendu.
-                page.locator(visible(DUP)).first.click(timeout=15000)
+                # L'élément dupliqué, lu à l'adresse de son bouton (`…/duplicate/<id>/`) — celle
+                # d'un ⧉ de LOT (`batch/<id>/duplicate/`) ne désigne pas un élément.
+                button = page.locator(visible(DUP)).first
+                source = re.search(r'/duplicate/(\d+)/?$',
+                                   button.get_attribute('data-duplicate-url') or '')
+                button.click(timeout=15000)
                 page.wait_for_timeout(3000)
                 ids1 = page.evaluate(IDS)
                 nouveaux = [i for i in ids1 if i not in ids0]
@@ -2889,6 +2920,14 @@ def check_app_duplicate_delete(app: str, url_path: str):
                                       " ; AUCUNE requête en échec — le bouton n'est pas écouté"))
 
                 doublon = nouveaux[0]
+                # Où la copie a ATTERRI (la règle commune) — en base, donc hors de la boucle
+                # d'événements de Playwright. Un écart rend le geste rouge ; la copie reste en file
+                # et le filet ORM du `finally` la retire.
+                if modele is not None and source:
+                    misplaced = _in_plain_thread(_copy_placement_verdict, modele,
+                                                 int(source.group(1)), int(doublon))
+                    if misplaced:
+                        return False, f"⧉ : {misplaced} (graphies : {graphies or '—'})"
 
                 # ── DÉPLIER LE LOT SI LE DOUBLON Y ATTERRIT ────────────────────────────────
                 # Mesuré au navigateur le 2026-08-23 : sur describer et synthesizer, dupliquer

@@ -5,7 +5,7 @@ import re
 import logging
 import shutil
 import platform
-from django.shortcuts import render, get_object_or_404, redirect
+from django.shortcuts import render, redirect
 from django.views import View
 from django.views.generic import TemplateView
 from django.http import JsonResponse, FileResponse, HttpResponseBadRequest, HttpResponse
@@ -24,7 +24,6 @@ from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels as _input_labels, select_match_meta
 from wama.accounts.permissions import app_access
 from wama.accounts.views import get_or_create_anonymous_user
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 from wama.common.utils.scoping import visible_or_404
 
 logger = logging.getLogger(__name__)
@@ -72,8 +71,7 @@ def _reset_for_relaunch(t):
 # 'late'`), la fabrique lit les formats DÉCLARÉS au catalogue et le rendu ENREGISTRÉ
 # (`build_transcript_bytes`, `apps.py`) — la vue locale recopiait les deux en dur. Seule la
 # souche de chaque entrée reste dite ici (`_zip_entry_stem`).
-from wama.common.utils.batch_views import (DEFAULT_RESET, apply_item_settings, make_batch_views,
-                                           read_settings_payload)
+from wama.common.utils.batch_views import DEFAULT_RESET, apply_item_settings, make_batch_views
 from wama.transcriber.params import PARAMS_JSON as _SCHEMA
 
 #: Réglages d'un transcript écrits par la modale et le volet (schéma `params.py`) ; `temperature`
@@ -436,11 +434,21 @@ _iv = make_item_views(work_model=Transcript, app_id='transcriber',
                       task_for=lambda t: _task_for(t), get_user=_get_user,
                       reset_on_start=_reset_for_relaunch,
                       pending={}, pending_exclude={'status': 'SUCCESS'},
-                      on_delete=lambda t: _cleanup_output_files(t, t.user_id),
-                      batch_model=BatchTranscript)
+                      batch_model=BatchTranscript,
+                      on_stop=lambda t: cache.delete(f"transcriber_status_msg_{t.id}"),
+                      item_settings=lambda t, data: _apply_transcript_settings(t, data),
+                      item_empty_is_value=('title',))
 start = app_access('transcriber')(_iv['start'])
 start_all = app_access('transcriber')(_iv['start_all'])
 clear_all = _iv['clear_all']
+# ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
+# déclare à sa fabrique de lot. Spécificités déclarées ci-dessus : le message d'état oublié à
+# l'arrêt, et la ⚙ d'une card qui pose AUSSI ses réglages propres (titre, date, intervenants).
+stop = _iv['stop']
+download = _iv['download']
+delete = _iv['delete']
+duplicate = _iv['duplicate']
+update_settings = _iv['update_settings']
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -449,28 +457,6 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 # cohérence « à la demande » sur une transcription déjà faite, ou REPRISE d'un document.
 start_process = make_process_start_view(
     work_model=Transcript, task_for=_task_for, reset_on_start=_reset_and_clear_progress)
-
-
-@require_POST
-def stop(request, pk: int):
-    """
-    Stoppe la transcription en cours (révoque la tâche Celery) et remet l'item dans un état relançable
-    (bouton de cycle ▶/⏹/↻). Brique commune : wama.common.utils.process_control.stop_instance.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    t = editable_or_404(Transcript, user, pk=pk)
-
-    if t.status not in ('RUNNING', 'PENDING'):
-        return JsonResponse({'id': t.id, 'status': t.status})  # rien à stopper
-
-    from wama.common.utils.process_control import stop_instance
-    new_status = stop_instance(t)   # → FAILURE (relançable), task_id vidé
-    # Purge le cache de progression : sinon une valeur périmée (ex. 20 %) « colle » au prochain run/poll.
-    from django.core.cache import cache
-    cache.delete(f"transcriber_progress_{t.id}")
-    cache.delete(f"transcriber_status_msg_{t.id}")
-    return JsonResponse({'id': t.id, 'status': new_status})
 
 
 # ---------------------------------------------------------------------------
@@ -977,26 +963,6 @@ def build_transcript_bytes(t: Transcript, fmt: str):
     return ('txt', t.text.encode('utf-8'))
 
 
-def download(request, pk: int):
-    """Download transcript in requested format: txt (default), srt, pdf, docx."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # LECTURE → accès nommé : un transcript PARTAGÉ est téléchargeable, pas modifiable
-    # (PROFILES_PERMISSIONS §7).
-    t = visible_or_404(Transcript, user, pk=pk)
-    if not t.text:
-        return HttpResponseBadRequest('No transcript yet')
-    # Le format demandé, rendu par LE rendu du transcriber (`build_transcript_bytes`, celui du ZIP
-    # de lot, de la médiathèque et de l'assistant) — brique commune `download_response`. Le SRT
-    # s'écrivait ici une 2ᵉ fois, et se lisait d'abord dans le dossier de sortie du COMPTE QUI
-    # TÉLÉCHARGE (vide pour une transcription partagée) : il est désormais celui des segments,
-    # corrections et noms de locuteurs compris.
-    from wama.common.utils.export_formats import download_response
-    response = download_response('transcriber', t, request.GET, _output_stem(t))
-    if response is None:
-        return HttpResponseBadRequest('Format indisponible pour cette transcription')
-    return response
-
-
 def _cleanup_output_files(t: Transcript, user_id: int) -> None:
     """Remove output TXT/SRT files for a transcript."""
     if t.used_backend:
@@ -1032,63 +998,6 @@ def enrich(request, pk: int):
     from .workers import enrich_transcript
     task = enrich_transcript.delay(t.id, summary_type)
     return JsonResponse({'ok': True, 'task_id': task.id, 'summary_type': summary_type})
-
-
-@require_POST
-def delete(request, pk: int):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
-    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(t)
-    # Output files are unique to this transcript — always delete
-    _cleanup_output_files(t, user.id)
-    # Files may be shared (duplicate, batch reference) — only deleted when no other row holds them
-    release_card_files(t)
-    t.delete()  # signal post_delete (batch_sync) : recale total / supprime le batch vidé
-    cache.delete(f"transcriber_progress_{pk}")
-    return JsonResponse({'deleted': pk, 'batch': batch_state(snapshot, Transcript)})
-
-
-@require_POST
-def duplicate(request, pk: int):
-    """Duplicate a Transcript sharing the same audio file, resetting all results."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import duplicable_or_404
-    t = duplicable_or_404(Transcript, user, pk=pk)
-    new_t = duplicate_instance(
-        t,
-        for_user=user,
-        reset_fields={
-            'status': 'PENDING',
-            'progress': 0,
-            'task_id': '',
-            'properties': '',
-            'language': '',
-            'text': '',
-            'used_backend': '',
-            'summary': '',
-            'coherence_notes': '',
-            'coherence_suggestion': '',
-        },
-        # L'audio préparé (process `level`, `denoise`) : ce que les process ont écrit, la brique le
-        # vide elle-même (`AppPipeline.produced_fields`, 2026-10-21).
-        clear_fields=['segments_json', 'key_points', 'action_items', 'coherence_score'],
-    )
-    # Élément d'un VRAI batch (>1) → la copie reste dans ce batch (élément frère).
-    # Élément autonome (batch-of-1) → la copie est un AUTRE élément autonome
-    # (pas de regroupement surprise en batch-de-2).
-    orig_item = BatchTranscriptItem.objects.filter(transcript=t).select_related('batch').first()
-    if orig_item and orig_item.batch.total > 1:
-        from django.db.models import Max
-        batch = orig_item.batch
-        next_idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
-        BatchTranscriptItem.objects.create(batch=batch, transcript=new_t, row_index=next_idx)
-        batch.total = batch.items.count()
-        batch.save(update_fields=['total'])
-    else:
-        _wrap_transcript_in_batch(new_t)
-    return JsonResponse({'duplicated': new_t.id})
 
 
 def console_content(request):
@@ -1317,45 +1226,16 @@ def download_srt(request, pk: int):
     return response
 
 
-@require_POST
-def update_settings(request, pk: int):
-    """Réglages d'UN transcript — même lecture (coercition par le schéma) et même affectation
-    que `batch_update_settings` de la fabrique : `read_settings_payload` + `apply_item_settings`.
-    L'ancien `_apply_transcript_settings` typait à la main (`bool`, `float`, `int`) ce que le
-    schéma déclare. Corps JSON attendu : backend, hotwords, enable_diarization, preprocess_audio,
-    generate_summary, summary_type, verify_coherence (clés absentes = inchangées)."""
-    user = _get_user(request)
-    from wama.common.utils.scoping import editable_or_404
-    t = editable_or_404(Transcript, user, pk=pk)
-
-    data = read_settings_payload(request, _SCHEMA, SETTINGS_FIELDS + ITEM_ONLY_SETTINGS,
-                                 empty_is_value=('title',))
+def _apply_transcript_settings(t, data):
+    """Les réglages d'UNE card, posés sans sauver : ceux du lot (`SETTINGS_FIELDS`) plus ceux
+    qu'aucun lot ne partage (`ITEM_ONLY_SETTINGS` : titre, date, intervenants, sources écoutées).
+    La route d'élément de la fabrique commune l'appelle (`item_settings`) ; la ⚙ de lot garde
+    les seuls réglages partagés. Rend les champs touchés."""
     touched = apply_item_settings(t, data, params_fields=SETTINGS_FIELDS + ITEM_ONLY_SETTINGS)
     if 'speaker_map' in touched and t.speaker_map:
         # Les clés sous leur forme canonique « SPEAKER_NN » (les moteurs disent « 0 » ou « SPEAKER_00 »).
         t.speaker_map = {normalize_speaker_label(k): v for k, v in t.speaker_map.items()}
-    if touched:
-        t.save(update_fields=touched)
-
-    return JsonResponse({
-        'id': t.id,
-        'backend': t.backend,
-        'hotwords': t.hotwords,
-        'enable_diarization': t.enable_diarization,
-        'diarization_model': t.diarization_model,
-        'temperature': t.temperature,
-        'max_tokens': t.max_tokens,
-        'preprocess_audio': t.preprocess_audio,
-        'level_speech': t.level_speech,
-        'vad_mode': t.vad_mode,
-        'language_mode': t.language_mode,
-        'generate_summary': t.generate_summary,
-        'summary_type': t.summary_type,
-        'verify_coherence': t.verify_coherence,
-        'title': t.title,
-        'meeting_date': t.meeting_date.isoformat() if t.meeting_date else None,
-        'speaker_map': t.speaker_map or {},
-    })
+    return touched
 
 
 # ── Réglages UTILISATEUR du volet — DÉRIVÉS du schéma (2026-09-26) ────────────────────────

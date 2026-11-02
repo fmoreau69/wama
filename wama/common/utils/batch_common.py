@@ -189,7 +189,7 @@ def attach_to_batch(element, batch, row_index, *, item_model=None, fk_name=None,
 
 
 def place_copy(copy, original, *, batch_model, item_model=None, fk_name=None, item_extra=None,
-               batch_attr='batch', row_field='batch_row_index'):
+               batch_extra=None, batch_attr='batch', row_field='batch_row_index'):
     """La COPIE d'un élément (⧉) prend sa place dans la file : sœur de l'original quand celui-ci
     est la fille d'un VRAI lot (plus d'un élément) qui appartient à celui qui duplique ; sinon dans
     son propre lot d'un. Rend le lot qui la reçoit.
@@ -200,20 +200,29 @@ def place_copy(copy, original, *, batch_model, item_model=None, fk_name=None, it
     l'avatarizer et le describer rejoignaient encore un lot d'un, l'audio de l'enhancer ne
     rejoignait jamais le sien.
     `item_extra` : callable(copie, original)->dict — champs de la LIGNE de liaison (composer :
-    `output_filename` de la ligne d'origine), la signature de `make_batch_views`.
+    `output_filename` de la ligne d'origine), la signature de `make_batch_views` : l'original y
+    porte `batch_link`, sa ligne (`link_row_of`), comme un élément lu par `batch_elements`.
+    `batch_extra` : dict|callable(lot de l'original)->dict — champs du lot d'un créé pour la copie
+    (converter : `media_type`, imager : `domain`), la signature de `make_batch_views` ; sans lot
+    d'origine, le lot naît des défauts de son modèle.
     """
     from django.db.models import Max
+    if not hasattr(original, 'batch_link'):
+        original.batch_link = link_row_of(original)
     extra = item_extra(copy, original) if item_extra is not None else None
     link = {'item_model': item_model, 'fk_name': fk_name, 'item_extra': extra or None,
             'batch_attr': batch_attr, 'row_field': row_field}
-    lot = batch_of(original)
-    if lot is not None and not lot.is_unitary and lot.user_id == copy.user_id:
+    source = batch_of(original)
+    if source is not None and not source.is_unitary and source.user_id == copy.user_id:
         row = 'row_index' if item_model is not None else row_field
-        attach_to_batch(copy, lot, (lot.items.aggregate(m=Max(row))['m'] or 0) + 1, **link)
-        lot.total = lot.items.count()
-        lot.save(update_fields=['total'])
-        return lot
-    lot = batch_model.objects.create(user=copy.user, total=1)
+        attach_to_batch(copy, source, (source.items.aggregate(m=Max(row))['m'] or 0) + 1, **link)
+        source.total = source.items.count()
+        source.save(update_fields=['total'])
+        return source
+    fields = {}
+    if batch_extra and source is not None:
+        fields = batch_extra(source) if callable(batch_extra) else dict(batch_extra)
+    lot = batch_model.objects.create(user=copy.user, total=1, **fields)
     attach_to_batch(copy, lot, 0, **link)
     return lot
 
@@ -577,6 +586,19 @@ def batch_of(element):
     direct = getattr(element, 'batch', None)
     if direct is not None:
         return direct
+    link = link_row_of(element)
+    return getattr(link, 'batch', None) if link is not None else None
+
+
+def link_row_of(element):
+    """La LIGNE qui rattache `element` à son lot : la ligne de liaison (forme par liaison, qui
+    porte ses propres champs — `output_filename` du synthesizer et du composer), l'élément
+    lui-même en FK directe, ou None. La `batch_link` que `batch_elements` pose sur chaque
+    élément lu, pour UN élément."""
+    if element is None:
+        return None
+    if getattr(element, 'batch', None) is not None:
+        return element
     for f in element._meta.related_objects:
         if not getattr(f, 'one_to_one', False):
             continue
@@ -586,7 +608,7 @@ def batch_of(element):
             continue
         liaison = getattr(element, f.get_accessor_name(), None)
         if liaison is not None:
-            return getattr(liaison, 'batch', None)
+            return liaison
     return None
 
 

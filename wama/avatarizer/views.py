@@ -9,14 +9,13 @@ import tempfile
 from pathlib import Path
 
 from django.conf import settings
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render
 from django.views import View
-from django.http import JsonResponse, FileResponse, Http404
+from django.http import JsonResponse
 from django.core.cache import cache
 from django.views.decorators.http import require_POST
 from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
-from django.utils.http import content_disposition_header
 
 import json
 from .models import AvatarJob, BatchAvatarJob, BatchAvatarJobItem
@@ -27,7 +26,6 @@ _SETTING_NAMES = {p['name'] for p in _AVATAR_PARAMS_JSON}
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.accounts.permissions import app_access
 from wama.common.tts.constants import tts_catalog_key
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
@@ -304,21 +302,6 @@ def create(request):
     return JsonResponse({'id': job.id, 'status': 'created'})
 
 
-def stop(request, pk):
-    """
-    Stoppe la génération en cours (révoque la tâche Celery) → job relançable (bouton de cycle ↻).
-    Brique commune : wama.common.utils.process_control.stop_instance.
-    """
-    user = _get_user(request)
-    from wama.common.utils.scoping import editable_or_404
-    job = editable_or_404(AvatarJob, user, pk=pk)
-    if job.status not in ('RUNNING', 'PENDING'):
-        return JsonResponse({'id': job.id, 'status': job.status})
-    from wama.common.utils.process_control import stop_instance
-    new_status = stop_instance(job, error_field='error_message')
-    return JsonResponse({'id': job.id, 'status': new_status})
-
-
 # ▶ de la card, ▶ et 🗑 de la file : fabrique COMMUNE (`item_views.make_item_views`, ROUTE §11
 # #39, 2026-10-29) — la même déclaration que lit l'outil `start_avatarizer`. « Tout lancer »
 # relance tout ce qui n'est ni en cours ni réussi : la règle du bouton, que l'outil de
@@ -334,6 +317,14 @@ _iv = make_item_views(work_model=AvatarJob, app_id='avatarizer',
 start = app_access('avatarizer')(_iv['start'])
 start_all = app_access('avatarizer')(_iv['start_all'])
 clear_all = _iv['clear_all']
+# ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
+# déclare à sa fabrique de lot — dont son nettoyage (`_forget_job` : le dossier du job) et LA
+# fonction de réglage d'un job (`_apply_job_settings`), désormais celle du lot aussi.
+stop = _iv['stop']
+update_settings = _iv['update_settings']
+delete = _iv['delete']
+duplicate = _iv['duplicate']
+download = _iv['download']
 
 
 def _decorate_card(job, preloaded=False):
@@ -373,102 +364,6 @@ progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
 
-@require_POST
-def update_settings(request, pk):
-    """POST : Met à jour les paramètres d'un AvatarJob (avant relance)."""
-    user = _get_user(request)
-    from wama.common.utils.scoping import editable_or_404
-    job = editable_or_404(AvatarJob, user, pk=pk)
-
-    # Les réglages du SCHÉMA — JSON (inspecteur) OU FormData (modale ⚙) — par le lecteur et
-    # l'écrivain COMMUNS (coercition et bornes du schéma, valeur hors choix ignorée, rien de
-    # touché qui n'est pas posté). La vue lisait `request.POST` seul, et remettait
-    # `use_enhancer` à faux dès qu'il n'était pas posté (contrat générique
-    # `tests_item_settings_contract`, 2026-09-26).
-    from wama.common.utils.batch_views import apply_item_settings, read_settings_payload
-    names = [p['name'] for p in _AVATAR_PARAMS_JSON]
-    data = read_settings_payload(request, _AVATAR_PARAMS_JSON, names)
-    # TTS (pipeline seulement — un job standalone a un audio, le texte n'y a pas de sens) ;
-    # un texte vide ne remplace pas le texte existant : la relance REGÉNÈRE l'audio depuis lui.
-    tts = ('text_content', 'tts_model', 'quality_intent', 'language', 'voice_preset',
-           'tts_temperature', 'tts_seed', 'tts_top_p')
-    if not str(data.get('text_content') or '').strip():
-        data.pop('text_content', None)
-    fields = [n for n in names if job.mode == 'pipeline' or n not in tts]
-    touched = apply_item_settings(job, data, params_fields=fields)
-    # MuseTalk — quality_mode DÉRIVÉ de use_enhancer (`_derive_quality_mode`).
-    if 'use_enhancer' in touched:
-        touched += _derive_quality_mode(job)
-    if touched:
-        job.save(update_fields=touched)
-    return JsonResponse({'status': 'updated'})
-
-
-@require_POST
-def delete(request, pk):
-    """POST : Supprime un AvatarJob et ses fichiers associés."""
-    user = _get_user(request)
-    job = get_object_or_404(AvatarJob, pk=pk, user=user)
-
-    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(job)
-
-    # Les fichiers de la card sont LIBÉRÉS par la brique (propriété + partage : un fichier
-    # partagé par duplication, ou seulement référencé, reste à sa place sans être annoncé).
-    release_card_files(job)
-
-    # ⚠ La brique ne connaît QUE les fichiers que la card désigne. L'avatarizer crée en plus un
-    # DOSSIER par job (`workers.py:194`, `job_<id>/`) qui survivait à la suppression de la card :
-    # relevé le 2026-08-25, **13 dossiers `job_*` orphelins** contre 4 rattachés — et l'un d'eux
-    # pesait 1715,7 Mo. La card partait, les fichiers restaient, et rien ne le disait.
-    from wama.common.utils.media_paths import app_media_dir
-    from wama.common.utils.work_dir import purge_job_dir
-    libere = purge_job_dir(
-        Path(settings.MEDIA_ROOT) / app_media_dir('avatarizer', job.user_id, 'output'),
-        job.pk)
-    if libere:
-        logger.info("[avatarizer] job_%s : %.1f Mo de fichiers de job libérés", job.pk, libere / 1048576)
-
-    job.delete()  # signal batch_sync : recale total / supprime le batch vidé
-    return JsonResponse({'status': 'deleted', 'batch': batch_state(snapshot, AvatarJob)})
-
-
-@require_POST
-def duplicate(request, pk):
-    """POST : Duplique un AvatarJob (entrées partagées, sortie vidée).
-
-    Si le job appartient à un lot, la copie rejoint le MÊME lot (élément frère).
-    """
-    user = _get_user(request)
-    from wama.common.utils.scoping import duplicable_or_404
-    job = duplicable_or_404(AvatarJob, user, pk=pk)
-
-    copy = duplicate_instance(
-        job,
-        for_user=user,
-        reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''},
-        # La vidéo (et l'audio d'un job « pipeline ») : ce que les process ont écrit, la brique le
-        # vide elle-même (`AppPipeline.produced_fields`, 2026-10-21).
-    )
-
-    # Le lot d'origine n'accueille que la copie de SA PROPRE card : celle d'une card reçue est à
-    # celui qui duplique, elle se range chez lui (2026-10-01).
-    orig_item = (BatchAvatarJobItem.objects.filter(job=job).select_related('batch').first()
-                 if copy.user_id == job.user_id else None)
-    if orig_item:
-        from django.db.models import Max
-        batch = orig_item.batch
-        idx = (batch.items.aggregate(m=Max('row_index'))['m'] or 0) + 1
-        BatchAvatarJobItem.objects.create(batch=batch, job=copy, row_index=idx)
-        batch.total = batch.items.count()
-        batch.save(update_fields=['total'])
-    else:
-        _wrap_job_in_batch(copy)
-
-    return JsonResponse({'status': 'duplicated', 'id': copy.id})   # contrat commun (cf. create)
-
-
 def card_html(request, pk):
     """GET : fragment HTML d'une card (partial serveur unique, rafraîchi par le polling)."""
     from django.template.loader import render_to_string
@@ -493,26 +388,6 @@ def console_content(request):
     user = _get_user(request)
     all_lines = get_console_lines(user.id, limit=200)
     return JsonResponse({'output': all_lines})
-
-
-def download(request, pk):
-    """GET : Télécharge la vidéo avatar générée (lecture → objets partagés inclus)."""
-    user = _get_user(request)
-    job = visible_or_404(AvatarJob, user, pk=pk)
-
-    if job.status != 'SUCCESS' or not job.output_video:
-        raise Http404("Vidéo non disponible.")
-
-    try:
-        response = FileResponse(
-            open(job.output_video.path, 'rb'),
-            content_type='video/mp4',
-        )
-        filename = os.path.basename(job.output_video.name)
-        response['Content-Disposition'] = content_disposition_header(True, f"{filename}")
-        return response
-    except FileNotFoundError:
-        raise Http404("Fichier vidéo introuvable.")
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
@@ -908,7 +783,7 @@ remove_from_batch = _qm['remove_from_batch']
 # un lot PARTAGÉ se télécharge (`visible_or_404`, jamais pour écrire) ; cache de progression
 # purgé à la suppression ; tâche importée paresseusement (`_ensure_workers_imported`).
 # ▶ de lot = l'idiome mesuré : tout ce qui ne tourne pas se (re)lance.
-from wama.common.utils.batch_views import make_batch_views
+from wama.common.utils.batch_views import apply_item_settings, make_batch_views
 from wama.avatarizer.params import PARAMS_JSON as _SCHEMA
 
 SETTINGS_FIELDS = tuple(dict.fromkeys(
@@ -937,15 +812,48 @@ def _derive_quality_mode(job):
     return ['quality_mode']
 
 
+#: Les réglages de la VOIX : un job « pipeline » les porte (la relance regénère l'audio depuis son
+#: texte), un job standalone apporte son audio — ils n'y ont pas de sens.
+_TTS_SETTINGS = ('text_content', 'tts_model', 'quality_intent', 'language', 'voice_preset',
+                 'tts_temperature', 'tts_seed', 'tts_top_p')
+
+
+def _apply_job_settings(job, data):
+    """LES réglages d'un job, posés sans sauver — la ⚙ d'une card ET celle de son lot (la fabrique
+    de lot l'appelle pour les deux). Jusqu'au 2026-11-02 le lot posait toute la liste
+    `SETTINGS_FIELDS`, la voix comprise sur un job standalone, et un texte vide : la règle n'était
+    écrite que dans la vue de la card. `quality_mode` se dérive après (`after_update`)."""
+    data = dict(data)
+    if not str(data.get('text_content') or '').strip():
+        data.pop('text_content', None)        # un texte vide ne remplace pas le texte existant
+    fields = [n for n in SETTINGS_FIELDS if job.mode == 'pipeline' or n not in _TTS_SETTINGS]
+    return apply_item_settings(job, data, params_fields=fields)
+
+
+def _forget_job(job):
+    """Ce qu'aucune brique ne connaît d'un job qu'on retire : son cache de progression, et le
+    DOSSIER de job que l'animation écrit (`workers.py`, `job_<id>/`) — la card désigne ses
+    fichiers, jamais ce dossier. Relevé le 2026-08-25 : 13 dossiers `job_*` orphelins contre 4
+    rattachés, dont un de 1715,7 Mo. Jusqu'au 2026-11-02 seule la 🗑 d'une card le purgeait :
+    « tout effacer » et la 🗑 d'un lot le laissaient sur le disque."""
+    from wama.common.utils.media_paths import app_media_dir
+    from wama.common.utils.work_dir import purge_job_dir
+    cache.delete(f"avatarizer_progress_{job.id}")
+    freed = purge_job_dir(
+        Path(settings.MEDIA_ROOT) / app_media_dir('avatarizer', job.user_id, 'output'), job.pk)
+    if freed:
+        logger.info("[avatarizer] job_%s : %.1f Mo de fichiers de job libérés", job.pk, freed / 1048576)
+
+
 _bv = make_batch_views(
     work_model=AvatarJob, batch_model=BatchAvatarJob, get_user=_get_user,
     task_for=_task_for,
     output_field='output_video',
-    params_fields=SETTINGS_FIELDS, schema=_SCHEMA, after_update=_derive_quality_mode,
+    schema=_SCHEMA, apply_settings=_apply_job_settings, after_update=_derive_quality_mode,
     item_model=BatchAvatarJobItem, fk_name='job',
     read_lookup=lambda user, pk: visible_or_404(BatchAvatarJob, user, pk=pk),
     zip_name=lambda b: f"batch_avatarizer_{b.id}.zip",
-    on_delete=lambda job: cache.delete(f"avatarizer_progress_{job.id}"),
+    on_delete=_forget_job,
 )
 batch_update = _bv['batch_update']
 batch_start = _bv['batch_start']

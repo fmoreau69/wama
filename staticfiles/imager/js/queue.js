@@ -93,7 +93,8 @@
                 });
             },
             stop: function (id) {
-                post(WamaApp.getUrl(cfg().urls.forceReset, id)).then(function () { refreshCard(id); });
+                // ⏹ commun (`stop`) ; l'ancienne adresse `force-reset/` en repli, qui délègue au même geste.
+                post(WamaApp.getUrl(cfg().urls.stop || cfg().urls.forceReset, id)).then(function () { refreshCard(id); });
             },
         });
     }
