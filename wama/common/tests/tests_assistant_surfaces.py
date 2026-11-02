@@ -324,12 +324,27 @@ class LatencyLeversTest(TestCase):
         self.assertIs(False, self._turn(quality_intent=50).kwargs['think'])
         self.assertIs(False, self._turn(quality_intent=15).kwargs['think'])
 
-    def test_a_cloud_provider_receives_no_thinking_flag(self):
+    def test_a_cloud_provider_follows_the_slider_too(self):
+        """2026-11-02 (décision de Fabien, « on règle la qualité avec le curseur ») : le distant
+        reçoit la même décision que le local ; c'est `llm_chat` qui ne la traduit que pour un
+        modèle dont la source déclare l'effort qui coupe la réflexion."""
         from wama.common.services import assistant_engine
-        with mock.patch.object(assistant_engine, '_llm_call',
-                               return_value=('réponse', {'input_tokens': 0, 'output_tokens': 0})) as call:
-            assistant_engine.run_assistant_turn(self.user, 'x', provider='albert', model='m')
-        self.assertIsNone(call.call_args.kwargs['think'])
+        from wama.common.utils.user_settings import save_user_app_settings
+        for intent, expected in ((None, False), (85, True)):
+            if intent is not None:
+                save_user_app_settings(self.user, 'assistant', {'quality_intent': intent})
+            with mock.patch.object(assistant_engine, '_llm_call',
+                                   return_value=('réponse', {'input_tokens': 0,
+                                                             'output_tokens': 0})) as call:
+                assistant_engine.run_assistant_turn(self.user, 'x', provider='albert', model='m')
+            self.assertIs(expected, call.call_args.kwargs['think'])
+
+    def test_the_cloud_call_hands_the_thinking_flag_to_the_declared_source(self):
+        from wama.common.services.assistant_engine import _llm_call
+        with mock.patch('wama.common.utils.llm_utils.chat_with_source',
+                        return_value=('ok', None)) as chat:
+            _llm_call([{'role': 'user', 'content': 'x'}], 'qwen-3.8-27b', 'ilaas', think=False)
+        self.assertIs(False, chat.call_args.kwargs['think'])
 
     def test_the_ollama_payload_carries_the_thinking_flag_only_when_decided(self):
         from wama.common.services.assistant_engine import _ollama_call

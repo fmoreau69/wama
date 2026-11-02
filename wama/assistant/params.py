@@ -56,7 +56,8 @@ PARAMS = [
           contexts=SURFACES, **intent_param(
         help="Guide le choix automatique du modèle de l'assistant — et s'applique aux tâches que "
              "vous lui demandez de lancer (les apps dont le curseur s'appelle « qualité » "
-             "le reçoivent ; l'assistant vous le confirme à chaque lancement).")),
+             "le reçoivent ; l'assistant vous le confirme à chaque lancement). Au cran "
+             "« Qualité », le modèle réfléchit avant de répondre : plus lent, plus soigné.")),
     # La TEMPÉRATURE du modèle de conversation (2026-10-21) — le réglage commun, lié au select :
     # vide = celle du modèle (c'était 0,7 imposé en local). Elle ne vaut que pour la conversation,
     # pas pour les tâches qu'il lance (chacune a la sienne, sur sa card).

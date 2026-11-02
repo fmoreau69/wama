@@ -435,10 +435,15 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    JSON réelles (ILaaS qwen3.8, 3 essais) : cohérence ~1,5 s et 0 jeton de réflexion contre
    ~7 s et 750 à 850 ; noms d'intervenants identiques. ⚠ Le score de cohérence monte de ~80 à 92
    sans réflexion (même nombre de constats) : moins sévère. La même déclaration écrit la capacité
-   `thinking` de la fiche (`cloud_models.model_info_for`). ⏳ **Question ouverte** : le curseur de
-   l'ASSISTANT ne règle toujours la réflexion qu'en local (`think` vaut None pour un distant,
-   `run_assistant_turn`) — l'étendre couperait la réflexion d'ILaaS qwen3.8 au cran par défaut,
-   alors que le tirage le classe sur sa variante « xhigh » (`benchmark_sync.SERVED_VARIANT`).
+   `thinking` de la fiche (`cloud_models.model_info_for`). ✅ **Le curseur de l'ASSISTANT règle
+   aussi la réflexion d'un distant — même jour, décision de Fabien** (« on règle la qualité avec
+   le curseur ») : `run_assistant_turn` dérive `think` du curseur quel que soit le fournisseur (il
+   valait None pour un distant), `_llm_call` le passe à `chat_with_source`, et le nouvel essai
+   après une réponse vide coupe la réflexion partout. L'abonnement ne le reçoit pas (le CLI ne le
+   prend pas). Tour réel, ILaaS qwen3.8 : cran 50 → effort `none`, 0 jeton de réflexion ; cran
+   85 → rien envoyé, 42 jetons. ⚠ Assumé : au cran par défaut, ILaaS qwen3.8 répond SANS la
+   réflexion sur laquelle le tirage le classe (variante « xhigh », `benchmark_sync.SERVED_VARIANT`)
+   — c'est le cran « Qualité » qui la rend. Garde : `tests_assistant_surfaces.LatencyLeversTest`.
 2. ✅ **Prompt réordonné** : base + rôle + annonce + outils (FIXE) puis contexte labo + état des
    files (DYNAMIQUE) → le préfixe des jetons est stable d'un tour à l'autre.
 3. ⏳ **Réduire le prompt d'outils** : 71 outils décrits à chaque tour ; ne lister que ceux du

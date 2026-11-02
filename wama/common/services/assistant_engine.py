@@ -769,9 +769,11 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
     """
     Un tour de LLM, quel que soit le fournisseur.
 
-    Chemin local (`wama-dev-ai`/`ollama`) : `_ollama_call` — usage tokens compris ; `think`
-    (réflexion du modèle) n'a de sens que là et vient du curseur de l'utilisateur.
-    Chemin cloud : `llm_chat()` (LiteLLM, brique commune) — le modèle par défaut du fournisseur
+    `think` (réflexion du modèle) vient du curseur de l'utilisateur, local comme distant.
+    Chemin local (`wama-dev-ai`/`ollama`) : `_ollama_call` — usage tokens compris.
+    Chemin cloud : `llm_chat()` (LiteLLM, brique commune), qui ne traduit `think=False` que pour un
+    modèle dont la source déclare l'effort qui coupe la réflexion (2026-11-02) ; l'abonnement ne
+    le reçoit pas (le CLI ne le prend pas). Le modèle par défaut du fournisseur
     vient de `llm_chat` (jamais figé ici). L'usage n'est pas remonté par `llm_chat` (contrat
     (text, err)) → compté à 0, assumé tant que le besoin ne l'exige pas.
 
@@ -827,15 +829,16 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
         from wama.model_manager.services.cloud_models import CloudAccessRefused
         try:
             text, err = chat_with_source(source.key, llm_model, messages, user=user,
-                                         num_predict=4096, timeout=180.0, on_delta=on_delta,
-                                         tools=tools, rate_limit_wait=rate_limit_wait,
+                                         num_predict=4096, think=think, timeout=180.0,
+                                         on_delta=on_delta, tools=tools,
+                                         rate_limit_wait=rate_limit_wait,
                                          temperature=temperature, seed=seed, top_p=top_p)
         except CloudAccessRefused as e:
             return None, {'error': str(e), 'status': e.status}
     else:
         # Non déclaré : seulement sans utilisateur (refusé plus haut sinon) — clé d'instance.
         text, err = llm_chat(messages, model=llm_model, provider=llm_provider,
-                             num_predict=4096, timeout=180.0, temperature=temperature,
+                             num_predict=4096, think=think, timeout=180.0, temperature=temperature,
                              seed=seed, top_p=top_p)
     if text is None:
         from wama.common.utils.llm_utils import EMPTY_RESPONSE_ERROR
@@ -2410,10 +2413,12 @@ def run_assistant_turn(user, message: str, provider: str = None,
                      + surface_prompt
                      + contexte_labo + wama_context + _clock_line())
 
-    # Réflexion du modèle (chemin local) DÉRIVÉE du curseur Rapide ↔ Qualité de l'utilisateur —
-    # le même réglage que le tirage automatique lit (`resolve_turn_model`). Le domaine de
-    # développement ne l'impose plus (bridage levé le 2026-10-12).
-    think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
+    # Réflexion du modèle DÉRIVÉE du curseur Rapide ↔ Qualité de l'utilisateur — le même réglage
+    # que le tirage automatique lit (`resolve_turn_model`). Le domaine de développement ne l'impose
+    # plus (bridage levé le 2026-10-12). Local ET distant depuis le 2026-11-02 (décision de Fabien,
+    # « on règle la qualité avec le curseur ») : un distant ne coupe sa réflexion que si sa source
+    # déclare l'effort MESURÉ qui la coupe (`lowest_reasoning_effort`) ; sinon rien n'est envoyé.
+    think = thinking_wanted(assistant_settings(user).get('quality_intent'))
     # Les réglages de TIRAGE de l'utilisateur (température 2026-10-21, graine et top_p 2026-10-22)
     # — None = ceux du modèle ; ils valent pour le tour entier, relais compris.
     from wama.common.utils.param_schema import sampling_of
@@ -2475,7 +2480,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
         local = provider in _LOCAL_PROVIDERS
         if local:
             llm_model = _prepare_local_model(llm_model, messages, user, asked_index)
-        think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
+        think = thinking_wanted(assistant_settings(user).get('quality_intent'))
         tried.add(_provider_source(provider))
         native_tools = _native_tools(llm_model)
         native_kwargs = {'tools': native_tools} if native_tools else {}
@@ -2561,16 +2566,16 @@ def run_assistant_turn(user, message: str, provider: str = None,
             if not clean_text.strip():
                 # RÉPONSE VIDE (2026-10-10, fil web n° 37) : la prospection avait tourné, et le tour
                 # rendait '' comme un succès — l'utilisateur ne voyait rien, pas même ce qui avait
-                # été fait. Un seul nouvel essai, sans réflexion en local (elle peut avoir pris tout
-                # le budget de jetons) ; vide encore, la trace des actions est DITE.
+                # été fait. Un seul nouvel essai, sans réflexion (elle peut avoir pris tout le
+                # budget de jetons — en distant aussi depuis le 2026-11-02, là où la source déclare
+                # l'effort qui la coupe) ; vide encore, la trace des actions est DITE.
                 # Même geste pour un fournisseur distant : gpt-oss (Albert) range parfois son appel
                 # d'outil NATIF dans le raisonnement, sans nom d'outil — le rappel du format, joint
                 # à l'essai seulement, le ramène au JSON que la boucle lit (2026-10-10).
                 if not empty_retried:
                     empty_retried = True
                     logger.warning("[ai_chat] réponse vide de %s — nouvel essai", etiquette)
-                    if local:
-                        think = False
+                    think = False
                     messages.append({"role": "user", "content": _EMPTY_ANSWER_RETRY_PROMPT})
                     continue
                 done = ', '.join(dict.fromkeys(step['tool'] for step in tool_steps))
