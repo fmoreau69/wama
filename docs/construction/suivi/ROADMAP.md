@@ -416,6 +416,12 @@ Bloc d'état 2026-07-11 archivé (`docs/construction/archive/ROADMAP_ARCHIVE_202
 > étage « échelle commune » passe avant le rang centile (`0116608dc`) ; la variante qu'un fournisseur
 > SERT se déclare (`SERVED_VARIANT`, ILaaS qwen3.8 en « xhigh », mesuré, `1521bdf34`). Le tirage de
 > l'assistant reste gemma-4-31b, mesuré : `PROSPECTION_PIPELINE.md` point 7.
+> *2026-11-02* : ✅ la marque de désinstallation tient à la synchro (`c2ac7a133`) ; une note
+> qu'aucune source ne donne plus est gardée, marquée périmée (`3cf16f226`) ; `think=False` coupe la
+> réflexion d'un modèle DISTANT par l'effort mesuré sur sa source, qui écrit aussi sa capacité
+> `thinking` (`8c5c2019a`) ; la facette `models` d'une app unit ses lignes et ce qu'elle PROPOSE,
+> et le corpus des apps suit chaque geste sur un modèle (`f125c0a0d`). Détail :
+> `PROSPECTION_PIPELINE.md` points 2 (§Session du 2026-10-29) et 7.
 
 ### Concept
 Tâche Celery nocturne qui compare les modèles installés dans WAMA avec les dernières

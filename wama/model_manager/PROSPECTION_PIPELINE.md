@@ -1078,6 +1078,12 @@ pip), pas de rejeu des patches venv, pas de marcheur `requires`→drivers.
   Surface : `manage.py install_requires <app> [--apply]`. Dry-run RÉEL vérifié sur
   synthesizer : 9 librairies (versions constatées, `already_satisfied`), 4 modèles
   téléchargés.
+  ⏳ *Relevé le 2026-11-02* : depuis que la facette `models` unit les lignes de l'app et ce
+  que ses selects PROPOSENT (§« Session du 2026-10-29 », point 2), le marcheur demanderait
+  tous les modèles proposés (describer : 15, dont les LLM d'Ollama), et plus seulement les
+  lignes de l'app (anonymizer : 58 déjà). Seul appelant : la commande, à la main
+  (`install_requires.py:30`). Question pour Fabien : le `--apply` doit-il installer tout ce que
+  l'app propose, ou un choix par select (le tirage, le défaut du schéma) plus ses étapes internes ?
 
 **Chaîne complète désormais** : librarian/extraction → manifeste `library` → ingest →
 registre `Library` → (`--allow` humain) → `install_requires <app> --apply` → pip verrouillé
