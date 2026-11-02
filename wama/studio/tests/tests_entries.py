@@ -122,6 +122,28 @@ class DownloadToUserTest(_MediaCase):
             download_to_user(self.user, 'users/1/temp/a.mp3')
 
 
+class TextReachesTheOutputTest(_MediaCase):
+    """A TEXT received by the « Sortie » node is ranged as a text, read by the same rule as every
+    other receiver (`entries.is_text_value`). The Sortie only knew `is_text`: a « Texte » card
+    (port type `prompt`) connected to it failed with « Fichier introuvable » (2026-11-02)."""
+
+    def test_a_text_card_connected_to_the_output_ranges_a_text_document(self):
+        from wama.media_library.models import UserAsset
+        from wama.studio.models import StudioRun
+        from wama.studio.tasks import run_pipeline_task
+        run = StudioRun.objects.create(user=self.user, graph={
+            'nodes': [{'id': 't', 'app': 'text_input', 'params': {'text': 'bonjour le monde'}},
+                      {'id': 'o', 'app': 'studio_output', 'params': {'asset_name': 'wama_temoin_text'}}],
+            'links': [{'from': 't', 'to': 'o'}]})
+        run_pipeline_task(run.pk)      # in process: a source and a sink, no queue
+        run.refresh_from_db()
+        self.assertEqual('SUCCESS', run.status, run.error_message)
+        asset = UserAsset.objects.get(user=self.user, name='wama_temoin_text')
+        self.assertEqual('text/plain', asset.mime_type)
+        with asset.file.open('rb') as fh:
+            self.assertEqual(b'bonjour le monde', fh.read())
+
+
 class DeclaredModeTest(SimpleTestCase):
 
     def test_the_mode_of_a_url_is_the_one_the_app_states(self):

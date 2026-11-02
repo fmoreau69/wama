@@ -102,6 +102,14 @@ def checked_file(user, ref, label) -> str:
     return _designated(user, str(ref).strip(), label, designated_file)
 
 
+def is_text_value(upstream) -> bool:
+    """L'amont rend-il un TEXTE (une consigne, un résultat écrit) et non un chemin de fichier ?
+    Un nœud qui produit du texte le marque (`is_text`) ; une card d'entrée Texte le dit par son
+    type (`prompt`). Lue par `received_value` et par la Sortie (2026-11-02 : la Sortie ne lisait que
+    `is_text`, et rangeait le texte d'une card Texte comme un chemin — « Fichier introuvable »)."""
+    return bool(upstream.get('is_text')) or upstream.get('type') == 'prompt'
+
+
 def received_value(user, upstream, mode='media'):
     """La valeur qu'un nœud reçoit de l'amont, prête pour lui : une URL DÉSIGNÉE est téléchargée
     dans l'espace du compte, au mode que l'app destinataire DÉCLARE (`source_ingest.declared_mode`,
@@ -109,9 +117,8 @@ def received_value(user, upstream, mode='media'):
     qui commence par une adresse. LA règle, lue par le nœud d'app, la fonction et la sortie."""
     from wama.common.utils.source_ingest import download_to_user, is_remote
     value = upstream.get('value')
-    if (upstream.get('is_text') or upstream.get('is_frame') or upstream.get('is_lots')
-            or upstream.get('type') == 'prompt' or not isinstance(value, str)
-            or not is_remote(value)):
+    if (is_text_value(upstream) or upstream.get('is_frame') or upstream.get('is_lots')
+            or not isinstance(value, str) or not is_remote(value)):
         return value
     return download_to_user(user, value, mode)
 

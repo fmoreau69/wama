@@ -223,7 +223,8 @@ def _sink_media_library(user, incoming, params, run_id):
                          "passez par un nœud « Export de données ».")
     if first.get('is_frame'):
         return _sink_frame_to_media_library(user, first['value'], params, run_id)
-    if first.get('is_text'):
+    from .entries import is_text_value
+    if is_text_value(first):
         return _sink_text_to_media_library(user, first['value'], params, run_id)
     return _sink_file_to_media_library(user, first['value'], params)
 
