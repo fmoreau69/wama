@@ -41,8 +41,8 @@ def pipeline_palette_nodes(user, offered: dict) -> dict:
     n'est pas offert au compte — ou qui ne se déploie pas — n'est pas offert non plus : la
     palette reste ce que le compte peut lancer.
 
-    ⏳ Pas encore ajoutées à `palette.palette_nodes` : elles le seront à la marche 2, avec la
-    section « Pipelines » du canvas et l'état agrégé du nœud posé (relecture de Monde Data)."""
+    Le canvas ne leur ouvre pas de section : le pipeline enregistré de la section « Pipelines »
+    du catalogue se GLISSE pour être posé (son clic l'ouvre toujours, ROUTE §10.6 5.4)."""
     from wama.common.manifests.builtin.pipeline import (PIPELINE_NODE_PREFIX,
                                                         expand_pipeline_nodes, node_kind)
     from wama.common.utils.scoping import listable_by
@@ -79,6 +79,42 @@ def pipeline_palette_nodes(user, offered: dict) -> dict:
             'pipeline': key,
         }
     return nodes
+
+
+def folded_states(graph: dict, node_states: dict, run_status: str) -> dict:
+    """`{id du nœud pipeline: {'status', 'nodes_done', 'nodes_total'}}` — l'état que le canvas
+    montre d'un nœud REPLIÉ, déduit de ses nœuds internes (ids `<nœud>/…` du graphe DÉPLOYÉ que
+    le run a figé).
+
+    UNE règle, celle des cards : `process_runs.aggregate` (ROUTE §10.6 4.4), lue par l'adaptateur
+    de `AppPipeline.shown_state` — le RUN est la vérité de ce qui est EN VOL. Deux lectures que la
+    règle exige (relecture de Monde Data, 2026-11-02) :
+      • les membres viennent du GRAPHE, pas de `node_states` : un nœud interne pas encore lancé
+        n'y a pas d'entrée, et compte `PENDING` — sinon le nœud passerait SUCCESS après son
+        premier membre réussi ;
+      • run en vol, groupe commencé et non terminé → `RUNNING` (`AWAITING_RESOURCES` si un membre
+        l'est) : l'intervalle entre deux membres n'est pas un retour à « en attente »."""
+    from wama.common.manifests.builtin.pipeline import EXPANDED_ID_SEP
+    from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_FAILURE, JOB_PENDING,
+                                    JOB_RUNNING, JOB_SUCCESS)
+    from wama.common.services.process_runs import REQUIRED, aggregate
+    groups = {}
+    for node in (graph or {}).get('nodes') or []:
+        nid = str(node.get('id') or '')
+        if EXPANDED_ID_SEP in nid:
+            groups.setdefault(nid.split(EXPANDED_ID_SEP, 1)[0], []).append(nid)
+    in_flight = run_status in (JOB_RUNNING, JOB_AWAITING_RESOURCES)
+    out = {}
+    for top, members in groups.items():
+        states = [((node_states or {}).get(m) or {}).get('status') or JOB_PENDING for m in members]
+        status = aggregate((state, REQUIRED) for state in states)
+        started = any(state != JOB_PENDING for state in states)
+        if in_flight and started and status not in (JOB_SUCCESS, JOB_FAILURE):
+            status = (JOB_AWAITING_RESOURCES if JOB_AWAITING_RESOURCES in states
+                      else JOB_RUNNING)
+        out[top] = {'status': status, 'nodes_total': len(states),
+                    'nodes_done': sum(state == JOB_SUCCESS for state in states)}
+    return out
 
 
 def pipeline_exists(key) -> bool:

@@ -99,6 +99,21 @@ def api_pipelines(request):
             return JsonResponse({'error': 'Nom de pipeline requis'}, status=400)
         if not graph.get('nodes'):
             return JsonResponse({'error': 'Graphe vide — rien à sauvegarder'}, status=400)
+        # Un pipeline qui se CONTIENT (nœud `pipeline`, ROUTE §10.6 3.1) se refuse dès
+        # l'enregistrement, par le déploiement du lancement — la ligne remplacée dans la pile.
+        # Seul le cycle : une référence morte ou un port ambigu ne cassent que le lancement, et un
+        # brouillon incomplet doit pouvoir s'enregistrer.
+        from wama.common.manifests.builtin.pipeline import (PipelineCycleError,
+                                                            expand_pipeline_nodes)
+        from .services.pipeline_nodes import resolver
+        existing = StudioPipeline.objects.filter(user=request.user, name=name).first()
+        try:
+            expand_pipeline_nodes(graph, resolver(request.user),
+                                  (str(existing.pk),) if existing else ())
+        except PipelineCycleError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+        except ValueError:
+            pass
         pipe, created = StudioPipeline.objects.update_or_create(
             user=request.user, name=name, defaults={'graph': graph})
         return JsonResponse({'id': pipe.pk, 'name': pipe.name, 'created': created})
@@ -312,6 +327,11 @@ def api_run_status(request, pk):
     lot = lot_progress(run)
     if lot is not None:
         payload.update(lot)
+    # Un nœud PIPELINE déployé au lancement (ROUTE §10.6 3.1) : le canvas montre le nœud REPLIÉ,
+    # son état déduit de ses nœuds internes par la règle des cards (`folded_states`).
+    from .services.pipeline_nodes import folded_states
+    payload['node_states'] = {**(payload['node_states'] or {}),
+                              **folded_states(run.graph, payload['node_states'], run.status)}
     from wama.common.models import JOB_STATUS_TERMINAL
     if run.status in JOB_STATUS_TERMINAL:
         # Ce que le ⬇ du run servira (`services/run_results.py`) — lu une fois le run terminé.

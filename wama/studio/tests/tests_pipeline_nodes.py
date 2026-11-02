@@ -168,6 +168,109 @@ class ExpandPipelineNodesTest(SimpleTestCase):
             expand([{'id': 'P' * (NODE_ID_MAX - 1), 'app': 'pipeline:1'}])
 
 
+class FoldedStatesTest(SimpleTestCase):
+    """The state of a FOLDED node: the rule of the cards (`process_runs.aggregate`) read by the
+    adapter of `AppPipeline.shown_state` — the run is the truth of what is IN FLIGHT."""
+
+    GRAPH = {'nodes': [{'id': 'P/a'}, {'id': 'P/b'}, {'id': 'P/x/c'}, {'id': 'free'}]}
+
+    def fold(self, states, run_status):
+        from wama.studio.services.pipeline_nodes import folded_states
+        return folded_states(self.GRAPH, states, run_status)
+
+    def test_members_come_from_the_graph_and_one_never_started_is_pending(self):
+        from wama.common.models import JOB_FAILURE, JOB_PENDING, JOB_SUCCESS
+        out = self.fold({'P/a': {'status': JOB_SUCCESS}}, JOB_FAILURE)
+        self.assertEqual(['P'], list(out), 'one group per top node, nested ids included')
+        self.assertEqual(3, out['P']['nodes_total'])
+        self.assertEqual(JOB_PENDING, out['P']['status'],
+                         'one success and two never started is NOT a success')
+
+    def test_between_two_members_of_a_running_run_it_is_running(self):
+        from wama.common.models import JOB_AWAITING_RESOURCES, JOB_RUNNING, JOB_SUCCESS
+        out = self.fold({'P/a': {'status': JOB_SUCCESS}}, JOB_RUNNING)
+        self.assertEqual(JOB_RUNNING, out['P']['status'], 'never back to pending between members')
+        waiting = self.fold({'P/a': {'status': JOB_SUCCESS},
+                             'P/b': {'status': JOB_AWAITING_RESOURCES}}, JOB_RUNNING)
+        self.assertEqual(JOB_AWAITING_RESOURCES, waiting['P']['status'])
+
+    def test_not_started_stays_pending_and_done_is_the_aggregate(self):
+        from wama.common.models import JOB_FAILURE, JOB_PENDING, JOB_RUNNING, JOB_SUCCESS
+        self.assertEqual(JOB_PENDING, self.fold({}, JOB_RUNNING)['P']['status'])
+        done = {m: {'status': JOB_SUCCESS} for m in ('P/a', 'P/b', 'P/x/c')}
+        self.assertEqual(JOB_SUCCESS, self.fold(done, JOB_RUNNING)['P']['status'])
+        failed = dict(done, **{'P/b': {'status': JOB_FAILURE}})
+        self.assertEqual(JOB_FAILURE, self.fold(failed, JOB_RUNNING)['P']['status'])
+
+
+class CanvasPoseTheNodeFromPipelinesTest(SimpleTestCase):
+    """The canvas: no second section — a saved pipeline of « Pipelines » is DRAGGED to pose it as
+    a node, its click still opens it (ROUTE §10.6 5.4)."""
+
+    def setUp(self):
+        from django.conf import settings
+        from pathlib import Path
+        self.js = (Path(settings.BASE_DIR) / 'wama' / 'studio' / 'static' / 'studio' / 'js'
+                   / 'wama-studio.js').read_text(encoding='utf-8')
+
+    def _palette(self, apps, saved):
+        import json
+        import re
+        from py_mini_racer import MiniRacer
+        block = re.search(r'    var PALETTE_MIME = .*?\n    function renderPalette\(\) \{.*?\n    \}\n',
+                          self.js, re.S).group(0)
+        ctx = MiniRacer()
+        ctx.eval("""
+            function fakeEl(tag) { return { tag: tag, children: [], dataset: {}, style: { setProperty: function () {} },
+                listeners: {}, appendChild: function (c) { this.children.push(c); return c; },
+                addEventListener: function (k, f) { this.listeners[k] = f; },
+                querySelectorAll: function () { return []; } }; }
+            var document = { createElement: fakeEl };
+            var localStorage = { getItem: function () { return null; }, setItem: function () {} };
+            function el(tag, cls, html) { var e = fakeEl(tag); e.className = cls; e.innerHTML = html; return e; }
+            function isBuiltin(a) { return a && (a.kind === 'source' || a.kind === 'sink'); }
+            function openPipeline() {} function functionAppFilter() { return null; }
+            function applyFunctionFilter() {} function appLabel(k) { return k; }
+            var canvas = null, paletteList = fakeEl('div'), declaredPipelines = [];
+        """)
+        ctx.eval(f'var apps = {json.dumps(apps)}; var savedPipelines = {json.dumps(saved)};' + block)
+        ctx.eval('renderPalette();')
+        return ctx
+
+    def test_a_pipeline_node_is_no_app_and_its_saved_pipeline_is_draggable(self):
+        import importlib.util
+        import json
+        if importlib.util.find_spec('py_mini_racer') is None:
+            self.skipTest('py_mini_racer absent de ce venv')
+        apps = {'imager': {'label': 'Imager'},
+                'pipeline:7': {'label': 'Mon pipeline', 'kind': 'pipeline', 'pipeline': '7'}}
+        saved = [{'id': 7, 'name': 'Mon pipeline', 'nodes': 2, 'updated_at': ''},
+                 {'id': 8, 'name': 'Pas offert', 'nodes': 1, 'updated_at': ''}]
+        ctx = self._palette(apps, saved)
+        sections = 'paletteList.children.map(function (s) { return s.dataset.section; })'
+        self.assertEqual(['outputs', 'pipelines', 'apps'], json.loads(ctx.eval(f'JSON.stringify({sections})')),
+                         'no second section for the pipeline nodes')
+        app_items = ctx.eval("JSON.stringify(paletteList.children.filter(function (s) {"
+                             " return s.dataset.section === 'apps'; })[0].children.slice(1)"
+                             ".map(function (i) { return i.innerHTML; }))")
+        self.assertNotIn('Mon pipeline', app_items, 'a pipeline node is not filed among the apps')
+        pipes = "paletteList.children.filter(function (s) { return s.dataset.section === 'pipelines'; })[0].children.slice(1)"
+        draggable = json.loads(ctx.eval(f"JSON.stringify({pipes}.map(function (i) {{ return !!i.draggable; }}))"))
+        self.assertEqual([True, False], draggable, 'draggable only when the palette offers it as a node')
+        dropped = ctx.eval(f"var got = null; {pipes}[0].listeners.dragstart({{ dataTransfer: {{ setData: "
+                           f"function (t, v) {{ got = v; }} }} }}); got")
+        self.assertEqual('pipeline:7', dropped, 'the drag poses the node, never a copy')
+        self.assertIn('click', ctx.eval(f"JSON.stringify(Object.keys({pipes}[0].listeners))"),
+                      'the click still opens it')
+
+    def test_the_inspector_reads_the_content_and_opens_by_the_one_opener(self):
+        self.assertIn("schema.push({ section: 'Contenu', rows: pipelineContentRows(node, a.pipeline) });",
+                      self.js)
+        self.assertIn("onClick: function () { openPipeline(a.pipeline); } });", self.js)
+        self.assertIn("api('/studio/api/pipelines/' + encodeURIComponent(key) + '/')", self.js)
+        self.assertIn("var st = lastNodeStates[node.id + '/' + n.id];", self.js)
+
+
 def _launch(user, graph, pipeline_id=None):
     from wama.studio.services.launch import launch_graph
     with mock.patch('wama.studio.tasks.run_pipeline_task.delay') as delay:
@@ -226,9 +329,7 @@ class PipelineNodeInTheStudioTest(TestCase):
 
     def test_its_palette_entry_has_ports_derived_from_its_body(self):
         from wama.studio.services.palette import palette_nodes, unavailable_reason
-        from wama.studio.services.pipeline_nodes import pipeline_palette_nodes
         offered = palette_nodes(self.user)
-        offered.update(pipeline_palette_nodes(self.user, offered))
         node = offered[self.key]
         self.assertEqual(('pipeline', 'Filtre de trace'), (node['kind'], node['label']))
         self.assertEqual(['n1'], [p['id'] for p in node['inputs']], 'one port per entry card')
@@ -236,11 +337,50 @@ class PipelineNodeInTheStudioTest(TestCase):
         self.assertIs(False, node['output'], 'no exit card fed: no output port')
         self.assertIsNone(unavailable_reason(self.user, {'app': self.key}, offered))
 
-    def test_the_palette_does_not_offer_it_before_the_canvas_knows_it(self):
-        # Until step 2 (the « Pipelines » section and the aggregated state of a posed node), the
-        # canvas would file these entries among the apps and show no state for them.
+    def test_the_palette_offers_only_what_the_account_sees(self):
         from wama.studio.services.palette import palette_nodes
-        self.assertFalse([k for k in palette_nodes(self.user) if k.startswith('pipeline:')])
+        self.assertIn(self.key, palette_nodes(self.user))
+        self.assertNotIn(self.key, palette_nodes(self.other), 'a private pipeline of another account')
+
+    def test_the_run_status_shows_the_folded_node(self):
+        from wama.common.models import JOB_RUNNING, JOB_SUCCESS
+        from wama.studio.models import StudioRun
+        run = StudioRun.objects.create(
+            user=self.user, status=JOB_RUNNING,
+            graph={'nodes': [{'id': 'P/n1', 'app': 'dataset_input'}, {'id': 'P/n2', 'app': FN}],
+                   'links': []},
+            node_states={'P/n1': {'status': JOB_SUCCESS}})
+        self.client.force_login(self.user)
+        states = self.client.get(f'/studio/api/run/{run.pk}/').json()['node_states']
+        self.assertEqual({'status': JOB_RUNNING, 'nodes_done': 1, 'nodes_total': 2}, states['P'])
+        self.assertEqual(JOB_SUCCESS, states['P/n1']['status'], 'the inner states are kept')
+
+    def test_saving_a_pipeline_that_contains_itself_is_refused(self):
+        self.client.force_login(self.user)
+        url = '/studio/api/pipelines/'
+        cyclic = {'name': self.saved.name,
+                  'graph': {'nodes': [{'id': 'P', 'app': self.key}], 'links': []}}
+        response = self.client.post(url, cyclic, content_type='application/json')
+        self.assertEqual(400, response.status_code)
+        self.assertIn('se référence lui-même', response.json()['error'])
+        self.saved.refresh_from_db()
+        self.assertEqual('dataset_input', self.saved.graph['nodes'][0]['app'], 'nothing written')
+        # Through another pipeline: B references A, then A is saved referencing B.
+        b = self.client.post(url, {'name': 'B', 'graph': {'nodes': [{'id': 'x', 'app': self.key}],
+                                                         'links': []}},
+                             content_type='application/json').json()['id']
+        through = {'name': self.saved.name,
+                   'graph': {'nodes': [{'id': 'y', 'app': f'pipeline:{b}'}], 'links': []}}
+        response = self.client.post(url, through, content_type='application/json')
+        self.assertEqual(400, response.status_code)
+        self.assertIn(f'{self.saved.pk} → {b} → {self.saved.pk}', response.json()['error'])
+
+    def test_an_incomplete_draft_is_saved(self):
+        self.client.force_login(self.user)
+        draft = {'name': 'Brouillon', 'graph': {'nodes': [{'id': 'P', 'app': 'pipeline:999999'}],
+                                                'links': []}}
+        response = self.client.post('/studio/api/pipelines/', draft, content_type='application/json')
+        self.assertEqual(200, response.status_code, 'a dead reference only breaks the launch')
 
     def test_an_unavailable_reference_says_why(self):
         from wama.studio.services.palette import unavailable_reason

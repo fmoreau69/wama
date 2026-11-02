@@ -392,8 +392,11 @@ les files (un moteur, une ligne par process), pas propre au Studio.
 *Constaté le 2026-10-31* : chaque app Médias DÉCLARE les process de sa card
 (`common/services/process_pipeline.py` — `ProcessSpec`, `register_app_pipeline`, appelé par les
 `function_specs.py` des 10 apps ; `manifests/pipelines/<app>.json`) ; ce moteur commun dit ce qu'un
-lancement rejoue, ce qui est périmé (`STALE`) et l'état de la card. ⏳ Le Studio n'exécute pas
-encore ces pipelines comme un nœud (type de nœud `pipeline`, §4.2).
+lancement rejoue, ce qui est périmé (`STALE`) et l'état de la card. *(Corrigé le 2026-11-02 : la
+ligne disait « ⏳ le Studio n'exécute pas encore ces pipelines comme un nœud ».)* Le Studio les
+exécute par le nœud APP — il crée une card, qui joue tout le pipeline déclaré de son app
+(`studio/tasks.py`). ✅ Le type de nœud `pipeline` (codé le 2026-11-02, ROUTE §10.6 3.1) pose, lui,
+les pipelines ENREGISTRÉS du Studio, qu'aucune app ne porte.
 
 État réel : canvas, persistance et **exécution réelle** (moteur d'exécution topologique via l'API
 d'outils, suivi par nœud, cards d'entrée/sortie reliées à la médiathèque) sont livrés ;
@@ -636,7 +639,9 @@ rapport automatique`, pipeline reproductible. Règle actée : **contrat uniforme
 d'adaptateurs côté Studio ; on finit le port de l'app.
 🔄 *2026-09-29* : les passes du Cam Analyzer sont des pipelines déclarés (`manifests/pipelines/`),
 ouverts au Studio en diagramme, et elles écrivent les lignes d'exécution communes (2026-10-04) ;
-⏳ leur exécution depuis le Studio attend le type de nœud pipeline.
+⏳ leur exécution depuis le Studio attend l'alignement des apps du Lab (décision n°8, ROUTE §10.6
+6.1) — le type de nœud `pipeline` existe depuis le 2026-11-02, mais pour les seuls pipelines
+enregistrés du Studio.
 
 ---
 

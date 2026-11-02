@@ -459,7 +459,7 @@ Formule retenue, calquée sur les marketplaces (pytest `entry_points`, VSCode `c
 
 **Composition attendue** (rien de neuf, `requires` existant) :
 `plugin` → `library` (ses dépendances) + `function`(s) (ses traitements) ; `pipeline` → `plugin`(s) ;
-`pipeline` → `pipeline`(s) (type de nœud `pipeline`, décidé le 2026-09-15, `WAMA_APP_GENERATION_ROUTE.md §10.6`) ;
+`pipeline` → `pipeline`(s) (type de nœud `pipeline`, décidé le 2026-09-15, codé le 2026-11-02, `WAMA_APP_GENERATION_ROUTE.md §10.6` 3.1 — ⏳ l'export ne déclare pas encore ce `requires`) ;
 `project` → `pipeline`(s). **Règle** : un plugin RÉFÉRENCE ses traitements, il ne les CONTIENT pas —
 sinon il devient une boîte noire et l'héritage de capacités par le studio tombe.
 

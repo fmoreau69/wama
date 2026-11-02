@@ -23,7 +23,8 @@ _FUNCTION_ICONS = {
 
 def palette_nodes(user) -> dict:
     """`{identifiant de palette: description du nœud}` offerts à `user` — label/icône/couleur,
-    description, PORTS typés, `kind`. Nœuds intégrés, nœuds d'app, nœuds fonction (D13)."""
+    description, PORTS typés, `kind`. Nœuds intégrés, nœuds d'app, nœuds fonction (D13), nœuds
+    pipeline (les pipelines enregistrés que le compte voit, 2026-11-02)."""
     from wama.common.app_registry import APP_CATALOG, studio_node_ports
     from wama.common.manifests.builtin.pipeline import builtin_nodes
     from .runners import runner_for
@@ -94,10 +95,12 @@ def palette_nodes(user) -> dict:
             'app': spec.app,
             'category': spec.category,
         }
-    # ⏳ Nœuds PIPELINE (ROUTE §10.6 3.1, 2026-11-02) : `pipeline_nodes.pipeline_palette_nodes`
-    # existe, mais ne s'ajoute ici qu'à la marche 2, avec la section « Pipelines » du canvas et
-    # l'état agrégé du nœud — le canvas rangerait sinon ces entrées parmi les apps, et un nœud posé
-    # n'y montrerait aucun état (ils sont rangés sous `<nœud>/…`).
+    # Nœuds PIPELINE (ROUTE §10.6 3.1, 2026-11-02) : les pipelines enregistrés que le compte voit,
+    # leurs ports dérivés du sous-graphe — lus sur la palette ci-dessus, donc APRÈS elle. Le
+    # canvas les pose depuis la section « Pipelines » ; leur état est replié par le serveur
+    # (`pipeline_nodes.folded_states`).
+    from .pipeline_nodes import pipeline_palette_nodes
+    nodes.update(pipeline_palette_nodes(user, nodes))
     return nodes
 
 

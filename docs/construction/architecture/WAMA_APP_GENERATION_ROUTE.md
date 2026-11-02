@@ -2529,7 +2529,8 @@ le passé.*
   (`studio_output`→`UserAsset` médiathèque).
   *(précisé le 2026-09-15) : depuis le 2026-09-09, nœuds `function` (`function:<clé>`) et source
   `dataset_input` ; type de nœud `pipeline` décidé le 15/09 (codé le 2026-11-02 pour les pipelines
-  enregistrés, déployé au lancement — §10.6 3.1). `node_states` (un JSON par
+  enregistrés, déployé au lancement, posé depuis la section « Pipelines » du canvas — §10.6
+  3.1). `node_states` (un JSON par
   run) sera remplacé par une ligne d'exécution PAR PROCESS — §10.6 point 4.1.*
 - ~~**Trou** : `renderNodeParams` appauvri (cf. F3).~~ ✅ 2026-10-12 : réglages des nœuds par `WamaParams`
   (§10.6 point 3.3bis, R1). ~~**Cible : E/S du nœud DÉRIVÉES des ports**, pas re-saisies.~~ ✅ résorbé
@@ -4872,17 +4873,30 @@ qu'AUCUNE app ne porte. D'où :
   non alimentée RESTE avec ses réglages ; la sortie est le nœud UNIQUE qui alimente les sorties
   internes (retirées s'il y a un lien en aval, gardées sinon). Entrée de palette
   (`pipeline_palette_nodes`) : ports dérivés du sous-graphe déployé ; un pipeline dont un nœud
-  interne n'est pas offert au compte n'est pas offert — ⚠ PAS encore branchée dans
-  `palette.palette_nodes` : le canvas la rangerait parmi les apps et n'afficherait aucun état ;
-  elle le sera à la marche 2 ;
+  interne n'est pas offert au compte n'est pas offert ;
 - **refus nommés, rien deviné** : cycle (direct ou transitif, pipeline lancé compris), port
   d'entrée non précisé face à plusieurs sources ou inconnu, sortie ambiguë ou absente, réglages
   posés sur le nœud lui-même, référence morte ou non visible, identifiant déployé > 64 caractères
   (`ProcessRun.node_id`). Gardes : `studio/tests/tests_pipeline_nodes.py`.
-⏳ Restent : **marche 2**, le canvas (section « Pipelines » de la palette et branchement de
-`pipeline_palette_nodes`, nœud replié à l'état agrégé de ses ids préfixés, sous-graphe ouvert en
-lecture seule, et le CYCLE refusé aussi à l'ENREGISTREMENT — il ne l'est qu'au lancement : même
-`expand_pipeline_nodes`, la clé du pipeline enregistré dans la pile) ; le **coût de la palette**
+✅ **Marche 2, le canvas, le 2026-11-02** (même accord, relue par Monde Data) :
+- **palette** : pas de seconde section — le pipeline ENREGISTRÉ de la section « Pipelines » (5.4)
+  se GLISSE pour être posé comme nœud (`pipeline:<pk>`, quand la palette l'offre), son clic
+  l'ouvre toujours ; il n'est plus rangé parmi les Apps ;
+- **état replié côté SERVEUR**, par la règle des cards : `pipeline_nodes.folded_states`, appelée
+  par la réponse d'état du run — `process_runs.aggregate` lu par l'adaptateur de
+  `AppPipeline.shown_state`. Les membres viennent du graphe DÉPLOYÉ figé (un nœud interne jamais
+  lancé compte `PENDING`), et un run EN VOL dont le groupe a commencé sans finir montre `RUNNING`
+  (`AWAITING_RESOURCES` si un membre l'est) — jamais un retour à « en attente » entre deux membres ;
+- **lecture du sous-graphe dans l'inspecteur** : section « Contenu » (ses nœuds, leur état pendant
+  un run) et « Ouvrir ce pipeline » par le même `openPipeline` que le clic du catalogue — un seul
+  canvas, le pipeline référencé s'édite chez lui ; ses réglages ne se posent pas sur le nœud ;
+- **cycle refusé dès l'ENREGISTREMENT** (`api_pipelines`, `PipelineCycleError`) ; un brouillon
+  incomplet (référence morte, port ambigu) s'enregistre, le lancement le refuse.
+Contre-épreuves : six mutations, six rouges ; page servie vérifiée au navigateur (glisser, nœud
+posé à une entrée et une sortie, contenu et ouverture dans l'inspecteur, console sans erreur).
+⏳ Restent : l'**état d'un membre IMBRIQUÉ** dans « Contenu » (un membre qui est lui-même un nœud
+`pipeline` montre « — » pendant un run : `folded_states` ne replie que le premier niveau) ; le
+**coût de la palette**
 (chaque pipeline enregistré visible y est déployé : deux requêtes chacun, négligeable à 2 lignes en
 base le 2026-11-02 — remesurer par `/audit-lenteurs` avant tout cache) ; la **version** de la référence
 (clé seule aujourd'hui — `StudioPipeline` n'a pas de version ; le run, lui, fige le corps déployé) ;

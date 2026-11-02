@@ -311,6 +311,11 @@ def topo_order(graph):
     return [nodes[nid] for nid in order]
 
 
+class PipelineCycleError(ValueError):
+    """Un pipeline qui se contient, directement ou par un autre — le seul refus que
+    l'ENREGISTREMENT oppose (un brouillon incomplet s'enregistre, un cycle jamais)."""
+
+
 def expand_pipeline_nodes(graph: dict, resolve: Callable, stack: tuple = ()) -> dict:
     """Le graphe CANVAS où chaque nœud `pipeline` est remplacé par le corps qu'il RÉFÉRENCE —
     récursivement, ses identifiants préfixés `<id du nœud>/<id interne>`. Le moteur ne voit
@@ -343,7 +348,7 @@ def expand_pipeline_nodes(graph: dict, resolve: Callable, stack: tuple = ()) -> 
             continue
         nid, key = node['id'], pipeline_key(node)
         if key in stack:
-            raise ValueError(f"Nœud « {nid} » : le pipeline {key} se référence lui-même "
+            raise PipelineCycleError(f"Nœud « {nid} » : le pipeline {key} se référence lui-même "
                              f"({' → '.join(stack + (key,))}).")
         if node.get('params'):
             raise ValueError(f"Nœud « {nid} » : un nœud pipeline n'a pas de réglages — ils se "

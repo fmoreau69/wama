@@ -12,7 +12,9 @@
  * Volontairement minimal et autonome (vanilla + SVG). Décidé le 2026-09-15 (vocabulaire
  * process / pipeline / nœud / card → WAMA_APP_GENERATION_ROUTE.md §10.6) — ✅ livré le 03/10 :
  * « Catalogue » en sections repliables avec les pipelines, ajout par glisser-déposer (le clic
- * retiré le 2026-10-07), six états communs ; ⏳ reste le type de nœud `pipeline`.
+ * retiré le 2026-10-07), six états communs ; le type de nœud `pipeline` le 2026-11-02 (un
+ * pipeline enregistré de la section « Pipelines » se GLISSE pour être posé, son état est replié
+ * par le serveur, son contenu se lit dans l'inspecteur — ROUTE §10.6 3.1).
  * Navigation du canvas (2026-10-07) : glisser le fond = défiler, molette = zoomer.
  */
 (function (global) {
@@ -150,15 +152,20 @@
             item.appendChild(tag);
             item.dataset.fnApp = a.app;
         }
+        // Un pipeline ENREGISTRÉ que la palette offre comme nœud (`a.nodeId` = `pipeline:<id>`,
+        // ROUTE §10.6 3.1, 2026-11-02) a les DEUX gestes : le clic l'ouvre (un document), le
+        // glisser le pose comme nœud (une référence, jamais une copie).
+        var dragId = onPick ? a.nodeId : id;
         if (onPick) {
             item.title = a.title || a.label;
             item.addEventListener('click', function () { onPick(id); });
-            return item;
+            if (!dragId) return item;
+        } else {
+            item.title = a.title || ('Glisser sur le canvas pour ajouter « ' + a.label + ' »');
         }
-        item.title = a.title || ('Glisser sur le canvas pour ajouter « ' + a.label + ' »');
         item.draggable = true;
         item.addEventListener('dragstart', function (e) {
-            e.dataTransfer.setData(PALETTE_MIME, id);
+            e.dataTransfer.setData(PALETTE_MIME, dragId);
             e.dataTransfer.effectAllowed = 'copy';
         });
         // Lâché hors du canvas : le canvas ne voit ni `drop` ni toujours `dragleave`.
@@ -185,8 +192,9 @@
         paletteList.innerHTML = '';
         var sources = Object.keys(apps).filter(function (id) { return apps[id].kind === 'source'; });
         var sinks = Object.keys(apps).filter(function (id) { return apps[id].kind === 'sink'; });
+        // Un nœud PIPELINE n'a pas de section à lui : il se glisse depuis « Pipelines » (ci-dessous).
         var appIds = Object.keys(apps).filter(function (id) {
-            return apps[id].kind !== 'function' && !isBuiltin(apps[id]);
+            return apps[id].kind !== 'function' && apps[id].kind !== 'pipeline' && !isBuiltin(apps[id]);
         });
         var fnIds = Object.keys(apps).filter(function (id) { return apps[id].kind === 'function'; });
 
@@ -211,8 +219,11 @@
         paletteList.appendChild(outputs);
 
         var pipes = savedPipelines.map(function (p) {
+            var nodeId = apps['pipeline:' + p.id] ? 'pipeline:' + p.id : null;
             return { value: String(p.id), label: p.name, icon: 'fas fa-diagram-project', color: '#f7c46c',
-                     title: 'Ouvrir « ' + p.name + ' » (' + p.nodes + ' nœuds · ' + p.updated_at + ')' };
+                     nodeId: nodeId,
+                     title: 'Ouvrir « ' + p.name + ' » (' + p.nodes + ' nœuds · ' + p.updated_at + ')'
+                            + (nodeId ? ' — ou le glisser sur le canvas pour l\'y poser comme nœud' : '') };
         }).concat(declaredPipelines.map(function (p) {
             return { value: 'declared:' + p.key, label: p.name, icon: 'fas fa-diagram-project', color: '#9ad0ec',
                      title: 'Ouvrir le pipeline déclaré par l\'app « ' + p.name
@@ -507,6 +518,7 @@
         if (a.kind === 'source') return '<span class="badge bg-success">entrée</span>';
         if (a.kind === 'sink') return '<span class="badge bg-success">sortie</span>';
         if (a.kind === 'function') return '<span class="badge bg-info text-dark">fonction · ' + (a.binding || 'pure') + '</span>';
+        if (a.kind === 'pipeline') return '<span class="badge bg-warning text-dark">pipeline</span>';
         return '<span class="badge bg-primary">app</span>';
     }
     function selectNode(id) {
@@ -562,14 +574,22 @@
                 { k: 'Sortantes', get: function () { return countLinks(node.id, 'from'); } },
             ] },
         ];
+        var actions = [];
+        if (a.kind === 'pipeline') {
+            schema.push({ section: 'Contenu', rows: pipelineContentRows(node, a.pipeline) });
+            // Ouvrir, c'est changer de DOCUMENT, par le chemin du clic du catalogue : le pipeline
+            // référencé s'édite chez lui, et toutes ses références suivent.
+            actions.push({ label: 'Ouvrir ce pipeline', icon: 'fas fa-up-right-from-square',
+                           cls: 'btn btn-sm btn-outline-secondary w-100 mb-1',
+                           onClick: function () { openPipeline(a.pipeline); } });
+        }
+        actions.push({ label: 'Supprimer le nœud', icon: 'fas fa-trash', cls: 'btn btn-sm btn-outline-danger w-100',
+                       onClick: function () { removeNode(node.id); } });
         try {
             body.innerHTML = WamaDetails.renderSections(data, schema);
             mountEntry(body, node);
             mountNodeSettings(body, node);
-            var acts = WamaDetails.renderActions(data, [
-                { label: 'Supprimer le nœud', icon: 'fas fa-trash', cls: 'btn btn-sm btn-outline-danger w-100',
-                  onClick: function () { removeNode(node.id); } },
-            ]);
+            var acts = WamaDetails.renderActions(data, actions);
             if (actionsHost) { actionsHost.innerHTML = acts.html; if (acts.wire) acts.wire(actionsHost); }
         } catch (err) {
             // JAMAIS avaler : message visible + trace console (recadrage 2026-07-15)
@@ -578,6 +598,35 @@
             if (actionsHost) actionsHost.innerHTML = '';
             if (global.console && console.error) console.error('[WamaStudio] inspecteur', err);
         }
+    }
+
+    // ── Contenu d'un nœud PIPELINE, en lecture (ROUTE §10.6 3.1, 2026-11-02) ──────────────────
+    // Les nœuds du pipeline référencé, lus par la route qui l'ouvre (`api/pipelines/<id>/`, la
+    // règle de visibilité du serveur), et pendant un run l'état de chacun — rangé sous
+    // `<nœud>/<id interne>` par le déploiement du lancement. Un seul canvas : le sous-graphe ne
+    // se dessine pas ici, il s'OUVRE (« Ouvrir ce pipeline »).
+    var pipelineContents = {};   // clé du pipeline -> [{id, app}] | 'loading' | 'error'
+    var lastNodeStates = {};     // les états du dernier run suivi, par id déployé
+    function pipelineContentRows(node, key) {
+        var content = pipelineContents[key];
+        if (content === undefined) {
+            pipelineContents[key] = 'loading';
+            api('/studio/api/pipelines/' + encodeURIComponent(key) + '/').then(function (d) {
+                pipelineContents[key] = ((d.graph && d.graph.nodes) || []).map(function (n) {
+                    return { id: n.id, app: n.app };
+                });
+            })['catch'](function () { pipelineContents[key] = 'error'; }).then(updateInspector);
+            content = 'loading';
+        }
+        if (content === 'loading') return [{ k: '…', get: function () { return 'chargement'; } }];
+        if (content === 'error') return [{ k: '—', get: function () { return 'pipeline illisible pour ce compte'; } }];
+        if (!content.length) return [{ k: '—', get: function () { return 'aucun nœud'; } }];
+        return content.map(function (n) {
+            return { k: (apps[n.app] && apps[n.app].label) || n.app, get: function () {
+                var st = lastNodeStates[node.id + '/' + n.id];
+                return st && st.status ? st.status.toLowerCase() : '—';
+            } };
+        });
     }
 
     // ── Réglages du nœud : le rendu COMMUN (`WamaParams`), depuis le schéma `Param` du nœud ──
@@ -722,6 +771,13 @@
             // dans le graphe, sans être affichés — « pas de réglage » serait faux.
             wrap.appendChild(el('div', 'studio-node-params-state text-body-secondary small',
                 'Réglages non affichés : nœud indisponible pour ce compte. Ils sont gardés tels quels.'));
+            body.appendChild(wrap);
+            return;
+        }
+        if (metaOf(node).kind === 'pipeline') {
+            // Le lancement refuse un réglage posé sur le nœud lui-même (`expand_pipeline_nodes`).
+            wrap.appendChild(el('div', 'studio-node-params-state text-body-secondary small',
+                'Les réglages se font dans le pipeline référencé (« Ouvrir ce pipeline »).'));
             body.appendChild(wrap);
             return;
         }
@@ -1155,6 +1211,7 @@
         if (RUN_STATES.indexOf(status) !== -1) n.el.classList.add('run-' + status.toLowerCase());
     }
     function clearRunStates() {
+        lastNodeStates = {};
         nodes.forEach(function (n) {
             if (n.el) RUN_CLASSES.forEach(function (c) { n.el.classList.remove(c); });
         });
@@ -1208,14 +1265,20 @@
         maxFails: Infinity,
         onError: function () { /* réseau : ignorer ce tour */ },
         onData: function (runId, d) {
+            lastNodeStates = d.node_states || {};
             Object.keys(d.node_states || {}).forEach(function (nid) {
                 var st = d.node_states[nid];
                 setNodeRunState(nid, st.status);
-                // Un run de LOT : chaque nœud dit combien de ses éléments il a faits.
+                // Un run de LOT : chaque nœud dit combien de ses éléments il a faits ; un nœud
+                // PIPELINE replié, combien de ses nœuds internes (`folded_states` du serveur).
                 var n = nodes.find(function (x) { return x.id === nid; });
                 if (n && n.el && st.total) n.el.title = st.done + '/' + st.total + ' élément(s) faits';
+                if (n && n.el && st.nodes_total) n.el.title = st.nodes_done + '/' + st.nodes_total + ' nœud(s) faits';
             });
             updateFlows(d.node_states);
+            if (selected && metaOf(nodes.find(function (x) { return x.id === selected; }) || {}).kind === 'pipeline') {
+                updateInspector();
+            }
             if (d.lot && d.status !== 'SUCCESS' && d.status !== 'FAILURE') {
                 setRunStatus('Exécution #' + runId + ' — lot : élément ' + (d.lot.current || d.lot.done)
                              + '/' + d.lot.total + (d.lot.failed ? ' (' + d.lot.failed + ' en échec)' : '')
