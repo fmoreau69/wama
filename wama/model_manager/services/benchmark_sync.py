@@ -258,8 +258,9 @@ ALIAS: dict[str, str] = {
 SERVED_VARIANT: dict[str, str] = {
     # 2026-10-31, mesuré : ILaaS raisonne par défaut (`reasoning_content`, `reasoning_tokens`)
     # et refuse un effort inconnu en nommant le sien — « Supported types are xhigh (default),
-    # medium, and low ». WAMA ne lui envoie aucun effort (`think` ne vaut que pour Ollama) : la
-    # variante servie est « Qwen3.8 27B (Xhigh) » (20,1 en AA v5), pas « (Low) » (15,7), que la
+    # medium, and low ». WAMA ne lui envoie aucun effort hors d'un `think=False` explicite (une
+    # sortie JSON : « none », `ExternalSource.lowest_reasoning_effort`, 2026-11-02) : la variante
+    # servie est « Qwen3.8 27B (Xhigh) » (20,1 en AA v5), pas « (Low) » (15,7), que la
     # similarité de chaîne retenait faute de qualificatif dans notre nom.
     'ilaas:qwen-3.8-27b': 'xhigh',
 }

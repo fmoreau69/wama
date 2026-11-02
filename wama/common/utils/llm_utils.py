@@ -563,7 +563,9 @@ def llm_chat(
                     Anthropic API: no seed, and top_p with a temperature is refused) — its
                     fiche does not list them, so the setting is greyed under it.
         num_ctx:    KV cache size in tokens (Ollama only, ignored for cloud).
-        think:      Qwen3 thinking mode (Ollama only, ignored for cloud).
+        think:      Qwen3 thinking mode (Ollama). Cloud: only an explicit False acts — it sends the
+                    effort that cuts the model's reasoning when its source MEASURED one
+                    (`ExternalSource.lowest_reasoning_effort`, 2026-11-02); otherwise nothing.
         keep_alive: Résidence VRAM après réponse (Ollama only, ignoré pour le cloud).
                     '0' = décharger tout de suite (cf. ollama_chat).
         timeout:    HTTP timeout in seconds.
@@ -653,6 +655,13 @@ def llm_chat(
         # plafond de son profil (2026-10-12).
         extra_body = (json.loads(declared.no_reuse_request_body)
                       if declared.no_reuse_request_body and not data_reuse_ok else None)
+        # `think=False` DEMANDÉ (2026-11-02) : l'effort qui coupe la réflexion du modèle, quand la
+        # source l'a mesuré pour lui (`lowest_reasoning_effort`) — un modèle de raisonnement
+        # distant raisonnait jusque-là sur chaque sortie JSON. Rien pour un modèle non mesuré :
+        # un effort envoyé à gemma-4-31b le fait raisonner.
+        effort = declared.reasoning_effort_off(model) if think is False else ''
+        if effort:
+            extra_body = {**(extra_body or {}), 'reasoning_effort': effort}
     else:
         # Source au protocole natif de LiteLLM (API Anthropic) : son nom EST le préfixe.
         extra_body = None
@@ -748,7 +757,7 @@ def tool_call_text(name: str, arguments) -> str:
 
 
 def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
-                            num_predict: Optional[int] = None, think: bool = False,
+                            num_predict: Optional[int] = None, think: Optional[bool] = None,
                             timeout: Optional[float] = None,
                             temperature: Optional[float] = None,
                             seed: Optional[int] = None,
@@ -782,7 +791,9 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
     `num_predict` (jetons max) : `None` par défaut = sans plafond — même raison que `timeout`
     ci-dessous : un document entier (le HTML d'une dizaine de diapositives) dépasse vite un plafond
     écrit d'avance, et la glu RECOPIE le défaut qu'elle lit ici. `think`, `temperature`, `seed`,
-    `top_p` : ceux de `llm_chat`.
+    `top_p` : ceux de `llm_chat`. `think=None` (défaut) : la réflexion reste coupée chez Ollama,
+    comme avant, et un distant garde la sienne — seul un `False` EXPLICITE la coupe chez lui
+    (2026-11-02), pour qu'une glu qui n'en dit rien ne perde pas la réflexion qu'elle avait.
     `timeout` : `None` par défaut, et c'est voulu — dans une tâche, la borne est la DURÉE MAX du
     squelette (`task_skeleton._time_guard`, réglable au profil et par modèle). Un délai plus court
     posé ici ajoute un échec arbitraire : mesuré le 2026-10-01, la 1ʳᵉ génération réelle de
@@ -808,7 +819,8 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
     if not source or not model_id:
         return None, f"clé de catalogue invalide : {catalog_key!r} (attendu <source>:<modèle>)"
     if source == 'ollama':
-        return llm_chat(messages, model=model_id, provider='ollama', **llm_kwargs)
+        return llm_chat(messages, model=model_id, provider='ollama',
+                        **{**llm_kwargs, 'think': bool(think)})
     if source == 'claude_code':
         return None, ("l'abonnement Claude Code n'est pas un fournisseur d'app : il est réservé "
                       "à l'assistant")
@@ -824,7 +836,7 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
 
 
 def chat_with_source(source: str, model_id: Optional[str], messages: list, *, user=None,
-                     num_predict: Optional[int] = None, think: bool = False,
+                     num_predict: Optional[int] = None, think: Optional[bool] = None,
                      timeout: Optional[float] = None, temperature: Optional[float] = None,
                      seed: Optional[int] = None, top_p: Optional[float] = None,
                      on_delta=None, tools: Optional[list] = None,
@@ -834,7 +846,8 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
     Anthropic…), avec la clé de l'UTILISATEUR quand il est connecté — `(texte, None)` ou
     `(None, erreur)` de `llm_chat`. Le nom du fournisseur EST le nom de la source.
     Un échec qui dit le fournisseur saturé le NOTE pour la clé employée (`rate_limit_wait` : celui
-    de `llm_chat`).
+    de `llm_chat`). `think=None` (défaut) : la réflexion du modèle ; `False` explicite la coupe
+    quand la source a mesuré comment (`llm_chat`, 2026-11-02) — l'assistant n'en dit rien.
 
     ⚠ LÈVE `CloudAccessRefused` (motif + statut HTTP) quand la garde commune refuse (profil
     « 100 % local », modèle non ouvert par la clé, clé absente) ou quand la porte de

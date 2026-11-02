@@ -258,6 +258,65 @@ class DeclaredRequestBodyTest(SimpleTestCase):
         self.assertIs(False, chat.call_args.kwargs['data_reuse_ok'])
 
 
+class ReasoningEffortOffTest(SimpleTestCase):
+    """2026-11-02 (Fabien's decision): `think=False` — a JSON output whose budget the reasoning
+    used to empty — reaches a REMOTE reasoning model as the effort that cuts its reasoning most,
+    MEASURED per model on its source (`lowest_reasoning_effort`). It used to be « Ollama only »:
+    ILaaS qwen3.8 reasoned at its default (« xhigh ») on every JSON task."""
+
+    def _sent(self, provider, env, **kwargs):
+        fake = _fake_litellm()
+        with patch.dict(sys.modules, {'litellm': fake}), patch.dict(os.environ, env), \
+                patch.object(external_sources, 'stored_instance_key', return_value=''):
+            text, err = llm_utils.llm_chat(MESSAGES, provider=provider, **kwargs)
+        self.assertEqual(('OK', None), (text, err))
+        return fake.completion.call_args.kwargs
+
+    def test_an_explicit_false_sends_the_measured_effort_of_the_model(self):
+        sent = self._sent('ilaas', {'ILAAS_API_KEY': 'k'}, model='qwen-3.8-27b', think=False)
+        self.assertEqual({'reasoning_effort': 'none'}, sent.get('extra_body'))
+        # Albert's default model is written in its LiteLLM form (`openai/gpt-oss-120b`).
+        sent = self._sent('albert', {'ALBERT_API_KEY': 'k'}, think=False)
+        self.assertEqual({'reasoning_effort': 'low'}, sent.get('extra_body'))
+
+    def test_counter_proof_nothing_is_sent_unless_asked_or_measured(self):
+        """A model's own reasoning is kept unless `False` is explicit; and an unmeasured model
+        gets nothing — an effort sent to gemma-4-31b made it reason."""
+        for kwargs in ({'model': 'qwen-3.8-27b'}, {'model': 'qwen-3.8-27b', 'think': None},
+                       {'model': 'gemma-4-31b', 'think': False}):
+            with self.subTest(**kwargs):
+                self.assertNotIn('extra_body', self._sent('ilaas', {'ILAAS_API_KEY': 'k'},
+                                                          **kwargs))
+
+    def test_the_effort_joins_a_declared_request_body(self):
+        with patch.object(external_sources.ExternalSource, 'reasoning_effort_off',
+                          return_value='low'):
+            sent = self._sent('openrouter', {'OPENROUTER_API_KEY': 'k'}, think=False)
+        self.assertEqual({'provider': {'data_collection': 'deny'}, 'reasoning_effort': 'low'},
+                         sent.get('extra_body'))
+
+    def test_callers_that_say_nothing_keep_the_reasoning_they_had(self):
+        """`chat_with_source` (the assistant) and `chat_with_catalog_model` (app glue) used to
+        default to False, harmless while it acted on Ollama only: None now, so only a caller
+        that ASKS cuts a remote model's reasoning — and Ollama keeps `think: false` as before."""
+        with patch.object(llm_utils, 'llm_chat', return_value=('OK', None)) as chat:
+            llm_utils.chat_with_source('ilaas', 'qwen-3.8-27b', MESSAGES)
+            self.assertIsNone(chat.call_args.kwargs['think'])
+            llm_utils.chat_with_catalog_model('ilaas:qwen-3.8-27b', MESSAGES)
+            self.assertIsNone(chat.call_args.kwargs['think'])
+            llm_utils.chat_with_catalog_model('ollama:qwen3.8:latest', MESSAGES)
+            self.assertIs(False, chat.call_args.kwargs['think'])
+
+    def test_the_fiche_of_a_measured_model_says_it_reasons(self):
+        """The same declaration writes the `thinking` capability: ILaaS's listing says nothing
+        of it (`id`, `object`, `owned_by`)."""
+        from wama.model_manager.services.cloud_models import model_info_for
+        caps = model_info_for('ilaas', {'id': 'qwen-3.8-27b', 'type': 'text-generation'}).capabilities
+        self.assertIs(True, caps.get('thinking'))
+        caps = model_info_for('ilaas', {'id': 'gemma-4-31b', 'type': 'text-generation'}).capabilities
+        self.assertNotIn('thinking', caps)
+
+
 class ProviderSaturationNoteTest(SimpleTestCase):
     """2026-10-13 (ROADMAP §8d step 2): a call refused because the PROVIDER is saturated NOTES it
     — the automatic draw then leaves it out while the note lasts — and a caller that has another

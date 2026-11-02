@@ -431,6 +431,14 @@ class ExternalSource:
     #: --model <id> --tools --user <compte> --repeat 3` (la liste même que l'assistant envoie, la clé
     #: et le profil du compte) — elle rejoue le cas deepseek (muet) et gpt-oss (nommé).
     native_tools: tuple = ()
+    #: Fournisseur LLM : l'effort de raisonnement (`reasoning_effort`, protocole OpenAI) qui coupe
+    #: le plus la réflexion d'un modèle qui raisonne par défaut — `((identifiant, effort), …)`,
+    #: lu par `llm_utils.llm_chat` quand l'appelant demande `think=False` (une sortie JSON, que la
+    #: réflexion vidait en épuisant le budget). PAR MODÈLE et MESURÉ, comme `native_tools` :
+    #: mesuré le 2026-11-02, gemma-4-31b chez ILaaS ne raisonne pas sans effort et SE MET à
+    #: raisonner quand il en reçoit un (194 jetons de réflexion sur une extraction JSON). Un modèle
+    #: déclaré ici raisonne : sa fiche porte la capacité `thinking` (`cloud_models.model_info_for`).
+    lowest_reasoning_effort: tuple = ()
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
     attribution: str = ''
     #: Document portant l'intention, quand elle est écrite quelque part.
@@ -445,6 +453,12 @@ class ExternalSource:
         prefix = f'{self.protocol}/'
         model = model or ''
         return model[len(prefix):] if self.protocol and model.startswith(prefix) else model
+
+    def reasoning_effort_off(self, model: str) -> str:
+        """L'effort qui coupe le plus la réflexion de `model` (`lowest_reasoning_effort`), ou ''
+        quand rien n'est mesuré pour lui — rien n'est alors envoyé."""
+        model_id = self.catalogue_model_id(model)
+        return dict(self.lowest_reasoning_effort).get(model_id, '') if model_id else ''
 
 
 #: ⚠ ORDRE : par famille, pour la lecture. Aucun code ne dépend de l'ordre.
@@ -503,6 +517,10 @@ SOURCES: tuple[ExternalSource, ...] = (
         api_key_help_url='https://ia.numerique.gouv.fr/outils-ia/albert-api/',
         hosting='sovereign', cost_tier='free', protocol='openai',
         default_model='openai/gpt-oss-120b', native_tools=('gpt-oss-120b',),
+        # gpt-oss raisonne toujours ; « low » est son plus bas (« minimal » : HTTP 400, « Input
+        # should be 'low', 'medium' or 'high' ») — 539 → 398 caractères de réflexion sur un
+        # problème d'horaires, mesuré le 2026-11-02.
+        lowest_reasoning_effort=(('gpt-oss-120b', 'low'),),
         # 10 requêtes par minute et par clé, sans `Retry-After` : une fenêtre ENTIÈRE (mesuré le
         # 2026-10-10 — trois essais à 20 s d'écart tous refusés).
         rate_limit_wait_s=60.0,
@@ -536,6 +554,11 @@ SOURCES: tuple[ExternalSource, ...] = (
         # la liste du prompt reste sa voie jusqu'à une série complète.
         native_tools=('gemma-4-31b', 'llama-3.1-8b', 'mistral-small-4-119b',
                       'qwen-3.6-35b-instruct', 'qwen-3.8-27b'),
+        # qwen-3.8 raisonne par défaut (« xhigh ») ; « low » ne réduit RIEN (372 jetons de
+        # réflexion contre 316 sans effort, 507 contre 361 le 2026-10-31), « none » la coupe
+        # (0 jeton, 0,8 s contre 1,8 s) — accepté bien que son message d'erreur ne cite que
+        # « xhigh (default), medium, and low ». Mesuré le 2026-11-02.
+        lowest_reasoning_effort=(('qwen-3.8-27b', 'none'),),
         doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-10-13 (demande de Fabien : « que je puisse poser la clé ») : le service RAG d'ILaaS,
     # jeton À PART de celui du chat. Lu sans clé le même jour sur son `/openapi.json` public :

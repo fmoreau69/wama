@@ -424,6 +424,21 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    donc SANS réflexion. Vérifié sur deux tours réels (`qwen3.5:4b`, curseur par défaut) :
    conversation 5,4 s, tour à OUTIL 1,7 s avec l'appel `list_user_files` intact — le format JSON
    d'appel survit à `think:false`. Un modèle sans capacité `thinking` accepte l'option (mesuré).
+   ✅ **2026-11-02 — `think=False` atteint aussi un modèle DISTANT qui raisonne** (décision de
+   Fabien) : `llm_chat` lui envoie l'effort qui coupe le plus sa réflexion (`reasoning_effort`),
+   MESURÉ par modèle et déclaré sur sa source — `ExternalSource.lowest_reasoning_effort`, même
+   forme que `native_tools`. ILaaS `qwen-3.8-27b` → `none` (« low » ne réduit RIEN : 372 jetons
+   de réflexion contre 316), Albert `gpt-oss-120b` → `low` (son plus bas). Rien pour un modèle
+   non mesuré : un effort envoyé à `gemma-4-31b` le FAIT raisonner. Seul un `False` EXPLICITE
+   agit — `chat_with_source` et `chat_with_catalog_model` passent à `think=None` par défaut, donc
+   l'assistant et les glues d'app gardent la réflexion qu'ils avaient. Mesuré sur les tâches
+   JSON réelles (ILaaS qwen3.8, 3 essais) : cohérence ~1,5 s et 0 jeton de réflexion contre
+   ~7 s et 750 à 850 ; noms d'intervenants identiques. ⚠ Le score de cohérence monte de ~80 à 92
+   sans réflexion (même nombre de constats) : moins sévère. La même déclaration écrit la capacité
+   `thinking` de la fiche (`cloud_models.model_info_for`). ⏳ **Question ouverte** : le curseur de
+   l'ASSISTANT ne règle toujours la réflexion qu'en local (`think` vaut None pour un distant,
+   `run_assistant_turn`) — l'étendre couperait la réflexion d'ILaaS qwen3.8 au cran par défaut,
+   alors que le tirage le classe sur sa variante « xhigh » (`benchmark_sync.SERVED_VARIANT`).
 2. ✅ **Prompt réordonné** : base + rôle + annonce + outils (FIXE) puis contexte labo + état des
    files (DYNAMIQUE) → le préfixe des jetons est stable d'un tour à l'autre.
 3. ⏳ **Réduire le prompt d'outils** : 71 outils décrits à chaque tour ; ne lister que ceux du

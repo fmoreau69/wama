@@ -287,6 +287,11 @@ def model_info_for(source: str, item: dict):
             caps['params'] = [TEMPERATURE]
             if src.protocol == 'anthropic':
                 caps['max_temperature'] = 1.0
+        # La RÉFLEXION (2026-11-02) : un modèle dont la source a mesuré l'effort qui la coupe
+        # raisonne — la déclaration même que lit l'appel (`llm_chat`, `think=False`). La liste
+        # d'un fournisseur ne le dit pas : ILaaS ne rend que `id`, `object`, `owned_by`.
+        if src.reasoning_effort_off(item['id']):
+            caps['thinking'] = True
     return ModelInfo(
         id=item['id'], name=item.get('name') or item['id'],
         model_type=ModelType(model_type), source=ModelSource(source),
