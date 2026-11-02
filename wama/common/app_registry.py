@@ -1926,6 +1926,23 @@ def accept_for_types(declared, types) -> str:
     return ','.join(dict.fromkeys(parts)) or '*/*'
 
 
+def port_takes(app_name: str, types, filename: str) -> bool:
+    """Le serveur prend-il ce fichier par ce PORT ? — la liste même que la card propose
+    (`port_accept`), lue côté serveur : une extension citée, ou la famille MIME de sa nature.
+
+    Ajouté le 2026-11-02 pour l'outil de création d'une app née d'un manifeste
+    (`tool_api._born_creator`), qui filtrait par les extensions de l'APP (`accepts_file`) : un port
+    de référence d'une nature que l'app ne déclare pas (la mélodie du composer) aurait refusé ce
+    que la card offre."""
+    import os
+    accept = port_accept(app_name, types)
+    if accept == '*/*':
+        return True
+    ext = os.path.splitext(filename or '')[1].lower()
+    family = _MIME_FAMILIES.get(category_of_path(filename))
+    return any(part in (ext, family) for part in accept.split(',') if part)
+
+
 def get_app_extensions_for_filemanager() -> dict:
     """
     Returns a dict suitable for FileManager JS APP_EXTENSIONS:

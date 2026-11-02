@@ -70,8 +70,7 @@ class BornCreatorTest(TestCase):
         with mock.patch('wama.common.app_registry.studio_node_ports', return_value=PORTS):
             self.creator = T._born_creator('notes_01')
         patches = [mock.patch.object(T, '_route_dispo', return_value='upload'),
-                   mock.patch.object(T, '_refus_app', return_value=None),
-                   mock.patch('wama.common.app_registry.accepts_file', return_value=True)]
+                   mock.patch.object(T, '_refus_app', return_value=None)]
         for p in patches:
             p.start()
             self.addCleanup(p.stop)
@@ -104,6 +103,16 @@ class BornCreatorTest(TestCase):
                 mock.patch.object(T, '_poster_vue') as post:
             out = self.creator(self.user, prompt='x', reference_document='users/9/nope.pdf')
         self.assertIn('fichier introuvable', out['error'])
+        post.assert_not_called()
+
+    def test_a_file_the_port_does_not_take_stops_the_call_before_anything_is_posted(self):
+        """The format gate is the card's list for THIS port (`port_takes`): a document port takes
+        no image, whatever the app declares elsewhere."""
+        with mock.patch('wama.common.utils.media_paths.designated_file',
+                        return_value='/media/users/1/temp/photo.png'), \
+                mock.patch.object(T, '_poster_vue') as post:
+            out = self.creator(self.user, prompt='x', reference_document='users/1/temp/photo.png')
+        self.assertIn('.png', out['error'])
         post.assert_not_called()
 
     def test_what_the_view_rejects_is_reported_in_its_own_words(self):

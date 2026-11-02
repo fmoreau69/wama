@@ -3129,7 +3129,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (46) :
+- **API publique** (47) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -3169,6 +3169,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
   - `accepts_file(app_name: str, filename: str) -> bool` — Le serveur prend-il ce fichier pour cette app ? — les extensions DÉCLARÉES
   - `port_accept(app_name: str, types) -> str` — L'attribut `accept` d'un PORT d'entrée — ce que la tuile Importer propose.
   - `accept_for_types(declared, types) -> str` — Le cœur de `port_accept`, sur une liste d'extensions DONNÉE — pour le générateur, qui
+  - `port_takes(app_name: str, types, filename: str) -> bool` — Le serveur prend-il ce fichier par ce PORT ? — la liste même que la card propose
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
   - `world_color(world: str) -> str` — Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
   - `measured_adoption(mechanism: str) -> dict` — Ce que la grille MESURÉE dit d'un mécanisme : les critères qui le vérifient
@@ -3488,7 +3489,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (46) :
+- **API publique** (47) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -3528,6 +3529,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `accepts_file(app_name: str, filename: str) -> bool` — Le serveur prend-il ce fichier pour cette app ? — les extensions DÉCLARÉES
   - `port_accept(app_name: str, types) -> str` — L'attribut `accept` d'un PORT d'entrée — ce que la tuile Importer propose.
   - `accept_for_types(declared, types) -> str` — Le cœur de `port_accept`, sur une liste d'extensions DONNÉE — pour le générateur, qui
+  - `port_takes(app_name: str, types, filename: str) -> bool` — Le serveur prend-il ce fichier par ce PORT ? — la liste même que la card propose
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
   - `world_color(world: str) -> str` — Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
   - `measured_adoption(mechanism: str) -> dict` — Ce que la grille MESURÉE dit d'un mécanisme : les critères qui le vérifient

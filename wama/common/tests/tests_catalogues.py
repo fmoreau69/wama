@@ -1942,6 +1942,19 @@ class PortAcceptKeepsEveryNatureTest(TestCase):
         self.assertEqual('*/*', accept_for_types((), []))
         self.assertEqual('*/*', accept_for_types(('.txt',), ['prompt']))
 
+    def test_the_server_takes_by_a_port_exactly_what_the_card_offers_for_it(self):
+        """`port_takes` reads the `port_accept` list: a cited extension, or the MIME family of the
+        file's nature (the composer's melody), and anything when the port names no nature."""
+        from wama.common.app_registry import port_takes
+        with self._catalog('document', input_extensions=('.txt',)):
+            self.assertTrue(port_takes(self.APP, ['document'], 'notes.txt'))
+            self.assertFalse(port_takes(self.APP, ['document'], 'notes.pdf'),
+                             'declared extensions restrict the offer')
+            self.assertTrue(port_takes(self.APP, ['audio'], 'melody.mp3'),
+                            'a nature the app does not enumerate falls back to its family')
+            self.assertFalse(port_takes(self.APP, ['audio'], 'melody.png'))
+            self.assertTrue(port_takes(self.APP, ['prompt'], 'anything.bin'))
+
     def test_the_v4_card_of_a_document_app_accepts_pdf(self):
         from wama.common.templatetags import wama_actions
         with self._catalog('document', input_extensions=('.pdf', '.docx')):

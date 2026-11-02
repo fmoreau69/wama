@@ -4793,9 +4793,9 @@ def _born_creator(label: str):
     commun — le contrat du Studio : « un port arrive dans l'argument du même nom »), puis
     `**params` pour les réglages du schéma (`sanitize_tool_args` les accepte au schéma). Un port de
     consigne arrive en texte ; un port fichier, en CHEMIN désigné (`find_user_files`), passé par les
-    gardes de la désignation (`designated_file`) et par les extensions de l'app (`accepts_file`)
-    AVANT d'écrire : un fichier refusé fait refuser l'appel, rien n'est créé à moitié. Ce que la vue
-    refuse (rien à ajouter…) revient tel qu'elle le dit."""
+    gardes de la désignation (`designated_file`) et par la liste que la card propose pour CE port
+    (`port_takes`, celle de `port_accept`) AVANT d'écrire : un fichier refusé fait refuser l'appel,
+    rien n'est créé à moitié. Ce que la vue refuse (rien à ajouter…) revient tel qu'elle le dit."""
     import inspect
 
     from wama.common.app_registry import studio_node_ports
@@ -4804,7 +4804,7 @@ def _born_creator(label: str):
 
     @tool_effect(WRITE)
     def creator(user, **kwargs) -> dict:
-        from wama.common.app_registry import accepts_file
+        from wama.common.app_registry import port_takes
         from wama.common.utils.media_paths import InputRefused, designated_file, designation_field
         if refusal := _refus_app(user, label):
             return refusal
@@ -4826,9 +4826,9 @@ def _born_creator(label: str):
                     found = designated_file(value, user)
                 except InputRefused as e:
                     return {'error': f"{port.get('label') or port['id']} : {e}"}
-                if not accepts_file(label, found):
+                if not port_takes(label, port.get('types'), found):
                     return {'error': f"{port.get('label') or port['id']} : format non accepté "
-                                     f"par l'app ({Path(found).suffix or 'sans extension'})."}
+                                     f"par ce port ({Path(found).suffix or 'sans extension'})."}
             post[designation_field(port['id'])] = values
         post.update({k: v for k, v in kwargs.items() if v is not None})
         status, payload = _poster_vue(user, label, route, None, post)
