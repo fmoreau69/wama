@@ -59,7 +59,7 @@ def apply_cross_app_options(job, output_path: str, console, progress, ensure_mod
 def _ensure_denoiser(ensure_model) -> None:
     """Le débruiteur demandé à la route avant de le charger (cf. `apply_cross_app_options`)."""
     if ensure_model is not None:
-        from wama.common.backends.deepfilternet_files import DEEPFILTERNET_KEY
+        from wama.common.backends.audio_enhancer_files import DEEPFILTERNET_KEY
         ensure_model(DEEPFILTERNET_KEY)
 
 

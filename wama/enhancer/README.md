@@ -93,17 +93,27 @@ binaires ; aucun miroir du Hub n'a ces octets, `fal/DeepFilterNet3` sert un `mod
 CONVERTI). Le manque était donc DANS la route, et s'y est comblé : le pilote `files` lit un fichier de
 l'arbre d'un dépôt GitHub figé au COMMIT et un MEMBRE d'archive zip, l'archive et le membre épinglés
 à leur empreinte (`model_installer._pull_archive_member`). Les deux fichiers sont DÉCLARÉS à côté du
-moteur (`common/backends/deepfilternet_files.py` : archive au commit `82b0c7ad`, `config.ini`
+moteur (`common/backends/audio_enhancer_files.py` — `deepfilternet_files.py` à sa naissance, renommé
+le même jour pour porter aussi Resemble : archive au commit `82b0c7ad`, `config.ini`
 2 067 o et `checkpoints/model_120.ckpt.best` 8 714 073 o, identiques octet pour octet à ceux qui
 étaient en place) ; la découverte mesure leur présence, la route les installe et les désinstalle ;
 le moteur lit son dossier par CHEMIN et, s'ils manquent, refuse en nommant la route. Les glus qui le
 chargent le demandent d'abord à la route (`ctx.ensure_model`) : la file audio par le squelette, le
 `denoise` du transcriber, et le post-traitement audio du convertisseur.
 
-⚠ **Resemble Enhance, lui, tire encore ses poids hors de la route** (constat du 2026-11-02) :
-`resemble_enhance/enhancer/download.py:21-40` fait un `git clone` puis un `git pull` + `git lfs pull`
-DANS son propre paquet (`site-packages/resemble_enhance/model_repo`) à chaque chargement. Même
-nature d'écart que DeepFilterNet ; non traité ici (décision de Fabien).
+✅ **Resemble Enhance aussi, le même jour** (`REMOVAL_LEDGER R208`, demande de Fabien). Sans
+dossier, `load_enhancer(run_dir=None)` appelait `download()` (module `resemble_enhance.enhancer.download`)
+à chaque premier chargement d'un processus : `git clone` du dépôt du Hub DANS son propre paquet
+(`site-packages/resemble_enhance/model_repo`, 1,9 Go avec les vidéos de démonstration et l'historique
+LFS), puis `git pull` + `git lfs pull` sur la BRANCHE. Le moteur ne lit que deux fichiers
+(`enhancer_stage2/hparams.yaml` et le point de contrôle `ds/G/default/mp_rank_00_model_states.pt`,
+713 176 232 o — le débruiteur en est un sous-module) : ils sont DÉCLARÉS au commit `4e3510ce` du
+dépôt du Hub `ResembleAI/resemble-enhance` (`RESEMBLE_FILES`, taille et empreinte publiées par le
+Hub, identiques au clone), installés par le pilote `files` dans `MODEL_PATHS['speech']
+['resemble_enhance']`, et passés à la librairie par leur dossier (`run_dir=`). Aucune brique neuve :
+le pilote `files` lisait déjà un fichier du Hub à un commit (Bark, Phonon). La file audio le demande
+par son squelette (le moteur résolu est le modèle de la card), le banc `asr_eval_corpus` par
+`install_and_wait` ; le moteur refuse en nommant la route si les fichiers manquent.
 
 **Même modèle de réglages que l'image/vidéo (2026-10-28, porté d'un bloc)** : l'élément audio
 NAÎT avec le volet — dépôt de card ou de lot, « Envoyer vers » du gestionnaire de fichiers, outil

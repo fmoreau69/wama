@@ -2419,20 +2419,16 @@ class ModelRegistry:
                 'engine': 'deepfilternet',   # cf. `DeepFilterNetBackend.ENGINE`
             },
         }
-        # DeepFilterNet 3 a des fichiers DÉCLARÉS à côté de son moteur (2026-11-02) : sa ligne est
-        # présente ou INSTALLABLE par le pilote `files`, comme Phonon. ⚠ Resemble, lui, tire encore
-        # ses poids au premier usage DANS SON PAQUET (`ResembleEnhanceBackend.__init__`) — hors de
-        # la route, consigné dans `enhancer/README.md` §Audio.
-        from wama.common.backends.deepfilternet_files import (
-            DEEPFILTERNET_FILES, DEEPFILTERNET_KEY, deepfilternet_folder, deepfilternet_installed,
+        # Leurs fichiers sont DÉCLARÉS à côté des moteurs (2026-11-02 — DeepFilterNet 3, puis Resemble
+        # Enhance) : chaque ligne est présente, mesurée, ou INSTALLABLE par le pilote `files`, comme
+        # Phonon. Avant, `is_downloaded=True` était écrit : les deux moteurs tiraient leurs poids
+        # eux-mêmes au premier usage.
+        from wama.common.backends.audio_enhancer_files import (
+            engine_files, engine_folder, engine_installed,
         )
-        _declared = {DEEPFILTERNET_KEY: (deepfilternet_installed, {
-            'install_dir': str(deepfilternet_folder()),
-            'declared_files': DEEPFILTERNET_FILES,
-            'size_bytes': sum(f['size'] for f in DEEPFILTERNET_FILES)})}
         for _eng_id, _eng in _audio_engines.items():
             _key = f'enhancer:{_eng_id}'
-            _installed, _extra = _declared.get(_key, (lambda: True, {}))
+            _files = engine_files(_key)
             self._models[_key] = ModelInfo(
                 id=_key,
                 name=_eng['name'],
@@ -2441,8 +2437,9 @@ class ModelRegistry:
                 description=_eng['long'],
                 description_short=_eng['short'],
                 vram_gb=_eng['vram'],
-                is_downloaded=_installed(),
-                extra_info=_extra,
+                is_downloaded=engine_installed(_key),
+                extra_info={'install_dir': str(engine_folder(_key)), 'declared_files': _files,
+                            'size_bytes': sum(f['size'] for f in _files)},
                 backend_ref='enhancer',
                 # Lien modele<->moteur, LU dans la declaration `_audio_engines`.
                 composition={'runtime': {'engine': _eng['engine']}},

@@ -166,3 +166,45 @@ class TranscriberFormatTest(SimpleTestCase):
         import numpy as np
         self.assertEqual(16000, len(resampled(np.zeros(44100, dtype=np.float32), 44100)))
         self.assertIs(np.float32, resampled(np.ones(160), 16000).dtype.type)
+
+
+class EnhancedVariantAsksTheRouteTest(SimpleTestCase):
+    """La variante AMÉLIORÉE emploie Resemble Enhance : la commande demande d'abord le modèle à la
+    route et ATTEND (`install_and_wait`, 2026-11-02, R208) — le moteur ne télécharge plus rien, et
+    refuserait s'il manquait."""
+
+    def _variant(self, **options):
+        from types import SimpleNamespace
+        from unittest import mock
+
+        import numpy as np
+        import soundfile as sf
+
+        from wama.media_library.models import SystemAsset
+        from wama.transcriber.management.commands.asr_eval_corpus import Command
+        calls = []
+
+        def enhanced(src, dst, **kwargs):
+            calls.append('resemble')
+            sf.write(dst, np.zeros(441, dtype='float32'), 44100)
+        objects = mock.Mock()
+        objects.filter.return_value.first.return_value = None
+        asset = SimpleNamespace(name='talk', file=SimpleNamespace(path='talk.wav'), attributes={},
+                                source_url='', license='')
+        with mock.patch.object(SystemAsset, 'objects', objects), \
+                mock.patch('wama.common.utils.audio_decode.decode_audio',
+                           return_value=(np.zeros(160, dtype='float32'), 16000)), \
+                mock.patch('wama.common.utils.model_readiness.install_and_wait',
+                           side_effect=lambda key, **k: calls.append(key)), \
+                mock.patch('wama.common.backends.audio_enhancer.run_audio_enhancement',
+                           side_effect=enhanced), \
+                mock.patch('wama.media_library.system_files.ingest_system_file'):
+            Command(stdout=mock.Mock()).variant(asset, **options)
+        return calls
+
+    def test_the_model_is_asked_before_the_engine_runs(self):
+        self.assertEqual(['enhancer:resemble', 'resemble'], self._variant(enhance='both'))
+
+    def test_counter_proof_a_variant_without_enhancement_asks_nothing(self):
+        """Une variante nivelée passe par le même chemin (décodage, écriture, versement)."""
+        self.assertEqual([], self._variant(leveled=True))

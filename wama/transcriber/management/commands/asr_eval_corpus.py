@@ -677,8 +677,12 @@ class Command(BaseCommand):
             sf.write(str(wav), samples, SAMPLE_RATE, subtype='PCM_16')
             if enhance:
                 # La brique de l'enhancer, telle quelle (réglages par défaut de l'app : force de
-                # débruitage 0,5, 64 évaluations) ; sortie à 44,1 kHz ramenée à 16 kHz.
+                # débruitage 0,5, 64 évaluations) ; sortie à 44,1 kHz ramenée à 16 kHz. Le modèle,
+                # absent, s'installe par la route et la commande ATTEND (`install_and_wait`).
                 from wama.common.backends.audio_enhancer import run_audio_enhancement
+                from wama.common.backends.audio_enhancer_files import RESEMBLE_KEY
+                from wama.common.utils.model_readiness import install_and_wait
+                install_and_wait(RESEMBLE_KEY, console=self.stdout.write)
                 enhanced = work / f'{name}_resemble.wav'
                 run_audio_enhancement(str(wav), str(enhanced), engine='resemble', mode=enhance,
                                       denoising_strength=0.5, quality=64)

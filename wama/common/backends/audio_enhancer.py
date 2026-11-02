@@ -5,16 +5,15 @@ Engines:
   - Resemble Enhance (MIT): dual-stage denoising + enhancement, 44.1kHz output
   - DeepFilterNet 3 (MIT): real-time noise suppression, 48kHz, ultra-fast
 
-Poids de DeepFilterNet 3 : DÉCLARÉS (`deepfilternet_files`), installés par la route, lus dans
-leur dossier — le moteur ne télécharge rien (2026-11-02). ⚠ Cet en-tête disait que `HF_HUB_CACHE`
-était posé avant l'import de resemble_enhance : la mutation est retirée depuis le 2026-09-04
-(`ResembleEnhanceBackend.__init__`).
+Poids des deux moteurs : DÉCLARÉS (`audio_enhancer_files`), installés par la route, lus dans
+leur dossier — aucun moteur ne télécharge (DeepFilterNet 3 et Resemble Enhance, 2026-11-02).
+⚠ Cet en-tête disait que `HF_HUB_CACHE` était posé avant l'import de resemble_enhance : la
+mutation est retirée depuis le 2026-09-04 (ROADMAP §5b).
 """
 
 import gc
 import logging
 import os
-from pathlib import Path
 from typing import Literal, Optional
 
 from wama.common.backends.base import BaseModelBackend
@@ -91,26 +90,25 @@ def _patch_torch_elastic() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Model cache directories
+# Model files — DÉCLARÉS, installés par la route
 # ---------------------------------------------------------------------------
 
-def _get_resemble_cache() -> Path:
-    try:
-        from django.conf import settings
-        d = Path(settings.MODEL_PATHS['speech']['resemble_enhance'])
-        d.mkdir(parents=True, exist_ok=True)
-        return d
-    except Exception:
-        d = Path.home() / ".cache" / "resemble-enhance"
-        d.mkdir(parents=True, exist_ok=True)
-        return d
-
-
-# DeepFilterNet 3 : ses fichiers sont DÉCLARÉS dans un module léger (la découverte du catalogue
-# le lit sans payer l'import de torch que ce module-ci fait) ; la route les installe.
-from wama.common.backends.deepfilternet_files import (  # noqa: E402
-    DEEPFILTERNET_KEY, deepfilternet_folder, deepfilternet_installed, deepfilternet_model_dir,
+# Les fichiers des deux moteurs sont DÉCLARÉS dans un module léger (la découverte du catalogue le
+# lit sans payer l'import de torch que ce module-ci fait) ; la route les installe.
+from wama.common.backends.audio_enhancer_files import (  # noqa: E402
+    DEEPFILTERNET_KEY, RESEMBLE_KEY, engine_folder, engine_installed, engine_model_dir,
 )
+
+
+def _require_installed(key: str, name: str) -> None:
+    """Fichiers absents : on le DIT et on nomme la route — le moteur ne télécharge jamais. Une
+    tâche demande le modèle AVANT d'arriver ici (`ctx.ensure_model(<clé>)`, ou le modèle de la
+    card par le squelette), qui l'installe et la fait attendre ; une commande, par
+    `install_and_wait`."""
+    if not engine_installed(key):
+        raise RuntimeError(
+            f"{name} n'est pas installé ({engine_folder(key)}) — il s'installe par le model "
+            f"manager (ligne « {key} »).")
 
 
 # ---------------------------------------------------------------------------
@@ -126,8 +124,13 @@ class ResembleEnhanceBackend(BaseModelBackend):
 
     VRAM: 4–6 GB  |  Speed: fast
 
-    NB : backend SANS état persistant — les poids se chargent par appel dans re_denoise/re_enhance.
+    NB : backend SANS état persistant — les poids se chargent par appel dans re_denoise/re_enhance
+    (la librairie les garde en cache par dossier et appareil, `load_enhancer` sous `@cache`).
     `load()` ne fait que réchauffer (vérifier l'import) ; `unload()` est un no-op honnête.
+
+    Poids : les fichiers DÉCLARÉS (`audio_enhancer_files.RESEMBLE_FILES`), installés par la route
+    et passés à la librairie par leur dossier (`run_dir=`) — sans lui, elle clonait le dépôt du Hub
+    dans son propre paquet (R208).
     """
 
     #: Moteur piloté (contrat commun). ⚠ Déclaré le 2026-09-06 : cette classe vit HORS
@@ -141,14 +144,10 @@ class ResembleEnhanceBackend(BaseModelBackend):
     description = "Resemble Enhance — débruitage + extension de bande (diffusion), MIT."
 
     def __init__(self):
-        self._cache_dir = _get_resemble_cache()
-        # ⚠ MUTATION RETIRÉE le 2026-09-04 (ROADMAP §5b) — elle ne routait RIEN : mesuré,
-        # `resemble_enhance` télécharge son modèle par `git clone` DANS SON PROPRE PAQUET
-        # (`site-packages/resemble_enhance/model_repo`, cf. `enhancer/download.py`), et ne
-        # consulte jamais le cache HF. Son seul effet réel était donc de détourner les
-        # téléchargements HF des AUTRES libs vers le dossier resemble, pour toute la durée du
-        # processus. Un cas à part dans ce chantier : une mutation sans bénéfice, même
-        # apparent.
+        # ⚠ MUTATION RETIRÉE le 2026-09-04 (ROADMAP §5b) — elle ne routait RIEN : `resemble_enhance`
+        # ne consulte jamais le cache HF. Le téléchargement qu'elle laissait faire (`git clone` du
+        # dépôt DANS LE PAQUET, `enhancer/download.py`) est retiré à son tour le 2026-11-02 (R208) :
+        # la librairie reçoit le dossier que la route a installé.
         self._warm = False
 
     @classmethod
@@ -188,7 +187,9 @@ class ResembleEnhanceBackend(BaseModelBackend):
             return "cpu"
 
     def _load_resemble(self):
-        """Import resemble_enhance after applying the torch 2.x compatibility patch."""
+        """Import resemble_enhance after applying the torch 2.x compatibility patch — once its
+        declared files are known to be installed (the only door : `load()` and `enhance()`)."""
+        _require_installed(RESEMBLE_KEY, 'Resemble Enhance')
         _patch_torch_elastic()
         from resemble_enhance.enhancer.inference import denoise as re_denoise, enhance as re_enhance
         return re_denoise, re_enhance
@@ -238,18 +239,22 @@ class ResembleEnhanceBackend(BaseModelBackend):
         if progress_callback:
             progress_callback(20)
 
-        # Import AFTER setting HF_HUB_CACHE and patching torch 2.x compat
+        # Import AFTER patching torch 2.x compat ; the weights folder is the one the ROUTE
+        # installed — a `run_dir` given, the library never calls its `download()`.
         re_denoise, re_enhance = self._load_resemble()
+        run_dir = engine_model_dir(RESEMBLE_KEY)
 
         if mode == "denoise":
             logger.info("[ResembleEnhance] Denoising only…")
-            out_wav, out_sr = re_denoise(dwav, sr, device)
+            out_wav, out_sr = re_denoise(dwav, sr, device, run_dir=run_dir)
         elif mode == "enhance":
             logger.info("[ResembleEnhance] Enhancing only (no denoising)…")
-            out_wav, out_sr = re_enhance(dwav, sr, device, nfe=nfe, solver="midpoint", tau=0.0)
+            out_wav, out_sr = re_enhance(dwav, sr, device, nfe=nfe, solver="midpoint", tau=0.0,
+                                         run_dir=run_dir)
         else:  # both
             logger.info("[ResembleEnhance] Denoise + Enhance…")
-            out_wav, out_sr = re_enhance(dwav, sr, device, nfe=nfe, solver="midpoint", tau=denoising_strength)
+            out_wav, out_sr = re_enhance(dwav, sr, device, nfe=nfe, solver="midpoint",
+                                         tau=denoising_strength, run_dir=run_dir)
 
         if progress_callback:
             progress_callback(85)
@@ -322,18 +327,14 @@ class DeepFilterNetBackend(BaseModelBackend):
         if self._model is None:
             logger.info("[DeepFilterNet] Loading model…")
             # Les fichiers DÉCLARÉS, installés par la route (`DEEPFILTERNET_FILES`). Absents, on le
-            # DIT : la glu qui appelle le moteur demande d'abord le modèle à la route
-            # (`ctx.ensure_model(DEEPFILTERNET_KEY)`, qui l'installe et fait attendre la tâche) —
-            # le moteur ne télécharge jamais lui-même.
-            if not deepfilternet_installed():
-                raise RuntimeError(
-                    f"DeepFilterNet 3 n'est pas installé ({deepfilternet_folder()}) — il "
-                    f"s'installe par le model manager (ligne « {DEEPFILTERNET_KEY} »).")
+            # DIT (`_require_installed`) — le moteur ne télécharge jamais lui-même.
+            _require_installed(DEEPFILTERNET_KEY, 'DeepFilterNet 3')
             from df import init_df
             # Un CHEMIN : `get_model_basedir` ne télécharge que pour un NOM de modèle publié
             # (`df/enhance.py:92-98`). `log_file=None` : la librairie écrivait son `enhance.log`
             # DANS le dossier du modèle, à côté des fichiers déclarés.
-            self._model, self._df_state, _ = init_df(str(deepfilternet_model_dir()), log_file=None)
+            self._model, self._df_state, _ = init_df(str(engine_model_dir(DEEPFILTERNET_KEY)),
+                                                     log_file=None)
             logger.info("[DeepFilterNet] Model loaded ✓")
 
     # ── Garde-fou mémoire (2026-07-25) ───────────────────────────────────────

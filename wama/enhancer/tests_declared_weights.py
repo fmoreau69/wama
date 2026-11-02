@@ -93,44 +93,78 @@ class DiscoveryListsDeclaredModelsTest(SimpleTestCase):
                                                          'enhancer:deepfilternet')})
 
 
-class DeepFilterNetIsInstalledByTheRouteTest(SimpleTestCase):
-    """DeepFilterNet 3 (2026-11-02): its files are DECLARED next to its engine, the official
-    archive frozen at a commit; its catalogue row is present or installable by the `files` driver,
-    and the engine only reads its folder — `init_df("DeepFilterNet3")` used to fetch the archive of
-    the `main` BRANCH at first use, outside the catalogue."""
+class AudioEnginesAreInstalledByTheRouteTest(SimpleTestCase):
+    """Both audio engines (2026-11-02): their files are DECLARED next to them
+    (`audio_enhancer_files`), each catalogue row is measured — present or installable by the
+    `files` driver — and no engine downloads anything. Both used to fetch their weights at first
+    use, outside the catalogue, and both rows were written « downloaded »."""
 
-    def test_the_declaration_passes_the_lock_and_names_the_official_archive(self):
-        from wama.common.backends import deepfilternet_files as dfn
+    def _discover(self, root):
+        from wama.model_manager.services.model_registry import ModelRegistry
+        speech = {**settings.MODEL_PATHS.get('speech', {}),
+                  'deepfilternet': Path(root) / 'models' / 'speech' / 'deepfilternet',
+                  'resemble_enhance': Path(root) / 'models' / 'speech' / 'resemble-enhance'}
+        with self.settings(AI_MODELS_DIR=Path(root),
+                           MODEL_PATHS={**settings.MODEL_PATHS, 'speech': speech}):
+            registry = ModelRegistry()
+            registry._models = {}
+            registry._discover_enhancer_models()
+        return registry._models, speech
+
+    def test_every_declaration_passes_the_lock(self):
+        from wama.common.backends import audio_enhancer_files as aef
         from wama.model_manager.services.model_installer import declared_files_error
-        self.assertIsNone(declared_files_error(
-            {'kind': 'files', 'ref': dfn.DEEPFILTERNET_KEY, 'files': dfn.DEEPFILTERNET_FILES,
-             'target_dir': str(dfn.deepfilternet_folder())}))
-        self.assertEqual({('github', 'Rikorose/DeepFilterNet', dfn.DEEPFILTERNET_REVISION,
-                           'models/DeepFilterNet3.zip')},
-                         {(f['origin']['source'], f['origin']['repo'], f['origin']['revision'],
-                           f['origin']['file']) for f in dfn.DEEPFILTERNET_FILES})
-        self.assertEqual([f['path'] for f in dfn.DEEPFILTERNET_FILES],
-                         [f['origin']['member'] for f in dfn.DEEPFILTERNET_FILES],
-                         'each file sits where the archive puts it')
+        for key in aef.AUDIO_ENGINE_FILES:
+            with self.subTest(engine=key):
+                self.assertIsNone(declared_files_error(
+                    {'kind': 'files', 'ref': key, 'files': aef.engine_files(key),
+                     'target_dir': str(aef.engine_folder(key))}))
 
     def test_an_absent_engine_is_listed_installable_by_its_declared_files(self):
-        from wama.common.backends import deepfilternet_files as dfn
+        from wama.common.backends import audio_enhancer_files as aef
         from wama.model_manager.models import AIModel
         from wama.model_manager.services.model_installer import spec_for_catalog_row
-        from wama.model_manager.services.model_registry import ModelRegistry
         with tempfile.TemporaryDirectory() as root:
-            folder = Path(root) / 'models' / 'speech' / 'deepfilternet'
-            speech = {**settings.MODEL_PATHS.get('speech', {}), 'deepfilternet': folder}
-            with self.settings(AI_MODELS_DIR=Path(root),
-                               MODEL_PATHS={**settings.MODEL_PATHS, 'speech': speech}):
-                registry = ModelRegistry()
-                registry._models = {}
-                registry._discover_enhancer_models()
-                info = registry._models[dfn.DEEPFILTERNET_KEY]
-                spec = spec_for_catalog_row(AIModel(model_key=info.id, extra_info=info.extra_info))
-        self.assertFalse(info.is_downloaded, 'measured, no longer written « True »')
-        self.assertEqual(('files', str(folder), dfn.DEEPFILTERNET_FILES),
-                         (spec['kind'], spec['target_dir'], spec['files']))
+            models, speech = self._discover(root)
+            with self.settings(AI_MODELS_DIR=Path(root)):
+                specs = {key: spec_for_catalog_row(AIModel(model_key=key,
+                                                           extra_info=models[key].extra_info))
+                         for key in aef.AUDIO_ENGINE_FILES}
+        for key, setting in ((aef.DEEPFILTERNET_KEY, 'deepfilternet'),
+                             (aef.RESEMBLE_KEY, 'resemble_enhance')):
+            with self.subTest(engine=key):
+                self.assertFalse(models[key].is_downloaded, 'measured, no longer written « True »')
+                self.assertEqual(('files', str(speech[setting]), aef.engine_files(key)),
+                                 (specs[key]['kind'], specs[key]['target_dir'],
+                                  specs[key]['files']))
+
+    def test_counter_proof_installed_files_make_the_row_downloaded(self):
+        from wama.common.backends import audio_enhancer_files as aef
+        with tempfile.TemporaryDirectory() as root:
+            folder = Path(root) / 'models' / 'speech' / 'resemble-enhance'
+            for f in aef.RESEMBLE_FILES:
+                (folder / f['path']).parent.mkdir(parents=True, exist_ok=True)
+                with open(folder / f['path'], 'wb') as out:
+                    out.truncate(f['size'])
+            models, _ = self._discover(root)
+        self.assertTrue(models[aef.RESEMBLE_KEY].is_downloaded)
+        self.assertFalse(models[aef.DEEPFILTERNET_KEY].is_downloaded)
+
+
+class DeepFilterNetIsInstalledByTheRouteTest(SimpleTestCase):
+    """DeepFilterNet 3 (2026-11-02): the official archive frozen at a commit, each file one of its
+    members; the engine only reads its folder — `init_df("DeepFilterNet3")` used to fetch the
+    archive of the `main` BRANCH at first use."""
+
+    def test_the_declaration_names_the_official_archive(self):
+        from wama.common.backends import audio_enhancer_files as aef
+        self.assertEqual({('github', 'Rikorose/DeepFilterNet', aef.DEEPFILTERNET_REVISION,
+                           'models/DeepFilterNet3.zip')},
+                         {(f['origin']['source'], f['origin']['repo'], f['origin']['revision'],
+                           f['origin']['file']) for f in aef.DEEPFILTERNET_FILES})
+        self.assertEqual([f['path'] for f in aef.DEEPFILTERNET_FILES],
+                         [f['origin']['member'] for f in aef.DEEPFILTERNET_FILES],
+                         'each file sits where the archive puts it')
 
     def test_the_engine_never_downloads_and_says_the_route(self):
         import sys
@@ -138,10 +172,7 @@ class DeepFilterNetIsInstalledByTheRouteTest(SimpleTestCase):
         from unittest.mock import Mock
         from wama.common.backends import audio_enhancer
         init = Mock()
-        with tempfile.TemporaryDirectory() as root, \
-                patch.object(audio_enhancer, 'deepfilternet_folder', return_value=Path(root)), \
-                patch('wama.common.backends.deepfilternet_files.deepfilternet_folder',
-                      return_value=Path(root)), \
+        with patch.object(audio_enhancer, 'engine_installed', return_value=False), \
                 patch.dict(sys.modules, {'df': types.SimpleNamespace(init_df=init)}):
             with self.assertRaisesRegex(RuntimeError, 'model manager'):
                 audio_enhancer.DeepFilterNetBackend().load()
@@ -156,12 +187,84 @@ class DeepFilterNetIsInstalledByTheRouteTest(SimpleTestCase):
         def init_df(model_base_dir, **kwargs):
             seen.update(kwargs, path=model_base_dir)
             return object(), object(), ''
-        with patch.object(audio_enhancer, 'deepfilternet_installed', return_value=True), \
+        with patch.object(audio_enhancer, 'engine_installed', return_value=True), \
                 patch.dict(sys.modules, {'df': types.SimpleNamespace(init_df=init_df)}):
             self.assertTrue(audio_enhancer.DeepFilterNetBackend().load())
-        self.assertEqual(str(audio_enhancer.deepfilternet_model_dir()), seen['path'],
-                         'a PATH: the library downloads only for a published model NAME')
+        self.assertEqual(str(audio_enhancer.engine_model_dir(audio_enhancer.DEEPFILTERNET_KEY)),
+                         seen['path'], 'a PATH: the library downloads only for a published NAME')
         self.assertIsNone(seen['log_file'])
+
+
+class ResembleEnhanceIsInstalledByTheRouteTest(SimpleTestCase):
+    """Resemble Enhance (2026-11-02, R208): its two files are DECLARED at a commit of its Hub
+    repository, and the engine hands their folder to the library (`run_dir=`). Without it,
+    `load_enhancer(None)` called `download()` — a `git clone` of the whole repository INTO the
+    installed package, then `git pull` + `git lfs pull` on the BRANCH at every new process."""
+
+    def test_the_declaration_names_the_two_files_the_library_reads_at_a_commit(self):
+        from wama.common.backends import audio_enhancer_files as aef
+        self.assertEqual({('huggingface', 'ResembleAI/resemble-enhance', aef.RESEMBLE_REVISION)},
+                         {(f['origin']['source'], f['origin']['repo'], f['origin']['revision'])
+                          for f in aef.RESEMBLE_FILES})
+        self.assertEqual(['enhancer_stage2/hparams.yaml',
+                          'enhancer_stage2/ds/G/default/mp_rank_00_model_states.pt'],
+                         [f['path'] for f in aef.RESEMBLE_FILES])
+        self.assertEqual([f['path'] for f in aef.RESEMBLE_FILES],
+                         [f['origin']['file'] for f in aef.RESEMBLE_FILES],
+                         'each file sits where the repository puts it')
+        self.assertEqual(aef.engine_folder(aef.RESEMBLE_KEY) / 'enhancer_stage2',
+                         aef.engine_model_dir(aef.RESEMBLE_KEY),
+                         "the library's run_dir: hparams.yaml and ds/ live there")
+
+    def _fake_library(self, calls):
+        """`resemble_enhance.enhancer.inference` stand-in: records each call's `run_dir`, and
+        records a DOWNLOAD whenever none is given — what the real `load_enhancer` does."""
+        import sys
+        import types
+        import torch
+
+        def run(name):
+            def fn(dwav, sr, device, *args, run_dir=None, **kwargs):
+                calls.append((name, 'download' if run_dir is None else run_dir))
+                return torch.zeros(4), 44100
+            return fn
+        inference = types.ModuleType('resemble_enhance.enhancer.inference')
+        inference.denoise, inference.enhance = run('denoise'), run('enhance')
+        return patch.dict(sys.modules, {
+            'resemble_enhance': types.ModuleType('resemble_enhance'),
+            'resemble_enhance.enhancer': types.ModuleType('resemble_enhance.enhancer'),
+            'resemble_enhance.enhancer.inference': inference})
+
+    def _wav(self, root):
+        import numpy as np
+        import soundfile as sf
+        path = Path(root) / 'in.wav'
+        sf.write(str(path), np.zeros(1600, dtype='float32'), 16000)
+        return path
+
+    def test_every_mode_hands_the_installed_folder_to_the_library(self):
+        from wama.common.backends import audio_enhancer
+        calls = []
+        with tempfile.TemporaryDirectory() as root, self._fake_library(calls), \
+                patch.object(audio_enhancer, 'engine_installed', return_value=True):
+            src = self._wav(root)
+            for mode in ('denoise', 'enhance', 'both'):
+                audio_enhancer.ResembleEnhanceBackend().enhance(
+                    str(src), str(Path(root) / f'{mode}.wav'), mode=mode)
+        run_dir = audio_enhancer.engine_model_dir(audio_enhancer.RESEMBLE_KEY)
+        self.assertEqual([('denoise', run_dir), ('enhance', run_dir), ('enhance', run_dir)], calls)
+
+    def test_an_absent_engine_never_reaches_the_library_and_says_the_route(self):
+        from wama.common.backends import audio_enhancer
+        calls = []
+        with tempfile.TemporaryDirectory() as root, self._fake_library(calls), \
+                patch.object(audio_enhancer, 'engine_installed', return_value=False):
+            src = self._wav(root)
+            with self.assertRaisesRegex(RuntimeError, 'model manager.*enhancer:resemble'):
+                audio_enhancer.ResembleEnhanceBackend().enhance(str(src), str(Path(root) / 'o.wav'))
+            with self.assertRaisesRegex(RuntimeError, 'model manager'):
+                audio_enhancer.ResembleEnhanceBackend().load()
+        self.assertEqual([], calls)
 
 
 class NoParallelDownloaderTest(SimpleTestCase):

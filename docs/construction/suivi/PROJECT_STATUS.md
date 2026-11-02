@@ -27824,13 +27824,14 @@ passer par la route de wama »*, puis `/reverif`.
   d'archive zip (`member` + `archive_sha256`, `model_installer._pull_archive_member` : archive tirée
   une fois par `download_asset`, membre lu par nom, taille confrontée avant lecture, empreinte au
   fil du flux, archive retirée). Déclaration à côté du moteur, patron de Phonon :
-  `common/backends/deepfilternet_files.py` (module léger — `audio_enhancer` importe torch).
+  `common/backends/deepfilternet_files.py` (module léger — `audio_enhancer` importe torch ;
+  renommé `audio_enhancer_files.py` le soir même, ci-dessous).
   Découverte : présence MESURÉE (était `is_downloaded=True` écrit). Moteur : dossier lu par chemin,
   `log_file=None`, refus qui nomme la route. Glus : le post-traitement audio du convertisseur
   demande le modèle à la route (`ctx.ensure_model`, comme le `denoise` du transcriber, dont la clé
   est désormais lue à la déclaration).
 - **AudioCraft (`R204`)** — levier B : `poids_locaux(<dépôt>, <dossier de la famille>,
-  patterns=<composants déclarés>)` → `get_pretrained(<snapshot>)` (`loaders.py:54-56` : un dossier
+  patterns=<composants déclarés>)` → `get_pretrained(<snapshot>)` (`audiocraft.models.loaders._get_state_dict` : un dossier
   local ne télécharge rien). `AUDIOCRAFT_CACHE_DIR` ajoutée aux variables comptées par
   `tests_hf_cache_routing` (budget 0) — elle y manquait, d'où son maintien en silence.
 - **Mesuré** : archive officielle au commit `82b0c7ad` (7 986 207 o) ; ses deux membres IDENTIQUES
@@ -27842,11 +27843,38 @@ passer par la route de wama »*, puis `/reverif`.
   `87911aa4`, 2026-10-28, chantier « privacy » ; aucun des fichiers en cause touché). Sept
   contre-épreuves par `mock.patch` (aucune mutation de l'arbre partagé), toutes ROUGES sur la
   garde visée. `check_docs` 0/3732 ; langue et redondance : rien dans les lignes de la session.
-- **Restes, nommés** : ⚠ Resemble Enhance tire encore ses poids hors route (`git clone`/`pull`
+- **Restes, nommés** : ~~⚠ Resemble Enhance tire encore ses poids hors route (`git clone`/`pull`
   dans son paquet à chaque chargement, `resemble_enhance/enhancer/download.py:21-40`) — même nature,
-  décision de Fabien ; la ligne `enhancer:deepfilternet` en base reçoit ses fichiers déclarés à la
+  décision de Fabien~~ ✅ soldé le soir même (R208, ci-dessous) ; la ligne `enhancer:deepfilternet` en base reçoit ses fichiers déclarés à la
   prochaine synchronisation du catalogue ; `WAMA_MECANISMES.md` / `docs/dev/briques.md` (description
   de `hf_weights`) à régénérer par `doc_facts` — elles portent le travail en cours d'autres sessions.
+- **Suite du soir — Resemble Enhance par la route (`R208`)**, demande de Fabien : *« Pareil pour
+  Resemble Enhance, par la route. Tout doit être parfaitement aligné sur le fonctionnement de
+  wama »*. AUCUNE brique neuve : le pilote `files` lisait déjà un fichier du Hub figé à un commit
+  (Bark, Phonon). La librairie ne lit que `enhancer_stage2/hparams.yaml` et le point de contrôle
+  `enhancer_stage2/ds/G/default/mp_rank_00_model_states.pt` (le débruiteur est un sous-module de
+  l'améliorateur, mêmes poids) : DÉCLARÉS au commit `4e3510ce` de `ResembleAI/resemble-enhance`
+  (taille et empreinte publiées par le Hub = celles du clone local). La déclaration de DeepFilterNet
+  devient celle des DEUX moteurs du module (`audio_enhancer_files.py`, table `AUDIO_ENGINE_FILES` :
+  un seul lieu, une seule boucle dans la découverte, plus de `lambda: True`). Moteur : dossier passé
+  à la librairie (`run_dir=`, sans lui `load_enhancer(None)` appelle `download()`), refus qui nomme
+  la route (`_require_installed`, commun aux deux moteurs), `_get_resemble_cache` et son repli
+  `$HOME` retirés. Appelants : la file audio par son squelette (moteur résolu = modèle de la card —
+  déjà câblé, `model_key=_audio_engine`), le banc `asr_eval_corpus` par `install_and_wait` (une
+  commande, comme LPIPS au banc).
+  **Mesuré** : la route a installé Resemble dans `AI-models/models/speech/resemble-enhance` (215 s,
+  les deux fichiers aux empreintes déclarées, rien en trop), le moteur a restauré un audio (44,1 kHz)
+  sans que `download()` soit appelé et sans toucher au clone du paquet. Tests (WSL) : 318 lancés,
+  3 rouges, aucun à la session — `bardsai_pii_backend` (préexistant, ci-dessus) et le budget de
+  langue « code » mesuré 2554 pour 2555 déclarés, le −1 étant dans `wama/views.py` (travail non
+  commité d'une autre session, relevé fichier par fichier contre HEAD). Six contre-épreuves ROUGES
+  (`run_dir` retiré, porte retirée ×2, ligne écrite « installée » / jamais installée, appel retiré
+  de la commande — module rechargé en mémoire, arbre intact).
+  ⚠ **Constat de la synchro** : une synchronisation complète du catalogue tourne toutes les ~5 min
+  depuis un processus en service (`ModelSyncLog` 8844→8849) ; démarré à 15 h 26, il réécrit la ligne
+  `enhancer:resemble` avec l'ancien code (`is_downloaded=True`, aucun fichier déclaré) — juste qu'à
+  la RELANCE. 🔚 **Décision de Fabien** : l'ancien clone `site-packages/resemble_enhance/model_repo`
+  (1,9 Go dans `venv_linux`, plus rien ne le lit) — à retirer.
 
 ## §CLÔTURE 2026-11-01, « MODÈLES : INSTALLATION RECOMMANDÉE, SUCCESSION, BANCS OFFICIELS, DESCRIPTIONS — puis TIRAGE DE L'ASSISTANT (AA v5, échelle commune, variante servie) » — non poussé — 🔴 relancer gunicorn + workers — 🔚 trancher le sort de la ligne `reader:olmocr` (ci-dessous)
 

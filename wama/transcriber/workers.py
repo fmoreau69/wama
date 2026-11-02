@@ -537,8 +537,8 @@ def _level_step(t, ctx):
 
 
 #: Le modèle du débruitage, au catalogue — installé par la route s'il manque (`ensure_model`).
-#: Sa clé est celle que DÉCLARE son moteur (`deepfilternet_files`, 2026-11-02), plus une copie.
-from wama.common.backends.deepfilternet_files import DEEPFILTERNET_KEY as DENOISER_KEY  # noqa: E402
+#: Sa clé est celle que DÉCLARE son moteur (`audio_enhancer_files`, 2026-11-02), plus une copie.
+from wama.common.backends.audio_enhancer_files import DEEPFILTERNET_KEY as DENOISER_KEY  # noqa: E402
 
 
 def _denoise_step(t, ctx):

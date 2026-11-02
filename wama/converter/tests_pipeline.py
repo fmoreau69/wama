@@ -164,7 +164,7 @@ class TheDenoiserIsAskedFromTheRouteTest(SimpleTestCase):
         return calls
 
     def test_the_denoiser_is_asked_before_it_is_loaded(self):
-        from wama.common.backends.deepfilternet_files import DEEPFILTERNET_KEY
+        from wama.common.backends.audio_enhancer_files import DEEPFILTERNET_KEY
         self.assertEqual([DEEPFILTERNET_KEY, 'denoise'], self._apply({'audio_enhance': True}))
 
     def test_counter_proof_nothing_is_asked_when_no_post_processing_is(self):
