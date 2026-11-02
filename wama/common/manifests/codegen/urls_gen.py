@@ -119,10 +119,9 @@ ROUTE_ALIASES = {
     # C'est exactement ce que cette table existe pour absorber, comme le dit `progress` ci-dessus.
     # (`duplicate_media` RETIRÉ le 2026-10-31 : l'anonymizer est passé à `duplicate/<int:pk>/`
     # — l'alias ne nommait plus rien, et le kwarg `media_id` cassait la vue générée.)
-    # ⚠ `clear_media` (au singulier) N'EST PAS un alias : il supprime UN élément par `media_id`
-    # et délègue au même travail que `delete` (views.py:1389). L'aliaser ferait vider la file
-    # quand on demande une suppression — pire que l'absence. Seul `clear_all_media` efface tout
-    # (views.py:1292, « Delete all media files for the current user »).
+    # ⚠ `clear_media` (au singulier) N'ÉTAIT PAS un alias : il supprimait UN élément par
+    # `media_id` (retiré le 2026-11-02, R205). L'aliaser aurait fait vider la file quand on
+    # demandait une suppression — pire que l'absence. Seul `clear_all_media` efface tout.
     'clear_all': ('clear_all_media',),
     # anonymizer, même raison : son ⬇ de file s'appelle `download_all_media`. Ajouté le
     # 2026-10-20 avec la FILE commune (`common/_queue.html`), qui lit ses trois routes ici.

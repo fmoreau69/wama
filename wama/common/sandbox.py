@@ -18,6 +18,7 @@ sans effet de bord. La commande `manage.py app_sandbox` (create/drop/list) est l
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -50,7 +51,16 @@ def load_registry() -> list:
             _REGISTRY_CACHE['data'] = data if isinstance(data, list) else []
             _REGISTRY_CACHE['stamp'] = stamp
         return [dict(e) if isinstance(e, dict) else e for e in _REGISTRY_CACHE['data']]
+    except FileNotFoundError:
+        return []
     except Exception:
+        # Un registre PRÉSENT mais illisible n'est pas « aucune jumelle » : lu au démarrage, il
+        # retire TOUTES les jumelles du processus (vécu le 2026-11-02, gunicorn démarré pendant
+        # que le registre était faux : aucune route, aucune card au catalogue) — jamais en silence.
+        import logging
+        logging.getLogger('wama.sandbox').warning(
+            "Registre des bacs à sable illisible (%s) — aucune jumelle chargée", REGISTRY_PATH,
+            exc_info=True)
         return []
 
 
@@ -265,8 +275,11 @@ def save_registry(entries: list) -> None:
     if running_tests() and Path(REGISTRY_PATH).resolve() == Path(_REAL_REGISTRY_PATH).resolve():
         raise PermissionError("le registre réel des bacs à sable ne s'écrit pas pendant les tests : "
                               "simuler `save_registry`, ou rediriger `REGISTRY_PATH`")
-    REGISTRY_PATH.write_text(
-        json.dumps(entries, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    # Écrit à côté puis REMPLACE d'un geste : un processus qui démarre pendant l'écriture lit
+    # l'ancien registre ou le nouveau, jamais un fichier à moitié écrit.
+    partial = REGISTRY_PATH.with_name(REGISTRY_PATH.name + '.part')
+    partial.write_text(json.dumps(entries, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    os.replace(partial, REGISTRY_PATH)
 
 
 # ── Les DÉVELOPPEURS d'une app du bac à sable (2026-11-02, décision de Fabien) ────────────────
@@ -356,8 +369,19 @@ def twins_with_copied_views() -> set:
 
 
 def sandbox_installed_apps() -> list:
-    """Entrées INSTALLED_APPS des jumelles (consommé par settings.py)."""
-    return [f'wama.{label}' for label in sandbox_labels()]
+    """Entrées INSTALLED_APPS des jumelles (consommé par settings.py, une fois au démarrage).
+
+    Une ligne du registre sans paquet est écartée (garde de `sandbox_labels`) — et DITE ici :
+    un registre remplacé par des lignes étrangères (vécu le 2026-11-02, deux lignes de test)
+    faisait démarrer le serveur sans aucune jumelle, sans une ligne de journal."""
+    labels = sandbox_labels()
+    dropped = [e.get('label') for e in load_registry()
+               if isinstance(e, dict) and e.get('label') not in labels]
+    if dropped:
+        import logging
+        logging.getLogger('wama.sandbox').warning(
+            "Jumelle(s) du registre sans paquet, non chargée(s) : %s", ', '.join(map(str, dropped)))
+    return [f'wama.{label}' for label in labels]
 
 
 def sandbox_urlpatterns():

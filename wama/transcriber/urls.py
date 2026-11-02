@@ -18,7 +18,8 @@ urlpatterns = [
     # ▶ d'UN process de la card (lancement borné) — le ▶ de la bande des process.
     path('start/<int:pk>/<str:process>/', views.start_process, name='start_process'),
     path('stop/<int:pk>/', views.stop, name='stop'),
-    path('enrich/<int:pk>/', views.enrich, name='enrich'),
+    # (`enrich/<pk>/`, le résumé « à la demande », retiré le 2026-11-02 — R206 : c'est le ▶ du
+    # process `summarize`, `start/<pk>/summarize/`.)
     path('progress/<int:pk>/', views.progress, name='progress'),
     path('card/<int:pk>/html/', views.card_html, name='card_html'),
     path('download/<int:pk>/', views.download, name='download'),

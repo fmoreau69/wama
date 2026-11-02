@@ -8,7 +8,7 @@ import platform
 from django.shortcuts import render, redirect
 from django.views import View
 from django.views.generic import TemplateView
-from django.http import JsonResponse, FileResponse, HttpResponseBadRequest, HttpResponse
+from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 from django.core.cache import cache
@@ -833,19 +833,12 @@ def _pipeline_view(t, preloaded=False):
     return decorate(t, preloaded=preloaded)
 
 
-def card_html(request, pk: int):
-    """Card RENDUE serveur — source UNIQUE du markup (partial _transcript_card.html ;
-    CARD_DESIGN « partial server-side + update JS en place, PAS de rebuild », audit A2-9/10).
-    Consommée par refreshCard() côté JS aux transitions d'état (start/échec)."""
-    from django.http import HttpResponse
-    from django.template.loader import render_to_string
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = visible_or_404(Transcript, user, pk=pk)   # LECTURE : le sien OU reçu (2026-10-02)
-    from wama.common.utils.batch_common import is_batch_child
-    _decorate_card(t)
-    html = render_to_string('transcriber/_transcript_card.html',
-                            {'elem': t, 'in_batch': is_batch_child(t)}, request=request)
-    return HttpResponse(html)
+# Card RENDUE serveur — source UNIQUE du markup (partial _transcript_card.html), consommée par
+# refreshCard() aux transitions d'état : fabrique commune (`make_card_view`, 2026-11-02).
+from wama.common.utils.item_views import make_card_view  # noqa: E402
+
+card_html = make_card_view(work_model=Transcript, template='transcriber/_transcript_card.html',
+                           decorate=lambda t: _decorate_card(t))
 
 
 def _progress_extra(t):
@@ -978,26 +971,10 @@ def _cleanup_output_files(t: Transcript, user_id: int) -> None:
             pass
 
 
-@require_POST
-def enrich(request, pk: int):
-    """Lance l'enrichissement LLM (résumé, points clés, actions) sur un transcript déjà transcrit."""
-    import json
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    t = editable_or_404(Transcript, user, pk=pk)
-
-    if not t.text:
-        return JsonResponse({'error': 'Pas de texte transcrit'}, status=400)
-
-    try:
-        data = json.loads(request.body)
-    except Exception:
-        data = {}
-    summary_type = data.get('summary_type', t.summary_type or 'structured')
-
-    from .workers import enrich_transcript
-    task = enrich_transcript.delay(t.id, summary_type)
-    return JsonResponse({'ok': True, 'task_id': task.id, 'summary_type': summary_type})
+# `enrich` (le résumé « à la demande », tâche `enrich_transcript`) RETIRÉ le 2026-11-02 — R206 : sans
+# appelant, il recopiait la glu du process `summarize` hors du squelette (ni ligne d'exécution, ni
+# garde de re-livraison). Le résumé d'une transcription faite est le ▶ de ce process
+# (`start/<pk>/summarize/`, `make_process_start_view`), comme le dit `function_specs`.
 
 
 def console_content(request):
@@ -1018,16 +995,12 @@ download_all = _pv['download_all']
 
 def batch_template(request):
     """Template batch téléchargeable, GÉNÉRÉ depuis la déclaration des champs
-    (brique commune build_batch_template — plus de contenu en dur, A5-23)."""
-    from django.http import HttpResponse
-    from wama.common.utils.batch_parsers import build_batch_template
-    text = build_batch_template(
-        ['fichier'],
-        {'fichier': 'https://example.com/audio.mp3'},
-        app_label='Transcriber (une URL ou chemin audio/vidéo par ligne)')
-    response = HttpResponse(text, content_type='text/plain; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="batch_transcriber_template.txt"'
-    return response
+    (brique commune build_batch_template — plus de contenu en dur, A5-23), servi par
+    `batch_template_response` (2026-11-02), avec les formats que l'app déclare."""
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'transcriber', ['fichier'], {'fichier': 'https://example.com/audio.mp3'},
+        label='Transcriber (une URL ou chemin audio/vidéo par ligne)')
 
 
 @require_POST

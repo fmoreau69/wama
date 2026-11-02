@@ -10,7 +10,7 @@ import tempfile
 
 from django.shortcuts import render
 from django.views import View
-from django.http import JsonResponse, FileResponse, HttpResponse
+from django.http import JsonResponse, FileResponse
 from django.core.cache import cache
 from django.views.decorators.http import require_POST
 from django.db import transaction
@@ -462,15 +462,12 @@ start_process = app_access('reader')(make_process_start_view(
     get_user=_get_user, reset_on_start=_reset_for_relaunch))
 
 
-def card_html(request, pk: int):
-    """Card RENDUE serveur — source UNIQUE du markup v3 (partial _item_card.html ;
-    CARD_DESIGN §3, update JS en place). `in_batch` : position dans la file, brique commune."""
-    from wama.common.utils.batch_common import is_batch_child
-    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
-    item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
-    _decorate_with_processes(item)
-    return render(request, 'reader/_item_card.html',
-                  {'elem': item, 'in_batch': is_batch_child(item)})
+# Card RENDUE serveur — source UNIQUE du markup v3 (partial _item_card.html) : fabrique commune
+# (`make_card_view`, 2026-11-02).
+from wama.common.utils.item_views import make_card_view  # noqa: E402
+
+card_html = make_card_view(work_model=ReadingItem, template='reader/_item_card.html',
+                           decorate=lambda item: _decorate_with_processes(item))
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
@@ -507,19 +504,13 @@ def analyze(request, pk: int):
 
 
 def batch_template(request):
-    """Download a batch file template (.txt)."""
-    template_content = (
-        "# WAMA Reader - Batch Import\n"
-        "# Format : une URL ou chemin de fichier par ligne\n"
-        "# Les lignes commençant par # sont des commentaires.\n"
-        "# Formats supportés : PDF, JPG, PNG, TIFF, WebP\n"
-        "\n"
-        "https://example.com/document.pdf\n"
-        "/media/uploads/scan.jpg\n"
-    )
-    response = HttpResponse(template_content, content_type='text/plain; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="batch_reader_template.txt"'
-    return response
+    """Gabarit de fichier batch, par la brique commune (`batch_template_response`) : une source
+    par ligne, les formats que l'app DÉCLARE (la liste était recopiée ici, et plus courte).
+    Écrit à la main jusqu'au 2026-11-02."""
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'reader', ['source'], {'source': 'https://example.com/document.pdf'},
+        label='Reader (une URL ou un chemin de document ou d’image par ligne)')
 
 
 @require_POST

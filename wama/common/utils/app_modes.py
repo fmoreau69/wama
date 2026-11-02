@@ -544,6 +544,18 @@ def element_domain(element) -> str | None:
     return named[0] if len(named) == 1 else None
 
 
+def element_domain_or_first(element) -> str | None:
+    """Le domaine d'un élément (`element_domain`), sinon le PREMIER que son app déclare — celui
+    où sa card s'affiche ; None pour une app sans domaine. Une règle (2026-11-02) : l'imager
+    l'écrivait pour ses lots et ses cards, la fabrique de la card rendue seule la récrivait."""
+    found = element_domain(element)
+    if found:
+        return found
+    app = getattr(getattr(type(element), '_meta', None), 'app_label', None)
+    domains = get_domains(app) if app else []
+    return domains[0]['id'] if domains else None
+
+
 def domain_filter(app: str, domain_id: str):
     """Les éléments de ce domaine EN BASE : `callable(queryset) -> queryset`, ou None quand le
     domaine a sa card à lui (aucun tri à faire : tous les éléments de son modèle sont à lui).

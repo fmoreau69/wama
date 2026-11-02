@@ -28,7 +28,7 @@ urlpatterns = [
     path('start-all/', views.start_all, name='start_all'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     # Partial de card (contrat card_html/refreshCard — F5)
-    path('card/<int:generation_id>/html/', views.card_html, name='card_html'),
+    path('card/<int:pk>/html/', views.card_html, name='card_html'),
     # Réglages appliqués à tout un batch (modale contexte 'batch')
     path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),
     path('batch/<int:pk>/promote/', views.batch_promote, name='batch_promote'),
@@ -51,8 +51,6 @@ urlpatterns = [
     # GET lit, POST enregistre, à la même adresse. La lecture occupait `settings/<id>/` et
     # l'écriture avait dû prendre `settings/<pk>/save/` ; les deux vues sont aiguillées ici.
     path('settings/<int:pk>/', views.generation_settings, name='update_settings'),
-    # Ancienne adresse du ⏹, qui délègue au geste commun (`stop`) — REMOVAL_LEDGER.
-    path('force-reset/<int:generation_id>/', views.force_reset_generation, name='force_reset'),
 
     # Multi-modal generation endpoints
     path('auto-prompt/', views.generate_auto_prompt, name='auto_prompt'),

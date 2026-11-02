@@ -243,8 +243,9 @@ def delete_singleton_batches(batch_model, fk_name, user, item_ids):
     ).distinct().delete()
 
 
-def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
-                      item_extra=None, batch_extra=None, wrap_group=None, order_by='id'):
+def auto_wrap_orphans(user, *, work_model, batch_model, item_model=None, fk_name=None,
+                      item_extra=None, batch_extra=None, wrap_group=None, order_by='id',
+                      scope=None):
     """Rattache paresseusement (au chargement de page) les items hors batch.
 
     Les orphelins proviennent des imports serveur (« Envoyer vers » du filemanager…) —
@@ -264,15 +265,22 @@ def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
         ``wrap_group`` écrit uniquement pour poser un champ : la stratégie par défaut suffit
         alors, et l'app ne réimplémente pas la boucle.
 
+    Les deux formes du dépôt, comme `attach_to_batch` : par LIAISON (`item_model`, `fk_name`), ou à
+    FK DIRECTE (sans eux : l'élément porte `batch` — le converter, qui écrivait sa propre boucle
+    jusqu'au 2026-11-02, comme l'avatarizer, sans le geste silencieux ni les champs allégés).
+    ``scope`` : dict de filtres — les éléments que la file range (converter : pas les jobs
+    éphémères d'une conversion rapide, qui n'entrent jamais dans un lot).
+
     Silencieux par item (un orphelin cassé ne bloque pas la page — comportement historique).
     Returns: liste des batchs créés (vide si aucun orphelin).
     """
-    existing_ids = set(
-        item_model.objects.filter(batch__user=user).values_list(f'{fk_name}_id', flat=True)
-    )
-    orphans = list(without_heavy_fields(
-        work_model.objects.filter(user=user).exclude(id__in=existing_ids).order_by(order_by)
-    ))
+    mine = work_model.objects.filter(user=user, **(scope or {}))
+    if item_model is None:
+        mine = mine.filter(batch__isnull=True)
+    else:
+        mine = mine.exclude(id__in=set(
+            item_model.objects.filter(batch__user=user).values_list(f'{fk_name}_id', flat=True)))
+    orphans = list(without_heavy_fields(mine.order_by(order_by)))
     if not orphans:
         return []
     if wrap_group is not None:
@@ -377,10 +385,11 @@ def without_heavy_fields(queryset):
 def _works_prefetch(batch_model, items_related, work_attr):
     """Le prefetch des éléments d'une file, SANS les champs lourds de leur modèle (`without_heavy_fields`)."""
     from django.db.models import Prefetch
-    path = f'{items_related}__{work_attr}'
+    path = f'{items_related}__{work_attr}' if work_attr else items_related
     try:
         link_model = batch_model._meta.get_field(items_related).related_model
-        work_model = link_model._meta.get_field(work_attr).related_model
+        work_model = (link_model._meta.get_field(work_attr).related_model if work_attr
+                      else link_model)                 # FK directe : les lignes SONT les éléments
     except Exception:
         return path
     if not getattr(work_model, 'QUEUE_DEFERRED_FIELDS', None):
@@ -400,7 +409,10 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
                                                   # None hors surface évaluable
 
     Args:
-        work_attr  : nom de la FK métier sur le modèle de liaison ('transcript', 'generation'…).
+        work_attr  : nom de la FK métier sur le modèle de liaison ('transcript', 'generation'…) ;
+                     None pour la forme à FK DIRECTE (l'élément porte `batch`, ses lignes SONT les
+                     éléments : le converter, qui construisait sa file à la main jusqu'au
+                     2026-11-02 — sans `awaiting_count`, `stale_count`, évaluation ni accord).
         has_output : callable(work)->bool optionnel — 'has_success' exige alors au moins un
                      SUCCESS avec sortie exploitable (ex. composer : audio_output non vide) ;
                      sinon 'has_success' = success_count > 0.
@@ -416,8 +428,12 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
     # bonne unité de partage : une card isolée est déjà auto-enveloppée dans son propre batch
     # (cf. `_auto_wrap_orphans`), donc partager ce batch revient à partager la card — sans avoir
     # à faire remonter des works dont le contenant, lui, ne serait pas partagé.
-    _mgr = batch_model.objects
-    base = _mgr.visible_to(user) if hasattr(_mgr, 'visible_to') else _mgr.filter(user=user)
+    # ⚠ Par `listable_by`, le domicile de la règle de LISTE (2026-11-02) : un compte de VISITEUR ne
+    # liste que ce qu'il possède. Lu ici par `visible_to`, un visiteur aurait hérité des lots
+    # publics de tout le parc ; seul le converter (la seule app ouverte aux visiteurs) appliquait
+    # la règle, dans la file qu'il construisait à la main.
+    from wama.common.utils.scoping import listable_by
+    base = listable_by(batch_model.objects.all(), user)
     batches = (base
                .prefetch_related(_works_prefetch(batch_model, items_related, work_attr))
                .order_by(order_by))
@@ -438,8 +454,9 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
         if arrangement is None:
             continue
         # sorted() sur le cache prefetch (pas de .order_by() ici : re-requêterait par batch)
+        row_field = 'row_index' if work_attr else 'batch_row_index'
         items = sorted(getattr(batch, items_related).all(),
-                       key=lambda it: getattr(it, 'row_index', 0) or 0)
+                       key=lambda it: getattr(it, row_field, 0) or 0)
         # ── Alias NORMALISÉ `elem` (2026-08-24) ───────────────────────────────
         # Chaque app nomme son élément métier autrement sur la liaison — `media`,
         # `generation`, `transcript`, `reading`, `synthesis`, `enhancement`… — et le
@@ -457,7 +474,7 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
         # Posé sur l'instance (pas en base) : aucun champ, aucune migration, aucune requête —
         # la valeur vient du `prefetch_related` juste au-dessus.
         for _it in items:
-            _it.elem = getattr(_it, work_attr, None)
+            _it.elem = getattr(_it, work_attr, None) if work_attr else _it
         if batch.user_id != getattr(user, 'pk', None):
             # Lot REÇU : seulement les cards partagées avec lui (`visible_members`). Le total est
             # recompté EN MÉMOIRE (jamais sauvé) — un lot réduit à une card s'affiche alors en card

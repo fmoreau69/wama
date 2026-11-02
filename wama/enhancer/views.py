@@ -496,19 +496,13 @@ def _apply_enhancement_settings(e, data):
 # ===========================================================================
 
 def batch_template(request):
-    """Download a batch file template (.txt)."""
-    from django.http import HttpResponse
-    content = (
-        "# WAMA Enhancer - Batch Import\n"
-        "# Format : une URL ou chemin de fichier image/vidéo par ligne\n"
-        "# Les lignes commençant par # sont des commentaires.\n\n"
-        "https://example.com/image.jpg\n"
-        "https://example.com/video.mp4\n"
-        "/media/uploads/photo.png\n"
-    )
-    response = HttpResponse(content, content_type='text/plain; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="batch_enhancer_template.txt"'
-    return response
+    """Gabarit de fichier batch du domaine image / vidéo, par la brique commune
+    (`batch_template_response`) : une source par ligne, les formats que le domaine déclare.
+    Écrit à la main jusqu'au 2026-11-02."""
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'enhancer', ['source'], {'source': 'https://example.com/photo.jpg'},
+        label='Enhancer (une URL ou un chemin image/vidéo par ligne)', domain='image_video')
 
 
 @require_POST
@@ -804,20 +798,14 @@ audio_download_all = _apv['download_all']
 # ===========================================================================
 
 def audio_batch_template(request):
-    """Download a batch file template for audio enhancement."""
-    content = (
-        "# WAMA Enhancer — Batch Audio Import\n"
-        "# Format : une URL ou chemin de fichier audio par ligne\n"
-        "# Les lignes commençant par # sont des commentaires.\n"
-        "# Formats supportés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA\n"
-        "\n"
-        "https://example.com/audio.mp3\n"
-        "/media/uploads/voice.wav\n"
-    )
-    from django.http import HttpResponse
-    response = HttpResponse(content, content_type='text/plain; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="batch_audio_enhancer_template.txt"'
-    return response
+    """Gabarit de fichier batch du domaine audio, par la brique commune
+    (`batch_template_response`) : une source par ligne, les formats que le domaine DÉCLARE (la
+    liste était recopiée ici). Écrit à la main jusqu'au 2026-11-02."""
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'audio_enhancer', ['source'], {'source': 'https://example.com/voice.wav'},
+        label='Enhancer audio (une URL ou un chemin audio par ligne)',
+        app='enhancer', domain='audio')
 
 
 @require_POST
@@ -938,26 +926,14 @@ def _req_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
 
-def card_html(request, pk):
-    """Card média = partial serveur UNIQUE (source du markup, remplace appendRow JS)."""
-    from wama.common.utils.scoping import visible_or_404
-    e = visible_or_404(Enhancement, _req_user(request), pk=pk)   # LECTURE : le sien OU reçu (2026-10-02)
-    _decorate_media_card(e)  # chips du schéma — même décoration que l'IndexView
-    # `in_batch` : position dans la file, brique commune. L'ancien `.exists()` valait True pour
-    # un lot UNITAIRE (toute card est enveloppée dans son lot) → card seule rendue en fille.
-    from wama.common.utils.batch_common import is_batch_child
-    return render(request, 'enhancer/_enhancement_card.html',
-                  {'elem': e, 'in_batch': is_batch_child(e)})
+# Card de chaque domaine = partial serveur UNIQUE, par la fabrique commune (`make_card_view`,
+# 2026-11-02) ; la décoration est celle de l'IndexView (chips du schéma, process).
+from wama.common.utils.item_views import make_card_view  # noqa: E402
 
-
-def audio_card_html(request, pk):
-    """Card audio = partial serveur UNIQUE (remplace appendAudioRow JS)."""
-    from wama.common.utils.scoping import visible_or_404
-    ae = visible_or_404(AudioEnhancement, _req_user(request), pk=pk)   # LECTURE : le sien OU reçu (2026-10-02)
-    _decorate_audio_card(ae)  # chips du schéma — même décoration que l'IndexView
-    from wama.common.utils.batch_common import is_batch_child
-    return render(request, 'enhancer/_audio_card.html',
-                  {'elem': ae, 'in_batch': is_batch_child(ae)})
+card_html = make_card_view(work_model=Enhancement, template='enhancer/_enhancement_card.html',
+                           decorate=lambda e: _decorate_media_card(e))
+audio_card_html = make_card_view(work_model=AudioEnhancement, template='enhancer/_audio_card.html',
+                                 decorate=lambda ae: _decorate_audio_card(ae))
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante liaison) ──────

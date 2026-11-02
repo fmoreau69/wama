@@ -1858,7 +1858,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `is_test_module(rel_parts) -> bool` — Le fichier (chemin RELATIF au paquet, en parties) est-il un module de TEST ?
   - `is_copied_twin_test(module_name: str, labels=None) -> bool` — Le module de test `module_name` (`wama.<jumelle>.tests_x`) est-il un test COPIÉ d'une
   - `twins_with_copied_views() -> set` — Labels des jumelles dont les VUES sont une COPIE figée de l'app source (non régénérées).
-  - `sandbox_installed_apps() -> list` — Entrées INSTALLED_APPS des jumelles (consommé par settings.py).
+  - `sandbox_installed_apps() -> list` — Entrées INSTALLED_APPS des jumelles (consommé par settings.py, une fois au démarrage).
   - `sandbox_urlpatterns()` — URLconfs des jumelles — préfixe = label (underscore assumé : `/converter_01/` — le
   - `inject_sandbox_access(default_app_access: dict, app_group: dict) -> None` — Gating DEV-ONLY des jumelles (contrat marche S §3) + groupe d'affichage dédié.
   - `inject_sandbox_catalog(app_catalog: dict) -> None` — Entrées APP_CATALOG des jumelles : CLONE de l'app source (mêmes conventions — la
@@ -2153,16 +2153,17 @@ La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_vie
 
 ### ▶ d'une card, ▶ et 🗑 de la file (fabrique commune)
 
-Les vues `start`, `start_all` et `clear_all` d'une app — `make_item_views` (2026-10-29, ROUTE §11 #39) : anti-course (`begin_processing`), remise à zéro de l'app sous le verrou, cache de progression purgé, tâche envoyée ; « tout lancer » selon la sélection DÉCLARÉE (`pending` / `pending_exclude`, noms de `TRIAD_SPECS`) et, s'il en porte, les réglages postés vérifiés sur toute la file avant le premier lancement ; « tout effacer » sans les éléments en vol, par le geste de retrait de `batch_delete` (`discard_element`). Le menu ▾ de la barre de file offre les PÉRIMÈTRES (`START_SCOPES` / `CLEAR_SCOPES`, `?scope=`), grisés quand ils sont vides d'après les compteurs de la file. Trente copies dans dix apps. La fabrique INSCRIT sa déclaration par modèle (`declaration_for`) : l'outil `start_<app>` de l'assistant la lit — un geste, deux portes, comme `start_one_process`. Et les autres gestes d'une card, ⏹ ⬇ 🗑 ⧉ ⚙ (2026-11-01, ROUTE §11 #42 ④), lus à la déclaration que l'app donne à sa fabrique de lot (`batch_views.element_declaration`) : la copie rangée par `batch_common.place_copy`, le résultat servi comme son ZIP l'écrit (`ResultArchive`) — les dix apps le 2026-11-02, leurs spécificités déclarées (`on_stop`, `item_settings`, `item_empty_is_value`, `settings_file`)
+Les vues `start`, `start_all` et `clear_all` d'une app — `make_item_views` (2026-10-29, ROUTE §11 #39) : anti-course (`begin_processing`), remise à zéro de l'app sous le verrou, cache de progression purgé, tâche envoyée ; « tout lancer » selon la sélection DÉCLARÉE (`pending` / `pending_exclude`, noms de `TRIAD_SPECS`) et, s'il en porte, les réglages postés vérifiés sur toute la file avant le premier lancement ; « tout effacer » sans les éléments en vol, par le geste de retrait de `batch_delete` (`discard_element`). Le menu ▾ de la barre de file offre les PÉRIMÈTRES (`START_SCOPES` / `CLEAR_SCOPES`, `?scope=`), grisés quand ils sont vides d'après les compteurs de la file. Trente copies dans dix apps. La fabrique INSCRIT sa déclaration par modèle (`declaration_for`) : l'outil `start_<app>` de l'assistant la lit — un geste, deux portes, comme `start_one_process`. Et les autres gestes d'une card, ⏹ ⬇ 🗑 ⧉ ⚙ (2026-11-01, ROUTE §11 #42 ④), lus à la déclaration que l'app donne à sa fabrique de lot (`batch_views.element_declaration`) : la copie rangée par `batch_common.place_copy`, le résultat servi comme son ZIP l'écrit (`ResultArchive`) — les dix apps le 2026-11-02, leurs spécificités déclarées (`on_stop`, `item_settings`, `item_empty_is_value`, `settings_file`) ; et la card rendue seule (`make_card_view`), avec les clés que la file lui donne
 
 - **Domicile** : `wama/common/utils/item_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les vues d'ÉLÉMENT et de FILE : ▶ d'une card, ▶ de la file, 🗑 de la file (`make_item_views`, `WAMA_APP_GENERATION_ROUTE.md §11 #39`) ; puis les autres gestes d'une card, ⏹ ⬇ 🗑 ⧉ ⚙ (2026-11-01, `§11 #42` ④), lus à la déclaration que l'app donne déjà à sa fabrique de lot (`batch_views.element_declaration`) — l'enhancer les écrivait deux fois, une par domaine.
-- **API publique** (7) :
+- **API publique** (8) :
   - `queue_scopes(action: str) -> list` — Les entrées du menu ▾ d'une action de file (`start` | `clear`) : `{key, label, counter}` —
   - `class ItemStart` — Ce qu'une app déclare de son ▶ — lu par les vues ET par l'outil de l'assistant.
   - `declaration_for(work_model)` — La déclaration du ▶ de `work_model`, ou None. Inscrite au chargement des vues de son app :
   - `start_one_item(declaration, pk, *, user, reset=None)` — Le ▶ d'UN élément : `(élément, tâche, None)`, ou `(None, None, (statut HTTP, message))`.
   - `start_queue(declaration, user, *, settings=None, apply_settings=None, on_queue_settings=None, scope: str='')` — « Tout lancer » : chaque élément que la déclaration retient, par le geste du ▶.
+  - `make_card_view(*, work_model, template: str, decorate=None, get_user=request_user)` — La vue `card_html(request, pk)` d'une app : la card d'UN élément rendue par le serveur
   - `discard_element(item, *, progress_key='', on_delete=None)` — Retirer UN élément de la file : révoquer sa tâche en file, ce que l'app sait de lui
   - `make_item_views(*, work_model, app_id: str, task=None, task_for=None, get_user=request_user, reset_on_start=None, startable=None, unstartable_message: str='',…` — Les vues `start(request, pk)`, `start_all(request)` et `clear_all(request)` d'une app.
 
@@ -2213,11 +2214,11 @@ Ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier, 
 
 ### Import par lot
 
-Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le 2026-10-20 : `parse_batch_lines` (les lignes normalisées, toutes familles) et `line_to_ports` (une ligne rangée dans les PORTS d'un nœud : colonne au nom d'un port, rôles `-i`/`-p`/`-r` en alias, refus nommé) — lus par le Studio
+Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le 2026-10-20 : `parse_batch_lines` (les lignes normalisées, toutes familles) et `line_to_ports` (une ligne rangée dans les PORTS d'un nœud : colonne au nom d'un port, rôles `-i`/`-p`/`-r` en alias, refus nommé) — lus par le Studio. Depuis le 2026-11-02 : le gabarit téléchargeable de chaque app servi par `batch_template_response` (formats lus à la déclaration), le rangement des orphelins et la file aux deux formes de rattachement (FK directe comprise), la file listée par `listable_by`
 
 - **Domicile** : `wama/common/utils/batch_parsers.py` · **doc** : [docs/construction/ui/BATCH_FORMAT.md](../construction/ui/BATCH_FORMAT.md)
 - **Module** : WAMA Common — Batch file parsers
-- **API publique** (20) :
+- **API publique** (22) :
   - `batch_file_refusal(filename: str, extra=()) -> str` — Le motif de refus d'un fichier de lot, ou '' s'il est d'un format de lot.
   - `parse_batch_file_from_request(request, parser: Optional[Callable]=None) -> Tuple[List[Dict], List[str]]` — Extract batch_file from request.FILES, validate extension, parse it, clean up.
   - `add_filename_to_items(items: List[Dict]) -> List[Dict]` — Add a 'filename' key to each item dict derived from item['path'].
@@ -2236,7 +2237,9 @@ Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le 
   - `is_csv_header_batch(text: str) -> bool` — True si la 1ʳᵉ ligne utile est un en-tête tableur (délimiteur , ; | ou tab)
   - `parse_csv_header_batch(text: str) -> Tuple[List[Dict], List[str]]` — Parse un tableur à en-têtes (délimiteur sniffé) → items normalisés (clés des balises).
   - `is_structured_batch_text(text: str) -> bool` — True si le texte est un batch structuré (CSV à en-têtes OU balises).
-  - `build_batch_template(fields, example, *, app_label='')` — Génère le TEMPLATE batch d'une app depuis sa DÉCLARATION de champs (A5-23).
+  - `build_batch_template(fields, example, *, app_label='', positional=True, notes=())` — Génère le TEMPLATE batch d'une app depuis sa DÉCLARATION de champs (A5-23).
+  - `accepted_formats_note(app, domain=None) -> str` — « Formats acceptés : … » — les extensions que l'app DÉCLARE (`input_extensions` du
+  - `batch_template_response(app_id, fields, example, *, label='', positional=True, notes=(), app=None, domain=None)` — La RÉPONSE de la vue `batch_template` d'une app : le gabarit de `build_batch_template`,
   - `apply_indexed_output_names(tasks, source_name, default_ext, *, key='output_filename')` — Nomme les sorties manquantes : ``<stem_du_fichier_batch>_<NN>.<ext>``.
 
 ### Intégrité des médias
@@ -2506,7 +2509,7 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (25) :
+- **API publique** (26) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs.
@@ -2520,6 +2523,7 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
   - `domain_schema_name(app: str, domain_id: str) -> str` — Le nom du schéma de réglages de ce domaine (`*PARAMS_JSON` du module `params` de l'app),
   - `domain_schema(app: str, domain_id: str) -> list` — Le schéma de réglages de ce domaine : celui qu'il nomme, sinon le principal de l'app.
   - `element_domain(element) -> str | None` — Le domaine d'un ÉLÉMENT, dérivé de ce qui est déjà déclaré : la surface de son modèle
+  - `element_domain_or_first(element) -> str | None` — Le domaine d'un élément (`element_domain`), sinon le PREMIER que son app déclare — celui
   - `domain_filter(app: str, domain_id: str)` — Les éléments de ce domaine EN BASE : `callable(queryset) -> queryset`, ou None quand le
   - `domain_filters(app: str, surface: str) -> dict` — `{domaine: filtre}` des domaines qui PARTAGENT la surface `surface` ({} quand elle n'en sert
   - `accepts(app: str, domain_id: str) -> tuple` — Catégories média (MEDIA_CATEGORIES) que ce domaine prend en ENTRÉE.

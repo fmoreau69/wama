@@ -35,9 +35,9 @@ logger = logging.getLogger(__name__)
 SIGNAL_PAR_ROUTE = {
     'download': 'telecharge',
     'download_srt': 'telecharge',
-    'download_media': 'telecharge',      # anonymizer — seule app hors convention
+    # `download_media` et `delete_media` (les graphies de l'anonymizer hors convention) retirées le
+    # 2026-11-02 : plus aucune route ne les porte (REMOVAL_LEDGER R205).
     'delete': 'supprime',
-    'delete_media': 'supprime',
     'start': None,                       # None = à décider (1re exécution ou relance) — cf. _signal_start
     'restart': None,
     # Réglages d'un élément enregistrés par un COLLABORATEUR (2026-10-03, E4 de

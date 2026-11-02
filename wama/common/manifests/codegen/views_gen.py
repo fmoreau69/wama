@@ -1037,18 +1037,13 @@ def _decorer(item):
         pass
     return item'''
 
-    vues['card_html'] = f'''def card_html(request, pk):
-    """Card = partial serveur UNIQUE : le JS remplace la card par ce rendu."""
-    user = _user(request)
-    from wama.common.utils.scoping import visible_or_404
-    item = visible_or_404({item}, user, pk=pk)   # LECTURE : le sien OU reçu
-    # Clé `elem` (2026-09-09) — jumeau PAR CHAÎNE du renommage de `_generic_card.html` :
-    # rendre ce partial avec l'ancienne clé sortirait une card complète et TOTALEMENT VIDE,
-    # sans lever quoi que ce soit.
-    # `in_batch` (2026-09-15) : position dans la file — brique commune.
-    from wama.common.utils.batch_common import is_batch_child
-    return render(request, '{app}/_generic_card.html',
-                  {{'elem': _decorer(item), 'in_batch': is_batch_child(item)}})'''
+    # Card = partial serveur UNIQUE, que le JS redemande : la fabrique COMMUNE des apps réelles
+    # (`item_views.make_card_view`, 2026-11-02, R207), qui donne au gabarit les clés de la file
+    # (`elem`, `in_batch`, `card_label`, `domain`) — ce gabarit en écrivait le corps.
+    vues['card_html'] = f'''from wama.common.utils.item_views import make_card_view  # noqa: E402
+
+card_html = make_card_view(work_model={item}, template='{app}/_generic_card.html',
+                           decorate=lambda item: _decorer(item))'''
 
     # PROGRESSION d'une card et de la file : la fabrique COMMUNE (`progress_views`, ROUTE §11 #37,
     # 2026-10-03), construite en tête du module (`_pv`, après `_user`) — ces vues n'en sont que
@@ -1183,14 +1178,13 @@ def {nom}(request, pk):
     _EXEMPLES = {'image': '.jpg', 'video': '.mp4', 'audio': '.mp3',
                  'document': '.pdf', 'archive': '.zip', '3d': '.glb', 'dataset': '.csv'}
     ext_exemple = _EXEMPLES.get((d.get('types_entree') or ('video',))[0], '.mp4')
+    # Servi par `batch_template_response` (2026-11-02, R207) : le nom de fichier commun et les
+    # formats que l'app déclare — la réponse était écrite ici, sous un autre nom de fichier.
     vues['batch_template'] = f'''def batch_template(request):
-    from wama.common.utils.batch_parsers import build_batch_template
-    texte = build_batch_template(
-        ['fichier'], {{'fichier': 'https://example.com/exemple{ext_exemple}'}},
-        app_label='{app} (un chemin local ou une URL par ligne)')
-    resp = HttpResponse(texte, content_type='text/plain; charset=utf-8')
-    resp['Content-Disposition'] = 'attachment; filename="{app}_batch_template.txt"'
-    return resp'''
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        '{app}', ['fichier'], {{'fichier': 'https://example.com/exemple{ext_exemple}'}},
+        label='{app} (un chemin local ou une URL par ligne)')'''
 
     batch_extra_kw = (f"""
     batch_extra=lambda w: {{'{d['batch_extra']}': w.{d['batch_extra']}}},""" if d['batch_extra'] else '')

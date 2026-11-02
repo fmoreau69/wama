@@ -457,6 +457,49 @@ class UnroutedTwinDoesNotTakeThePageDownTest(TestCase):
         self.assertIn('ghost_01', logs.output[0])
 
 
+class RegistryReadAtBootIsNeverSilentTest(SimpleTestCase):
+    """The server reads the twins' registry once, when it starts. On 2026-11-02 it started while
+    the registry held two foreign lines: no twin routed, none in the catalogue, not a log line.
+    A registry is now replaced in one step, and a bad one is said."""
+
+    def setUp(self):
+        from wama.common import sandbox
+        self.sandbox = sandbox
+        folder = TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.path = Path(folder.name) / 'sandbox_apps.json'
+        for p in (patch.object(sandbox, 'REGISTRY_PATH', self.path),
+                  patch.dict(sandbox._REGISTRY_CACHE, {'stamp': None, 'data': []})):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_an_unreadable_registry_is_said_not_taken_for_an_empty_one(self):
+        self.path.write_text('[{"label": "conv', encoding='utf-8')
+        with self.assertLogs('wama.sandbox', level='WARNING') as logs:
+            self.assertEqual([], self.sandbox.load_registry())
+        self.assertIn('illisible', logs.output[0])
+
+    def test_no_registry_at_all_means_no_twin_and_says_nothing(self):
+        # Counterpart: a fresh clone has no registry — that is not an incident.
+        with self.assertNoLogs('wama.sandbox', level='WARNING'):
+            self.assertEqual([], self.sandbox.load_registry())
+
+    def test_a_registry_line_without_its_package_is_said_when_the_server_starts(self):
+        self.path.write_text('[{"label": "ghost_01"}]', encoding='utf-8')
+        with self.assertLogs('wama.sandbox', level='WARNING') as logs:
+            self.assertEqual([], self.sandbox.sandbox_installed_apps())
+        self.assertIn('ghost_01', logs.output[0])
+
+    def test_the_registry_is_replaced_in_one_step(self):
+        import os
+        with patch.object(self.sandbox.os, 'replace', wraps=os.replace) as replace:
+            self.sandbox.save_registry([{'label': 'reader_01'}])
+        replace.assert_called_once()
+        self.assertEqual(self.path, Path(replace.call_args.args[1]))
+        self.assertEqual([{'label': 'reader_01'}], self.sandbox.load_registry())
+        self.assertEqual(['sandbox_apps.json'], [p.name for p in self.path.parent.iterdir()])
+
+
 class JudgesAreSilentOnSoundPackagesTest(SimpleTestCase):
     """A judge must say NOTHING about a sound package — and the ten real apps are sound by
     definition (they run). Two false positives of the import judge refused EVERY target of

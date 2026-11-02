@@ -15,11 +15,8 @@ $(function () {
   // (La modale `#modal-progress` a disparu le 08/09 : la progression d'envoi est la barre
   // commune de la brique, l'import par URL passe par le formalisme de lot — plus rien à montrer.)
 
-  // Protège la PAGE : un fichier lâché hors de la zone ne doit pas être ouvert par le
-  // navigateur (comportement d'avant, conservé — ce n'est pas de l'import, c'est de la page).
-  ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function (eventName) {
-    document.body.addEventListener(eventName, function (e) { e.preventDefault(); e.stopPropagation(); }, false);
-  });
+  // (La protection de la PAGE — un fichier lâché hors de la zone n'est pas ouvert par le
+  // navigateur — vit dans `wama-app-base.js` depuis le 2026-11-02, pour toutes les pages.)
 
   // ── Voie d'import : brique commune WamaImport (wama-import.js) — portage 2026-09-07 ──
   //

@@ -91,7 +91,6 @@ def listen(self, pk):
         self.assertTrue(lifecycle['transcribe'])
         self.assertTrue(lifecycle['transcribe_without_preprocessing'])
         self.assertFalse(lifecycle['live_write_task'])
-        self.assertFalse(lifecycle['enrich_transcript'])
 
 
 class ViewsDispatchAGeneratedTaskTest(_Rendered):

@@ -9,8 +9,8 @@
  * Contrats :
  *   .imager-card[data-id][data-status]  — cards des deux files (image + vidéo)
  *   WamaCycleButton (brique globale)    — ▶/↻ → endpoints start/restart existants,
- *                                         ⏹ → force_reset (revoke SIGTERM + FAILURE)
- *   IMAGER_CONFIG.urls.{start,restart,forceReset,progress} (gabarits avec /0/),
+ *                                         ⏹ → stop (le geste commun : révoquée, en échec)
+ *   IMAGER_CONFIG.urls.{start,restart,stop,progress} (gabarits avec /0/),
  *   IMAGER_CARD.urls.cardHtml, IMAGER_CONFIG.csrfToken
  */
 (function () {
@@ -71,7 +71,7 @@
         });
     }
 
-    // ── Actions du bouton de cycle (start/restart → endpoints existants, stop → force_reset) ──
+    // ── Actions du bouton de cycle (start/restart → endpoints existants, stop → le ⏹ commun) ──
     function post(url) {
         return WamaApp.csrfFetch(url, cfg().csrfToken, { method: 'POST' })
             .then(r => r.json().catch(() => ({})).then(j => ({ ok: r.ok, j: j })));
@@ -93,8 +93,7 @@
                 });
             },
             stop: function (id) {
-                // ⏹ commun (`stop`) ; l'ancienne adresse `force-reset/` en repli, qui délègue au même geste.
-                post(WamaApp.getUrl(cfg().urls.stop || cfg().urls.forceReset, id)).then(function () { refreshCard(id); });
+                post(WamaApp.getUrl(cfg().urls.stop, id)).then(function () { refreshCard(id); });
             },
         });
     }

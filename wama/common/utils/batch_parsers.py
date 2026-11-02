@@ -861,12 +861,16 @@ def is_structured_batch_text(text: str) -> bool:
     return is_csv_header_batch(text) or is_unified_batch_text(text)
 
 
-def build_batch_template(fields, example, *, app_label=''):
+def build_batch_template(fields, example, *, app_label='', positional=True, notes=()):
     """Génère le TEMPLATE batch d'une app depuis sa DÉCLARATION de champs (A5-23).
 
-    Une seule source pour le fichier téléchargeable : documente les 3 syntaxes
+    Une seule source pour le fichier téléchargeable : documente les syntaxes
     auto-détectées et fournit la ligne d'en-têtes + une ligne d'exemple.
     `fields` = noms de colonnes (alias FR acceptés), `example` = {champ: valeur}.
+    `positional` : False pour une app dont le lecteur n'accepte que les syntaxes structurées
+    (avatarizer : une ligne sans en-tête ni balise est refusée) — le gabarit ne l'annonce pas.
+    `notes` : lignes de commentaire PROPRES à l'app (avatarizer : ses deux modes), après les
+    syntaxes. Les deux du 2026-11-02, quand sept apps écrivaient encore leur gabarit à la main.
 
     ⚠ UN SEUL CHAMP → PAS de ligne d'en-têtes. L'en-tête n'a qu'un rôle, déclarer l'ORDRE des
     colonnes ; avec une colonne il n'y a pas d'ordre, et il devient nuisible : les apps à liste
@@ -878,15 +882,55 @@ def build_batch_template(fields, example, *, app_label=''):
     lignes_de_donnees = ([] if len(fields) <= 1 else ['|'.join(fields)])
     lignes_de_donnees.append('|'.join(str(example.get(f, '')) for f in fields))
     lines = [
-        f"# Template batch {app_label} — 3 syntaxes acceptées (détection automatique) :",
+        f"# Template batch {app_label} — {3 if positional else 2} syntaxes acceptées "
+        "(détection automatique) :",
         "#  1) TABLEUR à ligne d'en-têtes — délimiteur , ; | ou tabulation ; ordre des colonnes LIBRE",
         "#  2) BALISES style CLI : -i entrée · -p \"prompt\" · -r référence · -o sortie · --option valeur",
-        "#  3) POSITIONNEL hérité : valeurs séparées par | dans l'ordre ci-dessous, SANS en-tête",
+        *(["#  3) POSITIONNEL hérité : valeurs séparées par | dans l'ordre ci-dessous, SANS en-tête"]
+          if positional else []),
         *_schedule_template_lines(),
+        *(f'# {note}' for note in notes),
         "# Les lignes commençant par # sont des commentaires.",
         *lignes_de_donnees,
     ]
     return '\n'.join(lines) + '\n'
+
+
+def accepted_formats_note(app, domain=None) -> str:
+    """« Formats acceptés : … » — les extensions que l'app DÉCLARE (`input_extensions` du
+    catalogue, la porte `accepts_file`), bornées aux catégories d'un domaine s'il est nommé
+    (`app_modes.accepts`). `''` pour une app sans liste déclarée. Le reader et l'audio de
+    l'enhancer la recopiaient à la main dans leur gabarit (2026-11-02)."""
+    from wama.common.app_registry import APP_CATALOG, category_of_path
+    exts = [e if e.startswith('.') else f'.{e}'
+            for e in (APP_CATALOG.get(app) or {}).get('input_extensions') or ()]
+    if domain:
+        from wama.common.utils.app_modes import accepts
+        wanted = set(accepts(app, domain))
+        exts = [e for e in exts if category_of_path(f'x{e}') in wanted]
+    return f"Formats acceptés : {', '.join(sorted(set(e.lower() for e in exts)))}" if exts else ''
+
+
+def batch_template_response(app_id, fields, example, *, label='', positional=True, notes=(),
+                            app=None, domain=None):
+    """La RÉPONSE de la vue `batch_template` d'une app : le gabarit de `build_batch_template`,
+    servi en pièce jointe sous `batch_<app_id>_template.txt`, avec les formats que l'app déclare
+    quand une colonne désigne un fichier d'entrée (`accepted_formats_note` : `app`, défaut
+    `app_id`, et son `domain` s'il y a lieu). Onze vues
+    l'écrivaient chacune (2026-11-02) : sept un texte à la main, quatre un appel à la brique sous
+    trois noms de fichier — l'app ne déclare plus que ses colonnes, son exemple et ce qui lui
+    est propre."""
+    from django.http import HttpResponse
+    # Les formats ne se disent que si une colonne DÉSIGNE un fichier d'entrée (l'alias `input`) :
+    # la ligne d'un lot de synthèse est un texte, pas un fichier.
+    takes_files = any(_CSV_HEADER_ALIASES.get(_normalize_header(f)) == 'input' for f in fields)
+    formats = accepted_formats_note(app or app_id, domain) if takes_files else ''
+    response = HttpResponse(
+        build_batch_template(fields, example, app_label=label or app_id, positional=positional,
+                             notes=[*notes, *([formats] if formats else [])]),
+        content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="batch_{app_id}_template.txt"'
+    return response
 
 
 def _schedule_template_lines():

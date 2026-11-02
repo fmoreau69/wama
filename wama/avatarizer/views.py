@@ -364,23 +364,12 @@ progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
 
-def card_html(request, pk):
-    """GET : fragment HTML d'une card (partial serveur unique, rafraîchi par le polling)."""
-    from django.template.loader import render_to_string
-    from django.http import HttpResponse
-    user = _get_user(request)
-    job = visible_or_404(AvatarJob, user, pk=pk)
-    from django.conf import settings as dj_settings
-    # `elem` = nom COMMUN de l'élément d'entrée de file (2026-08-25), celui que pose
-    # `build_batches_list` et qu'attend `common/_queue_entry.html`. ⚠ Cette vue ne passe PAS
-    # par l'index : une card rendue avec une variable inexistante ne lève AUCUNE erreur côté
-    # Django — elle sortirait simplement vide, et seul le polling s'en apercevrait.
-    from wama.common.utils.batch_common import is_batch_child
-    _decorate_card(job)
-    html = render_to_string('avatarizer/_avatar_card.html',
-                            {'elem': job, 'media_url': dj_settings.MEDIA_URL,
-                             'in_batch': is_batch_child(job)}, request=request)
-    return HttpResponse(html)
+# Card = partial serveur unique, rafraîchi par le polling — fabrique commune (`make_card_view`,
+# 2026-11-02), qui donne au gabarit les clés de la file. `media_url`, passé ici, n'était plus lu.
+from wama.common.utils.item_views import make_card_view  # noqa: E402
+
+card_html = make_card_view(work_model=AvatarJob, template='avatarizer/_avatar_card.html',
+                           decorate=lambda job: _decorate_card(job))
 
 
 def console_content(request):
@@ -491,18 +480,13 @@ def _avatar_nature(job: AvatarJob) -> str:
     return job.mode or 'pipeline'
 
 
-def _wrap_job_in_batch(job: AvatarJob) -> BatchAvatarJob:
-    """Enveloppe un job autonome dans un lot-de-1."""
-    batch = BatchAvatarJob.objects.create(user=job.user, total=1)
-    BatchAvatarJobItem.objects.create(batch=batch, job=job, row_index=0)
-    return batch
-
-
 def _auto_wrap_orphans(user) -> None:
-    """Enveloppe paresseusement les jobs sans lot dans des lots-de-1."""
-    orphans = AvatarJob.objects.filter(user=user, batch_item__isnull=True).order_by('id')
-    for job in orphans:
-        _wrap_job_in_batch(job)
+    """Range les jobs sans lot, chacun dans son lot d'un — brique COMMUNE (`auto_wrap_orphans`),
+    qui ne casse pas la page sur un orphelin défectueux et lit les éléments sans leurs champs
+    lourds. Une boucle écrite ici jusqu'au 2026-11-02, sans l'un ni l'autre."""
+    from wama.common.utils.batch_common import auto_wrap_orphans
+    auto_wrap_orphans(user, work_model=AvatarJob, batch_model=BatchAvatarJob,
+                      item_model=BatchAvatarJobItem, fk_name='job')
 
 
 def _batch_display_name(entry) -> str:
@@ -555,55 +539,40 @@ def _get_batches_list(user):
 
 
 def batch_template(request):
-    """GET : Modèle de fichier batch (format à balises unifié)."""
-    from django.http import HttpResponse
-    lines = [
-        "# WAMA Avatarizer — fichier batch (format à balises)",
-        "# Pipeline (texte → TTS → avatar) :",
-        '#   -p "texte à dire" -r nom_avatar.png [--voice default] [--language fr] [--tts coqui-xtts] [--quality fast] [-o sortie.mp4]',
-        "# Standalone (audio déjà prêt) :",
-        '#   -i chemin/audio.wav -r nom_avatar.png [--quality quality]',
-        "# -r = nom d'un avatar de la galerie partagée. Une ligne = un job.",
-        "",
-        '-p "Bonjour et bienvenue sur WAMA." -r avatar1.png --voice default --language fr',
-        '-p "Ceci est une seconde vidéo." -r avatar1.png --language fr --quality quality',
-    ]
-    resp = HttpResponse('\n'.join(lines), content_type='text/plain; charset=utf-8')
-    resp['Content-Disposition'] = 'attachment; filename="batch_avatarizer_template.txt"'
-    return resp
+    """GET : gabarit de fichier batch, par la brique commune (`batch_template_response`) — les
+    deux syntaxes structurées que le lecteur accepte (pas de positionnel), et les deux modes de
+    l'app en notes. Écrit à la main jusqu'au 2026-11-02."""
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'avatarizer', ['texte', 'avatar', 'voix', 'langue'],
+        {'texte': 'Bonjour et bienvenue sur WAMA.', 'avatar': 'avatar1.png',
+         'voix': 'default', 'langue': 'fr'},
+        label='Avatarizer (une vidéo par ligne)', positional=False,
+        notes=('Pipeline (texte → voix → avatar) : -p "texte à dire" -r nom_avatar.png '
+               '[--voice default] [--language fr] [--tts coqui-xtts] [--quality fast] [-o sortie.mp4]',
+               'Standalone (audio déjà prêt) : -i chemin/audio.wav -r nom_avatar.png [--quality quality]',
+               "-r / avatar = nom d'un avatar de la médiathèque. Une ligne = un job."))
 
 
 def _parse_avatar_batch_from_request(request):
-    """Parse le batch_file uploadé (format à balises) → (rows, warnings)."""
+    """Le fichier batch posté → (lignes de job, avertissements) : la réception COMMUNE
+    (`parse_batch_file_from_request` : extension, fichier temporaire, nettoyage — recopiée ici
+    jusqu'au 2026-11-02), puis le lecteur de l'avatarizer, qui n'accepte que les syntaxes
+    structurées."""
+    from wama.common.utils.batch_parsers import parse_batch_file_from_request
+    return parse_batch_file_from_request(request, parser=_parse_avatar_batch_file)
+
+
+def _parse_avatar_batch_file(path):
+    """Un fichier batch de l'avatarizer (CSV à en-têtes ou balises) → (lignes, avertissements)."""
     from wama.common.utils.batch_parsers import (
         extract_batch_file_text, is_structured_batch_text, parse_unified_batch,
     )
-    SUPPORTED = ('txt', 'md', 'csv', 'pdf', 'docx')
-    batch_file = request.FILES.get('batch_file')
-    if not batch_file:
-        raise ValueError('Aucun fichier fourni')
-    ext = os.path.splitext(batch_file.name)[1][1:].lower()
-    if ext not in SUPPORTED:
-        raise ValueError(f'Format non supporté : .{ext}')
-
-    tmp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
-            for chunk in batch_file.chunks():
-                tmp.write(chunk)
-            tmp_path = tmp.name
-        text = extract_batch_file_text(tmp_path)
-        if not is_structured_batch_text(text):
-            raise ValueError(
-                'Format attendu : CSV à en-têtes ou balises (-p/-i/-r…). Voir le modèle.'
-            )
-        items, warnings = parse_unified_batch(tmp_path)
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
+    if not is_structured_batch_text(extract_batch_file_text(path)):
+        raise ValueError(
+            'Format attendu : CSV à en-têtes ou balises (-p/-i/-r…). Voir le modèle.'
+        )
+    items, warnings = parse_unified_batch(path)
 
     rows, extra = [], []
     for it in items:

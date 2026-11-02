@@ -11,7 +11,7 @@ import mimetypes
 from pathlib import Path
 
 from django.shortcuts import render
-from django.http import JsonResponse, HttpResponse, FileResponse
+from django.http import JsonResponse, FileResponse
 from django.views.generic import TemplateView
 from django.views.decorators.http import require_POST, require_GET
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -441,21 +441,12 @@ def _decorate_desc(desc, preloaded=False):
     return desc
 
 
-@require_GET
-def card_html(request, pk):
-    """Card RENDUE serveur — source UNIQUE du markup (partial _description_card.html ;
-    CARD_DESIGN « partial server-side + update JS en place », recette T+C 2026-07-05)."""
-    from django.http import HttpResponse
-    from django.template.loader import render_to_string
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
-    from wama.common.utils.scoping import visible_or_404
-    desc = visible_or_404(Description, user, pk=pk)
-    from wama.common.utils.batch_common import is_batch_child
-    html = render_to_string('describer/_description_card.html',
-                            {'elem': _decorate_desc(desc), 'in_batch': is_batch_child(desc)},
-                            request=request)
-    return HttpResponse(html)
+# Card RENDUE serveur — source UNIQUE du markup (partial _description_card.html) : fabrique
+# commune (`make_card_view`, 2026-11-02).
+from wama.common.utils.item_views import make_card_view  # noqa: E402
+
+card_html = make_card_view(work_model=Description, template='describer/_description_card.html',
+                           decorate=lambda desc: _decorate_desc(desc))
 
 
 def _progress_extra(description):
@@ -611,25 +602,12 @@ def batch_create(request):
 
 
 def batch_template(request):
-    """Download a batch file template (.txt)."""
-    template_content = """# WAMA Describer - Batch Import
-# Format : une URL ou chemin de fichier par ligne
-# Les lignes commençant par # sont des commentaires.
-
-# --- Exemples URLs ---
-https://example.com/image.jpg
-https://example.com/video.mp4
-https://example.com/document.pdf
-
-# --- Exemples chemins locaux ---
-/media/uploads/image.png
-C:\\Users\\user\\Documents\\rapport.pdf
-
-# --- Fin ---
-"""
-    response = HttpResponse(template_content, content_type='text/plain; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="batch_describer_template.txt"'
-    return response
+    """Gabarit de fichier batch, par la brique commune (`batch_template_response`) : une source
+    par ligne, les formats que l'app déclare. Écrit à la main jusqu'au 2026-11-02."""
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'describer', ['source'], {'source': 'https://example.com/document.pdf'},
+        label='Describer (une URL ou un chemin par ligne — image, vidéo, audio, document)')
 
 
 def batch_list(request):

@@ -8,7 +8,7 @@ from PIL import Image
 from urllib.parse import urlparse
 from celery.result import AsyncResult
 
-from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
+from django.http import Http404, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
@@ -379,38 +379,9 @@ def task_status(request, task_id):
     return JsonResponse({"status": res.status})
 
 
-def download_media(request):
-    """Ancienne forme (POST + `media_id`) du ⬇, sans appelant dans le dépôt : conservée le temps de
-    vérifier qu'aucun appelant externe n'en dépend (REMOVAL_LEDGER). Le ⬇ d'une card est celui de
-    la fabrique commune (`download/<pk>/`, GET — un téléchargement est une navigation)."""
-    if request.method != 'POST':
-        return HttpResponseNotAllowed(['POST'])
-
-    media_id = request.POST.get('media_id')
-    if not media_id:
-        return HttpResponseBadRequest("Missing media_id.")
-
-    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
-    from wama.common.utils.scoping import visible_or_404
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    return _servir_media_traite(request, visible_or_404(Media, user, pk=media_id))
-
-
-def _servir_media_traite(request, media):
-    """Sert la sortie floutée DE CETTE CARD — son champ `output_file` (2026-09-27).
-
-    Avant : le chemin se RECALCULAIT depuis le nom de l'entrée, le nom exact `<entrée>_blurred`
-    servi EN PRIORITÉ, puis le plus récent `<entrée>_blurred*`. Deux défauts mesurés : des cards
-    dupliquées servaient la même sortie, et un vieux `_blurred` resté sur disque masquait
-    indéfiniment les nouveaux résultats (média 183 : fichier de janvier servi à la place de mars).
-    """
-    out = media.output_file
-    if not out or not os.path.exists(out.path):
-        context = get_context(request)
-        context['error'] = "Aucune sortie floutée pour ce média — relancez son traitement."
-        return render(request, 'anonymizer/index.html', context)
-    return FileResponse(open(out.path, "rb"), as_attachment=True,
-                        filename=os.path.basename(out.name))
+# `download_media` et `_servir_media_traite` RETIRÉS le 2026-11-02 (REMOVAL_LEDGER R205) : l'ancienne
+# forme POST + `media_id` du ⬇, sans appelant ; le ⬇ d'une card est celui de la fabrique commune
+# (`download/<pk>/`), qui sert le champ `output_file` déclaré au lot.
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
@@ -440,16 +411,11 @@ def stop_process_view(request):
     return JsonResponse({"status": "stopped"})
 
 
-def card_html(request, pk):
-    """Card média = partial serveur UNIQUE (source du markup, remplace le re-render
-    de table legacy `refresh`). Lecture → partage F7 (visible_or_404)."""
-    from wama.common.utils.scoping import visible_or_404
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    media = visible_or_404(Media, user, pk=pk)
-    _decorate_card(media)
-    from wama.common.utils.batch_common import is_batch_child
-    return render(request, 'anonymizer/_media_card.html',
-                  {'elem': media, 'in_batch': is_batch_child(media), 'user': user})
+# Card média = partial serveur UNIQUE, par la fabrique commune (`make_card_view`, 2026-11-02).
+from wama.common.utils.item_views import make_card_view  # noqa: E402
+
+card_html = make_card_view(work_model=Media, template='anonymizer/_media_card.html',
+                           decorate=lambda media: _decorate_card(media))
 
 
 def _reset_for_relaunch(media):
@@ -843,20 +809,9 @@ def _input_labels():
 # de l'utilisateur), la brique `user_settings` garde les préférences.
 
 
-@require_POST
-def clear_media(request):
-    """Ancienne forme (POST + `media_id`) de la 🗑, sans appelant dans le dépôt depuis que la card
-    passe par la brique commune — conservée le temps de vérifier qu'aucun appelant externe n'en
-    dépend (REMOVAL_LEDGER). Elle DÉLÈGUE à la 🗑 de la fabrique : un seul chemin de suppression.
-    Elle acceptait l'id de N'IMPORTE QUEL utilisateur (`Media.objects.filter(pk=media_id)`) —
-    la 🗑 commune ne retire que la card de son propriétaire."""
-    try:
-        media_id = int(request.POST.get('media_id') or 0)
-    except (TypeError, ValueError):
-        media_id = 0
-    if not media_id:
-        return JsonResponse({'success': False, 'error': 'Media not found'}, status=404)
-    return delete(request, media_id)
+# `clear_media` RETIRÉE le 2026-11-02 (REMOVAL_LEDGER R205) : l'ancienne forme POST + `media_id` de
+# la 🗑, sans appelant — elle acceptait l'id de N'IMPORTE QUEL utilisateur jusqu'au portage de la
+# veille ; la 🗑 d'une card est celle de la fabrique commune (`delete/<pk>/`, son propriétaire).
 
 
 # `reset_media_settings` RETIRÉ le 2026-09-27 : sans consommateur, il remettait un média sur les
@@ -974,19 +929,12 @@ def get_sam3_examples(request):
 # =============================================================================
 
 def batch_template(request):
-    """Download a batch file template (.txt)."""
-    from django.http import HttpResponse
-    content = (
-        "# WAMA Anonymizer - Batch Import\n"
-        "# Format : une URL ou chemin de fichier image/vidéo par ligne\n"
-        "# Les lignes commençant par # sont des commentaires.\n\n"
-        "https://example.com/photo.jpg\n"
-        "https://example.com/video.mp4\n"
-        "/media/uploads/photo.png\n"
-    )
-    response = HttpResponse(content, content_type='text/plain; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="batch_anonymizer_template.txt"'
-    return response
+    """Gabarit de fichier batch, par la brique commune (`batch_template_response`) : une source
+    par ligne, les formats que l'app déclare. Écrit à la main jusqu'au 2026-11-02."""
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'anonymizer', ['source'], {'source': 'https://example.com/photo.jpg'},
+        label='Anonymizer (une URL ou un chemin image/vidéo par ligne)')
 
 
 @require_POST

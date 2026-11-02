@@ -10,7 +10,7 @@ Image generation using Diffusers with multi-modal support:
 
 from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
@@ -60,8 +60,8 @@ def _generation_domain(gen):
     prescrit : « une app qui fige une nature sur le lot passe le `group_key` jumeau »).
     Lu dans la déclaration commune (`app_modes.element_domain`, 2026-10-21) : le schéma que la
     spec de détail choisit pour l'élément désigne son domaine."""
-    from wama.common.utils.app_modes import element_domain, get_domains
-    return element_domain(gen) or get_domains(gen._meta.app_label)[0]['id']
+    from wama.common.utils.app_modes import element_domain_or_first
+    return element_domain_or_first(gen)
 
 
 def _batch_domain(gen):
@@ -746,16 +746,14 @@ def import_batch(request):
 
 def batch_template(request):
     """Gabarit batch téléchargeable, GÉNÉRÉ depuis la déclaration des champs
-    (brique commune build_batch_template — jamais de contenu en dur, A5-23)."""
-    from wama.common.utils.batch_parsers import build_batch_template
-    text = build_batch_template(
-        ['prompt', 'modele', 'steps', 'seed'],
+    (brique commune build_batch_template — jamais de contenu en dur, A5-23), servi par
+    `batch_template_response` (le nom de fichier commun, 2026-11-02)."""
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'imager', ['prompt', 'modele', 'steps', 'seed'],
         {'prompt': 'un phare dans la brume, photographie argentique',
          'modele': 'auto', 'steps': 30, 'seed': ''},
-        app_label='Imager (un prompt par ligne)')
-    resp = HttpResponse(text, content_type='text/plain; charset=utf-8')
-    resp['Content-Disposition'] = 'attachment; filename="imager_batch_template.txt"'
-    return resp
+        label='Imager (un prompt par ligne)')
 
 
 def get_batch_children(request, batch_id):
@@ -866,7 +864,7 @@ clear_all = _iv['clear_all']
 # déclare à sa fabrique de lot — le schéma du DOMAINE de chaque génération, LA fonction de
 # réglage, le domaine figé sur le lot (`batch_extra` : la copie seule naît dans l'onglet de sa
 # nature) et les sorties DÉCLARÉES (une image servie telle quelle, plusieurs en ZIP, la vidéo).
-# Le ⏹ était « forcer la réinitialisation » (`force_reset`, gardé comme adresse de ce geste).
+# Le ⏹ était « forcer la réinitialisation » (`force_reset`, retiré le 2026-11-02, R205).
 stop = app_access('imager')(_iv['stop'])
 download = _iv['download']
 delete = _iv['delete']
@@ -964,24 +962,13 @@ def _decorate_card(gen, preloaded=False):
     return gen
 
 
-def card_html(request, generation_id):
-    """Partial d'UNE card (contrat card_html/refreshCard) — même rendu que la boucle de file,
-    consommé par queue.js sur transition de statut (remplace le repaint DOM manuel).
+# Partial d'UNE card (contrat card_html/refreshCard), consommé par queue.js sur transition de
+# statut : fabrique commune (`make_card_view`, 2026-11-02), qui pose aussi le `domain` de la
+# génération (la même lecture que `_generation_domain`) ; route au format commun `<int:pk>`.
+from wama.common.utils.item_views import make_card_view  # noqa: E402
 
-    ⚠ Répond du HTML, comme les 9 autres vues `card_html` (2026-09-15). L'imager était seul à
-    répondre `{'html', 'status'}` en JSON : une brique commune qui rend une card sans
-    rechargement de la page ne pouvait donc pas le servir sans une lecture à part pour lui —
-    et `status` n'avait aucun lecteur (`queue.js` ne lisait que `html`)."""
-    from django.http import HttpResponse
-    from django.template.loader import render_to_string
-    from wama.common.utils.batch_common import is_batch_child
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    generation = visible_or_404(ImageGeneration, user, id=generation_id)   # LECTURE
-    _decorate_card(generation)
-    html = render_to_string('imager/_generation_card.html',
-                            {'elem': generation, 'domain': _generation_domain(generation),
-                             'in_batch': is_batch_child(generation)}, request=request)
-    return HttpResponse(html)
+card_html = make_card_view(work_model=ImageGeneration, template='imager/_generation_card.html',
+                           decorate=lambda gen: _decorate_card(gen))
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, patron des 8 autres apps) ──────────
@@ -1215,9 +1202,6 @@ def api_all_resolutions(request):
     })
 
 
-def force_reset_generation(request, generation_id):
-    """Ancienne adresse du ⏹ de l'imager (`force-reset/<id>/`) : le geste commun (`stop`, la
-    fabrique — révoquée, en échec « Interrompu par l'utilisateur », relançable), gardé le temps
-    que la page servie passe à la route `stop` (gabarit relu à chaud, REMOVAL_LEDGER). Il
-    remettait en échec une génération de TOUT statut, réussie comprise."""
-    return stop(request, generation_id)
+# `force_reset_generation` (`force-reset/<id>/`, l'ancien ⏹ de l'imager) RETIRÉE le 2026-11-02
+# (REMOVAL_LEDGER R205) : le ⏹ est le geste commun (`stop`), qui n'arrête que ce qui attend ou
+# tourne — l'ancienne vue remettait en échec une génération de TOUT statut, réussie comprise.

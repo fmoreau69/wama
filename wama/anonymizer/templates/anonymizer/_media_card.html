@@ -106,7 +106,7 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
         seule app dont le téléchargement n'était pas un lien. Un POST n'est pas une navigation :
         ni clic-droit « Enregistrer sous », ni nouvel onglet, et un rechargement redemandait la
         soumission. La route `anonymizer:download` (GET, `download/<pk>/`) a été ajoutée au même
-        geste ; `download_media/` délègue au même corps en attendant son retrait.{% endcomment %}
+        geste ; l'ancienne `download_media/` est retirée le 2026-11-02 (R205).{% endcomment %}
         {% url 'anonymizer:download' elem.id as url_dl %}
         {% download_button 'anonymizer' url_dl elem.processed title='Télécharger le média traité' %}
         {# ⧉ route au FORMAT COMMUN (`duplicate/<pk>/`) ; `as` : le gabarit est relu à chaud, les routes au rechargement. #}

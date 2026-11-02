@@ -654,6 +654,16 @@ Ne plus maintenir de table figée ici.
 > serveur : le gabarit de card de l'app + la route `card_html` (déclarée dans les 10 `urls.py`),
 > redemandée après dépôt / polling par `WamaApp.fetchCard` (`common/js/wama-app-base.js:1169`).
 > Critère `card_refresh_common`. **Ne jamais écrire de `buildCard`.**
+>
+> **La vue `card_html` vient de la fabrique** (2026-11-02, R207) :
+> `card_html = make_card_view(work_model=…, template='<app>/_<élément>_card.html', decorate=…)`
+> (`common/utils/item_views.py`). Elle donne au gabarit les clés que la FILE lui donne
+> (`elem`, `in_batch`, `card_label`, `domain`) : écrite à la main, la card rafraîchie du
+> synthesizer perdait son nom de sortie. Même règle pour le gabarit de lot :
+> `batch_template = batch_template_response('<app>', colonnes, exemple, label=…)`
+> (`common/utils/batch_parsers.py` — `positional=False` pour un lecteur sans syntaxe
+> positionnelle, `notes` pour ce que l'app a de propre ; les formats acceptés se lisent à sa
+> déclaration). Critères `card_html_endpoint` et `batch_template`, qui mesurent l'APPEL.
 
 ~~Chaque card est rendue **deux fois** avec la même structure :~~
 - ~~**Server-side** : `templates/<app>/_item_card.html` (rendu au chargement initial)~~
@@ -1351,7 +1361,11 @@ d'arrivée l'appelle : la vue `consolidate` (dépôt de N fichiers), l'import du
 fichiers (« Envoyer vers », sélection, dossier, lot envoyé depuis une autre app — chaque importeur
 rend `id` + `model`), un fichier de lot (`batch_create` de l'avatarizer, du converter, du code
 généré). `_auto_wrap_orphans()` (le lot d'un au chargement de page) passe par
-`batch_common.auto_wrap_orphans`. Classifiers : `media_type` quand le modèle le porte (enhancer,
+`batch_common.auto_wrap_orphans` — dans les dix apps depuis le 2026-11-02 seulement : l'avatarizer et
+le converter gardaient une boucle à eux, que le critère, qui cherchait le NOM, notait vert (R207) ;
+la forme à FK directe se déclare sans `item_model`, `scope` borne la file (le converter : pas les
+jobs éphémères). La file elle-même est `build_batches_list` (le converter compris, `work_attr=None`).
+Classifiers : `media_type` quand le modèle le porte (enhancer,
 anonymizer, converter, avatarizer), le domaine pour l'imager (`_generation_domain`, jumeau de son
 `batch_extra`, ajouté le 2026-10-16), sinon par extension (describer : `_describer_nature`).
 Mono-nature (transcriber, reader, synthesizer) = pas de `group_key`, un seul lot.

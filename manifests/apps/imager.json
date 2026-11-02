@@ -2437,7 +2437,6 @@
         "download",
         "download_all",
         "duplicate",
-        "force_reset",
         "global_progress",
         "help",
         "import_batch",
@@ -2452,6 +2451,7 @@
         "start",
         "start_all",
         "start_process",
+        "stop",
         "update_settings"
       ],
       "extra_routes": [
@@ -2486,29 +2486,29 @@
           "view": "views.progress"
         },
         {
-          "name": "card_html",
-          "pattern": "card/<int:generation_id>/html/",
-          "view": "views.card_html"
-        },
-        {
           "name": "global_progress",
           "pattern": "global-progress/",
           "view": "views.global_progress"
         },
         {
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
+        },
+        {
           "name": "download",
-          "pattern": "download/<int:generation_id>/",
+          "pattern": "download/<int:pk>/",
           "view": "views.download"
         },
         {
           "name": "delete",
-          "pattern": "delete/<int:generation_id>/",
-          "view": "views.delete_generation"
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
         },
         {
           "name": "duplicate",
-          "pattern": "duplicate/<int:generation_id>/",
-          "view": "views.duplicate_generation"
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
         },
         {
           "name": "console_content",
@@ -2519,11 +2519,6 @@
           "name": "update_settings",
           "pattern": "settings/<int:pk>/",
           "view": "views.generation_settings"
-        },
-        {
-          "name": "force_reset",
-          "pattern": "force-reset/<int:generation_id>/",
-          "view": "views.force_reset_generation"
         },
         {
           "name": "auto_prompt",

@@ -30,8 +30,8 @@ Ce que la séparation apporte, et que la tâche unique ne savait pas faire :
   - un résumé qui échoue (Ollama absent) se VOIT sur la card — sa ligne est en échec, la card
     « reste à compléter », ▶ ne rejoue que lui. Avant : un avertissement en console, une card
     « terminée » sans résumé, et rien pour le dire ;
-  - le résumé « à la demande » (`enrich_transcript`, hors contrat du squelette jusqu'ici, point
-    4.7) est le ▶ du process `summarize`.
+  - le résumé « à la demande » (`enrich_transcript`, hors contrat du squelette, point 4.7) est
+    le ▶ du process `summarize` — la tâche et sa route `enrich/` sont retirées le 2026-11-02 (R206).
 
   • `align`      — l'aligneur acoustique du catalogue recale les mots d'un document SANS heures,
     que l'import n'a pu qu'estimer (étage B). OPTIONNEL (son échec garde les heures estimées),

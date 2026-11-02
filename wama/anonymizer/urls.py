@@ -29,19 +29,15 @@ urlpatterns = [
     # Route au FORMAT COMMUN (2026-08-23) — les 9 autres apps exposent `delete/<pk>/` et
     # répondent l'état du lot (`batch`) ; c'est ce contrat que la brique `queue-actions.js` consomme.
     path('delete/<int:pk>/', views.delete, name='delete'),
-    # Ancienne forme (media_id en champ de POST). Plus aucun consommateur dans le dépôt ;
-    # délègue au même travail que `delete`. À retirer après vérification externe.
-    path('clear_media/', views.clear_media, name='clear_media'),
     path('reset_user_settings/', views.reset_user_settings, name='reset_user_settings'),
     # Suivi d'UNE card au FORMAT COMMUN (2026-10-03, fabrique `make_progress_views`) — remplace
     # `process_progress/?media_id=` (REMOVAL_LEDGER R95), dont la branche « globale » n'avait
     # aucun appelant.
     path('progress/<int:pk>/', views.progress, name='progress'),
     # Route au FORMAT COMMUN (2026-08-23) — un téléchargement est un GET, et c'est ce que la
-    # brique `_download_button.html` rend. `download_media/` (POST + media_id) délègue au même
-    # corps et n'a plus de consommateur : à retirer (REMOVAL_LEDGER).
+    # brique `_download_button.html` rend. Les anciennes formes `clear_media/` et `download_media/`
+    # (POST + `media_id`), sans appelant, sont retirées le 2026-11-02 (REMOVAL_LEDGER R205).
     path('download/<int:pk>/', views.download, name='download'),
-    path('download_media/', views.download_media, name='download_media'),
     path('stop_process/', views.stop_process_view, name='stop_process'),
 
     # Opérations groupées

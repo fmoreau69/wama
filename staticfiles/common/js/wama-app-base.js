@@ -1715,4 +1715,21 @@
   } else {
     startNotifications();
   }
+
+  // ── Un FICHIER lâché hors d'une zone de dépôt ne quitte pas la page (2026-11-02) ──────────
+  // Sans cela le navigateur l'OUVRE à la place de WAMA. Seule la page de l'anonymizer s'en
+  // gardait, par une règle à elle sur `body` qui arrêtait aussi la propagation. Ici, sur toute
+  // page : un glisser de FICHIERS que personne n'a pris (`defaultPrevented`) est seulement
+  // empêché d'ouvrir le fichier — les zones de dépôt, la file et l'assistant le reçoivent avant.
+  function carriesFiles(e) {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    return !!types && Array.prototype.indexOf.call(types, 'Files') !== -1;
+  }
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    ['dragover', 'drop'].forEach(function (name) {
+      window.addEventListener(name, function (e) {
+        if (!e.defaultPrevented && carriesFiles(e)) e.preventDefault();
+      });
+    });
+  }
 })(window);

@@ -703,8 +703,11 @@ model_manager, studio) ; les 2 échecs étaient deux VRAIS défauts d'app, tous 
 > au lieu de le dire. Soldé : les gestes d'une card par la fabrique (`ROUTE §11 #42` ④, R200/R201),
 > le critère `element_views_common` qui exige la vue de la fabrique, et le scénario qui juge où la
 > copie atterrit (`_copy_placement_verdict`). ⭐ *« Porté » voulait dire « appelle la brique » ; le
-> geste n'est commun que si la VUE l'est.* Reste à passer au même crible les 34 critères qui ne
-> cherchent qu'un mot : ceux où la brique est appelée depuis une vue écrite par l'app.
+> geste n'est commun que si la VUE l'est.* Les 34 critères qui ne cherchent qu'un mot sont passés
+> au même crible le jour même (`ROUTE §11 #45`) : 21 désignent un gabarit ou une déclaration inclus
+> tels quels, 13 une brique appelée depuis une vue de l'app — quatre recopiaient la page d'une
+> file (card rendue seule, gabarit de lot, orphelins, file du converter), portées (R207), et leurs
+> critères mesurent désormais l'APPEL.
 >
 > ⚠⚠ **CE TABLEAU S'EST TROMPÉ QUATRE FOIS, TOUJOURS DANS LE MÊME SENS — il SOUS-ESTIME.**
 > ⚙ : avatarizer donné pour « rien » alors qu'il avait `btn-settings-job`, et enhancer absent de

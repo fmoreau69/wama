@@ -2157,14 +2157,12 @@
         "card_html",
         "check_all_processed",
         "clear_all_media",
-        "clear_media",
         "console",
         "consolidate",
         "debug_media_status",
         "delete",
         "download",
         "download_all_media",
-        "download_media",
         "duplicate",
         "get_media_settings",
         "get_user_settings",
@@ -2238,11 +2236,6 @@
           "view": "views.delete"
         },
         {
-          "name": "clear_media",
-          "pattern": "clear_media/",
-          "view": "views.clear_media"
-        },
-        {
           "name": "reset_user_settings",
           "pattern": "reset_user_settings/",
           "view": "views.reset_user_settings"
@@ -2256,11 +2249,6 @@
           "name": "download",
           "pattern": "download/<int:pk>/",
           "view": "views.download"
-        },
-        {
-          "name": "download_media",
-          "pattern": "download_media/",
-          "view": "views.download_media"
         },
         {
           "name": "stop_process",

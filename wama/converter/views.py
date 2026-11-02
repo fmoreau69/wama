@@ -19,7 +19,6 @@ from pathlib import Path
 
 from django.shortcuts import render, get_object_or_404
 
-from wama.common.utils.scoping import visible_or_404
 from wama.accounts.permissions import app_access
 from django.views import View
 from django.http import JsonResponse
@@ -46,24 +45,15 @@ logger = logging.getLogger(__name__)
 # (`queue_duplication.owns_file`, appelée par `safe_delete_file`), pour tout le parc.
 
 
-def _wrap_job_in_batch(job):
-    """Wrap a standalone job in a ConversionBatch-of-1 (même nature)."""
-    from .models import ConversionBatch
-    batch = ConversionBatch.objects.create(user=job.user, media_type=job.media_type, total=1)
-    job.batch = batch
-    job.batch_row_index = 0
-    job.save(update_fields=['batch', 'batch_row_index'])
-    return batch
-
-
 def _auto_wrap_orphans(user):
-    """Wrap any non-ephemeral queue job without a batch into a batch-of-1
-    (lazy, à l'ouverture de la page — comme reader/synthesizer)."""
-    for job in ConversionJob.objects.filter(user=user, ephemeral=False, batch__isnull=True):
-        try:
-            _wrap_job_in_batch(job)
-        except Exception:
-            pass
+    """Range les jobs de file sans lot, chacun dans un lot d'un DE SA NATURE — brique COMMUNE
+    (`auto_wrap_orphans`, forme à FK directe depuis le 2026-11-02 : la boucle était écrite ici).
+    Les jobs éphémères d'une conversion rapide n'entrent jamais dans un lot (`scope`)."""
+    from wama.common.utils.batch_common import auto_wrap_orphans
+    from .models import ConversionBatch
+    auto_wrap_orphans(user, work_model=ConversionJob, batch_model=ConversionBatch,
+                      batch_extra=lambda job: {'media_type': job.media_type},
+                      scope={'ephemeral': False})
 
 
 def _converter_nature(job):
@@ -92,70 +82,32 @@ class IndexView(View):
         from wama.common.utils.process_control import reconcile_queue_of
         reconcile_queue_of(ConversionJob, user)
 
-        # Ephemeral jobs (quick-convert) are never shown in the queue.
-        # Les cards REÇUES aussi (2026-10-02, `WAMA_COLLABORATION §3bis` — mode lecture) : la file
-        # ne montrait que les siennes, une card partagée n'existait donc pas pour le destinataire.
-        # `listable_by` = `visible_to`, sauf le compte anonyme (qui ne liste que les siennes).
-        from wama.common.utils.scoping import listable_by
-        jobs     = (listable_by(ConversionJob.objects.filter(ephemeral=False), user)
-                    .select_related('batch').order_by('-created_at'))
-        # (requête ConversionProfile RETIRÉE le 31/08 — 'profiles' n'était lu par aucun
-        # gabarit, la liste vient de profile_list en AJAX ; audit B6, REMOVAL_LEDGER.)
-
-        # Group jobs by batch for the queue UI (batch-of-1 → carte simple,
-        # batch-of-N → groupe). Ordre : par batch le plus récent.
-        from collections import OrderedDict
-        # Libellés des catégories : la table COMMUNE, déclarée avec les catégories (2026-09-30).
+        # La FILE par la brique COMMUNE (`build_batches_list`, forme à FK directe depuis le
+        # 2026-11-02) : lots visibles (reçus compris, réduits à ce qui est partagé), rangement du
+        # destinataire, compteurs, ETA de lot, évaluation, référence, identité. Le converter la
+        # construisait ici à la main (lot par lot, depuis les jobs), sans les attentes de
+        # ressources, les périmés, l'évaluation ni la référence du lot. Les jobs éphémères d'une
+        # conversion rapide n'ont jamais de lot : ils n'y sont pas.
         from wama.common.app_registry import MEDIA_CATEGORY_LABELS as _nature_labels
-        grouped = OrderedDict()
-        for job in jobs:
-            key = job.batch_id or f'loose-{job.id}'
-            grouped.setdefault(key, []).append(job)
-        from wama.common.utils.detail_registry import normalize_status
+        from wama.common.utils.batch_common import build_batches_list
         from wama.common.utils.card_chips import common_chips_for_items
-        from wama.converter.params import PARAMS_JSON as _PARAMS_JSON
-        # RANGEMENT chez le destinataire (2026-10-02, `WAMA_COLLABORATION §3bis.2`) — même règle que
-        # `build_batches_list` : l'entrée est le LOT, ou le job quand il n'a pas de lot.
-        from wama.common.services.reception import entry_arrangement, lines_for
         from wama.converter.models import ConversionBatch
-        received_lines = lines_for(user, ConversionBatch, ConversionJob)
-        batches_list = []
-        for items in grouped.values():
-            items_sorted = sorted(items, key=lambda j: j.batch_row_index)
-            batch = items[0].batch
-            arrangement = entry_arrangement(user, batch or items[0], received_lines)
-            if arrangement is None:
-                continue
-            for j in items_sorted:
+        from wama.converter.params import PARAMS_JSON as _PARAMS_JSON
+
+        def _entry_extra(batch, _items, jobs):
+            for j in jobs:
                 _decorate_job(j)  # chips du SCHÉMA (card_chips) — même décoration que card_html
-            if batch and batch.user_id != user.pk:
-                # Lot REÇU : les jobs listés sont déjà ceux qu'il voit ; le total se compte sur
-                # eux, en mémoire (`batch_common.build_batches_list`, même règle, 2026-10-07).
-                batch.total = len(items_sorted)
-            total = batch.total if batch else len(items_sorted)
-            # Contrat de _batch_card.html (même forme que build_batches_list — converter groupe
-            # en mémoire car FK directe job→batch, pas de modèle de liaison).
-            statuses = [normalize_status(j.status) for j in items_sorted]
-            batches_list.append({
-                **arrangement,
-                'obj': batch,
-                'items': items_sorted,
-                'is_group': bool(batch) and total > 1,
-                'media_label': _nature_labels.get(batch.media_type if batch else '', ''),
-                'success_count': statuses.count('SUCCESS'),
-                'running_count': statuses.count('RUNNING'),
-                'failure_count': statuses.count('FAILURE'),
-                'has_success': 'SUCCESS' in statuses,
-                'eta_ids': ','.join(str(j.id) for j in items_sorted),
+            return {
+                'media_label': _nature_labels.get(batch.media_type, ''),
                 # Réglages COMMUNS aux filles (slot meta_template — porté le 31/08). Les
                 # réglages du converter vivent en JSON : même assiette que _decorate_job.
                 'common_chips': common_chips_for_items(
-                    items_sorted, _PARAMS_JSON,
+                    jobs, _PARAMS_JSON,
                     values_of=lambda j: {**(j.options or {}), **(j.cross_app_options or {})}),
-            })
-        # IDENTITÉ de chaque lot (titre, ce qui varie) — la pose commune à toutes les files.
-        from wama.common.utils.batch_common import attach_identities
-        attach_identities(batches_list)
+            }
+
+        batches_list = build_batches_list(user, batch_model=ConversionBatch, work_attr=None,
+                                          order_by='-created_at', extra=_entry_extra)
         # Les PROCESS de chaque card (pipeline, 2026-10-13) — les lignes d'exécution de la page
         # lues en UNE requête (`decorate_cards`), après les chips posés ci-dessus.
         from wama.common.services.process_pipeline import decorate_cards
@@ -919,24 +871,20 @@ def _decorate_job(job):
     return job
 
 
-def card_html(request, pk):
-    """Card = partial serveur UNIQUE : le JS remplace la card par ce rendu
-    (source unique du markup — pas de reconstruction côté client)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    job = visible_or_404(ConversionJob, user, pk=pk)   # LECTURE : une card reçue se rafraîchit aussi
-    _decorate_job(job)
-    # Les PROCESS de la card et son état MONTRÉ (pipeline, 2026-10-13 — `ROUTE §10.6` 5.1).
+def _decorate_card(job):
+    """Ce que la card d'un job porte au rendu : les chips du schéma (`_decorate_job`), puis ses
+    PROCESS et son état MONTRÉ (pipeline, 2026-10-13 — `ROUTE §10.6` 5.1)."""
     from wama.common.services.process_pipeline import decorate
-    decorate(job)
-    # Clé `elem` (2026-09-09) : le gabarit lit désormais l'élément sous le nom commun, comme
-    # les 9 autres cards d'app. Jumeau PAR CHAÎNE du renommage du gabarit — invisible d'un
-    # `manage.py check` comme d'un test qui n'ouvrirait pas ce partial : une card rendue avec
-    # l'ancienne clé serait sortie VIDE, sans lever quoi que ce soit.
-    # `in_batch` (2026-09-15) : absent jusque-là, une fille de lot rafraîchie perdait son
-    # apparence de fille. Position dans la file — brique commune.
-    from wama.common.utils.batch_common import is_batch_child
-    return render(request, 'converter/_job_card.html',
-                  {'elem': job, 'in_batch': is_batch_child(job)})
+    decorate(_decorate_job(job))
+    return job
+
+
+# Card = partial serveur UNIQUE : le JS remplace la card par ce rendu — fabrique commune
+# (`make_card_view`, 2026-11-02). Une lecture : une card reçue se rafraîchit aussi.
+from wama.common.utils.item_views import make_card_view  # noqa: E402
+
+card_html = make_card_view(work_model=ConversionJob, template='converter/_job_card.html',
+                           decorate=_decorate_card)
 
 
 def console_content(request):
@@ -954,16 +902,12 @@ def batch_template(request):
     AUCUNE ligne vive : ses cinq exemples étaient tous commentés. Téléchargé puis redéposé
     tel quel — le geste le plus naturel — il ne produisait donc rien, et le repli silencieux
     de la barre (`batch-import.js`, aperçu à 0 élément) ne le disait pas. Mesuré 2026-08-27.
+    Servi par `batch_template_response` (2026-11-02), avec les formats que l'app déclare.
     """
-    from django.http import HttpResponse
-    from wama.common.utils.batch_parsers import build_batch_template
-    template_content = build_batch_template(
-        ['source'],
-        {'source': 'https://example.com/photo.png'},
-        app_label='Converter (une URL ou un chemin par ligne — image, vidéo, audio, document)')
-    response = HttpResponse(template_content, content_type='text/plain; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="batch_converter_template.txt"'
-    return response
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'converter', ['source'], {'source': 'https://example.com/photo.png'},
+        label='Converter (une URL ou un chemin par ligne — image, vidéo, audio, document)')
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante FK-directe) ──

@@ -1741,7 +1741,8 @@ MECHANISMS = (
               "déclaration que l'app donne à sa fabrique de lot (`batch_views.element_declaration`) : "
               "la copie rangée par `batch_common.place_copy`, le résultat servi comme son ZIP "
               "l'écrit (`ResultArchive`) — les dix apps le 2026-11-02, leurs spécificités "
-              "déclarées (`on_stop`, `item_settings`, `item_empty_is_value`, `settings_file`)",
+              "déclarées (`on_stop`, `item_settings`, `item_empty_is_value`, `settings_file`) ; "
+              "et la card rendue seule (`make_card_view`), avec les clés que la file lui donne",
               'wama/common/utils/item_views.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11',
               depends_on=('progress_views',)),
@@ -1815,7 +1816,11 @@ MECHANISMS = (
               "Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le "
               "2026-10-20 : `parse_batch_lines` (les lignes normalisées, toutes familles) et "
               "`line_to_ports` (une ligne rangée dans les PORTS d'un nœud : colonne au nom d'un "
-              "port, rôles `-i`/`-p`/`-r` en alias, refus nommé) — lus par le Studio",
+              "port, rôles `-i`/`-p`/`-r` en alias, refus nommé) — lus par le Studio. Depuis le "
+              "2026-11-02 : le gabarit téléchargeable de chaque app servi par "
+              "`batch_template_response` (formats lus à la déclaration), le rangement des "
+              "orphelins et la file aux deux formes de rattachement (FK directe comprise), la "
+              "file listée par `listable_by`",
               'wama/common/utils/batch_parsers.py', 'docs/construction/ui/BATCH_FORMAT.md',
               annexes=('wama/common/utils/batch_common.py',
                        'wama/common/utils/batch_sync.py',

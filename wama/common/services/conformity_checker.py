@@ -225,6 +225,21 @@ def _present(f: _AppFiles, patterns, regex, label_ok=None, code=False):
     return (True, ev) if ev else (False, None)
 
 
+def _route_by_factory(f: _AppFiles, route, factory: str):
+    """Une route d'app servie par la brique COMMUNE : la route existe (`urls.py`) ET les vues
+    appellent la brique `factory` (son nom ; commentaires neutralisés). PARTIEL : la route sans la
+    brique — la vue est écrite à la main. Le défaut des critères « le mot est présent »
+    (2026-11-02) : onze vues `card_html` et sept gabarits batch écrits à la main passaient vert
+    sur leur seule route."""
+    route_ev = f.find(URLS, route)
+    if not route_ev:
+        return False, None
+    built = f.find_code(VIEWS, rf'\b{factory}\(')
+    if built:
+        return True, built
+    return 'partial', f"route {route_ev}, vue écrite à la main (brique : `{factory}`)"
+
+
 def _tool_api_triad(f: _AppFiles):
     # Registre RUNTIME (les clés effectivement exposées) : depuis la marche A4, une partie
     # des triades est CONSTRUITE à l'import (`TRIAD_SPECS` + `_register_triads()`) — le
@@ -1278,8 +1293,7 @@ def _duplicate_instance(f: _AppFiles):
 
 #: Une vue qui DÉLÈGUE au geste de la fabrique — `_iv['stop'](request, pk)`, ou la vue du module
 #: qui le porte, `stop(request, pk)` — n'est pas une vue écrite à la main : c'est l'adresse d'une
-#: spécificité déclarée (le converter : `cancel`, qui retire d'abord une conversion rapide ;
-#: l'imager : son ancienne adresse `force_reset`).
+#: spécificité déclarée (le converter : `cancel`, qui retire d'abord une conversion rapide).
 _DELEGATES_TO_FACTORY = re.compile(r"\[\s*'(?:{g})'\s*\]\s*\(|(?<![\w.])(?:{g})\(\s*request\b"
                                    .format(g='|'.join(ELEMENT_GESTURES)))
 
@@ -2677,8 +2691,10 @@ CRITERIA: list[Criterion] = [
     # l'`IndexView` générée) — sans elle au motif, les dix apps passaient au rouge en l'adoptant.
     Criterion('reconcile_orphans', 'F5', 'Réconciliation RUNNING orphelins (IndexView)',
               lambda f: _present(f, VIEWS, r'reconcile_queue_of|reconcile_orphaned_running')),
+    # L'APPEL de la brique, pas son nom (2026-11-02) : l'avatarizer et le converter étaient VERTS
+    # avec une boucle écrite à la main, dans une fonction locale nommée `_auto_wrap_orphans`.
     Criterion('auto_wrap_orphans', 'F5', 'Auto-wrap des items hors batch',
-              lambda f: _present(f, VIEWS, r'auto_wrap_orphans'),
+              lambda f: _present(f, VIEWS, r'(?<![\w.])auto_wrap_orphans\(\s*user\b', code=True),
               mechanism='batch'),
     Criterion('processing_time', 'F5', 'ProcessingTimeMixin (temps réel persisté)',
               lambda f: _present(f, MODELS, r'ProcessingTimeMixin')),
@@ -2694,7 +2710,7 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, TEMPLATES, r"common/_cycle_button\.html"),
               mechanism='cycle_button', covers=('start_btn',)),
     Criterion('card_html_endpoint', 'F5', 'Card = partial serveur + endpoint card_html',
-              lambda f: _present(f, URLS, r'card_html'),
+              lambda f: _route_by_factory(f, r'card_html', 'make_card_view'),
               mechanism='card_system'),
     #: ⚠ DEUX graphies acceptees, et c'est deliberé : depuis le 2026-08-25 l'include de la card
     #: mere a migre dans `_queue_entry.html` (brique commune). Ne chercher que `_batch_card` dans
@@ -2708,8 +2724,10 @@ CRITERIA: list[Criterion] = [
               mechanism='queue_front'),
     Criterion('queue_piece', 'F5', 'File commune d\'un seul tenant (_queue : barre, conteneur, entrées, état vide)',
               _queue_piece, mechanism='queue_front'),
+    # L'APPEL (2026-11-02) : le converter était VERT en construisant sa file à la main, le nom
+    # de la brique n'apparaissant que dans un commentaire et un import d'une voisine.
     Criterion('build_batches_list', 'F5', 'Agrégats de file communs (build_batches_list)',
-              lambda f: _present(f, VIEWS, r'build_batches_list'),
+              lambda f: _present(f, VIEWS, r'(?<![\w.])build_batches_list\(', code=True),
               mechanism='batch'),
     Criterion('queue_manipulation', 'F5', 'Manipulation directe (fabrique 4 vues)', _queue_manipulation,
               mechanism='queue_manipulation'),
@@ -2855,7 +2873,8 @@ CRITERIA: list[Criterion] = [
     Criterion('download_all', 'F5', 'Vue download_all : le ZIP de la file par la fabrique commune',
               _queue_zip_common, mechanism='progress_views'),
     Criterion('batch_template', 'F5', 'Gabarit batch téléchargeable',
-              lambda f: _present(f, URLS, r'batch_template|batch-template')),
+              lambda f: _route_by_factory(f, r'batch_template|batch-template',
+                                          'batch_template_response')),
     Criterion('btn_order', 'F5', 'Ordre canonique des boutons ⚙▶⬇⧉🗑', _btn_order),
     Criterion('crash_redelivery_guard', 'F5', 'Garde anti-BOUCLE-de-crash (refuse_crash_redelivery)',
               # la brique task_skeleton (A2) porte la garde pour toute tâche qui l'adopte

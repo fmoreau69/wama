@@ -134,7 +134,9 @@ class CheminDeLotTest(SimpleTestCase):
         # extension DÉRIVÉE du vocabulaire d'entrée.
         corps = _fonction(self.src, 'batch_template')
         self.assertIsNotNone(corps)
-        self.assertIn('build_batch_template', corps, 'le gabarit doit passer par la brique')
+        # La brique est, depuis le 2026-11-02, la RÉPONSE entière (`batch_template_response` :
+        # nom de fichier commun, formats déclarés), comme dans les dix apps réelles.
+        self.assertIn('batch_template_response', corps, 'le gabarit doit passer par la brique')
         self.assertIn('example.com/exemple', corps, 'aucune ligne d\'exemple émise')
 
     def _src_avec_hors_colonnes(self):

@@ -2195,7 +2195,6 @@
         "download_srt",
         "duplicate",
         "edit",
-        "enrich",
         "get_user_settings",
         "global_progress",
         "help",
@@ -2242,11 +2241,6 @@
           "name": "stop",
           "pattern": "stop/<int:pk>/",
           "view": "views.stop"
-        },
-        {
-          "name": "enrich",
-          "pattern": "enrich/<int:pk>/",
-          "view": "views.enrich"
         },
         {
           "name": "progress",
@@ -2422,12 +2416,6 @@
           "function": "transcribe_without_preprocessing",
           "lifecycle": true,
           "task_name": null
-        },
-        {
-          "file": "workers.py",
-          "function": "enrich_transcript",
-          "lifecycle": false,
-          "task_name": "wama.transcriber.enrich_transcript"
         },
         {
           "file": "workers.py",

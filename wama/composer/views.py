@@ -380,17 +380,14 @@ def batch_template(request):
     """Template batch téléchargeable, GÉNÉRÉ depuis la déclaration des champs (brique
     commune build_batch_template — plus de contenu en dur, A5-23). NB : la colonne de
     nom de fichier est « sortie » (l'alias « fichier » désigne l'ENTRÉE dans le
-    vocabulaire commun ; l'ordre positionnel hérité reste sortie|prompt|modèle|durée)."""
-    from django.http import HttpResponse
-    from wama.common.utils.batch_parsers import build_batch_template
-    text = build_batch_template(
-        ['sortie', 'prompt', 'modele', 'duree'],
+    vocabulaire commun ; l'ordre positionnel hérité reste sortie|prompt|modèle|durée).
+    Servi par `batch_template_response` (le nom de fichier commun, 2026-11-02)."""
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'composer', ['sortie', 'prompt', 'modele', 'duree'],
         {'sortie': 'piano.wav', 'prompt': 'upbeat jazz piano with soft drums',
          'modele': 'musicgen-small', 'duree': 30},
-        app_label='Composer (musique / bruitages)')
-    resp = HttpResponse(text, content_type='text/plain; charset=utf-8')
-    resp['Content-Disposition'] = 'attachment; filename="composer_batch_template.txt"'
-    return resp
+        label='Composer (musique / bruitages)')
 
 
 @require_POST
@@ -697,24 +694,12 @@ def console_content(request):
     return JsonResponse({'lines': lines})
 
 
-def card_html(request, pk):
-    """Card RENDUE serveur — SOURCE UNIQUE du markup de card (partial _generation_card.html ;
-    CARD_DESIGN : « partial server-side + update JS en place, PAS de rebuild »). Consommée par
-    le JS à la création (insertion) et en fin de tâche (remplacement in-place : waveform +
-    boutons complets sans injection de chaînes HTML — audit B2-4/5)."""
-    from django.http import HttpResponse
-    from django.template.loader import render_to_string
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
-    gen = visible_or_404(ComposerGeneration, user, id=pk)
-    try:
-        label = gen.batch_item.output_filename
-    except ComposerBatchItem.DoesNotExist:
-        label = ''
-    from wama.common.utils.batch_common import is_batch_child
-    html = render_to_string('composer/_generation_card.html',
-                            {'elem': _decorate_generation(gen), 'card_label': label,
-                             'in_batch': is_batch_child(gen)}, request=request)
-    return HttpResponse(html)
+# Card RENDUE serveur — SOURCE UNIQUE du markup (partial _generation_card.html), consommée à la
+# création et en fin de tâche : fabrique commune (`make_card_view`, 2026-11-02), qui pose
+# `card_label` (le nom de sortie de la ligne de lot) pour toutes les apps — il ne l'était qu'ici.
+from wama.common.utils.item_views import make_card_view  # noqa: E402
+
+card_html = make_card_view(work_model=ComposerGeneration, template='composer/_generation_card.html',
+                           decorate=lambda gen: _decorate_generation(gen))
 
 

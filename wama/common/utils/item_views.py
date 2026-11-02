@@ -250,6 +250,44 @@ def start_queue(declaration, user, *, settings=None, apply_settings=None, on_que
     return started, errors, skipped
 
 
+def make_card_view(*, work_model, template: str, decorate=None, get_user=request_user):
+    """La vue `card_html(request, pk)` d'une app : la card d'UN élément rendue par le serveur
+    (le partial de la file, source unique de son markup), que le JS redemande au lieu de
+    recharger la page. Une lecture : l'élément du compte OU reçu (`visible_or_404`).
+
+    Le gabarit reçoit les clés que la FILE lui donne (`common/_queue_entry.html`) : `elem`,
+    `in_batch` (sa position), `card_label` (le nom de sortie que porte sa ligne de lot) — et
+    `domain`, le domaine de l'élément (`app_modes.element_domain_or_first`).
+    Une card redemandée se rendait autrement que dans la file : `card_label` n'était passé que
+    par le composer (le synthesizer, qui le porte aussi, le perdait au premier rafraîchissement),
+    `domain` que par l'imager.
+
+    Args:
+        template : le partial de card de l'app (`<app>/_<élément>_card.html`).
+        decorate : callable(élément) — ce que l'app pose sur l'élément avant le rendu (chips du
+                   schéma, process de la card) : celle qu'appelle aussi sa file.
+
+    Onze vues écrites à la main dans les dix apps jusqu'au 2026-11-02 (deux formes de réponse,
+    deux noms d'argument de route, l'imager en `generation_id`, des clés mortes) — la forme que
+    le générateur émettait déjà pour les jumelles."""
+    from django.http import HttpResponse
+    from django.template.loader import render_to_string
+
+    @require_GET
+    def card_html(request, pk):
+        from wama.common.utils.app_modes import element_domain_or_first
+        from wama.common.utils.batch_common import is_batch_child, link_row_of
+        from wama.common.utils.scoping import visible_or_404
+        elem = visible_or_404(work_model, get_user(request), pk=pk)    # LECTURE
+        if decorate is not None:
+            decorate(elem)
+        values = {'elem': elem, 'in_batch': is_batch_child(elem),
+                  'card_label': getattr(link_row_of(elem), 'output_filename', '') or '',
+                  'domain': element_domain_or_first(elem)}
+        return HttpResponse(render_to_string(template, values, request=request))
+    return card_html
+
+
 def discard_element(item, *, progress_key='', on_delete=None):
     """Retirer UN élément de la file : révoquer sa tâche en file, ce que l'app sait de lui
     (`on_delete`), son cache de progression, LIBÉRER ses fichiers, puis la ligne — le geste de

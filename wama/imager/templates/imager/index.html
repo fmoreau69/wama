@@ -267,9 +267,8 @@ media-picker.js est une brique GLOBALE montée par base.html (avant `app_scripts
             batchChildren: "{% url 'imager:batch_children' 0 %}",
             startBatch: "{% url 'imager:batch_start' 0 %}",
             modelResolutions: "{% url 'imager:api_model_resolutions' %}",
-            {# ⏹ commun (`stop`, 2026-11-02) — forme `as` : le gabarit est relu à chaud, avant que le serveur ne connaisse la route ; `forceReset` (son ancienne adresse) en repli. #}
+            {# ⏹ commun (`stop`, 2026-11-02) — forme `as` : le gabarit est relu à chaud, avant que le serveur ne connaisse la route. #}
             stop: "{% url 'imager:stop' 0 as imager_stop_url %}{{ imager_stop_url }}",
-            forceReset: "{% url 'imager:force_reset' 0 %}",
             enhancePrompt: "{% url 'common:enrich_prompt' %}"
         },
     csrfToken: "{{ csrf_token }}"

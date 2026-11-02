@@ -11,7 +11,7 @@ from django.conf import settings
 from django.shortcuts import render
 from django.views import View
 from django.views.generic import TemplateView
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 from django.core.cache import cache
@@ -356,24 +356,13 @@ def _decorate_synthesis(s, preloaded=False):
     return s
 
 
-def card_html(request, pk: int):
-    """
-    Renders a single synthesis card as HTML fragment.
-    Used by the polling loop to update a card in-place on completion (no full page reload).
+# Card d'une synthèse rendue par le serveur, que la boucle de suivi redemande en fin de tâche :
+# fabrique commune (`make_card_view`, 2026-11-02) — elle porte désormais `card_label`, le nom de
+# sortie de la ligne de lot que la FILE lui donne et que ce rendu-ci perdait.
+from wama.common.utils.item_views import make_card_view  # noqa: E402
 
-    ⚠ Nom et route alignés sur les 9 autres apps le 2026-09-15 (ex-`synthesis_card_html`,
-    `synthesis/<pk>/card/`) : une brique commune résout la route `<app>:card_html`.
-    """
-    from django.template.loader import render_to_string
-    from django.http import HttpResponse
-    from wama.common.utils.batch_common import is_batch_child
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import visible_or_404
-    synthesis = visible_or_404(VoiceSynthesis, user, pk=pk)   # LECTURE : le sien OU reçu (2026-10-02)
-    html = render_to_string('synthesizer/_synthesis_card.html',
-                            {'elem': _decorate_synthesis(synthesis),
-                             'in_batch': is_batch_child(synthesis)}, request=request)
-    return HttpResponse(html)
+card_html = make_card_view(work_model=VoiceSynthesis, template='synthesizer/_synthesis_card.html',
+                           decorate=lambda s: _decorate_synthesis(s))
 
 
 def _progress_extra(synthesis):
@@ -468,26 +457,18 @@ def import_individual_from_path(request):
 # ============= BATCH SYNTHESIS =============
 
 def batch_template(request):
-    """Download a batch file template (.txt)."""
-    template = """# WAMA Synthesizer - Batch Synthesis
-# Format : nom_fichier|texte à synthétiser|voix|vitesse
-# Les colonnes voix et vitesse sont optionnelles.
-# Les lignes commençant par # sont des commentaires.
-
-# --- Exemples avec tous les paramètres ---
-consigne_1.wav|Bonjour, veuillez vous installer confortablement dans le simulateur.|default|1.0
-consigne_2.wav|Ajustez le siège et les rétroviseurs selon vos préférences.|male_1|0.95
-
-# --- Exemples sans voix ni vitesse (valeurs par défaut) ---
-consigne_3.wav|L'expérimentation va débuter dans 30 secondes.
-pause.wav|Vous pouvez faire une pause de 5 minutes.
-
-# --- Fin ---
-fin.wav|L'expérimentation est terminée. Merci de votre participation !|female_1|1.0
-"""
-    response = HttpResponse(template, content_type='text/plain; charset=utf-8')
-    response['Content-Disposition'] = 'attachment; filename="batch_template.txt"'
-    return response
+    """Gabarit de fichier batch, par la brique commune (`batch_template_response`) : ses
+    colonnes dans l'ordre de son format positionnel (`utils/batch_parser.py`), que le lecteur
+    accepte aussi en tableur et en balises. Écrit à la main jusqu'au 2026-11-02, sous le nom
+    `batch_template.txt` — le seul gabarit sans le nom de son app."""
+    from wama.common.utils.batch_parsers import batch_template_response
+    return batch_template_response(
+        'synthesizer', ['sortie', 'texte', 'voix', 'vitesse'],
+        {'sortie': 'consigne_1.wav',
+         'texte': 'Bonjour, veuillez vous installer confortablement dans le simulateur.',
+         'voix': 'default', 'vitesse': '1.0'},
+        label='Synthesizer (un texte à dire par ligne)',
+        notes=('Les colonnes voix et vitesse sont optionnelles (défauts du volet).',))
 
 
 @require_POST
