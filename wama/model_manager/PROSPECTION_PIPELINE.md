@@ -1079,11 +1079,17 @@ pip), pas de rejeu des patches venv, pas de marcheur `requires`→drivers.
   synthesizer : 9 librairies (versions constatées, `already_satisfied`), 4 modèles
   téléchargés.
   ⏳ *Relevé le 2026-11-02* : depuis que la facette `models` unit les lignes de l'app et ce
-  que ses selects PROPOSENT (§« Session du 2026-10-29 », point 2), le marcheur demanderait
-  tous les modèles proposés (describer : 15, dont les LLM d'Ollama), et plus seulement les
-  lignes de l'app (anonymizer : 58 déjà). Seul appelant : la commande, à la main
-  (`install_requires.py:30`). Question pour Fabien : le `--apply` doit-il installer tout ce que
-  l'app propose, ou un choix par select (le tirage, le défaut du schéma) plus ses étapes internes ?
+  que ses selects PROPOSENT (§« Session du 2026-10-29 », point 2), le marcheur demande aussi
+  les modèles proposés, et plus seulement les lignes de l'app. Seul appelant : la commande, à
+  la main (`install_requires.py:30`). *Mesuré le soir même* (plan `apply=False` des dix apps) :
+  l'effet RÉEL de l'élargissement est UN modèle — `synthesizer:bark` (12,2 Go) entre au plan de
+  l'avatarizer, alors que le synthesizer le demandait déjà. Le reste du plan préexistait : cinq
+  modèles d'image et de vidéo de l'imager (FLUX.2 klein 4B, HunyuanImage 2.1, Mochi 1, Qwen-Image 2
+  et Edit, lignes de l'app depuis toujours, `disk_gb` non renseigné) et `composer:musicgen-melody`.
+  Le describer (15) est déjà entièrement installé ; la première formulation de cette question
+  (« 15, dont les LLM d'Ollama ») surestimait l'effet. Question pour Fabien, inchangée sur le
+  fond : le `--apply` installe-t-il TOUT ce que l'app sait employer, ou un modèle par select (le
+  tirage, le défaut du schéma) plus ses étapes internes ?
 
 **Chaîne complète désormais** : librarian/extraction → manifeste `library` → ingest →
 registre `Library` → (`--allow` humain) → `install_requires <app> --apply` → pip verrouillé

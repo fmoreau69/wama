@@ -444,6 +444,13 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    85 → rien envoyé, 42 jetons. ⚠ Assumé : au cran par défaut, ILaaS qwen3.8 répond SANS la
    réflexion sur laquelle le tirage le classe (variante « xhigh », `benchmark_sync.SERVED_VARIANT`)
    — c'est le cran « Qualité » qui la rend. Garde : `tests_assistant_surfaces.LatencyLeversTest`.
+   ⏳ **OpenRouter `qwen/qwen3.8-27b`** (et les cinq autres qwen3.8 d'OpenRouter) : mesure décidée
+   le même jour, NON FAITE — aucune clé OpenRouter posée (ni au profil de l'administrateur, ni
+   d'instance), et la garde d'appel (`cloud_models.cloud_access`) refuse un modèle qu'aucune clé
+   n'ouvre. Sonde prête : la même que pour ILaaS (effort injecté sur le vrai chemin
+   `chat_with_source` ; variantes `none`, `minimal`, `low` et `reasoning: {enabled: false}`) —
+   cette dernière forme, propre à OpenRouter, n'est pas celle que `llm_chat` envoie : si elle seule
+   coupait, c'est la déclaration qu'il faudrait étendre, pas un chemin à côté.
 2. ✅ **Prompt réordonné** : base + rôle + annonce + outils (FIXE) puis contexte labo + état des
    files (DYNAMIQUE) → le préfixe des jetons est stable d'un tour à l'autre.
 3. ⏳ **Réduire le prompt d'outils** : 71 outils décrits à chaque tour ; ne lister que ceux du
