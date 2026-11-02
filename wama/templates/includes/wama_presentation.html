@@ -18,7 +18,8 @@
 
   ⚠ Les chiffres sont des RELEVÉS sourcés (pied de frame), pas des mesures en direct — sauf la
   scène des droits, calculée par `accounts.permissions.access_cases()` sur la politique d'accès
-  effective, et la frise de la roadmap. Confrontés au code le 2026-10-03, puis le 2026-10-13 :
+  effective, et la frise de la roadmap. Confrontés au code le 2026-10-03, le 2026-10-13, puis le
+  2026-11-03 (veille d'un exposé : chiffres remesurés, concile ajouté au harnais LLM) :
   une affirmation périmée se corrige ici, à la mesure, jamais en recopiant une doc.
 {% endcomment %}
 <html lang="fr">
@@ -160,8 +161,8 @@
         <div class="kicker">Constat 6/6</div>
         <h2><i class="fas fa-bolt c-trans"></i> L'open source va très vite</h2>
         <div class="cards c3">
-          <div class="card"><h3>Prospecter</h3><p>On cherche les nouveaux modèles sur Hugging Face de façon <b>déterministe</b>,
-              sans LLM ni scraping. Un administrateur accepte chaque candidat.</p></div>
+          <div class="card"><h3>Prospecter</h3><p>On repère les nouveaux modèles sur Hugging Face de façon <b>déterministe</b>,
+              sans scraping. Un jury de LLM donne son avis, un administrateur décide.</p></div>
           <div class="card"><h3>Tester sans risque</h3><p>Chaque app peut avoir une « jumelle » <code>&lt;app&gt;_NN</code>, avec ses propres
               tables. On régénère l'app, pas la plateforme.</p></div>
           <div class="card"><h3>Surveiller</h3><p>WAMA est comparé aux autres outils d'agents IA (Codex, Cursor, Claude Code…)
@@ -194,9 +195,9 @@
             même file d'attente, même volet, mêmes boutons.</p>
           <div class="cards c2 compact">
             <div class="card media"><p><b>Transcriber</b> : la parole en texte, avec correction assistée (Whisper, Qwen3-ASR, Canary, pyannote…)</p></div>
-            <div class="card media"><p><b>Anonymizer</b> : floute visages et plaques (YOLO, EgoBlur, SAM3, LocateAnything…)</p></div>
+            <div class="card media"><p><b>Anonymizer</b> : floute visages et plaques, anonymise les documents (YOLO, SAM3, Presidio…)</p></div>
             <div class="card media"><p><b>Synthesizer</b> : synthèse et clonage de voix (Kokoro, XTTS v2, Higgs Audio…)</p></div>
-            <div class="card media"><p><b>Describer</b> : décrit un média (BLIP, Gemma 4, Moondream…)</p></div>
+            <div class="card media"><p><b>Describer</b> : décrit un média (BLIP, Gemma 4…)</p></div>
             <div class="card media"><p><b>Reader</b> : lit le texte des scans et PDF (olmOCR, docTR, GLM-OCR…)</p></div>
             <div class="card media"><p><b>Imager</b> : génère images et vidéos (Hunyuan, Qwen Image, FLUX, LTX…)</p></div>
             <div class="card media"><p><b>Composer</b> : musique et bruitages (MusicGen, AudioGen, ACE-Step, YuE…)</p></div>
@@ -214,7 +215,7 @@
         <div class="chain media">
           <div class="node"><span class="n">01</span><h3>Nettoyage</h3><p>débruitage de l'audio (DeepFilterNet)</p></div>
           <div class="arrow">→</div>
-          <div class="node"><span class="n">02</span><h3>Reconnaissance</h3><p>Whisper large-v3 par défaut, et 7 autres moteurs (Qwen3-ASR, Canary, LinTO, Kyutai…) ; le moteur est choisi selon la VRAM</p></div>
+          <div class="node"><span class="n">02</span><h3>Reconnaissance</h3><p>Whisper large-v3 par défaut, et 9 autres modèles (Qwen3-ASR, Canary, Parakeet, LinTO, Kyutai…) ; le moteur est choisi selon la VRAM</p></div>
           <div class="arrow">→</div>
           <div class="node"><span class="n">03</span><h3>Qui parle ?</h3><p>séparation des locuteurs (pyannote 3.1 ou community-1)</p></div>
           <div class="arrow">→</div>
@@ -222,7 +223,7 @@
           <div class="arrow">→</div>
           <div class="node"><span class="n">05</span><h3>Export</h3><p>txt · srt · pdf · docx</p></div>
         </div>
-        <p style="margin-top:28px"><b>Mode « Speak »</b> : transcription en direct dans le navigateur. Le texte est gardé
+        <p style="margin-top:28px"><b>Mode « Speak »</b> : transcription en direct depuis le navigateur. Le texte est gardé
            et peut repasser ensuite dans la chaîne complète.</p>
         <div class="src">TRANSCRIBER_CORRECTION.md · catalogue AIModel (tâche transcription) · pyannote_diarizer.py · transcriber/views.py</div>
       </section>
@@ -255,7 +256,7 @@
                GPS 1 Hz, vidéo 25 i/s, regard 60 Hz, ECG 1 kHz</p></div>
             <div class="card data"><h3 style="font-size:21px">Lecteurs</h3><p>RTMaps <code>.rec</code>, bases <code>.trip</code>, format natif
                <code>.wdat</code> compatible BIND. Aucun format n'est privilégié.</p></div>
-            <div class="card data"><h3 style="font-size:21px">Fonctions typées</h3><p>plus de 100 fonctions au catalogue commun, qui ne
+            <div class="card data"><h3 style="font-size:21px">Fonctions typées</h3><p>plus de 150 fonctions au catalogue commun, qui ne
                s'enchaînent que si leurs types sont compatibles</p></div>
             <div class="card data"><h3 style="font-size:21px">Un moteur indépendant du site</h3><p>les calculs Data se lancent
                aussi depuis un simple script Python ; le Data Analyzer en sera l'interface</p></div>
@@ -276,7 +277,7 @@
           <div class="arrow">→</div>
           <div class="node"><span class="n">04</span><h3>Calculs et indicateurs</h3><p>physiologie, regard, conduite…</p></div>
           <div class="arrow">→</div>
-          <div class="node"><span class="n">05</span><h3>Export</h3><p>CSV, TSV, tableur, MATLAB</p></div>
+          <div class="node"><span class="n">05</span><h3>Export</h3><p>CSV, TSV, texte</p></div>
         </div>
         <p style="margin-top:26px">Chaque étape est une brique <b>typée et testée</b> du catalogue commun de fonctions.</p>
         <div class="src">WAMA_DATA_WORLD.md · wama_data/containers/ · wama_data/core/export.py (formats)</div>
@@ -288,7 +289,7 @@
         <div class="cards c2">
           <div class="card data"><h3>Le plan d'expérience</h3>
             <p>Le manifeste <b>dataset</b> décrit le corpus, et cette description suffit à le charger.
-               Quatre rôles : <b>unité, regroupement, facteur, covariable</b> — aussi bien pour une étude de
+               Trois rôles : <b>observation, facteur, attribut</b> — aussi bien pour une étude de
                conduite que pour une série d'essais mécaniques.</p></div>
           <div class="card data"><h3>Le plan de traitement</h3>
             <p>Le manifeste <b>pipeline</b> décrit les process et leur enchaînement, entrées et sorties typées.
@@ -333,7 +334,7 @@
           <div class="arrow">→</div>
           <div class="node"><span class="n">05</span><h3>Indicateurs</h3><p>conflits, TTC, PET, distance minimale</p></div>
         </div>
-        <p class="say" style="margin-top:30px">Le premier pipeline décrit dans le modèle commun : <b>20 nœuds, 27 liens</b>.</p>
+        <p class="say" style="margin-top:30px">Le premier pipeline décrit dans le modèle commun : <b>21 nœuds, 29 liens</b>.</p>
         <div class="src">CAM_ANALYZER_CHAINE_TRAITEMENT.md · manifests/pipelines/cam_analyzer.json · ROUTE §10.6</div>
       </section>
 
@@ -347,9 +348,9 @@
           <div class="card lab"><h3>Calculé</h3><p>Dérivé de ce qui est mesuré, sans GPU et rejouable : distance, vitesse, TTC,
               plan de sol, cap de la navette, suivi à 360°, indicateurs (TTC, PET) et conflits.</p></div>
           <div class="card lab accent"><h3>Le pipeline</h3><p>Chaque étage est un pipeline du modèle commun :
-              <b>9 passes</b> d'analyse, <b>11</b> de calcul. Une passe est un process, chaque dépendance un lien.</p></div>
+              <b>9 passes</b> d'analyse, <b>12</b> de calcul. Une passe est un process, chaque dépendance un lien.</p></div>
         </div>
-        <p style="margin-top:24px">L'app a <b>39 bascules A/B</b> et une analyse incrémentale : quand une étape change, seules
+        <p style="margin-top:24px">L'app a <b>56 bascules A/B</b> et une analyse incrémentale : quand une étape change, seules
            les passes devenues obsolètes (<code>STALE</code>) sont recalculées.</p>
         <div class="src">cam_analyzer/utils/pass_tracking.py (PASSES, étages) · manifests/pipelines/cam_analyzer.analyse.json · cam_analyzer.calcul.json · utils/features.py</div>
       </section>
@@ -434,10 +435,11 @@
         <div class="kw big">
           <span>traduit dans la langue du modèle, si besoin</span><span>enrichi selon la nature du prompt</span>
           <span>documents de référence</span>
-          <span>web, API, connecteurs, conversation vocale</span><span>près de 80 outils</span>
+          <span>web, API, connecteurs, conversation vocale</span><span>près de 140 outils</span>
           <span>détruire exige un accord</span>
+          <span>des sous-agents en parallèle</span><span>un concile : vote, synthèse ou relecture croisée</span>
         </div>
-        <div class="src">WAMA_LLM.md · WAMA_HARNESS.md · tool_api.py (TOOL_REGISTRY)</div>
+        <div class="src">WAMA_LLM.md · WAMA_HARNESS.md §7.4 (sous-agents, concile) · tool_api.py (TOOL_REGISTRY)</div>
       </section>
 
       <section class="frame boxed" id="t-gouverneur" data-x="-720" data-y="8340" data-s="0.4" data-title="Transversal · Gouverneur de ressources">
@@ -553,7 +555,7 @@
         </div>
         <div class="cards c4" style="margin-top:20px">
           <div class="card"><p><code>WAMA:FAIT(…)</code> : le chiffre est lu dans le registre, jamais recopié à la main.</p></div>
-          <div class="card"><p><code>doc_facts</code> régénère les tables ; la carte des 198 mécanismes est produite ainsi.</p></div>
+          <div class="card"><p><code>doc_facts</code> régénère les tables ; la carte des 224 mécanismes est produite ainsi.</p></div>
           <div class="card"><p><code>check_docs</code>, chaque nuit : <b>0 référence cassée</b>. Il les nommerait une à une.</p></div>
           <div class="card"><p>Un chiffre sans source (commande, date ou bloc généré) est signalé.</p></div>
         </div>
@@ -566,9 +568,9 @@
         <div style="display:flex;gap:50px;align-items:flex-start">
           <div style="flex:1">
             <div class="stats">
-              <div class="stat"><div class="big grad">614</div><span>scénarios</span></div>
+              <div class="stat"><div class="big grad">692</div><span>scénarios</span></div>
               <div class="stat"><div class="big">3 000+</div><span>tests Django</span></div>
-              <div class="stat"><div class="big">103</div><span>critères de conformité</span></div>
+              <div class="stat"><div class="big">114</div><span>critères de conformité</span></div>
             </div>
             <ul style="margin-top:34px">
               <li><b>04:15</b>, contrôles de cohérence : docs, conformité, manifestes, gabarits, redondance, vulnérabilités, secrets.
@@ -579,7 +581,7 @@
           </div>
           <div style="flex:0 0 560px">
             <div class="card" style="margin-bottom:14px"><h3>Grille d'adoption</h3><p>Toutes les apps suivent-elles les mêmes règles ?
-               <b>Les 10 apps à 100 %</b>. Cette grille ne prouve pas que ça marche.</p></div>
+               <b>Les 10 apps à 99 % ou plus</b>. Cette grille ne prouve pas que ça marche.</p></div>
             <div class="card" style="margin-bottom:14px"><h3>Grille fonctionnelle</h3><p>Est-ce que ça marche vraiment ? Des scénarios
                rejouent les gestes de l'utilisateur, app par app.</p></div>
             <div class="card"><h3>Budgets à sens unique</h3><p>Certains compteurs ne peuvent que baisser : noms en français dans le code,

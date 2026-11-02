@@ -757,6 +757,17 @@ INDÉPENDANTES (264 s contre 12-60 s) — la règle « distants d'abord » ne va
 council ; et suivre le dosage sur les fils réels (`sub_agents` de la trace). La proposition, telle
 qu'écrite avant la décision : ① la décision de déléguer reste au **modèle** (c'est déjà le cas une fois l'interrupteur allumé, et c'est la règle de `charger_competence` : « le choix appartient à l'assistant ») — on lui donne des règles d'**effort proportionné** dans la description de `delegate` (une question simple : aucun sous-agent ; des sous-questions indépendantes : un par sous-question ; une question de recherche ouverte : un council `review`) ; ② l'interrupteur devient le **geste commun « auto + curseur + manuel »** : « auto » DÉRIVE la délégation du curseur Rapide ↔ Qualité, comme la réflexion du modèle (`thinking_wanted`) — un levier d'effort de plus, pas un réglage de plus ; ③ **mesurer** avant d'ouvrir par défaut : nombre de sous-agents par tour et durée, lus dans la trace (`sub_agents`) des fils réels |
 
+**La réflexion des agents suit le curseur, distants compris (2026-11-02).** Agents, relecteurs et
+décideur sont des tours de la même boucle (`_delegate`, `_peer_review`, `_synthesise` →
+`run_assistant_turn`) : depuis que le curseur règle aussi la réflexion d'un modèle distant
+(`WAMA_LLM §1bis` levier 1, décision de Fabien), ils réfléchissent au cran Qualité et la coupent en
+dessous — là où la source déclare l'effort qui la coupe (ILaaS `qwen-3.8-27b`, Albert
+`gpt-oss-120b`), rien ailleurs. En « Auto », les sous-agents ne sont proposés qu'au cran Qualité :
+rien n'y change ; un council obtenu au cran par défaut (« Toujours proposés », ou demandé) tourne
+désormais SANS réflexion sur ces deux modèles. ⏳ Question pour Fabien : le décideur est TIRÉ au
+cran Qualité (`_decider_lane`, `quality_intent=100`), mais sa réflexion suit le curseur de
+l'utilisateur — faut-il la lui imposer ?
+
 **REA et Ghidra pour générer une app « depuis un projet GitHub ou une interface existante »
 (2026-10-29, question de Fabien) — évalués, rien d'installé.** Ghidra (NSA, Apache-2.0) décompile
 des BINAIRES : pour un dépôt GitHub, on a le source, et la chaîne « dépôt → app » (`ROUTE §10.5`,
