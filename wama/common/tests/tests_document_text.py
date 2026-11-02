@@ -127,6 +127,93 @@ class PdfTest(_TempDir):
         self.assertNotIn(b'Anne Martin', Path(out).read_bytes())
 
 
+class PdfLabelFormTest(_TempDir):
+    """2026-11-03 (document #2297, a CV) — by PAGE, a label takes the form of the text it replaces:
+    no white patch painted under it (the white name of a dark banner came out black on white), the
+    family, weight, size and colour of the passage, one label where two passages overlap, and a
+    longer label grows FORWARD on its line, never back out of its column."""
+
+    def _occult(self, src, pairs):
+        from wama.common.utils.document_text import read_segments, write_replacements
+        [segment] = read_segments(src)
+        return write_replacements(src, self.dir / 'out.pdf',
+                                  {0: [(*_span(segment, passage), new) for passage, new in pairs]})
+
+    def _spans(self, path):
+        import fitz
+        with fitz.open(path) as pdf:
+            return [s for b in pdf[0].get_text('dict')['blocks'] if b.get('type') == 0
+                    for line in b['lines'] for s in line['spans'] if s['text'].strip()]
+
+    def test_the_label_keeps_the_passage_form_and_paints_no_background(self):
+        import fitz
+        src = self.dir / 'banner.pdf'
+        with fitz.open() as pdf:
+            page = pdf.new_page()
+            page.draw_rect(fitz.Rect(0, 0, page.rect.width, 200), color=None, fill=(0.2, 0.2, 0.2))
+            page.insert_text((72, 120), 'Anne Martin', fontname='tibo', fontsize=24,
+                             color=(1, 1, 1))
+            pdf.save(str(src))
+        with fitz.open(src) as pdf:
+            drawn = len(pdf[0].get_drawings())
+        out = self._occult(src, [('Anne Martin', '[PERSONNE]')])
+        [span] = self._spans(out)
+        self.assertEqual('[PERSONNE]', span['text'].strip())
+        self.assertEqual(0xffffff, span['color'])
+        self.assertAlmostEqual(24, span['size'], delta=0.1)
+        self.assertTrue(span['flags'] & 4, 'serif family kept')
+        self.assertTrue(span['flags'] & 16, 'bold kept')
+        with fitz.open(out) as pdf:
+            self.assertEqual(drawn, len(pdf[0].get_drawings()), 'no patch painted')
+
+    def test_a_passage_inside_a_longer_one_gets_no_second_label(self):
+        import fitz
+        src = self.dir / 'dates.pdf'
+        with fitz.open() as pdf:
+            pdf.new_page().insert_text((72, 100), 'Fin : Décembre 2026.', fontsize=11)
+            pdf.save(str(src))
+        out = self._occult(src, [('Décembre 2026', '[DATE]'), ('2026', '[NOMBRE]')])
+        with fitz.open(out) as pdf:
+            text = pdf[0].get_text()
+        self.assertIn('[DATE]', text)
+        self.assertNotIn('[NOMBRE]', text)
+        self.assertNotIn('2026', text)
+
+    def test_a_longer_label_grows_forward_never_out_of_its_column(self):
+        import fitz
+        src = self.dir / 'column.pdf'
+        with fitz.open() as pdf:
+            page = pdf.new_page()
+            page.insert_text((72, 100), 'Gauche', fontsize=11)
+            page.insert_text((300, 100), 'Bron', fontsize=11)
+            page.insert_text((345, 100), 'Droite', fontsize=11)
+            pdf.save(str(src))
+        start = next(s for s in self._spans(src) if 'Bron' in s['text'])['bbox'][0]
+        out = self._occult(src, [('Bron', '[ADRESSE_POSTALE]')])
+        [label] = [s for s in self._spans(out) if 'ADRESSE' in s['text']]
+        # Too little room before « Droite » : the label shrinks where it is, it does not move back
+        # into the free room on the left.
+        self.assertAlmostEqual(start, label['bbox'][0], delta=1)
+        self.assertLess(label['bbox'][2], 345)
+
+    def test_a_scanned_passage_is_painted_with_its_paper_colour(self):
+        import fitz
+        from wama.common.utils.document_text import read_segments, write_replacements
+        path, ocr = _scan_with_words(self.dir, [(72, 100, 'Contact: Anne Martin, Paris')],
+                                     paper=(0.8, 0.8, 0.8))
+        [segment] = read_segments(path, ocr=ocr)
+        start = segment.index('Anne Martin')
+        out = write_replacements(path, self.dir / 'out.pdf',
+                                 {0: [(start, start + len('Anne Martin'), '[PERSONNE]')]}, ocr=ocr)
+        from wama.common.utils.document_text import _ink
+        words = {w['text']: fitz.Rect(w['bbox']) for w in ocr[0]['lines'][0]['words']}
+        with fitz.open(out) as pdf:
+            # The RENDERED page: the image's pixels under a redaction are blanked, the paper colour
+            # is painted over them.
+            paper = _ink(pdf[0].get_pixmap(dpi=72), words['Anne'] | words['Martin,'], dark=False)
+        self.assertAlmostEqual(204, paper >> 16, delta=8)          # the grey paper, not white
+
+
 class PdfBlockFormTest(_TempDir):
     """2026-10-29 (a real translated paper : every block rewritten in sans-serif, no bold, 162
     blocks of 392 shrunk under 80 %) — unit `block` rewrites a block with its OWN dominant style,
@@ -707,12 +794,15 @@ class OccultFileTest(_TempDir):
         self.assertEqual('[PERSONNE], encore Anne Martin.', docx.Document(report['path']).paragraphs[1].text)
 
 
-def _scan_with_words(dir_, lines):
-    """A one-page SCAN of `lines` — `(x, y, text)` at 11 pt — and the OCR a positioned engine
-    would give for it, WITH its words (contract of `OCRBackend.read_lines`): the native boxes."""
+def _scan_with_words(dir_, lines, paper=None):
+    """A one-page SCAN of `lines` — `(x, y, text)` at 11 pt, on a `paper` colour (white by default)
+    — and the OCR a positioned engine would give for it, WITH its words (contract of
+    `OCRBackend.read_lines`): the native boxes."""
     import fitz
     with fitz.open() as native:
         page = native.new_page()
+        if paper:
+            page.draw_rect(page.rect, color=None, fill=paper)
         for x, y, text in lines:
             page.insert_text((x, y), text, fontsize=11)
         by_line = {}

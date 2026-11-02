@@ -22,7 +22,8 @@ FORMATS (v1) — un segment est :
     dans le fichier) sont retirées, les métadonnées d'auteur vidées ;
   • `.pdf` (texte natif) : une page. Le passage est retrouvé à sa place (`search_for`), le texte
     dessous est SUPPRIMÉ (`apply_redactions` — un rectangle posé par-dessus le laisserait
-    extractible : une fuite) et le nouveau texte écrit dans la zone ; métadonnées effacées
+    extractible : une fuite) sans peindre de fond, et le nouveau texte écrit dans la zone dans le
+    style du texte remplacé (police générique, taille, couleur — 2026-11-03) ; métadonnées effacées
     (`scrub`), fichier réécrit en entier (`garbage=4`, jamais en incrémental : les anciens objets
     resteraient dans le fichier). Un PDF scanné n'a pas de texte : avec `ocr=` (2026-11-02, domaine
     document de l'Anonymizer, ROADMAP §16.4bis), les lignes que l'OCR À POSITIONS a lues — pages
@@ -390,11 +391,37 @@ def _read_pdf(path, ocr=None) -> list:
         return [_page_text(page, _ocr_words(page, ocr.get(page.number)))[0] for page in pdf]
 
 
+def _native_style(blocks, rect) -> tuple:
+    """`(style, rotation)` du texte natif sous `rect` — le morceau qui le recouvre le plus
+    (`_span_style`, `_rotation` de sa ligne) ; `blocks` : `get_text('dict')` de la page, lu AVANT
+    le caviardage."""
+    import fitz
+    best, area = None, 0
+    for block in blocks:
+        for line in block.get('lines') or []:
+            for span in line['spans']:
+                inter = fitz.Rect(span['bbox']) & rect
+                if not inter.is_empty and inter.get_area() > area:
+                    best, area = (span, line), inter.get_area()
+    if best is None:
+        return ('Helvetica', False, False, round(rect.height * 0.75, 1), 0, False), 0
+    return _span_style(best[0]), _rotation(best[1]) or 0
+
+
 def _rewrite_pdf(path, out_path, replacements, ocr=None) -> None:
     """L'unité page (l'Anonymizer) : chaque passage du texte natif caviardé partout où il se
     retrouve sur sa page, son libellé à sa place ; un passage lu par l'OCR (`ocr=`, page scannée
     ou image d'une figure) caviardé dans ses boîtes de mots, les PIXELS dessous effacés — le reste
-    du scan intact. Deux passes : leurs règles d'image diffèrent."""
+    du scan intact. Deux passes : leurs règles d'image diffèrent.
+
+    Le libellé prend le STYLE du texte qu'il remplace (2026-11-03, #2297 : un aplat blanc et un
+    Helvetica noir de 11 pt partout, le nom blanc d'un bandeau sombre compris) — famille générique,
+    gras, italique, taille et couleur du morceau natif (`_span_style`), ou, sur un scan, la taille
+    tirée de la boîte et la couleur de son encre ; il est posé comme un passage du Translator
+    (`_place` : sa taille, réduite seulement s'il ne tient pas). Le texte natif part SANS fond
+    peint (le fond d'origine reste) ; sous un passage lu par l'OCR, les pixels sont peints de la
+    couleur du papier (`_erase_scanned`)."""
+    import html
     import fitz
     ocr = _ocr_by_page(ocr)
     with fitz.open(str(path)) as pdf:
@@ -402,26 +429,51 @@ def _rewrite_pdf(path, out_path, replacements, ocr=None) -> None:
             page = pdf[int(index)]
             read = _ocr_words(page, ocr.get(page.number))
             text, read_from = _page_text(page, read)
-            scanned = []
+            blocks = page.get_text('dict')['blocks']
+            pixmap = page.get_pixmap(dpi=72) if read else None
+            native, scanned = [], []
             for start, end, new in changes:
                 if start >= read_from and read:
-                    scanned += [(box, new if n == 0 else '') for n, box in
-                                enumerate(_ocr_boxes(read, start - read_from, end - read_from))]
+                    for n, box in enumerate(_ocr_boxes(read, start - read_from, end - read_from)):
+                        style = ('Helvetica', False, False, round(box.height * OCR_SIZE_RATIO, 1),
+                                 _ink(pixmap, box), False)
+                        scanned.append(({'rect': box, 'background': _ink(pixmap, box, dark=False),
+                                         'style': style, 'rotate': 0, 'rows': 1},
+                                        new if n == 0 else ''))
                     continue
                 passage = text[start:end].strip()
                 if not passage:
                     continue
                 for quad in page.search_for(passage, quads=True):
-                    rect = quad.rect
-                    page.add_redact_annot(quad, text=new, fill=(1, 1, 1), text_color=(0, 0, 0),
-                                          fontsize=max(min(rect.height * 0.75, 11), 4))
-            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
+                    style, rotate = _native_style(blocks, quad.rect)
+                    native.append(({'rect': quad.rect, 'style': style, 'rotate': rotate,
+                                    'rows': 1, 'align': 'left'}, new))
+                    page.add_redact_annot(quad, fill=False)
+            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
+                                  graphics=fitz.PDF_REDACT_LINE_ART_NONE)
             if scanned:
-                for box, new in scanned:
-                    page.add_redact_annot(box, text=new, fill=(1, 1, 1), text_color=(0, 0, 0),
-                                          fontsize=max(min(box.height * 0.75, 11), 4))
-                page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS,
-                                      graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+                _erase_scanned(page, scanned)
+            # Ce qui reste écrit ou dessiné sur la page, une fois les passages partis : la place
+            # libre où un libellé plus long que son passage peut s'étendre (`_room`), sur sa ligne.
+            obstacles = ([fitz.Rect(w[:4]) for w in page.get_text('words')]
+                         + [fitz.Rect(b['bbox']) for b in page.get_text('dict')['blocks']
+                            if b.get('type') == 1]
+                         + [d['rect'] for d in page.get_drawings()]
+                         + [unit['rect'] for unit, _ in native]) if native else []
+            # Un passage recouvert par un plus long (« 2026 » dans « Décembre 2026 », un mot
+            # retrouvé ailleurs dans un passage) est caviardé, mais ne porte pas de second libellé.
+            # Un libellé ne s'étend que DEVANT lui sur sa ligne (le premier cadre de `_room`) :
+            # reculer vers la gauche le sortait de sa colonne.
+            labelled = []
+            for unit, new in sorted(native, key=lambda item: -item[0]['rect'].get_area()) + scanned:
+                rect = unit['rect']
+                if not new or any(not (rect & other).is_empty
+                                  and (rect & other).get_area() > 0.5 * rect.get_area()
+                                  for other in labelled):
+                    continue
+                labelled.append(rect)
+                room = [] if 'background' in unit else _room(page, unit, obstacles)[:1]
+                _place(page, unit, html.escape(new), '* {' + _css(unit['style'], 1.0) + '}', room)
         pdf.scrub()
         pdf.save(str(out_path), garbage=4, deflate=True)
 
@@ -520,9 +572,8 @@ def _pdf_unit(lines, page_width=0) -> dict | None:
         rect |= fitz.Rect(line['bbox'])
     # Le sens d'écriture (le tampon vertical d'une marge, l'axe d'une figure) : un quart de tour
     # se réécrit tourné, un autre angle n'est pas un segment.
-    dx, dy = lines[0].get('dir', (1, 0))
-    rotate = {(1, 0): 0, (0, -1): 90, (-1, 0): 180, (0, 1): 270}.get((round(dx), round(dy)))
-    if rotate is None or abs(abs(dx) + abs(dy) - 1) > 0.01:
+    rotate = _rotation(lines[0])
+    if rotate is None:
         return None
     rows = len(_rows(lines))
     # Une seule rangée (une cellule, un titre) : son cadre n'a que la hauteur du texte, et
@@ -532,6 +583,14 @@ def _pdf_unit(lines, page_width=0) -> dict | None:
     return {'rect': rect, 'text': text, 'marked': marked, 'tags': tags, 'style': style,
             'rotate': rotate, 'rows': rows,
             'align': _alignment(lines, rect, page_width, rows), 'leading': leading}
+
+
+def _rotation(line) -> int | None:
+    """Le quart de tour (0, 90, 180, 270) du sens d'écriture d'une ligne ; None pour un autre
+    angle."""
+    dx, dy = line.get('dir', (1, 0))
+    rotate = {(1, 0): 0, (0, -1): 90, (-1, 0): 180, (0, 1): 270}.get((round(dx), round(dy)))
+    return None if rotate is None or abs(abs(dx) + abs(dy) - 1) > 0.01 else rotate
 
 
 def _alignment(lines, rect, page_width, rows=0) -> str:

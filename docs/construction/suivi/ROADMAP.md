@@ -3585,11 +3585,20 @@ eds-pseudo, privacy-filter dès transformers ≥ 5.6 ou par l'ONNX).
   chacun chargé TROIS fois par trois requêtes simultanées). Le service se PRÉCHAUFFE désormais à son
   démarrage (patron du service de voix : « loading » puis prêt, 503 sur `/detect` d'ici là), la tâche
   ATTEND (`ServiceNotReady`, 60 × 10 s) au lieu d'échouer, un détecteur se charge une fois
-  (`PIIDetectionBackend.ensure_loaded`), `USE_TF=0` à l'amorce du service. ⏳ Restent : la page de CORRECTION par passage (`surfaces.py` la dit
+  (`PIIDetectionBackend.ensure_loaded`), `USE_TF=0` à l'amorce du service. ✅ *2026-11-03, sortie
+  de #2297* : chaque libellé était posé sur un APLAT BLANC, en Helvetica noir de 11 pt (le nom blanc
+  du bandeau sombre ressortait noir sur blanc). Il prend désormais la forme du passage remplacé —
+  famille générique, gras, italique, taille, couleur (`_span_style`) ; sur un scan, taille de la
+  boîte, encre et papier lus sur l'image —, sans fond peint, posé comme un passage du Translator
+  (`_place`) : sa taille gardée s'il a la place DEVANT lui sur sa ligne, réduite sinon, jamais
+  reculé hors de sa colonne ; un passage recouvert par un plus long ne porte pas de second libellé
+  (`PdfLabelFormTest`, cinq contre-épreuves rouges). ⏳ Restent : la page de CORRECTION par passage (`surfaces.py` la dit
   à venir ; la couche `detection_corrections` accepte déjà les `span`, relue à l'occultation) ;
   un document reçu par URL naît avec les réglages de l'image avant que son fichier n'arrive ;
   les jumelles (`anonymizer_01`) n'ont pas le domaine tant que le générateur ignore les domaines
-  (`ROUTE §11 #42` ⑦) ; le contrôle `remaining` ne relit pas un scan (second OCR) ; la mesure WAMA.
+  (`ROUTE §11 #42` ⑦) ; le contrôle `remaining` ne relit pas un scan (second OCR) ; la mesure WAMA
+  — le CV de #2297 la réclame : dates et intitulés de poste pris pour des données (`[DATE]`,
+  `[ORGANISATION]`), une année lue comme `[TÉLÉPHONE]`.
 - **Vidéo : l'image ET le son (décision de Fabien, 2026-10-28)** — une option « piste audio » du
   domaine vidéo de l'Anonymizer, qui appelle la brique du futur domaine audio (voix du locuteur,
   données dites — transcription mot à mot → union de détecteurs → bip sur leurs instants), plutôt
