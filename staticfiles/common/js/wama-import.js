@@ -162,11 +162,11 @@
       });
     }
 
-    /** Pose un fichier dans l'input d'un port, puis un `change` marqué `attached`. */
-    function placeInPort(input, file) {
+    /** Pose des fichiers dans l'input d'un port, puis UN `change` marqué `attached`. */
+    function placeInPort(input, files) {
       try {
         var dt = new DataTransfer();
-        dt.items.add(file);
+        files.forEach(function (f) { dt.items.add(f); });
         input.files = dt.files;
       } catch (e) { return; }
       input.dispatchEvent(new CustomEvent('change', { bubbles: true, detail: { attached: true } }));
@@ -351,6 +351,11 @@
         // comme audio).
         var zoneInput = attach.indexOf(cfg.fileInputId) >= 0 ? el(cfg.fileInputId) : null;
         var moved = [];
+        // PAR PORT, tout le dépôt d'un coup (2026-11-03, signalé par Fabien sur le composer) : la
+        // boucle posait les fichiers UN PAR UN, chacun remplaçant le précédent — de plusieurs
+        // fichiers glissés, seul le dernier restait. « Plusieurs fichiers d'un coup = un lot »
+        // (`CARD_DESIGN §11.11 G`) : le port les garde tous, l'ajout à la file en fait le lot.
+        var ports = [];
         files.forEach(function (f) {
           var cible = null;
           for (var a = 0; a < attach.length; a++) {
@@ -358,27 +363,35 @@
             if (inp && accepts(inp, f)) { cible = inp; break; }
           }
           if (!cible) { restes.push(f); return; }
+          var port = ports.filter(function (p) { return p.input === cible; })[0];
+          if (!port) { port = { input: cible, files: [] }; ports.push(port); }
+          port.files.push(f);
+        });
+        ports.forEach(function (port) {
+          var cible = port.input;
+          var kept = (global.WamaApp && WamaApp.keptByPort) ? WamaApp.keptByPort(cible, port.files) : port.files;
           // Une DÉSIGNATION rejoint le port par son chemin (`WamaApp.designateInto`) — y compris
           // quand l'input de la zone EST le port : elle n'y est pas encore, contrairement à un
-          // fichier. Le formulaire de création la poste par `WamaApp.appendInput`.
-          // L'input de la zone peut ÊTRE le port (avatarizer : `audio_input` est à la fois
-          // le sélecteur de la dropzone et le slot audio) : le fichier y est déjà, on ne le
-          // ré-injecte pas (un `change` de plus rebouclerait ici). Sinon : injection.
-          if (designated(f)) {
-            if (global.WamaApp && WamaApp.designateInto) WamaApp.designateInto(cible, f);
-          } else if (cible !== el(cfg.fileInputId)) {
-            if (global.WamaApp && WamaApp.injectFiles) WamaApp.injectFiles(cible, [f]);
-            if (zoneInput && holds(zoneInput, f)) moved.push(f);
-          } else if (!holds(cible, f)) {
-            // DÉPOSÉ sur la zone dont l'input EST le port (2026-09-29) : le fichier vient du
-            // `dataTransfer`, il n'est pas encore dans l'input — la face « fichiers » de la card
-            // v4 le lit là. On l'y pose, avec un `change` MARQUÉ que la brique ignore (sinon il
-            // reviendrait ici) : les écouteurs de la page, eux, le voient.
-            placeInPort(cible, f);
+          // fichier. Le formulaire de création la poste par `WamaApp.appendFile`.
+          var pointed = kept.filter(designated);
+          var real = kept.filter(function (f) { return !designated(f); });
+          if (pointed.length && global.WamaApp && WamaApp.designateInto) WamaApp.designateInto(cible, pointed);
+          if (real.length && cible !== el(cfg.fileInputId)) {
+            if (global.WamaApp && WamaApp.injectFiles) WamaApp.injectFiles(cible, real);
+          } else if (real.length && !real.every(function (f) { return holds(cible, f); })) {
+            // DÉPOSÉ sur la zone dont l'input EST le port (2026-09-29) : les fichiers viennent du
+            // `dataTransfer`, ils ne sont pas encore dans l'input — la face « fichiers » de la card
+            // v4 les lit là. On les y pose, avec un `change` MARQUÉ que la brique ignore (sinon il
+            // reviendrait ici) : les écouteurs de la page, eux, le voient. Déjà dans l'input
+            // (choisis par le sélecteur de la zone, qui EST le port) : rien à ré-injecter.
+            placeInPort(cible, real);
+          }
+          if (zoneInput && cible !== zoneInput) {
+            port.files.forEach(function (f) { if (!designated(f) && holds(zoneInput, f)) moved.push(f); });
           }
           // `afterAttach(input, file)` : l'app pose son ÉTAT (imager rafraîchit l'appariement,
           // avatarizer retient le fichier pour Générer) — après la détection de lot, jamais avant.
-          if (typeof cfg.afterAttach === 'function') cfg.afterAttach(cible, f);
+          if (typeof cfg.afterAttach === 'function') kept.forEach(function (f) { cfg.afterAttach(cible, f); });
         });
         if (moved.length) {
           try {

@@ -911,13 +911,24 @@
     })).then(function (files) { return files.filter(Boolean); });
   }
 
-  /** Pose des File dans un input et déclenche son `change`. Un input sans `multiple` ne
-   *  reçoit que le premier. Rend false si le navigateur n'a pas DataTransfer. */
+  /** Ce qu'un port peut TENIR de `items` (`{name}`) : tout s'il est `multiple` — le port principal
+   *  d'une card, qui en fera un lot —, sinon le premier, et les autres NOMMÉS à l'écran : un port
+   *  qui écarte un fichier le dit (2026-11-03). La seule décision de ce genre, pour tout ce qui
+   *  pose quelque chose dans un port. */
+  function keptByPort(input, items) {
+    if (input.multiple || items.length < 2) return items;
+    toast('Ce port ne prend qu’un fichier — « ' + items[0].name + ' » est gardé, écartés : '
+          + items.slice(1).map(function (i) { return i.name; }).join(', '), 'warning');
+    return items.slice(0, 1);
+  }
+
+  /** Pose des File dans un input et déclenche son `change`. Rend false si le navigateur n'a pas
+   *  DataTransfer. */
   function injectFiles(input, files) {
     if (!input || !files || !files.length) return false;
     try {
       const dt = new DataTransfer();
-      (input.multiple ? files : files.slice(0, 1)).forEach(function (f) { dt.items.add(f); });
+      keptByPort(input, Array.prototype.slice.call(files)).forEach(function (f) { dt.items.add(f); });
       input.files = dt.files;
     } catch (e) {
       return false;
@@ -933,26 +944,51 @@
   // dans l'input la remplace (le `change` natif efface la désignation, cf. plus bas).
   const DESIGNATION_SUFFIX = '__designated';
 
-  /** Pose une désignation (`{designation, name}`) dans un input de port, puis son `change`. */
-  function designateInto(input, item) {
-    if (!input || !item || !item.designation) return false;
+  /** Pose une désignation (`{designation, name}`) — ou PLUSIEURS, une liste (2026-11-03 : un dépôt
+   *  de N fichiers de l'arbre sur le port principal, qui en fera un lot) — dans un input de port,
+   *  puis UN `change`. Ce que le port tient : `keptByPort`. */
+  function designateInto(input, items) {
+    const list = (Array.isArray(items) ? items : [items]).filter(function (i) { return i && i.designation; })
+      .map(function (i) { return { path: i.designation, name: i.name || i.designation.split('/').pop() }; });
+    if (!input || !list.length) return false;
+    const held = keptByPort(input, list);
     try { input.value = ''; } catch (e) { /* input en lecture seule : sans effet */ }
-    input.dataset.designatedPath = item.designation;
-    input.dataset.designatedName = item.name || item.designation.split('/').pop();
+    clearDesignation(input);
+    input.dataset.designatedPath = held[0].path;
+    input.dataset.designatedName = held[0].name;
+    if (held.length > 1) input.dataset.designatedRest = JSON.stringify(held.slice(1));
     input.dispatchEvent(new CustomEvent('change', { bubbles: true, detail: { designated: true } }));
     return true;
   }
 
-  /** La désignation d'un input, ou null. */
+  /** La (première) désignation d'un input, ou null. */
   function designationOf(input) {
     return (input && input.dataset && input.dataset.designatedPath)
       ? { path: input.dataset.designatedPath, name: input.dataset.designatedName || '' } : null;
+  }
+
+  /** TOUTES les désignations d'un input : `[{path, name}]`, vide s'il n'en porte aucune. */
+  function designationsOf(input) {
+    const first = designationOf(input);
+    if (!first) return [];
+    return [first].concat(input.dataset.designatedRest ? JSON.parse(input.dataset.designatedRest) : []);
   }
 
   function clearDesignation(input) {
     if (!input || !input.dataset) return;
     delete input.dataset.designatedPath;
     delete input.dataset.designatedName;
+    delete input.dataset.designatedRest;
+  }
+
+  /** Ce qu'un port TIENT, une entrée par futur élément : ses fichiers, ou ses désignations sous la
+   *  forme que `appendFile` poste (`{designation, name}`). La seule lecture du contenu d'un port. */
+  function inputEntries(input) {
+    const pointed = designationsOf(input);
+    if (pointed.length) {
+      return pointed.map(function (d) { return { designation: d.path, name: d.name }; });
+    }
+    return (input && input.files) ? Array.prototype.slice.call(input.files) : [];
   }
 
   /** Ajoute au FormData un fichier OU un pseudo-fichier désigné (`{designation}`, celui que
@@ -1047,6 +1083,10 @@
    *                  le générateur d'apps écrivaient chacun ce relevé ;
    *    portOptions:  avec `ports: 'card'`, `{<id de l'input>: {urlField, urlInputId, field}}` —
    *                  ce qu'un port précis ajoute (le champ URL du port principal) ;
+   *    consolidateUrl: route de regroupement de l'app (2026-11-03). PLUSIEURS FICHIERS sur un port
+   *                  = UN LOT (`CARD_DESIGN §11.11 G`) : une création par fichier — consigne,
+   *                  réglages et autres ports communs —, puis le regroupement, le même contrat que
+   *                  `WamaImport`. Sans cette route, les cards restent unitaires ;
    *    extraFields:  function (fd) — les champs propres à l'app ;
    *    validate:     function (fd) → message d'erreur, ou '' (rien n'est posté) ;
    *    successMessage: texte, ou function (data) → texte, du toast de succès ;
@@ -1057,6 +1097,7 @@
    *  }
    *  La consigne postée est l'ORIGINALE quand `WamaPromptEnrich` l'a enrichie à l'écran
    *  (invariant `WAMA_LLM` : l'enrichi se recalcule à l'ingestion, jamais figé à la création).
+   *  Un lot recharge la page : sa card mère est rendue par le serveur (`onAdded` n'est pas appelé).
    *  Rend la fonction de soumission (appel programmatique, tests). */
   function addToQueue(opts) {
     opts = opts || {};
@@ -1087,11 +1128,26 @@
       return (el.value || '').trim();
     };
 
-    function build() {
+    // Le port qui tient PLUSIEURS fichiers, et ces fichiers : `{inputId, entries}`, ou null. Seul un
+    // input `multiple` peut en tenir plusieurs — le port principal de la card v4.
+    const lotOf = function () {
+      return portsOf().map(function (port) {
+        return { inputId: port.inputId, entries: inputEntries(document.getElementById(port.inputId)) };
+      }).filter(function (held) { return held.entries.length > 1; })[0] || null;
+    };
+
+    /** `only` : `{inputId, entry}` — le fichier de CE port pour cet élément du lot, au lieu du
+     *  premier de l'input. */
+    function build(only) {
       const fd = new FormData();
       const host = opts.paramsHostId && document.getElementById(opts.paramsHostId);
       if (host && global.WamaParams && global.WamaParams.read) {
         const v = global.WamaParams.read(host);
+        // Un réglage marqué « par fichier » (`default_from` sur un lot, `wama-params`) n'est pas
+        // posté : la proposition de CHAQUE fichier joue au serveur (`new_element_settings`).
+        host.querySelectorAll('[data-per-input]').forEach(function (el) {
+          delete v[el.getAttribute('name') || el.getAttribute('data-param')];
+        });
         Object.keys(v).forEach(function (k) {
           if (v[k] !== '' && v[k] != null) fd.append(k, v[k]);
         });
@@ -1102,7 +1158,10 @@
       let refusal = '';
       portsOf().forEach(function (port) {
         const input = document.getElementById(port.inputId);
-        if (appendInput(fd, input, port.field || 'file')) return;
+        const posted = (only && only.inputId === port.inputId)
+          ? appendFile(fd, port.field || 'file', only.entry)
+          : appendInput(fd, input, port.field || 'file');
+        if (posted) return;
         const url = urlOf(port);
         const value = url && url.value.trim();
         if (!value) return;
@@ -1125,15 +1184,12 @@
       });
     }
 
-    function submit() {
-      const built = build();
-      if (built.refusal) { toast(built.refusal, 'error'); return Promise.resolve(null); }
-      const idle = button ? button.innerHTML : '';
-      if (button) {
-        button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Envoi…';
-      }
-      return csrfFetch(opts.url, opts.csrfToken || csrfToken(), { method: 'POST', body: built.fd })
+    const sending = function (label) {
+      if (button) button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> ' + label;
+    };
+
+    function send(fd) {
+      return csrfFetch(opts.url, opts.csrfToken || csrfToken(), { method: 'POST', body: fd })
         // Un refus porte son motif en JSON (`{error}`, quel que soit le statut — 400, 403, 409…) :
         // le lire, pas le remplacer. Sans motif lisible (page HTML d'un 502/504), l'explication
         // commune de `jsonOrExplain`.
@@ -1142,7 +1198,68 @@
           return r.json()
             .then(function (j) { if (j && j.error) return j; throw new Error('sans motif'); })
             .catch(function () { return jsonOrExplain(r); });
-        })
+        });
+    }
+
+    /** PLUSIEURS FICHIERS = UN LOT : une création par fichier, l'une après l'autre (l'ordre du dépôt
+     *  est celui du lot), puis le regroupement. Un refus n'arrête pas les autres : il est DIT, avec
+     *  les fichiers qu'il touche. Rend le nombre d'éléments créés. */
+    function submitLot(lot) {
+      const ids = [], refused = [];
+      let created = 0;
+      let chain = Promise.resolve();
+      lot.entries.forEach(function (entry, index) {
+        chain = chain.then(function () {
+          sending('Envoi ' + (index + 1) + '/' + lot.entries.length + '…');
+          return send(build({ inputId: lot.inputId, entry: entry }).fd).then(function (data) {
+            if (!data || data.error) throw new Error((data && data.error) || 'Ajout refusé.');
+            if (data.warning) toast(entry.name + ' : ' + data.warning, 'warning');
+            created += 1;
+            if (data.id != null) ids.push(data.id);    // `id` : le contrat d'une vue d'ajout
+          }).catch(function (err) {
+            refused.push({ name: entry.name, reason: String(err && err.message || err) });
+          });
+        });
+      });
+      const notGrouped = function () {
+        toast('Éléments ajoutés, mais le lot n’a pas pu être formé.', 'warning');
+      };
+      return chain.then(function () {
+        if (created < 2 || !opts.consolidateUrl) return null;
+        // Une réponse sans identifiant : ce regroupement partirait sans elle, en silence.
+        if (ids.length < created) { notGrouped(); return null; }
+        sending('Création du lot…');
+        const body = new FormData();
+        ids.forEach(function (id) { body.append('ids', id); });
+        return csrfFetch(opts.consolidateUrl, opts.csrfToken || csrfToken(), { method: 'POST', body: body })
+          .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); })
+          .catch(notGrouped);
+      }).then(function () {
+        refused.forEach(function (r) { toast('Refusé — ' + r.name + ' : ' + r.reason, 'error'); });
+        if (created) {
+          toast(created + ' éléments ajoutés à la file — réglez-les si besoin, puis ▶ pour lancer.', 'success');
+          if (global.WamaFM && global.WamaFM.uploaded) global.WamaFM.uploaded();
+          // Un refus se LIT avant que la page ne se recharge sous lui.
+          global.setTimeout(function () { global.location.reload(); }, refused.length ? 4000 : 0);
+        }
+        return created;
+      });
+    }
+
+    function submit() {
+      const built = build();
+      if (built.refusal) { toast(built.refusal, 'error'); return Promise.resolve(null); }
+      const idle = button ? button.innerHTML : '';
+      if (button) button.disabled = true;
+      sending('Envoi…');
+      const settle = function (data) {
+        if (button) { button.disabled = false; button.innerHTML = idle; }
+        if (typeof opts.onSettled === 'function') opts.onSettled(data);
+        return data;
+      };
+      const lot = lotOf();
+      if (lot) return submitLot(lot).then(settle);
+      return send(built.fd)
         .then(function (data) {
           if (!data || data.error) {
             toast((data && data.error) || 'Ajout refusé.', 'error');
@@ -1161,11 +1278,7 @@
           return data;
         })
         .catch(function (err) { toast(String(err && err.message || err), 'error'); return null; })
-        .then(function (data) {
-          if (button) { button.disabled = false; button.innerHTML = idle; }
-          if (typeof opts.onSettled === 'function') opts.onSettled(data);
-          return data;
-        });
+        .then(settle);
     }
 
     if (button && !button._wamaAddToQueue) {
@@ -1505,9 +1618,12 @@
     ask: ask,
     filesFromServerPaths: filesFromServerPaths,
     injectFiles: injectFiles,
+    keptByPort: keptByPort,
     designateInto: designateInto,
     designationOf: designationOf,
+    designationsOf: designationsOf,
     clearDesignation: clearDesignation,
+    inputEntries: inputEntries,
     appendFile: appendFile,
     appendInput: appendInput,
     pickFromLibrary: pickFromLibrary,

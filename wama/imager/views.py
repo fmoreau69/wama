@@ -326,6 +326,7 @@ def handle_txt2img(request, user):
 
     return JsonResponse({
         'success': True,
+        'id': generation.id,      # le contrat COMMUN d'une vue d'ajout (`addToQueue`)
         'generation_id': generation.id,
         'message': 'Generation created successfully'
     })
@@ -524,6 +525,7 @@ def handle_describe2img(request, user):
 
         return JsonResponse({
             'success': True,
+            'id': generation.id,      # le contrat COMMUN d'une vue d'ajout (`addToQueue`)
             'generation_id': generation.id,
             'auto_prompt': auto_prompt,
             'message': 'Generation created with auto-generated prompt'
@@ -580,6 +582,7 @@ def handle_img2img(request, user, mode):
 
     return JsonResponse({
         'success': True,
+        'id': generation.id,      # le contrat COMMUN d'une vue d'ajout (`addToQueue`)
         'generation_id': generation.id,
         'mode': mode,
         'message': f'{mode} generation created successfully'
@@ -609,6 +612,7 @@ def handle_txt2vid(request, user):
 
     return JsonResponse({
         'success': True,
+        'id': generation.id,      # le contrat COMMUN d'une vue d'ajout (`addToQueue`)
         'generation_id': generation.id,
         'message': 'Video generation created successfully'
     })
@@ -645,6 +649,7 @@ def handle_img2vid(request, user):
 
     return JsonResponse({
         'success': True,
+        'id': generation.id,      # le contrat COMMUN d'une vue d'ajout (`addToQueue`)
         'generation_id': generation.id,
         'message': 'Image-to-video generation created successfully'
     })

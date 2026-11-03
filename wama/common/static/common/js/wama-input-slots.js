@@ -83,12 +83,11 @@
         var meta = pane.querySelector('[data-files-meta]');
         var title = pane.querySelector('[data-files-title]');
         var tab = card.querySelector('[data-port-tab="' + pane.dataset.portPane + '"] [data-port-count]');
-        var files = (input && input.files) ? Array.prototype.slice.call(input.files) : [];
-        // Un fichier DÉSIGNÉ (médiathèque, arbre — pointé, pas téléversé) s'affiche comme un
-        // fichier joint : même chip, même ✕ (2026-09-28, `WamaApp.designateInto`).
-        var designation = (!files.length && global.WamaApp && WamaApp.designationOf)
-            ? WamaApp.designationOf(input) : null;
-        if (designation) files = [{ name: designation.name, size: 0, designated: true }];
+        // Fichiers joints ou DÉSIGNÉS (médiathèque, arbre — pointés, pas téléversés) : même chip,
+        // même ✕ (2026-09-28, `WamaApp.designateInto`) ; la lecture est celle de l'envoi.
+        var files = (global.WamaApp && WamaApp.inputEntries) ? WamaApp.inputEntries(input)
+            : ((input && input.files) ? Array.prototype.slice.call(input.files) : []);
+        var designation = files.length > 0 && !!files[0].designation;
         if (tab) tab.textContent = files.length ? '· ' + files.length : '';
         if (!list) return;
         list.textContent = '';
@@ -108,8 +107,10 @@
         });
         if (title) title.textContent = files.length === 1 ? files[0].name : files.length + ' fichiers';
         // Un fichier DÉSIGNÉ n'a pas de taille côté navigateur : il est pointé, pas téléversé.
+        // Plusieurs : le dire ICI, avant le geste — c'est un LOT que la card va créer (§11.11 G).
         if (meta) meta.textContent = files.length + ' fichier(s) · ' + (designation
-            ? 'désigné (pointé, non copié)' : (total / 1048576).toFixed(1) + ' Mio');
+            ? 'désigné (pointé, non copié)' : (total / 1048576).toFixed(1) + ' Mio')
+            + (files.length > 1 ? ' · un lot de ' + files.length + ' éléments' : '');
         showFace(pane, 'files');
     }
 
@@ -117,8 +118,14 @@
     function removeAt(card, pane, index) {
         var input = inputOf(pane);
         if (!input || !input.files) return;
-        if (!input.files.length && global.WamaApp && WamaApp.designationOf
-                && WamaApp.designationOf(input)) {
+        var pointed = (!input.files.length && global.WamaApp && WamaApp.designationsOf)
+            ? WamaApp.designationsOf(input) : [];
+        if (pointed.length > 1) {                     // son `change` rafraîchit la face
+            WamaApp.designateInto(input, pointed.filter(function (d, i) { return i !== index; })
+                .map(function (d) { return { designation: d.path, name: d.name }; }));
+            return;
+        }
+        if (pointed.length) {
             WamaApp.clearDesignation(input);          // la désignation affichée est la seule entrée
             renderFiles(card, pane);
             input.dispatchEvent(new Event('change', { bubbles: true }));

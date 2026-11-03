@@ -222,6 +222,8 @@
             prompt:    { inputId: 'text_content', field: 'text_content' },
             ports:     [{ inputId: 'audio_input', field: 'audio_input',
                           urlField: 'source_url', urlInputId: 'avatarizerUrlInput' }],
+            // Plusieurs audios déposés d'un coup = un lot (`CARD_DESIGN §11.11 G`), même avatar.
+            consolidateUrl: cfg.urls.consolidate,
             extraFields: function (fd) {
                 // L'avatar est TOUJOURS un fichier (joint, ou désigné : le sien, un partagé, un
                 // avatar système de la médiathèque — pointé). `avatar_source='gallery'` (un NOM)

@@ -2725,6 +2725,132 @@ def register_folder_import_scenarios():
         )
 
 
+#: Le port principal d'une card qui JOINT, lu par la brique de la card : celui qui tient plusieurs
+#: fichiers (`multiple`), et les autres, à remplir si le bouton l'exige.
+_ATTACH_PORTS = """(() => {
+    const card = document.querySelector('[data-wama-depot="attache"][data-wama-ports]');
+    if (!card || !window.WamaInputSlots) return null;
+    return { card: card.id, ports: WamaInputSlots.filePorts(card).map(p => {
+        const input = document.getElementById(p.inputId);
+        return { id: p.id, input: p.inputId, multiple: input.multiple,
+                 accept: input.getAttribute('accept') || '' }; }) };
+})()"""
+_DROP_ON_PORT = """([input, files]) => { const dt = new DataTransfer();
+    files.forEach(f => dt.items.add(new File([Uint8Array.from(atob(f.b64), c => c.charCodeAt(0))],
+                                             f.name, {type: f.type})));
+    document.getElementById(input).closest('.drop-zone').dispatchEvent(new DragEvent('drop',
+        {bubbles: true, cancelable: true, dataTransfer: dt})); }"""
+
+
+def check_app_attach_lot(app: str, url_path: str):
+    """Plusieurs fichiers déposés sur le port principal d'une card qui JOINT font-ils UN lot ?
+    (ok, detail) — `CARD_DESIGN §11.11 G`.
+
+    Né du 2026-11-03 : de plusieurs fichiers glissés, le composer n'en gardait que le dernier ; et
+    `.batch_actions` ne pouvait pas le voir, il monte son lot par le fichier de lot sur ces cards.
+    Le `drop` part sur la zone, avec de vrais `File` : tout ce qui suit est le code de production.
+    Ne démarre AUCUN traitement ; le verdict se lit en BASE (deux éléments, un seul lot de 2).
+    """
+    import base64
+
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.utils.preview_registry import PreviewRegistry
+
+    token = _test_session_key(app)
+    if not token:
+        raise SkipScenario("aucun compte de test disponible : les droits ne sont pas simulables")
+    model = PreviewRegistry.get_model(app)
+    if model is None:
+        raise SkipScenario(f"{app} ne déclare pas de modèle d'élément au registre")
+    known = set(model.objects.values_list('id', flat=True))
+    sessions_before = _session_keys()
+    witnesses = []
+
+    def witness(accept):
+        path = _fichier_temoin(accept)
+        witnesses.append(path)
+        return path
+
+    try:
+        with _garde_de_montage(app, 'attach_lot'):
+            errors = []
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                try:
+                    context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                    context.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': token,
+                                          'domain': '127.0.0.1', 'path': '/'}])
+                    page = context.new_page()
+                    page.on('pageerror', lambda e: errors.append(str(e)))
+                    page.goto(f"{BASE_URL.rstrip('/')}{url_path}", wait_until='domcontentloaded', timeout=60000)
+                    page.wait_for_timeout(2500)
+                    card = page.evaluate(_ATTACH_PORTS)
+                    if not card:
+                        raise SkipScenario("la card ne déclare pas `data-wama-depot=attache` : un dépôt y "
+                                           "crée lui-même ses éléments (`.import`, `.batch_actions`)")
+                    main = next((port for port in card['ports'] if port['multiple']), None)
+                    if not main:
+                        raise SkipScenario("aucun port `multiple` sur cette card")
+                    files = [witness(main['accept']) for _ in range(2)]
+                    page.evaluate(_DROP_ON_PORT, [main['input'], [
+                        {'name': f.name, 'b64': base64.b64encode(f.read_bytes()).decode(),
+                         'type': {'.wav': 'audio/wav', '.png': 'image/png'}.get(f.suffix, '')}
+                        for f in files]])
+                    page.wait_for_timeout(1500)
+                    held = page.evaluate("(id) => WamaApp.inputEntries(document.getElementById(id)).length",
+                                         main['input'])
+                    if held != 2:
+                        return False, f"2 fichiers déposés sur « {main['id']} », le port en garde {held}"
+                    meta = page.evaluate("(id) => document.querySelector('[data-port-input=\"' + id + '\"] "
+                                         "[data-files-meta]').textContent", main['input'])
+                    if 'un lot de 2' not in meta:
+                        return False, f"la card n'annonce pas le lot : « {meta} »"
+                    prompt = page.locator(f"#{card['card']} textarea")
+                    if prompt.count():
+                        prompt.first.fill('witness')    # sans consigne, l'imager décrirait chaque image
+                    button = page.locator(f"#{card['card']} .d-grid button").first
+                    for port in card['ports']:          # les autres ports requis (l'avatar)
+                        if button.is_enabled() or port is main:
+                            continue
+                        page.set_input_files(f"#{port['input']}", str(witness(port['accept'])))
+                        page.wait_for_timeout(500)
+                    if not button.is_enabled():
+                        raise SkipScenario(f"bouton grisé : {button.get_attribute('title') or 'entrée requise'}")
+                    with page.expect_navigation(timeout=90000):
+                        button.click()
+                finally:
+                    browser.close()
+            created = list(model.objects.exclude(id__in=known).order_by('id'))
+            if len(created) != 2:
+                return False, f"2 fichiers → {len(created)} élément(s) en base"
+            lots = {item.batch_id: item.batch.total for item in
+                    (getattr(work, 'batch_item', None) for work in created) if item}
+            if list(lots.values()) != [2]:
+                return False, f"2 éléments, mais les lots sont {lots} (attendu : un lot de 2)"
+            if errors:
+                return False, f"erreur de page : {errors[0][:200]}"
+            return True, f"2 fichiers sur « {main['id']} » → 2 éléments, 1 lot de 2"
+    finally:
+        for path in witnesses:
+            path.unlink(missing_ok=True)
+        _drop_new_sessions(sessions_before)
+
+
+def register_attach_lot_scenarios():
+    """Un scénario `<app>.attach_lot` par app d'index — SKIP nommé sur une card dont le dépôt crée."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.attach_lot", app=label, stage="ui",
+            description=f"Card d'entrée {label} : plusieurs fichiers déposés sur un port font un lot",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_attach_lot(a, p)))(),
+            timeout_s=240, vram_gb=0.0,
+        )
+
+
 # ⧉ / 🗑 of a card, by SUFFIX — graphies differ by app (see `check_app_duplicate_delete`).
 # Shared with the settings gesture, which mounts a second element with them (check d).
 DUP_SEL = '[class$="duplicate-btn"], [class*="duplicate-btn "]'

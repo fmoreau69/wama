@@ -265,6 +265,8 @@
             // WamaInputMatch garantit qu'un modèle incompatible n'est pas sélectionnable.
             ports:     'card',
             portOptions: { melodyInput: { urlField: 'source_url', urlInputId: 'melodyUrlInput' } },
+            // Plusieurs morceaux déposés d'un coup = un lot (`CARD_DESIGN §11.11 G`).
+            consolidateUrl: APP.consolidateUrl,
             // Les réglages du VOLET : tout son hôte, lu du schéma (`WamaParams.read`) — une valeur
             // vide n'est pas postée, la cascade du serveur met le défaut. Une liste écrite ici
             // oubliait la case « Partition complète » (2026-10-19) : la card naissait sans elle.

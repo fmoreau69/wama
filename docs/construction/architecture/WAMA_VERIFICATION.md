@@ -247,6 +247,9 @@ du harnais** — le contrôle `status != 200` ne voyait pas les redirections, et
 l'écrivant qu'a été trouvé le **second défaut d'instrument le plus large** : `<app>.ui`, le plus
 ANCIEN scénario du harnais, naviguait **en visiteur ANONYME** — donc mesurait de chaque app sa
 variante la plus VIDE. Détail au geste 14 (« URL »), encadré « second défaut ».
+⚠ Complété le 2026-11-03 : `<app>.attach_lot` — plusieurs fichiers déposés sur une card qui JOINT font
+un lot, jugé en base. Ni `.import` ni `.batch_actions` ne le voyaient : sur ces cards, ils montent par
+le fichier de lot.
 
 **Au 2026-09-06 : 10 gestes sur 19** — et le dénominateur a changé, ce qui est le point. Trois
 gestes sont ENTRÉS au catalogue (15 sélection multiple, 16 glisser-déposer, 17 annuler/rétablir) :

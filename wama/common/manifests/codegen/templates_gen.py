@@ -484,6 +484,9 @@ def render_index(manifest: dict) -> tuple:
         prompt:       {{ inputId: '{app}Prompt', field: '{prompt_field or 'prompt'}' }},
         paramsHostId: '{app}PanelParams',
         ports:        {ports_js},
+        // Plusieurs fichiers = un lot. Forme `as` : une app sans cette route reste rendue, ses cards
+        // restent unitaires (`{{% url %}}` nu lèverait NoReverseMatch et l'index tomberait).
+        consolidateUrl: "{{% url '{app}:{route_consolidate}' as {app}_consolidate_url %}}{{{{ {app}_consolidate_url }}}}",
     }});
 '''
 

@@ -244,9 +244,9 @@
         }).map(function (p) {
             var input = document.getElementById(p.inputId);
             var urlEl = p.urlInputId ? document.getElementById(p.urlInputId) : null;
-            var d = global.WamaApp ? WamaApp.designationOf(input) : null;
+            var pointed = global.WamaApp ? WamaApp.designationsOf(input) : [];
             return { port: p.id, files: input && input.files ? Array.prototype.slice.call(input.files) : [],
-                     designated: d ? [d.path] : [], url: urlEl ? urlEl.value.trim() : '' };
+                     designated: pointed.map(function (d) { return d.path; }), url: urlEl ? urlEl.value.trim() : '' };
         });
     }
 

@@ -47,7 +47,7 @@ function el(id, accept) { return elements[id] = { id: id, dataset: {}, files: []
   dispatchEvent: function () {} }; }
 var document = { readyState: 'complete', getElementById: function (id) { return elements[id] || null; },
                  addEventListener: function () {} };
-window.WamaApp = { designateInto: function (input, f) { attached.push([input.id, f.designation]); return true; },
+window.WamaApp = { designateInto: function (input, items) { [].concat(items).forEach(function (f) { attached.push([input.id, f.designation]); }); return true; },
                    injectFiles: function () { return true; } };
 window.location = { reload: function () {} };
 """

@@ -94,6 +94,51 @@ class FormatInTheBrowserTest(SimpleTestCase):
         self.assertEqual({'value': 185, 'fired': ['input', 'change']},
                          self._js("{value: Number(slider.value), fired: fired}"))
 
+    #: Une card dont le port tient `input.files` : le curseur, sa note, l'écouteur `change` du port.
+    PORT_AND_SLIDER = """
+        var listeners = {}, sliderListeners = {}, probed = 0;
+        var input = {dataset: {}, files: [], addEventListener: function (t, f) { listeners[t] = f; }};
+        var note = {textContent: ''};
+        var slider = {value: '210', step: '5', min: '10', max: '600', dataset: {},
+                      dispatchEvent: function () {},
+                      addEventListener: function (t, f) { sliderListeners[t] = f; },
+                      closest: function () { return {querySelector: function () { return note; }}; }};
+        var pane = {getAttribute: function (a) {
+          return {'data-port-pane': 'work_audio', 'data-port-input': 'melodyInput'}[a]; }};
+        document.querySelectorAll = function (sel) {
+          return sel.indexOf('data-port-pane') !== -1 ? [pane] : []; };
+        document.getElementById = function (id) {
+          return id === 'melodyInput' ? input : (id === 'durationSlider' ? slider : null); };
+        var CSS = {escape: function (s) { return s; }};
+        var container = {querySelector: function (sel) {
+          return sel === '#durationSlider' ? slider : null; }};
+        window.WamaApp.mediaDuration = function () { probed += 1; return Promise.resolve(187.2); };
+        window.WamaParams.bindDefaultFrom(container, [{name: 'duration', dom_id:
+          {panel: 'durationSlider'}, contexts: ['panel'],
+          default_from: {port: 'work_audio', property: 'duration'}}], 'panel');
+    """
+
+    def test_a_lot_on_the_port_leaves_each_file_its_own_value(self):
+        """Le premier fichier ne décide pas pour les autres (2026-11-03) : le réglage est marqué,
+        sa valeur ne bouge pas, et la note le dit."""
+        self.v8.eval(self.PORT_AND_SLIDER + "input.files = [{name: 'a'}, {name: 'b'}]; listeners.change();")
+        self.assertEqual({'value': 210, 'marked': '1', 'probed': 0}, self._js(
+            "{value: Number(slider.value), marked: slider.dataset.perInput, probed: probed}"))
+        self.assertIn('lot', self._js('note.textContent'))
+
+    def test_back_to_one_file_the_setting_follows_it_again(self):
+        self.v8.eval(self.PORT_AND_SLIDER + "input.files = [{name: 'a'}, {name: 'b'}]; listeners.change();")
+        self.v8.eval("input.files = [{name: 'a'}]; listeners.change();")
+        self.assertEqual({'value': 185, 'probed': 1, 'note': "Reprise du fichier d'entrée (3:07)."}, self._js(
+            "{value: Number(slider.value), probed: probed, note: note.textContent}"))
+        self.assertFalse(self._js("'perInput' in slider.dataset"))
+
+    def test_touching_the_setting_applies_it_to_the_whole_lot(self):
+        self.v8.eval(self.PORT_AND_SLIDER + "input.files = [{name: 'a'}, {name: 'b'}]; listeners.change();"
+                     "sliderListeners.input();")
+        self.assertFalse(self._js("'perInput' in slider.dataset"))
+        self.assertEqual('', self._js('note.textContent') or '')
+
     def test_a_modal_of_an_existing_item_does_not_follow_the_next_card_s_file(self):
         self.v8.eval("""
             var bound = false;

@@ -2002,7 +2002,9 @@
                         if (dragFiles.length > 1) showToast('Un lot à la fois : seul « ' + (dragFiles[0].name || dragFiles[0].path) + ' » est pris.', 'warning');
                     } else if (!voie && portInput && locaux && window.WamaApp && WamaApp.designateInto) {
                         const pris = admis(portInput);
-                        if (pris.length) WamaApp.designateInto(portInput, { designation: pris[0].path, name: pris[0].name });
+                        if (pris.length) WamaApp.designateInto(portInput, pris.map(function (f) {
+                            return { designation: f.path, name: f.name };
+                        }));
                     } else if (voie && voie.handleDesignations && locaux) {
                         voie.handleDesignations(dragFiles.map(function (f) {
                             return { path: f.path, name: f.name, type: f.mime };

@@ -191,6 +191,7 @@ document.addEventListener('DOMContentLoaded', function () {
 window.COMPOSER_APP = {
     csrfToken: '{{ csrf_token }}',
     generateUrl: '{% url "composer:generate" %}',
+    consolidateUrl: '{% url "composer:consolidate" %}',
     deleteUrlTemplate: '{% url "composer:delete" 0 %}',
     settingsUrlTemplate: '{% url "composer:update_settings" 0 %}',
     progressUrlTemplate: '{% url "composer:progress" 0 %}',

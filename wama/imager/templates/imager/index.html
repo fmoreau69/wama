@@ -282,6 +282,7 @@ chargé par le socle) — index.js ne les initialise plus (2026-11-01).{% endcom
 /* Config de la card d'entrée (input_card.js) — méta d'appariement servie par la vue. */
 window.IMAGER_CARD = {
     urls: { create: "{% url 'imager:create' %}",
+            consolidate: "{% url 'imager:consolidate' %}",
             cardHtml: "{% url 'imager:card_html' 0 %}",
             batchUpdate: "{% url 'imager:batch_update' 0 %}",
             batchStart: "{% url 'imager:batch_start' 0 %}" },

@@ -404,6 +404,11 @@ class VideoSettingsTakenIntoAccountTest(LotImagerMixin, TestCase):
         gen = ImageGeneration.objects.get(id=rep.json()['generation_id'])
         self.assertEqual(('webm', 'web'), (gen.output_format, gen.output_quality))
 
+    def test_the_add_view_returns_the_common_id(self):
+        """`id`, the contract of an add view: `addToQueue` groups a lot by it (2026-11-03)."""
+        rep = self.client.post(reverse('imager:create'), {'generation_mode': 'txt2vid', 'prompt': 'a lighthouse'})
+        self.assertEqual(rep.json()['generation_id'], rep.json()['id'])
+
     def test_an_image_format_posted_for_a_video_is_ignored(self):
         rep = self.client.post(reverse('imager:create'), {
             'generation_mode': 'txt2vid', 'prompt': 'a lighthouse', 'output_format': 'webp'})

@@ -183,6 +183,8 @@
             paramsHostId: d.domain === 'video' ? 'videoPanelParams' : 'imagePanelParams',
             ports: [{ inputId: refInputId, field: 'reference_image',
                       urlField: 'source_url', urlInputId: d.urlInputId }],
+            // Plusieurs images déposées d'un coup = un lot (`CARD_DESIGN §11.11 G`).
+            consolidateUrl: CFG.urls.consolidate,
             extraFields: function (fd) {
                 fd.append('generation_mode', deriveMode());
                 if (!fd.has('model')) fd.append('model', select.value || 'auto');

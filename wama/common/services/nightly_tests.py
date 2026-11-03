@@ -591,6 +591,7 @@ def _register_builtin() -> None:
                                                    register_delete_from_batch_scenarios,
                                                    register_duplicate_delete_scenarios,
                                                    register_folder_import_scenarios,
+                                                   register_attach_lot_scenarios,
                                                    register_import_scenarios,
                                                    register_add_scenarios,
                                                    register_inspector_actions_scenarios,
@@ -803,6 +804,10 @@ def _register_builtin() -> None:
         # synthétique — c'est le code de production qui tourne), puis le câblage de l'app (N
         # fichiers posés → N éléments EN BASE, car une app qui groupe rendrait UNE card pour deux).
         register_folder_import_scenarios()
+        # 2026-11-03 — geste 14, plusieurs fichiers d'un coup sur une card qui JOINT : un lot. De
+        # plusieurs fichiers glissés, le composer ne gardait que le dernier, et aucun geste ne le
+        # voyait (`.batch_actions` monte son lot par le fichier de lot sur ces cards).
+        register_attach_lot_scenarios()
         # 2026-09-30 — geste 14, part « glisser depuis l'ARBRE » sur la card v4 : chaque tuile
         # (travail, port, Lot) reçoit un fichier du dossier temporaire ET d'un dossier connecté
         # jetable. Né de la revérification du 30/09, qui a trouvé trois défauts qu'aucun geste

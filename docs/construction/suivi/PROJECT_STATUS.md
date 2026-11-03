@@ -28085,3 +28085,33 @@ que tout soit aligné et combler les trous pour que les ratés ne reviennent plu
   déjà importé l'ancien `model_sync` effacerait de nouveau les composants (les relevés de 18 h 11 et
   18 h 17 montrent qu'aucune ne l'a fait) — d'où le 🔴. Le contrôle de disposition ne regarde
   toujours pas un dossier à UN seul snapshot (décision du 03/09, `tests_model_layout`).
+
+## §PALIER 2026-11-03 (soir), « PLUSIEURS FICHIERS SUR UNE CARD QUI JOINT = UN LOT »
+
+> Fabien : *« lorsque je glisse plusieurs fichiers en audio de travail dans Composer, seul le dernier
+> est pris en compte au lieu de proposer tous les fichiers pour créer un lot »*. La règle existait
+> (`CARD_DESIGN §11.11 G`) et ne tenait que sur les cards dont le dépôt crée (`MEDIA_STORAGE_TIERING` D38).
+
+- **Livré** : le port garde tout le dépôt, l'ajout crée un élément par fichier puis le lot, chaque
+  élément prend la durée de son fichier — composer, avatarizer, imager, Studio (brique commune) et
+  générateur. L'imager répond `id` (il ne rendait que `generation_id` : `undefined` partait au regroupement).
+- **Vérifié** : navigateur sur serveur jetable, composer (3 fichiers → 1 lot, 20/40/60 s ; désignations
+  pointées ; fichier seul sans lot), avatarizer et imager (2 fichiers → 1 lot de 2). V8 : `tests_card_lot_from_files`,
+  `tests_display_format`. Contre-épreuves : neuf mutations, toutes rouges. ⚠ Après ces passes, la décision « un
+  seul fichier » a été regroupée dans `keptByPort` (V8 seul) et `<app>.attach_lot` écrit, JAMAIS joué : pas de
+  navigateur pendant les tâches GPU de Fabien. ⚠ La modale du Studio n'a pas été jouée au navigateur.
+- **Trois défauts relevés, NON corrigés (voir le handoff)** :
+  1. **La ⚙ de lot poste TOUS ses champs** (`composer/js/index.js:336-339`, `WamaParams.read`) : changer la
+     qualité a remis 280 s sur les 12 filles du lot de Fabien. Durées rétablies à la main sur sa demande
+     (#1217-1228). La référence du lot (`batch_settings`) retient encore 280 s : « réaligner » les réécraserait.
+  2. **Le déchargement du model manager échoue pour tout modèle d'un autre processus**
+     (`memory_cleaner.py:339-342`, in-process) ; le service privacy n'a que `/health` et `/detect`
+     (`privacy/service.py:90,96`) et ne se déclare pas tenant (`start_release_listener` : `celery.py` et
+     `tts/service.py` seuls) : même « Libérer la carte » n'atteint pas ses 2,6 Go.
+  3. **Le worker GPU se voit 1,2 Go libres quand la carte en a 8,3** (`nvidia-smi` : 16,2 Go occupés) : hypothèse
+     à mesurer DANS le worker, son empreinte compterait deux fois (écart de 7,25 Go ; Whisper CTranslate2 et
+     pyannote y restent des annonces, `unseen_reserved_gb`, 12 Go).
+- **Rouge, pas de cette session** : `tests_identifier_language` 133 > 132 (`CanvasPoseTheNodeFromPipelinesTest`,
+  paragraphe précédent) ; relevé filtré sur mes fichiers : vide.
+- 🔴 Le JS est servi dès maintenant ; `imager/views.py` attend le rechargement de gunicorn : d'ici là, N images
+  sur l'imager donnent N cards et le message « le lot n'a pas pu être formé ».

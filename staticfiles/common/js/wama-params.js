@@ -1406,16 +1406,40 @@
       if (!(Number(proposal.value) > 0)) return;
       target.value = _proposedValue(target, Number(proposal.value));
     }
+    _inputNote(target, proposal.note);
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  /** La NOTE sous un réglage qui suit une entrée : pourquoi cette valeur (vide = retirée). */
+  function _inputNote(target, text) {
     var host = (target.closest && target.closest('.wama-param')) || target.parentNode;
     var note = host && host.querySelector('.wama-input-note');
-    if (host && !note && proposal.note) {
+    if (host && !note && text) {
       note = document.createElement('div');
       note.className = 'wama-input-note form-text small mt-1';
       host.appendChild(note);
     }
-    if (note) note.textContent = proposal.note || '';
-    target.dispatchEvent(new Event('input', { bubbles: true }));
-    target.dispatchEvent(new Event('change', { bubbles: true }));
+    if (note) note.textContent = text || '';
+  }
+
+  /** Sur un LOT (2026-11-03) : le premier fichier ne décide pas pour les autres — la durée d'un
+   *  morceau n'est pas celle du suivant. Le réglage est marqué `data-per-input`, `addToQueue` ne le
+   *  poste pas, et chaque élément naît de la proposition de SON fichier. L'utilisateur qui touche
+   *  le réglage reprend la main : sa valeur vaut alors pour tout le lot. */
+  function _setPerInput(target, on) {
+    if (!target || !target.dataset) return;
+    if (on) {
+      target.dataset.perInput = '1';
+      _inputNote(target, 'Chaque élément du lot reprendra la valeur de son fichier.');
+      if (!target._wpPerInputBound) {
+        target._wpPerInputBound = true;
+        target.addEventListener('input', function () { _setPerInput(target, false); });
+      }
+    } else if (target.dataset.perInput) {
+      delete target.dataset.perInput;
+      _inputNote(target, '');
+    }
   }
 
   function _proposedValue(target, raw) {
@@ -1444,9 +1468,16 @@
       input._wpDefaultFrom[targetId] = df.property;
       if (already) return;
       input.addEventListener('change', function () {
+        var many = !!(global.WamaApp && global.WamaApp.inputEntries)
+                   && global.WamaApp.inputEntries(input).length > 1;
         Object.keys(input._wpDefaultFrom).forEach(function (id) {
+          var target = document.getElementById(id);
+          _setPerInput(target, many);
+          if (many) return;
           _readInputProperty(input, input._wpDefaultFrom[id]).then(function (proposal) {
-            _applyProposal(document.getElementById(id), proposal);
+            // Une lecture partie avant que le port ne devienne un lot n'a plus d'objet.
+            if (target && target.dataset && target.dataset.perInput) return;
+            _applyProposal(target, proposal);
           });
         });
       });

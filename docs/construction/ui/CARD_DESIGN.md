@@ -1534,6 +1534,17 @@ trois n'en étaient pas. La règle qui les dissout, et qu'il faut garder :
 > TEXTE, la subtilité qui tient proprement les natures et formats d'entrée. Il ne retire rien à
 > la règle ci-dessus. Le Studio suit la même règle (`STUDIO_VISION.md §Entrées du Studio`) : le
 > pipeline tourne une fois par élément du lot, quelle que soit la voie.
+>
+> ✅ **Tenue aussi sur une card qui JOINT depuis le 2026-11-03** (signalé par Fabien sur le
+> composer : de plusieurs fichiers glissés, seul le dernier restait). Le port principal (le seul
+> `multiple`) garde TOUS les fichiers du dépôt, de l'arbre comme du poste (`WamaApp.inputEntries`) ;
+> la face « fichiers » les liste, retirables, et annonce le lot ; « Ajouter à la file » crée un
+> élément par fichier, consigne, réglages et autres ports communs, puis les regroupe
+> (`addToQueue({consolidateUrl})`). Un réglage que l'entrée propose (`default_from`, la durée) n'est
+> pas posté tant que le port tient un lot : chaque élément prend la valeur de SON fichier, sauf si
+> l'utilisateur touche le réglage. Un port de travail secondaire ou de référence tient un fichier,
+> et NOMME ce qu'il écarte (`WamaApp.keptByPort`). Un nouveau dépôt REMPLACE le contenu du port : il
+> n'accumule pas. Scénario `<app>.attach_lot` ; garde `tests_card_lot_from_files`.
 
 1. ~~Aucun port pour le lot~~ → **normal**, cf. la règle ci-dessus. La colonne « lot » de la
    matrice mesure un littéral de gabarit (`show_batch_bar`), pas une déclaration manquante.
