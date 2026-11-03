@@ -231,50 +231,36 @@
     zoomAt(f, cam.z - e.deltaY * unit * k, e.clientX, e.clientY);
   }, { passive: false });
 
-  // Glisser (souris, stylet, un doigt) et pincer (deux doigts) par les Pointer Events.
-  const pointers = new Map();
-  let drag = null, dragged = false;
-  viewport.addEventListener('pointerdown', e => {
-    if (!zoomFrame() || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, z: cam.z, d: 0 };
-    dragged = false;
-    if (pointers.size === 2) {
-      const [p, q] = [...pointers.values()];
-      drag.d = Math.hypot(p.x - q.x, p.y - q.y);
-    }
-  });
-  viewport.addEventListener('pointermove', e => {
-    if (!drag || !pointers.has(e.pointerId)) return;
-    const f = zoomFrame(); if (!f) { drag = null; return; }
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size >= 2 && drag.d) {
-      const [p, q] = [...pointers.values()];
-      dragged = true;
-      zoomAt(f, drag.z + Math.log(Math.hypot(p.x - q.x, p.y - q.y) / drag.d), (p.x + q.x) / 2, (p.y + q.y) / 2);
-      return;
-    }
-    if (!zoomed()) return;                    // au cadrage, rien à déplacer
-    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (!dragged && Math.hypot(dx, dy) < 4) return;
-    if (!dragged) { dragged = true; viewport.setPointerCapture?.(e.pointerId); document.body.classList.add('panning'); }
+  // Déplace la vue de (mx, my) px écran, rotation comprise, sans sortir des bords de la frame.
+  function panBy(f, mx, my) {
     const a = cam.r * Math.PI / 180, s = Math.exp(cam.z);
-    const wx = (dx * Math.cos(a) - dy * Math.sin(a)) / s, wy = (dx * Math.sin(a) + dy * Math.cos(a)) / s;
     const t = targetFor(f), fs = +f.dataset.s || 1;
-    cam.x = Math.max(t.x - W * fs / 2, Math.min(t.x + W * fs / 2, drag.cx - wx));
-    cam.y = Math.max(t.y - H * fs / 2, Math.min(t.y + H * fs / 2, drag.cy - wy));
+    cam.x = Math.max(t.x - W * fs / 2, Math.min(t.x + W * fs / 2, cam.x - (mx * Math.cos(a) - my * Math.sin(a)) / s));
+    cam.y = Math.max(t.y - H * fs / 2, Math.min(t.y + H * fs / 2, cam.y - (mx * Math.sin(a) + my * Math.cos(a)) / s));
     apply();
-  });
-  function endPointer(e) {
-    pointers.delete(e.pointerId);
-    document.body.classList.remove('panning');
-    if (pointers.size === 1) {                 // fin d'un pincement : le doigt restant reprend le glisser
-      const [p] = [...pointers.values()];
-      drag = { x: p.x, y: p.y, cx: cam.x, cy: cam.y, z: cam.z, d: 0 };
-    } else if (!pointers.size) drag = null;
   }
-  viewport.addEventListener('pointerup', endPointer);
-  viewport.addEventListener('pointercancel', endPointer);
+  // Glisser (souris, stylet, un doigt) et pincer (deux doigts) : la brique commune des gestes au
+  // pointeur (`WamaGestures.track`, WAMA_APP_CONVENTIONS §23) — seuil entre clic et glisser,
+  // boutons filtrés, pincement qui zoome ET déplace. `touchAction: false` : la feuille ne bloque
+  // le défilement natif que sur la frame zoomable active.
+  let dragged = false;
+  if (window.WamaGestures) WamaGestures.track(viewport, {
+    touchAction: false,
+    start: () => { dragged = false; return zoomed() ? {} : false; },   // au cadrage, rien à déplacer
+    move: (e, ctx, d) => {
+      const f = zoomFrame(); if (!f) return;
+      dragged = true;
+      document.body.classList.add('panning');
+      panBy(f, d.mx, d.my);
+    },
+    end: () => document.body.classList.remove('panning'),
+    pinch: p => {
+      const f = zoomFrame(); if (!f) return;
+      dragged = true;
+      zoomAt(f, cam.z + Math.log(p.scale), p.cx, p.cy);
+      if (zoomed()) panBy(f, p.dx, p.dy);
+    },
+  });
   // Un glisser ne vaut pas clic (il plongerait dans la frame voisine sous le curseur).
   viewport.addEventListener('click', e => { if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
   viewport.addEventListener('dblclick', e => {

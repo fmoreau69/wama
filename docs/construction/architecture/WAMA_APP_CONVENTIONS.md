@@ -3067,6 +3067,10 @@ la brique porte (`tests_gestures` le refuse sur les sites adoptants), ou un
 `mousedown`/`mousemove`/`mouseup` pour suivre un glisser — il ne marcherait pas au doigt. Une zone
 qui doit garder l'appui long natif (rare : les champs de saisie le gardent déjà) pose
 `data-wama-gestures="off"`.
+Une page **autonome**, rendue sans `base.html`, monte elle-même `common/js/wama-gestures.js` (avant
+son script) et `common/css/wama-touch.css` : c'est le cas de la présentation, dont la loupe de la
+roadmap glisse et pince par `WamaGestures.track` (2026-11-03, rattrapé à la revérification — elle
+avait d'abord ses propres Pointer Events ; garde `tests_gestures.PagesAdoptTheBrickTest`).
 
 ---
 

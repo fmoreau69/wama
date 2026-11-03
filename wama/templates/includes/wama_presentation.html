@@ -30,6 +30,7 @@
   <link rel="stylesheet" href="{% static_v 'vendors/font-awesome-6.4.0/css/all.min.css' %}">
   {# Tokens de thème d'abord : la feuille de la scène lit ses couleurs dans wama-theme.css (ROADMAP §28). #}
   <link rel="stylesheet" href="{% static_v 'common/css/wama-theme.css' %}">
+  <link rel="stylesheet" href="{% static_v 'common/css/wama-touch.css' %}">  {# rendu de WamaGestures au doigt (infobulle d'appui long) #}
   <link rel="stylesheet" href="{% static_v 'presentation/wama-presentation.css' %}">
   {% include 'common/_three_importmap.html' %}
 </head>
@@ -698,6 +699,7 @@
     <button class="hud-btn" id="btn-next" title="Suivant (→)"><i class="fas fa-chevron-right"></i></button>
   </div>
 
+  <script src="{% static_v 'common/js/wama-gestures.js' %}"></script>  {# glisser/pincer de la loupe (WamaGestures.track) #}
   <script src="{% static_v 'presentation/wama-presentation.js' %}"></script>
   <script type="module" src="{% static_v 'presentation/wama-presentation-3d.js' %}"></script>
 </body>

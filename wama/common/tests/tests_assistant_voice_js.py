@@ -703,6 +703,15 @@ class AvatarLipsOnMeasuredSpeechTest(SimpleTestCase):
         spoken = json.loads(ctx.eval("JSON.stringify(spoken)"))
         self._check_on_speech(spoken['words'], spoken['wtimes'])
 
+    def test_the_phrase_ends_are_the_marks_the_voice_breathes_after(self):
+        """Les coupures des lèvres sont celles où le serveur fait respirer la voix — une seule
+        liste, déclarée dans `tts_text` ; le JS n'en garde qu'une copie qui doit lui rester égale."""
+        import re
+        from wama.common.utils.tts_text import CLAUSE_MARKS, SENTENCE_MARKS
+        js = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'wama-avatar.js').read_text(encoding='utf-8')
+        marks = re.search(r"const PHRASE_END = /\[([^\]]+)\]\$/;", js).group(1)
+        self.assertEqual(set(SENTENCE_MARKS + CLAUSE_MARKS), set(marks))
+
 
 #: Une trame d'enveloppe (20 ms), plus une de marge.
 FRAME_TOLERANCE_MS = 41

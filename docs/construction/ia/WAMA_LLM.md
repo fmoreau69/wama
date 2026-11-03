@@ -1103,8 +1103,11 @@ l'intuition :
     avant d'être joué part sur la parole mesurée, celui qui se joue en arrivant part prédit puis ses
     mots pas encore dits sont RECALÉS à la fin de la réception (visèmes à venir retirés de la file de
     TalkingHead, le geste de son propre `_streamPause`). Le rendu d'un bloc (`speak`) lit les mêmes
-    régions sur l'audio décodé. Gardes : `tests_assistant_voice_js.AvatarLipsOnMeasuredSpeechTest`
-    (contre-épreuve : 4 rouges, le silence reste prédit).
+    régions sur l'audio décodé — donc aussi le rendu vidéo de l'avatar (`wama-avatar-render.js`,
+    qui lui délègue). Les coupures des morceaux sont les marques où le serveur fait respirer la voix
+    (`tts_text.SENTENCE_MARKS + CLAUSE_MARKS`) : le JS en garde une copie, tenue égale par un test
+    (ajouté à la revérification). Gardes : `tests_assistant_voice_js.AvatarLipsOnMeasuredSpeechTest`
+    (contre-épreuve : 4 rouges, le silence reste prédit ; la copie des marques : 1 rouge).
     ⏳ La toute première phrase d'une réponse garde ses premiers mots prédits (avant la fin de sa
     réception) ; éprouvé en tests et sur l'audio réel, pas encore à l'œil dans le navigateur.
   - ⏳ L'écoute des 50 orthographes par Fabien.

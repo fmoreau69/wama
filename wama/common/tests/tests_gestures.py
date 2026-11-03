@@ -515,6 +515,18 @@ class PagesAdoptTheBrickTest(SimpleTestCase):
         # Un doigt saisit une borne de plus loin qu'une souris.
         self.assertIn('WamaGestures.isTouch(e) ? HANDLE_PX_TOUCH : HANDLE_PX', js)
 
+    def test_the_presentation_loupe_pans_and_pinches_through_the_brick(self):
+        # Page autonome (sans base.html) : elle monte la brique elle-même, avant son script.
+        page = _read(BASE / 'wama' / 'templates' / 'includes' / 'wama_presentation.html')
+        self.assertLess(page.index('common/js/wama-gestures.js'), page.index('presentation/wama-presentation.js'))
+        self.assertIn('common/css/wama-touch.css', page)
+        js = _read(BASE / 'wama' / 'static' / 'presentation' / 'wama-presentation.js')
+        self.assertEqual(js.count('WamaGestures.track('), 1, 'the roadmap loupe')
+        self.assertIn('pinch: p =>', js)
+        for gone in ("addEventListener('pointerdown'", "addEventListener('pointermove'"):
+            self.assertNotIn(gone, js)
+        self.assertEqual(js, _read(SERVED / 'presentation' / 'wama-presentation.js'), 'served copy is stale')
+
     def test_the_drag_sources_have_no_touch_code_of_their_own(self):
         # La file, la palette et l'ordre des segments gardent leurs gestionnaires HTML5 : c'est la
         # brique qui traduit le doigt. Un second chemin tactile dans une page serait une 2e version

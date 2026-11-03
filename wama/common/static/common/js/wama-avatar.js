@@ -142,7 +142,9 @@ function speechRegions(peaks) {
 }
 
 /** Un mot qui FINIT un morceau de phrase — là où la voix s'arrête (« ; » isolé compris, la
- *  typographie française l'espace). */
+ *  typographie française l'espace). Les marques sont celles après lesquelles la voix RESPIRE,
+ *  déclarées côté serveur (`tts_text.SENTENCE_MARKS + CLAUSE_MARKS`) : la même liste, gardée
+ *  égale par `tests_assistant_voice_js.AvatarLipsOnMeasuredSpeechTest`. */
 const PHRASE_END = /[.!?…:;,]$/;
 
 /** Les morceaux de phrase d'une suite de mots : des listes d'indices, coupées aux ponctuations. */
