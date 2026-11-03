@@ -461,7 +461,11 @@ def _render(gen, ctx):
             gen.duration = duration
     ctx.console(f"[Composer] Démarrage : {catalog_key} — {gen.prompt[:60]}…")
 
-    output_rel, output_abs_path = ctx.output_place('.wav', model=model_id(catalog_key))
+    # Un cover porte le nom de son morceau (la règle commune, famille FICHIER, comme les apps dont
+    # l'entrée est un fichier) ; sans fichier de travail, la famille PROMPT.
+    source = gen.melody_reference or gen.reference_score
+    output_rel, output_abs_path = ctx.output_place('.wav', model=model_id(catalog_key),
+                                                   source_name=source.name if source else '')
     output_filename = os.path.basename(output_rel)
 
     # L'audio du cover n'est donné qu'au modèle qui le prend LUI-MÊME (MusicGen Melody) : un modèle

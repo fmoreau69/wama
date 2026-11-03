@@ -107,6 +107,17 @@ class ComposerTaskTest(TestCase):
         self.assertFalse((Path(self.tmp) / 'composer').exists(),
                          'the output was written to the old hand-built folder')
 
+    def test_the_output_file_of_a_cover_takes_the_name_of_its_song(self):
+        """La règle commune, famille FICHIER (2026-11-03) : `audio1217_YuE2-3B.wav` ne disait pas
+        quel morceau d'un album c'était."""
+        gen, _draw, _record = self._run(self._generation(reference_score='users/1/composer/input/07_-_Fall.abc'))
+        self.assertTrue(Path(gen.audio_output.name).name.startswith('07_-_Fall_'), gen.audio_output.name)
+        self.assertIn(str(gen.pk), Path(gen.audio_output.name).name, 'two cards of one song keep two files')
+
+    def test_without_a_song_the_output_keeps_the_name_of_its_card(self):
+        gen, _draw, _record = self._run(self._generation())
+        self.assertTrue(Path(gen.audio_output.name).name.startswith(f'audio{gen.pk}'), gen.audio_output.name)
+
     def test_the_cap_of_a_drawn_model_is_applied_but_not_written_into_the_setting(self):
         gen, _draw, _record = self._run(self._generation(duration=600), cap=30)
         self.assertEqual(30, _Engine.calls[0]['duration'])
