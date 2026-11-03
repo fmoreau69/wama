@@ -110,6 +110,9 @@
             (video ? window.IMAGER_VIDEO_SCHEMA : window.IMAGER_IMAGE_SCHEMA) || [],
             { context: 'batch', values: {},
               groups: (video ? window.IMAGER_VIDEO_GROUPS : window.IMAGER_IMAGE_GROUPS) || [] });
+        // Ouverte jusqu'ici sur les défauts du schéma, qu'elle postait sur toutes les filles.
+        WamaParams.fillFromBatch(host, document.querySelector('.batch-group[data-batch-id="' + batchId + '"]'),
+                                 (video ? window.IMAGER_VIDEO_SCHEMA : window.IMAGER_IMAGE_SCHEMA) || []);
         modalEl.dataset.batchId = batchId;
         const badge = document.getElementById('imagerBatchSettingsId');
         if (badge) badge.textContent = '#' + batchId;

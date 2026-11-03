@@ -355,6 +355,23 @@ class PromotionBetweenChildAndMotherTest(TestCase):
         self.assertEqual(batch_settings.references_for(type(self.lot), [self.lot.pk]),
                          {self.lot.pk: str(self.b.pk)}, 'ce que la page de file lit, en une requête')
 
+    def test_a_batch_gear_adds_to_the_reference_instead_of_replacing_it(self):
+        """Une ⚙ ne poste plus que ce qu'elle décide (`fillFromBatch`, 2026-11-03) : le réglage
+        posé au geste d'avant reste dans la référence."""
+        from wama.common.services import batch_settings
+        self._post('batch_update', {'output_format': 'mkv'})
+        self._post('batch_update', {'media_type': 'video'})
+        self.assertEqual(batch_settings.stored(self.lot), {'output_format': 'mkv', 'media_type': 'video'})
+
+    def test_realigning_leaves_what_the_mother_never_set(self):
+        """Une durée où les filles divergent reste hors de la référence : « réaligner » ne l'écrase
+        pas (vécu le 2026-11-03 : 12 morceaux remis sur la durée du premier)."""
+        self._post('batch_update', {'media_type': 'video'})
+        self._post('batch_realign')
+        self.a.refresh_from_db()
+        self.b.refresh_from_db()
+        self.assertEqual((self.a.output_format, self.b.output_format), ('mp4', 'webm'))
+
     def test_by_default_a_child_promotes_the_settings_of_its_app_schema(self):
         """Sans `promote_payload`, la charge utile vient du SCHÉMA de l'app (règle de la
         révision) — jamais d'une liste de champs écrite dans la fabrique."""

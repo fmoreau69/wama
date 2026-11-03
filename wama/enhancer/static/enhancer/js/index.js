@@ -407,6 +407,9 @@ document.addEventListener('DOMContentLoaded', function () {
                         BATCH_DOMAINS[queue.id].schema() || [], { context: 'batch', values: {} });
       _batchParamsRenderedFor = queue.id;
     }
+    // Ouverte jusqu'ici sur les défauts du schéma, qu'elle postait sur toutes les filles.
+    WamaParams.fillFromBatch(document.getElementById('enhancerBatchParams'), bs.closest('.batch-group'),
+                             BATCH_DOMAINS[queue.id].schema() || []);
     modal.dataset.queue = queue.id;
     modal.dataset.batchId = bs.dataset.batchId;
     const idBadge = document.getElementById('batchSettingsBatchId');

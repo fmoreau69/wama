@@ -28115,3 +28115,14 @@ que tout soit aligné et combler les trous pour que les ratés ne reviennent plu
   paragraphe précédent) ; relevé filtré sur mes fichiers : vide.
 - 🔴 Le JS est servi dès maintenant ; `imager/views.py` attend le rechargement de gunicorn : d'ici là, N images
   sur l'imager donnent N cards et le message « le lot n'a pas pu être formé ».
+
+## §PALIER 2026-11-03 (nuit), « LA ⚙ DE LOT N'ÉCRASE PLUS CE QUE PERSONNE N'A CHOISI »
+
+Défaut n° 1 du palier précédent, GO de Fabien. Route déjà tracée : `MODES_QUEUE_UX §5ter` (trou mesuré le
+18/10). `WamaParams.fillFromBatch` à l'ouverture des dix modales et dans le générateur, `holdField` tient ce
+que les filles ne partagent pas, `read` ne le rend pas ; le volet qui inspecte une card mère fait de même.
+La marque du port qui tient un lot est la même (`data-unset`). La référence du lot s'ajoute à chaque ⚙.
+⚠ Le modèle événementiel (`ROADMAP §23.2quater`) reste entier : un geste, un profil, « ↺ Par défaut » écrasent.
+Gardes `tests_batch_modal_divergence`, `tests_batch_views`, `tests_item_settings_contract` ; neuf mutations, rouges.
+⚠ Non joué au navigateur : tâches GPU de Fabien en cours. La référence du lot de ses 12 morceaux retient
+encore 280 s (« réaligner » l'écraserait), écrite avant ce correctif.

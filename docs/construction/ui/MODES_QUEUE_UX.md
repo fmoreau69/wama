@@ -285,6 +285,19 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   « inchangé » tout réglage absent de l'intersection, et ne pas le poster — vaut pour toutes les
   apps et le générateur ; c'est ce qui permettra d'ouvrir au contexte `batch` un réglage qui
   diverge souvent (les pauses `sentence_pause` / `clause_pause` du synthesizer).
+  ✅ **Livré le 2026-11-03** (vécu par Fabien : changer la qualité d'un lot de 12 morceaux a remis la
+  durée du premier sur les douze). `WamaParams.fillFromBatch` à l'ouverture des dix modales et dans
+  le générateur : ce que les filles partagent s'affiche ; le reste est TENU (`holdField`) — une note
+  le dit, `read` ne le rend pas — jusqu'à un GESTE sur sa ligne (`isGesture`), qui vaut alors pour
+  tout le lot. Un profil ou « ↺ Par défaut » (`apply`) le rend aussi : les gestes globaux écrasent
+  toujours (`ROADMAP §23.2quater`), seul change ce qui n'était le geste de personne. Le volet qui
+  inspecte une card mère fait de même (`panel.holdDivergences`) : y toucher un curseur reposait tout
+  le volet sur les filles. La référence du lot s'AJOUTE à chaque ⚙ (`batch_update`) : un réglage où
+  les filles divergent reste hors d'elle, « réaligner » ne l'écrase pas. La même marque sert au port
+  qui tient plusieurs fichiers (`default_from`, `CARD_DESIGN §11.11 G`). Gardes :
+  `tests_batch_modal_divergence`, `tests_batch_views`, `tests_item_settings_contract`.
+  ⏳ Non joué au navigateur (tâches GPU de Fabien en cours). ⏳ Reste : ouvrir les pauses du
+  synthesizer au contexte `batch`, décision à part.
 - **À ajouter — deux gestes symétriques** :
   - **↑ promouvoir** : depuis une card fille, faire remonter SES réglages à la mère, qui les
     applique à tout le batch ;

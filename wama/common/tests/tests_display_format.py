@@ -122,8 +122,8 @@ class FormatInTheBrowserTest(SimpleTestCase):
         """Le premier fichier ne décide pas pour les autres (2026-11-03) : le réglage est marqué,
         sa valeur ne bouge pas, et la note le dit."""
         self.v8.eval(self.PORT_AND_SLIDER + "input.files = [{name: 'a'}, {name: 'b'}]; listeners.change();")
-        self.assertEqual({'value': 210, 'marked': '1', 'probed': 0}, self._js(
-            "{value: Number(slider.value), marked: slider.dataset.perInput, probed: probed}"))
+        self.assertEqual({'value': 210, 'held': 'input', 'probed': 0}, self._js(
+            "{value: Number(slider.value), held: slider.dataset.unset, probed: probed}"))
         self.assertIn('lot', self._js('note.textContent'))
 
     def test_back_to_one_file_the_setting_follows_it_again(self):
@@ -131,13 +131,19 @@ class FormatInTheBrowserTest(SimpleTestCase):
         self.v8.eval("input.files = [{name: 'a'}]; listeners.change();")
         self.assertEqual({'value': 185, 'probed': 1, 'note': "Reprise du fichier d'entrée (3:07)."}, self._js(
             "{value: Number(slider.value), probed: probed, note: note.textContent}"))
-        self.assertFalse(self._js("'perInput' in slider.dataset"))
+        self.assertFalse(self._js("'unset' in slider.dataset"))
 
     def test_touching_the_setting_applies_it_to_the_whole_lot(self):
         self.v8.eval(self.PORT_AND_SLIDER + "input.files = [{name: 'a'}, {name: 'b'}]; listeners.change();"
-                     "sliderListeners.input();")
-        self.assertFalse(self._js("'perInput' in slider.dataset"))
+                     "sliderListeners.input({isTrusted: true});")
+        self.assertFalse(self._js("'unset' in slider.dataset"))
         self.assertEqual('', self._js('note.textContent') or '')
+
+    def test_a_fill_by_code_does_not_count_as_touching_it(self):
+        """Une borne de modèle qui se recale émet `input` : ce n'est pas une décision."""
+        self.v8.eval(self.PORT_AND_SLIDER + "input.files = [{name: 'a'}, {name: 'b'}]; listeners.change();"
+                     "sliderListeners.input({isTrusted: false});")
+        self.assertEqual('input', self._js('slider.dataset.unset'))
 
     def test_a_modal_of_an_existing_item_does_not_follow_the_next_card_s_file(self):
         self.v8.eval("""

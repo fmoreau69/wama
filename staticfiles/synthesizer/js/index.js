@@ -260,6 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 note.innerHTML = '<i class="fas fa-info-circle"></i> '
                     + "S'applique à tous les éléments non-en-cours du batch.";
                 host.prepend(note);
+                WamaParams.fillFromBatch(host, group, schema);
             },
             onSaved: async function (sid, restart) {
                 if (restart) {

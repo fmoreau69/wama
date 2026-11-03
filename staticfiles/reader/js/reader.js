@@ -370,17 +370,10 @@
         const id = btn.dataset.batchId;
         document.getElementById('batchSettingsBatchLabel').textContent = '#' + id;
         document.getElementById('batchSettingsBatchId').value = id;
-        // Presets = réglages de la 1re fille (la card mère commune _batch_card.html ne porte
-        // plus de data-backend/mode/language — ils vivent sur les cards, source serveur unique),
-        // lus par LE lecteur unique des data-* du gear (`WamaInspector.gearValues`) sur les noms
-        // du SCHÉMA. Les trois champs écrits ici à la main ignoraient le format de sortie et tout
-        // réglage ajouté (le modèle de langage et les process optionnels, 2026-10-13).
-        const firstCfg = document.querySelector(`#batchItems${id} [data-action="settings"]`);
-        const host = document.getElementById('readerBatchParams');
-        if (window.WamaParams && host && firstCfg) {
-            const schema = window.WAMA_READER_SCHEMA || [];
-            WamaParams.apply(host, WamaInspector.gearValues(firstCfg.closest('.wama-card') || firstCfg,
-                                                            schema.map(function (p) { return p.name; })));
+        // Ce que les filles partagent est affiché, le reste n'est pas posté (`fillFromBatch`).
+        if (window.WamaParams) {
+            WamaParams.fillFromBatch(document.getElementById('readerBatchParams'),
+                                     btn.closest('.batch-group'), window.WAMA_READER_SCHEMA);
         }
         _batchSettingsModal.show();
     }

@@ -1411,6 +1411,80 @@
     target.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // ── Un réglage qui ne se POSTE PAS (2026-11-03, `MODES_QUEUE_UX §5ter`) ───────────────────────
+  // Une valeur affichée n'est pas toujours une décision : là où les filles d'un lot divergent, ou
+  // tant qu'un port tient plusieurs fichiers qui proposent chacun la leur, le formulaire montre
+  // une valeur que personne n'a choisie. La poster l'écrasait partout : changer la qualité d'un
+  // lot remettait la durée du premier morceau sur tous les autres. Le réglage est donc TENU :
+  // `read` ne le rend pas, une note le dit ; un GESTE sur sa ligne le rend (`isGesture` — un
+  // remplissage n'est pas une décision), et ce geste vaut alors pour tout le lot.
+  function _rowFields(el) {
+    const row = el.closest && el.closest('[data-param-row]');
+    return { row: (row && row.addEventListener) ? row : el,
+             fields: (row && row.querySelectorAll) ? row.querySelectorAll('[name],[data-param]') : [el] };
+  }
+
+  function holdField(el, reason, note) {
+    if (!el || !el.dataset) return;
+    const line = _rowFields(el);
+    Array.prototype.forEach.call(line.fields, function (f) { f.dataset.unset = reason; });
+    if (line.row.classList) line.row.classList.add('is-unset');
+    _inputNote(el, note);
+    if (!line.row._wpHoldBound) {
+      line.row._wpHoldBound = true;
+      const onGesture = function (e) { if (isGesture(e)) releaseField(el); };
+      line.row.addEventListener('input', onGesture);
+      line.row.addEventListener('change', onGesture);
+    }
+  }
+
+  function releaseField(el) {
+    if (!el || !el.dataset || !el.dataset.unset) return;
+    const line = _rowFields(el);
+    Array.prototype.forEach.call(line.fields, function (f) { delete f.dataset.unset; });
+    if (line.row.classList) line.row.classList.remove('is-unset');
+    _inputNote(el, '');
+  }
+
+  /** Rend les réglages tenus de `host` pour cette raison (`reason` absent : tous). */
+  function releaseFields(host, reason) {
+    if (!host || !host.querySelectorAll) return;
+    host.querySelectorAll('[data-unset]').forEach(function (el) {
+      if (!reason || el.dataset.unset === reason) releaseField(el);
+    });
+  }
+
+  const BATCH_DIVERGENT_NOTE = "Pas de valeur commune aux éléments : inchangé si vous n'y touchez pas.";
+
+  /** Tient, parmi `params`, chaque réglage que les filles de `group` ne partagent pas — le geste
+   *  commun à la ⚙ d'un lot et au volet qui l'inspecte. `fieldOf(p)` : son champ. Rend ce qu'elles
+   *  partagent. Un porteur (`hidden`, la nature du lot) n'est pas un réglage : il part toujours. */
+  function holdBatchDivergences(group, params, fieldOf) {
+    const settable = (params || []).filter(function (p) { return p && p.name && p.type !== 'hidden'; });
+    const shared = (group && global.WamaInspector && WamaInspector.sharedGearValues)
+      ? WamaInspector.sharedGearValues(group, settable.map(function (p) { return p.name; })) : {};
+    settable.forEach(function (p) {
+      if (shared[p.name] === '') delete shared[p.name];     // rien de commun à montrer
+      if (!(p.name in shared)) holdField(fieldOf(p), 'batch', BATCH_DIVERGENT_NOTE);
+    });
+    return shared;
+  }
+
+  /** Remplit la modale de ⚙ d'un LOT depuis ses filles : ce qu'elles partagent est affiché, le
+   *  reste est tenu. Chaque app l'appelle à l'ouverture, une fois ses champs rendus. */
+  function fillFromBatch(host, group, schema) {
+    if (!host) return {};
+    releaseFields(host, 'batch');
+    const params = (schema || []).filter(function (p) {
+      return !p.contexts || p.contexts.indexOf('batch') !== -1;
+    });
+    const shared = holdBatchDivergences(group, params, function (p) {
+      return host.querySelector('[name="' + p.name + '"],[data-param="' + p.name + '"]');
+    });
+    apply(host, shared);
+    return shared;
+  }
+
   /** La NOTE sous un réglage qui suit une entrée : pourquoi cette valeur (vide = retirée). */
   function _inputNote(target, text) {
     var host = (target.closest && target.closest('.wama-param')) || target.parentNode;
@@ -1421,25 +1495,6 @@
       host.appendChild(note);
     }
     if (note) note.textContent = text || '';
-  }
-
-  /** Sur un LOT (2026-11-03) : le premier fichier ne décide pas pour les autres — la durée d'un
-   *  morceau n'est pas celle du suivant. Le réglage est marqué `data-per-input`, `addToQueue` ne le
-   *  poste pas, et chaque élément naît de la proposition de SON fichier. L'utilisateur qui touche
-   *  le réglage reprend la main : sa valeur vaut alors pour tout le lot. */
-  function _setPerInput(target, on) {
-    if (!target || !target.dataset) return;
-    if (on) {
-      target.dataset.perInput = '1';
-      _inputNote(target, 'Chaque élément du lot reprendra la valeur de son fichier.');
-      if (!target._wpPerInputBound) {
-        target._wpPerInputBound = true;
-        target.addEventListener('input', function () { _setPerInput(target, false); });
-      }
-    } else if (target.dataset.perInput) {
-      delete target.dataset.perInput;
-      _inputNote(target, '');
-    }
   }
 
   function _proposedValue(target, raw) {
@@ -1472,11 +1527,16 @@
                    && global.WamaApp.inputEntries(input).length > 1;
         Object.keys(input._wpDefaultFrom).forEach(function (id) {
           var target = document.getElementById(id);
-          _setPerInput(target, many);
-          if (many) return;
+          // Sur un LOT, le premier fichier ne décide pas pour les autres : le réglage est tenu, et
+          // chaque élément naît de la proposition de SON fichier (`new_element_settings`).
+          if (many) {
+            holdField(target, 'input', 'Chaque élément du lot reprendra la valeur de son fichier.');
+            return;
+          }
+          if (target && target.dataset && target.dataset.unset === 'input') releaseField(target);
           _readInputProperty(input, input._wpDefaultFrom[id]).then(function (proposal) {
             // Une lecture partie avant que le port ne devienne un lot n'a plus d'objet.
-            if (target && target.dataset && target.dataset.perInput) return;
+            if (target && target.dataset && target.dataset.unset) return;
             _applyProposal(target, proposal);
           });
         });
@@ -1786,6 +1846,7 @@
     if (!container) return out;
     // radios : une seule valeur par nom ; on prend la cochée.
     container.querySelectorAll('[name],[data-param]').forEach(function (el) {
+      if (el.dataset && el.dataset.unset) return;   // tenu : affiché, jamais posté (`holdField`)
       const n = el.getAttribute('name') || el.getAttribute('data-param');
       if (el.type === 'radio') { if (el.checked) out[n] = el.value; }
       else out[n] = _fieldValue(el);
@@ -1798,6 +1859,7 @@
     container.querySelectorAll('[name],[data-param]').forEach(function (el) {
       const n = el.getAttribute('name') || el.getAttribute('data-param');
       if (!(n in values)) return;
+      releaseField(el);        // posé par un geste (profil, ↺ Par défaut) : il repart au prochain envoi
       const v = values[n];
       if (el.type === 'checkbox') el.checked = (v === true || v === 'true' || v === 1 || v === '1');
       else if (el.type === 'radio') el.checked = (String(el.value) === String(v));
@@ -2094,6 +2156,8 @@
 
   global.WamaParams = { render: render, read: read, apply: apply,
                         applyDefaults: applyDefaults,
+                        fillFromBatch: fillFromBatch, holdBatchDivergences: holdBatchDivergences,
+                        releaseFields: releaseFields,
                         // La règle `cap_from` elle-même (bornes, zones, champ imposé) — exposée
                         // pour que sa garde (`tests_cap_from_js`, V8) l'exerce sans navigateur.
                         applyCapFrom: _applyCap,

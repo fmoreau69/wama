@@ -288,6 +288,7 @@ def render_index(manifest: dict) -> tuple:
                 schema: {{{{ params_json|safe }}}},
                 context: 'batch',
                 values: partagees,
+                decorate: function (host) {{ WamaParams.fillFromBatch(host, groupe, {{{{ params_json|safe }}}}); }},
                 saveUrl: urlFor(U.batch_update, bid),
                 csrf: CSRF,
                 footerTplId: '{app}BatchSettingsFooterTpl',

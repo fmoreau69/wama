@@ -731,7 +731,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             return refusal
         # La mère RETIENT ce qu'elle vient de poser : c'est la référence que « ↓ réaligner »
         # reposera (`§5ter`). Un schéma par élément : le posté brut, coercé à la relecture.
-        batch_settings.remember(b, shared if shared is not None else read_settings_payload(request))
+        # S'AJOUTE à la référence : une ⚙ ne poste plus que ce qu'elle décide (`fillFromBatch`), et
+        # ce qu'elle tait n'en sort pas — ni n'y entre : un réglage où les filles divergent reste
+        # hors de la référence, « réaligner » ne l'écrase pas.
+        posted = shared if shared is not None else read_settings_payload(request)
+        batch_settings.remember(b, {**(batch_settings.stored(b) or {}), **posted})
         return JsonResponse({'success': True, 'updated': written, 'batch_id': pk})
 
     @require_POST

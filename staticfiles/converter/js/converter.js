@@ -398,6 +398,7 @@
                 values: Object.assign(partagees, { media_type: mediaType || '' }),
                 groups: APP.groups,
             });
+            WamaParams.fillFromBatch(host, groupe, APP.schema);
         }
         new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
     }

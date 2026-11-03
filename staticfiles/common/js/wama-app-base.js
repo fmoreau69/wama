@@ -1143,11 +1143,6 @@
       const host = opts.paramsHostId && document.getElementById(opts.paramsHostId);
       if (host && global.WamaParams && global.WamaParams.read) {
         const v = global.WamaParams.read(host);
-        // Un réglage marqué « par fichier » (`default_from` sur un lot, `wama-params`) n'est pas
-        // posté : la proposition de CHAQUE fichier joue au serveur (`new_element_settings`).
-        host.querySelectorAll('[data-per-input]').forEach(function (el) {
-          delete v[el.getAttribute('name') || el.getAttribute('data-param')];
-        });
         Object.keys(v).forEach(function (k) {
           if (v[k] !== '' && v[k] != null) fd.append(k, v[k]);
         });

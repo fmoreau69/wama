@@ -105,3 +105,6 @@ details.wama-param-group[open] > summary.wama-param-group-title::after { transfo
 .wama-param-mapping-key { flex: 0 0 96px; font-size: .72rem; color: var(--wama-text-muted);
     font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
 .wama-param-mapping-row input { flex: 1; min-width: 0; }
+
+/* Réglage TENU (`holdField`) : affiché, jamais posté tant qu'on n'y touche pas. */
+.wama-param.is-unset .form-control, .wama-param.is-unset .form-select, .wama-param.is-unset .form-range { opacity: .55; }

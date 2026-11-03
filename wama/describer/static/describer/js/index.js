@@ -188,19 +188,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('batchSettingsBatchId').value = bid;
         const lbl = document.getElementById('batchSettingsBatchLabel');
         if (lbl) lbl.textContent = '#' + bid;
-        // Défauts lus sur la 1re card FILLE, posés par la brique (WamaParams.apply : coercition
-        // checkbox + re-sync des sliders — pas de _set maison, route unique).
-        const group = btn.closest('.batch-group');
-        const first = group ? group.querySelector('.settings-btn') : null;
-        const host = document.getElementById('describerBatchParams');
-        if (window.WamaParams && host && first) {
-            // LE lecteur unique des data-* du gear (`WamaInspector.gearValues`, celui de la modale
-            // d'élément) sur les noms du SCHÉMA — la liste de cinq réglages écrite ici à la main
-            // ignorait tout réglage ajouté (les modèles et le curseur, 2026-10-13).
-            const schema = window.WAMA_DESCRIBER_SCHEMA || [];
-            const vals = WamaInspector.gearValues(first.closest('.wama-card') || first,
-                                                  schema.map(function (p) { return p.name; }));
-            WamaParams.apply(host, vals);   // une clé absente n'écrase pas le champ
+        // Ce que les filles partagent est affiché, le reste n'est pas posté (`fillFromBatch`).
+        if (window.WamaParams) {
+            WamaParams.fillFromBatch(document.getElementById('describerBatchParams'),
+                                     btn.closest('.batch-group'), window.WAMA_DESCRIBER_SCHEMA);
         }
         new bootstrap.Modal(modalEl).show();
     }

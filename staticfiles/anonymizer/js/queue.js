@@ -158,6 +158,11 @@
                         { context: 'batch', values: {}, groups: doc ? [] : (window.WAMA_ANONYMIZER_GROUPS || []) });
       batchParamsDomain = domain;
     }
+    // Ouverte jusqu'ici sur les défauts du schéma, qu'elle postait sur toutes les filles.
+    WamaParams.fillFromBatch(document.getElementById('anonBatchParams'),
+                             document.querySelector('.batch-group[data-batch-id="' + batchId + '"]'),
+                             (domain === 'document' ? window.WAMA_ANONYMIZER_DOCUMENT_SCHEMA
+                                                    : window.WAMA_ANONYMIZER_SCHEMA) || []);
     modal.dataset.batchId = batchId;
     const idBadge = document.getElementById('batchSettingsBatchId');
     if (idBadge) idBadge.textContent = '#' + batchId;

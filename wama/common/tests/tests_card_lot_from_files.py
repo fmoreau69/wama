@@ -193,16 +193,6 @@ class AddToQueueTest(SimpleTestCase):
         self.assertEqual(['users/1/a.mp3', 'users/1/b.mp3'],
                          [dict(map(tuple, c[1]))['work_audio__designated'] for c in calls[:2]])
 
-    def test_a_setting_marked_per_file_is_not_posted(self):
-        """Le premier fichier ne décide pas de la durée des autres (`default_from`) : sans valeur
-        postée, la proposition de CHAQUE fichier joue au serveur."""
-        ctx = self._submit(self.TWO_FILES + "elements.host.querySelectorAll = function () { return [{"
-                           "getAttribute: function (k) { return k === 'name' ? 'duration' : null; }}]; };", self.LOT)
-        for call in self._calls(ctx)[:2]:
-            fields = dict(map(tuple, call[1]))
-            self.assertNotIn('duration', fields)
-            self.assertEqual('m', fields['model'], 'les autres réglages partent')
-
     def test_a_refused_file_does_not_stop_the_others_and_is_named(self):
         ctx = self._submit("refuse['FILE:a.mp3'] = 'trop long';"
                            "elements.work.files = [{name: 'a.mp3'}, {name: 'b.mp3'}, {name: 'c.mp3'}];", self.LOT)

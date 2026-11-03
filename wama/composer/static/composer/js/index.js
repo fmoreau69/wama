@@ -146,19 +146,14 @@
     // ⚙ de LOT — ouvreur DÉCLARÉ à la brique commune (queue-actions.js).
     WamaQueueActions.onBatchSettings(function (bid, btn) {
         const group = btn.closest('.batch-group');
-        const firstItemBtn = group ? group.querySelector('.settings-btn') : null;
-        const fd = firstItemBtn ? firstItemBtn.dataset : {};
         document.getElementById('batchSettingsBatchId').value = bid;
         const lbl = document.getElementById('batchSettingsBatchLabel');
         if (lbl) lbl.textContent = '#' + bid;
-        // Valeurs posées par la brique (WamaParams.apply : re-sync des sliders inclus —
-        // pas de setter maison, route unique).
-        const bhost = document.getElementById('composerBatchParams');
-        if (window.WamaParams && bhost) {
-            const vals = { model: fd.model || 'auto:text-to-music', duration: fd.duration || 10 };
-            if (fd.outputFormat) vals.output_format = fd.outputFormat;
-            if (fd.outputQuality) vals.output_quality = fd.outputQuality;
-            WamaParams.apply(bhost, vals);   // une clé absente n'écrase pas le champ
+        // Ce que les filles partagent est affiché ; le reste n'est pas posté tant qu'on n'y touche
+        // pas (`fillFromBatch`). Lire la 1re fille écrasait la durée de toutes (2026-11-03).
+        if (window.WamaParams) {
+            WamaParams.fillFromBatch(document.getElementById('composerBatchParams'), group,
+                                     window.COMPOSER_PARAMS_SCHEMA);
         }
         new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
     });

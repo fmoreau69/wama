@@ -362,6 +362,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (idBadge) idBadge.textContent = '#' + btn.dataset.batchId;
     // The batch modal's model select is filled by WamaParams from the catalogue (its own source
     // binding) — no more copying the panel's options.
+    // Ouverte jusqu'ici sur les défauts du schéma, qu'elle postait sur toutes les filles.
+    if (window.WamaParams) {
+      WamaParams.fillFromBatch(document.getElementById('transcriberBatchParams'), btn.closest('.batch-group'),
+                               window.WAMA_TRANSCRIBER_SCHEMA);
+    }
     new bootstrap.Modal(modal).show();
   }
 

@@ -300,6 +300,25 @@ class BatchSettingsFollowTheItemRouteTest(TestCase):
             _choice_fields, lambda model, name, values: {name: 'not-a-choice'}, must_write=False)
         self.assertGreaterEqual(len({app for app, _name in measured}), 3, measured)
 
+    def test_every_batch_modal_opens_from_what_its_daughters_share(self):
+        """`fillFromBatch` (MODES_QUEUE_UX §5ter, 2026-11-03) : une ⚙ de lot qui s'ouvre ailleurs —
+        sur les défauts du schéma, sur sa 1re fille — poste une valeur que personne n'a choisie et
+        l'écrase sur toutes. Lu dans les sources de l'app, jumelles exclues : elles se régénèrent."""
+        from pathlib import Path
+
+        from django.apps import apps as django_apps
+
+        from wama.common.app_registry import APP_CATALOG
+        missing = []
+        for app, *_rest in _batch_surfaces():
+            if (APP_CATALOG.get(app) or {}).get('generated_from'):
+                continue
+            folder = Path(django_apps.get_app_config(app).path)
+            sources = list(folder.rglob('*.js')) + list(folder.rglob('*.html'))
+            if not any('fillFromBatch' in s.read_text(encoding='utf-8', errors='replace') for s in sources):
+                missing.append(app)
+        self.assertEqual([], missing)
+
     def test_no_app_keeps_a_batch_settings_view_of_its_own(self):
         """The copy must not come back: every `<app>:batch_update` IS the factory's view."""
         from django.urls import resolve

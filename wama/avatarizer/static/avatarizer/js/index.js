@@ -648,6 +648,11 @@
         const m = ensureBatchSettingsModal();
         const idInput = document.getElementById('batchSettingsBatchId');
         if (idInput) idInput.value = b.dataset.batchId || '';
+        // Ouverte jusqu'ici sur les défauts du schéma, qu'elle postait sur toutes les filles.
+        if (window.WamaParams) {
+            WamaParams.fillFromBatch(document.getElementById('avatarizerBatchParams'), b.closest('.batch-group'),
+                                     window.AVATARIZER_PARAMS_SCHEMA);
+        }
         if (m) m.show();
     });
 

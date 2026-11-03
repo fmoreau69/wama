@@ -700,6 +700,7 @@
       // APRÈS le garde : une sélection qui échoue ne doit pas défaire celle d'à côté.
       _cederLaMain(api);
       snapshotDefaults();
+      if (panel.releaseHolds) panel.releaseHolds();
       itemId = id; batchId = null;
       clearHighlight(); card.classList.add(HL);
       if (panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(card));
@@ -718,8 +719,12 @@
       snapshotDefaults();
       batchId = bid; itemId = null;
       clearHighlight(); group.classList.add(HL);
+      if (panel.releaseHolds) panel.releaseHolds();
       const first = group.querySelector(CARD_SEL);   // réglages = ceux du 1er item
       if (first && panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(first));
+      // Le volet montre le 1er élément, mais il parle pour le LOT : ce que les filles ne partagent
+      // pas n'est pas posté tant qu'on n'y touche pas (toucher un curseur reposte tout le volet).
+      if (panel.holdDivergences) panel.holdDivergences(group);
       fillActions(cfg.renderBatchActions, bid);
       showBatchInfo(bid, group);
       toggleSections(true);
@@ -729,6 +734,7 @@
     function deselect() {
       itemId = null; batchId = null;
       clearHighlight();
+      if (panel.releaseHolds) panel.releaseHolds();
       if (defaults && panel.apply) panel.apply(defaults);
       const host = $(ids.actions);
       if (host) host.innerHTML = '';
@@ -918,12 +924,26 @@
           if (p.contexts && p.contexts.indexOf('panel') === -1) return;
           const key = panelKey(p);
           const radios = (ph || document).querySelectorAll('input[type="radio"][name="' + radioKey(p) + '"]');
-          if (radios.length) { radios.forEach(function (r) { if (r.checked) out[p.name] = r.value; }); return; }
+          if (radios.length) {
+            radios.forEach(function (r) { if (r.checked && !r.dataset.unset) out[p.name] = r.value; });
+            return;
+          }
           const el = fieldEl(key);
-          if (el) out[p.name] = (el.type === 'checkbox') ? el.checked : el.value;
+          if (el && !el.dataset.unset) out[p.name] = (el.type === 'checkbox') ? el.checked : el.value;
         });
         return out;
       },
+      // Inspecter un LOT : ce que ses filles ne partagent pas est tenu (`WamaParams.holdField`).
+      holdDivergences: function (group) {
+        if (!WP || !WP.holdBatchDivergences) return;
+        WP.holdBatchDivergences(group, schema.filter(function (p) {
+          return !p.contexts || p.contexts.indexOf('panel') !== -1;
+        }), function (p) {
+          return (ph || document).querySelector('input[type="radio"][name="' + radioKey(p) + '"]')
+            || fieldEl(panelKey(p));
+        });
+      },
+      releaseHolds: function () { if (WP && WP.releaseFields && ph) WP.releaseFields(ph, 'batch'); },
       apply: function (vals) {
         vals = vals || {};
         schema.forEach(function (p) {
