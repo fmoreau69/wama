@@ -6,6 +6,7 @@ import json
 from wama.accounts.permissions import app_access
 import logging
 import os
+from urllib.parse import urlsplit
 
 from django.core.cache import cache
 from django.http import JsonResponse
@@ -34,9 +35,14 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def _batch_item_extra(generation: ComposerGeneration) -> dict:
-    """Champs supplémentaires du lien batch↔génération (nom de sortie dérivé du prompt)."""
-    stem = os.path.splitext(generation.prompt[:30].replace(' ', '_'))[0] or 'generation_aleatoire'
-    return {'output_filename': f"{stem}_{generation.id}.wav"}
+    """Champs supplémentaires du lien batch↔génération : le nom de sortie vient de ce qui nomme
+    l'ENTRÉE — le morceau repris (son fichier, ou son URL), sinon la consigne (la règle de la face
+    Entrée, `apps.py`). Le prompt seul appelait « generation_aleatoire » un cover sans consigne
+    (2026-11-03, un lot de 12 morceaux)."""
+    source = generation.melody_reference or generation.reference_score
+    named = source.name if source else urlsplit(generation.source_url or '').path
+    stem = os.path.splitext(os.path.basename(named))[0] or generation.prompt[:30].replace(' ', '_')
+    return {'output_filename': f"{stem or 'generation_aleatoire'}_{generation.id}.wav"}
 
 
 def _wrap_generation_in_batch(generation: ComposerGeneration) -> ComposerBatch:
