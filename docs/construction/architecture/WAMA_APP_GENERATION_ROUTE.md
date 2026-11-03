@@ -1291,6 +1291,66 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       flux d'un dataset sur UN graphe et la route qui sert une fenêtre d'un flux (`WAMA_DATA_WORLD
       §8.4`, points 1-2) ; l'aperçu, Comparer et le cam_analyzer à porter sur l'axe (ils gardent
       leurs lecteurs, inchangés).
+    - 🗺 **2026-11-03 — CARTOGRAPHIE de tout ce qui LIT DU TEMPS dans WAMA** (demande de Fabien :
+      *« un état des lieux complet […] pour envisager un portage, une uniformité et une
+      universalité dans tout WAMA. Mais attention, il ne faut pas casser la précision de la
+      synchronisation, mais au contraire essayer de l'améliorer »*). Relevé par
+      `grep -E "currentTime|timeupdate|<video|<audio|requestVideoFrameCallback|WamaAxis|WamaShuttle"`
+      sur `wama/`, `wama_lab/`, `wama_data/` (JS et gabarits, hors `vendors/` et `staticfiles/`),
+      puis chaque fichier ouvert. **Aucun lecteur maison n'est nécessaire** : l'axe pilote des
+      `<video>`/`<audio>` NATIFS (`attach(el, {offset, fps})`) — un lecteur vidéo commun, c'est
+      l'axe + le transport + le clavier commun montés autour d'un élément natif, ce que font déjà
+      les surfaces.
+
+      | famille | où | horloge | recalage | surcouche | J/K/L |
+      |---|---|---|---|---|---|
+      | **sur l'axe** | surfaces `transcriber.correction` (`transcriber/surfaces.py:80-85`), partition `composer` (`composer/surfaces.py:54-66`), analyse `face_analyzer` (`face_analyzer/surfaces.py:27-42`, vidéo + 6 courbes) | `WamaAxis` | 20 ms / 150 ms / ±5 % (`wama-axis.js:72`) | — (courbes : échantillon le plus proche) | ✅ `WamaAxis.bindKeys({shuttle})` |
+      | **visionneuse** (volet, modale, plein écran) | `media-preview.js` : faces Entrée / process (Détection…) / Sortie / Pendant ; l'horloge passe d'une face à l'autre (`takeClock`/`giveClock`, l.369-399) | le `<video controls>` natif | Comparer : la Sortie suit la référence par `syncVideos`, repositionnement au-delà de **120 ms**, aucun rattrapage doux, sur `timeupdate` (~4 Hz) (`wama-preview-overlay.js:133-146`) | Détection : `floor(currentTime × fps)` dans une boucle `requestAnimationFrame` (`wama-preview-overlay.js:37-40, 112`) | ❌ la couche clavier de la visionneuse (`media_viewer`, portée `layer`, `media-preview.js:1393`) ne prend que ←/→/↑/↓/Échap — ouverte, elle SEULE reçoit les frappes : J/K/L n'arrivent nulle part |
+      | **cam_analyzer** | 4 caméras + vue de dessus + mini-carte + surcouches (`cam_analyzer/js/index.js:1890-1967`) | la vidéo de la 1ʳᵉ caméra présente (`getRefPosition`, « média maître ») | repositionnement au-delà de **300 ms** (`SYNC_THRESHOLD`, l.1893), aucun rattrapage doux | `currentTime − time_offset` de CHAQUE caméra (l.1945-1949) | ✅ `WamaShuttle.bindKeys` (l.2129) |
+      | **lecteurs de card** | `WamaAudioPlayer` (onde, cards composer, synthesizer, enhancer audio, transcriber), vidéos des cards anonymizer / avatarizer, médiathèque, `pronunciations.html` | le média lui-même | — | — | ❌ |
+      | **anciennes pages face_analyzer** | `face_analyzer/video.html` (vitesse, ±10 s, `timeupdate` l.458-470), `realtime.html` (caméra en direct) | le `<video>` | — | — | ❌ |
+      | **temps réel / synthèse** | voix et avatar de l'assistant (`wama-avatar-render.js:45`, horloge `AudioContext`), suivi des mains (`wama-hands.js:288`), bips (`wama-app-base.js:726`) | `AudioContext` / caméra | — | — | sans objet (pas de lecture d'un média enregistré) |
+
+      **Ce que la cartographie dit de la PRÉCISION** :
+      1. ⚠ **Aucune surcouche de WAMA ne lit l'image AFFICHÉE.** La règle « une surcouche suit
+         l'image affichée » (puce ci-dessus) est appliquée par `el.currentTime` — l'horloge du
+         lecteur, qui peut courir devant l'image présentée de la latence du décodage et de
+         l'affichage (ordre de grandeur attendu : une image, 40 ms à 25 i/s, 83 ms à 12 i/s —
+         ⚠ NON MESURÉ dans WAMA, c'est la mesure de l'étape ① ci-dessous), et lue au battement
+         d'écran, pas à l'image. D'où des boîtes justes au ralenti et en léger décalage à ×1 (constat de
+         Fabien sur l'anonymizer, 2026-11-03). L'API qui donne l'instant EXACT de l'image
+         présentée, `requestVideoFrameCallback` (`metadata.mediaTime`), n'est appelée NULLE PART
+         (`grep requestVideoFrameCallback` : 0 hors `vendors/`). C'est le premier levier, et il
+         vaut pour les trois familles qui dessinent sur une vidéo (visionneuse, cam_analyzer,
+         `brick-image-boxes` le jour où elle suivra une vidéo).
+      2. Les recalages hors axe sont plus grossiers que l'axe : 120 ms sur `timeupdate` (Comparer),
+         300 ms (cam_analyzer), sans rattrapage doux — chaque correction est un saut visible.
+         L'axe : 20 ms de tolérance, rattrapage à vitesse fixe, repositionnement à 150 ms, lu à
+         chaque battement.
+      3. ⚠ **Le recalage de l'axe ne doit PAS servir d'horloge à une surcouche** : un suiveur
+         rattrapé à ±5 % est, par construction, jusqu'à 150 ms à côté de l'axe. La surcouche lit
+         l'image présentée de SA vidéo (point 1) ; l'axe ne fixe que l'ordre de lecture.
+      4. Une vue de donnée (vue de dessus, mini-carte, courbes) suit l'axe, échantillon le plus
+         proche. Quand elle doit coller à une vidéo (vue de dessus du cam_analyzer), elle devrait
+         lire l'instant présenté de la vidéo de référence, pas l'axe, pour la même raison
+         (proposition, à trancher au portage ③).
+
+      **Ordre de portage proposé** (⏳, rien n'est lancé — chaque étape garde ses preuves avant/après,
+      écart mesuré, jamais « ça a l'air mieux ») :
+      ① surcouches à l'image présentée (`requestVideoFrameCallback`, repli `currentTime` pour un
+         navigateur qui ne l'a pas) dans `WamaPreviewOverlay` puis le cam_analyzer — gain de
+         précision sans rien changer d'autre ; mesure : écart entre la frame dessinée et la frame
+         présentée, avant/après, sur une card réelle ;
+      ② la visionneuse sur l'axe : un axe par face montrée, Comparer = deux suiveurs (la forme
+         « N médias sur un axe » existe), le transport et J/K/L/Espace/pas image par la couche
+         clavier de la visionneuse qui délègue à `WamaAxis.bindKeys` ;
+      ③ le cam_analyzer sur l'axe : quatre suiveurs à `time_offset`, la vue de dessus en vue de
+         donnée — son propre chantier, à mesurer contre la synchro actuelle (le constat de Fabien
+         du 2026-11-03 : un décalage d'environ 2 m entre la caméra avant et la vue de dessus, sans
+         changement de `gps_time_offset` 0,7239 / `gps_time_scale` 0,96 depuis juillet — à établir
+         avant tout portage, cf. `CAM_ANALYZER_CHAINE_TRAITEMENT.md`) ;
+      ④ les lecteurs de card et les anciennes pages face_analyzer : clavier commun sur le lecteur
+         survolé ou sélectionné ; un axe seulement là où il y a plus d'un média ou une donnée.
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS
