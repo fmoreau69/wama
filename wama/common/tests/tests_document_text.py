@@ -196,6 +196,22 @@ class PdfLabelFormTest(_TempDir):
         self.assertAlmostEqual(start, label['bbox'][0], delta=1)
         self.assertLess(label['bbox'][2], 345)
 
+    def test_a_shrunk_label_sits_on_its_line_not_above_it(self):
+        import fitz
+        src = self.dir / 'line.pdf'
+        with fitz.open() as pdf:
+            page = pdf.new_page()
+            page.insert_text((300, 100), 'Bron', fontsize=20)
+            page.insert_text((360, 100), 'Droite', fontsize=20)
+            pdf.save(str(src))
+        passage = next(s for s in self._spans(src) if 'Bron' in s['text'])['bbox']
+        out = self._occult(src, [('Bron', '[ADRESSE_POSTALE]')])
+        [label] = [s for s in self._spans(out) if 'ADRESSE' in s['text']]
+        # Reduced to fit before « Droite », it keeps the bottom of the passage: placed at the top of
+        # a taller frame, it floated above the line like an exponent (#2297).
+        self.assertLess(label['size'], 20)
+        self.assertAlmostEqual(label['bbox'][3], passage[3], delta=2)
+
     def test_a_scanned_passage_is_painted_with_its_paper_colour(self):
         import fitz
         from wama.common.utils.document_text import read_segments, write_replacements

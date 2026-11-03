@@ -408,6 +408,34 @@ def _native_style(blocks, rect) -> tuple:
     return _span_style(best[0]), _rotation(best[1]) or 0
 
 
+#: Police de base de MuPDF d'un style `(famille, gras, italique)` — de quoi MESURER un libellé.
+_BASE14 = {('Helvetica', False, False): 'helv', ('Helvetica', True, False): 'hebo',
+           ('Helvetica', False, True): 'heit', ('Helvetica', True, True): 'hebi',
+           ('Times', False, False): 'tiro', ('Times', True, False): 'tibo',
+           ('Times', False, True): 'tiit', ('Times', True, True): 'tibi',
+           ('Courier', False, False): 'cour', ('Courier', True, False): 'cobo',
+           ('Courier', False, True): 'coit', ('Courier', True, True): 'cobi'}
+
+
+def _fit_label(unit, label, room) -> tuple:
+    """`(unit, room)` d'un libellé : tel quel s'il tient à sa taille entre le début de son passage
+    et le premier obstacle devant lui ; sinon réduit pour y tenir, et posé SUR SA LIGNE — son cadre
+    garde le bas du passage. Réduit en haut d'un cadre plus haut que lui, il flottait au-dessus de
+    la ligne comme un exposant (#2297, 2026-11-03)."""
+    import fitz
+    rect, style = unit['rect'], unit['style']
+    if unit['rotate']:
+        return unit, room
+    right = room[0].x1 if room else rect.x1
+    family, bold, italic, size = style[:4]
+    width = fitz.get_text_length(label, fontname=_BASE14[(family, bold, italic)], fontsize=size)
+    if width <= right - rect.x0:
+        return unit, room
+    size = round(size * (right - rect.x0) / width * 0.95, 1)
+    return dict(unit, style=(family, bold, italic, size) + tuple(style[4:]),
+                rect=fitz.Rect(rect.x0, rect.y1 - size * 1.2, right, rect.y1)), []
+
+
 def _rewrite_pdf(path, out_path, replacements, ocr=None) -> None:
     """L'unité page (l'Anonymizer) : chaque passage du texte natif caviardé partout où il se
     retrouve sur sa page, son libellé à sa place ; un passage lu par l'OCR (`ocr=`, page scannée
@@ -473,6 +501,7 @@ def _rewrite_pdf(path, out_path, replacements, ocr=None) -> None:
                     continue
                 labelled.append(rect)
                 room = [] if 'background' in unit else _room(page, unit, obstacles)[:1]
+                unit, room = _fit_label(unit, new, room)
                 _place(page, unit, html.escape(new), '* {' + _css(unit['style'], 1.0) + '}', room)
         pdf.scrub()
         pdf.save(str(out_path), garbage=4, deflate=True)
