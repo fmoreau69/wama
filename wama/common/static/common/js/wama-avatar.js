@@ -90,6 +90,120 @@ function estimateTimings(text, durationMs, leadMs = 0) {
   return { words, wtimes, wdurations };
 }
 
+// ── Les mots sur la parole MESURÉE (2026-11-03) ───────────────────────────────────────────
+// L'estimation ci-dessus répartit les mots sur toute la durée, silences compris. Or une voix
+// marque des silences qu'aucune ponctuation ne prédit : Phonon en pose environ 0,12 s avant et
+// 0,6 s après CHAQUE segment qu'il dit, et son débit va de 53 à 85 ms par unité de poids d'une
+// phrase à l'autre (mesuré sur quatre réponses-types) — les lèvres finissaient jusqu'à 1,8 s
+// après la voix et parlaient dans les blancs. Quand l'audio est là, on le LIT : les régions où la
+// voix parle, puis chaque mot dans la région où tombe sa part du temps de parole.
+
+/** Pas de l'enveloppe, en ms. */
+const FRAME_MS = 20;
+/** Niveau sous lequel une trame est un silence (amplitude 0..1), relevé à 5 % de la crête. */
+const SILENCE_LEVEL = 0.02;
+/** Un silence plus court ne sépare pas deux régions : c'est une consonne, pas une pause. */
+const GAP_MS = 200;
+
+/** Une ENVELOPPE qui se remplit au fil de l'audio : la crête de chaque trame de FRAME_MS. Elle se
+ *  relève avant que le son parte à la lecture (TalkingHead PREND le tampon qu'on lui confie). */
+function envelopeMeter(rate) {
+  const size = Math.max(1, Math.round((rate * FRAME_MS) / 1000));
+  const peaks = [];
+  let peak = 0, n = 0;
+  return {
+    add(samples, scale = 1) {
+      for (let i = 0; i < samples.length; i++) {
+        const v = Math.abs(samples[i]) * scale;
+        if (v > peak) peak = v;
+        if (++n === size) { peaks.push(peak); peak = 0; n = 0; }
+      }
+    },
+    peaks() {
+      if (n) { peaks.push(peak); peak = 0; n = 0; }
+      return peaks;
+    },
+  };
+}
+
+/** Les régions où la voix PARLE, `[{start, end}]` en ms depuis le début de l'audio. */
+function speechRegions(peaks) {
+  const top = peaks.reduce((m, p) => Math.max(m, p), 0);
+  const level = Math.max(SILENCE_LEVEL, 0.05 * top);
+  const regions = [];
+  let current = null;
+  peaks.forEach((p, i) => {
+    if (p < level) return;
+    const t = i * FRAME_MS;
+    if (current && t - current.end <= GAP_MS) current.end = t + FRAME_MS;
+    else { current = { start: t, end: t + FRAME_MS }; regions.push(current); }
+  });
+  return regions;
+}
+
+/** Un mot qui FINIT un morceau de phrase — là où la voix s'arrête (« ; » isolé compris, la
+ *  typographie française l'espace). */
+const PHRASE_END = /[.!?…:;,]$/;
+
+/** Les morceaux de phrase d'une suite de mots : des listes d'indices, coupées aux ponctuations. */
+function phrasesOf(words) {
+  const phrases = [];
+  let current = [];
+  words.forEach((word, i) => {
+    current.push(i);
+    if (PHRASE_END.test(word)) { phrases.push(current); current = []; }
+  });
+  if (current.length) phrases.push(current);
+  return phrases;
+}
+
+/** Répartit `units` (des listes d'indices de mots) sur les régions : chacune va à la région où
+ *  tombe le milieu de sa part du temps de parole, au prorata de son poids parlé. */
+function byShare(units, weights, lengths) {
+  const unitWeight = (u) => u.reduce((n, i) => n + weights[i], 0);
+  const total = units.reduce((n, u) => n + unitWeight(u), 0);
+  const speechMs = lengths.reduce((n, l) => n + l, 0);
+  const groups = lengths.map(() => []);
+  let acc = 0;
+  units.forEach((unit) => {
+    const w = unitWeight(unit);
+    let at = ((acc + w / 2) / total) * speechMs;
+    acc += w;
+    let k = 0;
+    while (k < lengths.length - 1 && at > lengths[k]) { at -= lengths[k]; k++; }
+    groups[k].push(...unit);
+  });
+  return groups;
+}
+
+/** Les mots posés sur les régions de parole, puis étalés dans la leur au prorata de leur poids
+ *  parlé. Aucun mot dans un silence. Une région par morceau de phrase quand la voix s'arrête à
+ *  chaque ponctuation (mesuré sur Phonon : quatre morceaux, quatre régions) ; au poids sinon — par
+ *  morceaux quand des virgules se disent d'un trait, par mots quand la voix respire en plus. Au
+ *  poids seul, le mot qui suit « Bonjour, » restait dans sa région. `null` sans parole mesurée
+ *  (l'appelant estime). */
+function timingsOverSpeech(text, regions, leadMs = 0) {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length || !regions.length) return null;
+  const weights = words.map(spokenWeight);
+  const lengths = regions.map((r) => r.end - r.start);
+  const phrases = phrasesOf(words);
+  const groups = phrases.length === regions.length ? phrases
+    : byShare(phrases.length > regions.length ? phrases : words.map((_, i) => [i]), weights, lengths);
+  const wtimes = [], wdurations = [];
+  groups.forEach((members, k) => {
+    const groupWeight = members.reduce((n, i) => n + weights[i], 0);
+    let t = regions[k].start;
+    members.forEach((i) => {
+      const part = (weights[i] / groupWeight) * lengths[k];
+      wtimes[i] = Math.round(t + leadMs);
+      wdurations[i] = Math.round(part);
+      t += part;
+    });
+  });
+  return { words, wtimes, wdurations };
+}
+
 /** Ce que le navigateur met entre le départ d'un son et sa sortie au haut-parleur, en ms.
  *  Quelques ms sur une carte son, 150 à 300 sur un casque Bluetooth — davantage quand le micro
  *  est ouvert (conversation vocale) ; TalkingHead, lui, anime les lèvres au départ du son. */
@@ -160,8 +274,14 @@ export async function speak(blob, text, lang, timings, options = {}) {
     // decodeAudioData CONSOMME l'ArrayBuffer : ne pas le réutiliser après cet appel.
     const audio = await audioContext().decodeAudioData(buf);
     // `timings` ({words, wtimes, wdurations}, ms) — MESURÉS quand l'appelant les a (mots datés par
-    // la transcription, rendu vidéo du 2026-09-30) ; sinon l'estimation.
+    // la transcription, rendu vidéo du 2026-09-30) ; sinon posés sur la parole de l'audio, et
+    // l'estimation seulement quand il n'en a pas.
     const leadMs = options.live === false ? 0 : outputLatencyMs();
+    if (!timings && audio.getChannelData) {
+      const meter = envelopeMeter(audio.sampleRate);
+      meter.add(audio.getChannelData(0));
+      timings = timingsOverSpeech(text, speechRegions(meter.peaks()), leadMs);
+    }
     timings = timings || estimateTimings(text, audio.duration * 1000, leadMs);
     const r = { audio };
     if (timings) Object.assign(r, timings);
@@ -176,12 +296,17 @@ export async function speak(blob, text, lang, timings, options = {}) {
 // ── La voix AU FIL DE L'EAU (2026-10-28) ──────────────────────────────────────────────────
 // Le service rend le PCM à mesure qu'il le calcule (`/tts/stream`) ; TalkingHead sait le jouer
 // en flux (`streamStart` / `streamAudio` / `streamNotifyEnd`, son module `playback-worklet.js`).
-// Ce qui manque au flux, c'est la DURÉE : les lèvres se calent sur les mots, et l'estimation
-// d'`estimateTimings` répartit les mots sur la durée de l'audio, inconnue avant la fin. Elle est
-// donc PRÉDITE au débit de parole APPRIS : millisecondes par unité de poids parlé
-// (`spokenWeight`), recalées à la fin de chaque morceau sur la durée réellement reçue — la
-// suivante se cale sur la voix du moment. Départ : 75 ms, mesuré sur Phonon et Kokoro
-// (« Bonjour, je suis l'assistant de WAMA. » : 2,56 s pour 29 lettres et deux pauses).
+// Ce qui manque au flux, c'est l'AUDIO ENTIER : les lèvres se calent sur les mots, posés sur la
+// parole mesurée (`timingsOverSpeech`) — qu'on n'a qu'une fois tout reçu. La voix se calcule plus
+// vite qu'elle ne se dit (Phonon : 0,3 à 0,6 fois le temps réel), d'où deux cas (2026-11-03) :
+//   • le morceau est REÇU avant d'être joué (les phrases qui suivent la première) : ses mots
+//     partent sur la parole mesurée ;
+//   • il se joue pendant qu'il arrive (la première) : ses mots partent sur une durée PRÉDITE, puis
+//     ceux qui ne sont pas encore dits sont RECALÉS dès la fin de la réception (`retime`).
+// La prédiction suit le débit de parole APPRIS : millisecondes par unité de poids parlé
+// (`spokenWeight`), recalées à la fin de chaque morceau sur la durée réellement reçue. Départ :
+// 75 ms, mesuré sur Phonon et Kokoro (« Bonjour, je suis l'assistant de WAMA. » : 2,56 s pour 29
+// lettres et deux pauses).
 let msPerWeight = 75;
 const LEARN = 0.5;          // part de la dernière mesure dans le débit appris
 
@@ -202,7 +327,9 @@ export function streamPlayer(response, rate, text, lang) {
   const fire = (type) => (listeners[type] || []).forEach((fn) => { try { fn(); } catch (_) {} });
   const pending = [];
   let started = false, finished = false, first = true, samples = 0;
+  let measured = null;          // les mots sur la parole mesurée, une fois tout reçu
   const shape = predictedMs(text);
+  const meter = envelopeMeter(rate);
   const player = {
     paused: false, ended: false,
     addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
@@ -233,12 +360,33 @@ export function streamPlayer(response, rate, text, lang) {
     if (player.paused) return;
     const r = { audio: buffer };
     if (first) {
-      // Les mots partent avec le premier morceau, sur la durée PRÉDITE (voir `msPerWeight`).
-      Object.assign(r, estimateTimings(text, shape.weight * msPerWeight + shape.pauses,
-                                       outputLatencyMs()) || {});
+      // Les mots partent avec le premier morceau : sur la parole mesurée si tout est déjà reçu,
+      // sinon sur la durée PRÉDITE (voir `msPerWeight`), recalée par `retime`.
+      Object.assign(r, measured || estimateTimings(text, shape.weight * msPerWeight + shape.pauses,
+                                                   outputLatencyMs()) || {});
       first = false;
     }
     head.streamAudio(r);
+  }
+  // Les mots PRÉDITS qui ne sont pas encore dits, reposés sur la parole mesurée. TalkingHead a mis
+  // leurs visèmes dans sa file d'animation : on retire ceux qui n'ont pas commencé — le geste de son
+  // propre `_streamPause`, réduit à l'avenir — et on lui confie les mots restants, sans audio.
+  function retime(timings) {
+    if (player.paused || !head.isSpeaking) return;
+    const start = head.streamAudioStartTime;
+    if (start == null) {          // le son n'est pas encore sorti : les mots attendent dans sa file
+      head.streamLipsyncQueue = (head.streamLipsyncQueue || []).filter((x) => !x.words);
+      head.streamAudio(timings);
+      return;
+    }
+    const now = head.animClock;
+    head.animQueue = head.animQueue.filter((a) => !a.template || a.template.name !== 'viseme'
+                                                  || a.ts[0] <= now);
+    const ahead = timings.words.map((_, i) => i).filter((i) => start + timings.wtimes[i] > now);
+    if (!ahead.length) return;
+    head.streamAudio({ words: ahead.map((i) => timings.words[i]),
+                       wtimes: ahead.map((i) => timings.wtimes[i]),
+                       wdurations: ahead.map((i) => timings.wdurations[i]) });
   }
   function finish() {
     if (player.ended || player.paused) return;
@@ -252,10 +400,13 @@ export function streamPlayer(response, rate, text, lang) {
   }
   const reading = window.WamaApp.Speech.readPcm16(response, (buffer) => {
     samples += buffer.byteLength / 2;
+    meter.add(new Int16Array(buffer), 1 / 32768);      // AVANT `send`, qui confie le tampon
     if (started) send(buffer); else pending.push(buffer);
   });
   player.received = reading.done.then(() => {
     finished = true;
+    measured = timingsOverSpeech(text, speechRegions(meter.peaks()), outputLatencyMs());
+    if (measured && !first) retime(measured);
     if (started && !player.paused) head.streamNotifyEnd();
   }, () => {
     finished = true;

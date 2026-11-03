@@ -94,6 +94,8 @@ def tts_stream_via_service(text, model, *, language='fr', voice_preset='default'
     resp = _post('/tts/stream', read_timeout, json=payload, stream=True)
     rate = int(resp.headers.get('X-Sample-Rate') or 24000)
 
+    from wama.common.backends.tts_base import ClosingChunks
+
     def chunks():
         try:
             for block in resp.iter_content(chunk_size=None):
@@ -101,7 +103,9 @@ def tts_stream_via_service(text, model, *, language='fr', voice_preset='default'
                     yield block
         finally:
             resp.close()
-    return rate, chunks()
+    # Django ferme l'itérateur quand le navigateur raccroche — même avant le premier morceau, où
+    # fermer le générateur seul laisserait la connexion ouverte et le moteur occupé.
+    return rate, ClosingChunks(chunks(), resp)
 
 
 def _tts_payload(text, model, *, language, voice_preset, speaker_wav, options, user,

@@ -77,6 +77,75 @@ class StreamContractTest(SimpleTestCase):
         self.assertEqual([10, 20], [len(c) for c in chunks])
 
 
+class _LockingBackend(_ToneBackend):
+    """Un moteur qui calcule EN FLUX sous son verrou, comme Phonon : il le tient de son premier
+    morceau à son dernier, ou jusqu'à la fermeture de son flux."""
+    supports_streaming = True
+
+    def __init__(self):
+        super().__init__()
+        self.lock = threading.Lock()
+
+    def process_stream(self, text='', **_):
+        def chunks():
+            with self.lock:
+                for _ in range(3):
+                    yield np.ones(10, dtype=np.float32)
+        return RATE, chunks()
+
+
+class AbandonedStreamTest(SimpleTestCase):
+    """2026-11-03 — la parole coupée de l'assistant abandonne son flux. Fermer ce flux doit rendre le
+    moteur À L'INSTANT, lu ou non : sinon il restait tenu jusqu'au ramasse-miettes, et Phonon ne
+    répondait plus du tout (13:06 → relance du service à 13:17)."""
+
+    def test_closing_an_unread_stream_frees_the_engine(self):
+        be = _LockingBackend()
+        _, chunks = be.synthesize_stream(text='Bonjour.')
+        self.assertTrue(be.lock.locked(), "le premier son est calculé : le moteur tient son verrou")
+        chunks.close()
+        self.assertFalse(be.lock.locked())
+
+    def test_closing_a_half_read_stream_frees_the_engine(self):
+        be = _LockingBackend()
+        _, chunks = be.synthesize_stream(text='Bonjour. Au revoir.')
+        next(chunks)
+        chunks.close()
+        self.assertFalse(be.lock.locked())
+
+    def test_a_relay_closed_before_its_first_chunk_hangs_up_on_the_service(self):
+        """Côté Django : le navigateur raccroche avant le premier morceau — la connexion au service
+        se ferme, sinon le service ne voit jamais le client partir."""
+        from wama.common.tts import service_client
+        resp = mock.Mock(headers={'X-Sample-Rate': '24000'})
+        with mock.patch.object(service_client, '_post', return_value=resp), \
+                mock.patch.object(service_client, '_tts_payload', return_value={}):
+            _, chunks = service_client.tts_stream_via_service('Bonjour.', 'model')
+        chunks.close()
+        resp.close.assert_called_once()
+
+    def test_the_engine_lock_can_be_released_by_another_thread(self):
+        """Le flux du service prend le verrou des moteurs dans le fil de la requête et le rend à son
+        dernier morceau, qu'un AUTRE fil produit. Un RLock refusait : « cannot release un-acquired
+        lock », et le verrou restait pris. Le verrou RÉEL du module, pas celui des tests."""
+        from wama.common.tts import service
+        lock = service._engine_lock
+        self.assertTrue(lock.acquire(blocking=False))
+        errors = []
+
+        def release():
+            try:
+                lock.release()
+            except RuntimeError as e:
+                errors.append(e)
+        worker = threading.Thread(target=release)
+        worker.start()
+        worker.join()
+        if errors:
+            lock.release()
+        self.assertEqual([], errors)
+
+
 class _FakeAudioStream:
     def __init__(self, parts):
         self.parts, self.closed = list(parts), False
@@ -167,6 +236,28 @@ class ServiceStreamTest(SimpleTestCase):
         self.assertEqual(int(RATE * 0.1) * 2 + int(RATE * 0.2), len(samples))
         self.assertAlmostEqual(0.25, samples[0] / 32767, places=3)
         self.assertFalse(self.s._engine_lock.locked(), "moteur verrouillé après le flux")
+
+    def test_a_client_that_hangs_up_frees_both_locks(self):
+        """2026-11-03 — Starlette sort sur une exception quand le client raccroche (ASGI 2.4), sans
+        fermer le flux : la réponse le ferme et rend le verrou des moteurs, celui du moteur, et
+        l'état « occupé » déclaré au gouverneur."""
+        import asyncio
+        self.be = _LockingBackend()
+        response = self.s.tts_stream_endpoint(self.s.TTSRequest(text='Bonjour. Au revoir.',
+                                                                model='tone'))
+        self.assertTrue(self.be.lock.locked())
+        self.assertTrue(self.s._engine_lock.locked())
+
+        async def hang_up(message):
+            raise OSError('client parti')
+
+        async def receive():
+            return {'type': 'http.disconnect'}
+        with self.assertRaises(Exception):
+            asyncio.run(response({'type': 'http', 'asgi': {'spec_version': '2.4'}}, receive, hang_up))
+        self.assertFalse(self.be.lock.locked(), "le moteur reste tenu après un client parti")
+        self.assertFalse(self.s._engine_lock.locked())
+        self.assertFalse(self.s._is_busy())
 
     def test_an_engine_error_before_the_first_sound_is_an_http_error(self):
         from fastapi.testclient import TestClient

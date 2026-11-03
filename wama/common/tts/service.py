@@ -189,8 +189,11 @@ def _restore_residents() -> None:
 #: lourde : le client expirerait et Django retomberait sur son Kokoro en-process. S'il trouve le
 #: verrou pris, il est servi SANS toucher au moteur courant ; s'il le trouve libre, il le prend
 #: et garde le comportement historique (la bascule décharge le moteur lourd, la VRAM est rendue).
-#: RLock : `_switch_model` peut être rappelé sous le verrou.
-_engine_lock = threading.RLock()
+#: ⚠ Un verrou SIMPLE, pas un RLock (2026-11-03) : un flux (`/tts/stream`) le prend dans le fil de
+#: la requête et le rend à son dernier morceau, qu'un AUTRE fil du pool produit — un RLock refuse
+#: (« cannot release un-acquired lock ») et restait tenu. Personne ne le reprend sous lui-même :
+#: `_switch_model` ne le prend pas, la libération et la restauration sont appelées hors de lui.
+_engine_lock = threading.Lock()
 
 
 def _backend(engine: str):
@@ -454,6 +457,21 @@ def tts_stream_endpoint(req: TTSRequest):
         logger.error(f"TTS stream error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+    finished = threading.Lock()
+
+    def finish():
+        """Rend le moteur — une seule fois, que le flux finisse, échoue ou soit abandonné."""
+        if not finished.acquire(blocking=False):
+            return
+        try:
+            close = getattr(chunks, "close", None)
+            if close:
+                close()
+        finally:
+            if holds_lock:
+                _engine_lock.release()
+            _synth_end()
+
     def pcm16():
         try:
             for chunk in chunks:
@@ -461,15 +479,33 @@ def tts_stream_endpoint(req: TTSRequest):
         except Exception as e:                # la réponse est partie : le flux s'arrête, dit ici
             logger.error(f"TTS stream interrompu : {e}", exc_info=True)
         finally:
-            close = getattr(chunks, "close", None)
-            if close:
-                close()
-            if holds_lock:
-                _engine_lock.release()
-            _synth_end()
+            finish()
 
-    return StreamingResponse(pcm16(), media_type="audio/L16",
-                             headers={"X-Sample-Rate": str(rate)})
+    return _ClosingStream(pcm16(), finish, media_type="audio/L16",
+                          headers={"X-Sample-Rate": str(rate)})
+
+
+class _ClosingStream(StreamingResponse):
+    """Un flux qui REND son moteur quand la réponse s'arrête, client parti compris (2026-11-03).
+
+    Starlette lit un générateur synchrone fil par fil et, quand le navigateur raccroche (la parole
+    coupée de l'assistant), sort sur une exception SANS le fermer : le générateur restait suspendu
+    jusqu'à ce que le ramasse-miettes le trouve, verrous compris. Vécu : Phonon ne répondait plus
+    du tout (13:06 → relance du service à 13:17). Ici la fin est un geste, pas une attente — le
+    générateur n'est plus en cours dans aucun fil quand `__call__` en sort, et `finish` vaut aussi
+    pour un flux jamais commencé (fermer un générateur qui n'a pas démarré n'exécute pas son
+    `finally`)."""
+
+    def __init__(self, content, finish, **kwargs):
+        super().__init__(content, **kwargs)
+        self._content, self._finish = content, finish
+
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            await run_in_threadpool(self._content.close)
+            await run_in_threadpool(self._finish)
 
 
 # ---------------------------------------------------------------------------

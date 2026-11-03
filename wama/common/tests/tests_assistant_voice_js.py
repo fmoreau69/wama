@@ -530,8 +530,11 @@ TalkingHead.prototype.streamStart = function (opt, onStart, onEnd) {
   calls.push(['start', opt.sampleRate, opt.lipsyncType]); this.onEnd = onEnd; this.isStreaming = true;
   return Promise.resolve(); };
 TalkingHead.prototype.streamAudio = function (r) {
-  calls.push(['audio', r.audio.byteLength, r.words ? r.words.length : 0,
-              r.wtimes ? r.wtimes[r.wtimes.length - 1] : null]); };
+  this.isSpeaking = true;
+  calls.push(['audio', r.audio ? r.audio.byteLength : 0, r.words ? r.words.length : 0,
+              r.wtimes ? r.wtimes[r.wtimes.length - 1] : null]);
+  payloads.push(r); };
+var payloads = [];
 TalkingHead.prototype.streamNotifyEnd = function () { calls.push(['end']); };
 TalkingHead.prototype.streamInterrupt = function () { calls.push(['interrupt']); };
 var feed = null, finishReading = null;
@@ -592,6 +595,117 @@ class AvatarStreamTest(SimpleTestCase):
         self.assertIn(['cancel'], calls)
         self.assertIn(['interrupt'], calls)
         self.assertEqual(1, ctx.eval("paused"))
+
+
+#: Une voix construite : 0,12 s de silence, 1 s de parole, 0,7 s de silence, 1 s de parole, 0,6 s
+#: de silence — la forme que Phonon donne à deux segments (mesuré le 2026-11-03 : ~0,12 s avant et
+#: ~0,6 s après chacun). Deux phrases de même poids parlé (12 et 12).
+SPOKEN_TWO = 'Bonjour à tous. Voici la suite.'
+VOICE_SHAPE = r"""
+function voice(rate, parts) {
+  parts = parts || [[0.12, 0], [1.0, 0.5], [0.7, 0], [1.0, 0.5], [0.6, 0]];
+  var total = 0; parts.forEach(function (p) { total += Math.round(p[0] * rate); });
+  var out = new Int16Array(total), at = 0;
+  parts.forEach(function (p) { var n = Math.round(p[0] * rate);
+    for (var i = 0; i < n; i++) out[at + i] = Math.round(p[1] * 32767 * (i % 2 ? 1 : -1));
+    at += n; });
+  return out;
+}
+"""
+
+
+class AvatarLipsOnMeasuredSpeechTest(SimpleTestCase):
+    """2026-11-03 — les lèvres de l'assistant se posent sur la parole MESURÉE de l'audio : Phonon
+    marque ~0,12 s de silence avant et ~0,6 s après chaque segment, et son débit varie de 53 à
+    85 ms par unité de poids — prédites, les lèvres finissaient jusqu'à 1,8 s après la voix et
+    parlaient dans les blancs."""
+
+    def _ctx(self):
+        ctx = AvatarStreamTest._ctx(self)
+        ctx.eval(VOICE_SHAPE + "fakeAudioCtx.outputLatency = 0; fakeAudioCtx.baseLatency = 0;")
+        return ctx
+
+    def _payloads(self, ctx):
+        import json
+        return json.loads(ctx.eval("JSON.stringify(payloads.map(function (r) {"
+                                   " return {words: r.words || null, wtimes: r.wtimes || null}; }))"))
+
+    def _check_on_speech(self, words, wtimes):
+        self.assertEqual(SPOKEN_TWO.split(), words)
+        first, second = wtimes[:3], wtimes[3:]
+        self.assertTrue(all(120 <= t < 1120 for t in first), wtimes)
+        self.assertTrue(all(1820 <= t < 2820 for t in second), "aucun mot dans le silence : %s" % wtimes)
+        self.assertLess(abs(first[0] - 120), FRAME_TOLERANCE_MS, "le premier mot part avec la voix")
+        self.assertLess(abs(second[0] - 1820), FRAME_TOLERANCE_MS, "la seconde phrase repart avec elle")
+
+    def test_a_stream_received_before_it_plays_starts_on_the_measured_speech(self):
+        """Les phrases qui suivent la première : tout est reçu avant que le son parte."""
+        ctx = self._ctx()
+        ctx.eval("var p = WamaAvatar.streamPlayer({}, 24000, %r, 'fr');"
+                 "feed(voice(24000).buffer); finishReading();" % SPOKEN_TWO)
+        ctx.eval("p.start();")
+        sent = [x for x in self._payloads(ctx) if x['words']]
+        self.assertEqual(1, len(sent), "les mots partent une fois, avec le premier morceau")
+        self._check_on_speech(sent[0]['words'], sent[0]['wtimes'])
+
+    def test_a_stream_played_while_it_arrives_retimes_the_words_still_to_say(self):
+        """La première phrase : ses mots partent PRÉDITS, puis ceux qui restent à dire sont reposés
+        sur la parole mesurée ; les visèmes à venir sont retirés, ceux en cours gardés."""
+        import json
+        ctx = self._ctx()
+        ctx.eval("var p = WamaAvatar.streamPlayer({}, 24000, %r, 'fr'); var v = voice(24000);"
+                 "feed(v.slice(0, 2400).buffer); p.start();" % SPOKEN_TWO)
+        ctx.eval("""var th = WamaAvatar.instance();
+                    th.streamAudioStartTime = 1000; th.animClock = 1000 + 1500;
+                    th.animQueue = [{template: {name: 'viseme'}, ts: [1000 + 1400]},
+                                      {template: {name: 'viseme'}, ts: [1000 + 1900]},
+                                      {template: {name: 'blink'}, ts: [1000 + 3000]}];
+                    feed(v.slice(2400).buffer); finishReading();""")
+        sent = [x for x in self._payloads(ctx) if x['words']]
+        self.assertEqual(2, len(sent), "prédits avec le premier morceau, puis recalés")
+        self.assertEqual(['Voici', 'la', 'suite.'], sent[1]['words'],
+                         "seuls les mots pas encore dits sont recalés")
+        self.assertTrue(all(1820 <= t < 2820 for t in sent[1]['wtimes']), sent[1]['wtimes'])
+        kept = json.loads(ctx.eval("JSON.stringify(th.animQueue.map(function (a) { return a.ts[0]; }))"))
+        self.assertEqual([2400, 4000], kept, "le visème en cours et les autres animations restent")
+
+    def test_the_word_after_a_comma_starts_with_the_next_region(self):
+        """Mesuré sur Phonon : « Bonjour, » seul dans 0,42 s, la suite après 1,1 s de silence. Au
+        poids seul, « je » tombait dans la première région — la bouche le disait avant la voix."""
+        import json
+        ctx = self._ctx()
+        ctx.eval("var v = voice(24000, [[0.12, 0], [0.42, 0.5], [1.1, 0], [1.1, 0.5], [0.6, 0]]);"
+                 "var p = WamaAvatar.streamPlayer({}, 24000, %r, 'fr');"
+                 "feed(v.buffer); finishReading();" % "Bonjour, je suis l'assistant de WAMA.")
+        ctx.eval("p.start();")
+        sent = [x for x in self._payloads(ctx) if x.get('words')][0]
+        self.assertLess(abs(sent['wtimes'][1] - 1640), FRAME_TOLERANCE_MS, json.dumps(sent))
+
+    def test_silent_audio_keeps_the_prediction(self):
+        """Contre-épreuve : sans parole mesurable, rien n'est recalé (les tests du débit appris
+        jouent du silence)."""
+        ctx = self._ctx()
+        ctx.eval("var p = WamaAvatar.streamPlayer({}, 24000, %r, 'fr');"
+                 "feed(new ArrayBuffer(4800)); p.start(); feed(new ArrayBuffer(48000)); finishReading();"
+                 % SPOKEN_TWO)
+        self.assertEqual(1, len([x for x in self._payloads(ctx) if x['words']]))
+
+    def test_a_whole_audio_puts_its_words_on_the_speech_too(self):
+        """`speak` (l'audio reçu d'un bloc) : les mêmes régions, lues sur l'audio décodé."""
+        import json
+        ctx = self._ctx()
+        ctx.eval("""window.AudioContext = function () { return { decodeAudioData: function () {
+                      var v = voice(24000), data = new Float32Array(v.length);
+                      for (var i = 0; i < v.length; i++) data[i] = v[i] / 32768;
+                      return Promise.resolve({ duration: v.length / 24000, sampleRate: 24000,
+                                               getChannelData: function () { return data; } }); } }; };""")
+        ctx.eval("WamaAvatar.speak(fakeBlob, %r, 'fr');" % SPOKEN_TWO)
+        spoken = json.loads(ctx.eval("JSON.stringify(spoken)"))
+        self._check_on_speech(spoken['words'], spoken['wtimes'])
+
+
+#: Une trame d'enveloppe (20 ms), plus une de marge.
+FRAME_TOLERANCE_MS = 41
 
 
 class VoiceAsksForTheStreamTest(SimpleTestCase):

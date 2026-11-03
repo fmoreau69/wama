@@ -1075,6 +1075,38 @@ l'intuition :
     ⏳ Le synthesizer et l'aperçu de voix restent en rendu entier (ils assemblent un fichier) ;
     Apache devant gunicorn n'a pas été mesuré (le navigateur passait par Django en direct) ; le
     minutage exact des mots (un moteur qui le rendrait) remplacerait la durée prédite.
+  - ✅ *(2026-11-03 — Fabien : « l'avatar de l'assistant est désynchronisé »)* Deux défauts du flux
+    du 28/10, sans lien avec les corrections de l'avatarizer de la veille (qui ne touchent pas ce
+    chemin).
+    **Le service se bloquait sur une parole coupée.** Le verrou des moteurs, un `RLock`, était pris
+    dans le fil de la requête et rendu par le dernier morceau, qu'un autre fil du pool produit :
+    « cannot release un-acquired lock » (journal, 13:04), verrou jamais rendu, « occupé » jamais
+    levé. Et un flux abandonné — le navigateur raccroche quand on coupe la parole — n'était fermé
+    qu'au passage du ramasse-miettes : Starlette sort sur une exception sans fermer le générateur
+    (ASGI 2.4), `synthesize_stream` ne fermait pas le flux du moteur, et un générateur jamais
+    démarré ignore sa fermeture. Phonon, qui tient son verrou de son premier morceau à son dernier,
+    ne répondait plus du tout (mesuré : 13:06 → relance du service à 13:17). Corrigé : un verrou
+    simple (personne ne le reprend sous lui) ; une réponse qui rend le moteur quand elle s'arrête,
+    client parti compris (`_ClosingStream`, fin idempotente) ; `tts_base.ClosingChunks`, dont la
+    fermeture ferme ce qui produit, lu ou non — le flux du moteur, et côté Django la connexion au
+    service (`tts_stream_via_service`). Les tests remplaçaient le verrou par un `threading.Lock`, d'où
+    l'angle mort. Gardes : `tests_tts_stream.AbandonedStreamTest`,
+    `ServiceStreamTest.test_a_client_that_hangs_up_frees_both_locks` ; contre-épreuve : 5 rouges.
+    **Les lèvres sur une durée prédite.** Mesuré sur Phonon (quatre réponses-types) : 53 à 85 ms par
+    unité de poids d'une phrase à l'autre, contre 75 prédits, et ~0,12 s de silence avant, ~0,6 s
+    après CHAQUE segment — les lèvres finissaient jusqu'à 1,8 s après la voix et parlaient dans les
+    blancs. Désormais posées sur la parole MESURÉE de l'audio (`wama-avatar.js` :
+    `envelopeMeter`, `speechRegions`, `timingsOverSpeech`) : une région par morceau de phrase quand
+    la voix s'arrête à chaque ponctuation (vérifié sur une vraie voix : quatre morceaux, quatre
+    régions, chaque morceau part au début de la sienne), au poids sinon ; aucun mot dans un silence.
+    La voix se calcule plus vite qu'elle ne se dit (0,3 à 0,6 fois le temps réel) : un morceau reçu
+    avant d'être joué part sur la parole mesurée, celui qui se joue en arrivant part prédit puis ses
+    mots pas encore dits sont RECALÉS à la fin de la réception (visèmes à venir retirés de la file de
+    TalkingHead, le geste de son propre `_streamPause`). Le rendu d'un bloc (`speak`) lit les mêmes
+    régions sur l'audio décodé. Gardes : `tests_assistant_voice_js.AvatarLipsOnMeasuredSpeechTest`
+    (contre-épreuve : 4 rouges, le silence reste prédit).
+    ⏳ La toute première phrase d'une réponse garde ses premiers mots prédits (avant la fin de sa
+    réception) ; éprouvé en tests et sur l'audio réel, pas encore à l'œil dans le navigateur.
   - ⏳ L'écoute des 50 orthographes par Fabien.
 - **Les pauses** : `kokoro_onnx` sait allonger la pause après chaque marque (`sentence_pause`,
   `clause_pause`), mais seulement avec un modèle qui rend la durée de ses phonèmes ; le nôtre ne la

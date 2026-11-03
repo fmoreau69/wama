@@ -117,6 +117,29 @@ def _sayable(segment: str) -> bool:
     return any(c.isalnum() for c in segment)
 
 
+class ClosingChunks:
+    """Les morceaux d'un flux de voix, dont la fermeture ferme AUSSI ce qui les produit — lus ou
+    non (2026-11-03) : fermer un générateur qui n'a pas démarré n'exécute pas son `finally`. Or le
+    premier son est déjà calculé au retour : le moteur tient son verrou (`synthesize_stream`), la
+    connexion au service est ouverte (`service_client.tts_stream_via_service`). Un flux abandonné
+    — la parole coupée de l'assistant — les gardait jusqu'au ramasse-miettes."""
+
+    def __init__(self, chunks, source):
+        self._chunks, self._source = chunks, source
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._chunks)
+
+    def close(self):
+        try:
+            self._chunks.close()
+        finally:
+            self._source.close()
+
+
 #: Plafond d'une PAUSE demandée (s) — une valeur aberrante postée ne fige pas la voix.
 MAX_PAUSE_S = 2.0
 
@@ -227,6 +250,10 @@ class TTSBackend(BaseModelBackend):
         if not any(_sayable(segment) for segment, _ in segments):
             segments = [(kwargs.get('text') or '', 0.0)]   # rien de dicible : le moteur en décide
 
+        # Fermer le flux rendu ferme celui du moteur, À L'INSTANT (2026-11-03) : un moteur qui
+        # calcule en flux tient son verrou jusqu'à son dernier morceau (Phonon), et un flux
+        # abandonné — la parole coupée de l'assistant — ne le rendait qu'au passage du
+        # ramasse-miettes. Le moteur ne répondait plus entre-temps.
         def parts():
             rate = None
             for segment, pause in segments:
@@ -234,14 +261,23 @@ class TTSBackend(BaseModelBackend):
                     rate, chunks = self.process_stream(**{
                         **kwargs, 'text': segment,
                         'scene_description': '' if rate else kwargs.get('scene_description', '')})
-                    for chunk in chunks:
-                        yield rate, chunk
+                    try:
+                        for chunk in chunks:
+                            yield rate, chunk
+                    finally:
+                        close = getattr(chunks, 'close', None)
+                        if close:
+                            close()
                 # Rien à DIRE (« … » seul entre deux phrases) : son silence seul, comme `synthesize`.
                 if pause and rate:
                     yield rate, np.zeros(int(pause * rate), dtype=np.float32)
 
         stream = parts()
-        rate, first = next(stream)             # le premier son est calculé AVANT de répondre
+        try:
+            rate, first = next(stream)         # le premier son est calculé AVANT de répondre
+        except BaseException:
+            stream.close()
+            raise
 
         def chunks():
             yield first
@@ -250,7 +286,7 @@ class TTSBackend(BaseModelBackend):
                     raise RuntimeError(f"{self.engine} : fréquence d'échantillonnage variable entre "
                                        f"segments ({rate} puis {segment_rate} Hz)")
                 yield chunk
-        return rate, chunks()
+        return rate, ClosingChunks(chunks(), stream)
 
     def process_stream(self, **kwargs):
         """UN segment rendu en flux — `(rate, itérateur de morceaux float32 mono)`. Par défaut d'un
