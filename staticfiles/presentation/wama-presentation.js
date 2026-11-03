@@ -156,6 +156,7 @@
 
   document.addEventListener('keydown', e => {
     if (e.target.closest('input,textarea,select')) return;
+    if (zoomKey(e.key)) { e.preventDefault(); return; }
     switch (e.key) {
       case 'ArrowRight': case 'PageDown': case ' ': e.preventDefault(); next(); break;
       case 'ArrowLeft': case 'PageUp': e.preventDefault(); prev(); break;
@@ -173,6 +174,7 @@
   window.addEventListener('touchend', e => {
     if (tx === null) return;
     const dx = e.changedTouches[0].clientX - tx; tx = null;
+    if (dragged || zoomed()) return;          // loupe : le doigt déplace la vue, il ne tourne pas la page
     if (Math.abs(dx) > 60 && !e.target.closest('#scene-layer')) (dx < 0 ? next : prev)();
   });
 
@@ -181,6 +183,118 @@
     if (inOverview) Object.assign(cam, overviewTarget()); else Object.assign(cam, targetFor(steps[current]));
     apply(); emit(true);
   });
+
+  // ── Loupe : zoom et déplacement libres sur une frame [data-zoomable] ──────
+  // La CAMÉRA se rapproche (pas le zoom du navigateur, que Ctrl+molette déclencherait) : le texte
+  // se redessine net à chaque cran. Molette ou pincement = zoom autour du point visé, glisser =
+  // se déplacer, double-clic = zoomer là / recadrer, 0 ou Échap = recadrer. Changer d'étape
+  // recadre de lui-même (go() repart du cadrage de la frame).
+  const ZOOM_MAX = Math.log(5);              // jusqu'à 5× le cadrage de la frame
+  const zoomFrame = () => (!inOverview && !anim && steps[current] && steps[current].hasAttribute('data-zoomable'))
+    ? steps[current] : null;
+  const zoomed = () => { const f = zoomFrame(); return !!f && cam.z > targetFor(f).z + 0.01; };
+  // Point écran → point monde, rotation de la caméra comprise.
+  function toWorld(px, py, z = cam.z) {
+    const s = Math.exp(z), a = cam.r * Math.PI / 180;
+    const dx = (px - window.innerWidth / 2) / s, dy = (py - window.innerHeight / 2) / s;
+    return { x: cam.x + dx * Math.cos(a) - dy * Math.sin(a), y: cam.y + dx * Math.sin(a) + dy * Math.cos(a) };
+  }
+  // Pose la caméra à l'échelle z en gardant le point (px, py) sous le même point du monde,
+  // bornée à la frame : on ne zoome pas en deçà de son cadrage, on ne sort pas de ses bords.
+  function zoomAt(f, z, px, py) {
+    const t = targetFor(f);
+    z = Math.max(t.z, Math.min(t.z + ZOOM_MAX, z));
+    if (z <= t.z + 0.001) { Object.assign(cam, t); }
+    else {
+      const w = toWorld(px, py), after = toWorld(px, py, z);
+      cam.z = z; cam.x += w.x - after.x; cam.y += w.y - after.y;
+      const s = +f.dataset.s || 1;
+      cam.x = Math.max(t.x - W * s / 2, Math.min(t.x + W * s / 2, cam.x));
+      cam.y = Math.max(t.y - H * s / 2, Math.min(t.y + H * s / 2, cam.y));
+    }
+    document.body.classList.toggle('zoomed', z > t.z + 0.01);
+    apply();
+  }
+  function unzoom() {
+    const f = zoomFrame(); if (!f || !zoomed()) return false;
+    document.body.classList.remove('zoomed');
+    flyTo(targetFor(f));
+    return true;
+  }
+  document.addEventListener('wama:step', () => document.body.classList.remove('zoomed'));
+
+  viewport.addEventListener('wheel', e => {
+    const f = zoomFrame(); if (!f) return;
+    e.preventDefault();                       // ni défilement, ni zoom du navigateur
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+    const k = e.ctrlKey ? 0.01 : 0.0015;      // pincement de pavé tactile : petits deltas, ctrlKey posé
+    zoomAt(f, cam.z - e.deltaY * unit * k, e.clientX, e.clientY);
+  }, { passive: false });
+
+  // Glisser (souris, stylet, un doigt) et pincer (deux doigts) par les Pointer Events.
+  const pointers = new Map();
+  let drag = null, dragged = false;
+  viewport.addEventListener('pointerdown', e => {
+    if (!zoomFrame() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, z: cam.z, d: 0 };
+    dragged = false;
+    if (pointers.size === 2) {
+      const [p, q] = [...pointers.values()];
+      drag.d = Math.hypot(p.x - q.x, p.y - q.y);
+    }
+  });
+  viewport.addEventListener('pointermove', e => {
+    if (!drag || !pointers.has(e.pointerId)) return;
+    const f = zoomFrame(); if (!f) { drag = null; return; }
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size >= 2 && drag.d) {
+      const [p, q] = [...pointers.values()];
+      dragged = true;
+      zoomAt(f, drag.z + Math.log(Math.hypot(p.x - q.x, p.y - q.y) / drag.d), (p.x + q.x) / 2, (p.y + q.y) / 2);
+      return;
+    }
+    if (!zoomed()) return;                    // au cadrage, rien à déplacer
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!dragged && Math.hypot(dx, dy) < 4) return;
+    if (!dragged) { dragged = true; viewport.setPointerCapture?.(e.pointerId); document.body.classList.add('panning'); }
+    const a = cam.r * Math.PI / 180, s = Math.exp(cam.z);
+    const wx = (dx * Math.cos(a) - dy * Math.sin(a)) / s, wy = (dx * Math.sin(a) + dy * Math.cos(a)) / s;
+    const t = targetFor(f), fs = +f.dataset.s || 1;
+    cam.x = Math.max(t.x - W * fs / 2, Math.min(t.x + W * fs / 2, drag.cx - wx));
+    cam.y = Math.max(t.y - H * fs / 2, Math.min(t.y + H * fs / 2, drag.cy - wy));
+    apply();
+  });
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    document.body.classList.remove('panning');
+    if (pointers.size === 1) {                 // fin d'un pincement : le doigt restant reprend le glisser
+      const [p] = [...pointers.values()];
+      drag = { x: p.x, y: p.y, cx: cam.x, cy: cam.y, z: cam.z, d: 0 };
+    } else if (!pointers.size) drag = null;
+  }
+  viewport.addEventListener('pointerup', endPointer);
+  viewport.addEventListener('pointercancel', endPointer);
+  // Un glisser ne vaut pas clic (il plongerait dans la frame voisine sous le curseur).
+  viewport.addEventListener('click', e => { if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false; } }, true);
+  viewport.addEventListener('dblclick', e => {
+    const f = zoomFrame(); if (!f) return;
+    e.preventDefault();
+    if (unzoom()) return;
+    zoomAt(f, targetFor(f).z + Math.log(2.2), e.clientX, e.clientY);
+  });
+  // Touches de la loupe : lues par l'écouteur clavier de la navigation (un seul par page,
+  // `tests_surfaces.PageKeyListenersTest`). Rend true si la touche a servi.
+  function zoomKey(key) {
+    const f = zoomFrame(); if (!f) return false;
+    const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+    if (key === '+' || key === '=') zoomAt(f, cam.z + 0.3, cx, cy);
+    else if (key === '-') zoomAt(f, cam.z - 0.3, cx, cy);
+    else if (key === '0') unzoom();
+    else if (key === 'Escape') return unzoom();   // Échap recadre d'abord, puis vue d'ensemble
+    else return false;
+    return true;
+  }
 
   window.WamaPrez = { go, goId, next, prev, overview, steps };
 

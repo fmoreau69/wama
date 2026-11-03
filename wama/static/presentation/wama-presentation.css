@@ -80,6 +80,10 @@ body {
 }
 .frame.active { cursor: default; }
 body.moving .frame { pointer-events: none; }
+/* Loupe (wama-presentation.js) : la frame [data-zoomable] active se zoome et se parcourt. */
+.frame[data-zoomable].active { cursor: zoom-in; touch-action: none; }
+body.zoomed .frame[data-zoomable].active { cursor: grab; }
+body.panning .frame[data-zoomable].active { cursor: grabbing; user-select: none; }
 .frame.boxed {
   border: 1px solid var(--line); border-radius: 28px;
   background: linear-gradient(160deg, rgba(var(--wama-pres-frame-start-rgb), .55), rgba(var(--wama-pres-frame-end-rgb), .35));
@@ -248,15 +252,16 @@ svg.links path.flow { stroke-width: 14; animation: flow 3s linear infinite; }
 }
 .timeline .ms.wip .dot { background: var(--warn); box-shadow: 0 0 0 5px rgba(var(--wama-warning-soft-rgb), .18); }
 .timeline .ms.todo .dot { background: var(--bg-1); border: 2px dashed var(--todo); box-shadow: none; }
-.timeline .ms-body { position: absolute; left: 50%; width: 178px; transform: translateX(-50%); text-align: center; }
+/* 146 px : deux jalons voisins d'un même côté sont à ~148 px pour 18 jalons (178 px se chevauchaient, 2026-11-03). */
+.timeline .ms-body { position: absolute; left: 50%; width: 146px; transform: translateX(-50%); text-align: center; }
 .timeline .ms:nth-child(odd) .ms-body  { bottom: calc(50% + 28px); }
 .timeline .ms:nth-child(even) .ms-body { top: calc(50% + 28px); }
 .timeline .ms-body::after { content: ""; position: absolute; left: 50%; width: 1px; height: 18px; background: var(--line); }
 .timeline .ms:nth-child(odd) .ms-body::after  { bottom: -23px; }
 .timeline .ms:nth-child(even) .ms-body::after { top: -23px; }
-.timeline .when { display: block; font: 600 14px/1.2 var(--mono); letter-spacing: .05em; color: var(--ink-mute); margin-bottom: 6px; }
-.timeline h3 { display: block; font-size: 19px; line-height: 1.2; margin-bottom: 6px; }
-.timeline p { font-size: 14.5px; line-height: 1.35; }
+.timeline .when { display: block; font: 600 14px/1.2 var(--mono); letter-spacing: .01em; white-space: nowrap; color: var(--ink-mute); margin-bottom: 6px; }
+.timeline h3 { display: block; font-size: 18px; line-height: 1.2; margin-bottom: 6px; }
+.timeline p { font-size: 13.5px; line-height: 1.35; }
 .timeline .ms.wip .when { color: var(--warn); }
 .timeline .ms.todo .when { color: var(--todo); }
 .timeline .ms.todo h3 { color: var(--ink-soft); }
