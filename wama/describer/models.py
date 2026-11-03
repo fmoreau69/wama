@@ -74,7 +74,7 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
 
     # Source file
     input_file = models.FileField(
-        upload_to=upload_to_user_input('describer'),
+        max_length=500, upload_to=upload_to_user_input('describer'),
         blank=True,
         validators=[FileExtensionValidator(
             allowed_extensions=[
@@ -164,7 +164,7 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
     # Result
     result_text = models.TextField(blank=True)
     result_file = models.FileField(
-        upload_to=upload_to_user_output('describer'),
+        max_length=500, upload_to=upload_to_user_output('describer'),
         blank=True,
         null=True
     )
@@ -252,7 +252,7 @@ class BatchDescription(BatchMixin, QueueOrderMixin, ScopedVisibility):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_descriptions')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(
-        upload_to=upload_to_user_input('describer'),
+        max_length=500, upload_to=upload_to_user_input('describer'),
         blank=True, null=True,
         help_text="Fichier batch source",
     )

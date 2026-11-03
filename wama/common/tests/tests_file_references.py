@@ -19,7 +19,7 @@ import tempfile
 from pathlib import Path
 
 from django.db import models
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from wama.common.tests.tests_queue_delete_contract import (SuppressionDansChaqueAppTest, _instance,
@@ -583,3 +583,39 @@ class ToleratedReadInsideATransactionTest(TestCase):
             self.assertEqual([], _tolerated(broken, default=[]))
             # La requête suivante, sans rapport, doit passer : c'est elle qui tombait.
             self.assertGreaterEqual(get_user_model().objects.count(), 0)
+
+
+class FileFieldLengthTest(SimpleTestCase):
+    """A file field stores the WHOLE path (`users/<uid>/<app>/input/` + the name): at Django's
+    default of 100 characters, a PDF named with 91 failed its import (« value too long for type
+    character varying(100) », 2026-11-03), and a POINTED file cannot be shortened. Every file field
+    of a real app — and of an app the generator writes — keeps 500."""
+
+    LENGTH = 500
+
+    def test_every_file_field_of_a_real_app_keeps_the_whole_path(self):
+        from django.apps import apps
+        from wama.common.sandbox import load_registry
+        twins = {e.get('label') for e in load_registry() if isinstance(e, dict)}
+        short = [f'{model._meta.label}.{field.name} ({field.max_length})'
+                 for model in apps.get_models()
+                 if model.__module__.startswith(('wama', 'wama_lab', 'wama_data'))
+                 and model._meta.app_label not in twins
+                 for field in model._meta.local_concrete_fields
+                 if isinstance(field, models.FileField) and field.max_length < self.LENGTH]
+        self.assertEqual([], short)
+
+    def test_the_generator_writes_file_fields_that_keep_the_whole_path(self):
+        import ast
+        import json
+        from wama.common.manifests.codegen.models_gen import render_models
+        from wama.common.tests.tests_codegen_from_scratch import DRAFT
+        src, reason = render_models(json.loads(DRAFT.read_text(encoding='utf-8')))
+        self.assertIsNotNone(src, reason)
+        calls = [node for node in ast.walk(ast.parse(src)) if isinstance(node, ast.Call)
+                 and getattr(node.func, 'attr', '') == 'FileField']
+        self.assertTrue(calls)
+        for call in calls:
+            length = next((ast.literal_eval(k.value) for k in call.keywords
+                           if k.arg == 'max_length'), 100)
+            self.assertGreaterEqual(length, self.LENGTH, ast.unparse(call))

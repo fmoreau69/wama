@@ -161,6 +161,38 @@ class DocumentBirthTest(TestCase):
         self.assertEqual('document', media.media_type)
         self.assertFalse(media.ocr_scanned_pages)
 
+    def _upload(self, name):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        path = os.path.join(self.root, 'source.pdf')
+        _native_pdf(path)
+        with open(path, 'rb') as fh:
+            upload = SimpleUploadedFile(name, fh.read(), content_type='application/pdf')
+        # An account that may open the Anonymizer (a plain one is redirected by its gate).
+        self.uploader = User.objects.create_user('doc_upload', password='x', is_staff=True,
+                                                 is_superuser=True)
+        self.client.force_login(self.uploader)
+        return self.client.post(reverse('anonymizer:upload'), {'file': upload})
+
+    def _inputs(self):
+        folder = os.path.join(self.root, 'users', str(self.uploader.id), 'anonymizer', 'input')
+        return sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+
+    def test_a_long_file_name_is_imported_whole(self):
+        # 91 characters (#2297's neighbour, 2026-11-03): the path did not fit in 100.
+        name = ('Can_Iron_Replace_Natural_Gas_Driss_Laraqui_Fenix_Energy_youtube_transcript_'
+                'whisper_172.pdf')
+        response = self._upload(name)
+        self.assertEqual(200, response.status_code, response.content)
+        from wama.anonymizer.models import Media
+        self.assertEqual(name, os.path.basename(Media.objects.get(user=self.uploader).file.name))
+
+    def test_a_rejected_upload_leaves_no_copy_on_disk(self):
+        with mock.patch('wama.anonymizer.views.process_media', return_value='rejected'):
+            response = self._upload('rejected.pdf')
+        self.assertEqual(400, response.status_code)
+        self.assertEqual([], self._inputs())
+
 
 class DocumentGluesTest(TestCase):
     """The two glues of the document, end to end on a real file — the detection by the PATTERN

@@ -36,7 +36,7 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
     }
 
     user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='reading_items')
-    input_file    = models.FileField(upload_to=upload_to_user_input('reader'), blank=True, null=True)
+    input_file    = models.FileField(max_length=500, upload_to=upload_to_user_input('reader'), blank=True, null=True)
     original_filename = models.CharField(max_length=255, blank=True, default='')
     source_url    = models.CharField(max_length=2000, blank=True, default='',
                                      help_text='URL ou chemin à télécharger si input_file est vide')
@@ -143,7 +143,7 @@ class BatchReadingItem(BatchMixin, QueueOrderMixin, ScopedVisibility):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_readings')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(
-        upload_to=upload_to_user_input('reader'),
+        max_length=500, upload_to=upload_to_user_input('reader'),
         blank=True, null=True,
     )
     total = models.IntegerField(default=0)

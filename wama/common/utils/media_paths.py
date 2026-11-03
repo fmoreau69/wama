@@ -674,7 +674,12 @@ def upload_to_user_input(app_name: str):
     Convenience function to create an UploadToUserPath for input folder.
 
     Usage in models.py:
-        file = models.FileField(upload_to=upload_to_user_input('anonymizer'))
+        file = models.FileField(upload_to=upload_to_user_input('anonymizer'), max_length=500)
+
+    `max_length=500` toujours (2026-11-03) : le défaut de Django, 100, compte le CHEMIN entier
+    (`users/<uid>/<app>/input/` + le nom) — un nom de 91 caractères faisait échouer l'import, et un
+    fichier POINTÉ (`reference_or_copy`) ne peut pas être raccourci. Tenu par
+    `tests_file_references.FileFieldLengthTest`.
     """
     return UploadToUserPath(app_name, 'input')
 
@@ -684,7 +689,7 @@ def upload_to_user_output(app_name: str):
     Convenience function to create an UploadToUserPath for output folder.
 
     Usage in models.py:
-        output_file = models.FileField(upload_to=upload_to_user_output('anonymizer'))
+        output_file = models.FileField(upload_to=upload_to_user_output('anonymizer'), max_length=500)
     """
     return UploadToUserPath(app_name, 'output')
 

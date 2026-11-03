@@ -184,7 +184,7 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
 
     # Prompt file for batch processing (file2img mode)
     prompt_file = models.FileField(
-        upload_to=UploadToUserPath('imager', 'input/prompts'),
+        max_length=500, upload_to=UploadToUserPath('imager', 'input/prompts'),
         null=True,
         blank=True,
         validators=[FileExtensionValidator(['txt', 'json', 'yaml', 'yml'])],
@@ -193,7 +193,7 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
 
     # Reference image for img2img/style/describe modes
     reference_image = models.ImageField(
-        upload_to=UploadToUserPath('imager', 'input/references'),
+        max_length=500, upload_to=UploadToUserPath('imager', 'input/references'),
         null=True,
         blank=True,
         help_text="Reference image for img2img, style transfer, or auto-describe"
@@ -287,7 +287,7 @@ class ImageGeneration(ProcessingTimeMixin, NativeOutputsMixin, PromptScoped, Sco
 
     # Video output
     output_video = models.FileField(
-        upload_to=UploadToUserPath('imager', 'output/video'),
+        max_length=500, upload_to=UploadToUserPath('imager', 'output/video'),
         null=True,
         blank=True,
         help_text="Generated video file"
@@ -427,7 +427,7 @@ class GenerationBatch(BatchMixin, QueueOrderMixin, ScopedVisibility):
     created_at = models.DateTimeField(auto_now_add=True)
     # Fichier de prompts (mode file2img) — partagé par les items, nettoyé par BatchMixin.
     batch_file = models.FileField(
-        upload_to=UploadToUserPath('imager', 'input/prompts'),
+        max_length=500, upload_to=UploadToUserPath('imager', 'input/prompts'),
         blank=True, null=True,
     )
     # Domaine du batch (image | video) : la file de l'imager est scopée par onglet de domaine.

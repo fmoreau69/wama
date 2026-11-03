@@ -77,7 +77,7 @@ class UserAsset(_AttributesMixin, ScopedVisibility, models.Model):
     name       = models.CharField(max_length=200)
     asset_type = models.CharField(max_length=20, choices=ASSET_TYPES)
     file       = models.FileField(
-        upload_to=UploadToUserPath('media_library', 'assets'),
+        max_length=500, upload_to=UploadToUserPath('media_library', 'assets'),
         validators=[FileExtensionValidator(allowed_extensions=_ALL_EXTENSIONS)],
     )
     # Ce que l'asset EST, au-delà de son type : clés DÉCLARÉES par sa nature (`natures.py` —
@@ -169,7 +169,7 @@ class SystemAsset(_AttributesMixin, models.Model):
     asset_type = models.CharField(max_length=20, choices=ASSET_TYPES)
     # Rangé par NATURE (`media_library/system/<asset_type>/`) depuis le 2026-09-22 — décision de
     # Fabien ; le chemin se compose en UN endroit (`media_paths.system_asset_relpath`).
-    file       = models.FileField(upload_to=UploadToSystemAssetPath())
+    file       = models.FileField(max_length=500, upload_to=UploadToSystemAssetPath())
     attributes = models.JSONField(default=dict, blank=True,
                                   help_text="Attributs déclarés par la nature (voir natures.py)")
     mime_type  = models.CharField(max_length=100, blank=True)

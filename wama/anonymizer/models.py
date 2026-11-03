@@ -37,7 +37,7 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="media")
     title = models.CharField(max_length=255, blank=True)
-    file = models.FileField(upload_to=upload_to_user_input('anonymizer'))
+    file = models.FileField(max_length=500, upload_to=upload_to_user_input('anonymizer'))
     file_ext = models.CharField(max_length=255)
     # La NATURE du fichier, qui désigne aussi le DOMAINE de l'élément (`app_modes.element_domain`,
     # par la spec de détail) : un document appartient au domaine `document` (2026-11-02).
@@ -240,7 +240,7 @@ class BatchAnonymizer(BatchMixin, QueueOrderMixin, ScopedVisibility):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_anonymizers')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(
-        upload_to=upload_to_user_input('anonymizer'),
+        max_length=500, upload_to=upload_to_user_input('anonymizer'),
         blank=True, null=True,
     )
     total = models.IntegerField(default=0)

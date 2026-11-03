@@ -108,7 +108,7 @@ class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # Standalone : audio uploadé (ou récupéré depuis source_url via ensure_local_input)
     source_url = models.CharField(max_length=1000, blank=True)
     audio_input = models.FileField(
-        upload_to=UploadToUserPath('avatarizer', 'input'),
+        max_length=500, upload_to=UploadToUserPath('avatarizer', 'input'),
         blank=True, null=True,
         validators=[FileExtensionValidator(allowed_extensions=VOICE_SAMPLE_EXTENSIONS)],
     )
@@ -117,7 +117,7 @@ class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     avatar_source = models.CharField(max_length=20, choices=AVATAR_SOURCE_CHOICES, default='gallery')
     avatar_gallery_name = models.CharField(max_length=255, blank=True)
     avatar_upload = models.FileField(
-        upload_to=UploadToUserPath('avatarizer', 'input'),
+        max_length=500, upload_to=UploadToUserPath('avatarizer', 'input'),
         blank=True, null=True,
         validators=[FileExtensionValidator(allowed_extensions=AVATAR_FILE_EXTENSIONS)],
     )
@@ -189,7 +189,7 @@ class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
 
     # Résultat
     output_video = models.FileField(
-        upload_to=UploadToUserPath('avatarizer', 'output'),
+        max_length=500, upload_to=UploadToUserPath('avatarizer', 'output'),
         blank=True, null=True,
     )
     duration_seconds = models.FloatField(null=True, blank=True)
@@ -245,7 +245,7 @@ class BatchAvatarJob(BatchMixin, QueueOrderMixin, ScopedVisibility):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_avatar_jobs')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(
-        upload_to=UploadToUserPath('avatarizer', 'input/batch'),
+        max_length=500, upload_to=UploadToUserPath('avatarizer', 'input/batch'),
         blank=True, null=True,
     )
     total = models.IntegerField(default=0)

@@ -43,8 +43,8 @@ class Enhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     created_at = models.DateTimeField(auto_now_add=True)
 
     # Input/Output files
-    input_file = models.FileField(upload_to=UploadToUserPath('enhancer', 'input/media'))
-    output_file = models.FileField(upload_to=UploadToUserPath('enhancer', 'output/media'), blank=True, null=True)
+    input_file = models.FileField(max_length=500, upload_to=UploadToUserPath('enhancer', 'input/media'))
+    output_file = models.FileField(max_length=500, upload_to=UploadToUserPath('enhancer', 'output/media'), blank=True, null=True)
 
     # Format de sortie (conversion inline via Converter) — 'original' = pas de conversion
     output_format = models.CharField(max_length=20, default='original')
@@ -171,9 +171,9 @@ class AudioEnhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='audio_enhancements')
     created_at = models.DateTimeField(auto_now_add=True)
 
-    input_file = models.FileField(upload_to=UploadToUserPath('enhancer', 'input/audio'), blank=True, null=True)
+    input_file = models.FileField(max_length=500, upload_to=UploadToUserPath('enhancer', 'input/audio'), blank=True, null=True)
     output_file = models.FileField(
-        upload_to=UploadToUserPath('enhancer', 'output/audio'), blank=True, null=True
+        max_length=500, upload_to=UploadToUserPath('enhancer', 'output/audio'), blank=True, null=True
     )
 
     # Format de sortie (conversion inline via Converter) — 'original' = pas de conversion
@@ -292,7 +292,7 @@ class BatchEnhancement(BatchMixin, QueueOrderMixin, ScopedVisibility):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_enhancements')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(
-        upload_to=upload_to_user_input('enhancer'),
+        max_length=500, upload_to=upload_to_user_input('enhancer'),
         blank=True, null=True,
     )
     total = models.IntegerField(default=0)
@@ -330,7 +330,7 @@ class BatchAudioEnhancement(BatchMixin, QueueOrderMixin, ScopedVisibility):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_audio_enhancements')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(
-        upload_to=upload_to_user_input('enhancer'),
+        max_length=500, upload_to=upload_to_user_input('enhancer'),
         blank=True, null=True,
     )
     total = models.IntegerField(default=0)

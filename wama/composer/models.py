@@ -63,14 +63,14 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
 
     # Optional melody reference (MusicGen Melody only)
     melody_reference = models.FileField(
-        upload_to=upload_to_user_input('composer'),
+        max_length=500, upload_to=upload_to_user_input('composer'),
         blank=True, null=True,
     )
     # Partition de référence (2026-10-01) — ABC, MIDI ou MusicXML, suivie par un modèle qui la
     # DÉCLARE (`reference_score`, YuE2). Nommé comme son PORT : la card, l'outil `add_to_composer`
     # et le nœud du Studio parlent du même nom. Nullable : sûr pour le code en service.
     reference_score = models.FileField(
-        upload_to=upload_to_user_input('composer'),
+        max_length=500, upload_to=upload_to_user_input('composer'),
         blank=True, null=True,
     )
 
@@ -87,7 +87,7 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
 
     # Output
     audio_output = models.FileField(
-        upload_to=upload_to_user_output('composer'),
+        max_length=500, upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )
     # Partition ÉCRITE par le process `plan` (ROUTE §10.6, pilote P3 — 2026-10-02) : la sortie
@@ -96,7 +96,7 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     # pointeur. Distincte de `reference_score`, que l'utilisateur FOURNIT. Nullable : sûr pour
     # le code en service.
     planned_score = models.FileField(
-        upload_to=upload_to_user_output('composer'),
+        max_length=500, upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )
     # Partition EXTRAITE de l'audio du cover par le process `extract_score` (2026-10-03,
@@ -104,7 +104,7 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     # consigne. Même statut que `planned_score` (une sortie de la card) ; un seul des deux process
     # a lieu pour une card. Nullable : sûr pour le code en service.
     extracted_score = models.FileField(
-        upload_to=upload_to_user_output('composer'),
+        max_length=500, upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )
     #: Les deux sorties « partition », sorties de process ALTERNATIFS (`plan`, `extract_score`),
@@ -125,7 +125,7 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     parts_model = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
                                    help_text="Clé de catalogue du modèle de partition complète, ou « auto ».")
     parts_score = models.FileField(
-        upload_to=upload_to_user_output('composer'),
+        max_length=500, upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )
     # PARTITION DU RENDU (2026-10-26, décision de Fabien : « on propose les deux, l'entrée et la
@@ -135,7 +135,7 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     extract_rendered_parts = models.BooleanField(
         default=False, db_default=False, help_text='Partition du rendu : une partie par instrument')
     rendered_parts_score = models.FileField(
-        upload_to=upload_to_user_output('composer'),
+        max_length=500, upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )
 
@@ -227,7 +227,7 @@ class ComposerBatch(BatchMixin, QueueOrderMixin, ScopedVisibility):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='composer_batches')
     batch_file = models.FileField(
-        upload_to=upload_to_user_input('composer'),
+        max_length=500, upload_to=upload_to_user_input('composer'),
         blank=True, null=True,
         help_text='Fichier batch importé (null pour génération individuelle)',
     )

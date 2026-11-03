@@ -107,14 +107,14 @@ class AnalysisSession(models.Model):
 
     # Input file (for video mode)
     input_file = models.FileField(
-        upload_to=analysis_upload_path,
+        max_length=500, upload_to=analysis_upload_path,
         null=True,
         blank=True
     )
 
     # Output file with overlay
     output_file = models.FileField(
-        upload_to=result_upload_path,
+        max_length=500, upload_to=result_upload_path,
         null=True,
         blank=True
     )

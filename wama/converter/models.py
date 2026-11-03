@@ -43,7 +43,7 @@ class ConversionBatch(BatchMixin, QueueOrderMixin, ScopedVisibility):
 
     user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversion_batches')
     created_at  = models.DateTimeField(auto_now_add=True)
-    batch_file  = models.FileField(upload_to=UploadToUserPath('converter', 'input'),
+    batch_file  = models.FileField(max_length=500, upload_to=UploadToUserPath('converter', 'input'),
                                    blank=True, null=True)
     media_type  = models.CharField(max_length=20, blank=True)  # nature commune
     total       = models.IntegerField(default=0)
@@ -73,18 +73,18 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
     }
 
     user          = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversion_jobs')
-    input_file    = models.FileField(upload_to=UploadToUserPath('converter', 'input'), blank=True)
+    input_file    = models.FileField(max_length=500, upload_to=UploadToUserPath('converter', 'input'), blank=True)
     source_url    = models.CharField(max_length=2000, blank=True, default='')
     input_filename = models.CharField(max_length=255)
     media_type    = models.CharField(max_length=20, blank=True)  # 'image', 'video', 'audio'
 
-    output_file   = models.FileField(upload_to=UploadToUserPath('converter', 'output'),
+    output_file   = models.FileField(max_length=500, upload_to=UploadToUserPath('converter', 'output'),
                                      null=True, blank=True)
     # La conversion BRUTE, gardée quand un post-traitement IA est demandé (pipeline, 2026-10-13 —
     # option 1 de Fabien) : le process `enhance` repart d'elle, il se rejoue donc seul (×2 → ×4)
     # sans reconvertir ni retraiter un fichier déjà traité. Vide sans post-traitement : la sortie
     # EST la conversion. Migration 0013 (nullable).
-    converted_file = models.FileField(upload_to=UploadToUserPath('converter', 'output'),
+    converted_file = models.FileField(max_length=500, upload_to=UploadToUserPath('converter', 'output'),
                                       null=True, blank=True)
     output_format = models.CharField(max_length=20, blank=True)  # 'mp4', 'webp', …
 

@@ -130,6 +130,12 @@ class IndexView(View):
                     media_file.record(Media.objects.get(pk=media_result['id']), 'file')
                 return JsonResponse({'success': True, 'media': media_result})
             else:
+                # La copie TÉLÉVERSÉE n'a pas de card : elle ne reste pas sur le disque (2026-11-03,
+                # deux copies orphelines d'un import refusé). Un fichier DÉSIGNÉ n'est jamais
+                # effacé — il peut être le fichier de l'utilisateur, simplement pointé.
+                if media_file and not media_file.designated:
+                    if os.path.isfile(video_path):
+                        os.remove(video_path)
                 return JsonResponse({'success': False, 'error': media_result}, status=400)
 
         except ValueError as e:

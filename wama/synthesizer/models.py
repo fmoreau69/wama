@@ -40,7 +40,7 @@ class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
 
     # Fichier texte source
     text_file = models.FileField(
-        upload_to=upload_to_user_input('synthesizer'),
+        max_length=500, upload_to=upload_to_user_input('synthesizer'),
         validators=[FileExtensionValidator(allowed_extensions=['txt', 'pdf', 'docx', 'csv', 'md'])],
         help_text="Fichier texte à synthétiser"
     )
@@ -62,7 +62,7 @@ class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
 
     # Fichier de référence vocale (pour le clonage)
     voice_reference = models.FileField(
-        upload_to=upload_to_user_input('synthesizer'),
+        max_length=500, upload_to=upload_to_user_input('synthesizer'),
         blank=True,
         null=True,
         validators=[FileExtensionValidator(allowed_extensions=VOICE_SAMPLE_EXTENSIONS)],
@@ -182,7 +182,7 @@ class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
 
     # Résultat
     audio_output = models.FileField(
-        upload_to=upload_to_user_output('synthesizer'),
+        max_length=500, upload_to=upload_to_user_output('synthesizer'),
         blank=True,
         null=True,
         help_text="Fichier audio généré"
@@ -341,7 +341,7 @@ class BatchSynthesis(BatchMixin, QueueOrderMixin, ScopedVisibility):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_syntheses')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(
-        upload_to=upload_to_user_input('synthesizer'),
+        max_length=500, upload_to=upload_to_user_input('synthesizer'),
         blank=True,
         null=True,
         help_text="Fichier batch source",

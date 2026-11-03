@@ -29,7 +29,7 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     QUEUE_DEFERRED_FIELDS = ('segments_json', 'corrected_segments_json')
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='transcripts')
-    audio = models.FileField(upload_to=upload_to_user_input('transcriber'))
+    audio = models.FileField(max_length=500, upload_to=upload_to_user_input('transcriber'))
     created_at = models.DateTimeField(auto_now_add=True)
 
     # Options
@@ -42,9 +42,9 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # nivelé, puis débruité, que la transcription et les locuteurs ÉCOUTENT — gardés comme toute
     # sortie de process (sans eux, la ligne de la préparation n'aurait plus rien à reprendre),
     # écoutables dans l'aperçu et la page de correction.
-    leveled_audio = models.FileField(upload_to=upload_to_user_output('transcriber'),
+    leveled_audio = models.FileField(max_length=500, upload_to=upload_to_user_output('transcriber'),
                                      blank=True, null=True)
-    denoised_audio = models.FileField(upload_to=upload_to_user_output('transcriber'),
+    denoised_audio = models.FileField(max_length=500, upload_to=upload_to_user_output('transcriber'),
                                       blank=True, null=True)
     # La transcription et les locuteurs écoutent-ils cet audio préparé ? Décoché, il reste
     # ÉCOUTABLE (aperçu, page de correction — l'intelligibilité pour la correction humaine) et ils
@@ -119,11 +119,11 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # Port `reference_result` (capacité `has_reference_result`) : la transcription ATTENDUE,
     # produite ailleurs — la sortie ASR lui est comparée (`common/services/result_evaluation`).
     # Posée par le geste commun (card ou lot), jamais lue par le moteur.
-    reference_result = models.FileField(upload_to=upload_to_user_input('transcriber'),
+    reference_result = models.FileField(max_length=500, upload_to=upload_to_user_input('transcriber'),
                                         blank=True, null=True)
     # Port `work_result` (capacité `has_result_import`) : une transcription produite AILLEURS qui
     # TIENT LIEU de transcription (`workers.import_existing_result`) — ▶ la ré-importe, sans ASR.
-    work_result = models.FileField(upload_to=upload_to_user_input('transcriber'),
+    work_result = models.FileField(max_length=500, upload_to=upload_to_user_input('transcriber'),
                                    blank=True, null=True)
 
     # Optional LLM summary (generated after transcription if requested)
@@ -315,7 +315,7 @@ class BatchTranscript(BatchMixin, QueueOrderMixin, ScopedVisibility):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_transcripts')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(
-        upload_to=upload_to_user_input('transcriber'),
+        max_length=500, upload_to=upload_to_user_input('transcriber'),
         blank=True, null=True,
     )
     total = models.IntegerField(default=0)

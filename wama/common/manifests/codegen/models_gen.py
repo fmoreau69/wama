@@ -383,7 +383,7 @@ def render_models(manifest: dict) -> tuple:
     l += [f"    user = models.ForeignKey(User, on_delete=models.CASCADE, "
           f"related_name='{rn}')",
           f"    {input_field} = models.FileField(upload_to=upload_to_user_input('{app_id}'), "
-          f"blank=True, null=True)"]
+          f"max_length=500, blank=True, null=True)"]
     if name_field:
         l += [f"    {name_field} = models.CharField(max_length=255, blank=True, default='')"]
     if source_field:
@@ -484,7 +484,7 @@ def render_models(manifest: dict) -> tuple:
               f"related_name='{rn_b}')",
               '    created_at = models.DateTimeField(auto_now_add=True)',
               f"    batch_file = models.FileField(upload_to=upload_to_user_input('{app_id}'), "
-              f"blank=True, null=True)",
+              f"max_length=500, blank=True, null=True)",
               '    total = models.IntegerField(default=0)',
               '',
               '    class Meta:',

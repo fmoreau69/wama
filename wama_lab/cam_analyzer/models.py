@@ -351,7 +351,7 @@ class CameraView(models.Model):
     # 255 et non 106 : la marge ne se calcule pas sur le parc du jour. Les noms d'origine sont
     # PRÉSERVÉS (`output_naming._souche_utilisateur`), donc un titre de vidéo long suffit à
     # repousser la borne — et un varchar plus large ne coûte rien en Postgres.
-    video_file = models.FileField(upload_to=cam_upload_path, max_length=255)
+    video_file = models.FileField(upload_to=cam_upload_path, max_length=500)
     label = models.CharField(max_length=100, blank=True)
     duration = models.FloatField(null=True, blank=True)
     fps = models.FloatField(null=True, blank=True)

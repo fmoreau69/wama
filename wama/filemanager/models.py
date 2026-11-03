@@ -20,7 +20,7 @@ class UserFile(models.Model):
     but can be browsed through the virtual file system.
     """
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='files')
-    file = models.FileField(upload_to=user_directory_path)
+    file = models.FileField(max_length=500, upload_to=user_directory_path)
     original_name = models.CharField(max_length=255)
     mime_type = models.CharField(max_length=100, blank=True, default='')
     file_size = models.BigIntegerField(default=0)
