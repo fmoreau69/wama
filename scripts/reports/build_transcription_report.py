@@ -1,5 +1,5 @@
 # Construit la page WAMA du rapport d'évaluation des moteurs de transcription (menu « Présentations
-# & annexes » › Rapports, `wama.views.REPORTS`) depuis l'export Markdown du rapport Claude Docs :
+# & annexes » › Rapports, `wama.common.reports.REPORTS`) depuis l'export Markdown du rapport Claude Docs :
 # rendu par `docs_catalog.render_markdown` (HTML neutralisé), graphiques redessinés en HTML/CSS
 # (l'export les remplace par un texte), enveloppe `report_shell.html` (celle de `wama_fiches.html`).
 #

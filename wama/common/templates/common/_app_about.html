@@ -1,7 +1,7 @@
 {% comment %}L'onglet « À PROPOS » d'une app — chargé à son ouverture (`common.views.app_about`,
 2026-11-02). Deux natures, jamais mêlées (`common/app_about.py`) : ce que l'app DÉCLARE (ce qu'elle
-fait, ses pages propres — aucun nom de modèle) et ce qui se DÉRIVE (moteurs actuels, entrées,
-sorties, capacités, origine). Les modèles et leurs publications suivent. Couleurs : les jetons du
+fait, ses pages propres — aucun nom de modèle) et ce qui se DÉRIVE (moteurs actuels, rapports
+publiés qui la concernent — `common/reports.py` —, entrées, sorties, capacités, origine). Les modèles et leurs publications suivent. Couleurs : les jetons du
 thème seuls (`tests_theme`) ; la couleur de l'app vient de sa déclaration.{% endcomment %}
 <style>
   .wama-about { display: grid; gap: 1rem; }
@@ -27,6 +27,8 @@ thème seuls (`tests_theme`) ; la couleur de l'app vient de sa déclaration.{% e
                      background: var(--wama-surface-raised); color: var(--wama-text-body); }
   .wama-about-chip.is-engine { border-color: rgba(var(--wama-accent-rgb), .45); }
   .wama-about-group { color: var(--wama-text-secondary); font-size: .8rem; margin-right: .35rem; }
+  .wama-about-report { color: var(--wama-accent-text); text-decoration: none; font-weight: 500; }
+  .wama-about-report:hover { text-decoration: underline; }
   .wama-about-section-title { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase;
                               color: var(--wama-text-secondary); margin: 0 0 .5rem; }
 </style>
@@ -71,6 +73,14 @@ thème seuls (`tests_theme`) ; la couleur de l'app vient de sa déclaration.{% e
                     {% for name in g.names %}<span class="wama-about-chip is-engine"><i class="fas fa-microchip"></i>{{ name }}</span>{% endfor %}
                     {% if g.more %}<span class="wama-about-chip">+{{ g.more }} autre{{ g.more|pluralize }}</span>{% endif %}
                 </div>
+                {% endfor %}
+            </dd>
+            {% endif %}
+            {% if about.reports %}
+            <dt>Rapports</dt>
+            <dd data-about-reports>
+                {% for r in about.reports %}
+                <div class="mb-1"><a class="wama-about-report" href="{{ r.url }}" target="_blank" rel="noopener"><i class="fas fa-chart-column me-1"></i>{{ r.label }}</a>{% if r.date %}<span class="wama-about-group ms-2">{{ r.date }}</span>{% endif %}</div>
                 {% endfor %}
             </dd>
             {% endif %}

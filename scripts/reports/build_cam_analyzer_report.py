@@ -1,5 +1,5 @@
 # Construit la page WAMA du rapport « pipeline d'analyse du cam_analyzer » appliqué aux données ENA (menu
-# « Présentations & annexes » › Rapports, `wama.views.REPORTS`). Les FAITS viennent des registres et de la
+# « Présentations & annexes » › Rapports, `wama.common.reports.REPORTS`). Les FAITS viennent des registres et de la
 # base, jamais recopiés à la main : les passes et leurs dépendances (`pass_tracking.PASSES`), ce que fait
 # chacune (`READER` ci-dessous, en repli le `FunctionSpec` du catalogue), les bascules (`features.FEATURES`), la session (profil, caméras,
 # volumes, indicateurs du dernier tracking). Le texte qui les relie est écrit ici.

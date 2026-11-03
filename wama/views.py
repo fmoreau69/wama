@@ -193,28 +193,9 @@ def fiches(request):
     return render(request, 'includes/wama_fiches.html')
 
 
-# RAPPORTS servis depuis l'accueil (« Présentations & annexes », catégorie Rapports) : slug →
-# gabarit, titre, ligne de détail. Le menu les liste depuis cette déclaration, comme les archives :
-# un rapport s'AJOUTE par sa ligne, jamais par une entrée de menu écrite à la main. La génération
-# automatique des rapports d'évaluation (WAMA_QUALITE, « Rapports d'évaluation générés ») y
-# déclarera les siens.
-REPORTS = {
-    'transcription': {
-        'template': 'includes/wama_rapport_transcription.html',
-        'label': 'Évaluation des moteurs de transcription',
-        'detail': 'Mesuré dans WAMA, octobre 2026',
-    },
-    'cam-analyzer': {
-        'template': 'includes/wama_rapport_cam_analyzer.html',
-        'label': 'Analyse vidéo de la navette aux intersections',
-        'detail': 'Pipeline du cam_analyzer sur les données ENA, généré depuis les registres',
-    },
-    'anonymizer': {
-        'template': 'includes/wama_rapport_anonymizer.html',
-        'label': "Évaluation des détecteurs de l'Anonymizer",
-        'detail': 'Visages (WIDER FACE) et plaques, généré depuis les mesures du banc',
-    },
-}
+# RAPPORTS servis depuis l'accueil (« Présentations & annexes », catégorie Rapports) : leur
+# déclaration vit dans `common/reports.py`, que lisent aussi les onglets « À propos » des apps.
+from wama.common.reports import REPORTS  # noqa: E402
 
 
 def report(request, slug):

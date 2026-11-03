@@ -2651,16 +2651,17 @@ Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE)
 
 ### Onglets « À propos » et « Aide » d'une app
 
-Ce que l'app DÉCLARE (résumé, fonctionnalités, aide propre — jamais un nom de modèle) et ce qui se DÉRIVE : moteurs actuels (la lecture de « Modèles et publications »), entrées, sorties, capacités du catalogue, ORIGINE (WAMA et son monde, lu par `app_identity` et nommé par `world_label`, ou le bac à sable et TOUS ses développeurs). Rendus par le gabarit commun, chargés à l'ouverture de l'onglet (`/common/about|help/<app>/`) ; aucune app ne réécrit ces onglets. Une jumelle lit la déclaration de sa source ; `description_long` du catalogue en dérive
+Ce que l'app DÉCLARE (résumé, fonctionnalités, aide propre — jamais un nom de modèle) et ce qui se DÉRIVE : moteurs actuels (la lecture de « Modèles et publications »), RAPPORTS publiés qui la concernent (`common/reports.py`, avec la date écrite par leur générateur), entrées, sorties, capacités du catalogue, ORIGINE (WAMA et son monde, lu par `app_identity` et nommé par `world_label`, ou le bac à sable et TOUS ses développeurs). Rendus par le gabarit commun, chargés à l'ouverture de l'onglet (`/common/about|help/<app>/`) ; aucune app ne réécrit ces onglets. Une jumelle lit la déclaration de sa source ; `description_long` du catalogue en dérive
 
 - **Domicile** : `wama/common/app_about.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §4.3](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : « À PROPOS » et « AIDE » de chaque app — ce qui est DÉCLARÉ, et ce qui se DÉRIVE (2026-11-02).
-- **API publique** (7) :
+- **API publique** (8) :
   - `declaration_key(app_id: str) -> str` — La clé de déclaration d'une app : la sienne, ou celle de sa SOURCE pour une jumelle.
   - `declared(app_id: str) -> dict`
   - `origin(app_id: str) -> dict` — D'où vient l'app : WAMA, ou le bac à sable — ses DÉVELOPPEURS (créateur d'abord, puis ceux
   - `short_name(name: str) -> str` — Le nom COURT d'un modèle pour une pastille : avant le tiret qui ouvre sa description
   - `engines(app_id: str, groups=None) -> list` — Les MOTEURS actuels, par groupe (un select de catalogue) : `[{label, names, more}]` — la
+  - `reports(app_id: str) -> list` — Les rapports publiés qui parlent de l'app (déclarés dans `common/reports.py`), avec leur
   - `about_facts(app_id: str, groups=None) -> dict` — Ce que l'onglet « À propos » montre : le déclaré et le dérivé, prêts à rendre.
   - `help_facts(app_id: str) -> dict` — Ce que l'onglet « Aide » montre : les gestes COMMUNS (le gabarit), les capacités déclarées
 
@@ -2700,6 +2701,16 @@ L'APPARENCE d'un état (libellé, classe de badge, classe de texte, icône) déc
 - **API publique** (2) :
   - `states() -> list` — Les états AFFICHABLES, dans l'ordre : `DRAFT` puis les six du vocabulaire commun.
   - `js_payload() -> dict` — Ce que le CLIENT reçoit — même source que les gabarits, donc rien à resynchroniser.
+
+### Rapports publiés
+
+Les rapports servis à `/reports/<slug>/` (évaluations de modèles, analyses) se DÉCLARENT une fois — gabarit, titre, apps dont ils parlent. Le menu « Présentations & annexes » de l'accueil les liste, l'onglet « À propos » d'une app montre les siens ; leur date se LIT dans la page, où le générateur l'écrit (`scripts/reports/`)
+
+- **Domicile** : `wama/common/reports.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md §Rapports d'évaluation GÉNÉRÉS](../construction/ia/WAMA_QUALITE.md)
+- **Module** : Les RAPPORTS publiés par WAMA — une déclaration, lue par tous ceux qui les montrent.
+- **API publique** (2) :
+  - `report_date(slug: str) -> str` — La date du rapport telle que son générateur l'a écrite (« généré le 16 octobre 2026 »),
+  - `reports_for(app_key: str) -> list` — Les rapports qui parlent de l'app (sa clé de déclaration) : `[{slug, label, date}]`.
 
 ### Repli des volets latéraux par leur frontière
 

@@ -1,5 +1,5 @@
 # Construit la page WAMA du rapport d'évaluation des détecteurs de l'Anonymizer (menu « Présentations &
-# annexes » › Rapports, `wama.views.REPORTS`). Les CHIFFRES viennent de la base, jamais recopiés : les mesures
+# annexes » › Rapports, `wama.common.reports.REPORTS`). Les CHIFFRES viennent de la base, jamais recopiés : les mesures
 # rangées par le banc (`ResultEvaluation`, `bench --task detect-boxes|detect-recall --record`), les fiches du
 # catalogue (`AIModel` : nom, licence, source) et le choix automatique de l'Anonymizer, recalculé par sa propre
 # fonction (`select_best_models_by_precision`). Le texte qui les relie est écrit ici ; une phrase qui cite un

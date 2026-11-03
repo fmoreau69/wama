@@ -1459,7 +1459,7 @@ de P4 (ci-dessus) : une case recalculée la nuit → le rapport se régénère.
 | `asr_eval_corpus` (`--user wama_evaluation`, un lot par enregistrement) | la campagne elle-même ; son `--report` donne déjà un tableau texte |
 | `docs_catalog.render_markdown` | Markdown → HTML neutralisé |
 | `fact_tags` (`WAMA:FAIT`) | le principe : un CHIFFRE s'injecte depuis la source, il ne se recopie pas |
-| `wama.views.REPORTS` + `/reports/<slug>/` | le lieu de publication : un rapport s'ajoute par sa déclaration, le menu le liste |
+| `common/reports.py::REPORTS` + `/reports/<slug>/` | le lieu de publication : un rapport s'ajoute par sa déclaration (dont les `apps` dont il parle), le menu le liste et l'onglet « À propos » de chaque app concernée le lie avec sa date (lue dans la page) — déplacé de `wama.views` le 2026-11-03 |
 | `scripts/reports/` (générateur + enveloppe de la page) | la GRAINE : rendu, graphiques HTML/CSS, enveloppe |
 
 **Ce qui a été fait à la main, et qu'il faut transformer en briques** :
@@ -1481,7 +1481,11 @@ de P4 (ci-dessus) : une case recalculée la nuit → le rapport se régénère.
 6. **Déclenchement** : à la fin d'une campagne, puis par la nocturne de P4 (cases périmées seules).
 
 **Où vivent les rapports** : pour l'instant une catégorie « Rapports » dans le menu « Présentations &
-annexes » de l'accueil (2026-10-03). Quand ils seront générés et nombreux, une page dédiée qui les
+annexes » de l'accueil (2026-10-03), et depuis le 2026-11-03 (demande de Fabien) une ligne
+« Rapports » dans l'onglet « À propos » de l'app dont ils parlent — c'est là que se pose la question
+« pourquoi ce moteur ? ». ⏳ Un lien depuis CHAQUE modèle évalué (« Modèles et publications »)
+attend qu'un rapport déclare les modèles qu'il mesure (possible pour celui de l'Anonymizer, généré
+des mesures ; pas pour la graine de la transcription). Quand ils seront générés et nombreux, une page dédiée qui les
 liste depuis la même déclaration (filtre par domaine, date, modèle), le menu ne gardant que les
 derniers — décision à prendre à ce moment-là, pas avant.
 

@@ -15,7 +15,9 @@ What is held :
      — a sandbox app names ALL its developers (Fabien's decision, same day) — ; a closed app is
      not readable ; the Help tab shows the app's own help after the common gestures ;
   5. the developers of a sandbox app : whoever regenerates it joins them, and the access rule
-     reads them all.
+     reads them all ;
+  6. the published REPORTS about an app (`common/reports.py`) are linked from its About tab, with
+     the date their generator wrote in the page (Fabien, 2026-11-03).
 """
 import json
 import re
@@ -178,6 +180,40 @@ class FragmentsTest(TestCase):
             self.assertEqual('reader', app_about.declaration_key('reader_42'))
             self.assertEqual(app_about.ABOUT['reader']['features'],
                              app_about.about_facts('reader_42', groups=[])['features'])
+
+
+class ReportsTest(TestCase):
+    """« Ajouter des liens vers les rapports d'évaluation des modèles depuis les pages À propos »
+    (Fabien, 2026-11-03) : a report names the apps it is about, the About tab reads it."""
+
+    def test_every_report_names_apps_that_have_an_about_tab_and_a_readable_date(self):
+        from wama.common.reports import REPORTS, report_date
+        for slug, entry in REPORTS.items():
+            with self.subTest(report=slug):
+                self.assertTrue(entry.get('apps'))
+                self.assertEqual([], [a for a in entry['apps'] if a not in app_about.ABOUT])
+                # The generator writes the date at the end of the envelope's subtitle
+                # (`scripts/reports/report_shell.html`) : a page that stops doing so is seen here.
+                self.assertRegex(report_date(slug), r'\d{4}$')
+
+    def test_the_about_tab_links_the_reports_of_its_app_and_only_those(self):
+        self.client.force_login(_account('about_reports', role='recherche'))
+        with mock.patch('wama.common.services.model_publications.app_models', return_value=[]):
+            page = self.client.get(reverse('common:app_about', args=['transcriber'])).content.decode()
+            other = self.client.get(reverse('common:app_about', args=['reader'])).content.decode()
+        from wama.common.reports import report_date
+        self.assertIn('data-about-reports', page)
+        self.assertIn('href="%s"' % reverse('report', args=['transcription']), page)
+        self.assertIn(report_date('transcription'), page)
+        self.assertNotIn(reverse('report', args=['anonymizer']), page)
+        self.assertNotIn('data-about-reports', other)
+
+    def test_a_twin_and_a_lab_app_show_the_reports_of_their_declaration(self):
+        from wama.common.app_registry import APP_CATALOG
+        with mock.patch.dict(APP_CATALOG, {'anonymizer_42': {**APP_CATALOG['anonymizer'], 'sandbox': True,
+                                                             'generated_from': 'anonymizer'}}):
+            self.assertEqual(['anonymizer'], [r['slug'] for r in app_about.reports('anonymizer_42')])
+        self.assertEqual(['cam-analyzer'], [r['slug'] for r in app_about.reports('cam_analyzer')])
 
 
 class TheRealRegistryIsNeverWrittenByATestTest(SimpleTestCase):

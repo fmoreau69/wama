@@ -996,13 +996,18 @@ MECHANISMS = (
               "(contrat `ForcedAlignmentBackend`, choisi au catalogue par sa tâche `alignment` et sa "
               "langue) reprend les seuls mots estimés, par fenêtres que tiennent leurs voisins sûrs, "
               "coupées entre deux mots au-delà de sa capacité ; ils deviennent `aligned`. Le module "
-              "ne charge aucun modèle : il reçoit le geste d'alignement. Bornes "
+              "ne charge aucun modèle : il reçoit le geste d'alignement — le CHARGEMENT (choix au "
+              "catalogue, installation par la route, fenêtres d'audio) est la brique "
+              "`acoustic_alignment`, commune au transcriber et à l'avatar 3D, qui met aussi en "
+              "doute un mot daté à cheval sur une pause de la voix (2026-11-03). Bornes "
               "(`move_boundary`, `split_turn`) : déplacer la jonction de deux tours ou couper un "
               "tour, toujours ENTRE deux mots et sans en perdre un — un texte corrigé se réancre "
               "d'abord sur la référence ASR. Plage (`replace_span`) : une plage retranscrite "
               "remplace les mots qui s'y disaient, ou remplit un blanc d'un tour neuf",
               'wama/common/services/word_anchoring.py', 'wama/transcriber/TRANSCRIBER_CORRECTION.md §10.5',
               annexes=('wama/common/tests/tests_word_anchoring.py',
+                       'wama/common/services/acoustic_alignment.py',
+                       'wama/common/tests/tests_acoustic_alignment.py',
                        'wama/common/backends/forced_alignment_base.py',
                        'wama/common/backends/wav2vec2_aligner_backend.py'),
               depends_on=('text_metrics',)),
@@ -2186,7 +2191,8 @@ MECHANISMS = (
     Mechanism('app_about', "Onglets « À propos » et « Aide » d'une app",
               "Ce que l'app DÉCLARE (résumé, fonctionnalités, aide propre — jamais un nom de "
               "modèle) et ce qui se DÉRIVE : moteurs actuels (la lecture de « Modèles et "
-              "publications »), entrées, sorties, capacités du catalogue, ORIGINE (WAMA et son monde, "
+              "publications »), RAPPORTS publiés qui la concernent (`common/reports.py`, avec la date "
+              "écrite par leur générateur), entrées, sorties, capacités du catalogue, ORIGINE (WAMA et son monde, "
               "lu par `app_identity` et nommé par `world_label`, ou le bac à sable et TOUS ses "
               "développeurs). Rendus par le gabarit commun, chargés à "
               "l'ouverture de l'onglet (`/common/about|help/<app>/`) ; aucune app ne réécrit ces "
@@ -2196,6 +2202,13 @@ MECHANISMS = (
               annexes=('wama/common/templates/common/_app_about.html',
                        'wama/common/templates/common/_app_help.html',
                        'wama/common/tests/tests_app_about.py')),
+    Mechanism('reports', 'Rapports publiés',
+              "Les rapports servis à `/reports/<slug>/` (évaluations de modèles, analyses) se "
+              "DÉCLARENT une fois — gabarit, titre, apps dont ils parlent. Le menu « Présentations "
+              "& annexes » de l'accueil les liste, l'onglet « À propos » d'une app montre les siens ; "
+              "leur date se LIT dans la page, où le générateur l'écrit (`scripts/reports/`)",
+              'wama/common/reports.py',
+              "docs/construction/ia/WAMA_QUALITE.md §Rapports d'évaluation GÉNÉRÉS"),
     Mechanism('volet', 'Déclaration du volet par la page',
               "Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais "
               "ajout) ; sans déclaration, l'état d'avant — les apps n'écrivent rien "
