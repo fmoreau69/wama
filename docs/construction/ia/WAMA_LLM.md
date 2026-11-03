@@ -431,7 +431,8 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    de réflexion contre 316), Albert `gpt-oss-120b` → `low` (son plus bas). Rien pour un modèle
    non mesuré : un effort envoyé à `gemma-4-31b` le FAIT raisonner. Seul un `False` EXPLICITE
    agit — `chat_with_source` et `chat_with_catalog_model` passent à `think=None` par défaut, donc
-   l'assistant et les glues d'app gardent la réflexion qu'ils avaient. Mesuré sur les tâches
+   les glues d'app gardent la réflexion qu'elles avaient (l'assistant, lui, suit son curseur depuis
+   le même jour : ci-dessous). Mesuré sur les tâches
    JSON réelles (ILaaS qwen3.8, 3 essais) : cohérence ~1,5 s et 0 jeton de réflexion contre
    ~7 s et 750 à 850 ; noms d'intervenants identiques. ⚠ Le score de cohérence monte de ~80 à 92
    sans réflexion (même nombre de constats) : moins sévère. La même déclaration écrit la capacité

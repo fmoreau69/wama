@@ -3680,7 +3680,10 @@ l'assistant ne recommandait rien.
      coupe la réflexion quand un appel demande `think=False` — `none` chez ILaaS, `low` pour
      `albert:gpt-oss-120b`, mesurés), écrite par `cloud_models.model_info_for` ; détail et mesures
      `WAMA_LLM.md` §1bis levier 1. `SERVED_VARIANT` reste juste : sans `think=False`, rien
-     n'est envoyé, ILaaS sert « xhigh ».
+     n'est envoyé, ILaaS sert « xhigh ». ⚠ *Précisé le 2026-11-03* : depuis `0e839f4b3`,
+     l'assistant envoie aussi `think=False` sous le cran Qualité de son curseur (décision de
+     Fabien) — ILaaS qwen3.8 y répond sans réflexion, en dessous de la note « xhigh » sur laquelle
+     le tirage le classe ; assumé, c'est le cran Qualité qui la rend (`WAMA_LLM.md` §1bis).
    - ✅ (c) **Égalité Albert / ILaaS sur le même modèle : rien à changer** (Fabien : *« on compte les
      requêtes pour ne pas atteindre la limite de quota, autant utiliser Albert, puis basculer sur
      ILaaS »*) — l'égalité donne Albert, la saturation notée le fait basculer (`source_quota`).

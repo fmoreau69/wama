@@ -434,7 +434,8 @@ class ExternalSource:
     #: Fournisseur LLM : l'effort de raisonnement (`reasoning_effort`, protocole OpenAI) qui coupe
     #: le plus la réflexion d'un modèle qui raisonne par défaut — `((identifiant, effort), …)`,
     #: lu par `llm_utils.llm_chat` quand l'appelant demande `think=False` (une sortie JSON, que la
-    #: réflexion vidait en épuisant le budget). PAR MODÈLE et MESURÉ, comme `native_tools` :
+    #: réflexion vidait en épuisant le budget ; l'assistant sous le cran Qualité de son curseur,
+    #: depuis le 2026-11-02). PAR MODÈLE et MESURÉ, comme `native_tools` :
     #: mesuré le 2026-11-02, gemma-4-31b chez ILaaS ne raisonne pas sans effort et SE MET à
     #: raisonner quand il en reçoit un (194 jetons de réflexion sur une extraction JSON). Un modèle
     #: déclaré ici raisonne : sa fiche porte la capacité `thinking` (`cloud_models.model_info_for`).
