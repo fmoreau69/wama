@@ -11,7 +11,11 @@ What is held here, per model:
     downloaded ;
   * the engine never reaches the library's downloader: absent, it says the route ; present, the
     library receives a FOLDER (or finds its file where it looks first).
+
+And Kokoro's VOICES (2026-11-03): the model was read by path since 2026-09-04, but each voice went
+to `KPipeline` by NAME, which `hf_hub_download`s it into the shared cache at first use.
 """
+import ast
 import sys
 import tempfile
 import types
@@ -317,3 +321,75 @@ class DocTRReadsItsFilesTest(SimpleTestCase):
                 mock.patch.object(ocr_base, 'page_orientation_installed', return_value=True):
             ocr_base._orientation_predictor()
         self.assertEqual([('orientation', {'pretrained': True})], calls)
+
+
+class KokoroReadsItsVoicesTest(SimpleTestCase):
+    """A voice reaches `KPipeline` as the `.pt` FILE of the installed snapshot, never as a name:
+    `load_single_voice` downloads a name (`hf_hub_download`, no `cache_dir`) into the shared cache."""
+
+    def setUp(self):
+        from wama.common.backends import kokoro_backend
+        self.kokoro = kokoro_backend
+        kokoro_backend.local_voice.cache_clear()
+        self.addCleanup(kokoro_backend.local_voice.cache_clear)
+
+    def _snapshot(self, root):
+        return mock.patch('wama.common.utils.hf_weights.poids_locaux', return_value=str(root))
+
+    def test_a_voice_is_the_file_of_the_family_snapshot(self):
+        with tempfile.TemporaryDirectory() as root, self._snapshot(root) as weights:
+            path = self.kokoro.local_voice('ff_siwis')
+        self.assertEqual(str(Path(root) / 'voices' / 'ff_siwis.pt'), path)
+        (repo, folder), kwargs = weights.call_args
+        self.assertEqual((self.kokoro.REPO_ID, self.kokoro.speech_dir('kokoro')), (repo, folder),
+                         'the family folder, lever B — never the shared cache')
+        self.assertEqual(['voices/ff_siwis.pt'], kwargs['patterns'])
+
+    def test_the_engine_hands_the_pipeline_a_file_not_a_name(self):
+        voices = []
+
+        class FakePipeline:
+            g2p = None
+
+            def __call__(self, text, voice=None, speed=1.0):
+                voices.append(voice)
+                return iter([(None, None, [0.0, 0.1])])
+
+        backend = self.kokoro.KokoroBackend()
+        with tempfile.TemporaryDirectory() as root, self._snapshot(root), \
+                mock.patch.object(backend, '_get_pipeline', return_value=FakePipeline()), \
+                mock.patch.object(self.kokoro, 'say_lexicon_through'), \
+                mock.patch.object(self.kokoro, 'write_wav_int16', return_value='out.wav'):
+            backend.process('Bonjour', language='fr')
+        self.assertEqual(1, len(voices))
+        self.assertTrue(voices[0].endswith('.pt'), f'a NAME is downloaded by the library: {voices[0]}')
+        self.assertTrue(voices[0].startswith(root))
+
+    def test_every_kokoro_pipeline_is_built_and_fed_by_the_engine_bricks(self):
+        """By AST over `wama/`: `kokoro` is imported by the engine alone (`local_pipeline` is the
+        ONE constructor), and every `voice=` given where a pipeline is obtained goes through
+        `local_voice`. A new consumer that passes a name turns this red."""
+        base = Path(settings.BASE_DIR) / 'wama'
+        importers, unfed = set(), []
+        for path in base.rglob('*.py'):
+            if 'tests' in path.parts or 'migrations' in path.parts:
+                continue
+            source = path.read_text(encoding='utf-8')
+            if 'kokoro' not in source:
+                continue
+            tree = ast.parse(source)
+            rel = path.relative_to(base).as_posix()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module == 'kokoro':
+                    importers.add(rel)
+            if 'local_pipeline(' not in source and '_get_pipeline(' not in source:
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                for kw in node.keywords:
+                    if kw.arg == 'voice' and not (isinstance(kw.value, ast.Call)
+                                                  and getattr(kw.value.func, 'id', '') == 'local_voice'):
+                        unfed.append(f'{rel}:{node.lineno}')
+        self.assertEqual({'common/backends/kokoro_backend.py'}, importers)
+        self.assertEqual([], unfed, 'a voice given by NAME is downloaded outside the route')

@@ -113,6 +113,35 @@ def composants_declares(categorie: str, famille: str) -> list:
     return prefixes
 
 
+def expected_snapshots(category: str, family: str) -> list:
+    """Snapshots qu'un dossier de famille DOIT porter — dérivés du catalogue (2026-11-03) : le dépôt
+    de chaque ligne DÉCLARÉE qui vit dans ce dossier, plus ses composants (`composants_declares`).
+
+    Pourquoi : le contrôle de disposition jugeait un snapshot sur une ressemblance de NOM (le nom
+    du dossier contenu dans celui du dépôt). `speech/qwen_asr` porte Qwen3-ASR 0,6B et 1,7B, que le
+    transcriber y range lui-même, et « qwenasr » n'est pas dans « qwen3asr » : deux étrangers
+    annoncés, deux faux. Le catalogue sait où vit chaque modèle ; le contrôle le lit.
+
+    ⚠ Une ligne née du balayage GÉNÉRIQUE des snapshots (`extra_info.hf_snapshot`) ne compte pas :
+    un dépôt parasite y devient justement une ligne de catalogue, et l'admettre parce qu'il est
+    catalogué rendrait le contrôle aveugle au défaut qu'il est fait pour voir."""
+    target = f"{canonical_category(category)}/{family}".strip('/')
+    names = list(composants_declares(category, family))
+    try:
+        from wama.model_manager.models import AIModel
+        # Le filtre `hf_snapshot` se fait ici, pas en SQL : `exclude(extra_info__hf_snapshot=True)`
+        # écarte AUSSI les lignes sans la clé (`NOT (NULL)` vaut NULL) — mesuré le jour même.
+        for m in AIModel.objects.exclude(local_path='').only('local_path', 'platform_ref',
+                                                             'extra_info'):
+            if (m.extra_info or {}).get('hf_snapshot'):
+                continue
+            if target and target in Path(m.local_path).as_posix() and m.hf_repo:
+                names.append(hf_folder_name(m.hf_repo))
+    except Exception as e:
+        logger.debug('[model_locations] résidents non dérivables : %s', e)
+    return names
+
+
 def declared_component_repos() -> set:
     """Dépôts HF déclarés comme composant `repo` d'un AUTRE modèle du catalogue (2026-10-03).
 

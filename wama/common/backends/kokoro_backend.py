@@ -8,6 +8,7 @@ choisit de ne pas l'appeler.
 """
 from __future__ import annotations
 
+import functools
 import logging
 import os
 from pathlib import Path
@@ -73,6 +74,37 @@ def say_lexicon_through(pipeline, lang_code: str, language: str, text: str, extr
         pipeline.g2p = LexiconG2P(pipeline.g2p, language)
     pipeline.g2p.use(extra)
     return text
+
+
+def local_pipeline(lang_code: str):
+    """Un `KPipeline` dont le modèle est lu dans le snapshot INSTALLÉ (`speech/kokoro`).
+
+    3ᵉ VOIE (ROADMAP §5b) : kokoro n'accepte pas de `cache_dir=`, mais `KModel` accepte des
+    CHEMINS (`config=`, `model=`) — vérifié dans sa source : il ne télécharge que `if not config` /
+    `if not model`. On lui donne donc les poids rangés par la route, SANS toucher l'environnement
+    (l'ancienne mutation emportait avec elle les sous-dépendances de tout ce qui se chargeait
+    ensuite). Seul constructeur : le moteur et le repli en processus de la voix de l'assistant
+    (`wama/views.py`) en portaient chacun une copie jusqu'au 2026-11-03."""
+    from kokoro import KModel, KPipeline
+    from wama.common.utils.hf_weights import poids_locaux
+    root = Path(poids_locaux(REPO_ID, speech_dir('kokoro')))
+    model = KModel(repo_id=REPO_ID, config=str(root / 'config.json'),
+                   model=str(root / KModel.MODEL_NAMES[REPO_ID]))
+    return KPipeline(lang_code=lang_code, repo_id=REPO_ID, model=model)
+
+
+@functools.lru_cache(maxsize=64)
+def local_voice(voice: str) -> str:
+    """Le FICHIER `.pt` de la voix `voice` (`ff_siwis`), lu dans le snapshot installé.
+
+    Pourquoi un chemin et jamais le nom (2026-11-03) : `KPipeline.load_single_voice` résout un
+    NOM par `hf_hub_download(repo_id, 'voices/<nom>.pt')`, sans `cache_dir` — la voix partait au
+    cache PARTAGÉ au premier usage, hors de la route, alors que le dossier de la famille porte les
+    54 voix. Un nom qui finit en `.pt` est lu tel quel (`torch.load`). Une voix absente du snapshot
+    se range dans le dossier de la famille (levier B de `hf_weights`), jamais au cache partagé."""
+    from wama.common.utils.hf_weights import poids_locaux
+    name = f'voices/{voice}.pt'
+    return str(Path(poids_locaux(REPO_ID, speech_dir('kokoro'), patterns=[name])) / name)
 
 
 class KokoroBackend(TTSBackend):
@@ -158,22 +190,7 @@ class KokoroBackend(TTSBackend):
         if lang_code not in self._pipelines:
             with self._lock:
                 if lang_code not in self._pipelines:
-                    # 3ᵉ VOIE (ROADMAP §5b) : kokoro n'accepte pas de `cache_dir=`, mais
-                    # `KModel` accepte des CHEMINS (`config=`, `model=`) — vérifié dans sa
-                    # source : il ne télécharge que `if not config` / `if not model`. On range
-                    # donc les poids nous-mêmes dans `speech/kokoro` et on les lui donne,
-                    # SANS toucher l'environnement (l'ancienne mutation emportait avec elle
-                    # les sous-dépendances de tout ce qui se chargeait ensuite).
-                    from kokoro import KModel, KPipeline
-                    from wama.common.utils.hf_weights import poids_locaux
-                    racine = poids_locaux(REPO_ID, speech_dir('kokoro'))
-                    modele = KModel(
-                        repo_id=REPO_ID,
-                        config=str(Path(racine) / 'config.json'),
-                        model=str(Path(racine) / KModel.MODEL_NAMES[REPO_ID]),
-                    )
-                    self._pipelines[lang_code] = KPipeline(
-                        lang_code=lang_code, repo_id=REPO_ID, model=modele)
+                    self._pipelines[lang_code] = local_pipeline(lang_code)
         return self._pipelines[lang_code]
 
     def takes_lexicon_phonemes(self, language: str) -> bool:
@@ -197,7 +214,7 @@ class KokoroBackend(TTSBackend):
         say_lexicon_through(pipeline, lang_code, language, text, (options or {}).get('lexicon'))
 
         samples = []
-        for _, _, audio in pipeline(text, voice=voice, speed=1.0):
+        for _, _, audio in pipeline(text, voice=local_voice(voice), speed=1.0):
             if audio is not None:
                 arr = audio.numpy() if hasattr(audio, 'numpy') else np.array(audio)
                 samples.append(arr)

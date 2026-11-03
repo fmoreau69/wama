@@ -193,6 +193,25 @@ class ComponentOverlayFillsOnlyTheVoidTest(SimpleTestCase):
         self.assertEqual(registry._models['m'].composition,
                          {'runtime': {'engine': 'diffusers'}, 'components': parts})
 
+    def test_an_anatomy_the_catalogue_holds_is_not_replaced_by_the_disk(self):
+        """The REAL void (2026-11-03): the discovery may say only the engine of a row whose
+        manifest declared its components — the disk does not get to replace them."""
+        from types import SimpleNamespace
+        from unittest import mock
+        registry = self._registry(m={'composition': {'runtime': {'engine': 'yue'}},
+                                     'extra_info': {'path': '/p'}, 'hf_repo': 'org/m'},
+                                  n={'composition': {}, 'extra_info': {'path': '/q'},
+                                     'hf_repo': 'org/n'})
+        rows = [SimpleNamespace(model_key='m', composition={'components': [
+            {'role': 'vae', 'repo': 'org/m-vae'}]})]
+        with mock.patch('wama.model_manager.models.AIModel.objects') as objects:
+            objects.only.return_value = rows
+            derive = self._run(registry, {}, [{'role': 'model', 'pattern': '*.safetensors'}])
+        derive.assert_called_once_with('/q')
+        self.assertEqual({'runtime': {'engine': 'yue'}}, registry._models['m'].composition)
+        self.assertEqual({'components': [{'role': 'model', 'pattern': '*.safetensors'}]},
+                         registry._models['n'].composition, 'counter-proof: a void is filled')
+
     def test_nothing_derivable_leaves_the_row_untouched(self):
         registry = self._registry(m={'composition': {}, 'extra_info': {}, 'hf_repo': 'org/absent'})
         self._run(registry, {}, [{'role': 'vae', 'pattern': 'x'}])

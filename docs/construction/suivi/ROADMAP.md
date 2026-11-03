@@ -624,6 +624,16 @@ les doublons en gardant ≥1 copie ; `--move-misplaced` déplace, jamais supprim
 > de classement (pas des modèles : hors du périmètre de la règle, à confirmer).
 > ⚠ Soldé ≠ mort : les FAMILLES Wan (FastWan 2.2, 23 Go au catalogue) et Hunyuan
 > (HunyuanImage 2.1, 50 Go) sont vivantes ; seules les classes VIDÉO sont `DEPRECATED`.
+>
+> 🔄 **Remesuré le 2026-11-03** (audit du cache demandé par Fabien) : mutations toujours **0**,
+> aucun verrou orphelin postérieur au 21/07, `$HOME` sans poids. Mais trois trous, soldés le jour
+> même : ⓐ une lib qui tire un fichier par son NOM échappe aux deux gardes — les voix de Kokoro
+> partaient au cache partagé (`R213`, levier B par fichier : `kokoro_backend.local_voice`) ;
+> ⓑ la synchro REMPLAÇAIT la composition au lieu de la fusionner, et 10 lignes avaient perdu leurs
+> composants depuis le 31/10 (`model_sync.merged_composition`, lignes réparées par
+> `write_back_model` depuis les manifestes de HEAD) ; ⓒ le détecteur jugeait sur le NOM du dossier
+> et ne voyait pas les `datasets--` (`model_locations.expected_snapshots`). Restes retirés : 3,8 Go
+> (`R214`). `check_model_layout` : 4 → **0**.
 
 **Chemins dérivés de la CATÉGORIE** (🔄 — helper `model_dir()` livré le 2026-06-17, `f63984af` ; reste
 son adoption au CHARGEMENT, ① ci-dessus) : `models/{category}/{family}/` où `category` =

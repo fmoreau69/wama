@@ -25,9 +25,11 @@ CE QU'IL NE FAIT PAS : il ne nomme pas le coupable. Un dépôt étranger dit qu'
 muté l'environnement, pas lequel — `wama/common/tests/tests_hf_cache_routing.py` tient la liste des
 sites restants.
 
-⚠ Un composant LÉGITIME (pipeline pyannote, tokenizer publié à part) se DÉCLARE dans
-`common/utils/model_locations.composants_declares()` ; il n'est jamais deviné. *Un contrôle qui
-crie au loup finit par être ignoré.*
+⚠ Un composant LÉGITIME (pipeline pyannote, tokenizer publié à part) se DÉCLARE dans la
+composition du modèle (`composition.components[*].repo`) ; il n'est jamais deviné. Le contrôle lit
+ce que le catalogue range dans le dossier — ses lignes et leurs composants,
+`common/utils/model_locations.expected_snapshots()` (2026-11-03) — et ne retombe sur le nom du
+dossier que pour le reste. *Un contrôle qui crie au loup finit par être ignoré.*
 
 ⚠ PAS DE GATE PAR DÉFAUT (`--strict` pour la CI). Les 8 étrangers présents au 2026-09-03 sont
 un état HÉRITÉ : les signaler à chaque commande sans bloquer laisse le temps de les traiter
@@ -50,7 +52,10 @@ def _sous_dossiers(chemin):
 
 
 def _snapshots(chemin):
-    return [n for n in _sous_dossiers(chemin) if n.startswith('models--')]
+    """Les dépôts du Hub rangés là — modèles ET jeux de données : un `datasets--…` dans un dossier
+    de modèle est un dépôt accidentel comme un autre (2026-11-03 : trois tables de bancs et un jeu
+    de voix dormaient dans `diffusion/wan` et `speech/kokoro` depuis l'ère des mutations)."""
+    return [n for n in _sous_dossiers(chemin) if n.startswith(('models--', 'datasets--'))]
 
 
 def _cle(texte):
@@ -59,7 +64,7 @@ def _cle(texte):
 
 def analyser():
     """[(catégorie, famille, [snapshots], [étrangers])] pour les dossiers multi-snapshot."""
-    from wama.common.utils.model_locations import models_root, composants_declares
+    from wama.common.utils.model_locations import expected_snapshots, models_root
 
     racine = models_root()
     resultats = []
@@ -73,7 +78,9 @@ def analyser():
             if len(noms) < 2:
                 continue
             attendu = _cle(fam or cat)
-            declares = set(composants_declares(cat, fam) if fam else [])
+            # Ce que le CATALOGUE range là (ses lignes et leurs composants) : le nom du dossier
+            # n'est qu'un repli — `speech/qwen_asr` ne se lit pas dans `Qwen3-ASR` (2026-11-03).
+            declares = set(expected_snapshots(cat, fam) if fam else [])
             etrangers = [n for n in noms
                          if attendu not in _cle(n) and n not in declares]
             resultats.append((cat, fam, noms, etrangers))
@@ -149,8 +156,9 @@ class Command(BaseCommand):
                 "\n  → soit c'est une DÉPENDANCE PARTAGÉE : sa place est le cache partagé, "
                 "\n    et le vrai correctif est de retirer la mutation d'environnement du "
                 "\n    backend qui l'a déposée (ROADMAP §5b) ;"
-                "\n  → soit c'est un COMPOSANT du modèle : le déclarer dans "
-                "\n    `common/utils/model_locations.composants_declares()` — jamais deviné.")
+                "\n  → soit c'est un COMPOSANT du modèle : le déclarer dans sa composition "
+                "\n    (`composition.components[*].repo`, lue par "
+                "\n    `model_locations.expected_snapshots()`) — jamais deviné.")
 
         if options['locks']:
             traces = verrous_orphelins()

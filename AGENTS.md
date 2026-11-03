@@ -810,6 +810,15 @@ def load(self, ...):
 > → *Périmé dès le lendemain (constat ajouté le 2026-10-31, mesuré) : seule `HunyuanVideoBackend`
 > reste `DEPRECATED` (`hunyuan_video_backend.py:132`) ; celui de `WanVideoBackend` est RETIRÉ
 > depuis le 2026-09-15, la classe servant FastWan 2.2 (`wan_video_backend.py:170-172`).*
+> → *Remesuré le 2026-11-03 : `check_model_layout` signalait **4** étrangers, et aucun n'était
+> une contamination — le VAE de YuE2 et le parent MERT de SheetSage2, composants dont la
+> déclaration avait été EFFACÉE par la synchro (`model_sync.merged_composition`, 10 lignes
+> réparées depuis les manifestes de HEAD), et les deux Qwen3-ASR de `speech/qwen_asr`, faux
+> positifs du nom de dossier (le contrôle lit désormais le catalogue,
+> `model_locations.expected_snapshots`). Retour à **0**, et il voit aussi les `datasets--`
+> déposés dans un dossier de modèle (trois retirés). Le trou restant était ailleurs : une lib
+> qui tire un fichier par son NOM (les voix de Kokoro, au cache partagé) — aucun contrôle de
+> disposition ne le voit, `tests_engines_read_declared_files` le tient par moteur.*
 
 #### 4. `wama/<app>/utils/model_config.py` — Ajouter le modèle
 ```python

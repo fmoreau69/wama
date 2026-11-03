@@ -29,6 +29,18 @@ def _uninstalled_after(stamp, seen_at) -> bool:
         return False
 
 
+def merged_composition(prior: dict, discovered: dict) -> dict:
+    """La composition qu'écrit la synchro : celle du catalogue, les CLÉS que la découverte émet par
+    dessus — `components` en bloc (une anatomie ne se mélange pas), `runtime` clé par clé (le
+    moteur dit par une app n'efface pas la `family` posée par un manifeste). Ce que la découverte
+    tait reste : son silence n'est pas un savoir (règle de `capabilities`, 2026-09-18)."""
+    merged = {**(prior or {}), **(discovered or {})}
+    runtime = {**((prior or {}).get('runtime') or {}), **((discovered or {}).get('runtime') or {})}
+    if runtime:
+        merged['runtime'] = runtime
+    return merged
+
+
 @dataclass
 class SyncResult:
     """Result of a sync operation."""
@@ -420,9 +432,17 @@ class ModelSyncService:
         # (anatomie des composants, moteur), et un `{}` de découverte ne doit pas l'effacer.
         # C'est exactement la règle « ne jamais écraser un fait curé par une absence » que la
         # clôture du 31/08 signalait comme MANQUANTE pour le kind `library` — elle vaut ici aussi.
+        # Et depuis le 2026-11-03, la découverte n'écrase plus que les CLÉS qu'elle émet, comme
+        # pour `capabilities` : une composition NON vide qui ne dit que le moteur effaçait les
+        # COMPOSANTS du manifeste. Vécu : `_overlay_engines_named_by_backends` (31/10) a donné un
+        # moteur à des lignes qui n'en recevaient pas de la découverte, et chaque synchro a vidé
+        # l'anatomie de 10 modèles — le VAE de YuE2 et le parent MERT de SheetSage2 redevenus des
+        # modèles tirables (le défaut du 03/10). `runtime` se fusionne de même, clé par clé.
         _compo = getattr(model_info, 'composition', None) or {}
         if _compo:
-            defaults['composition'] = _compo
+            _prior = (AIModel.objects.filter(model_key=model_key)
+                      .values_list('composition', flat=True).first()) or {}
+            defaults['composition'] = merged_composition(_prior, _compo)
 
         # PROVENANCE de `vram_gb` (décision A, 16/09) : dite par le rédacteur (`ModelInfo`), écrite
         # ICI, au point unique par lequel toute découverte passe — 19 rédacteurs, une seule

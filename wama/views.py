@@ -12,7 +12,6 @@ from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_protect
-from django.conf import settings
 
 from wama.common.utils.tts_text import text_for_speech
 
@@ -613,28 +612,10 @@ def _get_kokoro(lang_code: str):
     if lang_code not in _kokoro_pipelines:
         with _kokoro_lock:
             if lang_code not in _kokoro_pipelines:
-                kokoro_dir = str(settings.MODEL_PATHS.get('speech', {}).get(
-                    'kokoro', settings.AI_MODELS_DIR / 'models' / 'speech' / 'kokoro'))
-                os.makedirs(kokoro_dir, exist_ok=True)
-                # 3ᵉ VOIE (ROADMAP §5b, 2026-09-04) — REMPLACE la bascule scopée du cache.
-                # `KModel` accepte des CHEMINS : on range les poids dans `speech/kokoro` et
-                # on les lui passe. Différence décisive avec le scope : celui-ci restaurait
-                # l'environnement mais JAMAIS les fichiers — il laissait donc les
-                # sous-dépendances tirées pendant le chargement dans le dossier kokoro
-                # (c'est l'origine documentée du dump de modèles étrangers ici même).
-                from pathlib import Path as _P
-
-                from kokoro import KModel, KPipeline
-                from wama.common.utils.hf_weights import poids_locaux
-                _repo = 'hexgrad/Kokoro-82M'
-                _racine = poids_locaux(_repo, kokoro_dir)
-                _modele = KModel(
-                    repo_id=_repo,
-                    config=str(_P(_racine) / 'config.json'),
-                    model=str(_P(_racine) / KModel.MODEL_NAMES[_repo]),
-                )
-                _kokoro_pipelines[lang_code] = KPipeline(
-                    lang_code=lang_code, repo_id=_repo, model=_modele)
+                # Le constructeur du MOTEUR (`kokoro_backend.local_pipeline`), poids lus par chemin
+                # dans `speech/kokoro` (ROADMAP §5b) — une copie vivait ici jusqu'au 2026-11-03.
+                from wama.common.backends.kokoro_backend import local_pipeline
+                _kokoro_pipelines[lang_code] = local_pipeline(lang_code)
     return _kokoro_pipelines[lang_code]
 
 
@@ -782,7 +763,7 @@ def kokoro_tts(request):
         lang_code = code_langue(voice_language)
         pipeline = _get_kokoro(lang_code)
         # Le lexique de prononciation (fichier + lignes du compte), comme par le service (27/10).
-        from wama.common.backends.kokoro_backend import say_lexicon_through
+        from wama.common.backends.kokoro_backend import local_voice, say_lexicon_through
         from wama.common.services.user_pronunciations import lexicon_for
         said = say_lexicon_through(pipeline, lang_code, voice_language, text,
                                    {**lexicon_for(request.user, voice_language), **tried})
@@ -793,7 +774,9 @@ def kokoro_tts(request):
         import numpy as np
 
         samples = []
-        for _, _, audio in pipeline(said, voice=kokoro_voice(voice_language, voice['voice_preset']),
+        # La voix par son FICHIER installé : un nom serait tiré par la librairie au cache partagé.
+        for _, _, audio in pipeline(said, voice=local_voice(kokoro_voice(voice_language,
+                                                                         voice['voice_preset'])),
                                     speed=1.0):
             if audio is not None:
                 arr = audio.numpy() if hasattr(audio, 'numpy') else np.array(audio)

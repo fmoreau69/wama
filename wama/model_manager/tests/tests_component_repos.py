@@ -46,3 +46,37 @@ class AComponentRepoIsNoModelTest(TestCase):
         self.assertTrue(AIModel.objects.filter(model_key='huggingface:org/Other').exists(),
                         'a generic row nobody declares as a component stays')
         self.assertTrue(AIModel.objects.filter(model_key='app:restorer').exists())
+
+
+class TheSyncKeepsTheManifestAnatomyTest(TestCase):
+    """Measured on 2026-11-03: 10 rows had lost their components, the VAE of YuE2 and the MERT
+    parent of SheetSage2 were models again. A backend that NAMES a row (2026-10-31) gave the
+    discovery an engine to say — a non-empty composition, and the sync REPLACED the manifest's."""
+
+    KEY = 'huggingface:org/Song-3B'
+    DECLARED = {'components': [{'role': 'model', 'pattern': '*.safetensors'},
+                               {'role': 'vae', 'repo': 'org/Song-Vae'}],
+                'runtime': {'engine': 'song', 'family': 'song'}}
+
+    def _sync(self, composition):
+        from wama.model_manager.models import ModelSource, ModelType
+        from wama.model_manager.services.model_registry import ModelInfo
+        info = ModelInfo(id='org/Song-3B', name='Song', model_type=ModelType.MUSIC,
+                         source=ModelSource.HUGGINGFACE, composition=composition)
+        ModelSyncService()._sync_model(self.KEY, info)
+        return AIModel.objects.get(model_key=self.KEY).composition
+
+    def setUp(self):
+        AIModel.objects.create(model_key=self.KEY, name='Song', source='huggingface',
+                               platform_ref='huggingface:org/Song-3B', composition=self.DECLARED)
+
+    def test_a_discovery_that_says_only_the_engine_keeps_the_components(self):
+        self.assertEqual(self.DECLARED, self._sync({'runtime': {'engine': 'song'}}))
+        self.assertEqual({'org/Song-Vae'}, ml.declared_component_repos(),
+                         'the component is still no model after the sync')
+
+    def test_the_discovery_still_has_authority_on_the_keys_it_states(self):
+        """Counter-proof: an engine or an anatomy the discovery SAYS is written."""
+        parts = [{'role': 'model', 'pattern': 'model.safetensors'}]
+        self.assertEqual({'components': parts, 'runtime': {'engine': 'other', 'family': 'song'}},
+                         self._sync({'runtime': {'engine': 'other'}, 'components': parts}))

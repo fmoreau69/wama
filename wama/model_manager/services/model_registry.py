@@ -629,10 +629,20 @@ class ModelRegistry:
         except Exception as e:
             logger.debug('[anatomie] index des snapshots indisponible : %s', e)
             index = {}
+        # Le vide RÉEL, pas celui de la découverte (2026-11-03) — la garde `deja_declares` de la
+        # passe du moteur, ci-dessous : une anatomie que le CATALOGUE tient de son manifeste (un
+        # composant `repo`, un jeu de shards choisi) n'est pas remplacée par ce que le disque dit.
+        try:
+            from wama.model_manager.models import AIModel
+            catalogued = {m.model_key for m in AIModel.objects.only('model_key', 'composition')
+                          if (m.composition or {}).get('components')}
+        except Exception as e:
+            logger.debug('[anatomie] catalogue illisible, dérivation sur la seule découverte : %s', e)
+            catalogued = set()
 
         for key, info in list(self._models.items()):
             compo = getattr(info, 'composition', None) or {}
-            if compo.get('components'):
+            if compo.get('components') or key in catalogued:
                 continue                                  # déjà déclaré : on ne touche pas
             path = (getattr(info, 'extra_info', None) or {}).get('path') or ''
             if not path:

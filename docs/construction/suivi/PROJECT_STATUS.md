@@ -28042,3 +28042,46 @@ identifiant français retiré ailleurs, rien dans mes fichiers — liste nominat
 périmètre 277 OK (dernière écriture de code incluse) + 974 plus tôt (hors deux modules mal nommés,
 relancés : 122 OK) ; `check_redundancy` 100 (aucune dans les fonctions de la session) ;
 `check_skills` 0 défaut. 52 commits non poussés sur `dev` au moment de la clôture (toutes sessions).
+
+## §PALIER 2026-11-03, « CACHE ET EMPLACEMENT DES POIDS : audit confronté au code, trois trous comblés, 10 anatomies réparées » — non poussé — 🔴 relancer gunicorn + workers + SERVICE DE VOIX
+
+Question de Fabien : *« On est sûr que le fonctionnement du cache est toujours complètement
+fonctionnel ? […] Confrontes la doc au code »*, puis « Ok pour 1, 2, 3 et 4, puis /reverif. Il faut
+que tout soit aligné et combler les trous pour que les ratés ne reviennent plus ».
+- **Constaté sain** : aucune mutation d'environnement (`tests_hf_cache_routing`), aucun verrou
+  orphelin postérieur au 21/07, `$HOME` sans poids, le cache partagé ne porte que des
+  sous-dépendances (t5, hubert, timm, tokenizers) et les fiches de la prospection (~110 dossiers
+  vides de poids). ⚠ `hf_cache` n'a PAS été renommé : `hf_cache` (`mecanismes.py:696`, levier D) et
+  `hf_weights` (les quatre leviers) coexistent ; seul le rattachement du critère `hf_cache_isolation`
+  a changé (`c14107b84`).
+- **① Voix de Kokoro (`R213`)** : passées par NOM à `KPipeline`, tirées au cache partagé par
+  `load_single_voice` → `kokoro_backend.local_voice` (le `.pt` du snapshot, levier B) ; la copie du
+  constructeur du pipeline dans `wama/views.py` remplacée par `kokoro_backend.local_pipeline`.
+- **② Anatomie effacée par la synchro** : `model_sync` REMPLAÇAIT la composition dès que la
+  découverte en émettait une ; depuis `_overlay_engines_named_by_backends` (`cd27369f8`, 31/10), elle
+  émettait un moteur seul pour 10 lignes — composants perdus, le VAE de YuE2 et le parent MERT de
+  SheetSage2 redevenus des modèles tirables. → `model_sync.merged_composition` (clés émises par
+  dessus, `runtime` clé par clé) ; la passe qui dérive les composants du disque ne comble plus que le
+  vide du CATALOGUE. Réparation par la route : `write_back_model` des manifestes de l'arbre, les
+  seuls `components` repris de HEAD — dry-run d'abord, `would_change == ['composition']` exigé pour
+  les 10 ; relevés avant/après (846 → 844 lignes : les deux composants retirés par la synchro de
+  18 h 11) ; synchro complète avec le nouveau code : 0 écart sur 844 lignes, 0 composant perdu.
+  Manifestes réexportés (10 écrits, 2 retirés) : l'arbre retrouve les composants de HEAD.
+  Historique git de `manifests/models/` balayé fait par fait : rien d'autre de perdu (les retraits
+  restants sont voulus : `hf_id` R181, clés d'état machine, `supports_cloning` d'Audio8 écrit `false`).
+- **③ Contrôle de disposition** : il jugeait sur le NOM du dossier (faux positifs `speech/qwen_asr`)
+  et ignorait les `datasets--` → `model_locations.expected_snapshots` (ce que le catalogue range là,
+  sauf les lignes du balayage générique) ; `check_model_layout` : 4 → **0**.
+- **④ Restes (`R214`)** : 3,8 Go retirés (84 779 → 88 609 Mo libres), aucun ouvert, aucun référencé.
+- **Doc** : `AGENTS.md` (constat du 14/09 daté et remesuré), `hf_weights` (`DOCTR_CACHE_DIR`, levier B
+  par fichier), `ROADMAP §5b`, `REMOVAL_LEDGER` R213/R214, budget de langue « code » 2551 → 2549.
+- **Tests** (WSL) : 1033 lancés, rouges = `tests_identifier_language` seul, budget des noms de
+  classes 133 > 132 — `CanvasPoseTheNodeFromPipelinesTest` (`efe1b4490`, 02/11, homographe « pose »),
+  déjà sur HEAD, d'une autre session ; aucun fichier modifié n'ajoute de classe française (relevé
+  fichier par fichier). Cinq contre-épreuves, brique neutralisée : sept rouges sur les gardes visées.
+  `check_docs` 0/3797, `doc_facts --check` à jour.
+- **Reste, nommé** : tant que gunicorn, les workers et le service de voix tournent l'ancien code, la
+  voix de l'assistant tire encore ses voix par nom, et une synchro lancée par un processus qui aurait
+  déjà importé l'ancien `model_sync` effacerait de nouveau les composants (les relevés de 18 h 11 et
+  18 h 17 montrent qu'aucune ne l'a fait) — d'où le 🔴. Le contrôle de disposition ne regarde
+  toujours pas un dossier à UN seul snapshot (décision du 03/09, `tests_model_layout`).

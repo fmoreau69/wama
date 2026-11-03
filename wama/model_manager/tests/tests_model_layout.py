@@ -101,6 +101,38 @@ class LayoutTest(TestCase):
             resultats = _analyse(tmp)
         self.assertEqual(resultats[0][3], ['models--pyannote--un-depot-jamais-declare'])
 
+    def test_a_snapshot_the_catalogue_places_in_the_folder_is_expected_whatever_its_name(self):
+        """2026-11-03: `speech/qwen_asr` holds Qwen3-ASR 0.6B and 1.7B, put there by the
+        transcriber — « qwenasr » is not in « qwen3asr », two false foreigners. The catalogue says
+        where its rows live ; a row born of the generic sweep (`hf_snapshot`) does NOT absolve —
+        a stray repo becomes exactly such a row."""
+        from wama.model_manager.models import AIModel
+        with tempfile.TemporaryDirectory() as tmp:
+            base = _arbre(tmp, 'speech', 'qwen_asr', ['models--Qwen--Qwen3-ASR-0.6B',
+                                                      'models--Qwen--Qwen3-ASR-1.7B',
+                                                      'models--t5-large'])
+            AIModel.objects.create(model_key='transcriber:qwen3-asr-0.6b', name='a',
+                                   source='transcriber', local_path=str(base),
+                                   platform_ref='huggingface:Qwen/Qwen3-ASR-0.6B')
+            AIModel.objects.create(model_key='transcriber:qwen3-asr-1.7b', name='b',
+                                   source='transcriber', local_path=str(base),
+                                   platform_ref='huggingface:Qwen/Qwen3-ASR-1.7B')
+            AIModel.objects.create(model_key='huggingface:t5-large', name='c', source='huggingface',
+                                   local_path=str(base / 'models--t5-large'),
+                                   platform_ref='huggingface:t5-large',
+                                   extra_info={'hf_snapshot': True})
+            results = _analyse(tmp)
+        self.assertEqual(['models--t5-large'], results[0][3])
+
+    def test_a_dataset_in_a_model_folder_is_foreign(self):
+        """The ASR leaderboard tables and a voice set slept in `diffusion/wan` and `speech/kokoro`:
+        `datasets--` repos were never looked at."""
+        with tempfile.TemporaryDirectory() as tmp:
+            _arbre(tmp, 'speech', 'kokoro', ['models--hexgrad--Kokoro-82M',
+                                             'datasets--facebook--voxpopuli'])
+            results = _analyse(tmp)
+        self.assertEqual(['datasets--facebook--voxpopuli'], results[0][3])
+
     def test_un_dossier_a_un_seul_snapshot_n_est_jamais_signale(self):
         """Le cas NORMAL, et de loin le plus fréquent : rien à dire."""
         with tempfile.TemporaryDirectory() as tmp:
