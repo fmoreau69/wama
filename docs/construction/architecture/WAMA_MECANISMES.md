@@ -403,6 +403,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | `tts_service_client` — Client du service TTS | **2** app(s) : avatarizer, synthesizer | `wama/common/tts/service_client.py` |
 | `tts_vocabulary` — Vocabulaire TTS partagé | **2** app(s) : avatarizer, synthesizer | `wama/common/tts/constants.py` |
 | `voice_refs` — Voix de référence (médiathèque) et voix de clonage | **2** app(s) : avatarizer, synthesizer | `wama/common/tts/voice_refs.py` |
+| `word_anchoring` — Ancrage d'un texte sans temps sur des mots horodatés | **2** app(s) : avatarizer, transcriber | `wama/common/services/word_anchoring.py` |
 | `audio_degradation` — Dégradation contrôlée d'un enregistrement de parole | **1** app(s) : transcriber | `wama/common/utils/audio_degradation.py` |
 | `audio_rhythm` — Grille des temps d'un audio | **1** app(s) : composer | `wama/common/utils/audio_rhythm.py` |
 | `backend_resolution` — Résolution de backend par DÉCLARATION | **1** app(s) : transcriber | `wama/common/backends/manager.py` |
@@ -433,7 +434,6 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | `video_render` — Rendu vidéo image par image, à horodatages d'origine | **1** app(s) : enhancer | `wama/common/utils/video_render.py` |
 | `vision_probe` — Sonde vision | **1** app(s) : describer | `wama/model_manager/services/vision_probe.py` |
 | `visitor_identity` — Identité de session du visiteur sans compte | **1** app(s) : composer | `wama/accounts/visitors.py` |
-| `word_anchoring` — Ancrage d'un texte sans temps sur des mots horodatés | **1** app(s) : transcriber | `wama/common/services/word_anchoring.py` |
 
 </details>
 
