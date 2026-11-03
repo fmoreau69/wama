@@ -336,10 +336,10 @@ class WAMAMemoryCleaner:
         On délègue au seul registre d'unloaders qui existe (`_VRAM_UNLOADERS`, alimenté
         automatiquement par `BaseModelBackend`), qui dit `False` quand il n'a rien à faire.
 
-        ⚠ PORTÉE : le déchargement est **in-process**. Appelée depuis gunicorn (bouton
-        « nettoyer » de `/model_manager/`), elle ne peut pas décharger les modèles des
-        workers Celery — il n'existe aucun broadcast de reclaim cross-process. Appelée
-        DEPUIS un worker (`nightly_tests`, `cam_analyzer`), elle décharge réellement.
+        ⚠ PORTÉE : le déchargement est **in-process**. Appelée DEPUIS un worker
+        (`nightly_tests`, `cam_analyzer`), elle décharge réellement ; depuis gunicorn, elle
+        n'atteint pas un modèle d'un autre process. Le bouton du model manager passe, lui, par
+        le canal des tenants (`resource_governor.unload_resident`, 2026-11-03).
 
         Returns:
             True if successfully unloaded

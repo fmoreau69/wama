@@ -72,10 +72,27 @@ def _warm_up() -> None:
         _ready.set()
 
 
+#: Détections en cours : le service ne se décharge pas sous elles.
+_detecting = 0
+_detecting_lock = threading.Lock()
+
+
+def _is_busy() -> bool:
+    return not _ready.is_set() or _detecting > 0
+
+
 @app.on_event("startup")
 def _startup() -> None:
     # En tâche de fond, pour qu'uvicorn serve /health aussitôt (« loading » jusque-là).
     threading.Thread(target=_warm_up, daemon=True, name='privacy-warm-up').start()
+    # Le service se DÉCLARE tenant, comme le worker et le service de voix (2026-11-03) : ni « Libérer
+    # la carte » ni le model manager n'atteignaient ses détecteurs (2,6 Go mesurés). Rien à restaurer :
+    # un détecteur revient à la détection suivante (`detect_entities` → `ensure_loaded`).
+    try:
+        from wama.common.services.resource_governor import contract_tenant, start_release_listener
+        start_release_listener(contract_tenant('privacy-service', is_busy=_is_busy))
+    except Exception:
+        logger.warning("gouverneur de ressources non initialisé", exc_info=True)
 
 
 class DetectRequest(BaseModel):
@@ -98,12 +115,18 @@ def detect(req: DetectRequest):
     """Le document de détections des segments. Fonction SYNCHRONE : uvicorn l'exécute dans son
     pool de threads. Une erreur de détection est une ERREUR (500), jamais « rien trouvé » ; pendant le
     préchauffage, 503 « loading » (l'appelant attend ou refuse, il ne bloque pas 3 min)."""
+    global _detecting
     if not _ready.is_set():
         raise HTTPException(status_code=503, detail={"status": "loading",
                                                      "message": "service de confidentialité en chargement"})
+    with _detecting_lock:
+        _detecting += 1
     try:
         return engine.detect_segments(req.segments, req.language, entities=req.entities,
                                       detectors=req.detectors, threshold=req.threshold)
     except Exception as exc:
         logger.exception("détection en échec")
         raise HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
+    finally:
+        with _detecting_lock:
+            _detecting -= 1

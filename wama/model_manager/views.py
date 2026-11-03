@@ -153,7 +153,9 @@ def api_unload_model(request):
         if not model_id:
             return JsonResponse({'success': False, 'error': 'model_id required'}, status=400)
 
-        success = MemoryManager.unload_model(model_id)
+        # Où qu'il vive : un modèle est dans le process qui l'a chargé, rarement gunicorn.
+        from wama.common.services.resource_governor import unload_resident
+        success, message = unload_resident(model_id)
 
         # Get updated memory stats from centralized monitor
         stats = SystemMonitor.get_model_manager_stats()
@@ -161,7 +163,7 @@ def api_unload_model(request):
         return JsonResponse({
             'success': success,
             'model_id': model_id,
-            'message': f"Model {model_id} unloaded" if success else f"Failed to unload {model_id}",
+            'message': message,
             'memory': stats['gpu_info'],
         })
     except json.JSONDecodeError:
@@ -699,13 +701,14 @@ def api_unload_model_by_id(request):
         if not model_id:
             return JsonResponse({'success': False, 'error': 'model_id required'}, status=400)
 
-        cleaner = get_memory_cleaner()
-        success = cleaner.unload_specific_model(model_id)
+        # Où qu'il vive : un modèle est dans le process qui l'a chargé, rarement gunicorn.
+        from wama.common.services.resource_governor import unload_resident
+        success, message = unload_resident(model_id)
 
         return JsonResponse({
             'success': success,
             'model_id': model_id,
-            'message': f'Model {model_id} unloaded' if success else f'Failed to unload {model_id}',
+            'message': message,
         })
 
     except json.JSONDecodeError:

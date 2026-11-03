@@ -649,6 +649,8 @@ son adoption au CHARGEMENT, ① ci-dessus) : `models/{category}/{family}/` où `
 
 ### 🎛 Gouvernance des ressources (GPU/CPU/RAM) — `common/services/resource_governor.py`
 
+> ✅ **2026-11-03** : décharger UN modèle atteint enfin le process qui le tient (`unload_resident`, demande ciblée du canal des tenants) ; le service privacy est tenant. ⏳ Libre vu du worker GPU à mesurer (`PROJECT_STATUS §PALIER 2026-11-03 (nuit, suite)`).
+
 > **DOMICILE UNIQUE de toute logique d'allocation.** Créé 2026-07-29 pour arrêter la dispersion
 > (plafond CUDA posé sur UN chemin de chargement, registre d'unloaders local à un process,
 > sérialisation GPU cachée dans un flag CLI de `start_wama`). Si tu cherches « où

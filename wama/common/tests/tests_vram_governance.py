@@ -181,6 +181,98 @@ class ReleaseChannelTest(_WithRegistry):
             gov.serve_release_requests(holder.tenant)
         self.assertEqual(holder.restored, 0)
 
+    # ── Une demande CIBLÉE : le bouton du model manager (2026-11-03) ───────────────────────────
+
+    KEY = 'huggingface:bardsai/pii'
+
+    def _targeted(self, *, busy=False, holds=True, unload_model='default'):
+        """Un tenant `6000` qui tient (ou non) le modèle → `(id de demande, déchargés, appels)`."""
+        calls = []
+        unload = (lambda key: calls.append(key) or True) if unload_model == 'default' else unload_model
+        tenant = gov.Tenant('privacy', unload=lambda: 99, is_busy=lambda: busy, unload_model=unload)
+        request_id = gov.request_release(0.0, requester='4242', models=[self.KEY])
+        owners = {'wama.x.Pii:6000#@pii': 1.5} if holds else {'wama.x.Pii:7000#@pii': 1.5}
+        with self._as('6000'), mock.patch.object(gov, 'reservations', return_value=owners), \
+                mock.patch.object(gov, 'model_keys_of', return_value=[self.KEY]):
+            freed = gov.serve_release_requests(tenant)
+        return request_id, freed, calls
+
+    def test_the_holder_unloads_the_named_model_and_only_it(self):
+        request_id, freed, calls = self._targeted()
+        self.assertEqual((1, [self.KEY]), (freed, calls), 'never `unload()`, which would empty the process')
+        self.assertEqual(1, gov.release_acks(request_id)['6000']['freed'])
+
+    def test_a_tenant_that_does_not_hold_it_stays_silent(self):
+        request_id, freed, calls = self._targeted(holds=False)
+        self.assertEqual((0, []), (freed, calls))
+        self.assertEqual({}, gov.release_acks(request_id), 'its silence must not read as a refusal')
+
+    def test_a_busy_holder_refuses_and_says_so(self):
+        request_id, freed, calls = self._targeted(busy=True)
+        self.assertEqual((0, []), (freed, calls))
+        self.assertTrue(gov.release_acks(request_id)['6000']['busy'])
+
+    def test_a_running_task_keeps_its_model(self):
+        """The `solo` worker is never busy by itself: unloading under its task would crash it."""
+        with mock.patch.object(gov, 'running_tasks', return_value=[{'tenant': '6000'}]):
+            request_id, freed, calls = self._targeted()
+        self.assertEqual((0, []), (freed, calls))
+        self.assertTrue(gov.release_acks(request_id)['6000']['busy'])
+
+    def test_a_tenant_that_declares_no_targeted_unload_frees_nothing(self):
+        _request_id, freed, _calls = self._targeted(unload_model=None)
+        self.assertEqual(0, freed)
+
+    def test_a_targeted_request_does_not_silence_the_assistant(self):
+        gov.request_release(0.0, requester='4242', models=[self.KEY])
+        self.assertFalse(gov.release_in_progress())
+        gov.request_release(5.0, requester='4242')
+        self.assertTrue(gov.release_in_progress(), 'a release of the card still does')
+
+    def _unload(self, resident_after, *, acks=None):
+        with mock.patch('wama.model_manager.services.memory_manager.MemoryManager.unload_model',
+                        return_value=False), \
+                mock.patch.object(gov, 'resident_models', side_effect=resident_after), \
+                mock.patch.object(gov, 'release_acks', return_value=acks or {}), \
+                mock.patch('time.sleep'):
+            return gov.unload_resident(self.KEY, timeout_s=0.05, poll_s=0.0)
+
+    def test_a_model_of_another_process_is_unloaded_through_the_channel(self):
+        """LE défaut signalé : `Failed to unload huggingface:bardsai/…` — il vit dans un service."""
+        ok, message = self._unload([{self.KEY: 1.5}, {self.KEY: 1.5}, {}])
+        self.assertTrue(ok, message)
+        self.assertEqual({}, gov.pending_release_requests(), 'the request is closed afterwards')
+
+    def test_a_busy_holder_is_named_as_the_reason(self):
+        ok, message = self._unload(lambda: {self.KEY: 1.5}, acks={'6000': {'busy': True}})
+        self.assertFalse(ok)
+        self.assertIn('tâche', message)
+
+    def test_a_holder_that_cannot_unload_one_model_is_not_called_silent(self):
+        ok, message = self._unload(lambda: {self.KEY: 1.5}, acks={'6000': {'freed': 0, 'busy': False}})
+        self.assertFalse(ok)
+        self.assertIn('ne sait pas', message)
+
+    def test_silence_is_said_not_a_bare_failure(self):
+        ok, message = self._unload(lambda: {self.KEY: 1.5})
+        self.assertFalse(ok)
+        self.assertIn("n'a pas répondu", message)
+
+    def test_a_model_that_is_not_loaded_is_said_too(self):
+        ok, message = self._unload(lambda: {})
+        self.assertFalse(ok)
+        self.assertIn("n'est pas chargé", message)
+        self.assertEqual({}, gov.pending_release_requests(), 'nothing was asked of anyone')
+
+    def test_every_model_hosting_service_declares_itself_a_tenant(self):
+        """Lu dans le code : le service privacy vivait hors du canal, ses 2,6 Go hors d'atteinte."""
+        from pathlib import Path
+
+        from django.conf import settings
+        for rel in ('wama/common/privacy/service.py', 'wama/common/tts/service.py', 'wama/celery.py'):
+            with self.subTest(service=rel):
+                self.assertIn('start_release_listener(', (Path(settings.BASE_DIR) / rel).read_text(encoding='utf-8'))
+
     def test_a_request_whose_requester_died_expires_with_its_acks(self):
         request_id = gov.request_release(20.0, requester='4242')
         gov.acknowledge_release(request_id, '1', freed=1)

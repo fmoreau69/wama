@@ -28126,3 +28126,32 @@ La marque du port qui tient un lot est la même (`data-unset`). La référence d
 Gardes `tests_batch_modal_divergence`, `tests_batch_views`, `tests_item_settings_contract` ; neuf mutations, rouges.
 ⚠ Non joué au navigateur : tâches GPU de Fabien en cours. La référence du lot de ses 12 morceaux retient
 encore 280 s (« réaligner » l'écraserait), écrite avant ce correctif.
+
+## §PALIER 2026-11-03 (nuit, suite), « DÉCHARGER UN MODÈLE, OÙ QU'IL VIVE »
+
+Défaut n° 2, GO de Fabien (`Failed to unload huggingface:bardsai/…`). `MemoryManager.unload_model` n'agit
+que dans son process, et les vues tournent sous gunicorn. Le canal des tenants existait (`request_release`,
+20/09) : il prend une demande CIBLÉE (`models`), servie par le seul tenant qui tient le modèle et refusée sous
+une tâche en cours. `resource_governor.unload_resident` : le geste des deux vues, qui disent pourquoi. Le
+service privacy devient tenant (2,6 Go que même « Libérer la carte » n'atteignait pas), sans restauration : un
+détecteur revient à la détection suivante (`ensure_loaded`). Garde `tests_vram_governance`, sept mutations rouges.
+⚠ NON joué sur les vrais services : tâches GPU de Fabien en cours. 🔴 relancer gunicorn ET le service privacy.
+⚠ Le service de voix ne sait pas décharger un seul modèle (sans ORM, pas de clé) : le bouton le dit.
+⚠ `MemoryCleaner.unload_specific_model` n'a plus d'appelant, à retirer (`REMOVAL_LEDGER`).
+
+**Le même soir, sur le lot de 12 morceaux de Fabien** : le nom d'une card (`_batch_item_extra`) et du fichier de
+sortie (`source_name`) vient du morceau ; `generation_aleatoire` n'était que le repli d'un prompt vide. Streaming
+du viewer VÉRIFIÉ, pas de défaut du mécanisme : YuE2 n'a d'audio qu'au décodage final (`pipeline.py:378-398`, pas
+de son avant `decode`), MusicGen ne diffuse pas au-delà de sa durée max (`audiocraft_backend.py:44`). Sur un cover
+long, la face « pendant » reste donc vide. ⏳ Ni la progression (0 → 80 → 100) ni la raison ne se voient : `on_token`
+du pipeline n'est pas branché, une capacité déclarée pourrait dire « ce moteur ne rend le son qu'à la fin ».
+
+**⏳ Ouvert, décision de Fabien** : un cover par YuE2 ne porte ni le texte ni la langue d'origine, faute de les
+recevoir (`protocol.py:81-88` ; le composer envoie `[instrumental]`). La doc du moteur prescrit de transcrire les
+paroles (`vendor/yue/docs/covers.md:53`). Piste : process optionnel `extract_lyrics`, résultat au champ `lyrics`.
+⚠ Le français n'est pas mesuré sur YuE2 (catalogue : `zh`, `en`), ni Whisper sur une chanson avec instruments.
+
+**⏳ Défaut n° 3, à mesurer DANS le worker une fois la carte libre** : le worker GPU se voit 1,2 Go libres quand
+`nvidia-smi` en donne ~8. Relevé d'un process neuf : pilote 22,45 Go libres, annonces 14,0 Go, effectif 8,45 ; l'écart
+de 7,25 Go ressemble à son empreinte propre, vue par sa sonde ET retranchée en annonce (Whisper CTranslate2).
+

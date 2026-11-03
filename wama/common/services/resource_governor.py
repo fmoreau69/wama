@@ -1152,16 +1152,20 @@ def release_granted(app_id: str, item_id) -> dict | None:
 
 # ── Demandes de libération (le canal inter-process) ────────────────────────────────────
 
-def request_release(needed_gb: float, requester: str, reason: str = '') -> str | None:
+def request_release(needed_gb: float, requester: str, reason: str = '', *, models=None) -> str | None:
     """Écrit une DEMANDE : « libérez ce que vous tenez, il me faut `needed_gb` ». Rend son id.
     Chaque tenant la sert dans son process (`serve_release_requests`) ; le requérant attend la
-    SONDE, pas les acquittements (`obtain_vram`)."""
+    SONDE, pas les acquittements (`obtain_vram`).
+
+    `models` (2026-11-03) : une demande CIBLÉE — « déchargez CES modèles », le bouton du model
+    manager. Seul le tenant qui les tient répond, et il n'y touche pas s'il est au travail."""
     import uuid
     request_id = uuid.uuid4().hex[:12]
-    ok = _hset_json(_REQUESTS_KEY, request_id, {
-        'gb': round(float(needed_gb), 3), 'requester': requester, 'reason': reason or '',
-        'ts': _now(),
-    }, ttl_s=REQUEST_TTL_S * 2)
+    line = {'gb': round(float(needed_gb), 3), 'requester': requester, 'reason': reason or '',
+            'ts': _now()}
+    if models:
+        line['models'] = list(models)
+    ok = _hset_json(_REQUESTS_KEY, request_id, line, ttl_s=REQUEST_TTL_S * 2)
     return request_id if ok else None
 
 
@@ -1264,8 +1268,48 @@ def obtain_vram(needed_gb: float, requester: str, *, reason: str = '',
 def release_in_progress() -> bool:
     """Une libération est en cours (au moins une demande vivante). L'assistant le lit pour rester
     MUET et répondre un message d'attente (Fabien, 16/09 : il charge aussi un LLM, pas seulement
-    la voix — le laisser parler pendant une libération, c'est recharger ce qu'on vient de rendre)."""
-    return bool(pending_release_requests())
+    la voix — le laisser parler pendant une libération, c'est recharger ce qu'on vient de rendre).
+    Décharger UN modèle (`models`) n'est pas libérer la carte : l'assistant reste libre."""
+    return any(not line.get('models') for line in pending_release_requests().values())
+
+
+def unload_resident(model_key: str, *, timeout_s: float = 15.0, poll_s: float = 0.5) -> tuple[bool, str]:
+    """Décharge un modèle RÉSIDENT, où qu'il vive → `(déchargé, ce qu'il faut dire à l'utilisateur)`.
+
+    Le geste du model manager (2026-11-03) : `MemoryManager.unload_model` n'agit que dans SON
+    process, et un modèle vit dans celui qui l'a chargé — depuis gunicorn, décharger un modèle d'un
+    worker ou d'un service échouait toujours, sans dire pourquoi. Ici : d'abord dans ce process,
+    puis par le canal des tenants. Le requérant attend le REGISTRE, qui dit si le modèle est parti.
+    Un tenant au travail refuse et le dit ; un process qui n'écoute pas se nomme par son silence."""
+    import time
+
+    from wama.model_manager.services.memory_manager import MemoryManager
+    if MemoryManager.unload_model(model_key):
+        return True, f"{model_key} déchargé."
+    if model_key not in resident_models():
+        return False, f"{model_key} n'est pas chargé."
+    request_id = request_release(0.0, tenant_id(), reason=f"déchargement de {model_key}",
+                                 models=[model_key])
+    if request_id is None:
+        return False, f"{model_key} : le registre de la carte est injoignable."
+    fin = time.monotonic() + max(0.0, timeout_s)
+    try:
+        while True:
+            if model_key not in resident_models():
+                return True, f"{model_key} déchargé."
+            acks = release_acks(request_id)
+            if any(ack.get('busy') for ack in acks.values()):
+                return False, (f"{model_key} sert en ce moment : il ne se décharge pas sous une "
+                               f"tâche en cours. Réessayez quand elle sera finie.")
+            if acks and not any(ack.get('freed') for ack in acks.values()):
+                return False, (f"{model_key} : le process qui le tient ne sait pas le décharger "
+                               f"seul (le service de voix, par exemple, se libère en entier).")
+            if time.monotonic() >= fin:
+                return False, (f"{model_key} : le process qui le tient n'a pas répondu en "
+                               f"{timeout_s:.0f} s (service à relancer ?).")
+            time.sleep(poll_s)
+    finally:
+        close_release_request(request_id)
 
 
 def holders_summary(limit: int = 4) -> str:
@@ -1379,13 +1423,16 @@ class Tenant:
     `unload()` rend le nombre d'instances déchargées ; `restore()` est appelé une fois la
     demande CLOSE, seulement si ce tenant s'est déchargé pour elle (le TTS recharge ses
     `keep_resident`, un worker ne recharge rien : ses modèles reviennent au prochain usage) ;
-    `is_busy()` : True = « je sers, je ne me décharge pas maintenant » (le requérant attend)."""
+    `is_busy()` : True = « je sers, je ne me décharge pas maintenant » (le requérant attend).
+    `unload_model(clé)` (2026-11-03) : décharger UN modèle, rend vrai s'il l'a fait ; un tenant qui
+    ne le déclare pas ne sert pas les demandes ciblées."""
 
-    def __init__(self, name: str, *, unload, restore=None, is_busy=None):
+    def __init__(self, name: str, *, unload, restore=None, is_busy=None, unload_model=None):
         self.name = name
         self._unload = unload
         self._restore = restore
         self._is_busy = is_busy
+        self._unload_model = unload_model
         self.unloaded_for: set[str] = set()
 
     def is_busy(self) -> bool:
@@ -1401,6 +1448,33 @@ class Tenant:
         if self._restore:
             self._restore()
 
+    def unload_models(self, keys) -> int:
+        if not self._unload_model:
+            return 0
+        return sum(1 for key in keys if self._unload_model(key))
+
+
+def _serve_targeted(tenant: Tenant, request_id: str, keys: list, me: str) -> int:
+    """Une demande CIBLÉE : seul celui qui TIENT le modèle répond, et une tâche en cours le garde —
+    décharger sous elle la ferait échouer. Le worker `solo` n'est jamais « occupé » de lui-même : sa
+    tâche se lit au registre (`running_tasks`), son dernier usage à `busy_tenants`."""
+    mine = {key for owner in reservations() if tenant_of_owner(owner) == me
+            for key in model_keys_of(owner)}
+    held = [key for key in keys if key in mine]
+    if not held:
+        return 0
+    if (tenant.is_busy() or me in busy_tenants()
+            or any(str(task.get('tenant')) == me for task in running_tasks())):
+        acknowledge_release(request_id, me, busy=True)
+        return 0
+    try:
+        freed = tenant.unload_models(held)
+    except Exception:
+        logger.warning("[ResourceGovernor] %s : déchargement de %s échoué", tenant.name, held, exc_info=True)
+        freed = 0
+    acknowledge_release(request_id, me, freed=freed)
+    return freed
+
 
 def serve_release_requests(tenant: Tenant) -> int:
     """UN passage : sert les demandes que ce tenant n'a pas encore acquittées, restaure après
@@ -1413,6 +1487,9 @@ def serve_release_requests(tenant: Tenant) -> int:
         if line.get('requester') == me:
             continue                     # on ne se décharge pas pour sa propre demande
         if me in release_acks(request_id):
+            continue
+        if line.get('models'):
+            freed_total += _serve_targeted(tenant, request_id, line['models'], me)
             continue
         if tenant.is_busy():
             acknowledge_release(request_id, me, busy=True)
@@ -1474,7 +1551,11 @@ def contract_tenant(name: str, *, restore=None, is_busy=None) -> Tenant:
     def _unload() -> int:
         from wama.model_manager.services.memory_manager import MemoryManager
         return MemoryManager.release_vram()
-    return Tenant(name, unload=_unload, restore=restore, is_busy=is_busy)
+
+    def _unload_model(key: str) -> bool:
+        from wama.model_manager.services.memory_manager import MemoryManager
+        return MemoryManager.unload_model(key)
+    return Tenant(name, unload=_unload, restore=restore, is_busy=is_busy, unload_model=_unload_model)
 
 
 # ---------------------------------------------------------------------------
