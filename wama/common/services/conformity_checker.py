@@ -168,8 +168,11 @@ class _AppFiles:
 
     def find_py(self, regex: str, code: bool = False) -> str | None:
         """`regex` dans le code de l'app PUIS dans ses backends résolus — la surface que les
-        critères F4 doivent lire depuis l'externalisation. Preuve = 1ʳᵉ occurrence."""
-        own = self.find_code(PY, regex) if code else self.find(PY, regex)
+        critères F4 doivent lire depuis l'externalisation. Preuve = 1ʳᵉ occurrence.
+        Le code de l'app sans ses tests ni ses scénarios (`code_paths`) : jusqu'au 2026-11-03,
+        `hf_cache_isolation` de l'imager et du synthesizer était vert par la DOCSTRING d'un test
+        (`imager/tests.py:344`, `synthesizer/tests.py:719`) — un harnais n'est pas une preuve."""
+        own = self._find_in(self.code_paths(), regex, code=code)
         return own or self._find_in(self.backend_paths(), regex, code=code)
 
 
@@ -2035,7 +2038,9 @@ def _hf_cache_routing(f: _AppFiles):
     La règle mesurée est celle de §5b, une et indivisible : **le modèle est routé
     explicitement vers son dossier, l'environnement n'est JAMAIS touché**. Deux idiomes
     valent, et le choix est imposé par la lib : `cache_dir=` quand elle l'accepte, sinon
-    `poids_locaux()` (téléchargement dans le dossier + chargement par chemin).
+    `poids_locaux()` (téléchargement dans le dossier + chargement par chemin). Et, au-dessus des
+    deux, la ROUTE elle-même : poids installés par l'installeur (fichiers déclarés, composants du
+    catalogue) et lus par chemin — `AGENTS.md` § LIBRAIRIES ET MODÈLES PAR LA ROUTE.
     """
     # Surface lue = code de l'app + ses backends RÉSOLUS (`_AppFiles.backend_paths`) : le
     # routage `cache_dir=` vit dans le backend, et le backend vit au substrat depuis le 08/09.
@@ -2047,6 +2052,13 @@ def _hf_cache_routing(f: _AppFiles):
     route = f.find_py(r'cache_dir\s*=|poids_locaux\(', code=True)
     if route:
         return True, route
+    # La forme la plus explicite, généralisée le 2026-11-02 (R203, R208, R211) : la ROUTE installe
+    # les poids — fichiers DÉCLARÉS du pilote `files`, composants d'une ligne du catalogue — et le
+    # backend les lit par CHEMIN, rien ne se télécharge au chargement. Le critère ne la voyait pas :
+    # l'enhancer et le reader, portés ce jour-là, sont tombés à « aucun routage explicite ».
+    installed = f.find_py(r'\b(declared_files_present|component_paths|installed_snapshot)\(', code=True)
+    if installed:
+        return True, f"{installed} — poids installés par la route, lus par chemin"
     # 3ᵉ idiome LÉGITIME : l'app lance un SOUS-PROCESSUS et lui donne son propre
     # environnement (`env['HF_HUB_CACHE'] = …` sur un dict passé à subprocess). Ce n'est pas
     # une mutation : l'enfant est isolé, le parent intact. Mesuré sur avatarizer/musetalk —
@@ -2056,8 +2068,8 @@ def _hf_cache_routing(f: _AppFiles):
     if enfant:
         return True, f"{enfant} — environnement d'un SOUS-PROCESSUS (parent intact)"
     return 'partial', ("aucun routage explicite trouvé (ni `cache_dir=`, ni `poids_locaux()`, "
-                       "ni environnement de sous-processus) — le modèle atterrira dans le "
-                       "cache partagé : pas un défaut en soi, mais pas une déclaration")
+                       "ni poids installés par la route, ni environnement de sous-processus) — "
+                       "le modèle atterrira dans le cache partagé : pas un défaut en soi, mais pas une déclaration")
 
 
 def _backend_contract(f: _AppFiles):
@@ -2686,9 +2698,11 @@ CRITERIA: list[Criterion] = [
               _f4(_vram_unloader),
               mechanism='memory_manager'),
     Criterion('hf_cache_isolation', 'F4',
-              'Modèle routé EXPLICITEMENT (cache_dir= / poids_locaux), env jamais muté',
+              'Modèle routé EXPLICITEMENT (cache_dir= / poids_locaux / poids de la route), env jamais muté',
               _f4(_hf_cache_routing),
-              mechanism='hf_cache'),
+              # Les LEVIERS du routage (`hf_weights`), pas la bascule de dernier recours (`hf_cache`,
+              # sans emploi) à laquelle le critère était rattaché jusqu'au 2026-11-03.
+              mechanism='hf_weights'),
     # ── F5 cycle de vie ──
     # ⚠ backend_routes et task_skeleton ne sont PAS enveloppés _f4 : la composition du corps
     # de tâche vaut pour toute app (le converter — sans modèle IA — est le pilote des deux).

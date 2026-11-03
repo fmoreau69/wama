@@ -203,6 +203,25 @@ class CriteresSurBackendsResolusTest(SimpleTestCase):
         self.assertIs(cc._backend_contract(f)[0], False)
         self.assertIsNone(cc._vram_unloader(f)[0])
 
+    def test_weights_installed_by_the_route_and_read_by_path_are_explicit_routing(self):
+        """2026-11-03 : l'enhancer et le reader, portés la veille sur des fichiers déclarés lus par
+        chemin (R208, R211), tombaient à « aucun routage explicite » — la forme la plus explicite."""
+        for call in ('declared_files_present(folder(), FILES)', "component_paths('enhancer:x')",
+                     "installed_snapshot('reader:x')"):
+            with self.subTest(call=call):
+                state, evidence = cc._hf_cache_routing(self._app(f'def load():\n    return {call}\n'))
+                self.assertIs(state, True, evidence)
+                self.assertIn('installés par la route', evidence)
+        self.assertEqual('partial', cc._hf_cache_routing(
+            self._app('# declared_files_present(folder(), FILES)\nx = 1\n'))[0])
+
+    def test_a_test_docstring_is_no_evidence_for_the_f4_criteria(self):
+        """2026-11-03 : l'imager et le synthesizer étaient verts par la docstring d'un test."""
+        f = self._app('x = 1\n', code_app={
+            'tests.py': 'def test_x():\n    """le dossier passé en `cache_dir=` ; select_model(…)"""\n'})
+        self.assertEqual('partial', cc._hf_cache_routing(f)[0])
+        self.assertIsNone(f.find_py(r'cache_dir\s*=|select_model', code=True))
+
     def test_un_commentaire_ne_fait_plus_de_preuve(self):
         f = self._app('# REQUIRED_PACKAGES = []  BaseModelBackend cache_dir=\nx = 1\n')
         self.assertIs(cc._backend_packages(f)[0], False)

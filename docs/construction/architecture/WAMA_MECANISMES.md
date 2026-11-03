@@ -364,12 +364,12 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `docs/construction/mondes/STUDIO_VISION.md` | 21 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas. Chaque outil DÉCLARE son effet sur sa fonction (`tool_effect` : lecture / écriture / destruction, 2026-10-28) — les outils d'un sous-agent (`sub_agent_tools`) et les annotations MCP en DÉRIVENT. Tout ajout fonctionnel la complète (2026-11-02) : chaque app du catalogue a sa triade, chaque geste des fabriques de vues son outil (`tests_tool_api_coverage`, skill `/api-outils`) | `wama/tool_api.py` | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` | 61 |
 
-**Mécanismes déclarés : 215** · domiciles absents : 0 · sans consommateur : 0 (+ 1 autonomes DÉCLARÉS) · assumés locaux : 13 · modules balayés non rattachés : 127 · **de niveau app sans critère de grille : 56**
+**Mécanismes déclarés : 215** · domiciles absents : 0 · sans consommateur : 0 (+ 1 autonomes DÉCLARÉS) · assumés locaux : 13 · modules balayés non rattachés : 127 · **de niveau app sans critère de grille : 55**
 - ❌ **Assumé ET déclaré** (contradiction, retirer d'un des deux) : `wama/common/utils/voice_options.py`
 - ℹ️ **Sans consommateur, et c'est DÉCLARÉ** (point d'entrée de process, ou intention consignée — pas du code mort) :
   - `qc` — INTENTION CONSIGNÉE, pas une brique morte (ROADMAP §16.5) : le 3ᵉ étage de l'échelle des signaux — la MESURE INTERNE — est vide, et ce juge l'attend. Mesuré le 2026-09-19 : 0 consommateur, bench compris
 
-<details><summary>⚠ <b>58 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mechanism</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
+<details><summary>⚠ <b>57 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mechanism</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
 
 | Mécanisme | Adopté par | Domicile |
 |---|---|---|
@@ -416,7 +416,6 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | `file_references` — Qui désigne ce fichier ? (déplacer, supprimer sans casser) | **1** app(s) : synthesizer | `wama/common/utils/file_references.py` |
 | `filemanager_importers` — Import « Envoyer vers » (registre + dérivation jumelles) | **1** app(s) : imager | `wama/filemanager/views.py` |
 | `gestures` — Gestes au pointeur (glisser, défiler, pincer, appui long) | **1** app(s) : transcriber | `wama/common/static/common/js/wama-gestures.js` |
-| `hf_weights` — Routage des poids hors HuggingFace | **1** app(s) : synthesizer | `wama/common/utils/hf_weights.py` |
 | `history` — Historique annuler / rétablir | **1** app(s) : transcriber | `wama/common/static/common/js/wama-history.js` |
 | `library_export` — Sortie d’app → médiathèque | **1** app(s) : composer | `wama/media_library/services.py` |
 | `media_axis` — Axe de temps partagé (transport commun) | **1** app(s) : transcriber | `wama/common/static/common/js/wama-axis.js` |
