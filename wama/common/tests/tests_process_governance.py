@@ -147,7 +147,9 @@ class TheNeedOfTheProcessTest(_Base):
         with mock.patch('wama.common.utils.auto_model.vram_needed_gb', return_value=8.0) as need:
             with self.assertRaises(_Resent):
                 self._run(self._element('gov_derived'), task, free=1.0, model_key='family:m')
-        need.assert_called_with('family:m')
+        # `offload` : le pic de la stratégie que SON moteur sait appliquer (`OFFLOADS`) ; aucun
+        # backend ne sert `family:m`, donc la somme.
+        need.assert_called_with('family:m', offload=False)
         self.assertEqual(['convert'], self.calls, 'the conversion played, the GPU process waits')
 
     def test_a_model_this_worker_already_holds_is_not_a_need(self):
