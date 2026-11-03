@@ -172,6 +172,22 @@ def download_response(app_name: str, item, query, stem: str):
     return response
 
 
+def rendered_stem(app_name: str, instance, source_name: str = '') -> str:
+    """Souche du nom d'un rendu late-binding — la convention du téléchargement
+    (`compose_output_name` : tag de process + identifiant de card), lue par la médiathèque et par
+    « Envoyer vers » (2026-11-03). `source_name` : le nom d'entrée quand l'élément n'a pas de
+    `filename`."""
+    from pathlib import Path
+
+    from wama.common.utils.output_naming import compose_output_name
+    source = getattr(instance, 'filename', '') or source_name
+    try:
+        return Path(compose_output_name(app=app_name, source_name=source or '',
+                                        item_id=instance.pk)).stem
+    except Exception:
+        return f'{app_name}_{instance.pk}'
+
+
 def is_late_binding(app_name: str) -> bool:
     """L'app choisit-elle son format AU TÉLÉCHARGEMENT (`export_binding='late'`, §6.4) ?
     Le master est alors un texte structuré ; le fichier n'existe qu'une fois RENDU."""

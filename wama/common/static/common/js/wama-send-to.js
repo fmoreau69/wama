@@ -139,6 +139,58 @@
         });
     }
 
+    /**
+     * Rend les `formats` d'une card ou d'un lot LATE-BINDING (`renderUrl`, `api_send_rendered`),
+     * puis envoie les fichiers rendus par l'import de toujours (2026-11-03).
+     */
+    function renderAndSend(renderUrl, formats, app, label) {
+        return fetch(renderUrl, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+            body: JSON.stringify({ formats: formats }),
+        }).then(function (r) {
+            return r.json().catch(function () { return {}; }).then(function (d) {
+                if (!r.ok || !d.chemins) throw new Error((d && d.error) || ('HTTP ' + r.status));
+                return envoyer(d.endpoint, d.chemins, app, label);
+            });
+        }).catch(function (err) {
+            dire('Envoi impossible — ' + err.message, 'error');
+            return null;
+        });
+    }
+
+    /**
+     * Les entrées d'une card ou d'un lot LATE-BINDING (transcriber, describer, reader) : son
+     * fichier n'existe qu'une fois rendu dans le format du ⬇. Une entrée par app, dont le
+     * sous-menu offre chaque format qu'elle prend — PDF ou DOCX gardent la mise en forme, TXT le
+     * texte brut — puis tous ensemble (« les deux »).
+     */
+    function formatEntries(d, renderUrl) {
+        var byApp = {}, order = [];
+        (d.formats || []).forEach(function (f) {
+            (f.destinations || []).forEach(function (dest) {
+                if (!byApp[dest.app]) { byApp[dest.app] = { dest: dest, formats: [] }; order.push(dest.app); }
+                byApp[dest.app].formats.push(f);
+            });
+        });
+        return order.map(function (app) {
+            var dest = byApp[app].dest, formats = byApp[app].formats;
+            var send = function (values) {
+                return function () { renderAndSend(renderUrl, values, dest.app, dest.libelle); };
+            };
+            var sub = formats.map(function (f) {
+                return { icone: f.icon || 'fas fa-file', libelle: f.label, agir: send([f.format]) };
+            });
+            if (formats.length > 1) {
+                sub.push({ separateur: true });
+                sub.push({ icone: 'fas fa-layer-group',
+                           libelle: formats.map(function (f) { return f.label; }).join(' + '),
+                           agir: send(formats.map(function (f) { return f.format; })) });
+            }
+            return { icone: dest.icone || 'fas fa-cube', libelle: dest.libelle, sous: sub };
+        });
+    }
+
     /** Sous-menu pour des CHEMINS (fichier seul ou sélection) — résolu au serveur. */
     function entreesPourChemins(chemins) {
         return resoudreChemins({ paths: chemins }).then(function (d) {
@@ -181,6 +233,10 @@
         var c = coordonnees(card);
         if (!c) return Promise.resolve([]);
         return resoudre(c.surface, c.pk).then(function (d) {
+            if (d && d.formats && d.formats.length) {
+                return formatEntries(d, '/common/api/envoyer-vers/' + encodeURIComponent(c.surface)
+                                        + '/' + encodeURIComponent(c.pk) + '/rendu/');
+            }
             if (!d || !d.chemins || !d.chemins.length) return [];
             return (d.destinations || []).map(function (dest) {
                 return {
@@ -218,10 +274,14 @@
         if (!c) return Promise.resolve([]);
         return resolveBatch(c.surface, c.pk).then(function (d) {
             var paths = (d && d.chemins) || [];
-            if (!paths.length) {
+            var rendered = !paths.length && d && d.formats && d.formats.length;
+            if (!paths.length && !rendered) {
                 return [{ vide: true, libelle: 'Aucun résultat dans ce lot pour l’instant' }];
             }
-            var entries = (d.destinations || []).map(function (dest) {
+            var entries = rendered
+                ? formatEntries(d, '/common/api/envoyer-vers/' + encodeURIComponent(c.surface)
+                                   + '/lot/' + encodeURIComponent(c.pk) + '/rendu/')
+                : (d.destinations || []).map(function (dest) {
                 var accepted = dest.acceptes || paths;
                 return {
                     icone: dest.icone || 'fas fa-cube',
@@ -246,5 +306,6 @@
                           resoudreChemins: resoudreChemins,
                           entreesPourChemins: entreesPourChemins,
                           entreesPourDossier: entreesPourDossier,
-                          resolveBatch: resolveBatch, entriesForBatch: entriesForBatch };
+                          resolveBatch: resolveBatch, entriesForBatch: entriesForBatch,
+                          formatEntries: formatEntries, renderAndSend: renderAndSend };
 })(window);

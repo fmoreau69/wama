@@ -169,6 +169,12 @@ urlpatterns = [
     # …et pour un LOT (card mère) : les sorties de tous ses éléments, même envoi (2026-10-14).
     path('api/envoyer-vers/<str:surface>/lot/<int:pk>/', views.api_send_batch_to,
          name='api_send_batch_to'),
+    # …et le RENDU d'une card ou d'un lot LATE-BINDING dans les formats choisis (2026-11-03) :
+    # le fichier n'existe qu'une fois rendu ; l'envoi passe ensuite par le même import.
+    path('api/envoyer-vers/<str:surface>/<item:pk>/rendu/', views.api_send_rendered,
+         name='api_send_rendered'),
+    path('api/envoyer-vers/<str:surface>/lot/<int:pk>/rendu/', views.api_send_rendered,
+         {'nature': 'lot'}, name='api_send_batch_rendered'),
     # NOM d'un lot (card mère, 2026-10-19) : le donner, l'effacer — même adressage, une route pour
     # toutes les surfaces (`common/services/batch_identity.py`).
     path('api/batch/<str:surface>/<int:pk>/label/', views.api_batch_label, name='api_batch_label'),

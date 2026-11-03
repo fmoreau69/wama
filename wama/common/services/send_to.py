@@ -116,6 +116,81 @@ def batch_outputs(surface: str, batch, viewer=None) -> tuple:
     return paths, len(elements), without_output
 
 
+# ── Les cards LATE-BINDING (2026-11-03) ─────────────────────────────────────────────────────
+#
+# Le transcriber, le describer et le reader gardent un TEXTE ; le fichier n'existe qu'une fois
+# rendu dans le format choisi au ⬇ (`export_formats`, `WAMA_APP_CONVENTIONS §6.4`). Leur card n'a
+# donc pas de sortie déclarée, et « Envoyer vers » ne trouvait rien à envoyer (Fabien : « tant que
+# le choix n'est pas fait, le fichier n'existe pas »). Le menu propose alors les FORMATS, comme le
+# geste « ranger en médiathèque » ; le format choisi est rendu par le MÊME rendu que le ⬇, rangé
+# dans les sorties de l'app de l'expéditeur, puis envoyé par l'import de toujours — un PDF ou un
+# DOCX garde la mise en forme, un TXT le texte brut.
+
+
+def rendered_formats(surface: str, instance) -> list:
+    """`[{format, label, icon}]` — les formats que cette card late-binding sait RENDRE, dans
+    l'ordre du ⬇ ; vide pour une app early-binding ou une card sans résultat (`result_text`)."""
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.common.utils.export_formats import (available_formats, entries_for_app,
+                                                  export_builder_for, is_late_binding)
+
+    if not is_late_binding(surface) or export_builder_for(surface) is None:
+        return []
+    entree = DetailRegistry.get(surface)
+    try:
+        detail = (entree['adapter'](instance) if entree and entree.get('adapter') else None) or {}
+    except Exception:
+        return []
+    if not detail.get('result_text'):
+        return []
+    return [{'format': e['value'], 'label': str(e['label']), 'icon': e['icon']}
+            for e in entries_for_app(surface, available_formats(surface, instance))]
+
+
+def format_destinations(user, formats) -> list:
+    """Chaque format, avec les apps qui reçoivent son extension (`destinations` : les trois
+    conditions de toujours) ; un format que personne ne prend n'est pas offert."""
+    offered = []
+    for entry in formats:
+        dests = destinations(user, [f'rendu.{entry["format"]}'])
+        if dests:
+            offered.append({**entry, 'destinations': [{k: v for k, v in d.items() if k != 'acceptes'}
+                                                      for d in dests]})
+    return offered
+
+
+def render_for_sending(surface: str, elements, formats, user) -> list:
+    """Rend chaque format de chaque élément, et range le fichier dans les sorties de l'app de
+    `user` (`users/<uid>/<app>/output/`, nom du ⬇) — l'import le POINTE ensuite, sans copie.
+    Le même rendu, octet pour octet, reprend le même fichier ; un rendu qui a changé (texte
+    corrigé depuis) en prend un nouveau, pour ne jamais modifier sous elle l'entrée d'une card déjà
+    servie. Un élément qui ne rend pas un format est sauté. Rend les chemins relatifs à `media/`."""
+    from wama.common.utils.export_formats import export_builder_for, rendered_stem
+    from wama.common.utils.media_paths import (get_app_media_path, get_relative_media_path,
+                                               get_unique_filename)
+
+    render = export_builder_for(surface)
+    if render is None:
+        return []
+    folder = get_app_media_path(surface, user.id, 'output')
+    folder.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for element in elements:
+        stem = rendered_stem(surface, element)
+        for fmt in formats:
+            built = render(element, fmt)
+            if not built:
+                continue
+            ext, data = built
+            name = f'{stem}.{ext}'
+            if (folder / name).exists() and (folder / name).read_bytes() != data:
+                name = get_unique_filename(folder, name)
+            if not (folder / name).exists():
+                (folder / name).write_bytes(data)
+            paths.append(get_relative_media_path(surface, user.id, 'output', name))
+    return paths
+
+
 def _requete_candidats(model, chemin: str):
     """La requête qui SÉLECTIONNE les candidats sans connaître l'app : un `FileField` égal au
     chemin (9 apps sur 10 rangent leur sortie ainsi), ou un `JSONField` qui CONTIENT le nom du

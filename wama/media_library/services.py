@@ -344,16 +344,11 @@ def export_choices(app: str, detail: dict) -> list:
 
 
 def _late_stem(app: str, pk: int, instance, detail: dict) -> str:
-    """Souche du nom d'un rendu late-binding — la MÊME convention que le téléchargement
-    (`compose_output_name`, tag de process + identifiant de card)."""
+    """Souche du nom d'un rendu late-binding — celle du téléchargement (`rendered_stem`)."""
     from pathlib import Path
 
-    from wama.common.utils.output_naming import compose_output_name
-    source = getattr(instance, 'filename', '') or Path((detail or {}).get('source_file') or '').name
-    try:
-        return Path(compose_output_name(app=app, source_name=source or '', item_id=pk)).stem
-    except Exception:
-        return f'{app}_{pk}'
+    from wama.common.utils.export_formats import rendered_stem
+    return rendered_stem(app, instance, Path((detail or {}).get('source_file') or '').name)
 
 
 def _fichier_resultat(detail: dict):

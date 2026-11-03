@@ -2638,7 +2638,8 @@ def api_envoyer_vers(request, surface: str, pk: int):
     que le serveur refusait (`WAMA_VERIFICATION §Geste 14`). Une liste vide est une RÉPONSE.
     """
     from django.urls import reverse
-    from wama.common.services.send_to import destinations, sorties_de
+    from wama.common.services.send_to import (destinations, format_destinations, rendered_formats,
+                                              sorties_de)
     from wama.common.utils.preview_registry import PreviewRegistry
     from wama.common.utils.scoping import visible_or_404
 
@@ -2656,6 +2657,10 @@ def api_envoyer_vers(request, surface: str, pk: int):
         'ok': True, 'surface': surface, 'pk': pk,
         'chemins': chemins,
         'destinations': destinations(request.user, chemins),
+        # Une card LATE-BINDING n'a pas de fichier : les formats qu'elle sait rendre, chacun avec
+        # ses destinations (`api_send_rendered` les rend au clic, 2026-11-03).
+        'formats': [] if chemins else format_destinations(request.user,
+                                                          rendered_formats(surface, element)),
         # L'endpoint est RENDU et non écrit dans le JS : le front n'a pas à connaître les URLs
         # d'une autre app, et un changement de route ne casse pas la brique commune.
         'endpoint': reverse('filemanager:api_import'),
@@ -2703,7 +2708,7 @@ def api_send_batch_to(request, surface: str, pk: int):
     seuls les éléments qu'il voit partent ; un lot qu'il ne voit pas rend 404.
     """
     from django.urls import reverse
-    from wama.common.services.send_to import batch_outputs, destinations
+    from wama.common.services.send_to import batch_outputs, destinations, format_destinations
     from wama.common.utils.batch_common import batch_model_for_app
     from wama.common.utils.scoping import visible_or_404
 
@@ -2713,15 +2718,81 @@ def api_send_batch_to(request, surface: str, pk: int):
     batch = visible_or_404(batch_model, request.user, pk=pk)
 
     paths, elements, without_output = batch_outputs(surface, batch, viewer=request.user)
+    formats = []
+    if not paths:
+        # Un lot LATE-BINDING (2026-11-03) : les formats de ses éléments qui ont un résultat ;
+        # ceux qui n'en ont pas sont comptés, comme les éléments sans sortie.
+        rendered = _rendered_elements(surface, batch, request.user)
+        if rendered:
+            formats = format_destinations(request.user, rendered[0][1])
+            without_output = elements - len(rendered)
     return JsonResponse({
         'ok': True, 'surface': surface, 'pk': pk, 'nature': 'lot',
         # Mêmes clés que le résolveur d'un élément : le client les lit avec le même code.
         'chemins': paths,
         'destinations': destinations(request.user, paths, partiel=True),
+        'formats': formats,
         'endpoint': reverse('filemanager:api_import'),
         'elements': elements,
         'without_output': without_output,
     })
+
+
+def _rendered_elements(surface, batch, user) -> list:
+    """`[(élément, formats)]` des éléments d'un lot que `user` voit et qui savent se rendre."""
+    from wama.common.services.send_to import rendered_formats
+    from wama.common.utils.batch_common import batch_elements
+    from wama.common.utils.preview_registry import PreviewRegistry
+    from wama.common.utils.scoping import listable_by
+
+    model = PreviewRegistry.get_model(surface)
+    elements = list(batch_elements(batch, model))
+    seen = set(listable_by(model._default_manager.filter(pk__in=[e.pk for e in elements]),
+                           user).values_list('pk', flat=True))
+    pairs = [(e, rendered_formats(surface, e)) for e in elements if e.pk in seen]
+    return [(e, formats) for e, formats in pairs if formats]
+
+
+@login_required
+@require_POST
+def api_send_rendered(request, surface: str, pk: int, nature: str = 'element'):
+    """ENVOYER VERS, card LATE-BINDING (2026-11-03) — rend les FORMATS choisis (POST JSON
+    `{formats: [...]}`) et rend leurs chemins ; le client les POSTe ensuite sur l'import de
+    toujours (`filemanager:api_import`), qui les pointe. Mêmes portes que le résolveur : l'élément
+    ou le lot que le compte VOIT (404 sinon), et seuls les formats qu'il sait rendre."""
+    import json as _json
+    from django.urls import reverse
+    from wama.common.services.send_to import render_for_sending, rendered_formats
+    from wama.common.utils.batch_common import batch_model_for_app
+    from wama.common.utils.preview_registry import PreviewRegistry
+    from wama.common.utils.scoping import visible_or_404
+
+    try:
+        asked = [str(f).lower().lstrip('.') for f in
+                 (_json.loads(request.body or b'{}').get('formats') or [])]
+    except (ValueError, AttributeError):
+        return JsonResponse({'error': 'corps JSON attendu : {"formats": [...]}'}, status=400)
+    if nature == 'lot':
+        batch_model = batch_model_for_app(surface)
+        if batch_model is None:
+            return JsonResponse({'error': f"{surface} n'a pas de modèle de lot"}, status=404)
+        pairs = _rendered_elements(surface, visible_or_404(batch_model, request.user, pk=pk),
+                                   request.user)
+    else:
+        model = PreviewRegistry.get_model(surface)
+        if model is None:
+            return JsonResponse({'error': f"surface inconnue : {surface}"}, status=404)
+        element = visible_or_404(model, request.user, pk=pk)
+        pairs = [(element, rendered_formats(surface, element))]
+    offered = {entry['format'] for _e, formats in pairs for entry in formats}
+    unknown = [f for f in asked if f not in offered]
+    if not asked or unknown:
+        return JsonResponse({'error': f"format non offert : {', '.join(unknown) or '(aucun)'}",
+                             'offered': sorted(offered)}, status=400)
+    paths = render_for_sending(surface, [e for e, _f in pairs], asked, request.user)
+    if not paths:
+        return JsonResponse({'error': "rien n'a pu être rendu"}, status=400)
+    return JsonResponse({'ok': True, 'chemins': paths, 'endpoint': reverse('filemanager:api_import')})
 
 
 @login_required

@@ -978,6 +978,17 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
   `build_*_bytes`), l'asset est un `document`. Un builder qui n'est pas déclaré rend le geste
   muet pour l'app : la déclaration fait partie du contrat late-binding.
 
+- **« Envoyer vers » aussi** (2026-11-03, demande de Fabien : envoyer une transcription à
+  l'Anonymizer de documents — « tant que le choix n'est pas fait, le fichier n'existe pas »). Une
+  card ou un lot late-binding n'a pas de sortie déclarée : le résolveur rend ses FORMATS, chacun
+  avec les apps qui prennent son extension (`send_to.rendered_formats` / `format_destinations`) ;
+  le menu offre, par app, chaque format puis tous ensemble. Au clic, `api_send_rendered` rend le
+  format par le même builder, range le fichier dans les sorties de l'app de l'expéditeur, sous le
+  nom du ⬇ (`export_formats.rendered_stem`), et l'import de toujours le POINTE. PDF/DOCX gardent
+  la mise en forme, TXT le texte brut. Un rendu identique reprend son fichier ; un rendu qui a
+  changé (texte corrigé) en prend un nouveau — jamais l'entrée d'une card déjà servie modifiée
+  sous elle. Gardes : `tests_send_to.LateBindingSendToTest`.
+
 **Anonymizer = cas hybride** (à faire) : la détection produit un master (boîtes/masques + source) et
 le floutage est une 2ᵉ passe peu coûteuse → migrable vers late-binding (réviser/cliquer les détections
 avant de « rendre » le format voulu). Chantier séparé (ROADMAP §15/§16).

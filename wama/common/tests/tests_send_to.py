@@ -739,3 +739,106 @@ class ApiElementPourCheminTest(TestCase):
     def test_anonyme_refuse(self):
         self.client.logout()
         self.assertIn(self.client.get(self.url, {'path': 'users/1/temp/x.png'}).status_code, (302, 403))
+
+
+class LateBindingSendToTest(TestCase):
+    """« Envoyer vers » depuis une card LATE-BINDING (2026-11-03, Fabien : « tant que le choix
+    n'est pas fait, le fichier n'existe pas »). Le transcriber garde un texte ; le menu offre les
+    formats de son ⬇, le format choisi est rendu par le même rendu, rangé dans ses sorties, puis
+    reçu par l'import de toujours — ici l'Anonymizer, qui le POINTE."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        from django.test import override_settings
+        media = tempfile.mkdtemp(prefix='wama_late_send_')
+        self.addCleanup(shutil.rmtree, media, ignore_errors=True)
+        setting = override_settings(MEDIA_ROOT=media)
+        setting.enable()
+        self.addCleanup(setting.disable)
+        self.media = Path(media)
+        self.u = User.objects.create_user('late_send', password='x', is_staff=True,
+                                          is_superuser=True)
+        self.client.force_login(self.u)
+
+    def _transcript(self, text='Bonjour, ceci est une transcription.'):
+        from wama.transcriber.models import Transcript
+        return Transcript.objects.create(user=self.u, text=text, status='SUCCESS')
+
+    def _render(self, url, formats):
+        import json
+        return self.client.post(url, json.dumps({'formats': formats}),
+                                content_type='application/json')
+
+    def test_the_resolver_offers_the_formats_and_their_destinations(self):
+        t = self._transcript()
+        resolved = self.client.get(reverse('common:api_envoyer_vers',
+                                           args=['transcriber', t.pk])).json()
+        self.assertEqual([], resolved['chemins'])
+        offered = {f['format']: [d['app'] for d in f['destinations']] for f in resolved['formats']}
+        self.assertIn('anonymizer', offered.get('pdf', []), offered)
+        self.assertIn('txt', offered)
+
+    def test_a_card_without_result_offers_no_format(self):
+        from wama.transcriber.models import Transcript
+        t = Transcript.objects.create(user=self.u, text='', status='PENDING')
+        resolved = self.client.get(reverse('common:api_envoyer_vers',
+                                           args=['transcriber', t.pk])).json()
+        self.assertEqual([], resolved['formats'])
+
+    def test_the_rendered_pdf_arrives_in_the_anonymizer_pointed(self):
+        import json
+        from wama.anonymizer.models import Media
+        t = self._transcript()
+        rendered = self._render(reverse('common:api_send_rendered', args=['transcriber', t.pk]),
+                                ['pdf'])
+        self.assertEqual(200, rendered.status_code, rendered.content[:300])
+        [path] = rendered.json()['chemins']
+        self.assertTrue(path.startswith(f'users/{self.u.id}/transcriber/output/'), path)
+        self.assertTrue((self.media / path).read_bytes().startswith(b'%PDF'))
+        sent = self.client.post(rendered.json()['endpoint'],
+                                json.dumps({'paths': [path], 'app': 'anonymizer'}),
+                                content_type='application/json')
+        self.assertEqual(200, sent.status_code, sent.content[:300])
+        self.assertEqual([path], list(Media.objects.filter(user=self.u)
+                                      .values_list('file', flat=True)))
+
+    def test_the_same_rendering_reuses_its_file_and_a_changed_one_never_overwrites_it(self):
+        t = self._transcript()
+        url = reverse('common:api_send_rendered', args=['transcriber', t.pk])
+        first = self._render(url, ['txt']).json()['chemins']
+        self.assertEqual(first, self._render(url, ['txt']).json()['chemins'])
+        before = (self.media / first[0]).read_bytes()
+        t.text = 'Texte corrigé depuis.'
+        t.save(update_fields=['text'])
+        second = self._render(url, ['txt']).json()['chemins']
+        self.assertNotEqual(first, second)
+        self.assertEqual(before, (self.media / first[0]).read_bytes())
+
+    def test_several_formats_at_once_give_one_file_each(self):
+        t = self._transcript()
+        paths = self._render(reverse('common:api_send_rendered', args=['transcriber', t.pk]),
+                             ['pdf', 'txt']).json()['chemins']
+        self.assertEqual(['.pdf', '.txt'], [p[p.rindex('.'):] for p in paths])
+
+    def test_a_format_the_card_cannot_render_is_rejected(self):
+        t = self._transcript()
+        response = self._render(reverse('common:api_send_rendered', args=['transcriber', t.pk]),
+                                ['exe'])
+        self.assertEqual(400, response.status_code)
+
+    def test_a_late_binding_batch_renders_every_element_with_a_result(self):
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.transcriber.models import Transcript
+        batch, items = _lot_de(Transcript, self.u, 3)
+        for item, text in zip(items, ('Un.', 'Deux.', '')):
+            item.text, item.status = text, ('SUCCESS' if text else 'PENDING')
+            item.save(update_fields=['text', 'status'])
+        resolved = self.client.get(reverse('common:api_send_batch_to',
+                                           args=['transcriber', batch.pk])).json()
+        self.assertTrue(resolved['formats'])
+        self.assertEqual(1, resolved['without_output'])
+        paths = self._render(reverse('common:api_send_batch_rendered',
+                                     args=['transcriber', batch.pk]), ['txt']).json()['chemins']
+        self.assertEqual(2, len(paths))
