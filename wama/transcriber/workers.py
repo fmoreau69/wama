@@ -1142,34 +1142,6 @@ def _needs_acoustic_alignment(segments) -> bool:
     return False
 
 
-def _aligner_model(language: str):
-    """L'aligneur du CATALOGUE pour `language` : un modèle de tâche `alignment` dont les langues
-    couvrent celle de l'audio, départagé par la brique commune (`select_model` : VRAM, déjà chargé).
-    Aucun nom de modèle ici — un aligneur d'une autre langue se déclare dans `model_config`."""
-    from wama.common.utils.lang_routing import model_languages
-    from wama.model_manager.models import AIModel
-    from wama.model_manager.services import select_model
-
-    if not language:
-        return None
-    keys = [m.model_key for m in AIModel.objects.filter(source='transcriber')
-            if (m.capabilities or {}).get('task') == 'alignment'
-            and ({'*', language} & set(model_languages(m.capabilities)))]
-    # ⚠ `candidates=[]` ne filtre RIEN : sans candidat, on s'arrête ici.
-    # `downloaded_only=False` : un aligneur absent est tiré quand même — la route l'installe au
-    # moment du process, qui attend (`_align_document`, `ctx.ensure_model`).
-    return select_model(source='transcriber', candidates=keys, downloaded_only=False) if keys else None
-
-
-def _alignment_said(report: dict, model_name: str) -> str:
-    said = (f"Alignement acoustique ({model_name}) : {report['aligned']} mot(s) recalé(s) sur "
-            f"{report['unsure']} estimé(s), en {report['windows']} fenêtre(s)")
-    kept = report['failed'] + report['too_long']
-    if kept:
-        said += f" — {kept} passage(s) gardent leur estimation"
-    return said
-
-
 def _align_document(t: Transcript, ctx=None) -> dict:
     """ÉTAGE B de l'alignement forcé — un résultat repris (port `work_result`) sans heures sûres.
 
@@ -1177,8 +1149,8 @@ def _align_document(t: Transcript, ctx=None) -> dict:
        cet audio), Whisper transcrit D'ABORD pour en fournir — sa sortie ne sert qu'à ancrer, le
        texte de la card reste celui du document repris ;
     2. l'aligneur acoustique du catalogue (tâche `alignment`, langue de l'audio) reprend les seuls
-       mots `estimated`/`interpolated`, par fenêtres que tiennent leurs voisins sûrs
-       (`word_anchoring.refine_turns`) ;
+       mots `estimated`/`interpolated`, par fenêtres que tiennent leurs voisins sûrs — la brique
+       commune `acoustic_alignment.refine` (chargement) sur `word_anchoring.refine_turns` ;
     3. écrit comme une sortie ASR. Rien ne se perd : un échec garde l'étage A, déjà enregistré.
 
     Rend `{'skipped': raison}` quand il n'y a rien à faire, sinon le rapport de l'aligneur et la
@@ -1188,9 +1160,8 @@ def _align_document(t: Transcript, ctx=None) -> dict:
     if not _needs_acoustic_alignment(t.segments_json):
         return {'skipped': 'rien à aligner'}
 
-    from wama.common.backends.manager import backend_for_model
-    from wama.common.services.word_anchoring import anchor_turns, refine_turns
-    from wama.common.utils.audio_decode import decode_window
+    from wama.common.services import acoustic_alignment
+    from wama.common.services.word_anchoring import anchor_turns
 
     turns = [s for s in (t.segments_json or []) if isinstance(s, dict)]
     audio_path = t.audio.path
@@ -1217,32 +1188,18 @@ def _align_document(t: Transcript, ctx=None) -> dict:
         t.language = t.language or language or ''
         _console(t.user_id, _anchoring_said(report, source, 0))
 
-    model = _aligner_model(t.language)
-    if model is None:
+    refined = acoustic_alignment.refine(turns, audio_path, t.language, ctx=ctx,
+                                        audio_end=float(t.duration_seconds or 0) or None)
+    if refined is None:
         _save_turns(t, turns)
         t.save(update_fields=['language'])
         _console(t.user_id, f"Alignement acoustique : aucun aligneur au catalogue pour la langue "
                             f"« {t.language or '?'} » — les heures restent estimées.", level='warning')
         return {'skipped': 'aucun aligneur'}
-    if ctx is not None:                   # absent : la route l'installe, la tâche attend
-        ctx.ensure_model(model.model_key)
-    aligner_class = backend_for_model(model)
-    if aligner_class is None:
-        raise RuntimeError(f"aucun moteur installé ne sert {model.name}")
-    aligner = aligner_class()
-    if not aligner.load(model.hf_repo):
-        raise RuntimeError(f"{model.name} indisponible")
-    try:
-        def align_window(start, end, words):
-            wave, _ = decode_window(audio_path, aligner.sample_rate, start, end - start)
-            return aligner.align(wave, words)
-        turns, report = refine_turns(turns, align_window, aligner.max_audio_seconds,
-                                     audio_end=float(t.duration_seconds or 0) or None)
-    finally:
-        aligner.unload()
+    turns, report, model = refined
     _save_turns(t, turns)
     t.save(update_fields=['language'])
-    _console(t.user_id, _alignment_said(report, model.name))
+    _console(t.user_id, acoustic_alignment.alignment_said(report, model.name))
     return {**report, 'model_key': model.model_key}
 
 

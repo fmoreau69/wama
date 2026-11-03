@@ -154,7 +154,8 @@ class GlueInstallsItsModelTest(SimpleTestCase):
         t = mock.MagicMock(segments_json=[{'start_time': 0.0, 'text': 'x'}], language='fr')
         aligner = SimpleNamespace(model_key='transcriber:wav2vec2-fr', name='wav2vec2 fr')
         with mock.patch.object(workers, '_needs_acoustic_alignment', return_value=True), \
-                mock.patch.object(workers, '_aligner_model', return_value=aligner), \
+                mock.patch('wama.common.services.acoustic_alignment.aligner_model',
+                           return_value=aligner), \
                 mock.patch('wama.common.backends.manager.backend_for_model') as load, \
                 self.assertRaises(ServiceNotReady):
             workers._align_document(t, ctx)

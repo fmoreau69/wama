@@ -226,6 +226,15 @@
   silence de 1,6 s ramené de 1,87 au niveau de repos (0,76), bouche fermée sur la planche. La fin
   muette ajoutée au rendu (`frame_count`, 500 ms) n'est PAS en cause : bouche fermée dans les deux
   versions — elle reste. Gardes `tests_talkinghead_engine` (texte ancré, voix non transcrite),
+  contre-épreuves rouges.
+  ✅ **2026-11-03 — l'ÉTAGE B pour l'avatar** (#1532 régénérée, vérifiée : fin muette et dernier
+  silence immobiles, mais la bouche articulait encore pendant une pause de 0,6 s au milieu). Cause
+  mesurée : Whisper datait « faisant » 3,78–4,78 s, à cheval sur la pause. Un mot dont l'intervalle
+  contient un silence ≥ 0,2 s est mis en doute puis réécouté par l'aligneur du catalogue (wav2vec2,
+  `common/services/acoustic_alignment.py`, chargement sorti du worker du transcriber pour les deux
+  apps) : recalé à 4,60–4,88 s, bouche fermée jusqu'au mot sur la planche avant/après. Un aligneur
+  absent du catalogue ou en échec garde l'étage A, jamais d'échec de la vidéo ; à installer, la
+  tâche attend la route. Gardes `tests_acoustic_alignment`, `tests_talkinghead_engine`,
   contre-épreuves rouges. ⏳ Le CADRAGE de l'avatar : plan consigné le 2026-09-22
   (`PROJECT_STATUS`, « le cadrage de l'avatar, réglage utilisateur durable ») — décisions de Fabien
   attendues.

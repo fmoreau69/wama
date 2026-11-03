@@ -193,7 +193,8 @@ DIARIZATION_MODELS = {
 # Alignement forcé (étage B, 2026-09-24) — un texte DÉJÀ écrit reçoit l'heure de ses mots. Ce
 # n'est pas un moteur de transcription : sa tâche est `alignment`, il ne remonte donc dans aucun
 # sélecteur d'ASR. Ses LANGUES sont celles de son alphabet — c'est par elles que l'appelant le
-# choisit au catalogue, avec sa tâche (`workers._aligner_model` → `select_model`) ;
+# choisit au catalogue, avec sa tâche (`common/services/acoustic_alignment.aligner_model` →
+# `select_model` ; appelants : la correction du transcriber, l'avatar 3D de l'avatarizer) ;
 # un aligneur d'une autre langue s'ajoute ici, sans toucher au code qui les emploie.
 ALIGNMENT_MODELS = {
     'wav2vec2-fr-aligner': {

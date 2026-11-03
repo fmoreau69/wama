@@ -68,6 +68,36 @@ def _console(user_id: int, message: str, level: str = 'info') -> None:
         pass
 
 
+def _settle_on_voice(job, turns, audio_path, language, ctx):
+    """ÉTAGE B pour l'avatar 3D : un mot daté dont l'intervalle avale une pause de la voix est
+    réécouté par l'aligneur du catalogue (brique commune `acoustic_alignment`). Sans cela
+    TalkingHead étale le mot sur la pause et la bouche articule dans le silence (card #1532,
+    « faisant » daté 3,78-4,78 s, dit à partir de 4,5 s). Rend les tours, recalés ou non : la
+    vidéo se fait toujours — un aligneur absent du catalogue, ou en échec, garde l'étage A. Un
+    aligneur à installer fait ATTENDRE la tâche (la route l'installe), comme tout modèle."""
+    from wama.common.services import acoustic_alignment
+    from wama.common.utils.task_skeleton import ServiceNotReady
+    try:
+        if not acoustic_alignment.doubt_words_over_silence(turns, audio_path):
+            return turns
+        refined = acoustic_alignment.refine(turns, audio_path, language, ctx=ctx)
+    except ServiceNotReady:
+        raise
+    except Exception as exc:
+        logger.warning("[Avatarizer] alignement acoustique du job #%s : %s", job.pk, exc)
+        _console(job.user_id, "Avatar 3D : l'alignement acoustique a échoué — les lèvres gardent "
+                              "les heures de la transcription.", 'warning')
+        return turns
+    if refined is None:
+        _console(job.user_id, f"Avatar 3D : aucun aligneur au catalogue pour la langue "
+                              f"« {language} » — les lèvres gardent les heures de la transcription.",
+                 'warning')
+        return turns
+    turns, report, model = refined
+    _console(job.user_id, acoustic_alignment.alignment_said(report, model.name), 'info')
+    return turns
+
+
 def _call_tts_service(job: AvatarJob) -> str:
     """Synthétise `job.text_content` via la brique commune, renvoie un WAV temporaire.
 
@@ -364,7 +394,9 @@ def _animate(job, ctx):
                 #   pour une transcription reprise). Jusqu'au 2026-11-02, le texte seul était RÉPARTI
                 #   sur la durée de l'audio : les lèvres bougeaient pendant les silences (card #1532 :
                 #   1,6 s de silence au milieu, et la fin muette).
-                words, lang = None, (job.language or 'fr')
+                # Puis l'étage B (2026-11-03, `_settle_on_voice`) : un mot que Whisper date à
+                # cheval sur une pause est réécouté par l'aligneur du catalogue.
+                words, turns, lang = None, None, (job.language or 'fr')
                 text = (job.text_content or '').strip()
                 _console(job.user_id, "Avatar 3D : transcription de l'audio (mots datés)…", 'info')
                 from wama.common.utils.whisper_utils import transcribe_audio
@@ -382,21 +414,25 @@ def _animate(job, ctx):
                     from wama.common.services.word_anchoring import anchor_turns
                     anchored = anchor_turns([{'text': text}], heard_words) if heard_words else None
                     if anchored:
-                        words = anchored[0][0].get('words')
-                        report = anchored[1]
+                        turns, report = anchored
                         _console(job.user_id, f"Mots datés : {report['exact']} sur {report['tokens']} "
                                               f"retrouvés à l'écoute de la voix.", 'info')
                     else:
                         _console(job.user_id, "Avatar 3D : la voix n'a pas pu être transcrite — les "
                                               "lèvres suivent une estimation du texte.", 'warning')
                 else:
-                    words = heard_words
-                    if not words:
+                    if not heard_words:
                         raise ValueError("Avatar 3D : aucune parole reconnue dans l'audio — "
                                          "fournissez le texte dit.")
                     # La langue ENTENDUE choisit le module de visèmes (le job n'a pas de texte à dire).
                     lang = heard.language or lang
-                    _console(job.user_id, f"Transcription : {len(words)} mots ({lang}).", 'info')
+                    # Un mot entendu sans marque de temps compte pour sûr (`word_anchoring`).
+                    turns = [{'text': ''.join(str(w.get('word') or '') for w in heard_words),
+                              'words': [dict(w) for w in heard_words]}]
+                    _console(job.user_id, f"Transcription : {len(heard_words)} mots ({lang}).", 'info')
+                if turns:
+                    turns = _settle_on_voice(job, turns, audio_path, lang, ctx)
+                    words = [w for turn in turns for w in (turn.get('words') or [])]
                 _console(job.user_id, "Avatar 3D : rendu TalkingHead image par image…", 'info')
                 # Aperçu « PENDANT » (2026-10-06) : la dernière image rendue, toutes les ~2 s, par
                 # la brique commune (`PartialFrames`, comme l'enhancer vidéo). MuseTalk, lancé

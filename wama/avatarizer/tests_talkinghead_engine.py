@@ -6,6 +6,7 @@ pas le rendu (joué à la main sur la 4090, `PROSPECTION_AVATARS_2026-09-30.md`)
 """
 import wave
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.conf import settings
@@ -213,6 +214,53 @@ class EngineFromAvatarNatureTest(TestCase):
                           ('une', 2.4, 2.5, 'exact'), ('consigne.', 2.5, 3.0, 'exact')],
                          [(w['word'].strip(), w['start'], w['end'], w['timing']) for w in call['words']],
                          'the words of the TEXT, at the times they are said — a silence stays still')
+
+    def _heard_across_a_pause(self):
+        return [{'word': ' Bonjour,', 'start': 0.2, 'end': 0.6}, {'word': ' voici', 'start': 0.6, 'end': 2.4},
+                {'word': ' une', 'start': 2.4, 'end': 2.5}, {'word': ' consigne.', 'start': 2.5, 'end': 3.0}]
+
+    def test_a_word_dated_across_a_pause_is_realigned_before_the_render(self):
+        """Card #1532 (2026-11-03) : Whisper datait « faisant » à cheval sur une pause de la voix,
+        et l'avatar articulait dans le silence. Le mot douté est réécouté par l'aligneur du
+        catalogue (étage B, `acoustic_alignment`) ; le moteur reçoit l'heure recalée."""
+        from wama.common.services import acoustic_alignment
+        self._register_talkinghead()
+        asked = []
+
+        def doubt(turns, audio_path):
+            turns[0]['words'][1]['timing'] = 'estimated'
+            return 1
+
+        def refine(turns, audio_path, language, ctx=None):
+            asked.append((language, ctx is not None))
+            turns[0]['words'][1].update(start=1.9, end=2.4, timing='aligned')
+            return turns, {'aligned': 1, 'unsure': 1, 'windows': 1, 'failed': 0, 'too_long': 0}, \
+                SimpleNamespace(name='aligneur')
+
+        with patch('wama.common.utils.whisper_utils.transcribe_audio',
+                   return_value=self._heard(self._heard_across_a_pause())), \
+                patch.object(acoustic_alignment, 'doubt_words_over_silence', side_effect=doubt), \
+                patch.object(acoustic_alignment, 'refine', side_effect=refine):
+            job, keys = self._run(self._job(self._talking_glb()))
+        self.assertEqual('SUCCESS', job.status, job.error_message)
+        self.assertEqual([('fr', True)], asked, 'the job language, and the task context (route install)')
+        self.assertEqual(('voici', 1.9, 2.4, 'aligned'),
+                         next((w['word'].strip(), w['start'], w['end'], w['timing'])
+                              for w in FakeRender.calls[0]['words'] if w['word'].strip() == 'voici'))
+
+    def test_a_failing_aligner_keeps_the_times_heard_and_still_renders(self):
+        """Contre-épreuve : l'étage B n'est jamais la perte de la vidéo — l'aligneur en échec, les
+        mots gardent l'heure de la transcription."""
+        from wama.common.services import acoustic_alignment
+        self._register_talkinghead()
+        with patch('wama.common.utils.whisper_utils.transcribe_audio',
+                   return_value=self._heard(self._heard_across_a_pause())), \
+                patch.object(acoustic_alignment, 'doubt_words_over_silence', return_value=1), \
+                patch.object(acoustic_alignment, 'refine', side_effect=RuntimeError('no GPU')):
+            job, keys = self._run(self._job(self._talking_glb()))
+        self.assertEqual('SUCCESS', job.status, job.error_message)
+        self.assertEqual((0.6, 2.4), next((w['start'], w['end']) for w in FakeRender.calls[0]['words']
+                                          if w['word'].strip() == 'voici'))
 
     def test_a_voice_that_cannot_be_transcribed_still_renders_from_its_text(self):
         """La voix ne se transcrit pas : la vidéo se fait quand même, sur l'estimation du texte —

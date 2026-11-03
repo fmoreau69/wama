@@ -777,8 +777,18 @@ morceau d'audio quels mots du texte lui reviennent.
     `MODEL_PATHS['speech']['alignment']`). Tâche **`alignment`**, nouvelle au vocabulaire
     (`ModelTask`, catégorie `speech`, entrées `work_audio` + `work_result`), donc absente des
     sélecteurs d'ASR. L'aligneur se CHOISIT par tâche et par langue de l'audio
-    (`workers._aligner_model` → `select_model`) : un aligneur d'une autre langue s'ajoute dans
+    (`common/services/acoustic_alignment.aligner_model` → `select_model` — ex-`workers._aligner_model`,
+    sorti dans une brique commune le 2026-11-03) : un aligneur d'une autre langue s'ajoute dans
     `model_config.ALIGNMENT_MODELS`, sans toucher au code.
+  - **Chargement COMMUN** (2026-11-03, `common/services/acoustic_alignment.py::refine`) : choix au
+    catalogue, installation par la route (`ctx.ensure_model`), fenêtres d'audio, déchargement —
+    écrit une fois pour le process `align` du transcriber et pour l'**avatar 3D** de l'avatarizer.
+    L'avatar y ajoute un DOUTE que l'ASR ne dit pas : un mot `exact` dont l'intervalle contient un
+    silence d'au moins 0,2 s (`doubt_words_over_silence`, trames de `speech_activity`) devient
+    `estimated` et se réécoute. Mesuré sur la card avatarizer #1532 : « faisant », daté par Whisper
+    3,78–4,78 s à cheval sur une pause de la voix, recalé à 4,60–4,88 s ; la bouche, qui articulait
+    pendant le silence, reste fermée jusqu'au mot. Le transcriber ne met pas (encore) ses mots en
+    doute de cette façon : son étage B ne reprend que les mots qu'un document n'a pu qu'estimer.
   - **Fenêtres** (`word_anchoring.refine_turns`, sans modèle) : chaque passage incertain est aligné
     avec ses deux voisins pour GARDES — un voisin sûr borne la fenêtre à son propre mot. Un passage
     plus long que la capacité se coupe ENTRE deux mots, aux heures estimées ; une fenêtre qui
