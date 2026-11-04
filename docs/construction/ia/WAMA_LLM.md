@@ -1445,6 +1445,12 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
     sous-agents et le décideur appellent EN FLUX (`assistant_engine._STREAM_ONLY`,
     `WAMA_HARNESS §7.4` étape 4) ; ⏳ les rôles de développement à longue génération restent
     exposés.
+  - ✅ **une réponse arrêtée au plafond de 4 096 jetons se DIT depuis le 2026-11-04** — réflexion
+    comprise, elle passait pour complète (deux avis d'un council coupés, l'un après 236
+    caractères). `llm_chat(outcome=…)` remonte `finish_reason == 'length'` (`cut`) sans toucher
+    au contrat (texte, erreur) ; l'assistant demande UNE suite sans réflexion et recolle, puis dit
+    ce qui manque (`WAMA_HARNESS §7.4`, « Le council mis à l'épreuve »). Le chemin LOCAL
+    (`_ollama_call`) ne la remonte pas.
 - **OpenRouter (agrégateur) — déclaré le 2026-10-10** (décision de Fabien), source `openrouter`
   (`https://openrouter.ai/api/v1`, protocole OpenAI, `hosting='third_party'`, `metered`, clé
   PERSONNELLE non partageable — crédits par compte). Ajout par le registre SEUL, sur la route

@@ -4965,6 +4965,17 @@ la **surcharge des réglages** d'un nœud interne depuis le parent (refusée en 
 rien (`graph_to_body` rend la clé, aucun `requires`) : un export ou un partage perdrait le
 sous-pipeline (composition par `requires`, `WAMA_MANIFEST_SPEC`) ; `AppPipeline.extended()` ouvert au
 nœud `pipeline` (Monde Data) ; plusieurs ports de SORTIE (un lien ne porte pas de port de départ).
+🔄 **Avis du council de l'assistant, 2026-11-04 (demande de Fabien ; déroulé et défauts du council :
+`WAMA_HARNESS §7.4`)** — quatre avis de fond, tous **AJUSTER**, aucun ARRÊTER : le déploiement au
+lancement confirmé à l'unanimité (le sous-DAG d'Airflow a été retiré pour ces raisons-là) ; la
+référence SANS VERSION jugée inacceptable pour une plateforme de recherche — ⚠ l'avis le mieux classé
+croyait que le run ne garde pas le corps : il le fige (`launch.py:239`), ce qui manque est l'ÉPINGLAGE
+pour les lancements suivants et le signal « le pipeline référencé a changé » ; une SORTIE DÉCLARÉE
+par l'auteur plutôt que dérivée (majorité) ; l'export avec sa dépendance déclarée et la vérification
+de visibilité AU PARTAGE (unanimes) ; la SURCHARGE de réglages DIVISE (trois pour, un « jamais »).
+Ordre proposé : trace de version → export → état imbriqué dans « Contenu » → vérification au
+partage. ⏳ Non tranché : la surcharge, l'ordre — décisions de Fabien ; la version passe d'abord par
+ce que `WAMA_COLLABORATION` (« versions et variantes ») porte déjà.
 
 **3.2 Le degré de liberté de chaque process** (champ à ajouter au nœud) :
 

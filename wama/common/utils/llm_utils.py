@@ -536,6 +536,7 @@ def llm_chat(
     data_reuse_ok: bool = False,
     rate_limit_wait: bool = True,
     saturation_scope='instance',
+    outcome: Optional[dict] = None,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Unified LLM chat function — provider-agnostic entry point.
@@ -591,6 +592,11 @@ def llm_chat(
                     ou la fonction sans argument qui la calcule. Chaque appel servi est COMPTÉ
                     pour elle (étape 3) ; un échec qui dit le fournisseur saturé le NOTE pour
                     elle, et le tirage automatique l'écarte le temps de la note (étape 2).
+        outcome:    Cloud only. Un dict que l'appel REMPLIT de ce que le contrat (texte, erreur) ne
+                    dit pas : `{'cut': True}` quand le fournisseur a arrêté la réponse à la limite de
+                    longueur (`finish_reason == 'length'` — `num_predict` atteint, réflexion
+                    comprise). Mesuré le 2026-11-04 (council) : deux rapports coupés au plafond de
+                    4 096 jetons de l'assistant passaient pour des avis complets.
 
     Returns:
         (text, None) on success · (None, error_string) on failure
@@ -703,9 +709,11 @@ def llm_chat(
             # 1 à 2 s (mesuré sur Albert) — sans flux, l'écran et la voix attendaient la fin.
             pieces = []
             calls: dict = {}                 # appel d'outil reçu par morceaux, par `index`
+            finish = None
             for chunk in _completion(litellm, wait_s, retries, stream=True, **kwargs):
                 choices = getattr(chunk, 'choices', None) or []
                 delta = getattr(choices[0], 'delta', None) if choices else None
+                finish = (getattr(choices[0], 'finish_reason', None) if choices else None) or finish
                 fragment = getattr(delta, 'content', None)
                 if fragment:
                     pieces.append(fragment)
@@ -716,6 +724,7 @@ def llm_chat(
                     slot[0] += getattr(fn, 'name', None) or ''
                     slot[1] += getattr(fn, 'arguments', None) or ''
             _record_served(provider, saturation_scope, model)
+            _note_finish(outcome, finish)
             if calls:
                 return tool_call_text(*calls[min(calls)]), None
             text = ''.join(pieces)
@@ -724,6 +733,7 @@ def llm_chat(
             return text.strip(), None
         response = _completion(litellm, wait_s, retries, **kwargs)
         _record_served(provider, saturation_scope, model, response)
+        _note_finish(outcome, getattr(response.choices[0], 'finish_reason', None))
         message = response.choices[0].message
         for call in _listed(getattr(message, 'tool_calls', None))[:1]:
             return tool_call_text(call.function.name, call.function.arguments), None
@@ -737,6 +747,12 @@ def llm_chat(
                      f"{type(e).__name__} status={getattr(e, 'status_code', None)}: {e}")
         _note_provider_failure(provider, e, wait_s, saturation_scope, model)
         return None, provider_error_text(declared.label or provider, model, e)
+
+
+def _note_finish(outcome: Optional[dict], finish_reason) -> None:
+    """Remplit `outcome` (`llm_chat`) quand la réponse s'est arrêtée à la limite de longueur."""
+    if outcome is not None and finish_reason == 'length':
+        outcome['cut'] = True
 
 
 def _listed(value) -> list:
@@ -840,7 +856,7 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
                      timeout: Optional[float] = None, temperature: Optional[float] = None,
                      seed: Optional[int] = None, top_p: Optional[float] = None,
                      on_delta=None, tools: Optional[list] = None,
-                     rate_limit_wait: bool = True,
+                     rate_limit_wait: bool = True, outcome: Optional[dict] = None,
                      ) -> tuple[Optional[str], Optional[str]]:
     """Un appel à un fournisseur LLM DÉCLARÉ (`external_sources`, type `llm` : Albert, API
     Anthropic…), avec la clé de l'UTILISATEUR quand il est connecté — `(texte, None)` ou
@@ -883,7 +899,7 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
                          temperature=temperature, seed=seed, top_p=top_p,
                          on_delta=on_delta, tools=tools,
                          data_reuse_ok=data_reuse_ok, rate_limit_wait=rate_limit_wait,
-                         saturation_scope=scope)
+                         saturation_scope=scope, outcome=outcome)
     if gate is not None:
         gate.flush()
         text = gate.incoming(text)

@@ -1231,3 +1231,17 @@ lecture de section, réponse citée) ; 17 gardes dans `tests_docs_corpus.py`.
 §5bis) — à décider : les calculer aussi la nuit~~ — décidé et câblé le 2026-10-16 (lot nocturne
 01:45, encadré du §5bis) ; `WAMA_MECANISMES.md` et `docs/dev/briques.md` à
 régénérer (`doc_facts`), tenus par une autre instance ; la doc UTILISATEUR ne compte qu'un doc.
+
+**Défaut du découpage, corrigé le 2026-11-04 (`9ea761023`)** — trouvé par le council de
+l'assistant (`WAMA_HARNESS §7.4`), dont les agents ne trouvaient pas `ROUTE §10.6` : `read_doc`
+ne voyait que 33 sections de la route (~8 000 lignes), aucune après la §10.5. Une ligne qui
+COMMENCE par du code en ligne (« ```` ```html ```` », l.4658) ouvrait un bloc de code jamais fermé,
+et tout ce qui suivait n'était plus des titres — pour le lecteur, le RAG des docs, `check_docs`
+et `doc_plans`. La règle de Markdown vit désormais une fois, `doc_sections.code_fence` (CommonMark
+§4.5), lue aussi par le Writer (`document_sections`, et sa jumelle JS `brick-text-sections.js`).
+Mesuré doc par doc : seule la route changeait (33 → 50 sections). Garde de corpus :
+`tests_doc_sections.CorpusTest.test_no_document_of_the_corpus_ends_inside_a_code_block`.
+⏳ Trois lectures voisines repèrent le code par MOTIFS (en ligne et blocs) plutôt que par lignes de
+clôture, sur des réponses de modèle surtout : `fact_tags._CODE_OU_TAG`,
+`assistant_engine._CODE_SPAN`, `insideCodeBlock` de `wama-assistant-voice.js` — sans effet mesuré
+(0 balise de fait en ligne au corpus), non alignées.

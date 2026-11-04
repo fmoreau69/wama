@@ -798,7 +798,8 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
     le CLI ne reçoit alors pas la surface MCP de WAMA ; ailleurs, la boucle n'annonce déjà rien.
 
     Returns:
-        (text, usage_dict) on success · (None, error_dict) on failure
+        (text, usage_dict) on success · (None, error_dict) on failure. Distant : `usage_dict` porte
+        `cut: True` quand la réponse s'est arrêtée au plafond de longueur (`llm_chat(outcome=…)`).
     """
     if provider in _LOCAL_PROVIDERS:
         # Flux LOCAL : `_ollama_stream`. Le flux d'un fournisseur DÉCLARÉ (Albert, API
@@ -814,6 +815,7 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
     from wama.common import external_sources
     from wama.common.utils.llm_utils import chat_with_source, llm_chat
     llm_provider = _PROVIDER_ALIAS.get(provider, provider)
+    outcome = {}
     # Fournisseur DÉCLARÉ (source `llm` : Albert, API Anthropic…) → clé personnelle exigée.
     source = external_sources.by_key().get(llm_provider)
     # ⚠ Un fournisseur NON déclaré (`openai`, `mistral`…) n'a ni clé personnelle ni garde « 100 %
@@ -833,14 +835,15 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
                                          num_predict=4096, think=think, timeout=180.0,
                                          on_delta=on_delta, tools=tools,
                                          rate_limit_wait=rate_limit_wait,
-                                         temperature=temperature, seed=seed, top_p=top_p)
+                                         temperature=temperature, seed=seed, top_p=top_p,
+                                         outcome=outcome)
         except CloudAccessRefused as e:
             return None, {'error': str(e), 'status': e.status}
     else:
         # Non déclaré : seulement sans utilisateur (refusé plus haut sinon) — clé d'instance.
         text, err = llm_chat(messages, model=llm_model, provider=llm_provider,
                              num_predict=4096, think=think, timeout=180.0, temperature=temperature,
-                             seed=seed, top_p=top_p)
+                             seed=seed, top_p=top_p, outcome=outcome)
     if text is None:
         from wama.common.utils.llm_utils import EMPTY_RESPONSE_ERROR
         if err == EMPTY_RESPONSE_ERROR:
@@ -848,7 +851,9 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
             # (un nouvel essai). Jusqu'au 2026-10-10, un 502 terminait le tour.
             return '', {'input_tokens': 0, 'output_tokens': 0}
         return None, {'error': err or 'LLM error', 'status': 502}
-    return text, {'input_tokens': 0, 'output_tokens': 0}
+    # `cut` : la réponse s'est arrêtée au plafond de 4 096 jetons (réflexion comprise) — le tour
+    # demande la suite (`run_assistant_turn`).
+    return text, {'input_tokens': 0, 'output_tokens': 0, **outcome}
 
 
 def _provider_source(provider) -> str:
@@ -1368,6 +1373,17 @@ def _bare_call(text: str, known) -> dict | None:
     return None
 
 
+_CALL_HEAD = re.compile(r'\{\s*"tool"\s*:\s*"([^"]+)"')
+
+
+def _malformed_call(text: str, known) -> bool:
+    """La réponse TENTE-t-elle un appel à un outil annoncé au tour, sans JSON lisible ?
+    `{"tool": "<nom connu>"` y figure, et `_parse_tool_call` ne l'a pas lu. Un nom inconnu reste du
+    texte (un exemple de format cité), comme pour `_bare_call`."""
+    clean = _strip_think_tags(text or '')
+    return any(name in known for name in _CALL_HEAD.findall(clean))
+
+
 #: Appels d'outils dans UN tour. 5 jusqu'au 2026-10-05 : le parcours ordinaire d'une demande
 #: (inspection → ajout → lancement → statut) en prend 4, une seule correction de réglage refusé
 #: par le schéma épuisait la boucle avant la réponse (Discord, card #1036).
@@ -1402,7 +1418,8 @@ SUB_AGENT_SECONDS = 300
 #: qu'un appel avant sa reprise unique, qui en fait 6. Donc au plus 6 × 7 appels de sous-agents
 #: par tour, en plus des siens. 3 à l'étape 3 ; 6 depuis l'étape 4 — la cible de Fabien (29/10) :
 #: un council de CINQ agents et son décideur. Une RELECTURE (`decide="review"`) n'est pas un
-#: sous-agent — un appel sans outil par agent — : au plus 6 × 7 + 5 appels. Choix, non mesuré.
+#: sous-agent — un tour par agent, `REVIEW_MAX_ITERATIONS` actions de lecture pour vérifier les faits
+#: (2026-11-04) — : au plus 6 × 7 + 5 × 5 appels. Choix, non mesuré.
 MAX_DELEGATIONS_PER_TURN = 6
 _DELEGATIONS_EXHAUSTED = ("Plafond de {limit} sous-agents atteint pour ce tour : mène la suite toi-même "
                           "avec tes outils, ou réponds à partir des rapports déjà reçus.")
@@ -1424,7 +1441,8 @@ _COUNCIL_AGENT_BRIEF = (
     "Tes outils de lecture servent à VÉRIFIER un point précis, jamais à remplacer l'avis : la "
     "question expose ce qu'il faut pour juger ; si une source te manque, juge sur ce qu'elle "
     "expose et dis ce qui reste incertain. Cite les sources que tu as lues (liens copiés des "
-    "résultats d'outils).\n\nQuestion : ")
+    "résultats d'outils). Sois CONCIS — 800 mots au plus : ton avis sera relu avec ceux des "
+    "autres, et une réponse trop longue est coupée.\n\nQuestion : ")
 #: La RÈGLE de délégation, jointe aux règles du prompt d'outils quand les sous-agents sont proposés
 #: (étape 5). Mesuré le 2026-10-29 (Albert `gpt-oss-120b`, trois questions) : avec les seules règles
 #: d'effort dans la description de `delegate` — une ligne parmi 90 outils —, la question simple
@@ -1470,12 +1488,20 @@ _DECIDER_BRIEF = (
     "d'avis exploitable plutôt que de conclure.\n\nQuestion : {question}\n\n{opinions}{reviews}")
 #: Ce que reçoit chaque RELECTEUR (`review`) : le format du classement est celui que la lecture
 #: déterministe sait lire (`_RANKED_LABEL`), comme le `FINAL RANKING:` du LLM Council.
+#: Depuis le 2026-11-04, le relecteur VÉRIFIE les faits (écart voulu au LLM Council, dont les
+#: relecteurs n'ont pas d'outil) : à l'épreuve du council, l'avis classé premier par tous affirmait
+#: une chose que la question même contredisait (« le run ne stocke pas le corps ») — sans outil ni
+#: consigne, les relecteurs jugeaient la cohérence, pas l'exactitude.
 _REVIEW_BRIEF = (
     "Tu relis les avis de plusieurs agents sur une même question : tu ne parles pas à "
-    "l'utilisateur. Pour chaque avis, dis en une ou deux phrases ce qu'il fait bien et ce qu'il fait "
-    "mal (exactitude, sources, raisonnement). Termine par ton classement, du meilleur au moins bon, "
-    "EXACTEMENT sous cette forme, sans rien après :\nCLASSEMENT FINAL:\n1. Avis X\n2. Avis Y\n\n"
-    "Question : {question}\n\n{opinions}")
+    "l'utilisateur. VÉRIFIE d'abord leurs affirmations de FAIT — contre la question elle-même, "
+    "puis, s'il le faut, avec tes outils de lecture : une affirmation que la question ou une source "
+    "contredit est une faute, nomme-la. Puis, pour chaque avis, dis en une ou deux phrases ce "
+    "qu'il fait bien et ce qu'il fait mal (exactitude, sources, raisonnement). Termine par ton "
+    "classement, du meilleur au moins bon, EXACTEMENT sous cette forme, sans rien après :\n"
+    "CLASSEMENT FINAL:\n1. Avis X\n2. Avis Y\n\nQuestion : {question}\n\n{opinions}")
+#: Les actions d'un relecteur : assez pour vérifier deux ou trois faits, pas pour refaire l'enquête.
+REVIEW_MAX_ITERATIONS = 3
 _RANKING_MARK = re.compile(r'CLASSEMENT\s+FINAL\s*:', re.IGNORECASE)
 _RANKED_LABEL = re.compile(r'\d+\s*[.)]\s*\W*Avis\s*\[?([A-Z])\]?', re.IGNORECASE)
 _ANY_LABEL = re.compile(r'Avis\s*\[?([A-Z])\]?', re.IGNORECASE)
@@ -1649,7 +1675,11 @@ def _replacement_lane(user, taken: set) -> tuple | None:
     troisième sans réponse, et aucun remplacé). Le tirage commun rejoué AU MOMENT de la panne, donc
     après la note de saturation que `llm_chat` vient de poser, parmi les modèles DISTANTS que la
     vague n'a pas encore pris (`taken`) — jamais un local : un second couloir local disputerait la
-    carte à celui qui tourne peut-être encore (`_sub_agent_lanes`). None s'il n'y en a pas."""
+    carte à celui qui tourne peut-être encore (`_sub_agent_lanes`). None s'il n'y en a pas.
+
+    Jumelle de `_failover_target` (la bascule du TOUR), qui ne sert pas ici : un sous-agent a un
+    modèle IMPOSÉ par son couloir, donc il ne bascule pas seul (`_turn_is_drawn`), et son relais
+    doit éviter les modèles des AUTRES couloirs — ce que le tirage du tour ignore."""
     if user is None:
         return None
     try:
@@ -1845,9 +1875,15 @@ def _anonymise(reports: list) -> dict:
     valid = [i for i, r in enumerate(reports) if 'error' not in r]
     random.shuffle(valid)
     letters = [chr(ord('A') + n) for n in range(len(valid))]
+    # Un avis COUPÉ (`cut`) le dit à ses lecteurs : sa fin manque, il ne se juge pas comme complet.
+    def head(letter, report):
+        return f"Avis [{letter}]{_CUT_OPINION_MARK if report.get('cut') else ''} :"
     return {'letters': dict(zip(letters, valid)),
-            'text': '\n\n'.join(f"Avis [{letter}] :\n{reports[i].get('report', '')}"
+            'text': '\n\n'.join(f"{head(letter, reports[i])}\n{reports[i].get('report', '')}"
                                 for letter, i in zip(letters, valid))}
+
+
+_CUT_OPINION_MARK = " (COUPÉ à la limite de longueur : sa fin manque)"
 
 
 def _parse_ranking(text: str, letters) -> list:
@@ -1887,8 +1923,10 @@ def _aggregate_rankings(rankings: list, own: list, letters) -> list:
 def _peer_review(user, question: str, anonymised: dict, lanes: list, assignment: list, *,
                  depth, deadline) -> tuple:
     """La RELECTURE CROISÉE (`review`, le LLM Council) : chaque agent qui a rendu un avis le relit
-    avec les autres, anonymes, et les classe — sur SON couloir (même modèle que son avis), sans
-    outil, en même temps que les autres couloirs. Rend (classement agrégé, trace, usage)."""
+    avec les autres, anonymes, et les classe — sur SON couloir (même modèle que son avis), en même
+    temps que les autres couloirs. Il VÉRIFIE les faits avec les outils de lecture d'un sous-agent
+    (profondeur + 1, `REVIEW_MAX_ITERATIONS` actions — 2026-11-04, `_REVIEW_BRIEF`). Rend
+    (classement agrégé, trace, usage)."""
     letters = anonymised['letters']
     own_letter = {index: letter for letter, index in letters.items()}
     reviewers = sorted(letters.values())
@@ -1898,9 +1936,9 @@ def _peer_review(user, question: str, anonymised: dict, lanes: list, assignment:
         started = time.monotonic()
         try:
             sub = run_assistant_turn(user, message, provider=lane[0], model=lane[1], history=[],
-                                     surface='agent', depth=depth + 1, allowed_tools=frozenset(),
-                                     max_iterations=1, deadline=_sub_deadline(deadline),
-                                     on_event=_STREAM_ONLY)
+                                     surface='agent', depth=depth + 1,
+                                     max_iterations=REVIEW_MAX_ITERATIONS,
+                                     deadline=_sub_deadline(deadline), on_event=_STREAM_ONLY)
         except Exception as e:
             logger.exception("[ai_chat] relecteur en panne")
             sub = {'error': f"Relecteur en panne : {e}"}
@@ -1993,7 +2031,8 @@ def _delegate(user, args: dict, *, provider, llm_model, depth, deadline,
         return ({'error': f"Sous-agent sans rapport : {sub.get('response', '')}",
                  'model': sub.get('model', '')}, steps, usage)
     return ({'report': sub.get('response', ''), 'model': sub.get('model', ''),
-             'tools_used': [step['tool'] for step in steps]}, steps, usage)
+             'tools_used': [step['tool'] for step in steps],
+             **({'cut': True} if sub.get('cut') else {})}, steps, usage)
 #: Si le modèle veut ENCORE un outil : la trace de ce qui a été exécuté, jamais l'appel brut.
 _TOOL_LIMIT_NOTICE = (
     "⚠ J'ai atteint la limite d'actions pour ce tour sans pouvoir conclure. Actions exécutées : "
@@ -2004,6 +2043,17 @@ _HISTORY_EMPTY_PLACEHOLDER = "(Ce tour s'est terminé sans réponse rédigée.)"
 _EMPTY_ANSWER_RETRY_PROMPT = (
     "Ta réponse précédente était vide. Réponds maintenant à l'utilisateur, ou, pour appeler un "
     "outil, écris son appel JSON dans ta réponse : {\"tool\": \"<nom>\", \"args\": {…}}.")
+#: Joint à la demande de SUITE d'une réponse coupée à la limite de longueur.
+_CUT_CONTINUE_PROMPT = (
+    "Ta réponse précédente a été coupée par la limite de longueur. Continue-la EXACTEMENT là où "
+    "elle s'arrête — sans rien répéter, sans introduction — et termine-la.")
+#: Joint à une réponse restée coupée après sa suite : ce qui manque se DIT, jamais en silence.
+_CUT_NOTICE = "⚠ Réponse coupée par la limite de longueur du modèle : sa fin manque."
+#: Joint au renvoi d'un appel d'outil illisible (JSON invalide).
+_MALFORMED_CALL_PROMPT = (
+    "Ton appel d'outil n'est pas un JSON valide (accolade, guillemet ou virgule manquants) : rien "
+    "n'a été exécuté. Renvoie l'appel seul, en JSON valide : {\"tool\": \"<nom>\", \"args\": {…}} "
+    "— ou réponds à l'utilisateur.")
 #: Réponse finale VIDE, deux fois de suite : la trace de ce qui a été exécuté, jamais un vide.
 _EMPTY_ANSWER_NOTICE = (
     "⚠ Le modèle n'a rédigé aucune réponse pour ce tour.{done} Reposez la question, ou "
@@ -2530,6 +2580,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # Reste à 0 pour les autres fournisseurs, qui ne rapportent pas de coût.
     total_usage = {'input_tokens': 0, 'output_tokens': 0, 'cost_usd': 0.0}
     empty_retried = False
+    # Une réponse COUPÉE à la limite de longueur : sa première part, en attente de sa suite (une
+    # seule demandée) ; un appel d'outil mal formé : un seul renvoi demandé.
+    cut_text, cut_continued, malformed_retried = '', False, False
     # Bascule sur panne : les sources essayées dans ce tour, et les relais déjà faits (dits). Un
     # modèle TIRÉ n'attend pas une limite de débit — il a un relais ; l'option n'est passée que
     # là, l'appel d'un modèle choisi garde sa forme d'avant.
@@ -2611,13 +2664,37 @@ def run_assistant_turn(user, message: str, provider: str = None,
         total_usage['cost_usd']      += result.get('cost_usd') or 0.0
         if result.get('model_used'):
             etiquette = _label(provider, llm_model, local, served=result['model_used'])
+        if cut_text:
+            text, cut_text = f"{cut_text}{text}", ''
 
         # Detect tool call in response
         tool_call = _parse_tool_call(text) if user else None
+        known = set()
         if not tool_call and user:
             from wama.tool_api import TOOL_REGISTRY
-            tool_call = _bare_call(text, set(TOOL_REGISTRY) | dev_names
-                                   | {'charger_competence', DELEGATE_TOOL})
+            known = set(TOOL_REGISTRY) | dev_names | {'charger_competence', DELEGATE_TOOL}
+            tool_call = _bare_call(text, known)
+
+        if not tool_call and result.get('cut') and not cut_continued and text.strip():
+            # RÉPONSE COUPÉE (2026-11-04, épreuve du council) : arrêtée au plafond de longueur —
+            # 4 096 jetons, réflexion comprise —, elle passait pour complète : un rapport finissait
+            # au milieu d'un mot, un autre après 236 caractères. Une seule SUITE est demandée, sans
+            # réflexion (elle a pu prendre le budget) ; les deux parts se recollent au tour suivant
+            # — un appel d'outil coupé redevient ainsi un appel. Encore coupée : le tour le DIT.
+            cut_continued, cut_text, think = True, text, False
+            logger.warning("[ai_chat] réponse coupée de %s — suite demandée", etiquette)
+            messages.append({"role": "assistant", "content": text})
+            messages.append({"role": "user", "content": _CUT_CONTINUE_PROMPT})
+            continue
+        if not tool_call and not malformed_retried and _malformed_call(text, known):
+            # APPEL MAL FORMÉ (2026-11-04, épreuve du council) : le parent a écrit son `delegate`
+            # en JSON invalide ; il était AFFICHÉ à l'utilisateur comme réponse. Un seul renvoi
+            # demandé ; encore illisible, le texte reste la réponse (rien n'est deviné).
+            malformed_retried = True
+            logger.warning("[ai_chat] appel d'outil mal formé de %s — renvoi demandé", etiquette)
+            messages.append({"role": "assistant", "content": text})
+            messages.append({"role": "user", "content": _MALFORMED_CALL_PROMPT})
+            continue
 
         if not tool_call:
             # No tool call → this is the final answer
@@ -2654,11 +2731,15 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 done = ', '.join(dict.fromkeys(step['tool'] for step in tool_steps))
                 clean_text = _EMPTY_ANSWER_NOTICE.format(
                     done=f" Actions exécutées : {done}." if done else '')
+            cut = bool(result.get('cut')) and not unanswered
+            if cut:
+                clean_text = f"{clean_text}\n\n{_CUT_NOTICE}"
             refusals = _refusals_notice(tool_steps)
             if refusals:
                 clean_text = f"{clean_text}\n\n{refusals}"
             # `unanswered` : la réponse est l'AVERTISSEMENT, pas un texte du modèle — une DONNÉE
             # que lit l'appelant d'un sous-agent (`_delegate`), jamais une phrase à reconnaître.
+            # `cut` : la réponse est INCOMPLÈTE (coupée encore après sa suite) — même nature.
             return {
                 'success': True,
                 'response': clean_text,
@@ -2667,6 +2748,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 'usage': total_usage,
                 'tool_steps': tool_steps,
                 **({'unanswered': True} if unanswered else {}),
+                **({'cut': True} if cut else {}),
             }
 
         # Execute the tool
@@ -2684,7 +2766,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
             # du tour, et leurs étapes vont à la trace (`sub_agents`), jamais au modèle du parent.
             # Le JOURNAL (étape 3) : par sous-agent, sa tâche, son modèle, ses étapes, sa durée.
             # Le PLAFOND compte des SOUS-AGENTS, pas des appels : une vague en lance plusieurs.
-            # Une RELECTURE (`review`) est un appel sans outil, pas un sous-agent : elle ne compte pas.
+            # Une RELECTURE (`review`) n'est pas un sous-agent (elle vérifie, en quelques lectures,
+            # l'avis des autres) : elle ne compte pas.
             budget = MAX_DELEGATIONS_PER_TURN - sum(
                 1 for step in tool_steps if step['tool'] == DELEGATE_TOOL
                 for agent in step.get('sub_agents') or () if agent.get('role') != 'reviewer')
@@ -2787,13 +2870,17 @@ def run_assistant_turn(user, message: str, provider: str = None,
         total_usage['input_tokens'] += result.get('input_tokens', 0)
         total_usage['output_tokens'] += result.get('output_tokens', 0)
         total_usage['cost_usd'] += result.get('cost_usd') or 0.0
-    final = _math_symbols_to_text(_strip_think_tags(text or ''))
+    # Une suite demandée au dernier tour de la boucle : la première part se recolle ici aussi.
+    final = _math_symbols_to_text(_strip_think_tags(f"{cut_text}{text or ''}"))
     unanswered = not final or bool(_parse_tool_call(final))
     if unanswered:
         # Le modèle veut encore un outil, ou n'a rien rendu : on dit ce qui a été EXÉCUTÉ —
         # la trace, pas un récit, et jamais l'appel brut.
         done = ', '.join(dict.fromkeys(step['tool'] for step in tool_steps))
         final = _TOOL_LIMIT_NOTICE.format(done=done)
+    cut = text is not None and bool(result.get('cut')) and not unanswered
+    if cut:
+        final = f"{final}\n\n{_CUT_NOTICE}"
     refusals = _refusals_notice(tool_steps)
     return {
         'success': True,
@@ -2804,4 +2891,5 @@ def run_assistant_turn(user, message: str, provider: str = None,
         'usage': total_usage,
         'tool_steps': tool_steps,
         **({'unanswered': True} if unanswered else {}),
+        **({'cut': True} if cut else {}),
     }

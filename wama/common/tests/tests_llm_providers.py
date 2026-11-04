@@ -402,3 +402,34 @@ class ProviderSaturationNoteTest(SimpleTestCase):
             with self.subTest(error=type(error).__name__):
                 self._fail(error)
                 self.assertEqual('', self._noted('instance'))
+
+
+class CutResponseTest(SimpleTestCase):
+    """2026-11-04 (council put to the test): a reply stopped at the length limit passed for a
+    complete one — `llm_chat(outcome=…)` says it, without touching the (text, error) contract."""
+
+    def _chat(self, module, **kwargs):
+        outcome = {}
+        with patch.dict(sys.modules, {'litellm': module}):
+            text, err = llm_utils.llm_chat(MESSAGES, provider='albert', model='m', api_key='k',
+                                           outcome=outcome, **kwargs)
+        return text, err, outcome
+
+    def test_a_reply_stopped_at_the_limit_is_said_cut(self):
+        fake = _fake_litellm('début de rép')
+        fake.completion.return_value.choices[0].finish_reason = 'length'
+        self.assertEqual(('début de rép', None, {'cut': True}), self._chat(fake))
+        fake.completion.return_value.choices[0].finish_reason = 'stop'
+        self.assertEqual(('début de rép', None, {}), self._chat(fake))
+
+    def test_a_streamed_reply_says_it_from_its_last_chunk(self):
+        from types import SimpleNamespace as NS
+
+        def chunk(text, finish=None):
+            return NS(choices=[NS(delta=NS(content=text, tool_calls=None), finish_reason=finish)])
+        for finish, expected in (('length', {'cut': True}), ('stop', {})):
+            with self.subTest(finish=finish):
+                module = types.ModuleType('litellm')
+                module.completion = MagicMock(return_value=iter([chunk('a'), chunk('b', finish)]))
+                self.assertEqual(('ab', None, expected),
+                                 self._chat(module, on_delta=lambda fragment: None))

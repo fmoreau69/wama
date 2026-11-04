@@ -469,7 +469,9 @@ class CouncilTest(TestCase):
                 provider='ollama', llm_model='a', depth=0, deadline=None, budget=6)
         reviews = [c for c in calls if c[0].startswith(_REVIEW_BRIEF[:40])]
         self.assertEqual(['albert', 'ilaas', 'ollama'], sorted(c[1] for c in reviews))
-        self.assertTrue(all(c[2]['allowed_tools'] == frozenset() for c in reviews))
+        # Depuis le 2026-11-04 un relecteur VÉRIFIE les faits : outils de lecture d'un sous-agent
+        # (profondeur 1), en quelques actions (`CouncilUnderTrialTest`).
+        self.assertTrue(all(c[2]['depth'] == 1 and 'allowed_tools' not in c[2] for c in reviews))
         decider_message = calls[-1][0]
         self.assertIn('Relectures croisées', decider_message)
         self.assertIn('Classement agrégé', decider_message)
@@ -654,6 +656,103 @@ class CouncilUnderTrialTest(TestCase):
         from wama.common.services.assistant_engine import _DECIDER_BRIEF
         self.assertIn("reste ouvert", _DECIDER_BRIEF)
         self.assertIn("pas d'avis exploitable", _DECIDER_BRIEF)
+
+    # ── Rejouée, corrections en place : les trois défauts qui restaient ──────────────────────
+
+    def _scripted_turn(self, replies):
+        """Un tour dont chaque appel au modèle rend la réponse suivante de `replies` — (texte,
+        usage). Rend (résultat, messages vus par appel, outils exécutés)."""
+        user = User.objects.create(username=f'trial_turn_{User.objects.count()}')
+        script, seen, executed = iter(replies), [], []
+
+        def llm(messages, *a, **k):
+            seen.append([dict(m) for m in messages])
+            return next(script)
+
+        def run(name, args, user, **_options):
+            executed.append((name, args))
+            return {'results': []}
+
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=llm), \
+                mock.patch('wama.tool_api.execute_tool', side_effect=run):
+            result = assistant_engine.run_assistant_turn(user, 'Q ?', provider='albert', model='m')
+        return result, seen, executed
+
+    def test_the_cut_crosses_the_declared_source_up_to_the_turn(self):
+        """`llm_chat(outcome=…)` → `chat_with_source` → `_llm_call` : la coupure arrive au tour."""
+        def chat(messages, *, outcome=None, **k):
+            outcome['cut'] = True
+            return 'début', None
+
+        with mock.patch('wama.common.utils.llm_utils.llm_chat', side_effect=chat), \
+                mock.patch('wama.common.privacy.gate.privacy_gate', return_value=None):
+            text, usage = assistant_engine._llm_call([{'role': 'user', 'content': 'Q'}], 'm',
+                                                     'albert')
+        self.assertEqual(('début', True), (text, usage.get('cut')))
+
+    def test_a_cut_reply_gets_its_end_once_and_is_glued(self):
+        from wama.common.services.assistant_engine import _CUT_CONTINUE_PROMPT
+        result, seen, _ = self._scripted_turn([('Première part, ', {'cut': True}),
+                                               ('et la fin.', {})])
+        self.assertEqual('Première part, et la fin.', result['response'])
+        self.assertNotIn('cut', result)
+        self.assertEqual(_CUT_CONTINUE_PROMPT, seen[1][-1]['content'])
+
+    def test_a_reply_still_cut_says_so_as_data_and_in_words(self):
+        from wama.common.services.assistant_engine import _CUT_NOTICE
+        result, seen, _ = self._scripted_turn([('Début, ', {'cut': True}),
+                                               ('suite', {'cut': True})])
+        self.assertEqual(2, len(seen))                               # une seule suite demandée
+        self.assertTrue(result.get('cut'))
+        self.assertTrue(result['response'].startswith('Début, suite'))
+        self.assertIn(_CUT_NOTICE, result['response'])
+
+    def test_a_tool_call_cut_in_two_becomes_a_call_again(self):
+        result, _, executed = self._scripted_turn([
+            ('{"tool": "search_docs", "args": {"query": "pip', {'cut': True}),
+            ('elines"}}', {}), ('Réponse.', {})])
+        self.assertEqual([('search_docs', {'query': 'pipelines'})], executed)
+        self.assertEqual('Réponse.', result['response'])
+
+    def test_a_malformed_call_to_a_known_tool_is_asked_again_not_shown(self):
+        from wama.common.services.assistant_engine import _MALFORMED_CALL_PROMPT
+        result, seen, executed = self._scripted_turn([
+            ('```json\n{"tool": "search_docs", "args": {"query": "x"}\n', {}),
+            ('{"tool": "search_docs", "args": {"query": "x"}}', {}), ('Réponse.', {})])
+        self.assertEqual(_MALFORMED_CALL_PROMPT, seen[1][-1]['content'])
+        self.assertEqual([('search_docs', {'query': 'x'})], executed)
+        self.assertEqual('Réponse.', result['response'])
+
+    def test_an_unknown_tool_name_stays_text_and_is_not_asked_again(self):
+        text = 'Exemple de format : {"tool": "outil_inconnu", "args": {'
+        result, seen, _ = self._scripted_turn([(text, {})])
+        self.assertEqual(1, len(seen))
+        self.assertEqual(text, result['response'])
+
+    def test_a_cut_opinion_reaches_its_readers_marked_as_cut(self):
+        user = User.objects.create(username='trial_cut_opinion')
+        with mock.patch.object(assistant_engine, 'run_assistant_turn',
+                               return_value={'success': True, 'response': 'avis', 'cut': True}):
+            result, _, _ = assistant_engine._delegate(user, {'task': 'Q ?'}, provider='albert',
+                                                      llm_model='m', depth=0, deadline=None)
+        self.assertTrue(result['cut'])
+        text = assistant_engine._anonymise([result, {'report': 'entier'}])['text']
+        self.assertEqual(1, text.count('COUPÉ'))
+
+    def test_reviewers_check_the_facts_with_read_tools_in_a_few_actions(self):
+        from wama.common.services.assistant_engine import REVIEW_MAX_ITERATIONS, _REVIEW_BRIEF
+        user = User.objects.create(username='trial_reviewers')
+        anonymised = {'letters': {'A': 0, 'B': 1}, 'text': 'Avis [A] :\na\n\nAvis [B] :\nb'}
+        with mock.patch.object(assistant_engine, 'run_assistant_turn',
+                               return_value={'response': 'CLASSEMENT FINAL:\n1. Avis A\n2. Avis B',
+                                             'model': 'm'}) as turn:
+            assistant_engine._peer_review(user, 'Q ?', anonymised, [('albert', 'x')], [0, 0],
+                                          depth=0, deadline=None)
+        kwargs = turn.call_args.kwargs
+        # Les outils d'un sous-agent (profondeur 1 : lecture seule), pas « aucun outil ».
+        self.assertNotIn('allowed_tools', kwargs)
+        self.assertEqual((1, REVIEW_MAX_ITERATIONS), (kwargs['depth'], kwargs['max_iterations']))
+        self.assertIn('VÉRIFIE', _REVIEW_BRIEF)
 
 
 class SubscriptionArbiterTest(TestCase):

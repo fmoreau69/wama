@@ -796,7 +796,7 @@ verdict « POURSUIVRE » sans matière** — et cinq défauts, chacun ramené le
    ouvert, et qu'un groupe sans matière le dit au lieu de conclure.
 Gardes : `tests_delegation.CouncilUnderTrialTest` (7). ⏳ **Relevé, non tranché** — un PLANCHER de
 modèle pour un agent n'a pas été posé : l'échelle de qualité du lot ne le permet pas (mesuré :
-`qwen-3.8-27b` 19,3 sous `gemma4:e4b` 33,3 dans `_quality_scalars` ; `gpt-oss-120b` et les deux
+`qwen-3.8-27b` 19,3 sous `gemma4:e4b` 33,3 dans `_quality_scalars` ; `gpt-oss-120b` et les trois
 Mistral sans aucune note ; la note coding d'`AGENT_CODING_FLOOR` n'est portée que par un distant sur
 onze). C'est l'appariement des bancs du catalogue qu'il faut compléter, pas le council à borner. Et
 la note de saturation est posée par SOURCE (`source_quota.note_saturation`, clé
@@ -818,6 +818,27 @@ caractères, `qwen-3.8-27b` après 236 — un rapport tronqué passe pour un avi
 `unanswered` ne voit que le vide). Et l'avis le mieux classé porte une erreur de FAIT (« le run ne
 stocke pas le corps » — il le fige, `studio/services/launch.py:239`, `StudioRun.graph`) que ni les
 relecteurs ni le décideur n'ont relevée : sans outil, ils jugent la cohérence, pas l'exactitude.
+✅ **Les trois défauts restants, corrigés le soir même (demande de Fabien : « corrige les défauts
+constatés »)** :
+- **rapports coupés** — la cause était NOTRE plafond : `_llm_call` envoie `num_predict=4096` à tout
+  distant, réflexion comprise (14 000 caractères ≈ 4 096 jetons ; `qwen-3.8` au cran Qualité avait
+  réfléchi presque tout son budget). Le fournisseur le dit (`finish_reason == 'length'`) ;
+  `llm_chat(outcome=…)` le remonte sans toucher au contrat (texte, erreur), par `chat_with_source`
+  jusqu'à `_llm_call` (`cut`). Le tour demande alors UNE suite, sans réflexion, et recolle les deux
+  parts — un appel d'outil coupé redevient un appel ; encore coupée, la réponse le dit
+  (`_CUT_NOTICE`, donnée `cut`), et un avis coupé arrive marqué « COUPÉ » à ses relecteurs et au
+  décideur. La consigne d'un agent de council demande 800 mots au plus ;
+- **appel mal formé affiché brut** — un `{"tool": "<outil annoncé>"` que le décodeur ne lit pas
+  (`_malformed_call`) fait demander UN renvoi au modèle, rien n'est deviné ni réparé ; un nom
+  inconnu reste du texte (un exemple cité) ;
+- **erreur de fait passée la relecture** — écart VOULU au LLM Council : le relecteur VÉRIFIE les
+  affirmations de fait, contre la question d'abord, puis avec les outils de lecture d'un sous-agent
+  (`REVIEW_MAX_ITERATIONS = 3`) ; le décideur reste sans outil.
+Gardes : `CouncilUnderTrialTest` (15), `tests_llm_providers.CutResponseTest`. ⏳ **Non corrigé, à
+décider** : la note de saturation par SOURCE — un statut 503 ou une connexion coupée valent pour
+toute la source (`llm_utils.provider_saturation`, portée `all`), parce que l'échec se lit au statut,
+jamais au texte, et qu'un 503 ne dit pas si UN modèle ou la passerelle est tombé. La rendre par
+modèle changerait la bascule entre clouds de toutes les apps (`ROADMAP §8d`).
 
 **REA et Ghidra pour générer une app « depuis un projet GitHub ou une interface existante »
 (2026-10-29, question de Fabien) — évalués, rien d'installé.** Ghidra (NSA, Apache-2.0) décompile
