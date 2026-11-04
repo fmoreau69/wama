@@ -28174,3 +28174,37 @@ que le contrôle laisse passer, dite `en`). Le texte est à relire, la console l
 peut-être ; `demucs` n'a ni poids ni ligne de catalogue, cela passerait par la route.
 ⚠ Non joué : la chaîne dans un vrai worker (à relancer) ; YuE2 chantant en français (catalogue : `zh`, `en`) ; les 12
 covers finis n'ont pas leurs paroles, aucun n'a été relancé.
+
+
+## §CLÔTURE 2026-11-04, « PRÉSENTATION, VOIX » — session du 02→04/11 — poussé (`origin/dev` contient `2f0651164`) — vérifié EN SERVICE après la relance du 04/11 15:45
+
+Livré (shas lus au `git log`) :
+- `0e839f4b3` — le curseur Rapide ↔ Qualité règle aussi la RÉFLEXION d'un LLM distant qui raisonne (`WAMA_LLM.md`).
+- `001cc68b5`, `f9a974466` — présentation remesurée la veille d'un exposé (chiffres lus au code, concile, Phonon au
+  Synthesizer, 10 apps à 100 %).
+- `b27fd9750` — loupe de la frise Roadmap (molette, pincement, glisser, double-clic, 0/Échap), 18 jalons sans
+  chevauchement ; `2f0651164` la fait passer par `WamaGestures.track` (page autonome : elle monte la brique des gestes
+  et `wama-touch.css` elle-même, `WAMA_APP_CONVENTIONS §23`).
+- `42bb3bbeb` — avatar DÉSYNCHRONISÉ : le service de voix restait bloqué après une parole coupée (verrou des moteurs
+  rendu par un autre fil, flux abandonné jamais fermé — `_ClosingStream`, `ClosingChunks`), et les lèvres suivaient une
+  durée PRÉDITE ; elles se posent sur la parole MESURÉE, coupures = marques de souffle de `tts_text` (copie JS tenue
+  égale par un test, `2f0651164`). `WAMA_LLM.md`, voix en flux, 2026-11-03.
+
+Vérifié en service le 04/11 (gunicorn, service de voix relancés à 15:45) : la page servie charge la brique des gestes ;
+molette, glisser, pincement ×2,00, touche 0 jouées dans le navigateur, la diapositive reste `#roadmap`, 0 erreur
+console ; les quatre statiques servis sont identiques au dépôt ; trois voix Phonon coupées en plein flux, la parole
+suivante répond en ~0,7 s.
+
+Contrôles mesurés le 04/11 : 451 tests (périmètre voix/avatar/loupe + gardes transverses), 4 rouges PRÉEXISTANTS, aucun
+de la session — `tests_touch.NothingRevealedOnHoverAloneTest` (`wama-constellation.css`, `.wc-legend-row:hover`,
+commit du 22/10) ; `tests_identifier_language` ×3 (classes 133 > 132, méthodes 1288 ≠ 1289 : recaler le budget est le
+geste de qui a renommé ; la liste filtrée sur les fichiers de tests de la session ne porte aucun nom ajouté par elle).
+`check_docs` 0 cassée / 3812 ; `check_redundancy` 101, 0 dans les fichiers de la session ; `doc_facts --check` :
+4 blocs périmés (mécanismes, outils, `conformite`, `docs/dev/briques.md`), tous mêlés au travail non commité d'autres
+sessions — la part de celle-ci : la ligne « WAMA au doigt » (11 → 12 consommateurs, la présentation) et « Gestes au
+pointeur » (+2), à régénérer par qui commitera ces registres.
+
+⚠ Restes de la session : le rendu des lèvres À L'ÉCRAN reste à juger par Fabien (les tests mesurent le calage, aucune
+garde visuelle) ; une diapositive dédiée au concile a été proposée, pas faite (décision de Fabien).
+
+🔚 POINT D'ENTRÉE : aucun chantier ouvert par cette session ; juger les lèvres de l'avatar à l'écran.
