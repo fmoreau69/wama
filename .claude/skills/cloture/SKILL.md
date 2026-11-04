@@ -255,6 +255,12 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
   test `_model()` a été signalée contre `lang_routing.model_languages`. **Débruiter le sien**
   (renommer) plutôt que s'habituer au bruit — *un contrôle bruyant se contourne*. Compter :
   la trouvaille doit disparaître après le geste.
+  🔴 **Un renommage « de débruitage » reste un renommage** (vécu le 2026-11-04) : `_label` d'un
+  module renommé par regex dans CE module, alors qu'une vue l'importait DANS SA FONCTION
+  (`from .app_access import _label`) — `ImportError` à la première requête, vu seulement par le
+  test de la page. ✅ Avant : `grep -rn "import.*\b<nom>\b\|\.<nom>\b"` sur tout le dépôt (imports
+  différés compris) ; un nom importé ailleurs n'est pas privé — le rendre PUBLIC en le renommant ;
+  après : relancer les tests des modules IMPORTEURS, pas seulement ceux du fichier renommé.
 - 🔴 **Et il produit des faux NÉGATIFS — « rien chez moi » ne clôt pas la question** (ajouté le
   2026-10-06). Session anonymizer/aperçu : le gardien ne relevait RIEN dans mes fichiers, la
   relecture a trouvé **quatre** recopies — une sonde `probe_video` homonyme de celle de
