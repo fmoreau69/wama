@@ -32,6 +32,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 
 from django.conf import settings
@@ -1412,6 +1413,18 @@ _SUB_AGENT_BRIEF = (
     "ci-dessous avec tes outils de lecture, puis rends un rapport court et factuel : ce que tu as "
     "trouvé, avec ses sources (liens copiés des résultats d'outils), et ce qui reste incertain.\n\n"
     "Tâche : ")
+#: Ce que reçoit un agent de COUNCIL (la même question à plusieurs agents, ou une décision commune) :
+#: un AVIS, pas une enquête. Vécu le 2026-11-04 (council sur les pipelines imbriqués) : sous la
+#: consigne ci-dessus, deux agents ont passé leurs cinq actions à chercher une section de doc, puis
+#: rendu « je n'ai pas pu vérifier » — aucune position sur les sept questions posées.
+_COUNCIL_AGENT_BRIEF = (
+    "Tu es un agent d'un council de l'assistant WAMA : tu ne parles pas à l'utilisateur. D'autres "
+    "agents reçoivent la même question ; vos avis seront relus, comparés et tranchés. Rends TON "
+    "AVIS argumenté : ta position sur chaque point demandé, tes raisons, les risques que tu vois. "
+    "Tes outils de lecture servent à VÉRIFIER un point précis, jamais à remplacer l'avis : la "
+    "question expose ce qu'il faut pour juger ; si une source te manque, juge sur ce qu'elle "
+    "expose et dis ce qui reste incertain. Cite les sources que tu as lues (liens copiés des "
+    "résultats d'outils).\n\nQuestion : ")
 #: La RÈGLE de délégation, jointe aux règles du prompt d'outils quand les sous-agents sont proposés
 #: (étape 5). Mesuré le 2026-10-29 (Albert `gpt-oss-120b`, trois questions) : avec les seules règles
 #: d'effort dans la description de `delegate` — une ligne parmi 90 outils —, la question simple
@@ -1452,7 +1465,9 @@ _DECIDER_BRIEF = (
     "ont traité la même question ; leurs avis, anonymes et dans un ordre quelconque, suivent. "
     "Tranche : rédige la réponse que le groupe soutient, en citant pour chaque point l'avis qui le "
     "fonde ([A], [B]…). Dis explicitement où les avis divergent et lequel tu retiens, et pourquoi. "
-    "N'ajoute aucun fait qu'aucun avis n'apporte.\n\nQuestion : {question}\n\n{opinions}{reviews}")
+    "N'ajoute aucun fait qu'aucun avis n'apporte. Un point qu'aucun avis n'ARGUMENTE reste ouvert : "
+    "dis-le, ne le tranche pas ; et si aucun avis n'apporte de matière, dis que le groupe n'a pas "
+    "d'avis exploitable plutôt que de conclure.\n\nQuestion : {question}\n\n{opinions}{reviews}")
 #: Ce que reçoit chaque RELECTEUR (`review`) : le format du classement est celui que la lecture
 #: déterministe sait lire (`_RANKED_LABEL`), comme le `FINAL RANKING:` du LLM Council.
 _REVIEW_BRIEF = (
@@ -1550,7 +1565,6 @@ def _sub_agent_lanes(user, provider, llm_model, count: int, council: bool = Fals
     parent_local = provider in _LOCAL_PROVIDERS
     lanes = [] if council and parent_local else [parent]
     try:
-        from wama.common.utils.auto_model import AUTO, resolve_model_choice
         from wama.model_manager.services.cloud_models import is_cloud_key
         lot, cloud = _sub_agent_candidates(user)
         remote = {k for k in lot if is_cloud_key(k)}
@@ -1559,15 +1573,12 @@ def _sub_agent_lanes(user, provider, llm_model, count: int, council: bool = Fals
         intent = assistant_settings(user).get('quality_intent')
 
         def draw(candidates):
-            key = resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
-                                       quality_intent=intent, cloud_keys=cloud, user=user,
-                                       candidates=candidates)
-            if not key or key not in candidates:
+            key = _draw_key(user, candidates, cloud, intent)
+            if key is None:
                 return False
-            source, _, model_id = str(key).partition(':')
-            used_sources.add(source)
+            used_sources.add(key.partition(':')[0])
             used_keys.add(key)
-            lanes.append((SOURCE_PROVIDERS.get(source, source), model_id or None))
+            lanes.append(_lane_of(key))
             return True
 
         while len(lanes) < count:
@@ -1603,20 +1614,53 @@ def _decider_lane(user, provider, llm_model, exclude: set) -> tuple:
         source, _, model_id = str(chosen).partition(':')
         return SOURCE_PROVIDERS.get(source, source), model_id or None
     try:
-        from wama.common.utils.auto_model import AUTO, resolve_model_choice
         from wama.model_manager.services.cloud_models import is_cloud_key
         lot, cloud = _sub_agent_candidates(user)
         others = [k for k in lot if k not in exclude]
-        candidates = [k for k in others if is_cloud_key(k)] or others
-        key = (resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
-                                    quality_intent=100, cloud_keys=cloud, user=user,
-                                    candidates=candidates) if candidates else None)
-        if key in candidates:
-            source, _, model_id = str(key).partition(':')
-            return SOURCE_PROVIDERS.get(source, source), model_id or None
+        key = _draw_key(user, [k for k in others if is_cloud_key(k)] or others, cloud, 100)
+        if key is not None:
+            return _lane_of(key)
     except Exception:
         logger.debug("[ai_chat] tirage du décideur indisponible — modèle du tour", exc_info=True)
     return provider, llm_model
+
+
+def _draw_key(user, candidates: list, cloud, quality_intent) -> str | None:
+    """La clé de catalogue que le TIRAGE COMMUN retient parmi `candidates`, None s'il n'en rend
+    aucune — UNE lecture pour les couloirs, le décideur et le remplaçant d'un agent en panne."""
+    if not candidates:
+        return None
+    from wama.common.utils.auto_model import AUTO, resolve_model_choice
+    key = resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
+                               quality_intent=quality_intent, cloud_keys=cloud, user=user,
+                               candidates=candidates)
+    return key if key and key in candidates else None
+
+
+def _lane_of(key: str) -> tuple:
+    """(fournisseur, modèle) d'une clé de catalogue `<source>:<modèle>`."""
+    source, _, model_id = str(key).partition(':')
+    return SOURCE_PROVIDERS.get(source, source), model_id or None
+
+
+def _replacement_lane(user, taken: set) -> tuple | None:
+    """Le couloir qui REMPLACE un agent en panne ou sans réponse (2026-11-04, épreuve du council
+    sur les pipelines imbriqués : deux agents sur cinq perdus — connexion coupée, « busy » —, un
+    troisième sans réponse, et aucun remplacé). Le tirage commun rejoué AU MOMENT de la panne, donc
+    après la note de saturation que `llm_chat` vient de poser, parmi les modèles DISTANTS que la
+    vague n'a pas encore pris (`taken`) — jamais un local : un second couloir local disputerait la
+    carte à celui qui tourne peut-être encore (`_sub_agent_lanes`). None s'il n'y en a pas."""
+    if user is None:
+        return None
+    try:
+        from wama.model_manager.services.cloud_models import is_cloud_key
+        lot, cloud = _sub_agent_candidates(user)
+        key = _draw_key(user, [k for k in lot if is_cloud_key(k) and k not in taken], cloud,
+                        assistant_settings(user).get('quality_intent'))
+    except Exception:
+        logger.debug("[ai_chat] tirage d'un remplaçant indisponible", exc_info=True)
+        return None
+    return None if key is None else _lane_of(key)
 
 
 def _tally(reports: list, options: list) -> dict:
@@ -1683,24 +1727,44 @@ def _delegate_wave(user, args: dict, *, provider, llm_model, depth, deadline, bu
     lanes = _sub_agent_lanes(user, provider, llm_model, len(kept), council=council)
     assignment = [i % len(lanes) for i in range(len(kept))]
 
-    def work(i, lane):
-        started = time.monotonic()
+    # Les modèles que la vague a pris, et le verrou de leur liste : un agent en panne est REMPLACÉ
+    # une fois (`_replacement_lane`), depuis le fil de son couloir.
+    taken, lock = {turn_model_key(*lane) for lane in lanes}, threading.Lock()
+
+    def attempt(i, lane):
         try:
-            result, steps, usage = _delegate(user, kept[i], provider=lane[0], llm_model=lane[1],
-                                             depth=depth, deadline=deadline)
+            return _delegate(user, kept[i], provider=lane[0], llm_model=lane[1], depth=depth,
+                             deadline=deadline, council=council)
         except Exception as e:
             # L'échec d'UN sous-agent est son rapport ; il ne fait pas tomber le tour.
             logger.exception("[ai_chat] sous-agent en panne")
-            result, steps, usage = {'error': f"Sous-agent en panne : {e}"}, [], {}
-        return result, steps, usage, round(time.monotonic() - started, 1)
+            return {'error': f"Sous-agent en panne : {e}"}, [], {}
 
-    outcomes = _run_lanes(lanes, assignment, work)
+    def work(i, lane):
+        started = time.monotonic()
+        result, steps, usage = attempt(i, lane)
+        replaced = None
+        if 'error' in result:
+            with lock:
+                spare = _replacement_lane(user, taken)
+                if spare is not None:
+                    taken.add(turn_model_key(*spare))
+                    lanes.append(spare)
+                    assignment[i] = len(lanes) - 1      # sa relecture suit le remplaçant
+            if spare is not None:
+                logger.info("[ai_chat] sous-agent remplacé : %s → %s", lane, spare)
+                replaced = result['error']
+                result, steps, more = attempt(i, spare)
+                _add_usage(usage, more)
+        return result, steps, usage, round(time.monotonic() - started, 1), replaced
+
+    outcomes = _run_lanes(list(lanes), list(assignment), work)
     reports, trace, usage = [], [], {}
-    for task_args, (result, steps, sub_usage, seconds) in zip(kept, outcomes):
+    for task_args, (result, steps, sub_usage, seconds, replaced) in zip(kept, outcomes):
         task = str(task_args.get('task') or '')
         reports.append({'task': task, **result})
         trace.append({'task': task, 'model': result.get('model', ''), 'steps': steps,
-                      'seconds': seconds})
+                      'seconds': seconds, **({'replaced': replaced} if replaced else {})})
         for key, value in sub_usage.items():
             usage[key] = (usage.get(key) or 0) + (value or 0)
         logger.info("[ai_chat] sous-agent : %s s, %s, outils %s, %s", seconds,
@@ -1898,13 +1962,17 @@ def _synthesise(user, question: str, anonymised: dict, *, lane, depth, deadline,
             entry, sub.get('usage') or {})
 
 
-def _delegate(user, args: dict, *, provider, llm_model, depth, deadline) -> tuple:
+def _delegate(user, args: dict, *, provider, llm_model, depth, deadline,
+              council: bool = False) -> tuple:
     """Un sous-agent : un tour de CETTE boucle, contexte neuf, profondeur + 1 (donc lecture seule,
     `sub_agent_tools`), synchrone — le parent attend son rapport. Le fournisseur et le modèle sont
-    ceux de son COULOIR (`_delegate_wave`) : celui du tour, ou un autre serveur.
+    ceux de son COULOIR (`_delegate_wave`) : celui du tour, ou un autre serveur. Un agent de
+    COUNCIL (`council`) reçoit la consigne d'un AVIS (`_COUNCIL_AGENT_BRIEF`), pas d'une enquête.
 
     Rend (résultat pour le MODÈLE, étapes du sous-agent pour la TRACE, usage) : le parent ne lit que
-    le rapport, jamais les résultats d'outils du sous-agent — c'est l'isolation du contexte."""
+    le rapport, jamais les résultats d'outils du sous-agent — c'est l'isolation du contexte. Un tour
+    sans réponse rédigée (`unanswered`) est un ÉCHEC, pas un rapport : il ne se relit ni ne se
+    classe comme un avis (vécu le 2026-11-04 — l'avis « C » d'un council était cet avertissement)."""
     from wama.common.utils.assistant_skills import resolve_domain
 
     task = str((args or {}).get('task') or '').strip()
@@ -1912,7 +1980,8 @@ def _delegate(user, args: dict, *, provider, llm_model, depth, deadline) -> tupl
         return ({'error': f"{DELEGATE_TOOL} : `task` est requis — la tâche entière, compréhensible "
                           f"sans cette conversation."}, [], {})
     domain = resolve_domain((args or {}).get('domain'))
-    sub = run_assistant_turn(user, _SUB_AGENT_BRIEF + task, provider=provider, model=llm_model,
+    brief = _COUNCIL_AGENT_BRIEF if council else _SUB_AGENT_BRIEF
+    sub = run_assistant_turn(user, brief + task, provider=provider, model=llm_model,
                              history=[], domain=None if domain.development else domain.key,
                              surface='agent', depth=depth + 1,
                              max_iterations=SUB_AGENT_MAX_ITERATIONS,
@@ -1920,6 +1989,9 @@ def _delegate(user, args: dict, *, provider, llm_model, depth, deadline) -> tupl
     steps, usage = sub.get('tool_steps') or [], sub.get('usage') or {}
     if 'error' in sub:
         return {'error': f"Sous-agent en échec : {sub['error']}"}, steps, usage
+    if sub.get('unanswered'):
+        return ({'error': f"Sous-agent sans rapport : {sub.get('response', '')}",
+                 'model': sub.get('model', '')}, steps, usage)
     return ({'report': sub.get('response', ''), 'model': sub.get('model', ''),
              'tools_used': [step['tool'] for step in steps]}, steps, usage)
 #: Si le modèle veut ENCORE un outil : la trace de ce qui a été exécuté, jamais l'appel brut.
@@ -2563,7 +2635,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
                                       history=history, domain=domain, surface=surface,
                                       on_event=on_event, escalated_from=escalated_from,
                                       bounds=bounds)
-            if not clean_text.strip():
+            unanswered = not clean_text.strip()
+            if unanswered:
                 # RÉPONSE VIDE (2026-10-10, fil web n° 37) : la prospection avait tourné, et le tour
                 # rendait '' comme un succès — l'utilisateur ne voyait rien, pas même ce qui avait
                 # été fait. Un seul nouvel essai, sans réflexion (elle peut avoir pris tout le
@@ -2584,6 +2657,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
             refusals = _refusals_notice(tool_steps)
             if refusals:
                 clean_text = f"{clean_text}\n\n{refusals}"
+            # `unanswered` : la réponse est l'AVERTISSEMENT, pas un texte du modèle — une DONNÉE
+            # que lit l'appelant d'un sous-agent (`_delegate`), jamais une phrase à reconnaître.
             return {
                 'success': True,
                 'response': clean_text,
@@ -2591,6 +2666,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 'engine': _engine(provider, llm_model, local),
                 'usage': total_usage,
                 'tool_steps': tool_steps,
+                **({'unanswered': True} if unanswered else {}),
             }
 
         # Execute the tool
@@ -2712,7 +2788,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
         total_usage['output_tokens'] += result.get('output_tokens', 0)
         total_usage['cost_usd'] += result.get('cost_usd') or 0.0
     final = _math_symbols_to_text(_strip_think_tags(text or ''))
-    if not final or _parse_tool_call(final):
+    unanswered = not final or bool(_parse_tool_call(final))
+    if unanswered:
         # Le modèle veut encore un outil, ou n'a rien rendu : on dit ce qui a été EXÉCUTÉ —
         # la trace, pas un récit, et jamais l'appel brut.
         done = ', '.join(dict.fromkeys(step['tool'] for step in tool_steps))
@@ -2726,4 +2803,5 @@ def run_assistant_turn(user, message: str, provider: str = None,
         'engine': _engine(provider, llm_model, local),
         'usage': total_usage,
         'tool_steps': tool_steps,
+        **({'unanswered': True} if unanswered else {}),
     }

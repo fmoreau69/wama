@@ -1137,7 +1137,8 @@ Une balise `WAMA:SECTION(audience=…; type=…; nature=…; etat=…)` sous un 
 
 - **Domicile** : `wama/common/doc_sections.py` · **doc** : [docs/construction/suivi/ROADMAP.md §25](../construction/suivi/ROADMAP.md)
 - **Module** : Marquage des SECTIONS de la doc de construction — à qui elles parlent, quel genre de texte elles sont, et si elles CONSTATENT ou VISENT (ROADMAP.md §25.1 ②).
-- **API publique** (4) :
+- **API publique** (5) :
+  - `code_fence(line: str, opened: str='') -> Tuple[bool, str]` — La règle des blocs de code de Markdown (CommonMark §4.5), UNE fois pour tous les lecteurs
   - `class Section`
   - `parse_attrs(raw: str) -> Tuple[Dict[str, object], List[str]]` — `audience=…; type=…` → attributs + erreurs (vocabulaire ET double vérification).
   - `sections(texte: str) -> Tuple[List[Section], List[Tuple[int, str]]]` — Les sections d'un `.md` avec leurs attributs (propres ou hérités) + les erreurs de

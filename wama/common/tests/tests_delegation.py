@@ -293,7 +293,7 @@ class ParallelWaveTest(TestCase):
         barrier = threading.Barrier(3, timeout=10)      # séquentiel : la barrière casse
         served = {}
 
-        def delegate(user, task_args, *, provider, llm_model, depth, deadline):
+        def delegate(user, task_args, *, provider, llm_model, depth, deadline, **k):
             barrier.wait()
             served[task_args['task']] = provider
             return {'report': f"rapport {task_args['task']}", 'model': provider}, [], {}
@@ -552,6 +552,108 @@ class CouncilTest(TestCase):
             self.assertIn(key, spec['function']['parameters']['properties']['agents']['items']['enum'])
             # Postures d'AGENT : nommées par `delegate`, pas annoncées à chaque tour principal.
             self.assertNotIn(f'`{key}`', competences_announcement())
+
+
+class CouncilUnderTrialTest(TestCase):
+    """L'épreuve du council du 2026-11-04 (pipelines imbriqués) : deux agents ont cherché au lieu de
+    juger, deux sont tombés en panne sans être remplacés, une réponse vide a été relue comme un avis,
+    et le décideur a conclu sans matière. Chaque garde ici tient l'un de ces quatre défauts."""
+
+    def test_a_council_agent_is_asked_for_an_opinion_an_independent_task_for_a_report(self):
+        from wama.common.services.assistant_engine import _COUNCIL_AGENT_BRIEF
+        user = User.objects.create(username='trial_brief')
+        with mock.patch.object(assistant_engine, 'run_assistant_turn',
+                               return_value={'success': True, 'response': 'r'}) as sub:
+            assistant_engine._delegate(user, {'task': 'Q ?'}, provider='albert', llm_model='m',
+                                       depth=0, deadline=None, council=True)
+            council_message = sub.call_args.args[1]
+            assistant_engine._delegate(user, {'task': 'Q ?'}, provider='albert', llm_model='m',
+                                       depth=0, deadline=None)
+            task_message = sub.call_args.args[1]
+        self.assertTrue(council_message.startswith(_COUNCIL_AGENT_BRIEF))
+        self.assertTrue(task_message.startswith(_SUB_AGENT_BRIEF))
+
+    def test_the_wave_tells_each_agent_whether_it_sits_in_a_council(self):
+        user = User.objects.create(username='trial_flag')
+        for args, expected in (({'task': 'Q', 'agents': ['general', 'critique']}, True),
+                               ({'tasks': [{'task': 'a'}, {'task': 'b'}]}, False)):
+            with mock.patch.object(assistant_engine, '_sub_agent_lanes',
+                                   return_value=[('albert', 'x')]), \
+                    mock.patch.object(assistant_engine, '_delegate',
+                                      return_value=({'report': 'r'}, [], {})) as delegate:
+                assistant_engine._delegate_wave(user, args, provider='albert', llm_model='x',
+                                                depth=0, deadline=None, budget=6)
+            self.assertEqual({expected}, {c.kwargs['council'] for c in delegate.call_args_list})
+
+    def test_a_turn_without_a_written_answer_says_so_as_data(self):
+        user = User.objects.create(username='trial_empty')
+        with mock.patch.object(assistant_engine, '_llm_call', return_value=('', {})):
+            empty = assistant_engine.run_assistant_turn(user, 'Q ?', provider='ollama', model='m')
+        with mock.patch.object(assistant_engine, '_llm_call', return_value=('Réponse.', {})):
+            answered = assistant_engine.run_assistant_turn(user, 'Q ?', provider='ollama', model='m')
+        self.assertTrue(empty.get('unanswered'))
+        self.assertNotIn('unanswered', answered)
+
+    def test_an_unanswered_agent_is_a_failure_not_an_opinion(self):
+        user = User.objects.create(username='trial_unanswered')
+        with mock.patch.object(assistant_engine, 'run_assistant_turn',
+                               return_value={'success': True, 'unanswered': True,
+                                             'response': '⚠ aucune réponse', 'model': 'm'}):
+            result, _, _ = assistant_engine._delegate(user, {'task': 'Q ?'}, provider='albert',
+                                                      llm_model='m', depth=0, deadline=None)
+        self.assertIn('error', result)
+        self.assertNotIn('report', result)
+
+    def test_a_failed_agent_is_replaced_once_and_its_review_follows_the_replacement(self):
+        user = User.objects.create(username='trial_replaced')
+        served = []
+
+        def delegate(user, task_args, *, provider, llm_model, **k):
+            served.append((provider, llm_model))
+            if provider == 'ilaas' and llm_model == 'busy':
+                return {'error': 'Sous-agent en échec : busy'}, [], {}
+            return {'report': f'avis de {llm_model}', 'model': llm_model}, [], {}
+
+        with mock.patch.object(assistant_engine, '_sub_agent_lanes',
+                               return_value=[('albert', 'x'), ('ilaas', 'busy')]), \
+                mock.patch.object(assistant_engine, '_delegate', side_effect=delegate), \
+                mock.patch.object(assistant_engine, '_replacement_lane',
+                                  return_value=('ilaas', 'spare')) as spare, \
+                mock.patch.object(assistant_engine, '_peer_review',
+                                  return_value=([], [], {})) as review, \
+                mock.patch.object(assistant_engine, '_synthesise',
+                                  return_value=({'text': 'd'}, {'role': 'decider'}, {})), \
+                mock.patch.object(assistant_engine, '_decider_lane',
+                                  return_value=('ilaas', 'd')) as decider_lane:
+            result, trace, _ = assistant_engine._delegate_wave(
+                user, {'task': 'Q', 'agents': ['general', 'critique'], 'decide': 'review'},
+                provider='albert', llm_model='x', depth=0, deadline=None, budget=6)
+        self.assertEqual({'albert:x', 'ilaas:busy'}, spare.call_args.args[1] - {'ilaas:spare'})
+        self.assertEqual(['avis de x', 'avis de spare'], [r['report'] for r in result['reports']])
+        self.assertEqual(('ilaas', 'spare'), served[-1])
+        self.assertIn('busy', trace[1]['replaced'])
+        # Sa relecture tourne sur le remplaçant, qui a écrit l'avis — pas sur le modèle en panne.
+        lanes, assignment = review.call_args.args[3], review.call_args.args[4]
+        self.assertEqual(('ilaas', 'spare'), lanes[assignment[1]])
+        # Le décideur est tiré HORS du remplaçant aussi : il a donné un avis.
+        self.assertIn('ilaas:spare', decider_lane.call_args.args[3])
+
+    def test_the_replacement_is_a_remote_model_the_wave_has_not_taken(self):
+        user = User.objects.create(username='trial_spare')
+        with mock.patch.object(assistant_engine, '_sub_agent_candidates',
+                               return_value=(['ollama:a', 'albert:x', 'ilaas:z'], set())), \
+                mock.patch('wama.model_manager.services.cloud_models.is_cloud_key',
+                           side_effect=lambda key: not key.startswith('ollama:')), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                           side_effect=lambda *a, candidates, **k: candidates[0]):
+            self.assertEqual(('ilaas', 'z'),
+                             assistant_engine._replacement_lane(user, {'albert:x'}))
+            self.assertIsNone(assistant_engine._replacement_lane(user, {'albert:x', 'ilaas:z'}))
+
+    def test_the_decider_leaves_a_point_without_argument_open(self):
+        from wama.common.services.assistant_engine import _DECIDER_BRIEF
+        self.assertIn("reste ouvert", _DECIDER_BRIEF)
+        self.assertIn("pas d'avis exploitable", _DECIDER_BRIEF)
 
 
 class SubscriptionArbiterTest(TestCase):

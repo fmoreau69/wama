@@ -768,6 +768,42 @@ désormais SANS réflexion sur ces deux modèles. ⏳ Question pour Fabien : le 
 cran Qualité (`_decider_lane`, `quality_intent=100`), mais sa réflexion suit le curseur de
 l'utilisateur — faut-il la lui imposer ?
 
+**Le council mis à l'épreuve sur une vraie question (2026-11-04, demande de Fabien).** Question
+soumise : les pipelines imbriqués du Studio (`ROUTE §10.6` 3.1) — bonne idée, bon chemin ? Dossier
+de 6 000 caractères (décision, ce qui est codé, variantes écartées, restes, sept questions), par
+l'assistant (`fabien.moreau`, tour sans persistance), `agents=[critique, methodology, science,
+general, critique]`, `decide="review"`. Albert indisponible : cinq couloirs ILaaS. Le parent a
+recopié le dossier presque mot pour mot (trois retouches). **Résultat : aucun avis exploitable,
+verdict « POURSUIVRE » sans matière** — et cinq défauts, chacun ramené le jour même :
+1. **le lecteur de doc s'arrêtait à la §10.5 de la route** — un bloc de code ouvert par du code EN
+   LIGNE en tête de ligne (l.4658), jamais fermé : 33 sections sur ~8 000 lignes. Règle de
+   Markdown posée une fois, `doc_sections.code_fence`, lue par ses trois jumelles et la brique JS
+   (`9ea761023`) ;
+2. **les agents cherchaient au lieu de juger** — la consigne de sous-agent demande un rapport de
+   recherche ; deux agents ont passé leurs cinq actions à chercher la §10.6 puis rendu « je n'ai pas
+   pu vérifier ». Un agent de council reçoit désormais la consigne d'un AVIS
+   (`_COUNCIL_AGENT_BRIEF`) : ses outils vérifient un point, ils ne remplacent pas l'avis ;
+3. **une réponse vide relue comme un avis** — l'avertissement « le modèle n'a rédigé aucune
+   réponse » de `llama-3.1-8b` est devenu l'avis « C », relu et classé. Un tour sans réponse rédigée
+   le dit en DONNÉE (`unanswered`), et `_delegate` en fait un échec ;
+4. **deux agents perdus, aucun remplacé** (ILaaS `gemma-4-31b` connexion coupée, `mistral-medium`
+   « busy ») : un agent en échec est remplacé UNE fois (`_replacement_lane`) par le tirage commun
+   rejoué au moment de la panne — après la note de saturation —, parmi les DISTANTS que la vague
+   n'a pas pris, jamais un local ; sa relecture suit le remplaçant, le décideur est tiré hors de
+   lui. Le tirage, écrit deux fois (couloirs, décideur), est extrait (`_draw_key`, `_lane_of`) ;
+5. **le décideur a conclu sans matière** (cinq questions « indéterminées » sur sept, puis
+   « POURSUIVRE, le projet est acté ») : sa consigne dit qu'un point qu'aucun avis n'argumente reste
+   ouvert, et qu'un groupe sans matière le dit au lieu de conclure.
+Gardes : `tests_delegation.CouncilUnderTrialTest` (7). ⏳ **Relevé, non tranché** — un PLANCHER de
+modèle pour un agent n'a pas été posé : l'échelle de qualité du lot ne le permet pas (mesuré :
+`qwen-3.8-27b` 19,3 sous `gemma4:e4b` 33,3 dans `_quality_scalars` ; `gpt-oss-120b` et les deux
+Mistral sans aucune note ; la note coding d'`AGENT_CODING_FLOOR` n'est portée que par un distant sur
+onze). C'est l'appariement des bancs du catalogue qu'il faut compléter, pas le council à borner. Et
+la note de saturation est posée par SOURCE (`source_quota.note_saturation`, clé
+`<source>:<portée>`, sans le modèle) : un « busy » d'un seul modèle d'ILaaS écarte tout ILaaS du
+tirage suivant — l'explication la plus probable du décideur tiré sur le local `gemma4:12b`, non
+prouvée (le journal du tour n'a pas été gardé).
+
 **REA et Ghidra pour générer une app « depuis un projet GitHub ou une interface existante »
 (2026-10-29, question de Fabien) — évalués, rien d'installé.** Ghidra (NSA, Apache-2.0) décompile
 des BINAIRES : pour un dépôt GitHub, on a le source, et la chaîne « dépôt → app » (`ROUTE §10.5`,
