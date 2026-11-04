@@ -1390,9 +1390,11 @@ MECHANISMS = (
               "fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT. Une fin "
               "arrivée PENDANT le tour qui l'a lancée part avec sa réponse (`notices_of_turn`, "
               "joint par `conversation_turn` ; `tell` raconte une seule fois). Et l'entre-deux "
-              "(2026-10-20) : les éléments encore en cours suivis SOUS la réponse, dans l'état de "
+              "(2026-10-20) : les éléments lancés suivis SOUS la réponse, dans l'état de "
               "leur card (`turn_jobs` → `tool_api.job_progress`, `api/ai-chat/jobs/`), leur fin "
-              "demandant la relève",
+              "demandant la relève ; depuis le 2026-11-04, déjà finis aussi (ouverts sur leur "
+              "Sortie, au tour comme au rechargement du fil), et un LOT lancé y déroule ses cards "
+              "filles, dans la surface que son domaine déclare",
               'wama/common/services/job_follow_ups.py', 'docs/construction/suivi/ROADMAP.md §19.2',
               annexes=('wama/gateway/core.py', 'wama/common/static/common/js/wama-assistant-chat.js',
                        'wama/common/tests/tests_job_follow_ups_web.py'),

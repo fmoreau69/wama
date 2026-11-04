@@ -195,18 +195,21 @@ def turn_designations(steps) -> tuple:
 TURN_JOBS_MAX = 20
 
 
-def turn_jobs(user, steps, in_flight_only: bool = True) -> list:
+def turn_jobs(user, steps) -> list:
     """Les éléments qu'un tour a créés ou lancés, chacun dans l'état de sa card (`tool_api.
-    job_progress`) — ce que la barre de progression de l'échange suit (2026-10-20). Par défaut,
-    ceux qui sont ENCORE EN COURS : un élément déjà fini a sa fin racontée par la relève (`tell`).
-    Les tâches de développement (`dev_*`) n'ont pas de progression déclarée : pas de barre."""
+    job_progress`) — la ligne que l'échange montre sous la réponse (2026-10-20) : barre, puis faces
+    de l'aperçu. En cours OU FINIS (2026-11-04, Fabien) : jusque-là seuls les éléments en cours
+    étaient rendus, si bien qu'une tâche plus rapide que la réponse (une image, une conversion)
+    n'avait aucun aperçu, et qu'au rechargement du fil chaque résultat perdait le sien. Sa fin
+    reste racontée par la relève (`tell`) ; la ligne d'un élément fini s'ouvre sur la Sortie.
+    Les tâches de développement (`dev_*`) n'ont pas de progression déclarée : pas de ligne."""
     from wama.tool_api import job_progress
 
     items, _dev_jobs = turn_designations(steps)
     rows = []
     for family, pk in sorted(items)[:TURN_JOBS_MAX]:
         row = job_progress(user, family, pk)
-        if row and not (in_flight_only and row['terminal']):
+        if row:
             rows.append(row)
     return rows
 

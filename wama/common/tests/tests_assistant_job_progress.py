@@ -43,7 +43,7 @@ class JobProgressTest(TestCase):
         self.user = User.objects.create_user('job_progress', password='x')
         self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')[0])
         self.client.force_login(self.user)
-        _lot, (self.card,) = _lot_de(Description, self.user, 1)
+        self.lot, (self.card,) = _lot_de(Description, self.user, 1)
         self.steps = [{'tool': 'add_to_describer', 'args': {'file_path': 'x.png'},
                        'result': {'item_id': self.card.pk}}]
 
@@ -102,21 +102,58 @@ class JobProgressTest(TestCase):
         self.assertEqual([(self.card.pk, 'RUNNING', 30)],
                          [(j['id'], j['status'], j['progress']) for j in jobs])
 
+    def _turn(self, steps):
+        reply = {'response': 'Lancé.', 'tool_steps': steps, 'model': 'test'}
+        with mock.patch('wama.common.services.assistant_engine.conversation_turn',
+                        return_value=dict(reply)):
+            return self.client.post(reverse('ai_chat'), data=json.dumps({'message': 'go'}),
+                                    content_type='application/json').json()
+
     def test_the_turn_reply_carries_its_jobs_while_they_run(self):
-        reply = {'response': 'Lancé.', 'tool_steps': self.steps, 'model': 'test'}
         self._set('RUNNING', 10)
-        with mock.patch('wama.common.services.assistant_engine.conversation_turn',
-                        return_value=dict(reply)):
-            data = self.client.post(reverse('ai_chat'), data=json.dumps({'message': 'go'}),
-                                    content_type='application/json').json()
+        data = self._turn(self.steps)
         self.assertEqual([('describer', self.card.pk)], [(j['family'], j['id']) for j in data['jobs']])
-        # Counter-check: a job already over has its end told by the relay, not a bar.
+
+    def test_a_job_faster_than_the_reply_keeps_its_line_on_its_output(self):
+        """2026-11-04 (Fabien): a job over before the reply ends (an image, a conversion) had no
+        line, so no preview at all — the faster the job, the less was seen. Its line is now given,
+        terminal, and the chat opens it on the output face."""
         self._set('SUCCESS', 100)
-        with mock.patch('wama.common.services.assistant_engine.conversation_turn',
-                        return_value=dict(reply)):
-            data = self.client.post(reverse('ai_chat'), data=json.dumps({'message': 'go'}),
-                                    content_type='application/json').json()
-        self.assertNotIn('jobs', data)
+        (job,) = self._turn(self.steps)['jobs']
+        self.assertEqual((self.card.pk, True, True), (job['id'], job['terminal'], job['ok']))
+        self.assertTrue(job['preview_url'])
+        # Counter-check: a status read designates nothing, so it carries no line.
+        self.assertNotIn('jobs', self._turn([{'tool': 'get_describer_status', 'args': {},
+                                              'result': {'jobs': []}}]))
+
+    @mock.patch('celery.app.task.Task.apply_async', return_value=mock.Mock(id='no-task'))
+    def test_a_launched_batch_gives_the_line_of_each_child_card(self, _no_task):
+        """2026-11-04 (Fabien: « dérouler le processus pour les cards filles d'un lot ») : the ▶ of
+        a batch, played by the assistant, gives each launched child the line a card launched alone
+        gets — in the surface its domain declares (`audio_enhancer` for an audio batch of the
+        enhancer, whose cards are not `enhancer` ones), and its end is told in the thread."""
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        from wama.common.services.job_follow_ups import origin_conversation, turn_jobs
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.common.utils.preview_registry import PreviewRegistry
+        from wama.tool_api import execute_tool
+        for role in (DEFAULT_APP_ACCESS.get('enhancer') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        audio_lot, (audio_card,) = _lot_de(PreviewRegistry.get_model('audio_enhancer'), self.user, 1)
+        steps = []
+        for app, lot in (('describer', self.lot), ('audio_enhancer', audio_lot)):
+            args = {'app': app, 'batch_id': lot.pk}
+            steps.append({'tool': 'launch_batch', 'args': args,
+                          'result': execute_tool('launch_batch', args, self.user)})
+            self.assertTrue(steps[-1]['result'].get('ids'), steps[-1])
+        self.assertEqual([('audio_enhancer', audio_card.pk), ('describer', self.card.pk)],
+                         [(j['family'], j['id']) for j in turn_jobs(self.user, steps)])
+        conversation = self.store.thread(self.user, surface='web')
+        self.store.record_exchange(conversation, 'lance mes lots',
+                                   {'response': 'Lancés.', 'tool_steps': steps})
+        note = mock.Mock(app='audio_enhancer', object_type=type(audio_card).__name__,
+                         object_id=str(audio_card.pk), recipient_id=self.user.pk)
+        self.assertEqual(conversation.pk, origin_conversation(note, 'web').pk)
 
     def test_the_jobs_endpoint_reads_each_item_of_the_user_only(self):
         self._set('PENDING')
@@ -127,15 +164,21 @@ class JobProgressTest(TestCase):
         self.client.logout()
         self.assertEqual(401, self.client.get(reverse('ai_chat_jobs')).status_code)
 
-    def test_the_thread_gives_back_the_bar_of_a_job_still_running(self):
+    def test_the_thread_gives_back_the_line_of_a_job_running_or_over(self):
+        """On reload, a result keeps its line (2026-11-04): before, only a job still running got
+        its bar back, and the history showed text where an output had been produced."""
         from wama.views import _chat_thread
         conversation = self.store.thread(self.user, surface='web')
         self.store.record_exchange(conversation, 'décris ce fichier',
                                    {'response': 'Lancé.', 'tool_steps': self.steps})
         self._set('RUNNING', 20)
         (answer,) = [e for e in _chat_thread(self.user) if e['type'] == 'assistant']
-        self.assertEqual([self.card.pk], [j['id'] for j in answer['jobs']])
+        self.assertEqual([(self.card.pk, False)], [(j['id'], j['terminal']) for j in answer['jobs']])
         self._set('FAILURE')
+        (answer,) = [e for e in _chat_thread(self.user) if e['type'] == 'assistant']
+        self.assertEqual([(self.card.pk, True)], [(j['id'], j['terminal']) for j in answer['jobs']])
+        # Counter-check: an item deleted since has no line left.
+        type(self.card).objects.filter(pk=self.card.pk).delete()
         (answer,) = [e for e in _chat_thread(self.user) if e['type'] == 'assistant']
         self.assertNotIn('jobs', answer)
 
@@ -321,6 +364,58 @@ class ChatFollowsTheJobsTest(SimpleTestCase):
             return seen;
         })()""")
         self.assertEqual([0, 0, 1, 1, 2], out, 'the first paint and an unchanged state replay nothing')
+
+    def _block_of(self, ctx, jobs):
+        """Builds the block of a reply with the served `jobsBlock`; gives what the Poller started."""
+        return self._read(ctx, """(function () {
+            started.length = 0;
+            function part() { var p = el(); p.remove = function () {}; return p; }
+            document.createElement = function () {
+              var r = el();
+              r.appendChild = function () {};
+              r.querySelector = function () { return part(); };
+              return r; };
+            chat.jobsBlock(%s);
+            return started;
+        })()""" % json.dumps(jobs))
+
+    def test_a_block_already_over_shows_its_lines_without_following_them(self):
+        """2026-11-04: a reply's block may hold items already over (faster than the reply, or a
+        reloaded thread). They are shown, and nothing polls the server for them."""
+        ctx = self._ctx()
+        over = {'family': 'describer', 'id': 4, 'status': 'SUCCESS', 'progress': 100,
+                'terminal': True, 'ok': True}
+        self.assertEqual([], self._block_of(ctx, [over]))
+        running = dict(over, id=5, status='RUNNING', progress=10, terminal=False, ok=False)
+        self.assertEqual(1, len(self._block_of(ctx, [over, running])), 'one running: followed')
+
+    def test_the_links_the_reply_checks_are_the_links_it_makes_clickable(self):
+        """2026-11-04: the status gives RELATIVE `/media/` addresses, the reply writes them as
+        `[📥 Télécharger](/media/…)`, and the chat only linked http(s) — the user read raw
+        Markdown. The chat links what `assistant_engine._URL_IN_TEXT` checks, nothing else."""
+        ctx = self._ctx()
+
+        def html(text):
+            return self._read(ctx, 'WamaAssistantChat._toHtml(%s)' % json.dumps(text))
+
+        self.assertEqual('<a href="/media/users/1/out.png" target="_blank" rel="noopener">📥 Télécharger</a>',
+                         html('[📥 Télécharger](/media/users/1/out.png)'))
+        self.assertIn('<a href="https://wama.example/media/a.txt"', html('[a](https://wama.example/media/a.txt)'))
+        # Counter-checks: an address the check does not see, or one that would leave the attribute.
+        self.assertNotIn('<a ', html('[x](/transcriber/download/1/)'))
+        self.assertNotIn('<a ', html('[x](javascript:alert(1))'))
+        self.assertNotIn('<a ', html('[x](/media/a" onmouseover="alert(1))'))
+        self.assertNotIn('<a ', html('[x](https://a.example/" onmouseover="alert(1))'))
+
+    def test_the_chat_links_with_the_address_pattern_of_the_reply_check(self):
+        """One list of what an address is, declared by the reply check (`_URL_IN_TEXT`); the chat
+        keeps a copy that must stay equal — a laxer copy would link what the check never saw."""
+        import re
+        from wama.common.services.assistant_engine import _URL_IN_TEXT
+        js = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+              / 'wama-assistant-chat.js').read_text(encoding='utf-8')
+        copy = re.search(r"var LINK = /\\\[\(\[\^\\\]\]\+\)\\\]\\\(\((.+)\)\\\)/g;", js).group(1)
+        self.assertEqual(_URL_IN_TEXT.pattern.replace("\\'", "'"), copy.replace('\\/', '/'))
 
     def test_an_item_no_longer_served_stops_and_says_so(self):
         ctx = self._ctx()

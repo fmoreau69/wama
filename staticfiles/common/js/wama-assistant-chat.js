@@ -69,13 +69,17 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  // Sous-ensemble de Markdown, SÛR : on échappe d'abord, on enrichit ensuite, et seuls les
-  // liens http(s) deviennent cliquables.
+  // Sous-ensemble de Markdown, SÛR : on échappe d'abord, on enrichit ensuite, et seules les
+  // adresses que le contrôle des liens de la réponse VÉRIFIE deviennent cliquables — http(s) et
+  // fichiers `/media/` (2026-11-04 : le statut rend des adresses RELATIVES, que la réponse écrit
+  // en `[📥 Télécharger](/media/…)` ; elles restaient en texte brut). Même motif que
+  // `assistant_engine._URL_IN_TEXT`, qui retire du texte tout lien qu'aucun outil n'a donné ;
+  // ni espace ni guillemet dans l'adresse : rien ne sort de l'attribut `href`.
+  var LINK = /\[([^\]]+)\]\(((?:https?:\/\/|\/media\/)[^\s)\]>"'`]+)\)/g;
   function toHtml(text) {
     var h = escapeHtml(text);
     h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    h = h.replace(LINK, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     return h.replace(/\n/g, '<br>');
   }
 
@@ -482,8 +486,9 @@
     if (row._faces && before !== undefined && before !== row.dataset.jobStatus) row._faces.refresh();
   };
 
-  /** Le bloc de suivi d'une réponse : une ligne par élément lancé et encore en cours. Rendu vide
-   *  (`null`) sans job ou sans adresse de suivi ; sinon suivi jusqu'à ce que tous soient finis. */
+  /** Le bloc de suivi d'une réponse : une ligne par élément lancé, en cours ou déjà fini (sa
+   *  Sortie). Rendu vide (`null`) sans job ou sans adresse de suivi ; suivi jusqu'à ce que tous
+   *  soient finis — pas du tout s'ils le sont déjà. */
   Chat.prototype.jobsBlock = function (jobs) {
     if (!jobs || !jobs.length || !this.cfg.jobsUrl) return null;
     var self = this;
@@ -491,7 +496,7 @@
     block.className = 'wama-assistant-jobs';
     block.dataset.jobsBlock = String(++jobBlockSeq);
     jobs.forEach(function (job) { block.appendChild(self.jobRow(job)); });
-    this.followJobs(block);
+    if (jobs.some(function (job) { return !job.terminal; })) this.followJobs(block);
     return block;
   };
 
@@ -591,7 +596,7 @@
       else if (entry.type === 'user') self.feed.appendChild(self.bubble(entry.content, 'user'));
       else if (entry.type === 'assistant') {
         self.feed.appendChild(self.bubble(entry.content, 'assistant', entry.model));
-        // Un traitement lancé par cette réponse et qui tourne encore (`_chat_thread`) : sa barre.
+        // Un traitement lancé par cette réponse (`_chat_thread`) : sa barre, ou sa Sortie s'il est fini.
         var block = self.jobsBlock(entry.jobs);
         if (block) self.feed.appendChild(block);
         lastModel = entry.model || lastModel;
@@ -1011,5 +1016,6 @@
     first: function () { return instances[0] || null; },
     // Pour les tests V8 (`tests_assistant_reach`) : les gestes du prototype s'éprouvent sans DOM.
     _Chat: Chat,
+    _toHtml: toHtml,
   };
 })(window);

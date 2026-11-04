@@ -35,9 +35,9 @@ def _chat_thread(user) -> list:
     from wama.common.services import conversation_store
     fil = Conversation.objects.filter(user=user, surface='web', thread_key='').first()
     entries = conversation_store.display_entries(fil)
-    # Un traitement long lancé depuis le fil survit à la page : à son rechargement, la réponse qui
-    # l'a lancé retrouve sa barre (`jobs`) tant qu'il tourne (2026-10-20). Les derniers tours
-    # seulement — chaque élément se relit.
+    # Un traitement lancé depuis le fil survit à la page : à son rechargement, la réponse qui
+    # l'a lancé retrouve sa ligne (`jobs`) — sa barre tant qu'il tourne (2026-10-20), ses faces
+    # d'aperçu une fois fini (2026-11-04). Les derniers tours seulement — chaque élément se relit.
     from wama.common.services.job_follow_ups import turn_jobs
     steps_seen = 0
     for i in range(len(entries) - 1, -1, -1):
@@ -331,9 +331,10 @@ def _turn_follow_ups(request, result) -> None:
         from wama.common.services.job_follow_ups import web_follow_ups
         result['follow_ups'] = web_follow_ups(request.user, notices,
                                               absolute=request.build_absolute_uri)
-    # Les éléments que le tour a lancés et qui tournent ENCORE : la réponse les porte, le chat en
-    # suit la progression sous elle (2026-10-20, `ai_chat_jobs`) — l'utilisateur n'a plus à
-    # redemander où en est un traitement long ; sa fin reste racontée par la relève.
+    # Les éléments que le tour a lancés : la réponse les porte, le chat en suit la progression sous
+    # elle (2026-10-20, `ai_chat_jobs`) — l'utilisateur n'a plus à redemander où en est un
+    # traitement long ; sa fin reste racontée par la relève. Un élément DÉJÀ fini (plus rapide que
+    # la réponse) y est aussi, sur sa Sortie (2026-11-04).
     if result.get('tool_steps'):
         from wama.common.services.job_follow_ups import turn_jobs
         jobs = turn_jobs(request.user, result['tool_steps'])
@@ -341,7 +342,7 @@ def _turn_follow_ups(request, result) -> None:
             result['jobs'] = jobs
 
 
-#: Tours relus, à l'affichage du fil, pour y remettre la progression des jobs encore en cours.
+#: Tours relus, à l'affichage du fil, pour y remettre la ligne (barre, aperçu) de leurs jobs.
 THREAD_JOBS_TURNS = 10
 
 

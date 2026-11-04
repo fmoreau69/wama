@@ -5114,6 +5114,28 @@ du volet, devenu commun (`WamaMediaPreview.faceViewer`) — Pendant pendant le c
 fin, les onglets et Comparer, le double-clic vers la visionneuse. Détail et preuves :
 `WAMA_APP_GENERATION_ROUTE.md §F3b` (« ② SOLDÉ »). ⏳ Les canaux (Discord) ne montrent pas de face
 non plus.
+✅ **Trois trous de l'aperçu dans l'échange, le 2026-11-04** (relevés à la question de Fabien :
+*« la preview complète est-elle bien fonctionnelle depuis l'assistant ? […] Est-ce bien tout
+automatisé ? »*, corrigés à sa demande) :
+- **une tâche plus rapide que la réponse n'avait AUCUN aperçu**, et **le fil rechargé perdait celui
+  de chaque résultat** : `turn_jobs` ne rendait que les éléments en cours (filtre `in_flight_only`,
+  retiré). La ligne d'un élément fini s'ouvre sur la Sortie (face par défaut de `faceViewer`) ; un
+  bloc déjà tout fini n'est pas suivi par le Poller (`jobsBlock`). Plus la tâche était rapide, moins
+  on en voyait ;
+- **les liens « 📥 Télécharger » écrits par l'assistant restaient en Markdown brut** : le statut
+  rend des adresses `/media/…` RELATIVES, le chat ne liait que `http(s)`. Il lie désormais ce que
+  vérifie le contrôle des liens de la réponse, au même motif (`assistant_engine._URL_IN_TEXT`) — et
+  ni espace ni guillemet dans l'adresse : un `"` y sortait jusque-là de l'attribut `href` ;
+- **un LOT lancé par l'assistant n'était suivi nulle part** (ni ligne, ni fin racontée au fil) :
+  `launch_batch` est générique, sa famille ne se lisait pas à son nom. `items_of_step` lit son
+  résultat (`started`, `app`, `ids`) : les cards filles lancées sont désignées dans la SURFACE que
+  le domaine déclare (`app_modes.domain_surface` — `audio_enhancer` pour un lot audio de
+  l'enhancer), validée par la vue du lot avant le lancement. Au plus `TURN_JOBS_MAX` (20) lignes.
+Gardes : `tests_assistant_job_progress` (tour, fil rechargé, lot réel de deux domaines et fil
+d'origine retrouvé ; V8 sur les liens et le bloc fini) et `tests_tool_item_contract`.
+⏳ Restent : le Studio (`run_studio_pipeline`) et l'installation de modèle (`install_model`) n'ont
+pas de famille suivie (hors `TRIAD_SPECS`) — ni ligne, ni fin racontée au fil ; un lot de plus de
+20 éléments n'en montre que 20, chacun raconté à sa fin.
 
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) 🔄 *(relevé du 2026-10-26)*
 

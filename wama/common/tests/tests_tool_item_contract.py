@@ -109,6 +109,19 @@ class ItemsOfStepTest(SimpleTestCase):
             'add_to_anonymizer', {}, {'error': 'Valeur hors schéma', 'item_id': 3}))
         self.assertEqual([], tool_api.items_of_step('list_user_files', {}, {'item_id': 3}))
 
+    def test_a_batch_launch_designates_its_child_cards_in_the_surface_it_names(self):
+        """2026-11-04: `launch_batch` is generic (its name names no app), so its launched cards
+        were found nowhere — no line in the exchange, no end told in the thread. Its result names
+        the SURFACE the domain declares, and the child cards' ids."""
+        self.assertEqual([('audio_enhancer', 7), ('audio_enhancer', 8)], tool_api.items_of_step(
+            'launch_batch', {'app': 'audio_enhancer', 'batch_id': 3},
+            {'started': True, 'app': 'audio_enhancer', 'batch_id': 3, 'ids': [7, 8]}))
+        # Counter-checks: a refusal, and a start that names no surface (a model install).
+        self.assertEqual([], tool_api.items_of_step(
+            'launch_batch', {'app': 'audio_enhancer', 'batch_id': 3}, {'error': 'lot introuvable'}))
+        self.assertEqual([], tool_api.items_of_step(
+            'install_model', {'model_key': 'm'}, {'started': True, 'model_key': 'm', 'task_id': 't'}))
+
     def test_the_family_of_an_audio_creation_is_its_own(self):
         self.assertEqual([('audio_enhancer', 5)], tool_api.items_of_step(
             'add_to_audio_enhancer', {}, {'audio_enhancement_id': 5, 'item_id': 5}))

@@ -5274,15 +5274,26 @@ def items_of_step(tool_name, args, result) -> list:
       - une création rend la clé UNIFORME `item_id` (`STUDIO_VISION §2`) ;
       - un lancement nomme l'élément par son argument principal, dérivé de la signature
         (`primary_arg_name` — la convention par laquelle le Studio l'appelle) ; un lancement de
-        toute la file rend ses `ids`.
+        toute la file rend ses `ids` ;
+      - un LOT lancé (`launch_batch`, le ▶ de la card mère, 2026-11-04) rend `started`, la
+        SURFACE de ses éléments (`app`) et les `ids` des cards filles lancées. L'outil est
+        générique, sa famille ne se lit donc pas à son nom : c'est cette surface, celle que le
+        DOMAINE déclare (`app_modes.domain_surface` — `audio_enhancer` pour un lot audio de
+        l'enhancer), validée par la vue du lot avant le lancement (`_batch_view`).
     Un suivi (`get_*_status`), une erreur, un outil transverse : aucun élément.
     Sert à retrouver D'OÙ vient une tâche — le fil d'un canal où elle a été demandée (2026-10-06).
     """
     family = tool_family(tool_name)
     role = tool_role(tool_name)
-    if not family or role == 'status' or not isinstance(result, dict) or 'error' in result:
+    if not isinstance(result, dict) or 'error' in result:
         return []
-    if role == 'start':
+    if family is None and result.get('started') is True and result.get('app'):
+        family, role = str(result['app']), 'batch'
+    if not family or role == 'status':
+        return []
+    if role == 'batch':
+        ids = list(result.get('ids') or [])
+    elif role == 'start':
         one = (args or {}).get(primary_arg_name(tool_name) or '')
         ids = [one] if one not in (None, '') else list(result.get('ids') or [])
     else:
