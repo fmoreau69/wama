@@ -591,6 +591,8 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
   — mesuré : YuE2 à 10, 50 et 90. Hors cover, les six modèles de musique portent depuis le
   soir même un a priori DÉCLARÉ et sourcé (`WAMA_QUALITE`, étage a priori) : rapide → MusicGen
   Small, équilibré et qualité → YuE2 (il retombait sur la VRAM : MiniMax-Music3).
+  ✅ **2026-11-03, les paroles du morceau repris** : process `composer.extract_lyrics`, qui remplit le
+  champ « Paroles » de la card (`WAMA_LLM.md §Paroles et contrat`) ; le port `work_audio` ne change pas.
 
 ### 6.11 Une VALEUR de réglage exige une CAPACITÉ — `capabilitySlot` (2026-10-05)
 

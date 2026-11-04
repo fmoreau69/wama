@@ -128,6 +128,10 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
         max_length=500, upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )
+    # Le MODÈLE qui écoute les paroles (`extract_lyrics`, `rendered_lyrics`, 2026-11-03) : le même
+    # patron. Clé de catalogue d'un modèle de la tâche `transcription`, ou « auto ».
+    lyrics_model = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
+                                    help_text="Clé de catalogue du modèle de transcription des paroles, ou « auto ».")
     # PARTITION DU RENDU (2026-10-26, décision de Fabien : « on propose les deux, l'entrée et la
     # sortie ») : process OPTIONNEL `rendered_parts` — le morceau PRODUIT → sa partition complète,
     # pour comparer ce qui a été demandé et ce qui a été joué. Dérivé du rendu, lu seulement : il ne

@@ -219,6 +219,39 @@ class YuE2Backend(MusicGenerationBackend):
     SCORE_COMPILER_DIR = "skills/yue2-music/instrumental/scripts"
     #: Grille de quantification : 1/8 de noire (= L:1/32), la grille binaire du compilateur.
     MIDI_GRID = 8
+    #: Le lecteur de partition DU MOTEUR (vendorisé, importé tel quel) : le dialecte à deux voix de
+    #: YuE2 et SheetSage2, temps exacts, refus de ce qu'il ne connaît pas.
+    SCORE_READER_DIR = "skills/yue2-music/scripts"
+
+    @classmethod
+    def score_sections(cls, abc: str) -> list:
+        """Les SECTIONS d'une partition native (`% verse`, `% chorus`… — `references/abc-editing.md`) :
+        `[{name, start, end, sings}]`, en secondes au tempo écrit ; `sings` : la voix `Vocal` y porte
+        une note. Le lecteur du moteur donne les mesures et les notes ; seule la correspondance
+        entre un commentaire et ses mesures s'établit ici. Lève `ValueError` hors du dialecte."""
+        reader = cls.import_vendored("abc_tools", subdir=cls.SCORE_READER_DIR)
+        score = reader.parse_abc(abc)
+        vocal = score.voices["Vocal"]
+        seconds = lambda quarters: float(quarters * 60 / score.bpm)    # noqa: E731
+        sections, name, opens, bar = [], '', True, 0
+        for index, line in enumerate(score.text.splitlines()):
+            if line.startswith("% "):
+                name, opens = line[2:].strip(), True
+                continue
+            if score.music_lines.get(index) != "Vocal":
+                continue
+            count = sum(int(cell.strip()[1:] or 1) if re.fullmatch(r"Z[2-4]?", cell.strip()) else 1
+                        for cell in line[:-1].split("|"))
+            first, last = vocal.bars[bar], vocal.bars[bar + count - 1]
+            start, end = first[0], last[0] + last[1]
+            if opens or not sections:
+                sections.append({'name': name or 'verse', 'start': start, 'end': end})
+                opens = False
+            sections[-1]['end'] = end
+            bar += count
+        return [{'name': s['name'], 'start': seconds(s['start']), 'end': seconds(s['end']),
+                 'sings': any(s['start'] <= note[0] < s['end'] for note in vocal.notes)}
+                for s in sections]
 
     @classmethod
     def _score_abc(cls, score_path: str) -> str:

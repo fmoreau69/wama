@@ -28146,12 +28146,31 @@ de son avant `decode`), MusicGen ne diffuse pas au-delà de sa durée max (`audi
 long, la face « pendant » reste donc vide. ⏳ Ni la progression (0 → 80 → 100) ni la raison ne se voient : `on_token`
 du pipeline n'est pas branché, une capacité déclarée pourrait dire « ce moteur ne rend le son qu'à la fin ».
 
-**⏳ Ouvert, décision de Fabien** : un cover par YuE2 ne porte ni le texte ni la langue d'origine, faute de les
-recevoir (`protocol.py:81-88` ; le composer envoie `[instrumental]`). La doc du moteur prescrit de transcrire les
-paroles (`vendor/yue/docs/covers.md:53`). Piste : process optionnel `extract_lyrics`, résultat au champ `lyrics`.
-⚠ Le français n'est pas mesuré sur YuE2 (catalogue : `zh`, `en`), ni Whisper sur une chanson avec instruments.
+**Ouvert puis livré (palier suivant)** : un cover par YuE2 ne porte ni le texte ni la langue d'origine, faute de
+les recevoir (`protocol.py:81-88` ; le composer envoie `[instrumental]`). La doc du moteur prescrit de transcrire
+les paroles (`vendor/yue/docs/covers.md:53`).
 
 **⏳ Défaut n° 3, à mesurer DANS le worker une fois la carte libre** : le worker GPU se voit 1,2 Go libres quand
 `nvidia-smi` en donne ~8. Relevé d'un process neuf : pilote 22,45 Go libres, annonces 14,0 Go, effectif 8,45 ; l'écart
 de 7,25 Go ressemble à son empreinte propre, vue par sa sonde ET retranchée en annonce (Whisper CTranslate2).
 
+
+## §PALIER 2026-11-04, « LES PAROLES D'UNE CHANSON REJOIGNENT LE CHAMP "PAROLES" » — non poussé — 🔴 relancer gunicorn + workers
+
+Demande de Fabien : récupérer les paroles d'une chanson, et celles que le modèle invente, dans le champ de la card,
+« sans rien réinventer ». Deux process optionnels du pipeline commun, `composer.extract_lyrics` (l'entrée, avant le
+rendu) et `composer.rendered_lyrics` (le rendu, s'il a chanté de lui-même), réglage `lyrics_model` (auto + curseur +
+manuel, migration additive `0028`, appliquée). Écoute `whisper_utils.transcribe_audio`, modèle par la route
+(`ctx.ensure_model`), sections lues par le lecteur du moteur (`abc_tools`), langue en tête du style (`generation.md`).
+Un champ rempli n'est jamais réécrit ; « Instrumental » écarte les deux. Doc : `WAMA_LLM` « Paroles ÉCOUTÉES ».
+
+**La mesure a renversé le tirage, avant tout commit.** Prévu comme le describer (Whisper d'abord), joué sur de vrais
+morceaux du lot : Whisper large-v3 invente (« Thank you for watching! » : 48 mots, 4 distincts) et son filtre de
+parole écarte tout le chant (0 segment). Qwen3-ASR 1.7B entend : Plénitude en français, 232 mots, 173 s ; Fall en
+anglais, 244 mots, 92 s. D'où Qwen d'abord pour le chant, et `lyrics.enough_heard` qui refuse une boucle.
+Le rendu de YuE2 (`rendered_lyrics`, #1226) : 324 mots en anglais, 198 s. Tout mesuré SANS écrire en base.
+⚠ Ce qui reste faible : une langue mêlée (Al Dunya, arabe et anglais : 66 mots, translittérés, une boucle « I cry »
+que le contrôle laisse passer, dite `en`). Le texte est à relire, la console le dit. Séparer la voix aiderait
+peut-être ; `demucs` n'a ni poids ni ligne de catalogue, cela passerait par la route.
+⚠ Non joué : la chaîne dans un vrai worker (à relancer) ; YuE2 chantant en français (catalogue : `zh`, `en`) ; les 12
+covers finis n'ont pas leurs paroles, aucun n'a été relancé.

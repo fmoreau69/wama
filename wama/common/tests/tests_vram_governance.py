@@ -207,7 +207,7 @@ class ReleaseChannelTest(_WithRegistry):
         self.assertEqual((0, []), (freed, calls))
         self.assertEqual({}, gov.release_acks(request_id), 'its silence must not read as a refusal')
 
-    def test_a_busy_holder_refuses_and_says_so(self):
+    def test_a_busy_holder_keeps_it_and_says_so(self):
         request_id, freed, calls = self._targeted(busy=True)
         self.assertEqual((0, []), (freed, calls))
         self.assertTrue(gov.release_acks(request_id)['6000']['busy'])
@@ -219,7 +219,7 @@ class ReleaseChannelTest(_WithRegistry):
         self.assertEqual((0, []), (freed, calls))
         self.assertTrue(gov.release_acks(request_id)['6000']['busy'])
 
-    def test_a_tenant_that_declares_no_targeted_unload_frees_nothing(self):
+    def test_a_tenant_without_a_targeted_unload_frees_nothing(self):
         _request_id, freed, _calls = self._targeted(unload_model=None)
         self.assertEqual(0, freed)
 
@@ -264,7 +264,7 @@ class ReleaseChannelTest(_WithRegistry):
         self.assertIn("n'est pas chargé", message)
         self.assertEqual({}, gov.pending_release_requests(), 'nothing was asked of anyone')
 
-    def test_every_model_hosting_service_declares_itself_a_tenant(self):
+    def test_every_model_hosting_service_listens_for_release(self):
         """Lu dans le code : le service privacy vivait hors du canal, ses 2,6 Go hors d'atteinte."""
         from pathlib import Path
 

@@ -117,15 +117,23 @@ SCORE_EXTRACTION_TASK = 'audio-to-score'
 #: instrument, distinct d'`audio-to-score` (la grille mélodie + accords qu'un cover suit).
 PARTS_EXTRACTION_TASK = 'audio-to-midi'
 
+#: La tâche du modèle qui ÉCOUTE les paroles (process `extract_lyrics`, `rendered_lyrics`,
+#: 2026-11-03) et ses affinages de tirage, lus par le lancement ET la prévision du select.
+#: Qwen3-ASR d'abord, l'INVERSE de la parole (describer : Whisper d'abord), et c'est MESURÉ sur 3
+#: vrais morceaux avec instruments : Whisper invente en boucle ou n'entend rien, Qwen3-ASR rend les
+#: paroles, en français comme en anglais (`WAMA_LLM`, « Paroles ÉCOUTÉES »).
+LYRICS_TASK = 'transcription'
+LYRICS_RESOLUTION = {'priority': ['qwen', 'vibevoice', 'whisper'], 'available_inputs': ['work_audio']}
 
-def model_for_task(task: str, requested=None, item=None) -> str:
+
+def model_for_task(task: str, requested=None, item=None, **refinements) -> str:
     """Clé de catalogue du modèle d'un process qui n'emploie PAS le modèle de la card : celui que
     la card DÉSIGNE pour ce process (`requested`, son réglage de modèle), sinon le tirage du
     sélecteur commun parmi les modèles INSTALLÉS de `task` (VRAM du moment comprise) — '' s'il
     n'y en a aucun. `item` : la card, dont le tirage lit le curseur et le compte, comme la
     prévision de son select (`resolve_model_choice`). Jamais un nom de modèle ici."""
     from wama.common.utils.auto_model import resolve_model_choice
-    return resolve_model_choice(requested, spec={'task': task}, fallback='', item=item) or ''
+    return resolve_model_choice(requested, spec={'task': task}, fallback='', item=item, **refinements) or ''
 
 
 def task_installed(task: str) -> bool:
@@ -158,6 +166,16 @@ def parts_extractor(gen) -> str:
 def parts_extraction_available() -> bool:
     """La disponibilité du process `parts`."""
     return task_installed(PARTS_EXTRACTION_TASK)
+
+
+def lyrics_transcriber(gen) -> str:
+    """Le modèle qui écoute les paroles de CETTE card : son réglage `lyrics_model`, ou le tirage."""
+    return model_for_task(LYRICS_TASK, getattr(gen, 'lyrics_model', None), item=gen, **LYRICS_RESOLUTION)
+
+
+def lyrics_transcription_available() -> bool:
+    """La disponibilité des process qui écoutent les paroles."""
+    return task_installed(LYRICS_TASK)
 
 
 def covers_audio_by_score(value) -> bool:

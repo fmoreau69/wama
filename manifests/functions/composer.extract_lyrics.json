@@ -1,0 +1,55 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "composer.tasks:compose_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Audio du morceau à reprendre (cover).",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.extract_lyrics",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Les paroles entendues, en sections balisées.",
+        "key": "lyrics",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "music",
+      "gpu"
+    ]
+  },
+  "description": "Écoute les paroles du morceau à reprendre (cover) et les pose dans le champ « Paroles » de la card, en sections calées sur la partition : YuE2 ne reçoit ni l'audio ni son texte, et sa doc prescrit cette transcription. Seulement si le champ est vide et que le modèle chante ; à relire.",
+  "key": "composer.extract_lyrics",
+  "manifest_kind": "function",
+  "name": "Composer — paroles de l'entrée",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.extract_lyrics",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

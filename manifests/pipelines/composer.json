@@ -4,6 +4,21 @@
     "links": [
       {
         "from": "extract_score",
+        "to": "extract_lyrics",
+        "to_port": null
+      },
+      {
+        "from": "extract_lyrics",
+        "to": "plan",
+        "to_port": null
+      },
+      {
+        "from": "extract_score",
+        "to": "render",
+        "to_port": null
+      },
+      {
+        "from": "extract_lyrics",
         "to": "render",
         "to_port": null
       },
@@ -20,6 +35,11 @@
       {
         "from": "render",
         "to": "rendered_parts",
+        "to_port": null
+      },
+      {
+        "from": "render",
+        "to": "rendered_lyrics",
         "to_port": null
       }
     ],
@@ -63,6 +83,24 @@
           "watched": [
             "extract_parts",
             "parts_model",
+            "melody_reference",
+            "source_url"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "composer.extract_lyrics",
+        "id": "extract_lyrics",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "eta": "composer.tasks:lyrics_eta",
+          "gpu": true,
+          "label": "Paroles de l'entrée",
+          "watched": [
+            "lyrics_model",
             "melody_reference",
             "source_url"
           ]
@@ -162,13 +200,29 @@
             "parts_model"
           ]
         }
+      },
+      {
+        "app": null,
+        "function": "composer.rendered_lyrics",
+        "id": "rendered_lyrics",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "eta": "composer.tasks:lyrics_eta",
+          "gpu": true,
+          "label": "Paroles de sortie",
+          "watched": [
+            "lyrics_model"
+          ]
+        }
       }
     ]
   },
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "composer",
   "manifest_kind": "pipeline",
-  "name": "Composer — partition, rendu, sortie (6 process)",
+  "name": "Composer — partition, rendu, sortie (8 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

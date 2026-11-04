@@ -48,9 +48,10 @@ def compose_task(self, generation_id: int, process: str | None = None):
     try:
         run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
                       pipeline=PIPELINE,
-                      processes={'extract_score': _extract_score, 'plan': _plan, 'render': _render,
-                                 'output': _output, 'parts': _parts,
-                                 'rendered_parts': _rendered_parts},
+                      processes={'extract_score': _extract_score, 'extract_lyrics': _extract_lyrics,
+                                 'plan': _plan, 'render': _render, 'output': _output, 'parts': _parts,
+                                 'rendered_parts': _rendered_parts,
+                                 'rendered_lyrics': _rendered_lyrics},
                       model_key=_model_key, notify_label='Composer',
                       only=process)
     finally:
@@ -125,6 +126,17 @@ def parts_eta_key_size(gen) -> tuple[str, float, str]:
 def parts_eta(gen):
     """ETA déclarée du process `parts` : apprise seulement (clé de process, cf. `plan_eta`)."""
     return (*parts_eta_key_size(gen), False, 0.0)
+
+
+def lyrics_eta_key_size(gen) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA des process qui écoutent les paroles : ∝ durée du morceau — la
+    durée DEMANDÉE de la card en tient lieu (la règle de `parts_eta_key_size`)."""
+    return 'composer:lyrics', float(gen.duration or 0), 'audio_sec'
+
+
+def lyrics_eta(gen):
+    """ETA déclarée des process de paroles : apprise seulement (clé de process, cf. `plan_eta`)."""
+    return (*lyrics_eta_key_size(gen), False, 0.0)
 
 
 #: Moteurs ouverts par les lancements EN COURS dans ce process : {id de génération: instance}.
@@ -399,6 +411,92 @@ def _full_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str
         'models': [extractor_key],
         'eta': parts_eta_key_size(gen),
     }
+
+
+def _extract_lyrics(gen, ctx):
+    """GLU du process `extract_lyrics` (2026-11-03) : l'audio du morceau à reprendre → le champ
+    « Paroles ». YuE2 ne reçoit ni cet audio ni son texte : « transcribe and correct the words;
+    align section tags and lyric order with the score » (`vendor/yue/docs/covers.md`)."""
+    from django.conf import settings
+    if not gen.melody_reference:
+        raise RuntimeError("Aucun audio à reprendre : les paroles se lisent sur l'entrée.")
+    return _heard_lyrics(gen, ctx, os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name),
+                         score=_name(gen.extracted_score))
+
+
+def _rendered_lyrics(gen, ctx):
+    """GLU du process `rendered_lyrics` (2026-11-03) : ce que le modèle a chanté de lui-même → le
+    champ « Paroles », pour le relire et le rejouer. Lit l'audio du RENDU, comme la partition de
+    sortie. Il l'a produit sans ces paroles : le rendu n'en est pas périmé (`settle_setting`)."""
+    from wama.common.services import process_runs
+    from wama.common.services.output_process import output_sources
+    from .function_specs import PIPELINE
+    # Les process se décident au LANCEMENT : depuis, le champ a pu se remplir (écoutées dans
+    # l'entrée, écrites à la demande). Elles ont été chantées : rien à écouter, surtout rien à écraser.
+    if str(gen.lyrics or '').strip():
+        return {}
+    sources = [p for p in output_sources(gen, 'audio_output') if os.path.isfile(p)]
+    if not sources:
+        raise RuntimeError("Aucun morceau rendu : les paroles de sortie se lisent sur le rendu.")
+    result = _heard_lyrics(gen, ctx, sources[0], score=_score_to_follow(gen, _model_key(gen)))
+    lyrics = result.get('fields', {}).get('lyrics')
+    if lyrics:
+        process_runs.safely(process_runs.settle_setting, gen,
+                            [s.key for s in PIPELINE.specs if 'lyrics' in PIPELINE.watched_of(s)],
+                            'lyrics', lyrics)
+    return result
+
+
+def _score_sections(gen, score: str) -> list:
+    """Les sections de la partition `score`, lues par le MOTEUR qui la suit (`score_sections`), [] si
+    elle n'en dit rien : les paroles restent alors d'un seul tenant. Jamais une raison d'échouer."""
+    from django.conf import settings
+    from wama.common.backends.manager import backend_for_key
+    reader = getattr(backend_for_key(_model_key(gen)), 'score_sections', None)
+    if not score or reader is None:
+        return []
+    try:
+        with open(os.path.join(settings.MEDIA_ROOT, score), encoding='utf-8') as handle:
+            return reader(handle.read())
+    except (OSError, ValueError) as error:
+        logger.info("[composer] sections de %s illisibles : %s", score, error)
+        return []
+
+
+def _heard_lyrics(gen, ctx, audio_abs: str, *, score: str = '') -> dict:
+    """Un audio → des paroles dans le champ de la card : le corps commun des deux process. Le modèle
+    est celui que la card désigne (`lyrics_model`) ou le tirage ; absent, la ROUTE l'installe et la
+    tâche attend ; DÉCHARGÉ aussitôt (la règle d'`extract_score`) : la carte revient au rendu.
+    Pas de filtre de parole : mesuré, il écarte le CHANT (0 segment sur une chanson entière), et une
+    section muette de la partition s'en charge. Rien d'entendu n'est pas un échec : le champ reste
+    vide et c'est dit."""
+    from wama.common.utils.media_probe import probe_media
+    from wama.common.utils.whisper_utils import transcribe_audio
+    from wama.model_manager.services.memory_manager import MemoryManager
+    from .utils.lyrics import fit_to_duration, lyrics_from_segments
+    from .utils.model_choice import lyrics_transcriber
+    from wama.transcriber.backends.manager import DEFAULT_MODEL_KEY
+
+    key = ctx.ensure_model(lyrics_transcriber(gen) or DEFAULT_MODEL_KEY)
+    duration = float(probe_media(audio_abs).get('duration') or 0)
+    ctx.console(f"[Composer] Écoute des paroles : {key} — {os.path.basename(audio_abs)}")
+    try:
+        heard = transcribe_audio(audio_abs, model_key=key, user=gen.user, duration=duration,
+                                 vad_filter=False)
+    except Exception:
+        ctx.reset_progress()
+        raise
+    finally:
+        if not MemoryManager.unload_model(key):
+            logger.info("[composer] modèle d'écoute de #%s : rien à décharger (%s)", gen.pk, key)
+    lyrics = lyrics_from_segments(heard.segments, fit_to_duration(_score_sections(gen, score), duration))
+    eta = lyrics_eta_key_size(gen)
+    if not lyrics:
+        ctx.console("[Composer] Aucune parole reconnue : le champ « Paroles » reste vide.")
+        return {'models': [key], 'eta': eta}
+    ctx.console(f"[Composer] ✓ Paroles entendues ({heard.language or 'langue inconnue'}, "
+                f"{len(lyrics.split())} mots), à relire dans ⚙ :\n{lyrics}")
+    return {'fields': {'lyrics': lyrics}, 'models': [key], 'eta': eta}
 
 
 def _plan(gen, ctx):

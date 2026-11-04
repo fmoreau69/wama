@@ -106,6 +106,23 @@ def snapshot(settings, watched) -> dict:
     return {key: json_safe(getattr(settings, key, None)) for key in watched}
 
 
+def settle_setting(item, nodes, name: str, value) -> int:
+    """Un réglage qu'un process AVAL écrit depuis le résultat de ses amonts (les paroles écoutées
+    dans le morceau rendu) : la photo de ces amonts le prend aussi. Ils n'ont pas tourné avec une
+    autre valeur que celle-là, ils l'ont PRODUITE : les dire périmés ferait rejouer le morceau
+    d'où elle vient. Rend le nombre de lignes reposées."""
+    from wama.common.services.revisions import json_safe
+    settled = 0
+    for run in lines(item).filter(node_id__in=list(nodes)):
+        taken = dict(run.settings_snapshot or {})
+        if name in taken:
+            taken[name] = json_safe(value)
+            run.settings_snapshot = taken
+            run.save(update_fields=['settings_snapshot'])
+            settled += 1
+    return settled
+
+
 def _write(item, node_id, instance_key, defaults):
     from wama.common.models import ProcessRun
     run, _created = ProcessRun.objects.update_or_create(

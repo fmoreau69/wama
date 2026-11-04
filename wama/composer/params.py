@@ -9,7 +9,8 @@ cardSettings générique lit les data-model/data-duration de la racine de card.
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import Param, schema_to_dicts, seed_param, temperature_param
 from wama.common.utils.output_formats import output_format_params_for_app
-from wama.composer.utils.model_choice import AUTO_MUSIC, AUTO_SFX, PARTS_EXTRACTION_TASK, TASKS
+from wama.composer.utils.model_choice import (AUTO_MUSIC, AUTO_SFX, LYRICS_RESOLUTION, LYRICS_TASK,
+                                              PARTS_EXTRACTION_TASK, TASKS)
 from wama.composer.utils.vocals import (AUTO as VOCALS_AUTO, CHOICES as VOCALS_CHOICES,
                                         SONG as VOCALS_SONG)
 
@@ -63,9 +64,11 @@ PARAMS = [
     # Paroles de l'ÉLÉMENT (2026-10-04) : écrites pour l'utilisateur quand il demande une chanson
     # sans en donner, et éditables ici. Masquées en instrumental (elles ne seraient pas chantées).
     Param(name="lyrics", type="textarea", label="Paroles", icon="fa-music",
-          help="Paroles chantées, en sections balisées ([Verse], [Chorus]…). Écrites pour vous "
-               "si vous demandez une chanson sans en donner ; modifiez-les puis relancez. Des "
-               "paroles écrites dans le prompt, sous la description, priment.",
+          help="Paroles chantées, en sections balisées ([Verse], [Chorus]…). Laissées vides, elles "
+               "se remplissent seules : écoutées dans le morceau repris (cover), écrites si vous "
+               "demandez une chanson, ou écoutées dans le morceau produit quand le modèle a chanté "
+               "de lui-même. À relire ; modifiez-les puis relancez. Des paroles écrites dans le "
+               "prompt, sous la description, priment.",
           show_if={"field": "vocals", "in": [VOCALS_AUTO, VOCALS_SONG]},
           dom_id={"item": "settingsLyrics"}, contexts=("item",), stales=("plan", "render")),
     # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur les « auto », lu au
@@ -149,6 +152,23 @@ PARAMS = [
           dom_id={"panel": "partsModel", "item": "settingsPartsModel",
                   "batch": "batchSettingsPartsModel"},
           contexts=PANEL_ITEM_BATCH, stales=("parts", "rendered_parts")),
+    # Le MODÈLE qui écoute les PAROLES (2026-11-03, décision de Fabien : les récupérer d'une chanson
+    # et les poser dans le champ « Paroles ») : le même patron. Son tirage est propre au chant
+    # (`LYRICS_RESOLUTION`, mesuré). Pas d'interrupteur : la voix « Instrumental » écarte ces process.
+    Param(name="lyrics_model", type="select", label="Modèle d'écoute des paroles",
+          icon="fa-microphone",
+          options_source="catalog",
+          options_query={"task": LYRICS_TASK},
+          options_auto=True,
+          options_resolution=LYRICS_RESOLUTION,
+          help_source="composer",
+          help_fallback={"auto": "Choisi au lancement : Qwen3-ASR d'abord, qui entend le chant là où "
+                                 "Whisper invente, puis selon la mémoire GPU libre. Écoute les "
+                                 "paroles quand le champ « Paroles » est vide."},
+          default="auto",
+          dom_id={"panel": "lyricsModel", "item": "settingsLyricsModel",
+                  "batch": "batchSettingsLyricsModel"},
+          contexts=PANEL_ITEM_BATCH, stales=("extract_lyrics", "rendered_lyrics")),
 ]
 
 # Format + qualité de sortie depuis la brique commune (audio, early-binding auto via le catalogue).

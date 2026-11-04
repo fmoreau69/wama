@@ -236,6 +236,27 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   poser des paroles ou changer la voix ne l'affiche pas périmée — sa photo ne portait pas ces
   réglages. Le ▶ de la card rejoue alors tout (`steps_to_run` : « tous à jour → tous ») et
   repose la photo ; seul le badge « périmé » manque.
+- **Paroles ÉCOUTÉES** (2026-11-03, décision de Fabien : les récupérer d'une chanson et les poser
+  dans le champ `lyrics`). Un cover par YuE2 ne recevait ni texte ni langue : `SongRequest` n'a pas
+  d'audio (`vendor/yue/src/yue2/protocol.py`), SheetSage2 ne rend que des notes, et le composer
+  envoyait `[instrumental]`. La doc du moteur prescrit cette transcription
+  (`vendor/yue/docs/covers.md`). Deux process du pipeline, sans interrupteur : ils n'ont lieu que si
+  le champ est vide, que le prompt n'a pas de paroles et que le modèle chante ; la voix
+  « Instrumental » les écarte. `extract_lyrics` écoute l'entrée, avant ce qui chante ;
+  `rendered_lyrics` écoute ce que le modèle a chanté de lui-même, sans périmer ce qu'il a produit
+  (`process_runs.settle_setting`). **Ils ne réécrivent jamais des paroles posées**, ce qui garde une
+  correction. Modèle : `lyrics_model` (auto + curseur + manuel). **Tirage propre au chant, l'inverse
+  de la parole : Qwen3-ASR d'abord.** Mesuré sur 3 vrais morceaux avec instruments, sans séparation
+  de voix : Whisper large-v3 invente en boucle (« Thank you for watching! », 48 mots dont 4 distincts)
+  et n'entend rien avec son filtre de parole ; Qwen3-ASR 1.7B rend des paroles (235 mots dont 142
+  distincts en français, 244 dont 148 en anglais), sans filtre. Une boucle ne remplit pas le champ
+  (`lyrics.enough_heard`). Sections : le lecteur DU MOTEUR (`YuE2Backend.score_sections` →
+  `abc_tools`, accepte les 12 partitions du lot mesuré), une section où la voix se tait ne reçoit
+  rien ; une phrase s'y place au prorata de son segment, Qwen3-ASR ne donnant pas le temps des mots :
+  une estimation. Langue : en tête du style (`vocals.sung_in`, `generation.md`).
+  ⏳ **Non mesuré** : la justesse mot à mot (relire dans ⚙), et YuE2 chantant en français (catalogue :
+  `zh`, `en`). `demucs` est dans le venv par audiocraft, sans poids ni ligne de catalogue : la
+  séparation de voix n'a pas été nécessaire, et passerait par la route si elle le devenait.
 
 ## PROMPT + SKILLS + RAG + MÉMOIRE — la chaîne complète par surface (état MESURÉ au 2026-08-22)
 

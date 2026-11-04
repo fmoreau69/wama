@@ -643,25 +643,30 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertEqual([], validate(manifest))
         self.assertEqual('media', manifest['world'])
         self.assertEqual([('extract_score', 'composer.extract_score'), ('parts', 'composer.parts'),
+                          ('extract_lyrics', 'composer.extract_lyrics'),
                           ('plan', 'composer.plan'), ('render', 'composer.render'),
                           ('output', 'composer.output'),
-                          ('rendered_parts', 'composer.rendered_parts')],
+                          ('rendered_parts', 'composer.rendered_parts'),
+                          ('rendered_lyrics', 'composer.rendered_lyrics')],
                          [(node['id'], node['function']) for node in manifest['body']['nodes']])
         # Two ALTERNATIVE upstreams of the render (2026-10-03): the score comes from the cover
         # audio, or from the prompt. The full score of the INPUT (2026-10-26) reads the cover and
         # feeds nothing : no link ; the score of the RENDER is a branch of it, beside the output.
-        self.assertEqual([{'from': 'extract_score', 'to': 'render', 'to_port': None},
-                          {'from': 'plan', 'to': 'render', 'to_port': None},
-                          {'from': 'render', 'to': 'output', 'to_port': None},
-                          {'from': 'render', 'to': 'rendered_parts', 'to_port': None}],
-                         manifest['body']['links'])
+        # The lyrics of the input (2026-11-03) take the sections of the score and feed what sings
+        # them ; those of the output are a branch of the render.
+        links = {(link['from'], link['to']) for link in manifest['body']['links']}
+        self.assertEqual({('extract_score', 'extract_lyrics'), ('extract_lyrics', 'plan'),
+                          ('extract_score', 'render'), ('extract_lyrics', 'render'), ('plan', 'render'),
+                          ('render', 'output'), ('render', 'rendered_parts'), ('render', 'rendered_lyrics')},
+                         links)
 
     def test_the_export_command_lists_it(self):
         from wama.common.management.commands.manifest_export import _pipeline_keys
         self.assertIn('composer', _pipeline_keys())
 
     def test_the_task_has_a_glue_for_every_process(self):
-        self.assertEqual({'extract_score', 'plan', 'render', 'output', 'parts', 'rendered_parts'},
+        self.assertEqual({'extract_score', 'extract_lyrics', 'plan', 'render', 'output', 'parts',
+                          'rendered_parts', 'rendered_lyrics'},
                          {spec.key for spec in PIPELINE.specs})
         for spec in PIPELINE.specs:
             self.assertTrue(callable(getattr(tasks, f'_{spec.key}')), spec.key)

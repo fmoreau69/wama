@@ -120,7 +120,7 @@ def prepare_prompt(mode, text, model_key, *, stored_lyrics='', user=None, consol
         say(f"🎤 {name} ne chante pas : le morceau est instrumental.")
         return text, ''
     if lyrics:
-        return (text if from_prompt else _with(caption, lyrics)), ''
+        return (text if from_prompt else _with(sung_in(caption, lyrics), lyrics)), ''
     language = lyrics_language(model_key, user)
     from wama.common.utils.app_metadata import write_lyrics_for
     written = write_lyrics_for('composer', 'prompt', caption, language=language, user=user)
@@ -130,6 +130,20 @@ def prepare_prompt(mode, text, model_key, *, stored_lyrics='', user=None, consol
     say(f"✍️ Paroles écrites en « {language} », gardées sur la card (Paramètres ⚙ → Paroles, "
         f"pour les corriger avant de relancer) :\n{written}")
     return _with(caption, written), written
+
+
+def sung_in(caption, lyrics) -> str:
+    """La description, en tête la LANGUE des paroles de la card (2026-11-03) : c'est là que YuE2 la
+    lit — « Put genre, instruments, vocal character, language, and tempo in `style` »
+    (`vendor/yue/docs/generation.md`), et un cover ne la reçoit de nulle part ailleurs. Langue
+    détectée (`detect_text_language`), nommée par la table commune. Inchangée si la langue n'est
+    pas sûre, ou si la description la nomme déjà."""
+    from wama.common.tts.constants import LANGUAGE_NAMES_EN
+    from wama.common.utils.text_language import detect_text_language
+    name = LANGUAGE_NAMES_EN.get(detect_text_language(lyrics))
+    if not name or name.lower() in str(caption or '').lower():
+        return caption
+    return f"{name}, {caption}" if caption else name
 
 
 def _with(caption, lyrics) -> str:
