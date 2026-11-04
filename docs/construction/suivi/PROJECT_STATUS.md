@@ -28226,3 +28226,85 @@ pointeur » (+2), à régénérer par qui commitera ces registres.
 garde visuelle) ; une diapositive dédiée au concile a été proposée, pas faite (décision de Fabien).
 
 🔚 POINT D'ENTRÉE : aucun chantier ouvert par cette session ; juger les lèvres de l'avatar à l'écran.
+
+## §CLÔTURE 2026-11-01→04, « WRITER ET CV DEPUIS DISCORD, BAC À SABLE À UNE RÈGLE, API DE L'ASSISTANT SUIVIE, À PROPOS / AIDE GÉNÉRÉS, GESTES DE LOT, RAPPORTS DANS À PROPOS » — poussé (`origin/dev`) — ✅ relancé par Fabien le 04/11, vérifié EN DIRECT — 🔚 un seul accesseur du nom court d'un modèle (ci-dessous, point 1)
+
+**Commits de la session** (8, poussés) : `9f87e2421` Writer joignable depuis l'assistant + quatre
+défauts du fil Discord n° 43 + type « CV » · `a552bc316` app NÉE D'UN MANIFESTE : outils, triade et
+nœud du Studio dérivés de sa déclaration (R197, ROUTE §11 #43) · `e91973131` revérification
+(`port_takes`) · `0232c9e73` l'API de l'assistant suit chaque ajout fonctionnel (garde
+`tests_tool_api_coverage`, skill `/api-outils`) ; le bac à sable à UNE règle — admin toutes,
+développeur les siennes et celles qu'on lui ouvre (`AccessGrant`), utilisateur simple aucune (R202,
+ROUTE §11 #44) · `7577c1c77` « À propos » et « Aide » DÉCLARÉS (`app_about.ABOUT`) et DÉRIVÉS pour
+les 12 apps ; les 8 gestes de lot ont leurs outils (budget 8 → 0) ; l'alignement d'un lot au menu
+« … » ; une app du bac à sable porte TOUS ses développeurs (R209, ROUTE §11 #44 #46) · `19721fd2d`
+nommage · `b11531728` revérification (badge, monde, requête synthétique ramenés à leur domicile) ·
+`7ab8def10` l'« À propos » lie les rapports publiés qui parlent de l'app, avec leur date
+(`common/reports.py`).
+
+**Décision de Fabien, 2026-11-04** : la mise en page des onglets « À propos » / « Aide » générés lui
+convient (« Le résultat me convient »).
+
+**Vérifié en direct le 04/11** (serveur relancé, port 8000) : « À propos » et « Aide » répondent 200
+pour transcriber, anonymizer, `anonymizer_01`, cam_analyzer, reader, `writer_01`, imager ; la ligne
+« Rapports » montre transcription (version du 2 octobre 2026), anonymizer et sa jumelle (généré le
+16 octobre 2026), cam_analyzer (généré le 7 octobre 2026), aucune ailleurs ; les trois pages
+`/reports/…` 200. Décision d'accès du middleware (`permissions.refused_app`, lue sans session) :
+utilisateur simple refusé sur les 12 apps du bac à sable, le premier développeur aussi (aucune n'est
+à lui), admin 0 refus.
+
+**Restes — LIMITES de ce que la session a construit (à elle) :**
+1. 🔚 `app_about.short_name` et `card_chips.varying_chips_for_items` coupent tous deux un libellé
+   « Nom — description » au tiret : la convention vit dans la donnée `AIModel.name`, sans
+   accesseur. À faire : UN accesseur côté catalogue, les deux lecteurs le prennent.
+2. Les 9 jumelles du bac à sable (`anonymizer_01`, `composer_01`, `converter_01`, `describer_01`,
+   `enhancer_01`, `imager_01`, `reader_01`, `synthesizer_01`, `transcriber_01`) redéfinissent
+   encore `about_content` dans leur `base.html` : l'ancien texte écrit à la main s'affiche le temps
+   que l'onglet généré se charge. Elles sont gitignorées, donc hors de portée de `tests_app_about`.
+   Se solde en les régénérant depuis leur source (geste de bac à sable, pas une retouche à la main).
+3. Lien de chaque modèle évalué vers son rapport dans « Modèles et publications » : ⏳ tant qu'un
+   rapport ne déclare pas les modèles qu'il mesure (`WAMA_QUALITE` §Rapports d'évaluation GÉNÉRÉS).
+4. « Envoyer vers… » ne propose pas les apps NÉES d'un manifeste (Writer) ; `created_by` du registre
+   du bac à sable est un identifiant de compte (le nom affiché se résout à la lecture,
+   `app_about.origin`) ; vocabulaire de manifeste encore visible dans l'interface du Writer.
+5. Le CV produit pour la demande Discord (card 399 du Writer) contient une date de naissance que le
+   document source ne porte pas : invention du modèle de rédaction, aucune garde ne la relève.
+
+**Question de Fabien ouverte le 04/11, NON tranchée — au chantier « paroles » du composer
+(session de `fd0ba9f86`)** : verser un DOCUMENT de paroles sur la card d'entrée, et baliser les
+sections que l'utilisateur n'a pas nommées. Proposé, rien d'écrit :
+- une 3ᵉ entrée de travail à côté de `work_score` / `work_audio` (`composer/function_specs.py:211`),
+  offerte aux seuls modèles qui chantent (`model_choice.accepts_input`) ; son texte lu SANS modèle
+  (`reference_comprehension.read_document_text` : txt, md, csv, pdf, docx — un scan n'a pas de
+  texte, le dire) puis ÉCRIT dans le champ « Paroles », où il se corrige. Priorité : tapé > document
+  > entendu (`_lyrics_missing`, `function_specs.py:97`, ne fait déjà écouter que si le champ est vide) ;
+- les sections : avec une partition, celles du moteur (`score_sections`, `% verse`…) et le texte
+  ANCRÉ sur les mots entendus (`word_anchoring`, la brique du transcriber et de l'avatar) pour dater
+  chaque ligne ; sans audio, la structure du texte sans modèle (strophes, la strophe qui REVIENT est
+  le refrain, l'unique entre deux refrains vers la fin le pont) ; ambigu : un LLM pose les SEULES
+  balises et un contrôle exige que le texte sans balises soit identique à l'entrée. Aujourd'hui, des
+  paroles sans balises deviennent un seul `[Verse]` (`composer/utils/vocals.py:88`).
+
+**Hérités, pas à cette session :** budget de nommage rouge, classes de test 133 > 132 —
+`CanvasPoseTheNodeFromPipelinesTest` (« pose »), commit `efe1b4490` (Studio, nœud `pipeline`) ; code
+2550 contre 2551 dans l'arbre, par le WIP d'une autre instance sur `wama/views.py`. Imager en 500
+(WIP d'autrui), mode temps réel du Face Analyzer.
+
+**Contrôles attendus au prochain /reprise** (mesurés le 04/11, WSL) :
+- tests du périmètre (25 modules : droits, À propos, lots, outils de l'assistant, gardes
+  transverses) : **597**, rouges NOMMÉS — `tests_identifier_language` ×3 (classes 133 > 132 par
+  `efe1b4490` ; méthodes 1288 contre 1289 déclarées), `FunctionCatalogConformiteTest` TypedFrame
+  (`shuttle_overtakes`, cam_analyzer `3eb967ab7`), `NoPollingInsideATurnTest` — À MOI, corrigé ici : rouge à toutes les
+  révisions rejouées depuis son commit (`9f87e2421` → HEAD), le tour insère aussi
+  `charger_competence` (compétence « dev » chargée après le premier outil de développement) et le
+  test comptait toutes les étapes ; il compte désormais les seuls `dev_job_status`. Pourquoi il était
+  vert à l'écriture n'est PAS établi (la base de test gardée a pu changer) ;
+- `check_docs` : **0** cassée, 0 périmée sur 3812 références ;
+- `doc_facts --check` : le bloc `outils` de la ROUTE recalé (88 → **103** outils, 409 arguments),
+  commité ici ; restent PÉRIMÉS `mecanismes`, `conformite`, `dev-briques`, par le travail d'autres
+  sessions — mes lignes n'y diffèrent de HEAD que par leurs comptes de consommateurs ;
+- `check_redundancy` : **101** trouvailles, une seule dans mes fichiers (`app_access._label`,
+  rapprochée par son NOM de `batch_identity.label_of` — sans rapport) : renommée `app_title`,
+  PUBLIQUE parce que `accounts/views.py` l'importe (un premier renommage en `_app_title` l'avait
+  cassé, vu par `tests_app_access.SurfacesTest` avant tout commit) ;
+- `check_skills` : 0 défaut franc.

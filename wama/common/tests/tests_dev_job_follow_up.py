@@ -150,8 +150,11 @@ class NoPollingInsideATurnTest(TestCase):
             result = assistant_engine.run_assistant_turn(self.user, 'où en est J-2 ?',
                                                          provider='wama-dev-ai', model='m')
         relay.assert_called_once()
-        self.assertEqual(3, len(result['tool_steps']))
-        self.assertIn('déjà vérifié', result['tool_steps'][1]['result']['next_step'])
+        # Les seuls statuts : le tour peut aussi charger la compétence du domaine (`charger_competence`
+        # après le premier outil de développement), un geste distinct de celui qu'on surveille ici.
+        statuses = [s for s in result['tool_steps'] if s['tool'] == 'dev_job_status']
+        self.assertEqual(3, len(statuses))
+        self.assertIn('déjà vérifié', statuses[1]['result']['next_step'])
 
 
 class ClaudeCodeInTheBackgroundTest(TestCase):

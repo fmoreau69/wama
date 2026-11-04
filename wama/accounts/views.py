@@ -1415,7 +1415,7 @@ def app_access_request_page(request, pk: int):
     Refuser pour son créateur et les administrateurs, l'état pour le demandeur. Personne d'autre
     ne la voit."""
     from django.http import Http404
-    from .app_access import _label, can_grant
+    from .app_access import app_title, can_grant
     from .models import AccessGrant
     grant = AccessGrant.objects.filter(pk=pk, kind='app').select_related('granted_by').first()
     if grant is None:
@@ -1427,7 +1427,7 @@ def app_access_request_page(request, pk: int):
     return render(request, 'common/access_request.html', {
         'grant': grant, 'is_owner': decider, 'app_grant': True,
         'requester': requester.get_username() if requester else f'#{grant.subject_id}',
-        'element_label': _label(grant.element_id), 'element_app': grant.element_id,
+        'element_label': app_title(grant.element_id), 'element_app': grant.element_id,
         'answer_url': reverse('accounts:app-access-answer', args=[grant.pk]),
         'volet': VOLET_AUCUN,
     })

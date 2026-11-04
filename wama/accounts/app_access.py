@@ -127,7 +127,7 @@ def _check_beneficiary(user, app_id):
         raise AppAccessRefused(f"{user.get_username()} a déjà accès à « {app_id} »")
 
 
-def _label(app_id) -> str:
+def app_title(app_id) -> str:
     from wama.common.app_registry import app_identity
     return app_identity(app_id).get('label') or app_id
 
@@ -152,7 +152,7 @@ def request_access(user, app_id, reason: str = '') -> AccessGrant:
                                        kind=KIND_APP, element_id=app_id,
                                        reason=(reason or '')[:2000])
     notify_in_app(granters_of(app_id), 'access_request',
-                  f"{user.get_username()} demande à utiliser « {_label(app_id)} »",
+                  f"{user.get_username()} demande à utiliser « {app_title(app_id)} »",
                   body="App du bac à sable — utiliser / tester. Acceptez ou refusez la demande.",
                   url=request_url(grant), app=app_id)
     return grant
@@ -177,7 +177,7 @@ def grant_access(granter, app_id, beneficiary, expires_at=None) -> AccessGrant:
         grant.expires_at = expires_at
         grant.save()
     notify_in_app([beneficiary], 'access_granted',
-                  f"{granter.get_username()} vous ouvre « {_label(app_id)} »",
+                  f"{granter.get_username()} vous ouvre « {app_title(app_id)} »",
                   body="App du bac à sable : vous pouvez l'utiliser et la tester.",
                   url=_app_url(app_id), app=app_id)
     return grant
@@ -200,7 +200,7 @@ def answer(granter, grant: AccessGrant, accept: bool) -> dict:
     grant.save(update_fields=['state', 'granted_by', 'answered_at'])
     notify_in_app([beneficiary], 'access_request_refused',
                   f"{granter.get_username()} a refusé votre demande",
-                  body=f"« {_label(grant.element_id)} » (bac à sable) reste fermée.",
+                  body=f"« {app_title(grant.element_id)} » (bac à sable) reste fermée.",
                   url=request_url(grant), app=grant.element_id)
     return {'state': grant.state}
 
@@ -218,7 +218,7 @@ def revoke(granter, grant: AccessGrant) -> AccessGrant:
     beneficiary = grant.subject_user()
     if beneficiary is not None:
         notify_in_app([beneficiary], 'access_revoked',
-                      f"{granter.get_username()} a retiré votre accès à « {_label(grant.element_id)} »",
+                      f"{granter.get_username()} a retiré votre accès à « {app_title(grant.element_id)} »",
                       body="Un traitement déjà lancé va à son terme.", app=grant.element_id)
     return grant
 
@@ -242,7 +242,7 @@ USE_MODE = {'key': AccessGrant.LEVEL_USE, 'label': 'Utiliser / tester', 'icon': 
 
 def grant_row(grant) -> dict:
     user = grant.subject_user()
-    return {'id': grant.pk, 'app': grant.element_id, 'app_label': _label(grant.element_id),
+    return {'id': grant.pk, 'app': grant.element_id, 'app_label': app_title(grant.element_id),
             'who': user.get_username() if user else f'#{grant.subject_id}',
             'level': grant.get_level_display(), 'state': grant.state,
             'state_label': grant.get_state_display(), 'reason': grant.reason,
@@ -266,9 +266,9 @@ def overview(user) -> dict:
     for app_id in mine:
         persons = [grant_row(g) for g in live.filter(element_id=app_id).order_by('created_at')]
         if persons:
-            shared.append({'app': app_id, 'app_label': _label(app_id), 'persons': persons,
+            shared.append({'app': app_id, 'app_label': app_title(app_id), 'persons': persons,
                            'url': _app_url(app_id)})
-    received = [{'app': g.element_id, 'app_label': _label(g.element_id),
+    received = [{'app': g.element_id, 'app_label': app_title(g.element_id),
                  'owner': ', '.join(owners.get(g.element_id) or ()) or 'administration',
                  'grant': grant_row(g),
                  'url': _app_url(g.element_id)}
@@ -289,6 +289,6 @@ def requestable_apps(user) -> list:
     pending = dict(AccessGrant.objects.filter(
         subject_type=AccessGrant.SUBJECT_USER, subject_id=user.pk, kind=KIND_APP,
         state=AccessGrant.STATE_REQUESTED).values_list('element_id', 'pk'))
-    return [{'app': a, 'app_label': _label(a), 'owner': ', '.join(owners[a]) or 'administration',
+    return [{'app': a, 'app_label': app_title(a), 'owner': ', '.join(owners[a]) or 'administration',
              'pending': pending.get(a)}
             for a in sorted(owners) if not sandbox_decision(user, a, owners, granted)]
