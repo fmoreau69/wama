@@ -21,7 +21,7 @@
     "outputs": [
       {
         "cardinality": "one",
-        "data_type": "document",
+        "data_type": "prompt",
         "description": "Les paroles entendues, en sections balisées.",
         "key": "lyrics",
         "optional": false,

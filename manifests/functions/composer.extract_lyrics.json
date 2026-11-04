@@ -15,13 +15,23 @@
         "optional": false,
         "produced_fields": [],
         "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "score",
+        "description": "La partition du morceau, dont les paroles prennent les sections.",
+        "group": "travail",
+        "key": "score",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
       }
     ],
     "key": "composer.extract_lyrics",
     "outputs": [
       {
         "cardinality": "one",
-        "data_type": "document",
+        "data_type": "prompt",
         "description": "Les paroles entendues, en sections balisées.",
         "key": "lyrics",
         "optional": false,

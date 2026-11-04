@@ -171,8 +171,11 @@ register(FunctionSpec(
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['audio', 'music', 'gpu'],
     inputs=[PortSpec('work_audio', 'audio', group='travail',
-                     description="Audio du morceau à reprendre (cover).")],
-    outputs=[PortSpec('lyrics', 'document', description="Les paroles entendues, en sections balisées.")]))
+                     description="Audio du morceau à reprendre (cover)."),
+            PortSpec('score', 'score', optional=True,
+                     description="La partition du morceau, dont les paroles prennent les sections.")],
+    # Type `prompt` : les paroles rejoignent la consigne, qu'écrire la partition et le rendu lisent.
+    outputs=[PortSpec('lyrics', 'prompt', description="Les paroles entendues, en sections balisées.")]))
 
 register(FunctionSpec(
     key='composer.rendered_lyrics', name='Composer — paroles de sortie',
@@ -182,7 +185,7 @@ register(FunctionSpec(
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['audio', 'music', 'gpu'],
     inputs=[PortSpec('audio', 'audio', description="Le morceau rendu.")],
-    outputs=[PortSpec('lyrics', 'document', description="Les paroles entendues, en sections balisées.")]))
+    outputs=[PortSpec('lyrics', 'prompt', description="Les paroles entendues, en sections balisées.")]))
 
 register(FunctionSpec(
     key='composer.output', name='Composer — réglages de sortie',
