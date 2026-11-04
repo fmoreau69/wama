@@ -440,6 +440,10 @@ chargement d'embeddinggemma-2 a pris 1 906 Mio à la carte (nvidia-smi) et 0 Mio
 `torch.cuda.mem_get_info` sous WSL2. Le gouverneur traitait déjà la ligne de l'Ollama hôte en
 ANNONCE « par prudence, faute de mesure » : c'est désormais la mesure. Cette ligne est donc tout ce
 que les autres processus savent d'un modèle de l'hôte — elle doit exister une fois, et peser juste.
+*(Corrigé le 2026-11-04, mesuré : le pilote vu de WSL ne voit rien des AUTRES process, WSL compris,
+et le libre d'une décision se lit désormais à la carte, qui voit l'hôte. La ligne reste ce qu'en
+savent le tirage entre les relevés et les résidents ; une fois `/api/ps` relu, elle est marquée
+prise et n'est plus retranchée de la carte — `ROADMAP §Gouvernance`.)*
 
 | défaut | ce qui le corrige |
 |---|---|

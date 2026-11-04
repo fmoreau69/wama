@@ -22,6 +22,14 @@ from wama.common.backends import base
 from wama.common.services import resource_governor as gov
 
 
+SYSTEM_MONITOR = 'wama.common.services.system_monitor.SystemMonitor.get_gpu_info'
+
+
+def _card_with(free_gb):
+    """La carte (nvidia-smi) qui dit `free_gb` libres."""
+    return mock.patch(SYSTEM_MONITOR, return_value=[{'memory_free_gb': free_gb}])
+
+
 class _FauxRedis:
     """Le sous-ensemble de l'API Redis qu'emploie le gouverneur — valeurs en `str`."""
 
@@ -157,35 +165,87 @@ class SondesTest(_AvecRegistre):
         ce résident ; le retrancher encore le comptait deux fois."""
         gov.reserve_vram('b.B:1#app:m', 8.0, allocated=True)
         self.assertEqual(gov.unseen_reserved_gb('process'), 0.0)
-        self.assertEqual(gov.unseen_reserved_gb('driver'), 0.0)
+        self.assertEqual(gov.unseen_reserved_gb('card'), 0.0)
 
     def test_une_empreinte_allouee_AILLEURS_echappe_au_process_mais_pas_au_pilote(self):
         gov.reserve_vram('b.B:1#app:m', 8.0, allocated=True)
         self.redis.hset(gov._ALLOC_KEY, 'b.B:1#app:m', str(os.getpid() + 1))
         self.assertEqual(gov.unseen_reserved_gb('process'), 8.0)
-        self.assertEqual(gov.unseen_reserved_gb('driver'), 0.0)
+        self.assertEqual(gov.unseen_reserved_gb('card'), 0.0)
 
     def test_une_ANNONCE_est_retranchee_des_deux_sondes(self):
         gov.reserve_vram('composer.audiocpp:1', 5.0)
         self.assertEqual(gov.unseen_reserved_gb('process'), 5.0)
-        self.assertEqual(gov.unseen_reserved_gb('driver'), 5.0)
+        self.assertEqual(gov.unseen_reserved_gb('card'), 5.0)
 
     def test_republier_en_annonce_retire_le_marqueur_alloue(self):
         gov.reserve_vram('b.B:1#app:m', 8.0, allocated=True)
         gov.reserve_vram('b.B:1#app:m', 8.0)
-        self.assertEqual(gov.unseen_reserved_gb('driver'), 8.0)
+        self.assertEqual(gov.unseen_reserved_gb('card'), 8.0)
 
     def test_une_sonde_inconnue_est_refusee(self):
         with self.assertRaises(ValueError):
             gov.unseen_reserved_gb('carte')
 
     def test_effective_free_gb_ne_retranche_du_pilote_que_les_annonces(self):
-        gov.reserve_vram('b.B:1#app:m', 10.0, allocated=True)   # déjà hors du libre pilote
+        gov.reserve_vram('b.B:1#app:m', 10.0, allocated=True)   # déjà hors du libre de la carte
         gov.reserve_vram('composer.audiocpp:1', 5.0)            # pas encore allouée
-        go = 1024 ** 3
-        with mock.patch('torch.cuda.is_available', return_value=True), \
-                mock.patch('torch.cuda.mem_get_info', return_value=(12 * go, 24 * go)):
+        with _card_with(12.0):
             self.assertAlmostEqual(gov.effective_free_gb(), 7.0)
+
+
+class CardProbeTest(_AvecRegistre):
+    """Le libre d'une décision se lit à la CARTE (2026-11-04). Sous WSL2 `mem_get_info` ne voit que
+    son process : le worker comptait son Whisper deux fois et se voyait 1,2 Go libres pour ~8."""
+
+    def test_the_resident_of_this_worker_outside_torch_is_not_counted_twice(self):
+        """LE défaut : Whisper (CTranslate2) tient dans ce process, hors de torch ; la carte l'a déjà
+        ôté de son libre."""
+        gov.reserve_vram(f'b.Whisper:{os.getpid()}#@large-v3', 3.66, allocated=gov.OUTSIDE_TORCH)
+        with _card_with(17.0):
+            self.assertAlmostEqual(gov.effective_free_gb(), 17.0)
+
+    def test_a_footprint_outside_torch_stays_unseen_by_the_process_probe(self):
+        """Le sens inverse du défaut : `total − memory_allocated` ne le voit pas, même ici."""
+        gov.reserve_vram(f'b.Whisper:{os.getpid()}#@large-v3', 3.66, allocated=gov.OUTSIDE_TORCH)
+        self.assertAlmostEqual(gov.unseen_reserved_gb('process'), 3.66)
+        self.assertEqual(gov.unseen_reserved_gb('card'), 0.0)
+
+    def test_an_announcement_comes_off_what_the_card_says(self):
+        gov.reserve_vram('composer.audiocpp:1', 5.0)
+        with _card_with(12.0):
+            self.assertAlmostEqual(gov.effective_free_gb(), 7.0)
+
+    def test_an_excluded_announcement_does_not_come_off(self):
+        gov.reserve_vram('composer.audiocpp:1', 5.0)
+        with _card_with(12.0):
+            self.assertAlmostEqual(gov.effective_free_gb(exclude='composer.audiocpp:1'), 12.0)
+
+    def test_reading_the_card_opens_no_cuda_context(self):
+        with _card_with(12.0), mock.patch('torch.cuda.mem_get_info') as own_view:
+            gov.effective_free_gb()
+        own_view.assert_not_called()
+
+    def test_the_freest_card_is_the_one_read(self):
+        two = [{'memory_free_gb': 3.0}, {'memory_free_gb': 11.0}]
+        with mock.patch(SYSTEM_MONITOR, return_value=two):
+            self.assertEqual(gov.card_free_gb(), 11.0)
+
+    def test_without_nvidia_smi_the_own_view_and_the_ledger_stand_in(self):
+        """Repli : `mem_get_info` ne voit que ce process, le registre dit le reste — y compris
+        l'empreinte torch d'un autre process, que la carte aurait vue."""
+        go = 1024 ** 3
+        gov.reserve_vram('b.B:1#app:m', 8.0, allocated=True)
+        self.redis.hset(gov._ALLOC_KEY, 'b.B:1#app:m', str(os.getpid() + 1))
+        with mock.patch(SYSTEM_MONITOR, return_value=None), \
+                mock.patch('torch.cuda.is_available', return_value=True), \
+                mock.patch('torch.cuda.mem_get_info', return_value=(20 * go, 24 * go)):
+            self.assertAlmostEqual(gov.effective_free_gb(), 12.0)
+
+    def test_nothing_readable_is_no_free_memory(self):
+        with mock.patch(SYSTEM_MONITOR, return_value=None), \
+                mock.patch('torch.cuda.is_available', return_value=False):
+            self.assertEqual(gov.effective_free_gb(), 0.0)
 
 
 class CycleDeVieTest(_AvecRegistre):
@@ -332,13 +392,73 @@ class EnveloppeTest(_AvecRegistre):
         self._charger(0, 8.0)
         self._charger(0, 0.0)
         self.assertEqual(list(self._ligne().values()), [8.0])
-        self.assertEqual(gov.unseen_reserved_gb('driver'), 0.0)
+        self.assertEqual(gov.unseen_reserved_gb('card'), 0.0)
 
     def test_la_valeur_declaree_est_publiee_comme_ANNONCE(self):
         self.b.device = 'cuda'
         self._charger(0, 0.0)
         self.assertEqual(list(self._ligne().values()), [6.0])
-        self.assertEqual(gov.unseen_reserved_gb('driver'), 6.0)
+        self.assertEqual(gov.unseen_reserved_gb('card'), 6.0)
+
+    # ── Un moteur hors de torch (CTranslate2, onnxruntime), 2026-11-04 ──────────────────────────
+
+    GIB = 1024 ** 3
+
+    def _charger_hors_torch(self, free_before, free_after):
+        """Mesure torch nulle ; le contexte CUDA passe de `free_before` à `free_after`."""
+        self.b.device = 'cuda'
+        with mock.patch.object(base, '_context_free_bytes', side_effect=[free_before, free_after]):
+            return self._charger(0, 0.0)
+
+    def test_an_engine_outside_torch_publishes_what_it_really_took(self):
+        """Whisper large-v3 : 3,66 Go pris à la carte, 10 déclarés. La ligne dit le vrai poids."""
+        self._charger_hors_torch(int(22.39 * self.GIB), int(18.73 * self.GIB))
+        [(owner, gb)] = self._ligne().items()
+        self.assertAlmostEqual(gb, 3.66, places=2)
+        self.assertEqual(self.annexe(gov._ALLOC_KEY)[owner], '0')
+        self.assertEqual(gov.unseen_reserved_gb('card'), 0.0)
+        self.assertAlmostEqual(gov.unseen_reserved_gb('process'), 3.66, places=2)
+
+    def test_the_measure_outside_torch_reaches_the_catalogue(self):
+        self._charger_hors_torch(int(22.39 * self.GIB), int(18.73 * self.GIB))
+        [(owner, (gb, _stamp))] = gov.measured_vram().items()
+        self.assertIn('_FauxBackend', owner)
+        self.assertAlmostEqual(gb, 3.66, places=2)
+
+    def test_the_heartbeat_keeps_a_footprint_outside_torch_as_it_is(self):
+        self._charger_hors_torch(int(22.39 * self.GIB), int(18.73 * self.GIB))
+        self.t += 700
+        self.assertGreaterEqual(base.refresh_live_reservations(), 1)
+        [owner] = self._ligne()
+        self.assertEqual(self.annexe(gov._ALLOC_KEY)[owner], '0')
+
+    def test_a_reload_keeps_a_footprint_outside_torch_as_it_is(self):
+        self._charger_hors_torch(int(22.39 * self.GIB), int(18.73 * self.GIB))
+        self._charger_hors_torch(int(18.73 * self.GIB), int(18.73 * self.GIB))
+        [(owner, gb)] = self._ligne().items()
+        self.assertAlmostEqual(gb, 3.66, places=2)
+        self.assertEqual(self.annexe(gov._ALLOC_KEY)[owner], '0')
+
+    def test_a_lazy_load_stays_an_announcement_of_its_declared_value(self):
+        """Contre-cas : le contexte n'a rien perdu, le modèle n'est pas encore là."""
+        self._charger_hors_torch(int(22.39 * self.GIB), int(22.39 * self.GIB))
+        self.assertEqual(list(self._ligne().values()), [6.0])
+        self.assertEqual(gov.unseen_reserved_gb('card'), 6.0)
+
+    def test_a_process_without_cuda_context_is_not_given_one_by_the_measure(self):
+        """Contre-cas : un backend qui finit sur CPU ne doit pas lui ouvrir un contexte."""
+        with mock.patch('torch.cuda.is_available', return_value=True), \
+                mock.patch('torch.cuda.is_initialized', return_value=False), \
+                mock.patch('torch.cuda.mem_get_info') as own_view:
+            self.assertIsNone(base._context_free_bytes())
+        own_view.assert_not_called()
+
+    def test_a_backend_on_cpu_does_not_read_the_context_drop_as_its_own(self):
+        self.b.device = 'cpu'
+        with mock.patch.object(base, '_context_free_bytes',
+                               side_effect=[int(22.39 * self.GIB), int(18.73 * self.GIB)]):
+            self._charger(0, 0.0)
+        self.assertEqual(self._ligne(), {})
 
     def test_sans_CUDA_dans_le_process_rien_n_est_reserve(self):
         self._charger(None, None)
@@ -377,7 +497,7 @@ class EnveloppeTest(_AvecRegistre):
         self.assertGreaterEqual(base.refresh_live_reservations(), 1)
         [owner] = self._ligne()
         self.assertIn(owner, self.annexe(gov._ALLOC_KEY))
-        self.assertEqual(gov.unseen_reserved_gb('driver'), 0.0)
+        self.assertEqual(gov.unseen_reserved_gb('card'), 0.0)
 
     def test_decharger_rend_la_ligne_et_le_marqueur(self):
         self._charger(0, 8.0)
@@ -554,4 +674,4 @@ class ResidenceResolueTest(_AvecRegistre):
     def test_un_nom_NON_resolu_n_est_pas_un_residant_mais_reste_compte(self):
         gov.reserve_vram(f'{CLASSE_FAUX}:1#@zzz', 8.0)
         self.assertEqual(gov.resident_models(), {})
-        self.assertEqual(gov.unseen_reserved_gb('driver'), 8.0)
+        self.assertEqual(gov.unseen_reserved_gb('card'), 8.0)

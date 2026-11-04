@@ -766,6 +766,8 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
   `celery-gpu:<pid>` (clé jamais publiée) et `MemoryManager.vram_owner()` sont retirées. La piste
   `min(libre pilote, total − réservé)` notée le matin même a été ÉCARTÉE : elle surestimait le
   libre dès qu'une annonce coexistait avec une occupation hors registre.
+  ⚠ **Le libre se lit à la CARTE depuis le 2026-11-04** (bloc « 2026-11-04 — le libre d'une
+  décision » plus bas) : `'driver'` est devenue `'card'`.
 - **TTL : un détenteur vivant ne perd plus sa ligne.** Battement commun
   `base.start_reservation_heartbeat` — service TTS ET `worker_process_init` des workers Celery,
   qui n'en avaient pas ; `vram_reservation` rafraîchit sa ligne tant que le bloc dure (audio.cpp
@@ -1034,6 +1036,40 @@ PARENT, d'où « Cannot re-initialize CUDA in forked subprocess » et le plafond
 enfant depuis au moins le 31/10 — `PYTORCH_NVML_BASED_CUDA_CHECK=1` posé une fois dans `settings.py`,
 mesuré sur un worker prefork jetable (avec : l'enfant pose le plafond ; sans : l'avertissement).
 Gardes : `tests_vram_wait.ThreeCasesTest`, `tests_out_of_process_holders.ForkSafeCudaCheckTest`.
+
+**✅ 2026-11-04 — le libre d'une décision se lit à la CARTE** (défaut vécu par Fabien : un lot de
+covers en `AWAITING_RESOURCES`, le worker se voyant 1,2 Go libres quand `nvidia-smi` en donnait ~8).
+- **Mesuré, carte libre, trois sondes face à trois charges** (`torch.cuda.mem_get_info`,
+  `memory_allocated`, `nvidia-smi`) : 4 Go tenus par un AUTRE process torch prennent 0 Mo à
+  `mem_get_info` et 4,44 Go à la carte ; Whisper large-v3 chargé ICI (CTranslate2) lui prend 3,66 Go,
+  0 à `memory_allocated`, et 0 vu d'un process voisin. Sous WSL2 `mem_get_info` ne voit donc que SON
+  process. Le constat « `driver` — toute la machine » du 14/09 était faux, et il produisait deux
+  erreurs de sens contraire : le worker comptait deux fois son propre Whisper (vu par la sonde,
+  retranché en annonce, pour 10 Go déclarés), et les empreintes torch des autres n'étaient comptées
+  nulle part (marquées allouées, donc non retranchées, et invisibles de la sonde).
+- **Correctif, sans brique neuve à côté** : `resource_governor.card_free_gb` lit `SystemMonitor.
+  get_gpu_info`, la lecture de `measure_ollama_load` et de `total_vram_gb` ; `effective_free_gb` et
+  `model_selector.get_free_vram_gb` en partent, moins les annonces (`unseen_reserved_gb('card')`, ex-
+  `'driver'`). Elle voit aussi ce qu'aucun registre ne connaît (bureau Windows, navigateur) et n'ouvre
+  plus de contexte CUDA dans le process web. Sans nvidia-smi, `effective_free_gb` retombe sur
+  `mem_get_info` moins la sonde `process` ; le budget du tirage rend `None`, « ne contraint pas ».
+- **La ligne dit le vrai poids** : un moteur hors de torch se mesure à ce que le contexte CUDA du process
+  a perdu pendant `load()` (`base._measured_outside_torch_gb`), marqué `OUTSIDE_TORCH` : la carte le
+  voit, la sonde `process` non. Sa mesure rejoint le catalogue comme les autres. Un chargement qui
+  n'a rien pris reste une annonce de sa valeur déclarée. L'Ollama hôte relu à `/api/ps` est marqué de
+  même.
+- **Joué sur le vrai `WhisperBackend`** : ligne de 3,656 Go (10 avant), marqueur hors de torch ; un
+  autre process qui tient 4 Go sans ligne fait tomber l'effectif de 15,34 à 10,90, et le budget du
+  tirage restait à 20,84 avant ce correctif.
+- ⚠ **Restent sur `total − alloué de ce process`** : `MemoryManager._free_vram_gb` (reclaim d'un chargement
+  en cours : le cache de l'allocateur y compte comme libre, à raison) et `get_memory_strategy`
+  (`memory_manager.py:812`, `qwen_image_backend.py:219`), qui choisissent FULL_GPU sans voir les
+  autres process. Ce second cas n'est pas corrigé : la garde du squelette passe avant lui, mais un
+  choix de stratégie sur une carte partagée reste à confronter. Le panneau mémoire du model manager
+  (`memory_monitor`) affiche aussi la vue de gunicorn. Écart connu : le budget WDDM d'un process est
+  d'environ 0,5 Go sous ce que la carte dit libre (22,39 pour 22,89).
+- Gardes : `tests_vram_ledger.CardProbeTest` et `EnveloppeTest` (moteur hors de torch),
+  `tests_budget_vram`, `tests_ollama_vram_measure`. Dix neutralisations, toutes rouges.
 
 ### Warm-loading VRAM — modèles temps réel chauds (chantier prod)
 > But : sur serveur de prod (grosse VRAM), garder chargés les modèles **temps réel**

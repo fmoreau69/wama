@@ -1109,8 +1109,8 @@ def local_llm_guard(provider, model, *, force=False, wait_max=300.0, release_rea
     source → déclarée → preset), jamais dans `config.py` — la table d'un modèle n'est pas
     forcément celle du modèle tiré. Besoin inconnu : pas d'attente, et on le DIT.
     `force` saute l'ATTENTE, jamais le keep_alive. Refus : `SystemExit`, avec qui tient la carte.
-    ⚠ Ne sonder la VRAM que si l'on doit décider : `effective_free_gb` ouvre un contexte CUDA dans
-    ce process (quelques centaines de Mo tenus pendant tout l'appel du modèle).
+    Ne sonder la VRAM que si l'on doit décider. `effective_free_gb` lit la carte par nvidia-smi
+    depuis le 2026-11-04 et n'ouvre plus de contexte CUDA dans ce process.
     """
     if provider != 'ollama':
         log(f'[gpu] fournisseur distant ({provider}) — aucune charge GPU locale, pas d\'attente')

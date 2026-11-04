@@ -20,8 +20,9 @@ CE QU'IL COUVRE (état au 2026-09-14)
   2. Registre VRAM PARTAGÉ (Redis) — `reserve_vram` / `release_reservation` /
      `unseen_reserved_gb` / `effective_free_gb`, visible de TOUS les process (worker
      GPU, service TTS, workers web), contrairement au registre d'unloaders qui reste
-     local. Une ligne est une ANNONCE ou une empreinte DÉJÀ ALLOUÉE : chaque sonde ne
-     retranche que ce qu'elle ne voit pas encore (cf. `unseen_reserved_gb`).
+     local. Une ligne est une ANNONCE ou une empreinte DÉJÀ PRISE : chaque sonde ne
+     retranche que ce qu'elle ne voit pas encore (cf. `unseen_reserved_gb`). Le libre d'une
+     décision se lit à la CARTE (`card_free_gb`), qui voit tous les occupants.
   3. `APP_TIERS` / `celery_priority_for` — priorités DÉCLARATIVES par app, câblées
      dans `CELERY_TASK_ROUTES` depuis le 2026-07-29.
 
@@ -229,11 +230,18 @@ _LEDGER_KEY = "wama:vram:reservations"
 #: été effacée par un process resté sur l'ancien format.
 _USED_KEY = "wama:vram:last_used"
 
-#: Empreintes DÉJÀ ALLOUÉES par l'allocateur torch d'un process : owner → pid (2026-09-14).
-#: Hash SÉPARÉ, même raison que `_USED_KEY`. Sans lui, le registre ne distinguait pas une
-#: ANNONCE (posée avant d'allouer) d'une empreinte MESURÉE après chargement — et les sondes
-#: qui voient déjà cette dernière la retranchaient une seconde fois (cf. `unseen_reserved_gb`).
+#: Empreintes DÉJÀ PRISES à la carte : owner → pid dont l'allocateur torch les tient (2026-09-14),
+#: ou `_OUTSIDE_TORCH_PID` quand aucun allocateur torch ne les connaît (2026-11-04). Hash SÉPARÉ,
+#: même raison que `_USED_KEY`. Sans lui, le registre ne distinguait pas une ANNONCE (posée avant
+#: d'allouer) d'une empreinte prise — et les sondes qui voient déjà cette dernière la
+#: retranchaient une seconde fois (cf. `unseen_reserved_gb`).
 _ALLOC_KEY = "wama:vram:allocated"
+
+#: Valeur de `reserve_vram(allocated=…)` : l'empreinte est prise à la carte, hors de tout
+#: allocateur torch — CTranslate2, onnxruntime (mesure de `_wrap_load`), l'Ollama hôte (`/api/ps`).
+OUTSIDE_TORCH = 'outside_torch'
+#: Ce que le hash retient alors : aucun pid n'est 0, donc la sonde `process` la compte toujours.
+_OUTSIDE_TORCH_PID = 0
 
 #: Horodatage du PREMIER dépôt d'une ligne — son chargement : owner → ts (2026-09-14). Le
 #: battement réécrit l'horodatage de la ligne (TTL) ; sans ce hash, un modèle chargé et jamais
@@ -306,7 +314,7 @@ def owner_pid(owner: str) -> int | None:
     return int(tail) if sep and tail.isdigit() else None
 
 
-def reserve_vram(owner: str, gb: float, *, allocated: bool = False,
+def reserve_vram(owner: str, gb: float, *, allocated: bool | str = False,
                  expires_in_s: float | None = None) -> bool:
     """
     Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
@@ -318,8 +326,9 @@ def reserve_vram(owner: str, gb: float, *, allocated: bool = False,
 
     `allocated=True` : l'empreinte est DÉJÀ prise par l'allocateur torch de CE process (mesure
     de `_wrap_load`). Les sondes qui la voient déjà ne la retranchent plus
-    (`unseen_reserved_gb`). Par défaut une ligne est une ANNONCE — et republier en annonce
-    retire le marqueur.
+    (`unseen_reserved_gb`). `allocated=OUTSIDE_TORCH` : elle est prise à la carte, mais hors de
+    tout allocateur torch. Par défaut une ligne est une ANNONCE — et republier en annonce retire
+    le marqueur.
 
     `expires_in_s` : durée de vie plus courte que `RESERVATION_TTL_S`, pour une résidence
     bornée connue d'avance (rappel mémoire : Ollama garde l'embedder 5 min). Posée en
@@ -338,7 +347,8 @@ def reserve_vram(owner: str, gb: float, *, allocated: bool = False,
         client.hset(_LEDGER_KEY, owner, f"{gb:.3f}:{stamp:.0f}")
         client.hsetnx(_LOADED_KEY, owner, f"{now:.0f}")
         if allocated:
-            client.hset(_ALLOC_KEY, owner, str(os.getpid()))
+            client.hset(_ALLOC_KEY, owner,
+                        str(_OUTSIDE_TORCH_PID if allocated == OUTSIDE_TORCH else os.getpid()))
         else:
             client.hdel(_ALLOC_KEY, owner)
         # Le détenteur écrit lui-même sa ligne : on note où vit son pid, pour qu'un lecteur du
@@ -637,7 +647,8 @@ def ollama_host_owner(name: str) -> str:
 
 
 def _allocated_by() -> dict[str, int]:
-    """owner → pid dont l'allocateur torch tient DÉJÀ l'empreinte (cf. `_ALLOC_KEY`)."""
+    """owner → pid dont l'allocateur torch tient DÉJÀ l'empreinte, `_OUTSIDE_TORCH_PID` si elle
+    est prise hors de tout allocateur torch (cf. `_ALLOC_KEY`)."""
     client = _redis()
     if client is None:
         return {}
@@ -655,31 +666,27 @@ def _allocated_by() -> dict[str, int]:
     return out
 
 
-def unseen_reserved_gb(probe: str = 'driver', exclude: str | None = None) -> float:
+def unseen_reserved_gb(probe: str = 'card', exclude: str | None = None) -> float:
     """
     VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
 
     Une ligne du registre est soit une ANNONCE (sous-processus, juge de prospection, embedder :
-    posée AVANT d'allouer), soit une empreinte DÉJÀ ALLOUÉE (`_wrap_load` publie APRÈS la mesure).
+    posée AVANT d'allouer), soit une empreinte DÉJÀ PRISE (`_wrap_load` publie APRÈS la mesure).
     Retrancher la seconde d'une sonde qui la voit déjà la compte deux fois : c'est le défaut
     mesuré le 2026-09-14 — `effective_free_gb`, `MemoryManager._free_vram_gb` et
     `get_free_vram_gb` retranchaient tout le registre, résidents compris.
 
-    - `probe='driver'` — `torch.cuda.mem_get_info`, toute la machine : voit toute empreinte
-      allouée, on ne retranche que les annonces ;
-    - `probe='process'` — total − `memory_allocated` de CE process : ne voit que ce que ce
-      process a alloué, on retranche tout sauf les empreintes allouées ici même.
+    - `probe='card'` — `card_free_gb`, la carte entière : voit toute empreinte prise, on ne
+      retranche que les annonces ;
+    - `probe='process'` — total − `memory_allocated` de CE process : ne voit que ce que l'allocateur
+      torch de ce process tient, on retranche tout le reste.
 
-    ⚠ Seule une empreinte MESURÉE par l'allocateur torch est marquée allouée. Valeurs déclarées
-    (CTranslate2, onnxruntime), Ollama hôte et sous-processus restent des annonces : les compter
-    deux fois est prudent, les oublier ne l'est pas.
-    Pour l'Ollama hôte ce n'est plus un choix prudent, c'est la mesure (2026-10-20) : un
-    chargement d'embeddinggemma-2 a pris 1 906 Mio à la carte (nvidia-smi) et 0 Mio au libre
-    de `mem_get_info` vu de WSL2 — le pilote de WSL ne voit RIEN de ce que l'hôte Windows alloue.
-    Sa ligne (`ollama_host_owner`, une par modèle) est donc tout ce que la sonde en saura.
+    ⚠ Restent des annonces les valeurs déclarées d'un backend dont le chargement n'a rien pris
+    (paresseux) et les sous-processus (la ligne porte leur pic, posé avant le lancement) : compter
+    un sous-processus deux fois pendant qu'il tourne est prudent, l'oublier ne l'est pas.
     """
-    if probe not in ('driver', 'process'):
-        raise ValueError(f"sonde inconnue : {probe!r} (attendu 'driver' ou 'process')")
+    if probe not in ('card', 'process'):
+        raise ValueError(f"sonde inconnue : {probe!r} (attendu 'card' ou 'process')")
     # Marqueurs lus AVANT les lignes : une ligne publiée entre les deux lectures est comptée
     # comme annonce (prudent), jamais l'inverse.
     alloues = _allocated_by()
@@ -723,7 +730,8 @@ def record_measured_vram(owner: str, gb: float) -> bool:
     """Consigne une empreinte MESURÉE au chargement de `owner` — jamais une valeur déclarée.
 
     Deux mesureurs, chacun pour une mesure FRAÎCHE et concluante :
-    - `_wrap_load` : l'allocateur torch du process qui charge ;
+    - `_wrap_load` : l'allocateur torch du process qui charge, ou à défaut ce que son contexte
+      CUDA a perdu (CTranslate2, onnxruntime) ;
     - `ModelRegistry.measure_ollama_load` (2026-10-20) : l'écart de la CARTE autour d'un
       chargement de l'Ollama hôte, que l'allocateur ne voit pas — détenteur `ollama_host_owner` ;
       appelé par les espaces de vecteurs, `llm_utils.ollama_chat`, le tour de l'assistant, le
@@ -833,27 +841,45 @@ def idle_models(idle_threshold_s: int = 300) -> list[dict]:
     return sorted(out, key=lambda d: -d['idle_seconds'])
 
 
+def card_free_gb() -> float | None:
+    """VRAM libre de la CARTE (nvidia-smi), tous occupants confondus : les process de WAMA, ses
+    services, l'Ollama hôte, le bureau Windows. None si elle ne se lit pas. La carte la plus libre
+    s'il y en a plusieurs, comme `get_free_vram_gb`. N'ouvre aucun contexte CUDA."""
+    try:
+        from wama.common.services.system_monitor import SystemMonitor
+        gpus = SystemMonitor.get_gpu_info() or []
+        return max((float(g['memory_free_gb']) for g in gpus), default=None)
+    except Exception:
+        return None
+
+
 def effective_free_gb(exclude: str | None = None) -> float:
     """
-    VRAM réellement disponible = ce que le pilote annonce libre, MOINS ce que des
-    process ont ANNONCÉ sans l'avoir encore alloué (`unseen_reserved_gb('driver')`).
+    VRAM réellement disponible = ce que la CARTE a de libre, MOINS ce que des process ont
+    ANNONCÉ sans l'avoir encore pris (`unseen_reserved_gb('card')`).
 
-    C'est la mesure qui manquait : `torch.cuda.mem_get_info()` ne voit que le
-    présent et ignore qu'un autre process s'apprête à prendre 18 Go.
+    ⚠ Corrigé le 2026-11-04 : la sonde était `torch.cuda.mem_get_info`, supposée voir toute la
+    machine. Mesuré sous WSL2, elle ne voit que CE process : 4 Go tenus par un autre process et
+    Whisper chargé dans un autre lui prennent 0 Mo, alors que `nvidia-smi` les voit. D'où deux
+    erreurs de sens contraire : le worker comptait deux fois son propre Whisper (vu par la sonde,
+    retranché en annonce, et pour 10 Go déclarés quand il en prend 3,66 — il se voyait 1,2 Go
+    libres pour ~8 réels), et les empreintes torch des AUTRES process n'étaient comptées nulle part.
+    Écart connu : le budget WDDM d'un process est d'environ 0,5 Go sous ce que la carte dit libre.
 
-    ⚠ Corrigé le 2026-09-14 : on retranchait TOUTES les réservations, y compris les modèles
-    résidents dont le pilote a déjà ôté l'empreinte de son libre — chaque résident comptait
-    deux fois (la docstring disait déjà « sans l'avoir encore alloué », le code non).
+    Sans nvidia-smi, repli sur `mem_get_info` : il voit au moins ce process, le registre dit le reste.
     """
+    free = card_free_gb()
+    if free is not None:
+        return max(0.0, free - unseen_reserved_gb('card', exclude=exclude))
     try:
         import torch
 
         if not torch.cuda.is_available():
             return 0.0
-        driver_free_gb = torch.cuda.mem_get_info()[0] / (1024 ** 3)
+        own_view_gb = torch.cuda.mem_get_info()[0] / (1024 ** 3)
     except Exception:
         return 0.0
-    return max(0.0, driver_free_gb - unseen_reserved_gb('driver', exclude=exclude))
+    return max(0.0, own_view_gb - unseen_reserved_gb('process', exclude=exclude))
 
 
 # ---------------------------------------------------------------------------

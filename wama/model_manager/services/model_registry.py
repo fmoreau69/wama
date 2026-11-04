@@ -460,13 +460,14 @@ class ModelRegistry:
         modèle — dans la VRAM libre, les résidents et les inactifs.
         Ce qu'elle pèse : au moins le besoin du CATALOGUE (`auto_model.vram_needed_gb`, la mesure
         quand elle existe). `/api/ps` sous-compte — embeddinggemma-2 annonce 0,45 Go pour 1,5 à
-        2,2 pris par la carte, ses projecteurs n'y sont pas —, et le pilote vu de WSL ne voit RIEN
-        de l'hôte (`resource_governor.unseen_reserved_gb`) : cette ligne est tout ce que les
-        autres process savent de ce modèle.
+        2,2 pris par la carte, ses projecteurs n'y sont pas. La ligne est marquée PRISE : `/api/ps`
+        dit que le modèle est là, donc la carte le voit déjà (`card_free_gb`) ; la sonde d'un
+        process, elle, ne voit pas l'hôte (`unseen_reserved_gb('process')` la retranche).
         Une ligne ABSENTE de `/api/ps` posée il y a moins de `ANNOUNCE_GRACE_S` est l'annonce d'un
         chargement en cours (le client l'écrit AVANT d'appeler) : elle reste ; son auteur la libère.
         """
         from wama.common.services.resource_governor import (OLLAMA_HOST_OWNER_PREFIX,
+                                                            OUTSIDE_TORCH,
                                                             line_age_s, ollama_host_owner,
                                                             release_reservation,
                                                             reservations, reserve_vram)
@@ -482,7 +483,8 @@ class ModelRegistry:
                 continue
             owner = ollama_host_owner(nom)
             vivants.add(owner)
-            reserve_vram(owner, max(float(go or 0), vram_needed_gb(f'ollama:{nom}') or 0.0))
+            reserve_vram(owner, max(float(go or 0), vram_needed_gb(f'ollama:{nom}') or 0.0),
+                         allocated=OUTSIDE_TORCH)
         # Ollama a déchargé (keep_alive écoulé) → la ligne doit disparaître TOUT DE SUITE :
         # laisser expirer au TTL ferait croire le GPU occupé pendant une heure.
         for owner in reservations():
@@ -500,8 +502,8 @@ class ModelRegistry:
 
         Jusqu'au 2026-11-02 un chargement de conversation, de vision ou de l'assistant n'écrivait
         que sa MESURE (`measure_ollama_load`) : la ligne n'arrivait qu'au relevé périodique (10 min),
-        et d'ici là ni la garde des tâches ni le tirage ne voyaient ces Go — le pilote vu de WSL ne
-        voit rien de l'hôte. Une ligne déjà posée n'est pas relue (le relevé périodique la tient) :
+        et d'ici là le tirage ne voyait pas ces Go — la sonde d'un process ne voit rien de l'hôte.
+        Une ligne déjà posée n'est pas relue (le relevé périodique la tient) :
         un tour d'assistant appelle le modèle plusieurs fois. Hors du côté autorisé, rien."""
         from django.conf import settings
         if str(keep_alive).strip() in ('0', '0s', '0m'):

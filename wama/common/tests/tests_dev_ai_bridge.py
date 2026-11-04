@@ -821,8 +821,7 @@ class RoleGpuGuardTest(SimpleTestCase):
     Elle vivait dans le seul rôle `model`, avec un besoin VRAM lu dans `config.py` ; l'audit,
     lui, déchargeait TOUT Ollama au début et à la fin de chaque run. Ce qui est gardé : la règle
     du gouverneur (on attend en mode dépannage ; on ne libère que sur ACCORD), le besoin lu au
-    CATALOGUE, et aucune sonde quand rien n'est à décider — `effective_free_gb` ouvre un contexte
-    CUDA dans le process du rôle."""
+    CATALOGUE, et aucune sonde quand rien n'est à décider."""
 
     GOV = 'wama.common.services.resource_governor'
 

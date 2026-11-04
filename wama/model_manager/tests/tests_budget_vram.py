@@ -17,28 +17,27 @@ pas ». Confondre les deux transformerait une sonde indisponible en panne de sé
 (`wait_for_free_vram` « ne décharge rien », `cleanup_idle_models` est in-process). Déduire est
 donc juste — le jour où un reclaim existera, ce choix sera à revoir.
 """
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
 from wama.model_manager.services.model_selector import get_free_vram_gb
 
-CHEMIN_MONITEUR = 'wama.model_manager.services.memory_monitor.WAMAMemoryMonitor'
-#: La part du registre que la sonde du moniteur NE VOIT PAS (2026-09-14). Elle remplaçait le
-#: total brut `reserved_gb`, qui retranchait aussi les résidents déjà alloués par ce process.
+#: La carte vue par `resource_governor.card_free_gb` (2026-11-04 ; c'était la sonde du moniteur).
+CHEMIN_CARTE = 'wama.common.services.system_monitor.SystemMonitor.get_gpu_info'
+#: La part du registre que la sonde NE VOIT PAS (2026-09-14). Elle remplaçait le total brut
+#: `reserved_gb`, qui retranchait aussi les résidents déjà pris.
 CHEMIN_RESERVE = 'wama.common.services.resource_governor.unseen_reserved_gb'
 
 
 def _gpus(*libres):
-    return [SimpleNamespace(free_gb=g) for g in libres]
+    return [{'memory_free_gb': g} for g in libres]
 
 
 class BudgetVramTest(SimpleTestCase):
 
     def _budget(self, gpus, reserve=0.0, reserve_leve=False):
-        with patch(CHEMIN_MONITEUR) as Moniteur, patch(CHEMIN_RESERVE) as reserved:
-            Moniteur.return_value.get_gpu_usage.return_value = gpus
+        with patch(CHEMIN_CARTE, return_value=gpus), patch(CHEMIN_RESERVE) as reserved:
             if reserve_leve:
                 reserved.side_effect = RuntimeError('registre indisponible')
             else:
@@ -58,15 +57,23 @@ class BudgetVramTest(SimpleTestCase):
         nombre négatif qui ferait passer toutes les comparaisons."""
         self.assertEqual(self._budget(_gpus(4.0), reserve=18.0), 0.0)
 
-    def test_le_budget_interroge_la_sonde_PAR_PROCESS(self):
-        """La sonde du moniteur ne voit que CE process (total − son alloué). On lui retranche ce
-        qu'elle ne voit pas — pas les résidents qu'il a lui-même alloués, déjà hors du libre.
+    def test_the_budget_asks_what_the_card_does_not_see_yet(self):
+        """La carte voit tous les occupants (2026-11-04) : seules les annonces lui manquent.
         Jusqu'au 2026-09-14 on retranchait le total brut : chaque résident comptait double."""
-        with patch(CHEMIN_MONITEUR) as Moniteur, patch(CHEMIN_RESERVE) as reserved:
-            Moniteur.return_value.get_gpu_usage.return_value = _gpus(24.0)
+        with patch(CHEMIN_CARTE, return_value=_gpus(24.0)), patch(CHEMIN_RESERVE) as reserved:
             reserved.return_value = 2.0
             self.assertEqual(get_free_vram_gb(), 22.0)
-            reserved.assert_called_once_with('process')
+            reserved.assert_called_once_with('card')
+
+    def test_the_budget_opens_no_cuda_context(self):
+        """Le tirage tourne aussi dans le process web : lire la carte ne doit pas y ouvrir de
+        contexte, ce que faisait la sonde du moniteur (`get_device_properties`)."""
+        with patch(CHEMIN_CARTE, return_value=_gpus(24.0)), patch(CHEMIN_RESERVE, return_value=0.0), \
+                patch('torch.cuda.get_device_properties') as properties, \
+                patch('torch.cuda.mem_get_info') as own_view:
+            self.assertEqual(get_free_vram_gb(), 24.0)
+        properties.assert_not_called()
+        own_view.assert_not_called()
 
     def test_le_GPU_LE_PLUS_LIBRE_l_emporte(self):
         self.assertEqual(self._budget(_gpus(3.0, 20.0, 11.0), reserve=5.0), 15.0)
@@ -77,8 +84,7 @@ class BudgetVramTest(SimpleTestCase):
         self.assertIsNone(self._budget([]))
 
     def test_une_sonde_qui_LEVE_rend_None_et_ne_propage_pas(self):
-        with patch(CHEMIN_MONITEUR) as Moniteur:
-            Moniteur.return_value.get_gpu_usage.side_effect = RuntimeError('nvml absent')
+        with patch(CHEMIN_CARTE, side_effect=RuntimeError('nvml absent')):
             self.assertIsNone(get_free_vram_gb())
 
     def test_un_REGISTRE_indisponible_ne_DEGRADE_pas_le_budget(self):

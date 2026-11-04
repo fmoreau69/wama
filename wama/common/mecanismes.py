@@ -136,7 +136,9 @@ MECHANISMS = (
               "sort sans attendre son TTL (29/09 : 4 lignes sur 8 après une relance, ~24 Go "
               "fantômes retranchés du tirage). Une ligne « tâche en cours » vaut pour UN process "
               "GPU de la card depuis le 2026-10-14 ; `resident_here_gb` dit ce que CE process "
-              "tient déjà d'un modèle (un rechargement idempotent n'est pas un besoin)",
+              "tient déjà d'un modèle (un rechargement idempotent n'est pas un besoin). Le libre "
+              "d'une décision se lit à la CARTE (`card_free_gb`, 2026-11-04) : sous WSL2 "
+              "`mem_get_info` ne voit que son process",
               'wama/common/services/resource_governor.py', 'docs/construction/suivi/PROJECT_STATUS.md §0'),
     Mechanism('backend_contract', 'Contrat de backend',
               "Cycle de vie commun des porteurs de modèle — ALIMENTATION du gouverneur "

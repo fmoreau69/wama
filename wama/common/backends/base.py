@@ -137,8 +137,7 @@ def refresh_live_reservations() -> int:
             continue
         try:
             from wama.common.services.resource_governor import reserve_vram
-            reserve_vram(owner, float(gb),
-                         allocated=bool(getattr(instance, _GOV_ALLOC, False)))
+            reserve_vram(owner, float(gb), allocated=getattr(instance, _GOV_ALLOC, False))
             refreshed += 1
         except Exception:
             logger.debug("Rafraîchissement de %s ignoré", owner, exc_info=True)
@@ -195,8 +194,8 @@ def _untrack_live(instance) -> None:
     _LIVE_BACKENDS.discard(instance)
 
 
-def _footprint_to_publish(instance, before, owner):
-    """(Go, déjà alloués ?) à publier après un chargement RÉUSSI — (None, False) : rien à réserver.
+def _footprint_to_publish(instance, before, owner, free_before=None):
+    """(Go, déjà pris ?) à publier après un chargement RÉUSSI — (None, False) : rien à réserver.
 
     Du plus sûr au moins sûr :
       1. MESURE torch concluante → Go mesurés, marqués ALLOUÉS (les sondes les voient déjà) ;
@@ -205,19 +204,25 @@ def _footprint_to_publish(instance, before, owner):
          écrasait alors la mesure (un modèle mesuré 38 Go repassait à son preset) ;
       3. pas de CUDA dans ce process → rien : un process sans GPU ne peut pas en occuper ;
       4. backend qui se déclare sur CPU (`device`) → rien : sa valeur déclarée est celle du GPU ;
-      5. sinon la valeur DÉCLARÉE (`recommended_vram_gb`), publiée comme ANNONCE — mesure nulle
-         faute d'allocateur torch (CTranslate2, onnxruntime) ou chargement paresseux. La compter
-         deux fois est prudent ; l'oublier ne le serait pas. None pour un backend purement CPU.
+      5. MESURE du contexte CUDA concluante (`_measured_outside_torch_gb`) → Go mesurés, marqués
+         pris hors de torch : CTranslate2 et onnxruntime allouent sans passer par son allocateur.
+         Mesuré le 2026-11-04 : Whisper large-v3 prend 3,66 Go et en déclarait 10 ;
+      6. sinon la valeur DÉCLARÉE (`recommended_vram_gb`), publiée comme ANNONCE — chargement
+         paresseux, ou process sans contexte CUDA ouvert. None pour un backend purement CPU.
     """
     gb = _measured_vram_gb(before) if before is not None else None
     if gb is not None and gb >= _MEASURE_FLOOR_GB:
         return gb, True
     if getattr(instance, _GOV_KEY, None) == owner and getattr(instance, _GOV_GB, None):
-        return float(getattr(instance, _GOV_GB)), bool(getattr(instance, _GOV_ALLOC, False))
+        return float(getattr(instance, _GOV_GB)), getattr(instance, _GOV_ALLOC, False)
     if before is None:
         return None, False
     if str(getattr(instance, 'device', '') or '').lower().startswith('cpu'):
         return None, False
+    outside = _measured_outside_torch_gb(free_before)
+    if outside is not None and outside >= _MEASURE_FLOOR_GB:
+        from wama.common.services.resource_governor import OUTSIDE_TORCH
+        return outside, OUTSIDE_TORCH
     declared = getattr(instance, 'recommended_vram_gb', None)
     return (float(declared), False) if declared else (None, False)
 
@@ -251,6 +256,7 @@ def _wrap_load(func):
         # Rien à mesurer pour un backend qui ne tient rien ici (cf. `_holds_no_local_vram`) :
         # sans mesure, `_footprint_to_publish` ne publie rien — ce que sa déclaration de 0 disait.
         before = None if _holds_no_local_vram(self) else _vram_snapshot()
+        free_before = None if before is None else _context_free_bytes()
         result = func(self, *args, **kwargs)
         try:
             if result is not False:
@@ -258,7 +264,7 @@ def _wrap_load(func):
                     release_reservation, reserve_vram,
                 )
                 owner = _governor_owner(self)
-                gb, allocated = _footprint_to_publish(self, before, owner)
+                gb, allocated = _footprint_to_publish(self, before, owner, free_before)
                 # La clé porte désormais le modèle : un backend qui BASCULE de modèle
                 # sans décharger (diffusers, cogvideox…) publierait deux lignes pour un
                 # seul détenteur, dont une fantôme jusqu'à expiration du TTL. On rend
@@ -423,6 +429,31 @@ def _vram_snapshot() -> Optional[int]:
         return torch.cuda.memory_allocated() if torch.cuda.is_available() else None
     except Exception:
         return None
+
+
+def _context_free_bytes() -> Optional[int]:
+    """Libre vu par le contexte CUDA de ce process (`mem_get_info`), None s'il n'en a pas encore
+    ouvert : le lire l'ouvrirait, et un backend qui finit sur CPU tiendrait quelques centaines de
+    Mo pour rien. Les workers et le service de voix l'ouvrent au démarrage (`configure_cuda_process`)."""
+    try:
+        import torch
+
+        if torch.cuda.is_available() and torch.cuda.is_initialized():
+            return int(torch.cuda.mem_get_info()[0])
+    except Exception:
+        pass
+    return None
+
+
+def _measured_outside_torch_gb(free_before) -> Optional[float]:
+    """Ce que le contexte CUDA a perdu depuis `free_before`, ou None. Sous WSL2 cette sonde ne voit
+    que ce process (mesuré le 2026-11-04) : la mesure ne prend rien des autres. Sous Linux natif
+    elle voit la carte entière : un chargement concurrent ailleurs pèserait vers le haut, le sens
+    prudent."""
+    if free_before is None:
+        return None
+    free_now = _context_free_bytes()
+    return None if free_now is None else max(0.0, (free_before - free_now) / (1024 ** 3))
 
 
 class BaseModelBackend(ABC):

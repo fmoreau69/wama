@@ -190,8 +190,16 @@ class OllamaResidencyLineTest(ledger_tests._AvecRegistre):
         self.assertEqual(self._refresh(ps=[_ps()], need=2.14), 1)
         self.assertEqual(gov.reservations(), {self.OWNER: 2.14})
         self.assertEqual(gov.resident_models(), {self.KEY: 2.14})
-        self.assertAlmostEqual(gov.unseen_reserved_gb('driver'), 2.14)
         self.assertEqual([r['model_key'] for r in gov.idle_models(0)], [self.KEY])
+
+    def test_a_model_the_host_really_holds_is_seen_by_the_card_not_by_a_process(self):
+        """`/api/ps` dit qu'il est là : la carte l'a déjà ôté de son libre (nvidia-smi voit
+        l'hôte), la sonde d'un process non. Compter l'annonce ET la carte le comptait deux fois."""
+        self._announce()
+        self.assertAlmostEqual(gov.unseen_reserved_gb('card'), 2.14)   # annoncé, pas encore là
+        self._refresh(ps=[_ps()], need=2.14)
+        self.assertEqual(gov.unseen_reserved_gb('card'), 0.0)
+        self.assertAlmostEqual(gov.unseen_reserved_gb('process'), 2.14)
 
     def test_the_host_line_weighs_at_least_the_catalogue_need(self):
         cases = {

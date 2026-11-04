@@ -28150,7 +28150,7 @@ du pipeline n'est pas branché, une capacité déclarée pourrait dire « ce mot
 les recevoir (`protocol.py:81-88` ; le composer envoie `[instrumental]`). La doc du moteur prescrit de transcrire
 les paroles (`vendor/yue/docs/covers.md:53`).
 
-**⏳ Défaut n° 3, à mesurer DANS le worker une fois la carte libre** : le worker GPU se voit 1,2 Go libres quand
+**✅ Défaut n° 3** (`§PALIER 2026-11-04, « LE LIBRE SE LIT À LA CARTE »`) : le worker GPU se voit 1,2 Go libres quand
 `nvidia-smi` en donne ~8. Relevé d'un process neuf : pilote 22,45 Go libres, annonces 14,0 Go, effectif 8,45 ; l'écart
 de 7,25 Go ressemble à son empreinte propre, vue par sa sonde ET retranchée en annonce (Whisper CTranslate2).
 
@@ -28174,6 +28174,24 @@ que le contrôle laisse passer, dite `en`). Le texte est à relire, la console l
 peut-être ; `demucs` n'a ni poids ni ligne de catalogue, cela passerait par la route.
 ⚠ Non joué : la chaîne dans un vrai worker (à relancer) ; YuE2 chantant en français (catalogue : `zh`, `en`) ; les 12
 covers finis n'ont pas leurs paroles, aucun n'a été relancé.
+
+
+## §PALIER 2026-11-04, « LE LIBRE SE LIT À LA CARTE » — non poussé — 🔴 relancer gunicorn + workers + services (voix, privacy)
+
+Le défaut n° 3 de l'ordre « 1, 2, 3 » : un lot de covers attendait, le worker se voyant 1,2 Go libres pour ~8 réels.
+Mesuré carte libre : sous WSL2 `mem_get_info` ne voit QUE son process (4 Go d'un autre : 0 Mo ; Whisper d'un voisin : 0).
+Le constat « `driver`, toute la machine » du 14/09 était faux, avec deux effets opposés : son propre Whisper compté
+deux fois (vu, et retranché en annonce pour 10 Go déclarés, 3,66 réels), les empreintes torch des autres comptées nulle
+part. `effective_free_gb` et le budget du tirage lisent désormais la carte (`card_free_gb`, `SystemMonitor`) moins les
+annonces. Un moteur hors de torch se mesure au contexte CUDA (`OUTSIDE_TORCH`), l'Ollama hôte relu à `/api/ps` est marqué
+de même. Détail, reste et gardes : `ROADMAP §Gouvernance`, bloc du 2026-11-04.
+
+**La revérification a trouvé un défaut de ma main, dans le palier des paroles** : `extract_score -> extract_lyrics has no
+port` (`tests_process_pipeline`, hors du périmètre lancé ce jour-là). Les paroles entraient par une dépendance que leurs
+ports ne disaient pas : `composer.extract_lyrics` prend désormais la partition (`score`, optionnelle), et les deux
+fonctions sortent du type `prompt`, celui que `plan` et `render` lisent. Mesuré après correction : composer vert. Reste
+rouge et non à moi : `translator_01` (jumelle gitignorée, `ocr -> translate`) ; `CanvasPoseTheNodeFromPipelinesTest` (133
+classes pour 132, autre session).
 
 
 ## §CLÔTURE 2026-11-04, « PRÉSENTATION, VOIX » — session du 02→04/11 — poussé (`origin/dev` contient `2f0651164`) — vérifié EN SERVICE après la relance du 04/11 15:45

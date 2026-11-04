@@ -29,34 +29,31 @@ def get_free_vram_gb() -> Optional[float]:
     à prendre 18 Go ». Deux tâches lancées de front voyaient donc toutes deux le GPU libre, et
     passaient — c'est le scénario de superposition que le gouverneur existe pour empêcher.
 
-    On ne remplace PAS l'appel par `effective_free_gb()` : celle-ci rend `0.0` quand torch est
-    absent, ce qui vaudrait « aucun budget » et écarterait TOUS les modèles. Ici, `None` veut dire
-    « budget inconnu, ne contraint pas » — sémantique préservée : on garde la sonde du moniteur
-    et on lui retranche le registre partagé. Une seule mesure de référence, deux appelants.
+    On ne remplace PAS l'appel par `effective_free_gb()` : celle-ci rend `0.0` faute de carte, ce
+    qui vaudrait « aucun budget » et écarterait TOUS les modèles. Ici, `None` veut dire « budget
+    inconnu, ne contraint pas ». La mesure, elle, est la même (`card_free_gb`).
+
+    ⚠ Depuis le 2026-11-04 la sonde est la CARTE. C'était celle du moniteur (total − alloué de CE
+    process) : aveugle à tout occupant sans ligne au registre, et mesuré ce jour-là, le budget
+    restait à 20,84 Go quand la carte n'en avait que 12,90 — le tirage retenait un modèle que la
+    garde faisait ensuite attendre. Elle ouvrait aussi un contexte CUDA dans le process web.
     """
     try:
-        from .memory_monitor import WAMAMemoryMonitor
-        gpus = WAMAMemoryMonitor().get_gpu_usage()
-        if not gpus:
-            return None
-        libre = max((g.free_gb for g in gpus), default=None)
-        if libre is None:
-            return None
+        from wama.common.services.resource_governor import card_free_gb, unseen_reserved_gb
     except Exception as e:
-        logger.debug(f"[model_selector] free VRAM indéterminable : {e}")
+        logger.debug(f"[model_selector] gouverneur indisponible : {e}")
+        return None
+    libre = card_free_gb()
+    if libre is None:
         return None
     try:
-        from wama.common.services.resource_governor import unseen_reserved_gb
-        # Sonde PAR PROCESS (total − alloué de CE process) : on retranche ce qu'elle ne voit pas
-        # encore, mais pas les empreintes que ce process a lui-même allouées — elles sont déjà
-        # hors de `libre`. Jusqu'au 2026-09-14 on retranchait tout, et un résident comptait double.
-        reserve = unseen_reserved_gb('process')
+        reserve = unseen_reserved_gb('card')
     except Exception as e:      # registre indisponible : on ne DÉGRADE pas, on rend le brut
         logger.debug(f"[model_selector] registre de réservations indisponible : {e}")
         return libre
     if reserve:
         logger.info(f"[model_selector] budget VRAM : {libre:.1f} Go libres − {reserve:.1f} Go "
-                    f"réservés par d'autres process = {max(0.0, libre - reserve):.1f} Go")
+                    f"annoncés sans être encore pris = {max(0.0, libre - reserve):.1f} Go")
     return max(0.0, libre - reserve)
 
 

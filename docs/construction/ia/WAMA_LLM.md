@@ -2923,7 +2923,8 @@ process d'app : capacités (`requires` : completion, vision, appel d'outils…),
   défaut du fournisseur (`role_utils.resolve_model`) ; deux mesures de VRAM copiées
   (`config.get_available_vram_gb`, `run_audit._get_free_vram_gb`) ; `effective_free_gb` ouvre un
   contexte CUDA — une sonde sans contexte, comme `total_vram_gb` depuis le 10/10, serait au
-  gouverneur de l'offrir.
+  gouverneur de l'offrir. ✅ *Offerte le 2026-11-04 : `resource_governor.card_free_gb`, nvidia-smi
+  (`ROADMAP §Gouvernance`).*
 
 ### 2026-10-20 — wama-dev-ai sur les briques de l'assistant : appel local, saturation, relais
 

@@ -103,8 +103,8 @@ class WhisperBackend(SpeechToTextBackend):
     PIP_PACKAGES      = ['faster-whisper']
 
     min_vram_gb         = 2
-    # Repli du gouverneur : CTranslate2 alloue hors de l'allocateur PyTorch, la mesure autour de
-    # load() reste donc à ~0 et c'est CETTE valeur qui est réservée. Ne pas la sous-estimer.
+    # Repli du gouverneur quand le chargement ne se mesure pas : CTranslate2 alloue hors de
+    # l'allocateur PyTorch, sa mesure vient du contexte CUDA (`base._measured_outside_torch_gb`).
     recommended_vram_gb = 10
 
     MODEL_VRAM = {
