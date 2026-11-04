@@ -803,6 +803,21 @@ la note de saturation est posée par SOURCE (`source_quota.note_saturation`, cl�
 `<source>:<portée>`, sans le modèle) : un « busy » d'un seul modèle d'ILaaS écarte tout ILaaS du
 tirage suivant — l'explication la plus probable du décideur tiré sur le local `gemma4:12b`, non
 prouvée (le journal du tour n'a pas été gardé).
+**Rejouée le jour même, corrections en place.** Par l'assistant d'abord : le parent (ILaaS
+`gemma-4-31b`, Albert indisponible) a écrit son appel `delegate` en TEXTE, mal formé (accolade
+finale manquante, `decide` en double) — refusé à juste titre par la boucle, puis AFFICHÉ brut à
+l'utilisateur ; ⏳ défaut du parent, distinct du council, non traité (recopier un dossier de 6 000
+caractères dans un argument JSON reste fragile pour ce modèle). Puis la vague elle-même
+(`_delegate_wave`, dossier mot pour mot, `agents=[critique, methodology, science, investigation,
+general]`, `review`) : **1 026 s, cinq rapports, aucune panne** (le remplacement n'a donc pas été
+exercé en réel), quatre avis de fond qui JUGENT — chacun une position par question et un verdict —,
+classement unanime de l'avis d'Albert `deepseek-v4-flash` (920 s à lui seul), décideur Albert
+`qwen3-coder-30b` (7 s) qui cite les avis et garde les divergences ; verdict **AJUSTER**.
+⏳ Deux rapports COUPÉS non détectés : `deepseek-v4-flash` au milieu d'un mot après 14 000
+caractères, `qwen-3.8-27b` après 236 — un rapport tronqué passe pour un avis (la donnée
+`unanswered` ne voit que le vide). Et l'avis le mieux classé porte une erreur de FAIT (« le run ne
+stocke pas le corps » — il le fige, `studio/services/launch.py:239`, `StudioRun.graph`) que ni les
+relecteurs ni le décideur n'ont relevée : sans outil, ils jugent la cohérence, pas l'exactitude.
 
 **REA et Ghidra pour générer une app « depuis un projet GitHub ou une interface existante »
 (2026-10-29, question de Fabien) — évalués, rien d'installé.** Ghidra (NSA, Apache-2.0) décompile
