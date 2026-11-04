@@ -41,20 +41,20 @@ SECTION_ATTR = 'data-wama-section'
 PATCH_CEILING = 0.3
 
 _HEADING = re.compile(r'^#{1,6}\s')
-_FENCE = re.compile(r'^\s*(```|~~~)')
 
 
 # ── Le fond en sections ─────────────────────────────────────────────────────────────────────
 
 def split_sections(text: str) -> list:
     """Les sections d'un texte, sans rien perdre : leur concaténation EST le texte. Jumelle de
-    `split` de `brick-text-sections.js` — mêmes cas, même résultat (`tests_document_sections`)."""
+    `split` de `brick-text-sections.js` — mêmes cas, même résultat (`tests_document_sections`).
+    Un bloc de code suit la règle commune des `.md` (`doc_sections.code_fence`)."""
+    from wama.common.doc_sections import code_fence
     lines = re.findall(r'[^\n]*\n|[^\n]+$', str(text or ''))
-    out, cur, fenced = [], '', False
+    out, cur, fenced = [], '', ''
     for line in lines:
-        if _FENCE.match(line):
-            fenced = not fenced
-        elif not fenced and _HEADING.match(line) and cur:
+        is_fence, fenced = code_fence(line.rstrip('\n'), fenced)
+        if not (is_fence or fenced) and _HEADING.match(line) and cur:
             out.append(cur)
             cur = ''
         cur += line
@@ -75,7 +75,13 @@ def plain_text(line: str) -> str:
 
 
 def _content_lines(chunk: str) -> list:
-    return [line.strip() for line in chunk.split('\n') if line.strip() and not _FENCE.match(line)]
+    from wama.common.doc_sections import code_fence
+    out, fenced = [], ''
+    for line in chunk.split('\n'):
+        is_fence, fenced = code_fence(line, fenced)
+        if line.strip() and not is_fence:
+            out.append(line.strip())
+    return out
 
 
 # ── Le plan ─────────────────────────────────────────────────────────────────────────────────

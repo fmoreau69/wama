@@ -104,6 +104,25 @@ class ErreursTest(SimpleTestCase):
         self.assertEqual(sections(texte)[1], [])
 
 
+class CodeFenceTest(SimpleTestCase):
+    """La règle des blocs de code (`code_fence`, CommonMark §4.5) — 2026-11-04 : une ligne qui
+    COMMENCE par du code en ligne ouvrait un bloc jamais fermé, et tout ce qui suivait la §10.5 de
+    la route disparaissait du lecteur de doc de l'assistant."""
+
+    def test_inline_code_at_the_start_of_a_line_opens_no_block(self):
+        text = _doc("# A", "```` ```html ```` retirée et la présence vérifiée.", "# B", "fin")
+        self.assertEqual(['A', 'B'], [s.title for s in sections(text)[0]])
+
+    def test_a_block_closes_only_on_the_same_marker_at_least_as_long(self):
+        text = _doc("# A", "````", "```", "# inside a block", "~~~", "````", "# B",
+                    "~~~", "```", "# inside again", "~~~", "# C")
+        self.assertEqual(['A', 'B', 'C'], [s.title for s in sections(text)[0]])
+
+    def test_a_closing_line_carries_nothing_but_its_marker(self):
+        text = _doc("# A", "```python", "x = 1", "``` not a close", "# inside", "```", "# B")
+        self.assertEqual(['A', 'B'], [s.title for s in sections(text)[0]])
+
+
 class PorteTest(SimpleTestCase):
     """La porte (⑤) : obligatoire pour l'utilisateur, bien formée, héritée comme le reste."""
 
@@ -187,3 +206,26 @@ class CorpusTest(SimpleTestCase):
                 fautes += [(rel, n, m) for n, m in
                            sections(f.read_text(encoding='utf-8', errors='replace'))[1]]
         self.assertEqual(fautes, [])
+
+    def test_no_document_of_the_corpus_ends_inside_a_code_block(self):
+        """Un bloc de code jamais fermé AVALE la fin du document : ses titres ne sont plus des
+        titres pour le lecteur de doc, le RAG des docs et `check_docs`. Rend le doc et la ligne
+        qui ouvre le bloc."""
+        from ..doc_sections import code_fence
+        from ..docs_catalog import checked_paths
+        base = Path(settings.BASE_DIR)
+        unclosed = []
+        for rel in checked_paths():
+            f = base / rel
+            if not f.is_file():
+                continue
+            fence, opened_at = '', 0
+            for number, line in enumerate(f.read_text(encoding='utf-8', errors='replace')
+                                          .splitlines(), 1):
+                is_fence, after = code_fence(line, fence)
+                if is_fence and after:
+                    opened_at = number
+                fence = after
+            if fence:
+                unclosed.append((rel, opened_at))
+        self.assertEqual(unclosed, [])

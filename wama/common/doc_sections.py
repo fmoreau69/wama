@@ -45,7 +45,31 @@ from typing import Dict, List, Optional, Tuple
 TAG_PREFIX = '<!-- WAMA:SECTION('
 _TAG = re.compile(r'^\s*<!-- WAMA:SECTION\((.*)\) -->\s*$')
 _HEADING = re.compile(r'^(#{1,6})\s+(.+?)\s*#*\s*$')
-_FENCE = re.compile(r'^\s*(```|~~~)')
+_FENCE = re.compile(r'^\s*(`{3,}|~{3,})(.*)$')
+
+
+def code_fence(line: str, opened: str = '') -> Tuple[bool, str]:
+    """La règle des blocs de code de Markdown (CommonMark §4.5), UNE fois pour tous les lecteurs
+    de `.md` de WAMA : `(la ligne est une clôture, clôture encore ouverte après elle)`. `opened` est
+    la clôture ouvrante en cours (« ``` », « ~~~~ »…), vide hors bloc.
+
+    Une ligne de backticks ouvre un bloc seulement si la suite n'en contient AUCUN — « ```` ```html
+    ```` retirée » est du code EN LIGNE en tête de paragraphe ; un bloc se ferme par le MÊME
+    caractère, au moins aussi long, et rien d'autre. ⚠ Le défaut mesuré (2026-11-04, council sur
+    les pipelines imbriqués) : la règle « toute ligne qui commence par ``` bascule » ouvrait un bloc
+    à ROUTE l.4658 qui ne se fermait jamais — le lecteur de doc de l'assistant, le RAG des docs et
+    `check_docs` ne voyaient plus rien après la §10.5 (33 sections sur un fichier de ~8 000 lignes)."""
+    match = _FENCE.match(line)
+    if not match:
+        return False, opened
+    marker, rest = match.group(1), match.group(2)
+    if opened:
+        if marker[0] == opened[0] and len(marker) >= len(opened) and not rest.strip():
+            return True, ''
+        return False, opened
+    if marker[0] == '`' and '`' in rest:
+        return False, ''
+    return True, marker
 
 #: ⚠ Les VALEURS sont un vocabulaire de DONNÉE, écrit dans les docs : elles ne se renomment pas
 #: avec les identifiants (AGENTS.md §nommage, règle 3). `audience` reprend celui du catalogue.
@@ -142,7 +166,7 @@ def sections(texte: str) -> Tuple[List[Section], List[Tuple[int, str]]]:
     pile: List[Tuple[int, Dict[str, object]]] = []   # (niveau, attributs) des ancêtres
     courante: Optional[Section] = None
     corps: List[str] = []
-    dans_code = False
+    dans_code = ''            # la clôture ouvrante du bloc de code en cours (`code_fence`)
     balise_admise = False     # vrai jusqu'à la 1ʳᵉ ligne non vide qui suit un titre
 
     def _clore():
@@ -150,8 +174,9 @@ def sections(texte: str) -> Tuple[List[Section], List[Tuple[int, str]]]:
             courante.body = '\n'.join(corps).strip('\n')
 
     for i, ligne in enumerate(texte.splitlines(), 1):
-        if _FENCE.match(ligne):
-            dans_code = not dans_code
+        is_fence, open_after = code_fence(ligne, dans_code)
+        if is_fence:
+            dans_code = open_after
             balise_admise = False
             corps.append(ligne)
             continue

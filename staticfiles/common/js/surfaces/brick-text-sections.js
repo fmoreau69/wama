@@ -19,15 +19,32 @@
     'use strict';
 
     var HEADING = /^#{1,6}\s/;
-    var FENCE = /^\s*(```|~~~)/;
+    var FENCE = /^\s*(`{3,}|~{3,})(.*)$/;
+
+    /** La règle des blocs de code de Markdown — jumelle de `doc_sections.code_fence` :
+     *  [la ligne est une clôture, clôture encore ouverte après elle]. Une ligne de backticks qui en
+     *  contient d'autres plus loin est du code EN LIGNE ; un bloc se ferme par le même caractère,
+     *  au moins aussi long, et rien d'autre. */
+    function codeFence(line, opened) {
+        var m = FENCE.exec(line);
+        if (!m) return [false, opened];
+        var marker = m[1], rest = m[2];
+        if (opened) {
+            if (marker[0] === opened[0] && marker.length >= opened.length && !rest.trim()) return [true, ''];
+            return [false, opened];
+        }
+        if (marker[0] === '`' && rest.indexOf('`') !== -1) return [false, ''];
+        return [true, marker];
+    }
 
     /** Les sections d'un texte, sans rien perdre : leur concaténation EST le texte. */
     function split(text) {
         var lines = String(text || '').match(/[^\n]*\n|[^\n]+$/g) || [];
-        var out = [], cur = '', fenced = false;
+        var out = [], cur = '', fenced = '';
         lines.forEach(function (line) {
-            if (FENCE.test(line)) fenced = !fenced;
-            else if (!fenced && HEADING.test(line) && cur) { out.push(cur); cur = ''; }
+            var step = codeFence(line.replace(/\n$/, ''), fenced);
+            fenced = step[1];
+            if (!(step[0] || fenced) && HEADING.test(line) && cur) { out.push(cur); cur = ''; }
             cur += line;
         });
         if (cur || !out.length) out.push(cur);

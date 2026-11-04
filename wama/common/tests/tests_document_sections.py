@@ -66,7 +66,11 @@ class SplitIsTheBrickRuleTest(SimpleTestCase):
 
     CASES = ['# Title\n\nIntro.\n\n## Part\nBody\n', 'No heading at all.\nSecond line.', '',
              '# A\n```\n# not a heading, inside code\n```\n# B\n\n\n', 'Preamble\n# First\ntext',
-             DRAFT]
+             DRAFT,
+             # La règle commune des blocs de code (`doc_sections.code_fence`, 2026-11-04) : du code
+             # en ligne en tête de ligne n'ouvre rien ; un bloc se ferme par le même caractère.
+             '# A\n```` ```html ```` retirée\n# B\n',
+             '# A\n````\n```\n# inside\n~~~\n````\n# B\n~~~\n```\n# inside\n~~~\n# C\n']
 
     def test_the_server_cuts_like_the_surface_brick(self):
         from py_mini_racer import MiniRacer
@@ -82,6 +86,11 @@ class SplitIsTheBrickRuleTest(SimpleTestCase):
                 js = json.loads(engine.eval('JSON.stringify(window.__b.split(%s))' % json.dumps(text)))
                 self.assertEqual(js, split_sections(text))
                 self.assertEqual(text, ''.join(split_sections(text)))
+
+    def test_inline_code_opens_no_block_and_a_block_closes_on_its_own_marker(self):
+        from wama.common.utils.document_sections import split_sections
+        self.assertEqual(2, len(split_sections(self.CASES[-2])))
+        self.assertEqual(3, len(split_sections(self.CASES[-1])))
 
 
 class LayoutPlanTest(SimpleTestCase):

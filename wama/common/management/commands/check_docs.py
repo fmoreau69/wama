@@ -365,19 +365,19 @@ class Command(BaseCommand):
             # vrai par construction. Calculé d'un coup : l'état est séquentiel, pas local.
             neutres = set()
             if f.name == 'SKILL.md':
-                fence = faits = False
+                from wama.common.doc_sections import code_fence
+                fence, faits = '', False
                 for j, l in enumerate(lignes, 1):
-                    ouvre_fence = l.lstrip().startswith('```')
+                    is_fence, open_after = code_fence(l, fence)
                     if '/WAMA:FAITS(' in l:
                         faits, marque = False, True
                     elif 'WAMA:FAITS(' in l:
                         faits, marque = True, True
                     else:
                         marque = False
-                    if fence or faits or ouvre_fence or marque:
+                    if fence or faits or is_fence or marque:
                         neutres.add(j)
-                    if ouvre_fence:
-                        fence = not fence
+                    fence = open_after
 
             # Invariant propre aux skills : le `name:` du frontmatter DOIT valoir le nom du
             # dossier, sinon le skill ne s'invoque pas sous le nom qu'on croit. Vérifié à la
