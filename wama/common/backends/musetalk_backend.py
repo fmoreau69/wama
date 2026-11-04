@@ -11,7 +11,6 @@ le backend execute.
 import logging
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -113,13 +112,18 @@ def subprocess_timeout(audio_path: str) -> int:
     return int(TIMEOUT_BASE_S + TIMEOUT_PER_AUDIO_S * duration)
 
 
-def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift: int = 0) -> str:
+def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift: int = 0,
+                  progress=None) -> str:
     """
     Exécute MuseTalk via subprocess.
 
     MuseTalk écrit ses résultats dans <result_dir>/v15/*.mp4.
     On passe --result_dir pointant vers le dossier du job pour éviter tout
     déplacement de fichier et pour que les runs concurrents ne se mélangent pas.
+
+    `progress(fraction)` : la progression de la glu, appelée en battement pendant que l'enfant
+    travaille (MuseTalk ne dit pas son avancement : la fraction reste 0) — c'est elle qui porte
+    l'arrêt ⏹ jusqu'à l'enfant (`process_control.run_child`).
 
     Retourne le chemin de la vidéo MP4 générée.
     """
@@ -150,8 +154,9 @@ def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift:
     # La VRAM de MuseTalk est consommée par un SOUS-PROCESSUS : invisible du gouverneur, qui
     # croirait la VRAM libre et laisserait une autre tâche GPU démarrer par-dessus. On la
     # déclare donc pour la durée de l'appel (cf. `vram_reservation`, PROJECT_STATUS §0).
+    from wama.common.utils.process_control import run_child
     with vram_reservation(f"avatarizer.musetalk:{os.getpid()}", MUSETALK_VRAM_GB):
-        result = subprocess.run(
+        result = run_child(
             [
                 sys.executable, '-W', 'ignore::UserWarning',
                 '-m', 'scripts.inference',
@@ -166,9 +171,8 @@ def _run_musetalk(image_path: str, audio_path: str, output_dir: str, bbox_shift:
             ],
             cwd=str(MUSETALK_DIR),
             env=_build_musetalk_env(),
-            capture_output=True,
-            text=True,
             timeout=subprocess_timeout(audio_path),
+            heartbeat=(lambda: progress(0.0)) if progress else None,
         )
 
     # Toujours capturer la sortie pour le diagnostic

@@ -1036,6 +1036,18 @@ PARENT, d'où « Cannot re-initialize CUDA in forked subprocess » et le plafond
 enfant depuis au moins le 31/10 — `PYTORCH_NVML_BASED_CUDA_CHECK=1` posé une fois dans `settings.py`,
 mesuré sur un worker prefork jetable (avec : l'enfant pose le plafond ; sans : l'avertissement).
 Gardes : `tests_vram_wait.ThreeCasesTest`, `tests_out_of_process_holders.ForkSafeCudaCheckTest`.
+Soldés le 2026-11-04, ce qui restait des ⏳ ci-dessus : ⑦ ⏹ atteint un sous-processus de calcul
+et ses propres enfants (`process_control.run_child` : groupe de processus, battement par la
+progression de la glu — le canal par lequel la tâche voit déjà un arrêt —, groupe entier arrêté sur
+⏹, délai ou limite de durée ; MuseTalk et CodeFormer l'emploient) ; ⑧ les trois services uvicorn
+démarrent DANS l'environnement des workers (`wama_worker_env` avant eux, dans les deux scripts) —
+mesuré dans `/proc` sur les services en service : sans `USE_TF=0`, alors que TensorFlow est installé
+(DeepFace) et que transformers le voit ; ⑨ le service privacy est tenant depuis le 2026-11-03
+(`b54785643`, autre instance). Gunicorn : mesuré, il ne tient aucun modèle du contrat — seulement
+le repli sur place des clients privacy/vecteurs quand leur service est éteint —, et le temps réel du
+face_analyzer (DeepFace) y tourne sur processeur (TensorFlow ne voit pas la carte) : pas de tenant à
+poser tant que cela tient. Gardes : `tests_out_of_process_holders.ChildStopsWithItsTaskTest`,
+`tests_musetalk_backend`, `tests_worker_watchdog`.
 
 **✅ 2026-11-04 — le libre d'une décision se lit à la CARTE** (défaut vécu par Fabien : un lot de
 covers en `AWAITING_RESOURCES`, le worker se voyant 1,2 Go libres quand `nvidia-smi` en donnait ~8).

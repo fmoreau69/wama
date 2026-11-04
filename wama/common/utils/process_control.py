@@ -575,6 +575,79 @@ def _reconcile_in_background(running, **opts) -> None:
     threading.Thread(target=run, daemon=True, name='wama-reconcile').start()
 
 
+#: Intervalle de veille d'un sous-processus de calcul : le battement (`heartbeat`) qui laisse la
+#: tâche voir un ⏹ pendant qu'un enfant travaille.
+CHILD_POLL_S = 5.0
+#: Délai de grâce entre SIGTERM et SIGKILL quand un groupe d'enfants est arrêté.
+CHILD_GRACE_S = 10.0
+
+
+def run_child(cmd, *, cwd=None, env=None, timeout=None, heartbeat=None,
+              poll_s: float = CHILD_POLL_S):
+    """Lance un SOUS-PROCESSUS de calcul (moteur vendorisé : MuseTalk, CodeFormer) que l'arrêt de
+    la tâche atteint — rend un `subprocess.CompletedProcess` (sorties en texte), comme
+    `subprocess.run(capture_output=True, text=True)`.
+
+    Jusqu'au 2026-11-04 ces moteurs passaient par `subprocess.run` : ⏹ ne les atteignait pas (la
+    tâche ne voit l'arrêt que par sa progression, `TaskContext.check_current`, et rien ne
+    progressait pendant l'attente), et une limite de durée ne tuait que l'enfant direct, pas ses
+    propres enfants (ffmpeg). Ici l'enfant ouvre son GROUPE de processus ; toutes les `poll_s`
+    secondes, `heartbeat()` est appelé — la progression de la glu, qui lève `LaunchSuperseded` si
+    l'élément a été arrêté ou relancé ; et à toute sortie anticipée (arrêt, `timeout`, limite de
+    durée du squelette, signal), le groupe entier est arrêté avant que l'exception ne remonte.
+    `timeout` dépassé : `subprocess.TimeoutExpired`, comme `subprocess.run`."""
+    import subprocess
+    import tempfile
+    import time
+    deadline = time.monotonic() + timeout if timeout else None
+    # Des fichiers plutôt que des tubes : un enfant bavard ne bloque jamais sur un tube plein
+    # pendant qu'on attend sa fin.
+    with tempfile.TemporaryFile(mode='w+') as out, tempfile.TemporaryFile(mode='w+') as err:
+        child = subprocess.Popen(cmd, cwd=cwd, env=env, stdout=out, stderr=err, text=True,
+                                 start_new_session=True)
+        try:
+            while True:
+                try:
+                    child.wait(timeout=poll_s)
+                    break
+                except subprocess.TimeoutExpired:
+                    if deadline is not None and time.monotonic() >= deadline:
+                        raise subprocess.TimeoutExpired(cmd, timeout) from None
+                    if heartbeat is not None:
+                        heartbeat()
+        finally:
+            if child.poll() is None:
+                _stop_child_group(child)
+        out.seek(0)
+        err.seek(0)
+        return subprocess.CompletedProcess(cmd, child.returncode, out.read(), err.read())
+
+
+def _stop_child_group(child) -> None:
+    """SIGTERM au groupe de l'enfant, SIGKILL après `CHILD_GRACE_S` ; l'enfant seul là où les
+    groupes n'existent pas (Windows)."""
+    import os
+    import signal
+    import subprocess
+    if not hasattr(os, 'killpg'):
+        child.kill()
+        child.wait()
+        return
+    try:
+        os.killpg(child.pid, signal.SIGTERM)
+        child.wait(timeout=CHILD_GRACE_S)
+    except subprocess.TimeoutExpired:
+        os.killpg(child.pid, signal.SIGKILL)
+        child.wait()
+    except ProcessLookupError:
+        pass
+    # Le meneur parti, des membres du groupe peuvent lui survivre : le groupe est vidé.
+    try:
+        os.killpg(child.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
 def _pid_alive(pid) -> bool:
     """Le processus `pid` existe-t-il sur CETTE machine ? En cas de doute (droits), oui."""
     import os

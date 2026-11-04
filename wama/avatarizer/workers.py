@@ -455,6 +455,7 @@ def _animate(job, ctx):
                     audio_path=audio_path,
                     output_dir=str(travail),
                     bbox_shift=job.bbox_shift,
+                    progress=lambda f: ctx.progress(25 + int(f * 55)),
                 )
                 _console(job.user_id, "MuseTalk terminé.", 'info')
 
@@ -529,7 +530,8 @@ def _codeformer(job, animated_copy, ctx):
     ctx.progress(20)
     started = _time.time()
     with work_dir(f'avatarizer_face{job.id}') as travail:
-        enhanced = _backend('avatarizer:codeformer').process(animated_copy, str(travail))
+        enhanced = _backend('avatarizer:codeformer').process(
+            animated_copy, str(travail), progress=lambda f: ctx.progress(20 + int(f * 70)))
         target = Path(animated_copy).parent / compose_output_name(
             app='avatarizer', model='codeformer',
             source_name=job.audio_input.name if job.audio_input else animated_copy,

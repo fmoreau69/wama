@@ -35,6 +35,17 @@ class WorkerSupervisionScriptsTest(SimpleTestCase):
                                 f'{path.name}: a second copy of a worker launch')
             self.assertIn('scripts/worker_watchdog.sh', src, f'{path.name}: no supervision')
 
+    def test_the_model_services_start_inside_the_worker_environment(self):
+        """The uvicorn services load models too: started before `wama_worker_env`, they ran
+        without `USE_TF=0` while TensorFlow is installed (2026-11-04, read in /proc on the live
+        services) — the parallel CUDA context behind « CUDA error: unknown error » in WSL2."""
+        for path in STARTERS:
+            src = _read(path)
+            env_call = re.search(r'(?m)^wama_worker_env\s*$', src)
+            self.assertIsNotNone(env_call, path.name)
+            first_service = src.index('uvicorn wama.common.')
+            self.assertLess(env_call.start(), first_service, path.name)
+
     def test_the_supervision_is_stopped_before_the_workers_are_killed(self):
         """Left alive, it would relaunch the workers the restart is stopping."""
         for path in STARTERS:

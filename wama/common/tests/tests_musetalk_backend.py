@@ -37,7 +37,8 @@ class MuseTalkLaunchTest(SimpleTestCase):
         done = subprocess.CompletedProcess(args=[], returncode=0, stdout='', stderr='')
         with mock.patch('wama.common.utils.audio_decode.probe_duration_seconds',
                         return_value=duration), \
-                mock.patch.object(mb.subprocess, 'run', return_value=done) as run:
+                mock.patch('wama.common.utils.process_control.run_child',
+                           return_value=done) as run:
             video = mb._run_musetalk('photo.jpg', 'audio.wav', str(self.out))
         self.assertTrue(video.endswith('avatar_audio.mp4'))
         return run.call_args
@@ -66,6 +67,17 @@ class MuseTalkLaunchTest(SimpleTestCase):
         """S3FD (`load_url`) allait dans `$HOME/.cache/torch` (2026-10-11)."""
         _, kwargs = self._launch(3.0)
         self.assertEqual(str(mb.MUSETALK_TORCH_HOME), kwargs['env']['TORCH_HOME'])
+
+    def test_the_progress_of_the_glue_beats_while_the_child_works(self):
+        """⏹ reaches the child through the glue's progress (2026-11-04) — without it, nothing
+        progressed during MuseTalk and the stop waited for its end."""
+        done = subprocess.CompletedProcess(args=[], returncode=0, stdout='', stderr='')
+        calls = []
+        with mock.patch('wama.common.utils.audio_decode.probe_duration_seconds', return_value=3.0), \
+                mock.patch('wama.common.utils.process_control.run_child', return_value=done) as run:
+            mb._run_musetalk('photo.jpg', 'audio.wav', str(self.out), progress=calls.append)
+        run.call_args.kwargs['heartbeat']()
+        self.assertEqual([0.0], calls)
 
     def test_the_models_link_is_created_when_missing(self):
         """Rien ne créait `vendor/musetalk/models` : une installation neuve n'avait aucun poids."""

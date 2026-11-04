@@ -146,3 +146,82 @@ class OtherHoldersTest(_WithRegistry):
             summary = gov.holders_summary()
         self.assertIn('avatarizer.musetalk (8.0 Go)', summary)
         self.assertIn('ollama:qwen3:4b (3.2 Go)', summary)
+
+
+class ChildStopsWithItsTaskTest(SimpleTestCase):
+    """⏹ reaches a computing child and its own children (2026-11-04): MuseTalk and CodeFormer ran
+    through `subprocess.run`, which the stop never reached, and a time limit killed the direct
+    child only. Real processes: a Python child that starts a grandchild, both of which sleep."""
+
+    def setUp(self):
+        if not hasattr(os, 'killpg'):
+            self.skipTest('process groups (Linux) required')
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.pids = os.path.join(folder.name, 'pids')
+        script = textwrap.dedent(f"""
+            import os, subprocess, sys, time
+            grandchild = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+            open({self.pids!r}, 'w').write(f'{{os.getpid()}} {{grandchild.pid}}')
+            time.sleep(60)
+        """)
+        self.cmd = [sys.executable, '-c', script]
+
+    def _alive(self, pid):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        # A zombie still answers: read its state.
+        with open(f'/proc/{pid}/stat') as stat:
+            return stat.read().split(') ')[1][0] != 'Z'
+
+    def _wait_for_pids(self):
+        import time
+        for _ in range(100):
+            if os.path.exists(self.pids) and open(self.pids).read().strip():
+                return [int(p) for p in open(self.pids).read().split()]
+            time.sleep(0.05)
+        self.fail('the child never started its grandchild')
+
+    def test_a_stop_seen_by_the_heartbeat_ends_the_child_and_its_children(self):
+        from wama.common.utils.process_control import run_child
+        from wama.common.utils.task_skeleton import LaunchSuperseded
+        seen = []
+
+        def heartbeat():
+            seen.extend(self._wait_for_pids())
+            raise LaunchSuperseded()
+        with self.assertRaises(LaunchSuperseded):
+            run_child(self.cmd, heartbeat=heartbeat, poll_s=0.2)
+        self.assertEqual(2, len(seen))
+        for pid in seen:
+            self.assertFalse(self._alive(pid), f'pid {pid} survived the stop')
+
+    def test_the_time_limit_ends_the_whole_group(self):
+        from wama.common.utils.process_control import run_child
+        with self.assertRaises(subprocess.TimeoutExpired):
+            run_child(self.cmd, timeout=1.0, poll_s=0.2)
+        for pid in self._wait_for_pids():
+            self.assertFalse(self._alive(pid), f'pid {pid} survived the time limit')
+
+    def test_a_child_that_ends_gives_its_code_and_its_output(self):
+        from wama.common.utils.process_control import run_child
+        beats = []
+        done = run_child([sys.executable, '-c', 'import sys; print("out"); '
+                          'print("err", file=sys.stderr); sys.exit(3)'],
+                         heartbeat=lambda: beats.append(1), poll_s=0.2)
+        self.assertEqual((3, 'out\n', 'err\n'), (done.returncode, done.stdout, done.stderr))
+
+    def test_codeformer_beats_with_the_progress_of_its_glue(self):
+        from wama.common.backends import codeformer_backend
+        done = subprocess.CompletedProcess(args=[], returncode=1, stdout='', stderr='boom')
+        calls = []
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch('wama.common.utils.process_control.run_child', return_value=done) as run, \
+                mock.patch.object(codeformer_backend, 'vram_reservation',
+                                  lambda *a, **k: __import__('contextlib').nullcontext()):
+            codeformer_backend._codeformer_dans('in.mp4', __import__('pathlib').Path(folder),
+                                                calls.append)
+        run.call_args.kwargs['heartbeat']()
+        self.assertEqual([0.0], calls)

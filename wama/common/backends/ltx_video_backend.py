@@ -505,9 +505,10 @@ class LTXVideoBackend(ImageGenerationBackend):
         try:
             from diffusers.pipelines.ltx.pipeline_ltx_condition import LTXVideoCondition
             from PIL import Image
+            from wama.common.backends.image_generation_base import fit_reference
 
-            img = Image.open(image_path).convert("RGB")
-            img = img.resize((width, height))
+            # Recadrée au centre, jamais étirée (décision de Fabien, 2026-11-04).
+            img = fit_reference(Image.open(image_path).convert("RGB"), (width, height))
 
             condition = LTXVideoCondition(
                 video=img,

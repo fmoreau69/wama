@@ -979,6 +979,45 @@ class OutputFollowsTheReferenceRatioTest(TestCase):
         for size in size_following_reference((1000, 333), (1024, 1024)):
             self.assertEqual(0, size % 16, 'a multiple the engines accept')
 
+    def test_the_minimum_bounds_the_shortest_side_as_the_canonical_vocabulary_says(self):
+        """`min_resolution` is the SMALLEST side accepted (`CANONICAL_CAPABILITIES`), not the
+        longest: the 2026-11-02 rule applied it to the longest one (found 2026-11-04)."""
+        from wama.common.backends.image_generation_base import size_following_reference
+        self.assertEqual((1024, 512), size_following_reference(
+            (1600, 800), (640, 320), min_side=512, max_side=2048), 'short side raised to 512')
+        self.assertEqual((1024, 384), size_following_reference(
+            (1600, 600), (1024, 384), min_side=512, max_side=1024),
+            'too elongated to hold both bounds: the maximum wins, the ratio is kept')
+
+    def test_a_text_launch_is_bounded_without_losing_its_ratio(self):
+        """FLUX and HunyuanImage bounded each side alone: 1920×1080 with a 1024 maximum came out
+        1024×1024 (2026-11-04)."""
+        from wama.common.backends.image_generation_base import bounded_size
+        self.assertEqual((1024, 576), bounded_size((1920, 1080), min_side=512, max_side=1024))
+        self.assertEqual((2048, 1152), bounded_size((2048, 1152), min_side=1024, max_side=2048))
+        self.assertEqual((1824, 1024), bounded_size((1024, 576), min_side=1024, max_side=2048))
+
+    def test_the_text_paths_of_the_diffusers_engine_use_the_common_bounds(self):
+        """The two text→image branches that bounded side by side (FLUX, HunyuanImage) now call
+        the common rule — a third per-side clamp would come back unseen without this guard."""
+        import inspect
+        from wama.common.backends import diffusers_backend
+        source = inspect.getsource(diffusers_backend)
+        self.assertEqual(2, source.count('bounded_size((width, height)'))
+        self.assertNotIn('max(min_size, min(max_size', source)
+
+    def test_an_image_to_video_input_is_cropped_never_stretched(self):
+        """CogVideoX (720×480 native) and LTX stretched the input image to the video size;
+        Fabien chose the image rule, a centred crop (2026-11-04). Wan already sizes the video
+        on the input ratio."""
+        import inspect
+        from wama.common.backends import cogvideox_backend, ltx_video_backend
+        for module in (cogvideox_backend, ltx_video_backend):
+            source = inspect.getsource(module)
+            self.assertIn('fit_reference(Image.open(', source, module.__name__)
+            self.assertNotIn('image.resize((params.width, params.height))', source)
+            self.assertNotIn('img.resize((width, height))', source)
+
     def test_fitting_the_reference_never_stretches_it(self):
         from PIL import Image
         from wama.common.backends.image_generation_base import fit_reference

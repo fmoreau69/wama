@@ -772,6 +772,15 @@ dans la boîte de la référence (`media-preview.css`) : rien à y changer. Gard
 `imager.tests.OutputFollowsTheReferenceRatioTest`. ⏳ Restent ÉTIRÉES : l'image d'entrée d'une
 vidéo (image→vidéo, CogVideoX en 720×480 natif) et les bornes par côté des chemins texte→image
 FLUX et HunyuanImage (`diffusers_backend.py`, `max(min, min(max, côté))` sur chaque côté).
+✅ *2026-11-04, les deux soldés.* L'image d'entrée d'une vidéo est RECADRÉE au centre, jamais
+étirée (décision de Fabien : la règle de l'image) — CogVideoX et la condition image de LTX par
+`fit_reference` ; Wan dimensionnait déjà la vidéo sur le ratio de l'entrée. Le texte→image FLUX
+et HunyuanImage garde le ratio demandé (`image_generation_base.bounded_size`, la même règle,
+l'image demandée servant de référence) : 1920×1080 bornée à 1024 sort en 1024×576, plus en
+1024×1024. Et la règle elle-même suit désormais le vocabulaire canonique
+(`model_capabilities.CANONICAL_CAPABILITIES`) : `max_resolution` borne le plus GRAND côté,
+`min_resolution` le plus PETIT — la version du 02/11 appliquait le minimum au plus grand côté.
+Un ratio trop allongé pour tenir les deux bornes garde la borne haute.
 
 **2026-10-02 — la DURÉE du composer suit la même route.** Mesuré dans le code : le curseur du
 composer proposait jusqu'à 10 min (`params.py`, `max=600`) alors que MusicGen et AudioGen

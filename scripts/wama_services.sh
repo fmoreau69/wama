@@ -28,7 +28,8 @@ wama_runtime_env() {
     export WAMA_MODEL_BACKUP_PATH=${WAMA_MODEL_BACKUP_PATH:-/mnt/shares/SAVES/DEEP_LEARNING/MODELS}
 }
 
-# Environnement des workers (modèles d'IA).
+# Environnement des process qui chargent des modèles d'IA : les workers ET les services uvicorn
+# (voix, vecteurs, confidentialité), que les scripts de démarrage lancent après lui (2026-11-04).
 wama_worker_env() {
     # Limite de descripteurs relevée à la limite dure (le démarrage tente d'abord `prlimit`).
     ulimit -Sn "$(ulimit -Hn)" 2>/dev/null || true

@@ -272,10 +272,16 @@ MECHANISMS = (
               "worker relancé (`worker_ready`) et par la surveillance des workers "
               "(`scripts/worker_watchdog.sh` → `manage.py worker_died`) ; relance d'un élément "
               "EN COURS sur accord confirmé (`grant_replace`, `api/replace-grant/`), la tâche "
-              "remplacée ou arrêtée se retirant d'elle-même (`task_skeleton.LaunchSuperseded`)",
+              "remplacée ou arrêtée se retirant d'elle-même (`task_skeleton.LaunchSuperseded`) ; "
+              "un SOUS-PROCESSUS de calcul que l'arrêt atteint (`run_child` : groupe de "
+              "processus, battement par la progression de la glu, groupe entier arrêté sur ⏹, "
+              "délai ou limite de durée — 2026-11-04)",
               'wama/common/utils/process_control.py', 'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
               annexes=('wama/celery.py', 'wama/common/management/commands/worker_died.py',
-                       'scripts/worker_watchdog.sh', 'scripts/wama_services.sh')),
+                       'scripts/worker_watchdog.sh', 'scripts/wama_services.sh',
+                       # CodeFormer l'emploie aussi ; il est rattaché à `work_dir` (un fichier,
+                       # un propriétaire).
+                       'wama/common/backends/musetalk_backend.py')),
     Mechanism('memory_manager', 'Mémoire GPU',
               "Garantit la VRAM avant un chargement, la reprend sur les autres modèles, "
               "et réessaie après libération sur erreur CUDA",

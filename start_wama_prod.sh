@@ -263,6 +263,13 @@ else:
 " 2>/dev/null || echo "CUDA cleanup skipped (torch not available or no GPU)"
 fi
 
+# Environnement des process qui chargent des modèles — défini dans scripts/wama_services.sh,
+# partagé avec la surveillance qui relance un worker mort. Posé AVANT les services (2026-11-04) :
+# ils chargent eux aussi des modèles (voix, détecteurs de données personnelles), et lancés avant
+# lui ils n'avaient pas `USE_TF=0` — TensorFlow est installé (DeepFace), transformers le voyait,
+# et c'est le contexte CUDA parallèle du « CUDA error: unknown error » en WSL2.
+wama_worker_env
+
 # ------------------------------------------------------
 # TTS SERVICE (FastAPI) — précharge Kokoro seul
 # ------------------------------------------------------
@@ -409,10 +416,7 @@ sudo -n prlimit --nofile=65536:65536 --pid $$ 2>/dev/null \
     || true
 echo "File descriptor limit: $(ulimit -n)"
 
-# Environnement des workers (modèles d'IA) — défini dans scripts/wama_services.sh, partagé
-# avec la surveillance qui relance un worker mort : une relance reproduit le démarrage.
-wama_worker_env
-
+# L'environnement des workers est posé plus haut, avant les services (`wama_worker_env`).
 # Workers Celery (gpu, default, studio) et Celery Beat — lancements dans scripts/wama_services.sh
 # (commentaires de chaque worker là-bas : pool, files, préchargement).
 for w in $WAMA_CELERY_WORKERS; do

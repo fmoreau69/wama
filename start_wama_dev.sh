@@ -130,6 +130,10 @@ else:
     print('No GPU detected, skipping CUDA cleanup')
 " 2>/dev/null || echo "CUDA cleanup skipped (torch not available or no GPU)"
 
+# Environnement des process qui chargent des modèles (scripts/wama_services.sh), AVANT les
+# services : ils chargent eux aussi des modèles (mêmes raisons que start_wama_prod.sh).
+wama_worker_env
+
 # ------------------------------------------------------
 # TTS SERVICE (FastAPI, preloads XTTS v2)
 # ------------------------------------------------------
@@ -172,8 +176,8 @@ fi
 # CELERY WORKERS (2 workers: gpu + default)
 # ------------------------------------------------------
 # Environnement des workers et lancements : scripts/wama_services.sh (mêmes que la production,
-# worker default en pool solo par WAMA_DEFAULT_WORKER_POOL ci-dessus).
-wama_worker_env
+# worker default en pool solo par WAMA_DEFAULT_WORKER_POOL ci-dessus). L'environnement est posé
+# plus haut, avant les services.
 for w in $WAMA_CELERY_WORKERS; do
     if ! celery_worker_alive "$w"; then
         echo "=== Starting Celery $w ==="

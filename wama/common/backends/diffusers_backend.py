@@ -11,7 +11,8 @@ import gc
 import logging
 from typing import Optional, Callable, List
 
-from .image_generation_base import ImageGenerationBackend, GenerationParams, GenerationResult
+from .image_generation_base import (ImageGenerationBackend, GenerationParams, GenerationResult,
+                                    bounded_size)
 
 from wama.common.external_sources import hf_platform_ref, hf_repo
 
@@ -914,8 +915,7 @@ class DiffusersBackend(ImageGenerationBackend):
                 height = params.height
                 min_size = model_info.get("min_resolution", 512) if model_info else 512
                 max_size = model_info.get("max_resolution", 1024) if model_info else 1024
-                width  = max(min_size, min(max_size, (width  // 8) * 8))
-                height = max(min_size, min(max_size, (height // 8) * 8))
+                width, height = bounded_size((width, height), min_side=min_size, max_side=max_size)
 
                 logger.info(f"[Diffusers] FLUX generation: {params.num_images} image(s) one-at-a-time, {width}x{height}, steps={params.steps}")
                 logger.info(f"[Diffusers]   Guidance: {params.guidance_scale}, Seed base: {seed_used}")
@@ -999,18 +999,11 @@ class DiffusersBackend(ImageGenerationBackend):
                         width = params.width
                         height = params.height
 
-                        # Ensure minimum size (1024 recommended for quality)
+                        # Bornes du modèle (1024 recommandé pour la qualité) sur le plus grand
+                        # côté, ratio demandé gardé — plus de côté relevé seul (2026-11-04).
                         min_size = model_info.get("min_resolution", 1024)
-                        if width < min_size:
-                            logger.warning(f"[Diffusers] Width {width} below minimum {min_size}, adjusting")
-                            width = min_size
-                        if height < min_size:
-                            logger.warning(f"[Diffusers] Height {height} below minimum {min_size}, adjusting")
-                            height = min_size
-
-                        # Ensure dimensions are multiples of 8 (required by diffusion models)
-                        width = (width // 8) * 8
-                        height = (height // 8) * 8
+                        width, height = bounded_size((width, height), min_side=min_size,
+                                                     max_side=model_info.get("max_resolution"))
 
                         logger.info(f"[Diffusers] HunyuanImage generation parameters:")
                         logger.info(f"[Diffusers]   Resolution: {width}x{height}")

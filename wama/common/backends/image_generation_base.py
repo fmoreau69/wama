@@ -73,11 +73,16 @@ def size_following_reference(reference_size, requested_size, *, min_side=None, m
         return int(fixed_size[0]), int(fixed_size[1])
     ref_w, ref_h = (int(v) for v in reference_size)
     req_w, req_h = (int(v) for v in requested_size)
+    # Les bornes au sens du vocabulaire canonique (`model_capabilities.CANONICAL_CAPABILITIES`) :
+    # `max_resolution` = le plus GRAND côté accepté, `min_resolution` = le plus PETIT. Un ratio
+    # trop allongé pour tenir les deux garde la borne haute (la mémoire d'abord).
     longest = max(req_w, req_h)
     if max_side:
         longest = min(longest, int(max_side))
-    if min_side:
-        longest = max(longest, int(min_side))
+    if min_side and longest * min(ref_w, ref_h) / max(ref_w, ref_h) < int(min_side):
+        longest = int(min_side) * max(ref_w, ref_h) / min(ref_w, ref_h)
+        if max_side:
+            longest = min(longest, int(max_side))
     if ref_w >= ref_h:
         width, height = longest, longest * ref_h / ref_w
     else:
@@ -86,6 +91,17 @@ def size_following_reference(reference_size, requested_size, *, min_side=None, m
     def snap(value):
         return max(multiple, int(round(value / multiple)) * multiple)
     return snap(width), snap(height)
+
+
+def bounded_size(requested_size, *, min_side=None, max_side=None,
+                 multiple: int = SIZE_MULTIPLE) -> tuple:
+    """La taille demandée, dans les bornes du modèle, SANS changer son ratio — la règle de
+    `size_following_reference`, l'image demandée servant de référence (texte→image).
+
+    Jusqu'au 2026-11-04, FLUX et HunyuanImage bornaient chaque côté séparément : 1920×1080 avec un
+    maximum de 1024 sortait en 1024×1024."""
+    return size_following_reference(requested_size, requested_size, min_side=min_side,
+                                    max_side=max_side, multiple=multiple)
 
 
 def fit_reference(image: Image.Image, size) -> Image.Image:

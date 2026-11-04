@@ -96,10 +96,11 @@ def _ensure_codeformer_weights_in_ai_models() -> None:
             src.symlink_to(dst.resolve())
 
 
-def _run_codeformer(video_path: str, output_dir: str) -> str:
+def _run_codeformer(video_path: str, output_dir: str, progress=None) -> str:
     """
     Améliore la qualité faciale de la vidéo avec CodeFormer.
-    Si CodeFormer n'est pas installé ou échoue, renvoie le chemin d'origine.
+    Si CodeFormer n'est pas installé ou échoue, renvoie le chemin d'origine. `progress(fraction)` :
+    la progression de la glu, en battement — elle porte l'arrêt ⏹ jusqu'au sous-processus.
     """
     if not CODEFORMER_DIR.exists():
         logger.warning(f"[avatarizer] CodeFormer absent ({CODEFORMER_DIR}) — amélioration ignorée.")
@@ -115,7 +116,7 @@ def _run_codeformer(video_path: str, output_dir: str) -> str:
     from wama.common.utils.work_dir import work_dir
 
     with work_dir('avatarizer_codeformer') as travail:
-        produit = _codeformer_dans(video_path, travail)
+        produit = _codeformer_dans(video_path, travail, progress)
         if produit is None:
             return video_path
         # Sortir le livrable AVANT la fin du bloc — après, le dossier n'existe plus.
@@ -125,7 +126,7 @@ def _run_codeformer(video_path: str, output_dir: str) -> str:
         return str(final)
 
 
-def _codeformer_dans(video_path: str, travail: Path):
+def _codeformer_dans(video_path: str, travail: Path, progress=None):
     """Lance CodeFormer dans `travail`. Rend le chemin de la vidéo produite, ou None si échec.
 
     Séparé de `_run_codeformer` pour que la gestion du dossier jetable reste lisible : ici on ne
@@ -134,10 +135,11 @@ def _codeformer_dans(video_path: str, travail: Path):
     cf_out = travail / 'codeformer_out'
     cf_out.mkdir(parents=True, exist_ok=True)
 
+    from wama.common.utils.process_control import run_child
     try:
         # Même raison que MuseTalk : sous-processus GPU, empreinte déclarée le temps de l'appel.
         with vram_reservation(f"avatarizer.codeformer:{os.getpid()}", CODEFORMER_VRAM_GB):
-            result = subprocess.run(
+            result = run_child(
                 [
                     sys.executable, 'inference_codeformer.py',
                     '-i', str(Path(video_path).resolve()),
@@ -149,9 +151,8 @@ def _codeformer_dans(video_path: str, travail: Path):
                 cwd=str(CODEFORMER_DIR),
                 # Le plafond CUDA du parent, posé dans l'enfant par l'amorce commune (2026-11-02).
                 env=capped_child_env(),
-                capture_output=True,
-                text=True,
                 timeout=1800,   # 30 min — chargement modèle + traitement vidéo longue
+                heartbeat=(lambda: progress(0.0)) if progress else None,
             )
     except subprocess.TimeoutExpired:
         logger.warning("[avatarizer] CodeFormer timeout (30 min) — on garde la vidéo MuseTalk.")

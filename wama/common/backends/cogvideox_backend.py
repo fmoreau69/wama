@@ -311,9 +311,11 @@ class CogVideoXBackend(ImageGenerationBackend):
                 if model_config["type"] == "i2v" and params.reference_image:
                     # Image-to-Video
                     from PIL import Image
-                    image = Image.open(params.reference_image).convert("RGB")
-                    # Resize to match expected dimensions
-                    image = image.resize((params.width, params.height))
+                    from wama.common.backends.image_generation_base import fit_reference
+                    # Recadrée au centre à la taille de la vidéo, jamais étirée (décision de
+                    # Fabien, 2026-11-04 — la règle de l'image→image).
+                    image = fit_reference(Image.open(params.reference_image).convert("RGB"),
+                                          (params.width, params.height))
 
                     output = self._pipe(
                         prompt=params.prompt,
