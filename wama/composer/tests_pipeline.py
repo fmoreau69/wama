@@ -86,7 +86,32 @@ def _deferring_task():
     return task
 
 
-ENGINES = {SCORE_MODEL: _ScoreEngine, PLAIN_MODEL: _PlainEngine}
+#: A model that takes a COVER by its audio (MusicGen Melody, `work_audio`).
+COVER_MODEL = 'composer:musicgen-melody'
+#: A SOUND EFFECT model (AudioGen, task `text-to-audio`) : no score, no lyrics.
+SFX_MODEL = 'composer:audiogen-medium'
+ENGINES = {SCORE_MODEL: _ScoreEngine, PLAIN_MODEL: _PlainEngine, COVER_MODEL: _PlainEngine,
+           SFX_MODEL: _PlainEngine}
+#: What the catalogue says of these models, as their real declarations do : what a process requires
+#: from the model is read THERE (`ProcessSpec.needs`, 2026-11-05) — never stood in by a patch.
+_PROMPT = {'inputs_required': ['prompt']}
+CATALOGUE = {
+    SCORE_MODEL: {**_PROMPT, 'task': 'text-to-music', 'supports_vocals': True,
+                  'inputs_optional': ['work_score']},
+    PLAIN_MODEL: {**_PROMPT, 'task': 'text-to-music', 'supports_vocals': False},
+    COVER_MODEL: {**_PROMPT, 'task': 'text-to-music', 'supports_vocals': False,
+                  'inputs_optional': ['work_audio']},
+    SFX_MODEL: {**_PROMPT, 'task': 'text-to-audio', 'supports_vocals': False},
+}
+
+
+def catalogue_rows(**overrides):
+    """The catalogue lines of the test models (`CATALOGUE`), a model's capabilities replaced by
+    `overrides[key]` when given."""
+    from wama.model_manager.models import AIModel
+    for key, caps in CATALOGUE.items():
+        AIModel.objects.update_or_create(model_key=key, defaults={
+            'name': key, 'source': 'composer', 'capabilities': overrides.get(key, caps)})
 
 
 class PlanThenRenderTest(TestCase):

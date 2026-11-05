@@ -43,14 +43,8 @@ def wants_vocals(mode, text, stored_lyrics='') -> bool:
 
 def sings(model_key) -> bool:
     """Le modèle chante-t-il ? Capacité DÉCLARÉE au catalogue ; absente = non."""
-    if not model_key:
-        return False
-    try:
-        from wama.model_manager.models import AIModel
-        row = AIModel.objects.filter(model_key=model_key).only('capabilities').first()
-        return bool(row and (row.capabilities or {}).get(CAPABILITY))
-    except Exception:
-        return False
+    from wama.common.utils.model_capabilities import catalog_capabilities
+    return bool(catalog_capabilities(model_key).get(CAPABILITY))
 
 
 def singing_models(task) -> list:

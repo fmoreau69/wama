@@ -28510,3 +28510,62 @@ pousser `fac2b2b65` et le commit de cette clôture (à demander) ; jumelles rég
   (code 2545 > 2544, classes 133 > 132, méthodes 1288 > 1286 — aucun nom des fichiers de cette
   session) et `SnapshotsInstallesTest.test_a_snapshot_is_left_only_to_the_entry_that_designates_it`
   (chantier « emplacements désignés » du balayage générique, non commité).
+
+## §PALIER 2026-11-05 (soir), « RÉGLAGES SELON LES CAPACITÉS DU MODÈLE (composer) ; VALEURS PROPRES DES FILLES D'UN LOT, CHOIX PAR LIGNE ; ALIGNEMENT À CÔTÉ DES RÉGLAGES » — ce commit (local, non poussé)
+
+**Décisions de Fabien, 2026-11-05** : « quelle capacité du modèle rend ce réglage utile ? » — les
+capacités des modèles doivent être EXHAUSTIVES et les réglages, comme les entrées, suivre le modèle
+choisi ; une section de process sans objet est CACHÉE. Pour le lot : la durée tirée du fichier de
+chaque fille est épargnée « de façon universelle, sans pansement propre à la durée » ; d'autres
+réglages issus de caractéristiques ne doivent pas être écrasés ; un prompt peut s'appliquer depuis
+la mère ; le choix se fait LIGNE PAR LIGNE ; « réaligner » va à côté des réglages (« ne pas
+disperser »).
+
+**Composer, réglages ↔ capacités** (`INPUT_MODEL_MATCHING §7`, entrée du 2026-11-05) :
+`ProcessSpec.needs` — ce qu'un process exige du modèle, en DONNÉE (grammaire `show_if` sur la fiche
+du catalogue, `model_capabilities.catalog_capabilities`, `AppPipeline.model_serves`), posée dans
+`WAMA_APP_PROCESSES` ; l'écran cache un réglage qui ne sert que des process non servis, et la
+section qui n'a plus rien (`WamaParams.settingNeeds` / `_bindProcessNeeds`, évaluateur unique
+`conditionMet` ↔ `condition_met`). Défaut mesuré corrigé : « Partition de sortie » n'avait aucune
+condition. `supports_vocals` déclaré pour chaque modèle du composer (vrai/faux) ; « Voix » et
+« Paroles » liées (`cap_from` « reads »). Grille : `model_caps_ui` réglage par réglage
+(`_capability_named_unbound`) — audit de la flotte : `vocals` était le seul trou de cette nature ;
+Imager et Synthesizer étaient bien alignés (Fabien avait raison). Les tests du composer lisent les
+fiches de catalogue de leurs modèles (`tests_pipeline.catalogue_rows`).
+
+**Lot, valeurs propres** (`MODES_QUEUE_UX §5ter`, entrée du 2026-11-05) : `batch_settings.own_settings`
+— liée à son ENTRÉE (tirée de son fichier par `Param.default_from`, ou entrée elle-même : le prompt)
+ou réglée à la main (diffère de la référence) ; rien d'estampillé en base, relu à chaque geste.
+Portées `SCOPES` : la ⚙ garde tout par défaut, « réaligner » et la promotion gardent les valeurs
+liées à l'entrée. Choix ligne par ligne « Remplacer aussi » (`WamaParams.bindBatchOwn`, lecture
+`common:api_batch_own_settings`, `replace_own`). « Réaligner » / « Faire de ses réglages la
+référence » dans la ⚙ et le volet (`WamaParams.batchAlignment`), retirés du menu « … ». Prompt du
+composer ouvert au contexte `batch`. L'outil `update_batch_settings` de l'assistant porte `scope` et
+`replace_own`.
+
+**Gardes** : `tests_cap_from_js` (`SettingsFollowWhatTheModelServesTest`,
+`TheBatchSaysWhatEachChildKeepsTest`, V8), `tests_process_pipeline.WhatAProcessRequiresFromItsModelTest`,
+`tests_cap_from_declared.EverySettingAModelNamesIsBoundTest`, `composer.tests_parts…test_a_sound_effect_has_neither_score_even_asked`,
+`tests_batch_views.OwnValuesOfTheChildrenTest` (7, l'outil de l'assistant compris) — contre-épreuve
+de chacune : six briques neutralisées, six gardes rouges. Mesuré (WSL, 32 modules) : **1042** tests,
+rouges NOMMÉS, pas à cette session : `tests_identifier_language` — classes de test 133 > 132, le
+même dépassement qu'au début de la session (aucun nom de mes fichiers dans la liste). Puis 77 verts
+après le dernier ajout (lot + couverture des outils). `check_redundancy` 114 : les 14 de plus sont
+le code ACE-Step vendorisé par une autre session et deux trouvailles anciennes de `tests_parts.py`
+décalées de lignes — aucune nouvelle dans mes fichiers. Docs générées : `docs/dev/briques.md` repris
+de HEAD avec mes seules sections (vérifiées symbole par symbole), `WAMA_MECANISMES.md` avec mes deux
+descriptions — leurs comptes restent à recaler par une régénération (travail non commité d'autrui).
+
+**À relancer** : gunicorn et les workers (vues, pipeline, fabrique de lot, `tool_api`) ;
+`collectstatic` n'est pas nécessaire (copies de `staticfiles/` synchronisées). **Puis
+`manage.py sync_models`** pour que le catalogue en service porte `supports_vocals` des modèles du
+composer (sans lui, « Voix » reste active sous MusicGen — dégradation douce), et l'export des
+manifestes qui suit (les `manifests/models/composer__*.json` portaient du travail non commité d'une
+autre session : laissés tels quels).
+
+**Restes nommés** : ⏳ non joué au navigateur (sections cachées, note par ligne, bloc
+d'alignement) ; ⏳ `plan` (`plans_a_score`, attribut de classe du moteur, pas au catalogue) et
+`extract_score` (`covers_audio_by_score`) jugent encore leur modèle en code — sans effet d'écran ;
+⏳ un réglage écrit par un process (les paroles écoutées) n'entre pas au lot aujourd'hui — le jour
+où il y entre, il se range parmi les valeurs liées à l'entrée ; ⏳ le rapport de transcription
+reste une graine recopiée (`WAMA_QUALITE`, rapports générés : `campaign_evaluation` à écrire).

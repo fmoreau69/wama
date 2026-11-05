@@ -712,63 +712,9 @@
             });
         }
 
-        // ↑ PROMOUVOIR SES RÉGLAGES AU LOT (2026-10-03, MODES_QUEUE_UX §5ter / ROUTE §10.6 5.3) :
-        // une FILLE fait de ses réglages la référence de la mère, posée sur ses sœurs — n'importe
-        // quelle card peut servir de référence (régler plusieurs filles, comparer, promouvoir la
-        // gagnante). L'URL est lue sur l'en-tête du lot (`data-batch-promote-url`, émise par
-        // `_batch_card.html` quand la route existe) : une app non câblée ne se voit rien
-        // proposer. Le pendant « ↓ réaligner » est une entrée du menu de la MÈRE (plus bas).
-        var childLot = (!estLot && !recue && cibles.length === 1) ? lotDe(card) : null;
-        var promoteHeader = childLot ? childLot.querySelector('[data-batch-promote-url]') : null;
-        if (promoteHeader && card.dataset.id) {
-            entrees.push({
-                icone: 'fas fa-arrows-up-to-line', libelle: 'Faire de ses réglages la référence du lot',
-                agir: function () {
-                    poster(promoteHeader.getAttribute('data-batch-promote-url'),
-                           { source: card.dataset.id })
-                        .then(function (res) {
-                            if (!res || res.success === false || res.error) {
-                                dire('Promotion impossible — '
-                                     + ((res && (res.error || res.reason)) || 'refusée'), 'error');
-                                return;
-                            }
-                            var n = res.updated || 0;
-                            dire('Réglages promus au lot · ' + n + ' card' + (n > 1 ? 's' : '')
-                                 + ' réalignée' + (n > 1 ? 's' : ''), 'success');
-                            setTimeout(function () { location.reload(); }, 600);
-                        });
-                },
-            });
-        }
-
-        // ↓ RÉALIGNER LE LOT (2026-11-02, Fabien : « la gestion de l'alignement des réglages
-        // devrait se gérer dans la modale des paramètres ou dans le menu complémentaire "…" ») :
-        // la référence du lot (sa ⚙, ou les réglages promus d'une fille) reposée sur toutes ses
-        // filles. C'était un bouton de la barre d'actions de la mère, GRISÉ tant que le lot n'a pas
-        // de référence — il prenait la place d'un geste fréquent pour un geste rare, et grisé il
-        // ne disait rien. Ici, sans référence, l'entrée dit quoi faire.
-        if (estLot && !recue && cibles.length === 1 && card.dataset.batchRealignUrl) {
-            entrees.push(card.dataset.batchReference === '1' ? {
-                icone: 'fas fa-arrows-down-to-line', libelle: 'Réaligner toutes les cards sur la référence',
-                agir: function () {
-                    if (!global.confirm('Réaligner toutes les cards du lot sur ses réglages de '
-                                        + 'référence ? Les réglages individuels seront remplacés.')) return;
-                    poster(card.dataset.batchRealignUrl, {}).then(function (res) {
-                        if (!res || res.success === false || res.error) {
-                            dire('Réalignement impossible — '
-                                 + ((res && (res.error || res.reason)) || 'refusé'), 'error');
-                            return;
-                        }
-                        var n = res.updated || 0;
-                        dire('Lot réaligné · ' + n + ' card' + (n > 1 ? 's' : ''), 'success');
-                        setTimeout(function () { location.reload(); }, 600);
-                    });
-                },
-            } : {
-                icone: 'fas fa-arrows-down-to-line', desactive: true,
-                libelle: 'Réaligner : aucune référence — réglez le lot (⚙) ou promouvez une card',
-            });
-        }
+        // ↑ PROMOUVOIR / ↓ RÉALIGNER : à côté des RÉGLAGES depuis le 2026-11-05 (Fabien : « ne pas
+        // disperser les choses ») — la ⚙ et le volet d'une card mère ou fille les portent, avec leur
+        // portée (`WamaParams.batchAlignment`). Ils étaient ici depuis le 2026-11-02.
 
         if (d.dndMergeUrl && cibles.length > 1 && !selectionRecue) {
             entrees.push({

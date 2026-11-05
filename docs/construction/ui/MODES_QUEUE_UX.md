@@ -298,6 +298,36 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   `tests_batch_modal_divergence`, `tests_batch_views`, `tests_item_settings_contract`.
   ⏳ Non joué au navigateur (tâches GPU de Fabien en cours). ⏳ Reste : ouvrir les pauses du
   synthesizer au contexte `batch`, décision à part.
+  ✅ **2026-11-05 — les VALEURS PROPRES d'une fille** (Fabien : « il faut faire en sorte que d'autres
+  réglages issus de caractéristiques ne soient pas écrasés par le report des réglages de la card
+  mère », et « appliquer un prompt depuis la card mère »). Mesuré avant : la ⚙ tenait les lignes
+  divergentes, mais « réaligner » et la promotion reposaient tout — la durée qu'une fille tire de
+  son cover écrasée par celle de sa sœur. Une fille garde ce qui lui est PROPRE, sans rien
+  estampiller en base (`batch_settings.own_settings`, relu à chaque geste) :
+  - **liée à son ENTRÉE** — tirée de son fichier (`Param.default_from` : la durée d'un cover, les
+    pages sans texte d'un PDF ; la fille le confirme en portant l'entrée qui propose la valeur,
+    `batch_identity.entry_file` → `inputs_by_port` → `input_proposals`, la lecture de la naissance),
+    ou entrée elle-même (son port de consigne, `input_settings` : le prompt du composer, ouvert au
+    contexte `batch` ce jour-là) ;
+  - **réglée à la main** — sa valeur diffère de la référence du lot.
+  **Le choix se fait LIGNE PAR LIGNE** (décision de Fabien, plutôt qu'un menu global à trois modes
+  qui ne sait pas « appliquer le prompt, garder les durées ») : sous une ligne concernée, la ⚙ du
+  lot et le volet d'une mère disent « S'appliquera à N cards · M gardent leur valeur (… liées à leur
+  entrée, … réglées à la main) — **Remplacer aussi** » (`WamaParams.bindBatchOwn`, lecture
+  `common:api_batch_own_settings`) ; le choix voyage avec les réglages (`replace_own`, lu par
+  `make_batch_views._gesture`). Par défaut la ⚙ garde tout ce qui est propre.
+  **« Réaligner » et « Faire de ses réglages la référence » vivent à CÔTÉ DES RÉGLAGES** (Fabien :
+  « ne pas disperser les choses ») — un bloc « Alignement du lot » dans la ⚙ et le volet de la mère
+  (réaligner) et d'une fille (promouvoir), `WamaParams.batchAlignment` ; ils quittent le menu « … ».
+  Leur PORTÉE se choisit : garder les valeurs propres / **remplacer celles faites à la main, garder
+  celles liées à l'entrée (défaut)** / tout remplacer (`batch_settings.SCOPES`). Gardes :
+  `tests_batch_views.OwnValuesOfTheChildrenTest` (vrai lot du composer : deux covers et une
+  chanson, ⚙, ligne « remplacer aussi », prompt appliqué, trois portées de « réaligner »,
+  promotion, lecture de la page), `tests_cap_from_js.TheBatchSaysWhatEachChildKeepsTest` (V8 : la
+  note, `read` qui porte le choix, le bloc d'alignement et sa contre-épreuve sans route).
+  ⏳ Non joué au navigateur. ⏳ Les réglages ÉCRITS par un process (les paroles écoutées du
+  composer, `process_runs.settle_setting`) sont au seul contexte de l'élément : le jour où l'un
+  entre au lot, il est à ranger parmi les valeurs liées à l'entrée.
 - **À ajouter — deux gestes symétriques** :
   - **↑ promouvoir** : depuis une card fille, faire remonter SES réglages à la mère, qui les
     applique à tout le batch ;

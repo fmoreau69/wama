@@ -90,6 +90,15 @@ def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=
     return {k: v for k, v in data.items() if not (v == '' and k in names)}
 
 
+#: Ce qu'un geste de la mère POSTE à côté des réglages (`make_batch_views._gesture`) : jamais un
+#: réglage, ni dans les filles ni dans la référence du lot.
+GESTURE_FIELDS = ('scope', 'replace_own')
+
+
+def _settings_only(data: dict) -> dict:
+    return {k: v for k, v in (data or {}).items() if k not in GESTURE_FIELDS}
+
+
 def _within_choices(item, name, value) -> bool:
     """Vrai si le champ `name` du modèle n'a pas de liste fermée, ou si `value` en fait partie."""
     try:
@@ -632,7 +641,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
 
     def _posted_settings(request, item):
         """Les réglages postés, lus selon le schéma de CET élément quand il en dépend."""
-        item_schema = schema(item)
+        item_schema = _schema_of(item)
         names = tuple(p.get('name') for p in (item_schema or [])
                       if isinstance(p, dict) and p.get('name'))
         return read_settings_payload(request, item_schema, names, empty_is_value, list_settings)
@@ -678,18 +687,29 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             'schema': schema, 'empty_is_value': tuple(empty_is_value or ()),
             'list_settings': tuple(list_settings or ()), 'write': _write_one}
 
-    def _apply_to_elements(request, b, data_for, *, skip=()):
+    def _apply_to_elements(request, b, data_for, *, skip=(), scope=batch_settings.KEEP_OWN,
+                           replace=()):
         """Pose `data_for(élément)` sur chaque élément du lot qui ne tourne pas (hors `skip`),
         en DEUX TEMPS — poser sur tous, PUIS sauver : un réglage refusé pour un élément n'en
         laisse aucun à moitié réglé. Rend `(nombre d'éléments écrits, None)`, ou
         `(None, réponse 400)` sur un refus. Le SEUL chemin d'écriture des trois gestes de la
-        mère (⚙, ↑ promouvoir, ↓ réaligner) : ils ne peuvent pas diverger."""
+        mère (⚙, ↑ promouvoir, ↓ réaligner) : ils ne peuvent pas diverger.
+
+        Les valeurs PROPRES d'une fille (`batch_settings.own_settings` : tirées de SON fichier,
+        réglées sur elle) restent les siennes selon `scope`, sauf les réglages que `replace`
+        désigne (« remplacer aussi », choisi ligne par ligne) — 2026-11-05, décision de Fabien.
+        La référence d'avant le geste dit ce qui est personnalisé."""
+        reference = batch_settings.stored(b)
         pending = []                              # (élément, champs touchés ; None = tous)
         for item in _members(request, b):
             if item.pk in skip or getattr(item, 'status', '') == 'RUNNING':
                 continue
+            data = data_for(item)
+            keep = batch_settings.kept(
+                batch_settings.own_settings(item, _schema_of(item), reference), scope, replace)
+            data = {k: v for k, v in data.items() if k not in keep}
             try:
-                touched = _write_one(item, data_for(item))
+                touched = _write_one(item, data)
             except ValueError as refusal:
                 return None, JsonResponse({'error': str(refusal)}, status=400)
             if touched is None or touched:
@@ -701,6 +721,26 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                 item.save(update_fields=touched)
         return len(pending), None
 
+    def _schema_of(item):
+        """Le schéma de CET élément, lu UNE fois par geste (retenu sur l'instance) : les réglages
+        postés et ses valeurs propres le lisent tous deux."""
+        if not callable(schema):
+            return schema or []
+        if '_wama_batch_schema' not in item.__dict__:
+            item.__dict__['_wama_batch_schema'] = schema(item) or []
+        return item.__dict__['_wama_batch_schema']
+
+    def _gesture(request, default_scope):
+        """Ce que le geste fait des valeurs propres : `(scope, remplacer aussi)` postés — la portée
+        (`batch_settings.SCOPES`), et les réglages dont les valeurs propres sont remplacées aussi."""
+        raw = read_settings_payload(request, list_names=('replace_own',))
+        scope = raw.get('scope') if raw.get('scope') in batch_settings.SCOPES else default_scope
+        replace = raw.get('replace_own') or []
+        # Une liste, ou ses noms joints par des virgules (`WamaParams.read` : un champ de FormData).
+        names = [n for v in ([replace] if isinstance(replace, str) else replace)
+                 for n in str(v).split(',')]
+        return scope, [n.strip() for n in names if n.strip()]
+
     def _typed(item, data):
         """Des réglages RETENUS (chaînes d'un formulaire, ou valeurs d'une fille) coercés au
         schéma de CET élément quand le schéma en dépend — comme `_posted_settings` le fait
@@ -709,7 +749,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             return data
         try:
             from wama.common.utils.param_schema import coerce_schema_values
-            return {**data, **coerce_schema_values(schema(item), data)}
+            return {**data, **coerce_schema_values(_schema_of(item), data)}
         except Exception:
             return data
 
@@ -725,8 +765,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         shared = (None if callable(schema)
                   else read_settings_payload(request, schema, schema_names, empty_is_value,
                                              list_settings))
+        scope, replace = _gesture(request, batch_settings.KEEP_OWN)
         written, refusal = _apply_to_elements(
-            request, b, lambda item: shared if shared is not None else _posted_settings(request, item))
+            request, b, lambda item: _settings_only(
+                shared if shared is not None else _posted_settings(request, item)),
+            scope=scope, replace=replace)
         if refusal is not None:
             return refusal
         # La mère RETIENT ce qu'elle vient de poser : c'est la référence que « ↓ réaligner »
@@ -734,7 +777,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         # S'AJOUTE à la référence : une ⚙ ne poste plus que ce qu'elle décide (`fillFromBatch`), et
         # ce qu'elle tait n'en sort pas — ni n'y entre : un réglage où les filles divergent reste
         # hors de la référence, « réaligner » ne l'écrase pas.
-        posted = shared if shared is not None else read_settings_payload(request)
+        posted = _settings_only(shared if shared is not None else read_settings_payload(request))
         batch_settings.remember(b, {**(batch_settings.stored(b) or {}), **posted})
         return JsonResponse({'success': True, 'updated': written, 'batch_id': pk})
 
@@ -755,8 +798,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         if not payload:
             return JsonResponse({'error': "cette card ne porte aucun réglage à promouvoir"},
                                 status=400)
+        scope, replace = _gesture(request, batch_settings.KEEP_COMPUTED)
         written, refusal = _apply_to_elements(request, b, lambda item: _typed(item, payload),
-                                              skip={source.pk})
+                                              skip={source.pk}, scope=scope, replace=replace)
         if refusal is not None:
             return refusal
         batch_settings.remember(b, payload, source_id=source.pk)
@@ -773,7 +817,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             return JsonResponse({'error': "ce lot n'a pas encore de réglages de référence — "
                                           "réglez-le (⚙) ou promouvez une de ses cards"},
                                 status=400)
-        written, refusal = _apply_to_elements(request, b, lambda item: _typed(item, reference))
+        scope, replace = _gesture(request, batch_settings.KEEP_COMPUTED)
+        written, refusal = _apply_to_elements(request, b, lambda item: _typed(item, reference),
+                                              scope=scope, replace=replace)
         if refusal is not None:
             return refusal
         return JsonResponse({'success': True, 'updated': written, 'batch_id': pk,

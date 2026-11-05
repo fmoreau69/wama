@@ -846,10 +846,17 @@ def _model_caps_ui(f: _AppFiles):
         return None, None
     declared = f.find_code(PARAMS, r'\bcap_from\s*=\s*\{')
     if declared:
+        # Réglage par réglage (2026-11-05) : un `cap_from` ailleurs ne couvre pas un réglage qu'une
+        # capacité NOMME sans qu'il y soit lié — le composer était VERT par sa durée, quand
+        # « Voix », nommée par `supports_vocals`, restait active sous un modèle qui ne chante pas.
+        unbound = _capability_named_unbound(f)
+        if unbound:
+            return False, f"réglages nommés par une capacité sans liaison : {', '.join(sorted(unbound))}"
         return True, f"{declared} — réglage borné par une capacité du modèle (`cap_from`)"
     # Un APPEL de la brique, hors commentaire (2026-10-13). Le motif était le NOM seul, cherché
     # dans le texte brut : le transcriber et l'enhancer étaient VERTS par le commentaire qui
-    # annonçait le RETRAIT de leur `WamaModelCaps` (`{% comment %}… est RETIRÉ…`).
+    # annonçait le RETRAIT de leur `WamaModelCaps` (`{% comment %}… est RETIRÉ…`). Un câblage JS
+    # relie ses réglages hors du schéma : la lecture réglage par réglage ne le voit pas.
     wired = _present(f, TEMPLATES + JS, r'\bWamaModelCaps\s*\.\s*init\s*\(', code=True)
     if wired[0]:
         return wired
@@ -859,6 +866,22 @@ def _model_caps_ui(f: _AppFiles):
                       "réglages (`params`, `supports_<réglage>`)")
     return False, (f"réglages nommés par une capacité : {', '.join(sorted(named))}"
                    if named else None)
+
+
+def _capability_named_unbound(f: _AppFiles) -> set:
+    """Les réglages qu'une capacité NOMME (`_capability_named_settings`) sans qu'aucune liaison
+    `cap_from` ne les relie au modèle choisi — `set()` quand tout est relié ou le catalogue illisible."""
+    named = _capability_named_settings(f)
+    if not named:
+        return set()
+    try:
+        from wama.common.utils.param_schema import cap_bindings, declared_param_schemas
+        declared = declared_param_schemas(f.app) or {}
+        bound = {p.get('name') for params in (declared.get('schemas') or {}).values()
+                 for p in params if isinstance(p, dict) and cap_bindings(p)}
+    except Exception:
+        return set()
+    return set(named) - bound
 
 
 def _capability_named_settings(f: _AppFiles):

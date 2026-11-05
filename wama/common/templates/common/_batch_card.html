@@ -29,8 +29,9 @@ Slots/options (tous optionnels) :
                            moment EXACT où l'app retire ses handlers locaux (sinon double-fire).
                            Portées au 2026-08-23 : transcriber, composer, describer.
                            Depuis le 2026-10-03 aussi `data-batch-realign-url` et
-                           `data-batch-promote-url` (sur l'en-tête, lus par le menu « … » de la
-                           mère et des filles depuis le 2026-11-02) — émis seulement si l'app
+                           `data-batch-promote-url` (sur l'en-tête, lus depuis le 2026-11-05 par
+                           la ⚙ et le volet de la mère et des filles, `WamaParams.batchAlignment`
+                           — le menu « … » du 2026-11-02 au 05) — émis seulement si l'app
                            route `batch_realign`/`batch_promote`.
                            `batch_info.reference` (de `build_batches_list`) dit si le lot a une
                            référence à reposer.
@@ -151,10 +152,11 @@ lot… » du menu de la card.{% endcomment %}
                 {% endif %}
                 {% comment %}↓ RÉALIGNER (2026-10-03, `MODES_QUEUE_UX §5ter` / `ROUTE §10.6` 5.3) : reposer
                 sur toutes les filles les réglages de RÉFÉRENCE du lot. C'était un bouton ici, grisé
-                sans référence ; depuis le 2026-11-02 (décision de Fabien) c'est une entrée du menu
-                « … » de la mère, qui lit `data-batch-realign-url` / `data-batch-reference` sur
-                l'en-tête et dit quoi faire sans référence — comme « Promouvoir » dans celui d'une
-                fille. La ⚙ du lot, elle, règle toutes les cards et devient la référence.{% endcomment %}
+                sans référence ; du 2026-11-02 au 05 une entrée du menu « … » ; depuis le 2026-11-05
+                (décision de Fabien : « ne pas disperser ») il vit À CÔTÉ DES RÉGLAGES — la ⚙ et le volet
+                de la mère, avec sa portée (`WamaParams.batchAlignment`, qui lit `data-batch-realign-url`
+                / `data-batch-reference` sur l'en-tête et dit quoi faire sans référence), comme
+                « Promouvoir » dans ceux d'une fille. La ⚙ du lot règle ses cards et devient la référence.{% endcomment %}
                 {% if show_start|default:True %}
                 {# ▶ Lancer/Relancer (pos. 2, comme les cards individuelles — conventions §6) #}
                 <button class="btn btn-sm btn-outline-success batch-start-btn py-0 px-2"

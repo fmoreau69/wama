@@ -95,18 +95,17 @@ def _lyrics_available() -> bool:
 
 
 def _lyrics_missing(gen, model_key) -> bool:
-    """Le modèle va chanter (ou a chanté) et aucune parole n'est là : ni sur la card, ni dans le
-    prompt. Des paroles posées ne se réécrivent JAMAIS : c'est ce qui garde une correction. La voix
-    « Instrumental » écarte tout : c'est l'interrupteur de ces process."""
+    """Aucune parole n'est là : ni sur la card, ni dans le prompt. Des paroles posées ne se
+    réécrivent JAMAIS : c'est ce qui garde une correction. La voix « Instrumental » écarte tout :
+    c'est l'interrupteur de ces process. Que le modèle CHANTE est une capacité, déclarée en donnée
+    (`needs=SINGS`, 2026-11-05) — elle ne se juge plus ici."""
     if not model_key or str(getattr(gen, 'lyrics', '') or '').strip():
         return False
     from wama.common.backends.music_generation_base import tagged_lyrics
     from .utils import vocals
     if vocals.normalize(getattr(gen, 'vocals', None)) == vocals.INSTRUMENTAL:
         return False
-    if tagged_lyrics(getattr(gen, 'prompt', '') or '')[1]:
-        return False
-    return vocals.sings(model_key)
+    return not tagged_lyrics(getattr(gen, 'prompt', '') or '')[1]
 
 
 def _lyrics_extract_applies(gen, model_key) -> bool:
@@ -226,6 +225,18 @@ register(FunctionSpec(
 _PROMPT_WATCHED = ('prompt_processed',)
 _RENDER_WATCHED = _PROMPT_WATCHED + ('reference_score', 'melody_reference', 'source_url')
 
+#: Ce que les process exigent du MODÈLE de la card, en DONNÉE (`ProcessSpec.needs`, 2026-11-05 —
+#: décision de Fabien : « quelle capacité du modèle rend ce réglage utile ? ») : le serveur les juge,
+#: la page cache la section des réglages d'un process que le modèle choisi ne sert pas. Un bruitage
+#: (AudioGen, tâche `text-to-audio`) n'a ni partition de sortie ni paroles.
+from .utils.model_choice import MUSIC_TASK  # noqa: E402
+from .utils.vocals import CAPABILITY as SINGS  # noqa: E402
+
+MAKES_MUSIC = {'field': 'task', 'in': [MUSIC_TASK]}
+#: Le modèle REPREND un morceau (cover) : par son audio (MusicGen Melody) ou par sa partition (YuE2).
+TAKES_A_COVER = {'field': 'inputs_optional', 'in': ['work_audio', 'work_score']}
+
+
 def _requested_model(gen):
     """Le modèle que la card demande. Sous « auto » il n'est connu qu'au lancement : `None` —
     la bande montre ce qui a tourné, le ▶ d'un process laisse la tâche trancher."""
@@ -252,7 +263,7 @@ PIPELINE = register_app_pipeline(_APP, (
     # la card : un modèle de la tâche `audio-to-midi` (`parts_model`, ou tiré sous « auto ») ; elle
     # n'a lieu que si un modèle de la tâche est installé (`available`).
     ProcessSpec('parts', label='Partition complète', watched=('melody_reference', 'source_url'),
-                degree=OPTIONAL, toggle='extract_parts', gpu=True, share=2,
+                degree=OPTIONAL, toggle='extract_parts', gpu=True, share=2, needs=TAKES_A_COVER,
                 applies=_parts_applies, available=_parts_available,
                 outputs=('parts_score',), eta='composer.tasks:parts_eta'),
     # Les PAROLES de l'entrée (2026-11-03, décision de Fabien) : après la partition, dont elles
@@ -261,7 +272,7 @@ PIPELINE = register_app_pipeline(_APP, (
     # de la card (`lyrics`, qui périme `plan` et `render`) : aucun fichier à déclarer.
     ProcessSpec('extract_lyrics', label="Paroles de l'entrée", depends_on=('extract_score',),
                 watched=('melody_reference', 'source_url'),
-                degree=OPTIONAL, gpu=True, share=1, applies=_lyrics_extract_applies,
+                degree=OPTIONAL, gpu=True, share=1, needs=SINGS, applies=_lyrics_extract_applies,
                 available=_lyrics_available, eta='composer.tasks:lyrics_eta'),
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
     # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu.
@@ -279,14 +290,14 @@ PIPELINE = register_app_pipeline(_APP, (
     # sortie, pas après : elle lit l'audio du RENDU (`output_sources`), changer de format ne la
     # périme pas. Lue seulement, pour comparer ce qui a été demandé et ce qui a été joué.
     ProcessSpec('rendered_parts', label='Partition de sortie', depends_on=('render',),
-                degree=OPTIONAL, toggle='extract_rendered_parts', gpu=True, share=2,
+                degree=OPTIONAL, toggle='extract_rendered_parts', gpu=True, share=2, needs=MAKES_MUSIC,
                 available=_parts_available, outputs=('rendered_parts_score',),
                 eta='composer.tasks:parts_eta'),
     # Les PAROLES DE SORTIE (2026-11-03, décision de Fabien) : le modèle a chanté sans paroles
     # données, ce qu'il a chanté rejoint le champ « Paroles ». Une DÉRIVATION du rendu, comme la
     # partition de sortie ; écrire ce réglage ne le périme pas (`process_runs.settle_setting`).
     ProcessSpec('rendered_lyrics', label='Paroles de sortie', depends_on=('render',),
-                degree=OPTIONAL, gpu=True, share=1, applies=_lyrics_missing,
+                degree=OPTIONAL, gpu=True, share=1, needs=SINGS, applies=_lyrics_missing,
                 available=_lyrics_available, eta='composer.tasks:lyrics_eta'),
 ), label='Composer — partition, rendu, sortie', source_ref='composer.function_specs:PIPELINE',
    model_of=lambda gen: _requested_model(gen))

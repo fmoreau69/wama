@@ -88,6 +88,87 @@ def references_for(batch_model, batch_ids) -> dict:
         return {}
 
 
+# ── Les valeurs PROPRES à une fille (2026-11-05, décision de Fabien) ─────────────────────────
+#
+# Un geste de la mère (sa ⚙, « réaligner », « faire de ses réglages la référence ») pose ses
+# réglages sur les filles. Deux sortes de valeurs n'y sont pas celles du lot :
+#   • CALCULÉES — tirées du fichier d'entrée de la fille (`Param.default_from` : la durée d'un
+#     cover, les pages sans texte d'un PDF). Les écraser, c'est perdre le lien à la
+#     caractéristique. Le schéma le DÉCLARE ; la fille le confirme en portant l'entrée qui propose
+#     la valeur — relu à la demande, jamais écrit (rien à estampiller en base) ;
+#   • PERSONNALISÉES — réglées sur la fille : sa valeur diffère de la référence du lot.
+# Ce que le geste en fait se CHOISIT : les garder toutes (défaut de la ⚙), garder seulement les
+# calculées (défaut de « réaligner » et de la promotion), ou tout remplacer.
+
+COMPUTED, PERSONAL = 'computed', 'personal'
+KEEP_OWN, KEEP_COMPUTED, REPLACE_ALL = 'keep_own', 'keep_computed', 'all'
+SCOPES = (KEEP_OWN, KEEP_COMPUTED, REPLACE_ALL)
+
+
+def computed_values(item, schema) -> dict:
+    """`{réglage: valeur}` que le fichier d'entrée de CETTE fille propose (`Param.default_from`) —
+    la lecture de la naissance d'un élément (`user_settings.inputs_by_port` puis
+    `input_proposals`), rejouée sur l'entrée qu'il porte (`batch_identity.entry_file`)."""
+    import os
+
+    from django.conf import settings
+
+    from wama.common.services.batch_identity import entry_file
+    from wama.common.utils.param_schema import _pget
+    from wama.common.utils.user_settings import input_proposals, inputs_by_port
+    if not any(_pget(p, 'default_from') for p in schema or ()):
+        return {}
+    path = entry_file(item)
+    if not path:
+        return {}
+    try:
+        inputs = inputs_by_port(item._meta.app_label, os.path.join(settings.MEDIA_ROOT, path))
+        return {name: proposal['value'] for name, proposal in input_proposals(schema, inputs).items()}
+    except Exception:
+        logger.warning("[batch_settings] entrée de %s illisible", item, exc_info=True)
+        return {}
+
+
+def input_settings(item, schema) -> set:
+    """Les réglages de cette fille qui SONT une entrée de sa card — son port de consigne
+    (`studio_node_ports`, groupe `prompt`), une valeur non vide : dans un lot de N consignes, c'est
+    ce qui distingue les cards (le `prompt` du composer écrasait celui des sœurs, 2026-10-03)."""
+    from wama.common.app_registry import studio_node_ports
+    from wama.common.utils.param_schema import _pget
+    ports = {p.get('id') for p in ((studio_node_ports(item._meta.app_label) or {}).get('inputs') or [])
+             if p.get('group') == 'prompt'}
+    return {name for name in (_pget(p, 'name') for p in schema or ())
+            if name in ports and str(getattr(item, name, '') or '').strip()}
+
+
+def own_settings(item, schema, reference=None) -> dict:
+    """`{réglage: COMPUTED | PERSONAL}` — les valeurs de cette fille qui ne sont pas celles du lot.
+    COMPUTED : liée à SON entrée — tirée de son fichier (`computed_values`) ou entrée elle-même
+    (`input_settings`) ; une valeur calculée reste calculée même retouchée : elle suit SA card.
+    Sans référence, rien n'est « personnalisé » : il n'y a pas encore de valeur du lot à quitter."""
+    own = {name: COMPUTED for name in set(computed_values(item, schema)) | input_settings(item, schema)}
+    if reference:
+        from wama.common.utils.param_schema import coerce_schema_values
+        current = settings_of(item, schema)
+        try:
+            expected = {**reference, **coerce_schema_values(schema, reference)}
+        except Exception:
+            expected = dict(reference)
+        for name, value in expected.items():
+            if name in current and name not in own and str(current[name]) != str(value):
+                own[name] = PERSONAL
+    return own
+
+
+def kept(own: dict, scope: str = KEEP_OWN, replace=()) -> set:
+    """Les réglages qu'un geste de la mère NE pose PAS sur cette fille : ses valeurs propres selon
+    `scope`, sauf celles que `replace` désigne (« remplacer aussi », choisi ligne par ligne)."""
+    if scope == REPLACE_ALL:
+        return set()
+    return {name for name, kind in (own or {}).items()
+            if (kind == COMPUTED or scope == KEEP_OWN) and name not in set(replace or ())}
+
+
 def settings_of(item, schema=None) -> dict:
     """Les réglages d'UNE fille, prêts à être promus : ceux de son schéma d'app, lus par la
     règle de la révision — restreints, quand `schema` est donné (la fabrique connaît le sien),

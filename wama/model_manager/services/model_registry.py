@@ -2612,6 +2612,8 @@ class ModelRegistry:
                         # morceau source est donc un fichier de TRAVAIL (ex-`reference_melody`).
                         **({'inputs_optional': ['work_audio']}
                            if model_id == 'musicgen-melody' else {}),
+                        # Le modèle chante-t-il ? DÉCLARÉ par l'app pour chacun (2026-11-05).
+                        'supports_vocals': bool(config.get('supports_vocals')),
                         # Durée maximale d'une sortie — lue par l'écran (`cap_from` du réglage
                         # Durée) et par la tâche, depuis la même déclaration.
                         **duration_caps_from_declaration(config),

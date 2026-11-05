@@ -704,6 +704,8 @@
       itemId = id; batchId = null;
       clearHighlight(); card.classList.add(HL);
       if (panel.apply && cfg.cardSettings) panel.apply(cfg.cardSettings(card));
+      // Une FILLE d'un lot : « faire de ses réglages la référence du lot », à côté de ses réglages.
+      if (panel.align) panel.align(card.closest ? card.closest(BATCH_SEL) : null, card);
       fillActions(cfg.renderItemActions, card);
       fillPreview(card, 'Aperçu');
       setMediaSection(true);
@@ -725,6 +727,8 @@
       // Le volet montre le 1er élément, mais il parle pour le LOT : ce que les filles ne partagent
       // pas n'est pas posté tant qu'on n'y touche pas (toucher un curseur reposte tout le volet).
       if (panel.holdDivergences) panel.holdDivergences(group);
+      // Les valeurs PROPRES des filles sous chaque ligne, et « réaligner » (2026-11-05).
+      if (panel.align) panel.align(group, null);
       fillActions(cfg.renderBatchActions, bid);
       showBatchInfo(bid, group);
       toggleSections(true);
@@ -931,6 +935,12 @@
           const el = fieldEl(key);
           if (el && !el.dataset.unset) out[p.name] = (el.type === 'checkbox') ? el.checked : el.value;
         });
+        // « Remplacer aussi » choisi sous une ligne (`WamaParams.bindBatchOwn`) : la règle de `read`.
+        const replaced = [];
+        if (ph) ph.querySelectorAll('[data-replace-own="1"]').forEach(function (row) {
+          if (row.getAttribute('data-param-row')) replaced.push(row.getAttribute('data-param-row'));
+        });
+        if (replaced.length) out.replace_own = replaced.join(',');
         return out;
       },
       // Inspecter un LOT : ce que ses filles ne partagent pas est tenu (`WamaParams.holdField`).
@@ -943,7 +953,23 @@
             || fieldEl(panelKey(p));
         });
       },
-      releaseHolds: function () { if (WP && WP.releaseFields && ph) WP.releaseFields(ph, 'batch'); },
+      releaseHolds: function () {
+        if (WP && WP.releaseFields && ph) WP.releaseFields(ph, 'batch');
+        if (WP && WP.releaseBatchOwn && ph) WP.releaseBatchOwn(ph);
+        const block = ph && ph.querySelector('.wama-batch-align');
+        if (block) block.remove();
+      },
+      // Le lot d'une card inspectée : ses valeurs propres sous les lignes (mère) et son alignement
+      // (`WamaParams.bindBatchOwn` / `batchAlignment`, les mêmes que la ⚙ du lot).
+      align: function (group, card) {
+        if (!WP || !ph || !group) return;
+        if (!card && WP.bindBatchOwn) {
+          WP.bindBatchOwn(ph, group, schema.filter(function (p) {
+            return !p.contexts || p.contexts.indexOf('panel') !== -1;
+          }));
+        }
+        if (WP.batchAlignment) WP.batchAlignment(ph, group, card);
+      },
       apply: function (vals) {
         vals = vals || {};
         schema.forEach(function (p) {

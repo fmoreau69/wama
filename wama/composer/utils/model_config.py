@@ -71,8 +71,13 @@ def _audiocraft_composition() -> dict:
 # Model catalogue
 # ---------------------------------------------------------------------------
 
+# `supports_vocals` (2026-11-05) : le modèle CHANTE-t-il des paroles ? Fait de sa carte, DÉCLARÉ pour
+# chacun — vrai OU faux — : les capacités d'un modèle se veulent EXHAUSTIVES (décision de Fabien),
+# et l'écran ne grise jamais sur une absence (`cap_from` « reads »). MusicGen et AudioGen sont
+# instrumentaux ; MiniMax-Music3 chante.
 COMPOSER_MODELS = {
     'musicgen-small': {
+        'supports_vocals': False,
         'engine': 'audiocraft',
         # Releve 2026-09-19 sur la carte HF : state_dict 0,78 Go + compression 0,22 = 1,0 Go (le depot en porte 5,4).
         'composition': _audiocraft_composition(),
@@ -94,6 +99,7 @@ COMPOSER_MODELS = {
         'overhead_s': 12,    # chargement modèle + encodec
     },
     'musicgen-medium': {
+        'supports_vocals': False,
         'engine': 'audiocraft',
         # Releve 2026-09-19 sur la carte HF : state_dict 3,43 Go + compression 0,22 = 3,6 Go (le depot en porte 11,1).
         'composition': _audiocraft_composition(),
@@ -113,6 +119,7 @@ COMPOSER_MODELS = {
         'overhead_s': 20,
     },
     'musicgen-melody': {
+        'supports_vocals': False,
         'engine': 'audiocraft',
         # Releve 2026-09-19 sur la carte HF : state_dict 2,58 Go + compression 0,22 = 2,8 Go (le depot en porte 8,6).
         'composition': _audiocraft_composition(),
@@ -132,6 +139,7 @@ COMPOSER_MODELS = {
         'overhead_s': 22,
     },
     'minimax-music3': {
+        'supports_vocals': True,
         'platform_ref': 'huggingface:audio-cpp/MiniMax-Music3-GGUF',
         # Discriminateur de MOTEUR (2026-08-27) : 'audiocpp' = binaire audio.cpp en
         # sous-processus (composants GGUF déclarés par le manifeste, AIModel.composition).
@@ -156,6 +164,7 @@ COMPOSER_MODELS = {
         'overhead_s': 120,
     },
     'audiogen-medium': {
+        'supports_vocals': False,
         'engine': 'audiocraft',
         # Releve 2026-09-19 : state_dict 3,43 Go + compression 0,22 = 3,65 Go, et ce depot ne
         # porte QUE la forme audiocraft — il n'y a rien a ecarter ici. La composition n'y sert

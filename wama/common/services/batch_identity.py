@@ -67,6 +67,18 @@ def _file_name(value) -> str:
     return Path(str(name)).name if name else ''
 
 
+def entry_file(element) -> str:
+    """Le fichier d'ENTRÉE déclaré d'un élément (`spec.source_file` de sa spec de détail), en
+    chemin relatif à `media/` — '' s'il n'en porte pas. Lu par qui doit savoir ce que l'élément
+    reçoit, pas seulement comment le nommer : les réglages qu'il tire de son fichier
+    (`batch_settings.computed_values`, 2026-11-05)."""
+    _, spec = _spec_of(type(element))
+    field = _source_field(element, spec.get('source_file'))
+    value = getattr(element, field, None) if field else None
+    name = getattr(value, 'name', None) if not isinstance(value, str) else value
+    return str(name or '')
+
+
 def element_entry(element, origins=None) -> dict:
     """L'entrée DÉCLARÉE d'un élément : `{'name', 'text', 'nature', 'origin'}` (`''` / None quand
     rien n'est déclaré). `origins` : les provenances déjà lues (`_origins_for`)."""

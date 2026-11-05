@@ -133,6 +133,15 @@ class ProcessSpec:
       applies     `(item, model_key) -> bool` : le process a-t-il lieu pour CET élément ? Absent =
                   toujours. C'est ce qui laisse un pipeline à deux process n'en jouer qu'un pour
                   un modèle qui ne sait pas faire le premier ;
+      needs       ce que le process exige des CAPACITÉS du modèle de la card, en DONNÉE — une
+                  condition de la grammaire `show_if` jugée sur la fiche du catalogue
+                  (`param_schema.condition_met`) : `'supports_vocals'` (le modèle chante),
+                  `{'field': 'task', 'in': ['text-to-music']}`. Lue par `applies` (le serveur)
+                  ET posée dans `WAMA_APP_PROCESSES` (la page cache la SECTION des réglages d'un
+                  process que le modèle choisi ne sert pas — décision de Fabien, 2026-11-05).
+                  Une capacité absente ne satisfait pas : le catalogue des modèles se veut
+                  EXHAUSTIF. Sous un modèle inconnu (« auto »), rien n'est jugé. `applies` garde
+                  ce qui juge l'ÉLÉMENT (une entrée fournie, un champ vide) ;
       outputs     champs FICHIER de l'élément que le process ÉCRIT (`planned_score`,
                   `audio_output`) — ce qu'un lancement borné à ce process remplace, et rien
                   d'autre (`reset_outputs`). Déclaré : le lanceur ne lit pas la glu ;
@@ -204,6 +213,7 @@ class ProcessSpec:
     card_model: bool = False
     share: int = 1
     applies: Callable = None
+    needs: object = None
     outputs: tuple = ()
     toggle: str = ''
     available: Callable = None
@@ -656,18 +666,36 @@ class AppPipeline:
                 and self.applies(spec, item, model_key))
 
     @staticmethod
-    def applies(spec: ProcessSpec, item, model_key=None) -> bool:
-        """Le modèle sert-il ce process pour cet élément (`ProcessSpec.applies`) ? Dans une
-        fenêtre de `preload`, la réponse est retenue par (process, modèle) : hors d'elle (la
-        tâche), elle est reposée à chaque fois."""
-        if spec.applies is None:
+    def model_serves(spec: ProcessSpec, model_key) -> bool:
+        """Le modèle a-t-il ce que le process exige (`ProcessSpec.needs`) ? Oui sans exigence ou
+        sous un modèle inconnu (« auto » non tiré) : on ne devine pas le tirage."""
+        if not spec.needs or not model_key:
             return True
+        from wama.common.utils.auto_model import is_auto
+        if is_auto(model_key):
+            return True
+        from wama.common.utils.model_capabilities import catalog_capabilities
+        from wama.common.utils.param_schema import condition_met
+        return condition_met(spec.needs, catalog_capabilities(model_key))
+
+    @classmethod
+    def applies(cls, spec: ProcessSpec, item, model_key=None) -> bool:
+        """Le modèle sert-il ce process pour cet élément ? Ses CAPACITÉS d'abord
+        (`ProcessSpec.needs`, une donnée), puis ce qui juge l'élément (`ProcessSpec.applies`).
+        Dans une fenêtre de `preload`, la réponse est retenue par (process, modèle) : hors d'elle
+        (la tâche), elle est reposée à chaque fois."""
+        if spec.applies is None and not spec.needs:
+            return True
+
+        def judge():
+            return cls.model_serves(spec, model_key) and (
+                spec.applies is None or bool(spec.applies(item, model_key)))
         memo = getattr(item, '__dict__', {}).get(APPLIES_MEMO)
         if memo is None:
-            return bool(spec.applies(item, model_key))
+            return judge()
         key = (spec.key, model_key)
         if key not in memo:
-            memo[key] = bool(spec.applies(item, model_key))
+            memo[key] = judge()
         return memo[key]
 
     def applicable(self, item, model_key=None) -> list:

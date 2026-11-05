@@ -861,6 +861,42 @@ repartir que d'UNE image (FastWan : transitions visibles, constat de Fabien sur 
 les distingue : zone **orange** « continué » contre **rouge** « extrapolé » ; l'aide du sélecteur
 dit « (continuable) » ou « (prolongeable, extrapolé) ».
 
+**2026-11-05 — ce qu'un PROCESS exige du modèle, en donnée ; ses réglages CACHÉS sous un modèle qui
+ne le sert pas** (Fabien, sur le composer : sous le modèle d'ambiances, les réglages de musique —
+voix, paroles, partitions — apparaissaient ; « quelle capacité du modèle rend ce réglage utile ? »,
+et « caché pour les sections »). Mesuré : le pipeline décidait déjà par modèle, dans des `applies`
+Python que l'écran ne lit pas ; « Partition de sortie » n'avait AUCUNE condition (un bruitage aurait
+été transcrit en parties d'instruments) ; « Voix », nommée par `supports_vocals`, n'était liée à
+rien, et la grille la disait verte (`model_caps_ui` passait au vert au premier `cap_from`).
+- **`ProcessSpec.needs`** : une condition de la grammaire `show_if` jugée sur la fiche du catalogue
+  du modèle de la card (`param_schema.condition_met`, lecture unique des capacités
+  `model_capabilities.catalog_capabilities`). Lue par le serveur (`AppPipeline.model_serves`, dans
+  `applies`) ET posée dans `WAMA_APP_PROCESSES` avec le réglage qui choisit le modèle. Composer :
+  paroles d'entrée et de sortie ← `supports_vocals`, partition de sortie ← tâche `text-to-music`,
+  partition complète de l'entrée ← un modèle qui reprend un morceau (`inputs_optional` ∋
+  `work_audio`/`work_score`). Une capacité ABSENTE ne satisfait pas ; « auto » n'est pas jugé.
+- **Écran** : un réglage qui ne sert QUE des process exigeants (`stales`) l'exige aussi
+  (`WamaParams.settingNeeds`, une exigence par process servi, `{any: …}` s'il en sert plusieurs) et se
+  CACHE sous un modèle qui ne la satisfait pas ; une section dont tous les réglages sont cachés se
+  cache (`_bindProcessNeeds`). La grammaire a UN évaluateur par côté (`conditionMet` /
+  `condition_met`), parité testée sur des capacités.
+- **Capacités exhaustives** : `supports_vocals` DÉCLARÉ pour chaque modèle du composer, vrai ou faux
+  (`COMPOSER_MODELS`, recopié par la découverte) — « Voix » et « Paroles » liées par `cap_from`
+  « reads » (grisées, raison dite, sous un modèle qui ne chante pas : un réglage général se grise,
+  une section se cache). ⏳ Le catalogue en service le prend à la prochaine synchronisation des
+  modèles (`sync_models`), le corpus à l'export qui suit — les manifestes du composer portaient du
+  travail non commité d'une autre session, laissés tels quels.
+- **Grille** : `model_caps_ui` juge réglage par réglage la forme déclarative — un réglage nommé par
+  une capacité sans liaison la rend rouge, quoi qu'il y ait d'autre (`_capability_named_unbound`).
+  Audit de la flotte ce jour : `vocals` était le seul trou de cette nature.
+Gardes : `tests_cap_from_js.SettingsFollowWhatTheModelServesTest` (V8 : dérivation, parité, sous
+bruitage / chanteur / cover / « auto », attribut rendu), `tests_process_pipeline.WhatAProcessRequiresFromItsModelTest`,
+`composer.tests_parts…test_a_sound_effect_has_neither_score_even_asked`,
+`tests_cap_from_declared.EverySettingAModelNamesIsBoundTest`. Les tests du composer lisent
+désormais les fiches de catalogue de leurs modèles (`tests_pipeline.catalogue_rows`) au lieu de
+remplacer `vocals.sings`. ⏳ Restent en code, sans effet d'écran : `plan` (`plans_a_score`, un
+attribut de la classe du moteur pas encore au catalogue) et `extract_score` (`covers_audio_by_score`).
+
 ### 7bis. Un réglage PROPOSÉ par une entrée — `default_from` ; et son FORMAT — `display_format` (2026-10-04)
 
 **Demande de Fabien** : *« si on met un audio de travail, il faudrait afficher par défaut la durée

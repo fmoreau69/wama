@@ -2692,6 +2692,42 @@ def api_batch_label(request, surface: str, pk: int):
 
 
 @login_required
+def api_batch_own_settings(request, surface: str, pk: int):
+    """Les VALEURS PROPRES des filles d'un lot (2026-11-05, décision de Fabien) — pour chaque
+    réglage, les cards qui le tirent de LEUR fichier (`computed`) et celles où il a été réglé à la
+    main (`personal`), et la référence du lot. Ce que la ⚙ de la mère et le volet DISENT sous une
+    ligne touchée (« 5 gardent leur valeur — remplacer aussi ») ; les gestes eux-mêmes jugent la
+    même règle (`batch_settings.own_settings`, `make_batch_views`). Même adressage et même lecture
+    que les autres routes communes d'un lot ; un lot que le compte ne voit pas rend 404."""
+    from django.shortcuts import get_object_or_404
+
+    from wama.common.services import batch_settings
+    from wama.common.utils.batch_common import batch_elements, batch_model_for_app, visible_members
+    from wama.common.utils.batch_views import element_declaration
+    from wama.common.utils.preview_registry import PreviewRegistry
+    from wama.common.utils.scoping import visible_or_404
+
+    batch_model, work_model = batch_model_for_app(surface), PreviewRegistry.get_model(surface)
+    if batch_model is None or work_model is None:
+        return JsonResponse({'error': f"{surface} n'a pas de modèle de lot"}, status=404)
+    # La lecture des lots de la fabrique (`make_batch_views._batch_read`) : le sien OU reçu ; un
+    # modèle de lot non partageable garde le lot du propriétaire.
+    batch = (visible_or_404(batch_model, request.user, pk=pk)
+             if hasattr(batch_model.objects, 'visible_to')
+             else get_object_or_404(batch_model, pk=pk, user=request.user))
+    declared = (element_declaration(work_model) or {}).get('schema')
+    reference = batch_settings.stored(batch)
+    members = visible_members(request.user, batch, batch_elements(batch, work_model))
+    own = {}
+    for item in members:
+        schema = (declared(item) if callable(declared) else declared) or []
+        for name, kind in batch_settings.own_settings(item, schema, reference).items():
+            own.setdefault(name, {batch_settings.COMPUTED: [], batch_settings.PERSONAL: []})[kind].append(item.pk)
+    return JsonResponse({'surface': surface, 'pk': pk, 'total': len(members), 'own': own,
+                         'has_reference': reference is not None})
+
+
+@login_required
 def api_send_batch_to(request, surface: str, pk: int):
     """ENVOYER LE LOT VERS — le résolveur d'`api_envoyer_vers`, pour la card MÈRE (2026-10-14).
 

@@ -39,12 +39,8 @@ def normalize(value) -> str:
 
 
 def _catalog_task(key: str) -> str:
-    try:
-        from wama.model_manager.models import AIModel
-        row = AIModel.objects.filter(model_key=key).only('capabilities').first()
-        return ((row.capabilities or {}).get('task') or '') if row else ''
-    except Exception:
-        return ''
+    from wama.common.utils.model_capabilities import catalog_capabilities
+    return catalog_capabilities(key).get('task') or ''
 
 
 def config(value) -> dict:

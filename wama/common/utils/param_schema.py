@@ -532,6 +532,14 @@ def _show_if_met(cond, values) -> bool:
     return bool(cur) and cur not in ('false', '0')
 
 
+def condition_met(cond, values) -> bool:
+    """Une condition de la grammaire `show_if` est-elle satisfaite par `values` ? — la lecture
+    PUBLIQUE de `_show_if_met`, pour qui juge autre chose que des réglages : les CAPACITÉS d'un
+    modèle qu'un process exige (`ProcessSpec.needs`, 2026-11-05). Une grammaire, deux lecteurs
+    (ici et `wama-params.js::conditionMet`), une garde de parité."""
+    return _show_if_met(cond, values or {})
+
+
 def condition_fields(cond) -> List[str]:
     """Les champs qu'une condition `show_if` LIT — un seul, ou ceux de chaque branche d'un `any`.
     Lu par qui doit connaître la commande d'un réglage (`scoped_names`, la clause `when` des

@@ -211,9 +211,18 @@ def user_role(request):
             from wama.common.services.process_runs import OPTIONAL
             pipeline = app_pipeline(current_app)
             if pipeline is not None:
+                # Ce qu'un process EXIGE du modèle de la card (`ProcessSpec.needs`, 2026-11-05) et
+                # le réglage qui CHOISIT ce modèle — le premier select du catalogue, la règle du
+                # serveur (`auto_model.catalog_field`) : la page cache la section d'un process que
+                # le modèle choisi ne sert pas.
+                from wama.common.utils.auto_model import catalog_field
+                model_field = (catalog_field(current_app) or {}).get('name') or ''
                 current_app_processes_json = _json.dumps([
                     {'key': spec.key, 'label': spec.label or spec.key, 'toggle': spec.toggle or '',
-                     'optional': spec.degree == OPTIONAL} for spec in pipeline.ordered()])
+                     'optional': spec.degree == OPTIONAL,
+                     **({'needs': spec.needs, 'model_field': model_field}
+                        if spec.needs and model_field else {})}
+                    for spec in pipeline.ordered()])
         except Exception:
             current_app_processes_json = '[]'
 

@@ -329,7 +329,7 @@ Garantit la VRAM avant un chargement, la reprend sur les autres modèles, et ré
 
 ### Pipeline déclaré d'une app (plusieurs process)
 
-Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surveillés, degré, condition d'application) comme le cam_analyzer déclare ses passes ; le registre devient un manifeste `pipeline` à nœuds `function` (`register_app_pipeline`). Dit ce qu'un lancement JOUE (`steps_to_run` : ce qui n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état déduit de la card (`card_state`). L'exécution reste au squelette de tâche (`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process. Une VUE lit dans une fenêtre (`preload` … `release`) : lignes lues une fois, réponses de `applies` retenues par (process, modèle) — un `applies` peut résoudre le backend du modèle (0,56 s l'appel, mesuré le 2026-10-05). 2026-10-21 : une ligne ne COMPTE que tant que l'élément demande son process (`still_counts` — un amont qui n'a plus lieu ne laisse plus son aval périmé à jamais) ; un aval LIT la sortie de son amont par un geste (`output_of`, `upstream_output` : le plus proche amont qui rend ce type) ; un process DÉTACHÉ de son aval (`split_from`) garde valables les lignes rendues avant le détachement ; ce que les process ont ÉCRIT (`produced_fields`), dont une copie repart sans. 2026-10-22 : une relance COMPLÈTE libère ce qui ne compte plus (`release_absent`) ; un process peut ne pas LIRE ses amonts (`upstream_switch`, `read_upstreams`)
+Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surveillés, degré, condition d'application) comme le cam_analyzer déclare ses passes ; le registre devient un manifeste `pipeline` à nœuds `function` (`register_app_pipeline`). Dit ce qu'un lancement JOUE (`steps_to_run` : ce qui n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état déduit de la card (`card_state`). L'exécution reste au squelette de tâche (`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process. Une VUE lit dans une fenêtre (`preload` … `release`) : lignes lues une fois, réponses de `applies` retenues par (process, modèle) — un `applies` peut résoudre le backend du modèle (0,56 s l'appel, mesuré le 2026-10-05). 2026-10-21 : une ligne ne COMPTE que tant que l'élément demande son process (`still_counts` — un amont qui n'a plus lieu ne laisse plus son aval périmé à jamais) ; un aval LIT la sortie de son amont par un geste (`output_of`, `upstream_output` : le plus proche amont qui rend ce type) ; un process DÉTACHÉ de son aval (`split_from`) garde valables les lignes rendues avant le détachement ; ce que les process ont ÉCRIT (`produced_fields`), dont une copie repart sans. 2026-10-22 : une relance COMPLÈTE libère ce qui ne compte plus (`release_absent`) ; un process peut ne pas LIRE ses amonts (`upstream_switch`, `read_upstreams`). 2026-11-05 : ce qu'un process EXIGE du modèle de la card est une DONNÉE (`needs`, grammaire `show_if` sur la fiche du catalogue, `model_serves`), posée dans `WAMA_APP_PROCESSES` : l'écran cache les réglages d'un process que le modèle choisi ne sert pas
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
@@ -2225,7 +2225,8 @@ Ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier, 
 
 - **Domicile** : `wama/common/services/batch_identity.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3quater](../construction/ui/CARD_DESIGN.md)
 - **Module** : IDENTITÉ D'UN LOT — ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier et la page des partages disent d'un lot (2026-10-19, demande de Fabien : « seul le numéro identifie un batch, pas son contenu »).
-- **API publique** (8) :
+- **API publique** (9) :
+  - `entry_file(element) -> str` — Le fichier d'ENTRÉE déclaré d'un élément (`spec.source_file` de sa spec de détail), en
   - `element_entry(element, origins=None) -> dict` — L'entrée DÉCLARÉE d'un élément : `{'name', 'text', 'nature', 'origin'}` (`''` / None quand
   - `entry_label(entry) -> str` — Ce qu'on DIT d'une entrée : son texte (le prompt, le texte à dire) s'il y en a un — c'est
   - `identify(pairs) -> list` — L'identité de chaque lot de `pairs` — `[(lot, [éléments]), …]`, éléments dans l'ordre des
@@ -2373,16 +2374,20 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 ### Réglages de référence d'un lot (promotion fille ↔ mère)
 
-UNE ligne par lot (`BatchSettings`, adressée comme `ProcessRun`) : ce que la mère TIENT pour référence — posé par sa ⚙ (`batch_update` la retient désormais) ou PROMU d'une fille (`batch_promote`, POST `source=`) ; « ↓ réaligner » (`batch_realign`) la repose sur toutes les filles et efface les écarts individuels. La charge utile est DÉCLARÉE (`promote_payload`), par défaut les réglages du SCHÉMA lus par la règle de la révision ; le monde Data y mettra son protocole — même geste, deux charges. Les trois gestes écrivent par le chemin de la ⚙ de lot (deux temps, un refus n'écrit rien) ; la référence suit la duplication et part avec la suppression. Surfaces : le menu « … » — « Réaligner toutes les cards sur la référence » sur la mère (DISANT quoi faire sans référence), « Faire de ses réglages la référence du lot » sur une fille ; le bouton ↓ de la barre d'actions est retiré le 2026-11-02 (décision de Fabien) — et l'outil d'assistant `update_batch_settings`. 9 apps câblées + le générateur ; le composer suit avec son câblage pipeline
+UNE ligne par lot (`BatchSettings`, adressée comme `ProcessRun`) : ce que la mère TIENT pour référence — posé par sa ⚙ (`batch_update` la retient désormais) ou PROMU d'une fille (`batch_promote`, POST `source=`) ; « ↓ réaligner » (`batch_realign`) la repose sur toutes les filles et efface les écarts individuels. La charge utile est DÉCLARÉE (`promote_payload`), par défaut les réglages du SCHÉMA lus par la règle de la révision ; le monde Data y mettra son protocole — même geste, deux charges. Les trois gestes écrivent par le chemin de la ⚙ de lot (deux temps, un refus n'écrit rien) ; la référence suit la duplication et part avec la suppression. 2026-11-05 : une fille garde ses VALEURS PROPRES (`own_settings` — liées à son entrée, tirées de son fichier ou entrée elle-même, ou réglées à la main), selon la PORTÉE du geste (`SCOPES`) et le choix « remplacer aussi » ligne par ligne ; la page les lit (`common:api_batch_own_settings`). Surfaces : la ⚙ et le volet de la mère (« Réaligner », avec sa portée) et d'une fille (« Faire de ses réglages la référence ») — `WamaParams.batchAlignment`, à côté des réglages (Fabien, 05/11 ; le menu « … » du 02 au 05/11) — et l'outil d'assistant `update_batch_settings`. 9 apps câblées + le générateur ; le composer suit avec son câblage pipeline
 
 - **Domicile** : `wama/common/services/batch_settings.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md §5ter](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Les RÉGLAGES D'UN LOT — ce que la card MÈRE tient pour référence (`MODES_QUEUE_UX §5ter`, `WAMA_APP_GENERATION_ROUTE §10.6` 5.3 ; marche P5, 2026-10-03).
-- **API publique** (6) :
+- **API publique** (10) :
   - `address(batch) -> dict` — Adresse d'un lot : `{app, batch_type, batch_id}` — dérivée du lot SEUL (convention de
   - `stored(batch) -> dict | None` — Les réglages de référence du lot, ou None s'il n'en a jamais reçu.
   - `remember(batch, settings: dict, *, source_id='') -> None` — La mère RETIENT ces réglages comme référence — réécrits, jamais empilés. `source_id` : la
   - `forget(batch) -> int` — Le lot disparaît : sa référence aussi. Rend le nombre de lignes retirées.
   - `references_for(batch_model, batch_ids) -> dict` — `{id de lot (int): id de la fille promue ('' pour la ⚙ de la mère)}` des lots de
+  - `computed_values(item, schema) -> dict` — `{réglage: valeur}` que le fichier d'entrée de CETTE fille propose (`Param.default_from`) —
+  - `input_settings(item, schema) -> set` — Les réglages de cette fille qui SONT une entrée de sa card — son port de consigne
+  - `own_settings(item, schema, reference=None) -> dict` — `{réglage: COMPUTED | PERSONAL}` — les valeurs de cette fille qui ne sont pas celles du lot.
+  - `kept(own: dict, scope: str=KEEP_OWN, replace=()) -> set` — Les réglages qu'un geste de la mère NE pose PAS sur cette fille : ses valeurs propres selon
   - `settings_of(item, schema=None) -> dict` — Les réglages d'UNE fille, prêts à être promus : ceux de son schéma d'app, lus par la
 
 ### Tri/filtrage de la file
@@ -2761,7 +2766,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (42) :
+- **API publique** (44) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
@@ -2775,6 +2780,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `voices_of(model_field: str) -> dict` — La liaison `cap_from` d'un select de VOIX (`options_source='voices'`) au choix de modèle
   - `sampling_of(source, prefix: str='') -> dict` — Les réglages de tirage d'un élément (ses colonnes `<prefix>temperature`, `<prefix>seed`,
   - `sampling_options(source, prefix: str='') -> dict` — `sampling_of` réduit à ce qui est RÉGLÉ — le `options` d'un moteur (le contrat uniforme de
+  - `condition_met(cond, values) -> bool` — Une condition de la grammaire `show_if` est-elle satisfaite par `values` ? — la lecture
   - `condition_fields(cond) -> List[str]` — Les champs qu'une condition `show_if` LIT — un seul, ou ceux de chaque branche d'un `any`.
   - `scoped_names(schema, names) -> List[str]` — Les réglages de la ⚙ d'UN process : `names` (ce qu'il surveille), plus le champ qui COMMANDE
   - `applicable_defaults(schema, values=None) -> dict` — Défauts APPLICABLES d'un schéma pour un élément NAISSANT : params de contexte 'item'
@@ -2878,7 +2884,7 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
 
 - **Domicile** : `wama/common/utils/model_capabilities.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Vocabulaire CANONIQUE des capacités modèle (`AIModel.capabilities`) — SOURCE UNIQUE.
-- **API publique** (20) :
+- **API publique** (21) :
   - `reads_temperature(caps: Dict[str, Any]) -> bool` — La fiche dit-elle que le modèle LIT la température ? (son nom dans `params`).
   - `ollama_parameter(parameters: str, name: str)` — Un réglage numérique du fichier de modèle d'Ollama (`/api/show` → `parameters`, une ligne
   - `ollama_recommended_temperature(parameters: str)` — La température du fichier de modèle d'Ollama, ou None. MESURÉ le 2026-10-21 : gemma4 et
@@ -2892,6 +2898,7 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
   - `is_multilingual(caps: Dict[str, Any]) -> bool` — Vrai si le modèle gère >1 langue ou est agnostique ('*'). Remplace l'ex-clé `multilingual`.
   - `languages_count(caps: Dict[str, Any]) -> int` — Nombre de langues déclarées (0 si inconnu). Remplace l'ex-clé `languages_count`.
   - `supports(caps: Dict[str, Any], flag: str) -> bool` — Lecture booléenne tolérante d'un `supports_*` (ex. supports('supports_cloning')).
+  - `catalog_capabilities(model_key: str) -> Dict[str, Any]` — Les capacités d'UN modèle telles que le catalogue les porte (`AIModel.capabilities`) — `{}`
   - `supports_timestamps_for(caps: Dict[str, Any], lang: str) -> bool` — Horodatage mot disponible POUR CETTE LANGUE.
   - `declared_engine_flag(cls, flag: str)` — Valeur d'un `supports_*` telle que la classe de moteur la DÉCLARE — ou `None`.
   - `declared_engine_value(cls, name: str)` — `(déclaré, valeur)` d'un attribut que la classe de moteur écrit dans son PROPRE corps (ou

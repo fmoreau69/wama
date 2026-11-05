@@ -347,6 +347,200 @@ class CapFromBindingTest(SimpleTestCase):
         self.assertEqual(0, self.v8.eval('warned.length'))
 
 
+#: The composer's processes as the page receives them (`WAMA_APP_PROCESSES`), with what each one
+#: requires from the model of the card (`ProcessSpec.needs`, 2026-11-05).
+NEEDS_PROCESSES = [
+    {'key': 'parts', 'label': 'Partition complète', 'optional': True, 'model_field': 'model',
+     'needs': {'field': 'inputs_optional', 'in': ['work_audio', 'work_score']}},
+    {'key': 'render', 'label': 'Rendu', 'optional': False},
+    {'key': 'rendered_parts', 'label': 'Partition de sortie', 'optional': True, 'model_field': 'model',
+     'needs': {'field': 'task', 'in': ['text-to-music']}},
+    {'key': 'rendered_lyrics', 'label': 'Paroles de sortie', 'optional': True, 'model_field': 'model',
+     'needs': 'supports_vocals'},
+]
+SFX = {'task': 'text-to-audio', 'supports_vocals': False}
+SONG = {'task': 'text-to-music', 'supports_vocals': True}
+COVER = {'task': 'text-to-music', 'supports_vocals': False, 'inputs_optional': ['work_audio']}
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class SettingsFollowWhatTheModelServesTest(SimpleTestCase):
+    """2026-11-05, Fabien : « quelle capacité du modèle rend ce réglage utile ? » — a sound effect
+    model showed the score and lyrics settings. A process DECLARES what it requires from the model
+    (`ProcessSpec.needs`, a `show_if` condition judged on the model's capabilities) ; a setting that
+    only serves such processes is hidden under a model that does not satisfy them, and a section
+    whose settings are all hidden goes with them. The same data is judged on the server."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval(FAKE_BINDING)
+        self.v8.eval((JS / 'wama-params.js').read_text(encoding='utf-8'))
+
+    def _needs(self, stales):
+        return json.loads(self.v8.eval(
+            f"JSON.stringify(window.WamaParams.settingNeeds({json.dumps({'stales': stales})}, "
+            f"{json.dumps(NEEDS_PROCESSES)}))"))
+
+    def test_a_setting_requires_what_every_process_it_serves_requires(self):
+        self.assertEqual({'needs': 'supports_vocals', 'field': 'model'}, self._needs(['rendered_lyrics']))
+        self.assertEqual({'needs': {'any': [NEEDS_PROCESSES[0]['needs'], NEEDS_PROCESSES[2]['needs']]},
+                          'field': 'model'}, self._needs(['parts', 'rendered_parts']),
+                         'serving two processes, one of them suffices')
+        self.assertIsNone(self._needs(['render']), 'a process without requirement')
+        self.assertIsNone(self._needs(['parts', 'render']), 'one served process requires nothing')
+        self.assertIsNone(self._needs([]))
+
+    def test_the_condition_reads_the_same_on_capabilities_in_the_browser_and_on_the_server(self):
+        from wama.common.utils.param_schema import condition_met
+        for process in NEEDS_PROCESSES:
+            if 'needs' not in process:
+                continue
+            for caps in (SFX, SONG, COVER, {}):
+                with self.subTest(needs=process['needs'], caps=caps):
+                    shown = self.v8.eval(
+                        f"window.WamaParams.conditionMet({json.dumps(process['needs'])}, "
+                        f"function (name) {{ return {json.dumps(caps)}[name]; }})")
+                    self.assertEqual(condition_met(process['needs'], caps), shown)
+        self.assertFalse(condition_met('supports_vocals', {}), 'an absent capability is not satisfied')
+
+    def _bind(self, model_key):
+        """Rows of the composer's settings under the model `model_key`, after the binding."""
+        self.v8.eval(f"""
+            function fetch() {{
+              var payload = {{models: [{{model_key: 'composer:audiogen', capabilities: {json.dumps(SFX)}}},
+                                       {{model_key: 'composer:singer', capabilities: {json.dumps(SONG)}}},
+                                       {{model_key: 'composer:cover', capabilities: {json.dumps(COVER)}}}]}};
+              return {{then: function (f) {{ return Promise.resolve(f({{json: function () {{ return payload; }}}})); }}}};
+            }}
+            function row(name, needs) {{
+              return {{name: name, hidden: false, getAttribute: function (a) {{
+                return a === 'data-needs' ? JSON.stringify(needs.needs)
+                     : (a === 'data-needs-field' ? needs.field : null); }}}};
+            }}
+            var NEEDS = {json.dumps({'parts_model': self._needs(['parts', 'rendered_parts']),
+                                     'extract_parts': self._needs(['parts']),
+                                     'lyrics_model': self._needs(['rendered_lyrics'])})};
+            var rows = {{parts_model: row('parts_model', NEEDS.parts_model),
+                         extract_parts: row('extract_parts', NEEDS.extract_parts),
+                         lyrics_model: row('lyrics_model', NEEDS.lyrics_model)}};
+            var partsSection = {{hidden: false, querySelectorAll: function () {{
+                                   return [rows.extract_parts, rows.parts_model]; }}}};
+            var lyricsSection = {{hidden: false, querySelectorAll: function () {{ return [rows.lyrics_model]; }}}};
+            var m = fakeField({json.dumps(model_key)}, '');
+            var box = {{_wpCapApply: [], querySelector: function (sel) {{ return sel === '#m' ? m : null; }},
+                        querySelectorAll: function (sel) {{
+                          if (sel === '[data-group]') return [partsSection, lyricsSection];
+                          return [rows.parts_model, rows.extract_parts, rows.lyrics_model]; }},
+                        addEventListener: function () {{}}}};
+            window.WamaParams.bindProcessNeeds(box, [{{name: 'model', type: 'select', help_source: 'composer',
+                                                      dom_id: {{panel: 'm'}}}}], 'panel');""")
+        return json.loads(self.v8.eval(
+            "JSON.stringify({extract_parts: rows.extract_parts.hidden, parts_model: rows.parts_model.hidden,"
+            " lyrics_model: rows.lyrics_model.hidden, parts_section: partsSection.hidden,"
+            " lyrics_section: lyricsSection.hidden})"))
+
+    def test_under_a_sound_effect_model_the_score_and_lyrics_settings_and_sections_are_hidden(self):
+        self.assertEqual({'extract_parts': True, 'parts_model': True, 'lyrics_model': True,
+                          'parts_section': True, 'lyrics_section': True}, self._bind('composer:audiogen'))
+
+    def test_each_model_keeps_what_it_serves(self):
+        self.assertEqual({'extract_parts': True, 'parts_model': False, 'lyrics_model': False,
+                          'parts_section': False, 'lyrics_section': False}, self._bind('composer:singer'),
+                         'a singer without cover : the output score and the lyrics stay')
+        self.assertEqual({'extract_parts': False, 'parts_model': False, 'lyrics_model': True,
+                          'parts_section': False, 'lyrics_section': True}, self._bind('composer:cover'))
+
+    def test_under_auto_nothing_is_hidden(self):
+        """The draw is not known : nothing is guessed (the rule of `cap_from`)."""
+        self.assertEqual({'extract_parts': False, 'parts_model': False, 'lyrics_model': False,
+                          'parts_section': False, 'lyrics_section': False}, self._bind('auto:text-to-music'))
+
+    def test_the_rendered_row_carries_what_its_processes_require(self):
+        schema = [{'name': 'duration', 'type': 'number', 'stales': ['render']},
+                  {'name': 'lyrics_model', 'type': 'select', 'stales': ['rendered_lyrics']}]
+        out = self.v8.eval(
+            "(function () { var host = {innerHTML: '', querySelectorAll: function () { return []; },"
+            " querySelector: function () { return null; }, addEventListener: function () {}};"
+            f" window.WamaParams.render(host, {json.dumps(schema)},"
+            f" {{context: 'panel', processes: {json.dumps(NEEDS_PROCESSES)}}});"
+            " return host.innerHTML; })()")
+        self.assertIn('data-param-row="lyrics_model" data-needs="&quot;supports_vocals&quot;" '
+                      'data-needs-field="model"', out)
+        self.assertNotIn('data-param-row="duration" data-needs', out)
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class TheBatchSaysWhatEachChildKeepsTest(SimpleTestCase):
+    """2026-11-05, Fabien : the choice is made LINE BY LINE, and « réaligner » / « faire de ses
+    réglages la référence » live beside the settings (« ne pas disperser »). What the page shows
+    and posts ; the server judges the same rule (`tests_batch_views.OwnValuesOfTheChildrenTest`)."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval(FAKE_BINDING)
+        self.v8.eval((JS / 'wama-params.js').read_text(encoding='utf-8'))
+
+    def _line(self, computed, personal, total, replaced=False):
+        return self.v8.eval(f"window.WamaParams.ownLineText({{computed: {computed}, personal: {personal}}}, "
+                            f"{total}, {json.dumps(replaced)})")
+
+    def test_the_line_counts_what_is_kept_and_why(self):
+        self.assertEqual("S'appliquera à 2 cards · 3 gardent leur valeur (2 liées à leur entrée, "
+                         "1 réglée à la main).", self._line(2, 1, 5))
+        self.assertEqual("S'appliquera à 4 cards · 1 garde sa valeur (1 liée à leur entrée).",
+                         self._line(1, 0, 5))
+        self.assertEqual("S'appliquera aux 5 cards, valeurs propres comprises (2 liées à leur entrée).",
+                         self._line(2, 0, 5, True))
+
+    def test_a_line_marked_replace_too_travels_with_the_settings(self):
+        out = json.loads(self.v8.eval("""JSON.stringify(window.WamaParams.read({
+            querySelectorAll: function (sel) {
+              if (sel === '[data-replace-own="1"]') return [
+                {getAttribute: function () { return 'duration'; }},
+                {getAttribute: function () { return 'prompt'; }}];
+              return [{type: 'number', value: '60', dataset: {},
+                       getAttribute: function (a) { return a === 'name' ? 'duration' : null; }}];
+            }}))"""))
+        self.assertEqual({'duration': '60', 'replace_own': 'duration,prompt'}, out)
+
+    def _block(self, header_attrs, card=False):
+        return self.v8.eval(f"""(function () {{
+            var made = [];
+            document.createElement = function () {{
+              var el = {{className: '', innerHTML: '',
+                         querySelector: function () {{ return {{addEventListener: function () {{}}}}; }}}};
+              made.push(el); return el; }};
+            var attrs = {json.dumps(header_attrs)};
+            var header = {{getAttribute: function (a) {{ return attrs[a] === undefined ? null : attrs[a]; }}}};
+            var group = {{querySelector: function () {{ return header; }}}};
+            var host = {{querySelector: function () {{ return null; }}, appendChild: function () {{}}}};
+            var block = window.WamaParams.batchAlignment(host, group, {'{dataset: {id: 7}}' if card else 'null'});
+            return block ? block.innerHTML : null; }})()""")
+
+    def test_the_mother_realigns_with_its_scope_and_says_when_there_is_no_reference(self):
+        html = self._block({'data-batch-realign-url': '/r/', 'data-batch-reference': '1'})
+        self.assertIn('Réaligner toutes les cards sur la référence', html)
+        self.assertIn('<option value="keep_computed" selected>', html, 'default : the input values stay')
+        self.assertNotIn('disabled', html)
+        none = self._block({'data-batch-realign-url': '/r/', 'data-batch-reference': '0'})
+        self.assertIn('disabled', none)
+        self.assertIn('Aucune référence', none)
+
+    def test_a_child_offers_its_settings_as_the_reference(self):
+        html = self._block({'data-batch-promote-url': '/p/'}, card=True)
+        self.assertIn('Faire de ses réglages la référence du lot', html)
+
+    def test_without_the_route_nothing_is_offered(self):
+        """Counter-proof : an app that does not route the gesture shows no block."""
+        self.assertIsNone(self.v8.eval("""window.WamaParams.batchAlignment(
+            {querySelector: function () { return null; }, appendChild: function () {}},
+            {querySelector: function () { return null; }}, null)"""))
+
+
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class SortAndFactsTest(SimpleTestCase):
 

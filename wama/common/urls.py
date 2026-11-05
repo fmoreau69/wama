@@ -178,6 +178,9 @@ urlpatterns = [
     # NOM d'un lot (card mère, 2026-10-19) : le donner, l'effacer — même adressage, une route pour
     # toutes les surfaces (`common/services/batch_identity.py`).
     path('api/batch/<str:surface>/<int:pk>/label/', views.api_batch_label, name='api_batch_label'),
+    # Les valeurs PROPRES des filles (tirées de leur fichier, réglées à la main) — 2026-11-05.
+    path('api/batch/<str:surface>/<int:pk>/own-settings/', views.api_batch_own_settings,
+         name='api_batch_own_settings'),
     # RECHERCHE DE LA FILE PAR CONTENU (2026-10-19, `WAMA_MEMORY §7sexies`) : les cards d'une file,
     # celles dont une image répond à la requête — la barre de file commune l'appelle.
     path('api/queue/content-search/', vector_views.api_queue_content_search,

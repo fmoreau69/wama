@@ -796,6 +796,23 @@
     return ' data-show-if="' + esc(typeof cond === 'string' ? cond : JSON.stringify(cond)) + '"';
   }
 
+  // CE QU'UN RÉGLAGE EXIGE DU MODÈLE, dérivé des process qu'il périme (2026-11-05). Pure : un
+  // réglage ne sert que les process de son `stales` ; si CHACUN déclare ce qu'il exige du modèle de
+  // la card (`ProcessSpec.needs`), le réglage l'exige aussi — l'une de ces exigences suffit
+  // (`{any: [...]}` quand il en sert plusieurs : le modèle des partitions complètes sert l'entrée ET
+  // la sortie). Un réglage d'un process sans exigence (le rendu) n'exige rien. -> `{needs, field}`
+  // ou null.
+  function settingNeeds(p, processes) {
+    const byKey = {};
+    (processes || []).forEach(function (proc) { byKey[proc.key] = proc; });
+    const served = (p.stales || []).filter(function (k) { return k in byKey; });
+    if (!served.length || !served.every(function (k) { return byKey[k].needs && byKey[k].model_field; })) {
+      return null;
+    }
+    const all = served.map(function (k) { return byKey[k].needs; });
+    return { needs: all.length === 1 ? all[0] : { any: all }, field: byKey[served[0]].model_field };
+  }
+
   // SECTIONS PAR PROCESS (2026-10-26, demande de Fabien : « des sections automatiques en accordéon
   // par sous-process » dans la modale et le volet). Pure : `params` (non avancés) et les process de
   // l'app dans l'ordre de son pipeline (`[{key, label, optional}]`, `window.WAMA_APP_PROCESSES`,
@@ -873,12 +890,16 @@
     const params = (schema || []).filter(function (p) {
       return !p.contexts || p.contexts.indexOf(ctx) !== -1;
     });
+    const procs = opts.processes || global.WAMA_APP_PROCESSES || [];
     function rowHtml(p) {
       const value = (p.name in values) ? values[p.name] : undefined;
       // Types `noRow` (hidden) : input nu, sans wrapper visible (pas de marge/label).
       if (typeSupports(p.type, 'noRow')) return controlHtml(p, ctx, value, resolver);
+      const needs = settingNeeds(p, procs);
       return '<div class="wama-param mb-2" data-param-row="' + esc(p.name) + '"' +
         _showIfAttr(p.show_if) +
+        (needs ? ' data-needs="' + esc(JSON.stringify(needs.needs)) + '" data-needs-field="' +
+                 esc(needs.field) + '"' : '') +
         (p.advanced ? ' data-advanced="1"' : '') + '>' +
         controlHtml(p, ctx, value, resolver) + '</div>';
     }
@@ -911,7 +932,6 @@
       // Sans groupes déclarés, un `group` ne désigne rien : seul `advanced` range le réglage — et,
       // quand l'app a un pipeline, les SECTIONS PAR PROCESS (`processSections`, 2026-10-26).
       const plain = params.filter(function (p) { return !isAdvanced(p); });
-      const procs = opts.processes || global.WAMA_APP_PROCESSES || [];
       const sections = processSections(plain.filter(function (p) { return p.type !== 'hidden'; }), procs);
       if (sections) {
         const byName = {};
@@ -934,6 +954,7 @@
     _bindMapping(container);
     _bindModelHelp(container, schema, ctx);
     _bindCapFrom(container, schema, ctx);
+    _bindProcessNeeds(container, schema, ctx);
     _bindDefaultFrom(container, schema, ctx);
     _bindOptionSources(container, schema, ctx, null, values);
     _avertirSourcesNonResolues(container, params, ctx);
@@ -1482,7 +1503,143 @@
       return host.querySelector('[name="' + p.name + '"],[data-param="' + p.name + '"]');
     });
     apply(host, shared);
+    bindBatchOwn(host, group, params);
+    batchAlignment(host, group, null);
     return shared;
+  }
+
+  // ── VALEURS PROPRES DES FILLES et ALIGNEMENT DU LOT (2026-11-05, décision de Fabien) ────────
+  // Une fille garde ce qui lui est PROPRE : une valeur liée à son ENTRÉE — tirée de son fichier
+  // (`Param.default_from`, la durée d'un cover) ou entrée elle-même (sa consigne) — ou réglée à la
+  // main. Sous une ligne concernée, la ⚙ du lot et le volet le DISENT, comptes à l'appui, et
+  // proposent de les remplacer aussi : le choix se fait LIGNE PAR LIGNE. « Réaligner » et « faire de
+  // ses réglages la référence » vivent ici, à côté des réglages (Fabien : « ne pas disperser »), avec
+  // leur portée. Le serveur juge la même règle (`batch_settings.own_settings`, `make_batch_views`) ;
+  // la page la montre (`common:api_batch_own_settings`).
+  const REPLACE_OWN = 'replace_own';
+  const SCOPE_CHOICES = [
+    ['keep_own', 'Garder les valeurs propres à chaque card'],
+    ['keep_computed', 'Remplacer les réglages faits à la main, garder les valeurs liées à leur entrée'],
+    ['all', 'Tout remplacer'],
+  ];
+
+  function _lotUrl(group, tail) {
+    const c = (group && global.WamaShare && WamaShare.coordonneesDuLot)
+      ? WamaShare.coordonneesDuLot(group) : null;
+    return c ? '/common/api/batch/' + encodeURIComponent(c.surface) + '/' + encodeURIComponent(c.pk) +
+               '/' + tail + '/' : '';
+  }
+
+  /** Ce que la ligne dit des valeurs propres — pure (testée en V8). `counts` : {computed, personal}. */
+  function ownLineText(counts, total, replaced) {
+    const kept = (counts.computed || 0) + (counts.personal || 0);
+    const why = [];
+    if (counts.computed) why.push(counts.computed + ' liée' + (counts.computed > 1 ? 's' : '') + ' à leur entrée');
+    if (counts.personal) why.push(counts.personal + ' réglée' + (counts.personal > 1 ? 's' : '') + ' à la main');
+    if (replaced) {
+      return 'S\'appliquera aux ' + total + ' cards, valeurs propres comprises (' + why.join(', ') + ').';
+    }
+    const rest = Math.max(0, total - kept);
+    return 'S\'appliquera à ' + rest + ' card' + (rest > 1 ? 's' : '') + ' · ' + kept +
+      (kept > 1 ? ' gardent leur valeur (' : ' garde sa valeur (') + why.join(', ') + ').';
+  }
+
+  function releaseBatchOwn(host) {
+    if (!host || !host.querySelectorAll) return;
+    host.querySelectorAll('.wama-batch-own').forEach(function (el) { el.remove(); });
+    host.querySelectorAll('[data-replace-own]').forEach(function (row) { delete row.dataset.replaceOwn; });
+  }
+
+  /** Sous chaque ligne de `params` où des filles de `group` ont une valeur propre : les comptes, et
+   *  « Remplacer aussi ». Rend la promesse de la lecture (ou null sans lot adressable). */
+  function bindBatchOwn(host, group, params) {
+    releaseBatchOwn(host);
+    const url = _lotUrl(group, 'own-settings');
+    if (!host || !url || !global.fetch) return null;
+    return global.fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data || !data.own) return data;
+        (params || []).forEach(function (p) {
+          const own = data.own[p.name];
+          const counts = own ? { computed: (own.computed || []).length, personal: (own.personal || []).length }
+                             : null;
+          if (!counts || !(counts.computed + counts.personal)) return;
+          const row = host.querySelector('[data-param-row="' + p.name + '"]');
+          if (!row) return;
+          const line = document.createElement('div');
+          line.className = 'wama-batch-own form-text small mt-1';
+          const text = document.createElement('span');
+          const toggle = document.createElement('button');
+          toggle.type = 'button';
+          toggle.className = 'btn btn-link btn-sm p-0 ms-1 align-baseline';
+          const paint = function () {
+            const on = row.dataset.replaceOwn === '1';
+            text.textContent = ownLineText(counts, data.total, on);
+            toggle.textContent = on ? 'Garder leurs valeurs' : 'Remplacer aussi';
+          };
+          toggle.addEventListener('click', function () {
+            if (row.dataset.replaceOwn === '1') delete row.dataset.replaceOwn;
+            else row.dataset.replaceOwn = '1';
+            paint();
+          });
+          paint();
+          line.appendChild(text);
+          line.appendChild(toggle);
+          row.appendChild(line);
+        });
+        return data;
+      })
+      .catch(function () { return null; });
+  }
+
+  /** Le bloc « Alignement du lot » sous les réglages : sur la MÈRE (`card` absent), « Réaligner
+   *  toutes les cards sur la référence » ; sur une FILLE d'un lot, « Faire de ses réglages la
+   *  référence du lot ». Avec la portée du geste — par défaut, les valeurs liées à l'entrée de
+   *  chaque card restent (Fabien, 2026-11-05). Rien sans la route du lot. */
+  function batchAlignment(host, group, card) {
+    if (!host || !host.querySelector) return null;
+    const old = host.querySelector('.wama-batch-align');
+    if (old) old.remove();
+    const header = group && group.querySelector
+      ? group.querySelector(card ? '[data-batch-promote-url]' : '[data-batch-realign-url]') : null;
+    if (!header) return null;
+    const url = header.getAttribute(card ? 'data-batch-promote-url' : 'data-batch-realign-url');
+    const noReference = !card && header.getAttribute('data-batch-reference') !== '1';
+    const block = document.createElement('div');
+    block.className = 'wama-batch-align wama-param-group mt-3';
+    const options = SCOPE_CHOICES.map(function (c) {
+      return '<option value="' + c[0] + '"' + (c[0] === 'keep_computed' ? ' selected' : '') + '>' +
+        esc(c[1]) + '</option>';
+    }).join('');
+    block.innerHTML =
+      '<div class="wama-param-group-title"><i class="fas fa-arrows-down-to-line me-1"></i>Alignement du lot</div>' +
+      '<select class="form-select form-select-sm mb-2" data-batch-scope>' + options + '</select>' +
+      '<button type="button" class="btn btn-sm btn-outline-secondary" data-batch-align' +
+      (noReference ? ' disabled' : '') + '>' +
+      (card ? 'Faire de ses réglages la référence du lot' : 'Réaligner toutes les cards sur la référence') +
+      '</button>' +
+      (noReference ? '<div class="form-text small mt-1">Aucune référence : réglez le lot, ou faites des ' +
+                     'réglages d\'une card la référence.</div>' : '');
+    block.querySelector('[data-batch-align]').addEventListener('click', function () {
+      const fd = new FormData();
+      fd.append('scope', block.querySelector('[data-batch-scope]').value);
+      if (card && card.dataset) fd.append('source', card.dataset.id);
+      const app = global.WamaApp;
+      const send = (app && app.csrfFetch)
+        ? app.csrfFetch(url, app.csrfToken ? app.csrfToken() : '', { method: 'POST', body: fd })
+        : global.fetch(url, { method: 'POST', body: fd });
+      send.then(function (r) { return r.json(); }).then(function (res) {
+        if (!res || res.error || res.success === false) {
+          if (app && app.toast) app.toast('Alignement impossible — ' + ((res && res.error) || 'refusé'), 'error');
+          return;
+        }
+        if (app && app.toast) app.toast('Lot aligné · ' + (res.updated || 0) + ' card(s)', 'success');
+        setTimeout(function () { global.location.reload(); }, 600);
+      });
+    });
+    host.appendChild(block);
+    return block;
   }
 
   /** La NOTE sous un réglage qui suit une entrée : pourquoi cette valeur (vide = retirée). */
@@ -1755,6 +1912,64 @@
     });
   }
 
+  // LA grammaire des conditions (`show_if`), jugée sur ce que `valueOf(champ)` rend : la valeur d'un
+  // réglage rendu (`_bindConditional`), ou une CAPACITÉ du modèle choisi (`ProcessSpec.needs`,
+  // `_bindProcessNeeds`, 2026-11-05). Jumeau serveur : `param_schema.condition_met` — même
+  // vocabulaire, les deux changent ensemble (garde de parité `tests_cap_from_js`).
+  function conditionMet(cond, valueOf) {
+    if (!cond) return true;
+    if (typeof cond === 'string') cond = { field: cond };
+    if (cond.any) return cond.any.some(function (one) { return conditionMet(one, valueOf); });
+    return _valueMeets(cond, valueOf(cond.field));
+  }
+  function _valueMeets(cond, cur) {
+    // Une LISTE = « l'une de » : la condition vaut si l'une des valeurs la satisfait.
+    if (Array.isArray(cur)) return cur.some(function (one) { return _valueMeets(cond, one); });
+    if (cond.in) return cond.in.map(String).indexOf(String(cur)) !== -1;
+    if ('equals' in cond) return String(cur) === String(cond.equals);
+    if ('not_equals' in cond) return String(cur) !== String(cond.not_equals);
+    return !!cur && cur !== 'false' && cur !== '0';   // défaut : truthy
+  }
+
+  // RÉGLAGES D'UN PROCESS QUE LE MODÈLE NE SERT PAS (2026-11-05, décision de Fabien : « caché pour
+  // les sections »). Le process DÉCLARE ce qu'il exige du modèle de la card (`ProcessSpec.needs`,
+  // posé dans `WAMA_APP_PROCESSES` avec le réglage qui choisit ce modèle) ; un réglage qui ne sert
+  // que de tels process (`settingNeeds`) se cache sous un modèle dont la fiche du catalogue ne les
+  // satisfait pas — un bruitage n'a ni partition de sortie ni paroles —, et une section dont TOUS
+  // les réglages sont cachés se cache avec eux. Sous « auto » ou une fiche inconnue, rien ne se
+  // cache : on ne devine pas le tirage. Le serveur juge la même donnée (`AppPipeline.model_serves`).
+  function _bindProcessNeeds(container, schema, ctx) {
+    function groups() {
+      container.querySelectorAll('[data-group]').forEach(function (group) {
+        var rows = group.querySelectorAll('[data-param-row]');
+        if (!rows.length) return;
+        group.hidden = Array.prototype.every.call(rows, function (r) { return r.hidden; });
+      });
+    }
+    container.querySelectorAll('[data-param-row][data-needs]').forEach(function (group) {
+      var needs = JSON.parse(group.getAttribute('data-needs'));
+      var field = group.getAttribute('data-needs-field');
+      var modelP = (schema || []).filter(function (q) { return q.name === field; })[0];
+      var sel = modelP && container.querySelector(
+        '#' + CSS.escape(perCtx(modelP.dom_id, ctx) || ('wp-' + ctx + '-' + modelP.name)));
+      if (!modelP || !sel || !modelP.help_source) return;   // sans le choix du modèle : intacte
+      _catalogCaps(modelP.help_source, _catalogDomain(modelP)).then(function (capsByKey) {
+        function apply() {
+          var caps = capsByKey[sel.value];
+          group.hidden = !!caps && !conditionMet(needs, function (name) { return caps[name]; });
+          groups();
+        }
+        (container._wpCapApply = container._wpCapApply || []).push(apply);
+        sel.addEventListener('change', apply);
+        sel.addEventListener('wama:options-filled', apply);
+        if (global.MutationObserver) {
+          new MutationObserver(function () { apply(); }).observe(sel, { childList: true });
+        }
+        apply();
+      });
+    });
+  }
+
   // Visibilité conditionnelle (show_if) : un toggle pilote l'affichage d'autres champs.
   function _bindConditional(container) {
     // Valeur courante d'un champ par nom (toggle/select/radio/text), DANS ce conteneur.
@@ -1779,16 +1994,7 @@
       try { const o = JSON.parse(raw); if (o && typeof o === 'object') return o; } catch (e) {}
       return { field: raw };   // legacy : nom de champ, condition = truthy
     }
-    function met(cond, value) {
-      if (cond.any) return cond.any.some(function (one) { return met(one); });
-      const cur = arguments.length > 1 ? value : valByName(cond.field);
-      // Une LISTE = « l'une de » : la condition vaut si l'une des valeurs la satisfait.
-      if (Array.isArray(cur)) return cur.some(function (one) { return met(cond, one); });
-      if (cond.in) return cond.in.map(String).indexOf(String(cur)) !== -1;
-      if ('equals' in cond) return String(cur) === String(cond.equals);
-      if ('not_equals' in cond) return String(cur) !== String(cond.not_equals);
-      return !!cur && cur !== 'false' && cur !== '0';   // défaut : truthy
-    }
+    function met(cond) { return conditionMet(cond, valByName); }
     // Le champ d'une condition est-il RENDU dans ce conteneur ? (même parcours que `valByName`)
     function rendered(name) {
       let found = false;
@@ -1851,6 +2057,17 @@
       if (el.type === 'radio') { if (el.checked) out[n] = el.value; }
       else out[n] = _fieldValue(el);
     });
+    // Les lignes dont les valeurs PROPRES des filles sont remplacées aussi (`bindBatchOwn`) : un
+    // champ de plus, sa liste jointe par des virgules — il voyage dans le FormData de chaque app
+    // comme dans un JSON, et le serveur la relit (`make_batch_views._gesture`).
+    const replaced = [];
+    if (container.querySelectorAll) {
+      container.querySelectorAll('[data-replace-own="1"]').forEach(function (row) {
+        const name = row.getAttribute('data-param-row');
+        if (name) replaced.push(name);
+      });
+    }
+    if (replaced.length) out[REPLACE_OWN] = replaced.join(',');
     return out;
   }
 
@@ -2075,6 +2292,11 @@
       const modal = res.modal, host = res.host;
       modal.dataset.wamaItemId = cfg.id;
       graftFooter(modal);
+      if (cfg.context !== 'batch' && cfg.id != null) {
+        const card = document.querySelector('.wama-card[data-id="' + String(cfg.id) + '"]');
+        const group = card && card.closest ? card.closest('.batch-group[data-batch-id]') : null;
+        if (group) batchAlignment(host, group, card);
+      }
       if (typeof cfg.decorate === 'function') cfg.decorate(host, data || {}, res);
 
       // Délégation locale À LA MODALE (pas au document) : pas d'accumulation de
@@ -2164,6 +2386,7 @@
                         // …et son CÂBLAGE (champ modèle absent du rendu → dit ; valeurs posées
                         // par `apply` → borne rejouée), pour la même garde.
                         bindCapFrom: _bindCapFrom,
+                        bindProcessNeeds: _bindProcessNeeds,
                         capBindings: _capBindings,
                         syncTemperature: _syncTemperature,
                         temperatureHint: _temperatureHint, topPPlaceholder: _topPPlaceholder,
@@ -2184,7 +2407,10 @@
                         // est la règle pure, exposée pour sa garde V8.
                         scopeNextModal: scopeNextModal,
                         // Sections par process (2026-10-26) : la règle pure, pour sa garde V8.
-                        processSections: processSections,
+                        processSections: processSections, conditionMet: conditionMet,
+                        bindBatchOwn: bindBatchOwn, releaseBatchOwn: releaseBatchOwn,
+                        batchAlignment: batchAlignment, ownLineText: ownLineText,
+                        settingNeeds: settingNeeds,
                         scopedSchema: scopedSchema,
                         scopedConfig: scopedConfig,
                         takeModalScope: takeScope,

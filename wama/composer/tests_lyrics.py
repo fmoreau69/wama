@@ -25,7 +25,7 @@ from wama.common.services import process_runs
 from wama.composer import tasks
 from wama.composer.function_specs import PIPELINE
 from wama.composer.models import ComposerGeneration
-from wama.composer.tests_pipeline import ENGINES, SCORE, SCORE_MODEL, _ScoreEngine
+from wama.composer.tests_pipeline import ENGINES, SCORE, SCORE_MODEL, _ScoreEngine, catalogue_rows
 from wama.composer.tests_task import _celery_task
 from wama.composer.utils import vocals
 from wama.composer.utils.lyrics import fit_to_duration, lyrics_from_segments
@@ -145,7 +145,7 @@ class LyricsProcessesTest(TestCase):
         self.ear_error = None
         self.listened = []
         self.unloaded = []
-        self.singer = True
+        catalogue_rows()
 
     def _file(self, rel, content=b'RIFF'):
         path = Path(self.tmp) / rel
@@ -170,7 +170,6 @@ class LyricsProcessesTest(TestCase):
 
     def _patches(self):
         return [mock.patch('wama.common.backends.manager.backend_for_key', side_effect=lambda key: ENGINES.get(key)),
-                mock.patch('wama.composer.utils.vocals.sings', side_effect=lambda key: self.singer),
                 mock.patch('wama.composer.utils.model_choice.lyrics_transcriber', return_value=EAR),
                 mock.patch('wama.composer.utils.model_choice.lyrics_transcription_available', return_value=True),
                 mock.patch('wama.common.utils.whisper_utils.transcribe_audio', side_effect=self._transcribe),
@@ -234,7 +233,9 @@ class LyricsProcessesTest(TestCase):
         self.assertEqual(('', []), (gen.lyrics, self.listened))
 
     def test_a_model_that_does_not_sing_listens_to_nothing(self):
-        self.singer = False
+        """Who sings is the catalogue's word (`supports_vocals`, read by `ProcessSpec.needs`)."""
+        from wama.composer.tests_pipeline import CATALOGUE
+        catalogue_rows(**{SCORE_MODEL: {**CATALOGUE[SCORE_MODEL], 'supports_vocals': False}})
         gen = self._run(self._cover())
         self.assertEqual(('', []), (gen.lyrics, self.listened))
 

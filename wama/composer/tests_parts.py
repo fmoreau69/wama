@@ -26,7 +26,8 @@ from wama.common.models import JOB_FAILURE, JOB_SUCCESS
 from wama.common.services import process_runs
 from wama.composer import tasks
 from wama.composer.models import ComposerGeneration
-from wama.composer.tests_pipeline import ENGINES, PLAIN_MODEL, _PlainEngine
+from wama.composer.tests_pipeline import (COVER_MODEL, ENGINES, PLAIN_MODEL, SFX_MODEL, _PlainEngine,
+                                          catalogue_rows)
 from wama.composer.tests_task import _celery_task
 
 TRANSCRIBER = 'huggingface:MuScriptor/muscriptor-large'
@@ -78,6 +79,7 @@ class FullScoreTest(TestCase):
         _Transcriber.built, _Transcriber.unloaded, _Transcriber.calls, _Transcriber.error = 0, 0, [], None
         self.installed = True
         self.draws, self.asked = [], []
+        catalogue_rows()
 
     def _draw(self, source=None, requested=None, fallback=None, task=None, **domain):
         """The common selector's draw (`select_model_id`), stood in BELOW the composer's choice
@@ -94,8 +96,10 @@ class FullScoreTest(TestCase):
 
     def _run(self, gen=None, **fields):
         if gen is None:
+            # A model that TAKES a cover (`ProcessSpec.needs` of `parts`, 2026-11-05) : the full
+            # score of a cover has no object under a model that takes none.
             gen = ComposerGeneration.objects.create(user=self.user, prompt='pop song',
-                                                    model=PLAIN_MODEL, status='RUNNING', **fields)
+                                                    model=COVER_MODEL, status='RUNNING', **fields)
         engines = {**ENGINES, TRANSCRIBER: _Transcriber, OTHER_TRANSCRIBER: _Transcriber}
         with mock.patch('wama.common.utils.task_skeleton.close_old_connections'), \
                 mock.patch('wama.common.backends.manager.backend_for_key',
@@ -230,6 +234,19 @@ class FullScoreTest(TestCase):
         stale = PIPELINE.refresh(gen)
         self.assertIn('output', stale, 'the output follows its format')
         self.assertNotIn('rendered_parts', stale, 'the score of the render does not depend on it')
+
+    def test_a_sound_effect_has_neither_score_even_asked(self):
+        """2026-11-05, Fabien : under the ambiance model, the music settings showed — and
+        « Partition de sortie » had NO condition : a sound effect would have been transcribed into
+        instrument parts. What a process requires from the model is a DECLARATION (`needs`), judged
+        on the catalogue line : AudioGen makes no music and takes no cover."""
+        gen = ComposerGeneration.objects.create(user=self.user, prompt='rain on a roof', model=SFX_MODEL,
+                                                status='RUNNING', extract_parts=True,
+                                                extract_rendered_parts=True, melody_reference=self._cover())
+        gen = self._run(gen)
+        self.assertEqual('SUCCESS', gen.status, gen.error_message)
+        self.assertEqual((False, False), ('parts' in self._states(gen), 'rendered_parts' in self._states(gen)))
+        self.assertEqual([], _Transcriber.calls)
 
     def test_a_failed_transcription_fails_its_line_and_releases_the_model(self):
         _Transcriber.error = RuntimeError('no beat decoded')

@@ -3654,7 +3654,8 @@ def launch_batch(user, app: str, batch_id: int) -> dict:
 
 @tool_effect(WRITE)
 def update_batch_settings(user, app: str, batch_id: int, settings: dict = None,
-                          promote_from: int = None, realign: bool = False) -> dict:
+                          promote_from: int = None, realign: bool = False, scope: str = '',
+                          replace_own: list = None) -> dict:
     """
     Set the settings of a whole batch — ONE of three gestures:
       - settings: write these settings on every item and keep them as the batch's reference;
@@ -3662,7 +3663,9 @@ def update_batch_settings(user, app: str, batch_id: int, settings: dict = None,
         them on its sister items;
       - realign: write the batch's reference settings back on every item (individual changes
         are replaced).
-    Items still running are left untouched.
+    Items still running are left untouched. An item keeps its OWN values — those tied to its
+    input (taken from its file, like a cover's duration, or its own prompt) and those set by hand
+    on it — according to `scope` (2026-11-05).
 
     Args:
         app:          app id the batch belongs to.
@@ -3670,6 +3673,11 @@ def update_batch_settings(user, app: str, batch_id: int, settings: dict = None,
         settings:     {setting name: value}, as for `update_item_settings`.
         promote_from: id of the item whose settings become the reference.
         realign:      true to re-apply the reference.
+        scope:        what the gesture does to the items' own values : 'keep_own' (keep them all —
+                      the default of `settings`), 'keep_computed' (replace hand settings, keep the
+                      values tied to the input — the default of promote/realign), or 'all'.
+        replace_own:  setting names whose own values are replaced too (e.g. ["prompt"] to apply
+                      one prompt to every item of the batch).
 
     Returns:
         {"updated": n, "app", "batch_id", "mode"} or {"error"}
@@ -3686,9 +3694,16 @@ def update_batch_settings(user, app: str, batch_id: int, settings: dict = None,
         return (_signed_in_refusal(user, "Écriture")
                 or {'error': "indiquer UN geste : settings, promote_from ou realign=true."})
     mode = chosen[0]
-    gesture, data = {'settings': ('batch_update', settings),
+    gesture, data = {'settings': ('batch_update', dict(settings or {})),
                      'promote': ('batch_promote', {'source': promote_from}),
-                     'realign': ('batch_realign', None)}[mode]
+                     'realign': ('batch_realign', {})}[mode]
+    # La portée du geste et « remplacer aussi » : les champs que la ⚙ du lot poste à côté de ses
+    # réglages (`batch_views.GESTURE_FIELDS`), lus par la fabrique.
+    if scope:
+        data['scope'] = scope
+    if replace_own:
+        names = replace_own if isinstance(replace_own, (list, tuple)) else str(replace_own).split(',')
+        data['replace_own'] = ','.join(str(n).strip() for n in names if str(n).strip())
     if refusal := _batch_write_refusal(user, app):
         return refusal
     failure, payload = _batch_view(user, app, gesture, batch_id, 'Réglages', data=data)

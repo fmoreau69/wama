@@ -222,6 +222,38 @@ class TheGridCountsACallNotAMentionTest(SimpleTestCase):
         self.assertIs(self._verdict('model_caps_ui', COMMENTED, named=None)[0], False)
 
 
+class EverySettingAModelNamesIsBoundTest(SimpleTestCase):
+    """2026-11-05 : the composer was GREEN by its duration while « Voix », named by the capability
+    `supports_vocals`, was bound to nothing. One `cap_from` no longer covers the app : every setting
+    a capability names must be bound (declarative form)."""
+
+    def _verdict(self, schema, named):
+        from unittest import mock
+        criterion = next(c for c in cc.CRITERIA if c.key == 'model_caps_ui')
+        files = {'params.py': "PARAMS = [Param(name='duration', cap_from={'field': 'model'})]\n"}
+        from wama.common.tests.tests_queue_delete_contract import CriteresDeLaGrilleTest
+        with mock.patch.object(cc, '_uses_models', lambda f: True), \
+             mock.patch.object(cc, '_has_engine_select', lambda f: True), \
+             mock.patch.object(cc, '_capability_named_settings', lambda f: set(named)), \
+             mock.patch('wama.common.utils.param_schema.declared_param_schemas',
+                        return_value={'schemas': {'PARAMS_JSON': schema}}):
+            return criterion.fn(CriteresDeLaGrilleTest._app(self, files)[0])
+
+    def test_a_named_setting_left_unbound_is_red_whatever_else_is_bound(self):
+        state, why = self._verdict([{'name': 'duration', 'cap_from': {'field': 'model'}},
+                                    {'name': 'vocals'}], {'vocals'})
+        self.assertIs(state, False)
+        self.assertIn('vocals', why)
+
+    def test_bound_it_is_green(self):
+        """Counter-proof : the same app once the named setting is bound."""
+        state, _why = self._verdict([{'name': 'duration', 'cap_from': {'field': 'model'}},
+                                     {'name': 'vocals', 'cap_from': {'field': 'model',
+                                                                     'capability': 'supports_vocals',
+                                                                     'mode': 'reads'}}], {'vocals'})
+        self.assertIs(state, True)
+
+
 class CapabilityNamedSettingsTest(SimpleTestCase):
     """What « a capability names a setting » reads: `params` lists, and `supports_<setting>`."""
 

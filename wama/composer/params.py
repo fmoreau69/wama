@@ -11,21 +11,27 @@ from wama.common.utils.param_schema import Param, schema_to_dicts, seed_param, t
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.composer.utils.model_choice import (AUTO_MUSIC, AUTO_SFX, LYRICS_RESOLUTION, LYRICS_TASK,
                                               PARTS_EXTRACTION_TASK, TASKS)
-from wama.composer.utils.vocals import (AUTO as VOCALS_AUTO, CHOICES as VOCALS_CHOICES,
-                                        SONG as VOCALS_SONG)
+from wama.composer.utils.vocals import (AUTO as VOCALS_AUTO, CAPABILITY as VOCALS_CAPABILITY,
+                                        CHOICES as VOCALS_CHOICES, SONG as VOCALS_SONG)
 
 PANEL = ("panel",)
 PANEL_ITEM = ("panel", "item")
 # Batch = ce que la modale de lot POSTE (model/duration/format/qualité) — le prompt reste
 # per-item. Modale batch DÉDIÉE (contrat reader, 17/08) rendue de ce schéma.
 PANEL_ITEM_BATCH = ("panel", "item", "batch")
+#: Ce qui ne sert qu'à un modèle qui CHANTE : la capacité de sa fiche (`vocals.CAPABILITY`).
+SINGS_BINDING = {"field": "model", "capability": VOCALS_CAPABILITY, "mode": "reads",
+                 "reason": "Ce modèle ne chante pas : il ne joue que de l'instrumental."}
 
 PARAMS = [
     # Ordre = ordre de DÉCLARATION (WamaParams déroule la liste). Le PROMPT ouvre la modale
     # (décision Fabien 18/08 : l'intention d'abord, les réglages ensuite) — contexts item
     # seulement, donc l'ordre du VOLET (Modèle → Durée → Format → Qualité) est inchangé.
+    # Au LOT aussi (2026-11-05, demande de Fabien : « appliquer un prompt depuis la card mère aux
+    # cards filles ») : la consigne de chaque fille est SON entrée (`batch_settings.input_settings`)
+    # — gardée par défaut, remplacée quand on le choisit sur sa ligne (« remplacer aussi »).
     Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",
-          dom_id={"item": "settingsPrompt"}, contexts=("item",),
+          dom_id={"item": "settingsPrompt", "batch": "batchSettingsPrompt"}, contexts=("item", "batch"),
           # Périme la partition et le rendu (`Param.stales`, dont `ProcessSpec.watched` se dérive).
           stales=("plan", "render")),
     # Route F4b (2026-10-01) : les options viennent du CATALOGUE, bornées par la TÂCHE — jamais par
@@ -60,6 +66,9 @@ PARAMS = [
                "écrites pour vous, dans une langue que le modèle chante. Seuls certains modèles "
                "chantent ; en automatique, le tirage les retient.",
           dom_id={"panel": "vocalsSelect", "item": "settingsVocals", "batch": "batchSettingsVocals"},
+          # Grisé, raison dite, sous un modèle qui ne chante pas : la capacité `supports_vocals` de sa
+          # fiche (2026-11-05 — « quelle capacité du modèle rend ce réglage utile ? »).
+          cap_from=SINGS_BINDING,
           contexts=PANEL_ITEM_BATCH, stales=("plan", "render")),
     # Paroles de l'ÉLÉMENT (2026-10-04) : écrites pour l'utilisateur quand il demande une chanson
     # sans en donner, et éditables ici. Masquées en instrumental (elles ne seraient pas chantées).
@@ -70,6 +79,7 @@ PARAMS = [
                "de lui-même. À relire ; modifiez-les puis relancez. Des paroles écrites dans le "
                "prompt, sous la description, priment.",
           show_if={"field": "vocals", "in": [VOCALS_AUTO, VOCALS_SONG]},
+          cap_from=SINGS_BINDING,
           dom_id={"item": "settingsLyrics"}, contexts=("item",), stales=("plan", "render")),
     # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur les « auto », lu au
     # LANCEMENT par le tirage (`resolve_auto_model` → `item=gen`). Rendu par le renderer commun

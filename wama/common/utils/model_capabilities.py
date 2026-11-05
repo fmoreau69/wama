@@ -352,6 +352,22 @@ def supports(caps: Dict[str, Any], flag: str) -> bool:
     return bool((caps or {}).get(flag))
 
 
+def catalog_capabilities(model_key: str) -> Dict[str, Any]:
+    """Les capacités d'UN modèle telles que le catalogue les porte (`AIModel.capabilities`) — `{}`
+    pour une clé vide, inconnue ou un catalogue illisible. LA lecture des capacités d'une clé
+    (2026-11-05) : le pipeline d'une app y juge ce qu'un process exige de son modèle
+    (`ProcessSpec.needs`), et le composer y lisait chacune à sa manière (`vocals.sings`,
+    `model_choice._catalog_task`)."""
+    if not model_key:
+        return {}
+    try:
+        from wama.model_manager.models import AIModel
+        row = AIModel.objects.filter(model_key=model_key).only('capabilities').first()
+        return dict(row.capabilities or {}) if row else {}
+    except Exception:
+        return {}
+
+
 def supports_timestamps_for(caps: Dict[str, Any], lang: str) -> bool:
     """
     Horodatage mot disponible POUR CETTE LANGUE.

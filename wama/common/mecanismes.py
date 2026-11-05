@@ -219,7 +219,10 @@ MECHANISMS = (
               "valables les lignes rendues avant le détachement ; ce que les process ont ÉCRIT "
               "(`produced_fields`), dont une copie repart sans. 2026-10-22 : une relance COMPLÈTE "
               "libère ce qui ne compte plus (`release_absent`) ; un process peut ne pas LIRE ses "
-              "amonts (`upstream_switch`, `read_upstreams`)",
+              "amonts (`upstream_switch`, `read_upstreams`). 2026-11-05 : ce qu'un process EXIGE du "
+              "modèle de la card est une DONNÉE (`needs`, grammaire `show_if` sur la fiche du "
+              "catalogue, `model_serves`), posée dans `WAMA_APP_PROCESSES` : l'écran cache les "
+              "réglages d'un process que le modèle choisi ne sert pas",
               'wama/common/services/process_pipeline.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_pipeline.py',),
               depends_on=('process_runs', 'input_provenance')),
@@ -1947,12 +1950,15 @@ MECHANISMS = (
               "DÉCLARÉE (`promote_payload`), par défaut les réglages du SCHÉMA lus par la règle de "
               "la révision ; le monde Data y mettra son protocole — même geste, deux charges. Les "
               "trois gestes écrivent par le chemin de la ⚙ de lot (deux temps, un refus n'écrit "
-              "rien) ; la référence suit la duplication et part avec la suppression. Surfaces : "
-              "le menu « … » — « Réaligner toutes les cards sur la référence » sur la mère (DISANT "
-              "quoi faire sans référence), « Faire de ses réglages la référence du lot » sur une "
-              "fille ; le bouton ↓ de la barre d'actions est retiré le 2026-11-02 (décision de "
-              "Fabien) — et l'outil d'assistant `update_batch_settings`. 9 apps câblées + le "
-              "générateur ; le composer suit avec son câblage pipeline",
+              "rien) ; la référence suit la duplication et part avec la suppression. 2026-11-05 : "
+              "une fille garde ses VALEURS PROPRES (`own_settings` — liées à son entrée, tirées de "
+              "son fichier ou entrée elle-même, ou réglées à la main), selon la PORTÉE du geste "
+              "(`SCOPES`) et le choix « remplacer aussi » ligne par ligne ; la page les lit "
+              "(`common:api_batch_own_settings`). Surfaces : la ⚙ et le volet de la mère "
+              "(« Réaligner », avec sa portée) et d'une fille (« Faire de ses réglages la "
+              "référence ») — `WamaParams.batchAlignment`, à côté des réglages (Fabien, 05/11 ; le "
+              "menu « … » du 02 au 05/11) — et l'outil d'assistant `update_batch_settings`. "
+              "9 apps câblées + le générateur ; le composer suit avec son câblage pipeline",
               'wama/common/services/batch_settings.py', 'docs/construction/ui/MODES_QUEUE_UX.md §5ter',
               annexes=('wama/common/tests/tests_batch_views.py',),
               depends_on=('batch_views', 'item_revisions')),

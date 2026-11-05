@@ -383,9 +383,11 @@ class PromotionBetweenChildAndMotherTest(TestCase):
         self.assertEqual(self.a.output_format, 'webm')
 
     def test_what_belongs_to_the_card_alone_is_not_promoted(self):
-        """Measured in the browser (2026-10-03): the composer `prompt` (context `item` only)
-        overwrote the sisters'. The baseline of a batch is what its ⚙ would set — the settings
-        declared for the `batch` context ; without any such declaration, the item ones stay."""
+        """Measured in the browser (2026-10-03): the composer `prompt` overwrote the sisters'. The
+        baseline of a batch is what its ⚙ would set — the settings declared for the `batch`
+        context ; without any such declaration, the item ones stay. Since 2026-11-05 the prompt is
+        set from the mother too (Fabien) : it is in the payload, and a sister KEEPS hers — it is
+        her card's input (`input_settings`, `OwnValuesOfTheChildrenTest`)."""
         from wama.common.services import batch_settings
         split = [{'name': 'output_format', 'contexts': ['item']},
                  {'name': 'media_type', 'contexts': ['item', 'batch']}]
@@ -396,8 +398,9 @@ class PromotionBetweenChildAndMotherTest(TestCase):
         from wama.composer.params import PARAMS_JSON
         song = ComposerGeneration(user=self.u, prompt='only mine', duration=20)
         promoted = batch_settings.settings_of(song, PARAMS_JSON)
-        self.assertNotIn('prompt', promoted, 'the prompt is what tells the cards of a batch apart')
-        self.assertEqual(promoted.get('duration'), 20)
+        self.assertEqual(('only mine', 20), (promoted.get('prompt'), promoted.get('duration')))
+        self.assertEqual({'prompt'}, batch_settings.input_settings(song, PARAMS_JSON),
+                         'the prompt is what tells the cards of a batch apart : her own')
 
     def test_a_card_outside_the_batch_cannot_be_promoted(self):
         from wama.common.services import batch_settings
@@ -456,6 +459,118 @@ class PromotionBetweenChildAndMotherTest(TestCase):
                          {'output_format': 'ogg'}, 'la copie du lot hérite de sa référence')
         self._post('batch_delete')
         self.assertIsNone(batch_settings.stored(self.lot), 'la référence part avec le lot')
+
+
+class OwnValuesOfTheChildrenTest(TestCase):
+    """2026-11-05, Fabien : « il faut faire en sorte que d'autres réglages issus de
+    caractéristiques ne soient pas écrasés par le report des réglages de la card mère », and « il
+    faudrait pouvoir appliquer un prompt depuis la card mère ». Measured on the real composer
+    batch : two covers (their duration is taken from their audio, `Param.default_from`) and a song
+    without one ; each has its own prompt — the input of its card. Nothing is stamped : the
+    declaration says what CAN be computed, the child's input says whether it is."""
+
+    DURATIONS = {'a.wav': 142.0, 'b.wav': 200.0}
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
+        from django.test import override_settings
+
+        from wama.composer.models import ComposerBatch, ComposerBatchItem, ComposerGeneration
+        self.tmp = tempfile.mkdtemp()
+        media = override_settings(MEDIA_ROOT=self.tmp)
+        media.enable()
+        self.addCleanup(media.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.u = _user()
+        self.rf = RequestFactory()
+        self.lot = ComposerBatch.objects.create(user=self.u, total=3)
+        # The catalogue lines : the cover port (`work_audio`) is opened by a model that takes it.
+        from wama.composer.tests_pipeline import catalogue_rows
+        catalogue_rows()
+
+        def song(row, prompt, duration, cover=''):
+            if cover:
+                path = Path(self.tmp) / 'users' / str(self.u.pk) / 'temp' / cover
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b'RIFF')
+                cover = f'users/{self.u.pk}/temp/{cover}'
+            gen = ComposerGeneration.objects.create(user=self.u, prompt=prompt, duration=duration,
+                                                    melody_reference=cover or None)
+            ComposerBatchItem.objects.create(batch=self.lot, generation=gen, row_index=row)
+            return gen
+        self.a = song(0, 'folk A', 142, 'a.wav')
+        self.b = song(1, 'folk B', 200, 'b.wav')
+        self.plain = song(2, 'piano', 210)
+        probe = mock.patch('wama.common.utils.media_probe.probe_media',
+                           side_effect=lambda path: {'duration': self.DURATIONS.get(Path(path).name)})
+        probe.start()
+        self.addCleanup(probe.stop)
+
+    def _post(self, name, data=None):
+        from wama.composer import views
+        req = self.rf.post('/x/', data or {})
+        req.user = self.u
+        return getattr(views, name)(req, self.lot.pk)
+
+    def _songs(self, field):
+        return [getattr(type(g).objects.get(pk=g.pk), field) for g in (self.a, self.b, self.plain)]
+
+    def test_the_gear_spares_what_each_child_takes_from_its_input(self):
+        self.assertEqual(200, self._post('batch_update', {'duration': '60'}).status_code)
+        self.assertEqual([142, 200, 60], self._songs('duration'))
+
+    def test_replacing_too_is_chosen_line_by_line(self):
+        self._post('batch_update', {'duration': '60', 'prompt': 'calm piano', 'replace_own': 'duration'})
+        self.assertEqual([60, 60, 60], self._songs('duration'), 'the line said « replace too »')
+        self.assertEqual(['folk A', 'folk B', 'piano'], self._songs('prompt'), 'this one did not')
+
+    def test_a_prompt_is_applied_from_the_mother_when_chosen(self):
+        self._post('batch_update', {'prompt': 'calm piano', 'replace_own': 'prompt,duration'})
+        self.assertEqual(['calm piano'] * 3, self._songs('prompt'))
+
+    def test_realigning_keeps_the_input_values_and_replaces_the_hand_settings_by_default(self):
+        from wama.composer.models import ComposerGeneration
+        self._post('batch_update', {'duration': '60', 'vocals': 'instrumental'})
+        ComposerGeneration.objects.filter(pk=self.plain.pk).update(duration=90, vocals='song')
+        self._post('batch_realign', {'scope': 'keep_own'})
+        self.assertEqual((90, 'song'), tuple(ComposerGeneration.objects.filter(pk=self.plain.pk)
+                                             .values_list('duration', 'vocals')[0]), 'kept : keep_own')
+        self._post('batch_realign')
+        self.assertEqual([142, 200, 60], self._songs('duration'), 'the default keeps the input values')
+        self.assertEqual(['instrumental'] * 3, self._songs('vocals'), 'and replaces the hand settings')
+        self._post('batch_realign', {'scope': 'all'})
+        self.assertEqual([60, 60, 60], self._songs('duration'), 'everything : the third scope')
+
+    def test_a_promotion_spares_what_each_sister_takes_from_her_input(self):
+        r = self._post('batch_promote', {'source': self.a.pk})
+        self.assertEqual(200, r.status_code, r.content)
+        self.assertEqual([142, 200, 142], self._songs('duration'), "b keeps her cover's, the plain one follows")
+        self.assertEqual(['folk A', 'folk B', 'piano'], self._songs('prompt'))
+
+    def test_the_assistant_chooses_the_same_way(self):
+        """The assistant's batch tool carries the scope and « replace too » (the API follows every
+        functional addition — `AGENTS.md`, philosophy point 5)."""
+        from unittest import mock
+        from wama import tool_api
+        with mock.patch.object(tool_api, '_batch_write_refusal', return_value=None):
+            out = tool_api.update_batch_settings(self.u, 'composer', self.lot.pk,
+                                                 settings={'prompt': 'calm piano'},
+                                                 replace_own=['prompt'])
+        self.assertNotIn('error', out, out)
+        self.assertEqual(['calm piano'] * 3, self._songs('prompt'))
+        self.assertIn('scope', tool_api.tool_arg_names('update_batch_settings'))
+
+    def test_the_page_reads_which_child_keeps_what(self):
+        self.client.force_login(self.u)
+        own = self.client.get(f'/common/api/batch/composer/{self.lot.pk}/own-settings/').json()
+        self.assertEqual(3, own['total'])
+        self.assertEqual(sorted([self.a.pk, self.b.pk]), sorted(own['own']['duration']['computed']))
+        self.assertEqual(3, len(own['own']['prompt']['computed']), 'each prompt is its card\'s input')
+        self.assertNotIn('output_format', own['own'])
 
 
 class BatchCardReferenceRenderTest(TestCase):

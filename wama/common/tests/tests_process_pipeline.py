@@ -60,6 +60,58 @@ def _keys(steps):
     return [spec.key for spec in steps]
 
 
+class WhatAProcessRequiresFromItsModelTest(TestCase):
+    """`ProcessSpec.needs` (2026-11-05, Fabien : « quelle capacité du modèle rend ce réglage
+    utile ? ») — what a process requires from the model of the card, as DATA : a `show_if`
+    condition judged on the catalogue line (`model_capabilities.catalog_capabilities`), the same
+    data the page reads to hide its settings. The element is still judged by `applies`."""
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='demo:singer', name='Singer', source='demo',
+                               capabilities={'task': 'text-to-music', 'supports_vocals': True})
+        AIModel.objects.create(model_key='demo:noise', name='Noise', source='demo',
+                               capabilities={'task': 'text-to-audio'})
+
+    def _pipeline(self, **lyrics):
+        return AppPipeline('demo_pipeline', (
+            ProcessSpec('render'),
+            ProcessSpec('lyrics', depends_on=('render',), needs='supports_vocals', **lyrics),
+        ), label='Demo')
+
+    def test_a_model_without_the_capability_does_not_serve_the_process(self):
+        pipeline = self._pipeline()
+        self.assertEqual(['render', 'lyrics'], _keys(pipeline.applicable(_Element(), 'demo:singer')))
+        self.assertEqual(['render'], _keys(pipeline.applicable(_Element(), 'demo:noise')),
+                         'an ABSENT capability is not satisfied : the catalogue is exhaustive')
+        self.assertEqual(['render'], _keys(pipeline.applicable(_Element(), 'demo:unknown')))
+
+    def test_under_auto_nothing_is_guessed(self):
+        pipeline = self._pipeline()
+        self.assertTrue(pipeline.model_serves(pipeline.spec('lyrics'), 'auto:text-to-music'))
+        self.assertTrue(pipeline.model_serves(pipeline.spec('lyrics'), None))
+
+    def test_the_element_is_still_judged_by_applies(self):
+        """Counter-proof : the capability does not replace what is judged on the element."""
+        pipeline = self._pipeline(applies=lambda item, model_key: not getattr(item, 'lyrics', ''))
+        self.assertEqual(['render'], _keys(pipeline.applicable(_Element(lyrics='la la'), 'demo:singer')))
+        self.assertEqual(['render', 'lyrics'], _keys(pipeline.applicable(_Element(lyrics=''), 'demo:singer')))
+
+    def test_the_page_receives_what_each_process_requires_and_the_field_that_chooses_the_model(self):
+        import json as _json
+        from django.test import RequestFactory
+        from wama.accounts.context_processors import user_role
+        from wama.common.services import process_pipeline as pp
+        request = RequestFactory().get('/composer/')
+        request.user = get_user_model().objects.create_user('needs_page', password='x')
+        processes = {p['key']: p for p in _json.loads(user_role(request)['current_app_processes_json'])}
+        self.assertEqual({'needs': 'supports_vocals', 'model_field': 'model'},
+                         {k: processes['rendered_lyrics'][k] for k in ('needs', 'model_field')})
+        self.assertNotIn('needs', processes['render'], 'a process without requirement says nothing')
+        self.assertEqual(pp.app_pipeline('composer').spec('rendered_parts').needs,
+                         processes['rendered_parts']['needs'])
+
+
 class WritingAPipelineDownTest(SimpleTestCase):
 
     def test_an_upstream_that_is_not_in_the_pipeline_is_refused(self):
