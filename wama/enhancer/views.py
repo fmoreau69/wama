@@ -1,7 +1,6 @@
 import os
 import logging
 from django.shortcuts import render
-from wama.accounts.permissions import app_access
 from wama.common.utils.input_match import input_labels as _input_labels
 from django.views import View
 from django.http import JsonResponse, HttpResponseBadRequest
@@ -288,7 +287,6 @@ def _apply_audio_settings(ae, data):
 
 
 @require_POST
-@app_access('enhancer')
 def upload(request):
     """Upload and analyze image/video file, or download from URL."""
     print("=== ENHANCER UPLOAD CALLED ===")  # DEBUG
@@ -433,8 +431,8 @@ _iv = make_item_views(work_model=Enhancement, app_id='enhancer',
                       queue_settings=_queue_panel,
                       apply_settings=lambda e, data: _apply_enhancement_settings(e, data),
                       batch_model=BatchEnhancement)
-start = app_access('enhancer')(_iv['start'])
-start_all = app_access('enhancer')(_iv['start_all'])
+start = _iv['start']
+start_all = _iv['start_all']
 clear_all = _iv['clear_all']
 stop, delete, duplicate = _iv['stop'], _iv['delete'], _iv['duplicate']
 download, update_settings = _iv['download'], _iv['update_settings']
@@ -444,8 +442,8 @@ _aiv = make_item_views(work_model=AudioEnhancement, app_id='audio_enhancer',
                        queue_settings=_queue_panel,
                        apply_settings=lambda a, data: _apply_audio_settings(a, data),
                        batch_model=BatchAudioEnhancement)
-audio_start = app_access('enhancer')(_aiv['start'])
-audio_start_all = app_access('enhancer')(_aiv['start_all'])
+audio_start = _aiv['start']
+audio_start_all = _aiv['start_all']
 audio_clear_all = _aiv['clear_all']
 audio_stop, audio_delete, audio_duplicate = _aiv['stop'], _aiv['delete'], _aiv['duplicate']
 audio_download, audio_update = _aiv['download'], _aiv['update_settings']

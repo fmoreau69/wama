@@ -3,7 +3,6 @@ Composer Views — Music and SFX generation.
 """
 
 import json
-from wama.accounts.permissions import app_access
 import logging
 import os
 from urllib.parse import urlsplit
@@ -126,7 +125,7 @@ def _reset_for_relaunch(gen, only=None):
 
 # ── Les vues de lot du composer : fabrique COMMUNE (`batch_views.make_batch_views`, portage
 # 2026-09-23, 5ᵉ app réelle — ROUTE §11 #36). Spécificités DÉCLARÉES en kwargs : ▶ de lot ne
-# lance QUE les PENDING (« créer ≠ démarrer », contrat WamaBatchImport) et garde `@app_access` ;
+# lance QUE les PENDING (« créer ≠ démarrer », contrat WamaBatchImport) ;
 # `task_id` nullable ; `exported_to_library` remis à False ; la ligne de liaison de la copie
 # reprend l'`output_filename` de l'original (`item_extra`), le lot copié partage le fichier de
 # lot (`batch_extra`) ; cache de progression purgé à la suppression ; le nom de chaque fichier
@@ -172,7 +171,7 @@ _bv = make_batch_views(
     schema=_SETTINGS_SCHEMA,
     apply_settings=lambda gen, data: _apply_generation_settings(gen, data),
 )
-batch_start = app_access('composer')(_bv['batch_start'])
+batch_start = _bv['batch_start']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
 batch_download = _bv['batch_download']
@@ -526,14 +525,14 @@ _iv = make_item_views(work_model=ComposerGeneration, app_id='composer', task_for
                       reset_on_start=_reset_for_relaunch,
                       pending={'status__in': ('PENDING', 'FAILURE')}, batch_model=ComposerBatch,
                       item_empty_is_value=('lyrics',))
-start = app_access('composer')(_iv['start'])
-start_all = app_access('composer')(_iv['start_all'])
+start = _iv['start']
+start_all = _iv['start_all']
 clear_all = _iv['clear_all']
 # ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
 # déclare à sa fabrique de lot. Spécificité déclarée : des paroles VIDÉES s'effacent sur la card
 # (au lot, vide = ne pas toucher). « Enregistrer et relancer » enchaîne le ▶ côté page, comme les
 # autres apps : la vue de réglages relançait elle-même (`restart=1`).
-stop = app_access('composer')(_iv['stop'])
+stop = _iv['stop']
 update_settings = _iv['update_settings']
 download = _iv['download']
 delete = _iv['delete']
@@ -544,8 +543,8 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 
 # ▶ d'UN process de la card (P5, `ROUTE §10.6` 5.1) : fabrique COMMUNE. Seules les sorties
 # DÉCLARÉES du process lancé sont remplacées (`_reset_for_relaunch(gen, only)`).
-start_process = app_access('composer')(make_process_start_view(
-    work_model=ComposerGeneration, task_for=_task_for, reset_for_process=_reset_for_relaunch))
+start_process = make_process_start_view(
+    work_model=ComposerGeneration, task_for=_task_for, reset_for_process=_reset_for_relaunch)
 
 
 def _input_match_meta():

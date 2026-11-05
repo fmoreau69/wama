@@ -2,7 +2,6 @@
 Reader — OCR document views.
 """
 import io
-from wama.accounts.permissions import app_access
 import os
 import json
 import logging
@@ -374,8 +373,8 @@ DUPLICATE_RESET = {'result_text': '', 'raw_result': '', 'used_backend': '', 'ana
 # 2ᵉ app réelle — ROUTE §11 #36). Spécificités du reader DÉCLARÉES en kwargs : remise à zéro
 # sous verrou (`_reset_for_relaunch`), cache de progression `reader_progress_<id>` (un dict
 # `{'pct': …}`, lu par `batch_status`, purgé à la suppression), `result_text`/`used_backend`
-# vidés à la duplication, `language` vide = auto-détection (VALEUR, pas absence), gating
-# `@app_access` sur le démarrage. `batch_download` vient AUSSI de la fabrique depuis le
+# vidés à la duplication, `language` vide = auto-détection (VALEUR, pas absence).
+# `batch_download` vient AUSSI de la fabrique depuis le
 # 2026-10-02 : le format se choisit au téléchargement (`export_binding='late'`), la fabrique lit
 # les formats DÉCLARÉS au catalogue et le rendu ENREGISTRÉ (`build_reading_bytes`, `apps.py`) —
 # la vue locale recopiait les deux en dur. Seule la souche de chaque entrée reste dite ici.
@@ -424,7 +423,7 @@ _bv = make_batch_views(
     on_delete=lambda r: cache.delete(f'reader_progress_{r.id}'),
     output_name=_output_stem,
 )
-batch_start = app_access('reader')(_bv['batch_start'])
+batch_start = _bv['batch_start']
 batch_update = _bv['batch_update']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
@@ -441,14 +440,14 @@ from wama.common.utils.item_views import make_item_views  # noqa: E402
 _iv = make_item_views(work_model=ReadingItem, app_id='reader', task=read_document_task,
                       get_user=_get_user, reset_on_start=_reset_for_relaunch,
                       batch_model=BatchReadingItem)
-start = app_access('reader')(_iv['start'])
-start_all = app_access('reader')(_iv['start_all'])
+start = _iv['start']
+start_all = _iv['start_all']
 clear_all = _iv['clear_all']
 # ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la même fabrique (2026-11-01, ROUTE §11 #42 ④), qui les lit à la
 # déclaration de `_bv` ci-dessus — `DUPLICATE_RESET`, cache purgé, rendu nommé par `_output_stem`,
 # `_apply_reading_settings`. La copie d'une card a désormais sa place dans la file dès sa naissance
 # (elle restait orpheline jusqu'au prochain affichage de la page).
-stop = app_access('reader')(_iv['stop'])
+stop = _iv['stop']
 delete, duplicate = _iv['delete'], _iv['duplicate']
 download, update_settings = _iv['download'], _iv['update_settings']
 
@@ -457,9 +456,9 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 
 # ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — c'est aussi la mise en forme
 # ou l'analyse « à la demande » sur un texte déjà lu.
-start_process = app_access('reader')(make_process_start_view(
+start_process = make_process_start_view(
     work_model=ReadingItem, task_for=lambda r: read_document_task,
-    get_user=_get_user, reset_on_start=_reset_for_relaunch))
+    get_user=_get_user, reset_on_start=_reset_for_relaunch)
 
 
 # Card RENDUE serveur — source UNIQUE du markup v3 (partial _item_card.html) : fabrique commune

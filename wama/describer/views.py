@@ -4,7 +4,6 @@ AI-powered content description and summarization
 """
 
 import os
-from wama.accounts.permissions import app_access
 import json
 import logging
 import mimetypes
@@ -344,7 +343,7 @@ DUPLICATE_RESET = {'result_text': '', 'transcript': '', 'frame_captions': [], 's
 # 1ʳᵉ app réelle après le générateur — ROUTE §11 #36). Les spécificités du describer sont
 # DÉCLARÉES en kwargs : remise à zéro sous verrou (`_reset_for_relaunch` + cache à 0), cache de
 # progression `describer_progress_<id>` lu par `batch_status` et purgé à la suppression,
-# `result_text` vidé à la duplication, gating `@app_access` sur le démarrage. `batch_download`
+# `result_text` vidé à la duplication. `batch_download`
 # vient AUSSI de la fabrique depuis le 2026-10-02 : le format se choisit au téléchargement
 # (`export_binding='late'`), donc la fabrique lit les formats DÉCLARÉS au catalogue et le rendu
 # ENREGISTRÉ (`build_description_bytes`, `apps.py`) — la vue locale recopiait les deux en dur.
@@ -388,7 +387,7 @@ _bv = make_batch_views(
     on_delete=lambda d: cache.delete(f"describer_progress_{d.id}"),
     output_name=_output_stem,
 )
-batch_start = app_access('describer')(_bv['batch_start'])
+batch_start = _bv['batch_start']
 batch_update = _bv['batch_update']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
@@ -407,14 +406,14 @@ from wama.common.utils.item_views import make_item_views  # noqa: E402
 _iv = make_item_views(work_model=Description, app_id='describer', task=_describe_content,
                       get_user=get_user, reset_on_start=_reset_for_relaunch,
                       batch_model=BatchDescription)
-start = app_access('describer')(_iv['start'])
-start_all = app_access('describer')(_iv['start_all'])
+start = _iv['start']
+start_all = _iv['start_all']
 clear_all = _iv['clear_all']
 # ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la même fabrique (2026-11-01, ROUTE §11 #42 ④), qui les lit à la
 # déclaration de `_bv` ci-dessus — remise à zéro de la copie (`DUPLICATE_RESET`), sortie vidée,
 # cache purgé, nom du rendu (`_output_stem`), schéma. La copie d'une card seule a désormais son
 # propre lot : elle rejoignait le lot d'un de l'original, qui devenait un lot de deux.
-stop = app_access('describer')(_iv['stop'])
+stop = _iv['stop']
 delete, duplicate = _iv['delete'], _iv['duplicate']
 download, update_settings = _iv['download'], _iv['update_settings']
 
@@ -423,9 +422,9 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 
 # ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — c'est aussi le résumé ou la
 # cohérence « à la demande » sur une description déjà faite.
-start_process = app_access('describer')(make_process_start_view(
+start_process = make_process_start_view(
     work_model=Description, task_for=lambda d: _describe_content,
-    get_user=get_user, reset_on_start=_reset_and_clear_progress))
+    get_user=get_user, reset_on_start=_reset_and_clear_progress)
 
 
 def _decorate_desc(desc, preloaded=False):

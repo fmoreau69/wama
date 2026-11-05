@@ -112,8 +112,12 @@ def _run_generation(task, generation_id, glue, process=None):
     """Les deux tâches de l'imager passent par le squelette COMMUN (`run_item_task`, marche P6
     du 2026-10-03) : garde de redélivrance après crash, ingestion d'une URL de référence,
     statuts canoniques, durée max, chrono, console, notifications, ligne d'exécution, révision.
-    L'app garde ses deux gardes propres (une génération déjà terminée, une tâche fantôme
-    re-livrée après une remise à zéro) et ses GLUS.
+    L'app n'y ajoute que ses GLUS. Ses deux gardes propres sont retirées le 2026-11-05 (R215) :
+    plus strictes que le squelette, elles refusaient un lancement LÉGITIME — le nœud du Studio
+    envoie la tâche sans `begin_processing`, sur une génération qui porte encore la tâche et le
+    statut de son dernier passage. Une génération terminée relancée ne rejoue que ce qui n'est
+    plus à jour (`steps_to_run`) ; un message re-livré d'un lancement remplacé est abandonné
+    par `refuse_crash_redelivery`.
 
     La card porte un PIPELINE de deux process (`function_specs.PIPELINE`) : `generate` (la glu
     `glue`, image ou vidéo) puis `output` (`_render_output`, commune aux deux). Un lancement ne
@@ -129,22 +133,6 @@ def _run_generation(task, generation_id, glue, process=None):
     except ImageGeneration.DoesNotExist:
         logger.error(f"[Imager] Generation #{generation_id} introuvable")
         return {'error': 'not_found', 'generation_id': generation_id}
-
-    # Check if already completed - skip if SUCCESS or FAILURE
-    if generation.status in ('SUCCESS', 'FAILURE'):
-        logger.warning(f"[Imager] Generation #{generation_id} already has status {generation.status}, skipping")
-        return {'skipped': True, 'reason': f'already_{generation.status.lower()}', 'generation_id': generation_id}
-
-    # Guard against stale re-queued tasks: if the task_id in DB is empty or doesn't
-    # match this task's ID, this is a ghost task (e.g. re-queued after force_reset +
-    # server restart). Skip to avoid overwriting a fresh dispatch.
-    current_task_id = task.request.id
-    if current_task_id and generation.task_id and generation.task_id != current_task_id:
-        logger.warning(
-            f"[Imager] Generation #{generation_id}: task_id mismatch "
-            f"(DB={generation.task_id}, this={current_task_id}) — stale re-queued task, skipping"
-        )
-        return {'skipped': True, 'reason': 'stale_task', 'generation_id': generation_id}
 
     if not (getattr(task.request, 'retries', 0) or 0):
         # « En cours » est posé par les lanceurs (`begin_processing`). L'outil de l'assistant

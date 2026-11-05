@@ -18,7 +18,17 @@
       }
     ],
     "key": "translator.ocr",
-    "outputs": [],
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Les lignes lues, avec la place de chacune (JSON sur la card) : la traduction les réécrit à leur place.",
+        "key": "read_lines",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
     "owner": "",
     "params": [],
     "projects": [],

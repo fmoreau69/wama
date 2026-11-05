@@ -23,7 +23,6 @@ import json
 import logging
 from pathlib import Path
 
-from wama.accounts.permissions import app_access
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 from wama.common.utils.scoping import visible_or_404
 from .models import GenerationBatch, GenerationBatchItem, ImageGeneration
@@ -71,7 +70,6 @@ def _batch_domain(gen):
     return {'domain': _generation_domain(gen)}
 
 
-@app_access('imager')
 def index(request):
     """Main page showing generation queue"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -217,7 +215,6 @@ def index(request):
 
 
 @require_http_methods(["POST"])
-@app_access('imager')
 def create_generation(request):
     """Create a new image generation task (routes to appropriate handler based on mode)"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -861,15 +858,15 @@ _iv = make_item_views(work_model=ImageGeneration, app_id='imager',
                       task_for=lambda gen: _task_for(gen), get_user=_get_user,
                       reset_on_start=_reset_and_forget_progress,
                       on_delete=lambda gen: _forget_progress(gen), batch_model=GenerationBatch)
-start = app_access('imager')(_iv['start'])
-start_all = app_access('imager')(_iv['start_all'])
+start = _iv['start']
+start_all = _iv['start_all']
 clear_all = _iv['clear_all']
 # ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
 # déclare à sa fabrique de lot — le schéma du DOMAINE de chaque génération, LA fonction de
 # réglage, le domaine figé sur le lot (`batch_extra` : la copie seule naît dans l'onglet de sa
 # nature) et les sorties DÉCLARÉES (une image servie telle quelle, plusieurs en ZIP, la vidéo).
 # Le ⏹ était « forcer la réinitialisation » (`force_reset`, retiré le 2026-11-02, R205).
-stop = app_access('imager')(_iv['stop'])
+stop = _iv['stop']
 download = _iv['download']
 delete = _iv['delete']
 duplicate = _iv['duplicate']

@@ -28308,3 +28308,31 @@ sections que l'utilisateur n'a pas nommées. Proposé, rien d'écrit :
   PUBLIQUE parce que `accounts/views.py` l'importe (un premier renommage en `_app_title` l'avait
   cassé, vu par `tests_app_access.SurfacesTest` avant tout commit) ;
 - `check_skills` : 0 défaut franc.
+
+## §PALIER 2026-11-05, « LES POINTS OUVERTS DU 02/11 SOLDÉS : OCR de translator_01, décorateur d'accès, gardes de l'imager (R215) ; olmOCR v1 et gouverneur déjà réglés » — non poussé — 🔴 relancer gunicorn + workers
+
+Fabien : *« ce sont des correctifs à appliquer »* (les quatre points laissés ouverts le 02/11).
+
+- **`translator_01`, process OCR sans sortie** (`tests_process_pipeline` : « ocr -> translate has
+  no port ») : le manifeste `manifests/app_drafts/functions/translator.ocr.json` déclare le port
+  `read_lines` (nature `document`, celui de l'Anonymizer) ; la jumelle régénérée par sa route,
+  `app_sandbox substitute translator_01 function_specs` (verdict « tient », aucune donnée
+  touchée). `tests_process_pipeline` 138 OK.
+- **Décorateur `app_access`** (posé sur une à sept vues selon l'app) : RETIRÉ (R215). Mesuré avant :
+  `AppAccessMiddleware` juge les 916 routes montées des dix apps et de leurs jumelles
+  (`permissions.unguarded_routes`, vide partout). Le critère `app_access_view` devient
+  `access_guard_routes` (la couverture, plus la présence d'un décorateur) ; le générateur ne
+  l'émet plus ; jumelles régénérées (`substitute views` ×7, `urls+views` pour `anonymizer_01`,
+  dont la seule `views` était refusée : `clear_media` renommé depuis le 29/10) ou alignées sur
+  leur source (`imager_01`, `transcriber_01`, vues copiées). Gardes : `tests_access_points`
+  (toutes les routes ; et un chemin hors préfixe est signalé), `tests_codegen_lot`.
+- **Gardes de lancement de l'imager** : RETIRÉES (R215). Plus strictes que le squelette, elles
+  refusaient le nœud du Studio (`studio.tasks._run_app_function`, tâche envoyée sans
+  `begin_processing` sur une card qui garde la tâche et le statut de son dernier passage). Gardes
+  `imager.tests_task` : le lancement du Studio sur une card terminée rejoue ce qui a changé
+  (contre-épreuve ROUGE avec l'ancienne garde), un message re-livré d'un lancement remplacé est
+  abandonné (`refuse_crash_redelivery`). `wama.imager` 95 OK.
+- **Déjà réglés à la reprise, mesurés** : `tests_process_governance` 25 OK ; `reader:olmocr` porte
+  sa marque de désinstallation depuis le 2026-11-02 (`uninstalled_q` vrai), sort des `requires` du
+  Reader (`app._models`), et `manifest_export --check` ne la cite plus — olmOCR-2 installé lui
+  succède. Rien à faire.

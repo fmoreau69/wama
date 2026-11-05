@@ -16,6 +16,7 @@ dit « oui » plus souvent que le premier ne lèvent aucune exception. D'où des
 qui portent sur l'ensemble des surfaces gardées et pas sur un cas relu à la main.
 """
 import json
+from unittest import mock
 
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
@@ -67,6 +68,26 @@ class PointDApplicationTests(TestCase):
             "politique déclarée mais JAMAIS appliquée par le middleware "
             "(app_id → url montée, app_id résolu) : "
             f"{muettes}. Ajouter le préfixe à PATH_APP_MAP.")
+
+    def test_every_mounted_route_of_a_guarded_app_is_judged_by_the_middleware(self):
+        """Not only its index: ALL its routes. That is what makes the central guard sufficient,
+        and why no view repeats the decision any more (the `app_access` decorator, R215)."""
+        from wama.accounts.permissions import unguarded_routes
+        measured, missed = 0, {}
+        for app_id in sorted(all_gated_apps()):
+            routes = unguarded_routes(app_id)
+            if routes is None:
+                continue
+            measured += 1
+            if routes:
+                missed[app_id] = routes[:5]
+        self.assertGreaterEqual(measured, 10, 'the ten media apps at least have their routes')
+        self.assertEqual({}, missed, 'routes the access middleware does not judge for their app')
+
+    def test_a_route_outside_the_app_prefix_is_reported(self):
+        from wama.accounts import permissions
+        with mock.patch.object(permissions, 'app_id_for_path', return_value=None):
+            self.assertTrue(permissions.unguarded_routes('imager'))
 
     def test_la_PAGE_du_model_manager_reste_gardee_malgre_l_exemption_de_ses_api(self):
         """L'exemption du substrat ne doit JAMAIS déborder sur les pages.

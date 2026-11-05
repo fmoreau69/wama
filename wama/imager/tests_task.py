@@ -1,7 +1,7 @@
 """Both imager tasks run through the COMMON skeleton (`run_item_task`) — step P6 of
 `WAMA_APP_GENERATION_ROUTE §10.6`, 2026-10-03, the last app that was outside it. The app keeps its
-two glues (`_generate_image`, `_generate_video`) and its own guards (a generation already
-finished, a ghost task delivered again after a reset).
+two glues (`_generate_image`, `_generate_video`); its own launch guards are gone (R215), the
+skeleton's are the ones that hold.
 
 The engines are stand-ins : the CHAINING is tested, not the diffusion.
 """
@@ -234,19 +234,29 @@ class ImageTaskOnSkeletonTest(_OnSkeleton):
         self._run(generation)
         self.assertEqual('SUCCESS', generation.status, generation.error_message)
 
-    def test_a_finished_generation_is_not_played_again_by_a_late_task(self):
-        generation = self._generation(status='SUCCESS')
-        outcome = self._run(generation)
-        self.assertEqual('already_success', outcome['reason'])
-        self.assertEqual({}, self._states(generation))
+    def test_a_launch_sent_without_a_launcher_on_a_finished_card_plays_what_changed(self):
+        """The studio node sends the task itself (`studio.tasks._run_app_function`): the card
+        still carries the task and the status of its last run. Refused until 2026-11-05 by the
+        app's own guards (R215)."""
+        generation = self._generation(num_images=1)
+        self._run(generation)
+        ImageGeneration.objects.filter(pk=generation.pk).update(task_id='the-last-run',
+                                                                output_format='webp')
+        with mock.patch.object(tasks.generate_image_task, 'request_stack') as stack:
+            stack.top = SimpleNamespace(id='a-studio-launch', retries=0, delivery_info={})
+            self._run(generation)
+        self.assertEqual('SUCCESS', generation.status, generation.error_message)
+        self.assertEqual(1, _FakeImageBackend.generated, 'only the output was played again')
+        self.assertTrue(generation.generated_images[0].endswith('.webp'), generation.generated_images)
 
-    def test_a_ghost_task_of_another_dispatch_is_skipped(self):
+    def test_a_redelivered_message_of_a_replaced_launch_is_dropped(self):
         generation = self._generation(task_id='the-fresh-dispatch')
         with mock.patch.object(tasks.generate_image_task, 'request_stack') as stack:
-            stack.top = SimpleNamespace(id='an-old-task', retries=0, delivery_info={})
-            outcome = self._run(generation)
-        self.assertEqual('stale_task', outcome['reason'])
-        self.assertEqual('RUNNING', generation.status)
+            stack.top = SimpleNamespace(id='an-old-task', retries=0,
+                                        delivery_info={'redelivered': True})
+            self._run(generation)
+        self.assertEqual(('RUNNING', 'the-fresh-dispatch'), (generation.status, generation.task_id))
+        self.assertEqual(0, _FakeImageBackend.generated)
 
     def test_auto_is_drawn_in_the_glue_and_named_on_the_line(self):
         generation = self._generation(model='auto')

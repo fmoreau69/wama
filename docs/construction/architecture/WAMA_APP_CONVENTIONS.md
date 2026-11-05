@@ -391,10 +391,14 @@ _iv = make_item_views(work_model=MyItem, app_id='<app>', task_for=lambda item: _
                       reset_on_start=_reset_for_relaunch,        # appliquée SOUS le verrou
                       pending={}, pending_exclude={'status': 'SUCCESS'},   # clic principal
                       batch_model=MyBatch)
-start = app_access('<app>')(_iv['start'])
-start_all = app_access('<app>')(_iv['start_all'])
+start = _iv['start']
+start_all = _iv['start_all']
 clear_all = _iv['clear_all']
 ```
+
+Aucune vue ne juge l'accès à l'app : `AppAccessMiddleware` le fait pour toutes ses routes (critère
+`access_guard_routes`, garde `tests_access_points`). Le décorateur `app_access`, qui redisait la
+même décision sur une à sept vues selon l'app, est retiré le 2026-11-05 (`R215`).
 
 La barre de file commune rend chaque action en bouton + menu ▾ (décision de Fabien, 2026-10-29) :
 le clic principal suit la règle déclarée, le ▾ offre les PÉRIMÈTRES de la fabrique —
@@ -434,7 +438,7 @@ DÉLÈGUE au geste (`return _iv['stop'](request, pk)`) — le critère la reconn
 « Enregistrer et relancer » d'une modale ⚙ enchaîne le ▶ côté page (`onSaved`), jamais dans la vue.
 
 ```python
-stop = app_access('<app>')(_iv['stop'])
+stop = _iv['stop']
 delete, duplicate = _iv['delete'], _iv['duplicate']
 download, update_settings = _iv['download'], _iv['update_settings']
 ```

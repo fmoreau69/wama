@@ -2915,6 +2915,7 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
   - `account_kind(user) -> str` — 'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
   - `app_group(app_id)`
   - `app_id_for_path(path)` — app_id gardé correspondant à un chemin de requête, ou None.
+  - `unguarded_routes(app_id) -> list` — Les routes MONTÉES de l'app (son espace de noms, lu à son `url_name` du catalogue) que
   - `refused_app(user, path, allowed_apps=None)` — L'app gardée que `path` désigne et que `user` (connecté) n'a PAS le droit d'ouvrir, sinon
   - `can_open_page(user, access, path, allowed_apps=None) -> bool` — `user` peut-il ouvrir la page servie à `path` ? La MÊME décision que la requête réelle,
   - `tool_accessible(user, tool_name)` — Un user peut-il exécuter cet outil `tool_api` ? MÊME décision que `accessible()` : la
@@ -2931,7 +2932,6 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
   - `accessible_apps(user, app_ids)` — Sous-ensemble d'app_ids accessibles à user (préserve l'ordre).
   - `presented_apps()` — Les outils que MONTRENT les vues des droits (scène de la présentation, constellation des
   - `access_cases()` — Tous les cas du modèle d'accès : chaque tier × chaque combinaison de rôles × chaque app.
-  - `app_access(app_id)` — Décorateur de vue (défense en profondeur, phase 2) : 403 si l'app n'est pas accessible.
 
 ### Accès ffmpeg
 

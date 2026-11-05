@@ -22,7 +22,6 @@ from .models import Transcript, BatchTranscript, BatchTranscriptItem
 from .utils.speakers import normalize_speaker_label, normalize_segments_speakers, unique_speakers, display_speaker
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels as _input_labels, select_match_meta
-from wama.accounts.permissions import app_access
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.scoping import visible_or_404
 
@@ -276,7 +275,6 @@ class IndexView(View):
 
 
 @require_POST
-@app_access('transcriber')
 def upload(request):
     # Un fichier TÉLÉVERSÉ, ou DÉSIGNÉ (médiathèque, arbre) — brique commune `received_inputs`
     # (2026-09-28) : une désignation arrive par cette même vue, avec le même état du volet, et
@@ -438,8 +436,8 @@ _iv = make_item_views(work_model=Transcript, app_id='transcriber',
                       on_stop=lambda t: cache.delete(f"transcriber_status_msg_{t.id}"),
                       item_settings=lambda t, data: _apply_transcript_settings(t, data),
                       item_empty_is_value=('title',))
-start = app_access('transcriber')(_iv['start'])
-start_all = app_access('transcriber')(_iv['start_all'])
+start = _iv['start']
+start_all = _iv['start_all']
 clear_all = _iv['clear_all']
 # ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
 # déclare à sa fabrique de lot. Spécificités déclarées ci-dessus : le message d'état oublié à

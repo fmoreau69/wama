@@ -19,9 +19,6 @@ from django.template import loader
 from django.template.loader import render_to_string
 from django.views import View
 from django.views.generic import TemplateView
-from django.utils.decorators import method_decorator
-
-from wama.accounts.permissions import app_access
 
 from .models import Media, BatchAnonymizer, BatchAnonymizerItem
 from .tasks import process_single_media, stop_process
@@ -41,7 +38,6 @@ from ..common.utils.media_paths import get_app_media_path, ensure_app_media_dirs
 from wama.common.utils.media_paths import get_relative_media_path
 
 
-@method_decorator(app_access('anonymizer'), name='dispatch')
 class IndexView(View):
     """Page principale de Anonymizer."""
 
@@ -450,7 +446,7 @@ def _reset_for_relaunch(media):
 # passe `MSValues_customised` (`after_update`) ; la duplication VIDE la sortie (`output_file`,
 # champ fichier depuis le 2026-09-27) et remet `blur_progress` à 0 ; la suppression purge
 # verrous et cache (`_forget_outputs`) avant que la brique ne supprime `file` ET `output_file`
-# (propriété + partage jugés) et la ligne. `@app_access` gardé sur ▶. `batch_download` est
+# (propriété + partage jugés) et la ligne. `batch_download` est
 # désormais celui de la fabrique : il n'était local que parce que la sortie n'était pas un
 # champ fichier — et il cherchait le nom `<entrée>_blurred`, que plus rien n'écrit.
 from wama.common.utils.batch_views import make_batch_views
@@ -471,9 +467,9 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 
 # ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — refaire la sortie seule
 # (format, qualité) sans re-flouter, ou re-flouter sans attendre qu'un réglage change.
-start_process = app_access('anonymizer')(make_process_start_view(
+start_process = make_process_start_view(
     work_model=Media, task_for=lambda _media: process_single_media,
-    reset_on_start=_reset_and_forget_progress))
+    reset_on_start=_reset_and_forget_progress)
 
 
 def _mark_customised(media):
@@ -547,15 +543,15 @@ _iv = make_item_views(work_model=Media, app_id='anonymizer', task=process_single
                       pending={}, pending_exclude={'status': 'SUCCESS'},
                       progress_key='media_progress_{pk}', on_stop=_forget_outputs,
                       batch_model=BatchAnonymizer)
-start = app_access('anonymizer')(_iv['start'])
-start_all = app_access('anonymizer')(_iv['start_all'])
+start = _iv['start']
+start_all = _iv['start_all']
 clear_all_media = _iv['clear_all']
 # ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
 # déclare à sa fabrique de lot (`_bv`, plus bas) : le nettoyage de ses verrous (`_forget_outputs`,
 # au retrait comme à l'arrêt), LA fonction de réglage d'un média et ses classes à flouter, une
 # liste (`list_settings`). ⏹ suit la règle commune : la card s'arrête en échec « Interrompu par
 # l'utilisateur », relançable — elle revenait en attente sans le dire, ses process restant ouverts.
-stop = app_access('anonymizer')(_iv['stop'])
+stop = _iv['stop']
 download = _iv['download']
 delete = _iv['delete']
 duplicate = _iv['duplicate']
@@ -582,7 +578,7 @@ _bv = make_batch_views(
     reset_on_duplicate={'status': 'PENDING', 'blur_progress': 0},
     on_delete=_forget_outputs,
 )
-batch_start = app_access('anonymizer')(_bv['batch_start'])
+batch_start = _bv['batch_start']
 batch_update = _bv['batch_update']
 batch_delete = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']

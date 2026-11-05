@@ -2328,6 +2328,24 @@ def _access_policy(f: _AppFiles):
     return False, "absente du seed DEFAULT_APP_ACCESS (gating d'app non déclaré)"
 
 
+def _access_guard_routes(f: _AppFiles):
+    """Chaque route MONTÉE de l'app est-elle jugée pour elle par `AppAccessMiddleware` ?
+    Remplace le 2026-11-05 (R215) le critère `app_access_view`, qui exigeait le décorateur sur au
+    moins une vue : il le trouvait sur une à sept vues selon l'app, et la décision qu'il redisait
+    était celle du middleware. Ce qui se mesure ici est ce qui rend la garde centrale suffisante."""
+    from wama.accounts.permissions import unguarded_routes
+    try:
+        missed = unguarded_routes(f.app)
+    except Exception as exc:                                  # resolver indisponible
+        return False, f"routes illisibles : {exc}"
+    if missed is None:
+        return None, "aucune route montée sous un espace de noms de l'app"
+    if missed:
+        shown = ', '.join(f"{p} → {a}" for p, a in missed[:3])
+        return False, f"{len(missed)} route(s) hors de la garde : {shown}"
+    return True, "accounts/middleware.py AppAccessMiddleware (toutes les routes : accounts/permissions.py unguarded_routes)"
+
+
 # ── F8 — nœud studio ─────────────────────────────────────────────────────────────
 
 def _select_model(f: _AppFiles):
@@ -2931,10 +2949,9 @@ CRITERIA: list[Criterion] = [
               mechanism='tool_api'),
     # ── F7 permissions & scope données ──
     Criterion('access_policy', 'F7', "Gating d'app déclaré (DEFAULT_APP_ACCESS)", _access_policy),
-    # Décorateur, OU appliqué à une vue de fabrique (`app_access('x')(_iv['start'])`) — la forme
-    # des apps portées : ne lire que `@` punirait l'adoption des fabriques (2026-10-29).
-    Criterion('app_access_view', 'F7', 'Décorateur @app_access sur les vues (défense en profondeur)',
-              lambda f: _present(f, VIEWS, r'@app_access|\bapp_access\(\s*[\'"]', code=True)),
+    Criterion('access_guard_routes', 'F7',
+              "Toutes les routes de l'app jugées par la garde d'accès (AppAccessMiddleware)",
+              _access_guard_routes),
     Criterion('user_scope', 'F7', 'Requêtes filtrées par utilisateur (scope données)',
               lambda f: _present(f, VIEWS, r'user\s*=\s*(request\.user|self\.request\.user|user)\b'),
               mechanism='scoping'),

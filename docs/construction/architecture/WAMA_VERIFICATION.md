@@ -45,7 +45,7 @@ lit** :
 |---|---|---|
 | le bac à sable **injecte au runtime**, le contrôle lit une source STATIQUE | `catalog_entry`, `filemanager_import` (texte d'`app_registry.py`), `access_policy` (le **seed** de `permissions.py`), `modes` (le dict brut `APP_MODES` au lieu de l'accesseur `get_app_modes`, qui porte le repli jumelle depuis le 04/09) | **rouge FAUX** — corrigé le 26/09 (`_declaring_app`) : 75 % → **80 %** |
 | le bac à sable **n'injecte pas** | `tool_api`, `tool_api_item_id`, `triad_specs` (`TOOL_REGISTRY`/`TRIAD_SPECS`) · `studio_runnable`, `studio_params_module` (`GENERIC_APPS`) · `model_discovery`, `model_caps_canonical` (`_discover_<app>_models`) | **rouge MÉRITÉ** — la jumelle n'expose réellement rien. ~~⏳ 3 décisions : faut-il injecter ?~~ ✅ **TRANCHÉ le 2026-10-06 (Fabien : « oui »)** — voir ci-dessous |
-| le contrôle lit le **code de la jumelle** | `new_item_card`, `settings_modal_footer`, `select_model`, `quality_intent`, `hf_cache_isolation`, `reconcile_orphans`, `card_refresh_common`, `app_access_view`, `scoped_reads` | **mesure honnête du GÉNÉRATEUR** — c'est le sujet de `ROUTE §11` |
+| le contrôle lit le **code de la jumelle** | `new_item_card`, `settings_modal_footer`, `select_model`, `quality_intent`, `hf_cache_isolation`, `reconcile_orphans`, `card_refresh_common`, `app_access_view` (remplacé le 2026-11-05 par `access_guard_routes`, R215), `scoped_reads` | **mesure honnête du GÉNÉRATEUR** — c'est le sujet de `ROUTE §11` |
 
 ⚠⚠ **Le repli `_declaring_app` ne vaut QUE pour la première famille**, et une contre-épreuve de
 périmètre le tient (`tests_sandbox_coherence`) : l'étendre aux registres non injectés ferait dire

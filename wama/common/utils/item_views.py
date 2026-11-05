@@ -21,9 +21,12 @@ Usage (views.py de l'app) :
     from wama.common.utils.item_views import make_item_views
     _iv = make_item_views(work_model=ReadingItem, app_id='reader', task=read_document_task,
                           reset_on_start=_reset_for_relaunch, batch_model=BatchReadingItem)
-    start = app_access('reader')(_iv['start'])
-    start_all = app_access('reader')(_iv['start_all'])
+    start = _iv['start']
+    start_all = _iv['start_all']
     clear_all = _iv['clear_all']
+
+L'accès à l'app n'est pas une affaire de vue : `accounts.middleware.AppAccessMiddleware` le
+juge pour TOUTES ses routes (R215, garde `tests_access_points`).
 """
 import logging
 import sys

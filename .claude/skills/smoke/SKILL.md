@@ -93,7 +93,7 @@ le RENDU RÉEL, pas la structure du code.
 - **Une file VIDE ne mesure rien.** En anonyme il n'y a aucune card dans le DOM : en conclure
   qu'« aucun sélecteur de card commun n'existe » est faux (`WamaInspector.initFromSchema` déclare
   un `cardSelector` par app). Pour tester une card, il faut du contenu — compte de test + partage.
-- **Un compte neuf est redirigé (302)** par la couche d'accès aux apps (`@app_access`) AVANT la vue :
+- **Un compte neuf est redirigé (302)** par la couche d'accès aux apps (`AppAccessMiddleware`) AVANT la vue :
   ce n'est pas la fonctionnalité testée qui échoue. Lui donner les Groups `role:*`.
 - **Nos propres clics mutent le DOM** : revérifier la visibilité juste avant chaque clic, et ne
   compter comme erreur que ce qui reste visible après l'échec.
@@ -124,7 +124,7 @@ le RENDU RÉEL, pas la structure du code.
   le dépôt AVANT d'être annoncé comme une limite.* Et un marqueur DOM peut être ABSENT à l'état vide
   légitime (`#ragListe` sans document) ou injecté par JS conditionnel — vérifier la
   CONDITION du gabarit avant de conclure, la capture lue tranche.
-- **Le compte smoke doit porter les Groups `user` + `role:*`** sinon @app_access répond 302 vers
+- **Le compte smoke doit porter les Groups `user` + `role:*`** sinon `AppAccessMiddleware` répond 302 vers
   l'accueil — et une page « chargée » peut être L'ACCUEIL après redirect : vérifier un marqueur de
   la page visée, pas le seul code 200 (piège vécu sur `/converter_01/`).
 - **Le contrôle « zéro erreur console » est le plus rentable** : il a trouvé une double inclusion

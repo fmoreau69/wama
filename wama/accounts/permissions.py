@@ -247,6 +247,40 @@ def app_id_for_path(path):
     return seg if seg in DEFAULT_APP_ACCESS else None
 
 
+def unguarded_routes(app_id) -> list:
+    """Les routes MONTÉES de l'app (son espace de noms, lu à son `url_name` du catalogue) que
+    `AppAccessMiddleware` ne juge pas pour elle : `[(chemin d'exemple, app résolue)]`, vide quand
+    toutes le sont. Un service du substrat exempté par déclaration (`ROUTES_SUBSTRAT`) n'y figure
+    pas. C'est ce qui rend la garde centrale SUFFISANTE — et ce qui a retiré le décorateur de vue
+    `app_access`, qui redisait la même décision sur une à sept vues par app (R215, 2026-11-05).
+    `None` si l'app n'a pas de routes à elle (aucun espace de noms monté)."""
+    import re
+    from django.urls import URLResolver, get_resolver
+    from wama.common.app_registry import APP_CATALOG
+    url_name = (APP_CATALOG.get(app_id) or {}).get('url_name') or ''
+    namespace = url_name.split(':', 1)[0] if ':' in url_name else None
+    if not namespace:
+        return None
+    sample = {'int': '1', 'path': 'a/b', 'uuid': '00000000-0000-0000-0000-000000000000'}
+
+    def walk(patterns, prefix, ns):
+        for p in patterns:
+            route = str(p.pattern).lstrip('^').rstrip('$')
+            if isinstance(p, URLResolver):
+                yield from walk(p.url_patterns, prefix + route, p.namespace or ns)
+            elif ns == namespace:
+                yield '/' + re.sub(r'<(?:(\w+):)?\w+>', lambda m: sample.get(m.group(1), 'x'),
+                                   prefix + route)
+
+    paths = list(walk(get_resolver().url_patterns, '', None))
+    if not paths:
+        return None
+    exempt = lambda path: any(path.strip('/') == s or path.strip('/').startswith(s + '/')
+                              for s in ROUTES_SUBSTRAT)
+    return [(path, app_id_for_path(path)) for path in paths
+            if app_id_for_path(path) != app_id and not exempt(path)]
+
+
 def refused_app(user, path, allowed_apps=None):
     """L'app gardée que `path` désigne et que `user` (connecté) n'a PAS le droit d'ouvrir, sinon
     None. Ce que `AppAccessMiddleware` refuse à un compte, dit une fois pour lui et pour
@@ -640,28 +674,3 @@ def access_cases():
         'configurations': len(TIER_ORDER) * len(role_sets),
         'distinct_rows': len(distinct),
     }
-
-
-def app_access(app_id):
-    """
-    Décorateur de vue (défense en profondeur, phase 2) : 403 si l'app n'est pas accessible.
-      @app_access('imager')
-      def index(request): ...
-    À appliquer app par app APRÈS validation en conditions réelles (ne pas verrouiller en masse).
-    MÊME décision que AppAccessMiddleware : les requêtes anonymes passent (le tier anonyme est
-    servi via compte anonyme, comme partout dans WAMA) — les deux couches ne doivent jamais
-    diverger, sinon le décorateur casse l'usage anonyme au lieu de doubler le middleware.
-    """
-    from functools import wraps
-
-    def deco(view):
-        @wraps(view)
-        def wrapped(request, *args, **kwargs):
-            user = getattr(request, 'user', None)
-            if (user is not None and getattr(user, 'is_authenticated', False)
-                    and not accessible(user, 'app', app_id)):
-                from django.core.exceptions import PermissionDenied
-                raise PermissionDenied(f"Accès non autorisé à l'app '{app_id}'.")
-            return view(request, *args, **kwargs)
-        return wrapped
-    return deco

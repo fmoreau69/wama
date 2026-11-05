@@ -24,7 +24,6 @@ from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON, VOICE_SETTINGS, user_set
 #: Les noms de réglages DÉCLARÉS — lus au schéma, pour reconnaître ce qu'une ligne de lot poste.
 _SETTING_NAMES = {p['name'] for p in _AVATAR_PARAMS_JSON}
 from wama.accounts.views import get_or_create_anonymous_user
-from wama.accounts.permissions import app_access
 from wama.common.tts.constants import tts_catalog_key
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.input_match import input_labels
@@ -86,12 +85,6 @@ def _gallery_images():
     return gallery_entries()
 
 
-from django.utils.decorators import method_decorator
-
-
-# Défense en profondeur (phase 2) : même décision `accessible()` que le middleware
-# de gating — le décorateur ne change pas le comportement, il le garantit au niveau vue.
-@method_decorator(app_access('avatarizer'), name='dispatch')
 class IndexView(View):
     """Page principale de l'Avatarizer."""
 
@@ -179,7 +172,6 @@ def _remember_settings(user, post, spoke):
     save_panel_settings(user, 'avatarizer', _AVATAR_PARAMS_JSON, post, key=user_setting_key)
 
 
-@app_access('avatarizer')
 def create(request):
     """POST : Crée un AvatarJob avec les paramètres fournis."""
     if request.method != 'POST':
@@ -314,8 +306,8 @@ _iv = make_item_views(work_model=AvatarJob, app_id='avatarizer',
                       reset_on_start={'progress': 0, 'error_message': ''},
                       pending={}, pending_exclude={'status__in': ['RUNNING', 'SUCCESS']},
                       batch_model=BatchAvatarJob)
-start = app_access('avatarizer')(_iv['start'])
-start_all = app_access('avatarizer')(_iv['start_all'])
+start = _iv['start']
+start_all = _iv['start_all']
 clear_all = _iv['clear_all']
 # ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
 # déclare à sa fabrique de lot — dont son nettoyage (`_forget_job` : le dossier du job) et LA

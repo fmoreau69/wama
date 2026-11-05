@@ -4,7 +4,6 @@ Interface de synthèse vocale
 """
 
 import os
-from wama.accounts.permissions import app_access
 import logging
 from pathlib import Path
 from django.conf import settings
@@ -330,14 +329,14 @@ _iv = make_item_views(
         s, {k: v for k, v in data.items() if k != 'voice_reference'}),
     on_queue_settings=_replace_voice, batch_model=BatchSynthesis,
     settings_file='voice_reference')
-start = app_access('synthesizer')(_iv['start'])
-start_all = app_access('synthesizer')(_iv['start_all'])
+start = _iv['start']
+start_all = _iv['start_all']
 clear_all = _iv['clear_all']
 # ⏹ ⬇ 🗑 ⧉ ⚙ d'une card : la fabrique COMMUNE (2026-11-02, ROUTE §11 #42 ④), qui lit ce que l'app
 # déclare à sa fabrique de lot. Spécificité déclarée : la ⚙ reçoit la voix de référence,
 # téléversée ou désignée (`settings_file`) — refusée, rien n'est écrit ; reçue, l'ancienne est
 # libérée.
-stop = app_access('synthesizer')(_iv['stop'])
+stop = _iv['stop']
 download = _iv['download']
 delete = _iv['delete']
 duplicate = _iv['duplicate']
@@ -668,8 +667,8 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 
 # ▶ d'UN process de la card (`ROUTE §10.6` 5.1) : fabrique COMMUNE — refaire la sortie seule
 # (format, qualité) sans re-synthétiser, ou re-synthétiser sans attendre qu'un réglage change.
-start_process = app_access('synthesizer')(make_process_start_view(
-    work_model=VoiceSynthesis, task_for=_task_for, reset_on_start=_reset_and_seed_progress))
+start_process = make_process_start_view(
+    work_model=VoiceSynthesis, task_for=_task_for, reset_on_start=_reset_and_seed_progress)
 
 
 def _shared_batch_file(batch):
@@ -707,7 +706,7 @@ _bv = make_batch_views(
     schema=_SYNTH_PARAMS_JSON,
     apply_settings=lambda synthesis, data: _apply_synthesis_settings(synthesis, data),
 )
-batch_start = app_access('synthesizer')(_bv['batch_start'])
+batch_start = _bv['batch_start']
 batch_status = _bv['batch_status']
 batch_download = _bv['batch_download']
 batch_delete = _bv['batch_delete']

@@ -2552,6 +2552,9 @@ le passé.*
 - **Gating d'app** (`permissions.py`) : 2 axes **tier** (`TIER_ORDER`, bypass dev/admin) + **rôles** (Groups
   `role:*`). `AppAccessPolicy` DB (DEFAULT = seed). **Point de décision unique `accessible()`** appliqué :
   nav (complet), studio **palette** (oui). Vues = décorateur `@app_access` au cas par cas (pas généralisé).
+  *(Retiré le 2026-11-05, R215 : `AppAccessMiddleware` juge TOUTES les routes de chaque app —
+  mesuré, `permissions.unguarded_routes` vide pour les dix apps et leurs jumelles ; le
+  décorateur redisait sa décision sur une à sept vues. Critère `access_guard_routes`.)*
 - **Surface OUTILS gardée ✅ (2026-08-01)** — `tool_accessible()` + `app_id_for_tool()` (`permissions.py`,
   pendant de `app_id_for_path` : dérive l'app de la triade F6, `TOOL_APP_OVERRIDE` pour les noms historiques
   `create_image`/`synthesize_text`/`compose_music`/`convert_file`, alias `audio_enhancer`→`enhancer`).
@@ -3504,7 +3507,7 @@ outillé avant d'ouvrir cette marche.
      relevé des 10 `start_all` montre que la divergence y est RÉELLE, comme au niveau lot :
      6 rechargent, 3 insèrent + pollent (describer/transcriber/enhancer), et **le synthesizer
      PORTE ses réglages dans le POST** (sa vue `start_all` au 29/08 — depuis, vue de
-     fabrique `start_all = app_access('synthesizer')(_iv['start_all'])`, `wama/synthesizer/views.py:334` au 2026-11-02 — lit `tts_model`, `language`,
+     fabrique `start_all = _iv['start_all']` (`wama/synthesizer/views.py`, décorateur retiré le 2026-11-05, R215) — lit `tts_model`, `language`,
      `voice_preset`, `speed`, `pitch`, `voice_reference` — « démarrer tout » y vaut « appliquer à
      tout »). Sans ces deux hooks, **4 apps sur 10 étaient inportables** et auraient gardé leur
      handler : *une brique dont le contrat est plus pauvre que le code qu'elle remplace ne résorbe
@@ -6344,7 +6347,9 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 > - **imager** : `generate_image_task` et `generate_video_task` → `run_item_task`, chacune sa
 >   glu ; onze échecs écrits à la main (`status='FAILURE'` + `save()` + `return`) deviennent des
 >   exceptions, neuf écritures de progression deviennent `ctx.progress`. L'app garde ses deux
->   gardes (génération déjà terminée, tâche fantôme re-livrée). ⚠ L'imager n'avait AUCUNE durée
+>   gardes (génération déjà terminée, tâche fantôme re-livrée). *(Retirées le 2026-11-05,
+>   R215 : elles refusaient le lancement du nœud du Studio, qui envoie la tâche sans
+>   `begin_processing` ; celles du squelette tiennent les deux cas.)* ⚠ L'imager n'avait AUCUNE durée
 >   max : le défaut du squelette (30 min) aurait arrêté une vidéo réelle de 74,7 min et une image
 >   de 39,2 min — `TASK_MAX_MINUTES['imager'] = 120`, mesuré ; un modèle plus lent se règle au
 >   model manager.

@@ -19,7 +19,6 @@ from pathlib import Path
 
 from django.shortcuts import render, get_object_or_404
 
-from wama.accounts.permissions import app_access
 from django.views import View
 from django.http import JsonResponse
 from django.contrib.auth.decorators import login_required
@@ -194,7 +193,6 @@ def apply_birth_settings(job, media_type, options=None, inputs=None) -> list:
 
 @login_required
 @require_POST
-@app_access('converter')
 def upload(request):
     """Accept a file upload and create a ConversionJob (PENDING)."""
     user        = request.user
