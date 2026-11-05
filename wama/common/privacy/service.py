@@ -89,8 +89,9 @@ def _startup() -> None:
     # la carte » ni le model manager n'atteignaient ses détecteurs (2,6 Go mesurés). Rien à restaurer :
     # un détecteur revient à la détection suivante (`detect_entities` → `ensure_loaded`).
     try:
+        from wama.common.backends.pii_detection_base import PRIVACY_SERVICE
         from wama.common.services.resource_governor import contract_tenant, start_release_listener
-        start_release_listener(contract_tenant('privacy-service', is_busy=_is_busy))
+        start_release_listener(contract_tenant(PRIVACY_SERVICE, is_busy=_is_busy))
     except Exception:
         logger.warning("gouverneur de ressources non initialisé", exc_info=True)
 

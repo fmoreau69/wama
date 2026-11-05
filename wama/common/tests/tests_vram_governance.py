@@ -106,8 +106,11 @@ class ExplicitGrantTest(_WithRegistry):
 
 class FitsAloneTest(SimpleTestCase):
 
-    def test_fits_alone_compares_to_the_whole_card_and_says_nothing_without_a_gpu(self):
-        with mock.patch.object(gov, 'total_vram_gb', return_value=24.0):
+    def test_without_a_card_reading_fits_alone_compares_to_the_total_and_says_nothing_without_a_gpu(self):
+        """Ce que la carte peut LIBÉRER fait foi depuis le 2026-11-05 (`tests_vram_ledger.
+        CardCeilingTest`) ; sans relevé de la carte, son total, comme avant."""
+        with mock.patch.object(gov, 'total_vram_gb', return_value=24.0), \
+                mock.patch.object(gov, 'card_ceiling_gb', return_value=None):
             self.assertTrue(gov.fits_alone(21.0))
             self.assertFalse(gov.fits_alone(32.5))
         with mock.patch.object(gov, 'total_vram_gb', return_value=0.0):

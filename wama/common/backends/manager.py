@@ -236,6 +236,25 @@ def backend_for_key(model_key: str, entries=None):
     return backend_for_model(ligne, entries) if ligne is not None else None
 
 
+def served_by_for_key(model_key: str, backend=None) -> str:
+    """Le SERVICE qui charge le modèle de `model_key` pour tous les process — le `SERVED_BY` de son
+    backend (`BaseModelBackend.SERVED_BY`), ou, quand aucun backend Python ne le charge, celui du
+    porteur de son moteur (l'Ollama hôte, `ollama_host._MoteurOllama`). '' = le process appelant.
+    `backend` : la classe déjà résolue par l'appelant (`backend_for_key`), une lecture de moins."""
+    if backend is not None:
+        return getattr(backend, 'SERVED_BY', '') or ''
+    if not model_key:
+        return ''
+    try:
+        from wama.model_manager.models import AIModel
+        composition = AIModel.objects.filter(model_key=model_key).values_list(
+            'composition', flat=True).first() or {}
+    except Exception:
+        return ''
+    engine = ((composition or {}).get('runtime') or {}).get('engine') or ''
+    return getattr(engine_backends().get(engine), 'SERVED_BY', '') or '' if engine else ''
+
+
 class ModelNotServed(RuntimeError):
     """Aucun backend ne sert la clé de catalogue demandée — le lancement s'arrête en le disant,
     il ne retombe jamais sur un autre modèle que celui qui a été choisi."""

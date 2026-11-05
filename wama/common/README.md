@@ -99,12 +99,11 @@ elle lit le **catalogue**.
 |---|---|---|
 | Registre d'instances RÉSIDENTES | `backends/base.py` (`_LIVE_BACKENDS`, `unload_live_backends`) | `BaseModelBackend` enveloppe déjà `load`/`unload` à **toute profondeur d'héritage** : il tient donc un `WeakSet` des backends chargés, que `MemoryManager.release_vram` / `unload_model` déchargent **au grain du MODÈLE** (clé catalogue résolue par `backends.manager.catalog_keys_for_owner`). Une app sous contrat n'a **rien à déclarer**. ⚠ Jusqu'au 2026-09-14 il inscrivait un unloader PAR APP, l'app étant déduite du chemin du module — `common` pour tous depuis le déménagement des backends. |
 | `register_vram_unloader(name, fn)` | `model_manager/services/memory_manager.py` | déclaration EXPLICITE, réservée à ce qui échappe au contrat de backend : pipeline caché (transcriber/pyannote, `transcriber/apps.py:29` — seul appelant, mesuré le 2026-10-31) ; modèle en variable de module (l'ex-exemple describer/BLIP est passé sous contrat : `common/backends/blip_backend.py:22`). Plusieurs unloaders par app admis (`<app>` + `<app>-suffixe`). |
-| `vram_reservation(owner, gb)` | `common/services/resource_governor.py` | modèles **HORS PROCESS** (sous-processus) — l'héritage ne s'y applique pas, rien n'est résident dans le worker. Adopté : avatarizer. |
+| `vram_reservation(owner, gb)` | `common/services/resource_governor.py` | modèles **HORS PROCESS** (sous-processus) — l'héritage ne s'y applique pas, rien n'est résident dans le worker. Adopté : MuseTalk, CodeFormer, TalkingHead, audio.cpp, juge de prospection (mesuré le 2026-11-05). |
 
 > ⚠ **Deux libérations, sémantiques opposées** — ne pas les confondre :
 > `resource_governor.release_reservation(owner)` efface une ligne de **comptabilité** Redis
-> (ex-`release_vram`, renommée le 2026-08-04 pour lever l'homonymie — `resource_governor.py:338` ;
-> constat corrigé le 2026-10-31) ;
+> (ex-`release_vram`, renommée le 2026-08-04 pour lever l'homonymie ; constat corrigé le 2026-10-31) ;
 > `MemoryManager.release_vram(exclude)` **décharge réellement** les modèles via le registre.
 > Les unloaders codés en dur par app (`_unload_<app>_model`) ont été SUPPRIMÉS : ils formaient une
 > seconde liste à tenir à jour, et trois d'entre eux (anonymizer, synthesizer, enhancer) faisaient

@@ -774,8 +774,9 @@ async def startup():
         # décharge — résidents compris — pour une demande de libération accordée par un
         # utilisateur, restaure ses temps réel une fois la demande close. Le service n'a
         # toujours aucun endpoint de déchargement : c'est le gouverneur qui parle, par Redis.
+        from wama.common.backends.tts_base import TTS_SERVICE
         from wama.common.services.resource_governor import Tenant, start_release_listener
-        start_release_listener(Tenant("tts-service", unload=_unload_all_engines,
+        start_release_listener(Tenant(TTS_SERVICE, unload=_unload_all_engines,
                                       restore=_restore_residents, is_busy=_is_busy))
     except Exception as exc:
         logger.warning(f"[TTS] gouverneur de ressources non initialisé : {exc}")

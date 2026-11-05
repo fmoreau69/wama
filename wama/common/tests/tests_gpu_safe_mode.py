@@ -134,10 +134,14 @@ class DiffermentFauteDeVramTest(TestCase):
         carte entière) est refusé d'emblée EN LE DISANT, pas après 30 min pour rien."""
         from wama.common.utils.task_skeleton import _differer_faute_de_vram
         T, Retry = self._task(essais=400)
+        # Une carte VIDE de 24 Go — total ET relevé : `fits_alone` juge sur ce que la carte peut
+        # libérer depuis le 2026-11-05, qu'un total seul laissait lire sur la carte de l'hôte.
         with mock.patch('wama.common.services.resource_governor.effective_free_gb',
                         return_value=1.0), \
                 mock.patch('wama.common.services.resource_governor.total_vram_gb',
                            return_value=24.0), \
+                mock.patch('wama.common.services.system_monitor.SystemMonitor.get_gpu_info',
+                           return_value=[{'memory_free_gb': 24.0, 'memory_used_gb': 0.0}]), \
                 mock.patch('wama.common.services.resource_governor.holders_summary',
                            return_value=''):
             with self.assertRaises(Retry) as cm:

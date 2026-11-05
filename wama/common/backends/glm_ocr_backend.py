@@ -157,6 +157,8 @@ class GlmOcrBackend(OCRBackend):
 
     #: Moteur piloté : la SOURCE qui sert le modèle, comme le déclare sa ligne de catalogue.
     ENGINE = 'ollama'
+    #: Le modèle se charge dans l'Ollama hôte, pour tous (le même nom que son porteur d'inventaire).
+    SERVED_BY = 'ollama'
     name = 'glm_ocr'
     description = "GLM-OCR — OCR de documents, servi par Ollama."
     REQUIRED_PACKAGES = ['httpx']

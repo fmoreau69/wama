@@ -283,6 +283,41 @@ def peaks_for_precision(weights: dict, label: str) -> dict:
             'offload': round(max(sizes.values()), 2)}
 
 
+def reduced_peak_gb(weights: dict, precision, *, offload: bool) -> Optional[float]:
+    """Le pic d'un modèle chargé dans une précision que son moteur DÉCLARE (`backends.base.
+    LoadPrecision`) — None si les poids ne sont pas relevés. Un FAIT du modèle : aucune marge ici.
+
+    Un composant que la précision réduit pèse `params × octets(label)` (`dtype_bytes`, en-têtes
+    safetensors : `weights['precision'][rôle]['params']`) ; les autres, leur poids relevé
+    (`weights['components']`). En déchargement (`offload`, le moteur déclare `OFFLOADS`), les
+    composants qui RESTENT sur la carte (`precision.resident`) s'additionnent, plus le plus gros des
+    autres ; sinon, la somme.
+
+    Confronté au GPU le 2026-11-05 (FLUX.1-dev, 1024², allocateur torch) : 8 bits, 19,96 calculés
+    pour 20,2 alloués à l'échec (le CLIP de 0,23 monte avec T5) ; 4 bits, 8,87 pour 9,09. L'écart
+    est celui des activations, que la marge de la machine couvre (`FULL_GPU_MIN_FREE_GB`, au
+    gouverneur) — d'où le choix de NE PAS l'inscrire ici, comme `peaks_from_weights`."""
+    components = dict((weights or {}).get('components') or {})
+    if not components:
+        return None
+    per_param = dtype_bytes(getattr(precision, 'label', '')) if precision.quantized else None
+    by_role = (weights or {}).get('precision') or {}
+    sizes = {}
+    for role, gb in components.items():
+        params = float(((by_role.get(role) or {}).get('params')) or 0)
+        if role in precision.quantized and per_param and params:
+            sizes[role] = params * per_param / 1024 ** 3
+        elif role in precision.quantized:
+            return None                      # une réduction sur un composant qu'on ne sait pas peser
+        else:
+            sizes[role] = float(gb or 0)
+    if not offload:
+        return round(sum(sizes.values()), 2)
+    stays = sum(gb for role, gb in sizes.items() if role in precision.resident)
+    moves = [gb for role, gb in sizes.items() if role not in precision.resident]
+    return round(stays + (max(moves) if moves else 0.0), 2)
+
+
 def backbone_row(row):
     """La ligne de catalogue de la DORSALE d'un adaptateur, ou None si ce n'en est pas un.
 
@@ -344,8 +379,10 @@ def model_footprint_gb(row, *, offload: bool = True, count_backbone: bool = True
     PLANCHER, jamais un pic.
 
     `offload` : la stratégie que le moteur SAIT appliquer. Vrai → on compare le pic de
-    déchargement (plus gros composant) ; faux → celui du plein GPU (somme). C'est ce qui réadmet
-    au tirage CogVideoX (10,5 au lieu de 20,2), FastWan (10,6 au lieu de 22,5) et Mochi.
+    déchargement (plus gros composant) ; faux → celui du plein GPU (somme). C'est ce que compare la
+    GARDE du squelette (`_vram_need`) : CogVideoX 10,5 au lieu de 20,2, FastWan 10,6 au lieu de 22,5.
+    ⚠ Pas le TIRAGE (corrigé le 2026-11-05, cette ligne disait « réadmet au tirage ») : son filtre
+    lit toujours `vram_gb` (`model_selector._best_by_vram`), `ROADMAP §Gouvernance` point 5.f.
 
     `row` : une ligne `AIModel` (ou tout objet portant `extra_info`, `vram_gb`, `model_key`).
     Provenances rendues, du plus sûr au moins sûr : `measured+source`, `measured`, `source`,

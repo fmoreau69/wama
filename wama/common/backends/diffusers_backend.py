@@ -11,6 +11,7 @@ import gc
 import logging
 from typing import Optional, Callable, List
 
+from .base import LoadPrecision
 from .image_generation_base import (ImageGenerationBackend, GenerationParams, GenerationResult,
                                     bounded_size)
 
@@ -304,73 +305,50 @@ class DiffusersBackend(ImageGenerationBackend):
 
         return MemoryManager.load_pipeline(StableDiffusionXLPipeline, model_id, **kwargs)
 
-    def _get_vram_gb(self) -> float:
-        """Get total GPU VRAM in GB."""
-        if self._torch and self._torch.cuda.is_available():
-            return self._torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
-        return 0.0
+    #: Précisions du pipeline FLUX (`_load_flux_pipeline`), de la plus fidèle à la plus réduite.
+    #: Le GOUVERNEUR choisit (`resource_governor.chosen_precision`), ce moteur applique. Mesuré sur
+    #: le GPU le 2026-11-05 (1024², allocateur torch) : en 8 bits le transformeur bitsandbytes
+    #: (11,13 Go) RESTE sur la carte quand le déchargement y monte T5 + CLIP (9,1) — 20,2 alloués ;
+    #: en 4 bits (5,54) il descend au processeur — 9,09 au pic, celui des encodeurs.
+    FLUX_PRECISIONS = (
+        LoadPrecision('BF16'),
+        LoadPrecision('INT8', quantized=('transformer',), resident=('transformer',),
+                      library='bitsandbytes'),
+        LoadPrecision('NF4', quantized=('transformer',), library='bitsandbytes'),
+    )
+    #: Le chargement bitsandbytes de chaque précision réduite (`_load_flux_quantized`).
+    _FLUX_BNB = {'INT8': '8bit', 'NF4': '4bit'}
+
+    @classmethod
+    def load_precisions(cls, model_id: str) -> tuple:
+        """`FLUX_PRECISIONS` pour un modèle du pipeline FLUX (base ou LoRA), rien pour les autres."""
+        info = cls._get_model_info(model_id) or {}
+        return cls.FLUX_PRECISIONS if info.get('pipeline') == 'flux' else ()
 
     def _get_flux_strategy(self) -> dict:
-        """
-        Determine best FLUX loading strategy based on available RAM and VRAM.
+        """La précision de FLUX : celle que le GOUVERNEUR retient parmi `FLUX_PRECISIONS`
+        (`resource_governor.chosen_precision`, `ROADMAP §Gouvernance` point 5), pour le modèle de
+        l'instance (`catalogue_key`, posée par l'app). Ce moteur l'applique, il ne la décide plus.
 
-        FLUX transformer sizes:
-          bfloat16 : 23 GB  → stays on CPU, MODEL_OFFLOAD to GPU per step (slow if RAM swaps)
-          8-bit    : 11.5 GB → loaded directly to GPU, T5 (9.5 GB) on CPU via offload hooks
-          4-bit    : 5.75 GB → loaded directly to GPU, T5 on CPU
+        Jusqu'au 2026-11-05 il décidait seul : la RAM libre d'abord (≥ 27 Go → poids pleins, règle
+        écrite quand WSL2 avait ~16 Go et que les poids pleins swappaient), puis le TOTAL de la carte
+        (≥ 22 Go → 8 bits). Mesuré ce jour-là, sur une carte qui libère au mieux 20,3 Go : il prenait
+        les poids pleins (22,17) ou le 8 bits (20,2), qui ne tiennent ni l'un ni l'autre, et jamais
+        le 4 bits, seul à tenir.
 
-        With 32 GB RAM / WSL2 ~16 GB: bfloat16 causes swap → 13 min/step.
-        8-bit on GPU eliminates the swap issue entirely.
-        """
-        vram_gb = self._get_vram_gb()
-
-        # Check bitsandbytes availability
-        bnb_available = False
-        try:
-            import bitsandbytes  # noqa
-            bnb_available = True
-        except ImportError:
-            pass
-
-        # Check available system RAM
-        free_ram_gb = 0.0
-        try:
-            import psutil
-            free_ram_gb = psutil.virtual_memory().available / (1024 ** 3)
-        except ImportError:
-            # psutil unavailable: assume low RAM → prefer quantization if possible
-            free_ram_gb = 0.0
-
-        logger.info(
-            f"[Diffusers] FLUX resource check: free_ram={free_ram_gb:.1f}GB, "
-            f"vram={vram_gb:.0f}GB, bitsandbytes={bnb_available}"
-        )
-
-        # Strategy 1 — bfloat16 + MODEL_OFFLOAD
-        # Requires ~27 GB free RAM so the transformer stays in physical RAM without swapping.
-        if free_ram_gb >= 27:
-            logger.info("[Diffusers] Strategy: bfloat16 + MODEL_OFFLOAD (RAM sufficient)")
-            return {'quantization': None, 'label': 'bfloat16+offload'}
-
-        # Strategy 2 — 8-bit transformer on GPU
-        # Transformer: 11.5 GB on GPU. T5 (9.5 GB) stays on CPU via offload hooks.
-        # Peak VRAM during encoding: 11.5 + 9.5 + 0.5 ≈ 21.5 GB → fits in 24 GB.
-        if bnb_available and vram_gb >= 22:
-            logger.info("[Diffusers] Strategy: 8-bit transformer on GPU (low RAM detected)")
-            return {'quantization': '8bit', 'label': '8bit+gpu'}
-
-        # Strategy 3 — 4-bit transformer on GPU
-        # Transformer: 5.75 GB. T5 on CPU. Peak VRAM ≈ 15.75 GB.
-        if bnb_available and vram_gb >= 16:
-            logger.info("[Diffusers] Strategy: 4-bit transformer on GPU (very low RAM)")
-            return {'quantization': '4bit', 'label': '4bit+gpu'}
-
-        # Fallback — bfloat16 + MODEL_OFFLOAD (may be slow if RAM is insufficient)
-        logger.warning(
-            "[Diffusers] Strategy: bfloat16 + MODEL_OFFLOAD (fallback — "
-            "bitsandbytes unavailable or VRAM too low). May be slow due to swap."
-        )
-        return {'quantization': None, 'label': 'bfloat16+offload(fallback)'}
+        Sans clé de catalogue ni relevé de poids, rien ne se calcule : la plus réduite disponible,
+        qui ne déborde pas — et le journal le dit."""
+        from wama.common.services.resource_governor import chosen_precision
+        choice = (chosen_precision(self.catalogue_key, type(self), fits_now=True)
+                  if self.catalogue_key else None)
+        if choice is not None:
+            precision = choice.precision
+        else:
+            precision = [p for p in self.FLUX_PRECISIONS if p.available()][-1]
+            logger.warning("[Diffusers] FLUX : aucune empreinte pour « %s » — précision la plus "
+                           "réduite disponible (%s)", self.catalogue_key or '?', precision.label)
+        logger.info("[Diffusers] FLUX : précision %s", precision.label)
+        return {'quantization': self._FLUX_BNB.get(precision.label), 'label': precision.label}
 
     def _load_flux_quantized(self, base_model: str, quant_bits: str, cache_dir: str):
         """
@@ -432,12 +410,12 @@ class DiffusersBackend(ImageGenerationBackend):
 
     def _load_flux_pipeline(self, model_info: dict):
         """
-        Load a FLUX pipeline with dynamic strategy selection based on available RAM/VRAM.
+        Load a FLUX pipeline in the precision the governor retains (`_get_flux_strategy`).
 
-        Strategies (auto-selected):
-          bfloat16+offload : 23 GB in RAM + MODEL_OFFLOAD  (requires ~27 GB free RAM)
-          8bit+gpu         : 11.5 GB transformer on GPU, T5 on CPU via offload hooks
-          4bit+gpu         :  5.75 GB transformer on GPU, T5 on CPU via offload hooks
+        Precisions (`FLUX_PRECISIONS`, measured on 2026-11-05):
+          BF16 : 22.17 GB transformer, MODEL_OFFLOAD to GPU per step
+          INT8 : 11.13 GB transformer that stays on GPU, encoders offloaded around it (20.2 GB peak)
+          NF4  :  5.54 GB transformer offloaded like the encoders (9.09 GB peak, T5 + CLIP)
         """
         import gc
         from diffusers import FluxPipeline

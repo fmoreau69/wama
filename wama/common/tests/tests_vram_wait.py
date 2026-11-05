@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from wama.common.services import resource_governor as gov
-from wama.common.tests.tests_vram_ledger import _FauxRedis
+from wama.common.tests.tests_vram_ledger import SYSTEM_MONITOR, _FauxRedis
 from wama.common.utils.task_skeleton import _differer_faute_de_vram, run_item_task, TaskContext
 
 
@@ -49,9 +49,12 @@ class _Base(TestCase):
             p = mock.patch.multiple(gov, **kw)
             p.start()
             self.addCleanup(p.stop)
-        p = mock.patch('wama.common.utils.task_skeleton.close_old_connections')
-        p.start()
-        self.addCleanup(p.stop)
+        # Une carte VIDE de 24 Go : ce qu'elle peut libérer (`card_ceiling_gb`) ne dépend pas du poste.
+        for p in (mock.patch(SYSTEM_MONITOR, return_value=[{'memory_free_gb': 24.0,
+                                                             'memory_used_gb': 0.0}]),
+                  mock.patch('wama.common.utils.task_skeleton.close_old_connections')):
+            p.start()
+            self.addCleanup(p.stop)
 
     def _ctx(self):
         return TaskContext('synthesizer', self.model, self.item)
@@ -72,6 +75,16 @@ class ThreeCasesTest(_Base):
         self.assertTrue(self._defer(32.5))
         self.assertEqual(self._status(), 'FAILURE')
         self.assertIn('même seul', self.item.error_message)
+
+    def test_what_the_card_cannot_free_is_refused_and_the_held_part_is_said(self):
+        """2026-11-05 : 3,7 Go tenus hors de WAMA laissent 20,3 Go au mieux. FLUX.1-dev en poids
+        pleins (22,17) « tenait seul » face au total et attendait sans fin."""
+        with mock.patch(SYSTEM_MONITOR, return_value=[{'memory_free_gb': 20.3,
+                                                       'memory_used_gb': 3.7}]):
+            self.assertTrue(self._defer(22.17))
+        self.assertEqual(self._status(), 'FAILURE')
+        self.assertIn('libérer au mieux 20.3', self.item.error_message)
+        self.assertIn('hors de WAMA', self.item.error_message)
 
     def test_what_fits_alone_but_not_now_waits_without_a_ceiling_and_says_who_holds(self):
         gov.reserve_vram('wama.x.Big:1#imager:qwen-image-2', 18.0)
@@ -157,6 +170,206 @@ class OffloadingEngineNeedTest(TestCase):
         backend = backend_for_key(self.KEY)
         self.assertIsNotNone(backend)
         self.assertTrue(backend.OFFLOADS, backend.__name__)
+
+
+#: Le relevé RÉEL de FLUX.1-dev (composants et paramètres, en-têtes safetensors).
+FLUX_WEIGHTS = {
+    'total_gb': 31.42, 'largest_gb': 22.17,
+    'components': {'vae': 0.156, 'transformer': 22.168, 'text_encoder': 0.229,
+                   'text_encoder_2': 8.871},
+    'precision': {'vae': {'params': 83819683}, 'transformer': {'params': 11901408320},
+                  'text_encoder': {'params': 123060480}, 'text_encoder_2': {'params': 4762310656}},
+}
+
+
+class _Card(TestCase):
+    """Un registre vide et une carte posée par le test."""
+
+    def setUp(self):
+        self.redis = _FauxRedis()
+        for p in (mock.patch.object(gov, '_redis', return_value=self.redis),
+                  mock.patch.object(gov, 'total_vram_gb', return_value=23.99)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def card(self, free, used):
+        return mock.patch(SYSTEM_MONITOR, return_value=[{'memory_free_gb': free,
+                                                         'memory_used_gb': used}])
+
+
+class PrecisionChosenByTheGovernorTest(_Card):
+    """La précision de FLUX se choisit au GOUVERNEUR, parmi celles que le moteur déclare
+    (accord de Fabien, 2026-11-05). Mesuré ce jour-là : la règle du moteur (RAM, puis total de la
+    carte) prenait sur 24 Go les poids pleins ou le 8 bits, qui ne tiennent pas, jamais le 4 bits."""
+
+    KEY = 'imager:flux-1-dev'
+
+    def setUp(self):
+        super().setUp()
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(
+            model_key=self.KEY, name='flux-1-dev', model_type='image', source='imager',
+            is_downloaded=True, capabilities={'task': 'text-to-image'},
+            platform_ref='huggingface:black-forest-labs/FLUX.1-dev',
+            composition={'runtime': {'engine': 'diffusers'}},
+            extra_info={'weights': FLUX_WEIGHTS})
+
+    def test_on_this_card_the_governor_retains_the_4_bits(self):
+        with self.card(20.3, 3.7):
+            choice = gov.chosen_precision(self.KEY)
+        self.assertEqual((choice.precision.label, choice.peak_gb, choice.reduced), ('NF4', 8.87, True))
+        self.assertEqual(choice.faithful_gb, 22.17)
+
+    def test_a_card_that_holds_the_full_weights_gets_them_with_the_same_declaration(self):
+        with self.card(60.0, 0.0), mock.patch.object(gov, 'total_vram_gb', return_value=80.0):
+            choice = gov.chosen_precision(self.KEY)
+        self.assertEqual((choice.precision.label, choice.reduced), ('BF16', False))
+
+    def test_the_8_bits_needs_the_machine_margin_above_its_peak(self):
+        """19,96 + la marge (1,5) : 21,46 Go. Sur 22 Go libérables, le 8 bits ; sur 20,3, non."""
+        with self.card(22.0, 1.99):
+            self.assertEqual(gov.chosen_precision(self.KEY).precision.label, 'INT8')
+
+    def test_the_load_never_takes_more_faithful_than_what_fits_now(self):
+        """La carte a pu changer entre la garde et le chargement : le chargement ne prend jamais une
+        précision plus fidèle que ce que le libre de l'instant tient."""
+        with self.card(22.0, 1.99), mock.patch.object(gov, 'effective_free_gb', return_value=12.0):
+            self.assertEqual(gov.chosen_precision(self.KEY, fits_now=True).precision.label, 'NF4')
+
+    def test_a_precision_whose_library_is_missing_is_not_offered(self):
+        from wama.common.backends.diffusers_backend import DiffusersBackend
+        with self.card(20.3, 3.7), mock.patch('importlib.util.find_spec', return_value=None):
+            choice = gov.chosen_precision(self.KEY, DiffusersBackend)
+        self.assertEqual(choice.precision.label, 'BF16',
+                         "sans bitsandbytes, seule la précision des fichiers reste")
+
+    def test_the_guard_asks_the_peak_of_the_chosen_precision_and_tells_the_card(self):
+        from wama.common.utils.task_skeleton import _vram_need
+        said = []
+        ctx = mock.Mock(console=lambda msg, **kw: said.append(msg))
+        with self.card(20.3, 3.7):
+            self.assertEqual(_vram_need(None, None, self.KEY, ctx), 8.87)
+        self.assertEqual(len(said), 1)
+        self.assertIn('NF4', said[0])
+        self.assertIn('22.2', said[0])
+
+    def test_the_engine_applies_the_governor_s_choice(self):
+        """Une carte où le gouverneur retient le 8 bits : le repli du moteur (le plus réduit) dirait
+        4 bits — le test distingue donc le choix du gouverneur de l'absence de choix."""
+        from wama.common.backends.diffusers_backend import DiffusersBackend
+        engine = DiffusersBackend()
+        engine.catalogue_key = self.KEY
+        with self.card(22.0, 1.99), mock.patch.object(gov, 'effective_free_gb', return_value=22.0):
+            self.assertEqual(engine._get_flux_strategy(), {'quantization': '8bit', 'label': 'INT8'})
+
+    def test_without_a_catalogue_key_the_engine_takes_the_most_reduced(self):
+        from wama.common.backends.diffusers_backend import DiffusersBackend
+        self.assertEqual(DiffusersBackend()._get_flux_strategy()['label'], 'NF4')
+
+    def test_the_logo_lora_is_reduced_on_its_backbone(self):
+        """L'adaptateur se pose sur sa dorsale : c'est elle que la précision réduit, son fichier
+        (0,04 Go) s'y ajoute — l'option B de l'empreinte (décision du 2026-09-21)."""
+        from wama.model_manager.models import AIModel
+        AIModel.objects.filter(model_key=self.KEY).update(
+            extra_info={'weights': FLUX_WEIGHTS, 'model_type': 'base',
+                        'base_model': 'black-forest-labs/FLUX.1-dev'})
+        AIModel.objects.create(
+            model_key='imager:flux-lora-logo-design', name='LoRA logo', model_type='image',
+            source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'},
+            platform_ref='huggingface:Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
+            composition={'runtime': {'engine': 'diffusers'}},
+            extra_info={'weights': {'total_gb': 0.036, 'largest_gb': 0.036},
+                        'model_type': 'lora', 'base_model': 'black-forest-labs/FLUX.1-dev'})
+        with self.card(20.3, 3.7):
+            choice = gov.chosen_precision('imager:flux-lora-logo-design')
+        self.assertEqual((choice.precision.label, choice.peak_gb), ('NF4', 8.91))
+
+    def test_an_engine_without_precisions_keeps_the_catalogue_cascade(self):
+        class _Plain:
+            OFFLOADS = False
+
+            @classmethod
+            def load_precisions(cls, model_id):
+                return ()
+        self.assertIsNone(gov.chosen_precision(self.KEY, _Plain))
+
+
+class ServedModelNeedTest(_Card):
+    """Un modèle déjà chargé dans le process qui le SERVIRA n'est pas un besoin (2026-11-05)."""
+
+    def _row(self, key, engine, gb):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key=key, name=key, model_type='speech', source=key.split(':')[0],
+                               is_downloaded=True, vram_gb=gb,
+                               composition={'runtime': {'engine': engine}})
+
+    def _need(self, key, backend=None):
+        from wama.common.utils.task_skeleton import _vram_need
+        with self.card(9.39, 14.2), \
+                mock.patch('wama.common.backends.manager.backend_for_key', return_value=backend):
+            return _vram_need(None, None, key)
+
+    def test_a_voice_model_the_voice_service_holds_is_not_waited_for(self):
+        class _Voice:
+            OFFLOADS = False
+            SERVED_BY = 'tts_service'
+
+            @classmethod
+            def load_precisions(cls, model_id):
+                return ()
+        self._row('synthesizer:higgs-test', 'higgs', 11.5)
+        self.redis.hset(gov._TENANTS_KEY, 'tts_service', '4242')
+        gov.reserve_vram('b.Higgs:4242#synthesizer:higgs-test', 11.5, allocated=True)
+        self.assertIsNone(self._need('synthesizer:higgs-test', _Voice))
+        gov.release_reservation('b.Higgs:4242#synthesizer:higgs-test')
+        self.assertEqual(self._need('synthesizer:higgs-test', _Voice), 11.5,
+                         "absent du service, il faut la place de le charger")
+
+    def test_an_ollama_model_the_host_holds_is_not_waited_for(self):
+        self._row('ollama:qwen-test:latest', 'ollama', 18.18)
+        gov.reserve_vram(gov.ollama_host_owner('qwen-test:latest'), 18.18,
+                         allocated=gov.OUTSIDE_TORCH)
+        self.assertIsNone(self._need('ollama:qwen-test:latest'))
+
+
+class ServedByTwinTest(TestCase):
+    """`SERVED_BY` nomme un SERVICE du registre des sources, et ce service se déclare tenant sous ce
+    même nom — sinon le gouverneur ne retrouve pas ses résidents."""
+
+    def test_every_served_by_is_a_declared_local_service(self):
+        from wama.common.backends.glm_ocr_backend import GlmOcrBackend
+        from wama.common.backends.pii_detection_base import PIIDetectionBackend
+        from wama.common.backends.tts_base import TTSBackend
+        from wama.common.external_sources import SOURCES
+        from wama.common.utils.ollama_host import ollama_engine_inventory
+        services = {s.key for s in SOURCES if s.kind == 'service'}
+        declared = {TTSBackend.SERVED_BY, PIIDetectionBackend.SERVED_BY, GlmOcrBackend.SERVED_BY,
+                    ollama_engine_inventory()['ollama'].SERVED_BY, gov.OLLAMA_HOST_SOURCE}
+        self.assertEqual(declared - services, set())
+
+    def test_each_service_names_its_tenant_by_the_key_its_engines_name(self):
+        from pathlib import Path
+        from django.conf import settings
+        base = Path(settings.BASE_DIR) / 'wama' / 'common'
+        self.assertIn('Tenant(TTS_SERVICE', (base / 'tts' / 'service.py').read_text(encoding='utf-8'))
+        self.assertIn('contract_tenant(PRIVACY_SERVICE',
+                      (base / 'privacy' / 'service.py').read_text(encoding='utf-8'))
+
+
+class FluxPrecisionTwinTest(TestCase):
+    """Ce que le moteur FLUX DÉCLARE, il sait le charger : chaque précision réduite a son chargement
+    bitsandbytes, et chaque étiquette se pèse (`dtype_bytes`)."""
+
+    def test_every_declared_precision_is_loadable_and_weighable(self):
+        from wama.common.backends.diffusers_backend import DiffusersBackend
+        from wama.model_manager.services.memory_manager import dtype_bytes
+        for precision in DiffusersBackend.FLUX_PRECISIONS:
+            self.assertIsNotNone(dtype_bytes(precision.label), precision.label)
+            if precision.quantized:
+                self.assertIn(precision.label, DiffusersBackend._FLUX_BNB)
+        self.assertEqual(DiffusersBackend.load_precisions('flux-1-dev'),
+                         DiffusersBackend.FLUX_PRECISIONS)
+        self.assertEqual(DiffusersBackend.load_precisions('stable-diffusion-xl'), ())
 
 
 class OffloadDeclarationTwinTest(TestCase):

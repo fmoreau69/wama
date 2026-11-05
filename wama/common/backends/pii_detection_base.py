@@ -19,6 +19,11 @@ from typing import List, Optional
 
 from .base import BaseModelBackend
 
+#: Le service de confidentialité, par sa clé au registre des sources (`external_sources.SOURCES`) :
+#: le nom sous lequel il se déclare tenant (`common/privacy/service.py`) et le `SERVED_BY` des
+#: détecteurs, qu'il charge pour tous.
+PRIVACY_SERVICE = 'privacy_service'
+
 
 class PIIDetectionBackend(BaseModelBackend):
     """Repère les données personnelles d'un texte — un modèle `pii-detection` du catalogue.
@@ -28,6 +33,9 @@ class PIIDetectionBackend(BaseModelBackend):
 
     #: étiquette du MODÈLE → type du vocabulaire commun. À déclarer par chaque backend.
     ENTITY_MAP: dict = {}
+
+    #: Les détecteurs se chargent dans le service de confidentialité, pour tous.
+    SERVED_BY = PRIVACY_SERVICE
 
     def __init__(self):
         self._loaded = False

@@ -10,10 +10,17 @@ Résultat concret le 29/07/2026 : une génération imager a débordé de 24 Go �
 38,1 Go, la VM WSL2 a paniqué 4 fois, et le service TTS — qui détient de la VRAM
 dans un process séparé — n'était vu par aucun de ces mécanismes.
 
-Toute logique d'allocation de ressource passe DÉSORMAIS par ici. Si tu cherches
-« où limiter/réserver/prioriser », c'est ce fichier, et nulle part ailleurs.
+Réserver, attendre, libérer et prioriser la VRAM passe par ici : c'est ce fichier.
+⚠ Corrigé le 2026-11-05, ce bloc disait « toute logique d'allocation […] et nulle part
+ailleurs ». C'est l'INTENTION (`ROADMAP §Gouvernance`, point 5), pas l'état. Aujourd'hui :
+  - CHOISIR UN MODÈLE : `model_manager.services.model_selector`, sur le budget lu ici ;
+  - CHOISIR UNE STRATÉGIE de chargement : `MemoryManager.get_memory_strategy`, sur la vue de
+    son process (total − alloué ici), pas sur la carte ;
+  - CHOISIR UNE PRÉCISION : ici depuis le 2026-11-05 (`chosen_precision`, parmi celles que le
+    moteur déclare — `BaseModelBackend.load_precisions`, FLUX) ; LTX garde une ligne de catalogue
+    par précision.
 
-CE QU'IL COUVRE (état au 2026-09-14)
+CE QU'IL COUVRE (état au 2026-11-05)
 ====================================
   1. `configure_cuda_process()`  — garde niveau PROCESS : plafonne l'allocateur
      CUDA. À appeler une fois par process susceptible de toucher le GPU.
@@ -25,6 +32,8 @@ CE QU'IL COUVRE (état au 2026-09-14)
      décision se lit à la CARTE (`card_free_gb`), qui voit tous les occupants.
   3. `APP_TIERS` / `celery_priority_for` — priorités DÉCLARATIVES par app, câblées
      dans `CELERY_TASK_ROUTES` depuis le 2026-07-29.
+  4. Libération INTER-process : `request_release` / `obtain_vram`, servis par les tenants de
+     chaque process (`Tenant`, `serve_release_requests`), sur accord de l'utilisateur.
 
 CE QU'IL NE COUVRE PAS ENCORE (cf. ROADMAP §Gouvernance des ressources)
 ======================================================================
@@ -32,8 +41,8 @@ CE QU'IL NE COUVRE PAS ENCORE (cf. ROADMAP §Gouvernance des ressources)
     sans conscience mémoire).
   - Équité entre utilisateurs : la file est FIFO strict, un batch de 50 items
     d'un utilisateur affame les autres.
-  - Déchargement INTER-process : le reclaim (`MemoryManager.release_vram`) reste
-    local au process qui l'appelle ; seul Ollama se décharge à distance.
+  - Le CHOIX du déchargement : `MemoryManager.get_memory_strategy`, sur la vue de son process
+    (`ROADMAP §Gouvernance`, point 5). La précision, elle, se choisit ici (`chosen_precision`).
 Ces points s'ajoutent ICI, pas dans les apps.
 
 POURQUOI PAS RAY / SLURM / TRITON
@@ -53,6 +62,7 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -255,8 +265,21 @@ _LOADED_KEY = "wama:vram:loaded_at"
 #: Redis, une autre distribution WSL : marqueur différent → on n'en conclut rien, le TTL garde.
 _PID_SPACE_KEY = "wama:vram:pid_space"
 
+#: Occupation de la CARTE (Go, nvidia-smi) à l'instant d'une ANNONCE : owner → Go (2026-11-05).
+#: Ce que la carte a pris depuis, moins ce que les empreintes publiées depuis expliquent, est la
+#: part de l'annonce qui s'est RÉALISÉE (`unseen_reserved_gb`) : un sous-processus annoncé à 14 Go
+#: qui en tient 6,89 ne se compte plus deux fois — la carte voit ses 6,89, l'annonce retranche le
+#: reste. Posée une fois (le battement d'une annonce ne la réécrit pas).
+_CARD_USED_KEY = "wama:vram:card_used_at"
+
 #: Ce qui vit et meurt avec une ligne de réservation.
-_SIDE_KEYS = (_USED_KEY, _ALLOC_KEY, _LOADED_KEY, _PID_SPACE_KEY)
+_SIDE_KEYS = (_USED_KEY, _ALLOC_KEY, _LOADED_KEY, _PID_SPACE_KEY, _CARD_USED_KEY)
+
+#: TENANTS déclarés : nom → pid du process qui le sert (2026-11-05). Le nom d'un service est sa
+#: clé au registre des sources (`external_sources.SOURCES`, `kind='service'`) : c'est ainsi qu'un
+#: moteur dit où il se charge (`BaseModelBackend.SERVED_BY`) et que le gouverneur retrouve ses
+#: lignes (`served_resident_gb`). Écrit par `start_release_listener`.
+_TENANTS_KEY = "wama:vram:tenants"
 
 # Une réservation expire seule : si un process meurt sans libérer (kernel panic,
 # kill -9), sa ligne ne doit pas bloquer le GPU pour toujours. Un détenteur VIVANT la
@@ -349,14 +372,20 @@ def reserve_vram(owner: str, gb: float, *, allocated: bool | str = False,
         if allocated:
             client.hset(_ALLOC_KEY, owner,
                         str(_OUTSIDE_TORCH_PID if allocated == OUTSIDE_TORCH else os.getpid()))
+            client.hdel(_CARD_USED_KEY, owner)
         else:
             client.hdel(_ALLOC_KEY, owner)
+            # L'occupation de la carte à l'annonce : une fois, avant que le détenteur n'alloue.
+            if client.hget(_CARD_USED_KEY, owner) is None:
+                used = _card_reading()[1]
+                if used is not None:
+                    client.hset(_CARD_USED_KEY, owner, f"{used:.3f}")
         # Le détenteur écrit lui-même sa ligne : on note où vit son pid, pour qu'un lecteur du
         # même espace puisse constater sa MORT sans attendre le TTL (`_reservations_raw`).
         space = _pid_space()
         if space and owner_pid(owner) == os.getpid():
             client.hset(_PID_SPACE_KEY, owner, space)
-        for key in (_LEDGER_KEY, _ALLOC_KEY, _LOADED_KEY, _PID_SPACE_KEY):
+        for key in (_LEDGER_KEY, *_SIDE_KEYS):
             client.expire(key, RESERVATION_TTL_S * 2)
         return True
     except Exception as exc:
@@ -646,6 +675,66 @@ def ollama_host_owner(name: str) -> str:
     return f"{OLLAMA_HOST_OWNER_PREFIX}ollama:{name}"
 
 
+#: La source `ollama` du registre des sources (`external_sources.SOURCES`) : le `SERVED_BY` d'un
+#: moteur dont l'Ollama hôte charge les modèles. Ses lignes n'ont pas de pid, elles se reconnaissent
+#: à leur préfixe (`OLLAMA_HOST_OWNER_PREFIX`).
+OLLAMA_HOST_SOURCE = 'ollama'
+
+
+def tenant_pid(name: str) -> int | None:
+    """Pid du process qui sert le tenant `name` (`_TENANTS_KEY`), None s'il ne s'est pas déclaré."""
+    client = _redis()
+    if client is None or not name:
+        return None
+    try:
+        raw = client.hget(_TENANTS_KEY, name)
+        return int(raw.decode() if isinstance(raw, bytes) else raw) if raw is not None else None
+    except Exception:
+        return None
+
+
+def _name_tenant(name: str) -> None:
+    """Le process courant sert le tenant `name` (relu par `served_resident_gb`)."""
+    client = _redis()
+    if client is None or not name:
+        return
+    try:
+        client.hset(_TENANTS_KEY, name, str(os.getpid()))
+        client.expire(_TENANTS_KEY, RESERVATION_TTL_S * 2)
+    except Exception:
+        logger.debug("[ResourceGovernor] tenant %s non déclaré", name, exc_info=True)
+
+
+def served_resident_gb(model_key: str, served_by: str = '') -> float:
+    """Go déjà résidents pour `model_key` DANS LE PROCESS QUI LE SERVIRA — 0.0 sinon.
+
+    `served_by` est le `SERVED_BY` de son moteur (`backends.manager.served_by_for_key`) : vide, le
+    modèle se charge dans le process appelant (`resident_here_gb`) ; un service (`tts_service`,
+    `privacy_service`), ses lignes se reconnaissent au pid qu'il a déclaré (`tenant_pid`) ; l'Ollama
+    hôte, à leur préfixe. Ces Go ne sont pas un besoin de la tâche : son service ne rechargera pas
+    ce qu'il tient. Écrit le 2026-11-05 — depuis la lecture de la carte (2026-11-04), une tâche du
+    synthesizer attendait 11,5 Go pour un Higgs que le service de voix tenait déjà (9,39 libres) ;
+    `resident_here_gb` ne comptait que le worker, qui ne charge jamais Higgs.
+    ⚠ Un résident d'un AUTRE process que celui qui servira ne compte pas : Whisper tenu par le
+    service de voix pour la conversation n'épargne rien au transcriber, qui charge le sien."""
+    if not model_key:
+        return 0.0
+    if not served_by:
+        return resident_here_gb(model_key)
+    if served_by == OLLAMA_HOST_SOURCE:
+        def serves(owner):
+            return owner.startswith(OLLAMA_HOST_OWNER_PREFIX)
+    else:
+        pid = tenant_pid(served_by)
+        if pid is None:
+            return 0.0
+
+        def serves(owner):
+            return owner_pid(owner) == pid
+    return sum(gb for owner, gb in reservations().items()
+               if serves(owner) and model_key in model_keys_of(owner))
+
+
 def _allocated_by() -> dict[str, int]:
     """owner → pid dont l'allocateur torch tient DÉJÀ l'empreinte, `_OUTSIDE_TORCH_PID` si elle
     est prise hors de tout allocateur torch (cf. `_ALLOC_KEY`)."""
@@ -666,7 +755,8 @@ def _allocated_by() -> dict[str, int]:
     return out
 
 
-def unseen_reserved_gb(probe: str = 'card', exclude: str | None = None) -> float:
+def unseen_reserved_gb(probe: str = 'card', exclude: str | None = None, *,
+                       card_used_gb=None) -> float:
     """
     VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
 
@@ -681,9 +771,14 @@ def unseen_reserved_gb(probe: str = 'card', exclude: str | None = None) -> float
     - `probe='process'` — total − `memory_allocated` de CE process : ne voit que ce que l'allocateur
       torch de ce process tient, on retranche tout le reste.
 
-    ⚠ Restent des annonces les valeurs déclarées d'un backend dont le chargement n'a rien pris
-    (paresseux) et les sous-processus (la ligne porte leur pic, posé avant le lancement) : compter
-    un sous-processus deux fois pendant qu'il tourne est prudent, l'oublier ne l'est pas.
+    Une ANNONCE se réalise pendant que son détenteur alloue (un sous-processus, un backend
+    paresseux) : la carte en voit alors une part. `probe='card'` ne lui retranche que le RESTE —
+    ce que la carte a pris depuis l'annonce (`_CARD_USED_KEY`), moins les empreintes publiées
+    depuis et les annonces plus récentes, qui l'expliquent autrement (`_announcements_unseen`).
+    ⚠ Corrigé le 2026-11-05, cette docstring disait « compter un sous-processus deux fois pendant
+    qu'il tourne est prudent » : mesuré, un sous-processus annoncé à 14 Go qui en tenait 6,89
+    laissait voir 0 Go libre à une carte qui en avait 6,89 — et le reste de la machine attendait.
+    `card_used_gb` : l'occupation de la carte déjà lue par l'appelant (une lecture de moins).
     """
     if probe not in ('card', 'process'):
         raise ValueError(f"sonde inconnue : {probe!r} (attendu 'card' ou 'process')")
@@ -691,12 +786,61 @@ def unseen_reserved_gb(probe: str = 'card', exclude: str | None = None) -> float
     # comme annonce (prudent), jamais l'inverse.
     alloues = _allocated_by()
     pid = os.getpid()
-    total = 0.0
-    for owner, gb in reservations(exclude=exclude).items():
-        detenteur = alloues.get(owner)
-        if detenteur is None or (probe == 'process' and detenteur != pid):
-            total += gb
-    return total
+    lines = reservations(exclude=exclude)
+    if probe == 'process':
+        return sum(gb for owner, gb in lines.items() if alloues.get(owner) != pid)
+    announced = {owner: gb for owner, gb in lines.items() if owner not in alloues}
+    if not announced:
+        return 0.0
+    if card_used_gb is None:
+        card_used_gb = _card_reading()[1]
+    return sum(_announcements_unseen(announced, lines, alloues, card_used_gb).values())
+
+
+def _announcements_unseen(announced: dict, lines: dict, allocated: dict,
+                          card_used_gb) -> dict[str, float]:
+    """Pour chaque annonce, la part que la carte ne voit pas encore : son montant moins ce que la
+    carte a pris depuis elle et que rien d'autre n'explique — les empreintes publiées depuis, et
+    les annonces plus récentes, servies d'abord (une croissance ne s'attribue qu'une fois).
+    Sans occupation de la carte, ou sans relevé à l'annonce (posée par un code plus ancien) :
+    l'annonce entière. Une libération pendant l'intervalle diminue la croissance, donc compte
+    l'annonce plus entière — le côté prudent ; seule une occupation que le registre ne nomme pas
+    (bureau Windows) qui GRANDIT dans l'intervalle se lirait comme réalisée."""
+    if card_used_gb is None:
+        return dict(announced)
+    client = _redis()
+    if client is None:
+        return dict(announced)
+
+    def _floats(key):
+        try:
+            raw = client.hgetall(key) or {}
+        except Exception:
+            return {}
+        out = {}
+        for k, v in raw.items():
+            try:
+                out[k.decode() if isinstance(k, bytes) else str(k)] = float(
+                    v.decode() if isinstance(v, bytes) else v)
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    at_announce, loaded_at = _floats(_CARD_USED_KEY), _floats(_LOADED_KEY)
+    taken = [(loaded_at.get(owner, 0.0), gb) for owner, gb in lines.items() if owner in allocated]
+    unseen, served = {}, []                    # `served` : (annoncée le, part réalisée)
+    for owner in sorted(announced, key=lambda o: loaded_at.get(o, 0.0), reverse=True):
+        gb, since, base = announced[owner], loaded_at.get(owner), at_announce.get(owner)
+        if since is None or base is None:
+            unseen[owner] = gb
+            continue
+        growth = (float(card_used_gb) - base
+                  - sum(g for t, g in taken if t > since)
+                  - sum(s for t, s in served if t >= since))
+        realised = min(gb, max(0.0, growth))
+        served.append((since, realised))
+        unseen[owner] = gb - realised
+    return unseen
 
 
 def mark_used(owner: str) -> bool:
@@ -841,16 +985,42 @@ def idle_models(idle_threshold_s: int = 300) -> list[dict]:
     return sorted(out, key=lambda d: -d['idle_seconds'])
 
 
+def _card_reading() -> tuple:
+    """`(libre, occupé)` en Go de la carte la plus libre (nvidia-smi), `(None, None)` si elle ne se
+    lit pas ; l'occupé vaut None quand le relevé ne le porte pas. N'ouvre aucun contexte CUDA."""
+    try:
+        from wama.common.services.system_monitor import SystemMonitor
+        gpus = [g for g in (SystemMonitor.get_gpu_info() or []) if g.get('memory_free_gb') is not None]
+    except Exception:
+        return None, None
+    if not gpus:
+        return None, None
+    card = max(gpus, key=lambda g: float(g['memory_free_gb']))
+    used = card.get('memory_used_gb')
+    return float(card['memory_free_gb']), (float(used) if used is not None else None)
+
+
 def card_free_gb() -> float | None:
     """VRAM libre de la CARTE (nvidia-smi), tous occupants confondus : les process de WAMA, ses
     services, l'Ollama hôte, le bureau Windows. None si elle ne se lit pas. La carte la plus libre
     s'il y en a plusieurs, comme `get_free_vram_gb`. N'ouvre aucun contexte CUDA."""
-    try:
-        from wama.common.services.system_monitor import SystemMonitor
-        gpus = SystemMonitor.get_gpu_info() or []
-        return max((float(g['memory_free_gb']) for g in gpus), default=None)
-    except Exception:
+    return _card_reading()[0]
+
+
+def card_ceiling_gb() -> float | None:
+    """Ce que la carte peut libérer AU MIEUX : son libre, plus ce que les détenteurs du registre y
+    tiennent déjà (ils se déchargent, `obtain_vram` ; un sous-processus finit) — donc la carte moins
+    ce qu'aucune ligne ne nomme (bureau Windows, contextes CUDA). None si elle ne se lit pas.
+
+    Écrit le 2026-11-05 : `fits_alone` comparait au TOTAL de la carte. Mesuré ce jour-là, 3,3 Go
+    occupés sans ligne et 0,41 Go que le pilote se réserve laissaient 20,3 Go au mieux sur 23,99 :
+    FLUX.1-dev (22,17) « tenait seul » et attendait sans fin une place qui ne viendrait jamais."""
+    free, used = _card_reading()
+    if free is None:
         return None
+    ceiling = free - unseen_reserved_gb('card', card_used_gb=used) + reserved_gb()
+    total = total_vram_gb()
+    return min(total, ceiling) if total > 0 else ceiling
 
 
 def effective_free_gb(exclude: str | None = None) -> float:
@@ -864,13 +1034,15 @@ def effective_free_gb(exclude: str | None = None) -> float:
     erreurs de sens contraire : le worker comptait deux fois son propre Whisper (vu par la sonde,
     retranché en annonce, et pour 10 Go déclarés quand il en prend 3,66 — il se voyait 1,2 Go
     libres pour ~8 réels), et les empreintes torch des AUTRES process n'étaient comptées nulle part.
-    Écart connu : le budget WDDM d'un process est d'environ 0,5 Go sous ce que la carte dit libre.
+    Écart connu : `SystemMonitor.get_gpu_info` rend total − used et ignore `memory.reserved`, ce libre
+    dépasse donc `memory.free` d'autant (422 Mio mesurés le 2026-11-05 : 17,76 Go pour 17,35). Cette
+    ligne l'attribuait à un « budget WDDM », cause jamais mesurée.
 
     Sans nvidia-smi, repli sur `mem_get_info` : il voit au moins ce process, le registre dit le reste.
     """
-    free = card_free_gb()
+    free, used = _card_reading()
     if free is not None:
-        return max(0.0, free - unseen_reserved_gb('card', exclude=exclude))
+        return max(0.0, free - unseen_reserved_gb('card', exclude=exclude, card_used_gb=used))
     try:
         import torch
 
@@ -989,13 +1161,88 @@ def tenant_of_owner(owner: str) -> str | None:
 
 
 def fits_alone(needed_gb: float) -> bool | None:
-    """`needed_gb` tiendrait-il sur la carte VIDE ? None sans GPU (on ne conclut pas d'une
-    absence). C'est le premier des trois cas de Fabien (20/09) : ce qui ne tient pas même seul
-    ne se sélectionne pas et ne se lance pas — aucune attente ne changera la taille de la carte."""
+    """`needed_gb` tiendrait-il sur la carte vidée de WAMA (`card_ceiling_gb`) ? None sans GPU (on
+    ne conclut pas d'une absence). C'est le premier des trois cas de Fabien (20/09) : ce qui ne
+    tient pas même seul ne se sélectionne pas et ne se lance pas — aucune attente ne changera ce
+    que la carte peut libérer. Sans relevé de la carte, son total, comme avant le 2026-11-05."""
     total = total_vram_gb()
     if total <= 0:
         return None
-    return float(needed_gb) <= total
+    ceiling = card_ceiling_gb()
+    return float(needed_gb) <= (ceiling if ceiling is not None else total)
+
+
+@dataclass(frozen=True)
+class PrecisionChoice:
+    """La précision de chargement retenue par le gouverneur (`chosen_precision`)."""
+
+    precision: object            # `backends.base.LoadPrecision`
+    peak_gb: float               # son pic, ce que la garde demande
+    faithful_gb: float           # le pic de la plus fidèle que le moteur déclare
+    room_gb: float | None        # ce que la carte peut libérer au mieux (`card_ceiling_gb`)
+    reduced: bool                # une précision moins fidèle que la première déclarée
+
+
+def chosen_precision(model_key: str, backend=None, *, fits_now: bool = False):
+    """La précision dans laquelle `model_key` se chargera — décidée ICI, pas par le moteur
+    (`ROADMAP §Gouvernance`, point 5 ; accord de Fabien le 2026-11-05).
+
+    Parmi les précisions que son moteur DÉCLARE (`load_precisions`) et sait appliquer dans ce
+    process (`LoadPrecision.available`), la plus FIDÈLE dont le pic (`memory_manager.reduced_peak_gb`)
+    tient, avec la marge de la machine (`FULL_GPU_MIN_FREE_GB`), dans ce que la carte peut libérer au
+    mieux (`card_ceiling_gb`). Recalculée à chaque lancement, jamais mémorisée : la même déclaration
+    rend les poids pleins sur une carte qui les tient. Aucune ne tient : la plus réduite — la garde
+    la refuse alors en le disant.
+    `fits_now` (le chargement) : et qui tient dans le libre de l'INSTANT, pour ne jamais charger plus
+    fidèle que ce que la garde a admis si la carte a changé entre-temps.
+    None : le moteur ne déclare rien, ou les poids de ses composants ne sont pas relevés.
+
+    Mesuré le 2026-11-05 (FLUX.1-dev, 20,3 Go au mieux) : la règle du moteur, sur la RAM, prenait
+    les poids pleins (22,17) ou le 8 bits (20,2 alloués, OOM), et jamais le 4 bits, seul à tenir."""
+    if not model_key:
+        return None
+    if backend is None:
+        from wama.common.backends.manager import backend_for_key
+        backend = backend_for_key(model_key)
+    if backend is None:
+        return None
+    from wama.common.utils.model_keys import backend_model_id
+    try:
+        declared = [p for p in backend.load_precisions(backend_model_id(model_key)) if p.available()]
+    except Exception:
+        logger.warning("[ResourceGovernor] précisions de %s illisibles", model_key, exc_info=True)
+        return None
+    if not declared:
+        return None
+    try:
+        from wama.model_manager.models import AIModel
+        row = AIModel.objects.filter(model_key=model_key).first()
+    except Exception:
+        return None
+    if row is None:
+        return None
+    from wama.model_manager.services.memory_manager import (
+        FULL_GPU_MIN_FREE_GB, backbone_row, peaks_from_weights, reduced_peak_gb)
+    # Un ADAPTATEUR (la LoRA logo) se charge sur sa dorsale : c'est elle qu'on réduit, son propre
+    # fichier s'y ajoute (option B de `memory_manager.model_footprint_gb`, décision du 2026-09-21).
+    backbone = backbone_row(row)
+    weights = ((backbone if backbone is not None else row).extra_info or {}).get('weights') or {}
+    own_gb = (peaks_from_weights((row.extra_info or {}).get('weights') or {}).get('full', 0.0)
+              if backbone is not None else 0.0)
+    offload = bool(getattr(backend, 'OFFLOADS', False))
+    peaks = [(p, reduced_peak_gb(weights, p, offload=offload)) for p in declared]
+    peaks = [(p, round(gb + own_gb, 2)) for p, gb in peaks if gb]
+    if not peaks:
+        return None
+    room = card_ceiling_gb()
+    if room is None:
+        room = total_vram_gb() or None
+    free_now = effective_free_gb() if fits_now else None
+    pick = next(((p, gb) for p, gb in peaks
+                 if (room is None or gb + FULL_GPU_MIN_FREE_GB <= room)
+                 and (free_now is None or gb <= free_now)), peaks[-1])
+    return PrecisionChoice(precision=pick[0], peak_gb=pick[1], faithful_gb=peaks[0][1],
+                           room_gb=room, reduced=pick[0] is not peaks[0][0])
 
 
 def _hash_json(key: str) -> dict:
@@ -1553,9 +1800,17 @@ def start_release_listener(tenant: Tenant, poll_s: float = RELEASE_POLL_S) -> bo
     import threading
     import time
 
+    # Le tenant se NOMME au gouverneur (2026-11-05) : c'est par ce nom qu'un moteur servi par lui
+    # retrouve ses résidents (`served_resident_gb`). Redit au rythme du battement, sous le TTL.
+    _name_tenant(tenant.name)
+
     def _loop():
+        named_at = time.monotonic()
         while True:
             time.sleep(poll_s)
+            if time.monotonic() - named_at >= RESERVATION_HEARTBEAT_S:
+                _name_tenant(tenant.name)
+                named_at = time.monotonic()
             try:
                 serve_release_requests(tenant)
             except Exception:

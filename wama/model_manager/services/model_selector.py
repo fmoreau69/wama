@@ -3,7 +3,7 @@ Sélection intelligente de modèles — centralisée pour toutes les apps WAMA.
 
 S'appuie sur le catalogue `AIModel` (source de vérité : téléchargé ? chargé ? VRAM,
 capacités via `capabilities` — canonique ; `extra_info` = opérationnel/transition) et la
-VRAM live (`memory_monitor`). Unifie les logiques
+VRAM libre de la carte (`get_free_vram_gb`, par le gouverneur). Unifie les logiques
 jusque-là dupliquées par app (anonymizer `ModelSelector`, transcriber `manager`, et le
 `backend_selector` VRAM-aware qui était planifié).
 

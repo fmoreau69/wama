@@ -148,6 +148,55 @@ class PeakForPrecisionTest(SimpleTestCase):
         self.assertEqual(model_footprint_gb(quantized)[0], 12.15)
 
 
+class ReducedPeakTest(SimpleTestCase):
+    """Le pic dans une précision DÉCLARÉE par le moteur (`reduced_peak_gb`, 2026-11-05), confronté
+    à la mesure sur le GPU du même jour. Relevé RÉEL de FLUX.1-dev (composants et paramètres)."""
+
+    FLUX = {
+        'components': {'vae': 0.156, 'transformer': 22.168, 'text_encoder': 0.229,
+                       'text_encoder_2': 8.871},
+        'precision': {'vae': {'params': 83819683}, 'transformer': {'params': 11901408320},
+                      'text_encoder': {'params': 123060480},
+                      'text_encoder_2': {'params': 4762310656}},
+    }
+
+    def _peak(self, precision, offload=True):
+        from wama.model_manager.services.memory_manager import reduced_peak_gb
+        return reduced_peak_gb(self.FLUX, precision, offload=offload)
+
+    def _flux(self, label):
+        from wama.common.backends.diffusers_backend import DiffusersBackend
+        return next(p for p in DiffusersBackend.FLUX_PRECISIONS if p.label == label)
+
+    def test_the_file_precision_offloaded_is_the_largest_component(self):
+        self.assertEqual(self._peak(self._flux('BF16')), 22.17)
+        self.assertEqual(self._peak(self._flux('BF16'), offload=False), 31.42)
+
+    def test_a_component_that_stays_on_the_card_adds_to_the_largest_of_the_others(self):
+        """8 bits : mesuré 20,2 Go alloués à l'échec, le transformeur resté sur la carte quand T5
+        y montait. Le calcul en rend 19,96 ; l'écart (0,24) est celui des activations et du CLIP,
+        que couvre la marge de la machine — jamais un chiffre de modèle."""
+        peak = self._peak(self._flux('INT8'))
+        self.assertEqual(peak, 19.96)
+        self.assertLess(abs(peak - 20.2), 0.3)
+
+    def test_a_component_that_moves_is_one_more_candidate_for_the_largest(self):
+        """4 bits : le transformeur (5,54) descend au processeur ; le pic est celui de T5 — mesuré
+        9,09 alloués, calculé 8,87."""
+        peak = self._peak(self._flux('NF4'))
+        self.assertEqual(peak, 8.87)
+        self.assertLess(abs(peak - 9.09), 0.3)
+
+    def test_nothing_is_invented_without_the_weights(self):
+        from wama.common.backends.base import LoadPrecision
+        from wama.model_manager.services.memory_manager import reduced_peak_gb
+        self.assertIsNone(reduced_peak_gb({}, LoadPrecision('BF16'), offload=True))
+        no_params = {'components': {'transformer': 22.168}}
+        self.assertIsNone(reduced_peak_gb(no_params, LoadPrecision('NF4', quantized=('transformer',)),
+                                          offload=True),
+                          "réduire un composant dont on ne connaît pas les paramètres, c'est deviner")
+
+
 class AdapterFootprintTest(TestCase):
     """L'empreinte d'un ADAPTATEUR — décision de Fabien du 2026-09-21 : **B pour le catalogue,
     C pour l'exécution**.

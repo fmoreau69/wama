@@ -558,9 +558,9 @@ LOGO_MODELS = {
         # fichier de 0,04 Go : une composition le déclarerait, et le poids par composant
         # répondrait « 0,04 Go » — un chiffre exact sur les FICHIERS et faux sur l'EMPREINTE, qui
         # est celle de `base_model` (FLUX.1-dev, 31,4 Go de somme / 22,2 de plus gros composant).
-        # Mieux vaut « indéterminable » qu'un chiffre trompeur. Le schéma `composition` n'a pas de
-        # champ pour dire « hérite de la dorsale » — c'est une DÉCISION à prendre (héritage
-        # d'empreinte pour les adaptateurs), pas un trou à boucher à la va-vite.
+        # Décision prise le 2026-09-21 (corrigé le 2026-11-05, ce commentaire la disait à prendre) :
+        # pas de champ, l'empreinte se DÉRIVE de `base_model` (`memory_manager.backbone_row`, dorsale
+        # + fichier de l'adaptateur, 22,21 Go ici).
         'disk_gb': 24,
         'resolution': '768x768',
         'min_resolution': 512,

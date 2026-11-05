@@ -76,6 +76,11 @@ class _AvecRegistre(SimpleTestCase):
             p = mock.patch.multiple(cible, **kw)
             p.start()
             self.addCleanup(p.stop)
+        # La vraie carte ne se lit pas ici : une annonce y relèverait l'occupation du poste, et sa
+        # part « réalisée » dépendrait de ce que fait l'écran pendant le test. Un test la pose.
+        p = mock.patch(SYSTEM_MONITOR, return_value=None)
+        p.start()
+        self.addCleanup(p.stop)
 
     def annexe(self, key):
         return self.redis.hgetall(key)
@@ -675,3 +680,167 @@ class ResidenceResolueTest(_AvecRegistre):
         gov.reserve_vram(f'{CLASSE_FAUX}:1#@zzz', 8.0)
         self.assertEqual(gov.resident_models(), {})
         self.assertEqual(gov.unseen_reserved_gb('card'), 8.0)
+
+
+def _card(free_gb, used_gb):
+    """La carte (nvidia-smi) qui dit `free_gb` libres et `used_gb` occupés."""
+    return mock.patch(SYSTEM_MONITOR, return_value=[{'memory_free_gb': free_gb,
+                                                     'memory_used_gb': used_gb}])
+
+
+class AnnouncementRealisedOnceTest(_AvecRegistre):
+    """Une annonce qui se RÉALISE n'est comptée qu'une fois (2026-11-05). Depuis la lecture à la
+    carte, un sous-processus annoncé à 14 Go qui en tenait 6,89 se comptait deux fois : la carte
+    voyait ses 6,89, l'annonce retranchait ses 14 — 0 Go libre vu pour 6,89 réels."""
+
+    def test_what_the_card_took_since_the_announcement_comes_off_it(self):
+        with _card(20.5, 3.3):
+            gov.reserve_vram('composer.audiocpp:1', 14.0)
+        with _card(13.61, 10.19):                    # le sous-processus a pris 6,89
+            self.assertAlmostEqual(gov.unseen_reserved_gb('card'), 7.11, places=2)
+            self.assertAlmostEqual(gov.effective_free_gb(), 6.5, places=2)
+
+    def test_a_footprint_published_after_the_announcement_is_not_taken_for_it(self):
+        """La croissance s'explique d'abord par ce que le registre NOMME : un modèle chargé par le
+        service de voix pendant que le sous-processus tourne ne réalise pas l'annonce."""
+        with _card(20.5, 3.3):
+            gov.reserve_vram('composer.audiocpp:1', 14.0)
+        self.t += 5
+        gov.reserve_vram('b.Higgs:2#synthesizer:higgs', 6.0, allocated=True)
+        with _card(14.5, 9.3):
+            self.assertAlmostEqual(gov.unseen_reserved_gb('card'), 14.0)
+
+    def test_a_growth_is_attributed_once_across_two_announcements(self):
+        with _card(20.5, 3.3):
+            gov.reserve_vram('avatarizer.musetalk:1', 8.0)
+        self.t += 5
+        with _card(20.5, 3.3):
+            gov.reserve_vram('avatarizer.codeformer:1', 4.0)
+        with _card(15.5, 8.3):                       # 5 Go pris depuis les deux annonces
+            self.assertAlmostEqual(gov.unseen_reserved_gb('card'), 7.0)
+
+    def test_a_release_in_between_keeps_the_announcement_whole(self):
+        """Le côté prudent : une carte qui se vide pendant l'intervalle ne réalise rien."""
+        with _card(15.0, 8.8):
+            gov.reserve_vram('composer.audiocpp:1', 10.0)
+        with _card(22.0, 1.8):
+            self.assertAlmostEqual(gov.unseen_reserved_gb('card'), 10.0)
+
+    def test_without_a_reading_at_the_announcement_it_stays_whole(self):
+        gov.reserve_vram('composer.audiocpp:1', 10.0)    # carte illisible à l'annonce
+        with _card(10.0, 13.8):
+            self.assertAlmostEqual(gov.unseen_reserved_gb('card'), 10.0)
+
+    def test_the_reading_is_taken_once_the_heartbeat_does_not_move_it(self):
+        with _card(20.5, 3.3):
+            gov.reserve_vram('composer.audiocpp:1', 14.0)
+        with _card(13.61, 10.19):
+            gov.reserve_vram('composer.audiocpp:1', 14.0)     # battement
+            self.assertAlmostEqual(gov.unseen_reserved_gb('card'), 7.11, places=2)
+
+    def test_the_reading_dies_with_its_line(self):
+        with _card(20.5, 3.3):
+            gov.reserve_vram('composer.audiocpp:1', 14.0)
+        gov.release_reservation('composer.audiocpp:1')
+        self.assertEqual(self.annexe('wama:vram:card_used_at'), {})
+
+
+class CardCeilingTest(_AvecRegistre):
+    """`fits_alone` compare à ce que la carte peut LIBÉRER, plus à son total (2026-11-05). Mesuré :
+    3,3 Go occupés sans ligne au registre laissaient 20,3 Go au mieux sur 23,99 ; FLUX.1-dev
+    (22,17) « tenait seul » et attendait sans fin."""
+
+    def setUp(self):
+        super().setUp()
+        p = mock.patch.object(gov, 'total_vram_gb', return_value=23.99)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_the_ceiling_is_the_free_part_plus_what_the_ledger_holds(self):
+        gov.reserve_vram('b.Bardsai:1#app:pii', 1.26, allocated=True)
+        gov.reserve_vram('b.Kokoro:2#app:tts', 0.52, allocated=gov.OUTSIDE_TORCH)
+        with _card(17.35, 6.23):
+            self.assertAlmostEqual(gov.card_ceiling_gb(), 19.13)
+
+    def test_what_the_card_cannot_free_never_fits_alone(self):
+        with _card(20.3, 3.3):
+            self.assertFalse(gov.fits_alone(22.17))
+            self.assertTrue(gov.fits_alone(20.0))
+
+    def test_a_running_announcement_is_given_back_to_the_ceiling(self):
+        """Un sous-processus finit : ce qu'il tient revient à la carte, même pas encore pris."""
+        with _card(20.0, 3.3):
+            gov.reserve_vram('composer.audiocpp:1', 14.0)
+        with _card(13.11, 10.19):
+            self.assertAlmostEqual(gov.card_ceiling_gb(), 20.0, places=2)
+
+    def test_without_a_card_reading_the_total_stands(self):
+        self.assertIsNone(gov.card_ceiling_gb())
+        self.assertTrue(gov.fits_alone(23.0))
+        self.assertFalse(gov.fits_alone(24.5))
+
+
+class ServedResidentTest(_AvecRegistre):
+    """Un modèle déjà chargé dans le process qui le SERVIRA n'est pas un besoin (2026-11-05). Depuis
+    la lecture à la carte, une synthèse attendait 11,5 Go pour le Higgs que le service de voix tenait
+    déjà, et le reader un OCR déjà chargé dans l'Ollama hôte."""
+
+    def setUp(self):
+        super().setUp()
+        p = mock.patch('wama.common.backends.manager._catalog_index', return_value={})
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_a_service_s_resident_is_found_by_the_pid_it_declared(self):
+        self.redis.hset(gov._TENANTS_KEY, 'tts_service', '4242')
+        gov.reserve_vram('b.Higgs:4242#synthesizer:higgs', 11.5, allocated=True)
+        self.assertEqual(gov.served_resident_gb('synthesizer:higgs', 'tts_service'), 11.5)
+
+    def test_the_same_model_in_another_process_does_not_serve_the_task(self):
+        """Whisper tenu par le service de voix n'épargne rien au transcriber, qui charge le sien."""
+        self.redis.hset(gov._TENANTS_KEY, 'tts_service', '4242')
+        gov.reserve_vram('b.Whisper:4242#transcriber:whisper', 3.7, allocated=True)
+        self.assertEqual(gov.served_resident_gb('transcriber:whisper', ''), 0.0)
+        gov.reserve_vram('b.Higgs:77#synthesizer:higgs', 11.5, allocated=True)
+        self.assertEqual(gov.served_resident_gb('synthesizer:higgs', 'tts_service'), 0.0)
+
+    def test_the_ollama_host_lines_serve_an_ollama_model(self):
+        gov.reserve_vram(gov.ollama_host_owner('qwen3.8:latest'), 18.18, allocated=gov.OUTSIDE_TORCH)
+        self.assertEqual(gov.served_resident_gb('ollama:qwen3.8:latest', gov.OLLAMA_HOST_SOURCE),
+                         18.18)
+
+    def test_an_undeclared_service_holds_nothing(self):
+        gov.reserve_vram('b.Higgs:4242#synthesizer:higgs', 11.5, allocated=True)
+        self.assertEqual(gov.served_resident_gb('synthesizer:higgs', 'tts_service'), 0.0)
+
+    def test_without_a_service_it_is_this_process(self):
+        gov.reserve_vram(f'b.Big:{os.getpid()}#imager:big', 9.0, allocated=True)
+        self.assertEqual(gov.served_resident_gb('imager:big'), 9.0)
+
+    def test_the_release_listener_names_its_tenant(self):
+        gov._name_tenant('privacy_service')
+        self.assertEqual(gov.tenant_pid('privacy_service'), os.getpid())
+        self.assertIsNone(gov.tenant_pid('nobody'))
+
+
+class CardFreeIsTheDriverFreeTest(SimpleTestCase):
+    """Le libre de la carte est `memory.free` du pilote (2026-11-05) : total − used le surestimait
+    de `memory.reserved`, 422 Mio mesurés (17,76 Go pour 17,35)."""
+
+    def _read(self, line):
+        from wama.common.services.system_monitor import SystemMonitor
+        out = mock.Mock(returncode=0, stdout=line + '\n')
+        with mock.patch('shutil.which', return_value='/usr/bin/nvidia-smi'), \
+                mock.patch('subprocess.run', return_value=out) as run:
+            gpus = SystemMonitor.get_gpu_info()
+        self.assertIn('memory.free', run.call_args.args[0][1])
+        return gpus[0]
+
+    def test_the_driver_free_is_read(self):
+        card = self._read('16, 6402, 24564, 40, NVIDIA GeForce RTX 4090, 17741')
+        self.assertEqual(card['memory_free_gb'], 17.33)
+        self.assertEqual(card['memory_used_gb'], 6.25)
+
+    def test_without_the_field_total_minus_used_stands(self):
+        card = self._read('16, 6402, 24564, 40, NVIDIA GeForce RTX 4090')
+        self.assertEqual(card['memory_free_gb'], 17.74)

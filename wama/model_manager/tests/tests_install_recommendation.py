@@ -44,9 +44,20 @@ def _olmocr2(disk_gb=16.6, fp8_method='compressed-tensors'):
                            {'file': 'mmproj-F16.gguf', 'gb': 1.3}]}]}})
 
 
+def _empty_card(card_gb=24.0):
+    """Une carte VIDE de `card_gb` — son total ET son relevé : `fits_alone` juge sur ce qu'elle
+    peut libérer (2026-11-05), que figer le seul total laissait lire sur la carte de l'hôte."""
+    from contextlib import ExitStack
+    stack = ExitStack()
+    stack.enter_context(patch('wama.common.services.resource_governor.total_vram_gb',
+                              return_value=card_gb))
+    stack.enter_context(patch('wama.common.services.system_monitor.SystemMonitor.get_gpu_info',
+                              return_value=[{'memory_free_gb': card_gb, 'memory_used_gb': 0.0}]))
+    return stack
+
+
 def _options(cand, packages=ABSENT, card_gb=24.0):
-    with patch('wama.common.services.resource_governor.total_vram_gb', return_value=card_gb), \
-            patch.object(p, '_quant_packages', return_value=packages):
+    with _empty_card(card_gb), patch.object(p, '_quant_packages', return_value=packages):
         return p.install_options(cand)
 
 
@@ -154,7 +165,7 @@ class TheInstallRouteHoldsTheSameRuleTest(TestCase):
     def test_a_choice_that_would_not_run_is_refused_with_its_reason(self):
         from wama.model_manager.services import model_installer as mi
         cand = _olmocr2()
-        with patch('wama.common.services.resource_governor.total_vram_gb', return_value=24.0), \
+        with _empty_card(), \
                 patch.object(p, '_quant_packages', return_value=ABSENT), \
                 patch.object(mi, 'dispatch_install') as dispatch:
             out = mi.request_install(cand.model_key, variant_ref=MLX)
@@ -166,7 +177,7 @@ class TheInstallRouteHoldsTheSameRuleTest(TestCase):
         # Counter-check: the full weights the recommendation names do start.
         from wama.model_manager.services import model_installer as mi
         cand = _olmocr2()
-        with patch('wama.common.services.resource_governor.total_vram_gb', return_value=24.0), \
+        with _empty_card(), \
                 patch.object(p, '_quant_packages', return_value=ABSENT), \
                 patch.object(mi, 'dispatch_install', return_value=SimpleNamespace(id='t')), \
                 patch.object(mi, 'disk_space_guard', return_value=None):
@@ -176,7 +187,7 @@ class TheInstallRouteHoldsTheSameRuleTest(TestCase):
     def test_the_refusal_to_choose_names_the_recommendation(self):
         from wama.model_manager.services import model_installer as mi
         cand = _olmocr2()
-        with patch('wama.common.services.resource_governor.total_vram_gb', return_value=24.0), \
+        with _empty_card(), \
                 patch.object(p, '_quant_packages', return_value=ABSENT), \
                 patch.object(mi, 'dispatch_install') as dispatch:
             out = mi.request_install(cand.model_key)
@@ -189,7 +200,7 @@ class TheInstallRouteHoldsTheSameRuleTest(TestCase):
         from wama import tool_api
         cand = _olmocr2()
         user = get_user_model().objects.create_superuser('install_recommendation', password='x')
-        with patch('wama.common.services.resource_governor.total_vram_gb', return_value=24.0), \
+        with _empty_card(), \
                 patch.object(p, '_quant_packages', return_value=ABSENT):
             out = tool_api.get_install_options(user, cand.model_key)
         best = out['options'][out['recommended']]

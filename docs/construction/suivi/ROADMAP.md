@@ -944,9 +944,9 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    | poids par composant, deux pics (somme / plus gros) | `model_installer.components_for_spec` → `extra_info['weights']` | ✅ 34 lignes mesurées |
    | précision par composant (params × octets du dtype) | `prospector.precision_of_files` (en-têtes safetensors) | ✅ livré 20/09 |
    | empreinte MESURÉE au chargement | `base.py:_wrap_load` → registre + `extra_info['vram_measured']` ; l'Ollama hôte par `ModelRegistry.measure_ollama_load` (2026-10-20 : espaces de vecteurs, conversations, vision du describer) | ✅ mais c'est une RÉSIDENCE (cf. c) |
-   | capacité de la machine, VRAM libre réelle | `resource_governor` (`total_vram_gb`, `effective_free_gb`, registre partagé) | ✅ depuis le 29/07 |
-   | réductions que le MOTEUR sait appliquer | à DÉCLARER au contrat de backend (cf. d) | ⏳ |
-   | la décision | `resource_governor` | ⏳ **c'est le reste** |
+   | capacité de la machine, VRAM libre réelle | `resource_governor` (`total_vram_gb`, `effective_free_gb`, registre partagé ; ce que la carte peut LIBÉRER, `card_ceiling_gb`, 2026-11-05) | ✅ depuis le 29/07 |
+   | réductions que le MOTEUR sait appliquer | à DÉCLARER au contrat de backend (cf. d) | 🔄 résidence : `BaseModelBackend.OFFLOADS` (2026-11-01) ; précision : `load_precisions` → `LoadPrecision` (2026-11-05), déclarée par FLUX ; LTX garde une ligne de catalogue par précision |
+   | la décision | `resource_governor` | 🔄 la précision : `chosen_precision` (2026-11-05, cf. i) ; le déchargement reste à `get_memory_strategy` |
 
    **b. Ce que le gouverneur doit rendre**, en une réponse et non en un booléen :
    `{admissible, strategy, precision, reason, alternatives}`.
@@ -998,16 +998,87 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    **f. Ordre imposé par la mesure — ne PAS brancher le filtre du tirage avant (c) et (d).**
    Relevé du 20/09, budget 20 Go : basculer le filtre sur le pic réadmettrait justement FastWan
    (29 → 14,6), CogVideoX (21 → 14,5) et higgs-audio (24 → 14,8), mais écarterait **à tort**
-   LTX-distilled et sa variante fp8 (28,3 — leur transformer pèse 24,3 Go *en fp32 sur le
-   disque*, la moitié une fois chargé en bf16), et admettrait `flux-lora-logo-design` à **4,04 Go**
-   alors que cette LoRA exige les 26 Go de sa dorsale. Deux défauts neufs contre un défaut connu :
-   la précision (d) et l'héritage d'empreinte d'un adaptateur sont des PRÉALABLES, pas des
-   raffinements.
+   LTX-distilled et sa variante fp8 (28,3 — ~~leur transformer pèse 24,3 Go *en fp32 sur le
+   disque*, la moitié une fois chargé en bf16~~ : faux, réfuté le jour même, ses 13 Md de
+   paramètres sont déjà en BF16, `memory_manager.peaks_for_precision`), et admettrait
+   `flux-lora-logo-design` à **4,04 Go** alors que cette LoRA exige les 26 Go de sa dorsale. Deux
+   défauts neufs contre un défaut connu : la précision (d) et l'héritage d'empreinte d'un adaptateur
+   sont des PRÉALABLES, pas des raffinements.
+   *(État mesuré le 2026-11-05 : les deux préalables de CALCUL existent — `peaks_for_precision`
+   rend 12,15 Go pour LTX fp8, `backbone_row` 22,21 Go pour la LoRA. Le filtre du tirage reste sur
+   `vram_gb` (`model_selector.py:443`) ; la garde du squelette, elle, compare le pic depuis le
+   2026-11-01. `get_memory_strategy(offload_peak_gb=)` n'a toujours aucun appelant hors des tests.)*
 
-   **Décisions à prendre par Fabien** : (1) le schéma `composition` n'a aucun moyen de dire
-   « hérite de sa dorsale » — champ à ajouter, ou règle dérivée de `base_model` ? (2) une
-   réduction choisie automatiquement doit-elle être MÉMORISÉE par modèle (préférence
-   utilisateur) ou recalculée à chaque tirage selon l'état de la carte ?
+   **Décisions de Fabien** : ~~(1) le schéma `composition` n'a aucun moyen de dire « hérite de sa
+   dorsale » — champ à ajouter, ou règle dérivée de `base_model` ?~~ ✅ tranchée le 2026-09-21 :
+   règle dérivée de `base_model`, nominale au catalogue, marginale à l'exécution
+   (`memory_manager.model_footprint_gb`). ⏳ (2) une réduction choisie automatiquement doit-elle être
+   MÉMORISÉE par modèle (préférence utilisateur) ou recalculée à chaque tirage selon l'état de la
+   carte ?
+
+   **g. QUI DÉCIDE QUOI AUJOURD'HUI, lu au code le 2026-11-05** (la phrase « le gouverneur décide »
+   est l'intention de ce point 5, pas l'état) :
+
+   | question | qui | sur quoi |
+   |---|---|---|
+   | quel modèle en « auto » | `model_selector.select_model` | le libre de la CARTE (`get_free_vram_gb`, moins les annonces) comparé à `vram_gb` ; au curseur ≥ 80 le budget ne borne plus (`_best_by_vram:439-443`) ; un choix explicite de l'utilisateur n'est pas filtré |
+   | ce modèle peut-il partir | `task_skeleton._vram_need` + `resource_governor` | la carte moins les annonces, face au pic du catalogue (plus gros composant si `OFFLOADS`), sans connaître la précision que chargera le moteur |
+   | libérer la carte | `resource_governor.obtain_vram` + tenants | sur accord de l'utilisateur |
+   | comment charger | `MemoryManager.get_memory_strategy` | la vue de SON process (total − alloué ici), pas la carte |
+   | FLUX, en quelle précision | ~~`DiffusersBackend._get_flux_strategy`~~ → `resource_governor.chosen_precision` depuis le soir même (cf. i) | ~~la RAM libre d'abord (≥ 27 Go → poids pleins), puis le TOTAL de la carte (≥ 22 Go → 8 bits). Seule décision de ressource de WAMA prise sur la RAM~~ ce que la carte peut libérer |
+
+   **h. FLUX.1-dev MESURÉ sur le GPU le 2026-11-05** (par `_load_flux_pipeline`, précision imposée,
+   1024², 10 pas, allocateur plafonné au libre réel pour qu'un manque soit une OOM et jamais un
+   débordement). La carte tient 3,3 Go sans ligne au registre et son `memory.reserved` 0,41 : elle
+   offre au mieux 20,3 Go, contexte CUDA du process (0,44) à retrancher.
+
+   | précision | alloué au pic | résultat |
+   |---|---|---|
+   | 4 bits | 9,09 Go (T5 + CLIP, le transformeur est descendu au processeur) | ✅ ~10 Go de plus à la carte ; chargement 330-390 s, rendu 102 s dont 0,63 s/pas. La LoRA logo s'y pose (768², 0,43 s/pas) |
+   | 8 bits | 18,49 Go au plafond de 18,57 | ❌ OOM à l'encodage : le transformeur (11,13) RESTE sur la carte quand T5 + CLIP (9,1) montent, soit 20,2 Go alloués, plus le contexte. Il manquerait ~0,3 Go même carte vidée ; le plafond de 22,79 Go d'un worker ne l'arrêterait pas avant la carte pleine |
+   | poids pleins | non joué : 22,17 Go pour 20,3 | le chiffre suffit |
+
+   Le calcul « 14,64 Go en 4 bits » de la veille supposait le transformeur resté sur la carte : le
+   moteur le décharge. **Une addition n'est pas un pic.** Conséquence : sur 24 Go, le code choisit
+   les poids pleins ou le 8 bits, qui ne tiennent ni l'un ni l'autre, et jamais le 4 bits, seul à
+   tenir. L'attente de la garde (22,17 Go, jamais libres) les en empêche ; la qualité du 4 bits
+   face aux poids pleins n'est pas mesurée.
+
+   **i. ✅ Livré le 2026-11-05 — la garde et la précision (accord de Fabien : « ok pour le
+   gouverneur, corrige la garde »).** Quatre défauts, dont trois régressions de `c20b7126e` :
+   * **ce que la carte peut libérer** (`card_ceiling_gb`) : son libre, plus ce que les lignes du
+     registre y tiennent — la carte moins ce qu'aucune ligne ne nomme. `fits_alone` le compare au
+     besoin, plus au total : FLUX en poids pleins est REFUSÉ en le disant au lieu d'attendre sans
+     fin. Le libre est celui du pilote (`memory.free`, `SystemMonitor.get_gpu_info`), plus
+     total − used qui comptait `memory.reserved` comme libre ;
+   * **une annonce réalisée se compte une fois** : l'occupation de la carte se relève à l'annonce
+     (`_CARD_USED_KEY`) ; ce qu'elle a pris depuis, moins les empreintes publiées depuis et les
+     annonces plus récentes, sort de l'annonce (`_announcements_unseen`). Un sous-processus annoncé à
+     14 Go qui en tient 6,89 ne laisse plus voir 0 Go libre ;
+   * **un modèle résident là où il est SERVI** ne se redemande pas : le moteur déclare son service
+     (`BaseModelBackend.SERVED_BY`, une clé `kind='service'` du registre des sources — voix,
+     confidentialité, Ollama), le service se déclare tenant sous ce nom (`_TENANTS_KEY`), la garde
+     retranche ses lignes (`served_resident_gb`, `backends.manager.served_by_for_key`). Whisper tenu
+     par le service de voix n'épargne toujours rien au transcriber ;
+   * **la précision se choisit au gouverneur** : le moteur DÉCLARE ce qu'il sait charger
+     (`load_precisions` → `LoadPrecision(label, quantized, resident, library)`) ; le pic de chaque
+     précision se calcule des en-têtes (`memory_manager.reduced_peak_gb` : les composants qui
+     restent sur la carte s'additionnent au plus gros des autres) ; `chosen_precision` retient la
+     plus fidèle dont le pic, plus `FULL_GPU_MIN_FREE_GB`, tient dans ce que la carte peut
+     libérer — recalculée à chaque lancement (décision (2) ci-dessus, recommandation retenue) ; la
+     garde demande ce pic et le dit à la card ; le moteur l'applique (`fits_now` : jamais plus
+     fidèle que le libre de l'instant). Une LoRA est réduite sur sa dorsale. Sur cette carte,
+     FLUX.1-dev part en NF4 (8,87 Go demandés), et en BF16 sur une carte qui le tient.
+   Gardes : `tests_vram_ledger` (`AnnouncementRealisedOnceTest`, `CardCeilingTest`,
+   `ServedResidentTest`, `CardFreeIsTheDriverFreeTest`), `tests_vram_wait`
+   (`PrecisionChosenByTheGovernorTest`, `ServedModelNeedTest`, `ServedByTwinTest`,
+   `FluxPrecisionTwinTest`, refus dit), `tests_vram_peaks.ReducedPeakTest`.
+   ⏳ Restent : la STRATÉGIE de déchargement sur la vue du process (`get_memory_strategy`, le
+   défaut CogVideoX de `h`) ; une précision du T5 de FLUX (8 bits sur T5 aussi : ~15,8 Go calculés,
+   le 8 bits du transformeur deviendrait admissible) et le FP8 de torchao — chacun une
+   `LoadPrecision` de plus et son chargement, à MESURER avant de déclarer ; LTX, qui porte deux
+   lignes de catalogue au lieu d'une déclaration ; la qualité d'une réduction face aux poids
+   pleins, non mesurée.
 
 **2026-11-02 — LES DÉTENTEURS HORS DU WORKER, en venv unique (bilan demandé par Fabien avant de
 reparler du multi-venv).** Mesuré au code : le registre partagé ne garantissait la même gestion
@@ -1078,10 +1149,13 @@ covers en `AWAITING_RESOURCES`, le worker se voyant 1,2 Go libres quand `nvidia-
 - ⚠ **Restent sur `total − alloué de ce process`** : `MemoryManager._free_vram_gb` (reclaim d'un chargement
   en cours : le cache de l'allocateur y compte comme libre, à raison) et `get_memory_strategy`
   (`memory_manager.py:812`, `qwen_image_backend.py:219`), qui choisissent FULL_GPU sans voir les
-  autres process. Ce second cas n'est pas corrigé : la garde du squelette passe avant lui, mais un
-  choix de stratégie sur une carte partagée reste à confronter. Le panneau mémoire du model manager
-  (`memory_monitor`) affiche aussi la vue de gunicorn. Écart connu : le budget WDDM d'un process est
-  d'environ 0,5 Go sous ce que la carte dit libre (22,39 pour 22,89).
+  autres process. Ce second cas n'est pas corrigé, et ~~la garde du squelette passe avant lui~~ ne
+  le couvre pas (corrigé le 2026-11-05) : joué sur le vrai code, carte simulée à 11 Go libres, la
+  garde valide le pic de CogVideoX (10,5) puis la stratégie rend FULL_GPU pour sa somme (20,2). Le
+  panneau mémoire du model manager (`memory_monitor`) affiche aussi la vue de gunicorn. Écart connu :
+  ~~le budget WDDM d'un process est d'environ 0,5 Go sous ce que la carte dit libre~~ cause jamais
+  mesurée : `SystemMonitor.get_gpu_info` rend total − used et ignore `memory.reserved`, soit 422 Mio
+  au-dessus de `memory.free` (17,76 Go pour 17,35).
 - Gardes : `tests_vram_ledger.CardProbeTest` et `EnveloppeTest` (moteur hors de torch),
   `tests_budget_vram`, `tests_ollama_vram_measure`. Dix neutralisations, toutes rouges.
 

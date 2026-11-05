@@ -63,11 +63,17 @@ def _image_backend_for(model_key: str):
         backend = get_backend()
         if backend is None:
             return None, "No image generation backend available. Install 'diffusers' or 'imaginairy'."
-        return backend, None
-    if not backend_class.is_available():
+    elif not backend_class.is_available():
         return None, (f"{backend_class.__name__} indisponible pour « {model_key} » "
                       f"(CUDA/VRAM ou dépendances manquantes).")
-    return backend_class(), None
+    else:
+        backend = backend_class()
+    # La clé du modèle, sur l'instance — le champ du contrat (`BaseModelBackend.catalogue_key`) :
+    # le moteur y lit le modèle dont le gouverneur choisit la précision (`chosen_precision`).
+    from wama.common.backends.base import BaseModelBackend
+    if isinstance(backend, BaseModelBackend):
+        backend.catalogue_key = model_key
+    return backend, None
 
 
 def imager_eta_key_size(generation, model: str = None) -> tuple[str, float, str]:

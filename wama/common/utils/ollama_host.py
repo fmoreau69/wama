@@ -151,6 +151,11 @@ class _MoteurOllama:
 
     __slots__ = ()
 
+    #: Comme `BaseModelBackend.SERVED_BY` : un modèle d'Ollama se charge dans l'Ollama hôte (la
+    #: source `ollama` du registre des sources), dont les lignes de résidence sont celles du
+    #: gouverneur (`resource_governor.ollama_host_owner`).
+    SERVED_BY = 'ollama'
+
     @classmethod
     def missing_packages(cls):
         import requests

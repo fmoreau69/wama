@@ -131,7 +131,12 @@ MECHANISMS = (
               'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
               annexes=('wama/common/tests/tests_runtime_side.py',)),
     Mechanism('resource_governor', 'Gouverneur de ressources',
-              "Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une ligne "
+              "Arbitre la VRAM entre process : réservation, résidence, attente, libération ; "
+              "priorités de file (aucune admission CPU ni RAM). Il choisit la PRÉCISION de "
+              "chargement parmi celles qu'un moteur déclare (`chosen_precision`, 2026-11-05), "
+              "juge sur ce que la carte peut libérer (`card_ceiling_gb`) et compte un modèle "
+              "résident là où il est SERVI (`served_resident_gb`) ; il ne choisit ni le modèle "
+              "(`model_selector`) ni le déchargement (`memory_manager`). Une ligne "
               "de réservation ou de tâche dont le process écrivain est MORT (même espace de pid) "
               "sort sans attendre son TTL (29/09 : 4 lignes sur 8 après une relance, ~24 Go "
               "fantômes retranchés du tirage). Une ligne « tâche en cours » vaut pour UN process "
@@ -283,7 +288,8 @@ MECHANISMS = (
                        # un propriétaire).
                        'wama/common/backends/musetalk_backend.py')),
     Mechanism('memory_manager', 'Mémoire GPU',
-              "Garantit la VRAM avant un chargement, la reprend sur les autres modèles, "
+              "Choisit la stratégie de chargement (plein GPU, déchargement) sur la vue de SON "
+              "process, garantit la VRAM avant un chargement, la reprend sur les autres modèles, "
               "et réessaie après libération sur erreur CUDA",
               'wama/model_manager/services/memory_manager.py', 'docs/construction/suivi/PROJECT_STATUS.md §0',
               annexes=('wama/model_manager/services/memory_monitor.py',

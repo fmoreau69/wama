@@ -32,6 +32,11 @@ from wama.common.backends.base import BaseModelBackend
 
 logger = logging.getLogger(__name__)
 
+#: Le service de voix, par sa clé au registre des sources (`external_sources.SOURCES`) : le nom sous
+#: lequel il se déclare tenant au gouverneur (`common/tts/service.py`), et le `SERVED_BY` de ses
+#: moteurs. Écrit ici, sans Django : le service de voix l'importe.
+TTS_SERVICE = 'tts_service'
+
 
 def project_root() -> Path:
     """Racine du dépôt (…/web-app-for-media-automation)."""
@@ -165,6 +170,9 @@ class TTSBackend(BaseModelBackend):
     #: Nom de moteur ('coqui', 'bark', 'higgs', 'kokoro') — vocabulaire de
     #: `SYNTHESIZER_MODELS[*]['engine']` et de `_switch_model` historique.
     engine: str = ""
+
+    #: Un moteur de voix se charge dans le service de voix, pour tous (`common/tts/service.py`).
+    SERVED_BY = TTS_SERVICE
 
     #: Le moteur sert le TEMPS RÉEL (vocalisation assistant, preview) → le service TTS
     #: le garde chaud : il n'est jamais déchargé à une bascule de moteur, et un

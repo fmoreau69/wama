@@ -33,10 +33,39 @@ import logging
 import os
 import weakref
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class LoadPrecision:
+    """Une précision de CHARGEMENT qu'un moteur sait appliquer à un modèle (`ROADMAP §Gouvernance`,
+    point 5.d — « en ne retenant que ce que le moteur DÉCLARE savoir faire »). Le moteur la déclare
+    (`BaseModelBackend.load_precisions`), le gouverneur choisit (`resource_governor.chosen_precision`),
+    la garde demande son pic et le chargement l'applique.
+
+    `label` : le vocabulaire de `memory_manager.dtype_bytes` (`BF16`, `FP8`, `INT8`, `NF4`, `Q4_K_M`…).
+    `quantized` : les composants qu'elle réduit (rôles de `extra_info['weights']`) ; vide = aucun, la
+    précision des fichiers. `resident` : ceux qui RESTENT sur la carte quand le moteur décharge les
+    autres — mesuré le 2026-11-05, un transformeur bitsandbytes en 8 bits ne se déplace pas, en 4 bits
+    il descend au processeur. `library` : le module qu'elle exige, importable ICI ou non."""
+
+    label: str
+    quantized: tuple = ()
+    resident: tuple = ()
+    library: str = ''
+
+    def available(self) -> bool:
+        """La librairie qu'elle exige s'importe-t-elle dans ce process ? (find_spec, sans importer)."""
+        if not self.library:
+            return True
+        try:
+            return importlib.util.find_spec(self.library) is not None
+        except (ImportError, ValueError):
+            return False
 
 
 _WRAPPED = "_wama_governor_wrapped"
@@ -572,6 +601,22 @@ class BaseModelBackend(ABC):
     #: refusait « il ne tiendra jamais » à FLUX.1-dev (31,4 Go de somme, 22,2 au plus gros
     #: composant), que son moteur charge en 8 bits ou déchargé (`DiffusersBackend._get_flux_strategy`).
     OFFLOADS: bool = False
+
+    #: Le SERVICE qui charge ce moteur pour tous les process — une clé `kind='service'` du registre
+    #: des sources (`external_sources.SOURCES` : `tts_service`, `privacy_service`, `ollama`) ; vide =
+    #: le process qui l'appelle. Un modèle déjà résident dans ce service n'est pas un besoin de la
+    #: tâche qui le lui demande (`resource_governor.served_resident_gb`). Déclaré le 2026-11-05 :
+    #: depuis que le libre se lit à la carte, une tâche du synthesizer attendait les 11,5 Go de
+    #: Higgs que le service de voix tenait déjà, et le reader ceux d'un OCR chargé dans Ollama.
+    SERVED_BY: str = ''
+
+    @classmethod
+    def load_precisions(cls, model_id: str) -> tuple:
+        """Les précisions (`LoadPrecision`) que ce moteur sait charger pour `model_id`, de la plus
+        FIDÈLE à la plus réduite. Vide = il charge les fichiers tels quels, sans choix. Le
+        gouverneur retient la plus fidèle qui tient sur ce que la carte peut libérer
+        (`resource_governor.chosen_precision`) ; le moteur applique ce choix, il ne décide plus."""
+        return ()
 
     #: Clé de CATALOGUE du modèle pour lequel CETTE instance a été résolue (`<source>:<id>`) —
     #: posée par la porte commune (`manager.backend_instance_for_key`). Un moteur LOCAL qui sert

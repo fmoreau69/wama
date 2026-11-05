@@ -368,7 +368,9 @@ class SystemMonitor:
 
             result = subprocess.run(
                 ['nvidia-smi',
-                 '--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,name',
+                 # `memory.free` EN DERNIER : les cinq premiers champs gardent leur rang.
+                 '--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,name,'
+                 'memory.free',
                  '--format=csv,noheader,nounits'],
                 capture_output=True,
                 text=True,
@@ -386,6 +388,12 @@ class SystemMonitor:
                     if len(parts) >= 5:
                         mem_used_mb = int(parts[1]) if parts[1].isdigit() else 0
                         mem_total_mb = int(parts[2]) if parts[2].isdigit() else 0
+                        # Le LIBRE que dit le pilote (2026-11-05). total − used le surestimait de
+                        # `memory.reserved` (422 Mio mesurés : 17,76 Go pour 17,35), la part que le
+                        # pilote garde pour lui — le libre d'une décision du gouverneur en dépend.
+                        free_text = parts[5] if len(parts) >= 6 else ''
+                        mem_free_mb = (int(free_text) if free_text.isdigit()
+                                       else mem_total_mb - mem_used_mb)
 
                         gpus.append({
                             'name': parts[4],
@@ -397,7 +405,7 @@ class SystemMonitor:
                             # Memory in GB (for Model Manager)
                             'memory_used_gb': round(mem_used_mb / 1024, 2),
                             'memory_total_gb': round(mem_total_mb / 1024, 2),
-                            'memory_free_gb': round((mem_total_mb - mem_used_mb) / 1024, 2),
+                            'memory_free_gb': round(mem_free_mb / 1024, 2),
                             'memory_percent': round((mem_used_mb / mem_total_mb) * 100, 1) if mem_total_mb > 0 else 0,
                         })
 

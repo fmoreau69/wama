@@ -535,11 +535,14 @@ def _hand_over_to(task, app_id: str, queue: str, ctx) -> None:
            max_retries=WAIT_RETRIES_UNLIMITED)
 
 
-def _vram_need(item, vram_needed, model_key):
+def _vram_need(item, vram_needed, model_key, ctx=None):
     """Besoin VRAM du process GPU qui va partir : celui que l'app DÉCLARE (`vram_needed`), sinon
-    celui de son modèle au catalogue (`auto_model.vram_needed_gb`, la cascade commune — mesurée,
-    source, déclarée, preset), MOINS ce que ce worker en tient déjà (`resident_here_gb`) : un
-    process qui suit un autre sur le même modèle ne le redemande pas. None : rien à attendre.
+    celui de son modèle — dans la PRÉCISION que le gouverneur retient quand son moteur en déclare
+    (`resource_governor.chosen_precision`, dite à la card par `ctx`), sinon au catalogue
+    (`auto_model.vram_needed_gb`, la cascade commune — mesurée, source, déclarée, preset) —, MOINS ce
+    que le process qui le SERVIRA en tient déjà (`served_resident_gb`) : ce worker pour un moteur
+    chargé ici, le service de voix, de confidentialité ou l'Ollama hôte pour un moteur qu'ils
+    chargent pour tous (`BaseModelBackend.SERVED_BY`). None : rien à attendre.
 
     Le besoin DÉRIVÉ de `model_key` est du 2026-10-14 : le composer et l'enhancer le déclaraient
     à la main, à l'identique (`vram_needed_gb(model_key(élément))`) ; les autres apps qui disent
@@ -550,8 +553,14 @@ def _vram_need(item, vram_needed, model_key):
     Le pic dérivé est celui de la stratégie que le moteur SAIT appliquer (2026-11-01) : le pic en
     déchargement si son backend le déclare (`BaseModelBackend.OFFLOADS`), la somme sinon. Sans
     cela, FLUX.1-dev (31,4 Go de somme, 22,2 au plus gros composant) était refusé « il ne tiendra
-    jamais » par la garde d'un moteur qui le charge déchargé ou en 8 bits."""
-    need = None
+    jamais » par la garde d'un moteur qui le charge déchargé ou en 8 bits.
+
+    La précision et le service sont du 2026-11-05 : FLUX.1-dev attendait sans fin 22,17 Go que la
+    carte ne libère jamais (20,3 au mieux), et une synthèse attendait le Higgs que le service de voix
+    tenait déjà."""
+    from wama.common.backends.manager import backend_for_key, served_by_for_key
+    from wama.common.services import resource_governor as gov
+    need, backend = None, None
     if vram_needed is not None:
         try:
             need = vram_needed(item) if callable(vram_needed) else float(vram_needed)
@@ -559,15 +568,23 @@ def _vram_need(item, vram_needed, model_key):
             logger.warning("besoin VRAM illisible (%s) — on tente sans différer", exc)
             return None
     elif model_key:
-        from wama.common.backends.manager import backend_for_key
         from wama.common.utils.auto_model import vram_needed_gb
         backend = backend_for_key(model_key)
-        need = vram_needed_gb(model_key, offload=bool(getattr(backend, 'OFFLOADS', False)))
+        choice = gov.chosen_precision(model_key, backend)
+        if choice is not None:
+            need = choice.peak_gb
+            if choice.reduced and ctx is not None:
+                room = f"{choice.room_gb:.1f}" if choice.room_gb is not None else "?"
+                ctx.console(f"{model_key} se chargera en {choice.precision.label} "
+                            f"({choice.peak_gb:.1f} Go) : dans sa précision la plus fidèle il "
+                            f"demanderait {choice.faithful_gb:.1f} Go, et la carte peut en libérer "
+                            f"au mieux {room}.", level='info')
+        else:
+            need = vram_needed_gb(model_key, offload=bool(getattr(backend, 'OFFLOADS', False)))
     if not need:
         return None
     if model_key:
-        from wama.common.services.resource_governor import resident_here_gb
-        need = float(need) - resident_here_gb(model_key)
+        need = float(need) - gov.served_resident_gb(model_key, served_by_for_key(model_key, backend))
     return float(need) if need > 0 else None
 
 
@@ -639,9 +656,12 @@ def _differer_faute_de_vram(task, ctx, item, model, item_id, app_id, besoin_gb,
 
     if gov.fits_alone(besoin_gb) is False:
         total = gov.total_vram_gb()
-        msg = (f"Ce traitement demande {besoin_gb:.1f} Go de VRAM et la carte en a {total:.1f} : "
-               f"il ne tiendra jamais, même seul — choisir un modèle plus léger ou baisser "
-               f"l'exigence de qualité.")
+        room = gov.card_ceiling_gb()
+        held = (f" (sur {total:.1f}, le reste est tenu hors de WAMA)"
+                if room is not None and room < total else '')
+        msg = (f"Ce traitement demande {besoin_gb:.1f} Go de VRAM et la carte peut en libérer au "
+               f"mieux {room if room is not None else total:.1f}{held} : il ne tiendra jamais, "
+               f"même seul — choisir un modèle plus léger ou baisser l'exigence de qualité.")
         champs = {'status': 'FAILURE'}
         if _has_field(model, error_field):
             champs[error_field] = msg
@@ -1022,7 +1042,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                 # déclaré — reste nommé à `ROUTE §10.6` 4.5).
                 foreign = card_remote and spec is not None and not spec.card_model
                 need = (_vram_need(item, None if foreign else vram_needed,
-                                   None if foreign else resolved_key) if gpu else None)
+                                   None if foreign else resolved_key, ctx) if gpu else None)
                 if need:
                     try:
                         refused = _differer_faute_de_vram(
