@@ -1415,8 +1415,10 @@ MECHANISMS = (
               "(2026-10-20) : les éléments lancés suivis SOUS la réponse, dans l'état de "
               "leur card (`turn_jobs` → `tool_api.job_progress`, `api/ai-chat/jobs/`), leur fin "
               "demandant la relève ; depuis le 2026-11-04, déjà finis aussi (ouverts sur leur "
-              "Sortie, au tour comme au rechargement du fil), et un LOT lancé y déroule ses cards "
-              "filles, dans la surface que son domaine déclare",
+              "Sortie, au tour comme au rechargement du fil) ; depuis le 2026-11-05, un LOT lancé y "
+              "est UNE ligne — l'état de sa card mère (`tool_api.batch_progress`), un seul aperçu "
+              "qui suit la dernière fille finie — et UNE fin racontée quand plus rien n'y bouge "
+              "(`_tell_batch`), au-delà de 20 éléments seuls « + N autres » vers leur file",
               'wama/common/services/job_follow_ups.py', 'docs/construction/suivi/ROADMAP.md §19.2',
               annexes=('wama/gateway/core.py', 'wama/common/static/common/js/wama-assistant-chat.js',
                        'wama/common/tests/tests_job_follow_ups_web.py'),

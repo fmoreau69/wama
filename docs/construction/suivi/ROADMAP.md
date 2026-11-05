@@ -5148,8 +5148,45 @@ automatisé ? »*, corrigés à sa demande) :
 Gardes : `tests_assistant_job_progress` (tour, fil rechargé, lot réel de deux domaines et fil
 d'origine retrouvé ; V8 sur les liens et le bloc fini) et `tests_tool_item_contract`.
 ⏳ Restent : le Studio (`run_studio_pipeline`) et l'installation de modèle (`install_model`) n'ont
-pas de famille suivie (hors `TRIAD_SPECS`) — ni ligne, ni fin racontée au fil ; un lot de plus de
-20 éléments n'en montre que 20, chacun raconté à sa fin.
+pas de famille suivie (hors `TRIAD_SPECS`) — ni ligne, ni fin racontée au fil. ~~un lot de plus de
+20 éléments n'en montre que 20, chacun raconté à sa fin~~ → soldé le 2026-11-05 (ci-dessous).
+
+✅ **Un LOT lancé est UNE ligne et UNE fin, le 2026-11-05** (Fabien : *« mettre à jour la barre de
+progression de lot et à la fin de chaque card fille remplacer la preview par la suivante, en
+laissant un lien de téléchargement et d'accès aux cards […] aller jusqu'au bout d'un lot sans
+surcharger le fil de discussion »*, et *« un menu déroulant permettant de switcher d'une preview à
+une autre […] avec un seul champ preview »*). Rien n'est recalculé :
+- **la ligne** (`tool_api.batch_progress`, lu par `turn_jobs` et `ai_chat_jobs` — clé
+  `batch:famille:id`) : l'état est celui du BOUTON, la vue `batch_status` de la card mère
+  (`_batch_view`, sa garde comprise) ; la barre et les compteurs sont ceux de sa card
+  (`_batch_card.html` : terminées / total, ✓ ⟳ ✗, mêmes repères `data-batch-field`) ; le titre est
+  son identité (`batch_identity`) ; l'ETA agrégée par le ticker de lot de `WamaEta`
+  (`data-eta-ids`) ; le ZIP est le bouton ⬇ (`_batch_zip_url`, extrait de `get_batch_result`) ; le
+  lot dans l'app, sa page de file (`journal.family_queue_url`). Le lot est fini quand plus aucune
+  fille n'est dans un état OUVERT (`process_runs.OPEN_STATES`) ;
+- **un seul aperçu**, l'afficheur de faces commun avec TOUS ses onglets : il suit la dernière fille
+  FINIE (celle qui a fini en dernier, pas la dernière de la liste), ◀ ▶ et la liste choisissent une
+  fille (le suivi s'arrête, « Suivre » le reprend), un clic sur « ✗ n » montre le premier échec ; la
+  visionneuse (double-clic) passe d'une fille à l'autre comme entre les cards d'une file —
+  `faceViewer(…, {sequence})` → `openSequence` par `addressSequence`, le voisin chargé par son
+  ADRESSE (`_loadAddress`, la règle de `_loadCard`) ;
+- **une seule fin** (`job_follow_ups.tell` → `_tell_batch`) : la fin d'une fille d'un lot que le
+  tour a LANCÉ n'est pas racontée seule ; le lot l'est, une fois par lancement, quand plus rien n'y
+  bouge — titre, comptes, échecs NOMMÉS (cinq au plus), ZIP et lot dans l'app, sur l'outil
+  réellement joué (`get_batch_result`). Un canal n'y joint aucun fichier (`outputs_to_join`). Une
+  fille relancée SEULE garde sa propre fin ;
+- **au-delà de 20 éléments seuls** (« tout lancer » d'une file) : une ligne « + N autres — ouvrir
+  la file » par famille (`kind: 'more'`).
+Au passage, `notifications._job_url` lit la même règle de page (`family_queue_url`) : son repli
+`/<paquet>/` donnait des liens morts (`/media_library/`, `/cam_analyzer/`) aux notifications de
+partage. Gardes : `tests_assistant_job_progress` (`LaunchedBatchTest` sur un vrai lot du
+describer : une ligne, la fille jamais lancée, la route, « + N autres », la fin racontée une fois
+et pas de pièce jointe, la fille relancée seule, la page d'une surface et du Lab ;
+`ChatShowsALaunchedBatchTest` en V8 : suivi, choix, dernière fille finie, routage, visionneuse),
+`tests_tool_item_contract` (`batch_of_step`) — dix mutations, toutes rouges ; geste
+`common.preview_chat_batch` (`ui_smoke_preview`) joué sur la page servie, rouge à sa
+contre-épreuve. ⚠ Une fin n'est racontée que si l'utilisateur reçoit ses notifications dans WAMA
+(`wants_in_app_notification`) — comme pour un élément seul.
 
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) 🔄 *(relevé du 2026-10-26)*
 

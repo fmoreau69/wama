@@ -119,6 +119,13 @@ class ItemsOfStepTest(SimpleTestCase):
         # Counter-checks: a refusal, and a start that names no surface (a model install).
         self.assertEqual([], tool_api.items_of_step(
             'launch_batch', {'app': 'audio_enhancer', 'batch_id': 3}, {'error': 'lot introuvable'}))
+        from wama.tool_api import batch_of_step
+        # The batch itself (2026-11-05): ONE line of the exchange, ONE end in the thread.
+        self.assertEqual(('audio_enhancer', 3), batch_of_step(
+            'launch_batch', {'started': True, 'app': 'audio_enhancer', 'batch_id': 3, 'ids': [7, 8]}))
+        self.assertIsNone(batch_of_step('launch_batch', {'error': 'lot introuvable'}))
+        self.assertIsNone(batch_of_step('start_reader', {'started': True, 'app': 'reader', 'batch_id': 1}),
+                          'a start of an app names its family: not a batch')
         self.assertEqual([], tool_api.items_of_step(
             'install_model', {'model_key': 'm'}, {'started': True, 'model_key': 'm', 'task_id': 't'}))
 

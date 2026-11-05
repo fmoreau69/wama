@@ -409,6 +409,10 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   parti) — six neutralisations, toutes rouges ; geste `common.preview_chat_job` (`ui_smoke_preview`)
   vert sur la prod, rouge à sa contre-épreuve (brique du chat servie sans le montage des faces) ;
   `common.preview_during`, `describer.preview`, `imager.preview` verts après l'adoption par le volet.
+  Le 2026-11-05, l'afficheur prend aussi une suite d'ADRESSES (`sequence` → `addressSequence` →
+  `openSequence`, le voisin chargé par `_loadAddress`, la règle de `_loadCard`) : un LOT lancé
+  depuis l'assistant est une ligne à UN aperçu, dont la visionneuse passe d'une fille à l'autre
+  comme entre les cards d'une file (`ROADMAP §19.2`, geste `common.preview_chat_batch`).
   Restent le chantier TRANSCRIBER, puis ④.
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct —
   qui construit sa réponse par la MÊME fabrique de face fichier que les cards (`file_face`,

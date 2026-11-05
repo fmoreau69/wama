@@ -64,6 +64,8 @@
    plus haute — elle porte en plus les onglets des faces. */
 [data-wama-chat] .wama-assistant-job-preview { max-height: 240px; overflow: auto; }
 [data-wama-chat] .wama-assistant-job-preview:empty { display: none; }
+/* Un LOT lancé (2026-11-05) : une ligne, un seul aperçu, la fille choisie dans la liste. */
+[data-wama-chat] .wama-assistant-batch-child { min-width: 0; flex: 1 1 auto; font-size: inherit; }
 
 [data-wama-chat] .wama-assistant-empty { color: var(--wama-text-label); text-align: center; padding: 6px 0; }
 [data-wama-chat][data-density="full"] .wama-assistant-empty { padding: 1.5rem 0; }

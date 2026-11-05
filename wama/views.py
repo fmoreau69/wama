@@ -351,15 +351,19 @@ def ai_chat_jobs(request):
     """L'état des éléments qu'un tour de l'assistant a lancés — la barre de progression de
     l'échange l'interroge (2026-10-20). `?items=famille:id,famille:id` ; chacun rendu par
     `tool_api.job_progress` (la ligne du geste « statut », bornée aux éléments de l'utilisateur) —
-    un élément inconnu ou à autrui est simplement absent de la réponse."""
+    un élément inconnu ou à autrui est simplement absent de la réponse. Un LOT lancé se suit par
+    `batch:famille:id` (`tool_api.batch_progress`, l'état de sa card mère, 2026-11-05)."""
     if not request.user.is_authenticated:
         return JsonResponse({'error': 'Authentification requise'}, status=401)
     from wama.common.services.job_follow_ups import TURN_JOBS_MAX
-    from wama.tool_api import job_progress
+    from wama.tool_api import batch_progress, job_progress
     jobs = []
     for key in (request.GET.get('items') or '').split(',')[:TURN_JOBS_MAX]:
         family, _, pk = key.strip().rpartition(':')
-        row = job_progress(request.user, family, pk) if family and pk.isdigit() else None
+        read = job_progress
+        if family.startswith('batch:'):
+            family, read = family[len('batch:'):], batch_progress
+        row = read(request.user, family, pk) if family and pk.isdigit() else None
         if row:
             jobs.append(row)
     return JsonResponse({'jobs': jobs})

@@ -114,6 +114,25 @@ def app_queue_url(app):
         return ''
 
 
+def family_queue_url(family, model=None):
+    """La page de file où vit un élément de la FAMILLE `family` (clé du `DetailRegistry`), `model`
+    son modèle s'il est en main : celle de l'app (`app_queue_url`), sinon celle de l'app qui porte
+    son modèle — une surface (`audio_enhancer`) est un onglet de l'enhancer, sans page à elle —,
+    sinon la racine de son paquet. Lue par le lien d'une notification (`notifications._job_url`)
+    et par l'échange de l'assistant (un lot lancé, les éléments au-delà des lignes suivies)."""
+    url = app_queue_url(family) if family else ''
+    if url:
+        return url
+    if model is None and family:
+        from ..utils.detail_registry import DetailRegistry
+        entry = DetailRegistry.get(family)
+        model = entry['model'] if entry else None
+    if model is None:
+        return ''
+    label = model._meta.app_label
+    return app_queue_url(label) or f'/{label}/'
+
+
 def enregistrer_source(app, model, *, champ_date=None, champ_user='user'):
     """
     Ajoute une source hors `detail_registry` — point d'extension des mondes lab/data/transverse.

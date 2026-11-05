@@ -260,8 +260,9 @@ def _turn_follow_ups(resultat: dict, channel: str) -> tuple:
         if outcome is None:
             continue
         texts.append(outcome[1])
-        # Une tâche de développement n'a pas de sorties DÉCLARÉES (aucune spec de détail) : vide.
-        urls = job_follow_ups.declared_output_urls(note)
+        # Une tâche de développement n'a pas de sorties DÉCLARÉES (aucune spec de détail), la fin
+        # d'un LOT donne son ZIP en lien : vide.
+        urls = job_follow_ups.outputs_to_join(note, outcome[2])
         if urls:
             steps.append({'result': {'output_urls': urls}})
     return texts, steps
@@ -569,9 +570,10 @@ def _follow_up(note, channel: str):
 
 def _channel_follow_up(note, channel, conversation, text, step, external_id, told_at=None):
     """Une fin RACONTÉE, dans la forme d'un canal : le texte et les sorties DÉCLARÉES de
-    l'élément en pièces jointes (une tâche de développement n'en déclare pas : liste vide)."""
+    l'élément en pièces jointes (une tâche de développement n'en déclare pas, la fin d'un LOT donne
+    son ZIP en lien : liste vide)."""
     from wama.common.services import job_follow_ups
-    urls = job_follow_ups.declared_output_urls(note) if note is not None else []
+    urls = job_follow_ups.outputs_to_join(note, step)
     reply = _reply_with_outputs(text, [{'result': {'output_urls': urls}}] if urls else [])
     return FollowUp(channel=channel, thread=conversation.thread_key, external_id=external_id,
                     reply=reply, conversation_id=conversation.pk,

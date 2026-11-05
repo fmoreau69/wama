@@ -52,8 +52,8 @@ def _assistant_turns(note, surface: str):
             .order_by('-created_at', '-pk')[:ORIGIN_SCAN_TURNS])
 
 
-def origin_conversation(note, surface: str):
-    """Le fil de CETTE surface où l'élément de la notification a été créé ou lancé — lu dans les
+def origin_turn(note, surface: str):
+    """Le TOUR de cette surface où l'élément de la notification a été créé ou lancé — lu dans les
     étapes d'outils persistées (`tool_api.items_of_step`), du plus récent au plus ancien.
 
     L'élément est désigné par sa FAMILLE (clé du `DetailRegistry` : `audio_enhancer` et `enhancer`
@@ -68,8 +68,14 @@ def origin_conversation(note, surface: str):
         wanted = (note.app, int(note.object_id))
     except (TypeError, ValueError):
         return None
-    return next((turn.conversation for turn in _assistant_turns(note, surface)
+    return next((turn for turn in _assistant_turns(note, surface)
                  if wanted in turn_designations(turn.tool_steps)[0]), None)
+
+
+def origin_conversation(note, surface: str):
+    """Le fil de cette surface où l'élément de la notification a été créé ou lancé (`origin_turn`)."""
+    turn = origin_turn(note, surface)
+    return turn.conversation if turn is not None else None
 
 
 def dev_origin_conversation(note, surface: str):
@@ -116,34 +122,104 @@ def declared_output_urls(note) -> list:
     return [media_url + unquote(rel) for rel in sorties_de(note.app, instance)]
 
 
-def origin_of(note, surface: str):
-    """Le fil d'origine d'une notification sur cette surface, quelle que soit la nature de la
-    tâche (traitement d'app ou tâche de développement) ; None si elle n'en vient pas."""
-    from wama.common.utils.notifications import DEV_JOB_APP
-    if note.app == DEV_JOB_APP:
-        return dev_origin_conversation(note, surface)
-    return origin_conversation(note, surface)
-
-
-def already_told(conversation, note) -> bool:
+def already_told(conversation, note, title: str = None, since=None) -> bool:
     """Cette fin a-t-elle déjà été racontée dans ce fil ? Une notification se relève par chaque
-    onglet ouvert (web) : le fil ne doit la raconter qu'une fois."""
+    onglet ouvert (web) : le fil ne doit la raconter qu'une fois. `title`/`since` : la fin d'un
+    LOT, racontée une fois par lancement (depuis le tour qui l'a lancé)."""
     from wama.common.models import ConversationTurn
     return ConversationTurn.objects.filter(
-        conversation=conversation, role='user', content=NOTICE_PREFIX + note.title,
-        created_at__gte=note.created_at).exists()
+        conversation=conversation, role='user', content=NOTICE_PREFIX + (title or note.title),
+        created_at__gte=since or note.created_at).exists()
 
 
-def record(conversation, note, response: str, step: dict) -> None:
+def record(conversation, note, response: str, step: dict, title: str = None) -> None:
     """Enregistre au fil la fin de tâche — un échange comme un autre
     (`conversation_store.record_exchange`) : la notification côté utilisateur, la réponse avec
     l'étape d'outil RÉELLEMENT jouée côté assistant. L'historique resservi au modèle garde ainsi un
     « terminé » APPUYÉ sur un outil — un « terminé » sans outil est précisément l'exemple qui lui
-    faisait inventer des résultats (`WAMA_LLM.md` §2026-10-05)."""
+    faisait inventer des résultats (`WAMA_LLM.md` §2026-10-05). `title` : celui d'une fin de LOT."""
     from wama.common.services import conversation_store
     conversation_store.record_exchange(
-        conversation, NOTICE_PREFIX + note.title,
+        conversation, NOTICE_PREFIX + (title or note.title),
         {'response': response, 'tool_steps': [step], 'model': 'notification WAMA'})
+
+
+#: L'outil que joue la fin racontée d'un LOT : l'état et le ZIP du lot, le bouton ⬇ de sa card mère.
+BATCH_END_TOOL = 'get_batch_result'
+#: Échecs nommés dans la fin d'un lot ; au-delà, leur nombre et le lot dans l'app.
+BATCH_END_FAILURES_SHOWN = 5
+
+
+def outputs_to_join(note, step) -> list:
+    """Les sorties qu'une surface JOINT à une fin racontée (pièces jointes d'un canal) : celles de
+    l'élément — aucune pour la fin d'un LOT, dont les résultats sont un ZIP donné en lien (joindre
+    ceux de la dernière fille finie ferait croire qu'ils sont ceux du lot)."""
+    if note is None or (step or {}).get('tool') == BATCH_END_TOOL:
+        return []
+    return declared_output_urls(note)
+
+
+def turn_batches(steps) -> set:
+    """Les LOTS qu'un tour a lancés : `{(surface, id du lot)}` (`tool_api.batch_of_step`)."""
+    from wama.tool_api import batch_of_step
+    found = set()
+    for step in steps or []:
+        if isinstance(step, dict):
+            batch = batch_of_step(str(step.get('tool') or ''), step.get('result'))
+            if batch:
+                found.add(batch)
+    return found
+
+
+def launched_batch(note, turn):
+    """`(surface, id du lot)` si l'élément de la notification est une card fille d'un lot que
+    `turn` a LANCÉ (`launch_batch`) — sa fin est alors celle du lot, racontée une fois (2026-11-05,
+    Fabien : « aller jusqu'au bout d'un lot sans surcharger le fil de discussion »). None pour un
+    élément lancé seul, même s'il vit dans un lot."""
+    from wama.common.utils.batch_common import batch_of
+    from wama.common.utils.detail_registry import DetailRegistry
+    batches = turn_batches(turn.tool_steps) if turn is not None else set()
+    if not batches:
+        return None
+    entry = DetailRegistry.get(note.app)
+    element = entry['model'].objects.filter(pk=note.object_id).first() if entry else None
+    lot = batch_of(element) if element is not None else None
+    return (note.app, lot.pk) if lot is not None and (note.app, lot.pk) in batches else None
+
+
+def batch_end_title(state) -> str:
+    """Le titre de la fin d'un lot — le libellé de son app (`app_identity`) et le titre du lot, dans
+    la forme du titre d'une fin d'élément (`notifications._job_title`)."""
+    from wama.common.app_registry import app_identity
+    failures = (state.get('counts') or {}).get('failure') or 0
+    end = 'terminé' if not failures else f"terminé avec {failures} échec{'s' if failures > 1 else ''}"
+    return f"{app_identity(state['family'])['label']} — lot « {state['label']} » {end}"
+
+
+def batch_end_text(state, step) -> str:
+    """La fin d'un LOT dans le fil : son titre, ses comptes, ses échecs NOMMÉS (le premier geste qui
+    reste à poser), le ZIP de ses résultats et le lot dans l'app — des adresses ABSOLUES
+    (`navigation.absolute_url`, celles de `get_batch_result`) : la même fin se lit sur le web et
+    sur un canal."""
+    from wama.common.services.navigation import absolute_url
+    counts = state.get('counts') or {}
+    failures = counts.get('failure') or 0
+    lines = [f"{'⚠' if failures else '✅'} {batch_end_title(state)}",
+             f"{counts.get('success') or 0} terminé(s), {failures} en échec, sur {state['total']}."]
+    failed = [c for c in state['items'] if c['terminal'] and not c['ok']]
+    for child in failed[:BATCH_END_FAILURES_SHOWN]:
+        lines.append(f"⚠ {child['label']}" + (f" : {child['error']}" if child.get('error') else ''))
+    if len(failed) > BATCH_END_FAILURES_SHOWN:
+        lines.append(f"… et {len(failed) - BATCH_END_FAILURES_SHOWN} autre(s) échec(s).")
+    links = []
+    link = ((step or {}).get('result') or {}).get('link')
+    if link:
+        links.append(f"[📥 Télécharger le lot (ZIP)]({link})")
+    if state.get('page_url'):
+        links.append(f"[Ouvrir le lot dans l'app]({absolute_url(state['page_url'])})")
+    if links:
+        lines.append(' · '.join(links))
+    return '\n'.join(lines)
 
 
 def told_since(surface: str, since) -> list:
@@ -191,7 +267,8 @@ def turn_designations(steps) -> tuple:
     return items, jobs
 
 
-#: Éléments suivis au plus pour UN tour (un lancement de toute la file rend ses `ids`).
+#: Éléments suivis au plus pour UN tour (un lancement de toute la file rend ses `ids`) — au-delà,
+#: une ligne dit combien d'autres et mène à leur file. Un LOT n'y compte que pour une ligne.
 TURN_JOBS_MAX = 20
 
 
@@ -202,15 +279,29 @@ def turn_jobs(user, steps) -> list:
     étaient rendus, si bien qu'une tâche plus rapide que la réponse (une image, une conversion)
     n'avait aucun aperçu, et qu'au rechargement du fil chaque résultat perdait le sien. Sa fin
     reste racontée par la relève (`tell`) ; la ligne d'un élément fini s'ouvre sur la Sortie.
-    Les tâches de développement (`dev_*`) n'ont pas de progression déclarée : pas de ligne."""
-    from wama.tool_api import job_progress
+    Les tâches de développement (`dev_*`) n'ont pas de progression déclarée : pas de ligne.
+
+    Un LOT lancé (2026-11-05) est UNE ligne (`tool_api.batch_progress` : la barre de sa card mère,
+    ses filles montrées une à la fois), quelle que soit sa taille — ses cards filles n'en ont pas
+    d'autre. Au-delà de `TURN_JOBS_MAX` éléments seuls, une ligne par famille dit combien d'autres
+    et mène à leur file (`kind: 'more'`) : elles tournent, la réponse ne les tait plus."""
+    from wama.common.services.journal import family_queue_url
+    from wama.tool_api import batch_progress, job_progress
 
     items, _dev_jobs = turn_designations(steps)
-    rows = []
-    for family, pk in sorted(items)[:TURN_JOBS_MAX]:
+    rows = [row for row in (batch_progress(user, family, pk)
+                            for family, pk in sorted(turn_batches(steps))) if row]
+    in_batches = {(row['family'], child['id']) for row in rows for child in row['items']}
+    alone = sorted(items - in_batches)
+    for family, pk in alone[:TURN_JOBS_MAX]:
         row = job_progress(user, family, pk)
         if row:
             rows.append(row)
+    more = {}
+    for family, _pk in alone[TURN_JOBS_MAX:]:
+        more[family] = more.get(family, 0) + 1
+    rows.extend({'kind': 'more', 'family': family, 'count': count, 'terminal': True,
+                 'page_url': family_queue_url(family)} for family, count in sorted(more.items()))
     return rows
 
 
@@ -250,21 +341,54 @@ def tell(note, surface: str, compose):
     Le fil est VERROUILLÉ le temps de vérifier et d'enregistrer — deux relèves de la même
     notification (deux onglets, ou la fin du tour et la relève d'un canal) : la première raconte,
     l'autre lit. `compose(note)` écrit la réponse dans la forme de la surface (liens du web, texte
-    d'un canal dont les fichiers partent en pièces jointes)."""
+    d'un canal dont les fichiers partent en pièces jointes).
+
+    La fin d'une card fille d'un LOT lancé (`launched_batch`, 2026-11-05) n'est pas racontée seule :
+    le lot l'est, UNE fois, quand plus rien n'y bouge — par la notification de la fille qui le
+    termine, avec l'outil qui rend son état et son ZIP (`BATCH_END_TOOL`). Ce que la surface a
+    ajouté à sa forme (`compose`) ne s'y applique pas : la fin d'un lot est la même partout."""
     from django.db import transaction
 
     from wama.common.models import Conversation
+    from wama.common.utils.notifications import DEV_JOB_APP
 
-    conversation = origin_of(note, surface)
+    if note.app == DEV_JOB_APP:
+        turn, conversation = None, dev_origin_conversation(note, surface)
+    else:
+        turn = origin_turn(note, surface)
+        conversation = turn.conversation if turn is not None else None
     if conversation is None:
         return None
+    batch = launched_batch(note, turn)
     with transaction.atomic():
         Conversation.objects.select_for_update().filter(pk=conversation.pk).first()
+        if batch is not None:
+            return _tell_batch(conversation, note, batch, turn)
         if already_told(conversation, note):
             return None
         step = status_step(note, note.recipient)
         response = compose(note)
         record(conversation, note, response, step)
+    return conversation, response, step
+
+
+def _tell_batch(conversation, note, batch, turn):
+    """La fin d'un LOT, sous le verrou du fil (`tell`) : rien tant qu'une fille bouge ; puis une
+    fois par lancement (`already_told` depuis le tour qui l'a lancé) — deux filles finies au même
+    instant n'en font qu'une."""
+    from wama.tool_api import batch_progress, execute_tool
+    family, batch_id = batch
+    state = batch_progress(note.recipient, family, batch_id)
+    if state is None or not state['terminal']:
+        return None
+    title = batch_end_title(state)
+    if already_told(conversation, note, title=title, since=turn.created_at):
+        return None
+    args = {'app': family, 'batch_id': batch_id}
+    step = {'tool': BATCH_END_TOOL, 'args': args,
+            'result': execute_tool(BATCH_END_TOOL, args, note.recipient)}
+    response = batch_end_text(state, step)
+    record(conversation, note, response, step, title=title)
     return conversation, response, step
 
 

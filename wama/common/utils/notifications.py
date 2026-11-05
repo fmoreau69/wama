@@ -166,14 +166,11 @@ def _job_title(app_label, item_name, success):
 
 
 def _job_url(item, app_id=''):
-    """La page de file de l'élément : `journal.app_queue_url` (le domicile commun du journal et du
-    calendrier) quand l'app est connue ; à défaut, la racine de son paquet."""
-    if app_id:
-        from wama.common.services.journal import app_queue_url
-        url = app_queue_url(app_id)
-        if url:
-            return url
-    return f'/{item._meta.app_label}/'
+    """La page de file de l'élément : `journal.family_queue_url` (le domicile commun du journal, du
+    calendrier et de l'échange de l'assistant) — celle de l'app, sinon celle de l'app qui porte
+    son modèle, sinon la racine de son paquet."""
+    from wama.common.services.journal import family_queue_url
+    return family_queue_url(app_id, type(item))
 
 
 def notify_job_collaborators(item, app_label, item_name, success, detail='', app_id=''):

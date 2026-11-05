@@ -1102,9 +1102,10 @@ Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune lign
 
 - **Domicile** : `wama/common/services/journal.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §9bis](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Journal de l'utilisateur — agrégat transversal de ce qu'il a lancé dans WAMA. Doc : `WAMA_MEMORY.md §9bis`.
-- **API publique** (8) :
+- **API publique** (9) :
   - `class SourceJournal` — Un modèle dont les items entrent au journal.
   - `app_queue_url(app)` — Page de file d'une app, `''` si elle n'en déclare pas.
+  - `family_queue_url(family, model=None)` — La page de file où vit un élément de la FAMILLE `family` (clé du `DetailRegistry`), `model`
   - `enregistrer_source(app, model, *, champ_date=None, champ_user='user')` — Ajoute une source hors `detail_registry` — point d'extension des mondes lab/data/transverse.
   - `sources()` — Toutes les sources du journal. Dérivées de `detail_registry` + les inscriptions explicites.
   - `class Entree` — Un item au journal. Volontairement MINCE — le détail vient des endpoints transversaux.
@@ -1618,18 +1619,23 @@ La fin d'un traitement (notification `job_done`/`job_failed`, qui DÉSIGNE l'él
 
 - **Domicile** : `wama/common/services/job_follow_ups.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.2](../construction/suivi/ROADMAP.md)
 - **Module** : La FIN D'UNE TÂCHE racontée dans le fil d'où elle a été demandée — brique commune à toute surface de l'assistant (canaux de la passerelle, fil web).
-- **API publique** (14) :
+- **API publique** (19) :
   - `notice_text(note) -> str` — Le texte d'une fin de tâche : son titre (« … terminé » / « … a échoué ») et son détail.
-  - `origin_conversation(note, surface: str)` — Le fil de CETTE surface où l'élément de la notification a été créé ou lancé — lu dans les
+  - `origin_turn(note, surface: str)` — Le TOUR de cette surface où l'élément de la notification a été créé ou lancé — lu dans les
+  - `origin_conversation(note, surface: str)` — Le fil de cette surface où l'élément de la notification a été créé ou lancé (`origin_turn`).
   - `dev_origin_conversation(note, surface: str)` — Le fil de CETTE surface dont une étape `dev_*` a rendu le `job_id` de la notification — la
   - `status_step(note, user) -> dict` — Le geste « statut », RÉELLEMENT joué : c'est l'étape que l'échange enregistre au fil. Une
   - `declared_output_urls(note) -> list` — Les sorties DÉCLARÉES de l'élément d'une fin RÉUSSIE, en URL `/media/…` décodées
-  - `origin_of(note, surface: str)` — Le fil d'origine d'une notification sur cette surface, quelle que soit la nature de la
-  - `already_told(conversation, note) -> bool` — Cette fin a-t-elle déjà été racontée dans ce fil ? Une notification se relève par chaque
-  - `record(conversation, note, response: str, step: dict) -> None` — Enregistre au fil la fin de tâche — un échange comme un autre
+  - `already_told(conversation, note, title: str=None, since=None) -> bool` — Cette fin a-t-elle déjà été racontée dans ce fil ? Une notification se relève par chaque
+  - `record(conversation, note, response: str, step: dict, title: str=None) -> None` — Enregistre au fil la fin de tâche — un échange comme un autre
+  - `outputs_to_join(note, step) -> list` — Les sorties qu'une surface JOINT à une fin racontée (pièces jointes d'un canal) : celles de
+  - `turn_batches(steps) -> set` — Les LOTS qu'un tour a lancés : `{(surface, id du lot)}` (`tool_api.batch_of_step`).
+  - `launched_batch(note, turn)` — `(surface, id du lot)` si l'élément de la notification est une card fille d'un lot que
+  - `batch_end_title(state) -> str` — Le titre de la fin d'un lot — le libellé de son app (`app_identity`) et le titre du lot, dans
+  - `batch_end_text(state, step) -> str` — La fin d'un LOT dans le fil : son titre, ses comptes, ses échecs NOMMÉS (le premier geste qui
   - `told_since(surface: str, since) -> list` — Les fins RACONTÉES sur cette surface depuis `since`, relues du fil tel que `record` l'écrit :
   - `turn_designations(steps) -> tuple` — Ce qu'un tour a désigné : `({(famille, id)}, {job_id})` — les éléments d'app lus par
-  - `turn_jobs(user, steps, in_flight_only: bool=True) -> list` — Les éléments qu'un tour a créés ou lancés, chacun dans l'état de sa card (`tool_api.
+  - `turn_jobs(user, steps) -> list` — Les éléments qu'un tour a créés ou lancés, chacun dans l'état de sa card (`tool_api.
   - `notices_of_turn(user, steps, since) -> list` — Les fins de tâche ARRIVÉES PENDANT un tour, pour ce qu'il a désigné — ids de notification.
   - `tell(note, surface: str, compose)` — Raconte UNE fin de tâche dans son fil d'origine sur cette surface, une seule fois :
   - `web_follow_ups(user, notification_ids, absolute=lambda url: url) -> list` — Les fins de tâche à raconter dans le fil WEB de `user`, pour les notifications que sa cloche
@@ -3786,7 +3792,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (111) :
+- **API publique** (113) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -3852,6 +3858,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `update_batch_settings(user, app: str, batch_id: int, settings: dict=None, promote_from: int=None, realign: bool=False) -> dict` — Set the settings of a whole batch — ONE of three gestures:
   - `duplicate_batch(user, app: str, batch_id: int) -> dict` — Duplicate one of the user's batches with all its items, to run it again with other
   - `delete_batch(user, app: str, batch_id: int, confirm: bool=False) -> dict` — Delete one of the user's batches AND all its items. Destructive and not undoable: say how
+  - `batch_progress(user, family: str, batch_id) -> dict | None` — Où en est UN LOT de `user` lancé depuis l'assistant — le bloc de lot de l'échange
   - `get_batch_state(user, app: str, batch_id: int) -> dict` — State of a batch: its overall status, the counts (success, running, pending, failure) and
   - `get_batch_result(user, app: str, batch_id: int) -> dict` — The results of a whole batch: its state and the address of the ZIP of its outputs — the
   - `list_app_access(user) -> dict` — Sandbox apps and who may use them: the ones you open to developers (creator or
@@ -3878,6 +3885,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `app_id_for_tool(tool_name)` — app_id gardé correspondant à un outil, ou None si l'outil est transverse.
   - `tool_family(tool_name)` — La FAMILLE d'un outil : la clé d'adapter de détail (`DetailRegistry`) des éléments qu'il
   - `items_of_step(tool_name, args, result) -> list` — Les éléments qu'un appel d'outil a CRÉÉS ou LANCÉS, en `(famille, id)` — lus au CONTRAT
+  - `batch_of_step(tool_name, result)` — Le LOT qu'un appel d'outil a lancé, en `(surface, id du lot)`, sinon None — le ▶ d'une card
   - `tool_descriptions()` — Descriptions de TOUS les outils du registre, dérivées à la volée.
   - `tool_input_schema(tool_name: str) -> dict` — Schéma JSON (`type: object`) des arguments d'un outil du registre — DÉRIVÉ, jamais écrit.
   - `input_schema_for(fn, index=None) -> dict` — Schéma JSON des arguments d'une FONCTION d'outil : signature, complétée par le schéma

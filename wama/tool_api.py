@@ -3728,6 +3728,73 @@ def delete_batch(user, app: str, batch_id: int, confirm: bool = False) -> dict:
     return failure or {'deleted': True, 'app': app, 'batch_id': batch_id}
 
 
+def _batch_zip_url(app: str, batch_id: int) -> str:
+    """L'adresse du ZIP d'un lot — le bouton ⬇ de sa card mère (`batch_download`, préfixe de
+    route du DOMAINE : `audio_batch_download` pour un lot audio de l'enhancer) ; '' sans route."""
+    from django.urls import reverse
+    from wama.common.manifests.codegen.urls_gen import served_route
+    base = TOOL_APP_ALIAS.get(app, app)
+    prefix = app[:-len(base)] if app != base and app.endswith(base) else ''
+    route = served_route(base, 'batch_download', [batch_id], prefix=prefix)
+    return reverse(f'{base}:{route}', args=[batch_id]) if route else ''
+
+
+def batch_progress(user, family: str, batch_id) -> dict | None:
+    """Où en est UN LOT de `user` lancé depuis l'assistant — le bloc de lot de l'échange
+    (2026-11-05, Fabien : « mettre à jour la barre de progression de lot et à la fin de chaque card
+    fille remplacer la preview par la suivante […] sans surcharger le fil »). Rien n'est recalculé :
+      - l'état est celui du BOUTON, la vue `batch_status` de la card mère (`get_batch_state`, sa
+        garde comprise : un lot qui n'est pas lisible par `user` rend None) ;
+      - la barre suit la règle de la card mère (`_batch_card.html` : terminées / total) ;
+      - le titre est l'identité du lot (`batch_identity`, celle de son en-tête) ;
+      - chaque fille porte l'aperçu COMMUN de son élément (`DetailRegistry.preview_url`), que le
+        bloc montre une à la fois, et le ZIP est celui du bouton ⬇ (`_batch_zip_url`).
+    `terminal` : plus rien ne BOUGE dans le lot — aucune fille dans un état OUVERT
+    (`process_runs.OPEN_STATES` : en cours, en attente de ressources) ; une fille jamais lancée
+    (PENDING) ne retient pas la fin d'un lot lancé."""
+    from wama.common.models import JOB_STATUS_TERMINAL, JOB_SUCCESS, normalize_job_status
+    from wama.common.services.batch_identity import display_title, identity_of
+    from wama.common.services.journal import family_queue_url
+    from wama.common.services.process_runs import OPEN_STATES
+    from wama.common.utils.batch_common import batch_of
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.common.utils.preview_registry import PreviewRegistry
+    try:
+        batch_id = int(batch_id)
+    except (TypeError, ValueError):
+        return None
+    failure, payload = _batch_view(user, family, 'batch_status', batch_id, 'État', method='get')
+    if failure:
+        return None
+    children = []
+    for row in payload.get('items') or []:
+        status = normalize_job_status(row.get('status'))
+        try:
+            progress = max(0, min(100, int(row.get('progress') or 0)))
+        except (TypeError, ValueError):
+            progress = 0
+        children.append({'id': row.get('id'), 'label': str(row.get('filename') or f"#{row.get('id')}"),
+                         'status': status, 'progress': progress,
+                         'terminal': status in JOB_STATUS_TERMINAL, 'ok': status == JOB_SUCCESS,
+                         'error': row.get('error'),
+                         'preview_url': DetailRegistry.preview_url(family, row.get('id'))})
+    counts = payload.get('counts') or {}
+    total = payload.get('total') or len(children)
+    moving = any(c['status'] in OPEN_STATES for c in children)
+    model = PreviewRegistry.get_model(family)
+    first = (model.objects.filter(pk=children[0]['id']).first()
+             if model is not None and children else None)
+    lot = batch_of(first) if first is not None else None
+    label = display_title(identity_of(lot)) if lot is not None else f'Lot #{batch_id}'
+    return {'kind': 'batch', 'family': family, 'id': batch_id, 'label': label,
+            'status': normalize_job_status(payload.get('status')), 'terminal': not moving,
+            'ok': not moving and not counts.get('failure'), 'total': total, 'counts': counts,
+            'progress': round(100 * (counts.get('success') or 0) / total) if total else 0,
+            'items': children,
+            'download_url': _batch_zip_url(family, batch_id) if counts.get('success') else '',
+            'page_url': family_queue_url(family)}
+
+
 @tool_effect(READ)
 def get_batch_state(user, app: str, batch_id: int) -> dict:
     """
@@ -3753,13 +3820,8 @@ def get_batch_result(user, app: str, batch_id: int) -> dict:
     failure, payload = _batch_view(user, app, 'batch_status', batch_id, 'Résultats', method='get')
     if failure:
         return failure
-    from wama.common.manifests.codegen.urls_gen import served_route
     from wama.common.services.navigation import absolute_url
-    from django.urls import reverse
-    base = TOOL_APP_ALIAS.get(app, app)
-    prefix = app[:-len(base)] if app != base and app.endswith(base) else ''
-    route = served_route(base, 'batch_download', [batch_id], prefix=prefix)
-    url = reverse(f'{base}:{route}', args=[batch_id]) if route else ''
+    url = _batch_zip_url(app, batch_id)
     done = (payload.get('counts') or {}).get('success', 0)
     return {'batch_id': batch_id, 'status': payload.get('status'), 'counts': payload.get('counts'),
             'download_url': url if done else '', 'link': absolute_url(url) if (url and done) else '',
@@ -5305,8 +5367,8 @@ def items_of_step(tool_name, args, result) -> list:
     role = tool_role(tool_name)
     if not isinstance(result, dict) or 'error' in result:
         return []
-    if family is None and result.get('started') is True and result.get('app'):
-        family, role = str(result['app']), 'batch'
+    if batch := batch_of_step(tool_name, result):
+        family, role = batch[0], 'batch'
     if not family or role == 'status':
         return []
     if role == 'batch':
@@ -5323,6 +5385,21 @@ def items_of_step(tool_name, args, result) -> list:
         except (TypeError, ValueError):
             continue
     return found
+
+
+def batch_of_step(tool_name, result):
+    """Le LOT qu'un appel d'outil a lancé, en `(surface, id du lot)`, sinon None — le ▶ d'une card
+    mère (`launch_batch`) rend `started`, la SURFACE de ses éléments (`app`) et `batch_id`. Lu au
+    résultat, jamais au nom : l'outil est transverse (sa famille ne se lit pas à son nom). Le même
+    contrat que les cards filles d'`items_of_step` ; l'échange en tire le bloc du lot (2026-11-05)."""
+    if tool_family(tool_name) is not None or not isinstance(result, dict) or 'error' in result:
+        return None
+    if result.get('started') is not True or not result.get('app'):
+        return None
+    try:
+        return str(result['app']), int(result.get('batch_id'))
+    except (TypeError, ValueError):
+        return None
 
 
 # ── Descriptions d'outils — DÉRIVÉES, plus jamais tenues à la main ──────────────

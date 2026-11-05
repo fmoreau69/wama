@@ -401,7 +401,8 @@
   var JOB_POLL_MS = 3000;
   var jobBlockSeq = 0;
 
-  function jobKey(job) { return job.family + ':' + job.id; }
+  // Un LOT lancé se suit sous sa propre clé (`ai_chat_jobs` : `batch:famille:id`).
+  function jobKey(job) { return (job.kind === 'batch' ? 'batch:' : '') + job.family + ':' + job.id; }
 
   function statusLabel(status) {
     return (global.WamaApp && global.WamaApp.statusLabel) ? global.WamaApp.statusLabel(status) : status;
@@ -441,14 +442,203 @@
     var host = document.createElement('div');
     host.className = 'wcv3-preview wama-assistant-job-preview';
     row.appendChild(host);
-    var faces = row._faces = P.faceViewer(host, job.preview_url, {
-      compact: true,
-      status: function () { return row.dataset.jobStatus || ''; },
-    });
+    row._faces = facesIn(host, job.preview_url, function () { return row.dataset.jobStatus || ''; });
+  };
+
+  function facesIn(host, url, status, sequence) {
+    var faces = global.WamaMediaPreview.faceViewer(host, url,
+      { compact: true, status: status, sequence: sequence });
     // Au tour suivant : la ligne est bâtie AVANT d'entrer dans l'échange (`appendJobs`, fil
     // rechargé), et l'afficheur ne suit pas un hôte hors de la page — démarré ici, il montrait
     // l'Entrée sans jamais suivre la face Pendant (vu au geste sur la page servie, 2026-10-28).
     setTimeout(function () { faces.refresh(); }, 0);
+    return faces;
+  }
+
+  // ── Un LOT lancé : UNE ligne, quelle que soit sa taille (2026-11-05) ────────────────────────
+  // Fabien : « mettre à jour la barre de progression de lot et à la fin de chaque card fille
+  // remplacer la preview par la suivante, en laissant un lien de téléchargement et d'accès aux
+  // cards […] sans surcharger le fil ». Le serveur rend l'état de la card mère (`tool_api.
+  // batch_progress` : la vue `batch_status` du bouton) ; la barre et les compteurs sont ceux de sa
+  // card (`_batch_card.html` : terminées / total, ✓ ⟳ ✗), l'ETA est l'agrégat des filles par le
+  // ticker de lot de `WamaEta` (`data-eta-ids`, celui de la card mère). UN seul aperçu, l'afficheur
+  // de faces commun avec tous ses onglets : il suit la dernière fille finie ; ◀ ▶ et la liste
+  // choisissent une fille (le suivi s'arrête, « Suivre » le reprend) ; la visionneuse (double-clic)
+  // passe d'une fille à l'autre comme entre les cards d'une file. Le ZIP est le bouton ⬇ du lot.
+  Chat.prototype.batchRow = function (job) {
+    var self = this;
+    var row = document.createElement('div');
+    row.className = 'wama-assistant-job wama-assistant-batch';
+    row.dataset.jobKey = jobKey(job);
+    row.innerHTML =
+      '<div class="d-flex align-items-center gap-2 small">' +
+      '<span class="badge status-badge"></span>' +
+      '<i class="fas fa-layer-group"></i>' +
+      '<span class="wama-assistant-job-name text-truncate"></span>' +
+      '<small class="ms-auto progress-text"></small></div>' +
+      '<small class="d-block">' +
+      '<span class="text-success" title="Terminés"><i class="fas fa-check"></i> <span data-batch-field="success_count"></span></span>' +
+      '<span class="text-warning ms-1" title="En cours" data-batch-show="running_count"><i class="fas fa-spinner"></i> <span data-batch-field="running_count"></span></span>' +
+      '<button type="button" class="btn btn-link btn-sm p-0 ms-1 text-danger wama-assistant-batch-failures" title="Échecs — voir le premier" data-batch-show="failure_count"><i class="fas fa-times"></i> <span data-batch-field="failure_count"></span></button>' +
+      '<span class="text-body-secondary"> / <span data-batch-field="total"></span></span></small>' +
+      '<div class="wama-progress-track mt-1"><div class="wama-progress-fill"></div></div>' +
+      '<span class="wama-eta d-block small"></span>' +
+      '<div class="d-flex align-items-center gap-1 mt-1 wama-assistant-batch-nav">' +
+      '<button type="button" class="btn btn-sm btn-link p-0" data-batch-step="-1" title="Fille précédente"><i class="fas fa-chevron-left"></i></button>' +
+      '<select class="form-select form-select-sm wama-assistant-batch-child" title="Choisir une card fille"></select>' +
+      '<button type="button" class="btn btn-sm btn-link p-0" data-batch-step="1" title="Fille suivante"><i class="fas fa-chevron-right"></i></button>' +
+      '<button type="button" class="btn btn-sm btn-link p-0 ms-1 wama-assistant-batch-follow" title="Montrer chaque fille à sa fin">Suivre</button></div>' +
+      '<div class="wcv3-preview wama-assistant-job-preview"></div>' +
+      '<div class="small mt-1 wama-assistant-batch-links">' +
+      '<a class="wama-assistant-batch-zip" target="_blank" rel="noopener"><i class="fas fa-download"></i> Télécharger le lot (ZIP)</a>' +
+      '<a class="ms-2 wama-assistant-batch-page" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> Ouvrir le lot dans l\'app</a></div>';
+    row.querySelector('.wama-assistant-job-name').textContent = job.label || jobKey(job);
+    row._batch = { family: job.family, follow: true, shown: null, children: {}, order: [] };
+    var select = row.querySelector('.wama-assistant-batch-child');
+    select.addEventListener('change', function () { self.showChild(row, Number(select.value), false); });
+    Array.prototype.forEach.call(row.querySelectorAll('[data-batch-step]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var order = row._batch.order;
+        var next = order[order.indexOf(row._batch.shown) + Number(btn.dataset.batchStep)];
+        if (next != null) self.showChild(row, next, false);
+      });
+    });
+    row.querySelector('.wama-assistant-batch-follow').addEventListener('click', function () {
+      row._batch.follow = true;
+      self.showChild(row, latestChild(row._batch), true);
+    });
+    row.querySelector('.wama-assistant-batch-failures').addEventListener('click', function () {
+      var failed = row._batch.order.filter(function (id) {
+        var c = row._batch.children[id];
+        return c.terminal && !c.ok;
+      });
+      if (failed.length) self.showChild(row, failed[0], false);
+    });
+    this.paintBatch(row, job);
+    return row;
+  };
+
+  /** La fille à montrer quand on suit le lot : la dernière finie, sinon la première qui tourne,
+   *  sinon la première — pure, gardée en V8. */
+  function latestChild(batch) {
+    if (batch.lastEnded != null) return batch.lastEnded;
+    var order = batch.order, children = batch.children;
+    var ended = order.filter(function (id) { return children[id].terminal; });
+    if (ended.length) return ended[ended.length - 1];
+    var moving = order.filter(function (id) { return children[id].status === 'RUNNING'; });
+    return moving.length ? moving[0] : (order.length ? order[0] : null);
+  }
+
+  /** Montre la fille `id` dans l'aperçu unique du lot. `auto` : par le suivi (il continue) ; sinon
+   *  l'utilisateur a choisi, le suivi s'arrête. */
+  Chat.prototype.showChild = function (row, id, auto) {
+    var batch = row._batch, child = batch.children[id];
+    if (!child) return;
+    if (!auto) batch.follow = false;
+    row.querySelector('.wama-assistant-batch-follow').hidden = batch.follow;
+    var select = row.querySelector('.wama-assistant-batch-child');
+    select.value = String(id);
+    var at = batch.order.indexOf(id);
+    row.querySelector('[data-batch-step="-1"]').disabled = at <= 0;
+    row.querySelector('[data-batch-step="1"]').disabled = at >= batch.order.length - 1;
+    if (batch.shown === id) return;
+    batch.shown = id;
+    var P = global.WamaMediaPreview;
+    var host = row.querySelector('.wama-assistant-job-preview');
+    if (row._faces) row._faces.stop();
+    if (P && P.releaseMedia) P.releaseMedia(host);
+    host.innerHTML = '';
+    row._faces = null;
+    if (!child.preview_url || !P || !P.faceViewer) return;
+    var self = this;
+    row._faces = facesIn(host, child.preview_url,
+      function () { return (batch.children[id] || {}).status || ''; },
+      function () {
+        return { urls: batch.order.map(function (k) { return batch.children[k].preview_url; }),
+                 index: batch.order.indexOf(id),
+                 onMove: function (i) { self.showChild(row, batch.order[i], false); } };
+      });
+  };
+
+  /** Peint le lot ; rend vrai quand il vient de finir (plus rien n'y bouge). */
+  Chat.prototype.paintBatch = function (row, job) {
+    var batch = row._batch, counts = job.counts || {};
+    var badge = row.querySelector('.status-badge');
+    badge.className = 'badge status-badge ' + statusBadge(job.status);
+    badge.textContent = statusLabel(job.status);
+    row.querySelector('.progress-text').textContent = (counts.success || 0) + '/' + (job.total || 0);
+    // Les repères de la card mère (`_batch_card.html` : `data-batch-field` / `data-batch-show`),
+    // remplis des comptes de `batch_status` (`counts.success`…).
+    ['success', 'running', 'failure'].forEach(function (key) {
+      row.querySelector('[data-batch-field="' + key + '_count"]').textContent = counts[key] || 0;
+    });
+    row.querySelector('[data-batch-field="total"]').textContent = job.total || 0;
+    Array.prototype.forEach.call(row.querySelectorAll('[data-batch-show]'), function (el) {
+      el.hidden = !counts[el.dataset.batchShow.replace(/_count$/, '')];
+    });
+    var fill = row.querySelector('.wama-progress-fill');
+    fill.style.width = Math.max(0, Math.min(100, job.progress || 0)) + '%';
+    fill.classList.toggle('active', !job.terminal);
+    fill.classList.toggle('is-frozen', !!(job.terminal && counts.failure));
+    // Les filles : leur état, leurs ETA (le ticker de lot de `WamaEta` les agrège), la liste.
+    var select = row.querySelector('.wama-assistant-batch-child');
+    var shownId = batch.shown;
+    var shownBefore = shownId != null ? (batch.children[shownId] || {}).status : null;
+    var ended = null, ids = [];
+    batch.order = (job.items || []).map(function (child) {
+      var before = batch.children[child.id];
+      if (before && !before.terminal && child.terminal) ended = child.id;
+      batch.children[child.id] = child;
+      var etaId = 'chat:' + batch.family + ':' + child.id;
+      ids.push(etaId);
+      if (global.WamaEta) global.WamaEta.update(etaId, { progress: child.progress, status: child.status });
+      return child.id;
+    });
+    if (ended != null) batch.lastEnded = ended;
+    var eta = row.querySelector('.wama-eta');
+    eta.dataset.etaIds = job.terminal ? '' : ids.join(',');
+    if (job.terminal) eta.textContent = '';
+    select.innerHTML = '';
+    batch.order.forEach(function (id) {
+      var option = document.createElement('option');
+      option.value = String(id);
+      option.textContent = batch.children[id].label + ' · ' + statusLabel(batch.children[id].status);
+      select.appendChild(option);
+    });
+    var zip = row.querySelector('.wama-assistant-batch-zip');
+    zip.hidden = !job.download_url;
+    if (job.download_url) zip.href = job.download_url;
+    var page = row.querySelector('.wama-assistant-batch-page');
+    page.hidden = !job.page_url;
+    if (job.page_url) page.href = job.page_url;
+    var wasTerminal = row.dataset.terminal === '1';
+    row.dataset.terminal = job.terminal ? '1' : '';
+    // L'aperçu : la dernière fille finie tant qu'on suit ; sinon la fille choisie, rejouée sur sa
+    // face par défaut quand son état change (comme une ligne seule, `paintJob`).
+    if (batch.follow) {
+      this.showChild(row, latestChild(batch), true);
+    } else if (batch.shown != null) {
+      this.showChild(row, batch.shown, false);
+    }
+    // La même fille, dont l'état a changé (elle démarre, elle finit) : sa face par défaut rejouée.
+    if (row._faces && shownId != null && batch.shown === shownId
+        && (batch.children[shownId] || {}).status !== shownBefore) {
+      row._faces.refresh();
+    }
+    return !!job.terminal && !wasTerminal;
+  };
+
+  /** Au-delà des lignes suivies d'un tour : combien d'autres, et leur file (2026-11-05). */
+  Chat.prototype.moreRow = function (job) {
+    var row = document.createElement('div');
+    row.className = 'wama-assistant-job wama-assistant-more small';
+    var link = document.createElement('a');
+    link.href = job.page_url || '#';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = '+ ' + job.count + ' autre' + (job.count > 1 ? 's' : '') + ' — ouvrir la file';
+    row.appendChild(link);
+    return row;
   };
 
   Chat.prototype.paintJob = function (row, job) {
@@ -487,15 +677,19 @@
   };
 
   /** Le bloc de suivi d'une réponse : une ligne par élément lancé, en cours ou déjà fini (sa
-   *  Sortie). Rendu vide (`null`) sans job ou sans adresse de suivi ; suivi jusqu'à ce que tous
-   *  soient finis — pas du tout s'ils le sont déjà. */
+   *  Sortie), une par LOT lancé (`batchRow`), et « + N autres » au-delà des lignes suivies
+   *  (`moreRow`). Rendu vide (`null`) sans job ou sans adresse de suivi ; suivi jusqu'à ce que
+   *  tous soient finis — pas du tout s'ils le sont déjà. */
   Chat.prototype.jobsBlock = function (jobs) {
     if (!jobs || !jobs.length || !this.cfg.jobsUrl) return null;
     var self = this;
     var block = document.createElement('div');
     block.className = 'wama-assistant-jobs';
     block.dataset.jobsBlock = String(++jobBlockSeq);
-    jobs.forEach(function (job) { block.appendChild(self.jobRow(job)); });
+    jobs.forEach(function (job) {
+      block.appendChild(job.kind === 'batch' ? self.batchRow(job)
+                        : job.kind === 'more' ? self.moreRow(job) : self.jobRow(job));
+    });
     if (jobs.some(function (job) { return !job.terminal; })) this.followJobs(block);
     return block;
   };
@@ -537,6 +731,10 @@
       var row = block.querySelector('[data-job-key="' + jobKey(job) + '"]');
       if (!row) return;
       seen[jobKey(job)] = true;
+      if (row._batch) {
+        if (self.paintBatch(row, job)) ended = true;      // un lot se raconte à SA fin
+        return;
+      }
       var wasTerminal = row.dataset.terminal === '1';
       self.paintJob(row, job);
       if (job.terminal && !wasTerminal) ended = true;
@@ -1017,5 +1215,6 @@
     // Pour les tests V8 (`tests_assistant_reach`) : les gestes du prototype s'éprouvent sans DOM.
     _Chat: Chat,
     _toHtml: toHtml,
+    _latestChild: latestChild,
   };
 })(window);

@@ -1289,6 +1289,162 @@ def check_chat_job_faces(neutralize: bool = False):
                   f"{' → '.join(seen)}, {state['turns']} tours servis")
 
 
+#: Les cards filles FICTIVES d'un lot lancé, et l'aperçu commun de chacune.
+_BATCH_CHILD = '/common/preview/during_probe/{}/'
+
+
+def _chat_batch(state) -> dict:
+    """Le lot fictif tel que le sert `tool_api.batch_progress` : ses deux filles, la barre de sa
+    card mère (terminées / total), le ZIP dès un résultat."""
+    items = [{'id': k, 'label': f'fille {k}', 'status': 'SUCCESS' if k in state['done'] else 'RUNNING',
+              'progress': 100 if k in state['done'] else 30, 'terminal': k in state['done'],
+              'ok': k in state['done'], 'error': None, 'preview_url': _BATCH_CHILD.format(k)}
+             for k in (1, 2)]
+    done = len(state['done'])
+    return {'kind': 'batch', 'family': 'during_probe', 'id': 7, 'label': 'lot témoin',
+            'status': 'SUCCESS' if done == 2 else 'RUNNING', 'terminal': done == 2, 'ok': done == 2,
+            'total': 2, 'counts': {'success': done, 'running': 2 - done, 'failure': 0, 'pending': 0},
+            'progress': 50 * done, 'items': items,
+            'download_url': '/smoke/batch/7/download/' if done else '', 'page_url': '/'}
+
+
+def _chat_batch_face(url: str, base: str, state: dict) -> dict:
+    """La face d'une fille : sa Sortie une fois finie, son Entrée avant."""
+    child = int(url.split('/during_probe/')[1].split('/')[0])
+    done = child in state['done']
+    sides = {'has_input': True, 'has_output': done}
+    if 'side=output' in url and done or ('side=' not in url and done):
+        return {'url': f'{base}o.png', 'mime_type': 'image/png', 'name': f'sortie {child}',
+                'side': 'output', 'sides': sides}
+    return {'url': f'{base}i.png', 'mime_type': 'image/png', 'name': f'entrée {child}',
+            'side': 'input', 'sides': sides}
+
+
+JS_CHAT_BATCH = """(row) => {
+    const root = document.querySelector('[data-wama-chat]');
+    const chat = root && root._wamaChat;
+    if (!chat || !chat.appendJobs) return false;
+    chat.appendJobs([row]);
+    return true;
+}"""
+
+JS_CHAT_BATCH_STATE = """() => {
+    const row = document.querySelector('.wama-assistant-batch');
+    if (!row) return null;
+    const host = row.querySelector('.wama-assistant-job-preview');
+    const img = host && host.querySelector('img');
+    const zip = row.querySelector('.wama-assistant-batch-zip');
+    return {child: row.querySelector('.wama-assistant-batch-child').value,
+            progress: row.querySelector('.progress-text').textContent,
+            src: img ? img.src : '',
+            tabs: Array.from(host.querySelectorAll('.wama-face-tab')).map(b => b.getAttribute('data-side')),
+            follow: !row.querySelector('.wama-assistant-batch-follow').hidden,
+            zip: zip.hidden ? '' : zip.getAttribute('href')};
+}"""
+
+
+def check_chat_batch(neutralize: bool = False):
+    """Un LOT lancé dans l'ÉCHANGE de l'assistant (2026-11-05, Fabien : « mettre à jour la barre de
+    progression de lot et à la fin de chaque card fille remplacer la preview par la suivante, en
+    laissant un lien de téléchargement et d'accès aux cards […] sans surcharger le fil »). Sur
+    l'accueil, la brique du chat bâtit la ligne d'un lot fictif (`appendJobs`) ; son suivi et
+    l'aperçu de ses filles sont servis par la page. Une fille finit : l'aperçu UNIQUE passe sur sa
+    Sortie (onglets compris), la barre avance ; la visionneuse ouverte d'un double-clic passe d'une
+    fille à l'autre (←), la liste du chat la suit et le suivi s'arrête ; le lot fini, son ZIP.
+    `neutralize` : la brique servie SANS le remplacement par la dernière fille finie — la
+    contre-épreuve, qui doit échouer. (ok, détail)."""
+    import json
+    import shutil
+
+    from django.conf import settings
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    apps = list(discoverable_apps())
+    token = _test_session_key(apps[0][0]) if apps else None
+    if not token:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+    folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_during')
+    base = settings.MEDIA_URL + 'smoke_preview_during/'
+    _in_plain_thread(_during_witnesses, folder)
+    state = {'done': set()}
+    faults, seen = [], []
+
+    def chat_script(route):
+        response = route.fetch()
+        body = response.text()
+        if neutralize:
+            body = body.replace('this.showChild(row, latestChild(batch), true);', '')
+        route.fulfill(response=response, body=body)
+
+    def wait_state(test: str, what: str, timeout=12000):
+        try:
+            page.wait_for_function(f"() => {{ const s = ({JS_CHAT_BATCH_STATE})(); return !!(s && ({test})); }}",
+                                   timeout=timeout)
+            now = page.evaluate(JS_CHAT_BATCH_STATE)
+            seen.append(f"{what} {now['progress']}")
+            return now
+        except Exception:
+            faults.append(f"{what} (vu {page.evaluate(JS_CHAT_BATCH_STATE)})")
+            return None
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1400, 'height': 900})
+                context.add_cookies(_cookie(token))
+                page = context.new_page()
+                js_errors = []
+                page.on('pageerror', lambda e: js_errors.append(str(e)[:160]))
+                page.route('**/common/preview/during_probe/**', lambda route: route.fulfill(
+                    content_type='application/json',
+                    body=json.dumps(_chat_batch_face(route.request.url, base, state))))
+                page.route('**/api/ai-chat/jobs/**', lambda route: route.fulfill(
+                    content_type='application/json', body=json.dumps({'jobs': [_chat_batch(state)]})))
+                page.route('**/wama-assistant-chat.js*', chat_script)
+                page.goto(f"{BASE_URL.rstrip('/')}/", wait_until='networkidle', timeout=PAGE_TIMEOUT_MS)
+                if not page.evaluate(JS_CHAT_BATCH, _chat_batch(state)):
+                    faults.append("l'accueil n'a pas de chat de l'assistant monté")
+                else:
+                    wait_state("s.child === '1' && s.src.indexOf('/smoke_preview_during/i.png') >= 0",
+                               "rien de fini : la première fille qui tourne, sur son Entrée")
+                    state['done'].add(2)
+                    now = wait_state("s.child === '2' && s.src.indexOf('/smoke_preview_during/o.png') >= 0"
+                                     " && s.progress === '1/2'",
+                                     "une fille finit : l'aperçu passe sur SA Sortie, la barre avance")
+                    if now and 'output' not in now['tabs']:
+                        faults.append(f"la Sortie de la fille n'a pas ses onglets ({now})")
+                    if not faults:
+                        page.dblclick('.wama-assistant-batch .wama-assistant-job-preview img', timeout=4000)
+                        counter = "document.querySelector('#wamaMediaPreviewModal.show .wama-preview-counter')"
+                        try:
+                            page.wait_for_function(f"() => {{ const c = {counter}; return c && c.textContent.trim() === '2 / 2'; }}",
+                                                   timeout=8000)
+                            page.keyboard.press('ArrowLeft')
+                            page.wait_for_function(f"() => {{ const c = {counter}; return c && c.textContent.trim() === '1 / 2'; }}",
+                                                   timeout=8000)
+                            seen.append('visionneuse 2 / 2 → 1 / 2')
+                        except Exception:
+                            faults.append("la visionneuse ouverte du lot ne passe pas d'une fille à l'autre")
+                        wait_state("s.child === '1' && s.follow",
+                                   "la liste du chat suit la visionneuse, le suivi s'arrête", timeout=6000)
+                        _close(page)
+                    state['done'].add(1)
+                    wait_state("s.progress === '2/2' && s.zip", "le lot fini : sa barre pleine et son ZIP")
+                if js_errors:
+                    faults.append(f"JS en erreur : {' | '.join(js_errors)}")
+                context.close()
+            finally:
+                browser.close()
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    if faults:
+        return False, ' ; '.join(faults)
+    return True, f"le lot de l'échange : {' → '.join(seen)}"
+
+
 def register_preview_scenarios():
     """Enregistre un scénario `<app>.preview` par app disposant d'un index, la matrice de mise
     en page de la visionneuse (`common.preview_layout`) et ses gestes de navigation
@@ -1327,6 +1483,15 @@ def register_preview_scenarios():
                      "élément avec ses onglets, sans geste, puis sa Sortie quand il se termine — "
                      "job et élément fictifs servis par la page, aucun traitement"),
         run=lambda ctx: check_chat_job_faces(),
+        timeout_s=180, vram_gb=0.0,
+    )
+    register(
+        id="common.preview_chat_batch", app="common", stage="ui",
+        description=("Échange de l'assistant : un LOT lancé est une ligne — à la fin de chaque fille, "
+                     "l'aperçu unique passe sur sa Sortie et la barre avance ; la visionneuse passe "
+                     "d'une fille à l'autre, la liste du chat la suit ; le lot fini, son ZIP — lot et "
+                     "filles fictifs servis par la page, aucun traitement"),
+        run=lambda ctx: check_chat_batch(),
         timeout_s=180, vram_gb=0.0,
     )
 

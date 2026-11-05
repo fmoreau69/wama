@@ -936,7 +936,9 @@
     // (Fabien : « intégrer la preview dans l'échange […] entrée/during/comparaison/sortie »), où
     // chaque ligne de job a le sien ; le volet l'emprunte — une seule construction.
     //   opts = { compact, status() → l'état de l'élément ('RUNNING'…), card (les voisines de la
-    //            visionneuse), autoplay, onShown(données), onEmpty() }
+    //            visionneuse), sequence() → {urls, index, onMove(i)} (les voisines quand elles
+    //            n'ont pas de card dans la page : les filles d'un lot dans l'échange, 2026-11-05),
+    //            autoplay, onShown(données), onEmpty() }
     //   rend { refresh(), show(face), open(), stop() } — `refresh` rejoue la face par défaut, à
     //   appeler quand l'élément CHANGE d'état (un élément en attente qui démarre, ou qui finit).
     function faceViewer(host, baseUrl, opts) {
@@ -954,7 +956,9 @@
             try {
                 const m = Object.assign({}, last);
                 m._baseUrl = baseUrl; m.sides = last.sides; m.side = last.side;
-                openForCard(m, opts.card || null, 0);
+                const walk = addressSequence(opts.sequence && opts.sequence(), m);
+                if (walk) openSequence(walk);
+                else openForCard(m, opts.card || null, 0);
             } catch (err) { /* no-op */ }
         }
         // Double-clic sur l'aperçu → la visionneuse, sur la face montrée. Une vignette de la grille
@@ -1283,7 +1287,12 @@
      *  Pendant → l'aperçu de la card, et sa face Pendant si elle en publie une. */
     function _loadCard(card, face) {
         const live = _liveCard(card);
-        const url = live && _cardPreviewUrl(live);
+        return _loadAddress(live && _cardPreviewUrl(live), face);
+    }
+
+    /** La face d'un élément voisin désigné par son ADRESSE d'aperçu (une card fille d'un lot dans
+     *  l'échange de l'assistant, qui n'a pas de card dans la page) — même règle que `_loadCard`. */
+    function _loadAddress(url, face) {
         if (!url) return Promise.resolve(null);
         const base = _itemAddress(url);
         if (!face || face === 'during') return _fetchItem(url);
@@ -1305,6 +1314,16 @@
         } : null);
         _sub = sub || 0;
         _display(data);
+    }
+
+    /** La séquence de la visionneuse pour une suite d'ADRESSES d'aperçu (`{urls, index, onMove}`,
+     *  les filles d'un lot dans l'échange de l'assistant, 2026-11-05) : `openSequence` chargeant le
+     *  voisin par son adresse (`_loadAddress`), la face regardée gardée ; null pour moins de deux
+     *  éléments — gardée en V8. */
+    function addressSequence(seq, data) {
+        if (!seq || !seq.urls || seq.urls.length < 2) return null;
+        return { count: seq.urls.length, index: seq.index || 0, data: data, onMove: seq.onMove,
+                 load: function (i, face) { return _loadAddress(seq.urls[i], face); } };
     }
 
     /** Une séquence chargée À LA DEMANDE (le gestionnaire de fichiers : un aperçu par fichier du
@@ -2195,6 +2214,7 @@
         // visionneuse et navigation
         show: showPreviewModal, showWithNav: showPreviewModalWithNav,
         openSequence: openSequence, openForCard: openForCard, cardSequence: cardSequence,
+        addressSequence: addressSequence,
     };
 
     // Auto-initialisation EN DERNIER : toutes les déclarations (`const`, `let`) sont alors faites —

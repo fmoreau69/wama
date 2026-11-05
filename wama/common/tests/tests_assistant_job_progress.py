@@ -183,6 +183,178 @@ class JobProgressTest(TestCase):
         self.assertNotIn('jobs', answer)
 
 
+@override_settings(CACHES=LOCAL_CACHE)
+class LaunchedBatchTest(TestCase):
+    """2026-11-05 (Fabien: « mettre à jour la barre de progression de lot et à la fin de chaque card
+    fille remplacer la preview par la suivante […] aller jusqu'au bout d'un lot sans surcharger le
+    fil de discussion ») : a launched batch is ONE line of the exchange — the state of its batch card,
+    its children shown one at a time — and ONE end in the thread, whatever its size."""
+
+    def setUp(self):
+        from wama.accounts.permissions import GROUP_PREFIX
+        from wama.common.services import conversation_store as store
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.describer.models import Description
+        from wama.tool_api import execute_tool
+        self.root = tempfile.mkdtemp()
+        media_root = override_settings(MEDIA_ROOT=self.root)
+        media_root.enable()
+        self.addCleanup(media_root.disable)
+        self.addCleanup(shutil.rmtree, self.root, True)
+        cache.clear()
+        self.store = store
+        self.user = User.objects.create_user('batch_progress', password='x')
+        self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')[0])
+        self.client.force_login(self.user)
+        self.lot, self.cards = _lot_de(Description, self.user, 3)
+        args = {'app': 'describer', 'batch_id': self.lot.pk}
+        with mock.patch('celery.app.task.Task.apply_async', return_value=mock.Mock(id='no-task')):
+            self.steps = [{'tool': 'launch_batch', 'args': args,
+                           'result': execute_tool('launch_batch', args, self.user)}]
+        self.assertTrue(self.steps[0]['result'].get('started'), self.steps)
+
+    def _set(self, card, status, progress=0, error=''):
+        type(card).objects.filter(pk=card.pk).update(status=status, progress=progress,
+                                                     error_message=error)
+
+    def test_a_launched_batch_is_one_line_carrying_its_children(self):
+        from wama.common.services.job_follow_ups import turn_jobs
+        one, two, three = self.cards
+        self._set(one, 'SUCCESS', 100)
+        self._set(two, 'RUNNING', 40)
+        self._set(three, 'RUNNING')
+        (row,) = turn_jobs(self.user, self.steps)
+        self.assertEqual(('batch', 'describer', self.lot.pk), (row['kind'], row['family'], row['id']))
+        self.assertEqual([one.pk, two.pk, three.pk], [c['id'] for c in row['items']],
+                         'the children, in the order of the lines, and no line of their own')
+        self.assertEqual([reverse('common:unified_preview', args=['describer', c.pk]) for c in self.cards],
+                         [c['preview_url'] for c in row['items']])
+        # The bar of the batch card (`_batch_card.html`): finished / total, not a mean of progress.
+        self.assertEqual((1, 3, 33, False), (row['counts']['success'], row['total'], row['progress'],
+                                             row['terminal']))
+        self.assertTrue(row['label'])
+        self.assertTrue(row['download_url'], 'one result: the ZIP of the batch card')
+        self.assertEqual('/describer/', row['page_url'])
+        # Counter-check: nothing finished yet, no ZIP to give.
+        self._set(one, 'RUNNING')
+        self.assertEqual('', turn_jobs(self.user, self.steps)[0]['download_url'])
+
+    def test_a_child_never_launched_does_not_hold_the_end_of_the_batch(self):
+        from wama.tool_api import batch_progress
+        one, two, three = self.cards
+        self._set(one, 'SUCCESS', 100)
+        self._set(two, 'FAILURE', error='boom')
+        self._set(three, 'PENDING')
+        row = batch_progress(self.user, 'describer', self.lot.pk)
+        self.assertEqual((True, False), (row['terminal'], row['ok']))
+        # Counter-check: waiting for the GPU is moving, not over.
+        self._set(three, 'AWAITING_RESOURCES')
+        self.assertFalse(batch_progress(self.user, 'describer', self.lot.pk)['terminal'])
+
+    def test_the_queue_of_a_family_is_the_page_of_the_app_carrying_it(self):
+        """One rule (`journal.family_queue_url`) for the link of a notification and the exchange:
+        a surface is a tab of the app carrying its model, a Lab app has its own page — the old
+        fallback of the notification (`/<package>/`) linked `/cam_analyzer/`, a page that is not."""
+        from django.apps import apps
+        from wama.common.services.journal import app_queue_url, family_queue_url
+        from wama.common.utils.notifications import _job_url
+        self.assertEqual('/enhancer/', family_queue_url('audio_enhancer'))
+        lab_model = next(iter(apps.get_app_config('cam_analyzer').get_models()))
+        self.assertEqual(app_queue_url('cam_analyzer'), family_queue_url('', lab_model))
+        self.assertNotEqual('/cam_analyzer/', family_queue_url('', lab_model))
+        self.assertEqual('/describer/', _job_url(self.cards[0], 'describer'))
+
+    def test_the_jobs_endpoint_follows_a_launched_batch_of_the_user_only(self):
+        r = self.client.get(reverse('ai_chat_jobs'), {'items': f'batch:describer:{self.lot.pk}'})
+        self.assertEqual([('batch', self.lot.pk)], [(j['kind'], j['id']) for j in r.json()['jobs']])
+        self.client.force_login(User.objects.create_user('batch_progress_other', password='x'))
+        r = self.client.get(reverse('ai_chat_jobs'), {'items': f'batch:describer:{self.lot.pk}'})
+        self.assertEqual([], r.json()['jobs'])
+
+    def test_beyond_the_followed_lines_one_line_says_how_many_more(self):
+        """1a (2026-11-05): « tout lancer » on a queue of 22 showed 20 lines and was silent on the
+        two others — they run, the reply now says so and leads to their queue."""
+        from wama.common.services.job_follow_ups import TURN_JOBS_MAX, turn_jobs
+        from wama.common.tests.tests_queue_delete_contract import _lot_de
+        from wama.describer.models import Description
+        _lot, cards = _lot_de(Description, self.user, TURN_JOBS_MAX + 2)
+        ids = [c.pk for c in cards]
+        rows = turn_jobs(self.user, [{'tool': 'start_describer', 'args': {},
+                                      'result': {'status': 'started', 'ids': ids}}])
+        self.assertEqual(TURN_JOBS_MAX, len([r for r in rows if 'kind' not in r]))
+        self.assertEqual([{'kind': 'more', 'family': 'describer', 'count': 2, 'terminal': True,
+                           'page_url': '/describer/'}], [r for r in rows if r.get('kind') == 'more'])
+        # Counter-check: exactly the followed number, nothing more to say.
+        rows = turn_jobs(self.user, [{'tool': 'start_describer', 'args': {},
+                                      'result': {'status': 'started', 'ids': ids[:TURN_JOBS_MAX]}}])
+        self.assertEqual([], [r for r in rows if r.get('kind') == 'more'])
+
+    def _notice(self, card, ok=True):
+        from wama.common.models import Notification
+        from wama.common.utils.notifications import notify_in_app
+        notify_in_app([self.user], 'job_done' if ok else 'job_failed',
+                      f"Describer — « {card.pk} » {'terminé' if ok else 'a échoué'}",
+                      app='describer', item=card)
+        return Notification.objects.filter(recipient=self.user).latest('pk').pk
+
+    def test_the_end_of_a_launched_batch_is_told_once_when_nothing_moves_any_more(self):
+        from wama.common.models import ConversationTurn
+        from wama.common.services.job_follow_ups import NOTICE_PREFIX, outputs_to_join, web_follow_ups
+        from wama.common.models import Notification
+        conversation = self.store.thread(self.user, surface='web')
+        self.store.record_exchange(conversation, 'lance le lot',
+                                   {'response': 'Lancé.', 'tool_steps': self.steps})
+        one, two, three = self.cards
+        for card in self.cards:
+            self._set(card, 'RUNNING')
+        self._set(one, 'SUCCESS', 100)
+        notes = [self._notice(one)]
+        self.assertEqual([], web_follow_ups(self.user, notes), 'a child ends: the batch still moves')
+        self._set(two, 'FAILURE', error='boom')
+        notes.append(self._notice(two, ok=False))
+        self.assertEqual([], web_follow_ups(self.user, notes[1:]))
+        self._set(three, 'SUCCESS', 100)
+        notes.append(self._notice(three))
+        (told,) = web_follow_ups(self.user, notes[2:])
+        self.assertEqual('get_batch_result', told['tool_steps'][0]['tool'],
+                         'the end of a batch rests on the tool really played')
+        text = told['response']
+        self.assertTrue(text.startswith('⚠ Describer — lot «'), text)
+        self.assertIn('2 terminé(s), 1 en échec, sur 3.', text)
+        self.assertIn(': boom', text, 'the failed child is named with its error')
+        self.assertIn('Télécharger le lot (ZIP)](http', text)
+        self.assertIn("Ouvrir le lot dans l'app](http", text)
+        # Told once, whatever relays the notifications again (another tab, the turn's own end).
+        self.assertEqual([], web_follow_ups(self.user, notes))
+        self.assertEqual(1, ConversationTurn.objects.filter(
+            conversation=conversation, role='user', content__startswith=NOTICE_PREFIX).count())
+        # A channel joins no file of the last child to the end of the batch: its ZIP is a link —
+        # while the end of an element alone keeps joining its outputs.
+        last = Notification.objects.get(pk=notes[2])
+        with mock.patch('wama.common.services.job_follow_ups.declared_output_urls',
+                        return_value=['/media/out.png']):
+            self.assertEqual([], outputs_to_join(last, told['tool_steps'][0]))
+            self.assertEqual(['/media/out.png'],
+                             outputs_to_join(last, {'tool': 'get_describer_status'}))
+
+    def test_a_child_started_alone_keeps_its_own_end(self):
+        """Counter-check: the batch path is taken for a child of a batch LAUNCHED by the turn only —
+        a card of a batch started on its own is told as before."""
+        from wama.common.services.job_follow_ups import web_follow_ups
+        from wama.tool_api import primary_arg_name
+        one = self.cards[0]
+        conversation = self.store.thread(self.user, surface='web')
+        self.store.record_exchange(conversation, 'lance le lot',
+                                   {'response': 'Lancé.', 'tool_steps': self.steps})
+        self.store.record_exchange(conversation, 'relance la première', {'response': 'Relancée.', 'tool_steps': [
+            {'tool': 'start_describer', 'args': {primary_arg_name('start_describer'): one.pk},
+             'result': {'status': 'started'}}]})
+        self._set(one, 'SUCCESS', 100)
+        (told,) = web_follow_ups(self.user, [self._notice(one)])
+        self.assertEqual('get_describer_status', told['tool_steps'][0]['tool'])
+        self.assertIn(f'« {one.pk} » terminé', told['response'])
+
+
 #: A served chat without a browser: elements answering the selectors the chat uses, a Poller that
 #: records what it follows, and a bell that counts its relays. The states' label and colour are
 #: `WamaApp`'s (marked, so that a table written again in the chat shows); the queue chip is the
@@ -423,3 +595,196 @@ class ChatFollowsTheJobsTest(SimpleTestCase):
             {family: 'describer', id: 1, status: 'SUCCESS', progress: 100, terminal: true, ok: true}]);""")
         self.assertEqual('Introuvable', self._read(ctx, "b.parts['.status-badge'].textContent"))
         self.assertEqual(['1'], self._read(ctx, 'stopped'))
+
+
+#: A batch line answering the selectors `paintBatch`/`showChild` use, a list whose options are
+#: cleared like a real one, and a face viewer that records what it mounts.
+FAKE_BATCH = r"""
+var mounted = [];
+window.WamaMediaPreview = {
+  releaseMedia: function () {},
+  faceViewer: function (host, url, opts) {
+    var v = {url: url, opts: opts, refreshed: 0, stopped: 0};
+    v.refresh = function () { v.refreshed++; };
+    v.stop = function () { v.stopped++; };
+    mounted.push(v); return v; }};
+document.createElement = function () { return el(); };
+function fakeBatchRow(key) {
+  var row = el();
+  row.dataset.jobKey = key;
+  var list = el();
+  list.options = [];
+  list.appendChild = function (o) { list.options.push(o); };
+  Object.defineProperty(list, 'innerHTML', {set: function () { list.options = []; }, get: function () { return ''; }});
+  var parts = {'.wama-assistant-batch-child': list};
+  ['.status-badge', '.progress-text', '[data-batch-field="success_count"]', '[data-batch-field="running_count"]',
+   '[data-batch-field="failure_count"]', '[data-batch-field="total"]', '.wama-progress-fill', '.wama-eta',
+   '.wama-assistant-batch-zip', '.wama-assistant-batch-page', '.wama-assistant-batch-follow',
+   '[data-batch-step="-1"]', '[data-batch-step="1"]', '.wama-assistant-job-preview'].forEach(function (s) {
+    parts[s] = el(); });
+  var shows = ['success_count', 'running_count', 'failure_count'].map(function (k) {
+    var s = el(); s.dataset.batchShow = k; return s; });
+  row.parts = parts;
+  row.querySelector = function (s) { return parts[s]; };
+  row.querySelectorAll = function (s) { return s === '[data-batch-show]' ? shows : []; };
+  row._batch = {family: 'describer', follow: true, shown: null, children: {}, order: []};
+  return row;
+}
+function child(id, status) {
+  return {id: id, label: 'f' + id + '.png', status: status, progress: status === 'SUCCESS' ? 100 : 10,
+          terminal: status === 'SUCCESS' || status === 'FAILURE', ok: status === 'SUCCESS',
+          preview_url: '/common/preview/describer/' + id + '/'};
+}
+function batch(statuses, terminal) {
+  var items = statuses.map(function (s, i) { return child(i + 1, s); });
+  var count = function (s) { return statuses.filter(function (x) { return x === s; }).length; };
+  return {kind: 'batch', family: 'describer', id: 9, label: 'Lot', status: terminal ? 'FAILURE' : 'RUNNING',
+          terminal: terminal, total: items.length,
+          counts: {success: count('SUCCESS'), running: count('RUNNING'), failure: count('FAILURE')},
+          progress: Math.round(100 * count('SUCCESS') / items.length), items: items,
+          download_url: count('SUCCESS') ? '/describer/batch/9/download/' : '', page_url: '/describer/'};
+}
+"""
+
+
+class ChatShowsALaunchedBatchTest(SimpleTestCase):
+    """2026-11-05 : the served chat shows a launched batch as ONE line — the bar and counts of its
+    batch card, ONE preview (the common face viewer, all its faces) that follows the last child over,
+    a list and ◀ ▶ to choose a child, the ZIP and the batch in the app (V8)."""
+
+    _ctx = ChatFollowsTheJobsTest._ctx
+    _read = ChatFollowsTheJobsTest._read
+
+    def _batch_ctx(self):
+        ctx = self._ctx()
+        ctx.eval(FAKE_BATCH)
+        served = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+        ctx.eval((served / 'wama-eta.js').read_text(encoding='utf-8'))
+        ctx.eval("var row = fakeBatchRow('batch:describer:9'); chat.jobBlocks['1'] = fakeBlock([row]);")
+        return ctx
+
+    def test_the_preview_follows_the_last_child_over_until_a_child_is_chosen(self):
+        ctx = self._batch_ctx()
+        ctx.eval("chat.paintBatch(row, batch(['SUCCESS', 'RUNNING', 'RUNNING'], false));")
+        self.assertEqual(['/common/preview/describer/1/'], self._read(ctx, 'mounted.map(function (v) { return v.url; })'),
+                         'nothing over yet but the first: its faces')
+        # The bar and counts of the batch card; the ETA is the batch ticker's (`data-eta-ids`).
+        self.assertEqual(['1/3', '33%', '1', '2', '0', '3', True, 'chat:describer:1,chat:describer:2,chat:describer:3'],
+                         self._read(ctx, """[row.parts['.progress-text'].textContent,
+                             row.parts['.wama-progress-fill'].style.width,
+                             String(row.parts['[data-batch-field="success_count"]'].textContent),
+                             String(row.parts['[data-batch-field="running_count"]'].textContent),
+                             String(row.parts['[data-batch-field="failure_count"]'].textContent),
+                             String(row.parts['[data-batch-field="total"]'].textContent),
+                             row.querySelectorAll('[data-batch-show]')[2].hidden,
+                             row.parts['.wama-eta'].dataset.etaIds]"""))
+        self.assertEqual(['f1.png · label:SUCCESS', 'f2.png · label:RUNNING', 'f3.png · label:RUNNING'],
+                         self._read(ctx, "row.parts['.wama-assistant-batch-child'].options.map(function (o) { return o.textContent; })"))
+        # A child ends: its preview REPLACES the previous one.
+        ctx.eval("chat.updateJobs('1', [batch(['SUCCESS', 'SUCCESS', 'RUNNING'], false)]);")
+        self.assertEqual(['/common/preview/describer/1/', '/common/preview/describer/2/'],
+                         self._read(ctx, 'mounted.map(function (v) { return v.url; })'))
+        self.assertEqual(1, self._read(ctx, 'mounted[0].stopped'), 'the previous viewer stops')
+        # The user chooses the first: the follow stops, the next end does not move the preview.
+        ctx.eval("chat.showChild(row, 1, false);")
+        ctx.eval("chat.updateJobs('1', [batch(['SUCCESS', 'SUCCESS', 'FAILURE'], true)]);")
+        self.assertEqual('/common/preview/describer/1/', self._read(ctx, 'mounted[mounted.length - 1].url'))
+        self.assertEqual([False, '1'], self._read(
+            ctx, "[row.parts['.wama-assistant-batch-follow'].hidden, row.parts['.wama-assistant-batch-child'].value]"))
+        # The viewer walks the children like the cards of a queue.
+        self.assertEqual({'urls': ['/common/preview/describer/1/', '/common/preview/describer/2/',
+                                   '/common/preview/describer/3/'], 'index': 0},
+                         self._read(ctx, """(function () { var s = mounted[mounted.length - 1].opts.sequence();
+                                            return {urls: s.urls, index: s.index}; })()"""))
+        # Over: the follow stops and the bell is asked once — the end of the batch is told then.
+        self.assertEqual((['1'], 1), (self._read(ctx, 'stopped'), self._read(ctx, 'checked')))
+        self.assertEqual(['/describer/batch/9/download/', False, '/describer/', True, ''], self._read(
+            ctx, """[row.parts['.wama-assistant-batch-zip'].href, row.parts['.wama-assistant-batch-zip'].hidden,
+                     row.parts['.wama-assistant-batch-page'].href, row.parts['.wama-progress-fill'].has('is-frozen'),
+                     row.parts['.wama-eta'].dataset.etaIds]"""))
+
+    def test_the_preview_shows_the_child_that_ended_last_not_the_last_of_the_list(self):
+        ctx = self._batch_ctx()
+        ctx.eval("chat.paintBatch(row, batch(['RUNNING', 'RUNNING', 'SUCCESS'], false));")
+        ctx.eval("chat.paintBatch(row, batch(['SUCCESS', 'RUNNING', 'SUCCESS'], false));")
+        self.assertEqual(['/common/preview/describer/3/', '/common/preview/describer/1/'],
+                         self._read(ctx, 'mounted.map(function (v) { return v.url; })'))
+
+    def test_the_batch_line_is_played_on_the_served_page_every_night(self):
+        """The served chain (the chat, the face viewer, the viewer's sequence) is played in a browser
+        by `common.preview_chat_batch` — V8 holds the rules, the gesture holds the wiring."""
+        from wama.common.services import nightly_tests
+        from wama.common.services.ui_smoke_preview import register_preview_scenarios
+        register_preview_scenarios()
+        self.assertIn('common.preview_chat_batch', {s.id for s in nightly_tests.REGISTRY})
+
+    def test_the_child_to_follow_is_the_last_over_then_the_one_running(self):
+        out = self._read(self._ctx(), """(function () {
+            var f = WamaAssistantChat._latestChild;
+            function b(st, last) {
+              var children = {}, order = [];
+              st.forEach(function (s, i) { children[i + 1] = {status: s, terminal: s === 'SUCCESS' || s === 'FAILURE'};
+                                            order.push(i + 1); });
+              return {children: children, order: order, lastEnded: last};
+            }
+            return [f(b(['SUCCESS', 'FAILURE', 'RUNNING'])), f(b(['PENDING', 'RUNNING', 'RUNNING'])),
+                    f(b(['PENDING', 'PENDING'])), f(b(['SUCCESS', 'SUCCESS'], 1)), f(b([]))];
+        })()""")
+        self.assertEqual([2, 2, 1, 1, None], out)
+
+    def test_a_block_routes_each_line_by_its_kind(self):
+        ctx = self._ctx()
+        out = self._read(ctx, """(function () {
+            var kinds = [];
+            chat.batchRow = function () { kinds.push('batch'); return el(); };
+            chat.moreRow = function () { kinds.push('more'); return el(); };
+            chat.jobRow = function () { kinds.push('job'); return el(); };
+            started.length = 0;
+            var block = el(); block.appendChild = function () {};
+            document.createElement = function () { return block; };
+            chat.jobsBlock([{kind: 'batch', family: 'describer', id: 9, terminal: false},
+                            {family: 'describer', id: 1, terminal: true},
+                            {kind: 'more', family: 'describer', count: 2, terminal: true}]);
+            return [kinds, started.length];
+        })()""")
+        self.assertEqual([['batch', 'job', 'more'], 1], out)
+
+    def test_the_line_beyond_the_followed_ones_leads_to_their_queue(self):
+        ctx = self._ctx()
+        out = self._read(ctx, """(function () {
+            document.createElement = function () { var e = el(); e.children = [];
+              e.appendChild = function (c) { e.children.push(c); }; return e; };
+            var row = chat.moreRow({kind: 'more', family: 'describer', count: 2, page_url: '/describer/'});
+            return [row.dataset.jobKey === undefined, row.children[0].href, row.children[0].textContent];
+        })()""")
+        self.assertEqual([True, '/describer/', '+ 2 autres — ouvrir la file'], out,
+                         'not followed (no key), a link to the queue')
+
+    def test_the_face_viewer_walks_a_sequence_of_addresses_like_cards(self):
+        """The viewer opened from a batch line walks its children (`openSequence`, the gesture of the
+        file manager) — the neighbour loaded by ADDRESS on the face being looked at, by the same rule
+        as a card's neighbours (`_loadCard`)."""
+        from py_mini_racer import MiniRacer
+        from .tests_cap_from_js import FAKE_DOM
+        served = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'media-preview.js'
+        brick = served.read_text(encoding='utf-8')
+        v8 = MiniRacer()
+        v8.eval(FAKE_DOM + 'var fetched = []; function fetch(u) { fetched.push(u); '
+                           'return {then: function () { return {then: function () {}}; }}; }')
+        v8.eval(brick)
+        out = json.loads(v8.eval("""JSON.stringify((function () {
+            var P = window.WamaMediaPreview, moved = [];
+            var walk = P.addressSequence({urls: ['/p/1/', '/p/2/'], index: 1,
+                                          onMove: function (i) { moved.push(i); }}, {side: 'output'});
+            walk.load(0, 'output');
+            walk.onMove(0);
+            return [walk.count, walk.index, walk.data.side, fetched, moved,
+                    P.addressSequence({urls: ['/p/1/']}, {}), P.addressSequence(null, {})];
+        })())"""))
+        self.assertEqual([2, 1, 'output', ['/p/1/?side=output'], [0], None, None], out)
+        viewer = brick[brick.index('function faceViewer('):]
+        opener = viewer[viewer.index('function open()'):viewer.index('function attach(')]
+        self.assertIn('if (walk) openSequence(walk);', opener)
+        self.assertIn('else openForCard(m, opts.card || null, 0);', opener, 'without a sequence: the cards')
+        load_card = brick[brick.index('function _loadCard('):brick.index('function _loadAddress(')]
+        self.assertIn('return _loadAddress(', load_card, 'one rule for a card and an address')
