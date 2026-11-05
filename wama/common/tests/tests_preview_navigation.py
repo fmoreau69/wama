@@ -264,6 +264,47 @@ class OneFaceSwitchTest(SimpleTestCase):
         self.assertEqual([0, 0], [out[5], out[6]], 'never from one item to another')
         self.assertIsNone(out[7])
 
+    def test_the_playback_follows_the_face_on_the_axis(self):
+        """Since 2026-11-05 a video of the preview FOLLOWS a time axis (`playOnAxis`), the only clock,
+        like a video of the Data world : the clock taken from a face is its AXIS's (time, state —
+        the axis pauses), and the next face's axis receives it as a command."""
+        self.v8.eval('window.requestAnimationFrame = function () { return 1; };'
+                     'window.cancelAnimationFrame = function () {};'
+                     + (JS / 'wama-axis.js').read_text(encoding='utf-8'))
+        out = self.v8.eval("""(function () {
+            var P = window.WamaMediaPreview;
+            function video() {
+                var v = {tagName: 'VIDEO', currentTime: 0, duration: 60, paused: true, ended: false,
+                         readyState: 4, seeking: false, playbackRate: 1, attrs: {}, on: {},
+                         addEventListener: function (k, fn) { (v.on[k] = v.on[k] || []).push(fn); },
+                         removeEventListener: function () {},
+                         setAttribute: function (k, x) { v.attrs[k] = String(x); },
+                         getAttribute: function (k) { return k in v.attrs ? v.attrs[k] : null; },
+                         hasAttribute: function (k) { return k in v.attrs; },
+                         removeAttribute: function (k) { delete v.attrs[k]; },
+                         play: function () { v.paused = false; return null; },
+                         pause: function () { v.paused = true; }};
+                return v;
+            }
+            function host(v) { return {querySelector: function (sel) {
+                return sel === '[data-wama-axis]' ? v : null; }}; }
+            var a = video(), b = video();
+            P.playOnAxis(a, [{el: a}]);
+            var axisA = P.axisOf(host(a));
+            axisA.seek(12.5); axisA.play();
+            var clock = P.takeClock(host(a), '/p/1/', null);
+            P.playOnAxis(b, [{el: b}]);
+            P.giveClock(host(b), clock, '/p/1/');
+            var axisB = P.axisOf(host(b));
+            return [clock, axisA.playing(), a.paused, axisB.time(), axisB.playing(), b.currentTime,
+                    b.paused, axisA === axisB];
+        })()""")
+        out = list(out)
+        self.assertEqual({'base': '/p/1/', 'time': 12.5, 'playing': True}, dict(out[0]))
+        self.assertEqual([False, True], out[1:3], 'the face left: its axis and its video stop')
+        self.assertEqual([12.5, True, 12.5, False], out[3:7], 'the next face resumes on its own axis')
+        self.assertFalse(out[7], 'one axis per face shown')
+
     def test_the_viewer_width_follows_what_it_shows(self):
         """A media takes the room, a text keeps a reading width, a sound stays narrow (2026-10-14 :
         the viewer was 800 px whatever it showed)."""
@@ -325,6 +366,125 @@ class OneFaceSwitchTest(SimpleTestCase):
         self.assertTrue(out[1], 'the row watches its own width')
         self.assertEqual([[False, False], [True, False], [True, True], [False, False]],
                          [list(s) for s in out[2]])
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class ViewerTransportKeysTest(SimpleTestCase):
+    """Fabien (2026-11-03) : « on a généralisé les raccourcis clavier, mais les touches jkl ne
+    s'appliquent pas à la preview ». The viewer is a LAYER of the common keyboard : open, it alone
+    hears the keys — and it took only ←/→/↑/↓/Échap. Since 2026-11-05 it passes the transport keys
+    it does not take to the axis of what it shows (`WamaAxis.keys`), the same transport as a
+    surface's. Played here through the REAL dispatcher (`wama-keys.js`) and the real axis."""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM + """
+            var keyListeners = [], open = true, shown = null;
+            window.document = document;                     // the dispatcher listens on it
+            document.addEventListener = function (k, fn) { if (k === 'keydown') keyListeners.push(fn); };
+            document.removeEventListener = function () {};
+            window.requestAnimationFrame = function () { return 1; };
+            window.cancelAnimationFrame = function () {};
+            var container = {querySelector: function (sel) { return sel === '[data-wama-axis]' ? shown : null; }};
+            var modal = {classList: {contains: function (c) { return c === 'show' && open; }},
+                         querySelector: function (sel) { return sel === '.preview-container' ? container : null; }};
+            document.getElementById = function (id) { return id === 'wamaMediaPreviewModal' ? modal : null; };
+            document.querySelector = function (sel) { return sel === '.modal.show' && open ? modal : null; };
+        """)
+        for name in ('wama-keys.js', 'wama-axis.js', 'wama-shuttle.js', 'media-preview.js'):
+            self.v8.eval((JS / name).read_text(encoding='utf-8'))
+
+    def test_the_open_viewer_passes_the_transport_keys_to_the_axis_it_shows(self):
+        out = self.v8.eval("""(function () {
+            function press(code, key) {
+                var e = {code: code, key: key, target: {}, ctrlKey: false, metaKey: false, altKey: false,
+                         shiftKey: false, defaultPrevented: false,
+                         preventDefault: function () { e.defaultPrevented = true; }};
+                keyListeners.forEach(function (fn) { fn(e); });
+                return e.defaultPrevented;
+            }
+            var v = {tagName: 'VIDEO', currentTime: 0, duration: 60, paused: true, ended: false,
+                     readyState: 4, seeking: false, playbackRate: 1, attrs: {},
+                     addEventListener: function () {}, removeEventListener: function () {},
+                     setAttribute: function (k, x) { v.attrs[k] = String(x); },
+                     getAttribute: function (k) { return k in v.attrs ? v.attrs[k] : null; },
+                     hasAttribute: function (k) { return k in v.attrs; },
+                     removeAttribute: function (k) { delete v.attrs[k]; },
+                     play: function () { v.paused = false; return null; },
+                     pause: function () { v.paused = true; }};
+            var none = press('KeyL', 'l');                     // nothing shown on an axis : not taken
+            shown = v; window.WamaMediaPreview.playOnAxis(v, [{el: v}]);
+            var axis = v._wamaAxis, r = {none: none};
+            r.space = [press('Space', ' '), axis.playing(), !v.paused];
+            r.space2 = [press('Space', ' '), axis.playing()];
+            r.L = [press('KeyL', 'l'), axis.playing(), axis.rate()];
+            r.LL = [press('KeyL', 'l'), axis.rate()];
+            r.K = [press('KeyK', 'k'), axis.playing()];
+            r.J = [press('KeyJ', 'j'), axis.rate(), v.paused];
+            press('KeyK', 'k'); axis.seek(30);
+            r.home = [press('Home', 'Home'), axis.time()];
+            open = false;
+            r.closed = press('KeyL', 'l');
+            return r;
+        })()""")
+        self.assertFalse(out['none'], 'no axis shown : the key is left alone')
+        self.assertEqual([True, True, True], list(out['space']), 'Space plays the video shown')
+        self.assertEqual([True, False], list(out['space2']))
+        self.assertEqual([True, True, 1], list(out['L']), 'L : the shuttle, forward')
+        self.assertEqual([True, 1.25], list(out['LL']), 'L again : one notch faster')
+        self.assertEqual([True, False], list(out['K']), 'K : stop')
+        self.assertEqual([True, -1, True], list(out['J']), 'J : backward, the video silent')
+        self.assertEqual([True, 0], list(out['home']))
+        self.assertFalse(out['closed'], 'closed, the viewer takes nothing')
+
+
+class PreviewSyncVerdictTest(SimpleTestCase):
+    """The readings of `common.preview_sync` (the precision of the preview playback, measured in a
+    browser on frame-numbered witness videos — 2026-11-05) : pure, held here on hand-made records ;
+    each verdict of the scenario was also seen falling under its own mutation of the bricks."""
+
+    @staticmethod
+    def _result():
+        # Two videos, 25 fps : frame k presented at k × 40 ms (video 1 one frame late at 80 ms).
+        presented = [{'n': 0, 'at': t, 'mediaTime': t / 1000} for t in (0, 40, 80)] + \
+                    [{'n': 1, 'at': t, 'mediaTime': m} for t, m in ((0, 0), (40, 0.04), (80, 0.04))]
+        samples = [{'ts': 50, 'phase': 'play1', 'shown': [1, 1], 't': [0.05, 0.051], 'paused': [False, False]},
+                   {'ts': 85, 'phase': 'play1', 'shown': [2, 1], 't': [0.085, 0.07], 'paused': [False, False]},
+                   {'ts': 90, 'phase': 'pause1', 'shown': [2, 1], 't': [0.08, 0.08], 'paused': [True, True]}]
+        drawn = [{'ts': 40, 'text': '1'}, {'ts': 80, 'text': '1'}]
+        return {'presented': presented, 'samples': samples, 'drawn': drawn}
+
+    def test_the_frame_presented_is_read_at_its_screen_instant(self):
+        from wama.common.services.ui_smoke_preview_sync import presented_frames
+        self.assertEqual([[1, 1], [2, 1], [2, 1]], presented_frames(self._result()))
+
+    def test_the_overlay_is_judged_while_playing_against_the_frame_presented(self):
+        from wama.common.services.ui_smoke_preview_sync import overlay_on_presented, presented_frames
+        result = self._result()
+        self.assertEqual((1, 2), overlay_on_presented(result, presented_frames(result)),
+                         'right at 50 ms, one frame late at 85 ms ; the pause is not judged')
+
+    def test_rest_gaps_and_speed(self):
+        from wama.common.services.ui_smoke_preview_sync import (clock_gaps_ms, p95, presented_frames,
+                                                                rest_frames, speed_of)
+        result = self._result()
+        frames = presented_frames(result)
+        self.assertEqual({'pause1': [2, 1]}, rest_frames(result, frames))
+        self.assertEqual([1.0, 15.0], [round(g, 6) for g in clock_gaps_ms(result)])
+        self.assertEqual(15.0, round(p95(clock_gaps_ms(result)), 6))
+        self.assertIsNone(p95([]))
+        rows = {'samples': [{'ts': i * 100, 'phase': 'rate2', 'shown': [0], 't': [0], 'paused': [False]}
+                            for i in range(10)],
+                'presented': [{'n': 0, 'at': i * 100, 'mediaTime': i * 0.2} for i in range(10)]}
+        self.assertAlmostEqual(2.0, speed_of(rows, presented_frames(rows), 'rate2', 0))
+
+    def test_the_scenario_is_registered_without_gpu(self):
+        from wama.common.services.nightly_tests import REGISTRY
+        from wama.common.services.ui_smoke_preview_sync import register_preview_sync_scenarios
+        register_preview_sync_scenarios()
+        (scenario,) = [s for s in list.__iter__(REGISTRY) if s.id == 'common.preview_sync']
+        self.assertEqual(('ui', 0.0), (scenario.stage, scenario.vram_gb))
 
 
 class OnePreviewBrickTest(SimpleTestCase):

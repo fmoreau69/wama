@@ -106,7 +106,10 @@ class CompareLetsBothVideosPlayTest(TestCase):
     def test_the_common_compare_view_lets_the_two_videos_play_together(self):
         view = self._body('media-preview.js', 'function compareView')
         self.assertIn("setAttribute('data-wama-multiplay'", view)
-        self.assertIn('syncVideos', view)
+        # Both videos FOLLOW one axis (2026-11-05), the only clock — no more « the output follows
+        # the reference » (`syncVideos`, retired).
+        self.assertIn('playOnAxis(view, [{ el: base }, { el: topMedia }])', view)
+        self.assertNotIn('syncVideos', view)
         self.assertIn('wama-compare-top', view, 'the output laid over the reference')
         self.assertIn('wama-compare-range', view, 'a slider')
 

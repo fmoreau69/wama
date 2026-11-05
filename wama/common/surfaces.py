@@ -1159,12 +1159,23 @@ register_brick(UIBrick(
     description="L'élément en grand : ses faces — Entrée, une par process du pipeline de la "
                 "card, Sortie —, la comparaison et les surcouches de détection ; aussi la galerie "
                 "sans élément (les vignettes de ce catalogue). La page de base la charge pour "
-                "toutes les pages.",
+                "toutes les pages. Ses vidéos SUIVENT l'axe de temps commun (2026-11-05) — la "
+                "vidéo seule comme les deux de Comparer —, et la surcouche suit l'image présentée.",
     mount='common/js/media-preview.js',
+    # Ce dont elle dépend (2026-11-05) : l'axe et son shuttle, scripts de la page de base — la
+    # visionneuse se lit « synchronisable » comme les briques du temps.
+    requires=('common/js/wama-axis.js', 'common/js/wama-shuttle.js',
+              'common/js/wama-preview-overlay.js'),
     declarations=('app.inspector', 'pipeline'),
     # Une COUCHE (une modale) : le clavier commun ne distribue rien tant qu'elle est ouverte, elle
-    # garde le sien.
-    shortcuts=(Shortcut(('ArrowLeft', 'ArrowRight'), "fichier précédent / suivant de l'élément",
+    # garde le sien — et passe à l'axe de ce qu'elle montre les touches du magnéto (`WamaAxis.keys`).
+    # Les touches du magnéto sont traitées par l'axe (`WamaAxis.keys`, un script qu'elle requiert).
+    shortcuts=(Shortcut(('Space',), 'lecture / pause de la vidéo montrée (son lecteur natif la garde '
+                                    "quand il a le focus)"),
+               Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe'),
+               Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'arrière / arrêt / avant, par crans'),
+               Shortcut(('Home', 'End'), 'aller au début / à la fin de la vidéo'),
+               Shortcut(('ArrowLeft', 'ArrowRight'), "fichier précédent / suivant de l'élément",
                         handled_by='common/js/media-preview.js',
                         targets=('.wama-preview-nav-prev', '.wama-preview-nav-next')),
                Shortcut(('ArrowUp', 'ArrowDown'), 'card précédente / suivante',

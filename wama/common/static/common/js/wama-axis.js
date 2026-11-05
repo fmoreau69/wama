@@ -44,6 +44,12 @@
  *   axis.shuttle(-2);                              // un cran de shuttle : 0 = arrêt, < 0 = arrière
  *   var gone = axis.cadence(2000); axis.step(1);   // un échantillon plus loin (0,5 ms)
  *   axis.bindKeys({jump: 5});                      // Espace, ←/→, Début/Fin (+ J/K/L par WamaShuttle)
+ *   var keys = axis.keys({shuttle: WamaShuttle.forAxis(axis)});   // les mêmes, SANS inscription :
+ *   keys.handle(e); keys.release();                // une couche du clavier les passe (la visionneuse)
+ *
+ * L'APERÇU (2026-11-05) : chaque vidéo qu'il montre suit un axe (`WamaMediaPreview.playOnAxis`),
+ * les deux de Comparer le même ; leurs contrôles NATIFS restent — lecture, pause, position et
+ * VITESSE choisies dessus sont des commandes à l'axe.
  *
  * VITESSE ET SHUTTLE (2026-10-20, portage de l'éditeur du transcriber) : la vitesse choisie et le
  * cran du shuttle sont deux choses. Le shuttle l'emporte tant qu'il est engagé (`shuttling`) ;
@@ -159,22 +165,41 @@
             f.placedTo = t;
             f.drift = null;                  // un écart d'avant le positionnement ne dit plus rien
             f.catching = 0;
+            f.sounding = false;              // reposé (au-delà de sa fin, par exemple) : relançable
             // Le crochet du lecteur qui possède le média (`WamaAudioPlayer.seek` : il repose une
             // position demandée avant que le fichier ne soit positionnable, et réclame ses
             // métadonnées à un player à pics serveur) — l'axe ne le refait pas.
             if (f.seek) { f.seek(t); return; }
+            // Le média vient de s'y poser LUI-MÊME (un geste sur ses contrôles, dont l'axe fait une
+            // commande, `here`) : le reposer referait un décodage pour rien (mesuré sur le banc de
+            // l'aperçu, deux positionnements par geste). Partout ailleurs on repose, même à
+            // `currentTime` égal : à la pause, une vidéo peut déjà MONTRER l'image suivante (mesuré :
+            // deux vidéos de Comparer arrêtées sur deux images, sans ce repositionnement).
+            var here = f.here;
+            f.here = null;
+            if (here != null && Math.abs(here - t) < 1e-3) return;
             try { f.el.currentTime = t; } catch (e) { /* métadonnées pas encore là */ }
         }
         function rateOf(f, r) {
+            f.ownRate = r;
             try { if (f.el.playbackRate !== r) f.el.playbackRate = r; } catch (e) { /* vitesse refusée */ }
         }
         function hush(f) {
+            f.sounding = false;
             if (f.el.paused) return;
             f.pausedAt = now();
             f.el.pause();
         }
         function sound(f) {
-            if (!f.el.paused) return;
+            if (!f.el.paused) { f.sounding = true; return; }
+            // Arrêté sans que l'axe l'ait tu : un geste sur le média (son bouton, Espace sur ses
+            // contrôles natifs) dont l'événement n'est pas encore arrivé, ou une lecture refusée.
+            // L'axe ne le relance pas — son `pause` dira le geste. Mesuré au navigateur sur la
+            // visionneuse (2026-11-05) : la relance passait AVANT l'événement, d'où une lecture et
+            // une pause parasites à chaque pause au clavier. Un positionnement (`place`) ou un
+            // silence de l'axe (`hush`) le rend de nouveau relançable.
+            if (f.sounding) return;
+            f.sounding = true;
             f.playedAt = now();
             // Le crochet du lecteur qui possède le média (la lecture EXCLUSIVE de
             // `WamaAudioPlayer.play`, qui coupe les autres lecteurs de la page).
@@ -427,7 +452,7 @@
                           seek: typeof o.seek === 'function' ? o.seek : null,
                           sync: Object.assign({}, sync, o.sync || {}),
                           lastSeek: 0, pausedAt: null, playedAt: null, placedTo: null,
-                          drift: null, catching: 0 };
+                          drift: null, catching: 0, ownRate: null, sounding: false, here: null };
                 var dropCadence = o.fps ? axis.cadence(o.fps) : null;
                 /** Le média EST-il censé jouer ? Sinon une pause qui arrive est la nôtre. */
                 function expected() { return audible() && covers(f); }
@@ -459,12 +484,21 @@
                         if (!s.playing) return;
                         if (f.placedTo != null && Math.abs(el.currentTime - f.placedTo) < 0.05) return;
                         var t = clamp(el.currentTime - f.offset, 0, end());
-                        if (Math.abs(t - s.time) > f.sync.reseek) axis.seek(t);
+                        if (Math.abs(t - s.time) > f.sync.reseek) { f.here = el.currentTime; axis.seek(t); }
                     },
                     seeked: function () {
                         if (s.playing) return;           // pendant la lecture, `seeking` l'a dit
                         var t = clamp(el.currentTime - f.offset, 0, end());
-                        if (Math.abs(t - s.time) > 0.01) axis.seek(t);
+                        if (Math.abs(t - s.time) > 0.01) { f.here = el.currentTime; axis.seek(t); }
+                    },
+                    // Une vitesse choisie sur le média (le menu d'une vidéo à contrôles natifs) : une
+                    // commande — sinon le prochain recalage la défaisait. Les siennes, l'axe les
+                    // reconnaît à la VALEUR qu'il a posée (`rateOf`) : l'événement arrive après coup,
+                    // et le média porte alors la dernière vitesse demandée.
+                    ratechange: function () {
+                        var r = el.playbackRate;
+                        if (!(r > 0) || f.ownRate == null || Math.abs(r - f.ownRate) < 1e-3) return;
+                        axis.setRate(r);
                     },
                 };
                 Object.keys(handlers).forEach(function (k) { el.addEventListener(k, handlers[k]); });
@@ -504,8 +538,25 @@
              *  Ctrl+Espace, lecture/pause MÊME en saisie. Rend la fonction qui délie. */
             bindKeys: function (o) {
                 o = o || {};
+                var keys = axis.keys(o);
+                var off = global.WamaKeys.register({ owner: 'media_transport', scope: 'page',
+                                                     typing: ['Ctrl+Space'], handle: keys.handle });
+                return function () { off(); keys.release(); };
+            },
+            /** Les touches du magnéto SANS inscription au clavier commun : `{handle(e) → prise ?,
+             *  release()}`. Pour une couche qui garde le clavier (la visionneuse, `scope: 'layer'`)
+             *  et lui passe ce qu'elle ne prend pas — le même magnéto que celui d'une surface. */
+            keys: function (o) {
+                o = o || {};
                 var jump = Number(o.jump) || 5;
                 var spaceTarget = null;
+                /** Un média à CONTRÔLES NATIFS qui a le focus garde Espace : il le traite lui-même,
+                 *  et sa lecture est une commande à l'axe. Le prendre aussi le basculait deux fois
+                 *  (mesuré au navigateur sur la visionneuse : le lecteur natif l'écoute même quand la
+                 *  frappe est prise). */
+                function ownSpace(t) {
+                    return !!(t && (t.tagName === 'VIDEO' || t.tagName === 'AUDIO') && t.controls);
+                }
                 function handle(e) {
                     if (o.enabled && !o.enabled()) return false;
                     if (e.code === 'Space' && e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
@@ -514,7 +565,9 @@
                     }
                     if (e.ctrlKey || e.metaKey || e.altKey) return false;
                     switch (e.code) {
-                        case 'Space': axis.toggle(); spaceTarget = e.target; return true;
+                        case 'Space':
+                            if (ownSpace(e.target)) return false;
+                            axis.toggle(); spaceTarget = e.target; return true;
                         case 'ArrowLeft': axis.jump(e.shiftKey ? -jump * 6 : -jump); return true;
                         case 'ArrowRight': axis.jump(e.shiftKey ? jump * 6 : jump); return true;
                         case 'Home': axis.seek(0); return true;
@@ -531,18 +584,18 @@
                     if (e.code === 'Space' && spaceTarget && e.target === spaceTarget) e.preventDefault();
                     if (e.code === 'Space') spaceTarget = null;
                 }
-                var off = global.WamaKeys.register({ owner: 'media_transport', scope: 'page',
-                                                     typing: ['Ctrl+Space'], handle: handle });
                 document.addEventListener('keyup', onKeyUp);
                 // Le shuttle RENDU par l'axe (Espace, arrivée au bord, lecture sur le média) : son
                 // échelle repart du stop, sinon le prochain L reprendrait au cran d'avant.
                 var unsubscribe = o.shuttle && o.shuttle.reset ? axis.subscribe(function (st) {
                     if (!st.shuttling && o.shuttle.speed && o.shuttle.speed() !== 0) o.shuttle.reset();
                 }) : null;
-                return function () {
-                    off();
-                    document.removeEventListener('keyup', onKeyUp);
-                    if (unsubscribe) unsubscribe();
+                return {
+                    handle: handle,
+                    release: function () {
+                        document.removeEventListener('keyup', onKeyUp);
+                        if (unsubscribe) unsubscribe();
+                    },
                 };
             },
         };

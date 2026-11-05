@@ -108,9 +108,7 @@
         }
         host.appendChild(bar);
 
-        var shuttle = global.WamaShuttle ? global.WamaShuttle.create({
-            apply: function (level) { axis.shuttle(level); },
-        }) : null;
+        var shuttle = global.WamaShuttle ? global.WamaShuttle.forAxis(axis) : null;
 
         toStart.addEventListener('click', function () { axis.seek(0); });
         back.addEventListener('click', function () { axis.jump(-jump); });

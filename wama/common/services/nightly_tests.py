@@ -749,6 +749,10 @@ def _register_builtin() -> None:
         # joué que sur le converter : « No media URL » (Describer) et l'entrée inerte (Reader) n'étaient
         # vus par aucun scénario.
         register_preview_scenarios()
+        # 2026-11-05 — la PRÉCISION de la lecture de l'aperçu (vidéos sur l'axe de temps) : mesurée
+        # à l'image présentée, sur des vidéos témoins numérotées — page nue, aucun compte ni GPU.
+        from wama.common.services.ui_smoke_preview_sync import register_preview_sync_scenarios
+        register_preview_sync_scenarios()
         # 2026-10-16 — le CONTRASTE (Fabien : « parfois le texte est écrit de la même couleur que le
         # fond »). Une couleur réelle ne se lit que dans le navigateur ; axe-core la tranche. Aucun GPU.
         from wama.common.services.ui_smoke_contrast import register_contrast_scenarios

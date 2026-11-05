@@ -41,6 +41,19 @@ from wama.common.surfaces import surface as find_surface
 logger = logging.getLogger(__name__)
 
 
+def page_scripts() -> frozenset:
+    """Les scripts que la page de BASE charge déjà (`wama/templates/base.html`), lus dans le
+    gabarit et jamais recopiés : une surface n'en recharge aucun — deux exécutions, deux écouteurs
+    (`tests_item_lifecycle_contract`). Les briques gardent leurs `requires` (ce dont elles
+    DÉPENDENT) ; depuis le 2026-11-05 l'axe de temps et le shuttle sont de la page de base, l'aperçu
+    commun y posant ses vidéos."""
+    import re
+    from django.conf import settings
+    path = os.path.join(settings.BASE_DIR, 'wama', 'templates', 'base.html')
+    with open(path, encoding='utf-8') as f:
+        return frozenset(re.findall(r"static_v '([^']+\.js)'", f.read()))
+
+
 def _surface_or_404(app: str, key: str):
     found = find_surface(app, key)
     if found is None:
@@ -181,7 +194,7 @@ def surface_page(request, app: str, key: str, pk: int):
             **({'sound_banks': {**_sound_banks(), 'audio_url': base + 'audio/'}}
                if 'common/js/wama-midi-player.js' in found.scripts() else {}),
         },
-        'scripts': found.scripts(),
+        'scripts': [s for s in found.scripts() if s not in page_scripts()],
         'styles': found.styles(),
     })
 

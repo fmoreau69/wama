@@ -354,6 +354,47 @@
     // seulement (`base`). Une face sans média (texte) garde l'horloge : y revenir reprend à la
     // position, en pause.
 
+    // ── L'AXE DE TEMPS de l'aperçu (2026-11-05, demande de Fabien : « aligner parfaitement la
+    // lecture du monde Data et la preview ») : une vidéo montrée par l'aperçu SUIT un axe de temps
+    // commun (`wama-axis.js`), la seule horloge, comme une vidéo du monde Data (`video_view`) — la
+    // vidéo seule, et les DEUX vidéos de Comparer sur le même axe. Ses contrôles natifs restent :
+    // un geste dessus (lecture, pause, position, vitesse) est une COMMANDE à l'axe. Une surcouche
+    // suit l'image montrée par SA vidéo (`WamaPreviewOverlay`), jamais l'axe. La visionneuse passe
+    // à l'axe les touches du magnéto qu'elle ne prend pas (`setupKeyboardHandlers`).
+    const AXIS_ATTR = 'data-wama-axis';
+
+    /** Un axe posé sur `holder`, `medias` ([{el, opts}]) attachés ; null sans le module. */
+    function playOnAxis(holder, medias) {
+        const Axis = window.WamaAxis;
+        if (!Axis || !holder) return null;
+        const axis = Axis.create();
+        (medias || []).forEach(function (m) { if (m && m.el) axis.attach(m.el, m.opts); });
+        holder._wamaAxis = axis;
+        holder.setAttribute(AXIS_ATTR, '');
+        return axis;
+    }
+
+    /** L'axe de ce que montre `host` (lui-même ou ce qu'il contient), ou null. */
+    function axisOf(host) {
+        if (!host) return null;
+        if (host._wamaAxis) return host._wamaAxis;
+        const el = host.querySelector && host.querySelector('[' + AXIS_ATTR + ']');
+        return (el && el._wamaAxis) || null;
+    }
+
+    /** L'axe de `host` s'arrête et lâche ses médias : son contenu va être remplacé. */
+    function _dropAxes(host) {
+        if (!host || !host.querySelectorAll) return;
+        const held = host._wamaAxis ? [host] : [];
+        host.querySelectorAll('[' + AXIS_ATTR + ']').forEach(function (n) { held.push(n); });
+        held.forEach(function (n) {
+            const axis = n._wamaAxis;
+            n._wamaAxis = null;
+            n.removeAttribute(AXIS_ATTR);
+            if (axis) { axis.pause(); axis.detach(); }
+        });
+    }
+
     /** Le média que montre `host` : la référence de Comparer, une vidéo ou un son du DOM, sinon
      *  l'identifiant du lecteur audio commun. */
     function _hostMedia(host) {
@@ -367,6 +408,13 @@
     /** {base, time, playing} du média montré par `host` (il est arrêté), ou `previous` quand la
      *  face montrée n'en a pas (on revient d'un texte : l'horloge d'avant reste valable). */
     function takeClock(host, base, previous) {
+        // Sur l'axe : son temps et son état — ses médias y sont posés.
+        const axis = axisOf(host);
+        if (axis && axis.medias().length) {
+            const held = { base: base, time: axis.time(), playing: axis.playing() };
+            axis.pause();
+            return held;
+        }
         const m = _hostMedia(host);
         let media = m && m.el;
         if (m && m.player && window.WamaAudioPlayer && window.WamaAudioPlayer.current) {
@@ -381,6 +429,14 @@
     /** Rend l'horloge au média de la face montrée par `host`, s'il s'agit du même élément. */
     function giveClock(host, clock, base) {
         if (!clock || clock.base !== base || !(clock.time > 0 || clock.playing)) return;
+        // Sur l'axe : une commande. Avant les métadonnées, le média garde la position demandée
+        // et l'axe l'y repose quand elles arrivent ; un média plus court s'arrête à sa fin.
+        const axis = axisOf(host);
+        if (axis && axis.medias().length) {
+            axis.seek(clock.time);
+            if (clock.playing) axis.play();
+            return;
+        }
         const m = _hostMedia(host);
         if (!m) return;
         if (m.player) {
@@ -402,6 +458,7 @@
      *  HORS du DOM et jouait encore après avoir disparu (2026-10-15). */
     function _releaseHost(host) {
         if (!host || !host.querySelectorAll) return;
+        _dropAxes(host);
         host.querySelectorAll('video, audio').forEach(function (m) { try { m.pause(); } catch (e) {} });
         const player = host.querySelector('.wama-audio-player[id^="audioPlayer_"]');
         if (player && window.WamaAudioPlayer && window.WamaAudioPlayer.release
@@ -527,10 +584,12 @@
         }
         host.innerHTML = '<div class="wama-inspector-preview text-center">' + media + '</div>';
         // Une face qui porte une SURCOUCHE (la « Détection » de l'anonymizer, 2026-10-05) : les
-        // détections dessinées par-dessus le média, à la frame courante.
+        // détections dessinées par-dessus le média, sur l'image qu'il montre.
         if (data.overlay && window.WamaPreviewOverlay) {
             window.WamaPreviewOverlay.attach(host.querySelector('.wama-inspector-preview-media'), data.overlay);
         }
+        const video = host.querySelector('video.wama-inspector-preview-media');
+        if (video) playOnAxis(video, [{ el: video }]);
         _previewCaption(host, name, data);
     }
 
@@ -803,6 +862,9 @@
     // superposition avec le slider comme dans le volet »). Images ou vidéos : le calque Sortie est
     // rogné depuis la gauche, les deux médias ont la même géométrie ; deux vidéos jouent ensemble
     // (la référence porte les contrôles) ; la référence porte sa surcouche (détections dessinées).
+    // Les deux vidéos SUIVENT un même axe (2026-11-05) : jusque-là la sortie suivait la référence,
+    // recalée au-delà de 120 ms seulement — mesuré sur le banc de l'aperçu, une image d'écart
+    // pouvait durer toute la lecture, et rester à l'arrêt.
     function compareView(inD, outD, baseLabel) {
         const view = document.createElement('div');
         view.className = 'wama-compare-view';
@@ -849,7 +911,7 @@
         if (window.ResizeObserver) new window.ResizeObserver(sync).observe(base);
         if (base.complete || (isVideo && base.readyState >= 1)) sync();
         const overlay = window.WamaPreviewOverlay;
-        if (isVideo && overlay) overlay.syncVideos(base, topMedia);
+        if (isVideo) playOnAxis(view, [{ el: base }, { el: topMedia }]);
         if (inD.overlay && overlay) {
             overlay.attach(base, inD.overlay);
             const holder = base.parentNode;
@@ -1406,21 +1468,46 @@
         return !!(document.getElementById('wamaFullscreenOverlay') || (modal && modal.classList.contains('show')));
     }
 
+    // Le MAGNÉTO de la visionneuse (2026-11-05) : les touches de l'axe de ce qu'elle montre — Espace,
+    // J/K/L, Début/Fin, Ctrl+Espace —, celles d'une surface du monde Data (`WamaAxis.keys`, le même
+    // shuttle). ←/→ restent à la navigation (sur une surface, elles sautent de 5 s). Recréé quand
+    // l'axe change (une autre face, un autre élément).
+    let _viewerKeys = null;
+
+    function _releaseViewerKeys() {
+        if (_viewerKeys) { _viewerKeys.keys.release(); _viewerKeys = null; }
+    }
+
+    function _viewerTransport() {
+        const axis = axisOf(_modalContainer());
+        if (!axis || !axis.medias().length) { _releaseViewerKeys(); return null; }
+        if (_viewerKeys && _viewerKeys.axis === axis) return _viewerKeys.keys;
+        _releaseViewerKeys();
+        const shuttle = window.WamaShuttle ? window.WamaShuttle.forAxis(axis) : null;
+        _viewerKeys = { axis: axis, keys: axis.keys({ shuttle: shuttle }) };
+        return _viewerKeys.keys;
+    }
+
     function setupKeyboardHandlers() {
         // Le banc V8 charge ce fichier sans le module.
         if (!window.WamaKeys) return;
-        window.WamaKeys.register({ owner: 'media_viewer', scope: 'layer', open: viewerOpen, handle: function (e) {
+        window.WamaKeys.register({ owner: 'media_viewer', scope: 'layer', open: viewerOpen, typing: ['Ctrl+Space'],
+                                   handle: function (e) {
             const t = e.target;
             // Une saisie (champ, curseur de Comparer, zone éditable) garde ses touches.
-            if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return false;
+            if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')
+                && window.WamaKeys.combo(e) !== 'Ctrl+Space') return false;
             if (document.getElementById('wamaFullscreenOverlay') && e.key === 'Escape') {
                 closeFullscreen();
                 return true;
             }
             const key = NAV_KEYS[e.key];
-            if (!key) return false;
-            _navigate(key.dir, key.byCard);
-            return true;
+            if (key) {
+                _navigate(key.dir, key.byCard);
+                return true;
+            }
+            const transport = _viewerTransport();
+            return !!(transport && transport.handle(e));
         } });
     }
 
@@ -1447,6 +1534,7 @@
     /** Ce que montrait la visionneuse s'arrête et se libère avant d'être remplacé. */
     function _releaseContent(container) {
         if (!container) return;
+        _dropAxes(container);
         container.querySelectorAll('video, audio').forEach(function (m) { try { m.pause(); } catch (e) {} });
         if (window.WamaAudioPlayer) window.WamaAudioPlayer.destroy('modal-audio');
         // Visionneuse 3D : libérer le contexte WebGL (un navigateur n'en accorde qu'une poignée).
@@ -1835,6 +1923,7 @@
             if (data.overlay && window.WamaPreviewOverlay) {
                 setTimeout(function () { window.WamaPreviewOverlay.attach(video, data.overlay); }, 0);
             }
+            playOnAxis(video, [{ el: video }]);
             return video;
         } else if (mimeType.startsWith('audio/')) {
             if (window.WamaAudioPlayer) {
@@ -2060,6 +2149,7 @@
             _stopModalDuring();
             _setModalFull(modal, false);
             _releaseContent(modal.querySelector('.preview-container'));
+            _releaseViewerKeys();
             _announceCard();
             currentPreviewData = null;
             _modalClock = null;
@@ -2210,6 +2300,7 @@
         variantToggle: variantToggle, followDuring: followDuring, followCard: followCard,
         faceViewer: faceViewer,
         takeClock: takeClock, giveClock: giveClock, releaseMedia: _releaseHost,
+        playOnAxis: playOnAxis, axisOf: axisOf,
         isRunningCard: isRunningCard, cardOfPreview: cardOfPreview, cardElement: cardElement,
         // visionneuse et navigation
         show: showPreviewModal, showWithNav: showPreviewModalWithNav,

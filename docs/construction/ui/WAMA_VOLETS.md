@@ -819,6 +819,13 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       désormais le focus de ce qui est derrière elle à l'ouverture ; contrôle ajouté au scénario
       (l'arbre ne garde pas le focus derrière elle). 35/35 ; contre-épreuve au navigateur (sans ce
       geste) → rouge. `common.keyboard_owners` 5/5.
+      ✅ **2026-11-05 — et le MAGNÉTO** (Fabien : « les touches jkl ne s'appliquent pas à la
+      preview ») : ce que la couche ne prend pas (←/→/↑/↓/Échap restent à la navigation) passe à
+      l'axe de la vidéo montrée — Espace, Ctrl+Espace, J/K/L, Début/Fin, par `WamaAxis.keys` (le
+      magnéto des surfaces, sans inscription) ; un lecteur natif qui a le focus garde Espace.
+      DÉCLARÉ au registre (`media_viewer.shortcuts`, `requires` l'axe et le shuttle) ; tenu par
+      `tests_preview_navigation.ViewerTransportKeysTest` (vrai répartiteur, vrai axe ; contre-épreuve
+      → rouge) et au navigateur par `common.preview_sync`. Détail : `ROUTE §F3b`, palier du 05/11.
     - ✅ **Le menu de card** — une COUCHE aussi (ouvert ET le focus dedans) : il écoutait en
       capture sur `window` et arrêtait la propagation pour que l'inspecteur ne rejoue pas ↓
       derrière lui (audit du 14/09) ; la portée `layer` dit la même chose. Ce qui change : une

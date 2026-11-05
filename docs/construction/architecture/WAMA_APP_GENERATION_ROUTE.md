@@ -1368,6 +1368,85 @@ manifeste** (ce que le kind `app` capte + cible de projection).
          avant tout portage, cf. `CAM_ANALYZER_CHAINE_TRAITEMENT.md`) ;
       ④ les lecteurs de card et les anciennes pages face_analyzer : clavier commun sur le lecteur
          survolé ou sélectionné ; un axe seulement là où il y a plus d'un média ou une donnée.
+    - 🔄 **2026-11-05 — ① et ② : LA VIDÉO DE L'APERÇU SUR L'AXE, en bac à sable, non fusionnée** (demande de Fabien :
+      *« aligner parfaitement le fonctionnement de la lecture du monde data et de la preview […]
+      sans rien perdre, sans rien casser, en vérifiant que la synchronisation est au moins aussi
+      bonne que l'actuelle. Aucune régression admise […] puis on reviendra aux apps du monde lab, en
+      commençant par le face analyzer »*). Fait en bac à sable (branche `preview-axis`, worktree).
+      **Ce que l'aperçu touche** (relevé : appelants de `renderInline`, `faceViewer`,
+      `compareView`, `show`/`openForCard`/`openSequence` ; tout passe par `media-preview.js`, que
+      `base.html` charge) :
+      | surface | entrée | ce qui change |
+      |---|---|---|
+      | volet de toutes les apps | `wama-inspector.js` → `faceViewer` | sa vidéo suit un axe ; Comparer = deux suiveurs d'un même axe |
+      | échange de l'assistant (une ligne par job) | `wama-assistant-chat.js` → `faceViewer` | idem |
+      | aperçu DANS les cards, sélection de la médiathèque | `hydrateCardPreviews`, `media-picker.js` → `renderInline` | la vidéo suit un axe (aucune touche : la page n'a pas de magnéto) |
+      | visionneuse (cards, gestionnaire de fichiers, médiathèque, assistant) | `show`, `openForCard`, `openSequence` | la vidéo suit un axe ; la couche du clavier passe à l'axe Espace, Ctrl+Espace, J/K/L, Début/Fin (`WamaAxis.keys`) — ←/→/↑/↓/Échap inchangés ; touches DÉCLARÉES (`media_viewer.shortcuts`, `requires` l'axe, le shuttle, la surcouche) |
+      | face Pendant (anonymizer) | `followDuring` → `takeClock`/`giveClock` | l'horloge passe d'un partiel au suivant PAR L'AXE |
+      | surfaces (pages d'édition) | `surface.html` | ne rechargent plus `wama-axis.js`/`wama-shuttle.js`, scripts de la page de base (`surface_views.page_scripts`, LU dans `base.html`) |
+      | cam_analyzer | son gabarit | ne recharge plus `wama-shuttle.js` ; sa synchro est inchangée (③) |
+      | **inchangé** | les sons (`WamaAudioPlayer`), les vignettes (`tileHtml`, muettes), la surcouche plein écran (images), texte, PDF, 3D | ⏳ les sons : le lecteur commun s'initialise au PREMIER CLIC (un appel prématuré télécharge et décode le fichier pour l'onde) — l'attacher à l'affichage dégraderait chaque card ; il faut d'abord un rappel « initialisé » au lecteur commun |
+      **Les briques** : `WamaPreviewOverlay` dessine l'image PRÉSENTÉE (`requestVideoFrameCallback`,
+      `presentedFrameAt` = arrondi de `mediaTime × fps`, repli `currentTime` sans l'API) ;
+      `syncVideos` RETIRÉ ; `WamaShuttle.forAxis` (le shuttle d'un axe, qu'écrivaient le transport et
+      la visionneuse) ; l'axe gagne, pour le monde Data aussi : une vitesse choisie sur le média (menu
+      natif) est une COMMANDE (`ratechange`, reconnue à la valeur que l'axe a posée) ; un geste de
+      position sur le média n'est pas refait par l'axe (deux décodages par geste, mesuré) mais la
+      pause repose TOUJOURS (une vidéo peut déjà montrer l'image suivante — mesuré, deux vidéos
+      arrêtées sur deux images quand l'axe l'économisait aussi) ; l'axe ne relance jamais un média
+      qu'il n'a pas tu (lecture + pause parasites à chaque pause au clavier natif, mesuré) ; un média
+      à contrôles natifs qui a le focus garde Espace (double bascule, mesuré) ; `keys(o)` rend le
+      magnéto sans l'inscrire.
+      **Mesuré** — banc hors Django (vidéos dont chaque image porte son numéro en blocs, jugées à
+      l'image PRÉSENTÉE, Chromium sans écran, mêmes gestes natifs sur HEAD et sur la branche, runs
+      ALTERNÉS sous la même charge ; machine à charge ~10, rendu souvent à une image sur trois, d'où
+      ±15 points d'une passe à l'autre sur une même configuration) :
+      | mesure | HEAD | branche |
+      |---|---|---|
+      | surcouche sur l'image présentée (visionneuse et Comparer, 12/25 i/s, léger et HD 720p bruitée) | 34 à 80 % | **100 %**, tous les runs |
+      | Comparer à l'arrêt (pause, positionnement) : même image | 33 à 100 % (une image d'écart RESTE sous le seuil de 120 ms) | **100 %**, tous les runs |
+      | Comparer, écart d'horloge entre les vidéos, p95 / max — léger | 1,5-2,5 ms / jusqu'à **16,4 s** (juste après un positionnement en lecture) | 0,7-7 ms / ≤ 24 ms |
+      | idem — HD | 64-79 ms / 16,4 s ; un décalage constant de 25 ou 64 ms tenu toute une lecture | 4-44 ms / ≤ 215 ms (décrochage du décodeur, rattrapé en < 3 s) |
+      | Comparer en lecture : même image présentée — série finale, 5 passes alternées sur le code final | 12 i/s 93 % (92-95), 25 i/s 76 % (68-87) ; HD (7 passes antérieures) 58 % | 12 i/s **83 %** (57-93, médiane 91), 25 i/s **87 %** (78-96) ; HD 69 % |
+      | positionnements par geste | 1 | 1 (+1 à la pause : posée au temps de l'axe) |
+      ⚠ **Deux points dits tels quels** : (a) 🔴 **BLOQUANT pour la fusion** — à 12 i/s, en lecture,
+      la branche est EN DESSOUS (83 % contre 93 % en moyenne) : une passe sur cinq, une vidéo de
+      Comparer PRÉSENTE une image d'avance pendant toute la lecture, les deux horloges à 1 ms près et
+      sans aucun rattrapage en cours (relevé phase par phase). C'est la phase de présentation du
+      décodeur, que `currentTime` ne voit pas — HEAD la subit aussi (une passe à 25 i/s du même jour,
+      une image d'écart tenue toute une phase, 0,8 % d'images identiques), d'où des plages qui se
+      recouvrent ; mais l'exigence « aucune régression » n'est pas tenue à 12 i/s. Le remède n'est
+      pas un réglage : recaler un suiveur VIDÉO sur son image PRÉSENTÉE (rappel d'image, l'indice
+      présenté contre celui que désigne l'axe, cadence lue aux instants des images) — une règle de
+      l'axe, donc du monde Data aussi, à concevoir et mesurer comme une étape ;
+      (b) une vidéo SEULE qui décroche (décodeur saturé) est désormais REPOSITIONNÉE au temps de
+      l'axe au-delà de 150 ms (un saut d'images), là où elle reprenait en retard — la règle du monde
+      Data (le temps reste juste), vue une fois sur six runs de la visionneuse à 25 i/s.
+      **Gardes** (chacune éprouvée À BLANC, règle neutralisée → SA garde rouge) : `AxisTest` +4
+      (vitesse du média, pas de double positionnement mais toujours à la pause, pause non relancée,
+      `keys` et Espace natif) ; `PreviewOverlayTest` (image présentée, arrondi, plus d'horloge propre
+      à Comparer) ; `OneFaceSwitchTest` (l'horloge d'une face à l'autre par l'axe) ;
+      `ViewerTransportKeysTest` (vrai répartiteur `wama-keys.js`, vrai axe : la visionneuse ouverte
+      passe Espace/J/K/L/Début à l'axe, fermée rien) ; `tests_preview_faces` (Comparer = un axe,
+      deux suiveurs) ; `ComposerScoreSurfaceTest` (aucun script chargé deux fois, l'axe avant la
+      brique) ; `BrickShortcutsTest` (les touches déclarées de la visionneuse sont traitées par son
+      code) ; `PreviewSyncVerdictTest` (les lectures du scénario). Et au NAVIGATEUR, le scénario
+      nocturne **`common.preview_sync`** (`ui_smoke_preview_sync.py` : vidéos témoins fabriquées par
+      le ffmpeg de WAMA, briques SERVIES, seuils absolus — surcouche ≥ 99 %, Comparer à l'arrêt sur
+      la même image, écart d'horloge p95 ≤ 20 ms et max < 150 ms, vitesse choisie tenue, chaque
+      touche et son effet) : 16/16 sur la branche ; sur le code de HEAD 8/16 (surcouche 279/418,
+      aucune touche) ; ses verdicts de Comparer éprouvés par mutation des briques servies (sortie
+      décalée d'une image → arrêt et écart rouges ; vitesse du média ignorée → vitesse rouge).
+      Suites du périmètre : 966 tests, 5 rouges tous préexistants dans HEAD (budgets de langue +1,
+      survol de `wama-constellation.css`). Pages SERVIES (serveur jetable de la branche) :
+      `axis_follow` 22/22 (après recopie de l'avatar `.glb`, ignoré par `.gitignore:142`, absent
+      d'un worktree — sans lui 19/22, trois « erreurs JS » 404 : artefact), `preview_layout` 26,
+      `preview_navigation` 35, `preview_during`, `preview_chat_job`, `anonymizer.preview`,
+      `preview_sync` 16/16.
+      **Reste** (⏳) : le recalage sur l'image présentée (point (a), AVANT la fusion) ; les sons de
+      l'aperçu sur l'axe (rappel « initialisé » de `WamaAudioPlayer`) ;
+      une barre de transport dans la visionneuse (vitesse, pas image) — à décider ; puis le
+      face_analyzer (Lab), avant le cam_analyzer (③).
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS

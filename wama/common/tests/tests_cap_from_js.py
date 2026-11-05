@@ -1170,30 +1170,59 @@ class PreviewOverlayTest(SimpleTestCase):
         })()""")
         self.assertEqual([0, 75, 0.5, 125, 0, 0.5, 1], list(out))
 
-    def test_the_compared_video_follows_the_reference(self):
-        """Compare on two videos : seek, play, pause and speed of the reference drive the other
-        one, which is muted. Seen broken in the browser before (the other stayed at 0)."""
+    def test_the_presented_frame_is_rounded_from_its_own_time(self):
+        """2026-11-05 : the overlay draws the frame the video PRESENTS (its `mediaTime`). A frame's
+        time rounded by the player falls just under `i / fps`, where `frameAt` — made for a playing
+        time, BETWEEN two frames — gives the frame before."""
         out = self.v8.eval("""(function () {
-            function video() {
-                var v = {currentTime: 0, playbackRate: 1, muted: false, plays: 0, pauses: 0, on: {}};
-                v.addEventListener = function (ev, fn) { (v.on[ev] = v.on[ev] || []).push(fn); };
-                v.fire = function (ev) { (v.on[ev] || []).forEach(function (fn) { fn(); }); };
-                v.play = function () { v.plays++; return {catch: function () {}}; };
-                v.pause = function () { v.pauses++; };
-                return v;
-            }
-            var master = video(), slave = video();
-            window.WamaPreviewOverlay.syncVideos(master, slave);
-            var trace = [slave.muted];
-            master.currentTime = 2; master.fire('seeked'); trace.push(slave.currentTime);
-            master.currentTime = 2.05; master.fire('timeupdate');
-            trace.push(slave.currentTime);                 // within 0.12 s : left alone
-            master.fire('play'); trace.push(slave.plays);
-            master.currentTime = 3; master.fire('pause'); trace.push(slave.pauses, slave.currentTime);
-            master.playbackRate = 1.5; master.fire('ratechange'); trace.push(slave.playbackRate);
-            return trace;
+            var O = window.WamaPreviewOverlay, v = {media: 'video', fps: 30}, t = 2 / 30 - 1e-6;
+            return [O.presentedFrameAt(v, t), O.frameAt(v, t), O.presentedFrameAt(v, 0),
+                    O.presentedFrameAt(v, -0.01), O.presentedFrameAt({media: 'image'}, 3),
+                    O.presentedFrameAt(null, 3)];
         })()""")
-        self.assertEqual([True, 2, 2, 1, 1, 3, 1.5], list(out))
+        self.assertEqual([2, 1, 0, 0, 0, 0], list(out))
+
+    def test_the_overlay_draws_the_frame_the_video_presents(self):
+        """Measured on the preview bench (videos whose every frame carries its number, 2026-11-05) :
+        drawn from `currentTime`, the box sat on the frame shown one time in two at 25 fps (52 to
+        80 %), nearly always one frame late. Each frame presented now redraws, with ITS time — a
+        `currentTime` already ahead is not read."""
+        self.v8.eval("""
+            var drawn = [], frameCb = null;
+            document.createElement = function (tag) {
+                return {tagName: tag.toUpperCase(), style: {}, appendChild: function () {},
+                        getContext: function () { return {clearRect: function () {}, strokeRect: function () {},
+                            beginPath: function () {}, fillText: function (t) { drawn.push(t); }}; }};
+            };
+            var video = {tagName: 'VIDEO', clientWidth: 400, clientHeight: 300, videoWidth: 400,
+                         videoHeight: 300, currentTime: 0, paused: false,
+                         parentNode: {insertBefore: function () {}},
+                         addEventListener: function () {},
+                         requestVideoFrameCallback: function (fn) { frameCb = fn; return 1; }};
+            var doc = {media: 'video', fps: 25, width: 400, frames: [0, 1, 2, 3].map(function (i) {
+                return {i: i, d: [{box: [1, 1, 9, 9], label: 'f' + i}]}; })};
+            window.fetch = function () { return Promise.resolve({ok: true, json: function () { return doc; }}); };
+            fetch = window.fetch;
+            window.WamaPreviewOverlay.attach(video, {url: '/doc.json', confidence: false});
+        """)
+        out = self.v8.eval("""(function () {
+            drawn = [];
+            video.currentTime = 2 / 25 + 0.03;              // the playing time is already near frame 3
+            frameCb(0, {mediaTime: 2 / 25 - 1e-6});         // ... the frame presented is frame 2
+            var first = drawn.slice();
+            frameCb(0, {mediaTime: 3 / 25});
+            return [first, drawn, typeof frameCb];
+        })()""")
+        self.assertEqual(['f2'], list(out[0]), 'the frame presented, not the playing time')
+        self.assertEqual(['f2', 'f3'], list(out[1]))
+        self.assertEqual('function', out[2], 'the next presented frame is asked for')
+
+    def test_compare_has_no_clock_of_its_own(self):
+        """`syncVideos` recalled the compared video on the reference beyond 120 ms only : measured on
+        the bench, a one-frame gap could last a whole playback, and at rest. Retired on 2026-11-05 —
+        the two videos follow ONE axis (`WamaMediaPreview.compareView`), the only clock."""
+        self.assertEqual(['attach', 'contentRect', 'frameAt', 'presentedFrameAt'],
+                         sorted(self.v8.eval('Object.keys(window.WamaPreviewOverlay)')))
 
 
 class PreviewModalTest(SimpleTestCase):

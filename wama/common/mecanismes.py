@@ -2289,11 +2289,17 @@ MECHANISMS = (
               "l'AFFICHEUR DE FACES d'un élément devient commun (`faceViewer` : face par défaut, "
               "Pendant suivi puis Sortie, onglets, Comparer, double-clic vers la visionneuse) — le "
               "volet le portait seul pour son hôte unique ; il l'emprunte, et chaque ligne de job "
-              "de l'échange de l'assistant le monte sous sa barre (geste `common.preview_chat_job`)",
+              "de l'échange de l'assistant le monte sous sa barre (geste `common.preview_chat_job`). "
+              "Depuis le 2026-11-05, une VIDÉO de l'aperçu suit l'AXE de temps commun (`playOnAxis` : "
+              "la vidéo seule, les deux de Comparer sur le même axe — l'ancien `syncVideos` retiré), "
+              "l'horloge passe d'une face à l'autre par l'axe, la visionneuse passe à l'axe les "
+              "touches du magnéto (Espace, J/K/L, Début/Fin) et la surcouche dessine l'image "
+              "PRÉSENTÉE (`requestVideoFrameCallback`) — précision mesurée par `common.preview_sync`",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js',
                        'wama/common/static/common/js/wama-preview-overlay.js',
+                       'wama/common/services/ui_smoke_preview_sync.py',
                        'wama/common/static/common/js/wama-3d-viewer.js',
                        'wama/common/templates/common/_three_importmap.html')),
     Mechanism('card_gear', 'data-* du gear ⚙ des cards',
@@ -2437,7 +2443,8 @@ MECHANISMS = (
     Mechanism('shuttle', 'Shuttle J/K/L',
               "État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app "
               "fournit apply(speed) — la commande est commune ; depuis le 2026-10-15 elle peut "
-              "s'appliquer à l'AXE commun (`axis.shuttle`) plutôt qu'à un lecteur",
+              "s'appliquer à l'AXE commun (`axis.shuttle`) plutôt qu'à un lecteur — `forAxis(axis)`, "
+              "le shuttle d'un axe, celui du transport et de la visionneuse (2026-11-05)",
               'wama/common/static/common/js/wama-shuttle.js', ''),
     Mechanism('media_axis', 'Axe de temps partagé (transport commun)',
               "L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue "
@@ -2449,7 +2456,10 @@ MECHANISMS = (
               "fine déclarée ; sous charge les avis s'espacent, jamais le temps ; vitesse CHOISIE "
               "distincte du cran de shuttle ; clavier du "
               "magnéto. Né le 2026-10-15 avec la partition du composer ; l'éditeur du transcriber y "
-              "est porté le 2026-10-20 (parité geste par geste, `transcriber.editor_parity`) ; le "
+              "est porté le 2026-10-20 (parité geste par geste, `transcriber.editor_parity`), "
+              "les vidéos de l'APERÇU le 2026-11-05 (une vitesse choisie sur un média devient une "
+              "commande, un média que l'axe n'a pas tu n'est jamais relancé, `keys` rend le magnéto "
+              "sans l'inscrire — pour une couche du clavier comme la visionneuse) ; le "
               "cam_analyzer reste à porter (matrice de parité). Le 2026-10-21 : le TRANSPORT commun "
               "montable partout (`wama-transport.js`), les règles des SEGMENTS sans DOM "
               "(`wama-segments.js`) et les PICS FINS d'un média au commun (`waveform.dense_peaks`, "

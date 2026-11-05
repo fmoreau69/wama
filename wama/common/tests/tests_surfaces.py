@@ -1342,6 +1342,98 @@ class AxisTest(SimpleTestCase):
         self.assertEqual(1, out['after'], 'released by Space : the J/K/L ladder starts from the stop again')
         self.assertEqual(0, out['level'])
 
+    def test_a_speed_chosen_on_the_medium_is_a_command_the_axis_own_are_not(self):
+        """The preview's videos keep their native controls (2026-11-05) : a speed picked in their
+        menu was undone by the next correction. It is a COMMAND now — recognised by the value the
+        axis set, the event arriving after the fact."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts)), m = fakeMedia(60);
+            axis.attach(m); axis.play(); step(16);
+            m.playbackRate = 2; m.fire('ratechange');
+            var chosen = [axis.rate(), axis.speed()];
+            m.currentTime = axis.time() + 0.016 - 0.06; step(16);    // behind : the axis nudges it
+            var nudged = m.playbackRate; m.fire('ratechange');
+            return {chosen: chosen, nudged: nudged, kept: axis.rate()};
+        ''')
+        self.assertEqual([2, 2], out['chosen'], "the medium's speed becomes the axis speed, chosen")
+        self.assertAlmostEqual(2.1, out['nudged'], msg='the catch-up applies to the chosen speed')
+        self.assertEqual(2, out['kept'], "the axis' own change is no gesture")
+
+    def test_a_medium_already_where_the_axis_puts_it_is_not_sought_again(self):
+        """Measured on the preview bench (2026-11-05) : a seek made on the video's own controls was
+        made TWICE — the axis took it as a command, then set the medium where it already was."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts)), m = fakeMedia(60);
+            var t = 0, sets = 0;
+            Object.defineProperty(m, 'currentTime', {get: function () { return t; },
+                                                     set: function (v) { t = v; sets++; }});
+            axis.attach(m); sets = 0;
+            t = 12.5; m.fire('seeked');                 // the gesture : the medium is already there
+            var own = sets, followed = axis.time(); axis.seek(20);
+            var moved = [sets, t];
+            axis.play(); axis.pause();                  // currentTime equal to the axis time
+            return {axis: followed, own: own, moved: moved, paused: sets - moved[0]};
+        ''')
+        self.assertEqual(12.5, out['axis'], 'the seek on the medium is a command')
+        self.assertEqual(0, out['own'], 'and the medium is not sought again')
+        self.assertEqual([1, 20], out['moved'], 'a medium elsewhere still is')
+        self.assertEqual(1, out['paused'],
+                         'at a pause the medium is set again even at an equal currentTime : a video '
+                         'can already SHOW the next frame (measured, two compared videos stopped on '
+                         'two frames)')
+
+    def test_a_pause_the_axis_did_not_make_is_not_undone_before_its_event(self):
+        """Measured in the browser on the viewer (2026-11-05) : Space on a video's native controls
+        paused it, the next tick of the axis PLAYED it again (the `pause` event had not arrived
+        yet), then the event paused the axis — a spurious play and pause at every keyboard pause."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts)), m = fakeMedia(60);
+            var plays = 0, play = m.play;
+            m.play = function () { plays++; return play(); };
+            axis.attach(m); axis.play(); step(16); plays = 0;
+            m.paused = true;                            // paused by its controls, event pending
+            step(16); step(16);
+            var replayed = plays;
+            m.fire('pause');                            // the event arrives : a command
+            var paused = axis.playing();
+            axis.play(); var again = [plays, !m.paused];
+            return {replayed: replayed, paused: paused, again: again};
+        ''')
+        self.assertEqual(0, out['replayed'], 'the axis does not play again what it did not silence')
+        self.assertFalse(out['paused'], 'the pause event pauses the axis')
+        self.assertEqual([1, True], out['again'], 'and the next play plays the medium')
+
+    def test_the_keys_of_the_transport_without_registering_them(self):
+        """A LAYER that keeps the keyboard (the viewer) passes the transport keys it does not take
+        to its axis (`keys`) — the same transport as a surface's (`bindKeys` registers it). A
+        focused medium with NATIVE controls keeps Space : it handles it itself and its play is a
+        command ; taking it too toggled it twice (measured in the browser)."""
+        self.engine.eval('''
+            globalThis.document = {addEventListener: function () {}, removeEventListener: function () {}};
+            window.document = globalThis.document;
+        ''')
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts)), m = fakeMedia(60);
+            axis.attach(m);
+            var level = null, shuttle = {forward: function () { level = 1; axis.shuttle(1); },
+                reverse: function () {}, stop: function () {}, speed: function () { return 0; },
+                reset: function () {}};
+            var keys = axis.keys({shuttle: shuttle});
+            function press(code, target) { return keys.handle({code: code, target: target || {}}); }
+            var space = [press('Space'), axis.playing()];
+            var native = [press('Space', {tagName: 'VIDEO', controls: true}), axis.playing()];
+            var bare = press('Space', {tagName: 'VIDEO', controls: false});
+            var l = [press('KeyL'), level], home = press('Home');
+            keys.release();
+            return {space: space, native: native, bare: bare, l: l, home: [home, axis.time()],
+                    hasBind: typeof axis.bindKeys};
+        ''')
+        self.assertEqual([True, True], out['space'])
+        self.assertEqual([False, True], out['native'], 'a focused native player keeps Space')
+        self.assertTrue(out['bare'], 'a video WITHOUT controls does not')
+        self.assertEqual([True, 1], out['l'], 'J/K/L through the shuttle')
+        self.assertEqual([True, 0], out['home'])
+
 
 class TransportKeysOwnershipTest(SimpleTestCase):
     """2026-10-29 (Fabien : « le transport doit être toujours actif avec J/K/L ») — the transport is
@@ -1806,6 +1898,18 @@ class ComposerScoreSurfaceTest(TestCase):
         self.assertEqual(200, page.status_code)
         self.assertContains(page, 'abcjs-6.4.4/abcjs-basic-min.js')
         self.assertContains(page, 'brick-media-transport.js')
+        # The axis and the shuttle belong to the BASE page since 2026-11-05 (the common preview puts
+        # its videos on the axis) : the surface asks for them, and does not load them again — two
+        # executions, two listeners (`surface_views.page_scripts`).
+        import re
+        from collections import Counter
+        html = page.content.decode()
+        loaded = Counter(re.findall(r'<script src="[^"]*?/static/([\w./-]+\.js)', html))
+        self.assertEqual({}, {s: n for s, n in loaded.items() if n > 1})
+        for module in ('common/js/wama-axis.js', 'common/js/wama-shuttle.js'):
+            self.assertEqual(1, loaded[module], module)
+        self.assertLess(html.index('common/js/wama-axis.js'), html.index('brick-media-transport.js'),
+                        'the axis is there before the brick that uses it')
 
     def test_the_transport_offers_the_input_beside_the_render(self):
         """2026-10-26, Fabien : « avoir le choix de l'audio à jouer entrée/sortie pour pouvoir

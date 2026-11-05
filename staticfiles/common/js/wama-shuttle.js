@@ -66,5 +66,11 @@
         return api;
     }
 
-    global.WamaShuttle = { create: create, DEFAULT_LEVELS: DEFAULT_LEVELS };
+    /** Le shuttle d'un AXE de temps (`wama-axis.js`) : un cran est `axis.shuttle(cran)`. Celui du
+     *  transport commun et de la visionneuse (2026-11-05) — ils l'écrivaient chacun. */
+    function forAxis(axis, config) {
+        return create(Object.assign({ apply: function (level) { axis.shuttle(level); } }, config));
+    }
+
+    global.WamaShuttle = { create: create, forAxis: forAxis, DEFAULT_LEVELS: DEFAULT_LEVELS };
 })(window);

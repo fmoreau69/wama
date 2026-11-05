@@ -65,7 +65,8 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
 
     def test_one_transport_drives_the_common_axis_and_player(self):
         js = _read(TRANSPORT)
-        self.assertIn('WamaShuttle.create(', js)
+        # The shuttle of an axis (`WamaShuttle.forAxis`, 2026-11-05 : the viewer's too).
+        self.assertIn('WamaShuttle.forAxis(axis)', js)
         self.assertIn('axis.bindKeys(', js, 'Space, arrows and J/K/L come from the axis keyboard')
         for path in (TRANSPORT, TIMELINE, TRANSPORT_BRICK, WRITING_BRICK):
             code = _read(path)
