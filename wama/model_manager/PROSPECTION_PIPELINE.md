@@ -3725,8 +3725,18 @@ page descend à la file une fois chargée. Garde : `tests_dev_job_follow_up` (co
 - ✅ aucun snapshot étranger ; vendors `musetalk`, `codeformer`, `yue` conformes à leur commit ;
   garde de la route verte (17 tests).
 - ⚠ `triposr` : vendor ABSENT (le plan dit `clone`) — l'image→3D n'a pas son moteur sur disque.
-- ⚠ deux lignes dites téléchargées sans poids sur disque : `anonymizer:yolo:yolopv2.pt`,
-  `huggingface:nvidia/LocateAnything-3B` (`verify_models`, rien corrigé).
+- ⚠ `verify_models` signale deux « orphelins » — *corrigé le jour même (Fabien : « yolopv2 tourne
+  déjà dans le cam analyzer ») : la première rédaction disait « sans poids sur disque », conclu du
+  rapport sans regarder le disque.* Les deux poids SONT en place :
+  - `anonymizer:yolo:yolopv2.pt` est l'ANCIENNE ligne du balayage YOLO de l'anonymizer ; YOLOPv2
+    vit sous `github:CAIC-AD/YOLOPv2:V0.0.1` depuis le 2026-10-16 (`_discover_road_models`, même
+    fichier, découvert et installé), et le balayage ne le reprend plus (`_declared_here`) : un
+    doublon resté au catalogue ;
+  - `huggingface:nvidia/LocateAnything-3B` (15,6 Go, complet) n'est plus DÉCOUVERT : sa famille est
+    déclarée dans `MODEL_PATHS` (`locate_anything`), donc le balayage générique la saute
+    (`_discover_installed_hf_snapshots`, « dédup par famille »), et aucune découverte d'app ne la
+    porte — un trou de la découverte. À trancher : une découverte qui la déclare, ou une dédup par
+    famille qui n'écarte que les familles qu'une entrée découverte occupe réellement.
 - ⚠ `Minimax-h3-Turbo-SLA` (3,1 Go) est INSTALLÉ sans moteur ni base : c'est un LoRA de
   MiniMax-H3, dont la base (464 Go au catalogue) ne tient pas ici — à garder ou retirer, décision
   de Fabien. Ce n'est pas MiniMax-Music3 (composer, moteur audio.cpp, servi).
