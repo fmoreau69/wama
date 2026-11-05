@@ -3488,6 +3488,17 @@ class RejudgeOnNewFactsTest(TestCase):
         self.assertIn('assess_previous', self.cand.extra_info['prospect'])
         weigh.assert_not_called()   # weights are read once, never re-asked
 
+    def test_a_candidate_whose_variants_could_not_be_read_waits_for_the_next_pass(self):
+        # 2026-11-05: a 429 on the variant search stopped the whole pass. Judged on its full
+        # weights alone, a big model would be rejected (2026-08-26): it is skipped, and said.
+        info = self.cand.extra_info
+        del info['prospect']['quant_variants']
+        AIModel.objects.filter(pk=self.cand.pk).update(extra_info=info)
+        with patch('wama.model_manager.services.prospector.quantized_variants', return_value=None):
+            result, judge, _ = self._judge_all()
+        judge.assert_not_called()
+        self.assertEqual((0, 1, 1), (result['assessed'], result['hub_unread'], result['remaining']))
+
     def test_an_unreachable_repository_writes_no_weights(self):
         with patch('wama.model_manager.services.model_installer.components_for_spec',
                    return_value={'unreachable': 'org/video-5b'}):

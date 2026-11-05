@@ -357,22 +357,27 @@ def _variants_line(p: dict) -> str:
             f"disponibles (la faisabilité VRAM se juge sur elles) :\n{lignes}\n")
 
 
-def _attach_quantized_variants(cand) -> None:
+def _attach_quantized_variants(cand) -> bool:
     """
     Relève UNE fois les variantes quantisées d'un candidat HF et les persiste dans
     `extra_info['prospect']['quant_variants']` (card/inspecteur + contexte du juge).
     Idempotent : une liste déjà relevée (même vide) n'est pas re-cherchée — 2 requêtes
     réseau par candidat, au moment de l'évaluation seulement, jamais au seeding.
+    Rend False quand le Hub n'a pas répondu : rien n'est persisté, la passe suivante réessaie.
     """
     info = dict(cand.extra_info or {})
     prospect = dict(info.get('prospect') or {})
     if 'quant_variants' in prospect:
-        return
+        return True
     from .prospector import quantized_variants
-    prospect['quant_variants'] = quantized_variants(cand.hf_repo)
+    variants = quantized_variants(cand.hf_repo)
+    if variants is None:
+        return False
+    prospect['quant_variants'] = variants
     info['prospect'] = prospect
     cand.extra_info = info
     cand.save(update_fields=['extra_info'])
+    return True
 
 
 def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
@@ -447,19 +452,23 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
     # juge Ollama est résident — sur cet hôte fragile, la fenêtre GPU ne doit contenir
     # QUE les appels au juge. Préparé ici, AVANT de réserver : la réservation ne couvre
     # plus que les `llm_chat`.
-    contextes = []
+    contextes, unread = [], 0
     for cand in cands:
         if progress:
             progress({'current': f"préparation {cand.name}", 'done': 0, 'total': len(cands)})
         if cand.source == 'huggingface':
-            _attach_quantized_variants(cand)
+            if not _attach_quantized_variants(cand):
+                # Variantes non lues (Hub en limite de débit, réseau) : juger sur les seuls
+                # poids pleins referait le biais du 2026-08-26 — le candidat repassera.
+                unread += 1
+                continue
             _attach_weights(cand)
-        contextes.append(_hf_context(cand) if cand.source == 'huggingface'
-                         else _ollama_context(cand))
+        contextes.append((cand, _hf_context(cand) if cand.source == 'huggingface'
+                          else _ollama_context(cand)))
 
     evalues, sans_avis = 0, 0
     with vram_reservation(f"model_manager.assess:{_os.getpid()}", besoin_gb):
-        for i, (cand, contexte) in enumerate(zip(cands, contextes)):
+        for i, (cand, contexte) in enumerate(contextes):
             if progress:
                 progress({'current': cand.name, 'done': i, 'total': len(cands)})
             opinions = [_judge(contexte, p, m, timeout=timeout)
@@ -512,5 +521,7 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
         is_proposed=True, source__in=('ollama', 'huggingface'), proposal_kind='new',
     ) if _is_due(c))
     resume = {'assessed': evalues, 'no_verdict': sans_avis, 'remaining': restants}
+    if unread:
+        resume['hub_unread'] = unread
     logger.info("[prospect_agents] passe terminée : %s", resume)
     return resume

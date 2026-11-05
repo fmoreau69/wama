@@ -16,7 +16,6 @@ autour du sous-processus — la charge GPU est hors process, invisible des mesur
 
 import logging
 import os
-import subprocess
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -234,10 +233,15 @@ class AudioCppBackend(MusicGenerationBackend):
                     "requis après 180 s d'attente — génération refusée plutôt que superposée. "
                     "Libérer la VRAM (Ollama hôte, autres tâches) ou WAMA_GPU_SAFE_MODE=0.")
         timeout = 1800 + int(duration) * 30
+        # `run_child` (2026-11-05, comme MuseTalk et CodeFormer) : le binaire bat par la
+        # progression de la tâche, et ⏹, le délai ou la limite de durée arrêtent son groupe de
+        # processus — avec `subprocess.run`, ⏹ attendait la fin de la génération.
+        from wama.common.utils.process_control import run_child
         with vram_reservation(f"composer.audiocpp:{os.getpid()}", besoin):
             if progress_callback:
                 progress_callback(20)
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            proc = run_child(cmd, timeout=timeout,
+                             heartbeat=(lambda: progress_callback(20)) if progress_callback else None)
         if proc.returncode != 0:
             queue = (proc.stderr or proc.stdout or '')[-2000:]
             raise RuntimeError(f"audiocpp_cli a échoué (code {proc.returncode}) : {queue}")

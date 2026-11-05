@@ -381,6 +381,33 @@ def _job_summary(state: dict) -> str:
     return '\n'.join(lines)[:1500]
 
 
+#: L'ancre de la file « Propositions à valider » du model manager (`model_manager/index.html`).
+PROPOSALS_ANCHOR = 'mmProposals'
+
+
+def proposals_url(outputs) -> str:
+    """La page où se DÉCIDE ce qu'une tâche a proposé — la file du model manager, ancrée — quand
+    au moins une de ses sorties y attend : un manifeste au magasin (`proposals.pending`, désigné
+    par sa sortie d'`outputs/`) ou un backend (`backend_proposals.pending`). Sinon '' : une sortie
+    que rien ne liste (codegen, tâche) n'a pas de page de décision (2026-11-05, demande de Fabien :
+    la notification du librarian n'avait pas de bouton « Ouvrir »)."""
+    outputs = [str(o) for o in (outputs or [])]
+    if not outputs:
+        return ''
+    try:
+        from django.urls import reverse
+
+        import wama.common.manifests.proposals as proposals
+        import wama.common.services.backend_proposals as backend_proposals
+        names = {Path(o).name for o in outputs}
+        waiting = (proposals.pending().filter(source__ref__in=outputs).exists()
+                   or any(b.get('file') in names for b in backend_proposals.pending()))
+        return f"{reverse('model_manager:index')}#{PROPOSALS_ANCHOR}" if waiting else ''
+    except Exception:
+        logger.debug("[dev_tools] page des propositions indéterminable", exc_info=True)
+        return ''
+
+
 def notify_finished_jobs() -> int:
     """Annonce, une fois, chaque tâche de développement TERMINÉE : une notification DANS WAMA
     (cloche du web) que la passerelle relaie dans le fil d'où la tâche a été demandée — le chemin
@@ -409,6 +436,7 @@ def notify_finished_jobs() -> int:
                              f"{'terminée' if success else 'en échec'}")
                     created += notify_in_app([user], 'job_done' if success else 'job_failed',
                                              title, body=_job_summary(state),
+                                             url=proposals_url(state.get('outputs')),
                                              app=DEV_JOB_APP, object_type=DEV_JOB_TYPE,
                                              object_id=meta['id'])
             meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding='utf-8')

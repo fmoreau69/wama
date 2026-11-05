@@ -678,6 +678,9 @@ def quantized_variants(repo_id: str, limit: int = 5) -> list[dict]:
     « MiniMax-Music-3 », tiret inséré par le repackageur), filtre STRICT (le nom complet
     normalisé alphanumérique
     doit apparaître dans l'id candidat + un marqueur de quantisation). Réseau : 2 requêtes.
+
+    None = recherche NON LUE (le Hub a refusé malgré l'attente, réseau) — à distinguer d'une
+    liste vide, qui est un fait : l'appelant ne fige rien et réessaiera (le `_siblings` d'ici).
     """
     import re
     try:
@@ -692,11 +695,12 @@ def quantized_variants(repo_id: str, limit: int = 5) -> list[dict]:
     api = HfApi()
     for terme in dict.fromkeys((nom_court, radical)):        # dédupliqué, ordre stable
         try:
-            depots = api.list_models(search=terme, sort='downloads', limit=100,
-                                     expand=['downloads', 'likes'])
+            depots = _hub_call(lambda: list(api.list_models(
+                search=terme, sort='downloads', limit=100, expand=['downloads', 'likes'])),
+                f"search={terme}")
         except Exception as e:
-            logger.debug("[quantized_variants] recherche « %s » en échec : %s", terme, e)
-            continue
+            logger.warning("[quantized_variants] recherche « %s » non lue : %s", terme, e)
+            return None
         for d in depots:
             did = d.id.lower()
             if did in vus or not names_the_same_model(repo_id, d.id):
@@ -854,9 +858,12 @@ def install_options(cand) -> dict:
     needs_projector = _needs_projector(cand)
 
     variants = prospect.get('quant_variants')
+    variants_read = True
     if variants is None:
         a_persister = True
         variants = quantized_variants(cand.hf_repo)
+        if variants is None:            # le Hub n'a pas répondu : rien n'est figé, on réessaiera
+            variants, variants_read = [], False
     enrichies = []
     for v in variants:
         v = dict(v)
@@ -888,7 +895,8 @@ def install_options(cand) -> dict:
             prospect['own_quant_method'] = method
             a_persister = True
     if a_persister:
-        prospect['quant_variants'] = enrichies
+        if variants_read:
+            prospect['quant_variants'] = enrichies
         info = dict(cand.extra_info or {})
         info['prospect'] = prospect
         cand.extra_info = info
@@ -1496,16 +1504,25 @@ def _hub_model_info(api, repo: str):
     """`api.model_info(repo)`, avec UNE nouvelle tentative après l'attente qu'un 429 demande
     (`Retry-After`, plafonnée) ; lève `HubRateLimited` si le refus persiste. Toute autre erreur
     (dépôt absent, privé) remonte telle quelle."""
+    return _hub_call(lambda: api.model_info(repo), repo)
+
+
+def _hub_call(call, label: str):
+    """Une lecture du Hub (`call()`), avec UNE nouvelle tentative après l'attente qu'un 429
+    demande (`Retry-After`, plafonnée) ; lève `HubRateLimited` si le refus persiste. ⚠ `call`
+    doit rendre une valeur MATÉRIALISÉE : `list_models` rend un générateur dont la requête part
+    à l'itération, donc HORS de cette garde (vécu le 2026-11-05 — le 429 de la recherche des
+    variantes quantisées a arrêté une passe d'évaluation entière)."""
     import time
     for attempt in (1, 2):
         try:
-            return api.model_info(repo)
+            return call()
         except Exception as exc:
             response = getattr(exc, 'response', None)
             if getattr(response, 'status_code', None) != 429:
                 raise
             if attempt == 2:
-                raise HubRateLimited(repo) from exc
+                raise HubRateLimited(label) from exc
             try:
                 wait = float((response.headers or {}).get('Retry-After') or 10)
             except (TypeError, ValueError, AttributeError):

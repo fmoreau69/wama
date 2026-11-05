@@ -615,6 +615,14 @@ pour la liste des canoniques est l'information du juge de confiance.
   (`extra_info['prospect']['quant_variants']`, idempotent, à l'évaluation seulement, jamais
   au seeding) ; `_contexte_hf` ajoute le bloc « ⚠ le poids ci-dessus est celui des poids
   PLEINS… la faisabilité VRAM se juge sur les variantes ».
+  *2026-11-05 (passe lancée par Fabien, « Échec de la passe : 429 … search=Drama-3-GGUF ») :*
+  `list_models` rend un GÉNÉRATEUR, sa requête part à l'itération — hors du `try` : le 429
+  arrêtait toute la passe d'évaluation. La recherche passe désormais par `_hub_call` (la reprise
+  après `Retry-After` de `_hub_model_info`, extraite) sur une liste MATÉRIALISÉE ; un refus
+  persistant rend `None` (« non lue », comme `_siblings`) au lieu d'une liste vide figée. Rien
+  n'est persisté, et `assess_proposed` ne juge pas ce candidat sur ses seuls poids pleins : il
+  repasse (`hub_unread` au résumé, dit sous la passe). Garde :
+  `tests_prospection_sources.QuantizedVariantsRateLimitTest`.
 - **Budget VRAM DYNAMIQUE** (remarque Fabien : « le rejet dépend de l'infrastructure
   derrière ») : `_vram_totale_gb()` (torch, repli 24.0) injecté dans le prompt système
   (`_system_agent()` remplace la constante `_AGENT_SYSTEM`) ET dans les critères de
@@ -3690,3 +3698,79 @@ l'assistant ne recommandait rien.
    Tests : `CommonScaleTest` (5, dont le référentiel installé),
    `TroisiemeBancEtSensTest.test_every_source_that_rates_the_model_is_recorded_in_priority_order`
    — contre-épreuves rouges (étage neutralisé, liste réduite au porteur).
+
+## Session du 2026-11-05 : ACE-Step 1.5 par la chaîne, et ce que la vérification des installations a trouvé
+
+Demande de Fabien : *« commence par Minimax et ACE-Step — ça ne demande pas de venv parallèle ? »*,
+puis *« seul ACE-Step n'a pas son backend ; vérifie que tout est installé proprement par les
+mécanismes de WAMA »*. La route suivie est celle de YuE2 (§Session du 2026-10-01, table) :
+
+| étape | état au 2026-11-05 |
+|---|---|
+| venv | **pas de venv parallèle attendu** : le `pyproject` amont épingle `torch==2.10.0` sous Linux, mais 2.7.1 sous Windows, et le code d'inférence ne teste aucune version de torch ; transformers 4.57.6, diffusers 0.37.0, accelerate 1.12.0, torchao 0.16.0 sont dans ses bornes. Manquent seulement des imports PARESSEUX hors du chemin d'inférence (`nano-vllm`/`flash-attn` : le LM a le moteur `pt` ; `modelscope` : téléchargement ; `lycoris`/`peft>=0.18` : LoRA ; `pytorch_wavelets` : DCW). La preuve reste l'essai réel sur la carte |
+| librairie | `librarian --repo ace-step/ACE-Step-1.5` (la proposition du 30/09 n'était jamais entrée au magasin) → **validée par Fabien** : `ace_step_1_5`, voie vendor, commit `ca1e85fe9430` (la tête amont n'a pas bougé depuis le 29/08) |
+| code | `install_library ace_step_1_5` : plan = `clone` ; ⏳ `--allow --apply` (l'allowlist est une décision humaine distincte de la validation du manifeste) |
+| poids | ✅ déjà installés par le pilote `hf` (9,4 Go : `acestep-v15-turbo`, `acestep-5Hz-lm-1.7B`, `vae`, `Qwen3-Embedding-0.6B`) |
+| anatomie | ⏳ rôle `model` → Valider : la ligne déclare `engine: transformers` (faux — `backend_unserved` de `check_model_completeness`) ; le moteur est la librairie vendorisée |
+| backend | ⏳ rôle `backend` → revue → Valider. ⚠ Le code amont TÉLÉCHARGE un composant absent (`init_service_downloads._ensure_models_present`, Hub ou ModelScope) : le backend ne doit l'atteindre qu'avec un paquet complet, et le refuser plutôt que tirer (règle « par la route ») |
+
+**La notification d'une tâche de développement mène à sa décision** : la fin du librarian disait
+« Propositions écrites (en attente de validation) » sans bouton « Ouvrir ». `dev_tools.proposals_url`
+pose l'adresse de la file du model manager (ancre `mmProposals`) quand une sortie de la tâche y
+ATTEND — un manifeste au magasin, désigné par sa sortie d'`outputs/`, ou un backend proposé ; la
+page descend à la file une fois chargée. Garde : `tests_dev_job_follow_up` (contre-épreuve rouge).
+
+**Vérification des installations** (`check_model_layout`, `verify_models`,
+`check_model_completeness`, plans `install_library`, `tests_install_route`) :
+- ✅ aucun snapshot étranger ; vendors `musetalk`, `codeformer`, `yue` conformes à leur commit ;
+  garde de la route verte (17 tests).
+- ⚠ `triposr` : vendor ABSENT (le plan dit `clone`) — l'image→3D n'a pas son moteur sur disque.
+- ⚠ deux lignes dites téléchargées sans poids sur disque : `anonymizer:yolo:yolopv2.pt`,
+  `huggingface:nvidia/LocateAnything-3B` (`verify_models`, rien corrigé).
+- ⚠ `Minimax-h3-Turbo-SLA` (3,1 Go) est INSTALLÉ sans moteur ni base : c'est un LoRA de
+  MiniMax-H3, dont la base (464 Go au catalogue) ne tient pas ici — à garder ou retirer, décision
+  de Fabien. Ce n'est pas MiniMax-Music3 (composer, moteur audio.cpp, servi).
+- ⚠ **le moteur audio.cpp n'est pas passé par la route** : binaire compilé à la main le
+  2026-08-27 dans `~/tools/audio.cpp` (`LICENSING.md`), antérieur à la règle du 2026-10-16 ; ni
+  manifeste `library`, ni commit épinglé. La voie vendor sait cloner au commit, pas COMPILER : un
+  manque de la route, à combler dans la route (décision à prendre). Au passage, son sous-processus
+  n'était pas atteint par ⏹ : porté sur `process_control.run_child` (`ROADMAP` gouvernance ⑦).
+- ⚠ le 429 de la recherche de variantes arrêtait toute la passe d'évaluation : soldé (§variantes
+  quantisées, note du 2026-11-05).
+
+## Session du 2026-11-05 (suite) : l'EMPREINTE vérifiée quelle que soit la source — et Whisper installé comme tout dépôt du Hub
+
+Question de Fabien sur Whisper : *« pourquoi l'empreinte n'est plus vérifiée fichier par fichier ?
+Qu'est-ce que ça change si c'est la même version qui vient d'une autre source ? »*, puis : *« il faut
+compléter la route — uniformité et universalité, du mieux possible quelle que soit la source »*.
+
+**Ce qui était mesuré** : les pilotes `files` et `github` confrontaient chaque fichier à une
+empreinte ÉPINGLÉE ; le pilote `hf` déléguait à `huggingface_hub` 0.36.2, qui ne contrôle que la
+TAILLE reçue (« Consistency check failed: file should be of size… ») ; le pilote `yolo` un plancher
+de 1 Mo, sur l'adresse « latest ». Le Hub publie pourtant l'empreinte de CHAQUE fichier d'une
+révision (`model_info(files_metadata=True)` : `sha256` d'un fichier LFS, `blob_id` git des autres),
+et l'API GitHub le `digest` de chaque asset (mesuré : les 313 assets d'`ultralytics/assets` v8.4.0).
+
+**Ce qui est livré, dans la route** (`model_installer`, en-tête « L'empreinte de ce qu'on installe ») :
+
+| pilote | contre quoi | où |
+|---|---|---|
+| `files`, `github` | l'empreinte ÉPINGLÉE dans la déclaration (`pinned`) | inchangé — le résultat le dit désormais |
+| `hf` | ce que le Hub PUBLIE pour la révision tirée (`published`) — sha256 LFS, blob git ; un fichier qui diffère est retiré (lien et blob), une empreinte illisible refuse | `verify_hf_snapshot`, `git_blob_sha1` ; lecture unique des fichiers publiés : `prospector.hub_files` (`_siblings` en dérive) |
+| `yolo` | le `digest` publié par l'API GitHub pour l'asset de la version COURANTE, dont le tag réel fige l'adresse ; un fichier en place y est confronté ; sans empreinte publiée, la taille publiée (`download_asset(size=…)`) | `pull_yolo_weights`, `github_release('…:latest')` |
+| `ollama` | le démon vérifie chaque couche (« verifying sha256 digest ») — rien à refaire | `pull_ollama_model` le rapporte |
+
+Chaque résultat porte `verified` (`{'against', 'count'}`), que le journal des installations garde
+(`install_history._close`). Garde : `tests_install_fingerprints` (vérification réelle sur un
+snapshot à la disposition de la librairie, liens compris ; contre-épreuves).
+
+**Whisper aligné sur cette règle** (décision de Fabien : « on réaligne au réel ») : les lignes
+`transcriber:whisper` et `huggingface:Systran/faster-whisper-tiny` nomment le dépôt que le moteur
+LIT (`Systran/faster-whisper-*`, la conversion CTranslate2 publiée par l'auteur de faster-whisper —
+OpenAI ne publie pas ce format) et portent le modèle d'origine (`base_model: openai/whisper-*`,
+relation `quantized`, le mot du Hub pour un export de format : le banc l'apparie toujours, il ne
+devient pas une dorsale). Licence `apache-2.0 AND mit` (les deux, décision de Fabien) : une
+licence COMPOSÉE qui contient celle de la carte n'est plus réécrite par elle (`set_identity`), et
+l'audit des licences qualifie une expression par ses termes (`license_audit.license_terms`).
+Les fichiers déclarés un à un (R211) sont retirés (`REMOVAL_LEDGER R216`) : installés par `hf`
+dans le dossier de famille, lus sans réseau (`local_files_only`).

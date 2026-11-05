@@ -95,6 +95,26 @@ class FinishedJobIsAnnouncedOnceTest(TestCase):
         self.assertEqual('Rien à signaler.', self._notes().get().body)
         self.assertNotIn('next_step', dev_tools.dev_job_status(self.user, '20261101-150000-dddddd'))
 
+    def test_a_job_whose_proposal_awaits_opens_the_queue_where_it_is_decided(self):
+        """2026-11-05 (Fabien) : la fin du librarian disait « Propositions écrites (en attente de
+        validation) » sans bouton « Ouvrir » vers la file du model manager."""
+        from django.urls import reverse
+        from wama.common.manifests.proposals import propose
+        output = 'wama-dev-ai/outputs/library_fake_engine_2026-11-05_17-48.json'
+        propose({'manifest_kind': 'library', 'schema_version': '1.0', 'key': 'fake_engine',
+                 'name': 'fake-engine', 'world': 'transverse', 'visibility': 'public',
+                 'projects': [], 'body': {'identity': {'summary': 'x'}}}, origin=output)
+        _job(self.tmp, '20261105-164742-d7583f', 'dev_follow', tool='role:librarian',
+             log=f"proposition : {output}\n")
+        _job(self.tmp, '20261105-170000-eeeeee', 'dev_follow', tool='role:codegen',
+             log="sortie : wama-dev-ai/outputs/codegen_nothing_waits.json\n")
+        dev_tools.notify_finished_jobs()
+        urls = dict(self._notes().values_list('object_id', 'url'))
+        self.assertEqual(reverse('model_manager:index') + '#' + dev_tools.PROPOSALS_ANCHOR,
+                         urls['20261105-164742-d7583f'])
+        self.assertEqual('', urls['20261105-170000-eeeeee'],
+                         "an output that no queue lists has no page where it is decided")
+
 
 class ChannelFollowUpOfADevJobTest(TestCase):
     """La fin d'une tâche de dev revient dans le fil Discord qui l'a lancée."""

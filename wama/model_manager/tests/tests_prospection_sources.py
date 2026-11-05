@@ -385,3 +385,54 @@ class QuantizedSizeTest(TestCase):
         # Counter-check: the fallback only applies when the Hub says nothing.
         self.assertAlmostEqual(2.0, p._q4_size_gb(SimpleNamespace(), weight_gb=8.0))
         self.assertIsNone(p._q4_size_gb(SimpleNamespace(), weight_gb=None))
+
+
+class _LazySearchApi:
+    """`HfApi.list_models` the way the library serves it: a GENERATOR whose request leaves at the
+    first iteration, refused with a 429 for the first `refusals` iterations."""
+
+    def __init__(self, repos, refusals=99):
+        self.repos, self.refusals, self.iterations = repos, refusals, 0
+
+    def list_models(self, **kwargs):
+        def gen():
+            self.iterations += 1
+            if self.iterations <= self.refusals:
+                raise _RateLimited()
+            for repo in self.repos:
+                yield SimpleNamespace(id=repo, downloads=5, likes=1)
+        return gen()
+
+
+@patch('time.sleep')
+class QuantizedVariantsRateLimitTest(TestCase):
+    """Measured 2026-11-05: the 429 of the quantized-variant search (`search=Drama-3-GGUF`) left the
+    `try` — `list_models` is lazy, the request goes out while iterating — and stopped the whole
+    assessment pass with « Échec de la passe ». An unread search must neither crash nor be frozen
+    as « no variant », or the judge rejects a big model on its full weights (2026-08-26)."""
+
+    def test_a_refused_search_is_retried_once_after_the_wait(self, sleep):
+        api = _LazySearchApi(['org/Drama-3-GGUF'], refusals=1)
+        with patch('huggingface_hub.HfApi', return_value=api):
+            out = p.quantized_variants('org/Drama-3')
+        self.assertEqual(['org/Drama-3-GGUF'], [v['repo_id'] for v in out])
+        sleep.assert_called_once_with(2.0)
+
+    def test_a_persistent_refusal_reads_as_unread_not_as_empty(self, sleep):
+        with patch('huggingface_hub.HfApi', return_value=_LazySearchApi([])):
+            self.assertIsNone(p.quantized_variants('org/Drama-3'))
+
+    def test_an_unread_search_freezes_nothing_on_the_candidate(self, sleep):
+        from wama.model_manager.services import prospect_agents as pa
+        cand = AIModel.objects.create(model_key='proposed:hf:org/Drama-3', name='Drama-3',
+                                      model_type='image', source='huggingface', is_proposed=True,
+                                      platform_ref='huggingface:org/Drama-3',
+                                      extra_info={'prospect': {}})
+        with patch('huggingface_hub.HfApi', return_value=_LazySearchApi([])):
+            self.assertFalse(pa._attach_quantized_variants(cand))
+        cand.refresh_from_db()
+        self.assertNotIn('quant_variants', cand.extra_info['prospect'])
+        with patch('huggingface_hub.HfApi', return_value=_LazySearchApi([], refusals=0)):
+            self.assertTrue(pa._attach_quantized_variants(cand))
+        cand.refresh_from_db()
+        self.assertEqual([], cand.extra_info['prospect']['quant_variants'])

@@ -2011,7 +2011,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (btn) btn.disabled = false;
                     if (status) status.textContent = p.deferred
                         ? `Passe reportée : GPU occupé (${p.free_gb} Go libres < ${p.needed_gb} Go requis).`
-                        : `Confiance : ${p.assessed || 0} évalué(s), ${p.remaining ?? '?'} restant(s).`;
+                        : `Confiance : ${p.assessed || 0} évalué(s), ${p.remaining ?? '?'} restant(s).`
+                          + (p.hub_unread ? ` ${p.hub_unread} reporté(s) : le Hub limite le débit, ils repasseront.` : '');
                     loadModels(); return;
                 }
                 if (p.state === 'FAILURE') {
@@ -2255,6 +2256,9 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (e) { console.error('Propositions indisponibles :', e); }
         document.getElementById('mmProposalsCount').textContent = items.length + backends.length;
         box.classList.toggle('d-none', items.length + backends.length === 0);
+        // Le bouton « Ouvrir » d'une fin de tâche qui a proposé (`dev_tools.proposals_url`) ancre
+        // ici : la file n'apparaît qu'une fois chargée, le navigateur n'a donc pas pu y descendre.
+        const reveal = location.hash === '#' + box.id && !box.classList.contains('d-none');
         const esc = WamaApp.escapeHtml;
         const waiting = canDecide ? '' : '<div class="text-muted fst-italic">En attente de validation par un administrateur.</div>';
         const hideDecision = canDecide ? '' : ' d-none';
@@ -2317,6 +2321,11 @@ document.addEventListener('DOMContentLoaded', function() {
             mmLoadProposals();
             loadModels();
         }));
+        if (reveal) {
+            box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+            // Une fois : la file se recharge après chaque décision, elle ne doit pas y ramener.
+            history.replaceState(null, '', location.pathname + location.search);
+        }
     }
 
     function attachUnloadHandlers() {

@@ -146,7 +146,7 @@ class GateVramModeDepannageTest(TestCase):
                  mock.patch.dict('os.environ', {'AUDIOCPP_BINARY': __file__}), \
                  mock.patch('wama.common.services.resource_governor.wait_for_free_vram',
                             return_value=(False, 0.7)), \
-                 mock.patch('subprocess.run') as run:
+                 mock.patch('wama.common.utils.process_control.run_child') as run:
                 with self.assertRaises(RuntimeError) as cm:
                     AudioCppBackend().generate(
                         model_id='minimax-music3', prompt='x', duration=10,
@@ -179,3 +179,38 @@ class CompositionRequiseTest(TestCase):
         compo = AudioCppBackend()._composition('minimax-music3')
         self.assertEqual(compo['runtime']['family'], 'minimax_music3')
         self.assertEqual(compo['components'][0]['pattern'], 'language_model_q8_0.gguf')
+
+
+class StopReachesTheEngineTest(TestCase):
+    """2026-11-05: the binary ran through `subprocess.run`, so ⏹ waited for the whole song. It now
+    runs through `process_control.run_child` (as MuseTalk and CodeFormer): the task's progress
+    beats while the engine works — the channel through which a task sees ⏹."""
+
+    def test_the_binary_runs_as_a_stoppable_child_that_beats_the_progress(self):
+        import subprocess
+        import tempfile
+        from unittest import mock
+        from django.test import override_settings
+        seen = []
+
+        def fake_child(cmd, *, timeout=None, heartbeat=None, **kwargs):
+            heartbeat()
+            Path(cmd[cmd.index('--out') + 1]).write_bytes(b'RIFF')
+            return subprocess.CompletedProcess(cmd, 0, '', '')
+
+        with tempfile.TemporaryDirectory() as tmp:
+            GateVramModeDepannageTest._prepare(self, tmp)
+            config = {'cache_dir': tmp, 'platform_ref': 'huggingface:audio-cpp/MiniMax-Music3-GGUF',
+                      'backend': 'audiocpp', 'vram_gb': 13.0}
+            with override_settings(WAMA_GPU_SAFE_MODE=False), \
+                 mock.patch.dict('wama.composer.utils.model_config.COMPOSER_MODELS',
+                                 {'minimax-music3': config}), \
+                 mock.patch.dict('os.environ', {'AUDIOCPP_BINARY': __file__}), \
+                 mock.patch('wama.common.utils.process_control.run_child',
+                            side_effect=fake_child) as child:
+                AudioCppBackend().generate(model_id='minimax-music3', prompt='x', duration=10,
+                                           output_path=str(Path(tmp) / 'out.wav'),
+                                           progress_callback=seen.append)
+        child.assert_called_once()
+        self.assertGreater(child.call_args.kwargs['timeout'], 0)
+        self.assertEqual([10, 20, 20, 90, 100], seen)
