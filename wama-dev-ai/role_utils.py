@@ -652,6 +652,30 @@ def vendor_loader_defaults(engine_dir, repo_id) -> list:
     return found
 
 
+def vendor_names_repo(engine_dir, repo_id) -> list:
+    """Les CONSTANTES de module du code vendorisé qui valent `repo_id` (`fichier:NOM`) — l'autre
+    forme sous laquelle un moteur nomme le dépôt qu'il charge par défaut. Vécu le 2026-11-05 :
+    ACE-Step 1.5 le nomme `MAIN_MODEL_REPO = "ACE-Step/Ace-Step1.5"` (son chargeur lit un
+    dossier de points de contrôle, pas un `from_pretrained`), et le rôle `model` ne posait pas le
+    moteur. Mesuré avant d'écrire : sur les moteurs vendorisés installés, aucune constante ne
+    nomme un AUTRE modèle du catalogue (le piège SheetSage2 reste fermé). Les tests sont ignorés."""
+    import ast
+    found = []
+    for path in sorted(Path(engine_dir).rglob('*.py')):
+        if 'tests' in path.parts or path.name.endswith('_test.py'):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding='utf-8', errors='replace'))
+        except SyntaxError:
+            continue
+        for node in tree.body:
+            if (isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+                    and str(node.value.value).lower() == repo_id.lower()):
+                found += [f"{path.relative_to(engine_dir).as_posix()}:{t.id}"
+                          for t in node.targets if isinstance(t, ast.Name)]
+    return found
+
+
 def enforce_vendor_engine(manifest, repo_id, sources_text, concerns, libraries=None, vendor_root=None):
     """Moteur et composants d'un modèle servi par un moteur VENDORISÉ — posés par les FAITS.
 
@@ -680,10 +704,11 @@ def enforce_vendor_engine(manifest, repo_id, sources_text, concerns, libraries=N
     from django.conf import settings
     root = Path(vendor_root or settings.BACKEND_VENDOR_DIR) / lib['engine']
     defaults = vendor_loader_defaults(root, repo_id) if root.is_dir() else []
-    if not defaults:
+    named = vendor_names_repo(root, repo_id) if root.is_dir() and not defaults else []
+    if not defaults and not named:
         concerns.append(f"les sources citent le dépôt vendorisé {lib['repo']}, mais son code "
-                        f"ne charge pas {repo_id} (aucun from_pretrained par défaut sous {root}) — "
-                        f"moteur {lib['engine']!r} NON posé")
+                        f"ne charge pas {repo_id} (ni from_pretrained par défaut, ni constante "
+                        f"de module sous {root}) — moteur {lib['engine']!r} NON posé")
         return manifest
     body = manifest.setdefault('body', {})
     compo = body.get('composition') if isinstance(body.get('composition'), dict) else {}
@@ -692,7 +717,12 @@ def enforce_vendor_engine(manifest, repo_id, sources_text, concerns, libraries=N
         concerns.append(f"engine {runtime['engine']!r} REMPLACÉ par {lib['engine']!r} : le code "
                         f"vendorisé {lib['repo']} charge ce modèle")
     runtime['engine'] = lib['engine']
-    if not compo.get('components'):
+    if named:
+        # Une constante dit le dépôt, pas ses RÔLES : les composants restent ceux que le rôle a
+        # lus dans le dépôt, à revoir.
+        concerns.append(f"moteur {lib['engine']!r} posé : le code vendorisé nomme {repo_id} "
+                        f"({', '.join(named[:3])}) — composants à confronter au chargeur")
+    elif not compo.get('components'):
         compo['components'] = [
             {'role': arg, 'pattern': '*.safetensors'} if repo.lower() == repo_id.lower()
             else {'role': arg, 'repo': repo}

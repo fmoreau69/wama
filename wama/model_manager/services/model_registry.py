@@ -321,6 +321,15 @@ def _dominant_format(files) -> str:
                  if f in extensions), '')
 
 
+def _designated(folder: Path, places: set) -> bool:
+    """Un dossier de poids installé (snapshot, version GitHub) est-il DÉSIGNÉ par une entrée
+    découverte — l'un de ses emplacements est ce dossier ou se trouve dedans ? Le dossier qui le
+    CONTIENT (sa famille, souvent un `install_dir`) ne le désigne pas. Commun aux deux balayages
+    génériques."""
+    root = folder.resolve()
+    return any(place == root or root in place.parents for place in places)
+
+
 class ModelRegistry:
     """Central registry for all WAMA models."""
 
@@ -2639,7 +2648,7 @@ class ModelRegistry:
             IGNORÉ ici — l'entrée d'app porte backend, VRAM et capacités, elle fait autorité.
             Le balayage tourne donc EN DERNIER dans `discover_all_models`.
           • DÉDUP par EMPLACEMENT : un snapshot (ou une version GitHub) qu'une entrée déjà
-            découverte DÉSIGNE — son `path`/`install_dir` est ce dossier ou un fichier dedans —
+            découverte DÉSIGNE — son `path` est ce dossier ou un fichier dedans —
             est à elle, même sous un autre nom de dépôt. Et rien d'autre : un dossier de famille
             déclaré dans `settings.MODEL_PATHS` dit OÙ ranger, pas QUI découvre. Jusqu'au
             2026-11-05 une famille déclarée était sautée entière (« elle appartient à son app ») ;
@@ -2668,7 +2677,7 @@ class ModelRegistry:
             # modèle : il se range à côté de son parent, qui le porte (2026-10-03).
             from wama.common.utils.model_locations import declared_component_repos
             deja_declares |= declared_component_repos()
-            familles_declarees = self._familles_model_paths()
+            designated = self._designated_locations()
             for cat_dir in sorted(root.iterdir()):
                 if not cat_dir.is_dir():
                     continue
@@ -2677,10 +2686,10 @@ class ModelRegistry:
                 except ValueError:
                     continue
                 for fam_dir in sorted(cat_dir.iterdir()):
-                    if not fam_dir.is_dir() or fam_dir.resolve() in familles_declarees:
+                    if not fam_dir.is_dir():
                         continue
                     for snap in sorted(fam_dir.glob('models--*')):
-                        if not snap.is_dir():
+                        if not snap.is_dir() or _designated(snap, designated):
                             continue
                         try:
                             self._snapshot_to_model(snap, mtype, fam_dir, deja_declares)
@@ -2689,12 +2698,14 @@ class ModelRegistry:
                     # Versions GITHUB (2026-10-07, pilote `github`) : la disposition est calquée
                     # sur celle de HF (`github--owner--repo/<tag>/` ↔ `models--org--nom/
                     # snapshots/<rév.>/`), le balayage aussi — même passe, mêmes règles
-                    # (familles déclarées exclues, catégorie `ModelType`, faits seuls).
+                    # (ce qu'une entrée désigne exclu, catégorie `ModelType`, faits seuls).
                     from wama.common.utils.model_locations import GITHUB_FOLDER_PREFIX
                     for repo_dir in sorted(fam_dir.glob(f'{GITHUB_FOLDER_PREFIX}*')):
                         if not repo_dir.is_dir():
                             continue
                         for release in sorted(d for d in repo_dir.iterdir() if d.is_dir()):
+                            if _designated(release, designated):
+                                continue
                             try:
                                 self._github_release_to_model(release, repo_dir, mtype, fam_dir)
                             except Exception as e:
@@ -2706,24 +2717,20 @@ class ModelRegistry:
             self.discovery_errors.append(f"hf_snapshots : {type(e).__name__}: {e}")
             logger.warning(f"[hf_snapshots] balayage en échec : {e}")
 
-    @staticmethod
-    def _familles_model_paths() -> set:
-        """Dossiers (résolus) déclarés dans `settings.MODEL_PATHS`, à toute profondeur."""
-        from django.conf import settings
-        declares = set()
-
-        def _walk(valeur):
-            if isinstance(valeur, dict):
-                for v in valeur.values():
-                    _walk(v)
-            else:
+    def _designated_locations(self) -> set:
+        """Les emplacements (résolus) que les entrées DÉJÀ découvertes déclarent pour leurs
+        poids : `extra_info['path']`, l'emplacement que lit aussi `model_installer.weights_dir_of`
+        (désinstallation, poids par composant). Pas `install_dir` : il dit où INSTALLER, et
+        désigne le plus souvent la famille entière."""
+        places = set()
+        for info in self._models.values():
+            value = (info.extra_info or {}).get('path')
+            if value:
                 try:
-                    declares.add(Path(valeur).resolve())
+                    places.add(Path(value).resolve())
                 except (TypeError, OSError):
                     pass
-
-        _walk(getattr(settings, 'MODEL_PATHS', {}))
-        return declares
+        return places
 
     def _snapshot_to_model(self, snap, mtype, fam_dir, deja_declares):
         """Fabrique l'entrée `ModelInfo` d'UN snapshot HF (sous-fonction du balayage générique)."""
@@ -2799,6 +2806,8 @@ class ModelRegistry:
         if not repo:
             return
         tag = release.name
+        if f"github:{repo}:{tag}" in self._models:
+            return      # une entrée DÉCLARÉE sous la même clé fait autorité (la dédup par dépôt)
         files = [f for f in release.iterdir() if f.is_file()]
         weights = [f for f in files if not f.name.endswith('.part')]
         incomplete = len(weights) < len(files) or not weights

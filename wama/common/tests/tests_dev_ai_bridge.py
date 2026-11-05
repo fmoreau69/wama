@@ -774,6 +774,29 @@ class VendorEngineFromSourcesTest(SimpleTestCase):
         self.assertEqual({}, manifest['body']['composition'])
         self.assertTrue(any('NON posé' in c for c in concerns), concerns)
 
+    def test_an_engine_naming_the_repo_by_a_module_constant_gets_its_engine(self):
+        """2026-11-05, ACE-Step 1.5: its loader reads a checkpoint folder and names the repo by a
+        module constant (`MAIN_MODEL_REPO`), not by a `from_pretrained` default — the role left
+        the model without an engine. A constant naming ANOTHER repo, or one inside a function or a
+        test, sets nothing (the SheetSage2 trap stays closed)."""
+        libs = [{'key': 'ace_step_1_5', 'repo': 'ace-step/ACE-Step-1.5', 'engine': 'ace_step_1_5'}]
+        src = self.root / 'ace_step_1_5' / 'acestep'
+        src.mkdir(parents=True)
+        (src / 'model_downloader.py').write_text(
+            'MAIN_MODEL_REPO = "ACE-Step/Ace-Step1.5"\n'
+            'OTHER = "someone/other-model"\n'
+            'def f():\n    LOCAL = "m-a-p/SheetSage2"\n', encoding='utf-8')
+        (src / 'downloader_test.py').write_text('REPO = "m-a-p/SheetSage2"\n', encoding='utf-8')
+        for repo_id, engine in (('ACE-Step/Ace-Step1.5', 'ace_step_1_5'), ('m-a-p/SheetSage2', None)):
+            concerns = []
+            manifest = {'body': {'composition': {'components': [{'role': 'vae', 'pattern': 'vae/*'}]}}}
+            self.role_utils.enforce_vendor_engine(manifest, repo_id, 'github.com/ace-step/ACE-Step-1.5',
+                                                  concerns, libraries=libs, vendor_root=self.root)
+            compo = manifest['body']['composition']
+            self.assertEqual(engine, (compo.get('runtime') or {}).get('engine'), repo_id)
+            self.assertEqual([{'role': 'vae', 'pattern': 'vae/*'}], compo['components'],
+                             'a constant names the repo, not its roles: components are kept')
+
 
 class AdapterParentTest(SimpleTestCase):
     """Le parent d'un ADAPTATEUR entre dans l'anatomie (2026-10-03, SheetSage2 → MERT)."""

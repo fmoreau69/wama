@@ -349,26 +349,43 @@ class SnapshotsInstallesTest(TestCase):
         self.assertEqual(m.vram_gb, 0.1)
         self.assertTrue(m.extra_info.get('vram_estimated'))
 
-    def test_une_famille_declaree_dans_MODEL_PATHS_appartient_a_son_app(self):
-        """Le critère famille reste nécessaire même depuis que transcriber/synthesizer/
-        anonymizer posent leur dépôt (2026-08-27) : le dépôt DÉCLARÉ n'est pas toujours celui
-        du SNAPSHOT sur disque (déclaré `openai/whisper-large-v3`, disque
-        `Systran/faster-whisper-large-v3` — la dédup par dépôt ne les relie pas ; 16 doublons
-        mesurés sans ce critère). MODEL_PATHS est LA déclaration « ce dossier appartient à
-        une app » (checklist étape 1)."""
+    def test_a_snapshot_is_left_only_to_the_entry_that_designates_it(self):
+        """A family declared in `MODEL_PATHS` says WHERE to store, not WHO discovers (2026-11-05).
+        A declared family used to be skipped whole: LocateAnything-3B (weights of the PoC, family
+        declared for its backend) and BART (removed from the describer, family left behind) were
+        installed, invisible from the catalogue and impossible to uninstall. An entry that
+        DESIGNATES the snapshot keeps it, even under another repo name (the Whisper case of
+        2026-08-27: `openai/…` declared, `Systran/…` on disk) ; its family folder does not."""
         import tempfile
 
         from django.test import override_settings
+
+        from ..models import ModelSource, ModelType
+        from ..services.model_registry import ModelInfo
         with tempfile.TemporaryDirectory() as tmp:
-            racine = Path(tmp)
-            _faux_snapshot(racine, 'speech', 'whisper', 'Systran', 'faster-whisper-tiny')
-            _faux_snapshot(racine, 'music', 'Orphelin', 'Org', 'Orphelin')
-            with override_settings(MODEL_PATHS={'speech': {
-                    'whisper': racine / 'models' / 'speech' / 'whisper'}}):
-                modeles = self._balayer(racine)
-        self.assertNotIn('huggingface:Systran/faster-whisper-tiny', modeles,
-                         "une famille déclarée est gouvernée par son app, pas par le balayage")
-        self.assertIn('huggingface:Org/Orphelin', modeles)
+            root = Path(tmp)
+            whisper = _faux_snapshot(root, 'speech', 'whisper', 'Systran', 'faster-whisper-tiny')
+            _faux_snapshot(root, 'speech', 'whisper', 'Org', 'stray')
+            _faux_snapshot(root, 'vision', 'locate-anything', 'nvidia', 'LocateAnything-3B')
+            app = ModelInfo(id='whisper', name='Whisper', model_type=ModelType.SPEECH,
+                            source=ModelSource.WAMA_TRANSCRIBER,
+                            platform_ref='huggingface:openai/whisper-tiny',
+                            extra_info={'path': str(whisper), 'install_dir': str(whisper.parent)})
+            # The aligner of the transcriber declares its FAMILY folder as its path (`ALIGNMENT_DIR`).
+            family_path = ModelInfo(id='aligner', name='Aligner', model_type=ModelType.SPEECH,
+                                    source=ModelSource.WAMA_TRANSCRIBER,
+                                    extra_info={'path': str(whisper.parent)})
+            with override_settings(MODEL_PATHS={
+                    'speech': {'whisper': whisper.parent},
+                    'vision': {'locate_anything': root / 'models' / 'vision' / 'locate-anything'}}):
+                models = self._balayer(root, deja={'transcriber:whisper': app,
+                                                   'transcriber:aligner': family_path})
+        self.assertNotIn('huggingface:Systran/faster-whisper-tiny', models,
+                         'the entry that designates its folder keeps it')
+        self.assertIn('huggingface:Org/stray', models,
+                      'a path or install_dir naming the FAMILY does not hide what nobody designates')
+        self.assertTrue(models['huggingface:nvidia/LocateAnything-3B'].is_downloaded,
+                        'a declared family that no entry designates is catalogued')
 
     def test_un_dossier_de_categorie_inconnue_est_ignore(self):
         # Un dossier hors taxonomie ModelType n'invente pas de type au catalogue.

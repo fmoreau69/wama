@@ -51,12 +51,18 @@ class FastWanDeclarationTest(SimpleTestCase):
         self.assertEqual(WanVideoBackend.cache_dir_for(MODEL_ID), declared)
         self.assertEqual(get_model_info(MODEL_ID)['cache_dir'], declared)
 
-    def test_la_famille_declaree_sort_du_balayage_generique(self):
-        """Sinon FastWan aurait DEUX lignes de catalogue : `imager:` et `huggingface:`."""
-        from pathlib import Path
+    def test_the_imager_row_names_the_repo_the_generic_scan_would_catalogue(self):
+        """Sinon FastWan aurait DEUX lignes de catalogue : `imager:` et `huggingface:`. Depuis le
+        2026-11-05 ce n'est plus sa famille déclarée qui l'en garde (elle dit où ranger, pas qui
+        découvre) : c'est la ligne d'app qui porte le dépôt même du snapshot."""
+        from wama.common.backends.wan_video_backend import WanVideoBackend
         from wama.model_manager.services.model_registry import ModelRegistry
-        self.assertIn(Path(settings.MODEL_PATHS['diffusion']['fastwan']).resolve(),
-                      ModelRegistry._familles_model_paths())
+        registry = object.__new__(ModelRegistry)
+        registry._models, registry.discovery_errors = {}, []
+        registry._discover_imager_models()
+        self.assertEqual(WanVideoBackend.SUPPORTED_MODELS[MODEL_ID][1],
+                         registry._models[f'imager:{MODEL_ID}'].hf_repo,
+                         'the discovered row names the repo whose snapshot the engine loads')
 
     def test_la_decouverte_imager_porte_fastwan_en_texte_vers_video(self):
         from wama.model_manager.services.model_registry import ModelRegistry

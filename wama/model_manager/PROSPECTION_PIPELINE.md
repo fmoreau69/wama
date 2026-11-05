@@ -690,7 +690,12 @@ téléchargé). Double dédup : par `hf_id` (l'entrée d'app fait autorité) ET 
 `MODEL_PATHS`** — transcriber/synthesizer/anonymizer ne posent pas de `hf_id` dans leur
 découverte, sans ce 2ᵉ critère 16 doublons de fait apparaissaient (mesuré, purgés).
 `MODEL_PATHS` est LA déclaration « ce dossier appartient à une app » (checklist étape 1) :
-le balayage ne couvre que les familles qu'aucune déclaration ne revendique. Un échec du
+le balayage ne couvre que les familles qu'aucune déclaration ne revendique.
+*→ Remplacé le 2026-11-05 (décision de Fabien : « universel et définitif », §Session du
+2026-11-05) : une famille déclarée dit OÙ ranger, pas QUI découvre. La dédup est désormais par
+dépôt et par EMPLACEMENT — un snapshot qu'une entrée découverte désigne (son `path`,
+l'emplacement que lit `weights_dir_of`) ; sauter la famille entière cachait LocateAnything-3B
+et BART, installés.* Un échec du
 balayage alimente `discovery_errors` (règle SAM3 : découverte incomplète = réconciliation
 suspendue). ⚠ Catalogué ≠ utilisable : `backend_ref` reste vide, l'usage par une app reste
 conditionné à sa déclaration + un backend.
@@ -3709,9 +3714,9 @@ mécanismes de WAMA »*. La route suivie est celle de YuE2 (§Session du 2026-10
 |---|---|
 | venv | **pas de venv parallèle attendu** : le `pyproject` amont épingle `torch==2.10.0` sous Linux, mais 2.7.1 sous Windows, et le code d'inférence ne teste aucune version de torch ; transformers 4.57.6, diffusers 0.37.0, accelerate 1.12.0, torchao 0.16.0 sont dans ses bornes. Manquent seulement des imports PARESSEUX hors du chemin d'inférence (`nano-vllm`/`flash-attn` : le LM a le moteur `pt` ; `modelscope` : téléchargement ; `lycoris`/`peft>=0.18` : LoRA ; `pytorch_wavelets` : DCW). La preuve reste l'essai réel sur la carte |
 | librairie | `librarian --repo ace-step/ACE-Step-1.5` (la proposition du 30/09 n'était jamais entrée au magasin) → **validée par Fabien** : `ace_step_1_5`, voie vendor, commit `ca1e85fe9430` (la tête amont n'a pas bougé depuis le 29/08) |
-| code | `install_library ace_step_1_5` : plan = `clone` ; ⏳ `--allow --apply` (l'allowlist est une décision humaine distincte de la validation du manifeste) |
+| code | ✅ `install_library ace_step_1_5 --allow --apply` (allowlist accordée par Fabien, distincte de la validation du manifeste) : cloné au commit `ca1e85fe9430`, état constaté conforme |
 | poids | ✅ déjà installés par le pilote `hf` (9,4 Go : `acestep-v15-turbo`, `acestep-5Hz-lm-1.7B`, `vae`, `Qwen3-Embedding-0.6B`) |
-| anatomie | ⏳ rôle `model` → Valider : la ligne déclare `engine: transformers` (faux — `backend_unserved` de `check_model_completeness`) ; le moteur est la librairie vendorisée |
+| anatomie | rôle `model` → Valider : la ligne déclare `engine: transformers` (faux — `backend_unserved` de `check_model_completeness`) ; le moteur est la librairie vendorisée. **Trou de la chaîne trouvé au 1er passage** : la proposition n'avait AUCUN moteur — `enforce_vendor_engine` ne reconnaissait qu'une forme du « le code vendorisé charge ce dépôt » (le défaut d'un `from_pretrained`, l'idiome de YuE) ; ACE-Step nomme le sien par une constante de module (`MAIN_MODEL_REPO`). `role_utils.vendor_names_repo` lit cette seconde forme — mesuré sur les moteurs vendorisés installés : aucune constante ne nomme un autre modèle du catalogue (le piège SheetSage2 du 2026-10-03 reste fermé) ; une constante dit le dépôt, pas ses rôles : les composants restent à revoir (la 1ʳᵉ proposition omettait `Qwen3-Embedding-0.6B`, et ses langues n'étaient pas au vocabulaire). Garde : `tests_dev_ai_bridge.VendorEngineFromSourcesTest` (contre-épreuves rouges) |
 | backend | ⏳ rôle `backend` → revue → Valider. ⚠ Le code amont TÉLÉCHARGE un composant absent (`init_service_downloads._ensure_models_present`, Hub ou ModelScope) : le backend ne doit l'atteindre qu'avec un paquet complet, et le refuser plutôt que tirer (règle « par la route ») |
 
 **La notification d'une tâche de développement mène à sa décision** : la fin du librarian disait
@@ -3735,8 +3740,24 @@ page descend à la file une fois chargée. Garde : `tests_dev_job_follow_up` (co
   - `huggingface:nvidia/LocateAnything-3B` (15,6 Go, complet) n'est plus DÉCOUVERT : sa famille est
     déclarée dans `MODEL_PATHS` (`locate_anything`), donc le balayage générique la saute
     (`_discover_installed_hf_snapshots`, « dédup par famille »), et aucune découverte d'app ne la
-    porte — un trou de la découverte. À trancher : une découverte qui la déclare, ou une dédup par
-    famille qui n'écarte que les familles qu'une entrée découverte occupe réellement.
+    porte — un trou de la découverte.
+  ✅ **Soldé le jour même, la seconde voie (décision de Fabien : « universel et définitif »)**. Le
+  trou est double : à l'INSTALLATION (LocateAnything vient du PoC du 27/07, BART d'avant la route,
+  aucun n'est passé par les mécanismes) et dans la CHAÎNE (déclarer une famille — étape 1 de la
+  checklist d'ajout — suffisait à retirer de la découverte tout snapshot qu'elle contient, sans
+  que la synchro le dise ; un modèle installé par la route dans une famille déclarée sans app pour
+  le découvrir y tombait pareillement). La règle : un dossier de poids installé n'est écarté du
+  balayage que si une entrée découverte le DÉSIGNE — son dépôt (`platform_ref`, composant), sa
+  clé (version GitHub) ou son emplacement (`extra_info['path']` = ce dossier ou dedans — celui
+  que lit `weights_dir_of` ; `model_registry._designated`) ; le dossier de famille, et un
+  `install_dir` qui le nomme, ne désignent rien. **Mesuré** sur le disque
+  réel : des 31 snapshots des familles déclarées, 29 étaient déjà portés par leur dépôt ; la
+  découverte passe de 586 à 588 clés — exactement LocateAnything-3B et `facebook/bart-large-cnn`
+  (1,6 Go, `vlm/bart`), rien d'autre ne bouge. Gardes : `tests.SnapshotsInstallesTest`,
+  `tests_github_install.GenericScanCataloguesAGithubReleaseTest`,
+  `tests_wan_video_backend` (FastWan reste à l'imager par son dépôt). ⏳ BART : une famille
+  déclarée (`settings.py`, `bart`) qu'aucun code ne lit depuis son retrait du 2026-03-18 — ses
+  poids sont désormais visibles et désinstallables ; la retirer, ou non, est une décision.
 - ⚠ `Minimax-h3-Turbo-SLA` (3,1 Go) est INSTALLÉ sans moteur ni base : c'est un LoRA de
   MiniMax-H3, dont la base (464 Go au catalogue) ne tient pas ici — à garder ou retirer, décision
   de Fabien. Ce n'est pas MiniMax-Music3 (composer, moteur audio.cpp, servi).

@@ -281,13 +281,27 @@ class GenericScanCataloguesAGithubReleaseTest(SimpleTestCase):
         self.assertFalse(m.is_downloaded)
         self.assertTrue(m.extra_info.get('incomplete'))
 
-    def test_a_declared_family_stays_its_apps_like_for_huggingface(self):
+    def test_a_release_is_left_only_to_the_entry_that_designates_it(self):
+        """Like a snapshot (2026-11-05): an entry that NAMES the release — its key or its folder —
+        keeps it ; a family declared in `MODEL_PATHS` no longer hides a release nobody names."""
+        from wama.model_manager.models import ModelSource, ModelType
+        from wama.model_manager.services.model_registry import ModelInfo, ModelRegistry
+        key = 'github:Phhofm/models:4xNomosUni_span_multijpg'
         with tempfile.TemporaryDirectory() as root:
             release = _installed_release(root, family='declared-family')
-            with patch('wama.model_manager.services.model_registry.ModelRegistry'
-                       '._familles_model_paths', return_value={release.parent.parent.resolve()}):
-                models = self._scan(root)
-        self.assertFalse([k for k in models if k.startswith('github:')])
+            with self.settings(MODEL_PATHS={'upscaling': {'declared': release.parent.parent}}):
+                self.assertIn(key, self._scan(root), 'a declared family is not a reason to skip')
+                for entry_key, info in (
+                        (key, {}),                                       # the same key
+                        ('enhancer:nomos', {'path': str(release / 'model.onnx')})):  # its folder
+                    registry = ModelRegistry()
+                    declared = ModelInfo(id='x', name='x', model_type=ModelType.UPSCALING,
+                                         source=ModelSource.GITHUB, extra_info=info)
+                    registry._models = {entry_key: declared}
+                    with self.settings(AI_MODELS_DIR=root):
+                        registry._discover_installed_hf_snapshots()
+                    self.assertIs(declared, registry._models.get(entry_key), entry_key)
+                    self.assertEqual(1, len(registry._models), entry_key)
 
     def test_the_huggingface_branch_keeps_its_facts(self):
         """Les deux calculs rendus communs (format, VRAM) rendent la même chose pour un snapshot."""
