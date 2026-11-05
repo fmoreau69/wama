@@ -146,8 +146,10 @@ def _close(event_id, result):
 
     from ..models import InstallEvent
     ok = bool((result or {}).get('ok'))
+    # `verified` (2026-11-05) : contre quelle empreinte le pilote a vérifié ce qu'il a posé —
+    # épinglée, publiée par la source, ou la seule taille (`model_installer`, en-tête des pilotes).
     detail = {k: result[k] for k in ('error', 'reason', 'freed_gb', 'version', 'size_gb', 'disk_gb',
-                                     'already_satisfied', 'installed')
+                                     'already_satisfied', 'installed', 'verified')
               if k in (result or {}) and result[k] not in (None, '')}
     try:
         InstallEvent.objects.filter(pk=event_id).update(

@@ -1697,21 +1697,23 @@ class ModelRegistry:
         """Langue PARLÉE (task=language-identification, 2026-11-02) — le petit Whisper qu'écoute la
         sonde des langues du transcriber avant un moteur qui transcrit par passages
         (`common/utils/spoken_language.py`). Patron de Smart Turn : le consommateur est une brique
-        commune, la déclaration vit à côté d'elle ; la ligne existe absente, installable par le
-        pilote `files` depuis le Hub à un commit figé. Il se tirait au premier usage, sans ligne
-        (le balayage générique l'écarte : le dossier de famille de Whisper appartient au
-        transcriber, qui ne le déclarait pas)."""
+        commune, la déclaration vit à côté d'elle ; la ligne existe absente, installable depuis le
+        Hub par le pilote `hf` dans le dossier de famille de Whisper, comme large-v3 (2026-11-05).
+        Il se tirait au premier usage, sans ligne (le balayage générique l'écarte : le dossier de
+        famille de Whisper appartient au transcriber, qui ne le déclarait pas)."""
         try:
-            from wama.common.backends.whisper_backend import whisper_folder
+            from wama.common.backends.whisper_backend import whisper_base_model, whisper_folder
             from wama.common.utils.spoken_language import (
-                HF_REPO, LANGUAGE_ID_FILES, MODEL_KEY, model_folder, model_installed,
+                HF_REPO, MODEL_KEY, SIZE, model_folder, model_installed,
             )
+            installed = model_installed()
             self._models[MODEL_KEY] = ModelInfo(
                 id=MODEL_KEY,
                 name='Whisper tiny (langue parlée)',
                 model_type=ModelType.SPEECH,
                 source=ModelSource.HUGGINGFACE,
-                description="Whisper tiny (CTranslate2, MIT) : dit quelle langue est parlée, fenêtre "
+                description="Whisper tiny (OpenAI, converti en CTranslate2 par Systran) : dit quelle "
+                            "langue est parlée, fenêtre "
                             "par fenêtre. Le transcriber l'écoute avant un moteur qui transcrit par "
                             "passages (Canary, Parakeet, Qwen3-ASR) — une seule langue imposée, ou "
                             "chaque passage dans la sienne. Processeur, aucune VRAM.",
@@ -1720,11 +1722,10 @@ class ModelRegistry:
                 vram_gb=0.0,
                 format='pt',
                 preferred_format='pt',
-                is_downloaded=model_installed(),
-                extra_info={'path': str(model_folder()),
-                            'size_bytes': sum(f['size'] for f in LANGUAGE_ID_FILES),
+                is_downloaded=installed,
+                extra_info={'path': str(model_folder()) if installed else '',
                             'install_dir': str(whisper_folder()),
-                            'declared_files': LANGUAGE_ID_FILES},
+                            **whisper_base_model(SIZE)},
                 # Aucun backend ne le charge : la brique commune, par chemin (`_model`).
                 composition={'runtime': {'loaded_by': 'wama.common.utils.spoken_language'}},
                 capabilities={'task': 'language-identification', 'modalities': ['audio'],
@@ -2050,23 +2051,23 @@ class ModelRegistry:
                     extra = {'path': str(ALIGNMENT_DIR),
                              'install_dir': str(ALIGNMENT_DIR)}
                 else:
-                    # Whisper : les fichiers du dépôt CTranslate2 que le moteur LIT, DÉCLARÉS à côté
-                    # de lui (`whisper_backend.WHISPER_FILES`, 2026-11-02). La ligne garde l'identité
-                    # du modèle d'origine (`openai/whisper-large-v3`) ; ses fichiers priment pour
-                    # l'installer (`spec_for_catalog_row`). Avant, sans `install_dir` — installer
-                    # depuis la ligne aurait tiré le dépôt d'ORIGINE, pas celui que le moteur lit —,
-                    # il se tirait au premier usage, et la présence se devinait parmi cinq formes.
+                    # Whisper : le dépôt CTranslate2 que le moteur LIT (`platform_ref`, dérivé de
+                    # `whisper_backend.WHISPER_REPOS`), installé dans le dossier de famille comme
+                    # tout dépôt du Hub et constaté par le helper commun ; le modèle d'ORIGINE
+                    # (`openai/whisper-large-v3`) voyage avec lui, relation `quantized` (2026-11-05).
+                    # Du 02 au 05/11 la ligne gardait l'identité d'origine et DÉCLARAIT ses fichiers
+                    # un à un — un dépôt nommé, un autre tiré : la provenance mentait sur la source.
                     from wama.common.backends.whisper_backend import (
-                        WHISPER_FILES, ct2_installed, ct2_model_dir, whisper_folder,
+                        whisper_base_model, whisper_folder,
                     )
+                    from wama.common.utils.model_locations import hf_folder_name
                     short_id = config['model_id']
-                    files = WHISPER_FILES[short_id]
-                    is_downloaded = ct2_installed(files)
+                    family_dir = whisper_folder()
+                    is_downloaded = _check_hf_model_downloaded(family_dir, repo_id)
                     name = f"Whisper {short_id.capitalize()}"
                     fmt = 'pt'
-                    extra = {'path': str(ct2_model_dir(files)) if is_downloaded else '',
-                             'install_dir': str(whisper_folder()), 'declared_files': files,
-                             'size_bytes': sum(f['size'] for f in files)}
+                    extra = {'path': str(family_dir / hf_folder_name(repo_id)) if is_downloaded else '',
+                             'install_dir': str(family_dir), **whisper_base_model(short_id)}
 
                 # Capacités CANONIQUES — LUES sur `_cls` (lot 4b, 2026-08-20), la même classe
                 # backend qui sert déjà de « SOURCE UNIQUE » aux descriptions 60 lignes plus haut.
@@ -2637,15 +2638,16 @@ class ModelRegistry:
           • DÉDUP par DÉPÔT (`platform_ref`) : un dépôt déjà déclaré par une app (composer, imager…) est
             IGNORÉ ici — l'entrée d'app porte backend, VRAM et capacités, elle fait autorité.
             Le balayage tourne donc EN DERNIER dans `discover_all_models`.
-          • DÉDUP par FAMILLE : un snapshot dont le dossier de famille figure dans
-            `settings.MODEL_PATHS` appartient déjà à une app (c'est l'étape 1 de la checklist
-            d'ajout de modèle) — ses entrées de catalogue viennent de la découverte d'app.
-            Ce critère reste NÉCESSAIRE même depuis que transcriber/synthesizer/anonymizer
-            posent leur dépôt (2026-08-27) : le dépôt déclaré n'est pas toujours celui du
-            snapshot sur disque (transcriber déclare `openai/whisper-large-v3`, le disque
-            porte `Systran/faster-whisper-large-v3` — la dédup par dépôt ne les relie pas ;
-            16 doublons de fait mesurés le 2026-08-27 avant ce critère). Le balayage ne
-            couvre que les familles qu'AUCUNE déclaration ne revendique.
+          • DÉDUP par EMPLACEMENT : un snapshot (ou une version GitHub) qu'une entrée déjà
+            découverte DÉSIGNE — son `path`/`install_dir` est ce dossier ou un fichier dedans —
+            est à elle, même sous un autre nom de dépôt. Et rien d'autre : un dossier de famille
+            déclaré dans `settings.MODEL_PATHS` dit OÙ ranger, pas QUI découvre. Jusqu'au
+            2026-11-05 une famille déclarée était sautée entière (« elle appartient à son app ») ;
+            mesuré ce jour-là, 29 de ses 31 snapshots étaient déjà portés par leur dépôt, et les
+            deux autres — LocateAnything-3B (poids du PoC, famille déclarée pour son backend),
+            BART (retiré du describer, famille restée) — étaient installés, invisibles du
+            catalogue et indésinstallables. Un modèle que la route installerait dans une famille
+            déclarée sans app pour le découvrir y serait tombé pareillement.
           • La catégorie du dossier doit être un `ModelType` valide, sinon le dossier est
             ignoré (un dossier inconnu n'invente pas de taxonomie).
           • Un snapshot avec blobs `*.incomplete`, ou SANS AUCUN POIDS (config seule, laissée

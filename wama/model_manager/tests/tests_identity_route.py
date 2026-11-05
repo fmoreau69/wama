@@ -52,6 +52,23 @@ class IdentitySetsTheAccessRegimeTest(TestCase):
         self.assertEqual('cpml-1.0', AIModel.objects.get(model_key='huggingface:org/qualified').license)
         self.assertEqual('other', AIModel.objects.get(model_key='huggingface:org/blank').license)
 
+    def test_a_compound_licence_holding_the_cards_one_is_kept(self):
+        """2026-11-05, Whisper: OpenAI's weights (apache-2.0) converted by Systran (mit). The card
+        of the converted repo says only its part — a reinstall must not narrow the expression."""
+        _row('transcriber:whisper', platform_ref='huggingface:Systran/faster-whisper-large-v3',
+             license='apache-2.0 AND mit')
+        provenance.set_identity('transcriber:whisper', {'license': 'mit'}, export=False)
+        self.assertEqual('apache-2.0 AND mit',
+                         AIModel.objects.get(model_key='transcriber:whisper').license)
+
+    def test_counter_proof_a_licence_outside_the_expression_is_still_written(self):
+        _row('huggingface:org/relicensed', platform_ref='huggingface:org/relicensed',
+             license='apache-2.0 AND mit')
+        provenance.set_identity('huggingface:org/relicensed', {'license': 'cc-by-nc-4.0'},
+                                export=False)
+        self.assertEqual('cc-by-nc-4.0',
+                         AIModel.objects.get(model_key='huggingface:org/relicensed').license)
+
 
 class BackfillGoesThroughTheManifestTest(TestCase):
 

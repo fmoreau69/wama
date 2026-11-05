@@ -4,8 +4,8 @@ Transcriber Model Configuration
 Centralized configuration for all models used by the Transcriber application.
 Uses the centralized AI-models directory structure from settings.py.
 
-Le dossier de Whisper ne se déclare plus ici : ses fichiers sont DÉCLARÉS à côté de son moteur
-(`common/backends/whisper_backend.WHISPER_FILES`, 2026-11-02). Les utilitaires du premier jet
+Le dépôt de Whisper ne se déclare plus ici : il l'est à côté de son moteur, avec son modèle
+d'origine (`common/backends/whisper_backend.WHISPER_REPOS`, 2026-11-05). Les utilitaires du premier jet
 (`load_whisper_model` par la librairie `openai-whisper`, `setup_model_environment` qui posait
 `WHISPER_CACHE`, `get_model_info`, `list_available_models`, `get_whisper_download_root`,
 `DEFAULT_MODEL = 'whisper-base'`) sont RETIRÉS le même jour : aucun appelant (REMOVAL_LEDGER).
@@ -14,6 +14,9 @@ Le dossier de Whisper ne se déclare plus ici : ses fichiers sont DÉCLARÉS à 
 from pathlib import Path
 
 from django.conf import settings
+
+from wama.common.backends.whisper_backend import WHISPER_REPOS
+from wama.common.external_sources import hf_platform_ref
 
 # =============================================================================
 # MODEL PATHS CONFIGURATION
@@ -61,7 +64,9 @@ TRANSCRIBER_MODELS = {
     # (`WhisperBackend.description`/`description_long`) — source unique = ce qui s'affiche.
     'whisper': {
         'model_id': 'large-v3',
-        'platform_ref': 'huggingface:openai/whisper-large-v3',
+        # Le dépôt que le moteur LIT (CTranslate2, Systran) — le modèle d'origine d'OpenAI voyage
+        # avec la ligne (`base_model`, relation `quantized`), posé par la découverte (2026-11-05).
+        'platform_ref': hf_platform_ref(WHISPER_REPOS['large-v3']['repo']),
         # Moteur : `faster-whisper` (cf. `WhisperBackend.ENGINE`) — la réimplémentation
         # CTranslate2, PAS la lib `openai-whisper`. C'est le MÊME backend que le Describer
         # consomme via `common/utils/whisper_utils`, avec un modèle différent.

@@ -437,7 +437,7 @@ def match_local_name(rows, name: str) -> list:
       1. égalité avec la clé, l'identifiant (après la source), le dernier segment ou le dépôt
          (`yolov8n.pt` → `anonymizer:yolo:yolov8n.pt` ; `Qwen/Qwen3-ASR-1.7B`) ;
       2. dernier composant du dépôt égal au nom, ou finissant par `-<nom>` (Whisper :
-         `large-v3` → `openai/whisper-large-v3`, `base` → `openai/whisper-base`) ;
+         `large-v3` → `Systran/faster-whisper-large-v3`, `tiny` → `Systran/faster-whisper-tiny`) ;
       3. la classe n'exécute qu'UN modèle du catalogue → c'est lui (Kokoro-onnx, Audio8…).
     Sinon [] : entre plusieurs modèles, on ne devine pas. Un nom qui en désigne plusieurs les
     rend tous (mêmes poids servis sous deux clés).

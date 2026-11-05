@@ -27,12 +27,17 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
 
     `progress` : callback optionnel(status:str) pour remonter l'avancement.
     Retourne {'ok': bool, 'status': str} ou {'ok': False, 'error': str}.
+
+    L'empreinte de chaque couche, c'est le démon qui la vérifie contre le manifeste du registre
+    (statut « verifying sha256 digest », une erreur en cas d'écart) : le résultat le dit
+    (`verified`) quand le flux l'a annoncé — rien n'est recalculé ici.
     """
     import requests
     from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
 
     base = ollama_base()
     last = None
+    verifying = False
     try:
         with requests.post(f"{base}/api/pull", json={"name": name, "stream": True},
                            stream=True, **ollama_kwargs(timeout=timeout)) as r:
@@ -47,6 +52,7 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
                 if data.get('error'):
                     return {'ok': False, 'error': data['error']}
                 status = data.get('status')
+                verifying = verifying or str(status or '').startswith('verifying')
                 # Le flux porte `completed`/`total` par couche : un POURCENTAGE dans le
                 # statut (2026-08-18, install asynchrone) — le callback garde sa signature
                 # (str) et n'est appelé qu'au changement, donc ~100 appels par couche max.
@@ -57,7 +63,8 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
                     last = status
                     if progress:
                         progress(status)
-        return {'ok': True, 'status': last or 'success'}
+        return {'ok': True, 'status': last or 'success',
+                **({'verified': {'against': 'published', 'by': 'ollama'}} if verifying else {})}
     except Exception as e:
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
 
@@ -157,12 +164,112 @@ def pull_hf_model(repo_id: str, category: str, family: str | None = None,
         ignore = None if allow_patterns else format_duplicates(repo_id)
         path = snapshot_download(repo_id=repo_id, cache_dir=target, allow_patterns=allow_patterns,
                                  ignore_patterns=ignore or None, token=token)
-        return {'ok': True, 'path': path, 'target': target,
-                **({'ignores': ignore} if ignore else {})}
     except Exception as e:
         if _is_access_refusal(e):
             return {'ok': False, 'error': GATED_REFUSAL, 'reason': 'gated'}
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
+    # La librairie ne contrôle que la TAILLE de ce qu'elle reçoit : l'empreinte se vérifie ici,
+    # contre celle que le Hub publie (cf. `verify_hf_snapshot`).
+    checked = verify_hf_snapshot(repo_id, path, token=token)
+    if not checked['ok']:
+        return {'ok': False, 'error': checked['error'], 'reason': 'fingerprint',
+                'target': target, **({'removed': checked['removed']} if checked.get('removed') else {})}
+    return {'ok': True, 'path': path, 'target': target, 'verified': checked['verified'],
+            **({'ignores': ignore} if ignore else {})}
+
+
+# ── L'empreinte de ce qu'on installe se vérifie, QUELLE QUE SOIT LA SOURCE (2026-11-05) ─────────
+# Demande de Fabien : « uniformité et universalité, du mieux possible quelle que soit la source ».
+# Chaque pilote confronte chaque fichier à l'empreinte la plus forte que sa source donne, et le
+# résultat le dit (`verified` : `{'against', 'count'}`, gardé au journal des installations) :
+#   files, github : l'empreinte ÉPINGLÉE dans la déclaration (`pinned`) — ce qui a été jugé ;
+#   hf            : celle que le Hub PUBLIE pour la révision tirée (`published`) — `sha256` d'un
+#                   fichier LFS, identifiant git (`blob_id`) des autres ;
+#   yolo          : celle que l'API GitHub publie pour l'asset de la version (`digest`) ;
+#   ollama        : le démon vérifie lui-même chaque couche contre le manifeste du registre
+#                   (« verifying sha256 digest ») et refuse un écart — rien à refaire ici.
+# Jusque-là, `huggingface_hub` ne contrôlait que la TAILLE d'un fichier reçu (« Consistency check
+# failed: file should be of size… ») et le pilote `yolo` un plancher de 1 Mo.
+
+def git_blob_sha1(path) -> str:
+    """L'identifiant git d'un fichier — `sha1("blob <taille>\\0" + contenu)`, ce que le Hub publie
+    (`blob_id`) pour un fichier stocké hors LFS. Lu par blocs : jamais le fichier en mémoire."""
+    import hashlib
+
+    digest = hashlib.sha1(b'blob %d\0' % os.path.getsize(path))
+    with open(path, 'rb') as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_hf_snapshot(repo_id: str, snapshot, *, token=None) -> dict:
+    """Chaque fichier d'un snapshot du Hub confronté à ce que le Hub PUBLIE pour cette révision :
+    sa taille, puis son `sha256` (fichier LFS) ou son identifiant git (les autres).
+
+    La révision est le nom du dossier (`snapshots/<commit>`) : c'est celle que la librairie a
+    tirée, donc celle dont les empreintes font foi. Un blob partagé par plusieurs chemins (LTX :
+    22 blobs pour 34 liens) n'est haché qu'une fois.
+
+    Un fichier qui ne correspond pas est RETIRÉ (le lien et son blob) : c'est le pendant du
+    `.part` que `download_asset` efface, et une nouvelle installation ne retire que lui. Des
+    empreintes illisibles refusent l'installation — on ne déclare pas vérifié ce qu'on n'a pas
+    lu. Rend {'ok': True, 'verified': {'against': 'published', 'count': n}, 'revision'} ou
+    {'ok': False, 'error', ['removed']}.
+    """
+    from wama.common.utils.provenance import sha256_of
+
+    from .prospector import hub_files
+
+    snapshot = Path(snapshot)
+    revision = snapshot.name
+    if not _HF_COMMIT_RE.match(revision):
+        return {'ok': False, 'error': f"{snapshot} n'est pas la révision d'un dépôt du Hub "
+                                      "(commit de 40 hex) : empreintes invérifiables"}
+    published = hub_files(repo_id, revision=revision, token=token)
+    if published is None:
+        return {'ok': False, 'error': f"empreintes publiées de {repo_id}@{revision[:8]} "
+                                      "illisibles — installation non vérifiée, donc refusée"}
+    by_name = {s.rfilename: s for s in published}
+    files = sorted(p for p in snapshot.rglob('*') if p.is_file())
+    if not files:
+        return {'ok': False, 'error': f"{snapshot} est vide"}
+    measured, wrong, unknown = {}, [], []
+    for path in files:
+        rel = path.relative_to(snapshot).as_posix()
+        sibling = by_name.get(rel)
+        if sibling is None:
+            unknown.append(rel)
+            continue
+        lfs = getattr(sibling, 'lfs', None)
+        size = lfs['size'] if lfs else sibling.size
+        expected = str(lfs['sha256'] if lfs else (sibling.blob_id or '')).lower()
+        blob = os.path.realpath(path)
+        if size is not None and os.path.getsize(blob) != size:
+            wrong.append((path, f"{rel} : {os.path.getsize(blob)} o reçus, {size} publiés"))
+            continue
+        key = (blob, bool(lfs))
+        if key not in measured:
+            measured[key] = sha256_of(blob, limite=_NO_SIZE_CAP) if lfs else git_blob_sha1(blob)
+        if not expected or measured[key] != expected:
+            wrong.append((path, f"{rel} : empreinte {measured[key][:12]}…, "
+                                f"{expected[:12] or '(aucune)'}… publiée"))
+    if unknown:
+        return {'ok': False, 'error': f"{repo_id}@{revision[:8]} : fichier(s) absent(s) du dépôt "
+                                      f"à cette révision — {', '.join(unknown[:3])}"}
+    if wrong:
+        removed = []
+        for path, _ in wrong:
+            for target in (Path(os.path.realpath(path)), path):
+                if target.is_file() or target.is_symlink():
+                    target.unlink()
+                    removed.append(str(target))
+        return {'ok': False, 'removed': removed,
+                'error': f"{repo_id}@{revision[:8]} : empreinte différente de celle que publie le "
+                         f"Hub — fichier(s) retiré(s), relancer l'installation. "
+                         + '; '.join(reason for _, reason in wrong[:3])}
+    return {'ok': True, 'revision': revision,
+            'verified': {'against': 'published', 'count': len(files)}}
 
 
 def duplicate_weight_files(files) -> list:
@@ -226,6 +333,9 @@ _YOLO_TASK_DIRS = {'-seg': 'segment', '-obb': 'obb', '-pose': 'pose', '-cls': 'c
 #: (2026-10-10 : l'adresse était écrite en dur, `https://github.com/…`, à côté du pilote `github`
 #: qui dérive la sienne de la source — deux pilotes, deux règles d'adressage et de proxy.)
 _YOLO_ASSET_PATH = "ultralytics/assets/releases/latest/download/{}.pt"
+#: La même version, lue à l'API pour son empreinte et son tag réel (`pull_yolo_weights`) ; le
+#: chemin ci-dessus ne sert plus qu'à PESER un asset (`_yolo_asset_gb`, un HEAD).
+_YOLO_RELEASE = 'ultralytics/assets:latest'
 
 
 def _yolo_asset_url(base: str) -> str:
@@ -677,6 +787,12 @@ def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
 
     `dry_run` : ne télécharge pas, retourne la cible (valide la logique de chemin).
     Retourne {'ok': bool, 'path'|'target'|'error': …}. Idempotent : fichier déjà présent → ok.
+
+    Empreinte (2026-11-05) : celle que l'API GitHub PUBLIE pour l'asset de la version courante
+    (`digest`, mesuré ce jour-là sur les 313 assets de `v8.4.0`). La version est lue UNE fois et
+    son tag réel fige l'adresse — « latest » pourrait désigner une autre version entre la lecture
+    de l'empreinte et le téléchargement. Un fichier déjà en place est confronté à la même
+    empreinte : différent, il est DIT, ni repris ni écrasé (règle du pilote `github`).
     """
     import os
     import re
@@ -691,14 +807,36 @@ def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
     target = os.path.join(target_dir, f"{base}.pt")
     if dry_run:
         return {'ok': True, 'target': target, 'dry_run': True}
+
+    from .prospector import github_release
+    release = github_release(_YOLO_RELEASE)
+    if not release:
+        return {'ok': False, 'error': f"version courante de {_YOLO_RELEASE.split(':')[0]} illisible "
+                                      "(API GitHub) — empreinte invérifiable, rien n'est tiré"}
+    asset = next((a for a in release.get('assets') or [] if a.get('name') == f'{base}.pt'), None)
+    if asset is None:
+        return {'ok': False, 'error': f"{base}.pt absent de la version {release.get('tag_name')}"}
+    digest = str(asset.get('digest') or '')
+    sha256 = digest[len('sha256:'):].lower() if digest.startswith('sha256:') else ''
+    verified = {'against': 'published', 'count': 1} if sha256 else {'against': 'size', 'count': 1}
     if os.path.exists(target):
-        return {'ok': True, 'path': target, 'already': True}
+        from wama.common.utils.provenance import sha256_of
+        if sha256 and sha256_of(target, limite=_NO_SIZE_CAP) != sha256:
+            return {'ok': False,
+                    'error': f"{target} existe avec une AUTRE empreinte que celle publiée — le "
+                             "retirer (désinstallation) avant de réinstaller"}
+        return {'ok': True, 'path': target, 'already': True, 'verified': verified}
 
     os.makedirs(target_dir, exist_ok=True)
     from wama.common.external_sources import proxies_for
-    # Garde-fou : une page d'erreur HTML ferait un .pt de quelques Ko.
-    return download_asset(_yolo_asset_url(base), target, timeout=timeout,
-                          min_bytes=1_000_000, proxies=proxies_for('github'))
+    url = github_asset_url({'ref': f"{_YOLO_RELEASE.split(':')[0]}:{release.get('tag_name')}",
+                            'asset': f'{base}.pt'})
+    # Garde-fou : une page d'erreur HTML ferait un .pt de quelques Ko ; sans empreinte publiée,
+    # la taille publiée est le contrôle le plus fort qui reste.
+    res = download_asset(url, target, timeout=timeout, min_bytes=1_000_000, sha256=sha256,
+                         size=0 if sha256 else int(asset.get('size') or 0),
+                         proxies=proxies_for('github'))
+    return {**res, 'verified': verified} if res.get('ok') else res
 
 
 # ── Pilote `github` — des poids publiés dans une VERSION GitHub (2026-10-07) ─────────────────
@@ -804,17 +942,19 @@ def pull_github_asset(spec: dict, timeout: int = 600, dry_run: bool = False) -> 
     target = os.path.join(release, spec['asset'])
     if dry_run:
         return {'ok': True, 'target': target, 'dry_run': True}
+    verified = {'against': 'pinned', 'count': 1}
     if os.path.exists(target):
         from wama.common.utils.provenance import sha256_of
         if sha256_of(target, limite=_NO_SIZE_CAP) == spec['sha256'].lower():
-            return {'ok': True, 'path': target, 'already': True}
+            return {'ok': True, 'path': target, 'already': True, 'verified': verified}
         return {'ok': False,
                 'error': f"{target} existe avec une AUTRE empreinte que celle épinglée — "
                          "le retirer (désinstallation) avant de réinstaller"}
     os.makedirs(release, exist_ok=True)
     from wama.common.external_sources import proxies_for
-    return download_asset(github_asset_url(spec), target, timeout=timeout,
-                          sha256=spec['sha256'], proxies=proxies_for('github'))
+    res = download_asset(github_asset_url(spec), target, timeout=timeout,
+                         sha256=spec['sha256'], proxies=proxies_for('github'))
+    return {**res, 'verified': verified} if res.get('ok') else res
 
 
 # ── Pilote `files` — les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE (2026-10-11) ────
@@ -1086,7 +1226,8 @@ def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False,
                 os.remove(path)
     downloaded = [d['path'] for d in done if d['action'] == 'downloaded']
     return {'ok': True, 'path': str(root), 'files': done, 'downloaded': downloaded,
-            'kept': [str(t) for _, t in kept], 'already': not downloaded}
+            'kept': [str(t) for _, t in kept], 'already': not downloaded,
+            'verified': {'against': 'pinned', 'count': len(done)}}
 
 
 def _pull_archive_member(f: dict, target: Path, root: Path, archives: dict, *, timeout: int,
@@ -1138,7 +1279,7 @@ def _pull_archive_member(f: dict, target: Path, root: Path, archives: dict, *, t
 
 
 def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int = 0,
-                   sha256: str = '', proxies=None, headers=None) -> dict:
+                   sha256: str = '', size: int = 0, proxies=None, headers=None) -> dict:
     """Télécharge UN fichier publié (asset de version GitHub…) vers `target`, sans jamais laisser
     un fichier partiel à sa place : écriture dans `<target>.part`, contrôles, puis remplacement
     atomique. Retourne {'ok': True, 'path', 'url', 'sha256'} (l'empreinte calculée au fil du
@@ -1151,6 +1292,7 @@ def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int 
 
     Contrôles, du plus faible au plus fort :
       • `min_bytes` : une page d'erreur HTML servie à la place du fichier pèse quelques Ko ;
+      • `size` : la taille EXACTE publiée, quand la source ne publie pas d'empreinte (2026-11-05) ;
       • `sha256` : l'empreinte ÉPINGLÉE (publiée par l'API GitHub, `digest`). Un écart refuse le
         fichier : c'est la garantie qu'on installe ce qui a été jugé, pas ce que le serveur
         sert aujourd'hui.
@@ -1172,12 +1314,17 @@ def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int 
                 for chunk in r.iter_content(chunk_size=1 << 20):
                     fh.write(chunk)
                     digest.update(chunk)
-        size = os.path.getsize(tmp)
-        if size < min_bytes:
+        received = os.path.getsize(tmp)
+        if received < min_bytes:
             os.remove(tmp)
             return {'ok': False,
                     'error': f"téléchargement suspect (<{min_bytes / 1e6:g} Mo) — "
                              f"poids inexistant ? {url}"}
+        if size and received != size:
+            os.remove(tmp)
+            return {'ok': False,
+                    'error': f"taille différente de celle publiée ({size} o attendus, "
+                             f"{received} reçus) — fichier refusé : {url}"}
         if sha256 and digest.hexdigest() != sha256.lower():
             os.remove(tmp)
             return {'ok': False,

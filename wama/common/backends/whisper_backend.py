@@ -6,11 +6,12 @@ inference than the original openai-whisper while keeping the same accuracy.
 
 Default model: large-v3 (best accuracy, ≈10 GB VRAM).
 
-Poids : ceux du modèle du catalogue (`transcriber:whisper`, large-v3) sont DÉCLARÉS ici
-(`WHISPER_FILES`, dépôt CTranslate2 `Systran/faster-whisper-large-v3` figé à un commit), installés
-par la route et lus par CHEMIN (2026-11-02). Avant, `WhisperModel('large-v3', download_root=…)`
-tirait le dépôt au premier usage : la ligne déclarait `openai/whisper-large-v3` (le modèle
-d'origine, qui garde son identité), la route ne pouvait donc pas l'installer.
+Poids : les tailles que le catalogue connaît sont DÉCLARÉES ici (`WHISPER_REPOS`) — le dépôt
+CTranslate2 que le moteur lit, et le modèle d'origine dont il est la conversion. La route les
+installe comme tout dépôt du Hub (pilote `hf`, dossier de famille, empreintes publiées vérifiées)
+et le moteur lit le snapshot SANS réseau (`local_files_only`). Historique : jusqu'au 2026-11-02
+la librairie tirait le dépôt au premier usage ; du 02 au 05/11 ses fichiers étaient déclarés un à
+un (pilote `files`) ; depuis le 2026-11-05, la règle commune des modèles du Hub (REMOVAL_LEDGER).
 """
 
 import gc
@@ -25,32 +26,17 @@ logger = logging.getLogger(__name__)
 DEFAULT_WHISPER_MODEL = 'large-v3'
 
 
-def ct2_files(repo: str, revision: str, files) -> list:
-    """Les fichiers d'un dépôt CTranslate2 de faster-whisper, rangés dans `faster-whisper-<nom>/`
-    sous le dossier de famille — la forme que `WhisperModel(<dossier>)` lit sans rien télécharger."""
-    folder = repo.rsplit('/', 1)[-1]
-    return [{'path': f'{folder}/{name}', 'size': size, 'sha256': sha256,
-             'origin': {'source': 'huggingface', 'repo': repo, 'revision': revision, 'file': name}}
-            for name, size, sha256 in files]
-
-
-#: Le modèle du catalogue, par la taille que les appelants demandent. Tailles et empreintes PUBLIÉES
-#: par le Hub au commit (blob git des petits fichiers, LFS du poids) — et MESURÉES le 2026-11-02
-#: sur le snapshot que la librairie avait posé : identiques.
-WHISPER_FILES = {
-    'large-v3': ct2_files(
-        'Systran/faster-whisper-large-v3', 'edaa852ec7e145841d8ffdb056a99866b5f0a478', (
-            ('config.json', 2394,
-             'a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9'),
-            ('model.bin', 3087284237,
-             '69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1'),
-            ('preprocessor_config.json', 340,
-             '7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711'),
-            ('tokenizer.json', 2480617,
-             '6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca'),
-            ('vocabulary.json', 1068114,
-             'c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1'),
-        )),
+#: Les tailles que le catalogue DÉCLARE (`transcriber:whisper` lit large-v3, la sonde des langues
+#: tiny — `spoken_language`) : le dépôt que le moteur LIT, et le modèle d'ORIGINE dont il est la
+#: conversion. faster-whisper ne lit que le format CTranslate2, qu'OpenAI ne publie pas ; Systran,
+#: l'auteur de faster-whisper, le publie (« conversion of openai/whisper-large-v3 to the
+#: CTranslate2 model format », `--quantization float16`, carte du dépôt), sans déclarer de
+#: `base_model` dans sa carte. La relation est donc DÉCLARÉE ici, dans le vocabulaire du Hub :
+#: `quantized`, celui qu'il pose sur un export de format (ONNX, GGUF) — c'est elle qui relie la
+#: ligne à son modèle d'origine (bancs, `AIModel.quantized_base`) sans en faire une dorsale.
+WHISPER_REPOS = {
+    'large-v3': {'repo': 'Systran/faster-whisper-large-v3', 'base_model': 'openai/whisper-large-v3'},
+    'tiny': {'repo': 'Systran/faster-whisper-tiny', 'base_model': 'openai/whisper-tiny'},
 }
 
 
@@ -62,14 +48,26 @@ def whisper_folder() -> Path:
     return speech_folder('whisper')
 
 
-def ct2_model_dir(files) -> Path:
-    """Le dossier que lit `WhisperModel`, DÉRIVÉ des fichiers déclarés."""
-    return whisper_folder() / Path(files[0]['path']).parent
+def whisper_snapshot_root(size: str) -> Path:
+    """La racine `models--org--nom` d'une taille déclarée, sous le dossier de famille — là où la
+    route l'installe (`snapshot_download(cache_dir=…)`) et où faster-whisper la relit."""
+    from wama.common.utils.model_locations import hf_folder_name
+    return whisper_folder() / hf_folder_name(WHISPER_REPOS[size]['repo'])
 
 
-def ct2_installed(files) -> bool:
-    from wama.model_manager.services.model_installer import declared_files_present
-    return declared_files_present(whisper_folder(), files)
+def whisper_installed(size: str) -> bool:
+    """Des POIDS complets pour cette taille — LE jugement commun de « téléchargé », celui de la
+    découverte (`prospector.installed_weights_complete`)."""
+    from wama.model_manager.services.prospector import installed_weights_complete
+    return installed_weights_complete(whisper_snapshot_root(size))
+
+
+def whisper_base_model(size: str) -> dict:
+    """`{base_model, base_model_relation}` d'une taille déclarée — la paire que la découverte pose
+    sur la ligne (vocabulaire du Hub, `AIModel.BASE_MODEL_RELATIONS`)."""
+    from wama.model_manager.models import BASE_RELATION_QUANTIZED
+    return {'base_model': WHISPER_REPOS[size]['base_model'],
+            'base_model_relation': BASE_RELATION_QUANTIZED}
 
 
 class WhisperBackend(SpeechToTextBackend):
@@ -152,20 +150,21 @@ class WhisperBackend(SpeechToTextBackend):
         return str(whisper_folder())
 
     @staticmethod
-    def _model_source(model_name: str) -> str:
-        """Ce que reçoit `WhisperModel` : le DOSSIER de la taille déclarée au catalogue — la route
-        l'installe, il se lit sans rien télécharger ; s'il manque, on le dit (`RuntimeError`, le
-        moteur ne télécharge pas lui-même). Une taille que le catalogue ne déclare pas (un
-        `WAMA_ASSISTANT_STT_MODEL` réglé autrement) garde son nom : faster-whisper la range dans le
-        dossier de famille (`download_root`), le levier A d'`hf_weights`."""
-        files = WHISPER_FILES.get(model_name)
-        if files is None:
-            return model_name
-        if not ct2_installed(files):
+    def _model_source(model_name: str) -> tuple[str, bool]:
+        """`(ce que reçoit WhisperModel, local_files_only)`. Une taille DÉCLARÉE (`WHISPER_REPOS`)
+        se lit par son dépôt dans le dossier de famille, sans réseau : la route l'installe ; si
+        elle manque, on le dit (`RuntimeError`, le moteur ne télécharge pas lui-même). Une taille
+        que le catalogue ne déclare pas (un `WAMA_ASSISTANT_STT_MODEL` réglé autrement) garde son
+        nom : faster-whisper la range dans le même dossier (`download_root`), le levier A
+        d'`hf_weights`."""
+        declared = WHISPER_REPOS.get(model_name)
+        if declared is None:
+            return model_name, False
+        if not whisper_installed(model_name):
             raise RuntimeError(
-                f"Whisper {model_name} n'est pas installé ({ct2_model_dir(files)}) — il s'installe "
-                f"par le model manager (ligne « transcriber:whisper »).")
-        return str(ct2_model_dir(files))
+                f"Whisper {model_name} n'est pas installé ({whisper_snapshot_root(model_name)}) — "
+                f"il s'installe par le model manager (dépôt « {declared['repo']} »).")
+        return declared['repo'], True
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -205,11 +204,13 @@ class WhisperBackend(SpeechToTextBackend):
                 + (f" → {download_root}" if download_root else "")
             )
 
+            source, local_only = self._model_source(model_name)
             self._model = WhisperModel(
-                self._model_source(model_name),
+                source,
                 device=self._device,
                 compute_type=self._compute_type,
                 download_root=download_root,
+                local_files_only=local_only,
             )
 
             self._loaded        = True

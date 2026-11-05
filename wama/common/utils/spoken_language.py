@@ -14,18 +14,21 @@ les 30 premières secondes ; son modèle `tiny` (75 Mo) vit dans le dossier de f
 Sur CPU : aucun détenteur de VRAM de plus, rien que le gouverneur devrait arbitrer.
 
 LE MODÈLE est une ligne du catalogue (`MODEL_KEY`, tâche `language-identification`,
-`model_registry._discover_language_identification_models`) : ses fichiers sont DÉCLARÉS ici, à
-côté de la brique qui le charge (patron de Smart Turn), installés par la route et lus par CHEMIN
-(2026-11-02). Avant, `WhisperModel('tiny', download_root=…)` le tirait au premier usage, sans
-ligne au catalogue : jamais demandé à la route, jamais désinstallable. La glu qui va écouter le
-demande d'abord (`transcriber.workers._language_plan`, `ctx.ensure_model(MODEL_KEY)`).
+`model_registry._discover_language_identification_models`) : une taille DÉCLARÉE du moteur
+Whisper (`whisper_backend.WHISPER_REPOS['tiny']`), installée par la route comme tout dépôt du Hub
+et lue sans réseau (2026-11-05 ; du 02 au 05/11, ses fichiers étaient déclarés un à un). Avant le
+02/11, `WhisperModel('tiny', download_root=…)` le tirait au premier usage, sans ligne au
+catalogue : jamais demandé à la route, jamais désinstallable. La glu qui va écouter le demande
+d'abord (`transcriber.workers._language_plan`, `ctx.ensure_model(MODEL_KEY)`).
 """
 from __future__ import annotations
 
 import logging
 from typing import Iterable, Optional, Tuple
 
-from wama.common.backends.whisper_backend import ct2_files, ct2_installed, ct2_model_dir
+from wama.common.backends.whisper_backend import (
+    WHISPER_REPOS, whisper_folder, whisper_installed, whisper_snapshot_root,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,27 +36,21 @@ SAMPLE_RATE = 16000
 #: Fenêtre d'écoute : celle de Whisper, suffisante pour une langue.
 WINDOW_SECONDS = 30
 
-HF_REPO = 'Systran/faster-whisper-tiny'
+#: La taille que la sonde écoute — sur CPU, 75 Mo.
+SIZE = 'tiny'
+HF_REPO = WHISPER_REPOS[SIZE]['repo']
 MODEL_KEY = f'huggingface:{HF_REPO}'
-#: Tailles et empreintes PUBLIÉES par le Hub au commit (blob git, LFS du poids) — et MESURÉES le
-#: 2026-11-02 sur le snapshot que la librairie avait posé : identiques.
-LANGUAGE_ID_FILES = ct2_files(HF_REPO, 'd90ca5fe260221311c53c58e660288d3deb8d356', (
-    ('config.json', 2249, 'a73a28cdfe1c43ccc7202fa333d1f89c202477271407ae9a7f19afa52039cac8'),
-    ('model.bin', 75538270, 'dcb76c6586fc06cbdac6dd21f14cfd129cc4cdd9dce19bf4ffa62e59cbe6e6d1'),
-    ('tokenizer.json', 2203239, 'fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab'),
-    ('vocabulary.txt', 459861, '34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913'),
-))
 
 _detector = None
 
 
 def model_folder():
-    """Le dossier que lit `WhisperModel` (sous le dossier de famille de Whisper)."""
-    return ct2_model_dir(LANGUAGE_ID_FILES)
+    """La racine du snapshot que lit `WhisperModel` (sous le dossier de famille de Whisper)."""
+    return whisper_snapshot_root(SIZE)
 
 
 def model_installed() -> bool:
-    return ct2_installed(LANGUAGE_ID_FILES)
+    return whisper_installed(SIZE)
 
 
 def _model():
@@ -64,7 +61,8 @@ def _model():
                 f"Le modèle d'identification de langue n'est pas installé ({model_folder()}) — il "
                 f"s'installe par le model manager (ligne « {MODEL_KEY} »).")
         from faster_whisper import WhisperModel
-        _detector = WhisperModel(str(model_folder()), device='cpu', compute_type='int8')
+        _detector = WhisperModel(HF_REPO, device='cpu', compute_type='int8',
+                                 download_root=str(whisper_folder()), local_files_only=True)
     return _detector
 
 

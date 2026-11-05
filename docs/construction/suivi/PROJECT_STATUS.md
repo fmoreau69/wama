@@ -28411,3 +28411,32 @@ dans mes fichiers ; `doc_facts` : `mecanismes` et `dev-briques` régénérés, s
 
 **À relancer** : gunicorn et les workers (vues, `tool_api`, moteur de l'assistant, importeurs) ;
 la passerelle et le serveur MCP (moteur de l'assistant). Les gabarits sont lus à chaud.
+
+## §PALIER 2026-11-05 (soir), « L'EMPREINTE VÉRIFIÉE QUELLE QUE SOIT LA SOURCE ; WHISPER INSTALLÉ COMME TOUT DÉPÔT DU HUB (R216) » — non poussé — 🔴 relancer gunicorn + workers + service de voix, PUIS réinstaller les deux Whisper
+
+Fabien : *« on réaligne au réel »*, licence *« les deux »*, puis *« il faut compléter la route —
+uniformité et universalité, du mieux possible quelle que soit la source […] sans rien réinventer et
+ajoute les tests nécessaires »*. Détail : `PROSPECTION_PIPELINE.md §Session du 2026-11-05 (suite)`.
+
+- **La route vérifie l'empreinte de ce qu'elle pose, pour tous ses pilotes** (`model_installer`) :
+  `hf` contre ce que le Hub PUBLIE pour la révision tirée (`verify_hf_snapshot` — sha256 LFS, blob
+  git ; `huggingface_hub` ne contrôlait que la taille), `yolo` contre le `digest` de l'API GitHub
+  (version courante, tag réel), `ollama` rapporte la vérification du démon ; `files`/`github`
+  inchangés (épinglée). Chaque résultat porte `verified`, que le journal garde.
+- **Whisper large-v3 et tiny** : la ligne nomme le dépôt LU (`Systran/faster-whisper-*`) et porte
+  l'origine (`base_model` OpenAI, relation `quantized`) ; déclaration `whisper_backend.WHISPER_REPOS`,
+  pilote `hf`, lecture sans réseau (`local_files_only`). Les fichiers déclarés un à un sont retirés
+  (R216). Licence composée tenue : `set_identity` ne réécrit plus une expression qui contient la
+  licence de la carte, `license_audit.qualifier` qualifie une expression AND/OR par ses termes.
+- **Tests** : 864 ciblés sous WSL puis les modules touchés relancés — seul rouge restant,
+  `tests_identifier_language` « classes de test 133 > 132 », PAS de cette session (aucun nom de
+  classe de ses fichiers n'est relevé ; à son auteur). Contre-épreuves ROUGES ×6
+  (`verify_hf_snapshot`, `git_blob_sha1`, `_within_expression`, `license_terms`,
+  `whisper_installed`, `whisper_base_model` neutralisés).
+- 🔚 **APRÈS LA RELANCE, dans l'ordre** (les processus en service lisent encore les anciens
+  dossiers) : (1) identité par la route manifeste — `apache-2.0 AND mit`, auteur « openai (poids) /
+  Systran (conversion CTranslate2) », sur `transcriber:whisper` et
+  `huggingface:Systran/faster-whisper-tiny` ; (2) `pull_model` des deux clés (le geste public
+  `request_install`, journalisé, 2,9 Go + 75 Mo) ; (3) vérification réelle : une card du
+  Transcriber, `/stt` du service de voix, la sonde des langues ; (4) retrait des dossiers plats
+  `speech/whisper/faster-whisper-{large-v3,tiny}` (R216 ⏳ disque) et commit des manifestes.

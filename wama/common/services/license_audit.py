@@ -141,8 +141,46 @@ def normaliser_licence(brut) -> str:
     return sans_suffixe[:64] or ''
 
 
+#: Opérateur d'une expression SPDX — en MAJUSCULES, comme la spécification les écrit : un « and »
+#: minuscule appartient au NOM d'une licence en texte libre (« Research and Commercial License »).
+_SPDX_OPERATOR = re.compile(r'\s+(AND|OR)\s+')
+
+
+def license_terms(expression) -> tuple[str, list]:
+    """`(opérateur, [identifiants normalisés])` d'une expression SPDX à un niveau (2026-11-05).
+
+    'apache-2.0 AND mit' → ('AND', ['apache-2.0', 'mit']) ; 'MIT OR Apache-2.0' → ('OR', […]) ;
+    une licence seule → ('', [son identifiant]) ; rien → ('', []). Une expression qui mêle AND et
+    OR, ou qui porte des parenthèses, n'est pas décomposée — on ne devine pas sa priorité.
+
+    POURQUOI. Une licence composée est un fait : les poids de Whisper sont publiés par OpenAI
+    (apache-2.0), leur conversion CTranslate2 par Systran (mit), et le modèle que WAMA installe
+    porte les deux (`apache-2.0 AND mit`, décision de Fabien). Les librairies en portaient déjà
+    (`MIT AND MPL-2.0`) : `normaliser_licence` les qualifiait par leur PREMIER jeton.
+    """
+    text = str(expression or '').strip()
+    if not text:
+        return '', []
+    parts = _SPDX_OPERATOR.split(text)
+    operators = set(parts[1::2])
+    if len(operators) != 1 or '(' in text:
+        ident = normaliser_licence(text)
+        return '', [ident] if ident else []
+    return operators.pop(), [normaliser_licence(p) for p in parts[0::2]]
+
+
 def qualifier(licence: str) -> dict:
-    """`{id, famille, rang, libelle, attribution}` — `rang` croît avec la contrainte."""
+    """`{id, famille, rang, libelle, attribution}` — `rang` croît avec la contrainte.
+
+    Une expression composée (`license_terms`) se qualifie par ses termes : `AND` oblige à TOUS,
+    donc au plus contraignant ; `OR` laisse choisir, donc le moins contraignant. L'attribution
+    est due dès qu'un terme l'exige."""
+    operator, terms = license_terms(licence)
+    if operator:
+        parts = [qualifier(term) for term in terms]
+        chosen = (max if operator == 'AND' else min)(parts, key=lambda q: q['rang'])
+        return {**chosen, 'id': f' {operator} '.join(q['id'] or '?' for q in parts),
+                'attribution': any(q['attribution'] for q in parts)}
     ident = normaliser_licence(licence)
     if not ident:
         rang, attribution = INCONNUE, True

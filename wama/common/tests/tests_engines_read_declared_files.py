@@ -1,16 +1,17 @@
-"""Five models the ROUTE installs and their engines read by PATH (2026-11-02) — Whisper large-v3
-(the transcriber's model), Whisper tiny (spoken language), Coqui XTTS v2, docTR and docTR's page
-orientation classifier. Each library used to fetch its weights at first use, outside the
-catalogue: faster-whisper by model NAME, Coqui through its own manager (which also re-read the
-remote `config.json` at every load), docTR through `ocr_predictor(pretrained=True)`.
+"""Models the ROUTE installs and their engines read WITHOUT downloading (2026-11-02) — Coqui
+XTTS v2, docTR and docTR's page orientation classifier by their DECLARED files ; Whisper large-v3
+(the transcriber's model) and Whisper tiny (spoken language) as repos of the Hub (2026-11-05).
+Each library used to fetch its weights at first use, outside the catalogue: faster-whisper by
+model NAME, Coqui through its own manager (which also re-read the remote `config.json` at every
+load), docTR through `ocr_predictor(pretrained=True)`.
 
 What is held here, per model:
-  * the declaration passes the lock of the `files` driver (origin frozen: Hub commit or GitHub
-    release) ;
-  * the catalogue row is MEASURED — absent, it is installable by its declared files ; present,
-    downloaded ;
+  * a declaration of files passes the lock of the `files` driver (origin frozen: Hub commit or
+    GitHub release) ; a Hub row names the repo the engine READS, and its original model ;
+  * the catalogue row is MEASURED — absent, it is installable by the route ; present, downloaded ;
   * the engine never reaches the library's downloader: absent, it says the route ; present, the
-    library receives a FOLDER (or finds its file where it looks first).
+    library receives a FOLDER (or finds its file where it looks first), or reads the installed
+    snapshot with `local_files_only`.
 
 And Kokoro's VOICES (2026-11-03): the model was read by path since 2026-09-04, but each voice went
 to `KPipeline` by NAME, which `hf_hub_download`s it into the shared cache at first use.
@@ -41,11 +42,7 @@ def _fill(root, files):
 class DeclarationsTest(SimpleTestCase):
 
     DECLARED = {
-        'transcriber:whisper': (whisper_backend.WHISPER_FILES['large-v3'],
-                                {('huggingface', 'Systran/faster-whisper-large-v3')}),
-        spoken_language.MODEL_KEY: (spoken_language.LANGUAGE_ID_FILES,
-                                    {('huggingface', 'Systran/faster-whisper-tiny')}),
-        'synthesizer:coqui-xtts': (coqui_backend.COQUI_FILES['coqui-xtts'],
+        'synthesizer:coqui-xtts':(coqui_backend.COQUI_FILES['coqui-xtts'],
                                    {('huggingface', 'coqui/XTTS-v2')}),
         doctr_backend.DOCTR_KEY: (doctr_backend.DOCTR_FILES, {('github', None)}),
         ocr_base.PAGE_ORIENTATION_KEY: (ocr_base.PAGE_ORIENTATION_FILES, {('github', None)}),
@@ -75,39 +72,54 @@ class DeclarationsTest(SimpleTestCase):
         self.assertEqual({Path('tts/tts_models--multilingual--multi-dataset--xtts_v2')}, folder)
 
 
+#: Whisper's rows (2026-11-05) — the catalogue key and the size the engine reads.
+WHISPER_ROWS = {'transcriber:whisper': 'large-v3', spoken_language.MODEL_KEY: 'tiny'}
+
+
+def _discover(test, root):
+    """The rows of the five models, discovered under a throwaway `AI-models`, and their specs."""
+    from wama.model_manager.models import AIModel
+    from wama.model_manager.services.model_installer import spec_for_catalog_row
+    from wama.model_manager.services.model_registry import ModelRegistry
+    root = Path(root)
+    speech = {**settings.MODEL_PATHS.get('speech', {}),
+              'whisper': root / 'models' / 'speech' / 'whisper',
+              'coqui': root / 'models' / 'speech' / 'coqui'}
+    ocr = {**settings.MODEL_PATHS.get('ocr', {}), 'doctr': root / 'models' / 'ocr' / 'doctr'}
+    with test.settings(AI_MODELS_DIR=root,
+                       MODEL_PATHS={**settings.MODEL_PATHS, 'speech': speech, 'ocr': ocr}):
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_transcriber_models()
+        registry._discover_synthesizer_models()
+        registry._discover_reader_models()
+        registry._discover_language_identification_models()
+        registry._discover_page_orientation_models()
+        test.assertEqual([], registry.discovery_errors)
+        specs = {key: spec_for_catalog_row(AIModel(model_key=key,
+                                                   platform_ref=registry._models[key].platform_ref or '',
+                                                   extra_info=registry._models[key].extra_info))
+                 for key in [*DeclarationsTest.DECLARED, *WHISPER_ROWS]}
+    return registry._models, specs, speech, ocr
+
+
+def _hub_snapshot(family, repo, files=('config.json', 'model.bin')):
+    """A repo of the Hub as the route leaves it: `models--org--nom/snapshots/<commit>/…`."""
+    from wama.common.utils.model_locations import hf_folder_name
+    revision = Path(family) / hf_folder_name(repo) / 'snapshots' / ('0' * 40)
+    revision.mkdir(parents=True, exist_ok=True)
+    for name in files:
+        (revision / name).write_bytes(b'0' * 16)
+    return revision
+
+
 class CatalogueRowsAreMeasuredTest(SimpleTestCase):
     """Absent → not downloaded and installable by its declared files ; present → downloaded."""
 
-    def _rows(self, root):
-        from wama.model_manager.services.model_registry import ModelRegistry
-        root = Path(root)
-        speech = {**settings.MODEL_PATHS.get('speech', {}),
-                  'whisper': root / 'models' / 'speech' / 'whisper',
-                  'coqui': root / 'models' / 'speech' / 'coqui'}
-        ocr = {**settings.MODEL_PATHS.get('ocr', {}), 'doctr': root / 'models' / 'ocr' / 'doctr'}
-        with self.settings(AI_MODELS_DIR=root,
-                           MODEL_PATHS={**settings.MODEL_PATHS, 'speech': speech, 'ocr': ocr}):
-            registry = ModelRegistry()
-            registry._models = {}
-            registry._discover_transcriber_models()
-            registry._discover_synthesizer_models()
-            registry._discover_reader_models()
-            registry._discover_language_identification_models()
-            registry._discover_page_orientation_models()
-            self.assertEqual([], registry.discovery_errors)
-            from wama.model_manager.models import AIModel
-            from wama.model_manager.services.model_installer import spec_for_catalog_row
-            specs = {key: spec_for_catalog_row(AIModel(model_key=key,
-                                                       extra_info=registry._models[key].extra_info))
-                     for key in DeclarationsTest.DECLARED}
-        return registry._models, specs, speech, ocr
-
     def test_absent_rows_are_installable_by_their_declared_files(self):
         with tempfile.TemporaryDirectory() as root:
-            models, specs, speech, ocr = self._rows(root)
-        expected_dir = {'transcriber:whisper': speech['whisper'],
-                        spoken_language.MODEL_KEY: speech['whisper'],
-                        'synthesizer:coqui-xtts': speech['coqui'],
+            models, specs, speech, ocr = _discover(self, root)
+        expected_dir = {'synthesizer:coqui-xtts': speech['coqui'],
                         doctr_backend.DOCTR_KEY: ocr['doctr'],
                         ocr_base.PAGE_ORIENTATION_KEY: ocr['doctr']}
         for key, (files, _origins) in DeclarationsTest.DECLARED.items():
@@ -116,11 +128,9 @@ class CatalogueRowsAreMeasuredTest(SimpleTestCase):
                 self.assertEqual(('files', str(expected_dir[key]), files),
                                  (specs[key]['kind'], specs[key]['target_dir'], specs[key]['files']))
 
-    def test_the_transcriber_row_keeps_the_identity_of_the_original_model(self):
+    def test_the_new_rows_name_their_task(self):
         with tempfile.TemporaryDirectory() as root:
-            models, _specs, _speech, _ocr = self._rows(root)
-        self.assertEqual('huggingface:openai/whisper-large-v3',
-                         models['transcriber:whisper'].platform_ref)
+            models, _specs, _speech, _ocr = _discover(self, root)
         self.assertEqual('language-identification',
                          models[spoken_language.MODEL_KEY].capabilities['task'])
         self.assertEqual('page-orientation',
@@ -129,11 +139,9 @@ class CatalogueRowsAreMeasuredTest(SimpleTestCase):
     def test_counter_proof_declared_files_in_place_make_the_rows_downloaded(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
-            _fill(root / 'models' / 'speech' / 'whisper', whisper_backend.WHISPER_FILES['large-v3']
-                  + spoken_language.LANGUAGE_ID_FILES)
             _fill(root / 'models' / 'speech' / 'coqui', coqui_backend.COQUI_FILES['coqui-xtts'])
             _fill(root / 'models' / 'ocr' / 'doctr', doctr_backend.DOCTR_FILES + ocr_base.PAGE_ORIENTATION_FILES)
-            models, _specs, _speech, _ocr = self._rows(root)
+            models, _specs, _speech, _ocr = _discover(self, root)
         for key in DeclarationsTest.DECLARED:
             with self.subTest(model=key):
                 self.assertTrue(models[key].is_downloaded)
@@ -142,8 +150,73 @@ class CatalogueRowsAreMeasuredTest(SimpleTestCase):
         """It used to: `import doctr` succeeding was the fallback « downloaded »."""
         with tempfile.TemporaryDirectory() as root, \
                 mock.patch.dict(sys.modules, {'doctr': types.ModuleType('doctr')}):
-            models, _specs, _speech, _ocr = self._rows(root)
+            models, _specs, _speech, _ocr = _discover(self, root)
         self.assertFalse(models[doctr_backend.DOCTR_KEY].is_downloaded)
+
+
+class WhisperRowsAreHubRowsTest(SimpleTestCase):
+    """Whisper large-v3 and tiny (2026-11-05): a row names the repo the engine READS — Systran's
+    CTranslate2 conversion, the only format faster-whisper reads — and carries the model it
+    converts (`base_model`, relation `quantized`, the Hub's word for a format export). The route
+    installs it like any repo of the Hub, in Whisper's family folder. From 02 to 05/11 the row
+    named OpenAI's repo while its declared files came from Systran's."""
+
+    def test_absent_rows_are_installed_by_the_hub_driver_in_the_family_folder(self):
+        from wama.model_manager.services.model_installer import pull_hf_model
+        with tempfile.TemporaryDirectory() as root:
+            models, specs, speech, _ocr = _discover(self, root)
+            for key, size in WHISPER_ROWS.items():
+                with self.subTest(model=key):
+                    spec = specs[key]
+                    self.assertFalse(models[key].is_downloaded, 'measured, never assumed')
+                    self.assertNotIn('declared_files', models[key].extra_info)
+                    self.assertEqual(('hf', whisper_backend.WHISPER_REPOS[size]['repo']),
+                                     (spec['kind'], spec['ref']))
+                    with self.settings(AI_MODELS_DIR=Path(root)):
+                        target = pull_hf_model(spec['ref'], spec['category'], spec.get('family'),
+                                               dry_run=True)['target']
+                    self.assertEqual(Path(speech['whisper']), Path(target),
+                                     'installed where the engine reads it')
+
+    def test_a_row_names_the_repo_read_and_carries_the_original_model(self):
+        with tempfile.TemporaryDirectory() as root:
+            models, _specs, _speech, _ocr = _discover(self, root)
+        expected = {'transcriber:whisper': ('Systran/faster-whisper-large-v3', 'openai/whisper-large-v3'),
+                    spoken_language.MODEL_KEY: ('Systran/faster-whisper-tiny', 'openai/whisper-tiny')}
+        for key, (read, original) in expected.items():
+            with self.subTest(model=key):
+                info = models[key]
+                self.assertEqual(f'huggingface:{read}', info.platform_ref)
+                self.assertEqual((original, 'quantized'),
+                                 (info.extra_info['base_model'], info.extra_info['base_model_relation']))
+
+    def test_the_original_model_reaches_the_catalogue_as_a_format_export(self):
+        """`quantized` keeps the bench matching by repo (`hub_repos`) and never makes the
+        original model a backbone to install with it."""
+        from wama.model_manager.models import AIModel
+        info = whisper_backend.whisper_base_model('large-v3')
+        row = AIModel(model_key='transcriber:whisper',
+                      platform_ref='huggingface:Systran/faster-whisper-large-v3', extra_info=info)
+        self.assertEqual({'systran/faster-whisper-large-v3', 'openai/whisper-large-v3'},
+                         row.hub_repos())
+
+    def test_counter_proof_an_installed_snapshot_makes_the_rows_downloaded(self):
+        with tempfile.TemporaryDirectory() as root:
+            family = Path(root) / 'models' / 'speech' / 'whisper'
+            for size in WHISPER_ROWS.values():
+                _hub_snapshot(family, whisper_backend.WHISPER_REPOS[size]['repo'])
+            models, _specs, _speech, _ocr = _discover(self, root)
+        for key in WHISPER_ROWS:
+            with self.subTest(model=key):
+                self.assertTrue(models[key].is_downloaded)
+
+    def test_a_snapshot_without_weights_is_not_downloaded(self):
+        """A config left by an aborted load (the Qwen3-ASR case) — the common judgment."""
+        with tempfile.TemporaryDirectory() as root:
+            family = Path(root) / 'models' / 'speech' / 'whisper'
+            _hub_snapshot(family, 'Systran/faster-whisper-large-v3', files=('config.json',))
+            models, _specs, _speech, _ocr = _discover(self, root)
+        self.assertFalse(models['transcriber:whisper'].is_downloaded)
 
 
 class SpeechFolderTest(SimpleTestCase):
@@ -184,39 +257,54 @@ def _fake_faster_whisper():
         'faster_whisper': types.SimpleNamespace(WhisperModel=_FakeWhisperModel)})
 
 
-class WhisperReadsItsFolderTest(SimpleTestCase):
+class WhisperReadsTheInstalledSnapshotTest(SimpleTestCase):
+    """A declared size is read by its repo in the family folder WITHOUT network
+    (`local_files_only`) — faster-whisper resolves it like `snapshot_download` (lever A), and the
+    flag forbids the download the route alone may do."""
 
-    def test_the_declared_size_is_loaded_by_its_folder(self):
+    def test_the_declared_size_is_read_from_the_family_folder_without_network(self):
         backend = whisper_backend.WhisperBackend()
         with _fake_faster_whisper(), \
-                mock.patch.object(whisper_backend, 'ct2_installed', return_value=True):
+                mock.patch.object(whisper_backend, 'whisper_installed', return_value=True):
             self.assertTrue(backend.load('large-v3'))
-        folder = whisper_backend.ct2_model_dir(whisper_backend.WHISPER_FILES['large-v3'])
-        self.assertEqual(str(folder), _FakeWhisperModel.seen[0][0],
-                         'a FOLDER: faster-whisper downloads only for a NAME')
+        source, kwargs = _FakeWhisperModel.seen[0]
+        self.assertEqual(('Systran/faster-whisper-large-v3', str(whisper_backend.whisper_folder()), True),
+                         (source, kwargs['download_root'], kwargs['local_files_only']))
         self.assertEqual('large-v3', backend._current_model, 'the catalogue reads the size')
 
-    def test_an_absent_declared_size_is_never_reached_by_name(self):
+    def test_an_absent_declared_size_never_reaches_the_library_and_says_the_route(self):
         backend = whisper_backend.WhisperBackend()
         with _fake_faster_whisper(), \
-                mock.patch.object(whisper_backend, 'ct2_installed', return_value=False), \
+                mock.patch.object(whisper_backend, 'whisper_installed', return_value=False), \
                 self.assertLogs('wama.common.backends.whisper_backend', 'ERROR') as logs:
             self.assertFalse(backend.load('large-v3'))
         self.assertEqual([], _FakeWhisperModel.seen)
-        self.assertIn('transcriber:whisper', '\n'.join(logs.output))
+        self.assertIn('model manager', '\n'.join(logs.output))
+        self.assertIn('Systran/faster-whisper-large-v3', '\n'.join(logs.output))
+
+    def test_installed_is_the_common_judgment_on_the_snapshot_the_route_leaves(self):
+        with tempfile.TemporaryDirectory() as root:
+            family = Path(root) / 'whisper'
+            speech = {**settings.MODEL_PATHS.get('speech', {}), 'whisper': family}
+            with self.settings(MODEL_PATHS={**settings.MODEL_PATHS, 'speech': speech}):
+                self.assertFalse(whisper_backend.whisper_installed('large-v3'))
+                _hub_snapshot(family, 'Systran/faster-whisper-large-v3', files=('config.json',))
+                self.assertFalse(whisper_backend.whisper_installed('large-v3'), 'a config only')
+                _hub_snapshot(family, 'Systran/faster-whisper-large-v3')
+                self.assertTrue(whisper_backend.whisper_installed('large-v3'))
 
     def test_counter_proof_an_undeclared_size_keeps_its_name_and_the_family_folder(self):
         """A `WAMA_ASSISTANT_STT_MODEL` set to another size: nothing declared to install — the
-        family folder (lever A), as before."""
+        family folder (lever A), as before, and the library may fetch it."""
         backend = whisper_backend.WhisperBackend()
         with _fake_faster_whisper():
             self.assertTrue(backend.load('small'))
         source, kwargs = _FakeWhisperModel.seen[0]
-        self.assertEqual(('small', str(whisper_backend.whisper_folder())),
-                         (source, kwargs['download_root']))
+        self.assertEqual(('small', str(whisper_backend.whisper_folder()), False),
+                         (source, kwargs['download_root'], kwargs['local_files_only']))
 
 
-class SpokenLanguageReadsItsFolderTest(SimpleTestCase):
+class SpokenLanguageReadsTheInstalledSnapshotTest(SimpleTestCase):
 
     def setUp(self):
         spoken_language._detector = None
@@ -229,13 +317,15 @@ class SpokenLanguageReadsItsFolderTest(SimpleTestCase):
                 spoken_language._model()
         self.assertEqual([], _FakeWhisperModel.seen)
 
-    def test_an_installed_model_is_read_by_its_folder(self):
+    def test_an_installed_model_is_read_from_the_family_folder_without_network(self):
         with _fake_faster_whisper(), \
                 mock.patch.object(spoken_language, 'model_installed', return_value=True):
             spoken_language._model()
         source, kwargs = _FakeWhisperModel.seen[0]
-        self.assertEqual(str(spoken_language.model_folder()), source)
-        self.assertNotIn('download_root', kwargs)
+        self.assertEqual(('Systran/faster-whisper-tiny', str(whisper_backend.whisper_folder()), True),
+                         (source, kwargs['download_root'], kwargs['local_files_only']))
+        self.assertEqual(whisper_backend.WHISPER_REPOS['tiny']['repo'], spoken_language.HF_REPO,
+                         'one declaration of the size, beside its engine')
 
 
 class CoquiReadsItsFolderTest(SimpleTestCase):

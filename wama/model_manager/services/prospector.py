@@ -414,12 +414,26 @@ def _siblings(repo_id: str):
     None = dépôt injoignable, à distinguer d'un dépôt VIDE (`[]`) : l'un est une panne,
     l'autre un fait. À réserver aux candidats RETENUS, pas au listing.
     """
+    files = hub_files(repo_id)
+    return None if files is None else [(s.rfilename, s.size or 0) for s in files]
+
+
+def hub_files(repo_id: str, revision: str = None, token=None):
+    """Les fichiers d'un dépôt TELS QUE LE HUB LES PUBLIE (`RepoSibling` : nom, taille, blob git,
+    et pour un fichier LFS son `sha256`), à une révision — la requête de l'inventaire
+    (`_siblings`), et celle qui vérifie une installation (`model_installer.verify_hf_snapshot`,
+    2026-11-05 : le Hub publie l'empreinte de chaque fichier, l'installation ne la lisait pas).
+
+    `token` : celui du téléchargement (`False` = aucun, jamais le jeton de l'instance à la place).
+    None = dépôt injoignable — même distinction que `_siblings`.
+    """
     try:
         from huggingface_hub import HfApi
-        info = HfApi().model_info(repo_id, files_metadata=True)
-        return [(s.rfilename, s.size or 0) for s in (info.siblings or [])]
+        info = _hub_call(lambda: HfApi().model_info(repo_id, revision=revision, files_metadata=True,
+                                                    token=token), repo_id)
+        return list(info.siblings or [])
     except Exception as e:
-        logger.debug("[prospect_hf_seed] inventaire de %s indéterminable : %s", repo_id, e)
+        logger.debug("[hub_files] fichiers publiés de %s indéterminables : %s", repo_id, e)
         return None
 
 
@@ -2055,7 +2069,8 @@ def seed_ollama_candidate(name: str) -> dict:
 def github_release(ref: str):
     """La version `owner/repo:tag` telle que l'API GitHub la publie (dict), `{}` si elle
     n'existe pas (404), None si l'API n'a pas répondu — « l'un est une panne, l'autre un fait »
-    (la distinction de `_siblings`)."""
+    (la distinction de `_siblings`). Le tag `latest` désigne la version COURANTE du dépôt (le
+    pilote `yolo`, 2026-11-05) : sa réponse porte le tag réel (`tag_name`), qui fige la suite."""
     import requests
 
     from wama.common.external_sources import api_key, base_url, proxies_for
@@ -2069,7 +2084,8 @@ def github_release(ref: str):
     if token:
         headers['Authorization'] = f'Bearer {token}'
     try:
-        r = requests.get(f"{base_url('github_api')}/repos/{repo}/releases/tags/{tag}",
+        path = 'releases/latest' if tag == 'latest' else f'releases/tags/{tag}'
+        r = requests.get(f"{base_url('github_api')}/repos/{repo}/{path}",
                          headers=headers, proxies=proxies_for('github_api'), timeout=30)
         if r.status_code == 404:
             return {}

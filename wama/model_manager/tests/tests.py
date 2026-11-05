@@ -29,6 +29,10 @@ from ..models import AIModel
 from ..services.model_registry import ModelRegistry
 from ..services.model_sync import ModelSyncService
 
+#: What `verify_hf_snapshot` answers for a snapshot the Hub vouches for — the tests of the `hf`
+#: driver that are about something else (twins, token) fake the download, so they fake this too.
+VERIFIED = {'ok': True, 'revision': '0' * 40, 'verified': {'against': 'published', 'count': 1}}
+
 
 def _decouverte(erreurs=(), modeles=None):
     """Fabrique une découverte CONTRÔLÉE — complète ou en échec, au choix du test."""
@@ -298,9 +302,9 @@ class SnapshotsInstallesTest(TestCase):
         """The assistant test of 2026-09-28: `install_model('transcriber:qwen3-asr-1.7b')` answered
         « no_install_location » — the transcriber discovery never declared `install_dir`, so neither
         the Install button nor the tool could fetch its weights. Whisper stayed without until
-        2026-11-02: its row names `openai/whisper-large-v3` while the engine loads
-        `Systran/faster-whisper-large-v3` — it now DECLARES the files its engine reads, which
-        prevail over the row's repo (`spec_for_catalog_row`)."""
+        2026-11-02, its row naming `openai/whisper-large-v3` while the engine loads
+        `Systran/faster-whisper-large-v3`; since 2026-11-05 the row names the repo the engine
+        reads and is installed like any other repo of the Hub."""
         from ..services.model_installer import spec_for_catalog_row
         registry = ModelRegistry()
         registry._models = {}
@@ -310,16 +314,15 @@ class SnapshotsInstallesTest(TestCase):
         for key, info in rows.items():
             row = AIModel(model_key=key, platform_ref=info.platform_ref or '',
                           extra_info=info.extra_info)
-            if key == 'transcriber:whisper':
-                spec = spec_for_catalog_row(row)
-                self.assertEqual('files', spec['kind'])
-                self.assertEqual({'Systran/faster-whisper-large-v3'},
-                                 {f['origin']['repo'] for f in spec['files']},
-                                 'the repo the engine reads, never the original one')
-                continue
             spec = spec_for_catalog_row(row)
             self.assertIsNotNone(spec, f'{key} cannot be installed from the catalogue')
-            self.assertEqual('speech', spec['category'], key)
+            self.assertEqual(('hf', 'speech'), (spec['kind'], spec['category']), key)
+        self.assertEqual('Systran/faster-whisper-large-v3',
+                         spec_for_catalog_row(AIModel(
+                             model_key='transcriber:whisper',
+                             platform_ref=rows['transcriber:whisper'].platform_ref,
+                             extra_info=rows['transcriber:whisper'].extra_info))['ref'],
+                         'the repo the engine reads, never the original one')
 
     def test_a_nemo_archive_counts_as_weights(self):
         """canary-1b-v2 / parakeet-tdt ship a single `.nemo` — it IS the model."""
@@ -396,7 +399,7 @@ class ProvenanceDeclareeTest(TestCase):
     def test_transcriber_discovery_carries_the_platform_ref_of_its_app(self):
         modeles = self._decouvrir('_discover_transcriber_models')
         self.assertEqual(modeles['transcriber:whisper'].platform_ref,
-                         'huggingface:openai/whisper-large-v3')
+                         'huggingface:Systran/faster-whisper-large-v3')
         self.assertEqual(modeles['transcriber:qwen3-asr-0.6b'].hf_repo, 'Qwen/Qwen3-ASR-0.6B')
 
     def test_synthesizer_discovery_carries_the_platform_ref_of_its_app(self):
@@ -1585,6 +1588,7 @@ class RestesTechniquesDuSoirTest(TestCase):
             vus.update(allow=allow_patterns, ignore=ignore_patterns)
             return '/faux/chemin'
         with patch('huggingface_hub.snapshot_download', side_effect=faux_snapshot), \
+                patch.object(mi, 'verify_hf_snapshot', return_value=VERIFIED), \
                 patch.object(mi, 'format_duplicates', return_value=['pytorch_model.bin']) as dd:
             r = mi.pull_hf_model('org/x', 'vision', family='x')
             self.assertTrue(r['ok'])
@@ -3572,10 +3576,13 @@ class DownloadTokenTest(TestCase):
         def fake_snapshot(**kw):
             seen.update(kw)
             return '/fake/path'
-        with patch('huggingface_hub.snapshot_download', side_effect=fake_snapshot),                 patch.object(mi, 'format_duplicates', return_value=[]):
+        with patch('huggingface_hub.snapshot_download', side_effect=fake_snapshot),                 patch.object(mi, 'format_duplicates', return_value=[]), \
+                patch.object(mi, 'verify_hf_snapshot', return_value=VERIFIED) as verify:
             self.assertTrue(mi.pull_hf_model('org/x', 'vision', family='x', token=False)['ok'])
         self.assertIs(seen['token'], False,
                       "« no token » must reach the library, or it falls back on HF_TOKEN")
+        self.assertIs(verify.call_args.kwargs['token'], False,
+                      'the published fingerprints of a gated repository are read with the same token')
 
     def test_an_access_refusal_says_where_to_set_the_token(self):
         from ..services import model_installer as mi

@@ -397,6 +397,10 @@ class ReadingAReleaseTest(SimpleTestCase):
             self.assertEqual(SPAN_RELEASE, p.github_release(SPAN['ref']))
         self.assertTrue(get.call_args.args[0].endswith(
             '/repos/Phhofm/models/releases/tags/4xNomosUni_span_multijpg'))
+        # The CURRENT release (the `yolo` driver, 2026-11-05): its own endpoint, not a tag.
+        with patch('requests.get', return_value=_R(200)) as get:
+            p.github_release('ultralytics/assets:latest')
+        self.assertTrue(get.call_args.args[0].endswith('/repos/ultralytics/assets/releases/latest'))
 
     def test_the_token_is_the_registry_key_and_optional(self):
         """The `github_api` source's key (Sources page, then `.env`) — never sent when unset."""
@@ -1041,14 +1045,19 @@ class YoloAdoptsTheCommonDownloadTest(SimpleTestCase):
     """Le pilote `yolo` passe par la primitive commune, son garde-fou de 1 Mo inchangé."""
 
     def test_pull_yolo_weights_delegates_with_its_floor(self):
+        release = {'tag_name': 'v8.4.0', 'assets': [{'name': 'yolo11n-seg.pt', 'size': 6182636,
+                                                     'digest': 'sha256:' + 'b' * 64}]}
         with tempfile.TemporaryDirectory() as root, \
                 self.settings(AI_MODELS_DIR=root), \
+                patch('wama.model_manager.services.prospector.github_release', return_value=release), \
                 patch.object(mi, 'download_asset', return_value={'ok': True}) as dl:
             mi.pull_yolo_weights('yolo11n-seg')
         from wama.common.external_sources import base_url, proxies_for
         url, target = dl.call_args.args
-        # The address derives from the declared `github` source, like the `github` driver's.
-        self.assertEqual(f"{base_url('github')}/ultralytics/assets/releases/latest/download/"
+        # The address derives from the declared `github` source, like the `github` driver's — at
+        # the real tag of the release whose digest was read (2026-11-05,
+        # `tests_install_fingerprints`).
+        self.assertEqual(f"{base_url('github')}/ultralytics/assets/releases/download/v8.4.0/"
                          "yolo11n-seg.pt", url)
         self.assertEqual(proxies_for('github'), dl.call_args.kwargs['proxies'])
         self.assertEqual(os.path.join(root, 'models', 'vision', 'yolo', 'segment',

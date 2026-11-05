@@ -80,6 +80,12 @@ class RouteRecordsTest(TestCase):
         self.assertGreaterEqual(event.finished_at, event.started_at)
         self.assertEqual(InstallEvent.objects.count(), 1, 'une seule ligne par installation')
 
+    def test_the_install_log_keeps_what_the_driver_verified(self):
+        """2026-11-05: every driver says against which fingerprint it checked what it laid."""
+        verified = {'against': 'published', 'count': 5}
+        event = self._run_catalog(lambda spec, token=None: {'ok': True, 'verified': verified})
+        self.assertEqual(verified, event.detail.get('verified'))
+
     def test_a_refusal_of_the_driver_is_recorded_as_a_failure(self):
         event = self._run_catalog(lambda spec, token=None: {'ok': False, 'error': 'quota HF'})
         self.assertEqual((event.status, event.detail.get('error')), ('FAILURE', 'quota HF'))

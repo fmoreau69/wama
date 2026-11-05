@@ -291,6 +291,11 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
         # `backfill_platform_refs`, apprise le 2026-08-12, qui vaut pour toute pose (2026-10-22).
         if field == 'license' and value == 'other' and ident.get('license') not in (None, '', 'other'):
             continue
+        # Une licence COMPOSÉE déjà posée (2026-11-05, `apache-2.0 AND mit` : les poids d'OpenAI,
+        # la conversion de Systran) qui CONTIENT celle de la carte est plus précise qu'elle — la
+        # carte du dépôt converti ne dit que sa part (`mit`). Même règle que `other`.
+        if field == 'license' and value and _within_expression(value, ident.get('license')):
+            continue
         if value and ident.get(field) != value:
             ident[field] = value
             posed.append(field)
@@ -363,6 +368,13 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
 
     return {'model': model_key, 'applied': bool(apply), 'posed': posed,
             'projected': plan, 'corpus': corpus}
+
+
+def _within_expression(license_id: str, expression) -> bool:
+    """`license_id` est-il un TERME de l'expression composée `expression` ? (`license_terms`)"""
+    from wama.common.services.license_audit import license_terms, normaliser_licence
+    operator, terms = license_terms(expression)
+    return bool(operator) and normaliser_licence(license_id) in terms
 
 
 def _give_to_author(keys, owner) -> list:

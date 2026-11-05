@@ -217,9 +217,9 @@ def installed_snapshots() -> dict:
     `cache_dir=`). Le chemin canonique PRIME sur le cache partagé. Seul un dossier qui porte
     `snapshots/` compte : un `models--` sans révision n'est pas un modèle installé.
 
-    ⚠ L'index ne DEVINE pas : un dépôt déclaré qui n'est pas celui sur disque (transcriber
-    déclare `openai/whisper-large-v3`, le disque porte `Systran/faster-whisper-large-v3`) reste
-    sans entrée. Hors Django / disque absent : dict vide.
+    ⚠ L'index ne DEVINE pas : un dépôt déclaré qui n'est pas celui sur disque reste sans entrée
+    (le cas mesuré : jusqu'au 2026-11-05, transcriber déclarait `openai/whisper-large-v3` quand le
+    disque portait `Systran/faster-whisper-large-v3`). Hors Django / disque absent : dict vide.
     """
     index = {}
 

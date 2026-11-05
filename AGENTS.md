@@ -713,6 +713,14 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 - **Un manque de la route se comble DANS la route**, jamais à côté. Exemple du 2026-10-16 : le
   pilote `files` n'envoyait pas le jeton d'un dépôt du Hub à accès contrôlé — le jeton passe
   désormais d'`install_from_spec` au pilote, aux seules origines `huggingface`.
+- **Ce qu'un pilote pose est vérifié contre l'empreinte la plus forte que sa SOURCE donne, quelle
+  qu'elle soit** (Fabien, 2026-11-05 : « uniformité et universalité ») : épinglée pour `files` et
+  `github`, publiée par le Hub pour `hf` (`verify_hf_snapshot`), par l'API GitHub pour `yolo`,
+  vérifiée par le démon pour `ollama` — et le résultat le DIT (`verified`, gardé au journal). Un
+  moteur qui lit un dépôt du Hub tel que la librairie le range (snapshot) s'installe donc par
+  `hf`, comme les autres (Whisper depuis le 2026-11-05) ; la déclaration fichier par fichier
+  (`files`) reste aux poids assemblés de plusieurs sources, publiés hors du Hub, ou lus dans une
+  disposition FIXE (Coqui, docTR). Contrôle : `model_manager.tests.tests_install_fingerprints`.
 - **Avant d'écrire « aucun mécanisme ne permet… »**, lire l'installeur
   (`model_manager/services/model_installer.py`, en-têtes des pilotes), `common/external_sources.py`
   et la checklist ci-dessous ; nommer la ligne qui fonde l'affirmation (§ VÉRIFIER LA ROUTE).
@@ -1156,7 +1164,7 @@ corrigé le 2026-10-31, mesuré : ce champ n'existe que dans le format archivé
 ### Logos
 | Modèle | VRAM | Dir | Notes |
 |--------|------|-----|-------|
-| flux-lora-logo-design | 24GB | `diffusion/logo/` | Shakker-Labs FLUX LoRA — guidance=3.5, steps=24, 1024×1024 |
+| flux-lora-logo-design | 24GB | `diffusion/logo/` | Shakker-Labs FLUX LoRA — guidance=3.5, steps=24, 768×768 max déclaré (`imager/utils/model_config.py:565-567` ; corrigé le 2026-11-05) |
 
 ### Vidéos
 | Modèle | VRAM | Dir |
