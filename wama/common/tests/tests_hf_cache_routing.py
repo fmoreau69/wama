@@ -307,9 +307,41 @@ class TroisiemeVoieTest(SimpleTestCase):
 
     def setUp(self):
         import tempfile
+        from unittest.mock import patch
         self._tmp = tempfile.TemporaryDirectory(prefix='wama_hfw_')
         self.famille = self._tmp.name
         self.addCleanup(self._tmp.cleanup)
+        # These tests fake the download; what it brings is checked against the Hub (2026-11-05),
+        # which `test_what_the_network_brings_is_checked_against_the_hub` holds.
+        verify = patch('wama.model_manager.services.model_installer.verify_hf_snapshot',
+                       return_value={'ok': True})
+        self.verify = verify.start()
+        self.addCleanup(verify.stop)
+
+    def test_what_the_network_brings_is_checked_against_the_hub(self):
+        """Lever B downloads outside the route (a row the route cannot install): what it brings
+        passes the route's check — and a refusal is never handed to the library as weights."""
+        from unittest.mock import patch
+
+        from wama.common.utils.hf_weights import poids_locaux
+        with patch('huggingface_hub.snapshot_download') as fake:
+            fake.side_effect = [OSError('absent'), '/downloaded']
+            self.assertEqual('/downloaded', poids_locaux('org/modele', self.famille, token=False))
+        self.verify.assert_called_once_with('org/modele', '/downloaded', token=False)
+        self.verify.return_value = {'ok': False, 'error': 'empreinte différente'}
+        with patch('huggingface_hub.snapshot_download') as fake:
+            fake.side_effect = [OSError('absent'), '/downloaded']
+            with self.assertRaisesRegex(RuntimeError, 'empreinte'):
+                poids_locaux('org/modele', self.famille)
+
+    def test_counter_proof_a_complete_local_snapshot_is_not_rechecked(self):
+        from unittest.mock import patch
+
+        from wama.common.utils.hf_weights import poids_locaux
+        local = self._snapshot(weights=True)
+        with patch('huggingface_hub.snapshot_download', side_effect=[local]):
+            poids_locaux('org/modele', self.famille)
+        self.verify.assert_not_called()
 
     def test_elle_ne_touche_JAMAIS_l_environnement(self):
         """Le point entier de la brique. Si elle mutait, elle ne vaudrait pas mieux que ce

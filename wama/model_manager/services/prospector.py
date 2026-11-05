@@ -2122,6 +2122,19 @@ def github_release_scale(release: dict):
     return int(m.group(1)) if m and int(m.group(1)) > 0 else None
 
 
+def published_asset(release: dict, asset: str):
+    """`{'asset', 'size', 'sha256'}` d'un asset TEL QUE la version le publie (`sha256` vide quand
+    l'API ne donne pas de `digest`), ou None s'il n'y est pas. Lecture pure, aucune requête :
+    l'épinglage de la prospection (`pinned_github_asset`) et la vérification du pilote `yolo`
+    (2026-11-05) lisent la même réponse de la même façon."""
+    found = next((a for a in ((release or {}).get('assets') or []) if a.get('name') == asset), None)
+    if found is None:
+        return None
+    digest = str(found.get('digest') or '')
+    return {'asset': asset, 'size': int(found.get('size') or 0),
+            'sha256': digest[len('sha256:'):].lower() if digest.startswith('sha256:') else ''}
+
+
 def pinned_github_asset(ref: str, asset: str, release: dict = None) -> dict:
     """{'asset', 'size', 'sha256', 'measured'} de l'asset d'une version, ou {'error'}.
 
@@ -2137,14 +2150,12 @@ def pinned_github_asset(ref: str, asset: str, release: dict = None) -> dict:
     release = github_release(ref) if release is None else release
     if release is None:
         return {'error': f"API GitHub injoignable pour {ref}"}
-    found = next((a for a in (release.get('assets') or []) if a.get('name') == asset), None)
+    found = published_asset(release, asset)
     if found is None:
         names = sorted(a.get('name', '') for a in (release.get('assets') or []))
         return {'error': f"asset {asset!r} absent de la version {ref} (fichiers : {names})"}
-    digest = str(found.get('digest') or '')
-    if digest.startswith('sha256:'):
-        return {'asset': asset, 'size': int(found.get('size') or 0),
-                'sha256': digest[len('sha256:'):].lower(), 'measured': False}
+    if found['sha256']:
+        return {**found, 'measured': False}
     from wama.common.external_sources import proxies_for
     with tempfile.TemporaryDirectory() as tmp:
         target = os.path.join(tmp, asset)

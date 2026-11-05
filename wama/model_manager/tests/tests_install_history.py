@@ -86,6 +86,15 @@ class RouteRecordsTest(TestCase):
         event = self._run_catalog(lambda spec, token=None: {'ok': True, 'verified': verified})
         self.assertEqual(verified, event.detail.get('verified'))
 
+    def test_the_verification_is_said_in_the_logs_vocabulary_and_never_invented(self):
+        say = install_history.verified_text
+        self.assertEqual("1 fichier(s) vérifié(s) contre l'empreinte épinglée dans sa déclaration",
+                         say({'verified': {'against': 'pinned', 'count': 1}}))
+        self.assertIn('par le démon Ollama', say({'verified': {'against': 'published', 'by': 'ollama'}}))
+        for detail in ({}, None, {'verified': {'against': 'guessed', 'count': 3}}):
+            with self.subTest(detail=detail):
+                self.assertEqual('', say(detail))
+
     def test_a_refusal_of_the_driver_is_recorded_as_a_failure(self):
         event = self._run_catalog(lambda spec, token=None: {'ok': False, 'error': 'quota HF'})
         self.assertEqual((event.status, event.detail.get('error')), ('FAILURE', 'quota HF'))

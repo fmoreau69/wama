@@ -3805,3 +3805,18 @@ licence COMPOSÉE qui contient celle de la carte n'est plus réécrite par elle 
 l'audit des licences qualifie une expression par ses termes (`license_audit.license_terms`).
 Les fichiers déclarés un à un (R211) sont retirés (`REMOVAL_LEDGER R216`) : installés par `hf`
 dans le dossier de famille, lus sans réseau (`local_files_only`).
+
+**Après la relance (même jour)** — identité posée par la route manifeste (`extract → validate →
+write_back → corpus`) ; les deux modèles installés par `pull_model` (le geste public
+`request_install`, journalisé) : `verified` = 7 fichiers (large-v3) et 6 (tiny) contre les
+empreintes publiées, aux mêmes révisions qu'avant (`edaa852`, `d90ca5fe`) ; la licence composée a
+tenu contre la pose d'identité de l'installation (`mit` lu sur la carte). Vérification réelle,
+réseau du Hub coupé (`HF_HUB_OFFLINE=1`) : la sonde des langues entend l'anglais (p = 0,998),
+large-v3 se charge du snapshot et transcrit ; `/stt` du service de voix transcrit (25 s, chargement
+compris). Les deux dossiers plats du 02/11 (3 Go) sont retirés (R216).
+**Revérification (`/reverif`)** — trois écritures ramenées à leur brique : l'identifiant git d'un
+fichier vit à côté de `sha256_of` (`common/utils/provenance.git_blob_sha1`, même cache) ; la
+vérification lit le snapshot par `prospector.local_inventory` (son jumeau local) ; l'empreinte d'un
+asset GitHub se lit par `prospector.published_asset`, que l'épinglage de la prospection partage
+avec le pilote `yolo`. Le levier B d'`hf_weights` vérifie aussi ce qu'il télécharge, et l'assistant
+dit ce qu'une installation a vérifié (`list_installations`, `install_history.verified_text`).

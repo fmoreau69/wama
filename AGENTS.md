@@ -715,8 +715,9 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
   désormais d'`install_from_spec` au pilote, aux seules origines `huggingface`.
 - **Ce qu'un pilote pose est vérifié contre l'empreinte la plus forte que sa SOURCE donne, quelle
   qu'elle soit** (Fabien, 2026-11-05 : « uniformité et universalité ») : épinglée pour `files` et
-  `github`, publiée par le Hub pour `hf` (`verify_hf_snapshot`), par l'API GitHub pour `yolo`,
-  vérifiée par le démon pour `ollama` — et le résultat le DIT (`verified`, gardé au journal). Un
+  `github`, publiée par le Hub pour `hf` (`verify_hf_snapshot`, que le levier B d'`hf_weights`
+  emprunte aussi quand il télécharge), par l'API GitHub pour `yolo`, vérifiée par le démon pour
+  `ollama` — et le résultat le DIT (`verified`, gardé au journal, dit par l'assistant). Un
   moteur qui lit un dépôt du Hub tel que la librairie le range (snapshot) s'installe donc par
   `hf`, comme les autres (Whisper depuis le 2026-11-05) ; la déclaration fichier par fichier
   (`files`) reste aux poids assemblés de plusieurs sources, publiés hors du Hub, ou lus dans une

@@ -137,6 +137,21 @@ class InstallationsTest(TestCase):
         row = T.list_installations(_utilisateur('gate_stale', role=None))['installations'][0]
         self.assertEqual(('Échec', NOT_RESUMED), (row['status'], row['error']))
 
+    def test_what_the_driver_verified_is_said_from_the_install_log_vocabulary(self):
+        """2026-11-05: every driver checks what it lays against a fingerprint; the log keeps it,
+        the assistant says it — in the log's own words (`install_history.verified_text`)."""
+        from wama.model_manager.models import InstallEvent
+        now = timezone.now()
+        InstallEvent.objects.create(kind='model', key='hf:org/checked', name='Vérifié',
+                                    status='SUCCESS', started_at=now,
+                                    detail={'verified': {'against': 'published', 'count': 6}})
+        InstallEvent.objects.create(kind='model', key='hf:org/older', name='Avant',
+                                    status='SUCCESS', started_at=now - timedelta(hours=1))
+        rows = T.list_installations(_utilisateur('gate_verified', role=None))['installations']
+        self.assertEqual("6 fichier(s) vérifié(s) contre l'empreinte publiée par sa source",
+                         rows[0]['verified'])
+        self.assertNotIn('verified', rows[1], 'nothing claimed for an install that said nothing')
+
 
 class ProviderErrorTextTest(SimpleTestCase):
     """L'échec d'un fournisseur se DIT : qui, quoi, que faire — jamais « litellm.APIError:

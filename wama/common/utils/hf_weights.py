@@ -95,7 +95,14 @@ def poids_locaux(repo_id: str, dossier: str | Path, *,
         logger.info('[hf_weights] %s incomplet dans %s — téléchargement du reste', repo_id, dossier)
     except Exception:
         logger.info('[hf_weights] %s absent de %s — téléchargement', repo_id, dossier)
-    return snapshot_download(token=token, **commun)
+    path = snapshot_download(token=token, **commun)
+    # Ce qui vient d'être tiré se vérifie comme par la route (2026-11-05) : contre l'empreinte que
+    # le Hub publie pour la révision — la librairie ne contrôle que la taille.
+    from wama.model_manager.services.model_installer import verify_hf_snapshot
+    checked = verify_hf_snapshot(repo_id, path, token=token)
+    if not checked['ok']:
+        raise RuntimeError(checked['error'])
+    return path
 
 
 def _holds(snapshot: str | Path, patterns: Optional[Sequence[str]]) -> bool:

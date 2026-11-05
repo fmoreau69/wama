@@ -2200,6 +2200,8 @@ def list_installations(user, kind: str = 'model', limit: int = 20) -> dict:
     An installed model is installed for everyone; `via` says where it was asked from (the model
     manager page, the assistant, an app's requirements, the command line). To know whether a
     model is usable now, read its catalogue line (`get_ai_model` / `list_ai_models(query=…)`).
+    `verified` says against which fingerprint the installed files were checked (the one pinned in
+    the declaration, the one the source publishes, or only the published size).
 
     Args:
         kind:  'model' (default) or 'library'.
@@ -2207,7 +2209,7 @@ def list_installations(user, kind: str = 'model', limit: int = 20) -> dict:
 
     Returns:
         {"installations": [{"name", "key", "action", "status", "via", "started_at",
-                            "finished_at", "error"?, "size_gb"?}], "count"}
+                            "finished_at", "error"?, "size_gb"?, "verified"?}], "count"}
     """
     # Le JOURNAL de la route d'installation (`model_manager.InstallEvent`, écrit par
     # `install_history` seul), celui de la couche « Installations » du calendrier. Le 2026-10-30
@@ -2219,7 +2221,9 @@ def list_installations(user, kind: str = 'model', limit: int = 20) -> dict:
     from django.utils import timezone
 
     from wama.model_manager.models import InstallEvent
-    from wama.model_manager.services.install_history import VIA_LABELS, effective_state
+    from wama.model_manager.services.install_history import (
+        VIA_LABELS, effective_state, verified_text,
+    )
     if kind not in (InstallEvent.KIND_MODEL, InstallEvent.KIND_LIBRARY):
         return {'error': f"kind inconnu : {kind!r} (valeurs : 'model', 'library')"}
     try:
@@ -2243,6 +2247,8 @@ def list_installations(user, kind: str = 'model', limit: int = 20) -> dict:
             row['error'] = error
         row.update({k: detail[k] for k in ('size_gb', 'disk_gb', 'freed_gb')
                     if detail.get(k) not in (None, '')})
+        if verified := verified_text(detail):
+            row['verified'] = verified
         rows.append(row)
     return {'installations': rows, 'count': len(rows)}
 

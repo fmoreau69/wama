@@ -21,6 +21,12 @@
       }
     },
     "extra_info": {
+      "vram_measured": {
+        "at": "2026-11-04T14:53:20+00:00",
+        "last_gb": 3.66,
+        "max_gb": 3.66,
+        "n": 1
+      },
       "vram_provenance": "declared"
     },
     "formats": {
@@ -29,12 +35,14 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": "openai",
+      "author": "openai (poids) / Systran (conversion CTranslate2)",
+      "base_model": "openai/whisper-large-v3",
+      "base_model_relation": "quantized",
       "description_short": "large-v3 — rapide, polyvalent, multilingue. Diarisation via pyannote.",
       "gated": "no",
-      "license": "apache-2.0",
+      "license": "apache-2.0 AND mit",
       "model_type": "speech",
-      "platform_ref": "huggingface:openai/whisper-large-v3",
+      "platform_ref": "huggingface:Systran/faster-whisper-large-v3",
       "publications": [
         "2212.04356"
       ],
@@ -51,7 +59,7 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.0,
+      "disk_gb": 2.87856506370008,
       "ram_gb": 0.0,
       "vram_gb": 2.87
     }
@@ -61,7 +69,12 @@
   "manifest_kind": "model",
   "name": "Whisper Large-v3",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "faster-whisper",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:transcriber:whisper",

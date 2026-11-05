@@ -28484,3 +28484,29 @@ d'autres sessions (manifestes, API v1, assistant, model manager, rapports).
 **Pendings système** : relancer gunicorn + workers (vues sans décorateur, tâches de l'imager) ;
 pousser `fac2b2b65` et le commit de cette clôture (à demander) ; jumelles régénérées
 (gitignorées) servies seulement après la relance.
+
+## §PALIER 2026-11-05 (soir, suite), « WHISPER RÉINSTALLÉ PAR LA ROUTE, VÉRIFIÉ ; /reverif » — non poussé
+
+- Après la relance : identité posée par la route manifeste (`transcriber:whisper`,
+  `huggingface:Systran/faster-whisper-tiny` : `apache-2.0 AND mit`, auteur double ; manifeste de tiny
+  CRÉÉ au corpus) ; `pull_model` des deux clés → journal `SUCCESS`, `verified` 7 et 6 fichiers
+  contre les empreintes publiées, mêmes révisions qu'avant. Réel, Hub coupé : sonde des langues
+  `en` p = 0,998, large-v3 chargé du snapshot et transcrit ; `/stt` du service de voix transcrit.
+  Dossiers plats du 02/11 retirés (3 Go, R216 ✅ disque).
+- `/reverif` : `git_blob_sha1` ramené à `common/utils/provenance` (à côté de `sha256_of`) ; la
+  vérification lit le snapshot par `prospector.local_inventory` ; l'empreinte d'un asset GitHub par
+  `prospector.published_asset` (partagée avec `pinned_github_asset`) ; les deux lignes Whisper
+  constatées par le même helper de découverte ; le levier B d'`hf_weights` vérifie ce qu'il
+  télécharge ; l'assistant dit ce qu'une installation a vérifié (`list_installations`).
+- 🔚 Non joué : une card RÉELLE du Transcriber par les workers (le même moteur que `/stt`) — à faire
+  depuis l'interface.
+- 🔚 **Trou du schéma, consigné, pas comblé** : une ligne chargée HORS backend
+  (`composition.runtime.loaded_by` : Whisper tiny, Smart Turn, YOLOPv2, LPIPS…) n'exporte aucun
+  `requires` — `manifests/builtin/model._requires_librairies` ne dérive la librairie que du MOTEUR
+  d'un backend. Le manifeste de tiny sort donc sans `faster-whisper`. Lui donner un `engine` serait
+  un pansement (le champ dit « le moteur que le backend invoque ») : la règle se décide (déclarer la
+  librairie d'un module `loaded_by` ? la lire à son import ?) — décision de Fabien.
+- 🔚 Rouges À AUTRUI au relevé du soir, prouvés sur la liste nominative : `tests_identifier_language`
+  (code 2545 > 2544, classes 133 > 132, méthodes 1288 > 1286 — aucun nom des fichiers de cette
+  session) et `SnapshotsInstallesTest.test_a_snapshot_is_left_only_to_the_entry_that_designates_it`
+  (chantier « emplacements désignés » du balayage générique, non commité).

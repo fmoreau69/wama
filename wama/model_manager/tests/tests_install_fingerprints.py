@@ -40,13 +40,16 @@ def _sibling(name, body, lfs=False):
 
 
 class GitBlobIdTest(SimpleTestCase):
+    """The common brick of file fingerprints (`common/utils/provenance`), beside `sha256_of`."""
 
     def test_the_id_is_the_one_git_computes(self):
+        from wama.common.utils.provenance import git_blob_sha1
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'hello'
             path.write_bytes(b'hello\n')
             # `printf 'hello\n' | git hash-object --stdin`
-            self.assertEqual('ce013625030ba8dba906f756967f9e9ca394464a', mi.git_blob_sha1(path))
+            self.assertEqual('ce013625030ba8dba906f756967f9e9ca394464a', git_blob_sha1(path))
+            self.assertEqual('', git_blob_sha1(Path(tmp) / 'absent'), 'never raises')
 
 
 class HubSnapshotIsVerifiedTest(SimpleTestCase):

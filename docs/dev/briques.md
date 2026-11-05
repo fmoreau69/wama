@@ -618,15 +618,14 @@ Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×a
 
 ### Installation de modèles
 
-Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10, MuScriptor le 16/10 — le jeton d'un dépôt du Hub à accès contrôlé n'est envoyé qu'aux origines `huggingface` ; la désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`). L'EMPREINTE de ce qu'un pilote pose se vérifie QUELLE QUE SOIT LA SOURCE (2026-11-05) : épinglée (files, github), publiée par le Hub pour la révision tirée (hf, `verify_hf_snapshot` — sha256 d'un fichier LFS, blob git des autres ; la librairie ne contrôlait que la taille), publiée par l'API GitHub pour l'asset de la version (yolo), vérifiée par le démon (ollama) ; le résultat le dit (`verified`), le journal des installations le garde. Dépôt à ACCÈS CONTRÔLÉ (`AIModel.gated`) : le jeton est celui du compte qui lance (`api_keys.download_token`), sinon celui de l'instance (`HF_TOKEN`, `.env`). Route `library` (`install_library`) : PyPI par nom, pin exact — refuse URL, `git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par `-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, 2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle `tests_install_route`, budget des dérives existantes qui ne peut que descendre. Les options d'installation disent ce qui TOURNE ici et la recommandation (la plus précise qui tient sur la carte), pour la page et l'assistant ; une désinstallation retire des choix des apps (option cochée), une MISE À JOUR installée succède à l'ancienne version partout où elle était choisie (`succession.py`, 2026-10-29)
+Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10, MuScriptor le 16/10 — le jeton d'un dépôt du Hub à accès contrôlé n'est envoyé qu'aux origines `huggingface` ; la désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`). L'EMPREINTE de ce qu'un pilote pose se vérifie QUELLE QUE SOIT LA SOURCE (2026-11-05) : épinglée (files, github), publiée par le Hub pour la révision tirée (hf, `verify_hf_snapshot` — sha256 d'un fichier LFS, blob git des autres ; la librairie ne contrôlait que la taille), publiée par l'API GitHub pour l'asset de la version (yolo, `prospector.published_asset`), vérifiée par le démon (ollama) — et le levier B d'`hf_weights` quand il télécharge ; le résultat le dit (`verified`), le journal des installations le garde et l'assistant le dit (`install_history.verified_text`). Dépôt à ACCÈS CONTRÔLÉ (`AIModel.gated`) : le jeton est celui du compte qui lance (`api_keys.download_token`), sinon celui de l'instance (`HF_TOKEN`, `.env`). Route `library` (`install_library`) : PyPI par nom, pin exact — refuse URL, `git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par `-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, 2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle `tests_install_route`, budget des dérives existantes qui ne peut que descendre. Les options d'installation disent ce qui TOURNE ici et la recommandation (la plus précise qui tient sur la carte), pour la page et l'assistant ; une désinstallation retire des choix des apps (option cochée), une MISE À JOUR installée succède à l'ancienne version partout où elle était choisie (`succession.py`, 2026-10-29)
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (53) :
+- **API publique** (52) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(repo_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
-  - `git_blob_sha1(path) -> str` — L'identifiant git d'un fichier — `sha1("blob <taille>\0" + contenu)`, ce que le Hub publie
   - `verify_hf_snapshot(repo_id: str, snapshot, *, token=None) -> dict` — Chaque fichier d'un snapshot du Hub confronté à ce que le Hub PUBLIE pour cette révision :
   - `duplicate_weight_files(files) -> list` — Fichiers de poids à NE PAS tirer parce que leur jumeau `.safetensors` existe — même
   - `format_duplicates(repo_id: str) -> list` — Les jumeaux de format d'un dépôt HF — un appel HTTP, la règle vient de
@@ -683,7 +682,8 @@ Date chaque installation et désinstallation (modèle, librairie) avec son issue
 
 - **Domicile** : `wama/model_manager/services/install_history.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Journal DATÉ des installations — l'écriture (`opened`/`record`) et la couche du calendrier.
-- **API publique** (6) :
+- **API publique** (7) :
+  - `verified_text(detail) -> str` — Ce que dit `detail['verified']`, en une phrase — '' quand rien n'a été vérifié ou que la
   - `opened(kind, key, *, name='', action='install', via='')` — Ouvre un événement `RUNNING` ; le bloc remplit `outcome` avec le résultat du driver.
   - `record(kind, key, *, name='', action='install', via='', result=None, started_at=None)` — Un événement déjà TERMINÉ (désinstallation : un geste court et synchrone).
   - `queued(kind, key, *, name='', via='')` — Ouvre l'événement AU DISPATCH, avec sa voie — la tâche le reprendra (`resumed`).
@@ -732,7 +732,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (37) :
+- **API publique** (38) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
@@ -765,6 +765,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
   - `github_release(ref: str)` — La version `owner/repo:tag` telle que l'API GitHub la publie (dict), `{}` si elle
   - `github_release_license(release: dict) -> str` — Licence DITE par le texte de la version (« License: CC BY 4.0 »), sinon '' — jamais
   - `github_release_scale(release: dict)` — Facteur que le texte de la version DÉCLARE (« Scale: 4 »), sinon None — jamais déduit du
+  - `published_asset(release: dict, asset: str)` — `{'asset', 'size', 'sha256'}` d'un asset TEL QUE la version le publie (`sha256` vide quand
   - `pinned_github_asset(ref: str, asset: str, release: dict=None) -> dict` — {'asset', 'size', 'sha256', 'measured'} de l'asset d'une version, ou {'error'}.
   - `github_spec_from_manifest(manifest: dict) -> dict` — Descripteur `github` d'un manifeste `model` de source `github`, empreinte ÉPINGLÉE —
   - `named_repo(query: str)` — Le dépôt HF qu'une requête DÉSIGNE — URL de page (`https://huggingface.co/org/nom`, avec ou
@@ -1325,8 +1326,9 @@ D'OÙ vient le fichier qu'une card consomme. La frontière était déjà tracée
 
 - **Domicile** : `wama/common/utils/provenance.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : PROVENANCE D'UNE ENTRÉE — d'où vient le fichier qu'une card consomme.
-- **API publique** (9) :
+- **API publique** (10) :
   - `sha256_of(chemin, *, limite=SEUIL_EMPREINTE_OCTETS)` — Empreinte d'un fichier, ou `''` s'il est trop gros / illisible. Ne lève jamais. Un
+  - `git_blob_sha1(path) -> str` — Identifiant git d'un fichier — `sha1("blob <taille>\0" + contenu)`, l'empreinte que le Hub
   - `record_provenance(instance, field, *, kind, ref='', original_name='', source_path=None, user=None)` — Enregistre d'où vient `instance.<field>`. Remplace la trace existante, ne l'empile pas.
   - `ref_for(source_path)` — Adresse d'une source : son chemin relatif à `MEDIA_ROOT` s'il y vit, sinon son chemin brut.
   - `record_import(instance, field, source_path, *, kind='temp')` — La moitié complémentaire de `copy_into_app_input`, pour le motif « copier PUIS créer ».

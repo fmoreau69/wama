@@ -1712,10 +1712,8 @@ class ModelRegistry:
         famille de Whisper appartient au transcriber, qui ne le déclarait pas)."""
         try:
             from wama.common.backends.whisper_backend import whisper_base_model, whisper_folder
-            from wama.common.utils.spoken_language import (
-                HF_REPO, MODEL_KEY, SIZE, model_folder, model_installed,
-            )
-            installed = model_installed()
+            from wama.common.utils.spoken_language import HF_REPO, MODEL_KEY, SIZE, model_folder
+            installed = _check_hf_model_downloaded(whisper_folder(), HF_REPO)
             self._models[MODEL_KEY] = ModelInfo(
                 id=MODEL_KEY,
                 name='Whisper tiny (langue parlée)',
@@ -2067,16 +2065,14 @@ class ModelRegistry:
                     # Du 02 au 05/11 la ligne gardait l'identité d'origine et DÉCLARAIT ses fichiers
                     # un à un — un dépôt nommé, un autre tiré : la provenance mentait sur la source.
                     from wama.common.backends.whisper_backend import (
-                        whisper_base_model, whisper_folder,
+                        whisper_base_model, whisper_folder, whisper_snapshot_root,
                     )
-                    from wama.common.utils.model_locations import hf_folder_name
                     short_id = config['model_id']
-                    family_dir = whisper_folder()
-                    is_downloaded = _check_hf_model_downloaded(family_dir, repo_id)
+                    is_downloaded = _check_hf_model_downloaded(whisper_folder(), repo_id)
                     name = f"Whisper {short_id.capitalize()}"
                     fmt = 'pt'
-                    extra = {'path': str(family_dir / hf_folder_name(repo_id)) if is_downloaded else '',
-                             'install_dir': str(family_dir), **whisper_base_model(short_id)}
+                    extra = {'path': str(whisper_snapshot_root(short_id)) if is_downloaded else '',
+                             'install_dir': str(whisper_folder()), **whisper_base_model(short_id)}
 
                 # Capacités CANONIQUES — LUES sur `_cls` (lot 4b, 2026-08-20), la même classe
                 # backend qui sert déjà de « SOURCE UNIQUE » aux descriptions 60 lignes plus haut.

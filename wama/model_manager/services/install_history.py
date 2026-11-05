@@ -39,6 +39,27 @@ VIA_LABELS = {
     'cli': 'ligne de commande',
 }
 
+#: Contre quoi un pilote a vérifié ce qu'il a posé — le vocabulaire de `detail['verified']`
+#: (`model_installer`, en-tête « L'empreinte de ce qu'on installe », 2026-11-05).
+VERIFIED_AGAINST = {
+    'pinned': "l'empreinte épinglée dans sa déclaration",
+    'published': "l'empreinte publiée par sa source",
+    'size': "la taille publiée par sa source (aucune empreinte publiée)",
+}
+
+
+def verified_text(detail) -> str:
+    """Ce que dit `detail['verified']`, en une phrase — '' quand rien n'a été vérifié ou que la
+    valeur est hors du vocabulaire (on ne dit pas vérifié ce qu'on ne sait pas nommer)."""
+    verified = (detail or {}).get('verified') or {}
+    against = VERIFIED_AGAINST.get(verified.get('against'))
+    if not against:
+        return ''
+    count = verified.get('count')
+    by = ' — par le démon Ollama' if verified.get('by') == 'ollama' else ''
+    return f"{f'{count} fichier(s) ' if count else ''}vérifié(s) contre {against}{by}"
+
+
 #: Facette du calendrier (barre de filtrage commune) et son libellé.
 CALENDAR_LAYER = 'installation'
 CALENDAR_LAYER_LABEL = 'Installations'

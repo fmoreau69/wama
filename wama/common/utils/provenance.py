@@ -70,6 +70,32 @@ def sha256_of(chemin, *, limite=SEUIL_EMPREINTE_OCTETS):
         return ''
 
 
+def _git_blob_digest(p):
+    if not p.is_file():
+        return ''
+    h = hashlib.sha1(b'blob %d\0' % p.stat().st_size)
+    with p.open('rb') as fh:
+        for bloc in iter(lambda: fh.read(_BLOC), b''):
+            h.update(bloc)
+    return h.hexdigest()
+
+
+def git_blob_sha1(path) -> str:
+    """Identifiant git d'un fichier — `sha1("blob <taille>\\0" + contenu)`, l'empreinte que le Hub
+    publie (`blob_id`) pour un fichier stocké hors LFS (2026-11-05, vérification des
+    installations). Le pendant de `sha256_of` : même lecture par blocs, même cache, sans plafond
+    (un fichier hors LFS est petit) ; `''` si illisible, jamais d'exception."""
+    global _DIGESTS
+    try:
+        p = Path(path)
+        if _DIGESTS is None:
+            from wama.common.file_cache import FileCache
+            _DIGESTS = FileCache()
+        return _DIGESTS.get(p, _git_blob_digest, key=('git-blob', str(p)))
+    except Exception:
+        return ''
+
+
 def record_provenance(instance, field, *, kind, ref='', original_name='',
                       source_path=None, user=None):
     """Enregistre d'où vient `instance.<field>`. Remplace la trace existante, ne l'empile pas.

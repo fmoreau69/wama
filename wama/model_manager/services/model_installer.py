@@ -191,25 +191,15 @@ def pull_hf_model(repo_id: str, category: str, family: str | None = None,
 # Jusque-là, `huggingface_hub` ne contrôlait que la TAILLE d'un fichier reçu (« Consistency check
 # failed: file should be of size… ») et le pilote `yolo` un plancher de 1 Mo.
 
-def git_blob_sha1(path) -> str:
-    """L'identifiant git d'un fichier — `sha1("blob <taille>\\0" + contenu)`, ce que le Hub publie
-    (`blob_id`) pour un fichier stocké hors LFS. Lu par blocs : jamais le fichier en mémoire."""
-    import hashlib
-
-    digest = hashlib.sha1(b'blob %d\0' % os.path.getsize(path))
-    with open(path, 'rb') as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b''):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def verify_hf_snapshot(repo_id: str, snapshot, *, token=None) -> dict:
     """Chaque fichier d'un snapshot du Hub confronté à ce que le Hub PUBLIE pour cette révision :
     sa taille, puis son `sha256` (fichier LFS) ou son identifiant git (les autres).
 
-    La révision est le nom du dossier (`snapshots/<commit>`) : c'est celle que la librairie a
-    tirée, donc celle dont les empreintes font foi. Un blob partagé par plusieurs chemins (LTX :
-    22 blobs pour 34 liens) n'est haché qu'une fois.
+    Composé de ce qui existe : la lecture des fichiers publiés (`prospector.hub_files`), son
+    jumeau LOCAL (`prospector.local_inventory`, un blob compté une fois — LTX : 22 blobs pour 34
+    liens) et les empreintes de fichier de la brique commune (`provenance.sha256_of`,
+    `provenance.git_blob_sha1`). La révision est le nom du dossier (`snapshots/<commit>`) : celle
+    que la librairie a tirée, donc celle dont les empreintes font foi.
 
     Un fichier qui ne correspond pas est RETIRÉ (le lien et son blob) : c'est le pendant du
     `.part` que `download_asset` efface, et une nouvelle installation ne retire que lui. Des
@@ -217,9 +207,9 @@ def verify_hf_snapshot(repo_id: str, snapshot, *, token=None) -> dict:
     lu. Rend {'ok': True, 'verified': {'against': 'published', 'count': n}, 'revision'} ou
     {'ok': False, 'error', ['removed']}.
     """
-    from wama.common.utils.provenance import sha256_of
+    from wama.common.utils.provenance import git_blob_sha1, sha256_of
 
-    from .prospector import hub_files
+    from .prospector import hub_files, local_inventory
 
     snapshot = Path(snapshot)
     revision = snapshot.name
@@ -231,28 +221,25 @@ def verify_hf_snapshot(repo_id: str, snapshot, *, token=None) -> dict:
         return {'ok': False, 'error': f"empreintes publiées de {repo_id}@{revision[:8]} "
                                       "illisibles — installation non vérifiée, donc refusée"}
     by_name = {s.rfilename: s for s in published}
-    files = sorted(p for p in snapshot.rglob('*') if p.is_file())
+    files = local_inventory(snapshot)
     if not files:
         return {'ok': False, 'error': f"{snapshot} est vide"}
-    measured, wrong, unknown = {}, [], []
-    for path in files:
-        rel = path.relative_to(snapshot).as_posix()
+    wrong, unknown = [], []
+    for rel, size in files:
         sibling = by_name.get(rel)
         if sibling is None:
             unknown.append(rel)
             continue
+        path = snapshot / rel
         lfs = getattr(sibling, 'lfs', None)
-        size = lfs['size'] if lfs else sibling.size
-        expected = str(lfs['sha256'] if lfs else (sibling.blob_id or '')).lower()
-        blob = os.path.realpath(path)
-        if size is not None and os.path.getsize(blob) != size:
-            wrong.append((path, f"{rel} : {os.path.getsize(blob)} o reçus, {size} publiés"))
+        published_size = lfs['size'] if lfs else sibling.size
+        if published_size is not None and size != published_size:
+            wrong.append((path, f"{rel} : {size} o reçus, {published_size} publiés"))
             continue
-        key = (blob, bool(lfs))
-        if key not in measured:
-            measured[key] = sha256_of(blob, limite=_NO_SIZE_CAP) if lfs else git_blob_sha1(blob)
-        if not expected or measured[key] != expected:
-            wrong.append((path, f"{rel} : empreinte {measured[key][:12]}…, "
+        expected = str(lfs['sha256'] if lfs else (sibling.blob_id or '')).lower()
+        measured = sha256_of(path, limite=_NO_SIZE_CAP) if lfs else git_blob_sha1(path)
+        if not expected or measured != expected:
+            wrong.append((path, f"{rel} : empreinte {measured[:12]}…, "
                                 f"{expected[:12] or '(aucune)'}… publiée"))
     if unknown:
         return {'ok': False, 'error': f"{repo_id}@{revision[:8]} : fichier(s) absent(s) du dépôt "
@@ -808,16 +795,15 @@ def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
     if dry_run:
         return {'ok': True, 'target': target, 'dry_run': True}
 
-    from .prospector import github_release
+    from .prospector import github_release, published_asset
     release = github_release(_YOLO_RELEASE)
     if not release:
         return {'ok': False, 'error': f"version courante de {_YOLO_RELEASE.split(':')[0]} illisible "
                                       "(API GitHub) — empreinte invérifiable, rien n'est tiré"}
-    asset = next((a for a in release.get('assets') or [] if a.get('name') == f'{base}.pt'), None)
+    asset = published_asset(release, f'{base}.pt')
     if asset is None:
         return {'ok': False, 'error': f"{base}.pt absent de la version {release.get('tag_name')}"}
-    digest = str(asset.get('digest') or '')
-    sha256 = digest[len('sha256:'):].lower() if digest.startswith('sha256:') else ''
+    sha256 = asset['sha256']
     verified = {'against': 'published', 'count': 1} if sha256 else {'against': 'size', 'count': 1}
     if os.path.exists(target):
         from wama.common.utils.provenance import sha256_of
@@ -834,7 +820,7 @@ def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
     # Garde-fou : une page d'erreur HTML ferait un .pt de quelques Ko ; sans empreinte publiée,
     # la taille publiée est le contrôle le plus fort qui reste.
     res = download_asset(url, target, timeout=timeout, min_bytes=1_000_000, sha256=sha256,
-                         size=0 if sha256 else int(asset.get('size') or 0),
+                         size=0 if sha256 else asset['size'],
                          proxies=proxies_for('github'))
     return {**res, 'verified': verified} if res.get('ok') else res
 
