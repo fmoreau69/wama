@@ -28026,6 +28026,9 @@ Reader la cite encore (`app.py:483` liste toutes les lignes de l'app). La route 
 re-désinstaller (« pas de poids », `model_installer.py:1777`). Deux voies : reposer la marque en base
 (écriture hors route, non faite sans accord), ou décider qu'une ligne REMPLACÉE sort des `requires`
 de son app (changer `_models`, effet sur tout le corpus).
+→ ✅ **Soldée** (constat du 2026-11-05, `§PALIER 2026-11-05`) : la ligne porte de nouveau sa marque
+de désinstallation depuis le 2026-11-02 (`uninstalled_q` vrai), sort des `requires` du Reader et de
+`manifest_export --check` ; olmOCR-2, installé, lui succède.
 
 **⏳ Restes, à cette session** (tous consignés au point 7 de `PROSPECTION_PIPELINE`) : une ligne
 qu'aucune source ne note plus garde sa dernière mesure (le rapport dit « reste NULL ») ; variantes
@@ -28440,3 +28443,44 @@ ajoute les tests nécessaires »*. Détail : `PROSPECTION_PIPELINE.md §Session 
   `request_install`, journalisé, 2,9 Go + 75 Mo) ; (3) vérification réelle : une card du
   Transcriber, `/stt` du service de voix, la sonde des langues ; (4) retrait des dossiers plats
   `speech/whisper/faster-whisper-{large-v3,tiny}` (R216 ⏳ disque) et commit des manifestes.
+
+## §CLÔTURE 2026-11-05, « CACHE DES POIDS, PUIS LES POINTS OUVERTS DU 02/11 » — session du 03→05/11 — `a4fc3b58b` poussé, R215 non poussé — 🔴 relancer gunicorn + workers — 🔚 portage des apps (session fraîche, demande de Fabien)
+
+Revérification (`/reverif`) après `fac2b2b65`, puis clôture. Ce qu'elle a ramené, dans ce commit :
+- **Une redite de ma main** : `unguarded_routes` refaisait le test des routes du substrat
+  (`ROUTES_SUBSTRAT`) déjà fait par `app_id_for_path` → `permissions._substrate_route`, lu par
+  les deux. Aucun autre parcours de l'URLconf dans le substrat (`grep url_patterns|namespace_dict`
+  : `rights_matrix._namespaces_complets` construit la carte des espaces de noms, une autre
+  lecture ; les autres sont des tests).
+- **Une garde qui manquait** : le critère `access_guard_routes` n'était testé que par sa lecture.
+  `tests_access_points.test_the_grid_criterion_measures_the_route_coverage_not_a_decorator`
+  (vert, rouge avec les routes manquées, non applicable sans routes ; `app_access_view` absent).
+- **Deux renvois ouverts soldés** : `ROUTE §11` n° 45 (« ⏳ Deux questions à Fabien » → ✅ R215) et
+  la « 🔴 Décision ouverte » `reader:olmocr` du `§CLÔTURE 2026-11-01` ; le relevé du 2026-06-25
+  de `PROFILES_PERMISSIONS §6` dit le retrait.
+
+| livrable | gardé par |
+|---|---|
+| `permissions.unguarded_routes`, `_substrate_route` | `tests_access_points` (toutes les routes ; chemin hors préfixe ; page du model manager gardée malgré l'exemption) |
+| critère `access_guard_routes` | `tests_access_points` (ci-dessus) |
+| générateur sans `app_access` | `tests_codegen_lot` |
+| gardes de l'imager retirées | `imager.tests_task` (contre-épreuve ROUGE avec l'ancienne garde) |
+| port `read_lines` de `translator.ocr` | `tests_process_pipeline` sur la jumelle |
+
+**Contrôles mesurés le 2026-11-05** : 286 tests ciblés (accès, imager, générateur, gardes
+transverses) — rouges, aucun de cette session : `tests_identifier_language` (classes 133 > 132,
+`CanvasPoseTheNodeFromPipelinesTest`, `efe1b4490` ; code 3970 > 3969 par le travail non commité
+d'autres sessions — liste nominative filtrée sur mes fichiers : vide), `tests_docs_catalog.
+test_chaque_mecanisme_a_sa_section` (225 ≠ 226 : mécanisme `source_facts` ajouté non commité par
+une autre session, `docs/dev/briques.md` à régénérer). `check_docs` 0 cassée sur 3816 ;
+`check_redundancy` 112, aucune dans mes fichiers.
+
+**Laissé dans l'arbre, nommé** : `WAMA_MECANISMES.md` (généré) porte ma ligne « `app_access` —
+**2** app(s) » (l'avatarizer n'importe plus `permissions`), mêlée au réordonnancement d'autres
+sessions : elle partira avec la prochaine régénération commitée. Le reste de l'arbre est à
+d'autres sessions (manifestes, API v1, assistant, model manager, rapports).
+
+🔚 **POINT D'ENTRÉE** : terminer le portage des apps (Fabien, session fraîche).
+**Pendings système** : relancer gunicorn + workers (vues sans décorateur, tâches de l'imager) ;
+pousser `fac2b2b65` et le commit de cette clôture (à demander) ; jumelles régénérées
+(gitignorées) servies seulement après la relance.

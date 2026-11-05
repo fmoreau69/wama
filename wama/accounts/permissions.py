@@ -229,6 +229,12 @@ ROUTES_SUBSTRAT = (
 )
 
 
+def _substrate_route(path) -> bool:
+    """Le chemin est-il un service du substrat logé sous le préfixe d'une app (`ROUTES_SUBSTRAT`) ?"""
+    p = path.strip('/')
+    return any(p == prefix or p.startswith(prefix + '/') for prefix in ROUTES_SUBSTRAT)
+
+
 def app_id_for_path(path):
     """app_id gardé correspondant à un chemin de requête, ou None.
 
@@ -236,10 +242,9 @@ def app_id_for_path(path):
     chemin hors app comme pour un service du substrat logé sous le préfixe d'une app
     (cf. `ROUTES_SUBSTRAT`).
     """
+    if _substrate_route(path):
+        return None
     p = path.strip('/')
-    for prefix in ROUTES_SUBSTRAT:
-        if p == prefix or p.startswith(prefix + '/'):
-            return None
     for prefix, app_id in PATH_APP_MAP:
         if p == prefix or p.startswith(prefix + '/'):
             return app_id
@@ -275,10 +280,8 @@ def unguarded_routes(app_id) -> list:
     paths = list(walk(get_resolver().url_patterns, '', None))
     if not paths:
         return None
-    exempt = lambda path: any(path.strip('/') == s or path.strip('/').startswith(s + '/')
-                              for s in ROUTES_SUBSTRAT)
     return [(path, app_id_for_path(path)) for path in paths
-            if app_id_for_path(path) != app_id and not exempt(path)]
+            if app_id_for_path(path) != app_id and not _substrate_route(path)]
 
 
 def refused_app(user, path, allowed_apps=None):

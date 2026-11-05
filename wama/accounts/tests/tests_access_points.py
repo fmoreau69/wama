@@ -89,6 +89,23 @@ class PointDApplicationTests(TestCase):
         with mock.patch.object(permissions, 'app_id_for_path', return_value=None):
             self.assertTrue(permissions.unguarded_routes('imager'))
 
+    def test_the_grid_criterion_measures_the_route_coverage_not_a_decorator(self):
+        """`access_guard_routes` (F7) is green when every route is judged, red with the routes it
+        misses, not applicable to an app with no routes of its own."""
+        from types import SimpleNamespace
+        from wama.accounts import permissions
+        from wama.common.services import conformity_checker as cc
+        criterion = next(c for c in cc.CRITERIA if c.key == 'access_guard_routes')
+        self.assertIs(True, criterion.fn(SimpleNamespace(app='imager'))[0])
+        with mock.patch.object(permissions, 'unguarded_routes',
+                               return_value=[('/imager/x/', None)]):
+            state, evidence = criterion.fn(SimpleNamespace(app='imager'))
+        self.assertIs(False, state)
+        self.assertIn('/imager/x/', evidence)
+        with mock.patch.object(permissions, 'unguarded_routes', return_value=None):
+            self.assertIsNone(criterion.fn(SimpleNamespace(app='imager'))[0])
+        self.assertNotIn('app_access_view', {c.key for c in cc.CRITERIA})
+
     def test_la_PAGE_du_model_manager_reste_gardee_malgre_l_exemption_de_ses_api(self):
         """L'exemption du substrat ne doit JAMAIS déborder sur les pages.
 

@@ -385,7 +385,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | `item_revisions` — Révisions d'un élément (historique DANS la card) | **4** app(s) : composer, describer, reader, transcriber | `wama/common/services/revisions.py` |
 | `video_utils` — Utilitaires vidéo | **4** app(s) : anonymizer, converter, enhancer, transcriber | `wama/common/utils/video_utils.py` |
 | `work_dir` — Dossier de travail jetable | **4** app(s) : avatarizer, describer, enhancer, reader | `wama/common/utils/work_dir.py` |
-| `app_access` — Accès aux éléments (apps aujourd'hui) | **3** app(s) : avatarizer, synthesizer, transcriber | `wama/accounts/permissions.py` |
+| `app_access` — Accès aux éléments (apps aujourd'hui) | **2** app(s) : synthesizer, transcriber | `wama/accounts/permissions.py` |
 | `document_export` — Export document | **3** app(s) : describer, reader, transcriber | `wama/common/utils/document_export.py` |
 | `ffmpeg` — Accès ffmpeg | **3** app(s) : converter, describer, transcriber | `wama/common/utils/ffmpeg_utils.py` |
 | `llm` — Accès LLM | **3** app(s) : describer, reader, transcriber | `wama/common/utils/llm_utils.py` |
