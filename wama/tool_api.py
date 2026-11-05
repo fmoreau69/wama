@@ -2137,6 +2137,21 @@ def _benchmark_summary(m):
             'provenance': meta.get('provenance')}
 
 
+def _internal_summary(m) -> list:
+    """Ce que WAMA a MESURÉ elle-même de ce modèle (`internal_quality`, étage 3), chaque échelle
+    avec le rapport qui la présente (`common.reports.reports_evaluating`) — la lecture du model
+    manager, jamais une seconde."""
+    from wama.common.reports import reports_evaluating
+    from wama.model_manager.services.internal_quality import internal_scores
+    scales = internal_scores([m.model_key]).get(m.model_key) or []
+    reports = reports_evaluating([m.model_key]).get(m.model_key) or []
+    return [{**{k: s[k] for k in ('scale', 'value', 'direction', 'items', 'unit', 'rank',
+                                  'population', 'measured_until')},
+             'reports': [{'label': r['label'], 'date': r['date'], 'url': r['url']}
+                         for r in reports if s['scale'] in r['scales']]}
+            for s in scales]
+
+
 @tool_effect(READ)
 def get_ai_model(user, model_key: str) -> dict:
     """
@@ -2146,8 +2161,10 @@ def get_ai_model(user, model_key: str) -> dict:
     Returns the complete metadata: `source` (an app, a remote provider or a platform), `origin`
     (where it runs, who serves it, what it costs — e.g. « Cloud commercial · Claude Code ·
     abonnement »), descriptions, capabilities, footprints (vram/ram/disk), license + author,
-    platform_ref, quality_index, `benchmark` (third-party score, or null), states. For the
-    install choices of a proposal, see get_install_options.
+    platform_ref, quality_index, `benchmark` (third-party score, or null), `internal_quality`
+    (what WAMA measured itself against human references, each scale with the WAMA `reports`
+    that present it — give the user that link), states. For the install choices of a proposal,
+    see get_install_options.
     """
     from wama.model_manager.models import AIModel
 
@@ -2169,6 +2186,7 @@ def get_ai_model(user, model_key: str) -> dict:
         'available': m.is_available, 'proposed': m.is_proposed,
         'last_used_at': m.last_used_at.isoformat() if m.last_used_at else None,
         'benchmark': _benchmark_summary(m),
+        'internal_quality': _internal_summary(m),
         **_runnable_verdict(m),
     }
 

@@ -842,8 +842,7 @@ def reports(app_id: str) -> list:
     """Les rapports publiés qui parlent de l'app (déclarés dans `common/reports.py`), avec leur
     adresse et leur date — une jumelle montre ceux de sa source."""
     from wama.common.reports import reports_for
-    return [{**r, 'url': reverse('report', args=[r['slug']])}
-            for r in reports_for(declaration_key(app_id))]
+    return reports_for(declaration_key(app_id))
 
 
 def about_facts(app_id: str, groups=None) -> dict:

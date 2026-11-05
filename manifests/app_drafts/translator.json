@@ -1,7 +1,7 @@
 {
   "key": "translator",
   "name": "Translator",
-  "description": "Traduit du texte et des documents (TXT, MD, DOCX, PDF) d'une langue à l'autre via un modèle de traduction du catalogue. Deux modes : saisie libre avec résultat instantané à la frappe (à la DeepL), ou dépôt d'un fichier traduit en tâche avec aperçu au fil des morceaux — le document traduit garde sa forme d'origine, dans son format (brique `translator.translate_document`). Réglages : langue source (auto), langue cible, glossaire de termes à préserver, modèle.",
+  "description": "Traduit du texte et des documents (TXT, MD, DOCX, PDF) d'une langue à l'autre via un modèle de traduction du catalogue. Deux modes : saisie libre avec résultat instantané à la frappe (à la DeepL), ou dépôt d'un fichier traduit en tâche avec aperçu au fil des morceaux — le document traduit garde sa forme d'origine, dans son format. Réglages : langue source (auto), langue cible, glossaire de termes à préserver, modèle.",
   "manifest_kind": "app",
   "schema_version": "1.0",
   "world": "media",

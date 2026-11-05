@@ -80,6 +80,44 @@ class ReadOnlyByConstructionTest(TestCase):
         self.assertNotIn('internal', model.benchmark_meta or {})
 
 
+class EachScaleLeadsToItsReportTest(TestCase):
+    """« Le modèle, de même qu'il porte une note d'évaluation interne, devrait faire le lien avec le
+    rapport d'évaluation qui le contient » (Fabien, 2026-11-05). The report page states what it
+    evaluates (`common.reports.report_evaluations`) ; each scale carries the reports that present
+    IT — a report about the same model on another scale is not linked to this one."""
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='transcriber:whisper', name='Whisper', source='transcriber')
+        _measure(1, 'transcriber:whisper', 1, 10)                  # internal_wer_text_v1
+        _measure(1, 'transcriber:whisper', 2, 40, metric='cer')    # internal_cer_text_v1
+        self.user = User.objects.create_user('internal_report_reader', password='x')
+
+    def _evaluated(self, slug):
+        return {'transcription': {'transcriber:whisper': ['internal_wer_text_v1']}}.get(slug, {})
+
+    def test_the_catalogue_list_links_the_scale_its_report_presents(self):
+        from unittest import mock
+        self.client.force_login(self.user)
+        with mock.patch('wama.common.reports.report_evaluations', side_effect=self._evaluated):
+            rows = self.client.get('/model-manager/api/models/db/?source=transcriber').json()['models']
+        scales = {s['scale']: s for s in next(r for r in rows
+                                              if r['model_key'] == 'transcriber:whisper')['internal_quality']}
+        self.assertEqual(['/reports/transcription/'],
+                         [r['url'] for r in scales['internal_wer_text_v1']['reports']])
+        self.assertEqual([], scales['internal_cer_text_v1']['reports'],
+                         'the report does not present this scale')
+
+    def test_the_assistant_reads_the_same_link(self):
+        from unittest import mock
+        from wama import tool_api
+        with mock.patch('wama.common.reports.report_evaluations', side_effect=self._evaluated):
+            out = tool_api.get_ai_model(self.user, 'transcriber:whisper')
+        scales = {s['scale']: s['reports'] for s in out['internal_quality']}
+        self.assertEqual(['/reports/transcription/'], [r['url'] for r in scales['internal_wer_text_v1']])
+        self.assertEqual([], scales['internal_cer_text_v1'])
+
+
 def _upscaler(key, vram_gb):
     from wama.model_manager.models import AIModel
     return AIModel.objects.create(

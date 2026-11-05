@@ -1483,9 +1483,18 @@ de P4 (ci-dessus) : une case recalculée la nuit → le rapport se régénère.
 **Où vivent les rapports** : pour l'instant une catégorie « Rapports » dans le menu « Présentations &
 annexes » de l'accueil (2026-10-03), et depuis le 2026-11-03 (demande de Fabien) une ligne
 « Rapports » dans l'onglet « À propos » de l'app dont ils parlent — c'est là que se pose la question
-« pourquoi ce moteur ? ». ⏳ Un lien depuis CHAQUE modèle évalué (« Modèles et publications »)
-attend qu'un rapport déclare les modèles qu'il mesure (possible pour celui de l'Anonymizer, généré
-des mesures ; pas pour la graine de la transcription). Quand ils seront générés et nombreux, une page dédiée qui les
+« pourquoi ce moteur ? ». ✅ Et depuis le 2026-11-05 (demande de Fabien : « le modèle, de même
+qu'il porte une note d'évaluation interne, devrait faire le lien avec le rapport d'évaluation qui
+le contient ») depuis CHAQUE modèle évalué : un rapport DIT dans sa page ce qu'il évalue, comme il
+y dit sa date — `{clé de modèle: [échelle interne]}`, écrit par son générateur
+(`shell_page.fill_shell(evaluations=)` ; celui de l'Anonymizer le tire de ses mesures, la graine de
+la transcription le recopie comme ses graphiques) et lu par `common/reports.reports_evaluating`.
+Chaque échelle de la « Mesure interne » du model manager mène au rapport qui la présente, la ligne
+du modèle dans « Modèles et publications » aussi, et l'assistant le lit (`get_ai_model`,
+`internal_quality[].reports`). Gardes : `tests_app_about.ReportsStateWhatTheyEvaluateTest` (ce que
+le générateur écrit est ce que WAMA lit ; les modèles cités sont au catalogue, les échelles
+internes), `ModelsAndPublicationsLinkTheirReportTest`, `tests_internal_quality.EachScaleLeadsToItsReportTest`
+(une échelle que le rapport ne présente pas n'est pas liée). Quand ils seront générés et nombreux, une page dédiée qui les
 liste depuis la même déclaration (filtre par domaine, date, modèle), le menu ne gardant que les
 derniers — décision à prendre à ce moment-là, pas avant.
 

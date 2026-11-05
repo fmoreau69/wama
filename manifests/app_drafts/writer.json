@@ -97,7 +97,7 @@
             "choices": [["html", "HTML"]],
             "contexts": ["item", "batch", "panel"],
             "default": "html",
-            "help": "Format du rendu. HTML seul au premier jet ; les autres formats s'ajouteront ici (ROADMAP §21.5).",
+            "help": "Format du rendu. HTML pour l'instant ; les autres formats s'ajouteront ici.",
             "icon": "fa-file-code",
             "label": "Format de sortie",
             "name": "output_format",
@@ -305,7 +305,7 @@
       }
     }
   },
-  "description": "Rédige un document (présentation, rapport, page web, CV) à partir d'une consigne et d'un document de référence : le fond est écrit par un LLM, puis mis en forme dans le format de sortie (HTML d'abord). Cas d'épreuve de la route « app de zéro » (ROADMAP §21.5, ROUTE §10.5).",
+  "description": "Rédige un document (présentation, rapport, page web, CV) à partir d'une consigne et d'un document de référence : le fond est écrit par un modèle de langage, puis mis en forme dans le format de sortie (HTML d'abord).",
   "key": "writer",
   "manifest_kind": "app",
   "name": "Writer",

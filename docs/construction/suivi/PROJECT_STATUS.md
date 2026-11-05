@@ -28336,3 +28336,78 @@ Fabien : *« ce sont des correctifs à appliquer »* (les quatre points laissés
   sa marque de désinstallation depuis le 2026-11-02 (`uninstalled_q` vrai), sort des `requires` du
   Reader (`app._models`), et `manifest_export --check` ne la cite plus — olmOCR-2 installé lui
   succède. Rien à faire.
+
+## §PALIER 2026-11-05, « RESTES 3, 4, 5 DE LA CLÔTURE 2026-11-01→04 : RAPPORT D'ÉVALUATION LIÉ À CHAQUE MODÈLE, « ENVOYER VERS » VERS UNE APP NÉE D'UN MANIFESTE, DONNÉE INVENTÉE REFUSÉE AVANT L'OUTIL » — ce commit (local, non poussé)
+
+**Décisions de Fabien, 2026-11-05** : le point 2 (les 9 jumelles qui redéfinissent `about_content`)
+revient à la session PORTAGE, qui les régénère avec la fin du portage des apps. Les points 3, 4, 5
+sont faits ici, « proprement, en profondeur, sans rien réinventer, tests ajoutés ».
+
+**3. Le modèle mène au rapport qui l'évalue** (« le modèle, de même qu'il porte une note
+d'évaluation interne, devrait faire le lien avec le rapport d'évaluation qui le contient »).
+Vérifié d'abord : un modèle PORTE une note interne — l'étage 3, `internal_quality.internal_scores`,
+rabattu à la lecture depuis `ResultEvaluation` (43 modèles mesurés le 05/11), affiché « Mesure
+interne » au model manager. Le rapport DIT dans sa page ce qu'il évalue, comme sa date :
+`<meta name="wama-evaluations">` `{clé: [échelle interne]}`, écrit par `shell_page.fill_shell(evaluations=)`
+(Anonymizer : tiré de ses mesures, page régénérée — seuls la ligne et la date changent ;
+transcription : graine, constante recopiée comme ses graphiques, ligne posée par le même rendu
+faute de l'export Claude Docs non versionné), lu par `common/reports.reports_evaluating`. Servi :
+chaque échelle de « Mesure interne » (model manager) mène au rapport qui la présente ; « Modèles et
+publications » (À propos) lie le rapport à côté de la fiche ; `get_ai_model` le dit à l'assistant.
+
+**4. « Envoyer vers… » et le Writer — pas propre au Writer.** Mesuré : les DEUX apps nées d'un
+manifeste (writer_01, translator_01) manquaient au menu (`importer_for` ne dérivait que d'une
+source). ✅ Leur importeur se DÉRIVE de leur outil de création (`tool_api.add_to_<label>`, né de
+la vue de dépôt de la card — le chemin que l'assistant et le Studio prennent déjà) : fichier pointé
+ou copié comme par tout importeur, désigné au premier port de la card qui prend sa nature
+(`app_registry.file_ports_for`). Le jargon : les deux manifestes (`manifests/app_drafts/`) — la
+description du Writer citait « ROADMAP §21.5, ROUTE §10.5 », l'aide de son format « ROADMAP §21.5 »,
+celle du Translator une brique de code ; les 10 apps et leurs manifestes, propres (scan des 475
+textes affichés). Corrigés à la source, appliqués par la route (`app_sandbox substitute writer_01
+params`, idem translator_01 : params identiques, fiche de catalogue relue). `created_by` en
+identifiant de compte : PAS un défaut — c'est la convention de toute provenance stockée en JSON
+(`user_skills`, `user_pronunciations`, `media_library.keywords`, le bac à sable), le nom affiché se
+résout à la lecture (`app_about.origin`).
+
+**5. La date de naissance de la card 399 — diagnostic CORRIGÉ.** La clôture du 04/11 l'attribuait
+au modèle de rédaction du Writer : FAUX. Mesuré au fil (`tool_steps`) : l'ASSISTANT a lu le PDF par
+le reader (texte complet, aucune date de naissance) puis a écrit « Né en Avril 2002 » dans la
+consigne de `add_to_writer_01` ; le Writer l'a mise en page. ✅ Contrôle avant tout outil qui ÉCRIT :
+une année, une adresse électronique, un téléphone qu'aucune source du tour ne porte (résultats
+d'outils, message, messages précédents de l'utilisateur — jamais les arguments ni les réponses de
+l'assistant) fait refuser l'appel (`assistant_engine._unsourced_write_facts`, brique
+`common/utils/source_facts`, mécanisme `source_facts`). ⚠ La card 399 elle-même n'est PAS
+corrigée : la relancer sans cette ligne est un geste sur le compte de Fabien (proposé, non fait).
+
+**Gardes** : `tests_app_about.ReportsStateWhatTheyEvaluateTest` / `ModelsAndPublicationsLinkTheirReportTest`
+/ `NoDisplayedTextCitesTheConstructionTest`, `tests_internal_quality.EachScaleLeadsToItsReportTest`,
+`filemanager.tests.BornAppImporterTests`, `tests_unsourced_links.SourceFactsTest` /
+`UnsourcedWriteFactsTest` (le tour de la card 399 rejoué) — contre-épreuve de chacune : brique
+neutralisée, garde rouge. Mesuré (WSL, 39 modules, gardes transverses et tests des tours
+d'assistant compris) : **944** tests, rouges NOMMÉS, pas à cette session : `tests_identifier_language`
+×4 (classes 133 > 132, méthodes 1291 > 1288 ; aucun nom de mes fichiers dans la liste) ;
+`tests_docs_catalog.test_chaque_mecanisme_a_sa_section` — à moi, soldé par la régénération de
+`docs/dev/briques.md`. `check_docs` 0 cassée sur 3816 ; `check_redundancy` 100 (101 avant), aucune
+dans mes fichiers ; `doc_facts` : `mecanismes` et `dev-briques` régénérés, seules mes lignes commitées
+(les blocs restent périmés par le travail non commité d'autres sessions).
+
+**Décisions de Fabien du 05/11, chantier OUVERT, rien d'écrit** :
+- **Composer, réglages selon les capacités du modèle** : « quelle capacité du modèle rend ce réglage
+  utile ? » ; les capacités des modèles doivent être exhaustives et les réglages, comme les entrées,
+  suivre le modèle choisi ; une SECTION de process sans objet pour le modèle est CACHÉE. Mesuré : le
+  pipeline du composer décide déjà par modèle (`function_specs` : `applies` → `supports_vocals`,
+  `covers_audio_by_score`, `plans_a_score`), mais en fonctions Python que l'interface ne lit pas ;
+  « Partition de sortie » n'a AUCUNE condition (un bruitage serait transcrit en partition) ;
+  « Voix » est nommée par `supports_vocals` sans liaison ; le critère `model_caps_ui` est vert dès
+  qu'UN réglage déclare `cap_from` ; `cap_from reads` traite une capacité absente comme inconnue,
+  `capabilitySlot` comme « non ». Audit de la flotte (lecture seule) : seul `vocals` est un trou
+  « nommé par une capacité sans liaison » ; les autres trous sont des réglages qu'aucune capacité ne
+  nomme encore.
+- **Réglages d'un lot appliqués aux filles** (question de Fabien) : la règle du 03/11 tient
+  (`MODES_QUEUE_UX §5ter` — la ⚙ de lot ne pose que ce que les filles partagent ou ce que
+  l'utilisateur touche ; « réaligner » efface les réglages individuels par définition). Trou relevé
+  à l'analyse : « promouvoir » et « réaligner » reposent aussi un réglage DÉRIVÉ d'une entrée
+  (`Param.default_from`, la durée d'un cover) — la durée d'une fille écraserait celle de ses sœurs.
+
+**À relancer** : gunicorn et les workers (vues, `tool_api`, moteur de l'assistant, importeurs) ;
+la passerelle et le serveur MCP (moteur de l'assistant). Les gabarits sont lus à chaud.

@@ -1651,19 +1651,27 @@ document.addEventListener('DOMContentLoaded', function() {
             {% comment %} Étage 3 — la MESURE INTERNE (2026-09-23, `services/internal_quality`) :
             ce que WAMA a mesuré elle-même contre une référence humaine. En LECTURE seulement
             (elle n'entre dans aucun tri). L'accumulation est DITE — une note sur trois phrases est
-            une anecdote — et le rang ne vaut qu'entre modèles mesurés sur les MÊMES références. {% endcomment %}
-            { k: 'Mesure interne', get: function (m) {
-                const scales = m.internal_quality || [];
+            une anecdote — et le rang ne vaut qu'entre modèles mesurés sur les MÊMES références.
+            Chaque échelle mène au RAPPORT qui la présente (`reports`, lu dans les pages des rapports
+            par `common.reports.reports_evaluating`, 2026-11-05). {% endcomment %}
+            { k: 'Mesure interne', get: function (m) { return m.internal_quality || []; },
+              render: function (scales) {
+                const esc = WamaApp.escapeHtml;
                 return scales.map(function (s) {
                     const rank = s.rank != null
                         ? ' · ' + s.rank + '/' + s.population + ' sur les mêmes références' : '';
-                    return s.metric.toUpperCase() + ' ' + (s.value * 100).toFixed(1) + ' %'
+                    const reports = (s.reports || []).map(function (r) {
+                        return ' <a href="' + esc(r.url) + '" target="_blank" rel="noopener" data-evaluation-report>'
+                            + '<i class="fas fa-chart-column me-1"></i>' + esc(r.label) + '</a>'
+                            + (r.date ? ' (' + esc(r.date) + ')' : '');
+                    }).join('');
+                    return esc(s.metric.toUpperCase() + ' ' + (s.value * 100).toFixed(1) + ' %'
                         + (s.direction === 'lower' ? ' (plus bas = mieux)' : '')
                         + ' — ' + s.items + ' élément' + (s.items > 1 ? 's' : '') + ', '
                         + s.references + ' référence' + (s.references > 1 ? 's' : '') + ', '
                         + Math.round(s.reference_words) + ({ character: ' caractères',
-                            second: ' s de parole' }[s.unit] || ' mots') + rank;
-                }).join(' · ');
+                            second: ' s de parole' }[s.unit] || ' mots') + rank) + reports;
+                }).join('<br>');
             } },
             { k: 'Indice a priori', get: function (m) {
                 return m.quality_index != null ? m.quality_index : '';

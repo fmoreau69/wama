@@ -2807,6 +2807,29 @@ d'abord un OCR en échec maquillé en succès.**
      battement 60 s → pile de tous les fils dans `gateway-discord.log` (la cause des coupures,
      enfin lisible) ; 300 s gelée ou 600 s déconnectée → le process se relance (`os.execv`).
 
+### ⭐ 2026-11-05 — une donnée INVENTÉE dans les ARGUMENTS d'un outil (card 399 du Writer)
+
+Le CV de la card 399 (Writer, compte de Fabien, 2026-11-01) porte « Né en avril 2002 », que le
+PDF source ne contient pas. Mesuré au fil (`tool_steps`) : ce n'est PAS le modèle de rédaction du
+Writer — la clôture du 04/11 l'avait écrit, à tort —, c'est l'ASSISTANT : après avoir lu le PDF par
+le reader (`get_item_result`, texte complet, aucune date de naissance), il a écrit la consigne de
+`add_to_writer_01` avec cette ligne. Le Writer l'a fidèlement mise en page. Les contrôles de sortie
+(`_strip_unsourced_urls`, `_unsourced_job_ids`) ne regardaient que la RÉPONSE ; la donnée partait
+dans les ARGUMENTS.
+
+✅ Contrôle, pas consigne : avant tout outil qui ÉCRIT (`tool_api.effect_of` = `write`), ses
+arguments sont confrontés aux sources du tour — RÉSULTATS d'outils (jamais leurs arguments : un
+appel refusé ne source pas sa reprise), message, messages précédents DE L'UTILISATEUR (jamais ceux
+de l'assistant). Une année, une adresse électronique ou un téléphone qu'aucune ne porte fait
+refuser l'appel (`assistant_engine._unsourced_write_facts`, brique `common/utils/source_facts`) :
+le modèle corrige son appel ou demande la donnée, et l'utilisateur le voit par la trace
+(`_refusals_notice`). Ce qui ne se vérifie pas sans modèle (un nom, une phrase reformulée) n'est
+pas jugé. Gardes : `tests_unsourced_links.SourceFactsTest` et `UnsourcedWriteFactsTest` — le tour
+de la card 399 rejoué (refusé avant l'outil), contre-épreuves : ce que le reader a lu passe, une
+date que l'utilisateur a écrite deux tours plus tôt passe, une réponse passée de l'assistant ne
+source rien. ⚠ La card 399 elle-même n'est pas corrigée : la relancer sans cette ligne est un
+geste sur le compte de Fabien.
+
 ### ⭐ 2026-11-01 — « régénère une présentation avec le Writer » : quatre défauts sous le même fil (n° 43)
 
 > Mesuré au fil PERSISTÉ (`ConversationTurn.tool_steps`, skill `/diagnostic-assistant`), 14:25 →

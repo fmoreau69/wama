@@ -118,6 +118,22 @@ def chart_pre():
         'audio de l\'enhancer. VAD automatique sauf mention.</p></figure>')
 
 
+# ── Ce que le rapport évalue : les modèles mesurés et leurs échelles internes ────────────────
+# Recopié comme les graphiques (graine) : l'erreur par mot (`text_v2`) des huit moteurs comparés,
+# la diarisation (`diar_v1`) des deux pyannote. La page le porte (`fill_shell(evaluations=)`), et la
+# mesure interne de chaque modèle mène au rapport (`wama.common.reports`).
+from wama.model_manager.services.internal_quality import scale_name  # noqa: E402
+
+_WER = [scale_name('wer', 'text_v2')]
+_DIAR = [scale_name('cpwer', 'diar_v1'), scale_name('der', 'diar_v1')]
+EVALUATIONS = {
+    'transcriber:whisper': _WER, 'transcriber:qwen3-asr-1.7b': _WER,
+    'transcriber:canary-1b-v2': _WER, 'transcriber:parakeet-tdt-0.6b-v3': _WER,
+    'albert:whisper-large-v3': _WER, 'huggingface:linagora/linto_stt_fr_fastconformer_pc': _WER,
+    'huggingface:kyutai/stt-1b-en_fr-trfs': _WER, 'huggingface:aihpi/FrWhisper': _WER,
+    'transcriber:pyannote-diarization': _DIAR, 'huggingface:pyannote/speaker-diarization-community-1': _DIAR,
+}
+
 md = SOURCE.read_text(encoding='utf-8').splitlines()
 assert md[0].startswith('# '), md[0]
 title = md[0][2:].strip()
@@ -150,6 +166,6 @@ page = fill_shell(
              "  §9bis porte les mesures et leur lecture. Même enveloppe que `wama_fiches.html`.\n"),
     foot=("Mesures du compte d'évaluation de WAMA, rangées par lot et par modèle. Le détail et sa lecture "
           "vivent dans la doc de construction (qualité des modèles)."),
-    body=rendered)
+    body=rendered, evaluations=EVALUATIONS)
 OUT.write_text(page, encoding='utf-8')
 print('written', OUT, len(page), 'bytes')

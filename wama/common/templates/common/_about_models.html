@@ -17,6 +17,13 @@ sont ceux des selects de l'app, les publications celles que l'auteur rattache à
                 <a href="{{ m.platform_url }}" target="_blank" rel="noopener" class="text-info me-3">
                     <i class="fas fa-cube me-1"></i>Fiche du modèle</a>
                 {% endif %}
+                {% comment %}Le rapport de WAMA qui évalue ce modèle (sa mesure interne), lu dans la page du
+                rapport — `reports.reports_evaluating`, 2026-11-05.{% endcomment %}
+                {% for r in m.reports %}
+                <a href="{{ r.url }}" target="_blank" rel="noopener" class="text-info me-3" data-model-report
+                   title="Évalué dans WAMA{% if r.date %}, {{ r.date }}{% endif %}">
+                    <i class="fas fa-chart-column me-1"></i>{{ r.label }}</a>
+                {% endfor %}
                 {% comment %}Une carte cite parfois ses jeux de données et ses fondations (11 articles
                 pour Canary) : la première publication est celle du modèle, le reste se replie.{% endcomment %}
                 {% for p in m.publications|slice:":3" %}

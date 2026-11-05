@@ -338,3 +338,82 @@ class RefusalsNoticeTest(TestCase):
         from wama.common.services.assistant_engine import _refusals_notice
         self.assertEqual('', _refusals_notice([{'tool': 'install_model',
                                                 'result': {'started': True}}]))
+
+
+#: The text the reader extracted from the CV (card 399, 2026-11-01) — no birth date in it.
+CV_TEXT = ("24,Allée de Verdun\n69500, Bron\n06 64 71 66 41\ndearaujomaxime@gmail.com\nMaxime\n"
+           "DE ARAUJO\nMars 2025 à Mars 2026  GEIQ OUVRIER PAYSAGISTE\nFÉVRIER 2011 À JUIN 2012 : BEP")
+
+
+class SourceFactsTest(TestCase):
+    """The checkable facts of a text and those no source carries (`common/utils/source_facts`)."""
+
+    def test_the_facts_of_a_text_are_its_years_emails_and_phones(self):
+        from wama.common.utils.source_facts import checkable_facts
+        self.assertEqual([('phone', '06 64 71 66 41'), ('email', 'jean.dupont@gmail.com'), ('year', '2002')],
+                         checkable_facts('Tél. 06 64 71 66 41, jean.dupont@gmail.com, né en 2002, 1024 px'))
+
+    def test_what_the_source_carries_is_sourced_whatever_its_form(self):
+        from wama.common.utils.source_facts import unsourced_facts
+        written = ('Né en Avril 2002. Contact : +33 6 64 71 66 41, DeAraujoMaxime@gmail.com. '
+                   'GEIQ, mars 2025 – mars 2026 ; BEP 2011-2012.')
+        self.assertEqual(['2002'], unsourced_facts(written, CV_TEXT))
+        self.assertEqual([], unsourced_facts(written, [CV_TEXT, 'il est né en 2002']))
+
+    def test_an_invented_phone_or_email_is_unsourced_and_a_typo_year_sources_nothing(self):
+        from wama.common.utils.source_facts import unsourced_facts
+        self.assertEqual(['07 11 22 33 44', 'm.dearaujo@orange.fr'],
+                         unsourced_facts('07 11 22 33 44 / m.dearaujo@orange.fr', CV_TEXT))
+        # « Avril 20026 » (the source's typo) carries no year 2002.
+        self.assertEqual(['2002'], unsourced_facts('avril 2002', 'Avril 20026 à Décembre 2026'))
+
+
+class UnsourcedWriteFactsTest(TestCase):
+    """2026-11-01, card 399 of the Writer : the assistant read a CV through the reader, then wrote
+    the instruction of `add_to_writer_01` with « Né en Avril 2002 », absent from the PDF. A WRITE
+    tool no longer receives a fact that no source of the turn carries."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user = User.objects.create(username='unsourced_facts_user')
+
+    def _turn(self, call_args, message='rédige un CV à partir de ce PDF', history=None):
+        import json
+        from unittest import mock
+
+        from wama.common.services import assistant_engine
+        answers = iter([('{"tool": "get_item_result", "args": {"app": "reader", "pk": 2048}}', {}),
+                        (json.dumps({'tool': 'add_to_writer_01', 'args': call_args}), {}),
+                        ('Le CV est dans la file.', {})])
+        results = {'get_item_result': {'app': 'reader', 'status': 'SUCCESS', 'text': CV_TEXT},
+                   'add_to_writer_01': {'item_id': 399, 'status': 'PENDING'}}
+        with mock.patch.object(assistant_engine, '_llm_call', side_effect=lambda *a, **k: next(answers)), \
+                mock.patch('wama.tool_api.effect_of', side_effect=lambda name: {
+                    'effect': 'write' if name.startswith('add_to_') else 'read'}), \
+                mock.patch('wama.tool_api.execute_tool',
+                           side_effect=lambda name, args, user, **k: results[name]) as run:
+            out = assistant_engine.run_assistant_turn(self.user, message, provider='ollama', model='m',
+                                                      history=history)
+        return out, [c.args[0] for c in run.call_args_list]
+
+    def test_an_invented_birth_date_is_refused_before_the_tool_runs(self):
+        out, executed = self._turn({'prompt': 'CV de Maxime DE ARAUJO\nNé en Avril 2002\n06 64 71 66 41'})
+        self.assertEqual(['get_item_result'], executed, 'the Writer never received the invented date')
+        refused = out['tool_steps'][1]
+        self.assertEqual('add_to_writer_01', refused['tool'])
+        self.assertIn('2002', refused['result']['error'])
+        self.assertIn('Refusé par WAMA', out['response'], 'the user is told, by the trace')
+
+    def test_what_the_reader_or_the_user_gave_is_passed(self):
+        """Counter-proofs : facts from the reader's text, and a date the user wrote two turns ago."""
+        out, executed = self._turn({'prompt': 'CV : 06 64 71 66 41, GEIQ mars 2025 – mars 2026'})
+        self.assertEqual(['get_item_result', 'add_to_writer_01'], executed)
+        out, executed = self._turn({'prompt': 'CV, né en avril 2002'},
+                                   history=[{'role': 'user', 'content': 'il est né en avril 2002'},
+                                            {'role': 'assistant', 'content': 'Noté.'}])
+        self.assertEqual(['get_item_result', 'add_to_writer_01'], executed)
+
+    def test_the_assistant_s_own_past_answer_is_no_source(self):
+        out, executed = self._turn({'prompt': 'CV, né en avril 2002'},
+                                   history=[{'role': 'assistant', 'content': 'Il est né en 2002.'}])
+        self.assertEqual(['get_item_result'], executed)

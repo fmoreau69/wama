@@ -45,9 +45,13 @@ def publication_links(model) -> list:
 
 
 def _model_rows(keys: list, seen: set) -> list:
-    """Les lignes du catalogue de `keys`, dans leur ordre, sans celles déjà montrées."""
+    """Les lignes du catalogue de `keys`, dans leur ordre, sans celles déjà montrées — chacune
+    avec les rapports de WAMA qui l'évaluent (`reports.reports_evaluating`, 2026-11-05) : la
+    publication de l'auteur, puis la mesure faite ici."""
+    from wama.common.reports import reports_evaluating
     from wama.model_manager.models import AIModel
     rows = {m.model_key: m for m in AIModel.objects.filter(model_key__in=keys)}
+    evaluated_in = reports_evaluating(rows)
     out = []
     for key in keys:
         m = rows.get(key)
@@ -57,7 +61,8 @@ def _model_rows(keys: list, seen: set) -> list:
         out.append({'key': key, 'name': m.name or key,
                     'description': m.description_short or m.description or '',
                     'platform_url': getattr(m, 'platform_url', '') or '',
-                    'publications': publication_links(m)})
+                    'publications': publication_links(m),
+                    'reports': evaluated_in.get(key, [])})
     return out
 
 

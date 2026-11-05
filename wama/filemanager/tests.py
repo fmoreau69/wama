@@ -209,6 +209,66 @@ class ImporteurDeriveTests(TestCase):
                          'la consolidation ne doit JAMAIS écrire dans la source')
 
 
+class BornAppImporterTests(TestCase):
+    """« Envoyer vers… » ne proposait pas les apps NÉES D'UN MANIFESTE (2026-11-05 — Writer,
+    Translator) : elles n'ont pas de source dont re-cibler l'importeur. L'importeur se DÉRIVE de
+    l'outil de création que l'assistant et le Studio empruntent déjà (`tool_api.add_to_<label>`,
+    né de la vue de dépôt de la card) : le fichier va au premier port qui prend sa nature."""
+
+    CATALOG_ENTRY = {'label': 'Notes', 'sandbox': True, 'generated_from': '',
+                     'input_extensions': ('.pdf', '.txt')}
+    PORTS = [{'id': 'reference_document', 'group': 'reference', 'types': ['document']}]
+
+    def setUp(self):
+        from django.conf import settings
+        self.user = get_user_model().objects.create_user('born-import-user')
+        folder = Path(settings.MEDIA_ROOT) / 'users' / str(self.user.id) / 'temp'
+        folder.mkdir(parents=True, exist_ok=True)
+        self.source = folder / 'cv.pdf'
+        self.source.write_bytes(b'%PDF-1.4')
+        self.addCleanup(self.source.unlink)
+        self.calls = []
+
+        def creator(user, **ports):
+            self.calls.append(ports)
+            return {'item_id': 42, 'status': 'PENDING'}
+        from wama import tool_api
+        from wama.common.app_registry import APP_CATALOG
+        for p in (patch('wama.common.app_registry.APP_CATALOG',
+                        {**APP_CATALOG, 'notes_01': self.CATALOG_ENTRY}),
+                  patch.dict(tool_api.TOOL_REGISTRY, {'add_to_notes_01': creator}),
+                  patch('wama.tool_api.creator_derivable', side_effect=lambda label: label == 'notes_01')):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_the_file_goes_to_the_port_that_takes_it_through_the_creation_tool(self):
+        with patch('wama.common.app_registry.file_ports_for', return_value=self.PORTS):
+            result = importer_for('notes_01')(self.source, self.user)
+        relative = f'users/{self.user.id}/temp/cv.pdf'
+        self.assertEqual([{'reference_document': relative}], self.calls,
+                         "the user's own file is POINTED, then designated to its port")
+        self.assertEqual({'imported': True, 'app': 'notes_01', 'id': 42, 'filename': 'cv.pdf',
+                          'path': relative}, result)
+        self.assertIn('notes_01', receivable_apps())
+
+    def test_a_file_no_port_takes_and_a_refused_creation_are_import_errors(self):
+        with patch('wama.common.app_registry.file_ports_for', return_value=[]):
+            with self.assertRaises(ValueError):
+                importer_for('notes_01')(self.source, self.user)
+        self.assertEqual([], self.calls, 'nothing is created when no port takes the file')
+        from wama import tool_api
+        with patch('wama.common.app_registry.file_ports_for', return_value=self.PORTS), \
+                patch.dict(tool_api.TOOL_REGISTRY,
+                           {'add_to_notes_01': lambda user, **kw: {'error': 'Rien à ajouter'}}):
+            with self.assertRaisesRegex(ValueError, 'Rien à ajouter'):
+                importer_for('notes_01')(self.source, self.user)
+
+    def test_a_born_app_without_a_creation_tool_is_not_offered(self):
+        with patch('wama.tool_api.creator_derivable', return_value=False):
+            self.assertIsNone(importer_for('notes_01'))
+            self.assertNotIn('notes_01', receivable_apps())
+
+
 class ToutImporteurEstDerivableTests(SimpleTestCase):
     """INVARIANT (2026-09-03, constat Fabien : « je ne peux pas importer depuis filemanager…
     c'est un problème récurrent sur les nouvelles applications auto-générées »).

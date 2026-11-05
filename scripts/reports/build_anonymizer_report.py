@@ -20,6 +20,7 @@ from wama.common.models import ResultEvaluation
 from wama.model_manager.models import AIModel
 from wama.model_manager.services import bench
 from wama.model_manager.services.eta_estimator import learned_speed
+from wama.model_manager.services.internal_quality import scale_name
 
 HERE = Path('scripts/reports')
 sys.path.insert(0, str(HERE))
@@ -558,6 +559,9 @@ page = fill_shell(
     foot=("Généré depuis les mesures du banc de WAMA (bench --task detect-boxes / detect-recall --record) et le "
           "catalogue des modèles. Méthode et lecture des mesures : WAMA_QUALITE ; campagnes : "
           "PROSPECTION_PIPELINE."),
-    body=body)
+    body=body,
+    # Les mesures que la page présente, par modèle et par échelle : la mesure interne de chacun mène ici.
+    evaluations={key: sorted({scale_name(r.metric, r.protocol) for r in faces + plates if r.model_key == key})
+                 for key in {r.model_key for r in faces + plates}})
 OUT.write_text(page, encoding='utf-8')
 print('written', OUT, len(page), 'bytes')

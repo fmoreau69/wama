@@ -276,8 +276,8 @@ def item_for_output_path(user, chemin: str, *, visible: bool = False):
 
 def _apps_receveuses(user):
     """`(app, spec)` des apps que CET utilisateur peut remplir : ① un IMPORTEUR existe
-    (`importer_for` — il couvre aussi les jumelles de bac à sable, qui dérivent celui de leur
-    source) et ③ il a ACCÈS à l'app (`accessible`) — le menu ne va jamais un cran plus loin que le
+    (`importer_for` — il couvre aussi le bac à sable : une jumelle dérive celui de sa source, une
+    app née d'un manifeste son outil de création) et ③ il a ACCÈS à l'app (`accessible`) — le menu ne va jamais un cran plus loin que le
     portier de la page. La condition ② (extensions) dépend de ce qu'on envoie : aux appelants."""
     from wama.accounts.permissions import accessible
     from wama.common.app_registry import APP_CATALOG

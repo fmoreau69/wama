@@ -994,6 +994,16 @@ MECHANISMS = (
               "(verbatim) ; une référence vide rend un taux INDÉFINI, jamais zéro",
               'wama/common/services/text_metrics.py', 'docs/construction/ia/WAMA_QUALITE.md',
               annexes=('wama/common/tests/tests_text_metrics.py',)),
+    # 2026-11-05 : la card 399 du Writer — une date de naissance écrite par l'assistant dans la
+    # consigne d'un CV, absente du PDF. Même nature que les contrôles de sortie de l'assistant.
+    Mechanism('source_facts', 'Faits vérifiables sans source (année, courriel, téléphone)',
+              "Ce qu'un texte écrit par un modèle affirme de vérifiable sans modèle — une année, une "
+              "adresse électronique, un numéro de téléphone — confronté aux SOURCES qu'il avait sous "
+              "la main ; rend ce qu'aucune ne porte. La boucle de l'assistant refuse ainsi, AVANT "
+              "l'outil, un appel qui ÉCRIT une donnée inventée (`assistant_engine."
+              "_unsourced_write_facts`) : contrôle, pas consigne",
+              'wama/common/utils/source_facts.py', 'docs/construction/ia/WAMA_LLM.md',
+              annexes=('wama/common/tests/tests_unsourced_links.py',)),
     Mechanism('word_anchoring', 'Ancrage d\'un texte sans temps sur des mots horodatés',
               "Étage A de l'alignement forcé, SANS modèle : un texte fait ailleurs (export Sonal, "
               "texte) retrouve l'heure de chacun de ses mots parmi ceux d'une sortie ASR de la même "

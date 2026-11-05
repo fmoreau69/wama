@@ -121,6 +121,53 @@ class NoDeclarationNamesAModelTest(SimpleTestCase):
                          app_about.short_name('hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K'))
 
 
+#: A reference to the CONSTRUCTION of WAMA : a doc section, a doc, a code name, a glue hole.
+CONSTRUCTION_REFERENCE = re.compile(r'§\s*\d|\bROADMAP\b|\bROUTE\b|`[^`]+`|\bWAMA_[A-Z]{3,}|TROU DE GLU')
+#: The fields of an app manifest that the interface SHOWS (the `tool_api` texts speak to a model).
+DISPLAYED_FIELD = re.compile(r'\.(label|description|help|placeholder|summary|title|text|empty_text|tooltip)$')
+
+
+def _strings(value, path=''):
+    if isinstance(value, dict):
+        for k, v in value.items():
+            yield from _strings(v, f'{path}.{k}')
+    elif isinstance(value, list):
+        for i, v in enumerate(value):
+            yield from _strings(v, f'{path}[{i}]')
+    elif isinstance(value, str):
+        yield path, value
+
+
+class NoDisplayedTextCitesTheConstructionTest(SimpleTestCase):
+    """2026-11-05 : the Writer's description ended in « Cas d'épreuve de la route « app de zéro »
+    (ROADMAP §21.5, ROUTE §10.5) », shown in its About tab, the menu and the assistant's intake ;
+    the Translator's named a code brick. An app's texts say what it does for its USER — the
+    construction trace lives in the construction docs. Held on every app manifest of the corpus
+    (real apps and apps born from a manifest), the About declarations and the catalogue."""
+
+    def test_no_displayed_text_of_an_app_cites_a_doc_or_a_code_name(self):
+        from wama.common.app_registry import APP_CATALOG
+        texts = []
+        for folder in ('apps', 'app_drafts'):
+            for path in sorted((ROOT / 'manifests' / folder).glob('*.json')):
+                manifest = json.loads(path.read_text(encoding='utf-8'))
+                texts += [(f'{folder}/{path.name}{p}', s) for p, s in _strings(manifest)
+                          if '.tool_api' not in p and DISPLAYED_FIELD.search(p)]
+        self.assertGreater(len(texts), 300, 'the corpus is read')
+        texts += [(f'ABOUT.{app}{p}', s) for app, mine in app_about.ABOUT.items()
+                  for p, s in _strings(mine)]
+        texts += [(f'APP_CATALOG.{app}.description', spec.get('description') or '')
+                  for app, spec in APP_CATALOG.items()]
+        self.assertEqual([], [(where, text[:120]) for where, text in texts
+                              if CONSTRUCTION_REFERENCE.search(text)])
+
+    def test_the_guard_sees_the_trace_it_was_written_for(self):
+        """Counter-proof : the sentence of the Writer's manifest before the fix."""
+        self.assertTrue(CONSTRUCTION_REFERENCE.search("Cas d'épreuve (ROADMAP §21.5, ROUTE §10.5)."))
+        self.assertTrue(CONSTRUCTION_REFERENCE.search('dans son format (brique `translator.translate_document`)'))
+        self.assertFalse(CONSTRUCTION_REFERENCE.search('Rédige un CV à partir d’un document de référence.'))
+
+
 def _account(name, tier='utilisateur', role=''):
     from django.contrib.auth.models import Group
     from wama.accounts.models import UserProfile
@@ -214,6 +261,83 @@ class ReportsTest(TestCase):
                                                              'generated_from': 'anonymizer'}}):
             self.assertEqual(['anonymizer'], [r['slug'] for r in app_about.reports('anonymizer_42')])
         self.assertEqual(['cam-analyzer'], [r['slug'] for r in app_about.reports('cam_analyzer')])
+
+
+def _shell():
+    """The envelope filler of the report generators (`scripts/` is not a package : loaded by path)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('shell_page', ROOT / 'scripts' / 'reports' / 'shell_page.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class ReportsStateWhatTheyEvaluateTest(SimpleTestCase):
+    """A model's internal measure leads to the report that presents it (Fabien, 2026-11-05). The
+    REPORT says what it evaluates, in its page, like its date — written by its generator
+    (`fill_shell(evaluations=)`), read by WAMA (`reports.report_evaluations`)."""
+
+    def test_what_the_generator_writes_is_what_wama_reads(self):
+        import tempfile
+        from wama.common.reports import _page_facts
+        evaluations = {'huggingface:org/Model « x »': ['internal_wer_text_v2'],
+                       'anonymizer:yolo:a.pt': ['internal_miss_face_boxes_iou50_v1']}
+        page = _shell().fill_shell(title='T', kicker='K', sub='S · généré le 1 novembre 2026', comment='',
+                                   foot='F', body='<p>b</p>', evaluations=evaluations)
+        with tempfile.NamedTemporaryFile('w', suffix='.html', encoding='utf-8', delete=False) as f:
+            f.write(page)
+        try:
+            self.assertEqual(('généré le 1 novembre 2026', evaluations), _page_facts(f.name, 0.0))
+        finally:
+            Path(f.name).unlink()
+        self.assertNotIn('{{', page, 'the page is a Django template : nothing may read as a tag')
+
+    def test_the_model_reports_name_catalogue_models_and_internal_scales(self):
+        from wama.common.reports import REPORTS, report_evaluations
+        keys = {json.loads(p.read_text(encoding='utf-8')).get('key')
+                for p in (ROOT / 'manifests' / 'models').glob('*.json')}
+        for slug in ('transcription', 'anonymizer'):
+            with self.subTest(report=slug):
+                declared = report_evaluations(slug)
+                self.assertTrue(declared, 'a model evaluation states the models it measures')
+                self.assertEqual([], sorted(set(declared) - keys))
+                self.assertEqual([], [s for v in declared.values() for s in v
+                                      if not re.fullmatch(r'internal_[a-z_]+_[a-z0-9_]+', s)])
+        self.assertEqual({}, report_evaluations('cam-analyzer'), 'a pipeline analysis measures no model')
+        self.assertEqual(set(REPORTS), {'transcription', 'anonymizer', 'cam-analyzer'},
+                         'a new report : say here whether it evaluates models')
+
+    def test_each_model_receives_the_reports_that_evaluate_it(self):
+        from wama.common import reports
+        pages = {'transcription': {'m:a': ['internal_wer_text_v2']},
+                 'anonymizer': {'m:a': ['internal_miss_face_boxes_iou50_v1'], 'm:b': ['internal_x_v1']}}
+        with mock.patch.object(reports, 'report_evaluations', side_effect=lambda s: pages.get(s, {})):
+            found = reports.reports_evaluating(['m:a', 'm:c'])
+        self.assertEqual({'m:a'}, set(found))
+        self.assertEqual([('transcription', ['internal_wer_text_v2']),
+                          ('anonymizer', ['internal_miss_face_boxes_iou50_v1'])],
+                         [(r['slug'], r['scales']) for r in found['m:a']])
+        self.assertEqual('/reports/anonymizer/', found['m:a'][1]['url'])
+
+
+class ModelsAndPublicationsLinkTheirReportTest(TestCase):
+
+    def test_a_model_row_carries_the_report_that_evaluates_it_and_the_fragment_links_it(self):
+        from wama.common.services.model_publications import _model_rows
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='about:evaluated', name='Évalué', source='transcriber')
+        AIModel.objects.create(model_key='about:plain', name='Sans rapport', source='transcriber')
+        evaluated = {'about:evaluated': [{'slug': 'transcription', 'label': 'Évaluation témoin',
+                                          'date': 'version du 2 octobre 2026',
+                                          'url': '/reports/transcription/', 'scales': []}]}
+        with mock.patch('wama.common.reports.reports_evaluating', return_value=evaluated):
+            rows = _model_rows(['about:evaluated', 'about:plain'], set())
+        self.assertEqual(['Évaluation témoin'], [r['label'] for r in rows[0]['reports']])
+        self.assertEqual([], rows[1]['reports'])
+        from django.template.loader import render_to_string
+        html = render_to_string('common/_about_models.html', {'groups': [{'label': 'G', 'models': rows}]})
+        self.assertEqual(1, html.count('data-model-report'))
+        self.assertIn('href="/reports/transcription/"', html)
 
 
 class TheRealRegistryIsNeverWrittenByATestTest(SimpleTestCase):

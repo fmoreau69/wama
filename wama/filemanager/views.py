@@ -1929,24 +1929,57 @@ def importer_for(target_app):
         return fn
     from wama.common.app_registry import APP_CATALOG
     from wama.common.sandbox import retarget_callable
-    source = (APP_CATALOG.get(target_app) or {}).get('generated_from')
+    spec = APP_CATALOG.get(target_app) or {}
+    source = spec.get('generated_from')
+    if not source:
+        return _born_importer(target_app) if spec.get('sandbox') else None
     src_fn = IMPORTERS.get(source or '')
     # La règle de dérivation, commune avec l'outil de création d'une jumelle (2026-10-29).
     return retarget_callable(src_fn, target_app) if src_fn is not None else None
 
 
+def _born_importer(label):
+    """L'importeur d'une app NÉE D'UN MANIFESTE (2026-11-05 — le Writer et le Translator
+    n'apparaissaient pas à « Envoyer vers… »). Elle n'a pas de source dont re-cibler l'importeur ;
+    elle a l'outil de création que l'assistant et le Studio empruntent déjà
+    (`tool_api.add_to_<label>`, DÉRIVÉ de la vue de dépôt de sa card — `_born_creator`). L'import
+    l'emprunte aussi : le fichier va au PREMIER port de la card qui prend sa nature
+    (`app_registry.file_ports_for`, la lecture de l'intake et des naissances), pointé ou copié
+    comme par tout importeur (`reference_or_copy`), puis désigné à ce port. Les gardes et les refus
+    sont ceux du dépôt sur la card. None : aucun outil de création dérivable — l'app n'est pas offerte."""
+    from wama.tool_api import TOOL_REGISTRY, creator_derivable
+    if not creator_derivable(label) or f'add_to_{label}' not in TOOL_REGISTRY:
+        return None
+
+    def importer(source_path, user):
+        from wama.common.app_registry import category_of_path, file_ports_for
+        from wama.common.utils.media_paths import reference_or_copy
+        ports = file_ports_for(label, category_of_path(source_path.name))
+        if not ports:
+            raise ValueError(f"Aucun port de {label} ne prend ce fichier ({source_path.suffix}).")
+        dest_path, relative_path = reference_or_copy(source_path, label, user.id, 'input')
+        created = TOOL_REGISTRY[f'add_to_{label}'](user, **{ports[0]['id']: relative_path})
+        if created.get('error'):
+            raise ValueError(created['error'])
+        return {'imported': True, 'app': label, 'id': created.get('item_id'),
+                'filename': dest_path.name, 'path': relative_path}
+    return importer
+
+
 def receivable_apps(user=None):
     """Les apps que le gestionnaire de fichiers sait REMPLIR, dans l'ordre alphabétique.
 
-    Les jumelles de bac à sable s'y ajoutent quand leur importeur se DÉRIVE (`importer_for`).
-    `user` fourni → une jumelle n'est listée que si sa PAGE lui est accessible (dev-only) :
-    le menu suit le même portier que la surface, jamais un cran de plus.
+    Les apps du bac à sable s'y ajoutent quand leur importeur se DÉRIVE (`importer_for`) : une
+    jumelle de celui de sa source, une app née d'un manifeste de son outil de création.
+    `user` fourni → une app du bac à sable n'est listée que si sa PAGE lui est accessible
+    (dev-only) : le menu suit le même portier que la surface, jamais un cran de plus.
     """
     jumelles = []
     try:
         from wama.common.app_registry import APP_CATALOG
         for app, spec in APP_CATALOG.items():
-            if not spec.get('generated_from') or importer_for(app) is None:
+            if not (spec.get('generated_from') or spec.get('sandbox')) or app in IMPORTERS \
+                    or importer_for(app) is None:
                 continue
             if user is not None:
                 from wama.accounts.permissions import accessible

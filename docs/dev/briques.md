@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**224 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**226 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1035,6 +1035,16 @@ Une balise `WAMA:FAIT(registre/clé/champ)` dans un .md va chercher sa valeur da
   - `render_value(valeur) -> str` — Une VALEUR en texte d'une ligne. Une structure (dict) est refusée : une balise cite une
   - `resolve(chemin: str) -> str` — La valeur ACTUELLE que désigne un chemin de balise.
   - `refresh_text(texte: str) -> Tuple[str, int, List[Tuple[str, str]]]` — Régénère toutes les balises d'un texte : `(texte neuf, nombre de balises, erreurs)`.
+
+### Faits vérifiables sans source (année, courriel, téléphone)
+
+Ce qu'un texte écrit par un modèle affirme de vérifiable sans modèle — une année, une adresse électronique, un numéro de téléphone — confronté aux SOURCES qu'il avait sous la main ; rend ce qu'aucune ne porte. La boucle de l'assistant refuse ainsi, AVANT l'outil, un appel qui ÉCRIT une donnée inventée (`assistant_engine._unsourced_write_facts`) : contrôle, pas consigne
+
+- **Domicile** : `wama/common/utils/source_facts.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
+- **Module** : Les FAITS VÉRIFIABLES d'un texte, et ceux qu'aucune source ne porte (2026-11-05).
+- **API publique** (2) :
+  - `checkable_facts(text: str) -> list` — Les faits vérifiables de `text`, dans leur ordre d'apparition, sans doublon :
+  - `unsourced_facts(text: str, sources) -> list` — Les faits vérifiables de `text` qu'AUCUNE source ne porte (`sources` : un texte ou une
 
 ### File globale GPU (où en est chaque tâche)
 
@@ -2709,9 +2719,11 @@ Les rapports servis à `/reports/<slug>/` (évaluations de modèles, analyses) s
 
 - **Domicile** : `wama/common/reports.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md §Rapports d'évaluation GÉNÉRÉS](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Les RAPPORTS publiés par WAMA — une déclaration, lue par tous ceux qui les montrent.
-- **API publique** (2) :
+- **API publique** (4) :
   - `report_date(slug: str) -> str` — La date du rapport telle que son générateur l'a écrite (« généré le 16 octobre 2026 »),
-  - `reports_for(app_key: str) -> list` — Les rapports qui parlent de l'app (sa clé de déclaration) : `[{slug, label, date}]`.
+  - `report_evaluations(slug: str) -> dict` — Ce que le rapport évalue, lu dans la page : `{clé de modèle: [échelle interne, …]}` — vide
+  - `reports_for(app_key: str) -> list` — Les rapports qui parlent de l'app (sa clé de déclaration) : `[{slug, label, date, url}]`.
+  - `reports_evaluating(model_keys) -> dict` — Les rapports qui évaluent chacun de ces modèles : `{clé: [{slug, label, date, url,
 
 ### Repli des volets latéraux par leur frontière
 

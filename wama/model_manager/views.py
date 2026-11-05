@@ -1239,6 +1239,17 @@ def api_models_db(request):
         internal = internal_scores(m.model_key for m in queryset)
     except Exception:
         internal = {}
+    # Et le RAPPORT qui présente chaque échelle (2026-11-05, demande de Fabien) : lu dans les pages
+    # des rapports (`common.reports`), qui disent ce qu'elles évaluent — jamais une liste écrite ici.
+    try:
+        from wama.common.reports import reports_evaluating
+        evaluated_in = reports_evaluating(internal)
+    except Exception:
+        evaluated_in = {}
+    for key, scales in internal.items():
+        for scale in scales:
+            scale['reports'] = [{k: r[k] for k in ('label', 'date', 'url')}
+                                for r in evaluated_in.get(key, ()) if scale['scale'] in r['scales']]
 
     # Ce que le profil de CET utilisateur ouvre, rabattu à la lecture (filtre « Pour moi »,
     # 2026-10-16) — la règle d'admission commune, jamais recopiée : `chosen` = ce qu'il peut

@@ -1221,6 +1221,40 @@ def _unsourced_job_ids(text: str, tool_steps: list, message: str = '') -> list:
             if job not in sources]
 
 
+#: Le refus d'un outil qui ÉCRIT un fait qu'aucune source du tour ne porte — dit au modèle, qui
+#: corrige son appel, et à l'utilisateur par la trace (`_refusals_notice`).
+_UNSOURCED_FACTS_REFUSAL = (
+    "Refusé avant exécution : {facts} n'apparai(ssen)t dans aucune source de ce tour (message de "
+    "l'utilisateur, ses messages précédents, résultats d'outils). Ne l'invente pas : retire-le de "
+    "l'appel, ou demande-le à l'utilisateur.")
+
+
+def _unsourced_write_facts(tool_name: str, tool_args, tool_steps: list, message: str = '',
+                           history: list = None) -> list:
+    """Les faits vérifiables (année, adresse électronique, téléphone — `source_facts`) qu'un outil
+    qui ÉCRIT recevrait sans qu'aucune source du tour ne les porte. Vide pour un outil qui lit.
+
+    ⚠⚠ LE DÉFAUT MESURÉ (2026-11-01, card 399 du Writer) : l'assistant a lu un CV par le reader,
+    puis a écrit la consigne de `add_to_writer_01` avec « Né en Avril 2002 », absent du PDF. Le
+    Writer l'a mis en page. Les contrôles de sortie ne regardaient que la RÉPONSE (liens,
+    identifiants de tâche) ; une donnée inventée partait dans les ARGUMENTS.
+
+    LES SOURCES : les RÉSULTATS d'outils de ce tour (jamais leurs arguments, que le modèle a
+    écrits — un appel refusé ne doit pas sourcer sa propre reprise), le message, et les messages
+    PRÉCÉDENTS DE L'UTILISATEUR — ce qu'il a dit lui-même deux tours plus tôt est une source ;
+    les réponses de l'assistant, non (règle de `_turn_sources`)."""
+    from wama.common.utils.source_facts import unsourced_facts
+    from wama.tool_api import WRITE, effect_of
+    if (effect_of(tool_name) or {}).get('effect') != WRITE or not tool_args:
+        return []
+    sources = [json.dumps([step.get('result') for step in tool_steps or []], ensure_ascii=False,
+                          default=str), message or '']
+    sources += [turn['content'] for turn in history or []
+                if isinstance(turn, dict) and turn.get('role') == 'user'
+                and isinstance(turn.get('content'), str)]
+    return unsourced_facts(json.dumps(tool_args, ensure_ascii=False, default=str), sources)
+
+
 #: Ce que dit un tour inventé qu'aucun modèle plus fort ne peut reprendre. Remplace TOUTE la
 #: réponse : un « c'est terminé » sans outil est faux en entier, pas seulement son lien.
 _INVENTED_TURN_NOTICE = (
@@ -2776,6 +2810,11 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 deadline=deadline, budget=budget)
             for key in total_usage:
                 total_usage[key] += sub_usage.get(key) or 0
+        elif invented := _unsourced_write_facts(tool_name, tool_args, tool_steps, message, history):
+            # Une donnée que le modèle ÉCRIRAIT sans source (2026-11-05, card 399 du Writer) : refusée
+            # AVANT l'outil, le modèle corrige son appel ou la demande — contrôle, pas consigne.
+            logger.warning("[ai_chat] %s refusé : faits sans source %s", tool_name, invented)
+            tool_result = {'error': _UNSOURCED_FACTS_REFUSAL.format(facts=', '.join(invented))}
         elif tool_name in dev_names and _already_polled(tool_steps, tool_name, tool_args):
             # Le SUIVI d'une tâche de fond dans le tour, CONTRÔLÉ (2026-10-12, fil Discord #43 :
             # cinq `dev_job_status` d'affilée, six minutes sans répondre à personne). Un second
