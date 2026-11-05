@@ -1841,8 +1841,9 @@ Vue dérivée : licences+auteurs des 4 registres, traversée par app. Ne voit PA
 
 - **Domicile** : `wama/common/services/license_audit.py` · **doc** : [docs/construction/exploitation/LICENSING.md](../construction/exploitation/LICENSING.md)
 - **Module** : Audit des licences — VUE DÉRIVÉE sur les registres, jamais un registre de plus.
-- **API publique** (5) :
+- **API publique** (6) :
   - `normaliser_licence(brut) -> str` — Texte libre → identifiant canonique. `''` si rien d'exploitable.
+  - `license_terms(expression) -> tuple[str, list]` — `(opérateur, [identifiants normalisés])` d'une expression SPDX à un niveau (2026-11-05).
   - `qualifier(licence: str) -> dict` — `{id, famille, rang, libelle, attribution}` — `rang` croît avec la contrainte.
   - `inventaire(user=None) -> list` — Toutes les lignes des registres, chacune qualifiée. Aucune écriture.
   - `par_app(lignes=None) -> list` — Pour chaque app : les licences TRAVERSÉES par ce qu'elle requiert, et la plus contraignante.
