@@ -248,6 +248,15 @@ ALIAS: dict[str, str] = {
     # « MiniMax Music 3 » (schéma d'architecture `music3.0`) — l'entrée d'AA « MiniMax Music
     # 3.0 ». AA mesure le service de l'éditeur ; le nôtre est quantifié Q8 (borne haute).
     'composer:minimax-music3': 'MiniMax Music 3.0',
+    # 2026-11-06 (demande de Fabien : « complète au mieux les notes des modèles distants ») — deux
+    # séries publiées en UNE seule taille, que le banc nomme sans elle : la règle des tailles
+    # ASYMÉTRIQUES (`_compatible`) les refusait, à raison en général (`qwen3.5:4b` ne prend pas la
+    # note de `qwen3.5-max`). Ici l'égalité est un fait : la ligne d'Albert déclare le dépôt
+    # `mistralai/Mistral-Small-3.2-24B-Instruct-2506` (`platform_ref`), seule publication de la
+    # série 3.2, et l'Arena la date du même « 2506 » ; ILaaS nomme son Mistral Small 4 « 119b »,
+    # et AA n'en note qu'UNE entrée, sans aucune autre taille de la série (mesuré ce jour).
+    'albert:mistral-small-3-2-24b-instruct-2506': 'Mistral Small 3.2 (2506)',
+    'ilaas:mistral-small-4-119b': 'mistral-small-4',
 }
 
 #: VARIANTE SERVIE, confirmée par une mesure : model_key → le mot qui qualifie la variante que la
@@ -372,6 +381,28 @@ def _with_prefix(word: str, segments: list, i: int) -> str:
 HOSTED_TIERS = frozenset({'pro', 'max', 'ultra', 'plus', 'premium'})
 
 
+def _core_name(name: str) -> str:
+    """Un nom sans ses PARENTHÈSES : chez AA et l'Arena, elles qualifient la VARIANTE servie
+    — effort de raisonnement (« Claude Opus 5.5 (Max, Default Fallback) », « Qwen3.8 27B
+    (Xhigh) »), mode (« Mistral Small 4 (Reasoning) »), date (« Mistral Medium 3.1 (2508) ») —,
+    pas le modèle. Mesuré le 2026-11-06 : toute la série Claude 5 (AA et Arena) restait sans
+    banc, ses efforts lus comme des mots étrangers et « Max » comme un palier commercial. Le
+    CHOIX de variante, lui, les relit (`_choose_variant`, `SERVED_VARIANT`) — inchangé : sans
+    variante servie déclarée, la valeur la pire. De NOTRE côté, les parenthèses d'un nom
+    d'agrégateur sont un routage (« GLM 5.3 (batch) »)."""
+    return re.sub(r'\([^)]*\)', ' ', name or '')
+
+
+def _model_words(name: str) -> set:
+    """Les mots qui QUALIFIENT le modèle dans un nom : sans ses parenthèses (`_core_name`), sans le
+    préfixe d'éditeur d'un agrégateur (« Z.ai: GLM 5.3 Prime », « Google: Gemma 4 31B » — les noms
+    d'OpenRouter) ni la source d'une clé de catalogue (« ollama:… »), sans les mots de tirage
+    (`CONDITIONING_WORDS`) ni le pointeur `latest`."""
+    core = re.sub(r'^[^:]{1,40}:\s+', '', _core_name(name))       # « Éditeur: Modèle »
+    core = re.sub(r'^[a-z0-9_]+:(?=\S)', '', core)                  # « source:modèle »
+    return _words(core) - CONDITIONING_WORDS - {'latest'}
+
+
 def _words(text: str) -> set:
     """
     Jetons PUREMENT alphabétiques (≥ 2 lettres) d'un nom — les mots qui QUALIFIENT la variante.
@@ -406,6 +437,9 @@ def _choose_variant(local_name: str, candidates: list, key, direction: str = 'hi
     from difflib import SequenceMatcher
     if len(candidates) == 1:
         return candidates[0]
+    # Nos parenthèses sont un ROUTAGE d'agrégateur (« GLM 5.3 (batch) », « (free) ») : sans
+    # `_core_name`, la même série recevait deux notes (23,1 et 31,7, mesuré le 2026-11-06).
+    local_name = _core_name(local_name)
     flat = re.sub(r'[^a-z0-9]+', ' ', (local_name or '').lower())
     local_words = _words(local_name)
     sign = 1.0 if direction == 'lower' else -1.0
@@ -505,6 +539,8 @@ def _compatible(a, b, size_required=False, local_name='', third_party_name=''):
     """
     if a is None or b is None or a[0] != b[0] or a[1] != b[1]:
         return False
+    # Les qualificatifs de VARIANTE (entre parenthèses) ne font pas un autre modèle (`_core_name`).
+    third_party_name = _core_name(third_party_name)
     # Un palier COMMERCIAL côté tiers (« LTX-2.3 Pro », « … Max ») que le nom local ne porte
     # pas désigne la variante hébergée par l'API de l'éditeur, pas nos poids ouverts — relevé le
     # 2026-09-23 : `Lightricks/LTX-2.3` et `-2.5` prenaient l'Elo de leur version « Pro ». Même
@@ -517,8 +553,14 @@ def _compatible(a, b, size_required=False, local_name='', third_party_name=''):
         if (a[2] is None) != (b[2] is None):
             return False
         if a[2] is None:
-            # `latest` n'est pas un qualificatif de modèle, c'est un pointeur de tag Ollama.
-            if _words(third_party_name) - _words(local_name) - {'latest'}:
+            # Aucun mot ÉTRANGER, dans les DEUX sens (2026-11-06). La règle ne regardait que ceux du
+            # tiers : « GLM 5.3 Prime », « FlashX » et « FlashX Legal » d'OpenRouter prenaient la
+            # note du GLM 5.3 de base — un mot de NOTRE nom absent du tiers désigne, lui aussi, un
+            # autre modèle. Chaque sens a son nom : contre le tiers, le nôtre ENTIER (son préfixe
+            # d'éditeur couvre l'« Amazon » d'« Amazon Nova Lite ») ; contre le nôtre, ses seuls
+            # mots de modèle (`_model_words`). `latest` est un pointeur de tag Ollama.
+            third_words, local_words = _words(third_party_name), _words(_core_name(local_name))
+            if (third_words - local_words - {'latest'}) or (_model_words(local_name) - third_words):
                 return False
     return a[2] is None or b[2] is None or a[2] == b[2]
 

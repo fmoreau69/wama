@@ -3840,3 +3840,57 @@ vérification lit le snapshot par `prospector.local_inventory` (son jumeau local
 asset GitHub se lit par `prospector.published_asset`, que l'épinglage de la prospection partage
 avec le pilote `yolo`. Le levier B d'`hf_weights` vérifie aussi ce qu'il télécharge, et l'assistant
 dit ce qu'une installation a vérifié (`list_installations`, `install_history.verified_text`).
+
+## Session du 2026-11-06 : les notes des modèles DISTANTS complétées — et ce que l'appariement refusait
+
+Demande de Fabien : *« Complète au mieux les notes des modèles distants »* (suite du council du
+04/11, `WAMA_HARNESS §7.4` : aucun plancher de modèle possible tant que la plupart des distants
+n'ont pas de note). Synchro à blanc d'abord, chaque ligne distante sans note examinée contre les
+entrées des sources (cache du jour) :
+
+| ligne | ce que disaient les sources | sort |
+|---|---|---|
+| `albert:mistral-small-3-2-24b-instruct-2506` | Arena « Mistral Small 3.2 (2506) », sans taille | ✅ `ALIAS` — dépôt déclaré (`platform_ref`), seule publication de la série 3.2, même date « 2506 » : Arena 1 338 |
+| `ilaas:mistral-small-4-119b` | AA « Mistral Small 4 (Reasoning) », sans taille | ✅ `ALIAS` — UNE entrée AA, aucune autre taille de la série : AA v5 4,3 |
+| série Claude 5 (`anthropic:*`) | AA et Arena, chaque effort en entrée « (Max, Default Fallback) », « (High) »… | ✅ appariée — règle des parenthèses ci-dessous |
+| `ilaas:mistral-medium-latest` | AA Medium 3.5, Arena 3, 3.1, 3.5 | ⏳ sans note : ILaaS ne dit pas quelle version sert l'alias (`/models` : `{"id","object","owned_by"}`) — rien n'est supposé |
+| `albert:gpt-oss-120b` | aucune entrée, AUCUNE source, aucune catégorie | ⏳ sans banc (constat du 22/09 inchangé, `DEV_UNSCORED_ALLOWED` fait foi) |
+| `albert:ministral-3-8b`, `ilaas:qwen-3.6-35b-instruct` | plus notés par AA v5 ni l'Arena | note v4 gardée, périmée (règle du 02/11) |
+
+**Deux défauts de l'appariement, corrigés dans `benchmark_sync._compatible`** (sans taille des deux
+côtés, ce sont les qualificatifs qui tranchent — `AppariementSansTailleTest`) :
+- **les parenthèses qualifient la VARIANTE, pas le modèle** (`_core_name`) : l'effort de
+  raisonnement, le mode, la date que AA et l'Arena y écrivent étaient lus comme des mots
+  étrangers, et « Max » comme un palier commercial — toute la série Claude 5 restait sans banc ;
+- **aucun mot étranger dans les DEUX sens** : seuls ceux du tiers étaient regardés ; une fois les
+  parenthèses lues, « GLM 5.3 Prime », « FlashX », « FlashX Legal » d'OpenRouter prenaient la note
+  du GLM 5.3 de base. Contre le tiers, notre nom entier (son préfixe d'éditeur couvre l'« Amazon »
+  d'« Amazon Nova Lite ») ; contre le nôtre, ses mots de modèle (`_model_words` : sans
+  parenthèses, ni préfixe d'éditeur ou de source, ni mots de tirage).
+Et le choix de variante lit notre nom sans ses parenthèses : « GLM 5.3 » et « GLM 5.3 (batch) »
+recevaient deux notes (23,1 et 31,7).
+
+**Essayé et retiré** : préférer la variante « de référence » du banc (slug nu) quand l'effort servi
+n'est pas déclaré. Elle rendait la série Claude 5 cohérente, mais supposait l'effort servi — ce que
+la décision du 31/10 refuse (point 7 (b) : la variante servie se MESURE ;
+`TroisiemeBancEtSensTest`, sa contre-épreuve sur `openrouter:qwen/qwen3.8-27b`, l'a dit en rouge).
+Conséquence assumée : sans `SERVED_VARIANT`, un modèle prend sa PIRE variante — Claude Opus 5.5 à
+34,8 (« Low »), sous Opus 5 à 44,2, qu'AA ne note qu'en « Max ». ⏳ Mesurer l'effort que l'API
+d'Anthropic sert à WAMA (aucun réglage n'est envoyé) demande un appel facturé.
+
+**Mesuré, état de départ contre état final (synchro à blanc)** : 213 → 224 appariements ; gagnés
+justes : les deux Mistral, sept Claude, DeepSeek V4.1 Flash (×3), GLM 5.2, GLM 5.3 (×2) ; perdus
+JUSTES, qui prenaient la note d'un autre modèle : « V4 Flash Vision Exp », « Qwen3.8 Max Prime »,
+« GLM 5 Turbo », « Hy4 Preview » (leur ancienne note reste, marquée périmée — règle du 02/11) ;
+porteur changé : DeepSeek V4 Pro (×2), de l'Arena à AA v5 (23,1), son entrée AA étant lue.
+Écrit par la route (`sync_benchmarks`, toutes sources joignables ; rapport
+`logs/benchmarks/sync_2026-11-06_remote.log`). Gardes : `tests_benchmark_variants` (7), cinq
+mutations, cinq rouges ; `wama.model_manager` 1 033 tests OK.
+
+⚠ **Effet sur le tirage de l'assistant, À DÉCIDER** : AA v5 note désormais « Gemma 4 31B
+(Reasoning) » à 4,4 — 2,2ᵉ centile de sa population de 93, surtout frontière. Le lot de l'assistant
+n'ayant pas d'échelle commune (qwen-3.6 et les gemma4 locaux n'ont qu'une note v4), le tirage passe
+au rang centile et retient `albert:deepseek-v4-flash-0731` (72,2ᵉ centile de l'Arena) — alors que,
+sur l'Arena qui note les deux, gemma-4-31b (1 443) bat deepseek (1 432). Ce n'est pas l'appariement
+de ce jour (la synchro à blanc d'AVANT le montrait déjà, la synchro de nuit de 01:25 l'aurait
+écrit) : c'est la réserve écrite au rang centile — deux populations différentes ne se comparent pas.

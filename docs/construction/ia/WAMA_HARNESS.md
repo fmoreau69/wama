@@ -808,7 +808,10 @@ Gardes : `tests_delegation.CouncilUnderTrialTest` (7). ⏳ **Relevé, non tranch
 modèle pour un agent n'a pas été posé : l'échelle de qualité du lot ne le permet pas (mesuré :
 `qwen-3.8-27b` 19,3 sous `gemma4:e4b` 33,3 dans `_quality_scalars` ; `gpt-oss-120b` et les trois
 Mistral sans aucune note ; la note coding d'`AGENT_CODING_FLOOR` n'est portée que par un distant sur
-onze). C'est l'appariement des bancs du catalogue qu'il faut compléter, pas le council à borner. Et
+onze). C'est l'appariement des bancs du catalogue qu'il faut compléter, pas le council à borner —
+🔄 *complété le 2026-11-06* (`PROSPECTION_PIPELINE.md §Session du 2026-11-06` : Mistral Small 3.2
+et 4, série Claude 5 ; restent `gpt-oss-120b`, absent de toute source, et `mistral-medium-latest`,
+version servie inconnue ; le rang centile, lui, compare encore deux populations). Et
 la note de saturation est posée par SOURCE (`source_quota.note_saturation`, clé
 `<source>:<portée>`, sans le modèle) : un « busy » d'un seul modèle d'ILaaS écarte tout ILaaS du
 tirage suivant — l'explication la plus probable du décideur tiré sur le local `gemma4:12b`, non

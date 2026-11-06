@@ -432,6 +432,12 @@ Bloc d'état 2026-07-11 archivé (`docs/construction/archive/ROADMAP_ARCHIVE_202
 > `thinking` (`8c5c2019a`) ; la facette `models` d'une app unit ses lignes et ce qu'elle PROPOSE,
 > et le corpus des apps suit chaque geste sur un modèle (`f125c0a0d`). Détail :
 > `PROSPECTION_PIPELINE.md` points 2 (§Session du 2026-10-29) et 7.
+> *2026-11-06* : ✅ les notes des modèles DISTANTS complétées par la route — les parenthèses d'un
+> nom de banc qualifient la variante, pas le modèle (série Claude 5), aucun mot étranger dans les
+> deux sens (« GLM 5.3 Prime » ne prend plus la note du GLM 5.3), deux `ALIAS` à taille unique
+> (Mistral Small 3.2 et 4) : 213 → 224 lignes notées. ⏳ À décider : le tirage de l'assistant passe à
+> `deepseek-v4-flash`, AA v5 notant gemma-4-31b au 2,2ᵉ centile — le rang centile compare deux
+> populations. Détail : `PROSPECTION_PIPELINE.md §Session du 2026-11-06`.
 
 ### Concept
 Tâche Celery nocturne qui compare les modèles installés dans WAMA avec les dernières
