@@ -28625,6 +28625,11 @@ lues à `born_apps`, et le tuple des clés d'une fiche écrit deux fois dans `_c
 421, rouges = budget des classes (même cause, aucun identifiant relevé n'est de ce palier, `git blame`)
 et `shuttle_overtakes` (Lab) ; mesure inchangée. ROADMAP (l.3048-3053, la glu) et vision (l.375-378)
 ne suivent pas l'écart des jumelles : son domicile est `ROUTE §11 #41`, aucun statut à changer.
+Commité `a76a435c9`, puis **vérifié sur HEAD** (worktree jetable, `.env` + migrations recopiés,
+résolution des trois paquets lue dans le worktree) : 459 tests des onze modules du palier, 12 sautés,
+1 rouge — `shuttle_overtakes`, rouge AUSSI dans l'arbre principal, donc une régression et pas un
+artefact, sur `wama_data/functions/driving/vehicle_interactions.py:585` (cam_analyzer, déclaré par
+`3eb967ab7` du 29/10) : à son propriétaire.
 
 ## §CLÔTURE 2026-11-06, « L'ÉCHANGE DE L'ASSISTANT : APERÇU DES TÂCHES FINIES, LIENS, LOT EN UNE LIGNE ; COMMANDES `/concile`, `/effort`… SUR TOUTES LES SURFACES » — session du 04→06/11 (après la clôture « PRÉSENTATION, VOIX ») — aperçu et lot poussés, commandes NON poussées — vérifié EN SERVICE après la relance du 06/11 13:19
 
