@@ -1372,6 +1372,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         + (mmInstallSince ? '?since=' + encodeURIComponent(mmInstallSince) : '');
                 },
                 interval: 2000,
+                // Une barre ne renonce jamais (`wama-global-progress.js`) : une installation dure
+                // jusqu'à l'heure, et une relance du serveur ne doit pas la figer en silence.
+                maxFails: Infinity,
+                onError: function () { /* réseau : ignorer ce tour */ },
                 onData: function (pid, data) {
                     mmInstallSince = data.now || mmInstallSince;
                     let ended = false;

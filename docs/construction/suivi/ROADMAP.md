@@ -5455,6 +5455,16 @@ CONSIGNÉ, non ramené : les tâches de DÉVELOPPEMENT (`dev_*`) gardent leur ch
 (`notifications.DEV_JOB_APP`, `job_follow_ups.dev_origin_conversation`, statut par le relais MCP) au
 lieu d'être une famille de `job_families` — leur désignation est un identifiant de fiche (texte), leur
 statut passe par `mcp_client`, deux différences que le registre ne porte pas encore.
+Revérification du même soir — quatre écarts de ma main, ramenés : la barre d'un run de LOT du Studio
+comptait les échecs comme de l'avancement, alors que la règle d'un lot est « réussis / total »
+(`_batch_card.html`, `queue-actions.js`, `tool_api.batch_progress`) ; la ligne de suivi était écrite
+trois fois (card, installation, run) — une seule désormais, `job_families.line` ; l'avancement d'une
+installation était lu au cache sans la garde commune qui refuse une tâche que Celery ne dit plus
+vivante (`task_progress.progression_en_cours`) ; la boucle de la card renonçait après dix échecs, quand
+une barre de WAMA ne renonce jamais (`wama-global-progress.js`) — une relance du serveur l'aurait
+figée. ⏳ Non ramené, consigné : un run du Studio et une installation dont le worker meurt restent
+« en cours » (aucune réconciliation des orphelins pour eux — `process_control.reconcile_queue_of`
+ne couvre que les files d'app ; `InstallEvent` ne porte pas l'identifiant de tâche).
 
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) 🔄 *(relevé du 2026-10-26)*
 

@@ -220,11 +220,12 @@ FAMILY = 'model_manager'
 
 def live_state(row) -> dict:
     """L'avancement publié par la tâche de CET événement, {} sinon (pas encore pris en charge,
-    ou publié par une autre installation de la même clé)."""
-    from django.core.cache import cache
+    publié par une autre installation de la même clé, ou tâche que Celery ne dit plus vivante —
+    la lecture commune `task_progress.progression_en_cours`, garde des vues de lancement)."""
+    from wama.common.utils.task_progress import progression_en_cours
 
     from ..tasks import INSTALL_CACHE_PREFIX
-    live = cache.get(INSTALL_CACHE_PREFIX + row.key) or {}
+    live = progression_en_cours(INSTALL_CACHE_PREFIX + row.key) or {}
     return live if live.get('install_id') == row.pk else {}
 
 
@@ -235,19 +236,16 @@ def progress_row(row, now=None) -> dict:
     Une demande ouverte que la tâche n'a pas encore prise attend dans la file : PENDING."""
     from django.utils import timezone
 
-    from wama.common.models import (JOB_PENDING, JOB_RUNNING, JOB_STATUS_TERMINAL,
-                                    normalize_job_status)
+    from wama.common.models import JOB_PENDING, JOB_RUNNING, normalize_job_status
+    from wama.common.services.job_families import line
     now = now or timezone.now()
     status, error, _abandoned = effective_state(row, now)
     status = normalize_job_status(status)
     live = live_state(row) if status == JOB_RUNNING else {}
     if status == JOB_RUNNING and not live:
         status = JOB_PENDING
-    terminal = status in JOB_STATUS_TERMINAL
-    out = {'family': FAMILY, 'id': row.pk, 'label': title(row), 'model_key': row.key,
-           'status': status, 'terminal': terminal, 'ok': status == 'SUCCESS',
-           'progress': 100 if status == 'SUCCESS' else int(live.get('pct') or 0),
-           'preview_url': '', 'started_at': row.started_at}
+    out = line(FAMILY, row.pk, label=title(row), status=status, progress=live.get('pct'),
+               model_key=row.key, started_at=row.started_at)
     if live.get('status'):
         out['step'] = live['status']
     for key in ('done_gb', 'total_gb'):

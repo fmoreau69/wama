@@ -5034,13 +5034,12 @@ def job_progress(user, family: str, pk) -> dict | None:
     de l'élément la déclarent (`process_runs.launch_eta`, la même que sa card). None hors d'une
     famille déclarée, ou pour un élément qui n'est pas à `user` (même borne que le statut)."""
     from django.utils.module_loading import import_string
-    from wama.common.models import JOB_STATUS_TERMINAL, normalize_job_status
+    from wama.common.services import job_families
 
     spec = TRIAD_SPECS.get(family)
     if spec is None:
         # Un élément qui n'est pas une card (une installation, un run du Studio — 2026-11-06) :
         # sa ligne est celle que DÉCLARE la famille qui le possède (`job_families`).
-        from wama.common.services import job_families
         tracked = job_families.get(family)
         return tracked.read(user, pk) if tracked is not None else None
     try:
@@ -5050,21 +5049,18 @@ def job_progress(user, family: str, pk) -> dict | None:
     if item is None:
         return None
     row = _status_row(family, spec, item, _queue_places(user, [item]))
-    status = normalize_job_status(str(getattr(item, 'status', '') or ''))
-    try:
-        progress = max(0, min(100, int(row.get('progress') or 0)))
-    except (TypeError, ValueError):
-        progress = 0
     # Le libellé : le nom que la ligne déclare, sinon la règle commune du nom lisible d'un élément
     # (`batch_views.element_label`, celle du statut de lot et du ZIP), sinon la famille et l'id.
     from wama.common.utils.batch_views import element_label
     # L'aperçu COMMUN de l'élément (`common:unified_preview`, celui du volet et de la card) : la
     # ligne de l'échange y montre ses faces (2026-10-28, chantier ② de l'aperçu). Vide hors registre.
     from wama.common.utils.detail_registry import DetailRegistry
-    row.update(family=family, id=item.pk, status=status, progress=progress,
-               terminal=status in JOB_STATUS_TERMINAL, ok=status == 'SUCCESS',
-               label=str(row.get('name') or element_label(item) or f'{family} #{item.pk}'),
-               preview_url=DetailRegistry.preview_url(family, item.pk))
+    # Statut, `terminal` / `ok` et progression : la ligne commune (`job_families.line`), celle des
+    # familles suivies hors des files.
+    row.update(job_families.line(
+        family, item.pk, status=getattr(item, 'status', ''), progress=row.get('progress'),
+        label=str(row.get('name') or element_label(item) or f'{family} #{item.pk}'),
+        preview_url=DetailRegistry.preview_url(family, item.pk)))
     if not row['terminal']:
         try:
             from wama.common.services.process_runs import launch_eta

@@ -39,11 +39,11 @@ class TheRunLineTest(TestCase):
                            side_effect=lambda app: 'source' if app == 'file_input' else 'app'):
             self.assertEqual(70, run_progress(run), 'the input card passes in an instant')
 
-    def test_a_lot_run_counts_its_finished_elements(self):
+    def test_a_lot_run_counts_its_successful_elements_like_a_parent_card(self):
         lot = StudioRun.objects.create(user=self.user, graph=TWO_APPS, status=JOB_RUNNING)
         for status in (JOB_SUCCESS, 'FAILURE', JOB_RUNNING, 'PENDING'):
             StudioRun.objects.create(user=self.user, graph=TWO_APPS, status=status, parent=lot)
-        self.assertEqual(50, run_progress(lot))
+        self.assertEqual(25, run_progress(lot), 'a failure does not advance the bar of a lot')
 
     def test_the_line_is_the_owners_and_says_when_the_run_started(self):
         from wama.common.services import process_runs

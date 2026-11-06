@@ -1659,12 +1659,13 @@ Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app
 
 ### Familles suivies hors des files
 
-Un élément qui n'est pas une card — une installation de modèle (`InstallEvent`), une exécution du Studio (`StudioRun`) — suivi comme une card par l'assistant et le calendrier (2026-11-06) : l'app qui POSSÈDE son modèle inscrit sa famille dans son `ready()` (modèle, outils qui le désignent par `item_id`, ligne de suivi au contrat de `job_progress`, geste « statut » rejoué à sa fin). Lu par `tool_api.job_progress` et `items_of_step`, `job_follow_ups` (origine, statut) et le calendrier (début et avancement d'un élément en cours)
+Un élément qui n'est pas une card — une installation de modèle (`InstallEvent`), une exécution du Studio (`StudioRun`) — suivi comme une card par l'assistant et le calendrier (2026-11-06) : l'app qui POSSÈDE son modèle inscrit sa famille dans son `ready()` (modèle, outils qui le désignent par `item_id`, ligne de suivi au contrat de `job_progress`, geste « statut » rejoué à sa fin). Lu par `tool_api.job_progress` et `items_of_step`, `job_follow_ups` (origine, statut) et le calendrier (début et avancement d'un élément en cours). La ligne s'écrit UNE fois, card comprise (`line` : statut normalisé, terminal/ok, progression bornée, 100 à la réussite)
 
 - **Domicile** : `wama/common/services/job_families.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.2](../construction/suivi/ROADMAP.md)
 - **Module** : Les FAMILLES SUIVIES hors des files d'app — ce que l'échange de l'assistant suit et raconte, et que le calendrier date, pour un élément qui n'est pas une card (2026-11-06).
-- **API publique** (5) :
+- **API publique** (6) :
   - `class JobFamily`
+  - `line(family: str, pk, *, label: str, status, progress, preview_url: str='', **extra) -> dict` — La ligne de suivi au contrat de `tool_api.job_progress` — UNE écriture pour la card d'app
   - `register(family: JobFamily) -> None` — Inscrit une famille — idempotent (un `ready()` peut être rejoué).
   - `get(key)` — La famille `key`, ou None (une card d'app n'en est pas une : elle est à `TRIAD_SPECS`).
   - `for_tool(tool_name)` — La famille dont `tool_name` crée ou lance les éléments, ou None.

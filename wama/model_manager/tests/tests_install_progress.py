@@ -82,19 +82,17 @@ class InstallMeterTest(SimpleTestCase):
             self.assertEqual(0, tree_bytes(root / 'absent'))
 
     def test_a_work_folder_purge_says_the_bytes_it_frees(self):
-        import shutil
-
-        from django.conf import settings
+        from django.test import override_settings
 
         from wama.common.utils.work_dir import purge_job_dir
-        base = Path(tempfile.mkdtemp(dir=settings.MEDIA_ROOT))   # sous les médias de TEST
-        try:
-            (base / 'job_7').mkdir()
+        # Des médias JETABLES (le motif des tests de l'imager) : la purge ne vaut que sous
+        # MEDIA_ROOT, et le dossier du run de test n'existe pas forcément à cet instant.
+        with tempfile.TemporaryDirectory() as tmp, override_settings(MEDIA_ROOT=tmp):
+            base = Path(tmp) / 'work'
+            (base / 'job_7').mkdir(parents=True)
             (base / 'job_7' / 'frame.png').write_bytes(b'x' * 12)
             self.assertEqual(12, purge_job_dir(base, 7))
             self.assertFalse((base / 'job_7').exists())
-        finally:
-            shutil.rmtree(base, ignore_errors=True)    # le chemin CRÉÉ, jamais MEDIA_ROOT lu ici
 
     def test_the_sum_under_a_folder_has_one_home(self):
         """The meter, the uninstall, the purge of a work folder and the discovery of a snapshot
@@ -240,16 +238,34 @@ class TheProgressRowTest(TestCase):
 
     def test_the_task_progress_of_this_event_is_read(self):
         cache.set(INSTALL_CACHE_PREFIX + 'test:row',
-                  {'state': 'RUNNING', 'install_id': self.event.pk, 'pct': 42,
-                   'status': 'téléchargement…', 'done_gb': 1.0, 'total_gb': 2.4})
+                  {'state': 'RUNNING', 'task_id': 'install-task', 'install_id': self.event.pk,
+                   'pct': 42, 'status': 'téléchargement…', 'done_gb': 1.0, 'total_gb': 2.4})
         row = install_history.progress_row(self.event)
         self.assertEqual(('RUNNING', 42, 'téléchargement…', 2.4),
                          (row['status'], row['progress'], row['step'], row['total_gb']))
 
     def test_counter_proof_another_install_of_the_same_key_is_not_this_one(self):
         cache.set(INSTALL_CACHE_PREFIX + 'test:row',
-                  {'state': 'RUNNING', 'install_id': self.event.pk + 1, 'pct': 90})
+                  {'state': 'RUNNING', 'task_id': 'install-task',
+                   'install_id': self.event.pk + 1, 'pct': 90})
         self.assertEqual('PENDING', install_history.progress_row(self.event)['status'])
+
+    def test_a_progress_whose_task_celery_says_dead_is_not_read(self):
+        cache.set(INSTALL_CACHE_PREFIX + 'test:row',
+                  {'state': 'RUNNING', 'task_id': 'killed-task', 'install_id': self.event.pk,
+                   'pct': 60})
+        with mock.patch('celery.result.AsyncResult', return_value=mock.Mock(state='FAILURE')):
+            row = install_history.progress_row(self.event)
+        self.assertEqual(('PENDING', 0), (row['status'], row['progress']),
+                         'the cache outlives a killed worker (`progression_en_cours`)')
+
+    def test_a_successful_install_is_full_though_nothing_is_published_any_more(self):
+        InstallEvent.objects.filter(pk=self.event.pk).update(status='SUCCESS',
+                                                             finished_at=timezone.now())
+        self.event.refresh_from_db()
+        row = install_history.progress_row(self.event)
+        self.assertEqual(('SUCCESS', True, True, 100),
+                         (row['status'], row['terminal'], row['ok'], row['progress']))
 
     def test_a_finished_install_says_its_outcome(self):
         InstallEvent.objects.filter(pk=self.event.pk).update(
@@ -325,7 +341,8 @@ class CalendarPredictsARunningInstallTest(TestCase):
         event = InstallEvent.objects.create(kind='model', key='test:cal', name='Long',
                                             started_at=now - timedelta(minutes=10))
         cache.set(INSTALL_CACHE_PREFIX + 'test:cal',
-                  {'state': 'RUNNING', 'install_id': event.pk, 'pct': 25})
+                  {'state': 'RUNNING', 'task_id': 'install-task', 'install_id': event.pk,
+                   'pct': 25})
         (ev,) = install_history.calendar_events(now - timedelta(hours=1), now + timedelta(hours=2))
         self.assertEqual('predicted', ev.nature)
         self.assertAlmostEqual(30, (ev.end - now).total_seconds() / 60, delta=1,

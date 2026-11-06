@@ -21,8 +21,9 @@ Ce qu'une famille DÉCLARE, et ce que chaque lecteur en tire :
   • `tools`  — les outils qui le CRÉENT ou le LANCENT : leur résultat le nomme par la clé uniforme
                `item_id` (contrat méta-app, `items_of_step`) ;
   • `row`    — `fonction(user, pk) → ligne | None` : la ligne de suivi au contrat de `job_progress`
-               (`family`, `id`, `label`, statut normalisé, `progress`, `terminal`, `ok`), bornée à
-               ce que `user` a le droit de voir — et `started_at` si l'élément le sait (calendrier) ;
+               (`family`, `id`, `label`, statut normalisé, `progress`, `terminal`, `ok`), écrite
+               par `line` ci-dessous comme celle d'une card, bornée à ce que `user` a le droit de
+               voir — et `started_at` si l'élément le sait (calendrier) ;
   • `status_tool` / `status_arg` — le geste « statut » RÉELLEMENT rejoué quand sa fin est racontée.
 """
 from __future__ import annotations
@@ -55,6 +56,23 @@ class JobFamily:
         args = {self.status_arg: int(pk)}
         return {'tool': self.status_tool, 'args': args,
                 'result': execute_tool(self.status_tool, args, user)}
+
+
+def line(family: str, pk, *, label: str, status, progress, preview_url: str = '', **extra) -> dict:
+    """La ligne de suivi au contrat de `tool_api.job_progress` — UNE écriture pour la card d'app
+    et pour chaque famille suivie : statut NORMALISÉ, `terminal` / `ok` qui en dérivent, progression
+    bornée 0-100, et 100 à la réussite (ce que le squelette écrit sur la card, `task_skeleton` —
+    une installation finie n'a plus d'avancement publié). `extra` : ce que l'élément sait de plus."""
+    from wama.common.models import JOB_STATUS_TERMINAL, JOB_SUCCESS, normalize_job_status
+    status = normalize_job_status(str(status or ''))
+    try:
+        progress = max(0, min(100, int(progress or 0)))
+    except (TypeError, ValueError):
+        progress = 0
+    return dict(extra, family=family, id=pk, label=label, status=status,
+                progress=100 if status == JOB_SUCCESS else progress,
+                terminal=status in JOB_STATUS_TERMINAL, ok=status == JOB_SUCCESS,
+                preview_url=preview_url)
 
 
 _FAMILIES: dict = {}

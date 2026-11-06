@@ -1464,7 +1464,8 @@ MECHANISMS = (
               "`ready()` (modèle, outils qui le désignent par `item_id`, ligne de suivi au contrat "
               "de `job_progress`, geste « statut » rejoué à sa fin). Lu par `tool_api.job_progress` "
               "et `items_of_step`, `job_follow_ups` (origine, statut) et le calendrier (début et "
-              "avancement d'un élément en cours)",
+              "avancement d'un élément en cours). La ligne s'écrit UNE fois, card comprise "
+              "(`line` : statut normalisé, terminal/ok, progression bornée, 100 à la réussite)",
               'wama/common/services/job_families.py', 'docs/construction/suivi/ROADMAP.md §19.2',
               annexes=('wama/studio/services/run_progress.py',),
               depends_on=('job_follow_ups',)),

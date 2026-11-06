@@ -60,6 +60,16 @@ class JobProgressTest(TestCase):
                           row['terminal'], row['ok']))
         self.assertTrue(row['label'])
 
+    def test_a_card_and_a_followed_family_write_the_same_line(self):
+        """2026-11-06 : la ligne d'une card et celle d'une famille suivie (installation, run du
+        Studio) s'écrivent UNE fois (`job_families.line`) — une card réussie se lit pleine, comme
+        une installation finie, quel que soit le chiffre resté en base."""
+        from wama.tool_api import job_progress
+        self._set('SUCCESS', 40)
+        row = job_progress(self.user, 'describer', self.card.pk)
+        self.assertEqual(('SUCCESS', 100, True, True),
+                         (row['status'], row['progress'], row['terminal'], row['ok']))
+
     def test_the_line_carries_the_common_preview_address_of_its_item(self):
         """2026-10-28, chantier ② de l'aperçu : la ligne de l'échange montre les faces de l'élément
         par l'aperçu COMMUN — celui du volet et de la card, jamais une adresse propre au chat."""

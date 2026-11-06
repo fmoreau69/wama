@@ -23,8 +23,9 @@ def _work_kinds() -> tuple:
 
 
 def run_progress(run) -> int:
-    """0-100 : la part des éléments finis d'un run de lot, sinon la moyenne de ses nœuds de
-    traitement (un nœud réussi compte 100, un nœud en cours sa progression publiée)."""
+    """0-100 : pour un run de lot, la règle de la card mère — éléments RÉUSSIS / total
+    (`_batch_card.html`, `queue-actions.js`, `tool_api.batch_progress`) ; sinon la moyenne de ses
+    nœuds de traitement (un nœud réussi compte 100, un nœud en cours sa progression publiée)."""
     from wama.common.manifests.builtin.pipeline import node_kind
     from wama.common.models import JOB_SUCCESS
 
@@ -32,8 +33,7 @@ def run_progress(run) -> int:
     lot = lot_progress(run)
     if lot is not None:
         summary = lot['lot']
-        return int((summary['done'] + summary['failed']) * 100 / summary['total']) \
-            if summary['total'] else 0
+        return round(100 * summary['done'] / summary['total']) if summary['total'] else 0
     nodes = (run.graph or {}).get('nodes', [])
     work = [n for n in nodes if node_kind(n) in _work_kinds()] or nodes
     if not work:
@@ -65,7 +65,7 @@ def run_started_at(run):
 def job_row(user, pk):
     """La ligne de suivi du run n° `pk` de `user` (le sien seul, comme `get_studio_run_status`),
     ou None."""
-    from wama.common.models import JOB_STATUS_TERMINAL, normalize_job_status
+    from wama.common.services.job_families import line
 
     from ..models import StudioRun
     try:
@@ -74,11 +74,8 @@ def job_row(user, pk):
         return None
     if run is None:
         return None
-    status = normalize_job_status(run.status)
-    row = {'family': 'studio', 'id': run.pk, 'label': str(run), 'status': status,
-           'terminal': status in JOB_STATUS_TERMINAL, 'ok': status == 'SUCCESS',
-           'progress': 100 if status == 'SUCCESS' else run_progress(run), 'preview_url': '',
-           'started_at': run_started_at(run)}
+    row = line('studio', run.pk, label=str(run), status=run.status, progress=run_progress(run),
+               started_at=run_started_at(run))
     if run.error_message:
         row['error'] = run.error_message
     return row
