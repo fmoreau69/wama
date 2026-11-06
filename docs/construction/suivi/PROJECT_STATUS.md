@@ -28848,6 +28848,11 @@ deux numéros coïncidaient — corrigée. Le passage de contre-épreuves a d'ab
 partagé (arrêté à la 1ʳᵉ mutation, fichiers revérifiés, rien d'autre touché) : refait en processus.
 ⚠ Restes (à cette session) : l'aperçu des sorties d'un run du Studio dans l'échange ; les tâches de
 développement gardent leur chemin propre (`DEV_JOB_APP`) au lieu d'une famille de `job_families`.
+Seconde revérification le soir (`af021dc8c`, non poussé) : quatre écarts de ma main ramenés (barre
+d'un lot du Studio = réussis / total ; ligne de suivi écrite une fois, `job_families.line` ;
+avancement d'une installation par `task_progress.progression_en_cours` ; barre de la card qui ne
+renonce plus) — détail `ROADMAP §19.2`. ⏳ Un run du Studio ou une installation au worker tué reste
+« en cours » (aucune réconciliation des orphelins pour eux) : décision à prendre, consignée là.
 
 🔚 POINT D'ENTRÉE : relancer, installer un petit modèle depuis le model manager puis depuis
 l'assistant (barre sur la card, ligne sous la réponse, fin racontée), lancer un pipeline du Studio
