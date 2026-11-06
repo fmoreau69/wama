@@ -196,9 +196,13 @@ def _catalogue_key(value):
         return None
 
 
-def _detection_kwargs(media, user):
+def _detection_kwargs(media, user, ensure_model=None):
     """Ce que le détecteur reçoit, et les modèles qu'il emploiera (clés de catalogue) : choix du
-    ou des modèles par la couverture des classes demandées, ou SAM3 pour une description."""
+    ou des modèles par la couverture des classes demandées, ou SAM3 pour une description.
+
+    `ensure_model` : `ctx.ensure_model` de la glu — le modèle DÉSIGNÉ sur la card s'installe par
+    la route AVANT qu'on lise ses classes ou son chemin (2026-11-06) ; la couverture, elle, ne
+    retient que des modèles installés (`model_coverage`)."""
     precision_level = media.precision_level
     use_segmentation = media.use_segmentation
     # Mode DESCRIPTION (`app_modes`) : la seule désignation par texte branchée au moteur de
@@ -252,6 +256,10 @@ def _detection_kwargs(media, user):
         if backend_for_key(user_specified_key) is None:
             raise ValueError(f"Aucun moteur ne sait lancer {user_specified_key} pour anonymiser. "
                              "Choisissez « auto » ou un autre modèle dans les réglages.")
+        # Absent : la route l'installe, la tâche attend (`model_readiness`) — avant toute lecture
+        # du modèle (ses classes, son chemin), jamais un téléchargement au premier usage.
+        if ensure_model is not None:
+            ensure_model(user_specified_key)
     # L'IDENTIFIANT garde la console et les chemins historiques (`model_path_for` lit les deux).
     user_specified_model = model_id(user_specified_key)
 
@@ -451,9 +459,10 @@ def _detect(media, ctx):
     if not media.file:
         raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
     user = media.user
-    kwargs, used_models = _detection_kwargs(media, user)
-    # Un modèle employé absent (désigné sur la card, ou SAM3) : la route l'installe, la tâche
-    # attend — jamais un téléchargement par la librairie au chargement, ni un repli muet.
+    kwargs, used_models = _detection_kwargs(media, user, ensure_model=ctx.ensure_model)
+    # Un modèle employé absent (désigné sur la card — déjà demandé ci-dessus, avant d'être lu —,
+    # ou SAM3) : la route l'installe, la tâche attend — jamais un téléchargement par la librairie
+    # au chargement, ni un repli muet.
     for key in used_models + (['anonymizer:sam3'] if kwargs.get('use_sam3') else []):
         ctx.ensure_model(key)
     _console(user.id, f"Détection — média {media.id}…")

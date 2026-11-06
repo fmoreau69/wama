@@ -123,6 +123,35 @@ def queued(kind, key, *, name='', via=''):
     return _open(kind, key, name=name, via=via)
 
 
+def set_task(event_id, task_id) -> None:
+    """La tâche Celery qui exécutera l'événement, posée à l'ENVOI (2026-11-06) — la paire
+    `status` + `task_id` par laquelle la réconciliation commune le solde si son worker meurt
+    (`process_control.work_models`). Rien de plus dans le message Celery (en-tête du module)."""
+    if event_id is None or not task_id:
+        return
+    from ..models import InstallEvent
+    try:
+        InstallEvent.objects.filter(pk=event_id).update(task_id=str(task_id)[:255])
+    except Exception:
+        logger.warning('[install_history] tâche non rattachée (#%s)', event_id, exc_info=True)
+
+
+def close_interrupted(event_id, message: str) -> None:
+    """Clôt en échec une installation que sa tâche ne finira pas (worker mort) — la clôture que
+    `InstallEvent.close_interrupted` déclare à la réconciliation commune. Une installation déjà
+    close n'est pas réécrite."""
+    from ..models import InstallEvent
+    try:
+        still_open = InstallEvent.objects.filter(pk=event_id, status=InstallEvent.STATUS_RUNNING,
+                                                 finished_at__isnull=True).exists()
+    except Exception:
+        logger.warning('[install_history] clôture interrompue illisible (#%s)', event_id,
+                       exc_info=True)
+        return
+    if still_open:
+        _close(event_id, {'ok': False, 'error': message})
+
+
 @contextmanager
 def resumed(kind, key, *, name=''):
     """Reprend, dans la tâche, l'événement ouvert au dispatch (ou en ouvre un sans voie).

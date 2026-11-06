@@ -1,13 +1,12 @@
-from ultralytics import YOLO
-from wama.settings import BASE_DIR
 import os
 import logging
-from typing import List, Dict, Tuple, Optional
-from .model_manager import (
-    auto_download_model,
-    get_installed_models,
-    MODELS_ROOT,
-)
+from typing import List
+
+from .model_config import get_yolo_root
+
+#: Racine des poids YOLO (`vision/yolo/`, `model_config`) — là où le pilote `yolo` de la route les
+#: range. Rien ne s'y télécharge ici (2026-11-06) : un poids absent s'installe par la route.
+MODELS_ROOT = str(get_yolo_root())
 
 # Types de modèles disponibles
 MODEL_TYPES = ['detect', 'segment', 'classify', 'pose', 'obb']
@@ -67,10 +66,14 @@ def model_path_for(value):
     return get_model_path(raw[len('yolo:'):] if raw.startswith('yolo:') else raw)
 
 
-def get_model_path(filename: str, auto_download: bool = True) -> str:
+def get_model_path(filename: str) -> str:
     """
     Retourne le chemin absolu d'un modèle YOLO.
     Supporte les formats PyTorch (.pt) et ONNX (.onnx).
+
+    Une RÉSOLUTION, jamais un téléchargement (2026-11-06) : le repli `auto_download_model` tirait
+    un poids officiel absent par une adresse figée, sans empreinte, hors de la route. Un modèle
+    absent s'installe par la route avant d'être lu (`ctx.ensure_model`, `spec_for_catalog_row`).
 
     Recherche dans l'ordre:
     1. Chemin direct si path contient des séparateurs (type/specialty/model.pt)
@@ -113,12 +116,6 @@ def get_model_path(filename: str, auto_download: bool = True) -> str:
                         if is_model_file(specialty_path):
                             logger.info(f"Model found in specialty folder: {subdir}/{model_name}")
                             return specialty_path
-
-        # Try auto-download if enabled (only for official models, .pt only)
-        if auto_download and filename.endswith('.pt'):
-            downloaded_path = auto_download_model(filename)
-            if downloaded_path:
-                return downloaded_path
         return path
 
     # Rechercher d'abord dans la racine (compatibilité ascendante)
@@ -144,31 +141,25 @@ def get_model_path(filename: str, auto_download: bool = True) -> str:
                     if is_model_file(specialty_path):
                         return specialty_path
 
-    # Si non trouvé et auto_download activé, essayer de télécharger (PT only)
-    if auto_download and filename.endswith('.pt'):
-        logger.info(f"Model {filename} not found locally, attempting auto-download...")
-        downloaded_path = auto_download_model(filename)
-        if downloaded_path:
-            return downloaded_path
-
     # Si non trouvé, retourner le chemin racine (pour compatibilité)
-    logger.warning(f"Model {filename} not found and could not be downloaded")
+    logger.warning(f"Model {filename} not found — install it through the model manager")
     return root_path
 
 def get_yolo_class_choices(model_filename: str = "yolov8n.pt"):
     """
-    Charge un modèle YOLO et retourne la liste des classes disponibles.
+    Les classes d'un modèle YOLO, lues au CATALOGUE (`capabilities.classes`, que la découverte
+    tire des métadonnées des poids, dans l'ordre de leurs index) — jamais en chargeant le modèle
+    (2026-11-06 : la page de l'anonymizer chargeait `yolov8n.pt` à chaque ouverture, et le
+    retéléchargeait hors de la route s'il manquait).
     """
-    model_path = get_model_path(model_filename)
-
-    try:
-        model = YOLO(model_path)
-        names_dict = model.model.names  # {0: 'person', 1: 'car', ...}
-        return [(str(k), v.capitalize()) for k, v in names_dict.items()]
-    except Exception as e:
-        logging.warning(f"[YOLO] Could not load model at {model_path}: {e}")
-        # Valeurs par défaut si le modèle ne se charge pas
+    from wama.model_manager.models import AIModel
+    row = AIModel.objects.filter(model_key=catalogue_key_for(model_filename)).only(
+        'capabilities').first()
+    names = (row.capabilities or {}).get('classes') if row is not None else None
+    if not names:
+        # Valeurs par défaut si le catalogue ne connaît pas le modèle
         return [('0', 'Face'), ('1', 'Plate')]
+    return [(str(index), str(name).capitalize()) for index, name in enumerate(names)]
 
 def get_all_class_choices():
     yolo_choices = get_yolo_class_choices()

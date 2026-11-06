@@ -283,7 +283,10 @@ MECHANISMS = (
               "remplacée ou arrêtée se retirant d'elle-même (`task_skeleton.LaunchSuperseded`) ; "
               "un SOUS-PROCESSUS de calcul que l'arrêt atteint (`run_child` : groupe de "
               "processus, battement par la progression de la glu, groupe entier arrêté sur ⏹, "
-              "délai ou limite de durée — 2026-11-04)",
+              "délai ou limite de durée — 2026-11-04). Un élément qui DÉCLARE sa clôture "
+              "(`close_interrupted`) se clôt par elle — un journal daté, `InstallEvent` ; un "
+              "modèle sans propriétaire se réconcilie en entier à l'ouverture de sa page "
+              "(`reconcile_queue_of`, 2026-11-06)",
               'wama/common/utils/process_control.py', 'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
               annexes=('wama/celery.py', 'wama/common/management/commands/worker_died.py',
                        'scripts/worker_watchdog.sh', 'scripts/wama_services.sh',
@@ -693,7 +696,11 @@ MECHANISMS = (
               "résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; "
               "voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, "
               "2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle "
-              "`tests_install_route`, budget des dérives existantes qui ne peut que descendre. "
+              "`tests_install_route` (appels nommés, pip, et depuis le 2026-11-06 tout corps de "
+              "réponse écrit dans un fichier), budget des dérives existantes qui ne peut que "
+              "descendre. Une ligne de poids YOLO OFFICIEL (origine `github:ultralytics/assets`) "
+              "se dérive au pilote `yolo` (`spec_for_catalog_row`, 2026-11-06 : les lignes de "
+              "l'anonymizer n'avaient aucun geste « Installer »). "
               "L'ANATOMIE est complète ou refusée (2026-11-06) : chaque poids de ce que "
               "l'installation apporte est réclamé par un composant, reconnu comme variante, ou "
               "écarté avec sa raison (`composition.excluded`) — `anatomy_gaps`, joué avant de "
@@ -725,7 +732,10 @@ MECHANISMS = (
               "débit observé. Depuis le 2026-11-06, l'événement est l'ÉLÉMENT suivi d'une "
               "installation : sa ligne (`progress_row` — la card du model manager, l'échange de "
               "l'assistant, famille `model_manager` de `job_families`) et sa fin notifiée à qui "
-              "l'a demandée (`notify_end` → `notify_job_end`). Best-effort : n'échoue jamais une "
+              "l'a demandée (`notify_end` → `notify_job_end`). L'événement porte sa tâche dès "
+              "l'envoi (`set_task`) et DÉCLARE sa clôture (`InstallEvent.close_interrupted`) : une "
+              "installation dont le worker meurt est soldée par la réconciliation commune, sa fin "
+              "et son motif écrits par le journal. Best-effort : n'échoue jamais une "
               "installation",
               'wama/model_manager/services/install_history.py', 'docs/construction/ia/WAMA_MEMORY.md'),
     Mechanism('vision_probe', 'Sonde vision',

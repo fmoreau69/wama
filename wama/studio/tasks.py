@@ -386,7 +386,11 @@ def _execute_run(run, task_id, notify=True):
     user = run.user
     t0 = time.time()
     run.status = JOB_RUNNING
-    run.save(update_fields=['status'])
+    # Le run porte la tâche qui l'EXÉCUTE (2026-11-06) — un élément d'un lot, celle du run lancé
+    # (`launch_graph` ne la pose que sur lui) : c'est la paire `status` + `task_id` par laquelle la
+    # réconciliation commune solde un élément dont le worker est mort (`work_models`).
+    run.task_id = task_id or run.task_id
+    run.save(update_fields=['status', 'task_id'])
     _console(user.id, f"Studio run #{run.pk} : démarrage")
 
     states = dict(run.node_states or {})

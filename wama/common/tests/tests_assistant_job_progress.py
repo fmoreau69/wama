@@ -379,12 +379,13 @@ var document = { readyState: 'loading', querySelectorAll: function () { return [
                  querySelector: function () { return null; },
                  createElement: function () { return el(); },
                  cookie: '', addEventListener: function () {} };
-var checked = 0, stopped = [], started = [];
+var checked = 0, stopped = [], started = [], pollerCfg = null;
 window.WamaApp = {
   checkNotifications: function () { checked++; },
   statusLabel: function (s) { return 'label:' + s; },
   statusBadge: function (s) { return 'badge:' + s; },
-  Poller: function () {
+  Poller: function (cfg) {
+    pollerCfg = cfg;
     this.start = function (id) { started.push(id); };
     this.stop = function (id) { stopped.push(id); };
     this.stopAll = function () {};
@@ -499,6 +500,17 @@ class ChatFollowsTheJobsTest(SimpleTestCase):
         self.assertEqual(['label:SUCCESS', '100%', 'label:FAILURE'], self._read(
             ctx, "[a.parts['.status-badge'].textContent, a.parts['.progress-text'].textContent,"
                  " b.parts['.status-badge'].textContent]"))
+
+    def test_the_follow_never_gives_up_but_stops_for_a_block_gone(self):
+        """2026-11-06 : a bar of WAMA never gives up (`wama-global-progress.js`) — with the default
+        of ten failed turns, a server restart froze the lines of the exchange for good. A block
+        removed from the thread is no longer followed, the server answering or not."""
+        ctx = self._ctx()
+        self.assertTrue(self._read(ctx, 'pollerCfg.maxFails === Infinity'))
+        ctx.eval("pollerCfg.onError('1', new Error('HTTP 502'));")
+        self.assertEqual([], self._read(ctx, 'stopped'), 'a server restart is waited out')
+        ctx.eval("block.isConnected = false; pollerCfg.onError('1', new Error('HTTP 502'));")
+        self.assertEqual(['1'], self._read(ctx, 'stopped'))
 
     def test_a_job_line_mounts_the_common_face_viewer_at_its_preview_address(self):
         """2026-10-28 (Fabien : « intégrer la preview dans l'échange […] entrée/during/comparaison/

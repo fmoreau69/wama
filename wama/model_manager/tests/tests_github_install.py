@@ -1077,3 +1077,28 @@ class YoloAdoptsTheCommonDownloadTest(SimpleTestCase):
         self.assertEqual(os.path.join(root, 'models', 'vision', 'yolo', 'segment',
                                       'yolo11n-seg.pt'), target)
         self.assertEqual(1_000_000, dl.call_args.kwargs['min_bytes'])
+
+
+class AnOfficialYoloRowIsInstalledByTheRouteTest(SimpleTestCase):
+    """2026-11-06 : an official YOLO row of the catalogue (an anonymizer weight, origin
+    `github:ultralytics/assets`) had no spec — no « Install » gesture, and its first use fetched it
+    beside the route. It derives the spec of the `yolo` driver : the inverse of the origin the route
+    sets on what this driver installs (`provenance.identity_for_spec`)."""
+
+    def _row(self, name, platform_ref):
+        from wama.model_manager.models import AIModel
+        return AIModel(model_key=f'anonymizer:yolo:{name}', name=name, source='anonymizer',
+                       platform_ref=platform_ref)
+
+    def test_an_official_weight_derives_the_spec_of_the_yolo_driver(self):
+        spec = mi.spec_for_catalog_row(self._row('yolo11n-seg.pt', 'github:ultralytics/assets'))
+        self.assertIsNotNone(spec, 'an official YOLO row has no spec: no « Install » gesture')
+        self.assertEqual(('yolo', 'yolo11n-seg', 'segment'),
+                         (spec['kind'], spec['ref'], spec['task']))
+        self.assertTrue(self._row('yolov8n.pt', 'github:ultralytics/assets').is_installable)
+
+    def test_counter_proof_another_origin_or_an_onnx_export_is_not_one(self):
+        self.assertIsNone(mi.spec_for_catalog_row(
+            self._row('yolov9s-face-lindevs.pt', 'github:lindevs/yolov9-face')))
+        self.assertIsNone(mi.spec_for_catalog_row(
+            self._row('license-plate-finetune-v1n.onnx', 'github:ultralytics/assets')))

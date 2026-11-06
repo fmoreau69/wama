@@ -1719,8 +1719,9 @@ migration* : preuve par l'absurde que la liste ne doit pas y vivre) — ✅ **li
 ⑤ enhancer (7 modèles déclarés **4 fois**) — ✅ **livrée le 2026-10-06**, cf. ci-dessous ; ⑥ imager (aligner l'image sur la vidéo, replier les
 8 `SUPPORTED_MODELS` sur `composition.runtime`) — ✅ **livrée le 2026-09-29**, cf. ci-dessous ; ⑦ transcriber (pont backend↔catalogue) — ✅ **livrée le 2026-09-30**, cf. ci-dessous ;
 ⑧ anonymizer (scan disque conservé en repli jusqu'à preuve) — ✅ **livrée le 2026-10-07**
-(`anonymizer/0036`, `anonymizer/params.py:97-99` ; le scan disque subsiste,
-`anonymizer/utils/model_manager.py:342`) ; ⑨ surfaces transverses (assistant,
+(`anonymizer/0036`, `anonymizer/params.py:97-99` ; le scan disque subsiste dans la découverte,
+`anonymizer/utils/model_config.list_available_yolo_models` — le second balayage, celui du module
+de téléchargement de l'app, est retiré le 2026-11-06, `REMOVAL_LEDGER R221`) ; ⑨ surfaces transverses (assistant,
 studio, Lab — `cam_analyzer` n'a **aucun** usage du catalogue : chantier à part).
 
 ##### ✅ Étapes ② et ③ LIVRÉES le 2026-09-01 (`c27f134e`, `b039ec51`)

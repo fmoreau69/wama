@@ -23,6 +23,7 @@ from unittest import mock
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
 from django.utils import timezone
 
 from wama.model_manager.models import AIModel, InstallEvent
@@ -351,3 +352,57 @@ class CalendarPredictsARunningInstallTest(TestCase):
         (ev,) = install_history.calendar_events(now - timedelta(hours=1), now + timedelta(hours=2))
         self.assertLess((ev.end - event.started_at), timedelta(minutes=16),
                         'without progress no end is invented: it stops at now (15 min block)')
+
+
+class AnInstallWhoseWorkerDiedIsClosedTest(TestCase):
+    """2026-11-06 : an install whose worker died stayed « running » — up to 6 h on its frozen
+    progress, then « waiting » up to 24 h. The event now carries its task from the DISPATCH, the
+    pair `status` + `task_id` the common reconciliation knows (`process_control.work_models`), and
+    it declares its closure (`close_interrupted`) : the journal writes its end and its reason."""
+
+    NODE = 'default@test-host'
+
+    def setUp(self):
+        cache.clear()
+        self.event = InstallEvent.objects.create(kind='model', key='test:dead', name='Coupée',
+                                                 started_at=timezone.now(),
+                                                 task_id='task-on-a-dead-process')
+
+    def test_the_dispatch_ties_the_sent_task_to_its_event(self):
+        task = mock.Mock()
+        task.delay.return_value = mock.Mock(id='sent-task')
+        mi.dispatch_install(task, AIModel(model_key='test:sent', name='Envoyée'), via='cli')
+        self.assertEqual('sent-task', InstallEvent.objects.get(key='test:sent').task_id)
+
+    def _settle(self):
+        from wama.common.utils import process_control
+        started = mock.Mock(state='STARTED', result={'pid': 424242, 'hostname': self.NODE})
+        with mock.patch('celery.result.AsyncResult', return_value=started), \
+                mock.patch.object(process_control, '_pid_alive', return_value=False), \
+                mock.patch.object(process_control, '_tache_reussie', return_value=False):
+            return process_control.reconcile_dead_worker_tasks(self.NODE)
+
+    def test_a_restarted_worker_closes_it_with_its_reason(self):
+        before = timezone.now() - timedelta(seconds=1)
+        self.assertIn(('model_manager', 'InstallEvent', self.event.pk), self._settle())
+        self.event.refresh_from_db()
+        self.assertIsNotNone(self.event.finished_at, 'the journal dates its end')
+        row = install_history.progress_row(self.event)
+        self.assertEqual(('FAILURE', True, False), (row['status'], row['terminal'], row['ok']))
+        self.assertIn('worker', row['error'])
+        self.assertIn(self.event.pk, [r['id'] for r in install_history.install_rows(since=before)
+                                      if r['terminal']], 'the page that followed it sees its end')
+        self.assertEqual([], self._settle(), 'settled once')
+
+    def test_the_model_manager_page_reconciles_the_installs_of_the_instance(self):
+        from wama.common.utils import process_control
+        with mock.patch.object(process_control, 'reconcile_orphaned_running') as reconcile:
+            process_control.reconcile_queue_of(InstallEvent, None)
+        self.assertTrue(reconcile.called, 'the running install was not handed to the brick')
+        self.assertEqual([self.event.pk], [e.pk for e in reconcile.call_args.args[0]],
+                         'an install belongs to no one: the whole instance is reconciled')
+        self.client.force_login(User.objects.create_superuser('mm_reconcile', 'r@x.fr', 'x'))
+        with mock.patch('wama.common.utils.process_control.reconcile_queue_of') as page:
+            self.client.get(reverse('model_manager:index'))
+        self.assertTrue(page.called, 'the model manager page does not reconcile')
+        self.assertIs(InstallEvent, page.call_args.args[0])

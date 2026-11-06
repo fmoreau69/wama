@@ -16,8 +16,14 @@ def index(request):
     2026-07-11 — `api_run` → `services/launch.launch_graph` → `tasks.run_pipeline_task`.)
 
     Le volet déclare ce que la page remplit (l'inspecteur du nœud et ses actions) : la section
-    Médias n'y portait que le texte par défaut (2026-10-20)."""
+    Médias n'y portait que le texte par défaut (2026-10-20).
+
+    Les runs EN COURS dont le worker est mort se soldent à l'ouverture (2026-11-06) — la
+    réconciliation que chaque page d'app fait (`reconcile_queue_of`, LA brique commune)."""
+    from wama.common.utils.process_control import reconcile_queue_of
     from wama.common.utils.volet import volet
+    from .models import StudioRun
+    reconcile_queue_of(StudioRun, request.user)
     return render(request, 'studio/index.html', {'volet': volet(medias=False)})
 
 

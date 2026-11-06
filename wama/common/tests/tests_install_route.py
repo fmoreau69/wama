@@ -10,7 +10,8 @@ skips the catalogue, the installation log, the disk-space guard, the uninstall, 
 gated repository — the defects measured on 2026-10-16, when the MuScriptor backend fetched the
 Beat This! checkpoint itself while the `files` driver did exactly that.
 
-The scan reads the CODE (AST, defined calls), not names in strings. Three declared lists :
+The scan reads the CODE (AST, defined calls), not names in strings — the named download calls,
+pip runs, and since 2026-11-06 any HTTP response body written to a file. Three declared lists :
   * `ROUTE` : the route itself ;
   * `DATA` : downloads of DATA (evaluation corpora, benchmark tables, reference voices), which
     are neither models nor libraries — each with its reason ;
@@ -46,6 +47,11 @@ DATA = {
     'wama/model_manager/services/benchmark_sync.py': "benchmark result tables (datasets)",
     'wama/transcriber/management/commands/asr_eval_corpus.py': "evaluation corpus (dataset)",
     'wama/common/tts/voice_refs.py': "reference voices (audio files of the media library)",
+    # A response body written to a file (seen since 2026-11-06, `_writes_a_response_body`):
+    'wama/common/utils/video_utils.py': "a media the user imports by its URL (`url_ingest`)",
+    'wama/common/utils/url_ingest.py': "a web page the user imports as an input (`fetch_html_page`)",
+    'wama/common/tts/service_client.py': "the audio the LOCAL voice service has just rendered — "
+                                         "nothing is fetched from outside",
 }
 #: Measured on 2026-10-16 at 5 sites in 4 files, ALL ported the same week (Fabien : « on aligne
 #: tout ») : YOLOPv2 (a declared row the cam_analyzer asks the route for), LPIPS's AlexNet (a
@@ -59,6 +65,21 @@ def _called_name(call: ast.Call) -> str:
     if isinstance(func, ast.Attribute):
         return func.attr
     return func.id if isinstance(func, ast.Name) else ''
+
+
+def _writes_a_response_body(node) -> bool:
+    """An HTTP response body WRITTEN to a file (2026-11-06) — streamed (`for chunk in
+    r.iter_content(…): f.write(chunk)`) or whole (`f.write(r.content)`). The named calls above did
+    not see it : the anonymizer fetched official YOLO weights at first use this way, beside the
+    route. An upload copied by `chunks()` and a body read in memory are neither."""
+    if isinstance(node, ast.For) and isinstance(node.iter, ast.Call) \
+            and _called_name(node.iter) == 'iter_content' and isinstance(node.target, ast.Name):
+        loop_var = node.target.id
+        return any(isinstance(n, ast.Call) and _called_name(n) in ('write', 'write_bytes')
+                   and any(isinstance(a, ast.Name) and a.id == loop_var for a in n.args)
+                   for statement in node.body for n in ast.walk(statement))
+    return (isinstance(node, ast.Call) and _called_name(node) in ('write', 'write_bytes')
+            and any(isinstance(a, ast.Attribute) and a.attr == 'content' for a in node.args))
 
 
 def _runs_pip(call: ast.Call) -> bool:
@@ -88,8 +109,10 @@ def scan(base: Path) -> dict:
                 tree = ast.parse(path.read_text(encoding='utf-8'))
             except (SyntaxError, UnicodeDecodeError):
                 continue
-            count = sum(1 for node in ast.walk(tree) if isinstance(node, ast.Call)
-                        and (_called_name(node) in DOWNLOAD_CALLS or _runs_pip(node)))
+            count = sum(1 for node in ast.walk(tree)
+                        if (isinstance(node, ast.Call)
+                            and (_called_name(node) in DOWNLOAD_CALLS or _runs_pip(node)))
+                        or _writes_a_response_body(node))
             if count:
                 found[rel.as_posix()] = count
     return found
@@ -113,3 +136,20 @@ class InstallRouteTest(SimpleTestCase):
         base = Path(settings.BASE_DIR)
         for path in (*ROUTE, *DATA, *DRIFT_BUDGET):
             self.assertTrue((base / path).exists(), path)
+
+    def test_a_response_body_written_to_a_file_is_a_download(self):
+        """2026-11-06 : the anonymizer fetched YOLO weights by a streamed `requests.get` written to
+        a file, which no named call showed. Both forms count; an upload copied by `chunks()` and a
+        body read in memory do not."""
+        import tempfile
+        code = {
+            'streamed.py': "for chunk in r.iter_content(8192):\n    f.write(chunk)\n",
+            'whole.py': "f.write(resp.content)\n",
+            'upload.py': "for chunk in upload.chunks():\n    out.write(chunk)\n",
+            'in_memory.py': "for part in r.iter_content(8192):\n    parts.append(part)\n",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'wama').mkdir()
+            for name, text in code.items():
+                (Path(tmp) / 'wama' / name).write_text(text, encoding='utf-8')
+            self.assertEqual({'wama/streamed.py': 1, 'wama/whole.py': 1}, scan(Path(tmp)))

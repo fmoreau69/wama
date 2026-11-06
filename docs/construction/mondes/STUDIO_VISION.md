@@ -264,7 +264,8 @@ première chaîne qui l'implémente le fait dans son app ; la seconde déclenche
    construction. À voir si on peut faire quelque chose d'universel et pérenne ») — rien de propre à
    un nœud. Sa ligne (`wama/studio/services/run_progress.py`) se lit sur ce que l'exécuteur publie déjà :
    l'avancement de ses nœuds de traitement (`node_states`), le résumé d'un run de lot
-   (`entries.lot_progress`, lu par la règle de la card mère : réussis / total), son début aux lignes d'exécution communes (`process_runs`). Sa fin
+   (`entries.lot_progress`, lu par la règle de la card mère : réussis / total ; chaque élément
+   porte la tâche qui l'exécute, et un worker mort se solde comme une card — `work_models`), son début aux lignes d'exécution communes (`process_runs`). Sa fin
    passe par les points communs des traitements : `RunOutcome` (le calendrier la DATE — il dessinait
    chaque run à sa création, en bloc indicatif) et `notify_job_end` (le Studio n'envoyait que
    l'e-mail ; la notification dans WAMA désigne désormais le run). Inscrite comme famille suivie

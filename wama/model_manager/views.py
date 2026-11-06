@@ -52,6 +52,12 @@ def index(request):
     ôte de la page les gestes et les relevés d'infrastructure, que leurs routes refusent de
     toute façon à un non-développeur."""
     can_manage = is_admin_or_dev(request.user)
+    # Les installations EN COURS dont le worker est mort se closent (2026-11-06) — la
+    # réconciliation que chaque page d'app fait à son ouverture, LA brique commune ; en tâche de
+    # fond, la page n'attend rien.
+    from wama.common.utils.process_control import reconcile_queue_of
+    from .models import InstallEvent
+    reconcile_queue_of(InstallEvent, request.user)
     # Get memory stats from centralized SystemMonitor
     stats = SystemMonitor.get_model_manager_stats() if can_manage else {
         'cpu_info': None, 'gpu_info': None, 'system_info': None}

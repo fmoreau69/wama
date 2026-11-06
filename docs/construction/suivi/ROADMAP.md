@@ -5488,9 +5488,18 @@ trois fois (card, installation, run) — une seule désormais, `job_families.lin
 installation était lu au cache sans la garde commune qui refuse une tâche que Celery ne dit plus
 vivante (`task_progress.progression_en_cours`) ; la boucle de la card renonçait après dix échecs, quand
 une barre de WAMA ne renonce jamais (`wama-global-progress.js`) — une relance du serveur l'aurait
-figée. ⏳ Non ramené, consigné : un run du Studio et une installation dont le worker meurt restent
-« en cours » (aucune réconciliation des orphelins pour eux — `process_control.reconcile_queue_of`
-ne couvre que les files d'app ; `InstallEvent` ne porte pas l'identifiant de tâche).
+figée. ✅ Puis, à la demande de Fabien (« on règle les 3 »), les orphelins — *constat corrigé le
+même soir, mesuré : la ligne disait « aucune réconciliation » pour un run du Studio, sur la foi
+d'un relevé de `reconcile_queue_of` seul ; or la réconciliation au démarrage d'un worker relancé
+(`process_control.reconcile_dead_worker_tasks`, `wama/celery.py` `worker_ready`) retient tout
+modèle portant `status` + `task_id` (`work_models`), `StudioRun` compris.* Restaient : les
+éléments d'un run de LOT (seul le run lancé portait sa tâche — chacun porte désormais celle qui
+l'exécute), la page du Studio (elle réconcilie à l'ouverture, comme celle de chaque app), et
+l'installation (`InstallEvent.task_id`, posé à l'envoi par `install_history.set_task` ; une
+clôture DÉCLARÉE, `close_interrupted`, que `_mark_reconciled` emprunte : la fin et le motif
+s'écrivent par le journal ; la page du model manager réconcilie à l'ouverture, une installation
+n'ayant pas de propriétaire). ⚠ Le champ demande sa migration (`model_manager/0033`, sur le disque
+comme toutes les migrations) AVANT la relance.
 
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) 🔄 *(relevé du 2026-10-26)*
 

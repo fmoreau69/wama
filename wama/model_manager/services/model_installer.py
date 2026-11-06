@@ -2043,10 +2043,14 @@ def dispatch_install(task, row, *, user_id=None, via=''):
 
     ⚠ `via` ne passe jamais dans le message Celery (mesuré le 2026-09-30) : un worker resté sur
     l'ancien code le refusait (`TypeError: unexpected keyword argument`) et l'installation
-    échouait. La tâche reprend l'événement par sa clé (`install_history.resumed`)."""
-    from .install_history import queued
-    queued('model', row.model_key, name=row.name, via=via)
-    return task.delay(row.model_key, user_id=user_id)
+    échouait. La tâche reprend l'événement par sa clé (`install_history.resumed`).
+    La tâche envoyée est rattachée à l'événement (`set_task`, 2026-11-06) : si son worker meurt,
+    la réconciliation commune clôt l'installation au lieu de la laisser « en cours »."""
+    from .install_history import queued, set_task
+    event_id = queued('model', row.model_key, name=row.name, via=via)
+    started = task.delay(row.model_key, user_id=user_id)
+    set_task(event_id, getattr(started, 'id', None))
+    return started
 
 
 def install_candidate(cand, meter=None, token=None, owner=None) -> dict:
@@ -2489,7 +2493,9 @@ def spec_for_catalog_row(model) -> dict | None:
     `extra_info['install_dir']` déclaré
     par la DÉCOUVERTE de l'app (le registre ne connaît pas ses producteurs : c'est l'app qui
     dit où ses poids vivent). `category`/`family` se dérivent du chemin relatif à la racine
-    canonique. La `composition` déclarée voyage dans le spec (jeu cohérent). None si la ligne
+    canonique. La `composition` déclarée voyage dans le spec (jeu cohérent). Deux autres formes :
+    les fichiers que l'app déclare (`declared_files`, pilote `files`) et un poids YOLO officiel
+    (son origine `github:ultralytics/assets`, pilote `yolo` — 2026-11-06). None si la ligne
     n'est pas installable ainsi — l'appelant le DIT, il n'invente pas d'emplacement.
     """
     from wama.common.utils.model_locations import models_root
@@ -2508,6 +2514,19 @@ def spec_for_catalog_row(model) -> dict | None:
         return {'kind': 'files', 'ref': model.model_key, 'files': list(declared),
                 'target_dir': install_dir,
                 'note': f"installation explicite depuis le catalogue ({model.model_key})"}
+    # Un poids YOLO OFFICIEL (2026-11-06) : la ligne porte l'origine que la route pose elle-même
+    # sur ce que le pilote `yolo` installe (`provenance.identity_for_spec`) — la lecture inverse,
+    # au même spec que la proposition d'un poids nommé (`prospector.seed_yolo_candidate`). Le
+    # pilote range le fichier à sa place (`vision/yolo/<tâche>/`) et refuse un nom qui n'en est
+    # pas un. Sans elle, une ligne de l'anonymizer absente n'avait aucun geste « Installer », et
+    # son premier usage la retéléchargeait hors de la route.
+    from .provenance import identity_for_spec
+    base = (model.name or '')[:-3] if (model.name or '').endswith('.pt') else ''
+    yolo = {'kind': 'yolo', 'ref': base, 'task': yolo_task_of(base),
+            'note': f"installation explicite depuis le catalogue ({model.model_key})"}
+    if base and model.platform_ref and \
+            model.platform_ref == (identity_for_spec(yolo) or {}).get('platform_ref'):
+        return yolo
     if not repo_id or not install_dir:
         return None
     try:

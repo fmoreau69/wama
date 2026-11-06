@@ -1406,6 +1406,12 @@ class InstallEvent(models.Model):
     finished_at = models.DateTimeField(null=True, blank=True)
     #: Ce qui se mesure : Go libérés, version, erreur. Jamais un jugement.
     detail = models.JSONField(default=dict, blank=True)
+    #: La tâche Celery de l'installation, posée à l'ENVOI (`install_history.set_task`, 2026-11-06).
+    #: Avec `status`, c'est la forme que la réconciliation des tâches orphelines reconnaît
+    #: (`process_control.work_models`) : une installation dont le worker meurt se solde au
+    #: démarrage du worker relancé, comme une card. Nullable : une colonne ajoutée ne doit pas
+    #: faire échouer les insertions du code encore en service.
+    task_id = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         verbose_name = "Installation"
@@ -1414,3 +1420,10 @@ class InstallEvent(models.Model):
 
     def __str__(self):
         return f"{self.action} {self.kind}:{self.key} → {self.status}"
+
+    def close_interrupted(self, message: str) -> None:
+        """La clôture d'une installation que sa tâche ne finira pas — DÉCLARÉE pour la
+        réconciliation commune (`process_control._mark_reconciled`) : un événement daté a sa fin
+        et son motif à écrire, et il ne s'écrit que par le journal (`install_history`)."""
+        from .services.install_history import close_interrupted
+        close_interrupted(self.pk, message)

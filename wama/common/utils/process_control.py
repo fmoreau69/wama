@@ -199,7 +199,15 @@ def is_task_dead(task_id: str) -> bool:
 
 
 def _mark_reconciled(instance, status_field, task_field, to_status, error_field, error_message):
-    """Bascule un item vers `to_status` (relançable) + message optionnel. Save minimal."""
+    """Bascule un item vers `to_status` (relançable) + message optionnel. Save minimal.
+
+    Un élément qui DÉCLARE sa clôture (`close_interrupted(motif)`, 2026-11-06) se clôt par elle :
+    un journal daté (`InstallEvent`) a sa fin et son motif à écrire, par son seul écrivain."""
+    close = getattr(instance, 'close_interrupted', None)
+    if callable(close):
+        close(error_message)
+        _close_process_lines(instance, to_status, error_message)
+        return
     setattr(instance, status_field, to_status)
     fields = [status_field]
     if error_field:
@@ -513,13 +521,16 @@ def reconcile_queue_of(work_model, user) -> None:
     Le motif d'échec s'écrit dans `error_message` quand le modèle l'a. Ne lève jamais : une page ne
     tombe pas parce que la flotte ne répond pas. Écrite une fois le 2026-10-30 : les dix pages
     d'index recopiaient ce bloc (avec un compteur toujours nul, l'appel de fond rendant 0), et le
-    générateur ne l'émettait pas — les jumelles ne réconciliaient rien."""
+    générateur ne l'émettait pas — les jumelles ne réconciliaient rien.
+    Un modèle SANS propriétaire (un journal de l'instance : `InstallEvent`, 2026-11-06) se
+    réconcilie en entier, quel que soit le compte qui ouvre la page qui le montre."""
     try:
         fields = {f.name for f in work_model._meta.concrete_fields}
+        owned = {'user': user} if 'user' in fields else {}
         # Seuls le statut et la tâche sont lus : un élément lourd (les segments d'une
         # transcription) ne se charge pas pour être réconcilié — la règle que le transcriber
         # appliquait seul (`without_heavy_fields`).
-        running = list(work_model.objects.filter(user=user, status='RUNNING')
+        running = list(work_model.objects.filter(status='RUNNING', **owned)
                        .only(*[f for f in ('pk', 'status', 'task_id') if f == 'pk' or f in fields]))
         reconcile_orphaned_running(
             running, error_field='error_message' if 'error_message' in fields else None)

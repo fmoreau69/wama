@@ -727,9 +727,12 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
   et la checklist ci-dessous ; nommer la ligne qui fonde l'affirmation (§ VÉRIFIER LA ROUTE).
 - **Seule exception : une demande EXPLICITE de Fabien**, citée dans le code et dans le commit.
 - **Tenue par un contrôle** : `wama/common/tests/tests_install_route.py` relève par AST tout
-  téléchargement de poids et tout `pip` hors de la route, dans `wama/`, `wama_lab/`, `wama_data/`.
-  Trois listes DÉCLARÉES : `ROUTE`, `DATA` (corpus, tables de bancs, voix de référence — ni
-  modèle ni librairie, chacune avec sa raison) et `DRIFT_BUDGET`, les dérives qui existaient le
+  téléchargement de poids et tout `pip` hors de la route, dans `wama/`, `wama_lab/`, `wama_data/`
+  — les appels nommés, et depuis le 2026-11-06 tout corps de réponse HTTP écrit dans un fichier
+  (la forme par laquelle l'anonymizer tirait ses poids YOLO, `REMOVAL_LEDGER R221`).
+  Trois listes DÉCLARÉES : `ROUTE`, `DATA` (corpus, tables de bancs, voix de référence, médias et
+  pages importés par URL, audio du service de voix local — ni modèle ni librairie, chacune avec
+  sa raison) et `DRIFT_BUDGET`, les dérives qui existaient le
   jour de la règle, qui **ne peut que descendre** — **VIDE depuis le 2026-10-18** : les 5 sites
   relevés sont portés (YOLOPv2 du cam_analyzer et l'AlexNet de LPIPS du banc : des lignes
   DÉCLARÉES que la route installe ; TripoSR : fichiers déclarés ; le chargement « fichier

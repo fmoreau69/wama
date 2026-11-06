@@ -198,6 +198,10 @@ class AnonymizerAutoGreyingTest(TestCase):
                                    source='anonymizer', is_downloaded=downloaded,
                                    capabilities={'classes': classes, 'task': task})
 
+        # La SOURCE des cases à cocher (`get_all_class_choices`) : la ligne `yolov8n.pt`, lue au
+        # catalogue depuis le 2026-11-06 — le test lisait jusque-là le poids réel d'`AI-models`.
+        # Non installée : elle n'entre pas dans l'union de l'« auto ».
+        row('anonymizer:yolo:yolov8n.pt', ['person', 'car'], downloaded=False)
         row('anonymizer:yolo:face.pt', ['face'])
         row('anonymizer:yolo:plates.onnx', ['license_plate'])
         row('anonymizer:yolo:cls.pt', ['car'], task='classify')          # classifie, ne localise pas

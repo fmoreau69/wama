@@ -189,3 +189,49 @@ class ModelKeysMigrationTest(SimpleTestCase):
     def test_backward_strips_only_its_own_prefix(self):
         self.assertEqual({1: 'yolo:yolo11n.pt', 2: OTHER_SOURCE_KEY, 3: 'auto'},
                          self._run('to_bare_ids', {1: YOLO_KEY, 2: OTHER_SOURCE_KEY, 3: 'auto'}))
+
+
+class NothingIsFetchedBesideTheRouteTest(TestCase):
+    """2026-11-06 : the anonymizer fetched official YOLO weights itself — at a page opening (the
+    class choices loaded `yolov8n.pt`) and at first use (`get_model_path`) — by a fixed address,
+    without a fingerprint. The class choices are read in the catalogue; the designated model is
+    installed by the route BEFORE it is read; a path is resolved, never downloaded."""
+
+    def setUp(self):
+        _catalogue_rows()
+        self.user = User.objects.create_user('anon_route', password='x')
+
+    def test_the_class_choices_are_read_in_the_catalogue_without_loading_a_model(self):
+        from wama.anonymizer.utils.yolo_utils import get_all_class_choices
+        from wama.model_manager.models import AIModel
+        AIModel.objects.update_or_create(model_key='anonymizer:yolo:yolov8n.pt', defaults=dict(
+            name='yolov8n.pt', model_type='vision', source='anonymizer', is_downloaded=False,
+            capabilities={'task': 'detect', 'classes': ['person', 'car']}))
+        self.assertEqual([('face', 'Face'), ('plate', 'Plate'), ('Person', 'Person'),
+                          ('Car', 'Car')], get_all_class_choices())
+
+    def test_the_designated_model_is_installed_before_it_is_read(self):
+        from wama.anonymizer import tasks
+        order = []
+        media = Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png',
+                                     model_to_use=YOLO_KEY, classes2blur=['face'],
+                                     target_mode='classes')
+        with mock.patch('wama.common.backends.manager.backend_for_key', return_value=object), \
+                mock.patch('wama.anonymizer.utils.yolo_utils.model_path_for',
+                           side_effect=lambda value: order.append('path') or '/w/yolo11n.pt'), \
+                mock.patch('wama.anonymizer.utils.model_selector.get_model_classes',
+                           side_effect=lambda path: order.append('classes') or {'0': 'face'}), \
+                mock.patch.object(tasks, '_console'):
+            tasks._detection_kwargs(media, self.user,
+                                    ensure_model=lambda key: order.append(('route', key)))
+        self.assertEqual([('route', YOLO_KEY), 'path', 'classes'], order[:3])
+
+    def test_a_missing_weight_resolves_to_a_path_and_downloads_nothing(self):
+        import tempfile
+
+        from wama.anonymizer.utils import yolo_utils
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(yolo_utils, 'MODELS_ROOT', tmp), \
+                mock.patch('requests.get', side_effect=AssertionError('a download')):
+            self.assertTrue(yolo_utils.get_model_path('yolo11n.pt').startswith(tmp))
+            self.assertTrue(yolo_utils.get_model_path('detect/yolo11n.pt').startswith(tmp))

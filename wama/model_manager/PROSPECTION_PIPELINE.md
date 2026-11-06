@@ -3026,12 +3026,18 @@ retirer SyncNet, go pour la clé GITHUB_TOKEN », puis « on termine tout ça »
 - ✅ Lien de version des cartes `github` au model manager : déjà en place
   (`platform_url` → `…/releases/tag/<tag>`, vérifié sur SPAN et GaterV3) — le reste noté le 10/10
   était périmé.
-- 🔚 **Anonymizer** : un RÉSIDU, pas un téléchargeur actif (corrigé le jour même sur remarque de
-  Fabien). Ses modèles se résolvent par le catalogue (`yolo_utils.model_path_for` →
-  `AIModel.local_path`) et s'installent par le pilote `yolo` de la route. Reste, dans
-  `get_model_path`, un repli `auto_download_model` (requête directe sur l'asset Ultralytics, sans
-  empreinte) atteint seulement quand ni le catalogue ni le disque n'ont le fichier. À retirer ;
-  non touché, une autre instance remanie la résolution de ses modèles (12/10).
+- ✅ **Anonymizer** (soldé le 2026-11-06, `REMOVAL_LEDGER R221`) : un RÉSIDU, pas un
+  téléchargeur actif (corrigé le jour même sur remarque de Fabien). Ses modèles se résolvent par
+  le catalogue (`yolo_utils.model_path_for` → `AIModel.local_path`). *Constat corrigé le
+  2026-11-06, mesuré : « s'installent par le pilote `yolo` » ne valait que pour une PROPOSITION
+  nommée (`seed_yolo_candidate`) — une ligne du catalogue absente n'avait aucune spec
+  (`spec_for_catalog_row` ne connaissait que le Hub et les fichiers déclarés), donc aucun geste
+  « Installer », et la page de l'anonymizer chargeait `yolov8n.pt` à chaque ouverture pour ses
+  classes, en le retéléchargeant s'il manquait.* Désormais : une ligne de poids officiel
+  (`github:ultralytics/assets`) se dérive au pilote `yolo` ; le modèle désigné s'installe avant
+  d'être lu (`ctx.ensure_model`) ; les classes se lisent au catalogue ; le repli
+  `auto_download_model`, son module et `manage_models` sont retirés ; `tests_install_route` voit
+  aussi un corps de réponse écrit dans un fichier, la forme qui lui échappait.
 
 ## Veille du 2026-10-16 : extraire la partition COMPLÈTE d'une chanson — moteurs possibles, rien d'installé
 

@@ -688,6 +688,14 @@
     if (!this.jobPoller) {
       this.jobPoller = new global.WamaApp.Poller({
         interval: JOB_POLL_MS,
+        // Une barre ne renonce jamais (`wama-global-progress.js`) : une relance du serveur ne
+        // fige pas les lignes de l'échange. Seul un bloc retiré du fil cesse d'être suivi — la
+        // règle d'`updateJobs`, tenue aussi quand le serveur ne répond pas.
+        maxFails: Infinity,
+        onError: function (id) {
+          var gone = self.jobBlocks && self.jobBlocks[id];
+          if (!gone || !gone.isConnected) self.stopJobs(id);
+        },
         request: function (id) {
           var target = self.jobBlocks[id];
           var keys = Array.prototype.map.call(

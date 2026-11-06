@@ -92,6 +92,40 @@ class TheRunEndTest(TestCase):
             app='studio', object_id=run.pk).values_list('signal', flat=True)))
 
 
+class AnInterruptedRunIsSettledTest(TestCase):
+    """2026-11-06 : a run whose worker dies is settled by the common reconciliation, which knows
+    an element by its `status` + `task_id` (`process_control.work_models`) — so every element of a
+    lot carries the task that executes it (only the launched run had it), and the Studio page
+    reconciles at its opening, like the page of every app."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_superuser('studio_settle', 's@x.fr', 'x')
+
+    def test_each_element_of_a_lot_carries_the_task_that_runs_it(self):
+        graph = {'nodes': [{'id': 'n1', 'app': 'demo_app', 'params': {}}], 'links': []}
+        lot = StudioRun.objects.create(user=self.user, graph=graph, task_id='lot-task')
+        elements = [StudioRun.objects.create(user=self.user, graph=graph, parent=lot)
+                    for _ in range(2)]
+        runner = {'create': lambda user, inputs, params: 7, 'start': lambda user, item_id: None,
+                  'poll': lambda user, item_id: {'status': 'SUCCESS', 'progress': 100,
+                                                 'output': 'x/out.wav'},
+                  'output_type': 'audio'}
+        with mock.patch('wama.studio.services.runners.runner_for', return_value=runner), \
+                mock.patch.object(tasks.time, 'sleep'):
+            tasks._execute_lot(lot, elements, 'lot-task')
+        self.assertEqual(['lot-task', 'lot-task'], list(
+            StudioRun.objects.filter(parent=lot).order_by('pk').values_list('task_id', flat=True)))
+
+    def test_the_studio_page_reconciles_its_runs_at_its_opening(self):
+        from django.urls import reverse
+        self.client.force_login(self.user)
+        with mock.patch('wama.common.utils.process_control.reconcile_queue_of') as reconcile:
+            self.assertEqual(200, self.client.get(reverse('studio:index')).status_code)
+        self.assertTrue(reconcile.called, 'the Studio page does not reconcile')
+        model, user = reconcile.call_args.args
+        self.assertEqual((StudioRun, self.user.pk), (model, user.pk))
+
+
 class TheAssistantFollowsTheRunTest(TestCase):
 
     def setUp(self):
