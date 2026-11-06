@@ -206,6 +206,15 @@ transmettait qu'un. Convention « port = argument du même nom de l'outil » et 
   son volet (`input_match.card_match`). Règle écrite à cette occasion : **un select ne juge que les
   ports qu'au moins un de ses modèles nomme** — un port qu'il ne nomme pas alimente un autre
   moteur ou une autre étape, et le juger grisait tous les modèles du select.
+- *2026-11-06* — les pages GÉNÉRÉES d'une app (bac à sable) suivent aussi : la vue d'index lit la
+  même `card_match`, le gabarit appelle `WamaInputMatch` sur le select du volet et les ports de la
+  card v4 (`views_gen`, `templates_gen`, garde `tests_codegen_templates.GeneratedInputMatchTest` ;
+  `ROUTE §11 #41`). Mesuré sur la page servie : appariement réel sur six jumelles ; describer_01
+  n'apparie rien — sa source apparie les MODALITÉS de sa cascade de vision, que `card_match` ne lit
+  pas. ⏳ **Le câblage JS est écrit deux fois** — `wama-studio-entry.js` (`wireMatch`) et le gabarit
+  généré : trouver le select du champ, construire les slots des ports jugés, appeler `init`. Sa
+  place est la brique (`wama-input-match.js`), adoptée par les deux ; non fait le jour même (brique
+  servie aux dix apps, Studio à adopter, onze jumelles à régénérer).
 
 ~~⚠ **Un seul point du dépôt dit encore le contraire** : `INPUT_TYPES['prompt'].port == 'travail'`.
 C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse.~~

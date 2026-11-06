@@ -28643,6 +28643,12 @@ décision : les restes sont nommés en `ROUTE §11 #41`. Temps de régénératio
 rien de neuf : extraction à froid 138 s dont `packages_distributions` 93 s sous `/mnt/d`, juge 76 s dont
 53 s de configuration d'URL tirée par `anonymizer/tasks.py:8`) — déjà consigné, gagné au passage sur un
 serveur Linux natif (décision de Fabien : n'y toucher qu'en universel).
+Commité `cd27c7a0e`, **vérifié sur HEAD** (worktree jetable : 224 tests des cinq modules du générateur,
+OK, 5 sautés). */reverif* : un écart de ma main trouvé et CONSIGNÉ, non ramené — le câblage JS de
+l'appariement est écrit deux fois (gabarit généré, `wama-studio-entry.js` `wireMatch`) ; sa place est
+`wama-input-match.js`, adoptée par les deux (`INPUT_MODEL_MATCHING §6.4`, `ROUTE §11 #41`) — brique
+servie aux dix apps, Studio à adopter, onze jumelles à régénérer : pas un geste « sans risque ».
+`check_docs` 0/0 sur 3864.
 
 ## §CLÔTURE 2026-11-06, « L'ÉCHANGE DE L'ASSISTANT : APERÇU DES TÂCHES FINIES, LIENS, LOT EN UNE LIGNE ; COMMANDES `/concile`, `/effort`… SUR TOUTES LES SURFACES » — session du 04→06/11 (après la clôture « PRÉSENTATION, VOIX ») — aperçu et lot poussés, commandes NON poussées — vérifié EN SERVICE après la relance du 06/11 13:19
 
