@@ -509,7 +509,9 @@ def _pget(p, key, default=None):
 def _show_if_met(cond, values) -> bool:
     """Le `show_if` d'un param est-il satisfait par `values` ? MÊME vocabulaire que le moteur
     JS (wama-params.js::met) : {field, equals:…} | {field, not_equals:…} | {field, in:[…]} |
-    champ seul → truthy | {any: [conditions]} → l'une d'elles (2026-10-28).
+    champ seul → truthy | {any: [conditions]} → l'une d'elles (2026-10-28) | {all: [conditions]}
+    → toutes | {not: condition} → son contraire (2026-11-06 : ce qu'un process exige d'un modèle
+    — « suit une partition SANS prendre l'audio » —, `ProcessSpec.needs`).
 
     Une valeur en LISTE veut dire « l'une de » (2026-10-18) : un porteur dont la valeur n'est pas
     encore connue — la nature de ce que recevra un nœud du Studio, image OU vidéo — satisfait la
@@ -520,6 +522,10 @@ def _show_if_met(cond, values) -> bool:
         cond = {'field': cond}
     if cond.get('any'):
         return any(_show_if_met(one, values) for one in cond['any'])
+    if cond.get('all'):
+        return all(_show_if_met(one, values) for one in cond['all'])
+    if 'not' in cond:
+        return not _show_if_met(cond['not'], values)
     cur = values.get(cond.get('field'))
     if isinstance(cur, (list, tuple, set)):
         return any(_show_if_met(cond, {cond.get('field'): one}) for one in cur)
@@ -541,15 +547,19 @@ def condition_met(cond, values) -> bool:
 
 
 def condition_fields(cond) -> List[str]:
-    """Les champs qu'une condition `show_if` LIT — un seul, ou ceux de chaque branche d'un `any`.
+    """Les champs qu'une condition `show_if` LIT — un seul, ou ceux de chaque branche d'un `any`
+    ou d'un `all`, ou de la condition qu'un `not` retourne.
     Lu par qui doit connaître la commande d'un réglage (`scoped_names`, la clause `when` des
     prompts) au lieu de supposer un `field` unique."""
     if not cond:
         return []
     if isinstance(cond, str):
         return [cond]
-    if cond.get('any'):
-        return [name for one in cond['any'] for name in condition_fields(one)]
+    for combined in ('any', 'all'):
+        if cond.get(combined):
+            return [name for one in cond[combined] for name in condition_fields(one)]
+    if 'not' in cond:
+        return condition_fields(cond['not'])
     return [cond['field']] if cond.get('field') else []
 
 

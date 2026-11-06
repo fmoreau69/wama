@@ -35,14 +35,17 @@ def parse_batch_file(
     Returns:
         (tasks, warnings)
         Each task dict has keys:
-            output_filename, prompt, model, duration, generation_type, line_num
+            output_filename, prompt, model, duration, generation_type, reference, given, line_num
+        `given` : les réglages que la LIGNE porte elle-même (`--model`, `--duration`), sous leur
+        nom de schéma — la création les POSTE comme un dépôt, la cascade commune fait le reste.
+        `reference` (`-r`) : le morceau à reprendre (cover), un chemin désigné ou une URL.
     """
     import os
     from wama.common.utils.batch_parsers import (
         extract_batch_file_text, is_structured_batch_text, parse_unified_batch,
     )
     from wama.composer.utils.model_choice import generation_type, is_valid, normalize
-    from wama.composer.utils.model_config import COMPOSER_MODELS, clamp_duration
+    from wama.composer.utils.model_config import clamp_duration
 
     # Legacy pipe positionnel si pas de batch structuré → comportement inchangé.
     if not is_structured_batch_text(extract_batch_file_text(file_path)):
@@ -56,14 +59,20 @@ def parse_batch_file(
         if not prompt:
             warnings.append(f"Ligne {it['line_num']} : prompt (-p) requis, ignorée")
             continue
-        model = it['options'].get('model') or default_model
-        model = normalize(model) if is_valid(model) else normalize(default_model)
-        # Auto-modèle : si une référence audio (-r) est fournie → modèle melody.
-        if it.get('reference') and 'musicgen-melody' in COMPOSER_MODELS:
-            model = normalize('musicgen-melody')
+        given = {}
+        model = it['options'].get('model')
+        if model and is_valid(model):
+            given['model'] = normalize(model)
+        elif model:
+            warnings.append(f"Ligne {it['line_num']} : modèle inconnu « {model} », celui du lot")
+        model = given.get('model') or normalize(default_model)
+        # Une référence (-r) ne choisit plus de modèle ici : « basculer sur MusicGen Melody » était
+        # un nom de modèle en dur (retiré le 2026-11-06). Le modèle qui la reprend se juge à la
+        # création, sur ce que le catalogue déclare (`views.import_batch`, `accepts_input`).
         try:
-            duration = float(it['options'].get('duration', default_duration))
-        except (ValueError, TypeError):
+            duration = float(it['options']['duration'])
+            given['duration'] = duration
+        except (KeyError, ValueError, TypeError):
             duration = default_duration
         duration = clamp_duration(duration)
         # Nom de sortie : explicite (-o / colonne output) sinon laissé vide —
@@ -78,6 +87,7 @@ def parse_batch_file(
             'duration': duration,
             'generation_type': generation_type(model),
             'reference': it.get('reference'),
+            'given': given,
             'line_num': it['line_num'],
         })
     if not tasks:

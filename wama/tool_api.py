@@ -763,7 +763,7 @@ def compose_music(
     # Route F4b (2026-10-01) : le domaine du composer est celui du CATALOGUE (ses deux tâches),
     # plus la liste de l'app — un modèle installé ailleurs (YuE2) est accepté ici aussi.
     from django.apps import apps as django_apps
-    from wama.composer.utils.model_choice import (TASKS, accepts_input, generation_type as _type_of,
+    from wama.composer.utils.model_choice import (TASKS, generation_type as _type_of,
                                                    is_valid, normalize)
     from wama.composer.views import composer_rules, new_generation_settings
 
@@ -783,7 +783,7 @@ def compose_music(
     # durée bornée, voix normalisée.
     # Les fichiers du morceau à reprendre PROPOSENT leurs réglages (`default_from` : la durée de
     # l'audio) — lus sans être reçus (`designated_file` : mêmes gardes, rien de pointé ni copié).
-    from wama.common.utils.media_paths import InputRefused, designate, designated_file
+    from wama.common.utils.media_paths import InputRefused, designated_file
     try:
         held = [designated_file(path, user) for path in (work_score, work_audio) if path]
     except InputRefused as e:
@@ -800,21 +800,13 @@ def compose_music(
     # Ports du MORCEAU À REPRENDRE (cover) — `work_score` (partition) et `work_audio` (audio),
     # ports de TRAVAIL depuis le 2026-10-03 : désignés par leur chemin, comme les ports du
     # synthesizer, et refusés AVANT de créer quoi que ce soit si le modèle ne les prend pas
-    # (jamais ignorés en silence). Rangés dans leurs champs, qui gardent leur nom (données).
-    received = []
-    for port, path, field, what in (('work_score', work_score, 'reference_score', 'de partition'),
-                                    ('work_audio', work_audio, 'melody_reference', "d'audio à reprendre")):
-        if not path:
-            continue
-        # Au sein du pipeline : l'audio d'un cover est pris par un modèle qui en suivra la
-        # partition extraite (`accepts_input`, process `extract_score`, 2026-10-03).
-        if not accepts_input(model, port):
-            return {'error': f"Le modèle « {model} » ne prend pas {what} — choisir un modèle qui "
-                             f"le déclare, ou un « auto » de groupe ('auto:text-to-music')."}
-        try:
-            received.append((designate(path, user, app_label), field))
-        except InputRefused as e:
-            return {'error': str(e)}
+    # (jamais ignorés en silence) — la règle de la card et du lot (`designated_cover`).
+    from wama.composer.views import designated_cover
+    try:
+        received = designated_cover(user, model, {'work_score': work_score, 'work_audio': work_audio},
+                                    app_label)
+    except InputRefused as e:
+        return {'error': str(e)}
 
     model = normalize(model)
     # Bornée par le SCHÉMA et plafonnée par la capacité DÉCLARÉE du modèle (`clamp_duration`, la

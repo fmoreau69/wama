@@ -28719,3 +28719,36 @@ l'exception « tout côté WSL » pour un `.exe` ; les licences de redistributio
 
 🔚 POINT D'ENTRÉE : rien à reprendre tant que Fabien n'a pas rouvert le sujet ; à sa reprise, partir
 de `ROADMAP §18.3` puis `§18.2` (`check_structure`, la garde qui manque).
+
+## §PALIER 2026-11-06, « COMPOSER : PLUS AUCUN MODÈLE JUGÉ DANS LE CODE ; LE `-r` D'UN LOT JOINT ; VU AU NAVIGATEUR » — ce commit (local, non poussé)
+
+**Question de Fabien** : « tu es sûr pour le composer ? il faut aligner sur le fonctionnement de
+WAMA, on ne laisse pas de trou » — puis /reverif.
+
+- **Process ↔ capacités** (suite du palier du 05/11) : `plan` lisait la classe du moteur
+  (`plans_a_score`), `extract_score` relisait les entrées (`covers_audio_by_score`). Le fait du
+  moteur va sur la fiche (`model_capabilities.ENGINE_STEP_FLAGS`, écrit par `apply_engine_flags`) ;
+  `plan` : `needs='supports_score_planning'` ; `extract_score` : `COVERS_BY_SCORE`, ce qui a fait
+  entrer `all` et `not` dans la grammaire `show_if` (serveur et page, lecteurs de champs compris).
+  `consumes_melody` ne reconnaît plus MusicGen Melody par son nom.
+- **Lot** : `-r` imposait MusicGen Melody par son nom puis se PERDAIT. Une ligne poste ses réglages
+  comme un dépôt, son morceau se reçoit comme sur la card (`designated_cover`), sa durée propose
+  celle de la card (`default_from`) ; refus motivé si le modèle nommé ne le prend pas.
+  `COVER_PORTS` / `cover_refusal` / `designated_cover` partagés par la card, `compose_music` et le lot.
+- **Vu au navigateur** (service relancé, compte de test) : sections et réglages suivent les six
+  modèles, la ⚙ de lot porte l'alignement et la note par ligne, le « … » n'a plus « Réaligner »,
+  aucune erreur de console. Corrigés : aide du modèle restée sur l'« auto » après un `apply` ;
+  sous-titre écrit à la main (« MusicGen et AudioGen ») → la description déclarée (`app_modern_base`).
+
+**Gardes** : `composer.tests_pipeline.WhatTheModelDoesIsReadOnItsCatalogueLineTest` (moteur non résolu : seule la fiche répond), `…TheEngineSaysItPlansTest.test_the_synchronisation_writes_the_engine_step_…`, `tests_cap_from_js` (les `needs` RÉELS du pipeline lus pareil des deux côtés, `all`/`not`, aide rejouée après `apply`), `composer.tests_extract_score.ABatchLineCoversItsSongTest` (4), `composer.tests_add_without_start…test_the_page_says_what_the_catalogue_states`, `tests_model_choice` (plus de nom). Huit contre-épreuves : huit briques neutralisées, huit rouges, fichiers restaurés. Mesuré (WSL, 21 modules) : **960** tests ; rouges NOMMÉS, pas à cette session : `tests_identifier_language` — classes de test 133 > 132 (le dépassement d'hier) et budget « code » à recaler 2541 ≠ 2542 (une baisse d'autrui ; aucun nom de mes fichiers dans `--detail --test-names`). `check_docs` : 0 cassée sur 3858. `check_redundancy` : aucune trouvaille neuve dans mes fichiers (`composer/views.py:730` préexiste).
+
+**À relancer** : gunicorn et les workers (pipeline, vues, `tool_api`) ; **`manage.py sync_models`**
+pour que YuE2 porte `supports_score_planning` (sans elle, YuE2 n'écrit plus sa partition avant de la
+jouer : `plan` est sauté, le rendu compose seul). `staticfiles/` synchronisé.
+
+**Restes nommés** : ⏳ le `-r` de l'imager (`style_reference`) et du synthesizer (`voice_reference`)
+est lu puis perdu, comme celui du composer l'était — une brique commune (ligne → ports →
+`designate`) à écrire, que le composer adoptera (`BATCH_FORMAT.md`) ; ⏳ les neuf autres apps
+surchargent leur sous-titre d'un texte voisin de leur déclaration (`WAMA_APP_CONVENTIONS §4.2`,
+libellé à décider) ; ⏳ le process d'OCR choisit ses moteurs sur la classe
+(`ocr_process.positioned_ocr_keys`) ; ⏳ rapport de transcription = graine (`campaign_evaluation`).

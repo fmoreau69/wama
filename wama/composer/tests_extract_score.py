@@ -29,12 +29,12 @@ from wama.common.models import JOB_FAILURE, JOB_SUCCESS
 from wama.common.services import process_runs
 from wama.composer import tasks
 from wama.composer.models import ComposerGeneration
-from wama.composer.tests_pipeline import (ENGINES, PLAIN_MODEL, SCORE_MODEL, _PlainEngine,
-                                          _ScoreEngine, _VendoredPipeline)
+from wama.composer.tests_pipeline import (COVER_MODEL as MELODY_MODEL, ENGINES, PLAIN_MODEL,
+                                          SCORE_MODEL, _PlainEngine, _ScoreEngine,
+                                          _VendoredPipeline, catalogue_rows)
 from wama.composer.tests_task import _celery_task
 
 EXTRACTOR = 'huggingface:m-a-p/SheetSage2'
-MELODY_MODEL = 'composer:musicgen-melody'
 #: What SheetSage2 returns with `melody_only=True` (shape measured on a real song, 2026-10-03).
 MELODY_ABC = ('X:1\nM:4/4\nL:1/32\nV: Vocal clef=treble name="Vocal Melody" snm="Vocal"\nK:C\n'
               '% verse\nV: Vocal\nG4c4z4c4c4B4A4G2G2-|\n')
@@ -80,6 +80,9 @@ class ExtractThenRenderTest(TestCase):
         self.addCleanup(media.disable)
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.user = get_user_model().objects.create_user('composer_extract', password='x')
+        # Ce que le catalogue dit des modèles (`tests_pipeline.CATALOGUE`) : YuE2 suit une
+        # partition et l'écrit d'abord, MusicGen Melody prend l'audio — lu par `ProcessSpec.needs`.
+        catalogue_rows()
         _ScoreEngine.built, _ScoreEngine.plans, _ScoreEngine.renders = 0, [], []
         _ScoreEngine.unloaded, _ScoreEngine.error = 0, None
         _PlainEngine.renders = []
@@ -293,3 +296,70 @@ class YuE2PlaysWhatTheScoreSaysTest(SimpleTestCase):
                                  duration=30, output_path=str(Path(folder) / 'out.wav'),
                                  score_path=str(score) if score else None)
                 self.assertEqual(cot, backend._pipeline.called[0]['cot'])
+
+
+class ABatchLineCoversItsSongTest(TestCase):
+    """2026-11-06 : la colonne `-r` d'un fichier de lot était lue, imposait MusicGen Melody PAR SON
+    NOM, puis se PERDAIT — jamais jointe à la card. Une ligne reçoit désormais son morceau comme la
+    card (`designated_cover`, une URL devient la source du téléchargement), le modèle qui le reprend
+    se juge sur le catalogue, et sa durée propose celle de la card (`default_from`)."""
+
+    def setUp(self):
+        import wave
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        from wama.common.utils.media_paths import app_media_dir, get_app_media_path
+        self.tmp = tempfile.mkdtemp()
+        media = override_settings(MEDIA_ROOT=self.tmp)
+        media.enable()
+        self.addCleanup(media.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.user = get_user_model().objects.create_user('composer_batch_cover', password='x')
+        for role in (DEFAULT_APP_ACCESS.get('composer') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(self.user)
+        catalogue_rows()
+        folder = get_app_media_path('composer', self.user.id, 'input')
+        folder.mkdir(parents=True, exist_ok=True)
+        with wave.open(str(folder / 'theme.wav'), 'wb') as song:      # 20 s de silence
+            song.setnchannels(1)
+            song.setsampwidth(2)
+            song.setframerate(8000)
+            song.writeframes(b'\x00\x00' * 8000 * 20)
+        self.song = f"{app_media_dir('composer', self.user.id, 'input')}/theme.wav"
+
+    def _import(self, text):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        upload = SimpleUploadedFile('lot.txt', text.encode('utf-8'), content_type='text/plain')
+        return self.client.post(reverse('composer:import_batch'),
+                                {'batch_file': upload, 'default_model': PLAIN_MODEL}).json()
+
+    def test_the_song_is_joined_and_the_line_goes_to_a_model_that_covers_it(self):
+        out = self._import(f'-p "jazz over this" -r "{self.song}"\n-p "no song"\n')
+        first, second = (ComposerGeneration.objects.get(pk=pk) for pk in out['created'])
+        self.assertEqual(self.song, first.melody_reference.name, 'the song is pointed, not lost')
+        self.assertEqual('auto:text-to-music', first.model,
+                         'the batch model does not cover a song : the draw retains one that does')
+        self.assertEqual(20, first.duration, 'the song proposes its own duration')
+        self.assertEqual((PLAIN_MODEL, ''), (second.model, second.melody_reference.name or ''))
+
+    def test_a_line_that_names_a_model_keeps_it_or_is_refused_with_its_reason(self):
+        out = self._import(f'-p "explicit" -r "{self.song}" --model {PLAIN_MODEL}\n'
+                           f'-p "melody" -r "{self.song}" --model {MELODY_MODEL} --duration 15\n')
+        self.assertEqual(1, len(out['created']))
+        gen = ComposerGeneration.objects.get(pk=out['created'][0])
+        self.assertEqual((MELODY_MODEL, 15), (gen.model, gen.duration), 'what the line says wins')
+        self.assertTrue(any('ne prend pas' in w and 'Ligne 1' in w for w in out['warnings']),
+                        out['warnings'])
+
+    def test_an_address_becomes_the_source_downloaded_at_launch(self):
+        out = self._import('-p "remote" -r "https://example.org/song.mp3"\n')
+        gen = ComposerGeneration.objects.get(pk=out['created'][0])
+        self.assertEqual(('https://example.org/song.mp3', 'auto:text-to-music'),
+                         (gen.source_url, gen.model))
+
+    def test_a_song_the_user_cannot_read_is_refused(self):
+        out = self._import('-p "elsewhere" -r "users/999999/composer/input/theme.wav"\n')
+        self.assertIn('error', out)
+        self.assertFalse(ComposerGeneration.objects.filter(user=self.user).exists())

@@ -61,9 +61,16 @@ class ModelChoiceTest(TestCase):
                          'saving the model alone also saves the type it implies')
 
     def test_only_a_declared_consumer_takes_the_song_audio_to_cover(self):
+        """2026-11-06 : MusicGen Melody prenait l'audio par son NOM quand le catalogue se taisait —
+        le catalogue se veut exhaustif, seule sa déclaration compte."""
+        self.assertFalse(mc.consumes_melody('musicgen-melody'), 'a name is not a capability')
+        self.assertFalse(mc.consumes_melody(mc.AUTO_MUSIC), 'no model of the task declares work_audio yet')
+        AIModel.objects.create(model_key='composer:musicgen-melody', name='MusicGen Melody',
+                               model_type='music', source='composer', vram_gb=4.0, is_available=True,
+                               capabilities={'task': 'text-to-music', 'inputs_required': ['prompt'],
+                                             'inputs_optional': ['work_audio']})
         self.assertTrue(mc.consumes_melody('musicgen-melody'))
         self.assertFalse(mc.consumes_melody(YUE2))
-        self.assertFalse(mc.consumes_melody(mc.AUTO_MUSIC), 'no model of the task declares work_audio yet')
 
     def test_a_group_auto_takes_the_song_audio_when_one_of_its_models_does(self):
         """2026-10-03 : avec « auto », un audio joint était ignoré à la création — le tirage, lui,

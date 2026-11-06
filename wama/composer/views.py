@@ -94,6 +94,43 @@ def composer_rules(values) -> dict:
     return values
 
 
+#: Les ports du MORCEAU À REPRENDRE (cover) — ports de TRAVAIL depuis le 2026-10-03 —, le champ où
+#: chacun se range (des données : ils gardent leur nom) et ce qu'il porte, dit dans un refus. Lus par
+#: la card (`generate`), l'outil de l'assistant (`tool_api.compose_music`) et le lot
+#: (`import_batch`) : la liste était écrite deux fois (2026-11-06).
+COVER_PORTS = (('work_score', 'reference_score', 'de partition'),
+               ('work_audio', 'melody_reference', "d'audio à reprendre"))
+
+
+def cover_refusal(model, port) -> str:
+    """Le motif du refus quand `model` ne prend pas `port` au sein du pipeline (`accepts_input` :
+    l'audio d'un cover est aussi pris par un modèle qui en suivra la partition extraite), `''` s'il
+    le prend. Jamais ignoré en silence."""
+    if accepts_input(model, port):
+        return ''
+    what = next(w for p, _f, w in COVER_PORTS if p == port)
+    return (f"Le modèle « {model} » ne prend pas {what} — choisir un modèle qui le déclare, ou un "
+            f"« auto » de groupe ('{AUTO_MUSIC}').")
+
+
+def designated_cover(user, model, paths: dict, app: str = 'composer') -> list:
+    """Les fichiers DÉSIGNÉS du morceau à reprendre, `{port: chemin}` → `[(entrée reçue, champ)]`,
+    reçus par LA fonction de désignation (`media_paths.designate` : confinement, existence,
+    lisibilité, puis pointer ou copier). Refusés AVANT toute création si le modèle ne prend pas le
+    port (`cover_refusal`) : lève `InputRefused`."""
+    from wama.common.utils.media_paths import InputRefused, designate
+    received = []
+    for port, field, _what in COVER_PORTS:
+        path = (paths or {}).get(port)
+        if not path:
+            continue
+        refusal = cover_refusal(model, port)
+        if refusal:
+            raise InputRefused(refusal)
+        received.append((designate(path, user, app), field))
+    return received
+
+
 def _remember_settings(user, post):
     """Ce que le volet a posté devient la mémoire du volet (`save_panel_settings`) — APRÈS la
     validation : un modèle refusé ne doit pas devenir la préférence qui ferait échouer les
@@ -325,11 +362,8 @@ def generate(request):
     # « Le modèle le déclare » s'entend AU SEIN DU PIPELINE : l'audio d'un cover est aussi joint
     # pour un modèle qui en suivra la partition extraite (`accepts_input`, 2026-10-03).
     joined = []
-    for port, field, accepted in (('work_audio', 'melody_reference',
-                                   accepts_input(model_id, 'work_audio')),
-                                  ('work_score', 'reference_score',
-                                   accepts_input(model_id, 'work_score'))):
-        if not accepted:
+    for port, field, _what in COVER_PORTS:
+        if not accepts_input(model_id, port):
             continue
         received = received_inputs(request, user, 'composer', field=port)
         if received:
@@ -427,6 +461,54 @@ def batch_preview(request):
     return JsonResponse({'count': len(items), 'items': items, 'warnings': warnings})
 
 
+def _batch_line(user, post, task_data, default_model, default_duration, warnings):
+    """UNE ligne de lot → `(ligne, réglages, entrées reçues, URL)`, ou None (raison ajoutée à
+    `warnings`). La ligne POSTE ses réglages comme un dépôt (`given` : son modèle, sa durée), sur
+    ceux du lot ; la cascade commune et les règles du composer font le reste, comme `generate`.
+
+    Son MORCEAU À REPRENDRE (`-r`, 2026-11-06) se reçoit comme sur la card : une URL devient la
+    source téléchargée au lancement (`WAMA_INGEST`), un chemin se DÉSIGNE (`designated_cover`), et
+    sa durée PROPOSE celle de la card (`default_from`) quand la ligne n'en dit pas. Jusque-là la
+    référence était lue puis PERDUE (jamais jointe), et elle imposait MusicGen Melody par son nom.
+    Une ligne qui ne nomme pas de modèle passe à l'« auto » de sa tâche quand celui du lot ne
+    reprend pas un morceau : le tirage retient l'un de ceux qui le font (`models_accepting`)."""
+    from wama.common.utils.auto_model import is_auto
+    from wama.common.utils.media_paths import InputRefused
+    from wama.common.utils.model_keys import AUTO_TASK_PREFIX
+    from wama.common.utils.source_ingest import is_remote
+    from wama.common.utils.user_settings import inputs_by_port
+    from .utils.model_choice import task_of
+    given = task_data.get('given')
+    if given is None:      # format positionnel `nom|prompt|modèle|durée` : tout y est donné
+        given = {'model': task_data['model'], 'duration': task_data['duration']}
+    line_post = {name: post.get(name) for name in post}
+    line_post.update({'model': default_model, 'duration': default_duration, **given})
+    reference = (task_data.get('reference') or '').strip()
+    model = normalize(line_post['model'])
+    if (reference and 'model' not in given and not is_auto(model)
+            and cover_refusal(model, 'work_audio')):
+        model = AUTO_TASK_PREFIX + task_of(model)
+    line_post['model'] = model
+    where = f"Ligne {task_data.get('line_num') or '?'}"
+    received, source_url = [], ''
+    try:
+        if reference and is_remote(reference):
+            refusal = cover_refusal(model, 'work_audio')
+            if refusal:
+                raise InputRefused(refusal)
+            source_url = reference
+        elif reference:
+            received = designated_cover(user, model, {'work_audio': reference})
+    except InputRefused as exc:
+        warnings.append(f"{where} : {exc} — ignorée")
+        return None
+    inputs = inputs_by_port('composer', *(item for item, _field in received))
+    if inputs and 'duration' not in given:
+        line_post.pop('duration')       # la durée du morceau repris la propose (`default_from`)
+    values = composer_rules(new_generation_settings(user, post=line_post, inputs=inputs))
+    return task_data, values, received, source_url
+
+
 @require_POST
 def import_batch(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -471,7 +553,11 @@ def import_batch(request):
         os.remove(tmp_path)
         return JsonResponse({'error': str(exc)}, status=400)
 
-    if not tasks:
+    # Chaque ligne se JUGE avant que rien ne soit créé : ses réglages, son morceau à reprendre.
+    lines = [line for line in (_batch_line(user, request.POST, task_data, default_model,
+                                           default_duration, warnings) for task_data in tasks)
+             if line]
+    if not lines:
         os.remove(tmp_path)
         return JsonResponse({
             'error': 'Aucune tâche valide dans le fichier batch',
@@ -479,7 +565,7 @@ def import_batch(request):
         }, status=400)
 
     # Create batch container
-    batch = ComposerBatch.objects.create(user=user, total=len(tasks))
+    batch = ComposerBatch.objects.create(user=user, total=len(lines))
     # Save the batch file on the batch object
     rel_path = os.path.relpath(tmp_path, settings.MEDIA_ROOT)
     batch.batch_file = rel_path
@@ -489,12 +575,15 @@ def import_batch(request):
     # batch_start, appelé par afterCreate — avant, le serveur lançait tout inconditionnellement
     # et « Créer seulement » était illusoire + double lancement avec l'auto-start client).
     created_ids = []
-    for task_data in tasks:
+    for task_data, values, received, source_url in lines:
         gen = ComposerGeneration.objects.create(
-            **{**base, 'model': task_data['model'], 'duration': task_data['duration']},
+            **values,
             user=user,
             prompt=task_data['prompt'],
+            source_url=source_url,
         )
+        for item, field in received:
+            item.assign(gen, field)
         ComposerBatchItem.objects.create(
             batch=batch,
             generation=gen,

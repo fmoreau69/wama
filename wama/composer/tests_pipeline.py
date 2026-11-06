@@ -96,8 +96,10 @@ ENGINES = {SCORE_MODEL: _ScoreEngine, PLAIN_MODEL: _PlainEngine, COVER_MODEL: _P
 #: from the model is read THERE (`ProcessSpec.needs`, 2026-11-05) — never stood in by a patch.
 _PROMPT = {'inputs_required': ['prompt']}
 CATALOGUE = {
+    # `supports_score_planning` : le fait de SON MOTEUR, que la synchronisation porte sur sa fiche
+    # (`apply_engine_flags`, 2026-11-06) — `plan` le lit là, comme la page.
     SCORE_MODEL: {**_PROMPT, 'task': 'text-to-music', 'supports_vocals': True,
-                  'inputs_optional': ['work_score']},
+                  'inputs_optional': ['work_score'], 'supports_score_planning': True},
     PLAIN_MODEL: {**_PROMPT, 'task': 'text-to-music', 'supports_vocals': False},
     COVER_MODEL: {**_PROMPT, 'task': 'text-to-music', 'supports_vocals': False,
                   'inputs_optional': ['work_audio']},
@@ -130,6 +132,7 @@ class PlanThenRenderTest(TestCase):
                              side_effect=lambda key: ENGINES.get(key))
         engines.start()
         self.addCleanup(engines.stop)
+        catalogue_rows()
         _ScoreEngine.built, _ScoreEngine.plans, _ScoreEngine.renders = 0, [], []
         _ScoreEngine.unloaded, _ScoreEngine.error = 0, None
         _PlainEngine.renders = []
@@ -747,6 +750,18 @@ class TheEngineSaysItPlansTest(SimpleTestCase):
         from wama.common.utils import model_capabilities
         self.assertIn('supports_score_planning', model_capabilities.CANONICAL_CAPABILITIES)
 
+    def test_the_synchronisation_writes_the_engine_step_on_its_catalogue_line(self):
+        """2026-11-06 : `plan` lisait la classe du moteur, la page ne pouvait donc pas le savoir. Le
+        fait du moteur va sur la fiche (`apply_engine_flags`) ; un moteur qui ne le déclare pas ne
+        l'affirme pas — le défaut du contrat n'écrase rien."""
+        from wama.common.backends.audiocraft_backend import AudioCraftBackend
+        from wama.common.backends.yue2_3b_backend import YuE2Backend
+        from wama.common.utils.model_capabilities import apply_engine_flags
+        self.assertIs(True, apply_engine_flags({'task': 'text-to-music'}, YuE2Backend)['supports_score_planning'])
+        self.assertNotIn('supports_score_planning', apply_engine_flags({'task': 'text-to-music'},
+                                                                       AudioCraftBackend))
+
+
     def test_the_score_comes_from_the_plan_step_of_the_vendored_pipeline(self):
         backend = self._backend()
         text = backend.plan_score(model_id='YuE2-3B', prompt='a calm piano\n[verse]\nla la')
@@ -795,6 +810,57 @@ class TheEngineSaysItPlansTest(SimpleTestCase):
         from wama.common.backends.music_generation_base import MusicGenerationBackend
         with self.assertRaisesMessage(NotImplementedError, 'supports_score_planning'):
             MusicGenerationBackend.plan_score(mock.Mock(), 'm', 'a prompt')
+
+
+class WhatTheModelDoesIsReadOnItsCatalogueLineTest(TestCase):
+    """2026-11-06, Fabien : « tu es sûr pour le composer ? on ne laisse pas de trou ». Écrire la
+    partition et l'extraire jugeaient encore le modèle dans le code (la classe du moteur, deux
+    lectures des entrées). Ce qu'ils exigent est une DONNÉE (`ProcessSpec.needs`) lue sur la fiche du
+    catalogue — la même que la page lit — et le moteur résolu n'y entre plus."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('composer_needs', password='x')
+        # Aucun moteur ne se résout : seule la fiche peut répondre.
+        engines = mock.patch('wama.common.backends.manager.backend_for_key', return_value=None)
+        engines.start()
+        self.addCleanup(engines.stop)
+
+    def _takes_place(self, process, model, **fields):
+        gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano', model=model,
+                                                **fields)
+        with mock.patch('wama.composer.utils.model_choice.score_extraction_available',
+                        return_value=True):
+            return PIPELINE.takes_place(PIPELINE.spec(process), gen, model)
+
+    def test_writing_the_score_follows_the_line_not_the_engine_class(self):
+        catalogue_rows()
+        self.assertTrue(self._takes_place('plan', SCORE_MODEL))
+        self.assertFalse(self._takes_place('plan', PLAIN_MODEL))
+        catalogue_rows(**{SCORE_MODEL: {k: v for k, v in CATALOGUE[SCORE_MODEL].items()
+                                        if k != 'supports_score_planning'}})
+        self.assertFalse(self._takes_place('plan', SCORE_MODEL), 'an absent capability is not served')
+
+    def test_extracting_the_score_needs_a_model_that_follows_it_without_taking_the_audio(self):
+        catalogue_rows()
+        cover = {'source_url': 'https://example.org/song.mp3'}
+        self.assertTrue(self._takes_place('extract_score', SCORE_MODEL, **cover))
+        self.assertFalse(self._takes_place('extract_score', COVER_MODEL, **cover), 'it takes the audio itself')
+        self.assertFalse(self._takes_place('extract_score', SCORE_MODEL), 'no song to cover')
+        both = {**CATALOGUE[SCORE_MODEL], 'inputs_optional': ['work_score', 'work_audio']}
+        catalogue_rows(**{SCORE_MODEL: both})
+        self.assertFalse(self._takes_place('extract_score', SCORE_MODEL, **cover),
+                         'a model that takes the audio is given the audio')
+        self.assertTrue(self._takes_place('plan', SCORE_MODEL, **cover),
+                        'no extraction : its alternative, writing the score, takes place')
+
+    def test_no_process_of_the_composer_judges_its_model_in_code_any_more(self):
+        """The judgements that were code (`plans_a_score`, `covers_audio_by_score`) are gone."""
+        from wama.composer import function_specs
+        from wama.composer.utils import model_choice
+        self.assertFalse(hasattr(function_specs, 'plans_a_score'))
+        self.assertFalse(hasattr(model_choice, 'covers_audio_by_score'))
+        self.assertEqual(function_specs.PLANS_A_SCORE, PIPELINE.spec('plan').needs)
+        self.assertEqual(function_specs.COVERS_BY_SCORE, PIPELINE.spec('extract_score').needs)
 
 
 class TheOutputProcessTest(TestCase):

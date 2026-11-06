@@ -1901,13 +1901,20 @@
       const sid = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
       if (!document.getElementById(sid + '-help')) return;
       const cfg = { selectId: sid, helpId: sid + '-help', fallback: p.help_fallback || {} };
+      // L'aide se REJOUE quand une valeur est posée sans geste (`apply` : la ⚙ d'un lot, un profil,
+      // ↺) : un set programmatique ne déclenche pas `change`, et l'aide décrivait encore le modèle
+      // d'avant (vu au navigateur le 2026-11-06 : « Choix automatique… » sous MusicGen Small).
+      const init = function () {
+        const help = global.WamaModelHelp.init(cfg);
+        if (help && help.render) (container._wpCapApply = container._wpCapApply || []).push(help.render);
+      };
       if (p.help_source) {
         Promise.resolve(global.WamaModelHelp.fetchCatalogMeta(
             p.help_source, { query: _catalogDomain(p) })).then(function (meta) {
-          cfg.meta = meta || {}; global.WamaModelHelp.init(cfg);
-        }).catch(function () { cfg.meta = {}; global.WamaModelHelp.init(cfg); });
+          cfg.meta = meta || {}; init();
+        }).catch(function () { cfg.meta = {}; init(); });
       } else {
-        cfg.meta = {}; global.WamaModelHelp.init(cfg);   // pas de catalogue → repli seul
+        cfg.meta = {}; init();   // pas de catalogue → repli seul
       }
     });
   }
@@ -1920,6 +1927,8 @@
     if (!cond) return true;
     if (typeof cond === 'string') cond = { field: cond };
     if (cond.any) return cond.any.some(function (one) { return conditionMet(one, valueOf); });
+    if (cond.all) return cond.all.every(function (one) { return conditionMet(one, valueOf); });
+    if ('not' in cond) return !conditionMet(cond.not, valueOf);
     return _valueMeets(cond, valueOf(cond.field));
   }
   function _valueMeets(cond, cur) {
@@ -1929,6 +1938,15 @@
     if ('equals' in cond) return String(cur) === String(cond.equals);
     if ('not_equals' in cond) return String(cur) !== String(cond.not_equals);
     return !!cur && cur !== 'false' && cur !== '0';   // défaut : truthy
+  }
+  // Les champs qu'une condition LIT — ceux de chaque branche d'un `any` ou d'un `all`, ceux de la
+  // condition qu'un `not` retourne (jumeau serveur : `param_schema.condition_fields`).
+  function conditionFields(cond) {
+    if (!cond) return [];
+    if (typeof cond !== 'object') return [cond];
+    if (cond.any || cond.all) return [].concat.apply([], (cond.any || cond.all).map(conditionFields));
+    if ('not' in cond) return conditionFields(cond.not);
+    return cond.field ? [cond.field] : [];
   }
 
   // RÉGLAGES D'UN PROCESS QUE LE MODÈLE NE SERT PAS (2026-11-05, décision de Fabien : « caché pour
@@ -1987,7 +2005,8 @@
     }
     // show_if : string « <champ> » (truthy) OU JSON {field, in:[…] | equals:… | not_equals:… }
     // OU {any: [conditions]} — l'une d'elles (2026-10-28 : la qualité de sortie, sous un format
-    // choisi OU la résolution d'origine gardée).
+    // choisi OU la résolution d'origine gardée) — OU {all: [conditions]} / {not: condition}
+    // (2026-11-06, `conditionMet`).
     // Jumeau serveur : `param_schema._show_if_met` — même vocabulaire, les deux changent ensemble.
     function parseCond(raw) {
       if (!raw) return null;
@@ -2009,6 +2028,10 @@
     function judged(cond) {
       if (typeof cond === 'string') cond = { field: cond };
       if (cond.any) return cond.any.some(judged);
+      if (cond.all) return cond.all.every(judged);
+      // Sous un `not`, une condition qui ne se juge pas ici reste NON jugée : le réglage reste
+      // visible — retourner une absence d'information la changerait en refus.
+      if ('not' in cond) return !conditionFields(cond.not).every(rendered) || !met(cond.not);
       return !rendered(cond.field) || met(cond);
     }
     function apply() {
@@ -2226,14 +2249,7 @@
   function scopedSchema(schema, names) {
     const wanted = {};
     (names || []).forEach(function (n) { wanted[n] = true; });
-    // Les champs qu'une condition LIT — ceux de chaque branche d'un `any` (jumeau serveur :
-    // `param_schema.condition_fields`).
-    const fields = function (cond) {
-      if (!cond) return [];
-      if (typeof cond !== 'object') return [cond];
-      if (cond.any) return [].concat.apply([], cond.any.map(fields));
-      return cond.field ? [cond.field] : [];
-    };
+    const fields = conditionFields;
     let grew = true;
     while (grew) {                       // une commande peut avoir sa propre commande
       grew = false;
@@ -2387,6 +2403,7 @@
                         // par `apply` → borne rejouée), pour la même garde.
                         bindCapFrom: _bindCapFrom,
                         bindProcessNeeds: _bindProcessNeeds,
+                        bindModelHelp: _bindModelHelp,
                         capBindings: _capBindings,
                         syncTemperature: _syncTemperature,
                         temperatureHint: _temperatureHint, topPPlaceholder: _topPPlaceholder,
@@ -2407,7 +2424,7 @@
                         // est la règle pure, exposée pour sa garde V8.
                         scopeNextModal: scopeNextModal,
                         // Sections par process (2026-10-26) : la règle pure, pour sa garde V8.
-                        processSections: processSections, conditionMet: conditionMet,
+                        processSections: processSections, conditionMet: conditionMet, conditionFields: conditionFields,
                         bindBatchOwn: bindBatchOwn, releaseBatchOwn: releaseBatchOwn,
                         batchAlignment: batchAlignment, ownLineText: ownLineText,
                         settingNeeds: settingNeeds,

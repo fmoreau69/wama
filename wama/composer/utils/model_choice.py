@@ -77,14 +77,14 @@ def is_valid(value) -> bool:
 
 def consumes_melody(value) -> bool:
     """Le modèle prend-il l'AUDIO du morceau à reprendre (cover) ? Capacité DÉCLARÉE
-    (`work_audio`), plus le test d'un identifiant en dur (`musicgen-melody`, catalogue absent).
+    (`work_audio`) — le test d'un identifiant en dur (`musicgen-melody`, « catalogue absent ») est
+    retiré le 2026-11-06 : le catalogue se veut exhaustif, MusicGen Melody y déclare son entrée.
 
     Un « auto » de groupe suit la règle de `consumes_input` : oui si un modèle de sa tâche le
     déclare — le tirage choisira parmi eux (2026-10-03). Il répondait NON jusque-là : avec
     « auto », un audio joint était ignoré en silence à la création, alors que le tirage savait
     retenir MusicGen Melody pour une mélodie fournie."""
-    key = normalize(value)
-    return consumes_input(key, 'work_audio') or model_id(key) == 'musicgen-melody'
+    return consumes_input(normalize(value), 'work_audio')
 
 
 def consumes_input(value, token: str) -> bool:
@@ -172,13 +172,6 @@ def lyrics_transcriber(gen) -> str:
 def lyrics_transcription_available() -> bool:
     """La disponibilité des process qui écoutent les paroles."""
     return task_installed(LYRICS_TASK)
-
-
-def covers_audio_by_score(value) -> bool:
-    """Le modèle reprend-il un audio PAR SA PARTITION ? Il suit une partition (`work_score`) sans
-    prendre l'audio lui-même (YuE2). Jugement du MODÈLE seul — que le process ait lieu dépend aussi
-    de l'installation, ce que tranche `AppPipeline.takes_place`."""
-    return consumes_input(value, 'work_score') and not consumes_melody(value)
 
 
 def accepts_input(value, token: str) -> bool:

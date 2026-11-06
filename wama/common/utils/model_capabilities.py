@@ -502,6 +502,15 @@ def _engine_voice(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     return caps
 
 
+#: Les ÉTAPES que le moteur sait jouer seules, appelées par la chaîne d'une app en un process à part
+#: (`plan_score` du composer) — des faits du MOTEUR, écrits sur la fiche par `apply_engine_flags`
+#: (2026-11-06) : le process qui les exige les lit au catalogue (`ProcessSpec.needs`), comme la
+#: page, et non plus sur la classe qu'il résout lui-même. ⚠ `supports_text_positions` est de la
+#: même nature, mais le process d'OCR choisit encore ses moteurs sur la classe
+#: (`ocr_process.positioned_ocr_keys`) : il entrera ici avec son portage.
+ENGINE_STEP_FLAGS = ("supports_score_planning",)
+
+
 def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     """Réaligne `caps` sur ce que la classe de moteur DÉCLARE — rend un NOUVEAU dict.
 
@@ -514,11 +523,16 @@ def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     conséquence visible ; `inputs_optional` suit, parce que `reference_voice` n'est rien
     d'autre que « ce moteur accepte une voix à imiter » (INPUT_MODEL_MATCHING.md). Et la
     TEMPÉRATURE depuis le 2026-10-21 (`_engine_temperature`) : le moteur dit s'il la lit ; la
-    graine et le top_p depuis le 2026-10-22 (`_engine_seed_top_p`).
+    graine et le top_p depuis le 2026-10-22 (`_engine_seed_top_p`). Les ÉTAPES qu'un process
+    exige du moteur depuis le 2026-11-06 (`ENGINE_STEP_FLAGS`).
     Les autres flags (`supports_timestamps`…) restent posés « seulement s'ils sont vrais » par la
     découverte — sémantique différente, hors de cette règle.
     """
     caps = _engine_voice(_engine_seed_top_p(_engine_temperature(dict(caps or {}), cls), cls), cls)
+    for flag in ENGINE_STEP_FLAGS:
+        declared = declared_engine_flag(cls, flag)
+        if declared is not None:
+            caps[flag] = declared
     declare = declared_engine_flag(cls, "supports_cloning")
     if declare is None:
         return caps                           # défaut de base seulement : on ne conteste rien

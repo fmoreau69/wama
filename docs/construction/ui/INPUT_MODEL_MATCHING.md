@@ -894,8 +894,41 @@ bruitage / chanteur / cover / « auto », attribut rendu), `tests_process_pipeli
 `composer.tests_parts…test_a_sound_effect_has_neither_score_even_asked`,
 `tests_cap_from_declared.EverySettingAModelNamesIsBoundTest`. Les tests du composer lisent
 désormais les fiches de catalogue de leurs modèles (`tests_pipeline.catalogue_rows`) au lieu de
-remplacer `vocals.sings`. ⏳ Restent en code, sans effet d'écran : `plan` (`plans_a_score`, un
-attribut de la classe du moteur pas encore au catalogue) et `extract_score` (`covers_audio_by_score`).
+remplacer `vocals.sings`. ~~⏳ Restent en code, sans effet d'écran : `plan` (`plans_a_score`, un
+attribut de la classe du moteur pas encore au catalogue) et `extract_score` (`covers_audio_by_score`).~~
+→ soldé le lendemain (entrée ci-dessous).
+
+**2026-11-06 — plus aucun process du composer ne juge son modèle dans le code** (Fabien : « tu es
+sûr pour le composer ? on ne laisse pas de trou »). Mesuré : `plan` lisait la CLASSE du moteur
+(`plans_a_score` → `backend_for_key(...).supports_score_planning`), `extract_score` relisait les
+entrées (`covers_audio_by_score`), et `consumes_melody` gardait un nom de modèle en dur
+(`== 'musicgen-melody'`, « catalogue absent »).
+- **Le fait du moteur va sur la fiche** : `apply_engine_flags` écrit les ÉTAPES que la classe
+  déclare (`model_capabilities.ENGINE_STEP_FLAGS` : `supports_score_planning`), à chaque
+  synchronisation, pour toute ligne dont le moteur se résout (`_reconcile_engine_flags`) — YuE2 le
+  porte à la prochaine `sync_models`. `plan` : `needs='supports_score_planning'`.
+- **La grammaire gagne `all` et `not`** (les deux évaluateurs, `condition_met` / `conditionMet`, et
+  les lecteurs de champs `condition_fields` / `conditionFields`) : `extract_score` exige un modèle
+  qui « suit une partition SANS prendre l'audio » (`COVERS_BY_SCORE`). Un `not` dont le champ n'est
+  pas rendu ne se juge pas (le réglage reste visible, la règle de toujours).
+- **Le nom en dur est retiré** : MusicGen Melody prend l'audio parce que sa fiche le déclare.
+- **Le lot** : la colonne `-r` imposait MusicGen Melody par son nom et se PERDAIT — elle est
+  désormais jointe (`BATCH_FORMAT.md`, matrice).
+Gardes : `composer.tests_pipeline.WhatTheModelDoesIsReadOnItsCatalogueLineTest` (moteur non
+résolu : seule la fiche répond), `…TheEngineSaysItPlansTest.test_the_synchronisation_writes_the_engine_step_…`,
+`tests_cap_from_js…test_every_requirement_of_the_composer_reads_the_same_on_both_sides` (les
+`needs` RÉELS du pipeline, pas une liste recopiée), `composer.tests_extract_score.ABatchLineCoversItsSongTest`.
+⚠ Même nature, hors composer : le process d'OCR choisit encore ses moteurs sur la classe
+(`ocr_process.positioned_ocr_keys`, `supports_text_positions`).
+**Vu au navigateur le même jour** (service relancé, compte de test, six modèles) : sous AudioGen les
+sections partition complète, paroles et partition de sortie sont cachées, « Voix » grisée ; sous
+MusicGen la section paroles est cachée ; sous « auto », YuE2 et MiniMax rien n'est caché ; aucune
+erreur de console. La ⚙ d'un lot porte le bloc « Alignement du lot » et, sous le prompt, « 2 gardent
+leur valeur (liées à leur entrée) · Remplacer aussi » ; le menu « … » n'a plus « Réaligner ». Deux
+écarts relevés et corrigés : l'aide du modèle décrivait encore l'« auto » quand la ⚙ du lot posait
+MusicGen Small (`apply` ne déclenche pas `change` : l'aide se rejoue désormais avec les liaisons de
+valeur, `_bindModelHelp`) ; le sous-titre de la page citait « MusicGen et AudioGen », écrit à la main
+(il est désormais la description déclarée, `WAMA_APP_CONVENTIONS §4.2`).
 
 ### 7bis. Un réglage PROPOSÉ par une entrée — `default_from` ; et son FORMAT — `display_format` (2026-10-04)
 

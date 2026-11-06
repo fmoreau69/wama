@@ -111,7 +111,8 @@
             {% block app_title %}Application{% endblock %}
         </h1>
         <p class="lead text-body-emphasis">
-            {% block app_description %}Description de l'application{% endblock %}
+            {# Le sous-titre : la description DÉCLARÉE de l'app (`APP_CATALOG`, 2026-11-06) — une page qui l'écrit à la main la recopie. #}
+            {% block app_description %}{{ current_app_spec.description|default:'' }}{% endblock %}
         </p>
     </div>
 

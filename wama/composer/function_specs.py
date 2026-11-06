@@ -10,7 +10,8 @@ TROIS process, et un seul est NORMAL :
     de TOUS les modèles ; pour la plupart, c'est le seul.
   • `plan`   — la consigne → une partition ABC. N'a lieu que pour un modèle dont le moteur
     DÉCLARE `supports_score_planning` (YuE2 : sa chaîne « paroles → partition → audio » est déjà
-    séparée dans son code), et seulement si l'utilisateur n'a pas fourni sa propre partition.
+    séparée dans son code ; la fiche du catalogue le porte, `apply_engine_flags`), et seulement si
+    l'utilisateur n'a pas fourni sa propre partition.
   • `extract_score` (2026-10-03) — l'audio du morceau à reprendre → sa partition (SheetSage2,
     tâche `audio-to-score`). N'a lieu que pour un COVER par un modèle qui suit une partition sans
     prendre l'audio lui-même (YuE2) ; il REMPLACE alors `plan` — la partition vient de l'audio,
@@ -37,26 +38,16 @@ _APP = 'composer'
 _IMPL = 'composer.tasks:compose_task'
 
 
-def plans_a_score(model_key) -> bool:
-    """Le moteur du modèle sait-il écrire une partition avant de la jouer ? Lu sur la classe du
-    backend que le catalogue résout — jamais sur un nom de modèle."""
-    if not model_key:
-        return False
-    from wama.common.backends.manager import backend_for_key
-    return bool(getattr(backend_for_key(model_key), 'supports_score_planning', False))
-
-
 def _extract_applies(gen, model_key) -> bool:
-    """Juge l'ÉLÉMENT : un audio de cover est donné (fichier, ou URL qui le remplira au lancement),
-    aucune partition n'est fournie, et le modèle de rendu reprend l'audio PAR SA PARTITION.
-    Qu'un modèle d'extraction soit installé est la DISPONIBILITÉ du process (`available`), lue
-    par `AppPipeline.takes_place` — un seul lieu, jamais redemandé ici."""
+    """Juge l'ÉLÉMENT : un audio de cover est donné (fichier, ou URL qui le remplira au lancement)
+    et aucune partition n'est fournie. Que le modèle de rendu reprenne l'audio PAR SA PARTITION est
+    une capacité, déclarée en donnée (`needs=COVERS_BY_SCORE`, 2026-11-06) ; qu'un modèle
+    d'extraction soit installé, la DISPONIBILITÉ du process (`available`) — tous deux lus par
+    `AppPipeline.takes_place`, jamais redemandés ici. Sans modèle connu (« auto » non tiré), rien
+    à extraire : la tâche tranche au lancement."""
     if not model_key or getattr(gen, 'reference_score', None):
         return False
-    if not (getattr(gen, 'melody_reference', None) or getattr(gen, 'source_url', '')):
-        return False
-    from .utils.model_choice import covers_audio_by_score
-    return covers_audio_by_score(model_key)
+    return bool(getattr(gen, 'melody_reference', None) or getattr(gen, 'source_url', ''))
 
 
 def _extract_available() -> bool:
@@ -85,7 +76,10 @@ def extracts_score(gen, model_key) -> bool:
 
 
 def _plan_applies(gen, model_key) -> bool:
-    return (plans_a_score(model_key) and not getattr(gen, 'reference_score', None)
+    """Juge l'ÉLÉMENT : aucune partition fournie, aucune extraite (son alternative). Que le moteur
+    écrive sa partition avant de la jouer est une capacité, déclarée en donnée
+    (`needs=PLANS_A_SCORE`, 2026-11-06)."""
+    return (bool(model_key) and not getattr(gen, 'reference_score', None)
             and not extracts_score(gen, model_key))
 
 
@@ -235,6 +229,12 @@ from .utils.vocals import CAPABILITY as SINGS  # noqa: E402
 MAKES_MUSIC = {'field': 'task', 'in': [MUSIC_TASK]}
 #: Le modèle REPREND un morceau (cover) : par son audio (MusicGen Melody) ou par sa partition (YuE2).
 TAKES_A_COVER = {'field': 'inputs_optional', 'in': ['work_audio', 'work_score']}
+#: Il reprend un audio PAR SA PARTITION : il suit une partition sans prendre l'audio lui-même (YuE2)
+#: — l'audio du cover passe alors par la partition qu'on en extrait.
+COVERS_BY_SCORE = {'all': [{'field': 'inputs_optional', 'in': ['work_score']},
+                           {'not': {'field': 'inputs_optional', 'in': ['work_audio']}}]}
+#: Son moteur écrit la partition AVANT de la jouer (`plan_score`, fait du moteur porté sur la fiche).
+PLANS_A_SCORE = 'supports_score_planning'
 
 
 def _requested_model(gen):
@@ -254,7 +254,8 @@ PIPELINE = register_app_pipeline(_APP, (
     # la bascule de la vue partition ; celle du morceau produit, « de sortie ».
     ProcessSpec('extract_score', label='Partition réduite',
                 watched=('melody_reference', 'source_url'),
-                gpu=True, share=1, applies=_extract_applies, available=_extract_available,
+                gpu=True, share=1, needs=COVERS_BY_SCORE, applies=_extract_applies,
+                available=_extract_available,
                 outputs=('extracted_score',), eta='composer.tasks:extract_score_eta'),
     # PARTITION COMPLÈTE de l'ENTRÉE (2026-10-16 ; sur l'entrée depuis le 2026-10-26, décision de
     # Fabien : « la partition doit refléter cet audio d'entrée ») : optionnelle (`extract_parts`),
@@ -277,7 +278,8 @@ PIPELINE = register_app_pipeline(_APP, (
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
     # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu.
     ProcessSpec('plan', label='Partition', depends_on=('extract_lyrics',), watched=_PROMPT_WATCHED,
-                gpu=True, share=1, applies=_plan_applies, outputs=('planned_score',),
+                gpu=True, share=1, needs=PLANS_A_SCORE, applies=_plan_applies,
+                outputs=('planned_score',),
                 eta='composer.tasks:plan_eta'),
     # Deux amonts ALTERNATIFS, exclusifs par `applies` : un amont sans objet est ignoré.
     ProcessSpec('render', label='Rendu', depends_on=('extract_score', 'extract_lyrics', 'plan'),

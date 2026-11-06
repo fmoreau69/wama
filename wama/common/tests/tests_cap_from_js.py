@@ -405,6 +405,63 @@ class SettingsFollowWhatTheModelServesTest(SimpleTestCase):
                     self.assertEqual(condition_met(process['needs'], caps), shown)
         self.assertFalse(condition_met('supports_vocals', {}), 'an absent capability is not satisfied')
 
+    def test_every_requirement_of_the_composer_reads_the_same_on_both_sides(self):
+        """2026-11-06 : `all` and `not` entered the grammar for « follows a score WITHOUT taking the
+        audio » (`extract_score`). Every `needs` the REAL pipeline declares is judged by the two
+        readers on the capabilities of each kind of model — a list copied here would not see a
+        requirement added tomorrow."""
+        from wama.common.utils.param_schema import condition_met
+        from wama.composer.function_specs import PIPELINE
+        score = {'task': 'text-to-music', 'inputs_optional': ['work_score'], 'supports_score_planning': True}
+        both = {'task': 'text-to-music', 'inputs_optional': ['work_score', 'work_audio']}
+        declared = [spec.needs for spec in PIPELINE.ordered() if spec.needs]
+        self.assertGreaterEqual(len(declared), 6)
+        for needs in declared:
+            for caps in (SFX, SONG, COVER, score, both, {}):
+                with self.subTest(needs=needs, caps=caps):
+                    shown = self.v8.eval(
+                        f"window.WamaParams.conditionMet({json.dumps(needs)}, "
+                        f"function (name) {{ return {json.dumps(caps)}[name]; }})")
+                    self.assertEqual(condition_met(needs, caps), shown)
+        covers_by_score = PIPELINE.spec('extract_score').needs
+        self.assertEqual((True, False, False), (condition_met(covers_by_score, score),
+                                                condition_met(covers_by_score, both),
+                                                condition_met(covers_by_score, COVER)))
+
+    def test_a_value_set_without_a_gesture_redraws_the_help_of_its_model(self):
+        """2026-11-06, seen in the browser : the batch ⚙ set « MusicGen Small » and its help still
+        described « auto » — `apply` sets values without a `change` event. The help is replayed with
+        the other value-bound bindings (`_wpCapApply`)."""
+        self.v8.eval("""
+            var said = [];
+            var sel = {value: 'auto', type: 'select-one', getAttribute: function (a) {
+                         return a === 'name' ? 'model' : null; }};
+            document.getElementById = function (id) { return id === 'm' ? sel : (id === 'm-help' ? {} : null); };
+            window.WamaModelHelp = {init: function (cfg) {
+              said.push(document.getElementById(cfg.selectId).value);
+              return {render: function () { said.push(document.getElementById(cfg.selectId).value); }}; }};
+            var box = {querySelectorAll: function (s) { return s === '[name],[data-param]' ? [sel] : []; },
+                       querySelector: function () { return null; }, addEventListener: function () {}};
+            window.WamaParams.bindModelHelp(box, [{name: 'model', type: 'select', dom_id: {panel: 'm'},
+                                                   help_fallback: {auto: 'Choix automatique'}}], 'panel');
+            window.WamaParams.apply(box, {model: 'composer:musicgen-small'});""")
+        self.assertEqual(['auto', 'composer:musicgen-small'], json.loads(self.v8.eval('JSON.stringify(said)')))
+
+    def test_all_and_not_are_read_by_the_conditions_of_the_settings_too(self):
+        """The same grammar drives `show_if` : the fields a condition reads are those of each branch
+        (what `scopedSchema` / `scoped_names` follow), on both sides."""
+        from wama.common.utils.param_schema import condition_fields
+        cond = {'all': [{'field': 'a', 'equals': 'x'}, {'not': {'field': 'b', 'in': ['y']}}]}
+        self.assertEqual(['a', 'b'], condition_fields(cond))
+        self.assertEqual(['a', 'b'], json.loads(self.v8.eval(
+            f"JSON.stringify(window.WamaParams.conditionFields({json.dumps(cond)}))")))
+        for values, expected in (({'a': 'x', 'b': 'z'}, True), ({'a': 'x', 'b': 'y'}, False),
+                                 ({'a': 'w', 'b': 'z'}, False)):
+            with self.subTest(values=values):
+                self.assertIs(expected, self.v8.eval(
+                    f"window.WamaParams.conditionMet({json.dumps(cond)}, "
+                    f"function (n) {{ return {json.dumps(values)}[n]; }})"))
+
     def _bind(self, model_key):
         """Rows of the composer's settings under the model `model_key`, after the binding."""
         self.v8.eval(f"""

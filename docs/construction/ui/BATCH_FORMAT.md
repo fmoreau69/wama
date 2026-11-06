@@ -106,7 +106,7 @@ le lot ou la file entière. La destination sert à **redispatcher**, pas à stoc
 -i "https://example.com/clip.mp4" -o "resume_1.txt"
 -i ./media/photo.jpg --output_format concise --language fr
 
-# Composer (génération) — référence audio ⇒ bascule auto sur un modèle melody
+# Composer (génération) — référence audio = le morceau à reprendre (cover)
 -p "upbeat jazz piano with soft drums" --duration 30 -o "intro.wav"
 -p "guitar solo over this melody" -r "theme.wav" -o "solo.wav"
 
@@ -239,8 +239,18 @@ Il existe sous **deux** formes qu'il ne faut pas confondre :
 | avatarizer (pipeline) | — | **requis** (texte) | **requis** (avatar galerie) | opt | `--voice`, `--language`, `--tts`, `--quality`, `--enhancer`, `--bbox` |
 | avatarizer (standalone) | **requis** (audio) | — | **requis** (avatar galerie) | opt | `--quality`, `--bbox` |
 
-**Auto-détection de modèle (composer)** : si `-r` (référence audio) est fourni →
-basculer automatiquement sur un modèle qui l'exploite (`musicgen-melody`).
+**Le morceau à reprendre (composer, `-r`)** — *corrigé le 2026-11-06, mesuré : la référence était
+lue, imposait `musicgen-melody` PAR SON NOM, puis se PERDAIT (`views.import_batch` ne la joignait
+jamais).* Une ligne la reçoit désormais comme la card : un chemin se DÉSIGNE (`designated_cover` →
+`media_paths.designate`, gardes comprises), une URL devient la source téléchargée au lancement
+(`WAMA_INGEST`), et sa durée PROPOSE celle de la card quand la ligne n'en dit pas (`default_from`).
+Le modèle qui la reprend se juge sur le CATALOGUE (`accepts_input`) : une ligne sans `--model` passe
+à l'« auto » de sa tâche quand le modèle du lot ne reprend pas un morceau (le tirage retient l'un de
+ceux qui le font) ; une ligne qui nomme un modèle qui ne le prend pas est ignorée, avec son motif.
+⏳ **Le même trou ailleurs** (mesuré le même jour) : l'imager (`-r` → `style_reference`,
+`prompt_parser.py:121`) et le synthesizer (`-r` → `voice_reference`, `batch_parser.py:108`) lisent
+la référence et ne la joignent pas — à porter par une brique commune (la ligne rangée dans les PORTS,
+`line_to_ports`, puis `designate`), que le composer adoptera aussi.
 
 ## Une ligne rangée dans les PORTS d'un nœud — le Studio (2026-10-20)
 
@@ -305,7 +315,8 @@ else:
 >   --model/--np`… via `_IMAGER_OPTION_ALIASES`, `-o`→`output_filename`, `-r`→`style_reference`).
 > - **synthesizer** : `parse_batch_file()` balise-aware (`-p`→texte, `--voice/--speed`,
 >   `-r`→`voice_reference`, `--language`).
-> - **composer** : référence + auto-modèle `musicgen-melody` si `-r`.
+> - **composer** : `-r` = le morceau à reprendre, JOINT depuis le 2026-11-06 (cf. matrice ci-dessus) ;
+>   plus de modèle nommé.
 > - **avatarizer** : `parse_unified_batch` natif (pas de legacy) — `-p`→pipeline,
 >   `-i`→standalone, `-r`→avatar galerie (requis), `--voice/--language/--tts/--quality/
 >   --enhancer/--bbox` ; group-by-nature par mode (pipeline / standalone).

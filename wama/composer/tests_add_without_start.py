@@ -44,3 +44,12 @@ class AddWithoutStartTest(TestCase):
             dispatch.return_value.id = 'no-task'
             self.client.post(reverse('composer:start', args=[gen_id]))
         dispatch.assert_called_once()
+
+    def test_the_page_says_what_the_catalogue_states(self):
+        """2026-11-06 : le sous-titre de la page était écrit à la main et ne citait que MusicGen et
+        AudioGen — YuE2, MiniMax et ACE-Step étaient au catalogue. Il est la description DÉCLARÉE
+        de l'app (`APP_CATALOG`), que la page de base lit."""
+        from wama.common.app_registry import APP_CATALOG
+        html = self.client.get(reverse('composer:index')).content.decode('utf-8')
+        self.assertIn(APP_CATALOG['composer']['description'], html)
+        self.assertNotIn('MusicGen et AudioGen', html)
