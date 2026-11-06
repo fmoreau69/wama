@@ -242,13 +242,8 @@ def extract_library(key: str) -> Optional[dict]:
     depot = (urls.get('source') or urls.get('repository') or urls.get('homepage')
              or meta.get('Home-page') or None)
 
-    import re
     console = sorted(ep.name for ep in dist.entry_points if ep.group == 'console_scripts')
-    # Nom de distribution = préfixe [nom] du spécificateur PEP 508 ; on écarte les extras.
-    deps = sorted({m.group(0)
-                   for d in (dist.requires or [])
-                   if (';' not in d or 'extra' not in d.split(';', 1)[1])
-                   for m in [re.match(r'[A-Za-z0-9._-]+', d.strip())] if m})
+    deps = dependency_names(dist.requires)
 
     body = {
         'identity': {
@@ -311,6 +306,17 @@ _CHAMPS_PROJETES = (
     ('constraints',     lambda m, b: b.get('constraints') or {}),
     ('vendor',          lambda m, b: (b.get('install') or {}).get('vendor') or {}),
 )
+
+
+def dependency_names(requirements) -> list:
+    """Les dépendances d'une distribution — noms triés, depuis ses exigences PEP 508 (`Requires-Dist`
+    du paquet installé, `requires_dist` de PyPI). Le nom est le préfixe du spécificateur ; une
+    exigence d'EXTRA (`; extra == "gui"`) n'est pas une dépendance. Une règle pour les deux
+    lectures (`extract_library`, et le rôle `librarian` sur un paquet publié, 2026-11-06)."""
+    return sorted({m.group(0)
+                   for d in (requirements or [])
+                   if (';' not in d or 'extra' not in d.split(';', 1)[1])
+                   for m in [re.match(r'[A-Za-z0-9._-]+', d.strip())] if m})
 
 
 def write_back_library(manifest: dict, *, apply: bool = False) -> dict:

@@ -25,7 +25,7 @@ python wama-dev-ai/run.py                 # mode interactif (commandes : voir cl
 python wama-dev-ai/run.py -t "…"          # tâche unique
 python wama-dev-ai/run_audit.py …         # rôle audit (read-only)
 python wama-dev-ai/run_codegen.py …       # rôle codegen (code proposé, jamais appliqué)
-python wama-dev-ai/run_librarian.py …     # manifestes de librairies
+python wama-dev-ai/run_librarian.py …     # manifestes de librairies (--repo, ou --dist : installée, sinon publiée sur PyPI)
 python wama-dev-ai/run_model_manifest.py … # manifestes de MODÈLES (identité, capacités, moteur)
 python wama-dev-ai/run_scout.py …         # prospection de modèles (fiches candidates)
 python wama-dev-ai/run_integrator.py …    # propositions d'intégration

@@ -6,6 +6,7 @@ même règle que wama/common/ côté produit).
 Tout est BORNÉ (leçons wama-dev-ai) : un appel Ollama one-shot, sorties dans outputs/ avec
 PENDING_HUMAN_VALIDATION, jamais d'auto-application.
 """
+import copy
 import json
 import os
 import re
@@ -493,6 +494,70 @@ def pypi_published(dist_name: str, version: str = '', status_of=None):
     if code == 200:
         return True
     return False if code == 404 else None
+
+
+def pypi_metadata(dist_name: str, fetcher=None):
+    """Ce que PyPI PUBLIE d'une distribution, à sa dernière version (source déclarée `pypi`) :
+    `{name, version, requires_python, dependencies, text}` — les FAITS que la chaîne pose
+    (`enforce_published_facts`) et le matériau brut du LLM —, None si PyPI ne répond pas.
+
+    Écrit le 2026-11-06 : `gguf` (lu par diffusers pour charger un GGUF) n'était pas installé, et
+    son dépôt (`ggml-org/llama.cpp`) publie un AUTRE paquet à sa racine. `librarian --dist` exigeait
+    l'installation, `--repo` aurait lu le mauvais `pyproject` : la route n'avait pas d'entrée pour
+    un paquet seulement publié.
+    ⚠ Le proxy COUPE parfois la fiche en cours de route (`IncompleteRead`, mesuré le même jour :
+    38 Ko lus sur 46, puis la fiche entière à l'appel suivant — le défaut que `pypi_published`
+    contourne par un `HEAD`, impossible ici puisqu'il faut le corps) : trois lectures au plus."""
+    import http.client
+    from wama.common.external_sources import base_url
+    if not dist_name:
+        return None
+    data = None
+    for _attempt in range(3):
+        try:
+            data = json.loads((fetcher or fetch)(f"{base_url('pypi')}/pypi/{dist_name}/json"))
+            break
+        except http.client.IncompleteRead:
+            continue
+        except Exception:
+            return None
+    if data is None:
+        return None
+    info = data.get('info') or {}
+    name, version = info.get('name') or dist_name, info.get('version') or ''
+    if not version:
+        return None
+    fields = ('name', 'version', 'summary', 'license', 'license_expression', 'requires_python',
+              'home_page', 'project_urls', 'classifiers', 'requires_dist')
+    meta = '\n'.join(f'{k}: {str(info.get(k))[:800]}' for k in fields if info.get(k))
+    readme = (info.get('description') or '')[:6000]
+    from wama.common.manifests.builtin.library import dependency_names
+    return {'name': name, 'version': version, 'requires_python': info.get('requires_python') or '',
+            'dependencies': dependency_names(info.get('requires_dist')),
+            'text': f'===== PyPI (info) =====\n{meta}\n\n===== README =====\n{readme}'}
+
+
+def enforce_published_facts(manifest: dict, published: dict, notes: list) -> dict:
+    """Ce qu'un paquet PUBLIÉ dit de lui-même est un FAIT de PyPI (`pypi_metadata`), quoi qu'ait
+    écrit le LLM — le patron d'`enforce_install_channel` pour un dépôt : le canal `nom==version`, la
+    version de Python exigée, la version d'identité, les dépendances (sans les extras) et la source."""
+    manifest = copy.deepcopy(manifest)
+    body = manifest.setdefault('body', {})
+    name, version = published['name'], published['version']
+    spec = f'{name}=={version}'
+    proposed = (body.get('install') or {}).get('pip')
+    if proposed != spec:
+        notes.append(f"canal posé d'après PyPI : {spec} (le LLM proposait {proposed or 'rien'})")
+    requires_python = published.get('requires_python') or ''
+    body['install'] = {'pip': spec, **({'requires_python': requires_python} if requires_python else {})}
+    body.setdefault('identity', {})['version'] = version
+    deps = list(published.get('dependencies') or [])
+    if sorted(body.get('dependencies') or []) != deps:
+        notes.append(f"dépendances posées d'après PyPI, sans les extras : {deps} "
+                     f"(le LLM proposait {sorted(body.get('dependencies') or [])})")
+    body['dependencies'] = deps
+    manifest['source'] = {'type': 'authored', 'ref': f'pypi:{spec}'}
+    return manifest
 
 
 def requirements_verdict(requirement_lines, installed=None) -> dict:

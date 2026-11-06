@@ -13,6 +13,7 @@ endroit d'où ce contrat peut être tenu automatiquement.
 """
 import ast
 import importlib.util
+import json
 import sys
 
 from django.conf import settings
@@ -657,6 +658,65 @@ class InstallChannelFromRepoFactsTest(SimpleTestCase):
         self.assertIsNone(pp('ace-step', '1.5.0', status_of=offline),
                           'une panne réseau ne vaut pas « non publié »')
         self.assertIsNone(pp('ace-step', status_of=lambda url: 503))
+
+    def test_a_distribution_only_published_is_read_on_pypi(self):
+        """2026-11-06 : `gguf` n'était pas installé, et son dépôt publie un autre paquet à sa
+        racine — `librarian --dist` lit ce que PyPI publie. Un PyPI muet n'invente rien."""
+        payload = {'info': {'name': 'gguf', 'version': '0.19.0', 'summary': 'GGUF for GGML',
+                            'requires_python': '>=3.10',
+                            'requires_dist': ['numpy>=1.17', 'PySide6<7.0,>=6.9; extra == "gui"'],
+                            'description': 'README gguf'}}
+        seen = []
+
+        def fetcher(url):
+            seen.append(url)
+            return json.dumps(payload)
+        facts = self.role_utils.pypi_metadata('gguf', fetcher=fetcher)
+        self.assertEqual((facts['name'], facts['version'], facts['requires_python']),
+                         ('gguf', '0.19.0', '>=3.10'))
+        self.assertEqual(facts['dependencies'], ['numpy'], "une exigence d'extra n'est pas une dépendance")
+        self.assertTrue(seen[0].endswith('/pypi/gguf/json'), seen)
+        self.assertIn('numpy>=1.17', facts['text'])
+        self.assertIsNone(self.role_utils.pypi_metadata('gguf', fetcher=lambda url: 1 / 0))
+        self.assertIsNone(self.role_utils.pypi_metadata(
+            'gguf', fetcher=lambda url: json.dumps({'info': {'name': 'gguf'}})))
+
+    def test_a_reply_cut_by_the_proxy_is_read_again(self):
+        """Mesuré le 2026-11-06 : le proxy coupe la fiche (`IncompleteRead`), la suivante passe."""
+        import http.client
+        replies = [http.client.IncompleteRead(b'{"info"', 7439),
+                   json.dumps({'info': {'name': 'gguf', 'version': '0.19.0'}})]
+
+        def fetcher(url):
+            reply = replies.pop(0)
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+        self.assertEqual(self.role_utils.pypi_metadata('gguf', fetcher=fetcher)['version'], '0.19.0')
+
+        def always_cut(url):
+            raise http.client.IncompleteRead(b'{', 10)
+        self.assertIsNone(self.role_utils.pypi_metadata('gguf', fetcher=always_cut))
+
+    def test_a_published_distribution_is_pinned_by_pypi_not_by_the_llm(self):
+        from wama.common.manifests.ingest import validate
+        notes = []
+        llm = {**self._llm_manifest({'pip': 'gguf>=0.10', 'requires_python': '>=3.8'}),
+               'key': 'gguf', 'name': 'gguf'}
+        llm['body']['dependencies'] = ['PySide6', 'numpy']
+        published = {'name': 'gguf', 'version': '0.19.0', 'requires_python': '>=3.10',
+                     'dependencies': ['numpy'], 'text': ''}
+        manifest = self.role_utils.enforce_published_facts(llm, published, notes)
+        self.assertEqual(manifest['body']['install'],
+                         {'pip': 'gguf==0.19.0', 'requires_python': '>=3.10'},
+                         "les deux faits publiés, aucun du LLM")
+        self.assertEqual(manifest['body']['dependencies'], ['numpy'], "l'extra du LLM est retiré")
+        self.assertEqual(manifest['source']['ref'], 'pypi:gguf==0.19.0')
+        self.assertEqual(manifest['body']['identity']['version'], '0.19.0')
+        self.assertEqual(llm['body']['install'], {'pip': 'gguf>=0.10', 'requires_python': '>=3.8'},
+                         "l'entrée n'est pas mutée")
+        self.assertTrue(any('PyPI' in n for n in notes), notes)
+        self.assertEqual(validate(manifest) or [], [])
 
     def test_requirements_are_confronted_to_the_reference_venv(self):
         venv = {'transformers': '4.57.6', 'numpy': '2.3.5', 'torch': '2.9.1', 'accelerate': '1.6.0'}

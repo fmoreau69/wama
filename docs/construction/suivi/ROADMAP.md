@@ -1074,9 +1074,16 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    (`PrecisionChosenByTheGovernorTest`, `ServedModelNeedTest`, `ServedByTwinTest`,
    `FluxPrecisionTwinTest`, refus dit), `tests_vram_peaks.ReducedPeakTest`.
    ⏳ Restent : la STRATÉGIE de déchargement sur la vue du process (`get_memory_strategy`, le
-   défaut CogVideoX de `h`) ; une précision du T5 de FLUX (8 bits sur T5 aussi : ~15,8 Go calculés,
-   le 8 bits du transformeur deviendrait admissible) et le FP8 de torchao — chacun une
-   `LoadPrecision` de plus et son chargement, à MESURER avant de déclarer ; LTX, qui porte deux
+   défaut CogVideoX de `h`) ; ~~une précision du T5 de FLUX (8 bits sur T5 aussi : ~15,8 Go
+   calculés, le 8 bits du transformeur deviendrait admissible)~~ MESURÉE le 2026-11-06 (carte
+   vide, 1024², 10 pas) : 18,5 Go alloués après chargement, **21,05 au pic** — le calcul se
+   trompait de 5,3 Go, transformers gardant les couches `wo` de T5 en FP32 (`modeling_t5.py`
+   `_keep_in_fp32_modules = ["wo"]`, 1,0 Md de paramètres : 3,75 Go au lieu de 0,94). Pic + marge
+   (22,55) au-dessus de ce que la carte libère (20,3 à 22,4 selon l'occupation hors de WAMA) :
+   **NON déclarée** — et `reduced_peak_gb` ne sait pas peser un composant réduit EN PARTIE, il
+   l'aurait admise. Le tout-8 bits rend en 16,7 s (1,12 s/pas, encodeurs résidents) contre 102 s en
+   NF4 (0,63 s/pas, mais T5 en bf16 remonté à chaque rendu) ; chargement 140 s contre 330-390 s ;
+   le FP8 de torchao, une `LoadPrecision` de plus et son chargement, à MESURER avant de déclarer ; LTX, qui porte deux
    lignes de catalogue au lieu d'une déclaration ; la qualité d'une réduction face aux poids
    pleins, non mesurée ; la recommandation d'installation (`prospector.recommended_option`) juge
    « tient » par `fits_alone`, SANS la marge que `chosen_precision` ajoute — deux admissibilités

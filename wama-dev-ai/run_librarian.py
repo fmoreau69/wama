@@ -13,6 +13,7 @@ Pilote BORNÉ (leçons wama-dev-ai : tâche étroite, one-shot, jamais d'auto-ap
 
 Usage (depuis la racine du repo, venv_linux) :
     python wama-dev-ai/run_librarian.py --dist faster-whisper           # offline (installé)
+    python wama-dev-ai/run_librarian.py --dist gguf                     # publié sur PyPI, pas installé
     python wama-dev-ai/run_librarian.py --repo SYSTRAN/faster-whisper   # depuis GitHub
 """
 import argparse
@@ -34,9 +35,9 @@ django.setup()
 # Helpers COMMUNS aux rôles (extraits d'ici le 2026-08-27 à la naissance de scout/integrator).
 from role_utils import (  # noqa: E402
     PACKAGING_FILES, add_llm_arguments, call_llm, complete_library_envelope,
-    enforce_install_channel, extract_json,
-    fetch as _fetch, github_head_sha, local_llm_guard, pypi_published, repo_requirements,
-    requirements_verdict, resolve_model)
+    enforce_install_channel, enforce_published_facts, extract_json,
+    fetch as _fetch, github_head_sha, local_llm_guard, pypi_metadata, pypi_published,
+    repo_requirements, requirements_verdict, resolve_model)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'librarian.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'libraries'
@@ -71,9 +72,17 @@ def sources_repo(repo):
 
 
 def sources_dist(dist_name):
-    """Métadonnées du paquet INSTALLÉ, présentées comme matériau brut (pas pré-mâché)."""
+    """Métadonnées du paquet INSTALLÉ, présentées comme matériau brut (pas pré-mâché) — sinon
+    celles qu'il PUBLIE sur PyPI (`role_utils.pypi_metadata`, 2026-11-06). Rend aussi `(nom,
+    version)` publiés dans ce second cas : le canal pip se pose d'après eux, pas d'après le LLM."""
     import importlib.metadata as im
-    d = im.distribution(dist_name)
+    try:
+        d = im.distribution(dist_name)
+    except im.PackageNotFoundError:
+        published = pypi_metadata(dist_name)
+        if published is None:
+            raise SystemExit(f"« {dist_name} » n'est ni installé ni lisible sur PyPI (réseau/proxy ?).")
+        return f"pypi:{published['name']}=={published['version']}", published['text'], published
     # PAS str(d.metadata) : le repli d'en-têtes email lève HeaderParseError sur les
     # valeurs longues. On sérialise les items nous-mêmes (+ le README en payload).
     meta = '\n'.join(f'{k}: {str(v)[:500]}' for k, v in d.metadata.items())
@@ -87,22 +96,22 @@ def sources_dist(dist_name):
     deps = '\n'.join(d.requires or [])
     return (f'importlib.metadata:{d.name}=={d.version}',
             f'===== PKG-INFO =====\n{meta}\n\n===== entry_points =====\n{eps}'
-            f'\n\n===== requires =====\n{deps}')
+            f'\n\n===== requires =====\n{deps}', None)
 
 
 def main():
     ap = argparse.ArgumentParser()
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument('--repo', help='Dépôt GitHub owner/name')
-    g.add_argument('--dist', help='Distribution Python installée')
+    g.add_argument('--dist', help='Distribution Python installée, sinon publiée sur PyPI')
     add_llm_arguments(ap, role='dev')
     args = ap.parse_args()
 
-    branch, packaging = None, []
+    branch, packaging, published_facts = None, [], None
     if args.repo:
         provenance, matiere, branch, packaging = sources_repo(args.repo)
     else:
-        provenance, matiere = sources_dist(args.dist)
+        provenance, matiere, published_facts = sources_dist(args.dist)
     matiere = matiere[:MAX_SOURCE_CHARS]
 
     exemples = '\n\n'.join(f.read_text(encoding='utf-8')
@@ -121,6 +130,8 @@ def main():
     # ── Contrôles MÉCANIQUES (le LLM propose, la chaîne d'ingest juge) ──────────
     # Le CANAL d'installation se pose d'après les faits du dépôt (paquet ou non, tête mesurée).
     notes, deps_verdict = [], None
+    if published_facts:
+        manifest = enforce_published_facts(manifest, published_facts, notes)
     if args.repo:
         sha, published = None, False
         if packaging:

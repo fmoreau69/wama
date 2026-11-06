@@ -1,0 +1,43 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy",
+      "pyyaml",
+      "requests",
+      "tqdm"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "gguf-convert-endian",
+        "gguf-dump",
+        "gguf-editor-gui",
+        "gguf-new-metadata",
+        "gguf-set-metadata"
+      ]
+    },
+    "identity": {
+      "author": "GGML",
+      "license": "MIT License",
+      "repository": "https://github.com/ggml-org/llama.cpp",
+      "summary": "Read and write ML models in GGUF for GGML",
+      "version": "0.19.0"
+    },
+    "install": {
+      "pip": "gguf==0.19.0",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Read and write ML models in GGUF for GGML",
+  "key": "gguf",
+  "manifest_kind": "library",
+  "name": "gguf",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:gguf==0.19.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
