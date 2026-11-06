@@ -85,6 +85,18 @@ autre monde, greper le SUBSTRAT pour sa clé (code et JS, hors tests) : chaque o
 remplace par une RÈGLE lue au registre (ici : les sources dont le port ne produit que des types
 de donnée), jamais par le nom de ce qui a déménagé.
 
+🔴 **Vécu le 2026-11-06 — une RÈGLE recopiée en variante ne ressemble à rien, elle non plus.** La
+première revérification du suivi hors des files (installation, Studio) avait ramené trois recopies
+de DONNÉES ; la seconde, demandée par Fabien, a trouvé quatre RÈGLES écrites en variante : la barre
+d'un lot (« (réussis + échoués) / total » quand WAMA écrit trois fois « réussis / total »), la forme
+d'une ligne de suivi (trois écritures), la lecture d'un avancement publié (cache brut à côté de
+`task_progress.progression_en_cours`, qui refuse une tâche morte), le renoncement d'une boucle
+(`maxFails` par défaut quand une barre « ne renonce jamais »). ✅ La question qui les a trouvées :
+**pour chaque DÉCISION que le livrable prend (une formule, un seuil, un abandon, un « est-ce
+vivant ? »), où WAMA la prend-il déjà ?** — greper le geste voisin (une autre barre, un autre lot,
+un autre lecteur du même cache), puis le lire ; et comparer le neuf à ce qu'il REMPLACE
+(l'ancien suivi avait un `onGiveUp` : le neuf n'en avait plus).
+
 ## 2. Testé — lancer, garder, prouver
 
 - Lancer : `/cloture §2a` (périmètre ciblé, puis la suite si le substrat a bougé ; lire les NOMS
