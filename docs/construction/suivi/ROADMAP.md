@@ -1078,7 +1078,12 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    le 8 bits du transformeur deviendrait admissible) et le FP8 de torchao — chacun une
    `LoadPrecision` de plus et son chargement, à MESURER avant de déclarer ; LTX, qui porte deux
    lignes de catalogue au lieu d'une déclaration ; la qualité d'une réduction face aux poids
-   pleins, non mesurée.
+   pleins, non mesurée ; la recommandation d'installation (`prospector.recommended_option`) juge
+   « tient » par `fits_alone`, SANS la marge que `chosen_precision` ajoute — deux admissibilités
+   pour une même question (point b, « une seule marge »), à unifier par une décision ; la lecture
+   du moteur déclaré d'une LIGNE reste écrite en place dans `tool_api`, `tts/ui_meta` et
+   `avatarizer/workers` (celle d'une CLÉ est commune : `backends.manager.engine_of`, revérification
+   du soir — `detection_ensemble` l'emprunte, `served_by_for_key` aussi).
 
 **2026-11-02 — LES DÉTENTEURS HORS DU WORKER, en venv unique (bilan demandé par Fabien avant de
 reparler du multi-venv).** Mesuré au code : le registre partagé ne garantissait la même gestion

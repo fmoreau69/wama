@@ -608,6 +608,8 @@ class BaseModelBackend(ABC):
     #: tâche qui le lui demande (`resource_governor.served_resident_gb`). Déclaré le 2026-11-05 :
     #: depuis que le libre se lit à la carte, une tâche du synthesizer attendait les 11,5 Go de
     #: Higgs que le service de voix tenait déjà, et le reader ceux d'un OCR chargé dans Ollama.
+    #: ≠ `ISOLATION` : celle-ci dit l'ENVIRONNEMENT (un autre venv, que rien n'exécute encore) ;
+    #: `SERVED_BY` dit le PROCESS qui charge, dans le même venv (le service de voix en est un).
     SERVED_BY: str = ''
 
     @classmethod

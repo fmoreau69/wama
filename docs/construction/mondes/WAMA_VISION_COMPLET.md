@@ -342,7 +342,9 @@ découverte, installation depuis spec (variantes quantisées choisies AVANT inst
 désinstallation, sélection VRAM-aware et par tiers, singleton `keep_loaded`, statistiques
 d'exécution, ETA auto-apprenant, sauvegarde miroir — et un gouverneur de ressources qui sait ce qui tourne,
 demande la libération à son détenteur et ne l'obtient que par accord explicite (2026-09-20), au
-grain du process (2026-10-14). L'objectif n'est pas d'exécuter un modèle,
+grain du process (2026-10-14), et choisit la précision de chargement qu'un moteur déclare savoir
+appliquer, sur ce que la carte peut libérer (✅ FLUX, 2026-11-05 ; ⏳ le choix du déchargement et
+l'affichage ✅/⚙/⛔ à l'installation, `ROADMAP §Gouvernance` point 5). L'objectif n'est pas d'exécuter un modèle,
 mais de **gérer un écosystème de modèles actifs** sur un budget de VRAM contraint.
 
 ## 3.4 Veille et prospection : des rôles LLM gouvernés 🔄

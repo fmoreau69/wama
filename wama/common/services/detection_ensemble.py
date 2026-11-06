@@ -27,16 +27,9 @@ ULTRALYTICS = 'ultralytics'
 
 
 def engine_of(model_key: str) -> str:
-    """Le moteur DÉCLARÉ au catalogue (`composition.runtime.engine`) — '' si inconnu."""
-    if not model_key:
-        return ''
-    try:
-        from wama.model_manager.models import AIModel
-        composition = (AIModel.objects.filter(model_key=model_key)
-                       .values_list('composition', flat=True).first()) or {}
-    except Exception:
-        return ''
-    return ((composition.get('runtime') or {}).get('engine') or '')
+    """Le moteur DÉCLARÉ au catalogue — la lecture commune (`backends.manager.engine_of`)."""
+    from wama.common.backends.manager import engine_of as declared_engine
+    return declared_engine(model_key)
 
 
 def _scaled(progress, rank: int, count: int):

@@ -266,21 +266,29 @@ def peaks_for_precision(weights: dict, label: str) -> dict:
         return {}
     sizes = {}
     for role, entry in by_role.items():
-        # `params_by_dtype` quand il existe : on ne caste QUE les flottants, les index restent
-        # tels quels. Sinon le compte total, avec la réserve ci-dessus.
-        detailed = (entry or {}).get('params_by_dtype') or {}
-        if detailed:
-            gb = sum(n * (per_param if (dtype_bytes(d) or 0) and not d.upper().startswith(('I', 'B'))
-                          else (dtype_bytes(d) or per_param))
-                     for d, n in detailed.items())
-        else:
-            gb = float((entry or {}).get('params') or 0) * per_param
+        gb = _role_gb_at(entry, per_param)
         if gb:
-            sizes[role] = gb / 1024 ** 3
+            sizes[role] = gb
     if not sizes:
         return {}
     return {'full': round(sum(sizes.values()), 2),
             'offload': round(max(sizes.values()), 2)}
+
+
+def _role_gb_at(entry: dict, per_param: float) -> float:
+    """Go d'UN composant converti à `per_param` octets par paramètre, depuis son relevé d'en-têtes
+    (`weights['precision'][rôle]`). `params_by_dtype` quand il existe : on ne caste QUE les
+    flottants, les index restent tels quels ; sinon le compte total, avec la réserve de
+    `peaks_for_precision`. 0.0 sans paramètres relevés. La conversion de `peaks_for_precision`
+    (tous les composants) et de `reduced_peak_gb` (ceux qu'une précision réduit) — une seule règle."""
+    detailed = (entry or {}).get('params_by_dtype') or {}
+    if detailed:
+        size_bytes = sum(n * (per_param if (dtype_bytes(d) or 0) and not d.upper().startswith(('I', 'B'))
+                              else (dtype_bytes(d) or per_param))
+                         for d, n in detailed.items())
+    else:
+        size_bytes = float((entry or {}).get('params') or 0) * per_param
+    return size_bytes / 1024 ** 3
 
 
 def reduced_peak_gb(weights: dict, precision, *, offload: bool) -> Optional[float]:
@@ -304,13 +312,13 @@ def reduced_peak_gb(weights: dict, precision, *, offload: bool) -> Optional[floa
     by_role = (weights or {}).get('precision') or {}
     sizes = {}
     for role, gb in components.items():
-        params = float(((by_role.get(role) or {}).get('params')) or 0)
-        if role in precision.quantized and per_param and params:
-            sizes[role] = params * per_param / 1024 ** 3
-        elif role in precision.quantized:
-            return None                      # une réduction sur un composant qu'on ne sait pas peser
-        else:
+        if role not in precision.quantized:
             sizes[role] = float(gb or 0)
+            continue
+        reduced = _role_gb_at(by_role.get(role), per_param) if per_param else 0.0
+        if not reduced:
+            return None                      # une réduction sur un composant qu'on ne sait pas peser
+        sizes[role] = reduced
     if not offload:
         return round(sum(sizes.values()), 2)
     stays = sum(gb for role, gb in sizes.items() if role in precision.resident)
