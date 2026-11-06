@@ -346,6 +346,15 @@ voir aucun palier : il faudra une entrée plus longue) **et le câblage transcri
 > **calculé** (zlib + CRC, vérifiable) et, pour `.jpg`/`.webp`, par une vraie image du format
 > annoncé : l'ancien écrivait des octets PNG sous un nom `.jpg`, toléré tant qu'on n'ouvre pas
 > le fichier, indéfendable dans un harnais dont le rôle est de dire la vérité.
+>
+> ⚠ **Récidive le 2026-11-06, à l'étage du CHOIX de l'extension.** `_fichier_temoin` prenait la
+> PREMIÈRE extension déclarée par la zone de dépôt : `.mp3` chez le transcriber, et donc 19 octets
+> de texte nommés `.mp3`, que Whisper refusait. `transcriber.processing` et `batch_processing`
+> concluaient depuis le 11/10 « chaîne cassée » sur une app saine. Le témoin se choisit désormais
+> parmi les extensions acceptées qui ont un ÉCRIVAIN, et ces écrivains sont ceux des surfaces
+> (`ui_smoke.WITNESS_WRITERS`, une table lue aussi par `witness_sample`). Une zone `video/*` reçoit
+> ainsi une vraie mire au lieu de texte nommé `.mp4`. Garde : `tests_import_contract.HarnessWitnessIsValidTest`.
+> ⏳ Reste : une extension sans écrivain (`.pdf`, `.docx`, `.mp3` seule) reçoit encore du texte.
 
 > ⚠ **UN scénario, pas dix-sept — et c'est la réponse à une question de Fabien du même jour :**
 > *« les tests sont créés individuellement pour chaque application ou déclinés automatiquement

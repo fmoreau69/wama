@@ -352,5 +352,10 @@ class HarnessWitnessIsValidTest(SimpleTestCase):
         self.assertEqual(path.suffix, '.wav')
         self.assertEqual(path.read_bytes()[:4], b'RIFF')
 
+    def test_the_choice_reads_the_writers_of_the_surfaces(self):
+        path = self._witness('.mp3,.abc')
+        self.assertEqual(path.suffix, '.abc')
+        self.assertIn(b'X:1', path.read_bytes())
+
     def test_counter_proof_a_zone_with_no_writable_extension_keeps_its_own(self):
-        self.assertEqual(self._witness('.md,.txt').suffix, '.md')
+        self.assertEqual(self._witness('.pdf,.docx').suffix, '.pdf')

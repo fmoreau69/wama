@@ -560,18 +560,15 @@ def _fichier_temoin(extensions: str) -> Path:
     # (2026-11-06) : le transcriber déclare `.mp3` en tête, et le témoin était alors 19 octets
     # de texte nommés `.mp3` — Whisper le refusait (« Failed to find two consecutive MPEG audio
     # frames ») et `transcriber.processing` concluait depuis le 11/10 « chaîne cassée » sur une
-    # app saine. C'est la leçon de `_wav_silence`, à l'étage du CHOIX de l'extension.
-    WRITABLE = ('.png', '.jpg', '.jpeg', '.webp', '.wav')
+    # app saine. Les écrivains sont ceux des surfaces (`WITNESS_WRITERS`) : la vidéo d'une zone
+    # `video/*` est une vraie mire, plus du texte nommé `.mp4`. Une extension sans écrivain
+    # (`.pdf`, `.docx`, `.mp3` seule) reçoit encore du texte : reste nommé, pas résolu.
     declared = [b.lstrip('*') for b in bruts if b.lstrip('*').startswith('.')]
     ext = next((FAMILLES[b] for b in bruts if b in FAMILLES),
-               next((e for e in declared if e in WRITABLE),
+               next((e for e in declared if e in WITNESS_WRITERS),
                     declared[0] if declared else '.txt'))
-    if ext in ('.png', '.jpg', '.jpeg', '.webp'):
-        contenu = _image_temoin(ext)
-    elif ext in ('.wav',):
-        contenu = _wav_silence()
-    else:
-        contenu = b'temoin import WAMA\n'
+    writer = WITNESS_WRITERS.get(ext)
+    contenu = writer(ext) if writer else b'temoin import WAMA\n'
     # ⚠ Préfixe EXPLICITE (28/08) : un témoin doit se reconnaître à son NOM. Avec le `tmp` par
     # défaut de `tempfile`, un fichier resté dans `media/<app>/<uid>/input/` était indistinguable
     # de n'importe quel temporaire — donc impossible à balayer sans risque. 146 s'y étaient
@@ -695,22 +692,31 @@ def witness_sample(kind: str) -> tuple:
     `.html`, `.abc`, `.mp4`) ou un type de données (`detections`). Lisible par la brique qui le montre :
     une vignette de carré blanc ne dirait rien de la brique. Un contenu inconnu est REFUSÉ, en le
     disant : `Surface.witness_problems` l'aura déjà signalé."""
-    if kind in ('.png', '.jpg', '.jpeg', '.webp'):
-        return _witness_image(kind), kind
-    if kind == '.wav':
-        return _witness_tones(), kind
-    if kind == '.abc':
-        return _WITNESS_ABC.encode('utf-8'), kind
-    if kind == '.md':
-        body = '\n\n'.join(f'## {title}\n\n{text}' for title, text in _WITNESS_SECTIONS)
-        return f'# Témoin\n\n{body}\n'.encode('utf-8'), kind
-    if kind == '.html':
-        return _witness_html(), kind
-    if kind == '.mp4':
-        return _witness_video(), kind
     if kind == 'detections':
         return _witness_detections(), '.json'
-    raise ValueError(f"contenu témoin inconnu : {kind!r}")
+    writer = WITNESS_WRITERS.get(kind)
+    if writer is None:
+        raise ValueError(f"contenu témoin inconnu : {kind!r}")
+    return writer(kind), kind
+
+
+def _witness_markdown(ext: str = '.md') -> bytes:
+    body = '\n\n'.join(f'## {title}\n\n{text}' for title, text in _WITNESS_SECTIONS)
+    return f'# Témoin\n\n{body}\n'.encode('utf-8')
+
+
+#: Les extensions dont le harnais sait écrire un contenu VALIDE, et leur écrivain — UNE table, lue
+#: par `witness_sample` (surfaces) ET par `_fichier_temoin` (zones d'import), qui y choisit son
+#: extension (revérification du 2026-11-06 : `_fichier_temoin` en redisait une liste à lui).
+WITNESS_WRITERS = {
+    '.png': _witness_image, '.jpg': _witness_image, '.jpeg': _witness_image,
+    '.webp': _witness_image,
+    '.wav': lambda ext: _witness_tones(),
+    '.abc': lambda ext: _WITNESS_ABC.encode('utf-8'),
+    '.md': _witness_markdown,
+    '.html': lambda ext: _witness_html(),
+    '.mp4': lambda ext: _witness_video(),
+}
 
 
 def _fill_required_ports(page) -> list:
