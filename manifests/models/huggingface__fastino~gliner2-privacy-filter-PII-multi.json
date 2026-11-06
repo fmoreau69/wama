@@ -1,0 +1,156 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "languages": [
+        "de",
+        "en",
+        "es",
+        "fr",
+        "it",
+        "nl",
+        "pt"
+      ],
+      "modalities": [
+        "text",
+        "document"
+      ],
+      "task": "pii-detection"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "safetensors",
+          "pattern": "model.safetensors",
+          "role": "model"
+        }
+      ],
+      "runtime": {
+        "engine": "gliner2"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "config.json",
+            "repo": "fastino/gliner2-privacy-filter-PII-multi",
+            "revision": "1cb4166094dc58fa8d836429f060d6c95f62b495",
+            "source": "huggingface"
+          },
+          "path": "config.json",
+          "sha256": "164f17362bcf9d114067d3465e7374bfdd79ce6b605acb745de5a49dabb9595c",
+          "size": 252
+        },
+        {
+          "origin": {
+            "file": "encoder_config/config.json",
+            "repo": "fastino/gliner2-privacy-filter-PII-multi",
+            "revision": "1cb4166094dc58fa8d836429f060d6c95f62b495",
+            "source": "huggingface"
+          },
+          "path": "encoder_config/config.json",
+          "sha256": "f27dd63cc43a248d2566f0b6ad7a115db353676ce0561dcbca45bac766464c1a",
+          "size": 895
+        },
+        {
+          "origin": {
+            "file": "tokenizer.json",
+            "repo": "fastino/gliner2-privacy-filter-PII-multi",
+            "revision": "1cb4166094dc58fa8d836429f060d6c95f62b495",
+            "source": "huggingface"
+          },
+          "path": "tokenizer.json",
+          "sha256": "f6df10ec83bea993035b2dd7c39345a3d4fcf23421c2adb6cb4ffc1e6d1bc4b5",
+          "size": 16020604
+        },
+        {
+          "origin": {
+            "file": "tokenizer_config.json",
+            "repo": "fastino/gliner2-privacy-filter-PII-multi",
+            "revision": "1cb4166094dc58fa8d836429f060d6c95f62b495",
+            "source": "huggingface"
+          },
+          "path": "tokenizer_config.json",
+          "sha256": "233beed1f1095cccfc7907cde31a8d90a0c6aa4fdfaf6493f8e55fd162e81ae6",
+          "size": 711
+        },
+        {
+          "origin": {
+            "file": "model.safetensors",
+            "repo": "fastino/gliner2-privacy-filter-PII-multi",
+            "revision": "1cb4166094dc58fa8d836429f060d6c95f62b495",
+            "source": "huggingface"
+          },
+          "path": "model.safetensors",
+          "sha256": "0280f6f39f6012da50b6640bad438d9b7e763a1b0102094115d1b710c4dd79b6",
+          "size": 1228421964
+        }
+      ],
+      "license": "apache-2.0",
+      "vram_measured": {
+        "at": "2026-11-06T20:13:32+00:00",
+        "last_gb": 1.15,
+        "max_gb": 3.43,
+        "n": 35
+      },
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Données personnelles à types ouverts, 7 langues",
+      "license": null,
+      "model_type": "nlp",
+      "platform_ref": "huggingface:fastino/gliner2-privacy-filter-PII-multi",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 1.1589791867882013,
+      "ram_gb": 0.0,
+      "vram_gb": 1.5
+    }
+  },
+  "description": "Détecteur de données personnelles à vocabulaire OUVERT (Fastino, GLiNER2 205 M) : 42 types qu'on lui nomme, 7 langues (en, fr, es, de, it, pt, nl). Rappel élevé, précision faible selon l'éditeur (il sur-détecte les noms) : il complète les autres détecteurs de l'union. Entraîné sur des textes synthétiques.",
+  "key": "huggingface:fastino/gliner2-privacy-filter-PII-multi",
+  "manifest_kind": "model",
+  "name": "GLiNER2-PII (multilingue)",
+  "projects": [],
+  "requires": [
+    {
+      "key": "gliner2",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:fastino/gliner2-privacy-filter-PII-multi",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

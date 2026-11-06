@@ -1,0 +1,174 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "languages": [
+        "bg",
+        "cs",
+        "da",
+        "de",
+        "el",
+        "en",
+        "es",
+        "et",
+        "fi",
+        "fr",
+        "ga",
+        "hr",
+        "hu",
+        "it",
+        "lt",
+        "lv",
+        "mt",
+        "nl",
+        "pl",
+        "pt",
+        "ro",
+        "sk",
+        "sl",
+        "sv"
+      ],
+      "modalities": [
+        "text",
+        "document"
+      ],
+      "task": "pii-detection"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "onnx",
+          "pattern": "onnx/model.onnx",
+          "role": "model"
+        },
+        {
+          "format": "onnx",
+          "pattern": "onnx/model_quantized.onnx",
+          "role": "model_cpu"
+        }
+      ],
+      "runtime": {
+        "engine": "onnxruntime"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "config.json",
+            "repo": "bardsai/eu-pii-anonimization-multilang-v3",
+            "revision": "091984b5fbce4c161abc4776ed0f4e3206e1b374",
+            "source": "huggingface"
+          },
+          "path": "config.json",
+          "sha256": "9f34718817db63125b1dcd85b0b6923381ea7c443802675e81dd163d1f12b06c",
+          "size": 6415
+        },
+        {
+          "origin": {
+            "file": "tokenizer.json",
+            "repo": "bardsai/eu-pii-anonimization-multilang-v3",
+            "revision": "091984b5fbce4c161abc4776ed0f4e3206e1b374",
+            "source": "huggingface"
+          },
+          "path": "tokenizer.json",
+          "sha256": "609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f",
+          "size": 34363188
+        },
+        {
+          "origin": {
+            "file": "tokenizer_config.json",
+            "repo": "bardsai/eu-pii-anonimization-multilang-v3",
+            "revision": "091984b5fbce4c161abc4776ed0f4e3206e1b374",
+            "source": "huggingface"
+          },
+          "path": "tokenizer_config.json",
+          "sha256": "02055b886266b1a475bc324da83e273fe96e4974002f9d970f26e94aa73e5885",
+          "size": 573
+        },
+        {
+          "origin": {
+            "file": "onnx/model.onnx",
+            "repo": "bardsai/eu-pii-anonimization-multilang-v3",
+            "revision": "091984b5fbce4c161abc4776ed0f4e3206e1b374",
+            "source": "huggingface"
+          },
+          "path": "onnx/model.onnx",
+          "sha256": "5612139cb594bf524dd47e5fe0ade4d13ec018b556ab853c819e7cd0e9abdf6d",
+          "size": 1230934625
+        },
+        {
+          "origin": {
+            "file": "onnx/model_quantized.onnx",
+            "repo": "bardsai/eu-pii-anonimization-multilang-v3",
+            "revision": "091984b5fbce4c161abc4776ed0f4e3206e1b374",
+            "source": "huggingface"
+          },
+          "path": "onnx/model_quantized.onnx",
+          "sha256": "762c851fd948915cc40c5b226f0c8d19dd3a48064a171368fbc56ba97a8d1ce5",
+          "size": 308593401
+        }
+      ],
+      "license": "apache-2.0",
+      "vram_measured": {
+        "at": "2026-11-06T20:13:24+00:00",
+        "last_gb": 1.51,
+        "max_gb": 2.02,
+        "n": 11
+      },
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "onnx",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Données personnelles, 24 langues de l'UE (ONNX)",
+      "license": null,
+      "model_type": "nlp",
+      "platform_ref": "huggingface:bardsai/eu-pii-anonimization-multilang-v3",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 1.4658069256693125,
+      "ram_gb": 0.0,
+      "vram_gb": 1.5
+    }
+  },
+  "description": "Détecteur de données personnelles des 24 langues de l'UE (bardsai, ModernBERT mmBERT-base, 307 M) : 37 types — personnes, contacts, adresses, identifiants, comptes, secrets, et les catégories particulières du RGPD. Servi en ONNX (FP32 sur la carte, INT8 sur le processeur) avec le décodeur par mot de l'auteur. Chiffres de l'éditeur (F1 strict 0,980 sur 455 passages réels) — une mesure WAMA fera foi.",
+  "key": "huggingface:bardsai/eu-pii-anonimization-multilang-v3",
+  "manifest_kind": "model",
+  "name": "bardsai EU PII v3",
+  "projects": [],
+  "requires": [
+    {
+      "key": "onnxruntime-gpu",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:bardsai/eu-pii-anonimization-multilang-v3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
