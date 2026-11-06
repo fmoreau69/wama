@@ -28699,7 +28699,8 @@ fonctionnelle PAR GÉNÉRATION depuis son manifeste ; empaqueter WAMA entier n'a
 - **Gouverneur hors de l'hôte WAMA**, lu au code (Redis seul registre, nvidia-smi seule sonde, tirage
   sans contrainte sans GPU, aucun périphérique au contrat de backend) : **`ROADMAP §Gouvernance des
   ressources`, point 6** (neuf). Rien de corrigé.
-- **Vision** : intention ⏳ `WAMA_VISION_COMPLET §3.6` (neuve, + sommaire).
+- **Vision** : intention ⏳ `WAMA_VISION_COMPLET §3.6` (neuve, + sommaire) et sa règle d'ordre,
+  §13.1 point 8 (`9764f7f47`, ajoutée à la revérification demandée par Fabien).
 - Aucun code touché. `check_docs` 0 cassée / 3850.
 
 §PASSATION — 2026-11-06, « trous de génération vus par la fermeture d'import » →
