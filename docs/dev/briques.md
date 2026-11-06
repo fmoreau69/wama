@@ -2280,7 +2280,7 @@ Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le 
 
 - **Domicile** : `wama/common/utils/batch_parsers.py` · **doc** : [docs/construction/ui/BATCH_FORMAT.md](../construction/ui/BATCH_FORMAT.md)
 - **Module** : WAMA Common — Batch file parsers
-- **API publique** (22) :
+- **API publique** (25) :
   - `batch_file_refusal(filename: str, extra=()) -> str` — Le motif de refus d'un fichier de lot, ou '' s'il est d'un format de lot.
   - `parse_batch_file_from_request(request, parser: Optional[Callable]=None) -> Tuple[List[Dict], List[str]]` — Extract batch_file from request.FILES, validate extension, parse it, clean up.
   - `add_filename_to_items(items: List[Dict]) -> List[Dict]` — Add a 'filename' key to each item dict derived from item['path'].
@@ -2296,6 +2296,9 @@ Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le 
   - `parse_unified_batch(file_path: str) -> Tuple[List[Dict], List[str]]` — Parse un fichier batch structuré → liste d'items normalisés.
   - `parse_batch_lines(text: str, plain_as: str='input') -> Tuple[List[Dict], List[str]]` — Les LIGNES d'un fichier de lot, quelle que soit sa famille, sous la forme normalisée des
   - `line_to_ports(line: Dict, ports: List[Dict]) -> Tuple[Dict, Dict]` — Une ligne de lot rangée dans les PORTS d'un nœud — `({port: valeur}, réglages)`.
+  - `line_file_ports(app_id, line) -> Dict[str, str]` — Les FICHIERS qu'une ligne de lot donne à un élément de `app_id`, rangés dans ses PORTS —
+  - `line_file_inputs(user, app_id, files: Dict[str, str], fields: Dict[str, str], *, model)` — Les fichiers d'une ligne (`line_file_ports`) REÇUS comme sur la card — `({champ: entrée
+  - `attach_line_inputs(instance, received: Dict, remote: Dict)` — Pose sur l'élément CRÉÉ ce qu'a rendu `line_file_inputs` : chaque fichier reçu dans son champ
   - `is_csv_header_batch(text: str) -> bool` — True si la 1ʳᵉ ligne utile est un en-tête tableur (délimiteur , ; | ou tab)
   - `parse_csv_header_batch(text: str) -> Tuple[List[Dict], List[str]]` — Parse un tableur à en-têtes (délimiteur sniffé) → items normalisés (clés des balises).
   - `is_structured_batch_text(text: str) -> bool` — True si le texte est un batch structuré (CSV à en-têtes OU balises).
@@ -2820,7 +2823,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `sampling_of(source, prefix: str='') -> dict` — Les réglages de tirage d'un élément (ses colonnes `<prefix>temperature`, `<prefix>seed`,
   - `sampling_options(source, prefix: str='') -> dict` — `sampling_of` réduit à ce qui est RÉGLÉ — le `options` d'un moteur (le contrat uniforme de
   - `condition_met(cond, values) -> bool` — Une condition de la grammaire `show_if` est-elle satisfaite par `values` ? — la lecture
-  - `condition_fields(cond) -> List[str]` — Les champs qu'une condition `show_if` LIT — un seul, ou ceux de chaque branche d'un `any`.
+  - `condition_fields(cond) -> List[str]` — Les champs qu'une condition `show_if` LIT — un seul, ou ceux de chaque branche d'un `any`
   - `scoped_names(schema, names) -> List[str]` — Les réglages de la ⚙ d'UN process : `names` (ce qu'il surveille), plus le champ qui COMMANDE
   - `applicable_defaults(schema, values=None) -> dict` — Défauts APPLICABLES d'un schéma pour un élément NAISSANT : params de contexte 'item'
   - `panel_dom_id(p)` — dom_id du param sur la surface VOLET, ou None s'il n'y figure pas.

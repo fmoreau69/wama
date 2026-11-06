@@ -1888,7 +1888,10 @@ MECHANISMS = (
               "2026-11-02 : le gabarit téléchargeable de chaque app servi par "
               "`batch_template_response` (formats lus à la déclaration), le rangement des "
               "orphelins et la file aux deux formes de rattachement (FK directe comprise), la "
-              "file listée par `listable_by`",
+              "file listée par `listable_by`. Depuis le 2026-11-06 : les FICHIERS d'une ligne "
+              "(`-r`) reçus comme sur la card — `line_file_ports` (le port de leur nature), "
+              "`line_file_inputs` (désignés, ou adresse vers la source `WAMA_INGEST`), "
+              "`attach_line_inputs` ; imager, synthesizer, composer, avatarizer",
               'wama/common/utils/batch_parsers.py', 'docs/construction/ui/BATCH_FORMAT.md',
               annexes=('wama/common/utils/batch_common.py',
                        'wama/common/utils/batch_sync.py',

@@ -100,6 +100,8 @@ def composer_rules(values) -> dict:
 #: (`import_batch`) : la liste était écrite deux fois (2026-11-06).
 COVER_PORTS = (('work_score', 'reference_score', 'de partition'),
                ('work_audio', 'melody_reference', "d'audio à reprendre"))
+#: Le champ de chaque port, pour la brique des lignes de lot (`batch_parsers.line_file_inputs`).
+COVER_FIELDS = {port: field for port, field, _what in COVER_PORTS}
 
 
 def cover_refusal(model, port) -> str:
@@ -462,20 +464,20 @@ def batch_preview(request):
 
 
 def _batch_line(user, post, task_data, default_model, default_duration, warnings):
-    """UNE ligne de lot → `(ligne, réglages, entrées reçues, URL)`, ou None (raison ajoutée à
+    """UNE ligne de lot → `(ligne, réglages, fichiers reçus, adresses)`, ou None (raison ajoutée à
     `warnings`). La ligne POSTE ses réglages comme un dépôt (`given` : son modèle, sa durée), sur
     ceux du lot ; la cascade commune et les règles du composer font le reste, comme `generate`.
 
-    Son MORCEAU À REPRENDRE (`-r`, 2026-11-06) se reçoit comme sur la card : une URL devient la
-    source téléchargée au lancement (`WAMA_INGEST`), un chemin se DÉSIGNE (`designated_cover`), et
-    sa durée PROPOSE celle de la card (`default_from`) quand la ligne n'en dit pas. Jusque-là la
-    référence était lue puis PERDUE (jamais jointe), et elle imposait MusicGen Melody par son nom.
-    Une ligne qui ne nomme pas de modèle passe à l'« auto » de sa tâche quand celui du lot ne
-    reprend pas un morceau : le tirage retient l'un de ceux qui le font (`models_accepting`)."""
+    Son MORCEAU À REPRENDRE (`-r`, 2026-11-06) se reçoit comme sur la card, par la brique commune
+    des lignes de lot (`batch_parsers.line_file_ports` / `line_file_inputs`) : il va au port de sa
+    nature (audio ou partition), un chemin se DÉSIGNE, une URL devient la source téléchargée
+    (`WAMA_INGEST`) ; sa durée PROPOSE celle de la card (`default_from`) quand la ligne n'en dit pas.
+    Jusque-là la référence était lue puis PERDUE, et elle imposait MusicGen Melody par son nom.
+    Une ligne qui ne nomme pas de modèle passe à l'« auto » de sa tâche quand celui du lot ne prend
+    pas ce qu'elle donne : le tirage retient l'un de ceux qui le prennent (`models_accepting`)."""
     from wama.common.utils.auto_model import is_auto
-    from wama.common.utils.media_paths import InputRefused
+    from wama.common.utils.batch_parsers import line_file_inputs, line_file_ports
     from wama.common.utils.model_keys import AUTO_TASK_PREFIX
-    from wama.common.utils.source_ingest import is_remote
     from wama.common.utils.user_settings import inputs_by_port
     from .utils.model_choice import task_of
     given = task_data.get('given')
@@ -483,30 +485,28 @@ def _batch_line(user, post, task_data, default_model, default_duration, warnings
         given = {'model': task_data['model'], 'duration': task_data['duration']}
     line_post = {name: post.get(name) for name in post}
     line_post.update({'model': default_model, 'duration': default_duration, **given})
-    reference = (task_data.get('reference') or '').strip()
     model = normalize(line_post['model'])
-    if (reference and 'model' not in given and not is_auto(model)
-            and cover_refusal(model, 'work_audio')):
-        model = AUTO_TASK_PREFIX + task_of(model)
-    line_post['model'] = model
-    where = f"Ligne {task_data.get('line_num') or '?'}"
-    received, source_url = [], ''
+    reference = (task_data.get('reference') or '').strip()
     try:
-        if reference and is_remote(reference):
-            refusal = cover_refusal(model, 'work_audio')
-            if refusal:
-                raise InputRefused(refusal)
-            source_url = reference
-        elif reference:
-            received = designated_cover(user, model, {'work_audio': reference})
-    except InputRefused as exc:
-        warnings.append(f"{where} : {exc} — ignorée")
+        files = line_file_ports('composer', {'reference': reference,
+                                             'line_num': task_data.get('line_num')}) if reference else {}
+        if (files and 'model' not in given and not is_auto(model)
+                and any(cover_refusal(model, port) for port in files)):
+            model = AUTO_TASK_PREFIX + task_of(model)
+        refusal = next((r for r in (cover_refusal(model, port) for port in files) if r), '')
+        if refusal:
+            raise ValueError(refusal)
+        received, remote = line_file_inputs(user, 'composer', files, COVER_FIELDS,
+                                            model=ComposerGeneration)
+    except ValueError as exc:            # `InputRefused` compris : une désignation refusée
+        warnings.append(f"Ligne {task_data.get('line_num') or '?'} : {exc} — ignorée")
         return None
-    inputs = inputs_by_port('composer', *(item for item, _field in received))
+    line_post['model'] = model
+    inputs = inputs_by_port('composer', *received.values())
     if inputs and 'duration' not in given:
-        line_post.pop('duration')       # la durée du morceau repris la propose (`default_from`)
+        line_post.pop('duration')       # le morceau repris propose sa durée (`default_from`)
     values = composer_rules(new_generation_settings(user, post=line_post, inputs=inputs))
-    return task_data, values, received, source_url
+    return task_data, values, received, remote
 
 
 @require_POST
@@ -575,15 +575,14 @@ def import_batch(request):
     # batch_start, appelé par afterCreate — avant, le serveur lançait tout inconditionnellement
     # et « Créer seulement » était illusoire + double lancement avec l'auto-start client).
     created_ids = []
-    for task_data, values, received, source_url in lines:
+    from wama.common.utils.batch_parsers import attach_line_inputs
+    for task_data, values, received, remote in lines:
         gen = ComposerGeneration.objects.create(
             **values,
             user=user,
             prompt=task_data['prompt'],
-            source_url=source_url,
         )
-        for item, field in received:
-            item.assign(gen, field)
+        attach_line_inputs(gen, received, remote)
         ComposerBatchItem.objects.create(
             batch=batch,
             generation=gen,

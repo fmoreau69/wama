@@ -546,6 +546,11 @@ def batch_template(request):
                "-r / avatar = nom d'un avatar de la médiathèque. Une ligne = un job."))
 
 
+#: Le champ du PORT de l'audio d'un job (une donnée : il garde son nom) — lu par la brique des lignes
+#: de lot (`batch_parsers.line_file_inputs`, 2026-11-06).
+_LINE_FIELDS = {'work_audio': 'audio_input'}
+
+
 def _parse_avatar_batch_from_request(request):
     """Le fichier batch posté → (lignes de job, avertissements) : la réception COMMUNE
     (`parse_batch_file_from_request` : extension, fichier temporaire, nettoyage — recopiée ici
@@ -658,9 +663,24 @@ def batch_create(request):
     except ValueError as exc:
         return JsonResponse({'error': str(exc)}, status=400)
 
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-
     def _make_job(row):
+        # L'AUDIO d'une ligne autonome (`-i`) se reçoit comme sur la card, par la brique commune des
+        # lignes de lot (2026-11-06) : un chemin se DÉSIGNE (confinement, existence, droit de
+        # LECTURE — ce lot ne vérifiait que le confinement : l'audio d'un autre compte passait),
+        # une URL va à la source téléchargée (`WAMA_INGEST`). Refusé : la ligne est écartée, avec
+        # son motif — elle partait sans audio.
+        from wama.common.utils.batch_parsers import (attach_line_inputs, line_file_inputs,
+                                                     line_file_ports)
+        received, remote = {}, {}
+        if row['mode'] == 'standalone' and row['audio_path']:
+            try:
+                files = line_file_ports('avatarizer', {'input': row['audio_path'],
+                                                       'line_num': row.get('line_num')})
+                received, remote = line_file_inputs(user, 'avatarizer', files, _LINE_FIELDS,
+                                                    model=AvatarJob)
+            except ValueError as exc:    # `InputRefused` compris : une désignation refusée
+                warnings.append(f"Ligne {row.get('line_num') or '?'} : {exc} — ignorée")
+                return None
         # L'avatar NOMMÉ par la ligne est désigné comme depuis la card (les siens, les partagés, le
         # système — 2026-09-29) ; introuvable, le nom est gardé et l'aperçu du lot l'a signalé.
         from wama.common.utils.media_paths import InputRefused
@@ -680,28 +700,15 @@ def batch_create(request):
             avatar_gallery_name='' if avatar else row['avatar_gallery_name'],
         )
         _derive_quality_mode(job)
-        # Standalone : rattacher l'audio s'il résout sous MEDIA_ROOT (partage, pas de copie) ;
-        # une URL devient la SOURCE, téléchargée dès la création (`source_ingest`, WAMA_INGEST) —
-        # elle était ignorée sans un mot jusqu'au 2026-10-13, et la card partait sans audio.
-        if row['mode'] == 'standalone' and row['audio_path']:
-            from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
-            if row['audio_path'].lower().startswith(('http://', 'https://')):
-                job.source_url = row['audio_path']
-            else:
-                try:
-                    _target, rel = resolve_under_media_root(row['audio_path'])
-                    job.audio_input.name = rel
-                except (OutsideMediaRoot, FileNotFoundError):
-                    warnings.append(f"Ligne {row.get('line_num') or '?'} : audio introuvable — "
-                                    f"{row['audio_path']}")
         if avatar:
             job.avatar_upload = avatar.value
         job.save()
         if avatar:
             avatar.record(job, 'avatar_upload')
+        attach_line_inputs(job, received, remote)
         return job
 
-    jobs = [_make_job(r) for r in rows]
+    jobs = [job for job in (_make_job(r) for r in rows) if job]
 
     # Rangés à l'ARRIVÉE par la déclaration de la fabrique (`group_key`, un lot par nature) —
     # le regroupement écrit ici à la main est retiré le 2026-10-16.

@@ -247,10 +247,20 @@ jamais).* Une ligne la reçoit désormais comme la card : un chemin se DÉSIGNE 
 Le modèle qui la reprend se juge sur le CATALOGUE (`accepts_input`) : une ligne sans `--model` passe
 à l'« auto » de sa tâche quand le modèle du lot ne reprend pas un morceau (le tirage retient l'un de
 ceux qui le font) ; une ligne qui nomme un modèle qui ne le prend pas est ignorée, avec son motif.
-⏳ **Le même trou ailleurs** (mesuré le même jour) : l'imager (`-r` → `style_reference`,
-`prompt_parser.py:121`) et le synthesizer (`-r` → `voice_reference`, `batch_parser.py:108`) lisent
-la référence et ne la joignent pas — à porter par une brique commune (la ligne rangée dans les PORTS,
-`line_to_ports`, puis `designate`), que le composer adoptera aussi.
+✅ **Le même trou ailleurs, soldé le même jour par une brique COMMUNE** (demande de Fabien) :
+l'imager (`-r` → `style_reference`) et le synthesizer (`-r` → `voice_reference`) lisaient la
+référence et ne la joignaient pas. Les trois apps passent désormais par `batch_parsers` :
+`line_file_ports` (la ligne rangée dans les PORTS de l'app, la règle du Studio — `line_to_ports` —,
+la NATURE du fichier choisissant parmi plusieurs ports candidats : le composer a une partition ET un
+audio), `line_file_inputs` (un chemin se désigne, une URL va à la source `WAMA_INGEST` du champ ;
+tout se juge avant la création) et `attach_line_inputs`. Chaque app déclare le champ de ses ports
+(`_LINE_FIELDS`, `COVER_FIELDS`) ; une ligne refusée est écartée avec son motif. L'imager suit le
+mode de sa card : image + consigne → `img2img` (`img2vid` au domaine vidéo). **Et l'avatarizer**
+(`-i`, l'audio d'un job autonome), trouvé à la revérification : il résolvait le chemin sous
+`MEDIA_ROOT` SANS juger le droit de lecture — l'audio d'un autre compte passait — et créait le job
+sans audio quand le chemin manquait ; il passe par la même brique (désigné, ligne écartée avec son
+motif). ⏳ Reste de même nature : le lot des apps GÉNÉRÉES (`codegen/views_gen.py`, `batch_create`),
+qui copie le chemin d'une ligne après le seul confinement.
 
 ## Une ligne rangée dans les PORTS d'un nœud — le Studio (2026-10-20)
 
@@ -312,9 +322,10 @@ else:
 >   balises et mappe `-i`→`path` (+ `-o`/`-p`/`--option` transportés). Aucune app
 >   à modifier individuellement (règle « zéro duplication »).
 > - **imager** : `parse_text_prompts()` balise-aware (`-p`→prompt, `--steps/--cfg/
->   --model/--np`… via `_IMAGER_OPTION_ALIASES`, `-o`→`output_filename`, `-r`→`style_reference`).
+>   --model/--np`… via `_IMAGER_OPTION_ALIASES`, `-o`→`output_filename`, `-r`→ l'image qui guide,
+>   JOINTE depuis le 2026-11-06 — `line_file_inputs`).
 > - **synthesizer** : `parse_batch_file()` balise-aware (`-p`→texte, `--voice/--speed`,
->   `-r`→`voice_reference`, `--language`).
+>   `-r`→ la voix à cloner, JOINTE depuis le 2026-11-06 — `line_file_inputs`, `--language`).
 > - **composer** : `-r` = le morceau à reprendre, JOINT depuis le 2026-11-06 (cf. matrice ci-dessus) ;
 >   plus de modèle nommé.
 > - **avatarizer** : `parse_unified_batch` natif (pas de legacy) — `-p`→pipeline,

@@ -94,6 +94,11 @@ def synthesis_params(user, post, model=None, app='synthesizer', inputs=None) -> 
     return {**posted, **new_synthesis_settings(user, model=model, app=app, post=posted, inputs=inputs)}
 
 
+#: Le champ de chaque PORT fichier d'une synthèse (des données : ils gardent leur nom) — lu par la
+#: brique des lignes de lot (`batch_parsers.line_file_inputs`, 2026-11-06).
+_LINE_FIELDS = {'reference_voice': 'voice_reference'}
+
+
 def _deposit_params(user, post, work_file=None):
     """Les `params` d'un DÉPÔT (fichier, texte, lot) pour `create_synthesis` (`synthesis_params`).
     Ce qui a été posté devient la mémoire du volet (`save_panel_settings`) — le dépôt d'un FICHIER
@@ -594,15 +599,31 @@ def batch_create(request):
             except OSError:
                 pass
 
-    if not tasks:
-        return JsonResponse({'error': 'Aucune tâche valide trouvée dans le fichier'}, status=400)
+    # La VOIX À IMITER d'une ligne (`-r`, 2026-11-06) se reçoit comme sur la card, par la brique
+    # commune des lignes de lot : un chemin se désigne, une URL devient la source téléchargée
+    # (`WAMA_INGEST`). Elle était lue puis PERDUE. Jugée AVANT de créer quoi que ce soit : une voix
+    # refusée écarte sa ligne, avec son motif.
+    from wama.common.utils.batch_parsers import attach_line_inputs, line_file_inputs, line_file_ports
+    lines = []
+    for task in tasks:
+        try:
+            files = (line_file_ports('synthesizer', {'reference': task['voice_reference'],
+                                                     'line_num': task.get('line_num')})
+                     if task.get('voice_reference') else {})
+            lines.append((task, *line_file_inputs(user, 'synthesizer', files, _LINE_FIELDS,
+                                                  model=VoiceSynthesis)))
+        except ValueError as exc:        # `InputRefused` compris : une désignation refusée
+            warnings.append(f"Ligne {task.get('line_num') or '?'} : {exc} — ignorée")
+    if not lines:
+        return JsonResponse({'error': 'Aucune tâche valide trouvée dans le fichier',
+                             'warnings': warnings}, status=400)
 
     # Save the batch file reference
     if batch_file:
         batch_file.seek(0)
     batch = BatchSynthesis.objects.create(
         user=user,
-        total=len(tasks),
+        total=len(lines),
         batch_file=batch_file if batch_file else None,
     )
 
@@ -610,11 +631,12 @@ def batch_create(request):
     # — ses réglages sont ceux du volet, surchargés par la ligne (voix, vitesse).
     from .services import create_synthesis
     created_ids = []
-    for i, task in enumerate(tasks):
+    for i, (task, received, remote) in enumerate(lines):
         synthesis = create_synthesis(
             user, prompt=task['text'], title=os.path.splitext(task['output_filename'])[0],
             params={**base_params, 'voice_preset': task['voice'], 'speed': task['speed']},
-            wrap=False)
+            reference_voice=received.get('voice_reference'), wrap=False)
+        attach_line_inputs(synthesis, {}, remote)
         BatchSynthesisItem.objects.create(
             batch=batch,
             synthesis=synthesis,
@@ -626,7 +648,7 @@ def batch_create(request):
     return JsonResponse({
         'batch_id': batch.id,
         'synthesis_ids': created_ids,
-        'total': len(tasks),
+        'total': len(lines),
         'warnings': warnings,
     })
 

@@ -329,8 +329,14 @@ def handle_txt2img(request, user):
     })
 
 
+#: Le champ de chaque PORT fichier d'une génération : l'image de travail ET l'image de référence se
+#: rangent dans `reference_image` (la card les poste sous ce nom, `input_card.js`) — lu par la brique
+#: des lignes de lot (`batch_parsers.line_file_inputs`, 2026-11-06).
+_LINE_FIELDS = {'reference_image': 'reference_image', 'work_image': 'reference_image'}
+
+
 def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=None,
-                         app_label='imager'):
+                         app_label='imager', warnings=None):
     """Crée le LOT depuis un fichier de prompts déjà sur disque — cœur SANS `request`.
 
     Extrait de `handle_file2img` le 2026-09-10, quand une TROISIÈME entrée s'est présentée :
@@ -353,6 +359,7 @@ def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=
         reglages      : dict optionnel (model/width/height/steps/guidance_scale + vidéo).
         app_label     : re-cible une JUMELLE de bac à sable (`imager_01`) — contrat
                         `importer_for()`, identique à celui de `import_to_imager`.
+        warnings      : liste où dire chaque ligne écartée et pourquoi (une image refusée).
     Returns:
         (batch, generations) — ou (None, []) si le fichier ne contient aucun prompt valide.
 
@@ -373,6 +380,7 @@ def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=
     GenerationBatchItem = django_apps.get_model(app_label, 'GenerationBatchItem')
 
     r = dict(reglages or {})
+    warnings = warnings if warnings is not None else []
     # Le domaine reçu (card, studio) est l'un des DÉCLARÉS, sinon le premier — jamais un nom en dur.
     from wama.common.utils.app_modes import get_domains
     declared = [d['id'] for d in get_domains(app_label)]
@@ -383,25 +391,58 @@ def creer_lot_de_prompts(chemin, nom_fichier, user, *, domain='image', reglages=
     # Chaque génération du lot naît par la cascade COMMUNE (`new_generation_settings`) ; une ligne
     # surcharge ce qu'elle précise. Les colonnes que le modèle de l'app (ou d'une jumelle) n'a pas
     # sont écartées par la brique — la garde `_has_intent` écrite ici n'a plus d'objet.
-    base = new_generation_settings(user, mode, post=r, model=ImageGeneration, app=app_label)
-    if domain == 'image':
-        base.update(_dimensions(r, base.get('model')))
+    bases = {}
+
+    def base_for(line_mode):
+        """Les réglages de naissance d'une ligne, au schéma de SON mode (une image guidée lit sa
+        force) — calculés une fois par mode."""
+        if line_mode not in bases:
+            base = new_generation_settings(user, line_mode, post=r, model=ImageGeneration,
+                                           app=app_label)
+            if domain == 'image':
+                base.update(_dimensions(r, base.get('model')))
+            bases[line_mode] = base
+        return bases[line_mode]
 
     prompts = parse_prompt_file(str(chemin))
     if not prompts:
         return None, []
 
+    # L'IMAGE d'une ligne (`-r`, 2026-11-06) se reçoit comme sur la card, par la brique commune des
+    # lignes de lot : un chemin se désigne, une URL devient la source téléchargée (`WAMA_INGEST`).
+    # Elle était lue (`style_reference`) puis PERDUE. Jugée AVANT de créer quoi que ce soit : une
+    # image refusée écarte sa ligne, avec son motif. Une ligne qui porte une image suit le mode de
+    # la card quand une image et une consigne sont données (`input_card.js` `deriveMode`).
+    from wama.common.utils.batch_parsers import (attach_line_inputs, line_file_inputs,
+                                                 line_file_ports)
+    lines = []
+    for n, p in enumerate(prompts, start=1):
+        try:
+            files = (line_file_ports(app_label, {'reference': p['reference'], 'line_num': n})
+                     if p.get('reference') else {})
+            received, remote = line_file_inputs(user, app_label, files, _LINE_FIELDS,
+                                                model=ImageGeneration)
+        except ValueError as exc:        # `InputRefused` compris : une désignation refusée
+            warnings.append(f"Ligne {n} : {exc} — ignorée")
+            continue
+        guided = 'img2vid' if domain == 'video' else 'img2img'
+        lines.append((validate_prompt_config(p), received, remote, guided if files else mode))
+    if not lines:
+        return None, []
+
     columns = {f.name for f in ImageGeneration._meta.concrete_fields}
-    generations = [
-        ImageGeneration.objects.create(
-            **{**base, **{k: val for k, val in v.items() if k in columns and k != 'prompt'}},
+    generations = []
+    for v, received, remote, line_mode in lines:
+        generation = ImageGeneration.objects.create(
+            **{**base_for(line_mode),
+               **{k: val for k, val in v.items() if k in columns and k != 'prompt'}},
             user=user,
-            generation_mode=mode,
+            generation_mode=line_mode,
             prompt=v.get('prompt', ''),
             status='PENDING',
         )
-        for v in (validate_prompt_config(p) for p in prompts)
-    ]
+        attach_line_inputs(generation, received, remote)
+        generations.append(generation)
 
     def _create_batch(total):
         b = GenerationBatch.objects.create(user=user, domain=domain, total=total)
@@ -452,11 +493,13 @@ def handle_file2img(request, user):
             tmp.write(chunk)
         tmp_path = tmp.name
 
+    warnings = []
     try:
         batch, generations = creer_lot_de_prompts(
-            tmp_path, prompt_file.name, user, domain=domain, reglages=reglages)
+            tmp_path, prompt_file.name, user, domain=domain, reglages=reglages, warnings=warnings)
         if batch is None:
-            return JsonResponse({'error': 'No valid prompts found in file'}, status=400)
+            return JsonResponse({'error': 'No valid prompts found in file', 'warnings': warnings},
+                                status=400)
 
         logger.info(f"Created generation batch #{batch.id} with {len(generations)} items "
                     f"for user {user.username}")
@@ -466,6 +509,7 @@ def handle_file2img(request, user):
             'batch_id': batch.id,
             'children_ids': [g.id for g in generations],
             'count': len(generations),
+            'warnings': warnings,
             'message': f'Created {len(generations)} generation(s) from file'
         })
 

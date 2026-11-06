@@ -28771,3 +28771,39 @@ est lu puis perdu, comme celui du composer l'était — une brique commune (lign
 surchargent leur sous-titre d'un texte voisin de leur déclaration (`WAMA_APP_CONVENTIONS §4.2`,
 libellé à décider) ; ⏳ le process d'OCR choisit ses moteurs sur la classe
 (`ocr_process.positioned_ocr_keys`) ; ⏳ rapport de transcription = graine (`campaign_evaluation`).
+
+## §PALIER 2026-11-06 (soir), « LE `-r` D'UNE LIGNE DE LOT : UNE BRIQUE COMMUNE (imager, synthesizer, composer, avatarizer) ; SYNCHRONISATION JOUÉE » — ce commit (local, non poussé)
+
+**Demande de Fabien** : « fais la brique commune pour le -r de l'imager et du synthesizer puis
+/reverif », et sur YuE2 : « pourquoi a-t-il changé ? l'écriture de la partition ne posait aucun
+problème ».
+
+- **La brique** (`batch_parsers`) : `line_file_ports` range une ligne dans les PORTS de l'app (la
+  règle du Studio, `line_to_ports`, désormais à la NATURE du fichier parmi plusieurs candidats, le
+  port de travail principal n'étant pris que par un `-i`) ; `line_file_inputs` reçoit chaque fichier
+  comme sur la card (`designate`, ou URL vers la source `WAMA_INGEST` du champ, tout jugé avant la
+  création) ; `attach_line_inputs` les pose. Chaque app déclare le champ de ses ports
+  (`_LINE_FIELDS`, `COVER_FIELDS`) ; une ligne refusée est écartée avec son motif.
+- **Adoptée** par l'imager (`-r` → image qui guide, mode `img2img`/`img2vid` comme la card, réglages
+  de naissance au schéma de ce mode), le synthesizer (`-r` → voix à cloner), le composer (`-r` →
+  audio OU partition, à sa nature) et — trouvé à la revérification — l'avatarizer (`-i`, l'audio
+  d'un job autonome) : il ne jugeait que le confinement, l'audio d'un AUTRE compte passait, et le
+  job naissait sans audio quand le chemin manquait.
+- **YuE2** : son comportement n'a pas changé — mesuré sur la base en service après `sync_models`
+  (jouée ce soir, 584 lignes mises à jour, `supports_score_planning: True` sur la fiche de YuE2) :
+  sans cover → `plan` puis rendu ; cover → `extract_score` puis rendu ; MusicGen → rendu seul. Le
+  risque était la fenêtre entre le redémarrage (15:39) et la synchronisation (~15:47) : aucune card
+  du composer n'a été touchée depuis 15:30.
+
+**Gardes** : `tests_batch_line_files` (nature du port, l'imager, le synthesizer, le refus d'un
+fichier illisible, l'avatarizer et le droit de lecture), `composer.tests_extract_score.ABatchLineCoversItsSongTest`
+(sur la brique). Sept contre-épreuves rouges (six briques neutralisées ; l'avatarizer rejoué sur sa
+version d'avant). Mesuré (WSL) : **626** tests puis **138** ; seul rouge, pas à cette session :
+`tests_identifier_language`, classes de test 133 > 132 (aucun nom de mes fichiers dans
+`--detail --test-names`). `check_docs` 0 cassée sur 3865. Docs générées recomposées depuis HEAD avec
+mes seules lignes (`docs/dev/briques.md`, `WAMA_MECANISMES.md`).
+
+**Restes nommés** : ⏳ le lot des apps GÉNÉRÉES (`codegen/views_gen.py`, `batch_create`) copie le
+chemin d'une ligne après le seul confinement — même nature, à porter sur la brique (le gabarit
+régénère les jumelles : avec la session portage) ; ⏳ les jumelles `composer_01` / `imager_01` portent
+encore l'ancien lecteur ; ⏳ sous-titres des neuf apps ; OCR sur la classe ; rapport de transcription.

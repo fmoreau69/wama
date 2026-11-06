@@ -101,7 +101,8 @@ def _parse_unified_prompts(content: str) -> List[Dict[str, Any]]:
     ``prompt`` (col. ``prompt``/``text`` ou balise ``-p``) est requis. Les autres
     colonnes/options alimentent les paramètres (steps, guidance_scale, width,
     height, seed, num_images, model, negative_prompt…). ``output``/``-o`` et la
-    référence (``reference``/``-r``, image de style) sont transportés.
+    référence (``reference``/``-r``, l'image qui guide le rendu) sont transportés — la référence
+    sous son RÔLE de ligne (`reference`), que la création reçoit (`creer_lot_de_prompts`).
     """
     from wama.common.utils.batch_parsers import parse_structured_batch_text
 
@@ -118,7 +119,7 @@ def _parse_unified_prompts(content: str) -> List[Dict[str, Any]]:
         if parsed.get('output'):
             cfg['output_filename'] = parsed['output']
         if parsed.get('reference'):
-            cfg['style_reference'] = parsed['reference']
+            cfg['reference'] = parsed['reference']
         prompts.append(cfg)
 
     logger.info(f"Parsed {len(prompts)} prompts (batch structuré)")

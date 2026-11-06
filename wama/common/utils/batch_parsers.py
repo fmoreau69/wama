@@ -705,22 +705,32 @@ def line_to_ports(line: Dict, ports: List[Dict]) -> Tuple[Dict, Dict]:
     les rôles restent des alias, chacun vers le port de son groupe :
       • `input` (`-i`)     → le port de travail principal (`entry_form`) ;
       • `prompt` (`-p`)    → le port de consigne ;
-      • `reference` (`-r`) → le premier port de référence, à défaut le premier port de travail
-                             SECONDAIRE (l'avatar de l'avatarizer, `-r` dans son lot).
+      • `reference` (`-r`) → un port de référence, à défaut un port de travail que l'`input` ne
+                             prend pas (l'avatar de l'avatarizer, `-r` dans son lot) — celui de
+                             la NATURE du fichier quand il y en a plusieurs (le composer :
+                             partition ou audio, 2026-11-06), sinon le premier.
     Les autres options sont des RÉGLAGES de l'élément. Lève `ValueError` sur un rôle rempli
     qu'aucun port de ce nœud ne reçoit : une colonne ne se perd pas en silence.
     `ports` : la forme de `studio_node_ports()['inputs']`. Écrit le 2026-10-20 pour le Studio,
     qui range une ligne pour n'importe quelle app — aucune vue d'app ne le partageait."""
-    from wama.common.app_registry import entry_form
+    from wama.common.app_registry import category_of_path, entry_form
     ids = [p.get('id') for p in ports or [] if p.get('id')]
     group = {p.get('id'): p.get('group') for p in ports or []}
+    types = {p.get('id'): p.get('types') or [] for p in ports or []}
     work = entry_form(ports)['work']
-    secondary = [i for i in ids if group[i] == 'travail' and i != work]
+    # Le port de travail principal n'est pris que par une ligne qui donne son `input` (`-i`).
+    secondary = [i for i in ids if group[i] == 'travail' and (i != work or not line.get('input'))]
+    # La RÉFÉRENCE va au port de sa NATURE parmi les candidats de son rôle (2026-11-06) : le
+    # composer a deux ports de travail, partition et audio, et aucune entrée `-i` — un
+    # `-r theme.wav` n'avait que la partition pour candidat. Aucun candidat de cette nature : le
+    # premier, comme avant.
+    candidates = [i for i in ids if group[i] == 'reference'] or secondary
+    nature = category_of_path(line.get('reference') or '')
     targets = {
         'input': work,
         'prompt': next((i for i in ids if group[i] == 'prompt'), ''),
-        'reference': next((i for i in ids if group[i] == 'reference'), '')
-                     or next(iter(secondary), ''),
+        'reference': next((i for i in candidates if nature in types[i]), '')
+                     or next(iter(candidates), ''),
     }
     settings = dict(line.get('options') or {})
     out = {pid: settings.pop(pid) for pid in ids if pid in settings}
@@ -733,6 +743,60 @@ def line_to_ports(line: Dict, ports: List[Dict]) -> Tuple[Dict, Dict]:
                              f"où entrer ({', '.join(ids) or 'aucun port'}).")
         out.setdefault(targets[role], value)
     return out, settings
+
+
+def line_file_ports(app_id, line) -> Dict[str, str]:
+    """Les FICHIERS qu'une ligne de lot donne à un élément de `app_id`, rangés dans ses PORTS —
+    `{port: chemin ou URL}`. Écrit le 2026-11-06 : l'imager (`-r` → image de style), le
+    synthesizer (`-r` → voix à cloner) et le composer (`-r` → morceau à reprendre) lisaient la
+    colonne puis la PERDAIENT, faute d'un chemin commun entre la ligne et la card. La règle est
+    celle du Studio (`line_to_ports` : une colonne au nom d'un port, sinon le port du rôle, à la
+    nature du fichier) sur les ports FICHIER de l'app (`studio_node_ports`) ; la consigne et les
+    réglages restent à la lecture de l'app. Lève `ValueError` (un rôle sans port)."""
+    from wama.common.app_registry import studio_node_ports
+    ports = [p for p in (studio_node_ports(app_id) or {}).get('inputs') or []
+             if p.get('group') != 'prompt']
+    values, _settings = line_to_ports({role: line.get(role) for role in ('input', 'reference')}
+                                      | {'line_num': line.get('line_num')}, ports)
+    return values
+
+
+def line_file_inputs(user, app_id, files: Dict[str, str], fields: Dict[str, str], *, model):
+    """Les fichiers d'une ligne (`line_file_ports`) REÇUS comme sur la card — `({champ: entrée
+    reçue}, {source: URL})`, prêts à poser sur l'élément créé (`attach_line_inputs`). Un chemin se
+    DÉSIGNE (`media_paths.designate` : confinement, existence, lisibilité, puis pointer ou copier) ;
+    une URL va à la SOURCE que le modèle `model` déclare pour ce champ (`WAMA_INGEST`), téléchargée à
+    l'enregistrement. `fields` : `{port: champ}` de l'élément (des données, propres à l'app). Tout se
+    juge AVANT la création : lève `ValueError` (port sans champ, adresse sans source) ou
+    `InputRefused` (désignation)."""
+    from wama.common.utils.media_paths import designate
+    from wama.common.utils.source_ingest import is_remote
+    ingest = getattr(model, 'WAMA_INGEST', None) or {}
+    received, remote = {}, {}
+    for port, value in (files or {}).items():
+        field = fields.get(port)
+        if not field:
+            raise ValueError(f"Le port « {port} » n'a pas de champ où entrer "
+                             f"({', '.join(fields) or 'aucun'}).")
+        if is_remote(value):
+            if ingest.get('target') != field:
+                raise ValueError(f"« {value} » : une adresse ne se télécharge pas dans « {field} » ici.")
+            remote[ingest.get('source', 'source_url')] = str(value).strip()
+        else:
+            received[field] = designate(str(value).strip(), user, app_id)
+    return received, remote
+
+
+def attach_line_inputs(instance, received: Dict, remote: Dict):
+    """Pose sur l'élément CRÉÉ ce qu'a rendu `line_file_inputs` : chaque fichier reçu dans son champ
+    (`ReceivedInput.assign`, provenance comprise) ; chaque URL dans la SOURCE que l'élément déclare
+    (`WAMA_INGEST`), téléchargée à l'enregistrement."""
+    for field, item in (received or {}).items():
+        item.assign(instance, field)
+    for source, url in (remote or {}).items():
+        setattr(instance, source, url)
+    if remote:
+        instance.save(update_fields=list(remote))
 
 
 # ---------------------------------------------------------------------------
