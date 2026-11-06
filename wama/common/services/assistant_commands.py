@@ -32,6 +32,10 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from wama.common.utils.text_fold import fold
+from wama.model_manager.services.model_selector import QUALITY_PRESETS
+
+#: Les positions NOMMÉES du curseur, telles qu'on les tape (celles du sélecteur, repliées).
+_EFFORT_NAMES = tuple(fold(label) for _, label, _ in QUALITY_PRESETS)
 
 #: Les préfixes d'une commande ; le premier est celui de l'aide d'une surface sans préférence.
 PREFIXES = ('/', '!')
@@ -86,8 +90,8 @@ def _model(user, args, ctx) -> dict:
     from wama.common.services.assistant_engine import assistant_settings, set_chat_model
     if not args:
         return {'reply': (f"Modèle actuel : `{assistant_settings(user).get('model')}`\n"
-                          f"Usage : `{ctx.prefix}modele <clé du catalogue>` (ex. "
-                          f"`albert:gpt-oss-120b`) ou `{ctx.prefix}modele auto`.")}
+                          f"Usage : `{ctx.prefix}modele <clé du catalogue>` ou "
+                          f"`{ctx.prefix}modele auto`.")}
     outcome = set_chat_model(user, args)
     if 'error' in outcome:
         return {'reply': f"⛔ {outcome['error']}"}
@@ -101,13 +105,12 @@ def _effort(user, args, ctx) -> dict:
     from wama.common.services.assistant_engine import assistant_settings
     from wama.common.utils.auto_model import preset_key_for_intent, read_quality_intent
     from wama.common.utils.user_settings import save_user_app_settings
-    from wama.model_manager.services.model_selector import QUALITY_PRESETS
 
     def said(value) -> str:
         key = preset_key_for_intent(value)
         return f"**{next(label for k, label, _ in QUALITY_PRESETS if k == key)}** ({value})"
 
-    names = ' | '.join(f"`{fold(label)}`" for _, label, _ in QUALITY_PRESETS)
+    names = ' | '.join(f"`{name}`" for name in _EFFORT_NAMES)
     if not args:
         current = read_quality_intent(assistant_settings(user).get('quality_intent'))
         return {'reply': f"Curseur Rapide ↔ Qualité : {said(current)}.\n"
@@ -195,7 +198,7 @@ COMMANDS = (
     Command('competence', "répondre avec une compétence précise (seule, la commande les liste)",
             _competence, usage='<clé> <question>', aliases=('skill',)),
     Command('effort', "voir ou régler le curseur Rapide ↔ Qualité", _effort,
-            usage='[rapide|equilibre|qualite|0-100]'),
+            usage=f"[{'|'.join(_EFFORT_NAMES)}|0-100]"),
     Command('modele', "voir ou changer le modèle de réflexion, sans perdre la conversation",
             _model, usage='[clé|auto]', aliases=('model',)),
     Command('oublier', "effacer la conversation de ce fil et repartir de zéro", _forget,

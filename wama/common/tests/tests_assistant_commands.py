@@ -59,6 +59,25 @@ class ParseCommandTest(SimpleTestCase):
             for command in COMMANDS:
                 self.assertIn(f'`{prefix}{command.name}', text)
 
+    def test_the_effort_help_offers_the_selector_positions(self):
+        """Its usage was written by hand at first (`rapide|equilibre|qualite`): a position added
+        to the selector would have been accepted but never offered."""
+        import importlib
+        from wama.common.services import assistant_commands
+        presets = (('fast', 'Rapide', 15), ('instant', 'Éclair', 5))
+        try:
+            with mock.patch('wama.model_manager.services.model_selector.QUALITY_PRESETS', presets):
+                importlib.reload(assistant_commands)
+                line = next(l for l in assistant_commands.help_text('/').splitlines()
+                            if '`/effort' in l)
+                reply = assistant_commands._effort(
+                    None, '', assistant_commands.CommandContext(surface='web'))['reply']
+        finally:
+            importlib.reload(assistant_commands)
+        for text in (line, reply):
+            self.assertIn('eclair', text)
+            self.assertNotIn('qualite', text)
+
 
 class CommandsInTheCommonTurnTest(TestCase):
     """Every surface reaches the commands through `conversation_turn`, after its access guard and
