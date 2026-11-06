@@ -1085,6 +1085,27 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    `avatarizer/workers` (celle d'une CLÉ est commune : `backends.manager.engine_of`, revérification
    du soir — `detection_ensemble` l'emprunte, `served_by_for_key` aussi).
 
+6. **HORS DE L'HÔTE WAMA — constat du 2026-11-06, lu au code** (question de Fabien sur l'export
+   d'une app à modèles IA, §18.3 ; rien de corrigé, aucune décision prise). Le gouverneur est écrit
+   pour l'hôte WAMA — une carte NVIDIA, WSL, Redis — et y est au point ; sur un poste quelconque :
+   * **le registre, c'est Redis à l'adresse du broker** (`resource_governor._redis`,
+     `resource_governor.py:295-305`). Avec la file `memory://` (processus Windows, tests, un export
+     autonome), plus de registre : réservations, annonces et tenants se taisent, et aucun registre
+     propre à un seul processus n'existe ;
+   * **la carte se lit par nvidia-smi** (`card_free_gb` → `SystemMonitor.get_gpu_info`) : une carte
+     AMD ou Apple n'est pas vue ;
+   * **sans carte, le tirage ne contraint plus rien** : `get_free_vram_gb` rend `None`
+     (`model_selector.py:46-48`) et `_best_by_vram` garde tout le lot (`model_selector.py:440-441`)
+     — en « auto », le modèle le plus lourd peut être tiré sur un poste sans GPU ;
+   * **le contrat de backend ne déclare aucun périphérique** (`base.py:528-670` : `REQUIRED_PACKAGES`,
+     `ENGINE`, `ISOLATION`, `OFFLOADS`, `SERVED_BY`… ; rien ne dit « sait tourner sur processeur »),
+     et le processeur n'est pas une ressource gouvernée (`prospect_agents.py:427`) ;
+   * **l'admission CPU/RAM** (point 3) est précisément ce qui compte sur un poste sans carte.
+   ⏳ Restes, dans l'ordre proposé : un périphérique DÉCLARÉ au contrat de backend (lu par le
+   verdict d'exécutabilité et par le tirage) ; l'admission CPU/RAM ; un registre en mémoire du
+   processus quand Redis manque ; une sonde de carte non NVIDIA. Ils servent aussi WAMA (monde
+   Data surtout CPU, passage multi-GPU).
+
 **2026-11-02 — LES DÉTENTEURS HORS DU WORKER, en venv unique (bilan demandé par Fabien avant de
 reparler du multi-venv).** Mesuré au code : le registre partagé ne garantissait la même gestion
 que pour ce qui passe par le contrat de backend DANS un worker Celery ou le service TTS. Quatre
@@ -4653,6 +4674,97 @@ Règles sur le graphe d'imports (AST, top-level ET locaux) — **état MESURÉ a
 **Acceptation** : l'outil doit retrouver les 12+1 violations ci-dessus. Ne pas le livrer sans.
 Création : idéalement AVANT l'ouverture du §18 (il mesure le point de départ du déménagement)
 et AVANT la première app data (il garde la frontière du monde naissant).
+
+### 18.3 Exporter une app HORS de WAMA — ⏳ prospectif (idée de Fabien, 2026-11-06), rien d'ouvert
+
+> Idée : exporter à terme **n'importe quelle app construite dans WAMA** — exemple de départ, le
+> converter, sans GPU —, par exemple en exécutable Windows, par extraction et génération
+> DÉTERMINISTES : sans LLM, comme la génération d'apps elle-même. Mesuré et consigné le jour même ;
+> on y reviendra.
+
+**Condition posée par Fabien** : une app n'est exportable que si elle est **complète et
+fonctionnelle par génération depuis son manifeste** — le conventionnel rendu par `codegen`, les
+moteurs déclarés (`processing.backend_routes`) recopiés tels quels, puisqu'ils sont le métier.
+État au 2026-11-06 (registre du bac à sable, `converter_01`, substitutions de la nuit) : `apps`,
+`urls`, `views`, `templates`, `tasks`, `function_specs`, `params` générés tiennent ; `models` revient
+au témoin (`cross_app_options`, lu par `utils/cross_app.py:45`, perdu à la génération : le manifeste
+ne porte que `cross_app_options_legacy`) ; restent copiés `utils/` (4 fichiers, 523 lignes),
+`converter.js` (692) et `base.html` ; 26 emplacements de glu marqués (vues 15, tâches 11). Le suivi
+de cet écart vit dans `WAMA_APP_GENERATION_ROUTE §11 #41`, pas ici.
+
+**Fermeture d'import du converter, MESURÉE le 2026-11-06** — analyse statique par AST (rien n'est
+importé ni exécuté), trois sortes d'arêtes : *à l'import* (niveau module ou classe, `AppConfig.ready()`
+compris), *différée* (corps de fonction), *par chaîne* (chemin pointé écrit en littéral). Script
+hors dépôt, reconstructible sur cette description.
+
+| périmètre | modules | lignes | librairies tierces |
+|---|---|---|---|
+| le converter seul | 19 | 2 955 | — |
+| démarrage : imports + `ready()` de common, accounts, converter + middlewares, context processors, templatetags | 97 | 37 538 | 6 : django, celery, pgvector ; optionnelles django_redis, psutil, django_auth_ldap — **aucune lourde** |
+| + imports différés | 556 | 186 156 | 94 (torch, transformers, diffusers, nemo, TTS, ultralytics, litellm, mcp…) |
+| + chemins écrits en chaîne | 670 | 216 552 | 101 |
+| pour comparer : tout `wama/common` | 1 191 | 262 440 | |
+
+Ce que dit la mesure :
+1. **Le démarrage est sain** : aucune librairie lourde n'est chargée à l'import, la discipline des
+   imports différés tient.
+2. **Mais le substrat n'est pas étagé** : les 111 imports différés partis du démarrage mènent TOUS
+   au même bloc d'environ 466 modules, aucun n'en est indépendant. La fermeture statique ne borne
+   donc rien. Trois PONTS le soudent, chacun importe une dizaine d'apps :
+   `accounts/permissions.py:341` → `tool_api` (15 apps) ; `common/utils/auto_model.py:195` →
+   `cloud_models` → `model_registry`, dont la découverte nomme 10 apps (`model_registry.py:908`
+   importe `imager.backends.manager`) ; `filemanager.views` (11 apps). Exemple : le converter
+   atteint diffusers en 6 sauts (`params` → `auto_model` → `cloud_models` → `model_registry` →
+   gestionnaire de l'imager → `diffusers_backend`).
+   ⚠ Et un pont **à l'import**, donc au démarrage de toute app : `common/app_registry.py:1872`
+   importe `wama.converter.utils.format_router` au niveau du module (chargé par
+   `common/apps.py:151`). Le substrat dépend de l'app converter : n'importe quelle app exportée
+   l'emporterait, et sans elle `CONVERTER_OUTPUT_FORMATS` vaut `{}` en silence (`except
+   ImportError`). Mesuré en comparant la jumelle `converter_01` à sa source : elle charge le
+   paquet `wama.converter` dès le démarrage par ce seul chemin.
+3. **Les pages tirent d'autres apps** : 32 gabarits (24 de common) ; `base.html` charge l'avatar de
+   l'assistant (talkinghead, mediapipe, three.js, un `.glb`) ; des `{% url %}` vers filemanager (14),
+   media_library, model_manager, transcriber, accounts ; le JS commun appelle `/model-manager/`,
+   `/tts/`, `/avatarizer/`.
+4. **Le manifeste n'énumère pas ce que l'app exige pour tourner** : `requires` = PyMuPDF seul
+   (`manifests/apps/converter.json`, bloc `requires`) ; manquent Pillow, py7zr, rarfile, pypandoc,
+   Chromium/Playwright ou WeasyPrint (`common/utils/html_render.py:9-17`) et les binaires ffmpeg et
+   pandoc. Un export ne peut pas s'en servir comme liste d'empaquetage.
+
+**Piste retenue pour étude — deux étages, le CŒUR et les APPS.** Fabien : empaqueter WAMA entier
+pour un convertisseur n'a pas d'intérêt ; produire séparément le cœur et les apps, si. C'est
+l'**achèvement de ce §18** (ses « marches suivantes », la scission de `tool_api` du §18.1 point 3),
+pas un chantier neuf :
+- **le cœur** : file, cards, paramètres, squelette de tâche, route des modèles, gouverneur,
+  sélecteur, UI commune. Il n'importe aucune app ni aucun service de plateforme (assistant,
+  partage, journal, mémoire, passerelle, studio) ; ces services deviennent des EXTENSIONS
+  découvertes parmi les apps installées — « le registre ne connaît jamais ses producteurs »
+  (`AGENTS.md`, règle des mondes), comme le registre de fonctions depuis le 2026-08-22 ;
+- **les apps** : générées depuis le manifeste, plus leurs moteurs déclarés ;
+- **l'export** : le cœur + N apps + un profil d'exécution autonome (SQLite, file `memory://` déjà
+  décidée par `common/services/runtime_side.py`, un compte local, registre du gouverneur en
+  mémoire), puis un gel (PyInstaller ou Nuitka). Tout déterministe ;
+- **la garde** : « la fermeture du cœur ne contient aucune app », un budget qui ne peut que
+  descendre — c'est la 1ʳᵉ règle de `check_structure` (§18.2, toujours à créer) étendue aux
+  imports différés.
+Le même découpage servirait WAMA lui-même : apps installables à la carte, déploiement d'un
+sous-ensemble, multi-nœud.
+
+**Apps à modèles IA** : faisable, mais l'app embarque la route d'installation (`install_from_spec`,
+`model_readiness`), le catalogue, le sélecteur, le gouverneur, ses moteurs et leurs librairies
+(torch CUDA : plusieurs Go) ; et le gouverneur doit d'abord savoir tourner hors de l'hôte WAMA —
+§Gouvernance des ressources, point 6.
+
+**Garde-fous et décisions de Fabien** :
+- ⚠ ne pas ouvrir pendant un chantier multi-instances : un refactoring d'imports transverse casse
+  toutes les partitions à la fois (§18, « Reste vrai pour la suite ») ;
+- à trancher : le périmètre du cœur (comptes, partage, assistant) ; le moment ; l'ordre des ajouts
+  au gouverneur ; une exception à « tout côté WSL » pour construire un `.exe` (ou d'abord un
+  exécutable Linux depuis WSL) ; les licences de redistribution (pandoc GPL, PyMuPDF AGPL, ffmpeg
+  selon sa compilation — `LICENSING.md`) ;
+- rien d'existant : aucun `pyinstaller|nuitka|pywebview|briefcase` dans le code ni dans `docs/`
+  (2026-11-06). Le plus proche, l'intégration au shell de l'OS (phase 12 du tableau des phases),
+  est un autre sujet.
 
 ---
 

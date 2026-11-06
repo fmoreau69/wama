@@ -39,7 +39,8 @@
 - **Partie 2 — Les quatre mondes** : Médias, Data, Lab, Transversal · la glu inter-mondes ·
   accès et appartenance organisationnelle · question ouverte : traçabilité des mondes
 - **Partie 3 — Architecture fondatrice : les manifestes** : le manifeste comme contrat ·
-  les 7 kinds · composition et anatomie · prospection et rôles LLM · auto-instanciation gatée
+  les 7 kinds · composition et anatomie · prospection et rôles LLM · auto-instanciation gatée ·
+  export d'une application hors de WAMA (prospectif)
 - **Partie 4 — Le Studio et l'orchestration**
 - **Partie 5 — IA transverse** : rôle et skills · pipeline de prompts · traduction ·
   mémoire et RAG · adaptateurs de format · l'assistant comme interface
@@ -376,6 +377,27 @@ on décrit un pari dont chaque maillon doit être validé.
 (`app_sandbox create --from-manifest`) — Writer (2026-10-01), Translator (2026-10-16, brouillon
 produit par le rôle `app` de wama-dev-ai), deux jumelles entièrement régénérées (2026-10-20) —,
 privées à leur auteur, revues par un humain, jamais promues d'office.
+
+## 3.6 Exporter une application hors de WAMA ⏳ `[INGÉNIERIE]` — prospectif
+
+Une application construite dans WAMA — née d'un manifeste, éditée et améliorée au bac à sable par
+l'assistant — doit pouvoir **sortir de WAMA** : un exécutable autonome (Windows d'abord), une app
+installable à part. L'export est **déterministe**, comme la génération : il lit le manifeste, le
+code généré et les moteurs déclarés, sans modèle de langage. Il ne vaut que pour une application
+**complète et fonctionnelle par génération** : c'est le manifeste qui fait foi, pas une copie
+retouchée.
+
+La forme visée n'est pas d'empaqueter la plateforme entière, mais **deux étages** : un **cœur**
+(file, cards, paramètres, tâches, installation et gouvernance des modèles, interface commune) qui
+ne connaît aucune application ni aucun service de plateforme, et les **applications**, posées
+dessus. Les services de plateforme (assistant, partage, mémoire, studio) deviennent des
+extensions, présentes quand elles sont installées. Ce découpage est aussi celui que vise la
+réorganisation en mondes : il servirait WAMA lui-même (apps à la carte, déploiement partiel).
+
+Une application à modèles IA emporte sa route d'installation, son catalogue et son gouverneur, qui
+doit alors savoir arbitrer sur n'importe quel poste — processeur seul compris — et plus seulement
+sur la carte NVIDIA du serveur. *Mesure, piste et prérequis (2026-11-06) : `ROADMAP §18.3` et
+§Gouvernance des ressources point 6.*
 
 ---
 

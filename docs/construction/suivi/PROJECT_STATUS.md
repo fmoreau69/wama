@@ -28682,3 +28682,39 @@ commits locaux (les trois des commandes et ceux d'autres sessions, `origin/dev..
 🔚 POINT D'ENTRÉE : essayer `/concile` et `/effort qualite` depuis le chat et depuis Discord, puis
 pousser ; le chantier suivant est la famille suivie du Studio et de l'installation de modèle
 (`ROADMAP §19.2`).
+
+## §CLÔTURE 2026-11-06, « EXPORT D'UNE APP HORS DE WAMA » — prospectif, consigné, rien d'ouvert — 🔚 décision de Fabien sur « cœur + apps », plus tard
+
+Question de Fabien : peut-on exporter une app construite dans WAMA (le converter pour commencer),
+par exemple en exécutable Windows, par extraction et génération déterministes, sans LLM ? Puis :
+« l'idée, c'est d'exporter à terme n'importe quelle app » ; condition : l'app doit être complète et
+fonctionnelle PAR GÉNÉRATION depuis son manifeste ; empaqueter WAMA entier n'a pas d'intérêt, deux
+étages (le cœur, les apps) restent une option. « C'était prospectif pour le moment. »
+
+- **Mesuré** (AST statique, rien d'importé ni d'exécuté, script hors dépôt) : la fermeture d'import
+  du converter et de sa jumelle — démarrage sain (97 modules, aucune librairie lourde), mais les 111
+  imports différés tombent tous dans un même bloc d'environ 466 modules, soudé par `tool_api`,
+  `model_registry` et `filemanager.views`, plus un pont À L'IMPORT : `common/app_registry.py:1872`
+  importe l'app converter. Détail, piste et décisions : **`ROADMAP §18.3`** (neuf).
+- **Gouverneur hors de l'hôte WAMA**, lu au code (Redis seul registre, nvidia-smi seule sonde, tirage
+  sans contrainte sans GPU, aucun périphérique au contrat de backend) : **`ROADMAP §Gouvernance des
+  ressources`, point 6** (neuf). Rien de corrigé.
+- **Vision** : intention ⏳ `WAMA_VISION_COMPLET §3.6` (neuve, + sommaire).
+- Aucun code touché. `check_docs` 0 cassée / 3850.
+
+§PASSATION — 2026-11-06, « trous de génération vus par la fermeture d'import » →
+`web-app-for-media-automation-65` (session présumée du palier « JUMELLES RECRÉÉES » du jour — identifiée
+par l'heure, pas par sa transcription : si elle répond qu'elle n'est pas la bonne, re-transmettre) :
+(1) la jumelle `converter_01` charge sa SOURCE au démarrage par `common/app_registry.py:1872` ;
+(2) `requires` du manifeste du converter = PyMuPDF seul, moteurs hors contrat de backend, donc rien
+d'où dériver les dépendances ; (3) la jumelle reproduit les couplages de la source (570 modules
+différés contre 556). Le domicile reste `WAMA_APP_GENERATION_ROUTE §11 #41`, à elle d'en juger.
+
+Restes — à cette session : aucun livrable ouvert ; le script de mesure vit dans le scratchpad de
+session, jetable (sa méthode est décrite au §18.3 pour le refaire).
+Décisions ouvertes (Fabien, aucune bloquante) : périmètre du cœur (comptes, partage, assistant) ;
+le moment (pas pendant un chantier multi-instances, §18) ; l'ordre des ajouts au gouverneur ;
+l'exception « tout côté WSL » pour un `.exe` ; les licences de redistribution.
+
+🔚 POINT D'ENTRÉE : rien à reprendre tant que Fabien n'a pas rouvert le sujet ; à sa reprise, partir
+de `ROADMAP §18.3` puis `§18.2` (`check_structure`, la garde qui manque).
