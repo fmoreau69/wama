@@ -4088,6 +4088,35 @@ la page et le composer vivent en **ABC**.
 humaine pour la librairie), essayer sur 3 à 4 VRAIES partitions scannées de Fabien (imprimées), et
 noter les erreurs par page — une mesure WAMA, pas le banc d'un auteur.
 
+**Décisions de Fabien (2026-11-06, le soir même)** :
+- (a) **copisteria d'abord, homr ensuite** pour départager ; d'autres moteurs plus tard si besoin.
+- (b) ⚠ **Ce n'était pas une question — corrigé** : WAMA est AGPL-3.0 (`LICENSING.md §1`), donc un
+  code AGPL (homr, Audiveris, Transcoda) est COMPATIBLE ; le régime « non commercial » (données
+  d'entraînement de homr) est déjà accepté (MusicGen, MuScriptor : `LICENSING.md` l.57-58). La veille
+  l'avait listé à trancher sans relire `LICENSING.md`. Reste à faire à l'intégration : la ligne du
+  moteur retenu dans `LICENSING.md` (copisteria : Apache-2.0, sans réserve).
+- (d) **Détection automatique, choix laissé à l'utilisateur** — c'est un mécanisme EXISTANT, pas
+  un neuf : `Param.default_from` (le fichier PROPOSE la valeur d'un réglage, avec sa NOTE ; au
+  dépôt dans le navigateur, `WamaParams.bindDefaultFrom`, et à la naissance sur le serveur,
+  `user_settings.input_proposals` / `new_element_settings` ; l'utilisateur la change) lisant une
+  propriété de la sonde commune (`media_probe.INPUT_PROPERTIES`, l.407-410 : `duration`,
+  `needs_ocr`). Précédent exact : l'OCR des scans de l'anonymizer et du Translator
+  (`anonymizer/params.py:240-248`, `default_from={"port": "work_file", "property": "needs_ocr"}` ;
+  gardes `tests_input_proposals`, dont `TheSwitchFollowsTheInputTest`). À ÉCRIRE : une propriété
+  « la page porte une partition » dans la sonde (méthode de détection à mesurer — rien de tel
+  n'existe : `grep` de `staff|portée` dans `common/utils/media_probe.py` vide) et le réglage du
+  Reader qui la lit.
+- (e) **« N'a-t-on pas déjà ce qu'il faut ? » — non, mesuré** : WAMA écrit de l'ABC depuis le MIDI
+  seulement (`midi_score.midi_to_abc`, l.344 ; le compilateur de YuE2 pour sa partition) ; aucune
+  lecture MusicXML (`grep -i "musicxml|\.mxl|xml2abc"` sur `wama/**/*.py,js` : des extensions et
+  des descriptions, aucun code de conversion). Et c'est DÉJÀ un trou : le composer accepte un
+  `.musicxml` en partition de référence (`SCORE_EXTENSIONS`, port `reference_score`), que YuE2
+  refuse en le disant (`yue2_3b_backend.py:274-277` : « la conversion … → ABC n'est pas
+  disponible »). La brique MusicXML → ABC servira les deux. Candidat par la route : PyPI
+  `abc-xml-converter` 1.0.1 ✔ (LGPL, emballe `xml2abc`/`abc2xml` de W. Vree, API
+  `convert_xml2abc`, dépendances `setuptools~=69.5.1`, `pyparsing~=3.1.1` — venv 80.10.2 / 3.2.5 →
+  `constraints.no_deps`) ; publié le 2024-06-27, version de `xml2abc` emballée non dite.
+
 **Sources** : pypi.org/pypi/homr/json ✔ · github.com/liebharc/homr (modules `main`,
 `segmentation.config`, `transformer.configs`, branche `main`) ✔ · huggingface.co/kobimusic/copisteria (API +
 README) ✔ · huggingface.co/btrkeks/transcoda-59M-zeroshot-v1 (API + README) ✔ ·
