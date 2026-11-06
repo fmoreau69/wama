@@ -884,24 +884,11 @@
         var ids = (members || []).map(function (m) { return m.id; });
         return Object.keys(params || {}).filter(function (k) { return ids.indexOf(k) === -1; });
     }
-    /** Les membres qu'un lien du canvas REMPLACE au déploiement : une entrée alimentée de
-     *  l'extérieur, les sorties quand le nœud a un aval — la règle d'`expand_pipeline_nodes`. */
-    function replacedMembers(node, members) {
-        var into = links.filter(function (l) { return nodeOf(l.to.dot) === node.id; });
-        var sources = (members || []).filter(function (m) { return m.role === 'source'; });
-        var out = {};
-        into.forEach(function (l) {
-            var port = l.to.dot.dataset.port || '';
-            if (port) out[port] = 'alimenté par le lien entrant';
-            else if (sources.length === 1) out[sources[0].id] = 'alimenté par le lien entrant';
-        });
-        if (links.some(function (l) { return nodeOf(l.from.dot) === node.id; })) {
-            (members || []).forEach(function (m) {
-                if (m.role === 'sink') out[m.id] = 'remplacé par le lien sortant';
-            });
-        }
-        return out;
-    }
+    /** Pourquoi un membre ne joue pas : le SERVEUR dit lesquels le déploiement retire
+     *  (`graph_flow.node_context`, `replaced`, lu sur `expand_pipeline_nodes` lui-même) ; ce
+     *  fichier n'en écrit pas une seconde règle. */
+    var REPLACED_TEXT = { source: 'alimenté par le lien entrant', sink: 'remplacé par le lien sortant' };
+    var replacedOf = {};   // « nœud|référence » -> {membre: rôle}, la dernière réponse du serveur
     function setOverrides(node, memberId, own) {
         var params = Object.assign({}, node.params || {});
         if (own && Object.keys(own).length) params[memberId] = own;
@@ -941,11 +928,19 @@
             lost.appendChild(drop);
             wrap.appendChild(lost);
         }
-        var replaced = replacedMembers(node, members);
         // UN membre ouvert à la fois : le rendu commun nomme ses champs `wp-item-<réglage>` dans le
         // document (ses sources d'options les retrouvent par id) — deux membres rendus ensemble se
         // disputeraient un réglage de même nom. Par défaut, le premier qui a des valeurs propres.
         var slot = node.id + '|' + node.app;
+        var replaced = replacedOf[slot] || {};
+        api('/studio/api/node-context/', {
+            method: 'POST', body: JSON.stringify({ graph: serializeGraph(), node: node.id }),
+        }).then(function (context) {
+            var next = (context && context.replaced) || {};
+            if (JSON.stringify(next) === JSON.stringify(replaced)) return;
+            replacedOf[slot] = next;
+            if (selected === node.id) updateInspector();
+        })['catch'](function () { /* l'état affiché reste le dernier connu ; le lancement tranche */ });
         if (!(slot in openMember)) {
             var first = members.filter(function (m) {
                 return Object.keys((node.params || {})[m.id] || {}).length;
@@ -958,6 +953,13 @@
             if (!schema || !schema.params || !schema.params.length) return;
             shown += 1;
             var own = (node.params || {})[m.id] || {};
+            if (replaced[m.id]) {
+                // Dit sur une ligne visible : il n'y a rien à ouvrir.
+                wrap.appendChild(el('div', 'studio-override-replaced small text-body-secondary mb-2', esc(
+                    (m.label || m.app) + ' (' + m.id + ') — ' + (REPLACED_TEXT[replaced[m.id]]
+                    || 'remplacé par un lien') + ' : il ne joue pas, ses réglages non plus.')));
+                return;
+            }
             var block = el('details', 'studio-override-member mb-2');
             var isOpen = openMember[slot] === m.id;
             block.open = isOpen;
@@ -970,12 +972,6 @@
             block.appendChild(el('summary', 'small', esc(m.label || m.app) + ' <span class="text-body-secondary">('
                 + esc(m.id) + ')</span>' + (count ? ' <span class="badge bg-info text-dark">'
                 + count + ' propre' + (count > 1 ? 's' : '') + '</span>' : '')));
-            if (replaced[m.id]) {
-                block.appendChild(el('div', 'small text-body-secondary mt-1', esc(
-                    'Ce nœud est ' + replaced[m.id] + ' : il ne joue pas, ses réglages non plus.')));
-                wrap.appendChild(block);
-                return;
-            }
             if (!isOpen) { wrap.appendChild(block); return; }
             var host = el('div', 'wama-params mt-1');
             block.appendChild(host);

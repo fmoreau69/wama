@@ -5008,7 +5008,10 @@ de lot** (`batch_settings`, `MODES_QUEUE_UX §5`), sans brique neuve :
   chaque ligne propre, « Propre à ce nœud — le pipeline : … » et **« Reprendre celle du pipeline »**
   (le choix ligne par ligne) ; un bloc **« Alignement sur le pipeline référencé »** reprend tout ; une
   surcharge ORPHELINE se signale avant le lancement, avec « Les retirer » (remarque de Monde Data) ;
-  un membre qu'un lien remplace le dit. UN membre ouvert à la fois : le rendu commun nomme ses champs
+  un membre qu'un lien remplace le dit — lu sur le serveur (`graph_flow.node_context`, clé
+  `replaced`, obtenue en déployant le seul voisinage du nœud par `expand_pipeline_nodes` lui-même :
+  la revérification a retiré du JS une seconde écriture de la règle). UN membre ouvert à la fois :
+  le rendu commun nomme ses champs
   `wp-item-<réglage>` dans le document.
 Gardes : `studio/tests/tests_pipeline_nodes.py` (`PipelineNodeOverrideTest`, lancement et palette
 de `PipelineNodeInTheStudioTest`, fonctions pures du canvas en V8) ; page servie vérifiée au

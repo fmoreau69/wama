@@ -229,4 +229,33 @@ def node_context(graph, node_id, user=None) -> dict:
         _app_carriers(node.get('app') or '', inputs, values, provided)
     elif kind == 'function':
         _step_carriers(node, user, values, provided, defaults)
-    return {'inputs': inputs, 'values': values, 'provided': provided, 'defaults': defaults}
+    out = {'inputs': inputs, 'values': values, 'provided': provided, 'defaults': defaults}
+    if kind == 'pipeline':
+        out['replaced'] = _replaced_members(graph, node, user)
+    return out
+
+
+def _replaced_members(graph, node, user) -> dict:
+    """`{membre: rôle}` des nœuds internes d'un nœud `pipeline` que le DÉPLOIEMENT retire dans ce
+    graphe — une entrée alimentée de l'extérieur, les sorties quand le nœud a un aval (2026-11-06,
+    surcharge des pipelines imbriqués : ses réglages n'y jouent pas). Lu sur
+    `expand_pipeline_nodes` LUI-MÊME, appliqué au seul voisinage du nœud et sans sa surcharge —
+    jamais une seconde écriture de la règle. `{}` quand il ne se déploie pas (le lancement dira
+    pourquoi)."""
+    from wama.common.manifests.builtin.pipeline import (EXPANDED_ID_SEP, expand_pipeline_nodes,
+                                                        node_kind, pipeline_key)
+    from .pipeline_nodes import resolver
+    nid, key = node.get('id'), pipeline_key(node)
+    near = [l for l in graph.get('links', []) or [] if nid in (l.get('from'), l.get('to'))]
+    others = {l.get('from') for l in near} | {l.get('to') for l in near}
+    probe = {'nodes': [dict(node, params={})] + [{'id': o, 'app': 'neighbour'}
+                                                 for o in others if o != nid],
+             'links': near}
+    resolve = resolver(user)
+    try:
+        members = expand_pipeline_nodes(resolve(key)[1], resolve, (key,))['nodes']
+        deployed = {n['id'] for n in expand_pipeline_nodes(probe, resolve)['nodes']}
+    except ValueError:
+        return {}
+    return {m['id']: node_kind(m) for m in members
+            if f'{nid}{EXPANDED_ID_SEP}{m["id"]}' not in deployed}

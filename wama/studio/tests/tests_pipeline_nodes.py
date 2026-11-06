@@ -446,6 +446,20 @@ class PipelineNodeInTheStudioTest(TestCase):
         self.saved.refresh_from_db()
         self.assertEqual({}, self.saved.graph['nodes'][1]['params'], 'the referenced pipeline is untouched')
 
+    def test_the_inspector_is_told_which_members_the_deployment_replaces(self):
+        """Read on the deployment itself (`graph_flow.node_context`), never a second rule in JS:
+        an entry fed from outside does not play, nor do its settings."""
+        self.client.force_login(self.user)
+
+        def replaced(graph):
+            return self.client.post('/studio/api/node-context/', {'graph': graph, 'node': 'P'},
+                                    content_type='application/json').json()['replaced']
+        alone = {'nodes': [{'id': 'P', 'app': self.key, 'params': {'n1': {'x': 1}}}], 'links': []}
+        self.assertEqual({}, replaced(alone))
+        fed = {'nodes': [{'id': 'd', 'app': 'dataset_input'}, alone['nodes'][0]],
+               'links': [{'from': 'd', 'to': 'P', 'to_port': 'n1'}]}
+        self.assertEqual({'n1': 'source'}, replaced(fed), 'its own override does not hide the answer')
+
     def test_launching_with_an_orphan_override_is_refused_by_name(self):
         run, err, delay = _launch(self.user, {'nodes': [
             {'id': 'P', 'app': self.key, 'params': {'gone': {'x': 1}}}], 'links': []})

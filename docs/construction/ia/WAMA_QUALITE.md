@@ -204,6 +204,10 @@ le tirage revient à `albert:gemma-4-31b-it`. Gardes : `tests_signal_scale_subse
 ⏳ Reste vu au passage : le sous-indice `coding` (tirage de développement) n'est plus porté que
 par des notes AA v4 PÉRIMÉES — AA v5 ne publie pas cette famille (`legal`, `engineering`…), donc
 `ilaas:qwen-3.6-35b-instruct` (v4, 41,9) l'emporte sur une note qu'aucune source ne confirme plus.
+⏳ Et `AIModel.best_installed` (le référentiel de la prospection) se dit « même règle d'étage que la
+sélection » mais s'arrête à l'échelle commune : ni rang centile (absent depuis son branchement du
+26/09), ni mesure interne, ni sous-indice — à aligner sur `_quality_scalars` plutôt qu'à prolonger.
+Le rang du porteur, lui, n'est plus écrit qu'une fois : c'est l'entrée de sa propre échelle.
 
 **L'étage a priori a désormais des valeurs DÉCLARÉES, avec leur source** (2026-10-03, décision de
 Fabien) : `model_quality.DECLARED_PRIORS`, lu par la synchro quand la découverte ne dit rien.

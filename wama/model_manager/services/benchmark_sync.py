@@ -1832,7 +1832,8 @@ def _benchmark_for_category(m, cat, alias, sources):
             # porteur seul ne donnait que le sien, et deux porteurs se comparaient par deux
             # populations alors que l'Arena les classait tous deux (`shared_percentile_values`).
             # Même règle que le rang du porteur : un banc indépendant seulement.
-            if (chosen.get('provenance') or s.get('provenance')) == PROVENANCE_INDEPENDENT:
+            if (chosen.get('provenance')
+                    or s.get('provenance', PROVENANCE_INDEPENDENT)) == PROVENANCE_INDEPENDENT:
                 population = sources.get(s['key'], {}).get(cat, [])
                 entry['percentile_rank'] = percentile_rank(entry['value'], population,
                                                            s['value'], entry['direction'])
@@ -1859,10 +1860,10 @@ def _benchmark_for_category(m, cat, alias, sources):
     # est censé remplacer. ⚠ Et seulement d'un banc INDÉPENDANT (2026-10-10) : le rang sert à
     # comparer des échelles différentes (étage inter-échelles de la sélection) ; tiré d'un
     # classement auto-déclaré, il mettrait la parole d'un auteur au niveau d'une mesure tierce.
+    # Le rang du porteur est celui de SON échelle, la première de `scales` (une seule écriture,
+    # 2026-11-06 : chaque échelle y porte le sien, sous la même règle d'indépendance).
     population = sources.get(carrier['key'], {}).get(cat, []) if carrier else []
-    benchmark['percentile_rank'] = (
-        percentile_rank(value, population, carrier['value'], benchmark['direction'])
-        if carrier and benchmark['provenance'] == PROVENANCE_INDEPENDENT else None)
+    benchmark['percentile_rank'] = scales[0].get('percentile_rank') if carrier and scales else None
     benchmark['population'] = len(population)
     return benchmark, idents
 
