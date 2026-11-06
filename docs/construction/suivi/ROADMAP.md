@@ -1102,14 +1102,27 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    du moteur déclaré d'une LIGNE reste écrite en place dans `tool_api`, `tts/ui_meta` et
    `avatarizer/workers` (celle d'une CLÉ est commune : `backends.manager.engine_of`, revérification
    du soir — `detection_ensemble` l'emprunte, `served_by_for_key` aussi).
-   ⏳ **Poids GGUF — pour l'instance des moteurs de l'Imager** (2026-11-06) : la librairie `gguf`
-   est installée par la route (0.19.0, `manifests/libraries/gguf.json` ; diffusers la voit), mais
-   aucun moteur ne lit un GGUF de diffusion. La ligne `huggingface:unsloth/flux-3-image-klein-GGUF`
-   est installée (13,3 Go déclarés) sans moteur ni app, et sa dorsale
-   (`black-forest-labs/flux-3-image-klein`, `extra_info['base_model']`) n'est pas au catalogue —
-   un GGUF ne porte que le transformeur. Restent : le chargement dans le moteur diffusers
-   (une `LoadPrecision` au `library` `gguf`), la dorsale par la route, et le pic MESURÉ avant de
-   déclarer.
+   ✅ **Poids GGUF — le moteur diffusers les lit** (2026-11-06, décision de Fabien : option B, « fais-le
+   toi ») : FLUX.1-dev déclare la précision `Q8_0` (`diffusers_backend.FLUX_PRECISIONS`, entre BF16
+   et INT8), dont les poids sont PUBLIÉS à part — le transformeur GGUF de city96, UN fichier figé à
+   son commit, taille et empreinte LFS épinglées (`FLUX_GGUF_FILES`), installé, vérifié et retiré
+   par le pilote `files` (ligne `huggingface:city96/FLUX.1-dev-gguf`, relation `quantized` de
+   FLUX.1-dev, aucune tâche ne la tire ; manifeste au corpus). La précision n'existe qu'une fois ses
+   fichiers en place (`LoadPrecision.weights_key`) et se pèse à leur taille déclarée (11,84 Go,
+   échelles comprises : `reduced_peak_gb(reduced_gb=…)`) ; chargement
+   `FluxTransformer2DModel.from_single_file` + `GGUFQuantizationConfig`, configuration lue dans le
+   FLUX.1-dev installé. **MESURÉ sur la carte** (6,8 Go tenus hors de la tâche, 19,65 libérables) :
+   le gouverneur retient Q8_0 (11,84 calculés), **12,52 Go au pic** à 1024², 10 pas, 138 s de rendu
+   (encodeurs et transformeur remontés à chaque rendu), chargement 281 s ; la LoRA logo s'y pose
+   (768², 12,42 Go, rendu au style du logo, même graine). Gardes : `tests_vram_wait.GgufPrecisionTest`,
+   `tests_vram_peaks.ReducedPeakTest.test_published_weights_count_at_their_declared_size`.
+   ⏳ Restent : **FLUX 3 Klein** — son GGUF installé (`unsloth/flux-3-image-klein-GGUF`, un seul
+   fichier, en BF16 : 273 tenseurs BF16, 86 F32 — aucune réduction) est une architecture
+   (`f3-image-small`) que diffusers 0.37 ne connaît pas ; `Flux3Transformer2DModel` arrive en
+   0.42.1, qui exige `huggingface-hub >= 1.32` (transformers 4.57 et `sam3` l'exigent `< 1.0`) et
+   `safetensors >= 0.8` : une migration du venv entier, décision de Fabien ; la vitesse (Q8_0
+   plus lent que NF4 à 10 pas : 138 s contre 102) n'entre pas dans le choix du gouverneur, qui
+   retient la plus FIDÈLE qui tient (décision (2)).
 
 6. **HORS DE L'HÔTE WAMA — constat du 2026-11-06, lu au code** (question de Fabien sur l'export
    d'une app à modèles IA, §18.3 ; rien de corrigé, aucune décision prise). Le gouverneur est écrit

@@ -491,6 +491,7 @@ class ModelRegistry:
         self._discover_depth_models()
         self._discover_road_models()
         self._discover_quality_metric_models()
+        self._discover_precision_weights_models()
         self._discover_midi_extraction_models()
         self._discover_image_to_3d_models()
         self._discover_face_analyzer_models()
@@ -1703,6 +1704,52 @@ class ModelRegistry:
             )
         except Exception as e:
             self.discovery_errors.append(f'quality-metric: {e}')
+
+    def _discover_precision_weights_models(self):
+        """Poids d'une PRÉCISION publiés à part (2026-11-06) — le GGUF Q8_0 du transformeur de
+        FLUX.1-dev, qu'une précision du moteur diffusers lit (`LoadPrecision.weights_key`). Une ligne
+        pour que la route l'installe, le vérifie et le retire (pilote `files`) ; elle n'est pas un
+        modèle à choisir — elle EST FLUX.1-dev quantifié (relation `quantized` du Hub), et aucune
+        tâche ne la tire : c'est le gouverneur qui retient sa précision au lancement de FLUX.1-dev.
+        La déclaration vit à côté du moteur (`diffusers_backend.FLUX_GGUF_FILES`)."""
+        try:
+            from wama.common.backends.diffusers_backend import (
+                FLUX_GGUF_FILES, FLUX_GGUF_KEY, FLUX_GGUF_REPO, flux_gguf_folder,
+            )
+            from wama.model_manager.models import BASE_RELATION_QUANTIZED
+            from wama.model_manager.services.model_installer import declared_files_present
+            root = flux_gguf_folder()
+            self._models[FLUX_GGUF_KEY] = ModelInfo(
+                id=FLUX_GGUF_KEY,
+                name='FLUX.1-dev Q8_0 (GGUF)',
+                model_type=ModelType.DIFFUSION,
+                source=ModelSource.HUGGINGFACE,
+                description="Transformeur de FLUX.1-dev quantifié en Q8_0 (GGUF, city96) : la "
+                            "précision huit bits que le moteur diffusers charge quand les poids "
+                            "pleins ne tiennent pas sur la carte. Les encodeurs et le VAE restent "
+                            "ceux de FLUX.1-dev. Licence non commerciale de FLUX.1-dev.",
+                description_short="Précision Q8_0 de FLUX.1-dev (GGUF)",
+                platform_ref=hf_platform_ref(FLUX_GGUF_REPO),
+                format='gguf',
+                preferred_format='gguf',
+                is_downloaded=declared_files_present(root, FLUX_GGUF_FILES),
+                extra_info={'path': str(root / FLUX_GGUF_FILES[0]['path']),
+                            'size_bytes': sum(f['size'] for f in FLUX_GGUF_FILES),
+                            'install_dir': str(root), 'declared_files': FLUX_GGUF_FILES,
+                            'base_model': 'black-forest-labs/FLUX.1-dev',
+                            'base_model_relation': BASE_RELATION_QUANTIZED,
+                            'quantization': 'Q8_0',
+                            # Celle de FLUX.1-dev, que la carte du dépôt déclare
+                            # (`flux-1-dev-non-commercial-license`) — la clé de la ligne
+                            # `imager:flux-1-dev` (`imager/utils/model_config.py`).
+                            'license': 'flux-1-dev-non-commercial'},
+                composition={'runtime': {'engine': 'diffusers'},
+                             'components': [{'role': 'transformer',
+                                             'pattern': FLUX_GGUF_FILES[0]['path'],
+                                             'format': 'gguf'}]},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'precision-weights: {e}')
 
     def _discover_hand_gesture_models(self):
         """Gestes de la main (task=hand-gesture, 2026-10-22) — MediaPipe Gesture Recognizer, que les

@@ -39,6 +39,35 @@ logger.info("[Diffusers] caches : SD=%s FLUX=%s LOGO=%s",
             _SD_CACHE_DIR, _FLUX_CACHE_DIR, _LOGO_CACHE_DIR)
 
 
+# ── Poids GGUF d'une précision de FLUX.1-dev (2026-11-06) ─────────────────────────────────────
+# Le transformeur de FLUX.1-dev quantifié en Q8_0 par city96 — la quantification d'UN modèle
+# (carte du Hub : `base_model:quantized:black-forest-labs/FLUX.1-dev`), publiée à part de ses poids
+# pleins : diffusers la lit (`FluxTransformer2DModel.from_single_file`, `GGUFQuantizationConfig`),
+# le reste du pipeline (T5, CLIP, VAE) vient du dépôt officiel déjà installé. Un seul fichier du
+# dépôt, figé à son commit, avec sa taille et son empreinte LFS publiées par le Hub : le pilote
+# `files` l'installe, le vérifie et le retire (ligne de catalogue `FLUX_GGUF_KEY`,
+# `model_registry._discover_precision_weights_models`). Les autres niveaux du dépôt (Q2_K à F16)
+# ne sont pas déclarés : la plus réduite que garde FLUX ici reste le NF4 de bitsandbytes.
+FLUX_GGUF_REPO = 'city96/FLUX.1-dev-gguf'
+FLUX_GGUF_REVISION = '3c60ac659f4b1f2ab3ca8bd4488272069b36a148'
+FLUX_GGUF_WEIGHTS = 'flux1-dev-Q8_0.gguf'
+FLUX_GGUF_FILES = [
+    {'path': FLUX_GGUF_WEIGHTS, 'size': 12708281504,
+     'sha256': '129032f32224bf7138f16e18673d8008ba5f84c1ec74063bf4511a8bb4cf553d',
+     'origin': {'source': 'huggingface', 'repo': FLUX_GGUF_REPO, 'revision': FLUX_GGUF_REVISION,
+                'file': FLUX_GGUF_WEIGHTS}},
+]
+# Clé LITTÉRALE : l'inventaire la lit par AST.
+FLUX_GGUF_KEY = "huggingface:city96/FLUX.1-dev-gguf"
+
+
+def flux_gguf_folder():
+    """Le dossier des poids GGUF de FLUX (`settings.MODEL_PATHS['diffusion']['flux_gguf']`), où le
+    pilote `files` pose `FLUX_GGUF_FILES`."""
+    from pathlib import Path
+    return Path(settings.MODEL_PATHS['diffusion']['flux_gguf'])
+
+
 # Module-level pipeline cache — persists across Celery tasks within the same worker process.
 # Without this, each task reloads from_pretrained() and WSL2 re-swaps 23 GB to page file.
 # Keyed by model_name (e.g. 'flux-lora-logo-design'). Only keeps the last loaded model.
@@ -310,8 +339,14 @@ class DiffusersBackend(ImageGenerationBackend):
     #: le GPU le 2026-11-05 (1024², allocateur torch) : en 8 bits le transformeur bitsandbytes
     #: (11,13 Go) RESTE sur la carte quand le déchargement y monte T5 + CLIP (9,1) — 20,2 alloués ;
     #: en 4 bits (5,54) il descend au processeur — 9,09 au pic, celui des encodeurs.
+    #: Le Q8_0 GGUF (2026-11-06) avant l'INT8 : huit bits aussi, mais une échelle par bloc de 32
+    #: poids (llama.cpp) là où bitsandbytes en pose une par ligne ; il n'existe ici qu'une fois ses
+    #: poids installés par la route (`weights_key`). La qualité d'image face aux poids pleins n'est
+    #: mesurée pour aucune des trois réductions (`ROADMAP §Gouvernance` i).
     FLUX_PRECISIONS = (
         LoadPrecision('BF16'),
+        LoadPrecision('Q8_0', quantized=('transformer',), library='gguf',
+                      weights_key=FLUX_GGUF_KEY),
         LoadPrecision('INT8', quantized=('transformer',), resident=('transformer',),
                       library='bitsandbytes'),
         LoadPrecision('NF4', quantized=('transformer',), library='bitsandbytes'),
@@ -348,41 +383,60 @@ class DiffusersBackend(ImageGenerationBackend):
             logger.warning("[Diffusers] FLUX : aucune empreinte pour « %s » — précision la plus "
                            "réduite disponible (%s)", self.catalogue_key or '?', precision.label)
         logger.info("[Diffusers] FLUX : précision %s", precision.label)
-        return {'quantization': self._FLUX_BNB.get(precision.label), 'label': precision.label}
+        found = precision.weights_files()
+        return {'quantization': self._FLUX_BNB.get(precision.label) or ('gguf' if found else None),
+                'label': precision.label,
+                'gguf': str(found[0] / found[1][0]['path']) if found else ''}
 
-    def _load_flux_quantized(self, base_model: str, quant_bits: str, cache_dir: str):
+    def _load_flux_quantized(self, base_model: str, quant_bits: str, cache_dir: str,
+                             gguf_file: str = ''):
         """
-        Load FLUX with quantized transformer directly onto GPU via bitsandbytes.
-        Eliminates CPU↔GPU transfers per denoising step and avoids WSL2 RAM swap.
+        Load FLUX with a quantized transformer: bitsandbytes (`8bit`/`4bit`, computed at load time)
+        or a published GGUF file (`gguf`, `gguf_file` — weights stay quantized, dequantized per
+        layer by diffusers). The other components come from the official repo, in bfloat16.
 
         After loading, text encoders (T5 9.5 GB, CLIP 0.5 GB) are offloaded to CPU
         via enable_model_cpu_offload() hooks — they fit in WSL2 RAM without swapping.
         """
         from diffusers import FluxPipeline, FluxTransformer2DModel, BitsAndBytesConfig
 
-        if quant_bits == '8bit':
-            bnb_config = BitsAndBytesConfig(load_in_8bit=True)
-            logger.info("[Diffusers] Loading FLUX transformer in 8-bit (~11.5 GB VRAM)...")
-        else:  # 4bit
-            bnb_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=self._torch.bfloat16,
-            )
-            logger.info("[Diffusers] Loading FLUX transformer in 4-bit (~5.75 GB VRAM)...")
-
         kwargs = {}
         if cache_dir:
             kwargs["cache_dir"] = cache_dir
 
-        # Load quantized transformer — lands directly on GPU (bitsandbytes requirement)
-        transformer = FluxTransformer2DModel.from_pretrained(
-            base_model,
-            subfolder="transformer",
-            quantization_config=bnb_config,
-            torch_dtype=self._torch.bfloat16,
-            **kwargs,
-        )
+        if quant_bits == 'gguf':
+            from diffusers import GGUFQuantizationConfig
+            logger.info("[Diffusers] Loading FLUX transformer from GGUF: %s", gguf_file)
+            # `config=` + `subfolder=` : la configuration du transformeur se lit dans le dépôt
+            # officiel installé (`cache_dir`), jamais devinée du fichier ni tirée d'ailleurs.
+            transformer = FluxTransformer2DModel.from_single_file(
+                gguf_file,
+                quantization_config=GGUFQuantizationConfig(compute_dtype=self._torch.bfloat16),
+                torch_dtype=self._torch.bfloat16,
+                config=base_model,
+                subfolder="transformer",
+                **kwargs,
+            )
+        else:
+            if quant_bits == '8bit':
+                bnb_config = BitsAndBytesConfig(load_in_8bit=True)
+                logger.info("[Diffusers] Loading FLUX transformer in 8-bit (~11.5 GB VRAM)...")
+            else:  # 4bit
+                bnb_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=self._torch.bfloat16,
+                )
+                logger.info("[Diffusers] Loading FLUX transformer in 4-bit (~5.75 GB VRAM)...")
+
+            # Load quantized transformer — lands directly on GPU (bitsandbytes requirement)
+            transformer = FluxTransformer2DModel.from_pretrained(
+                base_model,
+                subfolder="transformer",
+                quantization_config=bnb_config,
+                torch_dtype=self._torch.bfloat16,
+                **kwargs,
+            )
         alloc = self._torch.cuda.memory_allocated(0) / 1024 ** 3
         logger.info(f"[Diffusers] Transformer loaded: {alloc:.1f}GB GPU allocated")
 
@@ -414,6 +468,8 @@ class DiffusersBackend(ImageGenerationBackend):
 
         Precisions (`FLUX_PRECISIONS`, measured on 2026-11-05):
           BF16 : 22.17 GB transformer, MODEL_OFFLOAD to GPU per step
+          Q8_0 : 11.84 GB GGUF transformer (published file, `FLUX_GGUF_FILES`), offloaded like the
+                 encoders
           INT8 : 11.13 GB transformer that stays on GPU, encoders offloaded around it (20.2 GB peak)
           NF4  :  5.54 GB transformer offloaded like the encoders (9.09 GB peak, T5 + CLIP)
         """
@@ -435,9 +491,10 @@ class DiffusersBackend(ImageGenerationBackend):
 
         strategy = self._get_flux_strategy()
 
-        if strategy['quantization'] in ('8bit', '4bit'):
-            # ── Quantized path: transformer goes directly to GPU ──────────────
-            pipe = self._load_flux_quantized(base_model, strategy['quantization'], _FLUX_CACHE_DIR)
+        if strategy['quantization'] in ('8bit', '4bit', 'gguf'):
+            # ── Quantized path: bitsandbytes or a published GGUF transformer ──
+            pipe = self._load_flux_quantized(base_model, strategy['quantization'], _FLUX_CACHE_DIR,
+                                             gguf_file=strategy.get('gguf') or '')
 
             # Load LoRA on quantized pipeline (adapter weights are bfloat16, compatible)
             if model_type == 'lora' and lora_repo:

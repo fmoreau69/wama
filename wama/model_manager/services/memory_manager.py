@@ -291,13 +291,17 @@ def _role_gb_at(entry: dict, per_param: float) -> float:
     return size_bytes / 1024 ** 3
 
 
-def reduced_peak_gb(weights: dict, precision, *, offload: bool) -> Optional[float]:
+def reduced_peak_gb(weights: dict, precision, *, offload: bool,
+                    reduced_gb: Optional[float] = None) -> Optional[float]:
     """Le pic d'un modèle chargé dans une précision que son moteur DÉCLARE (`backends.base.
     LoadPrecision`) — None si les poids ne sont pas relevés. Un FAIT du modèle : aucune marge ici.
 
     Un composant que la précision réduit pèse `params × octets(label)` (`dtype_bytes`, en-têtes
-    safetensors : `weights['precision'][rôle]['params']`) ; les autres, leur poids relevé
-    (`weights['components']`). En déchargement (`offload`, le moteur déclare `OFFLOADS`), les
+    safetensors : `weights['precision'][rôle]['params']`) — sauf quand la précision se LIT dans
+    des poids publiés à part (`LoadPrecision.weights_key`, un GGUF) : leur poids déclaré
+    (`reduced_gb`) est alors celui de son composant réduit, UN seul (un `Q8_0` pèse 8,5 bits par
+    poids, ses échelles comprises, pas les 8 que dit son nom). Les autres composants, leur poids
+    relevé (`weights['components']`). En déchargement (`offload`, le moteur déclare `OFFLOADS`), les
     composants qui RESTENT sur la carte (`precision.resident`) s'additionnent, plus le plus gros des
     autres ; sinon, la somme.
 
@@ -308,12 +312,17 @@ def reduced_peak_gb(weights: dict, precision, *, offload: bool) -> Optional[floa
     components = dict((weights or {}).get('components') or {})
     if not components:
         return None
+    if reduced_gb is not None and len(precision.quantized) != 1:
+        return None                          # un fichier à part ne se répartit pas entre composants
     per_param = dtype_bytes(getattr(precision, 'label', '')) if precision.quantized else None
     by_role = (weights or {}).get('precision') or {}
     sizes = {}
     for role, gb in components.items():
         if role not in precision.quantized:
             sizes[role] = float(gb or 0)
+            continue
+        if reduced_gb is not None:
+            sizes[role] = float(reduced_gb)
             continue
         reduced = _role_gb_at(by_role.get(role), per_param) if per_param else 0.0
         if not reduced:

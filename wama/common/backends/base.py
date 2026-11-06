@@ -51,21 +51,48 @@ class LoadPrecision:
     `quantized` : les composants qu'elle réduit (rôles de `extra_info['weights']`) ; vide = aucun, la
     précision des fichiers. `resident` : ceux qui RESTENT sur la carte quand le moteur décharge les
     autres — mesuré le 2026-11-05, un transformeur bitsandbytes en 8 bits ne se déplace pas, en 4 bits
-    il descend au processeur. `library` : le module qu'elle exige, importable ICI ou non."""
+    il descend au processeur. `library` : le module qu'elle exige, importable ICI ou non.
+    `weights_key` : la clé de CATALOGUE de la ligne qui porte ses poids, quand la précision ne se
+    calcule pas au chargement mais se LIT dans un fichier publié à part (un GGUF, 2026-11-06) — la
+    route installe cette ligne (pilote `files`), et la précision n'existe ici qu'une fois ses fichiers
+    en place. Le poids déclaré de ces fichiers est alors celui du composant réduit
+    (`resource_governor.chosen_precision`)."""
 
     label: str
     quantized: tuple = ()
     resident: tuple = ()
     library: str = ''
+    weights_key: str = ''
 
     def available(self) -> bool:
-        """La librairie qu'elle exige s'importe-t-elle dans ce process ? (find_spec, sans importer)."""
-        if not self.library:
-            return True
+        """La librairie qu'elle exige s'importe-t-elle dans ce process (find_spec, sans importer), et
+        ses poids publiés à part, s'il en faut, sont-ils installés (`weights_files`) ?"""
+        if self.library:
+            try:
+                if importlib.util.find_spec(self.library) is None:
+                    return False
+            except (ImportError, ValueError):
+                return False
+        return not self.weights_key or self.weights_files() is not None
+
+    def weights_files(self):
+        """`(dossier, fichiers déclarés)` de la ligne `weights_key` quand TOUS ses fichiers sont en
+        place, None sinon — la déclaration de la ligne (`install_dir` + `declared_files`) et la
+        présence que lit la découverte (`model_installer.declared_files_present`), sans relire
+        l'empreinte : c'est l'installation qui l'a vérifiée."""
+        if not self.weights_key:
+            return None
         try:
-            return importlib.util.find_spec(self.library) is not None
-        except (ImportError, ValueError):
-            return False
+            from wama.model_manager.models import AIModel
+            from wama.model_manager.services.model_installer import declared_files_present
+            row = AIModel.objects.filter(model_key=self.weights_key).first()
+        except Exception:
+            return None
+        info = (row.extra_info or {}) if row is not None else {}
+        root, files = (info.get('install_dir') or '').strip(), info.get('declared_files') or []
+        if not root or not declared_files_present(root, files):
+            return None
+        return Path(root), files
 
 
 _WRAPPED = "_wama_governor_wrapped"

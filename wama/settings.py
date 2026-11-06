@@ -154,6 +154,9 @@ MODEL_PATHS = {
         'ltx': AI_MODELS_DIR / "models" / "diffusion" / "ltx",
         'mochi': AI_MODELS_DIR / "models" / "diffusion" / "mochi",
         'flux': AI_MODELS_DIR / "models" / "diffusion" / "flux",
+        # Les poids GGUF d'une précision de FLUX.1-dev (`diffusers_backend.FLUX_GGUF_FILES`,
+        # pilote `files`, 2026-11-06) — un fichier, pas un snapshot du Hub : à part de `flux/`.
+        'flux_gguf': AI_MODELS_DIR / "models" / "diffusion" / "flux-gguf",
         'logo': AI_MODELS_DIR / "models" / "diffusion" / "logo",
         'qwen_image': AI_MODELS_DIR / "models" / "diffusion" / "qwen-image",
         'flux2_klein': AI_MODELS_DIR / "models" / "diffusion" / "flux2-klein",

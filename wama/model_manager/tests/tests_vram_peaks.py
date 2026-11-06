@@ -196,6 +196,18 @@ class ReducedPeakTest(SimpleTestCase):
                                           offload=True),
                           "réduire un composant dont on ne connaît pas les paramètres, c'est deviner")
 
+    def test_published_weights_count_at_their_declared_size(self):
+        """Un GGUF Q8_0 pèse 8,5 bits par poids (une échelle par bloc de 32) : son fichier déclaré
+        (11,84 Go) fait le composant réduit, pas les 8 bits de son nom (11,08) — et ce poids ne se
+        répartit pas entre plusieurs composants."""
+        from wama.common.backends.base import LoadPrecision
+        from wama.model_manager.services.memory_manager import reduced_peak_gb
+        q8 = self._flux('Q8_0')
+        self.assertEqual(self._peak(q8), 11.08, "sans fichier déclaré, le calcul du nom")
+        self.assertEqual(reduced_peak_gb(self.FLUX, q8, offload=True, reduced_gb=11.835), 11.84)
+        two = LoadPrecision('Q8_0', quantized=('transformer', 'text_encoder_2'))
+        self.assertIsNone(reduced_peak_gb(self.FLUX, two, offload=True, reduced_gb=11.835))
+
 
 class AdapterFootprintTest(TestCase):
     """L'empreinte d'un ADAPTATEUR — décision de Fabien du 2026-09-21 : **B pour le catalogue,

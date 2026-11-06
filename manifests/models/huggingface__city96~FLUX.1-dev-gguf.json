@@ -1,0 +1,77 @@
+{
+  "body": {
+    "capabilities": {},
+    "composition": {
+      "components": [
+        {
+          "format": "gguf",
+          "pattern": "flux1-dev-Q8_0.gguf",
+          "role": "transformer"
+        }
+      ],
+      "runtime": {
+        "engine": "diffusers"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "flux1-dev-Q8_0.gguf",
+            "repo": "city96/FLUX.1-dev-gguf",
+            "revision": "3c60ac659f4b1f2ab3ca8bd4488272069b36a148",
+            "source": "huggingface"
+          },
+          "path": "flux1-dev-Q8_0.gguf",
+          "sha256": "129032f32224bf7138f16e18673d8008ba5f84c1ec74063bf4511a8bb4cf553d",
+          "size": 12708281504
+        }
+      ],
+      "license": "flux-1-dev-non-commercial",
+      "quantization": "Q8_0"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": "gguf"
+    },
+    "identity": {
+      "author": null,
+      "base_model": "black-forest-labs/FLUX.1-dev",
+      "base_model_relation": "quantized",
+      "description_short": "Précision Q8_0 de FLUX.1-dev (GGUF)",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:city96/FLUX.1-dev-gguf",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 11.835509449243546,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Transformeur de FLUX.1-dev quantifié en Q8_0 (GGUF, city96) : la précision huit bits que le moteur diffusers charge quand les poids pleins ne tiennent pas sur la carte. Les encodeurs et le VAE restent ceux de FLUX.1-dev. Licence non commerciale de FLUX.1-dev.",
+  "key": "huggingface:city96/FLUX.1-dev-gguf",
+  "manifest_kind": "model",
+  "name": "FLUX.1-dev Q8_0 (GGUF)",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:city96/FLUX.1-dev-gguf",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

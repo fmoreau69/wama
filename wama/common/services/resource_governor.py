@@ -1183,6 +1183,17 @@ class PrecisionChoice:
     reduced: bool                # une précision moins fidèle que la première déclarée
 
 
+def _published_weights_gb(precision):
+    """Le poids DÉCLARÉ (Go) des fichiers d'une précision publiée à part (`LoadPrecision.
+    weights_key`, un GGUF), None pour une précision qui se calcule au chargement — la taille
+    épinglée que le pilote `files` a vérifiée, pas une estimation. Lue seulement quand ses fichiers
+    sont en place (`available` a filtré)."""
+    found = precision.weights_files() if getattr(precision, 'weights_key', '') else None
+    if not found:
+        return None
+    return sum(int(f.get('size') or 0) for f in found[1]) / 1024 ** 3
+
+
 def chosen_precision(model_key: str, backend=None, *, fits_now: bool = False):
     """La précision dans laquelle `model_key` se chargera — décidée ICI, pas par le moteur
     (`ROADMAP §Gouvernance`, point 5 ; accord de Fabien le 2026-11-05).
@@ -1230,7 +1241,8 @@ def chosen_precision(model_key: str, backend=None, *, fits_now: bool = False):
     own_gb = (peaks_from_weights((row.extra_info or {}).get('weights') or {}).get('full', 0.0)
               if backbone is not None else 0.0)
     offload = bool(getattr(backend, 'OFFLOADS', False))
-    peaks = [(p, reduced_peak_gb(weights, p, offload=offload)) for p in declared]
+    peaks = [(p, reduced_peak_gb(weights, p, offload=offload, reduced_gb=_published_weights_gb(p)))
+             for p in declared]
     peaks = [(p, round(gb + own_gb, 2)) for p, gb in peaks if gb]
     if not peaks:
         return None

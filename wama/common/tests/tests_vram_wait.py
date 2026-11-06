@@ -260,7 +260,8 @@ class PrecisionChosenByTheGovernorTest(_Card):
         engine = DiffusersBackend()
         engine.catalogue_key = self.KEY
         with self.card(22.0, 1.99), mock.patch.object(gov, 'effective_free_gb', return_value=22.0):
-            self.assertEqual(engine._get_flux_strategy(), {'quantization': '8bit', 'label': 'INT8'})
+            self.assertEqual(engine._get_flux_strategy(),
+                             {'quantization': '8bit', 'label': 'INT8', 'gguf': ''})
 
     def test_without_a_catalogue_key_the_engine_takes_the_most_reduced(self):
         from wama.common.backends.diffusers_backend import DiffusersBackend
@@ -358,18 +359,98 @@ class ServedByTwinTest(TestCase):
 
 class FluxPrecisionTwinTest(TestCase):
     """Ce que le moteur FLUX DÉCLARE, il sait le charger : chaque précision réduite a son chargement
-    bitsandbytes, et chaque étiquette se pèse (`dtype_bytes`)."""
+    — bitsandbytes, ou les poids publiés à part qu'une ligne du catalogue porte (le GGUF) — et
+    chaque étiquette se pèse (`dtype_bytes`)."""
 
     def test_every_declared_precision_is_loadable_and_weighable(self):
         from wama.common.backends.diffusers_backend import DiffusersBackend
         from wama.model_manager.services.memory_manager import dtype_bytes
         for precision in DiffusersBackend.FLUX_PRECISIONS:
             self.assertIsNotNone(dtype_bytes(precision.label), precision.label)
-            if precision.quantized:
+            if precision.quantized and not precision.weights_key:
                 self.assertIn(precision.label, DiffusersBackend._FLUX_BNB)
+            if precision.weights_key:
+                self.assertEqual(precision.library, 'gguf', precision.label)
         self.assertEqual(DiffusersBackend.load_precisions('flux-1-dev'),
                          DiffusersBackend.FLUX_PRECISIONS)
         self.assertEqual(DiffusersBackend.load_precisions('stable-diffusion-xl'), ())
+
+
+class GgufPrecisionTest(_Card):
+    """Le Q8_0 GGUF de FLUX.1-dev (2026-11-06) : une précision dont les poids sont PUBLIÉS à part et
+    installés par la route (pilote `files`, ligne `FLUX_GGUF_KEY`). Absente tant que son fichier
+    n'est pas en place ; en place, elle se pèse à la taille DÉCLARÉE du fichier (11,84 Go, ses
+    échelles comprises) et passe avant le 8 bits de bitsandbytes."""
+
+    KEY = 'imager:flux-1-dev'
+
+    def setUp(self):
+        super().setUp()
+        import shutil
+        import tempfile
+        from wama.common.backends.diffusers_backend import FLUX_GGUF_FILES, FLUX_GGUF_KEY
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(
+            model_key=self.KEY, name='flux-1-dev', model_type='image', source='imager',
+            is_downloaded=True, capabilities={'task': 'text-to-image'},
+            platform_ref='huggingface:black-forest-labs/FLUX.1-dev',
+            composition={'runtime': {'engine': 'diffusers'}},
+            extra_info={'weights': FLUX_WEIGHTS})
+        self.folder = tempfile.mkdtemp(prefix='wama_gguf_')
+        self.addCleanup(shutil.rmtree, self.folder, True)
+        self.weights = AIModel.objects.create(
+            model_key=FLUX_GGUF_KEY, name='FLUX.1-dev Q8_0 (GGUF)', model_type='diffusion',
+            source='huggingface', is_downloaded=False,
+            extra_info={'install_dir': self.folder, 'declared_files': FLUX_GGUF_FILES})
+
+    def _place_the_file(self):
+        from pathlib import Path
+        from wama.common.backends.diffusers_backend import FLUX_GGUF_WEIGHTS
+        (Path(self.folder) / FLUX_GGUF_WEIGHTS).write_bytes(b'gguf')
+
+    def test_absent_its_precision_is_not_offered(self):
+        with self.card(20.3, 3.7):
+            self.assertEqual(gov.chosen_precision(self.KEY).precision.label, 'NF4')
+
+    def test_in_place_it_is_weighed_by_its_declared_size_and_retained(self):
+        self._place_the_file()
+        with self.card(20.3, 3.7):
+            choice = gov.chosen_precision(self.KEY)
+        # max(transformeur GGUF 12 708 281 504 o = 11,84 Gio, T5 8,87) : tout se décharge.
+        self.assertEqual((choice.precision.label, choice.peak_gb), ('Q8_0', 11.84))
+
+    def test_the_engine_loads_the_installed_file(self):
+        from pathlib import Path
+        from wama.common.backends.diffusers_backend import DiffusersBackend, FLUX_GGUF_WEIGHTS
+        self._place_the_file()
+        engine = DiffusersBackend()
+        engine.catalogue_key = self.KEY
+        with self.card(20.3, 3.7), mock.patch.object(gov, 'effective_free_gb', return_value=20.3):
+            strategy = engine._get_flux_strategy()
+        self.assertEqual(strategy, {'quantization': 'gguf', 'label': 'Q8_0',
+                                    'gguf': str(Path(self.folder) / FLUX_GGUF_WEIGHTS)})
+
+    def test_its_declaration_is_one_the_files_driver_accepts(self):
+        from wama.common.backends.diffusers_backend import FLUX_GGUF_FILES, flux_gguf_folder
+        from wama.common.utils.model_locations import models_root
+        from wama.model_manager.services.model_installer import declared_files_error
+        self.assertIsNone(declared_files_error({'files': FLUX_GGUF_FILES,
+                                                'target_dir': str(flux_gguf_folder())}))
+        flux_gguf_folder().resolve().relative_to(models_root().resolve())
+
+    def test_the_catalogue_row_is_found_by_discovery_and_draws_no_task(self):
+        """La ligne existe absente, installable par la route — et aucune tâche ne la tire : elle est
+        FLUX.1-dev quantifié (relation `quantized`), pas un modèle à choisir."""
+        from wama.common.backends.diffusers_backend import FLUX_GGUF_KEY
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry.__new__(ModelRegistry)
+        registry._models, registry.discovery_errors = {}, []
+        registry._discover_precision_weights_models()
+        self.assertEqual(registry.discovery_errors, [])
+        row = registry._models[FLUX_GGUF_KEY]
+        self.assertEqual(row.extra_info['base_model_relation'], 'quantized')
+        self.assertEqual(row.extra_info['declared_files'][0]['path'], 'flux1-dev-Q8_0.gguf')
+        self.assertNotIn('task', row.capabilities)
 
 
 class OffloadDeclarationTwinTest(TestCase):
