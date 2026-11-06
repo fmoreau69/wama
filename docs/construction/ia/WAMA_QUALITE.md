@@ -204,9 +204,15 @@ le tirage revient à `albert:gemma-4-31b-it`. Gardes : `tests_signal_scale_subse
 ⏳ Reste vu au passage : le sous-indice `coding` (tirage de développement) n'est plus porté que
 par des notes AA v4 PÉRIMÉES — AA v5 ne publie pas cette famille (`legal`, `engineering`…), donc
 `ilaas:qwen-3.6-35b-instruct` (v4, 41,9) l'emporte sur une note qu'aucune source ne confirme plus.
-⏳ Et `AIModel.best_installed` (le référentiel de la prospection) se dit « même règle d'étage que la
-sélection » mais s'arrête à l'échelle commune : ni rang centile (absent depuis son branchement du
-26/09), ni mesure interne, ni sous-indice — à aligner sur `_quality_scalars` plutôt qu'à prolonger.
+✅ **2026-11-07** — `AIModel.best_installed` (le référentiel « concurrence » de la prospection) se
+disait « même règle d'étage que la sélection » et n'en recopiait que trois étages : ni rang centile
+(absent depuis son branchement du 26/09), ni mesure interne, ni repli VRAM. Il LIT désormais
+`_quality_scalars` (gardes `tests_signal_scale_subset.BestInstalledReadsTheSelectorLadderTest`).
+Mesuré sur le catalogue : `llm` passe de qwen3.8, gemma4:12b, translategemma à gemma4:12b,
+qwen3.5:4b, gemma4:e4b — le même défaut que le tirage local, désormais vu aussi par la prospection
+(une note v4 PÉRIMÉE au 50ᵉ centile de 570 modèles passe devant une note v5 fraîche au 17ᵉ de 93) :
+⏳ décision de Fabien en attente (les notes périmées dans les tirages, 2026-11-07). `diffusion`,
+`speech`, `vision`, `ocr` changent aussi d'ordre ; `vlm`, `embedding`, `audio` non.
 Le rang du porteur, lui, n'est plus écrit qu'une fois : c'est l'entrée de sa propre échelle.
 
 **L'étage a priori a désormais des valeurs DÉCLARÉES, avec leur source** (2026-10-03, décision de

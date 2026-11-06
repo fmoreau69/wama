@@ -272,6 +272,38 @@ class SharedPopulationRankTest(TestCase):
         self.assertEqual(66.7, benchmark['scales'][1]['percentile_rank'])
 
 
+class BestInstalledReadsTheSelectorLadderTest(TestCase):
+    """2026-11-07 : `AIModel.best_installed` (le référentiel de la prospection) se disait « même règle
+    d'étage que la sélection » et n'en recopiait que trois étages — ni rang centile, ni mesure
+    interne, ni repli VRAM. Il lit désormais `_quality_scalars`."""
+
+    def _installed(self, key, *, quality=None, ranks=(), vram=0.0):
+        meta = {}
+        if ranks:
+            meta = {'scale': ranks[0][0], 'percentile_rank': ranks[0][2],
+                    'scales': [{'scale': s, 'value': v, 'direction': 'higher', 'percentile_rank': r}
+                               for s, v, r in ranks]}
+        return AIModel.objects.create(model_key=key, name=key, model_type='llm', is_downloaded=True,
+                                      quality_index=quality, vram_gb=vram,
+                                      benchmark_index=ranks[0][1] if ranks else None,
+                                      benchmark_meta=meta)
+
+    def test_two_scales_rank_by_the_shared_population_not_by_the_prior(self):
+        # A priori à l'envers du banc : l'ancienne copie retombait sur lui dès deux échelles.
+        self._installed('x:arena-strong', quality=1.0,
+                        ranks=[('aa_intelligence_index_v5', 20.1, 22.6), ('arena_elo_text', 1481, 80.0)])
+        self._installed('x:arena-weak', quality=9.0, ranks=[('arena_elo_text', 1300, 40.0)])
+        self.assertEqual(['x:arena-strong', 'x:arena-weak'],
+                         [m.model_key for m in AIModel.best_installed('llm', limit=2)])
+
+    def test_a_model_no_tier_rates_comes_after(self):
+        # Nommé pour passer PREMIER dans l'ordre de la table : seul le classement le met après.
+        self._installed('x:a-unrated')
+        self._installed('x:z-rated', ranks=[('arena_elo_text', 1300, 40.0)])
+        self.assertEqual(['x:z-rated', 'x:a-unrated'],
+                         [m.model_key for m in AIModel.best_installed('llm', limit=2)])
+
+
 class LocalAndCloudAreDistinctTest(TestCase):
 
     def test_cloud_is_read_from_the_declared_field_not_from_vram(self):

@@ -1132,9 +1132,15 @@ class AIModel(ScopedVisibility):
         jury le jugeait contre ce référentiel. Donnée, la tâche restreint le lot aux modèles
         qui l'exercent (`capabilities.task` ou `tasks`, vocabulaire canonique). Lot vide =
         aucun concurrent installé pour ce métier : on le dit, on ne retombe pas sur un autre.
+
+        ⚠⚠ Et la « même règle » n'était encore qu'une COPIE PARTIELLE jusqu'au 2026-11-07
+        (revérification du 06/11, demande de Fabien) : trois étages sur sept — valeur à échelle
+        unique, échelle commune, a priori. Ni la mesure interne (14/10), ni le rang centile
+        (26/09, revu le 06/11), ni le repli VRAM : chaque étage ajouté à la sélection manquait ici.
+        Le classement LIT désormais l'échelle des signaux à son domicile
+        (`model_selector._quality_scalars`) ; un modèle qu'aucun étage ne note passe après.
         """
-        from .services.benchmark_sync import (benchmarks_comparable, common_scale_values,
-                                              orderable_value)
+        from .services.model_selector import _quality_scalars
         lot = list(cls.objects.filter(model_type=model_type, is_downloaded=True,
                                       is_proposed=False))
         wanted = canonical_task((task or '').strip().lower()) if task else None
@@ -1144,19 +1150,10 @@ class AIModel(ScopedVisibility):
                 raw = caps.get('tasks') or ([caps['task']] if caps.get('task') else [])
                 return {canonical_task((t or '').strip().lower()) for t in raw}
             lot = [m for m in lot if wanted in tasks_of(m)]
-        if benchmarks_comparable(lot):
-            # `orderable_value`, pas `benchmark_index` : un taux d'erreur (WER) se trie à
-            # l'envers d'un score, et c'est l'échelle qui le dit (`direction`), pas ce code.
-            lot.sort(key=orderable_value, reverse=True)
-            return lot[:limit]
-        # Porteurs différents, échelle commune à tout le lot (2026-10-30) : la même règle que
-        # l'étage de la sélection (`model_selector._quality_scalars`), lue au même domicile.
-        common = common_scale_values(lot)
-        if common:
-            lot.sort(key=lambda m: common[id(m)], reverse=True)
-            return lot[:limit]
-        # Repli a priori, `None` en dernier (l'ordre de l'ancien `order_by(...nulls_last)`).
-        lot.sort(key=lambda m: (m.quality_index is None, -(m.quality_index or 0)))
+        # Valeurs ordonnables (plus haut = meilleur, le SENS d'un taux d'erreur compris), sur le
+        # seul sous-ensemble que l'étage retenu compare ; tri stable : à égalité, l'ordre du lot.
+        values, _proxy_vram = _quality_scalars(lot, None)
+        lot.sort(key=lambda m: (id(m) not in values, -values.get(id(m), 0)))
         return lot[:limit]
 
     @property
