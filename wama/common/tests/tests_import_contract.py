@@ -367,5 +367,11 @@ class HarnessWitnessIsValidTest(SimpleTestCase):
         with Image.open(path) as image:
             image.verify()
 
+    def test_a_3d_object_zone_receives_a_real_gltf(self):
+        from wama.common.utils.media_probe import probe_media
+        path = self._witness('.glb')
+        self.assertEqual(path.read_bytes()[:4], b'glTF')
+        self.assertEqual(probe_media(str(path))['media_type'], '3d')
+
     def test_counter_proof_a_zone_with_no_writable_extension_keeps_its_own(self):
         self.assertEqual(self._witness('.pdf,.docx').suffix, '.pdf')

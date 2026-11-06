@@ -57,6 +57,22 @@ class ScannerTests(SimpleTestCase):
         self.assertEqual([x['genre'] for x in d], ['load-introuvable'])
         self.assertIn('bibliotheque_disparue', d[0]['extrait'])
 
+    def test_a_hidden_element_carrying_a_display_class_is_reported(self):
+        # Vécu le 2026-11-06 : `d-flex` (display: flex !important) l'emportait sur `hidden`, la
+        # proposition de la card d'ajout de la médiathèque restait à l'écran, boutons morts.
+        # Attributs sur plusieurs lignes, comme dans le gabarit réel.
+        d = self._defauts(page='<div class="alert mt-2 d-flex gap-2"\n     data-x hidden>\n</div>')
+        self.assertEqual([x['genre'] for x in d], ['hidden-affiché'])
+        self.assertIn('d-flex', d[0]['extrait'])
+
+    def test_counter_proof_hidden_or_display_class_alone_is_silent(self):
+        self.assertEqual(self._defauts(page=(
+            '<div class="d-flex" data-x></div>'
+            '<div class="alert" hidden><div class="d-flex"></div></div>'
+            '<span class="visually-hidden d-block">x</span>'
+            '<i class="fas" aria-hidden="true"></i>'
+            '<input title="hidden d-flex" class="form-control">')), [])
+
     def test_un_load_de_bibliotheques_existantes_ne_declenche_rien(self):
         # Contre-épreuve : les 129 gabarits du dépôt en chargent à longueur de fichier.
         self.assertEqual(

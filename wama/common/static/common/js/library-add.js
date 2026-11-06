@@ -85,7 +85,8 @@
       var schema = (n && n.attributes) || {};
       var asked = Object.keys(schema).filter(function (k) { return schema[k].on_add; });
       attrsHost.hidden = !asked.length;
-      attrsHost.innerHTML = asked.map(function (k) {
+      // La rangée flexible est un ENFANT : sur l'hôte, `d-flex` l'emporterait sur `hidden`.
+      attrsHost.innerHTML = '<div class="d-flex flex-wrap gap-2">' + asked.map(function (k) {
         var a = schema[k];
         var values = (a.choices && a.choices.length) ? a.choices : Object.keys(a.labels || {});
         if (values.length) {
@@ -97,7 +98,7 @@
         }
         return '<input type="text" class="form-control form-control-sm" style="max-width:11rem" data-attr="'
           + esc(k) + '" placeholder="' + esc(a.label) + '" title="' + esc(a.description) + '">';
-      }).join('');
+      }).join('') + '</div>';
     }
 
     // ── PROPOSER avant d'ajouter (2026-09-30) ─────────────────────────────────────────────

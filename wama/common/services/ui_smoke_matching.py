@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 from django.conf import settings
 
 from .ui_smoke import (BASE_URL, IGNORED_CONSOLE, _messages_a_l_ecran, _test_session_key,
-                       _verdict_d_arrivee, _wav_silence)
+                       _verdict_d_arrivee, _wav_silence, witness_glb)
 
 # Les selects de modale (avatarizer) peuvent être hors écran : on pose `value` + `change` par
 # JS, jamais `select_option` (qui exige la visibilité).
@@ -638,41 +638,6 @@ def register_voice_library_scenarios():
 # MÉDIATHÈQUE : les natures DÉRIVENT (A′) et un objet 3D se REND (§17ter trou 2)
 # ═══════════════════════════════════════════════════════════════════════════════════════
 
-def _glb_temoin(animated: bool = True) -> bytes:
-    """Un GLB minimal et VALIDE (cube unitaire, 8 sommets, 12 triangles) — fabriqué octet par
-    octet, aucune dépendance. Sert au nocturne ET aux tests (`media_library/tests_object3d`)."""
-    import json
-    import struct
-    verts = [(x, y, z) for x in (0, 1) for y in (0, 1) for z in (0, 1)]
-    idx = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1,
-           2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3]
-    vbuf = b''.join(struct.pack('<fff', *v) for v in verts)
-    ibuf = b''.join(struct.pack('<H', i) for i in idx)
-    ibuf += b'\0' * (-len(ibuf) % 4)
-    bin_chunk = vbuf + ibuf
-    doc = {
-        'asset': {'version': '2.0', 'generator': 'wama-temoin'},
-        'buffers': [{'byteLength': len(bin_chunk)}],
-        'bufferViews': [{'buffer': 0, 'byteOffset': 0, 'byteLength': len(vbuf)},
-                        {'buffer': 0, 'byteOffset': len(vbuf), 'byteLength': len(idx) * 2}],
-        'accessors': [{'bufferView': 0, 'componentType': 5126, 'count': 8, 'type': 'VEC3',
-                       'min': [0, 0, 0], 'max': [1, 1, 1]},
-                      {'bufferView': 1, 'componentType': 5123, 'count': len(idx), 'type': 'SCALAR'}],
-        'meshes': [{'name': 'cube', 'primitives': [{'attributes': {'POSITION': 0}, 'indices': 1}]}],
-        'nodes': [{'mesh': 0, 'name': 'cube'}],
-        'scenes': [{'nodes': [0]}], 'scene': 0,
-    }
-    if animated:
-        doc['animations'] = [{'name': 'tourne', 'channels': [], 'samplers': []}]
-        doc['skins'] = [{'joints': [0]}]
-    jbytes = json.dumps(doc, separators=(',', ':')).encode('utf-8')
-    jbytes += b' ' * (-len(jbytes) % 4)
-    total = 12 + 8 + len(jbytes) + 8 + len(bin_chunk)
-    return (struct.pack('<4sII', b'glTF', 2, total)
-            + struct.pack('<I4s', len(jbytes), b'JSON') + jbytes
-            + struct.pack('<I4s', len(bin_chunk), b'BIN\0') + bin_chunk)
-
-
 def check_media_library_natures_3d(url_path: str = '/media-library/'):
     """La page médiathèque SERVIE dérive ses tables de `NATURES` (A′) et rend un GLB. (ok, detail).
 
@@ -693,7 +658,7 @@ def check_media_library_natures_3d(url_path: str = '/media-library/'):
     for vieux in UserAsset.objects.filter(user=user, name='wama_temoin_cube_3d'):
         _retirer(vieux)
     a = UserAsset(user=user, name='wama_temoin_cube_3d', asset_type='object3d')
-    a.file.save('wama_temoin_cube_3d.glb', ContentFile(_glb_temoin()), save=False)
+    a.file.save('wama_temoin_cube_3d.glb', ContentFile(witness_glb()), save=False)
     enrich_asset_from_file(a)
     a.save()
     verdicts = [(a.attributes.get('polygons') == 12 and a.attributes.get('rigged') is True,
@@ -785,7 +750,7 @@ def check_media_library_thumbnails(url_path: str = '/media-library/'):
     image.file.save('wama_temoin_vignette.png', ContentFile(_png_sample()), save=False)
     image.save()
     avatar = UserAsset(user=user, name=names['avatar'], asset_type='avatar', mime_type='')
-    avatar.file.save('wama_temoin_vignette_avatar.glb', ContentFile(_glb_temoin(animated=False)),
+    avatar.file.save('wama_temoin_vignette_avatar.glb', ContentFile(witness_glb(animated=False)),
                      save=False)
     avatar.save()
     verdicts = []

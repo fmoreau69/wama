@@ -30,6 +30,10 @@ CE QUE LA COMMANDE VÉRIFIE
                                               ultérieur le rend dangereux (cas du 26/07).
 3. `{#` sans `#}` sur la même ligne         → même famille, attrapé par 1 mais signalé à part
                                               quand le `#}` manque tout court.
+4. `{% load X %}` vers une bibliothèque absente (2026-09-01).
+5. un élément `hidden` porteur d'une classe d'affichage Bootstrap (`d-flex`…) → il ne se cache
+   JAMAIS : la classe pose `display: … !important` (2026-11-06). Remède : la classe sur un
+   enfant, l'attribut sur l'enveloppe.
 
 CE QU'ELLE NE VÉRIFIE PAS : la syntaxe des gabarits en général (c'est le travail de Django), ni
 le rendu. Elle attrape UNE famille de fautes, celle qui a récidivé sept fois.
@@ -61,6 +65,18 @@ OUVERTURE_SEULE = re.compile(r'\{#(?!.*#\})', re.MULTILINE)
 CHARGEMENT = re.compile(r'\{%\s*load\s+([^%]+?)\s*%\}')
 BALISES_AVALEUSES = ('template', 'script', 'style', 'textarea', 'iframe', 'noscript')
 BALISE = re.compile(r'<\s*/?\s*(' + '|'.join(BALISES_AVALEUSES) + r')\b', re.IGNORECASE)
+
+#: Une balise OUVRANTE (attributs sur plusieurs lignes compris) et ses valeurs entre guillemets.
+OPENING_TAG = re.compile(r'<[a-zA-Z][\w-]*\b[^>]*>')
+QUOTED = re.compile(r'"[^"]*"|\'[^\']*\'')
+HIDDEN_ATTR = re.compile(r'\shidden(?=[\s/>=])')
+CLASS_ATTR = re.compile(r'\sclass\s*=\s*"([^"]*)"')
+#: Les classes d'AFFICHAGE de Bootstrap posent `display: … !important` : elles l'emportent sur
+#: `[hidden]` (même spécificité, déclarées après). Un élément qui porte les deux ne se cache
+#: JAMAIS (2026-11-06 : la proposition de la card d'ajout de la médiathèque restait à l'écran,
+#: boutons morts, après l'ajout).
+DISPLAY_UTILITY = re.compile(r'^d(?:-(?:sm|md|lg|xl|xxl))?-(?:flex|block|grid|inline|inline-block|'
+                             r'inline-flex|table|table-cell|table-row)$')
 
 
 def _gabarits(base):
@@ -119,6 +135,18 @@ def scanner(base=None):
                     continue
                 defauts.append({'fichier': rel, 'ligne': ligne, 'genre': 'load-introuvable',
                                 'extrait': f"{{% load … {nom} … %}} — bibliothèque absente"})
+        # Un élément `hidden` qui porte une classe d'affichage ne se cache jamais (2026-11-06).
+        for m in OPENING_TAG.finditer(texte):
+            tag = m.group(0)
+            classes = CLASS_ATTR.search(tag)
+            if not classes or not HIDDEN_ATTR.search(QUOTED.sub('""', tag)):
+                continue
+            utilities = [c for c in classes.group(1).split() if DISPLAY_UTILITY.match(c)]
+            if utilities:
+                defauts.append({'fichier': rel, 'ligne': texte[:m.start()].count('\n') + 1,
+                                'genre': 'hidden-affiché',
+                                'extrait': f"`hidden` + `{' '.join(utilities)}` : l'élément ne se "
+                                           "cache jamais"})
     return defauts
 
 

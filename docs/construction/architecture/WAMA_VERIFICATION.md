@@ -358,6 +358,23 @@ voir aucun palier : il faudra une entrée plus longue) **et le câblage transcri
 > recopiée : une zone `video/*` reçoit une vraie mire, plus du texte nommé `.mp4`. Garde :
 > `tests_import_contract.HarnessWitnessIsValidTest`.
 > ⏳ Reste : une extension sans écrivain (`.pdf`, `.docx`, `.mp3` seule) reçoit encore du texte.
+> Mesuré par port de card d'entrée : plus aucun port ne tombe dans ce cas depuis l'écrivain `.glb`
+> (`witness_glb`, l'objet 3D de l'avatarizer).
+>
+> ⚠⚠ **Même jour, la médiathèque : `media_library.import` et `.folder_import` ROUGES depuis au
+> moins le 10/10 — jamais verts —, l'app était saine.** Rejoué au navigateur comme un humain : un
+> fichier, puis un dossier de deux, font trois éléments. Le scénario se trompait trois fois :
+> il ne comptait que les RÉPONSES reçues en 4,5 s (l'écoute d'une voix — langue, genre — a pris
+> 42,7 s à froid : « AUCUNE requête émise ») ; il ignorait le geste « Ajouter » de la card qui
+> PROPOSE avant d'ajouter (`_library_add_extra.html`) ; il comptait des `.wama-card` sur une page
+> qui n'en montre pas. Désormais : les POST se comptent à l'ÉMISSION et s'attendent
+> (`_settle_posts`), « Ajouter » est cliqué (`_confirm_proposals`), la BASE compte quand le
+> modèle d'élément est connu, et un « rien ne l'écoute » cite ce que l'app a affiché.
+> Le même rejeu a trouvé un vrai défaut, sans rapport avec le scénario : la proposition restait à
+> l'écran après l'ajout, boutons morts. `d-flex` pose `display: flex !important` et l'emporte sur
+> `hidden`. `check_templates` signale désormais tout élément `hidden` porteur d'une classe
+> d'affichage. Il en a trouvé deux, ceux de cette card. Contre-épreuve : sans « Ajouter », le
+> scénario rougit.
 
 > ⚠ **UN scénario, pas dix-sept — et c'est la réponse à une question de Fabien du même jour :**
 > *« les tests sont créés individuellement pour chaque application ou déclinés automatiquement

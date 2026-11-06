@@ -689,6 +689,42 @@ def _witness_html() -> bytes:
             f'<h1 {SECTION_ATTR}="0">Témoin</h1>{sections}</body></html>').encode('utf-8')
 
 
+def witness_glb(animated: bool = True) -> bytes:
+    """Un GLB minimal et VALIDE (cube unitaire, 8 sommets, 12 triangles) — fabriqué octet par
+    octet, aucune dépendance. Sert au nocturne ET aux tests (`media_library/tests_object3d`) ;
+    écrivain du `.glb` de `WITNESS_WRITERS` (déplacé de `ui_smoke_matching` le 2026-11-06)."""
+    import json
+    import struct
+    verts = [(x, y, z) for x in (0, 1) for y in (0, 1) for z in (0, 1)]
+    idx = [0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5, 0, 4, 5, 0, 5, 1,
+           2, 3, 7, 2, 7, 6, 0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3]
+    vbuf = b''.join(struct.pack('<fff', *v) for v in verts)
+    ibuf = b''.join(struct.pack('<H', i) for i in idx)
+    ibuf += b'\0' * (-len(ibuf) % 4)
+    bin_chunk = vbuf + ibuf
+    doc = {
+        'asset': {'version': '2.0', 'generator': 'wama-temoin'},
+        'buffers': [{'byteLength': len(bin_chunk)}],
+        'bufferViews': [{'buffer': 0, 'byteOffset': 0, 'byteLength': len(vbuf)},
+                        {'buffer': 0, 'byteOffset': len(vbuf), 'byteLength': len(idx) * 2}],
+        'accessors': [{'bufferView': 0, 'componentType': 5126, 'count': 8, 'type': 'VEC3',
+                       'min': [0, 0, 0], 'max': [1, 1, 1]},
+                      {'bufferView': 1, 'componentType': 5123, 'count': len(idx), 'type': 'SCALAR'}],
+        'meshes': [{'name': 'cube', 'primitives': [{'attributes': {'POSITION': 0}, 'indices': 1}]}],
+        'nodes': [{'mesh': 0, 'name': 'cube'}],
+        'scenes': [{'nodes': [0]}], 'scene': 0,
+    }
+    if animated:
+        doc['animations'] = [{'name': 'tourne', 'channels': [], 'samplers': []}]
+        doc['skins'] = [{'joints': [0]}]
+    jbytes = json.dumps(doc, separators=(',', ':')).encode('utf-8')
+    jbytes += b' ' * (-len(jbytes) % 4)
+    total = 12 + 8 + len(jbytes) + 8 + len(bin_chunk)
+    return (struct.pack('<4sII', b'glTF', 2, total)
+            + struct.pack('<I4s', len(jbytes), b'JSON') + jbytes
+            + struct.pack('<I4s', len(bin_chunk), b'BIN\0') + bin_chunk)
+
+
 def witness_sample(kind: str) -> tuple:
     """Le CONTENU témoin d'un champ fichier de surface (`Surface.witness`) — `(octets, extension)`.
 
@@ -721,6 +757,7 @@ WITNESS_WRITERS = {
     '.html': lambda ext: _witness_html(),
     '.mp4': lambda ext: _witness_video(),
     '.txt': lambda ext: b'temoin import WAMA\n',
+    '.glb': lambda ext: witness_glb(animated=False),
 }
 
 
@@ -801,10 +838,14 @@ def _exiger_la_page(page, resp, cible: str):
 
 
 def _messages_a_l_ecran(page) -> str:
-    """Les messages Django affichés — c'est là que le middleware NOMME son refus."""
+    """Les messages Django affichés — c'est là que le middleware NOMME son refus.
+
+    AFFICHÉS seulement (2026-11-06) : sur un élément caché, `innerText` rend tout son texte — la
+    proposition repliée de la card d'ajout de la médiathèque passait pour un message à l'écran."""
     try:
         return (page.evaluate(
             "() => Array.from(document.querySelectorAll('.alert, .messages li, .toast'))"
+            "        .filter(e => e.getClientRects().length > 0)"
             "        .map(e => (e.innerText || '').trim()).filter(Boolean).join(' | ')")
                 or '')[:300]
     except Exception:
@@ -938,6 +979,49 @@ def _test_session_key(app: str | None = None):
     return s.session_key
 
 
+def _settle_posts(page, outstanding, floor_ms: int = 4500, deadline_s: float = 90.0):
+    """Attend que chaque POST ÉMIS ait sa réponse (ou son échec), borné — `outstanding()` rend
+    le nombre de POST encore sans réponse.
+
+    ⚠ Les scénarios d'import ne comptaient que les RÉPONSES reçues dans une fenêtre fixe de 4,5 s :
+    une requête plus lente était rapportée « AUCUNE requête émise — rien ne l'écoute ». Mesuré le
+    2026-11-06 sur la médiathèque : l'écoute d'un fichier (langue, genre) a pris 42,7 s à froid —
+    le scénario la déclarait muette depuis le 10/10."""
+    page.wait_for_timeout(floor_ms)
+    waited = floor_ms / 1000
+    while outstanding() > 0 and waited < deadline_s:
+        page.wait_for_timeout(500)
+        waited += 0.5
+
+
+#: La card d'AJOUT commune (`_library_add_extra.html`) qui PROPOSE avant d'ajouter attend-elle
+#: le geste « Ajouter » ? (proposition affichée, bouton actif) — `sel` : un champ de la card.
+_PROPOSAL_WAITING = """(sel) => {
+    const root = document.querySelector(sel)?.closest('[data-library-add]');
+    const box = root && root.querySelector('[data-library-pending]');
+    const confirm = root && root.querySelector('[data-library-confirm]');
+    return !!(box && !box.hidden && confirm && !confirm.disabled);
+}"""
+
+
+def _confirm_proposals(page, field_selector: str, outstanding, most: int = 4) -> int:
+    """Le geste humain d'une card qui PROPOSE avant d'ajouter : « Ajouter », une fois par fichier
+    proposé (2026-11-06 — la médiathèque écoute une voix et propose langue et genre ; le scénario
+    s'arrêtait à la proposition et concluait « aucun élément »). Rend le nombre de clics."""
+    confirm = f"[data-library-add]:has({field_selector}) [data-library-confirm]"
+    clicks = 0
+    for _ in range(most):
+        _settle_posts(page, outstanding, floor_ms=500)
+        if not page.evaluate(_PROPOSAL_WAITING, field_selector):
+            break
+        _deplier_autour(page, confirm)
+        page.click(confirm, timeout=10000)
+        clicks += 1
+    if clicks:
+        _settle_posts(page, outstanding, floor_ms=1500)
+    return clicks
+
+
 def check_app_import(app: str, url_path: str):
     """L'app sait-elle CRÉER un élément depuis sa card d'entrée ? (ok, detail).
 
@@ -1022,6 +1106,7 @@ def check_app_import(app: str, url_path: str):
             modele = None
 
     temoin = None
+    created_count = None
     sessions_before = _session_keys()
     # ⚠ Toute lecture ORM doit se faire AVANT `sync_playwright()` : à l'intérieur, Django
     # refuse l'accès synchrone (SynchronousOnlyOperation). Le jeton est donc préparé ici.
@@ -1059,6 +1144,9 @@ def check_app_import(app: str, url_path: str):
                             corps = '(corps illisible)'
                     posts.append((r.status, r.url.split('?')[0], corps))
                 page.on('response', _voir)
+                emitted, failed = [], []
+                page.on('request', lambda r: emitted.append(r.url) if r.method == 'POST' else None)
+                page.on('requestfailed', lambda r: failed.append(r.url) if r.method == 'POST' else None)
                 resp = page.goto(url, wait_until='networkidle', timeout=45000)
                 mauvaise_page = _exiger_la_page(page, resp, url)
                 if mauvaise_page:
@@ -1104,8 +1192,11 @@ def check_app_import(app: str, url_path: str):
                 cible = etat['champ_id']
                 sel = f"#{cible}" if cible and cible != '(sans id)' else 'input[type=file]'
                 page.set_input_files(sel, str(temoin))
-                page.wait_for_timeout(4500)
+                outstanding = lambda: len(emitted) - len(posts) - len(failed)  # noqa: E731
+                _settle_posts(page, outstanding)
+                confirmations = _confirm_proposals(page, sel, outstanding)
                 apres = page.evaluate("document.querySelectorAll('.wama-card').length")
+                dit = _messages_a_l_ecran(page)
                 envoyes = [f"{s} {u.rsplit('/', 2)[-2]}/" for s, u, _c in posts]
             finally:
                 navigateur.close()
@@ -1128,22 +1219,39 @@ def check_app_import(app: str, url_path: str):
         if modele is not None:
             try:
                 crees = set(modele.objects.values_list('id', flat=True)) - ids_avant
+                created_count = len(crees)
                 if crees:
                     modele.objects.filter(id__in=crees).delete()
                     _nettoyes.append(len(crees))
             except Exception:
                 pass
 
-    if not posts:
+    if not emitted:
         return False, (f"dépôt sur {etat['champ_id']} ({etat['champs_total']} champ(s) fichier "
-                       f"dans la page) : AUCUNE requête émise — la zone de dépôt existe "
-                       "mais RIEN NE L'ÉCOUTE. Défaut silencieux : ni erreur console, ni "
-                       "message ; c'est l'état exact d'une app générée sans couche JS.")
+                       f"dans la page) : AUCUNE requête émise — "
+                       + (f"l'app a répondu à l'écran : « {dit} »" if dit else
+                          "la zone de dépôt existe mais RIEN NE L'ÉCOUTE. Défaut silencieux : ni "
+                          "erreur console, ni message ; c'est l'état exact d'une app générée "
+                          "sans couche JS."))
+    if len(emitted) > len(posts) + len(failed):
+        return False, (f"{len(emitted) - len(posts) - len(failed)} requête(s) émise(s) restée(s) "
+                       f"sans réponse après 90 s ({', '.join(envoyes[:3]) or 'aucune réponse'})")
     echecs = [f"{s} {u}" + (f" → {c}" if c else '') for s, u, c in posts if s >= 400]
+    echecs += [f"échec réseau {u}" for u in failed]
     if echecs:
         return False, f"requêtes en échec : {' | '.join(echecs[:2])}"
     trace = f" ; {sum(_nettoyes)} élément(s) de test supprimé(s)" if _nettoyes else \
             ("" if modele is not None else " ; ⚠ modèle inconnu du PreviewRegistry : rien nettoyé")
+    trace += f" ; « Ajouter » cliqué {confirmations} fois (proposition de la card)" \
+        if confirmations else ""
+    # La BASE compte quand le modèle d'élément est connu (doctrine du scénario de dossier : une
+    # page qui ne montre pas ses éléments en `.wama-card` — la médiathèque — n'en crée pas moins).
+    if created_count is not None:
+        if created_count == 0:
+            return False, (f"requête(s) acceptée(s) ({', '.join(envoyes[:3])}) mais aucun "
+                           f"élément en base ({avant} → {apres} cards)" + trace)
+        return True, (f"{created_count} élément(s) créé(s) en base ({avant} → {apres} cards ; "
+                      f"{', '.join(envoyes[:3])} ; voie : {voie}){trace}")
     if apres <= avant:
         return False, (f"requête(s) acceptée(s) ({', '.join(envoyes[:3])}) mais aucun élément "
                        f"n'apparaît ({avant} → {apres}) — contrat de réponse ou rafraîchissement"
@@ -2552,6 +2660,11 @@ def check_app_folder_import(app: str, url_path: str):
                                 corps = '(corps illisible)'
                         posts.append((r.status, r.url.split('?')[0], corps))
                     page.on('response', _voir)
+                    emitted, failed = [], []
+                    page.on('request', lambda r: emitted.append(r.url) if r.method == 'POST' else None)
+                    page.on('requestfailed',
+                            lambda r: failed.append(r.url) if r.method == 'POST' else None)
+                    outstanding = lambda: len(emitted) - len(posts) - len(failed)  # noqa: E731
 
                     resp = page.goto(f"{BASE_URL.rstrip('/')}{url_path}",
                                      wait_until='networkidle', timeout=45000)
@@ -2663,12 +2776,15 @@ def check_app_folder_import(app: str, url_path: str):
                             pass
                     except Exception:
                         pass
-                    page.wait_for_timeout(5000)
+                    _settle_posts(page, outstanding, floor_ms=5000)
+                    confirmations = _confirm_proposals(page, f"#{etat['input_id']}", outstanding,
+                                                       most=len(temoins) + 1)
                     try:
                         page.wait_for_load_state('networkidle', timeout=15000)
                     except Exception:
                         pass
                     apres_cards = page.evaluate("document.querySelectorAll('.wama-card').length")
+                    dit = _messages_a_l_ecran(page)
                 finally:
                     navigateur.close()
 
@@ -2695,7 +2811,10 @@ def check_app_folder_import(app: str, url_path: str):
         _drop_new_sessions(sessions_before)
 
     trace = (f" ; {_total_nettoye(_nettoyes)} objet(s) de test nettoyé(s)" if _nettoyes else "")
+    trace += f" ; « Ajouter » cliqué {confirmations} fois (proposition de la card)" \
+        if confirmations else ""
     echecs = [f"HTTP {s} {u}" + (f" → {c}" if c else '') for s, u, c in posts if s >= 400]
+    echecs += [f"échec réseau {u}" for u in failed]
     if crees is None:
         # Sans modèle d'élément on ne peut PAS conclure sur la moitié B : les cards ne
         # distinguent pas « 2 éléments » de « 1 lot de 2 ». On le dit au lieu de trancher.
@@ -2704,10 +2823,15 @@ def check_app_folder_import(app: str, url_path: str):
                            f"et les cards ({avant_cards} → {apres_cards}) ne le disent pas"
                            + trace)
     if crees == 0:
-        if not posts:
+        if not emitted:
             return False, (f"{detail_a} ; mais poser 2 fichiers sur #{etat['input_id']} n'émet "
-                           "AUCUNE requête et l'app ne dit rien — l'affordance est rendue par "
-                           "la card commune, RIEN NE L'ÉCOUTE. Défaut muet" + trace)
+                           "AUCUNE requête et "
+                           + (f"l'app répond à l'écran : « {dit} »" if dit else
+                              "l'app ne dit rien — l'affordance est rendue par la card commune, "
+                              "RIEN NE L'ÉCOUTE. Défaut muet") + trace)
+        if outstanding() > 0:
+            return False, (f"{detail_a} ; {outstanding()} requête(s) émise(s) restée(s) sans "
+                           "réponse après 90 s" + trace)
         if echecs:
             return False, (f"{detail_a} ; les 2 fichiers sont refusés — "
                            f"{' | '.join(echecs[:2])}" + trace)

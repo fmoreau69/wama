@@ -16,10 +16,10 @@ from wama.common.utils.media_probe import probe_media, probe_object3d
 
 
 def cube_glb(animated: bool = False) -> bytes:
-    """Le cube témoin vit UNE fois, dans la brique nocturne (`ui_smoke._glb_temoin`) — le
+    """Le cube témoin vit UNE fois, dans la brique nocturne (`ui_smoke.witness_glb`) — le
     nocturne et ces tests fabriquent le même octet par octet."""
-    from wama.common.services.ui_smoke_matching import _glb_temoin
-    return _glb_temoin(animated=animated)
+    from wama.common.services.ui_smoke import witness_glb
+    return witness_glb(animated=animated)
 
 
 class LaSondeLitLaTableDesMatieresTest(TestCase):
