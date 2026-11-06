@@ -28506,6 +28506,11 @@ pousser `fac2b2b65` et le commit de cette clôture (à demander) ; jumelles rég
   d'un backend. Le manifeste de tiny sort donc sans `faster-whisper`. Lui donner un `engine` serait
   un pansement (le champ dit « le moteur que le backend invoque ») : la règle se décide (déclarer la
   librairie d'un module `loaded_by` ? la lire à son import ?) — décision de Fabien.
+  ✅ *Soldé le 2026-11-06 (Fabien : « il faut le faire ») — `WAMA_MANIFEST_SPEC §7.1`, paragraphe
+  du 2026-11-06. Le « pansement » ne tenait pas : le registre `backends` dit « un moteur est une
+  LIBRAIRIE » (`registries_builtin.py:674-677`) et le Face Landmarker portait déjà `engine` +
+  `loaded_by` ; seul le libellé du validateur disait « que le backend invoque », corrigé. La
+  lecture à l'import est écartée, mesure à l'appui (le banc importe ultralytics pour LPIPS).*
 - 🔚 Rouges À AUTRUI au relevé du soir, prouvés sur la liste nominative : `tests_identifier_language`
   (code 2545 > 2544, classes 133 > 132, méthodes 1288 > 1286 — aucun nom des fichiers de cette
   session) et `SnapshotsInstallesTest.test_a_snapshot_is_left_only_to_the_entry_that_designates_it`

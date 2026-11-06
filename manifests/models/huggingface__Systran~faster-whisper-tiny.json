@@ -14,6 +14,7 @@
     },
     "composition": {
       "runtime": {
+        "engine": "faster-whisper",
         "loaded_by": "wama.common.utils.spoken_language"
       }
     },
@@ -58,7 +59,12 @@
   "manifest_kind": "model",
   "name": "Whisper tiny (langue parlée)",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "faster-whisper",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:Systran/faster-whisper-tiny",

@@ -76,7 +76,12 @@
   "manifest_kind": "model",
   "name": "hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "httpx",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:ollama:hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K",

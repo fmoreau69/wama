@@ -63,7 +63,12 @@
   "manifest_kind": "model",
   "name": "MediaPipe Face Landmarker",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "mediapipe",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:face_analyzer:mediapipe-face-landmarker",

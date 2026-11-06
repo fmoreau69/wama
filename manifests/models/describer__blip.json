@@ -57,7 +57,20 @@
   "manifest_kind": "model",
   "name": "Salesforce/blip-image-captioning-large",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "pillow",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:describer:blip",

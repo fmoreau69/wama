@@ -69,7 +69,20 @@
   "manifest_kind": "model",
   "name": "LocateAnything-3B",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "pillow",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:nvidia/LocateAnything-3B",

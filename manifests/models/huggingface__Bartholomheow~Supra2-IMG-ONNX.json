@@ -79,7 +79,16 @@
   "manifest_kind": "model",
   "name": "Supra2-IMG-ONNX",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "onnxruntime-gpu",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:Bartholomheow/Supra2-IMG-ONNX",

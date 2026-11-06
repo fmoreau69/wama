@@ -62,7 +62,12 @@
   "manifest_kind": "model",
   "name": "1xgaterv3_r_restore",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "onnxruntime-gpu",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:github:Phhofm/models:1xgaterv3_r_restore",

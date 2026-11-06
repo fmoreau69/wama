@@ -74,7 +74,12 @@
   "manifest_kind": "model",
   "name": "pyannote 3.1 (diarisation)",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "pyannote-audio",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:transcriber:pyannote-diarization",

@@ -100,7 +100,24 @@
   "manifest_kind": "model",
   "name": "canary-1b-v2",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "lhotse",
+      "kind": "library"
+    },
+    {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
+      "key": "nemo-toolkit",
+      "kind": "library"
+    },
+    {
+      "key": "soundfile",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:transcriber:canary-1b-v2",

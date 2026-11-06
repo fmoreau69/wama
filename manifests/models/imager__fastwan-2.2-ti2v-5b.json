@@ -83,7 +83,16 @@
   "manifest_kind": "model",
   "name": "FastWan 2.2 TI2V 5B — distillé 3 pas",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "diffusers",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:fastwan-2.2-ti2v-5b",

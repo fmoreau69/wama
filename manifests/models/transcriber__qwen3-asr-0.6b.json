@@ -67,7 +67,24 @@
   "manifest_kind": "model",
   "name": "Qwen3-ASR-0.6B",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
+      "key": "qwen-asr",
+      "kind": "library"
+    },
+    {
+      "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:transcriber:qwen3-asr-0.6b",

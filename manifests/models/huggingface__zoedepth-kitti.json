@@ -55,7 +55,16 @@
   "manifest_kind": "model",
   "name": "ZoeDepth (KITTI)",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:zoedepth-kitti",

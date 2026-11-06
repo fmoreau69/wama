@@ -197,7 +197,13 @@ def backend_for_model(model, entries=None):
     une exécutabilité (cf. `backend_missing`, dont le court-circuit a été retiré le 05/09).
     """
     composition = getattr(model, 'composition', None) or {}
-    engine = (composition.get('runtime') or {}).get('engine') or ''
+    runtime = composition.get('runtime') or {}
+    # Un modèle qu'une brique charge ELLE-MÊME (`loaded_by`) a son exécutant déclaré : son moteur
+    # dit la LIBRAIRIE qui le fait tourner (Whisper tiny : `faster-whisper`, le moteur du backend
+    # Whisper), jamais un backend à qui le confier — même règle que `backend_missing`.
+    if runtime.get('loaded_by'):
+        return None
+    engine = runtime.get('engine') or ''
     # `model_key` vaut `<source>:<model_id>` — et parfois `<source>:<famille>:<id>` (yolo).
     # C'est le DERNIER segment qui porte l'identifiant qu'un `SUPPORTED_MODELS` déclarerait.
     cle = getattr(model, 'model_key', '') or ''

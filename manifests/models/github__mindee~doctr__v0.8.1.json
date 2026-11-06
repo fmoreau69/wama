@@ -1,0 +1,86 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "document"
+      ],
+      "task": "page-orientation"
+    },
+    "composition": {
+      "components": [
+        {
+          "repo": "mindee/doctr",
+          "role": "page_orientation"
+        }
+      ],
+      "runtime": {
+        "engine": "doctr",
+        "loaded_by": "wama.common.backends.ocr_base"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "mobilenet_v3_small_page_orientation-8e60325c.pt",
+            "release": "mindee/doctr:v0.8.1",
+            "source": "github"
+          },
+          "path": "models/mobilenet_v3_small_page_orientation-8e60325c.pt",
+          "sha256": "8e60325c099cf70ba4203923d8ec15546b11d33f0f18fdd9d526040d60337674",
+          "size": 6233146
+        }
+      ]
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "pt",
+      "preferred_format": "pt"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Redressement des pages avant l'OCR",
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": "github:mindee/doctr/releases/tag/v0.8.1",
+      "source": "github"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0058050695806741714,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Classifieur d'orientation de page de docTR (Mindee, Apache-2.0, MobileNet v3) : dit de combien une page photographiée est tournée (0, 90, 180, 270°). Le reader redresse ainsi une image avant tout moteur d'OCR — une note prise de côté est illisible couchée. Processeur, 6 Mo.",
+  "key": "github:mindee/doctr:v0.8.1",
+  "manifest_kind": "model",
+  "name": "Orientation de page (docTR)",
+  "projects": [],
+  "requires": [
+    {
+      "key": "python-doctr",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:github:mindee/doctr:v0.8.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

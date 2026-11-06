@@ -178,7 +178,20 @@
   "manifest_kind": "model",
   "name": "MuseTalk v1.5",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "mmcv",
+      "kind": "library"
+    },
+    {
+      "key": "mmengine",
+      "kind": "library"
+    },
+    {
+      "key": "mmpose",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:avatarizer:musetalk-v1.5",

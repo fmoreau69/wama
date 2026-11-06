@@ -65,7 +65,16 @@
   "manifest_kind": "model",
   "name": "wav2vec2-large-xlsr-53-french (alignement)",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "torchaudio",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:transcriber:wav2vec2-fr-aligner",

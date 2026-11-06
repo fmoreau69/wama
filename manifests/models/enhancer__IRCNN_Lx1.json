@@ -64,7 +64,12 @@
   "manifest_kind": "model",
   "name": "IRCNN_Lx1",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "onnxruntime-gpu",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:enhancer:IRCNN_Lx1",

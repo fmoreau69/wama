@@ -84,6 +84,10 @@
     {
       "key": "qwen-tts",
       "kind": "library"
+    },
+    {
+      "key": "sox",
+      "kind": "library"
     }
   ],
   "schema_version": "1.0",

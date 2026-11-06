@@ -163,11 +163,9 @@ def declarees() -> frozenset[str]:
             ligne = ligne.split('#')[0].strip()
             if not ligne or ligne.startswith('-'):
                 continue
-            nom = ligne.split('[')[0]
-            for sep in ('==', '>=', '<=', '~=', '>', '<', ';', '='):
-                nom = nom.split(sep)[0]
-            if nom.strip():
-                out.add(_normalise(nom))
+            name = _distribution_name(ligne)
+            if name:
+                out.add(_normalise(name))
     return frozenset(out)
 
 
@@ -263,54 +261,139 @@ def librairies_des_backends(catalog_keys) -> list[str]:
     nommer), SEMÉE au corpus, hors SOCLE. La résolution est CIBLÉE (un import par backend, à la
     demande) — jamais un balayage.
     """
-    import sys as _sys
     try:
-        from wama.common.backends.manager import backend_for_key
         from wama.common.services.backend_inventory import resolvable_entries
+        from wama.model_manager.models import AIModel
     except Exception:
         return []
-    mapping = _distributions()
-    # Le vivier lu UNE fois pour toutes les clés : sans lui, chaque `backend_for_key` relisait
+    # Le vivier lu UNE fois pour toutes les clés : sans lui, chaque résolution relisait
     # l'inventaire — 48 fois pour les 48 modèles de l'anonymizer (mesuré le 2026-09-14).
     try:
         vivier = resolvable_entries()
     except Exception:
         vivier = None
-    # Clé CANONIQUE du corpus par nom normalisé : un `requires` doit citer le manifeste tel qu'il
-    # est semé (`pyannote-audio`), jamais la graphie d'un spécificateur pip (`pyannote.audio`) —
-    # une référence pendante invalide le manifeste d'app entier (`ingest.valider`).
-    dossier = _base_dir() / 'manifests' / 'libraries'
-    canon = {_normalise(p.stem): p.stem for p in dossier.glob('*.json')} if dossier.is_dir() else {}
-    out, modules_vus = set(), set()
-    for cle in catalog_keys or ():
-        try:
-            classe = backend_for_key(cle, entries=vivier)
-        except Exception:
-            classe = None
-        if classe is None:
+    out = set()
+    for row in AIModel.objects.filter(model_key__in=list(catalog_keys or ())):
+        executor = model_executor(row, entries=vivier)
+        if executor is None:
             continue
-        dists = set()
-        # ① ce que le backend DÉCLARE — noms de distribution (`PIP_PACKAGES`) et d'import
-        #    (`REQUIRED_PACKAGES`) ;
-        for spec in (getattr(classe, 'PIP_PACKAGES', None) or ()):
-            nom = spec.split('[')[0]
-            for sep in ('==', '>=', '<=', '~=', '>', '<', ';'):
-                nom = nom.split(sep)[0]
-            dists.add(nom.strip())
-        modules = {m.split('.')[0] for m in (getattr(classe, 'REQUIRED_PACKAGES', None) or ())}
-        # ② ce que son MODULE importe réellement — même mesure AST que la 1ʳᵉ jambe, sur le bon
-        #    fichier : `REQUIRED_PACKAGES` sert la disponibilité, pas l'exhaustivité (mesuré :
-        #    l'audiocraft ne déclare que `audiocraft` et importe torch, soundfile, torchaudio).
-        fichier = getattr(_sys.modules.get(classe.__module__), '__file__', None)
-        if fichier and fichier not in modules_vus:
-            modules_vus.add(fichier)
-            modules |= {m for m in _modules_du_fichier(Path(fichier))
-                        if m not in INTERNES and m not in _sys.stdlib_module_names
-                        and not m.startswith('_')}
-        for module in modules:
-            dists.update(mapping.get(module) or ())
-        for d in dists:
-            n = _normalise(d)
-            if n in canon and n not in SOCLE_PLATEFORME:
-                out.add(canon[n])
+        # ① ce que le modèle exige par son EXÉCUTANT — la dérivation du manifeste de modèle,
+        #    la même pour les deux (`model_libraries`) ;
+        out.update(executor_libraries(executor))
+        # ② pour un backend, ce que son MODULE importe réellement — même mesure AST que la 1ʳᵉ
+        #    jambe, sur le bon fichier : `REQUIRED_PACKAGES` sert la disponibilité, pas
+        #    l'exhaustivité (mesuré : l'audiocraft ne déclare que `audiocraft` et importe torch,
+        #    soundfile, torchaudio). Pas pour un module `loaded_by` : une brique qui charge un
+        #    modèle fait aussi autre chose (le banc importe ultralytics et transformers pour
+        #    d'autres mesures que LPIPS) — son moteur déclaré dit ce que CE modèle exige.
+        if isinstance(executor, type):
+            source = getattr(sys.modules.get(executor.__module__), '__file__', None)
+            if source:
+                out.update(seeded_libraries(modules=_third_party(_modules_du_fichier(Path(source)))))
     return sorted(out)
+
+
+def _third_party(modules) -> list[str]:
+    """Les modules tiers d'un relevé d'imports (ni WAMA, ni la bibliothèque standard, ni privés)."""
+    return [m for m in modules
+            if m not in INTERNES and m not in sys.stdlib_module_names and not m.startswith('_')]
+
+
+def _distribution_name(spec: str) -> str:
+    """`pyannote.audio>=3.3.1` → `pyannote.audio` : le nom d'un spécificateur pip, sans extra,
+    version ni marqueur — la lecture d'une ligne de `requirements*.txt` (`declarees`) comme d'un
+    `PIP_PACKAGES` (`seeded_libraries`). Le `=` seul tolère une ligne de requirements mal écrite."""
+    name = spec.split('[')[0]
+    for sep in ('==', '>=', '<=', '~=', '!=', '>', '<', ';', '@', '='):
+        name = name.split(sep)[0]
+    return name.strip()
+
+
+def seeded_libraries(distributions=(), modules=()) -> list[str]:
+    """Clés du corpus `manifests/libraries/` que désignent des noms de DÉPENDANCE — le seul
+    traducteur nom → librairie, que la jambe d'app et le manifeste de modèle partagent.
+
+    Deux natures de nom, deux lectures, jamais confondues (la source d'erreur classique,
+    en-tête de ce module) :
+      • `distributions` — un nom ou un spécificateur pip (`PIP_PACKAGES`) : lu tel quel ;
+      • `modules` — un nom d'IMPORT (`REQUIRED_PACKAGES`, un import mesuré) : traduit par les
+        distributions INSTALLÉES qui le fournissent (`doctr` → `python-doctr`, `onnxruntime` →
+        `onnxruntime-gpu` sur ce venv, `cv2` → `opencv-python`).
+    Rendu sous la clé CANONIQUE du corpus : un `requires` cite le manifeste tel qu'il est semé
+    (`pyannote-audio`), jamais la graphie d'un spécificateur (`pyannote.audio`) — une référence
+    pendante invalide le manifeste entier (`ingest.valider`). Une distribution non semée ne se
+    cite pas ; le SOCLE PLATEFORME jamais.
+    """
+    corpus = _base_dir() / 'manifests' / 'libraries'
+    canon = {_normalise(p.stem): p.stem for p in corpus.glob('*.json')} if corpus.is_dir() else {}
+    dists = {_distribution_name(d) for d in distributions or ()}
+    if modules:
+        mapping = _distributions()
+        for module in modules:
+            dists.update(mapping.get(module.split('.')[0]) or ())
+    return sorted(canon[n] for n in {_normalise(d) for d in dists if d}
+                  if n in canon and n not in SOCLE_PLATEFORME)
+
+
+def engine_libraries(engine: str) -> list[str]:
+    """Librairies semées que désigne un MOTEUR — « un moteur est une LIBRAIRIE » (registre
+    `backends`), pour un modèle qu'aucun backend n'exécute (`loaded_by`).
+
+    Dans l'ordre : le moteur se lit comme un nom d'IMPORT (`faster-whisper` → `faster_whisper`,
+    `onnxruntime`, `doctr`) — c'est la distribution que le venv installe pour lui qui fait foi,
+    pas une homonyme semée (`onnxruntime`, la version processeur, masque la version GPU) — puis
+    comme un nom de distribution (`lpips`, `mediapipe`). Un moteur qui n'est pas une librairie
+    par son nom (`torchscript` : `torch.jit.load`) se lit chez les backends qui le pilotent : les
+    paquets qu'ils déclarent pour lui (`declared_engines`, inventaire statique). Vide si rien ne
+    le nomme — le dire est l'affaire de la garde, jamais d'une supposition ici.
+    """
+    if not engine:
+        return []
+    found = (seeded_libraries(modules=[engine, engine.replace('-', '_')])
+             or seeded_libraries(distributions=[engine]))
+    if found:
+        return found
+    try:
+        from wama.common.services.backend_inventory import declared_engines
+        carrier = declared_engines().get(engine)
+    except Exception:
+        carrier = None
+    return seeded_libraries(modules=getattr(carrier, 'packages', None) or ())
+
+
+def model_executor(model, entries=None):
+    """Ce qui EXÉCUTE `model` (ligne de catalogue, ou tout porteur de `composition`,
+    `model_key`, `capabilities`) : la classe de backend que la porte commune résout
+    (`backend_for_model`), ou, pour un modèle qu'une brique charge elle-même, son `runtime`
+    déclaré (dict qui porte `loaded_by`). None : aucun exécutant connu."""
+    runtime = ((getattr(model, 'composition', None) or {}).get('runtime') or {})
+    if runtime.get('loaded_by'):
+        return runtime
+    try:
+        from wama.common.backends.manager import backend_for_model
+        return backend_for_model(model, entries)
+    except Exception:
+        return None
+
+
+def executor_libraries(executor) -> list[str]:
+    """Librairies semées qu'exige un exécutant de `model_executor`.
+
+    Un BACKEND : les DEUX moitiés de son contrat — ce qu'il installe (`PIP_PACKAGES`, des noms
+    de distribution) et ce qui doit s'importer pour qu'il soit disponible (`REQUIRED_PACKAGES`,
+    des noms d'import). L'une seule ne suffit pas : Qwen3-ASR n'installe que `qwen-asr` (en
+    `--no-deps`) et ne tourne qu'avec transformers, soundfile et librosa présents.
+    Un module `loaded_by` : la librairie que nomme le moteur déclaré du modèle
+    (`engine_libraries`)."""
+    if executor is None:
+        return []
+    if isinstance(executor, dict):
+        return engine_libraries(executor.get('engine') or '')
+    return seeded_libraries(distributions=getattr(executor, 'PIP_PACKAGES', None) or (),
+                            modules=getattr(executor, 'REQUIRED_PACKAGES', None) or ())
+
+
+def model_libraries(model, entries=None) -> list[str]:
+    """Librairies semées qu'exige UN modèle, par son exécutant déclaré — le `requires` de son
+    manifeste (`builtin/model.py`) et la 1ʳᵉ moitié de la jambe backends d'une app."""
+    return executor_libraries(model_executor(model, entries))

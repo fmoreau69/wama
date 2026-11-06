@@ -99,6 +99,10 @@
   "projects": [],
   "requires": [
     {
+      "key": "coqui-tts",
+      "kind": "library"
+    },
+    {
       "key": "soundfile",
       "kind": "library"
     }

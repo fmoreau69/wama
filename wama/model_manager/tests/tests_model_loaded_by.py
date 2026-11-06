@@ -37,19 +37,68 @@ class LoadedByTest(TestCase):
 
     DISCOVERIES = ('_discover_face_analyzer_models', '_discover_road_models',
                    '_discover_quality_metric_models', '_discover_hand_gesture_models',
-                   '_discover_turn_end_models')
+                   '_discover_turn_end_models', '_discover_language_identification_models',
+                   '_discover_page_orientation_models')
 
-    def test_each_brick_model_names_a_module_that_exists(self):
+    #: La librairie que le moteur déclaré de chaque ligne fait requérir à son manifeste
+    #: (2026-11-06). Une ligne SANS moteur y figure avec sa raison : rien d'autre ne l'excuse.
+    EXPECTED_LIBRARIES = {
+        'face_analyzer:mediapipe-face-landmarker': ['mediapipe'],
+        'github:CAIC-AD/YOLOPv2:V0.0.1': ['opencv-python', 'torch', 'torchvision'],
+        'pytorch_download:lpips-alexnet': ['lpips'],
+        'huggingface:pipecat-ai/smart-turn-v3': ['onnxruntime-gpu'],
+        'huggingface:Systran/faster-whisper-tiny': ['faster-whisper'],
+        'github:mindee/doctr:v0.8.1': ['python-doctr'],
+    }
+    #: Exécuté par la version NAVIGATEUR de MediaPipe : aucune librairie Python à requérir.
+    WITHOUT_ENGINE = {'mediapipe_models:gesture-recognizer'}
+
+    def _declared(self):
         r = _registry()
         for name in self.DISCOVERIES:
             getattr(r, name)()
-        declared = {key: (info.composition or {}).get('runtime', {}).get('loaded_by')
-                    for key, info in r._models.items()}
-        declared = {k: v for k, v in declared.items() if v}
-        self.assertEqual(5, len(declared), declared)
-        for key, module in declared.items():
+        self.assertEqual([], r.discovery_errors)
+        return {key: (info.composition or {}).get('runtime', {})
+                for key, info in r._models.items()
+                if (info.composition or {}).get('runtime', {}).get('loaded_by')}
+
+    def test_each_brick_model_names_a_module_that_exists(self):
+        declared = self._declared()
+        self.assertEqual(7, len(declared), declared)
+        for key, runtime in declared.items():
             with self.subTest(model=key):
-                self.assertIsNotNone(importlib.util.find_spec(module), f'{module} introuvable')
+                self.assertIsNotNone(importlib.util.find_spec(runtime['loaded_by']),
+                                     f"{runtime['loaded_by']} introuvable")
+
+    def test_each_loader_names_the_engine_its_manifest_requires(self):
+        """Le modèle porte son moteur, et un moteur est une librairie (registre `backends`) :
+        sans lui, le manifeste de Whisper tiny disait `requires: []` alors que la sonde des
+        langues tourne sur faster-whisper — la désinstaller n'aurait rien refusé."""
+        from wama.common.manifests.builtin.model import _requires_librairies
+        declared = self._declared()
+        self.assertEqual(set(self.EXPECTED_LIBRARIES) | self.WITHOUT_ENGINE, set(declared))
+        for key, runtime in declared.items():
+            with self.subTest(model=key):
+                required = [r['key'] for r in
+                            _requires_librairies({'composition': {'runtime': runtime}}, key)]
+                if key in self.WITHOUT_ENGINE:
+                    self.assertNotIn('engine', runtime)
+                    self.assertEqual([], required)
+                else:
+                    self.assertEqual(self.EXPECTED_LIBRARIES[key], required)
+
+    def test_a_loader_is_never_handed_to_the_backend_of_its_engine(self):
+        """Whisper tiny déclare `faster-whisper`, le moteur que pilote le backend Whisper : son
+        exécutant reste la brique (`loaded_by`), jamais le backend — la même règle que
+        `backend_missing`."""
+        from wama.common.backends.manager import backend_for_model
+        from wama.common.backends.whisper_backend import WhisperBackend
+        runtime = {'engine': 'faster-whisper', 'loaded_by': 'wama.common.utils.spoken_language'}
+        self.assertIsNone(backend_for_model(_line('huggingface:Systran/faster-whisper-tiny',
+                                                  {'runtime': runtime})))
+        # Contre-épreuve : la même ligne sans `loaded_by` va au backend du moteur.
+        self.assertIs(WhisperBackend, backend_for_model(_line(
+            'huggingface:Systran/faster-whisper-large-v3', {'runtime': {'engine': 'faster-whisper'}})))
 
     def test_a_model_loaded_by_a_module_is_not_condemned(self):
         from wama.common.backends.manager import backend_missing

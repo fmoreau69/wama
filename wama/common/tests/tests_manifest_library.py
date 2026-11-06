@@ -146,3 +146,65 @@ class JambeBackendsDesRequiresTest(TestCase):
         self._semer('imager:qwen-image-2', 'diffusers')
         libs = librairies_des_backends(['imager:qwen-image-2'])
         self.assertFalse(set(libs) & SOCLE_PLATEFORME, libs)
+
+
+class ModelLibrariesSinglePathTest(TestCase):
+    """Modèle → librairies : UNE dérivation (`library_index.model_libraries`), que lisent le
+    manifeste de modèle et la jambe backends d'une app (2026-11-06).
+
+    Le manifeste de modèle avait SA lecture : le premier backend du moteur, et les noms de
+    `pip_install_spec` pris pour des distributions. Mesuré ce jour-là : 124 manifestes de modèle
+    sur 627 ne requéraient pas ce que la jambe d'app leur trouvait — `reader:doctr` sans
+    `python-doctr`, pyannote sans `pyannote-audio`, les modèles `loaded_by` sans rien.
+    """
+
+    def test_a_pip_specifier_names_its_distribution(self):
+        """`pyannote.audio>=3.3.1` : la lecture coupée au seul `==` gardait la contrainte."""
+        from wama.common.services.library_index import seeded_libraries
+        self.assertEqual(['pyannote-audio'],
+                         seeded_libraries(distributions=['pyannote.audio>=3.3.1']))
+
+    def test_an_import_name_is_read_through_the_installed_distribution(self):
+        """`doctr` est un nom d'IMPORT ; la librairie semée est `python-doctr`. Contre-épreuve :
+        lu comme un nom de distribution, il ne désigne rien."""
+        from wama.common.services.library_index import seeded_libraries
+        self.assertEqual(['python-doctr'], seeded_libraries(modules=['doctr']))
+        self.assertEqual([], seeded_libraries(distributions=['doctr']))
+
+    def test_the_engine_reads_the_distribution_the_venv_installs_for_it(self):
+        """`onnxruntime` est AUSSI semé (la version processeur) : le requérir pousserait à
+        l'installer à côté de la version GPU, qu'elle masque (patch n° 10). Le moteur se lit
+        donc d'abord comme un nom d'import."""
+        from wama.common.services.library_index import engine_libraries, semees
+        self.assertIn('onnxruntime', semees(), 'le cas suppose les deux semées')
+        self.assertEqual(['onnxruntime-gpu'], engine_libraries('onnxruntime'))
+        self.assertEqual(['faster-whisper'], engine_libraries('faster-whisper'))
+        self.assertEqual([], engine_libraries('moteur-fantome'))
+
+    def test_a_backend_requires_what_its_install_contract_names(self):
+        """`DoctrBackend` ne déclare que `REQUIRED_PACKAGES = ['doctr']` : la librairie se lit
+        par son nom d'import (le manifeste de `reader:doctr` sortait sans elle)."""
+        from wama.common.backends.manager import backend_for_engine
+        from wama.common.services.library_index import executor_libraries
+        self.assertEqual(['python-doctr'], executor_libraries(backend_for_engine('doctr')))
+
+    def _row(self, key, runtime):
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.create(model_key=key, name=key, model_type='vision',
+                                      source=key.split(':')[0], is_available=True,
+                                      is_downloaded=True, composition={'runtime': runtime})
+
+    def test_the_app_leg_contains_the_model_leg(self):
+        from wama.common.services.library_index import librairies_des_backends, model_libraries
+        row = self._row('reader:doctr', {'engine': 'doctr'})
+        model = model_libraries(row)
+        self.assertEqual(['python-doctr'], model)
+        self.assertTrue(set(model) <= set(librairies_des_backends(['reader:doctr'])))
+
+    def test_a_loader_brings_its_engine_not_every_import_of_its_module(self):
+        """Le banc importe aussi ultralytics et transformers pour d'AUTRES mesures que LPIPS :
+        la jambe d'app ne mesure pas le module d'un `loaded_by`, elle prend son moteur."""
+        from wama.common.services.library_index import librairies_des_backends
+        self._row('pytorch_download:lpips-alexnet',
+                  {'engine': 'lpips', 'loaded_by': 'wama.model_manager.services.bench'})
+        self.assertEqual(['lpips'], librairies_des_backends(['pytorch_download:lpips-alexnet']))

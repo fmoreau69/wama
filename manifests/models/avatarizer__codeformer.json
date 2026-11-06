@@ -111,7 +111,16 @@
   "manifest_kind": "model",
   "name": "CodeFormer",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "basicsr",
+      "kind": "library"
+    },
+    {
+      "key": "facexlib",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:avatarizer:codeformer",

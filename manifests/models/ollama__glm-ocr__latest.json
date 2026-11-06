@@ -69,7 +69,12 @@
   "manifest_kind": "model",
   "name": "glm-ocr:latest",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "httpx",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:ollama:glm-ocr:latest",

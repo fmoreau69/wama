@@ -93,7 +93,24 @@
   "manifest_kind": "model",
   "name": "parakeet-tdt-0.6b-v3",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "lhotse",
+      "kind": "library"
+    },
+    {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
+      "key": "nemo-toolkit",
+      "kind": "library"
+    },
+    {
+      "key": "soundfile",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:transcriber:parakeet-tdt-0.6b-v3",

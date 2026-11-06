@@ -620,6 +620,36 @@ du lien est lue : un backend qui écrit `{'model_key': …}` dans son `SUPPORTED
 moteur à la ligne qui n'en a pas (`backend_inventory.BackendEntry.served_keys`,
 `model_registry._overlay_engines_named_by_backends` — pyannote community-1).
 
+**2026-11-06 — une ligne `loaded_by` porte aussi son MOTEUR, et le `requires` d'un modèle a UNE
+dérivation** (demande de Fabien : « compléter le manifeste pour tout aligner »). Le trou : le
+manifeste de Whisper tiny sortait `requires: []` alors que la sonde des langues tourne sur
+faster-whisper — `library_requirers` n'aurait rien refusé à sa désinstallation. La règle suit le
+registre `backends` (*le modèle porte son moteur, un moteur est une librairie*) et le précédent du
+Face Landmarker (`engine: mediapipe` + `loaded_by` depuis le 31/10) : `engine` dit la LIBRAIRIE qui
+exécute le modèle, `loaded_by` dit qui l'appelle à la place d'un backend. Six lignes sur sept le
+déclarent, posées par leur découverte : `faster-whisper` (tiny), `onnxruntime` (Smart Turn),
+`lpips`, `torchscript` (YOLOPv2, le moteur d'EgoBlur), `doctr` (l'orientation de page),
+`mediapipe` ; le reconnaisseur de gestes, exécuté par la version NAVIGATEUR de MediaPipe, n'en
+déclare délibérément aucun. Trois conséquences, chacune tenue par une garde
+(`tests_model_loaded_by`, `tests_manifest_library.ModelLibrariesSinglePathTest`, contre-épreuves
+rouges) :
+- **le routage** : `backends.manager.backend_for_model` ne confie jamais une ligne `loaded_by` au
+  backend de son moteur (tiny n'est pas servi par `WhisperBackend`) — la règle de `backend_missing` ;
+- **une seule dérivation modèle → librairies** : `library_index.model_libraries` (l'exécutant, puis
+  ses librairies), que lisent le manifeste de modèle (`builtin/model._requires_librairies`) et la
+  jambe backends d'une app (`librairies_des_backends`, inchangée sur les dix apps, mesuré). Le
+  manifeste de modèle avait SA lecture — le premier backend du moteur, les noms de
+  `pip_install_spec` pris pour des distributions — et ratait `python-doctr` (`REQUIRED_PACKAGES =
+  ['doctr']`), `pyannote-audio` (`pyannote.audio>=3.3.1`), les `REQUIRED_PACKAGES` de Qwen3-ASR ;
+  65 manifestes de modèle corrigés par l'export ce jour-là, plus celui de l'orientation de page,
+  absent du corpus ;
+- **un seul traducteur nom → librairie** : `library_index.seeded_libraries` (distribution lue telle
+  quelle, nom d'import par la distribution INSTALLÉE — `onnxruntime` → `onnxruntime-gpu`, jamais la
+  version processeur semée qui la masquerait) ; un moteur se lit par `engine_libraries` (import,
+  puis distribution, puis paquets que déclarent les backends qui le pilotent : `torchscript`). Le
+  module d'un `loaded_by` n'est PAS mesuré à l'import : le banc importe aussi ultralytics et
+  transformers pour d'autres mesures que LPIPS.
+
 #### 7.1 ter — hooks par kind, MESURÉ le 2026-08-05
 
 > Les hooks s'appellent `write_back`/`un_write_back` depuis le 2026-08-05 (`kinds.py:52-57` —

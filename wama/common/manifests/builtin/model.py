@@ -235,9 +235,13 @@ def _validate_composition(compo) -> list[str]:
             for name in ('engine', 'loaded_by'):
                 if name in runtime and (not runtime[name] or not isinstance(runtime[name], str)):
                     errs.append(f"composition.runtime : '{name}' doit être une chaîne non vide")
+            # Le moteur est la LIBRAIRIE qui exécute le modèle (registre `backends`) : un backend
+            # l'invoque, ou le module `loaded_by` — qui le DÉCLARE alors aussi, pour que le
+            # `requires` du manifeste en dérive (2026-11-06, Whisper tiny : `faster-whisper`).
             if not runtime.get('engine') and not runtime.get('loaded_by'):
-                errs.append("composition.runtime : 'engine' (le moteur que le backend invoque) ou "
-                            "'loaded_by' (le module qui charge le modèle hors backend) requis")
+                errs.append("composition.runtime : 'engine' (le moteur, une librairie, qui exécute "
+                            "le modèle) ou 'loaded_by' (le module qui charge le modèle hors backend) "
+                            "requis")
 
     inconnues = set(compo) - {'components', 'runtime'}
     if inconnues:
@@ -340,50 +344,38 @@ def extract_model(key: str) -> Optional[dict]:
         # jambe qui manquait à la matrice d'intégration (audit du 2026-09-03 : `app→modèle`
         # et `app→librairie` étaient déclarés, `modèle→librairie` vivait UNIQUEMENT dans le
         # `PIP_PACKAGES` du backend, c'est-à-dire dans du code Python).
-        'requires': _requires_librairies(body),
+        'requires': _requires_librairies(body, m.model_key),
         'body': body,
     }
 
 
-def _requires_librairies(body: dict) -> list:
+def _requires_librairies(body: dict, model_key: str = '') -> list:
     """Librairies à citer dans le `requires` d'un manifeste de modèle.
 
-    RÈGLE — la MÊME que la jambe `library` d'une app (`library_index.librairies_de`), et
-    pour la même raison : deux conditions CUMULATIVES.
-      1. le BACKEND qui sert le moteur déclaré du modèle exige la distribution
-         (fait déclaré au contrat commun : `PIP_PACKAGES`/`REQUIRED_PACKAGES`) ;
+    RÈGLE — la MÊME dérivation que la jambe backends d'une app (`library_index.model_libraries`,
+    un seul chemin depuis le 2026-11-06), deux conditions CUMULATIVES :
+      1. l'EXÉCUTANT du modèle exige la distribution — le backend que la porte commune résout
+         pour son moteur (`PIP_PACKAGES`/`REQUIRED_PACKAGES`), ou, pour un modèle qu'une brique
+         charge elle-même (`loaded_by`), la librairie que nomme son moteur déclaré ;
       2. la distribution est SEMÉE au corpus `manifests/libraries/` (décision humaine).
 
     La 2ᵉ n'est pas cosmétique : `ingest.valider()` traite une référence `requires`
     pendante comme une ERREUR — citer une lib non semée invaliderait le manifeste du
     modèle, donc l'app qui le requiert. Best-effort : jamais bloquant (un inventaire
     indisponible ne doit pas empêcher d'extraire un manifeste).
+
+    ⚠ Jusqu'au 2026-11-06, cette fonction avait SA lecture : le premier backend du moteur, et les
+    noms de `pip_install_spec` pris pour des distributions. Mesuré ce jour-là sur le corpus :
+    `reader:doctr` sans `python-doctr` (`REQUIRED_PACKAGES = ['doctr']`, un nom d'import),
+    pyannote sans `pyannote-audio` (`pyannote.audio>=3.3.1`, coupé au seul `==`), et les sept
+    modèles `loaded_by` sans rien, Whisper tiny compris.
     """
-    engine = ((body.get('composition') or {}).get('runtime') or {}).get('engine')
-    if not engine:
-        return []
+    from types import SimpleNamespace
     try:
-        from wama.common.backends.manager import engine_backends
-        from wama.common.services.library_index import SOCLE_PLATEFORME, _normalise, semees
-        cls = engine_backends().get(engine)
-        if cls is None:
-            return []
-        # L'inventaire STATIQUE (`backend_inventory._DeclaredEngine`, 2026-09-07) rend un porteur
-        # sans classe : on résout alors la classe par le chemin commun (`resolve_backend`). Sans
-        # ce retour, l'`AttributeError` tombait dans le `except` ci-dessous et tout modèle dont le
-        # moteur n'est vu QUE par cet inventaire sortait sans `requires` (mesuré le 2026-10-16 :
-        # MuScriptor, dont le manifeste autoré citait muscriptor et beat-this).
-        if not hasattr(cls, 'pip_install_spec'):
-            from wama.common.services.backend_inventory import resolve_backend
-            cls = resolve_backend(engine)
-            if cls is None:
-                return []
-        # Nom de DISTRIBUTION seul : `pip_install_spec` rend des pins exacts
-        # (« qwen-tts==0.1.1 ») ; une référence `requires` désigne la lib, pas sa version.
-        dists = {s.partition('==')[0].strip() for s in (cls.pip_install_spec() or [])}
-        sem = semees()
-        return [{'kind': 'library', 'key': d} for d in sorted(dists)
-                if _normalise(d) in sem and _normalise(d) not in SOCLE_PLATEFORME]
+        from wama.common.services.library_index import model_libraries
+        carrier = SimpleNamespace(composition=body.get('composition') or {}, model_key=model_key,
+                                  capabilities=body.get('capabilities') or {})
+        return [{'kind': 'library', 'key': k} for k in model_libraries(carrier)]
     except Exception:
         logger.debug("[manifest:model] inventaire des librairies indisponible", exc_info=True)
         return []

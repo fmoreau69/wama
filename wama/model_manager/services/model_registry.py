@@ -1651,8 +1651,11 @@ class ModelRegistry:
                             'size_bytes': YOLOPV2_FILES[0]['size']},
                 # Aucun backend commun ne le charge — le Lab le lit par son segmenteur
                 # (`torch.jit`). DÉCLARÉ en chaîne (`loaded_by`, 2026-10-31) : la ligne vit ici pour
-                # ne pas importer le Lab, le nom de son module ne crée aucune dépendance.
-                composition={'runtime': {'loaded_by': 'wama_lab.cam_analyzer.utils.yolopv2_segmenter'}},
+                # ne pas importer le Lab, le nom de son module ne crée aucune dépendance. Son moteur
+                # (2026-11-06) est celui d'EgoBlur, `torch.jit.load` aussi : la librairie que
+                # requiert son manifeste en dérive (`library_index.engine_libraries`).
+                composition={'runtime': {'engine': 'torchscript',
+                                         'loaded_by': 'wama_lab.cam_analyzer.utils.yolopv2_segmenter'}},
                 capabilities={'task': 'road-segmentation', 'modalities': ['image', 'video'],
                               'inputs_required': ['work_file']},
             )
@@ -1686,8 +1689,9 @@ class ModelRegistry:
                 extra_info={'path': str(root / LPIPS_FILES[0]['path']),
                             'install_dir': str(root), 'declared_files': LPIPS_FILES,
                             'size_bytes': LPIPS_FILES[0]['size']},
-                # Le banc le charge lui-même (`lpips_metric`) : `loaded_by`, lu sur le module.
-                composition={'runtime': {'loaded_by': bench.__name__}},
+                # Le banc le charge lui-même (`lpips_metric`) : `loaded_by`, lu sur le module ; son
+                # moteur est la librairie `lpips` (2026-11-06 — le `requires` du manifeste en dérive).
+                composition={'runtime': {'engine': 'lpips', 'loaded_by': bench.__name__}},
                 capabilities={'task': 'quality-metric', 'modalities': ['image'],
                               'inputs_required': ['work_file']},
             )
@@ -1724,7 +1728,10 @@ class ModelRegistry:
                             'install_dir': str(gesture_folder()),
                             'declared_files': GESTURE_FILES},
                 # Aucun moteur Python ne le charge, le navigateur oui : `loaded_by` nomme le module
-                # qui OUVRE le fichier pour le lui servir (`scene_views.hand_model_view`).
+                # qui OUVRE le fichier pour le lui servir (`scene_views.hand_model_view`). Sans
+                # moteur, délibérément : celui qui l'exécute est la version NAVIGATEUR de MediaPipe,
+                # que le serveur sert sans l'importer — nommer `mediapipe` ferait requérir au
+                # manifeste la librairie Python, dont ce modèle n'a pas besoin.
                 composition={'runtime': {'loaded_by': 'wama.common.scene_views'}},
                 capabilities={'task': 'hand-gesture', 'modalities': ['image', 'video'],
                               'inputs_required': ['work_file']},
@@ -1762,8 +1769,10 @@ class ModelRegistry:
                             'size_bytes': sum(f['size'] for f in TURN_FILES),
                             'install_dir': str(model_folder()),
                             'declared_files': TURN_FILES},
-                # Aucun backend ne le charge, le service vocal oui (`_end_of_turn_clip`).
-                composition={'runtime': {'loaded_by': 'wama.common.tts.service'}},
+                # Aucun backend ne le charge, le service vocal oui (`_end_of_turn_clip`), par ONNX
+                # Runtime (2026-11-06 : son moteur, d'où la librairie que requiert son manifeste).
+                composition={'runtime': {'engine': 'onnxruntime',
+                                         'loaded_by': 'wama.common.tts.service'}},
                 capabilities={'task': 'end-of-turn', 'modalities': ['audio'],
                               'inputs_required': ['work_audio'],
                               # Les 23 langues du banc de l'éditeur (v3.2, 2026-01-07).
@@ -1805,8 +1814,12 @@ class ModelRegistry:
                 extra_info={'path': str(model_folder()) if installed else '',
                             'install_dir': str(whisper_folder()),
                             **whisper_base_model(SIZE)},
-                # Aucun backend ne le charge : la brique commune, par chemin (`_model`).
-                composition={'runtime': {'loaded_by': 'wama.common.utils.spoken_language'}},
+                # Aucun backend ne le charge : la brique commune, par chemin (`_model`). Son moteur
+                # est celui de large-v3, `faster-whisper` (2026-11-06) : la librairie que requiert
+                # son manifeste en dérive, et `loaded_by` garde la route — le backend Whisper ne
+                # le sert pas (`backend_for_model`).
+                composition={'runtime': {'engine': 'faster-whisper',
+                                         'loaded_by': 'wama.common.utils.spoken_language'}},
                 capabilities={'task': 'language-identification', 'modalities': ['audio'],
                               'inputs_required': ['work_audio'], 'languages': ['*']},
             )
@@ -1845,7 +1858,10 @@ class ModelRegistry:
                             'size_bytes': sum(f['size'] for f in PAGE_ORIENTATION_FILES),
                             'install_dir': str(doctr_folder()),
                             'declared_files': PAGE_ORIENTATION_FILES},
-                composition={'runtime': {'loaded_by': 'wama.common.backends.ocr_base'},
+                # Chargé par la brique commune de l'OCR (`upright_image`), sur le moteur docTR
+                # (2026-11-06 : la librairie que requiert son manifeste en dérive).
+                composition={'runtime': {'engine': 'doctr',
+                                         'loaded_by': 'wama.common.backends.ocr_base'},
                              'components': [{'repo': DOCTR_RELEASES, 'role': 'page_orientation'}]},
                 capabilities={'task': 'page-orientation', 'modalities': ['image', 'document'],
                               'inputs_required': ['work_file']},

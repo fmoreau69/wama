@@ -58,7 +58,20 @@
   "manifest_kind": "model",
   "name": "EgoBlur visages (gen1)",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "opencv-python",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "torchvision",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:egoblur-face-gen1",

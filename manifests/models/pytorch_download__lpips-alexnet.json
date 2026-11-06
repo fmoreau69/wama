@@ -11,6 +11,7 @@
     },
     "composition": {
       "runtime": {
+        "engine": "lpips",
         "loaded_by": "wama.model_manager.services.bench"
       }
     },
@@ -62,7 +63,12 @@
   "manifest_kind": "model",
   "name": "LPIPS (AlexNet)",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "lpips",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:pytorch_download:lpips-alexnet",

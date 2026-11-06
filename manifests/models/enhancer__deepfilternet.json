@@ -52,7 +52,12 @@
   "manifest_kind": "model",
   "name": "DeepFilterNet 3",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "DeepFilterNet",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:enhancer:deepfilternet",

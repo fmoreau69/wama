@@ -133,7 +133,16 @@
   "manifest_kind": "model",
   "name": "Bark TTS",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "scipy",
+      "kind": "library"
+    },
+    {
+      "key": "suno-bark",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:synthesizer:bark",

@@ -67,7 +67,12 @@
   "manifest_kind": "model",
   "name": "swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "onnxruntime-gpu",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",

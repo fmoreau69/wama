@@ -73,7 +73,24 @@
   "manifest_kind": "model",
   "name": "linto_stt_fr_fastconformer_pc",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "lhotse",
+      "kind": "library"
+    },
+    {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
+      "key": "nemo-toolkit",
+      "kind": "library"
+    },
+    {
+      "key": "soundfile",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:linagora/linto_stt_fr_fastconformer_pc",

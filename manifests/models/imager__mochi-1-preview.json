@@ -77,7 +77,16 @@
   "manifest_kind": "model",
   "name": "Mochi-1 Preview — haute qualité",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "diffusers",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:imager:mochi-1-preview",

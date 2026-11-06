@@ -56,7 +56,16 @@
   "manifest_kind": "model",
   "name": "RT-DETR v2 plaques",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:rtdetr-v2-license-plate",

@@ -63,7 +63,24 @@
   "manifest_kind": "model",
   "name": "TripoSR",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "einops",
+      "kind": "library"
+    },
+    {
+      "key": "huggingface_hub",
+      "kind": "library"
+    },
+    {
+      "key": "omegaconf",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:triposr",

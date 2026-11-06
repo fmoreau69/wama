@@ -75,7 +75,16 @@
   "manifest_kind": "model",
   "name": "stt-1b-en_fr-trfs",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:kyutai/stt-1b-en_fr-trfs",

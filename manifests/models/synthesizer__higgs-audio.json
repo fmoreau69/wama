@@ -84,7 +84,28 @@
   "manifest_kind": "model",
   "name": "Higgs Audio v2",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "boson_multimodal",
+      "kind": "library"
+    },
+    {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
+      "key": "scipy",
+      "kind": "library"
+    },
+    {
+      "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:synthesizer:higgs-audio",
