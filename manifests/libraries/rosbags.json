@@ -1,0 +1,41 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "apsw",
+      "backports.zstd",
+      "lz4",
+      "numpy",
+      "ruamel.yaml",
+      "typing_extensions"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "rosbags-convert"
+      ]
+    },
+    "identity": {
+      "author": "Ternaris <team@ternaris.com>",
+      "license": "Apache-2.0",
+      "repository": "https://gitlab.com/ternaris/rosbags",
+      "summary": "Pure Python library to read, modify, convert, and write rosbag files.",
+      "version": "0.11.9"
+    },
+    "install": {
+      "pip": "rosbags==0.11.9",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Pure Python library to read, modify, convert, and write rosbag files.",
+  "key": "rosbags",
+  "manifest_kind": "library",
+  "name": "rosbags",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:rosbags==0.11.9",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

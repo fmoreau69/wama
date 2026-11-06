@@ -164,8 +164,7 @@ class EveryImportedLibraryIsSeededTest(SimpleTestCase):
         'locate_anything_worker': "script de WAMA (`scripts/`), chargé par le backend — pas une "
                                   "librairie",
         'pypdf': "repli de `media_probe` après PyMuPDF ; seul PyPDF2 est installé — mort",
-        'rosbags': "extracteur rosbag du cam_analyzer ; absent du venv — l'installer par la route "
-                   "ou retirer l'extracteur (décision de Fabien)",
+        # `rosbags` en est sorti le 2026-11-06 : installé par la route (décision de Fabien).
     }
 
     def test_the_scan_reads_the_three_worlds_and_skips_the_vendored_engines(self):
