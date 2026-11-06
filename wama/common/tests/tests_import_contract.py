@@ -33,7 +33,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
-from wama.common.services.ui_smoke import _png_1x1, _wav_silence
+from wama.common.services.ui_smoke import WITNESS_WRITERS
 
 User = get_user_model()
 
@@ -47,10 +47,11 @@ UPLOAD_QUIRKS = {
 
 #: Un témoin VALIDE par NATURE d'entrée (`input_types` du catalogue). La nature d'abord, pas
 #: l'extension : l'enhancer déclare l'audio au niveau de l'app, mais son `upload` ne prend que
-#: l'image et la vidéo (l'audio a sa route) — sa PREMIÈRE nature déclarée est la bonne.
-_WITNESSES = {'image': ('.png', _png_1x1), 'audio': ('.wav', lambda: _wav_silence()),
-              'document': ('.txt', lambda: b'temoin WAMA\n'),
-              'prompt': ('.txt', lambda: b'temoin WAMA\n')}
+#: l'image et la vidéo (l'audio a sa route) — sa PREMIÈRE nature déclarée est la bonne. Le
+#: contenu vient des écrivains du harnais (`WITNESS_WRITERS`), jamais réécrit ici.
+_WITNESSES = {nature: (ext, (lambda e=ext: WITNESS_WRITERS[e](e)))
+              for nature, ext in (('image', '.png'), ('audio', '.wav'),
+                                  ('document', '.txt'), ('prompt', '.txt'))}
 
 
 def _portees():
@@ -356,6 +357,15 @@ class HarnessWitnessIsValidTest(SimpleTestCase):
         path = self._witness('.mp3,.abc')
         self.assertEqual(path.suffix, '.abc')
         self.assertIn(b'X:1', path.read_bytes())
+
+    def test_a_mime_family_reads_its_nature_in_the_registry(self):
+        from PIL import Image
+
+        from wama.common.app_registry import media_extensions
+        path = self._witness('image/*')
+        self.assertIn(path.suffix.lstrip('.'), media_extensions()['image'])
+        with Image.open(path) as image:
+            image.verify()
 
     def test_counter_proof_a_zone_with_no_writable_extension_keeps_its_own(self):
         self.assertEqual(self._witness('.pdf,.docx').suffix, '.pdf')

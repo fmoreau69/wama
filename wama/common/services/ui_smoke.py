@@ -551,11 +551,15 @@ IDS_SHOWN_CARDS_JS = ("[...document.querySelectorAll('.wama-card[data-id]:not(.i
 def _fichier_temoin(extensions: str) -> Path:
     """Un fichier minuscule d'une extension que l'app ACCEPTE (déduite de sa zone de dépôt)."""
     import tempfile
+    from wama.common.app_registry import media_extensions
     bruts = [e.strip() for e in (extensions or '').split(',') if e.strip()]
     # Les familles MIME (`image/*`, `audio/*`) n'ont pas d'extension : les traduire, sinon on
     # retombait sur `.txt` — et un .txt déposé sur l'imager part vers l'APERÇU DE LOT (c'est un
-    # fichier de prompts), donc aucun élément n'était créé et le test criait au loup.
-    FAMILLES = {'image/*': '.png', 'audio/*': '.wav', 'video/*': '.mp4'}
+    # fichier de prompts), donc aucun élément n'était créé et le test criait au loup. La nature se
+    # lit au registre (`media_extensions`), l'extension retenue est la première qui a un écrivain.
+    natures = media_extensions()
+    families = [next((f'.{e}' for e in natures.get(b.split('/')[0], ()) if f'.{e}' in WITNESS_WRITERS),
+                     None) for b in bruts if b.endswith('/*')]
     # Parmi les extensions acceptées, d'abord celle dont on sait écrire un contenu VALIDE
     # (2026-11-06) : le transcriber déclare `.mp3` en tête, et le témoin était alors 19 octets
     # de texte nommés `.mp3` — Whisper le refusait (« Failed to find two consecutive MPEG audio
@@ -564,11 +568,11 @@ def _fichier_temoin(extensions: str) -> Path:
     # `video/*` est une vraie mire, plus du texte nommé `.mp4`. Une extension sans écrivain
     # (`.pdf`, `.docx`, `.mp3` seule) reçoit encore du texte : reste nommé, pas résolu.
     declared = [b.lstrip('*') for b in bruts if b.lstrip('*').startswith('.')]
-    ext = next((FAMILLES[b] for b in bruts if b in FAMILLES),
+    ext = next((e for e in families if e),
                next((e for e in declared if e in WITNESS_WRITERS),
                     declared[0] if declared else '.txt'))
     writer = WITNESS_WRITERS.get(ext)
-    contenu = writer(ext) if writer else b'temoin import WAMA\n'
+    contenu = writer(ext) if writer else WITNESS_WRITERS['.txt']('.txt')
     # ⚠ Préfixe EXPLICITE (28/08) : un témoin doit se reconnaître à son NOM. Avec le `tmp` par
     # défaut de `tempfile`, un fichier resté dans `media/<app>/<uid>/input/` était indistinguable
     # de n'importe quel temporaire — donc impossible à balayer sans risque. 146 s'y étaient
@@ -716,6 +720,7 @@ WITNESS_WRITERS = {
     '.md': _witness_markdown,
     '.html': lambda ext: _witness_html(),
     '.mp4': lambda ext: _witness_video(),
+    '.txt': lambda ext: b'temoin import WAMA\n',
 }
 
 

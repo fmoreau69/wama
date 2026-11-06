@@ -352,8 +352,11 @@ voir aucun palier : il faudra une entrée plus longue) **et le câblage transcri
 > de texte nommés `.mp3`, que Whisper refusait. `transcriber.processing` et `batch_processing`
 > concluaient depuis le 11/10 « chaîne cassée » sur une app saine. Le témoin se choisit désormais
 > parmi les extensions acceptées qui ont un ÉCRIVAIN, et ces écrivains sont ceux des surfaces
-> (`ui_smoke.WITNESS_WRITERS`, une table lue aussi par `witness_sample`). Une zone `video/*` reçoit
-> ainsi une vraie mire au lieu de texte nommé `.mp4`. Garde : `tests_import_contract.HarnessWitnessIsValidTest`.
+> (`ui_smoke.WITNESS_WRITERS`, une table lue aussi par `witness_sample` et par le contrat d'import
+> `tests_import_contract._WITNESSES`, qui écrivaient chacun le leur). Une famille MIME (`video/*`)
+> se traduit par sa nature au registre (`app_registry.media_extensions`) au lieu d'une table
+> recopiée : une zone `video/*` reçoit une vraie mire, plus du texte nommé `.mp4`. Garde :
+> `tests_import_contract.HarnessWitnessIsValidTest`.
 > ⏳ Reste : une extension sans écrivain (`.pdf`, `.docx`, `.mp3` seule) reçoit encore du texte.
 
 > ⚠ **UN scénario, pas dix-sept — et c'est la réponse à une question de Fabien du même jour :**
