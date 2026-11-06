@@ -159,6 +159,29 @@ def render_index(manifest: dict) -> tuple:
     // les défauts — un hôte, trois moments (paramètres de FILE, constat Fabien 31/08).
     function showPanelParams(on) {{ if (ph && !on && window.WamaParams) WamaParams.apply(ph, PANEL_DEFAULTS); }}
 
+    // APPARIEMENT entrée ↔ modèle (2026-11-06) : le geste des pages d'app (`WamaInputMatch.init`),
+    // sur ce que le serveur a lu (`input_match.card_match`, la lecture de la modale d'entrée du
+    // Studio) — le select de modèle du schéma, rendu ci-dessus au volet, et les seuls ports qu'il
+    // JUGE, pris à la card par sa brique (`WamaInputSlots.filePorts`). Une entrée fournie grise les
+    // modèles qui ne la prennent pas ; la ligne d'état de la card dit pourquoi. Rien à apparier
+    // (`{{}}`) : rien n'est câblé.
+    var MATCH = {{{{ input_match|default:'{{}}'|safe }}}};
+    var matchCard = document.getElementById('{app}DropZone');
+    matchCard = matchCard && matchCard.closest('.wama-new-item-card');
+    if (matchCard && ph && MATCH.field && window.WamaInputMatch && window.WamaInputSlots) {{
+        var matchRow = ph.querySelector('[data-param-row="' + MATCH.field + '"]');
+        var matchSelect = matchRow ? matchRow.querySelector('select') : null;
+        var matchSlots = {{}};
+        WamaInputSlots.filePorts(matchCard).forEach(function (p) {{
+            if ((MATCH.ports || []).indexOf(p.id) >= 0) matchSlots[p.id] = {{ inputId: p.inputId, zoneId: p.zoneId }};
+        }});
+        if (matchSelect && matchSelect.id && Object.keys(matchSlots).length) {{
+            WamaInputMatch.init({{ selectId: matchSelect.id, meta: MATCH.meta || {{}},
+                                   inputLabels: MATCH.labels || {{}}, slots: matchSlots,
+                                   statusId: '{app}MatchStatus' }});
+        }}
+    }}
+
     // Inspecteur contextuel — DÉRIVÉ de la facette `inspector` du manifeste.
     if (q && window.WamaInspector && WamaInspector.initFromSchema) {{
         WamaInspector.initFromSchema({{
@@ -595,7 +618,7 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
     celle-ci ne se rebranche qu'en passant les 8 gestes de `converter_01`. `app_id` remplace
     les littéraux de modalité ; `file_accept`/`show_media_library`/`reference_*` restent
     émis parce que la v3 les lit (les 10 apps) et que la v4 honore les ids `reference_*`.{{% endcomment %}}
-    {{% include 'common/_new_item_card_v4.html' with app_id='{app}' drop_zone_id='{app}DropZone' file_input_id='{app}FileInput'{folder_bit} file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits}{attach_bits} %}}
+    {{% include 'common/_new_item_card_v4.html' with app_id='{app}' drop_zone_id='{app}DropZone' file_input_id='{app}FileInput'{folder_bit} file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True match_status_id='{app}MatchStatus'{url_bits}{ref_bits}{attach_bits} %}}
     <hr class="border-secondary">
 
     {{% comment %}}LA FILE — pièce COMMUNE (barre, conteneur, entrées, état vide), la même ligne que
@@ -617,7 +640,7 @@ n'est chargé. Mesuré sur converter_01 le 2026-08-22 : 0 card créable par 5 vo
 Une app générée n'a PAS besoin d'un JS sur mesure pour importer : les cinq modalités sont
 des briques communes. On ne déclare donc ici que ce qui est propre à l'app — ses URL.{{% endcomment %}}
 {{% block app_scripts %}}
-{{% include 'common/_app_scripts.html' %}}
+{{% include 'common/_app_scripts.html' with with_input_match=True %}}
 {{% comment %}}Pieds COMMUNS des modales ⚙ (élément, lot), greffés par `WamaParams.settingsModal`
 (`footerTplId`) — comme dans les dix apps (critère `settings_modal_footer`, 2026-10-30).{{% endcomment %}}
 <template id="{app}SettingsFooterTpl">{{% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' %}}</template>

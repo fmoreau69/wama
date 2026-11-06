@@ -953,3 +953,33 @@ class GeneratedTemplatesCompileTest(SimpleTestCase):
                             self.fail(f'{app}/{name} does not compile : {exc}')
                     compiled += 1
         self.assertGreaterEqual(compiled, len(manifests), 'the park templates were not rendered')
+
+
+class GeneratedInputMatchTest(SimpleTestCase):
+    """L'appariement entrée ↔ modèle d'une app GÉNÉRÉE (2026-11-06) : la vue d'index lit
+    `input_match.card_match` — la lecture que sert la modale d'entrée du Studio —, le gabarit charge
+    la brique et appelle `WamaInputMatch.init` avec la ligne d'état que la card rend. Avant, aucune
+    page générée ne grisait un modèle incompatible (`input_match_ui` rouge sur cinq jumelles)."""
+
+    APP = 'reader'
+
+    def test_the_index_view_passes_the_card_match_read_by_the_studio(self):
+        from wama.common.manifests.codegen.views_gen import render_views
+        src, reason = render_views(_manifeste(self.APP))
+        if not src:
+            self.skipTest(f'vues non générées : {reason}')
+        self.assertIn('card_match(', src)
+        self.assertIn("'input_match': input_match", src)
+
+    def test_the_template_wires_the_brick_on_the_status_line_the_card_renders(self):
+        files, reason = render_index(_manifeste(self.APP))
+        index = (files or {}).get('index.html') or ''
+        if not index:
+            self.skipTest(f'gabarit non généré : {reason}')
+        self.assertIn("with with_input_match=True", index)
+        self.assertIn('WamaInputMatch.init(', index)
+        self.assertIn('input_match|default', index)
+        # La ligne d'état que la card rend est celle que le script lit — un seul id, deux lecteurs.
+        status = re.search(r"match_status_id='(\w+)'", index)
+        self.assertIsNotNone(status, "la card ne rend pas de ligne d'état d'appariement")
+        self.assertIn(f"statusId: '{status.group(1)}'", index)

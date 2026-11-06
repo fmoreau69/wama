@@ -28630,6 +28630,19 @@ résolution des trois paquets lue dans le worktree) : 459 tests des onze modules
 1 rouge — `shuttle_overtakes`, rouge AUSSI dans l'arbre principal, donc une régression et pas un
 artefact, sur `wama_data/functions/driving/vehicle_interactions.py:585` (cam_analyzer, déclaré par
 `3eb967ab7` du 29/10) : à son propriétaire.
+*Suite du même jour* (« compléter au mieux les jumelles les plus basses, sans décision ») : l'appariement
+entrée ↔ modèle généré (`input_match.card_match` lu par la vue d'index, `WamaInputMatch` appelé par le
+gabarit comme la modale d'entrée du Studio — `ROUTE §11 #41`) ; jumelles **−38 → −33** (anonymizer_01,
+enhancer_01, synthesizer_01 97 %, reader_01 96 %, describer_01 95 % — ce dernier VERT sans rien apparier,
+consigné). Onze apps régénérées (`substitute views+templates`) ; transcriber_01 revenu au témoin, l'état
+où il était (sa `surfaces.py` copiée importe deux symboles des vues copiées). Pages servies : 200 ×12,
+appariement réel sur six. Garde `GeneratedInputMatchTest`, deux contre-épreuves rouges (appel retiré du
+gabarit ; clé retirée du contexte), fichiers intacts. Périmètre + gardes transverses : 369 tests, seul
+rouge le budget des classes (133 > 132, aucun identifiant de ce palier). Aucun autre alignement sans
+décision : les restes sont nommés en `ROUTE §11 #41`. Temps de régénération revérifié (≈ 4 min par app,
+rien de neuf : extraction à froid 138 s dont `packages_distributions` 93 s sous `/mnt/d`, juge 76 s dont
+53 s de configuration d'URL tirée par `anonymizer/tasks.py:8`) — déjà consigné, gagné au passage sur un
+serveur Linux natif (décision de Fabien : n'y toucher qu'en universel).
 
 ## §CLÔTURE 2026-11-06, « L'ÉCHANGE DE L'ASSISTANT : APERÇU DES TÂCHES FINIES, LIENS, LOT EN UNE LIGNE ; COMMANDES `/concile`, `/effort`… SUR TOUTES LES SURFACES » — session du 04→06/11 (après la clôture « PRÉSENTATION, VOIX ») — aperçu et lot poussés, commandes NON poussées — vérifié EN SERVICE après la relance du 06/11 13:19
 

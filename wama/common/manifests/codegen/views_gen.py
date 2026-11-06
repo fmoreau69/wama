@@ -562,12 +562,22 @@ def _deposit_settings(user, nature, post, inputs=None):
         # lui-même (défauts du schéma ← user_settings), sans nature ni POST — le volet les
         # montre hors sélection, WamaImport les POSTE (extraFields), la boucle est fermée.
         {ligne_defauts}
+        # Appariement entrée ↔ modèle de la card (2026-11-06) : la lecture COMMUNE que sert la modale
+        # d'entrée du Studio (`input_match.card_match`) — le select de modèle du schéma, son domaine
+        # au catalogue, les ports de la card qu'il juge ; `{{}}` quand il n'y a rien à apparier.
+        try:
+            from wama.common.app_registry import studio_node_ports
+            from wama.common.utils.input_match import card_match
+            input_match = json.dumps(card_match(
+                '{app}', (studio_node_ports('{app}') or {{}}).get('inputs') or []))
+        except Exception:
+            input_match = '{{}}'
         # TROU DE GLU {mark} — contexte SPÉCIFIQUE d'app (profils, formats…) non généré :
         # le gabarit ne fournit que le contexte CONVENTIONNEL de file.
         return render(request, '{app}/index.html', {{
             'batches_list': batches_list, 'queue_count': queue_count,
             'q_sort': q_sort, 'q_filter': q_filter, 'params_json': params_json,
-            'panel_defaults': panel_defaults,
+            'panel_defaults': panel_defaults, 'input_match': input_match,
         }})
 
 
