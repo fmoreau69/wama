@@ -243,9 +243,29 @@ def _validate_composition(compo) -> list[str]:
                             "le modèle) ou 'loaded_by' (le module qui charge le modèle hors backend) "
                             "requis")
 
-    inconnues = set(compo) - {'components', 'runtime'}
+    # `excluded` (2026-11-06) : les fichiers de poids du dépôt que le modèle NE CHARGE PAS et
+    # qu'aucune règle ne reconnaît comme variante — un autre modèle rangé dans le même dépôt, un
+    # composant facultatif, un fichier d'entraînement —, chacun avec sa RAISON. C'est ce qui permet
+    # de refuser une anatomie qui OUBLIE un morceau (`model_installer.anatomy_gaps`) sans refuser
+    # celle qui l'écarte en connaissance de cause : aucun nom de fichier ne distingue les deux.
+    excluded = compo.get('excluded')
+    if excluded is not None:
+        if not isinstance(excluded, list) or not excluded:
+            errs.append("composition.excluded doit être une liste non vide de {pattern, reason}")
+        else:
+            for i, e in enumerate(excluded):
+                if not isinstance(e, dict) or not isinstance(e.get('pattern'), str) \
+                        or not e.get('pattern') or not isinstance(e.get('reason'), str) \
+                        or not e.get('reason').strip():
+                    errs.append(f"composition.excluded[{i}] : 'pattern' (motif de fichier) et "
+                                "'reason' (pourquoi le modèle ne le charge pas) requis, en chaînes")
+                elif set(e) - {'pattern', 'reason'}:
+                    errs.append(f"composition.excluded[{i}] : clés inconnues "
+                                f"{sorted(set(e) - {'pattern', 'reason'})} (pattern|reason)")
+
+    inconnues = set(compo) - {'components', 'runtime', 'excluded'}
     if inconnues:
-        errs.append(f"composition : clés inconnues {sorted(inconnues)} (components|runtime)")
+        errs.append(f"composition : clés inconnues {sorted(inconnues)} (components|runtime|excluded)")
     return errs
 
 
@@ -604,12 +624,41 @@ def un_write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     return {'model': key, 'cleared': portes, 'preserved': ['la ligne AIModel elle-même']}
 
 
+def confront_model(manifest: dict) -> list:
+    """L'ANATOMIE confrontée aux fichiers que l'installation de la ligne apporterait
+    (`model_installer.anatomy_inventory` : ses fichiers déclarés, sinon le dépôt du Hub) — chaque
+    poids réclamé, reconnu comme variante, ou écarté avec sa raison (`anatomy_gaps`).
+
+    Vécu le 2026-11-06 : la proposition d'anatomie d'ACE-Step 1.5 passait la validation de forme
+    en oubliant l'encodeur de texte et `silence_latent.pt` ; validée, elle aurait donné une
+    installation partielle, que le moteur aurait complétée seul, hors de la route. Rien à
+    confronter sans motif de fichier, sans ligne au catalogue (le refus vient alors de
+    `write_back`) ou sans source de fichiers ; un Hub muet REFUSE — on ne valide pas ce qu'on n'a
+    pas pu lire, on réessaie."""
+    from wama.model_manager.models import AIModel
+    from wama.model_manager.services.model_installer import (
+        anatomy_error, anatomy_gaps, anatomy_inventory)
+    composition = (manifest.get('body') or {}).get('composition') or {}
+    if not any(isinstance(c, dict) and c.get('pattern') for c in composition.get('components') or []):
+        return []
+    row = AIModel.objects.filter(model_key=manifest.get('key') or '').first()
+    if row is None:
+        return []
+    inventory = anatomy_inventory(row)
+    if inventory is None:
+        return [f"fichiers de {row.hf_repo} illisibles sur le Hub : l'anatomie ne peut pas être "
+                "confrontée au dépôt — réessayer"]
+    problem = anatomy_error(anatomy_gaps(inventory, composition))
+    return [problem] if problem else []
+
+
 register_kind(ManifestKind(
     kind='model',
     validate=validate_model_body,
     extract=extract_model,
     write_back=write_back_model,
     un_write_back=un_write_back_model,
+    confront=confront_model,
     description="Modèle IA (extrait d'AIModel) : identité/besoins/formats/capacités déclaratifs. "
                 "Exclut l'état runtime (loaded/available/downloaded/local_path/timestamps).",
 ))

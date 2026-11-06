@@ -606,6 +606,29 @@ général inchangé. Motif : MiniMax-Music3, 5 GGUF = 1 modèle — l'anatomie �
 main en `allow_patterns` le 27/08, désormais elle est DÉCLARÉE (premier manifeste porteur :
 `manifests/models/huggingface__Serveurperso~MiniMax-Music3-GGUF.json`).
 
+**2026-11-06 — l'anatomie est COMPLÈTE ou refusée, et `composition.excluded`** (demande de
+Fabien : « on ne laisse pas de trou ou de piège »). Les composants DEVIENNENT ce qu'on tire : un
+morceau oublié est un fichier absent, que le moteur irait chercher seul au premier usage — vécu sur
+la proposition d'anatomie d'ACE-Step 1.5 (encodeur de texte `Qwen3-Embedding-0.6B/` et
+`silence_latent.pt` oubliés). Règle (`model_installer.anatomy_gaps`) : chaque fichier de poids de
+ce que l'installation apporte (le dépôt du Hub, ou les fichiers déclarés du pilote `files`,
+`anatomy_inventory`) est **réclamé** par un composant, **reconnu** comme variante par une règle
+existante (précision, quantisation — GGUF et exports ONNX compris —, shards concurrents, jumeau de
+format, copie monofichier ou imbriquée d'un pipeline, poids d'un autre moteur, conversion
+`transformers` d'un `.nemo` ou d'un `.pt`), ou **écarté** avec sa raison :
+`"excluded": [{"pattern": "safety_checker/*", "reason": "filtre facultatif, chargé à None"}]` —
+un autre modèle rangé dans le même dépôt (les YOLO), un composant facultatif, un fichier
+d'entraînement : rien dans un nom ne les distingue d'un oubli, ils se DÉCLARENT — par le
+constructeur partagé (`common/utils/model_anatomy.model_composition(engine, components,
+excluded)`, qu'empruntent désormais l'imager et les découvertes touchées). Un motif qui ne
+désigne aucun fichier est un trou aussi. Trois lieux, une règle : l'installation refuse avant de
+tirer (`install_from_spec`), « Valider » refuse ce que le plan montre (confrontation du kind,
+`ManifestKind.confront` → `builtin/model.confront_model`, jouée par `proposals.plan/apply` seuls —
+la validation de FORME reste sans réseau), la carte `check_model_completeness` nomme les lignes
+installées (`anatomy_incomplete`). Mesuré ce jour sur les 44 anatomies du catalogue : 13
+incomplètes avant correction, 1 après (`anonymizer:yolo:yolo11l_face_plate_signs.pt`, poids renommé
+au téléchargement — son motif ne désigne aucun fichier du dépôt, piège nommé, non corrigé).
+
 **2026-10-31 — `runtime.loaded_by`** (demande de Fabien après l'inventaire des modèles installés
 sans backend) : le MODULE qui charge le modèle lui-même, hors de tout backend —
 `{"runtime": {"loaded_by": "wama.model_manager.services.bench"}}`. `runtime` exige désormais

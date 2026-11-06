@@ -37,6 +37,12 @@
           "role": "vae"
         }
       ],
+      "excluded": [
+        {
+          "pattern": "vae_1_0/*",
+          "reason": "VAE ALTERNATIF de la version 1.0, non chargé : le pipeline lit `vae/`"
+        }
+      ],
       "runtime": {
         "engine": "diffusers"
       }

@@ -20,6 +20,12 @@
           "role": "model"
         }
       ],
+      "excluded": [
+        {
+          "pattern": "*",
+          "reason": "un poids YOLO est un modèle ENTIER : les autres poids de ce dépôt sont d'autres modèles"
+        }
+      ],
       "runtime": {
         "engine": "ultralytics"
       }

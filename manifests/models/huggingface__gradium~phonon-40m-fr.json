@@ -53,6 +53,14 @@
           "format": "gguf",
           "pattern": "model.q8.gguf",
           "role": "model"
+        },
+        {
+          "pattern": "default-voice.safetensors",
+          "role": "default_voice"
+        },
+        {
+          "pattern": "voices/*.safetensors",
+          "role": "voices"
         }
       ],
       "runtime": {

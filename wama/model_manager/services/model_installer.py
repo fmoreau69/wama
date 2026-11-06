@@ -10,6 +10,7 @@ registre, pas nous → aucun scraping). HF viendra ensuite (règle AGENTS.md : p
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -427,13 +428,28 @@ _FOREIGN_ENGINE_MARKERS = ('flax', 'openvino', 'onnx', 'tf_model', 'rust_model',
 _SHARD_RE = re.compile(r'^(?P<base>.+?)-\d{4,6}-of-(?P<total>\d{4,6})$')
 
 
+@functools.lru_cache(maxsize=1)
+def _quant_marker_re():
+    """Marqueur de QUANTISATION d'un nom de fichier, en MOT (borné par `.`, `-`, `_`) : les
+    marqueurs des dépôts (`prospector._QUANT_MARKERS`, la même famille, une seule liste) plus les
+    deux schémas qui ne s'écrivent que dans un NOM DE FICHIER — GGUF (`q8_0`, `q4_k_m`, `iq4_xs`,
+    `q4k`) et les exports ONNX d'Optimum / transformers.js (`q4`, `q4f16`, `uint8`, `int8`,
+    `bnb4`, `quantized`). Mesuré le 2026-11-06 : sans eux, une seule des sept variantes du Kokoro
+    ONNX était reconnue, et `language_model_q4_k.gguf` ne se lisait pas comme une variante de
+    `language_model_q8_0.gguf` (MiniMax-Music3)."""
+    from .prospector import _QUANT_MARKERS
+    schemes = (r'i?q\d(?:_?[a-z0-9]{1,2}){0,2}', r'u?int\d(?:f\d\d)?', r'bnb\d', r'quantized')
+    words = '|'.join((*schemes, *map(re.escape, _QUANT_MARKERS)))
+    return re.compile(rf'[._-](?:{words})(?=$|[._-])', re.I)
+
+
 def _weight_set_key(filename: str) -> tuple:
     """Identifie le JEU de poids auquel un fichier appartient, dans son rôle.
 
     Deux fichiers du même jeu s'ADDITIONNENT (des shards d'un même tenseur) ; deux jeux
     différents sont des ALTERNATIVES, dont une seule sera chargée. La clé porte donc : le nom
-    de base (shard retiré), le nombre de shards annoncé, la précision marquée, et le moteur
-    étranger éventuel.
+    de base (shard, précision et quantisation retirés), le nombre de shards annoncé, la précision
+    marquée, le moteur étranger éventuel et la quantisation marquée.
     """
     stem = filename.rsplit('.', 1)[0]
     low = filename.lower()
@@ -441,11 +457,23 @@ def _weight_set_key(filename: str) -> tuple:
     base, total = (m.group('base'), m.group('total')) if m else (stem, '')
     dtype = next((d for d in _DTYPE_MARKERS if d in low), '')
     foreign = next((f for f in _FOREIGN_ENGINE_MARKERS if f in low), '')
-    # Le marqueur de précision fait partie du nom de base : on le retire pour que
-    # `x.bf16-00001-of-00003` et `x-00001-of-00005` portent le même base et se comparent.
+    # Les marqueurs de précision et de quantisation font partie du nom de base : on les retire
+    # pour que `x.bf16-00001-of-00003` et `x-00001-of-00005`, `model_q4.onnx` et `model.onnx`
+    # portent le même base et se comparent.
     for d in _DTYPE_MARKERS:
         base = base.replace('.' + d, '').replace('-' + d, '').replace('_' + d, '')
-    return (base, total, dtype, foreign)
+    quant_re = _quant_marker_re()
+    quant = ''.join(q.lower() for q in quant_re.findall(base))
+    base = quant_re.sub('', base)
+    return (base, total, dtype, foreign, quant)
+
+
+def _split_pipeline(names, roles) -> bool:
+    """Un pipeline `diffusers` rangé PAR COMPOSANT — `model_index.json` et au moins deux rôles en
+    sous-dossiers : un poids à sa racine y est la copie MONOFICHIER du tout, pour les chargeurs
+    qui ne lisent pas l'arborescence (`dit.safetensors` de mochi, `flux1-dev.safetensors`).
+    Une règle, deux lecteurs : la pesée (`components_of_files`) et l'anatomie (`anatomy_gaps`)."""
+    return 'model_index.json' in names and len(set(roles) - {_SINGLE_ROLE}) >= 2
 
 
 def components_of_files(files, *, composition=None, allow_patterns=None) -> dict:
@@ -575,7 +603,7 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
             kept[role] = [f for k in groups for f in members[(role, k)]]
             continue
         marked = {k: gb for k, gb in groups.items()
-                  if k[2] or k[3] or any(m in k[0].lower() for m in _QUANT_MARKERS)}
+                  if k[2] or k[3] or k[4] or any(m in k[0].lower() for m in _QUANT_MARKERS)}
         plain = {k: gb for k, gb in groups.items() if k not in marked}
         # Un rôle qui n'existe QUE marqué (dépôt fp8 entier, vrai modèle ONNX) pèse ce qu'il
         # pèse : le ranger dans `variants` le ferait disparaître du total.
@@ -588,8 +616,7 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
             variants[role] = alt
 
     # ── 3. La copie MONOFICHIER d'un pipeline n'est pas un composant de plus ─────────────
-    if not declared and 'model_index.json' in names and len(roles - {_SINGLE_ROLE}) >= 2 \
-            and _SINGLE_ROLE in full:
+    if not declared and _split_pipeline(names, roles) and _SINGLE_ROLE in full:
         variants[_SINGLE_ROLE] = variants.get(_SINGLE_ROLE, 0.0) + full.pop(_SINGLE_ROLE)
         kept.pop(_SINGLE_ROLE, None)
 
@@ -608,6 +635,176 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
     if variants:
         out['variants'] = {r: round(gb, 3) for r, gb in sorted(variants.items())}
     return out
+
+
+#: Noms de point de contrôle FIXÉS PAR UNE LIBRAIRIE de chargement — les constantes de
+#: `transformers` (`SAFE_WEIGHTS_NAME`, `WEIGHTS_NAME`, et leurs shards) et de `diffusers`, celles
+#: que `duplicate_weight_files` apparie déjà. Un tel fichier est le modèle tel que CETTE librairie
+#: le lit ; la clé est le nom du moteur qui le lit lui-même.
+_LIBRARY_CHECKPOINTS = {'transformers': ('model', 'pytorch_model'),
+                        'diffusers': ('diffusion_pytorch_model',)}
+
+
+def _set_aside_reason(path, claimed, names, proven_format, engine) -> str:
+    """Pourquoi un poids qu'aucun composant ne réclame n'est PAS un oubli — '' sans règle.
+
+    Chaque raison est une règle DÉJÀ écrite pour peser ou tirer un dépôt, ou une convention
+    publiée par une librairie ; aucune ne lit un nom de modèle :
+      * même nom qu'un poids réclamé du même dossier, autre format → jumeau de format ;
+      * même JEU qu'un poids réclamé du même dossier (`_weight_set_key` : précision,
+        quantisation, découpage de shards, moteur étranger) → variante ;
+      * pipeline `diffusers` (`model_index.json`) : un poids à la racine quand les composants sont
+        en sous-dossiers (la copie monofichier, règle 3 de `components_of_files`), ou plus profond
+        que `<rôle>/<fichier>` (diffusers ne lit qu'un niveau : le pipeline imbriqué de LTX) ;
+      * marqué d'un AUTRE moteur (`_FOREIGN_ENGINE_MARKERS`) quand aucun poids réclamé ne l'est ;
+      * point de contrôle d'une librairie (`_LIBRARY_CHECKPOINTS`) que le moteur déclaré n'est pas,
+        à côté d'un poids réclamé d'un autre format, ou quand le format des poids réclamés prouve
+        le moteur (`prospector.WEIGHT_FORMAT_ENGINES`, qui ne lit que lui) — la conversion
+        `transformers` d'un `.nemo` (LinTO), d'un `.pt` (SAM 3, Bark) ou d'un export ONNX.
+    """
+    folder, _, name = path.rpartition('/')
+    key = _weight_set_key(name)
+    beside = [c.rpartition('/')[2] for c in claimed if c.rpartition('/')[0] == folder]
+    if any(c.rsplit('.', 1)[0] == name.rsplit('.', 1)[0] for c in beside):
+        return 'jumeau de format'
+    beside_bases = [_weight_set_key(c)[0] for c in beside]
+    if key[0] in beside_bases:
+        return 'variante'
+    claimed_roles = {c.split('/')[0] if '/' in c else _SINGLE_ROLE for c in claimed}
+    if _split_pipeline(names, claimed_roles):
+        if '/' not in path and _SINGLE_ROLE not in claimed_roles:
+            return 'copie monofichier du pipeline'
+        if path.count('/') >= 2 and path.split('/')[0] in claimed_roles:
+            return 'pipeline imbriqué sous un composant'
+    if key[3] and not any(_weight_set_key(c.rpartition('/')[2])[3] for c in claimed):
+        return 'poids d\'un autre moteur'
+    library = next((lib for lib, bases in _LIBRARY_CHECKPOINTS.items() if key[0] in bases), None)
+    if library and not (engine or '').startswith(library) \
+            and name.endswith(('.safetensors', '.bin')) \
+            and (proven_format or any(b not in _LIBRARY_CHECKPOINTS[library] for b in beside_bases)):
+        return f'conversion pour {library}'
+    return ''
+
+
+def anatomy_gaps(files, composition) -> dict:
+    """Ce que l'anatomie DÉCLARÉE laisse de côté d'un inventaire — dérivation PURE, aucun réseau.
+
+    🔴 POURQUOI (2026-11-06, demande de Fabien : « on ne laisse pas de trou ou de piège »). Les
+    composants d'une ligne DEVIENNENT ce qu'on télécharge (`patterns_from_composition`), et la
+    pesée tient pour « pas un poids du modèle » tout fichier qu'aucun composant ne réclame
+    (`components_of_files`). Une anatomie qui OUBLIE un morceau donne donc une installation
+    PARTIELLE, que rien ne signalait. Vécu : la proposition d'anatomie d'ACE-Step 1.5 omettait
+    l'encodeur de texte (`Qwen3-Embedding-0.6B/`) et `silence_latent.pt` ; le moteur les aurait
+    tirés lui-même au premier usage, hors de la route.
+
+    Mesuré sur les 43 anatomies du catalogue le même jour : un poids non réclamé est le plus souvent
+    une VARIANTE que des règles existantes reconnaissent (`_set_aside_reason`) — mais pas toujours.
+    Un dépôt peut ranger d'AUTRES modèles (les YOLO de l'anonymizer), un composant facultatif (le
+    `safety_checker` de SD 1.5) ou des fichiers d'entraînement (le `dvae.pth` de XTTS) : aucun nom
+    ne les distingue d'un oubli. Ceux-là se DÉCLARENT, avec leur raison (`composition.excluded`).
+
+    `files` : `[(chemin, taille)]` ou `[chemin]` — ce que l'installation APPORTE (le dépôt du Hub,
+    ou les fichiers déclarés du pilote `files` : `anatomy_inventory`). Rend `{}` si l'anatomie est
+    complète (ou ne déclare aucun motif : le dépôt entier est alors tiré), sinon :
+      * `unclaimed` — poids qu'aucun composant ne réclame, qu'aucune règle n'écarte, qu'aucune
+        exclusion déclarée ne couvre : l'anatomie est INCOMPLÈTE ;
+      * `claims_nothing` — rôles dont le motif ne désigne aucun fichier ; `excludes_nothing` —
+        exclusions déclarées qui ne désignent rien (une déclaration morte se dit, comme un tag
+        Ollama mort) ;
+      * `set_aside` — `{chemin: raison}` de ce que les règles ont écarté, pour qu'on VOIE leur
+        travail (le plan de validation l'affiche).
+    """
+    import fnmatch
+
+    from .prospector import _WEIGHT_EXTS, WEIGHT_FORMAT_ENGINES
+    compo = composition or {}
+    declared = [(c.get('role') or _SINGLE_ROLE, c['pattern'])
+                for c in (compo.get('components') or [])
+                if isinstance(c, dict) and c.get('pattern')]
+    names = [f[0] if isinstance(f, (tuple, list)) else f for f in (files or [])]
+    if not declared or not names:
+        return {}
+    excluded = [e['pattern'] for e in (compo.get('excluded') or [])
+                if isinstance(e, dict) and e.get('pattern')]
+    weights = [p for p in names if p.lower().endswith(_WEIGHT_EXTS)]
+    claimed = [p for p in weights if any(fnmatch.fnmatch(p, pat) for _, pat in declared)]
+    twins = set(duplicate_weight_files(names))
+    engine = (compo.get('runtime') or {}).get('engine') or ''
+    proven = bool(claimed) and all(c.lower().endswith(tuple(WEIGHT_FORMAT_ENGINES)) for c in claimed)
+    unclaimed, set_aside = [], {}
+    for path in weights:
+        if path in claimed:
+            continue
+        if any(fnmatch.fnmatch(path, pat) for pat in excluded):
+            set_aside[path] = 'écarté par la déclaration'
+            continue
+        reason = 'jumeau de format' if path in twins else \
+            _set_aside_reason(path, claimed, names, proven, engine)
+        if reason:
+            set_aside[path] = reason
+        else:
+            unclaimed.append(path)
+    out = {}
+    if unclaimed:
+        out['unclaimed'] = sorted(unclaimed)
+    nothing = [role for role, pat in declared if not any(fnmatch.fnmatch(p, pat) for p in names)]
+    if nothing:
+        out['claims_nothing'] = nothing
+    dead = [pat for pat in excluded if not any(fnmatch.fnmatch(p, pat) for p in names)]
+    if dead:
+        out['excludes_nothing'] = dead
+    if out and set_aside:
+        out['set_aside'] = dict(sorted(set_aside.items()))
+    return out
+
+
+def anatomy_error(gaps) -> str:
+    """Le refus que disent les trous d'une anatomie (`anatomy_gaps`) — '' si elle est complète.
+    Une seule phrase pour les trois lieux qui la confrontent : l'installation, la validation d'une
+    proposition, la carte du catalogue."""
+    gaps = gaps or {}
+    parts = []
+    if gaps.get('unclaimed'):
+        shown = gaps['unclaimed']
+        parts.append(f"{len(shown)} poids du dépôt qu'aucun composant ne réclame et qu'aucune règle "
+                     f"n'écarte ({', '.join(shown[:4])}{', …' if len(shown) > 4 else ''}) — déclarer "
+                     "le composant, ou l'écarter avec sa raison (`composition.excluded`)")
+    if gaps.get('claims_nothing'):
+        parts.append(f"composant(s) dont le motif ne désigne aucun fichier du dépôt : "
+                     f"{', '.join(gaps['claims_nothing'])}")
+    if gaps.get('excludes_nothing'):
+        parts.append(f"exclusion(s) qui ne désignent aucun fichier : "
+                     f"{', '.join(gaps['excludes_nothing'])}")
+    return ('anatomie incomplète : ' + ' ; '.join(parts)) if parts else ''
+
+
+def anatomy_inventory(model):
+    """Les fichiers que l'anatomie d'une ligne doit décrire : ceux que son installation APPORTE —
+    ses fichiers déclarés (pilote `files`, qui priment comme dans `spec_for_catalog_row`), sinon
+    le dépôt du Hub ENTIER. Jamais le snapshot local : une anatomie incomplète l'a justement
+    tronqué, il ne montrerait pas ce qui manque. `[]` sans source, None si le Hub n'a pas répondu
+    (une panne, pas un dépôt vide — la distinction de `prospector._siblings`).
+
+    Un fichier déclaré venu du dépôt MÊME du modèle porte le nom qu'il a dans ce dépôt
+    (`origin.file`), quel que soit l'endroit où le pilote le range : l'anatomie parle la langue du
+    dépôt, et reste juste que le modèle s'installe par `hf` ou par `files` (Bark : `text_2.pt`,
+    rangé sous `suno/bark_v0/`). Les autres (un second dépôt, une version GitHub) gardent leur
+    chemin d'installation."""
+    declared = (model.extra_info or {}).get('declared_files')
+    if declared:
+        own = (model.hf_repo or '').lower()
+
+        def name(entry):
+            origin = entry.get('origin') or {}
+            same_repo = origin.get('source') == 'huggingface' and \
+                (origin.get('repo') or '').lower() == own
+            return origin.get('file') if same_repo and origin.get('file') else entry['path']
+        return [(name(f), f.get('size') or 0) for f in declared
+                if isinstance(f, dict) and f.get('path')]
+    if not model.hf_repo:
+        return []
+    from .prospector import _siblings
+    return _siblings(model.hf_repo)
 
 
 #: Un composant peut vivre dans un AUTRE dépôt (`{'role': …, 'repo': 'org/nom'}`) — c'est le
@@ -2416,6 +2613,9 @@ def install_from_spec(spec: dict, token=None, owner=None, meter=None) -> dict:
     elif kind == 'hf':
         if not spec.get('category'):
             return {'ok': False, 'error': "spec.category requis pour kind='hf'"}
+        refused = _incomplete_anatomy(spec, token)
+        if refused:
+            return refused
         res = pull_hf_model(ref, spec['category'], spec.get('family'),
                             allow_patterns=(spec.get('allow_patterns')
                                             or patterns_from_composition(spec.get('composition'))),
@@ -2432,6 +2632,29 @@ def install_from_spec(spec: dict, token=None, owner=None, meter=None) -> dict:
     if res.get('ok'):
         record_provenance(spec, res, owner=owner)
     return res
+
+
+def _incomplete_anatomy(spec: dict, token=None):
+    """Le refus d'installer un dépôt du Hub par une anatomie INCOMPLÈTE, ou None.
+
+    L'anatomie DEVIENT ce qu'on tire (`patterns_from_composition`) : un composant oublié est un
+    fichier absent du disque, que le moteur irait chercher seul au premier usage (le cas d'ACE-Step,
+    2026-11-06). La confrontation se fait AVANT le téléchargement, sur les fichiers que le Hub publie
+    — le même relevé que la vérification d'empreinte (`hub_files`), avec le jeton de la personne.
+    Des motifs explicites (`allow_patterns`, une variante choisie) ne sont pas une anatomie : rien à
+    confronter. Un Hub muet refuse, comme la vérification d'empreinte qui suit."""
+    composition = spec.get('composition') or {}
+    if spec.get('allow_patterns') or not patterns_from_composition(composition):
+        return None
+    from .prospector import hub_files
+    published = hub_files(spec['ref'], token=token)
+    if published is None:
+        return {'ok': False, 'reason': 'anatomy',
+                'error': f"fichiers de {spec['ref']} illisibles sur le Hub : l'anatomie déclarée ne "
+                         "peut pas être confrontée au dépôt — installation refusée, réessayer"}
+    gaps = anatomy_gaps([(s.rfilename, s.size or 0) for s in published], composition)
+    problem = anatomy_error(gaps)
+    return {'ok': False, 'reason': 'anatomy', 'error': problem, 'anatomy': gaps} if problem else None
 
 
 def record_provenance(spec: dict, res: dict, owner=None) -> dict:

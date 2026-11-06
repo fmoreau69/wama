@@ -124,20 +124,21 @@ def _weight_pattern(role: str, sharded: bool) -> str:
     return f"{role}/{stem}{'-*' if sharded else ''}.safetensors"
 
 
-def _pipeline_composition(**roles) -> dict:
+def _pipeline_composition(excluded=None, **roles) -> dict:
     """`composition` d'un pipeline diffusers, au schéma de `manifests.builtin.model`.
 
     Un rôle vaut `True` (jeu de shards), `False` (fichier unique), ou un MOTIF explicite quand la
     convention ne suffit pas à trancher — cas mesuré : `genmo/mochi-1-preview` porte DEUX jeux de
     shards concurrents dans `text_encoder/` (`-of-00002` et `-of-00004`) que rien dans le nom ne
     distingue ; son `model.safetensors.index.json` désigne le second.
+    `excluded` : `{motif: raison}` des poids du dépôt que le pipeline ne charge pas et qu'aucune
+    règle ne reconnaît comme variante (`model_installer.anatomy_gaps`). La forme est celle du
+    constructeur partagé (`common/utils/model_anatomy.model_composition`).
     """
-    return {
-        'components': [{'role': role,
-                        'pattern': spec if isinstance(spec, str) else _weight_pattern(role, spec)}
-                       for role, spec in roles.items()],
-        'runtime': {'engine': 'diffusers'},
-    }
+    from wama.common.utils.model_anatomy import model_composition
+    return model_composition('diffusers', [
+        {'role': role, 'pattern': spec if isinstance(spec, str) else _weight_pattern(role, spec)}
+        for role, spec in roles.items()], excluded)
 
 
 # =============================================================================
@@ -385,7 +386,12 @@ STABLE_DIFFUSION_MODELS = {
         # par la MESURE là où ma liste écrite à la main le gardait, comptant 1,13 Go absent).
         # Contrairement à SDXL, ce dépôt-ci n'a PAS de variante `.fp16` installée : le `variant`
         # demandé par le backend n'existe pas, diffusers retombe sur la pleine précision.
-        'composition': _pipeline_composition(unet=False, text_encoder=False, vae=False),
+        'composition': _pipeline_composition(
+            unet=False, text_encoder=False, vae=False,
+            excluded={'safety_checker/*': "filtre NSFW facultatif : le pipeline se charge avec "
+                                          "`safety_checker=None` (`diffusers_backend`)",
+                      'unet/*non_ema*': "poids NON-EMA, ceux de l'entraînement : l'inférence lit "
+                                        "les poids EMA"}),
         'resolution': '512x512', 'min_resolution': 256, 'max_resolution': 768,
         'description': 'Stable Diffusion 1.5 — classique (compatibilité LoRA)',
         'description_long': "Stable Diffusion 1.5 (Runway/CompVis) : le classique historique de la "
@@ -420,7 +426,9 @@ STABLE_DIFFUSION_MODELS = {
             unet='unet/diffusion_pytorch_model.fp16.safetensors',
             text_encoder='text_encoder/model.fp16.safetensors',
             text_encoder_2='text_encoder_2/model.fp16.safetensors',
-            vae='vae/diffusion_pytorch_model.fp16.safetensors'),
+            vae='vae/diffusion_pytorch_model.fp16.safetensors',
+            excluded={'vae_1_0/*': "VAE ALTERNATIF de la version 1.0, non chargé : le pipeline "
+                                   "lit `vae/`"}),
         'resolution': '1024x1024', 'min_resolution': 512, 'max_resolution': 1536,
         'description': 'Stable Diffusion XL — haute résolution (compatibilité LoRA)',
         'description_long': "Stable Diffusion XL (Stability AI) : génération native en 1024 px, "

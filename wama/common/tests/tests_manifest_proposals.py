@@ -50,6 +50,12 @@ class ManifestProposalTest(TestCase):
         export = mock.patch('django.core.management.call_command')
         self.export = export.start()
         self.addCleanup(export.stop)
+        # Valider confronte l'anatomie aux fichiers du dépôt (`confront_model`, 2026-11-06) : le
+        # dépôt fictif porte le seul fichier que l'anatomie proposée réclame — aucun réseau.
+        inventory = mock.patch('wama.model_manager.services.model_installer.anatomy_inventory',
+                               return_value=[('dit/model.onnx', 1)])
+        inventory.start()
+        self.addCleanup(inventory.stop)
         self.row = AIModel.objects.create(
             model_key=KEY, name='Img', model_type='diffusion', source='huggingface',
             is_downloaded=True, platform_ref='huggingface:Org/Img', license='apache-2.0', author='Org',

@@ -24,7 +24,14 @@ RÈGLES STRICTES :
    poids aux rôles distincts — ex. transformer + vocoder + codec). Chaque composant est
    {"role": "<fonction dans la chaîne>", "pattern": "<motif de fichier, style glob>"
    [, "format": "..."]}, les motifs venant de l'INVENTAIRE fourni. Un modèle mono-fichier
-   n'a pas de `components`.
+   n'a pas de `components`. Les composants DEVIENNENT ce qu'on télécharge : chaque fichier
+   de poids de l'inventaire doit être soit réclamé par un composant, soit une VARIANTE que
+   WAMA reconnaît seul (autre précision, autre quantisation, même poids dans un autre format
+   ou pour un autre moteur), soit ÉCARTÉ dans `composition.excluded` =
+   [{"pattern": "<motif>", "reason": "<pourquoi le modèle ne le charge pas>"}] (un autre
+   modèle rangé dans le même dépôt, un composant facultatif, un fichier d'entraînement). Un
+   encodeur, un latent, une voix que le moteur lit est un COMPOSANT : l'oublier donne une
+   installation incomplète, et la validation REFUSE l'anatomie.
 10. Tu n'inventes AUCUN fait MESURÉ : `resources` (vram_gb, ram_gb, disk_gb), `extra_info`,
     `provenance.is_proposed`, l'état de téléchargement. Ces champs appartiennent à la
     DÉCOUVERTE (qui les mesure sur le disque) : laisse-les `null`, `{}` ou recopie

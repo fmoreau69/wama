@@ -694,6 +694,11 @@ MECHANISMS = (
               "voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, "
               "2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle "
               "`tests_install_route`, budget des dérives existantes qui ne peut que descendre. "
+              "L'ANATOMIE est complète ou refusée (2026-11-06) : chaque poids de ce que "
+              "l'installation apporte est réclamé par un composant, reconnu comme variante, ou "
+              "écarté avec sa raison (`composition.excluded`) — `anatomy_gaps`, joué avant de "
+              "tirer, au « Valider » d'une proposition (`ManifestKind.confront`) et par "
+              "`check_model_completeness`. "
               "Les options d'installation disent ce qui TOURNE ici et la recommandation (la plus "
               "précise qui tient sur la carte), pour la page et l'assistant ; une désinstallation "
               "retire des choix des apps (option cochée), une MISE À JOUR installée succède à "
@@ -708,7 +713,8 @@ MECHANISMS = (
               annexes=('wama/model_manager/services/vendor_installer.py',
                        'wama/model_manager/services/succession.py',
                        'wama/common/utils/disk_utils.py',
-                       'wama/common/tests/tests_install_route.py')),
+                       'wama/common/tests/tests_install_route.py',
+                       'wama/model_manager/tests/tests_anatomy.py')),
     Mechanism('install_history', 'Journal des installations',
               "Date chaque installation et désinstallation (modèle, librairie) avec son issue et "
               "sa VOIE (model manager, assistant, marcheur d'app, ligne de commande), aux points "

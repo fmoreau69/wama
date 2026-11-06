@@ -84,6 +84,25 @@ class Command(BaseCommand):
         # modèle est désinstallé. Ce qui manquait est un contrôle des DONNÉES, et il a son
         # domicile ici : une carte des rows à regarder, pas un verdict.
         weights_missing, peak_under_declared = [], []
+        # L'ANATOMIE confrontée au dépôt (2026-11-06) : la même règle que l'installation et la
+        # validation d'une proposition (`model_installer.anatomy_gaps`). Une ligne déjà installée
+        # par une anatomie incomplète a des fichiers en moins, que son moteur irait tirer seul ;
+        # le Hub est lu (une requête par ligne à anatomie), un Hub muet se dit à part.
+        from wama.model_manager.services.model_installer import (
+            anatomy_error, anatomy_gaps, anatomy_inventory)
+        # Toutes les lignes, YOLO comprises : le repli de la famille est un confort de lecture, il
+        # ne cache pas une anatomie fausse.
+        anatomy_incomplete, anatomy_unread, anatomy_why = [], [], {}
+        for m in all_rows:
+            if any(isinstance(c, dict) and c.get('pattern')
+                   for c in (m.composition or {}).get('components') or []):
+                inventory = anatomy_inventory(m)
+                problem = anatomy_error(anatomy_gaps(inventory, m.composition)) if inventory else ''
+                if inventory is None:
+                    anatomy_unread.append(m)
+                elif problem:
+                    anatomy_incomplete.append(m)
+                    anatomy_why[m.model_key] = problem
 
         for m in rows:
             if not (m.license or '').strip():
@@ -141,6 +160,12 @@ class Command(BaseCommand):
              "le PLUS PETIT des deux pics (plus gros composant, celui du déchargement) dépasse "
              "déjà la VRAM déclarée — la déclaration est fausse quelle que soit la stratégie "
              "(cas hunyuan-image-2.1 : 16 Go déclarés, transformer de 32,5)"),
+            ('anatomy_incomplete', anatomy_incomplete,
+             "anatomie qui laisse des poids du dépôt sans composant, sans règle de variante et sans "
+             "exclusion déclarée — l'installation par cette anatomie est REFUSÉE, et une ligne déjà "
+             "installée ainsi a des fichiers en moins (cas ACE-Step, 2026-11-06)"),
+            ('anatomy_unread', anatomy_unread,
+             "anatomie non confrontée : le Hub n'a pas répondu — relancer"),
             ('backend_unserved', backend_unserved,
              "moteur DÉCLARÉ qu'aucun inventaire ne sert → grisé, exclu du tirage auto"),
             ('backend_out_of_scope', backend_out_of_scope,
@@ -152,6 +177,7 @@ class Command(BaseCommand):
         for key, items, _ in axes:
             report['axes'][key] = [m.model_key for m in items]
         report['task_missing'] = [m.model_key for m in task_missing]
+        report['anatomy_why'] = anatomy_why
 
         if options['json']:
             self.stdout.write(json.dumps(report, indent=2, ensure_ascii=False))
@@ -179,6 +205,8 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f"      {m.model_key:<58} vram={m.vram_gb or 0:<6} "
                     f"lic={(m.license or '-')[:22]:<22} moteur={engine}")
+                if m.model_key in anatomy_why and key == 'anatomy_incomplete':
+                    self.stdout.write(f"          {anatomy_why[m.model_key]}")
 
         if task_missing:
             self.stdout.write(self.style.WARNING(

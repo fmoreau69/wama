@@ -55,6 +55,11 @@ class ManifestKind:
     # (docstring de `projection.py`).
     write_back: Optional[Callable[..., dict]] = None
     un_write_back: Optional[Callable[..., dict]] = None
+    # Confrontation au MONDE (facultatif, 2026-11-06) : manifeste -> [erreurs] que seul le réel
+    # peut dire — les fichiers d'un dépôt pour l'anatomie d'un modèle. `validate` juge la FORME,
+    # sans réseau ni disque (export, round-trip, corpus l'appellent par centaines) ; ceci n'est
+    # joué que par le geste qui fait entrer une proposition au registre (`proposals.plan/apply`).
+    confront: Optional[Callable[[dict], list]] = None
     description: str = ''
 
 

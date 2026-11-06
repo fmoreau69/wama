@@ -14,15 +14,15 @@
     "composition": {
       "components": [
         {
-          "repo": "sczhou/CodeFormer",
+          "pattern": "CodeFormer/*",
           "role": "CodeFormer"
         },
         {
-          "pattern": "facelib",
+          "pattern": "facelib/*",
           "role": "détection + parsing"
         },
         {
-          "pattern": "realesrgan",
+          "pattern": "realesrgan/*",
           "role": "upscaler optionnel"
         }
       ],

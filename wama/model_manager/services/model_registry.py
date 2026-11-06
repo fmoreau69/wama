@@ -1248,6 +1248,7 @@ class ModelRegistry:
             from wama.anonymizer.utils.model_config import (
                 platform_ref_for_yolo_weight, list_available_yolo_models,
             )
+            from wama.common.utils.model_anatomy import model_composition
 
             yolo_models = list_available_yolo_models()
             declared_here = _declared_here()
@@ -1333,11 +1334,17 @@ class ModelRegistry:
                         # a été RENOMMÉ au téléchargement (le dépôt Panoramax porte
                         # `yolo11l_panoramax.pt`, même taille). Son motif ne matchera rien, et le
                         # relevé dira « indéterminable » — ce qui est exact — au lieu d'inventer.
-                        composition={
-                            **({'components': [{'role': 'model', 'pattern': model_name}]}
-                               if platform_ref_for_yolo_weight(model_name) else {}),
-                            'runtime': {'engine': 'ultralytics'},
-                        },
+                        # (2026-11-06 : la confrontation de l'anatomie au dépôt le dit aussi,
+                        # `anatomy_gaps` → `claims_nothing`.)
+                        # Et les AUTRES poids de ces dépôts sont d'autres modèles (les tailles
+                        # n/s/m/l/x, les détecteurs voisins de jags/…) : ÉCARTÉS, par la même
+                        # dérivation qui pose le composant — un poids YOLO est un modèle entier.
+                        composition=model_composition(
+                            'ultralytics',
+                            [{'role': 'model', 'pattern': model_name}]
+                            if platform_ref_for_yolo_weight(model_name) else [],
+                            {'*': "un poids YOLO est un modèle ENTIER : les autres poids de ce "
+                                  "dépôt sont d'autres modèles"}),
                         format=model_format,
                         preferred_format=preferred,
                         can_convert_to=convert_options,
@@ -1880,6 +1887,7 @@ class ModelRegistry:
             from wama.common.backends.phonon_backend import (
                 HF_REPO, MODEL_KEY, PHONON_FILES, PhononBackend, model_folder, model_installed,
             )
+            from wama.common.utils.model_anatomy import model_composition
             from wama.common.utils.model_capabilities import apply_engine_flags
             self._models[MODEL_KEY] = ModelInfo(
                 id=MODEL_KEY,
@@ -1904,9 +1912,12 @@ class ModelRegistry:
                 capabilities=apply_engine_flags(
                     {'task': 'text-to-speech', 'modalities': ['audio'],
                      'inputs_required': ['prompt'], 'languages': ['fr']}, PhononBackend),
-                composition={'runtime': {'engine': PhononBackend.ENGINE},
-                             'components': [{'role': 'model', 'pattern': 'model.q8.gguf',
-                                             'format': 'gguf'}]},
+                # La voix par défaut et les voix rangées sous `voices/` sont lues par `ptts`
+                # (`PHONON_FILES`) : des composants, que l'anatomie oubliait (2026-11-06).
+                composition=model_composition(PhononBackend.ENGINE, [
+                    {'role': 'model', 'pattern': 'model.q8.gguf', 'format': 'gguf'},
+                    {'role': 'default_voice', 'pattern': 'default-voice.safetensors'},
+                    {'role': 'voices', 'pattern': 'voices/*.safetensors'}]),
             )
         except Exception as e:
             self.discovery_errors.append(f'phonon: {e}')
@@ -3860,6 +3871,7 @@ class ModelRegistry:
             from wama.avatarizer.utils.model_config import (
                 AVATARIZER_MODELS, CODEFORMER_MODELS_DIR, MUSETALK_MODELS_DIR,
             )
+            from wama.common.utils.model_anatomy import model_composition
             from wama.model_manager.services.model_installer import declared_files_present
 
             # MuseTalk V1.5 — lu dans la DÉCLARATION de l'app (2026-10-11) : ses fichiers, leur
@@ -3942,12 +3954,13 @@ class ModelRegistry:
                     # `avatarizer/backends/codeformer_backend.py`) + anatomie DÉCLARÉE : les
                     # trois sous-dossiers de poids sont des COMPOSANTS, ce qui évite que
                     # `check_model_layout` les compte comme des dépôts étrangers.
-                    composition={
-                        'runtime': {'engine': 'codeformer'},
-                        'components': [{'repo': 'sczhou/CodeFormer', 'role': 'CodeFormer'},
-                                       {'pattern': 'facelib', 'role': 'détection + parsing'},
-                                       {'pattern': 'realesrgan', 'role': 'upscaler optionnel'}],
-                    },
+                    # (2026-11-06) Leurs motifs désignent les FICHIERS déclarés de ces dossiers :
+                    # `facelib` seul ne désignait aucun fichier, et le restaurateur, rangé sous
+                    # `CodeFormer/` depuis ses fichiers déclarés, n'est plus un dépôt frère.
+                    composition=model_composition('codeformer', [
+                        {'pattern': 'CodeFormer/*', 'role': 'CodeFormer'},
+                        {'pattern': 'facelib/*', 'role': 'détection + parsing'},
+                        {'pattern': 'realesrgan/*', 'role': 'upscaler optionnel'}]),
                 )
 
             # ── TalkingHead — avatar 3D riggé (moteur `talkinghead`, 2026-09-30) ──

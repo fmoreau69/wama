@@ -117,11 +117,25 @@ def _merged(obj) -> tuple:
     return merged, filled, diverged
 
 
+def _errors(merged) -> list:
+    """Ce qui interdit d'appliquer : la FORME (`validate`), puis ce que seul le réel peut dire
+    (`ManifestKind.confront`, joué ici seulement — une forme fausse ne vaut pas un appel réseau).
+    UNE liste pour le plan et pour l'application : « Valider » refuse exactement ce que le plan
+    montre (2026-11-06, l'anatomie d'ACE-Step qui oubliait son encodeur de texte)."""
+    from .ingest import validate
+    from .kinds import get_kind
+    errors = list(validate(merged) or [])
+    confront = getattr(get_kind(merged.get('manifest_kind') or ''), 'confront', None)
+    if not errors and confront:
+        errors += list(confront(merged) or [])
+    return errors
+
+
 def plan(obj) -> dict:
     """Ce que `apply()` FERAIT — sans rien écrire. `write_back` est le dry-run du kind."""
-    from .ingest import validate, write_back
+    from .ingest import write_back
     merged, filled, diverged = _merged(obj)
-    errors = list(validate(merged) or [])
+    errors = _errors(merged)
     try:
         projection = write_back(merged, apply=False) if not errors else None
     except Exception as e:
@@ -137,9 +151,9 @@ def apply(obj, user=None) -> dict:
 
     Refuse — sans rien écrire — un manifeste superposé invalide, ou une projection qui signale
     sa cible absente (un modèle se DÉCOUVRE, il ne se crée pas depuis un manifeste)."""
-    from .ingest import promote, validate, write_back
+    from .ingest import promote, write_back
     merged, filled, diverged = _merged(obj)
-    errors = list(validate(merged) or [])
+    errors = _errors(merged)
     if errors:
         return {'applied': False, 'errors': errors}
     projection = write_back(merged, apply=True)

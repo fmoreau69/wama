@@ -33,6 +33,16 @@
           "role": "vae"
         }
       ],
+      "excluded": [
+        {
+          "pattern": "safety_checker/*",
+          "reason": "filtre NSFW facultatif : le pipeline se charge avec `safety_checker=None` (`diffusers_backend`)"
+        },
+        {
+          "pattern": "unet/*non_ema*",
+          "reason": "poids NON-EMA, ceux de l'entraînement : l'inférence lit les poids EMA"
+        }
+      ],
       "runtime": {
         "engine": "diffusers"
       }

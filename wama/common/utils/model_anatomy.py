@@ -166,7 +166,7 @@ def components_from_snapshot(root) -> list:
     return parts
 
 
-def model_composition(engine: str, components) -> dict:
+def model_composition(engine: str, components, excluded=None) -> dict:
     """`composition` au schéma de `manifests.builtin.model` — le CONSTRUCTEUR partagé.
 
     Écrit le 2026-09-20 après un relevé qui n'a trouvé AUCUN constructeur commun : le validateur
@@ -182,8 +182,14 @@ def model_composition(engine: str, components) -> dict:
     `'pipeline': 'sdxl'` des configs imager qui nomme une famille de chargeur. Une composition
     n'est PAS un process : c'est l'anatomie INTERNE d'un modèle que l'utilisateur choisit d'un
     seul geste. Ajouter un quatrième sens au mot aurait coûté plus que le nom ne rapporte.
+
+    `excluded` (2026-11-06) : `{motif: raison}` des poids du dépôt que le modèle NE CHARGE PAS et
+    qu'aucune règle ne reconnaît comme variante — sans eux, l'anatomie est refusée comme incomplète
+    (`model_installer.anatomy_gaps`). Seulement avec des composants : rien n'est à écarter sans eux.
     """
     if components:
         return {'components': [dict(c) for c in components],
+                **({'excluded': [{'pattern': pattern, 'reason': reason}
+                                 for pattern, reason in excluded.items()]} if excluded else {}),
                 'runtime': {'engine': engine}}
     return {'runtime': {'engine': engine}} if engine else {}
