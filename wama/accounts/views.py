@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User, Group
-from django.http import HttpResponseRedirect, JsonResponse
+from django.http import HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.utils.decorators import method_decorator
@@ -14,7 +14,7 @@ from django.views.generic.edit import CreateView, UpdateView
 from django.views.decorators.http import require_POST
 from functools import wraps
 
-from .models import LoginForm, UserRegistrationForm, UserProfile
+from .models import LoginForm, UserProfile
 from ..common import external_sources, themes
 from ..common.utils.secret_crypto import storage_available
 from ..common.utils.volet import VOLET_AUCUN, volet
@@ -104,16 +104,23 @@ def login_view(request):
                   {'form': form, 'type_of_view': 'login', 'volet': VOLET_AUCUN})
 
 
+#: Ce que lit qui demande à s'inscrire : WAMA n'a pas d'inscription locale.
+SIGNUP_CLOSED = ("WAMA n'a pas d'inscription : connectez-vous avec votre identifiant de l'université. "
+                 "Le compte est créé à la première connexion, puis validé par un administrateur.")
+
+
 def signup_view(request):
-    form = UserRegistrationForm(request.POST or None)
-
+    """L'inscription LOCALE est FERMÉE — WAMA n'est pas ouvert : l'annuaire crée le compte à la
+    première connexion, un administrateur le valide (décision de Fabien du 2026-08-22,
+    `PROFILES_PERMISSIONS §1.4`). Jusqu'au 2026-11-06, le gabarit ne montrait plus le formulaire
+    mais la vue acceptait toujours son POST et créait un compte local ACTIF, hors annuaire et hors
+    modération (audit de sécurité, prouvé en test) : le gabarit avait suivi la décision, pas la vue.
+    La page redit la règle ; un POST est refusé."""
     if request.method == 'POST':
-        if form.is_valid():
-            user = form.save()
-            return render(request, 'accounts/signup_validation.html', {'volet': VOLET_AUCUN})
-
-    return render(request, 'accounts/login.html',
-                  {'form': form, 'type_of_view': 'register', 'volet': VOLET_AUCUN})
+        return HttpResponseForbidden(SIGNUP_CLOSED)
+    messages.info(request, SIGNUP_CLOSED)
+    return render(request, 'accounts/login_v2.html',
+                  {'form': LoginForm(request), 'type_of_view': 'login', 'volet': VOLET_AUCUN})
 
 
 def logout_view(request):

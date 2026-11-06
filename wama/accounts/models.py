@@ -1,4 +1,4 @@
-from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User
 from django.db import models
 from django.db.models.signals import post_save
@@ -528,41 +528,3 @@ class LoginForm(AuthenticationForm):
     def is_pending(self) -> bool:
         """Le formulaire a refusé un compte en attente de modération (et non des identifiants)."""
         return any(e.code == 'inactive' for e in self.non_field_errors().as_data())
-
-
-class UserRegistrationForm(UserCreationForm):
-    username = forms.CharField(
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': "Nom d'utilisateur"})
-    )
-    email = forms.EmailField(
-        widget=forms.EmailInput(attrs={'class': 'form-control', 'placeholder': "Email"})
-    )
-    password1 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': "Mot de passe",
-                                     'autocomplete': 'new-password'})
-    )
-    password2 = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': 'form-control', 'placeholder': "Confirmer le mot de passe",
-                                     'autocomplete': 'new-password'})
-    )
-
-    class Meta:
-        model = User
-        fields = ("username", "email", "password1", "password2")
-
-    def clean_password2(self):
-        password1 = self.cleaned_data.get("password1")
-        password2 = self.cleaned_data.get("password2")
-        if password1 and password2 and password1 != password2:
-            raise forms.ValidationError("Les deux mots de passe saisis ne sont pas identiques", code='password_mismatch')
-        return password2
-
-    def save(self, commit=True):
-        user = super().save(commit=False)
-        user.email = self.cleaned_data["email"]
-        if commit:
-            user.save()
-            # Optionnel : ajout automatique à un groupe
-            # group = Group.objects.get(name='default_users')
-            # user.groups.add(group)
-        return user

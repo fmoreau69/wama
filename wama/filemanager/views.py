@@ -28,6 +28,41 @@ def get_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
 
+#: Ce que lit un membre qui nomme un dossier LOCAL du serveur.
+LOCAL_FOLDER_REFUSAL = ("Un dossier local du serveur se connecte par un administrateur. Vous pouvez "
+                        "connecter un partage réseau (\\\\serveur\\partage) ou un nuage (adresse web).")
+
+
+def local_folder_allowed(user) -> bool:
+    """Connecter un dossier LOCAL du serveur — en parcourir l'arbre, en lire les fichiers — est
+    réservé aux ADMINISTRATEURS (décision de Fabien du 2026-11-06, audit de sécurité : un membre
+    connectait n'importe quel dossier du serveur, `.env` compris, puis le lisait — c'était le reste
+    n° 1 de `PROFILES_PERMISSIONS §1.5bis`). Un membre garde les dossiers DISTANTS : partage réseau,
+    nuage. Domicile UNIQUE de la règle : la connexion, le parcours (`api_browse_fs`), la recherche
+    (`api_find_folder`) et la validation d'un chemin la lisent ici."""
+    from wama.accounts.permissions import is_admin_tier
+    return is_admin_tier(user)
+
+
+def user_temp_path(user, rel_path: str):
+    """Le chemin ABSOLU et RÉSOLU d'un chemin relatif à `MEDIA_ROOT` qui doit vivre dans le dossier
+    TEMPORAIRE de `user` — ou None s'il en sort. C'est la frontière d'une ÉCRITURE (dépôt d'un
+    dossier, déplacement) : un `..` fabriqué par l'assainisseur, un lien, un préfixe jumeau
+    (`temp2`) sortaient du dossier par la seule comparaison de chaînes (audit du 2026-11-06).
+    La résolution sous `MEDIA_ROOT` est celle du dépôt (`media_paths.resolve_under_media_root`) ;
+    ici s'ajoute la frontière du dossier temporaire du compte."""
+    from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+    try:
+        target, _rel = resolve_under_media_root(
+            str(rel_path or '').replace('\\', '/').lstrip('/'), must_exist=False)
+    except (OutsideMediaRoot, OSError, RuntimeError):
+        return None
+    temp = (Path(settings.MEDIA_ROOT).resolve() / 'users' / str(user.id) / 'temp').resolve()
+    if target == temp or target.is_relative_to(temp):
+        return target
+    return None
+
+
 def get_user_media_root(user):
     """Get the media root path for a specific user."""
     return Path(settings.MEDIA_ROOT)
@@ -277,13 +312,23 @@ def resolve_mount_path(rel_path, user):
     logger.warning(f"[Filemanager] resolve_mount_path: local_path='{mount.local_path}' → resolved='{resolved_local}' → base='{base}'")
     subpath = parts[2] if len(parts) == 3 else ''
     if subpath:
-        # Prevent path traversal without filesystem I/O (no .resolve())
-        if '..' in Path(subpath).parts:
+        # Prevent path traversal without filesystem I/O (no .resolve()). Un sous-chemin ABSOLU
+        # (`mounts/5//etc/x`, `C:/…`) remplaçait la base dans `base / subpath` (audit du
+        # 2026-11-06) : il ne désigne rien.
+        clean = subpath.replace('\\', '/')
+        if '..' in Path(clean).parts or clean.startswith('/') or (len(clean) > 1 and clean[1] == ':'):
             logger.warning(f"[Filemanager] Path traversal attempt blocked: {subpath}")
             return None, None
-        target = base / subpath
+        target = base / clean
     else:
         target = base
+    # Un lien symbolique DANS le dossier connecté (un partage où un tiers écrit) qui vise hors de
+    # lui ne désigne rien non plus : jugé sur le chemin RÉEL, au moment de servir.
+    real_base = os.path.realpath(base)
+    real_target = os.path.realpath(target)
+    if real_target != real_base and not real_target.startswith(real_base.rstrip(os.sep) + os.sep):
+        logger.warning(f"[Filemanager] Link outside the mounted folder blocked: {subpath}")
+        return None, None
     return target, mount
 
 
@@ -514,6 +559,9 @@ def api_upload(request):
                 if safe_path:
                     # Build the full path: users/{user_id}/temp/{relative_path}
                     dest_dir = Path(settings.MEDIA_ROOT) / f'users/{user.id}/temp' / Path(safe_path).parent
+                    # La frontière, sur le chemin RÉSOLU : le dossier temporaire de ce compte.
+                    if user_temp_path(user, f'users/{user.id}/temp/{safe_path}') is None:
+                        raise ValueError(f"chemin hors du dossier temporaire : {relative_path!r}")
 
                     # Create directories if needed
                     if not dest_dir.exists():
@@ -590,13 +638,13 @@ def sanitize_relative_path(path):
     safe_parts = []
 
     for part in parts:
-        # Skip empty parts and parent directory references
-        if not part or part == '.' or part == '..':
-            continue
-        # Remove any potentially dangerous characters
+        # Remove any potentially dangerous characters — AVANT de juger le segment : le filtre
+        # FABRIQUAIT un `..` à partir de `.*.` quand le test venait d'abord (audit du 2026-11-06).
         safe_part = ''.join(c for c in part if c.isalnum() or c in '._- ')
-        if safe_part:
-            safe_parts.append(safe_part)
+        # Skip empty parts and parent directory references
+        if not safe_part or safe_part.strip('.') == '' or safe_part.strip() == '':
+            continue
+        safe_parts.append(safe_part)
 
     if not safe_parts:
         return None
@@ -850,18 +898,18 @@ def api_move(request):
     if not is_path_allowed(source_path, user):
         return JsonResponse({'error': 'Access denied to source'}, status=403)
 
-    # Only allow moves within user's temp folder
-    temp_prefix = f'users/{user.id}/temp'
-    if not source_path.startswith(temp_prefix):
+    # Only allow moves within user's temp folder — sur les chemins RÉSOLUS (`user_temp_path`) :
+    # un préfixe de chaîne laissait passer `users/<id>/temp/../../<autre>/…` (audit du 2026-11-06).
+    source_full = user_temp_path(user, source_path)
+    if source_full is None:
         return JsonResponse({'error': 'Déplacement autorisé uniquement dans le dossier temporaire'}, status=403)
 
-    if not dest_folder.startswith(temp_prefix):
+    dest_dir_full = user_temp_path(user, dest_folder)
+    if dest_dir_full is None:
         return JsonResponse({'error': 'Destination doit être dans le dossier temporaire'}, status=403)
 
     try:
         import shutil
-        source_full = Path(settings.MEDIA_ROOT) / source_path
-        dest_dir_full = Path(settings.MEDIA_ROOT) / dest_folder
 
         if not source_full.exists():
             return JsonResponse({'error': 'Source non trouvée'}, status=404)
@@ -896,7 +944,8 @@ def api_move(request):
         # Move the file or folder
         shutil.move(str(source_full), str(dest_full))
 
-        new_path = f"{dest_folder}/{dest_full.name}"
+        # Le chemin ENREGISTRÉ est le chemin résolu, relatif aux médias — jamais la chaîne reçue.
+        new_path = dest_full.relative_to(Path(settings.MEDIA_ROOT).resolve()).as_posix()
 
         # D20 : les cards qui désignent ce fichier (ou un fichier de ce dossier) suivent.
         from wama.common.utils.file_references import repoint
@@ -2231,6 +2280,10 @@ def api_find_folder(request):
     """
     import threading
 
+    # Retrouver un dossier du SERVEUR par son nom : même règle que le parcours (2026-11-06).
+    if not local_folder_allowed(get_user(request)):
+        return JsonResponse({'error': LOCAL_FOLDER_REFUSAL}, status=403)
+
     folder_name = request.GET.get('name', '').strip()
     files_param = request.GET.get('files', '').strip()
 
@@ -2332,17 +2385,23 @@ def api_validate_path(request):
             'storage': remote_mounts.storage_form('webdav'),
         })
 
+    last = path_str.replace('\\', '/').rstrip('/').rsplit('/', 1)[-1]
+    unc = _parse_unc_path(path_str)
+    # Un chemin LOCAL du serveur ne se sonde pas (« ce dossier existe-t-il ? ») hors d'un
+    # administrateur — même règle que sa connexion (2026-11-06).
+    if not unc and not local_folder_allowed(get_user(request)):
+        return JsonResponse({'resolved': '', 'accessible': False, 'name': last,
+                             'error': LOCAL_FOLDER_REFUSAL}, status=403)
+
     resolved = _resolve_path(path_str)
     try:
         accessible = os.path.isdir(resolved)
     except Exception:
         accessible = False
 
-    last = path_str.replace('\\', '/').rstrip('/').rsplit('/', 1)[-1]
     response = {'resolved': resolved, 'accessible': accessible, 'name': last}
 
     # Detect SMB/UNC network path
-    unc = _parse_unc_path(path_str)
     if unc:
         # Le domaine d'annuaire du site, pour PRÉREMPLIR le champ : un utilisateur n'a pas à le
         # connaître. Vide tant que le site ne le déclare pas.
@@ -2372,6 +2431,13 @@ def api_browse_fs(request):
     """
     import sys
 
+    # Le parcours de l'arbre du SERVEUR est le geste de qui connecte un dossier LOCAL :
+    # administrateur seul (2026-11-06). Les « racines sûres » d'avant (`/mnt`, `/home`, `/tmp`, le
+    # dépôt, les médias) ouvraient à tout membre le dépôt et les médias de tous.
+    user = get_user(request)
+    if not local_folder_allowed(user):
+        return JsonResponse({'error': LOCAL_FOLDER_REFUSAL}, status=403)
+
     raw = request.GET.get('path', '').strip()
 
     # Default starting point
@@ -2383,21 +2449,6 @@ def api_browse_fs(request):
             raw = os.path.expanduser('~')
 
     target = Path(raw).resolve()
-
-    # Safety: never expose root dirs on Linux that expose system internals
-    # Only allow if the user is admin, or the path is under known safe roots
-    user = get_user(request)
-    from wama.accounts.views import is_admin
-    SAFE_PREFIXES = [
-        Path('/mnt'),
-        Path('/home'),
-        Path('/tmp'),
-        Path(settings.MEDIA_ROOT),
-        Path(settings.BASE_DIR),
-    ]
-    if not is_admin(user):
-        if not any(str(target).startswith(str(p)) for p in SAFE_PREFIXES):
-            return JsonResponse({'error': 'Accès refusé'}, status=403)
 
     if not target.exists() or not target.is_dir():
         return JsonResponse({'error': f'Dossier introuvable : {target}'}, status=404)
@@ -2502,6 +2553,9 @@ def api_mounts(request):
             'guest':    not smb_username,
         }
     else:
+        # Un dossier LOCAL du serveur : administrateur seul (`local_folder_allowed`).
+        if not unc and not local_folder_allowed(user):
+            return JsonResponse({'error': LOCAL_FOLDER_REFUSAL}, status=403)
         resolved = _resolve_path(local_path)
         resolved_path = Path(resolved)
         # Allow saving even if temporarily offline
@@ -2862,18 +2916,13 @@ def api_mount_delete(request, pk):
 def api_mount_serve(request, pk, path):
     """Serve a file from a mounted folder inline (for preview)."""
     user = get_user(request)
-    try:
-        mount = MountedFolder.objects.get(pk=pk, user=user)
-    except MountedFolder.DoesNotExist:
-        return JsonResponse({'error': 'Access denied'}, status=403)
-
-    base = Path(mount.local_path)
-    if path:
-        if '..' in Path(path).parts:
-            return JsonResponse({'error': 'Invalid path'}, status=400)
-        target = base / path
-    else:
+    if not path:
         return JsonResponse({'error': 'No file specified'}, status=400)
+    # LA résolution d'un chemin de montage (`resolve_mount_path`) : propriété, `..`, sous-chemin
+    # absolu, lien hors du dossier — cette vue refaisait la sienne, sans les deux derniers (2026-11-06).
+    target, mount = resolve_mount_path(f'mounts/{pk}/{path}', user)
+    if target is None:
+        return JsonResponse({'error': 'Access denied'}, status=403)
 
     if not target.exists() or not target.is_file():
         return JsonResponse({'error': 'File not found'}, status=404)

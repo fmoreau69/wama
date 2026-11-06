@@ -179,7 +179,12 @@ def convert_document(input_path: str, output_path: str, output_format: str,
         raise ValueError(f"Format d'entrée non supporté : .{in_ext}")
 
     # ── PDF output → check engine ─────────────────────────────────────────────
-    extra_args = []
+    # `--sandbox` (pandoc ≥ 2.15, 3.1.3 ici) : un document DÉPOSÉ — le converter est ouvert au
+    # visiteur sans compte — ne fait lire aucun fichier du serveur à pandoc (`\input`,
+    # `\lstinputlisting`, inclusions, filtres Lua), audit du 2026-11-06. Le moteur TeX, lui, ne
+    # lit que sous le dossier courant (`openin_any=p`, ci-dessous) : `--sandbox` ne le couvre pas.
+    extra_args = ['--sandbox']
+    os.environ.setdefault('openin_any', 'p')
     if out_ext == 'pdf':
         engine = _detect_pdf_engine()
         if engine is None:

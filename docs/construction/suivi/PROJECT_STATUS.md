@@ -28857,3 +28857,45 @@ renonce plus) — détail `ROADMAP §19.2`. ⏳ Un run du Studio ou une installa
 🔚 POINT D'ENTRÉE : relancer, installer un petit modèle depuis le model manager puis depuis
 l'assistant (barre sur la card, ligne sous la réponse, fin racontée), lancer un pipeline du Studio
 depuis l'assistant.
+
+## §PALIER 2026-11-06 (soir), « AUDIT DE SÉCURITÉ : LES SIX CRITIQUES FERMÉS — inscription locale, dossiers locaux du serveur, chemins de montage et du dossier temporaire, archives et documents du converter » — ce commit (local, non poussé) — 🔴 relancer gunicorn + workers (gestionnaire de fichiers, converter)
+
+**Ce qui a été fait.** Un audit de sécurité en lecture seule (demande de Fabien, 2026-11-06 ;
+quatre balayages + relecture ligne à ligne + preuves rejouées par `manage.py test` depuis un dossier
+hors dépôt) a relevé six constats critiques, confrontés au concile de WAMA (cinq agents distants,
+relecture croisée : gravité confirmée, ordre de correction corrigé — le converter d'abord, il n'a
+pas besoin de compte). Fabien : « occupe-toi des 6 critiques ; le converter utilisable sans compte
+était un choix, mais si ça met en question la sécurité, on corrige ». Les six sont fermés dans ce
+commit, chacun par une garde qui a été ROUGE avant son correctif (contre-épreuve = l'état d'avant) :
+
+| # | ce qui était | ce qui est | garde |
+|---|---|---|---|
+| C1 | `/accounts/signup/` créait un compte LOCAL **actif** sans session, hors annuaire et hors modération (le gabarit avait suivi la décision « LDAP + validation », pas la vue) | la vue refuse le POST (403), la page redit la règle ; formulaire et gabarits retirés (R222) | `accounts/tests/tests_signup_closed.py` |
+| C2 | un membre connectait n'importe quel dossier LOCAL du serveur, le parcourait, le cherchait, puis le lisait (reste n° 1 de `PROFILES_PERMISSIONS §1.5bis`) | dossier local : administrateur seul (`filemanager.views.local_folder_allowed`, domicile unique pour `api_mounts`, `api_browse_fs`, `api_find_folder`, `api_validate_path`) ; partages réseau et nuages inchangés pour un membre | `filemanager/tests_local_folders.py` |
+| C3 | un sous-chemin ABSOLU remplaçait la base d'un montage ; un lien du dossier connecté sortait de lui ; `api_mount_serve` refaisait sa propre résolution | `resolve_mount_path` juge l'absolu, le `..` et le chemin RÉEL ; `api_mount_serve` passe par lui | idem |
+| C4 | converter (app publique) : `tarfile.extractall` sans filtre écrivait hors du dossier ; un lien symbolique était suivi au réempaquetage zip | filtre `data`, archive HOSTILE refusée (`HostileArchive`), noms des membres 7z/rar jugés avant extraction, liens retirés, jamais suivis | `converter/tests_hostile_inputs.py` |
+| C5 | HTML→PDF : Chromium `--no-sandbox` chargeait le HTML déposé en `file://`, script actif, réseau libre ; WeasyPrint lisait `file://` ; pandoc sans bac à sable | le document est posé SANS origine (`set_content`), sans script, toute requête sortante rendue vide ; WeasyPrint n'accepte que `data:` (`inline_only_fetcher`) ; pandoc `--sandbox`, TeX `openin_any=p` | idem (rendu Chromium réel : une iframe `file://` et un script ne laissent rien dans le PDF) |
+| C6 | `api_move` ne jugeait la destination que par préfixe de chaîne ; l'assainisseur du dépôt de dossier FABRIQUAIT un `..` (`.*.`) | la frontière du dossier temporaire se juge sur le chemin RÉSOLU (`user_temp_path`) ; l'assainisseur filtre avant de juger ; le chemin enregistré est le chemin résolu | idem |
+
+**Aligné.** Rien de neuf à côté d'une brique : `local_folder_allowed` lit `permissions.is_admin_tier`
+(LA définition de l'administrateur, 2026-10-21) ; `resolve_mount_path` était déjà LA résolution d'un
+chemin de montage, la vue de service la rejoint ; `user_temp_path` est la frontière d'écriture que
+`is_path_allowed` (lecture, par préfixe) n'avait pas ; le rendu HTML→PDF prend le motif de
+`render_page_to_pdf` (route qui refuse tout). Un `.md` touché, pas de nouveau : `PROFILES_PERMISSIONS
+§1.4` (la décision LDAP + validation, tenue depuis ce jour) et `§1.5bis` point 1 (✅).
+
+**Mesuré ailleurs, NON fermé ici (élevés de l'audit, à décider)** : `DEBUG = True` et `/media/`
+servis en service ; `/accounts/users/<pk>/` sans session ; aucun frein de connexion (formulaire et
+jeton d'API) ; borne des visiteurs qui suit `X-Forwarded-For` ; lectures entre comptes de
+`api_children`, `avatarizer.extract_text`, `readable_by` sur chemin non résolu ; trois XSS stockés
+entre comptes ; SSRF de la médiathèque (Openverse) et redirections validées après coup ; service de
+voix en `0.0.0.0:8001` sans authentification ; surface de développement (`repo_app`, smoke d'un
+backend proposé, `dev_claude_code(write)`) sans validation humaine avant exécution ; pages de registre
+ouvertes au visiteur ; remontage des partages au démarrage mort depuis le 12/10 (403 du middleware).
+⚠ Le rapport détaillé reste HORS dépôt (dépôt public) : décision de divulgation à Fabien.
+Outillage proposé en cliquet nocturne (surface sans session, élément d'autrui étendu, `check
+--deploy`, `check_sast`) : `ROADMAP §16.10` est le domicile, à ouvrir sur décision.
+
+🔚 POINT D'ENTRÉE : relancer ; sur le serveur en service, `POST /accounts/signup/` sans session
+doit rendre 403 ; un membre qui nomme un chemin local dans « Connecter un dossier » lit le motif ;
+puis les élevés, dans l'ordre du concile : `DEBUG` hors du code, `/media/` gardé, frein de connexion.

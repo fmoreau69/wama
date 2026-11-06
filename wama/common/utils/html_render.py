@@ -110,22 +110,36 @@ def _html_to_pdf_chromium(input_path: str, output_path: str) -> bool:
     except ImportError:
         return False
 
-    src_url = 'file://' + os.path.abspath(input_path)
+    # Le HTML est un fichier DÉPOSÉ (le converter est ouvert au visiteur sans compte) : il est
+    # rendu comme un DOCUMENT, jamais comme une page du serveur (audit du 2026-11-06). Il ne vient
+    # pas d'une adresse `file://` — depuis une telle origine, un `<iframe>` ou une `<img>` lit tout
+    # fichier du serveur (`.env`, les médias d'autrui) et le PDF le porte — mais est posé dans une
+    # page SANS origine (`set_content`), sans script, et dont toute requête sortante est refusée
+    # (`route`), comme `render_page_to_pdf` : rien du disque, rien du réseau, rien de la boucle
+    # locale. Ce qu'il perd : ses images et feuilles de style relatives, qu'un dépôt d'un seul
+    # fichier n'a de toute façon pas ; `data:` reste rendu.
+    try:
+        with open(input_path, 'r', encoding='utf-8', errors='replace') as fh:
+            html = fh.read()
+    except OSError as e:
+        logger.warning(f"HTML → PDF : lecture impossible ({e})")
+        return False
     try:
         with sync_playwright() as p:
             browser = launch_chromium(p, gpu=False)
             try:
-                page = browser.new_page(viewport={'width': 820, 'height': 1123})
-                page.goto(src_url, wait_until='networkidle', timeout=30000)
-                # Reveals au scroll → visibles (déterministe) + scroll intégral pour
-                # déclencher tout IntersectionObserver restant.
-                page.add_style_tag(content=_REVEAL_SELECTORS_CSS)
-                page.evaluate(
-                    "()=>new Promise(r=>{let y=0;const t=setInterval(()=>{"
-                    "window.scrollBy(0,600);y+=600;"
-                    "if(y>=document.body.scrollHeight){clearInterval(t);r()}},20)})"
-                )
-                page.wait_for_timeout(300)
+                ctx = browser.new_context(viewport={'width': 820, 'height': 1123},
+                                          java_script_enabled=False)
+                # Une réponse VIDE plutôt qu'un abandon : une `<iframe>` dont la navigation est
+                # abandonnée ne laisse jamais arriver `load` (mesuré : le rendu attendait sans fin).
+                ctx.route('**/*', lambda route: route.fulfill(status=204, body=b''))
+                page = ctx.new_page()
+                # Reveals au scroll → visibles par la feuille (déterministe) ; sans script, aucun
+                # IntersectionObserver ne reste à déclencher, le défilement d'avant n'a plus d'objet.
+                # La feuille entre DANS le document : `add_style_tag` passe par un `evaluate`, qui
+                # n'aboutit jamais quand le script est coupé (mesuré : rendu bloqué sans fin).
+                page.set_content(f'<style>{_REVEAL_SELECTORS_CSS}</style>' + html,
+                                 wait_until='load', timeout=30000)
                 page.emulate_media(media='screen')   # applique les breakpoints responsive
                 page.pdf(path=output_path, format='A4', print_background=True,
                          margin={'top': '0', 'bottom': '0', 'left': '0', 'right': '0'})
@@ -137,6 +151,16 @@ def _html_to_pdf_chromium(input_path: str, output_path: str) -> bool:
     if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
         return False
     return True
+
+
+def inline_only_fetcher(url, timeout=None, ssl_context=None):
+    """Le récupérateur d'URL de WeasyPrint pour un document DÉPOSÉ — même règle que Chromium
+    ci-dessus : il ne fait lire ni le disque (`file://`, `<link rel=attachment>`) ni le réseau ;
+    seule une ressource EN LIGNE dans le document (`data:`) passe."""
+    if url.startswith('data:'):
+        from weasyprint.urls import default_url_fetcher
+        return default_url_fetcher(url)
+    raise ValueError(f"HTML → PDF : ressource externe refusée ({url.split(':', 1)[0]}:)")
 
 
 def _html_to_pdf_weasyprint(input_path: str, output_path: str) -> bool:
@@ -151,8 +175,7 @@ def _html_to_pdf_weasyprint(input_path: str, output_path: str) -> bool:
     except ImportError:
         return False
     _reveal_css = CSS(string=_REVEAL_SELECTORS_CSS)
-    # base_url = dossier source → résout les chemins relatifs (CSS/images locaux)
-    HTML(filename=input_path, base_url=os.path.dirname(input_path)).write_pdf(
+    HTML(filename=input_path, url_fetcher=inline_only_fetcher).write_pdf(
         output_path, stylesheets=[_reveal_css])
     if not os.path.exists(output_path):
         raise RuntimeError(f"WeasyPrint n'a produit aucun fichier : {output_path}")
