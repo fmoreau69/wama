@@ -28807,3 +28807,43 @@ mes seules lignes (`docs/dev/briques.md`, `WAMA_MECANISMES.md`).
 chemin d'une ligne après le seul confinement — même nature, à porter sur la brique (le gabarit
 régénère les jumelles : avec la session portage) ; ⏳ les jumelles `composer_01` / `imager_01` portent
 encore l'ancien lecteur ; ⏳ sous-titres des neuf apps ; OCR sur la classe ; rapport de transcription.
+
+## §PALIER 2026-11-06 (après-midi), « L'INSTALLATION D'UN MODÈLE ET LE STUDIO SUIVIS COMME UNE CARD : BARRE SUR LA CARD, LIGNE ET FIN DANS L'ÉCHANGE DE L'ASSISTANT, CALENDRIER » — `def00fbc0` — non poussé — 🔴 relancer gunicorn + workers (gpu, default, studio) + passerelle
+
+Demande de Fabien (relance de 13:24) : *« vérifie qu'on a une barre de progression à l'installation
+d'un modèle depuis le model manager, puis on l'étend à l'assistant avec message. Ensuite, on s'occupe
+du studio […] universel et pérenne »*, puis *« l'ajout des événements dans le calendrier […] on avait
+peut-être laissé des choses en plan »*. Constat : pas de barre (voile modal + phrase, % pour Ollama
+seul, rien au F5, rien de l'assistant), aucune fin d'installation notifiée ; au calendrier, une
+installation en cours sans fin prévue, et chaque run du Studio dessiné à sa création.
+
+Livré (détail : `ROADMAP §19.2` « L'installation d'un modèle et le Studio suivis comme une card ») :
+mesure commune `InstallMeter` ; élément = `InstallEvent` (`install_id`, `progress_row`) ; card du
+model manager avec le bloc commun (`WamaApp.paintProgress`, extrait du chat) ; fin notifiée
+(`notify_job_end`, destinataire explicite) ; registre `wama/common/services/job_families.py` (familles
+`model_manager`, `studio`) lu par `job_progress`, `items_of_step`, `job_follow_ups`, le calendrier ;
+Studio : ligne (`run_progress`), fin par `RunOutcome` + `notify_job_end` ; R220 (voile et forme par
+clé de la route) ; skill `/contre-epreuve` : outil `mutate_in_process.py` + récidive consignée ; `tree_bytes` a un
+domicile (`wama/common/utils/disk_utils.py`).
+
+Contrôles mesurés le 06/11 : 2002 tests (model_manager, studio, passerelle, avatarizer, gardes transverses
+dont langue, thème, disposition des tests, route d'installation, cache HF, couverture d'outils) — 5 rouges :
+un de ma main (`tests_model_layout`, qui lisait le TEXTE de l'installeur pour l'exclusion des liens —
+relue sur le comportement de `tree_bytes`, verte), `AddItemToMediaLibraryTest` (préexistant, 04/11),
+`tests_identifier_language` ×3 (classes de test 133 > 132, préexistant ; la liste filtrée sur mes
+fichiers est vide) ; un rouge de `tests_benchmark_variants` au 1ᵉʳ passage vient d'un chantier non
+commité d'une autre session (bancs). 24 contre-épreuves rouges, jouées DANS le processus de test.
+`check_docs` 0 cassée / 3867 ; `check_redundancy` 112 (inchangé, rien de neuf dans mes fichiers).
+⚠ Dans `WAMA_MECANISMES.md`, quatre cellules de décompte (installation, journal, fin racontée,
+progression) mêlent mon code commité et le travail non commité d'autrui : laissées à la prochaine
+régénération sur HEAD.
+
+⚠ À savoir : une garde de ma main du 05/11 (`tests_assistant_job_progress`, lot) ne passait que si
+deux numéros coïncidaient — corrigée. Le passage de contre-épreuves a d'abord ÉCRIT dans l'arbre
+partagé (arrêté à la 1ʳᵉ mutation, fichiers revérifiés, rien d'autre touché) : refait en processus.
+⚠ Restes (à cette session) : l'aperçu des sorties d'un run du Studio dans l'échange ; les tâches de
+développement gardent leur chemin propre (`DEV_JOB_APP`) au lieu d'une famille de `job_families`.
+
+🔚 POINT D'ENTRÉE : relancer, installer un petit modèle depuis le model manager puis depuis
+l'assistant (barre sur la card, ligne sous la réponse, fin racontée), lancer un pipeline du Studio
+depuis l'assistant.
