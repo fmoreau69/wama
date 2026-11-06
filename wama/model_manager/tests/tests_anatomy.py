@@ -110,6 +110,15 @@ class AnatomyGapsTest(SimpleTestCase):
                                                                          'repo': 'org/x'}]}))
         self.assertEqual('', mi.anatomy_error({}))
 
+    def test_reading_quantization_words_does_not_change_what_a_repository_weighs(self):
+        """Counter-case found at the re-check (2026-11-06): counting `q8_0` as a MARK made the
+        heuristic weighing keep a small unmarked file — 0.2 GB instead of 9.2 for a MiniMax-like
+        repository, an UNDER-estimate. The words feed the anatomy, not the weighing choice."""
+        repo = [('language_model_q8_0.gguf', 9 * GB), ('language_model_q4_k.gguf', 3 * GB),
+                ('vocoder.gguf', GB // 5)]
+        weighed = mi.components_of_files(repo)
+        self.assertEqual(9.0, weighed['components']['model'])
+
     def test_a_quantization_marker_leaves_the_base_name_of_the_weight_set(self):
         self.assertEqual(('model', 'onnx', '_q4f16'),
                          tuple(mi._weight_set_key('model_q4f16.onnx')[i] for i in (0, 3, 4)))

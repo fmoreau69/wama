@@ -602,8 +602,12 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
             full[role] = sum(groups.values())
             kept[role] = [f for k in groups for f in members[(role, k)]]
             continue
+        # « Marqué » garde son critère d'avant la quantisation en MOT (2026-11-06) : les marqueurs
+        # des dépôts cherchés dans le nom ENTIER (base + quantisation retirée). Compter `q8_0` comme
+        # une marque ici ferait gagner un petit fichier non marqué (le vocodeur de MiniMax-Music3,
+        # 0,2 Go au lieu de 9,2) : une SOUS-estimation, le sens qui déborde la carte.
         marked = {k: gb for k, gb in groups.items()
-                  if k[2] or k[3] or k[4] or any(m in k[0].lower() for m in _QUANT_MARKERS)}
+                  if k[2] or k[3] or any(m in (k[0] + k[4]).lower() for m in _QUANT_MARKERS)}
         plain = {k: gb for k, gb in groups.items() if k not in marked}
         # Un rôle qui n'existe QUE marqué (dépôt fp8 entier, vrai modèle ONNX) pèse ce qu'il
         # pèse : le ranger dans `variants` le ferait disparaître du total.
