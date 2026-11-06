@@ -77,6 +77,9 @@ class ParseCommandTest(SimpleTestCase):
         for text in (line, reply):
             self.assertIn('eclair', text)
             self.assertNotIn('qualite', text)
+        # The usage is ONE code span: a backtick inside it broke the rendering (seen in service).
+        span = reply.split('Usage : `', 1)[1].rsplit('`', 1)[0]
+        self.assertNotIn('`', span)
 
 
 class CommandsInTheCommonTurnTest(TestCase):

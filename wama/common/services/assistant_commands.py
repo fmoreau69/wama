@@ -36,6 +36,8 @@ from wama.model_manager.services.model_selector import QUALITY_PRESETS
 
 #: Les positions NOMMÉES du curseur, telles qu'on les tape (celles du sélecteur, repliées).
 _EFFORT_NAMES = tuple(fold(label) for _, label, _ in QUALITY_PRESETS)
+#: Son usage, celui de l'aide et de la réponse : un passage de code, donc sans accent grave dedans.
+_EFFORT_USAGE = f"[{'|'.join(_EFFORT_NAMES)}|0-100]"
 
 #: Les préfixes d'une commande ; le premier est celui de l'aide d'une surface sans préférence.
 PREFIXES = ('/', '!')
@@ -114,7 +116,7 @@ def _effort(user, args, ctx) -> dict:
     if not args:
         current = read_quality_intent(assistant_settings(user).get('quality_intent'))
         return {'reply': f"Curseur Rapide ↔ Qualité : {said(current)}.\n"
-                         f"Usage : `{ctx.prefix}effort {names}` ou un nombre de 0 à 100."}
+                         f"Usage : `{ctx.prefix}effort {_EFFORT_USAGE}`."}
     wanted = fold(args.split()[0])
     value = next((position for key, label, position in QUALITY_PRESETS
                   if wanted in (key, fold(label))), None)
@@ -198,7 +200,7 @@ COMMANDS = (
     Command('competence', "répondre avec une compétence précise (seule, la commande les liste)",
             _competence, usage='<clé> <question>', aliases=('skill',)),
     Command('effort', "voir ou régler le curseur Rapide ↔ Qualité", _effort,
-            usage=f"[{'|'.join(_EFFORT_NAMES)}|0-100]"),
+            usage=_EFFORT_USAGE),
     Command('modele', "voir ou changer le modèle de réflexion, sans perdre la conversation",
             _model, usage='[clé|auto]', aliases=('model',)),
     Command('oublier', "effacer la conversation de ce fil et repartir de zéro", _forget,
