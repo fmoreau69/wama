@@ -4768,7 +4768,10 @@ sous-ensemble, multi-nœud.
 - à trancher : le périmètre du cœur (comptes, partage, assistant) ; le moment ; l'ordre des ajouts
   au gouverneur ; une exception à « tout côté WSL » pour construire un `.exe` (ou d'abord un
   exécutable Linux depuis WSL) ; les licences de redistribution (pandoc GPL, PyMuPDF AGPL, ffmpeg
-  selon sa compilation — `LICENSING.md`) ;
+  selon sa compilation — `LICENSING.md`) ; et le pont `app_registry.py:1872` — la session des
+  jumelles (2026-11-06) le range au substrat, pas au générateur, et propose un registre de formats
+  DÉCLARÉ par l'app, lu sans l'importer ; elle cite le point 4 (`requires`) depuis
+  `WAMA_APP_GENERATION_ROUTE §11 #41` ;
 - rien d'existant : aucun `pyinstaller|nuitka|pywebview|briefcase` dans le code ni dans `docs/`
   (2026-11-06). Le plus proche, l'intégration au shell de l'OS (phase 12 du tableau des phases),
   est un autre sujet.
