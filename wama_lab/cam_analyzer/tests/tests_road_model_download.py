@@ -158,6 +158,34 @@ class TheCatalogueListsItOnceTest(SimpleTestCase):
         self.assertIn('anonymizer:yolo:yolo11n-seg.pt', registry._models)
 
 
+class TheOlderScanRowIsRelievedTest(TestCase):
+    """2026-11-06: the row the YOLO scan had made BEFORE YOLOPv2 had its own
+    (`anonymizer:yolo:yolopv2.pt`, engine `ultralytics`, task `segment`) stayed installed and
+    drawable by the anonymizer. The sync drops the ROW — the file and the declared row, which the
+    cam_analyzer reads, stay."""
+
+    def test_the_sync_drops_the_older_row_and_keeps_the_declared_one_and_its_file(self):
+        from types import SimpleNamespace
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.model_sync import ModelSyncService
+        declared = str(yolopv2_folder() / 'yolopv2.pt')
+        AIModel.objects.create(model_key=YOLOPV2_KEY, name='YOLOPv2', source='github',
+                               is_downloaded=True, local_path=declared)
+        AIModel.objects.create(model_key='anonymizer:yolo:yolopv2.pt', name='yolopv2.pt',
+                               source='anonymizer', is_downloaded=True, local_path=declared,
+                               extra_info={'path': declared})
+        discovered = {YOLOPV2_KEY: SimpleNamespace(extra_info={'path': declared})}
+        with patch('wama.model_manager.services.model_installer.forget_in_corpus') as forget, \
+                patch('shutil.rmtree') as rmtree, patch('os.remove') as remove:
+            removed = ModelSyncService._drop_rows_superseded_by_location(
+                discovered, seen_keys={YOLOPV2_KEY})
+        self.assertEqual(1, removed)
+        self.assertEqual([YOLOPV2_KEY], list(AIModel.objects.values_list('model_key', flat=True)))
+        forget.assert_called_once_with(['anonymizer:yolo:yolopv2.pt'])
+        rmtree.assert_not_called()
+        remove.assert_not_called()
+
+
 class TheAnalysisTaskCallsTheWaitTest(TestCase):
     """The wait is called by `process_session_task` itself, BEFORE anything is cleaned up, and a
     re-delivery is not turned into a failed session (`except Retry: raise`)."""

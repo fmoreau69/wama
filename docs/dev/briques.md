@@ -590,10 +590,13 @@ Découverte unifiée des modèles (apps + sources externes), synchronisée vers 
 
 - **Domicile** : `wama/model_manager/services/model_registry.py`
 - **Module** : Model Registry - Unified model discovery across all WAMA apps and external sources.
-- **API publique** (4) :
+- **API publique** (7) :
+  - `snapshot_engine_verdict(path) -> Optional[tuple]` — Ce que le SNAPSHOT d'un modèle dit de son moteur : `(prouvé, classe lue, réfuté)`, ou None
+  - `refuted_engine(path, model_key: str, engine: str, task: str='') -> str` — La RAISON pour laquelle `engine` n'est PAS un fait pour ce modèle, ou '' s'il en est un.
   - `is_ollama_runner_alias(name: str) -> bool` — Ce nom Ollama désigne-t-il un manifeste INTERNE du démon plutôt qu'un modèle ?
   - `yolopv2_folder() -> Path` — Le dossier de YOLOPv2 — celui que le profil du cam_analyzer lit depuis toujours
   - `class ModelInfo` — Unified model information structure.
+  - `designated_locations(infos) -> set` — Les emplacements (résolus) que des entrées découvertes déclarent pour leurs poids :
   - `class ModelRegistry` — Central registry for all WAMA models.
 
 ### Détection des DONNÉES PERSONNELLES d'un texte (contrat)

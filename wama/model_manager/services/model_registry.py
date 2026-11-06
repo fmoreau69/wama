@@ -106,6 +106,87 @@ def _engine_proven_by_format(snapshot: Path):
     return WEIGHT_FORMAT_ENGINES.get(exts.pop()) if len(exts) == 1 else None
 
 
+def snapshot_engine_verdict(path) -> Optional[tuple]:
+    """Ce que le SNAPSHOT d'un modèle dit de son moteur : `(prouvé, classe lue, réfuté)`, ou None
+    quand il ne porte aucune signature (chemin absent, aucun fichier de config, illisible).
+
+      • `prouvé` — le moteur que le disque établit : le format des poids
+        (`_engine_proven_by_format`), sinon la convention HuggingFace (`model_index.json` →
+        diffusers, `config.json` → transformers) ;
+      • `réfuté` — le moteur que la signature NOMME mais que sa preuve écarte : un `config.json`
+        de code DISTANT seul (`_remote_only`) nomme `transformers`, que le transformers installé
+        n'exécute pas par ses classes.
+
+    UNE lecture, deux consommateurs (2026-11-06) : la dérivation de la synchro
+    (`_overlay_engines_derived_from_disk`) et la pose des faits de la CARTE à l'installation
+    (`provenance.record_after_install`) — voir `refuted_engine`."""
+    import json as _json
+    if not path:
+        return None
+    root = Path(path)
+    revisions = sorted(root.glob('snapshots/*')) or ([root] if root.is_dir() else [])
+    for rev in revisions:
+        index, config = rev / 'model_index.json', rev / 'config.json'
+        try:
+            proven_engine = _engine_proven_by_format(rev)
+            if proven_engine:
+                # Le FORMAT des poids prouve le moteur (2026-10-06, Swin2SR d'Optimum : le
+                # `config.json` recopié du modèle d'origine faisait dériver `transformers`,
+                # qui n'ouvre pas un `.onnx`). Prime sur la signature des fichiers de config.
+                class_name = (','.join(_json.loads(config.read_text(encoding='utf-8'))
+                                       .get('architectures') or []) if config.is_file() else '')
+                return proven_engine, class_name, None
+            if index.is_file():
+                return ('diffusers', _json.loads(index.read_text(encoding='utf-8'))
+                        .get('_class_name') or '', None)
+            if config.is_file():
+                data = _json.loads(config.read_text(encoding='utf-8'))
+                class_name = ','.join(data.get('architectures') or []) \
+                    or data.get('model_type') or ''
+                # Code DISTANT (`auto_map`) dont aucune classe n'est dans le transformers
+                # installé : la signature ne PROUVE pas le moteur (2026-10-01, YuE2-3B
+                # dérivé `transformers` alors que son moteur est le pipeline vendorisé
+                # `yue`). Le vide reste un vide — une déclaration validée le comblera ; un
+                # moteur faux, lui, aurait bloqué cette déclaration.
+                if _remote_only(data):
+                    return None, class_name, 'transformers'
+                return 'transformers', class_name, None
+        except (OSError, ValueError) as e:          # illisible : on ne conclut pas
+            logger.debug(f"[engines] signature illisible pour {rev} : {e}")
+            return None
+    return None
+
+
+def refuted_engine(path, model_key: str, engine: str, task: str = '') -> str:
+    """La RAISON pour laquelle `engine` n'est PAS un fait pour ce modèle, ou '' s'il en est un.
+
+    Un moteur est réfuté quand le snapshot nomme ce moteur et que sa preuve l'écarte
+    (`snapshot_engine_verdict`, code distant seul pour `transformers`) ET qu'aucun backend de ce
+    moteur ne SERT le modèle (`backend_for_engine`, la résolution des consommateurs). La seconde
+    condition est mesurée, pas supposée : `LocateAnythingBackend` exécute un code distant par
+    `transformers` (`trust_remote_code`) et nomme son modèle — son moteur tient.
+
+    POURQUOI (2026-11-06, ACE-Step 1.5, demande de Fabien : « corrige la source du moteur »). La
+    dérivation du 2026-09-07 avait posé `transformers` sur ACE-Step (`dc48305c4`) : son
+    `config.json` racine décrit le code d'ACE-Step (`auto_map`), aucune classe de transformers.
+    La preuve du 01/10 (`_remote_only`) ne corrigeait que les dérivations SUIVANTES ; la valeur
+    déjà écrite passait pour une déclaration (`deja_declares`) et barrait la proposition validée
+    (`proposals.fill_empty` ne comble qu'un vide). La carte du Hub (`library_name:
+    transformers`, `custom_code`) l'aurait reposée à chaque installation. Un fait que la mesure
+    contredit ne se protège pas : c'est l'unique cas où une dérivation défait une valeur."""
+    if not engine:
+        return ''
+    verdict = snapshot_engine_verdict(path)
+    if not verdict or verdict[2] != engine:
+        return ''
+    from wama.common.backends.manager import backend_for_engine
+    from wama.common.utils.model_keys import backend_model_id
+    if backend_for_engine(engine, backend_model_id(model_key or ''), task=task) is not None:
+        return ''
+    return (f"le snapshot ne porte que du code distant ({verdict[1] or 'classe non nommée'}) et "
+            f"aucun backend du moteur {engine!r} ne sert ce modèle")
+
+
 def _type_ollama(task: str):
     """CATÉGORIE d'un modèle Ollama, DÉRIVÉE de sa tâche — membre `ModelType`, jamais une chaîne.
 
@@ -328,6 +409,23 @@ def _designated(folder: Path, places: set) -> bool:
     génériques."""
     root = folder.resolve()
     return any(place == root or root in place.parents for place in places)
+
+
+def designated_locations(infos) -> set:
+    """Les emplacements (résolus) que des entrées découvertes déclarent pour leurs poids :
+    `extra_info['path']`, l'emplacement que lit aussi `model_installer.weights_dir_of`
+    (désinstallation, poids par composant). Pas `install_dir` : il dit où INSTALLER, et désigne
+    le plus souvent la famille entière. Lu par la découverte (balayages génériques) et par la
+    synchro (`ModelSyncService._drop_rows_superseded_by_location`)."""
+    places = set()
+    for info in infos:
+        value = (getattr(info, 'extra_info', None) or {}).get('path')
+        if value:
+            try:
+                places.add(Path(value).resolve())
+            except (TypeError, OSError):
+                pass
+    return places
 
 
 class ModelRegistry:
@@ -703,18 +801,23 @@ class ModelRegistry:
         résolution de backend. On saute donc ce que le CATALOGUE sait déjà : c'est le même
         principe que la passe ci-dessus (« ne comble que le vide ») étendu au vide RÉEL, pas au
         vide de cette passe.
-        """
-        import json as _json
 
+        ⚠ SAUF UN FAIT QUE LA MESURE CONTREDIT (2026-11-06, `refuted_engine`) : un moteur du
+        catalogue que le snapshot réfute et qu'aucun backend de ce moteur ne sert est RETIRÉ — la
+        découverte émet `engine: None`, que `model_sync.merged_composition` lit comme un retrait.
+        C'était une dérivation d'AVANT la preuve du code distant (ACE-Step, `dc48305c4`) que cette
+        garde protégeait comme une déclaration.
+        """
         try:                                   # le catalogue peut être absent (script, install)
             from wama.model_manager.models import AIModel
             deja_declares = {
-                m.model_key for m in AIModel.objects.only('model_key', 'composition')
+                m.model_key: m.composition['runtime']['engine']
+                for m in AIModel.objects.only('model_key', 'composition')
                 if ((m.composition or {}).get('runtime') or {}).get('engine')
             }
         except Exception as e:
             logger.debug(f"[engines] catalogue illisible, dérivation sur la seule découverte : {e}")
-            deja_declares = set()
+            deja_declares = {}
 
         for cle, info in list(self._models.items()):
             runtime = (getattr(info, 'composition', None) or {}).get('runtime', {})
@@ -722,47 +825,18 @@ class ModelRegistry:
             # (`onnxruntime` pour un `.onnx`) dirait une route qui n'est pas la sienne.
             if runtime.get('engine') or runtime.get('loaded_by'):
                 continue
-            if cle in deja_declares:           # le catalogue sait mieux : on ne dégrade pas
-                continue
             chemin = (getattr(info, 'extra_info', None) or {}).get('path') or ''
-            if not chemin:
+            if cle in deja_declares:           # le catalogue sait mieux : on ne dégrade pas…
+                reason = refuted_engine(chemin, cle, deja_declares[cle],
+                                        (getattr(info, 'capabilities', None) or {}).get('task') or '')
+                if reason:                     # … sauf ce que la mesure contredit
+                    composition = dict(getattr(info, 'composition', None) or {})
+                    composition['runtime'] = {**(composition.get('runtime') or {}), 'engine': None}
+                    info.composition = composition
+                    logger.info(f"[engines] {cle} : moteur « {deja_declares[cle]} » RETIRÉ — {reason}")
                 continue
-            moteur, classe = None, ''
-            try:
-                racine = Path(chemin)
-                revisions = sorted(racine.glob('snapshots/*')) or ([racine] if racine.is_dir() else [])
-                for rev in revisions:
-                    index = rev / 'model_index.json'
-                    config = rev / 'config.json'
-                    proven_engine = _engine_proven_by_format(rev)
-                    if proven_engine:
-                        # Le FORMAT des poids prouve le moteur (2026-10-06, Swin2SR d'Optimum : le
-                        # `config.json` recopié du modèle d'origine faisait dériver `transformers`,
-                        # qui n'ouvre pas un `.onnx`). Prime sur la signature des fichiers de config.
-                        moteur = proven_engine
-                        if config.is_file():
-                            classe = ','.join(_json.loads(config.read_text(encoding='utf-8'))
-                                              .get('architectures') or [])
-                        break
-                    if index.is_file():
-                        moteur = 'diffusers'
-                        classe = (_json.loads(index.read_text(encoding='utf-8'))
-                                  .get('_class_name') or '')
-                        break
-                    if config.is_file():
-                        donnees = _json.loads(config.read_text(encoding='utf-8'))
-                        classe = ','.join(donnees.get('architectures') or []) \
-                            or donnees.get('model_type') or ''
-                        # Code DISTANT (`auto_map`) dont aucune classe n'est dans le transformers
-                        # installé : la signature ne PROUVE pas le moteur (2026-10-01, YuE2-3B
-                        # dérivé `transformers` alors que son moteur est le pipeline vendorisé
-                        # `yue`). Le vide reste un vide — une déclaration validée le comblera ; un
-                        # moteur faux, lui, aurait bloqué cette déclaration.
-                        moteur = (None if _remote_only(donnees) else 'transformers')
-                        break
-            except (OSError, ValueError) as e:      # illisible : on ne conclut pas
-                logger.debug(f"[engines] signature illisible pour {cle} : {e}")
-                continue
+            verdict = snapshot_engine_verdict(chemin)
+            moteur, classe = (verdict or (None, '', None))[:2]
             if not moteur:
                 continue
             composition = dict(getattr(info, 'composition', None) or {})
@@ -2716,19 +2790,8 @@ class ModelRegistry:
             logger.warning(f"[hf_snapshots] balayage en échec : {e}")
 
     def _designated_locations(self) -> set:
-        """Les emplacements (résolus) que les entrées DÉJÀ découvertes déclarent pour leurs
-        poids : `extra_info['path']`, l'emplacement que lit aussi `model_installer.weights_dir_of`
-        (désinstallation, poids par composant). Pas `install_dir` : il dit où INSTALLER, et
-        désigne le plus souvent la famille entière."""
-        places = set()
-        for info in self._models.values():
-            value = (info.extra_info or {}).get('path')
-            if value:
-                try:
-                    places.add(Path(value).resolve())
-                except (TypeError, OSError):
-                    pass
-        return places
+        """Les emplacements que les entrées DÉJÀ découvertes déclarent (`designated_locations`)."""
+        return designated_locations(self._models.values())
 
     def _snapshot_to_model(self, snap, mtype, fam_dir, deja_declares):
         """Fabrique l'entrée `ModelInfo` d'UN snapshot HF (sous-fonction du balayage générique)."""

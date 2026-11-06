@@ -377,6 +377,23 @@ def _within_expression(license_id: str, expression) -> bool:
     return bool(operator) and normaliser_licence(license_id) in terms
 
 
+def _card_engine(model_key: str, engine, task: str = ''):
+    """Le moteur que la carte déclare, sauf si le snapshot installé de la ligne le réfute
+    (`model_registry.refuted_engine` — la même lecture que la dérivation de la synchro)."""
+    if not engine:
+        return engine
+    from wama.model_manager.models import AIModel
+    from .model_registry import refuted_engine
+    row = AIModel.objects.filter(model_key=model_key).only('local_path', 'extra_info').first()
+    path = row and (row.local_path or (row.extra_info or {}).get('path'))
+    reason = refuted_engine(path, model_key, engine, task)
+    if reason:
+        logger.info("[provenance] %s : moteur de la carte « %s » non posé — %s",
+                    model_key, engine, reason)
+        return None
+    return engine
+
+
 def _give_to_author(keys, owner) -> list:
     """Les lignes `keys` encore SYSTÈME passent à `owner`, privées (`ROADMAP §29` étape 3).
     Une ligne qui a déjà un auteur ne change pas de main. Rend les clés données."""
@@ -475,10 +492,13 @@ def record_after_install(spec: dict, appeared_keys, owner=None) -> dict:
     # l'installation) priment sur la carte et sur les défauts de la tâche — la tâche du spec,
     # elle, reste celle qui vient d'être posée.
     declared.update({k: v for k, v in (spec.get('capabilities') or {}).items() if k != 'task'})
-    # Le moteur de la carte ne vaut qu'à défaut de celui qu'un rôle a JUGÉ sur le candidat.
+    # Le moteur de la carte ne vaut qu'à défaut de celui qu'un rôle a JUGÉ sur le candidat — et
+    # jamais quand le snapshot installé le RÉFUTE (2026-11-06, `refuted_engine`) : `library_name:
+    # transformers` d'ACE-Step, code distant qu'aucun backend `transformers` ne sert.
     judged = spec.get('composition') or {}
     posed = [set_identity(c, identity, capabilities=declared,
-                          engine=(judged.get('runtime') or {}).get('engine') or card.get('engine'),
+                          engine=(judged.get('runtime') or {}).get('engine')
+                          or _card_engine(c, card.get('engine'), task),
                           composition=judged)
              for c in targets]
     return {'identity': identity, 'models': posed, **({'task': task} if task else {}),

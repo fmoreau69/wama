@@ -158,6 +158,75 @@ class DerivationDuMoteurTest(TestCase):
         self.assertEqual(r._models['huggingface:z/z'].composition, {})
 
 
+class ARefutedEngineIsNoFactTest(TestCase):
+    """2026-11-06, ACE-Step 1.5: the derivation of 2026-09-07 had set `transformers` on a snapshot
+    whose `config.json` only describes REMOTE code (`dc48305c4`); the proof of 2026-10-01 only
+    corrected the derivations that came after, and the written value was protected as a
+    declaration — which barred the validated proposal (`proposals.fill_empty` fills a void only).
+    A catalogue engine the snapshot refutes and that no backend of it serves is retracted; the
+    card of the Hub (`library_name: transformers`) no longer sets it at install either."""
+
+    REMOTE = {'architectures': ['SongForGeneration'], 'auto_map': {'AutoModel': 'modeling_song.X'}}
+
+    def _registry(self, key, path):
+        r = ModelRegistry()
+        r._models = {key: ModelInfo(id=key, name=key, model_type=ModelType.MUSIC,
+                                    source=ModelSource.HUGGINGFACE, extra_info={'path': str(path)})}
+        return r
+
+    def test_a_refuted_engine_no_backend_serves_is_retracted_by_the_sync(self):
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.model_sync import merged_composition
+        key = 'huggingface:org/Song'
+        prior = {'runtime': {'engine': 'transformers'}, 'components': [{'role': 'dit'}]}
+        AIModel.objects.create(model_key=key, name='Song', model_type='music',
+                               source='huggingface', composition=prior)
+        with TemporaryDirectory() as d:
+            r = self._registry(key, _snapshot(Path(d) / 'models--org--Song', 'config.json', self.REMOTE))
+            r._overlay_engines_derived_from_disk()
+        discovered = r._models[key].composition
+        self.assertEqual({'runtime': {'engine': None}}, discovered)
+        self.assertEqual({'components': [{'role': 'dit'}]}, merged_composition(prior, discovered),
+                         "the retraction takes the engine only — the anatomy stays")
+
+    def test_an_engine_a_backend_serves_or_the_snapshot_does_not_refute_is_kept(self):
+        """Counter-proofs, measured on the real catalogue: LocateAnything-3B is remote code that
+        `LocateAnythingBackend` serves through `transformers` (`trust_remote_code`); a declared
+        engine the snapshot names no refutation for (kokoro-onnx) stays untouched."""
+        from wama.model_manager.models import AIModel
+        for key, engine, config in (('huggingface:nvidia/LocateAnything-3B', 'transformers', self.REMOTE),
+                                    ('huggingface:org/Remote', 'yue', self.REMOTE),
+                                    ('huggingface:org/Plain', 'transformers', {'architectures': ['BertModel']})):
+            with self.subTest(key):
+                AIModel.objects.create(model_key=key, name=key, model_type='music',
+                                       source='huggingface',
+                                       composition={'runtime': {'engine': engine}})
+                with TemporaryDirectory() as d:
+                    r = self._registry(key, _snapshot(Path(d) / 'models--x--y', 'config.json', config))
+                    r._overlay_engines_derived_from_disk()
+                self.assertEqual({}, r._models[key].composition)
+
+    def test_the_card_engine_the_installed_snapshot_refutes_is_not_set(self):
+        from unittest.mock import patch
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services import provenance as pv
+        with TemporaryDirectory() as d:
+            path = _snapshot(Path(d) / 'models--org--Song', 'config.json', self.REMOTE)
+            for key in ('huggingface:org/Song', 'huggingface:org/Bert'):
+                AIModel.objects.create(model_key=key, name=key, model_type='music',
+                                       source='huggingface', platform_ref=key, is_downloaded=True,
+                                       local_path=str(path) if key.endswith('Song') else '')
+                with patch.object(pv, 'identity_for_spec',
+                                  return_value={'platform_ref': key, 'declared': {
+                                      'capabilities': {}, 'engine': 'transformers'}}), \
+                        patch('django.core.management.call_command'):
+                    pv.record_after_install({'kind': 'hf', 'ref': key.partition(':')[2]}, [key])
+        self.assertEqual({}, AIModel.objects.get(model_key='huggingface:org/Song').composition)
+        self.assertEqual('transformers', AIModel.objects.get(model_key='huggingface:org/Bert')
+                         .composition['runtime']['engine'],
+                         "a row the snapshot does not refute keeps the card's engine")
+
+
 class DepartageDuMoteurPartageTest(TestCase):
     """Dériver le moteur ne suffit pas quand il est PARTAGÉ : il faut le lien fin.
 

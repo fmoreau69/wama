@@ -33,11 +33,19 @@ def merged_composition(prior: dict, discovered: dict) -> dict:
     """La composition qu'écrit la synchro : celle du catalogue, les CLÉS que la découverte émet par
     dessus — `components` en bloc (une anatomie ne se mélange pas), `runtime` clé par clé (le
     moteur dit par une app n'efface pas la `family` posée par un manifeste). Ce que la découverte
-    tait reste : son silence n'est pas un savoir (règle de `capabilities`, 2026-09-18)."""
+    tait reste : son silence n'est pas un savoir (règle de `capabilities`, 2026-09-18).
+
+    Une clé de `runtime` que la découverte émet à `None` est un RETRAIT, pas un silence
+    (2026-11-06) : c'est ainsi que la dérivation dit qu'un moteur du catalogue est réfuté par la
+    mesure (`model_registry.refuted_engine`) — le même geste que les drapeaux Ollama écrits faux
+    pour qu'une capacité perdue ne survive pas par absence."""
     merged = {**(prior or {}), **(discovered or {})}
     runtime = {**((prior or {}).get('runtime') or {}), **((discovered or {}).get('runtime') or {})}
+    runtime = {key: value for key, value in runtime.items() if value is not None}
     if runtime:
         merged['runtime'] = runtime
+    else:
+        merged.pop('runtime', None)
     return merged
 
 
@@ -151,6 +159,8 @@ class ModelSyncService:
                 if not echecs:
                     result.removed += self._drop_superseded_snapshots(discovered_models,
                                                                       seen_keys)
+                    result.removed += self._drop_rows_superseded_by_location(discovered_models,
+                                                                             seen_keys)
                 # Une ligne que la découverte REFUSE désormais par règle n'a jamais été un modèle
                 # (manifeste interne du démon Ollama) : ce n'est pas une disparition, la retirer ne
                 # dépend donc pas d'une découverte complète.
@@ -272,6 +282,46 @@ class ModelSyncService:
             logger.info("Snapshots génériques relevés par une app, retirés : %s", keys)
             stale.delete()
         return len(keys)
+
+    @staticmethod
+    def _drop_rows_superseded_by_location(discovered_models, seen_keys) -> int:
+        """Supprime les lignes absentes de cette découverte dont l'emplacement de poids est DÉSIGNÉ
+        par une ligne découverte (`model_registry._designated` : la même règle que la découverte —
+        l'emplacement lui-même, ou un emplacement qu'il contient ; le dossier de FAMILLE qui le
+        contient ne désigne rien). Rend le compte. Seule la LIGNE part : les poids sont ceux de la
+        ligne qui les désigne.
+
+        La relève par DÉPÔT (`_drop_superseded_snapshots`) ne couvre que le balayage générique du
+        Hub ; la règle de désignation de la découverte (`model_registry._designated`, 2026-11-05)
+        vaut pour toute ligne. Vécu le 2026-11-06 : `anonymizer:yolo:yolopv2.pt`, catalogué par le
+        balayage des poids YOLO avant que YOLOPv2 n'ait sa ligne déclarée (`YOLOPV2_KEY`, 16/10),
+        restait installé et TIRABLE par l'anonymizer — un modèle de route proposé comme détecteur,
+        et sa désinstallation aurait effacé le fichier que le cam_analyzer lit. Mesuré avant
+        d'écrire : une ligne sur les 91 non découvertes. Même garde que la relève par dépôt (une
+        découverte complète) ; une ligne SANS emplacement (distante, désinstallée) n'est jamais
+        relevée."""
+        from pathlib import Path
+        from ..models import AIModel
+        from .model_registry import _designated, designated_locations
+        places = designated_locations(discovered_models.values())
+        if not places:
+            return 0
+        superseded = []
+        for row in (AIModel.objects.exclude(model_key__in=seen_keys).exclude(is_proposed=True)
+                    .only('model_key', 'local_path', 'extra_info')):
+            value = (row.extra_info or {}).get('path') or row.local_path
+            try:
+                if value and _designated(Path(value), places):
+                    superseded.append(row.model_key)
+            except (TypeError, OSError):
+                continue
+        if superseded:
+            logger.info("Lignes relevées par la ligne qui désigne leurs poids, retirées : %s",
+                        superseded)
+            AIModel.objects.filter(model_key__in=superseded).delete()
+            from .model_installer import forget_in_corpus
+            forget_in_corpus(superseded)
+        return len(superseded)
 
     @staticmethod
     def _drop_ollama_runner_aliases() -> int:

@@ -142,6 +142,28 @@ class SupersededSnapshotTest(TestCase):
             ModelSyncService().full_sync()
         self.assertTrue(AIModel.objects.filter(pk=self.snapshot.pk).exists())
 
+    def test_the_full_sync_relieves_a_row_whose_weights_another_designates(self):
+        """2026-11-06 (`anonymizer:yolo:yolopv2.pt`): the relief by LOCATION is wired in the
+        sync, under the same guard as the relief by repository."""
+        from ..services.model_registry import ModelInfo, ModelSource, ModelType
+        AIModel.objects.create(model_key='anonymizer:yolo:road.pt', name='road.pt',
+                               source='anonymizer', is_downloaded=True,
+                               extra_info={'path': '/models/yolo/segment/road.pt'})
+        declared = {'github:org/Road:v1': ModelInfo(
+            id='org/Road:v1', name='Road', model_type=ModelType.VISION, source=ModelSource.GITHUB,
+            is_downloaded=True, extra_info={'path': '/models/yolo/segment/road.pt'})}
+        with patch.object(ModelRegistry, 'discover_all_models',
+                          _decouverte(erreurs=['x : boom'], modeles=declared)), \
+                patch('wama.model_manager.services.model_installer.forget_in_corpus'):
+            ModelSyncService().full_sync()
+        self.assertTrue(AIModel.objects.filter(model_key='anonymizer:yolo:road.pt').exists(),
+                        'an incomplete discovery relieves nothing')
+        with patch.object(ModelRegistry, 'discover_all_models', _decouverte(modeles=declared)), \
+                patch('wama.model_manager.services.model_installer.forget_in_corpus'):
+            ModelSyncService().full_sync()
+        self.assertFalse(AIModel.objects.filter(model_key='anonymizer:yolo:road.pt').exists())
+        self.assertTrue(AIModel.objects.filter(model_key='github:org/Road:v1').exists())
+
 
 class DiscoveryErrorsTest(TestCase):
     """Le registre doit POUVOIR dire qu'il a échoué — sinon la garde ci-dessus est aveugle."""
