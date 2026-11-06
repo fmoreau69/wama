@@ -10,11 +10,7 @@
       "supports_vocals": true,
       "task": "text-to-music"
     },
-    "composition": {
-      "runtime": {
-        "engine": "transformers"
-      }
-    },
+    "composition": {},
     "extra_info": {
       "category": "music",
       "family": "Ace-Step1.5",

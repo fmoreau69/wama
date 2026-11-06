@@ -1007,7 +1007,6 @@
         "anonymizer:yolo:yolo26n-seg.pt",
         "anonymizer:yolo:yolo26s-face.pt",
         "anonymizer:yolo:yolo26s-seg.pt",
-        "anonymizer:yolo:yolopv2.pt",
         "anonymizer:yolo:yolov11l-face.pt",
         "anonymizer:yolo:yolov12l-face.pt",
         "anonymizer:yolo:yolov12n-seg.pt",
@@ -2762,10 +2761,6 @@
     },
     {
       "key": "anonymizer:yolo:yolo26s-seg.pt",
-      "kind": "model"
-    },
-    {
-      "key": "anonymizer:yolo:yolopv2.pt",
       "kind": "model"
     },
     {
