@@ -28899,3 +28899,40 @@ Outillage proposé en cliquet nocturne (surface sans session, élément d'autrui
 🔚 POINT D'ENTRÉE : relancer ; sur le serveur en service, `POST /accounts/signup/` sans session
 doit rendre 403 ; un membre qui nomme un chemin local dans « Connecter un dossier » lit le motif ;
 puis les élevés, dans l'ordre du concile : `DEBUG` hors du code, `/media/` gardé, frein de connexion.
+
+## §PALIER 2026-11-06 (soir), « LES TROIS RESTES DE LA REVÉRIFICATION : ORPHELINS D'INSTALLATION ET DE LOT DU STUDIO, ANONYMIZER PAR LA ROUTE, SUIVI DU CHAT » — ``629868810`` — non poussé — 🔴 `manage.py migrate model_manager` (0033) PUIS relancer gunicorn + workers (default, gpu, studio)
+
+Demande de Fabien : *« on règle les 3, méticuleusement, en profondeur, parfaitement aligné avec le
+fonctionnement de wama et sans rien réinventer »*, puis *« ne supposes pas […] on confronte
+doc/code, on suit la route »*.
+- ⚠ **Constat corrigé** (le mien, palier `0ca83d719` et `ROADMAP §19.2` du même soir) : « aucune
+  réconciliation des orphelins » pour un run du Studio était FAUX — la réconciliation au démarrage
+  d'un worker relancé (`reconcile_dead_worker_tasks`, `worker_ready`) retient tout modèle portant
+  `status` + `task_id`, `StudioRun` compris. Conclu d'un relevé de `reconcile_queue_of` seul.
+- **Orphelins** : les éléments d'un lot du Studio portent la tâche qui les exécute ; la page du
+  Studio et celle du model manager réconcilient à l'ouverture (`reconcile_queue_of`, ouvert à un
+  modèle sans propriétaire) ; `InstallEvent.task_id` posé à l'envoi (`install_history.set_task`)
+  et une clôture DÉCLARÉE (`close_interrupted`) que `_mark_reconciled` emprunte — la fin et le
+  motif écrits par le journal.
+- **Anonymizer par la route** (`R221`) : une ligne de poids YOLO officiel se dérive au pilote
+  `yolo` (`spec_for_catalog_row`) ; le modèle désigné s'installe avant d'être lu ; les classes se
+  lisent au catalogue (la page chargeait `yolov8n.pt` à chaque ouverture) ; module de
+  téléchargement, `manage_models` et repli `auto_download` retirés ; `tests_install_route` voit
+  un corps de réponse écrit dans un fichier (`DATA` : médias et pages importés par URL, audio du
+  service de voix local, chacun avec sa raison).
+- **Suivi du chat** : la boucle des lignes de l'échange ne renonce plus (`maxFails: Infinity`) ;
+  un bloc retiré du fil cesse d'être suivi même quand le serveur ne répond pas.
+
+Contrôles mesurés : 1681 tests (model_manager, studio, anonymizer, réconciliation, route
+d'installation, gardes transverses) — 10 rouges, un de ma main (`tests_intent_vision` : il lisait
+le poids réel `yolov8n.pt` d'`AI-models` pour ses cases ; il déclare désormais leur source au
+catalogue) ; les autres à d'autres chantiers EN COURS, mesurés à l'heure : `tests_vram_peaks` ×3
+(`diffusers_backend` passe `weights_key` à `LoadPrecision`, moteur GGUF), `tests_succession.RekeyTest`
+(`succession.rekey`), `tests_poller_js` (fichier vendorisé `ace_step_1_5`), budgets de langue
+(classes 133 > 132, méthodes 1289 > 1286 — liste filtrée sur mes fichiers vide). Modules touchés
+rejoués sur l'état final : 206 puis 110 OK. Treize contre-épreuves rouges, en processus.
+`check_docs` 0 cassée / 3889 ; `doc_facts --check` à jour ; `check_redundancy` 115, aucune
+trouvaille dans mes fonctions neuves.
+
+🔚 POINT D'ENTRÉE : `migrate`, relancer ; ouvrir le model manager et le Studio ; installer puis
+désinstaller un petit YOLO officiel depuis la card (geste « Installer » apparu).
