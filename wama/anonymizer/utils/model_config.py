@@ -154,7 +154,10 @@ YOLO_TYPES = {
 YOLO_WEIGHTS_PLATFORM_REF = {
     'license-plate-finetune-v1': 'huggingface:morsetechlab/yolov11-license-plate-detection',
     'face_yolov8m-seg_60': 'huggingface:jags/yolov8_model_segmentation-set',
-    'yolo11l_face_plate_signs': 'huggingface:Panoramax/detect_face_plate_sign',
+    # Le nom PUBLIÉ par le dépôt (2026-11-06) : le fichier s'appelait `yolo11l_face_plate_signs.pt`,
+    # renommé à la main avant la chaîne d'installation — même sha256 que `yolo11l_panoramax.pt`.
+    # La clé de catalogue suit le nom (`succession.rekey`), le motif du composant le désigne enfin.
+    'yolo11l_panoramax': 'huggingface:Panoramax/detect_face_plate_sign',
 }
 
 

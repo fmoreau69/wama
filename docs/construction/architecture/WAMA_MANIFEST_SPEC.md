@@ -611,8 +611,8 @@ Fabien : « on ne laisse pas de trou ou de piège »). Les composants DEVIENNENT
 morceau oublié est un fichier absent, que le moteur irait chercher seul au premier usage — vécu sur
 la proposition d'anatomie d'ACE-Step 1.5 (encodeur de texte `Qwen3-Embedding-0.6B/` et
 `silence_latent.pt` oubliés). Règle (`model_installer.anatomy_gaps`) : chaque fichier de poids de
-ce que l'installation apporte (le dépôt du Hub, ou les fichiers déclarés du pilote `files`,
-`anatomy_inventory`) est **réclamé** par un composant, **reconnu** comme variante par une règle
+ce que l'installation apporte (le dépôt du Hub, les fichiers déclarés du pilote `files`, ou le
+dossier d'une version que le pilote `github` a posée — `anatomy_inventory`) est **réclamé** par un composant, **reconnu** comme variante par une règle
 existante (précision, quantisation — GGUF et exports ONNX compris —, shards concurrents, jumeau de
 format, copie monofichier ou imbriquée d'un pipeline, poids d'un autre moteur, conversion
 `transformers` d'un `.nemo` ou d'un `.pt`), ou **écarté** avec sa raison :
@@ -626,8 +626,10 @@ tirer (`install_from_spec`), « Valider » refuse ce que le plan montre (confron
 `ManifestKind.confront` → `builtin/model.confront_model`, jouée par `proposals.plan/apply` seuls —
 la validation de FORME reste sans réseau), la carte `check_model_completeness` nomme les lignes
 installées (`anatomy_incomplete`). Mesuré ce jour sur les 44 anatomies du catalogue : 13
-incomplètes avant correction, 1 après (`anonymizer:yolo:yolo11l_face_plate_signs.pt`, poids renommé
-au téléchargement — son motif ne désigne aucun fichier du dépôt, piège nommé, non corrigé).
+incomplètes avant correction, 1 après — `anonymizer:yolo:yolo11l_face_plate_signs.pt`, poids renommé à
+la main avant la chaîne (son motif ne désignait aucun fichier du dépôt) ; renommé au nom PUBLIÉ le
+même jour, sa clé suivie par `succession.rekey`. **46 sur 46** une fois les deux versions GitHub
+confrontées.
 
 **2026-10-31 — `runtime.loaded_by`** (demande de Fabien après l'inventaire des modèles installés
 sans backend) : le MODULE qui charge le modèle lui-même, hors de tout backend —

@@ -982,7 +982,7 @@
         "anonymizer:yolo:yolo11l-pose.pt",
         "anonymizer:yolo:yolo11l-seg.pt",
         "anonymizer:yolo:yolo11l.pt",
-        "anonymizer:yolo:yolo11l_face_plate_signs.pt",
+        "anonymizer:yolo:yolo11l_panoramax.pt",
         "anonymizer:yolo:yolo11m-cls.pt",
         "anonymizer:yolo:yolo11m-obb.pt",
         "anonymizer:yolo:yolo11m-pose.pt",
@@ -2664,7 +2664,7 @@
       "kind": "model"
     },
     {
-      "key": "anonymizer:yolo:yolo11l_face_plate_signs.pt",
+      "key": "anonymizer:yolo:yolo11l_panoramax.pt",
       "kind": "model"
     },
     {

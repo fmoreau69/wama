@@ -3,8 +3,12 @@
 commande sert une succession constatée APRÈS coup (olmOCR v1 → olmOCR-2, installé avant le
 mécanisme). Sans `--apply`, elle compte et n'écrit rien.
 
+`--same-weights` : le MÊME modèle a changé de clé (un poids renommé — `succession.rekey`) ; ses
+mesures et ses faits déclarés suivent, et l'ancienne ligne, sans fichier, quitte le catalogue.
+
     python manage.py supersede_model reader:olmocr huggingface:allenai/olmOCR-2-7B-1025
     python manage.py supersede_model reader:olmocr huggingface:allenai/olmOCR-2-7B-1025 --apply
+    python manage.py supersede_model anonymizer:yolo:a.pt anonymizer:yolo:b.pt --same-weights
 """
 import json
 
@@ -17,11 +21,14 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('old_key', help="clé de catalogue de l'ancienne version")
         parser.add_argument('new_key', help='clé de catalogue de la nouvelle version (installée)')
+        parser.add_argument('--same-weights', action='store_true',
+                            help="le même modèle sous une nouvelle clé (poids renommé)")
         parser.add_argument('--apply', action='store_true', help='écrire (sinon : compter)')
 
     def handle(self, *args, **opts):
-        from wama.model_manager.services.succession import supersede
-        result = supersede(opts['old_key'], opts['new_key'], apply=opts['apply'])
+        from wama.model_manager.services.succession import rekey, supersede
+        gesture = rekey if opts['same_weights'] else supersede
+        result = gesture(opts['old_key'], opts['new_key'], apply=opts['apply'])
         if result.get('error'):
             raise CommandError(result['error'])
         self.stdout.write(json.dumps(result, ensure_ascii=False, indent=2))

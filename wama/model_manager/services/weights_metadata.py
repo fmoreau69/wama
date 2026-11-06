@@ -13,7 +13,7 @@ CE QUE CE MODULE FAIT — et ne fait pas.
     None, on ne conclut pas « AGPL parce que c'est du YOLO ».
   • Il rend aussi `toolkit_version`, `date`, `train_base` et `train_data` : ce ne sont pas des
     champs du catalogue, mais ce sont les indices qui permettent à un humain d'ÉTABLIR une
-    provenance. Exemple réel : `yolo11l_face_plate_signs.pt` porte
+    provenance. Exemple réel : `yolo11l_panoramax.pt` (ex-`yolo11l_face_plate_signs.pt`) porte
     `train_args.model = '/bigpool/data/panoramax/yolo/…'` — ce qui a confirmé indépendamment
     l'appariement par taille avec `Panoramax/detect_face_plate_sign`.
 

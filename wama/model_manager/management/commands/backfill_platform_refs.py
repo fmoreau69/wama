@@ -81,8 +81,8 @@ class Command(BaseCommand):
 
         # ORDRE VOULU : la plateforme AVANT les poids. Un checkpoint ultralytics porte
         # `license = AGPL-3.0` parce que c'est la licence du CADRE D'ENTRAINEMENT, pas forcement
-        # celle sous laquelle l'auteur publie son modele. Cas reel : `yolo11l_face_plate_signs.pt`
-        # declare AGPL dans ses poids alors que Panoramax le publie en Licence Ouverte Etalab 2.0.
+        # celle sous laquelle l'auteur publie son modele. Cas reel : `yolo11l_panoramax.pt`
+        # (ex-`yolo11l_face_plate_signs.pt`) declare AGPL dans ses poids alors que Panoramax le publie en Licence Ouverte Etalab 2.0.
         # La declaration de l'editeur fait foi ; les poids ne sont le RECOURS que pour les modeles
         # sans identite de plateforme (les 63 issus du scan disque).
         if options['licenses']:

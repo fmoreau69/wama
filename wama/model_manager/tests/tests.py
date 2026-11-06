@@ -458,6 +458,11 @@ class ProvenanceDeclareeTest(TestCase):
                          'huggingface:jags/yolov8_model_segmentation-set')
         self.assertEqual(platform_ref_for_yolo_weight('yolo11n.pt'), '')
         self.assertEqual(platform_ref_for_yolo_weight('yolov8n_face_plate_720p.pt'), '')
+        # Le nom PUBLIÉ par le dépôt (2026-11-06), plus le nom local d'avant la chaîne : un motif de
+        # composant qui ne désigne aucun fichier du dépôt est une anatomie incomplète.
+        self.assertEqual(platform_ref_for_yolo_weight('yolo11l_panoramax.pt'),
+                         'huggingface:Panoramax/detect_face_plate_sign')
+        self.assertEqual(platform_ref_for_yolo_weight('yolo11l_face_plate_signs.pt'), '')
 
     def test_la_decouverte_anonymizer_pose_la_provenance_declaree(self):
         fausse_liste = {'detect': [

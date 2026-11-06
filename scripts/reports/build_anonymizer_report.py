@@ -53,7 +53,7 @@ FAMILIES = [
     ('yolov11l-face', 'akanametov/yolo-face', 'WIDER FACE (partie entraînement)'),
     ('yolov12l-face', 'akanametov/yolo-face', 'non dit par l\'auteur (WIDER FACE probable)'),
     ('egoblur', 'Meta (EgoBlur)', 'données propres à Meta, vidéo à la première personne'),
-    ('face_plate_signs', 'Panoramax', 'images de rue (visages, plaques, panneaux)'),
+    ('panoramax', 'Panoramax', 'images de rue (visages, plaques, panneaux)'),
     ('face_plate', 'non renseigné', 'non renseigné'),
     ('rtdetr', 'justjuu (Hugging Face)', 'plaques d\'immatriculation'),
     ('license-plate-finetune', 'non renseigné', 'plaques d\'immatriculation'),

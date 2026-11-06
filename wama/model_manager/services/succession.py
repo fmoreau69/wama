@@ -21,6 +21,10 @@ Une colonne d'HISTOIRE (le moteur EMPLOYÉ, `used_backend`) n'est pas un réglag
 tourné, elle ne change pas. L'ancien sort des choix comme une ligne désinstallée
 (`model_installer.withdraw_from_choices`, origine `superseded`), ses poids RESTENT — revenir en
 arrière reste possible, et le désinstaller est un clic du model manager.
+
+Le cas voisin, le MÊME modèle sous une autre clé (un poids renommé, 2026-11-06), est `rekey` : les
+mêmes choix suivent, et avec eux ce qui était mesuré de ces poids ; l'ancienne ligne, sans fichier,
+quitte le catalogue.
 """
 from __future__ import annotations
 
@@ -83,6 +87,147 @@ def _setting_name_matches(stored_name: str, names) -> bool:
     return any(stored_name == n or stored_name.endswith('.' + n) for n in names)
 
 
+def _two_rows(old_key: str, new_key: str):
+    """`(ancienne, nouvelle)` lignes du catalogue, ou `(None, None)` si l'une manque ou si ce sont
+    la même."""
+    from ..models import AIModel
+    old = AIModel.objects.filter(model_key=old_key, is_proposed=False).first()
+    new = AIModel.objects.filter(model_key=new_key, is_proposed=False).first()
+    if old is None or new is None or old.pk == new.pk:
+        return None, None
+    return old, new
+
+
+def _follow_choices(old_key: str, new_key: str, apply: bool) -> tuple:
+    """Les CHOIX qui nommaient `old_key` nomment `new_key` : colonnes de card, réglages mémorisés,
+    réglages de lot (les endroits DÉRIVÉS, cf. l'en-tête). Rend `(cards, réglages, lots)` comptés ;
+    n'écrit qu'avec `apply`. Corps commun de la succession et du changement de clé (`rekey`)."""
+    from wama.common.models import BatchSettings, UserAppSetting
+
+    cards, settings_n, batches_n = {}, 0, 0
+    for surface, model, field, source in model_reference_fields():
+        rows = [(pk, value) for pk, value in model.objects.values_list('pk', field)
+                if _names_the_model(value, old_key, source)]
+        if not rows:
+            continue
+        cards[f'{surface}.{field}'] = len(rows)
+        if apply:
+            for pk, value in rows:
+                model.objects.filter(pk=pk).update(**{field: _stored_form(new_key, source, value)})
+
+    names_by_app = {}
+    for setting in UserAppSetting.objects.all().only('pk', 'app', 'name', 'value'):
+        names = names_by_app.setdefault(setting.app, catalog_settings(setting.app))
+        value = setting.value
+        if value == old_key:
+            source = setting.app
+        else:
+            matched = [n for n in names if _setting_name_matches(setting.name, [n])]
+            if not matched or not _names_the_model(value, old_key, names[matched[0]]):
+                continue
+            source = names[matched[0]]
+        settings_n += 1
+        if apply:
+            UserAppSetting.objects.filter(pk=setting.pk).update(
+                value=_stored_form(new_key, source, value))
+
+    for lot in BatchSettings.objects.all().only('pk', 'app', 'settings'):
+        names = names_by_app.setdefault(lot.app, catalog_settings(lot.app))
+        values = dict(lot.settings or {})
+        changed = {n: _stored_form(new_key, names[n], values[n]) for n in names
+                   if n in values and _names_the_model(values[n], old_key, names[n])}
+        if changed:
+            batches_n += 1
+            if apply:
+                BatchSettings.objects.filter(pk=lot.pk).update(settings={**values, **changed})
+    return cards, settings_n, batches_n
+
+
+def _weights_file(row):
+    """Le fichier (ou dossier) de poids que la ligne désigne — `extra_info['path']`, sinon
+    `local_path` (la lecture de `_drop_rows_superseded_by_location`) — ou None."""
+    from pathlib import Path
+    value = (row.extra_info or {}).get('path') or row.local_path
+    return Path(value) if value else None
+
+
+def rekey(old_key: str, new_key: str, *, apply: bool = True) -> dict:
+    """Le MÊME modèle — les mêmes poids — change de CLÉ : tout ce qui le désignait suit, puis
+    l'ancienne ligne sort du catalogue.
+
+    Vécu le 2026-11-06 (Fabien : « renomme le fichier yolo11l pour l'aligner sur le dépôt ») : un
+    poids YOLO renommé à la main avant la chaîne d'installation (`yolo11l_face_plate_signs.pt`, que
+    le dépôt Panoramax publie `yolo11l_panoramax.pt`, même sha256). Le balayage dérive la clé du NOM
+    du fichier : le renommer fait naître une ligne, et laisse l'ancienne « installée » sur un
+    fichier absent. Ce n'est PAS une succession (`supersede`) : l'ancien n'a plus de poids, il n'y a
+    pas de retour arrière à garder, et ce que l'on avait MESURÉ de ces poids vaut pour la nouvelle
+    clé. Ce qui suit, chacun par la voie qui l'écrit déjà :
+      * les CHOIX — cards, réglages mémorisés, lots (`_follow_choices`, le corps de `supersede`) ;
+      * les faits DÉCLARÉS de la ligne — licence, auteur, contrat de prompt, publications… : la
+        fiche de l'ancienne superposée à celle de la nouvelle, les VIDES seuls comblés
+        (`proposals.fill_empty`), projetée par `write_back_model` — une anatomie ou une capacité
+        que la découverte vient d'écrire n'est jamais remplacée ;
+      * les MESURES des poids — la vitesse apprise (`ModelRuntimeStat`, par matériel ; une mesure
+        déjà présente sous la nouvelle clé pour le même matériel est gardée, l'ancienne est
+        signalée, jamais fusionnée), les évaluations de résultats (`ResultEvaluation`) ;
+      * le CORPUS — la fiche de l'ancienne en part, celle de la nouvelle s'écrit (`corpus.follow`).
+    L'HISTOIRE ne bouge pas (colonnes `used_backend`, conversations, journal des installations).
+
+    Gardes, lues sur les lignes : l'ancienne ne désigne plus aucun fichier présent (sinon ce sont
+    deux copies — une succession), la provenance est la même (`platform_ref`, ou absente d'un côté)
+    et la taille aussi quand les deux la portent. `apply=False` compte et n'écrit rien."""
+    from django.db import transaction
+
+    from wama.common.models import ResultEvaluation
+
+    from ..models import AIModel, ModelRuntimeStat
+    old, new = _two_rows(old_key, new_key)
+    if old is None:
+        return {'error': f"changement de clé impossible : {old_key!r} → {new_key!r} "
+                         "(deux lignes distinctes du catalogue attendues)"}
+    weights = _weights_file(old)
+    if weights is not None and weights.exists():
+        return {'error': f"{old_key} désigne encore des poids présents ({weights}) : deux copies, "
+                         "pas un changement de clé — `supersede` fait la succession"}
+    if old.platform_ref and new.platform_ref and old.platform_ref != new.platform_ref:
+        return {'error': f"provenances différentes ({old.platform_ref} ≠ {new.platform_ref}) : "
+                         "pas le même modèle"}
+    sizes = [(r.extra_info or {}).get('size_bytes') for r in (old, new)]
+    if all(sizes) and sizes[0] != sizes[1]:
+        return {'error': f"tailles différentes ({sizes[0]} ≠ {sizes[1]} octets) : pas les mêmes poids"}
+
+    from wama.common.manifests.builtin.model import extract_model, write_back_model
+    from wama.common.manifests.proposals import fill_empty
+    old_sheet, new_sheet = extract_model(old_key), extract_model(new_key)
+    body, filled, _ = fill_empty(new_sheet.get('body') or {}, old_sheet.get('body') or {}, 'body')
+
+    stats = ModelRuntimeStat.objects.filter(model_key=old_key)
+    taken = set(ModelRuntimeStat.objects.filter(model_key=new_key)
+                .values_list('hardware_fingerprint', flat=True))
+    moving = [s.pk for s in stats if s.hardware_fingerprint not in taken]
+    kept_apart = [s.hardware_fingerprint for s in stats if s.hardware_fingerprint in taken]
+    evaluations = ResultEvaluation.objects.filter(model_key=old_key)
+
+    result = {'old': old_key, 'new': new_key, 'applied': apply, 'filled': filled,
+              'runtime_stats': len(moving), 'runtime_stats_kept_apart': kept_apart,
+              'evaluations': evaluations.count()}
+    with transaction.atomic():
+        cards, settings_n, batches_n = _follow_choices(old_key, new_key, apply)
+        result.update(cards=cards, user_settings=settings_n, batch_settings=batches_n)
+        if apply:
+            write_back_model({**new_sheet, 'body': body}, apply=True)
+            ModelRuntimeStat.objects.filter(pk__in=moving).update(model_key=new_key)
+            evaluations.update(model_key=new_key)
+            AIModel.objects.filter(pk=old.pk).delete()
+    if apply:
+        # Le corpus SUIT les deux clés, par sa porte commune (`forget_in_corpus` → `corpus.follow`,
+        # celle de la désinstallation) : la fiche d'une clé disparue part, l'autre s'écrit.
+        from .model_installer import forget_in_corpus
+        forget_in_corpus([old_key, new_key])
+    logger.info("[succession] clé %s → %s : %s", old_key, new_key, result)
+    return result
+
+
 def supersede(old_key: str, new_key: str, *, apply: bool = True) -> dict:
     """Fait de `new_key` le successeur de `old_key` partout où l'ancien était CHOISI, puis retire
     l'ancien des choix. `apply=False` compte sans rien écrire (le relevé à lire avant).
@@ -91,53 +236,13 @@ def supersede(old_key: str, new_key: str, *, apply: bool = True) -> dict:
     'withdrawn': [...]} ; {'error': …} si une des deux lignes manque ou si elles sont la même."""
     from django.db import transaction
 
-    from wama.common.models import BatchSettings, UserAppSetting
-
-    from ..models import AIModel
-    old = AIModel.objects.filter(model_key=old_key, is_proposed=False).first()
-    new = AIModel.objects.filter(model_key=new_key, is_proposed=False).first()
-    if old is None or new is None or old.pk == new.pk:
+    old, _ = _two_rows(old_key, new_key)
+    if old is None:
         return {'error': f"succession impossible : {old_key!r} → {new_key!r} "
                          "(deux lignes distinctes du catalogue attendues)"}
 
-    cards, settings_n, batches_n = {}, 0, 0
     with transaction.atomic():
-        for surface, model, field, source in model_reference_fields():
-            rows = [(pk, value) for pk, value in model.objects.values_list('pk', field)
-                    if _names_the_model(value, old_key, source)]
-            if not rows:
-                continue
-            cards[f'{surface}.{field}'] = len(rows)
-            if apply:
-                for pk, value in rows:
-                    model.objects.filter(pk=pk).update(**{field: _stored_form(new_key, source, value)})
-
-        names_by_app = {}
-        for setting in UserAppSetting.objects.all().only('pk', 'app', 'name', 'value'):
-            names = names_by_app.setdefault(setting.app, catalog_settings(setting.app))
-            value = setting.value
-            if value == old_key:
-                source = setting.app
-            else:
-                matched = [n for n in names if _setting_name_matches(setting.name, [n])]
-                if not matched or not _names_the_model(value, old_key, names[matched[0]]):
-                    continue
-                source = names[matched[0]]
-            settings_n += 1
-            if apply:
-                UserAppSetting.objects.filter(pk=setting.pk).update(
-                    value=_stored_form(new_key, source, value))
-
-        for lot in BatchSettings.objects.all().only('pk', 'app', 'settings'):
-            names = names_by_app.setdefault(lot.app, catalog_settings(lot.app))
-            values = dict(lot.settings or {})
-            changed = {n: _stored_form(new_key, names[n], values[n]) for n in names
-                       if n in values and _names_the_model(values[n], old_key, names[n])}
-            if changed:
-                batches_n += 1
-                if apply:
-                    BatchSettings.objects.filter(pk=lot.pk).update(settings={**values, **changed})
-
+        cards, settings_n, batches_n = _follow_choices(old_key, new_key, apply)
         withdrawn = []
         if apply:
             from django.utils import timezone

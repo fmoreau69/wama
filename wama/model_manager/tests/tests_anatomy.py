@@ -130,6 +130,22 @@ class AnatomyInventoryTest(TestCase):
                           {'path': 'voices/Ana.pt', 'size': 1, 'origin': other}]})
         self.assertEqual([('text_2.pt', 5), ('voices/Ana.pt', 1)], mi.anatomy_inventory(row))
 
+    def test_a_github_release_brings_the_one_asset_its_driver_placed(self):
+        """The `github` driver places ONE pinned asset and never reads the anatomy: the release
+        folder is what the install brought (the two `Phhofm/models` rows, unconfronted until then)."""
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / 'x_fp32.onnx').write_bytes(b'0' * 8)
+            row = AIModel(model_key='github:o/r:x', platform_ref='github:o/r/releases/tag/x',
+                          extra_info={'github_release': True, 'path': folder})
+            self.assertEqual([('x_fp32.onnx', 8)], mi.anatomy_inventory(row))
+            compo = _anatomy('x.onnx', engine='onnxruntime')
+            self.assertEqual(['r0'], mi.anatomy_gaps(mi.anatomy_inventory(row),
+                                                     compo)['claims_nothing'])
+        row.extra_info = {'github_release': True, 'path': folder}
+        self.assertEqual([], mi.anatomy_inventory(row), 'not installed: nothing to confront')
+
 
 class AnatomyGateTest(TestCase):
     """The three places that confront an anatomy refuse the same incomplete one."""

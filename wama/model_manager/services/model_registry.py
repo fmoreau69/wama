@@ -1330,12 +1330,11 @@ class ModelRegistry:
                         # installation aurait tiré les 5. Vérifié le 19/09 : pour ces 5 plus
                         # `face_yolov8m-seg_60.pt`, le nom local existe À L'IDENTIQUE dans le
                         # dépôt, à la MÊME taille.
-                        # ⚠ Le cas qui ne marche PAS, et c'est voulu : `yolo11l_face_plate_signs.pt`
-                        # a été RENOMMÉ au téléchargement (le dépôt Panoramax porte
-                        # `yolo11l_panoramax.pt`, même taille). Son motif ne matchera rien, et le
-                        # relevé dira « indéterminable » — ce qui est exact — au lieu d'inventer.
-                        # (2026-11-06 : la confrontation de l'anatomie au dépôt le dit aussi,
-                        # `anatomy_gaps` → `claims_nothing`.)
+                        # Le nom local doit donc ÊTRE le nom publié : un poids renommé à la main
+                        # ne désigne plus rien de son dépôt — la confrontation de l'anatomie le
+                        # dit (`anatomy_gaps` → `claims_nothing`). Vécu sur
+                        # `yolo11l_face_plate_signs.pt`, publié `yolo11l_panoramax.pt` (même
+                        # sha256) : renommé le 2026-11-06, sa clé suivie par `succession.rekey`.
                         # Et les AUTRES poids de ces dépôts sont d'autres modèles (les tailles
                         # n/s/m/l/x, les détecteurs voisins de jags/…) : ÉCARTÉS, par la même
                         # dérivation qui pose le composant — un poids YOLO est un modèle entier.

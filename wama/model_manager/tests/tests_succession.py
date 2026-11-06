@@ -120,6 +120,88 @@ class SupersedeTest(TestCase):
         self.assertIn('error', s.supersede(OLD, OLD))
 
 
+class RekeyTest(TestCase):
+    """The SAME weights under a new key (2026-11-06: `yolo11l_face_plate_signs.pt` renamed to the
+    name its repository publishes, `yolo11l_panoramax.pt`, same sha256). Not a succession: the old
+    row has no file left, there is no going back to keep, and what was MEASURED of these weights
+    holds for the new key."""
+
+    def setUp(self):
+        _rows()
+        AIModel.objects.filter(model_key=OLD).update(
+            license='etalab-2.0', author='Panoramax',
+            composition={'components': [{'role': 'model', 'pattern': 'old.pt'}],
+                         'runtime': {'engine': 'x'}})
+        AIModel.objects.filter(model_key=NEW).update(
+            composition={'components': [{'role': 'model', 'pattern': 'new.pt'}],
+                         'runtime': {'engine': 'x'}})
+        self.user = get_user_model().objects.create_user('rekey', password='x')
+        follow = mock.patch('wama.model_manager.services.model_installer.forget_in_corpus')
+        self.corpus = follow.start()
+        self.addCleanup(follow.stop)
+
+    def _evaluation(self, key):
+        from wama.common.models import ResultEvaluation
+        return ResultEvaluation.objects.create(app='reader', object_type='ReadingItem', object_id=1,
+                                               model_key=key, metric='cer', value=0.1,
+                                               protocol='v1', reference_sha256='0' * 64)
+
+    def test_choices_measures_and_curated_facts_follow_and_the_old_row_leaves(self):
+        from wama.common.models import ResultEvaluation
+        from wama.model_manager.models import ModelRuntimeStat
+        from wama.reader.models import ReadingItem
+        card = ReadingItem.objects.create(user=self.user, backend='auto')
+        ReadingItem.objects.filter(pk=card.pk).update(backend=OLD, used_backend=OLD)
+        ModelRuntimeStat.objects.create(model_key=OLD, hardware_fingerprint='gpu', samples=4)
+        self._evaluation(OLD)
+        res = s.rekey(OLD, NEW)
+        self.assertEqual((1, 1), (res['runtime_stats'], res['evaluations']))
+        self.assertEqual((NEW, OLD), tuple(ReadingItem.objects.filter(pk=card.pk)
+                                           .values_list('backend', 'used_backend')[0]),
+                         'the choice follows, what ran stays what ran')
+        self.assertTrue(ModelRuntimeStat.objects.filter(model_key=NEW, samples=4).exists())
+        self.assertEqual(NEW, ResultEvaluation.objects.get().model_key)
+        new = AIModel.objects.get(model_key=NEW)
+        self.assertEqual(('etalab-2.0', 'Panoramax'), (new.license, new.author))
+        self.assertFalse(AIModel.objects.filter(model_key=OLD).exists())
+        self.corpus.assert_called_once_with([OLD, NEW])
+
+    def test_the_new_rows_own_anatomy_is_never_replaced(self):
+        s.rekey(OLD, NEW)
+        self.assertEqual('new.pt', AIModel.objects.get(model_key=NEW)
+                         .composition['components'][0]['pattern'])
+
+    def test_a_measure_already_taken_under_the_new_key_stays_and_the_old_one_is_named(self):
+        from wama.model_manager.models import ModelRuntimeStat
+        ModelRuntimeStat.objects.create(model_key=OLD, hardware_fingerprint='gpu', samples=4)
+        ModelRuntimeStat.objects.create(model_key=NEW, hardware_fingerprint='gpu', samples=9)
+        res = s.rekey(OLD, NEW)
+        self.assertEqual((0, ['gpu']), (res['runtime_stats'], res['runtime_stats_kept_apart']))
+        self.assertEqual(9, ModelRuntimeStat.objects.get(model_key=NEW).samples)
+
+    def test_the_dry_run_counts_and_writes_nothing(self):
+        self._evaluation(OLD)
+        res = s.rekey(OLD, NEW, apply=False)
+        self.assertEqual(1, res['evaluations'])
+        self.assertTrue(AIModel.objects.filter(model_key=OLD).exists())
+        self.assertEqual('', AIModel.objects.get(model_key=NEW).license)
+        self.corpus.assert_not_called()
+
+    def test_two_present_copies_or_other_weights_are_no_key_change(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile() as present:
+            AIModel.objects.filter(model_key=OLD).update(extra_info={'path': present.name})
+            self.assertIn('supersede', s.rekey(OLD, NEW)['error'])
+        AIModel.objects.filter(model_key=OLD).update(extra_info={'size_bytes': 5},
+                                                     platform_ref='huggingface:a/b')
+        AIModel.objects.filter(model_key=NEW).update(extra_info={'size_bytes': 6})
+        self.assertIn('tailles', s.rekey(OLD, NEW)['error'])
+        AIModel.objects.filter(model_key=NEW).update(platform_ref='huggingface:c/d')
+        self.assertIn('provenances', s.rekey(OLD, NEW)['error'])
+        self.assertIn('error', s.rekey(OLD, OLD))
+        self.assertTrue(AIModel.objects.filter(model_key=OLD).exists())
+
+
 class StoredFormTest(SimpleTestCase):
 
     def test_a_bare_value_stays_bare_when_the_successor_lives_in_the_same_source(self):

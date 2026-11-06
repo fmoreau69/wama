@@ -801,6 +801,12 @@ def anatomy_inventory(model):
             return origin.get('file') if same_repo and origin.get('file') else entry['path']
         return [(name(f), f.get('size') or 0) for f in declared
                 if isinstance(f, dict) and f.get('path')]
+    if (model.extra_info or {}).get('github_release'):
+        # Le pilote `github` pose UN fichier, choisi et épinglé par son spec, sans lire l'anatomie :
+        # ce que l'installation a apporté est le dossier de la VERSION, que la découverte nomme
+        # (`model_registry._github_release_to_model`) — non installée, rien à confronter.
+        from .prospector import local_inventory
+        return local_inventory((model.extra_info or {}).get('path')) or []
     if not model.hf_repo:
         return []
     from .prospector import _siblings
