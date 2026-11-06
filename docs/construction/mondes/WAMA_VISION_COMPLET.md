@@ -976,6 +976,10 @@ par l'histoire du projet : la dispersion. Règles d'engagement :
    route manifeste (§3.5).
 7. **Le Data Comprehender attend le socle Data et l'extension du RAG** ; la boucle de découverte
    attend en plus ses garde-fous méthodologiques (§8.4).
+8. **Pas d'export d'application hors de WAMA avant que l'application soit complète par
+   génération et que le substrat soit étagé** — un cœur qui ne connaît aucune application ;
+   pour une application à modèles IA, pas avant un gouverneur qui arbitre aussi sans carte NVIDIA
+   ni Redis (§3.6, `ROADMAP §18.3`).
 
 Toute exception à ces règles est une décision explicite, consignée — pas une dérive.
 *Exception consignée* : la règle 5 a été levée par arbitrage du 2026-08-20 (ROADMAP §19) — le
