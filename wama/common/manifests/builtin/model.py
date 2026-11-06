@@ -123,16 +123,11 @@ def validate_model_body(body: dict) -> list[str]:
                             "fournie au modèle, pas un réglage (seed, steps…)")
         # Langues : la FORME d'un code (2026-11-06, ACE-Step « 50+ languages »), règle du
         # vocabulaire canonique — les trois clés qui en portent.
-        from wama.common.utils.model_capabilities import LANGUAGE_CAPABILITIES, is_language_tag
-        for key in LANGUAGE_CAPABILITIES:
-            value = caps.get(key)
-            if value is None:
-                continue
-            off = [v for v in value if not is_language_tag(v)] if isinstance(value, list) else [value]
-            if off:
-                errs.append(f"capabilities.{key} {off} : une liste de codes de langue ISO 639 "
-                            "(« fr », « yue », « zh-cn ») ou ['*'] (toutes langues) — une langue "
-                            "que la fiche ne déclare pas s'omet")
+        from wama.common.utils.model_capabilities import languages_outside_vocabulary
+        for key, off in languages_outside_vocabulary(caps).items():
+            errs.append(f"capabilities.{key} {off} : une liste de codes de langue ISO 639 "
+                        "(« fr », « yue », « zh-cn ») ou ['*'] (toutes langues) — une langue "
+                        "que la fiche ne déclare pas s'omet")
 
     prompts = body.get('prompts')
     if prompts is not None and not isinstance(prompts, dict):

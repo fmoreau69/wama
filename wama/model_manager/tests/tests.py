@@ -1254,6 +1254,12 @@ class FaitsDeLaCarteTest(TestCase):
         # Code COURT (2026-10-01) : le routage compare des codes exacts.
         self.assertEqual(['en', 'fr'], card_facts(
             'automatic-speech-recognition', [], {'language': ['en', 'fr-FR', 'fr_CA']})['capabilities']['languages'])
+        # Une ÉTIQUETTE n'est pas une langue (2026-11-06) : `code` des modèles de programmation
+        # n'entre pas — le validateur du manifeste la refuserait (`is_language_tag`).
+        self.assertEqual(['en'], card_facts(
+            'text-generation', [], {'language': ['en', 'code']})['capabilities']['languages'])
+        self.assertNotIn('languages', card_facts(
+            'text-generation', [], {'language': ['code']})['capabilities'])
 
     def _card(self, **attrs):
         class _Card:

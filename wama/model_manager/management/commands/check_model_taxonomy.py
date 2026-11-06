@@ -28,12 +28,19 @@ class Command(BaseCommand):
         declares_source = {c[0] for c in ModelSource.choices}
         declares_task = {c[0] for c in ModelTask.choices}
 
+        from wama.common.utils.model_capabilities import languages_outside_vocabulary
+
         types, sources, taches = Counter(), Counter(), Counter()
         sans_tache, secondaires, categories_divergentes = [], Counter(), []
+        bad_languages = []
         for m in AIModel.objects.all():
             types[m.model_type] += 1
             sources[m.source] += 1
             caps = m.capabilities or {}
+            # Les LANGUES : la règle du validateur du manifeste (2026-11-06), sur tout le catalogue
+            # — une ligne écrite par la découverte ne passe pas par lui.
+            bad_languages += [f"{m.model_key} : {key} {off}"
+                              for key, off in languages_outside_vocabulary(caps).items()]
             tache = caps.get('task')
             if tache:
                 taches[tache] += 1
@@ -73,6 +80,14 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"✓ {libelle} : toutes les valeurs sont declarees"))
             if inutilises:
                 self.stdout.write(f"    declares sans aucun modele : {', '.join(inutilises)}")
+
+        if bad_languages:
+            souci = True
+            self.stdout.write(self.style.ERROR(
+                "✗ langues hors vocabulaire (un code ISO 639 ou '*', `is_language_tag`) :\n    "
+                + '\n    '.join(bad_languages)))
+        else:
+            self.stdout.write(self.style.SUCCESS("✓ langues : toutes au vocabulaire"))
 
         if categories_divergentes:
             souci = True

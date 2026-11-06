@@ -41,6 +41,20 @@ def is_language_tag(value) -> bool:
     """Vrai pour un code de langue du vocabulaire (`fr`, `yue`, `zh-cn`) ou `ANY_LANGUAGE`."""
     return value == ANY_LANGUAGE or (isinstance(value, str) and bool(_LANGUAGE_TAG.fullmatch(value)))
 
+
+def languages_outside_vocabulary(caps) -> Dict[str, list]:
+    """`{clé: valeurs refusées}` des clés de langue de `caps` — une valeur qui n'est pas une liste
+    est refusée entière. Lue par le validateur du manifeste `model` et par `check_model_taxonomy`."""
+    out = {}
+    for key in LANGUAGE_CAPABILITIES:
+        value = (caps or {}).get(key) if isinstance(caps, dict) else None
+        if value is None:
+            continue
+        off = [v for v in value if not is_language_tag(v)] if isinstance(value, list) else [value]
+        if off:
+            out[key] = off
+    return out
+
 #: Vocabulaire FERMÉ de `modalities` — il ne vivait que dans la description de la clé ci-dessous
 #: (2026-09-19) ; `check_model_taxonomy` vérifie désormais les défauts par tâche contre lui.
 MODALITIES = ("image", "video", "audio", "document", "text", "3d")   # 3d : 2026-09-30 (objets 3D)

@@ -157,10 +157,14 @@ def card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str = '
         # exacts, une langue régionale ne s'y apparierait jamais. Doublons retirés, ordre gardé.
         codes = list(dict.fromkeys(str(x).strip().lower().replace('_', '-').split('-')[0]
                                    for x in language if x and str(x).strip()))
+        # Une ÉTIQUETTE n'est pas une langue (`code`, que portent les modèles de programmation) :
+        # la forme du vocabulaire, celle que le validateur du manifeste exige (2026-11-06).
+        from wama.common.utils.model_capabilities import is_language_tag
+        languages = [c for c in codes if is_language_tag(c)]
         if any(c in ('multilingual', 'multi') for c in codes):
             caps['languages'] = ['*']
-        elif codes:
-            caps['languages'] = codes
+        elif languages:
+            caps['languages'] = languages
     engine = (library_name or '').strip().lower()
     engine = engine if engine and engine in engine_backends() else None
     return {'task': task, 'model_type': model_type, 'capabilities': caps, 'engine': engine}
