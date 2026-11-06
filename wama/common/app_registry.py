@@ -2211,14 +2211,14 @@ for _app_id, _declared in _ABOUT.items():
 # APRÈS la fusion des descriptions longues (le clone les emporte). Badge « BAC À SABLE »,
 # marqueurs sandbox/generated_from ; EXCLUES de la grille (cf. measure_and_write_conformity).
 try:
-    from wama.common.sandbox import inject_sandbox_catalog
+    from wama.common.sandbox import born_apps, inject_sandbox_catalog
     inject_sandbox_catalog(APP_CATALOG)
     # App créée DE ZÉRO depuis un manifeste (2026-10-01) : son entrée n'a pas de `conventions`
     # (une jumelle les hérite de sa source). Le contrat d'entrée les exige ; une app qui NAÎT n'a
     # rien de déclaré ni de mesuré → le défaut de `_conv()`, posé ICI où `_conv` vit — stocké au
-    # registre JSON, ses tuples deviendraient des listes (`AppCatalogConformiteTest`).
-    for _entry in APP_CATALOG.values():
-        if _entry.get('sandbox') and not _entry.get('generated_from'):
-            _entry.setdefault('conventions', _conv())
+    # registre JSON, ses tuples deviendraient des listes (`AppCatalogConformiteTest`). Ce qu'est
+    # une app née, `sandbox.born_apps` le dit (2026-11-06 : le prédicat était réécrit ici).
+    for _app_id in born_apps(APP_CATALOG):
+        APP_CATALOG[_app_id].setdefault('conventions', _conv())
 except Exception:
     pass

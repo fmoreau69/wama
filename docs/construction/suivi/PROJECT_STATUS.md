@@ -28608,9 +28608,23 @@ du 02/11, les 133 classes toutes sur HEAD ; les autres sur des fichiers d'autres
 ACE-Step, Phonon, PII, paroles du composer, `wama-params.js`, Data). Mes modules + gardes
 transverses : 376 tests, seul ce budget rouge. Pages des douze apps du bac à sable : 200, l'app
 servie. Écart trouvé et ramené : la grille réécrivait le prédicat « app née » à côté de
-`sandbox.born_apps` (mesure inchangée : −38, 95 %, 91 %). `doc_facts` : `mecanismes` (dix comptes de
-consommateurs, tous dus aux fichiers de ce palier, établi en remettant mes fichiers à HEAD) et
-`conformite` régénérés ; `modeles` (156 → 155, catalogue) laissé à son propriétaire. `check_docs` 0/0.
+`sandbox.born_apps` (mesure inchangée : −38, 95 %, 91 %). `doc_facts` : `mecanismes` (quatorze comptes
+de consommateurs, tous dus aux fichiers de ce palier, établi en remettant mes fichiers à HEAD — « dix »
+écrit ici d'abord était une recopie fausse, `7b8513387` en porte 14) et `conformite` régénérés ;
+`modeles` (156 → 155, catalogue) laissé à son propriétaire. `check_docs` 0/0.
+*Seconde revérification* (question de Fabien : « tu as fait la /reverif en profondeur ? » — non : la
+question « qui déclare DÉJÀ cette donnée ? » n'avait été posée qu'à la grille, ROADMAP et vision
+n'avaient pas été relues, HEAD n'avait pas été vérifié en worktree). Donnée par donnée sur le diff :
+le refus d'une FK directe hors `batch`/`batch_row_index` LIT les briques (`batch_common.py:279`, `:457`
+les figent) ; le renvoi « ROUTE §11 #42 ④ » est juste (l.7919) ; `_factory_kwarg` n'a pas de jumeau
+(la grille cherchait un argument nu, `\beta_for=`) ; `_born_creator` appelé par la grille est pur.
+Ramenés : les deux copies antérieures du prédicat « app née » (`app_registry`, `tests_surface_witness`)
+lues à `born_apps`, et le tuple des clés d'une fiche écrit deux fois dans `_catalog_entry`
+(`_CATALOG_REQUIRED`). ⏳ Consigné (`ROUTE §11 #41`) : `bv_reset` écrit en littéral les clés de
+`DEFAULT_RESET` — se comblerait par un `progress_field` de `make_batch_views`. Tests du périmètre :
+421, rouges = budget des classes (même cause, aucun identifiant relevé n'est de ce palier, `git blame`)
+et `shuttle_overtakes` (Lab) ; mesure inchangée. ROADMAP (l.3048-3053, la glu) et vision (l.375-378)
+ne suivent pas l'écart des jumelles : son domicile est `ROUTE §11 #41`, aucun statut à changer.
 
 ## §CLÔTURE 2026-11-06, « L'ÉCHANGE DE L'ASSISTANT : APERÇU DES TÂCHES FINIES, LIENS, LOT EN UNE LIGNE ; COMMANDES `/concile`, `/effort`… SUR TOUTES LES SURFACES » — session du 04→06/11 (après la clôture « PRÉSENTATION, VOIX ») — aperçu et lot poussés, commandes NON poussées — vérifié EN SERVICE après la relance du 06/11 13:19
 

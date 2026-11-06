@@ -98,9 +98,8 @@ class WitnessAccountTest(TestCase):
             with self.subTest(app=app):
                 expected = bool((entry or {}).get('generated_from') or (entry or {}).get('sandbox'))
                 self.assertEqual(expected, _uses_dev_account(app))
-        born_from_manifest = [a for a, e in APP_CATALOG.items()
-                              if (e or {}).get('sandbox') and not (e or {}).get('generated_from')]
-        for app in born_from_manifest:
+        from wama.common.sandbox import born_apps
+        for app in born_apps(APP_CATALOG):
             with self.subTest(born_from_manifest=app):
                 self.assertTrue(_uses_dev_account(app))
 

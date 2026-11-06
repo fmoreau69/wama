@@ -1973,6 +1973,11 @@ def _f6_prompt(fn):
 
 # ── F1 / F2 — identité déclarée & entrée ─────────────────────────────────────────
 
+#: Ce que la fiche d'une app doit déclarer pour que son entrée soit typée — lu au texte du registre
+#: pour une app à source, à la fiche SERVIE pour une app née d'un manifeste.
+_CATALOG_REQUIRED = ('input_types', 'output_types', 'input_extensions')
+
+
 def _catalog_entry(f: _AppFiles):
     # Une jumelle hérite de la déclaration de sa source : `inject_sandbox_catalog` la clone
     # dans `APP_CATALOG` au runtime (cf. `_declaring_app`).
@@ -1980,7 +1985,7 @@ def _catalog_entry(f: _AppFiles):
     inherited = f" (hérité de {declaring})" if declaring != f.app else ''
     born = _born_catalog_entry(f.app)
     if born is not None:
-        missing = [k for k in ('input_types', 'output_types', 'input_extensions') if not born.get(k)]
+        missing = [k for k in _CATALOG_REQUIRED if not born.get(k)]
         if missing:
             return 'partial', f"fiche servie de {f.app} (née d'un manifeste) : manquent {', '.join(missing)}"
         return True, (f"APP_CATALOG['{f.app}'] servi, calculé de son manifeste "
@@ -1988,8 +1993,7 @@ def _catalog_entry(f: _AppFiles):
     block = _registry_block(declaring, APP_REGISTRY_PY)
     if block is None:
         return False, "absente d'APP_CATALOG (identité non déclarée)"
-    missing = [k for k in ('input_types', 'output_types', 'input_extensions')
-               if not re.search(rf"'{k}'\s*:", block)]
+    missing = [k for k in _CATALOG_REQUIRED if not re.search(rf"'{k}'\s*:", block)]
     if missing:
         return 'partial', f"APP_CATALOG['{declaring}'] : manquent {', '.join(missing)}"
     return True, f"{APP_REGISTRY_PY} APP_CATALOG['{declaring}'] (E/S typées + extensions){inherited}"
