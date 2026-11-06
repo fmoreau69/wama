@@ -778,10 +778,8 @@
             return;
         }
         if (metaOf(node).kind === 'pipeline') {
-            // Le lancement refuse un réglage posé sur le nœud lui-même (`expand_pipeline_nodes`).
-            wrap.appendChild(el('div', 'studio-node-params-state text-body-secondary small',
-                'Les réglages se font dans le pipeline référencé (« Ouvrir ce pipeline »).'));
             body.appendChild(wrap);
+            mountPipelineOverrides(wrap, node);
             return;
         }
         if (!schema || !schema.params || !schema.params.length) {
@@ -860,6 +858,185 @@
         }
         host.addEventListener('input', sync);
         host.addEventListener('change', sync);
+    }
+
+    // ── SURCHARGE des réglages d'un nœud PIPELINE (2026-11-06, décision de Fabien) ─────────────
+    // La forme des valeurs propres d'une fille de lot (`batch_settings`, `WamaParams.bindBatchOwn`) :
+    // la RÉFÉRENCE est le pipeline référencé — ses nœuds déployés et leurs réglages, servis par la
+    // palette (`pipeline_nodes.pipeline_palette_nodes`, `members`) —, le nœud ne garde que ce qui en
+    // DIFFÈRE, `node.params[<id interne>][<réglage>]`, posé par-dessus au lancement
+    // (`expand_pipeline_nodes`). Chaque ligne propre le dit et se reprend du pipeline ; un bloc
+    // reprend tout. Une surcharge dont le nœud a quitté le pipeline référencé (ORPHELINE) se signale
+    // ici, avant que le lancement ne la refuse (relecture de Monde Data, 2026-11-06).
+
+    /** La surcharge d'UN membre après le geste sur `name` — pure (testée en V8). Le geste ne décide
+     *  que ce qu'il touche ; une valeur rendue égale à la référence n'est plus propre (la règle de
+     *  `batch_settings.own_settings` : propre = différente de la référence). */
+    function overrideAfterGesture(own, reference, name, value) {
+        var out = Object.assign({}, own || {});
+        var ref = (reference || {})[name];
+        if (ref !== undefined && ref !== null && String(ref) === String(value)) delete out[name];
+        else out[name] = value;
+        return out;
+    }
+    /** Les clés de surcharge que le pipeline référencé n'a plus — pure. */
+    function orphanOverrides(params, members) {
+        var ids = (members || []).map(function (m) { return m.id; });
+        return Object.keys(params || {}).filter(function (k) { return ids.indexOf(k) === -1; });
+    }
+    /** Les membres qu'un lien du canvas REMPLACE au déploiement : une entrée alimentée de
+     *  l'extérieur, les sorties quand le nœud a un aval — la règle d'`expand_pipeline_nodes`. */
+    function replacedMembers(node, members) {
+        var into = links.filter(function (l) { return nodeOf(l.to.dot) === node.id; });
+        var sources = (members || []).filter(function (m) { return m.role === 'source'; });
+        var out = {};
+        into.forEach(function (l) {
+            var port = l.to.dot.dataset.port || '';
+            if (port) out[port] = 'alimenté par le lien entrant';
+            else if (sources.length === 1) out[sources[0].id] = 'alimenté par le lien entrant';
+        });
+        if (links.some(function (l) { return nodeOf(l.from.dot) === node.id; })) {
+            (members || []).forEach(function (m) {
+                if (m.role === 'sink') out[m.id] = 'remplacé par le lien sortant';
+            });
+        }
+        return out;
+    }
+    function setOverrides(node, memberId, own) {
+        var params = Object.assign({}, node.params || {});
+        if (own && Object.keys(own).length) params[memberId] = own;
+        else delete params[memberId];
+        node.params = params;
+    }
+    function referenceText(value) {
+        return (value === undefined || value === null || value === '')
+            ? 'la valeur par défaut de l’app' : '« ' + String(value) + ' »';
+    }
+
+    var openMember = {};   // « nœud|référence » -> id du membre ouvert dans l'inspecteur (null : aucun)
+    function mountPipelineOverrides(wrap, node) {
+        var members = metaOf(node).members;
+        if (!members) {
+            wrap.appendChild(el('div', 'studio-node-params-state text-body-secondary small',
+                settingsState === 'loading' ? 'Chargement des réglages…'
+                    : 'Réglages du pipeline référencé indisponibles pour ce compte.'));
+            return;
+        }
+        wrap.appendChild(el('div', 'small text-body-secondary mb-2', esc(
+            'Les réglages viennent du pipeline référencé ; une valeur changée ici est PROPRE à ce '
+            + 'nœud, le reste suit le pipeline.')));
+        var orphans = orphanOverrides(node.params, members);
+        if (orphans.length) {
+            var lost = el('div', 'studio-overrides-orphans alert alert-warning small py-1 px-2 mb-2',
+                '<i class="fas fa-triangle-exclamation me-1"></i>' + esc(
+                    'Le pipeline référencé n’a plus ' + (orphans.length > 1 ? 'les nœuds « ' : 'le nœud « ')
+                    + orphans.join(' », « ') + ' » : le lancement refusera leurs réglages propres.'));
+            var drop = el('button', 'btn btn-link btn-sm p-0 ms-1 align-baseline', 'Les retirer');
+            drop.type = 'button';
+            drop.addEventListener('click', function () {
+                orphans.forEach(function (k) { setOverrides(node, k, null); });
+                persistDraft();
+                updateInspector();
+            });
+            lost.appendChild(drop);
+            wrap.appendChild(lost);
+        }
+        var replaced = replacedMembers(node, members);
+        // UN membre ouvert à la fois : le rendu commun nomme ses champs `wp-item-<réglage>` dans le
+        // document (ses sources d'options les retrouvent par id) — deux membres rendus ensemble se
+        // disputeraient un réglage de même nom. Par défaut, le premier qui a des valeurs propres.
+        var slot = node.id + '|' + node.app;
+        if (!(slot in openMember)) {
+            var first = members.filter(function (m) {
+                return Object.keys((node.params || {})[m.id] || {}).length;
+            })[0];
+            openMember[slot] = first ? first.id : null;
+        }
+        var shown = 0;
+        members.forEach(function (m) {
+            var schema = nodeSchemas[m.app];
+            if (!schema || !schema.params || !schema.params.length) return;
+            shown += 1;
+            var own = (node.params || {})[m.id] || {};
+            var block = el('details', 'studio-override-member mb-2');
+            var isOpen = openMember[slot] === m.id;
+            block.open = isOpen;
+            block.addEventListener('toggle', function () {
+                if (block.open === isOpen) return;
+                openMember[slot] = block.open ? m.id : null;
+                updateInspector();
+            });
+            var count = Object.keys(own).length;
+            block.appendChild(el('summary', 'small', esc(m.label || m.app) + ' <span class="text-body-secondary">('
+                + esc(m.id) + ')</span>' + (count ? ' <span class="badge bg-info text-dark">'
+                + count + ' propre' + (count > 1 ? 's' : '') + '</span>' : '')));
+            if (replaced[m.id]) {
+                block.appendChild(el('div', 'small text-body-secondary mt-1', esc(
+                    'Ce nœud est ' + replaced[m.id] + ' : il ne joue pas, ses réglages non plus.')));
+                wrap.appendChild(block);
+                return;
+            }
+            if (!isOpen) { wrap.appendChild(block); return; }
+            var host = el('div', 'wama-params mt-1');
+            block.appendChild(host);
+            wrap.appendChild(block);
+            WamaParams.render(host, schema.params, {
+                context: 'item', groups: schema.groups || [],
+                values: Object.assign({}, m.params || {}, own) });
+            Object.keys(own).forEach(function (name) {
+                var row = host.querySelector('[data-param-row="' + name + '"]');
+                if (!row) return;
+                var line = el('div', 'studio-override-own form-text small mt-1', esc(
+                    'Propre à ce nœud — le pipeline : ' + referenceText((m.params || {})[name]) + '.'));
+                var back = el('button', 'btn btn-link btn-sm p-0 ms-1 align-baseline',
+                    'Reprendre celle du pipeline');
+                back.type = 'button';
+                back.addEventListener('click', function () {
+                    var next = Object.assign({}, own);
+                    delete next[name];
+                    setOverrides(node, m.id, next);
+                    persistDraft();
+                    updateInspector();
+                });
+                line.appendChild(back);
+                row.appendChild(line);
+            });
+            function sync(e) {
+                if (!WamaParams.isGesture(e)) return;
+                var target = e.target;
+                var row = target && target.closest ? target.closest('[data-param-row]') : null;
+                var name = row ? row.getAttribute('data-param-row')
+                    : (target && target.getAttribute ? (target.getAttribute('name') || target.getAttribute('data-param')) : null);
+                var values = WamaParams.read(host);
+                if (!name || !(name in values)) return;
+                setOverrides(node, m.id, overrideAfterGesture((node.params || {})[m.id], m.params, name, values[name]));
+                persistDraft(e.type === 'input');
+                // Un choix ARRÊTÉ (`change`, pas la frappe) redessine : la ligne dit alors si la
+                // valeur est propre, ou redevenue celle du pipeline.
+                if (e.type === 'change') updateInspector();
+            }
+            host.addEventListener('input', sync);
+            host.addEventListener('change', sync);
+        });
+        if (!shown) {
+            wrap.appendChild(el('div', 'studio-node-params-state text-body-secondary small',
+                'Aucun nœud de ce pipeline n’a de réglage.'));
+        }
+        var owned = Object.keys(node.params || {}).filter(function (k) { return orphans.indexOf(k) === -1; });
+        if (owned.length) {
+            var align = el('div', 'studio-overrides-align wama-param-group mt-2',
+                '<div class="wama-param-group-title"><i class="fas fa-arrows-down-to-line me-1"></i>'
+                + 'Alignement sur le pipeline référencé</div>');
+            var all = el('button', 'btn btn-sm btn-outline-secondary', 'Tout reprendre du pipeline');
+            all.type = 'button';
+            all.addEventListener('click', function () {
+                owned.forEach(function (k) { setOverrides(node, k, null); });
+                persistDraft();
+                updateInspector();
+            });
+            align.appendChild(all);
+            wrap.appendChild(align);
+        }
     }
 
     // ── Sérialisation / restauration du graphe ─────────────────────────────

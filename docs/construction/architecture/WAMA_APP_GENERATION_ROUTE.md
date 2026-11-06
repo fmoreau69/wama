@@ -4970,7 +4970,8 @@ posé à une entrée et une sortie, contenu et ouverture dans l'inspecteur, cons
 (chaque pipeline enregistré visible y est déployé : deux requêtes chacun, négligeable à 2 lignes en
 base le 2026-11-02 — remesurer par `/audit-lenteurs` avant tout cache) ; la **version** de la référence
 (clé seule aujourd'hui — `StudioPipeline` n'a pas de version ; le run, lui, fige le corps déployé) ;
-la **surcharge des réglages** d'un nœud interne depuis le parent (refusée en marche 1) ; la
+la **surcharge des réglages** d'un nœud interne depuis le parent (refusée en marche 1 — ✅ marche 3,
+2026-11-06, plus bas) ; la
 **dépendance déclarée** — un manifeste `pipeline` exporté qui contient un nœud `pipeline` n'en dit
 rien (`graph_to_body` rend la clé, aucun `requires`) : un export ou un partage perdrait le
 sous-pipeline (composition par `requires`, `WAMA_MANIFEST_SPEC`) ; `AppPipeline.extended()` ouvert au
@@ -4986,6 +4987,36 @@ de visibilité AU PARTAGE (unanimes) ; la SURCHARGE de réglages DIVISE (trois p
 Ordre proposé : trace de version → export → état imbriqué dans « Contenu » → vérification au
 partage. ⏳ Non tranché : la surcharge, l'ordre — décisions de Fabien ; la version passe d'abord par
 ce que `WAMA_COLLABORATION` (« versions et variantes ») porte déjà.
+✅ **Marche 3, la SURCHARGE, le 2026-11-06** (décision de Fabien ; forme relue par Monde Data, qui
+la suppose pour ses méta-process et pour R4 de 3.3bis) — **la forme des valeurs propres d'une fille
+de lot** (`batch_settings`, `MODES_QUEUE_UX §5`), sans brique neuve :
+- **données** : les `params` d'un nœud `pipeline` sont ceux de ses nœuds internes qu'il surcharge,
+  `{<id déployé interne>: {réglage: valeur}}` — `n2`, ou `in/s` un niveau plus bas. La RÉFÉRENCE
+  reste le pipeline référencé, lu à chaque lancement : ce que son auteur change suit, sauf ce que le
+  nœud a rendu PROPRE (la règle de `batch_settings.own_settings` : propre = différente de la
+  référence, comparée en texte) ;
+- **déploiement** (`builtin/pipeline.expand_pipeline_nodes`) : la surcharge se pose par-dessus les
+  réglages du nœud interne, au-dessus de celle du niveau plus bas ; le run fige le résultat. Refus
+  NOMMÉS : clé que le pipeline référencé n'a pas (orpheline — les nœuds existants sont cités), valeur
+  qui n'est pas un ensemble de réglages, nœud qu'un lien remplace. L'ancien refus « un nœud pipeline
+  n'a pas de réglages » est remplacé par eux ;
+- **référence servie** : l'entrée de palette porte ses `members` (id déployé, rôle, libellé,
+  réglages) — `studio/services/pipeline_nodes.pipeline_palette_nodes` ;
+- **inspecteur** (`wama-studio.js`, `mountPipelineOverrides`) : chaque membre réglable, rendu par le
+  rendu COMMUN (`WamaParams.render`, contexte `item`) sur la référence ; le geste n'écrit que le
+  réglage touché (règle de `sync`), une valeur rendue égale à la référence n'est plus propre ; sous
+  chaque ligne propre, « Propre à ce nœud — le pipeline : … » et **« Reprendre celle du pipeline »**
+  (le choix ligne par ligne) ; un bloc **« Alignement sur le pipeline référencé »** reprend tout ; une
+  surcharge ORPHELINE se signale avant le lancement, avec « Les retirer » (remarque de Monde Data) ;
+  un membre qu'un lien remplace le dit. UN membre ouvert à la fois : le rendu commun nomme ses champs
+  `wp-item-<réglage>` dans le document.
+Gardes : `studio/tests/tests_pipeline_nodes.py` (`PipelineNodeOverrideTest`, lancement et palette
+de `PipelineNodeInTheStudioTest`, fonctions pures du canvas en V8) ; page servie vérifiée au
+navigateur (serveur jetable, compte de test développeur : valeur propre affichée, reprise, geste
+réel, orpheline signalée puis retirée, console sans erreur). ⏳ Ce que la marche ne fait pas : le
+geste inverse de la promotion d'un lot (« porter ces valeurs dans le pipeline référencé », qui
+écrirait chez son auteur) ; l'état `STALE` d'un nœud dont la surcharge devient orpheline (signalée
+dans l'inspecteur seulement) ; la version de la référence (inchangé).
 
 **3.2 Le degré de liberté de chaque process** (champ à ajouter au nœud) :
 

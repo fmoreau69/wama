@@ -420,7 +420,9 @@ lancement rejoue, ce qui est périmé (`STALE`) et l'état de la card. *(Corrig�
 ligne disait « ⏳ le Studio n'exécute pas encore ces pipelines comme un nœud ».)* Le Studio les
 exécute par le nœud APP — il crée une card, qui joue tout le pipeline déclaré de son app
 (`studio/tasks.py`). ✅ Le type de nœud `pipeline` (codé le 2026-11-02, ROUTE §10.6 3.1) pose, lui,
-les pipelines ENREGISTRÉS du Studio, qu'aucune app ne porte.
+les pipelines ENREGISTRÉS du Studio, qu'aucune app ne porte ; ✅ depuis le 2026-11-06, le nœud
+SURCHARGE les réglages de ses nœuds internes, à la manière des valeurs propres d'une fille de lot
+(ROUTE §10.6 3.1, marche 3).
 
 État réel : canvas, persistance et **exécution réelle** (moteur d'exécution topologique via l'API
 d'outils, suivi par nœud, cards d'entrée/sortie reliées à la médiathèque) sont livrés ;

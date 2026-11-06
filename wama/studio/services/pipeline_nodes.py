@@ -83,6 +83,13 @@ def pipeline_palette_nodes(user, offered: dict) -> dict:
             'output': output,
             'kind': 'pipeline',
             'pipeline': key,
+            # Les nœuds du sous-graphe DÉPLOYÉ et leurs réglages : la RÉFÉRENCE de la surcharge
+            # (2026-11-06, `expand_pipeline_nodes`) — l'inspecteur montre chaque réglage sur elle
+            # et ne garde au nœud que ce qui en diffère. L'id est celui que la surcharge nomme.
+            'members': [{'id': n['id'], 'app': n['app'], 'role': node_kind(n),
+                         'label': offered[n['app']].get('label', n['id']),
+                         'params': dict(n.get('params') or {})}
+                        for n in inner],
         }
     return nodes
 

@@ -334,9 +334,15 @@ def expand_pipeline_nodes(graph: dict, resolve: Callable, stack: tuple = ()) -> 
       • SORTIE : le nœud qui alimente les sorties internes, s'il est UNIQUE. Avec un lien en aval,
         il est recâblé vers l'aval et les sorties internes disparaissent ; sans lien en aval, elles
         restent et rangent leur résultat comme dans le pipeline enregistré.
-    Refus NOMMÉS : cycle, port d'entrée ambigu ou inconnu, sortie ambiguë ou absente, réglages
-    posés sur le nœud lui-même (ils se font dans le pipeline référencé), identifiant déployé plus
-    long que `NODE_ID_MAX`."""
+    SURCHARGE (2026-11-06, décision de Fabien) : les `params` du nœud sont ceux de ses nœuds
+    internes qu'il SURCHARGE — `{<id déployé interne>: {réglage: valeur}}`, l'id tel que le
+    sous-graphe déployé le porte (`<nœud>/<id>` pour un niveau plus bas). La forme des valeurs
+    propres d'une fille de lot (`batch_settings`) : la RÉFÉRENCE est le pipeline référencé, lu à
+    chaque lancement (ce que son auteur change suit), le nœud ne garde que ce qui en DIFFÈRE, posé
+    par-dessus les réglages du nœud interne — au-dessus d'une surcharge du niveau plus bas.
+    Refus NOMMÉS : cycle, port d'entrée ambigu ou inconnu, sortie ambiguë ou absente, réglage
+    surchargé d'un nœud que le pipeline référencé n'a pas ou qu'un lien remplace, valeur qui n'est
+    pas un ensemble de réglages, identifiant déployé plus long que `NODE_ID_MAX`."""
     nodes = list((graph or {}).get('nodes') or [])
     links = list((graph or {}).get('links') or [])
     if not any(node_kind(n) == 'pipeline' for n in nodes):
@@ -350,14 +356,26 @@ def expand_pipeline_nodes(graph: dict, resolve: Callable, stack: tuple = ()) -> 
         if key in stack:
             raise PipelineCycleError(f"Nœud « {nid} » : le pipeline {key} se référence lui-même "
                              f"({' → '.join(stack + (key,))}).")
-        if node.get('params'):
-            raise ValueError(f"Nœud « {nid} » : un nœud pipeline n'a pas de réglages — ils se "
-                             f"font dans le pipeline référencé ({key}).")
         try:
             name, sub = resolve(key)
         except ValueError as exc:
             raise ValueError(f"Nœud « {nid} » : {exc}") from exc
         sub = expand_pipeline_nodes(sub, resolve, stack + (key,))
+        overrides = node.get('params') or {}
+        if not isinstance(overrides, dict):
+            raise ValueError(f"Nœud « {nid} » : ses réglages sont ceux de ses nœuds internes, "
+                             f"par identifiant — reçu {type(overrides).__name__}.")
+        members = {n['id'] for n in sub['nodes']}
+        for inner_id, values in overrides.items():
+            if inner_id not in members:
+                raise ValueError(f"Nœud « {nid} » : réglages surchargés du nœud « {inner_id} », que "
+                                 f"le pipeline « {name} » n'a pas (nœuds : "
+                                 f"{', '.join(sorted(members)) or 'aucun'}).")
+            if not isinstance(values, dict):
+                raise ValueError(f"Nœud « {nid} » : un nœud pipeline ne porte que les réglages de "
+                                 f"ses nœuds internes — « {inner_id} » n'en est pas un ensemble.")
+        sub['nodes'] = [dict(n, params={**(n.get('params') or {}), **overrides[n['id']]})
+                        if overrides.get(n['id']) else n for n in sub['nodes']]
         prefixed = {n['id']: f"{nid}{EXPANDED_ID_SEP}{n['id']}" for n in sub['nodes']}
         too_long = [p for p in prefixed.values() if len(p) > NODE_ID_MAX]
         if too_long:
@@ -398,6 +416,10 @@ def expand_pipeline_nodes(graph: dict, resolve: Callable, stack: tuple = ()) -> 
             removed |= sinks
             inner_links += [dict(l, **{'from': feeders[0]}) for l in outgoing]
 
+        replaced = sorted(i for i in overrides if overrides[i] and prefixed[i] in removed)
+        if replaced:
+            raise ValueError(f"Nœud « {nid} » : réglages surchargés du nœud « {replaced[0]} », qu'un "
+                             f"lien du pipeline remplace — retirez-les, ou le lien.")
         out_links = [l for l in out_links if l['to'] != nid and l['from'] != nid]
         out_nodes += [n for n in inner if n['id'] not in removed]
         out_links += [l for l in inner_links

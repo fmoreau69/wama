@@ -328,6 +328,9 @@ l'avatarizer) — toujours pas un domaine ni un mode.
   ⏳ Non joué au navigateur. ⏳ Les réglages ÉCRITS par un process (les paroles écoutées du
   composer, `process_runs.settle_setting`) sont au seul contexte de l'élément : le jour où l'un
   entre au lot, il est à ranger parmi les valeurs liées à l'entrée.
+  ↔ **La même forme sert la SURCHARGE d'un pipeline imbriqué du Studio** (2026-11-06) : le
+  pipeline référencé est la référence, le nœud `pipeline` la fille — il ne garde que ses valeurs
+  propres, reprises ligne par ligne ou toutes (`ROUTE §10.6` 3.1, marche 3).
 - **À ajouter — deux gestes symétriques** :
   - **↑ promouvoir** : depuis une card fille, faire remonter SES réglages à la mère, qui les
     applique à tout le batch ;

@@ -156,8 +156,14 @@ class ExpandPipelineNodesTest(SimpleTestCase):
                                   resolve, ('1',))
 
     def test_settings_on_the_node_itself_are_refused(self):
-        with self.assertRaisesMessage(ValueError, 'ils se font dans le pipeline référencé'):
+        """Its settings are those of its inner nodes, by id (the override, 2026-11-06): a setting
+        of its own names no inner node and is refused by name."""
+        with self.assertRaisesMessage(ValueError, 'réglages surchargés du nœud « text »'):
             expand([{'id': 'P', 'app': 'pipeline:1', 'params': {'text': 'x'}}])
+        with self.assertRaisesMessage(ValueError, "« s » n'en est pas un ensemble"):
+            expand([{'id': 'P', 'app': 'pipeline:1', 'params': {'s': 'x'}}])
+        with self.assertRaisesMessage(ValueError, 'reçu list'):
+            expand([{'id': 'P', 'app': 'pipeline:1', 'params': ['x']}])
 
     def test_a_dead_reference_is_refused_naming_the_node(self):
         with self.assertRaisesMessage(ValueError, 'Nœud « P » : pipeline 99 introuvable'):
@@ -166,6 +172,58 @@ class ExpandPipelineNodesTest(SimpleTestCase):
     def test_an_identifier_longer_than_a_process_line_is_refused(self):
         with self.assertRaisesMessage(ValueError, f'> {NODE_ID_MAX} caractères'):
             expand([{'id': 'P' * (NODE_ID_MAX - 1), 'app': 'pipeline:1'}])
+
+
+class PipelineNodeOverrideTest(SimpleTestCase):
+    """The OVERRIDE (2026-11-06, Fabien's decision): the shape of a batch daughter's own values.
+    The reference is the referenced pipeline, read at every launch; the node keeps only what
+    differs, `{<deployed inner id>: {setting: value}}`, laid over the inner node's settings."""
+
+    def test_an_override_is_laid_over_the_inner_settings_and_the_rest_follows(self):
+        SAVED['9'] = ('nine', {'nodes': [{'id': 's', 'app': 'text_input',
+                                          'params': {'text': 'ref', 'lang': 'fr'}}], 'links': []})
+        try:
+            out = expand([{'id': 'P', 'app': 'pipeline:9', 'params': {'s': {'text': 'mine'}}}])
+            self.assertEqual({'text': 'mine', 'lang': 'fr'}, out['nodes'][0]['params'])
+            SAVED['9'][1]['nodes'][0]['params']['lang'] = 'en'
+            out = expand([{'id': 'P', 'app': 'pipeline:9', 'params': {'s': {'text': 'mine'}}}])
+            self.assertEqual({'text': 'mine', 'lang': 'en'}, out['nodes'][0]['params'],
+                             'what the author changes and the node did not override follows')
+        finally:
+            del SAVED['9']
+
+    def test_an_override_never_touches_the_saved_reference(self):
+        out = expand([{'id': 'P', 'app': 'pipeline:1', 'params': {'s': {'text': 'mine'}}}])
+        self.assertEqual('mine', out['nodes'][0]['params']['text'])
+        self.assertEqual({'text': 'kept'}, SAVED['1'][1]['nodes'][0]['params'])
+        self.assertEqual({'text': 'kept'}, expand([{'id': 'P', 'app': 'pipeline:1'}])['nodes'][0]['params'])
+
+    def test_a_deeper_node_is_overridden_by_its_path_above_its_own_pipeline(self):
+        SAVED['8'] = ('eight', {'nodes': [{'id': 'in', 'app': 'pipeline:1',
+                                           'params': {'s': {'text': 'author'}}}], 'links': []})
+        try:
+            self.assertEqual('author', expand([{'id': 'X', 'app': 'pipeline:8'}])['nodes'][0]['params']['text'])
+            out = expand([{'id': 'X', 'app': 'pipeline:8', 'params': {'in/s': {'text': 'outer'}}}])
+            self.assertEqual(('X/in/s', 'outer'), (out['nodes'][0]['id'], out['nodes'][0]['params']['text']),
+                             'the outer node overrides the override of the level below')
+        finally:
+            del SAVED['8']
+
+    def test_an_orphan_override_is_refused_naming_the_nodes_there_are(self):
+        with self.assertRaises(ValueError) as refused:
+            expand([{'id': 'P', 'app': 'pipeline:1', 'params': {'gone': {'text': 'x'}}}])
+        self.assertIn('« gone », que le pipeline « one » n\'a pas', str(refused.exception))
+        self.assertIn('nœuds : f, o, s', str(refused.exception))
+
+    def test_an_override_on_a_node_a_link_replaces_is_refused(self):
+        with self.assertRaisesMessage(ValueError, "« s », qu'un lien du pipeline remplace"):
+            expand([{'id': 'd', 'app': 'dataset_input'},
+                    {'id': 'P', 'app': 'pipeline:1', 'params': {'s': {'text': 'x'}}}],
+                   [{'from': 'd', 'to': 'P', 'to_port': 's'}])
+        out = expand([{'id': 'd', 'app': 'dataset_input'},
+                      {'id': 'P', 'app': 'pipeline:1', 'params': {'s': {}}}],
+                     [{'from': 'd', 'to': 'P', 'to_port': 's'}])
+        self.assertNotIn('P/s', ids(out), 'an emptied override is no override')
 
 
 class FoldedStatesTest(SimpleTestCase):
@@ -263,6 +321,40 @@ class CanvasPoseTheNodeFromPipelinesTest(SimpleTestCase):
         self.assertIn('click', ctx.eval(f"JSON.stringify(Object.keys({pipes}[0].listeners))"),
                       'the click still opens it')
 
+    def _overrides(self):
+        import importlib.util
+        import re
+        if importlib.util.find_spec('py_mini_racer') is None:
+            self.skipTest('py_mini_racer absent de ce venv')
+        from py_mini_racer import MiniRacer
+        ctx = MiniRacer()
+        for name in ('overrideAfterGesture', 'orphanOverrides'):
+            ctx.eval(re.search(rf'    function {name}\(.*?\n    \}}\n', self.js, re.S).group(0))
+        return ctx
+
+    def test_the_inspector_keeps_only_what_differs_from_the_referenced_pipeline(self):
+        import json
+        ctx = self._overrides()
+
+        def after(own, reference, name, value):
+            return json.loads(ctx.eval(f'JSON.stringify(overrideAfterGesture({json.dumps(own)}, '
+                                       f'{json.dumps(reference)}, {json.dumps(name)}, {json.dumps(value)}))'))
+        self.assertEqual({'text': 'mine'}, after({}, {'text': 'ref'}, 'text', 'mine'))
+        self.assertEqual({}, after({'text': 'mine'}, {'text': 'ref'}, 'text', 'ref'),
+                         'back to the reference value: no longer its own')
+        self.assertEqual({'steps': 8}, after({}, {}, 'steps', 8),
+                         'a setting the pipeline leaves to the app is its own once decided')
+        self.assertEqual({'text': 'mine'}, after({'text': 'mine'}, {'n': 3}, 'n', '3'),
+                         'the reference compares as text, like `batch_settings.own_settings`')
+
+    def test_the_inspector_names_an_orphan_override_before_the_launch(self):
+        import json
+        ctx = self._overrides()
+        self.assertEqual(['gone'], json.loads(ctx.eval(
+            "JSON.stringify(orphanOverrides({s: {text: 'x'}, gone: {a: 1}}, [{id: 's'}, {id: 'f'}]))")))
+        self.assertIn("function mountPipelineOverrides(wrap, node)", self.js)
+        self.assertIn("var members = metaOf(node).members;", self.js)
+
     def test_the_inspector_reads_the_content_and_opens_by_the_one_opener(self):
         self.assertIn("schema.push({ section: 'Contenu', rows: pipelineContentRows(node, a.pipeline) });",
                       self.js)
@@ -336,6 +428,30 @@ class PipelineNodeInTheStudioTest(TestCase):
         self.assertEqual(offered['dataset_input']['output']['types'], node['inputs'][0]['types'])
         self.assertIs(False, node['output'], 'no exit card fed: no output port')
         self.assertIsNone(unavailable_reason(self.user, {'app': self.key}, offered))
+
+    def test_its_palette_entry_carries_the_reference_of_the_override(self):
+        from wama.studio.services.palette import palette_nodes
+        self.saved.graph['nodes'][1]['params'] = {'sigma_a': 2.0}
+        self.saved.save()
+        members = palette_nodes(self.user)[self.key]['members']
+        self.assertEqual([('n1', 'source', {}), ('n2', 'function', {'sigma_a': 2.0})],
+                         [(m['id'], m['role'], m['params']) for m in members])
+
+    def test_the_launch_lays_the_override_and_freezes_it_in_the_run(self):
+        run, err, _ = _launch(self.user, {'nodes': [
+            {'id': 'P', 'app': self.key, 'params': {'n2': {'sigma_a': 3.5}}}], 'links': []})
+        self.assertIsNone(err)
+        deployed = {n['id']: n for n in run.graph['nodes']}
+        self.assertEqual(3.5, deployed['P/n2']['params']['sigma_a'])
+        self.saved.refresh_from_db()
+        self.assertEqual({}, self.saved.graph['nodes'][1]['params'], 'the referenced pipeline is untouched')
+
+    def test_launching_with_an_orphan_override_is_refused_by_name(self):
+        run, err, delay = _launch(self.user, {'nodes': [
+            {'id': 'P', 'app': self.key, 'params': {'gone': {'x': 1}}}], 'links': []})
+        self.assertIsNone(run)
+        self.assertIn('« gone »', err)
+        delay.assert_not_called()
 
     def test_the_palette_offers_only_what_the_account_sees(self):
         from wama.studio.services.palette import palette_nodes
