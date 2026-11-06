@@ -102,7 +102,8 @@ def purge_job_dir(base_dir, job_id, *, prefix: str = 'job_') -> int:
 
     octets = 0
     try:
-        octets = sum(f.stat().st_size for f in cible.rglob('*') if f.is_file())
+        from wama.common.utils.disk_utils import tree_bytes
+        octets = tree_bytes(cible)
         shutil.rmtree(cible, ignore_errors=True)
     except Exception:
         logger.debug("[work_dir] purge de %s ignorée", cible, exc_info=True)

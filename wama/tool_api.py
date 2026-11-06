@@ -2184,7 +2184,7 @@ def get_ai_model(user, model_key: str) -> dict:
 
 
 @tool_effect(READ)
-def list_installations(user, kind: str = 'model', limit: int = 20) -> dict:
+def list_installations(user, kind: str = 'model', limit: int = 20, install_id: int = None) -> dict:
     """
     The DATED history of model (or library) installations and uninstallations, most recent first:
     "which model did I install recently?", "when was X installed?", "did the install of Y fail?".
@@ -2198,9 +2198,10 @@ def list_installations(user, kind: str = 'model', limit: int = 20) -> dict:
     Args:
         kind:  'model' (default) or 'library'.
         limit: maximum number of events (1-100, default 20).
+        install_id: ONE installation, by the `item_id` that install_model returned.
 
     Returns:
-        {"installations": [{"name", "key", "action", "status", "via", "started_at",
+        {"installations": [{"id", "name", "key", "action", "status", "via", "started_at",
                             "finished_at", "error"?, "size_gb"?, "verified"?}], "count"}
     """
     # Le JOURNAL de la route d'installation (`model_manager.InstallEvent`, écrit par
@@ -2225,11 +2226,19 @@ def list_installations(user, kind: str = 'model', limit: int = 20) -> dict:
     status_labels = dict(InstallEvent.STATUS_CHOICES)
     now = timezone.now()
     rows = []
-    for event in InstallEvent.objects.filter(kind=kind).order_by('-started_at')[:limit]:
+    events = InstallEvent.objects.filter(kind=kind)
+    if install_id not in (None, ''):
+        # UNE installation, par l'élément qu'`install_model` a rendu — le geste « statut » que
+        # rejoue sa fin racontée au fil (famille `model_manager`, `job_families`, 2026-11-06).
+        try:
+            events = events.filter(pk=int(install_id))
+        except (TypeError, ValueError):
+            return {'error': f"install_id invalide : {install_id!r}"}
+    for event in events.order_by('-started_at')[:limit]:
         detail = event.detail or {}
         # Le statut tel que le calendrier le DIT (une demande jamais reprise n'est plus « en cours »).
         status, error, _abandoned = effective_state(event, now)
-        row = {'name': event.name or event.key, 'key': event.key,
+        row = {'id': event.pk, 'name': event.name or event.key, 'key': event.key,
                'action': event.get_action_display(),
                'status': status_labels.get(status, status),
                'via': VIA_LABELS.get(event.via, event.via),
@@ -2484,11 +2493,12 @@ def install_model(user, model_key: str, force: bool = False,
             several quantisation levels — installing the repository would pull them all).
 
     Returns:
-        {"started": true, "model_key", "task_id", "next_step"}  — to follow it, call
-            install_model again with the same key (it answers `already_running` + `progress`);
-            once installed the proposal is gone and the model is listed by
-            list_ai_models(downloaded_only=True)
-        {"already_running": true, "model_key", "progress", "next_step"}
+        {"started": true, "model_key", "task_id", "item_id", "next_step"}  — `item_id` is the
+            installation itself: the user sees its progress bar under your answer and is told
+            when it ends, in this conversation — no need to poll. Calling install_model again
+            with the same key answers `already_running` + `progress`; once installed the
+            proposal is gone and the model is listed by list_ai_models(downloaded_only=True)
+        {"already_running": true, "model_key", "progress", "item_id", "next_step"}
         {"error", "reason"}  — 'insufficient_storage' carries `needed_gb`/`free_gb`/`after_gb`
     """
     from wama.model_manager.services.model_installer import request_install
@@ -2504,11 +2514,18 @@ def install_model(user, model_key: str, force: bool = False,
         # Le SUIVI voyage avec le résultat (fil n° 41, 2026-10-11) : sans lui, Albert a pris le
         # `task_id` pour un job de développement (`dev_job_status`), ce qui a basculé le tour au
         # niveau dev — et la proposition, retirée à l'installation, n'est plus lisible par sa clé.
-        return {**{k: v for k, v in res.items() if k != 'ok'},
+        # `item_id` (2026-11-06) : l'ÉLÉMENT de l'installation, son événement daté — la clé
+        # uniforme par laquelle l'échange le désigne (`items_of_step`, famille `model_manager`
+        # inscrite à `job_families`) : la barre sous la réponse, la fin racontée au fil.
+        install_id = res.get('install_id') or (res.get('progress') or {}).get('install_id')
+        return {**{k: v for k, v in res.items() if k not in ('ok', 'install_id')},
+                **({'item_id': install_id} if install_id else {}),
                 'next_step': ("téléchargement en tâche de fond (task_id = tâche d'installation, "
-                              "pas un job de développement) : rappeler install_model avec la même "
-                              "clé rend l'avancement (`already_running`, `progress`) ; installé, "
-                              "le modèle apparaît dans list_ai_models(downloaded_only=True).")}
+                              "pas un job de développement) : sa barre de progression est sous ta "
+                              "réponse et sa fin sera racontée dans ce fil ; rappeler install_model "
+                              "avec la même clé rend l'avancement (`already_running`, `progress`) ; "
+                              "installé, le modèle apparaît dans "
+                              "list_ai_models(downloaded_only=True).")}
     if res.get('reason') == 'insufficient_storage':
         blocked = res['blocked']
         return {'error': blocked.get('error'), 'reason': 'insufficient_storage',
@@ -5021,7 +5038,11 @@ def job_progress(user, family: str, pk) -> dict | None:
 
     spec = TRIAD_SPECS.get(family)
     if spec is None:
-        return None
+        # Un élément qui n'est pas une card (une installation, un run du Studio — 2026-11-06) :
+        # sa ligne est celle que DÉCLARE la famille qui le possède (`job_families`).
+        from wama.common.services import job_families
+        tracked = job_families.get(family)
+        return tracked.read(user, pk) if tracked is not None else None
     try:
         item = import_string(spec['model']).objects.filter(user=user, pk=int(pk)).first()
     except (TypeError, ValueError):
@@ -5373,6 +5394,10 @@ def items_of_step(tool_name, args, result) -> list:
         générique, sa famille ne se lit donc pas à son nom : c'est cette surface, celle que le
         DOMAINE déclare (`app_modes.domain_surface` — `audio_enhancer` pour un lot audio de
         l'enhancer), validée par la vue du lot avant le lancement (`_batch_view`).
+      - un outil d'une FAMILLE SUIVIE hors des files (`job_families` : une installation, un run du
+        Studio, 2026-11-06) rend son élément par la même clé `item_id` ; la famille est celle qui
+        l'inscrit, pas l'app qui GARDE l'outil (`install_model` est gardé par `registries`, son
+        élément appartient au model manager).
     Un suivi (`get_*_status`), une erreur, un outil transverse : aucun élément.
     Sert à retrouver D'OÙ vient une tâche — le fil d'un canal où elle a été demandée (2026-10-06).
     """
@@ -5380,6 +5405,10 @@ def items_of_step(tool_name, args, result) -> list:
     role = tool_role(tool_name)
     if not isinstance(result, dict) or 'error' in result:
         return []
+    from wama.common.services import job_families
+    tracked = job_families.for_tool(tool_name)
+    if tracked is not None:
+        family, role = tracked.key, None
     if batch := batch_of_step(tool_name, result):
         family, role = batch[0], 'batch'
     if not family or role == 'status':

@@ -280,6 +280,17 @@ en bout. La chaîne a abouti, mais en révélant trois trous, tous comblés dans
      immédiatement, et un re-clic REJOINT l'installation en cours (idempotence vérifiée
      auprès de Celery, motif `_mirror_job_start`) ; nouvelle vue
      `api_prospect_install_progress` + polling JS (`mmProspectPoll`).
+     ⚠ *Constat corrigé le 2026-11-06* : ce suivi n'était PAS une barre — un voile modal et une
+     phrase, une installation à la fois, perdue au F5 ; seul Ollama portait un pourcentage. Depuis :
+     une mesure commune à tous les pilotes (`InstallMeter` : octets de `download_asset`, dossier
+     `blobs/` mesuré pendant `snapshot_download`, `completed/total` d'Ollama), rapportée au poids
+     de la garde d'espace (`install_weight_gb`) et publiée avec l'événement de l'installation
+     (`install_id`) ; la card du modèle porte le bloc commun de progression (`WamaApp.paintProgress`),
+     plusieurs installations à la fois, reprises à l'ouverture de la page (`?since=`, lignes de
+     `install_history.install_rows`) — celles de l'assistant comprises. `mmProspectPoll` est retiré,
+     avec la forme `?model_id=` de la route qu'il était seul à lire (`REMOVAL_LEDGER` R220).
+     La fin est notifiée à qui l'a demandée (`install_history.notify_end`), et l'assistant suit
+     l'installation sous sa réponse puis en raconte la fin (`ROADMAP §19.2`, 2026-11-06).
 
 2. **Confiance des candidats `new` = confrontation LLM PERSISTÉE** (SUITE (a) du 2026-06-24,
    enfin câblée). `prospect_agents` : juge (`_juger`) et consolidation (`_consolider`) extraits

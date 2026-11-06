@@ -73,7 +73,7 @@ class RouteRecordsTest(TestCase):
         return InstallEvent.objects.get(key=row.model_key)
 
     def test_the_task_resumes_the_event_opened_by_the_request(self):
-        event = self._run_catalog(lambda spec, token=None: {'ok': True})
+        event = self._run_catalog(lambda spec, token=None, meter=None: {'ok': True})
         self.assertEqual((event.kind, event.action, event.status, event.via),
                          ('model', 'install', 'SUCCESS', 'assistant'))
         self.assertEqual(event.name, 'Modèle témoin')
@@ -83,7 +83,7 @@ class RouteRecordsTest(TestCase):
     def test_the_install_log_keeps_what_the_driver_verified(self):
         """2026-11-05: every driver says against which fingerprint it checked what it laid."""
         verified = {'against': 'published', 'count': 5}
-        event = self._run_catalog(lambda spec, token=None: {'ok': True, 'verified': verified})
+        event = self._run_catalog(lambda spec, token=None, meter=None: {'ok': True, 'verified': verified})
         self.assertEqual(verified, event.detail.get('verified'))
 
     def test_the_verification_is_said_in_the_logs_vocabulary_and_never_invented(self):
@@ -96,11 +96,11 @@ class RouteRecordsTest(TestCase):
                 self.assertEqual('', say(detail))
 
     def test_a_refusal_of_the_driver_is_recorded_as_a_failure(self):
-        event = self._run_catalog(lambda spec, token=None: {'ok': False, 'error': 'quota HF'})
+        event = self._run_catalog(lambda spec, token=None, meter=None: {'ok': False, 'error': 'quota HF'})
         self.assertEqual((event.status, event.detail.get('error')), ('FAILURE', 'quota HF'))
 
     def test_an_exception_closes_the_event_and_still_propagates(self):
-        def boom(spec, token=None):
+        def boom(spec, token=None, meter=None):
             raise RuntimeError('réseau coupé')
         event = self._run_catalog(boom)
         self.assertEqual(event.status, 'FAILURE')

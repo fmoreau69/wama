@@ -728,6 +728,15 @@ issue, **voie**). Elle ne nomme personne (décision ② ci-dessus), elle dit la 
   `ready()` (`calendar.register_instance_layer`), avec l'app dont elle relève — un utilisateur sans
   accès au model_manager ne la voit pas — et sa propre valeur de facette (« Installations »), au lieu
   de « Maintenance de WAMA ». Une installation éclair garde un bloc de 15 min.
+- **En cours, une fin PRÉVUE** (2026-11-06, question de Fabien : « l'ajout des événements dans le
+  calendrier […] on avait peut-être laissé des choses en plan ») : une installation en cours y était
+  dessinée jusqu'à MAINTENANT, en nature « observé » ; elle a désormais la fin que donne le débit
+  observé (`calendar.predicted_end`) sur l'avancement que sa tâche publie (`InstallMeter`), en
+  nature « prévu », comme un traitement de card. Même trou pour les exécutions du STUDIO, plus
+  large : sans `RunOutcome` ni début mesuré, chaque run était dessiné à sa CRÉATION en bloc
+  indicatif de 15 min, qu'il ait duré des heures ou tourne encore. Un run enregistre son issue
+  (`RunOutcome`) et, en cours, prend début et avancement sur la ligne de sa famille suivie
+  (`job_families` → `calendar._tracked_row`) — la règle est commune, seule la source change.
 - Gardes : `model_manager/tests/tests_install_history` — route datée (succès, refus du driver,
   exception qui se propage), voie transmise par la demande, journal défaillant sans effet ; **chaque
   appel** de `request_install` / `uninstall_model` / `install_library` / tâche catalogue porte

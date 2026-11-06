@@ -260,6 +260,18 @@ première chaîne qui l'implémente le fait dans son app ; la seconde déclenche
 4. ~~**Persistance** du graphe puis **exécution** (la file = méta-app à 1 app).~~ ✅ livré le
    2026-07-11 (corrigé le 2026-09-15) ; la formule « file = méta-app à 1 app » est remplacée par
    **card = instance de pipeline** (`WAMA_APP_GENERATION_ROUTE.md §10.6`).
+5. ✅ **Une exécution SUIVIE comme un élément** (2026-11-06, Fabien : « le studio est encore en
+   construction. À voir si on peut faire quelque chose d'universel et pérenne ») — rien de propre à
+   un nœud. Sa ligne (`wama/studio/services/run_progress.py`) se lit sur ce que l'exécuteur publie déjà :
+   l'avancement de ses nœuds de traitement (`node_states`), le résumé d'un run de lot
+   (`entries.lot_progress`), son début aux lignes d'exécution communes (`process_runs`). Sa fin
+   passe par les points communs des traitements : `RunOutcome` (le calendrier la DATE — il dessinait
+   chaque run à sa création, en bloc indicatif) et `notify_job_end` (le Studio n'envoyait que
+   l'e-mail ; la notification dans WAMA désigne désormais le run). Inscrite comme famille suivie
+   (`job_families`) : barre sous la réponse de l'assistant qui a lancé le pipeline, fin racontée
+   dans son fil, fin prévue au calendrier. Un nœud ou un monde ajouté au Studio y entre sans
+   retouche. ⏳ L'aperçu des sorties d'un run dans l'échange (le Studio n'a pas d'adapter
+   d'aperçu) ; un run ne produit pas `STALE` (décision ouverte n°4 de la route).
 
 ## Entrées du Studio — la card d'entrée v4 rendue dans le Studio (décision de Fabien, 2026-10-20)
 

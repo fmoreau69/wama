@@ -204,7 +204,7 @@ class TheSingleEntryDispatchesGithubTest(SimpleTestCase):
                 patch.object(mi, 'record_provenance', side_effect=lambda s, r, **kw: r) as rec:
             res = mi.install_from_spec(SPAN)
         self.assertTrue(res['ok'])
-        pull.assert_called_once_with(SPAN)
+        pull.assert_called_once_with(SPAN, meter=None)
         rec.assert_called_once()
 
     def test_the_weight_is_asked_to_the_asset_url(self):

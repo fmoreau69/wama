@@ -228,6 +228,21 @@ def _progress_of(app, obj) -> float | None:
     return value if 0 < value < 100 else None
 
 
+def _tracked_row(app, user, obj):
+    """La ligne de suivi d'un élément d'une FAMILLE SUIVIE hors des files (`job_families` : un run
+    du Studio, 2026-11-06) — son début MESURÉ et son avancement, que ni le gouverneur ni le cache
+    du squelette ne portent pour lui. None pour une card d'app, ou si la ligne est illisible."""
+    from . import job_families
+    tracked = job_families.get(app)
+    if tracked is None:
+        return None
+    try:
+        return tracked.read(user, obj.pk)
+    except Exception:
+        logger.debug('[calendar] ligne de suivi illisible : %s #%s', app, obj.pk, exc_info=True)
+        return None
+
+
 def predicted_end(started_at, progress, now) -> datetime | None:
     """Fin prévue par le DÉBIT OBSERVÉ — la même règle que `wama-eta.js` côté navigateur :
     le temps écoulé pour `progress` % donne le temps qui reste. None sans progression."""
@@ -237,13 +252,15 @@ def predicted_end(started_at, progress, now) -> datetime | None:
     return now + timedelta(seconds=elapsed * (100.0 - progress) / progress)
 
 
-def _interval(obj, src, run, running_start, now, queued=None):
+def _interval(obj, src, run, running_start, now, queued=None, tracked=None):
     """`(début, fin, nature, source de la durée, exécuté)` de l'événement d'un item.
 
     Règle : la FIN LA PLUS RÉCENTE gagne — c'est la dernière exécution, qu'elle vienne de
     `RunOutcome` (produit par WAMA) ou d'un champ du modèle (`completed_at`, `finished_at` : Lab,
     import d'un résultat externe). `processing_seconds` ne date que la dernière exécution
     PRODUITE : on ne le soustrait pas d'une fin qui vient d'ailleurs.
+    `tracked` : la ligne d'une famille suivie (`_tracked_row`) — le début et l'avancement d'un
+    élément EN COURS que le gouverneur et le cache du squelette ne connaissent pas.
     """
     from ..models import JOB_RUNNING, normalize_job_status
 
@@ -253,9 +270,12 @@ def _interval(obj, src, run, running_start, now, queued=None):
     model_end = getattr(obj, src.end_field, None) if src.end_field else None
 
     if status == JOB_RUNNING:
-        began = running_start or model_start
+        began = running_start or model_start or (tracked or {}).get('started_at')
         if began is not None:
-            end = predicted_end(began, _progress_of(src.app, obj), now)
+            progress = _progress_of(src.app, obj)
+            if progress is None and tracked and 0 < (tracked.get('progress') or 0) < 100:
+                progress = float(tracked['progress'])
+            end = predicted_end(began, progress, now)
             return (began, end or max(now, began + point), NATURE_PREDICTED,
                     'measured' if end else 'declared', True)
         if queued is not None:
@@ -327,8 +347,10 @@ def observed_events(user, start, end, *, now=None, queue=None) -> list[CalendarE
             status = normalize_job_status(getattr(obj, 'status', '') or getattr(obj, 'state', ''))
             run = executions.get((src.app, model_name, obj.pk))
             in_queue = waiting.get((src.app, str(obj.pk)))
+            tracked = _tracked_row(src.app, user, obj) if status == JOB_RUNNING else None
             began, ended, nature, duration_source, executed = _interval(
-                obj, src, run, running.get((src.app, str(obj.pk))), now, queued=in_queue)
+                obj, src, run, running.get((src.app, str(obj.pk))), now, queued=in_queue,
+                tracked=tracked)
             if ended <= start or began >= end:
                 continue                     # un item EN COURS lancé hors fenêtre, par exemple
             extra = {'executed': executed, 'running': status == JOB_RUNNING}

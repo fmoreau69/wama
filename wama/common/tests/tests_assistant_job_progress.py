@@ -129,9 +129,11 @@ class JobProgressTest(TestCase):
     @mock.patch('celery.app.task.Task.apply_async', return_value=mock.Mock(id='no-task'))
     def test_a_launched_batch_gives_the_line_of_each_child_card(self, _no_task):
         """2026-11-04 (Fabien: « dérouler le processus pour les cards filles d'un lot ») : the ▶ of
-        a batch, played by the assistant, gives each launched child the line a card launched alone
-        gets — in the surface its domain declares (`audio_enhancer` for an audio batch of the
-        enhancer, whose cards are not `enhancer` ones), and its end is told in the thread."""
+        a batch, played by the assistant, designates its launched children in the surface its
+        domain declares (`audio_enhancer` for an audio batch of the enhancer, whose cards are not
+        `enhancer` ones), and its end is told in the thread. Since 2026-11-05 a launched batch is
+        ONE line, numbered by its batch — this assertion compared it to the child's number and
+        held only when both happened to be equal (seen 2026-11-06 in a wider run: lot 7, card 2)."""
         from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
         from wama.common.services.job_follow_ups import origin_conversation, turn_jobs
         from wama.common.tests.tests_queue_delete_contract import _lot_de
@@ -146,8 +148,9 @@ class JobProgressTest(TestCase):
             steps.append({'tool': 'launch_batch', 'args': args,
                           'result': execute_tool('launch_batch', args, self.user)})
             self.assertTrue(steps[-1]['result'].get('ids'), steps[-1])
-        self.assertEqual([('audio_enhancer', audio_card.pk), ('describer', self.card.pk)],
-                         [(j['family'], j['id']) for j in turn_jobs(self.user, steps)])
+        self.assertEqual([('batch', 'audio_enhancer', audio_lot.pk), ('batch', 'describer', self.lot.pk)],
+                         [(j['kind'], j['family'], j['id']) for j in turn_jobs(self.user, steps)])
+        self.assertEqual({audio_card.pk}, {c['id'] for c in turn_jobs(self.user, steps)[0]['items']})
         conversation = self.store.thread(self.user, surface='web')
         self.store.record_exchange(conversation, 'lance mes lots',
                                    {'response': 'Lancés.', 'tool_steps': steps})
@@ -411,6 +414,18 @@ function fakeBlock(rows) {
 """
 
 
+def common_paint(served) -> str:
+    """The SERVED common painter of a progress block (`WamaApp.paintProgress`,
+    `progressBlockHtml` — 2026-11-06, extracted from the chat) grafted onto the fake `WamaApp`: the
+    real brick paints, and it still reads the state's label and colour on `WamaApp`, so the fake's
+    markers keep proving that no table is written again."""
+    return ("var __fake = window.WamaApp;\n"
+            + (served / 'wama-app-base.js').read_text(encoding='utf-8')
+            + "\n__fake.paintProgress = window.WamaApp.paintProgress;"
+              "\n__fake.progressBlockHtml = window.WamaApp.progressBlockHtml;"
+              "\nwindow.WamaApp = __fake;")
+
+
 class ChatFollowsTheJobsTest(SimpleTestCase):
     """The served chat paints each job like its card and stops following once all are over, asking
     the bell for its relay at the moment one ends (V8)."""
@@ -423,6 +438,7 @@ class ChatFollowsTheJobsTest(SimpleTestCase):
         served = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
         ctx = MiniRacer()
         ctx.eval(FAKE_BROWSER)
+        ctx.eval(common_paint(served))
         for name in ('wama-schedule.js', 'wama-assistant-chat.js'):
             ctx.eval((served / name).read_text(encoding='utf-8'))
         ctx.eval("""

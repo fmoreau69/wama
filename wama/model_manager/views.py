@@ -2160,14 +2160,21 @@ def api_prospect_assess_progress(request):
 @user_passes_test(is_admin_or_dev)
 @require_GET
 def api_prospect_install_progress(request):
-    """Avancement d'une installation de candidat (cache Redis, écrit par la tâche).
-    `?model_id=<model_key>` — F5-proof : le cache porte l'état, pas le navigateur."""
-    from django.core.cache import cache
+    """Les installations EN COURS ou en attente, et celles finies depuis `?since=<instant ISO>` (le
+    `now` de la réponse précédente : l'horloge est celle du serveur), chacune dans la ligne de
+    suivi commune (`install_history.install_rows`, 2026-11-06) — la page les reprend à son
+    ouverture, celles qu'elle n'a pas lancées comprises (l'assistant, une app qui attend son
+    modèle), et dit l'issue de celles qu'elle suivait. F5-proof : l'état vit au journal et au
+    cache, pas dans le navigateur. (La forme `?model_id=<clé>`, qui rendait le cache d'UNE clé à
+    `mmProspectPoll`, est retirée avec lui — R220.)"""
+    from django.utils import timezone
+    from django.utils.dateparse import parse_datetime
 
-    from .tasks import INSTALL_CACHE_PREFIX
-    model_id = request.GET.get('model_id') or ''
-    progress = cache.get(INSTALL_CACHE_PREFIX + model_id)
-    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress})
+    from .services.install_history import install_rows
+    now = timezone.now()
+    since = parse_datetime(request.GET.get('since') or '')
+    return JsonResponse({'success': True, 'now': now.isoformat(),
+                         'installs': install_rows(since=since, now=now)})
 
 
 @login_required

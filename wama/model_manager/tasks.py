@@ -274,6 +274,21 @@ ASSESS_CACHE_KEY = 'model_manager:assess_proposed'
 ASSESS_TTL = 6 * 3600
 
 
+def _install_meter(publier, row, install_id):
+    """La mesure de l'avancement d'une installation (`InstallMeter`), publiée au cache de la clé
+    avec son NOM et son ÉVÉNEMENT (`install_id`, ce que lisent la card du model manager et la ligne
+    de l'échange) — sur le poids que la garde d'espace a compté (`install_weight_gb`)."""
+    from .services.model_installer import InstallMeter, install_weight_gb
+    try:
+        expected_gb = install_weight_gb(row)
+    except Exception:
+        logger.debug("[install] poids attendu illisible pour %s", row.model_key, exc_info=True)
+        expected_gb = None
+    return InstallMeter(
+        lambda state: publier('RUNNING', dict(state, name=row.name, install_id=install_id)),
+        expected_bytes=expected_gb * 1024 ** 3 if expected_gb else None)
+
+
 def _download_token(user_id):
     """Jeton du téléchargement : celui de la personne qui l'a lancé (`user_id`), l'instance
     sinon — `accounts.api_keys.download_token`. La clé est relue ici, jamais passée en argument
@@ -308,29 +323,35 @@ def install_proposed_task(self, model_key: str, user_id=None):
     def publier(state: str, payload: dict):
         publier_progression(cache_key, self.request.id, state, payload, INSTALL_TTL)
 
-    from .services.install_history import resumed
+    from .services.install_history import notify_end, resumed
 
     # Journal DATÉ (calendrier, couche « Installations ») : l'événement ouvert à la DEMANDE, avec
     # sa voie, est repris ici — la tâche ne reçoit aucun argument de plus (`install_history`).
     with resumed('model', model_key) as outcome:
+        install_id = outcome.event_id
         cand = AIModel.objects.filter(model_key=model_key, is_proposed=True).first()
         if not cand:
-            publier('FAILURE', {'error': 'Candidat introuvable (déjà installé ou rejeté ?)'})
+            publier('FAILURE', {'error': 'Candidat introuvable (déjà installé ou rejeté ?)',
+                                'install_id': install_id})
             outcome.update({'ok': False, 'error': 'Candidat introuvable'})
             return {'ok': False, 'error': 'Candidat introuvable'}
 
-        publier('RUNNING', {'status': 'démarrage…', 'name': cand.name})
+        name = cand.name
+        meter = _install_meter(publier, cand, install_id)
+        meter.say('démarrage…')
         try:
             # `owner` : le modèle qui naît revient à qui l'installe, sauf un admin (ROADMAP §29).
-            res = install_candidate(
-                cand, progress=lambda s: publier('RUNNING', {'status': s, 'name': cand.name}),
-                token=_download_token(user_id), owner=install_owner(user_id))
+            res = install_candidate(cand, meter=meter, token=_download_token(user_id),
+                                    owner=install_owner(user_id))
         except Exception as exc:
             logger.exception("[install_proposed] échec inattendu pour %s", model_key)
-            publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': cand.name})
+            failure = {'ok': False, 'error': f"{type(exc).__name__}: {exc}"}
+            publier('FAILURE', dict(failure, name=name, install_id=install_id))
+            notify_end(user_id, install_id, name, failure)
             raise
         outcome.update(res)
-    publier('SUCCESS' if res.get('ok') else 'FAILURE', dict(res, name=cand.name))
+    publier('SUCCESS' if res.get('ok') else 'FAILURE', dict(res, name=name, install_id=install_id))
+    notify_end(user_id, install_id, name, res)
     logger.info("[install_proposed] %s → %s", model_key,
                 'installé' if res.get('ok') else res.get('error'))
     return res
@@ -354,36 +375,44 @@ def install_catalog_task(self, model_key: str, user_id=None):
     def publier(state: str, payload: dict):
         publier_progression(cache_key, self.request.id, state, payload, INSTALL_TTL)
 
-    from .services.install_history import resumed
+    from .services.install_history import notify_end, resumed
 
     with resumed('model', model_key) as outcome:        # cf. install_proposed_task
+        install_id = outcome.event_id
         model = AIModel.objects.filter(model_key=model_key, is_proposed=False).first()
         if model is None:
-            publier('FAILURE', {'error': 'Modèle introuvable au catalogue'})
+            publier('FAILURE', {'error': 'Modèle introuvable au catalogue',
+                                'install_id': install_id})
             outcome.update({'ok': False, 'error': 'Modèle introuvable'})
             return {'ok': False, 'error': 'Modèle introuvable'}
         spec = spec_for_catalog_row(model)
         if spec is None:
             publier('FAILURE', {'error': "Ce modèle ne déclare pas d'emplacement d'installation "
                                          "(platform_ref/install_dir) — installation au premier usage "
-                                         "seulement.", 'name': model.name})
+                                         "seulement.", 'name': model.name,
+                                'install_id': install_id})
             outcome.update({'ok': False, 'error': 'spec non dérivable'})
             return {'ok': False, 'error': 'spec non dérivable'}
 
-        publier('RUNNING', {'status': f"téléchargement {spec['ref']}…", 'name': model.name})
+        name = model.name
+        meter = _install_meter(publier, model, install_id)
+        meter.say(f"téléchargement {spec['ref']}…")
         try:
             # Sans `owner` : un modèle DÉCLARÉ par une app est système, qui que soit l'installeur.
-            res = install_from_spec(spec, token=_download_token(user_id))
+            res = install_from_spec(spec, token=_download_token(user_id), meter=meter)
         except Exception as exc:
             logger.exception("[install_catalog] échec inattendu pour %s", model_key)
-            publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': model.name})
+            failure = {'ok': False, 'error': f"{type(exc).__name__}: {exc}"}
+            publier('FAILURE', dict(failure, name=name, install_id=install_id))
+            notify_end(user_id, install_id, name, failure)
             raise
         outcome.update(res)
-    publier('SUCCESS' if res.get('ok') else 'FAILURE', dict(
-        {k: v for k, v in res.items() if k != 'provenance'}, name=model.name))
+    told = {k: v for k, v in res.items() if k != 'provenance'}
+    publier('SUCCESS' if res.get('ok') else 'FAILURE', dict(told, name=name, install_id=install_id))
+    notify_end(user_id, install_id, name, res)
     logger.info("[install_catalog] %s → %s", model_key,
                 'installé' if res.get('ok') else res.get('error'))
-    return {k: v for k, v in res.items() if k != 'provenance'}
+    return told
 
 
 #: Avancement de la mesure de PERFORMANCE (bancs tiers) — pendant de ASSESS_CACHE_KEY.

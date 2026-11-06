@@ -2809,8 +2809,8 @@ class ModelRegistry:
         # le même que la découverte des apps, sinon deux « téléchargé » divergent.
         from .prospector import installed_weights_complete
         incomplets = not installed_weights_complete(snap)
-        taille = sum(f.stat().st_size for f in blobs.iterdir() if f.is_file()) \
-            if blobs.is_dir() else 0
+        from wama.common.utils.disk_utils import tree_bytes
+        taille = tree_bytes(blobs)
         # VRAM ESTIMÉE depuis la taille des blobs (règle et raisons : `_estimated_vram`).
         vram_estimee = _estimated_vram(taille, incomplets)
 

@@ -5368,8 +5368,9 @@ automatisé ? »*, corrigés à sa demande) :
   l'enhancer), validée par la vue du lot avant le lancement. Au plus `TURN_JOBS_MAX` (20) lignes.
 Gardes : `tests_assistant_job_progress` (tour, fil rechargé, lot réel de deux domaines et fil
 d'origine retrouvé ; V8 sur les liens et le bloc fini) et `tests_tool_item_contract`.
-⏳ Restent : le Studio (`run_studio_pipeline`) et l'installation de modèle (`install_model`) n'ont
-pas de famille suivie (hors `TRIAD_SPECS`) — ni ligne, ni fin racontée au fil. ~~un lot de plus de
+~~⏳ Restent : le Studio (`run_studio_pipeline`) et l'installation de modèle (`install_model`) n'ont
+pas de famille suivie (hors `TRIAD_SPECS`) — ni ligne, ni fin racontée au fil.~~ → soldé le
+2026-11-06 (« L'installation d'un modèle et le Studio suivis comme une card », ci-dessous). ~~un lot de plus de
 20 éléments n'en montre que 20, chacun raconté à sa fin~~ → soldé le 2026-11-05 (ci-dessous).
 
 ✅ **Un LOT lancé est UNE ligne et UNE fin, le 2026-11-05** (Fabien : *« mettre à jour la barre de
@@ -5408,6 +5409,52 @@ et pas de pièce jointe, la fille relancée seule, la page d'une surface et du L
 `common.preview_chat_batch` (`ui_smoke_preview`) joué sur la page servie, rouge à sa
 contre-épreuve. ⚠ Une fin n'est racontée que si l'utilisateur reçoit ses notifications dans WAMA
 (`wants_in_app_notification`) — comme pour un élément seul.
+
+✅ **L'installation d'un modèle et le Studio suivis comme une card, le 2026-11-06** (Fabien : *« vérifie
+qu'on a une barre de progression à l'installation d'un modèle depuis le model manager, puis on
+l'étend à l'assistant avec message. Ensuite, on s'occupe du studio […] À voir si on peut faire
+quelque chose d'universel et pérenne »*). Constat d'abord : le model manager n'avait PAS de barre —
+un voile modal et une phrase, une installation à la fois, perdue au F5 ; seul Ollama portait un
+pourcentage ; une installation lancée par l'assistant n'y apparaissait pas, et aucune fin
+d'installation n'était notifiée. Rien n'a été inventé à côté :
+- **la mesure** (`model_installer.InstallMeter`) : une pour tous les pilotes — octets comptés par
+  `download_asset` (yolo, github, files et leurs membres d'archive), dossier `blobs/` du dépôt
+  mesuré pendant `snapshot_download` (ses barres par fichier ne se branchent pas), `completed/total`
+  d'Ollama — rapportée au poids de la garde d'espace (`install_weight_gb`, un seul calcul pour les
+  deux), plafonnée à 99 % jusqu'à la fin, publiée au cache de la clé avec l'ÉVÉNEMENT de
+  l'installation (`install_id`) ;
+- **l'élément** d'une installation est son événement daté (`InstallEvent`, qui existait) : sa ligne
+  (`install_history.progress_row`, au contrat de `job_progress`) attend tant que la tâche n'a rien
+  publié et ne lit que l'avancement de CET événement ; la card du modèle porte le bloc commun
+  (`WamaApp.progressBlockHtml` / `paintProgress`, extraits du chat au 2ᵉ lecteur), plusieurs
+  installations à la fois, reprises à l'ouverture de la page avec leur issue (`?since=`) ;
+- **la fin** est notifiée à qui l'a demandée par LA fin commune (`notify_job_end`, qui reçoit un
+  destinataire explicite pour un élément qui ne nomme personne) ; sans demandeur (ligne de
+  commande), personne ;
+- **les familles suivies hors des files** (`common/services/job_families.py`) : l'app qui possède le
+  modèle de l'élément l'inscrit dans son `ready()` — le model manager ses installations (outil
+  `install_model`, statut `list_installations(install_id)`), le Studio ses exécutions (outil
+  `run_studio_pipeline`, statut `get_studio_run_status`). `job_progress`, `items_of_step`,
+  `job_follow_ups` (origine, statut rejoué) et le calendrier les lisent sans les connaître ;
+  `install_model` rend son élément par la clé uniforme `item_id`. La famille est l'app qui POSSÈDE
+  l'élément, pas celle qui garde l'outil (`install_model` est gardé par `registries`) ;
+- **le Studio** : sa ligne se lit sur ce que l'exécuteur publie (`node_states`, `lot_progress`, lignes
+  `ProcessRun`), sa fin passe par `RunOutcome` et `notify_job_end` (il n'envoyait que l'e-mail),
+  le calendrier date un run fini et prévoit la fin d'un run en cours (`STUDIO_VISION` marche 5).
+Gardes : `model_manager/tests/tests_install_progress.py`, `studio/tests/tests_run_follow_up.py`,
+`model_manager/tests/tests_install_page.py`, `common/tests/tests_progress_paint_js.py` (V8), et
+`tests_model_layout` lue désormais sur le comportement de `tree_bytes` — 24 contre-épreuves, toutes rouges, jouées DANS le processus de test (`/contre-epreuve`,
+`mutate_in_process.py` : rien n'est écrit dans l'arbre partagé). La somme des tailles sous un
+dossier a un domicile (`common/utils/disk_utils.tree_bytes`) : la mesure, la désinstallation, la
+découverte d'un snapshot et la purge d'un dossier de travail la recalculaient. Au passage, une
+garde de ma main du 2026-11-05 comparait la ligne d'un LOT au numéro de sa card fille et ne passait
+que quand les deux coïncidaient (`tests_assistant_job_progress`, corrigée). ⏳ L'aperçu des sorties
+d'un run du Studio dans l'échange (le Studio n'a pas d'adapter d'aperçu) ; une installation n'a pas
+d'aperçu non plus — sa fin dit l'issue et la vérification d'empreinte. ⏳ Écart d'alignement
+CONSIGNÉ, non ramené : les tâches de DÉVELOPPEMENT (`dev_*`) gardent leur chemin propre
+(`notifications.DEV_JOB_APP`, `job_follow_ups.dev_origin_conversation`, statut par le relais MCP) au
+lieu d'être une famille de `job_families` — leur désignation est un identifiant de fiche (texte), leur
+statut passe par `mcp_client`, deux différences que le registre ne porte pas encore.
 
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) 🔄 *(relevé du 2026-10-26)*
 

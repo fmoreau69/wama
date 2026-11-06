@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**227 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**228 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -636,14 +636,14 @@ Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×a
 
 ### Installation de modèles
 
-Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10, MuScriptor le 16/10 — le jeton d'un dépôt du Hub à accès contrôlé n'est envoyé qu'aux origines `huggingface` ; la désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`). L'EMPREINTE de ce qu'un pilote pose se vérifie QUELLE QUE SOIT LA SOURCE (2026-11-05) : épinglée (files, github), publiée par le Hub pour la révision tirée (hf, `verify_hf_snapshot` — sha256 d'un fichier LFS, blob git des autres ; la librairie ne contrôlait que la taille), publiée par l'API GitHub pour l'asset de la version (yolo, `prospector.published_asset`), vérifiée par le démon (ollama) — et le levier B d'`hf_weights` quand il télécharge ; le résultat le dit (`verified`), le journal des installations le garde et l'assistant le dit (`install_history.verified_text`). Dépôt à ACCÈS CONTRÔLÉ (`AIModel.gated`) : le jeton est celui du compte qui lance (`api_keys.download_token`), sinon celui de l'instance (`HF_TOKEN`, `.env`). Route `library` (`install_library`) : PyPI par nom, pin exact — refuse URL, `git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par `-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, 2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle `tests_install_route`, budget des dérives existantes qui ne peut que descendre. Les options d'installation disent ce qui TOURNE ici et la recommandation (la plus précise qui tient sur la carte), pour la page et l'assistant ; une désinstallation retire des choix des apps (option cochée), une MISE À JOUR installée succède à l'ancienne version partout où elle était choisie (`succession.py`, 2026-10-29)
+Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, `pull_model <clé|org/dépôt|nom Ollama>` — un nom se PROPOSE d'abord (`seed_hf_search`, `seed_ollama_candidate`) —, marcheur d'app `install_requirements` ; garde d'espace disque, tâche Celery, journal — seule à appeler `dispatch_install`) ; `AIModel.is_installable` en dit la règle à la page. Un pilote INTERNE (`install_from_spec`), un par source : ollama, hf, yolo, github (poids d'une VERSION GitHub, tag exact + empreinte épinglée, disposition calquée sur HF, 2026-10-07), files (les fichiers qu'une app DÉCLARE, chacun avec son ORIGINE parmi les sources déclarées — dépôt du Hub figé au commit, version GitHub, adresse fixe d'une source « poids » — taille et empreinte épinglées, 2026-10-11 : CodeFormer, MuseTalk, enhancer, Face Analyzer, DeepFace le 12/10, MuScriptor le 16/10 — le jeton d'un dépôt du Hub à accès contrôlé n'est envoyé qu'aux origines `huggingface` ; la désinstallation retire ces fichiers-là seulement, `remove_declared_files`) ; `download_asset` = le téléchargement contrôlé commun aux pilotes à fichier (empreinte d'un fichier en place : `provenance.sha256_of`). L'EMPREINTE de ce qu'un pilote pose se vérifie QUELLE QUE SOIT LA SOURCE (2026-11-05) : épinglée (files, github), publiée par le Hub pour la révision tirée (hf, `verify_hf_snapshot` — sha256 d'un fichier LFS, blob git des autres ; la librairie ne contrôlait que la taille), publiée par l'API GitHub pour l'asset de la version (yolo, `prospector.published_asset`), vérifiée par le démon (ollama) — et le levier B d'`hf_weights` quand il télécharge ; le résultat le dit (`verified`), le journal des installations le garde et l'assistant le dit (`install_history.verified_text`). Dépôt à ACCÈS CONTRÔLÉ (`AIModel.gated`) : le jeton est celui du compte qui lance (`api_keys.download_token`), sinon celui de l'instance (`HF_TOKEN`, `.env`). Route `library` (`install_library`) : PyPI par nom, pin exact — refuse URL, `git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par `-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, 2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle `tests_install_route`, budget des dérives existantes qui ne peut que descendre. Les options d'installation disent ce qui TOURNE ici et la recommandation (la plus précise qui tient sur la carte), pour la page et l'assistant ; une désinstallation retire des choix des apps (option cochée), une MISE À JOUR installée succède à l'ancienne version partout où elle était choisie (`succession.py`, 2026-10-29). L'AVANCEMENT (2026-11-06) : une mesure pour tous les pilotes (`InstallMeter`) — octets comptés par `download_asset`, dossier `blobs/` mesuré pendant `snapshot_download`, `completed/total` d'Ollama —, rapportés au poids de la garde d'espace (`install_weight_gb`), publiés avec l'événement de l'installation
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (52) :
+- **API publique** (54) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
-  - `pull_hf_model(repo_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
+  - `pull_hf_model(repo_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, meter=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
   - `verify_hf_snapshot(repo_id: str, snapshot, *, token=None) -> dict` — Chaque fichier d'un snapshot du Hub confronté à ce que le Hub PUBLIE pour cette révision :
   - `duplicate_weight_files(files) -> list` — Fichiers de poids à NE PAS tirer parce que leur jumeau `.safetensors` existe — même
   - `format_duplicates(repo_id: str) -> list` — Les jumeaux de format d'un dépôt HF — un appel HTTP, la règle vient de
@@ -651,27 +651,29 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `components_of_files(files, *, composition=None, allow_patterns=None) -> dict` — Poids PAR COMPOSANT d'un inventaire de fichiers — dérivation PURE, aucun réseau.
   - `components_for_spec(spec: dict, *, files=None) -> dict` — Poids par composant de ce qu'un descripteur désigne — `{}` si indéterminable.
   - `yolo_task_of(name: str) -> str` — Tâche (`ModelTask`) d'un poids YOLO, déduite du suffixe de son nom — `detect` par défaut.
-  - `pull_yolo_weights(name: str, timeout: int=600, dry_run: bool=False)` — Télécharge des poids YOLO OFFICIELS (assets GitHub Ultralytics, URL stable
+  - `pull_yolo_weights(name: str, timeout: int=600, dry_run: bool=False, meter=None)` — Télécharge des poids YOLO OFFICIELS (assets GitHub Ultralytics, URL stable
   - `github_release_error(ref) -> str | None` — Motif de refus d'une version désignée `owner/repo:tag`, ou None (pur, aucune I/O).
   - `github_spec_error(spec: dict)` — Motif de refus d'un descripteur `github`, ou None — pendant de `vendor_spec_error`.
   - `github_asset_url(spec: dict) -> str` — Adresse de téléchargement de l'asset, dérivée de la source déclarée `github` (comme
   - `github_release_dir(spec: dict) -> str` — Dossier du modèle : `<catégorie>/<famille ou tag>/github--owner--repo/<tag>`.
-  - `pull_github_asset(spec: dict, timeout: int=600, dry_run: bool=False) -> dict` — Télécharge l'asset d'une version GitHub DANS LE BON DOSSIER (cf. l'en-tête du pilote).
+  - `pull_github_asset(spec: dict, timeout: int=600, dry_run: bool=False, meter=None) -> dict` — Télécharge l'asset d'une version GitHub DANS LE BON DOSSIER (cf. l'en-tête du pilote).
   - `declared_origin_error(origin) -> str | None` — Motif de refus de l'ORIGINE d'un fichier déclaré, ou None (pur, aucune I/O).
   - `declared_files_error(spec: dict) -> str | None` — Motif de refus d'un descripteur `files`, ou None — pur : l'installation et la pesée
   - `declared_file_url(origin: dict) -> str` — Adresse d'un fichier déclaré, DÉRIVÉE de sa source déclarée — jamais écrite en dur.
   - `declared_files_present(install_dir, files) -> bool` — Tous les fichiers déclarés sont-ils à leur place ? (présence, sans relire l'empreinte —
   - `remove_declared_files(model, include_shared: bool=False) -> dict` — Le pendant de `pull_declared_files` pour la désinstallation : retire EXACTEMENT les
-  - `pull_declared_files(spec: dict, timeout: int=600, dry_run: bool=False, token: str | None=None) -> dict` — Les fichiers qu'une app DÉCLARE, posés SOUS son dossier (`target_dir`), chacun tiré de
-  - `download_asset(url: str, target: str, *, timeout: int=600, min_bytes: int=0, sha256: str='', size: int=0, proxies=None, headers=None) -> dict` — Télécharge UN fichier publié (asset de version GitHub…) vers `target`, sans jamais laisser
+  - `pull_declared_files(spec: dict, timeout: int=600, dry_run: bool=False, token: str | None=None, meter=None) -> dict` — Les fichiers qu'une app DÉCLARE, posés SOUS son dossier (`target_dir`), chacun tiré de
+  - `class InstallMeter` — L'AVANCEMENT d'une installation : ce qui est reçu, rapporté au poids attendu (2026-11-06).
+  - `download_asset(url: str, target: str, *, timeout: int=600, min_bytes: int=0, sha256: str='', size: int=0, proxies=None, headers=None, meter: InstallMeter=None)…` — Télécharge UN fichier publié (asset de version GitHub…) vers `target`, sans jamais laisser
   - `register_after_install()` — Re-synchronise le catalogue `AIModel` pour que le modèle fraîchement installé apparaisse.
   - `replaced_model(cand)` — (nom Ollama de l'ancien modèle, espace qu'il rendra en Go) pour un candidat successeur,
   - `disk_space_guard(ref: str, *, reclaim_gb: float=0.0, force: bool=False, needed_gb: float | None=None)` — Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
   - `similar_model_keys(key: str, limit: int=3) -> list[str]` — Les clés du catalogue (propositions comprises) qui désignent le MÊME dépôt ou le même nom
   - `variant_owner_keys(repo: str) -> list[str]` — Les propositions dont `repo` est une VARIANTE quantisée (`prospect.quant_variants`) — la clé
+  - `install_weight_gb(row)` — Le poids en Go de ce que l'installation de `row` va TIRER, ou None — un seul calcul pour la
   - `request_install(model_key: str, *, force: bool=False, variant_ref: str='', variant_file: str='', user=None, via: str='') -> dict` — DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
   - `dispatch_install(task, row, *, user_id=None, via='')` — SEUL point de dispatch des deux tâches d'installation : ouvre l'événement DATÉ du journal,
-  - `install_candidate(cand, progress=None, token=None, owner=None) -> dict` — Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
+  - `install_candidate(cand, meter=None, token=None, owner=None) -> dict` — Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
   - `weights_dir_of(model, index: dict | None=None) -> Path | None` — Dossier des POIDS d'une ligne de catalogue installée, ou None s'il ne se désigne pas.
   - `rows_depending_on(model, target: Path, index: dict | None=None) -> tuple[list, list]` — Les AUTRES lignes installées que retirer `target` toucherait — `(sharing, dependents)`.
   - `withdraw_from_choices(rows, stamp: str, *, by: str='', superseded_by: str='') -> list` — Retire ces lignes des CHOIX des applications : `is_available=False` + `exclusion` datée,
@@ -681,7 +683,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `spec_for_catalog_row(model) -> dict | None` — Spec d'installation DÉRIVÉ d'une ligne de catalogue non téléchargée — le geste « Installer »
   - `patterns_from_composition(composition) -> list | None` — `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
   - `install_owner(user_id)` — À qui revient un modèle que l'installation fait NAÎTRE (`ROADMAP §29` étape 3, décision de
-  - `install_from_spec(spec: dict, token=None, owner=None) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
+  - `install_from_spec(spec: dict, token=None, owner=None, meter=None) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
   - `record_provenance(spec: dict, res: dict, owner=None) -> dict` — Après un téléchargement réussi : sync du catalogue, puis provenance des lignes apparues.
   - `queue_benchmarks(res: dict, appeared_keys) -> None` — Met en file le BANC TIERS des modèles qu'on vient d'installer (2026-10-10).
   - `pip_spec_error(spec: str)` — Motif de refus d'un spécificateur pip, ou None s'il passe les verrous syntaxiques.
@@ -696,16 +698,24 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 ### Journal des installations
 
-Date chaque installation et désinstallation (modèle, librairie) avec son issue et sa VOIE (model manager, assistant, marcheur d'app, ligne de commande), aux points uniques de la route ; couche « Installations » du calendrier, inscrite par `register_instance_layer`. Best-effort : n'échoue jamais une installation
+Date chaque installation et désinstallation (modèle, librairie) avec son issue et sa VOIE (model manager, assistant, marcheur d'app, ligne de commande), aux points uniques de la route ; couche « Installations » du calendrier, inscrite par `register_instance_layer` — une installation en cours y a sa fin PRÉVUE par le débit observé. Depuis le 2026-11-06, l'événement est l'ÉLÉMENT suivi d'une installation : sa ligne (`progress_row` — la card du model manager, l'échange de l'assistant, famille `model_manager` de `job_families`) et sa fin notifiée à qui l'a demandée (`notify_end` → `notify_job_end`). Best-effort : n'échoue jamais une installation
 
 - **Domicile** : `wama/model_manager/services/install_history.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Journal DATÉ des installations — l'écriture (`opened`/`record`) et la couche du calendrier.
-- **API publique** (7) :
+- **API publique** (15) :
   - `verified_text(detail) -> str` — Ce que dit `detail['verified']`, en une phrase — '' quand rien n'a été vérifié ou que la
   - `opened(kind, key, *, name='', action='install', via='')` — Ouvre un événement `RUNNING` ; le bloc remplit `outcome` avec le résultat du driver.
   - `record(kind, key, *, name='', action='install', via='', result=None, started_at=None)` — Un événement déjà TERMINÉ (désinstallation : un geste court et synchrone).
+  - `class Outcome(dict)` — Le résultat que le bloc d'une installation remplit (`opened`, `resumed`), et l'événement
+  - `open_event(kind, key)` — L'événement OUVERT le plus récent de cette clé (une demande que la tâche reprendra, ou une
   - `queued(kind, key, *, name='', via='')` — Ouvre l'événement AU DISPATCH, avec sa voie — la tâche le reprendra (`resumed`).
   - `resumed(kind, key, *, name='')` — Reprend, dans la tâche, l'événement ouvert au dispatch (ou en ouvre un sans voie).
+  - `title(row) -> str` — « Installation : <nom> » — l'intitulé d'un événement, au calendrier comme dans l'échange de
+  - `live_state(row) -> dict` — L'avancement publié par la tâche de CET événement, {} sinon (pas encore pris en charge,
+  - `progress_row(row, now=None) -> dict` — La ligne de suivi d'UNE installation, au contrat de `tool_api.job_progress` (la ligne d'une
+  - `job_row(user, pk)` — L'installation n° `pk` pour `user` — None hors de son droit de voir le model manager (la
+  - `install_rows(since=None, now=None) -> list` — Les installations de modèles EN COURS ou en attente, et celles FINIES depuis `since` — ce
+  - `notify_end(user_id, event_id, name: str, result: dict) -> None` — La fin d'une installation, à QUI L'A DEMANDÉE — par LA fin commune des traitements
   - `effective_state(row, now)` — `(statut, erreur, abandonnée)` d'un événement tel qu'il se DIT — au calendrier et à
   - `calendar_events(start, end)` — Les installations de `[start, end)` — couche de l'INSTANCE (inscrite par `apps.ready`).
 
@@ -1647,14 +1657,28 @@ Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app
   - `generate_reader_docx(item) -> bytes` — Generate a DOCX from a ReadingItem instance. Returns raw bytes.
   - `generate_transcript_docx(transcript) -> bytes` — Generate a DOCX from a Transcript instance. Returns raw bytes.
 
+### Familles suivies hors des files
+
+Un élément qui n'est pas une card — une installation de modèle (`InstallEvent`), une exécution du Studio (`StudioRun`) — suivi comme une card par l'assistant et le calendrier (2026-11-06) : l'app qui POSSÈDE son modèle inscrit sa famille dans son `ready()` (modèle, outils qui le désignent par `item_id`, ligne de suivi au contrat de `job_progress`, geste « statut » rejoué à sa fin). Lu par `tool_api.job_progress` et `items_of_step`, `job_follow_ups` (origine, statut) et le calendrier (début et avancement d'un élément en cours)
+
+- **Domicile** : `wama/common/services/job_families.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.2](../construction/suivi/ROADMAP.md)
+- **Module** : Les FAMILLES SUIVIES hors des files d'app — ce que l'échange de l'assistant suit et raconte, et que le calendrier date, pour un élément qui n'est pas une card (2026-11-06).
+- **API publique** (5) :
+  - `class JobFamily`
+  - `register(family: JobFamily) -> None` — Inscrit une famille — idempotent (un `ready()` peut être rejoué).
+  - `get(key)` — La famille `key`, ou None (une card d'app n'en est pas une : elle est à `TRIAD_SPECS`).
+  - `for_tool(tool_name)` — La famille dont `tool_name` crée ou lance les éléments, ou None.
+  - `families() -> list`
+
 ### Fin de tâche racontée dans le fil d'origine
 
-La fin d'un traitement (notification `job_done`/`job_failed`, qui DÉSIGNE l'élément) racontée dans le fil de l'assistant d'où la tâche a été demandée : origine LUE dans les étapes d'outils persistées (`tool_api.items_of_step`), geste « statut » RÉELLEMENT joué, sorties déclarées, enregistrement au fil — une fois, sous verrou, AVANT publication (`tell`). Commun aux surfaces : la passerelle la relève par un curseur de canal, joint les fichiers, et republie au retour du canal ce que le fil a raconté (`told_since`) et que le salon ne montre pas ; le fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT. Une fin arrivée PENDANT le tour qui l'a lancée part avec sa réponse (`notices_of_turn`, joint par `conversation_turn` ; `tell` raconte une seule fois). Et l'entre-deux (2026-10-20) : les éléments lancés suivis SOUS la réponse, dans l'état de leur card (`turn_jobs` → `tool_api.job_progress`, `api/ai-chat/jobs/`), leur fin demandant la relève ; depuis le 2026-11-04, déjà finis aussi (ouverts sur leur Sortie, au tour comme au rechargement du fil) ; depuis le 2026-11-05, un LOT lancé y est UNE ligne — l'état de sa card mère (`tool_api.batch_progress`), un seul aperçu qui suit la dernière fille finie — et UNE fin racontée quand plus rien n'y bouge (`_tell_batch`), au-delà de 20 éléments seuls « + N autres » vers leur file
+La fin d'un traitement (notification `job_done`/`job_failed`, qui DÉSIGNE l'élément) racontée dans le fil de l'assistant d'où la tâche a été demandée : origine LUE dans les étapes d'outils persistées (`tool_api.items_of_step`), geste « statut » RÉELLEMENT joué, sorties déclarées, enregistrement au fil — une fois, sous verrou, AVANT publication (`tell`). Commun aux surfaces : la passerelle la relève par un curseur de canal, joint les fichiers, et republie au retour du canal ce que le fil a raconté (`told_since`) et que le salon ne montre pas ; le fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT. Une fin arrivée PENDANT le tour qui l'a lancée part avec sa réponse (`notices_of_turn`, joint par `conversation_turn` ; `tell` raconte une seule fois). Et l'entre-deux (2026-10-20) : les éléments lancés suivis SOUS la réponse, dans l'état de leur card (`turn_jobs` → `tool_api.job_progress`, `api/ai-chat/jobs/`), leur fin demandant la relève ; depuis le 2026-11-04, déjà finis aussi (ouverts sur leur Sortie, au tour comme au rechargement du fil) ; depuis le 2026-11-05, un LOT lancé y est UNE ligne — l'état de sa card mère (`tool_api.batch_progress`), un seul aperçu qui suit la dernière fille finie — et UNE fin racontée quand plus rien n'y bouge (`_tell_batch`), au-delà de 20 éléments seuls « + N autres » vers leur file ; depuis le 2026-11-06, un élément qui n'est pas une card aussi (`job_families`)
 
 - **Domicile** : `wama/common/services/job_follow_ups.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.2](../construction/suivi/ROADMAP.md)
 - **Module** : La FIN D'UNE TÂCHE racontée dans le fil d'où elle a été demandée — brique commune à toute surface de l'assistant (canaux de la passerelle, fil web).
-- **API publique** (19) :
+- **API publique** (20) :
   - `notice_text(note) -> str` — Le texte d'une fin de tâche : son titre (« … terminé » / « … a échoué ») et son détail.
+  - `family_model(family)` — Le modèle des éléments d'une FAMILLE : celui de son adapter de détail (une card d'app), ou
   - `origin_turn(note, surface: str)` — Le TOUR de cette surface où l'élément de la notification a été créé ou lancé — lu dans les
   - `origin_conversation(note, surface: str)` — Le fil de cette surface où l'élément de la notification a été créé ou lancé (`origin_turn`).
   - `dev_origin_conversation(note, surface: str)` — Le fil de CETTE surface dont une étape `dev_*` a rendu le `job_id` de la notification — la
@@ -2276,7 +2300,7 @@ Ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier, 
 
 ### Import par lot
 
-Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le 2026-10-20 : `parse_batch_lines` (les lignes normalisées, toutes familles) et `line_to_ports` (une ligne rangée dans les PORTS d'un nœud : colonne au nom d'un port, rôles `-i`/`-p`/`-r` en alias, refus nommé) — lus par le Studio. Depuis le 2026-11-02 : le gabarit téléchargeable de chaque app servi par `batch_template_response` (formats lus à la déclaration), le rangement des orphelins et la file aux deux formes de rattachement (FK directe comprise), la file listée par `listable_by`
+Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le 2026-10-20 : `parse_batch_lines` (les lignes normalisées, toutes familles) et `line_to_ports` (une ligne rangée dans les PORTS d'un nœud : colonne au nom d'un port, rôles `-i`/`-p`/`-r` en alias, refus nommé) — lus par le Studio. Depuis le 2026-11-02 : le gabarit téléchargeable de chaque app servi par `batch_template_response` (formats lus à la déclaration), le rangement des orphelins et la file aux deux formes de rattachement (FK directe comprise), la file listée par `listable_by`. Depuis le 2026-11-06 : les FICHIERS d'une ligne (`-r`) reçus comme sur la card — `line_file_ports` (le port de leur nature), `line_file_inputs` (désignés, ou adresse vers la source `WAMA_INGEST`), `attach_line_inputs` ; imager, synthesizer, composer, avatarizer
 
 - **Domicile** : `wama/common/utils/batch_parsers.py` · **doc** : [docs/construction/ui/BATCH_FORMAT.md](../construction/ui/BATCH_FORMAT.md)
 - **Module** : WAMA Common — Batch file parsers
@@ -2355,7 +2379,7 @@ notify_job_end() — LA fin d'un traitement (squelette de tâche) : e-mail (noti
   - `staff_emails(audiences=('admin', 'dev'))` — Adresses d'envoi pour une ou plusieurs audiences du staff : l'adresse FONCTIONNELLE
   - `notify_admins(kind, subject, body, url='', audiences=('admin', 'dev'))` — Prévient le staff technique DANS WAMA (chaque compte qui administre l'infrastructure) et
   - `notify_job_collaborators(item, app_label, item_name, success, detail='', app_id='')` — La fin d'un traitement, aussi pour ceux qui COLLABORENT sur l'élément (E3, décision de
-  - `notify_job_end(item, app_id, app_label, item_name, success, detail='')` — LA fin d'un traitement — le point unique des tâches (squelette commun, signal de l'imager).
+  - `notify_job_end(item, app_id, app_label, item_name, success, detail='', *, user=None)` — LA fin d'un traitement — le point unique des tâches (squelette commun, signal de l'imager).
   - `notify_job(user, app_label, item_name, success, detail='', url='')` — Notifie la fin (ou l'échec) d'un traitement, en respectant les préférences du profil.
 
 ### Ordre MANUEL de la file
@@ -2758,7 +2782,7 @@ Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas d
 
 ### Progression & ETA (front)
 
-Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale — la globale lit son adresse de la déclaration (`queue_context`) et démarre seule, une par domaine (2026-11-01)
+Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale — la globale lit son adresse de la déclaration (`queue_context`) et démarre seule, une par domaine (2026-11-01). Le bloc d'une card RENDU EN JS (`WamaApp.progressBlockHtml` / `paintProgress`, 2026-11-06) : la ligne d'un job dans l'échange de l'assistant et la card d'un modèle en cours d'installation
 
 - **Domicile** : `wama/common/static/common/js/wama-eta.js` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §10](../construction/suivi/PROJECT_STATUS.md)
 
@@ -3887,7 +3911,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `get_studio_run_status(user, run_id: int=None) -> dict` — Return the status of a studio run (or the last 5 runs if run_id is omitted).
   - `list_ai_models(user, app: str=None, task: str=None, modality: str=None, downloaded_only: bool=False, include_proposed: bool=False, limit: int=50, query: str=No…` — List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
   - `get_ai_model(user, model_key: str) -> dict` — Full catalogue record of ONE model (read-only). `model_key` = '<app>:<id>'
-  - `list_installations(user, kind: str='model', limit: int=20) -> dict` — The DATED history of model (or library) installations and uninstallations, most recent first:
+  - `list_installations(user, kind: str='model', limit: int=20, install_id: int=None) -> dict` — The DATED history of model (or library) installations and uninstallations, most recent first:
   - `search_models(user, query: str, limit: int=10, max_results: int=5) -> dict` — SEARCH HuggingFace for models matching `query` and record them as prospection
   - `prospect_models(user) -> dict` — PROSPECT for new models and record them as PROPOSALS — same verb as the page's
   - `get_install_options(user, model_key: str) -> dict` — INSTALL CHOICES of a proposal — same verb as the options the page shows before « Installer »

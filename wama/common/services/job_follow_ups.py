@@ -52,17 +52,30 @@ def _assistant_turns(note, surface: str):
             .order_by('-created_at', '-pk')[:ORIGIN_SCAN_TURNS])
 
 
+def family_model(family):
+    """Le modèle des éléments d'une FAMILLE : celui de son adapter de détail (une card d'app), ou
+    celui que déclare une famille suivie hors des files (`job_families` : une installation, un run
+    du Studio, 2026-11-06) ; None sinon."""
+    from wama.common.services import job_families
+    from wama.common.utils.detail_registry import DetailRegistry
+
+    entry = DetailRegistry.get(family)
+    if entry is not None:
+        return entry['model']
+    tracked = job_families.get(family)
+    return tracked.model_class() if tracked is not None else None
+
+
 def origin_turn(note, surface: str):
     """Le TOUR de cette surface où l'élément de la notification a été créé ou lancé — lu dans les
     étapes d'outils persistées (`tool_api.items_of_step`), du plus récent au plus ancien.
 
     L'élément est désigné par sa FAMILLE (clé du `DetailRegistry` : `audio_enhancer` et `enhancer`
-    sont deux modèles d'une même app) et son id ; la famille doit bien porter le modèle nommé par
-    la notification — sinon deux éléments de même numéro dans deux modèles se confondraient."""
-    from wama.common.utils.detail_registry import DetailRegistry
-
-    entry = DetailRegistry.get(note.app)
-    if entry is None or entry['model'].__name__ != note.object_type:
+    sont deux modèles d'une même app ; ou famille suivie, `family_model`) et son id ; la famille doit
+    bien porter le modèle nommé par la notification — sinon deux éléments de même numéro dans deux
+    modèles se confondraient."""
+    model = family_model(note.app)
+    if model is None or model.__name__ != note.object_type:
         return None
     try:
         wanted = (note.app, int(note.object_id))
@@ -94,6 +107,10 @@ def status_step(note, user) -> dict:
         args = {'job_id': note.object_id}
         return {'tool': 'dev_job_status', 'args': args,
                 'result': mcp_client.call_dev_tool(user, 'dev_job_status', args)}
+    from wama.common.services import job_families
+    tracked = job_families.get(note.app)
+    if tracked is not None:
+        return tracked.status_step(user, note.object_id)
     from wama.tool_api import execute_tool
     tool = f'get_{note.app}_status'
     return {'tool': tool, 'args': {}, 'result': execute_tool(tool, {}, user)}

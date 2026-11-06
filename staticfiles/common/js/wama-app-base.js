@@ -506,6 +506,45 @@
     return ((srv && srv.badges) || STATUS_BADGE)[s] || 'bg-secondary';
   }
 
+  // ── Le bloc « statut + progression » d'un élément rendu en JS (2026-11-06) ──────────────────
+  // La forme de `common/_card_progress.html` (badge, barre, %, ETA) pour ce que le serveur ne rend
+  // pas en gabarit. EXTRAIT du chat de l'assistant (sa ligne de suivi d'un job, 2026-10-20) au
+  // 2ᵉ lecteur : la card d'une installation dans le model manager. `job` est la ligne de suivi
+  // commune (`tool_api.job_progress`) : `status`, `progress`, `terminal`, `ok`,
+  // `estimated_seconds`. L'ETA est celle de `WamaEta` (débit observé), sous la clé `etaId`.
+  // Le libellé et la couleur d'un état sont lus sur `WamaApp` à l'appel (`statusLabel`,
+  // `statusBadge`) — ceux du serveur. Rend le pourcentage peint.
+  function progressBlockHtml(nameClass) {
+    return '<div class="d-flex align-items-center gap-2 small">' +
+      '<span class="badge status-badge"></span>' +
+      '<span class="' + (nameClass || 'wama-progress-name') + ' text-truncate"></span>' +
+      '<small class="ms-auto progress-text"></small></div>' +
+      '<div class="wama-progress-track mt-1"><div class="wama-progress-fill"></div></div>' +
+      '<span class="wama-eta d-block small"></span>';
+  }
+
+  function paintProgress(host, job, etaId) {
+    var app = global.WamaApp || {};
+    var pct = job.terminal && job.ok ? 100 : Math.max(0, Math.min(100, job.progress || 0));
+    var badge = host.querySelector('.status-badge');
+    badge.className = 'badge status-badge ' + (app.statusBadge ? app.statusBadge(job.status)
+                                                                : 'bg-secondary');
+    badge.textContent = app.statusLabel ? app.statusLabel(job.status) : job.status;
+    host.querySelector('.progress-text').textContent = pct + '%';
+    var fill = host.querySelector('.wama-progress-fill');
+    fill.style.width = pct + '%';
+    fill.classList.toggle('active', job.status === 'RUNNING');
+    fill.classList.toggle('is-frozen', job.status === 'FAILURE');
+    var eta = host.querySelector('.wama-eta');
+    if (global.WamaEta && eta && etaId) {
+      var est = global.WamaEta.update(etaId, { progress: pct, status: job.status,
+                                               seedSeconds: job.estimated_seconds });
+      global.WamaEta.render(eta, est);
+      if (job.terminal) global.WamaEta.reset(etaId);
+    }
+    return pct;
+  }
+
   // ── Réception « Envoyer vers app » du filemanager (source UNIQUE) ────────────────
   // Le filemanager émet `wama:fileimported` avec {app, ...} après avoir créé l'item dans
   // l'app cible. Chaque app recopiait le MÊME listener de 3 lignes dans son propre JS
@@ -1633,6 +1672,8 @@
     normalizeStatus: normalizeStatus,
     statusLabel: statusLabel,
     statusBadge: statusBadge,
+    progressBlockHtml: progressBlockHtml,
+    paintProgress: paintProgress,
     rememberedDomain: rememberedDomain,
     rememberDomain: rememberDomain,
   };

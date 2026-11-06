@@ -14,9 +14,11 @@ import json
 import logging
 import os
 import re
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 from wama.common.external_sources import github_release_of
+from wama.common.utils.disk_utils import tree_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +27,8 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
     """
     Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
 
-    `progress` : callback optionnel(status:str) pour remonter l'avancement.
+    `progress` : la mesure de l'installation (`InstallMeter`) — le statut en clair, et la part
+    reçue de la couche en cours (`completed`/`total` du flux).
     Retourne {'ok': bool, 'status': str} ou {'ok': False, 'error': str}.
 
     L'empreinte de chaque couche, c'est le démon qui la vérifie contre le manifeste du registre
@@ -54,15 +57,17 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
                 status = data.get('status')
                 verifying = verifying or str(status or '').startswith('verifying')
                 # Le flux porte `completed`/`total` par couche : un POURCENTAGE dans le
-                # statut (2026-08-18, install asynchrone) — le callback garde sa signature
-                # (str) et n'est appelé qu'au changement, donc ~100 appels par couche max.
+                # statut (2026-08-18, install asynchrone), et la part reçue à la mesure
+                # (2026-11-06) — n'est publié qu'au changement, donc ~100 fois par couche max.
                 total, fait = data.get('total'), data.get('completed')
                 if status and total and fait is not None:
                     status = f"{status} {int(fait * 100 / total)}%"
                 if status and status != last:
                     last = status
                     if progress:
-                        progress(status)
+                        if total and fait is not None:
+                            progress.received(fait, total)
+                        progress.say(status)
         return {'ok': True, 'status': last or 'success',
                 **({'verified': {'against': 'published', 'by': 'ollama'}} if verifying else {})}
     except Exception as e:
@@ -134,7 +139,7 @@ def _is_access_refusal(exc) -> bool:
 
 
 def pull_hf_model(repo_id: str, category: str, family: str | None = None,
-                  dry_run: bool = False, allow_patterns=None, progress=None, token=None):
+                  dry_run: bool = False, allow_patterns=None, meter=None, token=None):
     """
     Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
     `snapshot_download(cache_dir=…)` — on catégorise par `cache_dir`, SANS muter `HF_HUB_CACHE`
@@ -143,6 +148,8 @@ def pull_hf_model(repo_id: str, category: str, family: str | None = None,
     `dry_run` : ne télécharge pas, retourne juste le dossier cible (valide la logique de chemin).
     `token` : `accounts.api_keys.download_token` — le jeton de la personne qui lance, `False`
     si elle n'en a pas (jamais celui de l'instance à sa place), `None` sans utilisateur.
+    `meter` : la mesure de l'installation (`InstallMeter`) — le dossier `blobs/` du dépôt, où la
+    librairie écrit chaque fichier (`.incomplete` pendant son téléchargement), est mesuré.
     Retourne {'ok': bool, 'path'|'target'|'error': …}.
 
     NB : « téléchargé + catalogué » ≠ « utilisable dans l'app » — l'usage requiert un backend qui
@@ -162,8 +169,13 @@ def pull_hf_model(repo_id: str, category: str, family: str | None = None,
     try:
         from huggingface_hub import snapshot_download
         ignore = None if allow_patterns else format_duplicates(repo_id)
-        path = snapshot_download(repo_id=repo_id, cache_dir=target, allow_patterns=allow_patterns,
-                                 ignore_patterns=ignore or None, token=token)
+        # Le dossier du dépôt dans ce cache : `models--org--nom` (`repo_id.replace('/', '--')`,
+        # la convention que relit la découverte, `model_registry._snapshot_to_model`).
+        blobs = Path(target) / f"models--{repo_id.replace('/', '--')}" / 'blobs'
+        with (meter.measuring(blobs) if meter is not None else nullcontext()):
+            path = snapshot_download(repo_id=repo_id, cache_dir=target,
+                                     allow_patterns=allow_patterns,
+                                     ignore_patterns=ignore or None, token=token)
     except Exception as e:
         if _is_access_refusal(e):
             return {'ok': False, 'error': GATED_REFUSAL, 'reason': 'gated'}
@@ -763,7 +775,7 @@ def yolo_task_of(name: str) -> str:
     return next((d for suf, d in _YOLO_TASK_DIRS.items() if base.endswith(suf)), 'detect')
 
 
-def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
+def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False, meter=None):
     """
     Télécharge des poids YOLO OFFICIELS (assets GitHub Ultralytics, URL stable
     `releases/latest/download/<name>.pt`) DANS LE BON DOSSIER :
@@ -821,7 +833,7 @@ def pull_yolo_weights(name: str, timeout: int = 600, dry_run: bool = False):
     # la taille publiée est le contrôle le plus fort qui reste.
     res = download_asset(url, target, timeout=timeout, min_bytes=1_000_000, sha256=sha256,
                          size=0 if sha256 else asset['size'],
-                         proxies=proxies_for('github'))
+                         proxies=proxies_for('github'), meter=meter)
     return {**res, 'verified': verified} if res.get('ok') else res
 
 
@@ -913,7 +925,7 @@ def github_release_dir(spec: dict) -> str:
 _NO_SIZE_CAP = float('inf')
 
 
-def pull_github_asset(spec: dict, timeout: int = 600, dry_run: bool = False) -> dict:
+def pull_github_asset(spec: dict, timeout: int = 600, dry_run: bool = False, meter=None) -> dict:
     """Télécharge l'asset d'une version GitHub DANS LE BON DOSSIER (cf. l'en-tête du pilote).
 
     Le comportement de `pull_yolo_weights`, adapté : `dry_run` rend la cible ; un fichier déjà
@@ -939,7 +951,7 @@ def pull_github_asset(spec: dict, timeout: int = 600, dry_run: bool = False) -> 
     os.makedirs(release, exist_ok=True)
     from wama.common.external_sources import proxies_for
     res = download_asset(github_asset_url(spec), target, timeout=timeout,
-                         sha256=spec['sha256'], proxies=proxies_for('github'))
+                         sha256=spec['sha256'], proxies=proxies_for('github'), meter=meter)
     return {**res, 'verified': verified} if res.get('ok') else res
 
 
@@ -1143,7 +1155,7 @@ def remove_declared_files(model, include_shared: bool = False) -> dict:
 
 
 def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False,
-                        token: str | None = None) -> dict:
+                        token: str | None = None, meter=None) -> dict:
     """Les fichiers qu'une app DÉCLARE, posés SOUS son dossier (`target_dir`), chacun tiré de
     son ORIGINE déclarée (cf. l'en-tête du pilote).
 
@@ -1189,6 +1201,10 @@ def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False,
                 **({'member': f['origin']['member']} if 'member' in f['origin'] else {})}
 
     done = [provenance(f, t, 'kept') for f, t in kept]
+    if meter is not None:
+        # Le poids attendu est celui de TOUS les fichiers déclarés : un fichier gardé est reçu.
+        for f, _target in kept:
+            meter.add(f['size'])
     archives = {}                         # adresse de l'archive → chemin local, tirée UNE fois
     try:
         for f, target in missing:
@@ -1198,11 +1214,12 @@ def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False,
             headers = {'Authorization': f'Bearer {token}'} if hub and token else None
             if 'member' in origin:
                 res = _pull_archive_member(f, target, root, archives, timeout=timeout,
-                                           proxies=proxies_for(origin['source']), headers=headers)
+                                           proxies=proxies_for(origin['source']), headers=headers,
+                                           meter=meter)
             else:
                 res = download_asset(declared_file_url(origin), str(target), timeout=timeout,
                                      sha256=f['sha256'], proxies=proxies_for(origin['source']),
-                                     headers=headers)
+                                     headers=headers, meter=meter)
             if not res.get('ok'):
                 return {'ok': False, 'error': res.get('error'), 'files': done}
             done.append(provenance(f, target, 'downloaded'))
@@ -1217,14 +1234,15 @@ def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False,
 
 
 def _pull_archive_member(f: dict, target: Path, root: Path, archives: dict, *, timeout: int,
-                         proxies, headers) -> dict:
+                         proxies, headers, meter=None) -> dict:
     """Pose UN fichier déclaré tiré d'un membre d'archive zip (cf. l'en-tête du pilote).
 
     L'archive se télécharge par le geste commun (`download_asset`, son empreinte ÉPINGLÉE) sous
     le dossier de l'app, une seule fois pour tous ses membres (`archives`, que l'appelant vide).
     Le membre se lit par son NOM : sa taille déclarée est confrontée à celle de l'archive AVANT
     lecture (une archive qui annonce autre chose est refusée sans rien décompresser), puis son
-    empreinte au fil du flux ; écrit dans `<cible>.part`, remplacé atomiquement."""
+    empreinte au fil du flux ; écrit dans `<cible>.part`, remplacé atomiquement. La mesure
+    (`meter`) compte l'archive reçue, pas son extraction : les mêmes octets ne comptent qu'une fois."""
     import hashlib
     import zipfile
 
@@ -1233,7 +1251,7 @@ def _pull_archive_member(f: dict, target: Path, root: Path, archives: dict, *, t
     if url not in archives:
         local = str(root / f".archive-{origin['archive_sha256'][:12].lower()}.zip")
         res = download_asset(url, local, timeout=timeout, sha256=origin['archive_sha256'],
-                             proxies=proxies, headers=headers)
+                             proxies=proxies, headers=headers, meter=meter)
         if not res.get('ok'):
             return res
         archives[url] = local
@@ -1264,8 +1282,90 @@ def _pull_archive_member(f: dict, target: Path, root: Path, archives: dict, *, t
                                       f"{e}) : {url}"}
 
 
+class InstallMeter:
+    """L'AVANCEMENT d'une installation : ce qui est reçu, rapporté au poids attendu (2026-11-06).
+
+    Demande de Fabien : « vérifie qu'on a une barre de progression à l'installation d'un modèle ».
+    Il n'y en avait pas : la page montrait un voile et une phrase, et seul Ollama y mettait un
+    pourcentage — le Hub, GitHub, les fichiers déclarés restaient « téléchargement… » jusqu'à la
+    fin. Une seule mesure pour tous les pilotes, lue là où chacun reçoit ses octets :
+      • un pilote qui tient sa boucle (`download_asset` : yolo, github, files et leurs membres
+        d'archive) les compte (`add`) ;
+      • un pilote qui délègue à une librairie (`snapshot_download`, dont les barres par fichier ne
+        se branchent pas — `tqdm_class` « n'est pas passé à chaque téléchargement ») fait mesurer
+        le dossier où elle écrit, `.incomplete` compris (`measuring`) ;
+      • Ollama annonce `completed`/`total` de la couche en cours (`received`).
+    `expected_bytes` : le poids de la garde d'espace (`install_weight_gb`) ; inconnu, la mesure
+    rend les octets reçus sans pourcentage. Le pourcentage plafonne à 99 tant que l'empreinte
+    n'est pas vérifiée : 100 %, c'est la fin de l'installation, pas celle du téléchargement.
+    `report(état)` reçoit `{status, pct?, done_gb, total_gb?}` — au plus une fois par
+    `every_s`, et à chaque changement d'étape."""
+
+    def __init__(self, report, expected_bytes=None, *, every_s: float = 1.0):
+        self.report = report
+        self.expected = int(expected_bytes) if expected_bytes else None
+        self.every_s = every_s
+        self.status = ''
+        self.done = 0
+        self._total = None              # le total d'une couche (Ollama), sinon le poids attendu
+        self._last = 0.0
+
+    def state(self) -> dict:
+        total = self._total or self.expected
+        out = {'status': self.status, 'done_gb': round(self.done / 1024 ** 3, 3)}
+        if total:
+            out['total_gb'] = round(total / 1024 ** 3, 3)
+            out['pct'] = min(99, int(self.done * 100 / total))
+        return out
+
+    def _publish(self, force=False):
+        import time
+        now = time.monotonic()
+        if force or now - self._last >= self.every_s:
+            self._last = now
+            self.report(self.state())
+
+    def say(self, status: str):
+        """L'étape en cours, en clair (« téléchargement org/nom… », « enregistrement… »)."""
+        self.status = status
+        self._publish(force=True)
+
+    def add(self, n: int):
+        """`n` octets de plus reçus (la boucle d'un pilote)."""
+        self.done += n
+        self._publish()
+
+    def received(self, done: int, total: int):
+        """Ce qu'une source annonce elle-même : `done` octets sur `total` (la couche Ollama)."""
+        self.done, self._total = done, total
+        self._publish()
+
+    @contextmanager
+    def measuring(self, path, every_s: float = 2.0):
+        """Mesure `path` pendant que le bloc tourne (un fil, arrêté à la sortie du bloc) : les
+        octets reçus SONT ce qu'il contient — un fichier déjà là compte, puisqu'il ne sera pas
+        retiré (la librairie reprend un `.incomplete`, saute un fichier complet)."""
+        import threading
+        stop = threading.Event()
+
+        def sample():
+            while not stop.wait(every_s):
+                self.done = tree_bytes(path)
+                self._publish()
+
+        watcher = threading.Thread(target=sample, daemon=True, name='install-meter')
+        watcher.start()
+        try:
+            yield self
+        finally:
+            stop.set()
+            watcher.join(timeout=every_s + 1)
+            self.done = tree_bytes(path)
+
+
 def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int = 0,
-                   sha256: str = '', size: int = 0, proxies=None, headers=None) -> dict:
+                   sha256: str = '', size: int = 0, proxies=None, headers=None,
+                   meter: InstallMeter = None) -> dict:
     """Télécharge UN fichier publié (asset de version GitHub…) vers `target`, sans jamais laisser
     un fichier partiel à sa place : écriture dans `<target>.part`, contrôles, puis remplacement
     atomique. Retourne {'ok': True, 'path', 'url', 'sha256'} (l'empreinte calculée au fil du
@@ -1285,6 +1385,7 @@ def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int 
     `proxies` : ceux de la source déclarée (`external_sources.proxies_for`) ; None = l'environnement.
     `headers` : ceux de la requête (le jeton d'un dépôt à accès contrôlé) — `requests` ne les
     renvoie pas vers un autre hôte quand le Hub redirige vers son stockage.
+    `meter` : la mesure de l'installation (`InstallMeter`), qui compte chaque bloc reçu.
     """
     import hashlib
 
@@ -1300,6 +1401,8 @@ def download_asset(url: str, target: str, *, timeout: int = 600, min_bytes: int 
                 for chunk in r.iter_content(chunk_size=1 << 20):
                     fh.write(chunk)
                     digest.update(chunk)
+                    if meter is not None:
+                        meter.add(len(chunk))
         received = os.path.getsize(tmp)
         if received < min_bytes:
             os.remove(tmp)
@@ -1489,8 +1592,14 @@ def _persist_variant_choice(cand, variant_ref: str, variant_file: str):
     info['prospect'] = prospect
     cand.extra_info = info
     cand.save(update_fields=['extra_info'])
-
     # La garde d'espace se calcule sur le POIDS DU CHOIX, pas sur les poids pleins.
+    return _choice_weight_gb(cand, variant_ref, variant_file)
+
+
+def _choice_weight_gb(cand, variant_ref: str, variant_file: str):
+    """Le poids en Go d'un choix de variante du candidat (None = inconnu) — celui que la garde
+    d'espace compte (`_persist_variant_choice`) et que la mesure attend (`install_weight_gb`)."""
+    prospect = (cand.extra_info or {}).get('prospect') or {}
     variantes = {v['repo_id']: v for v in (prospect.get('quant_variants') or [])}
     if variant_file:
         # Un fichier du dépôt du candidat lui-même (dépôt GGUF) ou d'une variante.
@@ -1532,6 +1641,24 @@ def variant_owner_keys(repo: str) -> list[str]:
     rows = AIModel.objects.filter(is_proposed=True,
                                   extra_info__prospect__quant_variants__contains=[{'repo_id': repo}])
     return list(rows.order_by('model_key').values_list('model_key', flat=True))
+
+
+def install_weight_gb(row):
+    """Le poids en Go de ce que l'installation de `row` va TIRER, ou None — un seul calcul pour la
+    garde d'espace (`request_install`) et pour la mesure de l'avancement (`InstallMeter`, dans la
+    tâche), qui l'attendent tous deux (2026-11-06).
+
+    Candidat : le poids de la variante CHOISIE (persistée par `_persist_variant_choice`, c'est elle
+    que la tâche tire), sinon son relevé (`disk_gb`), sinon son descripteur. Ligne de catalogue :
+    son relevé, sinon le descripteur dérivé de sa déclaration."""
+    if row.is_proposed:
+        prospect = (row.extra_info or {}).get('prospect') or {}
+        chosen = prospect.get('chosen_variant') if row.source != 'ollama' else None
+        gb = (_choice_weight_gb(row, chosen.get('ref') or '', chosen.get('file') or '')
+              if chosen and chosen.get('ref') else row.disk_gb)
+        return gb or weight_for_spec(prospect.get('spec') or {'kind': 'ollama', 'ref': row.name})
+    spec = spec_for_catalog_row(row)
+    return row.disk_gb or (weight_for_spec(spec) if spec else None)
 
 
 def request_install(model_key: str, *, force: bool = False, variant_ref: str = '',
@@ -1638,8 +1765,10 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
         # fonction de poids interroger pour SA source. Le relevé de la prospection (`disk_gb`) ou
         # le choix de variante priment quand ils existent — ils sont déjà mesurés, et pour une
         # variante quantisée c'est LE poids du choix, que le descripteur canonique ignore.
+        # `needed_gb` : le poids du choix fait à l'instant (inconnu : None) ; sinon le calcul
+        # partagé avec la mesure de l'avancement (`install_weight_gb`), sur le choix persisté.
         ref = cand.name
-        needed = needed_gb or weight_for_spec(cand_spec or {'kind': 'ollama', 'ref': cand.name})
+        needed = needed_gb or install_weight_gb(cand)
         task, target = install_proposed_task, cand
     else:
         # LIGNE DE CATALOGUE non téléchargée (2026-08-27) : l'app déclare l'emplacement
@@ -1663,7 +1792,7 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
                     'error': "Ce modèle ne déclare pas d'emplacement d'installation "
                              "(platform_ref/install_dir) — il se téléchargera au premier usage."}
         ref = row.hf_repo or row.name
-        needed = row.disk_gb or weight_for_spec(spec_for_catalog_row(row))
+        needed = install_weight_gb(row)
         task, target = install_catalog_task, row
 
     garde = disk_space_guard(ref, reclaim_gb=reclaim_gb, force=force, needed_gb=needed)
@@ -1687,8 +1816,18 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
     # `user_id` : le téléchargement se fera avec le jeton de CETTE personne (2026-09-27,
     # `accounts.api_keys.download_token`) — la tâche relit la clé, qui ne transite jamais.
     started = dispatch_install(task, target, user_id=getattr(user, 'pk', None), via=via)
+    # `install_id` : l'événement DATÉ de cette installation (`InstallEvent`), celui que la tâche
+    # reprendra (`install_history.open_event`) — l'élément que suivent la ligne de l'échange de
+    # l'assistant et la notification de sa fin (2026-11-06).
+    from .install_history import open_event
+    try:
+        opened = open_event('model', target.model_key)
+    except Exception:            # le journal est best-effort : il ne fait jamais échouer la demande
+        logger.warning("[request_install] événement illisible pour %s", target.model_key,
+                       exc_info=True)
+        opened = None
     return {'ok': True, 'started': True, 'model_key': target.model_key,
-            'task_id': started.id}
+            'task_id': started.id, **({'install_id': opened.pk} if opened else {})}
 
 
 def dispatch_install(task, row, *, user_id=None, via=''):
@@ -1703,7 +1842,7 @@ def dispatch_install(task, row, *, user_id=None, via=''):
     return task.delay(row.model_key, user_id=user_id)
 
 
-def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
+def install_candidate(cand, meter=None, token=None, owner=None) -> dict:
     """
     Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
     la tâche Celery (`install_proposed_task`, chemin normal depuis le 2026-08-18) et
@@ -1712,7 +1851,7 @@ def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
     parce que le 507/forçage est un dialogue utilisateur.
 
     Retourne {'ok': True, 'installed': nom} ou {'ok': False, 'error': …[, 'restored',
-    'replaced']}. `progress(status:str)` : avancement du pull (avec pourcentage).
+    'replaced']}. `meter` : la mesure de l'avancement (`InstallMeter`) — étapes et octets reçus.
     `owner` : l'auteur du modèle qui naît (`install_owner`), `None` = système.
     """
     from ..models import AIModel
@@ -1723,11 +1862,11 @@ def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
     # `seed_hf_successors`, 2026-10-10) s'installe à côté de l'ancien, qui reste en place.
     spec = (cand.extra_info or {}).get('prospect', {}).get('spec')
     if spec and spec.get('kind') and spec['kind'] != 'ollama':
-        if progress:
+        if meter:
             origin = {'github': 'GitHub', 'yolo': 'GitHub',
                       'files': 'sources déclarées'}.get(spec['kind'], 'HuggingFace')
-            progress(f"téléchargement {spec.get('ref')} ({origin})…")
-        res = install_from_spec(spec, token=token, owner=owner)
+            meter.say(f"téléchargement {spec.get('ref')} ({origin})…")
+        res = install_from_spec(spec, token=token, owner=owner, meter=meter)
         if not res.get('ok'):
             return {'ok': False, 'error': res.get('error', 'installation échouée')}
         # Une MISE À JOUR installée remplace l'ancienne version partout où elle était choisie
@@ -1745,8 +1884,8 @@ def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
     if remplace:
         # REMPLACEMENT : l'espace du nouveau n'est disponible qu'APRÈS retrait de l'ancien —
         # séquence désinstallation → installation (décision 2026-08-04, PROSPECTION_PIPELINE.md).
-        if progress:
-            progress(f"retrait de {remplace}…")
+        if meter:
+            meter.say(f"retrait de {remplace}…")
         sup = delete_ollama_model(remplace)
         if not sup.get('ok'):
             return {'ok': False,
@@ -1758,7 +1897,7 @@ def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
     # candidat Hugging Face, `hf.co/<dépôt>:<quantification>` — `prospector.spec_for_choice`,
     # 2026-10-10), sinon celui du candidat Ollama, comme avant.
     pull_name = ((spec or {}).get('ref') if (spec or {}).get('kind') == 'ollama' else '') or cand.name
-    res = pull_ollama_model(pull_name, progress=progress)
+    res = pull_ollama_model(pull_name, progress=meter)
     if not res.get('ok') and rollback:
         # L'ancien a été retiré et le nouveau n'est pas venu : on restaure. C'est possible
         # sans sauvegarde précisément parce que `ollama pull` EST le chemin de restauration
@@ -1776,8 +1915,8 @@ def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
     # Re-synchronise pour que le modèle réel apparaisse, pose sa provenance (manifeste au
     # corpus — cette branche l'oubliait jusqu'au 2026-09-18 : aucune ligne `ollama:*` n'avait
     # de manifeste), puis retire le candidat.
-    if progress:
-        progress("enregistrement au catalogue…")
+    if meter:
+        meter.say("enregistrement au catalogue…")
     # La TÂCHE du candidat voyage avec le descripteur (2026-09-19) : c'est `record_after_install`
     # qui la pose, avec ce qu'elle implique (modalités, entrées par défaut). Le candidat Ollama
     # la porte depuis sa découverte par RÔLE (`prospect_ollama`, `capabilities={'task': …}`) ;
@@ -2071,16 +2210,9 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '',
                                               "chargé en mémoire — le décharger d'abord."}
             marked += sharing
 
-            # ⚠ `not f.is_symlink()` — sans lui, l'espace annoncé est le DOUBLE du réel
-            # (2026-09-04) : dans un cache HF, chaque poids existe une fois dans `blobs/` et une
-            # fois comme LIEN dans `snapshots/`, et `rglob` + `is_file()` suit les liens. Mesuré
-            # sur le dossier plutôt que lu dans `disk_gb`, que les modèles d'app laissent à 0.
-            try:
-                measured = sum(f.stat().st_size for f in target.rglob('*')
-                               if f.is_file() and not f.is_symlink()) / (1024 ** 3)
-                freed_gb = measured or freed_gb
-            except OSError:
-                pass
+            # Mesuré sur le dossier plutôt que lu dans `disk_gb`, que les modèles d'app laissent à
+            # 0 — liens exclus (`tree_bytes`), sans quoi l'espace annoncé est le DOUBLE du réel.
+            freed_gb = tree_bytes(target) / (1024 ** 3) or freed_gb
             shutil.rmtree(target)
             locks = target.parent / '.locks' / target.name
             if locks.is_dir():
@@ -2226,7 +2358,7 @@ def install_owner(user_id):
     return user
 
 
-def install_from_spec(spec: dict, token=None, owner=None) -> dict:
+def install_from_spec(spec: dict, token=None, owner=None, meter=None) -> dict:
     """
     Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
     hardcodés par type. Le spec peut être construit par l'UI, par la prospection, ou par
@@ -2256,6 +2388,7 @@ def install_from_spec(spec: dict, token=None, owner=None) -> dict:
     DESSEIN — un spec est déclaratif et circule (prospection, assistant) ; un secret, jamais.
     `owner` : l'auteur des lignes que l'installation fait naître (`install_owner`), hors du spec
     pour la même raison — `None` = système.
+    `meter` : la mesure de l'avancement (`InstallMeter`), passée au pilote qui reçoit les octets.
     """
     spec = spec or {}
     kind = spec.get('kind')
@@ -2273,20 +2406,20 @@ def install_from_spec(spec: dict, token=None, owner=None) -> dict:
         logger.info("install_from_spec %s:%s — %s", kind, ref, spec['note'])
 
     if kind == 'ollama':
-        res = pull_ollama_model(ref)
+        res = pull_ollama_model(ref, progress=meter)
     elif kind == 'yolo':
-        res = pull_yolo_weights(ref)
+        res = pull_yolo_weights(ref, meter=meter)
     elif kind == 'github':
-        res = pull_github_asset(spec)
+        res = pull_github_asset(spec, meter=meter)
     elif kind == 'files':
-        res = pull_declared_files(spec, token=token)
+        res = pull_declared_files(spec, token=token, meter=meter)
     elif kind == 'hf':
         if not spec.get('category'):
             return {'ok': False, 'error': "spec.category requis pour kind='hf'"}
         res = pull_hf_model(ref, spec['category'], spec.get('family'),
                             allow_patterns=(spec.get('allow_patterns')
                                             or patterns_from_composition(spec.get('composition'))),
-                            token=token)
+                            token=token, meter=meter)
     else:
         return {'ok': False,
                 'error': f"spec.kind inconnu: {kind!r} (ollama|hf|yolo|github|files)"}

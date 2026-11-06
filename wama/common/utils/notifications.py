@@ -196,7 +196,7 @@ def notify_job_collaborators(item, app_label, item_name, success, detail='', app
         return 0
 
 
-def notify_job_end(item, app_id, app_label, item_name, success, detail=''):
+def notify_job_end(item, app_id, app_label, item_name, success, detail='', *, user=None):
     """LA fin d'un traitement — le point unique des tâches (squelette commun, signal de l'imager).
 
     Pour le PROPRIÉTAIRE : l'e-mail (`notify_job`, préférences `notify_email` + `notify_on`) et,
@@ -205,9 +205,11 @@ def notify_job_end(item, app_id, app_label, item_name, success, detail=''):
     sans SMTP, rien. Elle DÉSIGNE l'élément (`app`, `item`) : c'est ce que relève la passerelle de
     canaux pour poster la fin dans le fil d'où la tâche a été demandée (`ROADMAP §19.2`).
     Puis ceux qui COLLABORENT (E3). Fail-safe : une notification ne fait jamais échouer une tâche.
+    `user` : le destinataire d'un élément qui ne nomme pas son propriétaire — une installation
+    (`InstallEvent` vaut pour l'instance) est notifiée à qui l'a demandée (2026-11-06).
     """
     try:
-        user = getattr(item, 'user', None)
+        user = user or getattr(item, 'user', None)
         notify_job(user, app_label, item_name, success, detail=detail)
         profile = getattr(user, 'profile', None)
         if profile is not None and profile.wants_in_app_notification(success):

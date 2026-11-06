@@ -697,18 +697,28 @@ MECHANISMS = (
               "Les options d'installation disent ce qui TOURNE ici et la recommandation (la plus "
               "précise qui tient sur la carte), pour la page et l'assistant ; une désinstallation "
               "retire des choix des apps (option cochée), une MISE À JOUR installée succède à "
-              "l'ancienne version partout où elle était choisie (`succession.py`, 2026-10-29)",
+              "l'ancienne version partout où elle était choisie (`succession.py`, 2026-10-29). "
+              "L'AVANCEMENT (2026-11-06) : une mesure pour tous les pilotes (`InstallMeter`) — "
+              "octets comptés par `download_asset`, dossier `blobs/` mesuré pendant "
+              "`snapshot_download`, `completed/total` d'Ollama —, rapportés au poids de la garde "
+              "d'espace (`install_weight_gb`), publiés avec l'événement de l'installation",
               'wama/model_manager/services/model_installer.py', '',
               # Route `library` (install_library) : voie pip ici, voie VENDOR (dépôt épinglé au
               # commit + correctif, ROADMAP D-a, 2026-09-30) dans son exécuteur délégué.
               annexes=('wama/model_manager/services/vendor_installer.py',
                        'wama/model_manager/services/succession.py',
+                       'wama/common/utils/disk_utils.py',
                        'wama/common/tests/tests_install_route.py')),
     Mechanism('install_history', 'Journal des installations',
               "Date chaque installation et désinstallation (modèle, librairie) avec son issue et "
               "sa VOIE (model manager, assistant, marcheur d'app, ligne de commande), aux points "
               "uniques de la route ; couche « Installations » du calendrier, inscrite par "
-              "`register_instance_layer`. Best-effort : n'échoue jamais une installation",
+              "`register_instance_layer` — une installation en cours y a sa fin PRÉVUE par le "
+              "débit observé. Depuis le 2026-11-06, l'événement est l'ÉLÉMENT suivi d'une "
+              "installation : sa ligne (`progress_row` — la card du model manager, l'échange de "
+              "l'assistant, famille `model_manager` de `job_families`) et sa fin notifiée à qui "
+              "l'a demandée (`notify_end` → `notify_job_end`). Best-effort : n'échoue jamais une "
+              "installation",
               'wama/model_manager/services/install_history.py', 'docs/construction/ia/WAMA_MEMORY.md'),
     Mechanism('vision_probe', 'Sonde vision',
               "Décrit une image via un modèle multimodal Ollama local — le SEUL client de vision "
@@ -1441,11 +1451,23 @@ MECHANISMS = (
               "Sortie, au tour comme au rechargement du fil) ; depuis le 2026-11-05, un LOT lancé y "
               "est UNE ligne — l'état de sa card mère (`tool_api.batch_progress`), un seul aperçu "
               "qui suit la dernière fille finie — et UNE fin racontée quand plus rien n'y bouge "
-              "(`_tell_batch`), au-delà de 20 éléments seuls « + N autres » vers leur file",
+              "(`_tell_batch`), au-delà de 20 éléments seuls « + N autres » vers leur file ; "
+              "depuis le 2026-11-06, un élément qui n'est pas une card aussi (`job_families`)",
               'wama/common/services/job_follow_ups.py', 'docs/construction/suivi/ROADMAP.md §19.2',
               annexes=('wama/gateway/core.py', 'wama/common/static/common/js/wama-assistant-chat.js',
                        'wama/common/tests/tests_job_follow_ups_web.py'),
               depends_on=('conversation_store', 'notifications')),
+    Mechanism('job_families', "Familles suivies hors des files",
+              "Un élément qui n'est pas une card — une installation de modèle (`InstallEvent`), "
+              "une exécution du Studio (`StudioRun`) — suivi comme une card par l'assistant et le "
+              "calendrier (2026-11-06) : l'app qui POSSÈDE son modèle inscrit sa famille dans son "
+              "`ready()` (modèle, outils qui le désignent par `item_id`, ligne de suivi au contrat "
+              "de `job_progress`, geste « statut » rejoué à sa fin). Lu par `tool_api.job_progress` "
+              "et `items_of_step`, `job_follow_ups` (origine, statut) et le calendrier (début et "
+              "avancement d'un élément en cours)",
+              'wama/common/services/job_families.py', 'docs/construction/suivi/ROADMAP.md §19.2',
+              annexes=('wama/studio/services/run_progress.py',),
+              depends_on=('job_follow_ups',)),
     Mechanism('source_ingest', 'Ingest de source',
               "Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. "
               "⭐ Depuis le 2026-10-13 (décision de Fabien) : DÈS LA CRÉATION, hors requête — "
@@ -2526,7 +2548,9 @@ MECHANISMS = (
     Mechanism('progress_ui', 'Progression & ETA (front)',
               "Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale — la "
               "globale lit son adresse de la déclaration (`queue_context`) et démarre seule, une "
-              "par domaine (2026-11-01)",
+              "par domaine (2026-11-01). Le bloc d'une card RENDU EN JS (`WamaApp.progressBlockHtml`"
+              " / `paintProgress`, 2026-11-06) : la ligne d'un job dans l'échange de l'assistant et "
+              "la card d'un modèle en cours d'installation",
               'wama/common/static/common/js/wama-eta.js', 'docs/construction/suivi/PROJECT_STATUS.md §10',
               annexes=('wama/common/static/common/js/wama-global-progress.js',
                        'wama/common/templates/common/_global_progress.html',
@@ -3416,7 +3440,9 @@ MECHANISMS = (
 #: retire du backlog « non rattachés » ; ce qui y reste est donc VRAIMENT à trancher. Un module
 #: assumé qui gagne des consommateurs multi-apps doit repasser en `Mechanism` (ou en annexe).
 ASSUMED_LOCAL = {
-    'wama/common/utils/disk_utils.py': "plomberie disque (1 consommateur common)",
+    # `disk_utils.py` a QUITTÉ cette liste le 2026-11-06 : sa somme des tailles sous un dossier
+    # (`tree_bytes`) sert la mesure d'une installation, la désinstallation, la découverte d'un
+    # snapshot et la purge d'un dossier de travail — annexe du mécanisme `model_installer`.
     'wama/common/utils/format_policy.py': "politique de formats de POIDS de modèle — chaîne modèles",
     'wama/common/utils/html_render.py': ("rendu HTML→PDF par Chromium — converter, avatar 3D (lanceur), export "
                                          "PDF des pages de l'accueil (2026-10-07)"),

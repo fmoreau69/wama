@@ -97,6 +97,15 @@ print('COUNTERPROOF <nom>: failures =', failures,
   `sys.modules` et contamine la contre-épreuve suivante du même processus. ✅ Importer le module
   de test AVANT le patch (`import wama.….tests_x as t ; assert t.f is m.f`), et une
   contre-épreuve par processus. *Un vert après un patch accuse d'abord l'ordre des imports.*
+- ✅ **Muter une LIGNE (une condition, un argument, un appel retiré), sans écrire sur le disque :
+  `mutate_in_process.py`, à côté de ce skill** (2026-11-06). `mock.patch` remplace une fonction
+  entière ; quand la garde porte sur une ligne À L'INTÉRIEUR, le module se charge, dans le seul
+  processus de la contre-épreuve, depuis son texte muté (chercheur d'import en tête de
+  `sys.meta_path`), et le TEXTE du fichier se mute toujours à sa lecture (`Path.read_text`) — le
+  `.js` servi d'un banc V8, la source qu'une garde inspecte (vécu le jour même : muter le seul
+  import laissait verte une garde qui relit la source). Une mutation par processus, décrite en JSON (`path`, `old` à une occurrence, `new`,
+  `labels`, `args`) ; ROUGE = code de sortie non nul. Après le passage, vérifier que l'empreinte
+  des fichiers visés n'a pas bougé (un autre auteur peut, lui, les avoir changés : le dire).
 
 ## 3. Lire le résultat, et ce qu'il dit quand il est VERT
 
@@ -152,6 +161,12 @@ print('COUNTERPROOF <nom>: failures =', failures,
   d'attribut (`mock.patch`, local au processus) ; quand seule une édition atteint la brique, la
   faire dans une COPIE isolée (`git worktree add` de HEAD, harnais de `AGENTS.md` : `.env` et
   migrations recopiés), jamais dans l'arbre où d'autres lancent leurs tests.
+  🔴 **Récidive le 2026-11-06, règle lue et pourtant contournée** : un pilote de 21 mutations
+  ÉCRIVAIT chaque mutation dans l'arbre (copie, remplacement, restauration à l'octet) — dont une
+  sur le `.js` SERVI. `ps` a montré trois suites d'autres instances en cours : arrêté pendant la
+  première (SIGINT, le `finally` a restauré), empreintes revérifiées. Ce qui manquait n'était pas
+  la règle mais l'OUTIL qui la rend facile : `mutate_in_process.py` (§2), qui mute une ligne sans
+  toucher au disque. ✅ Avant tout passage : `ps -eo pid,etime,args | grep "manage.py test"`.
 - **2026-10-21 — une fonction LIÉE À L'IMPORT échappe au patch d'attribut.** La garde de
   l'écrivain du niveau d'un compte importait `set_account_tier` en tête de module
   (`from wama.accounts.permissions import set_account_tier`) : neutraliser l'attribut du module

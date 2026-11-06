@@ -31,6 +31,33 @@ class DiskSpaceCheck:
     is_warning: bool = False
 
 
+def tree_bytes(path) -> int:
+    """Octets des fichiers sous `path` (un fichier : sa taille ; absent : 0) — un LIEN n'est pas
+    compté : dans un cache HF, chaque poids existe une fois dans `blobs/` et une fois comme lien
+    dans `snapshots/` (mesuré le 2026-09-04 : l'espace annoncé à la désinstallation était le double
+    du réel). Domicile unique depuis le 2026-11-06 — la mesure d'avancement d'une installation, la
+    désinstallation, la purge d'un dossier de travail et la découverte d'un snapshot recalculaient
+    chacune la même somme."""
+    from pathlib import Path
+    root = Path(path)
+    try:
+        if root.is_file():
+            return root.stat().st_size
+    except OSError:
+        return 0
+    total = 0
+    try:
+        for f in root.rglob('*'):
+            try:
+                if f.is_file() and not f.is_symlink():
+                    total += f.stat().st_size
+            except OSError:
+                continue          # un `.incomplete` renommé entre la liste et la mesure
+    except OSError:
+        return total
+    return total
+
+
 def get_disk_space(path: str = None) -> Optional[dict]:
     """
     Get disk space information.

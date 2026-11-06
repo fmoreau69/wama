@@ -1203,6 +1203,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     <h6 class="model-name mb-1">${model.name}</h6>
                     <p class="model-desc mb-2">${truncate(model.description, 60)}</p>
+                    ${mmInstallSlot(model)}
                     ${cardSource(model).origin ? `<div class="model-meta mb-2" data-card-origin><i class="fas fa-cloud me-1"></i>${WamaApp.escapeHtml(cardSource(model).origin)}</div>` : ''}
 
                     ${model.is_proposed ? `
@@ -1327,43 +1328,74 @@ document.addEventListener('DOMContentLoaded', function() {
         applyFilters();
         applySort();
         if (typeof mmReselect === 'function') mmReselect();
+        mmPaintInstalls();
     }
 
     // Actions de prospection partagées (cards + inspecteur).
-    // Suit l'avancement d'une installation (tâche Celery, cache Redis) jusqu'au verdict —
-    // sur la brique COMMUNE `WamaApp.Poller` (wama-app-base.js, boucle résiliente), pas
-    // de setInterval refait à la main. Motif (2026-08-18) : le pull synchrone (18 Go)
-    // dépassait le timeout du proxy Apache — le navigateur recevait une page HTML
-    // (« Unexpected token '<' ») pendant que le serveur continuait en aveugle.
-    function mmProspectPoll(id) {
-        const url = '{% url "model_manager:api_prospect_install_progress" %}?model_id='
-            + encodeURIComponent(id);   // URL complète : sans motif /0/, Poller la garde telle quelle
-        let ticks = 0;
-        const poller = new WamaApp.Poller({
-            urlTemplate: url,
-            interval: 2000,
-            onData: function (pid, data) {
-                const p = data.progress;
-                if (++ticks > 1800) {   // ~1 h : cache RUNNING périmé (worker tué)
-                    poller.stop(pid); hideLoading();
-                    alert("L'installation dépasse 1 h : voir logs/wama.log et la file Celery.");
-                    return;
-                }
-                if (!p) return;         // la tâche n'a pas encore publié
-                if (p.state === 'SUCCESS') { poller.stop(pid); hideLoading(); loadModels(); return; }
-                if (p.state === 'FAILURE') {
-                    poller.stop(pid); hideLoading();
-                    alert('Échec : ' + (p.error || 'inconnu')); loadModels(); return;
-                }
-                showLoading('Installation ' + (p.name || '') + ' — ' + (p.status || '…'));
-            },
-            onGiveUp: function () {
-                hideLoading();
-                alert("Suivi interrompu (réseau) — l'installation continue côté serveur ; "
-                    + 'recharger la page pour reprendre le suivi.');
-            },
-        });
-        poller.start(id);
+    // ── LES INSTALLATIONS EN COURS, sur la card de leur modèle (2026-11-06) ──────────────────
+    // Demande de Fabien : une barre de progression à l'installation. Il n'y en avait pas : un voile
+    // couvrait la page avec une phrase d'état, une installation à la fois, perdue au F5, et celles
+    // que lançait l'assistant n'apparaissaient nulle part. La card de l'élément porte désormais le
+    // bloc COMMUN (`WamaApp.progressBlockHtml` / `paintProgress` : badge, barre, %, ETA de
+    // `WamaEta`) et l'étape en clair, sur la ligne de suivi du serveur (`install_history`,
+    // `?since=` : ce qui tourne et ce qui a fini depuis le passage précédent). La boucle est la
+    // brique COMMUNE `WamaApp.Poller`, jamais un setInterval (motif du 2026-08-18 : un pull
+    // synchrone de 18 Go dépassait le délai du proxy). Plusieurs installations se suivent à la fois.
+    const mmInstalls = {};        // clé du modèle → ligne de suivi en cours
+    let mmInstallSince = '';      // l'heure du SERVEUR au passage précédent
+    let mmInstallPoller = null;
+
+    function mmInstallSlot(model) {
+        return `<div class="mm-install mb-2" data-install-for="${WamaApp.escapeHtml(model.model_key || model.id)}"></div>`;
+    }
+
+    function mmPaintInstall(row) {
+        const slot = Array.prototype.find.call(modelsGrid.querySelectorAll('[data-install-for]'),
+            function (el) { return el.dataset.installFor === row.model_key; });
+        if (!slot) return;
+        if (!slot.firstChild) slot.innerHTML = WamaApp.progressBlockHtml();
+        WamaApp.paintProgress(slot, row, 'mm-install:' + row.id);
+        const gb = row.total_gb ? ` · ${row.done_gb || 0} / ${row.total_gb} Go`
+                                : (row.done_gb ? ` · ${row.done_gb} Go` : '');
+        slot.querySelector('.wama-progress-name').textContent = (row.step || '') + gb;
+    }
+
+    function mmPaintInstalls() {
+        Object.keys(mmInstalls).forEach(function (key) { mmPaintInstall(mmInstalls[key]); });
+    }
+
+    function mmFollowInstalls() {
+        if (!mmInstallPoller) {
+            mmInstallPoller = new WamaApp.Poller({
+                urlTemplate: function () {
+                    return '{% url "model_manager:api_prospect_install_progress" %}'
+                        + (mmInstallSince ? '?since=' + encodeURIComponent(mmInstallSince) : '');
+                },
+                interval: 2000,
+                onData: function (pid, data) {
+                    mmInstallSince = data.now || mmInstallSince;
+                    let ended = false;
+                    (data.installs || []).forEach(function (row) {
+                        if (row.terminal) {
+                            // L'issue d'une installation que la page suivait — dite une fois.
+                            if (mmInstalls[row.model_key]) {
+                                delete mmInstalls[row.model_key];
+                                ended = true;
+                                WamaApp.toast(row.ok ? `${row.label} : terminée`
+                                                     : `${row.label} : échec — ${row.error || 'inconnu'}`,
+                                              row.ok ? 'success' : 'danger');
+                            }
+                            return;
+                        }
+                        mmInstalls[row.model_key] = row;
+                        mmPaintInstall(row);
+                    });
+                    if (ended) loadModels();
+                    if (!Object.keys(mmInstalls).length) mmInstallPoller.stop(pid);
+                },
+            });
+        }
+        mmInstallPoller.start('installs');
     }
     // POST d'installation (avec le choix de variante éventuel), 507-forçage et suivi compris.
     async function mmProspectInstallPost(id, extra) {
@@ -1375,7 +1407,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify(Object.assign({ model_id: id }, extra || {}))
             });
             const data = await r.json();
-            if (data.success) { mmProspectPoll(id); return; }   // l'overlay vit avec le poller
+            if (data.success) { hideLoading(); mmFollowInstalls(); return; }   // la barre est sur la card
             // 507 = garde d'espace disque. On propose le forçage plutôt que de laisser
             // l'utilisateur devant un échec sec, mais JAMAIS par défaut : sur un volume
             // presque plein, remplir le disque casse aussi les journaux et Postgres.
@@ -1389,7 +1421,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         body: JSON.stringify(Object.assign({ model_id: id, force: true }, extra || {}))
                     });
                     const d2 = await r2.json();
-                    if (d2.success) { mmProspectPoll(id); return; }
+                    if (d2.success) { hideLoading(); mmFollowInstalls(); return; }
                     alert('Échec : ' + (d2.error || 'inconnu'));
                 }
                 hideLoading();
@@ -1820,7 +1852,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ catalog_key: key })
             });
             const data = await r.json();
-            if (data.success) { mmProspectPoll(key); return; }
+            if (data.success) { hideLoading(); mmFollowInstalls(); return; }
             if (r.status === 507 && data.force_possible) {
                 if (confirm((data.error || 'Espace insuffisant.')
                     + '\n\nInstaller quand même ? Le disque risque la saturation.')) {
@@ -1830,7 +1862,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         body: JSON.stringify({ catalog_key: key, force: true })
                     });
                     const d2 = await r2.json();
-                    if (d2.success) { mmProspectPoll(key); return; }
+                    if (d2.success) { hideLoading(); mmFollowInstalls(); return; }
                     alert('Échec : ' + (d2.error || 'inconnu'));
                 }
                 hideLoading();
@@ -2943,6 +2975,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initial load - non-blocking
     loadModels();
     if (CAN_MANAGE) loadBackupStatus();
+    // Les installations déjà en cours (un F5, l'assistant, une app qui attend son modèle) : leur
+    // barre reprend sur leur card. La route est celle des gestes de gestion (`is_admin_or_dev`).
+    if (CAN_MANAGE) mmFollowInstalls();
     // (L'espace disque : premier relevé par sa boucle commune, plus bas — `immediate`.)
     // La reprise d'affichage des miroirs (modèles / médias) se fait plus bas, juste
     // après la création des deux UI — voir createMirrorBackupUI.

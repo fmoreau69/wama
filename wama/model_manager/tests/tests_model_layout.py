@@ -203,11 +203,14 @@ class ArithmetiqueDUnCacheHFTest(TestCase):
         return base, octets
 
     def test_le_calcul_de_l_installeur_ne_compte_PAS_le_lien(self):
+        """Lu sur le COMPORTEMENT depuis le 2026-11-06 : la somme vit dans `disk_utils.tree_bytes`
+        (désinstallation, mesure d'une installation, découverte d'un snapshot), que l'installeur
+        appelle — la garde lisait le texte de `model_installer`."""
         from wama.model_manager.services import model_installer as mi
-        import inspect
-        source = inspect.getsource(mi)
-        self.assertIn('not f.is_symlink()', source,
-                      "l'espace libéré doit exclure les liens, sinon il annonce le double")
+        with tempfile.TemporaryDirectory() as tmp:
+            base, octets = self._cache(tmp)
+            self.assertEqual(octets, mi.tree_bytes(base),
+                             "l'espace libéré doit exclure les liens, sinon il annonce le double")
 
     def test_un_rglob_naif_compte_bien_en_DOUBLE(self):
         """Contre-épreuve : la garde n'est pas décorative, l'erreur est réelle."""

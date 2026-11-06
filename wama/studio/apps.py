@@ -23,3 +23,10 @@ class StudioConfig(AppConfig):
         from wama.common.services.journal import enregistrer_source
         from .models import StudioRun
         enregistrer_source('studio', StudioRun)
+        # Une exécution est un élément SUIVI (2026-11-06) : sa barre sous la réponse de l'assistant
+        # qui l'a lancée, sa fin racontée dans ce fil, son avancement au calendrier.
+        from wama.common.services.job_families import JobFamily, register
+        register(JobFamily(key='studio', model='wama.studio.models.StudioRun',
+                           row='wama.studio.services.run_progress.job_row',
+                           status_tool='get_studio_run_status', status_arg='run_id',
+                           tools=('run_studio_pipeline',)))

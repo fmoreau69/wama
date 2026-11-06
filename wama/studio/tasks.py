@@ -55,6 +55,29 @@ POLL_INTERVAL_S = 3
 NODE_TIMEOUT_S = 30 * 60
 
 
+def _run_ended(run, ok: bool, detail: str = '', notify: bool = True) -> None:
+    """La FIN d'un run, par les points communs des traitements (2026-11-06) — best-effort, comme
+    dans le squelette de tâche :
+      • son signal d'exécution (`run_outcome.record`, `produit`/`echec`) : c'est la fin que DATE le
+        calendrier (il dessinait chaque run à sa création, en bloc indicatif de 15 min) ;
+      • LA fin d'un traitement (`notify_job_end`) : l'e-mail que le Studio envoyait seul jusque-là
+        (`notify_job`), plus la notification dans WAMA qui DÉSIGNE le run — l'échange de
+        l'assistant la raconte dans le fil d'où le pipeline a été lancé (famille `studio`).
+    `notify` : l'élément d'un lot ne prévient pas, c'est le run du lot qui le fait."""
+    try:
+        from wama.common.services.run_outcome import record
+        record('studio', run, 'produit' if ok else 'echec')
+    except Exception:
+        pass
+    if not notify:
+        return
+    try:
+        from wama.common.utils.notifications import notify_job_end
+        notify_job_end(run, 'studio', 'Studio', str(run), ok, detail=detail or '')
+    except Exception:
+        pass
+
+
 def _console(user_id, message, level='info'):
     try:
         push_console_line(user_id, message, level=level, app='studio')
@@ -332,12 +355,7 @@ def _execute_lot(run, elements, task_id):
     run.save(update_fields=['status', 'error_message', 'processing_seconds'])
     _console(user.id, f"Studio run #{run.pk} : lot terminé — {len(elements) - len(failed)}/"
                       f"{len(elements)} réussi(s)", level='error' if failed else 'info')
-    try:
-        from wama.common.utils.notifications import notify_job
-        notify_job(user, 'Studio', f"pipeline #{run.pk}", not failed,
-                   **({'detail': run.error_message} if failed else {}))
-    except Exception:
-        pass
+    _run_ended(run, not failed, run.error_message if failed else '')
     return {'run': run.pk, 'status': run.status, 'error': run.error_message}
 
 
@@ -653,12 +671,7 @@ def _execute_run(run, task_id, notify=True):
         run.processing_seconds = time.time() - t0
         run.save(update_fields=['status', 'processing_seconds', 'node_states'])
         _console(user.id, f"Studio run #{run.pk} : pipeline terminé ✔")
-        try:
-            from wama.common.utils.notifications import notify_job
-            if notify:      # l'élément d'un lot : c'est le run du lot qui prévient
-                notify_job(user, 'Studio', f"pipeline #{run.pk}", True)
-        except Exception:
-            pass
+        _run_ended(run, True, notify=notify)
         return {'run': run.pk, 'status': JOB_SUCCESS}
 
     except Exception as exc:
@@ -675,10 +688,5 @@ def _execute_run(run, task_id, notify=True):
         run.processing_seconds = time.time() - t0
         run.save(update_fields=['status', 'error_message', 'processing_seconds', 'node_states'])
         _console(user.id, f"Studio run #{run.pk} : ÉCHEC — {exc}", level='error')
-        try:
-            from wama.common.utils.notifications import notify_job
-            if notify:
-                notify_job(user, 'Studio', f"pipeline #{run.pk}", False, detail=str(exc))
-        except Exception:
-            pass
+        _run_ended(run, False, str(exc), notify=notify)
         return {'run': run.pk, 'status': JOB_FAILURE, 'error': str(exc)}

@@ -417,13 +417,9 @@
     var row = document.createElement('div');
     row.className = 'wama-assistant-job';
     row.dataset.jobKey = jobKey(job);
-    row.innerHTML =
-      '<div class="d-flex align-items-center gap-2 small">' +
-      '<span class="badge status-badge"></span>' +
-      '<span class="wama-assistant-job-name text-truncate"></span>' +
-      '<small class="ms-auto progress-text"></small></div>' +
-      '<div class="wama-progress-track mt-1"><div class="wama-progress-fill"></div></div>' +
-      '<span class="wama-eta d-block small"></span>';
+    // Le bloc commun « statut + progression » (`WamaApp.progressBlockHtml`, celui de la card
+    // d'une installation du model manager — extrait d'ici le 2026-11-06).
+    row.innerHTML = global.WamaApp.progressBlockHtml('wama-assistant-job-name');
     row.querySelector('.wama-assistant-job-name').textContent = job.label || jobKey(job);
     this.paintJob(row, job);
     this.mountFaces(row, job);
@@ -642,10 +638,8 @@
   };
 
   Chat.prototype.paintJob = function (row, job) {
-    var pct = job.terminal && job.ok ? 100 : Math.max(0, Math.min(100, job.progress || 0));
-    var badge = row.querySelector('.status-badge');
-    badge.className = 'badge status-badge ' + statusBadge(job.status);
-    badge.textContent = statusLabel(job.status);
+    // Badge, barre, % et ETA : la peinture commune (`WamaApp.paintProgress`).
+    global.WamaApp.paintProgress(row, job, 'chat:' + jobKey(job));
     // Un élément qui ATTEND : la pastille « En file » de sa card (place, début et fin prévus).
     var oldChip = row.querySelector('.wama-queue-chip');
     if (oldChip) oldChip.remove();
@@ -653,19 +647,6 @@
     if (!job.terminal && job.queue && job.queue.state === 'queued' && global.WamaSchedule
         && global.WamaSchedule.queueChip) {
       row.appendChild(global.WamaSchedule.queueChip(job.queue));
-    }
-    row.querySelector('.progress-text').textContent = pct + '%';
-    var fill = row.querySelector('.wama-progress-fill');
-    fill.style.width = pct + '%';
-    fill.classList.toggle('active', job.status === 'RUNNING');
-    fill.classList.toggle('is-frozen', job.status === 'FAILURE');
-    var eta = row.querySelector('.wama-eta');
-    if (global.WamaEta && eta) {
-      var id = 'chat:' + jobKey(job);
-      var est = global.WamaEta.update(id, { progress: pct, status: job.status,
-                                           seedSeconds: job.estimated_seconds });
-      global.WamaEta.render(eta, est);
-      if (job.terminal) global.WamaEta.reset(id);
     }
     row.dataset.terminal = job.terminal ? '1' : '';
     // L'état que lisent les faces ; tout CHANGEMENT d'état rejoue leur face par défaut — en cours :

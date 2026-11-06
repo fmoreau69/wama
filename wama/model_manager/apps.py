@@ -73,6 +73,14 @@ class ModelManagerConfig(AppConfig):
         register_instance_layer(install_history.CALENDAR_LAYER,
                                 label=install_history.CALENDAR_LAYER_LABEL, app='model_manager',
                                 events=install_history.calendar_events)
+        # Une INSTALLATION est un élément suivi (2026-11-06) : sa ligne dans l'échange de
+        # l'assistant et sa fin racontée au fil (`job_families` ne connaît pas ses producteurs).
+        from wama.common.services.job_families import JobFamily, register
+        register(JobFamily(key=install_history.FAMILY,
+                           model='wama.model_manager.models.InstallEvent',
+                           row='wama.model_manager.services.install_history.job_row',
+                           status_tool='list_installations', status_arg='install_id',
+                           tools=('install_model',)))
 
         if any(cmd in sys.argv for cmd in self._SKIP_CMDS):
             return

@@ -404,7 +404,10 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   ne suit plus rien. ⚠ Le geste sur la page servie a trouvé ce que V8 ne voyait pas : la ligne est
   bâtie AVANT d'entrer dans l'échange, l'afficheur démarré là ne suivait jamais Pendant — il
   démarre au tour suivant. Preuves : gardes `tests_assistant_job_progress` (adresse portée, toute
-  famille suivie a son aperçu commun, ligne bâtie qui monte les faces, changement d'état),
+  famille d'app suivie — `TRIAD_SPECS` — a son aperçu commun, ligne bâtie qui monte les faces,
+  changement d'état ; *précisé le 2026-11-06 : une famille suivie HORS des files —
+  `common/services/job_families.py`, une installation de modèle, un run du Studio — a sa ligne et sa
+  fin racontée, pas encore d'aperçu, ⏳ `ROADMAP §19.2`*),
   `tests_cap_from_js.FaceViewerTest` (Entrée → Pendant → Sortie, onglet qui coupe le suivi, hôte
   parti) — six neutralisations, toutes rouges ; geste `common.preview_chat_job` (`ui_smoke_preview`)
   vert sur la prod, rouge à sa contre-épreuve (brique du chat servie sans le montage des faces) ;
