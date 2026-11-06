@@ -28703,8 +28703,8 @@ fonctionnelle PAR GÉNÉRATION depuis son manifeste ; empaqueter WAMA entier n'a
 - Aucun code touché. `check_docs` 0 cassée / 3850.
 
 §PASSATION — 2026-11-06, « trous de génération vus par la fermeture d'import » →
-`web-app-for-media-automation-65` (session présumée du palier « JUMELLES RECRÉÉES » du jour — identifiée
-par l'heure, pas par sa transcription : si elle répond qu'elle n'est pas la bonne, re-transmettre) :
+`web-app-for-media-automation-65` (l'auteure du palier « JUMELLES RECRÉÉES » du jour : sa transcription
+cite `a76a435c9` douze fois, son nom est lu dans sa fiche de session) :
 (1) la jumelle `converter_01` charge sa SOURCE au démarrage par `common/app_registry.py:1872` ;
 (2) `requires` du manifeste du converter = PyMuPDF seul, moteurs hors contrat de backend, donc rien
 d'où dériver les dépendances ; (3) la jumelle reproduit les couplages de la source (570 modules
