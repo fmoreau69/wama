@@ -2618,7 +2618,12 @@ def plan_model_integration(user, model: str) -> dict:
                              "sur le disque), il ne se crée pas depuis un manifeste",
                 'human_gesture': "prospection (scout/integrator) puis installation, "
                                  "puis manage.py sync_models"}
-    moteur = ((row.composition or {}).get('runtime') or {}).get('engine')
+    runtime = (row.composition or {}).get('runtime') or {}
+    moteur = runtime.get('engine')
+    # Une brique qui charge le modèle elle-même (`loaded_by`) EST sa route : la même règle que
+    # `backend_missing` — un modèle sans moteur Python (les gestes, exécutés au navigateur) n'a
+    # pas de manifeste à faire écrire (2026-11-06).
+    loader = runtime.get('loaded_by') or None
     sans_backend = backend_missing(row)
     libs = []
     try:
@@ -2630,11 +2635,11 @@ def plan_model_integration(user, model: str) -> dict:
         pass
     etat = {'catalogued': True, 'key': row.model_key, 'downloaded': row.is_downloaded,
             'engine': moteur, 'engine_registered': bool(moteur and moteur in engine_backends()),
-            'backend_missing': sans_backend, 'requires_libraries': libs}
+            'loaded_by': loader, 'backend_missing': sans_backend, 'requires_libraries': libs}
 
     if not row.is_downloaded:
         etape, geste = ("poids absents du disque", f"installation depuis le catalogue ({row.model_key})")
-    elif not moteur:
+    elif not moteur and not loader:
         etape = ("aucun moteur DÉCLARÉ : le modèle ne peut pas être routé vers un backend, "
                  "et le grisage automatique n'a pas de verdict à rendre")
         geste = (f"rôle `model` (dev_run_role, ou python wama-dev-ai/run_model_manifest.py "
@@ -2648,9 +2653,13 @@ def plan_model_integration(user, model: str) -> dict:
     elif any(not lg['installed_version'] for lg in libs):
         manquantes = [lg['dist'] for lg in libs if not lg['installed_version']]
         etape = f"runtime absent : {', '.join(manquantes)}"
-        geste = "ensure_backend_deps(<classe du backend>)   # validation humaine"
+        # Sans backend (`loaded_by`), le geste est celui de chaque librairie
+        # (`plan_library_integration`), pas l'installation des paquets d'un backend.
+        geste = ('   ;   '.join(plan_library_integration(user, d)['human_gesture'] for d in manquantes)
+                 if loader else "ensure_backend_deps(<classe du backend>)   # validation humaine")
     else:
-        etape, geste = ("rien à faire : catalogué, poids présents, moteur servi", None)
+        etape, geste = ("rien à faire : catalogué, poids présents, "
+                        + (f"chargé par {loader}" if loader else "moteur servi"), None)
     return {'model': row.model_key, 'state': etat, 'next_step': etape, 'human_gesture': geste}
 
 

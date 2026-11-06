@@ -100,6 +100,54 @@ class LoadedByTest(TestCase):
         self.assertIs(WhisperBackend, backend_for_model(_line(
             'huggingface:Systran/faster-whisper-large-v3', {'runtime': {'engine': 'faster-whisper'}})))
 
+    def test_the_backend_inventory_reads_the_same_rule(self):
+        """`app_backend_entries` est la lecture SANS import de `backend_for_model` : une ligne
+        `loaded_by` n'y fait pas apparaître le backend de son moteur. Contre-épreuve : la même
+        ligne sans `loaded_by`, sous une autre source, l'y fait apparaître."""
+        from wama.common.services.backend_inventory import app_backend_entries
+        from wama.model_manager.models import AIModel
+        for source, runtime in (('loaderprobe', {'engine': 'faster-whisper',
+                                                 'loaded_by': 'wama.common.utils.spoken_language'}),
+                                ('backendprobe', {'engine': 'faster-whisper'})):
+            AIModel.objects.create(model_key=f'{source}:tiny', name='tiny', model_type='speech',
+                                   source=source, composition={'runtime': runtime})
+        self.assertEqual([], app_backend_entries('loaderprobe'))
+        self.assertEqual(['wama.common.backends.whisper_backend'],
+                         [e.module for e in app_backend_entries('backendprobe')])
+
+    def _row(self, key, runtime, source='mediapipe_models'):
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.create(model_key=key, name=key, model_type='vision', source=source,
+                                      is_downloaded=True, composition={'runtime': runtime})
+
+    def test_the_assistant_does_not_send_a_loader_to_write_a_manifest(self):
+        """Le reconnaisseur de gestes n'a délibérément aucun moteur Python : l'outil de
+        l'assistant disait « aucun moteur DÉCLARÉ » et proposait d'écrire son manifeste.
+        Contre-épreuve : la même ligne sans `loaded_by` reçoit ce conseil."""
+        from wama.tool_api import plan_model_integration
+        self._row('mediapipe_models:loader', {'loaded_by': 'wama.common.scene_views'})
+        self._row('mediapipe_models:bare', {})
+        plan = plan_model_integration(None, 'mediapipe_models:loader')
+        self.assertEqual('wama.common.scene_views', plan['state']['loaded_by'])
+        self.assertIn('chargé par wama.common.scene_views', plan['next_step'])
+        self.assertIsNone(plan['human_gesture'])
+        self.assertIn('aucun moteur', plan_model_integration(None, 'mediapipe_models:bare')['next_step'])
+
+    def test_a_missing_library_of_a_loader_gets_the_library_gesture(self):
+        """Sans backend, « installer les paquets du backend » n'a pas de sens : le geste est celui
+        de la librairie (`plan_library_integration`)."""
+        from unittest import mock
+        from wama.tool_api import plan_model_integration
+        self._row('pytorch_download:loader', {'engine': 'lpips',
+                                              'loaded_by': 'wama.model_manager.services.bench'},
+                  source='pytorch_download')
+        absent = {'dist': 'lpips', 'seeded_in_corpus': True, 'installed_version': None,
+                  'in_registry': True}
+        with mock.patch('wama.tool_api._etat_librairie', lambda dist: dict(absent, dist=dist)):
+            plan = plan_model_integration(None, 'pytorch_download:loader')
+        self.assertIn('runtime absent : lpips', plan['next_step'])
+        self.assertEqual('manage.py install_library lpips --allow --apply', plan['human_gesture'])
+
     def test_a_model_loaded_by_a_module_is_not_condemned(self):
         from wama.common.backends.manager import backend_missing
         line = _line('pytorch_download:lpips-alexnet',

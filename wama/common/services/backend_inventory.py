@@ -369,11 +369,16 @@ def _class_backends(paquet_dir, prefixe: str) -> tuple:
 
 
 def _models_by_app() -> dict:
-    """{app: [(clé, backend_ref)]} depuis le CATALOGUE — jamais depuis les fichiers d'app.
+    """{app: [(clé, backend_ref, moteur)]} depuis le CATALOGUE — jamais depuis les fichiers d'app.
 
     Le catalogue est la source unique de lecture des méta-modèles (règle du dépôt) ; on lit
     donc `AIModel.source` (le lien app↔modèles, 91/91 mesuré le 02/08) et `backend_ref`
     quand un modèle nomme SON backend.
+
+    Le moteur rendu est celui par lequel un BACKEND rejoint le modèle : vide pour une ligne
+    qu'une brique charge elle-même (`loaded_by`, 2026-11-06), qui déclare pourtant son moteur —
+    la règle de `backends.manager.backend_for_model`, dont ce relevé est la lecture sans import.
+    Sans elle, Whisper tiny (`faster-whisper`) passait pour servi par le backend Whisper.
     """
     out = {}
     try:
@@ -383,7 +388,8 @@ def _models_by_app() -> dict:
         # dire. *Vérifier un nom de champ, ne jamais le deviner.*
         for m in AIModel.objects.all().only('model_key', 'source', 'backend_ref',
                                             'composition'):
-            engine = ((m.composition or {}).get('runtime') or {}).get('engine') or ''
+            runtime = (m.composition or {}).get('runtime') or {}
+            engine = '' if runtime.get('loaded_by') else (runtime.get('engine') or '')
             out.setdefault(m.source or '', []).append(
                 (m.model_key, getattr(m, 'backend_ref', '') or '', engine))
     except Exception as e:      # hors Django/base absente : l'inventaire reste utile sans

@@ -1798,7 +1798,9 @@ class ModelRegistry:
         Il se tirait au premier usage, sans ligne (le balayage générique l'écarte : le dossier de
         famille de Whisper appartient au transcriber, qui ne le déclarait pas)."""
         try:
-            from wama.common.backends.whisper_backend import whisper_base_model, whisper_folder
+            from wama.common.backends.whisper_backend import (
+                WhisperBackend, whisper_base_model, whisper_folder,
+            )
             from wama.common.utils.spoken_language import HF_REPO, MODEL_KEY, SIZE, model_folder
             installed = _check_hf_model_downloaded(whisper_folder(), HF_REPO)
             self._models[MODEL_KEY] = ModelInfo(
@@ -1821,10 +1823,10 @@ class ModelRegistry:
                             'install_dir': str(whisper_folder()),
                             **whisper_base_model(SIZE)},
                 # Aucun backend ne le charge : la brique commune, par chemin (`_model`). Son moteur
-                # est celui de large-v3, `faster-whisper` (2026-11-06) : la librairie que requiert
+                # est celui de large-v3, lu sur son backend (2026-11-06) : la librairie que requiert
                 # son manifeste en dérive, et `loaded_by` garde la route — le backend Whisper ne
                 # le sert pas (`backend_for_model`).
-                composition={'runtime': {'engine': 'faster-whisper',
+                composition={'runtime': {'engine': WhisperBackend.ENGINE,
                                          'loaded_by': 'wama.common.utils.spoken_language'}},
                 capabilities={'task': 'language-identification', 'modalities': ['audio'],
                               'inputs_required': ['work_audio'], 'languages': ['*']},

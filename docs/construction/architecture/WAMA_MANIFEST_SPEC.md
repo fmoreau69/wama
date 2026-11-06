@@ -659,7 +659,9 @@ déclare délibérément aucun. Trois conséquences, chacune tenue par une garde
 (`tests_model_loaded_by`, `tests_manifest_library.ModelLibrariesSinglePathTest`, contre-épreuves
 rouges) :
 - **le routage** : `backends.manager.backend_for_model` ne confie jamais une ligne `loaded_by` au
-  backend de son moteur (tiny n'est pas servi par `WhisperBackend`) — la règle de `backend_missing` ;
+  backend de son moteur (tiny n'est pas servi par `WhisperBackend`) — la règle de `backend_missing`,
+  et celle du relevé sans import du vivier (`backend_inventory._models_by_app`, que lisent
+  `inventory()` et `app_backend_entries`), ramené à la revérification ;
 - **une seule dérivation modèle → librairies** : `library_index.model_libraries` (l'exécutant, puis
   ses librairies), que lisent le manifeste de modèle (`builtin/model._requires_librairies`) et la
   jambe backends d'une app (`librairies_des_backends`, inchangée sur les dix apps, mesuré). Le
