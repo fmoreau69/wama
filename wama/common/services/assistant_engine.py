@@ -1708,8 +1708,9 @@ def _decider_lane(user, provider, llm_model, exclude: set) -> tuple:
 
     Un arbitre CHOISI (`council_decider`, réglage de l'assistant, 2026-10-29) arbitre toujours, même
     s'il a donné un avis : c'est le choix de l'utilisateur. C'est ainsi que l'ABONNEMENT Claude
-    arbitre — le tirage ne le retient jamais, les sous-agents l'excluent, et il y est appelé sans
-    outil (`_synthesise` : tour sans outil → `wama_tools=False`)."""
+    arbitre — le tirage ne le retient jamais (l'admission automatique l'écarte,
+    `cloud_models.allowed_cloud_keys`, 2026-11-06), les sous-agents l'excluent, et il y est appelé
+    sans outil (`_synthesise` : tour sans outil → `wama_tools=False`)."""
     from wama.common.utils.auto_model import is_auto
     chosen = assistant_settings(user).get('council_decider') if user is not None else None
     if not is_auto(chosen):

@@ -183,6 +183,95 @@ class CommonScaleTest(TestCase):
                          [m.model_key for m in AIModel.best_installed('llm', limit=2)])
 
 
+class SharedPopulationRankTest(TestCase):
+    """2026-11-06, demande de Fabien : l'étage du rang centile lisait le seul rang du PORTEUR. Le cas
+    mesuré sur le tirage de l'assistant : Gemma 4 31B portée par AA v5 (93 modèles, surtout
+    frontière : 2,2ᵉ centile), DeepSeek V4 Flash portée par l'Arena (72,2ᵉ sur 302) — l'Arena notant
+    les deux, Gemma devant. Chaque modèle se lit désormais dans la population la plus partagée."""
+
+    @staticmethod
+    def _rated(key, *ranks, vram=0, cloud=True):
+        """`ranks` : (échelle, valeur, rang) dans l'ordre de priorité des sources."""
+        m = _row(key, benchmark_index=ranks[0][1], scale=ranks[0][0], rank=ranks[0][2],
+                 cloud=cloud, vram=vram)
+        m.benchmark_meta['scales'] = [{'scale': s, 'value': v, 'direction': 'higher',
+                                       'percentile_rank': r} for s, v, r in ranks]
+        return m
+
+    def _measured_lot(self):
+        gemma = self._rated('albert:gemma-4-31b-it', ('aa_intelligence_index_v5', 4.4, 2.2),
+                            ('arena_elo_text', 1443.0, 79.1))
+        deepseek = self._rated('albert:deepseek-v4-flash-0731', ('arena_elo_text', 1431.8, 72.2))
+        qwen = self._rated('ilaas:qwen-3.8-27b', ('aa_intelligence_index_v5', 20.1, 22.6),
+                           ('arena_elo_text', 1438.4, 75.5))
+        mistral = self._rated('ilaas:mistral-small-4-119b', ('aa_intelligence_index_v5', 4.3, 1.1))
+        # Mesuré : l'Arena note huit modèles du lot, AA v5 cinq.
+        small = self._rated('albert:mistral-small-3-2-24b-instruct-2506',
+                            ('arena_elo_text', 1338.0, 40.1))
+        return gemma, deepseek, qwen, mistral, small
+
+    def test_the_measured_draw_reads_the_population_the_lot_shares(self):
+        lot = self._measured_lot()
+        values, proxy_vram = _quality_scalars(lot, None)
+        self.assertFalse(proxy_vram)
+        self.assertEqual([79.1, 72.2, 75.5, 1.1, 40.1], [values[id(m)] for m in lot])
+        best = _best_by_vram(lot, budget_gb=None, family=None, quality_intent=100)
+        self.assertEqual('albert:gemma-4-31b-it', best.model_key,
+                         "l'Arena classe Gemma devant DeepSeek : le rang de deux populations ne "
+                         "doit plus l'inverser")
+
+    def test_a_model_the_shared_scale_does_not_rate_keeps_its_own_rank(self):
+        lot = self._measured_lot()
+        values, _ = _quality_scalars(lot, None)
+        self.assertEqual(1.1, values[id(lot[3])])
+
+    def test_the_most_shared_population_wins_not_the_carrier(self):
+        """Le porteur (AA, prioritaire) ne décide plus seul : l'Arena note plus de modèles du lot."""
+        from wama.model_manager.services.benchmark_sync import shared_percentile_values
+        gemma, deepseek, qwen, mistral, small = lot = self._measured_lot()
+        self.assertEqual(79.1, shared_percentile_values(lot)[id(gemma)])
+        # Avec Mistral seul, c'est AA v5 qui note le plus de modèles du lot.
+        self.assertEqual(2.2, shared_percentile_values([gemma, mistral])[id(gemma)])
+        # Seule, Gemma est notée autant par l'une que par l'autre : l'ordre de ses échelles (la
+        # priorité des sources) tranche.
+        self.assertEqual(2.2, shared_percentile_values([gemma])[id(gemma)])
+
+    def test_a_row_synced_before_the_per_scale_rank_reads_its_carrier_rank(self):
+        legacy = _row('legacy', benchmark_index=26.2, scale='aa_intelligence_index', rank=80.0,
+                      scales=[('aa_intelligence_index', 26.2, 'higher')])
+        other = self._rated('other', ('arena_elo_text', 1400.0, 60.0))
+        values, _ = _quality_scalars([legacy, other], None)
+        self.assertEqual([80.0, 60.0], [values[id(m)] for m in (legacy, other)])
+
+    def test_the_sync_writes_a_rank_per_independent_scale(self):
+        """La synchro écrit le rang de CHAQUE échelle, dans la population de sa source — et aucun
+        rang pour une valeur auto-déclarée (règle du rang du porteur, 2026-10-10)."""
+        from wama.model_manager.services import benchmark_sync as bs
+        ident = ('qwen', (3, 8), 27.0)
+        other = ('other', (1,), 27.0)
+        sources = {
+            'aa': {'llm': [{'name': 'Qwen3.8 27B', 'slug': 'qwen3-8-27b', 'value': 20.1,
+                            'scale': 'aa_intelligence_index_v5', 'identity': ident,
+                            'family_scores': {}},
+                           {'name': 'Other 1', 'slug': 'other-1', 'value': 30.0,
+                            'scale': 'aa_intelligence_index_v5', 'identity': other,
+                            'family_scores': {}}]},
+            'arena': {'llm': [{'name': 'Qwen3.8-27B', 'elo': 1438.4, 'votes': 9, 'identity': ident},
+                              {'name': 'Other 1', 'elo': 1300.0, 'votes': 9, 'identity': other},
+                              {'name': 'Other 2', 'elo': 1200.0, 'votes': 9, 'identity': other}]}}
+        row = AIModel(model_key='ilaas:qwen-3.8-27b', name='qwen-3.8-27b')
+        benchmark, _ = bs._benchmark_for_category(row, 'llm', None, sources)
+        self.assertEqual([('aa_intelligence_index_v5', 0.0, 2), ('arena_elo_text', 66.7, 3)],
+                         [(s['scale'], s['percentile_rank'], s['population'])
+                          for s in benchmark['scales']])
+        self.assertEqual(0.0, benchmark['percentile_rank'], 'le rang du porteur est inchangé')
+
+        sources['aa']['llm'][0]['provenance'] = bs.PROVENANCE_SELF_DECLARED
+        benchmark, _ = bs._benchmark_for_category(row, 'llm', None, sources)
+        self.assertNotIn('percentile_rank', benchmark['scales'][0])
+        self.assertEqual(66.7, benchmark['scales'][1]['percentile_rank'])
+
+
 class LocalAndCloudAreDistinctTest(TestCase):
 
     def test_cloud_is_read_from_the_declared_field_not_from_vram(self):

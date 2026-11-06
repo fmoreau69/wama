@@ -1572,6 +1572,17 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   par `wama/common/tests/tests_password_autofill.py` : tout champ mot de passe des gabarits, du JS
   et des widgets Django DOIT déclarer `new-password` ou `current-password`. Même remède que les
   identifiants d'un dossier distant (`ROADMAP` §rclone, `3af80d55`).
+- **L'abonnement Claude Code sert quand on le NOMME, jamais au tirage — 2026-11-06** (décision de
+  Fabien : *« il vaut mieux une demande explicite de l'utilisateur pour passer par Claude, ce qui
+  existe déjà dans l'assistant avec ask_claude »*). Le choix des distants reste au PROFIL (niveau,
+  plafond d'hébergement — seul un compte qui autorise le cloud commercial y atteint) ; à
+  l'admission, une source `cost_tier == 'subscription'` n'ouvre rien au tirage AUTOMATIQUE
+  (`cloud_models.allowed_cloud_keys`), comme le payant sans `cloud_metered_auto`. Elle sert au
+  modèle CHOISI, à l'outil `ask_claude_code`, à l'arbitre choisi d'un council
+  (`council_decider`). Jusque-là, « le tirage ne le retient jamais » (`_decider_lane`) ne tenait
+  qu'à l'absence de NOTE de ses lignes — que la mesure du même jour leur donne
+  (`PROSPECTION_PIPELINE §Session du 2026-11-06`). Garde :
+  `tests_cloud_models.HostingCeilingTest.test_the_subscription_serves_on_request_never_at_the_automatic_draw`.
 - **Un fournisseur existe s'il est au registre — 2026-10-11** (chantier 5 de `WAMA_HARNESS.md`
   soldé). `llm_chat` refuse tout fournisseur hors registre avant l'appel
   (`llm_utils.declared_llm_source`) ; les six noms sans source (`openai`, `mistral`, `groq`,

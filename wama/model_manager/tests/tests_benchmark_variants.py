@@ -76,3 +76,40 @@ class SingleSizeAliasesTest(SimpleTestCase):
                  for key in ('albert:mistral-small-3-2-24b-instruct-2506', 'ilaas:mistral-small-4-119b')}
         self.assertEqual({'albert:mistral-small-3-2-24b-instruct-2506': ['Mistral Small 3.2 (2506)'],
                           'ilaas:mistral-small-4-119b': ['Mistral Small 4 (Reasoning)']}, found)
+
+
+class SubscriptionServedEntryTest(SimpleTestCase):
+    """Mesuré sur l'abonnement le 2026-11-06 : chaque alias de Claude Code sert un modèle (lu dans
+    `modelUsage`) à l'effort des réglages que lit le CLI (`high`). Sa ligne prend l'entrée d'AA de
+    CET effort — jamais la pire, que le choix conservateur lui donnerait sans déclaration."""
+
+    #: Les entrées d'AA du jour (relevées le 2026-11-06), toutes variantes d'effort.
+    OPUS = [{'slug': 'claude-opus-5-5-low', 'name': 'Claude Opus 5.5 (Low, Default Fallback)',
+             'value': 34.8},
+            {'slug': 'claude-opus-5-5-high', 'name': 'Claude Opus 5.5 (High, Default Fallback)',
+             'value': 51.8},
+            {'slug': 'claude-opus-5-5', 'name': 'Claude Opus 5.5 (Max, Default Fallback)',
+             'value': 59.1}]
+
+    def test_each_subscription_alias_designates_the_entry_of_its_served_effort(self):
+        entries = self.OPUS + [
+            {'slug': 'claude-sonnet-5-5-high', 'name': 'Claude Sonnet 5.5 (High, Default Fallback)'},
+            {'slug': 'claude-sonnet-5-5', 'name': 'Claude Sonnet 5.5 (Max, Default Fallback)'},
+            {'slug': 'claude-fable-5-1-high', 'name': 'Claude Fable 5.1 (High, Default Fallback)'},
+            {'slug': 'claude-fable-5-1', 'name': 'Claude Fable 5.1 (Max, Default Fallback)'}]
+        found = {key: [e['slug'] for e in bs._match_alias(bs.ALIAS[key], entries)]
+                 for key in ('claude_code:opus', 'claude_code:default', 'claude_code:sonnet',
+                             'claude_code:fable')}
+        self.assertEqual({'claude_code:opus': ['claude-opus-5-5-high'],
+                          'claude_code:default': ['claude-opus-5-5-high'],
+                          'claude_code:sonnet': ['claude-sonnet-5-5-high'],
+                          'claude_code:fable': ['claude-fable-5-1-high']}, found)
+
+    def test_the_subscription_line_is_rated_at_its_served_effort(self):
+        from ..models import AIModel
+        row = AIModel(model_key='claude_code:opus', name='Claude Code — Opus', model_type='llm')
+        benchmark, _ = bs._benchmark_for_category(
+            row, 'llm', bs.ALIAS['claude_code:opus'],
+            {'aa': {'llm': [dict(e, scale='aa_intelligence_index_v5', family_scores={})
+                            for e in self.OPUS]}})
+        self.assertEqual((51.8, 'alias'), (benchmark['value'], benchmark['matched_by']))

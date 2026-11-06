@@ -438,6 +438,11 @@ Bloc d'état 2026-07-11 archivé (`docs/construction/archive/ROADMAP_ARCHIVE_202
 > (Mistral Small 3.2 et 4) : 213 → 224 lignes notées. ⏳ À décider : le tirage de l'assistant passe à
 > `deepseek-v4-flash`, AA v5 notant gemma-4-31b au 2,2ᵉ centile — le rang centile compare deux
 > populations. Détail : `PROSPECTION_PIPELINE.md §Session du 2026-11-06`.
+> ✅ Tranché le soir même : le rang centile se lit dans la population la plus partagée du lot
+> (tirage revenu à gemma-4-31b, `WAMA_QUALITE §0`) ; Claude 5 MESURÉ sur l'abonnement (modèle servi
+> par alias, effort « high » des réglages du CLI) — les lignes `claude_code:*` sont notées, et
+> l'abonnement ne sert que nommé, jamais au tirage (`WAMA_LLM §2ter`). ⏳ L'effort par défaut de
+> l'API (`anthropic:*`) reste à mesurer.
 
 ### Concept
 Tâche Celery nocturne qui compare les modèles installés dans WAMA avec les dernières

@@ -268,7 +268,8 @@ def _quality_scalars(pool, family=None):
     def _family_score(m):
         return ((getattr(m, 'benchmark_meta', None) or {}).get('family_scores') or {}).get(family)
 
-    from .benchmark_sync import benchmarks_comparable, common_scale_values, orderable_value
+    from .benchmark_sync import (benchmarks_comparable, common_scale_values, orderable_value,
+                                 shared_percentile_values)
 
     batch = list(pool)
     if not batch:
@@ -319,10 +320,12 @@ def _quality_scalars(pool, family=None):
     # de la POPULATION de son banc, qui contient des modèles fermés qu'on ne fait pas tourner —
     # être médian chez AA n'est pas être médian chez soi. C'est un classement raisonnable entre
     # mondes, pas une mesure commune : c'est pourquoi il ne PRIME pas sur l'échelle unique.
-    ranked = [m for m in batch
-              if ((getattr(m, 'benchmark_meta', None) or {}).get('percentile_rank')) is not None]
+    # ⚠ Et chaque modèle s'y lit dans la population la plus PARTAGÉE du lot (2026-11-06) : le
+    # rang du seul porteur faisait comparer trois populations à des modèles que l'Arena notait
+    # presque tous (`benchmark_sync.shared_percentile_values`).
+    ranked = shared_percentile_values(batch)
     if ranked:
-        return ({id(m): m.benchmark_meta['percentile_rank'] for m in ranked}, False)
+        return ranked, False
 
     rated = [m for m in batch if m.quality_index is not None]
     if rated:

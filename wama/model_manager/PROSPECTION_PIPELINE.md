@@ -3905,6 +3905,36 @@ au rang centile et retient `albert:deepseek-v4-flash-0731` (72,2ᵉ centile de l
 sur l'Arena qui note les deux, gemma-4-31b (1 443) bat deepseek (1 432). Ce n'est pas l'appariement
 de ce jour (la synchro à blanc d'AVANT le montrait déjà, la synchro de nuit de 01:25 l'aurait
 écrit) : c'est la réserve écrite au rang centile — deux populations différentes ne se comparent pas.
+✅ **Revu le même soir (demande de Fabien)** : la synchro écrit le rang de chaque échelle, et l'étage
+lit chacun dans la population la plus partagée du lot (`shared_percentile_values`, détail et mesure
+`WAMA_QUALITE §0`, après « le rang centile est branché ») — Gemma 79,5 (Arena) devant DeepSeek 72,2,
+le tirage revient à `albert:gemma-4-31b-it`. Synchro réelle : `logs/benchmarks/sync_2026-11-06_per_scale_rank.log`.
+
+**La mesure de Claude 5 sur l'ABONNEMENT (même soir, demande de Fabien)** — par le chemin de WAMA
+(`claude_code.prepare`, sans utilisateur ni surface MCP, CLI 2.1.319), sans `--effort`, que WAMA ne
+passe pas :
+| alias | modèle servi (`modelUsage`) | réflexion, défaut / high / low (max) |
+|---|---|---|
+| `opus`, `default` | `claude-opus-5-5` | 395 / 349 / 178 (2 131) |
+| `sonnet` | `claude-sonnet-5-5` | 245 / 272 / 175 (énigme plus dure : la première ne départageait pas) |
+| `fable` | `claude-fable-5-1` | 329 / 346 / 204 |
+L'effort servi est celui des réglages que lit le CLI : `--debug` nomme le fichier
+`C:\Users\fmoreau\.claude\settings.json` (le compte de la machine), qui porte `effortLevel: high` ;
+la réflexion le corrobore. La sortie du CLI, elle, ne nomme jamais l'effort. D'où quatre `ALIAS`
+mesurés (`claude_code:*` → l'entrée AA « (High) » : Opus et défaut 51,8, Fable 47,2, Sonnet 41,5) —
+ces lignes n'avaient AUCUNE identité (alias sans version), donc aucune note. ⚠ Deux faits datés : un
+alias suit le dernier modèle, l'effort suit ce fichier — à remesurer après une sortie ou un
+changement de réglage. ⚠ **Ce que la mesure ne dit PAS** : l'effort par défaut de l'API (lignes
+`anthropic:*`) — le CLI envoie toujours le sien ; ces lignes gardent leur pire variante tant que
+l'API n'est pas mesurée (appel facturé).
+Noter l'abonnement le ferait gagner le tirage de l'assistant (Opus 5.5 en tête) pour un compte qui
+autorise le cloud commercial : décision de Fabien, *« il vaut mieux une demande explicite de
+l'utilisateur pour passer par Claude »* — l'admission automatique l'écarte désormais
+(`WAMA_LLM §2ter`, « L'abonnement Claude Code sert quand on le NOMME »). Synchro réelle :
+228 lignes notées (`logs/benchmarks/sync_2026-11-06_subscription.log`).
+⏳ Vu au passage, avant ce jour : les lignes Claude d'OpenRouter (`openrouter:anthropic/claude-*`)
+restent sans note — leur identifiant colle l'éditeur à la famille (`anthropicclaudeopus`, contre
+`claudeopus` au banc).
 
 ## Veille du 2026-11-06 : LIRE UNE PARTITION SCANNÉE (OMR) dans le Reader — moteurs possibles, rien d'installé
 

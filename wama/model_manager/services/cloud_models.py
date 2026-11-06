@@ -598,6 +598,12 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
       sans ce consentement. Le filtre lisait le tier de la SOURCE : aucun n'entrait jamais.
     - chez une source dont les gratuits exigent d'accepter l'entraînement
       (`free_models_need_data_reuse`), le tirage ne les retient qu'au DERNIER cran du plafond.
+    - une source servie sur ABONNEMENT (`cost_tier == 'subscription'` : Claude Code) n'entre
+      JAMAIS au tirage automatique (2026-11-06, décision de Fabien : « il vaut mieux une demande
+      explicite de l'utilisateur pour passer par Claude ») — elle sert quand on la NOMME : le
+      modèle choisi, l'outil `ask_claude_code`, l'arbitre choisi d'un council. Jusque-là, « le
+      tirage ne le retient jamais » (`assistant_engine._decider_lane`) ne tenait qu'à l'absence
+      de note de ses lignes ; la mesure de l'effort servi les note désormais.
     C'est ici, à l'ADMISSION, que le coût s'arbitre — pas dans le score du sélecteur.
 
     SATURATION (2026-10-13, `ROADMAP §8d` étape 2) : au tirage automatique, une source qui vient
@@ -620,7 +626,8 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
     # de clé existe : l'abonnement Claude Code est `developer_only`. Mesuré le 2026-09-16 — sans ce
     # filtre, un compte ordinaire portant une ligne `claude_code` voyait le modèle d'abonnement
     # dans le sélecteur commun, alors que la garde du moteur le lui refuse.
-    within = [s for s in llm_sources(user) if external_sources.hosting_within(s.hosting, ceiling)]
+    within = [s for s in llm_sources(user) if external_sources.hosting_within(s.hosting, ceiling)
+              and not (automatic and s.cost_tier == 'subscription')]
     ouvertes = {s.key for s in within}
     # Au tirage automatique, ces sources n'ouvrent que leurs modèles GRATUITS (coût par modèle)…
     free_only = {s.key for s in within

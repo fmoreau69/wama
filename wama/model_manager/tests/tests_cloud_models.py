@@ -647,6 +647,19 @@ class HostingCeilingTest(TestCase):
         self._set(cloud_metered_auto=True)
         self.assertEqual({'albert:chat'}, self._keys())
 
+    def test_the_subscription_serves_on_request_never_at_the_automatic_draw(self):
+        """2026-11-06, décision de Fabien : passer par Claude sur l'abonnement est une demande
+        EXPLICITE (modèle choisi, `ask_claude_code`, arbitre choisi). Ses lignes sont désormais
+        notées : seule l'admission les tient hors du tirage — même au plafond le plus haut."""
+        from wama.accounts.models import UserApiKey
+        from wama.accounts.permissions import set_account_tier
+        set_account_tier(self.user, 'developpeur')
+        UserApiKey.objects.create(user=self.user, source='claude_code', api_key='sk-ant-oat01-x',
+                                  open_models=['claude_code:opus'])
+        self._set(cloud_hosting_max='third_party', cloud_metered_auto=True)
+        self.assertIn('claude_code:opus', self._keys(automatic=False))
+        self.assertEqual({'albert:chat', 'anthropic:claude-x'}, self._keys())
+
     def test_a_private_ceiling_admits_no_source_yet(self):
         """Aucune source ne se déclare « privée » aujourd'hui : le plafond le plus bas ferme tout."""
         self._set(cloud_hosting_max='private')

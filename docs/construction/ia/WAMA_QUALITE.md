@@ -188,6 +188,22 @@ APRÈS la valeur brute, jamais avant : à échelle unique, le score exact dit pl
 ne perd personne au passage (il est écrit en même temps que `benchmark_index`, donc il couvre
 le même sous-ensemble). ⚠ Ses deux réserves restent entières et se redisent partout où il
 sert : il est **ordinal**, et il dépend de la **population de son banc**.
+⭐ **Et chaque modèle s'y lit dans la population la PLUS PARTAGÉE du lot (2026-11-06, demande de
+Fabien)** — l'étage lisait le seul rang du PORTEUR. Mesuré ce jour sur le tirage de l'assistant :
+douze modèles notés comparaient trois populations, AA v5 (93 modèles, surtout frontière : Gemma 4
+31B au 2,2ᵉ centile), AA v4 périmé (570) et l'Arena (302 : DeepSeek V4 Flash au 72,2ᵉ), alors que
+l'Arena en notait huit et classait Gemma (1 443) devant DeepSeek (1 432) — le tirage retenait
+DeepSeek. La synchro écrit désormais le rang de CHAQUE échelle indépendante (`scales[*]
+.percentile_rank`, dans la population de sa source) ; `benchmark_sync.shared_percentile_values`
+lit pour chacun le rang de l'échelle qui note le plus de modèles du lot (à égalité, la priorité des
+sources), le rang du porteur pour une ligne synchronisée avant. C'est la règle de l'échelle
+commune prolongée au sous-ensemble qu'une échelle couvre : deux modèles notés sur une même échelle
+s'y comparent dans la même population, donc dans l'ordre de leurs valeurs ; le rang ne fait le
+pont qu'avec ceux qu'elle ne note pas. Après la synchro réelle : Gemma 79,5 (Arena), DeepSeek 72,2,
+le tirage revient à `albert:gemma-4-31b-it`. Gardes : `tests_signal_scale_subset.SharedPopulationRankTest`.
+⏳ Reste vu au passage : le sous-indice `coding` (tirage de développement) n'est plus porté que
+par des notes AA v4 PÉRIMÉES — AA v5 ne publie pas cette famille (`legal`, `engineering`…), donc
+`ilaas:qwen-3.6-35b-instruct` (v4, 41,9) l'emporte sur une note qu'aucune source ne confirme plus.
 
 **L'étage a priori a désormais des valeurs DÉCLARÉES, avec leur source** (2026-10-03, décision de
 Fabien) : `model_quality.DECLARED_PRIORS`, lu par la synchro quand la découverte ne dit rien.

@@ -257,6 +257,22 @@ ALIAS: dict[str, str] = {
     # et AA n'en note qu'UNE entrée, sans aucune autre taille de la série (mesuré ce jour).
     'albert:mistral-small-3-2-24b-instruct-2506': 'Mistral Small 3.2 (2506)',
     'ilaas:mistral-small-4-119b': 'mistral-small-4',
+    # 2026-11-06, MESURÉ sur l'abonnement par le chemin de WAMA (`claude_code.prepare`, sans
+    # `--effort`, demande de Fabien) : les lignes de Claude Code sont des ALIAS du CLI, sans nom ni version —
+    # aucune identité, aucune note. Le modèle servi se lit dans la réponse (`modelUsage`) :
+    # `opus` et `default` → claude-opus-5-5, `sonnet` → claude-sonnet-5-5, `fable` →
+    # claude-fable-5-1. L'effort est celui des réglages que lit le CLI (`--debug` : le fichier
+    # `settings.json` du compte de la machine, `effortLevel: high`), corroboré par la réflexion
+    # sur une même question — Opus : défaut 395 jetons, high 349, low 178, max 2 131 ; Fable :
+    # 329 / 346 / 204 ; Sonnet : 245 / 272 / 175. Une entrée d'AA par ligne, donc l'égalité de
+    # slug (l'Arena, qui les nomme autrement, n'y entre pas). ⚠ Deux faits datés : un alias suit le
+    # dernier modèle, et l'effort suit ce fichier — se remesurent après une sortie de modèle ou un
+    # changement de réglage (`llm_gateway_check --provider claude_code --user <compte> --live` dit
+    # le modèle servi).
+    'claude_code:opus': 'claude-opus-5-5-high',
+    'claude_code:default': 'claude-opus-5-5-high',
+    'claude_code:sonnet': 'claude-sonnet-5-5-high',
+    'claude_code:fable': 'claude-fable-5-1-high',
 }
 
 #: VARIANTE SERVIE, confirmée par une mesure : model_key → le mot qui qualifie la variante que la
@@ -1337,6 +1353,45 @@ def common_scale_values(pool) -> dict:
     return {}
 
 
+def shared_percentile_values(pool) -> dict:
+    """`{id(m): rang centile}` sur les modèles du lot qui en portent un, chacun lu dans la
+    population la PLUS PARTAGÉE du lot parmi celles qui le notent — `{}` si personne n'a de rang.
+
+    L'étage inter-échelles de la sélection (`model_selector._quality_scalars`), revu le 2026-11-06
+    (demande de Fabien). Il lisait le seul rang du PORTEUR : mesuré ce jour sur le tirage de
+    l'assistant, douze modèles notés y comparaient trois populations — AA v5 (93 modèles, surtout
+    frontière : Gemma 4 31B au 2,2ᵉ centile), AA v4 périmé (570) et l'Arena (302 : DeepSeek V4
+    Flash au 72,2ᵉ) —, alors que l'Arena notait sept d'entre eux et classait Gemma (1 443) devant
+    DeepSeek (1 432). C'est la règle de `common_scale_values` (« une valeur sur une même échelle
+    dit plus qu'un rang sur deux »), prolongée au sous-ensemble qu'une échelle couvre : deux
+    modèles notés sur une même échelle s'y comparent dans la même population, donc dans l'ordre
+    de leurs valeurs ; le rang ne fait le pont qu'avec ceux qu'elle ne note pas.
+
+    L'échelle d'un modèle est celle qui note le plus de modèles du lot parmi les siennes ; à
+    égalité, l'ordre de ses échelles (la priorité des sources). Une ligne synchronisée avant le
+    rang par échelle garde le rang de son porteur. ⚠ Les deux réserves de `percentile_rank`
+    restent entières : ordinal, et dépendant de la population de son banc."""
+    def ranks(m):
+        meta = getattr(m, 'benchmark_meta', None) or {}
+        out = [(e.get('scale'), e['percentile_rank']) for e in meta.get('scales') or []
+               if e.get('percentile_rank') is not None]
+        if not out and meta.get('percentile_rank') is not None:
+            out = [(meta.get('scale'), meta['percentile_rank'])]
+        return out
+
+    carried = {id(m): ranks(m) for m in pool}
+    coverage = {}
+    for entries in carried.values():
+        for scale in {s for s, _ in entries}:
+            coverage[scale] = coverage.get(scale, 0) + 1
+    values = {}
+    for key, entries in carried.items():
+        if entries:
+            best = max(range(len(entries)), key=lambda i: (coverage[entries[i][0]], -i))
+            values[key] = entries[best][1]
+    return values
+
+
 # ── Catégorie d'un modèle du catalogue ───────────────────────────────────────────────────
 
 def _local_categories(m):
@@ -1771,8 +1826,18 @@ def _benchmark_for_category(m, cat, alias, sources):
         chosen = _choose_variant(variant_name, candidates, s['value'], _direction(s, candidates[0]))
         benchmark.update(s['meta'](chosen, candidates))
         if s['value'](chosen) is not None:
-            scales.append({'scale': s['scale'](chosen, cat), 'value': s['value'](chosen),
-                           'direction': _direction(s, chosen)})
+            entry = {'scale': s['scale'](chosen, cat), 'value': s['value'](chosen),
+                     'direction': _direction(s, chosen)}
+            # Le rang dans la population de CETTE échelle (2026-11-06, demande de Fabien) : le
+            # porteur seul ne donnait que le sien, et deux porteurs se comparaient par deux
+            # populations alors que l'Arena les classait tous deux (`shared_percentile_values`).
+            # Même règle que le rang du porteur : un banc indépendant seulement.
+            if (chosen.get('provenance') or s.get('provenance')) == PROVENANCE_INDEPENDENT:
+                population = sources.get(s['key'], {}).get(cat, [])
+                entry['percentile_rank'] = percentile_rank(entry['value'], population,
+                                                           s['value'], entry['direction'])
+                entry['population'] = len(population)
+            scales.append(entry)
         if value is None:      # la PREMIÈRE source appariée porte l'index ; les autres non
             value, scale = s['value'](chosen), s['scale'](chosen, cat)
             benchmark['source'] = s['source_name']
