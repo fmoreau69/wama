@@ -3905,3 +3905,166 @@ au rang centile et retient `albert:deepseek-v4-flash-0731` (72,2ᵉ centile de l
 sur l'Arena qui note les deux, gemma-4-31b (1 443) bat deepseek (1 432). Ce n'est pas l'appariement
 de ce jour (la synchro à blanc d'AVANT le montrait déjà, la synchro de nuit de 01:25 l'aurait
 écrit) : c'est la réserve écrite au rang centile — deux populations différentes ne se comparent pas.
+
+## Veille du 2026-11-06 : LIRE UNE PARTITION SCANNÉE (OMR) dans le Reader — moteurs possibles, rien d'installé
+
+Question de Fabien : *« dans le Reader, pourrait-on gérer les partitions comme on gère le texte ?
+L'utilisateur scanne une partition, la partition est rendue typographiée et éditable »*, puis :
+*« lance la veille ; on installera ensuite par les mécanismes d'installation des librairies et
+modèles en passant par l'assistant, puis la page d'édition texte / partition / autre à venir — de
+façon universelle, sans rien réinventer »*. Étude seule : **aucun modèle ni librairie installé**,
+aucune décision prise. Recherche externe déléguée à un sous-agent (sources ci-dessous), puis les
+faits DÉCISIFS relus à la source par la session (marqués ✔) ; ⚠ = non relu.
+
+### Ce que WAMA porte DÉJÀ (lu au code le 2026-11-06)
+
+- **La partition, nature et page** : nature `score` (`app_registry.SCORE_EXTENSIONS`, l.64 :
+  `.abc .mid .midi .musicxml .mxl`) ; brique `score_view` (`common/surfaces.py:987`) — gravure
+  abcjs, notes jouées sur l'axe, édition au clavier et à la souris (hauteur, rythme, `ctx.edit`
+  annulable), export ABC / MIDI / PDF, plusieurs versions dans une vue — servie aujourd'hui par la
+  seule surface `composer.score` (`composer/surfaces.py:51`). **Tout y est en ABC** : l'édition
+  (`WamaScore.retime`, `transposeAt`) agit sur le texte ABC.
+- **Les briques de notation** : `common/utils/midi_score.midi_to_abc` (l.344) ; deux contrats de
+  tâche musicaux — `audio-to-score` rend de l'ABC (`score_extraction_base.py:23`), `audio-to-midi`
+  rend du MIDI que la brique commune note (`midi_extraction_base.py`). Patron de la tâche neuve :
+  séance SheetSage2 du 2026-10-03 (tâche, contrat, essai, rôles `model` puis `backend`).
+- **Aucune tâche « image → partition »** : `ModelTask` (`model_manager/models.py`) n'a que
+  `audio-to-score` (l.133) et `audio-to-midi` (l.139) ; l'OCR est `ocr` (entrées `('image',
+  'document')`, `work_file`, l.393).
+- **Le Reader choisit son moteur par TÂCHE** : `OCR_SPEC = {'task': 'ocr'}`
+  (`reader/utils/model_config.py:60`), lu par le select (`reader/params.py:51-52`) ET par le tirage
+  « auto » (`reader/tasks.py:77-81`). Un domaine à PLUSIEURS tâches existe : l'enhancer,
+  `MEDIA_SPEC = {'task': 'upscale,denoise'}` (`enhancer/utils/auto_model.py:31`). La tâche d'un
+  modèle se lit sur sa fiche (`catalog_capabilities(clé)['task']`,
+  `composer/utils/model_choice.py:41-43`) : un process peut donc l'EXIGER par `needs` (la règle du
+  composer, `fe9f7e6cd`).
+- **Le pipeline du Reader** (`reader/function_specs.py:95-106`) : `read` (sortie `text`, nature
+  `document`) → `format` → `analyze`. Le réglage `mode` (`ReadingItem.Mode` : auto / imprimé /
+  manuscrit) dit le TRACÉ, pas le CONTENU.
+- **Le texte du Reader ne s'édite pas aujourd'hui** : ni surface (`reader/` n'a pas de
+  `surfaces.py`), ni route d'écriture du texte (`reader/urls.py`). ⚠ Et une surface n'édite « en
+  texte » que des champs FICHIER (`Surface.text_value`, `surfaces.py:508-519`) ; `result_text` est
+  un `TextField` → sa page passera par une validation déclarée (`Surface.validate`, comme la
+  correction du transcriber) ou par un fichier. Et une surface ne mêle pas des natures
+  (`surfaces.py:510`) : une page par nature (texte, partition…), chacune ouverte selon ce que la
+  card a produit (`Surface.available`).
+- **Le scan à côté de la gravure** : briques existantes `image_boxes` (`surfaces.py:826`) et
+  `media_viewer` (l.1156) — laquelle convient, à relire à la construction.
+- **Installer** (route `AGENTS.md` « librairies et modèles par la route ») :
+  - un **modèle** : l'assistant a `search_models` / `install_model` (`tool_api.py:4599-4600`,
+    gardés `registries`) ; poids hors Hub : pilote `files` (Hub à un commit, version GitHub,
+    fichier d'arbre GitHub, MEMBRE d'archive zip — DeepFilterNet, 2026-11-02) ;
+  - une **librairie PyPI** : manifeste `library` (rôle `librarian`) → `install_library <clé>
+    --allow --apply` ; l'assistant n'en donne que le PLAN (`plan_library_integration`,
+    `tool_api.py:2572-2594`) — l'installation reste un geste humain ;
+  - du **code hors PyPI** : la route `library` VENDORISÉE (`install.vendor` = dépôt + commit +
+    correctif, clone sous `settings.BACKEND_VENDOR_DIR` ; YuE, TripoSR ; tenue par
+    `model_manager/tests/tests_vendor_install.py`) ;
+  - un **programme hôte** (paquet `.deb`, binaire Java) : **AUCUNE route**. `grep` de
+    `apt-get|\.deb|binaire hôte|host_tool` dans `common/manifests`, `model_manager/services` et
+    `docs/construction` : seuls des renvois historiques (ffmpeg, pgvector) et la mention
+    « MuseScore 4, binaire hôte » de la veille du 16/10, jamais installé (`which mscore` vide).
+- **venv_linux, mesuré** : torch 2.9.1+cu128, transformers 4.57.6, numpy 2.3.5, onnxruntime-gpu
+  1.23.2, opencv-python(-headless) 4.10 / 4.13.0.92, pillow 11.3.0, scipy 1.16.2, timm 1.0.22,
+  PyMuPDF 1.27.2.2, pdf2image 1.17.0, requests 2.32.5. **Absents** : music21, verovio, homr,
+  oemer, rapidocr, musicxml. Hôte WSL : OpenJDK 21.0.11 présent (origine non relevée), `pdftoppm`
+  (poppler) et MuseScore absents.
+
+### Les moteurs, relus à la source
+
+| moteur | sortie | licence code / poids | distribution et poids | intégrable par la route ? |
+|---|---|---|---|---|
+| **copisteria** (KobiMusic, oct. 2026) | MusicXML (une page → `<page>.musicxml`) | Apache-2.0 / Apache-2.0 ✔ | **pas sur PyPI** (`git clone` + `pip install -e .`) ✔ ; Python ≥ 3.12 ✔ ; dépendances non épinglées (torch, torchvision, opencv, numpy, scipy ⚠) — toutes au venv ; poids HF `kobimusic/copisteria` @ `faad5609…`, non gaté ✔ : `evidence-2m.pt`, `v7_obj-recall-30m_best.pt`, `v7_obj-recall_best.pt` ✔ (~131 Mo ⚠) ; PDF par poppler (absent — le Reader rasterise déjà par PyMuPDF) | ✅ code par la route **vendorisée**, poids par `files` (Hub à un commit) |
+| **homr** (liebharc) | MusicXML | AGPL-3.0 ✔ ; poids « sous l'AGPL » mais entraînés en partie sur PrIMuS (CC BY-NC 4.0) ⚠ | PyPI `homr` 0.7.0 (2026-06-26) ✔, `requires_dist` ✔ : **`numpy>=2.4.2`** (venv 2.3.5), **`onnxruntime>=1.24.1` en dépendance DE BASE** (le piège du patch n°10 : version CPU masquant la GPU), `Pillow>=12.1.1` (venv 11.3.0), `rapidocr>=3.7`, `musicxml==1.4` → `constraints.no_deps` obligatoire + deux manifestes de plus ; poids = zips de la version GitHub `onnx_checkpoints`, tirés au 1er usage SANS empreinte ✔ et posés DANS le paquet (`script_location` / `workspace` = dossier du module, aucun argument pour un autre dossier ✔) ; modèles de `rapidocr` : origine ⚠ | 🟡 librairie `no_deps` + poids par `files` (membres d'archive) — mais il faut faire lire au moteur des poids hors de `site-packages` (attributs de module à repointer dans le backend : à éprouver) |
+| **Transcoda** (NeurIPS 2026) | `**kern` (Humdrum), une page normalisée 1485 × 1050 | AGPL-3.0 (code) / **CC BY 4.0** (poids) ✔ | HF `btrkeks/transcoda-59M-zeroshot-v1` @ `b529f8aa…`, non gaté, **code distant** (`custom_code`, `trust_remote_code=True`) ✔ — le moteur `transformers-remote-code` de SheetSage2 ; tags de carte `omr`, `optical-music-recognition`, `image-to-text` ✔ ; entraîné sur du SYNTHÉTIQUE seul ✔ | 🟡 poids par `hf`, aucune librairie neuve pour l'inférence ✔ ; décodage contraint par grammaire = dépôt à cloner ✔ ; sortie kern → conversion (music21) |
+| **Audiveris** | MusicXML 4.0 (`.mxl`) | AGPL-3.0 ⚠ | 5.11.0 (2026-07-11) ✔, `.deb` Ubuntu 22.04 / 24.04 (~78 Mo) ✔, JRE embarqué ⚠ ; CLI `-batch -transcribe -export` ⚠ | ❌ **aucune route** pour un paquet hôte (cf. ci-dessus) — la créer serait une décision |
+| oemer | MusicXML | MIT ⚠ / poids : non dit ⚠ | PyPI 0.1.8 (2024-11) ⚠ ; poids 2021 tirés par `urllib` SANS empreinte ⚠ ; son README renvoie à homr ⚠ | ❌ abandonné |
+| SMT / SMT++ (Ríos-Vila) | `**kern` | MIT / MIT ⚠ | pas sur PyPI ; épingle `verovio==5.0.0` ⚠ ; certains poids « gated: manual » ⚠ | 🟡 piano / quatuor ; dépassé au banc de Transcoda (ci-dessous) |
+| **Legato** (ICLR 2026) | ABC | MIT / MIT, **mais l'encodeur est Llama 3.2 Vision** | décodeur seul sur le Hub ; encodeur `meta-llama/Llama-3.2-11B-Vision` ; épingle transformers 4.54.0, torch 2.6.0, numpy 1.26.4 ⚠ | ❌ **bloqué** : *« the European Union is not being granted the license rights to use multimodal models included in Llama 3.2 »* (billet Hugging Face sur Llama 3.2) ✔ |
+| Manuscrit | — | — | aucun moteur mesuré de façon crédible (Clarity-OMR, CC BY-SA, auto-déclaré ⚠ ; MusiCorpus = un JEU de données ⚠) | ❌ hors de portée aujourd'hui |
+
+**Qualité, telle que les AUTEURS la mesurent** (OMR-NED, plus bas = mieux ; ⚠ un banc d'auteur
+n'est pas une mesure WAMA, `feedback` « benchmark tiers ≠ mesure WAMA ») — table de copisteria ✔ :
+
+| système | quatuors scans | Lieder scans | piano polonais scans |
+|---|---|---|---|
+| copista-28m | 8,7 % | 17,7 % | 34,4 % |
+| copista-2m | 11,2 % | 17,8 % | 38,7 % |
+| homr 0.7 | piano seul | 42,3 % | 48,3 % |
+| Transcoda | piano seul | 48,4 % | 55,1 % |
+| Audiveris 5.11 | 66,9 % | 51,8 % | 62,6 % |
+| Legato | 58,2 % | — | — |
+
+Table de Transcoda ✔ (scans polonais) : Transcoda 63,97 %, SMT++ 80,16 %, Legato 86,73 %. Limites
+dites : copisteria **n'écrit pas les paroles**, lit mal les triolets non marqués, imprimé seul ✔ ;
+homr ne gère ni lignes d'octave, ni clés d'octave, ni ligatures ⚠.
+
+### La notation : de la sortie du moteur à l'ABC de la page
+
+Les moteurs rendent du **MusicXML** (copisteria, homr, Audiveris) ou du **kern** (Transcoda, SMT) ;
+la page et le composer vivent en **ABC**.
+- **music21** (PyPI 10.5.2, BSD-3, `requires_python >=3.11` ⚠) : convertisseurs relus dans
+  le module `subConverters` de music21 (source citée en fin de section) ✔ — MusicXML en lecture ET écriture, MIDI en écriture,
+  **ABC et kern en LECTURE SEULE** (aucune extension de sortie). Donc kern → MusicXML, jamais → ABC.
+- **MusicXML → ABC** : `xml2abc` (Wim Vree, LGPL) — pas sur PyPI sous ce nom ⚠ ; `abc-xml-converter`
+  1.0.1 (PyPI, LGPLv3) l'emballe mais épingle `setuptools~=69.5.1` (venv 80.10.2) → `no_deps` ⚠.
+- **verovio** (PyPI 6.4.1, LGPL-3.0, roue abi3) lit MusicXML / kern / ABC ; ce qu'il ÉCRIT reste à
+  relire ⚠. Le prendre pour GRAVER à la place d'abcjs ferait un second chemin : l'édition est
+  écrite sur l'ABC (`wama-score.js`).
+- Repli existant mais pauvre : MusicXML → MIDI (music21) → `midi_to_abc` — perd l'orthographe des
+  notes, les liaisons et la mise en page.
+→ Le chemin aligné : **le contrat rend le MusicXML** (l'échange standard, téléchargeable tel quel),
+**une brique commune le note en ABC** — le patron d'`audio-to-midi` (le contrat rend le MIDI,
+`midi_score` le note).
+
+### Ce que l'intégration demanderait, mécanisme par mécanisme (pour décision)
+
+1. **Tâche** `image-to-score` (nom `<source>-to-<cible>`, comme `audio-to-score`), entrées comme
+   l'OCR (`('image','document')`, `work_file`), lue sur les cartes HF par les tags
+   `optical-music-recognition` / `omr` (`hf_task_to_wama`, comme `audio-to-midi`) ;
+   `check_model_taxonomy` la tient.
+2. **Contrat** à `backend_inventory.TASK_CONTRACTS` + **essai** (`backend_proposals`) : une page
+   gravée SYNTHÉTISÉE aux notes connues, comme la gamme de SheetSage2 — par verovio ou abcjs, à
+   trancher.
+3. **Le Reader** : domaine du moteur `{'task': 'ocr,image-to-score'}` (patron de l'enhancer) ; un
+   process `read_score`, ALTERNATIF à `read`, chacun EXIGEANT la tâche de son moteur par `needs`
+   (patron `plan` / `extract_score` du composer) ; sortie `score` dans un champ fichier (migration
+   ADDITIVE, `db_default`) ; formats de téléchargement déclarés (MusicXML, ABC, MIDI, PDF).
+4. **La page** : une surface « Éditer la partition » au Reader — `score_view`, la source ABC
+   (`text_sections`), le scan à côté —, sans audio : ⚠ la brique SUIT l'audio d'un rôle ; écouter
+   une partition lue demande un rendu sonore (abcjs synthétise : à éprouver sans `options.media`).
+   Puis la page TEXTE (champ texte → validation déclarée) : les deux pages, une par nature, sur le
+   même registre.
+5. **Envoyer vers** le composer (port `reference_score`) : la partition lue, chantée par YuE2.
+6. **API de l'assistant** dans le même livrable (`/api-outils`, `tests_tool_api_coverage`).
+
+### À trancher (Fabien)
+
+- (a) **Le moteur** — copisteria (meilleur au banc de son auteur, Apache-2.0, code vendorisé,
+  pas de paroles), homr (PyPI mais AGPL, `no_deps` et poids à sortir du paquet), Transcoda
+  (code distant HF, CC BY 4.0, sortie kern) — ou plusieurs, au même tirage. Recommandation :
+  **copisteria, puis homr** pour départager SUR NOS scans (les paroles comptent-elles ?).
+- (b) **Les licences** AGPL (homr, Audiveris, code de Transcoda) et le régime NC des données
+  d'entraînement de homr — `LICENSING.md`, ta décision, jamais un filtre de la veille.
+- (c) **Un programme hôte** (Audiveris) : créer une route d'installation de paquet hôte, ou s'en
+  passer. Recommandation : s'en passer (le banc le place derrière copisteria et homr).
+- (d) **Texte ou partition, qui décide ?** Le choix du moteur suffit-il (une card « partition »
+  = un moteur de partition), ou faut-il un réglage du CONTENU, voire une détection ? `mode` dit le
+  tracé (imprimé / manuscrit), pas le contenu.
+- (e) **La conversion MusicXML → ABC** : `xml2abc` (LGPL, par la route) ou une brique à nous sur
+  music21.
+
+**Mesure à faire après le choix** : installer par la route (assistant pour le modèle, commande
+humaine pour la librairie), essayer sur 3 à 4 VRAIES partitions scannées de Fabien (imprimées), et
+noter les erreurs par page — une mesure WAMA, pas le banc d'un auteur.
+
+**Sources** : pypi.org/pypi/homr/json ✔ · github.com/liebharc/homr (modules `main`,
+`segmentation.config`, `transformer.configs`, branche `main`) ✔ · huggingface.co/kobimusic/copisteria (API +
+README) ✔ · huggingface.co/btrkeks/transcoda-59M-zeroshot-v1 (API + README) ✔ ·
+api.github.com/repos/Audiveris/audiveris/releases/latest ✔ ·
+raw.githubusercontent.com/cuthbertLab/music21/master/music21/converter/subConverters.py ✔ ·
+huggingface.co/blog/llama32 ✔ · ⚠ (sous-agent, non relus) : pypi.org/pypi/oemer/json,
+github.com/BreezeWhite/oemer, github.com/antoniorv6/SMT, huggingface.co/guangyangmusic/legato,
+arxiv.org/html/2506.19065, pypi.org/pypi/verovio/json, pypi.org/pypi/music21/10.5.2/json,
+pypi.org/pypi/abc-xml-converter/json, wim.vree.org/svgParse/xml2abc.html,
+huggingface.co/clquwu/Clarity-OMR, arxiv.org/abs/2605.18436.
