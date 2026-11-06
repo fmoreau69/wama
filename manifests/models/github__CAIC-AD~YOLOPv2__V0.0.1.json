@@ -1,0 +1,89 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "road-segmentation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "torchscript",
+        "loaded_by": "wama_lab.cam_analyzer.utils.yolopv2_segmenter"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "yolopv2.pt",
+            "release": "CAIC-AD/YOLOPv2:V0.0.1",
+            "source": "github"
+          },
+          "path": "yolopv2.pt",
+          "sha256": "f2a8c8374203ae3e67ff9c184e931f763957de92a993b23269e4e721627f1f8c",
+          "size": 156380200
+        }
+      ],
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "pt",
+      "preferred_format": "pt"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Zone roulable + voies (caméra embarquée)",
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "github"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.14564041048288345,
+      "ram_gb": 0.0,
+      "vram_gb": 1.0
+    }
+  },
+  "description": "YOLOPv2 (CAIC-AD, MIT) : perception de conduite en une passe — zone roulable et lignes de voie (et détection) d'une caméra embarquée. TorchScript multi-tête : PAS un modèle Ultralytics.",
+  "key": "github:CAIC-AD/YOLOPv2:V0.0.1",
+  "manifest_kind": "model",
+  "name": "YOLOPv2",
+  "projects": [],
+  "requires": [
+    {
+      "key": "opencv-python",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "torchvision",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:github:CAIC-AD/YOLOPv2:V0.0.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

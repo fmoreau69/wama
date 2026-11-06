@@ -1,0 +1,105 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio"
+      ],
+      "languages": [
+        "ar",
+        "bn",
+        "da",
+        "de",
+        "en",
+        "es",
+        "fi",
+        "fr",
+        "hi",
+        "id",
+        "it",
+        "ja",
+        "ko",
+        "mr",
+        "nl",
+        "no",
+        "pl",
+        "pt",
+        "ru",
+        "tr",
+        "uk",
+        "vi",
+        "zh"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "task": "end-of-turn"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "onnxruntime",
+        "loaded_by": "wama.common.tts.service"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "smart-turn-v3.2-cpu.onnx",
+            "repo": "pipecat-ai/smart-turn-v3",
+            "revision": "f766f81d3cfdf7737ac64aad813d91bbfd56bf93",
+            "source": "huggingface"
+          },
+          "path": "smart-turn-v3.2-cpu.onnx",
+          "sha256": "2bb026316b14a660486a75b1733cd3fbab8c2fd0314dc9af7be49f8cca967e4f",
+          "size": 8679182
+        }
+      ]
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "onnx",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Fin de tour de parole (conversation vocale)",
+      "license": null,
+      "model_type": "speech",
+      "platform_ref": "huggingface:pipecat-ai/smart-turn-v3",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.008083118125796318,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Smart Turn (pipecat-ai, BSD-2) : juge sur le son seul — intonation, fin de mot — si la personne a fini sa phrase ou reprend son souffle. L'écoute de l'assistant le consulte après une pause courte : la réponse part plus tôt, une pause au milieu d'une idée ne coupe plus la phrase. 23 langues dont le français ; processeur, aucune VRAM.",
+  "key": "huggingface:pipecat-ai/smart-turn-v3",
+  "manifest_kind": "model",
+  "name": "Smart Turn v3.2",
+  "projects": [],
+  "requires": [
+    {
+      "key": "onnxruntime-gpu",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:pipecat-ai/smart-turn-v3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
