@@ -39,7 +39,8 @@ Cycle de vie commun des porteurs de modèle — ALIMENTATION du gouverneur (enve
 
 - **Domicile** : `wama/common/backends/base.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Contrat de backend de modèle COMMUN à WAMA — extrait de l'app de référence (Transcriber).
-- **API publique** (5) :
+- **API publique** (6) :
+  - `class LoadPrecision` — Une précision de CHARGEMENT qu'un moteur sait appliquer à un modèle (`ROADMAP §Gouvernance`,
   - `unload_live_backends(model_key: Optional[str]=None, exclude_sources=None) -> int` — Décharge les backends résidents de CE process ; rend le nombre d'instances déchargées.
   - `refresh_live_reservations() -> int` — Rafraîchit le TTL de la ligne de registre de chaque backend résident de CE process.
   - `start_reservation_heartbeat() -> bool` — Lance, UNE fois par process, le battement qui garde vivantes les lignes des résidents.
@@ -117,11 +118,11 @@ Estimation de durée par a-priori puis moyenne mobile, rangée par LIEU DE CALCU
 
 ### Gardes de process
 
-Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ; solde des tâches d'un worker MORT (preuve : processus disparu) au démarrage du worker relancé (`worker_ready`) et par la surveillance des workers (`scripts/worker_watchdog.sh` → `manage.py worker_died`) ; relance d'un élément EN COURS sur accord confirmé (`grant_replace`, `api/replace-grant/`), la tâche remplacée ou arrêtée se retirant d'elle-même (`task_skeleton.LaunchSuperseded`)
+Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ; solde des tâches d'un worker MORT (preuve : processus disparu) au démarrage du worker relancé (`worker_ready`) et par la surveillance des workers (`scripts/worker_watchdog.sh` → `manage.py worker_died`) ; relance d'un élément EN COURS sur accord confirmé (`grant_replace`, `api/replace-grant/`), la tâche remplacée ou arrêtée se retirant d'elle-même (`task_skeleton.LaunchSuperseded`) ; un SOUS-PROCESSUS de calcul que l'arrêt atteint (`run_child` : groupe de processus, battement par la progression de la glu, groupe entier arrêté sur ⏹, délai ou limite de durée — 2026-11-04)
 
 - **Domicile** : `wama/common/utils/process_control.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Contrôle de process COMMUN — brique transversale (cf. memory project_process_button_lifecycle).
-- **API publique** (15) :
+- **API publique** (16) :
   - `grant_replace(model, pk, user) -> None` — L'utilisateur a CONFIRMÉ qu'il arrête le traitement en cours de cet élément pour le
   - `begin_processing(model, pk, *, user=None, reset=None, status_field: str='status', task_field: str='task_id', running_value: str='RUNNING')` — Démarrage ANTI-RACE d'un item (pattern obligatoire AGENTS.md — généralise describer
   - `stop_instance(instance, *, status_field: str='status', task_field: str='task_id', to_status: str='FAILURE', error_field: str | None=None, error_message: str="I…` — Stoppe le traitement d'un item : révoque la tâche Celery (SIGTERM) et le remet dans un état
@@ -133,6 +134,7 @@ Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ;
   - `is_task_lost(task_id: str, snapshot) -> bool` — True SEULEMENT si la tâche n'est PLUS NULLE PART : état Celery `PENDING`, aucun message
   - `reconcile_orphaned_running(instances, *, snapshot=None, status_field: str='status', task_field: str='task_id', running_value: str='RUNNING', to_status: str='FA…` — Réconcilie une liste d'items RUNNING dont la tâche Celery est TERMINÉE (is_task_dead)
   - `reconcile_queue_of(work_model, user) -> None` — La réconciliation des éléments RUNNING orphelins de la file de `user` — ce que la page
+  - `run_child(cmd, *, cwd=None, env=None, timeout=None, heartbeat=None, poll_s: float=CHILD_POLL_S)` — Lance un SOUS-PROCESSUS de calcul (moteur vendorisé : MuseTalk, CodeFormer) que l'arrêt de
   - `is_task_on_dead_process(task_id: str, hostname: str) -> bool` — PREUVE POSITIVE de mort (2026-09-24) : la tâche a démarré (`STARTED`) sur le worker
   - `work_models()` — Les modèles qu'un worker Celery peut traiter : ceux des apps WAMA qui portent la paire
   - `reconcile_dead_worker_tasks(hostname: str, *, error_message: str="Traitement interrompu : le worker s'est arrêté. Relancer l'élément.") -> list` — Bascule en échec RELANÇABLE chaque élément RUNNING dont la tâche a démarré sur le worker
@@ -140,16 +142,17 @@ Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ;
 
 ### Gouverneur de ressources
 
-Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une ligne de réservation ou de tâche dont le process écrivain est MORT (même espace de pid) sort sans attendre son TTL (29/09 : 4 lignes sur 8 après une relance, ~24 Go fantômes retranchés du tirage). Une ligne « tâche en cours » vaut pour UN process GPU de la card depuis le 2026-10-14 ; `resident_here_gb` dit ce que CE process tient déjà d'un modèle (un rechargement idempotent n'est pas un besoin)
+Arbitre la VRAM entre process : réservation, résidence, attente, libération ; priorités de file (aucune admission CPU ni RAM). Il choisit la PRÉCISION de chargement parmi celles qu'un moteur déclare (`chosen_precision`, 2026-11-05), juge sur ce que la carte peut libérer (`card_ceiling_gb`) et compte un modèle résident là où il est SERVI (`served_resident_gb`) ; il ne choisit ni le modèle (`model_selector`) ni le déchargement (`memory_manager`). Une ligne de réservation ou de tâche dont le process écrivain est MORT (même espace de pid) sort sans attendre son TTL (29/09 : 4 lignes sur 8 après une relance, ~24 Go fantômes retranchés du tirage). Une ligne « tâche en cours » vaut pour UN process GPU de la card depuis le 2026-10-14 ; `resident_here_gb` dit ce que CE process tient déjà d'un modèle (un rechargement idempotent n'est pas un besoin). Le libre d'une décision se lit à la CARTE (`card_free_gb`, 2026-11-04) : sous WSL2 `mem_get_info` ne voit que son process
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (55) :
+- **API publique** (65) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
   - `configure_cuda_process_when_torch_loads() -> None` — Le plafond CUDA du processus, posé au PREMIER IMPORT de torch plutôt qu'au démarrage
+  - `capped_child_env(env: dict | None=None) -> dict` — L'environnement d'un SOUS-PROCESSUS Python qui charge torch, avec le plafond CUDA du
   - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU — la SEULE mesure de WAMA (2026-10-10).
   - `owner_pid(owner: str) -> int | None` — Pid porté par une clé d'owner (`<module>.<Classe>:<pid>#…`, `composer.audiocpp:<pid>`),
-  - `reserve_vram(owner: str, gb: float, *, allocated: bool=False, expires_in_s: float | None=None) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
+  - `reserve_vram(owner: str, gb: float, *, allocated: bool | str=False, expires_in_s: float | None=None) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
   - `release_reservation(owner: str) -> bool` — Libère la RÉSERVATION de `owner` dans le registre Redis. Sans effet s'il n'en avait pas.
   - `vram_reservation(owner: str, gb: float)` — Réserve `gb` pour la DURÉE d'un bloc, puis libère — y compris si le bloc lève.
   - `reservations(exclude: str | None=None) -> dict[str, float]` — Réservations VIVANTES (Go par owner). Les lignes plus vieilles que
@@ -160,19 +163,25 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une li
   - `model_key_of(owner: str) -> str | None` — Première clé de `model_keys_of` — pour un appelant qui n'en attend qu'une.
   - `resident_here_gb(model_key: str) -> float` — Go que CE process tient déjà pour `model_key` (ses backends résidents) — 0.0 sinon.
   - `ollama_host_owner(name: str) -> str` — Clé d'owner de la résidence du modèle Ollama `name` — UNE ligne par modèle résident.
-  - `unseen_reserved_gb(probe: str='driver', exclude: str | None=None) -> float` — VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
+  - `tenant_pid(name: str) -> int | None` — Pid du process qui sert le tenant `name` (`_TENANTS_KEY`), None s'il ne s'est pas déclaré.
+  - `served_resident_gb(model_key: str, served_by: str='') -> float` — Go déjà résidents pour `model_key` DANS LE PROCESS QUI LE SERVIRA — 0.0 sinon.
+  - `unseen_reserved_gb(probe: str='card', exclude: str | None=None, *, card_used_gb=None) -> float` — VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
   - `mark_used(owner: str) -> bool` — Horodate le dernier USAGE de `owner` (appelé à chaque `process()` d'un backend).
   - `record_measured_vram(owner: str, gb: float) -> bool` — Consigne une empreinte MESURÉE au chargement de `owner` — jamais une valeur déclarée.
   - `measured_vram() -> dict[str, tuple[float, float]]` — Mesures en attente de persistance : owner → (Go, horodatage). Lignes illisibles ignorées.
   - `forget_measured_vram(rendues: dict) -> int` — Oublie les mesures RENDUES au catalogue — `rendues` : owner → horodatage lu.
   - `idle_models(idle_threshold_s: int=300) -> list[dict]` — Modèles RÉSIDENTS inactifs depuis plus de `idle_threshold_s`, tous process confondus.
-  - `effective_free_gb(exclude: str | None=None) -> float` — VRAM réellement disponible = ce que le pilote annonce libre, MOINS ce que des
+  - `card_free_gb() -> float | None` — VRAM libre de la CARTE (nvidia-smi), tous occupants confondus : les process de WAMA, ses
+  - `card_ceiling_gb() -> float | None` — Ce que la carte peut libérer AU MIEUX : son libre, plus ce que les détenteurs du registre y
+  - `effective_free_gb(exclude: str | None=None) -> float` — VRAM réellement disponible = ce que la CARTE a de libre, MOINS ce que des process ont
   - `gpu_safe_mode() -> bool` — Vrai si le mode dépannage GPU est actif (settings/env `WAMA_GPU_SAFE_MODE`).
   - `pipeline_keep_alive() -> str | None` — `keep_alive` à passer aux appels Ollama de la pipeline de prompts : '0' en mode
   - `wait_for_free_vram(needed_gb: float, *, timeout_s: float=180.0, poll_s: float=5.0, exclude: str | None=None, console=None) -> tuple[bool, float]` — Attend que `effective_free_gb()` atteigne `needed_gb`, puis rend (True, mesure).
   - `tenant_id() -> str` — Identité d'un TENANT = un process (le worker gpu, le service TTS, gunicorn…). Les clés
   - `tenant_of_owner(owner: str) -> str | None` — Tenant (pid) d'une clé d'owner du contrat, None pour une ligne sans process (Ollama hôte).
-  - `fits_alone(needed_gb: float) -> bool | None` — `needed_gb` tiendrait-il sur la carte VIDE ? None sans GPU (on ne conclut pas d'une
+  - `fits_alone(needed_gb: float) -> bool | None` — `needed_gb` tiendrait-il sur la carte vidée de WAMA (`card_ceiling_gb`) ? None sans GPU (on
+  - `class PrecisionChoice` — La précision de chargement retenue par le gouverneur (`chosen_precision`).
+  - `chosen_precision(model_key: str, backend=None, *, fits_now: bool=False)` — La précision dans laquelle `model_key` se chargera — décidée ICI, pas par le moteur
   - `task_started(app_id: str, item_id, needed_gb: float=0.0, *, max_s: float | None=None, process: str='') -> str` — Déclare une tâche GPU EN COURS ; rend son jeton. Posé par le squelette commun autour de
   - `task_finished(token: str) -> None`
   - `running_tasks() -> list[dict]` — Tâches GPU en cours, tous process confondus — lignes expirées purgées, ET lignes dont le
@@ -183,14 +192,17 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une li
   - `grant_release(app_id: str, item_id, user_id=None) -> bool` — L'utilisateur ACCEPTE que toute la carte soit libérée pour CET item (bouton de la card en
   - `revoke_grant(app_id: str, item_id) -> None`
   - `release_granted(app_id: str, item_id) -> dict | None` — L'accord vivant pour cet item (`{'ts', 'user'}`), ou None. C'est le squelette — qui connaît
-  - `request_release(needed_gb: float, requester: str, reason: str='') -> str | None` — Écrit une DEMANDE : « libérez ce que vous tenez, il me faut `needed_gb` ». Rend son id.
+  - `request_release(needed_gb: float, requester: str, reason: str='', *, models=None) -> str | None` — Écrit une DEMANDE : « libérez ce que vous tenez, il me faut `needed_gb` ». Rend son id.
   - `pending_release_requests() -> dict[str, dict]` — Demandes vivantes (id → ligne) ; les périmées sont purgées avec leurs acquittements.
   - `acknowledge_release(request_id: str, tenant: str, *, freed: int=0, busy: bool=False) -> bool` — Un tenant dit ce qu'il a fait pour cette demande : `freed` instances déchargées, ou
   - `release_acks(request_id: str) -> dict`
   - `close_release_request(request_id: str) -> None` — Le requérant a ce qu'il voulait (ou renonce) : la demande disparaît, et les tenants qui
+  - `release_ollama_host() -> int` — Décharge les modèles de l'Ollama HÔTE que le registre tient résidents (`keep_alive: 0`,
   - `obtain_vram(needed_gb: float, requester: str, *, reason: str='', timeout_s: float=120.0, poll_s: float=2.0, console=None) -> tuple[bool, float]` — Demande la libération, puis ATTEND que la SONDE rende `needed_gb` (bornée : le pilote
   - `release_in_progress() -> bool` — Une libération est en cours (au moins une demande vivante). L'assistant le lit pour rester
+  - `unload_resident(model_key: str, *, timeout_s: float=15.0, poll_s: float=0.5) -> tuple[bool, str]` — Décharge un modèle RÉSIDENT, où qu'il vive → `(déchargé, ce qu'il faut dire à l'utilisateur)`.
   - `holders_summary(limit: int=4) -> str` — Une phrase pour l'utilisateur : QUI tient QUOI — modèles résidents (Go) et tâches en cours.
+  - `other_holders() -> dict[str, float]` — Ce qui tient de la VRAM SANS être un modèle du catalogue — nom lisible → Go : un
   - `model_task_minutes(model_key: str | None) -> int` — Durée max déclarée pour un modèle au catalogue (minutes), 0 si aucune.
   - `task_time_limit_s(app_id: str, user=None, model_key: str | None=None) -> float` — Plafond de durée d'UN traitement, en secondes : le réglage de l'utilisateur s'il en a posé
   - `class Tenant` — Ce qu'un process qui tient de la VRAM DÉCLARE au gouverneur : son nom, comment savoir
@@ -260,12 +272,13 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (25) :
+- **API publique** (26) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
   - `lines_by_item(items) -> dict` — `{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
   - `line(item, node_id: str=MAIN_NODE, instance_key: str='')` — La ligne d'un nœud, ou None s'il n'a jamais été lancé.
   - `snapshot(settings, watched) -> dict` — Photo des réglages SURVEILLÉS : `{clé: valeur}` pour chaque clé de `watched`, lue d'un
+  - `settle_setting(item, nodes, name: str, value) -> int` — Un réglage qu'un process AVAL écrit depuis le résultat de ses amonts (les paroles écoutées
   - `plan(item, steps, *, task_id: str='') -> int` — Le lancement ANNONCE les process qu'il va jouer : leurs lignes passent `PENDING` — « son
   - `rendered_before(row, task_id: str='') -> bool` — La photo de réglages de `row` est-elle celle d'un RENDU (un succès, ou un succès devenu
   - `start(item, node_id: str=MAIN_NODE, *, process_key: str='', kind: str='app', version: str='', instance_key: str='', settings_snapshot: dict | None=None, model_…` — Le process PART : la ligne passe `RUNNING`, sa photo de réglages est prise, l'erreur et
@@ -310,16 +323,17 @@ Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources
 
 ### Mémoire GPU
 
-Garantit la VRAM avant un chargement, la reprend sur les autres modèles, et réessaie après libération sur erreur CUDA
+Choisit la stratégie de chargement (plein GPU, déchargement) sur la vue de SON process, garantit la VRAM avant un chargement, la reprend sur les autres modèles, et réessaie après libération sur erreur CUDA
 
 - **Domicile** : `wama/model_manager/services/memory_manager.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Memory Manager - GPU/RAM memory utilities for model management.
-- **API publique** (11) :
+- **API publique** (12) :
   - `peaks_from_weights(weights: dict) -> dict` — Les DEUX pics d'un modèle, dérivés du poids par composant — `{}` si on ne sait pas.
   - `class MemoryStrategy(Enum)` — Memory loading strategies for AI models.
   - `preset_vram_gb(model_key: str) -> Optional[float]` — Empreinte VRAM d'exécution d'un modèle, depuis `MODEL_SIZE_PRESETS`.
   - `dtype_bytes(label: str)` — Octets par paramètre d'une précision — None si le nom est inconnu (on ne devine pas).
   - `peaks_for_precision(weights: dict, label: str) -> dict` — Les deux pics RECALCULÉS pour une précision de chargement — `{}` si on ne peut pas.
+  - `reduced_peak_gb(weights: dict, precision, *, offload: bool) -> Optional[float]` — Le pic d'un modèle chargé dans une précision que son moteur DÉCLARE (`backends.base.
   - `backbone_row(row)` — La ligne de catalogue de la DORSALE d'un adaptateur, ou None si ce n'en est pas un.
   - `model_footprint_gb(row, *, offload: bool=True, count_backbone: bool=True) -> tuple` — `(Go, provenance)` que ce modèle EXIGE — ou `(None, 'unknown')` si personne ne sait.
   - `fits_full_gpu(model_key: str, total_vram_gb: float, headroom_gb: float=4.0) -> Optional[bool]` — Ce modèle peut-il tenir ENTIÈREMENT sur la carte (donc tourner en FULL_GPU, sans offload) ?
@@ -510,16 +524,17 @@ Bascule TEMPORAIRE du cache HuggingFace, restaurée en sortie : le levier D de `
 
 ### Clé de catalogue ↔ identifiant
 
-UNE lecture de `<source>:<identifiant>` pour tout WAMA : seul le PREMIER segment est la source, reconnue au vocabulaire `ModelSource` (`ollama:qwen3:4b` → `qwen3:4b`, là où un `rsplit` rendait `4b`). `catalog_key` est la tolérance d'ENTRÉE d'une app passée aux clés entières (valeur nue → sa source, `auto` intact). Née au portage F4b de l'imager (2026-09-29) ; consommée par l'imager, l'ETA (`make_key`) et `declaration_for`. ⚠ Une douzaine de conversions à la main vivent encore dans le dépôt (relevé du 29/09) — elles s'y rallient au fil des portages, pas en passe aveugle. `backend_model_id` (2026-10-07) est l'AUTRE lecture : l'identifiant qu'un backend déclare dans `SUPPORTED_MODELS` (dernier segment, règle de `backend_for_model`, écrite quatre fois en ligne jusque-là) — elle seule sépare de `model_id` une clé à trois segments (`github:owner/repo:tag`)
+UNE lecture de `<source>:<identifiant>` pour tout WAMA : seul le PREMIER segment est la source, reconnue au vocabulaire `ModelSource` (`ollama:qwen3:4b` → `qwen3:4b`, là où un `rsplit` rendait `4b`). `catalog_key` est la tolérance d'ENTRÉE d'une app passée aux clés entières (valeur nue → sa source, `auto` intact). Née au portage F4b de l'imager (2026-09-29) ; consommée par l'imager, l'ETA (`make_key`) et `declaration_for`. ⚠ Une douzaine de conversions à la main vivent encore dans le dépôt (relevé du 29/09) — elles s'y rallient au fil des portages, pas en passe aveugle. `backend_model_id` (2026-10-07) est l'AUTRE lecture : l'identifiant qu'un backend déclare dans `SUPPORTED_MODELS` (dernier segment, règle de `backend_for_model`, écrite quatre fois en ligne jusque-là) — elle seule sépare de `model_id` une clé à trois segments (`github:owner/repo:tag`). `resolve_catalog_key` (2026-11-02) ramène une PROVENANCE à la clé de sa ligne (`huggingface:black-forest-labs/FLUX.1-dev` → `imager:flux-1-dev`) : l'assistant avait écrit l'une pour l'autre (génération #1163, « aucun backend résolu »)
 
 - **Domicile** : `wama/common/utils/model_keys.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F4b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Clé de CATALOGUE d'un modèle ↔ identifiant dans sa source — UNE sémantique pour tout WAMA.
-- **API publique** (5) :
+- **API publique** (6) :
   - `auto_task(value) -> str` — La tâche d'un « auto » borné (`auto:text-to-music` → `text-to-music`), sinon ''.
   - `split_key(value: str) -> tuple` — `(source, identifiant)` — source vide quand la valeur n'est pas une clé de catalogue.
   - `model_id(value: str) -> str` — L'identifiant DANS sa source : `imager:hunyuan-image-2.1` → `hunyuan-image-2.1`. Une
   - `backend_model_id(value: str) -> str` — L'identifiant qu'un backend DÉCLARE dans son `SUPPORTED_MODELS` : le DERNIER segment de la
   - `catalog_key(value: str, default_source: str) -> str` — La clé de catalogue d'une valeur de modèle : une clé est rendue telle quelle, un
+  - `resolve_catalog_key(value: str, default_source: str) -> str` — `catalog_key`, plus la PROVENANCE : une valeur qui n'est la clé d'aucune ligne mais la
 
 ### Confidentialité — détecter puis OCCULTER les données personnelles
 
@@ -597,7 +612,7 @@ L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leu
 - **Domicile** : `wama/common/services/detection_ensemble.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Détection par un ENSEMBLE de modèles — l'union de leurs documents `detections` (2026-10-10).
 - **API publique** (3) :
-  - `engine_of(model_key: str) -> str` — Le moteur DÉCLARÉ au catalogue (`composition.runtime.engine`) — '' si inconnu.
+  - `engine_of(model_key: str) -> str` — Le moteur DÉCLARÉ au catalogue — la lecture commune (`backends.manager.engine_of`).
   - `class DetectorSet` — Les détecteurs d'un ensemble, CHARGÉS UNE FOIS puis appliqués média par média
   - `detect_with_models(models, *, user=None, source_dir=None, destination_dir=None, **kwargs) -> dict` — Le document `detections` de l'ENSEMBLE `models` sur UN média — `DetectorSet` à usage
 
@@ -870,13 +885,13 @@ Programmer le lancement d'une card, d'une sélection ou d'un lot — menu commun
 
 ### Ajout au RAG (geste explicite)
 
-Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision. Surfaces : inspecteur, menu « … » des cards, arbre de fichiers et assistant (outils `add_item_to_rag` / `add_file_to_rag`) — UN endpoint, deux gestes de la brique (`memory.index.add_item_to_rag` / `add_file_to_rag`, 2026-10-14) : un élément par son texte canonique, un FICHIER remonté à l'élément dont il est la sortie, sinon lu s'il porte déjà du texte (`reference_comprehension.read_document_text`) et refusé, en le disant, s'il n'en porte pas
+Entrée « Ajouter au RAG » du menu « … » (card, sélection, arbre de fichiers) + page « Mon RAG » ; texte pris au schéma canonique, aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision. Surfaces : menu « … » des cards, arbre de fichiers et assistant (outils `add_item_to_rag` / `add_file_to_rag`) — le bouton de l'INSPECTEUR, doublon du menu, est retiré le 2026-11-01 (décision de Fabien). UN endpoint, deux gestes de la brique (`memory.index.add_item_to_rag` / `add_file_to_rag`, 2026-10-14) : un élément par son texte canonique, un FICHIER remonté à l'élément dont il est la sortie, sinon lu s'il porte déjà du texte (`reference_comprehension.read_document_text`) et refusé, en le disant, s'il n'en porte pas
 
-- **Domicile** : `wama/common/static/common/js/wama-inspector.js` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7ter](../construction/ia/WAMA_MEMORY.md)
+- **Domicile** : `wama/common/static/common/js/wama-card-menu.js` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7ter](../construction/ia/WAMA_MEMORY.md)
 
 ### Ancrage d'un texte sans temps sur des mots horodatés
 
-Étage A de l'alignement forcé, SANS modèle : un texte fait ailleurs (export Sonal, texte) retrouve l'heure de chacun de ses mots parmi ceux d'une sortie ASR de la même audio — plus longue sous-suite commune des mots (RapidFuzz `Indel`, jamais Levenshtein, qui substitue aux ex-aequo et décale la suite). Chaque mot dit la qualité de son temps : `exact`, `estimated` (dans la durée réelle des mots corrigés), `interpolated` (rien en face). Étage B (`refine_turns`) : un aligneur ACOUSTIQUE (contrat `ForcedAlignmentBackend`, choisi au catalogue par sa tâche `alignment` et sa langue) reprend les seuls mots estimés, par fenêtres que tiennent leurs voisins sûrs, coupées entre deux mots au-delà de sa capacité ; ils deviennent `aligned`. Le module ne charge aucun modèle : il reçoit le geste d'alignement. Bornes (`move_boundary`, `split_turn`) : déplacer la jonction de deux tours ou couper un tour, toujours ENTRE deux mots et sans en perdre un — un texte corrigé se réancre d'abord sur la référence ASR. Plage (`replace_span`) : une plage retranscrite remplace les mots qui s'y disaient, ou remplit un blanc d'un tour neuf
+Étage A de l'alignement forcé, SANS modèle : un texte fait ailleurs (export Sonal, texte) retrouve l'heure de chacun de ses mots parmi ceux d'une sortie ASR de la même audio — plus longue sous-suite commune des mots (RapidFuzz `Indel`, jamais Levenshtein, qui substitue aux ex-aequo et décale la suite). Chaque mot dit la qualité de son temps : `exact`, `estimated` (dans la durée réelle des mots corrigés), `interpolated` (rien en face). Étage B (`refine_turns`) : un aligneur ACOUSTIQUE (contrat `ForcedAlignmentBackend`, choisi au catalogue par sa tâche `alignment` et sa langue) reprend les seuls mots estimés, par fenêtres que tiennent leurs voisins sûrs, coupées entre deux mots au-delà de sa capacité ; ils deviennent `aligned`. Le module ne charge aucun modèle : il reçoit le geste d'alignement — le CHARGEMENT (choix au catalogue, installation par la route, fenêtres d'audio) est la brique `acoustic_alignment`, commune au transcriber et à l'avatar 3D, qui met aussi en doute un mot daté à cheval sur une pause de la voix (2026-11-03). Bornes (`move_boundary`, `split_turn`) : déplacer la jonction de deux tours ou couper un tour, toujours ENTRE deux mots et sans en perdre un — un texte corrigé se réancre d'abord sur la référence ASR. Plage (`replace_span`) : une plage retranscrite remplace les mots qui s'y disaient, ou remplit un blanc d'un tour neuf
 
 - **Domicile** : `wama/common/services/word_anchoring.py` · **doc** : [wama/transcriber/TRANSCRIBER_CORRECTION.md §10.5](../../wama/transcriber/TRANSCRIBER_CORRECTION.md)
 - **Module** : Ancrage d'un texte SANS TEMPS sur des mots HORODATÉS — l'étage A de l'alignement forcé.
@@ -1020,9 +1035,12 @@ La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studi
 
 - **Domicile** : `wama/common/services/send_to.py` · **doc** : [docs/construction/architecture/WAMA_VERIFICATION.md](../construction/architecture/WAMA_VERIFICATION.md)
 - **Module** : ENVOYER VERS — la sortie d'une card devient l'entrée d'une autre app.
-- **API publique** (5) :
+- **API publique** (8) :
   - `sorties_de(surface: str, instance) -> list` — Chemins RELATIFS à `media/` des sorties DÉCLARÉES de cet élément.
   - `batch_outputs(surface: str, batch, viewer=None) -> tuple` — Les sorties DÉCLARÉES de tous les éléments d'un LOT — `(chemins, éléments, sans_sortie)`.
+  - `rendered_formats(surface: str, instance) -> list` — `[{format, label, icon}]` — les formats que cette card late-binding sait RENDRE, dans
+  - `format_destinations(user, formats) -> list` — Chaque format, avec les apps qui reçoivent son extension (`destinations` : les trois
+  - `render_for_sending(surface: str, elements, formats, user) -> list` — Rend chaque format de chaque élément, et range le fichier dans les sorties de l'app de
   - `item_for_output_path(user, chemin: str, *, visible: bool=False)` — L'élément dont `chemin` (relatif à `media/`) est une SORTIE déclarée — `(surface,
   - `destinations(user, chemins, partiel: bool=False) -> list` — Apps qui savent RECEVOIR ces fichiers. Trois conditions, toutes nécessaires.
   - `destinations_dossier(user) -> list` — Apps qui savent recevoir un DOSSIER entier : importeur + accès (`_apps_receveuses`).
@@ -1258,7 +1276,7 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
 
 - **Domicile** : `wama/common/services/dev_tools.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Outils de DÉVELOPPEMENT de WAMA — la surface du serveur MCP « wama-dev » (ROADMAP §8d Phase 3, étape 3).
-- **API publique** (25) :
+- **API publique** (26) :
   - `class DevToolError(ValueError)` — Refus LISIBLE — rendu comme `{'error': …}`, jamais comme une trace.
   - `base_dir() -> Path`
   - `jobs_dir() -> Path`
@@ -1271,6 +1289,7 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
   - `start_job(user, tool: str, argv: list, env: dict=None, shown: list=None) -> dict` — Lance `argv` détaché ; le journal et le code de retour sont écrits à côté de la fiche.
   - `job_state(job_id: str, with_log: bool=True) -> dict`
   - `cut_with_notice(text: str, limit: int, job_id: str) -> str` — `text` borné à `limit`, la coupure DITE avec le geste qui donne la suite (2026-10-30, fil
+  - `proposals_url(outputs) -> str` — La page où se DÉCIDE ce qu'une tâche a proposé — la file du model manager, ancrée — quand
   - `notify_finished_jobs() -> int` — Annonce, une fois, chaque tâche de développement TERMINÉE : une notification DANS WAMA
   - `start_job_watcher() -> None` — Le veilleur des fins de tâche, dans le process du serveur de développement — celui qui
   - `dev_run_role(user, role: str, args: dict=None, provider: str='', model: str='') -> dict` — Lance un rôle wama-dev-ai en tâche de fond ; il écrit une PROPOSITION en attente de validation, n'applique rien.
@@ -1397,7 +1416,7 @@ Chaque résultat produit donne à l'élément une révision numérotée — rég
 
 - **Domicile** : `wama/common/services/revisions.py` · **doc** : [docs/construction/exploitation/WAMA_COLLABORATION.md §7.1](../construction/exploitation/WAMA_COLLABORATION.md)
 - **Module** : Révisions d'un élément — la brique de la marche 8a (`WAMA_COLLABORATION.md §7.1`).
-- **API publique** (20) :
+- **API publique** (21) :
   - `json_safe(value)` — Une valeur de réglage telle qu'un JSONField la gardera (Decimal, date… → chaîne ; un
   - `settings_snapshot(app_id: str, item) -> dict` — Réglages de `item` à cet instant, dérivés du schéma de son app. `{}` sans schéma.
   - `text_fingerprint(value) -> str` — Empreinte d'une sortie qui est un TEXTE (pas un fichier) — celle des révisions, et celle
@@ -1405,6 +1424,7 @@ Chaque résultat produit donne à l'élément une révision numérotée — rég
   - `record_revision(app_id: str, item, *, origin: str='process', user=None, outcome=None, model_keys=None, instruction: str='', output_fields=None)` — Donne à `item` sa révision suivante. Rend la ligne créée, ou None si rien n'a pu
   - `keep_outputs(app_id: str, keep: int=KEEP_DEFAULT, fields=None) -> None` — Déclare que `app_id` GARDE les fichiers de ses `keep` dernières révisions (+ les publiées).
   - `kept_count(app_id: str) -> int` — Combien de révisions gardent leurs fichiers pour `app_id` — 0 : l'app n'en garde pas.
+  - `kept_declaration(app_id: str)` — La déclaration de `app_id` telle que le manifeste la porte (`processing.revisions`) :
   - `keeps_field(app_id: str, field: str) -> bool` — La copie de la sortie `field` se garde-t-elle pour `app_id` ?
   - `kept_path(path: str, number: int) -> str` — Où vit la copie de `path` pour la révision `number` : à côté de lui, dans `revisions/`,
   - `keep_files(app_id: str, item, revision) -> list` — Copie les fichiers de sortie de `revision` dans la liste gardée de `item`, puis applique la
@@ -1946,7 +1966,8 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
 
 - **Domicile** : `wama/common/backends/base.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Contrat de backend de modèle COMMUN à WAMA — extrait de l'app de référence (Transcriber).
-- **API publique** (5) :
+- **API publique** (6) :
+  - `class LoadPrecision` — Une précision de CHARGEMENT qu'un moteur sait appliquer à un modèle (`ROADMAP §Gouvernance`,
   - `unload_live_backends(model_key: Optional[str]=None, exclude_sources=None) -> int` — Décharge les backends résidents de CE process ; rend le nombre d'instances déchargées.
   - `refresh_live_reservations() -> int` — Rafraîchit le TTL de la ligne de registre de chaque backend résident de CE process.
   - `start_reservation_heartbeat() -> bool` — Lance, UNE fois par process, le battement qui garde vivantes les lignes des résidents.
@@ -2119,7 +2140,7 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
 
 - **Domicile** : `wama/common/backends/manager.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Manager de backends COMMUN — extrait du pattern Transcriber/Imager.
-- **API publique** (21) :
+- **API publique** (23) :
   - `register_engine_inventory(fn) -> None` — Enregistre un inventaire de moteurs. Le callable rend soit un MAPPING
   - `engine_backends() -> dict` — {moteur: classe de backend} pour tous les inventaires qui exposent leurs classes.
   - `invalidate_engine_cache() -> None` — À appeler après une installation de librairie : le prochain `known_engines()`
@@ -2128,6 +2149,8 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
   - `engine_classes(task: str) -> dict` — Moteur → CLASSE de backend, pour les backends du contrat de `task` — DÉRIVÉ de la
   - `backend_for_model(model, entries=None)` — Classe de backend qui sait exécuter `model`, ou None.
   - `backend_for_key(model_key: str, entries=None)` — La MÊME porte que `backend_for_model`, adressée par la CLÉ de catalogue (`<source>:<id>`).
+  - `engine_of(model_key: str) -> str` — Le moteur DÉCLARÉ au catalogue pour `model_key` (`composition.runtime.engine`, la moitié
+  - `served_by_for_key(model_key: str, backend=None) -> str` — Le SERVICE qui charge le modèle de `model_key` pour tous les process — le `SERVED_BY` de son
   - `class ModelNotServed(RuntimeError)` — Aucun backend ne sert la clé de catalogue demandée — le lancement s'arrête en le disant,
   - `backend_instance(cls, model_key: str='', user=None)` — L'instance gardée chargée de la CLASSE `cls`, préparée pour `model_key` : la clé posée
   - `backend_instance_for_key(model_key: str, user=None)` — L'INSTANCE prête du backend qui sert `model_key` — LA porte de lancement d'un modèle
@@ -2604,7 +2627,7 @@ Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, gr
 
 - **Domicile** : `wama/common/utils/export_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : Vocabulaire COMMUN des formats de TÉLÉCHARGEMENT — libellé, icône et regroupement.
-- **API publique** (10) :
+- **API publique** (11) :
   - `entry(value: str) -> dict` — Décrit UN format. Un format inconnu du vocabulaire reste affichable (repli neutre) —
   - `entries(formats, available=None) -> list[dict]` — Liste ordonnée d'entrées prêtes pour `common/_download_button.html`.
   - `entries_for_app(app_name: str, available=None) -> list[dict]` — Idem, en lisant la déclaration de l'app — l'appelant n'a que son nom à donner.
@@ -2612,6 +2635,7 @@ Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, gr
   - `available_formats(app_name: str, item)` — Les formats déclarés que `item` peut rendre, ou None (= tous ceux que l'app déclare).
   - `requested_format(app_name: str, query) -> str` — Le format DEMANDÉ à un téléchargement d'une app late-binding, lu dans la query du bouton ⬇
   - `download_response(app_name: str, item, query, stem: str)` — Le ⬇ d'UN élément d'une app late-binding : le format DEMANDÉ (`requested_format`, borné aux
+  - `rendered_stem(app_name: str, instance, source_name: str='') -> str` — Souche du nom d'un rendu late-binding — la convention du téléchargement
   - `is_late_binding(app_name: str) -> bool` — L'app choisit-elle son format AU TÉLÉCHARGEMENT (`export_binding='late'`, §6.4) ?
   - `register_export_builder(app_name: str, builder) -> None` — `builder` : callable `(instance, fmt) -> (ext, bytes) | None`, ou son chemin pointé
   - `export_builder_for(app_name: str)` — Le rendu déclaré par l'app, ou `None`. Une app early-binding n'en déclare pas : son
@@ -3808,7 +3832,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `tool_annotations(tool_name: str) -> dict` — Les annotations MCP d'un outil, tirées de sa marque — UNE déclaration, deux lecteurs : notre
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
-  - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=None, app_label: str='anonymizer', **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
+  - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=None, app_label: str='anonymizer', **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry. An image or a video
   - `sam3_examples() -> dict` — Return recommended SAM3 text prompt examples.
   - `create_image(user, prompt: str, model: str=None, width: int=None, height: int=None, steps: int=None, guidance_scale: float=None, negative_prompt: str=None, see…` — Create a txt2img generation job (status: PENDING).
   - `add_to_enhancer(user, file_path: str, ai_model: str='', denoise: bool=None, blend_factor: float=None, app_label: str='enhancer', **params) -> dict` — Register a file for enhancement and create the Enhancement DB entry.
@@ -3864,7 +3888,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `stop_item(user, app: str, pk: int) -> dict` — Stop ONE of the user's items that is waiting or running — the stop button of its card.
   - `update_item_settings(user, app: str, pk: int, settings: dict=None) -> dict` — Change the settings of ONE of the user's items — the settings button of its card.
   - `launch_batch(user, app: str, batch_id: int) -> dict` — Start (or restart) every item of one of the user's batches — the ▶ button of the batch card.
-  - `update_batch_settings(user, app: str, batch_id: int, settings: dict=None, promote_from: int=None, realign: bool=False) -> dict` — Set the settings of a whole batch — ONE of three gestures:
+  - `update_batch_settings(user, app: str, batch_id: int, settings: dict=None, promote_from: int=None, realign: bool=False, scope: str='', replace_own: list=None) -…` — Set the settings of a whole batch — ONE of three gestures:
   - `duplicate_batch(user, app: str, batch_id: int) -> dict` — Duplicate one of the user's batches with all its items, to run it again with other
   - `delete_batch(user, app: str, batch_id: int, confirm: bool=False) -> dict` — Delete one of the user's batches AND all its items. Destructive and not undoable: say how
   - `batch_progress(user, family: str, batch_id) -> dict | None` — Où en est UN LOT de `user` lancé depuis l'assistant — le bloc de lot de l'échange
