@@ -3223,8 +3223,25 @@ Chantier à ouvrir quand Fabien le décide — pas avant la stabilisation hôte 
 
 **Divergences entre surfaces (à résorber par le commun)** : ~~historique~~ **RÉSORBÉ le 15/09, mesuré le 2026-09-20** (les 3 surfaces sur `conversation_turn` ; MCP n'exécute aucun tour, donc sans objet) ; point d'entrée (`run_assistant_turn` vs `conversation_turn`) ; choix du
 modèle (web limité, API libre, Discord figé — *corrigé le 2026-10-31 : choix du modèle COMMUN aux trois surfaces, réglage durable + tirage, `assistant_engine.py:2291-2296`*) ; domaine (API seule) ; fichiers entrants et produits
-(Discord seul) ; commandes (Discord seul) ; coût affiché (`!code` seul) ; voix/avatar/étapes (web
+(Discord seul) ; ~~commandes (Discord seul) ; coût affiché (`!code` seul)~~ *(résorbé le
+2026-11-06, ci-dessous)* ; voix/avatar/étapes (web
 seul) ; validation de `history` (API seule) ; découpage de longueur (Discord seul).
+
+**Commandes de l'assistant (2026-11-06)** — déclarées UNE fois, `common/services/assistant_commands.py`
+(`COMMANDS`), et jouées par `conversation_turn` après sa garde d'accès et avant le fil : le web
+(synchrone et en flux), l'API (chemin à fil serveur) et les canaux les ont donc toutes. Une commande
+n'ajoute aucun mécanisme, elle rend un geste existant explicite : `/concile` (ouvre `delegate` pour ce
+message, `WAMA_HARNESS §7.4`), `/competence <clé> <question>` (le `domain` du tour, lu dans
+`assistant_skills.DOMAINES` — choix MANUEL de l'utilisateur, l'arbitrage du 21/08 vise l'adaptateur
+qui devinerait), `/effort` (le curseur, positions de `QUALITY_PRESETS`), `/modele` (`set_chat_model`),
+`/oublier` (`clear_thread`), `/code` (`ask_claude_code`, coût affiché), `/aide` (générée de la
+déclaration). Préfixe `/` ou `!` partout ; la réponse reprend celui que la personne a tapé, l'aide d'un
+canal montre `!` (sur Discord, `/` ouvre le sélecteur des commandes natives). Une commande qui répond
+seule ne s'écrit pas au fil ; un canal la rend en privé ; le chat web applique `cleared` (écran vierge)
+et `settings` (l'événement `wama:assistant-settings` de la modale ⚙). La passerelle ne garde que ses
+gestes de canal (`lier`, `delier`, l'aide avant l'appariement). ⏳ Les commandes NATIVES de Discord
+(`app_commands`) se généreront de cette déclaration (`ROADMAP §19`) ; le chemin sans état de l'API
+(`history` fourni) n'en joue aucune. Garde `tests_assistant_commands`.
 
 ### B. Mémoire, RAG, prompts — ce que l'assistant consomme
 

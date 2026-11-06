@@ -820,12 +820,24 @@
       .catch(function () { self.render([]); });
   };
 
+  /** L'écran d'un fil vierge — après « Effacer », ou la commande `/oublier` du serveur. */
+  Chat.prototype.resetFeed = function () {
+    this.stopAllJobs();
+    this.feed.innerHTML = ''; this.showGreeting(); this.setStatus('');
+  };
+
+  /** Ce qu'une COMMANDE de l'assistant (`assistant_commands`, 2026-11-06) demande à l'écran,
+   *  avant que sa réponse s'affiche : un fil effacé repart vierge ; un réglage changé
+   *  (`/modele`, `/effort`) recale le volet, par l'événement de la modale ⚙. */
+  Chat.prototype.applyCommand = function (result) {
+    if (!result || !result.command) return;
+    if (result.cleared) { this.resetFeed(); this.dropGreeting(); }
+    if (result.settings) document.dispatchEvent(new CustomEvent('wama:assistant-settings'));
+  };
+
   Chat.prototype.clear = function () {
     var self = this;
-    var done = function () {
-      self.stopAllJobs();
-      self.feed.innerHTML = ''; self.showGreeting(); self.setStatus('');
-    };
+    var done = function () { self.resetFeed(); };
     if (!this.cfg.clearUrl) { done(); return Promise.resolve(); }
     return fetch(this.cfg.clearUrl, { method: 'POST', headers: { 'X-CSRFToken': csrfToken() } })
       .catch(function () {})          // l'écran se vide quand même ; le fil revient au rechargement
@@ -1023,6 +1035,7 @@
         self.tellTurnFollowUps(data.follow_ups);    // déjà racontées au fil : les montrer aussi
         return;
       }
+      self.applyCommand(data);
       if (data.tool_steps && data.tool_steps.length) {
         self.feed.appendChild(self.toolSteps(data.tool_steps));
         self.applyActions(data.tool_steps);
@@ -1098,6 +1111,7 @@
             self.tellTurnFollowUps(r.follow_ups);   // déjà racontées au fil : les montrer aussi
             return;
           }
+          self.applyCommand(r);
           if (!recu) {                                       // cloud : aucun fragment, tout arrive ici
             self.feed.appendChild(self.bubble(r.response, 'assistant', r.model));
             if (voix) voix.push(r.response || '');

@@ -4879,6 +4879,12 @@ initial.
   un fichier trop volumineux est dit.
 - **Discord** : slash commands **générées depuis `TOOL_REGISTRY`** (métadonnée-driven
   jusque dans Discord), en remplacement des commandes texte `!lier`/`!aide`.
+  ✅ *Étape posée le 2026-11-06 : les commandes de l'assistant sont DÉCLARÉES une fois
+  (`common/services/assistant_commands.py`, `/concile`, `/competence`, `/effort`, `/modele`,
+  `/oublier`, `/code`, `/aide`) et jouées par `conversation_turn` pour le web, l'API et les canaux
+  (`WAMA_LLM §A`) ; la passerelle ne garde que `lier`/`delier`.* ⏳ *Reste : générer les commandes
+  NATIVES (`app_commands`) de cette déclaration — et de `TOOL_REGISTRY` si l'intention d'origine
+  tient.*
 - **Rate-limit** par identité de canal (§19.4 ④) — l'appariement borne le *qui*, pas le
   *combien*.
 - ✅ **SUPERVISION — LIVRÉE le 2026-08-22.** `run_gateway discord` est désormais lancé par

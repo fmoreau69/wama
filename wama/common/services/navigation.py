@@ -25,15 +25,10 @@ rien à ouvrir, et la déconnexion, qui est un geste et pas une page.
 from __future__ import annotations
 
 import logging
-import unicodedata
+
+from wama.common.utils.text_fold import fold
 
 logger = logging.getLogger(__name__)
-
-
-def _fold(text: str) -> str:
-    """Casse et accents repliés : « mediatheque » trouve « Médiathèque »."""
-    decomposed = unicodedata.normalize('NFKD', text or '')
-    return ''.join(c for c in decomposed if not unicodedata.combining(c)).casefold().strip()
 
 
 def _reverse(key: str, url_name: str) -> str | None:
@@ -172,10 +167,10 @@ def find_page(user, page: str):
     """La page que `page` désigne (clé, libellé ou alias, casse et accents ignorés) parmi celles
     que `user` peut ouvrir — `(page, pages)`, `page` valant None si rien ne correspond."""
     pages = navigable_pages(user)
-    wanted = _fold(page)
+    wanted = fold(page)
     for entry in pages:
         names = [entry['key'], entry['label'], *entry.get('aliases', ())]
-        if wanted in (_fold(n) for n in names):
+        if wanted in (fold(n) for n in names):
             return entry, pages
     return None, pages
 

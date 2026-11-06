@@ -1169,3 +1169,85 @@ class CatchUpAfterNewSessionTests(TestCase):
             [self._message(11, bot=True), self._message(12, age_s=2 * 3600)], {5: 10})
         self.assertEqual([], handled)
         self.assertEqual(0, count)
+
+
+class ModelGestureTests(TestCase):
+    """`!modele` — changer de modèle de réflexion SANS toucher au fil.
+
+    Le moteur résout son modèle à chaque tour et l'historique vit dans le fil : le geste ne fait
+    qu'écrire le réglage durable `assistant.model` (le même que le sélecteur du web).
+    """
+
+    def setUp(self):
+        from wama.common.services import conversation_store as store
+        from wama.model_manager.models import AIModel
+        self.store = store
+        self.user = User.objects.create(username='fabien')
+        confirm_link(self.user, request_link(CANAL, EXT_ID).code)
+        AIModel.objects.create(model_key='ollama:local-chat', name='local-chat',
+                               model_type='llm', source='ollama', is_available=True,
+                               is_downloaded=True)
+        AIModel.objects.create(model_key='albert:remote-chat', name='remote-chat',
+                               model_type='llm', source='albert', is_available=True,
+                               execution='cloud')
+
+    def _msg(self, text, thread='salon-1'):
+        return core.IncomingMessage(channel=CANAL, external_id=EXT_ID, text=text, thread=thread)
+
+    def _current(self):
+        from wama.common.services.assistant_engine import assistant_settings
+        return assistant_settings(self.user)['model']
+
+    def _seed_thread(self):
+        conversation = self.store.thread(self.user, surface=CANAL, thread_key='salon-1')
+        self.store.record_exchange(conversation, 'statut ?', {'response': 'Tout va bien.'})
+        return conversation
+
+    def test_the_gesture_is_announced_in_the_help(self):
+        self.assertIn('!modele', core.handle_message(self._msg('!aide')).text)
+
+    def test_a_catalogue_model_is_stored_and_the_thread_is_kept(self):
+        conversation = self._seed_thread()
+        with patch('wama.common.services.assistant_engine.run_assistant_turn') as engine:
+            reply = core.handle_message(self._msg('!modele ollama:local-chat'))
+        engine.assert_not_called()
+        self.assertTrue(reply.private)
+        self.assertEqual('ollama:local-chat', self._current())
+        self.assertEqual(2, conversation.turns.count())
+
+    def test_the_next_turn_still_carries_the_history(self):
+        self._seed_thread()
+        core.handle_message(self._msg('!modele ollama:local-chat'))
+        with patch('wama.common.services.assistant_engine.run_assistant_turn',
+                   side_effect=_simulated_reply) as engine:
+            core.handle_message(self._msg('et maintenant ?'))
+        self.assertEqual(2, len(engine.call_args.kwargs['history']))
+
+    def test_an_unknown_model_is_refused_and_nothing_is_stored(self):
+        before = self._current()
+        reply = core.handle_message(self._msg('!modele inconnu:xyz'))
+        self.assertIn('⛔', reply.text)
+        self.assertEqual(before, self._current())
+
+    def test_a_remote_model_the_keys_do_not_open_is_refused(self):
+        before = self._current()
+        with patch('wama.model_manager.services.cloud_models.allowed_cloud_keys',
+                   return_value=set()):
+            reply = core.handle_message(self._msg('!modele albert:remote-chat'))
+        self.assertIn('⛔', reply.text)
+        self.assertEqual(before, self._current())
+
+    def test_auto_puts_the_draw_back(self):
+        from wama.common.utils.auto_model import AUTO
+        core.handle_message(self._msg('!modele ollama:local-chat'))
+        core.handle_message(self._msg('!modele auto'))
+        self.assertEqual(AUTO, self._current())
+
+    def test_without_argument_it_reports_the_current_model(self):
+        core.handle_message(self._msg('!modele ollama:local-chat'))
+        reply = core.handle_message(self._msg('!modele'))
+        self.assertIn('ollama:local-chat', reply.text)
+
+    def test_an_unlinked_account_cannot_change_anything(self):
+        stranger = core.IncomingMessage(channel=CANAL, external_id='999', text='!modele auto')
+        self.assertIn('!lier', core.handle_message(stranger).text)

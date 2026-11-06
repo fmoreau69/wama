@@ -24,9 +24,10 @@ from __future__ import annotations
 import logging
 import os
 import time
-import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
+
+from wama.common.utils.text_fold import fold
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +39,6 @@ MOUNT_BUDGET_S = 5.0
 MAX_ENTRIES_PER_ROOT = 20000
 #: Préfixe des chemins VIRTUELS d'un dossier connecté (`mounts/<id>/…`), celui du gestionnaire.
 MOUNT_PREFIX = 'mounts/'
-
-
-def _fold(text: str) -> str:
-    """Casse et accents repliés : « Résumé.PDF » se trouve par « resume.pdf »."""
-    decomposed = unicodedata.normalize('NFKD', text or '')
-    return ''.join(c for c in decomposed if not unicodedata.combining(c)).casefold()
 
 
 def is_mount_path(path) -> bool:
@@ -115,7 +110,7 @@ def _walk_root(root, terms, found, budget_s):
             dirs[:] = [d for d in dirs if not d.startswith('.')]
             for name in files:
                 visited += 1
-                if all(term in _fold(name) for term in terms):
+                if all(term in fold(name) for term in terms):
                     full = Path(current) / name
                     relative = full.relative_to(base).as_posix()
                     try:
@@ -150,7 +145,7 @@ def find_user_files(user, query: str, *, limit: int = 20) -> dict:
     `path` est directement désignable : `designate` et les outils de l'assistant l'acceptent tel
     quel, dossier connecté compris (copié à l'entrée).
     """
-    terms = [_fold(t) for t in (query or '').split() if t.strip()]
+    terms = [fold(t) for t in (query or '').split() if t.strip()]
     if not terms:
         return {'error': 'query vide', 'results': [], 'count': 0}
     found, incomplete = [], []
@@ -161,9 +156,9 @@ def find_user_files(user, query: str, *, limit: int = 20) -> dict:
         if not complete:
             incomplete.append({'location': root['location'], **({'error': error} if error else {})})
 
-    wanted = _fold(' '.join((query or '').split()))
+    wanted = fold(' '.join((query or '').split()))
     found.sort(key=lambda f: f['modified'], reverse=True)
-    found.sort(key=lambda f: _fold(f['name']) != wanted)        # tri stable : l'exact devant
+    found.sort(key=lambda f: fold(f['name']) != wanted)        # tri stable : l'exact devant
     try:
         limit = max(1, min(int(limit or 20), 100))
     except (TypeError, ValueError):

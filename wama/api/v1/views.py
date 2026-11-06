@@ -8,7 +8,8 @@ Endpoints:
   GET  /api/v1/tools/            → list available tools
   POST /api/v1/tools/run/        → execute a tool
   POST /api/v1/assistant/chat/   → one assistant conversation turn (agentic loop)
-  POST /api/v1/files/upload/     → deposit a file into the caller's space
+  GET/POST /api/v1/assistant/model/ → read / change the assistant's LLM (thread untouched)
+  POST /api/v1/files/upload/    → deposit a file into the caller's space
   GET  /api/v1/files/download/   → read back a file the caller may access
 """
 
@@ -139,6 +140,34 @@ class AssistantChatView(APIView):
         if "error" in result:
             return Response(result, status=result.pop("status", 500))
 
+        return Response(result)
+
+
+class AssistantModelView(APIView):
+    """
+    GET  /api/v1/assistant/model/              → {"model": "<clé ou auto>"}
+    POST /api/v1/assistant/model/  {"model": …} → change le modèle de réflexion de l'appelant
+
+    Le réglage durable `assistant.model` (le même que le sélecteur du web et `!modele` des canaux),
+    validé par `check_chat_model`. Le fil et son historique ne sont PAS touchés : le moteur
+    résout son modèle à chaque tour, la conversation continue avec le nouveau.
+    """
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from wama.common.services.assistant_engine import assistant_settings
+        return Response({"model": assistant_settings(request.user).get("model")})
+
+    def post(self, request):
+        from wama.common.services.assistant_engine import set_chat_model
+        model = request.data.get("model")
+        if not isinstance(model, str) or not model.strip():
+            return Response({"error": "Champ 'model' manquant (clé du catalogue ou 'auto')."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        result = set_chat_model(request.user, model)
+        if "error" in result:
+            return Response({"error": result["error"]}, status=result["status"])
         return Response(result)
 
 

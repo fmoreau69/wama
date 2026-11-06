@@ -1337,12 +1337,23 @@ MECHANISMS = (
               "Encode un texte/URL en PNG/SVG (segno, déterministe) — QR d'appariement "
               "de la passerelle aujourd'hui ; enrôlement TOTP et domaine Imager demain",
               'wama/common/utils/qr.py', 'docs/construction/suivi/ROADMAP.md §19'),
+    # Ajouté le 2026-11-06 : trois copies privées `_fold` réunies (relevé à la revérification).
+    Mechanism('text_fold', "Comparer ce qu'une personne tape",
+              "Casse et accents repliés, bords retirés (`fold`) : la recherche de fichiers "
+              "(`user_files`), celle des pages (`navigation`) et les commandes de l'assistant "
+              "(`assistant_commands`) comparent ce qui est tapé par la même règle",
+              'wama/common/utils/text_fold.py', 'docs/construction/ia/WAMA_LLM.md',
+              symbol='fold'),
     Mechanism('assistant_engine', "Moteur de l'assistant IA",
               "Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — "
               "la vue web et /api/v1/assistant/chat/ en sont des clients. Porte aussi les "
               "SOUS-AGENTS et le COUNCIL (2026-10-29, `WAMA_HARNESS §7.4`) : bornes d'un tour, "
               "verbe `delegate` (vagues parallèles par serveur, agents du registre de 1 à n, "
-              "vote / décideur / relecture croisée), réglage « Sous-agents » auto + curseur",
+              "vote / décideur / relecture croisée), réglage « Sous-agents » auto + curseur. Et "
+              "ses COMMANDES (2026-11-06, `assistant_commands`) : `/concile`, `/competence`, "
+              "`/effort`, `/modele`, `/oublier`, `/code`, `/aide` — déclarées une fois, jouées par "
+              "`conversation_turn` pour toutes les surfaces, chacune un geste existant rendu "
+              "explicite",
               'wama/common/services/assistant_engine.py', '',
               # wama-avatar.js = le RENDU de l'assistant vocal (avatar 3D navigateur,
               # three.js/TalkingHead, greffé sur WamaApp.Speech — zéro VRAM serveur) : brique
@@ -1374,7 +1385,8 @@ MECHANISMS = (
               # ligne du catalogue installée par la route, jugé au service vocal (`/end-of-turn`)
               # après 300 ms de pause : net, il avance ou retient la fin de phrase ; incertain,
               # le silence décide comme avant.
-              annexes=('wama/common/tts/speech_input.py',
+              annexes=('wama/common/services/assistant_commands.py',
+                       'wama/common/tts/speech_input.py',
                        'wama/common/tts/end_of_turn.py',
                        'wama/common/static/common/js/wama-avatar.js',
                        'wama/common/static/common/js/wama-avatar-panel.js',

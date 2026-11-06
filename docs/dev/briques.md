@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**226 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**227 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1622,6 +1622,15 @@ Délègue une tâche de développement au CLI Claude Code en headless — lectur
   - `read_output(raw: str) -> dict` — Le résultat d'une sortie `--output-format json` déjà écrite — celle d'une tâche détachée,
   - `demander(prompt: str, *, cwd: str | None=None, delai: int=DELAI_DEFAUT, outils=OUTILS_LECTURE, ecriture: bool=False, user=None, model: str='', mcp: bool=True)…` — Soumet UNE tâche à Claude Code et rend son résultat.
 
+### Comparer ce qu'une personne tape
+
+Casse et accents repliés, bords retirés (`fold`) : la recherche de fichiers (`user_files`), celle des pages (`navigation`) et les commandes de l'assistant (`assistant_commands`) comparent ce qui est tapé par la même règle
+
+- **Domicile** : `wama/common/utils/text_fold.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
+- **Module** : Un mot ou un texte COMPARABLE à ce qu'une personne tape : casse et accents repliés, bords retirés — « mediatheque » trouve « Médiathèque », « resume.pdf » trouve « Résumé.PDF », `!Modèle` vaut `!modele`.
+- **API publique** (1) :
+  - `fold(text) -> str`
+
 ### Export document
 
 Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app
@@ -1730,22 +1739,25 @@ Que peut faire WAMA de ce fichier ? — ports d'app + lot + manifeste + médiath
 
 ### Moteur de l'assistant IA
 
-Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vue web et /api/v1/assistant/chat/ en sont des clients. Porte aussi les SOUS-AGENTS et le COUNCIL (2026-10-29, `WAMA_HARNESS §7.4`) : bornes d'un tour, verbe `delegate` (vagues parallèles par serveur, agents du registre de 1 à n, vote / décideur / relecture croisée), réglage « Sous-agents » auto + curseur
+Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vue web et /api/v1/assistant/chat/ en sont des clients. Porte aussi les SOUS-AGENTS et le COUNCIL (2026-10-29, `WAMA_HARNESS §7.4`) : bornes d'un tour, verbe `delegate` (vagues parallèles par serveur, agents du registre de 1 à n, vote / décideur / relecture croisée), réglage « Sous-agents » auto + curseur. Et ses COMMANDES (2026-11-06, `assistant_commands`) : `/concile`, `/competence`, `/effort`, `/modele`, `/oublier`, `/code`, `/aide` — déclarées une fois, jouées par `conversation_turn` pour toutes les surfaces, chacune un geste existant rendu explicite
 
 - **Domicile** : `wama/common/services/assistant_engine.py`
 - **Module** : Moteur de l'assistant IA — boucle agentique multi-surface (chantier « passerelle de canaux », étape 0).
-- **API publique** (13) :
+- **API publique** (16) :
   - `web_voice_prompt(user, surface: str) -> str` — La consigne de voix et d'avatar de la surface web, avec l'état de CET utilisateur —
   - `surface_attaches_files(surface: str) -> bool` — La réponse de cette surface est-elle publiée par un ADAPTATEUR qui joint les fichiers ?
   - `turn_model_key(provider, llm_model) -> str` — Clé de CATALOGUE du modèle d'un tour (`albert:…`, `ollama:…`) — '' sans modèle nommé.
   - `expected_wait(model_key: str) -> float` — Attente APPRISE avant le premier texte d'un tour par ce modèle, en secondes — 0 tant
   - `assistant_settings(user) -> dict` — Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
+  - `check_chat_model(user, model_key: str) -> tuple` — Un modèle de conversation est-il CHOISISSABLE par `user` ? `(None, 0)` si oui, sinon
+  - `set_chat_model(user, model_key: str) -> dict` — Change le modèle de conversation de `user` — le réglage durable `assistant.model`.
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
   - `thinking_wanted(quality_intent) -> bool` — La réflexion du modèle est-elle demandée pour ce réglage de curseur ?
   - `delegation_wanted(settings: dict) -> bool` — Les sous-agents sont-ils proposés au modèle ? Le geste commun « auto + curseur + manuel » :
   - `native_tool_list(user, dev_tools: list=(), names=None) -> list` — La liste des outils au format standard (`tools=`) que reçoit un modèle déclaré
   - `warm_up() -> dict` — Remplit les caches de processus du tour d'assistant — `{étape: secondes | 'erreur : …'}`.
   - `message_with_deposits(text: str, paths) -> str` — Le message d'un tour qui DÉPOSE des fichiers dans l'espace de l'utilisateur — UNE graphie
+  - `split_deposits(message: str) -> tuple` — `(en-tête, texte)` d'un message écrit par `message_with_deposits` — `('', message)` sans
   - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None, on_event=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
   - `run_assistant_turn(user, message: str, provider: str=None, model: str=None, history: list=None, domain: str=None, surface: str='web', on_event=None, escalated_…` — UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
 
@@ -3801,10 +3813,11 @@ Passerelle générique (token+session) sur TOOL_REGISTRY : lister/exécuter, gat
 
 - **Domicile** : `wama/api/v1/views.py`
 - **Module** : WAMA REST API v1 — Views
-- **API publique** (5) :
+- **API publique** (6) :
   - `class ListToolsView(APIView)` — GET /api/v1/tools/
   - `class RunToolView(APIView)` — POST /api/v1/tools/run/
   - `class AssistantChatView(APIView)` — POST /api/v1/assistant/chat/
+  - `class AssistantModelView(APIView)` — GET /api/v1/assistant/model/ → {"model": "<clé ou auto>"}
   - `class FileUploadView(APIView)` — POST /api/v1/files/upload/ (multipart : champ `file`)
   - `class FileDownloadView(APIView)` — GET /api/v1/files/download/?path=<chemin relatif à MEDIA_ROOT>
 

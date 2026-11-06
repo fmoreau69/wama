@@ -449,19 +449,12 @@ def ai_chat_settings(request):
         if name not in data:
             continue
         modele = (data.get(name) or '').strip()
-        if not is_auto(modele):
-            from wama.model_manager.models import AIModel
-            from wama.model_manager.services.cloud_models import allowed_cloud_keys
-            ligne = AIModel.objects.filter(model_key=modele, is_available=True).first()
-            if ligne is None:
-                return JsonResponse({'error': f"Modèle inconnu du catalogue : {modele}"}, status=400)
-            # Un modèle DISTANT doit être ouvert par les clés de CET utilisateur : le refuser ici
-            # évite d'enregistrer un choix que chaque tour refuserait ensuite.
-            if ligne.execution == 'cloud' and modele not in allowed_cloud_keys(request.user,
-                                                                              automatic=False):
-                return JsonResponse({'error': "Ce modèle distant n'est pas ouvert par vos clés "
-                                              "d'API, ou votre profil est en « 100 % local »."},
-                                    status=403)
+        # Un modèle DISTANT doit être ouvert par les clés de CET utilisateur : le refuser ici
+        # évite d'enregistrer un choix que chaque tour refuserait ensuite.
+        from wama.common.services.assistant_engine import check_chat_model
+        error, code = check_chat_model(request.user, modele)
+        if error:
+            return JsonResponse({'error': error}, status=code)
         valeurs[name] = modele or USER_SETTINGS_DEFAULTS[name]
     # Le modèle de VOIX et la voix (2026-10-28) : un modèle de synthèse que le compte voit, une
     # voix que la source commune lui propose — jamais un choix que la vocalisation refuserait.

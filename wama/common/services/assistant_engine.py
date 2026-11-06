@@ -279,6 +279,48 @@ def assistant_settings(user) -> dict:
     return get_user_app_settings(user, 'assistant', USER_SETTINGS_DEFAULTS)
 
 
+def check_chat_model(user, model_key: str) -> tuple:
+    """Un modèle de conversation est-il CHOISISSABLE par `user` ? `(None, 0)` si oui, sinon
+    `(message, statut HTTP)`.
+
+    Domicile unique de la validation (catalogue, puis clés d'API de l'utilisateur pour un modèle
+    distant) : la vue des réglages, l'API et la commande `!modele` de la passerelle la partagent —
+    refuser ici évite d'enregistrer un choix que chaque tour refuserait ensuite. « auto » passe.
+    """
+    from wama.common.utils.auto_model import is_auto
+    model_key = (model_key or '').strip()
+    if is_auto(model_key):
+        return None, 0
+    from wama.model_manager.models import AIModel
+    from wama.model_manager.services.cloud_models import allowed_cloud_keys
+    row = AIModel.objects.filter(model_key=model_key, is_available=True).first()
+    if row is None:
+        return f"Modèle inconnu du catalogue : {model_key}", 400
+    if row.execution == 'cloud' and model_key not in allowed_cloud_keys(user, automatic=False):
+        return ("Ce modèle distant n'est pas ouvert par vos clés d'API, ou votre profil est en "
+                "« 100 % local »."), 403
+    return None, 0
+
+
+def set_chat_model(user, model_key: str) -> dict:
+    """Change le modèle de conversation de `user` — le réglage durable `assistant.model`.
+
+    ⚠ Ne touche NI au fil NI à son historique : le moteur est sans état et résout son modèle à
+    CHAQUE tour (`resolve_turn_model`), donc le tour suivant continue la même conversation avec
+    le nouveau modèle. Le réglage vaut pour toutes les surfaces du compte (web, API, canaux).
+    Rend `{'model': clé}` ou `{'error': message, 'status': code}`.
+    """
+    from wama.common.utils.auto_model import AUTO, is_auto
+    from wama.common.utils.user_settings import save_user_app_settings
+    model_key = (model_key or '').strip()
+    error, code = check_chat_model(user, model_key)
+    if error:
+        return {'error': error, 'status': code}
+    chosen = AUTO if is_auto(model_key) or not model_key else model_key
+    save_user_app_settings(user, 'assistant', {'model': chosen})
+    return {'model': chosen}
+
+
 def resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple:
     """(fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
     ailleurs dans WAMA (« le MODÈLE porte son moteur »).
@@ -2262,8 +2304,23 @@ def message_with_deposits(text: str, paths) -> str:
     text = (text or '').strip()
     if not paths:
         return text
-    header = f"[Fichiers déposés dans mon espace WAMA : {', '.join(f'`{p}`' for p in paths)}]"
+    header = f"{_DEPOSIT_HEADER}{', '.join(f'`{p}`' for p in paths)}]"
     return f"{header}\n{text or DEPOSIT_QUESTION}"
+
+
+#: L'en-tête de `message_with_deposits` — écrit et lu ICI seulement.
+_DEPOSIT_HEADER = '[Fichiers déposés dans mon espace WAMA : '
+
+
+def split_deposits(message: str) -> tuple:
+    """`(en-tête, texte)` d'un message écrit par `message_with_deposits` — `('', message)` sans
+    dépôt. Ce que l'utilisateur a TAPÉ est le texte : c'est lui qui porte une commande
+    (`assistant_commands`), l'en-tête suit le tour qu'elle amorce."""
+    message = message or ''
+    if message.startswith(_DEPOSIT_HEADER) and '\n' in message:
+        header, _, text = message.partition('\n')
+        return header, text
+    return '', message
 
 
 def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: str = '',
@@ -2291,6 +2348,22 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
     # le middleware ne voit que les routes web.
     if not accessible(user, 'app', 'assistant'):
         return {'error': "L'assistant n'est pas ouvert à votre compte."}
+
+    # Les COMMANDES (`/concile`, `/effort`… — `assistant_commands`, 2026-11-06) : après la garde,
+    # AVANT le fil — une commande qui répond seule n'ouvre ni n'écrit de fil (`/oublier` sur un
+    # fil vide n'a rien à effacer). Un tour amorcé continue ci-dessous, ses dépôts compris.
+    from wama.common.services.assistant_commands import run_command
+    header, typed = split_deposits(message)
+    command = run_command(user, typed, surface=surface, thread_key=thread_key)
+    delegate = None
+    if command is not None and 'turn' in command:
+        turn = command['turn']
+        message = f"{header}\n{turn['message']}" if header else turn['message']
+        domain = turn.get('domain') or domain
+        delegate = turn.get('delegate')
+    elif command is not None:
+        reply = {k: v for k, v in command.items() if k != 'reply'}
+        return {'success': True, 'response': command['reply'], **reply}
 
     fil = None
     historique = []
@@ -2337,10 +2410,19 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
 
     # Les SOUS-AGENTS (`WAMA_HARNESS §7.4` étapes 3 et 5) : le réglage de l'utilisateur, « auto »
     # suivant son curseur (`delegation_wanted`) — non proposés, l'outil `delegate` n'est pas annoncé.
+    # Un `/concile` les ouvre pour CE message, quel que soit le réglage : le geste manuel.
     resultat = run_assistant_turn(user, message, provider=provider, model=model,
                                   history=historique, domain=domain, surface=surface,
                                   on_event=listener,
-                                  can_delegate=delegation_wanted(assistant_settings(user)))
+                                  can_delegate=delegate or delegation_wanted(assistant_settings(user)))
+    if delegate and 'error' not in resultat and not any(
+            step.get('tool') == DELEGATE_TOOL for step in resultat.get('tool_steps') or ()):
+        # Le DIRE plutôt que de laisser croire à un concile : l'abonnement n'y passe pas
+        # (`run_assistant_turn`, sa boucle ignore les bornes d'un sous-agent), et un modèle peut
+        # répondre seul malgré la demande.
+        resultat['response'] = ((resultat.get('response') or '')
+                                + "\n\n_⚠ Le concile ne s'est pas réuni : ce modèle a répondu "
+                                  "seul (l'abonnement Claude n'en réunit pas)._")
 
     total = time.monotonic() - started
     if 'error' not in resultat:

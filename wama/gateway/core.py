@@ -83,18 +83,24 @@ class Reply:
     private: bool = False
 
 
-HELP_TEXT = (
-    "**WAMA** — ce que je sais faire ici :\n"
-    "• `!lier` — relier ce compte de discussion à votre compte WAMA (obligatoire)\n"
-    "• `!delier` — supprimer la liaison\n"
-    "• `!code <question>` — déléguer une question SUR LE DÉPÔT à Claude Code "
-    "(développeurs/admins ; consomme l'abonnement)\n"
-    "• `!oublier` — effacer la conversation de ce fil et repartir de zéro\n"
-    "• `!aide` — ce message\n"
-    "Sinon, écrivez simplement ce que vous voulez faire : « transcris le fichier que je "
-    "viens d'envoyer », « où en est ma transcription ? ». Les pièces jointes sont déposées "
-    "dans votre espace WAMA."
-)
+#: Le préfixe que l'aide d'un canal MONTRE — l'habitude des canaux ; `/` y est accepté aussi
+#: (`assistant_commands.PREFIXES`), mais sur Discord il ouvre le sélecteur des commandes natives.
+CHANNEL_PREFIX = '!'
+
+
+def help_text(prefix: str = CHANNEL_PREFIX) -> str:
+    """L'aide d'un canal : ses gestes PROPRES (l'appariement, qui précède l'identité), puis les
+    commandes de l'assistant, déclarées une fois pour toutes les surfaces (`assistant_commands`)."""
+    from wama.common.services.assistant_commands import help_lines
+    return (
+        "**WAMA** — ce que je sais faire ici :\n"
+        f"• `{prefix}lier` — relier ce compte de discussion à votre compte WAMA (obligatoire)\n"
+        f"• `{prefix}delier` — supprimer la liaison\n"
+        + '\n'.join(help_lines(prefix)) + "\n"
+        "Sinon, écrivez simplement ce que vous voulez faire : « transcris le fichier que je "
+        "viens d'envoyer », « où en est ma transcription ? ». Les pièces jointes sont déposées "
+        "dans votre espace WAMA."
+    )
 
 
 def _thread_key(msg: IncomingMessage) -> str:
@@ -125,16 +131,19 @@ def handle_message(msg: IncomingMessage) -> Reply:
 
 
 def _handle(msg: IncomingMessage) -> Reply:
+    from wama.common.services.assistant_commands import parse_command
     texte = (msg.text or '').strip()
-    commande = texte.split()[0].lower() if texte else ''
+    # Les gestes du CANAL (aide, appariement) : ils précèdent l'identité. Les commandes de
+    # l'assistant (`!modele`, `!oublier`, `!code`, `!concile`…) passent par le tour commun.
+    prefix, commande, _ = parse_command(texte) or (CHANNEL_PREFIX, '', '')
 
-    if commande in ('!aide', '!help'):
-        return Reply(text=HELP_TEXT)
+    if commande in ('aide', 'help'):
+        return Reply(text=help_text(prefix))
 
     user = account_for(msg.channel, msg.external_id)
 
     # ── Appariement ──────────────────────────────────────────────────────────────
-    if commande == '!lier':
+    if commande == 'lier':
         if user is not None:
             return Reply(text=f"✅ Ce compte est déjà relié à **{user.username}**.", private=True)
         lien = request_link(msg.channel, msg.external_id, msg.external_label)
@@ -152,7 +161,7 @@ def _handle(msg: IncomingMessage) -> Reply:
             )
         return Reply(private=True, text=texte, attachments=pieces)
 
-    if commande == '!delier':
+    if commande == 'delier':
         if user is None:
             return Reply(text="Ce compte n'est relié à aucun compte WAMA.", private=True)
         unlink(user, msg.channel, msg.external_id)
@@ -168,52 +177,11 @@ def _handle(msg: IncomingMessage) -> Reply:
             "Envoyez `!lier` pour obtenir un code d'appariement."
         ))
 
-    # ── Repartir d'un fil vierge ─────────────────────────────────────────────────
-    # Le « Effacer » du chat web, pour un canal (2026-10-05) : un fil où une fabrication est
-    # entrée la resservait au modèle à chaque tour (`WAMA_LLM.md` §2026-10-05). Même brique que
-    # le web (`conversation_store.clear_thread`) ; seul CE fil part, jamais les autres.
-    if commande in ('!oublier', '!forget'):
-        from wama.common.services import conversation_store
-        if conversation_store.clear_thread(user, surface=msg.channel,
-                                           thread_key=_thread_key(msg)):
-            return Reply(private=True, text="🧹 Conversation effacée : je repars de zéro.")
-        return Reply(private=True, text="Il n'y avait rien à effacer dans ce fil.")
-
-    # ── Délégation au dépôt via Claude Code — geste EXPLICITE ────────────────────
-    # ⚠ POURQUOI UN GESTE, et pas « le modèle décidera » : en Discord le tour part sur le
-    # fournisseur LOCAL (défaut `wama-dev-ai` de `conversation_turn`), donc ce serait à un
-    # PETIT modèle de décider d'appeler `ask_claude_code` — jamais mesuré, et structurellement
-    # fragile. Le geste rend le chemin déterministe et VISIBLE (il est dans `!aide`) : c'était
-    # le trou réel du chantier §19.3, qui était d'ergonomie et non de câblage.
-    # La GARDE reste celle de l'outil (`subscription_allowed`, domicile unique) : on l'APPELLE,
-    # on ne la réimplémente pas ici — une garde recopiée est une garde qui dérive.
-    if commande == '!code':
-        question = texte[len('!code'):].strip()
-        # ⚠ `private=True` sur TOUTES les issues de ce geste (aligné sur `!lier`/`!delier`) :
-        # une réponse sur le CODE du dépôt n'a pas à être publiée dans un salon partagé, et
-        # un refus « réservé aux développeurs » annonce publiquement qui n'a pas le droit.
-        if not question:
-            return Reply(private=True,
-                         text="Usage : `!code <votre question sur le dépôt>`\n"
-                              "_Exemple : `!code où est décidé le nom d'un fichier de sortie ?`_")
-        from wama.tool_api import ask_claude_code
-        resultat = ask_claude_code(user, question)
-        if 'error' in resultat:
-            return Reply(private=True,
-                         text=f"⛔ {resultat.get('detail') or resultat['error']}")
-        cout = resultat.get('cost_usd')
-        # Le coût est AFFICHÉ : ce chemin n'est pas gratuit en crédit mensuel, et un chemin
-        # dont on ne voit jamais le prix finit par être pris pour du bavardage.
-        pied = (f"\n\n_~{cout:.3f} $ d'équivalent-API imputés à l'abonnement "
-                f"(cache chaud ≈ 0,03 $, froid ≈ 0,5 $)._") if cout else ''
-        return Reply(private=True,
-                     text=f"{resultat.get('response') or '(réponse vide)'}{pied}")
-
     # ── Pièces jointes → espace WAMA de l'utilisateur ────────────────────────────
     deposes = _store_attachments(user, msg.attachments)
 
     if not texte and not deposes:
-        return Reply(text=HELP_TEXT)
+        return Reply(text=help_text(prefix))
 
     # ── Le tour d'assistant : MÊME moteur ET MÊME store que la page web ─────────
     from wama.common.services.assistant_engine import conversation_turn, message_with_deposits
@@ -225,6 +193,12 @@ def _handle(msg: IncomingMessage) -> Reply:
     # la passerelle n'a qu'à nommer son fil.
     resultat = conversation_turn(user, invite, surface=msg.channel,
                                     thread_key=_thread_key(msg))
+
+    # Une COMMANDE qui répond seule (`assistant_commands`) part en PRIVÉ, comme `!lier` : elle
+    # parle des réglages ou du fil de la personne — et `!code` du dépôt, dont un refus annoncerait
+    # publiquement qui n'a pas le droit. Un tour amorcé (`!concile`) est une réponse ordinaire.
+    if resultat.get('command'):
+        return Reply(private=True, text=resultat['response'])
 
     footer = engine_footer(resultat)
     if 'error' in resultat:
