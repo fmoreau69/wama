@@ -5,10 +5,11 @@ Deux consommateurs, une seule mesure (règle « zéro duplication ») :
   • `manage.py library_candidates` : propose les candidats au semis du corpus `library` ;
   • `builtin/app.py::extract_app`  : remplit la jambe `app → library` de `requires`.
 
-Ce module **ne peuple rien** et n'écrit nulle part. Le semis au corpus reste EXPLICITE
-(`manage.py manifest_export --kind library <clé>`, SPEC §7.4-3) : aucun critère automatique ne
-décide qu'une librairie mérite d'entrer. C'est délibéré — `venv_linux` contient ~575 distributions
-dont l'écrasante majorité sont des dépendances transitives, pas des capacités WAMA.
+Ce module **ne peuple rien** et n'écrit nulle part. Le semis au corpus passe par la route
+(`manage.py manifest_export --kind library <clé>`, SPEC §7.4-3). Son CRITÈRE est une décision de
+Fabien (2026-11-06) : toute distribution que le code WAMA IMPORTE est au registre — `unseeded()`
+doit être vide (`tests_manifest_library.EveryImportedLibraryIsSeededTest`). Les dépendances
+TRANSITIVES n'y entrent pas : `venv_linux` contient ~575 distributions, que le code n'importe pas.
 
 Méthode : AST sur les sources (pas d'exécution, pas d'import), puis `packages_distributions()`
 pour passer du nom de MODULE au nom de DISTRIBUTION (`cv2` → `opencv-python`) — la confusion
@@ -26,11 +27,12 @@ from wama.common.file_cache import FileCache, file_stamp
 
 logger = logging.getLogger(__name__)
 
-#: Racines de code WAMA à analyser (relatives à BASE_DIR).
-RACINES = ('wama', 'wama_lab')
+#: Racines de code WAMA à analyser (relatives à BASE_DIR) — les trois mondes (`AGENTS.md`, « un
+#: monde n'est pas un sous-dossier du substrat ») ; `wama_data` en manquait jusqu'au 2026-11-06.
+RACINES = ('wama', 'wama_lab', 'wama_data')
 
 #: Paquets internes : jamais des librairies tierces.
-INTERNES = {'wama', 'wama_lab'}
+INTERNES = {'wama', 'wama_lab', 'wama_data'}
 
 #: ⚠ `wama_lab/face_analyzer` embarque SES PROPRES venv (14 227 + 495 fichiers .py). Sans cette
 #: exclusion, l'inventaire remonte les imports de site-packages (`AppKit`, `Carbon`…) et compte
@@ -114,6 +116,29 @@ def _distributions() -> dict:
     return _DISTRIBUTIONS[1]
 
 
+def code_files():
+    """Les fichiers Python du code WAMA, ceux dont les imports disent ce que WAMA utilise.
+
+    Les trois racines (`RACINES`), hors `EXCLUS` — et hors du code tiers VENDORISÉ sous
+    `settings.BACKEND_VENDOR_DIR` (2026-11-06) : la route `vendor` y clone des moteurs entiers
+    (ACE-Step : 413 fichiers), dont les imports sont LEURS dépendances — gradio, loguru, mlx… —, pas
+    des usages de WAMA ; la librairie vendorisée est elle-même au registre. Les compter les
+    attribuait à `common` et en faisait des candidats au semis.
+    """
+    from django.conf import settings
+
+    base = _base_dir()
+    vendor = getattr(settings, 'BACKEND_VENDOR_DIR', None)
+    vendor = Path(vendor) if vendor else None
+    for root in RACINES:
+        for path in (base / root).rglob('*.py'):
+            if EXCLUS & set(path.parts):
+                continue
+            if vendor is not None and path.is_relative_to(vendor):
+                continue
+            yield path
+
+
 @lru_cache(maxsize=1)
 def scan_imports() -> dict[str, dict]:
     """
@@ -125,17 +150,14 @@ def scan_imports() -> dict[str, dict]:
     base = _base_dir()
     par_module: dict[str, set[str]] = {}
 
-    for racine in RACINES:
-        for chemin in (base / racine).rglob('*.py'):
-            if EXCLUS & set(chemin.parts):
+    for chemin in code_files():
+        app = _app_de(chemin, base)
+        for m in _modules_du_fichier(chemin):
+            if m in INTERNES or m in sys.stdlib_module_names or m.startswith('_'):
                 continue
-            app = _app_de(chemin, base)
-            for m in _modules_du_fichier(chemin):
-                if m in INTERNES or m in sys.stdlib_module_names or m.startswith('_'):
-                    continue
-                par_module.setdefault(m, set())
-                if app:
-                    par_module[m].add(app)
+            par_module.setdefault(m, set())
+            if app:
+                par_module[m].add(app)
 
     mapping = _distributions()
 
@@ -221,6 +243,27 @@ def candidats() -> list[dict]:
 def non_resolus() -> list[str]:
     """Modules tiers importés dont aucune distribution n'est connue (à inspecter à la main)."""
     return sorted(scan_imports().get('__non_resolus__', {}).get('modules', []))
+
+
+def unseeded() -> list[str]:
+    """Distributions que le code WAMA importe et que le corpus ne porte pas — attendu : aucune
+    (décision de Fabien, 2026-11-06 : une librairie utilisée par WAMA est au registre).
+
+    Une distribution dont CHAQUE module importé est déjà fourni par une distribution semée n'en
+    est pas une : c'est une variante (`opencv-contrib-python` à côté d'`opencv-python`, la variante
+    retenue le 2026-11-02) ou une installation masquée (`phonemizer-fork`, dont les fichiers ont
+    été recouverts par ceux de `phonemizer`). Le socle n'est pas exclu : semé, il reste hors de tout
+    `requires` (`librairies_de`).
+    """
+    sem, mapping = semees(), _distributions()
+    out = []
+    for dist, info in scan_imports().items():
+        if dist == '__non_resolus__' or _normalise(dist) in sem:
+            continue
+        if all(any(_normalise(d) in sem for d in (mapping.get(m) or ())) for m in info['modules']):
+            continue
+        out.append(dist)
+    return sorted(out)
 
 
 def librairies_de(app_id: str) -> list[str]:

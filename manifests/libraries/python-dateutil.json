@@ -1,0 +1,32 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "six"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Gustavo Niemeyer",
+      "license": "Dual License",
+      "repository": "https://github.com/dateutil/dateutil",
+      "summary": "Extensions to the standard Python datetime module",
+      "version": "2.9.0.post0"
+    },
+    "install": {
+      "pip": "python-dateutil==2.9.0.post0",
+      "requires_python": "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
+    }
+  },
+  "description": "Extensions to the standard Python datetime module",
+  "key": "python-dateutil",
+  "manifest_kind": "library",
+  "name": "python-dateutil",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:python-dateutil==2.9.0.post0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

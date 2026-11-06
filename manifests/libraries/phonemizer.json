@@ -1,0 +1,39 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "attrs",
+      "dlinfo",
+      "joblib",
+      "typing-extensions"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "phonemize"
+      ]
+    },
+    "identity": {
+      "author": "Hadrien Titeux",
+      "license": "GNU General Public License v3 or later (GPLv3+)",
+      "repository": "https://github.com/bootphon/phonemizer",
+      "summary": "Simple text to phones converter for multiple languages",
+      "version": "3.4.0"
+    },
+    "install": {
+      "pip": "phonemizer==3.4.0",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Simple text to phones converter for multiple languages",
+  "key": "phonemizer",
+  "manifest_kind": "library",
+  "name": "phonemizer",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:phonemizer==3.4.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

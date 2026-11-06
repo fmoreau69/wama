@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "async-timeout",
+      "importlib-metadata",
+      "typing-extensions"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Redis Inc.",
+      "license": "MIT",
+      "repository": "https://github.com/redis/redis-py",
+      "summary": "Python client for Redis database and key-value store",
+      "version": "5.0.8"
+    },
+    "install": {
+      "pip": "redis==5.0.8",
+      "requires_python": ">=3.7"
+    }
+  },
+  "description": "Python client for Redis database and key-value store",
+  "key": "redis",
+  "manifest_kind": "library",
+  "name": "redis",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:redis==5.0.8",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

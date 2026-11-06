@@ -1,0 +1,32 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "django"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Tom Christie",
+      "license": "BSD",
+      "repository": "https://github.com/encode/django-rest-framework",
+      "summary": "Web APIs for Django, made easy.",
+      "version": "3.16.1"
+    },
+    "install": {
+      "pip": "djangorestframework==3.16.1",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Web APIs for Django, made easy.",
+  "key": "djangorestframework",
+  "manifest_kind": "library",
+  "name": "djangorestframework",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:djangorestframework==3.16.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

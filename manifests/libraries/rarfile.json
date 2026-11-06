@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "Marko Kreen",
+      "license": "ISC",
+      "repository": "https://github.com/markokr/rarfile",
+      "summary": "RAR archive reader for Python",
+      "version": "4.2"
+    },
+    "install": {
+      "pip": "rarfile==4.2",
+      "requires_python": ">=3.6"
+    }
+  },
+  "description": "RAR archive reader for Python",
+  "key": "rarfile",
+  "manifest_kind": "library",
+  "name": "rarfile",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:rarfile==4.2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

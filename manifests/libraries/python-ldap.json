@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "pyasn1",
+      "pyasn1_modules"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "python-ldap project",
+      "license": "Python style",
+      "repository": "https://www.python-ldap.org/",
+      "summary": "Python modules for implementing LDAP clients",
+      "version": "3.4.4"
+    },
+    "install": {
+      "pip": "python-ldap==3.4.4",
+      "requires_python": ">=3.6"
+    }
+  },
+  "description": "Python modules for implementing LDAP clients",
+  "key": "python-ldap",
+  "manifest_kind": "library",
+  "name": "python-ldap",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:python-ldap==3.4.4",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

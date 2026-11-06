@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": null,
+      "license": null,
+      "repository": "https://github.com/pytorch/ao",
+      "summary": "Package for applying ao techniques to GPU models",
+      "version": "0.16.0"
+    },
+    "install": {
+      "pip": "torchao==0.16.0",
+      "requires_python": null
+    }
+  },
+  "description": "Package for applying ao techniques to GPU models",
+  "key": "torchao",
+  "manifest_kind": "library",
+  "name": "torchao",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:torchao==0.16.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

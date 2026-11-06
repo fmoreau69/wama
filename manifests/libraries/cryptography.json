@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "cffi",
+      "typing-extensions"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "The Python Cryptographic Authority and individual contributors <cryptography-dev@python.org>",
+      "license": "Apache-2.0 OR BSD-3-Clause",
+      "repository": "https://github.com/pyca/cryptography/",
+      "summary": "cryptography is a package which provides cryptographic recipes and primitives to Python developers.",
+      "version": "46.0.7"
+    },
+    "install": {
+      "pip": "cryptography==46.0.7",
+      "requires_python": ">=3.8, !=3.9.0, !=3.9.1"
+    }
+  },
+  "description": "cryptography is a package which provides cryptographic recipes and primitives to Python developers.",
+  "key": "cryptography",
+  "manifest_kind": "library",
+  "name": "cryptography",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:cryptography==46.0.7",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

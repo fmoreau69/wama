@@ -1,0 +1,35 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy",
+      "python-dateutil",
+      "pytz",
+      "tzdata"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "The Pandas Development Team <pandas-dev@python.org>",
+      "license": "BSD License",
+      "repository": "https://github.com/pandas-dev/pandas",
+      "summary": "Powerful data structures for data analysis, time series, and statistics",
+      "version": "2.3.3"
+    },
+    "install": {
+      "pip": "pandas==2.3.3",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Powerful data structures for data analysis, time series, and statistics",
+  "key": "pandas",
+  "manifest_kind": "library",
+  "name": "pandas",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:pandas==2.3.3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

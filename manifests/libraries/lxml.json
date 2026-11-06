@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "lxml dev team",
+      "license": "BSD-3-Clause",
+      "repository": "https://github.com/lxml/lxml",
+      "summary": "Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API.",
+      "version": "6.0.2"
+    },
+    "install": {
+      "pip": "lxml==6.0.2",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Powerful and Pythonic XML processing library combining libxml2/libxslt with the ElementTree API.",
+  "key": "lxml",
+  "manifest_kind": "library",
+  "name": "lxml",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:lxml==6.0.2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

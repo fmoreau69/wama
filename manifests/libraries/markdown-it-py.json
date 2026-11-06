@@ -1,0 +1,36 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "mdurl"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "markdown-it"
+      ]
+    },
+    "identity": {
+      "author": "Chris Sewell <chrisj_sewell@hotmail.com>",
+      "license": "MIT License",
+      "repository": "https://github.com/executablebooks/markdown-it-py",
+      "summary": "Python port of markdown-it. Markdown parsing, done right!",
+      "version": "4.0.0"
+    },
+    "install": {
+      "pip": "markdown-it-py==4.0.0",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Python port of markdown-it. Markdown parsing, done right!",
+  "key": "markdown-it-py",
+  "manifest_kind": "library",
+  "name": "markdown-it-py",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:markdown-it-py==4.0.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

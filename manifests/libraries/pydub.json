@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "James Robert",
+      "license": "MIT",
+      "repository": "http://pydub.com",
+      "summary": "Manipulate audio with an simple and easy high level interface",
+      "version": "0.25.1"
+    },
+    "install": {
+      "pip": "pydub==0.25.1",
+      "requires_python": null
+    }
+  },
+  "description": "Manipulate audio with an simple and easy high level interface",
+  "key": "pydub",
+  "manifest_kind": "library",
+  "name": "pydub",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:pydub==0.25.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

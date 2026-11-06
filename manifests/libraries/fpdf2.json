@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "Pillow",
+      "defusedxml",
+      "fonttools"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Olivier PLATHEY, Max, Lucas Cimon (@Lucas-C), Georg Mischler (@gmischler), Anderson Herzogenrath da Costa (@andersonhc)",
+      "license": "LGPL-3.0-only",
+      "repository": "https://py-pdf.github.io/fpdf2/",
+      "summary": "Simple & fast PDF generation for Python",
+      "version": "2.8.7"
+    },
+    "install": {
+      "pip": "fpdf2==2.8.7",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Simple & fast PDF generation for Python",
+  "key": "fpdf2",
+  "manifest_kind": "library",
+  "name": "fpdf2",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:fpdf2==2.8.7",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

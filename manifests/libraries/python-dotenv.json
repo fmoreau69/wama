@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {
+      "console_scripts": [
+        "dotenv"
+      ]
+    },
+    "identity": {
+      "author": "Saurabh Kumar",
+      "license": "BSD-3-Clause",
+      "repository": "https://github.com/theskumar/python-dotenv",
+      "summary": "Read key-value pairs from a .env file and set them as environment variables",
+      "version": "1.0.1"
+    },
+    "install": {
+      "pip": "python-dotenv==1.0.1",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Read key-value pairs from a .env file and set them as environment variables",
+  "key": "python-dotenv",
+  "manifest_kind": "library",
+  "name": "python-dotenv",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:python-dotenv==1.0.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,38 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "beautifulsoup4",
+      "requests"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "deep-translator",
+        "dt"
+      ]
+    },
+    "identity": {
+      "author": "Nidhal Baccouri",
+      "license": "MIT",
+      "repository": "https://github.com/nidhaloff/deep_translator",
+      "summary": "A flexible free and unlimited python tool to translate between different languages in a simple way using multiple translators",
+      "version": "1.11.4"
+    },
+    "install": {
+      "pip": "deep-translator==1.11.4",
+      "requires_python": ">=3.7,<4.0"
+    }
+  },
+  "description": "A flexible free and unlimited python tool to translate between different languages in a simple way using multiple translators",
+  "key": "deep-translator",
+  "manifest_kind": "library",
+  "name": "deep-translator",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:deep-translator==1.11.4",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "lxml",
+      "typing_extensions"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Steve Canny <stcanny@gmail.com>",
+      "license": "MIT",
+      "repository": "https://github.com/python-openxml/python-docx",
+      "summary": "Create, read, and update Microsoft Word .docx files.",
+      "version": "1.2.0"
+    },
+    "install": {
+      "pip": "python-docx==1.2.0",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Create, read, and update Microsoft Word .docx files.",
+  "key": "python-docx",
+  "manifest_kind": "library",
+  "name": "python-docx",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:python-docx==1.2.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -92,8 +92,15 @@ Un round-trip qui diverge sur un champ **déclaratif** est un bug ; sur un champ
 - **`library` ≠ `model`.** `faster-whisper` (paquet PyPI) est une `library` ; `Systran/faster-whisper-large-v3`
   (poids HF) est un `model`. `install.pip` n'a de sens que pour une `library` : un modèle se
   télécharge (ollama pull / HF snapshot / release Ultralytics), il ne s'installe pas par pip.
-- **Semis EXPLICITE au corpus** : `manifest_export --kind library <clé>`. Aucun critère automatique
-  ne décide qu'une lib mérite d'entrer — c'est une décision humaine.
+- **Semis au corpus par la route** : `manifest_export --kind library <clé>` (depuis venv_linux), puis
+  la projection `ingest.write_back` (`apply_manifests --kind library --apply`). **Le critère est une
+  décision de Fabien (2026-11-06)** : toute librairie que le code WAMA importe est au registre —
+  `library_index.unseeded()` doit être vide (`tests_manifest_library.EveryImportedLibraryIsSeededTest`).
+  Une dépendance transitive n'entre pas ; un import sans distribution installée se DÉCLARE dans la
+  garde avec sa raison ; installer une lib absente reste la route `install_library` (allowlist
+  humaine). Détail : `WAMA_MANIFEST_SPEC §7.4` point 3.
+  ⚠ Projeter un sous-ensemble se fait par `write_back` sur ses clés : `apply_manifests --apply`
+  projette TOUT le corpus, y compris un manifeste modifié par une autre instance (vécu : `gguf`).
 - **Null plutôt que plausible** : ce qui n'est pas extractible reste ABSENT. Ne jamais inventer une
   contrainte GPU, une licence ou une version pour « compléter » un manifeste.
 - **Un rôle LLM n'ingère JAMAIS.** Il écrit dans `wama-dev-ai/outputs/` avec

@@ -1,0 +1,32 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Sean Gillies",
+      "license": "BSD 3-Clause",
+      "repository": "https://github.com/shapely/shapely",
+      "summary": "Manipulation and analysis of geometric objects",
+      "version": "2.0.7"
+    },
+    "install": {
+      "pip": "shapely==2.0.7",
+      "requires_python": ">=3.7"
+    }
+  },
+  "description": "Manipulation and analysis of geometric objects",
+  "key": "shapely",
+  "manifest_kind": "library",
+  "name": "shapely",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:shapely==2.0.7",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,41 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "ml_dtypes",
+      "numpy",
+      "protobuf",
+      "typing_extensions"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "backend-test-tools",
+        "check-model",
+        "check-node"
+      ]
+    },
+    "identity": {
+      "author": "ONNX Contributors <onnx-technical-discuss@lists.lfaidata.foundation>",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/onnx/onnx",
+      "summary": "Open Neural Network Exchange",
+      "version": "1.20.0"
+    },
+    "install": {
+      "pip": "onnx==1.20.0",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Open Neural Network Exchange",
+  "key": "onnx",
+  "manifest_kind": "library",
+  "name": "onnx",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:onnx==1.20.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

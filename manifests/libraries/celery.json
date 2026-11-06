@@ -1,0 +1,44 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "backports.zoneinfo",
+      "billiard",
+      "click",
+      "click-didyoumean",
+      "click-plugins",
+      "click-repl",
+      "kombu",
+      "python-dateutil",
+      "vine"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "celery"
+      ]
+    },
+    "identity": {
+      "author": "Ask Solem",
+      "license": "BSD-3-Clause",
+      "repository": "https://docs.celeryq.dev/",
+      "summary": "Distributed Task Queue.",
+      "version": "5.5.3"
+    },
+    "install": {
+      "pip": "celery==5.5.3",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Distributed Task Queue.",
+  "key": "celery",
+  "manifest_kind": "library",
+  "name": "celery",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:celery==5.5.3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

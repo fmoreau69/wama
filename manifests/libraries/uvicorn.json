@@ -1,0 +1,38 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "click",
+      "h11",
+      "typing-extensions"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "uvicorn"
+      ]
+    },
+    "identity": {
+      "author": "Tom Christie <tom@tomchristie.com>",
+      "license": "BSD-3-Clause",
+      "repository": "https://github.com/Kludex/uvicorn",
+      "summary": "The lightning-fast ASGI server.",
+      "version": "0.38.0"
+    },
+    "install": {
+      "pip": "uvicorn==0.38.0",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "The lightning-fast ASGI server.",
+  "key": "uvicorn",
+  "manifest_kind": "library",
+  "name": "uvicorn",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:uvicorn==0.38.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

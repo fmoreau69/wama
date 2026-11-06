@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": null,
+      "license": "Apache-2.0",
+      "repository": "https://github.com/apache/arrow",
+      "summary": "Python library for Apache Arrow",
+      "version": "23.0.1"
+    },
+    "install": {
+      "pip": "pyarrow==23.0.1",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Python library for Apache Arrow",
+  "key": "pyarrow",
+  "manifest_kind": "library",
+  "name": "pyarrow",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:pyarrow==23.0.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

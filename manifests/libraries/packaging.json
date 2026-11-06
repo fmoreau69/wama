@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "Donald Stufft <donald@stufft.io>",
+      "license": "Apache Software License",
+      "repository": "https://github.com/pypa/packaging",
+      "summary": "Core utilities for Python packages",
+      "version": "24.2"
+    },
+    "install": {
+      "pip": "packaging==24.2",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Core utilities for Python packages",
+  "key": "packaging",
+  "manifest_kind": "library",
+  "name": "packaging",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:packaging==24.2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

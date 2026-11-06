@@ -1,0 +1,48 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "aiohttp",
+      "click",
+      "fastuuid",
+      "httpx",
+      "importlib-metadata",
+      "jinja2",
+      "jsonschema",
+      "openai",
+      "pydantic",
+      "python-dotenv",
+      "tiktoken",
+      "tokenizers"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "litellm",
+        "litellm-proxy"
+      ]
+    },
+    "identity": {
+      "author": "BerriAI",
+      "license": "MIT",
+      "repository": "https://github.com/BerriAI/litellm",
+      "summary": "Library to easily interface with LLM API providers",
+      "version": "1.89.1"
+    },
+    "install": {
+      "pip": "litellm==1.89.1",
+      "requires_python": ">=3.10, <3.14"
+    }
+  },
+  "description": "Library to easily interface with LLM API providers",
+  "key": "litellm",
+  "manifest_kind": "library",
+  "name": "litellm",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:litellm==1.89.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

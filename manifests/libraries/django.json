@@ -1,0 +1,38 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "asgiref",
+      "sqlparse",
+      "tzdata"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "django-admin"
+      ]
+    },
+    "identity": {
+      "author": "Django Software Foundation <foundation@djangoproject.com>",
+      "license": "BSD-3-Clause",
+      "repository": "https://github.com/django/django",
+      "summary": "A high-level Python web framework that encourages rapid development and clean, pragmatic design.",
+      "version": "5.2.6"
+    },
+    "install": {
+      "pip": "Django==5.2.6",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "A high-level Python web framework that encourages rapid development and clean, pragmatic design.",
+  "key": "Django",
+  "manifest_kind": "library",
+  "name": "Django",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:Django==5.2.6",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

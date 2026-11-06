@@ -1,0 +1,38 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "Pillow",
+      "pdfminer.six",
+      "pypdfium2"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "pdfplumber"
+      ]
+    },
+    "identity": {
+      "author": "Jeremy Singer-Vine",
+      "license": "MIT License",
+      "repository": "https://github.com/jsvine/pdfplumber",
+      "summary": "Plumb a PDF for detailed information about each char, rectangle, and line.",
+      "version": "0.11.9"
+    },
+    "install": {
+      "pip": "pdfplumber==0.11.9",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Plumb a PDF for detailed information about each char, rectangle, and line.",
+  "key": "pdfplumber",
+  "manifest_kind": "library",
+  "name": "pdfplumber",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:pdfplumber==0.11.9",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

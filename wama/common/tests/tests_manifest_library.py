@@ -20,8 +20,11 @@ from pathlib import Path
 from django.conf import settings
 from django.test import SimpleTestCase, TestCase
 
+import sys
+from unittest import skipUnless
+
 from wama.common.manifests.builtin.library import (
-    LICENCE_MAX, licence_courte, validate_library_body,
+    AUTHOR_MAX, LICENCE_MAX, author_name, licence_courte, validate_library_body,
 )
 
 
@@ -105,6 +108,83 @@ class CorpusLibraryTest(SimpleTestCase):
                 fautifs.append(f'{f.name} ({len(str(lic))} car.)')
         self.assertEqual(fautifs, [], 'manifeste(s) library à licence-TEXTE — ré-exporter '
                                       'depuis venv_linux après le correctif de l’extracteur')
+
+    def test_no_library_manifest_carries_an_author_longer_than_the_registry(self):
+        folder = Path(settings.BASE_DIR) / 'manifests' / 'libraries'
+        offenders = []
+        for f in sorted(folder.glob('*.json')):
+            m = json.loads(f.read_text(encoding='utf-8'))
+            author = ((m.get('body') or {}).get('identity') or {}).get('author')
+            if author and len(str(author)) > AUTHOR_MAX:
+                offenders.append(f'{f.name} ({len(str(author))} car.)')
+        self.assertEqual(offenders, [], 'ré-exporter depuis venv_linux (`author_name` le borne)')
+
+
+# Douze « Nom <adresse> », la forme qu'a `pydantic` (513 caractères) : seul `Author-email` rempli.
+_MANY_AUTHORS = ', '.join(f'Contributor Number{i} <contributor{i}@example.org>' for i in range(12))
+
+
+class AuthorNameTest(SimpleTestCase):
+    """L'auteur tient dans le registre (`Library.author`, 200) sans rien inventer (2026-11-06)."""
+
+    def test_a_declared_author_that_fits_is_kept_as_declared(self):
+        self.assertEqual('Jane Doe <jane@example.org>',
+                         author_name(_Meta(**{'Author-email': 'Jane Doe <jane@example.org>'})))
+        self.assertEqual('GGML', author_name(_Meta(Author='GGML', **{'Author-email': 'x <x@y.z>'})))
+
+    def test_too_long_keeps_whole_names_without_addresses_and_marks_the_cut(self):
+        author = author_name(_Meta(**{'Author-email': _MANY_AUTHORS}))
+        self.assertLessEqual(len(author), AUTHOR_MAX)
+        self.assertNotIn('@', author)
+        self.assertTrue(author.startswith('Contributor Number0, Contributor Number1'), author)
+        self.assertTrue(author.endswith(' …'), author)
+
+    def test_nothing_declared_gives_none(self):
+        self.assertIsNone(author_name(_Meta()))
+
+    def test_the_validator_rejects_an_author_too_long_for_the_registry(self):
+        body = {'identity': {'version': '1.0', 'author': 'x' * (AUTHOR_MAX + 1)},
+                'install': {'pip': 'x==1.0'}}
+        self.assertTrue(any('author' in e for e in validate_library_body(body)))
+
+
+class EveryImportedLibraryIsSeededTest(SimpleTestCase):
+    """Décision de Fabien (2026-11-06) : « si des librairies sont utilisées dans les applications
+    de WAMA, elles doivent être dans le registre des librairies ». Ce qui est tenu ici :
+      • la mesure lit les TROIS mondes et ignore le code tiers vendorisé (ses imports sont ses
+        dépendances) ;
+      • rien ne reste à semer (`library_index.unseeded()`) ;
+      • un import sans distribution installée est DÉCLARÉ ici, avec sa raison — la liste ne fait
+        que descendre (un module résolu ou retiré la fait rougir : retirer sa ligne).
+    Les deux derniers lisent le venv : le corpus `library` s'extrait de venv_linux, le runtime."""
+
+    UNRESOLVED = {
+        'django_redis': "chemin Redis de la console, paquet absent des deux venvs (`mecanismes.py`, "
+                        "mécanisme `console`) — mort",
+        'locate_anything_worker': "script de WAMA (`scripts/`), chargé par le backend — pas une "
+                                  "librairie",
+        'pypdf': "repli de `media_probe` après PyMuPDF ; seul PyPDF2 est installé — mort",
+        'rosbags': "extracteur rosbag du cam_analyzer ; absent du venv — l'installer par la route "
+                   "ou retirer l'extracteur (décision de Fabien)",
+    }
+
+    def test_the_scan_reads_the_three_worlds_and_skips_the_vendored_engines(self):
+        from wama.common.services.library_index import RACINES, code_files
+        self.assertEqual({'wama', 'wama_lab', 'wama_data'}, set(RACINES))
+        vendor = Path(settings.BACKEND_VENDOR_DIR)
+        files = list(code_files())
+        self.assertFalse([f for f in files if f.is_relative_to(vendor)])
+        self.assertTrue(any(f.is_relative_to(Path(settings.BASE_DIR) / 'wama_data') for f in files))
+
+    @skipUnless(sys.platform.startswith('linux'), 'le corpus library s’extrait de venv_linux')
+    def test_every_distribution_the_code_imports_is_in_the_registry(self):
+        from wama.common.services.library_index import unseeded
+        self.assertEqual([], unseeded(), 'semer par la route : manifest_export --kind library <clé>')
+
+    @skipUnless(sys.platform.startswith('linux'), 'le corpus library s’extrait de venv_linux')
+    def test_the_imports_without_a_distribution_are_the_declared_ones(self):
+        from wama.common.services.library_index import non_resolus
+        self.assertEqual(sorted(self.UNRESOLVED), non_resolus())
 
 
 class JambeBackendsDesRequiresTest(TestCase):

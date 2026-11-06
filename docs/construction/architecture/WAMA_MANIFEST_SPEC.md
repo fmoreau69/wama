@@ -737,6 +737,22 @@ que le catalogue n'a pas. Autre facette, pas redondance.
    Semée : `faster-whisper` (l'exemple du §7.3). Probe de composition : un manifeste d'app
    avec `{"kind": "library", "key": "faster-whisper"}` valide et se résout ; la même référence
    était refusée avant la création du kind.
+   ✅ **Le critère de semis existe depuis le 2026-11-06 (décision de Fabien)** : *« si des
+   librairies sont utilisées dans les applications de WAMA, elles doivent être dans le registre
+   des librairies »* — toute distribution que le code WAMA importe (`library_index.scan_imports`,
+   les trois racines `wama`, `wama_lab`, `wama_data`) est semée, socle compris (le socle reste
+   hors de tout `requires`, point 5). Le semis garde sa route (`manifest_export --kind library
+   <clé>`, puis la projection `ingest.write_back`) ; ce qui change, c'est qu'il n'est plus
+   facultatif : `library_index.unseeded()` doit être vide, tenu par
+   `tests_manifest_library.EveryImportedLibraryIsSeededTest`. Ne compte pas : le code tiers
+   VENDORISÉ sous `settings.BACKEND_VENDOR_DIR` (ses imports sont ses dépendances, et la librairie
+   vendorisée est elle-même au registre), ni une variante d'un module déjà fourni par une
+   distribution semée (`opencv-contrib-python` à côté d'`opencv-python` ; `phonemizer-fork`,
+   installation MASQUÉE : les fichiers sur disque sont ceux de `phonemizer`). Un import sans
+   distribution installée est déclaré un par un dans la garde, avec sa raison. Semis du jour : 55
+   librairies (dont le socle, pandas, pydub, py7zr, rarfile, pypandoc, pdf2docx, weasyprint) ;
+   l'auteur se borne désormais au registre à l'extraction (`author_name`, le pendant de
+   `licence_courte` : la liste d'adresses de `pydantic`, 513 caractères, cassait la projection).
    ✅ **Voie vendor (2026-09-30, ROADMAP D-a)** : `install` porte `pip` **ou** `vendor`
    (`{repo: "owner/name", commit: <SHA 40>, engine, patch?: "patches/….diff", ignore?: [...]}`),
    jamais les deux — pour une librairie que pip ne sait pas installer (MuseTalk, CodeFormer,
@@ -778,7 +794,8 @@ que le catalogue n'a pas. Autre facette, pas redondance.
    - **strate 2 — libraries métier** : la jambe `requires` (importée ∩ semée ∩ hors socle).
    - **strate 3 — outils système** (ffmpeg, pandoc, chromium…) : NON déclarés (trou #15,
      ROUTE §11), hors périmètre du kind `library` (binaires, pas des distributions Python).
-   ⚠ Limite assumée : l'extraction library lit le venv COURANT (venv_win pour le corpus) ;
+   ⚠ Limite assumée : l'extraction library lit le venv COURANT (*corrigé le 2026-11-06 : le
+   corpus s'extrait de venv_linux, le runtime réel — la ligne disait venv_win*) ;
    si les deux venvs divergent sur une version, `manifest_export --check` le signalera —
    c'est le détecteur de dérive voulu, pas un bug.
 

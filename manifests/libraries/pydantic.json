@@ -1,0 +1,35 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "annotated-types",
+      "pydantic-core",
+      "typing-extensions",
+      "typing-inspection"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Samuel Colvin, Eric Jolibois, Hasan Ramezani, Adrian Garcia Badaracco, Terrence Dorsey, David Montague, Serge Matveenko, Marcelo Trylesinski, Sydney Runkle, David Hewitt, Alex Hall, Victorien Plot …",
+      "license": "MIT",
+      "repository": "https://github.com/pydantic/pydantic",
+      "summary": "Data validation using Python type hints",
+      "version": "2.12.5"
+    },
+    "install": {
+      "pip": "pydantic==2.12.5",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Data validation using Python type hints",
+  "key": "pydantic",
+  "manifest_kind": "library",
+  "name": "pydantic",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:pydantic==2.12.5",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

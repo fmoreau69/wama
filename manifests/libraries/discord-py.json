@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "aiohttp",
+      "audioop-lts"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Rapptz",
+      "license": "MIT License",
+      "repository": null,
+      "summary": "A Python wrapper for the Discord API",
+      "version": "2.7.1"
+    },
+    "install": {
+      "pip": "discord.py==2.7.1",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "A Python wrapper for the Discord API",
+  "key": "discord.py",
+  "manifest_kind": "library",
+  "name": "discord.py",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:discord.py==2.7.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

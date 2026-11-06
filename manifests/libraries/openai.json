@@ -1,0 +1,43 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "anyio",
+      "distro",
+      "httpx",
+      "jiter",
+      "pydantic",
+      "sniffio",
+      "tqdm",
+      "typing-extensions"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "openai"
+      ]
+    },
+    "identity": {
+      "author": "OpenAI <support@openai.com>",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/openai/openai-python",
+      "summary": "The official Python library for the openai API",
+      "version": "2.24.0"
+    },
+    "install": {
+      "pip": "openai==2.24.0",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "The official Python library for the openai API",
+  "key": "openai",
+  "manifest_kind": "library",
+  "name": "openai",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:openai==2.24.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

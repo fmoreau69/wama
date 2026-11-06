@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "dataclasses",
+      "typing_extensions"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Mathieu Fenniak <biziqe@mathieu.fenniak.net>",
+      "license": "BSD License",
+      "repository": "https://github.com/py-pdf/PyPDF2",
+      "summary": "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files",
+      "version": "3.0.1"
+    },
+    "install": {
+      "pip": "PyPDF2==3.0.1",
+      "requires_python": ">=3.6"
+    }
+  },
+  "description": "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files",
+  "key": "PyPDF2",
+  "manifest_kind": "library",
+  "name": "PyPDF2",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:PyPDF2==3.0.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

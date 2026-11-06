@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "Allo-Media <contact@allo-media.fr>",
+      "license": "MIT",
+      "repository": "https://github.com/allo-media/text2num",
+      "summary": "Parse and convert numbers written in French, Spanish, English, Portuguese, German, Dutch, Danish, or Italian into their digit representation.",
+      "version": "3.1.0"
+    },
+    "install": {
+      "pip": "text2num==3.1.0",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Parse and convert numbers written in French, Spanish, English, Portuguese, German, Dutch, Danish, or Italian into their digit representation.",
+  "key": "text2num",
+  "manifest_kind": "library",
+  "name": "text2num",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:text2num==3.1.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

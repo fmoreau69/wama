@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {
+      "console_scripts": [
+        "watchmedo"
+      ]
+    },
+    "identity": {
+      "author": "Mickaël Schoentgen",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/gorakhargosh/watchdog/",
+      "summary": "Filesystem events monitoring",
+      "version": "6.0.0"
+    },
+    "install": {
+      "pip": "watchdog==6.0.0",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Filesystem events monitoring",
+  "key": "watchdog",
+  "manifest_kind": "library",
+  "name": "watchdog",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:watchdog==6.0.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

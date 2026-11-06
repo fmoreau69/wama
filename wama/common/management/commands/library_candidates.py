@@ -1,8 +1,10 @@
 """
 Propose les librairies tierces candidates au corpus `library` — NE SÈME RIEN.
 
-Le semis reste un geste EXPLICITE (SPEC §7.4-3) : cette commande informe la décision, elle ne la
-prend pas. Une fois un candidat retenu :
+Le semis passe par la route (SPEC §7.4-3), et depuis le 2026-11-06 il n'est plus facultatif :
+toute distribution que le code WAMA importe est au registre (décision de Fabien ; ce qui reste à
+semer = `library_index.unseeded()`, tenu par `tests_manifest_library`). Cette commande liste aussi
+les variantes déjà couvertes et le socle, avec leur provenance. Pour semer :
 
     python manage.py manifest_export --kind library <clé>
 

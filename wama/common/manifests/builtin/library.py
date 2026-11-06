@@ -37,6 +37,11 @@ def validate_library_body(body: dict) -> list[str]:
         # projette dans 128 caractères, et un texte y faisait échouer la projection (07/09).
         errs.append(f"identity.license est un TEXTE ({len(str(ident['license']))} car.), "
                     f"pas un identifiant (≤ {LICENCE_MAX}, sans retour à la ligne)")
+    elif ident.get('author') and len(str(ident['author'])) > AUTHOR_MAX:
+        # Même raison que la licence (2026-11-06) : le registre projette l'auteur dans 200
+        # caractères, et la liste d'adresses de `pydantic` (513) y faisait échouer la projection.
+        errs.append(f"identity.author dépasse le registre ({len(str(ident['author']))} car., "
+                    f"≤ {AUTHOR_MAX}) — l'extraction le borne (`author_name`)")
 
     install = body.get('install') or {}
     if not isinstance(install, dict):
@@ -77,6 +82,9 @@ def validate_library_body(body: dict) -> list[str]:
 
 #: Longueur du champ `Library.license` (un IDENTIFIANT — 'MIT', 'Apache-2.0' — jamais un texte).
 LICENCE_MAX = 128
+
+#: Longueur du champ `Library.author`.
+AUTHOR_MAX = 200
 
 
 # ── Route VENDOR (ROADMAP D-a, décision de Fabien le 2026-09-30) ─────────────────────────
@@ -158,6 +166,38 @@ def licence_courte(meta) -> Optional[str]:
         if c.startswith('License ::'):
             return c.split('::')[-1].strip()[:LICENCE_MAX]
     return None
+
+
+def author_name(meta) -> Optional[str]:
+    """L'auteur déclaré d'une distribution, borné au registre (`AUTHOR_MAX`) — ou None.
+
+    ⚠ Défaut MESURÉ le 2026-11-06, au semis des librairies importées par le code WAMA : `pydantic`
+    ne remplit que `Author-email`, une liste de douze « Nom <adresse> » (513 caractères), que la
+    projection mettait dans un `CharField(200)` — `DataError`, comme la licence-texte du 07/09.
+
+    `Author` d'abord, sinon `Author-email`, TELS QUE DÉCLARÉS quand ils tiennent dans le registre
+    (les manifestes déjà semés ne bougent pas). Au-delà seulement : les NOMS sans leurs adresses
+    (une attribution de licence cite un nom ; l'adresse quand aucun nom n'est donné), puis les
+    premiers noms ENTIERS, la coupure marquée « … » — rien d'inventé, aucun nom coupé.
+    """
+    from email.utils import getaddresses
+
+    declared = (meta.get('Author') or meta.get('Author-email') or '').strip()
+    if not declared:
+        return None
+    if len(declared) <= AUTHOR_MAX:
+        return declared
+    names = [name.strip() or addr.strip() for name, addr in getaddresses([declared])]
+    declared = ', '.join(n for n in names if n) or declared
+    if len(declared) <= AUTHOR_MAX:
+        return declared
+    kept = ''
+    for part in declared.split(', '):
+        candidate = f'{kept}, {part}' if kept else part
+        if len(candidate) + 2 > AUTHOR_MAX:
+            break
+        kept = candidate
+    return f'{kept} …' if kept else declared[:AUTHOR_MAX - 2] + ' …'
 
 
 def authored_vendor_manifest(key: str) -> Optional[dict]:
@@ -251,8 +291,9 @@ def extract_library(key: str) -> Optional[dict]:
             'license': licence_courte(meta),
             # `Author` est souvent vide au profit de `Author-email` (« Nom <a@b.c> ») dans les
             # métadonnées PyPI modernes : on prend le premier des deux qui est renseigné plutôt
-            # que de conclure « pas d'auteur » sur le seul champ historique.
-            'author': meta.get('Author') or meta.get('Author-email') or None,
+            # que de conclure « pas d'auteur » sur le seul champ historique — borné au registre,
+            # les noms sans leurs adresses (`author_name`, 2026-11-06).
+            'author': author_name(meta),
             'summary': meta.get('Summary') or None,
             'repository': depot,
         },

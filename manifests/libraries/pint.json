@@ -1,0 +1,39 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "flexcache",
+      "flexparser",
+      "platformdirs",
+      "typing-extensions"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "pint-convert"
+      ]
+    },
+    "identity": {
+      "author": "\"Hernan E. Grecco\" <hernan.grecco@gmail.com>",
+      "license": "BSD",
+      "repository": "https://github.com/hgrecco/pint",
+      "summary": "Physical quantities module",
+      "version": "0.25.3"
+    },
+    "install": {
+      "pip": "Pint==0.25.3",
+      "requires_python": ">=3.11"
+    }
+  },
+  "description": "Physical quantities module",
+  "key": "Pint",
+  "manifest_kind": "library",
+  "name": "Pint",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:Pint==0.25.3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

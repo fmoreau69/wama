@@ -1,0 +1,35 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "certifi",
+      "charset_normalizer",
+      "idna",
+      "urllib3"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Kenneth Reitz",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/psf/requests",
+      "summary": "Python HTTP for Humans.",
+      "version": "2.32.5"
+    },
+    "install": {
+      "pip": "requests==2.32.5",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Python HTTP for Humans.",
+  "key": "requests",
+  "manifest_kind": "library",
+  "name": "requests",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:requests==2.32.5",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

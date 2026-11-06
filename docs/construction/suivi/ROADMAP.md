@@ -4751,6 +4751,14 @@ Ce que dit la mesure :
    (`manifests/apps/converter.json`, bloc `requires`) ; manquent Pillow, py7zr, rarfile, pypandoc,
    Chromium/Playwright ou WeasyPrint (`common/utils/html_render.py:9-17`) et les binaires ffmpeg et
    pandoc. Un export ne peut pas s'en servir comme liste d'empaquetage.
+   *Précisé le 2026-11-06 (soir, mesuré) : quatre causes, pas une.* ① py7zr, rarfile, pypandoc,
+   pdf2docx n'étaient pas SEMÉS (`library_index.librairies_de` ne cite qu'une librairie semée) —
+   ✅ semés le jour même avec toute librairie que le code WAMA importe (décision de Fabien,
+   `WAMA_MANIFEST_SPEC §7.4` point 3) ; ② Playwright et WeasyPrint passent par une BRIQUE commune
+   (`html_render`), que la jambe d'app ne suit pas — ⏳ qu'une brique déclare ses paquets comme un
+   moteur, à décider avec ce chantier ; ③ ffmpeg, pandoc, Chromium sont des outils système (strate
+   3, `WAMA_MANIFEST_SPEC §7.4` point 5) — ⏳ ; ④ Pillow n'est PAS un trou de la règle : la
+   dérivation le trouve (`['PyMuPDF', 'pillow']`), le manifeste du corpus était seulement périmé.
 
 **Piste retenue pour étude — deux étages, le CŒUR et les APPS.** Fabien : empaqueter WAMA entier
 pour un convertisseur n'a pas d'intérêt ; produire séparément le cœur et les apps, si. C'est

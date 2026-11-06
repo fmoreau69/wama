@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "Max Bachmann <pypi@maxbachmann.de>",
+      "license": "MIT",
+      "repository": "https://github.com/rapidfuzz/RapidFuzz.git",
+      "summary": "rapid fuzzy string matching",
+      "version": "3.14.3"
+    },
+    "install": {
+      "pip": "RapidFuzz==3.14.3",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "rapid fuzzy string matching",
+  "key": "RapidFuzz",
+  "manifest_kind": "library",
+  "name": "RapidFuzz",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:RapidFuzz==3.14.3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

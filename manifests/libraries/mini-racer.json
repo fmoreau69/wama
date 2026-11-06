@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "bpcreech <mini-racer@bpcreech.com>, Sqreen <support@sqreen.com>",
+      "license": "ISC",
+      "repository": "https://github.com/bpcreech/PyMiniRacer",
+      "summary": "Minimal, modern embedded V8 for Python.",
+      "version": "0.14.1"
+    },
+    "install": {
+      "pip": "mini-racer==0.14.1",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Minimal, modern embedded V8 for Python.",
+  "key": "mini-racer",
+  "manifest_kind": "library",
+  "name": "mini-racer",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:mini-racer==0.14.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

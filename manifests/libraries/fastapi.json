@@ -1,0 +1,38 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "pydantic",
+      "starlette",
+      "typing-extensions"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "fastapi"
+      ]
+    },
+    "identity": {
+      "author": "=?utf-8?q?Sebasti=C3=A1n_Ram=C3=ADrez?= <tiangolo@gmail.com>",
+      "license": "MIT License",
+      "repository": "https://github.com/fastapi/fastapi",
+      "summary": "FastAPI framework, high performance, easy to learn, fast to code, ready for production",
+      "version": "0.115.14"
+    },
+    "install": {
+      "pip": "fastapi==0.115.14",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "FastAPI framework, high performance, easy to learn, fast to code, ready for production",
+  "key": "fastapi",
+  "manifest_kind": "library",
+  "name": "fastapi",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:fastapi==0.115.14",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

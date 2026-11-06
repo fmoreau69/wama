@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "soupsieve",
+      "typing-extensions"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Leonard Richardson <leonardr@segfault.org>",
+      "license": "MIT License",
+      "repository": "https://www.crummy.com/software/BeautifulSoup/bs4/",
+      "summary": "Screen-scraping library",
+      "version": "4.13.5"
+    },
+    "install": {
+      "pip": "beautifulsoup4==4.13.5",
+      "requires_python": ">=3.7.0"
+    }
+  },
+  "description": "Screen-scraping library",
+  "key": "beautifulsoup4",
+  "manifest_kind": "library",
+  "name": "beautifulsoup4",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:beautifulsoup4==4.13.5",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

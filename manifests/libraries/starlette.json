@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "anyio",
+      "typing-extensions"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Tom Christie <tom@tomchristie.com>",
+      "license": "BSD-3-Clause",
+      "repository": "https://github.com/encode/starlette",
+      "summary": "The little ASGI library that shines.",
+      "version": "0.46.2"
+    },
+    "install": {
+      "pip": "starlette==0.46.2",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "The little ASGI library that shines.",
+  "key": "starlette",
+  "manifest_kind": "library",
+  "name": "starlette",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:starlette==0.46.2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

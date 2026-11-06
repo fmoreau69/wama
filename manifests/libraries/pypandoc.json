@@ -1,0 +1,30 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "b'Juho Veps\\xc3\\xa4l\\xc3\\xa4inen'",
+      "license": "MIT",
+      "repository": "https://github.com/JessicaTegner/pypandoc",
+      "summary": "Thin wrapper for pandoc.",
+      "version": "1.13"
+    },
+    "install": {
+      "pip": "pypandoc==1.13",
+      "requires_python": ">=3.6"
+    }
+  },
+  "description": "Thin wrapper for pandoc.",
+  "key": "pypandoc",
+  "manifest_kind": "library",
+  "name": "pypandoc",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:pypandoc==1.13",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

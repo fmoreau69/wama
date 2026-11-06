@@ -1,0 +1,41 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "PyMuPDF",
+      "fire",
+      "fonttools",
+      "numpy",
+      "opencv-python-headless",
+      "python-docx"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "pdf2docx"
+      ]
+    },
+    "identity": {
+      "author": "Artifex",
+      "license": "MIT",
+      "repository": "https://artifex.com/",
+      "summary": "Open source Python library converting pdf to docx.",
+      "version": "0.5.13"
+    },
+    "install": {
+      "pip": "pdf2docx==0.5.13",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Open source Python library converting pdf to docx.",
+  "key": "pdf2docx",
+  "manifest_kind": "library",
+  "name": "pdf2docx",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:pdf2docx==0.5.13",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
