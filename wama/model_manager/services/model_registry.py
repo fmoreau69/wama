@@ -1132,9 +1132,7 @@ class ModelRegistry:
 
             for model_id, config in DESCRIBER_MODELS.items():
                 model_type = ModelType.VLM
-                if config.get('type') == 'summarization':
-                    model_type = ModelType.SUMMARIZATION
-                elif config.get('type') == 'speech-to-text':
+                if config.get('type') == 'speech-to-text':
                     model_type = ModelType.SPEECH
 
                 is_loaded = model_id == 'blip' and blip_loaded

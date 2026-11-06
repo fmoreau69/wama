@@ -416,8 +416,7 @@
 
   /* ── Model manager ── */
   --wama-mm-remote: #6f8fd6;           /* liseré d'un modèle distant */
-  --wama-mm-type-summarization: #17a2b8; /* type de modèle */
-  --wama-mm-type-upscaling: #e83e8c;
+  --wama-mm-type-upscaling: #e83e8c; /* type de modèle */
   /* La couleur de CHAQUE type de modèle (`ModelType`) — lue par les badges de la gestion des
      modèles et par la scène 3D des modèles (2026-10-21) : un seul endroit, les deux s'accordent. */
   --wama-mm-type-vision: var(--bs-purple);
@@ -970,8 +969,7 @@
 
   /* ── Model manager ── */
   --wama-mm-remote: #6f8fd6;                /* liseré d'un modèle distant */
-  --wama-mm-type-summarization: #17a2b8;    /* type de modèle */
-  --wama-mm-type-upscaling: #e83e8c;
+  --wama-mm-type-upscaling: #e83e8c; /* type de modèle */
   --wama-mm-type-vision: var(--bs-purple);  /* couleur de chaque type : cf. thème sombre */
   --wama-mm-type-diffusion: var(--bs-orange);
   --wama-mm-type-speech: var(--bs-teal);

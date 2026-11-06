@@ -220,7 +220,6 @@ ESTIMATED_MODEL_SIZES = {
     # VLM models
     'blip': 2.0,
     'blip2': 4.0,
-    'bart-summarization': 1.5,
 
     # Upscaling models (ONNX)
     'realesrgan-x4plus': 0.07,

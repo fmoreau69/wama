@@ -90,24 +90,14 @@ FORMAT_POLICY: Dict[str, FormatPolicyConfig] = {
         description='Image upscaling and enhancement models (RealESRGAN, BSRGAN)',
     ),
 
-    # Vision-Language models (BLIP, BART)
+    # Vision-Language models (BLIP)
     'vlm': FormatPolicyConfig(
         preferred_format='safetensors',
         runtime='pytorch',
         auto_convert=True,
         keep_original=False,
         convertible_to=['safetensors'],
-        description='Vision-Language models (BLIP, BART)',
-    ),
-
-    # Summarization models
-    'summarization': FormatPolicyConfig(
-        preferred_format='safetensors',
-        runtime='pytorch',
-        auto_convert=True,
-        keep_original=False,
-        convertible_to=['safetensors'],
-        description='Text summarization models (BART)',
+        description='Vision-Language models (BLIP)',
     ),
 
     # LLM models (Ollama)
@@ -148,7 +138,6 @@ MODEL_TYPE_TO_CATEGORY = {
     'SPEECH': 'speech',
     'VLM': 'vlm',
     'LLM': 'llm',
-    'SUMMARIZATION': 'summarization',
     'UPSCALING': 'upscaling',
     'LIPSYNC': 'lipsync',
 }

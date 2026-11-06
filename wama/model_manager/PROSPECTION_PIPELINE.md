@@ -3774,7 +3774,10 @@ page descend à la file une fois chargée. Garde : `tests_dev_job_follow_up` (co
   ['bart']`, que le balayage lit comme catégorie) — il est faux, `bart-large-cnn` résume du TEXTE,
   sans entrée image. La ligne n'a ni tâche ni capacités (snapshot sans `README.md` : aucune fiche
   à lire), et c'est la seule ligne du balayage dans ce cas (mesuré). La décision n'est pas « par
-  quelle route installer » : les poids sont là, aucun code ne les lit.
+  quelle route installer » : les poids sont là, aucun code ne les lit. ✅ **Retiré le jour même
+  (Fabien : « retire BART », `REMOVAL_LEDGER R219`)** — vérifié avant : le describer résume par un
+  LLM, BART est anglais seul, de presse, borné à 1024 tokens ; poids désinstallés par la route,
+  famille et restes du type « résumé » retirés du code.
 - ⚠ `Minimax-h3-Turbo-SLA` (3,1 Go) est INSTALLÉ sans moteur ni base : c'est un LoRA de
   MiniMax-H3, dont la base (464 Go au catalogue) ne tient pas ici — à garder ou retirer, décision
   de Fabien. Ce n'est pas MiniMax-Music3 (composer, moteur audio.cpp, servi).

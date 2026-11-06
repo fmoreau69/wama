@@ -708,7 +708,7 @@ class ModelSyncService:
             return 'transcriber'
         elif 'synthesizer' in path_str or 'tts' in path_str or 'coqui' in path_str:
             return 'synthesizer'
-        elif 'describer' in path_str or 'blip' in path_str or 'bart' in path_str:
+        elif 'describer' in path_str or 'blip' in path_str:
             return 'describer'
         elif 'vision' in path_str:
             return 'anonymizer'

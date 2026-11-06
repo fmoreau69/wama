@@ -167,7 +167,6 @@ MODEL_PATHS = {
     'vlm': {
         'root': AI_MODELS_DIR / "models" / "vlm",
         'blip': AI_MODELS_DIR / "models" / "vlm" / "blip",
-        'bart': AI_MODELS_DIR / "models" / "vlm" / "bart",
     },
     # OCR — modèles OCR/document (docTR). Dossier = catégorie (ex-'reader' = nom d'app). Les
     # modèles installés par la route (olmOCR-2…) se rangent sous `root` par famille ; le dossier
