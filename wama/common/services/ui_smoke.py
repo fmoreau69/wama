@@ -556,8 +556,16 @@ def _fichier_temoin(extensions: str) -> Path:
     # retombait sur `.txt` — et un .txt déposé sur l'imager part vers l'APERÇU DE LOT (c'est un
     # fichier de prompts), donc aucun élément n'était créé et le test criait au loup.
     FAMILLES = {'image/*': '.png', 'audio/*': '.wav', 'video/*': '.mp4'}
+    # Parmi les extensions acceptées, d'abord celle dont on sait écrire un contenu VALIDE
+    # (2026-11-06) : le transcriber déclare `.mp3` en tête, et le témoin était alors 19 octets
+    # de texte nommés `.mp3` — Whisper le refusait (« Failed to find two consecutive MPEG audio
+    # frames ») et `transcriber.processing` concluait depuis le 11/10 « chaîne cassée » sur une
+    # app saine. C'est la leçon de `_wav_silence`, à l'étage du CHOIX de l'extension.
+    WRITABLE = ('.png', '.jpg', '.jpeg', '.webp', '.wav')
+    declared = [b.lstrip('*') for b in bruts if b.lstrip('*').startswith('.')]
     ext = next((FAMILLES[b] for b in bruts if b in FAMILLES),
-               next((b.lstrip('*') for b in bruts if b.startswith('.')), '.txt'))
+               next((e for e in declared if e in WRITABLE),
+                    declared[0] if declared else '.txt'))
     if ext in ('.png', '.jpg', '.jpeg', '.webp'):
         contenu = _image_temoin(ext)
     elif ext in ('.wav',):
@@ -6551,7 +6559,18 @@ def check_app_processing(app: str, url_path: str):
             fin, arret = None, time.time() + 150
             while time.time() < arret:
                 page.wait_for_timeout(2000)
-                e = page.evaluate(CARTE, ident)
+                try:
+                    e = page.evaluate(CARTE, ident)
+                except Exception:
+                    # Un rechargement peut survenir en cours de sondage — le transcriber recharge
+                    # la page au SUCCESS (2026-11-06 : « Execution context was destroyed » à
+                    # chaque passage, traitement réussi). Même tolérance que le sondage du lot
+                    # (`check_app_batch_processing`) : laisser la page revenir, puis relire.
+                    try:
+                        page.wait_for_load_state('networkidle', timeout=15000)
+                    except Exception:
+                        pass
+                    continue
                 if not e:
                     break
                 statuts.add(e['statut'])

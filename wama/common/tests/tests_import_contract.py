@@ -334,3 +334,23 @@ class AdoptionDeLaBriqueTest(SimpleTestCase):
                     if js.exists() and 'WamaImport(' in js.read_text(encoding='utf-8'):
                         self.assertLess(pos_brique, m.start(),
                                         f'{app} : {m.group(1)} instancie WamaImport avant son chargement')
+
+
+class HarnessWitnessIsValidTest(SimpleTestCase):
+    """Le témoin que les scénarios nocturnes déposent sur une zone d'import est un fichier VALIDE
+    d'une extension qu'elle accepte (2026-11-06) : `transcriber.processing` déposait 19 octets de
+    texte nommés `.mp3` (première extension déclarée) et concluait « chaîne cassée »."""
+
+    def _witness(self, accept):
+        from wama.common.services.ui_smoke import _fichier_temoin
+        path = _fichier_temoin(accept)
+        self.addCleanup(path.unlink, missing_ok=True)
+        return path
+
+    def test_an_accepted_extension_the_harness_can_write_is_preferred(self):
+        path = self._witness('.mp3,.m4a,.wav,.flac')
+        self.assertEqual(path.suffix, '.wav')
+        self.assertEqual(path.read_bytes()[:4], b'RIFF')
+
+    def test_counter_proof_a_zone_with_no_writable_extension_keeps_its_own(self):
+        self.assertEqual(self._witness('.md,.txt').suffix, '.md')
