@@ -4492,7 +4492,7 @@ maillon de l'interop) ; ④ plugins de visualisation → monde DATA (dernier, le
 
 | rôle | fichier | produit |
 |---|---|---|
-| `librarian` | `run_librarian.py` | manifeste **`library`** — depuis un dépôt GitHub (`--repo`) **ou** un paquet installé (`--dist`) |
+| `librarian` | `run_librarian.py` | manifeste **`library`** — depuis un dépôt GitHub (`--repo`) **ou** une distribution (`--dist`) : installée, sinon ce que PyPI en publie (2026-11-06, `role_utils.pypi_metadata`) |
 | `scout` | `run_scout.py` | manifeste **`model`** — squelette **mécanique** (`squelette()`, « ZÉRO LLM ici ») puis jugement LLM |
 | `model` | `run_model_manifest.py` | manifeste **`model`** — `composition.runtime.engine`, `capabilities` |
 | `integrator` | `run_integrator.py` | **décision** : app EXISTANTE (vérifiée contre `APP_CATALOG`) vs `new_app` |

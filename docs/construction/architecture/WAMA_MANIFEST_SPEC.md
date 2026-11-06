@@ -730,6 +730,12 @@ que le catalogue n'a pas. Autre facette, pas redondance.
    ✅ *2026-10-16* : LibreTranslate semé (`manifests/libraries/libretranslate.json`, `authored`, depuis
    le dépôt — commit `5a673baa`) ; le Translator est né au bac à sable (`wama/translator_01/`).
    Reste 🔄 la revue humaine générale des sorties.
+   ✅ *2026-11-06* : `--dist` lit une distribution NON installée sur PyPI
+   (`role_utils.pypi_metadata`, source déclarée `pypi`), et les faits publiés — canal
+   `nom==version`, `requires_python`, version, dépendances sans les extras — sont posés par
+   `enforce_published_facts`, quoi qu'ait écrit le LLM ; source `extract`, `pypi:<nom>==<version>`.
+   Cas qui l'a fait écrire : `gguf`, publié depuis un sous-dossier de `llama.cpp` (le `--repo`
+   aurait lu le paquet de la racine) ; installé par la route le jour même.
 5. ✅ **FAIT (2026-08-12) — semis de la composition du pilote B + STRATES de dépendances.**
    8 libraries semées mécaniquement (`manifest_export --kind library` : transformers, torch,
    torchaudio, pyannote-audio, librosa, soundfile, openai-whisper, vibevoice — extraction

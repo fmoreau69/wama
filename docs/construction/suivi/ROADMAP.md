@@ -1091,6 +1091,14 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    du moteur déclaré d'une LIGNE reste écrite en place dans `tool_api`, `tts/ui_meta` et
    `avatarizer/workers` (celle d'une CLÉ est commune : `backends.manager.engine_of`, revérification
    du soir — `detection_ensemble` l'emprunte, `served_by_for_key` aussi).
+   ⏳ **Poids GGUF — pour l'instance des moteurs de l'Imager** (2026-11-06) : la librairie `gguf`
+   est installée par la route (0.19.0, `manifests/libraries/gguf.json` ; diffusers la voit), mais
+   aucun moteur ne lit un GGUF de diffusion. La ligne `huggingface:unsloth/flux-3-image-klein-GGUF`
+   est installée (13,3 Go déclarés) sans moteur ni app, et sa dorsale
+   (`black-forest-labs/flux-3-image-klein`, `extra_info['base_model']`) n'est pas au catalogue —
+   un GGUF ne porte que le transformeur. Restent : le chargement dans le moteur diffusers
+   (une `LoadPrecision` au `library` `gguf`), la dorsale par la route, et le pic MESURÉ avant de
+   déclarer.
 
 6. **HORS DE L'HÔTE WAMA — constat du 2026-11-06, lu au code** (question de Fabien sur l'export
    d'une app à modèles IA, §18.3 ; rien de corrigé, aucune décision prise). Le gouverneur est écrit

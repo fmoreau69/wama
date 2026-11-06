@@ -540,7 +540,10 @@ def pypi_metadata(dist_name: str, fetcher=None):
 def enforce_published_facts(manifest: dict, published: dict, notes: list) -> dict:
     """Ce qu'un paquet PUBLIÉ dit de lui-même est un FAIT de PyPI (`pypi_metadata`), quoi qu'ait
     écrit le LLM — le patron d'`enforce_install_channel` pour un dépôt : le canal `nom==version`, la
-    version de Python exigée, la version d'identité, les dépendances (sans les extras) et la source."""
+    version de Python exigée, la version d'identité, les dépendances (sans les extras) et la source.
+    La source est une EXTRACTION (`extract`, `pypi:<nom>==<version>`) : tout ce qui est posé ici
+    se lit sur PyPI. `authored` dirait que le manifeste porte ce que les métadonnées ne disent pas
+    (`builtin/library.authored_vendor_manifest`) — il ferait alors foi contre la ré-extraction."""
     manifest = copy.deepcopy(manifest)
     body = manifest.setdefault('body', {})
     name, version = published['name'], published['version']
@@ -556,7 +559,7 @@ def enforce_published_facts(manifest: dict, published: dict, notes: list) -> dic
         notes.append(f"dépendances posées d'après PyPI, sans les extras : {deps} "
                      f"(le LLM proposait {sorted(body.get('dependencies') or [])})")
     body['dependencies'] = deps
-    manifest['source'] = {'type': 'authored', 'ref': f'pypi:{spec}'}
+    manifest['source'] = {'type': 'extract', 'ref': f'pypi:{spec}'}
     return manifest
 
 

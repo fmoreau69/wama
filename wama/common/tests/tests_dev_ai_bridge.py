@@ -711,7 +711,8 @@ class InstallChannelFromRepoFactsTest(SimpleTestCase):
                          {'pip': 'gguf==0.19.0', 'requires_python': '>=3.10'},
                          "les deux faits publiés, aucun du LLM")
         self.assertEqual(manifest['body']['dependencies'], ['numpy'], "l'extra du LLM est retiré")
-        self.assertEqual(manifest['source']['ref'], 'pypi:gguf==0.19.0')
+        self.assertEqual(manifest['source'], {'type': 'extract', 'ref': 'pypi:gguf==0.19.0'},
+                         "lu sur PyPI : une extraction, qui ne ferait pas foi contre la ré-extraction")
         self.assertEqual(manifest['body']['identity']['version'], '0.19.0')
         self.assertEqual(llm['body']['install'], {'pip': 'gguf>=0.10', 'requires_python': '>=3.8'},
                          "l'entrée n'est pas mutée")
