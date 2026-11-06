@@ -28611,3 +28611,55 @@ servie. Écart trouvé et ramené : la grille réécrivait le prédicat « app n
 `sandbox.born_apps` (mesure inchangée : −38, 95 %, 91 %). `doc_facts` : `mecanismes` (dix comptes de
 consommateurs, tous dus aux fichiers de ce palier, établi en remettant mes fichiers à HEAD) et
 `conformite` régénérés ; `modeles` (156 → 155, catalogue) laissé à son propriétaire. `check_docs` 0/0.
+
+## §CLÔTURE 2026-11-06, « L'ÉCHANGE DE L'ASSISTANT : APERÇU DES TÂCHES FINIES, LIENS, LOT EN UNE LIGNE ; COMMANDES `/concile`, `/effort`… SUR TOUTES LES SURFACES » — session du 04→06/11 (après la clôture « PRÉSENTATION, VOIX ») — aperçu et lot poussés, commandes NON poussées — vérifié EN SERVICE après la relance du 06/11 13:19
+
+Livré (shas lus au `git log`) :
+- `b727d1820` (poussé) — trois trous de l'aperçu dans l'échange (question de Fabien du 04/11) : une tâche
+  plus rapide que la réponse, et chaque résultat d'un fil rechargé, gardent leur ligne ouverte sur la
+  Sortie ; les liens `/media/…` écrits par l'assistant se cliquent (motif de `assistant_engine._URL_IN_TEXT`,
+  un `"` ne sort plus de `href`) ; un lot lancé désigne ses filles par la surface DÉCLARÉE du domaine.
+  `ROADMAP §19.2`.
+- `ba840ec94` (poussé) — skill `/cloture` : un renommage de débruitage reste un renommage.
+- `3afd59cc0`, `8b1259996` (poussés) — un LOT lancé est UNE ligne (`tool_api.batch_progress` : état,
+  barre, ETA, ZIP, page de file de sa card mère), UN aperçu qui suit la dernière fille finie (◀ ▶,
+  visionneuse `openSequence`), UNE fin racontée (`job_follow_ups._tell_batch`, aucune pièce jointe sur
+  un canal) ; au-delà de 20 éléments seuls, « + N autres ». `ROADMAP §19.2`, ROUTE (aperçu).
+- `f5400183c`, `9cfb0e888`, `4d42e4236` (NON poussés) — les COMMANDES de l'assistant déclarées une fois
+  (`wama/common/services/assistant_commands.py`) et jouées par `conversation_turn` pour le web, l'API et les
+  canaux : `/concile` (ouvre `delegate` pour ce message, le modèle compose les agents), `/competence`,
+  `/effort`, `/modele`, `/oublier`, `/code`, `/aide` ; préfixes `/` et `!`. Repli d'accents unique
+  (`fold` de `wama/common/utils/text_fold.py`, trois copies réunies). ⚠ `f5400183c` porte aussi le geste `!modele`
+  resté NON COMMITÉ par une autre session depuis le 30/10 (annoncé dans son message). `WAMA_LLM §A`,
+  `WAMA_HARNESS §7.4`, `ROADMAP §19`. Revérifications : usage de `/effort` lu au sélecteur, clé de
+  modèle en dur retirée (`9cfb0e888`), passage de code de l'usage réparé, vu en service (`4d42e4236`).
+
+Vérifié en service le 06/11 (gunicorn relancé à 13:19, compte de test `wama_pw_smoke`, session éphémère
+supprimée) : la page sert l'invite « /aide » ; `/aide`, `!effort`, `/modele`, `/competence`, `/concile`
+(sans question) répondent par le tour commun sur le web, `/aide` sur l'API v1 ; réglages et fils du
+compte inchangés ; `staticfiles/common/js/wama-assistant-chat.js` et `staticfiles/common/js/media-preview.js` servis identiques au dépôt.
+⚠ `4d42e4236` est postérieur à la relance : un HUP de gunicorn pour l'usage de `/effort` corrigé.
+
+Contrôles mesurés le 06/11 : 189 tests (commandes, passerelle, conversation, surfaces, langue) puis 121
+après le dernier correctif — seul rouge, PRÉEXISTANT : `tests_identifier_language` (noms de classes de
+test 133 > 132, déjà au 04/11 ; la liste filtrée sur les fichiers de la session ne porte aucun nom
+d'elle). 13 + 2 contre-épreuves rouges, fichiers restaurés à l'octet. `check_redundancy` 112, 0 dans les
+fichiers de la session ; `check_docs` 0 cassée / 3824 ; `doc_facts --check` : 3 blocs périmés
+(`conformite`, `mecanismes`, `modeles`), tous par le travail non commité d'autres sessions
+(`mecanismes.py` égal à HEAD ; la ligne du moteur de l'assistant ne diffère de HEAD que par son
+décompte, 23 → 24).
+
+Restes — LIMITES de ce que la session a construit (à elle) :
+- ⏳ le Studio (`run_studio_pipeline`) et l'installation de modèle (`install_model`) n'ont ni ligne ni
+  fin racontée dans l'échange (hors `TRIAD_SPECS`) — `ROADMAP §19.2` ;
+- ⏳ les commandes NATIVES de Discord (sélecteur `/`), à générer de `COMMANDS` — `ROADMAP §19` ;
+- l'API sans état (`history` fourni) ne joue aucune commande — consigné `WAMA_LLM §A` ;
+- non joués en service, à faire par Fabien : un vrai `/concile <question>` et `/effort qualite` depuis
+  le chat ET depuis Discord ; un vrai lot lancé depuis l'assistant, suivi jusqu'à sa fin.
+
+Pendings hérités : HUP gunicorn (+ relance de la passerelle Discord) pour `4d42e4236` ; pousser les
+commits locaux (les trois des commandes et ceux d'autres sessions, `origin/dev..HEAD`).
+
+🔚 POINT D'ENTRÉE : essayer `/concile` et `/effort qualite` depuis le chat et depuis Discord, puis
+pousser ; le chantier suivant est la famille suivie du Studio et de l'installation de modèle
+(`ROADMAP §19.2`).
