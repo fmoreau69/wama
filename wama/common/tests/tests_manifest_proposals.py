@@ -243,6 +243,25 @@ class ManifestProposalTest(TestCase):
         self.row.refresh_from_db()
         self.assertEqual({}, self.row.composition)
 
+    def test_a_language_that_is_no_language_code_makes_the_proposal_invalid(self):
+        """Vécu le 2026-11-06 (ACE-Step, rôle `model`) : `languages: ["50+ languages"]` passait
+        pour VALIDE. Les trois clés de langue suivent la même règle ; un code ISO 639, une région
+        BCP 47 (`zh-cn`) et `*` passent."""
+        for key, value in (('languages', ['50+ languages']), ('languages', 'fr'),
+                           ('fallback_languages', ['English']), ('timestamp_languages', ['FR'])):
+            m = _llm_manifest()
+            m['body']['capabilities'] = {'task': 'text-to-music', key: value}
+            obj = proposals.propose(m)
+            self.assertTrue(any(f'capabilities.{key}' in e for e in proposals.plan(obj)['errors']),
+                            (key, value))
+            self.assertFalse(proposals.apply(obj)['applied'], (key, value))
+        self.row.refresh_from_db()
+        self.assertEqual({}, self.row.composition)
+        from wama.common.manifests.ingest import validate
+        m = _llm_manifest()
+        m['body']['capabilities'] = {'languages': ['fr', 'yue', 'zh-cn'], 'fallback_languages': ['*']}
+        self.assertFalse([e for e in validate(m) if 'languages' in e])
+
     def test_fill_empty_treats_lists_as_values(self):
         merged, filled, diverged = proposals.fill_empty(
             {'a': [], 'b': ['x'], 'c': {'d': ''}}, {'a': ['y'], 'b': ['z'], 'c': {'d': 'e'}})

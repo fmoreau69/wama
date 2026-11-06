@@ -61,7 +61,7 @@ def model_vocabularies() -> str:
     """
     from wama.common.backends.manager import known_engines
     from wama.common.utils.app_modes import INPUT_TYPES
-    from wama.common.utils.model_capabilities import CANONICAL_CAPABILITIES
+    from wama.common.utils.model_capabilities import CANONICAL_CAPABILITIES, LANGUAGE_CAPABILITIES
     from wama.model_manager.models import ModelSource, ModelTask, ModelType
 
     engines = sorted(known_engines())
@@ -74,6 +74,10 @@ def model_vocabularies() -> str:
         f"identity.model_type — valeurs autorisées : {', '.join(sorted(ModelType.values))}\n"
         f"identity.source — valeurs autorisées : {', '.join(sorted(ModelSource.values))}\n"
         f"clés canoniques de `capabilities` : {', '.join(sorted(CANONICAL_CAPABILITIES))}\n"
+        # Servi depuis le 2026-11-06 : sans lui, le rôle a écrit `["50+ languages"]` (ACE-Step).
+        f"capabilities.{' / '.join(LANGUAGE_CAPABILITIES)} — codes de langue ISO 639 "
+        f"(« fr », « yue », « zh-cn ») ou ['*'] (toutes langues) ; omettre si la fiche n'en "
+        f"déclare aucun\n"
         f"composition.runtime.engine — moteurs DÉJÀ SERVIS par un backend : "
         f"{', '.join(engines) or '(aucun)'}\n"
     )

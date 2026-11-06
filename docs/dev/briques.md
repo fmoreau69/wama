@@ -2923,7 +2923,8 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
 
 - **Domicile** : `wama/common/utils/model_capabilities.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Vocabulaire CANONIQUE des capacités modèle (`AIModel.capabilities`) — SOURCE UNIQUE.
-- **API publique** (21) :
+- **API publique** (22) :
+  - `is_language_tag(value) -> bool` — Vrai pour un code de langue du vocabulaire (`fr`, `yue`, `zh-cn`) ou `ANY_LANGUAGE`.
   - `reads_temperature(caps: Dict[str, Any]) -> bool` — La fiche dit-elle que le modèle LIT la température ? (son nom dans `params`).
   - `ollama_parameter(parameters: str, name: str)` — Un réglage numérique du fichier de modèle d'Ollama (`/api/show` → `parameters`, une ligne
   - `ollama_recommended_temperature(parameters: str)` — La température du fichier de modèle d'Ollama, ou None. MESURÉ le 2026-10-21 : gemma4 et

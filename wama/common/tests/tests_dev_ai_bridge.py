@@ -182,6 +182,15 @@ class ModelVocabulariesServedToEveryRoleTest(SimpleTestCase):
             with self.subTest(input_id=input_id):
                 self.assertIn(input_id, text)
 
+    def test_the_vocabularies_carry_the_language_rule(self):
+        """Le rôle apprend la forme d'une langue que le validateur exige (2026-11-06, ACE-Step)."""
+        from wama.common.utils.model_capabilities import LANGUAGE_CAPABILITIES
+        text = self.role_utils.model_vocabularies()
+        for key in LANGUAGE_CAPABILITIES:
+            with self.subTest(key=key):
+                self.assertIn(key, text)
+        self.assertIn('ISO 639', text)
+
 
 class DiffusersEngineMustBeProvenTest(SimpleTestCase):
     """`engine: diffusers` n'est gardé que si le `_class_name` du dépôt existe dans `diffusers`.

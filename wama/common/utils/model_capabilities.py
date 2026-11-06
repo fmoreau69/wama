@@ -20,10 +20,26 @@ requires runtime) reste dans `AIModel.extra_info` — ne pas mélanger (divergen
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List
 
 # Sentinelle « toutes langues / agnostique » — cohérente avec lang_routing (`'*' in langs`).
 ANY_LANGUAGE = "*"
+
+#: Les clés de `capabilities` qui portent des LANGUES (décrites ci-dessous) : un seul vocabulaire.
+LANGUAGE_CAPABILITIES = ("languages", "timestamp_languages", "fallback_languages")
+
+#: Forme d'un code de langue : ISO 639 (2 ou 3 lettres minuscules), sous-étiquettes BCP 47
+#: éventuelles (`zh-cn`, que le synthesizer déclare). Le vocabulaire est OUVERT — 678 codes
+#: distincts au catalogue le 2026-11-06, dont l'ISO 639-3 des modèles massivement multilingues —,
+#: c'est la FORME qui est fermée. Vécu le jour même : le rôle `model` a écrit `["50+ languages"]`
+#: pour ACE-Step, et la proposition passait pour valide (aucune valeur existante refusée, mesuré).
+_LANGUAGE_TAG = re.compile(r"[a-z]{2,3}(-[a-z0-9]{2,8})*")
+
+
+def is_language_tag(value) -> bool:
+    """Vrai pour un code de langue du vocabulaire (`fr`, `yue`, `zh-cn`) ou `ANY_LANGUAGE`."""
+    return value == ANY_LANGUAGE or (isinstance(value, str) and bool(_LANGUAGE_TAG.fullmatch(value)))
 
 #: Vocabulaire FERMÉ de `modalities` — il ne vivait que dans la description de la clé ci-dessous
 #: (2026-09-19) ; `check_model_taxonomy` vérifie désormais les défauts par tâche contre lui.
