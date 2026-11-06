@@ -475,6 +475,9 @@ def render_index(manifest: dict) -> tuple:
         url_field = (f",\n        portOptions:  {{ '{app}RefInput': {{ urlField: 'source_url' }} }}"
                      if refs and 'source_url' in (_cols or ()) else '')
         ports_js = "'card'" + url_field
+        # ⚠ Jamais de balise de gabarit CITÉE dans un commentaire JS ci-dessous : Django la lit
+        # quand même (2026-11-06 : un `url` nu cité ici faisait tomber toute jumelle « attache »
+        # au smoke, garde `tests_codegen_templates.GeneratedTemplatesCompileTest`).
         attach_js = f'''
     // AJOUT À LA FILE — brique commune : consigne + réglages du volet + fichier joint ou
     // désigné ; rien n'est lancé — on ajoute, on règle, puis ▶.
@@ -486,7 +489,7 @@ def render_index(manifest: dict) -> tuple:
         paramsHostId: '{app}PanelParams',
         ports:        {ports_js},
         // Plusieurs fichiers = un lot. Forme `as` : une app sans cette route reste rendue, ses cards
-        // restent unitaires (`{{% url %}}` nu lèverait NoReverseMatch et l'index tomberait).
+        // restent unitaires (une balise url sans `as` lèverait NoReverseMatch et l'index tomberait).
         consolidateUrl: "{{% url '{app}:{route_consolidate}' as {app}_consolidate_url %}}{{{{ {app}_consolidate_url }}}}",
     }});
 '''

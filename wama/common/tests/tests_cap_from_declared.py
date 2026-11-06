@@ -170,6 +170,27 @@ class ModelCapabilitiesCriterionTest(SimpleTestCase):
         f, _cc = CriteresDeLaGrilleTest._app(self, {'params.py': "# cap_from={'field': 'model'}\n"})
         self.assertIsNone(f.find_code(cc.PARAMS, r'\bcap_from\s*=\s*\{'))
 
+    def test_the_generated_literal_form_is_a_declaration_too(self):
+        """A twin's `params.py` is the schema rendered as a LITERAL (`params_gen`) : its binding is a
+        dict key, `'cap_from': {…}` — the same declaration, unread until 2026-11-06 (four twins red
+        with their bindings in place). Counter-proof : that form in a comment is still not one."""
+        from unittest import mock
+        from wama.common.tests.tests_queue_delete_contract import CriteresDeLaGrilleTest
+        criterion = next(c for c in cc.CRITERIA if c.key == 'model_caps_ui')
+        literal = ("PARAMS_JSON = [{'name': 'hotwords',\n"
+                   "                'cap_from': {'field': 'backend', 'capability': 'supports_hotwords'}}]\n")
+        schema = {'schemas': {'PARAMS_JSON': [
+            {'name': 'hotwords', 'cap_from': {'field': 'backend', 'capability': 'supports_hotwords'}}]}}
+        for text, expected in ((literal, True), ("# 'cap_from': {'field': 'backend'}\n", False)):
+            with self.subTest(expected=expected), \
+                 mock.patch.object(cc, '_uses_models', lambda f: True), \
+                 mock.patch.object(cc, '_has_engine_select', lambda f: True), \
+                 mock.patch.object(cc, '_capability_named_settings', lambda f: {'hotwords'}), \
+                 mock.patch('wama.common.utils.param_schema.declared_param_schemas',
+                            return_value=schema):
+                f, _cc = CriteresDeLaGrilleTest._app(self, {'params.py': text})
+                self.assertIs(criterion.fn(f)[0], expected)
+
 
 #: The three comment shapes that made `model_caps_ui` / `input_match_ui` green on 2026-10-13 —
 #: the transcriber and the enhancer announced the REMOVAL of their `WamaModelCaps` in a comment.

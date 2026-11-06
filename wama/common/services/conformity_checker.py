@@ -301,6 +301,32 @@ def _scoped_reads(f: _AppFiles):
     return state, evidence
 
 
+def _factory_kwarg(factory: str, kwarg: str) -> str:
+    """Motif : l'appel à `factory(` reçoit `kwarg=` — cherché dans le BLOC de l'appel (jusqu'à la
+    ligne qui le ferme, `)` en tête), pour qu'une parenthèse d'argument (`lambda d: f(d)`) ne le
+    coupe pas."""
+    return rf'(?s)\b{factory}\((?:(?!\n\)).)*?\b{kwarg}\s*='
+
+
+def _user_scope(f: _AppFiles):
+    """
+    Les requêtes des vues sont-elles bornées au compte (scope des données) ?
+
+    Depuis le 2026-11-06 les vues GÉNÉRÉES ne filtrent plus rien elles-mêmes : les gestes d'une
+    card sont ceux de `make_item_views` (R218), qui lit l'élément par le compte que la vue lui
+    passe (`get_user=`) — `visible_or_404`, `editable_or_404`, `filter(user=user)`
+    (`item_views.py`). Le motif seul (`user = request.user`, `user=user`) ne les voyait plus : les
+    douze apps du bac à sable rougissaient d'avoir confié le scope à la brique, preuves vides.
+    """
+    state, evidence = _present(f, VIEWS, r'user\s*=\s*(request\.user|self\.request\.user|user)\b')
+    if state is True:
+        return state, evidence
+    factory = f.find_code(VIEWS, _factory_kwarg('make_item_views', 'get_user'))
+    if factory:
+        return True, f"{factory} (scope par la fabrique : `get_user` → `visible_or_404` / `editable_or_404`)"
+    return state, evidence
+
+
 def _url_ingest(f: _AppFiles):
     ev = f.find(MODELS, r'WAMA_INGEST')
     if ev:
@@ -596,8 +622,14 @@ def _media_paths(f: _AppFiles):
     """Chaque champ fichier range ses médias par un assistant COMMUN de chemins
     (`media_paths` : `upload_to_user_input/output`, `UploadToUserPath`, `UploadToSystemAssetPath`)
     — un `upload_to` écrit à la main recrée un second plan de rangement (mesuré 2026-10-17 :
-    aucun dans les dix apps)."""
-    helpers = r'(?:upload_to_user_input|upload_to_user_output|UploadToUserPath|UploadToSystemAssetPath)'
+    aucun dans les dix apps).
+
+    L'assistant peut être nommé par son module (`wama.common.utils.media_paths.UploadToUserPath(…)`) :
+    c'est la forme que le sérialiseur des migrations rend, celle du `models.py` GÉNÉRÉ d'une jumelle
+    (`models_gen`, « sérialiseur des migrations à l'extraction »). Le motif ne la voyait pas, et cinq
+    jumelles rougissaient en rangeant leurs médias par l'assistant commun (mesuré le 2026-11-06)."""
+    helpers = (r'(?:wama\.common\.utils\.media_paths\.)?'
+               r'(?:upload_to_user_input|upload_to_user_output|UploadToUserPath|UploadToSystemAssetPath)')
     any_field = f.find_code(MODELS, r'\bupload_to\s*=')
     if not any_field:
         return None, None          # aucun champ fichier : rien à ranger
@@ -844,7 +876,10 @@ def _model_caps_ui(f: _AppFiles):
     gate commun `_has_engine_select`)."""
     if not (_uses_models(f) and _has_engine_select(f)):
         return None, None
-    declared = f.find_code(PARAMS, r'\bcap_from\s*=\s*\{')
+    # Deux graphies d'UNE déclaration : l'argument d'un `Param(…, cap_from={…})` (params.py écrit
+    # à la main) et la clé du schéma rendu au littéral (`'cap_from': {…}`, params.py GÉNÉRÉ d'une
+    # jumelle, `params_gen`) — la seconde n'était pas lue (2026-11-06).
+    declared = f.find_code(PARAMS, r"""\bcap_from\s*=\s*\{|['"]cap_from['"]\s*:\s*\{""")
     if declared:
         # Réglage par réglage (2026-11-05) : un `cap_from` ailleurs ne couvre pas un réglage qu'une
         # capacité NOMME sans qu'il y soit lié — le composer était VERT par sa durée, quand
@@ -1437,6 +1472,14 @@ def _output_naming(f: _AppFiles):
     trouve = f.find_code(PY, r'\.output_place\(') or f.find(PY, r'compose_output_name')
     if trouve:
         return True, trouve
+    # Le résultat TEXTE déclaré à la fabrique de lot (`output_text=`) est nommé par la brique,
+    # au ⬇ d'un élément comme dans le ZIP (`batch_views.ResultArchive`, `compose_output_name`
+    # quand l'app ne déclare pas `output_name`). Une vue GÉNÉRÉE ne l'appelle plus elle-même
+    # depuis R218 (2026-11-06). Un FICHIER, lui, garde le nom que la glu lui a donné : la forme
+    # fichier n'est PAS reconnue ici.
+    text_result = f.find_code(VIEWS, _factory_kwarg('make_batch_views', 'output_text'))
+    if text_result:
+        return True, f"{text_result} (résultat texte nommé par la fabrique : `compose_output_name`)"
     return False, ("sortie nommée à la main — deux modèles produisent le même nom, "
                    "et la comparaison entre eux devient impossible")
 
@@ -1709,6 +1752,22 @@ def _declaring_app(app: str) -> str:
     return declaring_app(app)
 
 
+def _born_catalog_entry(app: str):
+    """La fiche SERVIE d'une app NÉE D'UN MANIFESTE (`app_sandbox create --from-manifest`), ou None.
+
+    Une telle app n'a pas de source dont lire le texte (`_declaring_app` la rend elle-même) : sa
+    fiche est calculée à sa naissance depuis les facettes du manifeste, stockée au registre du bac
+    à sable et INJECTÉE au démarrage (`sandbox.inject_sandbox_catalog`), comme son accès
+    (`inject_sandbox_access`). Lire le texte d'`app_registry.py` lui reprochait une déclaration
+    qu'elle a — `catalog_entry`, `filemanager_import` et `access_policy` étaient rouges sur le
+    Writer et le Translator (mesuré le 2026-11-06). Même règle que `_declaring_app` : seulement
+    pour ce que le bac à sable SERT. Ce qu'est une app née, `sandbox.born_apps` le dit : lu, pas
+    réécrit."""
+    from wama.common.app_registry import APP_CATALOG
+    from wama.common.sandbox import born_apps
+    return APP_CATALOG.get(app) if app in born_apps(APP_CATALOG) else None
+
+
 def _registry_keys(name: str, rel: str) -> set[str]:
     """Clés de PREMIER niveau d'un dict-registre `NAME = { 'app': …, }` (indentation 4)."""
     m = re.search(rf"^{name}\s*[:=].*?\{{(.*?)^\}}", _wama_text(rel), re.S | re.M)
@@ -1919,6 +1978,13 @@ def _catalog_entry(f: _AppFiles):
     # dans `APP_CATALOG` au runtime (cf. `_declaring_app`).
     declaring = _declaring_app(f.app)
     inherited = f" (hérité de {declaring})" if declaring != f.app else ''
+    born = _born_catalog_entry(f.app)
+    if born is not None:
+        missing = [k for k in ('input_types', 'output_types', 'input_extensions') if not born.get(k)]
+        if missing:
+            return 'partial', f"fiche servie de {f.app} (née d'un manifeste) : manquent {', '.join(missing)}"
+        return True, (f"APP_CATALOG['{f.app}'] servi, calculé de son manifeste "
+                      f"{born.get('from_manifest') or ''} (E/S typées + extensions)")
     block = _registry_block(declaring, APP_REGISTRY_PY)
     if block is None:
         return False, "absente d'APP_CATALOG (identité non déclarée)"
@@ -2314,6 +2380,22 @@ def _tool_api_item_id(f: _AppFiles):
                 line = text.count('\n', 0, body.start()) + 1
                 return True, (f"add_to_{f.app} SERVI, dérivé de {served.__name__} "
                               f"(tool_api.py:{line}, retourne 'item_id')")
+        # Une app NÉE D'UN MANIFESTE : son créateur est DÉRIVÉ de la vue de dépôt de sa card
+        # (`tool_api._born_creator`, 2026-11-01) — une fonction construite au chargement, sans
+        # `def` de niveau module ni `__wrapped__`. On lit la source de CE qui est servi (2026-11-06 :
+        # le Writer et le Translator étaient rouges sur un contrat tenu).
+        try:
+            from wama.tool_api import TOOL_REGISTRY, _born_creator
+            fn = TOOL_REGISTRY.get(f'add_to_{f.app}')
+        except Exception:
+            fn = _born_creator = None
+        if fn is not None and _born_creator is not None and \
+                fn.__code__ is _born_creator(f.app).__code__:
+            import inspect
+            if re.search(r"""['"]item_id['"]""", inspect.getsource(fn)):
+                return True, (f"add_to_{f.app} SERVI, dérivé de la vue de dépôt de sa card "
+                              f"(tool_api.py:{fn.__code__.co_firstlineno}, `_born_creator`, "
+                              "retourne 'item_id')")
     if not m:
         alias = re.search(rf"^add_to_{f.app}\s*=\s*(\w+)", text, re.M)
         if not alias:
@@ -2344,6 +2426,13 @@ def _access_policy(f: _AppFiles):
     # déclaration de sa SOURCE qui fait foi (cf. `_declaring_app`).
     declaring = _declaring_app(f.app)
     inherited = f" (hérité de {declaring})" if declaring != f.app else ''
+    if _born_catalog_entry(f.app) is not None:
+        # Née d'un manifeste : la règle UNIQUE du bac à sable, injectée au démarrage (R202).
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS
+        if f.app in DEFAULT_APP_ACCESS:
+            return True, (f"DEFAULT_APP_ACCESS['{f.app}'] servi — la règle du bac à sable "
+                          "(`sandbox.inject_sandbox_access`)")
+        return False, f"{f.app} : aucune règle d'accès servie"
     m = re.search(r'DEFAULT_APP_ACCESS\s*=\s*\{(.*?)\n\}',
                   _wama_text('accounts/permissions.py'), re.S)
     if m and re.search(rf"'{declaring}'\s*:", m.group(1)):
@@ -2530,7 +2619,8 @@ def _filemanager_import(f: _AppFiles):
     """
     if 'wama:fileimported' not in _wama_text('common/static/common/js/wama-app-base.js'):
         return False, 'brique commune absente de wama-app-base.js'
-    if _registry_block(_declaring_app(f.app), APP_REGISTRY_PY) is None:
+    if (_born_catalog_entry(f.app) is None
+            and _registry_block(_declaring_app(f.app), APP_REGISTRY_PY) is None):
         return False, "absente d'APP_CATALOG → window.WAMA_CURRENT_APP ne résout pas"
     own = f.find(JS, r"addEventListener\('wama:fileimported'")
     if own:
@@ -2976,8 +3066,7 @@ CRITERIA: list[Criterion] = [
               "Toutes les routes de l'app jugées par la garde d'accès (AppAccessMiddleware)",
               _access_guard_routes),
     Criterion('user_scope', 'F7', 'Requêtes filtrées par utilisateur (scope données)',
-              lambda f: _present(f, VIEWS, r'user\s*=\s*(request\.user|self\.request\.user|user)\b'),
-              mechanism='scoping'),
+              _user_scope, mechanism='scoping'),
     Criterion('shareable_models', 'F7', 'Cards ET batchs partageables (ScopedVisibility)',
               _shareable_models,
               mechanism='scoped_visibility'),

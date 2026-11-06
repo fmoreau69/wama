@@ -925,6 +925,50 @@ class TwinGridReadsWhatIsInjectedTest(SimpleTestCase):
             self.assertIn('_declaring_app', body, name)
             self.assertIn('hérité de', body, f'{name} : le message doit dire que c\'est hérité')
 
+    def test_an_app_born_from_a_manifest_is_read_on_what_the_sandbox_serves_it(self):
+        """Une app NÉE D'UN MANIFESTE n'a pas de source dont lire le texte : sa fiche et son accès
+        sont calculés à sa naissance et INJECTÉS au démarrage. Mesuré le 2026-11-06 :
+        `catalog_entry`, `filemanager_import` et `access_policy` étaient rouges sur le Writer et le
+        Translator, qui les ont. Contre-épreuve : une jumelle garde la lecture de sa source, et une
+        fiche servie incomplète est dite."""
+        from wama.common.services import conformity_checker as checker
+        born = {'label': 'Writer ⚠ BAC À SABLE', 'sandbox': True, 'generated_from': '',
+                'from_manifest': 'manifests/app_drafts/writer.json',
+                'input_types': ['document'], 'output_types': ['document'],
+                'input_extensions': ['.pdf']}
+        twin = {'label': 'Describer ⚠ BAC À SABLE', 'sandbox': True, 'generated_from': 'describer'}
+        catalog = {'writer_99': born, 'describer_99': twin,
+                   'writer_98': {**born, 'input_extensions': []}}
+        access = {'writer_99': {'roles': ['ingenierie'], 'min_tier': 'developpeur'}}
+        f = checker._AppFiles('writer_99')
+        with patch('wama.common.app_registry.APP_CATALOG', catalog), \
+             patch('wama.accounts.permissions.DEFAULT_APP_ACCESS', access):
+            self.assertIs(checker._born_catalog_entry('describer_99'), None, 'a twin has a source')
+            self.assertIs(checker._catalog_entry(f)[0], True)
+            self.assertIs(checker._access_policy(f)[0], True)
+            self.assertIs(checker._filemanager_import(f)[0], True)
+            state, why = checker._catalog_entry(checker._AppFiles('writer_98'))
+            self.assertEqual('partial', state)
+            self.assertIn('input_extensions', why)
+            self.assertIs(checker._access_policy(checker._AppFiles('writer_98'))[0], False)
+
+    def test_the_creator_of_an_app_born_from_a_manifest_is_read_where_it_is_served(self):
+        """`add_to_<app>` d'une app née d'un manifeste est DÉRIVÉ de la vue de dépôt de sa card
+        (`tool_api._born_creator`) : ni `def` de niveau module, ni `__wrapped__`. Le critère lit
+        la source de ce qui est servi ; contre-épreuve : un outil quelconque qui ne rend pas
+        `item_id` reste rouge."""
+        from wama import tool_api
+        from wama.common.services import conformity_checker as checker
+        born = tool_api._born_creator('writer_99')
+
+        def other(user, **kwargs):
+            return {'id': 1}
+
+        for fn, expected in ((born, True), (other, False)):
+            with self.subTest(expected=expected), \
+                 patch.dict(tool_api.TOOL_REGISTRY, {'add_to_writer_99': fn}):
+                self.assertIs(checker._tool_api_item_id(checker._AppFiles('writer_99'))[0], expected)
+
 
 class TwinRegistriesInjectedTest(SimpleTestCase):
     """`sandbox.inject_sandbox_registry` (décision de Fabien, 2026-10-06) : une jumelle reçoit la

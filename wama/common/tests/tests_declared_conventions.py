@@ -136,6 +136,12 @@ class ConventionCriteriaTest(SimpleTestCase):
             (checker._pipeline_declared, {'function_specs.py': '# register_app_pipeline( raconté\n'}, False),
             (checker._media_paths, {'models.py': "f = FileField(upload_to=upload_to_user_input('x'))\n"}, True),
             (checker._media_paths, {'models.py': "f = FileField(upload_to='x/input/')\n"}, False),
+            # The serializer's form, the one of a twin's GENERATED models.py (2026-11-06).
+            (checker._media_paths, {'models.py': "f = FileField(upload_to=wama.common.utils.media_paths"
+                                                 ".UploadToUserPath('x', 'input'))\n"}, True),
+            # A homonym from another module is not the common helper.
+            (checker._media_paths, {'models.py': "f = FileField(upload_to=other.module"
+                                                 ".UploadToUserPath('x', 'input'))\n"}, False),
             (checker._media_paths, {'models.py': 'class A: pass\n'}, None),
             (checker._static_versioning, {'templates/x/index.html': "{% static_v 'x/js/i.js' %}"}, True),
             (checker._static_versioning, {'templates/x/index.html': "{% static 'x/js/i.js' %}"}, False),
@@ -143,6 +149,31 @@ class ConventionCriteriaTest(SimpleTestCase):
                                   'static/x/i.js': '// WamaFM.processed() raconté\n'}, True),
             (checker._fm_notify, {'templates/x/index.html': "{% include 'common/_global_progress.html' %}",
                                   'static/x/i.js': 'if (window.WamaFM) WamaFM.processed();\n'}, False),
+        )
+        for fn, files, expected in cases:
+            with self.subTest(fn=fn.__name__, files=files):
+                self.assertIs(self._state(fn, files), expected)
+
+    def test_a_gesture_left_to_the_factory_is_read_where_the_factory_does_it(self):
+        """Depuis R218 (2026-11-06) une vue GÉNÉRÉE ne borne plus ses requêtes ni ne nomme son
+        résultat elle-même : elle passe le compte et le résultat texte aux fabriques. Les douze
+        apps du bac à sable rougissaient `user_scope` (et describer_01 `output_naming`) d'avoir
+        confié le geste à la brique. Chaque forme a sa contre-épreuve."""
+        iv = ("_iv = make_item_views(work_model=W, app_id='x', task=t,\n"
+              "                      progress_of=lambda w: cache.get(k(w)), get_user=_user,\n)\n")
+        bv = ("_bv = make_batch_views(\n    work_model=W, get_user=_user,\n"
+              "    progress_of=lambda d: cache.get(k(d)),\n    output_text='result_text',\n)\n"
+              "download = _iv['download']\n")
+        cases = (
+            (checker._user_scope, {'views.py': 'user = request.user\n'}, True),
+            (checker._user_scope, {'views.py': iv}, True),
+            (checker._user_scope, {'views.py': iv.replace('get_user=_user,', '')}, False),
+            (checker._user_scope, {'views.py': '# make_item_views(get_user=_user) raconté\n'}, False),
+            (checker._output_naming, {'views.py': bv}, True),
+            (checker._output_naming, {'views.py': bv.replace("output_text='result_text',", '')}, False),
+            # le kwarg d'un AUTRE appel, après la fermeture du bloc, ne compte pas
+            (checker._output_naming, {'views.py': bv.replace("    output_text='result_text',\n", '')
+                                      + "_x = other(output_text='t')\n"}, False),
         )
         for fn, files, expected in cases:
             with self.subTest(fn=fn.__name__, files=files):

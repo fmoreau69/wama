@@ -19,6 +19,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase, TestCase
 from django.urls import NoReverseMatch, reverse
 
+from wama.common import app_registry
 from wama.common.manifests.codegen.views_gen import render_views
 
 #: App dont la file est de forme FK-DIRECTE (la forme du pilote — l'item porte `batch` +
@@ -44,6 +45,28 @@ def _fonction(src, nom):
         if isinstance(noeud, ast.FunctionDef) and noeud.name == nom:
             return ast.get_source_segment(src, noeud) or ''
     return None
+
+
+def _factory_source(name):
+    """La source de la fonction `name` du module `common/utils/item_views.py` — là où vivent les
+    gestes d'une card que le module généré NOMME (`_iv['delete']`…) depuis le 2026-11-06."""
+    import inspect
+    from wama.common.utils import item_views
+    return inspect.getsource(getattr(item_views, name))
+
+
+def _factory_gesture(name):
+    """La source du geste `name` défini DANS `make_item_views` (fonction imbriquée), sans ses
+    commentaires — on mesure le code, pas la prose qui en raconte l'histoire."""
+    import inspect
+    import textwrap
+    from wama.common.utils import item_views
+    src = textwrap.dedent(inspect.getsource(item_views.make_item_views))
+    tree = ast.parse(src)
+    node = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == name
+                and n is not tree.body[0])
+    body = ast.get_source_segment(src, node) or ''
+    return '\n'.join(l for l in body.splitlines() if not l.lstrip().startswith('#'))
 
 
 def _as_single_process(*apps):
@@ -90,14 +113,19 @@ class CheminDeLotTest(SimpleTestCase):
         # Une erreur de syntaxe dans un gabarit ne se voit qu'au chargement de l'app.
         ast.parse(self.src)
 
-    def test_the_direct_form_still_uses_the_direct_factory_and_its_own_helpers(self):
-        """Contre-épreuve du gabarit à deux formes (2026-09-22) : la forme directe n'a pas changé
-        de brique. Ce qui a changé — et qu'on tient — c'est que la forme ne vit plus que dans
-        `_batch_elements` / `_link_to_batch` : aucune vue de lot ne filtre plus la FK à la main."""
+    def test_the_direct_form_uses_the_direct_factory_and_the_common_queue_bricks(self):
+        """Contre-épreuve du gabarit à deux formes (2026-09-22) : la forme directe garde sa
+        fabrique de manipulation. Depuis le 2026-11-06 sa file et l'enveloppement de ses orphelins
+        passent par les MÊMES briques que la forme à liaison (`build_batches_list(work_attr=None)`,
+        `auto_wrap_orphans` sans liaison — R207, la source converter les a adoptées le 2026-11-02) :
+        la boucle et la file écrites ici, et leur `_link_to_batch`, sont retirées."""
         self.assertIn('make_queue_manipulation_views_direct(', self.src)
         self.assertNotIn('make_queue_manipulation_views(', self.src)
-        self.assertIn("attach_to_batch(obj, lot, idx, batch_attr='batch', row_field='batch_row_index')",
-                      _fonction(self.src, '_link_to_batch') or '')
+        self.assertIsNone(_fonction(self.src, '_link_to_batch'), 'helper de liaison sans appelant')
+        self.assertIn('auto_wrap_orphans(user, work_model=ConversionJob, batch_model=ConversionBatch',
+                      _fonction(self.src, '_auto_wrap_orphans') or '')
+        self.assertIn('build_batches_list(user, batch_model=ConversionBatch, work_attr=None,', self.src)
+        self.assertNotIn("grouped.setdefault(", self.src, 'la file réécrite hors de la brique')
         self.assertNotIn('_batch_elements', self.src, 'lecture du lot réécrite hors de la brique')
         # Les six vues de lot viennent de la FABRIQUE (22/09, ROUTE #36) avec la forme directe.
         self.assertIn("batch_attr='batch', row_field='batch_row_index', items_related='items'", self.src)
@@ -178,15 +206,18 @@ class CheminDeLotTest(SimpleTestCase):
         volet, pré-remplissage de modale).
         """
         src = self._src_avec_hors_colonnes()
-        # The converter's item-edit route is `update_settings` since 2026-09-24 (CONVENTIONS §3.1).
-        corps = _fonction(src, 'update_settings')
-        self.assertIsNotNone(corps)
-        # Depuis le 22/09 le routage vit dans la brique `apply_item_settings` : la vue générée
-        # lui PASSE le conteneur et les hors-colonnes (elle ne réécrit plus l'idiome). Depuis le
-        # 2026-10-18 les deux listes sont LUES par le module (schéma × colonnes du modèle), plus
+        # The converter's item-edit route is `update_settings` since 2026-09-24 (CONVENTIONS §3.1),
+        # served by the factory's ⚙ since 2026-11-06 : its writer is the batch ⚙'s (`_bv`).
+        self.assertRegex(src, r"(?m)^update_settings = _iv\['update_settings'\]$")
+        self.assertIsNone(_fonction(src, 'update_settings'), 'the ⚙ body is written again')
+        # Depuis le 22/09 le routage vit dans la brique `apply_item_settings` : le module généré
+        # PASSE le conteneur et les hors-colonnes à la fabrique (il ne réécrit plus l'idiome). Depuis
+        # le 2026-10-18 les deux listes sont LUES par le module (schéma × colonnes du modèle), plus
         # figées à la génération : une liste figée dérivait au premier réglage ajouté.
+        corps = src[src.index('_bv = make_batch_views('):]
+        corps = corps[:corps.index('\n)')]
         self.assertIn('options_field=_OPTIONS_FIELD, extra_names=_SETTINGS_OUTSIDE', corps,
-                      'update ne route pas les champs hors-colonnes')
+                      'la ⚙ ne route pas les champs hors-colonnes')
         self.assertNotIn("'quality'", corps, 'un nom de réglage recopié dans la vue')
         self.assertIn("_OPTIONS_FIELD = 'options' if _SETTINGS_OUTSIDE and 'options' in _ITEM_COLUMNS",
                       src, 'le conteneur doit se décider au modèle généré')
@@ -320,19 +351,21 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertNotIn('_fichier_de_l_app', self.src, 'la garde redondante est réémise')
         self.assertNotIn('app_media_dir', self.src)
         # (`batch_delete` vit dans la fabrique `batch_views` depuis le 22/09, `clear_all` dans la
-        # fabrique `item_views` depuis le 2026-10-29 — `discard_element`, tenu par
-        # `tests_item_views` : le module généré n'en porte plus le corps.)
+        # fabrique `item_views` depuis le 2026-10-29, le 🗑 d'une card depuis le 2026-11-06 — tous
+        # par `discard_element`, tenu par `tests_item_views` : le module généré n'en porte plus le
+        # corps. La règle se tient donc à la source du geste, comme `batch_delete` plus bas.)
         self.assertIn("clear_all = _iv['clear_all']", self.src)
         self.assertIn('_iv = make_item_views(', self.src)
-        for view in ('delete',):
-            corps = _fonction(self.src, view)
-            self.assertIsNotNone(corps, f'{view} absente')
-            self.assertIn('release_card_files(item)', corps,
-                          f'{view} ne passe pas par la brique de libération')
-            self.assertNotIn('release_card_file(item, ', corps,
-                             f'{view} libère de nouveau champ par champ, d’après une liste émise')
-            self.assertNotIn('safe_delete_file', corps,
-                             f'{view} efface les fichiers de la card au lieu de les libérer')
+        self.assertRegex(self.src, r"(?m)^delete = _iv\['delete'\]$")
+        self.assertIsNone(_fonction(self.src, 'delete'), 'le corps du 🗑 est de nouveau écrit')
+        discard = _factory_source('discard_element')
+        self.assertIn('release_card_files(item)', discard,
+                      'le retrait ne passe pas par la brique de libération')
+        self.assertNotIn('release_card_file(item, ', discard,
+                         'le retrait libère de nouveau champ par champ, d’après une liste')
+        self.assertNotIn('safe_delete_file', discard,
+                         'le retrait efface les fichiers de la card au lieu de les libérer')
+        self.assertIn('discard_element(', _factory_gesture('delete'))
 
     def test_the_progress_views_come_from_the_common_factory(self):
         """Trou A3 (audit 31/08) : l'émission renvoyait {running, pending, percent} — la
@@ -403,23 +436,23 @@ class CheminDeLotTest(SimpleTestCase):
         restait à l'écran). L'app réelle de référence, elle, se contente de `job.delete()`.
 
         On tient donc l'ABSENCE, pas une graphie : c'est la reduplication qui est interdite.
+        Depuis le 2026-11-06 le 🗑 généré EST celui de la fabrique (`_iv['delete']`) : la garde se
+        tient à la source du geste, comme celle de `batch_delete` ci-dessous.
         """
         from wama.common.manifests.codegen.views_gen import render_views
         from wama.common.manifests.ingest import extract
         src, raison = render_views(extract('app', SOURCE))
         self.assertIsNotNone(src, raison)
-        i = src.index('def delete(request, pk):')
-        corps = src[i:src.index('\ndef ', i + 1)]
+        self.assertRegex(src, r"(?m)^delete = _iv\['delete'\]$")
         # ⚠ On mesure le CODE, pas la PROSE : le commentaire qui explique le retrait cite
         # forcément `.items.exists()`, et une première version de cette garde est tombée
         # dessus. Même piège que le scan de mécanismes, qui comptait un fichier comme
         # CONSOMMATEUR parce qu'un commentaire nommait le domicile. Un contrôle qui lit du
-        # texte brut doit d'abord retirer ce qui n'est pas exécuté.
-        code = '\n'.join(l for l in corps.splitlines()
-                         if not l.lstrip().startswith('#'))
+        # texte brut doit d'abord retirer ce qui n'est pas exécuté (`_factory_gesture`).
+        code = _factory_gesture('delete') + _factory_source('discard_element')
         for motif in ('.items.exists()', 'b.delete()'):
             self.assertNotIn(motif, code,
-                             f'la vue delete générée reduplique le nettoyage de lot ({motif}) '
+                             f'le 🗑 reduplique le nettoyage de lot ({motif}) '
                              f'— `batch_sync` le fait déjà, et le doublon rend un 500')
 
     def test_batch_delete_never_deletes_the_batch_through_its_stale_instance(self):
@@ -449,19 +482,20 @@ class CheminDeLotTest(SimpleTestCase):
         `queue-actions.js` de mettre la file à jour sans rechargement de la page). Lu par AST : un
         commentaire qui cite les noms ne compte pas, et l'ORDRE est vérifié — relevé après la
         suppression, la liaison est déjà partie et le lot introuvable."""
-        import ast
+        import textwrap
         from wama.common.manifests.codegen.views_gen import render_views
         from wama.common.manifests.ingest import extract
         src, raison = render_views(extract('app', SOURCE))
         self.assertIsNotNone(src, raison)
-        fonction = next(n for n in ast.walk(ast.parse(src))
-                        if isinstance(n, ast.FunctionDef) and n.name == 'delete')
+        # Le 🗑 généré est celui de la fabrique (2026-11-06) : l'ordre se lit dans SON corps.
+        self.assertRegex(src, r"(?m)^delete = _iv\['delete'\]$")
+        fonction = ast.parse(textwrap.dedent(_factory_gesture('delete'))).body[0]
         appels = [(n.lineno, getattr(n.func, 'id', None) or getattr(n.func, 'attr', None))
                   for n in ast.walk(fonction) if isinstance(n, ast.Call)]
         ligne = {nom: l for l, nom in sorted(appels, reverse=True)}
-        for nom in ('batch_snapshot', 'batch_state', 'delete'):
-            self.assertIn(nom, ligne, f'appel `{nom}` absent de la vue delete générée')
-        self.assertLess(ligne['batch_snapshot'], ligne['delete'],
+        for nom in ('batch_snapshot', 'batch_state', 'discard_element'):
+            self.assertIn(nom, ligne, f'appel `{nom}` absent du 🗑 de la fabrique')
+        self.assertLess(ligne['batch_snapshot'], ligne['discard_element'],
                         'le lot doit être relevé AVANT la suppression')
 
     def test_sans_conteneur_json_aucun_routage_invente(self):
@@ -477,9 +511,11 @@ class CheminDeLotTest(SimpleTestCase):
                                if f.get('name') != 'options']
         src, raison = render_views(manifest)
         self.assertIsNotNone(src, f'génération impossible : {raison}')
-        corps = _fonction(src, 'update_settings')
-        self.assertIsNotNone(corps, 'no edit view generated: this check would pass on nothing')
-        self.assertNotIn('_extras', corps)
+        # The ⚙ is the factory's since 2026-11-06 ; what this module could still invent is a
+        # routing block of its own, anywhere in it.
+        self.assertRegex(src, r"(?m)^update_settings = _iv\['update_settings'\]$",
+                         'no edit view generated: this check would pass on nothing')
+        self.assertNotIn('_extras', src)
 
     def test_une_url_n_est_pas_telechargee_dans_la_requete(self):
         """La source est ENREGISTRÉE ; `ensure_local_input` la résout en tête de tâche.
@@ -939,9 +975,11 @@ class ItemEditRouteAliasTest(SimpleTestCase):
             view = str(route.get('view') or '').split('.')[-1]
             src, why = render_views(manifest)
             self.assertTrue(src, f'{app}: views not generated ({why})')
-            body = _fonction(src, view) or ''
-            self.assertIn('apply_item_settings(', body,
-                          f'{app}: `{view}` should get the conventional edit body, not a stub')
+            # The conventional edit body is the factory's ⚙ since 2026-11-06, under the name the
+            # route declares — not a stub.
+            self.assertRegex(src, rf"(?m)^{view} = _iv\['update_settings'\]$",
+                             f'{app}: `{view}` should be the factory ⚙, not a stub')
+            self.assertIsNone(_fonction(src, view), f'{app}: `{view}` written again by the template')
             files, why = render_index(manifest)
             self.assertTrue(files, f'{app}: template not generated ({why})')
             self.assertIn('WamaQueueActions.onSettings(', files['index.html'],
@@ -1030,12 +1068,19 @@ class DeclaredResultDownloadTest(SimpleTestCase):
                 continue
             src, why = render_views(manifest)
             self.assertTrue(src, f'{app}: views not generated ({why})')
-            body = _fonction(src, 'download') or ''
-            self.assertNotIn('status=501', body, f'{app}: declared result, download stubbed')
-            self.assertIn(res['field'] if res.get('kind') == 'text' else 'FileResponse', body)
+            # The card's ⬇ is the factory's since 2026-11-06 : it serves the result the way the
+            # batch ZIP writes it — the result declared to `_bv`, which this test reads.
+            self.assertRegex(src, r"(?m)^download = _iv\['download'\]$",
+                             f'{app}: declared result, download not served by the factory')
+            self.assertIsNone(_fonction(src, 'download'), f'{app}: ⬇ written again by the template')
+            bv = src[src.index('_bv = make_batch_views('):]
+            bv = bv[:bv.index('\n)')]
             if res.get('kind') == 'text':
-                self.assertIn(f"output_text='{res['field']}'", src,
-                              f'{app}: the batch ZIP must serve the same text result')
+                self.assertIn(f"output_text='{res['field']}'", bv,
+                              f'{app}: the ⬇ and the batch ZIP must serve the declared text result')
+            elif res['field'] != 'output_file':      # the factory's default needs no declaration
+                self.assertIn(f"output_field='{res['field']}'", bv,
+                              f'{app}: the ⬇ and the batch ZIP must serve the declared file')
             checked.append(app)
         self.assertIn('describer', checked, 'the case that revealed the defect must be covered')
 
@@ -1182,3 +1227,66 @@ class GeneratedProgressFieldTest(SimpleTestCase):
         src, raison = _vues_generees(SOURCE)
         self.assertIsNotNone(src, raison)
         self.assertNotIn('progress_field=', src)
+
+
+class GeneratedCardGesturesTest(SimpleTestCase):
+    """⏹ ⬇ 🗑 ⧉ ⚙ d'une card, GÉNÉRÉS, sont ceux de la fabrique commune (2026-11-06).
+
+    Les dix sources les tiennent de `make_item_views` depuis R200/R201 (2026-11-01/02, ROUTE §11
+    #42 ④) ; ce gabarit en écrivait encore les cinq corps, et le critère `element_views_common`
+    était rouge sur les douze jumelles. Mesuré sur le PARC : chaque module généré nomme les cinq
+    gestes de `_iv`, sous le nom que sa route déclare, et n'en écrit aucun.
+    """
+
+    #: Le parc des sources, DÉRIVÉ du catalogue (une app ajoutée y entre sans qu'on la nomme).
+    APPS = sorted(a for a, s in app_registry.APP_CATALOG.items() if not s.get('sandbox'))
+    #: Les apps dont un DOMAINE n'est pas encore généré (ROUTE §11 #42, étape ⑦) : ses gestes
+    #: restent des bouchons marqués. Ne peut que rétrécir.
+    DOMAINS_NOT_GENERATED = {'enhancer'}
+
+    def test_every_generated_module_takes_the_five_gestures_from_the_factory(self):
+        import re
+        from wama.common.manifests.ingest import extract
+        from wama.common.services.conformity_checker import ELEMENT_GESTURES, _LOCAL_ELEMENT_GESTURE
+        still_needed = set()
+        for app in self.APPS:
+            with self.subTest(app=app):
+                src, why = render_views(extract('app', app))
+                self.assertTrue(src, f'{app}: views not generated ({why})')
+                for gesture in ELEMENT_GESTURES:
+                    self.assertRegex(src, rf"(?m)^\w+ = _iv\['{gesture}'\]$",
+                                     f"{app}: `{gesture}` not taken from the factory")
+                written = [m.group(0) for m in re.finditer(_LOCAL_ELEMENT_GESTURE, src)]
+                if written and app in self.DOMAINS_NOT_GENERATED:
+                    still_needed.add(app)
+                    continue
+                self.assertEqual(written, [], f'{app}: card gestures written by the template')
+        self.assertEqual(still_needed, self.DOMAINS_NOT_GENERATED,
+                         'an exemption no longer needed: remove it')
+
+    def test_a_copy_resets_the_declared_progress_column(self):
+        """La copie remet à zéro la colonne de progression DÉCLARÉE (`blur_progress` chez
+        l'anonymizer) — c'est celle que le ⧉ écrit à la main remettait à zéro ; la brique, seule,
+        remet `progress`. Contre-épreuve : une app conventionnelle garde le défaut de la brique."""
+        from wama.common.manifests.ingest import extract
+        src, why = render_views(extract('app', 'anonymizer'))
+        self.assertTrue(src, why)
+        bv = src[src.index('_bv = make_batch_views('):]
+        self.assertIn("reset_on_duplicate={'status': 'PENDING', 'blur_progress': 0,", bv[:bv.index('\n)')])
+        src, why = _vues_generees(SOURCE)
+        self.assertTrue(src, why)
+        self.assertNotIn('reset_on_duplicate=', src)
+
+    def test_a_direct_form_the_queue_bricks_do_not_read_is_refused(self):
+        """Les briques de file lisent la FK directe `batch` + `batch_row_index` (la convention de
+        la seule source de cette forme) : un autre nommage est REFUSÉ, jamais rendu de travers."""
+        from unittest import mock
+        from wama.common.manifests.codegen import views_gen
+        from wama.common.manifests.ingest import extract
+        manifest = extract('app', SOURCE)
+        real = views_gen._donnees
+        with mock.patch.object(views_gen, '_donnees',
+                               side_effect=lambda m: {**real(m), 'batch_fk': 'lot'}):
+            src, why = views_gen.render_views(manifest)
+        self.assertIsNone(src)
+        self.assertIn("'lot'", why)

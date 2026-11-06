@@ -106,6 +106,39 @@ class DeclaredResultFieldsAreGeneratedTest(SimpleTestCase):
                          'the input field must not come back as a result field')
         compile(src, 'models.py', 'exec')
 
+    def test_the_skeleton_gives_the_card_gear_its_settings_like_the_introspected_path(self):
+        """The ⚙ of the card reads `gear_data` (brick `card_gear`) — emitted by the introspected
+        path since 2026-10-31, NOT by this skeleton until 2026-11-06 : the cards of writer_01 and
+        translator_01, born from a manifest, carried no setting (`card_gear` red). Counter-check :
+        a draft without a settings schema gets no such property (it would import nothing)."""
+        import copy
+        from wama.common.manifests.codegen.models_gen import render_models
+        manifest = json.loads(DRAFT.read_text(encoding='utf-8'))
+        src, reason = render_models(manifest)
+        self.assertIsNotNone(src, reason)
+        item = src[src.index('class WriterDocument('):src.index('class WriterBatch(')]
+        self.assertIn('def gear_data(self):', item, 'the item has no ⚙ settings')
+        self.assertIn('from .params import PARAMS_JSON', item)
+        compile(src, 'models.py', 'exec')
+        bare = copy.deepcopy(manifest)
+        bare['body']['params'] = {}
+        bare['body']['processing']['model_spec']['item']['params_fields'] = []
+        src, reason = render_models(bare)
+        self.assertIsNotNone(src, reason)
+        self.assertNotIn('def gear_data(self):', src)
+
+    def test_the_skeleton_batch_keeps_the_manual_queue_order_like_the_sources(self):
+        """The manual order of the queue lives on the BATCH (`QueueOrderMixin.queue_index`, written
+        by `queue_manipulation`) — the ten sources carry it, the skeleton did not until 2026-11-06 :
+        a drag and drop on an app born from a manifest wrote a missing column."""
+        from wama.common.manifests.codegen.models_gen import render_models
+        src, reason = render_models(json.loads(DRAFT.read_text(encoding='utf-8')))
+        self.assertIsNotNone(src, reason)
+        self.assertIn('class WriterBatch(BatchMixin, QueueOrderMixin, ScopedVisibility):', src)
+        imported = {a.name for n in ast.walk(ast.parse(src)) if isinstance(n, ast.ImportFrom)
+                    and n.module == 'wama.common.models' for a in n.names}
+        self.assertIn('QueueOrderMixin', imported, 'the mixin is used but not imported')
+
     def test_the_status_column_fits_every_state_it_lists(self):
         """Measured on the first real creation from scratch (the Editor, now the Writer, 2026-09-30): the skeleton
         froze `max_length=16` while the common vocabulary has `AWAITING_RESOURCES` (18) —

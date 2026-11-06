@@ -224,13 +224,8 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
         # `options` quand le modèle en a un. Sans elle, la card générée écrivait ses data-* à la
         # génération (critère `card_gear`) et son bouton ⚙ ne portait rien.
         if params_symbol and item_name and m.get('name') == item_name:
-            has_options = any(f.get('name') == 'options' for f in m.get('fields') or [])
-            values = ', values=dict(self.options or {})' if has_options else ''
-            corps += ['', '    @property', '    def gear_data(self):',
-                      '        """data-* du bouton ⚙ — brique commune `card_gear` (dérivés du schéma)."""',
-                      '        from wama.common.utils.card_gear import gear_data',
-                      f'        from .params import {params_symbol}',
-                      f'        return gear_data(self, {params_symbol}{values})']
+            corps += _gear_data_lines(params_symbol, any(
+                f.get('name') == 'options' for f in m.get('fields') or []))
         meta = m.get('meta') or {}
         if meta:
             corps.append('')
@@ -285,6 +280,20 @@ def _own_default(module: str, name: str, mark: str) -> str:
     return (f'def {name}():\n'
             f'    """`default` de champ : la valeur que la source rend (relue à la génération)."""\n'
             f'    return {value!r}')
+
+
+def _gear_data_lines(params_symbol: str, has_options: bool) -> list:
+    """La propriété `gear_data` de l'élément — les data-* du bouton ⚙ de la card par la brique
+    COMMUNE `card_gear`, dérivés du schéma (`gear_data(self, PARAMS)`, comme les dix sources,
+    2026-10-31). Une PROPRIÉTÉ : aucun champ, aucune migration. Les réglages hors colonnes
+    viennent du conteneur `options` quand le modèle en a un. UNE émission pour les deux chemins
+    de rendu (introspecté et squelette)."""
+    values = ', values=dict(self.options or {})' if has_options else ''
+    return ['', '    @property', '    def gear_data(self):',
+            '        """data-* du bouton ⚙ — brique commune `card_gear` (dérivés du schéma)."""',
+            '        from wama.common.utils.card_gear import gear_data',
+            f'        from .params import {params_symbol}',
+            f'        return gear_data(self, {params_symbol}{values})']
 
 
 def render_models(manifest: dict) -> tuple:
@@ -362,9 +371,10 @@ def render_models(manifest: dict) -> tuple:
         '',
         ('from wama.common.models import (BatchMixin, KeptOutputsMixin, ProcessingTimeMixin,'
          if keeps else
-         'from wama.common.models import (BatchMixin, ProcessingTimeMixin, ScopedManager,'),
-        ('                                ScopedManager, ScopedVisibility)' if keeps else
-         '                                ScopedVisibility)'),
+         'from wama.common.models import (BatchMixin, ProcessingTimeMixin, QueueOrderMixin,'),
+        ('                                QueueOrderMixin, ScopedManager, ScopedVisibility)'
+         if keeps else
+         '                                ScopedManager, ScopedVisibility)'),
         ('from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output'
          if any(k == 'file' for _n, k in results) or _declares_step_outputs(app_id)
          else 'from wama.common.utils.media_paths import upload_to_user_input'),
@@ -467,6 +477,11 @@ def render_models(manifest: dict) -> tuple:
               f'            return self.{name_field}']
     l += [f'        return os.path.basename(self.{input_field}.name) '
           f'if self.{input_field} else \'\'']
+    # Le ⚙ de la card, comme le chemin introspecté (2026-11-06) : une app NÉE d'un manifeste
+    # passe par ce squelette, et sa card n'avait aucun data-* de réglage (`card_gear` rouge sur
+    # writer_01 et translator_01) — deux rendus, deux comportements.
+    if (facet or {}).get('primary') and entrees:
+        l += _gear_data_lines(facet['primary'], 'options' in options)
 
     batch = spec.get('batch') or {}
     if batch.get('name') and batch.get('link_name'):
@@ -474,9 +489,13 @@ def render_models(manifest: dict) -> tuple:
         vn = batch.get('verbose_name') or f'Batch {app_id}'
         vnp = batch.get('verbose_name_plural') or f'Batchs {app_id}'
         item_field = batch.get('link_item_field') or 'item'
+        # L'ordre MANUEL de la file se porte sur le lot (`QueueOrderMixin.queue_index`, que la
+        # fabrique `queue_manipulation` écrit) — les dix sources le portent ; le squelette ne
+        # l'émettait pas (2026-11-06) : le glisser-déposer d'une app NÉE d'un manifeste écrivait
+        # une colonne absente. Mêmes bases, même ordre que les sources.
         l += ['',
               '',
-              f"class {batch['name']}(BatchMixin, ScopedVisibility):",
+              f"class {batch['name']}(BatchMixin, QueueOrderMixin, ScopedVisibility):",
               f'    """Groupe d\'items créé depuis un fichier batch (unité de partage F7)."""',
               '    objects = ScopedManager()',
               '',

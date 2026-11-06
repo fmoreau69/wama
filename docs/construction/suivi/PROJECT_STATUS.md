@@ -28569,3 +28569,45 @@ d'alignement) ; ⏳ `plan` (`plans_a_score`, attribut de classe du moteur, pas a
 ⏳ un réglage écrit par un process (les paroles écoutées) n'entre pas au lot aujourd'hui — le jour
 où il y entre, il se range parmi les valeurs liées à l'entrée ; ⏳ le rapport de transcription
 reste une graine recopiée (`WAMA_QUALITE`, rapports générés : `campaign_evaluation` à écrire).
+
+## §PALIER 2026-11-06, « JUMELLES RECRÉÉES, GESTES DE CARD PAR LA FABRIQUE, GRILLE QUI LIT LA FABRIQUE, SQUELETTE DES APPS NÉES » — paliers déterministes (la glu, marche B, à discuter avec Fabien) — 🔴 relancer gunicorn + workers (INSTALLED_APPS : dix jumelles recréées) — 🔚 la glu des jumelles
+
+Demande de Fabien (`/reprise`) : « compléter codegen pour arriver à 100 % sur les jumelles, puis les
+apps en bac à sable » ; puis « fais d'abord les paliers déterministes, on verra la glu après ».
+Détail et restes départagés : **`ROUTE §11 #41`, palier du 2026-11-06** ; retrait : `REMOVAL_LEDGER R218`.
+
+- **Jumelles** : les dix recréées (`remove` / `create --owner fabien.moreau` / chaîne complète,
+  01:51 → 04:05, rc=0 partout), puis `urls+views+templates` re-substitué sur les douze apps du bac à
+  sable avec le générateur de ce palier : **11/12 tiennent** — transcriber_01 revient au témoin (sa
+  page de correction copiée importe deux fonctions de ses vues : glu).
+- **Générateur** : `views_gen` prend les cinq gestes de card de `make_item_views`, la file à FK
+  directe des briques communes (R218) ; `templates_gen` ne cite plus de balise dans un commentaire JS
+  (cassait toute jumelle « attache » depuis `c689ab639`) ; `models_gen` (squelette des apps nées) émet
+  `gear_data` et `QueueOrderMixin`.
+- **Grille** : les angles morts de huit critères refermés (`media_paths`, `model_caps_ui`, `catalog_entry`,
+  `filemanager_import`, `access_policy`, `tool_api_item_id`, `user_scope`, `output_naming` texte) —
+  chacun avec garde et contre-épreuve rouge en mémoire (recette `contre-epreuve §2`).
+- **Mesuré** (`check_app_conformity`, WSL) : écart cumulé des jumelles **−45 → −38** ; translator_01
+  **89 → 95 %**, writer_01 **84 → 91 %** (migrations additives `queue_index`, `upload_to` sans SQL).
+- **Gardes neuves** : `tests_codegen_lot.GeneratedCardGesturesTest`,
+  `tests_codegen_templates.GeneratedTemplatesCompileTest`, `tests_codegen_from_scratch` (deux),
+  `tests_declared_conventions` (deux), `tests_cap_from_declared`, `tests_sandbox_coherence` (deux).
+
+**Restes nommés** (ordre proposé) : ⏳ la GLU des jumelles (membres de modèle, symboles d'app,
+tâches — marche B : rôle `codegen` → validation humaine → `glue` → `converge`), à discuter avec
+Fabien ; ⏳ `input_match_ui` (brique JS à extraire de `wireMatch`, puis adoption par les sources) ;
+⏳ remise à zéro de copie propre à chaque source, absente du manifeste ; ⏳ domaine audio de
+l'enhancer (#42 ⑦) ; ⏳ déclarations des manifestes des apps nées (`help_source`, `ingest`, prompt)
+et applicabilité de `toast` sans JS d'app — décisions, pas des trous du générateur.
+
+**/reverif du même jour** (WAMA relancé) — suite complète WSL : **10 256 tests, 22 échecs, aucun
+de ce palier** (départagés par nom : `tests_voice_refs` = trou de glu des tâches de
+`synthesizer_01`/`avatarizer_01`, déjà rouge dans au moins 8 sessions antérieures ; budget des classes
+de test de `tests_identifier_language` 133 > 132 par `CanvasPoseTheNodeFromPipelinesTest`, `efe1b4490`
+du 02/11, les 133 classes toutes sur HEAD ; les autres sur des fichiers d'autres instances : vendor
+ACE-Step, Phonon, PII, paroles du composer, `wama-params.js`, Data). Mes modules + gardes
+transverses : 376 tests, seul ce budget rouge. Pages des douze apps du bac à sable : 200, l'app
+servie. Écart trouvé et ramené : la grille réécrivait le prédicat « app née » à côté de
+`sandbox.born_apps` (mesure inchangée : −38, 95 %, 91 %). `doc_facts` : `mecanismes` (dix comptes de
+consommateurs, tous dus aux fichiers de ce palier, établi en remettant mes fichiers à HEAD) et
+`conformite` régénérés ; `modeles` (156 → 155, catalogue) laissé à son propriétaire. `check_docs` 0/0.

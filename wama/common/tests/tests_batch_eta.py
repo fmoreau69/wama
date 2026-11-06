@@ -125,8 +125,19 @@ class AppsPageSaysWhatTheGridMeasuresTest(SimpleTestCase):
 
 
 class NoEtaCopyInTheGeneratorTest(SimpleTestCase):
-    def test_the_generated_link_form_relies_on_the_brick(self):
-        src = (Path(checker.__file__).resolve().parents[1] / 'manifests' / 'codegen' / 'views_gen.py'
-               ).read_text(encoding='utf-8')
-        link = src[src.index('index_link = '):src.index('index_direct = ')]
-        self.assertIsNone(re.search(r"'eta_ids'", link))
+    """L'`eta_ids` d'une card de lot vient de `build_batches_list` — le générateur ne le recalcule
+    pas. Lu sur le RENDU des deux formes de file depuis le 2026-11-06 : un seul en-tête d'index les
+    sert (`work_attr`), le découpage du texte entre `index_link` et `index_direct` n'a plus d'objet,
+    et la forme FK directe n'était pas couverte."""
+
+    def test_the_generated_index_relies_on_the_brick_in_both_queue_forms(self):
+        from wama.common.manifests.codegen.views_gen import render_views
+        from wama.common.manifests.ingest import extract
+        for app, work_attr in (('anonymizer', "work_attr='media'"), ('converter', 'work_attr=None')):
+            with self.subTest(app=app):
+                src, why = render_views(extract('app', app))
+                self.assertTrue(src, why)
+                self.assertIn(work_attr, src, 'the queue is not built by the brick')
+                self.assertIsNone(re.search(r"""\[\s*['"]eta_ids['"]\s*\]\s*=|\beta_ids\s*=|"""
+                                            r"""['"]eta_ids['"]\s*:""", src),
+                                  f'{app}: the generated index computes eta_ids itself')

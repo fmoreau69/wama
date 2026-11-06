@@ -914,3 +914,42 @@ class GeneratedCardOpensItsEntryTest(SimpleTestCase):
         self.assertIn('elem.input_filename|default:elem.prompt|truncatechars:80', card)
         plain, _ = self._card()
         self.assertNotIn('elem.prompt|truncatechars', plain, 'no prompt label without a declared prompt')
+
+
+class GeneratedTemplatesCompileTest(SimpleTestCase):
+    """Every template the generator writes for the park COMPILES. Django reads a tag even inside a
+    JS comment : a `{% url %}` quoted in a comment of the attach form (2026-11-03) made every
+    attach-form twin fall at the smoke (`'url' takes at least one argument`), measured on the
+    recreation of 2026-11-06 — synthesizer, composer, imager, avatarizer. No test compiled the
+    rendered sources : the substitution's smoke was the first reader. The park is DERIVED — the
+    catalogue's sources and the drafts of the apps born from a manifest — never named here."""
+
+    def test_every_generated_template_compiles(self):
+        import json
+        from pathlib import Path
+
+        from django.conf import settings
+        from django.template import TemplateSyntaxError, engines
+
+        from wama.common import app_registry
+        from wama.common.manifests.codegen.templates_gen import render_base
+        # Le parc : les sources du catalogue (jumelles) et les apps NÉES d'un manifeste (drafts).
+        manifests = {a: _manifeste(a) for a, s in sorted(app_registry.APP_CATALOG.items())
+                     if not s.get('sandbox')}
+        for draft in sorted((Path(settings.BASE_DIR) / 'manifests' / 'app_drafts').glob('*.json')):
+            manifests[f'draft:{draft.stem}'] = json.loads(draft.read_text(encoding='utf-8'))
+        engine = engines['django']
+        compiled = 0
+        for app, manifest in manifests.items():
+            if not manifest:
+                continue
+            for render in (render_index, render_base):
+                files, _ = render(manifest)
+                for name, src in (files or {}).items():
+                    with self.subTest(app=app, template=name):
+                        try:
+                            engine.from_string(src)
+                        except TemplateSyntaxError as exc:
+                            self.fail(f'{app}/{name} does not compile : {exc}')
+                    compiled += 1
+        self.assertGreaterEqual(compiled, len(manifests), 'the park templates were not rendered')

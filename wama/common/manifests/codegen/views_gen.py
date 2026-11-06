@@ -8,9 +8,10 @@ module urls casse la jumelle entière. Deux régimes :
   • CONVENTIONNEL (implémentation réelle) : la vue est un idiome MESURÉ (cadrage A0 /
     pilote converter) paramétré par le manifeste — modèle d'item (processing.model_spec),
     modèle de batch et FK (DÉRIVÉS de la facette `data` : la FK de l'item vers *Batch),
-    tâche Celery (processing.tasks), statuts, briques communes (begin_processing,
-    stop_instance, duplicate_instance, apply_queue_sort_filter, fabrique
-    make_queue_manipulation_views_direct, get_console_lines).
+    tâche Celery (processing.tasks), statuts, briques communes (fabriques `make_item_views` —
+    ▶ ⏹ ⬇ 🗑 ⧉ ⚙ d'une card, ▶ et 🗑 de la file —, `make_batch_views`, `make_progress_views`,
+    `make_queue_manipulation_views[_direct]`, `make_card_view` ; `build_batches_list`,
+    `auto_wrap_orphans`, `apply_queue_sort_filter`, `get_console_lines`).
   • TROU DE GLU (stub 501) : politique d'app non conventionnelle (batch_preview/create —
     parsing+consolidation ; consolidate ; toutes les extra_routes). ⚠ `card_html` a quitté
     cette liste le 2026-08-29 : sa raison — « nom du partial inconnaissable » — datait d'avant
@@ -300,6 +301,13 @@ def render_views(manifest: dict) -> tuple:
     progress = d['progress_field']
     fk, row, task = d['batch_fk'], d['row_field'], d['tasks'][0]
     is_link, link, link_fk = d['form'] == 'link', d['link'], d['link_fk']
+    if not is_link and (fk, row) != ('batch', 'batch_row_index'):
+        # La file et l'enveloppement des orphelins à FK directe se font par les briques
+        # (`build_batches_list(work_attr=None)`, `auto_wrap_orphans` sans liaison), qui lisent la
+        # convention `batch` + `batch_row_index` — celle de la seule source de cette forme (le
+        # converter). Un autre nommage se dit, plutôt qu'une file qui se lirait de travers.
+        return None, (f"forme FK directe nommée '{fk}' / '{row}' : les briques de file lisent "
+                      "`batch` / `batch_row_index`")
     link_batch, items_related = d['link_batch'], d['items_related']
     mark = _GEN_MARK.format(app_id=app)
     stub_msg = f'[manifest-gen app:{app}] endpoint non généré (glu — marche B)'
@@ -320,9 +328,10 @@ def render_views(manifest: dict) -> tuple:
     # l'`audio_output` restaient sur le disque après suppression — vu par le contrat GÉNÉRIQUE
     # `tests_queue_delete_contract` dès que leurs vues ont été générées. Les sorties = les
     # champs fichier qui ne sont pas l'entrée (c'est ce que « Dupliquer » vide).
-    # ⚠ Depuis le 2026-10-02 le RETRAIT n'émet plus cette liste : les vues générées appellent
-    # `release_card_files(item)`, qui lit ce que la card porte (ses champs fichier, ses listes de
-    # chemins déclarées) — la liste ne sert plus qu'à dériver les SORTIES.
+    # ⚠ Depuis le 2026-10-02 le RETRAIT n'émet plus cette liste : la card se retire par la fabrique
+    # (`_iv['delete']` → `discard_element` → `release_card_files(item)`, qui lit ce que la card
+    # porte : ses champs fichier, ses listes de chemins déclarées) — la liste ne sert plus qu'à
+    # dériver les SORTIES (`output_fields` de `_bv`, que le ⧉ vide).
     champs_fichiers = [d['input_field']] + [n for n in d['file_fields'] if n != d['input_field']]
     # Les PORTS d'entrée sont des ENTRÉES, pas des sorties : une copie les garde (2026-10-05 — le
     # port `reference_layout` du Writer, une colonne du même nom, aurait été vidé à la duplication).
@@ -509,18 +518,18 @@ def _deposit_settings(user, nature, post, inputs=None):
     # laissait des items HORS LOT : `apply_queue_sort_filter` lit alors `b['obj'].created_at`
     # sur un None et la file entière tombe en AttributeError — un seul item isolé suffisait.
     # Le contrat de la brique n'était pas trop strict, c'est la vue générée qui le violait.
-    # ⚠ La brique commune suppose un modèle de LIAISON ; ici la FK est DIRECTE (comme
-    # converter, seule app dans ce cas), d'où la boucle explicite plutôt qu'un appel — même
-    # forme que `converter/views.py::_auto_wrap_orphans`. Trou consigné : `batch_common` n'a
-    # pas de variante FK-directe, et le motif est désormais écrit à 4 endroits.
-    # FORME À LIAISON : la file est construite par la brique commune `build_batches_list`
-    # (contrat de la toolbar, 9 apps réelles) — les entrées sont les LIAISONS, l'élément
-    # voyage sous `elem` (alias posé par la brique) et se décore là. Le `extra` rend les
-    # réglages communs que la card MÈRE lit ; son ETA agrégée (`eta_ids`) vient de la brique
-    # (2026-10-16). La forme DIRECTE, qui construit ses lignes elle-même, la pose encore.
+    # Les DEUX formes de file passent par les MÊMES briques (2026-11-06) : `auto_wrap_orphans` et
+    # `build_batches_list` prennent la FK DIRECTE depuis le 2026-11-02 (R207 — le converter, seule
+    # source de cette forme, y écrivait sa boucle et sa file à la main, et ce gabarit les recopiait :
+    # sans les attentes de ressources, les résultats périmés, l'évaluation ni la référence du lot).
+    # La brique construit la file : les entrées sont les LIAISONS (ou les éléments eux-mêmes en
+    # forme directe), l'élément voyage sous `elem` (alias posé par la brique) et se décore là. Le
+    # `extra` rend les réglages communs que la card MÈRE lit ; son ETA agrégée (`eta_ids`) vient de
+    # la brique (2026-10-16).
     # Les éléments RUNNING orphelins se RÉCONCILIENT au chargement, comme sur les pages des dix
     # apps (`process_control.reconcile_queue_of`, 2026-10-30 : la vue générée ne le faisait pas).
-    index_link = f'''class IndexView(View):
+    work_attr = f"'{link_fk}'" if is_link else 'None'
+    index_head = f'''class IndexView(View):
     def get(self, request):
         user = _user(request)
         _auto_wrap_orphans(user)
@@ -532,7 +541,7 @@ def _deposit_settings(user, nature, post, inputs=None):
                 _decorer(e){ligne_commun}
             return {{{cle_commun}}}
 
-        batches_list = build_batches_list(user, batch_model={batch}, work_attr='{link_fk}',
+        batches_list = build_batches_list(user, batch_model={batch}, work_attr={work_attr},
                                           items_related='{items_related}', order_by='-id',
                                           extra=_extra)
         queue_count = sum(len(b['items']) for b in batches_list)
@@ -541,55 +550,10 @@ def _deposit_settings(user, nature, post, inputs=None):
             name_of=lambda b: ({name_expr.replace('j.', 'b["items"][0].elem.')}
                                if b['items'] and b['items'][0].elem else ''))
         try:'''
-    index_direct = f'''class IndexView(View):
-    def get(self, request):
-        user = _user(request)
-        _auto_wrap_orphans(user)
-        from wama.common.utils.process_control import reconcile_queue_of
-        reconcile_queue_of({item}, user)
-        # Cards REÇUES aussi (2026-10-02) : `listable_by` = `visible_to`, sauf le compte anonyme.
-        from wama.common.utils.scoping import listable_by
-        jobs = listable_by({item}.objects.all(), user).order_by('{fk}_id', '{row}')
-        grouped = {{}}
-        for j in jobs:
-            grouped.setdefault(j.{fk}_id or f'loose-{{j.id}}', []).append(_decorer(j))
-        # RANGEMENT du destinataire (2026-10-02) : une entrée reçue qu'il a retirée de sa file
-        # n'y figure plus ; les autres portent « reçue de … » et SON ordre (`reception`).
-        from wama.common.services.reception import entry_arrangement, lines_for
-        _lines = lines_for(user, {batch}, {item})
-        batches_list = []
-        for items in grouped.values():
-            b = items[0].{fk}
-            _arr = entry_arrangement(user, b or items[0], _lines)
-            if _arr is None:
-                continue
-            if b and b.user_id != user.pk:
-                # Lot REÇU : compté sur ce qu'il voit, en mémoire (`build_batches_list`, 2026-10-07).
-                b.total = len(items)
-            statuses = [normalize_status(j.status) for j in items]{ligne_commun}
-            batches_list.append({{
-                **_arr,
-                {cle_commun}
-                'obj': b, 'items': items,
-                'is_group': bool(b) and (b.total if b else len(items)) > 1,
-                'success_count': statuses.count('SUCCESS'),
-                'running_count': statuses.count('RUNNING'),
-                'failure_count': statuses.count('FAILURE'),
-                'has_success': 'SUCCESS' in statuses,
-                'eta_ids': ','.join(str(j.id) for j in items),
-            }})
-        # IDENTITÉ de chaque lot (titre, ce qui varie) — la pose commune à toutes les files.
-        from wama.common.utils.batch_common import attach_identities
-        attach_identities(batches_list)
-        queue_count = len(jobs)
-        batches_list, q_sort, q_filter = apply_queue_sort_filter(
-            request, batches_list,
-            name_of=lambda b: ({name_expr.replace('j.', 'b["items"][0].')} if b['items'] else ''))
-        try:'''
     # `index` existe AUSSI comme FONCTION : l'imager route `path('', views.index)` (pas de
     # classe) — sans l'alias, le urls généré ne s'importait pas (`AttributeError: no attribute
     # 'index'`, page en 404, mesuré sur imager_01 le 22/09). Une ligne, pour toutes les apps.
-    vues['index'] = (index_link if is_link else index_direct) + f'''
+    vues['index'] = index_head + f'''
             from .params import {schema_symbole}
             params_json = json.dumps({schema_symbole})
         except Exception:
@@ -895,34 +859,15 @@ start_process = make_process_start_view(
     # (R215, 2026-11-05 — le décorateur `app_access` reprenait la même décision).
     vues['start'] = "start = _iv['start']"
 
-    # ARRÊT — le CORPS est conventionnel, le NOM ne l'est pas : 8 apps déclarent `stop`,
-    # le converter déclare `cancel` (mesuré sur les 9 manifestes le 2026-08-29). Le gabarit
-    # ne connaissait que `stop` : la seule app qu'il sait générer entièrement recevait donc
-    # un 501 sur son ⏹, et le bouton de cycle — brique commune, bien câblée — POSTait dans le
-    # vide. ⚠ Même famille que le `pk` de `batch_preview` : un gabarit qui suppose le nom au
-    # lieu de le LIRE au manifeste rend une app qui boote et ne marche pas.
-    # Les orthographes admises viennent de `urls_gen.ROUTE_ALIASES` (propriétaire du
-    # vocabulaire de routes) — les réécrire ici en ferait une seconde source de vérité.
-    #
-    # Le corps ci-dessous est l'idiome MESURÉ (describer, avatarizer, composer : garde
-    # `not in ('RUNNING','PENDING')` puis `stop_instance` → FAILURE, card rouge + ↻).
-    # DEUX apps s'en écartent — anonymizer et converter remettent en PENDING (et le converter
-    # supprime en plus la ligne d'un quick-convert éphémère). Le gabarit rend la CONVENTION
-    # sous le nom déclaré ; réconcilier ces deux politiques est un chantier de PORTAGE, pas
-    # l'affaire du gabarit (même doctrine que `ROUTE_TABLE`). L'écart reste mesurable au diff.
-    def corps_stop(nom):
-        return f'''@require_POST
-def {nom}(request, pk):
-    user = _user(request)
-    from wama.common.utils.scoping import editable_or_404
-    item = editable_or_404({item}, user, pk=pk)   # le sien, ou en collaboration (E1)
-    if item.status not in ('RUNNING', 'PENDING'):
-        return JsonResponse({{'id': item.id, 'status': item.status}})
-    new_status = stop_instance(item, error_field='error_message')
-    return JsonResponse({{'id': item.id, 'status': new_status}})'''
-
+    # LES GESTES D'UNE CARD — ⏹ ⬇ 🗑 ⧉ ⚙ — par la MÊME fabrique (`_iv`, `item_views.make_item_views`,
+    # ROUTE §11 #42 ④, 2026-11-01/02), celle des dix apps (R200, R201). Elle les lit à la déclaration
+    # que le module donne à sa fabrique de lot (`_bv`, plus bas : sorties vidées de la copie, forme de
+    # rattachement, schéma et écrivain de réglages, résultat servi). Ce gabarit en écrivait les cinq
+    # corps jusqu'au 2026-11-06 — le critère `element_views_common` était rouge sur les douze jumelles.
+    # Le NOM, lui, se lit au manifeste : le ⏹ du converter s'appelle `cancel`, l'édition `update_job`
+    # ou `update_settings` (`urls_gen.ROUTE_ALIASES`, propriétaire du vocabulaire de routes).
     for _nom in route_variants('stop'):
-        vues[_nom] = corps_stop(_nom)
+        vues[_nom] = f"{_nom} = _iv['stop']"
 
     # CARD RENDUE SERVEUR — conventionnelle, et elle ne l'a pas toujours paru. L'en-tête de
     # ce module la rangeait en trou de glu avec pour raison « nom du partial inconnaissable ».
@@ -1053,74 +998,17 @@ card_html = make_card_view(work_model={item}, template='{app}/_generic_card.html
     vues['progress'] = "progress = _pv['progress']"
 
     out_file, out_text = d['out_file'], d['out_text']
-    # Nom d'une sortie TEXTE : brique commune `compose_output_name` (souche de l'entrée + tag
-    # d'app + identifiant de card) — la règle du describer réel, pas un nom inventé ici.
-    text_name = ("compose_output_name(app='{app}', ext='.txt', item_id=item.pk,\n"
-                 "                              source_name=(Path(item.input_file.name).name\n"
-                 "                                           if getattr(item, 'input_file', None) else ''))"
-                 ).format(app=app)
-    if out_file:
-        vues['download'] = f'''def download(request, pk):
-    user = _user(request)
-    from wama.common.utils.scoping import visible_or_404
-    item = visible_or_404({item}, user, pk=pk)   # LECTURE
-    if not item.{out_file}:
-        return JsonResponse({{'error': 'Aucun résultat'}}, status=404)
-    return FileResponse(item.{out_file}.open('rb'), as_attachment=True,
-                        filename=Path(item.{out_file}.name).name)'''
-    elif out_text:
-        vues['download'] = f'''def download(request, pk):
-    """Résultat TEXTE déclaré (`processing.backend_result`) servi en pièce jointe `.txt`."""
-    from django.utils.http import content_disposition_header
-    from wama.common.utils.output_naming import compose_output_name
-    user = _user(request)
-    from wama.common.utils.scoping import visible_or_404
-    item = visible_or_404({item}, user, pk=pk)   # LECTURE
-    text = getattr(item, '{out_text}', '') or ''
-    if item.status != 'SUCCESS' or not text:
-        return JsonResponse({{'error': 'Aucun résultat'}}, status=404)
-    name = {text_name}
-    resp = HttpResponse(text, content_type='text/plain; charset=utf-8')
-    resp['Content-Disposition'] = content_disposition_header(True, name)
-    return resp'''
-    else:
-        vues['download'] = stub('download', pk=True)
-
-    vues['delete'] = f'''@require_POST
-def delete(request, pk):
-    user = _user(request)
-    item = get_object_or_404({item}, pk=pk, user=user)
-    # Lot de l'élément, relevé AVANT la suppression — brique commune (`batch_common`). La
-    # réponse dit ce que devient le lot ; `queue-actions.js` met la file à jour sans
-    # rechargement de la page (2026-09-15).
-    from wama.common.utils.batch_common import batch_snapshot, batch_state
-    snapshot = batch_snapshot(item)
-    release_card_files(item)   # tout ce que la card porte ; propriété + partage jugés par la brique
-    item.delete()
-    # ⚠ NE PAS supprimer le lot vidé ici (retiré le 2026-09-09). C'était une REDUPLICATION du
-    # mécanisme commun `batch_sync` — `register_batch_sync(<Item>, direct_fk=True)` est branché
-    # en `post_delete` par l'AppConfig générée, et `sync_batch_total` supprime déjà le lot
-    # devenu vide (`common/utils/batch_sync.py:34`). Et c'est la duplication qui CASSAIT : le
-    # signal supprime le lot AVANT le retour ici, l'instance gardée en mémoire n'a donc plus de
-    # clé primaire, et `b.items.exists()` lève `ValueError: instance needs to have a primary key
-    # value before this relationship can be used` → **500 sur un simple 🗑 de card**.
-    # Mesuré le 2026-09-09 sur `converter_01` (`converter_01.duplicate_delete` rouge, doublon
-    # toujours présent après clic). L'app RÉELLE de référence ne fait rien de tel non plus :
-    # `converter/views.py::delete` se contente de `job.delete()` et laisse le signal faire.
-    return JsonResponse({{'deleted': True, 'batch': batch_state(snapshot, {item})}})'''
-
-    vues['duplicate'] = f'''@require_POST
-def duplicate(request, pk):
-    user = _user(request)
-    from wama.common.utils.scoping import duplicable_or_404
-    item = duplicable_or_404({item}, user, pk=pk)   # le sien OU reçu : la copie est à soi
-    new = duplicate_instance(
-        instance=item,
-        for_user=user,
-        reset_fields={{'status': 'PENDING', '{progress}': 0, 'task_id': '', 'error_message': ''}},
-        clear_fields={champs_sortie!r},
-    )
-    return JsonResponse({{'success': True, 'id': new.id}})'''
+    # ⬇ 🗑 ⧉ d'une card : les gestes de la fabrique (`_iv`, voir le ⏹ plus haut). ⬇ sert le résultat
+    # comme le ZIP du lot l'écrit (`ResultArchive` : le champ ou le TEXTE déclarés à `_bv`, nommés par
+    # `compose_output_name`) — l'app sans résultat déclaré n'a plus de bouchon 501, la fabrique dit
+    # « Aucun résultat ». 🗑 relève le lot AVANT de retirer la card (`batch_snapshot`), la retire par le
+    # geste de « tout effacer » (`discard_element` : tâche révoquée, progression oubliée, fichiers
+    # LIBÉRÉS) et laisse le lot vidé au signal `batch_sync` — la vue écrite ici le supprimait aussi, et
+    # rendait 500 (2026-09-09, `tests_codegen_lot`). ⧉ remet la copie à zéro (`reset_on_duplicate`),
+    # vide ses sorties (`output_fields`) et la range auprès de l'original (`place_copy`).
+    vues['download'] = "download = _iv['download']"
+    vues['delete'] = "delete = _iv['delete']"
+    vues['duplicate'] = "duplicate = _iv['duplicate']"
 
     vues['start_all'] = "start_all = _iv['start_all']"
     vues['clear_all'] = "clear_all = _iv['clear_all']"
@@ -1139,24 +1027,14 @@ def duplicate(request, pk):
     user = _user(request)
     return JsonResponse({{'lines': get_console_lines(user.id, app='{app}')}})'''
 
-    # ÉDITION D'UN ÉLÉMENT — même lecture de corps et même affectation que les vues de LOT :
-    # les deux passent par la brique `batch_views` (`read_settings_payload` coerce selon le
-    # schéma et retire les vides ; `apply_item_settings` pose colonnes déclarées + conteneur
-    # JSON des hors-colonnes, idiome `params_storage`). Jusqu'au 22/09 ces deux idiomes étaient
-    # ÉMIS ici (une vingtaine de lignes par vue) ; la fabrique de lot les a absorbés.
-    # Deux noms pour une seule vue : le converter route `update/` vers `views.update_job`.
+    # ÉDITION D'UN ÉLÉMENT — le geste ⚙ de la fabrique (`_iv['update_settings']`) : la lecture du
+    # corps (`read_settings_payload`, coercée par le schéma) et l'écrivain de la ⚙ de LOT (`_bv` :
+    # colonnes déclarées + conteneur JSON des hors-colonnes, idiome `params_storage`), seules les
+    # colonnes changées s'écrivant ; la réponse rend les réglages tels qu'enregistrés. Ce gabarit en
+    # écrivait le corps, sans ces deux derniers points, jusqu'au 2026-11-06.
+    # Plusieurs noms pour une seule vue : le converter route `update/` vers `views.update_job`.
     def corps_update(nom):
-        return f'''@require_POST
-def {nom}(request, pk):
-    user = _user(request)
-    from wama.common.utils.scoping import editable_or_404
-    item = editable_or_404({item}, user, pk=pk)   # le sien, ou en collaboration (E1)
-    donnees = read_settings_payload(request, _SCHEMA, _SETTING_NAMES)
-    touches = apply_item_settings(item, donnees, params_fields=_SETTING_COLUMNS,
-                                  options_field=_OPTIONS_FIELD, extra_names=_SETTINGS_OUTSIDE)
-    if touches:
-        item.save(update_fields=touches)
-    return JsonResponse({{'success': True, 'id': item.id, 'updated': touches}})'''
+        return f"{nom} = _iv['update_settings']"
 
     for _nom in route_variants('update'):
         if alias_fits('update', _nom, d['view_patterns']):
@@ -1199,6 +1077,12 @@ def {nom}(request, pk):
                  else '')
     bv_extra = (f"""
     batch_extra=lambda lot: {{'{d['batch_extra']}': lot.{d['batch_extra']}}},""" if d['batch_extra'] else '')
+    # Remise à zéro d'une COPIE (⧉ d'une card et du lot) : la brique remet `progress` par défaut
+    # (`DEFAULT_RESET`) ; une colonne de progression nommée autrement se déclare — c'est celle que
+    # le ⧉ écrit ici remettait à zéro.
+    bv_reset = ('' if progress == 'progress' else
+                f"\n    reset_on_duplicate={{'status': 'PENDING', '{progress}': 0, 'task_id': '',"
+                f" 'error_message': ''}},")
     fabrique_lot = f'''
 
 # Fabrique COMMUNE des VUES DE LOT (`batch_views`, 2026-09-22) : les six actions de lot,
@@ -1208,7 +1092,7 @@ _bv = make_batch_views(
     output_fields={champs_sortie!r},
     params_fields=_SETTING_COLUMNS, schema=_SCHEMA,
     options_field=_OPTIONS_FIELD, extra_names=_SETTINGS_OUTSIDE,
-    {form_kwargs}, items_related='{items_related}',{bv_extra}{bv_output}
+    {form_kwargs}, items_related='{items_related}',{bv_extra}{bv_output}{bv_reset}
 )
 batch_start     = _bv['batch_start']
 batch_update    = _bv['batch_update']
@@ -1335,50 +1219,28 @@ consolidate       = _qm['consolidate']'''
     # rattachent par `attach_to_batch` — les corps de vues sont IDENTIQUES d'une forme à
     # l'autre. Une forme = un endroit. La lecture d'un lot passe par `batch_elements(b,
     # <Item>)` (brique, ordre des lignes garanti) — un helper généré `_batch_elements` a vécu
-    # quelques heures le 22/09 : c'était un chemin parallèle.
-    # `_link_to_batch` n'est plus émis qu'en forme DIRECTE, pour sa boucle d'orphelins : en
-    # forme à liaison, son dernier appelant était `batch_create`, qui délègue son regroupement
-    # à la fabrique depuis le 2026-10-16 (`consolidate_arrival`).
-    if is_link:
-        helpers_forme = f'''
+    # quelques heures le 22/09 : c'était un chemin parallèle. `_link_to_batch` aussi, retiré le
+    # 2026-11-06 : sa dernière appelante était la boucle d'orphelins de la forme directe.
+    # Enveloppement des orphelins : la brique, dans les deux formes (sans `item_model`, la FK est
+    # DIRECTE — l'élément porte `batch`, comme la seule source de cette forme, le converter).
+    wrap_form = f", item_model={link}, fk_name='{link_fk}'" if is_link else ''
+    wrap_extra = (f",\n                      batch_extra=lambda w: {{'{d['batch_extra']}': w.{d['batch_extra']}}}"
+                  if d['batch_extra'] else '')
+    helpers_forme = f'''
 
 def _auto_wrap_orphans(user):
     """Chaque item HORS LOT devient son propre lot-de-1 — brique COMMUNE, stratégie par
     défaut (orphelin → batch-of-1, règle des 10 apps depuis le 2026-08-14)."""
-    auto_wrap_orphans(user, work_model={item}, batch_model={batch},
-                      item_model={link}, fk_name='{link_fk}')
+    auto_wrap_orphans(user, work_model={item}, batch_model={batch}{wrap_form}{wrap_extra})
 '''
-        imports_forme = f'''from wama.common.utils.batch_common import (auto_wrap_orphans, batch_elements,
-                                            build_batches_list, wrap_in_batch)
+    if is_link:
+        imports_forme = f'''from wama.common.utils.batch_common import (auto_wrap_orphans, build_batches_list,
+                                            wrap_in_batch)
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views'''
         import_models = f'from .models import {batch}, {link}, {item}'
         forme_doc = f"liaison {link} (FK '{link_fk}' → item, '{link_batch}' → lot)"
     else:
-        helpers_forme = f'''
-
-def _link_to_batch(lot, obj, idx):
-    """Rattache un élément à un lot — brique commune, forme à FK DIRECTE (idiome converter)."""
-    return attach_to_batch(obj, lot, idx, batch_attr='{fk}', row_field='{row}')
-
-
-def _auto_wrap_orphans(user):
-    """Chaque item HORS LOT devient son propre lot-de-1 — convention commune des 10 apps.
-
-    Non décoratif : `apply_queue_sort_filter` lit `b['obj'].created_at`, et un item sans lot
-    donne `obj = None` → la file entière tombe. La brique `batch_common.auto_wrap_orphans`
-    porte cette règle, mais suppose un modèle de LIAISON ; la FK est ici DIRECTE, d'où la
-    boucle (même forme que converter). Silencieux par item : un orphelin cassé ne doit pas
-    empêcher la page de s'afficher.
-    """
-    orphelins = {item}.objects.filter(user=user, {fk}__isnull=True)
-    for w in orphelins:
-        try:
-            b = {batch}.objects.create(user=user, total=1)
-            _link_to_batch(b, w, 0)
-        except Exception:
-            pass
-'''
-        imports_forme = f'''from wama.common.utils.batch_common import attach_to_batch, batch_elements
+        imports_forme = '''from wama.common.utils.batch_common import auto_wrap_orphans, build_batches_list
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views_direct'''
         import_models = f'from .models import {batch}, {item}'
         forme_doc = f"FK directe '{fk}'"
@@ -1402,20 +1264,16 @@ TROU DE GLU (marche B) — la page boote, la fonctionnalité manque VISIBLEMENT 
 import json
 from pathlib import Path
 
-from django.http import FileResponse, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.http import JsonResponse
+from django.shortcuts import render
 from django.views import View
 from django.views.decorators.http import require_POST
 
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
-from wama.common.utils.detail_registry import normalize_status
-from wama.common.utils.process_control import begin_processing, stop_instance
-from wama.common.utils.batch_views import (apply_item_settings, element_label, make_batch_views,
-                                           read_settings_payload)
+from wama.common.utils.batch_views import element_label, make_batch_views
 from wama.common.utils.item_views import make_item_views
 from wama.common.utils.progress_views import make_progress_views
-from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 {imports_forme}
 {'from wama.common.utils.process_views import make_process_start_view' + chr(10) if 'start_process' in vues else ''}from wama.common.utils.queue_view import apply_queue_sort_filter
 
