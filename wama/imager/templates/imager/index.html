@@ -2,6 +2,7 @@
 {% load wama_actions %}
 {% load static %}
 {% load wama_static %}
+{% load wama_json %}
 
 {% block title %}Imager - AI Image Generation{% endblock %}
 
@@ -288,19 +289,19 @@ window.IMAGER_CARD = {
             batchStart: "{% url 'imager:batch_start' 0 %}" },
     csrf: "{{ csrf_token }}",
     enhanceUrl: "{% url 'common:enrich_prompt' %}",
-    matchMeta: {{ input_match_meta|safe }},
-    inputLabels: {{ input_labels|safe }}
+    matchMeta: {{ input_match_meta|script_json }},
+    inputLabels: {{ input_labels|script_json }}
 };
 </script>
 <script>
 /* Schémas + groupes des modales ⚙ (params.py = source unique). */
-window.IMAGER_IMAGE_SCHEMA = {{ image_params_json|safe }};
-window.IMAGER_VIDEO_SCHEMA = {{ video_params_json|safe }};
-window.IMAGER_IMAGE_GROUPS = {{ image_groups_json|safe }};
-window.IMAGER_VIDEO_GROUPS = {{ video_groups_json|safe }};
+window.IMAGER_IMAGE_SCHEMA = {{ image_params_json|script_json }};
+window.IMAGER_VIDEO_SCHEMA = {{ video_params_json|script_json }};
+window.IMAGER_IMAGE_GROUPS = {{ image_groups_json|script_json }};
+window.IMAGER_VIDEO_GROUPS = {{ video_groups_json|script_json }};
 {% comment %}Valeurs du volet (brique common/utils/user_settings.py), ré-indexées par NOM de param.{% endcomment %}
-window.IMAGER_IMAGE_PANEL_VALUES = {{ image_panel_values_json|safe }};
-window.IMAGER_VIDEO_PANEL_VALUES = {{ video_panel_values_json|safe }};
+window.IMAGER_IMAGE_PANEL_VALUES = {{ image_panel_values_json|script_json }};
+window.IMAGER_VIDEO_PANEL_VALUES = {{ video_panel_values_json|script_json }};
 </script>
 <script src="{% static_v 'imager/js/queue.js' %}"></script>
 {% comment %} wama-params.js n'est PAS une brique globale de base.html (contrairement à

@@ -220,7 +220,7 @@ class SourcesDOptionsTest(SimpleTestCase):
         # Le défaut vécu : le resolver généré affichait « ⚠ options « formats » non déclarées »
         # alors que la table était sur toutes les pages. Vérifié ici de bout en bout — la page
         # pose la donnée, le registre la lit, le moteur l'expose.
-        self.assertIn('window.WAMA_OUTPUT_FORMATS = {{ converter_output_formats_json|safe }}',
+        self.assertIn('window.WAMA_OUTPUT_FORMATS = {{ converter_output_formats_json|script_json }}',
                       _lire('wama/templates/base.html'))
         params = _lire(_JS + 'wama-params.js')
         self.assertIn('WAMA_OUTPUT_FORMATS', params)

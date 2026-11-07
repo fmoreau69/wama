@@ -150,9 +150,9 @@ def render_index(manifest: dict) -> tuple:
     // Sans ce rendu, l'apply d'initFromSchema n'a AUCUN champ à remplir : c'était la section
     // PARAMÈTRES vide du volet (constat Fabien 31/08, hôte jamais rendu).
     var ph = document.getElementById('{app}PanelParams');
-    var PANEL_DEFAULTS = {{{{ panel_defaults|default:'{{}}'|safe }}}};
+    var PANEL_DEFAULTS = {{{{ panel_defaults|default:'{{}}'|script_json }}}};
     if (ph && window.WamaParams) {{
-        WamaParams.render(ph, {{{{ params_json|safe }}}}, {{ context: 'panel', values: PANEL_DEFAULTS }});
+        WamaParams.render(ph, {{{{ params_json|script_json }}}}, {{ context: 'panel', values: PANEL_DEFAULTS }});
     }}
     // Hors sélection : l'hôte montre les DÉFAUTS des prochains dépôts (mêmes valeurs que la
     // cascade serveur du dépôt) ; la sélection y applique la card, la désélection ré-applique
@@ -165,7 +165,7 @@ def render_index(manifest: dict) -> tuple:
     // JUGE, pris à la card par sa brique (`WamaInputSlots.filePorts`). Une entrée fournie grise les
     // modèles qui ne la prennent pas ; la ligne d'état de la card dit pourquoi. Rien à apparier
     // (`{{}}`) : rien n'est câblé.
-    var MATCH = {{{{ input_match|default:'{{}}'|safe }}}};
+    var MATCH = {{{{ input_match|default:'{{}}'|script_json }}}};
     var matchCard = document.getElementById('{app}DropZone');
     matchCard = matchCard && matchCard.closest('.wama-new-item-card');
     if (matchCard && ph && MATCH.field && window.WamaInputMatch && window.WamaInputSlots) {{
@@ -188,7 +188,7 @@ def render_index(manifest: dict) -> tuple:
             queueContainer: q,
             cardSelector:  '.wama-card[data-id]',
             batchSelector: '.batch-group',
-            schema: {{{{ params_json|safe }}}},
+            schema: {{{{ params_json|script_json }}}},
             panelContainer: ph,
             hideOnInspect: ['{app}PanelDefaults'],
             itemLabel:  function (id) {{ return "l'élément #" + id; }},
@@ -258,13 +258,13 @@ def render_index(manifest: dict) -> tuple:
             // porte les data-* de la brique `card_gear`) — la lecture des dix apps (2026-10-31).
             // Les NOMS sont ceux du schéma SERVI par la page, jamais une liste figée à la génération.
             var v = (card && window.WamaInspector && WamaInspector.gearValues)
-                ? WamaInspector.gearValues(card, ({{{{ params_json|safe }}}}).map(function (p) {{ return p.name; }}))
+                ? WamaInspector.gearValues(card, ({{{{ params_json|script_json }}}}).map(function (p) {{ return p.name; }}))
                 : {{}};
             WamaParams.settingsModal({{
                 id: id,
                 title: 'Paramètres — élément #' + id,
                 titleIcon: 'fa-gear',
-                schema: {{{{ params_json|safe }}}},
+                schema: {{{{ params_json|script_json }}}},
                 values: v,
                 saveUrl: urlFor(U.update, id),
                 csrf: CSRF,
@@ -302,16 +302,16 @@ def render_index(manifest: dict) -> tuple:
         WamaQueueActions.onBatchSettings(function (bid) {{
             var groupe = document.querySelector('.batch-group[data-batch-id="' + bid + '"]');
             var partagees = (groupe && window.WamaInspector && WamaInspector.sharedGearValues)
-                ? WamaInspector.sharedGearValues(groupe, ({{{{ params_json|safe }}}}).map(function (p) {{ return p.name; }}))
+                ? WamaInspector.sharedGearValues(groupe, ({{{{ params_json|script_json }}}}).map(function (p) {{ return p.name; }}))
                 : {{}};
             WamaParams.settingsModal({{
                 id: 'Batch' + bid,
                 title: 'Paramètres du lot #' + bid,
                 titleIcon: 'fa-layer-group',
-                schema: {{{{ params_json|safe }}}},
+                schema: {{{{ params_json|script_json }}}},
                 context: 'batch',
                 values: partagees,
-                decorate: function (host) {{ WamaParams.fillFromBatch(host, groupe, {{{{ params_json|safe }}}}); }},
+                decorate: function (host) {{ WamaParams.fillFromBatch(host, groupe, {{{{ params_json|script_json }}}}); }},
                 saveUrl: urlFor(U.batch_update, bid),
                 csrf: CSRF,
                 footerTplId: '{app}BatchSettingsFooterTpl',
@@ -565,7 +565,7 @@ def render_index(manifest: dict) -> tuple:
 
     src = f'''{{% extends '{app}/base.html' %}}
 {{% load static %}}
-{{% load wama_static wama_actions %}}
+{{% load wama_static wama_actions wama_json %}}
 {{% block console_app_name %}}{app}{{% endblock %}}
 {{% comment %}}{mark} — index.html GÉNÉRÉ (gabarit templates_gen v1, marche S2).
 Squelette CONVENTIONNEL (briques communes) ; les TROUS DE GLU sont marqués — l'écart

@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**230 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**231 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -3351,6 +3351,16 @@ REGISTRE de capacités de lecture — aucun format privilégié : ajouter un for
   - `probe(path) -> SourceInfo` — Inventaire d'une source, quel que soit son format.
   - `load(path, streams=None, timestampers=None, name: str='') -> TemporalReferential` — Lit une source et rend un référentiel temporel prêt à interroger.
   - `reader_modules() -> List[str]` — Modules de lecture du paquet — **DÉCOUVERTS, jamais cités**.
+
+### JSON en ligne dans un script
+
+Le filtre de gabarit `script_json` pose un JSON en ligne dans un `<script>` avec l'échappement de `json_script` (`<`, `>`, `&`) — une donnée saisie par un utilisateur ne peut plus fermer le bloc (XSS stocké, audit du 2026-11-06). Un gabarit neuf préfère `json_script` ; le filtre `safe` n'entre plus dans un script (garde)
+
+- **Domicile** : `wama/common/templatetags/wama_json.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
+- **Module** : Un JSON injecté DANS un `<script>` : `{{ params_json|script_json }}`.
+- **API publique** (2) :
+  - `script_json_text(value) -> str` — Le texte à poser dans un `<script>` : la chaîne JSON reçue, ou la valeur sérialisée.
+  - `script_json(value)` — `{{ x_json|script_json }}` : un JSON qui ne peut pas fermer le `<script>` qui le porte.
 
 ### Langue d'un contenu (écrit, parlé)
 

@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load wama_catalog %}
+{% load wama_json %}
 {% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 {% block console_app_name %}model_manager{% endblock %}
 
@@ -105,7 +106,7 @@ remplit (`WAMA_VOLETS §2`).{% endcomment %}
   <div class="wama-cat-empty" id="fcEmpty" style="display:none;">Aucune fonction ne correspond aux filtres.</div>
 </div>
 
-<script id="fcData" type="application/json">{{ functions_json|safe }}</script>
+<script id="fcData" type="application/json">{{ functions_json|script_json }}</script>
 <script>
 (function () {
   const DATA = JSON.parse(document.getElementById('fcData').textContent || '[]');

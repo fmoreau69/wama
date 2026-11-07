@@ -784,13 +784,13 @@ def get_context(request):
     return {
         'user': user,
         'gs_values': gs_values,
-        # Les valeurs de la section du volet GÉNÉRÉE du schéma (Sortie, 2026-10-28) — elles seules,
-        # et `<` échappé : la chaîne est posée telle quelle dans un `<script>`.
+        # Les valeurs de la section du volet GÉNÉRÉE du schéma (Sortie, 2026-10-28) — elles seules.
+        # Le gabarit les pose dans un `<script>` par `|script_json` (`wama_json`), qui échappe `<`.
         'panel_values_json': _json.dumps({k: v for k, v in gs_values.items()
-                                          if k in OUTPUT_PARAM_NAMES}).replace('<', '\\u003c'),
+                                          if k in OUTPUT_PARAM_NAMES}),
         # Celles du volet du domaine DOCUMENT (2026-11-02), généré de son schéma.
         'document_panel_values_json': _json.dumps(
-            {p.name: gs_values.get(p.name) for p in _DOCUMENT_PARAMS}).replace('<', '\\u003c'),
+            {p.name: gs_values.get(p.name) for p in _DOCUMENT_PARAMS}),
         'classes': get_all_class_choices(),
         # Appariement entrée↔modèles (brique commune input_match) — JSON déjà sérialisé, clé =
         # identifiant du catalogue (valeur d'option du menu).

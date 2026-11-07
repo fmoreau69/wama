@@ -2,6 +2,7 @@
 {% load wama_actions %}
 {% load static %}
 {% load wama_static %}
+{% load wama_json %}
 
 {% block title %}Reader — OCR Document{% endblock %}
 {% block console_app_name %}reader{% endblock %}
@@ -100,7 +101,7 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
 help_fallback du param backend), rendue par wama-model-help.js, chargé GLOBALEMENT (base.html)
 — sans lui la déclaration restait INERTE (14/08).{% endcomment %}
 <script>
-window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale ITEM construite en JS (reader.js)
+window.WAMA_READER_SCHEMA = {{ params_json|script_json }};  // exposé pour la modale ITEM construite en JS (reader.js)
 (function () {
   if (!window.WamaParams) return;
   var schema = window.WAMA_READER_SCHEMA;
@@ -121,8 +122,8 @@ window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale I
     if (row) row.appendChild(ims);
     WamaInputMatch.init({
       selectId: 'backendSelect',
-      meta: {{ input_match_meta|default:"{}"|safe }},
-      inputLabels: {{ input_labels|default:"{}"|safe }},
+      meta: {{ input_match_meta|default:"{}"|script_json }},
+      inputLabels: {{ input_labels|default:"{}"|script_json }},
       slots: { work_file: { inputId: 'fileInput' } },
       statusId: 'inputMatchStatus',
     });

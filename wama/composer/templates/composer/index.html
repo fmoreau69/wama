@@ -2,6 +2,7 @@
 {% load wama_actions %}
 {% load static %}
 {% load wama_static %}
+{% load wama_json %}
 
 {% block app_styles %}
 /* Hint zone vide */
@@ -212,7 +213,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var q = document.getElementById('composerQueue');
     var ph = document.getElementById('composerPanelParams');
     if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
-    var schema = {{ params_json|safe }};
+    var schema = {{ params_json|script_json }};
     function getCsrf() { var m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
     function postPanel(url) {   // POST les valeurs du volet (dom_id-aware) vers l'endpoint donné
         var fd = new FormData();
@@ -256,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function () {
 // Surfaces GÉNÉRÉES par WamaParams depuis le schéma manifeste (P1). La modale ⚙ d'ITEM n'est
 // plus rendue ici : le cycle commun (`WamaParams.settingsModal`, index.js) la génère à l'ouverture
 // depuis le MÊME schéma, exposé en `COMPOSER_PARAMS_SCHEMA`.
-window.COMPOSER_PARAMS_SCHEMA = {{ params_json|safe }};
+window.COMPOSER_PARAMS_SCHEMA = {{ params_json|script_json }};
 (function () {
     if (!window.WamaParams) { console.warn('[composer] WamaParams absent — surfaces non générées'); return; }
     var schema = window.COMPOSER_PARAMS_SCHEMA;
@@ -283,8 +284,8 @@ window.COMPOSER_PARAMS_SCHEMA = {{ params_json|safe }};
     // le domaine du select (`options_query` du réglage Modèle), jamais une liste écrite ici.
     var modelParam = schema.filter(function (p) { return p.name === 'model'; })[0] || {};
     window.COMPOSER_MATCH = {
-        meta: {{ input_match_meta|default:"{}"|safe }},
-        labels: {{ input_labels|default:"{}"|safe }},
+        meta: {{ input_match_meta|default:"{}"|script_json }},
+        labels: {{ input_labels|default:"{}"|script_json }},
         task: (modelParam.options_query || {}).task || '',
         vocalsSlot: function (inputId) {
             return WamaInputMatch.capabilitySlot(inputId, {

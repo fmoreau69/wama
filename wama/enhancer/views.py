@@ -201,8 +201,9 @@ class IndexView(View):
             # Valeurs du VOLET GÉNÉRÉ (domaine image/vidéo, 2026-10-11) — par NOM de param, ce
             # qu'attend `WamaParams.render`. Plus de pré-rendu des options (modèle, moteur audio,
             # formats) : le volet les reçoit du schéma et du catalogue, comme la modale.
-            'panel_values_json': _json.dumps(panel).replace('<', '\\u003c'),
-            'audio_panel_values_json': _json.dumps(audio_panel).replace('<', '\\u003c'),
+            # `<` échappé au gabarit (`|script_json`, `wama_json`), comme tout JSON d'un `<script>`.
+            'panel_values_json': _json.dumps(panel),
+            'audio_panel_values_json': _json.dumps(audio_panel),
             # Schémas déclaratifs par domaine → inspecteur contextuel (WamaInspector.initFromSchema).
             'media_params_json': _json.dumps(MEDIA_PARAMS_JSON),
             'audio_params_json': _json.dumps(AUDIO_PARAMS_JSON),

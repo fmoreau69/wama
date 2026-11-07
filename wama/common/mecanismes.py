@@ -3409,6 +3409,17 @@ MECHANISMS = (
               # Consommé par la balise de gabarit, jamais par import Python : sans symbole,
               # le compteur (imports du module) rendait 0 — brique « morte » à 100+ pages.
               symbol='static_v'),
+    # Ni `|` (il couperait la colonne de la table générée) ni balise nue dans ces deux textes.
+    Mechanism('script_json', 'JSON en ligne dans un script',
+              "Le filtre de gabarit `script_json` pose un JSON en ligne dans un `<script>` avec "
+              "l'échappement de `json_script` (`<`, `>`, `&`) — une donnée saisie par un "
+              "utilisateur ne peut plus fermer le bloc (XSS stocké, audit du 2026-11-06). Un "
+              "gabarit neuf préfère `json_script` ; le filtre `safe` n'entre plus dans un script "
+              "(garde)",
+              'wama/common/templatetags/wama_json.py',
+              'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
+              annexes=('wama/common/tests/tests_script_json.py',),
+              symbol='script_json'),
     Mechanism('audio_rhythm', 'Grille des temps d\'un audio',
               "L'instant de chaque temps joué d'un audio et les hauteurs qui y sonnent (chroma par "
               "temps), en cache par fichier et date — de quoi caler une partition TEMPS PAR TEMPS "

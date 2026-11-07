@@ -2,6 +2,7 @@
 {% load wama_actions %}
 {% load static %}
 {% load wama_static %}
+{% load wama_json %}
 
 {% block title %}Converter — WAMA{% endblock %}
 
@@ -232,10 +233,10 @@ window.CONVERTER_APP = {
         batchPreview:  "{% url 'converter:batch_preview' %}",
         batchCreate:   "{% url 'converter:batch_create' %}",
     },
-    supportedFormats: {{ supported_formats_json|safe }},
-    schema: {{ params_json|safe }},   {# schéma modale per-job (WamaParams) #}
-    groups: {{ groups_json|safe }},   {# groupes 2 colonnes (mécanisme commun, adopté de l'imager 02/09) #}
-    engineHelp: {{ engine_help_json|safe }},   {# descriptif moteur par TYPE du job #}
+    supportedFormats: {{ supported_formats_json|script_json }},
+    schema: {{ params_json|script_json }},   {# schéma modale per-job (WamaParams) #}
+    groups: {{ groups_json|script_json }},   {# groupes 2 colonnes (mécanisme commun, adopté de l'imager 02/09) #}
+    engineHelp: {{ engine_help_json|script_json }},   {# descriptif moteur par TYPE du job #}
 };
 </script>
 {% include 'common/_app_scripts.html' %}  {# socle JS d'app commun (ROUTE §11 #25) #}

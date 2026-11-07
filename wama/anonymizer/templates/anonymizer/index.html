@@ -3,6 +3,7 @@
 {% load wama_actions %}
 {% load static %}
 {% load wama_static %}
+{% load wama_json %}
 
 {% block title %}Anonymizer - Objects Blurring{% endblock %}
 
@@ -259,10 +260,10 @@ par remplacement d'id côté JS (pattern enhancer). {% endcomment %}
 {# `as` : le gabarit est relu à chaud, les routes au rechargement — une route neuve ne doit pas rendre la page en 500 entre les deux. #}
 {% url "anonymizer:update_settings" 0 as settings_save_url_template %}
 <script>
-window.WAMA_ANONYMIZER_SCHEMA = {{ params_json|safe }};
-window.WAMA_ANONYMIZER_GROUPS = {{ groups_json|safe }};
+window.WAMA_ANONYMIZER_SCHEMA = {{ params_json|script_json }};
+window.WAMA_ANONYMIZER_GROUPS = {{ groups_json|script_json }};
 // Le schéma du domaine DOCUMENT (2026-11-02) : son volet, la modale de ses lots, son inspecteur.
-window.WAMA_ANONYMIZER_DOCUMENT_SCHEMA = {{ document_params_json|safe }};
+window.WAMA_ANONYMIZER_DOCUMENT_SCHEMA = {{ document_params_json|script_json }};
 window.WAMA_ANON = {
     uploadUrl:           '{% url "anonymizer:upload" %}',
     consolidateUrl:      '{% url "anonymizer:consolidate" %}',  {# était écrite EN DUR dans upload.js ('/anonymizer/batch/consolidate/') jusqu'au 07/09 #}
@@ -296,14 +297,14 @@ window.WAMA_ANON = {
     if (!host || !window.WamaParams) { console.warn('[anonymizer] WamaParams absent — section Sortie non générée'); return; }
     var group = (window.WAMA_ANONYMIZER_GROUPS || []).filter(function (g) { return g.key === 'sortie'; });
     WamaParams.render(host, (window.WAMA_ANONYMIZER_SCHEMA || []).filter(function (p) { return p.group === 'sortie'; }),
-                      { context: 'panel', values: {{ panel_values_json|default:"{}"|safe }}, groups: group });
+                      { context: 'panel', values: {{ panel_values_json|default:"{}"|script_json }}, groups: group });
 })();
 // Volet du domaine DOCUMENT (2026-11-02), GÉNÉRÉ de son schéma avec les valeurs RETENUES.
 (function renderDocumentPanel() {
     var host = document.getElementById('anonDocumentPanel');
     if (!host || !window.WamaParams) return;
     WamaParams.render(host, window.WAMA_ANONYMIZER_DOCUMENT_SCHEMA || [],
-                      { context: 'panel', values: {{ document_panel_values_json|default:"{}"|safe }} });
+                      { context: 'panel', values: {{ document_panel_values_json|default:"{}"|script_json }} });
 })();
 </script>
 <script src="{% static_v 'anonymizer/js/update.js' %}"></script>
@@ -367,8 +368,8 @@ if (window.WamaModelHelp) {
 if (window.WamaInputMatch) {
     WamaInputMatch.init({
         selectId: 'user_setting_model_to_use',
-        meta: {{ input_match_meta|safe }},
-        inputLabels: {{ input_labels|safe }},
+        meta: {{ input_match_meta|script_json }},
+        inputLabels: {{ input_labels|script_json }},
         slots: { work_file: { inputId: 'fileupload' } },
         statusId: 'inputMatchStatus',
     });
@@ -390,7 +391,7 @@ if (window.WamaModelCaps) {
             if (!v || v === 'auto') return 'auto';
             return 'anonymizer:' + v;
         },
-        meta: {{ class_coverage_meta|safe }},
+        meta: {{ class_coverage_meta|script_json }},
         controls: [
             { selector: '.classes2blur-checkbox',
               disableWhen: function (caps, el) {

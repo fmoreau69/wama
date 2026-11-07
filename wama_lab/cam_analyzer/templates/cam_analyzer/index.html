@@ -1,5 +1,6 @@
 {% extends 'cam_analyzer/base.html' %}
 {% load static %}
+{% load wama_json %}
 
 {% block cam_analyzer_content %}
 <div class="container-fluid py-3" style="padding-bottom: 180px !important;">
@@ -400,8 +401,8 @@ window.CAM_ANALYZER = {
         anonymizeThreshold: "/lab/cam-analyzer/api/profiles/",
         downloadRoadModel: "{% url 'wama_lab:cam_analyzer:download_road_model' %}",
     },
-    availableModels: {{ available_models|safe }},
-    cocoClasses: {{ coco_classes|safe }},
+    availableModels: {{ available_models|script_json }},
+    cocoClasses: {{ coco_classes|script_json }},
 };
 </script>
 {% endblock %}

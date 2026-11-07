@@ -29073,3 +29073,25 @@ une installation FINIE entre la photo de la flotte et sa clôture ne doit pas ê
 .test_an_install_that_ended_meanwhile_keeps_its_outcome`, rouge sous mutation (garde levée), 29/29
 vert sur le code sain. Le repli des cases de l'anonymizer (catalogue sans classes) n'a aucun effet
 visible — `get_all_class_choices` pose toujours visage et plaque — donc rien à garder.
+
+
+### PALIER 2026-11-07 (soir) — sécurité, reste n°5 : la classe « JSON dans un `<script>` » fermée
+
+Décision de Fabien le jour même : « vas-y pour le 4 » (numérotation du classement par gravité ; le
+point 5 de la liste ci-dessus). Le point 4 de cette liste (surface de développement) est passé à
+une instance sœur, dont il rejoint le chantier.
+
+- **Mesuré avant** : 164 injections `{{ …|safe }}` DANS un `<script>`, 27 gabarits (dont les 11
+  jumelles générées et `base.html`) — le relevé de l'audit (68 / 18) ne voyait pas les formes
+  `|default:'{}'|safe`. Toutes portent un JSON sérialisé par la vue (vérifié vue par vue).
+- **Brique** : `wama/common/templatetags/wama_json.py`, filtre `script_json` — l'échappement de
+  `json_script` (`<`, `>`, `&`, U+2028/2029) appliqué à la chaîne JSON reçue ; la valeur est
+  inchangée (le contexte reste une chaîne que les tests relisent par `json.loads`). Déclarée au
+  registre des mécanismes (`script_json`). Un gabarit neuf préfère `json_script` (12 usages déjà).
+- **Porté** : les 164 sites ; le générateur `codegen/templates_gen.py` (9 sites + le `{% load %}`) ;
+  retirées, les quatre neutralisations écrites à la main dans les vues (anonymizer ×2, enhancer ×2)
+  et `voice_options.voice_groups_json` — une règle, un endroit.
+- **Garde** : `wama/common/tests/tests_script_json.py` — aucun `|safe` dans un `<script>` de
+  `wama/`, `wama_lab/`, `wama_data/` ; le gabarit GÉNÉRÉ d'une app passe par la brique ; le nom
+  hostile reste dans sa chaîne et se relit tel quel. `tests_shared_reads.ScriptInjectionTest` juge
+  désormais la page, pas la vue.

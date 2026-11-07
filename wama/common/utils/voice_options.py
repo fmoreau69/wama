@@ -141,7 +141,7 @@ def engine_voice_groups(user) -> list[dict]:
 
 
 def voice_groups_json(user) -> str:
-    """Les mêmes groupes, prêts à injecter dans un gabarit (`{{ voice_groups_json|safe }}`).
+    """Les mêmes groupes, prêts à injecter dans un gabarit (`{{ voice_groups_json|script_json }}`).
 
     Une page qui GÉNÈRE son champ de voix (WamaParams + `options_source='voices'`) passe ces
     groupes en `optionsResolver` : le champ est peuplé dès le premier rendu, sans attendre
@@ -150,11 +150,10 @@ def voice_groups_json(user) -> str:
     script (l'avatarizer s'en protégeait déjà par `|default:"[]"` côté gabarit).
     """
     try:
-        # `<` neutralisé : le JSON est injecté dans un `<script>` (`|safe`), et le NOM d'une voix
-        # partagée par un autre compte y fermait le bloc (`</script><script …>`) — XSS stocké
-        # entre comptes, relevé par l'audit de sécurité du 2026-11-06. Même idiome que
-        # `enhancer/views.py` (`panel_values_json`).
-        return json.dumps(get_voice_groups(user)).replace('<', '\\u003c')
+        # Le NOM d'une voix partagée par un autre compte fermait le `<script>` qui porte ce JSON
+        # (XSS stocké entre comptes, audit de sécurité du 2026-11-06) : le gabarit l'injecte par
+        # `|script_json` (`common/templatetags/wama_json.py`), qui échappe `<`, `>` et `&`.
+        return json.dumps(get_voice_groups(user))
     except Exception:
         return "[]"
 

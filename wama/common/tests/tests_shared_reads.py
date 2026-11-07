@@ -91,12 +91,20 @@ class AnotherAccountsFilesTest(TestCase):
 class ScriptInjectionTest(TestCase):
 
     def test_a_voice_name_cannot_close_the_script_block(self):
+        # L'échappement vit au gabarit depuis le 2026-11-07 (`|script_json`) : c'est la page qui
+        # se juge, et les deux gabarits qui posent ces groupes passent par la brique.
+        from django.template import Context, Template
         from wama.common.utils import voice_options
         hostile = [{'label': 'x', 'options': [{'value': 'v', 'label': '</script><script>x()</script>'}]}]
         with mock.patch.object(voice_options, 'get_voice_groups', return_value=hostile):
-            rendered = voice_options.voice_groups_json(None)
+            groups = voice_options.voice_groups_json(None)
+        rendered = Template('{% load wama_json %}{{ g|script_json }}').render(Context({'g': groups}))
         self.assertNotIn('</script>', rendered)
         self.assertEqual(json.loads(rendered), hostile, 'le JSON reste lisible tel quel')
+        for page in ('synthesizer/templates/synthesizer/index.html',
+                     'avatarizer/templates/avatarizer/index.html'):
+            text = (Path(settings.BASE_DIR) / 'wama' / page).read_text(encoding='utf-8')
+            self.assertIn('voice_groups_json|default:"[]"|script_json', text)
 
     def test_the_two_patched_scripts_still_parse(self):
         try:

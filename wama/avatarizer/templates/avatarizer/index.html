@@ -2,6 +2,7 @@
 {% load wama_actions %}
 {% load static %}
 {% load wama_static %}
+{% load wama_json %}
 
 {% block title %}Avatarizer - Avatar animé{% endblock %}
 
@@ -188,11 +189,11 @@ window.AVATARIZER_CONFIG = {
 // (INPUT_MODEL_MATCHING §6.7), rebranchées sur les champs de chaque modale ouverte.
 // |default : si la vue n'a pas (encore) fourni la variable (ex. serveur non redémarré), on dégrade
 // au lieu de tuer TOUT le script par une erreur de syntaxe.
-window.AVATARIZER_PARAMS_SCHEMA = {{ params_json|default:"[]"|safe }};
-window.AVATARIZER_VOICE_GROUPS = {{ voice_groups_json|default:"[]"|safe }};
+window.AVATARIZER_PARAMS_SCHEMA = {{ params_json|default:"[]"|script_json }};
+window.AVATARIZER_VOICE_GROUPS = {{ voice_groups_json|default:"[]"|script_json }};
 window.AVATARIZER_MATCH = {
-    meta: {{ input_match_meta|default:"{}"|safe }},
-    labels: {{ input_labels|default:"{}"|safe }},
+    meta: {{ input_match_meta|default:"{}"|script_json }},
+    labels: {{ input_labels|default:"{}"|script_json }},
 };
 (function () {
     if (!window.WamaParams) { console.warn('[avatarizer] WamaParams absent — volet et modale de lot non générés'); return; }
@@ -200,7 +201,7 @@ window.AVATARIZER_MATCH = {
     // réglages mémorisés de l'utilisateur (`read_panel_settings`, la cascade que le dépôt applique).
     var phost = document.getElementById('avatarPanelParams');
     if (phost) WamaParams.render(phost, window.AVATARIZER_PARAMS_SCHEMA,
-                                 { context: 'panel', values: {{ panel_values_json|default:"{}"|safe }} });
+                                 { context: 'panel', values: {{ panel_values_json|default:"{}"|script_json }} });
     // Modale de LOT (context 'batch') : rendue ici, inchangée.
     var bhost = document.getElementById('avatarizerBatchParams');
     if (bhost) WamaParams.render(bhost, window.AVATARIZER_PARAMS_SCHEMA, { context: 'batch', values: {} });
@@ -218,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var q = document.getElementById('jobs-container');
     var ph = document.getElementById('avatarPanelParams');
     if (!q || !ph || !window.WamaInspector || !WamaInspector.initFromSchema) return;
-    var schema = {{ params_json|safe }};
+    var schema = {{ params_json|script_json }};
     var csrf = (window.AVATARIZER_CONFIG && window.AVATARIZER_CONFIG.csrfToken) || '';
     function postPanel(url) {   // POST des valeurs du volet (dom_id-aware, radios/checkbox) vers url
         var fd = new FormData();

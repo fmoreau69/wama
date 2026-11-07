@@ -2,6 +2,7 @@
 {% load wama_actions %}
 {% load static %}
 {% load wama_static %}
+{% load wama_json %}
 
 {% block title %}Synthesizer - Text To Speech{% endblock %}
 
@@ -176,7 +177,7 @@ son pied, avec le libellé de relance qu'elle portait. La modale écrite dans ce
 <script src="{% static_v 'synthesizer/js/index.js' %}"></script>
 <script>
 // Schéma de paramètres = UNE déclaration pour toute la page (volet, modale d'item, modale de lot).
-window.SYNTH_PARAMS_SCHEMA = {{ params_json|safe }};
+window.SYNTH_PARAMS_SCHEMA = {{ params_json|script_json }};
 
 // ── VOLET : GÉNÉRÉ du schéma (voix depuis le 2026-09-23, tout le volet depuis le 2026-10-11) ──
 // Rendu ICI, et non dans le DOMContentLoaded qui suit : les champs doivent exister AVANT que le
@@ -188,10 +189,10 @@ window.SYNTH_PARAMS_SCHEMA = {{ params_json|safe }};
     if (!host || !window.WamaParams) return;
     {# |default:"[]" : un gabarit ne doit jamais recevoir un JSON invalide — il perdrait TOUT #}
     {# le script qui suit (même précaution que l'avatarizer). #}
-    var voiceGroups = {{ voice_groups_json|default:"[]"|safe }};
+    var voiceGroups = {{ voice_groups_json|default:"[]"|script_json }};
     // Valeurs = les derniers choix mémorisés (modèle, langue, voix — `read_panel_settings`, sous
     // leurs clés historiques `preferred_*`), les défauts du schéma pour le reste.
-    var values = {{ panel_values_json|default:"{}"|safe }};
+    var values = {{ panel_values_json|default:"{}"|script_json }};
     // Groupes servis par la vue (brique commune `get_voice_groups`) : la voix est peuplée dès
     // le PREMIER rendu. `options_source='voices'` la rechargera ensuite depuis
     // /common/api/voices/ — même inventaire, et la recharge annonce `wama:options-filled`
@@ -319,8 +320,8 @@ document.addEventListener('DOMContentLoaded', function () {
     if (window.WamaInputMatch) {
         WamaInputMatch.init({
             selectId: 'tts_model',
-            meta: {{ input_match_meta|default:"{}"|safe }},
-            inputLabels: {{ input_labels|default:"{}"|safe }},
+            meta: {{ input_match_meta|default:"{}"|script_json }},
+            inputLabels: {{ input_labels|default:"{}"|script_json }},
             // Deux slots DÉCLARÉS, zéro prédicat ici (2026-09-12) :
             //  • voix clonée → les moteurs sans clonage se grisent (prédicat `ua_|cv_` défini
             //    UNE fois, dans wama-model-caps ; il vivait recopié sur 4 sites dans 2 apps) ;

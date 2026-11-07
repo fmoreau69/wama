@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 {% load static %}
 {% load wama_static %}
+{% load wama_json %}
 <html lang="fr" data-wama-theme="{{ theme.key }}" data-bs-theme="{{ theme.bootstrap }}">
   <head>
     <meta charset="utf-8">
@@ -341,23 +342,23 @@
     <!-- jstree JS -->
     <script src="{% static_v 'vendors/jstree-3.3.16/jstree.min.js' %}"></script>
     <!-- WAMA App Catalog (injected server-side — used by FileManager JS) -->
-    <script>window.WAMA_APP_CATALOG = {{ app_catalog_json|safe }};</script>
+    <script>window.WAMA_APP_CATALOG = {{ app_catalog_json|script_json }};</script>
     <script>window.WAMA_INSPECTOR_AUTOPLAY = {{ inspector_autoplay|yesno:'true,false' }};  // pref profil (aperçu inspecteur)</script>
     <script>window.WAMA_CURRENT_APP = "{{ current_app|escapejs }}";  // ID d'app courante (dérivé du path via APP_CATALOG)</script>
-    <script>window.WAMA_APP_PROCESSES = {{ current_app_processes_json|default:'[]'|safe }};  // ses process, ordre du pipeline (sections des réglages)</script>
+    <script>window.WAMA_APP_PROCESSES = {{ current_app_processes_json|default:'[]'|script_json }};  // ses process, ordre du pipeline (sections des réglages)</script>
     {% comment %}Formats de sortie par type de média (CONVERTER_OUTPUT_FORMATS) — la donnée était
     DÉJÀ calculée pour toutes les pages par le processeur de contexte `user_role` ; seule la
     sidebar du gestionnaire de fichiers la lisait. L'exposer ici en fait la source de
     `options_source='formats'` (registre PAGE_OPTION_SOURCES de wama-params.js), au lieu qu'elle
     ne soit résoluble que par un resolver écrit à la main dans chaque app.{% endcomment %}
-    <script>window.WAMA_OUTPUT_FORMATS = {{ converter_output_formats_json|safe }};</script>
+    <script>window.WAMA_OUTPUT_FORMATS = {{ converter_output_formats_json|script_json }};</script>
     {% comment %}Les ÉTATS et leur apparence (libellé, classe de badge, icône) + la table
     d'ALIAS — poussés depuis `common/utils/state_presentation.py`, la MÊME source que les
     gabarits et le vocabulaire Python. Avant cette ligne, chaque surface recopiait sa propre
     table : 5 écritures mesurées le 2026-09-18, dont une dans le commun lui-même
     (`wama-inspector.js`). Le client peut désormais LIRE un état (`WamaApp.normalizeStatus`)
     quel que soit le monde qui l'a produit.{% endcomment %}
-    <script>window.WAMA_STATES = {{ wama_states_json|safe }};</script>
+    <script>window.WAMA_STATES = {{ wama_states_json|script_json }};</script>
     {% if current_app_color %}
     <!-- Couleur d'IDENTITÉ de l'app courante (liseré des cards — CARD_DESIGN §9, dérivée du catalogue) -->
     <style>:root { --wama-app-color: {{ current_app_color }}; }</style>

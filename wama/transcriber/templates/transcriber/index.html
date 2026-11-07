@@ -3,6 +3,7 @@
 {% load wama_catalog %}
 {% load static %}
 {% load wama_static %}
+{% load wama_json %}
 
 {% block title %}Transcriber - Speech To Text{% endblock %}
 
@@ -111,9 +112,9 @@ par fillDetail.{% endcomment %}
     if (!window.WamaParams) return;
     var host = document.getElementById('panelSettings');
     if (!host) return;
-    var schema = {{ params_json|safe }};
+    var schema = {{ params_json|script_json }};
     window.WAMA_TRANSCRIBER_SCHEMA = schema;  // exposé pour l'inspecteur (initFromSchema, index.js)
-    var values = {{ panel_values_json|safe }};
+    var values = {{ panel_values_json|script_json }};
     WamaParams.render(host, schema, { context: 'panel', values: values });
 
     {% comment %}Modale ⚙ d'ÉLÉMENT : plus rendue ici — GÉNÉRÉE à chaque ouverture par le cycle
@@ -142,8 +143,8 @@ par fillDetail.{% endcomment %}
         if (row2) row2.appendChild(ims);
         WamaInputMatch.init({
             selectId: 'backendSelect',
-            meta: {{ input_match_meta|default:"{}"|safe }},
-            inputLabels: {{ input_labels|default:"{}"|safe }},
+            meta: {{ input_match_meta|default:"{}"|script_json }},
+            inputLabels: {{ input_labels|default:"{}"|script_json }},
             slots: { work_audio: { inputId: 'transcriber-file' } },
             statusId: 'inputMatchStatus',
         });

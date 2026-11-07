@@ -3,6 +3,7 @@
 {% load wama_catalog %}
 {% load static %}
 {% load wama_static %}
+{% load wama_json %}
 
 {% block title %}Describer - Content Description{% endblock %}
 
@@ -135,7 +136,7 @@ ré-inclure : double BroadcastChannel → l'exclusivité audio fait taire son pr
 <script>
 (function () {
   if (!window.WamaParams) return;
-  var schema = {{ params_json|safe }};
+  var schema = {{ params_json|script_json }};
   window.WAMA_DESCRIBER_SCHEMA = schema;   // réutilisé par l'inspecteur contextuel ci-dessous
   var ph = document.getElementById('describerPanelParams');
   if (ph) WamaParams.render(ph, schema, { context: 'panel', values: {} });
@@ -149,8 +150,8 @@ ré-inclure : double BroadcastChannel → l'exclusivité audio fait taire son pr
   // de function_specs.py), la vision pour une image ou les images-clés d'une vidéo. Un modèle
   // qui ne lit pas cette modalité est GRISÉ, raison dite (jamais caché, ✕ pour le retrouver).
   if (!window.WamaInputMatch) return;
-  var meta = {{ input_match_json|default:"{}"|safe }};
-  var extensions = {{ media_extensions_json|default:"{}"|safe }};
+  var meta = {{ input_match_json|default:"{}"|script_json }};
+  var extensions = {{ media_extensions_json|default:"{}"|script_json }};
   [['asr_model', 'audio', ['audio', 'video'], 'Audio ou vidéo'],
    ['vision_model', 'image', ['image', 'video'], 'Image ou vidéo']].forEach(function (s) {
     var select = document.getElementById(s[0]);
