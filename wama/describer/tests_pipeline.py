@@ -482,10 +482,12 @@ class CardAndViewsTest(_Cards):
         Description.objects.filter(pk=card.pk).update(generate_summary=False)
         payload = self._client().get(reverse('describer:progress', args=[card.pk])).json()
         self.assertEqual('', payload['summary'])
-        # An option switched off stays on the strip, as its checkbox.
-        self.assertEqual(['transcribe', 'describe', 'summarize', 'coherence'],
-                         [p['key'] for p in payload['processes']])
-        self.assertEqual([True, True, False, False], [p['enabled'] for p in payload['processes']])
+        # An option switched off stays on the strip, as its checkbox ; since 2026-11-07 every step
+        # is carried — the frames of an AUDIO card are « sans objet ».
+        self.assertEqual([('transcribe', 'active'), ('frames', 'na'), ('describe', 'active'),
+                          ('summarize', 'off'), ('coherence', 'off')],
+                         [(p['key'], p['state']) for p in payload['processes']])
+        self.assertEqual([True, True, True, False, False], [p['enabled'] for p in payload['processes']])
 
     def test_the_settings_route_writes_the_model_of_each_role(self):
         card = self._audio(status='PENDING')

@@ -215,13 +215,21 @@ def user_role(request):
                 # le réglage qui CHOISIT ce modèle — le premier select du catalogue, la règle du
                 # serveur (`auto_model.catalog_field`) : la page cache la section d'un process que
                 # le modèle choisi ne sert pas.
+                # `watched` (2026-11-07) : ce que le process SURVEILLE (`watched_of` — ses
+                # `stales` et ce qu'il déclare, la sortie ses réglages communs) : la page range
+                # chaque réglage dans la section du process qui le surveille, l'interrupteur dans
+                # l'en-tête de la sienne. `required_by` : ce qui, chez le modèle choisi, IMPOSE
+                # l'étape (l'interrupteur se coche et se verrouille).
                 from wama.common.utils.auto_model import catalog_field
                 model_field = (catalog_field(current_app) or {}).get('name') or ''
                 current_app_processes_json = _json.dumps([
                     {'key': spec.key, 'label': spec.label or spec.key, 'toggle': spec.toggle or '',
                      'optional': spec.degree == OPTIONAL,
+                     'watched': list(pipeline.watched_of(spec)),
                      **({'needs': spec.needs, 'model_field': model_field}
-                        if spec.needs and model_field else {})}
+                        if spec.needs and model_field else {}),
+                     **({'required_by': spec.required_by, 'model_field': model_field}
+                        if spec.required_by and model_field else {})}
                     for spec in pipeline.ordered()])
         except Exception:
             current_app_processes_json = '[]'

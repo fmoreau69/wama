@@ -1075,7 +1075,9 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                     # l'aurait lu comme un résumé en échec).
                     raise
                 except Exception as exc:
-                    if spec is None or spec.degree != process_runs.OPTIONAL:
+                    # Le degré EFFECTIF : un optionnel que le modèle de ce lancement IMPOSE
+                    # (`required_by`) est requis — la partition réduite que YuE2 doit suivre.
+                    if spec is None or pipeline.degree_of(spec, resolved_key) != process_runs.OPTIONAL:
                         raise
                     # Un process OPTIONNEL en échec ne fait pas échouer la card (règle 4.4) : sa
                     # ligne le dit, la console aussi, et la suite continue. C'est ce que le

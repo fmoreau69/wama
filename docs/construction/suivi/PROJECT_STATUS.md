@@ -29123,3 +29123,43 @@ une instance sœur, dont il rejoint le chantier.
   `WAMA_HTTPS` est éteint : décision de bascule HTTPS (le vhost `:443` existe, certificat
   autosigné) ; (3) reste n°2 (DEBUG, `/media/` d'Apache), trois décisions en attente ; reste n°5
   (pages de registre) à décider.
+
+## §PALIER 2026-11-07→08, « UNE VIDÉO, JAMAIS SA PLAYLIST ; LE FILTRE ENTRÉE ↔ MODÈLE RÉPARÉ ; LES RÉGLAGES PAR ÉTAPE, DANS L'ORDRE CHRONOLOGIQUE, POUR TOUTES LES APPS ; TOUTES LES ÉTAPES SUR LA CARD ; PARTITION RÉDUITE AUTONOME, RENDU FACULTATIF ; LA PARTITION PAR PISTE » — ce commit (local, non poussé) — migration `composer/0029_process_switches` appliquée, WAMA relancé le 2026-11-07 (vérifié en service)
+
+Demande de Fabien (card #1355 : la 2ᵉ chanson d'une playlist YouTube collée dans le Composer a importé
+la 5ᵉ, nommée « watch_1355 », et la partition complète activée n'apparaissait pas), puis ses décisions
+sur la cartographie des réglages des dix apps (1 : une section par étape, interrupteur en tête ;
+2 : grisé, jamais caché ; 3 : partition réduite autonome et rendu facultatif ; 4 : partition par piste).
+- **URL** (`url_ingest.canonical_media_url`, `ensure_single_media`, `video_utils._download_one`) : une
+  vidéo se réduit à son `v=`, `noplaylist` partout, une playlist seule est refusée
+  (`PlaylistNotAMedia`), le fichier gardé est celui que yt_dlp dit avoir écrit ; les TROIS modes de
+  l'ingest rendent le titre, gardé en `original_name` (le libellé commun de l'entrée) ; le
+  Composer nomme sa card du fichier arrivé (`views._ingested_name`, `derive` de `WAMA_INGEST`).
+  `MEDIA_STORAGE_TIERING §8.3`.
+- **Filtre bidirectionnel** (`process_pipeline._bridges`) : un pont n'étend que les entrées
+  OPTIONNELLES — les paroles de l'entrée (2026-11-04) faisaient de chaque modèle un modèle « qui
+  prend le cover » : tirage de MiniMax pour un cover, aucune partition. `INPUT_MODEL_MATCHING §7`.
+- **Réglages** (`wama-params.js` : `processSections`, `_processSectionHtml`, `_bindProcessSwitches`,
+  `_bindProcessNeeds`) et **bande** (`AppPipeline.card_rows` / `step_state` / `REASONS`,
+  `_card_processes.html`) ; **moteur** : `required_by`, `degree_of`, `starved`, un process REQUIS
+  peut porter un interrupteur. `ROUTE §10.6` 5.1, `WAMA_APP_CONVENTIONS §10.1bis`.
+- **Composer** : `extract_reduced_score`, `generate_audio` (migration 0029), partitions de l'entrée
+  bornées à une card de musique (`MAKES_MUSIC`) ; l'outil `compose_music` accepte une consigne vide
+  avec un morceau. **Partition par piste** : `WamaScore.tracksOf / trackOnly / mergeTrack`, choix
+  « Piste » de `brick-score-view.js` (édition rapportée dans la partition entière, export de la piste).
+- **Vu en service** : volet du transcriber et du composer (sections dans l'ordre du pipeline,
+  interrupteurs en tête, activer ouvre, aucune erreur de console) ; bande de la card #1355.
+- **Gardes** : `tests_source_ingest.OneVideoOfAPlaylistTest`, `tests_process_pipeline`
+  (`WhatTheCardShowsTest`, dont la garde sur les pipelines RÉELS des dix apps),
+  `tests_cap_from_js` (sections, grisé, étape imposée), `tests_surfaces.ScoreRulesTest` (pistes),
+  `composer.tests_extract_score` / `tests_pipeline`, `tests_score_input` ; contre-épreuves faites
+  (17 gardes rouges sous neutralisation).
+- 🔚 **Reste, décidé par Fabien le 2026-11-08 et ouvert ensuite** : « Écrire les paroles » (bouton de
+  la modale ET étape du pipeline, sur `write_lyrics_for`, la durée passée à l'écriture) ; paroles
+  horodatées au mot en entrée ET en sortie (écoute + `word_anchoring` + aligneur acoustique du
+  transcriber), affichées sous les notes ; paroles de sortie toujours proposées ; vues « Partition
+  de référence » / « Partition jouée » ; puis la chaîne Reader → Composer. Rouges trouvés à la suite
+  commune, d'AUTRES chantiers (non touchés ici) : `tests_port_designation` (composer, depuis
+  `fe9f7e6cd`), `tests_pipeline_faces` (`composer.extract_lyrics`, `anonymizer.blur`),
+  `tests_settings_surfaces`, budget de nommage (`tests_page_orientation.py` non suivi), Studio
+  (`esc` de `6653d02ed`), imager (`model_installer.py` en cours ailleurs).

@@ -504,7 +504,9 @@ class TheCardShowsItsProcessesTest(TestCase):
         gen = self._run(self._generation())
         html = self._card(gen)
         gears = dict(re.findall(r'settings-btn wcv3-proc-settings"[^>]*data-process="(\w+)"[^>]*data-only="([^"]*)"', html))
-        self.assertEqual({'plan', 'render', 'output'}, set(gears))
+        # Every step shows since 2026-11-07, each with its gear — those that do not take place too.
+        from wama.composer.function_specs import PIPELINE
+        self.assertEqual({spec.key for spec in PIPELINE.specs}, set(gears))
         self.assertIn('output_format', gears['output'].split(','))
         self.assertNotIn('output_format', gears['render'].split(','))
         self.assertIn('duration', gears['render'].split(','))
@@ -533,10 +535,35 @@ class TheCardShowsItsProcessesTest(TestCase):
         gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
                                                 model=PLAIN_MODEL, status='PENDING')
         html = self._card(gen)
-        self.assertIn('data-process="render"', html)
-        self.assertIn('data-process="output"', html)
-        self.assertNotIn('data-process="plan"', html)
+        self.assertIn('data-process="render" data-state="active"', html)
+        self.assertIn('data-process="output" data-state="active"', html)
+        # Shown since 2026-11-07, « sans objet » and without ▶ : this model does not write a score.
+        self.assertIn('data-process="plan" data-state="na"', html)
+        self.assertNotRegex(html, r'wcv3-proc-run"[^>]*data-process="plan"')
         self.assertIn('data-status="PENDING"', html)
+
+    def test_without_rendering_only_the_scores_of_the_input_take_place(self):
+        """2026-11-07, Fabien : « si je veux seulement récupérer la partition d'un fichier audio ou
+        d'une vidéo youtube […] sans forcément générer un cover ». The render switched off, what
+        reads only it — the output, the output score and lyrics — does not take place either
+        (`starved`) : the card asks for its input scores alone, and says why the rest is off."""
+        from unittest import mock
+        from wama.composer.function_specs import PIPELINE
+        catalogue_rows()
+        gen = ComposerGeneration.objects.create(user=self.user, prompt='', model=PLAIN_MODEL,
+                                                generate_audio=False, extract_parts=True,
+                                                extract_rendered_parts=True,
+                                                extract_reduced_score=True,
+                                                source_url='https://www.youtube.com/watch?v=abc')
+        with mock.patch.object(PIPELINE, 'can_run', lambda spec: True):
+            steps = [spec.key for spec in PIPELINE.applicable(gen, PLAIN_MODEL)]
+            rows = {r['key']: (r['state'], r['reason']) for r in PIPELINE.card_rows(gen, PLAIN_MODEL)}
+        self.assertEqual(['extract_score', 'parts'], [s for s in steps if s not in ('extract_lyrics',)])
+        self.assertNotIn('render', steps)
+        self.assertEqual('off', rows['render'][0])
+        for key in ('output', 'rendered_parts'):
+            with self.subTest(step=key):
+                self.assertEqual(('na', PIPELINE.REASONS['starved']), rows[key])
 
     def test_the_progress_view_carries_the_processes(self):
         from django.test import Client
@@ -551,7 +578,9 @@ class TheCardShowsItsProcessesTest(TestCase):
         with mock.patch('wama.common.backends.manager.backend_for_key',
                         side_effect=lambda key: ENGINES.get(key)):
             payload = client.get(reverse('composer:progress', args=[gen.pk])).json()
-        self.assertEqual(['plan', 'render', 'output'], [p['key'] for p in payload['processes']])
+        # Every step is carried (2026-11-07) ; those that ran are the active ones.
+        self.assertEqual(['plan', 'render', 'output'],
+                         [p['key'] for p in payload['processes'] if p['state'] == 'active'])
         self.assertEqual('SUCCESS', payload['shown_state'])
 
 
@@ -852,6 +881,12 @@ class WhatTheModelDoesIsReadOnItsCatalogueLineTest(TestCase):
                          'a model that takes the audio is given the audio')
         self.assertTrue(self._takes_place('plan', SCORE_MODEL, **cover),
                         'no extraction : its alternative, writing the score, takes place')
+        # Autonomous since 2026-11-07 (Fabien) : the user's switch asks for it under ANY music model.
+        catalogue_rows()
+        self.assertTrue(self._takes_place('extract_score', COVER_MODEL, extract_reduced_score=True,
+                                          **cover))
+        self.assertTrue(self._takes_place('extract_score', PLAIN_MODEL, extract_reduced_score=True,
+                                          **cover), 'nothing to render with it : still a score of the input')
 
     def test_no_process_of_the_composer_judges_its_model_in_code_any_more(self):
         """The judgements that were code (`plans_a_score`, `covers_audio_by_score`) are gone."""
@@ -860,7 +895,9 @@ class WhatTheModelDoesIsReadOnItsCatalogueLineTest(TestCase):
         self.assertFalse(hasattr(function_specs, 'plans_a_score'))
         self.assertFalse(hasattr(model_choice, 'covers_audio_by_score'))
         self.assertEqual(function_specs.PLANS_A_SCORE, PIPELINE.spec('plan').needs)
-        self.assertEqual(function_specs.COVERS_BY_SCORE, PIPELINE.spec('extract_score').needs)
+        # Since 2026-11-07 the reduced score is the user's switch, IMPOSED by such a model.
+        self.assertEqual(function_specs.COVERS_BY_SCORE, PIPELINE.spec('extract_score').required_by)
+        self.assertEqual(function_specs.MAKES_MUSIC, PIPELINE.spec('extract_score').needs)
 
 
 class TheOutputProcessTest(TestCase):

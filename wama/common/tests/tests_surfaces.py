@@ -743,6 +743,43 @@ class ScoreRulesTest(SimpleTestCase):
         start = abc.index(note)
         return self._call('transposeAt(%s, %d, %d, %d)' % (json.dumps(abc), start, start + len(note), step))
 
+    #: A full score as `midi_score` writes it : a piano in two hands grouped by `%%score`, drums,
+    #: a voice — two systems of blocks.
+    FULL = ('X:1\nT:Song\nM:4/4\nL:1/16\nQ:1/4=96\n%%score {P0R P0L} D1 I2\n'
+            'V:P0R clef=treble name="Piano" snm="Piano"\nV:P0L clef=bass name="Piano" snm="Piano"\n'
+            'V:D1 clef=perc name="Batterie" snm="Batterie"\nV:I2 clef=treble name="Voix" snm="Voix"\n'
+            'K:C\nV:P0R\nc4 e4 g4 c\'4|\nV:P0L\nC,8 G,,8|\nV:D1\nF4 F4 F4 F4|\nV:I2\ne8 d8|\n'
+            'V:P0R\nd4 f4 a4 d\'4|\nV:P0L\nD,8 A,,8|\nV:D1\nF4 c4 F4 c4|\nV:I2\nc16|\n')
+
+    def test_a_full_score_lists_one_track_per_instrument(self):
+        """2026-11-07, Fabien : « récupérer la partition d'une seule piste, la batterie par exemple ».
+        A track is an instrument : the two hands of the piano make ONE, named as declared."""
+        self.assertEqual([['P0R P0L', 'Piano'], ['D1', 'Batterie'], ['I2', 'Voix']],
+                         [[t['key'], t['label']] for t in self._call('tracksOf(%s)' % json.dumps(self.FULL))])
+        self.assertEqual(1, len(self._call('tracksOf(%s)' % json.dumps(
+            'X:1\nM:4/4\nV: Vocal clef=treble name="Vocal Melody"\nK:C\n% verse\nV: Vocal\nG4c4|\n'))),
+            'a reduced score has one track : nothing to choose')
+
+    def test_one_track_alone_is_a_playable_score_of_its_own(self):
+        drums = self._call('trackOnly(%s, ["D1"])' % json.dumps(self.FULL))
+        self.assertIn('%%score D1', drums)
+        self.assertIn('V:D1 clef=perc name="Batterie"', drums)
+        self.assertNotIn('Piano', drums)
+        self.assertNotIn('V:I2', drums)
+        self.assertEqual(['F4 F4 F4 F4|', 'F4 c4 F4 c4|'],
+                         [line for line in drums.split('\n') if line.startswith('F4')],
+                         'both systems of the drums, in order')
+        piano = self._call('trackOnly(%s, ["P0R", "P0L"])' % json.dumps(self.FULL))
+        self.assertIn('%%score {P0R P0L}', piano, 'the two hands stay one grand staff')
+
+    def test_a_gesture_on_one_track_lands_in_the_whole_score_and_nothing_else_moves(self):
+        drums = self._call('trackOnly(%s, ["D1"])' % json.dumps(self.FULL))
+        edited = drums.replace('F4 c4 F4 c4|', 'F4 c4 F4 c2c2|')
+        merged = self._call('mergeTrack(%s, ["D1"], %s)' % (json.dumps(self.FULL), json.dumps(edited)))
+        self.assertEqual(self.FULL.replace('F4 c4 F4 c4|', 'F4 c4 F4 c2c2|'), merged)
+        unchanged = self._call('mergeTrack(%s, ["D1"], %s)' % (json.dumps(self.FULL), json.dumps(drums)))
+        self.assertEqual(self.FULL, unchanged, 'counter-proof : no gesture, the score is identical')
+
     def test_a_dragged_note_moves_by_degrees_and_follows_the_key(self):
         abc = 'K:C\nC2 ^F/2 "Am"[CEG]2 c\' B,|'
         self.assertEqual('K:C\nD2 ^F/2 "Am"[CEG]2 c\' B,|', self._transpose(abc, 'C2', -1), 'up one degree')
@@ -1554,6 +1591,14 @@ class PageKeyListenersTest(SimpleTestCase):
         self.assertIn("global.WamaKeys.register({ owner: 'score_view', scope: 'brick', root: body", score)
         self.assertIn('setTimeout(focusBrick, 0);', score)
         self.assertNotIn("addEventListener('keydown'", score)
+
+    def test_every_gesture_of_the_score_goes_through_the_track_aware_edit(self):
+        """2026-11-07 : a gesture made on ONE track is carried back into the whole score
+        (`WamaScore.mergeTrack`) — only the brick's `edit` may call `ctx.edit`, or a gesture on the
+        drums alone would replace the score by the drums."""
+        score = _js('common/js/surfaces/brick-score-view.js')
+        self.assertEqual(1, score.count('ctx.edit('))
+        self.assertIn('Score.mergeTrack(v, track.ids, fn(Score.trackOnly(v, track.ids)))', score)
 
 
 class BrickShortcutsTest(SimpleTestCase):

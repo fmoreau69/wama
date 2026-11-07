@@ -1908,6 +1908,19 @@ Les paramètres de traitement doivent être configurables à **trois niveaux** :
 
 **Priorité :** Paramètres item > Paramètres batch > Valeurs du volet droit
 
+### 10.1bis Mise en page des réglages — une section par ÉTAPE, ordre chronologique (2026-11-07)
+
+Décision de Fabien sur la cartographie des dix apps : sur les trois surfaces (volet, modale
+d'élément, modale de lot), les réglages se rangent **par étape du pipeline, dans l'ordre
+chronologique** ; chaque étape a sa section repliable, **son interrupteur dans l'en-tête** (les
+en-têtes repliés forment la rangée des interrupteurs), une étape coupée est estompée, une étape
+que le modèle choisi ne sert pas est **grisée avec sa raison** (jamais cachée). Les réglages
+communs à plusieurs étapes (consigne, modèle, curseur) restent en tête.
+**Rien à écrire par app** : la page dérive tout de la déclaration — `ProcessSpec.toggle`, ce que
+chaque process surveille (`Param.stales`, `ProcessSpec.watched`), `needs` / `required_by`. Une
+app aligne sa page en déclarant juste ces faits ; ses groupes déclarés (`ParamGroup`) vivent dans
+la section de leur étape. Mécanique et gardes : `WAMA_APP_GENERATION_ROUTE.md §10.6` 5.1.
+
 ### 10.2 ~~Persistance localStorage (volet droit)~~ Persistance des défauts du volet — en base
 
 > **Corrigé le 2026-10-31, mesuré** : les défauts du volet sont des réglages UTILISATEUR en base

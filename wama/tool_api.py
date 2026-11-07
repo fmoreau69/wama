@@ -754,6 +754,9 @@ def compose_music(
                   or MusicXML (port `work_score`); only for a model that declares it (YuE2)
         work_audio: Path (from find_user_files) of the AUDIO of a song to cover — its melody
                   is replayed in the prompt's style (port `work_audio`, MusicGen Melody)
+        Steps are switches of the schema, passed as settings : `extract_reduced_score=True`
+        (the melody score of the song), `extract_parts=True` (one part per instrument),
+        `generate_audio=False` (render NOTHING : only the scores — the prompt may then be empty).
         app_label: INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
@@ -767,9 +770,12 @@ def compose_music(
                                                    is_valid, normalize)
     from wama.composer.views import composer_rules, new_generation_settings
 
-    prompt = prompt.strip()
-    if not prompt:
-        return {'error': 'Prompt requis'}
+    prompt = (prompt or '').strip()
+    # Une consigne VIDE est permise quand un morceau est donné (2026-11-07, « rendu facultatif ») :
+    # les partitions d'un audio se demandent sans rien rendre (`generate_audio=False`), comme sur
+    # la card. Seule une demande qui ne donne RIEN est refusée.
+    if not prompt and not (work_score or work_audio):
+        return {'error': 'Prompt requis (ou un morceau à reprendre : work_audio / work_score)'}
 
     def _refused(chosen):
         return {'error': f"Modèle invalide '{chosen}' : il faut un modèle des tâches "

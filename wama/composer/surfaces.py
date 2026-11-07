@@ -41,8 +41,10 @@ def _score_available(generation) -> tuple:
         return True, ''
     from wama.composer.function_specs import PIPELINE
     model = PIPELINE.requested_model(generation)
+    # La partition COMPLÈTE compte aussi (2026-11-07) : une card qui ne demande qu'elle — rendu
+    # coupé, partition complète d'un audio — a bien une partition à éditer.
     if model and not any(PIPELINE.takes_place(PIPELINE.spec(key), generation, model)
-                         for key in ('plan', 'extract_score')):
+                         for key in ('plan', 'extract_score', 'parts')):
         return False, ("Ce modèle compose sans partition : seuls les modèles qui écrivent ou suivent "
                        "une partition (YuE2) en ont une à éditer.")
     return True, ''

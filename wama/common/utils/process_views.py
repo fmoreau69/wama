@@ -63,8 +63,13 @@ def start_one_process(work_model, pk, process, *, user, task_for,
                                  + (f" — étapes : {known}" if known else ''))
     key = pipeline.requested_model(item)
     if key is not None and process not in {s.key for s in pipeline.applicable(item, key)}:
-        return None, None, (400, f"« {pipeline.spec(process).label} » n'a pas lieu "
-                                 "pour cette card")
+        # La raison est celle que la bande donne (`step_state`, 2026-11-07) : une formulation.
+        spec = pipeline.spec(process)
+        state, reason = pipeline.step_state(spec, item, key)
+        why = 'elle est désactivée' if state == 'off' else (reason[:1].lower() + reason[1:]
+                                                            if reason else '')
+        return None, None, (400, f"« {spec.label} » n'a pas lieu pour cette card"
+                                 + (f" : {why}" if why else ''))
 
     reset = ((lambda element: reset_for_process(element, process))
              if reset_for_process is not None else reset_on_start)

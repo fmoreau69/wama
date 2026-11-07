@@ -84,8 +84,9 @@ class TheDerivationTest(SimpleTestCase):
         # `seed` (2026-10-22) : sa graine, à la partition ET au rendu.
         self.assertEqual(('prompt', 'model', 'vocals', 'lyrics', 'quality_intent', 'duration',
                           'temperature', 'seed'), watched[:8])
-        self.assertEqual(('prompt_processed', 'reference_score', 'melody_reference', 'source_url'),
-                         watched[8:])
+        # `generate_audio` (2026-11-07) : la case qui coupe le rendu — un réglage, avant les champs.
+        self.assertEqual(('generate_audio', 'prompt_processed', 'reference_score', 'melody_reference',
+                          'source_url'), watched[8:])
         self.assertIn('seed', pipe.watched_of(pipe.spec('plan')), 'YuE draws its score with it')
         self.assertNotIn('duration', pipe.watched_of(pipe.spec('plan')),
                          'the duration is the render only: the score does not read it')

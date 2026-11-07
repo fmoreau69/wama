@@ -172,19 +172,55 @@ def _filename_from_response(url, response):
     return name or 'download'
 
 
-def upload_media_from_url(url, output_path):
+def _download_one(ydl, url: str) -> dict:
+    """UN média par yt_dlp : les informations lues d'abord (rien n'est téléchargé), refusées si
+    elles désignent une playlist (`url_ingest.ensure_single_media`), puis le téléchargement — sur
+    ces mêmes informations, sans seconde extraction (`process_ie_result`, le geste de
+    `download_with_info_file`). Rend les informations du média téléchargé."""
+    from wama.common.utils.url_ingest import ensure_single_media
+    info = ensure_single_media(ydl.extract_info(url, download=False), url)
+    return ydl.process_ie_result(info, download=True)
+
+
+def _downloaded_path(ydl, info: dict, ext: str = '') -> str:
+    """Le fichier que yt_dlp a ÉCRIT pour ce média, post-traitements compris (extraction audio,
+    conversion) : lu sur ses informations (`requested_downloads[].filepath`), jamais deviné parmi
+    les fichiers du dossier. `ext` : l'extension que le post-traitement pose, quand l'information
+    manque (version ancienne de yt_dlp)."""
+    for download in (info or {}).get('requested_downloads') or ():
+        path = download.get('filepath') or download.get('_filename')
+        if path and os.path.exists(path):
+            return path
+    path = ydl.prepare_filename(info)
+    if ext:
+        path = os.path.splitext(path)[0] + ext
+    if not os.path.exists(path):
+        raise RuntimeError(f"Fichier téléchargé introuvable ({os.path.basename(path)})")
+    return path
+
+
+def upload_media_from_url(url, output_path, *, with_title=False):
     """Download a media file from a URL using yt_dlp (with robust options) or direct HTTP.
 
     For YouTube URLs, try yt_dlp with youtube-specific extractor args and proper headers. If that
     fails, fallback to pytube. For generic HTTP URLs, stream with a desktop-like User-Agent.
 
+    `with_title` : rend `(chemin, titre)` — le titre du média sur sa plateforme, '' pour un
+    fichier servi en HTTP — au lieu du seul chemin. C'est ce que lit l'ingest commun pour nommer
+    l'entrée (`source_ingest._download`), dans les trois modes, comme le téléchargement audio.
+
     ⚠ Point d'entrée de TÉLÉCHARGEMENT piloté par une saisie utilisateur (champ URL, fichier de
     lot, ingest déclaratif) : la cible est validée AVANT toute sortie réseau — sans quoi le
     serveur interroge le réseau interne avec ses droits à lui (SSRF, cf. `url_guard`).
     """
+    def done(path, title=''):
+        return (path, title or '') if with_title else path
+
     from wama.common.utils.url_guard import UrlRefusee, guarded_request, verifier_url
-    from wama.common.utils.url_ingest import is_media_platform
+    from wama.common.utils.url_ingest import PlaylistNotAMedia, canonical_media_url, is_media_platform
     verifier_url(url)
+    # La vidéo désignée, jamais l'état de lecture de sa playlist (`list`, `index`).
+    url = canonical_media_url(url)
     try:
         # Plateformes média : la MÊME table que la décision page/média (`url_ingest`) — une
         # URL Vimeo ou SoundCloud partait jusque-là au GET générique, qui rendait sa page HTML.
@@ -221,17 +257,14 @@ def upload_media_from_url(url, output_path):
             }
             try:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    base_path = ydl.prepare_filename(info)
-
-                    filename = os.path.basename(base_path)
-                    unique_filename = get_unique_filename(output_path, filename)
-                    final_path = os.path.join(output_path, unique_filename)
-                    if final_path != base_path:
-                        os.rename(base_path, final_path)
-                    else:
-                        final_path = base_path
-                    return final_path
+                    info = _download_one(ydl, url)
+                    # Le fichier tel que yt_dlp l'a nommé (le titre). Il n'est plus renommé : le
+                    # « nom unique » cherché ici voyait ce fichier lui-même et lui ajoutait un
+                    # suffixe aléatoire à chaque fois (`Titre_df521730.mp4`, 2026-11-07) — le
+                    # dossier est celui du téléchargement, aucun autre fichier n'y entre en conflit.
+                    return done(_downloaded_path(ydl, info, '.mp4'), (info or {}).get('title'))
+            except PlaylistNotAMedia:
+                raise                    # un refus : aucun autre téléchargeur n'y changerait rien
             except Exception as yerr:
                 # Repli pytube : YouTube seulement (pytube ne connaît pas les autres plateformes).
                 if not ('youtube.com' in url or 'youtu.be' in url):
@@ -270,7 +303,7 @@ def upload_media_from_url(url, output_path):
                     save_path = os.path.join(output_path, unique_filename)
                     stream.download(output_path=output_path, filename=unique_filename)
                     print(f"[YouTube Download] Downloaded successfully: {save_path}")
-                    return save_path
+                    return done(save_path, getattr(yt, 'title', ''))
                 except Exception as pterr:
                     raise ValueError(f"YouTube download failed (yt_dlp: {yerr}); fallback pytube failed: {pterr}")
 
@@ -293,9 +326,9 @@ def upload_media_from_url(url, output_path):
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
-        return save_path
+        return done(save_path)
 
-    except UrlRefusee:
+    except (UrlRefusee, PlaylistNotAMedia):
         raise
     except Exception as e:
         raise ValueError(f"Download failed: {e}")
@@ -382,27 +415,24 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> Tuple[str, str]
         Tuple[str, str]: (chemin_audio, titre_video)
 
     Raises:
-        RuntimeError: Si yt-dlp n'est pas installé ou si le téléchargement échoue
-    """
-    # Vérifier si yt-dlp est installé
-    ytdlp = shutil.which("yt-dlp")
-    if not ytdlp:
-        try:
-            import yt_dlp
-            ytdlp = "yt_dlp"  # Utiliser le module Python
-        except ImportError:
-            raise RuntimeError(
-                "yt-dlp not found. Please install it with: pip install yt-dlp"
-            )
+        RuntimeError: Si le téléchargement échoue ; `PlaylistNotAMedia` (une `ValueError`) si
+        l'adresse désigne une playlist sans vidéo.
 
+    Une vidéo ouverte dans une playlist est téléchargée SEULE (`canonical_media_url` +
+    `noplaylist`) : jusqu'au 2026-11-07, ce téléchargement tirait la playlist entière et rendait
+    le premier `.wav` récent du dossier — la 5ᵉ chanson pour la 2ᵉ demandée. Le fichier rendu est
+    celui que yt_dlp dit avoir écrit (`_downloaded_path`), le titre celui de la vidéo.
+    """
+    from wama.common.utils.url_guard import verifier_url
+    from wama.common.utils.url_ingest import PlaylistNotAMedia, canonical_media_url
+    verifier_url(youtube_url)
+    youtube_url = canonical_media_url(youtube_url)
     os.makedirs(output_dir, exist_ok=True)
 
     try:
-        # Configuration yt-dlp pour télécharger seulement l'audio
-        import yt_dlp
-
         # Options avancées pour contourner les restrictions YouTube
         ydl_opts = {
+            'noplaylist': True,
             'format': 'bestaudio/best',
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
@@ -434,52 +464,15 @@ def download_youtube_audio(youtube_url: str, output_dir: str) -> Tuple[str, str]
         logger.info(f"Downloading audio from YouTube: {youtube_url}")
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Récupérer les informations de la vidéo
-            try:
-                info = ydl.extract_info(youtube_url, download=False)
-                video_title = info.get('title', 'youtube_audio')
-            except Exception as e:
-                logger.warning(f"Could not extract info without download: {e}")
-                # Fallback: télécharger directement et récupérer le titre après
-                video_title = "youtube_audio"
-
-            # Télécharger
-            result = ydl.extract_info(youtube_url, download=True)
-
-            # Mettre à jour le titre si disponible
-            if result and result.get('title'):
-                video_title = result['title']
-
-            # Construire le chemin du fichier audio
-            safe_title = "".join(c for c in video_title if c.isalnum() or c in (' ', '-', '_')).strip()
-            if not safe_title:
-                safe_title = "youtube_audio"
-
-            audio_path = os.path.join(output_dir, f"{safe_title}.wav")
-
-            # Chercher le fichier (yt-dlp peut modifier le nom)
-            for file in os.listdir(output_dir):
-                if file.endswith('.wav'):
-                    # Vérifier si c'est notre fichier
-                    file_path = os.path.join(output_dir, file)
-                    if safe_title in file or os.path.getmtime(file_path) > (os.path.getmtime(output_dir) - 60):
-                        audio_path = file_path
-                        break
-
-            if not os.path.exists(audio_path):
-                # Chercher n'importe quel fichier WAV récent
-                wav_files = [f for f in os.listdir(output_dir) if f.endswith('.wav')]
-                if wav_files:
-                    # Prendre le plus récent
-                    wav_files.sort(key=lambda x: os.path.getmtime(os.path.join(output_dir, x)), reverse=True)
-                    audio_path = os.path.join(output_dir, wav_files[0])
-
-            if not os.path.exists(audio_path):
-                raise RuntimeError("Audio file not found after download")
-
+            info = _download_one(ydl, youtube_url)
+            audio_path = _downloaded_path(ydl, info, '.wav')
+            video_title = (info or {}).get('title') or os.path.splitext(
+                os.path.basename(audio_path))[0]
             logger.info(f"YouTube audio downloaded successfully: {audio_path}")
             return audio_path, video_title
 
+    except PlaylistNotAMedia:
+        raise
     except Exception as e:
         error_msg = f"YouTube download failed: {str(e)}"
         logger.error(error_msg)

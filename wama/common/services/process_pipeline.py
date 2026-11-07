@@ -150,7 +150,9 @@ class ProcessSpec:
                   `enable_diarization`, `generate_summary`…). Désactivé, le process n'a pas lieu
                   et ne pèse plus sur l'état de la card (règle 4.4 : « les optional désactivés
                   sont ignorés ») ; la bande en fait une case à cocher. Distinct d'`applies`,
-                  qui dit ce que le MODÈLE sait faire, pas ce que l'utilisateur veut.
+                  qui dit ce que le MODÈLE sait faire, pas ce que l'utilisateur veut. Un process
+                  REQUIS peut en porter un (2026-11-07, le rendu du composer) : requis quand il
+                  est activé, ignoré coupé — ce qui ne lit que lui n'a plus lieu (`starved`).
       available   `() -> bool` : le process PEUT-il avoir lieu ICI — typiquement, un modèle de sa
                   tâche est installé (2026-10-03, `composer.extract_score`). Absent = toujours.
                   Distinct d'`applies`, qui juge un élément : `available` juge l'installation, et
@@ -195,6 +197,13 @@ class ProcessSpec:
                   produite et ÉCOUTABLE. 2026-10-22, demande de Fabien : l'audio préparé sert
                   aussi l'intelligibilité pour la correction humaine — on doit pouvoir le
                   produire sans que la transcription l'écoute.
+      required_by ce que le MODÈLE de la card doit satisfaire pour qu'un `optional` à interrupteur
+                  ait lieu QUEL QUE SOIT son interrupteur — la grammaire de `needs`, jugée sur la
+                  même fiche (2026-11-07, décision de Fabien : « partition réduite autonome »). La
+                  partition réduite du composer est un choix de l'utilisateur pour tout cover, et
+                  IMPOSÉE quand le modèle reprend le cover par sa partition (YuE2) : sans elle, il
+                  n'aurait rien à suivre. L'écran coche et verrouille l'interrupteur sous un tel
+                  modèle, en le disant. Sous « auto », rien n'est imposé : on ne devine pas le tirage.
       checks      les MESURES SANS RÉFÉRENCE de la sortie de ce process — des clés du registre
                   commun (`result_evaluation.register_check`), jouées par le squelette quand la
                   card a réussi, gardées sur la LIGNE du process (`output_summary['checks']`) : la
@@ -223,6 +232,7 @@ class ProcessSpec:
     split_from: str = ''
     upstream_switch: str = ''
     checks: tuple = ()
+    required_by: object = None
 
 
 def output_fingerprint(ref: str) -> str:
@@ -303,9 +313,14 @@ class AppPipeline:
                                  f"{', '.join(unknown)}, qui n'y est pas déclaré")
             if spec.degree not in (REQUIRED, OPTIONAL):
                 raise ValueError(f"pipeline de {app} : degré « {spec.degree} » inconnu")
-            if spec.toggle and spec.degree != OPTIONAL:
-                raise ValueError(f"pipeline de {app} : « {spec.key} » porte un interrupteur "
-                                 f"(`toggle`) mais n'est pas `optional`")
+            # Un process REQUIS peut porter un interrupteur depuis le 2026-11-07 (décision de
+            # Fabien : « rendu facultatif ») : requis quand il est activé — son échec fait échouer
+            # la card —, ignoré quand il est coupé (`aggregate` ne voit que les process activés).
+            # Le rendu du composer : rendu `optional`, son échec aurait laissé la card « à
+            # compléter » au lieu de dire qu'elle a échoué.
+            if spec.required_by and not spec.toggle:
+                raise ValueError(f"pipeline de {app} : « {spec.key} » est imposé par le modèle "
+                                 f"(`required_by`) sans interrupteur à imposer (`toggle`)")
             if spec.split_from and spec.key not in getattr(
                     self._by_key.get(spec.split_from), 'depends_on', ()):
                 raise ValueError(f"pipeline de {app} : « {spec.key} » se dit détaché de "
@@ -425,7 +440,15 @@ class AppPipeline:
 
         Aucune notion de process « terminal » : elle désignait le dernier process comme celui du
         modèle, ce qu'un process de SORTIE en aval du rendu (format, qualité) aurait faussé —
-        relevé le jour même, avant qu'il n'arrive. Seule la structure DÉCLARÉE compte."""
+        relevé le jour même, avant qu'il n'arrive. Seule la structure DÉCLARÉE compte.
+
+        Seules les entrées OPTIONNELLES de l'aval sont alimentées au sens de l'appariement : une
+        entrée requise (la consigne du rendu) est prise par TOUS les modèles du process, un pont
+        vers elle ne distingue donc aucun modèle d'un autre. Défaut vécu le 2026-11-07 : les
+        paroles de l'entrée (`extract_lyrics`, audio du cover → paroles de type `prompt`, 2026-11-04)
+        faisaient de chaque modèle qui lit une consigne un modèle qui « accepte l'audio du cover » —
+        le filtre bidirectionnel ne filtrait plus rien : le tirage « auto » d'un cover a pris
+        MiniMax Music 3, qui n'écoute pas l'audio, et aucune partition n'a eu lieu."""
         out = []
         for spec in self.specs:
             if not self.can_run(spec):
@@ -435,7 +458,8 @@ class AppPipeline:
             fed = set()
             for downstream in self.specs:
                 if spec.key in downstream.depends_on:
-                    fed |= {p.key for p in self._ports(downstream)[0] if p.data_type in gives}
+                    fed |= {p.key for p in self._ports(downstream)[0]
+                            if p.data_type in gives and p.optional}
             if fed:
                 out.append(({p.key for p in inputs}, fed))
         return out
@@ -657,13 +681,77 @@ class AppPipeline:
         except Exception:
             return False
 
+    @classmethod
+    def imposed(cls, spec: ProcessSpec, model_key) -> bool:
+        """Le modèle de la card IMPOSE-t-il ce process, quel que soit son interrupteur
+        (`ProcessSpec.required_by`) ? Jamais sous un modèle inconnu (« auto » non tiré)."""
+        if not spec.required_by or not model_key:
+            return False
+        from wama.common.utils.auto_model import is_auto
+        if is_auto(model_key):
+            return False
+        from wama.common.utils.model_capabilities import catalog_capabilities
+        from wama.common.utils.param_schema import condition_met
+        return condition_met(spec.required_by, catalog_capabilities(model_key))
+
+    @classmethod
+    def degree_of(cls, spec: ProcessSpec, model_key=None) -> str:
+        """Le degré EFFECTIF du process : requis quand le modèle de la card l'IMPOSE
+        (`required_by`) — son échec fait alors échouer la card, comme celui de tout requis : le
+        rendu n'aurait rien à suivre. Sous un modèle inconnu (« auto » vu de la page), un process
+        qui PEUT être imposé compte comme requis : un échec ne se tait pas faute de savoir."""
+        if spec.required_by and (cls.imposed(spec, model_key) or not model_key):
+            return REQUIRED
+        return spec.degree
+
+    def switched_on(self, spec: ProcessSpec, item, model_key=None) -> bool:
+        """Activé pour cet élément : son interrupteur (`enabled`), ou imposé par le modèle de la
+        card (`imposed`)."""
+        return self.enabled(spec, item) or self.imposed(spec, model_key)
+
+    def starved(self, spec: ProcessSpec, item, model_key=None) -> bool:
+        """Le process est-il PRIVÉ de son entrée par l'utilisateur ? Une de ses entrées REQUISES
+        (les ports de son `FunctionSpec`) n'est rendue que par des amonts qu'il LIT et que
+        l'utilisateur a COUPÉS — leur interrupteur à faux, ou eux-mêmes privés de la leur.
+        2026-11-07, décision de Fabien (« rendu facultatif ») : le rendu du composer coupé, la
+        sortie et les partition et paroles de sortie, qui ne lisent que lui, n'ont plus lieu.
+        Un amont qui n'a pas lieu pour une autre raison (`applies` : les amonts ALTERNATIFS du
+        rendu, la synthèse d'un avatar fourni en audio) ne prive de rien — l'aval lit alors
+        l'entrée de la card, comme avant ; une entrée OPTIONNELLE non plus.
+
+        Une entrée de la CARD n'est jamais privée : quand l'amont qui la rend PREND lui-même un
+        port du même nom, il TRANSFORME cette entrée-là (la lecture des pages scannées de
+        l'anonymizer prend et rend le `work_file`, la préparation audio du transcriber son
+        `work_audio`) — coupé, l'aval lit l'original, la règle d'`upstream_output`. Mesuré le
+        jour même sur les dix apps : sans cette précision, couper la lecture des pages scannées
+        aurait retiré la détection et l'occultation du texte. Seul un LIEN entre étapes (la
+        `native` que lit la sortie, l'`audio` rendu que lit la partition de sortie) prive."""
+        required = [port for port in self._ports(spec)[0] if not port.optional]
+        if not required:
+            return False
+        upstreams = [self._by_key[key] for key in self.read_upstreams(spec, item)]
+        for port in required:
+            providers = [up for up in upstreams if self.output_type(up) == port.data_type]
+            if not providers or any(port.key in {p.key for p in self._ports(up)[0]}
+                                    for up in providers):
+                continue                       # pas d'amont, ou une entrée de la card transformée
+            if all(self._cut(up, item, model_key) for up in providers):
+                return True
+        return False
+
+    def _cut(self, spec: ProcessSpec, item, model_key=None) -> bool:
+        """L'utilisateur a-t-il coupé ce process — son interrupteur, ou son entrée (`starved`) ?"""
+        return ((bool(spec.toggle) and not self.switched_on(spec, item, model_key))
+                or self.starved(spec, item, model_key))
+
     def takes_place(self, spec: ProcessSpec, item, model_key=None) -> bool:
-        """LE lieu où l'on décide qu'un process a lieu pour un élément : activé (`toggle`),
-        disponible ici (`available`) et servi par le modèle (`applies`). Un process ALTERNATIF
-        (le `plan` du composer face à `extract_score`) pose la question de son rival ICI, pour
-        qu'elle n'ait qu'une réponse."""
-        return (self.enabled(spec, item) and self.can_run(spec)
-                and self.applies(spec, item, model_key))
+        """LE lieu où l'on décide qu'un process a lieu pour un élément : activé (`toggle`, ou
+        imposé par le modèle — `required_by`), disponible ici (`available`), servi par le modèle
+        (`applies`) et nourri (`starved`). Un process ALTERNATIF (le `plan` du composer face à
+        `extract_score`) pose la question de son rival ICI, pour qu'elle n'ait qu'une réponse."""
+        return (self.switched_on(spec, item, model_key) and self.can_run(spec)
+                and self.applies(spec, item, model_key)
+                and not self.starved(spec, item, model_key))
 
     @staticmethod
     def model_serves(spec: ProcessSpec, model_key) -> bool:
@@ -716,7 +804,7 @@ class AppPipeline:
         redevenait périmé à chaque relecture (mesuré : `refresh` → {'render'} après la relance,
         card à jamais « périmée »). Le composer y était exposé (cover retiré après extraction),
         la préparation audio du transcriber l'aurait été à chaque nivellement décoché."""
-        if not self.enabled(spec, item):
+        if not self.switched_on(spec, item, model_key) or self.starved(spec, item, model_key):
             return False
         return model_key is None or self.applies(spec, item, model_key)
 
@@ -1030,8 +1118,10 @@ class AppPipeline:
         jamais écrit dans l'élément."""
         self.refresh(item)
         rows = self._live_rows(item)
+        model_key = self.requested_model(item)
         return process_runs.aggregate(
-            (rows[spec.key].status, spec.degree) for spec in self.specs if spec.key in rows)
+            (rows[spec.key].status, self.degree_of(spec, model_key))
+            for spec in self.specs if spec.key in rows)
 
     # ── Ce que la CARD affiche (P5) ─────────────────────────────────────────────────────────
     def shown_state(self, item, rows: dict | None = None) -> str:
@@ -1050,8 +1140,10 @@ class AppPipeline:
             rows = self._live_rows(item)
         if not rows:
             return status or JOB_PENDING
+        model_key = self.requested_model(item)
         return process_runs.aggregate(
-            (rows[spec.key].status, spec.degree) for spec in self.specs if spec.key in rows)
+            (rows[spec.key].status, self.degree_of(spec, model_key))
+            for spec in self.specs if spec.key in rows)
 
     def card_rows(self, item, model_key=None) -> list:
         """Une ligne d'affichage par process de la card, dans l'ordre du graphe : ceux qui ont
@@ -1066,19 +1158,15 @@ class AppPipeline:
         out = []
         for spec in self.ordered():
             row = rows.get(spec.key)
-            # Une ligne jamais jouée : montrée si le process a lieu pour ce modèle et PEUT avoir
-            # lieu ici (`can_run`). L'interrupteur, lui, n'en retire pas : un optionnel désactivé
-            # reste visible, en case à cocher. Sous « auto » (modèle inconnu), un process qui ne
-            # dépend d'AUCUN modèle (sans `applies`) a lieu quel que soit le tirage : il se
-            # montre aussi — rien n'est deviné (2026-10-26, Fabien : la « Partition de sortie »
-            # du composer n'était visible que dans les réglages, sa case manquait à la bande).
-            if row is None and not (self.can_run(spec) and (
-                    self.applies(spec, item, model_key) if model_key else spec.applies is None)):
-                continue
-            # Une ligne d'un process qui n'a PLUS lieu pour ce modèle (nivellement décoché) ne se
-            # montre plus : elle ne pèse plus sur la card (`still_counts`), la bande le dit pareil.
-            if row is not None and model_key and not self.applies(spec, item, model_key):
-                continue
+            # TOUTES les étapes, toujours (2026-11-07, décision de Fabien : « toujours afficher
+            # toutes les étapes de sous-process sur la card […] trouver un moyen d'indiquer les
+            # sous-process actifs de ceux qui ne le sont pas » ; « grisée » — la règle de
+            # l'appariement, « ne jamais cacher, désactiver + expliquer »). Chacune porte son
+            # ÉTAT : `active` (elle a lieu, ou peut avoir lieu sous un modèle à tirer), `off`
+            # (l'utilisateur l'a coupée — sa case) ou `na` (sans objet ici, avec sa raison).
+            # Avant, une étape sans objet disparaissait — et sous « auto », toute étape qui
+            # dépendait de l'élément aussi : la partition complète activée n'apparaissait pas.
+            state, reason = self.step_state(spec, item, model_key)
             summary = (row.output_summary or {}) if row is not None else {}
             host = rows.get(held.get(spec.key, ''))
             if row is None and host is not None:
@@ -1099,7 +1187,12 @@ class AppPipeline:
                 'watched': list(self.watched_of(spec)),
                 # L'interrupteur d'un `optional` (case à cocher de la bande) et son état.
                 'toggle': spec.toggle,
-                'enabled': self.enabled(spec, item),
+                'enabled': self.switched_on(spec, item, model_key),
+                # Imposé par le modèle de la card (`required_by`) : la case est cochée, verrouillée.
+                'imposed': self.imposed(spec, model_key),
+                # Ce que la bande en DIT (2026-11-07) : `active` / `off` / `na`, et pourquoi.
+                'state': state,
+                'reason': reason,
                 # Les mesures sans référence de sa sortie (`ProcessSpec.checks`, 2026-10-22).
                 'checks': list(summary.get('checks') or []) if row is not None else [],
                 # Rendu, mais son fichier n'est plus sur le disque (`process_runs.output_lost`,
@@ -1108,6 +1201,38 @@ class AppPipeline:
                         and process_runs.output_lost(row),
             })
         return self._columns(item, out)
+
+    #: Ce que la bande dit d'une étape qui n'a pas lieu — une raison par cause, dans l'ordre où
+    #: on les cherche. Formulées pour l'utilisateur ; aucune app n'en écrit.
+    REASONS = {
+        'unavailable': "Aucun modèle installé pour cette étape",
+        'starved': "Son entrée n'est plus produite : une étape en amont est désactivée",
+        # La MÊME phrase que les réglages grisés (`wama-params.js`, `UNSERVED_NOTE`).
+        'model': "Le modèle choisi ne fait pas cette étape",
+        'draw': "Dépend du modèle tiré au lancement",
+        'element': "Sans objet pour cette card",
+    }
+
+    def step_state(self, spec: ProcessSpec, item, model_key=None) -> tuple:
+        """`(état, raison)` d'une étape : `off` si l'utilisateur l'a coupée (son interrupteur),
+        `na` si elle n'a pas lieu pour une autre cause — dite par `REASONS` —, sinon `active`.
+        Sous « auto », ce qui dépend du tirage (`needs`) reste `active` quand l'élément le permet :
+        on ne devine pas le tirage, dans un sens comme dans l'autre — la raison le dit. Lu par la
+        bande (`card_rows`) ET par le refus du ▶ d'une étape (`process_views.start_one_process`) :
+        une décision, une formulation."""
+        if spec.toggle and not self.switched_on(spec, item, model_key):
+            return 'off', ''
+        if not self.can_run(spec):
+            return 'na', self.REASONS['unavailable']
+        if self.starved(spec, item, model_key):
+            return 'na', self.REASONS['starved']
+        if spec.needs and model_key and not self.model_serves(spec, model_key):
+            return 'na', self.REASONS['model']
+        if not model_key and spec.needs:
+            return 'active', self.REASONS['draw']
+        if not self.applies(spec, item, model_key):
+            return 'na', self.REASONS['element']
+        return 'active', ''
 
     def _columns(self, item, out: list) -> list:
         """Range les lignes de la bande en COLONNES, comme le studio dispose le graphe (une colonne

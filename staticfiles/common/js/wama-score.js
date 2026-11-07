@@ -428,11 +428,99 @@
                  start: span.start + written.place.start, end: span.start + written.place.end };
     }
 
+    // ── LES PISTES d'une partition (2026-11-07, demande de Fabien : « récupérer la partition d'une
+    // seule piste, la batterie par exemple, pour l'éditer, l'enregistrer, l'imprimer, la
+    // réutiliser ») ─────────────────────────────────────────────────────────────────────────────
+    // Une PISTE est un instrument : un groupe de `%%score` (les deux mains d'un piano, `{P1R P1L}`,
+    // en font une), ou une voix seule. Son nom est celui de sa déclaration `V:<id> … name="…"`. La
+    // forme est celle qu'écrivent nos producteurs (`midi_score`, SheetSage) : en-tête, `K:`, puis
+    // des blocs `V:<id>` suivis de leurs notes. Sans DOM : tenues par `tests_score_tracks` (V8).
+
+    /** `{head: [lignes], decl: {id: ligne}, blocks: [{id, lines}]}` — l'en-tête jusqu'à `K:`
+     *  compris, les déclarations de voix, puis les blocs du corps (`id` '' avant la 1re voix). */
+    function splitVoices(abc) {
+        var lines = String(abc || '').split('\n'), head = [], decl = {}, blocks = [], i = 0;
+        var voiceId = function (line) { return line.replace(/^V:\s*/, '').split(/\s+/)[0]; };
+        for (; i < lines.length; i++) {
+            head.push(lines[i]);
+            if (/^V:/.test(lines[i])) decl[voiceId(lines[i])] = lines[i];
+            if (/^K:/.test(lines[i])) { i++; break; }
+        }
+        var block = { id: '', lines: [] };
+        for (; i < lines.length; i++) {
+            if (/^V:/.test(lines[i])) {
+                if (block.id || block.lines.length) blocks.push(block);
+                block = { id: voiceId(lines[i]), lines: [lines[i]] };
+            } else block.lines.push(lines[i]);
+        }
+        if (block.id || block.lines.length) blocks.push(block);
+        return { head: head, decl: decl, blocks: blocks };
+    }
+
+    /** Les pistes de `abc` : `[{key, ids, label}]` dans l'ordre de `%%score` (sinon des
+     *  déclarations). Une partition à une seule voix n'a qu'une piste. */
+    function tracksOf(abc) {
+        var parts = splitVoices(abc), ids = Object.keys(parts.decl), score = null;
+        parts.head.forEach(function (line) { if (/^%%score\s/.test(line)) score = line; });
+        var groups = [];
+        if (score) {
+            var rest = score.replace(/^%%score\s+/, ''), re = /\{([^}]*)\}|(\S+)/g, m;
+            while ((m = re.exec(rest))) {
+                var members = (m[1] !== undefined ? m[1] : m[2]).replace(/[()[\]|]/g, ' ')
+                    .split(/\s+/).filter(function (id) { return id && parts.decl[id]; });
+                if (members.length) groups.push(members);
+            }
+        }
+        var grouped = {};
+        groups.forEach(function (g) { g.forEach(function (id) { grouped[id] = true; }); });
+        ids.forEach(function (id) { if (!grouped[id]) groups.push([id]); });
+        return groups.map(function (g) {
+            var named = /name="([^"]*)"/.exec(parts.decl[g[0]] || '');
+            return { key: g.join(' '), ids: g, label: (named && named[1]) || g[0] };
+        });
+    }
+
+    /** La partition de la seule piste `ids` : son en-tête (sans les déclarations des autres voix,
+     *  `%%score` réduit à elle), puis ses blocs. Une ABC jouable, gravable, exportable telle quelle. */
+    function trackOnly(abc, ids) {
+        var keep = {};
+        (ids || []).forEach(function (id) { keep[id] = true; });
+        var parts = splitVoices(abc), out = [];
+        parts.head.forEach(function (line) {
+            if (/^V:/.test(line)) {
+                if (keep[line.replace(/^V:\s*/, '').split(/\s+/)[0]]) out.push(line);
+            } else if (/^%%score\s/.test(line)) {
+                out.push('%%score ' + (ids.length > 1 ? '{' + ids.join(' ') + '}' : ids[0]));
+            } else out.push(line);
+        });
+        parts.blocks.forEach(function (b) { if (keep[b.id]) out.push.apply(out, b.lines); });
+        return out.join('\n');
+    }
+
+    /** Le geste fait sur la seule piste `ids` (`edited`, la sortie de `trackOnly` modifiée),
+     *  RAPPORTÉ dans la partition entière : ses blocs remplacent, dans l'ordre, ceux de la piste ;
+     *  l'en-tête et les autres pistes ne bougent pas. */
+    function mergeTrack(abc, ids, edited) {
+        var keep = {};
+        (ids || []).forEach(function (id) { keep[id] = true; });
+        var queues = {};
+        splitVoices(edited).blocks.forEach(function (b) {
+            if (keep[b.id]) (queues[b.id] = queues[b.id] || []).push(b.lines);
+        });
+        var parts = splitVoices(abc), out = parts.head.slice();
+        parts.blocks.forEach(function (b) {
+            var next = keep[b.id] && queues[b.id] && queues[b.id].length ? queues[b.id].shift() : null;
+            out.push.apply(out, next || b.lines);
+        });
+        return out.join('\n');
+    }
+
     global.WamaScore = {
         degree: degree, pitchText: pitchText, transposeToken: transposeToken,
         transposeAt: transposeAt, voiceOf: voiceOf, timeline: timeline,
         playingAt: playingAt, eventTime: eventTime,
         notesFromTimings: notesFromTimings, align: align,
         barAt: barAt, parseBar: parseBar, retime: retime, unitAt: unitAt,
+        tracksOf: tracksOf, trackOnly: trackOnly, mergeTrack: mergeTrack,
     };
 })(window);

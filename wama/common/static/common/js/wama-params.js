@@ -824,14 +824,37 @@
   // Une section SERT aussi les process optionnels de ses réglages partagés qui n'ont pas de section
   // à eux : son titre les nomme tous (2026-10-28, Fabien — le modèle de langage du reader sert la
   // mise en forme ET l'analyse : « Mise en forme · Analyse »). Dérivé des `stales`, rien à déclarer.
+  //
+  // UNE SECTION PAR ÉTAPE, DANS L'ORDRE CHRONOLOGIQUE, SON INTERRUPTEUR EN TÊTE (2026-11-07,
+  // décision de Fabien, sur la cartographie des dix apps) :
+  //   • un réglage rejoint le process qui le SURVEILLE (`processes[].watched`, la donnée du
+  //     serveur `watched_of` — ses `stales`, et ce que le process déclare : la sortie surveille
+  //     ses réglages communs, qui ne déclaraient aucun `stales` et passaient EN TÊTE) ;
+  //   • l'INTERRUPTEUR d'un process (`processes[].toggle`) ne va plus dans un corps : il devient
+  //     l'en-tête de la section de son étape (`section.toggle`), qui existe même sans autre
+  //     réglage — repliées, les en-têtes forment la rangée des interrupteurs, dans l'ordre du
+  //     pipeline. Avant, un interrupteur sans `stales` tombait en tête, un autre dans sa section.
   function processSections(params, processes) {
-    const order = {}, optional = {}, label = {};
+    const order = {}, optional = {}, label = {}, byToggle = {}, watchers = {};
     (processes || []).forEach(function (p, i) {
       order[p.key] = i; optional[p.key] = !!p.optional; label[p.key] = p.label;
+      if (p.toggle) byToggle[p.toggle] = p.key;
+      (p.watched || []).forEach(function (name) {
+        (watchers[name] = watchers[name] || []).push(p.key);
+      });
     });
-    const buckets = {}, served = {}, general = [];
+    const buckets = {}, served = {}, general = [], switches = {};
     (params || []).forEach(function (p) {
-      const keys = (p.stales || []).filter(function (k) { return k in order; })
+      // Un interrupteur rendu en case simple (pas en pilules — la condition même du renderer
+      // `toggle` : DEUX pilules ; le schéma sérialise `pills: []` pour un switch, vu au navigateur
+      // le 2026-11-07) : l'en-tête de son étape.
+      const pills = Array.isArray(p.pills) && p.pills.length === 2;
+      if (p.name in byToggle && (!p.type || p.type === 'toggle') && !pills) {
+        switches[byToggle[p.name]] = p.name;
+        return;
+      }
+      const keys = (p.stales || []).concat(watchers[p.name] || [])
+        .filter(function (k, i, all) { return k in order && all.indexOf(k) === i; })
         .sort(function (a, b) { return order[a] - order[b]; });
       let target = null;
       if (keys.length === 1) target = keys[0];
@@ -841,14 +864,18 @@
         served[target] = (served[target] || []).concat(keys);
       } else general.push(p.name);
     });
+    const own = function (k) { return buckets[k] || switches[k]; };
     const title = function (key) {
       const also = (served[key] || []).filter(function (k, i, all) {
-        return k !== key && !buckets[k] && all.indexOf(k) === i;
+        return k !== key && !own(k) && all.indexOf(k) === i;
       });
       return [key].concat(also).map(function (k) { return label[k]; }).join(' · ');
     };
-    const sections = (processes || []).filter(function (p) { return buckets[p.key]; })
-      .map(function (p) { return { key: p.key, label: title(p.key), names: buckets[p.key] }; });
+    const sections = (processes || []).filter(function (p) { return own(p.key); })
+      .map(function (p) {
+        return { key: p.key, label: title(p.key), names: buckets[p.key] || [],
+                 toggle: switches[p.key] || '' };
+      });
     const visible = general.length ? 1 : 0;
     return sections.length + visible >= 2 ? { general: general, sections: sections } : null;
   }
@@ -867,9 +894,49 @@
         '<summary class="wama-param-group-title">' + title + '</summary>' +
         '<div class="' + body + '">' + inner + '</div></details>';
     }
+    // Sans titre (un sous-groupe qui porterait le nom de la section qui le contient) : le corps
+    // seul, qui garde sa condition (`show_if`) et ses colonnes.
     return '<div class="wama-param-group"' + attrs + '>' +
-      '<div class="wama-param-group-title">' + title + '</div>' +
+      (meta.title ? '<div class="wama-param-group-title">' + title + '</div>' : '') +
       '<div class="' + body + '">' + inner + '</div></div>';
+  }
+
+  // L'EN-TÊTE d'une section d'étape porte son interrupteur (2026-11-07) : le MÊME champ que le
+  // renderer `toggle` (même identité `name=` / `data-param=`, même id, même valeur lue par
+  // `read()`), sans son libellé — c'est le titre de la section qui le nomme. Son aide passe en
+  // tête du corps. Ce que le process exige du modèle (`needs`) et ce qui l'IMPOSE
+  // (`required_by`) sont posés sur l'interrupteur : `_bindProcessNeeds` le grise ou le verrouille.
+  function _processSectionHtml(section, toggleP, inner, ctx, value, proc) {
+    const key = section.key;
+    let sw = '', help = '', on = true;
+    if (toggleP) {
+      const id = perCtx(toggleP.dom_id, ctx) || ('wp-' + ctx + '-' + toggleP.name);
+      const v = (value !== undefined && value !== null) ? value : toggleP.default;
+      on = (v === true || v === 'true' || v === 1 || v === '1');
+      const field = proc && proc.model_field;
+      let attrs = '';
+      if (field && proc.needs) attrs += ' data-needs="' + esc(JSON.stringify(proc.needs)) + '"';
+      if (field && proc.required_by) {
+        attrs += ' data-imposed-by="' + esc(JSON.stringify(proc.required_by)) + '"';
+      }
+      if (attrs) attrs += ' data-needs-field="' + esc(field) + '"';
+      sw = '<span class="wama-proc-switch" data-param-row="' + esc(toggleP.name) + '"' + attrs + '>' +
+        '<span class="form-check form-switch"><input class="form-check-input" type="checkbox" id="' +
+        id + '" ' + idAttr(ctx, toggleP.name) + (on ? ' checked' : '') + ' aria-label="' +
+        esc(section.label) + '"></span></span>';
+      help = toggleP.help_html ? '<small class="text-muted d-block mb-2">' + toggleP.help_html + '</small>'
+        : (toggleP.help ? '<small class="text-muted d-block mb-2">' + esc(toggleP.help) + '</small>' : '');
+    }
+    // Repliée par défaut (2026-11-07) : l'utilisateur qui garde les réglages par défaut ne voit
+    // que la rangée des étapes ; il ouvre celle qu'il veut régler. Une étape qu'on ACTIVE
+    // s'ouvre (`_bindProcessSwitches`) : ses réglages apparaissent sous son interrupteur.
+    return '<details class="wama-param-group wama-proc-section' + (on ? '' : ' wama-proc-section--off') +
+      '" data-group="_process_' + esc(key) + '" data-process="' + esc(key) + '"' +
+      (toggleP ? ' data-process-toggle="' + esc(toggleP.name) + '"' : '') + '>' +
+      '<summary class="wama-param-group-title wama-proc-head"><span class="wama-proc-title">' +
+      '<i class="fas fa-diagram-project me-1"></i>' + esc(section.label) +
+      '<small class="wama-proc-note" hidden></small></span>' + sw + '</summary>' +
+      '<div class="wama-param-group-body">' + help + inner + '</div></details>';
   }
 
   function render(container, schema, opts) {
@@ -913,8 +980,62 @@
                           icon: 'fa-sliders', collapsed: true }, adv.map(rowHtml).join(''));
     };
     const isAdvanced = function (p) { return p.advanced && p.type !== 'hidden'; };
+    const groups = (Array.isArray(opts.groups) && opts.groups.length) ? opts.groups : null;
+    // Les SECTIONS PAR ÉTAPE (`processSections`) priment sur toute autre structure (2026-11-07) :
+    // une app qui déclare des groupes (ParamGroup : l'imager, l'anonymizer, le converter) les
+    // garde, DANS la section de chaque étape. Avancés compris : un réglage avancé d'une étape
+    // va dans un « Avancé » replié de SA section ; seuls ceux qu'aucune étape ne prend restent
+    // dans le « Avancé » commun, en dernier.
+    const sections = processSections(params.filter(function (p) { return p.type !== 'hidden'; }), procs);
     let html;
-    if (Array.isArray(opts.groups) && opts.groups.length) {
+    if (sections) {
+      const byName = {}, procByKey = {};
+      params.forEach(function (p) { byName[p.name] = p; });
+      procs.forEach(function (p) { procByKey[p.key] = p; });
+      const norm = function (s) { return String(s || '').trim().toLowerCase(); };
+      // Les réglages d'un bloc, sous-groupés par leur groupe DÉCLARÉ (ordre déclaré) ; un
+      // sous-groupe qui porterait le nom de sa section perd son titre, pas sa condition.
+      const grouped = function (list, blockTitle) {
+        if (!groups) return list.map(rowHtml).join('');
+        const byGroup = {}, loose = [];
+        list.forEach(function (p) {
+          if (p.group) (byGroup[p.group] = byGroup[p.group] || []).push(p); else loose.push(p);
+        });
+        const known = {};
+        groups.forEach(function (meta) { known[meta.key] = true; });
+        Object.keys(byGroup).forEach(function (g) {
+          if (!known[g]) { loose.push.apply(loose, byGroup[g]); }
+        });
+        return loose.map(rowHtml).join('') + groups.map(function (meta) {
+          const own = byGroup[meta.key];
+          if (!own) return '';
+          const named = norm(meta.title) && norm(meta.title) !== norm(blockTitle);
+          return _groupWrap(Object.assign({}, meta, named ? {} : { title: '', icon: '' },
+                                          { collapsible: false }),
+                            own.map(rowHtml).join(''));
+        }).join('');
+      };
+      const advancedIn = function (key, list) {
+        return list.length ? _groupWrap({ key: '_advanced_' + key, title: opts.advancedTitle || 'Avancé',
+                                          icon: 'fa-sliders', collapsed: true }, grouped(list, ''))
+          : '';
+      };
+      const placed = {};
+      sections.sections.forEach(function (s) {
+        s.names.forEach(function (n) { placed[n] = true; });
+        if (s.toggle) placed[s.toggle] = true;
+      });
+      const head = params.filter(function (p) { return !placed[p.name]; });
+      html = grouped(head.filter(function (p) { return !isAdvanced(p); }), '') +
+        sections.sections.map(function (s) {
+          const own = s.names.map(function (n) { return byName[n]; });
+          const toggleP = s.toggle ? byName[s.toggle] : null;
+          return _processSectionHtml(s, toggleP,
+            grouped(own.filter(function (p) { return !isAdvanced(p); }), s.label) +
+            advancedIn(s.key, own.filter(isAdvanced)),
+            ctx, toggleP ? values[toggleP.name] : undefined, procByKey[s.key]);
+        }).join('') + advancedGroup(head.filter(isAdvanced));
+    } else if (groups) {
       // Rendu par GROUPES déclarés (ParamGroup) : 1) champs hors groupe non avancés (ordre schéma),
       // 2) groupes dans l'ordre déclaré, 3) avancés sans groupe → groupe implicite « Avancé » replié.
       const byGroup = {};
@@ -929,24 +1050,10 @@
           return _groupWrap(meta, (byGroup[meta.key] || []).map(rowHtml).join(''));
         }).join('') + advancedGroup(adv);
     } else {
-      // Sans groupes déclarés, un `group` ne désigne rien : seul `advanced` range le réglage — et,
-      // quand l'app a un pipeline, les SECTIONS PAR PROCESS (`processSections`, 2026-10-26).
-      const plain = params.filter(function (p) { return !isAdvanced(p); });
-      const sections = processSections(plain.filter(function (p) { return p.type !== 'hidden'; }), procs);
-      if (sections) {
-        const byName = {};
-        plain.forEach(function (p) { byName[p.name] = p; });
-        const placed = {};
-        sections.sections.forEach(function (s) { s.names.forEach(function (n) { placed[n] = true; }); });
-        html = plain.filter(function (p) { return !placed[p.name]; }).map(rowHtml).join('') +
-          sections.sections.map(function (s) {
-            return _groupWrap({ key: '_process_' + s.key, title: s.label, icon: 'fa-diagram-project',
-                                collapsible: true },
-                              s.names.map(function (n) { return rowHtml(byName[n]); }).join(''));
-          }).join('') + advancedGroup(params.filter(isAdvanced));
-      } else {
-        html = plain.map(rowHtml).join('') + advancedGroup(params.filter(isAdvanced));
-      }
+      // Sans groupes déclarés ni pipeline à structurer, un `group` ne désigne rien : seul
+      // `advanced` range le réglage.
+      html = params.filter(function (p) { return !isAdvanced(p); }).map(rowHtml).join('') +
+        advancedGroup(params.filter(isAdvanced));
     }
 
     container.innerHTML = html;
@@ -955,6 +1062,7 @@
     _bindModelHelp(container, schema, ctx);
     _bindCapFrom(container, schema, ctx);
     _bindProcessNeeds(container, schema, ctx);
+    _bindProcessSwitches(container);
     _bindDefaultFrom(container, schema, ctx);
     _bindOptionSources(container, schema, ctx, null, values);
     _avertirSourcesNonResolues(container, params, ctx);
@@ -1956,25 +2064,79 @@
   // satisfait pas — un bruitage n'a ni partition de sortie ni paroles —, et une section dont TOUS
   // les réglages sont cachés se cache avec eux. Sous « auto » ou une fiche inconnue, rien ne se
   // cache : on ne devine pas le tirage. Le serveur juge la même donnée (`AppPipeline.model_serves`).
+  //
+  // ⚠ 2026-11-07, décision de Fabien (« grisée ») : un tel réglage, et une section dont tous les
+  // réglages le sont, se GRISENT avec leur raison au lieu de se cacher — la règle de l'appariement
+  // (`INPUT_MODEL_MATCHING §2` : « ne jamais cacher, désactiver + expliquer »), la même que la
+  // bande de la card. La valeur reste celle de l'utilisateur, `read()` l'envoie toujours.
+  // Et l'interrupteur d'une étape que le modèle IMPOSE (`required_by`, `data-imposed-by`) se coche
+  // et se verrouille sous un tel modèle, en le disant ; il retrouve la valeur de l'utilisateur
+  // sous un autre.
+  // La MÊME phrase que la bande de la card (`AppPipeline.REASONS['model']`) — garde V8.
+  var UNSERVED_NOTE = 'Le modèle choisi ne fait pas cette étape.';
+  var IMPOSED_NOTE = 'Imposée par le modèle choisi.';
+
+  function _sectionNote(section, text) {
+    var note = section.querySelector && section.querySelector('.wama-proc-note');
+    if (!note) return;
+    note.textContent = text || '';
+    note.hidden = !text;
+  }
+
   function _bindProcessNeeds(container, schema, ctx) {
     function groups() {
       container.querySelectorAll('[data-group]').forEach(function (group) {
         var rows = group.querySelectorAll('[data-param-row]');
         if (!rows.length) return;
-        group.hidden = Array.prototype.every.call(rows, function (r) { return r.hidden; });
+        var unserved = Array.prototype.every.call(rows, function (r) { return r._wpUnserved; });
+        if (group.classList) {
+          group.classList.toggle('wama-param-group--unserved', unserved);
+          group.classList.toggle('wama-proc-section--unserved', unserved);
+        }
+        var imposed = group.querySelector && group.querySelector('.wama-proc-switch');
+        _sectionNote(group, unserved ? UNSERVED_NOTE
+                     : (imposed && imposed._wpImposed ? IMPOSED_NOTE : ''));
       });
     }
-    container.querySelectorAll('[data-param-row][data-needs]').forEach(function (group) {
-      var needs = JSON.parse(group.getAttribute('data-needs'));
+    container.querySelectorAll('[data-param-row][data-needs], [data-param-row][data-imposed-by]').forEach(function (group) {
+      var raw = group.getAttribute('data-needs');
+      var needs = raw ? JSON.parse(raw) : null;
+      var rawImposed = group.getAttribute('data-imposed-by');
+      var imposedBy = rawImposed ? JSON.parse(rawImposed) : null;
       var field = group.getAttribute('data-needs-field');
       var modelP = (schema || []).filter(function (q) { return q.name === field; })[0];
       var sel = modelP && container.querySelector(
         '#' + CSS.escape(perCtx(modelP.dom_id, ctx) || ('wp-' + ctx + '-' + modelP.name)));
       if (!modelP || !sel || !modelP.help_source) return;   // sans le choix du modèle : intacte
+      var box = group.querySelector && group.querySelector('input[type="checkbox"]');
       _catalogCaps(modelP.help_source, _catalogDomain(modelP)).then(function (capsByKey) {
         function apply() {
           var caps = capsByKey[sel.value];
-          group.hidden = !!caps && !conditionMet(needs, function (name) { return caps[name]; });
+          var read = function (name) { return caps[name]; };
+          // Sous « auto » ou une fiche inconnue (`caps` absent) : rien n'est jugé.
+          var unserved = !!(caps && needs) && !conditionMet(needs, read);
+          var imposed = !!(caps && imposedBy) && conditionMet(imposedBy, read);
+          group._wpUnserved = unserved;
+          group._wpImposed = imposed;
+          if (group.classList) {
+            // Le marqueur, et l'estompage de `cap_from` (« reads ») — un seul idiome pour « grisé ».
+            group.classList.toggle('wama-param--unserved', unserved);
+            group.classList.toggle('opacity-50', unserved);
+          }
+          group.title = unserved ? UNSERVED_NOTE : (imposed ? IMPOSED_NOTE : '');
+          if (box) {
+            if (imposed && !box.disabled) {
+              box._wpUserChecked = box.checked;
+              box.checked = true;
+              box.disabled = true;
+              box.dispatchEvent(new Event('change', { bubbles: true }));
+            } else if (!imposed && box.disabled && box._wpUserChecked !== undefined) {
+              box.disabled = false;
+              box.checked = box._wpUserChecked;
+              box._wpUserChecked = undefined;
+              box.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
           groups();
         }
         (container._wpCapApply = container._wpCapApply || []).push(apply);
@@ -1985,6 +2147,26 @@
         }
         apply();
       });
+    });
+  }
+
+  // L'INTERRUPTEUR D'UNE ÉTAPE dans l'en-tête de sa section (2026-11-07) : coupée, la section est
+  // estompée ; l'utilisateur qui l'ACTIVE la voit s'ouvrir sur ses réglages, et se replier quand
+  // il la coupe. Un changement posé par programme (valeur préremplie, étape imposée par le modèle)
+  // ne fait que l'estomper ou non — il n'ouvre rien. Rejoué par `apply()` (`_wpCapApply`).
+  function _bindProcessSwitches(container) {
+    container.querySelectorAll('[data-process-toggle]').forEach(function (section) {
+      var input = section.querySelector('.wama-proc-switch input');
+      if (!input || input._wpSwitch) return;
+      input._wpSwitch = true;
+      function sync(byUser) {
+        var on = input.checked;
+        if (section.classList) section.classList.toggle('wama-proc-section--off', !on);
+        if (byUser) section.open = on;
+      }
+      input.addEventListener('change', function (e) { sync(!!(e && e.isTrusted)); });
+      (container._wpCapApply = container._wpCapApply || []).push(function () { sync(false); });
+      sync(false);
     });
   }
 
@@ -2066,7 +2248,9 @@
   }
 
   function _fieldValue(el) {
-    if (el.type === 'checkbox') return el.checked;
+    // Un interrupteur qu'impose le modèle choisi (`_bindProcessNeeds`, `required_by`) est coché
+    // pour l'œil : c'est la valeur de l'UTILISATEUR qui part — le serveur impose de lui-même.
+    if (el.type === 'checkbox') return el._wpUserChecked !== undefined ? el._wpUserChecked : el.checked;
     return el.value;
   }
 
@@ -2101,7 +2285,11 @@
       if (!(n in values)) return;
       releaseField(el);        // posé par un geste (profil, ↺ Par défaut) : il repart au prochain envoi
       const v = values[n];
-      if (el.type === 'checkbox') el.checked = (v === true || v === 'true' || v === 1 || v === '1');
+      const on = (v === true || v === 'true' || v === 1 || v === '1');
+      if (el.type === 'checkbox') {
+        if (el._wpUserChecked !== undefined) el._wpUserChecked = on;   // imposé : la valeur gardée
+        else el.checked = on;
+      }
       else if (el.type === 'radio') el.checked = (String(el.value) === String(v));
       else el.value = v;
     });
@@ -2403,6 +2591,7 @@
                         // par `apply` → borne rejouée), pour la même garde.
                         bindCapFrom: _bindCapFrom,
                         bindProcessNeeds: _bindProcessNeeds,
+                        bindProcessSwitches: _bindProcessSwitches,
                         bindModelHelp: _bindModelHelp,
                         capBindings: _capBindings,
                         syncTemperature: _syncTemperature,

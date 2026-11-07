@@ -67,8 +67,12 @@ class _Extractor:
 
 
 def _consumes(value, token):
-    """The catalogue facts of the stand-ins: YuE2 follows a score, MusicGen Melody takes audio."""
-    return {SCORE_MODEL: {'work_score'}, MELODY_MODEL: {'work_audio'}}.get(value, set()) >= {token}
+    """The catalogue facts of the stand-ins: YuE2 follows a score, MusicGen Melody takes audio —
+    and EVERY model reads the prompt, as every real catalogue line of the composer says. Until
+    2026-11-07 the stand-in said no model read it, which hid that the lyrics of the input (audio →
+    words of the prompt) made every model « accept the cover audio »."""
+    own = {SCORE_MODEL: {'work_score'}, MELODY_MODEL: {'work_audio'}}.get(value, set())
+    return token in own | {'prompt'}
 
 
 class ExtractThenRenderTest(TestCase):
@@ -237,6 +241,79 @@ class TheCoverAudioIsAcceptedTest(SimpleTestCase):
             got = views._input_match_meta()
         self.assertIn('work_audio', got[SCORE_MODEL]['inputs_optional'])
         self.assertNotIn('work_audio', got[PLAIN_MODEL]['inputs_optional'])
+
+
+class TheLyricsDoNotMakeEveryModelTakeTheCoverTest(SimpleTestCase):
+    """The REAL pipeline (2026-11-07): the lyrics of the input turn the cover audio into words of
+    the prompt, which every model reads — that must not make every model « accept the cover ».
+    Measured that day: `models_accepting('work_audio')` returned MiniMax Music 3 and MusicGen Small,
+    « auto » drew MiniMax for a cover, which ignored the audio, and no score took place."""
+
+    def setUp(self):
+        from wama.composer.utils import model_choice as mc
+        for name in ('score_extraction_available', 'parts_extraction_available',
+                     'lyrics_transcription_available'):
+            patcher = mock.patch.object(mc, name, return_value=True)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_the_cover_audio_reaches_a_model_by_its_own_port_or_by_the_score_only(self):
+        from wama.composer.function_specs import PIPELINE
+        covering = PIPELINE.covering_inputs('work_audio')
+        self.assertIn('work_score', covering, 'YuE2 takes the cover by the extracted score')
+        self.assertNotIn('prompt', covering)
+        self.assertEqual({'prompt'}, PIPELINE.extended_inputs({'prompt'}),
+                         'a model that reads only the prompt does not take the cover audio')
+
+    def test_a_model_that_reads_only_the_prompt_is_not_a_cover_model(self):
+        from wama.composer.utils import model_choice as mc
+        with mock.patch.object(mc, 'consumes_input', side_effect=_consumes):
+            self.assertFalse(mc.accepts_input(PLAIN_MODEL, 'work_audio'))
+            self.assertTrue(mc.accepts_input(SCORE_MODEL, 'work_audio'))
+
+
+class ACoverByUrlIsNamedAfterItsVideoTest(TestCase):
+    """2026-11-07: a cover pasted as a YouTube URL was named « watch_1355 » — the name was frozen at
+    creation from the path of the URL (`/watch`). It now follows the file that arrives (the title of
+    the video), as a deposited cover does; a name given by a batch line stays."""
+
+    URL = 'https://www.youtube.com/watch?v=FPH_gHOAr-U&list=PLaAeSiXP0jiNxwLxB7DyxtltZiZbewSwB'
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('cover_by_url', password='x')
+
+    def _card(self):
+        from wama.composer import views
+        gen = ComposerGeneration.objects.create(user=self.user, prompt='', source_url=self.URL)
+        views._wrap_generation_in_batch(gen)
+        return gen
+
+    def test_before_the_download_the_url_path_names_nothing(self):
+        gen = self._card()
+        self.assertEqual(f'generation_aleatoire_{gen.pk}.wav', gen.batch_item.output_filename)
+
+    def test_the_arrived_file_names_the_card(self):
+        from wama.composer import views
+        gen = self._card()
+        gen.melody_reference.name = 'users/1/composer/input/Welcome_to_the_Show_-OFFICIAL_AUDIO.wav'
+        self.assertEqual([], views._ingested_name(gen, '/tmp/x.wav', 'x.wav'))
+        gen.batch_item.refresh_from_db()
+        self.assertEqual(f'Welcome_to_the_Show_-OFFICIAL_AUDIO_{gen.pk}.wav',
+                         gen.batch_item.output_filename)
+
+    def test_a_name_given_by_the_user_stays(self):
+        from wama.composer import views
+        gen = self._card()
+        ComposerBatchItem = type(gen.batch_item)
+        ComposerBatchItem.objects.filter(pk=gen.batch_item.pk).update(output_filename='mon_titre.wav')
+        gen.melody_reference.name = 'users/1/composer/input/Welcome.wav'
+        views._ingested_name(gen, '/tmp/x.wav', 'x.wav')
+        self.assertEqual('mon_titre.wav', ComposerBatchItem.objects.get(pk=gen.batch_item.pk)
+                         .output_filename)
+
+    def test_the_ingest_names_the_card_this_way(self):
+        self.assertEqual('wama.composer.views._ingested_name',
+                         ComposerGeneration.WAMA_INGEST.get('derive'))
 
 
 class AutoDrawsAmongWhatTakesTheCoverTest(TestCase):

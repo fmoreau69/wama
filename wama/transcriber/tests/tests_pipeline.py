@@ -275,10 +275,14 @@ class TheCardShowsItsFourProcessesTest(_Pipeline):
         client = self._client()
         payload = client.get(reverse('transcriber:progress', args=[self.item.pk])).json()
         # Le débruitage (2026-10-21) se montre en CASE À COCHER, désactivé, comme tout optionnel
-        # à interrupteur ; le nivellement, que la card ne demande pas, n'a pas lieu.
-        self.assertEqual(['denoise', 'transcribe', 'diarize', 'summarize', 'coherence'],
-                         [p['key'] for p in payload['processes']])
-        self.assertFalse(payload['processes'][0]['enabled'])
+        # à interrupteur ; le nivellement, que la card ne demande pas, n'a pas lieu. Depuis le
+        # 2026-11-07 TOUTES les étapes sont portées (décision de Fabien) : celles sans objet le disent.
+        states = {p['key']: p['state'] for p in payload['processes']}
+        self.assertEqual(['transcribe', 'diarize', 'summarize', 'coherence'],
+                         [k for k, s in states.items() if s == 'active'])
+        self.assertEqual('off', states['denoise'])
+        self.assertEqual('na', states['level'])
+        self.assertFalse(next(p for p in payload['processes'] if p['key'] == 'denoise')['enabled'])
         self.assertEqual(('SUCCESS', 'SUCCESS'), (payload['status'], payload['shown_state']))
 
 
@@ -423,9 +427,11 @@ class ExistingResultPlaysTheImportProcessTest(_Pipeline):
         self._deposit()
         html = render_to_string('transcriber/_transcript_card.html',
                                 {'elem': _decorate_card(self.item), 'in_batch': False})
-        self.assertIn('data-process="import"', html)
-        self.assertNotIn('data-process="transcribe"', html)
-        self.assertNotIn('data-process="align"', html)       # a timed document : nothing to align
+        self.assertIn('data-process="import" data-state="active"', html)
+        # Shown « sans objet » since 2026-11-07 (every step stays on the card), without ▶ :
+        self.assertIn('data-process="transcribe" data-state="na"', html)
+        self.assertIn('data-process="align" data-state="na"', html)   # a timed document : nothing to align
+        self.assertNotRegex(html, r'wcv3-proc-run"[^>]*data-process="transcribe"')
         self.assertIn('data-process="summarize"', html)
         self.assertIs(workers.transcribe, _task_for(self.item))
         self.assertFalse(Transcript.objects.get(pk=self.item.pk).preprocess_audio)
@@ -652,8 +658,9 @@ class ThePreparationIsDeclaredTest(_Pipeline):
         self.assertEqual(1, len(self.leveled), 'nothing was leveled again')
         self.assertEqual(set(), PIPELINE.refresh(item), 'replayed without it: valid again')
         self.assertEqual(JOB_SUCCESS, PIPELINE.card_state(item))
-        self.assertNotIn('level', [row['key'] for row in PIPELINE.card_rows(item, 'auto')],
-                         'the strip no longer shows a process the card no longer plays')
+        rows = {row['key']: row['state'] for row in PIPELINE.card_rows(item, 'auto')}
+        self.assertEqual('na', rows['level'],
+                         'a process the card no longer plays is said « sans objet » (2026-11-07)')
 
     def test_a_card_transcribed_before_the_split_stays_valid(self):
         """Its transcription leveled the audio itself : its photo holds the leveling settings,

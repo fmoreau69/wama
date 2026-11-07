@@ -77,11 +77,13 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     # Ingest média déclaratif commun (source_ingest.ensure_local_input, appelé en tête de
     # tâche) : URL de MÉLODIE de référence (YouTube/lien audio) → téléchargée vers
     # melody_reference AU LANCEMENT. Un fichier local déjà joint prime (ensure_local_input
-    # ne télécharge que si la cible est vide).
+    # ne télécharge que si la cible est vide). `derive` : la card prend le nom du fichier arrivé
+    # (le titre de la vidéo), comme un cover déposé (2026-11-07).
     WAMA_INGEST = {
         'source': 'source_url',
         'target': 'melody_reference',
         'mode': 'audio',
+        'derive': 'wama.composer.views._ingested_name',
     }
     source_url = models.CharField(max_length=1000, blank=True, default='')
 
@@ -119,6 +121,14 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     # `db_default` : le code en service crée des générations sans connaître la colonne.
     extract_parts = models.BooleanField(default=False, db_default=False,
                                         help_text='Partition complète : une partie par instrument')
+    # PARTITION RÉDUITE AUTONOME et RENDU FACULTATIF (2026-11-07, décision de Fabien) : les cases
+    # des process `extract_score` (imposé quand le modèle reprend le cover par sa partition) et
+    # `render`. `db_default` : le code en service crée des générations sans connaître la colonne —
+    # et un rendu qui manquerait à une génération créée par lui ne doit pas disparaître (vrai).
+    extract_reduced_score = models.BooleanField(
+        default=False, db_default=False, help_text='Partition réduite : la mélodie du cover')
+    generate_audio = models.BooleanField(
+        default=True, db_default=True, help_text='Rendre le morceau (décoché : partitions seules)')
     # Le MODÈLE du process `parts` (2026-10-19) : clé de catalogue d'un modèle de la tâche
     # `audio-to-midi`, ou « auto » — le patron des modèles de rôle du describer (`asr_model`…).
     # `db_default` : le code en service crée des générations sans connaître la colonne.

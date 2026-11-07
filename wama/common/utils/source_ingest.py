@@ -59,23 +59,37 @@ FAILURE_TTL_S = 7 * 86400
 
 
 def _download(url, mode, dest_dir):
-    """Retourne (chemin_local, titre) selon le mode, via les primitives communes."""
+    """Retourne (chemin_local, titre) selon le mode, via les primitives communes. Le titre est
+    celui du média sur sa plateforme, quel que soit le mode ('' pour un fichier servi en HTTP ou
+    une page) — c'est lui qui nomme l'entrée (`original_name` de la provenance, lu par le libellé
+    commun `batch_identity.element_entry`). Avant le 2026-11-07, seul le mode `audio` le rendait."""
+    from wama.common.utils.url_ingest import is_media_platform
     from wama.common.utils.video_utils import upload_media_from_url
 
-    if mode == 'audio':
-        from wama.common.utils.url_ingest import is_media_platform
+    if mode == 'audio' and is_media_platform(url):
         from wama.common.utils.video_utils import download_youtube_audio
-        if is_media_platform(url):
-            path, title = download_youtube_audio(url, dest_dir)
-            return path, (title or '')
-        return upload_media_from_url(url, dest_dir), ''
+        path, title = download_youtube_audio(url, dest_dir)
+        return path, (title or '')
 
-    if mode == 'smart':
+    if mode == 'smart' and not is_media_platform(url):
         from wama.common.utils.url_ingest import fetch_url_content
         return fetch_url_content(url, dest_dir), ''
 
-    # défaut : 'media'
-    return upload_media_from_url(url, dest_dir), ''
+    # 'media', l'audio d'un lien direct, et une plateforme sous 'smart' (un média, jamais une page :
+    # la décision que `fetch_url_content` aurait prise, sans perdre le titre).
+    return upload_media_from_url(url, dest_dir, with_title=True)
+
+
+def _original_name(path, title) -> str:
+    """Le nom d'origine d'une entrée téléchargée : le titre du média et son extension quand la
+    plateforme en donne un (le nom de fichier en est une version abîmée : guillemets, barres
+    obliques remplacés), sinon le nom du fichier."""
+    fname = os.path.basename(path)
+    title = ' '.join(str(title or '').split())
+    if not title:
+        return fname
+    ext = os.path.splitext(fname)[1]
+    return f"{title[:255 - len(ext)]}{ext}"          # la colonne `original_name` fait 255
 
 
 def is_remote(ref) -> bool:
@@ -232,7 +246,7 @@ def ensure_local_input(instance, *, console=None, derive=None):
         # l'entrée matérialisée se souvient de son URL. Ne fait jamais échouer le geste.
         from wama.common.utils.provenance import record_provenance
         record_provenance(instance, target_field, kind='url', ref=url,
-                          original_name=fname, source_path=path)
+                          original_name=_original_name(path, title), source_path=path)
         if console:
             console(f"Média téléchargé depuis l'URL : {fname}")
         return fname

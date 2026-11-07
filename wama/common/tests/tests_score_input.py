@@ -124,6 +124,22 @@ class ScoreReachesTheModelTest(TestCase):
         self.assertFalse(ComposerGeneration.objects.filter(user=self.user).exists(),
                          'refused BEFORE anything is created')
 
+    def test_the_tool_asks_for_scores_alone_without_a_prompt(self):
+        """2026-11-07 (« rendu facultatif ») : the scores of a song are asked WITHOUT a prompt and
+        without rendering — `generate_audio=False`, as on the card. A request that gives nothing
+        at all is still refused."""
+        from unittest import mock
+        from wama.composer.models import ComposerGeneration
+        from wama.tool_api import compose_music
+        with mock.patch('wama.composer.tasks.compose_task.apply_async') as dispatch:
+            dispatch.return_value.id = 'no-task'
+            result = compose_music(self.user, '', model='huggingface:m-a-p/YuE2-3B',
+                                   work_score=self.rel, generate_audio=False)
+            nothing = compose_music(self.user, '  ', model='huggingface:m-a-p/YuE2-3B')
+        gen = ComposerGeneration.objects.get(pk=result['generation_id'])
+        self.assertEqual(('', False), (gen.prompt, gen.generate_audio))
+        self.assertIn('error', nothing)
+
     def test_the_tool_points_the_score_for_a_model_that_follows_it(self):
         from wama.composer.models import ComposerGeneration
         result = self._compose('huggingface:m-a-p/YuE2-3B')

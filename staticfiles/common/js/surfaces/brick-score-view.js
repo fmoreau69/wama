@@ -123,10 +123,25 @@
         function readOnly() { return !!current().role; }
         function editable() { return !readOnly() && !!ctx.canEdit && !!text().trim(); }
 
-        function text() {
+        /** La partition ENTIÈRE de la version montrée. */
+        function wholeText() {
             if (readOnly()) return String((ctx.reads() || {})[current().role] || '');
             var v = ctx.value();
             return typeof v === 'string' ? v : '';
+        }
+        /** La PISTE montrée (`null` = toutes, 2026-11-07) : ce que la vue grave, exporte, imprime. */
+        var track = null;
+        function text() {
+            var whole = wholeText();
+            return track ? Score.trackOnly(whole, track.ids) : whole;
+        }
+        /** Un geste d'édition : sur une seule piste, il est fait sur elle puis RAPPORTÉ dans la
+         *  partition entière (`WamaScore.mergeTrack`) — un seul geste, Ctrl+Z l'annule. */
+        function edit(fn) {
+            ctx.edit(function (v) {
+                if (!track) return fn(v);
+                return Score.mergeTrack(v, track.ids, fn(Score.trackOnly(v, track.ids)));
+            });
         }
 
         if (versions.length > 1) {
@@ -158,6 +173,45 @@
             });
             tools.insertBefore(pick, warn);
         }
+
+        // ── La PISTE montrée (2026-11-07, demande de Fabien : « sélectionner les pistes
+        // individuelles pour afficher la partition d'un seul instrument à la fois et pouvoir
+        // l'enregistrer, l'exporter ») : « Toutes » par défaut ; une piste choisie se grave seule,
+        // s'édite (ses gestes rapportés dans la partition entière), s'exporte et s'imprime seule.
+        // Le choix n'apparaît qu'à deux pistes ou plus, et suit la version montrée. ──────────
+        var trackPick = document.createElement('select');
+        trackPick.className = 'form-select form-select-sm py-0 w-auto d-none';
+        trackPick.title = 'Piste : un seul instrument, ou toute la partition';
+        trackPick.setAttribute('aria-label', 'Piste');
+        var trackList = [], trackListKey = null;
+        function syncTracks() {
+            var list = Score.tracksOf(wholeText());
+            var key = list.map(function (t) { return t.key + '=' + t.label; }).join('|');
+            if (key === trackListKey) return;
+            trackListKey = key;
+            trackList = list;
+            trackPick.innerHTML = '';
+            var all = document.createElement('option');
+            all.value = '';
+            all.textContent = 'Toutes les pistes';
+            trackPick.appendChild(all);
+            list.forEach(function (t) {
+                var option = document.createElement('option');
+                option.value = t.key;
+                option.textContent = t.label;
+                trackPick.appendChild(option);
+            });
+            if (track && !list.some(function (t) { return t.key === track.key; })) track = null;
+            trackPick.value = track ? track.key : '';
+            trackPick.classList.toggle('d-none', list.length < 2);
+        }
+        trackPick.addEventListener('change', function () {
+            track = trackList.filter(function (t) { return t.key === trackPick.value; })[0] || null;
+            selection = null;
+            rendered = null;
+            render();
+        });
+        tools.insertBefore(trackPick, warn);
 
         // ── Le pas des gestes rythmiques ────────────────────────────────────────────────────
         var step = readStep();
@@ -201,9 +255,12 @@
         tools.insertBefore(exporter, warn);
 
         function baseName() {
-            var label = (current().label || 'partition').toLowerCase()
-                .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-');
-            return 'partition-' + (ctx.config.pk || '') + '-' + label;
+            var slug = function (s) {
+                return String(s || '').toLowerCase()
+                    .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-');
+            };
+            return 'partition-' + (ctx.config.pk || '') + '-' + slug(current().label || 'partition') +
+                (track ? '-' + slug(track.label) : '');
         }
 
         function exportAs(kind) {
@@ -272,6 +329,7 @@
 
         function render() {
             pending = null;
+            syncTracks();
             var abc = text();
             if (abc === rendered) return;
             rendered = abc;
@@ -375,7 +433,7 @@
 
         /** ↑ ↓ (ou le glisser d'abcjs) : `step` degrés VERS LE BAS — la note garde sa place choisie. */
         function transpose(start, end, step) {
-            ctx.edit(function (v) {
+            edit(function (v) {
                 var out = Score.transposeAt(v, start, end, step);
                 if (selection && selection.start === start) selection.end = end + (out.length - v.length);
                 return out;
@@ -387,7 +445,7 @@
             var r = Score.retime(text(), selection.start, op, step ? 1 / Number(step) : undefined);
             if (r.error) { ctx.status(r.error, 'error'); return; }
             selection = { start: r.start, end: r.end };
-            ctx.edit(function () { return r.abc; });
+            edit(function () { return r.abc; });
         }
 
         // Le clavier commun (`WamaKeys`, 2026-10-29) : la partition est une brique QUI A LA MAIN —
@@ -443,7 +501,7 @@
             // seulement LUE les tait (rien à y modifier).
             keys: anyEdited,
             help: !anyEdited ? null
-                : 'Partition : clic sur une note = la choisir et y aller · la glisser = la monter / descendre · le pas : choix « Pas » · « Exporter » : MIDI, PDF, ABC'
+                : 'Partition : clic sur une note = la choisir et y aller · la glisser = la monter / descendre · le pas : choix « Pas » · « Piste » : un seul instrument · « Exporter » : MIDI, PDF, ABC (de la piste montrée)'
                   + (versions.some(function (v) { return v.role; }) ? ' · une partition LUE ne se modifie pas ici' : ''),
         };
     }

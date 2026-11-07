@@ -33,15 +33,41 @@ logger = logging.getLogger(__name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _batch_item_extra(generation: ComposerGeneration) -> dict:
-    """Champs supplémentaires du lien batch↔génération : le nom de sortie vient de ce qui nomme
-    l'ENTRÉE — le morceau repris (son fichier, ou son URL), sinon la consigne (la règle de la face
-    Entrée, `apps.py`). Le prompt seul appelait « generation_aleatoire » un cover sans consigne
-    (2026-11-03, un lot de 12 morceaux)."""
-    source = generation.melody_reference or generation.reference_score
-    named = source.name if source else urlsplit(generation.source_url or '').path
+def _output_name(generation: ComposerGeneration, *, ingested: bool = True) -> str:
+    """Le nom de sortie d'une génération : ce qui nomme l'ENTRÉE — le morceau repris (son fichier,
+    ou son URL), sinon la consigne (la règle de la face Entrée, `apps.py`). Le prompt seul appelait
+    « generation_aleatoire » un cover sans consigne (2026-11-03, un lot de 12 morceaux).
+
+    `ingested=False` : le nom d'AVANT le téléchargement de l'URL — celui que la card a reçu à sa
+    création, que `_ingested_name` reconnaît pour le remplacer. Le chemin d'une adresse de
+    plateforme (`/watch`) ne nomme rien : le titre de la vidéo arrive avec son fichier (2026-11-07,
+    une card nommée « watch_1355 »)."""
+    from wama.common.utils.url_ingest import is_media_platform
+    source = (generation.melody_reference if ingested else None) or generation.reference_score
+    url = generation.source_url or ''
+    if source:
+        named = source.name
+    else:
+        named = '' if is_media_platform(url) else urlsplit(url).path
     stem = os.path.splitext(os.path.basename(named))[0] or generation.prompt[:30].replace(' ', '_')
-    return {'output_filename': f"{stem or 'generation_aleatoire'}_{generation.id}.wav"}
+    return f"{stem or 'generation_aleatoire'}_{generation.id}.wav"
+
+
+def _batch_item_extra(generation: ComposerGeneration) -> dict:
+    """Champs supplémentaires du lien batch↔génération : son nom de sortie (`_output_name`)."""
+    return {'output_filename': _output_name(generation)}
+
+
+def _ingested_name(generation: ComposerGeneration, path, fname) -> list:
+    """`derive` de l'ingest commun (`WAMA_INGEST`) : le morceau repris vient d'arriver de son URL —
+    la card prend son nom (le titre de la vidéo, que porte le fichier), comme un cover déposé.
+    Seul un nom DÉRIVÉ est remplacé : un nom donné par une ligne de lot ou à la main reste. Le lien
+    de lot n'est pas un champ de la génération : rien à ajouter à son enregistrement."""
+    link = ComposerBatchItem.objects.filter(generation_id=generation.pk).first()
+    if link is not None and link.output_filename in ('', _output_name(generation, ingested=False)):
+        link.output_filename = _output_name(generation)
+        link.save(update_fields=['output_filename'])
+    return []
 
 
 def _wrap_generation_in_batch(generation: ComposerGeneration) -> ComposerBatch:

@@ -51,14 +51,16 @@
         "kind": "function",
         "params": {},
         "process": {
-          "degree": "required",
+          "degree": "optional",
           "eta": "composer.tasks:extract_score_eta",
           "gpu": true,
           "label": "Partition réduite",
           "outputs": [
             "extracted_score"
           ],
+          "toggle": "extract_reduced_score",
           "watched": [
+            "extract_reduced_score",
             "melody_reference",
             "source_url"
           ]
@@ -146,6 +148,7 @@
             "audio_output"
           ],
           "share": 3,
+          "toggle": "generate_audio",
           "watched": [
             "prompt",
             "model",
@@ -155,6 +158,7 @@
             "duration",
             "temperature",
             "seed",
+            "generate_audio",
             "prompt_processed",
             "reference_score",
             "melody_reference",

@@ -71,6 +71,112 @@ class UrlNatureTest(SimpleTestCase):
         self.assertTrue(url_ingest.is_media_platform('https://m.youtube.com/watch?v=abc'))
 
 
+class _FakeYoutubeDL:
+    """Stand-in of `yt_dlp.YoutubeDL`: records its options and the URL it is asked, answers the
+    information of `answer` (a video, or a playlist), and on download WRITES the file it says it
+    wrote (`requested_downloads[].filepath`) — what the real one does after its post-processors."""
+    seen = []
+
+    def __init__(self, opts):
+        self.opts = opts
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def extract_info(self, url, download=False):
+        type(self).seen.append((url, download, dict(self.opts)))
+        if download:
+            raise AssertionError('one extraction, then the download on its information')
+        return dict(self.answer)
+
+    def process_ie_result(self, info, download=True):
+        folder = os.path.dirname(self.opts['outtmpl'])
+        ext = '.wav' if self.opts.get('postprocessors', [{}])[0].get('key') == 'FFmpegExtractAudio' \
+            else '.mp4'
+        path = os.path.join(folder, info['title'] + ext)
+        with open(path, 'wb') as fh:
+            fh.write(b'media')
+        return dict(info, requested_downloads=[{'filepath': path}])
+
+    def prepare_filename(self, info):
+        return os.path.join(os.path.dirname(self.opts['outtmpl']), info['title'] + '.webm')
+
+
+class OneVideoOfAPlaylistTest(SimpleTestCase):
+    """2026-11-07, Fabien: the 2nd video of a playlist pasted in the Composer imported the 5th, and
+    the card was named « watch_1355 ». The audio download had no `noplaylist`: it pulled the whole
+    list and kept the first recent `.wav` of the folder. A video is now designated by its id alone,
+    downloaded alone, and the file kept is the one yt_dlp says it wrote — with its title."""
+
+    URL = ('https://www.youtube.com/watch?v=FPH_gHOAr-U&list=PLaAeSiXP0jiNxwLxB7DyxtltZiZbewSwB'
+           '&index=2')
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        _FakeYoutubeDL.seen = []
+        _FakeYoutubeDL.answer = {'_type': 'video', 'id': 'FPH_gHOAr-U',
+                                 'title': 'Welcome to the Show -(OFFICIAL AUDIO)'}
+        for patcher in (mock.patch('wama.common.utils.video_utils.yt_dlp.YoutubeDL', _FakeYoutubeDL),
+                        mock.patch('wama.common.utils.url_guard.verifier_url',
+                                   side_effect=_refuse_private)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_the_video_is_its_id_alone_whatever_the_playlist_state(self):
+        canonical = url_ingest.canonical_media_url
+        self.assertEqual('https://www.youtube.com/watch?v=FPH_gHOAr-U', canonical(self.URL))
+        self.assertEqual('https://www.youtube.com/watch?v=FPH_gHOAr-U',
+                         canonical('https://youtu.be/FPH_gHOAr-U?list=PLx&index=7&t=42'))
+        self.assertEqual('https://www.youtube.com/watch?v=FPH_gHOAr-U',
+                         canonical('https://music.youtube.com/watch?v=FPH_gHOAr-U&list=RDAMVM'))
+        self.assertEqual('https://www.youtube.com/watch?v=abc',
+                         canonical('https://www.youtube.com/shorts/abc?feature=share'))
+        playlist = 'https://www.youtube.com/playlist?list=PLaAeSiXP0jiNxwLxB7DyxtltZiZbewSwB'
+        self.assertEqual(playlist, canonical(playlist), 'no video designated: left as given')
+        other = 'https://vimeo.com/12345?list=x'
+        self.assertEqual(other, canonical(other), 'only YouTube is reduced')
+
+    def test_the_audio_of_the_designated_video_is_downloaded_alone_with_its_title(self):
+        from wama.common.utils.video_utils import download_youtube_audio
+        decoy = os.path.join(self.dir, 'Lola Young - Messy.wav')
+        with open(decoy, 'wb') as fh:
+            fh.write(b'another song of the list')
+        path, title = download_youtube_audio(self.URL, self.dir)
+        self.assertEqual('Welcome to the Show -(OFFICIAL AUDIO).wav', os.path.basename(path),
+                         'the file yt_dlp wrote, never a .wav found in the folder')
+        self.assertEqual('Welcome to the Show -(OFFICIAL AUDIO)', title)
+        url, download, opts = _FakeYoutubeDL.seen[0]
+        self.assertEqual(('https://www.youtube.com/watch?v=FPH_gHOAr-U', False), (url, download))
+        self.assertTrue(opts.get('noplaylist'))
+        self.assertEqual(1, len(_FakeYoutubeDL.seen), 'one extraction only')
+
+    def test_the_video_download_designates_the_video_too(self):
+        from wama.common.utils.video_utils import upload_media_from_url
+        path, title = upload_media_from_url(self.URL, self.dir, with_title=True)
+        self.assertEqual('Welcome to the Show -(OFFICIAL AUDIO).mp4', os.path.basename(path),
+                         'the file as yt_dlp named it — no random suffix any more')
+        self.assertEqual('Welcome to the Show -(OFFICIAL AUDIO)', title)
+        url, _download, opts = _FakeYoutubeDL.seen[0]
+        self.assertEqual('https://www.youtube.com/watch?v=FPH_gHOAr-U', url)
+        self.assertTrue(opts.get('noplaylist'))
+
+    def test_a_playlist_alone_is_refused_and_says_why_without_another_downloader(self):
+        from wama.common.utils.video_utils import download_youtube_audio, upload_media_from_url
+        _FakeYoutubeDL.answer = {'_type': 'playlist', 'title': 'Ma playlist', 'entries': []}
+        playlist = 'https://www.youtube.com/playlist?list=PLaAeSiXP0jiNxwLxB7DyxtltZiZbewSwB'
+        # The refusal keeps its type: the pytube fallback would have turned it into a `ValueError`.
+        for download in (download_youtube_audio, upload_media_from_url):
+            with self.subTest(download=download.__name__), \
+                    self.assertRaises(url_ingest.PlaylistNotAMedia) as refused:
+                download(playlist, self.dir)
+            self.assertIn('playlist', str(refused.exception))
+        self.assertFalse(os.listdir(self.dir), 'nothing downloaded')
+
+
 class WebPageIsKeptAsHtmlTest(SimpleTestCase):
     """Une page web est gardée TELLE QUELLE — plus convertie en texte à l'import."""
 
@@ -245,6 +351,40 @@ class CreationDownloadTest(_UserCase):
             source_ingest.ingest_now(d)
         d.refresh_from_db()
         self.assertEqual(d.detected_type, 'video')
+
+    def test_every_mode_gives_the_platform_title_and_it_names_the_entry(self):
+        """2026-11-07: only the `audio` mode returned the title — a video pasted in the anonymizer
+        or the describer was named after its damaged file name. The three modes now return it, and
+        the provenance keeps it as the ORIGINAL name, which the common entry label reads."""
+        from wama.common.services.batch_identity import _origins_for, element_entry
+        from wama.common.utils import video_utils
+        title = '"Welcome to the Show" -(OFFICIAL AUDIO)'
+
+        def platform(url, dest_dir, with_title=False):
+            path = os.path.join(dest_dir, '＂Welcome to the Show＂ -(OFFICIAL AUDIO).mp4')
+            with open(path, 'wb') as fh:
+                fh.write(b'0')
+            return (path, title) if with_title else path
+
+        def audio(url, dest_dir):
+            path = os.path.join(dest_dir, '＂Welcome to the Show＂ -(OFFICIAL AUDIO).wav')
+            with open(path, 'wb') as fh:
+                fh.write(b'0')
+            return path, title
+        url = 'https://www.youtube.com/watch?v=FPH_gHOAr-U&list=PLx&index=2'
+        for mode in ('media', 'smart', 'audio'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as dest, \
+                    mock.patch.object(video_utils, 'upload_media_from_url', side_effect=platform), \
+                    mock.patch.object(video_utils, 'download_youtube_audio', side_effect=audio):
+                path, got = source_ingest._download(url, mode, dest)
+                self.assertEqual(title, got)
+                self.assertEqual(f'{title}{os.path.splitext(path)[1]}',
+                                 source_ingest._original_name(path, got))
+        d = self._description(url)
+        with mock.patch.object(video_utils, 'upload_media_from_url', side_effect=platform):
+            source_ingest.ingest_now(d)
+        d.refresh_from_db()
+        self.assertEqual(f'{title}.mp4', element_entry(d, _origins_for([d]))['name'])
 
     def test_a_refused_url_is_remembered_and_said_on_the_card_entry(self):
         from wama.common.utils import preview_utils

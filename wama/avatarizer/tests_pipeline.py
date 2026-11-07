@@ -285,7 +285,10 @@ class TheCardShowsItsProcessesTest(TestCase):
             html = self._card(job)
             for key in ('animate', 'enhance'):
                 self.assertRegex(html, rf'wcv3-proc-run"[^>]*data-id="{job.pk}"[^>]*data-process="{key}"')
-            self.assertNotRegex(html, rf'data-id="{job.pk}"[^>]*data-process="speak"')
+            # The voice is brought : the speech is « sans objet » since 2026-11-07 (every step stays
+            # on the card), and has no ▶.
+            self.assertIn('data-process="speak" data-state="na"', html)
+            self.assertNotRegex(html, rf'wcv3-proc-run"[^>]*data-id="{job.pk}"[^>]*data-process="speak"')
 
     def test_the_button_of_a_process_sends_a_bounded_task(self):
         from types import SimpleNamespace

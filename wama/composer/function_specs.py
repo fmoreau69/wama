@@ -27,6 +27,15 @@ remplissent le champ « Paroles » quand il est vide et que le modèle chante :
 Ce que la séparation apporte : changer un réglage du rendu (durée, format) ne rejoue pas la
 partition ; une partition corrigée à la main se rend sans être replanifiée ; un rendu qui
 échoue se relance sans refaire ce qui a réussi.
+
+Depuis le 2026-11-07 (décisions de Fabien : « partition réduite autonome », « rendu facultatif ») :
+  • `extract_score` est l'interrupteur de l'utilisateur pour TOUT cover (`extract_reduced_score`),
+    IMPOSÉ quand le modèle reprend le cover par sa partition (`required_by=COVERS_BY_SCORE`) ;
+  • `render` porte un interrupteur (`generate_audio`) et reste REQUIS activé : coupé, ce qui ne lit
+    que lui — sortie, partition et paroles de sortie — n'a plus lieu (`AppPipeline.starved`). Une
+    card peut ne demander que les partitions d'un audio ;
+  • les partitions de l'ENTRÉE ne dépendent plus du modèle de rendu : une card de musique suffit
+    (`MAKES_MUSIC`), un bruitage n'en a pas.
 """
 from wama.common.catalog.function_catalog import (Binding, FunctionCategory as FC, FunctionSpec,
                                                   PortSpec, register)
@@ -40,12 +49,12 @@ _IMPL = 'composer.tasks:compose_task'
 
 def _extract_applies(gen, model_key) -> bool:
     """Juge l'ÉLÉMENT : un audio de cover est donné (fichier, ou URL qui le remplira au lancement)
-    et aucune partition n'est fournie. Que le modèle de rendu reprenne l'audio PAR SA PARTITION est
-    une capacité, déclarée en donnée (`needs=COVERS_BY_SCORE`, 2026-11-06) ; qu'un modèle
-    d'extraction soit installé, la DISPONIBILITÉ du process (`available`) — tous deux lus par
-    `AppPipeline.takes_place`, jamais redemandés ici. Sans modèle connu (« auto » non tiré), rien
-    à extraire : la tâche tranche au lancement."""
-    if not model_key or getattr(gen, 'reference_score', None):
+    et aucune partition n'est fournie. Depuis le 2026-11-07 (décision de Fabien, « partition
+    réduite autonome »), le process est l'interrupteur de l'utilisateur pour TOUT cover, et
+    IMPOSÉ quand le modèle de rendu reprend l'audio par sa partition (`required_by=COVERS_BY_SCORE`)
+    — il ne dépend plus d'un modèle connu : l'élément seul en juge. Qu'un modèle d'extraction
+    soit installé reste la DISPONIBILITÉ du process (`available`)."""
+    if getattr(gen, 'reference_score', None):
         return False
     return bool(getattr(gen, 'melody_reference', None) or getattr(gen, 'source_url', ''))
 
@@ -227,8 +236,11 @@ from .utils.model_choice import MUSIC_TASK  # noqa: E402
 from .utils.vocals import CAPABILITY as SINGS  # noqa: E402
 
 MAKES_MUSIC = {'field': 'task', 'in': [MUSIC_TASK]}
-#: Le modèle REPREND un morceau (cover) : par son audio (MusicGen Melody) ou par sa partition (YuE2).
-TAKES_A_COVER = {'field': 'inputs_optional', 'in': ['work_audio', 'work_score']}
+# ⚠ `TAKES_A_COVER` (« le modèle de rendu reprend un morceau ») bornait la partition complète de
+# l'ENTRÉE au modèle de RENDU (2026-11-05) — retiré le 2026-11-07 : le rendu devient facultatif, et
+# la partition d'un audio se demande sans rien rendre (décision de Fabien). Les deux partitions de
+# l'entrée exigent seulement une card de MUSIQUE (`MAKES_MUSIC`) : un bruitage n'en a pas — la
+# règle du 2026-11-05, gardée.
 #: Il reprend un audio PAR SA PARTITION : il suit une partition sans prendre l'audio lui-même (YuE2)
 #: — l'audio du cover passe alors par la partition qu'on en extrait.
 COVERS_BY_SCORE = {'all': [{'field': 'inputs_optional', 'in': ['work_score']},
@@ -252,9 +264,12 @@ PIPELINE = register_app_pipeline(_APP, (
     # Libellés de la bande (2026-10-26, Fabien : « les 2 sont des partitions extraites, l'une est
     # réduite, l'autre complète — ce n'est pas très clair ») : « réduite » / « complète », comme
     # la bascule de la vue partition ; celle du morceau produit, « de sortie ».
+    # Autonome depuis le 2026-11-07 (décision de Fabien) : l'interrupteur de l'utilisateur pour
+    # tout cover, IMPOSÉ quand le modèle reprend le cover par sa partition (`required_by`).
     ProcessSpec('extract_score', label='Partition réduite',
                 watched=('melody_reference', 'source_url'),
-                gpu=True, share=1, needs=COVERS_BY_SCORE, applies=_extract_applies,
+                degree=OPTIONAL, toggle='extract_reduced_score', required_by=COVERS_BY_SCORE,
+                needs=MAKES_MUSIC, gpu=True, share=1, applies=_extract_applies,
                 available=_extract_available,
                 outputs=('extracted_score',), eta='composer.tasks:extract_score_eta'),
     # PARTITION COMPLÈTE de l'ENTRÉE (2026-10-16 ; sur l'entrée depuis le 2026-10-26, décision de
@@ -264,7 +279,7 @@ PIPELINE = register_app_pipeline(_APP, (
     # la card : un modèle de la tâche `audio-to-midi` (`parts_model`, ou tiré sous « auto ») ; elle
     # n'a lieu que si un modèle de la tâche est installé (`available`).
     ProcessSpec('parts', label='Partition complète', watched=('melody_reference', 'source_url'),
-                degree=OPTIONAL, toggle='extract_parts', gpu=True, share=2, needs=TAKES_A_COVER,
+                degree=OPTIONAL, toggle='extract_parts', gpu=True, share=2, needs=MAKES_MUSIC,
                 applies=_parts_applies, available=_parts_available,
                 outputs=('parts_score',), eta='composer.tasks:parts_eta'),
     # Les PAROLES de l'entrée (2026-11-03, décision de Fabien) : après la partition, dont elles
@@ -282,7 +297,11 @@ PIPELINE = register_app_pipeline(_APP, (
                 outputs=('planned_score',),
                 eta='composer.tasks:plan_eta'),
     # Deux amonts ALTERNATIFS, exclusifs par `applies` : un amont sans objet est ignoré.
+    # FACULTATIF depuis le 2026-11-07 (décision de Fabien) : coupé, ce qui ne lit que lui — la
+    # sortie, la partition et les paroles de sortie — n'a plus lieu (`AppPipeline.starved`).
+    # REQUIS quand il est activé : un rendu en échec fait échouer la card.
     ProcessSpec('render', label='Rendu', depends_on=('extract_score', 'extract_lyrics', 'plan'),
+                toggle='generate_audio',
                 watched=_RENDER_WATCHED, gpu=True, share=3, outputs=('audio_output',),
                 eta='composer.tasks:render_eta'),
     # Les réglages de SORTIE (format, qualité) : process COMMUN (`output_process`), toujours joué.

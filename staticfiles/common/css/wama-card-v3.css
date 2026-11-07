@@ -431,7 +431,14 @@
    2026-10-16) ; en teinte d'étiquette il reste lisible (6:1) et se distingue de l'actif. */
 .wcv3-proc--off > :not(.wcv3-proc-toggle):not(.wcv3-proc-name) { opacity: .45; }
 .wcv3-proc--off .wcv3-proc-name { color: var(--wama-text-label); font-weight: 400; }
+/* Étape SANS OBJET ici (2026-11-07, « toujours afficher toutes les étapes », grisées) : estompée
+   comme une étape désactivée — teinte d'étiquette pour le nom, jamais l'opacité (contraste) —,
+   et soulignée en pointillé pour la distinguer d'un choix de l'utilisateur ; sa raison au survol. */
+.wcv3-proc--na > :not(.wcv3-proc-toggle):not(.wcv3-proc-name):not(.wcv3-proc-note) { opacity: .45; }
+.wcv3-proc--na .wcv3-proc-name { color: var(--wama-text-label); font-weight: 400;
+    text-decoration: underline dotted; text-underline-offset: 2px; }
 .wcv3-proc-toggle { margin: 0; width: .85rem; height: .85rem; cursor: pointer; }
+.wcv3-proc-toggle:disabled { cursor: not-allowed; }
 .wcv3-proc-sep { font-size: .7rem; color: var(--wama-text-label); }
 /* BRANCHES (2026-10-26) : une colonne par profondeur du graphe, comme le studio dispose le sien.
    Seule, une colonne ne se voit pas (la chaîne reste une ligne) ; à plusieurs process, ils

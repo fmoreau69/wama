@@ -522,8 +522,13 @@ class AnUpstreamThatNoLongerTakesPlaceTest(WhatALaunchReplaysTest):
         self._played(pipeline, item, 'render', self._output(f'out{item.pk}.txt', 'B'))
         self.assertEqual(set(), pipeline.refresh(item))
         self.assertEqual(JOB_SUCCESS, pipeline.card_state(item))
-        self.assertEqual(['render'], [row['key'] for row in pipeline.card_rows(item, 'any')],
-                         'the strip no longer shows a process the element no longer plays')
+        # Since 2026-11-07 (Fabien: « toujours afficher toutes les étapes », greyed) the strip still
+        # SHOWS the process the element no longer plays — as « sans objet », with its reason.
+        rows = {row['key']: row for row in pipeline.card_rows(item, 'any')}
+        self.assertEqual(['prep', 'render'], list(rows))
+        self.assertEqual(('na', 'Sans objet pour cette card'), (rows['prep']['state'],
+                                                                 rows['prep']['reason']))
+        self.assertEqual('active', rows['render']['state'])
 
     def test_under_a_model_not_drawn_yet_only_the_switch_judges(self):
         """« auto » before the draw : `requested_model` is None — the line is not guessed away."""
@@ -735,9 +740,11 @@ class WhatTheCardShowsTest(TestCase):
     def test_without_any_line_the_element_alone_is_shown(self):
         item = _Element(status=JOB_PENDING)
         self.assertEqual(JOB_PENDING, self.pipeline.shown_state(item))
-        # 2026-10-26 : the model unknown, only what takes place whatever the draw is shown — the
-        # render (no `applies`), not the plan (it applies to one model only).
-        self.assertEqual(['render'], [r['key'] for r in self.pipeline.card_rows(item)])
+        # Since 2026-11-07 every step is shown (Fabien: « toujours afficher toutes les étapes »):
+        # the model unknown, the plan — which applies to one model only — is there, « sans
+        # objet », and only the render can be launched.
+        rows = {r['key']: r['state'] for r in self.pipeline.card_rows(item)}
+        self.assertEqual({'plan': 'na', 'render': 'active'}, rows)
 
     def test_each_row_says_what_its_process_watches_for_its_own_gear(self):
         """⚙ par process (P5) : the gear of a row shows the settings the process WATCHES — read
@@ -756,10 +763,25 @@ class WhatTheCardShowsTest(TestCase):
                         toggle='wants_summary'),
         ), label='Demo')
 
-    def test_a_switch_belongs_to_an_optional_process_only(self):
+    def test_a_required_process_may_carry_a_switch_and_stays_required_when_on(self):
+        """2026-11-07 (Fabien: « rendu facultatif »): a REQUIRED process may carry a switch —
+        required when on (its failure fails the card), ignored off. Declared `optional`, a failed
+        render would have left the card « to be completed » instead of saying it failed."""
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('render', label='Rendu', toggle='wants_it'),), label='Demo')
+        item = _Element(status=JOB_PENDING, wants_it=True)
+        process_runs.start(item, 'render')
+        process_runs.fail(item, 'render', 'out of memory')
+        self.assertEqual(JOB_FAILURE, pipeline.card_state(item))
+        item.wants_it = False
+        self.assertEqual([], _keys(pipeline.applicable(item)))
+        self.assertEqual('off', pipeline.card_rows(item)[0]['state'])
+
+    def test_what_the_model_imposes_needs_a_switch_to_impose(self):
         with self.assertRaises(ValueError) as refused:
-            AppPipeline('demo_pipeline', (ProcessSpec('render', toggle='wants_it'),), label='Demo')
-        self.assertIn('optional', str(refused.exception))
+            AppPipeline('demo_pipeline', (ProcessSpec('score', degree='optional',
+                                                      required_by='follows_a_score'),), label='Demo')
+        self.assertIn('required_by', str(refused.exception))
 
     def test_an_option_switched_off_does_not_take_place_and_no_longer_weighs_on_the_card(self):
         """Rule 4.4: « les optional désactivés sont ignorés ». A failed summary keeps the card
@@ -866,13 +888,116 @@ class WhatTheCardShowsTest(TestCase):
             process_runs.start(item, key)
             process_runs.succeed(item, key)
         rows = {r['key']: r for r in pipeline.card_rows(item)}
-        self.assertEqual(['render', 'output', 'render_score'], list(rows),
-                         'the model-dependent process that never ran stays hidden under « auto »')
-        self.assertEqual(('wants_it', False), (rows['render_score']['toggle'],
-                                               rows['render_score']['enabled']))
+        # Since 2026-11-07 every step shows; the model-dependent one is « sans objet », not hidden.
+        self.assertEqual(['score', 'render', 'output', 'render_score'], list(rows))
+        self.assertEqual('na', rows['score']['state'])
+        self.assertEqual(('wants_it', False, 'off'), (rows['render_score']['toggle'],
+                                                      rows['render_score']['enabled'],
+                                                      rows['render_score']['state']))
 
-    def test_a_process_that_does_not_take_place_leaves_no_empty_column(self):
-        """A → B → C with B absent for this model: C comes right after A, and says it follows A."""
+    def test_under_auto_an_option_the_element_allows_shows_before_any_launch(self):
+        """2026-11-07, Fabien: « la partition complète activée ne s'affiche pas sur la card ». An
+        optional process with a switch whose `applies` judges the ELEMENT (an input audio is there)
+        is the user's choice: under « auto » it is ACTIVE when checked, OFF when not, before
+        anything ran — so it can be launched alone. One the element rules out (no input audio) is
+        « sans objet » with its reason, never hidden (2026-11-07, « grisée »)."""
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('score', label='Partition',
+                        applies=lambda item, model_key: model_key == 'writes-scores'),
+            ProcessSpec('parts', label='Partition complète', degree='optional', toggle='wants_parts',
+                        applies=lambda item, model_key: bool(item.has_audio)),
+            ProcessSpec('render', label='Rendu', depends_on=('score',)),
+        ), label='Demo')
+        for wants, state in ((True, 'active'), (False, 'off')):
+            rows = {r['key']: r for r in pipeline.card_rows(
+                _Element(status=JOB_PENDING, wants_parts=wants, has_audio=True))}
+            self.assertEqual(['score', 'parts', 'render'], list(rows))
+            self.assertEqual(('wants_parts', wants, state), (rows['parts']['toggle'],
+                                                             rows['parts']['enabled'],
+                                                             rows['parts']['state']))
+        rows = {r['key']: r for r in pipeline.card_rows(
+            _Element(status=JOB_PENDING, wants_parts=True, has_audio=False))}
+        self.assertEqual(('na', 'Sans objet pour cette card'),
+                         (rows['parts']['state'], rows['parts']['reason']),
+                         'an option the element rules out is said, not hidden')
+
+    def test_a_cut_switch_starves_only_what_reads_a_link_from_it_in_every_real_app(self):
+        """`starved` (2026-11-07, « rendu facultatif ») measured on the REAL pipelines : switching
+        ONE switch off, only the steps that read nothing but a LINK from the cut step stop — the
+        composer's output, output score and output lyrics without the render. A step that
+        transforms an entry of the card (the anonymizer's reading of scanned pages, the
+        transcriber's audio preparation) starves nothing : its downstream reads the original.
+        Measured the same day, before the precision : cutting the OCR dropped the text detection.
+        A new switch that starves something makes this fail — look at it, then write it here."""
+        from types import SimpleNamespace
+        from wama.common.services.process_pipeline import _load_declarations
+        from wama.common.sandbox import sandbox_labels
+        _load_declarations()
+        twins = set(sandbox_labels())
+        found = {}
+        for app, pipeline in sorted(APP_PIPELINES.items()):
+            if app in twins or app.startswith('demo'):
+                continue
+            base = {s.toggle: True for s in pipeline.specs if s.toggle}
+            base.update({s.upstream_switch: True for s in pipeline.specs if s.upstream_switch})
+            for toggle in sorted(t for t in base if any(s.toggle == t for s in pipeline.specs)):
+                item = SimpleNamespace(**{**base, toggle: False})
+                starved = [s.key for s in pipeline.specs if pipeline.starved(s, item, None)]
+                if starved:
+                    found[(app, toggle)] = starved
+        self.assertEqual({('composer', 'generate_audio'): ['output', 'rendered_parts',
+                                                            'rendered_lyrics']}, found)
+
+    def test_a_cut_step_that_transforms_a_card_entry_starves_nothing(self):
+        """The precision itself, on a fictitious pipeline : the upstream TAKES the `work_file` it
+        hands on (it transforms the card's entry) — cut, its downstream reads the original."""
+        from wama.common.catalog.function_catalog import (FUNCTION_CATALOG, Binding, FunctionSpec,
+                                                          PortSpec)
+        keys = ('demo_starve.ocr', 'demo_starve.detect', 'demo_starve.render', 'demo_starve.out')
+        for key, inputs, outputs in (
+                (keys[0], [PortSpec('work_file', 'document')], [PortSpec('read', 'document')]),
+                (keys[1], [PortSpec('work_file', 'document')], [PortSpec('found', 'detections')]),
+                (keys[2], [PortSpec('prompt', 'prompt')], [PortSpec('audio', 'audio')]),
+                (keys[3], [PortSpec('native', 'audio')], [PortSpec('result', 'audio')])):
+            FUNCTION_CATALOG[key] = FunctionSpec(
+                key=key, name=key, description='', category='transform', binding=Binding.APP,
+                app='demo_starve', inputs=inputs, outputs=outputs)
+        self.addCleanup(lambda: [FUNCTION_CATALOG.pop(k, None) for k in keys])
+        pipeline = AppPipeline('demo_starve', (
+            ProcessSpec('ocr', function=keys[0], degree='optional', toggle='wants_ocr'),
+            ProcessSpec('detect', function=keys[1], depends_on=('ocr',)),
+            ProcessSpec('render', function=keys[2], toggle='wants_render'),
+            ProcessSpec('out', function=keys[3], depends_on=('render',)),
+        ), label='Demo')
+        item = _Element(wants_ocr=False, wants_render=False)
+        self.assertFalse(pipeline.starved(pipeline.spec('detect'), item))
+        self.assertTrue(pipeline.starved(pipeline.spec('out'), item))
+        self.assertEqual(['detect'], _keys(pipeline.applicable(item, 'any')))
+
+    def test_each_cause_of_a_step_that_does_not_take_place_is_said(self):
+        """The reasons the strip gives (`AppPipeline.REASONS`): nothing installed, its input cut
+        by the user, the model, the draw still to come — never a hidden step."""
+        from unittest import mock
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('extract', label='Extraction', available=lambda: False),
+            ProcessSpec('render', label='Rendu', toggle='wants_render'),
+            ProcessSpec('lyrics', label='Paroles', degree='optional', needs='supports_vocals'),
+        ), label='Demo')
+        item = _Element(status=JOB_PENDING, wants_render=True)
+        with mock.patch.object(AppPipeline, 'model_serves', return_value=False):
+            rows = {r['key']: (r['state'], r['reason']) for r in pipeline.card_rows(item, 'demo:noise')}
+        self.assertEqual({'extract': ('na', AppPipeline.REASONS['unavailable']),
+                          'render': ('active', ''),
+                          'lyrics': ('na', AppPipeline.REASONS['model'])}, rows)
+        rows = {r['key']: (r['state'], r['reason']) for r in pipeline.card_rows(item, None)}
+        self.assertEqual(('active', AppPipeline.REASONS['draw']), rows['lyrics'],
+                         'under « auto » nothing is guessed: the reason says it')
+
+    def test_a_process_that_does_not_take_place_keeps_its_place_in_the_chain(self):
+        """A → B → C with B absent for this model: since 2026-11-07 B is SHOWN « sans objet »
+        (Fabien: « toujours afficher toutes les étapes »), so the chain keeps its three columns —
+        C follows B, which says why it does not take place. Before, B vanished and C came
+        right after A."""
         pipeline = AppPipeline('demo_pipeline', (
             ProcessSpec('first', label='A'),
             ProcessSpec('middle', label='B', depends_on=('first',),
@@ -884,8 +1009,9 @@ class WhatTheCardShowsTest(TestCase):
             process_runs.start(item, key)
             process_runs.succeed(item, key)
         rows = pipeline.card_rows(item, 'any')
-        self.assertEqual([('first', 0, []), ('last', 1, ['A'])],
-                         [(r['key'], r['column'], r['after']) for r in rows])
+        self.assertEqual([('first', 0, [], 'active'), ('middle', 1, ['A'], 'na'),
+                          ('last', 2, ['B'], 'active')],
+                         [(r['key'], r['column'], r['after'], r['state']) for r in rows])
 
     def test_an_output_that_is_not_a_file_makes_its_downstream_stale_when_it_changes(self):
         """A transcription is text in the base, not a file: its glue DECLARES a fingerprint
@@ -1000,10 +1126,12 @@ class WhatTheCardShowsTest(TestCase):
         self.addCleanup(APP_PIPELINES.pop, 'demo_pipeline', None)
         scored = _Element(status=JOB_SUCCESS, model='writes-scores')
         plain = _Element(status=JOB_SUCCESS, model='plain')
-        self.assertEqual(['plan', 'render'], [r['key'] for r in card_view(scored)[0]])
-        self.assertEqual(['render'], [r['key'] for r in card_view(plain)[0]])
-        self.assertEqual(['plan', 'render'],
-                         [r['key'] for r in card_view(plain, 'writes-scores')[0]])
+        # Every step shows (2026-11-07) : the declared model decides which are ACTIVE.
+        states = lambda view: [(r['key'], r['state']) for r in view[0]]  # noqa: E731
+        self.assertEqual([('plan', 'active'), ('render', 'active')], states(card_view(scored)))
+        self.assertEqual([('plan', 'na'), ('render', 'active')], states(card_view(plain)))
+        self.assertEqual([('plan', 'active'), ('render', 'active')],
+                         states(card_view(plain, 'writes-scores')))
         self.assertIsNone(declared.requested_model(_Element(status=JOB_SUCCESS)),
                           'no `model` on the element : unknown, never an error')
         seen = []
@@ -1011,7 +1139,8 @@ class WhatTheCardShowsTest(TestCase):
                                lambda item, preloaded: seen.append((item.pk, preloaded)))
         self.assertEqual([(scored.pk, True), (plain.pk, True)], seen)
         self.assertEqual([scored, plain], cards)
-        self.assertEqual(['render'], [r['key'] for r in decorate_cards([plain])[0].processes])
+        self.assertEqual([('plan', 'na'), ('render', 'active')],
+                         [(r['key'], r['state']) for r in decorate_cards([plain])[0].processes])
 
     def test_a_stale_render_is_shown_under_a_successful_element(self):
         item = _Element(status=JOB_SUCCESS)
@@ -1029,9 +1158,11 @@ class WhatTheCardShowsTest(TestCase):
 
     def test_the_rows_show_what_ran_and_what_the_named_model_will_run(self):
         item = _Element(status=JOB_PENDING)
-        self.assertEqual(['render'], [r['key'] for r in self.pipeline.card_rows(item, 'plays-only')])
-        self.assertEqual(['plan', 'render'],
-                         [r['key'] for r in self.pipeline.card_rows(item, 'writes-scores')])
+        self.assertEqual([('plan', 'na'), ('render', 'active')],
+                         [(r['key'], r['state']) for r in self.pipeline.card_rows(item, 'plays-only')])
+        self.assertEqual([('plan', 'active'), ('render', 'active')],
+                         [(r['key'], r['state'])
+                          for r in self.pipeline.card_rows(item, 'writes-scores')])
         self.assertTrue(all(r['status'] == JOB_PENDING for r in
                             self.pipeline.card_rows(item, 'writes-scores')))
 
@@ -1463,6 +1594,30 @@ class InputsThePipelineBringsTest(SimpleTestCase):
 
     def test_a_model_without_the_bridged_port_gains_nothing(self):
         self.assertEqual({'prompt'}, self._pipeline().extended_inputs({'prompt'}))
+
+    def test_an_upstream_that_feeds_a_required_input_extends_no_model(self):
+        """Every model of the render reads its prompt: an upstream that turns the cover audio into
+        words of the prompt (the composer's lyrics of the input, 2026-11-04) says nothing about
+        WHICH model takes the audio. Until 2026-11-07 it made every model accept it — the
+        bidirectional filter was dead, « auto » drew for a cover a model that ignores the audio."""
+        from wama.common.catalog.function_catalog import (FUNCTION_CATALOG, Binding, FunctionSpec,
+                                                          PortSpec)
+        keys = ('demo_bridge.lyrics', 'demo_bridge.sing')
+        for key, inputs, outputs in (
+                (keys[0], [PortSpec('work_audio', 'audio')], [PortSpec('lyrics', 'prompt')]),
+                (keys[1], [PortSpec('prompt', 'prompt'),
+                           PortSpec('work_score', 'score', optional=True)],
+                 [PortSpec('audio', 'audio')])):
+            FUNCTION_CATALOG[key] = FunctionSpec(
+                key=key, name=key, description='', category='transform', binding=Binding.APP,
+                app='demo_bridge', inputs=inputs, outputs=outputs)
+        self.addCleanup(lambda: [FUNCTION_CATALOG.pop(k, None) for k in keys])
+        pipeline = AppPipeline('demo_bridge', (
+            ProcessSpec('lyrics', function=keys[0]),
+            ProcessSpec('render', function=keys[1], depends_on=('lyrics',)),
+        ), label='Demo')
+        self.assertEqual({'work_audio'}, pipeline.covering_inputs('work_audio'))
+        self.assertEqual({'prompt'}, pipeline.extended_inputs({'prompt'}))
 
     def test_an_unavailable_upstream_extends_nothing_and_does_not_take_place(self):
         self.installed = False

@@ -6851,6 +6851,50 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   déclarations d'un processus web neuf — revérification du même jour : la première version
 >   lisait `APP_PIPELINES` sans elles, le défaut du 2026-10-03). Gardes :
 >   `tests_cap_from_js.ProcessSectionsTest` (V8) et `ProcessesOfThePageTest`.
+> - ✅ **UNE SECTION PAR ÉTAPE, DANS L'ORDRE CHRONOLOGIQUE, SON INTERRUPTEUR EN TÊTE — pour TOUTES
+>   les apps (2026-11-07, décisions de Fabien sur la cartographie des dix apps)**. Mesuré avant :
+>   l'avatarizer seul suivait l'ordre chronologique ; les interrupteurs sans `stales` (transcriber,
+>   describer, reader) tombaient en tête, ceux qui en ont (composer) dans leur section ; les
+>   réglages de sortie (aucun `stales`) passaient EN TÊTE (composer, synthesizer, enhancer) ;
+>   l'imager, l'anonymizer et le converter rangeaient par thème (ParamGroup), hors process ; un
+>   seul « Avancé » global. Désormais, dans `WamaParams.render` (code commun, rien par app) :
+>   un réglage rejoint le process qui le SURVEILLE (`WAMA_APP_PROCESSES[].watched` = `watched_of`,
+>   la donnée du serveur — la sortie surveille ses réglages communs) ; l'interrupteur d'un process
+>   (`toggle`) devient l'EN-TÊTE de la section de son étape (`_processSectionHtml`), qui existe même
+>   sans autre réglage ; sections REPLIÉES par défaut — leurs en-têtes forment la rangée des
+>   interrupteurs —, une étape qu'on active s'ouvre (`_bindProcessSwitches`), coupée elle est
+>   estompée ; un réglage avancé va dans un « Avancé » replié de SON étape ; les groupes déclarés
+>   (ParamGroup) vivent DANS la section de chaque étape (un sous-groupe homonyme de sa section perd
+>   son titre, pas sa condition). Décision 2 (« grisée ») : un réglage ou une section que le modèle
+>   choisi ne sert pas (`needs`) se GRISE avec sa raison au lieu de se cacher (`_bindProcessNeeds`
+>   — elle cachait depuis le 2026-11-05), la règle d'`INPUT_MODEL_MATCHING §2`. Gardes V8 :
+>   `tests_cap_from_js.ProcessSectionsTest.test_one_folded_section_per_step_…`,
+>   `…test_declared_groups_live_inside_the_section_of_each_step`,
+>   `SettingsFollowWhatTheModelServesTest` (grisé, jamais caché ; étape imposée).
+> - ✅ **LA BANDE MONTRE TOUTES LES ÉTAPES, TOUJOURS (2026-11-07, Fabien : « toujours afficher toutes
+>   les étapes […] indiquer les sous-process actifs de ceux qui ne le sont pas »)** :
+>   `card_rows` rend chaque process avec un `state` — `active` (il a lieu, ou peut avoir lieu sous
+>   un modèle à tirer), `off` (coupé par sa case) ou `na` (« sans objet », pointillé, sans ▶) — et
+>   sa `reason` (`AppPipeline.REASONS` : rien d'installé, entrée coupée en amont, modèle, tirage à
+>   venir, élément). Avant, une étape sans objet disparaissait — et sous « auto », toute étape à
+>   `applies` : la partition complète activée n'apparaissait pas (vécu sur la card #1355). Gardes :
+>   `tests_process_pipeline.WhatTheCardShowsTest` (raisons, branches, auto).
+> - ✅ **Trois notions du moteur pour une étape FACULTATIVE (même jour, « rendu facultatif »,
+>   « partition réduite autonome »)** :
+>   1. un process REQUIS peut porter un interrupteur (`toggle`) : requis activé (son échec fait
+>      échouer la card), ignoré coupé — `optional`, un rendu raté aurait laissé la card « à
+>      compléter » (`process_runs.aggregate`) ;
+>   2. `ProcessSpec.required_by` : un optionnel IMPOSÉ par le modèle de la card (la grammaire de
+>      `needs`) — son degré effectif est alors requis (`degree_of`, lu par l'agrégation et par le
+>      squelette) ; l'écran coche et verrouille sa case en le disant, `read()` poste la valeur de
+>      l'utilisateur ;
+>   3. `AppPipeline.starved` : une étape dont une entrée REQUISE n'est rendue que par des amonts
+>      COUPÉS par l'utilisateur n'a pas lieu — sauf quand l'amont transforme une entrée de la card
+>      (il prend un port du même nom : la lecture des pages scannées, la préparation audio), dont
+>      l'aval lit alors l'original. Mesuré sur les dix apps : seul le rendu du composer prive son
+>      aval (sortie, partition et paroles de sortie) ; sans la précision, couper l'OCR de
+>      l'anonymizer aurait retiré la détection du texte. Garde sur les pipelines RÉELS :
+>      `…test_a_cut_switch_starves_only_what_reads_a_link_from_it_in_every_real_app`.
 > - ✅ **5.2 Gabarit GÉNÉRÉ (même jour)** : la card émise par `templates_gen` inclut la bande
 >   (`_card_processes.html`, vide sous deux process) et lit `elem.shown_state|default:
 >   elem.status` ; `views_gen._decorer` appelle `process_pipeline.decorate(item)` — le point

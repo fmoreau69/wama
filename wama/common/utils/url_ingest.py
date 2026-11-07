@@ -51,6 +51,57 @@ def is_media_platform(url: str) -> bool:
     return _host_in(url, MEDIA_PLATFORM_DOMAINS)
 
 
+#: Hôtes YouTube — dont l'adresse d'une vidéo se réduit à son identifiant (`canonical_media_url`).
+_YOUTUBE_DOMAINS = ('youtube.com', 'youtu.be', 'youtube-nocookie.com')
+
+
+def canonical_media_url(url: str) -> str:
+    """L'adresse d'UNE vidéo de plateforme, débarrassée de ce qui n'est pas elle.
+
+    Une vidéo ouverte DANS une playlist (`watch?v=<id>&list=<liste>&index=2`) porte l'état de
+    lecture de la playlist : `list` la désigne, `index` est la position courante du lecteur — elle
+    avance à chaque rechargement de la page, sans rapport avec la place de la vidéo dans la liste.
+    Seul `v` dit la vidéo voulue (2026-11-07, Fabien : la 2ᵉ d'une playlist collée dans le Composer
+    a importé la 5ᵉ — le téléchargement audio, sans `noplaylist`, tirait la liste entière et gardait
+    un `.wav` au hasard). Rendue : `https://www.youtube.com/watch?v=<id>` (un temps de départ `t`
+    n'est pas gardé : on télécharge le média entier). Hors YouTube, ou sans identifiant de vidéo
+    (une playlist seule), l'adresse est rendue telle quelle — `ensure_single_media` la refusera."""
+    from urllib.parse import parse_qs
+    text = str(url or '').strip()
+    if not _host_in(text, _YOUTUBE_DOMAINS):
+        return text
+    parsed = urlparse(text)
+    host = (parsed.hostname or '').lower()
+    video_id = ''
+    if host == 'youtu.be' or host.endswith('.youtu.be'):
+        video_id = parsed.path.strip('/').split('/')[0]
+    else:
+        video_id = (parse_qs(parsed.query).get('v') or [''])[0]
+        if not video_id:
+            parts = [p for p in parsed.path.split('/') if p]
+            # /shorts/<id>, /live/<id>, /embed/<id> : l'identifiant est le segment qui suit.
+            if len(parts) >= 2 and parts[0] in ('shorts', 'live', 'embed', 'v'):
+                video_id = parts[1]
+    video_id = re.sub(r'[^\w\-]', '', video_id)
+    return f'https://www.youtube.com/watch?v={video_id}' if video_id else text
+
+
+class PlaylistNotAMedia(ValueError):
+    """Une adresse de playlist là où l'on attend UN média — un refus, pas un échec à retenter
+    par un autre téléchargeur."""
+
+
+def ensure_single_media(info: dict, url: str) -> dict:
+    """Le résultat de yt_dlp est-il UN média ? Une playlist seule (adresse sans vidéo désignée)
+    rendrait N fichiers pour une card qui n'en prend qu'un : refusée, en le disant — jamais un
+    fichier pris au hasard parmi eux."""
+    if isinstance(info, dict) and (info.get('_type') == 'playlist' or info.get('entries') is not None):
+        raise PlaylistNotAMedia(
+            "Cette adresse désigne une playlist, pas une vidéo : ouvrez la vidéo voulue et "
+            f"collez son adresse ({url}).")
+    return info
+
+
 def url_nature(url: str) -> str:
     """Nature d'une URL connaissable AVANT de la télécharger, dans le vocabulaire commun
     (`app_registry.category_of_path`) — ou '' quand seul le téléchargement le dira.

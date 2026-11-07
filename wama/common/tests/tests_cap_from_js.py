@@ -348,10 +348,12 @@ class CapFromBindingTest(SimpleTestCase):
 
 
 #: The composer's processes as the page receives them (`WAMA_APP_PROCESSES`), with what each one
-#: requires from the model of the card (`ProcessSpec.needs`, 2026-11-05).
+#: requires from the model of the card (`ProcessSpec.needs`, 2026-11-05). The full score of the
+#: INPUT requires a MUSIC model since 2026-11-07 (no longer a model taking a cover : the render is
+#: optional) — held against the real pipeline by `test_the_fixture_is_what_the_real_pipeline_says`.
 NEEDS_PROCESSES = [
     {'key': 'parts', 'label': 'Partition complète', 'optional': True, 'model_field': 'model',
-     'needs': {'field': 'inputs_optional', 'in': ['work_audio', 'work_score']}},
+     'needs': {'field': 'task', 'in': ['text-to-music']}},
     {'key': 'render', 'label': 'Rendu', 'optional': False},
     {'key': 'rendered_parts', 'label': 'Partition de sortie', 'optional': True, 'model_field': 'model',
      'needs': {'field': 'task', 'in': ['text-to-music']}},
@@ -392,6 +394,14 @@ class SettingsFollowWhatTheModelServesTest(SimpleTestCase):
         self.assertIsNone(self._needs(['parts', 'render']), 'one served process requires nothing')
         self.assertIsNone(self._needs([]))
 
+    def test_the_fixture_is_what_the_real_pipeline_says(self):
+        """The fixture above is a copy : it drifted once (2026-11-07). Held against the REAL
+        composer pipeline."""
+        from wama.composer.function_specs import PIPELINE
+        for process in NEEDS_PROCESSES:
+            with self.subTest(process=process['key']):
+                self.assertEqual(PIPELINE.spec(process['key']).needs, process.get('needs'))
+
     def test_the_condition_reads_the_same_on_capabilities_in_the_browser_and_on_the_server(self):
         from wama.common.utils.param_schema import condition_met
         for process in NEEDS_PROCESSES:
@@ -414,8 +424,10 @@ class SettingsFollowWhatTheModelServesTest(SimpleTestCase):
         from wama.composer.function_specs import PIPELINE
         score = {'task': 'text-to-music', 'inputs_optional': ['work_score'], 'supports_score_planning': True}
         both = {'task': 'text-to-music', 'inputs_optional': ['work_score', 'work_audio']}
-        declared = [spec.needs for spec in PIPELINE.ordered() if spec.needs]
-        self.assertGreaterEqual(len(declared), 6)
+        # `required_by` (2026-11-07) is the same grammar, judged on the same line : read here too.
+        declared = ([spec.needs for spec in PIPELINE.ordered() if spec.needs]
+                    + [spec.required_by for spec in PIPELINE.ordered() if spec.required_by])
+        self.assertGreaterEqual(len(declared), 7)
         for needs in declared:
             for caps in (SFX, SONG, COVER, score, both, {}):
                 with self.subTest(needs=needs, caps=caps):
@@ -423,7 +435,7 @@ class SettingsFollowWhatTheModelServesTest(SimpleTestCase):
                         f"window.WamaParams.conditionMet({json.dumps(needs)}, "
                         f"function (name) {{ return {json.dumps(caps)}[name]; }})")
                     self.assertEqual(condition_met(needs, caps), shown)
-        covers_by_score = PIPELINE.spec('extract_score').needs
+        covers_by_score = PIPELINE.spec('extract_score').required_by
         self.assertEqual((True, False, False), (condition_met(covers_by_score, score),
                                                 condition_met(covers_by_score, both),
                                                 condition_met(covers_by_score, COVER)))
@@ -471,8 +483,13 @@ class SettingsFollowWhatTheModelServesTest(SimpleTestCase):
                                        {{model_key: 'composer:cover', capabilities: {json.dumps(COVER)}}}]}};
               return {{then: function (f) {{ return Promise.resolve(f({{json: function () {{ return payload; }}}})); }}}};
             }}
+            function classes() {{
+              var on = {{}};
+              return {{toggle: function (n, v) {{ on[n] = !!v; }},
+                       contains: function (n) {{ return !!on[n]; }}}};
+            }}
             function row(name, needs) {{
-              return {{name: name, hidden: false, getAttribute: function (a) {{
+              return {{name: name, hidden: false, classList: classes(), getAttribute: function (a) {{
                 return a === 'data-needs' ? JSON.stringify(needs.needs)
                      : (a === 'data-needs-field' ? needs.field : null); }}}};
             }}
@@ -482,9 +499,12 @@ class SettingsFollowWhatTheModelServesTest(SimpleTestCase):
             var rows = {{parts_model: row('parts_model', NEEDS.parts_model),
                          extract_parts: row('extract_parts', NEEDS.extract_parts),
                          lyrics_model: row('lyrics_model', NEEDS.lyrics_model)}};
-            var partsSection = {{hidden: false, querySelectorAll: function () {{
-                                   return [rows.extract_parts, rows.parts_model]; }}}};
-            var lyricsSection = {{hidden: false, querySelectorAll: function () {{ return [rows.lyrics_model]; }}}};
+            function section(members) {{
+              return {{hidden: false, classList: classes(), querySelector: function () {{ return null; }},
+                       querySelectorAll: function () {{ return members(); }}}};
+            }}
+            var partsSection = section(function () {{ return [rows.extract_parts, rows.parts_model]; }});
+            var lyricsSection = section(function () {{ return [rows.lyrics_model]; }});
             var m = fakeField({json.dumps(model_key)}, '');
             var box = {{_wpCapApply: [], querySelector: function (sel) {{ return sel === '#m' ? m : null; }},
                         querySelectorAll: function (sel) {{
@@ -493,26 +513,85 @@ class SettingsFollowWhatTheModelServesTest(SimpleTestCase):
                         addEventListener: function () {{}}}};
             window.WamaParams.bindProcessNeeds(box, [{{name: 'model', type: 'select', help_source: 'composer',
                                                       dom_id: {{panel: 'm'}}}}], 'panel');""")
+        # GREYED, never hidden (2026-11-07, Fabien : « grisée ») : the unserved mark and its class.
         return json.loads(self.v8.eval(
-            "JSON.stringify({extract_parts: rows.extract_parts.hidden, parts_model: rows.parts_model.hidden,"
-            " lyrics_model: rows.lyrics_model.hidden, parts_section: partsSection.hidden,"
-            " lyrics_section: lyricsSection.hidden})"))
+            "JSON.stringify({extract_parts: !!rows.extract_parts._wpUnserved,"
+            " parts_model: !!rows.parts_model._wpUnserved, lyrics_model: !!rows.lyrics_model._wpUnserved,"
+            " parts_section: partsSection.classList.contains('wama-proc-section--unserved'),"
+            " lyrics_section: lyricsSection.classList.contains('wama-proc-section--unserved'),"
+            " hidden: [rows.extract_parts, rows.parts_model, rows.lyrics_model, partsSection,"
+            "          lyricsSection].some(function (e) { return e.hidden; }),"
+            " greyed_row: rows.lyrics_model.classList.contains('wama-param--unserved')})"))
 
-    def test_under_a_sound_effect_model_the_score_and_lyrics_settings_and_sections_are_hidden(self):
+    def test_under_a_sound_effect_model_the_score_and_lyrics_settings_and_sections_are_greyed(self):
         self.assertEqual({'extract_parts': True, 'parts_model': True, 'lyrics_model': True,
-                          'parts_section': True, 'lyrics_section': True}, self._bind('composer:audiogen'))
+                          'parts_section': True, 'lyrics_section': True, 'hidden': False,
+                          'greyed_row': True}, self._bind('composer:audiogen'))
 
     def test_each_model_keeps_what_it_serves(self):
-        self.assertEqual({'extract_parts': True, 'parts_model': False, 'lyrics_model': False,
-                          'parts_section': False, 'lyrics_section': False}, self._bind('composer:singer'),
-                         'a singer without cover : the output score and the lyrics stay')
+        # The full score of the INPUT needs a MUSIC model since 2026-11-07 (it no longer depends on
+        # the model taking a cover : the render is optional) — a singer serves it.
+        self.assertEqual({'extract_parts': False, 'parts_model': False, 'lyrics_model': False,
+                          'parts_section': False, 'lyrics_section': False, 'hidden': False,
+                          'greyed_row': False}, self._bind('composer:singer'),
+                         'a singer : the scores and the lyrics stay')
         self.assertEqual({'extract_parts': False, 'parts_model': False, 'lyrics_model': True,
-                          'parts_section': False, 'lyrics_section': True}, self._bind('composer:cover'))
+                          'parts_section': False, 'lyrics_section': True, 'hidden': False,
+                          'greyed_row': True}, self._bind('composer:cover'))
 
-    def test_under_auto_nothing_is_hidden(self):
+    def test_the_settings_and_the_card_say_the_same_reason(self):
+        """One decision, one wording : the greyed settings say what the card strip says."""
+        from wama.common.services.process_pipeline import AppPipeline
+        js = (JS / 'wama-params.js').read_text(encoding='utf-8')
+        self.assertIn(f"var UNSERVED_NOTE = '{AppPipeline.REASONS['model']}.';", js)
+
+    def test_under_auto_nothing_is_greyed(self):
         """The draw is not known : nothing is guessed (the rule of `cap_from`)."""
         self.assertEqual({'extract_parts': False, 'parts_model': False, 'lyrics_model': False,
-                          'parts_section': False, 'lyrics_section': False}, self._bind('auto:text-to-music'))
+                          'parts_section': False, 'lyrics_section': False, 'hidden': False,
+                          'greyed_row': False}, self._bind('auto:text-to-music'))
+
+    def test_a_step_the_model_imposes_is_checked_and_locked_and_the_user_value_still_posts(self):
+        """`required_by` (2026-11-07, « partition réduite autonome ») : under a model that covers by
+        its score, the switch of the reduced score is checked and locked, the section says why ;
+        `read()` still posts the USER's value (the server imposes on its own), and another model
+        gives it back."""
+        imposed = {'all': [{'field': 'inputs_optional', 'in': ['work_score']},
+                           {'not': {'field': 'inputs_optional', 'in': ['work_audio']}}]}
+        by_score = {'task': 'text-to-music', 'inputs_optional': ['work_score']}
+        self.v8.eval(f"""
+            function fetch() {{
+              var payload = {{models: [{{model_key: 'composer:yue', capabilities: {json.dumps(by_score)}}},
+                                       {{model_key: 'composer:melody', capabilities: {json.dumps(COVER)}}}]}};
+              return {{then: function (f) {{ return Promise.resolve(f({{json: function () {{ return payload; }}}})); }}}};
+            }}
+            var box = {{type: 'checkbox', checked: false, disabled: false, dataset: {{}},
+                        getAttribute: function (a) {{ return a === 'name' ? 'extract_reduced_score' : null; }},
+                        dispatchEvent: function () {{}}}};
+            var sw = {{hidden: false, classList: {{toggle: function () {{}}}},
+                       querySelector: function (s) {{ return s === 'input[type="checkbox"]' ? box : null; }},
+                       getAttribute: function (a) {{
+                         return a === 'data-imposed-by' ? {json.dumps(json.dumps(imposed))}
+                              : (a === 'data-needs-field' ? 'model' : null); }}}};
+            var m = fakeField('composer:yue', '');
+            var host = {{_wpCapApply: [], querySelector: function (sel) {{ return sel === '#m' ? m : null; }},
+                         querySelectorAll: function (sel) {{
+                           if (sel === '[data-group]') return [];
+                           if (sel === '[name],[data-param]') return [box];
+                           if (sel === '[data-replace-own="1"]') return [];
+                           return [sw]; }},
+                         addEventListener: function () {{}}}};
+            window.WamaParams.bindProcessNeeds(host, [{{name: 'model', type: 'select', help_source: 'composer',
+                                                       dom_id: {{panel: 'm'}}}}], 'panel');""")
+        under_yue = json.loads(self.v8.eval(
+            "JSON.stringify([box.checked, box.disabled, window.WamaParams.read(host).extract_reduced_score,"
+            " sw.title])"))
+        self.assertEqual([True, True, False, 'Imposée par le modèle choisi.'], under_yue,
+                         'checked and locked for the eye ; the user value (unchecked) is posted')
+        back = json.loads(self.v8.eval(
+            "m.value = 'composer:melody'; host._wpCapApply.forEach(function (f) { f(); });"
+            " JSON.stringify([box.checked, box.disabled, sw.title])"))
+        self.assertEqual([False, False, ''], back, 'another model gives the user value back')
 
     def test_the_rendered_row_carries_what_its_processes_require(self):
         schema = [{'name': 'duration', 'type': 'number', 'stales': ['render']},
@@ -693,29 +772,82 @@ class ProcessSectionsTest(SimpleTestCase):
         self.assertIsNone(self._sections([{'name': 'a', 'stales': ['render']}], '[]'),
                           'no pipeline : flat')
 
-    def test_the_rendered_modal_folds_each_section_and_keeps_advanced_last(self):
-        """What `render` makes of the sections — the browser smoke of 2026-10-26 saw it on the
-        composer ; here it is held : one OPEN `<details>` per process, the shared settings above,
-        « Avancé » folded and last."""
-        schema = [{'name': 'prompt', 'type': 'text', 'stales': ['plan', 'render']},
-                  {'name': 'duration', 'type': 'number', 'stales': ['render']},
-                  {'name': 'extract_parts', 'type': 'toggle', 'stales': ['parts']},
-                  {'name': 'seed', 'type': 'number', 'advanced': True, 'stales': ['render']}]
-        out = self.v8.eval(
+    SWITCHED = json.dumps([
+        {'key': 'extract_score', 'label': 'Partition réduite', 'optional': True,
+         'toggle': 'extract_reduced_score', 'watched': ['extract_reduced_score']},
+        {'key': 'parts', 'label': 'Partition complète', 'optional': True, 'toggle': 'extract_parts',
+         'watched': ['extract_parts', 'parts_model']},
+        {'key': 'plan', 'label': 'Partition', 'optional': False, 'watched': ['prompt']},
+        {'key': 'render', 'label': 'Rendu', 'optional': False, 'toggle': 'generate_audio',
+         'watched': ['prompt', 'duration', 'seed', 'generate_audio']},
+        {'key': 'output', 'label': 'Sortie', 'optional': False,
+         'watched': ['output_format', 'output_quality']},
+        {'key': 'rendered_parts', 'label': 'Partition de sortie', 'optional': True,
+         'toggle': 'extract_rendered_parts', 'watched': ['extract_rendered_parts', 'parts_model']}])
+
+    def _rendered(self, schema, processes=None, values=None, groups=None):
+        return self.v8.eval(
             "(function () { var host = {innerHTML: '', querySelectorAll: function () { return []; },"
             " querySelector: function () { return null; }, addEventListener: function () {}};"
             f" window.WamaParams.render(host, {json.dumps(schema)},"
-            f" {{context: 'panel', processes: {self.PROCESSES}}});"
+            f" {{context: 'panel', processes: {processes or self.SWITCHED},"
+            f" values: {json.dumps(values or {})}, groups: {json.dumps(groups)}}});"
             " return host.innerHTML; })()")
-        parts = out.index('<details class="wama-param-group" data-group="_process_parts" open>')
-        render = out.index('<details class="wama-param-group" data-group="_process_render" open>')
-        advanced = out.index('data-group="_advanced"')
-        self.assertLess(out.index('data-param-row="prompt"'), parts, 'shared settings first')
-        self.assertTrue(parts < out.index('data-param-row="extract_parts"') < render)
-        self.assertTrue(render < out.index('data-param-row="duration"') < advanced)
-        self.assertGreater(out.index('data-param-row="seed"'), advanced,
-                           'an advanced setting stays in « Avancé », not in its process')
-        self.assertNotIn('data-group="_advanced" open', out)
+
+    def test_one_folded_section_per_step_in_pipeline_order_its_switch_in_its_head(self):
+        """2026-11-07, Fabien, on the map of the ten apps : one list in the CHRONOLOGICAL order of
+        the pipeline, one foldable section per step, its SWITCH in the head — folded, the heads
+        make the row of switches. A setting joins the step that WATCHES it (the output settings,
+        which declare no `stales`, used to jump to the top) ; an advanced setting goes in a folded
+        « Avancé » of ITS step ; the shared ones (prompt) stay on top."""
+        schema = [{'name': 'output_format', 'type': 'select', 'choices': [['original', 'Original']]},
+                  {'name': 'prompt', 'type': 'text', 'stales': ['plan', 'render']},
+                  # `pills: []` : how the schema serialises a plain switch (seen in the browser).
+                  {'name': 'generate_audio', 'type': 'toggle', 'stales': ['render'], 'default': True,
+                   'pills': []},
+                  {'name': 'duration', 'type': 'number', 'stales': ['render']},
+                  {'name': 'extract_parts', 'type': 'toggle', 'stales': ['parts'], 'help': 'Une partie par instrument.'},
+                  {'name': 'extract_reduced_score', 'type': 'toggle', 'stales': ['extract_score']},
+                  {'name': 'seed', 'type': 'number', 'advanced': True, 'stales': ['render']}]
+        out = self._rendered(schema, values={'extract_parts': True})
+        heads = [out.index(f'data-group="_process_{k}"') for k in ('extract_score', 'parts', 'render', 'output')]
+        self.assertEqual(sorted(heads), heads, 'pipeline order, whatever the schema order')
+        self.assertLess(out.index('data-param-row="prompt"'), heads[0], 'shared settings first')
+        self.assertNotIn(' open>', out.split('data-group="_process_')[1], 'sections start folded')
+        # The switch IS the head of its step : in its <summary>, not in a body.
+        render_head = out[heads[2]:out.index('</summary>', heads[2])]
+        self.assertIn('class="wama-proc-switch" data-param-row="generate_audio"', render_head)
+        self.assertIn('data-param="generate_audio" checked', render_head)
+        parts_head = out[heads[1]:out.index('</summary>', heads[1])]
+        self.assertIn('data-param="extract_parts" checked', parts_head)
+        self.assertIn('Une partie par instrument.', out[heads[1]:heads[2]], 'its help heads the body')
+        self.assertIn('wama-proc-section--off', out[heads[0] - 120:heads[0]],
+                      'a switched-off step is greyed')
+        self.assertTrue(heads[2] < out.index('data-param-row="duration"') < heads[3])
+        self.assertTrue(heads[3] < out.index('data-param-row="output_format"'),
+                        'the output settings, watched by the output, come last')
+        self.assertTrue(heads[2] < out.index('data-group="_advanced_render"') < heads[3],
+                        'an advanced setting of a step folds in ITS step')
+        self.assertNotIn('data-group="_advanced"', out, 'no advanced left for the common box')
+
+    def test_declared_groups_live_inside_the_section_of_each_step(self):
+        """The imager, the anonymizer, the converter declare groups (ParamGroup) : they KEEP them,
+        inside the section of each step ; a sub-group named like its section loses its title, not
+        its condition."""
+        processes = json.dumps([{'key': 'generate', 'label': 'Génération', 'watched': ['model', 'steps']},
+                                {'key': 'output', 'label': 'Sortie', 'watched': ['output_format']}])
+        groups = [{'key': 'qualite', 'title': 'Qualité'},
+                  {'key': 'sortie', 'title': 'Sortie', 'show_if': {'field': 'model'}}]
+        schema = [{'name': 'model', 'type': 'text'}, {'name': 'steps', 'type': 'number', 'group': 'qualite'},
+                  {'name': 'output_format', 'type': 'text', 'group': 'sortie'}]
+        out = self._rendered(schema, processes, groups=groups)
+        generate, output = out.index('data-group="_process_generate"'), out.index('data-group="_process_output"')
+        self.assertTrue(generate < out.index('data-group="qualite"') < output)
+        self.assertIn('Qualité', out[generate:output])
+        output_group = out.index('data-group="sortie"')
+        self.assertGreater(output_group, output)
+        self.assertNotIn('wama-param-group-title">Sortie', out[output_group:], 'same name : no second title')
+        self.assertIn('data-show-if', out[output_group:output_group + 120], 'its condition stays')
 
 
 class ProcessesOfThePageTest(SimpleTestCase):
@@ -745,6 +877,10 @@ class ProcessesOfThePageTest(SimpleTestCase):
                                   side_effect=lambda: pp.APP_PIPELINES.update(composer=declared)) as load:
             processes = self._processes('/composer/')
         load.assert_called_once_with()
+        # `watched` (2026-11-07) : what each step watches, by which the page files each setting.
+        watched = {p['key']: p.pop('watched') for p in processes}
+        self.assertEqual({key: list(declared.watched_of(declared.spec(key))) for key in watched},
+                         watched)
         self.assertEqual([{'key': 'plan', 'label': 'Partition', 'toggle': '', 'optional': False},
                           {'key': 'render', 'label': 'Rendu', 'toggle': '', 'optional': False},
                           {'key': 'rendered_parts', 'label': 'Partition de sortie',

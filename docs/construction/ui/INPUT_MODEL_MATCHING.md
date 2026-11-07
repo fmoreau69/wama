@@ -886,8 +886,10 @@ rien, et la grille la disait verte (`model_caps_ui` passait au vert au premier `
   `work_audio`/`work_score`). Une capacité ABSENTE ne satisfait pas ; « auto » n'est pas jugé.
 - **Écran** : un réglage qui ne sert QUE des process exigeants (`stales`) l'exige aussi
   (`WamaParams.settingNeeds`, une exigence par process servi, `{any: …}` s'il en sert plusieurs) et se
-  CACHE sous un modèle qui ne la satisfait pas ; une section dont tous les réglages sont cachés se
-  cache (`_bindProcessNeeds`). La grammaire a UN évaluateur par côté (`conditionMet` /
+  ~~CACHE sous un modèle qui ne la satisfait pas ; une section dont tous les réglages sont cachés se
+  cache (`_bindProcessNeeds`)~~ → **se GRISE avec sa raison depuis le 2026-11-07** (décision de
+  Fabien, « grisée » — la règle du §2, « ne jamais cacher, désactiver + expliquer », la même que la
+  bande de la card ; entrée du 2026-11-07 plus bas). La grammaire a UN évaluateur par côté (`conditionMet` /
   `condition_met`), parité testée sur des capacités.
 - **Capacités exhaustives** : `supports_vocals` DÉCLARÉ pour chaque modèle du composer, vrai ou faux
   (`COMPOSER_MODELS`, recopié par la découverte) — « Voix » et « Paroles » liées par `cap_from`
@@ -938,6 +940,37 @@ leur valeur (liées à leur entrée) · Remplacer aussi » ; le menu « … » n
 MusicGen Small (`apply` ne déclenche pas `change` : l'aide se rejoue désormais avec les liaisons de
 valeur, `_bindModelHelp`) ; le sous-titre de la page citait « MusicGen et AudioGen », écrit à la main
 (il est désormais la description déclarée, `WAMA_APP_CONVENTIONS §4.2`).
+
+**2026-11-07 — le filtre bidirectionnel était MORT pour un cover depuis le 2026-11-04** (Fabien : un
+cover YouTube sous « auto », la partition complète activée, aucune partition sur la card). Mesuré sur
+la card 1355 : le tirage a pris MiniMax Music 3, qui n'écoute pas l'audio ; `models_accepting('work_audio')`
+rendait MiniMax et MusicGen Small. Cause : les paroles de l'entrée (`extract_lyrics`, audio → paroles
+de type `prompt`) faisaient de la consigne du rendu une « entrée étendue » de l'audio — or TOUT
+modèle lit sa consigne. Les deux sens tombaient ensemble : l'écran ne grisait plus aucun modèle
+(`extended_inputs`), le tirage n'écartait plus personne (`covering_inputs`).
+- **Règle** (`process_pipeline._bridges`) : un pont n'étend que les entrées OPTIONNELLES de l'aval
+  — une entrée requise est prise par tous les modèles du process, un pont vers elle ne distingue
+  personne. Remesuré : candidats d'un cover = MusicGen Melody, YuE2 ; tirage de la card 1355 → YuE2.
+- **Bande sous « auto »** (`card_rows`) : un optionnel À INTERRUPTEUR que l'ÉLÉMENT permet se montre
+  avant tout lancement, coché ou non (sa case, son ▶) ; un process sans interrupteur qui dépend du
+  tirage reste caché. Avant, tout process à `applies` restait caché sous « auto » — règle écrite quand
+  `applies` jugeait encore le modèle (il ne juge plus que l'élément depuis le 2026-11-06).
+- **Pourquoi aucun garde ne l'a vu** : la doublure `tests_extract_score._consumes` disait qu'aucun
+  modèle ne lit la consigne. Elle dit désormais ce que dit le catalogue.
+Gardes : `tests_process_pipeline.InputsThePipelineBringsTest.test_an_upstream_that_feeds_a_required_input_extends_no_model`,
+`…WhatTheCardShowsTest.test_under_auto_an_option_the_element_allows_shows_before_any_launch`,
+`composer.tests_extract_score.TheLyricsDoNotMakeEveryModelTakeTheCoverTest` (pipeline RÉEL) —
+rouges sur HEAD, contre-épreuve faite.
+- **Grisé, jamais caché** (même jour, décision 2 de Fabien) : sous un modèle qui ne sert pas un
+  process, ses réglages et sa section se grisent (`wama-param--unserved`, `wama-proc-section--unserved`,
+  la raison dans l'en-tête) au lieu de se cacher.
+- **Le modèle peut IMPOSER une étape** (`ProcessSpec.required_by`, même grammaire) : la partition
+  réduite est l'interrupteur de l'utilisateur pour tout cover, imposée quand le modèle reprend le
+  cover par sa partition (YuE2, `COVERS_BY_SCORE` — qui était son `needs`). L'interrupteur se coche et
+  se verrouille sous un tel modèle ; `read()` poste la valeur de l'utilisateur.
+- **Les partitions de l'entrée ne dépendent plus du modèle de rendu** : le rendu devient facultatif
+  (`generate_audio`), la partition complète exige une card de MUSIQUE (`MAKES_MUSIC`, plus
+  `TAKES_A_COVER`) — un bruitage n'en a toujours pas.
 
 ### 7bis. Un réglage PROPOSÉ par une entrée — `default_from` ; et son FORMAT — `display_format` (2026-10-04)
 

@@ -1514,9 +1514,10 @@
       if (note) {
         // Une sortie PERDUE (`lost` : rendu, fichier absent du disque, 2026-10-27) se dit avant la
         // durée — la même règle que le gabarit `_card_processes.html`.
+        // Une étape SANS OBJET (`state` 'na', 2026-11-07) le reste dite, comme au gabarit.
         note.textContent = row.lost ? 'sortie perdue'
           : (row.status === 'SUCCESS' && row.duration_s) ? Math.round(row.duration_s) + ' s'
-          : (PROCESS_NOTES[row.status] || '');
+          : (PROCESS_NOTES[row.status] || (row.state === 'na' ? 'sans objet' : ''));
         note.classList.toggle('text-warning', !!row.lost);
         note.classList.toggle('text-body-secondary', !row.lost);
       }

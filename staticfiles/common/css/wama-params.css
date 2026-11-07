@@ -49,6 +49,26 @@ details.wama-param-group > summary.wama-param-group-title::after {
 }
 details.wama-param-group[open] > summary.wama-param-group-title::after { transform: rotate(180deg); }
 
+/* SECTION D'UNE ÉTAPE (2026-11-07, décision de Fabien) : une section repliable par étape, dans
+   l'ordre chronologique du pipeline, son INTERRUPTEUR dans l'en-tête — repliées, les en-têtes
+   forment la rangée des interrupteurs. Coupée : repliée et estompée (teinte, pas opacité, pour
+   le titre). Sans objet sous le modèle choisi : estompée, la raison dite sous le titre. */
+.wama-proc-head { display: flex; align-items: center; gap: .5rem; }
+.wama-proc-head .wama-proc-title { flex: 1 1 auto; }
+.wama-proc-switch { display: inline-flex; align-items: center; text-transform: none; letter-spacing: 0; }
+.wama-proc-switch .form-check { margin: 0; min-height: 0; }
+.wama-proc-switch .form-check-input { cursor: pointer; margin-top: 0; }
+.wama-proc-switch .form-check-input:disabled { cursor: not-allowed; }
+.wama-proc-note { display: block; font-size: .72rem; font-weight: 400; letter-spacing: 0;
+    text-transform: none; color: var(--wama-param-note); margin-top: .15rem; }
+.wama-proc-section--off > summary .wama-proc-title,
+.wama-proc-section--unserved > summary .wama-proc-title { color: var(--wama-param-note); font-weight: 600; }
+/* L'estompage du corps : celui d'un réglage grisé par `cap_from` (`opacity-50`), un seul idiome. */
+.wama-proc-section--off > .wama-param-group-body,
+.wama-proc-section--unserved > .wama-param-group-body { opacity: .5; }
+/* Sous-groupe déclaré (ParamGroup) DANS la section d'une étape : titre plus discret. */
+.wama-param-group-body > .wama-param-group > .wama-param-group-title { font-size: .68rem; border-bottom: 0; }
+
 /* Sélecteur segmenté (toggle pills) : pleine largeur, pills équilibrées. */
 .wama-param-pills .btn { flex: 1 1 0; }
 

@@ -120,6 +120,29 @@ PARAMS = [
         "model", dom_id={"panel": "seedInput", "item": "settingsSeed",
                          "batch": "batchSettingsSeed"},
         contexts=PANEL_ITEM_BATCH, stales=("plan", "render"))),
+    # PARTITION RÉDUITE AUTONOME (2026-11-07, décision de Fabien) : la case du process `extract_score`
+    # — la mélodie de l'audio repris, pour tout cover, même sans rien rendre. IMPOSÉE quand le
+    # modèle choisi reprend le cover PAR sa partition (YuE2, `ProcessSpec.required_by`) : la case
+    # se coche et se verrouille, en le disant. Ne périme qu'elle-même.
+    Param(name="extract_reduced_score", type="toggle", label="Partition réduite (mélodie)",
+          icon="fa-music",
+          help="Écrit la mélodie de l'audio repris (cover) en partition, lisible et corrigeable "
+               "dans la page « Éditer la partition ». Imposée par un modèle qui reprend le "
+               "morceau par sa partition.",
+          dom_id={"panel": "extractReducedScore", "item": "settingsExtractReducedScore",
+                  "batch": "batchSettingsExtractReducedScore"},
+          contexts=PANEL_ITEM_BATCH, stales=("extract_score",)),
+    # RENDU FACULTATIF (2026-11-07, décision de Fabien : « la génération d'un cover ne devrait pas
+    # être une étape obligatoire ») : la case du process `render`. Coupé, rien n'est rendu — ni sa
+    # sortie, ni les partition et paroles de sortie, qui ne lisent que lui (`starved`) : la card
+    # ne garde que ses partitions et ses paroles d'entrée.
+    Param(name="generate_audio", type="toggle", label="Générer le morceau",
+          icon="fa-wave-square", default=True,
+          help="Rend l'audio depuis la consigne (et la partition, quand le modèle en suit une). "
+               "Décochez pour n'obtenir que les partitions ou les paroles d'un morceau.",
+          dom_id={"panel": "generateAudio", "item": "settingsGenerateAudio",
+                  "batch": "batchSettingsGenerateAudio"},
+          contexts=PANEL_ITEM_BATCH, stales=("render",)),
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
     # `parts` (`ProcessSpec.toggle`) — depuis le 2026-10-26 sur l'ENTRÉE : l'audio repris, comme la
     # partition réduite. Ne périme qu'elle-même : le rendu suit la réduite, jamais celle-ci.
