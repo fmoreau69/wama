@@ -45,20 +45,24 @@ logger.info("[Diffusers] caches : SD=%s FLUX=%s LOGO=%s",
 # pleins : diffusers la lit (`FluxTransformer2DModel.from_single_file`, `GGUFQuantizationConfig`),
 # le reste du pipeline (T5, CLIP, VAE) vient du dépôt officiel déjà installé. Un seul fichier du
 # dépôt, figé à son commit, avec sa taille et son empreinte LFS publiées par le Hub : le pilote
-# `files` l'installe, le vérifie et le retire (ligne de catalogue `FLUX_GGUF_KEY`,
-# `model_registry._discover_precision_weights_models`). Les autres niveaux du dépôt (Q2_K à F16)
-# ne sont pas déclarés : la plus réduite que garde FLUX ici reste le NF4 de bitsandbytes.
+# `files` l'installe, le vérifie et le retire (ligne de catalogue `FLUX_GGUF_KEY`, que
+# `model_registry._discover_precision_weights_models` DÉRIVE de `FLUX_GGUF_PRECISION`). Les autres
+# niveaux du dépôt (Q2_K à F16) ne sont pas déclarés : la plus réduite que garde FLUX ici reste le
+# NF4 de bitsandbytes.
 FLUX_GGUF_REPO = 'city96/FLUX.1-dev-gguf'
 FLUX_GGUF_REVISION = '3c60ac659f4b1f2ab3ca8bd4488272069b36a148'
 FLUX_GGUF_WEIGHTS = 'flux1-dev-Q8_0.gguf'
-FLUX_GGUF_FILES = [
+FLUX_GGUF_FILES = (
     {'path': FLUX_GGUF_WEIGHTS, 'size': 12708281504,
      'sha256': '129032f32224bf7138f16e18673d8008ba5f84c1ec74063bf4511a8bb4cf553d',
      'origin': {'source': 'huggingface', 'repo': FLUX_GGUF_REPO, 'revision': FLUX_GGUF_REVISION,
                 'file': FLUX_GGUF_WEIGHTS}},
-]
+)
 # Clé LITTÉRALE : l'inventaire la lit par AST.
 FLUX_GGUF_KEY = "huggingface:city96/FLUX.1-dev-gguf"
+#: Le modèle dont ce fichier est la QUANTIFICATION (clé de `SUPPORTED_MODELS`) : son dépôt et sa
+#: licence se lisent sur sa déclaration, pas une seconde fois ici.
+FLUX_GGUF_QUANTIZES = 'flux-1-dev'
 
 
 def flux_gguf_folder():
@@ -66,6 +70,12 @@ def flux_gguf_folder():
     pilote `files` pose `FLUX_GGUF_FILES`."""
     from pathlib import Path
     return Path(settings.MODEL_PATHS['diffusion']['flux_gguf'])
+
+
+#: La précision Q8_0 de FLUX : le transformeur lu dans `FLUX_GGUF_FILES`, offert seulement quand
+#: le fichier est en place (`LoadPrecision.available`).
+FLUX_GGUF_PRECISION = LoadPrecision('Q8_0', quantized=('transformer',), library='gguf',
+                                    weights=FLUX_GGUF_FILES, weights_dir=str(flux_gguf_folder()))
 
 
 # Module-level pipeline cache — persists across Celery tasks within the same worker process.
@@ -341,12 +351,11 @@ class DiffusersBackend(ImageGenerationBackend):
     #: en 4 bits (5,54) il descend au processeur — 9,09 au pic, celui des encodeurs.
     #: Le Q8_0 GGUF (2026-11-06) avant l'INT8 : huit bits aussi, mais une échelle par bloc de 32
     #: poids (llama.cpp) là où bitsandbytes en pose une par ligne ; il n'existe ici qu'une fois ses
-    #: poids installés par la route (`weights_key`). La qualité d'image face aux poids pleins n'est
-    #: mesurée pour aucune des trois réductions (`ROADMAP §Gouvernance` i).
+    #: poids installés par la route (`FLUX_GGUF_PRECISION`). La qualité d'image face aux poids
+    #: pleins n'est mesurée pour aucune des trois réductions (`ROADMAP §Gouvernance` i).
     FLUX_PRECISIONS = (
         LoadPrecision('BF16'),
-        LoadPrecision('Q8_0', quantized=('transformer',), library='gguf',
-                      weights_key=FLUX_GGUF_KEY),
+        FLUX_GGUF_PRECISION,
         LoadPrecision('INT8', quantized=('transformer',), resident=('transformer',),
                       library='bitsandbytes'),
         LoadPrecision('NF4', quantized=('transformer',), library='bitsandbytes'),
@@ -383,10 +392,9 @@ class DiffusersBackend(ImageGenerationBackend):
             logger.warning("[Diffusers] FLUX : aucune empreinte pour « %s » — précision la plus "
                            "réduite disponible (%s)", self.catalogue_key or '?', precision.label)
         logger.info("[Diffusers] FLUX : précision %s", precision.label)
-        found = precision.weights_files()
-        return {'quantization': self._FLUX_BNB.get(precision.label) or ('gguf' if found else None),
-                'label': precision.label,
-                'gguf': str(found[0] / found[1][0]['path']) if found else ''}
+        return {'quantization': (self._FLUX_BNB.get(precision.label)
+                                 or ('gguf' if precision.weights else None)),
+                'label': precision.label, 'gguf': precision.weights_path()}
 
     def _load_flux_quantized(self, base_model: str, quant_bits: str, cache_dir: str,
                              gguf_file: str = ''):

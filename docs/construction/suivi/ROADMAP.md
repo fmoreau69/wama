@@ -1072,7 +1072,8 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
      retranche ses lignes (`served_resident_gb`, `backends.manager.served_by_for_key`). Whisper tenu
      par le service de voix n'épargne toujours rien au transcriber ;
    * **la précision se choisit au gouverneur** : le moteur DÉCLARE ce qu'il sait charger
-     (`load_precisions` → `LoadPrecision(label, quantized, resident, library)`) ; le pic de chaque
+     (`load_precisions` → `LoadPrecision(label, quantized, resident, library, weights, weights_dir)`,
+     les deux derniers pour des poids publiés à part, cf. le GGUF plus bas) ; le pic de chaque
      précision se calcule des en-têtes (`memory_manager.reduced_peak_gb` : les composants qui
      restent sur la carte s'additionnent au plus gros des autres) ; `chosen_precision` retient la
      plus fidèle dont le pic, plus `FULL_GPU_MIN_FREE_GB`, tient dans ce que la carte peut
@@ -1107,9 +1108,11 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    et INT8), dont les poids sont PUBLIÉS à part — le transformeur GGUF de city96, UN fichier figé à
    son commit, taille et empreinte LFS épinglées (`FLUX_GGUF_FILES`), installé, vérifié et retiré
    par le pilote `files` (ligne `huggingface:city96/FLUX.1-dev-gguf`, relation `quantized` de
-   FLUX.1-dev, aucune tâche ne la tire ; manifeste au corpus). La précision n'existe qu'une fois ses
-   fichiers en place (`LoadPrecision.weights_key`) et se pèse à leur taille déclarée (11,84 Go,
-   échelles comprises : `reduced_peak_gb(reduced_gb=…)`) ; chargement
+   FLUX.1-dev, aucune tâche ne la tire ; manifeste au corpus, ligne DÉRIVÉE de la précision et de la
+   ligne `flux-1-dev`). La précision porte ses fichiers déclarés (`LoadPrecision.weights`,
+   `weights_dir`), n'existe qu'une fois ils sont en place (`declared_files_present`, comme tout moteur
+   qui lit les siens) et se pèse à leur taille déclarée (11,84 Go, échelles comprises :
+   `weights_gb` → `reduced_peak_gb(reduced_gb=…)`) ; chargement
    `FluxTransformer2DModel.from_single_file` + `GGUFQuantizationConfig`, configuration lue dans le
    FLUX.1-dev installé. **MESURÉ sur la carte** (6,8 Go tenus hors de la tâche, 19,65 libérables) :
    le gouverneur retient Q8_0 (11,84 calculés), **12,52 Go au pic** à 1024², 10 pas, 138 s de rendu

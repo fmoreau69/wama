@@ -33,7 +33,7 @@ import logging
 import os
 import weakref
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
 
@@ -52,47 +52,45 @@ class LoadPrecision:
     précision des fichiers. `resident` : ceux qui RESTENT sur la carte quand le moteur décharge les
     autres — mesuré le 2026-11-05, un transformeur bitsandbytes en 8 bits ne se déplace pas, en 4 bits
     il descend au processeur. `library` : le module qu'elle exige, importable ICI ou non.
-    `weights_key` : la clé de CATALOGUE de la ligne qui porte ses poids, quand la précision ne se
-    calcule pas au chargement mais se LIT dans un fichier publié à part (un GGUF, 2026-11-06) — la
-    route installe cette ligne (pilote `files`), et la précision n'existe ici qu'une fois ses fichiers
-    en place. Le poids déclaré de ces fichiers est alors celui du composant réduit
-    (`resource_governor.chosen_precision`)."""
+    `weights` + `weights_dir` : quand la précision ne se calcule pas au chargement mais se LIT dans
+    des poids publiés à part (un GGUF, 2026-11-06), leurs fichiers DÉCLARÉS (forme du pilote
+    `files` : `{path, size, sha256, origin}`) et leur dossier. La découverte en fait une ligne de
+    catalogue que la route installe ; la précision n'existe ici qu'une fois ces fichiers en place
+    (`declared_files_present`, comme tout moteur qui lit les siens), et leur poids déclaré est celui
+    de son composant réduit (`weights_gb`, `resource_governor.chosen_precision`)."""
 
     label: str
     quantized: tuple = ()
     resident: tuple = ()
     library: str = ''
-    weights_key: str = ''
+    weights: tuple = field(default=(), hash=False)
+    weights_dir: str = ''
 
     def available(self) -> bool:
         """La librairie qu'elle exige s'importe-t-elle dans ce process (find_spec, sans importer), et
-        ses poids publiés à part, s'il en faut, sont-ils installés (`weights_files`) ?"""
+        ses poids publiés à part, s'il en faut, sont-ils en place ?"""
         if self.library:
             try:
                 if importlib.util.find_spec(self.library) is None:
                     return False
             except (ImportError, ValueError):
                 return False
-        return not self.weights_key or self.weights_files() is not None
+        if not self.weights:
+            return True
+        from wama.model_manager.services.model_installer import declared_files_present
+        return declared_files_present(self.weights_dir, self.weights)
 
-    def weights_files(self):
-        """`(dossier, fichiers déclarés)` de la ligne `weights_key` quand TOUS ses fichiers sont en
-        place, None sinon — la déclaration de la ligne (`install_dir` + `declared_files`) et la
-        présence que lit la découverte (`model_installer.declared_files_present`), sans relire
-        l'empreinte : c'est l'installation qui l'a vérifiée."""
-        if not self.weights_key:
+    def weights_gb(self):
+        """Le poids DÉCLARÉ (Go) de ses poids publiés à part — la taille épinglée que le pilote
+        `files` vérifie, pas une estimation —, None pour une précision qui se calcule au chargement."""
+        if not self.weights:
             return None
-        try:
-            from wama.model_manager.models import AIModel
-            from wama.model_manager.services.model_installer import declared_files_present
-            row = AIModel.objects.filter(model_key=self.weights_key).first()
-        except Exception:
-            return None
-        info = (row.extra_info or {}) if row is not None else {}
-        root, files = (info.get('install_dir') or '').strip(), info.get('declared_files') or []
-        if not root or not declared_files_present(root, files):
-            return None
-        return Path(root), files
+        return sum(int(f.get('size') or 0) for f in self.weights) / 1024 ** 3
+
+    def weights_path(self) -> str:
+        """Le chemin de son PREMIER fichier déclaré — celui que le moteur charge —, '' sans poids
+        publiés à part."""
+        return str(Path(self.weights_dir) / self.weights[0]['path']) if self.weights else ''
 
 
 _WRAPPED = "_wama_governor_wrapped"

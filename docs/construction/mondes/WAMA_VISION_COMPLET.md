@@ -344,7 +344,8 @@ désinstallation, sélection VRAM-aware et par tiers, singleton `keep_loaded`, s
 d'exécution, ETA auto-apprenant, sauvegarde miroir — et un gouverneur de ressources qui sait ce qui tourne,
 demande la libération à son détenteur et ne l'obtient que par accord explicite (2026-09-20), au
 grain du process (2026-10-14), et choisit la précision de chargement qu'un moteur déclare savoir
-appliquer, sur ce que la carte peut libérer (✅ FLUX, 2026-11-05 ; ⏳ le choix du déchargement et
+appliquer, sur ce que la carte peut libérer (✅ FLUX, 2026-11-05 — et des poids réduits publiés à
+part, installés par la route : le GGUF Q8_0 de FLUX.1-dev, 2026-11-06 ; ⏳ le choix du déchargement et
 l'affichage ✅/⚙/⛔ à l'installation, `ROADMAP §Gouvernance` point 5). L'objectif n'est pas d'exécuter un modèle,
 mais de **gérer un écosystème de modèles actifs** sur un budget de VRAM contraint.
 

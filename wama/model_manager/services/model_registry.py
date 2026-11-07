@@ -1707,18 +1707,22 @@ class ModelRegistry:
 
     def _discover_precision_weights_models(self):
         """Poids d'une PRÉCISION publiés à part (2026-11-06) — le GGUF Q8_0 du transformeur de
-        FLUX.1-dev, qu'une précision du moteur diffusers lit (`LoadPrecision.weights_key`). Une ligne
+        FLUX.1-dev, qu'une précision du moteur diffusers lit (`LoadPrecision.weights`). Une ligne
         pour que la route l'installe, le vérifie et le retire (pilote `files`) ; elle n'est pas un
         modèle à choisir — elle EST FLUX.1-dev quantifié (relation `quantized` du Hub), et aucune
         tâche ne la tire : c'est le gouverneur qui retient sa précision au lancement de FLUX.1-dev.
-        La déclaration vit à côté du moteur (`diffusers_backend.FLUX_GGUF_FILES`)."""
+        Tout se DÉRIVE : fichiers, dossier, étiquette et composant de la précision déclarée à côté
+        du moteur (`diffusers_backend.FLUX_GGUF_PRECISION`) ; dépôt et licence du modèle qu'elle
+        quantifie (`FLUX_GGUF_QUANTIZES`, sa ligne de l'imager)."""
         try:
             from wama.common.backends.diffusers_backend import (
-                FLUX_GGUF_FILES, FLUX_GGUF_KEY, FLUX_GGUF_REPO, flux_gguf_folder,
+                FLUX_GGUF_KEY, FLUX_GGUF_PRECISION, FLUX_GGUF_QUANTIZES, FLUX_GGUF_REPO,
             )
+            from wama.imager.utils.model_config import IMAGER_MODELS
             from wama.model_manager.models import BASE_RELATION_QUANTIZED
             from wama.model_manager.services.model_installer import declared_files_present
-            root = flux_gguf_folder()
+            precision, base = FLUX_GGUF_PRECISION, IMAGER_MODELS[FLUX_GGUF_QUANTIZES]
+            root, files = Path(precision.weights_dir), list(precision.weights)
             self._models[FLUX_GGUF_KEY] = ModelInfo(
                 id=FLUX_GGUF_KEY,
                 name='FLUX.1-dev Q8_0 (GGUF)',
@@ -1732,21 +1736,17 @@ class ModelRegistry:
                 platform_ref=hf_platform_ref(FLUX_GGUF_REPO),
                 format='gguf',
                 preferred_format='gguf',
-                is_downloaded=declared_files_present(root, FLUX_GGUF_FILES),
-                extra_info={'path': str(root / FLUX_GGUF_FILES[0]['path']),
-                            'size_bytes': sum(f['size'] for f in FLUX_GGUF_FILES),
-                            'install_dir': str(root), 'declared_files': FLUX_GGUF_FILES,
-                            'base_model': 'black-forest-labs/FLUX.1-dev',
+                is_downloaded=declared_files_present(root, files),
+                extra_info={'path': precision.weights_path(),
+                            'size_bytes': sum(f['size'] for f in files),
+                            'install_dir': str(root), 'declared_files': files,
+                            'base_model': hf_repo(base['platform_ref']),
                             'base_model_relation': BASE_RELATION_QUANTIZED,
-                            'quantization': 'Q8_0',
-                            # Celle de FLUX.1-dev, que la carte du dépôt déclare
-                            # (`flux-1-dev-non-commercial-license`) — la clé de la ligne
-                            # `imager:flux-1-dev` (`imager/utils/model_config.py`).
-                            'license': 'flux-1-dev-non-commercial'},
+                            'quantization': precision.label,
+                            'license': base['license']},
                 composition={'runtime': {'engine': 'diffusers'},
-                             'components': [{'role': 'transformer',
-                                             'pattern': FLUX_GGUF_FILES[0]['path'],
-                                             'format': 'gguf'}]},
+                             'components': [{'role': precision.quantized[0],
+                                             'pattern': files[0]['path'], 'format': 'gguf'}]},
             )
         except Exception as e:
             self.discovery_errors.append(f'precision-weights: {e}')

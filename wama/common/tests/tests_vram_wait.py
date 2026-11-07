@@ -183,12 +183,23 @@ FLUX_WEIGHTS = {
 
 
 class _Card(TestCase):
-    """Un registre vide et une carte posée par le test."""
+    """Un registre vide et une carte posée par le test — et des précisions de FLUX qui ne dépendent
+    pas du disque du poste : les poids publiés à part (le GGUF) sont cherchés dans un dossier vide,
+    le vrai fichier pouvant être installé ici (`GgufPrecisionTest` y pose le sien)."""
 
     def setUp(self):
+        import dataclasses
+        import shutil
+        import tempfile
+        from wama.common.backends.diffusers_backend import DiffusersBackend
         self.redis = _FauxRedis()
+        self.folder = tempfile.mkdtemp(prefix='wama_gguf_')
+        self.addCleanup(shutil.rmtree, self.folder, True)
+        precisions = tuple(dataclasses.replace(p, weights_dir=self.folder) if p.weights else p
+                           for p in DiffusersBackend.FLUX_PRECISIONS)
         for p in (mock.patch.object(gov, '_redis', return_value=self.redis),
-                  mock.patch.object(gov, 'total_vram_gb', return_value=23.99)):
+                  mock.patch.object(gov, 'total_vram_gb', return_value=23.99),
+                  mock.patch.object(DiffusersBackend, 'FLUX_PRECISIONS', precisions)):
             p.start()
             self.addCleanup(p.stop)
 
@@ -367,9 +378,9 @@ class FluxPrecisionTwinTest(TestCase):
         from wama.model_manager.services.memory_manager import dtype_bytes
         for precision in DiffusersBackend.FLUX_PRECISIONS:
             self.assertIsNotNone(dtype_bytes(precision.label), precision.label)
-            if precision.quantized and not precision.weights_key:
+            if precision.quantized and not precision.weights:
                 self.assertIn(precision.label, DiffusersBackend._FLUX_BNB)
-            if precision.weights_key:
+            if precision.weights:
                 self.assertEqual(precision.library, 'gguf', precision.label)
         self.assertEqual(DiffusersBackend.load_precisions('flux-1-dev'),
                          DiffusersBackend.FLUX_PRECISIONS)
@@ -380,15 +391,13 @@ class GgufPrecisionTest(_Card):
     """Le Q8_0 GGUF de FLUX.1-dev (2026-11-06) : une précision dont les poids sont PUBLIÉS à part et
     installés par la route (pilote `files`, ligne `FLUX_GGUF_KEY`). Absente tant que son fichier
     n'est pas en place ; en place, elle se pèse à la taille DÉCLARÉE du fichier (11,84 Go, ses
-    échelles comprises) et passe avant le 8 bits de bitsandbytes."""
+    échelles comprises) et passe avant le 8 bits de bitsandbytes. Le dossier de la précision est
+    le dossier jetable de `_Card` : le vrai fichier est peut-être installé sur ce poste."""
 
     KEY = 'imager:flux-1-dev'
 
     def setUp(self):
         super().setUp()
-        import shutil
-        import tempfile
-        from wama.common.backends.diffusers_backend import FLUX_GGUF_FILES, FLUX_GGUF_KEY
         from wama.model_manager.models import AIModel
         AIModel.objects.create(
             model_key=self.KEY, name='flux-1-dev', model_type='image', source='imager',
@@ -396,12 +405,6 @@ class GgufPrecisionTest(_Card):
             platform_ref='huggingface:black-forest-labs/FLUX.1-dev',
             composition={'runtime': {'engine': 'diffusers'}},
             extra_info={'weights': FLUX_WEIGHTS})
-        self.folder = tempfile.mkdtemp(prefix='wama_gguf_')
-        self.addCleanup(shutil.rmtree, self.folder, True)
-        self.weights = AIModel.objects.create(
-            model_key=FLUX_GGUF_KEY, name='FLUX.1-dev Q8_0 (GGUF)', model_type='diffusion',
-            source='huggingface', is_downloaded=False,
-            extra_info={'install_dir': self.folder, 'declared_files': FLUX_GGUF_FILES})
 
     def _place_the_file(self):
         from pathlib import Path
@@ -434,7 +437,7 @@ class GgufPrecisionTest(_Card):
         from wama.common.backends.diffusers_backend import FLUX_GGUF_FILES, flux_gguf_folder
         from wama.common.utils.model_locations import models_root
         from wama.model_manager.services.model_installer import declared_files_error
-        self.assertIsNone(declared_files_error({'files': FLUX_GGUF_FILES,
+        self.assertIsNone(declared_files_error({'files': list(FLUX_GGUF_FILES),
                                                 'target_dir': str(flux_gguf_folder())}))
         flux_gguf_folder().resolve().relative_to(models_root().resolve())
 
@@ -448,7 +451,10 @@ class GgufPrecisionTest(_Card):
         registry._discover_precision_weights_models()
         self.assertEqual(registry.discovery_errors, [])
         row = registry._models[FLUX_GGUF_KEY]
-        self.assertEqual(row.extra_info['base_model_relation'], 'quantized')
+        self.assertEqual((row.extra_info['base_model'], row.extra_info['base_model_relation']),
+                         ('black-forest-labs/FLUX.1-dev', 'quantized'))
+        self.assertEqual((row.extra_info['quantization'], row.extra_info['license']),
+                         ('Q8_0', 'flux-1-dev-non-commercial'))
         self.assertEqual(row.extra_info['declared_files'][0]['path'], 'flux1-dev-Q8_0.gguf')
         self.assertNotIn('task', row.capabilities)
 
