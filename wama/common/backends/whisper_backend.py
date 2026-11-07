@@ -24,6 +24,8 @@ from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, Trans
 logger = logging.getLogger(__name__)
 
 DEFAULT_WHISPER_MODEL = 'large-v3'
+#: Le type de calcul de CTranslate2 sur le PROCESSEUR — celui des deux backends du moteur.
+CPU_COMPUTE_TYPE = 'int8'
 
 
 #: Les tailles que le catalogue DÉCLARE (`transcriber:whisper` lit large-v3, la sonde des langues
@@ -164,10 +166,10 @@ class WhisperBackend(SpeechToTextBackend):
                 return 'cuda', 'float16'
             if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
                 # faster-whisper does not support MPS natively → CPU
-                return 'cpu', 'int8'
+                return 'cpu', CPU_COMPUTE_TYPE
         except ImportError:
             pass
-        return 'cpu', 'int8'
+        return 'cpu', CPU_COMPUTE_TYPE
 
     def _get_download_root(self) -> Optional[str]:
         """Le dossier de famille (`whisper_folder`) — là où faster-whisper range une taille que le

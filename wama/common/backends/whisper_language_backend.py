@@ -20,7 +20,7 @@ import logging
 from typing import Optional, Tuple
 
 from .language_identification_base import LanguageIdentificationBackend
-from .whisper_backend import whisper_folder, whisper_model_source
+from .whisper_backend import CPU_COMPUTE_TYPE, whisper_folder, whisper_model_source
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class WhisperLanguageBackend(LanguageIdentificationBackend):
         # ne télécharge pas lui-même — le dire vaut mieux qu'un False muet.
         source, local_only = whisper_model_source(size)
         from faster_whisper import WhisperModel
-        self._model = WhisperModel(source, device=self.device, compute_type='int8',
+        self._model = WhisperModel(source, device=self.device, compute_type=CPU_COMPUTE_TYPE,
                                    download_root=str(whisper_folder()),
                                    local_files_only=local_only)
         self._loaded, self._current_model = True, size

@@ -98,6 +98,9 @@ class PhononCatalogTest(SimpleTestCase):
     def test_the_line_runs_on_its_engine_and_carries_its_voices(self):
         line = self._line()
         self.assertEqual('phonon', line.composition['runtime']['engine'])
+        # Le littéral de la découverte reste le moteur du backend (la classe ne s'importe plus par
+        # son chemin depuis le catalogue, `tests_backend_adoption`, 2026-11-07).
+        self.assertEqual(phonon_backend.PhononBackend.ENGINE, line.composition['runtime']['engine'])
         caps = line.capabilities
         self.assertEqual(['phonon_noemie', 'phonon_tiphaine', 'phonon_augustin', 'phonon_lucien'],
                          [v['value'] for v in caps['voices']])

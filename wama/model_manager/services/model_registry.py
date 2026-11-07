@@ -60,9 +60,11 @@ FAMILLES_OLLAMA = {
 }
 
 
-def _composer_engine_flags(config: dict, model_id: str, caps: dict) -> dict:
-    """`caps` réalignées sur ce que le moteur d'un modèle du composer DÉCLARE (`apply_engine_flags`)
-    — la classe se dérive du moteur porté par la déclaration ; sans classe, rien n'est contesté."""
+def _engine_flags(config: dict, model_id: str, caps: dict) -> dict:
+    """`caps` réalignées sur ce que le moteur d'un modèle DÉCLARE (`apply_engine_flags`) — la classe
+    se dérive du moteur porté par la déclaration (`config['engine']` ou sa composition), par la porte
+    commune, jamais importée par son chemin ; sans classe, rien n'est contesté. Née pour le composer,
+    empruntée par toute découverte qui déclare sa ligne à côté de son moteur (Phonon, 2026-11-07)."""
     from wama.common.backends.manager import backend_for_engine
     from wama.common.utils.model_capabilities import apply_engine_flags
     engine = config.get('engine') or ((config.get('composition') or {}).get('runtime') or {}).get('engine')
@@ -1846,9 +1848,7 @@ class ModelRegistry:
         Il se tirait au premier usage, sans ligne (le balayage générique l'écarte : le dossier de
         famille de Whisper appartient au transcriber, qui ne le déclarait pas)."""
         try:
-            from wama.common.backends.whisper_backend import (
-                WhisperBackend, whisper_base_model, whisper_folder,
-            )
+            from wama.common.backends.whisper_backend import whisper_base_model, whisper_folder
             from wama.common.utils.spoken_language import HF_REPO, MODEL_KEY, SIZE, model_folder
             installed = _check_hf_model_downloaded(whisper_folder(), HF_REPO)
             self._models[MODEL_KEY] = ModelInfo(
@@ -1870,12 +1870,14 @@ class ModelRegistry:
                 extra_info={'path': str(model_folder()) if installed else '',
                             'install_dir': str(whisper_folder()),
                             **whisper_base_model(SIZE)},
-                # Son moteur est celui de large-v3, lu sur son backend ; celui qui l'EXÉCUTE est le
+                # Le modèle porte son moteur — celui de large-v3, la classe ne s'importe pas par son
+                # chemin (`tests_backend_adoption`) ; l'accord est tenu par
+                # `tests_spoken_language.TheEngineDeclarationsAgreeTest`. Celui qui l'EXÉCUTE est le
                 # backend du contrat `language-identification` (`WhisperLanguageBackend`, 2026-11-06),
                 # résolu par le moteur et la tâche comme tout modèle — la sonde le chargeait
                 # elle-même jusque-là (`loaded_by`, émis à None : un RETRAIT pour la synchro,
                 # `model_sync.merged_composition` — son silence le laisserait au catalogue).
-                composition={'runtime': {'engine': WhisperBackend.ENGINE, 'loaded_by': None}},
+                composition={'runtime': {'engine': 'faster-whisper', 'loaded_by': None}},
                 capabilities={'task': 'language-identification', 'modalities': ['audio'],
                               'inputs_required': ['work_audio'], 'languages': ['*']},
             )
@@ -1934,10 +1936,13 @@ class ModelRegistry:
         propres, temps réel, température, graine)."""
         try:
             from wama.common.backends.phonon_backend import (
-                HF_REPO, MODEL_KEY, PHONON_FILES, PhononBackend, model_folder, model_installed,
+                HF_REPO, MODEL_KEY, PHONON_FILES, model_folder, model_installed,
             )
             from wama.common.utils.model_anatomy import model_composition
-            from wama.common.utils.model_capabilities import apply_engine_flags
+            from wama.common.utils.model_keys import backend_model_id
+            # Le modèle porte son moteur ; la classe s'en DÉRIVE par la porte commune
+            # (`_engine_flags`) — jamais importée par son chemin (`tests_backend_adoption`, 2026-11-07).
+            engine = 'phonon'
             self._models[MODEL_KEY] = ModelInfo(
                 id=MODEL_KEY,
                 name='Phonon 40m (français)',
@@ -1958,12 +1963,13 @@ class ModelRegistry:
                             'install_dir': str(model_folder()),
                             'declared_files': PHONON_FILES,
                             'license': 'cc-by-nc-4.0'},
-                capabilities=apply_engine_flags(
+                capabilities=_engine_flags(
+                    {'engine': engine}, backend_model_id(MODEL_KEY),
                     {'task': 'text-to-speech', 'modalities': ['audio'],
-                     'inputs_required': ['prompt'], 'languages': ['fr']}, PhononBackend),
+                     'inputs_required': ['prompt'], 'languages': ['fr']}),
                 # La voix par défaut et les voix rangées sous `voices/` sont lues par `ptts`
                 # (`PHONON_FILES`) : des composants, que l'anatomie oubliait (2026-11-06).
-                composition=model_composition(PhononBackend.ENGINE, [
+                composition=model_composition(engine, [
                     {'role': 'model', 'pattern': 'model.q8.gguf', 'format': 'gguf'},
                     {'role': 'default_voice', 'pattern': 'default-voice.safetensors'},
                     {'role': 'voices', 'pattern': 'voices/*.safetensors'}]),
@@ -2791,7 +2797,7 @@ class ModelRegistry:
                     #   OPTIONNEL : il improvise sans).
                     # Ce que le MOTEUR déclare (la température, 2026-10-21) : la règle commune
                     # `apply_engine_flags`, celle des voix et des lignes prospectées.
-                    capabilities=_composer_engine_flags(config, model_id, {
+                    capabilities=_engine_flags(config, model_id, {
                         'modalities': ['audio'],
                         'task': 'text-to-music' if config.get('type') == 'music' else 'text-to-audio',
                         'languages': ['en'],

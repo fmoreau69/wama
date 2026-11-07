@@ -178,3 +178,70 @@ class ProbeThroughTheCommonContractTest(TestCase):
                              'loaded_by': 'wama.common.utils.spoken_language'}}
         self.assertEqual({'runtime': {'engine': 'faster-whisper'}},
                          merged_composition(prior, discovered))
+
+
+class TheEngineDeclarationsAgreeTest(SimpleTestCase):
+    """Les listes des deux backends de faster-whisper sont des LITTÉRAUX (l'inventaire les lit par
+    AST, sans importer) : elles redisent la déclaration du moteur, qui fait foi."""
+
+    def test_each_listed_model_is_a_declared_size_of_the_engine(self):
+        from wama.common.backends.whisper_backend import (
+            DEFAULT_WHISPER_MODEL, WHISPER_REPOS, WhisperBackend)
+        from wama.common.backends.whisper_language_backend import WhisperLanguageBackend
+        self.assertEqual(DEFAULT_WHISPER_MODEL, WhisperBackend.SUPPORTED_MODELS['whisper']['size'])
+        for model_id, spec in WhisperLanguageBackend.SUPPORTED_MODELS.items():
+            with self.subTest(model=model_id):
+                repo = WHISPER_REPOS[spec['size']]['repo']
+                self.assertEqual(repo, model_id)
+                self.assertEqual(f'huggingface:{repo}', spec['model_key'])
+        self.assertEqual(WhisperBackend.ENGINE, WhisperLanguageBackend.ENGINE)
+
+    def test_the_line_of_the_catalogue_names_the_engine_of_its_backend(self):
+        """La découverte écrit le moteur de la ligne (le modèle le porte, la classe ne s'importe pas
+        par son chemin) : ce littéral doit rester celui du moteur."""
+        from wama.common.backends.whisper_backend import WhisperBackend
+        from wama.model_manager.tests.tests_model_loaded_by import _registry
+        r = _registry()
+        r._discover_language_identification_models()
+        self.assertEqual(WhisperBackend.ENGINE, r._models[TINY].composition['runtime']['engine'])
+
+
+FAKE_IDENTIFIER = '''
+from .language_identification_base import LanguageIdentificationBackend
+
+
+class FakeIdentifier(LanguageIdentificationBackend):
+    def load(self, model=None):
+        self._loaded = True
+        return True
+
+    def unload(self):
+        self._loaded = False
+
+    def identify_language(self, audio):
+        return __ANSWER__
+'''
+
+
+class LanguageSmokeTest(SimpleTestCase):
+    """L'essai du contrat (`backend_proposals.SMOKES`) : un identificateur que propose le rôle
+    `backend` est éprouvé sur l'extrait de parole réelle du smoke de PAROLE."""
+
+    def _smoke(self, answer, declared='fr'):
+        from types import SimpleNamespace
+        from wama.common.services import backend_proposals
+        clip = SimpleNamespace(attributes={'language': declared}, file=SimpleNamespace(path='x.wav'))
+        with mock.patch.object(backend_proposals, 'smoke_speech_clip', return_value=(clip, None)),                 mock.patch('wama.common.utils.audio_decode.decode_window',
+                           return_value=(np.zeros(16000, dtype=np.float32), 16000)):
+            return backend_proposals.SMOKES['LanguageIdentificationBackend'](
+                FAKE_IDENTIFIER.replace('__ANSWER__', repr(answer)),
+                module='fake_language_backend', model_key='huggingface:org/fake-lid',
+                out_dir=None)
+
+    def test_the_declared_language_passes(self):
+        out = self._smoke(('fr', 0.9))
+        self.assertTrue(out['ok'], out)
+
+    def test_another_language_or_an_answer_outside_the_contract_fails(self):
+        self.assertIn('déclaré', self._smoke(('en', 0.9))['error'])
+        self.assertIn('hors contrat', self._smoke(('french', 0.9))['error'])

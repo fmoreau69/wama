@@ -688,9 +688,11 @@ diarisation : un modèle auxiliaire a SA classe de backend, au contrat de SA tâ
 ✅ **Whisper tiny** : contrat `language-identification` (`language_identification_base`),
 `WhisperLanguageBackend` (processeur, `recommended_vram_gb = 0`), la sonde par
 `backend_instance_for_key` ; `WhisperBackend` liste son modèle et `load('whisper')` lit la taille
-déclarée ; la découverte émet `loaded_by: None` (RETRAIT, `model_sync.merged_composition`). Mesuré
-après synchro : ligne sans `loaded_by`, backend résolu, vrai chargement sur le processeur, rien au
-gouverneur. ⏳ YOLOPv2 et LPIPS (GPU hors du gouverneur), l'orientation de page (moteur `doctr`),
+déclarée ; la découverte émet `loaded_by: None` (RETRAIT, `model_sync.merged_composition`) ; le
+contrat a son essai pour un backend proposé (`backend_proposals.SMOKES`, la langue d'un extrait
+de corpus), chargeur à part retiré (`REMOVAL_LEDGER R225`). Mesuré après synchro : ligne sans
+`loaded_by`, backend résolu, vrai chargement sur le processeur, rien au gouverneur ; l'essai sur
+le vrai backend rend « fr » (p = 0,97) sur l'extrait de SUMM-RE. ⏳ YOLOPv2 et LPIPS (GPU hors du gouverneur), l'orientation de page (moteur `doctr`),
 Smart Turn, le Face Landmarker ; le reconnaisseur de gestes reste au navigateur. Dérives vues en
 chemin, non soldées : `DocTRBackend.load` ne charge rien (prédicteur reconstruit à chaque appel,
 2 Go annoncés au gouverneur pour rien), pyannote garde sa propre instance (`get_diarizer`) à côté du

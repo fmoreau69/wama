@@ -32,7 +32,7 @@ import logging
 from typing import Iterable, Optional, Tuple
 
 from wama.common.backends.whisper_backend import (
-    WHISPER_REPOS, whisper_installed, whisper_snapshot_root,
+    WHISPER_REPOS, whisper_snapshot_root,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,10 +50,6 @@ MODEL_KEY = f'huggingface:{HF_REPO}'
 def model_folder():
     """La racine du snapshot que lit `WhisperModel` (sous le dossier de famille de Whisper)."""
     return whisper_snapshot_root(SIZE)
-
-
-def model_installed() -> bool:
-    return whisper_installed(SIZE)
 
 
 def _identifier():
@@ -104,13 +100,13 @@ def probe_languages(path, duration_s: float, windows: int = PROBE_WINDOWS,
     from wama.common.utils.audio_decode import decode_window
     duration_s = float(duration_s or 0)
     count = max(1, min(windows, int(duration_s // window_s) or 1))
-    heard = []
-    identifier = _identifier()
+    heard, identifier = [], None
     for i in range(count):
         start = max(0.0, (i + 0.5) * duration_s / count - window_s / 2) if duration_s else 0.0
         audio, _ = decode_window(path, target_sr=SAMPLE_RATE, start_s=start, duration_s=window_s)
         if audio is None or not len(audio):
             continue
+        identifier = identifier or _identifier()      # chargé à la première fenêtre lue, comme avant
         heard.append(identifier.identify_language(audio=audio))
     logger.info('[spoken_language] sonde : %s', heard)
     return heard

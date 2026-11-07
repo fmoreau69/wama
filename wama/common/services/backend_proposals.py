@@ -642,9 +642,51 @@ def _smoke_pii(code: str, *, module: str, model_key: str, out_dir: Path) -> dict
     return out
 
 
+def _smoke_language(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement, puis la langue d'un extrait de parole réelle (celui du smoke de PAROLE) : un code
+    ISO 639-1, une probabilité dans [0, 1], et la langue que le corpus DÉCLARE quand il en déclare
+    une (2026-11-06, contrat `language-identification`)."""
+    import tempfile
+    from unittest import mock
+
+    from wama.common.utils.audio_decode import decode_window
+    clip, _reference = smoke_speech_clip()
+    if clip is None:
+        return {'ran': False, 'reason': 'aucun corpus de parole versé en médiathèque système '
+                                        '(manage.py asr_eval_corpus)'}
+    declared = (clip.attributes or {}).get('language')
+    declared = declared if isinstance(declared, str) else None
+    started = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            backend = _proposed_backend(code, module, tmp, 'identify_language')
+            if not type(backend).is_available():
+                return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
+            audio, _rate = decode_window(clip.file.path, backend.sample_rate, SMOKE_SPEECH_START,
+                                         SMOKE_SPEECH_SECONDS)
+            # CPU, comme les autres smokes : le rôle ne dispute jamais le GPU au worker.
+            with mock.patch('torch.cuda.is_available', return_value=False):
+                if not backend.load(model_id_of(model_key)):
+                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                language, probability = backend.identify_language(audio=audio)
+            backend.unload()
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
+                    'seconds': round(time.time() - started, 1)}
+    seconds = round(time.time() - started, 1)
+    out = {'ran': True, 'ok': True, 'seconds': seconds, 'language': language,
+           'probability': probability}
+    if not (isinstance(language, str) and len(language) == 2 and 0.0 <= float(probability) <= 1.0):
+        out.update(ok=False, error=f'réponse hors contrat : ({language!r}, {probability!r})')
+    elif declared and language != declared.split('-')[0].lower():
+        out.update(ok=False, error=f'langue « {language} » pour un extrait déclaré « {declared} »')
+    return out
+
+
 #: Un essai par CONTRAT — un contrat sans entrée le dit (`smoke`).
 SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_speech,
-          'ScoreExtractionBackend': _smoke_score, 'PIIDetectionBackend': _smoke_pii}
+          'ScoreExtractionBackend': _smoke_score, 'PIIDetectionBackend': _smoke_pii,
+          'LanguageIdentificationBackend': _smoke_language}
 
 
 # ── Le geste : lister, valider (ÉCRIRE), rejeter ─────────────────────────────────────────────
