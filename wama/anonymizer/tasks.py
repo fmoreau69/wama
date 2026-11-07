@@ -277,16 +277,21 @@ def _detection_kwargs(media, user, ensure_model=None):
     # en silence — relevé en comparant quatre détecteurs sur le lot #685 : douze cards, quatre
     # modèles demandés, un seul et même ensemble exécuté. Le choix n'était respecté que si la
     # couverture rendait UN modèle.
+    # La question se pose comme la page (cases grisées, `views._class_coverage_meta`) et la
+    # couverture la posent (2026-11-07) : les classes du modèle au CATALOGUE, lues dans ses poids
+    # par la découverte de son moteur, YOLO ou non, et l'appariement commun (`classes_couvertes`,
+    # alias compris). La lecture précédente ouvrait le fichier par YOLO et comparait les mots
+    # tels quels : la case `plate` ne trouvait jamais `license_plate`, et EgoBlur ou RT-DETR, qui
+    # ne s'ouvrent pas par YOLO, ne rendaient aucune classe — un détecteur de plaques désigné était
+    # toujours remplacé par la couverture, la card nommant un autre modèle que celui qui tournait.
     user_covers = False
     if user_specified_model and specialty_classes_requested:
-        try:
-            from .utils.model_selector import get_model_classes
-            user_classes = {str(c).lower()
-                            for c in get_model_classes(model_path_for(user_specified_model)).values()}
-            requested = {c.lower() for c in kwargs['classes2blur']}
-            user_covers = bool(requested) and requested.issubset(user_classes)
-        except Exception as e:
-            logger.warning(f"[ModelSelection] Could not verify user model classes: {e}")
+        from wama.common.services.model_coverage import classes_couvertes
+        from wama.model_manager.models import AIModel
+        designated = AIModel.objects.filter(model_key=user_specified_key).first()
+        requested = set(kwargs['classes2blur'])
+        user_covers = (designated is not None and bool(requested)
+                       and classes_couvertes(designated, requested) == requested)
 
     # La couverture est consultée hors SAM3, quand la card ne désigne aucun modèle, ou quand le
     # modèle désigné ne couvre pas les classes spéciales demandées (un modèle COCO ne voit pas

@@ -3,8 +3,9 @@ Les modèles de l'anonymizer pour un jeu de classes — par la brique COMMUNE de
 (`common/services/model_coverage.couvrir_classes`), seule source : le catalogue.
 
 Ce module ne garde que ce que l'app y DÉCLARE (stratégie, tâches admises, ensemble par classe —
-`select_best_models_by_precision`) et la lecture des classes d'un fichier de poids
-(`get_model_classes`, qui vérifie qu'un modèle CHOISI par l'utilisateur couvre la demande).
+`select_best_models_by_precision`). La lecture des classes d'un fichier de poids
+(`get_model_classes`) est SUPPRIMÉE le 2026-11-07 (`REMOVAL_LEDGER R223`) : la tâche demande au
+catalogue, par l'appariement commun, si un modèle CHOISI couvre la demande.
 
 L'ancien sélecteur mono-modèle est RETIRÉ le 2026-10-12 (`REMOVAL_LEDGER R117`, décision de
 Fabien) : il découvrait les modèles à côté du catalogue (base, puis scan disque), les devinait
@@ -13,116 +14,11 @@ silencieux sur un autre modèle que celui qui convient. Rien ne couvre les class
 s'arrête en les nommant.
 """
 
-import os
 import logging
 from typing import List, Dict
-from ultralytics import YOLO
 from .yolo_utils import get_model_path
 
 logger = logging.getLogger(__name__)
-
-# Cache pour éviter de recharger les modèles à chaque fois
-_MODEL_CLASSES_CACHE: Dict[str, Dict[str, str]] = {}
-
-# Known classes for specialty ONNX models (when metadata extraction is not possible)
-# Maps specialty directory name to expected classes
-SPECIALTY_MODEL_CLASSES = {
-    'faces': {'0': 'face'},
-    'plates': {'0': 'plate'},
-    'faces&plates': {'0': 'face', '1': 'plate'},
-}
-
-def get_model_classes(model_path: str) -> Dict[str, str]:
-    """
-    Extract class names from a YOLO model.
-
-    Supports both PyTorch (.pt) and ONNX (.onnx) formats.
-    For ONNX models in specialty directories (faces, plates), uses predefined class mapping.
-
-    Args:
-        model_path: Absolute path to the model file
-
-    Returns:
-        Dictionary mapping class IDs (str) to class names (lowercase)
-        Example: {'0': 'person', '1': 'bicycle', ...}
-    """
-    # Check cache first
-    if model_path in _MODEL_CLASSES_CACHE:
-        return _MODEL_CLASSES_CACHE[model_path]
-
-    model_path_lower = model_path.lower()
-    is_onnx = model_path_lower.endswith('.onnx')
-
-    # For ONNX models in specialty directories, use predefined classes
-    if is_onnx:
-        classes = _get_onnx_model_classes(model_path)
-        if classes:
-            _MODEL_CLASSES_CACHE[model_path] = classes
-            logger.info(f"Loaded {len(classes)} classes from ONNX model {os.path.basename(model_path)}")
-            return classes
-
-    # For PyTorch models, use ultralytics YOLO to extract classes
-    try:
-        model = YOLO(model_path)
-        # Get class names from model
-        names_dict = model.model.names  # {0: 'person', 1: 'bicycle', ...}
-
-        # Convert to lowercase and string keys for consistency
-        classes = {str(k): v.lower() for k, v in names_dict.items()}
-
-        # Cache the result
-        _MODEL_CLASSES_CACHE[model_path] = classes
-
-        logger.info(f"Loaded {len(classes)} classes from {os.path.basename(model_path)}")
-        return classes
-
-    except Exception as e:
-        logger.error(f"Failed to load model {model_path}: {e}")
-        return {}
-
-
-def _get_onnx_model_classes(model_path: str) -> Dict[str, str]:
-    """
-    Get classes for an ONNX model.
-
-    First tries to extract from ONNX metadata, then falls back to specialty directory mapping.
-
-    Args:
-        model_path: Path to ONNX model file
-
-    Returns:
-        Dictionary mapping class IDs to class names, or empty dict if not found
-    """
-    # ── LE FICHIER D'ABORD ────────────────────────────────────────────────────────────────
-    # L'ancien ordre testait le dossier de spécialité AVANT d'ouvrir le fichier, et sortait :
-    # le bloc de lecture des métadonnées qui suivait était donc MORT pour tous les modèles
-    # rangés dans `faces/`, `plates/` ou `faces&plates/` — c'est-à-dire exactement ceux qu'il
-    # servait à décrire. Les 5 ONNX de plaques déclarent pourtant `names = {0:'License_Plate'}`
-    # dans leurs métadonnées (constaté le 2026-08-12).
-    # La lecture est mutualisée avec le catalogue (`model_manager.services.weights_metadata`) :
-    # elle existait ici en double, en version onnxruntime (plus coûteuse — elle construisait
-    # une session d'inférence pour lire une chaîne).
-    try:
-        from wama.model_manager.services.weights_metadata import classes_from_weights
-
-        noms = classes_from_weights(model_path)
-        if noms:
-            logger.info(f"[ModelSelector] Classes lues dans {os.path.basename(model_path)} : {noms}")
-            return {str(i): str(n).lower() for i, n in enumerate(noms)}
-    except Exception as e:
-        logger.debug(f"[ModelSelector] Lecture des métadonnées impossible : {e}")
-
-    # Repli : le dossier de spécialité, pour les exports dépourvus de métadonnées `names`.
-    path_parts = model_path.replace('\\', '/').split('/')
-    for part in path_parts:
-        if part in SPECIALTY_MODEL_CLASSES:
-            classes = SPECIALTY_MODEL_CLASSES[part]
-            logger.info(f"[ModelSelector] ONNX model in '{part}' directory: using predefined classes {list(classes.values())}")
-            return classes
-
-    logger.debug(f"[ModelSelector] No class metadata found in ONNX model: {os.path.basename(model_path)}")
-    return {}
-
 
 def get_model_size_from_precision(precision_level: int) -> str:
     """

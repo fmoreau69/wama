@@ -3038,12 +3038,15 @@ retirer SyncNet, go pour la clé GITHUB_TOKEN », puis « on termine tout ça »
   d'être lu (`ctx.ensure_model`) ; les classes se lisent au catalogue ; le repli
   `auto_download_model`, son module et `manage_models` sont retirés ; `tests_install_route` voit
   aussi un corps de réponse écrit dans un fichier, la forme qui lui échappait.
-  ⏳ Vu à la revérification, non ramené (une règle de sélection, décision de Fabien du 2026-10-15) :
-  la tâche lit encore les classes du modèle DÉSIGNÉ en chargeant le modèle
-  (`anonymizer.utils.model_selector.get_model_classes`, son seul appelant `anonymizer/tasks.py`),
-  et les compare en ensembles bruts, quand le catalogue porte ces classes et que la couverture
-  commune les apparie par alias (`model_coverage.classes_couvertes`). Deux lectures de la même
-  donnée, deux règles de « couvre » : à aligner sur la brique, avec Fabien.
+  ✅ Vu à la revérification, ramené le 2026-11-07 sur accord de Fabien (`REMOVAL_LEDGER R223`) :
+  la tâche demandait si le modèle DÉSIGNÉ couvre la demande en ouvrant son fichier par YOLO
+  (`model_selector.get_model_classes`) et en comparant les mots tels quels. Mesuré sur le
+  catalogue : la case `plate` ne trouvait jamais `license_plate`, et EgoBlur (TorchScript) et
+  RT-DETR (dossier du Hub) ne s'ouvrent pas par YOLO — les trois meilleurs détecteurs de plaques
+  désignés étaient jugés aveugles et REMPLACÉS par la couverture, la card nommant un autre modèle.
+  La question est désormais celle de la page et de la couverture : les classes du catalogue (lues
+  dans les poids par la découverte de chaque moteur) et l'appariement commun
+  (`model_coverage.classes_couvertes`). Le mode auto et les visages sont inchangés.
 
 ## Veille du 2026-10-16 : extraire la partition COMPLÈTE d'une chanson — moteurs possibles, rien d'installé
 

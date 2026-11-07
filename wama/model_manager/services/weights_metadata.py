@@ -19,9 +19,10 @@ CE QUE CE MODULE FAIT — et ne fait pas.
 
 DOMICILE. `model_manager/services/` et non `common/` : c'est le domicile déjà établi de la
 logique modèle inter-apps (`model_selector.py`, `model_registry.py`). `anonymizer/utils/
-model_selector._get_onnx_model_classes` lisait déjà les métadonnées ONNX de son côté — il
-délègue désormais ici (zéro duplication), et son repli « dossier de spécialité » ne s'applique
-plus qu'APRÈS avoir ouvert le fichier, ce qui était le bon ordre depuis le début.
+model_selector._get_onnx_model_classes` lisait déjà les métadonnées ONNX de son côté — il a
+délégué ici (zéro duplication), son repli « dossier de spécialité » ne s'appliquant plus qu'APRÈS
+avoir ouvert le fichier. Il est SUPPRIMÉ le 2026-11-07 avec `get_model_classes` (`REMOVAL_LEDGER
+R223`) : la tâche lit les classes au catalogue, que la découverte remplit par cette brique.
 """
 from __future__ import annotations
 

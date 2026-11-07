@@ -140,16 +140,20 @@ class DesignatedModelAgainstCoverageTest(TestCase):
         _catalogue_rows()
         self.user = User.objects.create_user('anon_designated', password='x')
 
-    def _kwargs(self, model_classes):
+    def _kwargs(self, model_classes, key=YOLO_KEY, wanted=('face',)):
+        """The designated model's classes are the CATALOGUE's (what the discovery of its engine
+        read in its weights) — the question the task asks, like the page and the coverage."""
         from wama.anonymizer import tasks
+        from wama.model_manager.models import AIModel
+        AIModel.objects.update_or_create(model_key=key, defaults=dict(
+            name=key, model_type='vision', source=key.split(':')[0], is_downloaded=True,
+            capabilities={'task': 'detect', 'classes': list(model_classes)}))
         media = Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png',
-                                     model_to_use=YOLO_KEY, classes2blur=['face'],
+                                     model_to_use=key, classes2blur=list(wanted),
                                      target_mode='classes')
         with mock.patch('wama.common.backends.manager.backend_for_key', return_value=object), \
                 mock.patch('wama.anonymizer.utils.yolo_utils.model_path_for',
                            return_value='/weights/chosen.pt'), \
-                mock.patch('wama.anonymizer.utils.model_selector.get_model_classes',
-                           return_value=dict(enumerate(model_classes))), \
                 mock.patch.object(tasks, 'needs_parallel_detection',
                                   return_value=self.ENSEMBLE) as coverage, \
                 mock.patch.object(tasks, '_console'):
@@ -168,6 +172,18 @@ class DesignatedModelAgainstCoverageTest(TestCase):
         coverage.assert_called_once()
         self.assertEqual(['anonymizer:yolo:a-face.pt', 'anonymizer:yolo:b-face.pt'],
                          [m['model_key'] for m in kwargs.get('models') or []])
+
+    def test_a_designated_plate_detector_runs_alone_under_its_own_class_name(self):
+        """2026-11-07 : the plate box is `plate`, the plate detectors declare `license_plate` —
+        and EgoBlur or RT-DETR do not open by YOLO, which the former reading used. Every designated
+        plate detector was judged blind and replaced by the coverage, the card naming another
+        model than the one that ran. The question is now the page's and the coverage's: the
+        catalogue classes, the common alias matching (`model_coverage.classes_couvertes`)."""
+        key = 'anonymizer:rtdetr-v2-license-plate'
+        kwargs, coverage = self._kwargs(['license_plate'], key=key, wanted=['plate'])
+        self.assertEqual(key, kwargs.get('model_key'))
+        self.assertNotIn('models', kwargs, 'the coverage replaced the designated plate detector')
+        coverage.assert_not_called()
 
 
 class ModelKeysMigrationTest(SimpleTestCase):
@@ -212,6 +228,9 @@ class NothingIsFetchedBesideTheRouteTest(TestCase):
 
     def test_the_designated_model_is_installed_before_it_is_read(self):
         from wama.anonymizer import tasks
+        from wama.model_manager.models import AIModel
+        AIModel.objects.filter(model_key=YOLO_KEY).update(
+            capabilities={'task': 'detect', 'classes': ['face'], 'inputs_required': ['work_file']})
         order = []
         media = Media.objects.create(user=self.user, file='anonymizer/x/input/sample.png',
                                      model_to_use=YOLO_KEY, classes2blur=['face'],
@@ -219,12 +238,11 @@ class NothingIsFetchedBesideTheRouteTest(TestCase):
         with mock.patch('wama.common.backends.manager.backend_for_key', return_value=object), \
                 mock.patch('wama.anonymizer.utils.yolo_utils.model_path_for',
                            side_effect=lambda value: order.append('path') or '/w/yolo11n.pt'), \
-                mock.patch('wama.anonymizer.utils.model_selector.get_model_classes',
-                           side_effect=lambda path: order.append('classes') or {'0': 'face'}), \
                 mock.patch.object(tasks, '_console'):
-            tasks._detection_kwargs(media, self.user,
-                                    ensure_model=lambda key: order.append(('route', key)))
-        self.assertEqual([('route', YOLO_KEY), 'path', 'classes'], order[:3])
+            kwargs, _used = tasks._detection_kwargs(
+                media, self.user, ensure_model=lambda key: order.append(('route', key)))
+        self.assertEqual([('route', YOLO_KEY), 'path'], order)
+        self.assertEqual('/w/yolo11n.pt', kwargs['model_path'], 'the designated model runs')
 
     def test_a_missing_weight_resolves_to_a_path_and_downloads_nothing(self):
         import tempfile
