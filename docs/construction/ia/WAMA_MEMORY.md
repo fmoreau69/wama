@@ -737,6 +737,13 @@ issue, **voie**). Elle ne nomme personne (décision ② ci-dessus), elle dit la 
   indicatif de 15 min, qu'il ait duré des heures ou tourne encore. Un run enregistre son issue
   (`RunOutcome`) et, en cours, prend début et avancement sur la ligne de sa famille suivie
   (`job_families` → `calendar._tracked_row`) — la règle est commune, seule la source change.
+- **Interrompue, close** (2026-11-06, « on règle les 3 ») : une installation dont le worker mourait
+  restait « en cours » jusqu'à 24 h (`QUEUED_MAX_AGE`). L'événement porte sa tâche dès l'envoi
+  (`InstallEvent.task_id`, `set_task`) — la forme `status` + `task_id` que la réconciliation commune
+  reconnaît (`process_control.work_models`) — et DÉCLARE sa clôture (`close_interrupted`) : au
+  démarrage du worker relancé ou à l'ouverture du model manager, la fin et le motif s'écrivent par
+  ce journal, et le calendrier la dessine finie. Garde : `tests_install_progress`
+  (`AnInstallWhoseWorkerDiedIsClosedTest`).
 - Gardes : `model_manager/tests/tests_install_history` — route datée (succès, refus du driver,
   exception qui se propage), voie transmise par la demande, journal défaillant sans effet ; **chaque
   appel** de `request_install` / `uninstall_model` / `install_library` / tâche catalogue porte

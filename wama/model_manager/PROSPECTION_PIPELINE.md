@@ -3038,6 +3038,12 @@ retirer SyncNet, go pour la clé GITHUB_TOKEN », puis « on termine tout ça »
   d'être lu (`ctx.ensure_model`) ; les classes se lisent au catalogue ; le repli
   `auto_download_model`, son module et `manage_models` sont retirés ; `tests_install_route` voit
   aussi un corps de réponse écrit dans un fichier, la forme qui lui échappait.
+  ⏳ Vu à la revérification, non ramené (une règle de sélection, décision de Fabien du 2026-10-15) :
+  la tâche lit encore les classes du modèle DÉSIGNÉ en chargeant le modèle
+  (`anonymizer.utils.model_selector.get_model_classes`, son seul appelant `anonymizer/tasks.py`),
+  et les compare en ensembles bruts, quand le catalogue porte ces classes et que la couverture
+  commune les apparie par alias (`model_coverage.classes_couvertes`). Deux lectures de la même
+  donnée, deux règles de « couvre » : à aligner sur la brique, avec Fabien.
 
 ## Veille du 2026-10-16 : extraire la partition COMPLÈTE d'une chanson — moteurs possibles, rien d'installé
 
