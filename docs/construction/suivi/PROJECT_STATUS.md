@@ -29033,3 +29033,35 @@ correctif.
 🔚 POINT D'ENTRÉE : relancer gunicorn, workers, voix et passerelle ; vérifier en service le frein (11ᵉ
 mot de passe faux d'un compte de test → refus même avec le bon) et `GET /accounts/users/1/` sans
 session (redirection vers la connexion) ; puis les cinq décisions ci-dessus.
+
+## §CLÔTURE 2026-11-07, « SUIVI DES INSTALLATIONS ET DU STUDIO COMME UNE CARD, SES TROIS RESTES, DÉTECTEUR DE PLAQUES DÉSIGNÉ » — `def00fbc0` → `80f676228` — poussés — migration 0033 appliquée, WAMA relancé
+
+Périmètre de la session : `def00fbc0`, `12de9b275` (suivi d'une installation et d'un lot du Studio
+comme une card), `af021dc8c`, `0ca83d719`, `222b6951f` (première revérification), `629868810`,
+`4fd5c8ca1`, `eb62158e1` (ses trois restes, palier du 06/11 soir ci-dessus), `1a958e24d` (un
+détecteur de plaques désigné sur la card tourne seul : la tâche pose « couvre-t-il la demande ? »
+comme la page et la couverture — classes du catalogue, `classes_couvertes` ; `get_model_classes`
+retiré, `REMOVAL_LEDGER R223`) et `80f676228` (note `WAMA_QUALITE` ⑥ : aucune card n'avait désigné
+de détecteur de plaques, mesuré en base — le banc et les 35 mesures de ratés ne sont pas touchés).
+
+Contrôles mesurés après la relance (20:19 gunicorn, 20:23 workers default/gpu/studio, passerelle
+20:24) : `showmigrations` → `0033_installevent_task_id` appliquée ; workers « ready » sans erreur ;
+33 pages du registre en 200 sur le compte de Fabien (model manager 0,13 s, Studio 0,06 s,
+anonymizer 0,17 s) ; le JS servi de l'échange porte `maxFails: Infinity`. 293 tests (anonymizer,
+installation, gardes transverses) : seul rouge, les budgets de langue (classes 133 > 132, méthodes
+1287 > 1286) — liste nominative filtrée sur mes fichiers VIDE ; le dépassement des méthodes vient
+de deux fichiers de test modifiés et non commités par une autre session à 19:39 et 19:45 (noms en
+« declare(s) »). `check_docs` 0 / 3899 ; `doc_facts --check` : trois blocs périmés (mécanismes,
+outils, briques), tous par le travail d'autres sessions (`script_json`, deux backends, quatre
+arguments d'outils) — mes entrées sont déjà dans HEAD ; `check_redundancy` 115, aucune trouvaille
+de ma main.
+
+Constat : l'événement d'installation #51 (Fibo-2.0, 28/10) reste `RUNNING` sans tâche — antérieur
+au champ `task_id`, la réconciliation ne le juge pas (un élément sans tâche est peut-être tout juste
+lancé) ; WAMA le dit déjà abandonné partout où il se lit (`install_history.effective_state`,
+`QUEUED_MAX_AGE`). Rien à faire.
+
+🔚 POINT D'ENTRÉE (gestes de Fabien en service, aucun joué par la session — ils installent ou
+traitent) : désigner `rtdetr` ou `egoblur-lp` sur une card de l'anonymizer, « Plaque » cochée → il
+tourne seul ; installer puis désinstaller un petit YOLO officiel depuis sa card ; suivre une
+installation et un pipeline du Studio depuis l'assistant.
