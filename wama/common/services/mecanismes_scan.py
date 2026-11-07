@@ -37,7 +37,11 @@ from pathlib import Path
 EXCLUDED_DIRS = {
     'venv_win', 'venv_linux', 'node_modules', '.git', 'migrations', 'staticfiles',
     'static', 'media', 'logs', 'AI-models', '__pycache__', 'wama-dev-ai', 'patches',
-    'musetalk', 'codeformer',   # vendored upstream
+    # Le code VENDORISÉ (`settings.BACKEND_VENDOR_DIR`, `backends/vendor/<moteur>/`) — écarté par le
+    # nom du dossier, comme `check_identifier_language` (`SKIPPED`) et `tests_install_route`
+    # (`SKIPPED_PARTS`). Cette ligne listait les moteurs (`musetalk`, `codeformer`) : triposr, yue,
+    # ace_step_1_5 et copisteria passaient (82 → 736 modules « non rattachés » le 2026-11-07).
+    'vendor',
 }
 
 #: Racines de NOTRE code — **les TROIS mondes** (`docs/construction/mondes/WAMA_VISION_COMPLET.md §Les quatre mondes`).

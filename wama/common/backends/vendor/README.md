@@ -15,12 +15,13 @@ d'un sous-processus, c'est tout.
 | `codeformer` | `sczhou/CodeFormer` | `b33cc7d` (2025-11-18) | — | `codeformer_backend.py` |
 | `triposr` | `VAST-AI-Research/TripoSR` | `107cefd` (2026-06-04) | `patches/triposr_pymcubes_lazy_rembg.diff` | `image_to_3d_backend.py` |
 | `yue` | `multimodal-art-projection/YuE` | `18a07bb` | — | `yue2_3b_backend.py` (`ENGINE = "yue"`, `VENDORED = True`, l.117/125) |
+| `copisteria` | `kobimusic/copisteria` | `c685f28` (2026-10-29) | — | `copisteria_backend.py` (lecture de partition imprimée, 2026-11-06 ; disposition `src/`) |
 
 *(Ligne `yue` ajoutée le 2026-10-31, mesurée : `manifests/libraries/yue.json:27-31`.)* ⚠ Le
 manifeste `manifests/libraries/libretranslate.json:41-45` déclare lui aussi un `vendor`
 (`LibreTranslate/LibreTranslate` @ `89e8a56`), mais aucun backend ne déclare `VENDORED = True`
-pour lui (relevé : seuls `musetalk`, `codeformer`, `image_to_3d` et `yue2_3b` le portent) — il
-n'est donc pas listé ici.
+pour lui (relevé : seuls `musetalk`, `codeformer`, `image_to_3d` et `yue2_3b` le portent ;
+`copisteria` depuis le 2026-11-06) — il n'est donc pas listé ici.
 
 ## Règles
 

@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**228 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**230 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -219,8 +219,10 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
 
 - **Domicile** : `wama/filemanager/views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §S2bis](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : FileManager views - API for file browsing and management.
-- **API publique** (45) :
+- **API publique** (47) :
   - `get_user(request)` — Get current user or anonymous user.
+  - `local_folder_allowed(user) -> bool` — Connecter un dossier LOCAL du serveur — en parcourir l'arbre, en lire les fichiers — est
+  - `user_temp_path(user, rel_path: str)` — Le chemin ABSOLU et RÉSOLU d'un chemin relatif à `MEDIA_ROOT` qui doit vivre dans le dossier
   - `get_user_media_root(user)` — Get the media root path for a specific user.
   - `build_file_tree(user)` — Build a file tree structure for jstree with two collapsible sections:
   - `build_folder_node(config, media_root, user_id)` — Build a folder node with its children.
@@ -333,7 +335,7 @@ Choisit la stratégie de chargement (plein GPU, déchargement) sur la vue de SON
   - `preset_vram_gb(model_key: str) -> Optional[float]` — Empreinte VRAM d'exécution d'un modèle, depuis `MODEL_SIZE_PRESETS`.
   - `dtype_bytes(label: str)` — Octets par paramètre d'une précision — None si le nom est inconnu (on ne devine pas).
   - `peaks_for_precision(weights: dict, label: str) -> dict` — Les deux pics RECALCULÉS pour une précision de chargement — `{}` si on ne peut pas.
-  - `reduced_peak_gb(weights: dict, precision, *, offload: bool) -> Optional[float]` — Le pic d'un modèle chargé dans une précision que son moteur DÉCLARE (`backends.base.
+  - `reduced_peak_gb(weights: dict, precision, *, offload: bool, reduced_gb: Optional[float]=None) -> Optional[float]` — Le pic d'un modèle chargé dans une précision que son moteur DÉCLARE (`backends.base.
   - `backbone_row(row)` — La ligne de catalogue de la DORSALE d'un adaptateur, ou None si ce n'en est pas un.
   - `model_footprint_gb(row, *, offload: bool=True, count_backbone: bool=True) -> tuple` — `(Go, provenance)` que ce modèle EXIGE — ou `(None, 'unknown')` si personne ne sait.
   - `fits_full_gpu(model_key: str, total_vram_gb: float, headroom_gb: float=4.0) -> Optional[bool]` — Ce modèle peut-il tenir ENTIÈREMENT sur la carte (donc tourner en FULL_GPU, sans offload) ?
@@ -494,7 +496,7 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
 
 - **Domicile** : `wama/model_manager/services/benchmark_sync.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Signal qualité « BENCHMARK TIERS CONFRONTÉ » — 2e étage de l'échelle des signaux.
-- **API publique** (17) :
+- **API publique** (18) :
   - `class SourceUnavailable(Exception)` — Réseau/clé/format absents — la source est SKIPPÉE, jamais un score partiel inventé.
   - `aa_scale(spec: dict, version=None) -> str` — L'échelle d'une catégorie AA, VERSIONNÉE quand la réponse déclare la version de son indice.
   - `load_aa()` — {'categorie': [{'nom','slug','valeur','echelle','identite'}]} ; motifs par catégorie.
@@ -507,6 +509,7 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
   - `load_mteb()` — {'embedding': [{'nom','slug','score','identite','taches','revision'}]} depuis le dépôt
   - `benchmarks_comparable(pool) -> bool` — Vrai si les `benchmark_index` du lot peuvent être ORDONNÉS entre eux.
   - `common_scale_values(pool) -> dict` — `{id(m): valeur ordonnable}` sur la première échelle (priorité des sources) que TOUT le lot
+  - `shared_percentile_values(pool) -> dict` — `{id(m): rang centile}` sur les modèles du lot qui en portent un, chacun lu dans la
   - `orderable_value(m)` — La valeur d'un `benchmark_index` telle qu'on peut la TRIER (plus grand = meilleur), ou
   - `category_task(cat: str)` — La tâche du catalogue qu'un banc mesure — lecture INVERSE de `TASK_TO_BENCH_CATEGORY`,
   - `leaderboard_repos(cache: str='read')` — Les CLASSEMENTS comme source de DÉCOUVERTE (2026-10-10, demande de Fabien) :
@@ -640,7 +643,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (54) :
+- **API publique** (57) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(repo_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, meter=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -649,6 +652,9 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `format_duplicates(repo_id: str) -> list` — Les jumeaux de format d'un dépôt HF — un appel HTTP, la règle vient de
   - `weight_for_spec(spec: dict)` — Poids en Go de ce qu'un descripteur d'installation va TIRER, ou None si indéterminable.
   - `components_of_files(files, *, composition=None, allow_patterns=None) -> dict` — Poids PAR COMPOSANT d'un inventaire de fichiers — dérivation PURE, aucun réseau.
+  - `anatomy_gaps(files, composition) -> dict` — Ce que l'anatomie DÉCLARÉE laisse de côté d'un inventaire — dérivation PURE, aucun réseau.
+  - `anatomy_error(gaps) -> str` — Le refus que disent les trous d'une anatomie (`anatomy_gaps`) — '' si elle est complète.
+  - `anatomy_inventory(model)` — Les fichiers que l'anatomie d'une ligne doit décrire : ceux que son installation APPORTE —
   - `components_for_spec(spec: dict, *, files=None) -> dict` — Poids par composant de ce qu'un descripteur désigne — `{}` si indéterminable.
   - `yolo_task_of(name: str) -> str` — Tâche (`ModelTask`) d'un poids YOLO, déduite du suffixe de son nom — `detect` par défaut.
   - `pull_yolo_weights(name: str, timeout: int=600, dry_run: bool=False, meter=None)` — Télécharge des poids YOLO OFFICIELS (assets GitHub Ultralytics, URL stable
@@ -2064,6 +2070,15 @@ Mesure les 8 facettes F1–F8 des apps par analyse du code réel
   - `class Criterion`
   - `run_checks(app_ids: list[str]) -> dict` — Exécute tous les critères sur chaque app. Retourne le rapport sérialisable.
 
+### Les pages d'un PDF en images
+
+Une image par page, rendue à la résolution demandée dans un dossier FOURNI par l'appelant (son `work_dir`, qui le supprime quoi qu'il advienne) ; PyMuPDF, `pdf2image` en repli, la rotation de la page appliquée. Née le 2026-11-06 de deux copies privées, dans les moteurs d'OCR GLM-OCR et olmOCR (portés), quand la lecture de partition (copisteria, qui appelait poppler, absent de l'hôte) en demandait une troisième
+
+- **Domicile** : `wama/common/utils/pdf_pages.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
+- **Module** : Les PAGES d'un PDF en images — une par page, écrites dans un dossier FOURNI par l'appelant.
+- **API publique** (1) :
+  - `pdf_page_images(pdf_path: str, dest_dir: str, dpi: int=200, prefix: str='page') -> list` — Les chemins des images (`<prefix>_0000.png`…, une par page, dans l'ordre) de `pdf_path`,
+
 ### Manifestes
 
 Extraction/validation/projection des 7 kinds vers les registres. Le corpus versionné suit le registre À CHAUD par UNE porte (`corpus.follow` : installation, validation d'une proposition, désinstallation — 2026-10-12), que le runner de tests coupe ; un modèle suivi entraîne, en tâche de fond, les manifestes d'app qui le citent ou doivent le citer (`corpus.follow_apps`, 2026-11-02)
@@ -3451,6 +3466,18 @@ Un MIDI à une piste par instrument → une partition ABC lisible : une voix par
   - `downbeat_of(markers)` — L'instant (s) du premier temps fort que dit un marqueur `downbeat=<s>`, None sinon.
   - `played_beat_steps(beat_times, grid: int, offset: float)` — `(secondes MIDI → pas)` sur les temps JOUÉS : une note se place entre les deux temps de
   - `midi_to_abc(midi_bytes: bytes, *, title: str='', grid: int=4, bars_per_line: int=4, beat_times=None) -> str` — Le texte ABC d'un MIDI multi-pistes (voir l'en-tête). Lève `ValueError` sans aucune note.
+
+### Partitions MusicXML (pages assemblées, MusicXML → ABC)
+
+Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBackend` : une page imprimée → son MusicXML) et à tout MusicXML importé : `merge_pages` fait UNE partition des pages lues (partie par partie, mesures renumérotées), `read_musicxml` lit un `.musicxml` ou un `.mxl` compressé, `musicxml_to_abc` rend l'ABC que lisent la page d'édition et YuE2 (xml2abc de W. G. Vree, librairie `abc-xml-converter` par la route). Née le 2026-11-06 (lecture de partition scannée, demande de Fabien) : aucune conversion MusicXML → ABC n'existait, et YuE2 refusait le MusicXML que le composer accepte en partition de référence ; patron de `midi_score`, ne connaît aucun moteur
+
+- **Domicile** : `wama/common/utils/musicxml_score.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
+- **Module** : Partitions MUSICXML — la brique commune de WAMA (2026-11-06).
+- **API publique** (4) :
+  - `read_musicxml(path) -> str` — Le TEXTE MusicXML d'un fichier `.musicxml` / `.xml`, ou d'un `.mxl` — l'archive compressée
+  - `musicxml_to_abc(text: str, title: str='') -> str` — L'ABC de la partition MusicXML `text` (`xml2abc`) ; `title` remplace le titre écrit (sinon
+  - `note_count(text: str) -> int` — Le nombre de NOTES (silences exclus) d'un document MusicXML.
+  - `merge_pages(pages: list) -> str` — UNE partition MusicXML faite de `pages` (textes MusicXML « partwise », dans l'ordre) : la
 
 ### Pont référentiel ↔ cadres typés (WAMA Data)
 

@@ -28936,3 +28936,51 @@ trouvaille dans mes fonctions neuves.
 
 🔚 POINT D'ENTRÉE : `migrate`, relancer ; ouvrir le model manager et le Studio ; installer puis
 désinstaller un petit YOLO officiel depuis la card (geste « Installer » apparu).
+
+## §PALIER 2026-11-07, « LIRE UNE PARTITION IMPRIMÉE : COPISTERIA PAR LA ROUTE (code vendorisé, poids posés par l'outil de l'assistant), TÂCHE `image-to-score`, BRIQUES `pdf_pages` ET `musicxml_score` ; YuE2 LIT LE MUSICXML » — ce commit (local, non poussé) — 🔴 relancer gunicorn + workers (default, gpu)
+
+**Demandes de Fabien** (2026-11-06) : *« dans le Reader, pourrait-on gérer les partitions comme on
+gère le texte ? »*, puis la veille (`abef4cd73`, `a904c3869`), puis *« tu peux dérouler »* et
+/reverif. Détail, tableau et mesures : `wama/model_manager/PROSPECTION_PIPELINE.md §Session du
+2026-11-07`.
+
+- **Librairies par la route** : `copisteria` VENDORISÉ (`manifests/libraries/copisteria.json`,
+  `kobimusic/copisteria` @ `c685f28`) et `abc-xml-converter` 1.0.1 (PyPI, `no_deps` : il épingle
+  `setuptools~=69.5.1`), projetés SEULS au registre (`write_back_library`) puis
+  `install_library … --allow --apply` (une roue, aucune rétrogradation).
+- **Tâche, contrat, moteur** : `ModelTask.IMAGE_TO_SCORE` (quatre tables de `models.py`,
+  `check_model_taxonomy` : 39 tâches ancrées), règle des cartes `omr` / `optical-music-recognition`
+  (`prospector.hf_task_to_wama`), contrat `ScoreReadingBackend.read_score → MusicXML`
+  (`TASK_CONTRACTS`), `CopisteriaBackend` (poids passés par CHEMIN, détecteur par la table du module
+  — jamais l'environnement ; pages copiées dans un `work_dir` ; entrées = `OCR_INPUT_EXTENSIONS`).
+- **Poids** : `COPISTERIA_FILES` (Hub @ `faad5609`, empreintes de l'API du Hub), ligne
+  `huggingface:kobimusic/copisteria` (`_discover_score_reading_models`, synchronisée SEULE) —
+  **installée par l'outil `install_model` de l'assistant** (compte de Fabien, `InstallEvent` n°70,
+  SUCCESS, `verified: 2 against pinned`).
+- **Briques communes** : `pdf_pages` (deux copies privées portées : GLM-OCR, olmOCR) ;
+  `musicxml_score` (`merge_pages`, `read_musicxml`, `musicxml_to_abc` par `vertaal` — l'emballage du
+  paquet relit `sys.argv`). YuE2 lisait l'ABC et le MIDI, REFUSAIT le MusicXML que le composer
+  accepte : il passe par la brique.
+- **Essais mesurés** (pages gravées par abcjs, RTX 4090) : gamme 16/16 ; 23 mesures de #754
+  (6 systèmes) 144/145 hauteurs, aucune fausse ; pic 0,68 Go → `vram_gb` 1,0.
+
+**Gardes** : `tests_score_reading` (15), `tests_score_input` (YuE2 et le MusicXML) ; **11 mutations,
+11 rouges**. Docs : `PROSPECTION_PIPELINE`, `LICENSING §3`, README des moteurs vendorisés, vision
+(ligne du Reader), mécanismes `pdf_pages` et `musicxml_score` (docs générées : mes lignes seules).
+
+**Rouges qui ne sont pas à cette session** (établis) : `tests_backend_inventory`
+(`bardsai_pii_backend` sans `SUPPORTED_MODELS` littéral — fichier inchangé depuis `7bddaca7b`,
+2026-11-02) ; `tests_identifier_language` classes 133 > 132 (aucune classe de mes fichiers dans
+`--test-names` ; `tests_manifest_library.py`, en cours chez une autre instance, en porte deux).
+
+**Restes nommés** : ⏳ la MESURE sur 3-4 vrais scans de Fabien ; ⏳ le Reader — process « lire la
+partition » alternatif à « lire » (`needs` sur la tâche), proposition par le fichier
+(`Param.default_from` + propriété de sonde « porte une partition », à écrire et mesurer),
+redressement d'une photo de page (`ocr_base.upright_image`, à mesurer sur des partitions), page
+d'édition par nature, formats de téléchargement, outils de l'assistant ; ⏳ la page partition du
+composer reçoit le texte BRUT du fichier édité (`surface_views._text`) : une partition de
+référence importée en MIDI ou MusicXML y arrive illisible — la brique permet de la convertir,
+l'enregistrement d'une correction (jamais de l'ABC dans un `.musicxml`) est à décider ; ⏳ pas
+d'essai de contrat pour `image-to-score` dans `backend_proposals.SMOKES` (comme `audio-to-midi`) :
+il faudrait graver une page côté serveur ; ⏳ copisteria ne lit ni les titres (pas d'OCR des textes
+passé) ni les paroles, et a lu une barre finale comme une reprise.

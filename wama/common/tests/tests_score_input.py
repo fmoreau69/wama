@@ -151,6 +151,19 @@ class ScoreReachesTheModelTest(TestCase):
         self.assertEqual([], unwired_ports('composer'), 'both songs to cover reach the tool')
 
 
+#: A four-note MusicXML score (C D E F, quarters, 4/4) — the smallest a converter must read.
+MUSICXML_CDEF = (
+    '<?xml version="1.0" encoding="UTF-8"?><score-partwise version="4.0">'
+    '<part-list><score-part id="P1"><part-name>Voix</part-name></score-part></part-list>'
+    '<part id="P1"><measure number="1"><attributes><divisions>1</divisions><key><fifths>0</fifths>'
+    '</key><time><beats>4</beats><beat-type>4</beat-type></time><clef><sign>G</sign><line>2</line>'
+    '</clef></attributes>' + ''.join(
+        f'<note><pitch><step>{step}</step><octave>4</octave></pitch><duration>1</duration>'
+        f'<type>quarter</type></note>' for step in 'CDEF') + '</measure></part></score-partwise>')
+MXL_CONTAINER = ('<?xml version="1.0" encoding="UTF-8"?><container><rootfiles>'
+                 '<rootfile full-path="score.xml"/></rootfiles></container>')
+
+
 class EnginesFollowOrRefuseTheScoreTest(SimpleTestCase):
 
     def test_an_engine_without_scores_rejects_one_in_words(self):
@@ -159,8 +172,11 @@ class EnginesFollowOrRefuseTheScoreTest(SimpleTestCase):
             MusicGenerationBackend.refuse_score('/x/tune.abc', 'AudioCraft')
         MusicGenerationBackend.refuse_score(None, 'AudioCraft')     # rien fourni : rien à dire
 
-    def test_yue2_reads_an_abc_score_and_rejects_musicxml_in_words(self):
+    def test_yue2_reads_an_abc_and_a_musicxml_score_and_rejects_an_empty_one_in_words(self):
+        """MusicXML was refused for want of a conversion until 2026-11-06 : it now goes through
+        the common brick (`musicxml_score.musicxml_to_abc`, xml2abc), plain or compressed (.mxl)."""
         import tempfile
+        import zipfile
         from pathlib import Path
         from wama.common.backends.yue2_3b_backend import YuE2Backend
         with tempfile.TemporaryDirectory() as tmp:
@@ -168,9 +184,17 @@ class EnginesFollowOrRefuseTheScoreTest(SimpleTestCase):
             abc.write_text('X:1\nK:C\nCDEF|\n', encoding='utf-8')
             self.assertTrue(YuE2Backend._score_abc(str(abc)).startswith('X:1'))
             xml = Path(tmp, 'tune.musicxml')
-            xml.write_text('<score-partwise/>', encoding='utf-8')
+            xml.write_text(MUSICXML_CDEF, encoding='utf-8')
+            self.assertIn('C D E F', YuE2Backend._score_abc(str(xml)))
+            mxl = Path(tmp, 'tune.mxl')
+            with zipfile.ZipFile(mxl, 'w') as archive:
+                archive.writestr('META-INF/container.xml', MXL_CONTAINER)
+                archive.writestr('score.xml', MUSICXML_CDEF)
+            self.assertIn('C D E F', YuE2Backend._score_abc(str(mxl)))
+            empty = Path(tmp, 'empty.musicxml')
+            empty.write_text('<score-partwise/>', encoding='utf-8')
             with self.assertRaisesMessage(ValueError, 'MusicXML'):
-                YuE2Backend._score_abc(str(xml))
+                YuE2Backend._score_abc(str(empty))
 
     @staticmethod
     def _midi(path, notes, *, drum=None, tempo_bpm=90, meter=(3, 4), key='G'):

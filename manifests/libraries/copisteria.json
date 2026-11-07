@@ -1,0 +1,40 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy",
+      "opencv-python",
+      "pillow",
+      "scipy",
+      "torch",
+      "torchvision"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "KobiMusic",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/kobimusic/copisteria",
+      "summary": "Lecture optique de partitions imprimées (OMR) : une page → MusicXML — code lancé par copisteria_backend (détecteur de symboles v7 + modèle d'évidence)",
+      "version": "c685f280914d"
+    },
+    "install": {
+      "vendor": {
+        "commit": "c685f280914d91a694494588d9f6a376d7917eba",
+        "engine": "copisteria",
+        "repo": "kobimusic/copisteria"
+      }
+    }
+  },
+  "description": "Lecture de partitions scannées (copisteria, Apache-2.0) — dépôt vendorisé, épinglé au commit ; absent de PyPI (PROSPECTION_PIPELINE, veille du 2026-11-06). Poids déclarés à part (pilote `files`, Hub à un commit).",
+  "key": "copisteria",
+  "manifest_kind": "library",
+  "name": "copisteria",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "github:kobimusic/copisteria@c685f280914d91a694494588d9f6a376d7917eba",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

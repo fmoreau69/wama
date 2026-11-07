@@ -295,35 +295,16 @@ class OlmOCRBackend(OCRBackend):
             return [Image.open(str(path)).convert('RGB')]
 
     def _pdf_to_images(self, path: Path):
-        """Convert PDF pages to images. Tries pymupdf then pdf2image."""
-        try:
-            try:
-                import pymupdf as fitz  # PyMuPDF >= 1.24
-            except ImportError:
-                import fitz  # legacy name
-            doc = fitz.open(str(path))
-            images = []
-            from PIL import Image
-            import io
-            for page in doc:
-                pix = page.get_pixmap(dpi=150)
-                img = Image.open(io.BytesIO(pix.tobytes('png'))).convert('RGB')
-                images.append(img)
-            doc.close()
-            return images
-        except Exception as e:
-            # ImportError si non installé, mais aussi RuntimeError/AttributeError
-            # selon la version de PyMuPDF — on log et on tente le fallback
-            logger.warning(f"[olmOCR] pymupdf échoué ({type(e).__name__}: {e}), fallback pdf2image")
-
-        try:
-            from pdf2image import convert_from_path
-            return convert_from_path(str(path), dpi=150)
-        except ImportError:
-            raise RuntimeError(
-                "Aucun convertisseur PDF disponible. "
-                "Installez pymupdf (`pip install pymupdf`) ou pdf2image (`pip install pdf2image`)."
-            )
+        """Les pages du PDF en images PIL — rendues par la brique commune `pdf_pages`, lues
+        en mémoire puis le dossier de travail retiré."""
+        from PIL import Image
+        from wama.common.utils.pdf_pages import pdf_page_images
+        from wama.common.utils.work_dir import work_dir
+        with work_dir('olmocr_pages') as folder:
+            pages = pdf_page_images(str(path), str(folder), dpi=150)
+            if not pages:
+                raise RuntimeError(f"PDF illisible : aucune page convertie en image ({path.name})")
+            return [Image.open(page).convert('RGB') for page in pages]
 
     def _process_image(self, image, mode: str, language: str) -> str:
         import torch

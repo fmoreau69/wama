@@ -4141,6 +4141,35 @@ noter les erreurs par page — une mesure WAMA, pas le banc d'un auteur.
   `convert_xml2abc`, dépendances `setuptools~=69.5.1`, `pyparsing~=3.1.1` — venv 80.10.2 / 3.2.5 →
   `constraints.no_deps`) ; publié le 2024-06-27, version de `xml2abc` emballée non dite.
 
+## Session du 2026-11-07 : copisteria intégré par la route — une tâche, un contrat, deux briques communes, et deux essais
+
+Suite de la veille ci-dessus, décision (a) appliquée (« tu peux dérouler », Fabien). Tout par les
+mécanismes : librairie vendorisée, poids déclarés posés par l'outil de l'assistant.
+
+| étape | geste | ce qui a été trouvé / posé |
+|---|---|---|
+| code | manifeste `library` vendorisé (`manifests/libraries/copisteria.json`, dépôt `kobimusic/copisteria` @ `c685f28`) → `write_back_library` (ce SEUL manifeste : d'autres instances ont des manifestes non commités au corpus) → `install_library copisteria --allow --apply` | clone au commit, importable tel quel (torch, torchvision, scipy, opencv, PIL déjà au venv) ; `PIP_PACKAGES = []` |
+| tâche | `ModelTask.IMAGE_TO_SCORE` (`image-to-score`, type `music`, entrées de l'OCR `('image','document')` / `work_file`, aucun équivalent de plateforme) ; cartes `optical-music-recognition` / `omr` → cette tâche (`prospector.hf_task_to_wama`, AVANT `image-to-text` : Transcoda serait entré en OCR) | `check_model_taxonomy` : 39 tâches, toutes ancrées |
+| contrat | `ScoreReadingBackend.read_score(model_id, work_file, output_dir, progress_callback) -> MusicXML` (`common/backends/score_reading_base.py`), non liant comme les deux autres tâches de partition | la mise en ABC n'est pas du ressort du moteur (patron `audio-to-midi`) |
+| moteur | `CopisteriaBackend` (`common/backends/copisteria_backend.py`, `ENGINE = "copisteria"`, `VENDORED`) | la librairie cherche ses poids dans le `models/` de son dépôt : le modèle d'évidence se passe par CHEMIN, le détecteur par la table `paths.DETECTORS` (attribut du module, jamais l'environnement) ; elle appelle poppler (absent) pour un PDF → pages rendues par la brique commune ; elle écrit ses caches À CÔTÉ de la page → chaque page copiée dans un `work_dir` |
+| poids | `COPISTERIA_FILES` (évidence 8,1 Mo + détecteur copista-28m 115 Mo, Hub @ `faad5609`, tailles et `sha256` lus à l'API du Hub), dossier `MODEL_PATHS['music']['copisteria']`, découverte `_discover_score_reading_models` ; ligne synchronisée SEULE (`ModelSyncService._sync_model` : la découverte complète aurait exécuté le travail en cours d'une autre instance) | **installé par l'outil de l'assistant** `install_model` (compte de Fabien, `InstallEvent` n°70, `via='assistant'`) : SUCCESS en 2 min, `verified: 2 against pinned` |
+| briques | `common/utils/pdf_pages.py` (les pages d'un PDF en images, dossier fourni) — deux copies privées portées (GLM-OCR, olmOCR) ; `common/utils/musicxml_score.py` (`merge_pages`, `read_musicxml` `.mxl` compris, `musicxml_to_abc`) | **aucune** conversion MusicXML → ABC n'existait : YuE2 refusait le MusicXML que le composer accepte en partition de référence — il passe désormais par la brique (`yue2_3b_backend._score_abc`) |
+| conversion | librairie `abc-xml-converter` 1.0.1 (manifeste AUTORÉ, `constraints.no_deps` : le PyPI épingle `setuptools~=69.5.1`) → `install_library … --allow --apply` (plan : une roue, aucune rétrogradation) | la roue emballe `xml2abc` **version 147** ; son emballage `convert_xml2abc` relit `sys.argv` par `optparse` (« no such option: --keepdb » sous `manage.py test`, il lirait de même un worker) et écrit son option des pédales là où le lecteur ne la lit pas → la brique appelle `vertaal`, la conversion elle-même |
+
+**Essais MESURÉS (RTX 4090, porte commune `backend_instance_for_key` → `run_contract`)** — pages
+GRAVÉES par l'abcjs vendorisé de WAMA (Chromium), pas encore de vrais scans :
+- une gamme d'ut (16 noires) : **16/16** hauteurs, toutes des noires ; 35,8 s chargement compris ;
+  pic 0,3 Go. La barre finale (`|]`) est lue comme une REPRISE (`<repeat direction="backward">`) ;
+  le titre n'est pas lu (pas d'OCR des textes de la page, `texts=None`) — xml2abc écrit « Title ».
+- la voix chantée des 23 premières mesures de #754 (lead sheet SheetSage2 : doubles croches,
+  liaisons, accords écrits, changement d'armure), 6 systèmes : **144/145** hauteurs alignées sur la
+  source (passée en MusicXML par `abc2xml`), une note manquée (si4), aucune fausse ; 44 s ; pic
+  **0,68 Go** → `vram_gb` 1,0 au catalogue.
+⏳ **Reste la mesure qui compte** : 3 à 4 VRAIES partitions scannées (Fabien). Puis le Reader :
+process « lire la partition » alternatif à « lire » (`needs` sur la tâche), proposition par le
+fichier (`Param.default_from` + propriété de sonde « porte une partition », à écrire et mesurer),
+page d'édition par nature (partition, texte), formats de téléchargement, outils de l'assistant.
+
 **Sources** : pypi.org/pypi/homr/json ✔ · github.com/liebharc/homr (modules `main`,
 `segmentation.config`, `transformer.configs`, branche `main`) ✔ · huggingface.co/kobimusic/copisteria (API +
 README) ✔ · huggingface.co/btrkeks/transcoda-59M-zeroshot-v1 (API + README) ✔ ·

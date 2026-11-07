@@ -709,6 +709,9 @@ TASK_CONTRACTS = {
     # 2026-10-16 : l'audio → un MIDI par instrument (MuScriptor), la « Partition complète » du
     # composer. Écrit avant le backend, non liant comme `audio-to-score`.
     'audio-to-midi': ('midi_extraction_base', 'MidiExtractionBackend', False),
+    # 2026-11-06 : une page de partition imprimée → son MusicXML (copisteria), la lecture de
+    # partition du Reader. Écrit avant le backend, non liant comme les deux autres tâches de partition.
+    'image-to-score': ('score_reading_base', 'ScoreReadingBackend', False),
     'transcription': ('speech_to_text_base', 'SpeechToTextBackend', True),
     # 2026-10-07 : la signature que les trois moteurs OCR partageaient sans la déclarer. LIANT :
     # un modèle d'OCR n'est servi que par un backend OCR — c'est ce qui borne `GlmOcrBackend`

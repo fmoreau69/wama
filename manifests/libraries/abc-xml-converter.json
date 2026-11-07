@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [
+      "pyparsing"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Sebastian Eck (paquet) ; W. G. Vree et contributeurs (xml2abc, abc2xml)",
+      "license": "LGPL",
+      "repository": "https://github.com/sebastian-eck/abc_xml_converter",
+      "summary": "MusicXML ↔ ABC : emballe xml2abc (version 147) et abc2xml de W. G. Vree — la conversion MusicXML → ABC de la brique commune `musicxml_score`",
+      "version": "1.0.1"
+    },
+    "install": {
+      "pip": "abc-xml-converter==1.0.1"
+    }
+  },
+  "description": "Conversion MusicXML ↔ ABC (xml2abc / abc2xml de W. G. Vree, LGPL), lue par la brique commune `common/utils/musicxml_score.py` : la partition d'une page lue (tâche `image-to-score`) et le MusicXML importé au composer deviennent l'ABC que lisent la page d'édition et YuE2 (PROSPECTION_PIPELINE, veille du 2026-11-06). Sans dépendances : le PyPI épingle `setuptools~=69.5.1` et `pyparsing~=3.1.1` (venv : 80.10.2 et 3.2.5) — rétrograder setuptools casserait le venv ; `abc2xml` importe le `pyparsing` du venv, dont il n'emploie que des noms toujours présents en 3.2.",
+  "key": "abc-xml-converter",
+  "manifest_kind": "library",
+  "name": "abc-xml-converter",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:abc-xml-converter==1.0.1",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

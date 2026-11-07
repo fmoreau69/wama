@@ -1779,6 +1779,20 @@ MECHANISMS = (
               'docs/construction/suivi/ROADMAP.md §10.B',
               annexes=('wama/common/tests/tests_input_proposals.py',),
               depends_on=('document_text',)),
+    Mechanism('pdf_pages', "Les pages d'un PDF en images",
+              "Une image par page, rendue à la résolution demandée dans un dossier FOURNI par "
+              "l'appelant (son `work_dir`, qui le supprime quoi qu'il advienne) ; PyMuPDF, "
+              "`pdf2image` en repli, la rotation de la page appliquée. Née le 2026-11-06 de deux "
+              "copies privées, dans les moteurs d'OCR GLM-OCR et olmOCR (portés), quand la lecture "
+              "de partition (copisteria, qui appelait poppler, absent de l'hôte) en demandait une "
+              "troisième",
+              'wama/common/utils/pdf_pages.py',
+              'wama/model_manager/PROSPECTION_PIPELINE.md',
+              # Le moteur de partition et ses gardes sont l'annexe de `musicxml_score` (un fichier,
+              # un propriétaire) ; il emprunte aussi cette brique.
+              annexes=('wama/common/backends/glm_ocr_backend.py',
+                       'wama/common/backends/olmocr_backend.py'),
+              depends_on=('work_dir',)),
     Mechanism('detections_document', "Document de détections (type `detections` sur disque)",
               "Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) "
               "— le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de "
@@ -3409,6 +3423,20 @@ MECHANISMS = (
               'wama/common/utils/midi_score.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/tests/tests_midi_score.py',)),
+    Mechanism('musicxml_score', 'Partitions MusicXML (pages assemblées, MusicXML → ABC)',
+              "Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBackend` : "
+              "une page imprimée → son MusicXML) et à tout MusicXML importé : `merge_pages` fait UNE "
+              "partition des pages lues (partie par partie, mesures renumérotées), `read_musicxml` "
+              "lit un `.musicxml` ou un `.mxl` compressé, `musicxml_to_abc` rend l'ABC que lisent la "
+              "page d'édition et YuE2 (xml2abc de W. G. Vree, librairie `abc-xml-converter` par la "
+              "route). Née le 2026-11-06 (lecture de partition scannée, demande de Fabien) : aucune "
+              "conversion MusicXML → ABC n'existait, et YuE2 refusait le MusicXML que le composer "
+              "accepte en partition de référence ; patron de `midi_score`, ne connaît aucun moteur",
+              'wama/common/utils/musicxml_score.py',
+              'wama/model_manager/PROSPECTION_PIPELINE.md',
+              annexes=('wama/common/tests/tests_score_reading.py',
+                       'wama/common/backends/score_reading_base.py',
+                       'wama/common/backends/copisteria_backend.py')),
     )),
 
     *_domain("Studio & surface d'outils (API)", (

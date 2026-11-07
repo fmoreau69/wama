@@ -137,6 +137,12 @@ class ModelTask(models.TextChoices):
     # les confondre ferait tirer un MIDI à N parties pour le rendu. 1er modèle : MuScriptor, dont la
     # carte se déclare elle-même `audio-to-midi`.
     AUDIO_TO_MIDI = 'audio-to-midi', 'Audio → MIDI multi-instrument'
+    # Lecture optique de PARTITION (2026-11-06, demande de Fabien : « l'utilisateur scanne une
+    # partition, la partition est rendue typographiée et éditable ») : une page imprimée (image,
+    # PDF) → sa partition. Ni `ocr` (il ne rend pas de texte), ni `audio-to-score` (l'entrée est une
+    # image). Même nom `<source>-to-<cible>`, même type que les deux autres tâches de partition.
+    # 1er modèle : copisteria (`PROSPECTION_PIPELINE`, veille du 2026-11-06).
+    IMAGE_TO_SCORE = 'image-to-score', 'Image → partition'
     # Segmentation de la ROUTE (2026-10-16) : zone roulable et lignes de voie d'une caméra embarquée
     # (YOLOPv2, cam_analyzer). Sortie de `segment` pour la raison de `layout-detection` : le select
     # de l'anonymizer se tire par `detect,segment`, et y proposait YOLOPv2 — qui ne sait pas
@@ -228,6 +234,10 @@ TASK_TO_PLATFORM_TAGS = {
     # Pas de tâche de PIPELINE chez HuggingFace non plus ; la carte porte le tag `audio-to-midi`
     # (lu par `prospector.hf_task_to_wama`, comme `layout_detection`).
     ModelTask.AUDIO_TO_MIDI:      (None,                           None,        None,        None),
+    # Pas de tâche de PIPELINE pour la lecture de partition : les cartes portent les tags
+    # `optical-music-recognition` / `omr` (Transcoda), lus par `prospector.hf_task_to_wama` ;
+    # `image-to-text`, que certaines portent aussi, est celui de l'OCR.
+    ModelTask.IMAGE_TO_SCORE:     (None,                           None,        None,        None),
     # Ni l'une ni l'autre n'a d'équivalent sur les plateformes (propres à WAMA).
     ModelTask.ROAD_SEGMENTATION:  (None,                           None,        None,        None),
     ModelTask.QUALITY_METRIC:     (None,                           None,        None,        None),
@@ -292,6 +302,7 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.TEXT_TO_AUDIO:      ModelType.MUSIC,
     ModelTask.AUDIO_TO_SCORE:     ModelType.MUSIC,
     ModelTask.AUDIO_TO_MIDI:      ModelType.MUSIC,
+    ModelTask.IMAGE_TO_SCORE:     ModelType.MUSIC,
     ModelTask.ROAD_SEGMENTATION:  ModelType.VISION,
     ModelTask.QUALITY_METRIC:     ModelType.VISION,
     ModelTask.HAND_GESTURE:       ModelType.VISION,
@@ -415,6 +426,8 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.TEXT_TO_AUDIO:      (('audio',),                     ('prompt',),               ()),
     ModelTask.AUDIO_TO_SCORE:     (('audio',),                     ('work_audio',),           ()),
     ModelTask.AUDIO_TO_MIDI:      (('audio',),                     ('work_audio',),           ()),
+    # Une PAGE de partition (scan, photo, PDF) — l'entrée de l'OCR.
+    ModelTask.IMAGE_TO_SCORE:     (('image', 'document'),          ('work_file',),            ()),
     ModelTask.ROAD_SEGMENTATION:  (('image', 'video'),             ('work_file',),            ()),
     ModelTask.QUALITY_METRIC:     (('image',),                     ('work_file',),            ()),
     # Le flux de la webcam, lu image par image dans le navigateur.

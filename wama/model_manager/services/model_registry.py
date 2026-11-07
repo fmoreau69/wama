@@ -493,6 +493,7 @@ class ModelRegistry:
         self._discover_quality_metric_models()
         self._discover_precision_weights_models()
         self._discover_midi_extraction_models()
+        self._discover_score_reading_models()
         self._discover_image_to_3d_models()
         self._discover_face_analyzer_models()
         self._discover_hand_gesture_models()
@@ -2072,6 +2073,51 @@ class ModelRegistry:
             )
         except Exception as e:
             self.discovery_errors.append(f'audio-to-midi: {e}')
+
+    def _discover_score_reading_models(self):
+        """Lecture optique de partition, une page imprimée → son MusicXML (task=image-to-score,
+        2026-11-06) — la partition scannée du Reader, tirée par tâche par le sélecteur commun.
+
+        Patron de `_discover_midi_extraction_models` : backend COMMUN, fichiers DÉCLARÉS à côté du
+        moteur (`copisteria_backend.COPISTERIA_FILES`, Hub à un commit) — la ligne existe même
+        absente, installable et désinstallable par le pilote `files`. Le code de la librairie vient
+        de la route `library` vendorisée (`manifests/libraries/copisteria.json`)."""
+        try:
+            from wama.common.backends.copisteria_backend import (
+                COPISTERIA_FILES, HF_REPO, MODEL_KEY, model_folder,
+            )
+            from wama.model_manager.services.model_installer import declared_files_present
+            root = model_folder()
+            self._models[MODEL_KEY] = ModelInfo(
+                id=MODEL_KEY,
+                name='copisteria (copista-28m)',
+                model_type=ModelType.MUSIC,
+                source=ModelSource.HUGGINGFACE,
+                description="copisteria (KobiMusic, 2026) : une page de partition IMPRIMÉE (scan, "
+                            "photo, PDF) → son MusicXML — un détecteur de symboles de 28,7 M de "
+                            "paramètres, corrigé par un modèle d'évidence de 2 M. N'écrit pas les "
+                            "paroles ; le manuscrit n'est pas lu. Code et poids Apache-2.0.",
+                description_short="Lecture de partition imprimée → MusicXML",
+                platform_ref=hf_platform_ref(HF_REPO),
+                # Pic MESURÉ le 2026-11-07 (RTX 4090, `max_memory_allocated`) : 0,3 Go sur une gamme,
+                # 0,68 Go sur une page dense de six systèmes (145 notes) ; arrondi au-dessus.
+                vram_gb=1.0,
+                format='pt',
+                preferred_format='pt',
+                is_downloaded=declared_files_present(root, COPISTERIA_FILES),
+                extra_info={'path': str(root),
+                            'size_bytes': sum(f['size'] for f in COPISTERIA_FILES),
+                            'install_dir': str(root),
+                            'declared_files': COPISTERIA_FILES,
+                            'license': 'apache-2.0'},
+                capabilities={'task': 'image-to-score', 'modalities': ['image', 'document'],
+                              'inputs_required': ['work_file']},
+                composition={'runtime': {'engine': 'copisteria'},
+                             'components': [{'role': 'model', 'pattern': '*.pt',
+                                             'format': 'pt'}]},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'image-to-score: {e}')
 
     def _discover_image_to_3d_models(self):
         """Reconstruction image → objet 3D (task=image-to-3d) — ROADMAP §17ter trou 4.

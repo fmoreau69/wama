@@ -193,6 +193,11 @@ MODEL_PATHS = {
         # de ses auteurs) et installés par le pilote `files`. Déclarer la famille la sort du
         # balayage générique : la découverte `_discover_midi_extraction_models` en est l'autorité.
         'muscriptor': AI_MODELS_DIR / "models" / "music" / "muscriptor-large",
+        # Lecture optique de PARTITION (2026-11-06, tâche `image-to-score`) — copisteria : son
+        # modèle d'évidence et ses deux détecteurs de symboles, DÉCLARÉS dans le backend
+        # (`copisteria_backend.COPISTERIA_FILES`, Hub à un commit), posés par le pilote `files`. Le
+        # code vit à part (route `library` vendorisée) ; on lui passe les chemins de ces fichiers.
+        'copisteria': AI_MODELS_DIR / "models" / "music" / "copisteria",
     },
     # Langage naturel hors génération (ModelType.NLP, 2026-10-28) — détecteurs de DONNÉES
     # PERSONNELLES de `common/privacy` (ROADMAP §16.4bis). Fichiers DÉCLARÉS dans leur backend,

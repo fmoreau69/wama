@@ -24,13 +24,14 @@ class DossierDeTravailGlmOcrTests(SimpleTestCase):
 
     def test_la_conversion_ecrit_dans_le_dossier_FOURNI(self):
         """`dest_dir` est honoré : la fonction ne fabrique plus son propre dossier."""
-        from wama.common.backends.glm_ocr_backend import _pdf_to_images
+        # La conversion vit dans la brique commune depuis le 2026-11-06 (`common/utils/pdf_pages`).
+        from wama.common.utils.pdf_pages import pdf_page_images
 
         avant = _dossiers_glmocr()
         with tempfile.TemporaryDirectory() as fourni:
             # PDF inexistant : les deux voies (PyMuPDF puis pdf2image) échouent et la
             # fonction rend []. C'est EXACTEMENT le cas qui laissait un dossier derrière lui.
-            resultat = _pdf_to_images('/introuvable/absent.pdf', dpi=72, dest_dir=fourni)
+            resultat = pdf_page_images('/introuvable/absent.pdf', fourni, dpi=72)
             self.assertEqual(resultat, [], "une conversion impossible doit rendre une liste vide")
 
         self.assertEqual(
@@ -41,11 +42,11 @@ class DossierDeTravailGlmOcrTests(SimpleTestCase):
     def test_le_dossier_fourni_survit_a_l_appel_puis_c_est_l_APPELANT_qui_le_ferme(self):
         """La fonction n'efface pas ce qui ne lui appartient pas : le `with` de l'appelant
         est seul responsable, ce qui est précisément ce qui rend le nettoyage garanti."""
-        from wama.common.backends.glm_ocr_backend import _pdf_to_images
+        from wama.common.utils.pdf_pages import pdf_page_images
 
         fourni = Path(tempfile.mkdtemp(prefix='test_glmocr_proprio_'))
         try:
-            _pdf_to_images('/introuvable/absent.pdf', dpi=72, dest_dir=str(fourni))
+            pdf_page_images('/introuvable/absent.pdf', str(fourni), dpi=72)
             self.assertTrue(fourni.exists(),
                             "la fonction a supprimé un dossier qu'elle ne possède pas")
         finally:

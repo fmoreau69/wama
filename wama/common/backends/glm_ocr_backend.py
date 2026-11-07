@@ -13,11 +13,11 @@ No local model files or VRAM management required — Ollama handles everything.
 
 import base64
 import logging
-import tempfile
 from pathlib import Path
 from typing import Callable, Optional
 
 from wama.common.backends.ocr_base import OCRBackend
+from wama.common.utils.pdf_pages import pdf_page_images
 
 logger = logging.getLogger(__name__)
 
@@ -28,71 +28,6 @@ def _image_to_b64(image_path: str) -> str:
     `ocr_base.upright_image`, appelé par le reader (image en entrée) et par `run` (pages de PDF)."""
     with open(image_path, 'rb') as fh:
         return base64.b64encode(fh.read()).decode('utf-8')
-
-
-def _pdf_to_images(pdf_path: str, dpi: int = 200, dest_dir: str = None) -> list[str]:
-    """Convertit un PDF en images (une par page) écrites dans `dest_dir`.
-
-    PyMuPDF d'abord, `pdf2image` en repli.
-
-    ⚠ `dest_dir` est FOURNI PAR L'APPELANT depuis le 2026-08-25, et ce n'est pas cosmétique.
-    Cette fonction créait son propre `mkdtemp` et déléguait le nettoyage par un commentaire
-    (« caller must delete them ») — l'appelant l'honorait, mais le contrat FUYAIT dans trois
-    situations, toutes muettes :
-
-      1. échec de conversion → on rendait `[]` alors que le dossier existait déjà (et que
-         `convert_from_path` avait pu y écrire) : la boucle de nettoyage de l'appelant, qui
-         itère sur la liste RENDUE, n'avait plus rien à parcourir ;
-      2. `pix.save()` qui lève en cours de route → rien ne rattrapait, il n'y avait pas de
-         `finally` ici ;
-      3. repli `pdf2image` : `convert_from_path(output_folder=…)` écrit SES propres
-         temporaires en plus des `page_XXXX.png`. L'appelant ne supprimant que ceux qu'il a
-         reçus, le dossier n'était jamais vide — et son `rmdir` conditionné à « si vide » ne
-         se produisait donc JAMAIS, y compris quand tout s'était bien passé.
-
-    Rendre la propriété explicite règle les trois d'un coup : le dossier appartient au `with`
-    de l'appelant, qui le supprime quoi qu'il advienne et sans se soucier de son contenu.
-    """
-    import os
-    tmp_dir = dest_dir or tempfile.mkdtemp(prefix='glmocr_')
-    image_paths = []
-
-    try:
-        # PyMuPDF (fastest, no poppler dependency)
-        try:
-            import pymupdf as fitz
-        except ImportError:
-            import fitz
-        doc = fitz.open(pdf_path)
-        zoom = dpi / 72.0
-        mat = fitz.Matrix(zoom, zoom)
-        for i, page in enumerate(doc):
-            pix = page.get_pixmap(matrix=mat, alpha=False)
-            img_path = os.path.join(tmp_dir, f"page_{i:04d}.png")
-            pix.save(img_path)
-            image_paths.append(img_path)
-        doc.close()
-        return image_paths
-    except Exception as e:
-        # ⚠ C'était `except ImportError` — donc le repli ne servait QUE si PyMuPDF était
-        # absent, jamais s'il ÉCHOUAIT. Un PDF corrompu, protégé par mot de passe ou
-        # simplement introuvable faisait remonter l'exception au lieu de basculer sur
-        # `pdf2image` : la voie de secours existait sans jamais pouvoir se déclencher.
-        # Trouvé le 2026-08-25 par un test, pas à la lecture.
-        logger.warning(f"[GlmOcr] PyMuPDF indisponible ou en échec ({e}) — repli pdf2image.")
-        image_paths = []
-
-    try:
-        from pdf2image import convert_from_path
-        images = convert_from_path(pdf_path, dpi=dpi, fmt='PNG', output_folder=tmp_dir)
-        for i, img in enumerate(images):
-            img_path = os.path.join(tmp_dir, f"page_{i:04d}.png")
-            img.save(img_path, 'PNG')
-            image_paths.append(img_path)
-        return image_paths
-    except Exception as e:
-        logger.error(f"[GlmOcr] PDF→image conversion failed: {e}")
-        return []
 
 
 def _ocr_image(model: str, image_path: str, language_hint: str = '', on_cut=None) -> str:
@@ -243,7 +178,7 @@ class GlmOcrBackend(OCRBackend):
             if ext == '.pdf':
                 if progress_callback:
                     progress_callback(10, "Conversion PDF → images…")
-                tmp_images = _pdf_to_images(work_file, dpi=200, dest_dir=str(travail))
+                tmp_images = pdf_page_images(work_file, str(travail), dpi=200)
                 if not tmp_images:
                     raise RuntimeError("Impossible de convertir le PDF en images")
                 # Un PDF de photos ou de scans peut porter des pages couchées : chacune est

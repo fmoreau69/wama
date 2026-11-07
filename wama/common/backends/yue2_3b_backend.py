@@ -262,8 +262,16 @@ class YuE2Backend(MusicGenerationBackend):
           `mido` par la route `library`), réduit à UNE ligne
           mélodique (`_midi_events`), puis compilé par le compilateur du moteur — un
           convertisseur générique produirait un ABC hors des conventions de YuE2 ;
-        - MusicXML : refusé en le disant (mido ne lit que le MIDI)."""
+        - MusicXML (`.musicxml`, `.mxl`, 2026-11-06) : mis en ABC par la brique commune
+          (`musicxml_score`, xml2abc) — il était refusé faute de conversion — puis traité comme un
+          ABC importé (ramené à sa partie chantée)."""
         suffix = Path(score_path).suffix.lower()
+        if suffix in (".musicxml", ".mxl"):
+            from wama.common.utils.musicxml_score import musicxml_to_abc, read_musicxml
+            try:
+                return lead_sheet_abc(musicxml_to_abc(read_musicxml(score_path)))
+            except (ValueError, KeyError, OSError) as exc:
+                raise ValueError(f"Partition MusicXML non convertible pour YuE2 : {exc}") from exc
         if suffix in (".mid", ".midi"):
             compiler = cls.import_vendored("compile_score", subdir=cls.SCORE_COMPILER_DIR)
             try:
@@ -273,8 +281,8 @@ class YuE2Backend(MusicGenerationBackend):
             return text
         if suffix != ".abc":
             raise ValueError(
-                f"YuE2‑3B suit une partition ABC ou MIDI ; la conversion {suffix or 'de ce fichier'} → ABC "
-                "n'est pas disponible (MusicXML : l'exporter en MIDI ou en ABC).")
+                f"YuE2‑3B suit une partition ABC, MIDI ou MusicXML ; la conversion "
+                f"{suffix or 'de ce fichier'} → ABC n'est pas disponible.")
         text = Path(score_path).read_text(encoding="utf-8", errors="replace").strip()
         if not text:
             raise ValueError("La partition ABC fournie est vide.")
@@ -407,8 +415,8 @@ class YuE2Backend(MusicGenerationBackend):
           tableau audio final est disponible.
         """
         # *score_path* (port `reference_score`, 2026-10-01) : une partition ABC est donnée telle
-        # quelle au pipeline (`abc=`, « Using provided score ») ; MIDI et MusicXML sont REFUSÉS
-        # en le disant tant que leur conversion n'est pas câblée (`_score_abc`).
+        # quelle au pipeline (`abc=`, « Using provided score ») ; MIDI et MusicXML y sont
+        # convertis (`_score_abc`), un autre format refusé en le disant.
         abc = self._score_abc(score_path) if score_path else None
         if melody_path is not None:
             raise ValueError("YuE2‑3B ne supporte pas le paramètre melody_path")

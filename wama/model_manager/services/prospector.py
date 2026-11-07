@@ -72,6 +72,11 @@ def hf_task_to_wama(pipeline_tag: str, tags=()):
     # écarté de la prospection (« sa tâche n'entre pas dans le périmètre »).
     if bag & {'audio-to-midi', 'automatic-music-transcription', 'music-transcription'}:
         return 'audio-to-midi', 'music'
+    # LECTURE OPTIQUE DE PARTITION (2026-11-06) — tranchée par la CARTE, AVANT `image-to-text` :
+    # Transcoda publie `text-generation` et porte `image-to-text`, `omr` et
+    # `optical-music-recognition` (mesuré sur sa carte) ; sans cette règle il entrait en OCR.
+    if bag & {'optical-music-recognition', 'omr', 'image-to-score'}:
+        return 'image-to-score', 'music'
     if t == 'image-to-image':
         if any(k in bag for k in ('super-resolution', 'upscaling', 'upscale', 'image-restoration')):
             return 'upscale', 'upscaling'
