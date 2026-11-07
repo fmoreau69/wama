@@ -22,6 +22,12 @@
 </style>
 {% endblock %}
 
+{% comment %}Volet droit = détail de la fonction cliquée, par l'inspecteur de registre COMMUN
+(fiche dérivée des facettes `data-f-*` que porte la card) — rouvert le 2026-11-07 pour ce qu'il
+remplit (`WAMA_VOLETS §2`).{% endcomment %}
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
 {% block content %}
 <div class="wama-cat-wrap">
   {% include 'common/_catalog_header.html' with registre='functions' %}
@@ -94,7 +100,8 @@
     </div>
   </div>
 
-  <div class="wama-cat-grid" style="--cat-card-min: 300px;" id="fcGrid"></div>
+  <div class="wama-cat-grid" style="--cat-card-min: 300px;" id="fcGrid"
+       data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active"></div>
   <div class="wama-cat-empty" id="fcEmpty" style="display:none;">Aucune fonction ne correspond aux filtres.</div>
 </div>
 
@@ -115,7 +122,15 @@
     const tags = (f.tags || []).map(t => '<span class="wama-cat-chip">' + esc(t) + '</span>').join('');
     const vis = f.visibility && f.visibility !== 'public'
       ? '<span class="wama-cat-chip fc-vis-private">' + esc(f.visibility) + '</span>' : '';
-    return '<div class="wama-cat-card">'
+    // `data-id` + facettes `data-f-*` : le contrat de l'inspecteur de registre (la fiche du volet
+    // se DÉRIVE de ce que la card porte, `wama-inspector.js` § INSPECTEUR DE REGISTRE). La clé de
+    // facette EST le libellé affiché (`_libelleDeCle`) : en français, comme `data-f-installee` des
+    // librairies — un libellé déclaré relèvera de la brique schéma-driven (WAMA_VOLETS §2).
+    const facets = [['binding', f.binding], ['categorie', f.category], ['app', f.app],
+                    ['entrees', ports(f.inputs)], ['sorties', ports(f.outputs)],
+                    ['projets', (f.projects || []).join(', ')], ['visibilite', f.visibility]]
+      .filter(kv => kv[1]).map(kv => ' data-f-' + kv[0] + '="' + esc(kv[1]) + '"').join('');
+    return '<div class="wama-cat-card" data-id="' + esc(f.key) + '"' + facets + '>'
       + '<h3>' + esc(f.name) + bind + '</h3>'
       + '<div><span class="wama-cat-badge fc-cat">' + esc(f.category) + '</span></div>'
       + '<div class="wama-cat-desc">' + esc(f.description) + '</div>'

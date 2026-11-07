@@ -16,6 +16,13 @@
 </style>
 {% endblock %}
 
+{% comment %}Volet droit = détail de la librairie cliquée, par l'inspecteur de registre COMMUN
+(`_inspector_registre.html`, fiche dérivée de la tuile : titre, description, facettes `data-f-*`,
+méta). La page avait retiré son volet le 2026-08-22 (trois cadres vides) ; elle le rouvre pour ce
+qu'elle remplit (`WAMA_VOLETS §2`, 2026-11-07).{% endcomment %}
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
 {% block content %}
 <div class="wama-cat-wrap">
   {% include 'common/_catalog_header.html' with registre='libraries' %}
@@ -39,12 +46,13 @@
   {% include 'common/_filter_bar.html' with facettes=facettes_librairies cible='.wama-cat-card' mode='client' placeholder='Rechercher une librairie…' %}
 
   {% if rows %}
-  <div class="wama-cat-grid" style="--cat-card-min: 320px;">
+  <div class="wama-cat-grid" style="--cat-card-min: 320px;"
+       data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
     {% for r in rows %}
     {% comment %}Contrat de la barre : `data-f-<facette>` + `data-f-text`. L'état d'installation
     et l'allowlist sont les deux questions qu'on se pose sur cette page — ce sont donc les
     facettes.{% endcomment %}
-    <div class="wama-cat-card"
+    <div class="wama-cat-card" data-id="{{ r.lib.key }}"
          data-f-installee="{% if r.live_version %}installée{% else %}absente{% endif %}"
          data-f-allowlist="{% if r.lib.is_allowed %}autorisée{% else %}non autorisée{% endif %}"
          data-f-text="{{ r.lib.key|lower }} {{ r.lib.summary|lower }} {{ r.lib.license|lower }}">

@@ -84,6 +84,46 @@ utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription 
 > `tests_volet` a été affûté le même jour : Médias se reconnaît à l'invite par défaut, son
 > conteneur d'aperçu étant aussi l'hôte de l'inspecteur ; les deux pages y sont mesurées.
 
+> ⚠ **2026-11-07 — REMESURÉ (59 gabarits de page, chacun ouvert) : TROIS formes de volet sur les
+> pages de registre**, à la demande de Fabien (« la page du registre des librairies ne se comporte
+> pas comme celle des modèles »).
+>
+> | forme | ce que le volet montre | pages |
+> |---|---|---|
+> | **A** — inspecteur complet, schéma écrit par la page en JS (`DETAIL_SCHEMA`/`byId`) | fiche + actions de l'élément ; sans sélection, poste de maintenance | model manager (+ « Propositions à valider »), apps, sources externes |
+> | **B** — inspecteur de registre (`_inspector_registre.html` + `data-wama-inspecte`, 2026-09-09) | fiche DÉRIVÉE des colonnes ou des facettes `data-f-*`, sans actions | licences, backends, docs, registres, Mon RAG, souvenirs, prononciations, partages, skills, briques UI — et, ce jour, **librairies et fonctions** |
+> | **C** — aucun volet (`VOLET_AUCUN`) | — | médiathèque, gestion des utilisateurs, matrice d'accès |
+>
+> ✅ Fait le jour même (sans décision) : librairies et fonctions passent en B (elles déclaraient
+> `VOLET_AUCUN` depuis le 22/08, la campagne du 09-09 ne les avait pas reprises ; les cards des
+> fonctions, rendues en JS, portent `data-id` et leurs facettes) ; **Mes souvenirs** gagne le
+> conteneur que son hôte attendait depuis le 09-09 (un souvenir cliqué ne montrait rien) ; la garde
+> `tests_inspecteur_registre` devient GÉNÉRIQUE (toute page des trois mondes qui inclut l'hôte
+> déclare conteneur et `data-id`, et l'inverse) et mesure la PAGE servie.
+> ⚠ La clé d'une facette `data-f-*` EST le libellé affiché (`_libelleDeCle`) : d'où des clés
+> françaises sans accent (« Installee », « Categorie »). Un libellé déclaré relève de la brique
+> ci-dessous.
+>
+> **Décisions de Fabien (2026-11-07)**, ⏳ dans cet ordre :
+> 1. une brique commune UNIVERSELLE de volet de registre, schéma-driven : chaque page TIRE ce que
+>    son inspecteur contextuel affiche ; la file des propositions de manifeste devient une brique
+>    filtrée par kind, et une proposition se valide sur la page de SON registre (modèles et
+>    backends au model manager, librairies aux librairies, apps aux apps) ;
+> 2. les librairies reçoivent le fonctionnement des modèles (fiche + actions : plan, installer,
+>    désinstaller — gestes d'administrateur, gardés côté serveur) ;
+> 3. apps : la proposition de manifeste se valide au volet → la card entre au catalogue des apps →
+>    l'installer au bac à sable / la désinstaller (la supprimer) → la PROMOUVOIR (modale de choix
+>    des rôles qui y accèdent) → « Exporter (Linux/Windows) », bouton inactif en attendant
+>    `ROADMAP §18.3`. ⚠ Rejoint le reste n°1 d'une revue de sécurité (instance sœur, même jour) :
+>    du code écrit par un LLM s'exécute aujourd'hui avant toute validation humaine (`repo_app`,
+>    essai d'un backend proposé, `dev_claude_code(write=true)` + `dev_reload_web`) — la chaîne
+>    ci-dessus en fait des gestes humains distincts ;
+> 4. médiathèque : le détail d'un média avec l'APERÇU commun, comme une card de file d'app ;
+> 5. utilisateurs : des cards par compte (détail, droits, accès au profil pour ajuster les accès
+>    par app — un compte sans rôle autorisé sur une seule app), le tableau devenant un récapitulatif
+>    qui se compacte avec la largeur ; matrice d'accès : plus tard ;
+> 6. converger les pages de forme A vers une fiche déclarée, APRÈS l'alignement.
+
 ### Le mécanisme existe, c'est l'ADOPTION qui manque
 
 | Option de `WamaInspector` | Adoption |

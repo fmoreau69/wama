@@ -17,7 +17,7 @@ from .services.memory_diagnostics import MemoryDiagnostics
 from .services.memory_cleaner import WAMAMemoryCleaner, get_memory_cleaner
 from wama.common.services.system_monitor import SystemMonitor
 from wama.common.utils.format_policy import get_policy_summary
-from wama.common.utils.volet import VOLET_AUCUN, volet
+from wama.common.utils.volet import volet
 
 logger = logging.getLogger(__name__)
 
@@ -2299,10 +2299,11 @@ def function_catalog(request):
         'projects': sorted({p for f in funcs for p in (f.get('projects') or [])}),
         'apps': sorted({f['app'] for f in funcs if f['app']}),
     }
-    # Catalogue = tableau plein cadre ; le volet n'y portait que 3 cadres vides (WAMA_VOLETS §2).
+    # Volet = le détail de la fonction cliquée (inspecteur de registre, 2026-11-07) ; il ne portait
+    # que 3 cadres vides jusque-là (WAMA_VOLETS §2) — on ne rouvre que ce qu'on remplit.
     return render(request, 'model_manager/function_catalog.html',
                   {'functions_json': _json.dumps(funcs), 'stats': stats,
-                   'volet': VOLET_AUCUN})
+                   'volet': volet(medias=False, actions=False)})
 
 
 @login_required
@@ -2342,6 +2343,8 @@ def library_catalog(request):
         {'cle': 'allowlist', 'label': 'Allowlist', 'tous': 'Toutes'},
     ]
 
+    # Volet = le détail de la librairie cliquée (inspecteur de registre, 2026-11-07) : ni aperçu
+    # de média ni section Actions vide — on ne rouvre que ce qu'on remplit (`WAMA_VOLETS §2`).
     return render(request, 'model_manager/library_catalog.html',
                   {'rows': rows, 'stats': stats, 'facettes_librairies': facettes,
-                   'volet': VOLET_AUCUN})   # cf. function_catalog
+                   'volet': volet(medias=False, actions=False)})

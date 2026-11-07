@@ -22,7 +22,7 @@ Le comportement, lui, s'atteste au navigateur — un `.js` ne casse que là.
 from pathlib import Path
 
 from django.conf import settings
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 RACINE = Path(settings.BASE_DIR)
 COMMUN = RACINE / 'wama' / 'common' / 'templates' / 'common'
@@ -37,6 +37,22 @@ PAGES = {
     # 2026-10-16 : la page des briques UI naît avec son volet de détail.
     'ui_bricks.html': ('.wama-cat-card',),
 }
+
+
+def _templates():
+    """Les gabarits des trois mondes, jumelles du bac à sable exclues (copies de leur source)."""
+    import re
+    twin = re.compile(r'/[a-z]+_\d\d/')
+    for root in ('wama', 'wama_lab', 'wama_data'):
+        for page in sorted((RACINE / root).rglob('templates/**/*.html')):
+            if not twin.search(page.as_posix()):
+                yield page
+
+
+def _registry_pages():
+    """Les PAGES qui incluent l'hôte du détail (le partiel lui-même exclu)."""
+    return [p for p in _templates() if p.name != '_inspector_registre.html'
+            and "_inspector_registre.html" in p.read_text(encoding='utf-8')]
 
 
 class CablageDeLInspecteurDeRegistreTest(SimpleTestCase):
@@ -114,6 +130,29 @@ class CablageDeLInspecteurDeRegistreTest(SimpleTestCase):
         # L'hôte est déclaré comme hôte d'ACTIONS : c'est ce qui fait courir `fillActions`.
         self.assertIn("ids: { actions: 'inspectorRegistreDetail' }", js)
 
+    def test_every_page_hosting_the_detail_declares_its_container_and_ids(self):
+        """GÉNÉRIQUE (2026-11-07) : toute page des trois mondes qui inclut l'hôte du détail
+        déclare son conteneur `data-wama-inspecte` et des `data-id` — sinon le volet reste sur
+        son invite. La liste `PAGES` ci-dessus n'a pas vu `memories.html`, qui incluait l'hôte
+        depuis le 2026-09-09 sans aucun conteneur : un souvenir cliqué ne montrait rien."""
+        missing = []
+        for page in _registry_pages():
+            src = page.read_text(encoding='utf-8')
+            rel = page.relative_to(RACINE).as_posix()
+            if 'data-wama-inspecte' not in src:
+                missing.append(f"{rel} : hôte inclus, aucun conteneur `data-wama-inspecte`")
+            if 'data-id=' not in src:
+                missing.append(f"{rel} : aucun `data-id` — la sélection ne peut pas aboutir")
+        self.assertEqual([], missing, "\n".join(missing))
+
+    def test_every_page_declaring_a_container_includes_the_host(self):
+        """L'inverse : un conteneur sans hôte pose la surbrillance et ne montre rien."""
+        orphans = [p.relative_to(RACINE).as_posix() for p in _templates()
+                   if p.name != '_inspector_registre.html'      # son commentaire cite l'attribut
+                   and 'data-wama-inspecte=' in p.read_text(encoding='utf-8')
+                   and '_inspector_registre.html' not in p.read_text(encoding='utf-8')]
+        self.assertEqual([], orphans)
+
     def test_staticfiles_sert_la_meme_brique(self):
         for rel in ('common/js/wama-inspector.js', 'common/css/wama-inspector-autofill.css'):
             source = RACINE / 'wama' / 'common' / 'static' / rel
@@ -123,3 +162,33 @@ class CablageDeLInspecteurDeRegistreTest(SimpleTestCase):
                 self.assertEqual(source.read_text(encoding='utf-8'),
                                  servi.read_text(encoding='utf-8'),
                                  f"{rel} : staticfiles/ diverge de la source")
+
+
+class ServedRegistryPagesTest(TestCase):
+    """La PAGE servie porte le volet, l'hôte du détail et le conteneur (2026-11-07) — les
+    catalogues des librairies et des fonctions, qui déclaraient `VOLET_AUCUN` depuis le
+    2026-08-22, et les souvenirs, dont l'hôte n'avait aucun conteneur."""
+
+    PAGES = ('model_manager:libraries_catalog', 'model_manager:functions_catalog',
+             'common:memories')
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        cls.account = get_user_model().objects.create_superuser(
+            username='registry_inspector', email='registry@test.local', password='x')
+        # La grille des librairies (donc son conteneur) n'est rendue que s'il y a des lignes.
+        from wama.common.models import Library
+        Library.objects.create(key='registry-inspector-probe', name='probe', version='1.0')
+
+    def setUp(self):
+        self.client.force_login(self.account)
+
+    def test_the_served_page_hosts_the_detail_of_the_clicked_element(self):
+        from django.urls import reverse
+        for name in self.PAGES:
+            with self.subTest(page=name):
+                html = self.client.get(reverse(name)).content.decode()
+                self.assertIn('id="wama-right-panel"', html, 'aucun volet rendu')
+                self.assertIn('id="inspectorRegistreDetail"', html, "hôte du détail absent")
+                self.assertIn('data-wama-inspecte=', html, 'aucun conteneur inspecté')

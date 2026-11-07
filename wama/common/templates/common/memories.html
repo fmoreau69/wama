@@ -76,9 +76,17 @@ sans l'avoir tracé referait le « chemin parallèle » que la doctrine interdit
     {% include 'common/_filter_bar.html' with facettes=facettes mode='server' recherche=q placeholder='Rechercher un souvenir…' url_reset=url_reset %}
   </form>
 
+  {% comment %}Conteneur de l'inspecteur de registre (2026-11-07) : l'hôte du détail était inclus
+  au volet depuis le 2026-09-09 sans qu'aucun conteneur ne le déclare — un clic ne montrait rien.
+  La fiche se dérive des facettes `data-f-*` (la clé est le libellé affiché). La file de revue,
+  plus bas, n'en est pas : ses lignes portent un select et un bouton.{% endcomment %}
+  <div data-wama-inspecte=".souv-item">
   {% for s in actifs %}
-  <div class="souv-item">
-    <div class="contenu">{{ s.content }}</div>
+  <div class="souv-item" data-id="{{ s.id }}" data-f-nature="{{ s.kind_libelle }}"
+       data-f-sujet="{{ s.subject|default:'' }}" data-f-auteur="{{ s.proprietaire_libelle }}"
+       data-f-portee="{{ s.portee_libelle }}" data-f-provenance="{{ s.provenance }}">
+    {# `wama-cat-description` : la description que lit le deriveur (aucun style, la liste ne bouge pas). #}
+    <div class="contenu wama-cat-description">{{ s.content }}</div>
     <div class="meta">
       <span class="souv-kind {{ s.kind }}">{{ s.kind_libelle }}</span>
       {% if s.subject %}<span>{{ s.subject }}</span>{% endif %}
@@ -100,6 +108,7 @@ sans l'avoir tracé referait le « chemin parallèle » que la doctrine interdit
     </p>
   </div>
   {% endfor %}
+  </div>
 
   {% if est_staff %}
   <div class="souv-revue">
