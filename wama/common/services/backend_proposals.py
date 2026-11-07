@@ -738,11 +738,52 @@ def _smoke_orientation(code: str, *, module: str, model_key: str, out_dir: Path)
     return out
 
 
+def _smoke_quality_metric(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement, puis la note d'une image face à ELLE-MÊME et face à une version bruitée : deux
+    nombres finis, un sens déclaré du vocabulaire des mesures (`lower` / `higher`), et l'image
+    intacte MIEUX notée que la bruitée dans ce sens (2026-11-07, contrat `quality-metric`)."""
+    import math
+    import tempfile
+
+    import numpy as np
+    rng = np.random.default_rng(0)
+    reference = rng.integers(0, 255, (128, 128, 3), dtype=np.uint8)
+    noisy = np.clip(reference.astype(np.int16) + rng.integers(-60, 60, reference.shape),
+                    0, 255).astype(np.uint8)
+    started = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            backend = _proposed_backend(code, module, tmp, 'score')
+            if not type(backend).is_available():
+                return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
+            if not backend.load(model_id_of(model_key)):
+                return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+            same = backend.score(image=reference, reference=reference)
+            degraded = backend.score(image=noisy, reference=reference)
+            direction = getattr(backend, 'direction', '')
+            backend.unload()
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
+                    'seconds': round(time.time() - started, 1)}
+    seconds = round(time.time() - started, 1)
+    out = {'ran': True, 'ok': True, 'seconds': seconds, 'same': same, 'degraded': degraded,
+           'direction': direction}
+    if direction not in ('lower', 'higher') or not all(
+            isinstance(v, float) and math.isfinite(v) for v in (same, degraded)):
+        out.update(ok=False, error=f'réponse hors contrat : sens {direction!r}, notes '
+                                   f'({same!r}, {degraded!r})')
+    elif (same >= degraded) if direction == 'lower' else (same <= degraded):
+        out.update(ok=False, error=f"l'image intacte n'est pas mieux notée que la bruitée "
+                                   f"({same:.4f} / {degraded:.4f}, sens {direction})")
+    return out
+
+
 #: Un essai par CONTRAT — un contrat sans entrée le dit (`smoke`).
 SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_speech,
           'ScoreExtractionBackend': _smoke_score, 'PIIDetectionBackend': _smoke_pii,
           'LanguageIdentificationBackend': _smoke_language,
-          'PageOrientationBackend': _smoke_orientation}
+          'PageOrientationBackend': _smoke_orientation,
+          'QualityMetricBackend': _smoke_quality_metric}
 
 
 # ── Le geste : lister, valider (ÉCRIRE), rejeter ─────────────────────────────────────────────

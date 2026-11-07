@@ -622,7 +622,11 @@ MECHANISMS = (
                        'wama/model_manager/tests/tests_bench_boxes.py',
                        'wama/model_manager/tests/tests_bench_upscale.py',
                        'wama/model_manager/tests/tests.py',
-                       'wama/model_manager/tests/tests_benchmark_chain.py'),
+                       'wama/model_manager/tests/tests_benchmark_chain.py',
+                       # Son instrument LPIPS, au contrat `quality-metric` depuis le 2026-11-07
+                       # (le banc le chargeait lui-même) : le contrat et son backend sont son corps.
+                       'wama/common/backends/quality_metric_base.py',
+                       'wama/common/backends/lpips_backend.py'),
               # Plus « autonome » depuis le 2026-10-18 : la découverte du catalogue lit la
               # déclaration de son instrument LPIPS (`LPIPS_FILES`, ligne `quality-metric` que la
               # route installe) — un consommateur réel, que le compte doit montrer.

@@ -45,7 +45,6 @@ class LoadedByTest(TestCase):
     EXPECTED_LIBRARIES = {
         'face_analyzer:mediapipe-face-landmarker': ['mediapipe'],
         'github:CAIC-AD/YOLOPv2:V0.0.1': ['opencv-python', 'torch', 'torchvision'],
-        'pytorch_download:lpips-alexnet': ['lpips'],
         'huggingface:pipecat-ai/smart-turn-v3': ['onnxruntime-gpu'],
     }
     #: Exécuté par la version NAVIGATEUR de MediaPipe : aucune librairie Python à requérir.
@@ -62,10 +61,10 @@ class LoadedByTest(TestCase):
 
     def test_each_brick_model_names_a_module_that_exists(self):
         declared = self._declared()
-        # 5 depuis le 2026-11-07 : Whisper tiny et l'orientation de page sont servis par leur
-        # backend (`WhisperLanguageBackend`, `DocTROrientationBackend`) ; leurs découvertes restent
-        # ici, et n'émettent plus de `loaded_by`.
-        self.assertEqual(5, len(declared), declared)
+        # 4 depuis le 2026-11-07 : Whisper tiny, l'orientation de page et LPIPS sont servis par leur
+        # backend (`WhisperLanguageBackend`, `DocTROrientationBackend`, `LPIPSBackend`) ; leurs
+        # découvertes restent ici, et n'émettent plus de `loaded_by`.
+        self.assertEqual(4, len(declared), declared)
         for key, runtime in declared.items():
             with self.subTest(model=key):
                 self.assertIsNotNone(importlib.util.find_spec(runtime['loaded_by']),

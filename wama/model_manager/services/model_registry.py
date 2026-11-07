@@ -1678,7 +1678,6 @@ class ModelRegistry:
         que `torch.hub` tirait au premier banc ; aucune sélection d'app ne tire cette tâche. La
         déclaration vit à côté de l'instrument (`bench.LPIPS_FILES`)."""
         try:
-            from wama.model_manager.services import bench
             from wama.model_manager.services.bench import LPIPS_FILES, LPIPS_KEY, lpips_folder
             from wama.common.utils.model_keys import split_key
             from wama.model_manager.services.model_installer import declared_files_present
@@ -1699,9 +1698,11 @@ class ModelRegistry:
                 extra_info={'path': str(root / LPIPS_FILES[0]['path']),
                             'install_dir': str(root), 'declared_files': LPIPS_FILES,
                             'size_bytes': LPIPS_FILES[0]['size']},
-                # Le banc le charge lui-même (`lpips_metric`) : `loaded_by`, lu sur le module ; son
-                # moteur est la librairie `lpips` (2026-11-06 — le `requires` du manifeste en dérive).
-                composition={'runtime': {'engine': 'lpips', 'loaded_by': bench.__name__}},
+                # Sur la librairie `lpips` ; celui qui l'EXÉCUTE est le backend du contrat
+                # `quality-metric` (`LPIPSBackend`, 2026-11-07), résolu par le moteur et la tâche
+                # comme tout modèle — le banc le chargeait lui-même jusque-là (`loaded_by`, émis à
+                # None : un RETRAIT pour la synchro, `model_sync.merged_composition`).
+                composition={'runtime': {'engine': 'lpips', 'loaded_by': None}},
                 capabilities={'task': 'quality-metric', 'modalities': ['image'],
                               'inputs_required': ['work_file']},
             )

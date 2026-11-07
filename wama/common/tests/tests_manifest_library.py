@@ -263,9 +263,11 @@ class ModelLibrariesSinglePathTest(TestCase):
     def test_a_backend_requires_what_its_install_contract_names(self):
         """`DoctrBackend` ne déclare que `REQUIRED_PACKAGES = ['doctr']` : la librairie se lit
         par son nom d'import (le manifeste de `reader:doctr` sortait sans elle)."""
-        from wama.common.backends.manager import backend_for_engine
+        # La classe NOMMÉE : depuis le 2026-11-07 `doctr` a deux backends (le lecteur et le
+        # classifieur d'orientation), et le moteur seul ne désigne plus l'un d'eux.
+        from wama.common.backends.doctr_backend import DocTRBackend
         from wama.common.services.library_index import executor_libraries
-        self.assertEqual(['python-doctr'], executor_libraries(backend_for_engine('doctr')))
+        self.assertEqual(['python-doctr'], executor_libraries(DocTRBackend))
 
     def _row(self, key, runtime):
         from wama.model_manager.models import AIModel

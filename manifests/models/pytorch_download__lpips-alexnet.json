@@ -11,8 +11,7 @@
     },
     "composition": {
       "runtime": {
-        "engine": "lpips",
-        "loaded_by": "wama.model_manager.services.bench"
+        "engine": "lpips"
       }
     },
     "extra_info": {
@@ -66,6 +65,10 @@
   "requires": [
     {
       "key": "lpips",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
       "kind": "library"
     }
   ],

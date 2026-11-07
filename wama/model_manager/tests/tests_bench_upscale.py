@@ -28,8 +28,12 @@ class _ResizeUpscaler:
         pass
 
 
-def _mean_abs(a, b):
-    return (a - b).abs().mean()
+class _MeanAbsMetric:
+    """Stands for the metric backend (`quality-metric` contract) : a distance, lower is better."""
+    direction = 'lower'
+
+    def score(self, image, reference):
+        return float(np.abs(image.astype(np.float64) - reference.astype(np.float64)).mean())
 
 
 class UpscaleBenchTest(TestCase):
@@ -58,7 +62,7 @@ class UpscaleBenchTest(TestCase):
     def _run(self, upscaler=_ResizeUpscaler, **options):
         from wama.model_manager.services import bench
         with mock.patch('wama.common.backends.manager.backend_for_key', return_value=upscaler), \
-                mock.patch.object(bench, 'lpips_metric', return_value=_mean_abs), \
+                mock.patch.object(bench, '_quality_metric', return_value=_MeanAbsMetric()), \
                 mock.patch('wama.common.services.resource_governor.gpu_safe_mode',
                            return_value=False):
             return bench.run_bench('upscale', self.sample, **options)[0]
@@ -134,12 +138,109 @@ class LpipsIsInstalledByTheRouteTest(TestCase):
         from wama.model_manager.services import bench
         folder = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, folder, True)
-        bench._LPIPS.clear()
         with mock.patch.object(bench, 'lpips_folder', return_value=folder), \
                 mock.patch('wama.common.utils.model_readiness.install_and_wait',
                            return_value=False) as install, \
                 mock.patch('torch.hub.load_state_dict_from_url') as hub:
             with self.assertRaisesMessage(RuntimeError, 'pull_model pytorch_download:lpips-alexnet'):
-                bench.lpips_metric('cpu')
+                bench._quality_metric()
         self.assertEqual(bench.LPIPS_KEY, install.call_args.args[0])
         hub.assert_not_called()
+
+
+class LpipsThroughTheCommonContractTest(TestCase):
+    """2026-11-07 : the bench loaded LPIPS itself (`lpips_metric`, a module dict per device, on the
+    GPU), outside the launch gate, the governor's envelope and the common unloading (`loaded_by`).
+    It is now the backend of the `quality-metric` contract, reached through the common gate."""
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.bench import LPIPS_KEY
+        self.key = LPIPS_KEY
+        AIModel.objects.create(model_key=LPIPS_KEY, name='lpips', model_type='vision',
+                               source='pytorch_download', is_downloaded=True,
+                               capabilities={'task': 'quality-metric'},
+                               composition={'runtime': {'engine': 'lpips'}})
+
+    def test_the_line_resolves_its_backend_of_the_contract(self):
+        from wama.common.backends.lpips_backend import LPIPSBackend
+        from wama.common.backends.manager import _work_method, backend_for_key
+        self.assertIs(LPIPSBackend, backend_for_key(self.key))
+        self.assertEqual('score', _work_method(LPIPSBackend))
+        self.assertIn(LPIPSBackend.direction, ('lower', 'higher'))
+
+    def test_the_bench_gets_its_metric_from_the_common_gate(self):
+        from pathlib import Path
+        from wama.common.backends.lpips_backend import LPIPSBackend
+        from wama.model_manager.services import bench
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder, True)
+        (folder / bench.LPIPS_WEIGHTS).write_bytes(b'')
+        with mock.patch.object(bench, 'lpips_folder', return_value=folder), \
+                mock.patch.object(LPIPSBackend, 'load', return_value=True) as load:
+            first, second = bench._quality_metric(), bench._quality_metric()
+        self.assertIsInstance(first, LPIPSBackend)
+        self.assertIs(first, second, 'kept loaded by the common cache')
+        load.assert_called_with(self.key)
+
+    def test_the_manifest_requires_the_libraries_of_its_backend(self):
+        from wama.common.manifests.builtin.model import _requires_librairies
+        body = {'composition': {'runtime': {'engine': 'lpips'}},
+                'capabilities': {'task': 'quality-metric'}}
+        self.assertEqual(['lpips', 'torch'],
+                         [r['key'] for r in _requires_librairies(body, self.key)])
+
+    def test_the_discovery_retracts_the_loader_it_used_to_name(self):
+        from wama.model_manager.services.model_registry import ModelRegistry
+        from wama.model_manager.services.model_sync import merged_composition
+        registry = object.__new__(ModelRegistry)
+        registry._models, registry.discovery_errors = {}, []
+        registry._discover_quality_metric_models()
+        prior = {'runtime': {'engine': 'lpips', 'loaded_by': 'wama.model_manager.services.bench'}}
+        self.assertEqual({'runtime': {'engine': 'lpips'}},
+                         merged_composition(prior, registry._models[self.key].composition))
+
+    def test_the_literal_list_is_the_key_the_bench_names(self):
+        from wama.common.backends.lpips_backend import LPIPSBackend
+        from wama.common.utils.model_keys import backend_model_id
+        self.assertEqual({backend_model_id(self.key): {'model_key': self.key}},
+                         LPIPSBackend.SUPPORTED_MODELS)
+
+
+FAKE_METRIC = '''
+import numpy as np
+from .quality_metric_base import QualityMetricBackend
+
+
+class FakeMetric(QualityMetricBackend):
+    direction = __DIRECTION__
+
+    def load(self, model=None):
+        self._loaded = True
+        return True
+
+    def unload(self):
+        self._loaded = False
+
+    def score(self, image, reference):
+        return float(np.abs(image.astype(np.float64) - reference.astype(np.float64)).mean())
+'''
+
+
+class QualityMetricSmokeTest(TestCase):
+    """The contract's trial (`backend_proposals.SMOKES`) : a metric proposed by the `backend` role
+    must rate an intact image better than a noisy one, in the direction it declares."""
+
+    def _smoke(self, direction):
+        from wama.common.services.backend_proposals import SMOKES
+        return SMOKES['QualityMetricBackend'](
+            FAKE_METRIC.replace('__DIRECTION__', repr(direction)), module='fake_metric_backend',
+            model_key='huggingface:org/fake-metric', out_dir=None)
+
+    def test_a_distance_declared_lower_passes(self):
+        out = self._smoke('lower')
+        self.assertTrue(out['ok'], out)
+
+    def test_a_distance_declared_higher_or_undeclared_fails(self):
+        self.assertIn("n'est pas mieux notée", self._smoke('higher')['error'])
+        self.assertIn('hors contrat', self._smoke('')['error'])

@@ -703,8 +703,22 @@ chaque lecture) et déclare le processeur (`recommended_vram_gb = 0` ; il annon�
 gouverneur). Mesuré : page couchée redressée, 2ᵉ lecture 1,9 s contre 5,2 s.
 ⚠ Un service démarré AVANT un tel portage rejoue l'ancienne découverte : sa synchro remet le
 `loaded_by` en base jusqu'à sa relance (vécu le 2026-11-07, workers de 22:20).
-⏳ YOLOPv2 et LPIPS (GPU hors du gouverneur), Smart Turn, le Face Landmarker ; le reconnaisseur de
-gestes reste au navigateur. Dérives vues en chemin, non soldées : pyannote garde sa propre
+✅ **LPIPS** (2026-11-07) : contrat `quality-metric` (`quality_metric_base`, `score(image,
+reference)`, SENS déclaré `direction` dans le vocabulaire de `ResultEvaluation`), `LPIPSBackend`
+(GPU quand il y en a un), le banc par la porte commune (`bench._quality_metric` ; il installe et
+attend d'abord, une commande), le sens de la mesure rangée LU sur le backend (il était écrit
+`'lower'` dans le banc), essai du contrat (`SMOKES` : l'image intacte mieux notée que la bruitée,
+dans le sens déclaré), `R227`. Mesuré : le GOUVERNEUR le voit enfin (0,5 Go réservés pendant le
+chargement, rendus au déchargement) ; 0,0 face à elle-même, 0,063 bruitée.
+⏳ **Le Cam Analyzer, session de portage DÉDIÉE** (décision de Fabien, 2026-11-07 : « le cam
+analyzer est trop important et on ne doit surtout rien y casser ») : il ne choisit aucun de ses
+modèles au catalogue — le profil porte des CHEMINS de fichier (`road_model_path`,
+`model_path`), le segmenteur se choisit sur le nom du fichier (`tasks.py:978`), et YOLOPv2, le
+`RoadSegmenter` ultralytics et le détecteur `YOLO(model_path)` (`tasks.py:2307`) se chargent hors
+backend ; YOLOPv2 garde son propre cache GPU (`yolopv2_segmenter._MODEL_CACHE`), invisible du
+gouverneur, motif recopié par `common/backends/depth_engine.py`. Le portage : le profil désigne ses
+modèles par CLÉ du catalogue, chacun par la porte commune. Restent aussi Smart Turn et le Face
+Landmarker ; le reconnaisseur de gestes reste au navigateur. Dérives vues en chemin, non soldées : pyannote garde sa propre
 instance (`get_diarizer`) à côté du cache commun ; `load()` à vide aussi chez `audiocpp`,
 `audiocraft`, `audio_enhancer` (à mesurer un par un : un moteur hors processus peut n'avoir rien
 à tenir).

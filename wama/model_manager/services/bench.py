@@ -673,8 +673,6 @@ def read_image_reference(sample: str) -> dict:
     return ref
 
 
-_LPIPS = {}
-
 #: L'instrument LPIPS au catalogue (2026-10-16) : une ligne de tâche `quality-metric`, que le
 #: model manager installe, vérifie et désinstalle comme tout modèle — la dorsale AlexNet de
 #: torchvision était tirée par `torch.hub` au premier banc, à côté de la route d'installation.
@@ -697,40 +695,24 @@ def lpips_folder() -> Path:
     return Path(settings.MODEL_PATHS['vision']['lpips'])
 
 
-def lpips_metric(device: str):
-    """LPIPS (réseau AlexNet), chargé une fois par processus. Les couches linéaires viennent du
-    paquet ; la dorsale AlexNet est celle que le model manager installe (`LPIPS_KEY`) — absente,
-    elle s'installe par la route et le banc ATTEND (`model_readiness.install_and_wait`, le banc
-    est une commande). Jamais dans le $HOME, où `torch.hub` la rangeait de lui-même."""
-    if device not in _LPIPS:
-        import lpips
-        import torch
-        from wama.common.utils.model_readiness import install_and_wait
-        weights = lpips_folder() / LPIPS_WEIGHTS
+def _quality_metric():
+    """L'instrument LPIPS, chargé — par la porte commune (`backend_instance_for_key(LPIPS_KEY)`,
+    backend du contrat `quality-metric`, gardé chargé par le cache commun). Sa dorsale AlexNet est
+    celle que le model manager installe : absente, elle s'installe par la route et le banc ATTEND
+    (`model_readiness.install_and_wait`, le banc est une commande). Jamais dans le $HOME, où
+    `torch.hub` la rangeait de lui-même. Jusqu'au 2026-11-07, le banc le chargeait lui-même
+    (`lpips_metric`)."""
+    from wama.common.backends.manager import backend_instance_for_key
+    from wama.common.utils.model_readiness import install_and_wait
+    weights = lpips_folder() / LPIPS_WEIGHTS
+    if not weights.exists():
+        install_and_wait(LPIPS_KEY, console=logger.info)
         if not weights.exists():
-            install_and_wait(LPIPS_KEY, console=logger.info)
-            if not weights.exists():
-                raise RuntimeError(f"LPIPS : {weights} absent — installer « LPIPS (AlexNet) » depuis "
-                                   f"le model manager (`pull_model {LPIPS_KEY}`)")
-        state = torch.load(weights, map_location='cpu', weights_only=True)
-        metric = lpips.LPIPS(net='alex', pnet_rand=True, verbose=False)
-        # Le réseau de LPIPS range les couches de `alexnet.features` par TRANCHES (`slice1.0`…),
-        # sous leur indice d'origine : `features.<i>.<p>` → `slice<k>.<i>.<p>`.
-        mapped = {}
-        for key in metric.net.state_dict():
-            _slice, index, param = key.split('.', 2)
-            mapped[key] = state[f'features.{index}.{param}']
-        metric.net.load_state_dict(mapped)
-        _LPIPS[device] = metric.eval().to(device)
-    return _LPIPS[device]
-
-
-def _as_tensor(bgr, device: str):
-    """Image BGR uint8 → tenseur RGB [-1, 1] (N, C, H, W), la convention de LPIPS."""
-    import torch
-    rgb = bgr[:, :, ::-1].copy()
-    return (torch.from_numpy(rgb).permute(2, 0, 1).unsqueeze(0).float().div(127.5).sub(1.0)
-            .to(device))
+            raise RuntimeError(f"LPIPS : {weights} absent — installer « LPIPS (AlexNet) » depuis "
+                               f"le model manager (`pull_model {LPIPS_KEY}`)")
+    metric = backend_instance_for_key(LPIPS_KEY)
+    metric.load(LPIPS_KEY)
+    return metric
 
 
 def _bench_upscale(entry: AIModel, sample: str, *, record: bool = False, limit: int = 0,
@@ -739,7 +721,6 @@ def _bench_upscale(entry: AIModel, sample: str, *, record: bool = False, limit: 
     import hashlib
 
     import cv2
-    import torch
 
     from wama.common.backends.manager import backend_for_key
     from wama.common.services.resource_governor import gpu_safe_mode
@@ -756,8 +737,7 @@ def _bench_upscale(entry: AIModel, sample: str, *, record: bool = False, limit: 
         raise RuntimeError(f"{entry.model_key} : aucun backend résolu depuis le catalogue")
     ref = read_image_reference(sample)
     entries = _sampled(ref['entries'], limit)
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    metric = lpips_metric(device)
+    metric = _quality_metric()
     upscaler = backend_class(model_name=backend_model_id(entry.model_key))
     total, elapsed, megapixels, warm = 0.0, 0.0, 0.0, True
     try:
@@ -777,8 +757,7 @@ def _bench_upscale(entry: AIModel, sample: str, *, record: bool = False, limit: 
             megapixels += lr.shape[0] * lr.shape[1] / 1e6
             if sr.shape != hr.shape:
                 raise ValueError(f"{name} : sortie {sr.shape[:2]} au lieu de {hr.shape[:2]}")
-            with torch.no_grad():
-                total += float(metric(_as_tensor(sr, device), _as_tensor(hr, device)).item())
+            total += metric.score(image=sr, reference=hr)
     finally:
         upscaler.close()
     count = len(entries)
@@ -795,7 +774,7 @@ def _bench_upscale(entry: AIModel, sample: str, *, record: bool = False, limit: 
         digest.update('\n'.join(entries).encode('utf-8'))
         ResultEvaluation.objects.update_or_create(
             app=RECALL_APP, object_type=UPSCALE_OBJECT, object_id=entry.pk, metric=UPSCALE_METRIC,
-            defaults={'model_key': entry.model_key, 'value': mean, 'direction': 'lower',
+            defaults={'model_key': entry.model_key, 'value': mean, 'direction': metric.direction,
                       'protocol': UPSCALE_PROTOCOL.format(scale=scale),
                       'reference_sha256': digest.hexdigest(),
                       'reference_name': ref.get('name') or os.path.basename(sample),

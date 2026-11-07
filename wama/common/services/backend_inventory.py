@@ -726,6 +726,9 @@ TASK_CONTRACTS = {
     # hors du contrat par `ocr_base`. LIANT : `doctr` est le moteur de deux backends, et c'est ce
     # contrat qui sépare le classifieur du lecteur.
     'page-orientation': ('page_orientation_base', 'PageOrientationBackend', True),
+    # 2026-11-07 : un instrument de mesure appris (LPIPS, le banc d'agrandissement), chargé jusque-là
+    # hors du contrat par le banc. LIANT, comme les deux précédents.
+    'quality-metric': ('quality_metric_base', 'QualityMetricBackend', True),
     'detect': ('detection_base', 'DetectionBackend', False),
     # 2026-10-28 : les données personnelles d'un texte (ROADMAP §16.4bis). Écrit AVANT les
     # backends, comme `audio-to-score`. LIANT, comme l'OCR : un modèle `pii-detection` n'est servi
