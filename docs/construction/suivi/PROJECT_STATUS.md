@@ -29095,3 +29095,31 @@ une instance sœur, dont il rejoint le chantier.
   `wama/`, `wama_lab/`, `wama_data/` ; le gabarit GÉNÉRÉ d'une app passe par la brique ; le nom
   hostile reste dans sa chaîne et se relit tel quel. `tests_shared_reads.ScriptInjectionTest` juge
   désormais la page, pas la vue.
+
+### PALIER 2026-11-07 (nuit) — sécurité, reste n°3 : le relais Windows → gunicorn en boucle locale
+
+> Décision de Fabien du 2026-11-07 (« ensuite on passe au point 3 »). ⚠ **Effectif à la relance de
+> WAMA**, lancée en administrateur (le script pose la règle `netsh`) ; sans les droits, il le dit et
+> l'ancienne règle reste.
+
+- **Mesuré avant** (côté Windows) : sur `:8000`, un seul `LISTENING`, `svchost` (`iphlpsvc`) sur
+  `0.0.0.0` → `<IP WSL2>:8000` ; connexions établies : `127.0.0.1` seulement ; `wslrelay` relaie
+  `8001` et `8003` en `127.0.0.1`, pas `8000`. Le client de la règle est Apache
+  (`ProxyPass / http://127.0.0.1:8000/`, `C:\Apache24\conf\extra\wama-common.conf:23`).
+- **Changé** : `start_wama_prod.sh`, bloc « WSL2 port forwarding fix » — `listenaddress=127.0.0.1` ;
+  les règles `0.0.0.0` et `127.0.0.1` retirées puis la neuve posée (gunicorn arrêté l.21, règle
+  l.118, gunicorn relancé plus bas : `wslrelay` ne peut pas prendre le port avant). Gunicorn garde
+  `bind = "0.0.0.0:8000"` DANS WSL2 (la règle vise l'IP de la VM, joignable de l'hôte seul).
+- **Garde** : `wama/common/tests/tests_network_exposure.py` — le relais exécuté (`cmd.exe`) écoute en
+  `127.0.0.1`, l'ancienne règle est retirée, tout `--host` des deux scripts de démarrage est
+  `127.0.0.1` (voix, vecteurs, confidentialité — la boucle locale du 2026-11-06 n'avait pas de
+  garde). Contre-épreuve en processus (`mutate_in_process`) : 3 mutations, 3 rouges, chacune sur
+  son test.
+- **Docs** : `INFRA_WSL_VS_WINDOWS.md` (table des services, « La chaîne réelle »),
+  `PROFILES_PERMISSIONS §1.5bis` point 7.
+- 🔚 **À Fabien** : (1) relancer WAMA en administrateur, puis vérifier
+  `netsh interface portproxy show v4tov4` (une seule ligne, `127.0.0.1 8000`) et une page servie par
+  Apache ; (2) `check --deploy` garde W008/W012/W016 tant que le vhost `:80` sert en HTTP et que
+  `WAMA_HTTPS` est éteint : décision de bascule HTTPS (le vhost `:443` existe, certificat
+  autosigné) ; (3) reste n°2 (DEBUG, `/media/` d'Apache), trois décisions en attente ; reste n°5
+  (pages de registre) à décider.

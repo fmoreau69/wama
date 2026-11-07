@@ -108,15 +108,20 @@ echo "=== Starting WAMA production script ==="
 # ── WSL2 port forwarding fix ──────────────────────────────────────────────────
 # WSL2's automatic port proxy Windows→WSL2 breaks silently after sleep/hibernate.
 # Force-reset it via netsh so Apache (Windows) can always reach gunicorn at :8000.
+# Boucle locale SEULE depuis le 2026-11-07 (audit de sécurité du 2026-11-06) : le seul client
+# de cette règle est Apache (`ProxyPass … http://127.0.0.1:8000/`). Écoutée sur 0.0.0.0, elle
+# ouvrait gunicorn au réseau sans passer par Apache. L'ancienne règle 0.0.0.0 est retirée au
+# passage. Posée ici, gunicorn arrêté (plus haut) : `wslrelay` ne peut pas prendre le port avant elle.
 WSL2_IP=$(hostname -I | awk '{print $1}')
 if [ -n "$WSL2_IP" ]; then
     # Capture netsh output to detect elevation error (netsh writes it to stdout, not stderr)
-    NETSH_OUT=$(cmd.exe /c "netsh interface portproxy delete v4tov4 listenport=8000 listenaddress=0.0.0.0 >nul 2>nul & netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 connectport=8000 connectaddress=${WSL2_IP}" 2>/dev/null || true)
+    NETSH_OUT=$(cmd.exe /c "netsh interface portproxy delete v4tov4 listenport=8000 listenaddress=0.0.0.0 >nul 2>nul & netsh interface portproxy delete v4tov4 listenport=8000 listenaddress=127.0.0.1 >nul 2>nul & netsh interface portproxy add v4tov4 listenport=8000 listenaddress=127.0.0.1 connectport=8000 connectaddress=${WSL2_IP}" 2>/dev/null || true)
     if echo "$NETSH_OUT" | grep -qiE "lev|admin"; then
         echo "INFO: netsh portproxy requires admin rights — lance WSL2 en tant qu'administrateur"
-        echo "      ou exécute une fois en admin : netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 connectport=8000 connectaddress=${WSL2_IP}"
+        echo "      ou exécute une fois en admin : netsh interface portproxy delete v4tov4 listenport=8000 listenaddress=0.0.0.0"
+        echo "      puis : netsh interface portproxy add v4tov4 listenport=8000 listenaddress=127.0.0.1 connectport=8000 connectaddress=${WSL2_IP}"
     else
-        echo "WSL2 port proxy 0.0.0.0:8000 → ${WSL2_IP}:8000 configured"
+        echo "WSL2 port proxy 127.0.0.1:8000 → ${WSL2_IP}:8000 configured"
     fi
 fi
 # ─────────────────────────────────────────────────────────────────────────────
