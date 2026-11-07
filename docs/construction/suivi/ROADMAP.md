@@ -1100,9 +1100,15 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    pleins, non mesurée ; la recommandation d'installation (`prospector.recommended_option`) juge
    « tient » par `fits_alone`, SANS la marge que `chosen_precision` ajoute — deux admissibilités
    pour une même question (point b, « une seule marge »), à unifier par une décision ; la lecture
-   du moteur déclaré d'une LIGNE reste écrite en place dans `tool_api`, `tts/ui_meta` et
-   `avatarizer/workers` (celle d'une CLÉ est commune : `backends.manager.engine_of`, revérification
-   du soir — `detection_ensemble` l'emprunte, `served_by_for_key` aussi).
+   du moteur déclaré d'une LIGNE reste écrite en place (celle d'une CLÉ est commune :
+   `backends.manager.engine_of`, revérification du soir — `detection_ensemble` l'emprunte,
+   `served_by_for_key` aussi). *Remesuré le 2026-11-07* (motif
+   `get('runtime') or {}).get('engine')`, code hors tests) : **onze** sites, pas trois —
+   `tts/ui_meta.py:92`, `avatarizer/workers.py:340`, `model_installer.py:736`, `provenance.py:328,500`,
+   `model_registry.py:68,703,818,2197`, `check_model_completeness.py:140,204` ; `tool_api` ne
+   l'écrit plus sous cette forme. La brique (une lecture de `composition`, que `engine_of`
+   emprunterait) attend que les fichiers d'installation, en cours de remaniement par d'autres
+   sessions, se posent.
    ✅ **Poids GGUF — le moteur diffusers les lit** (2026-11-06, décision de Fabien : option B, « fais-le
    toi ») : FLUX.1-dev déclare la précision `Q8_0` (`diffusers_backend.FLUX_PRECISIONS`, entre BF16
    et INT8), dont les poids sont PUBLIÉS à part — le transformeur GGUF de city96, UN fichier figé à
@@ -1117,7 +1123,11 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    FLUX.1-dev installé. **MESURÉ sur la carte** (6,8 Go tenus hors de la tâche, 19,65 libérables) :
    le gouverneur retient Q8_0 (11,84 calculés), **12,52 Go au pic** à 1024², 10 pas, 138 s de rendu
    (encodeurs et transformeur remontés à chaque rendu), chargement 281 s ; la LoRA logo s'y pose
-   (768², 12,42 Go, rendu au style du logo, même graine). Gardes : `tests_vram_wait.GgufPrecisionTest`,
+   (768², 12,42 Go, rendu au style du logo, même graine). **Validé EN SERVICE le 2026-11-07**
+   (WAMA relancé, compte de test, `create_image` → `start_imager`, génération 1412) : la card dit
+   « se chargera en Q8_0 (11.8 Go) : dans sa précision la plus fidèle il demanderait 22.2 Go, et la
+   carte peut en libérer au mieux 20.1 », le worker GPU charge le GGUF installé, SUCCESS en 400 s
+   (chargement 160 s, rendu 122 s). Gardes : `tests_vram_wait.GgufPrecisionTest`,
    `tests_vram_peaks.ReducedPeakTest.test_published_weights_count_at_their_declared_size`.
    ⏳ Restent : **FLUX 3 Klein** — son GGUF installé (`unsloth/flux-3-image-klein-GGUF`, un seul
    fichier, en BF16 : 273 tenseurs BF16, 86 F32 — aucune réduction) est une architecture
