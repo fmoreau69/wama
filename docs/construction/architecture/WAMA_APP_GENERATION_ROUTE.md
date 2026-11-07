@@ -1387,7 +1387,8 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       | cam_analyzer | son gabarit | ne recharge plus `wama-shuttle.js` ; sa synchro est inchangée (③) |
       | **inchangé** | les sons (`WamaAudioPlayer`), les vignettes (`tileHtml`, muettes), la surcouche plein écran (images), texte, PDF, 3D | ⏳ les sons : le lecteur commun s'initialise au PREMIER CLIC (un appel prématuré télécharge et décode le fichier pour l'onde) — l'attacher à l'affichage dégraderait chaque card ; il faut d'abord un rappel « initialisé » au lecteur commun |
       **Les briques** : `WamaPreviewOverlay` dessine l'image PRÉSENTÉE (`requestVideoFrameCallback`,
-      `presentedFrameAt` = arrondi de `mediaTime × fps`, repli `currentTime` sans l'API) ;
+      `presentedFrameAt` = arrondi de `mediaTime × fps`, repli `currentTime` sans l'API) — le rappel
+      NOTE l'image, la boucle du rendu la dessine (à l'arrêt, le rappel la dessine lui-même) ;
       `syncVideos` RETIRÉ ; `WamaShuttle.forAxis` (le shuttle d'un axe, qu'écrivaient le transport et
       la visionneuse) ; l'axe gagne, pour le monde Data aussi : une vitesse choisie sur le média (menu
       natif) est une COMMANDE (`ratechange`, reconnue à la valeur que l'axe a posée) ; un geste de
@@ -1407,18 +1408,25 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       | Comparer à l'arrêt (pause, positionnement) : même image | 33 à 100 % (une image d'écart RESTE sous le seuil de 120 ms) | **100 %**, tous les runs |
       | Comparer, écart d'horloge entre les vidéos, p95 / max — léger | 1,5-2,5 ms / jusqu'à **16,4 s** (juste après un positionnement en lecture) | 0,7-7 ms / ≤ 24 ms |
       | idem — HD | 64-79 ms / 16,4 s ; un décalage constant de 25 ou 64 ms tenu toute une lecture | 4-44 ms / ≤ 215 ms (décrochage du décodeur, rattrapé en < 3 s) |
-      | Comparer en lecture : même image présentée — série finale, 5 passes alternées sur le code final | 12 i/s 93 % (92-95), 25 i/s 76 % (68-87) ; HD (7 passes antérieures) 58 % | 12 i/s **83 %** (57-93, médiane 91), 25 i/s **87 %** (78-96) ; HD 69 % |
+      | Comparer en lecture : même image présentée — 5 passes alternées, machine sans autre charge (2026-11-07) | 12 i/s 90,2 % (88-93), 25 i/s 79,8 % (75-86), HD 80,6 % (63-97) | 12 i/s **90,2 %** (89-92), 25 i/s **79,3 %** (64-90), HD **86,2 %** (84-88) |
       | positionnements par geste | 1 | 1 (+1 à la pause : posée au temps de l'axe) |
-      ⚠ **Deux points dits tels quels** : (a) 🔴 **BLOQUANT pour la fusion** — à 12 i/s, en lecture,
-      la branche est EN DESSOUS (83 % contre 93 % en moyenne) : une passe sur cinq, une vidéo de
-      Comparer PRÉSENTE une image d'avance pendant toute la lecture, les deux horloges à 1 ms près et
-      sans aucun rattrapage en cours (relevé phase par phase). C'est la phase de présentation du
-      décodeur, que `currentTime` ne voit pas — HEAD la subit aussi (une passe à 25 i/s du même jour,
-      une image d'écart tenue toute une phase, 0,8 % d'images identiques), d'où des plages qui se
-      recouvrent ; mais l'exigence « aucune régression » n'est pas tenue à 12 i/s. Le remède n'est
-      pas un réglage : recaler un suiveur VIDÉO sur son image PRÉSENTÉE (rappel d'image, l'indice
-      présenté contre celui que désigne l'axe, cadence lue aux instants des images) — une règle de
-      l'axe, donc du monde Data aussi, à concevoir et mesurer comme une étape ;
+      ⚠ **Deux points dits tels quels** : (a) ✅ **le « bloquant » du 05/11 était mal attribué —
+      soldé le 2026-11-07.** Le 05/11 disait la branche en dessous à 12 i/s (83 % contre 93 %) et en
+      accusait l'axe. Remesuré à 8 passes alternées sans autre charge : 12 i/s 87 contre 89 et 25 i/s
+      81 contre 83 (plages qui se recouvrent), mais **HD 65 contre 90**, sans recouvrement — et les
+      horloges à 2 ms. Croisé brique par brique (branche avec la surcouche de HEAD : 86 %, la reprise
+      après positionnement remonte de 67 à 100 %) : c'est la SURCOUCHE, qui dessinait DANS le rappel
+      d'image de la vidéo de référence, et non l'axe. Dessinée par la boucle du rendu, le rappel ne
+      faisant que noter l'image : les chiffres du tableau, la surcouche toujours juste (100 %). Le
+      recalage d'un suiveur vidéo sur son image présentée, que le 05/11 prescrivait, a été ESSAYÉ et
+      ÉCARTÉ sur mesure : (1) à la position absolue (image présentée contre le temps de l'axe), 25 i/s
+      59 % et HD 52 % — le navigateur choisit son image pour un affichage À VENIR (0 à 33 ms sans
+      écran, ±½ image en cadence), un écart que l'axe recalait comme un retard, poussant chaque vidéo
+      d'un côté, une image d'écart la moitié du temps ; (2) au groupe (les horloges tiennent l'axe, les
+      images accordent les vidéos entre elles) : rien de gagné, plus de dispersion (12 i/s 89,3 %
+      82-95). Ce qui reste : quand la frontière de deux images tombe au milieu de la fenêtre où le
+      navigateur l'affiche, il choisit pour chaque vidéo et s'y tient (mesuré : +8 contre −41 ms à
+      12 i/s, horloges égales) — dev comme la branche, d'où le bruit de cette ligne ;
       (b) une vidéo SEULE qui décroche (décodeur saturé) est désormais REPOSITIONNÉE au temps de
       l'axe au-delà de 150 ms (un saut d'images), là où elle reprenait en retard — la règle du monde
       Data (le temps reste juste), vue une fois sur six runs de la visionneuse à 25 i/s.

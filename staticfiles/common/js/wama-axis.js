@@ -44,6 +44,12 @@
  *   axis.shuttle(-2);                              // un cran de shuttle : 0 = arrêt, < 0 = arrière
  *   var gone = axis.cadence(2000); axis.step(1);   // un échantillon plus loin (0,5 ms)
  *   axis.bindKeys({jump: 5});                      // Espace, ←/→, Début/Fin (+ J/K/L par WamaShuttle)
+ *   var keys = axis.keys({shuttle: WamaShuttle.forAxis(axis)});   // les mêmes, SANS inscription :
+ *   keys.handle(e); keys.release();                // une couche du clavier les passe (la visionneuse)
+ *
+ * L'APERÇU (2026-11-05) : chaque vidéo qu'il montre suit un axe (`WamaMediaPreview.playOnAxis`),
+ * les deux de Comparer le même ; leurs contrôles NATIFS restent — lecture, pause, position et
+ * VITESSE choisies dessus sont des commandes à l'axe.
  *
  * VITESSE ET SHUTTLE (2026-10-20, portage de l'éditeur du transcriber) : la vitesse choisie et le
  * cran du shuttle sont deux choses. Le shuttle l'emporte tant qu'il est engagé (`shuttling`) ;

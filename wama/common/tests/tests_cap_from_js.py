@@ -1185,10 +1185,14 @@ class PreviewOverlayTest(SimpleTestCase):
     def test_the_overlay_draws_the_frame_the_video_presents(self):
         """Measured on the preview bench (videos whose every frame carries its number, 2026-11-05) :
         drawn from `currentTime`, the box sat on the frame shown one time in two at 25 fps (52 to
-        80 %), nearly always one frame late. Each frame presented now redraws, with ITS time — a
-        `currentTime` already ahead is not read."""
+        80 %), nearly always one frame late. Each frame presented is now NOTED with ITS time — a
+        `currentTime` already ahead is not read — and drawn by the rendering loop (the callback runs
+        before it in the same rendering). Drawing INSIDE the callback put the two compared videos
+        out of step in HD (same frame 68 % of the time against 92 %, clocks equal — bench of
+        2026-11-07) ; at rest, nothing loops : the callback draws the frame a seek put."""
         self.v8.eval("""
-            var drawn = [], frameCb = null;
+            var drawn = [], frameCb = null, rafCb = null, listeners = {};
+            window.requestAnimationFrame = function (fn) { rafCb = fn; return 1; };
             document.createElement = function (tag) {
                 return {tagName: tag.toUpperCase(), style: {}, appendChild: function () {},
                         getContext: function () { return {clearRect: function () {}, strokeRect: function () {},
@@ -1197,7 +1201,7 @@ class PreviewOverlayTest(SimpleTestCase):
             var video = {tagName: 'VIDEO', clientWidth: 400, clientHeight: 300, videoWidth: 400,
                          videoHeight: 300, currentTime: 0, paused: false,
                          parentNode: {insertBefore: function () {}},
-                         addEventListener: function () {},
+                         addEventListener: function (k, fn) { (listeners[k] = listeners[k] || []).push(fn); },
                          requestVideoFrameCallback: function (fn) { frameCb = fn; return 1; }};
             var doc = {media: 'video', fps: 25, width: 400, frames: [0, 1, 2, 3].map(function (i) {
                 return {i: i, d: [{box: [1, 1, 9, 9], label: 'f' + i}]}; })};
@@ -1206,16 +1210,25 @@ class PreviewOverlayTest(SimpleTestCase):
             window.WamaPreviewOverlay.attach(video, {url: '/doc.json', confidence: false});
         """)
         out = self.v8.eval("""(function () {
+            listeners.play.forEach(function (fn) { fn(); });   // playing : the rendering loop runs
             drawn = [];
             video.currentTime = 2 / 25 + 0.03;              // the playing time is already near frame 3
             frameCb(0, {mediaTime: 2 / 25 - 1e-6});         // ... the frame presented is frame 2
-            var first = drawn.slice();
-            frameCb(0, {mediaTime: 3 / 25});
-            return [first, drawn, typeof frameCb];
+            var inCallback = drawn.slice();
+            rafCb(0);
+            var rendered = drawn.slice();
+            frameCb(0, {mediaTime: 3 / 25}); rafCb(0);
+            var next = drawn.slice();
+            video.paused = true; drawn = [];
+            frameCb(0, {mediaTime: 1 / 25});                // at rest : a seek put frame 1
+            return {inCallback: inCallback, rendered: rendered, next: next, rest: drawn,
+                    asked: typeof frameCb};
         })()""")
-        self.assertEqual(['f2'], list(out[0]), 'the frame presented, not the playing time')
-        self.assertEqual(['f2', 'f3'], list(out[1]))
-        self.assertEqual('function', out[2], 'the next presented frame is asked for')
+        self.assertEqual([], list(out['inCallback']), 'playing, the callback only NOTES the frame')
+        self.assertEqual(['f2'], list(out['rendered']), 'the rendering draws the frame presented, not the playing time')
+        self.assertEqual(['f2', 'f3'], list(out['next']))
+        self.assertEqual(['f1'], list(out['rest']), 'at rest the callback draws the frame shown')
+        self.assertEqual('function', out['asked'], 'the next presented frame is asked for')
 
     def test_compare_has_no_clock_of_its_own(self):
         """`syncVideos` recalled the compared video on the reference beyond 120 ms only : measured on

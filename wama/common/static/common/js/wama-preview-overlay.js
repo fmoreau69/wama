@@ -11,8 +11,10 @@
  *     confidence } (servi par la face d'aperçu de l'app, `preview_utils`).
  *
  * L'image montrée, et pas l'instant de lecture (2026-11-05) : le navigateur rappelle à chaque image
- * envoyée à l'écran avec SON instant (`requestVideoFrameCallback`, `mediaTime`), et la surcouche se
- * dessine dans la même mise à jour. `currentTime` avance ENTRE deux images : mesuré sur le banc de
+ * envoyée à l'écran avec SON instant (`requestVideoFrameCallback`, `mediaTime`), noté, et la
+ * surcouche se dessine dans la même mise à jour, par la boucle du rendu qui suit le rappel (dessiner
+ * dans le rappel même désaccordait Comparer en HD, banc du 2026-11-07). `currentTime` avance ENTRE
+ * deux images : mesuré sur le banc de
  * l'aperçu (vidéos dont chaque image porte son numéro), la boîte ne tombait sur l'image montrée
  * qu'une fois sur deux à 25 i/s, presque toujours une image en retard — juste au ralenti seulement.
  * Une surcouche suit l'image de SA vidéo, jamais l'axe (`wama-axis.js`) : un suiveur peut être à
@@ -138,17 +140,21 @@
       draw(ctx, state.doc._byFrame[index()], rect, overlay);
     }
 
-    // Sans rappel d'image (navigateur ancien) : la boucle sur `currentTime`, comme avant.
+    // La boucle du rendu pendant la lecture — sur l'image présentée, ou sans rappel d'image
+    // (navigateur ancien) sur `currentTime`.
     function loop() {
       render();
       if (video && !mediaEl.paused && !mediaEl.ended) state.raf = global.requestAnimationFrame(loop);
       else state.raf = null;
     }
 
-    // Avec : chaque image montrée — à la lecture comme après un positionnement — redessine.
+    // Avec : chaque image montrée est NOTÉE ; on dessine dans la boucle du rendu (le rappel passe
+    // avant elle au même rendu), et à l'arrêt tout de suite (une image posée par un positionnement).
+    // ⚠ Dessiner DANS le rappel désaccordait les deux vidéos de Comparer en HD (même image 68 %
+    // du temps contre 92 % en dessinant au rendu, horloges égales — banc du 2026-11-07).
     function onFrame(now, meta) {
       state.presented = meta && typeof meta.mediaTime === 'number' ? meta.mediaTime : null;
-      render();
+      if (mediaEl.paused) render();
       mediaEl.requestVideoFrameCallback(onFrame);
     }
 
@@ -157,7 +163,7 @@
     ['loadedmetadata', 'loadeddata', 'load'].concat(frames ? [] : ['seeked', 'timeupdate'])
       .forEach(function (ev) { mediaEl.addEventListener(ev, render); });
     if (frames) mediaEl.requestVideoFrameCallback(onFrame);
-    else if (video) mediaEl.addEventListener('play', function () { if (!state.raf) loop(); });
+    if (video) mediaEl.addEventListener('play', function () { if (!state.raf) loop(); });
     if (global.ResizeObserver) new global.ResizeObserver(render).observe(mediaEl);
   }
 

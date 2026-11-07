@@ -4,8 +4,9 @@
  *
  * Quatre niveaux, chacun à sa place : l'AXE est le temps (`wama-axis.js`) ; le TRANSPORT lui
  * envoie des commandes — ce module, montable PARTOUT (`WamaTransport.mount(hôte, cfg)`) : la
- * surface (enveloppe `media_transport`), demain l'aperçu (visionneuse, Comparer) et le magnéto du
- * monde Data (`WAMA_DATA_WORLD §5bis`) ; les VUES regardent l'axe (ligne de temps
+ * surface (enveloppe `media_transport`) et le magnéto du monde Data (`WAMA_DATA_WORLD §5bis`) ;
+ * l'aperçu a, depuis le 2026-11-05, l'axe et SES touches (`WamaAxis.keys`) sous les contrôles
+ * natifs de ses vidéos — sa barre de transport reste à décider ; les VUES regardent l'axe (ligne de temps
  * `wama-timeline.js`, vidéo, partition) ; les OUTILS DE DOMAINE agissent pendant la lecture (modes
  * d'écriture du transcriber). Le transport ne connaît ni média, ni vue, ni donnée : il pilote
  * l'axe, jamais une vue — c'est la vue qui s'abonne.
