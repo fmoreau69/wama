@@ -713,6 +713,11 @@ TASK_CONTRACTS = {
     # partition du Reader. Écrit avant le backend, non liant comme les deux autres tâches de partition.
     'image-to-score': ('score_reading_base', 'ScoreReadingBackend', False),
     'transcription': ('speech_to_text_base', 'SpeechToTextBackend', True),
+    # 2026-11-06 : la langue PARLÉE d'un audio (Whisper tiny, la sonde du transcriber), chargée
+    # jusque-là hors du contrat par `spoken_language`. LIANT : `faster-whisper` est le moteur de
+    # deux backends, et c'est ce contrat qui sépare l'identificateur du transcripteur.
+    'language-identification': ('language_identification_base', 'LanguageIdentificationBackend',
+                                True),
     # 2026-10-07 : la signature que les trois moteurs OCR partageaient sans la déclarer. LIANT :
     # un modèle d'OCR n'est servi que par un backend OCR — c'est ce qui borne `GlmOcrBackend`
     # (moteur `ollama`, qui sert aussi le chat) à sa tâche.

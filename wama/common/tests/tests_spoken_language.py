@@ -5,7 +5,7 @@
 from unittest import mock
 
 import numpy as np
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.backends.speech_to_text_base import TranscriptionSegment
 from wama.common.utils.spoken_language import (
@@ -44,8 +44,8 @@ class ProbeWindowsTest(SimpleTestCase):
             windows.append((start_s, duration_s))
             return np.zeros(16000, dtype=np.float32), 16000
         with mock.patch('wama.common.utils.audio_decode.decode_window', side_effect=decode), \
-                mock.patch.object(spoken_language, '_model') as model:
-            model.return_value.detect_language.return_value = ('fr', 0.9, [])
+                mock.patch.object(spoken_language, '_identifier') as identifier:
+            identifier.return_value.identify_language.return_value = ('fr', 0.9)
             heard = spoken_language.probe_languages('x.wav', 300.0)
         self.assertEqual(24, len(heard))
         self.assertTrue(all(d == 10 for _, d in windows))
@@ -114,3 +114,67 @@ class WhisperWindowLanguagesTest(SimpleTestCase):
                         side_effect=RuntimeError('ffmpeg')):
             backend._label_window_languages('x.wav', segments, 'de')
         self.assertEqual('de', segments[0].language)
+
+
+TINY = 'huggingface:Systran/faster-whisper-tiny'
+
+
+class ProbeThroughTheCommonContractTest(TestCase):
+    """La sonde passe par la porte commune (2026-11-06) : Whisper tiny est servi par le backend du
+    contrat `language-identification`, résolu par son moteur et sa tâche comme tout modèle — plus
+    par un singleton de module qui construisait `WhisperModel` lui-même (`loaded_by`)."""
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        for key, task in ((TINY, 'language-identification'), ('transcriber:whisper', 'transcription')):
+            AIModel.objects.create(model_key=key, name=key, model_type='speech',
+                                   source=key.split(':')[0], is_downloaded=True,
+                                   capabilities={'task': task},
+                                   composition={'runtime': {'engine': 'faster-whisper'}})
+
+    def test_one_engine_two_backends_each_model_its_own(self):
+        from wama.common.backends.manager import backend_for_key
+        from wama.common.backends.whisper_backend import WhisperBackend
+        from wama.common.backends.whisper_language_backend import WhisperLanguageBackend
+        self.assertIs(WhisperLanguageBackend, backend_for_key(TINY))
+        self.assertIs(WhisperBackend, backend_for_key('transcriber:whisper'))
+
+    def test_the_probe_gets_its_backend_from_the_common_gate_beside_the_transcriber(self):
+        """L'instance de la sonde n'est pas celle qui transcrit : le cache commun en garde une par
+        CLASSE, et un `load('tiny')` de celle de large-v3 la déchargerait."""
+        from wama.common.backends.manager import backend_instance_for_key
+        from wama.common.backends.whisper_language_backend import WhisperLanguageBackend
+        from wama.common.utils import spoken_language
+        with mock.patch.object(WhisperLanguageBackend, 'load', return_value=True) as load:
+            first, second = spoken_language._identifier(), spoken_language._identifier()
+        self.assertIsInstance(first, WhisperLanguageBackend)
+        self.assertIs(first, second, 'gardé chargé par le cache commun')
+        load.assert_called_with(TINY)
+        self.assertIsNot(first, backend_instance_for_key('transcriber:whisper'))
+
+    def test_the_contract_work_method_is_identify_language(self):
+        from wama.common.backends.manager import _work_method
+        from wama.common.backends.whisper_language_backend import WhisperLanguageBackend
+        self.assertEqual('identify_language', _work_method(WhisperLanguageBackend))
+        self.assertEqual(0, WhisperLanguageBackend.recommended_vram_gb,
+                         'processeur : rien à publier au gouverneur')
+
+    def test_the_manifest_requires_the_library_of_its_backend(self):
+        from wama.common.manifests.builtin.model import _requires_librairies
+        body = {'composition': {'runtime': {'engine': 'faster-whisper'}},
+                'capabilities': {'task': 'language-identification'}}
+        self.assertEqual([{'kind': 'library', 'key': 'faster-whisper'}],
+                         _requires_librairies(body, TINY))
+
+    def test_the_discovery_retracts_the_loader_it_used_to_name(self):
+        """Émis à None, `loaded_by` est RETIRÉ par la synchro (`merged_composition`) : son silence
+        l'aurait laissé au catalogue, et la ligne serait restée hors de son backend."""
+        from wama.model_manager.services.model_sync import merged_composition
+        from wama.model_manager.tests.tests_model_loaded_by import _registry
+        r = _registry()
+        r._discover_language_identification_models()
+        discovered = r._models[TINY].composition
+        prior = {'runtime': {'engine': 'faster-whisper',
+                             'loaded_by': 'wama.common.utils.spoken_language'}}
+        self.assertEqual({'runtime': {'engine': 'faster-whisper'}},
+                         merged_composition(prior, discovered))

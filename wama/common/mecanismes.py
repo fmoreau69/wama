@@ -3100,9 +3100,15 @@ MECHANISMS = (
               "inconnue — les paroles du composer, 2026-10-05) et celle d'un AUDIO (Whisper sur "
               "plusieurs passages — la langue d'un fichier proposée, le transcriber). Deux faces, "
               "une question : en quelle langue est ce contenu ? — jamais une heuristique d'app "
-              "(celle du describer, morte, est retirée le jour même)",
+              "(celle du describer, morte, est retirée le jour même). L'audio passe par le contrat "
+              "`language-identification` (`LanguageIdentificationBackend`, Whisper tiny servi par "
+              "`WhisperLanguageBackend`, obtenu à la porte commune — 2026-11-06 : la sonde le "
+              "chargeait elle-même)",
               'wama/common/utils/text_language.py', 'docs/construction/ia/WAMA_LLM.md',
-              annexes=('wama/common/utils/spoken_language.py',)),
+              annexes=('wama/common/utils/spoken_language.py',
+                       'wama/common/backends/language_identification_base.py',
+                       'wama/common/backends/whisper_language_backend.py',
+                       'wama/common/tests/tests_spoken_language.py')),
     Mechanism('asset_natures', "Natures d'assets de la médiathèque (A′)",
               "UNE déclaration par nature (`ASSET_NATURES` : libellé, catégorie ∈ MEDIA_CATEGORIES, "
               "extensions, icône, pivot, schéma d'attributs, `data_type` inter-mondes) dont "

@@ -62,6 +62,24 @@ def whisper_installed(size: str) -> bool:
     return installed_weights_complete(whisper_snapshot_root(size))
 
 
+def whisper_model_source(model_name: str) -> tuple[str, bool]:
+    """`(ce que reçoit WhisperModel, local_files_only)`. Une taille DÉCLARÉE (`WHISPER_REPOS`)
+    se lit par son dépôt dans le dossier de famille, sans réseau : la route l'installe ; si
+    elle manque, on le dit (`RuntimeError`, le moteur ne télécharge pas lui-même). Une taille
+    que le catalogue ne déclare pas (un `WAMA_ASSISTANT_STT_MODEL` réglé autrement) garde son
+    nom : faster-whisper la range dans le même dossier (`download_root`), le levier A
+    d'`hf_weights`. Lue par les DEUX backends du moteur (`WhisperBackend`,
+    `WhisperLanguageBackend`)."""
+    declared = WHISPER_REPOS.get(model_name)
+    if declared is None:
+        return model_name, False
+    if not whisper_installed(model_name):
+        raise RuntimeError(
+            f"Whisper {model_name} n'est pas installé ({whisper_snapshot_root(model_name)}) — "
+            f"il s'installe par le model manager (dépôt « {declared['repo']} »).")
+    return declared['repo'], True
+
+
 def whisper_base_model(size: str) -> dict:
     """`{base_model, base_model_relation}` d'une taille déclarée — la paire que la découverte pose
     sur la ligne (vocabulaire du Hub, `AIModel.BASE_MODEL_RELATIONS`)."""
@@ -80,6 +98,14 @@ class WhisperBackend(SpeechToTextBackend):
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'faster-whisper'
+    #: Modèles servis (2026-11-06) : `faster-whisper` est AUSSI le moteur de l'identificateur de
+    #: langue (`WhisperLanguageBackend`, Whisper tiny) — un moteur partagé se départage par la
+    #: liste de chacun (`backend_inventory.resolve_entry`, règle 2). Clé = dernier segment de la
+    #: clé de catalogue ; `size` = la taille que `load()` reçoit. ⚠ En LITTÉRAL : l'inventaire lit
+    #: les clés par AST, sans importer.
+    SUPPORTED_MODELS = {
+        'whisper': {'size': 'large-v3', 'model_key': 'transcriber:whisper'},
+    }
     name = "whisper"
     display_name = "Whisper (faster-whisper)"
     description = "large-v3 — rapide, polyvalent, multilingue. Diarisation via pyannote."
@@ -149,23 +175,6 @@ class WhisperBackend(SpeechToTextBackend):
         télécharger dans le `$HOME` (2026-10-10)."""
         return str(whisper_folder())
 
-    @staticmethod
-    def _model_source(model_name: str) -> tuple[str, bool]:
-        """`(ce que reçoit WhisperModel, local_files_only)`. Une taille DÉCLARÉE (`WHISPER_REPOS`)
-        se lit par son dépôt dans le dossier de famille, sans réseau : la route l'installe ; si
-        elle manque, on le dit (`RuntimeError`, le moteur ne télécharge pas lui-même). Une taille
-        que le catalogue ne déclare pas (un `WAMA_ASSISTANT_STT_MODEL` réglé autrement) garde son
-        nom : faster-whisper la range dans le même dossier (`download_root`), le levier A
-        d'`hf_weights`."""
-        declared = WHISPER_REPOS.get(model_name)
-        if declared is None:
-            return model_name, False
-        if not whisper_installed(model_name):
-            raise RuntimeError(
-                f"Whisper {model_name} n'est pas installé ({whisper_snapshot_root(model_name)}) — "
-                f"il s'installe par le model manager (dépôt « {declared['repo']} »).")
-        return declared['repo'], True
-
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -182,6 +191,9 @@ class WhisperBackend(SpeechToTextBackend):
         """
         if model_name is None:
             model_name = DEFAULT_WHISPER_MODEL
+        # Un modèle LISTÉ se reçoit par son identifiant de catalogue, comme chez NeMo et Qwen3-ASR
+        # (`TranscriberBackendManager.model_for_request`) : `whisper` → la taille qu'il déclare.
+        model_name = (self.SUPPORTED_MODELS.get(model_name) or {}).get('size', model_name)
 
         # Already loaded with the same model — reuse
         if self._loaded and self._current_model == model_name:
@@ -204,7 +216,7 @@ class WhisperBackend(SpeechToTextBackend):
                 + (f" → {download_root}" if download_root else "")
             )
 
-            source, local_only = self._model_source(model_name)
+            source, local_only = whisper_model_source(model_name)
             self._model = WhisperModel(
                 source,
                 device=self._device,

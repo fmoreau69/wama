@@ -109,11 +109,20 @@ class RemoteBackendThroughTheManagerTest(TestCase):
     def test_a_local_model_never_sends_its_key_as_a_model_to_load(self):
         """The shared instance of a LOCAL engine carries the requested key since the common door
         (2026-10-09) — the shortcut « resolved for this key » stays for REMOTE models: for
-        `transcriber:whisper` it would have loaded `whisper` instead of the engine's default."""
-        from wama.common.backends.whisper_backend import WhisperBackend
+        `transcriber:whisper` it would have loaded `whisper` instead of the engine's default.
+        Since 2026-11-06 `WhisperBackend` LISTS its model (`faster-whisper` is shared with the language
+        identifier): the request names the listed id, and `load` reads the size it declares."""
+        import sys
+        import types
+        from wama.common.backends import whisper_backend
         from wama.common.backends.manager import backend_instance
-        backend = backend_instance(WhisperBackend, 'transcriber:whisper')
-        self.assertIsNone(TranscriberBackendManager.model_for_request(backend, 'transcriber:whisper'))
+        backend = backend_instance(whisper_backend.WhisperBackend, 'transcriber:whisper')
+        requested = TranscriberBackendManager.model_for_request(backend, 'transcriber:whisper')
+        with mock.patch.dict(sys.modules, {'faster_whisper': types.SimpleNamespace(WhisperModel=None)}), \
+                mock.patch.object(whisper_backend, 'whisper_model_source',
+                                  side_effect=RuntimeError('stop')) as source:
+            backend.load(requested)
+        source.assert_called_once_with('large-v3')
 
     def test_a_local_only_profile_is_refused_not_replaced_by_a_local_engine(self):
         self.user.profile.cloud_policy = 'local_only'

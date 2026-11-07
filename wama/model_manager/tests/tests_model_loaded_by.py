@@ -47,7 +47,6 @@ class LoadedByTest(TestCase):
         'github:CAIC-AD/YOLOPv2:V0.0.1': ['opencv-python', 'torch', 'torchvision'],
         'pytorch_download:lpips-alexnet': ['lpips'],
         'huggingface:pipecat-ai/smart-turn-v3': ['onnxruntime-gpu'],
-        'huggingface:Systran/faster-whisper-tiny': ['faster-whisper'],
         'github:mindee/doctr:v0.8.1': ['python-doctr'],
     }
     #: Exécuté par la version NAVIGATEUR de MediaPipe : aucune librairie Python à requérir.
@@ -64,7 +63,9 @@ class LoadedByTest(TestCase):
 
     def test_each_brick_model_names_a_module_that_exists(self):
         declared = self._declared()
-        self.assertEqual(7, len(declared), declared)
+        # 6 depuis le 2026-11-06 : Whisper tiny est servi par son backend (`WhisperLanguageBackend`) ;
+        # sa découverte reste ici, et n'émet plus de `loaded_by`.
+        self.assertEqual(6, len(declared), declared)
         for key, runtime in declared.items():
             with self.subTest(model=key):
                 self.assertIsNotNone(importlib.util.find_spec(runtime['loaded_by']),
@@ -96,9 +97,13 @@ class LoadedByTest(TestCase):
         runtime = {'engine': 'faster-whisper', 'loaded_by': 'wama.common.utils.spoken_language'}
         self.assertIsNone(backend_for_model(_line('huggingface:Systran/faster-whisper-tiny',
                                                   {'runtime': runtime})))
-        # Contre-épreuve : la même ligne sans `loaded_by` va au backend du moteur.
-        self.assertIs(WhisperBackend, backend_for_model(_line(
-            'huggingface:Systran/faster-whisper-large-v3', {'runtime': {'engine': 'faster-whisper'}})))
+        # Contre-épreuve : une ligne sans `loaded_by` que le backend liste va au backend du moteur
+        # (porteur à `model_key`, le champ que lit la porte : le moteur est partagé, la liste
+        # départage — règle 2 de `resolve_entry`).
+        from types import SimpleNamespace
+        self.assertIs(WhisperBackend, backend_for_model(SimpleNamespace(
+            model_key='transcriber:whisper', capabilities={},
+            composition={'runtime': {'engine': 'faster-whisper'}})))
 
     def test_the_backend_inventory_reads_the_same_rule(self):
         """`app_backend_entries` est la lecture SANS import de `backend_for_model` : une ligne
@@ -109,8 +114,11 @@ class LoadedByTest(TestCase):
         for source, runtime in (('loaderprobe', {'engine': 'faster-whisper',
                                                  'loaded_by': 'wama.common.utils.spoken_language'}),
                                 ('backendprobe', {'engine': 'faster-whisper'})):
-            AIModel.objects.create(model_key=f'{source}:tiny', name='tiny', model_type='speech',
-                                   source=source, composition={'runtime': runtime})
+            # `whisper` : l'identifiant que `WhisperBackend` liste — `faster-whisper` est partagé
+            # (règle 2 de `resolve_entry`).
+            AIModel.objects.create(model_key=f'{source}:whisper', name='whisper',
+                                   model_type='speech', source=source,
+                                   composition={'runtime': runtime})
         self.assertEqual([], app_backend_entries('loaderprobe'))
         self.assertEqual(['wama.common.backends.whisper_backend'],
                          [e.module for e in app_backend_entries('backendprobe')])

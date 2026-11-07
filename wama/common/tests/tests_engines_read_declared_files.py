@@ -305,25 +305,29 @@ class WhisperReadsTheInstalledSnapshotTest(SimpleTestCase):
 
 
 class SpokenLanguageReadsTheInstalledSnapshotTest(SimpleTestCase):
+    """The language probe's model, loaded by its backend (`WhisperLanguageBackend`, 2026-11-06) —
+    the same reading of a declared size as `WhisperBackend` (`whisper_model_source`)."""
 
-    def setUp(self):
-        spoken_language._detector = None
-        self.addCleanup(setattr, spoken_language, '_detector', None)
+    def _backend(self):
+        from wama.common.backends.whisper_language_backend import WhisperLanguageBackend
+        return WhisperLanguageBackend()
 
     def test_an_absent_model_is_never_downloaded_and_says_the_route(self):
         with _fake_faster_whisper(), \
-                mock.patch.object(spoken_language, 'model_installed', return_value=False):
+                mock.patch.object(whisper_backend, 'whisper_installed', return_value=False):
             with self.assertRaisesRegex(RuntimeError, 'model manager.*faster-whisper-tiny'):
-                spoken_language._model()
+                self._backend().load(spoken_language.MODEL_KEY)
         self.assertEqual([], _FakeWhisperModel.seen)
 
     def test_an_installed_model_is_read_from_the_family_folder_without_network(self):
         with _fake_faster_whisper(), \
-                mock.patch.object(spoken_language, 'model_installed', return_value=True):
-            spoken_language._model()
+                mock.patch.object(whisper_backend, 'whisper_installed', return_value=True):
+            self.assertTrue(self._backend().load(spoken_language.MODEL_KEY))
         source, kwargs = _FakeWhisperModel.seen[0]
-        self.assertEqual(('Systran/faster-whisper-tiny', str(whisper_backend.whisper_folder()), True),
-                         (source, kwargs['download_root'], kwargs['local_files_only']))
+        self.assertEqual(('Systran/faster-whisper-tiny', str(whisper_backend.whisper_folder()), True,
+                          'cpu', 'int8'),
+                         (source, kwargs['download_root'], kwargs['local_files_only'],
+                          kwargs['device'], kwargs['compute_type']))
         self.assertEqual(whisper_backend.WHISPER_REPOS['tiny']['repo'], spoken_language.HF_REPO,
                          'one declaration of the size, beside its engine')
 

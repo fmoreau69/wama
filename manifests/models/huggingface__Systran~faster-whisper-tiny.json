@@ -14,8 +14,7 @@
     },
     "composition": {
       "runtime": {
-        "engine": "faster-whisper",
-        "loaded_by": "wama.common.utils.spoken_language"
+        "engine": "faster-whisper"
       }
     },
     "extra_info": {},

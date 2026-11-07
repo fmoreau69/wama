@@ -20,6 +20,11 @@ et lue sans réseau (2026-11-05 ; du 02 au 05/11, ses fichiers étaient déclar�
 02/11, `WhisperModel('tiny', download_root=…)` le tirait au premier usage, sans ligne au
 catalogue : jamais demandé à la route, jamais désinstallable. La glu qui va écouter le demande
 d'abord (`transcriber.workers._language_plan`, `ctx.ensure_model(MODEL_KEY)`).
+
+LE CHARGEMENT est celui de tout modèle (2026-11-06) : la porte de lancement commune
+(`backends.manager.backend_instance_for_key`) rend le backend du contrat `language-identification`
+qui sert la ligne (`WhisperLanguageBackend`), gardé chargé d'une sonde à l'autre par le cache
+commun. Avant, ce module tenait son propre singleton et construisait `WhisperModel` lui-même.
 """
 from __future__ import annotations
 
@@ -27,7 +32,7 @@ import logging
 from typing import Iterable, Optional, Tuple
 
 from wama.common.backends.whisper_backend import (
-    WHISPER_REPOS, whisper_folder, whisper_installed, whisper_snapshot_root,
+    WHISPER_REPOS, whisper_installed, whisper_snapshot_root,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,8 +46,6 @@ SIZE = 'tiny'
 HF_REPO = WHISPER_REPOS[SIZE]['repo']
 MODEL_KEY = f'huggingface:{HF_REPO}'
 
-_detector = None
-
 
 def model_folder():
     """La racine du snapshot que lit `WhisperModel` (sous le dossier de famille de Whisper)."""
@@ -53,17 +56,13 @@ def model_installed() -> bool:
     return whisper_installed(SIZE)
 
 
-def _model():
-    global _detector
-    if _detector is None:
-        if not model_installed():
-            raise RuntimeError(
-                f"Le modèle d'identification de langue n'est pas installé ({model_folder()}) — il "
-                f"s'installe par le model manager (ligne « {MODEL_KEY} »).")
-        from faster_whisper import WhisperModel
-        _detector = WhisperModel(HF_REPO, device='cpu', compute_type='int8',
-                                 download_root=str(whisper_folder()), local_files_only=True)
-    return _detector
+def _identifier():
+    """Le backend qui sert `MODEL_KEY`, chargé — par la porte commune (`backend_instance_for_key`,
+    puis `load`, idempotent). Un modèle absent LÈVE en le disant (`whisper_model_source`)."""
+    from wama.common.backends.manager import backend_instance_for_key
+    backend = backend_instance_for_key(MODEL_KEY)
+    backend.load(MODEL_KEY)
+    return backend
 
 
 def detect_spoken_language(audio_16k, supported: Optional[Iterable[str]] = None) -> Tuple[str, float]:
@@ -73,7 +72,7 @@ def detect_spoken_language(audio_16k, supported: Optional[Iterable[str]] = None)
     plus probable parmi celles-là — si elle n'en fait pas partie, `ValueError` le dit : proposer
     au moteur la « moins mauvaise » de ses langues lui ferait traduire au lieu de transcrire.
     """
-    language, probability, _ = _model().detect_language(audio=audio_16k[:SAMPLE_RATE * WINDOW_SECONDS])
+    language, probability = _identifier().identify_language(audio=audio_16k[:SAMPLE_RATE * WINDOW_SECONDS])
     logger.info('[spoken_language] %s (p=%.2f)', language, probability)
     if supported is not None and language not in set(supported):
         raise ValueError(f"langue parlée détectée « {language} » (p={probability:.2f}), "
@@ -106,13 +105,13 @@ def probe_languages(path, duration_s: float, windows: int = PROBE_WINDOWS,
     duration_s = float(duration_s or 0)
     count = max(1, min(windows, int(duration_s // window_s) or 1))
     heard = []
+    identifier = _identifier()
     for i in range(count):
         start = max(0.0, (i + 0.5) * duration_s / count - window_s / 2) if duration_s else 0.0
         audio, _ = decode_window(path, target_sr=SAMPLE_RATE, start_s=start, duration_s=window_s)
         if audio is None or not len(audio):
             continue
-        language, probability, _ = _model().detect_language(audio=audio)
-        heard.append((language, float(probability)))
+        heard.append(identifier.identify_language(audio=audio))
     logger.info('[spoken_language] sonde : %s', heard)
     return heard
 

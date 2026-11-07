@@ -190,8 +190,8 @@ class LanguageTest(SimpleTestCase):
     def test_an_unsupported_heard_language_fails_instead_of_being_translated(self):
         from unittest import mock
         backend, audio = self._canary({})
-        with audio, mock.patch('wama.common.utils.spoken_language._model') as model:
-            model.return_value.detect_language.return_value = ('zh', 0.93, [])
+        with audio, mock.patch('wama.common.utils.spoken_language._identifier') as identifier:
+            identifier.return_value.identify_language.return_value = ('zh', 0.93)
             result = backend.transcribe('clip.wav')
         self.assertFalse(result.success)
         self.assertIn('zh', result.error)
@@ -200,8 +200,8 @@ class LanguageTest(SimpleTestCase):
         from unittest import mock
         captured = {}
         backend, audio = self._canary(captured)
-        with audio, mock.patch('wama.common.utils.spoken_language._model') as model:
-            model.return_value.detect_language.return_value = (language, probability, [])
+        with audio, mock.patch('wama.common.utils.spoken_language._identifier') as identifier:
+            identifier.return_value.identify_language.return_value = (language, probability)
             result = backend.transcribe('clip.wav', fallback_language=fallback)
         return result, captured.get('source_lang')
 

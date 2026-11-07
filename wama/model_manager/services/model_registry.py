@@ -1870,12 +1870,12 @@ class ModelRegistry:
                 extra_info={'path': str(model_folder()) if installed else '',
                             'install_dir': str(whisper_folder()),
                             **whisper_base_model(SIZE)},
-                # Aucun backend ne le charge : la brique commune, par chemin (`_model`). Son moteur
-                # est celui de large-v3, lu sur son backend (2026-11-06) : la librairie que requiert
-                # son manifeste en dérive, et `loaded_by` garde la route — le backend Whisper ne
-                # le sert pas (`backend_for_model`).
-                composition={'runtime': {'engine': WhisperBackend.ENGINE,
-                                         'loaded_by': 'wama.common.utils.spoken_language'}},
+                # Son moteur est celui de large-v3, lu sur son backend ; celui qui l'EXÉCUTE est le
+                # backend du contrat `language-identification` (`WhisperLanguageBackend`, 2026-11-06),
+                # résolu par le moteur et la tâche comme tout modèle — la sonde le chargeait
+                # elle-même jusque-là (`loaded_by`, émis à None : un RETRAIT pour la synchro,
+                # `model_sync.merged_composition` — son silence le laisserait au catalogue).
+                composition={'runtime': {'engine': WhisperBackend.ENGINE, 'loaded_by': None}},
                 capabilities={'task': 'language-identification', 'modalities': ['audio'],
                               'inputs_required': ['work_audio'], 'languages': ['*']},
             )

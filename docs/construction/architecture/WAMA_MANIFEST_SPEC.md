@@ -677,6 +677,25 @@ rouges) :
   module d'un `loaded_by` n'est PAS mesuré à l'import : le banc importe aussi ultralytics et
   transformers pour d'autres mesures que LPIPS.
 
+**2026-11-06 (soir) — `loaded_by` est un CONSTAT, pas une route : les modèles chargés à part
+passent au contrat des backends** (Fabien : « aucun pansement, aucune dérive »). Six des sept
+lignes ne passaient par aucun backend parce que le contrat garde UNE instance par classe
+(`manager.backend_instance`) : un modèle AUXILIAIRE d'un moteur déjà servi (tiny à côté de
+large-v3) ne pouvait pas s'y loger, et chaque module tenait son propre singleton — hors de la porte
+de lancement, de l'enveloppe du gouverneur, du déchargement commun. La règle, celle de la
+diarisation : un modèle auxiliaire a SA classe de backend, au contrat de SA tâche
+(`TASK_CONTRACTS`), et le moteur partagé se départage par la liste de chacun (`SUPPORTED_MODELS`).
+✅ **Whisper tiny** : contrat `language-identification` (`language_identification_base`),
+`WhisperLanguageBackend` (processeur, `recommended_vram_gb = 0`), la sonde par
+`backend_instance_for_key` ; `WhisperBackend` liste son modèle et `load('whisper')` lit la taille
+déclarée ; la découverte émet `loaded_by: None` (RETRAIT, `model_sync.merged_composition`). Mesuré
+après synchro : ligne sans `loaded_by`, backend résolu, vrai chargement sur le processeur, rien au
+gouverneur. ⏳ YOLOPv2 et LPIPS (GPU hors du gouverneur), l'orientation de page (moteur `doctr`),
+Smart Turn, le Face Landmarker ; le reconnaisseur de gestes reste au navigateur. Dérives vues en
+chemin, non soldées : `DocTRBackend.load` ne charge rien (prédicteur reconstruit à chaque appel,
+2 Go annoncés au gouverneur pour rien), pyannote garde sa propre instance (`get_diarizer`) à côté du
+cache commun.
+
 #### 7.1 ter — hooks par kind, MESURÉ le 2026-08-05
 
 > Les hooks s'appellent `write_back`/`un_write_back` depuis le 2026-08-05 (`kinds.py:52-57` —
