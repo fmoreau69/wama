@@ -403,17 +403,21 @@ class DocTRReadsItsFilesTest(SimpleTestCase):
         self.assertEqual([], calls)
 
     def test_an_absent_orientation_classifier_is_not_downloaded_and_not_remembered(self):
-        """A comfort: the image goes as is — and once installed, the next call loads it."""
+        """A comfort: the image goes as is — and once installed, the next call loads it. Since
+        2026-11-07 the classifier is loaded by its backend (`DocTROrientationBackend`)."""
+        from wama.common.backends import doctr_orientation_backend
         calls = []
-        self.addCleanup(ocr_base._ORIENTATION_PREDICTOR.clear)
-        ocr_base._ORIENTATION_PREDICTOR.clear()
+        backend = doctr_orientation_backend.DocTROrientationBackend()
         with self._fake_doctr(calls), \
-                mock.patch.object(ocr_base, 'page_orientation_installed', return_value=False):
-            self.assertIsNone(ocr_base._orientation_predictor())
+                mock.patch.object(doctr_orientation_backend, 'page_orientation_installed',
+                                  return_value=False):
+            with self.assertRaisesRegex(RuntimeError, 'model manager.*mindee/doctr'):
+                backend.load()
         self.assertEqual([], calls)
         with self._fake_doctr(calls), \
-                mock.patch.object(ocr_base, 'page_orientation_installed', return_value=True):
-            ocr_base._orientation_predictor()
+                mock.patch.object(doctr_orientation_backend, 'page_orientation_installed',
+                                  return_value=True):
+            self.assertTrue(backend.load())
         self.assertEqual([('orientation', {'pretrained': True})], calls)
 
 

@@ -1916,10 +1916,11 @@ class ModelRegistry:
                             'size_bytes': sum(f['size'] for f in PAGE_ORIENTATION_FILES),
                             'install_dir': str(doctr_folder()),
                             'declared_files': PAGE_ORIENTATION_FILES},
-                # Chargé par la brique commune de l'OCR (`upright_image`), sur le moteur docTR
-                # (2026-11-06 : la librairie que requiert son manifeste en dérive).
-                composition={'runtime': {'engine': 'doctr',
-                                         'loaded_by': 'wama.common.backends.ocr_base'},
+                # Sur le moteur docTR ; celui qui l'EXÉCUTE est le backend du contrat
+                # `page-orientation` (`DocTROrientationBackend`, 2026-11-07), résolu par le moteur et
+                # la tâche comme tout modèle — `ocr_base` le chargeait lui-même jusque-là
+                # (`loaded_by`, émis à None : un RETRAIT pour la synchro, `merged_composition`).
+                composition={'runtime': {'engine': 'doctr', 'loaded_by': None},
                              'components': [{'repo': DOCTR_RELEASES, 'role': 'page_orientation'}]},
                 capabilities={'task': 'page-orientation', 'modalities': ['image', 'document'],
                               'inputs_required': ['work_file']},

@@ -692,11 +692,22 @@ déclarée ; la découverte émet `loaded_by: None` (RETRAIT, `model_sync.merged
 contrat a son essai pour un backend proposé (`backend_proposals.SMOKES`, la langue d'un extrait
 de corpus), chargeur à part retiré (`REMOVAL_LEDGER R225`). Mesuré après synchro : ligne sans
 `loaded_by`, backend résolu, vrai chargement sur le processeur, rien au gouverneur ; l'essai sur
-le vrai backend rend « fr » (p = 0,97) sur l'extrait de SUMM-RE. ⏳ YOLOPv2 et LPIPS (GPU hors du gouverneur), l'orientation de page (moteur `doctr`),
-Smart Turn, le Face Landmarker ; le reconnaisseur de gestes reste au navigateur. Dérives vues en
-chemin, non soldées : `DocTRBackend.load` ne charge rien (prédicteur reconstruit à chaque appel,
-2 Go annoncés au gouverneur pour rien), pyannote garde sa propre instance (`get_diarizer`) à côté du
-cache commun.
+le vrai backend rend « fr » (p = 0,97) sur l'extrait de SUMM-RE.
+✅ **Orientation de page** (2026-11-07) : contrat `page-orientation` (`page_orientation_base`,
+`page_orientation(image) → (angle, confiance)`, angle ∈ {0, 90, 180, 270} qui REDRESSE la page —
+docTR rend un angle signé, -90 pour un quart de tour, ramené au domaine), `DocTROrientationBackend`
+(processeur), le redressement par la porte commune (`ocr_base._orientation_backend`), essai du
+contrat (`SMOKES` : une page de texte tournée doit revenir droite, pixel à pixel), `R226`. En
+chemin, la dérive de `DocTRBackend` soldée : `load()` garde le prédicteur (il le reconstruisait à
+chaque lecture) et déclare le processeur (`recommended_vram_gb = 0` ; il annonçait 2 Go au
+gouverneur). Mesuré : page couchée redressée, 2ᵉ lecture 1,9 s contre 5,2 s.
+⚠ Un service démarré AVANT un tel portage rejoue l'ancienne découverte : sa synchro remet le
+`loaded_by` en base jusqu'à sa relance (vécu le 2026-11-07, workers de 22:20).
+⏳ YOLOPv2 et LPIPS (GPU hors du gouverneur), Smart Turn, le Face Landmarker ; le reconnaisseur de
+gestes reste au navigateur. Dérives vues en chemin, non soldées : pyannote garde sa propre
+instance (`get_diarizer`) à côté du cache commun ; `load()` à vide aussi chez `audiocpp`,
+`audiocraft`, `audio_enhancer` (à mesurer un par un : un moteur hors processus peut n'avoir rien
+à tenir).
 
 #### 7.1 ter — hooks par kind, MESURÉ le 2026-08-05
 

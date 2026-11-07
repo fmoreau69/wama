@@ -722,6 +722,10 @@ TASK_CONTRACTS = {
     # un modèle d'OCR n'est servi que par un backend OCR — c'est ce qui borne `GlmOcrBackend`
     # (moteur `ollama`, qui sert aussi le chat) à sa tâche.
     'ocr': ('ocr_base', 'OCRBackend', True),
+    # 2026-11-07 : l'angle dont une page est tournée (le classifieur de docTR), chargé jusque-là
+    # hors du contrat par `ocr_base`. LIANT : `doctr` est le moteur de deux backends, et c'est ce
+    # contrat qui sépare le classifieur du lecteur.
+    'page-orientation': ('page_orientation_base', 'PageOrientationBackend', True),
     'detect': ('detection_base', 'DetectionBackend', False),
     # 2026-10-28 : les données personnelles d'un texte (ROADMAP §16.4bis). Écrit AVANT les
     # backends, comme `audio-to-score`. LIANT, comme l'OCR : un modèle `pii-detection` n'est servi

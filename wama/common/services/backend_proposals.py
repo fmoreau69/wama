@@ -683,10 +683,66 @@ def _smoke_language(code: str, *, module: str, model_key: str, out_dir: Path) ->
     return out
 
 
+#: La page que redresse le smoke d'ORIENTATION : des lignes de texte, tournée de ce quart de tour.
+SMOKE_ORIENTATION_TURN = 90
+
+
+def smoke_orientation_page():
+    """(page droite, page tournée de `SMOKE_ORIENTATION_TURN`) — des lignes de texte dessinées, la
+    forme d'une page de document. Mesuré le 2026-11-07 avec le classifieur de docTR : les quatre
+    quarts de tour redressés, confiance ≥ 0,98."""
+    from PIL import Image, ImageDraw, ImageFont
+    page = Image.new('RGB', (900, 1200), 'white')
+    draw = ImageDraw.Draw(page)
+    try:
+        font = ImageFont.truetype('DejaVuSans.ttf', 36)
+    except OSError:
+        font = ImageFont.load_default(size=36)
+    for i in range(14):
+        draw.text((60, 60 + i * 75), f"Ligne {i + 1} : le reader redresse la page.", fill='black',
+                  font=font)
+    return page, page.rotate(SMOKE_ORIENTATION_TURN, expand=True)
+
+
+def _smoke_orientation(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement, puis l'angle d'une page de texte tournée d'un quart de tour : un angle du
+    contrat (0, 90, 180, 270), une confiance dans [0, 1], et la page REDRESSÉE par cet angle —
+    comparée pixel à pixel à la page droite (2026-11-07, contrat `page-orientation`)."""
+    import tempfile
+
+    import numpy as np
+    upright, turned = smoke_orientation_page()
+    started = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            backend = _proposed_backend(code, module, tmp, 'page_orientation')
+            if not type(backend).is_available():
+                return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
+            if not backend.load(model_id_of(model_key)):
+                return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+            angle, confidence = backend.page_orientation(image=np.asarray(turned))
+            backend.unload()
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
+                    'seconds': round(time.time() - started, 1)}
+    seconds = round(time.time() - started, 1)
+    out = {'ran': True, 'ok': True, 'seconds': seconds, 'angle': angle, 'confidence': confidence}
+    if angle not in (0, 90, 180, 270) or not 0.0 <= float(confidence) <= 1.0:
+        out.update(ok=False, error=f'réponse hors contrat : ({angle!r}, {confidence!r})')
+        return out
+    reference = np.asarray(upright.convert('L'), dtype=np.int16)
+    back = np.asarray(turned.rotate(angle, expand=True).convert('L'), dtype=np.int16)
+    if back.shape != reference.shape or float(np.abs(back - reference).mean()) >= 1.0:
+        out.update(ok=False, error=f'angle {angle}° : la page tournée de {SMOKE_ORIENTATION_TURN}° '
+                                   'ne revient pas droite')
+    return out
+
+
 #: Un essai par CONTRAT — un contrat sans entrée le dit (`smoke`).
 SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_speech,
           'ScoreExtractionBackend': _smoke_score, 'PIIDetectionBackend': _smoke_pii,
-          'LanguageIdentificationBackend': _smoke_language}
+          'LanguageIdentificationBackend': _smoke_language,
+          'PageOrientationBackend': _smoke_orientation}
 
 
 # ── Le geste : lister, valider (ÉCRIRE), rejeter ─────────────────────────────────────────────

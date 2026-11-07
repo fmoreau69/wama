@@ -208,8 +208,9 @@ class UprightImageTests(SimpleTestCase):
         work = Path(tempfile.mkdtemp(prefix='test_upright_'))
         source = work / 'photo.jpg'
         image.save(source, format='JPEG', exif=exif)
-        predictor = mock.Mock(return_value=[[0], [angle], [confidence]])
-        with mock.patch.object(ocr_base, '_orientation_predictor', return_value=predictor):
+        orientation = mock.Mock()
+        orientation.page_orientation.return_value = (angle, confidence)
+        with mock.patch.object(ocr_base, '_orientation_backend', return_value=orientation):
             result = ocr_base.upright_image(str(source), str(work))
         return source, Path(result), Image.open(result).size
 

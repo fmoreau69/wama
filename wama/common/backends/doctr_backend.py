@@ -40,16 +40,29 @@ def doctr_installed() -> bool:
 
 
 class DocTRBackend(OCRBackend):
-    """OCR docTR — SANS état persistant (le prédicteur se charge par appel dans run())."""
+    """OCR docTR — le prédicteur (détection + reconnaissance) chargé par `load()` et gardé.
+
+    ⚠ Jusqu'au 2026-11-07, `load()` ne chargeait RIEN (« sans état ») : le prédicteur se
+    reconstruisait à chaque `run()`, et le backend annonçait 2 Go de VRAM au gouverneur pour un
+    modèle qui n'était pas en mémoire — et qui tourne sur le PROCESSEUR (docTR laisse ses réseaux
+    où il les crée ; la ligne du catalogue le dit, `reader:doctr`, `vram_gb: 0.0`)."""
 
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'doctr'
+    #: Modèles servis (2026-11-07) : `doctr` est AUSSI le moteur du classifieur d'orientation
+    #: (`DocTROrientationBackend`) — un moteur partagé se départage par la liste de chacun.
+    #: ⚠ En LITTÉRAL : l'inventaire lit les clés par AST.
+    SUPPORTED_MODELS = {
+        'doctr': {'model_key': 'reader:doctr'},
+    }
     REQUIRED_PACKAGES = ['doctr']
     #: docTR DÉTECTE puis reconnaît : chaque mot a sa boîte (`read_lines`).
     supports_text_positions = True
-    recommended_vram_gb = 2.0
+    #: Le processeur, déclaré : l'enveloppe du gouverneur ne publie rien pour lui.
+    device = 'cpu'
+    recommended_vram_gb = 0
     description = "docTR — OCR de documents (détection + reconnaissance)."
-    _warm = False
+    _predictor = None
 
     @classmethod
     def is_available(cls) -> bool:
@@ -60,16 +73,35 @@ class DocTRBackend(OCRBackend):
             return False
 
     def load(self, model: Optional[str] = None) -> bool:
-        # Sans état : on marque seulement « prêt » (le modèle se charge par appel).
-        self._warm = True
+        """Construit le prédicteur une fois (idempotent). Les fichiers DÉCLARÉS, installés par la
+        route : absents, on le DIT — la glu du reader demande le modèle de la card à la route
+        avant (`ctx.ensure_model`)."""
+        if self._predictor is not None:
+            return True
+        if not doctr_installed():
+            raise RuntimeError(
+                f"docTR n'est pas installé ({doctr_folder()}) — il s'installe par le model manager "
+                f"(ligne « {DOCTR_KEY} »).")
+        try:
+            from doctr.models import ocr_predictor
+        except ImportError:
+            raise RuntimeError(
+                "La librairie docTR n'est pas installée — par la route library : "
+                "python manage.py install_library python-doctr"
+            )
+        # ⚠ docTR ≥ 1.1 (2026-10-09) : en 0.11, la détection rendait UNE boîte couvrant toute la
+        # page (texte vide, ou « Output size is too small » sur une petite page) — mesuré sur une
+        # A4 de 12 lignes nettes ; 1.1.0 y trouve 96 boîtes. La relance « assume_straight_pages=True »
+        # qui vivait ici refaisait l'appel par défaut depuis la 0.11 : retirée.
+        self._predictor = ocr_predictor(pretrained=True)
         return True
 
     @property
     def is_loaded(self) -> bool:
-        return self._warm
+        return self._predictor is not None
 
     def unload(self) -> None:
-        self._warm = False
+        self._predictor = None
 
     # `process()` → `run()` : celui du contrat OCR (`ocr_base.OCRBackend`, 2026-10-07).
 
@@ -125,22 +157,10 @@ class DocTRBackend(OCRBackend):
         reposait à chaque appel jusqu'au 2026-10-29, à la même valeur) ; ses fichiers, la route."""
         if progress_callback:
             progress_callback(10, "Chargement docTR…")
-
-        # Les fichiers DÉCLARÉS, installés par la route : absents, on le DIT — la glu du reader
-        # demande le modèle de la card à la route avant (`ctx.ensure_model`).
-        if not doctr_installed():
-            raise RuntimeError(
-                f"docTR n'est pas installé ({doctr_folder()}) — il s'installe par le model manager "
-                f"(ligne « {DOCTR_KEY} »).")
-
-        try:
-            from doctr.io import DocumentFile
-            from doctr.models import ocr_predictor
-        except ImportError:
-            raise RuntimeError(
-                "La librairie docTR n'est pas installée — par la route library : "
-                "python manage.py install_library python-doctr"
-            )
+        # Le prédicteur gardé par `load()` — chargé ici si l'appelant ne l'a pas fait (contrat :
+        # `load` est idempotent). Absent du disque, `load` le DIT.
+        self.load()
+        from doctr.io import DocumentFile
 
         path = Path(work_file)
         ext = path.suffix.lower()
@@ -160,19 +180,9 @@ class DocTRBackend(OCRBackend):
             doc = DocumentFile.from_images([self._ensure_min_size(str(path))])
 
         if progress_callback:
-            progress_callback(40, "Initialisation du modèle OCR…")
-
-        # det_arch and reco_arch can be customised; defaults work well.
-        # ⚠ docTR ≥ 1.1 (2026-10-09) : en 0.11, la détection rendait UNE boîte couvrant toute la
-        # page (texte vide, ou « Output size is too small » sur une petite page) — mesuré sur une
-        # A4 de 12 lignes nettes ; 1.1.0 y trouve 96 boîtes. La relance « assume_straight_pages=True »
-        # qui vivait ici refaisait l'appel par défaut depuis la 0.11 : retirée.
-        model = ocr_predictor(pretrained=True)
-
-        if progress_callback:
             progress_callback(55, "Reconnaissance du texte…")
 
-        return model(doc), sizes
+        return self._predictor(doc), sizes
 
     @staticmethod
     def _box(geometry, width: float, height: float) -> list:

@@ -18,8 +18,7 @@
         }
       ],
       "runtime": {
-        "engine": "doctr",
-        "loaded_by": "wama.common.backends.ocr_base"
+        "engine": "doctr"
       }
     },
     "extra_info": {

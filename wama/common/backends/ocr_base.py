@@ -56,7 +56,6 @@ def is_degenerate_output(text: str) -> bool:
 #: En deçà de cette confiance, le classifieur d'orientation n'est pas suivi : l'image part telle
 #: quelle. Mesuré sur la card #1335 et ses trois rotations : 0,89 à 0,98.
 ORIENTATION_MIN_CONFIDENCE = 0.6
-_ORIENTATION_PREDICTOR = []
 
 #: Les poids de docTR sont publiés en versions GitHub de son dépôt (le serveur de Mindee y redirige).
 DOCTR_RELEASES = 'mindee/doctr'
@@ -91,25 +90,27 @@ def page_orientation_installed() -> bool:
     return declared_files_present(doctr_folder(), PAGE_ORIENTATION_FILES)
 
 
-def _orientation_predictor():
-    """Le classifieur d'orientation de PAGE de docTR (`mobilenet_v3_small_page_orientation`,
-    6 Mo, CPU, ~0,04 s par image), chargé une fois par process. Ses poids sont DÉCLARÉS
+def _orientation_backend():
+    """Le backend du classifieur d'orientation de PAGE (`PAGE_ORIENTATION_KEY`, contrat
+    `page-orientation`), chargé — par la porte commune (`backend_instance_for_key`, puis `load`,
+    idempotent ; gardé chargé par le cache commun). Ses poids sont DÉCLARÉS
     (`PAGE_ORIENTATION_FILES`) et installés par la route — la glu du reader le demande avant
-    (`ctx.ensure_model(PAGE_ORIENTATION_KEY)`). None s'il n'est pas installé ou si docTR manque :
-    le redressement est un confort, et la librairie ne doit pas le télécharger d'elle-même."""
-    if not _ORIENTATION_PREDICTOR:
-        if not page_orientation_installed():
-            logger.warning("[OCR] classifieur d'orientation non installé (%s, ligne « %s ») — "
-                           "images non redressées", doctr_folder(), PAGE_ORIENTATION_KEY)
-            return None          # rien de retenu : installé plus tard, il servira
-        try:
-            from doctr.models import page_orientation_predictor
-            _ORIENTATION_PREDICTOR.append(page_orientation_predictor(pretrained=True))
-        except Exception:
-            logger.warning("[OCR] classifieur d'orientation indisponible — images non redressées",
-                           exc_info=True)
-            _ORIENTATION_PREDICTOR.append(None)
-    return _ORIENTATION_PREDICTOR[0]
+    (`ctx.ensure_model(PAGE_ORIENTATION_KEY)`). None s'il n'est pas installé ou s'il ne se charge
+    pas : le redressement est un confort, et la librairie ne doit pas le télécharger d'elle-même.
+    Jusqu'au 2026-11-07 ce module le chargeait lui-même (`page_orientation_predictor`)."""
+    if not page_orientation_installed():
+        logger.warning("[OCR] classifieur d'orientation non installé (%s, ligne « %s ») — "
+                       "images non redressées", doctr_folder(), PAGE_ORIENTATION_KEY)
+        return None              # rien de retenu : installé plus tard, il servira
+    try:
+        from wama.common.backends.manager import backend_instance_for_key
+        backend = backend_instance_for_key(PAGE_ORIENTATION_KEY)
+        backend.load(PAGE_ORIENTATION_KEY)
+        return backend
+    except Exception:
+        logger.warning("[OCR] classifieur d'orientation indisponible — images non redressées",
+                       exc_info=True)
+        return None
 
 
 def upright_image(image_path: str, dest_dir: str) -> str:
@@ -132,11 +133,11 @@ def upright_image(image_path: str, dest_dir: str) -> str:
             exif_rotated = (source.getexif().get(0x0112) or 1) != 1   # 0x0112 = Orientation
             image = ImageOps.exif_transpose(source).convert('RGB')
         angle = 0
-        predictor = _orientation_predictor()
-        if predictor is not None:
-            _, angles, confidences = predictor([np.array(image)])
-            if float(confidences[0]) >= ORIENTATION_MIN_CONFIDENCE:
-                angle = int(angles[0])
+        orientation = _orientation_backend()
+        if orientation is not None:
+            predicted, confidence = orientation.page_orientation(image=np.array(image))
+            if confidence >= ORIENTATION_MIN_CONFIDENCE:
+                angle = predicted
         if not angle and not exif_rotated:
             return image_path
         if angle:
