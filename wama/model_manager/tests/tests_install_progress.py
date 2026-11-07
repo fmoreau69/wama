@@ -394,6 +394,14 @@ class AnInstallWhoseWorkerDiedIsClosedTest(TestCase):
                                       if r['terminal']], 'the page that followed it sees its end')
         self.assertEqual([], self._settle(), 'settled once')
 
+    def test_an_install_that_ended_meanwhile_keeps_its_outcome(self):
+        """The task can end between the fleet snapshot and the closure: a success stays one."""
+        install_history._close(self.event.pk, {'ok': True})
+        self.event.close_interrupted('worker arrêté')
+        self.event.refresh_from_db()
+        self.assertEqual(InstallEvent.STATUS_SUCCESS, self.event.status)
+        self.assertNotIn('error', self.event.detail or {})
+
     def test_the_model_manager_page_reconciles_the_installs_of_the_instance(self):
         from wama.common.utils import process_control
         with mock.patch.object(process_control, 'reconcile_orphaned_running') as reconcile:

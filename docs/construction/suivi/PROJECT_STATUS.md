@@ -29065,3 +29065,11 @@ lancé) ; WAMA le dit déjà abandonné partout où il se lit (`install_history.
 traitent) : désigner `rtdetr` ou `egoblur-lp` sur une card de l'anonymizer, « Plaque » cochée → il
 tourne seul ; installer puis désinstaller un petit YOLO officiel depuis sa card ; suivre une
 installation et un pipeline du Studio depuis l'assistant.
+
+Ajout à la clôture (question de Fabien « tous les tests nécessaires ajoutés ? ») : branches des
+livrables relevées une à une contre leurs tests. Une seule décision silencieuse était sans garde —
+une installation FINIE entre la photo de la flotte et sa clôture ne doit pas être réécrite en échec
+(`install_history.close_interrupted`) : `AnInstallWhoseWorkerDiedIsClosedTest
+.test_an_install_that_ended_meanwhile_keeps_its_outcome`, rouge sous mutation (garde levée), 29/29
+vert sur le code sain. Le repli des cases de l'anonymizer (catalogue sans classes) n'a aucun effet
+visible — `get_all_class_choices` pose toujours visage et plaque — donc rien à garder.
