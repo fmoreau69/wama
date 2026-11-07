@@ -776,7 +776,7 @@ def {_nom_bc}(request):
     from pathlib import Path as _Path
     from django.conf import settings as _settings
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
-    from wama.common.utils.media_paths import OutsideMediaRoot, copy_into_app_input, resolve_under_media_root
+    from wama.common.utils.media_paths import InputRefused, copy_into_app_input, designated_source
 
     user = _user(request)
     try:
@@ -814,9 +814,10 @@ def {_nom_bc}(request):
                 {bc_nom_url}
             else:
                 try:
-                    absolu, _rel_src = resolve_under_media_root(src)
-                except (OutsideMediaRoot, FileNotFoundError):
-                    avertissements.append('Introuvable : ' + src)
+                    # La désignation commune : lisible par CE compte, pas seulement confinée.
+                    absolu, _rel_src = designated_source(src, user)
+                except InputRefused:
+                    avertissements.append('Introuvable ou inaccessible : ' + src)
                     continue
                 _dest, rel = copy_into_app_input(absolu, '{app}', user.id, 'input')
                 {bc_nom_fichier}

@@ -28984,3 +28984,52 @@ l'enregistrement d'une correction (jamais de l'ABC dans un `.musicxml`) est à d
 d'essai de contrat pour `image-to-score` dans `backend_proposals.SMOKES` (comme `audio-to-midi`) :
 il faudrait graver une page côté serveur ; ⏳ copisteria ne lit ni les titres (pas d'OCR des textes
 passé) ni les paroles, et a lu une barre finale comme une reprise.
+
+## §PALIER 2026-11-07, « AUDIT DE SÉCURITÉ, SUITE : LES ÉLEVÉS — lectures entre comptes, XSS stockés, frein de connexion, redirections jugées avant l'envoi, Discord d'un compte désactivé, voix en boucle locale, remontage au démarrage » — ce commit (local, non poussé) — 🔴 relancer gunicorn + workers ET le service de voix (écoute changée), passerelle Discord
+
+**Vérifié en service d'abord** (après la relance de Fabien) : `POST /accounts/signup/` sans session →
+403, aucun compte créé ; sous le compte de test `wama_rights_communication`, parcours, recherche,
+sonde et connexion d'un dossier LOCAL refusés avec le motif, partage réseau toujours sondé (200),
+aucun dossier créé. ⚠ Une première mesure rendait 403 partout : c'était le proxy HAVP de
+l'université (urllib lit `HTTP_PROXY`), puis la garde d'app (`wama_rights_commun` n'a pas le
+gestionnaire : sa politique en base lui demande un rôle) — ni l'une ni l'autre ne mesurait le
+correctif.
+
+| constat de l'audit | correctif | garde |
+|---|---|---|
+| `readable_by` / `in_user_home` jugeaient la chaîne brute (`users/<moi>/../<autre>/…` passait) | jugés sur le chemin NORMALISÉ (`media_paths._normalised_rel`) | `common/tests/tests_shared_reads.py` |
+| six sites lisaient ou copiaient chez l'appelant le fichier de n'importe quel compte par le confinement seul (`resolve_under_media_root`) : extraction de texte de l'avatarizer, audio de l'enhancer, conversion rapide et lot `-i` du converter, lot `.txt` de l'anonymizer, gabarit du générateur (`views_gen`) | la désignation commune, `media_paths.designated_source` (confinement + existence + lisibilité) ; la conversion rapide, qui écrit à côté de la source, exige en plus l'arbre du compte | idem (avatarizer), les autres par la même brique |
+| `api_children` déployait le dossier de tout compte, `?path=users` compris | arbre du compte (`in_user_home`) ou arbre historique (`is_path_allowed`) seulement | idem |
+| `/accounts/users/<pk>/` servait sans session identifiant, nom, e-mail de chaque compte | `login_required`, la sienne seule, toutes pour un administrateur (404 sinon) | `accounts/tests/tests_login_brake.py` |
+| aucun frein de connexion (40 mots de passe faux puis le bon passaient, formulaire et jeton) | `ldap_backend.LoginBrakeBackend` EN TÊTE des moteurs : `PermissionDenied` au-delà de `WAMA_LOGIN_FAILURES_LIMIT` (10) échecs par identifiant en `WAMA_LOGIN_BRAKE_SECONDS` (900 s) ; remis à zéro par une connexion réussie. ⚠ Il hérite de `ModelBackend` : premier de la liste, c'est lui qu'une connexion sans moteur nommé inscrit dans la session | idem |
+| l'adresse du client était la PREMIÈRE de `X-Forwarded-For` (choisie par le client) : la borne des visiteurs se contournait | `moderation.client_address` (la dernière, celle du frontal), lue aussi par le frein des visiteurs | idem |
+| XSS stockés : nom d'une voix partagée (`json.dumps` + `|safe` dans un `<script>`), licence d'un asset, nom d'un pipeline Studio partagé | `<` neutralisé dans `voice_groups_json` ; `esc()` dans `media-library.js` et `wama-studio.js` (servis resynchronisés) | `tests_shared_reads.ScriptInjectionTest` (dont le parse V8 des deux fichiers servis) |
+| enrichissement de prompt (LLM) sans session | 401 avant tout appel | `tests_shared_reads.VisitorTriggersNoLlmTest` |
+| un compte DÉSACTIVÉ restait servi par Discord | `gateway.services.account_for` / `linked_identity` exigent `user__is_active` | `gateway/tests.py::DeactivatedAccountTests` |
+| redirections validées APRÈS avoir été suivies ; téléchargement de la médiathèque hors garde | `url_guard.guarded_request` (R224) ; `BaseProvider.download_bytes` + `_CheckedRedirects` ; `https` exigé pour un connecteur à domaines ouverts | `tests_url_guard`, `tests_source_ingest`, `media_library/tests/tests_download_guard.py` |
+| service de voix sur `0.0.0.0:8001` sans authentification | `--host 127.0.0.1` (prod et dev) ; ses clients visent `localhost` (mesuré) | — (script de démarrage) |
+| remontage des partages au démarrage mort depuis le 12/10 (`curl` sans session → 403), route ouverte par l'adresse `127.0.0.1` | `manage.py remount_shares` dans `start_wama_prod.sh` ; la route est aux administrateurs, plus aucune adresse crue | `filemanager/tests_local_folders.py::RemountAtStartupTest` |
+
+**Laissé à Fabien, avec la mesure (non tranché ici)** :
+1. **`DEBUG = True` en dur et `/media/` servi sans session** — passer `DEBUG` à l'environnement
+   change qui sert `/media/` et `/static/` : gunicorn cesse de les servir, le smoke nocturne
+   (`127.0.0.1:8000`) et tout accès direct au port 8000 les perdent ; Apache les sert déjà
+   (`Require all granted`). Garder les médias derrière la propriété demande une vue + X-Sendfile
+   (`§1.5bis` point 2). Décision d'infrastructure.
+2. **gunicorn et le relais Windows sur `0.0.0.0:8000`** : le frontal se contourne (en-têtes
+   `X-Forwarded-*` posés par le client) ; lier à l'interface du frontal est un choix d'exploitation.
+3. **Pages de registre ouvertes au visiteur** (`/common/sources/` montre adresses et ports internes,
+   `/common/backends/`, `/common/skills/`, `/common/licenses/`) : la décision du 13/10 (« tout compte
+   sauf le visiteur ») les couvrirait, celle du 30/08 (« le visiteur VOIT tout ») en garde
+   `/common/apps/` ; dériver la liste du registre (`overview()['url_name']`) fermerait aussi le
+   catalogue — à trancher.
+4. **Surface de développement** (`repo_app`, smoke d'un backend proposé, `dev_claude_code(write)`
+   + `dev_reload_web`) : du code écrit par un LLM s'exécute avant toute validation humaine ; la
+   fermer change le mode de travail des rôles.
+5. **La classe XSS « JSON dans un `<script>` »** : 68 injections `|safe` dans 18 gabarits, seules
+   quatre neutralisent `<` ; une brique commune + une garde par motif (chantier), l'instance prouvée
+   (les voix) est fermée.
+
+🔚 POINT D'ENTRÉE : relancer gunicorn, workers, voix et passerelle ; vérifier en service le frein (11ᵉ
+mot de passe faux d'un compte de test → refus même avec le bon) et `GET /accounts/users/1/` sans
+session (redirection vers la connexion) ; puis les cinq décisions ci-dessus.

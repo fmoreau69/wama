@@ -90,9 +90,11 @@ class IndexView(View):
                             # gabarit généré et le converter confinent à MEDIA_ROOT. Même règle
                             # partout : un chemin de lot se résout SOUS MEDIA_ROOT, ou est
                             # refusé (`MEDIA_STORAGE_TIERING §8.6` D3).
-                            from wama.common.utils.media_paths import reference_or_copy, resolve_under_media_root
+                            # Et lisible par CE compte (`designated_source`, 2026-11-06) : le
+                            # confinement seul copiait chez lui le fichier de n'importe qui.
+                            from wama.common.utils.media_paths import designated_source, reference_or_copy
                             from wama.common.utils.provenance import kind_of
-                            abs_src, src_rel = resolve_under_media_root(path)   # OutsideMediaRoot / FileNotFoundError → failed[]
+                            abs_src, src_rel = designated_source(path, user)   # InputRefused → failed[]
                             # Déjà dans l'arbre de l'utilisateur → POINTÉ (2026-09-23).
                             dest, _rel = reference_or_copy(abs_src, 'anonymizer', user.id, 'input')
                             video_path = str(dest)

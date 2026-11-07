@@ -129,11 +129,21 @@ def _welcome_on_activation(sender, instance, created, **kwargs):
 
 # ── Journal d'accès ───────────────────────────────────────────────────────────
 
-def _client_ip(request):
+def client_address(request):
+    """L'adresse du client — LA lecture, pour le journal des connexions et le frein des visiteurs.
+
+    La DERNIÈRE adresse de `X-Forwarded-For`, celle qu'ajoute le frontal (Apache AJOUTE l'adresse
+    qu'il voit à ce que le client a envoyé) ; à défaut `REMOTE_ADDR`. La première est celle que le
+    CLIENT écrit : la lire laissait une requête choisir son adresse — mesuré le 2026-11-06 (audit de
+    sécurité), un en-tête tournant faisait passer 63 identités de visiteur sous une borne de 30.
+    ⚠ Un appel DIRECT à gunicorn (sans frontal) garde un en-tête entièrement choisi par le client :
+    seule l'écoute de gunicorn sur la boucle locale le ferme."""
     if request is None:
         return None
     xff = request.META.get('HTTP_X_FORWARDED_FOR', '')
-    return (xff.split(',')[0].strip() if xff else request.META.get('REMOTE_ADDR')) or None
+    last = xff.split(',')[-1].strip() if xff else ''
+    return last or request.META.get('REMOTE_ADDR') or None
+
 
 
 def access_kind(user, request, username: str = '') -> str:
@@ -151,7 +161,7 @@ def access_kind(user, request, username: str = '') -> str:
     if user is not None and is_guest_account(user):
         return AccessLog.KIND_VISITOR
     agent = request.META.get('HTTP_USER_AGENT', '') if request is not None else ''
-    if not _client_ip(request) and not agent:
+    if not client_address(request) and not agent:
         return AccessLog.KIND_SCRIPT
     return AccessLog.KIND_PERSON
 
@@ -180,7 +190,7 @@ def _log(user, event, request, *, username: str = '', reason: str = ''):
         AccessLog.objects.create(
             user=user if getattr(user, 'pk', None) else None,
             username=(getattr(user, 'username', '') if user else username)[:150],
-            event=event, ip=_client_ip(request),
+            event=event, ip=client_address(request),
             user_agent=(request.META.get('HTTP_USER_AGENT', '')[:256] if request else ''),
             kind=access_kind(user, request, username), reason=reason,
             auth_backend=_backend_name(user))
@@ -210,6 +220,7 @@ def purge_access_log(*, days: int = None, dry_run: bool = False) -> dict:
 
 @receiver(user_logged_in)
 def _on_login(sender, request, user, **kwargs):
+    clear_login_failures(user.get_username())
     _log(user, 'login', request)
 
 
@@ -225,4 +236,48 @@ def _on_login_failed(sender, credentials, request=None, **kwargs):
     # un refus ne disait ni qui ni pourquoi). Le mot de passe, lui, ne quitte jamais ce dict.
     uname = (credentials or {}).get('username', '')
     if uname:
+        _count_login_failure(uname)
         _log(None, 'login_denied', request, username=uname, reason=denial_reason(uname))
+
+
+# ── Frein de connexion (2026-11-06, audit de sécurité) ─────────────────────────
+# Aucune borne n'existait : 40 mots de passe faux de suite, puis le bon, passaient (mesuré, par le
+# formulaire comme par `/api/v1/auth/token/`) — un essai illimité contre l'annuaire de l'université.
+# Le compte se tient PAR IDENTIFIANT, dans le cache partagé des workers : l'adresse d'un client se
+# choisit (`client_address`), l'identifiant visé non. Il s'applique à TOUTE surface, parce qu'il
+# est lu par un moteur d'authentification placé en tête (`ldap_backend.LoginBrakeBackend`).
+# ⚠ Contrepartie connue : un tiers peut freiner un identifiant qu'il ne connaît pas le mot de
+# passe — pour la durée de la fenêtre, jamais au-delà ; une connexion réussie remet le compte à 0.
+
+def login_failures_limit() -> int:
+    return int(getattr(settings, 'WAMA_LOGIN_FAILURES_LIMIT', 10))
+
+
+def login_brake_seconds() -> int:
+    return int(getattr(settings, 'WAMA_LOGIN_BRAKE_SECONDS', 900))
+
+
+def _brake_key(username: str) -> str:
+    return f'wama_login_failures:{(username or "").strip().lower()}'
+
+
+def _count_login_failure(username: str) -> None:
+    from django.core.cache import cache
+    key = _brake_key(username)
+    if not cache.add(key, 1, timeout=login_brake_seconds()):
+        try:
+            cache.incr(key)
+        except ValueError:                     # expirée entre `add` et `incr`
+            cache.set(key, 1, timeout=login_brake_seconds())
+
+
+def login_braked(username: str) -> bool:
+    """Cet identifiant a-t-il atteint la borne d'échecs récents ? Lu avant toute vérification du
+    mot de passe : un identifiant freiné ne se vérifie plus, même avec le bon."""
+    from django.core.cache import cache
+    return bool(username) and (cache.get(_brake_key(username)) or 0) >= login_failures_limit()
+
+
+def clear_login_failures(username: str) -> None:
+    from django.core.cache import cache
+    cache.delete(_brake_key(username))

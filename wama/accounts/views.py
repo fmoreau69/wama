@@ -134,10 +134,19 @@ class IndexView(ListView):
     context_object_name = 'user_list'
 
 
+@method_decorator(login_required, name='dispatch')
 class UserPage(DetailView):
+    """La fiche d'un compte : la sienne, ou celle de n'importe qui pour un administrateur (404
+    sinon). Elle se servait SANS SESSION à identifiants séquentiels — identifiant de l'annuaire,
+    nom, e-mail, date d'inscription de chaque compte (audit de sécurité du 2026-11-06, mesuré en
+    service). Aucune page ne la lie ; le menu du compte mène au profil."""
     template_name = 'accounts/user_settings.html'
-    queryset = User.objects.all()
     context_object_name = 'selected_user'
+
+    def get_queryset(self):
+        if is_admin(self.request.user):
+            return User.objects.all()
+        return User.objects.filter(pk=self.request.user.pk)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

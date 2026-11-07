@@ -23,8 +23,10 @@ CE QUE LA GARDE COUVRE, ET CE QU'ELLE NE COUVRE PAS.
     changer sa réponse. S'en prémunir exige d'épingler l'IP résolue jusqu'à la socket (adaptateur
     HTTP dédié), ce que `yt_dlp` ne permet pas simplement. La garde arrête l'attaque directe et
     évidente, pas un adversaire déterminé — le dire ici plutôt que laisser croire à une immunité ;
-  ✗ **redirections** : une cible publique peut rediriger vers une adresse interne. Les appelants
-    qui suivent les redirections doivent re-valider à chaque hop (cf. `verifier_redirections`).
+  ✓ **redirections** : une cible publique peut rediriger vers une adresse interne. Un appelant
+    qui suit des redirections passe par `guarded_request`, qui juge chaque saut AVANT de
+    l'envoyer (2026-11-06 ; `verifier_redirections`, qui relisait l'historique d'une réponse déjà
+    obtenue — la requête interne était partie —, est retiré : `REMOVAL_LEDGER R223`).
 
 Un environnement de dev peut avoir besoin de cibles locales : `WAMA_URL_GUARD_ALLOW_PRIVATE=1`
 lève le blocage des adresses privées. Jamais en production.
@@ -105,13 +107,33 @@ def verifier_url(url: str) -> str:
     return brut
 
 
-def verifier_redirections(reponse) -> None:
-    """Re-valide chaque hop d'une réponse `requests` qui a suivi des redirections.
+#: Sauts de redirection suivis au plus par `guarded_request`.
+MAX_REDIRECTS = 5
 
-    Une cible publique peut rediriger vers une adresse interne : valider seulement l'URL
-    saisie laisserait passer exactement ce qu'on cherche à empêcher.
-    """
-    for hop in list(getattr(reponse, 'history', []) or []) + [reponse]:
-        cible = getattr(hop, 'url', None)
-        if cible:
-            verifier_url(cible)
+
+def guarded_request(method: str, url: str, **kwargs):
+    """Une requête `requests` dont CHAQUE saut est jugé AVANT d'être envoyé (2026-11-06, audit de
+    sécurité). `verifier_redirections` relisait l'historique d'une réponse déjà obtenue : la
+    requête vers l'adresse interne était PARTIE — SSRF aveugle, mais réelle contre tout service
+    interne qui agit en GET. Ici les redirections ne sont jamais suivies par `requests`
+    (`allow_redirects=False`) : on lit `Location`, on juge, puis on envoie.
+
+    Rend la réponse finale (mêmes arguments que `requests.request`, `stream` compris) ; lève
+    `UrlRefusee` sur un saut interdit ou au-delà de `MAX_REDIRECTS`."""
+    import requests
+    from urllib.parse import urljoin
+    kwargs.pop('allow_redirects', None)
+    method = method.upper()
+    current = verifier_url(url)
+    for _hop in range(MAX_REDIRECTS + 1):
+        send = requests.head if method == 'HEAD' else requests.get if method == 'GET' else (
+            lambda u, **kw: requests.request(method, u, **kw))
+        response = send(current, allow_redirects=False, **kwargs)
+        if not getattr(response, 'is_redirect', False):
+            return response
+        target = urljoin(current, response.headers.get('Location', ''))
+        response.close()
+        current = verifier_url(target)
+        if response.status_code == 303 and method != 'HEAD':
+            method = 'GET'
+    raise UrlRefusee(f"Trop de redirections (plus de {MAX_REDIRECTS}) : {url}")

@@ -140,7 +140,7 @@ wama_worker_env
 if ! pgrep -f "$TTS_SERVICE_PATTERN" > /dev/null; then
     echo "=== Starting TTS Service (port 8001) ==="
     python -m uvicorn wama.common.tts.service:app \
-        --host 0.0.0.0 \
+        --host 127.0.0.1 \
         --port 8001 \
         --workers 1 \
         --log-level info &

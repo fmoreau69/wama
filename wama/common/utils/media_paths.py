@@ -266,9 +266,23 @@ def in_user_home(rel_path, user_id) -> bool:
     entrées et sorties de ses apps. Tout le reste (montage, cache, arbre d'un AUTRE utilisateur)
     n'y est pas, et se copie. La comparaison de l'identifiant est ce qui interdit à une card de
     pointer les octets d'autrui, condition du chiffrement par utilisateur.
-    """
+
+    Jugé sur le chemin NORMALISÉ (`_normalised_rel`) : `users/<moi>/../<autre>/…` commence par
+    mon préfixe et désigne l'arbre d'un autre (audit de sécurité du 2026-11-06, prouvé en test —
+    `api_import_to_app` copiait alors chez moi le fichier d'autrui)."""
+    rel = _normalised_rel(rel_path)
+    return rel is not None and rel.startswith(f'users/{user_id}/')
+
+
+def _normalised_rel(rel_path):
+    """Le chemin relatif à `MEDIA_ROOT`, `..` et `.` résolus sans toucher au disque — ou None s'il
+    remonte au-dessus de la racine. La forme sur laquelle se juge une frontière par préfixe."""
+    import posixpath
     rel = str(rel_path or '').replace('\\', '/').lstrip('/')
-    return rel.startswith(f'users/{user_id}/')
+    if not rel:
+        return ''
+    rel = posixpath.normpath(rel)
+    return None if rel == '..' or rel.startswith('../') else rel
 
 
 def reference_or_copy(source_path, app_name: str, user_id, subfolder: str = 'input',
@@ -376,10 +390,12 @@ def readable_by(rel_path, user) -> bool:
     alors COPIÉ chez lui (`reference_or_copy` ne pointe jamais l'arbre d'un autre).
     ⚠ Le fichier d'un autre utilisateur qui n'est ni un asset partagé ni la sortie d'un élément
     partagé (temporaire, entrée d'app) reste illisible ici.
+    Le chemin est jugé NORMALISÉ (`_normalised_rel`, 2026-11-06) : chaque règle ci-dessous compare
+    des préfixes ou des chemins enregistrés, qu'un `..` contournait.
     """
-    rel = str(rel_path or '').replace('\\', '/').lstrip('/')
+    rel = _normalised_rel(rel_path)
     user_id = getattr(user, 'id', None)
-    if not user_id:
+    if not user_id or not rel:
         return False
     return (in_user_home(rel, user_id) or is_system_asset_file(rel)
             or _is_shared_asset_file(rel, user) or _is_shared_item_output(rel, user))
@@ -560,6 +576,19 @@ def _designated_source(path, user):
     if not readable_by(rel, user):
         raise InputRefused(f"Fichier non accessible : {os.path.basename(rel)}")
     return abs_path, rel
+
+
+def designated_source(path, user):
+    """`(fichier disque, chemin désigné)` d'une désignation qui passe les gardes de `designate`
+    (confinement, existence, lisibilité pour CE compte) — sans rien pointer ni copier. Lève
+    `InputRefused`.
+
+    Pour le site qui reçoit un CHEMIN et décide lui-même de la suite (lot `-i`, conversion rapide,
+    extraction de texte, dépôt d'un audio de l'arbre). Six sites appelaient le confinement seul
+    (`resolve_under_media_root`), qui garantit « sous MEDIA_ROOT » et non « lisible par moi » : ils
+    lisaient ou copiaient chez l'appelant le fichier de n'importe quel compte (audit de sécurité du
+    2026-11-06, prouvé en test sur l'avatarizer)."""
+    return _designated_source(path, user)
 
 
 def check_designation(path, user) -> str:

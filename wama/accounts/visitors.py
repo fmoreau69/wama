@@ -119,8 +119,10 @@ def _refusal(message: str, status: int) -> JsonResponse:
 
 
 def _address(request) -> str:
-    forwarded = (request.META.get('HTTP_X_FORWARDED_FOR') or '').split(',')[0].strip()
-    return forwarded or request.META.get('REMOTE_ADDR') or '?'
+    # LA lecture de l'adresse du client (`moderation.client_address`, 2026-11-06) : ce frein
+    # lisait la PREMIÈRE adresse de `X-Forwarded-For`, celle que le client écrit lui-même.
+    from wama.accounts.moderation import client_address
+    return client_address(request) or '?'
 
 
 def _creation_refusal(request):

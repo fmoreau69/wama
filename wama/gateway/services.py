@@ -143,9 +143,12 @@ def account_for(channel: str, external_id: str):
     traitement « en anonyme » — le piège mesuré sur `/filemanager/api/upload/`, dont le
     `get_user()` retombait silencieusement sur l'utilisateur anonyme partagé.
     """
+    # Un compte DÉSACTIVÉ n'a plus de canal (audit de sécurité du 2026-11-06) : sa liaison restait
+    # servie, et un départ ou un incident n'arrêtait pas l'assistant par Discord — le serveur MCP,
+    # lui, le refusait déjà (`mcp_server`).
     lien = (ChannelLink.objects
-            .filter(channel=channel, external_id=(external_id or '').strip())
-            .exclude(user__isnull=True)
+            .filter(channel=channel, external_id=(external_id or '').strip(),
+                    user__is_active=True)
             .exclude(confirmed_at__isnull=True)
             .select_related('user')
             .first())
@@ -161,8 +164,8 @@ def linked_identity(user, channel: str):
     `account_for`, mêmes filtres — c'est la garde d'un message que la passerelle ÉMET d'elle-même
     (fin de tâche) : une personne qui s'est déliée ne reçoit plus rien, même dans un fil qu'elle
     a ouvert."""
-    return (ChannelLink.objects.filter(channel=channel, user=user)
-            .exclude(user__isnull=True).exclude(confirmed_at__isnull=True)
+    return (ChannelLink.objects.filter(channel=channel, user=user, user__is_active=True)
+            .exclude(confirmed_at__isnull=True)
             .values_list('external_id', flat=True).first())
 
 

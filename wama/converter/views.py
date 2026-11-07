@@ -535,12 +535,14 @@ def batch_create(request):
                 job_ids.append(job.id)
                 continue
 
-            from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+            # La désignation commune (`designated_source`, 2026-11-06) : le confinement seul
+            # copiait chez moi le fichier de n'importe quel compte cité dans une ligne `-i`.
+            from wama.common.utils.media_paths import InputRefused, designated_source
             from wama.common.utils.provenance import kind_of
             try:
-                abs_src, src_rel = resolve_under_media_root(src)
-            except (OutsideMediaRoot, FileNotFoundError):
-                warnings.append(f'Introuvable : {src}')
+                abs_src, src_rel = designated_source(src, user)
+            except InputRefused:
+                warnings.append(f'Introuvable ou inaccessible : {src}')
                 continue
             # Une ligne `-i` qui désigne un fichier DÉJÀ dans l'arbre de l'utilisateur est
             # POINTÉE, plus recopiée (2026-09-23) : la brique décide, le site ne sait rien.
@@ -771,25 +773,18 @@ def quick_convert(request):
     if not file_path_str:
         return JsonResponse({'error': 'Chemin de fichier manquant'}, status=400)
 
-    from django.conf import settings
-    media_root = Path(settings.MEDIA_ROOT).resolve()
-
-    # Accept both absolute paths and MEDIA_ROOT-relative paths (e.g. from FileManager)
-    candidate = Path(file_path_str)
-    if candidate.is_absolute():
-        abs_path = candidate.resolve()
-    else:
-        # Relative path — treat as relative to MEDIA_ROOT
-        abs_path = (media_root / file_path_str).resolve()
-
-    # Security: must stay inside MEDIA_ROOT
+    # La désignation commune (`designated_source`, 2026-11-06) — et, parce que la conversion
+    # rapide ÉCRIT sa sortie à côté de la source (`dest_dir`), la source doit être dans l'arbre de
+    # CE compte : le confinement seul convertissait le fichier d'autrui dans SON dossier.
+    from wama.common.utils.media_paths import InputRefused, designated_source, in_user_home
     try:
-        rel_path = abs_path.relative_to(media_root)
-    except ValueError:
-        return JsonResponse({'error': 'Chemin de fichier invalide'}, status=400)
-
-    if not abs_path.exists():
-        return JsonResponse({'error': 'Fichier source introuvable'}, status=404)
+        abs_path, rel = designated_source(file_path_str, request.user)
+    except InputRefused:
+        return JsonResponse({'error': 'Fichier source introuvable ou inaccessible'}, status=404)
+    if not in_user_home(rel, request.user.id):
+        return JsonResponse({'error': "La conversion rapide n'agit que sur vos propres fichiers"},
+                            status=403)
+    abs_path, rel_path = Path(abs_path), Path(rel)
 
     media_type = detect_media_type(abs_path.name)
     if media_type is None:

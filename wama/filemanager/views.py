@@ -444,6 +444,13 @@ def api_children(request):
         nodes = scan_mount_folder(abs_path, rel_path)
         return JsonResponse(nodes, safe=False)
 
+    # Le dossier déployé doit être dans l'arbre de CE compte (`in_user_home`, chemin normalisé)
+    # ou dans son arbre historique (`is_path_allowed`) : le confinement seul listait les dossiers
+    # de tous les comptes, `?path=users` compris (audit de sécurité du 2026-11-06).
+    from wama.common.utils.media_paths import in_user_home
+    if not (in_user_home(rel_path, user.id) or is_path_allowed(rel_path, user)):
+        return JsonResponse({'error': 'Access denied'}, status=403)
+
     media_root = Path(settings.MEDIA_ROOT)
     folder_path = media_root / rel_path
 
@@ -2838,21 +2845,17 @@ def api_mount_login_flow_poll(request, flow_id):
     return response
 
 
-@require_GET
-def api_remount_shares(request):
-    """
-    Re-mount all WAMA-managed CIFS shares (called from start_wama_prod.sh via localhost).
-    Only accessible from 127.0.0.1 or by an administrator (`is_admin_tier`, le niveau du profil —
-    il lisait le drapeau `is_superuser`, 2026-10-21).
-    """
-    import sys
-    addr = request.META.get('REMOTE_ADDR', '')
-    from wama.accounts.permissions import is_admin_tier
-    if not (is_admin_tier(request.user) or addr in ('127.0.0.1', '::1')):
-        return JsonResponse({'error': 'Forbidden'}, status=403)
+def remount_shares() -> dict:
+    """Remonte les dossiers connectés au démarrage : partages réseau INVITÉS (CIFS) et dossiers
+    DISTANTS (rclone, secret gardé chiffré). Rend `{remounted, skipped, errors}`.
 
+    Le geste de `manage.py remount_shares`, que lance `start_wama_prod.sh` (2026-11-06). Il passait
+    par cette route en HTTP sans session, autorisée par l'adresse `127.0.0.1` — une adresse que
+    tout relais local porte aussi, et que la garde du gestionnaire refusait de toute façon au
+    visiteur depuis le 2026-10-12 : le remontage au démarrage ne se faisait plus (mesuré : 403)."""
+    import sys
     if not sys.platform.startswith('linux'):
-        return JsonResponse({'remounted': 0, 'skipped': 0, 'errors': []})
+        return {'remounted': 0, 'skipped': 0, 'errors': []}
 
     remounted, skipped, errors = 0, 0, []
     for mount in MountedFolder.objects.exclude(smb_config=None):
@@ -2888,8 +2891,19 @@ def api_remount_shares(request):
             skipped += 1
             errors.append({'mount': mount.name, 'error': 'remontage rclone impossible (journal)'})
 
-    logger.warning(f'[Filemanager] api_remount_shares: remounted={remounted} skipped={skipped}')
-    return JsonResponse({'remounted': remounted, 'skipped': skipped, 'errors': errors})
+    logger.warning(f'[Filemanager] remount_shares: remounted={remounted} skipped={skipped}')
+    return {'remounted': remounted, 'skipped': skipped, 'errors': errors}
+
+
+@require_GET
+def api_remount_shares(request):
+    """Remonter les dossiers connectés, à la demande d'un ADMINISTRATEUR (`is_admin_tier`, le
+    niveau du profil). Le démarrage passe par `manage.py remount_shares` ; plus aucune adresse
+    n'ouvre cette route (l'exemption `127.0.0.1` est retirée le 2026-11-06)."""
+    from wama.accounts.permissions import is_admin_tier
+    if not is_admin_tier(request.user):
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+    return JsonResponse(remount_shares())
 
 
 @require_POST

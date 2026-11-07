@@ -78,6 +78,29 @@ class LocalFoldersAreForAdministratorsTest(_Accounts):
         self.assertEqual(reply.status_code, 200)
 
 
+class RemountAtStartupTest(_Accounts):
+    """Le remontage au démarrage passe par `manage.py remount_shares` (2026-11-06) : la route ne
+    croit plus aucune adresse, elle est aux administrateurs."""
+
+    def test_the_route_rejects_a_member_even_from_the_loopback(self):
+        reply = self._as(self.member).get(reverse('filemanager:api_remount_shares'),
+                                          REMOTE_ADDR='127.0.0.1')
+        self.assertEqual(reply.status_code, 403)
+
+    def test_an_administrator_and_the_command_remount(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from unittest import mock
+        with mock.patch('wama.filemanager.views.remount_shares',
+                        return_value={'remounted': 0, 'skipped': 0, 'errors': []}) as done:
+            reply = self._as(self.admin).get(reverse('filemanager:api_remount_shares'))
+            out = StringIO()
+            call_command('remount_shares', stdout=out)
+        self.assertEqual(reply.status_code, 200)
+        self.assertEqual(done.call_count, 2)
+        self.assertIn('Remounted: 0', out.getvalue())
+
+
 class MountSubpathsStayInsideTest(_Accounts):
 
     def setUp(self):

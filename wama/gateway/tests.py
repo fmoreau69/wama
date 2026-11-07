@@ -37,6 +37,21 @@ from wama.gateway.services import (
 CANAL, EXT_ID = 'discord', '111222333'
 
 
+class DeactivatedAccountTests(TestCase):
+    """Un compte DÉSACTIVÉ n'a plus de canal (2026-11-06, audit de sécurité) : sa liaison était
+    encore servie — un départ ou un incident n'arrêtait pas l'assistant par Discord."""
+
+    def test_a_deactivated_account_is_no_longer_reached_through_its_link(self):
+        from wama.gateway.services import linked_identity
+        alice = User.objects.create(username='alice_deactivated')
+        confirm_link(alice, request_link(CANAL, EXT_ID, 'Alice').code)
+        self.assertEqual(account_for(CANAL, EXT_ID), alice)
+        alice.is_active = False
+        alice.save(update_fields=['is_active'])
+        self.assertIsNone(account_for(CANAL, EXT_ID))
+        self.assertIsNone(linked_identity(alice, CANAL))
+
+
 class AppariementTests(TestCase):
     """L'appariement d'identité : le canal PROPOSE, WAMA DISPOSE."""
 

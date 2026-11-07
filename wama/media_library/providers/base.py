@@ -12,6 +12,18 @@ from dataclasses import dataclass, field
 USER_AGENT = 'WAMA/1.0 (media library; +https://github.com/wama)'
 
 
+class _CheckedRedirects(urllib.request.HTTPRedirectHandler):
+    """Chaque saut d'une redirection est jugé par la garde de sortie AVANT d'être suivi
+    (`url_guard.verifier_url`) : une adresse publique ne mène pas le serveur sur son réseau
+    interne. Juger l'historique après coup laissait la requête interne partir (audit du
+    2026-11-06)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        from wama.common.utils.url_guard import verifier_url
+        verifier_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def build_opener(source_key: str):
     """L'ouvreur urllib d'un connecteur, avec le proxy que la PORTÉE de sa source déclare.
 
@@ -31,9 +43,9 @@ def build_opener(source_key: str):
     from wama.common.external_sources import proxies_for
     proxies = proxies_for(source_key)
     if proxies is None:
-        return urllib.request.build_opener()
+        return urllib.request.build_opener(_CheckedRedirects)
     real = {scheme: url for scheme, url in proxies.items() if url}
-    return urllib.request.build_opener(urllib.request.ProxyHandler(real))
+    return urllib.request.build_opener(urllib.request.ProxyHandler(real), _CheckedRedirects)
 
 
 @dataclass
@@ -119,6 +131,14 @@ class BaseProvider(ABC):
         return base_url(self.slug)
 
     def download_bytes(self, download_url: str) -> bytes:
-        """Télécharge le fichier et retourne ses octets. Override si besoin d'auth."""
+        """Télécharge le fichier et retourne ses octets. Override si besoin d'auth.
+
+        L'adresse vient du NAVIGATEUR : elle passe la garde de sortie commune avant tout envoi
+        (`url_guard.verifier_url` — bouclage, réseau privé, lien-local refusés), ses redirections
+        aussi (`_CheckedRedirects`). Un connecteur à `download_domains = ()` (Openverse) acceptait
+        toute adresse, `http://127.0.0.1:…` compris, et en rendait le corps à l'appelant (audit du
+        2026-11-06)."""
+        from wama.common.utils.url_guard import verifier_url
+        verifier_url(download_url)
         with self.open_url(download_url, timeout=60) as r:
             return r.read()

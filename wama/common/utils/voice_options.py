@@ -150,7 +150,11 @@ def voice_groups_json(user) -> str:
     script (l'avatarizer s'en protégeait déjà par `|default:"[]"` côté gabarit).
     """
     try:
-        return json.dumps(get_voice_groups(user))
+        # `<` neutralisé : le JSON est injecté dans un `<script>` (`|safe`), et le NOM d'une voix
+        # partagée par un autre compte y fermait le bloc (`</script><script …>`) — XSS stocké
+        # entre comptes, relevé par l'audit de sécurité du 2026-11-06. Même idiome que
+        # `enhancer/views.py` (`panel_values_json`).
+        return json.dumps(get_voice_groups(user)).replace('<', '\\u003c')
     except Exception:
         return "[]"
 

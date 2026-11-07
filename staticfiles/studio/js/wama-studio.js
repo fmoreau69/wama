@@ -144,7 +144,9 @@
     function paletteItem(id, a, onPick) {
         var item = el('div', 'studio-pal-item');
         item.style.setProperty('--app-c', a.color || '#6ea8fe');
-        item.innerHTML = '<i class="' + (a.icon || 'fas fa-cube') + '"></i><span>' + a.label + '</span>';
+        // Échappés : le libellé d'un pipeline est le NOM que son auteur lui donne, et un pipeline
+        // partagé se dessine dans la palette de ses destinataires (XSS stocké, audit du 2026-11-06).
+        item.innerHTML = '<i class="' + esc(a.icon || 'fas fa-cube') + '"></i><span>' + esc(a.label) + '</span>';
         // Un process RATTACHÉ à une app porte son app en ÉTIQUETTE (position commune du
         // 2026-10-05, ROUTE §10.6) : la catégorie reste l'axe de la palette, l'app une propriété.
         if (a.kind === 'function' && a.binding === 'app' && a.app) {

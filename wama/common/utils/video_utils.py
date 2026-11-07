@@ -182,7 +182,7 @@ def upload_media_from_url(url, output_path):
     lot, ingest déclaratif) : la cible est validée AVANT toute sortie réseau — sans quoi le
     serveur interroge le réseau interne avec ses droits à lui (SSRF, cf. `url_guard`).
     """
-    from wama.common.utils.url_guard import UrlRefusee, verifier_redirections, verifier_url
+    from wama.common.utils.url_guard import UrlRefusee, guarded_request, verifier_url
     from wama.common.utils.url_ingest import is_media_platform
     verifier_url(url)
     try:
@@ -280,11 +280,10 @@ def upload_media_from_url(url, output_path):
             'Accept': '*/*',
             'Referer': url,
         }
-        response = requests.get(url, stream=True, timeout=20, headers=headers)
-        # Le GET suit les redirections : chaque saut se re-valide, comme la lecture de page
-        # (`url_ingest._get_page`) — sinon une adresse publique redirige le serveur vers son
-        # réseau interne. Le refus remonte TEL QUEL (pas emballé en « Download failed »).
-        verifier_redirections(response)
+        # Chaque saut de redirection est jugé AVANT d'être envoyé (`guarded_request`,
+        # 2026-11-06) — sinon une adresse publique mène le serveur sur son réseau interne. Le
+        # refus remonte TEL QUEL (pas emballé en « Download failed »).
+        response = guarded_request('GET', url, stream=True, timeout=20, headers=headers)
         response.raise_for_status()
         filename = _filename_from_response(url, response)
         unique_filename = get_unique_filename(output_path, filename)

@@ -79,7 +79,7 @@ def read_web_page(url: str,
     dict `{'error': …}` sur un type non lisible (un média se traite par `url_ingest`, pas ici).
     """
     import requests
-    from wama.common.utils.url_guard import verifier_url, verifier_redirections
+    from wama.common.utils.url_guard import guarded_request, verifier_url
     from wama.common.utils.url_ingest import html_to_readable_text
 
     from wama.common.utils.http_proxy import outbound_proxies
@@ -87,10 +87,10 @@ def read_web_page(url: str,
     verifier_url(url)
     # La cible est une URL QUELCONQUE, pas une source déclarée : le proxy SORTANT commun.
     # `url_guard` a déjà refusé les cibles internes — aucun cas local à neutraliser ici.
-    resp = requests.get(url, headers=_UA, timeout=20, stream=True,
-                        proxies=outbound_proxies())
+    # Chaque saut est jugé AVANT d'être envoyé (`guarded_request`, 2026-11-06).
+    resp = guarded_request('GET', url, headers=_UA, timeout=20, stream=True,
+                           proxies=outbound_proxies())
     try:
-        verifier_redirections(resp)
         resp.raise_for_status()
 
         ctype = (resp.headers.get('Content-Type') or '').lower()

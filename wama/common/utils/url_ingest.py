@@ -121,10 +121,9 @@ def _get_page(url: str):
     REDIRECTION suivie — une cible publique peut rediriger vers une adresse interne, et ne
     valider que l'URL saisie laisserait passer exactement ce qu'on cherche à empêcher."""
     import requests
-    from wama.common.utils.url_guard import verifier_url, verifier_redirections
-    verifier_url(url)
-    resp = requests.get(url, headers=_BROWSER_HEADERS, timeout=20)
-    verifier_redirections(resp)
+    from wama.common.utils.url_guard import guarded_request
+    # Chaque saut est jugé AVANT d'être envoyé (`guarded_request`, 2026-11-06).
+    resp = guarded_request('GET', url, headers=_BROWSER_HEADERS, timeout=20)
     resp.raise_for_status()
     return resp
 
@@ -172,7 +171,7 @@ def fetch_url_content(url: str, dest_dir: str) -> str:
     upload_media_from_url (plateformes/HTTP) + reniflage HTML post-download.
     """
     from wama.common.utils.video_utils import upload_media_from_url
-    from wama.common.utils.url_guard import UrlRefusee, verifier_url, verifier_redirections
+    from wama.common.utils.url_guard import UrlRefusee, guarded_request, verifier_url
 
     # Validée ICI aussi, et pas seulement dans les appelés : le `requests.head` ci-dessous est
     # une sortie réseau à part entière — c'est déjà une sonde exploitable.
@@ -182,11 +181,10 @@ def fetch_url_content(url: str, dest_dir: str) -> str:
     if url_nature(url) not in _MEDIA_NATURES:
         try:
             import requests
-            head = requests.head(url, timeout=10, allow_redirects=True,
-                                 headers={'User-Agent': 'Mozilla/5.0'})
-            # Ce HEAD suit les redirections : chaque saut est une sortie réseau à re-valider,
-            # comme dans `_get_page` — et le refus doit SORTIR du try, pas être avalé.
-            verifier_redirections(head)
+            # Ce HEAD suit les redirections : chaque saut est jugé AVANT d'être envoyé
+            # (`guarded_request`) — et le refus doit SORTIR du try, pas être avalé.
+            head = guarded_request('HEAD', url, timeout=10,
+                                   headers={'User-Agent': 'Mozilla/5.0'})
             is_html_page = 'text/html' in head.headers.get('Content-Type', '')
         except UrlRefusee:
             raise

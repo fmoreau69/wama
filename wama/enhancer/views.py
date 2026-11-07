@@ -701,11 +701,14 @@ def audio_upload(request):
         pass
 
     if file_path:
-        from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+        # La désignation commune (`designated_source`, 2026-11-06) : le confinement seul copiait
+        # dans ma file l'audio de n'importe quel compte.
+        from wama.common.utils.media_paths import InputRefused, designated_source
         try:
-            src, _ = resolve_under_media_root(file_path)
-        except (OutsideMediaRoot, FileNotFoundError):
+            src, _ = designated_source(file_path, user)
+        except InputRefused:
             return JsonResponse({'error': 'Fichier introuvable ou accès refusé'}, status=400)
+        src = _Path(src)
         if not _takes_audio(src.name):
             return JsonResponse({'error': f'Format audio non supporté : {src.suffix}'}, status=400)
 

@@ -721,7 +721,9 @@ def api_provider_download(request):
         return JsonResponse({'error': 'Téléchargement non autorisé pour ce provider'}, status=403)
     if allowed_domains and not any(parsed.netloc.endswith(d) for d in allowed_domains):
         return JsonResponse({'error': f'Domaine non autorisé : {parsed.netloc}'}, status=403)
-    if parsed.scheme not in ('http', 'https'):
+    # `()` = « tout domaine en HTTPS » (`BaseProvider.download_domains`) : le schéma était accepté
+    # en http aussi, contre la déclaration (audit du 2026-11-06).
+    if parsed.scheme != 'https' and not (allowed_domains and parsed.scheme == 'http'):
         return JsonResponse({'error': 'URL de téléchargement invalide'}, status=400)
     parsed_domain = parsed.netloc
 
@@ -730,9 +732,12 @@ def api_provider_download(request):
     if UserAsset.objects.filter(user=user, name=asset_name, asset_type=asset_type).exists():
         return JsonResponse({'error': f'Un asset "{asset_name}" de ce type existe déjà'}, status=409)
 
-    # Téléchargement serveur-side
+    # Téléchargement serveur-side — la garde de sortie est dans `download_bytes`.
+    from wama.common.utils.url_guard import UrlRefusee
     try:
         file_bytes = provider.download_bytes(download_url)
+    except UrlRefusee as e:
+        return JsonResponse({'error': str(e)}, status=403)
     except urllib.error.HTTPError as e:
         return JsonResponse({'error': f'Erreur HTTP {e.code} lors du téléchargement'}, status=502)
     except Exception as e:

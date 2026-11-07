@@ -106,22 +106,34 @@ class GenericDownloadRevalidatesRedirectsTest(SimpleTestCase):
     Avant le 2026-10-13, une adresse publique pouvait y rediriger le serveur vers l'interne."""
 
     def test_a_redirect_to_the_internal_network_is_refused_as_such(self):
+        # Depuis le 2026-11-06 (`guarded_request`) : le saut interne est refusé AVANT d'être
+        # envoyé — la requête vers 10.0.0.5 ne part jamais.
         from wama.common.utils.video_utils import upload_media_from_url
-        hijacked = _Response('http://10.0.0.5/secret', content=b'x',
-                             history=['https://example.org/file.bin'])
-        with mock.patch('wama.common.utils.url_guard.verifier_url', side_effect=_refuse_private), \
-                mock.patch('requests.get', return_value=hijacked):
+        redirect = _Response('https://example.org/file.bin')
+        redirect.is_redirect, redirect.status_code = True, 302
+        redirect.headers = {'Location': 'http://10.0.0.5/secret'}
+        redirect.close = lambda: None
+        sent = []
+
+        def get(url, **kwargs):
+            sent.append(url)
+            return redirect
+        with mock.patch('wama.common.utils.url_guard.verifier_url', side_effect=_refuse_private),                 mock.patch('requests.get', side_effect=get):
             with self.assertRaises(UrlRefusee):
                 upload_media_from_url('https://example.org/file.bin', tempfile.gettempdir())
+        self.assertEqual(sent, ['https://example.org/file.bin'])
 
     def test_public_redirects_still_download(self):
         from wama.common.utils.video_utils import upload_media_from_url
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d, True)
-        ok = _Response('https://cdn.example.org/file.bin', content=b'abc',
-                       history=['https://example.org/file.bin'])
-        with mock.patch('wama.common.utils.url_guard.verifier_url', side_effect=_refuse_private), \
-                mock.patch('requests.get', return_value=ok):
+        redirect = _Response('https://example.org/file.bin')
+        redirect.is_redirect, redirect.status_code = True, 302
+        redirect.headers = {'Location': 'https://cdn.example.org/file.bin'}
+        redirect.close = lambda: None
+        ok = _Response('https://cdn.example.org/file.bin', content=b'abc')
+        answers = iter([redirect, ok])
+        with mock.patch('wama.common.utils.url_guard.verifier_url', side_effect=_refuse_private),                 mock.patch('requests.get', side_effect=lambda url, **kw: next(answers)):
             path = upload_media_from_url('https://example.org/file.bin', d)
         with open(path, 'rb') as fh:
             self.assertEqual(fh.read(), b'abc')

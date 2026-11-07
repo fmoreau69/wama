@@ -287,6 +287,10 @@ wama_worker_env
 # faisait un return AVANT tout préchargement → Kokoro n'était JAMAIS chaud en prod,
 # et le warm écrit dans le service TTS était du code mort.
 #
+# Boucle locale SEULE (127.0.0.1, 2026-11-06, audit de sécurité) : comme ses jumeaux vecteurs et
+# confidentialité, le service n'a pas d'authentification — il écoutait sur toutes les interfaces,
+# joignable de l'hôte Windows (`/end-of-turn?model_path=`, `/load-model`). Ses clients visent
+# `localhost:8001` (`TTS_SERVICE_URL`, source `tts_service`).
 # ⚠ --workers 1 est STRUCTURANT, pas un réglage de performance (raisons re-vérifiées
 # le 2026-09-14, cf. wama/common/tts/service.py, bloc « Préchargement SÉLECTIF ») : le « moteur
 # courant » et sa bascule n'existent qu'à l'intérieur d'UN process — N workers
@@ -307,7 +311,7 @@ if ! pgrep -f "$TTS_SERVICE_PATTERN" > /dev/null; then
     fi
     export HIGGS_DISABLE_CUDA_GRAPHS=1
     nohup python -m uvicorn wama.common.tts.service:app \
-        --host 0.0.0.0 \
+        --host 127.0.0.1 \
         --port 8001 \
         --workers 1 \
         --log-level warning \
@@ -392,9 +396,10 @@ fi
 # REMONTAGE DES PARTAGES CIFS WAMA (partages réseau invités uniquement)
 # ------------------------------------------------------
 echo "=== Remounting WAMA CIFS shares (guest) ==="
-curl -s --max-time 15 "http://127.0.0.1:$DJANGO_PORT/filemanager/api/mounts/remount/" \
-    | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Remounted: {d.get(\"remounted\",0)}, Skipped: {d.get(\"skipped\",0)}')" 2>/dev/null \
-    || echo "Remount skipped (gunicorn not ready yet or no CIFS shares)"
+# Par une COMMANDE (2026-11-06) : le `curl` sans session qui était ici recevait 403 de la garde
+# du gestionnaire de fichiers depuis le 2026-10-12, et la route croyait l'adresse 127.0.0.1.
+python manage.py remount_shares --settings=$DJANGO_SETTINGS_MODULE 2>/dev/null \
+    || echo "Remount skipped (no share to remount, or the command failed — see the log)"
 
 # ------------------------------------------------------
 # CELERY WORKERS (gpu + default with autoscale)

@@ -457,6 +457,8 @@ if ENABLE_LDAP:
         'WAMA_LDAP_STRUCTURES_DN', 'ou=structures,dc=univ-eiffel,dc=fr')
     AUTH_LDAP_ALWAYS_UPDATE_USER = True
     AUTHENTICATION_BACKENDS = [
+        # EN TÊTE : le frein de connexion, lu par toute surface (2026-11-06, `moderation.py`).
+        'wama.accounts.ldap_backend.LoginBrakeBackend',
         'wama.accounts.ldap_backend.WamaLDAPBackend',  # LDAP + modération 1re connexion
         'django.contrib.auth.backends.ModelBackend',
     ]
@@ -479,6 +481,8 @@ if ENABLE_LDAP:
     }
 else:
     AUTHENTICATION_BACKENDS = [
+        # EN TÊTE : le frein de connexion, lu par toute surface (2026-11-06, `moderation.py`).
+        'wama.accounts.ldap_backend.LoginBrakeBackend',
         'wama.accounts.ldap_backend.WamaLDAPBackend',  # LDAP + modération 1re connexion
         'django.contrib.auth.backends.ModelBackend',
     ]

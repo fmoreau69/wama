@@ -397,13 +397,14 @@ def extract_text(request):
 
         if media_path:
             # Fichier déjà sur le serveur (depuis filemanager)
-            from wama.common.utils.media_paths import OutsideMediaRoot, resolve_under_media_root
+            # La désignation commune : confinement, existence ET lisibilité pour ce compte
+            # (`designated_source`, 2026-11-06 — le confinement seul lisait le fichier d'autrui).
+            from wama.common.utils.media_paths import InputRefused, designated_source
             try:
-                target, _ = resolve_under_media_root(media_path)
-            except OutsideMediaRoot:
-                return JsonResponse({'error': 'Chemin non autorisé.'}, status=403)
-            except FileNotFoundError:
-                return JsonResponse({'error': 'Fichier introuvable.'}, status=404)
+                target, _ = designated_source(media_path, request.user)
+            except InputRefused:
+                return JsonResponse({'error': 'Fichier introuvable ou accès refusé.'}, status=403)
+            target = Path(target)
             ext = target.suffix.lstrip('.').lower()
             if ext not in ALLOWED_EXTS:
                 return JsonResponse({'error': f'Format non supporté : .{ext}'}, status=400)

@@ -477,10 +477,12 @@
 
         // Meta
         const metaParts = [];
-        if (asset.file_size)  metaParts.push(`<span title="Taille"><i class="fas fa-hdd me-1"></i>${asset.file_size}</span>`);
-        if (asset.duration)   metaParts.push(`<span title="Durée"><i class="fas fa-clock me-1"></i>${asset.duration}</span>`);
-        if (asset.license)    metaParts.push(`<span class="text-success" title="Licence"><i class="fas fa-balance-scale me-1"></i>${asset.license}</span>`);
-        if (asset.created_at) metaParts.push(`<span title="Ajouté le">${asset.created_at}</span>`);
+        // Échappés : la licence est un texte LIBRE saisi par l'auteur, et un asset partagé
+        // s'affiche chez ses destinataires (XSS stocké, audit de sécurité du 2026-11-06).
+        if (asset.file_size)  metaParts.push(`<span title="Taille"><i class="fas fa-hdd me-1"></i>${esc(asset.file_size)}</span>`);
+        if (asset.duration)   metaParts.push(`<span title="Durée"><i class="fas fa-clock me-1"></i>${esc(asset.duration)}</span>`);
+        if (asset.license)    metaParts.push(`<span class="text-success" title="Licence"><i class="fas fa-balance-scale me-1"></i>${esc(asset.license)}</span>`);
+        if (asset.created_at) metaParts.push(`<span title="Ajouté le">${esc(asset.created_at)}</span>`);
 
         // Actions overlay — la classe `btn-group-actions` est le CONTRAT de la rangée d'actions
         // commune : le menu contextuel (`WamaCardMenu.entreesCompletes`) en lit les entrées, comme

@@ -42,6 +42,12 @@ def api_enrich_prompt(request):
     import json
     from .utils.app_metadata import enrich_prompt_value
 
+    # Un appel de LLM se paie (carte, ou clé d'instance) : jamais pour un visiteur sans compte.
+    # La route est sous `/common/`, hors de toute garde d'app (audit de sécurité du 2026-11-06).
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': "Connectez-vous pour enrichir un prompt.",
+                             'login_required': True}, status=401)
+
     try:
         body = json.loads(request.body)
         prompt = (body.get('prompt') or '').strip()
