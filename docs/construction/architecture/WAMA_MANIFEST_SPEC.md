@@ -751,6 +751,30 @@ chemin (décision du 2026-10-28, antérieure à cette lecture commune du 2026-11
 contrat (`SMOKES` : une probabilité finie dans [0, 1] sur l'extrait de corpus), `R228`. Mesuré :
 mêmes avis que la recette de HEAD sur trois extraits (parole réelle 0,6702, phrase coupée 0,9466,
 silence 0,988), le service répond par le backend.
+✅ **Face Landmarker** (2026-11-08, Face Analyzer, monde Lab) : tâche NEUVE `face-landmark-detection`
+(décision de Fabien — `face-analysis` reste aux poids DeepFace, dont un contrat posé sur la tâche
+commune aurait refusé le backend), contrat LIANT (`face_landmark_detection_base`,
+`detect_face_landmarks(image) → [repères en pixels]`), `MediaPipeFaceLandmarkerBackend` au substrat
+(précédent du 2026-09-07 : les backends ne vivent pas dans les apps). La LIGNE reste celle de
+l'app (`face_analyzer:…`) : c'est `AIModel.source` qui rattache un modèle à son app
+(`manifests/builtin/app._models`, la page À propos) — la règle de la migration 0030 (une ligne
+sous la source de ses fichiers) vaut pour les modèles des BRIQUES, pas pour l'étape d'une app. La
+déclaration reste dans `FACE_ANALYZER_MODELS`, que le backend lit par le passe-plat
+`model_declarations` sans importer l'app — passe-plat OUVERT ce jour aux apps de tous les mondes
+(`_app_package`, l'`AppConfig` de l'app ; il écrivait `wama.` en dur), et que relit désormais aussi
+`_overlay_declared_engines` (sa copie de la convention est retirée). Une seule boucle de découverte
+sur la déclaration (tâche, dossier, fichier, moteur ; la provenance lue sur l'origine des fichiers
+déclarés), le repli sur l'API `solutions` de MediaPipe retiré (absente de la 0.10.31), essai du
+contrat (`SMOKES` : le visage d'un portrait de la médiathèque système, en pixels, rien sur une image
+unie), `R230`. `mediapipe` sert aussi les GESTES de la main, au navigateur : leur ligne ne déclare
+aucun moteur, et c'est ce qui la tient hors de ce backend (le filtre inverse « un backend LIANT ne
+sert que sa tâche » reste réservé aux moteurs distants, `resolve_entry`, décision du 2026-09-30).
+Mesuré : mêmes repères que le `FaceDetector` de HEAD sur un portrait (478 points, écart 0,0, même
+pose), lignes DeepFace identiques à la découverte de HEAD, une instance pour tous les détecteurs (le
+temps réel en construisait une par image). En chemin, un trou de la synchro : une clé de PREMIER
+niveau de la composition émise à `None` est un retrait (`merged_composition`, comme une clé de
+`runtime` depuis le 2026-11-06) — un worker démarré avant le portage avait posé sur le Landmarker
+le composant d'un poids DeepFace, que la découverte, se taisant, laissait en base.
 ⏳ **Le Cam Analyzer, session de portage DÉDIÉE** (décision de Fabien, 2026-11-07 : « le cam
 analyzer est trop important et on ne doit surtout rien y casser ») : il ne choisit aucun de ses
 modèles au catalogue — le profil porte des CHEMINS de fichier (`road_model_path`,
@@ -758,8 +782,10 @@ modèles au catalogue — le profil porte des CHEMINS de fichier (`road_model_pa
 `RoadSegmenter` ultralytics et le détecteur `YOLO(model_path)` (`tasks.py:2307`) se chargent hors
 backend ; YOLOPv2 garde son propre cache GPU (`yolopv2_segmenter._MODEL_CACHE`), invisible du
 gouverneur, motif recopié par `common/backends/depth_engine.py`. Le portage : le profil désigne ses
-modèles par CLÉ du catalogue, chacun par la porte commune. Reste aussi le Face Landmarker ; le
-reconnaisseur de gestes reste au navigateur. Dérives vues en chemin, non soldées : pyannote garde sa propre
+modèles par CLÉ du catalogue, chacun par la porte commune. Le reconnaisseur de gestes reste au
+navigateur. Dérives vues en chemin, non soldées : le Face Analyzer appelle `EmotionRecognizer`
+directement (`pipeline.py`), à côté de `DeepFaceBackend`, sans appelant — DeepFace (2,5 Go
+déclarés) échappe au gouverneur, prochaine étape (décision de Fabien, 2026-11-08) ; pyannote garde sa propre
 instance (`get_diarizer`) à côté du cache commun ; `load()` à vide aussi chez `audiocpp`,
 `audiocraft`, `audio_enhancer` (à mesurer un par un : un moteur hors processus peut n'avoir rien
 à tenir).

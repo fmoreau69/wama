@@ -5,7 +5,8 @@ leur propre app. Tant que le backend vit dans l'app, c'est anodin ; le jour où 
 substrat transversal, c'est **le commun qui importerait une app** — inversion de couche
 interdite. Ce module est le passe-plat : il applique la CONVENTION, il ne connaît aucune app.
 
-    `wama/<app>/utils/model_config.py` expose `<APP>_MODELS`, dict indexé par `model_id`.
+    `<paquet de l'app>/utils/model_config.py` expose `<APP>_MODELS`, dict indexé par `model_id`
+    (le paquet : `wama.<app>`, `wama_lab.<app>` — celui que déclare l'app, `_app_package`).
 
 C'est la même convention que `model_registry._overlay_declared_engines` : elle est donc
 VÉRIFIÉE par l'usage, pas supposée. Une app qui ne la suit pas est simplement introuvable —
@@ -31,6 +32,20 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _app_package(source: str) -> str:
+    """Le paquet Python de l'app `source` — celui que DÉCLARE son `AppConfig` (registre des apps de
+    Django), quel que soit son MONDE : `wama.<app>` pour le monde Médias, `wama_lab.<app>` pour le
+    Lab. Jusqu'au 2026-11-08 la convention écrivait `wama.` en dur : une app du Lab était
+    introuvable (le Face Analyzer déclare `FACE_ANALYZER_MODELS` depuis le 2026-09-05). Hors d'un
+    processus Django (le service vocal), le registre n'existe pas : le monde Médias, l'emplacement
+    qu'avait la convention."""
+    try:
+        from django.apps import apps
+        return apps.get_app_config(source).name
+    except Exception:
+        return f'wama.{source}'
+
+
 def declarations(source: str) -> dict:
     """TOUTES les déclarations de modèle de l'app `source` (`{model_id: dict}`), `{}` si l'app
     n'existe pas ou ne suit pas la convention. Ajoutée le 2026-09-26 pour qu'un test générique
@@ -39,7 +54,7 @@ def declarations(source: str) -> dict:
     if not source:
         return {}
     try:
-        module = importlib.import_module(f'wama.{source}.utils.model_config')
+        module = importlib.import_module(f'{_app_package(source)}.utils.model_config')
     except Exception as e:
         logger.debug('[declarations] %s sans model_config : %s', source, e)
         return {}

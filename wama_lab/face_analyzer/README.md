@@ -17,7 +17,7 @@ n'est qu'un stub d'arguments, ne pas s'en servir.
 | Backend **DeepFace** | ✅ fonctionnel | détection réelle sur image de synthèse, hors ligne |
 | Poids DeepFace | ✅ rangés dans `AI-models` | **1,1 Go** déplacés de `$HOME/.deepface` vers `AI-models/models/vision/deepface` via `DEEPFACE_HOME` (posé dans `settings.py`) → **DÉCLARÉS** (origine GitHub, empreinte) et installables / désinstallables par la route depuis le 2026-10-12 (`utils/model_config.py:62-107`, `tests_deepface_weights.py`) |
 | Poids FER / MediaPipe | embarqués dans les paquets pip | 2,3 Mo (`fer`), `.tflite` internes (`mediapipe`) — rien à ranger (ne vaut plus que pour FER, cf. ligne suivante) |
-| Face landmarker MediaPipe (ajouté le 2026-10-31) | ✅ déclaré, installé par le model manager (2026-10-11) | `face_landmarker.task`, origine Google, `FACE_LANDMARKER_FILES` sous `MODEL_PATHS['vision']['mediapipe']` (`utils/model_config.py:110-119`) ; l'app ne le télécharge plus (`tests_mediapipe_weights.py`) |
+| Face landmarker MediaPipe (ajouté le 2026-10-31) | ✅ déclaré, installé par le model manager (2026-10-11) ; ✅ au contrat commun (2026-11-08) | `face_landmarker.task`, origine Google, `FACE_LANDMARKER_FILES` sous `MODEL_PATHS['vision']['mediapipe']`, entrée de `FACE_ANALYZER_MODELS` (`utils/model_config.py`) ; l'app ne le télécharge plus (`tests_mediapipe_weights.py`). Depuis le 2026-11-08, il est chargé par le backend du substrat (`common/backends/mediapipe_face_landmarker_backend.py`, contrat `face-landmark-detection`, tâche de sa ligne), que `FaceDetector` obtient par la porte commune : chargé une fois, gardé — il l'était à chaque image en temps réel. Mêmes repères, mesuré sur un portrait (écart 0,0) ; le repli sur l'API `solutions`, absente de MediaPipe 0.10.31, est retiré (`REMOVAL_LEDGER R230`) |
 | Gardes | `tests.py` (7) → au 2026-10-31 : `tests.py` (8), `tests_deepface_weights.py` (3), `tests_mediapipe_weights.py` (7), `tests_surfaces.py` (5) | aucune ne charge de modèle ; elles tiennent les **jonctions** |
 
 ⚠ **Aucun test ne couvrait cette app** avant ce jour : elle a pourri en silence pendant des mois.
@@ -119,8 +119,12 @@ settings pour le détail par frame.
 
 ## Dépannage
 
-- **MediaPipe ne s'initialise pas** : réinstaller une version épinglée (`pip install mediapipe==0.10.9`).
-- **Erreurs CUDA via TensorFlow (FER)** : `pip install tensorflow-cpu`.
+- **MediaPipe ne s'initialise pas** / **erreurs CUDA via TensorFlow (FER)** : une librairie se
+  (ré)installe par la ROUTE — son manifeste `library`, puis `manage.py install_library <clé>
+  --apply` (`AGENTS.md`, « librairies et modèles par la route ») —, jamais par un `pip install` à
+  la main. *(Corrigé le 2026-11-08 : ces deux lignes prescrivaient `pip install mediapipe==0.10.9`
+  — une version antérieure à celle du venv de référence, 0.10.31 — et `pip install tensorflow-cpu`.)*
+  Le Face Landmarker absent, son chargement le dit : `pull_model face_analyzer:mediapipe-face-landmarker`.
 - **Mémoire limitée** : décocher « Émotions » (le module le plus gourmand) avant de lancer.
 
 ---

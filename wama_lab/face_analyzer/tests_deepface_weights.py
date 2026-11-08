@@ -23,7 +23,7 @@ class DeepFaceDeclarationTest(SimpleTestCase):
                                  'the declared file is the one the library opens')
                 self.assertIsNone(declared_files_error(
                     {'kind': 'files', 'ref': f'face_analyzer:{model_id}', 'files': cfg['files'],
-                     'target_dir': str(model_config.DEEPFACE_DIR)}))
+                     'target_dir': str(cfg['install_dir'])}))
 
     def test_the_release_is_the_one_the_installed_library_pulls(self):
         try:
@@ -38,7 +38,7 @@ class DeepFaceDeclarationTest(SimpleTestCase):
 
 class TheCatalogueRowsAreInstallableTest(SimpleTestCase):
 
-    def test_each_row_derives_a_files_spec_into_the_deepface_folder(self):
+    def test_each_row_derives_a_files_spec_into_its_declared_folder(self):
         from wama.model_manager.models import AIModel
         from wama.model_manager.services.model_installer import spec_for_catalog_row
         from wama.model_manager.services.model_registry import ModelRegistry
@@ -50,5 +50,22 @@ class TheCatalogueRowsAreInstallableTest(SimpleTestCase):
                 key = f'face_analyzer:{model_id}'
                 spec = spec_for_catalog_row(AIModel(model_key=key,
                                                     extra_info=registry._models[key].extra_info))
-                self.assertEqual(('files', str(model_config.DEEPFACE_DIR), cfg['files']),
+                self.assertEqual(('files', str(cfg['install_dir']), cfg['files']),
                                  (spec['kind'], spec['target_dir'], spec['files']))
+
+    def test_the_deepface_rows_lie_in_the_deepface_folder_under_their_release(self):
+        """The single loop of the discovery keeps what the DeepFace rows said (2026-11-08): their
+        folder, and their provenance read from the release their files declare."""
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_face_analyzer_models()
+        for model_id, cfg in model_config.FACE_ANALYZER_MODELS.items():
+            if cfg['engine'] != 'deepface':
+                continue
+            with self.subTest(model=model_id):
+                info = registry._models[f'face_analyzer:{model_id}']
+                self.assertEqual(model_config.DEEPFACE_DIR, cfg['install_dir'])
+                self.assertEqual(('h5', [{'repo': model_config.DEEPFACE_RELEASES,
+                                          'role': cfg['fichier']}]),
+                                 (info.format, info.composition['components']))

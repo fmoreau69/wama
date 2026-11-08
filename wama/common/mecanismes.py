@@ -1720,14 +1720,16 @@ MECHANISMS = (
               symbol='onnx_providers'),
     Mechanism('model_declarations', "Passe-plat des déclarations de modèle",
               "Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la "
-              "convention `wama/<app>/utils/model_config.py::<APP>_MODELS`, ne connaît aucune "
-              "app, et surtout ne touche AUCUNE BASE. "
+              "convention `<paquet de l'app>/utils/model_config.py::<APP>_MODELS` (le paquet que "
+              "déclare l'app, dans tous les mondes — `wama_lab.face_analyzer` depuis le "
+              "2026-11-08), ne connaît aucune app, et surtout ne touche AUCUNE BASE. "
               "⚠ Le catalogue `AIModel` porte la même information, mais le lire ajouterait une "
               "dépendance ORM à chaque backend — or c'est justement l'absence de Django qui les "
               "rend déplaçables. On lirait la bonne donnée en détruisant la propriété cherchée",
               'wama/common/utils/model_declarations.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               symbol='declaration',
-              annexes=('wama/common/tests/tests_backend_inventory.py',)),
+              annexes=('wama/common/tests/tests_backend_inventory.py',
+                       'wama/common/tests/tests_face_landmark_detection.py')),
     Mechanism('backend_isolation', "Environnement d'exécution d'un backend",
               "`ISOLATION` déclare où tourne un backend (`venv:<chemin>` | `service:<url>`, "
               "vide = venv principal). Sans elle le GRISAGE MENT : `missing_packages()` "

@@ -15,6 +15,8 @@ from django.test import SimpleTestCase
 
 from wama_lab.face_analyzer.utils import model_config
 
+LANDMARKER = 'mediapipe-face-landmarker'
+
 
 class FaceLandmarkerDeclarationTest(SimpleTestCase):
 
@@ -36,7 +38,20 @@ class FaceLandmarkerDeclarationTest(SimpleTestCase):
         self.assertEqual(Path(settings.MODEL_PATHS['vision']['mediapipe']),
                          model_config.MEDIAPIPE_DIR)
         self.assertEqual(model_config.MEDIAPIPE_DIR / 'face_landmarker.task',
-                         model_config.face_landmarker_path())
+                         model_config.chemin_local(LANDMARKER))
+
+    def test_the_backend_reads_the_same_declaration_through_the_common_pass_through(self):
+        """The backend lives in the substrate and never imports the app : it reads
+        `FACE_ANALYZER_MODELS` by the convention (`model_declarations`), across worlds."""
+        from wama.common.backends.mediapipe_face_landmarker_backend import (
+            MediaPipeFaceLandmarkerBackend)
+        from wama.common.utils.model_declarations import declaration
+        self.assertIs(model_config.FACE_ANALYZER_MODELS[LANDMARKER],
+                      declaration('face_analyzer', LANDMARKER))
+        self.assertEqual(model_config.chemin_local(LANDMARKER),
+                         MediaPipeFaceLandmarkerBackend.model_file(model_config.FACE_LANDMARKER_KEY))
+        self.assertEqual({LANDMARKER: {'model_key': model_config.FACE_LANDMARKER_KEY}},
+                         MediaPipeFaceLandmarkerBackend.SUPPORTED_MODELS)
 
     def test_no_model_file_is_versioned_in_the_app_any_more(self):
         app = Path(settings.BASE_DIR) / 'wama_lab' / 'face_analyzer'
@@ -61,24 +76,35 @@ class TheCatalogueRowIsInstallableTest(SimpleTestCase):
 
 
 class TheAppNeverDownloadsItTest(SimpleTestCase):
+    """Since 2026-11-08 the backend of the common contract opens the file (the app asks the common
+    gate) : absent, its `load` says how to install it, and nothing is fetched."""
 
-    def _detector(self):
-        from wama_lab.face_analyzer.utils.preprocessing import FaceDetector
-        return FaceDetector()
+    def _backend(self):
+        from wama.common.backends.mediapipe_face_landmarker_backend import (
+            MediaPipeFaceLandmarkerBackend)
+        return MediaPipeFaceLandmarkerBackend()
+
+    def _paths(self, folder):
+        return {**settings.MODEL_PATHS,
+                'vision': {**settings.MODEL_PATHS['vision'], 'mediapipe': Path(folder)}}
 
     def test_an_absent_model_says_how_to_install_it(self):
-        with tempfile.TemporaryDirectory() as empty, \
-                patch.object(model_config, 'MEDIAPIPE_DIR', Path(empty)), \
+        with tempfile.TemporaryDirectory() as empty, self.settings(MODEL_PATHS=self._paths(empty)), \
                 patch('urllib.request.urlretrieve') as fetch, \
-                patch('requests.get') as get:
+                patch('requests.get') as get, \
+                patch('mediapipe.tasks.python.vision.FaceLandmarker.create_from_options') as create:
             with self.assertRaisesMessage(RuntimeError, model_config.FACE_LANDMARKER_KEY):
-                self._detector()._get_model_path()
+                self._backend().load(model_config.FACE_LANDMARKER_KEY)
         fetch.assert_not_called()
         get.assert_not_called()
+        create.assert_not_called()
 
     def test_a_present_model_is_read_where_the_route_put_it(self):
-        with tempfile.TemporaryDirectory() as folder, \
-                patch.object(model_config, 'MEDIAPIPE_DIR', Path(folder)):
+        with tempfile.TemporaryDirectory() as folder, self.settings(MODEL_PATHS=self._paths(folder)), \
+                patch('mediapipe.tasks.python.vision.FaceLandmarker.create_from_options') as create:
             (Path(folder) / 'face_landmarker.task').write_bytes(b'x')
-            self.assertEqual(str(Path(folder) / 'face_landmarker.task'),
-                             self._detector()._get_model_path())
+            self.assertTrue(self._backend().load(model_config.FACE_LANDMARKER_KEY))
+        options = create.call_args.args[0]
+        self.assertEqual(str(Path(folder) / 'face_landmarker.task'),
+                         options.base_options.model_asset_path)
+        self.assertEqual(1, options.num_faces)

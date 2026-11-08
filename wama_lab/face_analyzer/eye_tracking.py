@@ -127,7 +127,8 @@ class EyeTracker:
     RIGHT_EYE_TOP = 386
     RIGHT_EYE_BOTTOM = 374
 
-    # Iris indices (if refine_landmarks=True)
+    # Iris indices — the Face Landmarker always gives them (478 landmarks; `refine_landmarks` was
+    # the option of the legacy `solutions` API, removed on 2026-11-08)
     LEFT_IRIS_CENTER = 468
     RIGHT_IRIS_CENTER = 473
 

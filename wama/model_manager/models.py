@@ -80,6 +80,12 @@ class ModelTask(models.TextChoices):
     # image-to-3d 1). Hors vocabulaire, un modele n'a ni categorie derivable ni entrees par
     # defaut ; on declare ce que le registre fait deja plutot que de le laisser passer.
     FACE_ANALYSIS = 'face-analysis', 'Analyse de visage'
+    # Les REPÈRES du visage (2026-11-08, décision de Fabien) : la géométrie point par point (478
+    # repères du Face Landmarker de MediaPipe) que le Face Analyzer mesure image par image. Sortie
+    # de `face-analysis`, qui garde les poids DeepFace (émotions, âge, genre) : un contrat posé sur
+    # la tâche commune aurait refusé leur backend. Le terme de l'éditeur (« face landmark
+    # detection »), comme `layout-detection` reprend celui de PaddleX.
+    FACE_LANDMARK_DETECTION = 'face-landmark-detection', 'Repères du visage'
     FACE_RESTORATION = 'face-restoration', 'Restauration de visage'
     IMAGE_TO_3D = 'image-to-3d', 'Image → 3D'
     # Le SENS d'une page photographiée (0, 90, 180, 270°), redressée avant tout moteur d'OCR
@@ -244,6 +250,9 @@ TASK_TO_PLATFORM_TAGS = {
     # Repères de main + geste nommé : aucune tâche de pipeline ne le dit (`keypoint-detection` de HF
     # ne nomme pas le geste, `pose` d'Ultralytics est le corps entier).
     ModelTask.HAND_GESTURE:       (None,                           None,        None,        None),
+    # Même raison que les gestes : `keypoint-detection` de HF nomme des points-clés GÉNÉRIQUES
+    # (SuperPoint), pas les repères d'un visage ; le projeter en ferait un détecteur de visage.
+    ModelTask.FACE_LANDMARK_DETECTION: (None,                      None,        None,        None),
     # HuggingFace range Smart Turn sous `voice-activity-detection`, qui nomme aussi les filtres de
     # parole ordinaires (Silero) : projeter ce tag sur la fin de tour ferait de tout VAD un juge
     # de fin de phrase.
@@ -280,6 +289,7 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.POSE:               ModelType.VISION,
     ModelTask.DEPTH_ESTIMATION:   ModelType.VISION,
     ModelTask.FACE_ANALYSIS:      ModelType.VISION,
+    ModelTask.FACE_LANDMARK_DETECTION: ModelType.VISION,
     ModelTask.FACE_RESTORATION:   ModelType.VISION,
     ModelTask.IMAGE_TO_3D:        ModelType.VISION,
     ModelTask.OCR:                ModelType.OCR,
@@ -404,6 +414,7 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.OCR:                (('image', 'document'),          ('work_file',),            ()),
     ModelTask.DEPTH_ESTIMATION:   (('image', 'video'),             ('work_file',),            ()),
     ModelTask.FACE_ANALYSIS:      (('image', 'video'),             ('work_file',),            ()),
+    ModelTask.FACE_LANDMARK_DETECTION: (('image', 'video'),        ('work_file',),            ()),
     ModelTask.FACE_RESTORATION:   (('image', 'video'),             ('work_file',),            ()),
     ModelTask.IMAGE_TO_3D:        (('image',),                     ('work_file',),            ()),
     ModelTask.TRANSCRIPTION:      (('audio',),                     ('work_audio',),           ()),

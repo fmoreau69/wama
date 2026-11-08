@@ -43,7 +43,6 @@ class LoadedByTest(TestCase):
     #: La librairie que le moteur déclaré de chaque ligne fait requérir à son manifeste
     #: (2026-11-06). Une ligne SANS moteur y figure avec sa raison : rien d'autre ne l'excuse.
     EXPECTED_LIBRARIES = {
-        'face_analyzer:mediapipe-face-landmarker': ['mediapipe'],
         'github:CAIC-AD/YOLOPv2:V0.0.1': ['opencv-python', 'torch', 'torchvision'],
     }
     #: Exécuté par la version NAVIGATEUR de MediaPipe : aucune librairie Python à requérir.
@@ -60,11 +59,12 @@ class LoadedByTest(TestCase):
 
     def test_each_brick_model_names_a_module_that_exists(self):
         declared = self._declared()
-        # 3 depuis le 2026-11-08 : Whisper tiny, l'orientation de page, LPIPS et Smart Turn sont
-        # servis par leur backend (`WhisperLanguageBackend`, `DocTROrientationBackend`,
-        # `LPIPSBackend`, `SmartTurnBackend`) ; leurs découvertes restent ici, et n'émettent plus
-        # de `loaded_by`.
-        self.assertEqual(3, len(declared), declared)
+        # 2 depuis le 2026-11-08 : Whisper tiny, l'orientation de page, LPIPS, Smart Turn et le
+        # Face Landmarker sont servis par leur backend (`WhisperLanguageBackend`,
+        # `DocTROrientationBackend`, `LPIPSBackend`, `SmartTurnBackend`,
+        # `MediaPipeFaceLandmarkerBackend`) ; leurs découvertes restent ici, et n'émettent plus de
+        # `loaded_by`. Restent YOLOPv2 (Cam Analyzer, session dédiée) et les gestes (navigateur).
+        self.assertEqual(2, len(declared), declared)
         for key, runtime in declared.items():
             with self.subTest(model=key):
                 self.assertIsNotNone(importlib.util.find_spec(runtime['loaded_by']),

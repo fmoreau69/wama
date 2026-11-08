@@ -64,117 +64,29 @@ class ROI:
 
 class FaceDetector:
     """
-    Face detection using MediaPipe Face Mesh.
-    Provides 478 3D face landmarks with iris tracking (or 468 without iris).
-    Supports both legacy (solutions) and new (tasks) MediaPipe APIs.
+    Les repères du visage (478 points, iris compris) d'une image, et la pose de la tête.
+
+    Le modèle est celui du contrat commun `face-landmark-detection`
+    (`common/backends/mediapipe_face_landmarker_backend`), obtenu par la porte de lancement
+    (`backend_instance_for_key`) : chargé une fois, gardé par le cache commun, déchargé par le
+    déchargement commun. Jusqu'au 2026-11-08, ce module le chargeait lui-même — un
+    `FaceLandmarker` par détecteur, donc par IMAGE en temps réel —, avec un repli sur l'API
+    `solutions` de MediaPipe, absente de la version installée (0.10.31).
     """
 
-    def __init__(self,
-                 max_num_faces: int = 1,
-                 min_detection_confidence: float = 0.5,
-                 min_tracking_confidence: float = 0.5,
-                 refine_landmarks: bool = True):
-        """
-        Initialize the face detector.
+    def __init__(self):
+        self._backend = None
 
-        Args:
-            max_num_faces: Maximum number of faces to detect.
-            min_detection_confidence: Minimum confidence for face detection.
-            min_tracking_confidence: Minimum confidence for landmark tracking.
-            refine_landmarks: Whether to refine eye and lip landmarks.
-        """
-        self.max_num_faces = max_num_faces
-        self.min_detection_confidence = min_detection_confidence
-        self.min_tracking_confidence = min_tracking_confidence
-        self.refine_landmarks = refine_landmarks
-
-        self._face_landmarker = None
-        self._face_mesh = None  # Legacy API
-        self._initialized = False
-        self._use_tasks_api = False
-
-    def _initialize(self):
-        """Lazy initialization of MediaPipe."""
-        if self._initialized:
-            return
-
-        import mediapipe as mp
-
-        # Check which API is available
-        if hasattr(mp, 'tasks'):
-            # New tasks API (MediaPipe 0.10.x+)
-            self._initialize_tasks_api(mp)
-        elif hasattr(mp, 'solutions'):
-            # Legacy solutions API
-            self._initialize_solutions_api(mp)
-        else:
-            raise ImportError("MediaPipe is installed but neither 'tasks' nor 'solutions' API is available")
-
-    def _initialize_tasks_api(self, mp):
-        """Initialize using the new tasks API (MediaPipe 0.10.x+)."""
-        import os
-
-        try:
-            from mediapipe.tasks import python
-            from mediapipe.tasks.python import vision
-
-            # Download model if not present
-            model_path = self._get_model_path()
-
-            # Configure face landmarker
-            base_options = python.BaseOptions(model_asset_path=model_path)
-            options = vision.FaceLandmarkerOptions(
-                base_options=base_options,
-                running_mode=vision.RunningMode.IMAGE,
-                num_faces=self.max_num_faces,
-                min_face_detection_confidence=self.min_detection_confidence,
-                min_face_presence_confidence=self.min_tracking_confidence,
-                min_tracking_confidence=self.min_tracking_confidence,
-                output_face_blendshapes=False,
-                output_facial_transformation_matrixes=False
-            )
-
-            self._face_landmarker = vision.FaceLandmarker.create_from_options(options)
-            self._use_tasks_api = True
-            self._initialized = True
-            logger.info("MediaPipe Face Landmarker (tasks API) initialized successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to initialize tasks API: {e}")
-            raise
-
-    def _initialize_solutions_api(self, mp):
-        """Initialize using the legacy solutions API."""
-        try:
-            self._mp_face_mesh = mp.solutions.face_mesh
-            self._face_mesh = self._mp_face_mesh.FaceMesh(
-                max_num_faces=self.max_num_faces,
-                refine_landmarks=self.refine_landmarks,
-                min_detection_confidence=self.min_detection_confidence,
-                min_tracking_confidence=self.min_tracking_confidence
-            )
-            self._use_tasks_api = False
-            self._initialized = True
-            logger.info("MediaPipe Face Mesh (solutions API) initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize solutions API: {e}")
-            raise
-
-    def _get_model_path(self) -> str:
-        """The face landmarker model, installed by the route (2026-10-11).
-
-        It is DECLARED (`model_config.FACE_LANDMARKER_FILES`) and installed like any model —
-        never downloaded here any more: this used to fetch it unchecked into the app folder.
-        """
-        from .model_config import FACE_LANDMARKER_KEY, face_landmarker_path
-
-        model_path = face_landmarker_path()
-        if not model_path.exists():
-            raise RuntimeError(
-                "Modèle MediaPipe « face_landmarker.task » absent — installez-le depuis le model "
-                "manager (« Installer ») ou : python manage.py pull_model "
-                f"{FACE_LANDMARKER_KEY}")
-        return str(model_path)
+    def _landmarker(self):
+        """Le backend du Face Landmarker, chargé (la porte commune ; `load` est idempotent). Absent,
+        son `load` le DIT (`pull_model …`) : la route l'installe, l'app ne télécharge rien."""
+        if self._backend is None:
+            from wama.common.backends.manager import backend_instance_for_key
+            from .model_config import FACE_LANDMARKER_KEY
+            backend = backend_instance_for_key(FACE_LANDMARKER_KEY)
+            backend.load(FACE_LANDMARKER_KEY)
+            self._backend = backend
+        return self._backend
 
     def detect(self, frame: np.ndarray) -> Optional[FaceLandmarks]:
         """
@@ -186,74 +98,15 @@ class FaceDetector:
         Returns:
             FaceLandmarks object or None if no face detected.
         """
-        self._initialize()
-
         import cv2
 
-        h, w = frame.shape[:2]
-
-        if self._use_tasks_api:
-            return self._detect_tasks_api(frame, h, w)
-        else:
-            return self._detect_solutions_api(frame, h, w)
-
-    def _detect_tasks_api(self, frame: np.ndarray, h: int, w: int) -> Optional[FaceLandmarks]:
-        """Detect using tasks API."""
-        import cv2
-        import mediapipe as mp
-
-        # Convert BGR to RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Create MediaPipe Image
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-
-        # Detect face landmarks
-        result = self._face_landmarker.detect(mp_image)
-
-        if not result.face_landmarks:
+        faces = self._landmarker().detect_face_landmarks(
+            image=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        if not faces:
             return None
 
-        # Get the first face
-        face_landmarks = result.face_landmarks[0]
-
-        # Convert to numpy array (normalized coords -> pixel coords)
-        landmarks = np.array([
-            [lm.x * w, lm.y * h, lm.z * w]
-            for lm in face_landmarks
-        ])
-
-        # Calculate bounding box
-        x_coords = landmarks[:, 0]
-        y_coords = landmarks[:, 1]
-        x_min, x_max = int(x_coords.min()), int(x_coords.max())
-        y_min, y_max = int(y_coords.min()), int(y_coords.max())
-
-        bbox = (x_min, y_min, x_max - x_min, y_max - y_min)
-
-        return FaceLandmarks(landmarks=landmarks, bbox=bbox)
-
-    def _detect_solutions_api(self, frame: np.ndarray, h: int, w: int) -> Optional[FaceLandmarks]:
-        """Detect using legacy solutions API."""
-        import cv2
-
-        # Convert BGR to RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # Process the frame
-        results = self._face_mesh.process(rgb_frame)
-
-        if not results.multi_face_landmarks:
-            return None
-
-        # Get the first face
-        face_landmarks = results.multi_face_landmarks[0]
-
-        # Convert to numpy array
-        landmarks = np.array([
-            [lm.x * w, lm.y * h, lm.z * w]
-            for lm in face_landmarks.landmark
-        ])
+        # Le premier visage ; ses repères sont en pixels (contrat du backend).
+        landmarks = faces[0]
 
         # Calculate bounding box
         x_coords = landmarks[:, 0]
@@ -334,14 +187,9 @@ class FaceDetector:
         return {'pitch': pitch, 'yaw': yaw, 'roll': roll}
 
     def close(self):
-        """Release resources."""
-        if self._face_landmarker:
-            self._face_landmarker.close()
-            self._face_landmarker = None
-        if self._face_mesh:
-            self._face_mesh.close()
-            self._face_mesh = None
-        self._initialized = False
+        """Lâche le backend. Il appartient au cache COMMUN (d'autres détecteurs le partagent) : il
+        n'est pas déchargé ici, c'est le déchargement commun qui le rend."""
+        self._backend = None
 
 
 class ROIExtractor:

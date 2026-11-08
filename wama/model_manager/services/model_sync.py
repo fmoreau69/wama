@@ -38,8 +38,13 @@ def merged_composition(prior: dict, discovered: dict) -> dict:
     Une clé de `runtime` que la découverte émet à `None` est un RETRAIT, pas un silence
     (2026-11-06) : c'est ainsi que la dérivation dit qu'un moteur du catalogue est réfuté par la
     mesure (`model_registry.refuted_engine`) — le même geste que les drapeaux Ollama écrits faux
-    pour qu'une capacité perdue ne survive pas par absence."""
-    merged = {**(prior or {}), **(discovered or {})}
+    pour qu'une capacité perdue ne survive pas par absence.
+    Une clé de PREMIER niveau émise à `None` (`components`…) est un retrait aussi (2026-11-08) :
+    une anatomie fausse restée en base ne partait jamais, la découverte qui n'en a pas se taisant.
+    Vécu : un worker démarré avant un portage, son ancienne découverte lisant la NOUVELLE
+    déclaration du Face Analyzer, a posé sur le Face Landmarker le composant d'un poids DeepFace."""
+    merged = {key: value for key, value in {**(prior or {}), **(discovered or {})}.items()
+              if value is not None}
     runtime = {**((prior or {}).get('runtime') or {}), **((discovered or {}).get('runtime') or {})}
     runtime = {key: value for key, value in runtime.items() if value is not None}
     if runtime:

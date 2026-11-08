@@ -733,6 +733,10 @@ TASK_CONTRACTS = {
     # 2026-11-07 : un instrument de mesure appris (LPIPS, le banc d'agrandissement), chargé jusque-là
     # hors du contrat par le banc. LIANT, comme les deux précédents.
     'quality-metric': ('quality_metric_base', 'QualityMetricBackend', True),
+    # 2026-11-08 : les repères d'un visage (le Face Landmarker du Face Analyzer), chargés jusque-là
+    # hors du contrat par l'app. LIANT : `mediapipe` sert aussi les gestes de la main (au
+    # navigateur), et c'est ce contrat qui borne le backend à sa tâche.
+    'face-landmark-detection': ('face_landmark_detection_base', 'FaceLandmarkDetectionBackend', True),
     'detect': ('detection_base', 'DetectionBackend', False),
     # 2026-10-28 : les données personnelles d'un texte (ROADMAP §16.4bis). Écrit AVANT les
     # backends, comme `audio-to-score`. LIANT, comme l'OCR : un modèle `pii-detection` n'est servi

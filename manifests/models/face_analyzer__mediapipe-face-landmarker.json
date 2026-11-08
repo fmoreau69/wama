@@ -8,12 +8,11 @@
         "image",
         "video"
       ],
-      "task": "face-analysis"
+      "task": "face-landmark-detection"
     },
     "composition": {
       "runtime": {
-        "engine": "mediapipe",
-        "loaded_by": "wama_lab.face_analyzer.utils.preprocessing"
+        "engine": "mediapipe"
       }
     },
     "extra_info": {
@@ -27,7 +26,9 @@
           "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
           "size": 3758596
         }
-      ]
+      ],
+      "model_id": "mediapipe-face-landmarker",
+      "optional": false
     },
     "formats": {
       "can_convert_to": [],

@@ -67,46 +67,6 @@ def _deepface_file(name: str, size: int, sha256: str) -> list:
              'origin': {'source': 'github', 'release': DEEPFACE_RELEASE, 'file': name}}]
 
 
-#: Les poids réellement utilisés par l'app. `age`/`gender` ne servent QUE si `enable_age_gender`
-#: est activé dans l'interface — d'où leur `optional`, qui explique pourquoi 1 Go peut manquer
-#: sans que l'app soit cassée. `files` : leur déclaration pour la route d'installation.
-FACE_ANALYZER_MODELS = {
-    'deepface-expression': {
-        'fichier': 'facial_expression_model_weights.h5',
-        'files': _deepface_file(
-            'facial_expression_model_weights.h5', 5977392,
-            'e8e8851d3fa05c001b1c27fd8841dfe08d7f82bb786a53ad8776725b7a1e824c'),
-        'type': 'vision',
-        'engine': 'deepface',
-        'optional': False,
-        'vram_gb': 0.3,
-        'description': "Reconnaissance d'expressions faciales (7 émotions) — backend DeepFace",
-    },
-    'deepface-age': {
-        'fichier': 'age_model_weights.h5',
-        'files': _deepface_file(
-            'age_model_weights.h5', 538771776,
-            '0aeff75734bfe794113756d2bfd0ac823d51e9422c8961125b570871d3c2b114'),
-        'type': 'vision',
-        'engine': 'deepface',
-        'optional': True,
-        'vram_gb': 1.0,
-        'description': "Estimation d'âge — chargé seulement si « Âge & Genre » est activé",
-    },
-    'deepface-gender': {
-        'fichier': 'gender_model_weights.h5',
-        'files': _deepface_file(
-            'gender_model_weights.h5', 537149760,
-            '45513ce5678549112d25ab85b1926fb65986507d49c674a3d04b2ba70dba2eb5'),
-        'type': 'vision',
-        'engine': 'deepface',
-        'optional': True,
-        'vram_gb': 1.0,
-        'description': "Estimation de genre — chargé seulement si « Âge & Genre » est activé",
-    },
-}
-
-
 #: Dossier des modèles des tâches MediaPipe (`MODEL_PATHS['vision']['mediapipe']`).
 MEDIAPIPE_DIR = Path(settings.MODEL_PATHS['vision']['mediapipe'])
 
@@ -122,15 +82,76 @@ FACE_LANDMARKER_FILES = [
 ]
 
 
-#: Clé de sa ligne au catalogue (`model_registry._discover_face_analyzer_models`).
+#: TOUS les modèles de l'app — la convention commune (`<APP>_MODELS`, lue par le passe-plat
+#: `common/utils/model_declarations` et par la découverte `model_registry.
+#: _discover_face_analyzer_models`, une ligne `face_analyzer:<id>` par entrée). Chaque entrée dit
+#: ce qui la distingue : sa `task`, son dossier d'installation (`install_dir`), son fichier
+#: (`fichier`, celui que la librairie ouvre) et sa déclaration pour la route (`files`).
+#: `age`/`gender` ne servent QUE si `enable_age_gender` est activé dans l'interface — d'où leur
+#: `optional`, qui explique pourquoi 1 Go peut manquer sans que l'app soit cassée.
+#: Le Face Landmarker y entre le 2026-11-08 (il était déclaré à côté) : son backend, au substrat,
+#: lit sa déclaration par le passe-plat, sans importer l'app.
+FACE_ANALYZER_MODELS = {
+    'deepface-expression': {
+        'fichier': 'facial_expression_model_weights.h5',
+        'files': _deepface_file(
+            'facial_expression_model_weights.h5', 5977392,
+            'e8e8851d3fa05c001b1c27fd8841dfe08d7f82bb786a53ad8776725b7a1e824c'),
+        'install_dir': DEEPFACE_DIR,
+        'type': 'vision',
+        'task': 'face-analysis',
+        'engine': 'deepface',
+        'optional': False,
+        'vram_gb': 0.3,
+        'description': "Reconnaissance d'expressions faciales (7 émotions) — backend DeepFace",
+    },
+    'deepface-age': {
+        'fichier': 'age_model_weights.h5',
+        'files': _deepface_file(
+            'age_model_weights.h5', 538771776,
+            '0aeff75734bfe794113756d2bfd0ac823d51e9422c8961125b570871d3c2b114'),
+        'install_dir': DEEPFACE_DIR,
+        'type': 'vision',
+        'task': 'face-analysis',
+        'engine': 'deepface',
+        'optional': True,
+        'vram_gb': 1.0,
+        'description': "Estimation d'âge — chargé seulement si « Âge & Genre » est activé",
+    },
+    'deepface-gender': {
+        'fichier': 'gender_model_weights.h5',
+        'files': _deepface_file(
+            'gender_model_weights.h5', 537149760,
+            '45513ce5678549112d25ab85b1926fb65986507d49c674a3d04b2ba70dba2eb5'),
+        'install_dir': DEEPFACE_DIR,
+        'type': 'vision',
+        'task': 'face-analysis',
+        'engine': 'deepface',
+        'optional': True,
+        'vram_gb': 1.0,
+        'description': "Estimation de genre — chargé seulement si « Âge & Genre » est activé",
+    },
+    'mediapipe-face-landmarker': {
+        'name': 'MediaPipe Face Landmarker',
+        'fichier': FACE_LANDMARKER_FILES[0]['path'],
+        'files': FACE_LANDMARKER_FILES,
+        'install_dir': MEDIAPIPE_DIR,
+        'type': 'vision',
+        'task': 'face-landmark-detection',
+        'engine': 'mediapipe',
+        'optional': False,
+        'vram_gb': 0.0,
+        'description': "Repères du visage (478 points) — API « tasks » de MediaPipe, sur le "
+                       "processeur ; la géométrie que le Face Analyzer mesure image par image.",
+    },
+}
+
+
+#: Clé de la ligne du Face Landmarker au catalogue — celle que l'app demande à la porte commune.
 FACE_LANDMARKER_KEY = 'face_analyzer:mediapipe-face-landmarker'
-
-
-def face_landmarker_path() -> Path:
-    """Chemin du modèle de repères du visage — existe ou non, c'est l'appelant qui mesure."""
-    return MEDIAPIPE_DIR / FACE_LANDMARKER_FILES[0]['path']
 
 
 def chemin_local(model_id: str) -> Path:
     """Chemin du fichier de poids — existe ou non, c'est l'appelant qui mesure."""
-    return DEEPFACE_DIR / FACE_ANALYZER_MODELS[model_id]['fichier']
+    config = FACE_ANALYZER_MODELS[model_id]
+    return Path(config['install_dir']) / config['fichier']

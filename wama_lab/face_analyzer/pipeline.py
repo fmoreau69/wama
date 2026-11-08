@@ -112,10 +112,8 @@ class FaceAnalysisPipeline:
         self.config = config or PipelineConfig()
 
         # Initialize components
-        self._face_detector = FaceDetector(
-            max_num_faces=1,
-            refine_landmarks=True
-        )
+        # Un visage, iris compris : les options du backend commun (`MediaPipeFaceLandmarkerBackend`).
+        self._face_detector = FaceDetector()
         self._roi_extractor = ROIExtractor()
         self._overlay_renderer = OverlayRenderer()
 

@@ -643,29 +643,24 @@ class ModelRegistry:
         lit ne vaut rien.*
 
         Convention exploitée (vérifiée sur les 8 apps porteuses de modèles) :
-        `wama/<app>/utils/model_config.py` expose `<APP>_MODELS`, dont les clés sont les
+        `<app>/utils/model_config.py` expose `<APP>_MODELS`, dont les clés sont les
         `model_id` qui composent `model_key` (`<source>:<model_id>`). Une app qui ne suit pas
-        la convention est simplement ignorée — on ne devine rien.
+        la convention est simplement ignorée — on ne devine rien. Lue par le passe-plat commun
+        (`common/utils/model_declarations.declaration`), qui trouve l'app dans tous les mondes :
+        cette passe la relisait elle-même jusqu'au 2026-11-08, `wama.` écrit en dur.
 
         ⚠ N'ÉCRASE JAMAIS une composition existante : une app qui déclare son anatomie
         complète (composants + moteur, cf. transcriber/diarisation) reste l'autorité. Cette
         passe ne fait que COMBLER.
         """
-        import importlib
+        from wama.common.utils.model_declarations import declaration
         for cle, info in list(self._models.items()):
             if (getattr(info, 'composition', None) or {}).get('runtime', {}).get('engine'):
                 continue                                   # déjà déclaré : on ne touche pas
             source, _, model_id = cle.partition(':')
             if not model_id:
                 continue
-            try:
-                mod = importlib.import_module(f'wama.{source}.utils.model_config')
-                declarations = getattr(mod, f'{source.upper()}_MODELS', None)
-            except Exception:
-                continue
-            if not isinstance(declarations, dict):
-                continue
-            moteur = (declarations.get(model_id) or {}).get('engine')
+            moteur = (declaration(source, model_id) or {}).get('engine')
             if not moteur:
                 continue
             composition = dict(getattr(info, 'composition', None) or {})
@@ -1462,17 +1457,23 @@ class ModelRegistry:
 
         ⚠ MODÈLE ≠ LIBRAIRIE. `deepface`, `fer` et `mediapipe` sont des LIBRAIRIES (registre
         `Library`, semées par `manifest_export --kind library`). Seuls les POIDS sont ici. FER
-        et MediaPipe embarquent les leurs dans leur roue pip : ils n'ont AUCUNE entrée au
-        catalogue, et c'est volontaire — cataloguer un poids qu'on ne peut ni installer ni
-        supprimer séparément inventerait un objet que personne ne peut manipuler.
+        embarque les siens dans sa roue pip : il n'a AUCUNE entrée au catalogue, et c'est
+        volontaire — cataloguer un poids qu'on ne peut ni installer ni supprimer séparément
+        inventerait un objet que personne ne peut manipuler. MediaPipe, si : son API « tasks »
+        lit un `face_landmarker.task` publié à part (corrigé le 2026-11-08 — cette ligne le
+        disait embarqué, ce qu'est seule l'API LEGACY, absente de la version installée).
+
+        UNE boucle sur la déclaration de l'app (`FACE_ANALYZER_MODELS`, la convention commune) :
+        chaque entrée dit sa tâche, son dossier, son fichier, son moteur, et sa provenance par
+        l'ORIGINE de ses fichiers déclarés. Jusqu'au 2026-11-08 le Face Landmarker avait son bloc
+        à part, qui recopiait la forme de celui-ci.
 
         Scan FILESYSTEM, comme `_discover_depth_models` : la découverte n'importe qu'une
         DÉCLARATION de l'app (son `model_config`), jamais son runtime.
         """
         try:
-            from wama_lab.face_analyzer.utils.model_config import (
-                DEEPFACE_DIR, DEEPFACE_RELEASES, FACE_ANALYZER_MODELS, chemin_local,
-            )
+            from wama.model_manager.services.model_installer import declared_files_present
+            from wama_lab.face_analyzer.utils.model_config import FACE_ANALYZER_MODELS, chemin_local
         except Exception as e:
             logger.debug(f"Could not import face_analyzer model_config: {e}")
             return
@@ -1480,73 +1481,45 @@ class ModelRegistry:
         for model_id, config in FACE_ANALYZER_MODELS.items():
             try:
                 chemin = chemin_local(model_id)
-                telecharge = chemin.exists()
-                taille = chemin.stat().st_size if telecharge else 0
+                files = config['files']
+                # La PROVENANCE des poids en identifiant de dépôt, jamais en URL construite : la
+                # version GitHub que déclare l'origine de chaque fichier (DeepFace).
+                repos = sorted({f['origin']['release'].split(':', 1)[0] for f in files
+                                if f['origin'].get('source') == 'github' and f['origin'].get('release')})
                 self._models[f'face_analyzer:{model_id}'] = ModelInfo(
                     id=f'face_analyzer:{model_id}',
-                    name=model_id,
+                    name=config.get('name') or model_id,
                     model_type=ModelType.VISION,
                     source=ModelSource.WAMA_FACE_ANALYZER,
                     description=config['description'],
                     vram_gb=config.get('vram_gb'),
-                    is_downloaded=telecharge,
+                    is_downloaded=declared_files_present(config['install_dir'], files),
                     backend_ref='face_analyzer',
-                    format='h5',
-                    extra_info={'path': str(chemin), 'size_bytes': taille,
+                    format=Path(config['fichier']).suffix.lstrip('.'),
+                    extra_info={'path': str(chemin),
+                                'size_bytes': sum(f['size'] for f in files),
                                 'model_id': model_id,
                                 # Un poids OPTIONNEL absent n'est pas une app cassée : `age` et
                                 # `gender` (1 Go) ne se chargent que si « Âge & Genre » est
                                 # activé. Sans ce drapeau, l'UI lirait « modèle manquant ».
                                 'optional': bool(config.get('optional')),
                                 # Poids DÉCLARÉS (2026-10-12) : installables et désinstallables
-                                # par la route, un fichier par ligne, origine = version GitHub.
-                                'install_dir': str(DEEPFACE_DIR),
-                                'declared_files': config['files']},
-                    capabilities={'task': 'face-analysis', 'modalities': ['image', 'video'],
+                                # par la route (pilote `files`), un fichier par ligne.
+                                'install_dir': str(config['install_dir']),
+                                'declared_files': files},
+                    capabilities={'task': config['task'], 'modalities': ['image', 'video'],
                                   'inputs_required': ['work_file']},
-                    # Anatomie DÉCLARÉE (même champ que les autres apps) : le moteur — l'autre
-                    # moitié du lien étant `ENGINE` côté backend — et la PROVENANCE des poids
-                    # en identifiant de dépôt, jamais en URL construite.
-                    composition={'runtime': {'engine': config['engine']},
-                                 'components': [{'repo': DEEPFACE_RELEASES,
-                                                 'role': config['fichier']}]},
+                    # Le moteur — l'autre moitié du lien étant `ENGINE` côté backend (au substrat :
+                    # `DeepFaceBackend`, `MediaPipeFaceLandmarkerBackend`). `None` RETIRE de la
+                    # ligne en base (`model_sync.merged_composition`) ce que la déclaration ne dit
+                    # pas : le chargeur hors backend que le Face Landmarker nommait jusqu'au
+                    # 2026-11-08, et une anatomie qu'aucune provenance ne fonde.
+                    composition={'runtime': {'engine': config['engine'], 'loaded_by': None},
+                                 'components': [{'repo': repo, 'role': config['fichier']}
+                                                for repo in repos] or None},
                 )
             except Exception as e:
                 self.discovery_errors.append(f'face_analyzer:{model_id}: {e}')
-
-        # MediaPipe Tasks : `face_landmarker.task`, DÉCLARÉ par l'app (2026-10-11) — publié à part
-        # par Google, contrairement aux `.tflite` de l'API legacy embarqués dans la roue. La ligne
-        # existe même absente : elle est installable (pilote `files`, origine officielle).
-        try:
-            from wama.model_manager.services.model_installer import declared_files_present
-            from wama_lab.face_analyzer.utils.model_config import (
-                FACE_LANDMARKER_FILES, FACE_LANDMARKER_KEY, MEDIAPIPE_DIR, face_landmarker_path,
-            )
-            self._models[FACE_LANDMARKER_KEY] = ModelInfo(
-                id=FACE_LANDMARKER_KEY,
-                name='MediaPipe Face Landmarker',
-                model_type=ModelType.VISION,
-                source=ModelSource.WAMA_FACE_ANALYZER,
-                description="Repères du visage (478 points) — API « tasks » de MediaPipe, sur "
-                            "le processeur ; la géométrie que le Face Analyzer mesure image par "
-                            "image.",
-                vram_gb=0.0,
-                is_downloaded=declared_files_present(MEDIAPIPE_DIR, FACE_LANDMARKER_FILES),
-                backend_ref='face_analyzer',
-                format='task',
-                extra_info={'path': str(face_landmarker_path()),
-                            'size_bytes': sum(f['size'] for f in FACE_LANDMARKER_FILES),
-                            'install_dir': str(MEDIAPIPE_DIR),
-                            'declared_files': FACE_LANDMARKER_FILES},
-                capabilities={'task': 'face-analysis', 'modalities': ['image', 'video'],
-                              'inputs_required': ['work_file']},
-                # Aucun backend ne le pilote : le Face Analyzer l'ouvre lui-même (`loaded_by`,
-                # 2026-10-31 — sans quoi `backend_missing` le disait sans route d'exécution).
-                composition={'runtime': {'engine': 'mediapipe',
-                                         'loaded_by': 'wama_lab.face_analyzer.utils.preprocessing'}},
-            )
-        except Exception as e:
-            self.discovery_errors.append(f'face_analyzer:mediapipe-face-landmarker: {e}')
 
     def _discover_depth_models(self):
         """Modèles de profondeur monoculaire (task=depth-estimation) installés par la route du

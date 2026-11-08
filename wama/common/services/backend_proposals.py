@@ -735,6 +735,61 @@ def _smoke_end_of_turn(code: str, *, module: str, model_key: str, out_dir: Path)
     return out
 
 
+def smoke_face_image():
+    """Le chemin d'un PORTRAIT de la médiathèque système (`SystemAsset`, type `avatar` — ceux de
+    l'avatarizer), ou None si aucun n'est versé : le visage du smoke des REPÈRES."""
+    from wama.media_library.models import SystemAsset
+    portrait = next((a for a in SystemAsset.objects.filter(asset_type='avatar').order_by('name')
+                     if a.file), None)
+    return portrait.file.path if portrait else None
+
+
+def _smoke_face_landmarks(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement, puis les repères d'un portrait et d'une image unie : au moins un visage sur le
+    portrait, chacun en (N, 3) dans le cadre de l'image ; aucun sur l'image unie (2026-11-08,
+    contrat `face-landmark-detection`)."""
+    import tempfile
+
+    import numpy as np
+    from PIL import Image
+    path = smoke_face_image()
+    if path is None:
+        return {'ran': False, 'reason': 'aucun portrait versé en médiathèque système (type avatar)'}
+    with Image.open(path) as source:
+        portrait = np.asarray(source.convert('RGB'))
+    blank = np.full_like(portrait, 128)
+    started = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            backend = _proposed_backend(code, module, tmp, 'detect_face_landmarks')
+            if not type(backend).is_available():
+                return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
+            if not backend.load(model_id_of(model_key)):
+                return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+            faces = backend.detect_face_landmarks(image=portrait)
+            none = backend.detect_face_landmarks(image=blank)
+            backend.unload()
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
+                    'seconds': round(time.time() - started, 1)}
+    seconds = round(time.time() - started, 1)
+    h, w = portrait.shape[:2]
+    out = {'ran': True, 'ok': True, 'seconds': seconds, 'faces': len(faces or []),
+           'landmarks': [len(f) for f in faces or []]}
+    shaped = all(isinstance(f, np.ndarray) and f.ndim == 2 and f.shape[1] == 3 and len(f)
+                 for f in faces or [])
+    if not isinstance(faces, list) or not shaped:
+        out.update(ok=False, error=f'réponse hors contrat : {type(faces).__name__}')
+    elif not faces:
+        out.update(ok=False, error='aucun visage sur le portrait')
+    elif not all((f[:, 0] >= 0).all() and (f[:, 0] <= w).all() and (f[:, 1] >= 0).all()
+                 and (f[:, 1] <= h).all() for f in faces):
+        out.update(ok=False, error='des repères hors du cadre (coordonnées non ramenées en pixels ?)')
+    elif none:
+        out.update(ok=False, error=f'{len(none)} visage(s) sur une image unie')
+    return out
+
+
 #: La page que redresse le smoke d'ORIENTATION : des lignes de texte, tournée de ce quart de tour.
 SMOKE_ORIENTATION_TURN = 90
 
@@ -836,6 +891,7 @@ SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_
           'LanguageIdentificationBackend': _smoke_language,
           'EndOfTurnBackend': _smoke_end_of_turn,
           'PageOrientationBackend': _smoke_orientation,
+          'FaceLandmarkDetectionBackend': _smoke_face_landmarks,
           'QualityMetricBackend': _smoke_quality_metric}
 
 
