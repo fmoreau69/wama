@@ -29578,3 +29578,44 @@ de MESURE ; chaque pièce suit un patron en service :
   patron du service de confidentialité (`common/privacy/service.py` : Django initialisé, porte
   commune, tenant déclaré, préchauffage, 503 « loading ») ; puis `DeepFaceBackend` au contrat
   `face-analysis` (le `EmotionRecognizer` de l'app garde son lissage, le backend reste sans état).
+
+## §PALIER 2026-11-08 (soir), « L'APERÇU SUR L'AXE FUSIONNÉ DANS DEV ; LES ROUGES D'APRÈS LA RÉPARATION DE GIT SOLDÉS » — fa1960073, a1099c54e, 92b69a5fe, b233bdb59, bddc8657c, a1fefb6b0 (fusion de `preview-axis`), 0bba27e05, 1f75a7ddf (locaux, non poussés) — 🔴 relancer gunicorn + workers + service privacy
+
+- **Fusion.** La branche `preview-axis` (worktree `D:/WAMA/wt_preview_axis`) a été reprise trois fois sur
+  dev (`0bba27e05`, `121edb49f`, `ef041fce0`), puis une dernière fois sans conflit sur `06bd26af7`, et
+  avancée en avance rapide : dev `06bd26af7 → a1fefb6b0`. Le retrait de `syncVideos` est **R232**
+  (R229 à R231 pris entre-temps). La part de la branche dans les docs générées a été prouvée bloc par
+  bloc : la différence commitée de dev à la branche est celle de deux régénérations `doc_facts`
+  (branche, dev pur à la même base) — `WAMA_MECANISMES` 7 lignes, `docs/dev/briques.md` 3,
+  `WAMA_DATA_WORLD` 1. Fusion dans l'arbre partagé fichier par fichier (28 chemins). Deux fichiers
+  portaient le WIP d'une autre instance (`WAMA_MECANISMES.md`, `docs/dev/briques.md`) : fusion à trois
+  voies, avec la preuve que ses lignes +/- sont identiques avant et après. Les 11 autres fichiers de
+  WIP n'ont pas bougé, l'index partagé est vide, chaque copie `staticfiles/` est identique à sa source.
+- **Tests.** Suite complète, branche contre dev pur, même base et même montage (base de test à part) :
+  mêmes 15 rouges des deux côtés. La branche ajoute 15 tests et n'a aucun rouge propre. Après la reprise
+  sur `121edb49f` : deux rouges de plus, également rouges sur dev pur (`briques.md` à 233 mécanismes
+  pour 234 déclarés), soldés par la régénération de `ef041fce0`. Tests ciblés sur la branche reprise et
+  dans l'arbre principal fusionné : verts, sauf des rouges déjà présents sur dev ou dus au WIP en cours
+  (`OneFileOneOwnerTest`, budgets d'identifiants, `doc_plans` sur le `briques.md` en cours). Aucun
+  identifiant relevé ne vient de ces commits (mesuré par `git blame`). V8 (`tests_cap_from_js`) : 81/81.
+- **Scénarios servis** (serveur jetable 8037, arbre fusionné) : `preview_sync` 16/16, `preview_layout`,
+  `preview_navigation`, `preview_during`, `preview_chat_job`, `anonymizer.preview`, `editor_parity`,
+  `cam_analyzer.shuttle` verts. ⚠ `common.axis_follow` rouge sur `face_analyzer.analysis`, **rouge
+  aussi sur dev pur** : `GET /media/face_analyzer/22/input/… → 403`. La règle de lecture de `/media/`
+  (`9cd279cba`, `media_paths.readable_by`) refuse les fichiers rangés sous `face_analyzer/<uid>/`, hors
+  de `users/<uid>/`. Signalé à la session aa, propriétaire de ce chantier.
+  🔴 **Après le redémarrage, les utilisateurs du Face Analyzer seront refusés de la même façon.**
+- **Jusqu'au redémarrage de gunicorn**, le JS et les gabarits sont déjà servis neufs. L'ancien
+  `surface_views` recharge alors `wama-axis.js` et `wama-shuttle.js` sur les pages de surface (éditeur,
+  partition). C'est sans effet : aucun écouteur n'est posé au chargement, seuls les appels
+  `bindKeys`/`keys` en posent. Cela cesse au redémarrage (`page_scripts`).
+- **Avant la fusion** (`0bba27e05`) : les rouges relevés après la réparation de git, corrigés dans
+  l'arbre principal. Constellation `wama-reveal` (#14), `UNREADABLE` de `tests_pipeline_faces` (#13),
+  `composition` de la ligne d'imager (#2), `data-mapping-key` de `WamaParams` (#10), défauts de réglage
+  documents de l'anonymizer (#12), surfaces de réglages (#9), adresses `data-about-models` (#6),
+  `SUPPORTED_MODELS` de bardsai (#3), `TypedFrame` des interactions (#4). `1f75a7ddf` consigne dans
+  `AGENTS.md` trois pièges de git multi-instances (aucun `prune` global, jamais `GIT_DIR` devant une
+  suite, migrations recopiées).
+- 🔚 **Restent** : le portage du Face Analyzer sur l'axe, puis du cam_analyzer ; les aperçus audio sur
+  l'axe ; la barre de transport de la visionneuse. Le worktree `wt_preview_axis` est gardé, verrouillé,
+  avec sa base `test_wama_db_axis`.
