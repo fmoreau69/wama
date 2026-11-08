@@ -23,7 +23,13 @@
  * `attach(el, {sync})`). En arrière ou au-delà de `MEDIA_MAX_RATE`, il se tait et l'axe le recale
  * à intervalles — la lecture arrière silencieuse de l'éditeur du transcriber. Un geste fait sur le
  * média lui-même (son bouton, un clic dans son onde) est une COMMANDE à l'axe, jamais une horloge.
- * L'axe n'attend pas un média qui charge : son image se fige, puis rattrape le temps juste.
+ * Un média qui JOUE et attend ses données (tampon vide, positionnement en cours) RETIENT l'axe :
+ * l'axe s'arrête avec lui, les autres suiveurs se taisent là où ils sont, et tout repart quand
+ * il peut jouer (décision de Fabien, 2026-11-08). L'axe courait avant : sur un lien plus lent que
+ * la vidéo, il la repositionnait plus loin, elle repartait en chargement — image figée 73 % du
+ * temps à 8 Mbit/s pour une vidéo de 9,6 Mbit/s, contre 9 % au lecteur natif (banc de l'aperçu,
+ * débit bridé). Il ne dépend toujours de rien : un média qui refuse de jouer, n'a pas encore ses
+ * métadonnées, est fini, ou ne reçoit plus rien depuis `SYNC.hold` secondes ne le retient pas.
  * ⚠ Une surcouche dessinée SUR un média suit l'image que ce média affiche (`el.currentTime`), pas
  * l'axe : un cadre de détection doit tomber sur l'image montrée.
  *
@@ -74,8 +80,11 @@
      *  `currentTime` avance par paliers. ⚠ Mesuré sur une card réelle (composer #880, 2026-11-02) :
      *  une vitesse corrigée en proportion de l'écart changeait à chaque battement, chaque changement
      *  coûtait au lecteur, et l'audio restait ~30 ms derrière en jouant à ×1,03 en permanence ; à
-     *  vitesse fixe, la vitesse ne change que deux fois par rattrapage. */
-    var SYNC = { tolerance: 0.02, reseek: 0.15, maxNudge: 0.05, smoothing: 0.3 };
+     *  vitesse fixe, la vitesse ne change que deux fois par rattrapage. `hold` : un média qui attend
+     *  ses données retient l'axe tant qu'il en reçoit, au plus `hold` secondes sans rien recevoir. */
+    var SYNC = { tolerance: 0.02, reseek: 0.15, maxNudge: 0.05, smoothing: 0.3, hold: 5 };
+    /** `readyState` : les métadonnées sont là (le média existe) ; l'image À VENIR est là (il joue). */
+    var HAVE_METADATA = 1, HAVE_FUTURE_DATA = 3;
     /** Un `play` / `pause` du média dans ce délai après que l'axe l'a demandé est le sien (les
      *  événements du média arrivent après coup ; une lecture refusée n'en envoie aucun). */
     var OWN_EVENT_MS = 500;
@@ -207,6 +216,25 @@
             // Lecture refusée (navigateur) : le média se tait, l'axe continue — il ne dépend de rien.
             if (p && p.catch) p.catch(function () { /* rien à défaire */ });
         }
+        /** Le suiveur JOUE et attend ses données : il retient l'axe. Pas un média arrêté (lecture
+         *  refusée, geste en route), sans métadonnées, en erreur, à sa fin, ni muet (arrière, au-delà
+         *  de `MEDIA_MAX_RATE`) ; et plus après `hold` secondes sans rien recevoir. */
+        function starved(f, at) {
+            var el = f.el, d = el.duration;
+            var waiting = audible() && covers(f) && !el.paused && !el.ended && !el.error
+                && el.readyState >= HAVE_METADATA && (el.seeking || el.readyState < HAVE_FUTURE_DATA)
+                && !(isFinite(d) && d > 0 && el.currentTime >= d - 0.05);
+            if (!waiting) { f.starvedAt = null; return false; }
+            if (f.starvedAt == null) f.starvedAt = at;
+            return at - Math.max(f.starvedAt, f.dataAt || 0) < f.sync.hold * 1000;
+        }
+        /** L'axe retenu : le média qui attend charge, les autres se taisent là où ils sont — à une
+         *  image de l'axe, que le rattrapage reprend. Les reposer les renvoyait charger à leur tour,
+         *  et deux vidéos de Comparer se retenaient l'une l'autre (banc à 1,5 Mbit/s : plus rien ne
+         *  jouait). */
+        function waitAll(held) {
+            followers.forEach(function (f) { if (held.indexOf(f) < 0) hush(f); });
+        }
         function ours(at) { return at != null && now() - at < OWN_EVENT_MS; }
         /** Recale UN suiveur sur l'axe. `at` : l'instant (ms) du battement, pour espacer les seeks. */
         function follow(f, at) {
@@ -253,6 +281,12 @@
             var t = typeof ts === 'number' ? ts : now();
             var dt = Math.max(0, (t - last) / 1000);
             last = t;
+            var held = followers.filter(function (f) { return starved(f, t); });
+            if (held.length) {                                // un média attend ses données
+                waitAll(held);
+                loop = frame(tick);
+                return;
+            }
             s.time += dt * s.rate;
             // Le bord se juge dans le SENS de la lecture : le premier battement peut arriver avec un
             // écart nul (l'instant d'une image précède parfois celui du lancement), et une lecture
@@ -452,7 +486,8 @@
                           seek: typeof o.seek === 'function' ? o.seek : null,
                           sync: Object.assign({}, sync, o.sync || {}),
                           lastSeek: 0, pausedAt: null, playedAt: null, placedTo: null,
-                          drift: null, catching: 0, ownRate: null, sounding: false, here: null };
+                          drift: null, catching: 0, ownRate: null, sounding: false, here: null,
+                          starvedAt: null, dataAt: null };
                 var dropCadence = o.fps ? axis.cadence(o.fps) : null;
                 /** Le média EST-il censé jouer ? Sinon une pause qui arrive est la nôtre. */
                 function expected() { return audible() && covers(f); }
@@ -500,6 +535,8 @@
                         if (!(r > 0) || f.ownRate == null || Math.abs(r - f.ownRate) < 1e-3) return;
                         axis.setRate(r);
                     },
+                    // Des données arrivent : un média qui attend retient encore l'axe (`starved`).
+                    progress: function () { f.dataAt = now(); },
                 };
                 Object.keys(handlers).forEach(function (k) { el.addEventListener(k, handlers[k]); });
                 f.drop = function () {

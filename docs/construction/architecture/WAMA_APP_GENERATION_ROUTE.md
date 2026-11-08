@@ -1262,8 +1262,9 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       faut, un `offset` chacun) : il joue lui-même — l'écoute reste audible — et l'axe le RECALE en
       deux niveaux, un RATTRAPAGE à vitesse fixe (±5 %) tenu jusqu'à ce que l'écart lissé s'annule,
       un repositionnement au-delà d'un seuil ; seuils RÉGLABLES (`WamaAxis.SYNC` : tolérance 20 ms,
-      repositionnement 150 ms — Fabien jugeait 300 ms « un peu élevé » —, lissage 0,3 ; par axe et
-      par média) ; muet et recalé en arrière ;
+      repositionnement 150 ms — Fabien jugeait 300 ms « un peu élevé » —, lissage 0,3, attente
+      d'un média sans données 5 s depuis le 2026-11-08 ; par axe et par média) ; muet et recalé en
+      arrière ;
       ⚠ mesuré sur des cards RÉELLES (composer #880, transcriber #2522, revérification du même
       soir) : la première forme, une vitesse corrigée EN PROPORTION de l'écart, changeait à chaque
       battement ; chaque changement coûtait au lecteur, et l'audio restait ~30 ms derrière en jouant
@@ -1272,7 +1273,17 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       temps, deux changements de vitesse par rattrapage ; reste le rattrapage du départ (l'audio
       démarre ~60-80 ms après l'axe), ~1,2 s à ×1,05 ;
       un geste sur le média est une COMMANDE ; sa fin n'arrête pas l'axe ; il ne retient pas l'axe
-      s'il refuse de jouer ou charge ;
+      s'il refuse de jouer ~~ou charge~~ (corrigé le 2026-11-08, ci-dessous) ;
+      🔄 **2026-11-08 (décision de Fabien, après la revérification) : un média qui JOUE et attend
+      ses données RETIENT l'axe**, partout (aperçu, pages de correction, monde Data) — l'axe
+      s'arrête, les autres suiveurs se taisent là où ils sont, tout repart quand il peut jouer ; il
+      ne le retient ni s'il refuse de jouer, ni sans métadonnées, en erreur, à sa fin, muet (arrière),
+      ni après `SYNC.hold` (5 s) sans rien recevoir. Mesuré (banc de l'aperçu, débit bridé, vidéo HD
+      de 9,6 Mbit/s, image figée sur 56 relevés) : l'axe qui courait la figeait 41 fois à 8 Mbit/s
+      (`dev` : 5) et 10 fois à 12 Mbit/s, débit pourtant suffisant (`dev` : 0) — il la repositionnait
+      plus loin, elle repartait charger ; retenu, il rejoint le lecteur natif à chaque débit. Gardes :
+      `AxisTest.test_a_playing_medium_waiting_for_its_data_holds_the_axis`, `…_a_seek_during_play_…`,
+      `…_nothing_holds_the_axis_that_is_not_playing_and_loading` (sept contre-épreuves rouges) ;
     - deux suiveurs jouent ENSEMBLE : la lecture exclusive de la page les couperait l'un l'autre,
       ils portent donc l'échappatoire déclarée `data-wama-multiplay` (posée et retirée par l'axe
       seul ; un suiveur seul reste exclusif). ⚠ Deux suiveurs du lecteur commun (`WamaAudioPlayer`,

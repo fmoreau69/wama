@@ -1098,8 +1098,93 @@ class AxisTest(SimpleTestCase):
         self.assertEqual(0.95, out['ahead'][-1], 'ahead : slower, 5 %')
         self.assertEqual([1], out['far'], 'beyond the threshold : at the axis speed')
         self.assertAlmostEqual(0, out['farGap'], places=6, msg='and repositioned on the axis')
-        self.assertEqual({'tolerance': 0.02, 'reseek': 0.15, 'maxNudge': 0.05, 'smoothing': 0.3},
-                         out['defaults'])
+        self.assertEqual({'tolerance': 0.02, 'reseek': 0.15, 'maxNudge': 0.05, 'smoothing': 0.3,
+                          'hold': 5}, out['defaults'])
+
+    def test_a_playing_medium_waiting_for_its_data_holds_the_axis(self):
+        """Fabien, 2026-11-08 : the axis used to run past a medium whose buffer was empty, reposition
+        it further, and it went back to loading — a preview frozen 73 % of the time on a link a
+        little slower than the video (dev's native player : 9 %). It now WAITS for it ; the other
+        follower waits silent WHERE IT IS — repositioned, it went loading in turn and the two videos
+        of Comparer held each other (bench at 1.5 Mbit/s : nothing played) —, and everything goes
+        on when it can play."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts));
+            var a = fakeMedia(60), b = fakeMedia(60);
+            axis.attach(a); axis.attach(b); axis.play(); step(16); step(500);
+            var before = axis.time(), placed = 0, at = b.currentTime;
+            Object.defineProperty(b, 'currentTime', {get: function () { return at; },
+                                                     set: function (v) { placed++; at = v; }});
+            a.readyState = 2; step(16); var heldAt = axis.time();      // a's buffer runs out
+            step(1000);
+            var held = {time: axis.time(), playing: axis.playing(), otherSilent: b.paused,
+                        otherPlaced: placed, waitingPlays: !a.paused};
+            a.readyState = 4; step(16); step(500);                      // its data is there
+            return {before: before, heldAt: heldAt, held: held, after: axis.time(),
+                    otherResumed: !b.paused};
+        ''')
+        self.assertAlmostEqual(out['before'], out['heldAt'], places=6, msg='the axis stops at once')
+        self.assertAlmostEqual(out['heldAt'], out['held']['time'], places=6,
+                               msg='a whole second later, it still waits')
+        self.assertTrue(out['held']['playing'], 'waiting is not a pause : the play goes on after')
+        self.assertTrue(out['held']['waitingPlays'], 'the waiting medium keeps loading to play')
+        self.assertTrue(out['held']['otherSilent'], 'the other follower waits silent')
+        self.assertEqual(0, out['held']['otherPlaced'], 'where it is : not repositioned')
+        self.assertAlmostEqual(out['heldAt'] + 0.516, out['after'], places=6, msg='then the axis goes on')
+        self.assertTrue(out['otherResumed'], 'and the other follower plays again')
+
+    def test_a_seek_during_play_waits_for_the_medium_to_be_placed(self):
+        """A reposition (the axis's, or a gesture's) is the moment the chase began : the medium seeks,
+        the axis ran ahead of it, the next correction repositioned it again."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts)), m = fakeMedia(60);
+            axis.attach(m); axis.play(); step(16);
+            axis.seek(30); m.seeking = true; step(16); step(800);
+            var during = axis.time();
+            m.seeking = false; step(16); step(200);
+            return {during: during, after: axis.time()};
+        ''')
+        self.assertAlmostEqual(30, out['during'], places=6, msg='the axis waits for the seek')
+        self.assertAlmostEqual(30.216, out['after'], places=6, msg='then goes on')
+
+    def test_nothing_holds_the_axis_that_is_not_playing_and_loading(self):
+        """It still depends on nothing : a medium that refuses to play, has no metadata yet, is in
+        error, has ended, is silent (backward), or receives nothing for `SYNC.hold` seconds lets
+        the axis walk — while data keeps coming, it holds."""
+        out = self._eval('''
+            function walks(prepare, o) {
+                o = o || {};
+                var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts));
+                var m = fakeMedia(o.duration || 60);
+                axis.attach(m); axis.seek(10); axis.play(); if (o.rate) axis.setRate(o.rate);
+                step(16); step(16);
+                prepare(m); var t0 = axis.time(); step(16); step(500);
+                return Math.abs(axis.time() - t0) > 0.4;
+            }
+            var out = {
+                refused: walks(function (m) { m.paused = true; m.readyState = 2; }),
+                noMetadata: walks(function (m) { m.readyState = 0; }),
+                error: walks(function (m) { m.readyState = 2; m.error = {code: 2}; }),
+                ended: walks(function (m) { m.readyState = 2; m.ended = true; }),
+                // a shorter medium at its last image (Comparer, two lengths) : no future data, ever
+                atItsEnd: walks(function (m) { m.readyState = 2; m.currentTime = 10.08; }, {duration: 10.1}),
+                backward: walks(function (m) { m.readyState = 2; }, {rate: -1}),
+                waiting: walks(function (m) { m.readyState = 2; }),
+            };
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts)), m = fakeMedia(60);
+            axis.attach(m); axis.play(); step(16); m.readyState = 2; step(16);
+            var t0 = axis.time();
+            for (var i = 0; i < 60; i++) { step(100); if (i % 3 === 0) m.fire('progress'); }
+            out.fed = axis.time() - t0;
+            for (var j = 0; j < 60; j++) step(100);
+            out.starvedWalks = axis.time() - t0;
+            return out;
+        ''')
+        for case in ('refused', 'noMetadata', 'error', 'ended', 'atItsEnd', 'backward'):
+            self.assertTrue(out[case], f'{case} : the axis walks on')
+        self.assertFalse(out['waiting'], 'a playing medium waiting for its data holds it')
+        self.assertAlmostEqual(0, out['fed'], places=6, msg='data keeps coming : it still holds')
+        self.assertGreater(out['starvedWalks'], 0.5, '5 s without data : the axis walks on alone')
 
     def test_the_correction_thresholds_are_settings_of_the_axis_and_of_each_medium(self):
         out = self._eval('''

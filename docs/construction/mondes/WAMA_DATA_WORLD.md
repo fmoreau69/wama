@@ -872,6 +872,8 @@ temporelle :
   l'axe avance seul et recale le média~~ — **l'AXE, toujours, depuis le 2026-11-02** (décision de
   Fabien, le modèle de BIND du §2) : il ne dépend de rien ; les médias le SUIVENT, autant qu'il en
   faut, un `offset` chacun, recalés en deux niveaux réglables (`WamaAxis.SYNC`), muets en arrière ;
+  un média qui JOUE et attend ses données retient l'axe le temps qu'elles arrivent (Fabien,
+  2026-11-08 — sinon l'axe le repositionnait plus loin et il repartait charger : `ROUTE §F3b`) ;
   une vue montre l'échantillon le plus proche de t ; le pas est celui de la cadence la plus fine
   déclarée (`ROUTE §F3b`, bloc du 2026-11-02) ;
 - *les commandes* : le transport (`wama-transport.js`, brique `media_transport`) les envoie à l'axe,
