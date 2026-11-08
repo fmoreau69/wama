@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**232 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**233 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -275,10 +275,11 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (26) :
+- **API publique** (27) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
   - `lines_by_item(items) -> dict` — `{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
+  - `stale_ids(model, object_ids) -> set` — Les éléments (pk en texte, parmi `object_ids`) dont une ligne de process est PÉRIMÉE —
   - `line(item, node_id: str=MAIN_NODE, instance_key: str='')` — La ligne d'un nœud, ou None s'il n'a jamais été lancé.
   - `snapshot(settings, watched) -> dict` — Photo des réglages SURVEILLÉS : `{clé: valeur}` pour chaque clé de `watched`, lue d'un
   - `settle_setting(item, nodes, name: str, value) -> int` — Un réglage qu'un process AVAL écrit depuis le résultat de ses amonts (les paroles écoutées
@@ -2271,7 +2272,9 @@ Les vues `start`, `start_all` et `clear_all` d'une app — `make_item_views` (20
 
 - **Domicile** : `wama/common/utils/item_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les vues d'ÉLÉMENT et de FILE : ▶ d'une card, ▶ de la file, 🗑 de la file (`make_item_views`, `WAMA_APP_GENERATION_ROUTE.md §11 #39`) ; puis les autres gestes d'une card, ⏹ ⬇ 🗑 ⧉ ⚙ (2026-11-01, `§11 #42` ④), lus à la déclaration que l'app donne déjà à sa fabrique de lot (`batch_views.element_declaration`) — l'enhancer les écrivait deux fois, une par domaine.
-- **API publique** (8) :
+- **API publique** (10) :
+  - `stale_only(queryset)` — Les éléments PÉRIMÉS de `queryset` — réussis dont une ligne de process est périmée : la
+  - `narrowed(queryset, scope_filter)` — `queryset` borné par le filtre d'un périmètre — colonnes (dict) ou fonction.
   - `queue_scopes(action: str) -> list` — Les entrées du menu ▾ d'une action de file (`start` | `clear`) : `{key, label, counter}` —
   - `class ItemStart` — Ce qu'une app déclare de son ▶ — lu par les vues ET par l'outil de l'assistant.
   - `declaration_for(work_model)` — La déclaration du ▶ de `work_model`, ou None. Inscrite au chargement des vues de son app :
@@ -3374,6 +3377,18 @@ Le filtre de gabarit `script_json` pose un JSON en ligne dans un `<script>` avec
   - `script_json_text(value) -> str` — Le texte à poser dans un `<script>` : la chaîne JSON reçue, ou la valeur sérialisée.
   - `script_json(value)` — `{{ x_json|script_json }}` : un JSON qui ne peut pas fermer le `<script>` qui le porte.
 
+### La lecture MIDI d'une partition : banques de sons, page et serveur
+
+Jouer une partition sans générer d'audio (2026-11-08, demande de Fabien). Les BANQUES DE SONS se déclarent une fois (`sound_banks` : GeneralUser GS et MuseScore General, vendorisées par `tools/update_vendors.sh`, origines au registre des sources). Dans la page, `wama-midi-player.js` rend la partition MONTRÉE en WAV (SpessaSynth hors temps réel, la banque en ligne d'abord puis sa copie locale ; abcjs et sa banque en ligne, repli sur SpessaSynth) — des versions de plus au transport commun (`ctx.addSource`, rendues à la demande, d'où vient le son DIT). Côté serveur, `midi_render` joue le même MIDI avec la même banque par FluidSynth (programme système, vérifié par `tools/install_wama.sh`) : l'export « Audio WAV » de la partition
+
+- **Domicile** : `wama/common/utils/sound_banks.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
+- **Module** : Les BANQUES DE SONS de la lecture MIDI d'une partition (2026-11-08, décision de Fabien) — déclarées une fois, lues par la page (le lecteur `wama-midi-player.js`, SpessaSynth) et par le rendu serveur (FluidSynth, à venir). Veille et choix : `PROSPECTION_PIPELINE.md §Session du 2026-11-08`.
+- **API publique** (4) :
+  - `class SoundBank`
+  - `bank(key: str) -> SoundBank | None`
+  - `local_file(sound_bank: SoundBank) -> Path` — Le fichier vendorisé d'une banque (dans les sources statiques) — ce que lit un rendu serveur.
+  - `page_banks() -> dict` — Ce que la page reçoit (configuration d'une surface) : les banques, chacune avec son adresse
+
 ### La page porte-t-elle une partition ? (portées comptées)
 
 Compte les PORTÉES d'une page — cinq lignes horizontales longues et régulièrement espacées, mesurées par la part d'encre de chaque rangée de pixels — sur une image ou les premières pages d'un PDF ; aucun modèle. Lue par la propriété d'entrée `has_staves` de la sonde (`media_probe.INPUT_PROPERTIES`), calculée seulement quand un réglage la demande (`Param.default_from`) : la case « Lire une partition » du Reader se coche d'après le fichier, l'utilisateur la change. Née le 2026-11-08 (demande de Fabien : « une détection automatique […] qui peut rester un choix de l'utilisateur »). Ne voit pas une photo de travers ni un manuscrit sans portée
@@ -3486,13 +3501,14 @@ Un MIDI à une piste par instrument → une partition ABC lisible : une voix par
 
 - **Domicile** : `wama/common/utils/midi_score.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Un MIDI multi-pistes → une partition ABC LISIBLE (2026-10-16, la « Partition complète » du composer).
-- **API publique** (11) :
+- **API publique** (12) :
   - `instrument_label(name: str) -> str` — Le libellé français d'une piste nommée par le moteur (`INSTRUMENT_LABELS`).
   - `class MidiPart` — Une partie du MIDI — une piste et un canal : son nom (`track_name`), batterie ou non (canal
   - `class MidiSong` — Ce qu'un fichier MIDI déclare, lu une fois (`read_midi`) : la base de temps, la carte des
   - `read_midi(source) -> MidiSong` — La LECTURE MIDI commune (2026-10-16) — un chemin ou des octets → `MidiSong`, par `mido`.
   - `abc_pitch(pitch: int) -> tuple` — (lettre ABC avec octave, dièse ?) d'une hauteur MIDI : 60 → ('C', False), 73 → ('c', True).
   - `split_length(steps: int) -> list` — Une durée en pas découpée en valeurs écrivables (la plus longue d'abord).
+  - `dynamic_of(velocity: float) -> str` — La nuance écrite d'une vélocité MIDI moyenne (`_DYNAMICS`).
   - `bar_offset_of(markers) -> float` — Le décalage (s) qu'un moteur a ajouté pour poser la mesure 1 sur un temps fort — marqueur
   - `mark_downbeat(midi_bytes: bytes, seconds: float) -> bytes` — Le MIDI avec son marqueur de premier temps fort (`DOWNBEAT_MARKER`, en secondes d'audio).
   - `downbeat_of(markers)` — L'instant (s) du premier temps fort que dit un marqueur `downbeat=<s>`, None sinon.

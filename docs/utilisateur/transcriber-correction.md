@@ -23,6 +23,7 @@ touches servent à taper ; `Échap` revient à la navigation.
 | touche | en navigation | en édition |
 |---|---|---|
 | `Espace` | lecture / pause | (tape un espace) |
+| `Ctrl+Espace` | lecture / pause | lecture / pause (même en saisie) |
 | `J` · `K` · `L` | un cran vers l'arrière · arrêt · un cran vers l'avant (plus rapide à chaque appui) | — |
 | `←` · `→` | recule · avance de 5 secondes (avec `Maj` : 30 secondes) | — |
 | `Début` · `Fin` | va au début · à la fin | — |
