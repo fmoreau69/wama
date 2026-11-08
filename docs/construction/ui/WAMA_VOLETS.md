@@ -143,7 +143,8 @@ utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription 
 > 🔄 **2026-11-08 — point 2, les LIBRAIRIES** : la page sert la FICHE de chaque librairie (champs du
 > registre + version installée MESURÉE, dérive, route pip ou vendorisée, contraintes) que
 > `WamaDetails` rend d'après le schéma déclaré de `model_manager/js/library-catalog.js` — la forme
-> de la fiche d'un modèle — et ses GESTES : « Simuler l'installation » (développeur), « Installer »,
+> de la fiche d'un modèle ; ses pastilles sont celles de la tuile cliquée, leurs libellés ne vivent
+> que dans le gabarit (ramené à la revérification) — et ses GESTES : « Simuler l'installation » (développeur), « Installer »,
 > « Aligner sur la version déclarée », « Désinstaller » (administrateur). Un seul corps,
 > `model_installer.request_library_action`, appelé par la vue ET par les outils de l'assistant
 > (`install_library`, `uninstall_library`, `get_library_action`) ; il dispatche une tâche

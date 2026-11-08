@@ -50,7 +50,7 @@ administrateur (`request_library_action`). Un compte ordinaire n'a pas de sectio
     Registre <code>Library</code> — alimenté par la <b>projection des manifestes</b>
     (<code>write_back_library</code>), jamais édité à la main. L'installation mesurée ici est
     celle de l'environnement courant ; <b>allowlist</b> (autorisation d'installer) = décision
-    humaine dans l'admin, jamais projetée depuis un manifeste.
+    humaine — la demande d'installation d'un administrateur —, jamais projetée depuis un manifeste.
   </p>
 
   <div class="wama-cat-stats">
@@ -86,6 +86,7 @@ administrateur (`request_library_action`). Un compte ordinaire n'a pas de sectio
         {% if r.drift %}<span class="wama-cat-badge lc-drift">dérive vs {{ r.lib.pip_spec }}</span>{% endif %}
         {% if r.lib.is_allowed %}<span class="wama-cat-badge lc-ok">allowlist</span>
         {% else %}<span class="wama-cat-badge lc-warn">install non autorisée</span>{% endif %}
+        {% if r.lib.vendor %}<span class="wama-cat-badge lc-off">vendorisée</span>{% endif %}
       </h3>
       {% if r.lib.summary %}<div class="wama-cat-desc">{{ r.lib.summary }}</div>{% endif %}
       <div class="lc-meta">

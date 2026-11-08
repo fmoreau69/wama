@@ -22,16 +22,15 @@
         });
     }
 
-    function badge(text, cls) { return '<span class="badge ' + cls + ' me-1">' + esc(text) + '</span>'; }
+    /** Les pastilles de la fiche sont CELLES DE LA TUILE cliquée (installée / absente, dérive,
+     *  allowlist, route), rendues par le gabarit : leurs libellés ne vivent qu'à un endroit. */
+    function tileBadges(card) {
+        var badges = card ? card.querySelectorAll('.wama-cat-badge') : [];
+        return Array.prototype.map.call(badges, function (b) { return b.outerHTML; }).join(' ');
+    }
 
     /** Le schéma de la fiche — ce qu'on montre d'une librairie, et dans quel ordre. */
     var DETAIL_SCHEMA = [
-        { badges: function (f) {
-            return [f.live_version ? badge('installée ' + f.live_version, 'bg-success') : badge('absente ici', 'bg-secondary'),
-                    f.drift ? badge('dérive de version', 'bg-danger') : '',
-                    f.is_allowed ? badge('allowlist', 'bg-success') : badge('install non autorisée', 'bg-warning text-dark'),
-                    badge(f.route === 'vendor' ? 'vendorisée' : 'pip', 'bg-info text-dark')].filter(Boolean);
-        } },
         { description: 'summary' },
         { section: 'Version', rows: [
             { k: 'Déclarée', field: 'declared_version' },
@@ -177,7 +176,8 @@
                 var f = byKey[card.dataset.id];
                 current = f ? f.key : null;
                 if (host) {
-                    host.innerHTML = f ? global.WamaDetails.renderSections(f, DETAIL_SCHEMA)
+                    host.innerHTML = f ? '<div class="wai-badges">' + tileBadges(card) + '</div>'
+                                         + global.WamaDetails.renderSections(f, DETAIL_SCHEMA)
                                        : '<p class="text-muted small">Librairie inconnue.</p>';
                 }
                 var buttons = document.getElementById('libraryActionButtons');
