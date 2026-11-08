@@ -139,6 +139,20 @@ class MidiPlayerTest(SimpleTestCase):
             with self.subTest(script=name):
                 self.v8.eval('(function(){' + (JS / name).read_text(encoding='utf-8') + '\n})')
 
+    def test_the_midi_of_a_score_is_written_once(self):
+        """The reading and the score brick's export (MIDI, audio WAV) take the MIDI of a score from
+        ONE writing, `WamaMidiPlayer.midiBytes` — the brick had its own copy until the 2026-11-08
+        re-check. abcjs gives an array of tracks or bytes: the reader always gets bytes."""
+        callers = sorted(str(p.relative_to(JS)) for p in JS.rglob('*.js')
+                         if 'getMidiFile(' in p.read_text(encoding='utf-8'))
+        self.assertEqual(['wama-midi-player.js'], callers)
+        got = self.v8.eval("""
+            window.ABCJS = {synth: {getMidiFile: function () { return [[77, 84, 104, 100]]; }}};
+            var m = window.WamaMidiPlayer.midiBytes('X:1');
+            JSON.stringify([m instanceof Uint8Array, Array.from(m)]);
+        """)
+        self.assertEqual([True, [77, 84, 104, 100]], json.loads(got))
+
     def test_one_reading_per_installed_bank_and_abcjs(self):
         labels = self.v8.eval(f'JSON.stringify(window.WamaMidiPlayer.choices({self.CONFIG}))')
         self.assertEqual([('gu', 'MIDI — GeneralUser GS'), ('ms', 'MIDI — MuseScore General'),
@@ -160,3 +174,33 @@ class MidiPlayerTest(SimpleTestCase):
         """)
         self.assertEqual(['https://example.org/gu.sf2', '/static/gu.sf2'], list(self.v8.eval('asked')))
         self.assertEqual('GeneralUser GS (copie locale)', self.v8.eval('result'))
+
+    def test_abcjs_with_notes_it_could_not_load_is_a_failure_never_a_silent_reading(self):
+        """Measured in the browser on 2026-11-08, access cut: abcjs's `init` RESOLVES — abcjs 6.4.4
+        swallows a failed batch of notes, the result is `{loaded: [], cached: [], error: []}` — and
+        the page announced a silent reading « en ligne ». No note obtained, or a note listed in
+        `error`, sends the reading to its fallback — here none (no local bank), so it fails and
+        says why ; with its notes loaded (or cached by an earlier reading), it is abcjs's."""
+        outcome = {}
+        for case, result in (('cut', "{loaded: [], cached: [], error: []}"),
+                             ('partial', "{loaded: ['p:C4'], cached: [], error: ['p:C9 x']}"),
+                             ('reached', "{loaded: ['p:C4'], cached: [], error: []}"),
+                             ('cached', "{loaded: [], cached: ['p:C4'], error: []}")):
+            self.v8.eval(f"""
+                var outcome = null;
+                window.document = {{createElement: function () {{ return {{}}; }}}};
+                window.ABCJS = {{renderAbc: function () {{ return [{{}}]; }}, synth: {{CreateSynth: function () {{
+                    this.init = function () {{ return Promise.resolve({result}); }};
+                    this.prime = function () {{ return Promise.resolve(); }};
+                    this.download = function () {{ return 'blob:abcjs'; }};
+                }}}}}};
+                window.WamaMidiPlayer.render('X:1\\nT:{case}\\nK:C\\nC|', 'abcjs',
+                        {{banks: [], abcjs_online: 'https://example.org/FluidR3_GM/'}})
+                    .then(function (got) {{ outcome = 'ok: ' + got.from; }},
+                          function (e) {{ outcome = 'failed: ' + e.message; }});
+            """)
+            outcome[case] = self.v8.eval('outcome')
+        self.assertEqual({'cut': 'failed: abcjs injoignable, et aucune copie locale',
+                          'partial': 'failed: abcjs incomplet (1 notes manquantes), et aucune copie locale',
+                          'reached': 'ok: abcjs, FluidR3_GM (en ligne)',
+                          'cached': 'ok: abcjs, FluidR3_GM (en ligne)'}, outcome)

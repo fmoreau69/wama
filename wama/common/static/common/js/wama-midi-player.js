@@ -36,13 +36,18 @@
         return out;
     }
 
-    /** Le MIDI d'une partition ABC, par abcjs (le geste de l'export de la brique). */
-    function midiOf(abc) {
-        var midi = global.ABCJS.synth.getMidiFile(abc, { midiOutputType: 'binary' });
+    /** Les octets MIDI d'une partition — texte ABC ou gravure abcjs —, par abcjs. UNE écriture,
+     *  lue par la lecture ci-dessous et par l'export de la brique partition (MIDI, audio WAV). */
+    function midiBytes(abcOrTune) {
+        var midi = global.ABCJS.synth.getMidiFile(abcOrTune, { midiOutputType: 'binary' });
         if (Array.isArray(midi)) midi = midi[0];
         if (!midi || !midi.length) throw new Error('partition sans notes à jouer');
-        return midi.buffer ? midi.buffer.slice(midi.byteOffset, midi.byteOffset + midi.byteLength)
-                           : new Uint8Array(midi).buffer;
+        return midi instanceof Uint8Array ? midi : new Uint8Array(midi);
+    }
+
+    function midiOf(abc) {
+        var midi = midiBytes(abc);
+        return midi.buffer.slice(midi.byteOffset, midi.byteOffset + midi.byteLength);
     }
 
     /** Les octets d'une banque : en ligne d'abord, sa copie locale en secours. `from` le dit. */
@@ -106,20 +111,33 @@
         });
     }
 
-    /** abcjs : sa banque MIDI.js EN LIGNE ; coupée, SpessaSynth avec la première banque. */
+    /** abcjs : sa banque MIDI.js EN LIGNE ; coupée, SpessaSynth avec la première banque.
+     *  ⚠ `init` se RÉSOUT même quand ses notes n'ont pas pu être chargées (mesuré le 2026-11-08,
+     *  accès coupé : rendu muet annoncé « en ligne »). abcjs 6.4.4 AVALE l'échec d'un lot de notes
+     *  (`_loadBatch(...).catch` ne fait que journaliser) : le résultat est alors `{loaded: [],
+     *  cached: [], error: []}` — aucune note obtenue = injoignable ; `error` non vide (note hors
+     *  de la banque) = incomplet. Une note manquante est un échec, jamais un silence. */
     function renderAbcjs(abc, config) {
         var ABCJS = global.ABCJS;
         var host = document.createElement('div');
         var tune = ABCJS.renderAbc(host, abc, {})[0];
         var synth = new ABCJS.synth.CreateSynth();
         return synth.init({ visualObj: tune, options: { soundFontUrl: config.abcjs_online } })
-            .then(function () { return synth.prime(); })
+            .then(function (loaded) {
+                loaded = loaded || {};
+                var got = (loaded.loaded || []).length + (loaded.cached || []).length;
+                var missing = (loaded.error || []).length;
+                if (!got) throw new Error('abcjs injoignable');
+                if (missing) throw new Error('abcjs incomplet (' + missing + ' notes manquantes)');
+                return synth.prime();
+            })
             .then(function () { return { url: synth.download(), from: 'abcjs, FluidR3_GM (en ligne)' }; })
-            .catch(function () {
+            .catch(function (e) {
                 var fallback = ((config || {}).banks || []).filter(function (b) { return b.local; })[0];
-                if (!fallback) throw new Error('banque d’abcjs injoignable et aucune copie locale');
+                var why = /^abcjs /.test((e && e.message) || '') ? e.message : 'abcjs injoignable';
+                if (!fallback) throw new Error(why + ', et aucune copie locale');
                 return renderSpessa(abc, fallback, config).then(function (got) {
-                    return { url: got.url, from: got.from + ' — abcjs injoignable' };
+                    return { url: got.url, from: got.from + ' — ' + why };
                 });
             });
     }
@@ -137,5 +155,5 @@
         return cache[id];
     }
 
-    global.WamaMidiPlayer = { render: render, choices: choices, fetchBank: fetchBank };
+    global.WamaMidiPlayer = { render: render, choices: choices, fetchBank: fetchBank, midiBytes: midiBytes };
 })(window);

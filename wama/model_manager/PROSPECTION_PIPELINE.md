@@ -4335,8 +4335,8 @@ correction s'enregistre dans un `.abc` à côté, la source gardée.
   cohérente avec la lecture MIDI : générer un MIDI multipiste (Anticipatory Music Transformer,
   poids Apache-2.0, accompagne une mélodie ; text2midi, Apache-2.0) puis le faire jouer par la
   banque de sons. Non vérifiés : pistes séparées de YuE, MusicGen-Stem (poids annoncés), Stemphonic.
-- Sources principales : abcjs `src/synth/create-synth.js` et `abc_midi_sequencer.js` (dépôt
-  paulrosen/abcjs) ; github.com/gleitz/midi-js-soundfonts ; github.com/spessasus/SpessaSynth ;
+- Sources principales : le synthétiseur et le séquenceur MIDI d'abcjs (dépôt paulrosen/abcjs,
+  fichiers create-synth et abc_midi_sequencer) ; github.com/gleitz/midi-js-soundfonts ; github.com/spessasus/SpessaSynth ;
   github.com/FluidSynth/fluidsynth ; github.com/sfztools/sfizz ; mido.readthedocs.io ;
   manpages.debian.org (midi2abc) ; github.com/ACE-Step/ACE-Step-1.5 ;
   github.com/ZFTurbo/Music-Source-Separation-Training (docs/pretrained_models.md) ;
@@ -4374,6 +4374,16 @@ et bretelles… »* ; *« on ajoute bien les sources dans le registre des source
 - Gardes : `tests_sound_banks` (déclaration ↔ script, sources, adresses en ligne, scripts de la
   page, rendu serveur, route, et en V8 les lectures proposées et le REPLI en ligne → local —
   contre-épreuve rouge).
+- **Vu au navigateur le même soir** (témoin de la page « Éditer la partition », compte de test,
+  accès extérieur coupé par la sonde) : les six lectures se rendent (1 à 3 s), GeneralUser GS dit
+  « (en ligne) » puis « (copie locale) » une fois coupé, MuseScore « (copie locale) » ; l'export
+  serveur répond 503 en le disant (FluidSynth absent). ✗ **Un défaut trouvé et corrigé** : coupé,
+  abcjs rendait une lecture MUETTE annoncée « en ligne » — abcjs 6.4.4 avale l'échec d'un lot de
+  notes, son `init` se résout `{loaded: [], cached: [], error: []}` ; aucune note obtenue (ou une
+  note en `error`) envoie désormais au repli, qui le dit (« … — abcjs injoignable »). Et à la
+  revérification, le MIDI d'une partition n'a plus qu'UNE écriture (`WamaMidiPlayer.midiBytes`,
+  que l'export de la brique lisait en double). Gardes V8 dans `tests_sound_banks`, contre-épreuves
+  rouges.
 
 ⏳ **Reste** : installer FluidSynth (`sudo apt install fluidsynth`, geste de Fabien) ; l'écoute
 COMPARÉE des lectures pour garder la meilleure ; la vue ABC d'une partition MIDI/MusicXML fournie

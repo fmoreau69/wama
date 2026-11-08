@@ -294,10 +294,9 @@
             if (kind === 'abc') { download(abc, 'text/vnd.abc;charset=utf-8', baseName() + '.abc'); return; }
             if (kind === 'mid' || kind.indexOf('wav:') === 0) {
                 var midi = null;
-                try { midi = ABCJS.synth.getMidiFile(tune || abc, { midiOutputType: 'binary' }); }
+                try { midi = global.WamaMidiPlayer.midiBytes(tune || abc); }
                 catch (e) { midi = null; }
-                if (Array.isArray(midi)) midi = midi[0];
-                if (!midi || !midi.length) { ctx.status('Export MIDI impossible pour cette partition.', 'error'); return; }
+                if (!midi) { ctx.status('Export MIDI impossible pour cette partition.', 'error'); return; }
                 if (kind === 'mid') { download(midi, 'audio/midi', baseName() + '.mid'); return; }
                 exportAudio(midi, kind.slice(4));
                 return;
