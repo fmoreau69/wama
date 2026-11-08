@@ -535,6 +535,25 @@ class TheCardShowsItsProcessesTest(TestCase):
                                                                      args=[gen.pk]) + '"')
         self.assertIn(PIPELINE.spec('rendered_parts').label, html)
 
+    def test_the_strip_folds_what_the_inputs_make_useless_even_under_auto(self):
+        """2026-11-08, Fabien : « si on génère la partition et les paroles, la partie cover pourrait
+        ne pas être affichée ». A card WITHOUT a cover audio, under « auto » : the three readings of
+        the input fold, whatever the draw — but the composed score, which the draw decides, stays.
+        Counter-proof : the same card WITH a cover audio shows its readings."""
+        from unittest import mock
+        from wama.common.services.process_pipeline import card_view
+        from wama.composer.function_specs import PIPELINE
+        gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
+                                                model='auto', status='PENDING')
+        with mock.patch.object(PIPELINE, 'can_run', lambda spec: True):
+            folded = {r['key'] for r in card_view(gen)[0] if r['hidden']}
+            self.assertTrue({'extract_score', 'parts', 'extract_lyrics'} <= folded, folded)
+            self.assertNotIn('plan', folded, 'the draw decides the composed score : not folded')
+            gen.melody_reference.name = 'composer/input/cover.wav'
+            gen.save(update_fields=['melody_reference'])
+            folded = {r['key'] for r in card_view(gen)[0] if r['hidden']}
+        self.assertFalse({'extract_score', 'parts', 'extract_lyrics'} & folded, folded)
+
     def test_a_single_step_model_shows_the_render_then_the_output_and_no_score(self):
         gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
                                                 model=PLAIN_MODEL, status='PENDING')

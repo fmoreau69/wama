@@ -29310,3 +29310,29 @@ de MESURE ; chaque pièce suit un patron en service :
 - ⚠ `manifests/apps/composer.json` n'est PAS régénéré ici : il porte un chantier non commité d'une
   autre session (+621 lignes) — ses aides et libellés de cases suivront sa régénération.
 - 🔚 Reste : le masquage conditionnel (décision de Fabien) ; vérification navigateur après migration.
+
+## §PALIER 2026-11-08 (soir), « UNE ÉTAPE INUTILE N'APPARAÎT PAS : LA BANDE REPLIE CE QUE LES ENTRÉES OU LE MODÈLE RENDENT SANS OBJET » — ce commit (local, non poussé) — 🔴 relancer gunicorn + workers (avec les migrations `composer/0030` et `0031`)
+
+> Décision de Fabien, qui PRÉCISE celle du 2026-11-07 (« toujours afficher toutes les étapes ») :
+> « une étape inutile n'a pas lieu d'apparaître et il faut gérer ça dynamiquement en fonction des
+> entrées/modèles ». La contrepartie (une bande qui varie d'une card à l'autre) est acceptée.
+
+- **`AppPipeline.card_rows`** : `hidden` = sans objet par l'ÉLÉMENT ou le MODÈLE DÉSIGNÉ
+  (`HIDDEN_CAUSES`, lu par `CAUSE_OF` sur `REASONS`) ET sans ligne ; colonnes calculées sur les
+  étapes montrées, les repliées suivent (colonne None). Restent montrées : coupée par sa case,
+  dépendante du tirage, sans modèle installé, privée par une case coupée en amont, déjà produite.
+- **`step_state` réordonné** : le filtrage entrée/modèle AVANT la case et avant le tirage — une
+  lecture du cover sans audio est sans objet, cochée ou non, quel que soit le modèle tiré. Règle
+  qui en découle (`ROUTE §10.6`) : `applies` juge l'élément, une capacité du modèle est un
+  `needs` ; mesuré par AST (scratchpad `applies_model.py`) : trois `applies` lisent le modèle
+  (composer `plan`, reader `reads_text`, transcriber `diarize`), tous répondent oui sous « auto » —
+  celui du `plan` exigeait un modèle connu, retiré (sa capacité est `needs=PLANS_A_SCORE`).
+- **Gabarit** : la ligne d'une étape sort dans `common/_card_process_step.html` (une écriture pour
+  le flux et le repli) ; le repli est un `<details>` « + n sans objet » en fin de bande
+  (`wama-card-v3.css`, `.wcv3-proc-more`, couleurs par variables).
+- **Gardes** : `WhatTheCardShowsTest.test_a_useless_step_leaves_the_flow_…` (repli, colonnes ;
+  contre-épreuves : coupée par sa case, déjà produite) ; composer
+  `test_the_strip_folds_what_the_inputs_make_useless_even_under_auto` (sans audio : les trois
+  lectures repliées, la partition composée gardée ; avec audio : rien de replié).
+- 🔚 Reste : la vérification au navigateur (après relance) — le composer sur une ligne attendu
+  pour une chanson depuis une consigne comme pour un cover ; le levier B seulement si une app déborde.

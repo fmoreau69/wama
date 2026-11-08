@@ -88,9 +88,10 @@ def extracts_score(gen, model_key) -> bool:
 def _plan_applies(gen, model_key) -> bool:
     """Juge l'ÉLÉMENT : aucune partition fournie, aucune extraite (son alternative). Que le moteur
     écrive sa partition avant de la jouer est une capacité, déclarée en donnée
-    (`needs=PLANS_A_SCORE`, 2026-11-06)."""
-    return (bool(model_key) and not getattr(gen, 'reference_score', None)
-            and not extracts_score(gen, model_key))
+    (`needs=PLANS_A_SCORE`, 2026-11-06) — d'où, depuis le 2026-11-08, plus de « modèle connu » exigé
+    ici : sous « auto » l'élément seul en juge, et la bande ne replie pas à tort une partition que le
+    tirage composera (`AppPipeline.step_state`)."""
+    return not getattr(gen, 'reference_score', None) and not extracts_score(gen, model_key)
 
 
 def _lyrics_available() -> bool:

@@ -483,11 +483,13 @@ class CardAndViewsTest(_Cards):
         payload = self._client().get(reverse('describer:progress', args=[card.pk])).json()
         self.assertEqual('', payload['summary'])
         # An option switched off stays on the strip, as its checkbox ; since 2026-11-07 every step
-        # is carried — the frames of an AUDIO card are « sans objet ».
-        self.assertEqual([('transcribe', 'active'), ('frames', 'na'), ('describe', 'active'),
-                          ('summarize', 'off'), ('coherence', 'off')],
+        # is carried — the frames of an AUDIO card are « sans objet », folded at the end since
+        # 2026-11-08 (« une étape inutile n'a pas lieu d'apparaître »).
+        self.assertEqual([('transcribe', 'active'), ('describe', 'active'), ('summarize', 'off'),
+                          ('coherence', 'off'), ('frames', 'na')],
                          [(p['key'], p['state']) for p in payload['processes']])
-        self.assertEqual([True, True, True, False, False], [p['enabled'] for p in payload['processes']])
+        self.assertEqual([True, True, False, False, True], [p['enabled'] for p in payload['processes']])
+        self.assertEqual(['frames'], [p['key'] for p in payload['processes'] if p['hidden']])
 
     def test_the_settings_route_writes_the_model_of_each_role(self):
         card = self._audio(status='PENDING')

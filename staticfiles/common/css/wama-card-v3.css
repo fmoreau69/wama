@@ -446,6 +446,14 @@
 .wcv3-proc-col { display: inline-flex; flex-direction: column; align-items: flex-start; gap: .2rem; }
 .wcv3-proc-col--branches { border-left: 2px solid var(--wama-border-strong); padding-left: .4rem; }
 .wcv3-proc-branch { font-size: .65rem; color: var(--wama-text-label); }
+/* ÉTAPES SANS OBJET (2026-11-08, Fabien : « une étape inutile n'a pas lieu d'apparaître ») :
+   repliées en fin de bande, une puce qui les déplie — grisées, avec leur raison au survol. */
+.wcv3-proc-more { display: inline-flex; align-items: center; gap: .4rem; font-size: .75rem; }
+.wcv3-proc-more > summary { cursor: pointer; color: var(--wama-text-label); list-style: none;
+    border: 1px dashed var(--wama-border-strong); border-radius: 999px; padding: 0 .45rem; }
+.wcv3-proc-more > summary::-webkit-details-marker { display: none; }
+.wcv3-proc-more[open] > summary { color: var(--wama-text-strong); }
+.wcv3-proc-more-list { display: inline-flex; flex-wrap: wrap; gap: .45rem; margin-left: .4rem; }
 /* ▶ et ⚙ par process : discrets ; le ▶ est absent tant que la card est en vol (un seul lancement
    à la fois), le ⚙ reste (la modale s'ouvre en consultation). */
 .wcv3-proc-run, .wcv3-proc-settings, .wcv3-proc-suggest { padding: 0 .3rem; font-size: .62rem; line-height: 1.3; }

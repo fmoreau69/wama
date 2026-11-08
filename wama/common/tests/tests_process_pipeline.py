@@ -755,6 +755,37 @@ class WhatTheCardShowsTest(TestCase):
         rows = {r['key']: r['watched'] for r in self.pipeline.card_rows(item)}
         self.assertEqual({'plan': ['prompt'], 'render': ['duration']}, rows)
 
+    def test_a_useless_step_leaves_the_flow_and_folds_at_the_end_of_the_strip(self):
+        """2026-11-08, Fabien précise sa décision du 07/11 : « une étape inutile n'a pas lieu
+        d'apparaître et il faut gérer ça dynamiquement en fonction des entrées/modèles ». Useless =
+        no object because of the ELEMENT (or the designated model), nothing produced : out of the
+        columns, folded in « + n sans objet ». Counter-proofs : a step the user switched off stays
+        in the flow (he switches it back on) ; the same useless step that already HAS a line stays
+        too (its result exists)."""
+        from django.template.loader import render_to_string
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('cover', label='Lecture du cover', degree='optional',
+                        applies=lambda item, model_key: bool(getattr(item, 'audio', ''))),
+            ProcessSpec('render', label='Rendu', depends_on=('cover',)),
+            ProcessSpec('summary', label='Résumé', depends_on=('render',), degree='optional',
+                        toggle='wants_summary'),
+        ), label='Demo')
+        item = _Element(status=JOB_PENDING, audio='', wants_summary=False)
+        rows = pipeline.card_rows(item)
+        self.assertEqual([('render', False, 0), ('summary', False, 1), ('cover', True, None)],
+                         [(r['key'], r['hidden'], r['column']) for r in rows],
+                         'the columns count only what is shown ; the folded one comes last')
+        html = render_to_string('common/_card_processes.html', {'processes': rows, 'card_id': 7})
+        flow, folded = html.split('data-processes-folded')
+        self.assertNotIn('data-process="cover"', flow)
+        self.assertIn('data-process="summary"', flow, 'switched off by the user : still shown')
+        self.assertIn('+ 1 sans objet', folded)
+        self.assertIn('data-process="cover"', folded)
+        process_runs.start(item, 'cover')
+        process_runs.succeed(item, 'cover')
+        self.assertFalse(next(r for r in pipeline.card_rows(item) if r['key'] == 'cover')['hidden'],
+                         'a step that produced something is never folded')
+
     def test_the_gear_of_a_step_also_shows_what_it_writes_without_staling_it(self):
         """2026-11-08, Fabien : « la modale d'écrire les paroles devrait contenir le champ paroles et
         le bouton de génération ». What a step WRITES (`ProcessSpec.writes`) joins its gear — on the
@@ -910,9 +941,12 @@ class WhatTheCardShowsTest(TestCase):
             process_runs.start(item, key)
             process_runs.succeed(item, key)
         rows = {r['key']: r for r in pipeline.card_rows(item)}
-        # Since 2026-11-07 every step shows; the model-dependent one is « sans objet », not hidden.
-        self.assertEqual(['score', 'render', 'output', 'render_score'], list(rows))
-        self.assertEqual('na', rows['score']['state'])
+        # Since 2026-11-07 every step shows; since 2026-11-08 one with no object FOLDS at the end
+        # (Fabien : « une étape inutile n'a pas lieu d'apparaître ») — this `applies` reads the
+        # model, which a real app declares as a `needs` (then it would be « dépend du tirage »).
+        self.assertEqual(['render', 'output', 'render_score', 'score'], list(rows))
+        self.assertEqual(('na', True), (rows['score']['state'], rows['score']['hidden']))
+        self.assertFalse(rows['render_score']['hidden'], 'switched off by the user : in the flow')
         self.assertEqual(('wants_it', False, 'off'), (rows['render_score']['toggle'],
                                                       rows['render_score']['enabled'],
                                                       rows['render_score']['state']))
@@ -922,7 +956,8 @@ class WhatTheCardShowsTest(TestCase):
         optional process with a switch whose `applies` judges the ELEMENT (an input audio is there)
         is the user's choice: under « auto » it is ACTIVE when checked, OFF when not, before
         anything ran — so it can be launched alone. One the element rules out (no input audio) is
-        « sans objet » with its reason, never hidden (2026-11-07, « grisée »)."""
+        « sans objet » with its reason — folded at the end since 2026-11-08, its reason kept, and
+        so even when checked : the element decides before the switch."""
         pipeline = AppPipeline('demo_pipeline', (
             ProcessSpec('score', label='Partition',
                         applies=lambda item, model_key: model_key == 'writes-scores'),
@@ -933,15 +968,15 @@ class WhatTheCardShowsTest(TestCase):
         for wants, state in ((True, 'active'), (False, 'off')):
             rows = {r['key']: r for r in pipeline.card_rows(
                 _Element(status=JOB_PENDING, wants_parts=wants, has_audio=True))}
-            self.assertEqual(['score', 'parts', 'render'], list(rows))
+            self.assertEqual(['parts', 'render', 'score'], list(rows), 'the useless one folds last')
             self.assertEqual(('wants_parts', wants, state), (rows['parts']['toggle'],
                                                              rows['parts']['enabled'],
                                                              rows['parts']['state']))
         rows = {r['key']: r for r in pipeline.card_rows(
             _Element(status=JOB_PENDING, wants_parts=True, has_audio=False))}
-        self.assertEqual(('na', 'Sans objet pour cette card'),
-                         (rows['parts']['state'], rows['parts']['reason']),
-                         'an option the element rules out is said, not hidden')
+        self.assertEqual(('na', 'Sans objet pour cette card', True),
+                         (rows['parts']['state'], rows['parts']['reason'], rows['parts']['hidden']),
+                         'an option the element rules out is folded, with its reason')
 
     def test_a_cut_switch_starves_only_what_reads_a_link_from_it_in_every_real_app(self):
         """`starved` (2026-11-07, « rendu facultatif ») measured on the REAL pipelines : switching
@@ -1015,11 +1050,11 @@ class WhatTheCardShowsTest(TestCase):
         self.assertEqual(('active', AppPipeline.REASONS['draw']), rows['lyrics'],
                          'under « auto » nothing is guessed: the reason says it')
 
-    def test_a_process_that_does_not_take_place_keeps_its_place_in_the_chain(self):
-        """A → B → C with B absent for this model: since 2026-11-07 B is SHOWN « sans objet »
-        (Fabien: « toujours afficher toutes les étapes »), so the chain keeps its three columns —
-        C follows B, which says why it does not take place. Before, B vanished and C came
-        right after A."""
+    def test_a_process_that_does_not_take_place_folds_and_the_chain_closes_up(self):
+        """A → B → C with B absent for this card: 2026-11-07 showed B « sans objet » in the chain ;
+        since 2026-11-08 (Fabien : « une étape inutile n'a pas lieu d'apparaître ») it FOLDS at the
+        end, out of the columns — C follows A, read THROUGH B (`after`) —, still carried, with its
+        state."""
         pipeline = AppPipeline('demo_pipeline', (
             ProcessSpec('first', label='A'),
             ProcessSpec('middle', label='B', depends_on=('first',),
@@ -1031,8 +1066,8 @@ class WhatTheCardShowsTest(TestCase):
             process_runs.start(item, key)
             process_runs.succeed(item, key)
         rows = pipeline.card_rows(item, 'any')
-        self.assertEqual([('first', 0, [], 'active'), ('middle', 1, ['A'], 'na'),
-                          ('last', 2, ['B'], 'active')],
+        self.assertEqual([('first', 0, [], 'active'), ('last', 1, ['A'], 'active'),
+                          ('middle', None, [], 'na')],
                          [(r['key'], r['column'], r['after'], r['state']) for r in rows])
 
     def test_an_output_that_is_not_a_file_makes_its_downstream_stale_when_it_changes(self):
@@ -1151,7 +1186,8 @@ class WhatTheCardShowsTest(TestCase):
         # Every step shows (2026-11-07) : the declared model decides which are ACTIVE.
         states = lambda view: [(r['key'], r['state']) for r in view[0]]  # noqa: E731
         self.assertEqual([('plan', 'active'), ('render', 'active')], states(card_view(scored)))
-        self.assertEqual([('plan', 'na'), ('render', 'active')], states(card_view(plain)))
+        # The step the model does not serve folds at the end (2026-11-08).
+        self.assertEqual([('render', 'active'), ('plan', 'na')], states(card_view(plain)))
         self.assertEqual([('plan', 'active'), ('render', 'active')],
                          states(card_view(plain, 'writes-scores')))
         self.assertIsNone(declared.requested_model(_Element(status=JOB_SUCCESS)),
@@ -1161,7 +1197,7 @@ class WhatTheCardShowsTest(TestCase):
                                lambda item, preloaded: seen.append((item.pk, preloaded)))
         self.assertEqual([(scored.pk, True), (plain.pk, True)], seen)
         self.assertEqual([scored, plain], cards)
-        self.assertEqual([('plan', 'na'), ('render', 'active')],
+        self.assertEqual([('render', 'active'), ('plan', 'na')],
                          [(r['key'], r['state']) for r in decorate_cards([plain])[0].processes])
 
     def test_a_stale_render_is_shown_under_a_successful_element(self):
@@ -1180,7 +1216,7 @@ class WhatTheCardShowsTest(TestCase):
 
     def test_the_rows_show_what_ran_and_what_the_named_model_will_run(self):
         item = _Element(status=JOB_PENDING)
-        self.assertEqual([('plan', 'na'), ('render', 'active')],
+        self.assertEqual([('render', 'active'), ('plan', 'na')],
                          [(r['key'], r['state']) for r in self.pipeline.card_rows(item, 'plays-only')])
         self.assertEqual([('plan', 'active'), ('render', 'active')],
                          [(r['key'], r['state'])

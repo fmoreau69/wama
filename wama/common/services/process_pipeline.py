@@ -1191,6 +1191,15 @@ class AppPipeline:
             state, reason = self.step_state(spec, item, model_key)
             summary = (row.output_summary or {}) if row is not None else {}
             host = rows.get(held.get(spec.key, ''))
+            # Une étape INUTILE n'apparaît pas (2026-11-08, Fabien précise sa décision du 07/11 :
+            # « une étape inutile n'a pas lieu d'apparaître et il faut gérer ça dynamiquement en
+            # fonction des entrées/modèles ») : sans objet À CAUSE DE L'ÉLÉMENT ou du MODÈLE
+            # DÉSIGNÉ — le filtrage entrée/modèle —, et sans rien avoir produit. Restent montrées
+            # celle que l'utilisateur a coupée (il la recoche), celle qui dépend du tirage, celle
+            # qu'aucun modèle installé ne sert (on peut installer) et celle que prive une case
+            # coupée en amont. Repliées en fin de bande (« + n sans objet »), jamais perdues.
+            hidden = (state == 'na' and self.CAUSE_OF.get(reason) in self.HIDDEN_CAUSES
+                      and row is None and host is None)
             if row is None and host is not None:
                 # Un process DÉTACHÉ, fait dans la ligne d'origine (`_held_within`) : son état est
                 # celui de cette ligne, et la bande le dit.
@@ -1217,6 +1226,7 @@ class AppPipeline:
                 # Ce que la bande en DIT (2026-11-07) : `active` / `off` / `na`, et pourquoi.
                 'state': state,
                 'reason': reason,
+                'hidden': hidden,
                 # Les mesures sans référence de sa sortie (`ProcessSpec.checks`, 2026-10-22).
                 'checks': list(summary.get('checks') or []) if row is not None else [],
                 # Rendu, mais son fichier n'est plus sur le disque (`process_runs.output_lost`,
@@ -1224,7 +1234,12 @@ class AppPipeline:
                 'lost': row is not None and row.status == JOB_SUCCESS
                         and process_runs.output_lost(row),
             })
-        return self._columns(item, out)
+        # Les colonnes se calculent sur les étapes MONTRÉES (une colonne sans étape montrée ne se
+        # dessine pas) ; les repliées suivent, hors colonne.
+        shown = self._columns(item, [r for r in out if not r['hidden']])
+        folded = [{**r, 'column': None, 'after': [], 'branch_end': False}
+                  for r in out if r['hidden']]
+        return shown + folded
 
     #: Ce que la bande dit d'une étape qui n'a pas lieu — une raison par cause, dans l'ordre où
     #: on les cherche. Formulées pour l'utilisateur ; aucune app n'en écrit.
@@ -1236,6 +1251,13 @@ class AppPipeline:
         'draw': "Dépend du modèle tiré au lancement",
         'element': "Sans objet pour cette card",
     }
+    #: La cause d'une raison (sa clé dans `REASONS`) — lue par la bande, qui replie ce qui est
+    #: sans objet par le filtrage entrée/modèle (`HIDDEN_CAUSES`).
+    CAUSE_OF = {text: cause for cause, text in REASONS.items()}
+    #: Les causes d'une étape INUTILE pour cette card, que la bande replie (2026-11-08) : l'élément
+    #: (ses entrées) et le modèle DÉSIGNÉ — jugés avant sa case (`step_state`). Sous « auto », le
+    #: modèle n'est jamais une cause : on ne devine pas le tirage.
+    HIDDEN_CAUSES = ('element', 'model')
 
     def step_state(self, spec: ProcessSpec, item, model_key=None) -> tuple:
         """`(état, raison)` d'une étape : `off` si l'utilisateur l'a coupée (son interrupteur),
@@ -1243,19 +1265,28 @@ class AppPipeline:
         Sous « auto », ce qui dépend du tirage (`needs`) reste `active` quand l'élément le permet :
         on ne devine pas le tirage, dans un sens comme dans l'autre — la raison le dit. Lu par la
         bande (`card_rows`) ET par le refus du ▶ d'une étape (`process_views.start_one_process`) :
-        une décision, une formulation."""
+        une décision, une formulation.
+
+        ORDRE (2026-11-08, « une étape inutile n'a pas lieu d'apparaître ») : le filtrage
+        entrée/modèle D'ABORD — une étape que le modèle désigné ne fait pas, ou que l'élément exclut
+        (une card sans audio repris n'a pas de lecture du cover, quel que soit le modèle tiré), est
+        sans objet, que sa case soit cochée ou non : la bande la replie. Puis le choix de
+        l'utilisateur (sa case), ce qui manque ici, l'amont coupé, et le tirage. `applies` juge
+        l'élément, une capacité du modèle est un `needs` : mesuré le jour même, les trois `applies`
+        qui lisent le modèle répondent oui sous « auto » (locuteurs, lecture du texte, partition
+        composée) — rien n'est replié à tort avant le tirage."""
+        if spec.needs and model_key and not self.model_serves(spec, model_key):
+            return 'na', self.REASONS['model']
+        if not self.applies(spec, item, model_key):
+            return 'na', self.REASONS['element']
         if spec.toggle and not self.switched_on(spec, item, model_key):
             return 'off', ''
         if not self.can_run(spec):
             return 'na', self.REASONS['unavailable']
         if self.starved(spec, item, model_key):
             return 'na', self.REASONS['starved']
-        if spec.needs and model_key and not self.model_serves(spec, model_key):
-            return 'na', self.REASONS['model']
         if not model_key and spec.needs:
             return 'active', self.REASONS['draw']
-        if not self.applies(spec, item, model_key):
-            return 'na', self.REASONS['element']
         return 'active', ''
 
     def _columns(self, item, out: list) -> list:

@@ -6889,6 +6889,21 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   venir, élément). Avant, une étape sans objet disparaissait — et sous « auto », toute étape à
 >   `applies` : la partition complète activée n'apparaissait pas (vécu sur la card #1355). Gardes :
 >   `tests_process_pipeline.WhatTheCardShowsTest` (raisons, branches, auto).
+>   ✅ **PRÉCISÉ LE 2026-11-08 (Fabien : « une étape inutile n'a pas lieu d'apparaître et il faut
+>   gérer ça dynamiquement en fonction des entrées/modèles »)** : une étape `na` par l'ÉLÉMENT ou
+>   par le MODÈLE DÉSIGNÉ (`AppPipeline.HIDDEN_CAUSES`, le filtrage entrée/modèle), sans ligne,
+>   sort du flux — `card_rows[…]['hidden']`, colonnes calculées sur les seules étapes montrées — et
+>   se replie en fin de bande, « + n sans objet » (`<details>`, la ligne commune
+>   `_card_process_step.html`). Restent montrées : coupée par sa case, dépendante du tirage, sans
+>   modèle installé, privée par une case coupée en amont, ou qui a déjà produit. Pour que le repli
+>   ne trompe jamais sous « auto », `step_state` juge l'élément AVANT le tirage — d'où la règle :
+>   **`applies` juge l'élément, une capacité du modèle est un `needs`** (mesuré : trois `applies`
+>   lisent le modèle, tous répondent oui sous « auto » ; le `plan` du composer exigeait un modèle
+>   connu, retiré). Garde : `WhatTheCardShowsTest.test_a_useless_step_leaves_the_flow_…`.
+>   Même jour : la ⚙ d'une étape range sous elle (`processSections(…, focus)`), sa case porte le
+>   libellé de l'étape, et elle montre aussi ce que l'étape ÉCRIT (`ProcessSpec.writes`,
+>   `AppPipeline.step_settings`, lu aussi par le nœud du Studio) — `PROJECT_STATUS §PALIER
+>   2026-11-08 (après-midi)`.
 > - ✅ **Trois notions du moteur pour une étape FACULTATIVE (même jour, « rendu facultatif »,
 >   « partition réduite autonome »)** :
 >   1. un process REQUIS peut porter un interrupteur (`toggle`) : requis activé (son échec fait
