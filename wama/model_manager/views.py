@@ -284,9 +284,25 @@ def api_format_stats(request):
 @require_GET
 def api_conversion_suggestions(request):
     """API: Get suggested format conversions based on policy."""
-    from dataclasses import asdict
-    suggestions = [asdict(s) for s in FormatConverter().scan_and_suggest()]
-    return JsonResponse({'success': True, 'suggestions': suggestions, 'count': len(suggestions)})
+    converter = FormatConverter()
+    suggestions = converter.scan_and_suggest()
+
+    return JsonResponse({
+        'success': True,
+        'suggestions': [
+            {
+                'model_id': s.model_id,
+                'model_path': s.model_path,
+                'current_format': s.current_format,
+                'suggested_format': s.suggested_format,
+                'engine': s.engine,
+                'reason': s.reason,
+                'priority': s.priority,
+            }
+            for s in suggestions
+        ],
+        'count': len(suggestions),
+    })
 
 
 @login_required
@@ -387,19 +403,24 @@ def api_batch_convert(request):
 @user_passes_test(is_admin_or_dev)
 @require_GET
 def api_conversion_options(request):
-    """API: Get available conversion options for a model — a weight file, a folder or a catalogue
-    key (`format_converter.conversion_options`, shared with `tool_api.get_model_formats`)."""
-    from .services.format_converter import conversion_options
-
+    """API: Get available conversion options for a model."""
     model_path = request.GET.get('model_path')
+
     if not model_path:
         return JsonResponse({'success': False, 'error': 'model_path required'}, status=400)
-    options = conversion_options(model_path)
-    if options is None:
-        return JsonResponse({'success': False,
-                             'error': f"no convertible weight file for « {model_path} »"},
-                            status=404)
-    return JsonResponse({'success': True, **options})
+
+    converter = FormatConverter()
+    options = converter.get_conversion_options(model_path)
+
+    from wama.common.utils.safetensors_utils import get_model_format
+    current_format = get_model_format(model_path)
+
+    return JsonResponse({
+        'success': True,
+        'model_path': model_path,
+        'current_format': current_format,
+        'available_conversions': options,
+    })
 
 
 # =============================================================================
@@ -989,27 +1010,154 @@ def api_backup_model(request):
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
+_CONVERTIBLE_EXTS = ('.pt', '.pth', '.bin', '.ckpt')
+
+
+def _resolve_weight_file(ref: str):
+    """
+    Chemin du FICHIER de poids à convertir, depuis ce que l'UI envoie réellement : un chemin
+    de fichier (rendu inchangé), un chemin de dossier, ou un ID de catalogue
+    (`synthesizer:kokoro`) — résolu via `AIModel.extra_info['path']` puis, à défaut, le
+    registre. Un dossier (snapshot HF compris) descend vers son plus gros fichier
+    convertible. Retourne None si rien de convertible.
+
+    Bug d'origine (2026-08-31) : `api_convert_and_backup` recevait l'ID de catalogue et le
+    traitait comme un chemin — « Source file not found » systématique pour tous les modèles
+    déclarés par app (les boutons Convert ne marchaient QUE pour les modèles découverts par
+    scan disque, dont l'id EST un chemin).
+    """
+    from pathlib import Path
+
+    if not ref:
+        return None
+
+    def _fichier(p: Path):
+        if p.is_file():
+            return str(p) if p.suffix.lower() in _CONVERTIBLE_EXTS else None
+        if p.is_dir():
+            poids = [f for f in p.rglob('*')
+                     if f.is_file() and f.suffix.lower() in _CONVERTIBLE_EXTS]
+            if poids:
+                # Le plus gros fichier = les poids du modèle (les petits .pt d'un snapshot
+                # sont des têtes auxiliaires/config, jamais la cible d'une conversion).
+                return str(max(poids, key=lambda f: f.stat().st_size))
+        return None
+
+    p = Path(ref)
+    if p.exists():
+        return _fichier(p)
+
+    # ID de catalogue : la ligne AIModel porte le chemin posé par la découverte…
+    from .models import AIModel
+    row = AIModel.objects.filter(model_key=ref).first()
+    chemin = ((row.extra_info or {}).get('path') or '') if row else ''
+    if not chemin:
+        # …sinon le registre (découverte fraîche — tolérant au type de retour).
+        res = ModelRegistry().discover_all_models()
+        items = res.values() if hasattr(res, 'values') else res
+        for info in items:
+            if getattr(info, 'id', None) == ref:
+                chemin = ((getattr(info, 'extra_info', None) or {}).get('path') or '')
+                break
+    return _fichier(Path(chemin)) if chemin else None
+
+
 @login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_convert_and_backup(request):
-    """API: Convert a model and backup to remote storage — the page's « Convertir » gesture.
-    Its body is `format_converter.convert_and_backup`, shared with the assistant's tool
-    (`tool_api.convert_model_format`) since 2026-11-08."""
-    from .services.format_converter import convert_and_backup
+    """API: Convert a model and backup to remote storage."""
+    from .services.remote_backup import get_backup_service
 
     try:
         data = json.loads(request.body)
-        if not data.get('model_path'):
-            return JsonResponse({'success': False, 'error': 'model_path required'}, status=400)
+        model_path = data.get('model_path')
+        target_format = data.get('target_format', 'safetensors')
+        model_type = data.get('model_type', 'unknown')
+        model_name = data.get('model_name')
+        backup_after = data.get('backup_after', True)
         # Offload destructif du fichier SOURCE (ex. .pt) après conversion : OPT-IN explicite.
-        response = convert_and_backup(
-            data['model_path'], data.get('target_format', 'safetensors'),
-            model_type=data.get('model_type', 'unknown'), model_name=data.get('model_name'),
-            backup_after=data.get('backup_after', True),
-            delete_source_after_backup=data.get('delete_source_after_backup', False))
-        if response.pop('not_found', False):
-            return JsonResponse(response, status=404)
+        delete_source_after_backup = data.get('delete_source_after_backup', False)
+
+        if not model_path:
+            return JsonResponse({'success': False, 'error': 'model_path required'}, status=400)
+
+        # ── RÉSOLUTION (2026-08-31) : l'UI envoie l'ID de catalogue (`model.id`), le
+        # convertisseur veut un FICHIER — voir _resolve_weight_file.
+        resolu = _resolve_weight_file(model_path)
+        if resolu is None:
+            return JsonResponse(
+                {'success': False,
+                 'error': f"Aucun fichier de poids convertible trouvé pour « {model_path} » "
+                          f"(formats source : {', '.join(_CONVERTIBLE_EXTS)})"},
+                status=404)
+        model_path = resolu
+
+        # Extract model name from path if not provided
+        if not model_name:
+            from pathlib import Path
+            model_name = Path(model_path).stem
+
+        # Step 1: Convert the model
+        converter = FormatConverter()
+        conversion_result = converter.convert_model(model_path, target_format)
+
+        if not conversion_result.success:
+            return JsonResponse({
+                'success': False,
+                'error': f'Conversion failed: {conversion_result.message}',
+                'conversion': {
+                    'success': False,
+                    'message': conversion_result.message,
+                },
+            })
+
+        response = {
+            'success': True,
+            'conversion': {
+                'success': True,
+                'source_path': conversion_result.source_path,
+                'target_path': conversion_result.target_path,
+                'source_format': conversion_result.source_format,
+                'target_format': conversion_result.target_format,
+                'size_before_mb': conversion_result.size_before_mb,
+                'size_after_mb': conversion_result.size_after_mb,
+            },
+        }
+
+        # Step 2: Backup if requested
+        if backup_after:
+            backup_service = get_backup_service()
+
+            if backup_service.is_available():
+                backup_result = backup_service.backup_file(
+                    conversion_result.target_path,
+                    model_type,
+                    model_name,
+                    target_format,
+                    overwrite=True
+                )
+
+                response['backup'] = {
+                    'success': backup_result.success,
+                    'dest_path': backup_result.dest_path,
+                    'size_mb': backup_result.size_mb,
+                    'error': backup_result.error,
+                }
+            else:
+                response['backup'] = {
+                    'success': False,
+                    'error': 'Remote backup path not accessible',
+                }
+
+        # Step 3: Offload du fichier SOURCE (ex. .pt) — OPT-IN explicite, destructif.
+        # Sauvegarde le source sur le remote (miroir), VÉRIFIE, puis supprime le local.
+        # Ne supprime jamais si la vérification échoue (garde-fou dans offload_file).
+        if delete_source_after_backup:
+            response['offload'] = get_backup_service().offload_file(
+                conversion_result.source_path
+            )
+
         return JsonResponse(response)
 
     except json.JSONDecodeError:
