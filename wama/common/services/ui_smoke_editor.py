@@ -53,7 +53,7 @@ PAGES = {
         'proposal': '[data-writing="proposals"] .wp-item',
         'compact': '[data-segments="compact"]', 'finalize': '[data-act="finish"]',
         'review_count': '[data-segments="review-count"]',
-        'title': '[data-settings] [name="title"]', 'speaker_names': '[data-speakers] input[data-key]',
+        'title': '[data-settings] [name="title"]', 'speaker_names': '[data-speakers] input[data-mapping-key]',
         'apply_speakers': '[data-speakers="apply"]', 'suggest': '[data-speakers="suggest"]',
         'load_latest': '[data-segments="load-latest"]',
         'source': '[data-transport="source"]',

@@ -739,7 +739,7 @@
     v = (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
     var rows = Object.keys(v).map(function (k) {
       return '<div class="wama-param-mapping-row"><span class="wama-param-mapping-key">' + esc(k) + '</span>' +
-        '<input type="text" class="form-control form-control-sm" data-key="' + esc(k) +
+        '<input type="text" class="form-control form-control-sm" data-mapping-key="' + esc(k) +
         '" value="' + esc(v[k] == null ? '' : v[k]) + '"></div>';
     }).join('');
     return '<div class="wama-param-mapping" data-mapping-for="' + api.id + '">' + rows + '</div>' +
@@ -754,7 +754,7 @@
       box._wpMapping = true;
       box.addEventListener('input', function () {
         var out = {};
-        box.querySelectorAll('input[data-key]').forEach(function (inp) { out[inp.getAttribute('data-key')] = inp.value; });
+        box.querySelectorAll('input[data-mapping-key]').forEach(function (inp) { out[inp.getAttribute('data-mapping-key')] = inp.value; });
         hidden.value = JSON.stringify(out);
       });
     });
@@ -1740,10 +1740,7 @@
     const noReference = !card && header.getAttribute('data-batch-reference') !== '1';
     const block = document.createElement('div');
     block.className = 'wama-batch-align wama-param-group mt-3';
-    const options = SCOPE_CHOICES.map(function (c) {
-      return '<option value="' + c[0] + '"' + (c[0] === 'keep_computed' ? ' selected' : '') + '>' +
-        esc(c[1]) + '</option>';
-    }).join('');
+    const options = SCOPE_CHOICES.map(function (c) { return optionHtml(c, null, 'keep_computed'); }).join('');
     block.innerHTML =
       '<div class="wama-param-group-title"><i class="fas fa-arrows-down-to-line me-1"></i>Alignement du lot</div>' +
       '<select class="form-select form-select-sm mb-2" data-batch-scope>' + options + '</select>' +

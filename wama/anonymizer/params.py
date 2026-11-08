@@ -261,7 +261,10 @@ from wama.common.utils.param_schema import panel_defaults, panel_name_key  # noq
 from wama.anonymizer.models import default_classes2blur  # noqa: E402
 
 user_setting_key = panel_name_key
-USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)
+# Chaque schéma déclaré a ses réglages du volet — le domaine document compris (`ocr_scanned_pages`,
+# 2026-11-02) —, comme l'imager et l'enhancer.
+USER_SETTINGS_DEFAULTS = {**panel_defaults(PARAMS, key=user_setting_key),
+                          **panel_defaults(DOCUMENT_PARAMS, key=user_setting_key)}
 
 #: `classes2blur` est hors schéma (multi-sélection à cases, cf. en-tête) mais c'est un réglage
 #: du volet comme les autres : même stockage, même naissance de l'élément.

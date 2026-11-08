@@ -352,7 +352,10 @@ class DeclaredCompositionTest(TestCase):
         registry._discover_imager_models()
         for key, info in registry._models.items():
             with self.subTest(key=key):
-                row = SimpleNamespace(model_key=key, hf_repo=info.hf_repo, extra_info=info.extra_info,
+                # The fields `spec_for_catalog_row` reads on a real catalogue row — `name` and
+                # `platform_ref` too, since its YOLO form (629868810) reads them.
+                row = SimpleNamespace(model_key=key, name=info.name, platform_ref=info.platform_ref,
+                                      hf_repo=info.hf_repo, extra_info=info.extra_info,
                                       composition=info.composition)
                 spec = spec_for_catalog_row(row)
                 self.assertEqual('hf', (spec or {}).get('kind'), f'{key} : pas installable par la route')

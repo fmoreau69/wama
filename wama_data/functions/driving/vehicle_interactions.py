@@ -571,7 +571,8 @@ def _vehicles_from_frame(df):
     return out
 
 
-def vehicle_interaction_frames(shuttle: TypedFrame, observations: TypedFrame, *, lane_width_m=LANE_WIDTH_M):
+def vehicle_interaction_frames(shuttle: TypedFrame, observations: TypedFrame, *,
+                               lane_width_m=LANE_WIDTH_M) -> TypedFrame:
     """Wrapper FunctionSpec : trajectoire navette (t, e, n, heading) + observations par véhicule → tableau
     des dépassements (les fenêtres d'intersection sont propres à l'app : `insertion_rows` s'appelle
     directement)."""

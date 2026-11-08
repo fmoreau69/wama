@@ -80,7 +80,7 @@
                 .then(function (data) {
                     var sug = (data && data.suggestions) || {}, n = 0;
                     Object.keys(sug).forEach(function (sid) {
-                        var inp = host.querySelector('input[data-key="' + sid + '"]');
+                        var inp = host.querySelector('input[data-mapping-key="' + sid + '"]');
                         if (inp && !inp.value.trim()) {                     // une saisie n'est jamais écrasée
                             inp.value = sug[sid]; n++;
                             inp.dispatchEvent(new Event('input', { bubbles: true }));

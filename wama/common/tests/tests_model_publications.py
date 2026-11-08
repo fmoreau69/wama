@@ -125,8 +125,14 @@ class AboutFragmentTest(TestCase):
         import wama
         tpl = (Path(wama.__file__).parent / 'common' / 'templates' / 'common'
                / 'app_modern_base.html').read_text(encoding='utf-8')
-        self.assertIn('data-about-models="/common/about/models/{{ current_app }}/"', tpl)
-        self.assertNotIn("common:app_about_models", tpl)
+        # Since 7577c1c77 (2026-11-02) the tabs load the whole derived « À propos » / « Aide »
+        # (`common:app_about` / `common:app_help`), the models fragment being part of it.
+        self.assertIn('data-about-models="/common/about/{% block about_app %}{{ current_app }}'
+                      '{% endblock %}/"', tpl)
+        self.assertIn('data-about-models="/common/help/{% block help_app %}{{ current_app }}'
+                      '{% endblock %}/"', tpl)
+        for name in ('common:app_about_models', 'common:app_about', 'common:app_help'):
+            self.assertNotIn(name, tpl)
 
 
 class LabAppAndDoiTest(TestCase):

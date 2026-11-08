@@ -120,6 +120,13 @@ class BardsaiPIIBackend(PIIDetectionBackend):
     """bardsai EU PII v3 — classifieur de jetons ONNX, décodage par mot de l'auteur."""
 
     ENGINE = 'onnxruntime'
+    #: Modèles servis : clé = dernier segment de la clé de catalogue (`MODEL_KEY`). ⚠ En LITTÉRAL :
+    #: l'inventaire lit les clés par AST, et `onnxruntime` est partagé — sans eux, la ligne du
+    #: catalogue ne se rattache à aucun backend (`tests_backend_inventory`, 2026-11-08).
+    SUPPORTED_MODELS = {
+        'bardsai/eu-pii-anonimization-multilang-v3': {
+            'model_key': 'huggingface:bardsai/eu-pii-anonimization-multilang-v3'},
+    }
     name = 'bardsai-pii'
     display_name = 'bardsai EU PII v3'
     description = ("Détecteur de données personnelles multilingue (24 langues de l'UE), "

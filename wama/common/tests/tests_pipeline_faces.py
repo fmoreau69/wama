@@ -39,12 +39,13 @@ from django.test import RequestFactory, SimpleTestCase, TestCase, override_setti
 #: Processes with NO declared readable result, and why — this list can only SHRINK. A process
 #: that gains one must leave it (the test fails on a useless entry, like every WAMA exemption).
 UNREADABLE = {
-    'anonymizer.blur': "its blurred media is kept apart by the Output process (`native_outputs`) "
-                       "only when the Output transforms it — the face of a kept original is to "
-                       "come",
-    'enhancer.generate': "same : its original is kept by the Output process when transformed",
-    'imager.generate': "same : its original is kept by the Output process when transformed",
-    'synthesizer.generate': "same : its original is kept by the Output process when transformed",
+    # (`anonymizer.blur` left on 2026-11-08 : `outputs=('output_file',)` since fef25cdb0.)
+    'enhancer.generate': "its original is kept apart by the Output process (`native_outputs`) only "
+                         "when the Output transforms it — the face of a kept original is to come",
+    'imager.generate': "same as `enhancer.generate` : its original is kept by the Output process "
+                       "when transformed",
+    'synthesizer.generate': "same as `enhancer.generate` : its original is kept by the Output "
+                            "process when transformed",
     'avatarizer.enhance': "it renders the card's Output itself (`output_step(transform=)` under "
                           "another key than `output`) : its face IS the Output",
     'transcriber.align': "it re-times words ; its effect reads on the segments (a `segments` "

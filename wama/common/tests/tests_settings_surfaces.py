@@ -20,9 +20,12 @@ DECLARED_GAPS = {
     # Les paroles appartiennent à UNE card (écrites pour elle, écoutées dans son morceau, son
     # bouton ✍️ lit SA consigne et SA durée) ; le volet porte les réglages des cards À VENIR.
     ('composer', 'PARAMS_JSON', 'lyrics'): 'modal only — the lyrics of one card, never a default',
-    ('enhancer', 'AUDIO_PARAMS_JSON', 'output_format'): 'modal only — not yet looked at',
-    ('enhancer', 'AUDIO_PARAMS_JSON', 'output_quality'): 'modal only — not yet looked at',
+    # (Les deux réglages de sortie de l'enhancer audio ont rejoint le volet au portage de son
+    # onglet AUDIO, c23363e40 — retirés le 2026-11-08.)
     ('reader', 'PARAMS_JSON', 'quality_intent'): 'panel only — not yet looked at',
+    # Même curseur, même place que le reader (`contexts=("panel",)` depuis 195ca43c9) : il ne pèse
+    # que sur le tirage « auto » du moteur, réglé dans le volet.
+    ('transcriber', 'PARAMS_JSON', 'quality_intent'): 'panel only — not yet looked at',
 }
 
 

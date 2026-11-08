@@ -710,8 +710,8 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
       refilter();
     }
     // Une ligne de légende filtrante — la légende générique et celle d'une scène (`hooks.legend`).
-    const filterRow = (k, cat, inner) => `<div class="wc-legend-row${isHidden(k, cat) ? ' off' : ''}" data-filter="${esc(k)}" data-cat="${esc(cat)}" ` +
-      `title="Clic : masquer ou afficher · ◎ : ne garder que celle-ci">${inner}<span class="wc-only" data-only="1">◎</span></div>`;
+    const filterRow = (k, cat, inner) => `<div class="wc-legend-row wama-reveal-host${isHidden(k, cat) ? ' off' : ''}" data-filter="${esc(k)}" data-cat="${esc(cat)}" ` +
+      `title="Clic : masquer ou afficher · ◎ : ne garder que celle-ci">${inner}<span class="wc-only wama-reveal" data-only="1">◎</span></div>`;
     const filtersBox = $('.wc-filters');
     function renderFilters() {
       if (!filtersBox) return;
