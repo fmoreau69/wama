@@ -130,7 +130,7 @@ class CablageDeLInspecteurDeRegistreTest(SimpleTestCase):
         # L'hôte est déclaré comme hôte d'ACTIONS : c'est ce qui fait courir `fillActions`.
         self.assertIn("ids: { actions: 'inspectorRegistreDetail' }", js)
 
-    def test_every_page_hosting_the_detail_declares_its_container_and_ids(self):
+    def test_every_page_hosting_the_detail_names_its_container_and_ids(self):
         """GÉNÉRIQUE (2026-11-07) : toute page des trois mondes qui inclut l'hôte du détail
         déclare son conteneur `data-wama-inspecte` et des `data-id` — sinon le volet reste sur
         son invite. La liste `PAGES` ci-dessus n'a pas vu `memories.html`, qui incluait l'hôte

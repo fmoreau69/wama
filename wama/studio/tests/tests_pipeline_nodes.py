@@ -261,7 +261,7 @@ class FoldedStatesTest(SimpleTestCase):
         self.assertEqual(JOB_FAILURE, self.fold(failed, JOB_RUNNING)['P']['status'])
 
 
-class CanvasPoseTheNodeFromPipelinesTest(SimpleTestCase):
+class CanvasDropsTheNodeFromPipelinesTest(SimpleTestCase):
     """The canvas: no second section — a saved pipeline of « Pipelines » is DRAGGED to pose it as
     a node, its click still opens it (ROUTE §10.6 5.4)."""
 
@@ -289,6 +289,10 @@ class CanvasPoseTheNodeFromPipelinesTest(SimpleTestCase):
             function isBuiltin(a) { return a && (a.kind === 'source' || a.kind === 'sink'); }
             function openPipeline() {} function functionAppFilter() { return null; }
             function applyFunctionFilter() {} function appLabel(k) { return k; }
+            // `esc` (2026-11-07, `6653d02ed` : la palette échappe ce qu'elle écrit) — le vrai passe
+            // par `WamaApp.escapeHtml`, absent de ce banc ; même échappement, sans le module.
+            function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
             var canvas = null, paletteList = fakeEl('div'), declaredPipelines = [];
         """)
         ctx.eval(f'var apps = {json.dumps(apps)}; var savedPipelines = {json.dumps(saved)};' + block)

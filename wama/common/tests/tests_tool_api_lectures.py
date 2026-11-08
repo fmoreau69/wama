@@ -431,11 +431,31 @@ class AddItemToMediaLibraryTest(TestCase):
         gen.audio_output.save('wama_temoin_outil.wav', ContentFile(b'\x00'), save=True)
         return gen
 
-    def test_ne_DEVINE_pas_le_role_et_rend_les_candidats(self):
+    def test_a_role_declared_by_the_app_is_taken_without_asking(self):
+        """Depuis le 2026-10-02 (`1ec0fd795`) le composer DÉCLARE le rôle de sa sortie
+        (`result_role` : une musique est une musique) — le test d'avant attendait encore des
+        candidats et était rouge depuis (relevé le 2026-11-08)."""
         gen = self._avec_sortie(self.moi)
         out = T.add_item_to_media_library(self.moi, 'composer', gen.pk)
-        self.assertIn('candidates', out)
+        self.assertNotIn('candidates', out, out)
+        self.assertEqual('audio_music', out.get('asset_type'), out)
+
+    def test_without_a_declared_role_it_does_not_guess_and_lists_the_candidates(self):
+        """Contre-épreuve : la même sortie, son rôle déclaré retiré du détail — un .wav peut être
+        une voix, une musique ou un bruitage, le geste ne tranche pas (`admissible_roles`)."""
+        from unittest import mock
+
+        from wama.common.utils.detail_registry import DetailRegistry
+        entry = dict(DetailRegistry.get('composer'))
+        adapter = entry['adapter']
+        entry['adapter'] = lambda instance: {k: v for k, v in adapter(instance).items()
+                                             if k != 'result_role'}
+        gen = self._avec_sortie(self.moi)
+        with mock.patch.object(DetailRegistry, 'get', return_value=entry):
+            out = T.add_item_to_media_library(self.moi, 'composer', gen.pk)
         self.assertIn('error', out)
+        self.assertIn('audio_music', out.get('candidates') or [], out)
+        self.assertGreater(len(out['candidates']), 1, out)
 
     def test_range_quand_le_role_est_fourni(self):
         from wama.media_library.models import UserAsset

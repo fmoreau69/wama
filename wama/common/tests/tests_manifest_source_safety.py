@@ -61,11 +61,11 @@ class SourceSafetyRulesTest(SimpleTestCase):
             self.assertFalse(source_safety.is_import(bad), bad)
 
 
-class AppValidatorRefusesCodeTest(SimpleTestCase):
+class AppValidatorRejectsCodeTest(SimpleTestCase):
     """Le validateur du kind — celui qu'appellent l'ingest, « Valider » et la création d'une app
     depuis un fichier — porte le contrôle : un seul endroit pour toutes les routes."""
 
-    def test_the_data_facet_refuses_code_in_an_expression_an_import_or_a_path(self):
+    def test_the_data_facet_rejects_code_in_an_expression_an_import_or_a_path(self):
         cases = {
             'expression': _data_body(expr="__import__('os').system('id')"),
             'import': _data_body(imports=['import os']),
@@ -80,7 +80,7 @@ class AppValidatorRefusesCodeTest(SimpleTestCase):
     def test_a_safe_data_facet_passes(self):
         self.assertEqual([], validate_app_body(_data_body()))
 
-    def test_every_declared_value_refuses_a_value_that_breaks_out(self):
+    def test_every_value_path_rejects_a_value_that_breaks_out(self):
         """Chaque chemin déclaré, nourri d'une valeur qui sortirait de sa place dans le code :
         refusé, et nommé dans l'erreur. Une règle mal écrite (un chemin qui ne descend pas) ne
         refuserait rien — c'est ce que le test verrait."""

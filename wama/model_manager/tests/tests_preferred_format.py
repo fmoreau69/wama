@@ -75,7 +75,7 @@ class PreferredFormatFollowsTheEngineTest(TestCase):
         row = AIModel.objects.get(model_key=key)
         self.assertEqual(('nemo', 'nemo'), (row.format, row.preferred_format))
 
-    def test_the_manifest_does_not_declare_a_derived_format(self):
+    def test_the_manifest_does_not_carry_a_derived_format(self):
         from wama.common.manifests.builtin.model import extract_model
         formats = extract_model(self.graph.model_key)['body']['formats']
         self.assertEqual({'format': 'pt', 'can_convert_to': []}, formats)
