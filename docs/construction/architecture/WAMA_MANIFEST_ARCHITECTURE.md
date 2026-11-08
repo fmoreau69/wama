@@ -569,6 +569,12 @@ fait REMPLACÉ n'en est pas une.
 Une perte acceptée est une DÉCISION : un retrait voulu (une clé déplacée dans le code, un
 réglage renommé) ou une régression à corriger à la source — jamais un export relancé jusqu'à ce
 qu'il passe. Garde : `wama/common/tests/tests_manifest_losses.py`.
+⏳ *Revérification du même jour.* `lost_facts` est le second comparateur récursif du paquet,
+à côté de `ingest.diff_dicts` (l'écart SYMÉTRIQUE, que lisent `drift`, la projection et
+`app_regen_check`). Il n'en est pas une variante : `diff_dicts` apparie les listes d'objets par
+INDICE, et un élément inséré en tête y fait « changer » tous les suivants (808 faux écarts sur le
+corpus du jour). Faire apparier `diff_dicts` par la clé naturelle de `losses._keyer` est un
+chantier : ses trois consommateurs changeraient de verdict.
 
 **Le cas `app`, et l'obstacle mesuré.** Deux pistes évoquées (Fabien) : faire installer une app
 par l'assistant depuis son manifeste (en tout ou partie), ou l'installer depuis un catalogue

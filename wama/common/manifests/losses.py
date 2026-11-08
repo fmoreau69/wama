@@ -18,6 +18,13 @@ Ce qui compte pour un fait :
     n'est pas un fait), listes d'objets appariées par leur clé naturelle (`kind:key` d'un
     `requires`, `name` d'un réglage, `id` d'un nœud…), sinon par leur contenu ;
   • une valeur non vide devenue vide.
+
+À côté de `ingest.diff_dicts`, l'écart SYMÉTRIQUE d'un manifeste et de l'état courant (`drift`,
+projection, `app_regen_check`) — et pas à sa place : il apparie les listes d'objets par INDICE, si
+bien qu'un élément inséré en tête fait « changer » tous les suivants (mesuré le 2026-11-08 sur le
+corpus : 808 faux écarts). Filtré sur ses côtés vides, il aurait rendu autant de fausses pertes.
+Lui faire apparier par `_keyer` changerait trois consommateurs : c'est un chantier, pas un geste de
+la garde.
 """
 from __future__ import annotations
 

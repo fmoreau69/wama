@@ -62,37 +62,28 @@ _CHAT_MULTIMODAL = ('image-text-to-text',)
 #: Clé = `<source>:<préfixe de FAMILLE>` (pas un identifiant complet : épingler `lightonocr-2-1b`
 #: raterait `lightonocr-3` en silence, et un fournisseur renomme ses versions plus souvent qu'il ne
 #: change de famille — même règle de préfixe que `FAMILLES_OLLAMA`).
-#: Valeur = tâche de NOTRE vocabulaire (`ModelTask`).
+#: Valeur = la déclaration, dans la forme de `FAMILLES_OLLAMA` : `task` (vocabulaire `ModelTask`,
+#: la catégorie en dérive) ; `vision` (le modèle de conversation VOIT, quel que soit le type
+#: annoncé).
+#: `vision` MESURÉ le 2026-11-08 : la liste d'Albert annonce désormais `text-generation` pour tous
+#: ses modèles de conversation, `lightonocr` compris (un OCR, qui ne lit que des images) ; son type
+#: ne distingue donc plus ceux qui voient. Les trois familles ci-dessous ont répondu « Red » à un
+#: carré rouge envoyé ce jour-là : sans leur déclaration, la synchro leur retirait la modalité
+#: `image` (et le corpus l'aurait figé). Une famille n'est déclarée voir qu'après un tel essai.
+#: (Elles étaient déclarées le matin même dans une seconde table, `REMOTE_VISION_FAMILIES`, à côté
+#: de celle-ci : ramenées ici à la revérification — une famille se déclare UNE fois.)
 FAMILLES_DISTANTES = {
-    'albert:lightonocr': 'ocr',
+    'albert:lightonocr': {'task': 'ocr'},
+    'albert:gemma-4': {'vision': True},
+    'albert:ministral-3': {'vision': True},
+    'albert:mistral-small-3': {'vision': True},
 }
 
 
-def _tache_declaree(model_key: str):
-    """Tâche DÉCLARÉE pour la famille de `model_key`, ou None."""
-    for prefixe, tache in FAMILLES_DISTANTES.items():
-        if model_key.startswith(prefixe):
-            return tache
-    return None
-
-
-#: Familles DISTANTES qui VOIENT (une image dans le message) sans que la liste du fournisseur le
-#: dise — même nature que `FAMILLES_DISTANTES`, même règle de préfixe, déclaration HUMAINE.
-#: MESURÉ le 2026-11-08 : la liste d'Albert annonce désormais `text-generation` pour tous ses
-#: modèles de conversation, `lightonocr` compris (un OCR, qui ne lit que des images) ; son type ne
-#: distingue donc plus ceux qui voient. Les trois familles ci-dessous ont répondu « Red » à un carré
-#: rouge envoyé ce jour-là : sans cette déclaration, la synchro leur retirait la modalité `image`
-#: (et le corpus l'aurait figé). Une famille n'entre ici qu'après un tel essai.
-REMOTE_VISION_FAMILIES = (
-    'albert:gemma-4',
-    'albert:ministral-3',
-    'albert:mistral-small-3',
-)
-
-
-def declared_vision(model_key: str) -> bool:
-    """La famille de `model_key` est-elle DÉCLARÉE voir (`REMOTE_VISION_FAMILIES`) ?"""
-    return any(model_key.startswith(prefix) for prefix in REMOTE_VISION_FAMILIES)
+def declared_family(model_key: str) -> dict:
+    """Déclaration de la famille de `model_key` (`FAMILLES_DISTANTES`), ou {}."""
+    return next((declaration for prefix, declaration in FAMILLES_DISTANTES.items()
+                 if model_key.startswith(prefix)), {})
 
 
 #: Version d'API qu'Anthropic exige sur chaque requête.
@@ -263,7 +254,8 @@ def model_info_for(source: str, item: dict):
     c'est la provenance (`set_identity`) qui le porte, par le manifeste (cf. `refresh_key`).
     """
     from wama.model_manager.models import (EXECUTION_CLOUD, ModelSource, ModelType,
-                                           default_inputs_for, model_type_for_task)
+                                           add_flagged_modalities, default_inputs_for,
+                                           model_type_for_task)
     from .model_registry import ModelInfo
 
     src = external_sources.get(source)
@@ -273,24 +265,27 @@ def model_info_for(source: str, item: dict):
         return None
     key = f"{source}:{item['id']}"
     # La tâche DÉCLARÉE prime sur celle qu'annonce le fournisseur, et la CATÉGORIE en dérive.
-    declared_task = _tache_declaree(key)
-    if declared_task:
-        task = declared_task
+    declaration = declared_family(key)
+    if declaration.get('task'):
+        task = declaration['task']
         model_type = model_type_for_task(task) or model_type
     # Le dépôt du Hub que le fournisseur SERT, quand il le nomme : LA règle de `cloud_identity`
     # (un alias `org/nom`), lue au lieu d'être réécrite ici.
     from .provenance import cloud_identity
     platform_ref = (cloud_identity(item) or {}).get('platform_ref')
     declared = bool(item.get('declared'))
-    # Modalités et entrées : ce que la tâche IMPLIQUE (table commune), plus l'image quand le
-    # modèle VOIT — la même dérivation que la découverte Ollama (`_capacites_canoniques`).
+    # Modalités et entrées : ce que la tâche IMPLIQUE (table commune), plus l'image et son entrée
+    # quand le modèle VOIT — la règle de la découverte Ollama (`add_flagged_modalities`).
     abilities = abilities_for(task, remote_type)
-    # Un modèle de conversation dont la famille est DÉCLARÉE voir voit, quel que soit le type que
-    # le fournisseur annonce (`REMOTE_VISION_FAMILIES`).
-    if abilities.get('completion') and declared_vision(key):
-        abilities['vision'] = True
     caps = {**default_inputs_for(task), 'task': task, **abilities}
-    if abilities.get('vision') and 'image' not in caps.get('modalities', []):
+    if abilities.get('completion'):
+        # Un modèle de conversation voit si son type le dit OU si sa famille est DÉCLARÉE voir
+        # (`FAMILLES_DISTANTES`). Écrit vrai ou faux, comme côté Ollama : la synchronisation
+        # fusionne `capabilities` clé par clé, et un `vision: True` d'une passe antérieure
+        # survivait à côté de modalités réécrites sans l'image (mesuré le 2026-11-08).
+        caps['vision'] = bool(abilities.get('vision') or declaration.get('vision'))
+        add_flagged_modalities(caps, caps)
+    elif abilities.get('vision') and 'image' not in caps.get('modalities', []):
         caps['modalities'] = [*caps.get('modalities', []), 'image']
     # La TEMPÉRATURE (2026-10-21) : un modèle de conversation distant la lit — `llm_chat` la
     # transmet au fournisseur. Pas l'abonnement Claude Code : le CLI ne la prend pas. Anthropic

@@ -3384,9 +3384,18 @@ l'assistant, prospection), tous voulus. ⚠ Défaut trouvé et corrigé dans le 
 pour tous ses modèles de conversation, LightOnOCR compris — son type ne dit plus lesquels voient,
 et la synchro avait retiré la modalité `image` de `gemma-4-31b-it`, `ministral-3-8b` et
 `mistral-small-3.2`. Mesuré le jour même : les trois répondent « Red » à un carré rouge. Les familles
-qui voient sont donc DÉCLARÉES (`cloud_models.REMOTE_VISION_FAMILIES`, préfixe de famille, une famille
-n'y entre qu'après cet essai) ; le type annoncé reste écrit tel quel (`extra_info.remote_type`).
-Garde : `tests_cloud_models.DecouverteTest.test_a_family_known_to_see_keeps_the_image_when_the_provider_stops_saying_so`.
+qui voient sont donc DÉCLARÉES, dans la table de la tâche (`cloud_models.FAMILLES_DISTANTES`, une
+déclaration `{task, vision}` par préfixe de famille, la forme de `FAMILLES_OLLAMA` ; une famille
+n'est déclarée voir qu'après cet essai) ; le type annoncé reste écrit tel quel
+(`extra_info.remote_type`). Garde :
+`tests_cloud_models.DecouverteTest.test_a_family_known_to_see_keeps_the_image_when_the_provider_stops_saying_so`.
+*Revérification du même jour* : la correction était d'abord une SECONDE table
+(`REMOTE_VISION_FAMILIES`) à côté de celle de la tâche, et elle recopiait en variante la règle
+Ollama de la vision, sans deux de ses parties. (1) Le drapeau s'écrit vrai OU faux : la synchro
+fusionne clé par clé, et un ancien `vision: True` survivait à côté de modalités réécrites sans
+l'image. (2) Une modalité ajoutée porte son entrée optionnelle (`work_image`) : les modèles
+distants qui voient ne l'avaient JAMAIS eue, et la card grisait l'image. Les deux découvertes
+passent désormais par la même règle, `models.add_flagged_modalities`.
 
 ⏳ Ce qui reste du même défaut (dette ANCIENNE, `models.py:31-34`) : `ModelType` mélange encore
 famille, modalité et tâche (`upscaling`, `lipsync`, `ocr` y sont des tâches) ; 12 modèles à

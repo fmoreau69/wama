@@ -3278,7 +3278,7 @@ class ModelRegistry:
         négation, qu'il ne saurait pas exprimer. `nom_modele` sert à la SPÉCIALISATION
         déclarée (cf. `FAMILLES_OLLAMA`), que la découverte ne peut pas deviner.
         """
-        from wama.model_manager.models import default_inputs_for
+        from wama.model_manager.models import add_flagged_modalities, default_inputs_for
         embarque = 'embedding' in brutes
         task = 'feature-extraction' if embarque else 'text-generation'
         # TÂCHE et SPÉCIALITÉ déclarées (humaines) : elles ne se découvrent pas — Ollama rend
@@ -3298,21 +3298,15 @@ class ModelRegistry:
         # blanche et des modalités, alors que gemma4:12b et gemma4:e4b le déclarent (mesuré
         # 2026-08-19). Une capacité réelle du parc restait invisible à `select_model(requires=...)`.
         caps = {**default_inputs_for(task), 'task': task}
-        modalities = list(caps.get('modalities') or ['text'])
-        added = ((['image'] if 'vision' in brutes and 'image' not in modalities else [])
-                 + (['audio'] if 'audio' in brutes and 'audio' not in modalities else []))
-        caps['modalities'] = modalities + added
         # L'ENTRÉE qui va avec la modalité ajoutée (2026-10-13) : un modèle de conversation qui
         # voit ACCEPTE une image, en option — il converse aussi sans. La ligne disait `image` dans
         # ses modalités et `['prompt']` seul dans ses entrées : `matches_inputs(consumes=…)` ne le
-        # retenait pas pour une image, et l'appariement de la card le grisait. Seulement pour une
-        # modalité AJOUTÉE par le drapeau : celle que la tâche implique a déjà son entrée (`glm-ocr`,
-        # tâche `ocr`, reçoit sa page par `work_file`). Écrit à chaque passe, vide compris : la
-        # synchronisation fusionne clé par clé, un modèle qui perd `vision` doit perdre l'entrée.
+        # retenait pas pour une image, et l'appariement de la card le grisait. La règle est
+        # commune aux découvertes (`add_flagged_modalities`, modèles distants compris), écrite à
+        # chaque passe où Ollama a répondu.
+        caps['modalities'] = list(caps.get('modalities') or ['text'])
         if brutes:
-            token = {'image': 'work_image', 'audio': 'work_audio'}
-            caps['inputs_optional'] = (list(caps.get('inputs_optional') or [])
-                                       + [token[m] for m in added])
+            add_flagged_modalities(caps, {flag: flag in brutes for flag in ('vision', 'audio')})
         # Les SIX drapeaux sont écrits, vrais ou faux, dès qu'Ollama a répondu (2026-09-18) : la
         # synchronisation fusionne désormais `capabilities` clé par clé, et un drapeau absent
         # laisserait survivre une valeur d'un sync antérieur — un modèle qui perd `vision` à une

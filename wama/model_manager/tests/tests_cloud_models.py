@@ -171,8 +171,9 @@ class DecouverteTest(TestCase):
     def test_a_family_known_to_see_keeps_the_image_when_the_provider_stops_saying_so(self):
         """Depuis le 2026-11-08, Albert annonce `text-generation` pour tous ses modèles de
         conversation — LightOnOCR compris : son type ne dit plus lesquels voient. Une famille
-        DÉCLARÉE voir (`REMOTE_VISION_FAMILIES`, mesurée au carré rouge) garde l'image ; un modèle
-        qui ne voit pas ne la gagne pas, et la tâche déclarée d'un OCR ne change pas."""
+        DÉCLARÉE voir (`FAMILLES_DISTANTES`, mesurée au carré rouge) garde l'image et l'entrée
+        qui va avec ; un modèle qui ne voit pas ne la gagne pas, et la tâche déclarée d'un OCR ne
+        change pas."""
         annonces = [
             {'id': 'gemma-4-31b-it', 'type': 'text-generation', 'aliases': []},
             {'id': 'ministral-3-8b-instruct-2512', 'type': 'text-generation', 'aliases': []},
@@ -185,11 +186,31 @@ class DecouverteTest(TestCase):
         for key in ('albert:gemma-4-31b-it', 'albert:ministral-3-8b-instruct-2512',
                     'albert:mistral-small-3-2-24b-instruct-2506'):
             caps = AIModel.objects.get(model_key=key).capabilities
-            self.assertEqual((True, True), (caps.get('vision'), 'image' in caps['modalities']), key)
+            self.assertEqual((True, True, ['work_image']),
+                             (caps.get('vision'), 'image' in caps['modalities'],
+                              caps['inputs_optional']), key)
         blind = AIModel.objects.get(model_key='albert:gpt-oss-120b').capabilities
-        self.assertEqual((None, ['text']), (blind.get('vision'), blind['modalities']))
-        self.assertEqual('ocr', AIModel.objects.get(model_key='albert:lightonocr-2-1b')
-                         .capabilities['task'])
+        self.assertEqual((False, ['text'], []),
+                         (blind.get('vision'), blind['modalities'], blind['inputs_optional']))
+        ocr = AIModel.objects.get(model_key='albert:lightonocr-2-1b').capabilities
+        self.assertEqual(('ocr', ['work_file']), (ocr['task'], ocr['inputs_required']))
+
+    def test_a_model_that_stops_seeing_loses_the_image_at_the_next_sync(self):
+        """La synchronisation fusionne `capabilities` clé par clé : un `vision: True` d'une passe
+        antérieure survivait à côté de modalités réécrites sans l'image (mesuré le 2026-11-08 sur
+        les modèles d'Albert). Le drapeau et l'entrée s'écrivent donc à chaque passe, faux et vide
+        compris — la règle de la découverte Ollama."""
+        sees = [{'id': 'pixtral-12b', 'type': 'image-text-to-text', 'aliases': []}]
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=sees):
+            cloud_models.refresh_key(self.row)
+        before = AIModel.objects.get(model_key='albert:pixtral-12b').capabilities
+        self.assertEqual((True, ['work_image']), (before['vision'], before['inputs_optional']))
+        blind = [{'id': 'pixtral-12b', 'type': 'text-generation', 'aliases': []}]
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=blind):
+            cloud_models.refresh_key(self.row)
+        after = AIModel.objects.get(model_key='albert:pixtral-12b').capabilities
+        self.assertEqual((False, ['text'], []),
+                         (after['vision'], after['modalities'], after['inputs_optional']))
 
     def test_remote_engine_is_not_flagged_without_backend(self):
         from wama.common.backends.manager import backend_missing

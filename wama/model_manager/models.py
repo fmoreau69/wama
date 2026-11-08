@@ -467,6 +467,29 @@ def default_inputs_for(task: str) -> dict:
     return {}
 
 
+#: Drapeau d'un modèle de conversation → la MODALITÉ qu'il ajoute à celles de sa tâche, et
+#: l'ENTRÉE optionnelle qui va avec (il converse aussi sans).
+ADDED_MODALITIES = (('vision', 'image', 'work_image'), ('audio', 'audio', 'work_audio'))
+
+
+def add_flagged_modalities(caps: dict, flags: dict) -> dict:
+    """`caps` complétées des modalités que `flags` (`vision`, `audio`) AJOUTENT à la tâche, et de
+    l'entrée optionnelle de chacune — la règle de TOUTE découverte d'un modèle de conversation
+    (Ollama, `_capacites_canoniques` ; distants, `cloud_models.model_info_for`).
+
+    Une modalité que la tâche implique déjà garde son entrée (un OCR reçoit sa page par
+    `work_file`). `inputs_optional` est écrit même vide : la synchronisation fusionne clé par clé,
+    et un modèle qui perd `vision` doit perdre l'entrée (2026-10-13 côté Ollama ; les modèles
+    distants n'avaient pas cette entrée avant le 2026-11-08 — leur card grisait l'image)."""
+    modalities = list(caps.get('modalities') or ['text'])
+    added = [(modality, token) for flag, modality, token in ADDED_MODALITIES
+             if flags.get(flag) and modality not in modalities]
+    caps['modalities'] = modalities + [modality for modality, _ in added]
+    caps['inputs_optional'] = (list(caps.get('inputs_optional') or [])
+                               + [token for _, token in added])
+    return caps
+
+
 def platform_tag(task: str, platform: str = 'huggingface'):
     """Tag de `task` (vocabulaire NÔTRE) chez une plateforme, ou None s'il n'y en a pas.
 
