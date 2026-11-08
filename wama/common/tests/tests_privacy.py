@@ -154,6 +154,27 @@ class CodeIdentifierTest(SimpleTestCase):
                          self._found(text, [('12AB34567', 'ID_NUMBER'), ('jean_dupont', 'PERSON')]))
 
 
+class CalendarDateIsNoPhoneTest(SimpleTestCase):
+    """2026-11-07 : a task left for Claude Code named a role output
+    `model_…_[TÉLÉPHONE_1]_21-46.json` — the phone recognizer read the ISO date of the file name
+    (and of any sentence) as a number. A valid calendar date is never a phone number."""
+
+    def _phones(self, text):
+        from wama.common.privacy import engine
+        doc = engine.detect(text, 'fr', detectors=PATTERNS_ONLY)
+        return [text[s[0]:s[1]] for label, s in _spans(doc) if label == 'PHONE_NUMBER']
+
+    def test_a_date_in_a_file_name_or_a_sentence_is_not_a_phone(self):
+        self.assertEqual([], self._phones(
+            'Lis wama-dev-ai/outputs/model_huggingface__Org~Name_2026-11-07_21-46.json.'))
+        self.assertEqual([], self._phones('Rendez-vous le 2026-11-07, ou le 07/11/2026.'))
+
+    def test_a_real_phone_number_is_still_found(self):
+        """Counter-proof : the exemption is a VALID date, nothing wider."""
+        self.assertEqual(['06 12 34 56 78', '+33 6 12 34 56 78'],
+                         self._phones('Appelle au 06 12 34 56 78 ou au +33 6 12 34 56 78.'))
+
+
 class UnavailableDetectorTest(SimpleTestCase):
 
     def test_a_detector_that_cannot_load_is_named_and_the_analyzer_not_kept(self):

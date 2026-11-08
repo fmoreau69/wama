@@ -120,6 +120,31 @@ def _is_code_identifier(text: str, span: dict) -> bool:
             and _CODE_IDENTIFIER.fullmatch(text[span['start']:span['end']].strip(' `\'"')) is not None)
 
 
+#: Une date du CALENDRIER écrite en chiffres : ISO (`2026-11-07`) ou jour d'abord (`07/11/2026`).
+_CALENDAR_DATE = re.compile(r'(\d{4})([-/.])(\d{2})\2(\d{2})|(\d{2})([-/.])(\d{2})\6(\d{4})')
+
+
+def _is_calendar_date(text: str, span: dict) -> bool:
+    """Un « téléphone » qui n'est qu'une date (2026-11-08) : la reconnaissance des numéros prenait
+    `2026-11-07` pour un numéro (score 0,4), dans une phrase comme dans un nom de fichier — la
+    tâche confiée à Claude Code est partie avec `model_…_[TÉLÉPHONE_1]_21-46.json`. Une date
+    valide n'est jamais un numéro de téléphone ; elle reste une DATE pour qui la détecte comme
+    telle (`DATE_TIME`)."""
+    import datetime
+    if span['entity'] != 'PHONE_NUMBER':
+        return False
+    m = _CALENDAR_DATE.fullmatch(text[span['start']:span['end']].strip())
+    if not m:
+        return False
+    year, month, day = ((m.group(1), m.group(3), m.group(4)) if m.group(1)
+                        else (m.group(8), m.group(7), m.group(5)))
+    try:
+        datetime.date(int(year), int(month), int(day))
+    except ValueError:
+        return False
+    return True
+
+
 def _detect_one(analyzer, text: str, language: str, entities, threshold) -> list:
     if not (text or '').strip():
         return []
@@ -127,7 +152,8 @@ def _detect_one(analyzer, text: str, language: str, entities, threshold) -> list
                                entities=list(entities) if entities else None,
                                score_threshold=threshold)
     return [s for s in _merge(results)
-            if s['entity'] in ENTITY_TYPES and not _is_code_identifier(text, s)]
+            if s['entity'] in ENTITY_TYPES and not _is_code_identifier(text, s)
+            and not _is_calendar_date(text, s)]
 
 
 def _detectors_for(language: str, detectors: Optional[Iterable[str]]) -> tuple:
