@@ -1212,8 +1212,8 @@ UN domicile pour « quel modèle a le droit de travailler sur le code » : planc
 - **Module** : Modèles de NIVEAU DÉVELOPPEMENT — le bridage « qualité max » du travail sur le code (2026-09-22).
 - **API publique** (11) :
   - `role_user()` — Le compte pour lequel ce process de rôle travaille (`ROLE_USER_ENV`), ou None.
-  - `coding_score(model) -> float | None` — Sous-indice coding du banc tiers, ou None s'il n'est pas mesuré.
-  - `is_development_grade(model) -> bool` — Ce modèle a-t-il le niveau développement ? Mesure d'abord, déclaration ensuite.
+  - `coding_score(model, fresh: bool=False) -> float | None` — Sous-indice coding du banc tiers, ou None s'il n'est pas mesuré. `fresh` : None aussi
+  - `is_development_grade(model, rank: float | None=None) -> bool` — Ce modèle a-t-il le niveau développement ? Un score coding FRAIS d'abord, sinon son rang
   - `dev_cloud_keys(user) -> set` — Modèles distants admis au tirage de DÉVELOPPEMENT pour `user` : la règle commune
   - `development_candidates(user, source: str='') -> list` — `model_key` des modèles de conversation de niveau dev que `user` peut lancer : locaux
   - `development_model(user, requested: str=None, source: str='') -> str | None` — Le modèle de niveau dev pour ce travail — `model_key` complet (`ollama:…`, `albert:…`), ou
@@ -3933,7 +3933,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (117) :
+- **API publique** (119) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -3983,6 +3983,8 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `install_library(user, key: str, simulate: bool=False) -> dict` — INSTALL a Python library of the WAMA library registry into the reference environment — the
   - `uninstall_library(user, key: str) -> dict` — UNINSTALL a library of the WAMA registry from the reference environment — the "Désinstaller"
   - `get_library_action(user, key: str) -> dict` — Where the last install / simulation / uninstall of the library `key` stands: `state`
+  - `get_model_formats(user, model_key: str='') -> dict` — The WEIGHT FORMATS of the installed models — the model manager's format routes. Without
+  - `convert_model_format(user, model_key: str, target_format: str='safetensors', backup: bool=True, delete_source: bool=False) -> dict` — CONVERT the weights of an installed model to another format — the « Convertir » button of the
   - `plan_model_integration(user, model: str) -> dict` — PLAN for integrating an AI model — read-only, executes nothing.
   - `plan_app_integration(user, target: str) -> dict` — PLAN for integrating a GitHub project as a WAMA app (UI + models + libraries).
   - `memory_recall(user, query: str, k: int=5, include_rag: bool=True, include_memory: bool=True, niveaux: list=None) -> dict` — Cherche dans la mémoire et les documents de l'utilisateur (`WAMA_MEMORY.md`).
