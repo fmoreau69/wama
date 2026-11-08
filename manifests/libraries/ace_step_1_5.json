@@ -1,0 +1,74 @@
+{
+  "body": {
+    "constraints": {
+      "notes": "Requires specific PyTorch builds with CUDA 12.8 or 13.0 for Windows/Linux, or CPU/MPS for macOS. Some dependencies (torchcodec, torchao, nano-vllm) are platform-specific (excluded on aarch64 or darwin arm64).",
+      "os": null
+    },
+    "dependencies": [
+      "accelerate",
+      "diffusers",
+      "einops",
+      "fastapi",
+      "gradio",
+      "lightning",
+      "loguru",
+      "lycoris-lora",
+      "matplotlib",
+      "modelscope",
+      "numba",
+      "peft",
+      "python-multipart",
+      "pytorch-wavelets",
+      "pywavelets",
+      "safetensors",
+      "scipy",
+      "setuptools",
+      "soundfile",
+      "tensorboard",
+      "toml",
+      "torch",
+      "torchao",
+      "torchcodec",
+      "torchaudio",
+      "torchvision",
+      "transformers",
+      "typer-slim",
+      "uvicorn",
+      "vector-quantize-pytorch"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "acestep",
+        "acestep-api",
+        "acestep-download",
+        "acestep-openrouter"
+      ]
+    },
+    "identity": {
+      "author": "ACEStep",
+      "license": "MIT",
+      "repository": "https://github.com/ace-step/ACE-Step-1.5",
+      "summary": "ACE-Step 1.5",
+      "version": "ca1e85fe9430"
+    },
+    "install": {
+      "vendor": {
+        "commit": "ca1e85fe9430179831e6bc6be790c332190a3866",
+        "engine": "ace_step_1_5",
+        "repo": "ace-step/ACE-Step-1.5"
+      }
+    }
+  },
+  "description": "ACE-Step 1.5",
+  "key": "ace_step_1_5",
+  "manifest_kind": "library",
+  "name": "ace-step",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "github:ace-step/ACE-Step-1.5@ca1e85fe9430179831e6bc6be790c332190a3866",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
