@@ -69,10 +69,11 @@ class RefineWithCatalogueAlignerTest(TestCase):
             capabilities={'task': 'alignment', 'languages': ['fr']},
             composition={'runtime': {'engine': 'transformers'}})
 
-    def _refine(self, turns, language='fr', ctx=None, heard=None):
+    def _refine(self, turns, language='fr', ctx=None, heard=None, call=None):
         from wama.common.backends.forced_alignment_base import AlignedWord
         from wama.common.services import acoustic_alignment
         heard = heard or {}
+        call = call or (lambda: acoustic_alignment.refine(turns, 'voice.wav', language, ctx=ctx))
         events = []
 
         class FakeAligner:
@@ -95,7 +96,7 @@ class RefineWithCatalogueAlignerTest(TestCase):
                 mock.patch('wama.model_manager.services.select_model',
                            side_effect=lambda **kw: __import__('wama.model_manager.models', fromlist=['x'])
                            .AIModel.objects.filter(model_key__in=kw['candidates']).first()):
-            return acoustic_alignment.refine(turns, 'voice.wav', language, ctx=ctx), events
+            return call(), events
 
     def test_without_an_aligner_for_the_language_nothing_is_loaded(self):
         self._aligner_in_catalogue()
@@ -120,3 +121,30 @@ class RefineWithCatalogueAlignerTest(TestCase):
         self.assertEqual([(3.08, 3.5, 'exact'), (4.6, 4.88, 'aligned'), (4.78, 5.02, 'exact')],
                          [(w['start'], w['end'], w['timing']) for w in turns[0]['words']])
         self.assertEqual('transcriber:wav2vec2-fr-aligner', model.model_key)
+
+    def test_timed_words_of_a_segment_without_words_are_spread_then_aligned(self):
+        """`timed_words` (2026-11-08, the composer's lyrics — 3rd consumer of the composition) : a
+        segment dated as a whole (Qwen3-ASR : 30 s slices, no word times) has its words spread in
+        its interval, then the catalogue aligner re-listens to them ; a dated word is kept."""
+        from wama.common.services import acoustic_alignment
+        self._aligner_in_catalogue()
+        segments = [SimpleNamespace(start=0.0, end=4.0, text='la mer revient', words=[]),
+                    {'start_time': 4.0, 'end_time': 5.0, 'text': 'encore',
+                     'words': [{'word': ' encore', 'start': 4.2, 'end': 4.7}]}]
+        heard = {'la': (0.5, 0.7), 'mer': (0.8, 1.4), 'revient': (2.0, 2.6)}
+        got, _events = self._refine(None, heard=heard, call=lambda: acoustic_alignment.timed_words(
+            segments, 'song.wav', 'fr', ctx=None))
+        self.assertEqual(['la', 'mer', 'revient', 'encore'], [w['word'] for w in got['words']])
+        self.assertEqual([(0.5, 0.7), (0.8, 1.4), (2.0, 2.6), (4.2, 4.7)],
+                         [(w['start'], w['end']) for w in got['words']])
+        self.assertEqual(['aligned', 'aligned', 'aligned', 'exact'], [w['timing'] for w in got['words']])
+        self.assertEqual('transcriber:wav2vec2-fr-aligner', got['aligner'])
+
+    def test_without_an_aligner_the_estimate_stays_and_says_why(self):
+        from wama.common.services import acoustic_alignment
+        segments = [SimpleNamespace(start=0.0, end=3.0, text='la mer revient', words=None)]
+        got = acoustic_alignment.timed_words(segments, 'song.wav', 'xx')
+        self.assertEqual('', got['aligner'])
+        self.assertIn('aucun aligneur', got['reason'])
+        self.assertEqual(['interpolated'] * 3, [w['timing'] for w in got['words']])
+        self.assertTrue(all(0.0 <= w['start'] <= w['end'] <= 3.0 for w in got['words']))

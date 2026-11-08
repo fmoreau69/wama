@@ -515,6 +515,123 @@
         return out.join('\n');
     }
 
+    // ── LES PAROLES SOUS LES NOTES (2026-11-08, décision de Fabien : afficher les paroles sur la
+    // partition réduite, la partition complète et la piste de chant, en entrée comme en sortie) ──
+    // Les mots horodatés (l'écoute du composer : modèle d'écoute + aligneur du transcriber) sont
+    // posés sous les notes de la VOIX CHANTÉE par des lignes `w:` — la notation des paroles de l'ABC,
+    // que la gravure place d'elle-même sous la portée. Un mot va à la note pendant laquelle il
+    // commence ; plusieurs mots sur une note se lient (`~`), une note sans mot passe (`*`). Le temps
+    // d'une note est celui du tempo écrit (`Q:`), mis à l'échelle de la durée de l'audio entendu
+    // (`duration` du JSON) : le tempo écrit est une moyenne — la règle de `fit_to_duration` côté
+    // serveur, pas un calage fin.
+
+    /** La voix CHANTÉE : la piste NOMMÉE comme une voix — `Vocal Melody` (SheetSage, YuE2), `Voix`
+     *  (`midi_score`). Jamais « la seule voix » : la vue d'une seule piste (la batterie) en a une. */
+    var VOCAL = /voi[xc]|vocal|chant|sing|lead/i;
+    function vocalVoice(abc) {
+        var sung = tracksOf(abc).filter(function (t) { return VOCAL.test(t.label); })[0];
+        return sung ? sung.ids[0] : null;
+    }
+
+    function headerFraction(abc, field, fallback) {
+        var m = new RegExp('(?:^|\\n)' + field + ':\\s*(\\d+)\\s*/\\s*(\\d+)').exec(abc);
+        return m ? Number(m[1]) / Number(m[2]) : fallback;
+    }
+
+    function tempoOf(abc) {
+        var m = /(?:^|\n)Q:\s*(?:(\d+)\s*\/\s*(\d+)\s*=\s*)?(\d+(?:\.\d+)?)/.exec(abc);
+        if (!m) return { unit: 0.25, bpm: 120 };
+        return { unit: m[1] ? Number(m[1]) / Number(m[2]) : 0.25, bpm: Number(m[3]) || 120 };
+    }
+
+    function lyricToken(word) {
+        return String(word || '').replace(/[*~_|\\\s]/g, '').replace(/-/g, '\\-');
+    }
+
+    /** `abc` avec, sous chaque ligne de musique de la voix chantée, la ligne `w:` de ses mots —
+     *  `{abc, inserts: [{at, length}]}` (`at` : position dans le texte d'ORIGINE où la ligne entre),
+     *  de quoi ramener une position du texte gravé à celle du texte édité (`sourceAt`). Inchangé
+     *  sans voix chantée, sans mots, ou sur une mesure que cette lecture ne sait pas compter. */
+    function withLyrics(abc, lyrics) {
+        var words = ((lyrics && lyrics.words) || []).filter(function (w) {
+            return w && lyricToken(w.word) && typeof w.start === 'number';
+        });
+        var voice = words.length ? vocalVoice(abc) : null;
+        if (!voice) return { abc: abc, inserts: [] };
+        var unitL = headerFraction(abc, 'L', 1 / 8), meter = headerFraction(abc, 'M', 1);
+        var tempo = tempoOf(abc);
+        // 1er passage : les notes de la voix, ligne par ligne, et leur temps écrit (en ronde).
+        var lines = [], pos = 0, current = '', inBody = false, clock = 0;
+        abc.split('\n').forEach(function (line) {
+            var start = pos;
+            pos += line.length + 1;
+            if (/^K:/.test(line)) { inBody = true; return; }
+            if (!inBody) return;
+            if (/^V:/.test(line)) { current = line.replace(/^V:\s*/, '').split(/\s+/)[0]; return; }
+            if (current !== voice || !line.trim() || /^[A-Za-z]:|^%/.test(line)) return;
+            var notes = [], countable = true;
+            line.split('|').forEach(function (segment) {
+                var bar = segment.replace(/^[\]:]+/, '').replace(/[\[:]+$/, '');
+                if (!bar.trim()) return;
+                var parsed = parseBar(bar);
+                if (!parsed) { countable = false; clock += meter; return; }
+                parsed.items.forEach(function (item) {
+                    var span = item.num / item.den * unitL;
+                    if (!item.rest) notes.push({ at: clock });
+                    clock += span;
+                });
+            });
+            lines.push({ start: start, end: start + line.length, notes: notes, countable: countable });
+        });
+        var seconds = function (whole) { return whole / tempo.unit * 60 / tempo.bpm; };
+        var total = seconds(clock);
+        var scale = (lyrics.duration > 0 && total > 0) ? lyrics.duration / total : 1;
+        var all = [];
+        lines.forEach(function (l) {
+            l.notes.forEach(function (n) { n.t = seconds(n.at) * scale; n.tokens = []; all.push(n); });
+        });
+        if (!all.length) return { abc: abc, inserts: [] };
+        // 2ᵉ passage : chaque mot va à la note pendant laquelle il commence.
+        words.slice().sort(function (a, b) { return a.start - b.start; }).forEach(function (w) {
+            var k = 0;
+            while (k + 1 < all.length && all[k + 1].t <= w.start) k++;
+            all[k].tokens.push(lyricToken(w.word));
+        });
+        var out = '', last = 0, inserts = [];
+        lines.forEach(function (l) {
+            if (!l.countable || !l.notes.some(function (n) { return n.tokens.length; })) return;
+            var text = 'w: ' + l.notes.map(function (n) {
+                return n.tokens.length ? n.tokens.join('~') : '*';
+            }).join(' ');
+            var at = Math.min(l.end + 1, abc.length);
+            var piece = (l.end >= abc.length ? '\n' : '') + text + '\n';
+            out += abc.slice(last, at) + piece;
+            inserts.push({ at: at, length: piece.length });
+            last = at;
+        });
+        out += abc.slice(last);
+        return { abc: out, inserts: inserts };
+    }
+
+    /** Position du texte GRAVÉ (avec ses lignes `w:`) → position du texte édité ; -1 dans un ajout. */
+    function sourceAt(inserts, shown) {
+        var shift = 0;
+        for (var i = 0; i < (inserts || []).length; i++) {
+            var at = inserts[i].at + shift;
+            if (shown < at) break;
+            if (shown < at + inserts[i].length) return -1;
+            shift += inserts[i].length;
+        }
+        return shown - shift;
+    }
+
+    /** Position du texte édité → position du texte gravé. */
+    function shownAt(inserts, source) {
+        var shift = 0;
+        (inserts || []).forEach(function (ins) { if (ins.at <= source) shift += ins.length; });
+        return source + shift;
+    }
+
     global.WamaScore = {
         degree: degree, pitchText: pitchText, transposeToken: transposeToken,
         transposeAt: transposeAt, voiceOf: voiceOf, timeline: timeline,
@@ -522,5 +639,6 @@
         notesFromTimings: notesFromTimings, align: align,
         barAt: barAt, parseBar: parseBar, retime: retime, unitAt: unitAt,
         tracksOf: tracksOf, trackOnly: trackOnly, mergeTrack: mergeTrack,
+        vocalVoice: vocalVoice, withLyrics: withLyrics, sourceAt: sourceAt, shownAt: shownAt,
     };
 })(window);

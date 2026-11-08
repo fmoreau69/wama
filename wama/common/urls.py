@@ -47,6 +47,7 @@ urlpatterns = [
 
     # Enrichissement de prompt à la demande (✨) — générique {prompt, app, domain}, cf. WAMA_LLM.md §Skills
     path('api/enrich-prompt/', views.api_enrich_prompt, name='enrich_prompt'),
+    path('api/write-lyrics/', views.api_write_lyrics, name='write_lyrics'),
 
     # System stats endpoints
     path('api/system-stats/', views.system_stats, name='system_stats'),

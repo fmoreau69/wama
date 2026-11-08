@@ -41,6 +41,11 @@
  * mesure) tant qu'on n'en FORCE pas un — choix « Pas », ou les chiffres 2 à 7 comme MuseScore
  * (5 = noire), 0 = automatique ; gardé par le navigateur du lecteur.
  *
+ * LES PAROLES (2026-11-08) : `options.lyrics` nomme un rôle lu — les paroles horodatées que
+ * l'écoute a rangées — posées sous les notes de la voix chantée (`WamaScore.withLyrics`), sur la
+ * réduite, la complète et la piste de chant. Le texte ÉDITÉ n'en porte pas : les positions d'abcjs
+ * (texte gravé) sont ramenées à lui (`sourceAt` / `shownAt`) ; l'export prend la partition gravée.
+ *
  * EXPORTER (même jour) : la partition MONTRÉE, telle qu'elle est à l'écran (modifications non
  * enregistrées comprises), en ABC, en MIDI (abcjs, `synth.getMidiFile`) — le format que lisent
  * MuseScore, Guitar Pro et les séquenceurs — ou en PDF (la gravure imprimée, « Enregistrer en
@@ -135,6 +140,18 @@
             var whole = wholeText();
             return track ? Score.trackOnly(whole, track.ids) : whole;
         }
+        /** Les PAROLES horodatées de CE côté (`options.lyrics`, un rôle lu : le JSON que l'écoute a
+         *  rangé, 2026-11-08), ou null. Posées sous les notes de la voix chantée à la gravure
+         *  (`WamaScore.withLyrics`) — le texte édité, lui, n'en porte pas : `inserts` ramène une
+         *  position gravée à sa place dans le texte édité, et l'inverse. */
+        var inserts = [], shown = '';
+        function lyricsData() {
+            var raw = options.lyrics ? (ctx.reads() || {})[options.lyrics] : '';
+            if (!raw) return null;
+            try { return typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { return null; }
+        }
+        function toSource(pos) { return Score.sourceAt(inserts, pos); }
+        function toShown(pos) { return pos < 0 ? pos : Score.shownAt(inserts, pos); }
         /** Un geste d'édition : sur une seule piste, il est fait sur elle puis RAPPORTÉ dans la
          *  partition entière (`WamaScore.mergeTrack`) — un seul geste, Ctrl+Z l'annule. */
         function edit(fn) {
@@ -264,7 +281,9 @@
         }
 
         function exportAs(kind) {
-            var abc = text();
+            // La partition MONTRÉE : la piste choisie, ses paroles sous les notes (2026-11-08,
+            // Fabien : « pouvoir l'exporter avec la chanson »).
+            var abc = shown || text();
             if (!abc.trim()) { ctx.status('Rien à exporter : la partition est vide.', 'error'); return; }
             if (kind === 'abc') { download(abc, 'text/vnd.abc;charset=utf-8', baseName() + '.abc'); return; }
             if (kind === 'mid') {
@@ -330,9 +349,14 @@
         function render() {
             pending = null;
             syncTracks();
-            var abc = text();
+            var base = text();
+            var sung = lyricsData();
+            var placed = sung ? Score.withLyrics(base, sung) : { abc: base, inserts: [] };
+            var abc = placed.abc;
             if (abc === rendered) return;
             rendered = abc;
+            shown = abc;
+            inserts = placed.inserts;
             var top = body.scrollTop;
             lit = [];
             timings = [];
@@ -414,11 +438,15 @@
             if (!abcelem || abcelem.startChar == null) return;
             // abcjs donne le focus à la note APRÈS nous avoir prévenus : on le reprend ensuite.
             setTimeout(focusBrick, 0);
+            // Les positions d'abcjs sont celles du texte GRAVÉ (paroles comprises) : ramenées au
+            // texte édité, que les gestes réécrivent.
+            var start = toSource(abcelem.startChar), end = toSource(abcelem.endChar);
+            if (start < 0) return;
             if (drag && drag.step && editable()) {
-                transpose(abcelem.startChar, abcelem.endChar, drag.step);
+                transpose(start, end, drag.step);
                 return;
             }
-            selection = { start: abcelem.startChar, end: abcelem.endChar };
+            selection = { start: start, end: end };
             highlight();
             var ms = Score.eventTime(timings, abcelem.startChar);
             if (ms != null && axis) axis.seek(axisSeconds(ms));
@@ -427,7 +455,8 @@
         /** La note choisie, surlignée par abcjs (`rangeHighlight`) — refait après chaque gravure. */
         function highlight() {
             if (!tune || !tune.engraver || !tune.engraver.rangeHighlight) return;
-            try { tune.engraver.rangeHighlight(selection ? selection.start : -1, selection ? selection.end : -1); }
+            try { tune.engraver.rangeHighlight(selection ? toShown(selection.start) : -1,
+                                               selection ? toShown(selection.end) : -1); }
             catch (e) { /* gravure en cours de remplacement */ }
         }
 
@@ -487,7 +516,8 @@
         // Un rendu refait (« Appliquer ») est un autre audio : sa grille se redemande — et une
         // partition LUE (lecture seule) a pu être réécrite par son process.
         ctx.on('redone', function () { grid = null; realign(); loadGrid(); if (readOnly()) schedule(); });
-        ctx.on('processes', function () { if (readOnly() && text() !== rendered) schedule(); });
+        // Une écoute qui finit apporte ses paroles (`options.lyrics`) : la vue se regrave avec elles.
+        ctx.on('processes', function () { if (readOnly() || options.lyrics) schedule(); });
         // Annuler / rétablir peut rendre un texte où la note choisie n'est plus à sa place.
         ctx.on('change', function () { if (selection && selection.end > text().length) selection = null; });
 

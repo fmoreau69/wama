@@ -725,8 +725,15 @@ class AppPipeline:
         `work_audio`) — coupé, l'aval lit l'original, la règle d'`upstream_output`. Mesuré le
         jour même sur les dix apps : sans cette précision, couper la lecture des pages scannées
         aurait retiré la détection et l'occultation du texte. Seul un LIEN entre étapes (la
-        `native` que lit la sortie, l'`audio` rendu que lit la partition de sortie) prive."""
-        required = [port for port in self._ports(spec)[0] if not port.optional]
+        `native` que lit la sortie, l'`audio` rendu que lit la partition de sortie) prive.
+
+        Et un port qui EST une entrée de la card (son nom au vocabulaire commun des entrées,
+        `app_modes.INPUT_TYPES` : `prompt`, `work_audio`…) n'est jamais privé non plus : la card le
+        fournit. Vécu le 2026-11-08 : les paroles de l'entrée, une case, alimentent la consigne de
+        « Écrire les paroles » — décochées, l'étape se serait crue sans consigne."""
+        from wama.common.utils.app_modes import INPUT_TYPES
+        required = [port for port in self._ports(spec)[0]
+                    if not port.optional and port.key not in INPUT_TYPES]
         if not required:
             return False
         upstreams = [self._by_key[key] for key in self.read_upstreams(spec, item)]

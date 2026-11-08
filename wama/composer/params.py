@@ -74,12 +74,18 @@ PARAMS = [
     # sans en donner, et éditables ici. Masquées en instrumental (elles ne seraient pas chantées).
     Param(name="lyrics", type="textarea", label="Paroles", icon="fa-music",
           help="Paroles chantées, en sections balisées ([Verse], [Chorus]…). Laissées vides, elles "
-               "se remplissent seules : écoutées dans le morceau repris (cover), écrites si vous "
-               "demandez une chanson, ou écoutées dans le morceau produit quand le modèle a chanté "
-               "de lui-même. À relire ; modifiez-les puis relancez. Des paroles écrites dans le "
-               "prompt, sous la description, priment.",
+               "se remplissent seules : écoutées dans le morceau repris (cover), écrites au "
+               "lancement si vous demandez une chanson (étape « Écrire les paroles »), ou écoutées "
+               "dans le morceau produit (« Paroles chantées »). « Écrire les paroles » les écrit "
+               "tout de suite, à la longueur du morceau, pour les relire avant de lancer. Des "
+               "paroles écrites dans le prompt, sous la description, priment.",
           show_if={"field": "vocals", "in": [VOCALS_AUTO, VOCALS_SONG]},
           cap_from=SINGS_BINDING,
+          # Le bouton « Écrire les paroles » (2026-11-08, décision de Fabien) : la même fonction que
+          # l'étape `write_lyrics` (`write_lyrics_for`), sur la description, la durée et le modèle
+          # de CE formulaire.
+          write_from={"app": "composer", "target": "prompt", "source": "prompt",
+                      "duration": "duration", "model": "model", "label": "Écrire les paroles"},
           dom_id={"item": "settingsLyrics"}, contexts=("item",), stales=("plan", "render")),
     # Curseur rapide/qualité commun (chantier C, 2026-09-20) : visible sur les « auto », lu au
     # LANCEMENT par le tirage (`resolve_auto_model` → `item=gen`). Rendu par le renderer commun
@@ -185,9 +191,28 @@ PARAMS = [
           dom_id={"panel": "partsModel", "item": "settingsPartsModel",
                   "batch": "batchSettingsPartsModel"},
           contexts=PANEL_ITEM_BATCH, stales=("parts", "rendered_parts")),
+    # LES PAROLES ÉCOUTÉES, le même geste en entrée et en sortie (2026-11-08, décision de Fabien) :
+    # les cases des deux process d'écoute. Chacun range ses paroles horodatées au mot, que la page de
+    # la partition montre sous les notes ; le champ « Paroles » n'est rempli que s'il est vide.
+    Param(name="extract_input_lyrics", type="toggle", label="Paroles de l'entrée",
+          icon="fa-microphone-lines", default=True,
+          help="Écoute les paroles du morceau repris (cover) : posées sous les notes de la partition "
+               "de référence, et dans le champ « Paroles » s'il est vide.",
+          dom_id={"panel": "extractInputLyrics", "item": "settingsExtractInputLyrics",
+                  "batch": "batchSettingsExtractInputLyrics"},
+          contexts=PANEL_ITEM_BATCH, stales=("extract_lyrics",)),
+    Param(name="extract_rendered_lyrics", type="toggle", label="Paroles chantées",
+          icon="fa-microphone-lines",
+          help="Après le rendu, écoute ce que le modèle a chanté : posé sous les notes de la "
+               "partition jouée, pour comparer avec ce qui était demandé — et dans le champ "
+               "« Paroles » s'il est resté vide.",
+          dom_id={"panel": "extractRenderedLyrics", "item": "settingsExtractRenderedLyrics",
+                  "batch": "batchSettingsExtractRenderedLyrics"},
+          contexts=PANEL_ITEM_BATCH, stales=("rendered_lyrics",)),
     # Le MODÈLE qui écoute les PAROLES (2026-11-03, décision de Fabien : les récupérer d'une chanson
     # et les poser dans le champ « Paroles ») : le même patron. Son tirage est propre au chant
-    # (`LYRICS_RESOLUTION`, mesuré). Pas d'interrupteur : la voix « Instrumental » écarte ces process.
+    # (`LYRICS_RESOLUTION`, mesuré : Qwen3-ASR entend le chant, Whisper invente — revu le 2026-11-08,
+    # gardé). Qwen3-ASR ne date pas les mots : l'aligneur du catalogue les recale.
     Param(name="lyrics_model", type="select", label="Modèle d'écoute des paroles",
           icon="fa-microphone",
           options_source="catalog",
@@ -196,8 +221,8 @@ PARAMS = [
           options_resolution=LYRICS_RESOLUTION,
           help_source="composer",
           help_fallback={"auto": "Choisi au lancement : Qwen3-ASR d'abord, qui entend le chant là où "
-                                 "Whisper invente, puis selon la mémoire GPU libre. Écoute les "
-                                 "paroles quand le champ « Paroles » est vide."},
+                                 "Whisper invente, puis selon la mémoire GPU libre ; l'heure de "
+                                 "chaque mot vient ensuite de l'aligneur."},
           default="auto",
           dom_id={"panel": "lyricsModel", "item": "settingsLyricsModel",
                   "batch": "batchSettingsLyricsModel"},

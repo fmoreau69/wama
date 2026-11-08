@@ -97,26 +97,27 @@ def _lyrics_available() -> bool:
     return lyrics_transcription_available()
 
 
-def _lyrics_missing(gen, model_key) -> bool:
-    """Aucune parole n'est là : ni sur la card, ni dans le prompt. Des paroles posées ne se
-    réécrivent JAMAIS : c'est ce qui garde une correction. La voix « Instrumental » écarte tout :
-    c'est l'interrupteur de ces process. Que le modèle CHANTE est une capacité, déclarée en donnée
-    (`needs=SINGS`, 2026-11-05) — elle ne se juge plus ici."""
-    if not model_key or str(getattr(gen, 'lyrics', '') or '').strip():
+def _lyrics_to_write(gen, model_key) -> bool:
+    """« Écrire les paroles » (2026-11-08, décision de Fabien : une ÉTAPE, plus une écriture cachée
+    dans la lecture de la consigne) : la voix « Chanson » est demandée et aucune parole n'est là —
+    ni sur la card, ni dans le prompt. Des paroles posées ne se réécrivent JAMAIS. Que le modèle
+    CHANTE est une capacité (`needs=SINGS`). Celles qu'on écoute dans un morceau repris arrivent
+    avant (`extract_lyrics`) : l'étape ne fait alors rien, et le dit."""
+    if str(getattr(gen, 'lyrics', '') or '').strip():
         return False
     from wama.common.backends.music_generation_base import tagged_lyrics
     from .utils import vocals
-    if vocals.normalize(getattr(gen, 'vocals', None)) == vocals.INSTRUMENTAL:
+    if vocals.normalize(getattr(gen, 'vocals', None)) != vocals.SONG:
         return False
     return not tagged_lyrics(getattr(gen, 'prompt', '') or '')[1]
 
 
 def _lyrics_extract_applies(gen, model_key) -> bool:
     """Les paroles de l'ENTRÉE : il faut un audio repris — fichier, ou URL qui le remplira au
-    lancement (`_parts_applies`, la même entrée)."""
-    if not (getattr(gen, 'melody_reference', None) or getattr(gen, 'source_url', '')):
-        return False
-    return _lyrics_missing(gen, model_key)
+    lancement (`_parts_applies`, la même entrée). Depuis le 2026-11-08 l'écoute a lieu même quand
+    le champ « Paroles » est rempli : elle range les paroles HORODATÉES que la partition montre sous
+    ses notes ; le champ, lui, n'est rempli que s'il est vide."""
+    return bool(getattr(gen, 'melody_reference', None) or getattr(gen, 'source_url', ''))
 
 
 register(FunctionSpec(
@@ -166,10 +167,10 @@ register(FunctionSpec(
 
 register(FunctionSpec(
     key='composer.extract_lyrics', name="Composer — paroles de l'entrée",
-    description="Écoute les paroles du morceau à reprendre (cover) et les pose dans le champ « Paroles » "
-                "de la card, en sections calées sur la partition : YuE2 ne reçoit ni l'audio ni son "
-                "texte, et sa doc prescrit cette transcription. Seulement si le champ est vide et que "
-                "le modèle chante ; à relire.",
+    description="Écoute les paroles du morceau à reprendre (cover) et en range les paroles horodatées "
+                "au mot, que la partition de référence montre sous ses notes ; remplit le champ "
+                "« Paroles », en sections calées sur la partition, s'il est vide : YuE2 ne reçoit ni "
+                "l'audio ni son texte, et sa doc prescrit cette transcription. À relire.",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['audio', 'music', 'gpu'],
     inputs=[PortSpec('work_audio', 'audio', group='travail',
@@ -180,10 +181,21 @@ register(FunctionSpec(
     outputs=[PortSpec('lyrics', 'prompt', description="Les paroles entendues, en sections balisées.")]))
 
 register(FunctionSpec(
-    key='composer.rendered_lyrics', name='Composer — paroles de sortie',
-    description="Écoute ce que le modèle a chanté de lui-même et le pose dans le champ « Paroles » de la "
-                "card, à relire et rejouer : aucun moteur ne rend le texte qu'il improvise. Seulement "
-                "si le champ est resté vide.",
+    key='composer.write_lyrics', name='Composer — écrire les paroles',
+    description="Écrit les paroles d'une chanson (voix « Chanson » sans paroles) depuis sa consigne, "
+                "à la LONGUEUR du morceau, dans le champ « Paroles » — le même geste que le bouton "
+                "« Écrire les paroles » du réglage. Avant la partition composée : YuE2 bâtit la "
+                "structure de sa partition sur les sections des paroles.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['text', 'music', 'llm'],
+    inputs=[PortSpec('prompt', 'prompt', description="La consigne : ce dont la chanson parle.")],
+    outputs=[PortSpec('lyrics', 'prompt', description="Les paroles écrites, en sections balisées.")]))
+
+register(FunctionSpec(
+    key='composer.rendered_lyrics', name='Composer — paroles chantées',
+    description="Écoute ce que le modèle a CHANTÉ et en range les paroles horodatées au mot, que la "
+                "partition jouée montre sous ses notes, pour comparer avec ce qui était demandé ; "
+                "remplit le champ « Paroles » s'il est resté vide (un texte improvisé).",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['audio', 'music', 'gpu'],
     inputs=[PortSpec('audio', 'audio', description="Le morceau rendu.")],
@@ -283,16 +295,29 @@ PIPELINE = register_app_pipeline(_APP, (
                 applies=_parts_applies, available=_parts_available,
                 outputs=('parts_score',), eta='composer.tasks:parts_eta'),
     # Les PAROLES de l'entrée (2026-11-03, décision de Fabien) : après la partition, dont elles
-    # prennent les sections, avant ce qui les chante. Optionnel sans interrupteur : un morceau sans
-    # parole reconnue, ou une écoute qui échoue, ne retient pas le rendu. Le résultat est un RÉGLAGE
-    # de la card (`lyrics`, qui périme `plan` et `render`) : aucun fichier à déclarer.
+    # prennent les sections, avant ce qui les chante. Depuis le 2026-11-08 (« même comportement en
+    # entrée et en sortie ») : une case (`extract_input_lyrics`, cochée par défaut — l'écoute était
+    # automatique), une card de MUSIQUE suffit (pas un modèle qui chante : on peut ne vouloir que la
+    # partition et ses paroles), et elle RANGE ses paroles horodatées (`input_lyrics_timed`). Le
+    # champ « Paroles » n'est rempli que s'il est vide (il périme `plan` et `render`).
     ProcessSpec('extract_lyrics', label="Paroles de l'entrée", depends_on=('extract_score',),
-                watched=('melody_reference', 'source_url'),
-                degree=OPTIONAL, gpu=True, share=1, needs=SINGS, applies=_lyrics_extract_applies,
-                available=_lyrics_available, eta='composer.tasks:lyrics_eta'),
+                watched=('melody_reference', 'source_url'), toggle='extract_input_lyrics',
+                degree=OPTIONAL, gpu=True, share=1, needs=MAKES_MUSIC, applies=_lyrics_extract_applies,
+                available=_lyrics_available, outputs=('input_lyrics_timed',),
+                eta='composer.tasks:lyrics_eta'),
+    # ÉCRIRE LES PAROLES (2026-11-08, décision de Fabien) : une ÉTAPE, avant la partition composée —
+    # YuE2 bâtit la structure de sa partition sur les sections des paroles —, écrites à la LONGUEUR
+    # du morceau. C'était une écriture cachée au début du premier process qui lisait la consigne.
+    # Le même geste que le bouton du réglage « Paroles » (`write_lyrics_for`).
+    ProcessSpec('write_lyrics', label='Écrire les paroles', depends_on=('extract_lyrics',),
+                watched=_PROMPT_WATCHED, degree=OPTIONAL, share=1, needs=SINGS,
+                applies=_lyrics_to_write),
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
-    # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu.
-    ProcessSpec('plan', label='Partition', depends_on=('extract_lyrics',), watched=_PROMPT_WATCHED,
+    # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu. « Partition
+    # composée » (2026-11-08) : celle que le modèle écrit depuis la consigne, l'alternative de la
+    # partition réduite tirée d'un morceau repris.
+    ProcessSpec('plan', label='Partition composée', depends_on=('extract_lyrics', 'write_lyrics'),
+                watched=_PROMPT_WATCHED,
                 gpu=True, share=1, needs=PLANS_A_SCORE, applies=_plan_applies,
                 outputs=('planned_score',),
                 eta='composer.tasks:plan_eta'),
@@ -300,7 +325,8 @@ PIPELINE = register_app_pipeline(_APP, (
     # FACULTATIF depuis le 2026-11-07 (décision de Fabien) : coupé, ce qui ne lit que lui — la
     # sortie, la partition et les paroles de sortie — n'a plus lieu (`AppPipeline.starved`).
     # REQUIS quand il est activé : un rendu en échec fait échouer la card.
-    ProcessSpec('render', label='Rendu', depends_on=('extract_score', 'extract_lyrics', 'plan'),
+    ProcessSpec('render', label='Rendu',
+                depends_on=('extract_score', 'extract_lyrics', 'write_lyrics', 'plan'),
                 toggle='generate_audio',
                 watched=_RENDER_WATCHED, gpu=True, share=3, outputs=('audio_output',),
                 eta='composer.tasks:render_eta'),
@@ -310,15 +336,18 @@ PIPELINE = register_app_pipeline(_APP, (
     # sortie ») : optionnelle (`extract_rendered_parts`), une DÉRIVATION du rendu — à côté de la
     # sortie, pas après : elle lit l'audio du RENDU (`output_sources`), changer de format ne la
     # périme pas. Lue seulement, pour comparer ce qui a été demandé et ce qui a été joué.
-    ProcessSpec('rendered_parts', label='Partition de sortie', depends_on=('render',),
+    ProcessSpec('rendered_parts', label='Partition jouée', depends_on=('render',),
                 degree=OPTIONAL, toggle='extract_rendered_parts', gpu=True, share=2, needs=MAKES_MUSIC,
                 available=_parts_available, outputs=('rendered_parts_score',),
                 eta='composer.tasks:parts_eta'),
-    # Les PAROLES DE SORTIE (2026-11-03, décision de Fabien) : le modèle a chanté sans paroles
-    # données, ce qu'il a chanté rejoint le champ « Paroles ». Une DÉRIVATION du rendu, comme la
-    # partition de sortie ; écrire ce réglage ne le périme pas (`process_runs.settle_setting`).
-    ProcessSpec('rendered_lyrics', label='Paroles de sortie', depends_on=('render',),
-                degree=OPTIONAL, gpu=True, share=1, needs=SINGS, applies=_lyrics_missing,
-                available=_lyrics_available, eta='composer.tasks:lyrics_eta'),
+    # Les PAROLES CHANTÉES (2026-11-03 ; depuis le 2026-11-08, décision de Fabien : « toujours
+    # proposées », le MÊME geste qu'en entrée) : une case (`extract_rendered_lyrics`), elles rangent
+    # les paroles horodatées que la partition jouée montre sous ses notes — on compare ce qui était
+    # demandé et ce qui a été chanté — et remplissent le champ « Paroles » s'il est resté vide. Une
+    # DÉRIVATION du rendu ; écrire ce réglage ne le périme pas (`process_runs.settle_setting`).
+    ProcessSpec('rendered_lyrics', label='Paroles chantées', depends_on=('render',),
+                toggle='extract_rendered_lyrics', degree=OPTIONAL, gpu=True, share=1, needs=SINGS,
+                available=_lyrics_available, outputs=('rendered_lyrics_timed',),
+                eta='composer.tasks:lyrics_eta'),
 ), label='Composer — partition, rendu, sortie', source_ref='composer.function_specs:PIPELINE',
    model_of=lambda gen: _requested_model(gen))

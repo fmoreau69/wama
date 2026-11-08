@@ -126,7 +126,7 @@ class TheLanguageGoesFirstInTheStyleTest(SimpleTestCase):
     def test_lyrics_kept_on_the_card_carry_it_to_the_engine(self):
         with mock.patch.object(vocals, 'sings', return_value=True), \
                 mock.patch('wama.common.utils.text_language.detect_text_language', return_value='fr'):
-            out, _new = vocals.prepare_prompt('auto', 'folk', SCORE_MODEL, stored_lyrics=f'[Verse]\n{WORDS}')
+            out = vocals.prepare_prompt('auto', 'folk', SCORE_MODEL, stored_lyrics=f'[Verse]\n{WORDS}')
         self.assertEqual(f'French, folk\n\n[Verse]\n{WORDS}', out)
 
 
@@ -218,26 +218,48 @@ class LyricsProcessesTest(TestCase):
         self.assertEqual([EAR], self.unloaded)
 
     def test_lyrics_already_there_are_never_rewritten(self):
-        """C'est ce qui garde une correction de l'utilisateur."""
+        """C'est ce qui garde une correction de l'utilisateur. Depuis le 2026-11-08 l'entrée est
+        écoutée quand même : ses paroles HORODATÉES vont sous les notes de la partition."""
         gen = self._run(self._cover(lyrics='[Verse]\nmes paroles corrigées'))
         self.assertEqual('[Verse]\nmes paroles corrigées', gen.lyrics)
-        self.assertEqual([], self.listened)
+        self.assertEqual(['song.mp3'], [name for name, _ in self.listened])
+        self.assertTrue(gen.input_lyrics_timed.name.endswith('.json'))
 
     def test_lyrics_in_the_prompt_are_not_doubled(self):
         gen = self._run(self._cover(**{'prompt': 'folk\n\n[Verse]\nla mer'}))
         self.assertEqual('', gen.lyrics)
-        self.assertEqual([], self.listened)
 
-    def test_instrumental_is_the_off_switch(self):
+    def test_instrumental_does_not_fill_the_field(self):
+        """They would not be sung ; the timed lyrics of the input are still kept, for the score."""
         gen = self._run(self._cover(vocals=vocals.INSTRUMENTAL))
+        self.assertEqual('', gen.lyrics)
+        self.assertTrue(gen.input_lyrics_timed.name)
+
+    def test_the_switch_of_the_input_lyrics_is_the_off_switch(self):
+        """`extract_input_lyrics` (2026-11-08) : the same gesture as every step — a box."""
+        gen = self._run(self._cover(extract_input_lyrics=False))
         self.assertEqual(('', []), (gen.lyrics, self.listened))
 
-    def test_a_model_that_does_not_sing_listens_to_nothing(self):
-        """Who sings is the catalogue's word (`supports_vocals`, read by `ProcessSpec.needs`)."""
+    def test_the_input_lyrics_need_a_music_card_not_a_singer(self):
+        """2026-11-08 : the lyrics of a song can be wanted without rendering anything — the input
+        is listened to under a model that does not sing (`needs=MAKES_MUSIC`)."""
         from wama.composer.tests_pipeline import CATALOGUE
         catalogue_rows(**{SCORE_MODEL: {**CATALOGUE[SCORE_MODEL], 'supports_vocals': False}})
         gen = self._run(self._cover())
-        self.assertEqual(('', []), (gen.lyrics, self.listened))
+        self.assertEqual(['song.mp3'], [name for name, _ in self.listened])
+        self.assertTrue(gen.input_lyrics_timed.name)
+
+    def test_the_timed_lyrics_are_words_with_their_times(self):
+        """The common composition of the transcriber (`acoustic_alignment.timed_words`) : each word
+        of the segment, in its interval ; without an aligner in the catalogue, the estimate stays
+        and the file says why."""
+        import json
+        gen = self._run(self._cover())
+        data = json.loads((Path(self.tmp) / gen.input_lyrics_timed.name).read_text(encoding='utf-8'))
+        self.assertEqual(WORDS.split(), [w['word'] for w in data['words']])
+        self.assertTrue(all(0 <= w['start'] <= w['end'] <= 5 for w in data['words']))
+        self.assertEqual(('fr', 5.0), (data['language'], data['duration']))
+        self.assertIn('aligneur', data['note'])
 
     def test_a_song_without_words_leaves_the_field_empty_and_goes_on(self):
         self.heard = []
@@ -250,18 +272,31 @@ class LyricsProcessesTest(TestCase):
         gen = self._run(self._cover())
         self.assertEqual('SUCCESS', gen.status, 'optional: the render still plays')
         self.assertEqual(JOB_FAILURE, self._states(gen)['extract_lyrics'])
-        self.assertEqual([EAR, EAR], self.unloaded, 'released even on failure, on both processes')
+        self.assertEqual([EAR], self.unloaded, 'released even on failure')
 
     def test_what_the_model_sang_by_itself_reaches_the_field(self):
-        """Seconde demande : le modèle génère ses paroles lui-même, elles rejoignent le champ."""
-        gen = self._run(self._generation())
+        """Seconde demande : le modèle génère ses paroles lui-même, elles rejoignent le champ.
+        « Paroles chantées » est une case depuis le 2026-11-08 (toujours proposée)."""
+        gen = self._run(self._generation(extract_rendered_lyrics=True))
         self.assertEqual(f'[Verse]\n{WORDS}', gen.lyrics)
         self.assertEqual(JOB_SUCCESS, self._states(gen)['rendered_lyrics'])
         self.assertTrue(self.listened[0][0].endswith('.wav'), 'the RENDER is what is listened to')
+        self.assertTrue(gen.rendered_lyrics_timed.name, 'its timed words, for the played score')
+
+    def test_the_sung_lyrics_are_heard_even_when_lyrics_were_given_to_compare(self):
+        """2026-11-08, Fabien : « toujours proposées » — what was SUNG is compared with what was
+        asked : listened to even when the field holds lyrics, which are never rewritten."""
+        gen = self._run(self._generation(extract_rendered_lyrics=True, lyrics='[Verse]\ndemandées'))
+        self.assertEqual('[Verse]\ndemandées', gen.lyrics)
+        self.assertTrue(gen.rendered_lyrics_timed.name)
+
+    def test_unticked_the_sung_lyrics_are_not_listened_to(self):
+        gen = self._run(self._generation())
+        self.assertEqual(([], ''), (self.listened, gen.lyrics))
 
     def test_writing_them_does_not_stale_the_render_they_come_from(self):
         """Sans cela la card serait « périmée » par ses propres paroles, et ▶ rejouerait le morceau."""
-        gen = self._run(self._generation())
+        gen = self._run(self._generation(extract_rendered_lyrics=True))
         patches = self._patches()
         for patch in patches:
             patch.start()
@@ -281,7 +316,11 @@ class LyricsProcessesTest(TestCase):
         try:
             with mock.patch('wama.common.utils.media_probe.probe_media', return_value={'duration': 12.0}), \
                     mock.patch.object(tasks, '_score_sections', return_value=SECTIONS):
-                got = tasks._heard_lyrics(self._cover(), mock.Mock(ensure_model=lambda key: key), 'song.mp3', score='s.abc')
+                place = str(Path(self.tmp) / 'lyrics.json')
+                ctx = mock.Mock(ensure_model=lambda key: key,
+                                output_place=lambda ext, **kw: ('lyrics.json', place))
+                got = tasks._heard_lyrics(self._cover(), ctx, 'song.mp3', score='s.abc',
+                                          field='input_lyrics_timed')
         finally:
             for patch in patches:
                 patch.stop()
@@ -292,11 +331,19 @@ class LyricsProcessesTest(TestCase):
         self.assertEqual(['song.mp3'], [name for name, _kwargs in self.listened])
 
     def test_lyrics_written_by_the_llm_are_kept_and_nothing_is_listened_to(self):
-        """« Chanson » sans paroles : déjà gardées sur la card par `prepare_prompt`."""
+        """« Chanson » sans paroles : écrites par l'étape « Écrire les paroles » (2026-11-08)."""
         with mock.patch('wama.common.utils.app_metadata.write_lyrics_for', return_value='[Verse]\nécrites'):
             gen = self._run(self._generation(vocals=vocals.SONG))
         self.assertEqual('[Verse]\nécrites', gen.lyrics)
         self.assertEqual([], self.listened)
+
+    def test_unticked_input_lyrics_do_not_starve_the_writing_of_its_prompt(self):
+        """The prompt is a card entry (`app_modes.INPUT_TYPES`) : the box of the input lyrics, cut,
+        never leaves « Écrire les paroles » without its instruction (2026-11-08)."""
+        with mock.patch('wama.common.utils.app_metadata.write_lyrics_for', return_value='[Verse]\nécrites'):
+            gen = self._run(self._generation(vocals=vocals.SONG, extract_input_lyrics=False))
+        self.assertEqual('[Verse]\nécrites', gen.lyrics)
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['write_lyrics'])
 
 
 class TheSettingIsDeclaredLikeItsSiblingsTest(SimpleTestCase):

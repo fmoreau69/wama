@@ -53,24 +53,9 @@ def singing_models(task) -> list:
     return candidates_with(CAPABILITY, True, capabilities__task=task)
 
 
-def lyrics_language(model_key, user) -> str:
-    """La langue des paroles à ÉCRIRE : celle du profil si le modèle la chante, sinon l'anglais
-    s'il le chante, sinon sa première langue déclarée."""
-    from wama.common.utils.lang_routing import model_languages
-    from wama.common.utils.prompt_pipeline import _user_lang
-    caps, mtype = None, None
-    try:
-        from wama.model_manager.models import AIModel
-        row = AIModel.objects.filter(model_key=model_key).only('capabilities', 'model_type').first()
-        if row:
-            caps, mtype = row.capabilities, row.model_type
-    except Exception:
-        pass
-    langs = model_languages(caps, mtype)
-    mine = _user_lang(user)
-    if '*' in langs or mine in langs:
-        return mine
-    return 'en' if 'en' in langs else next((lang for lang in langs if lang != '*'), 'en')
+#: La langue des paroles à écrire — remontée au commun le 2026-11-08 (le bouton du réglage et
+#: l'étape du pipeline posent la même question). Réexportée ici pour ses appelants.
+from wama.common.utils.app_metadata import lyrics_language  # noqa: E402,F401
 
 
 def as_lyrics(text) -> str:
@@ -82,14 +67,15 @@ def as_lyrics(text) -> str:
     return text if text.lstrip().startswith('[') else f"[Verse]\n{text}"
 
 
-def prepare_prompt(mode, text, model_key, *, stored_lyrics='', user=None, console=None):
-    """Le prompt de CE lancement selon la voix voulue et le modèle qui le joue → `(texte, écrites)`.
+def prepare_prompt(mode, text, model_key, *, stored_lyrics='', user=None, console=None) -> str:
+    """Le prompt de CE lancement selon la voix voulue et le modèle qui le joue.
 
     Les paroles viennent du prompt (balisées sous la description — elles priment), sinon de la
-    card (`lyrics`), sinon, si la voix « Chanson » est demandée, elles sont ÉCRITES : rendues en
-    second pour que l'appelant les PERSISTE sur la card (relues, corrigées, rejouées). Le texte
-    rendu va à la pipeline, qui traduit/enrichit la description et garde les paroles telles
-    quelles. Ne lève jamais : faute de paroles écrites, la pièce reste instrumentale, et c'est dit."""
+    card (`lyrics`). Le texte rendu va à la pipeline, qui traduit/enrichit la description et garde
+    les paroles telles quelles. Ne lève jamais.
+    ⚠ Elles ne s'ÉCRIVENT plus ici (2026-11-08, décision de Fabien) : c'est l'étape « Écrire les
+    paroles » (`write_lyrics`), visible sur la card et AVANT la partition composée, ou le bouton du
+    réglage. « Chanson » sans paroles ici = cette étape n'a rien écrit : instrumental, et c'est dit."""
     from wama.common.backends.music_generation_base import tagged_lyrics
     say = console or (lambda *a, **k: None)
     caption, lyrics = tagged_lyrics(text or '')
@@ -102,28 +88,22 @@ def prepare_prompt(mode, text, model_key, *, stored_lyrics='', user=None, consol
     if not wants_vocals(mode, text, stored):
         if lyrics:
             say("🎼 Voix : instrumental — les paroles ne sont pas chantées.")
-            return caption, ''
-        return text, ''
+            return caption
+        return text
     if not sings(model_key):
         from .model_choice import label_of
         name = label_of(model_key)
         if lyrics:
             say(f"🎤 {name} ne chante pas : les paroles sont ignorées, le morceau est instrumental "
                 f"(choisir un modèle qui chante, ou « auto »).")
-            return caption, ''
+            return caption
         say(f"🎤 {name} ne chante pas : le morceau est instrumental.")
-        return text, ''
+        return text
     if lyrics:
-        return (text if from_prompt else _with(sung_in(caption, lyrics), lyrics)), ''
-    language = lyrics_language(model_key, user)
-    from wama.common.utils.app_metadata import write_lyrics_for
-    written = write_lyrics_for('composer', 'prompt', caption, language=language, user=user)
-    if not written:
-        say("⚠️ Paroles non écrites (LLM local indisponible) : le morceau est instrumental.")
-        return text, ''
-    say(f"✍️ Paroles écrites en « {language} », gardées sur la card (Paramètres ⚙ → Paroles, "
-        f"pour les corriger avant de relancer) :\n{written}")
-    return _with(caption, written), written
+        return text if from_prompt else _with(sung_in(caption, lyrics), lyrics)
+    say("⚠️ Chanson demandée sans paroles (l'étape « Écrire les paroles » n'en a pas écrit) : le "
+        "morceau est instrumental.")
+    return text
 
 
 def sung_in(caption, lyrics) -> str:

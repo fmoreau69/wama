@@ -529,7 +529,7 @@ class TheCardShowsItsProcessesTest(TestCase):
         self.assertRegex(html, r'wcv3-proc-toggle"[^>]*data-toggle-field="extract_rendered_parts"'
                                r'[^>]*data-settings-url="' + reverse('composer:update_settings',
                                                                      args=[gen.pk]) + '"')
-        self.assertIn('Partition de sortie', html)
+        self.assertIn('Partition jouée', html)   # « de sortie » jusqu'au 2026-11-08
 
     def test_a_single_step_model_shows_the_render_then_the_output_and_no_score(self):
         gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
@@ -701,6 +701,7 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertEqual('media', manifest['world'])
         self.assertEqual([('extract_score', 'composer.extract_score'), ('parts', 'composer.parts'),
                           ('extract_lyrics', 'composer.extract_lyrics'),
+                          ('write_lyrics', 'composer.write_lyrics'),
                           ('plan', 'composer.plan'), ('render', 'composer.render'),
                           ('output', 'composer.output'),
                           ('rendered_parts', 'composer.rendered_parts'),
@@ -712,7 +713,10 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         # The lyrics of the input (2026-11-03) take the sections of the score and feed what sings
         # them ; those of the output are a branch of the render.
         links = {(link['from'], link['to']) for link in manifest['body']['links']}
+        # The written lyrics (2026-11-08) come after the heard ones and before the composed score.
         self.assertEqual({('extract_score', 'extract_lyrics'), ('extract_lyrics', 'plan'),
+                          ('extract_lyrics', 'write_lyrics'), ('write_lyrics', 'plan'),
+                          ('write_lyrics', 'render'),
                           ('extract_score', 'render'), ('extract_lyrics', 'render'), ('plan', 'render'),
                           ('render', 'output'), ('render', 'rendered_parts'), ('render', 'rendered_lyrics')},
                          links)
@@ -722,8 +726,8 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertIn('composer', _pipeline_keys())
 
     def test_the_task_has_a_glue_for_every_process(self):
-        self.assertEqual({'extract_score', 'extract_lyrics', 'plan', 'render', 'output', 'parts',
-                          'rendered_parts', 'rendered_lyrics'},
+        self.assertEqual({'extract_score', 'extract_lyrics', 'write_lyrics', 'plan', 'render',
+                          'output', 'parts', 'rendered_parts', 'rendered_lyrics'},
                          {spec.key for spec in PIPELINE.specs})
         for spec in PIPELINE.specs:
             self.assertTrue(callable(getattr(tasks, f'_{spec.key}')), spec.key)

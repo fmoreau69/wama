@@ -328,8 +328,15 @@
   }, { labelIsBlock: true });
 
   registerRenderer('textarea', function (p, api) {
+    // Un champ que le LLM sait ÉCRIRE (`write_from`, 2026-11-08) : son bouton sous lui — la même
+    // fonction que l'étape du pipeline qui l'écrit au lancement (`_bindWriteFrom`).
+    const write = p.write_from
+      ? '<button type="button" class="btn btn-sm btn-outline-secondary mt-1 wama-write-from"' +
+        ' data-write-for="' + esc(api.id) + '" data-write-from="' + esc(JSON.stringify(p.write_from)) +
+        '"><i class="fas fa-pen-nib me-1"></i>' + esc(p.write_from.label || 'Écrire') + '</button>'
+      : '';
     return '<textarea class="form-control form-control-sm" id="' + api.id + '" ' + api.idAttr +
-      ' rows="2">' + esc(api.value) + '</textarea>';
+      ' rows="2">' + esc(api.value) + '</textarea>' + write;
   });
 
   // L'UNITÉ déclarée se lit à côté de la valeur (2026-10-12) : un champ nombre la taisait — seul
@@ -1063,6 +1070,7 @@
     _bindCapFrom(container, schema, ctx);
     _bindProcessNeeds(container, schema, ctx);
     _bindProcessSwitches(container);
+    _bindWriteFrom(container);
     _bindDefaultFrom(container, schema, ctx);
     _bindOptionSources(container, schema, ctx, null, values);
     _avertirSourcesNonResolues(container, params, ctx);
@@ -2167,6 +2175,51 @@
       input.addEventListener('change', function (e) { sync(!!(e && e.isTrusted)); });
       (container._wpCapApply = container._wpCapApply || []).push(function () { sync(false); });
       sync(false);
+    });
+  }
+
+  // « ✍️ Écrire … » sous un champ qui le DÉCLARE (`Param.write_from`, 2026-11-08) : la description
+  // (`source`), la durée (`duration`) et le modèle (`model`) de CE rendu partent à la route commune
+  // (`common:api_write_lyrics`, la fonction de l'étape du pipeline) ; le texte rendu remplit le champ,
+  // à relire et enregistrer comme une saisie. Un seul écouteur délégué par conteneur.
+  var WRITE_ENDPOINT = '/common/api/write-lyrics/';
+
+  function _bindWriteFrom(container) {
+    if (!container || container._wpWriteBound || !container.addEventListener) return;
+    container._wpWriteBound = true;
+    function valueOf(name) {
+      if (!name) return '';
+      var el = container.querySelector('[name="' + name + '"], [data-param="' + name + '"]');
+      return el ? el.value : '';
+    }
+    container.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.wama-write-from') : null;
+      if (!btn || btn.disabled) return;
+      var field = container.querySelector('#' + CSS.escape(btn.getAttribute('data-write-for')));
+      var cfg = JSON.parse(btn.getAttribute('data-write-from') || '{}');
+      if (!field) return;
+      var App = global.WamaApp || {};
+      var token = App.csrfToken ? App.csrfToken() : '';
+      var label = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Écriture…';
+      fetch(WRITE_ENDPOINT, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token },
+        body: JSON.stringify({ app: cfg.app || '', target: cfg.target || '',
+                               description: valueOf(cfg.source), duration: valueOf(cfg.duration),
+                               model: valueOf(cfg.model) })
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        if (res && res.lyrics) {
+          field.value = res.lyrics;
+          field.dispatchEvent(new Event('input', { bubbles: true }));
+          field.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if (App.toast) {
+          App.toast((res && res.error) || 'Paroles non écrites.', 'warning');
+        }
+      }).catch(function () {
+        if (App.toast) App.toast('Paroles non écrites : le serveur ne répond pas.', 'warning');
+      }).then(function () { btn.disabled = false; btn.innerHTML = label; });
     });
   }
 

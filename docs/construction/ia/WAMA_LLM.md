@@ -220,7 +220,15 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   `auto` (chanté si le prompt porte des paroles balisées), `instrumental` (paroles retirées),
   `song` (chanté ; sans paroles fournies, elles sont **écrites** — `write_lyrics_for`, skill
   `composer-lyrics`, dans une langue que le modèle chante : celle du profil, sinon l'anglais).
-  C'est le SEUL chemin où un LLM écrit des paroles, et il faut le demander. Qui chante : la
+  C'est le SEUL chemin où un LLM écrit des paroles, et il faut le demander. **Depuis le
+  2026-11-08 (décision de Fabien), deux gestes sur la MÊME fonction** : l'étape « Écrire les
+  paroles » du pipeline (`composer.write_lyrics`, OPTIONNELLE, entre l'écoute de l'entrée et la
+  partition composée — elle n'a lieu qu'en « Chanson », sans paroles sur la card ni dans le prompt),
+  et le bouton « Écrire les paroles » sous le champ, dans la modale ⚙ (`Param.write_from`, rendu par
+  `WamaParams`, route commune `common:write_lyrics`) : il remplit le champ à l'écran, l'utilisateur
+  relit et enregistre. Les deux passent la **durée** du morceau au LLM (« Length of the song »,
+  `write_lyrics_for(duration=…)`) et la langue que le modèle chante (`app_metadata.lyrics_language`).
+  La lecture de la consigne (`vocals.prepare_prompt`) n'écrit plus rien. Qui chante : la
   capacité `supports_vocals` du MODÈLE, déclarée par son manifeste (YuE2, MiniMax-Music3 ; ACE-Step
   aussi depuis le 2026-10-05, mais sans backend musical il est dit inlançable — contrat de tâche
   `text-to-music` devenu LIANT le même jour —, donc ni tiré ni proposé sans grisage) ; « Chanson »
@@ -240,12 +248,24 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   dans le champ `lyrics`). Un cover par YuE2 ne recevait ni texte ni langue : `SongRequest` n'a pas
   d'audio (`vendor/yue/src/yue2/protocol.py`), SheetSage2 ne rend que des notes, et le composer
   envoyait `[instrumental]`. La doc du moteur prescrit cette transcription
-  (`vendor/yue/docs/covers.md`). Deux process du pipeline, sans interrupteur : ils n'ont lieu que si
-  le champ est vide, que le prompt n'a pas de paroles et que le modèle chante ; la voix
-  « Instrumental » les écarte. `extract_lyrics` écoute l'entrée, avant ce qui chante ;
-  `rendered_lyrics` écoute ce que le modèle a chanté de lui-même, sans périmer ce qu'il a produit
-  (`process_runs.settle_setting`). **Ils ne réécrivent jamais des paroles posées**, ce qui garde une
-  correction. Modèle : `lyrics_model` (auto + curseur + manuel). **Tirage propre au chant, l'inverse
+  (`vendor/yue/docs/covers.md`). Deux process du pipeline. ~~Sans interrupteur, ils n'avaient lieu
+  que si le champ était vide~~ — **depuis le 2026-11-08, chacun sa case** : `extract_input_lyrics`
+  (« Paroles de l'entrée », cochée par défaut, sous une card de MUSIQUE — `needs=MAKES_MUSIC`, un
+  modèle qui ne chante pas peut vouloir les paroles d'une chanson) et `extract_rendered_lyrics`
+  (« Paroles chantées », décochée, TOUJOURS proposée sous un modèle qui chante : c'est elle qui
+  donne la partition jouée complète avec ses paroles, à exporter avec la chanson). Ils écoutent
+  même quand le champ est rempli, et rangent des **paroles HORODATÉES au mot** (`input_lyrics_timed`,
+  `rendered_lyrics_timed`, JSON `{words, language, duration, aligner, alignment, note}`) :
+  la composition du transcriber, `acoustic_alignment.timed_words` — les mots d'un segment répartis
+  dans son intervalle (`word_anchoring.turn_words`), puis réécoutés par l'aligneur du catalogue
+  (`refine`) ; sans aligneur pour la langue, l'estimation reste et le fichier le dit. La partition
+  les montre sous les notes de la voix chantée (`WamaScore.withLyrics`, la piste dont le nom dit
+  voix/chant — jamais une piste seule par défaut) : « Partition de référence » ← paroles de l'entrée,
+  « Partition jouée » ← paroles chantées. `extract_lyrics` écoute l'entrée, avant ce qui chante ;
+  `rendered_lyrics` écoute ce que le modèle a chanté, sans périmer ce qu'il a produit
+  (`process_runs.settle_setting`). **Ils ne réécrivent jamais des paroles posées** — le CHAMP ne se
+  remplit que vide, hors « Instrumental » et sans paroles dans le prompt (`tasks._lyrics_field_open`),
+  ce qui garde une correction. Modèle : `lyrics_model` (auto + curseur + manuel). **Tirage propre au chant, l'inverse
   de la parole : Qwen3-ASR d'abord.** Mesuré sur 3 vrais morceaux avec instruments, sans séparation
   de voix : Whisper large-v3 invente en boucle (« Thank you for watching! », 48 mots dont 4 distincts)
   et n'entend rien avec son filtre de parole ; Qwen3-ASR 1.7B rend des paroles (235 mots dont 142
@@ -253,7 +273,11 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   (`lyrics.enough_heard`). Sections : le lecteur DU MOTEUR (`YuE2Backend.score_sections` →
   `abc_tools`, accepte les 12 partitions du lot mesuré), une section où la voix se tait ne reçoit
   rien ; une phrase s'y place au prorata de son segment, Qwen3-ASR ne donnant pas le temps des mots :
-  une estimation. Langue : en tête du style (`vocals.sung_in`, `generation.md`).
+  une estimation — que l'aligneur du catalogue corrige depuis le 2026-11-08 pour les paroles
+  horodatées (ci-dessus). **Le tirage Qwen3-ASR est GARDÉ** (revu le 2026-11-08 avec Fabien) : il est
+  mesuré, Whisper ne l'est pas sur du chant ; Whisper donnerait des heures de mots, mais sur des mots
+  inventés — l'aligneur donne les heures aux mots ENTENDUS. Langue : en tête du style
+  (`vocals.sung_in`, `generation.md`).
   ⏳ **Non mesuré** : la justesse mot à mot (relire dans ⚙), et YuE2 chantant en français (catalogue :
   `zh`, `en`). `demucs` est dans le venv par audiocraft, sans poids ni ligne de catalogue : la
   séparation de voix n'a pas été nécessaire, et passerait par la route si elle le devenait.

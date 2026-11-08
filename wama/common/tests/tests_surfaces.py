@@ -780,6 +780,46 @@ class ScoreRulesTest(SimpleTestCase):
         unchanged = self._call('mergeTrack(%s, ["D1"], %s)' % (json.dumps(self.FULL), json.dumps(drums)))
         self.assertEqual(self.FULL, unchanged, 'counter-proof : no gesture, the score is identical')
 
+    def _lyrics(self, abc, words, duration=0):
+        return self._call('withLyrics(%s, %s)' % (json.dumps(abc), json.dumps(
+            {'words': [{'word': w, 'start': s, 'end': s + 0.2} for w, s in words],
+             'duration': duration})))
+
+    def test_the_heard_words_go_under_the_notes_of_the_singing_voice(self):
+        """2026-11-08, Fabien : « afficher les paroles sur la partition réduite, la partition
+        complète et la piste de chant ». At Q:1/4=60 and L:1/16, each quarter note (`c4`) lasts
+        1 s : a word starting at 2.1 s goes to the THIRD note ; the drums and the piano get none."""
+        got = self._lyrics(self.FULL, [('la', 0.05), ('mer', 1.0), ('revient', 2.1)])
+        lines = got['abc'].split('\n')
+        sung = lines.index('V:I2')
+        # The voice : e8 d8 | then c16 | — two halves, then a whole bar, at 96 BPM (Q:1/4=96).
+        self.assertTrue(lines[sung + 2].startswith('w: '), lines[sung:sung + 3])
+        self.assertNotIn('w:', '\n'.join(lines[lines.index('V:D1'):lines.index('V:D1') + 3]))
+        self.assertEqual(sum(1 for line in lines if line.startswith('w:')), len(got['inserts']))
+
+    def test_a_reduced_score_places_each_word_under_the_note_it_starts_on(self):
+        reduced = 'X:1\nM:4/4\nL:1/16\nQ:1/4=60\nV: Vocal clef=treble name="Vocal"\nK:C\nV: Vocal\nc4 d4 e4 f4|\n'
+        got = self._lyrics(reduced, [('la', 0.05), ('mer', 1.0), ('re-vient', 2.1)])
+        self.assertIn('w: la mer re\\-vient *\n', got['abc'])
+
+    def test_positions_of_the_engraved_text_come_back_to_the_edited_text(self):
+        """The edited text carries no lyrics : a click on a note of the engraved text (with its
+        `w:` lines) lands on the same note of the edited one, and back."""
+        got = self._lyrics(self.FULL, [('la', 0.05), ('mer', 1.0)])
+        shown, source = got['abc'], self.FULL
+        for note in ('d4 f4 a4', 'c16|', 'F4 c4 F4 c4|'):
+            at_source, at_shown = source.index(note), shown.index(note)
+            self.assertEqual(at_source, self._call('sourceAt(%s, %d)' % (json.dumps(got['inserts']), at_shown)))
+            self.assertEqual(at_shown, self._call('shownAt(%s, %d)' % (json.dumps(got['inserts']), at_source)))
+        inside = shown.index('w: ')
+        self.assertEqual(-1, self._call('sourceAt(%s, %d)' % (json.dumps(got['inserts']), inside + 2)),
+                         'a position inside a lyrics line is no note')
+
+    def test_without_a_singing_voice_or_words_nothing_changes(self):
+        drums = self._call('trackOnly(%s, ["D1"])' % json.dumps(self.FULL))
+        self.assertEqual({'abc': drums, 'inserts': []}, self._lyrics(drums, [('la', 0.0)]))
+        self.assertEqual({'abc': self.FULL, 'inserts': []}, self._lyrics(self.FULL, []))
+
     def test_a_dragged_note_moves_by_degrees_and_follows_the_key(self):
         abc = 'K:C\nC2 ^F/2 "Am"[CEG]2 c\' B,|'
         self.assertEqual('K:C\nD2 ^F/2 "Am"[CEG]2 c\' B,|', self._transpose(abc, 'C2', -1), 'up one degree')

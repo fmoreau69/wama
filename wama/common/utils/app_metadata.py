@@ -259,11 +259,42 @@ def enrich_prompt_value(app, field, value, **kwargs):
     return _with_lyrics(enrich_on_demand(caption, app=app, **kwargs), lyrics)
 
 
-def write_lyrics_for(app, field, description, *, language='en', timeout=90, user=None):
+def lyrics_language(model_key, user) -> str:
+    """La langue des paroles à ÉCRIRE : celle du profil si le modèle la chante, sinon l'anglais
+    s'il le chante, sinon sa première langue déclarée. Sous « auto » (aucun modèle désigné), celle
+    du profil. Remontée du composer le 2026-11-08 : le bouton « Écrire les paroles » (commun) et
+    l'étape du pipeline posent la même question — catalogue et profil, rien de propre à une app."""
+    from wama.common.utils.auto_model import is_auto
+    from wama.common.utils.lang_routing import model_languages
+    from wama.common.utils.prompt_pipeline import _user_lang
+    mine = _user_lang(user)
+    if not model_key or is_auto(model_key):
+        return mine
+    caps, mtype = None, None
+    try:
+        from wama.model_manager.models import AIModel
+        row = AIModel.objects.filter(model_key=model_key).only('capabilities', 'model_type').first()
+        if row:
+            caps, mtype = row.capabilities, row.model_type
+    except Exception:
+        pass
+    langs = model_languages(caps, mtype)
+    if '*' in langs or mine in langs:
+        return mine
+    return 'en' if 'en' in langs else next((lang for lang in langs if lang != '*'), 'en')
+
+
+def write_lyrics_for(app, field, description, *, language='en', timeout=90, user=None,
+                     duration=None):
     """Les PAROLES d'une chanson décrite par `description`, balisées (`[Verse]`, `[Chorus]`…), ou
     '' — le SEUL lieu où un LLM écrit des paroles, et seulement quand on les DEMANDE (réglage de
     voix « Chanson » sans paroles fournies, composer, 2026-10-04). Skill `<app>-lyrics` (celui de
-    `user` d'abord) ; une cible qui ne déclare pas `lyrics` n'en reçoit jamais. Ne lève jamais."""
+    `user` d'abord) ; une cible qui ne déclare pas `lyrics` n'en reçoit jamais. Ne lève jamais.
+
+    `duration` (secondes, 2026-11-08, décision de Fabien : les paroles sont relatives à la
+    structure et à la DURÉE de la chanson) : la longueur visée est dite au LLM — le nombre de
+    sections et de vers tient alors dans le morceau. Deux appelants, une fonction : le bouton
+    « Écrire les paroles » du réglage (`api_write_lyrics`) et l'étape `write_lyrics` du composer."""
     tgt = _target(app, field)
     if not tgt or not tgt.get('lyrics'):
         return ''
@@ -275,6 +306,10 @@ def write_lyrics_for(app, field, description, *, language='en', timeout=90, user
         if not text:
             return ''
         brief = str(description or '').strip() or 'A song.'
+        if duration:
+            from wama.common.utils.media_probe import format_duration
+            brief += (f"\n\nLength of the song: about {format_duration(float(duration))} "
+                      f"(minutes:seconds) — write as many sections and lines as fit in it, no more.")
         out = enrich_generative(brief, language=language, skill_name=name, skill_text=text,
                                 timeout=timeout, allow_shorter=True)
         _caption, lyrics = tagged_lyrics(out if out != brief else '')

@@ -53,8 +53,13 @@ def _score_available(generation) -> tuple:
 register_surface(Surface(
     app='composer', key='score', label='Éditer la partition',
     model='composer.ComposerGeneration',
+    # « RÉFÉRENCE » / « JOUÉE » (2026-11-08, décision de Fabien) : la vue de gauche montre ce qui
+    # était DEMANDÉ — la partition importée, tirée du morceau repris, ou composée par le modèle —,
+    # celle de droite ce qui a été JOUÉ ; « d'entrée » / « de sortie » appelait « d'entrée » une
+    # partition composée. Chacune pose sous ses notes les paroles horodatées de SON côté
+    # (`lyrics` : un rôle lu, le JSON rangé par l'écoute), la règle commune `WamaScore.withLyrics`.
     slots=(BrickSlot('score', 'score_view', 0, 0, 12, 14, {
-               'media': 'audio', 'title': "Partition d'entrée",
+               'media': 'audio', 'title': 'Partition de référence', 'lyrics': 'lyrics_in',
                # La réduite (mélodie et accords), puis la COMPLÈTE (une partie par instrument) —
                # toutes deux de l'ENTRÉE.
                'versions': [
@@ -64,16 +69,18 @@ register_surface(Surface(
                              "(instruments) » dans les réglages d'une card de reprise (cover), "
                              "puis relancer."}]}),
            BrickSlot('transport', 'media_transport', 0, 14, 12, 3, {'role': 'audio'}),
-           # La SORTIE, lue seulement (2026-10-26) : à placer à côté de l'entrée pour comparer.
+           # Ce qui a été JOUÉ, lu seulement (2026-10-26) : à placer à côté de la référence.
            BrickSlot('rendered', 'score_view', 0, 17, 12, 12, {
-               'role': 'rendered', 'media': 'audio', 'title': 'Partition de sortie',
-               'empty': "Pas encore de partition de sortie : cocher « Partition de sortie "
-                        "(instruments) » dans les réglages de la card, puis relancer."}),
+               'role': 'rendered', 'media': 'audio', 'title': 'Partition jouée',
+               'lyrics': 'lyrics_out',
+               'empty': "Pas encore de partition jouée : cocher « Partition jouée » (et « Paroles "
+                        "chantées » pour ses paroles) dans les réglages de la card, puis relancer."}),
            BrickSlot('source', 'text_sections', 0, 29, 12, 6, {'title': 'Source ABC'}),
            BrickSlot('actions', 'surface_actions', 0, 0, 1, 5, zone='panel'),
            BrickSlot('versions', 'revision_history', 0, 5, 1, 6, zone='panel')),
-    reads={'audio': 'audio_output', 'rendered': 'rendered_parts_score'},
-    texts=('rendered',),
+    reads={'audio': 'audio_output', 'rendered': 'rendered_parts_score',
+           'lyrics_in': 'input_lyrics_timed', 'lyrics_out': 'rendered_lyrics_timed'},
+    texts=('rendered', 'lyrics_in', 'lyrics_out'),
     edits=INPUT_SCORE_FIELDS,
     also_edits=('parts_score',),
     reruns='render', available=_score_available,

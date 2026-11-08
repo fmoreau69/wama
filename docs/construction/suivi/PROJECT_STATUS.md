@@ -29163,3 +29163,36 @@ sur la cartographie des réglages des dix apps (1 : une section par étape, inte
   `fe9f7e6cd`), `tests_pipeline_faces` (`composer.extract_lyrics`, `anonymizer.blur`),
   `tests_settings_surfaces`, budget de nommage (`tests_page_orientation.py` non suivi), Studio
   (`esc` de `6653d02ed`), imager (`model_installer.py` en cours ailleurs).
+
+## §PALIER 2026-11-08, « ÉCRIRE LES PAROLES : UNE ÉTAPE ET UN BOUTON SUR LA MÊME FONCTION ; LES PAROLES HORODATÉES AU MOT, EN ENTRÉE ET EN SORTIE, SOUS LES NOTES ; PARTITION DE RÉFÉRENCE / PARTITION JOUÉE » — ce commit (local, non poussé) — 🔴 migration `composer/0030_lyrics_steps` À APPLIQUER, puis relancer gunicorn + workers
+
+Décisions de Fabien du 2026-11-08 (suite du palier précédent) : 1 = bouton ET étape « Écrire les
+paroles » sur la même fonction ; 2 = la durée passée à l'écriture ; 3 = vues « Partition de référence »
+/ « Partition jouée » ; 4 = paroles de sortie TOUJOURS proposées (partition jouée complète avec ses
+paroles, à exporter avec la chanson) ; l'écoute « auto » garde Qwen3-ASR (mesuré) avec les heures de
+mots de l'aligneur.
+- **Écrire** : `app_metadata.write_lyrics_for(duration=…)` (la longueur dite au LLM) et
+  `lyrics_language` (remontée du composer : catalogue + profil) ; étape `composer.write_lyrics`
+  (OPTIONNELLE, « Chanson » sans paroles, avant la partition composée) ; bouton déclaré sur le réglage
+  (`Param.write_from`), rendu par `WamaParams` (`_bindWriteFrom`), route commune `common:write_lyrics`
+  (refusée à un visiteur). `vocals.prepare_prompt` n'écrit plus rien.
+- **Horodater** : `acoustic_alignment.timed_words` — la composition du transcriber (`turn_words`
+  puis l'aligneur du catalogue), 3ᵉ consommateur ; `_heard_lyrics` range `input_lyrics_timed` /
+  `rendered_lyrics_timed` (JSON) par `ctx.output_place`, ne remplit le CHAMP que s'il est ouvert
+  (`_lyrics_field_open`). Cases `extract_input_lyrics` (cochée) et `extract_rendered_lyrics`
+  (décochée, toujours proposée sous un modèle qui chante) — migration 0030.
+- **Afficher** : `WamaScore.withLyrics / sourceAt / shownAt` (lignes `w:` sous la voix chantée — nommée
+  voix/chant, jamais une piste seule par défaut ; positions d'édition reportées), `brick-score-view.js`.
+- **Moteur** : `AppPipeline.starved` ne prive jamais un port qui est une entrée de la card
+  (`app_modes.INPUT_TYPES`).
+- Domicile : `WAMA_LLM.md` (réglage « Voix », paroles écoutées).
+- **Gardes** : `tests_acoustic_alignment` (timed_words), `composer.tests_vocals`
+  (`WrittenLyricsAreKeptOnTheCardTest`, `OnlyAskedLyricsAreWrittenTest`, `TheWriteButtonLivesOnTheFieldTest`),
+  `composer.tests_lyrics` (dont `test_unticked_input_lyrics_do_not_starve_the_writing_of_its_prompt`),
+  `tests_cap_from_js` (bouton, V8), `tests_surfaces.ScoreRulesTest` (paroles sous les notes) ;
+  327 tests des suites touchées verts ; 8 contre-épreuves, 8 rouges.
+- ⚠ Docs générées (`WAMA_MECANISMES`, `docs/dev/briques.md`, bloc « outils » de la ROUTE) régénérées
+  dans l'arbre mais NON commitées ici : elles portent surtout le travail d'autres instances.
+- 🔚 Reste : smoke navigateur du bouton et des paroles sous la partition (après migration + relance) ;
+  la chaîne Reader → Composer (OMR, typage de document) ; le curseur rapide/qualité inerte sur la
+  musique (un seul modèle mesuré — décision de Fabien).

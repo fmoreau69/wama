@@ -49,6 +49,7 @@ def compose_task(self, generation_id: int, process: str | None = None):
         run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
                       pipeline=PIPELINE,
                       processes={'extract_score': _extract_score, 'extract_lyrics': _extract_lyrics,
+                                 'write_lyrics': _write_lyrics,
                                  'plan': _plan, 'render': _render, 'output': _output, 'parts': _parts,
                                  'rendered_parts': _rendered_parts,
                                  'rendered_lyrics': _rendered_lyrics},
@@ -229,18 +230,13 @@ def _routed_prompt(gen, ctx) -> str:
         from .utils.vocals import prepare_prompt
         already = bool((getattr(gen, 'prompt_processed', '') or '').strip())
         # La VOIX (2026-10-04) avant la pipeline : paroles retirées (instrumental, modèle qui ne
-        # chante pas) ou ÉCRITES (« Chanson » sans paroles) — la pipeline traite ensuite la
-        # description et garde les paroles telles quelles.
+        # chante pas) ou jointes à la description — la pipeline traite ensuite la description et
+        # garde les paroles telles quelles. Les paroles ÉCRITES ne naissent plus ici (2026-11-08) :
+        # c'est l'étape `write_lyrics`, avant la partition composée.
         model_key = _model_key(gen)
-        text, written = prepare_prompt(getattr(gen, 'vocals', None), effective_prompt(gen, 'prompt'),
-                                       model_key, stored_lyrics=getattr(gen, 'lyrics', ''),
-                                       user=gen.user, console=ctx.console)
-        if written:
-            # Paroles ÉCRITES : gardées sur la card — relues, corrigées dans ⚙, rejouées telles
-            # quelles. En mémoire AUSSI : la ligne d'exécution photographie les réglages tels que
-            # la glu les laisse — sans cela la card serait périmée par ses propres paroles.
-            ComposerGeneration.objects.filter(pk=gen.pk).update(lyrics=written)
-            gen.lyrics = written
+        text = prepare_prompt(getattr(gen, 'vocals', None), effective_prompt(gen, 'prompt'),
+                              model_key, stored_lyrics=getattr(gen, 'lyrics', ''),
+                              user=gen.user, console=ctx.console)
         gen._routed_prompt = process_prompt_for(
             ctx.app_id, 'prompt', text,
             instance=gen, user=gen.user, console=ctx.console, model_id=_model_key(gen),
@@ -414,37 +410,66 @@ def _full_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str
 
 
 def _extract_lyrics(gen, ctx):
-    """GLU du process `extract_lyrics` (2026-11-03) : l'audio du morceau à reprendre → le champ
-    « Paroles ». YuE2 ne reçoit ni cet audio ni son texte : « transcribe and correct the words;
-    align section tags and lyric order with the score » (`vendor/yue/docs/covers.md`)."""
+    """GLU du process `extract_lyrics` (2026-11-03) : l'audio du morceau à reprendre → ses paroles
+    horodatées (`input_lyrics_timed`, 2026-11-08), et le champ « Paroles » s'il est vide. YuE2 ne
+    reçoit ni cet audio ni son texte : « transcribe and correct the words; align section tags and
+    lyric order with the score » (`vendor/yue/docs/covers.md`)."""
     from django.conf import settings
     if not gen.melody_reference:
         raise RuntimeError("Aucun audio à reprendre : les paroles se lisent sur l'entrée.")
     return _heard_lyrics(gen, ctx, os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name),
-                         score=_name(gen.extracted_score))
+                         score=_name(gen.extracted_score), field='input_lyrics_timed',
+                         source_name=gen.melody_reference.name)
 
 
 def _rendered_lyrics(gen, ctx):
-    """GLU du process `rendered_lyrics` (2026-11-03) : ce que le modèle a chanté de lui-même → le
-    champ « Paroles », pour le relire et le rejouer. Lit l'audio du RENDU, comme la partition de
-    sortie. Il l'a produit sans ces paroles : le rendu n'en est pas périmé (`settle_setting`)."""
+    """GLU du process `rendered_lyrics` (2026-11-03 ; « Paroles chantées » depuis le 2026-11-08) :
+    ce que le modèle a CHANTÉ → ses paroles horodatées (`rendered_lyrics_timed`), que la partition
+    jouée montre sous ses notes, et le champ « Paroles » s'il est resté vide (un texte improvisé, à
+    relire et rejouer). Lit l'audio du RENDU, comme la partition jouée. Le rendu n'est pas périmé
+    par ce qu'il a lui-même chanté (`settle_setting`)."""
     from wama.common.services import process_runs
     from wama.common.services.output_process import output_sources
     from .function_specs import PIPELINE
-    # Les process se décident au LANCEMENT : depuis, le champ a pu se remplir (écoutées dans
-    # l'entrée, écrites à la demande). Elles ont été chantées : rien à écouter, surtout rien à écraser.
-    if str(gen.lyrics or '').strip():
-        return {}
     sources = [p for p in output_sources(gen, 'audio_output') if os.path.isfile(p)]
     if not sources:
-        raise RuntimeError("Aucun morceau rendu : les paroles de sortie se lisent sur le rendu.")
-    result = _heard_lyrics(gen, ctx, sources[0], score=_score_to_follow(gen, _model_key(gen)))
+        raise RuntimeError("Aucun morceau rendu : les paroles chantées se lisent sur le rendu.")
+    result = _heard_lyrics(gen, ctx, sources[0], score=_score_to_follow(gen, _model_key(gen)),
+                           field='rendered_lyrics_timed')
     lyrics = result.get('fields', {}).get('lyrics')
     if lyrics:
         process_runs.safely(process_runs.settle_setting, gen,
                             [s.key for s in PIPELINE.specs if 'lyrics' in PIPELINE.watched_of(s)],
                             'lyrics', lyrics)
     return result
+
+
+def _write_lyrics(gen, ctx):
+    """GLU du process `write_lyrics` (2026-11-08, décision de Fabien) : la consigne → les paroles
+    de la chanson, à la LONGUEUR du morceau, dans le champ « Paroles » — la fonction commune
+    `write_lyrics_for`, celle du bouton du réglage. Écrites AVANT la partition composée : YuE2 bâtit
+    sa structure sur leurs sections. Des paroles arrivées depuis le lancement (écoutées dans le
+    morceau repris) ne sont jamais réécrites. Rien d'écrit (LLM indisponible) : l'étape échoue en le
+    disant, le morceau restera instrumental."""
+    from wama.common.backends.music_generation_base import tagged_lyrics
+    from wama.common.utils.app_metadata import effective_prompt, lyrics_language, write_lyrics_for
+    from .utils.model_config import clamp_duration
+    if str(gen.lyrics or '').strip():
+        return {'label': 'Paroles déjà là, gardées'}
+    catalog_key = _model_key(gen)
+    caption = tagged_lyrics(effective_prompt(gen, 'prompt') or '')[0]
+    duration = clamp_duration(gen.duration, catalog_key)
+    language = lyrics_language(catalog_key, gen.user)
+    ctx.console(f"[Composer] ✍️ Écriture des paroles ({language}, ~{int(duration)} s)…")
+    written = write_lyrics_for('composer', 'prompt', caption, language=language, user=gen.user,
+                               duration=duration)
+    if not written:
+        raise RuntimeError("Paroles non écrites (LLM local indisponible) : le morceau sera "
+                           "instrumental.")
+    return {'fields': {'lyrics': written},
+            'label': f"{len(written.split())} mots",
+            'console_success': f"✓ Paroles écrites en « {language} », gardées sur la card "
+                               f"(Paramètres ⚙ → Paroles) :\n{written}"}
 
 
 def _score_sections(gen, score: str) -> list:
@@ -463,14 +488,24 @@ def _score_sections(gen, score: str) -> list:
         return []
 
 
-def _heard_lyrics(gen, ctx, audio_abs: str, *, score: str = '') -> dict:
-    """Un audio → des paroles dans le champ de la card : le corps commun des deux process. Le modèle
-    est celui que la card désigne (`lyrics_model`) ou le tirage ; absent, la ROUTE l'installe et la
-    tâche attend ; DÉCHARGÉ aussitôt (la règle d'`extract_score`) : la carte revient au rendu.
-    Pas de filtre de parole : mesuré, il écarte le CHANT (0 segment sur une chanson entière), et une
-    section muette de la partition s'en charge. Rien d'entendu n'est pas un échec : le champ reste
-    vide et c'est dit."""
+def _heard_lyrics(gen, ctx, audio_abs: str, *, score: str = '', field: str,
+                  source_name: str = '') -> dict:
+    """Un audio → ses paroles : le corps commun des deux écoutes (entrée, sortie — « le même
+    comportement », 2026-11-08). Le modèle est celui que la card désigne (`lyrics_model`) ou le
+    tirage ; absent, la ROUTE l'installe et la tâche attend ; DÉCHARGÉ aussitôt (la règle
+    d'`extract_score`) : la carte revient au rendu. Pas de filtre de parole : mesuré, il écarte le
+    CHANT (0 segment sur une chanson entière), et une section muette de la partition s'en charge.
+
+    Deux sorties : les paroles HORODATÉES AU MOT (`field`, un JSON `{words, language, duration,
+    aligner, …}`) par la brique commune du transcriber (`acoustic_alignment.timed_words` : les mots
+    du modèle d'écoute, recalés par l'aligneur du catalogue — Qwen3-ASR ne date pas ses mots), que
+    la partition pose sous ses notes ; et le champ « Paroles », en sections, s'il est VIDE — une
+    correction ne se réécrit jamais. Rien d'entendu n'est pas un échec : c'est dit."""
+    import json
+
+    from wama.common.services.acoustic_alignment import timed_words
     from wama.common.utils.media_probe import probe_media
+    from wama.common.utils.model_keys import model_id
     from wama.common.utils.whisper_utils import transcribe_audio
     from wama.model_manager.services.memory_manager import MemoryManager
     from .utils.lyrics import fit_to_duration, lyrics_from_segments
@@ -490,13 +525,45 @@ def _heard_lyrics(gen, ctx, audio_abs: str, *, score: str = '') -> dict:
         if not MemoryManager.unload_model(key):
             logger.info("[composer] modèle d'écoute de #%s : rien à décharger (%s)", gen.pk, key)
     lyrics = lyrics_from_segments(heard.segments, fit_to_duration(_score_sections(gen, score), duration))
-    eta = lyrics_eta_key_size(gen)
+    out = {'models': [key], 'eta': lyrics_eta_key_size(gen), 'fields': {}}
     if not lyrics:
-        ctx.console("[Composer] Aucune parole reconnue : le champ « Paroles » reste vide.")
-        return {'models': [key], 'eta': eta}
-    ctx.console(f"[Composer] ✓ Paroles entendues ({heard.language or 'langue inconnue'}, "
-                f"{len(lyrics.split())} mots), à relire dans ⚙ :\n{lyrics}")
-    return {'fields': {'lyrics': lyrics}, 'models': [key], 'eta': eta}
+        ctx.console("[Composer] Aucune parole reconnue.")
+        return out
+    timed = timed_words(heard.segments, audio_abs, heard.language or '', audio_end=duration or None,
+                        ctx=ctx)
+    if timed['aligner']:
+        out['models'].append(timed['aligner'])
+    rel, abs_path = ctx.output_place('.json', nature='lyrics', model=model_id(key),
+                                     source_name=source_name)
+    with open(abs_path, 'w', encoding='utf-8') as handle:
+        json.dump({'words': timed['words'], 'language': heard.language or '', 'duration': duration,
+                   'aligner': timed['aligner'], 'alignment': timed['report'],
+                   'note': timed['reason']}, handle, ensure_ascii=False)
+    out['fields'][field] = rel
+    out['output_ref'] = rel
+    out['label'] = f"{len(timed['words'])} mots" + ('' if timed['aligner'] else ' (heures estimées)')
+    said = (f"[Composer] ✓ Paroles entendues ({heard.language or 'langue inconnue'}, "
+            f"{len(timed['words'])} mots horodatés"
+            + (f", recalés par {timed['aligner']}" if timed['aligner'] else f" — {timed['reason']}")
+            + ")")
+    if _lyrics_field_open(gen):
+        out['fields']['lyrics'] = lyrics
+        said += f", posées dans « Paroles », à relire dans ⚙ :\n{lyrics}"
+    ctx.console(said)
+    return out
+
+
+def _lyrics_field_open(gen) -> bool:
+    """Le champ « Paroles » attend-il des paroles ENTENDUES ? Vide, sans paroles balisées dans la
+    consigne (elles priment : on les doublerait), et la voix n'est pas « Instrumental » (elles ne
+    seraient pas chantées). Les paroles horodatées, elles, se rangent toujours — pour la partition."""
+    from wama.common.backends.music_generation_base import tagged_lyrics
+    from .utils import vocals
+    if str(gen.lyrics or '').strip():
+        return False
+    if vocals.normalize(getattr(gen, 'vocals', None)) == vocals.INSTRUMENTAL:
+        return False
+    return not tagged_lyrics(getattr(gen, 'prompt', '') or '')[1]
 
 
 def _plan(gen, ctx):

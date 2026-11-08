@@ -830,6 +830,20 @@ class ProcessSectionsTest(SimpleTestCase):
                         'an advanced setting of a step folds in ITS step')
         self.assertNotIn('data-group="_advanced"', out, 'no advanced left for the common box')
 
+    def test_a_field_with_a_writer_gets_its_button_and_no_other_does(self):
+        """`Param.write_from` (2026-11-08, « Écrire les paroles ») : the button under the field,
+        carrying what it reads from THIS form ; a plain text area has none (counter-proof)."""
+        cfg = {'app': 'composer', 'target': 'prompt', 'source': 'prompt', 'duration': 'duration',
+               'model': 'model', 'label': 'Écrire les paroles'}
+        out = self._rendered([{'name': 'lyrics', 'type': 'textarea', 'write_from': cfg},
+                              {'name': 'notes', 'type': 'textarea'}], processes='[]')
+        self.assertEqual(1, out.count('class="btn btn-sm btn-outline-secondary mt-1 wama-write-from"'))
+        self.assertIn('data-write-for="wp-panel-lyrics"', out)
+        self.assertIn('Écrire les paroles</button>', out)
+        self.assertLess(out.index('wp-panel-lyrics'), out.index('wama-write-from'))
+        self.assertLess(out.index('wama-write-from'), out.index('wp-panel-notes'),
+                        'the button belongs to its own field only')
+
     def test_declared_groups_live_inside_the_section_of_each_step(self):
         """The imager, the anonymizer, the converter declare groups (ParamGroup) : they KEEP them,
         inside the section of each step ; a sub-group named like its section loses its title, not

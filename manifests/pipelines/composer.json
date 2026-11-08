@@ -9,6 +9,16 @@
       },
       {
         "from": "extract_lyrics",
+        "to": "write_lyrics",
+        "to_port": null
+      },
+      {
+        "from": "extract_lyrics",
+        "to": "plan",
+        "to_port": null
+      },
+      {
+        "from": "write_lyrics",
         "to": "plan",
         "to_port": null
       },
@@ -19,6 +29,11 @@
       },
       {
         "from": "extract_lyrics",
+        "to": "render",
+        "to_port": null
+      },
+      {
+        "from": "write_lyrics",
         "to": "render",
         "to_port": null
       },
@@ -101,10 +116,30 @@
           "eta": "composer.tasks:lyrics_eta",
           "gpu": true,
           "label": "Paroles de l'entrée",
+          "outputs": [
+            "input_lyrics_timed"
+          ],
+          "toggle": "extract_input_lyrics",
           "watched": [
+            "extract_input_lyrics",
             "lyrics_model",
             "melody_reference",
             "source_url"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "composer.write_lyrics",
+        "id": "write_lyrics",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "gpu": false,
+          "label": "Écrire les paroles",
+          "watched": [
+            "prompt_processed"
           ]
         }
       },
@@ -118,7 +153,7 @@
           "degree": "required",
           "eta": "composer.tasks:plan_eta",
           "gpu": true,
-          "label": "Partition",
+          "label": "Partition composée",
           "outputs": [
             "planned_score"
           ],
@@ -193,7 +228,7 @@
           "degree": "optional",
           "eta": "composer.tasks:parts_eta",
           "gpu": true,
-          "label": "Partition de sortie",
+          "label": "Partition jouée",
           "outputs": [
             "rendered_parts_score"
           ],
@@ -215,8 +250,13 @@
           "degree": "optional",
           "eta": "composer.tasks:lyrics_eta",
           "gpu": true,
-          "label": "Paroles de sortie",
+          "label": "Paroles chantées",
+          "outputs": [
+            "rendered_lyrics_timed"
+          ],
+          "toggle": "extract_rendered_lyrics",
           "watched": [
+            "extract_rendered_lyrics",
             "lyrics_model"
           ]
         }
@@ -226,7 +266,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "composer",
   "manifest_kind": "pipeline",
-  "name": "Composer — partition, rendu, sortie (8 process)",
+  "name": "Composer — partition, rendu, sortie (9 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

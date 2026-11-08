@@ -89,6 +89,37 @@ def api_enrich_prompt(request):
         return JsonResponse({'error': str(e)})
 
 
+@require_POST
+def api_write_lyrics(request):
+    """« ✍️ Écrire les paroles » sous un champ qui le DÉCLARE (`Param.write_from`, 2026-11-08,
+    décision de Fabien) : {app, target, description, duration, model} → {lyrics}. La MÊME fonction
+    que l'étape `write_lyrics` du pipeline (`app_metadata.write_lyrics_for`) : seule une cible de
+    `PROMPT_TARGETS` qui déclare `lyrics` en reçoit ; la langue est celle que le modèle chante pour
+    ce compte (`lyrics_language`). Le champ est rempli à l'écran — l'utilisateur relit, corrige,
+    enregistre : rien n'est écrit en base ici."""
+    import json
+    from .utils.app_metadata import lyrics_language, write_lyrics_for
+
+    if not request.user.is_authenticated:      # un appel de LLM ne se paie pas pour un visiteur
+        return JsonResponse({'error': "Connectez-vous pour écrire des paroles.",
+                             'login_required': True}, status=401)
+    try:
+        body = json.loads(request.body)
+        app = str(body.get('app') or '').strip()
+        target = str(body.get('target') or '').strip() or 'prompt'
+        description = str(body.get('description') or '').strip()[:2000]
+        model = str(body.get('model') or '').strip()
+        duration = float(body.get('duration') or 0) or None
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Requête illisible'}, status=400)
+    lyrics = write_lyrics_for(app, target, description, language=lyrics_language(model, request.user),
+                              user=request.user, duration=duration)
+    if not lyrics:
+        return JsonResponse({'error': "Paroles non écrites : LLM local indisponible, ou ce champ "
+                                      "n'en reçoit pas."})
+    return JsonResponse({'lyrics': lyrics})
+
+
 @require_GET
 def system_stats(request):
     """

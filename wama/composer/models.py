@@ -129,6 +129,20 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
         default=False, db_default=False, help_text='Partition réduite : la mélodie du cover')
     generate_audio = models.BooleanField(
         default=True, db_default=True, help_text='Rendre le morceau (décoché : partitions seules)')
+    # LES PAROLES, LE MÊME GESTE EN ENTRÉE ET EN SORTIE (2026-11-08, décision de Fabien : « même
+    # comportement en entrée et en sortie », paroles de sortie « toujours proposées ») : les cases des
+    # process `extract_lyrics` (écouter le morceau repris — cochée par défaut, c'était automatique) et
+    # `rendered_lyrics` (écouter le morceau produit — proposée). Chacun RANGE ses paroles horodatées
+    # au mot (`*_lyrics_timed`, JSON), que la page de la partition pose sous les notes ; le champ
+    # « Paroles » n'est rempli que s'il est vide (une correction n'est jamais réécrite).
+    extract_input_lyrics = models.BooleanField(
+        default=True, db_default=True, help_text="Paroles de l'entrée : écouter le morceau repris")
+    extract_rendered_lyrics = models.BooleanField(
+        default=False, db_default=False, help_text='Paroles chantées : écouter le morceau produit')
+    input_lyrics_timed = models.FileField(
+        max_length=500, upload_to=upload_to_user_output('composer'), blank=True, null=True)
+    rendered_lyrics_timed = models.FileField(
+        max_length=500, upload_to=upload_to_user_output('composer'), blank=True, null=True)
     # Le MODÈLE du process `parts` (2026-10-19) : clé de catalogue d'un modèle de la tâche
     # `audio-to-midi`, ou « auto » — le patron des modèles de rôle du describer (`asr_model`…).
     # `db_default` : le code en service crée des générations sans connaître la colonne.

@@ -229,6 +229,16 @@ class Param:
                                                 # fichier désigné — et posée dans le champ, BORNÉE par son
                                                 # max (y compris celui de `cap_from`). Une valeur que
                                                 # l'utilisateur change ensuite reste la sienne.
+    write_from: Optional[dict] = None           # Un champ texte que le LLM sait ÉCRIRE à la demande
+                                                # (2026-11-08, Fabien : « demander à générer les paroles dans
+                                                # le champ depuis la modale ») : `{"app", "target": "<champ de
+                                                # PROMPT_TARGETS qui le déclare>", "source": "<réglage de la
+                                                # description>", "duration": "<réglage de la durée>",
+                                                # "model": "<réglage du modèle>", "label"}`.
+                                                # `WamaParams` pose le bouton sous le champ, qui appelle
+                                                # `common:write_lyrics` — la MÊME fonction
+                                                # (`write_lyrics_for`) que l'étape du pipeline qui les écrit
+                                                # au lancement quand le champ est resté vide.
     stales: Optional[Tuple[str, ...]] = None    # Process du pipeline de l'app que ce réglage PÉRIME quand il
                                                 # change (2026-10-05, forme demandée par la session pipeline) :
                                                 # `('plan', 'render')`. `ProcessSpec.watched` en est DÉRIVÉ

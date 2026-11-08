@@ -85,6 +85,57 @@ def doubt_words_over_silence(turns: List[dict], audio_path: str,
     return doubted
 
 
+def timed_words(segments, audio_path: str, language: str, *, audio_end: Optional[float] = None,
+                ctx=None) -> dict:
+    """Les MOTS HORODATÉS d'une transcription d'`audio_path` — la composition que le transcriber et
+    l'avatar faisaient chacun de leur côté, posée ici au 3ᵉ consommateur (2026-11-08, les paroles du
+    composer, décision de Fabien : « le Transcriber sait déjà le faire, il faut réutiliser »).
+
+    `segments` : des tours (`.start`/`.end`/`.text`/`.words`, objets ou dicts). Un tour garde ses
+    mots s'ils sont datés (Whisper) ; sinon ils sont répartis dans son intervalle
+    (`word_anchoring.turn_words`, `interpolated` — Qwen3-ASR ne date que des tranches de 30 s) ;
+    puis l'aligneur du catalogue réécoute les mots incertains (`refine`, installé par la route si
+    `ctx`). Sans aligneur pour la langue, ou s'il échoue, les heures de l'étage A restent, et c'est
+    DIT dans le rapport (`aligned`, `reason`). Rend `{'words': [{word, start, end, timing}],
+    'aligner': clé ou '', 'report': {...}, 'reason': ''}`."""
+    from wama.common.services.word_anchoring import turn_words
+
+    def read(segment, name):
+        return segment.get(name) if isinstance(segment, dict) else getattr(segment, name, None)
+
+    turns = []
+    for segment in segments or ():
+        start = read(segment, 'start') if read(segment, 'start') is not None else read(segment, 'start_time')
+        end = read(segment, 'end') if read(segment, 'end') is not None else read(segment, 'end_time')
+        turn = {'text': read(segment, 'text') or '', 'start_time': start, 'end_time': end,
+                'words': list(read(segment, 'words') or [])}
+        words = turn_words(turn)
+        if words:
+            for word in words:
+                word.setdefault('timing', 'exact')
+            turns.append({**turn, 'words': words})
+    out = {'words': [], 'aligner': '', 'report': {}, 'reason': ''}
+    if not turns:
+        out['reason'] = 'aucun mot'
+        return out
+    try:
+        refined = refine(turns, audio_path, language, audio_end=audio_end, ctx=ctx)
+    except Exception as exc:                  # l'étage A reste : une estimation dite, jamais perdue
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        if isinstance(exc, ServiceNotReady):
+            raise
+        refined, out['reason'] = None, f"aligneur en échec : {exc}"
+    if refined is None:
+        out['reason'] = out['reason'] or f"aucun aligneur pour la langue « {language or '?'} »"
+    else:
+        turns, out['report'], model = refined
+        out['aligner'] = model.model_key
+    out['words'] = [{'word': (w.get('word') or '').strip(), 'start': w['start'], 'end': w['end'],
+                     'timing': w.get('timing', 'exact')}
+                    for turn in turns for w in turn['words'] if (w.get('word') or '').strip()]
+    return out
+
+
 def refine(turns: List[dict], audio_path: str, language: str, *, audio_end: Optional[float] = None,
            ctx=None):
     """ÉTAGE B par l'aligneur du catalogue : rend `(tours, rapport, modèle)`, ou None quand le
