@@ -227,6 +227,10 @@ def validate_pipeline_body(body: dict) -> list[str]:
             if 'process' in n and not isinstance(n['process'], dict):
                 errs.append(f"nodes[{nid or i}] : 'process' (déclaration du process) doit être "
                             f"un dict")
+        # Un process DÉCLARÉ devient du code généré (`tasks_gen`, `models_gen`) : ses noms sont des
+        # noms (2026-11-08, la règle de `codegen/source_safety`, celle du manifeste `app`).
+        from ..codegen.source_safety import pipeline_source_safety_errors
+        errs += pipeline_source_safety_errors(body)
 
     links = body.get('links', [])
     if not isinstance(links, list):

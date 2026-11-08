@@ -142,6 +142,29 @@ doctrine wama-dev-ai « propose, l'humain valide »).
 dans le sandbox → **différer** contre l'app réelle. Chaque écart = un trou dans le schéma → on itère
 jusqu'à diff nul. C'est le mécanisme qui garantit que le formalisme a capté l'essence.
 
+### 2.2 Ce qu'un manifeste fait entrer dans le CODE généré (2026-11-08)
+
+Les gabarits de `codegen/` composent du Python par chaînes : un nom de modèle devient
+`class <nom>(…)`, un champ d'entrée une colonne, une expression de la facette `data` un argument de
+champ. Depuis que le rôle `app` PROPOSE des manifestes (2026-10-15), une valeur qui n'est pas un nom
+y ferait entrer du code que personne n'a écrit. **Règle** : un manifeste ne fait entrer dans le code
+qu'un NOM (identifiant Python), un CHEMIN enraciné dans `django` ou `wama`, un TEXTE sans rien qui
+ferme sa chaîne ou sa balise, ou une EXPRESSION de la liste blanche (littéraux, références, appels
+des seuls constructeurs mesurés au corpus).
+
+- **Domicile unique** : `wama/common/manifests/codegen/source_safety.py` — `DECLARED_VALUES` liste
+  chaque valeur du corps que les gabarits recopient et sa forme (40 chemins relevés sur les
+  générateurs le 2026-11-08), `_data_errors` la facette `data`, `pipeline_source_safety_errors` les
+  process déclarés d'un pipeline d'app.
+- **Appelée par les validateurs des kinds** `app` et `pipeline` — donc par les trois portes d'un
+  manifeste venu d'ailleurs : l'ingest, « Valider » d'une proposition, la création d'une app depuis
+  un fichier (`app_sandbox._app_manifest_file`) ; et par `pipeline_decl.process_specs`, qui lit les
+  brouillons de pipeline sans passer par l'ingest.
+- **Tirée de la mesure** : le corpus (18 manifestes `app`, 15 pipelines) passe sans une erreur, et
+  `tests_manifest_source_safety` le tient. Une valeur nouvelle recopiée par un gabarit se DÉCLARE à
+  `DECLARED_VALUES` dans le même livrable ; un appel admis de plus s'ajoute à `CALLABLE_PREFIXES` par
+  un humain.
+
 ---
 
 ## 3. Kind `app` — schéma (issu de l'audit du code réel, 8 facettes)

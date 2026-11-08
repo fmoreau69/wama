@@ -166,6 +166,13 @@ def validate_app_body(body: dict) -> list[str]:
             errs.append('processing.model_spec.item.name (str) requis')
         elif any(not isinstance(n, str) for n in (it.get('params_fields') or [])):
             errs.append('processing.model_spec.item.params_fields : liste de noms (str)')
+    # Ce que les gabarits recopient dans le CODE généré : des noms, des chemins, des expressions
+    # admises — rien d'autre (2026-11-08 : un manifeste d'app peut être proposé par un rôle LLM).
+    # Ici, parce que les trois portes d'un manifeste venu d'ailleurs passent par ce validateur :
+    # l'ingest, « Valider » d'une proposition, la création d'une app depuis un fichier
+    # (`app_sandbox._app_manifest_file`). Un manifeste EXTRAIT d'une app réelle n'a rien d'étranger.
+    from ..codegen.source_safety import source_safety_errors
+    errs += source_safety_errors(body)
     return errs
 
 

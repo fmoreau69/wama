@@ -110,6 +110,12 @@ def process_specs(pipeline: dict) -> list:
     `to`), comme à l'export. La déclaration se lit dans le `process` du nœud, jamais dans ses
     `params` — les valeurs de réglage, que l'inspecteur du Studio écrit (D1, 2026-10-18)."""
     body = (pipeline or {}).get('body') or {}
+    # Les process deviennent du CODE (`tasks_gen`, `models_gen`), et ce manifeste se lit ici
+    # directement depuis son fichier — corpus ou BROUILLON, sans l'ingest qui le validerait. La
+    # règle du kind est donc refaite à cette lecture (2026-11-08, `source_safety`).
+    from .source_safety import pipeline_source_safety_errors
+    if refused := pipeline_source_safety_errors(body):
+        raise ValueError(f"pipeline {(pipeline or {}).get('key')!r} refusé : " + ' ; '.join(refused[:3]))
     links = body.get('links') or []
     out = []
     for node in body.get('nodes') or []:

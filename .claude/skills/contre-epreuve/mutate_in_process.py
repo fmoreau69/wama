@@ -41,6 +41,9 @@ if target.suffix == '.py':
             return None
 
         def exec_module(self, module):
+            # `__file__` comme l'aurait posé l'import réel : un module qui situe ses données par
+            # lui (`Path(__file__).parents[…]`, `pipeline_decl`) tombait AVANT le test (2026-11-08).
+            module.__file__ = str(target)
             exec(compile(mutated, str(target), 'exec'), module.__dict__)
 
     class _Finder(importlib.abc.MetaPathFinder):

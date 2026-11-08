@@ -1614,7 +1614,10 @@ MECHANISMS = (
                        'wama/common/manifests/codegen/tasks_gen.py',
                        'wama/common/manifests/codegen/views_gen.py',
                        'wama/common/manifests/codegen/function_specs_gen.py',
-                       'wama/common/manifests/codegen/pipeline_decl.py')),
+                       'wama/common/manifests/codegen/pipeline_decl.py',
+                       # Ce qu'un manifeste fait entrer dans le code de ces gabarits (2026-11-08,
+                       # `WAMA_MANIFEST_SPEC §2.2`) — appelé par les validateurs des kinds.
+                       'wama/common/manifests/codegen/source_safety.py')),
     Mechanism('backend_inventory', 'Vivier des backends (registre DÉRIVÉ)',
               "Inventaire des moteurs de WAMA, dérivé À CHAQUE AFFICHAGE des déclarations "
               "`wama/<app>/backends/` (ROUTES/RESULT/NATURE_FIELD + classes BaseModelBackend "
