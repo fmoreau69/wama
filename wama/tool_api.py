@@ -2679,6 +2679,107 @@ def get_library_action(user, key: str) -> dict:
     return {'library': (key or '').strip(), 'state': library_action_state(key)}
 
 
+# ── Formats des poids (2026-11-08, Fabien : « si les API existent, l'assistant doit pouvoir les
+# utiliser ») — les routes `api/formats/` et `api/convert/…` du model manager, par les corps
+# communs de `format_converter` : aucune n'avait d'outil, cinq n'avaient même aucun appelant.
+
+def _unknown_model_key(key: str) -> dict | None:
+    """Le refus d'une clé que le catalogue ne porte pas (et qui n'est pas un chemin), avec les clés
+    voisines — avant la résolution du fichier, dont le repli relance la découverte du disque
+    (2,5 min mesurées le 2026-11-08 pour une clé mal recopiée)."""
+    from pathlib import Path
+
+    from wama.model_manager.models import AIModel
+    if AIModel.objects.filter(model_key=key).exists() or Path(key).exists():
+        return None
+    from wama.model_manager.services.model_installer import similar_model_keys
+    near = similar_model_keys(key)
+    return {'error': f"Aucun modèle « {key} » au catalogue (les clés se lisent par "
+                     "list_ai_models(downloaded_only=True)).",
+            **({'similar_keys': near} if near else {})}
+
+
+@tool_effect(READ)
+def get_model_formats(user, model_key: str = '') -> dict:
+    """
+    The WEIGHT FORMATS of the installed models — the model manager's format routes. Without
+    `model_key`: how many installed models carry each format (overall and per declared engine),
+    how many have the format their engine reads (`compliance`), and the CONVERSION SUGGESTIONS
+    (a model whose declared engine reads another format). With `model_key`: that model's weight
+    file, its current format and the formats it can be converted to.
+
+    Then convert with convert_model_format. Reserved to developers and administrators.
+
+    Args:
+        model_key: catalogue key (see list_ai_models) — '' for the whole catalogue.
+
+    Returns:
+        {"formats": {format: count}, "compliance": {"compliant","non_compliant","percentage"},
+         "by_engine": {engine: {format: count}}, "total_models",
+         "suggestions": [{"model_id","model_path","current_format","suggested_format","engine",
+                          "reason","priority"}]}
+        or, with model_key, {"model_key","model_path","current_format","available_conversions"}
+        or {"error"}.
+    """
+    from dataclasses import asdict
+
+    from wama.model_manager.services.format_converter import FormatConverter, conversion_options
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    key = (model_key or '').strip()
+    if key and (unknown := _unknown_model_key(key)):
+        return unknown
+    if key:
+        options = conversion_options(key)
+        if options is None:
+            return {'error': f"Aucun fichier de poids convertible pour « {key} » (les clés se lisent "
+                             "par list_ai_models(downloaded_only=True))."}
+        return {'model_key': key, **options}
+    converter = FormatConverter()
+    return {**converter.get_format_stats(),
+            'suggestions': [asdict(s) for s in converter.scan_and_suggest()]}
+
+
+@tool_effect(WRITE)
+def convert_model_format(user, model_key: str, target_format: str = 'safetensors',
+                         backup: bool = True, delete_source: bool = False) -> dict:
+    """
+    CONVERT the weights of an installed model to another format — the « Convertir » button of the
+    model manager (one body, `format_converter.convert_and_backup`): .pt/.pth/.bin/.ckpt →
+    safetensors, .pt → onnx. The converted file is written NEXT TO the source and, with `backup`,
+    archived on the remote backup space. Can take minutes for large weights.
+
+    `delete_source=True` removes the LOCAL source file, only after it has been copied to the remote
+    space AND verified — never otherwise. Ask the user to confirm before setting it. Reserved to
+    developers and administrators. Read the choices first with get_model_formats(model_key).
+
+    Args:
+        model_key: catalogue key of the model (or the path of its weight file).
+        target_format: 'safetensors' or 'onnx'.
+        backup: archive the converted file on the remote backup space (default True).
+        delete_source: remove the local source after a verified remote copy (default False).
+
+    Returns:
+        {"success": true, "conversion": {"source_path","target_path","source_format",
+         "target_format","size_before_mb","size_after_mb"}, "backup"?, "offload"?}
+        or {"success": false, "error"}.
+    """
+    from wama.model_manager.services.format_converter import convert_and_backup
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    key = (model_key or '').strip()
+    if not key:
+        return {'error': "model_key requis : la clé du modèle à convertir (list_ai_models)."}
+    if (target_format or '').lower() not in ('safetensors', 'onnx'):
+        return {'error': f"target_format « {target_format} » : 'safetensors' ou 'onnx'."}
+    if unknown := _unknown_model_key(key):
+        return unknown
+    res = convert_and_backup(key, target_format.lower(), backup_after=bool(backup),
+                             delete_source_after_backup=bool(delete_source))
+    res.pop('not_found', None)
+    return res
+
+
 @tool_effect(READ)
 def plan_model_integration(user, model: str) -> dict:
     """
@@ -4762,6 +4863,10 @@ TOOL_REGISTRY = {
     'install_library':          install_library,
     'uninstall_library':        uninstall_library,
     'get_library_action':       get_library_action,
+    # …et les FORMATS des poids (2026-11-08) : les routes `api/formats/` et `api/convert/…` de la
+    # page, par les corps communs de `format_converter` (lire, convertir par la clé du modèle).
+    'get_model_formats':        get_model_formats,
+    'convert_model_format':     convert_model_format,
     'plan_model_integration':   plan_model_integration,
     'plan_app_integration':     plan_app_integration,
     # Claude Code sur l'ABONNEMENT du titulaire (ROADMAP §19.3) — surface DÉVELOPPEUR.
@@ -4890,6 +4995,9 @@ TOOL_APP_OVERRIDE = {
     'install_library':     'registries',
     'uninstall_library':   'registries',
     'get_library_action':  'registries',
+    # Les formats des poids (2026-11-08) : même page, même garde (développeurs, dans le corps).
+    'get_model_formats':    'registries',
+    'convert_model_format': 'registries',
     # Médiathèque : RANGER un fichier À SOI y est un geste TRANSVERSE, pas l'usage de l'app
     # `media_library` (décision Fabien, 2026-09-11 : « on rend commun et on porte sur les apps
     # de façon universelle »). Il était gaté sur `media_library` du seul FAIT DE SON NOM — le

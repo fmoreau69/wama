@@ -12,7 +12,7 @@ distant (<type>) ». Trois remèdes, chacun à son domicile :
   • le fournisseur qui publie une description la donne (OpenRouter, `cloud_models`) ;
   • ICI, pour les lignes marquées : la FICHE du modèle (README du Hub — le dépôt, ou le modèle
     d'origine d'une quantification), sinon une recherche WEB (`search_engines`), RÉSUMÉE en
-    français par le LLM local par défaut — sans rien ajouter à la source (consigne), la source
+    anglais (langue source de WAMA, cf. `PROMPT`) par le LLM local par défaut — sans rien ajouter à la source (consigne), la source
     tracée sur la ligne (`DESCRIPTION_SOURCE_KEY`, collante à la synchronisation).
 Un modèle sans fiche ni résultat garde son remplissage : on ne devine pas.
 """
@@ -29,16 +29,19 @@ CARD_CHARS = 8000
 #: Longueur maximale de la description COURTE (l'aide sous un sélecteur, une ligne).
 SHORT_CHARS = 160
 
+#: La consigne, EN ANGLAIS, et la description qu'elle fait écrire aussi (2026-11-08) : l'anglais est
+#: la langue SOURCE de WAMA, le français une traduction (décision de Fabien du 2026-08-30,
+#: `ROADMAP §10.A` ; `WAMA_MANIFEST_SPEC §1` — les descriptions du corpus sont en anglais source).
+#: Elle faisait écrire en français depuis le 2026-10-29, à rebours de cette décision.
 PROMPT = (
-    "Tu rédiges la fiche d'un modèle d'IA pour le catalogue d'une plateforme de laboratoire. "
-    "À partir UNIQUEMENT du texte source ci-dessous (fiche officielle ou résultats de recherche), "
-    "écris en français :\n"
-    "- \"short\" : une ligne (au plus {short} caractères) qui dit ce que fait le modèle ;\n"
-    "- \"long\" : 2 à 4 phrases : ce qu'il fait, ses entrées et sorties, ses points forts ou "
-    "limites que la source énonce (langues, taille, licence si dite).\n"
-    "N'invente rien : ce que la source ne dit pas ne s'écrit pas. Si la source ne parle pas de "
-    "ce modèle ({name}), rends {{}}. Réponds par un objet JSON seul, sans texte autour.\n\n"
-    "SOURCE ({origin}) :\n{text}"
+    "You write the entry of an AI model for the catalogue of a laboratory platform. "
+    "From the source text below ONLY (official model card or search results), write in English:\n"
+    "- \"short\": one line (at most {short} characters) saying what the model does;\n"
+    "- \"long\": 2 to 4 sentences: what it does, its inputs and outputs, the strengths or "
+    "limits the source states (languages, size, licence if stated).\n"
+    "Invent nothing: what the source does not say is not written. If the source is not about "
+    "this model ({name}), return {{}}. Answer with a JSON object alone, no text around it.\n\n"
+    "SOURCE ({origin}):\n{text}"
 )
 
 
@@ -99,7 +102,7 @@ def web_text(row, user=None) -> tuple[str, list]:
 
 
 def summarize(name: str, text: str, origin: str) -> tuple[dict | None, str]:
-    """`({'short', 'long'} | None, modèle employé)` — le résumé en français de `text` par le LLM
+    """`({'short', 'long'} | None, modèle employé)` — le résumé en anglais de `text` par le LLM
     local par défaut (`llm_utils.modele_par_defaut`), validé : deux textes non vides, la ligne
     courte bornée. None si le modèle ne rend rien d'exploitable ou dit que la source ne parle pas
     de ce modèle."""

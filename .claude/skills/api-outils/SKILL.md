@@ -25,7 +25,7 @@ FABRIQUE de l'app (le même geste que le bouton), jamais un second chemin.
 | app **née d'un manifeste** | rien à écrire dans `tool_api.py` | facette `tool_api.triad_spec` du manifeste (`manifests/app_drafts/<clé>.json`, chemins `wama.<clé>.…`), puis `app_sandbox substitute <label> params` qui relit le registre (`born_registry_facts`) ; le créateur se dérive de la vue de dépôt et des ports (`_born_creator`) |
 | **geste neuf** d'une card (`make_item_views`) | un verbe TRANSVERSE (`<geste>_item`) qui poste la vue par `_card_gesture` | `TOOL_REGISTRY` + ligne `GESTURE_TOOLS` de `tests_tool_api_coverage` |
 | **geste neuf** d'un lot (`make_batch_views`) | un verbe TRANSVERSE (`<geste>_batch`) qui appelle la vue retenue par la fabrique (`_batch_view` ; une ÉCRITURE passe d'abord par `_batch_write_refusal`) — jamais un nom en `start_…`/`get_…_status`, pris pour une triade | idem |
-| route d'action propre à une app | un outil de l'app, ou un argument d'un outil existant | `TOOL_REGISTRY` (+ `TOOL_APP_OVERRIDE` si le nom ne suit pas la triade) |
+| route d'action (un chemin `api/…`, d'une app OU d'une page : model manager, registres, médiathèque…) | un outil qui appelle le MÊME corps que la route (le sortir de la vue vers un service s'il y vit), ou un argument d'un outil existant | `TOOL_REGISTRY` (+ `TOOL_APP_OVERRIDE` si le nom ne suit pas la triade) + ligne `ROUTE_TOOLS` de `tests_tool_api_coverage` (2026-11-08 : les routes de formats du model manager n'avaient aucun outil, et aucune garde ne regardait les routes) |
 | **page** neuve | rien, si elle est au registre de navigation | `open_page` la trouve (`navigation`) ; une page du compte qui se LIT a son `get_my_<page>` |
 | process / étape d'un pipeline | rien | `start_<app>(…, process=…)` lit la fabrique (`process_views`) |
 | réglage neuf au schéma | rien | `**params` du créateur et `update_item_settings` lisent le schéma |
@@ -50,8 +50,10 @@ FABRIQUE de l'app (le même geste que le bouton), jamais un second chemin.
 ## 3. Vérifier
 
 1. `manage.py test wama.common.tests.tests_tool_api_coverage` — chaque app du catalogue a sa
-   triade, chaque geste des fabriques a son outil, le budget des gestes sans outil est EXACT
-   (il ne peut que descendre : le baisser dans le commit qui ajoute l'outil).
+   triade, chaque geste des fabriques a son outil, chaque route d'action a le sien
+   (`ROUTE_TOOLS`), et les deux budgets — gestes et routes sans outil — sont EXACTS (ils ne
+   peuvent que descendre : les baisser dans le commit qui ajoute l'outil). ⚠ « Une API sans
+   consommateur » n'est jamais une question de retrait : son consommateur manquant est l'assistant.
 2. Le périmètre : `tests_tool_effects`, `tests_tool_api_lectures`, `tests_mcp_server`,
    `tests_tool_item_contract`, `tests_identifier_language`.
 3. `/contre-epreuve` sur la garde neuve (outil retiré du registre → ROUGE).

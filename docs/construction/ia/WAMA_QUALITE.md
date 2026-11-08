@@ -218,6 +218,11 @@ chacun). Le tirage passe de qwen-3.6 à gemma-4-31b (79,5ᵉ centile Arena), dev
 et DeepSeek V4 Flash (72,2ᵉ). Gardes : `tests_development_models.DevelopmentLevelReadsALivingMeasureTest`.
 ⚠ Une note périmée garde sa place aux étages inter-échelles (décision du 02/11) : la question du
 2026-11-07 ci-dessous reste ouverte pour eux.
+📏 **Remesuré le 2026-11-08 au soir** (revérification demandée par Fabien) : sur les lots INSTALLÉS
+de chaque type, plus aucune note périmée ne passe devant une note fraîche — `llm` : qwen3.8 (75,5ᵉ,
+Arena) puis les trois notes v4 périmées (50,2 / 47,0 / 33,3) ; `diffusion` : SDXL et SD 1.5,
+périmés, derniers. La question du 07/11 n'a donc plus de cas ; la décision du 02/11 (gardée,
+marquée, comparée) tient telle quelle.
 ✅ **2026-11-07** — `AIModel.best_installed` (le référentiel « concurrence » de la prospection) se
 disait « même règle d'étage que la sélection » et n'en recopiait que trois étages : ni rang centile
 (absent depuis son branchement du 26/09), ni mesure interne, ni repli VRAM. Il LIT désormais

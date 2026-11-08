@@ -184,3 +184,10 @@ class SummarizeTest(SimpleTestCase):
     def test_an_empty_or_off_topic_answer_gives_nothing(self):
         self.assertIsNone(self._answer('{}'))
         self.assertIsNone(self._answer('pas du JSON'))
+
+    def test_the_description_is_asked_in_english_the_source_language(self):
+        """English is WAMA's source language, French a translation (Fabien, 2026-08-30 — ROADMAP
+        §10.A, MANIFEST_SPEC §1) : the instruction asks for English and is written in English."""
+        prompt = md.PROMPT.format(short=md.SHORT_CHARS, name='M', origin='fiche', text='t')
+        self.assertIn('write in English', prompt)
+        self.assertNotIn('français', prompt)

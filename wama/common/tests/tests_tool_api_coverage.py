@@ -14,7 +14,11 @@ What is held, DERIVED from what WAMA declares, never from a list of names :
      (`make_batch_views`) maps to the tool that does it — a NEW gesture fails until it is mapped ;
      a gesture without a tool is a declared budget that can only shrink ;
   3. ⏹ and ⚙ through their tools, by the app's own view, under the app guard ;
-  4. the tools decide a sandbox app as its page does — one rule (2026-11-02, Fabien's decision).
+  4. the tools decide a sandbox app as its page does — one rule (2026-11-02, Fabien's decision) ;
+  5. every ACTION ROUTE of WAMA (a path with an `api/` segment) maps to the tool that does it — a
+     route without a tool is a declared budget that can only shrink (2026-11-08, Fabien : « si les
+     API existent, l'assistant doit pouvoir les utiliser ». Measured that day : 252 such routes,
+     the guards above saw none of them ; the format routes of the model manager had no tool).
 The recipe to complete the API is the skill `/api-outils`.
 """
 import ast
@@ -55,6 +59,61 @@ GESTURES_WITHOUT_TOOL_BUDGET = 0
 
 FACTORIES = {'item': ('wama/common/utils/item_views.py', 'make_item_views'),
              'batch': ('wama/common/utils/batch_views.py', 'make_batch_views')}
+
+#: Routes that ARE a surface of the API, not a gesture to give it : the derived REST API, the
+#: tools' own HTTP views, and the assistant's channel (its chat, its voice) — each with its reason.
+API_SURFACE_NAMESPACES = {'api_v1'}            # derived from TOOL_REGISTRY (`wama/api/v1/views.py`)
+API_SURFACE_MODULES = {'wama.tool_api'}        # the HTTP views of the tools themselves
+ASSISTANT_CHANNEL_ROUTES = {                   # the conversation with the assistant itself
+    'ai_chat', 'ai_chat_clear', 'ai_chat_settings', 'ai_chat_follow_ups', 'ai_chat_jobs',
+    'ai_chat_thread', 'ai_chat_stream', 'kokoro_tts', 'speech_to_text', 'end_of_turn',
+}
+
+#: Each action route → the tool that does it, read against the URL resolver itself : a route that
+#: maps nowhere counts in the budget below. One tool may serve several routes (a page's poller of a
+#: gesture is that gesture's tool, called again).
+ROUTE_TOOLS = {
+    'model_manager:api_models_db': 'list_ai_models',
+    'model_manager:api_prospect_ollama': 'prospect_models',
+    'model_manager:api_prospect_install': 'install_model',
+    'model_manager:api_prospect_install_progress': 'install_model',
+    'model_manager:api_prospect_install_options': 'get_install_options',
+    'model_manager:api_library_action': 'install_library',
+    'model_manager:api_library_action_state': 'get_library_action',
+    'model_manager:api_format_stats': 'get_model_formats',
+    'model_manager:api_conversion_suggestions': 'get_model_formats',
+    'model_manager:api_conversion_options': 'get_model_formats',
+    'model_manager:api_convert_model': 'convert_model_format',
+    'model_manager:api_batch_convert': 'convert_model_format',
+    'model_manager:api_convert_and_backup': 'convert_model_format',
+}
+#: Action routes without a tool. The value of the measure ; LOWER it in the commit that adds a tool.
+#: Measured on 2026-11-08 when this guard was written : 212 (225 action routes, 13 mapped). Some of
+#: them are already done by an existing tool and only lack their line here — map them first.
+ROUTES_WITHOUT_TOOL_BUDGET = 212
+
+
+def action_routes() -> dict:
+    """`{route key: view}` of every action route — a path with an `api/` segment — outside the API's
+    own surfaces. The key is `<namespace>:<name>` (the name alone, or the path, without them)."""
+    from django.urls import URLPattern, URLResolver, get_resolver
+
+    def walk(resolver, prefix, namespace):
+        for p in resolver.url_patterns:
+            if isinstance(p, URLResolver):
+                yield from walk(p, prefix + str(p.pattern),
+                                ':'.join(filter(None, (namespace, p.namespace))))
+            elif isinstance(p, URLPattern):
+                yield namespace, prefix + str(p.pattern), p.name, p.callback
+
+    routes = {}
+    for namespace, path, name, view in walk(get_resolver(), '', ''):
+        if '/api/' not in '/' + path or namespace.split(':')[0] in API_SURFACE_NAMESPACES:
+            continue
+        if view.__module__ in API_SURFACE_MODULES or (not namespace and name in ASSISTANT_CHANNEL_ROUTES):
+            continue
+        routes[':'.join(filter(None, (namespace, name))) or path] = view
+    return routes
 
 
 def factory_gestures(path: str, function: str) -> set:
@@ -124,6 +183,53 @@ class EveryGestureHasItsToolTest(SimpleTestCase):
                 self.assertIsNone(T.app_id_for_tool(name), 'transverse : gardé dans son corps')
                 self.assertIsNone(T.tool_role(name), 'never taken for a triad tool')
                 self.assertEqual(effect, T.effect_of(name)['effect'])
+
+
+class EveryActionRouteHasItsToolTest(SimpleTestCase):
+
+    def test_every_mapped_route_exists_and_so_does_its_tool(self):
+        routes = action_routes()
+        for route, tool in ROUTE_TOOLS.items():
+            with self.subTest(route=route):
+                self.assertIn(route, routes, 'route renommée ou retirée : corriger ROUTE_TOOLS')
+                self.assertIn(tool, T.TOOL_REGISTRY)
+
+    def test_the_budget_of_routes_without_tool_is_exact(self):
+        """It FAILS when it keeps a margin too : a margin is a permission to add a route without
+        its tool. A new route gets its tool (`/api-outils`) and its line in ROUTE_TOOLS."""
+        without = sorted(set(action_routes()) - set(ROUTE_TOOLS))
+        self.assertEqual(ROUTES_WITHOUT_TOOL_BUDGET, len(without), without)
+
+    def test_the_format_tools_share_the_page_bodies_and_stay_with_developers(self):
+        """The routes and the tools read ONE body each (`format_converter`), and a simple user is
+        refused by the tools as by the routes (`is_admin_or_dev`)."""
+        from wama.model_manager.services import format_converter as F
+        with mock.patch.object(F, 'convert_and_backup', return_value={'success': True}) as body, \
+                mock.patch.object(T, '_unknown_model_key', return_value=None):
+            dev = mock.Mock()
+            with mock.patch('wama.accounts.permissions.can_manage_registries', return_value=True):
+                self.assertEqual({'success': True}, T.convert_model_format(dev, 'reader:x', 'onnx'))
+            body.assert_called_once_with('reader:x', 'onnx', backup_after=True,
+                                         delete_source_after_backup=False)
+        with mock.patch('wama.accounts.permissions.can_manage_registries', return_value=False):
+            for call in (lambda u: T.get_model_formats(u), lambda u: T.convert_model_format(u, 'k')):
+                self.assertEqual('forbidden', call(mock.Mock())['error'])
+        for name, effect in (('get_model_formats', 'read'), ('convert_model_format', 'write')):
+            self.assertEqual(effect, T.effect_of(name)['effect'])
+
+
+class FormatToolsRefuseAnUnknownKeyTest(TestCase):
+
+    def test_an_unknown_key_is_refused_before_any_disk_discovery(self):
+        """A key the catalogue does not carry is refused at once : the resolution's fallback is the
+        full disk discovery (2.5 min measured on 2026-11-08 for a mistyped key)."""
+        from wama.model_manager.services import format_converter as F
+        with mock.patch('wama.accounts.permissions.can_manage_registries', return_value=True), \
+                mock.patch.object(F, 'resolve_weight_file') as resolve:
+            for call in (lambda: T.get_model_formats(mock.Mock(), 'nope:none'),
+                         lambda: T.convert_model_format(mock.Mock(), 'nope:none', 'onnx')):
+                self.assertIn('Aucun modèle', call()['error'])
+            resolve.assert_not_called()
 
 
 def _account(username, tier='utilisateur', role=''):

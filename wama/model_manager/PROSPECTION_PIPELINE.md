@@ -1033,7 +1033,8 @@ Kokoro-ONNX 1,7 M) ; ② `Qwen3-ASR-1.7B` s'affichait « Nouveau » alors qu'il 
    `onnx-community/Kokoro-82M-v1.0-ONNX` via la prospection) ; ② `api_convert_and_backup`
    traitait l'ID de catalogue (`synthesizer:kokoro`, envoyé par l'UI) comme un CHEMIN →
    « Source file not found » systématique pour tout modèle déclaré par app — nouvelle
-   résolution `_resolve_weight_file` (ID → `AIModel.extra_info['path']` → registre ;
+   résolution `_resolve_weight_file` — `format_converter.resolve_weight_file` depuis le
+   2026-11-08, partagée avec l'outil `convert_model_format` (ID → `AIModel.extra_info['path']` → registre ;
    dossier/snapshot HF → plus gros fichier de poids convertible) ; ③ la chaîne
    backup-avant-suppression (`_retire_source`, offload vérifié) était SAINE — rien touché.
 4. **Installations via le pipeline existant** (`install_proposed_task` →
@@ -3662,8 +3663,8 @@ l'assistant ne recommandait rien.
    - le FOURNISSEUR qui décrit ses modèles est lu (OpenRouter, `cloud_models.list_remote_models`) ;
    - `manage.py describe_models [--keys …] [--limit N] [--no-web] [--apply]` comble les lignes
      marquées (`services/model_descriptions.py`) : la FICHE du Hub (son dépôt, ou le modèle d'origine
-     d'une quantification), sinon une recherche web (`search_engines`), résumée en français par le
-     LLM local par défaut, « n'invente rien », la source tracée (`DESCRIPTION_SOURCE_KEY`, collante).
+     d'une quantification), sinon une recherche web (`search_engines`), résumée en anglais (langue source,
+     corrigé le 2026-11-08 : la consigne disait « en français ») par le LLM local par défaut, « n'invente rien », la source tracée (`DESCRIPTION_SOURCE_KEY`, collante).
      La fiche se lit par LE lecteur d'un fichier de dépôt du Hub (`prospector.hub_raw_file`, rien
      dans le cache), que la licence et la configuration emploient aussi (revérification du 30/10 :
      trois lecteurs pour un geste) ;
@@ -4225,6 +4226,14 @@ défaut vu s'est comblé dans la route, aucun dans la proposition.
   ⚠ Décision ouverte pour Fabien : l'enveloppe des manifestes déclare les chaînes lisibles en
   ANGLAIS (`manifests/envelope.py:8`, pivot i18n) ; le catalogue écrit ses descriptions en
   FRANÇAIS (`model_descriptions`, 63 au corpus).
+  ✅ *Elle n'était pas ouverte (revérification du 2026-11-08) : tranchée le 2026-08-30 — « l'anglais
+  est la langue de WAMA […] le français n'en est qu'une traduction » (`ROADMAP §10.A`,
+  `WAMA_MANIFEST_SPEC §1`). La consigne de `model_descriptions.PROMPT` fait désormais écrire en
+  anglais (garde `tests_model_descriptions.SummarizeTest`). Mesuré au corpus : 188 descriptions
+  longues et 176 courtes en français sur 636 manifestes `model` — 63 écrites par ce résumé, 69
+  DÉCLARÉES en français dans le code (`model_config` des apps, `common`, `model_manager`), 56
+  textes de remplissage de la synchro (« Snapshot HuggingFace installé… », « … — modèle distant ») ;
+  ⏳ les réécrire en anglais, à leur source.*
 - **Le rôle d'une anatomie posée mécaniquement reste le nom que le code lit**
   (`Qwen3-Embedding-0.6B`, pas `text_encoder`) : essayé et ABANDONNÉ — le code lie ce fichier à
   `text_encoder_path` ET `text_path`, et `silence_latent.pt` à trois variables ; choisir entre

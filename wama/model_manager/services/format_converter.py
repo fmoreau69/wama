@@ -416,3 +416,112 @@ class FormatConverter:
             'by_engine': by_engine,
             'total_models': sum(stats.values()),
         }
+
+
+#: Les formats SOURCE qu'une conversion sait lire (`FormatConverter.convert_model`).
+CONVERTIBLE_EXTS = ('.pt', '.pth', '.bin', '.ckpt')
+
+
+def resolve_weight_file(ref: str):
+    """
+    Chemin du FICHIER de poids à convertir, depuis ce que l'UI envoie réellement : un chemin
+    de fichier (rendu inchangé), un chemin de dossier, ou un ID de catalogue
+    (`synthesizer:kokoro`) — résolu via `AIModel.extra_info['path']` puis, à défaut, le
+    registre. Un dossier (snapshot HF compris) descend vers son plus gros fichier
+    convertible. Retourne None si rien de convertible.
+
+    Bug d'origine (2026-08-31) : `api_convert_and_backup` recevait l'ID de catalogue et le
+    traitait comme un chemin — « Source file not found » systématique pour tous les modèles
+    déclarés par app (les boutons Convert ne marchaient QUE pour les modèles découverts par
+    scan disque, dont l'id EST un chemin). Sorti de la vue le 2026-11-08 : l'outil de
+    l'assistant (`tool_api.convert_model_format`) résout la même clé par le même geste.
+    """
+    if not ref:
+        return None
+
+    def weight_file(p: Path):
+        if p.is_file():
+            return str(p) if p.suffix.lower() in CONVERTIBLE_EXTS else None
+        if p.is_dir():
+            weights = [f for f in p.rglob('*')
+                       if f.is_file() and f.suffix.lower() in CONVERTIBLE_EXTS]
+            if weights:
+                # Le plus gros fichier = les poids du modèle (les petits .pt d'un snapshot
+                # sont des têtes auxiliaires/config, jamais la cible d'une conversion).
+                return str(max(weights, key=lambda f: f.stat().st_size))
+        return None
+
+    p = Path(ref)
+    if p.exists():
+        return weight_file(p)
+
+    # ID de catalogue : la ligne AIModel porte le chemin posé par la découverte…
+    from wama.model_manager.models import AIModel
+    row = AIModel.objects.filter(model_key=ref).first()
+    path = ((row.extra_info or {}).get('path') or row.local_path or '') if row else ''
+    if not path:
+        # …sinon le registre (découverte fraîche — tolérant au type de retour).
+        from .model_registry import ModelRegistry
+        res = ModelRegistry().discover_all_models()
+        items = res.values() if hasattr(res, 'values') else res
+        for info in items:
+            if getattr(info, 'id', None) == ref:
+                path = ((getattr(info, 'extra_info', None) or {}).get('path') or '')
+                break
+    return weight_file(Path(path)) if path else None
+
+
+def conversion_options(ref: str) -> dict | None:
+    """`{'model_path', 'current_format', 'available_conversions'}` du fichier de poids que `ref`
+    désigne (chemin ou clé de catalogue, `resolve_weight_file`), None si rien de convertible —
+    la lecture de la route `api/convert/options/` et de l'outil `get_model_formats`."""
+    from wama.common.utils.safetensors_utils import get_model_format
+    path = resolve_weight_file(ref)
+    if path is None:
+        return None
+    return {'model_path': path, 'current_format': get_model_format(path),
+            'available_conversions': FormatConverter().get_conversion_options(path)}
+
+
+def convert_and_backup(ref: str, target_format: str = 'safetensors', *,
+                       model_type: str = 'unknown', model_name: str | None = None,
+                       backup_after: bool = True,
+                       delete_source_after_backup: bool = False) -> dict:
+    """Le geste « Convertir » de la gestion des modèles, UN corps pour la page et l'assistant :
+    résoudre le fichier de poids (`resolve_weight_file`), le convertir, archiver le converti sur
+    l'espace distant, puis — opt-in explicite — retirer la source locale après un archivage
+    VÉRIFIÉ (`remote_backup.offload_file`). Rend `{'success', 'conversion', 'backup'?,
+    'offload'?}`, ou `{'success': False, 'error', 'not_found'?}`."""
+    from .remote_backup import get_backup_service
+
+    resolved = resolve_weight_file(ref)
+    if resolved is None:
+        return {'success': False, 'not_found': True,
+                'error': f"Aucun fichier de poids convertible trouvé pour « {ref} » "
+                         f"(formats source : {', '.join(CONVERTIBLE_EXTS)})"}
+    model_name = model_name or Path(resolved).stem
+
+    result = FormatConverter().convert_model(resolved, target_format)
+    if not result.success:
+        return {'success': False, 'error': f'Conversion failed: {result.message}',
+                'conversion': {'success': False, 'message': result.message}}
+
+    response = {'success': True, 'conversion': {
+        'success': True, 'source_path': result.source_path, 'target_path': result.target_path,
+        'source_format': result.source_format, 'target_format': result.target_format,
+        'size_before_mb': result.size_before_mb, 'size_after_mb': result.size_after_mb,
+    }}
+    if backup_after:
+        service = get_backup_service()
+        if service.is_available():
+            backup = service.backup_file(result.target_path, model_type, model_name,
+                                         target_format, overwrite=True)
+            response['backup'] = {'success': backup.success, 'dest_path': backup.dest_path,
+                                  'size_mb': backup.size_mb, 'error': backup.error}
+        else:
+            response['backup'] = {'success': False, 'error': 'Remote backup path not accessible'}
+    # Offload du fichier SOURCE (ex. .pt) — OPT-IN explicite, destructif : sauvegardé sur le
+    # distant (miroir), VÉRIFIÉ, puis supprimé en local ; jamais si la vérification échoue.
+    if delete_source_after_backup:
+        response['offload'] = get_backup_service().offload_file(result.source_path)
+    return response
