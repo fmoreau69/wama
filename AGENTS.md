@@ -207,7 +207,29 @@ d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
   `ImportError: 'tests…' module incorrectly imported from …` (3 runs perdus le 05/09, rien à
   voir avec HEAD). Sans préfixe `cd` : `env -C "$W" <python ABSOLU> manage.py test --keepdb`,
   et vérifier la résolution d'abord (`manage.py shell -c "import wama_data; print(wama_data.__file__)"`).
-  `git worktree remove` échoue sous Windows (« Filename too long ») → `rm -rf` puis `prune`.
+  🔴 **Retirer un worktree par SON chemin, jamais par un `git worktree prune` global** (corrigé le
+  2026-11-08 — cette ligne disait « `rm -rf` puis `prune` ») : un worktree créé sous WSL a un
+  gitdir en `/mnt/d/…`, illisible depuis Windows, et l'inverse — `git worktree list` les marque
+  « prunable » de l'autre côté. Vécu le jour même dans les deux sens : un `prune` de Git Bash a
+  retiré l'enregistrement de deux worktrees créés sous WSL (`wt_verif_lot_1108`, `wt_verif65`),
+  un `prune` de WSL celui d'un worktree Windows ; git n'y répondait plus (« not a git
+  repository »). ✅ `git worktree remove --force <chemin>` du MÊME côté que la création ; sinon
+  (« Filename too long » sous Windows) `rm -rf <worktree>` puis `rm -rf .git/worktrees/<son nom>`
+  — le sien seul. Lire `git worktree list` d'abord : une ligne « prunable » qui n'est pas à soi
+  vient de l'autre système. Un worktree qui doit durer se verrouille (`git worktree lock`).
+  🔴 **Jamais `GIT_DIR` / `GIT_WORK_TREE` exportés devant une suite ou un processus long** (vécu
+  le 2026-11-08, 03:25) : `tests_vendor_install` fait `git init` dans un dossier jetable — il a
+  hérité des variables et réinitialisé le DÉPÔT PARTAGÉ (`core.worktree` écrit dans
+  `.git/config` : git cassé depuis Windows, et depuis WSL le dépôt principal travaillait sur
+  l'arbre du worktree). Ces variables ne vont que devant UNE commande git ciblée.
+  ⚠ **Les migrations recopiées emportent celles qui sont plus RÉCENTES que le worktree** — celles
+  de dev d'après sa base, et celles du WIP non commité d'une autre instance (vécu le 2026-11-08 :
+  1551 erreurs, `column … does not exist`). Après la copie, `manage.py makemigrations --check
+  --dry-run` doit dire « No changes detected » ; et une base de test À PART
+  (`WAMA_DB_NAME=wama_db_<nom>`, la base de test partagée suit le WIP de l'arbre principal). ⚠ Ce
+  nom vaut aussi pour la base « réelle » que la découverte des tests lit AVANT la bascule : un
+  module qui lit le catalogue à l'import la voit vide (faux rouges du contrat de dépôt) — une
+  comparaison sous le même montage reste symétrique, un rouge isolé se rejoue sans la variable.
 
   ⚠⚠ **`manage.py check` passe sans rien de tout cela** — il ne touche pas la base. Un « check
   vert sur HEAD » ne prouve donc RIEN sur la capacité de HEAD à monter sa base : c'est
