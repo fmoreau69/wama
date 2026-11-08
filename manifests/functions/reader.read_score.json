@@ -1,0 +1,66 @@
+{
+  "body": {
+    "app": "reader",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "reader.tasks:read_document_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "La partition à lire (PDF…).",
+        "group": "travail",
+        "key": "work_document",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "image",
+        "description": "La photo ou le scan de la partition.",
+        "group": "travail",
+        "key": "work_image",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "reader.read_score",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "score",
+        "description": "La partition lue (ABC, MusicXML).",
+        "key": "score",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "omr",
+      "music",
+      "document",
+      "gpu"
+    ]
+  },
+  "description": "Lit une partition IMPRIMÉE (scan, photo, PDF) : un modèle de la tâche `image-to-score` rend son MusicXML, mis en ABC par la brique commune pour la page d'édition.",
+  "key": "reader.read_score",
+  "manifest_kind": "function",
+  "name": "Reader — lire la partition",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:reader.read_score",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

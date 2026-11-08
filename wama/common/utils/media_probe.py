@@ -369,7 +369,7 @@ def probe_media(path: str) -> dict:
     return {}
 
 
-def _duration_property(info: dict):
+def _duration_property(info: dict, path: str = ''):
     duration = info.get('duration')
     if not duration:
         return None
@@ -377,7 +377,7 @@ def _duration_property(info: dict):
             'note': f"Reprise du fichier d'entrée ({info.get('duration_display') or format_duration(duration)})."}
 
 
-def _needs_ocr_property(info: dict):
+def _needs_ocr_property(info: dict, path: str = ''):
     attributes = info.get('attributes') or {}
     if info.get('media_type') != 'pdf' or 'pages_without_text' not in attributes:
         return None
@@ -397,24 +397,44 @@ def _needs_ocr_property(info: dict):
                                    f"sur {pages} : l'OCR les lira."}
 
 
+def _has_staves_property(info: dict, path: str = ''):
+    """La page porte-t-elle une PARTITION ? (2026-11-08, la lecture de partition du Reader) — ses
+    portées comptées sur le fichier lui-même (`score_page.page_staves`), d'où le CHEMIN : la sonde
+    commune ne les compte pas, chaque image de chaque app le paierait."""
+    if info.get('media_type') not in ('image', 'pdf') or not path:
+        return None
+    from wama.common.utils.score_page import page_staves
+    staves = page_staves(path)
+    if staves is None:
+        return None
+    if staves:
+        return {'value': True, 'note': f"{staves} portée{'s' if staves > 1 else ''} sur la page : "
+                                       "elle se lit comme une partition."}
+    return {'value': False, 'note': "Aucune portée sur la page : elle se lit comme un texte."}
+
+
 #: Les PROPRIÉTÉS d'une entrée qu'un réglage peut REPRENDRE (`Param.default_from`, 2026-10-04 pour
-#: la durée, 2026-10-29 pour `needs_ocr`) : `nom → (sonde) -> {'value', 'note'} | None`. La valeur
-#: est posée dans le réglage, la note dite sous lui (pourquoi cette valeur). Lues sur la sonde
-#: commune : par la naissance d'un élément (`user_settings.new_element_settings(inputs=…)`), et
+#: la durée, 2026-10-29 pour `needs_ocr`, 2026-11-08 pour `has_staves`) :
+#: `nom → (sonde, chemin) -> {'value', 'note'} | None`. La valeur est posée dans le réglage, la
+#: note dite sous lui (pourquoi cette valeur). Lues sur la sonde commune — et sur le fichier quand
+#: la sonde ne la porte pas (`has_staves` : on ne compte des portées que pour un réglage qui le
+#: demande) : par la naissance d'un élément (`user_settings.new_element_settings(inputs=…)`), et
 #: pour la card d'entrée par `common:api_media_probe` (fichier désigné ou téléversé). Le client
 #: lit seul la durée d'un fichier téléversé (`WamaApp.mediaDuration`) ; une propriété qu'il ne
 #: sait pas lire passe par la sonde du serveur. None : rien à proposer (autre nature, illisible).
 INPUT_PROPERTIES = {
     'duration': _duration_property,
     'needs_ocr': _needs_ocr_property,
+    'has_staves': _has_staves_property,
 }
 
 
-def input_property(info: dict, name: str):
-    """`{'value', 'note'}` de la propriété `name` sur la sonde `info` (`probe_media`), ou None."""
+def input_property(info: dict, name: str, path: str = ''):
+    """`{'value', 'note'}` de la propriété `name` sur la sonde `info` (`probe_media`) du fichier
+    `path`, ou None. Le chemin n'est lu que par une propriété que la sonde ne porte pas."""
     reader = INPUT_PROPERTIES.get(name)
     try:
-        return reader(info or {}) if reader else None
+        return reader(info or {}, path or '') if reader else None
     except Exception:
         return None
 

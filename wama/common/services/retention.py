@@ -43,6 +43,8 @@ RETENTION_MODELS = [
     {'model': 'enhancer.AudioEnhancement', 'path_lists': ['native_outputs']},
     # `kept_outputs` : les versions gardées de la partition (`KeptOutputsMixin`, 2026-10-15).
     {'model': 'composer.ComposerGeneration', 'path_lists': ['native_outputs', 'kept_outputs']},
+    # Les versions gardées de la partition lue par le Reader (2026-11-08).
+    {'model': 'reader.ReadingItem', 'path_lists': ['kept_outputs']},
     {'model': 'synthesizer.VoiceSynthesis', 'path_lists': ['native_outputs']},
     {'model': 'transcriber.Transcript'},
     {'model': 'anonymizer.Media', 'date': 'uploaded_at', 'path_lists': ['native_outputs']},

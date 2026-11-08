@@ -32,6 +32,8 @@ from django.utils.translation import gettext_lazy as _
 # regroupement REPRODUIT leur mise en forme au lieu de l'aplatir (règle : généraliser sans
 # changer ce que l'utilisateur voit).
 TEXT, DOCUMENT, RAW = 'text', 'document', 'raw'
+#: Les PARTITIONS (2026-11-08, la partition lue du Reader) : leur propre groupe, séparé du texte.
+SCORE = 'score'
 
 _DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
@@ -52,6 +54,10 @@ VOCABULARY: dict[str, dict] = {
              'mime': _DOCX_MIME},
     'json': {'label': _('JSON brut'), 'icon': 'fas fa-code text-warning',    'group': RAW,
              'mime': 'application/json; charset=utf-8'},
+    'abc':  {'label': 'ABC',        'icon': 'fas fa-music',              'group': SCORE,
+             'mime': 'text/vnd.abc; charset=utf-8'},
+    'musicxml': {'label': 'MusicXML', 'icon': 'fas fa-music text-primary', 'group': SCORE,
+                 'mime': 'application/vnd.recordare.musicxml+xml'},
 }
 
 # Ordre d'affichage stable, quel que soit l'ordre de déclaration de l'app : le premier format

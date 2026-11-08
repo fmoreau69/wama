@@ -1,11 +1,13 @@
 from django.db import models
-from wama.common.models import (ProcessingTimeMixin, ScopedVisibility, ScopedManager,
-                                JOB_STATUS_CHOICES, JOB_PENDING)
+from wama.common.models import (KeptOutputsMixin, ProcessingTimeMixin, ScopedVisibility,
+                                ScopedManager, JOB_STATUS_CHOICES, JOB_PENDING)
 from django.contrib.auth.models import User
-from wama.common.utils.media_paths import upload_to_user_input
+from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 
 
-class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
+class ReadingItem(KeptOutputsMixin, ProcessingTimeMixin, ScopedVisibility):
+    # `KeptOutputsMixin` (2026-11-08) : les versions de la PARTITION lue se gardent, comme celles
+    # du composer (`revisions.keep_outputs`, `apps.py`) — la page « Éditer la partition » les reprend.
     # Partage F7 : lectures via visible_to()/visible_or_404, mutations par user.
     objects = ScopedManager()
 
@@ -92,6 +94,24 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
                                    help_text="Graine du modèle de langage ; vide = un tirage neuf.")
     llm_top_p = models.FloatField(null=True, blank=True,
                                   help_text="Top P du modèle de langage ; vide = celui du modèle.")
+
+    # LA PARTITION (2026-11-08, demande de Fabien : « l'utilisateur scanne une partition, la
+    # partition est rendue typographiée et éditable »). La case ACTIVE le process optionnel
+    # `read_score` à la place de la lecture du texte ; le fichier la PROPOSE (`Param.default_from`,
+    # propriété `has_staves` : des portées sur la page), l'utilisateur la change. Son modèle est
+    # celui du process (tâche `image-to-score`, « auto » = le tirage), patron de `parts_model` du
+    # composer. `db_default` : le code en service avant le redémarrage insère sans ces colonnes.
+    read_as_score = models.BooleanField(default=False, db_default=False,
+                                        help_text='Lire la page comme une partition')
+    score_model = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
+                                   help_text="Clé de catalogue du modèle de lecture de partition, "
+                                             "ou « auto ».")
+    # Ses SORTIES : la partition en ABC — la notation que la page d'édition et le composer lisent,
+    # celle qu'on corrige — et le MusicXML du moteur, tel quel, pour l'échange (MuseScore…).
+    score_file = models.FileField(max_length=500, upload_to=upload_to_user_output('reader'),
+                                  blank=True, null=True)
+    score_musicxml = models.FileField(max_length=500, upload_to=upload_to_user_output('reader'),
+                                      blank=True, null=True)
 
     created_at    = models.DateTimeField(auto_now_add=True)
 

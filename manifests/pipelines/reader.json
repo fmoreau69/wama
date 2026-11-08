@@ -56,7 +56,9 @@
           "watched": [
             "language",
             "llm_model",
-            "llm_temperature"
+            "llm_temperature",
+            "llm_seed",
+            "llm_top_p"
           ]
         }
       },
@@ -75,7 +77,33 @@
           "toggle": "generate_analysis",
           "watched": [
             "llm_model",
-            "llm_temperature"
+            "llm_temperature",
+            "llm_seed",
+            "llm_top_p",
+            "result_text"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "reader.read_score",
+        "id": "read_score",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "eta": "reader.tasks:read_score_eta",
+          "gpu": true,
+          "label": "Partition",
+          "outputs": [
+            "score_file",
+            "score_musicxml"
+          ],
+          "share": 8,
+          "toggle": "read_as_score",
+          "watched": [
+            "score_model",
+            "input_file"
           ]
         }
       }
@@ -84,7 +112,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "reader",
   "manifest_kind": "pipeline",
-  "name": "Reader — lecture, mise en forme, analyse (3 process)",
+  "name": "Reader — lecture, mise en forme, analyse, partition (4 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

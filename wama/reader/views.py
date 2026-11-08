@@ -391,9 +391,11 @@ def _output_stem(r):
 
 
 #: Réglages d'une lecture écrits par la modale ⚙, le volet et la modale de LOT (schéma `params.py`).
-SETTINGS_FIELDS = ('backend', 'mode', 'language', 'llm_model',
-                   'llm_temperature', 'llm_seed', 'llm_top_p', 'format_markdown',
-                   'generate_analysis')
+# Les colonnes de réglage, DÉRIVÉES du schéma (2026-11-08, comme l'avatarizer) : la liste écrite à
+# la main ici n'aurait pas suivi la case « Lire une partition » et son modèle. Le curseur
+# (`quality_intent`) est un réglage d'app de l'utilisateur, pas une colonne : écarté.
+SETTINGS_FIELDS = tuple(p['name'] for p in _SCHEMA
+                        if p['name'] in {f.name for f in ReadingItem._meta.concrete_fields})
 #: `language` vide EST une valeur (auto-détection) — lu par la route d'élément et par la fabrique.
 SETTINGS_EMPTY_IS_VALUE = ('language',)
 
@@ -625,6 +627,16 @@ def build_reading_bytes(item, fmt):
     Shared format builder for the batch ZIP dropdown (WAMA_APP_CONVENTIONS §9.10).
     """
     fmt = (fmt or 'txt').lower()
+    # La PARTITION lue (2026-11-08) : ses deux fichiers, tels qu'ils sont (l'ABC corrigée compris).
+    if fmt in ('abc', 'musicxml'):
+        field = item.score_file if fmt == 'abc' else item.score_musicxml
+        if not getattr(field, 'name', ''):
+            return None
+        try:
+            with field.open('rb') as handle:
+                return (fmt, handle.read())
+        except OSError:
+            return None
     if fmt == 'json':
         if not item.raw_result:
             return None

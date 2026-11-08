@@ -3015,12 +3015,19 @@ def api_media_probe(request):
     asked = [p for p in (request.POST.get('properties') or request.GET.get('properties') or ''
                          ).split(',') if p]
     uploaded = request.FILES.get('file') if request.method == 'POST' else None
+
+    def read_proposals(info, path):
+        # Pendant que le fichier est lisible : `has_staves` (2026-11-08) le lit lui-même.
+        return {name: proposal for name in asked
+                for proposal in [input_property(info, name, path)] if proposal is not None}
+
     if uploaded is not None:
         try:
             with ReceivedInput(uploaded.name, uploaded).readable_path() as path:
                 info = probe_media(path)
+                proposals = read_proposals(info, path)
         except Exception:
-            info = {}
+            info, proposals = {}, {}
     else:
         try:
             abs_path, rel = resolve_under_media_root(request.GET.get('path') or '')
@@ -3029,8 +3036,7 @@ def api_media_probe(request):
         if not readable_by(rel, request.user):
             return JsonResponse({'error': 'Access denied'}, status=403)
         info = probe_media_cached(abs_path)
-    proposals = {name: proposal for name in asked
-                 for proposal in [input_property(info, name)] if proposal is not None}
+        proposals = read_proposals(info, abs_path)
     return JsonResponse({'ok': True, 'proposals': proposals, **{k: info.get(k) for k in (
         'media_type', 'duration', 'duration_display', 'properties', 'attributes')}})
 

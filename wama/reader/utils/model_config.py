@@ -59,6 +59,11 @@ READER_MODELS = {
 #: (ou chez un fournisseur) y entre sans une ligne du reader.
 OCR_SPEC = {'task': 'ocr'}
 
+#: La tâche du modèle qui lit une PARTITION imprimée (process `read_score`, 2026-11-08) — le
+#: select `score_model` et le tirage de la glu la lisent ; un modèle de cette tâche installé demain
+#: y entre sans une ligne du reader.
+SCORE_READING_TASK = 'image-to-score'
+
 #: Repli du tirage quand le catalogue ne propose rien : docTR, sur CPU, toujours disponible.
 OCR_FALLBACK = 'reader:doctr'
 

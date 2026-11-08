@@ -29208,3 +29208,42 @@ mots de l'aligneur.
   périmètre + 111 des gardes transverses verts ; 3 contre-épreuves, 3 rouges. 🔚 consigné
   (`WAMA_LLM.md`) : sous « auto », le bouton écrit dans la langue du profil, l'étape dans celle du
   modèle tiré.
+
+## §PALIER 2026-11-08, « LE READER LIT UNE PARTITION : CASE `read_as_score` PROPOSÉE PAR LES PORTÉES DE LA PAGE, PROCESS `read_score` À LA PLACE DU TEXTE, PAGES D'ÉDITION PAR NATURE » — ce commit (local, non poussé) — migrations `reader/0018_score_reading` et `0019_kept_score_versions` DÉJÀ APPLIQUÉES ; 🔴 relancer gunicorn + workers (default, gpu)
+
+Demande de Fabien du 2026-11-08 : *« On fait déjà l'intégration au reader ? […] parfaitement aligné
+sur le fonctionnement de wama et parfaitement schéma-driven. On regarde comment les autres
+applications fonctionnent. On ne réinvente rien. »* Décision du 07/11 : *« une détection automatique
+avec switch automatique, mais qui peut rester un choix de l'utilisateur »*. Rien de neuf qu'une brique
+de MESURE ; chaque pièce suit un patron en service :
+- **Détecter** : `common/utils/score_page.py` (`count_staves`, `page_staves` — cinq lignes longues,
+  régulièrement espacées ; aucun modèle) ; propriété d'entrée `has_staves` de `media_probe`
+  (`INPUT_PROPERTIES`), qui LIT LE FICHIER : `input_property(info, name, path)`, chemin passé par
+  `user_settings.input_proposals` et `common:api_media_probe` — patron `needs_ocr` de l'anonymizer.
+  Mesuré : 2 pages de partition (1 et 6 portées), 6 vraies pages de texte (0), 0,01–0,4 s.
+- **Régler** : `read_as_score` (`default_from` port `work_file`, propriété `has_staves`) et
+  `score_model` (catalogue, tâche `image-to-score`, « auto ») — patron `parts_model` du composer ;
+  `model_for_task` / `task_installed` passés du composer à `common/utils/auto_model.py` (second
+  consommateur). Le curseur rapide/qualité suit le sélecteur de la NATURE lue (`show_if` composé
+  `any`) ; les réglages du texte se cachent sous la case.
+- **Traiter** : `ProcessSpec('read_score')` OPTIONNEL, ALTERNATIF à `read`/`format`/`analyze`
+  (`reads_text` = « le rival n'a pas lieu », patron `plan`/`extract_score`), disponible si un modèle
+  de la tâche est installé ; glu `tasks._read_score` (`ctx.ensure_model`, `run_contract`,
+  `musicxml_to_abc`, `ctx.output_place`) ; sorties `score_file` (ABC) et `score_musicxml`.
+- **Rendre** : formats `abc` / `musicxml` au ⬇ (vocabulaire + `register_export_missing` : une card
+  lue en partition n'offre que ceux-là) ; versions gardées (`keep_outputs` + `KeptOutputsMixin`,
+  rétention) ; pages `reader.score` (« Éditer la partition ») et `reader.text` (« Corriger le
+  texte ») ; statut de l'assistant (`TRIAD_SPECS`) ; mécanisme `score_page` au registre.
+- **Corpus** : manifeste `pipelines/reader.json` réexporté (il porte aussi `llm_seed`/`llm_top_p`,
+  écart du 26/10 d'une autre session, conforme au registre) et `functions/reader.read_score.json`.
+- **Gardes** : `reader/tests_score.py` (12 — portées, proposition, alternance, glu, formats, pages,
+  statut, page servie) ; `tests_auto_model.CurseurDeQualiteTest` lit désormais une condition
+  composée (il ne comprenait que `equals`/`in`). 553 tests des suites touchées : 3 rouges, tous
+  `composer.write_lyrics` (`ef82459ba`, sans manifeste `function` ni résultat lisible) ; 4
+  contre-épreuves en processus, 4 rouges.
+- ⚠ Docs générées (`WAMA_MECANISMES`, `docs/dev/briques.md`) : régénérées sur un worktree de HEAD +
+  ce commit seul — elles rattrapent donc aussi des faits DÉJÀ COMMITÉS par d'autres sessions
+  (`guarded_request`, `remount_shares`, paroles du composer…), jamais leur travail en cours.
+- 🔚 Reste : la mesure sur de VRAIS scans de Fabien ; le scan à côté de la gravure (aucune brique
+  n'affiche une image en lecture seule) ; l'écoute (abcjs vendorisé sans synthétiseur) ; une photo
+  de travers ou un manuscrit ne sont pas vus par `has_staves` (la note le dit, l'utilisateur coche).

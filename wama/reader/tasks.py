@@ -3,6 +3,7 @@ Reader — Celery tasks for OCR processing.
 """
 import json
 import logging
+import os
 from celery import shared_task
 from django.core.cache import cache
 from django.db import close_old_connections
@@ -223,12 +224,7 @@ def _read(item, ctx):
     ctx.console(f"[Reader] Démarrage : {item.filename}")
     ctx.progress(2, "Démarrage…")
     try:
-        # Count pages for PDF if not yet done
-        if item.page_count == 0 and item.input_file.name.lower().endswith('.pdf'):
-            n = _count_pdf_pages(item.input_file.path)
-            if n:
-                item.page_count = n
-                item.save(update_fields=['page_count'])
+        _ensure_page_count(item)
 
         # For PDFs: try native text extraction first (digital/vector PDFs)
         if item.input_file.name.lower().endswith('.pdf'):
@@ -330,6 +326,66 @@ def _read(item, ctx):
         raise
 
 
+def _ensure_page_count(item) -> None:
+    """Le nombre de pages d'un PDF, compté une fois — l'ETA des deux lectures en dépend."""
+    if item.page_count == 0 and item.input_file.name.lower().endswith('.pdf'):
+        n = _count_pdf_pages(item.input_file.path)
+        if n:
+            item.page_count = n
+            item.save(update_fields=['page_count'])
+
+
+def _read_score(item, ctx):
+    """Process `read_score` (2026-11-08) : la page — une partition IMPRIMÉE — lue par un modèle de
+    la tâche `image-to-score` (`score_model`, sinon le tirage commun), par la PORTE COMMUNE (clé →
+    backend, contrat `ScoreReadingBackend`). Deux sorties de la card : le MusicXML du moteur, tel
+    quel, et l'ABC qu'en fait la brique commune (`musicxml_score`) — la notation que la page
+    « Éditer la partition » et le composer lisent. Une image est redressée avant le moteur, comme
+    pour le texte (`upright_image`)."""
+    from wama.common.backends.manager import backend_instance_for_key, run_contract
+    from wama.common.backends.ocr_base import upright_image
+    from wama.common.utils.auto_model import model_for_task
+    from wama.common.utils.model_keys import model_id
+    from wama.common.utils.musicxml_score import musicxml_to_abc
+    from wama.common.utils.work_dir import work_dir
+    from wama.reader.utils.model_config import SCORE_READING_TASK
+
+    ctx.console(f"[Reader] Partition : {item.filename}")
+    ctx.progress(2, "Démarrage…")
+    _ensure_page_count(item)
+    key = model_for_task(SCORE_READING_TASK, item.score_model, item=item)
+    if not key:
+        raise RuntimeError("Aucun modèle de lecture de partition n'est installé "
+                           "(tâche « image-to-score »).")
+    ctx.console(f"[Reader] Modèle de partition : {key}")
+    ctx.ensure_model(key)                  # absent : la route l'installe, la tâche attend
+    engine = backend_instance_for_key(key, user=item.user)
+    with work_dir('reader_score') as travail:
+        work_file = item.input_file.path
+        if not work_file.lower().endswith('.pdf'):
+            work_file = upright_image(work_file, str(travail))
+        musicxml = run_contract(engine, model_id=model_id(key), work_file=work_file,
+                                output_dir=str(travail), progress_callback=ctx.progress)
+    title = os.path.splitext(item.filename)[0]
+    abc = musicxml_to_abc(musicxml, title=title)
+    xml_rel, xml_abs = ctx.output_place('.musicxml', nature='score', model=model_id(key))
+    with open(xml_abs, 'w', encoding='utf-8') as handle:
+        handle.write(musicxml)
+    abc_rel, abc_abs = ctx.output_place('.abc', nature='score', model=model_id(key))
+    with open(abc_abs, 'w', encoding='utf-8') as handle:
+        handle.write(abc)
+    name = os.path.basename(abc_rel)
+    ctx.progress(100, "Terminé")
+    return {
+        'fields': {'score_file': abc_rel, 'score_musicxml': xml_rel, 'used_backend': key},
+        'output_ref': abc_rel,
+        'models': [key],
+        'eta': reader_eta_key_size(item, backend=key),
+        'label': name,
+        'console_success': f"[Reader] ✓ Partition : {name}",
+    }
+
+
 def _fingerprint(text) -> str:
     """Empreinte d'une sortie qui n'est pas un fichier — ce qui périme l'aval quand elle change."""
     from wama.common.services.revisions import text_fingerprint
@@ -348,6 +404,12 @@ def _llm(item, auto=None):
 
 def read_eta(item):
     return reader_eta_key_size(item)
+
+
+def read_score_eta(item):
+    """L'ETA de la lecture de partition — par page, sous la clé du modèle employé (sinon celle de
+    la card), comme la lecture du texte."""
+    return reader_eta_key_size(item, backend=item.used_backend or item.score_model)
 
 
 def format_eta(item):
@@ -403,7 +465,7 @@ def _analyze(item, ctx):
 
 
 #: La glu de chaque process du pipeline (`function_specs.PIPELINE`).
-PROCESSES = {'read': _read, 'format': _format, 'analyze': _analyze}
+PROCESSES = {'read': _read, 'format': _format, 'analyze': _analyze, 'read_score': _read_score}
 
 
 @shared_task(bind=True, name='wama.reader.tasks.analyze_document_task')

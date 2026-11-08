@@ -1017,6 +1017,18 @@ un mécanisme qui gère les ko, Mo, Go, on pourrait y ajouter la gestion min/sec
     `add_to_*` ne passent pas encore `inputs=` (portage confié à Portage Apps, 30/10).
   Tenu par `common/tests/tests_input_proposals.py` et, sur la jumelle du Translator,
   `tests_translator.TwinTranslatesAScanTest`.
+- ✅ **Étendu le 2026-11-08 (demande de Fabien : *« une détection automatique avec switch
+  automatique, mais qui peut rester un choix de l'utilisateur »*)** — la case « Lire une
+  partition » du Reader (`read_as_score`, le process `read_score`) :
+  - une troisième propriété, `has_staves` : les PORTÉES de la page comptées sur le fichier lui-même
+    (`common/utils/score_page.py` — cinq lignes longues régulièrement espacées, aucune IA), mesuré
+    sur 2 pages de partition (1 et 6 portées) et 6 vraies pages de texte (0) ;
+  - une propriété peut donc LIRE LE FICHIER quand la sonde ne la porte pas : `input_property(info,
+    name, path)`, le chemin passé par les deux lecteurs (`user_settings.input_proposals`,
+    `common:api_media_probe`) pendant que le fichier est lisible — calculée seulement quand un
+    réglage la demande, jamais pour chaque image de chaque app ;
+  - ⚠ une photo de travers ou un manuscrit sans portée imprimée n'est pas vu : la note le dit,
+    l'utilisateur coche. Tenu par `reader/tests_score.py`.
 
 ---
 

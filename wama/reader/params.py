@@ -17,7 +17,12 @@ from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import (derive_from_model, schema_to_dicts, seed_param,
                                             temperature_param, top_p_param)
 from wama.reader.models import ReadingItem
-from wama.reader.utils.model_config import OCR_SPEC
+from wama.reader.utils.model_config import OCR_SPEC, SCORE_READING_TASK
+
+#: Les réglages de la lecture du TEXTE ne valent que la case « partition » décochée (2026-11-08) :
+#: la page cochée est lue par le process `read_score`, qui a son propre modèle.
+READS_TEXT = {"not": "read_as_score"}
+READS_SCORE = "read_as_score"
 
 PARAMS = derive_from_model(
     ReadingItem,
@@ -29,13 +34,30 @@ PARAMS = derive_from_model(
     # (pas de colonne) : le reader n'a pas de choix par item, le curseur est un RÉGLAGE D'APP
     # de l'utilisateur (brique durable `user_settings`), lu au lancement par
     # `auto_model.quality_intent_of(item, 'reader')` quand le moteur est sur « auto ».
-    include=["backend", "quality_intent", "mode", "language",
+    include=["read_as_score", "backend", "score_model", "quality_intent", "mode", "language",
              "llm_model", "llm_temperature", "llm_seed", "llm_top_p", "format_markdown",
              "generate_analysis"],
     overrides={
+        # LIRE UNE PARTITION (2026-11-08, demande de Fabien : « une détection automatique avec switch
+        # automatique, mais qui peut rester un choix de l'utilisateur ») : la case du process
+        # optionnel `read_score` (`ProcessSpec.toggle`), que le FICHIER propose — des portées sur la
+        # page (`has_staves`, `common/utils/score_page`) —, comme le PDF scanné coche l'OCR de
+        # l'anonymizer (`needs_ocr`). Un choix de l'utilisateur reste le sien.
+        "read_as_score": dict(
+            type="toggle", label="Lire une partition", icon="fa-music",
+            dom_id={"panel": "readAsScoreToggle", "batch": "batchSettingsReadAsScore",
+                    "item": "rSettings_read_as_score"},
+            default_from={"port": "work_file", "property": "has_staves"},
+            help="Lit la page comme une PARTITION imprimée : elle est rendue gravée et éditable "
+                 "(page « Éditer la partition »), téléchargeable en ABC ou en MusicXML. Cochée "
+                 "d'office quand la page porte des portées — décochable.",
+        ),
         "quality_intent": intent_param(
             dom_id={"panel": "qualityIntent"}, contexts=("panel",),
-            show_if={"field": "backend", "equals": "auto"},
+            # Le curseur pèse sur le tirage « auto » du modèle QUI LIRA : celui du texte, ou celui
+            # de la partition.
+            show_if={"any": [{"all": [READS_TEXT, {"field": "backend", "equals": "auto"}]},
+                             {"all": [READS_SCORE, {"field": "score_model", "equals": "auto"}]}]},
         ),
         "backend": dict(
             type="select", label="Moteur OCR", icon="fa-microchip", chip=True,
@@ -58,6 +80,7 @@ PARAMS = derive_from_model(
             # help_source = catalogue, lu sur le DOMAINE du select (desc + VRAM) ; repli statique
             # indexé par CLÉ de catalogue (les valeurs d'option).
             help_source="reader",
+            show_if=READS_TEXT,
             help_fallback={
                 "auto": "Choisit automatiquement le meilleur moteur disponible selon le document et le GPU.",
                 "huggingface:allenai/olmOCR-2-7B-1025": "olmOCR-2 7B (Allen AI, octobre 2025) — OCR vision (mise en page, tableaux, équations, manuscrit). ~20 Go VRAM.",
@@ -65,6 +88,22 @@ PARAMS = derive_from_model(
                 "ollama:glm-ocr:latest": "GLM-OCR 0.9B (via Ollama) — léger et rapide, bon compromis pour texte imprimé courant.",
             },
             stales=("read",),
+        ),
+        # Le modèle de la PARTITION (2026-11-08) : celui du process `read_score`, choisi dans la
+        # tâche `image-to-score` du catalogue (« auto » = le tirage) — le patron de `parts_model` du
+        # composer. Ne périme que lui.
+        "score_model": dict(
+            type="select", label="Modèle de lecture de partition", icon="fa-music", chip=True,
+            options_source="catalog",
+            options_query={"task": SCORE_READING_TASK},
+            options_auto=True,
+            help_source="reader",
+            help_fallback={"auto": "Choisi au lancement : le meilleur modèle de lecture de "
+                                   "partition installé tenant dans la mémoire GPU libre."},
+            show_if=READS_SCORE,
+            dom_id={"panel": "scoreModelSelect", "batch": "batchSettingsScoreModel",
+                    "item": "rSettings_score_model"},
+            stales=("read_score",),
         ),
         # Mode et langue : les réglages que le MOTEUR lit — sa capacité `params` (GLM-OCR la langue
         # seule, docTR aucun ; `READER_MODELS[…]['params']` et `FAMILLES_OLLAMA`). ⚠ olmOCR-2 lit
@@ -78,6 +117,7 @@ PARAMS = derive_from_model(
             dom_id={"panel": "modeSelect", "batch": "batchSettingsMode", "item": "rSettings_mode"},
             cap_from={"field": "backend", "capability": "params", "mode": "reads",
                       "reason": "Ce moteur ne tient pas compte du mode de lecture."},
+            show_if=READS_TEXT,
             stales=("read",),
         ),
         "language": dict(
@@ -86,6 +126,7 @@ PARAMS = derive_from_model(
             help="Optionnel (ex. fr, en). Auto-détection si vide.",
             cap_from={"field": "backend", "capability": "params", "mode": "reads",
                       "reason": "Ce moteur ne tient pas compte de la langue indiquée."},
+            show_if=READS_TEXT,
             # La mise en forme la lit aussi (indice de langue donné au LLM).
             stales=("read", "format"),
         ),
@@ -104,6 +145,7 @@ PARAMS = derive_from_model(
                                    "le modèle par défaut de l'instance pour l'analyse."},
             dom_id={"panel": "llmModelSelect", "batch": "batchSettingsLlmModel",
                     "item": "rSettings_llm_model"},
+            show_if=READS_TEXT,
             stales=("format", "analyze"),
         ),
         # Sa TEMPÉRATURE (2026-10-21) : le réglage commun, lié au choix du modèle de langage.
@@ -111,6 +153,7 @@ PARAMS = derive_from_model(
             "llm_model",
             dom_id={"panel": "llmTemperature", "batch": "batchSettingsLlmTemperature",
                     "item": "rSettings_llm_temperature"},
+            show_if=READS_TEXT,
             stales=("format", "analyze"),
         ),
         # Ses deux voisins (2026-10-22) : vides = un tirage neuf, celui du modèle.
@@ -118,12 +161,14 @@ PARAMS = derive_from_model(
             "llm_model",
             dom_id={"panel": "llmSeed", "batch": "batchSettingsLlmSeed",
                     "item": "rSettings_llm_seed"},
+            show_if=READS_TEXT,
             stales=("format", "analyze"),
         ),
         "llm_top_p": top_p_param(
             "llm_model",
             dom_id={"panel": "llmTopP", "batch": "batchSettingsLlmTopP",
                     "item": "rSettings_llm_top_p"},
+            show_if=READS_TEXT,
             stales=("format", "analyze"),
         ),
         # Les INTERRUPTEURS des process optionnels : ils sont le `toggle` de leur process, ils ne
@@ -135,6 +180,7 @@ PARAMS = derive_from_model(
             type="toggle", label="Mettre en forme par IA", icon="fa-heading",
             dom_id={"panel": "formatMarkdownToggle", "batch": "batchSettingsFormatMarkdown",
                     "item": "rSettings_format_markdown"},
+            show_if=READS_TEXT,
             help="Une étape : un modèle de langage restructure le texte lu (titres, listes, "
                  "tableaux) sans rien en retrancher. Le format du fichier se choisit au "
                  "téléchargement. Le texte natif d'un PDF reste tel quel.",
@@ -143,6 +189,7 @@ PARAMS = derive_from_model(
             type="toggle", label="Analyser (résumé, points clés)", icon="fa-magnifying-glass-chart",
             dom_id={"panel": "generateAnalysisToggle", "batch": "batchSettingsGenerateAnalysis",
                     "item": "rSettings_generate_analysis"},
+            show_if=READS_TEXT,
         ),
     },
 )

@@ -4852,6 +4852,11 @@ TRIAD_SPECS = {
             'status': 'status',
             'progress': 'progress',
             'result_preview': {'attr': 'result_text', 'preview': 300},
+            # La PARTITION lue (2026-11-08) : la case, puis ses deux fichiers.
+            'read_as_score': 'read_as_score',
+            'score_url': {'attr': 'score_file', 'url': True, 'when': {'status': 'SUCCESS'}},
+            'score_musicxml_url': {'attr': 'score_musicxml', 'url': True,
+                                   'when': {'status': 'SUCCESS'}},
             'error_message': {'attr': 'error_message', 'or_none': True},
         },
     },

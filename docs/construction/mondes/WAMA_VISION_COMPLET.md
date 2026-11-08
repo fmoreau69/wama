@@ -212,10 +212,10 @@ scientifique — l'abstraction devient un argument au lieu d'une contradiction.
 **Monde Médias — les dix applications génériques ✅** : Anonymizer (floutage visages/plaques,
 conformité RGPD), Transcriber (transcription multi-moteurs, diarisation, éditeur de correction
 assisté), Synthesizer (synthèse vocale, clonage de voix), Describer (description IA de médias par
-LLM multimodaux locaux), Reader (OCR typographié et manuscrit ; ⏳ partitions imprimées rendues
-gravées et éditables — décision de Fabien du 2026-11-06, 🔄 *07/11* : le moteur copisteria est
-installé par la route, l'intégration au Reader reste, `PROSPECTION_PIPELINE §Session du
-2026-11-07`), Imager (génération d'images et de
+LLM multimodaux locaux), Reader (OCR typographié et manuscrit ; partitions imprimées rendues
+gravées et éditables — décision de Fabien du 2026-11-06, 🔄 *08/11* : moteur copisteria installé
+par la route, lecture de partition intégrée au Reader avec sa page d'édition, ⏳ mesurée sur de
+vrais scans, `PROSPECTION_PIPELINE §Session du 2026-11-07`), Imager (génération d'images et de
 vidéos), Composer (génération musicale et effets sonores), Avatarizer (avatars parlants,
 synchronisation labiale), Enhancer (super-résolution, débruitage), Converter (conversion
 universelle de formats).

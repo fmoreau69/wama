@@ -813,6 +813,16 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       (`substitute writer_01 tasks` puis `glue` des deux process ; fichier identique à l'octet au
       rendu à blanc) ; banc hors application : bout de phrase 0 appel, section 1, forme changée →
       tout refait avec le fond et sa nature dans les messages.
+  - ✅ **SURFACES DU READER — 2026-11-08, une page d'édition PAR NATURE de ce que la card a lu**
+    (demande de Fabien : *« la page d'édition texte / partition / autre à venir »*, universelle) :
+    `wama/reader/surfaces.py` — `reader.score` (« Éditer la partition » : `score_view`, la source
+    ABC en `text_sections`, `surface_actions`, `revision_history` ; versions gardées par
+    `keep_outputs('reader', fields=('score_file',))` et `KeptOutputsMixin`, déclarées à la
+    rétention) et `reader.text` (« Corriger le texte » : `text_sections` sur le champ TEXTE
+    `result_text`, validé par `validate_text` ; l'analyse, qui surveille `result_text`, passe
+    périmée — `reruns='analyze'`). Chaque page s'ouvre selon ce que la card a produit
+    (`available`). Aucune brique neuve ; ⏳ le SCAN à côté de la gravure (aucune brique ne montre
+    une image en lecture seule) et l'écoute (abcjs est vendorisé sans synthétiseur).
   - ✅ **3ᵉ SURFACE — 2026-10-15, la PARTITION du composer, et l'AXE COMMUN né** (demande de
     Fabien : *« visualiser la partition et pouvoir l'éditer avec undo et la gestion des versions,
     avec le transport média commun […] lire la partition synchronisée à l'audio et une coloration

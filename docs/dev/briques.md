@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**231 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**232 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -31,7 +31,7 @@ L'appel POST /tts UNIQUE vers le microservice TTS (payload contractuel, 503 « l
   - `tts_stream_via_service(text, model, *, language='fr', voice_preset='default', speaker_wav=None, options=None, read_timeout=30, user=None)` — La même demande AU FIL DE L'EAU (2026-10-28, voix de l'assistant) : rend `(rate, morceaux)`,
   - `stt_via_service(audio, *, content_type='audio/wav', language='', model=None, read_timeout=90)` — Transcrit un extrait COURT (octets audio) par le même service — la conversation vocale de
   - `speech_only_via_service(audio, *, content_type='audio/wav', read_timeout=90)` — Les seuls passages PARLÉS d'un extrait (WAV 16 kHz mono), b'' s'il n'y en a aucun — le
-  - `end_of_turn_via_service(audio, *, model_path, read_timeout=1.5)` — Probabilité que la personne ait FINI sa phrase (0 à 1), d'après les 8 dernières
+  - `end_of_turn_via_service(audio, *, read_timeout=1.5)` — Probabilité que la personne ait FINI sa phrase (0 à 1), d'après les 8 dernières
 
 ### Contrat de backend
 
@@ -219,7 +219,7 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
 
 - **Domicile** : `wama/filemanager/views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §S2bis](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : FileManager views - API for file browsing and management.
-- **API publique** (47) :
+- **API publique** (48) :
   - `get_user(request)` — Get current user or anonymous user.
   - `local_folder_allowed(user) -> bool` — Connecter un dossier LOCAL du serveur — en parcourir l'arbre, en lire les fichiers — est
   - `user_temp_path(user, rel_path: str)` — Le chemin ABSOLU et RÉSOLU d'un chemin relatif à `MEDIA_ROOT` qui doit vivre dans le dossier
@@ -264,7 +264,8 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
   - `api_mount_oauth(request)` — Démarre la connexion à un stockage OAuth (Google Drive, OneDrive) : rend la page du
   - `api_mount_oauth_callback(request)` — Le RETOUR du fournisseur, dans l'onglet ouvert pour l'accord : le code reçu est échangé
   - `api_mount_login_flow_poll(request, flow_id)` — Interroge une connexion par le navigateur : `pending` tant que l'accès n'est pas accordé ;
-  - `api_remount_shares(request)` — Re-mount all WAMA-managed CIFS shares (called from start_wama_prod.sh via localhost).
+  - `remount_shares() -> dict` — Remonte les dossiers connectés au démarrage : partages réseau INVITÉS (CIFS) et dossiers
+  - `api_remount_shares(request)` — Remonter les dossiers connectés, à la demande d'un ADMINISTRATEUR (`is_admin_tier`, le
   - `api_mount_delete(request, pk)` — Remove a mounted folder.
   - `api_mount_serve(request, pk, path)` — Serve a file from a mounted folder inline (for preview).
 
@@ -446,7 +447,7 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
 
 - **Domicile** : `wama/common/utils/auto_model.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Auto-sélection de modèle — brique COMMUNE (valeur « auto » d'un select de modèle).
-- **API publique** (20) :
+- **API publique** (22) :
   - `read_quality_intent(value) -> int` — Valeur 0-100 SÛRE depuis un POST/JSON : bornée, défaut équilibré, ne lève jamais.
   - `posted_quality_intent(source)` — Curseur POSTÉ (POST ou dict JSON) → entier borné, ou **None** s'il n'est pas posté ou
   - `preset_key_for_intent(intent) -> str` — La POSITION NOMMÉE la plus proche d'une valeur de curseur (`QUALITY_PRESETS` du sélecteur :
@@ -465,6 +466,8 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
   - `intent_field_for(app_id: str)` — Nom du champ « curseur » déclaré au schéma de l'app (`type='intent'`), ou None.
   - `quality_intent_of(item=None, app_id=None, user=None) -> int` — La valeur du curseur qui vaut pour CE lancement, en UN endroit (chantier C, 2026-09-20).
   - `resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, item=None, user=None, **overrides)` — Valeur finale du modèle pour un lancement : `requested` explicite, sinon tirage.
+  - `model_for_task(task: str, requested=None, item=None, **refinements) -> str` — Clé de catalogue du modèle d'un process qui n'emploie PAS le modèle de la card : celui que
+  - `task_installed(task: str) -> bool` — Un modèle de `task` est-il INSTALLÉ ? Requête simple, sans tirage : la disponibilité
   - `predict_model_choice(spec)` — PRÉVISION : le modèle qui serait retenu MAINTENANT pour ce domaine, ou None.
   - `vram_needed_gb(model_key: str, *, offload: bool=False)` — Besoin VRAM du modèle RÉSOLU, pour la garde du squelette de tâche
 
@@ -474,7 +477,7 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
 
 - **Domicile** : `wama/model_manager/services/bench.py` · **doc** : [docs/construction/suivi/ROADMAP.md §16.2](../construction/suivi/ROADMAP.md)
 - **Module** : Banc de comparaison de modeles, indexe sur la TACHE et non sur l'app.
-- **API publique** (14) :
+- **API publique** (13) :
   - `models_for_task(task: str, *, installed_only: bool=True)` — Modeles du catalogue qui declarent cette tache. Le catalogue est la seule source.
   - `read_recall_reference(sample: str) -> dict` — La reference d'un banc de rappel (JSON) : `media` (chemin, relatif au fichier ou
   - `containment_counts(doc: dict, ref: dict) -> dict` — Les comptes du rappel par contenant — sans interpretation (cf. en-tete du protocole).
@@ -484,7 +487,6 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
   - `match_boxes(found, truth, ignore, iou: float=0.5) -> dict` — Comptes d'UNE image : `found` = [(box, conf)], `truth`/`ignore` = [box]. Les doublons de
   - `read_image_reference(sample: str) -> dict` — Une référence « dossier d'images nettes » : `images` (dossier, relatif au fichier de
   - `lpips_folder() -> Path`
-  - `lpips_metric(device: str)` — LPIPS (réseau AlexNet), chargé une fois par processus. Les couches linéaires viennent du
   - `boxes_candidates(sample: str) -> list` — Detecteurs installes qui couvrent la classe d'une reference « vraies boites ».
   - `recall_candidates(sample: str) -> list` — Les modeles a mesurer pour une reference : detecteurs installes qui couvrent sa classe.
   - `available_tasks() -> list` — Taches pour lesquelles un protocole existe — les autres restent a ecrire.
@@ -1716,7 +1718,7 @@ Valide toute cible de téléchargement pilotée par une saisie : schéma, identi
 - **API publique** (3) :
   - `class UrlRefusee(ValueError)` — URL rejetée par la garde de sortie. Message destiné à l'utilisateur.
   - `verifier_url(url: str) -> str` — Valide une URL sortante. Rend l'URL normalisée, ou lève `UrlRefusee`.
-  - `verifier_redirections(reponse) -> None` — Re-valide chaque hop d'une réponse `requests` qui a suivi des redirections.
+  - `guarded_request(method: str, url: str, **kwargs)` — Une requête `requests` dont CHAQUE saut est jugé AVANT d'être envoyé (2026-11-06, audit de
 
 ### Générateur de QR codes
 
@@ -1962,7 +1964,7 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 - **Domicile** : `wama/common/services/backend_proposals.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : BACKENDS PROPOSÉS par le rôle `backend` (marche B2) — contrôles, résolution simulée, smoke, puis le geste « Valider » qui ÉCRIT le module dans `wama/common/backends/`.
-- **API publique** (15) :
+- **API publique** (16) :
   - `backends_dir() -> Path`
   - `outputs_dir() -> Path`
   - `contract_for_task(task: str) -> tuple` — (module, classe) du contrat qu'un backend écrit pour `task` doit implémenter.
@@ -1975,6 +1977,7 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
   - `smoke_speech_clip()` — `(SystemAsset de parole, chemin de sa référence | None)` de l'extrait du smoke, ou
   - `smoke_score_clip(path, rate: int=22050) -> str` — Écrit la mélodie du smoke dans `path` (WAV) et rend ses NOMS de notes attendus (`CDEF…`).
   - `abc_note_names(abc: str) -> str` — Noms des notes d'un texte ABC, dans l'ordre et sans octave (`C4D4|c2` → `CDC`) — en-têtes,
+  - `smoke_orientation_page()` — (page droite, page tournée de `SMOKE_ORIENTATION_TURN`) — des lignes de texte dessinées, la
   - `pending() -> list` — Propositions de backend en attente : `outputs/backend_*.json` au statut PENDING.
   - `apply(name: str, user=None) -> dict` — ÉCRIT le backend validé dans `wama/common/backends/<module>.py` — contrôles REFAITS,
   - `reject(name: str, user=None) -> bool`
@@ -3159,7 +3162,7 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
 
 - **Domicile** : `wama/common/utils/media_paths.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : WAMA Common - Media Path Utilities
-- **API publique** (27) :
+- **API publique** (28) :
   - `get_app_media_path(app_name: str, user_id: Union[int, str], subfolder: str='input') -> Path` — Get the absolute path for an app's user-specific media folder.
   - `class OutsideMediaRoot(ValueError)` — Le chemin demandé sort de MEDIA_ROOT (traversée `..`, dossier frère, absolu étranger).
   - `resolve_under_media_root(candidate, *, must_exist: bool=True)` — Résout un chemin — absolu, ou RELATIF à MEDIA_ROOT — et GARANTIT qu'il y reste.
@@ -3178,6 +3181,7 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
   - `class ReceivedInputs(list)` — Les entrées reçues, plus `refusal` : le motif du premier refus (désignation illisible,
   - `class InputRefused(ValueError)` — Une désignation refusée : hors `MEDIA_ROOT`, absente, ou illisible pour cet utilisateur.
   - `designate(path, user, app_name: str, subfolder: str='input') -> ReceivedInput` — UN fichier DÉSIGNÉ par son chemin (relatif à `MEDIA_ROOT`, ou absolu dessous), reçu pour
+  - `designated_source(path, user)` — `(fichier disque, chemin désigné)` d'une désignation qui passe les gardes de `designate`
   - `check_designation(path, user) -> str` — Le chemin désigné, s'il passe les gardes de `designate` — sans rien pointer ni copier.
   - `designated_file(path, user) -> str` — Le fichier DISQUE d'une désignation qui passe les gardes de `designate` — sans rien pointer
   - `received_inputs(request, user, app_name: str, field: str='file', subfolder: str='input') -> ReceivedInputs` — Ce qu'une vue d'upload reçoit : les fichiers TÉLÉVERSÉS sous `field`, puis les fichiers
@@ -3362,9 +3366,19 @@ Le filtre de gabarit `script_json` pose un JSON en ligne dans un `<script>` avec
   - `script_json_text(value) -> str` — Le texte à poser dans un `<script>` : la chaîne JSON reçue, ou la valeur sérialisée.
   - `script_json(value)` — `{{ x_json|script_json }}` : un JSON qui ne peut pas fermer le `<script>` qui le porte.
 
+### La page porte-t-elle une partition ? (portées comptées)
+
+Compte les PORTÉES d'une page — cinq lignes horizontales longues et régulièrement espacées, mesurées par la part d'encre de chaque rangée de pixels — sur une image ou les premières pages d'un PDF ; aucun modèle. Lue par la propriété d'entrée `has_staves` de la sonde (`media_probe.INPUT_PROPERTIES`), calculée seulement quand un réglage la demande (`Param.default_from`) : la case « Lire une partition » du Reader se coche d'après le fichier, l'utilisateur la change. Née le 2026-11-08 (demande de Fabien : « une détection automatique […] qui peut rester un choix de l'utilisateur »). Ne voit pas une photo de travers ni un manuscrit sans portée
+
+- **Domicile** : `wama/common/utils/score_page.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
+- **Module** : La PAGE porte-t-elle une partition ? — compter ses PORTÉES (2026-11-08).
+- **API publique** (2) :
+  - `count_staves(gray) -> int` — Le nombre de PORTÉES d'une page en niveaux de gris (tableau numpy 2-D, 0 = noir).
+  - `page_staves(path: str)` — Le plus grand nombre de portées sur une page de `path` (image, ou les `PDF_PAGES`
+
 ### Langue d'un contenu (écrit, parlé)
 
-La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr = inconnue — les paroles du composer, 2026-10-05) et celle d'un AUDIO (Whisper sur plusieurs passages — la langue d'un fichier proposée, le transcriber). Deux faces, une question : en quelle langue est ce contenu ? — jamais une heuristique d'app (celle du describer, morte, est retirée le jour même)
+La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr = inconnue — les paroles du composer, 2026-10-05) et celle d'un AUDIO (Whisper sur plusieurs passages — la langue d'un fichier proposée, le transcriber). Deux faces, une question : en quelle langue est ce contenu ? — jamais une heuristique d'app (celle du describer, morte, est retirée le jour même). L'audio passe par le contrat `language-identification` (`LanguageIdentificationBackend`, Whisper tiny servi par `WhisperLanguageBackend`, obtenu à la porte commune — 2026-11-06 : la sonde le chargeait elle-même)
 
 - **Domicile** : `wama/common/utils/text_language.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 - **Module** : La LANGUE d'un texte — pendant écrit de `spoken_language` (2026-10-05).
@@ -3612,7 +3626,7 @@ Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffm
   - `probe_video_format(path: str, *, timeout: int=20) -> dict` — Ce que le NAVIGATEUR regarde du premier flux vidéo : `{container, codec, profile,
   - `probe_object3d(path: str) -> dict` — Sonde d'un OBJET 3D (ROADMAP §17ter, trou 2) — ce que le fichier DÉCLARE, sans le décoder.
   - `probe_media(path: str) -> dict` — Sonde générique TOUS types (dispatch par extension).
-  - `input_property(info: dict, name: str)` — `{'value', 'note'}` de la propriété `name` sur la sonde `info` (`probe_media`), ou None.
+  - `input_property(info: dict, name: str, path: str='')` — `{'value', 'note'}` de la propriété `name` sur la sonde `info` (`probe_media`) du fichier
   - `probe_media_cached(path: str, ttl: int=86400) -> dict` — `probe_media` avec cache Django par (chemin, mtime) — pour les endpoints à la requête
 
 ### Sources externes
@@ -3749,7 +3763,7 @@ Extraction audio des vidéos + téléchargement YouTube/yt-dlp
 - **API publique** (9) :
   - `get_ffprobe_path()` — DÉLÈGUE à la brique ffmpeg_utils (cf. _get_ffmpeg_path).
   - `get_media_info(file_path: str) -> dict` — Extract metadata from an image or video file.
-  - `upload_media_from_url(url, output_path)` — Download a media file from a URL using yt_dlp (with robust options) or direct HTTP.
+  - `upload_media_from_url(url, output_path, *, with_title=False)` — Download a media file from a URL using yt_dlp (with robust options) or direct HTTP.
   - `extract_audio_from_video(video_path: str, output_audio_path: Optional[str]=None) -> str` — Extrait l'audio d'un fichier vidéo.
   - `download_youtube_audio(youtube_url: str, output_dir: str) -> Tuple[str, str]` — Télécharge l'audio d'une vidéo YouTube.
   - `is_video_file(filename: str) -> bool` — Vérifie si un fichier est une vidéo basé sur son extension.

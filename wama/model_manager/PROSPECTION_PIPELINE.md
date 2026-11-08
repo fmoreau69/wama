@@ -4172,6 +4172,17 @@ GRAVÉES par l'abcjs vendorisé de WAMA (Chromium), pas encore de vrais scans :
 process « lire la partition » alternatif à « lire » (`needs` sur la tâche), proposition par le
 fichier (`Param.default_from` + propriété de sonde « porte une partition », à écrire et mesurer),
 page d'édition par nature (partition, texte), formats de téléchargement, outils de l'assistant.
+✅ **Le Reader, le 2026-11-08** (« on fait déjà l'intégration au reader ? », Fabien) — rien de neuf
+qu'une brique de mesure, tout par les patrons en service : la case `read_as_score` PROPOSÉE par le
+fichier (`default_from`, propriété `has_staves`, `common/utils/score_page.py` ; patron de
+l'OCR des scans de l'anonymizer), le process OPTIONNEL `read_score` et son modèle `score_model`
+(patron de `parts_model` du composer — `model_for_task` / `task_installed` passés dans la brique
+commune du tirage pour ce second consommateur), ALTERNATIF à la lecture du texte (`reads_text`,
+patron de `plan` / `extract_score`) ; sorties `score_file` (ABC) et `score_musicxml` ; formats
+`abc` / `musicxml` au ⬇ ; pages `reader.score` et `reader.text` (`ROUTE §F3b`) ; statut de
+l'assistant. Plutôt qu'un sélecteur groupé par tâche (patron du composer, « pas de switch de
+type »), une CASE : c'est le switch que Fabien demandait, et le modèle du process reste celui de
+SA tâche. ⏳ Toujours : la mesure sur vrais scans.
 
 **Sources** : pypi.org/pypi/homr/json ✔ · github.com/liebharc/homr (modules `main`,
 `segmentation.config`, `transformer.configs`, branche `main`) ✔ · huggingface.co/kobimusic/copisteria (API +

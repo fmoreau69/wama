@@ -283,6 +283,21 @@ class DeclaredCloudModelsInTheAutoDrawTest(TestCase):
         self.assertNotIn('cloud_keys', preview.call_args.args[0])
 
 
+def _compared_values(condition):
+    """Les valeurs qu'une condition `show_if` COMPARE (`equals`, `in`), à travers `any`/`all`/`not`
+    — un champ seul (interrupteur) n'en compare aucune."""
+    if not isinstance(condition, dict):
+        return []
+    for combined in ('any', 'all'):
+        if condition.get(combined):
+            return [value for one in condition[combined] for value in _compared_values(one)]
+    if 'not' in condition:
+        return _compared_values(condition['not'])
+    if 'equals' in condition:
+        return [condition['equals']]
+    return list(condition.get('in') or [])
+
+
 class CurseurDeQualiteTest(TestCase):
     """Le curseur 0-100 traverse toute la chaîne : brique, endpoint, schémas, UI."""
 
@@ -323,7 +338,7 @@ class CurseurDeQualiteTest(TestCase):
         exister dans le même schéma. Ce test nommait ses deux adopteurs ; une app ralliée
         demain est gardée sans qu'on l'ajoute ici."""
         from wama.common.app_registry import APP_CATALOG
-        from wama.common.utils.param_schema import schema_for_app
+        from wama.common.utils.param_schema import condition_fields, schema_for_app
         adopteurs = []
         for app in sorted(APP_CATALOG):
             schema = schema_for_app(app) or []
@@ -339,7 +354,9 @@ class CurseurDeQualiteTest(TestCase):
             # optgroup, 2026-07-02) : une valeur `equals`, ou une liste `in`. Une app SANS
             # modèle (converter : le curseur décline en encodage, conditionné par la NATURE) n'a
             # pas d'« auto » à surveiller — seule la condition doit viser un champ du schéma.
-            values = [condition.get('equals')] if 'equals' in condition else list(condition.get('in') or [])
+            # Une condition COMPOSÉE (`any`/`all`, 2026-11-08 : le reader lit un texte OU une
+            # partition, chacun par son sélecteur) : chaque valeur comparée doit être un « auto ».
+            values = _compared_values(condition)
             serves_auto = any(f.get('options_auto') for f in schema) or any(
                 str(v[0] if isinstance(v, (list, tuple)) else v).startswith('auto')
                 for f in schema for v in (f.get('choices') or [])) or any(
@@ -348,8 +365,9 @@ class CurseurDeQualiteTest(TestCase):
             if serves_auto:
                 self.assertTrue(values and all(str(v).startswith('auto') for v in values),
                                 f"{app} : le curseur doit n'apparaître que sur « auto » ({condition})")
-            self.assertIn(condition.get('field'), {f.get('name') for f in schema},
-                          f"{app} : la condition d'affichage vise un champ absent du schéma")
+            fields = condition_fields(condition)
+            self.assertTrue(fields and set(fields) <= {f.get('name') for f in schema},
+                            f"{app} : la condition d'affichage vise un champ absent du schéma")
         self.assertGreaterEqual(len(adopteurs), 2, 'parcours vacueux : au moins deux adopteurs')
 
     def test_l_anonymizer_est_rallie_au_curseur_commun_avec_son_pas_reel(self):

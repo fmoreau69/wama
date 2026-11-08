@@ -3470,6 +3470,18 @@ MECHANISMS = (
               annexes=('wama/common/tests/tests_score_reading.py',
                        'wama/common/backends/score_reading_base.py',
                        'wama/common/backends/copisteria_backend.py')),
+    Mechanism('score_page', 'La page porte-t-elle une partition ? (portées comptées)',
+              "Compte les PORTÉES d'une page — cinq lignes horizontales longues et régulièrement "
+              "espacées, mesurées par la part d'encre de chaque rangée de pixels — sur une image ou "
+              "les premières pages d'un PDF ; aucun modèle. Lue par la propriété d'entrée "
+              "`has_staves` de la sonde (`media_probe.INPUT_PROPERTIES`), calculée seulement quand "
+              "un réglage la demande (`Param.default_from`) : la case « Lire une partition » du "
+              "Reader se coche d'après le fichier, l'utilisateur la change. Née le 2026-11-08 "
+              "(demande de Fabien : « une détection automatique […] qui peut rester un choix de "
+              "l'utilisateur »). Ne voit pas une photo de travers ni un manuscrit sans portée",
+              'wama/common/utils/score_page.py',
+              'wama/model_manager/PROSPECTION_PIPELINE.md',
+              annexes=('wama/reader/tests_score.py',)),
     )),
 
     *_domain("Studio & surface d'outils (API)", (

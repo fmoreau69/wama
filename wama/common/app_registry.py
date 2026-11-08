@@ -1714,7 +1714,7 @@ APP_CATALOG = {
         'conventions': _conv(
             settings_modal_item=True,
             export_binding='late',
-            export_formats=('txt', 'md', 'pdf', 'docx', 'json'),  # §6.3 — `json` n'est offert que si `item.raw_result` — déclaré dans `reader/apps.py` (`register_export_missing`)
+            export_formats=('txt', 'md', 'pdf', 'docx', 'json', 'abc', 'musicxml'),  # §6.3 — `json` n'est offert que si `item.raw_result`, `abc`/`musicxml` qu'à une partition lue (2026-11-08) — déclaré dans `reader/apps.py` (`register_export_missing`)
             tool_api=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema
             model_help=True,     # WamaModelHelp (help_fallback moteurs OCR, cf. reader/params.py)

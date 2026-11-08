@@ -185,16 +185,19 @@ def input_proposals(params, inputs) -> dict:
             continue
         if not isinstance(received, (ReceivedInput, str)):
             received = ReceivedInput(getattr(received, 'name', ''), received)
+        # Les propriétés se lisent PENDANT que le fichier est lisible : une propriété que la sonde
+        # ne porte pas lit le fichier lui-même (`has_staves`, 2026-11-08).
         try:
             if isinstance(received, str):
                 info = probe_media(received)
+                proposals = [(name, input_property(info, prop, received)) for name, prop in names]
             else:
                 with received.readable_path() as path:
                     info = probe_media(path)
+                    proposals = [(name, input_property(info, prop, path)) for name, prop in names]
         except Exception:
             continue
-        for name, prop in names:
-            proposal = input_property(info, prop)
+        for name, proposal in proposals:
             if proposal is not None:
                 out[name] = proposal
     return out

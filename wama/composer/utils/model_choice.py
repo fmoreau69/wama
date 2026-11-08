@@ -122,25 +122,9 @@ LYRICS_TASK = 'transcription'
 LYRICS_RESOLUTION = {'priority': ['qwen', 'vibevoice', 'whisper'], 'available_inputs': ['work_audio']}
 
 
-def model_for_task(task: str, requested=None, item=None, **refinements) -> str:
-    """Clé de catalogue du modèle d'un process qui n'emploie PAS le modèle de la card : celui que
-    la card DÉSIGNE pour ce process (`requested`, son réglage de modèle), sinon le tirage du
-    sélecteur commun parmi les modèles INSTALLÉS de `task` (VRAM du moment comprise) — '' s'il
-    n'y en a aucun. `item` : la card, dont le tirage lit le curseur et le compte, comme la
-    prévision de son select (`resolve_model_choice`). Jamais un nom de modèle ici."""
-    from wama.common.utils.auto_model import resolve_model_choice
-    return resolve_model_choice(requested, spec={'task': task}, fallback='', item=item, **refinements) or ''
-
-
-def task_installed(task: str) -> bool:
-    """Un modèle de `task` est-il INSTALLÉ ? Requête simple, sans tirage : la disponibilité
-    (`ProcessSpec.available`) d'un process, lue pour chaque card."""
-    try:
-        from wama.model_manager.models import AIModel
-        return AIModel.objects.filter(capabilities__task=task, is_downloaded=True,
-                                      is_available=True).exists()
-    except Exception:
-        return False
+# Le modèle d'un process qui n'emploie pas celui de la card, et sa disponibilité : la brique commune
+# du tirage depuis le 2026-11-08 (la lecture de partition du Reader en est le second consommateur).
+from wama.common.utils.auto_model import model_for_task, task_installed  # noqa: E402
 
 
 def score_extractor() -> str:

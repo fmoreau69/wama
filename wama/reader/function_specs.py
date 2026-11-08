@@ -21,6 +21,14 @@ comportement d'avant).
 
 Ce que la séparation apporte : changer de modèle de langage ne relit plus le document (olmOCR,
 ~10 min de chargement) ; une mise en forme en échec se VOIT sur sa ligne, le texte lu reste.
+
+LA PARTITION (2026-11-08, demande de Fabien : « l'utilisateur scanne une partition, la partition
+est rendue typographiée et éditable ») — un quatrième process, ALTERNATIF à la lecture du texte :
+  • `read_score` — la page → sa partition (MusicXML du moteur, ABC pour la page d'édition), par un
+    modèle de la tâche `image-to-score` (`score_model`, « auto » = le tirage). OPTIONNEL, sa case
+    `read_as_score` que le FICHIER propose (des portées sur la page, `has_staves`). Quand il a lieu,
+    la lecture du texte et ses deux suites n'ont pas lieu : elles posent la question à leur rival
+    (`reads_text`), le patron de `plan` / `extract_score` au composer.
 """
 from wama.common.catalog.function_catalog import (Binding, FunctionCategory as FC, FunctionSpec,
                                                   PortSpec, register)
@@ -30,6 +38,25 @@ from wama.common.services.process_runs import OPTIONAL
 _APP = 'reader'
 _IMPL = 'reader.tasks:read_document_task'
 _SELF = 'reader.function_specs'
+
+
+def reads_score(item, model_key=None) -> bool:
+    """La page se lit-elle comme une PARTITION ? — la réponse de `takes_place` pour `read_score`
+    (sa case, la disponibilité d'un modèle de la tâche), que posent ses rivaux."""
+    return PIPELINE.takes_place(PIPELINE.spec('read_score'), item, model_key)
+
+
+def reads_text(item, model_key=None) -> bool:
+    """Le texte se lit-il ? — sauf quand la page se lit comme une partition (`read`, `format`,
+    `analyze` : ils ne liraient rien)."""
+    return not reads_score(item, model_key)
+
+
+def _score_reading_available() -> bool:
+    """Un modèle de lecture de partition est-il installé ? (`ProcessSpec.available`)"""
+    from wama.common.utils.auto_model import task_installed
+    from wama.reader.utils.model_config import SCORE_READING_TASK
+    return task_installed(SCORE_READING_TASK)
 
 
 def reading_model(item) -> str:
@@ -71,6 +98,19 @@ register(FunctionSpec(
     outputs=[PortSpec('text', 'document', description="Le texte lu.")]))
 
 register(FunctionSpec(
+    key='reader.read_score', name='Reader — lire la partition',
+    description="Lit une partition IMPRIMÉE (scan, photo, PDF) : un modèle de la tâche "
+                "`image-to-score` rend son MusicXML, mis en ABC par la brique commune pour la page "
+                "d'édition.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['omr', 'music', 'document', 'gpu'],
+    inputs=[PortSpec('work_document', 'document', optional=True, group='travail',
+                     description="La partition à lire (PDF…)."),
+            PortSpec('work_image', 'image', optional=True, group='travail',
+                     description="La photo ou le scan de la partition.")],
+    outputs=[PortSpec('score', 'score', description="La partition lue (ABC, MusicXML).")]))
+
+register(FunctionSpec(
     key='reader.format', name='Reader — mettre en forme',
     description="Remet le texte lu en Markdown (titres, listes, tableaux) sans rien en retrancher "
                 "(LLM) ; le texte natif d'un PDF reste tel quel.",
@@ -94,13 +134,21 @@ register(FunctionSpec(
 #: la carte), que la file GPU sérialise (`ProcessSpec.gpu`).
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('read', label='Lecture', watched=('input_file',), gpu=True, share=8,
-                eta='reader.tasks:read_eta', result=f'{_SELF}:read_text'),
+                applies=reads_text, eta='reader.tasks:read_eta', result=f'{_SELF}:read_text'),
     ProcessSpec('format', label='Mise en forme', depends_on=('read',), degree=OPTIONAL,
-                toggle='format_markdown', gpu=True, share=1, eta='reader.tasks:format_eta',
-                result=f'{_SELF}:formatted_text'),
+                toggle='format_markdown', gpu=True, share=1, applies=reads_text,
+                eta='reader.tasks:format_eta', result=f'{_SELF}:formatted_text'),
+    # `watched` (2026-11-08) : le texte CORRIGÉ à la main (page « Corriger le texte ») périme
+    # l'analyse qui le lit.
     ProcessSpec('analyze', label='Analyse', depends_on=('read', 'format'), degree=OPTIONAL,
-                toggle='generate_analysis', gpu=True, share=1, eta='reader.tasks:analyze_eta',
-                result=f'{_SELF}:analysis_text'),
-), label='Reader — lecture, mise en forme, analyse',
+                watched=('result_text',),
+                toggle='generate_analysis', gpu=True, share=1, applies=reads_text,
+                eta='reader.tasks:analyze_eta', result=f'{_SELF}:analysis_text'),
+    # LA PARTITION (2026-11-08) : alternative à `read` — la page est lue par un modèle de partition,
+    # ses deux sorties rangées sur la card (ABC éditée, MusicXML d'origine).
+    ProcessSpec('read_score', label='Partition', watched=('input_file',), degree=OPTIONAL,
+                toggle='read_as_score', gpu=True, share=8, available=_score_reading_available,
+                outputs=('score_file', 'score_musicxml'), eta='reader.tasks:read_score_eta'),
+), label='Reader — lecture, mise en forme, analyse, partition',
    source_ref='reader.function_specs:PIPELINE',
    model_of=reading_model)

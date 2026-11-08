@@ -399,6 +399,29 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, it
     return select_model_id(source, requested=AUTO, fallback=fallback, **domain)
 
 
+def model_for_task(task: str, requested=None, item=None, **refinements) -> str:
+    """Clé de catalogue du modèle d'un process qui n'emploie PAS le modèle de la card : celui que
+    la card DÉSIGNE pour ce process (`requested`, son réglage de modèle), sinon le tirage du
+    sélecteur commun parmi les modèles INSTALLÉS de `task` (VRAM du moment comprise) — '' s'il
+    n'y en a aucun. `item` : la card, dont le tirage lit le curseur et le compte, comme la
+    prévision de son select (`resolve_model_choice`). Jamais un nom de modèle ici.
+    Né dans le composer (2026-10-16, ses process de partition et de paroles) ; commun depuis le
+    2026-11-08, quand la lecture de partition du Reader en a été le second consommateur."""
+    return resolve_model_choice(requested, spec={'task': task}, fallback='', item=item, **refinements) or ''
+
+
+def task_installed(task: str) -> bool:
+    """Un modèle de `task` est-il INSTALLÉ ? Requête simple, sans tirage : la disponibilité
+    (`ProcessSpec.available`) d'un process, lue pour chaque card. Commun depuis le 2026-11-08
+    (composer, puis Reader)."""
+    try:
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.filter(capabilities__task=task, is_downloaded=True,
+                                      is_available=True).exists()
+    except Exception:
+        return False
+
+
 def predict_model_choice(spec):
     """PRÉVISION : le modèle qui serait retenu MAINTENANT pour ce domaine, ou None.
 
