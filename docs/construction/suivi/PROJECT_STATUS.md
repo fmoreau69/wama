@@ -29359,3 +29359,26 @@ de MESURE ; chaque pièce suit un patron en service :
   le modèle d'écoute, plus de titre « Paroles de l'entrée » ; ⚙ de « Paroles écrites » : Voix,
   Paroles et le bouton ✍️. Zéro erreur console. ⚠ Non vu : la vue « Partition jouée » Réduite /
   Complète (il faut une card déjà rendue) ; le levier B n'est pas nécessaire au composer.
+
+## §PALIER 2026-11-08 (nuit, suite), « « PÉRIMÉS » DANS LES MENUS ▾ DE TOUT LANCER / TOUT EFFACER ; LA BARRE COMPTE DES CARDS ; REVÉRIFICATION » — ce commit (local, non poussé) — 🔴 relancer gunicorn + workers
+
+- **Question de Fabien** (« 18 périmés : la somme des sous-process ou des cards ? Il faut que ce
+  soit les cards ») — MESURÉ sur sa file du composer : 29 cards réussies, **18 cards périmées**,
+  36 lignes périmées. La barre compte bien des cards (`stale_ids` rend des éléments distincts) ;
+  garde ajoutée : une card à deux lignes périmées compte une fois (`StaleCountTest`, par la vue
+  `global_progress` de la fabrique).
+- **« Périmés » aux menus ▾** (décision de Fabien) : `item_views.START_SCOPES` / `CLEAR_SCOPES`
+  gagnent `stale` ; un filtre de périmètre peut être une fonction (`narrowed`), `stale_only` lit la
+  MÊME requête que le compteur — le périmètre lance ou efface exactement ce que la barre compte, et
+  l'entrée se grise par le compteur `stale` (`wama-global-progress.js`, `setScopes`). ROUTE §11 #39
+  complété. Gardes : `QueueScopesTest.test_the_stale_scope_…` ; trois contre-épreuves en processus
+  (compteur, périmètre, texte de la barre) : rouges.
+- **Noms des fichiers d'entrée du composer** — relevé À BLANC (scratchpad
+  `composer_inputs_plan.py`, le geste du gestionnaire : renommer, `UserFile`, `file_references.repoint`) :
+  `composer/input/` est aligné (14 fichiers, noms normalisés, chacun relié) ; 8 cards désignent un
+  fichier du dossier temporaire (le modèle POINTEUR, D23 — pas un défaut) ; UN seul nom hors règle
+  (`users/1/temp/The Price Of Not Being Me_V96_320kbps.mp3`, 5 cards). ⏳ Renommage en attente de
+  l'accord de Fabien (fichier de son espace personnel).
+- ⚠ Revérification : `check_docs` 0 cassée / 3950 ; `doc_facts --check` : 4 blocs générés périmés
+  (mécanismes, outils, roundtrip, briques) — l'arbre porte le travail non commité d'autres sessions
+  sur ces docs, régénération laissée à la clôture commune.

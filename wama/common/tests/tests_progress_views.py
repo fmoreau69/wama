@@ -67,6 +67,14 @@ class StaleCountTest(TestCase):
         self.assertEqual({str(stale.pk)},
                          process_runs.stale_ids(ComposerGeneration, [fresh.pk, stale.pk, other.pk]))
         self.assertEqual(set(), process_runs.stale_ids(ComposerGeneration, []))
+        # The queue bar of the app counts CARDS (Fabien : « il faut que ce soit les cards ») : the
+        # stale card has two stale lines, it counts once ; it keeps its result (`done`).
+        process_runs.mark_stale(stale, ['output'])
+        request = RequestFactory().get('/composer/global_progress/')
+        request.user = user
+        views = make_progress_views(work_model=ComposerGeneration, app_id='composer')
+        payload = json.loads(views['global_progress'](request).content)
+        self.assertEqual((3, 3, 1), (payload['total'], payload['done'], payload['stale']))
 
 
 class RequestUserTest(TestCase):

@@ -54,8 +54,29 @@ IN_FLIGHT = (JOB_RUNNING, JOB_AWAITING_RESOURCES)
 #: règle que l'app DÉCLARE (`pending` / `pending_exclude`). Clé → (libellé, filtre, exclusion,
 #: compteur de la barre de file qui dit combien il en lance — `progress_views.queue_progress`).
 #: Les clés parlent le vocabulaire du FILTRE de la barre (`queue_view`, `failure`, `success`).
+#: Un filtre est un dict de colonnes, ou une fonction `(queryset) -> queryset` quand ce qu'il juge
+#: ne vit pas sur l'élément (les PÉRIMÉS, 2026-11-08 : sur ses lignes de process).
+
+
+def stale_only(queryset):
+    """Les éléments PÉRIMÉS de `queryset` — réussis dont une ligne de process est périmée : la
+    MÊME lecture que le compteur de la barre de file (`process_runs.stale_ids`, une requête), pour
+    que « Périmés » lance ou efface exactement ce que la barre compte (Fabien, 2026-11-08 : « ajouter
+    la modalité périmés aux boutons lancer et effacer »)."""
+    from wama.common.services.process_runs import stale_ids
+    ids = stale_ids(queryset.model, queryset.filter(status=JOB_SUCCESS).values_list('pk', flat=True))
+    return queryset.filter(pk__in=list(ids))
+
+
+def narrowed(queryset, scope_filter):
+    """`queryset` borné par le filtre d'un périmètre — colonnes (dict) ou fonction."""
+    return scope_filter(queryset) if callable(scope_filter) else queryset.filter(**scope_filter)
+
+
+#: Ordre (Fabien, 2026-11-08, celui de la barre) : ce qui attend, ce qui est à refaire, l'échec.
 START_SCOPES = {
     'pending': ('En attente', {'status': JOB_PENDING}, {}, 'pending'),
+    'stale': ('Périmés', stale_only, {}, 'stale'),
     'failure': ('Échecs', {'status': JOB_FAILURE}, {}, 'failure'),
     'unfinished': ('Non réussis', {}, {'status': JOB_SUCCESS}, 'unfinished'),
     'all': ('Tout relancer', {}, {}, 'relaunchable'),
@@ -63,6 +84,7 @@ START_SCOPES = {
 #: Les périmètres du menu ▾ de « tout effacer » — le clic principal efface toute la file (hors vol).
 CLEAR_SCOPES = {
     'success': ('Terminés', {'status': JOB_SUCCESS}, 'success'),
+    'stale': ('Périmés', stale_only, 'stale'),
     'failure': ('Échecs', {'status': JOB_FAILURE}, 'failure'),
     'pending': ('En attente', {'status': JOB_PENDING}, 'pending'),
 }
@@ -108,7 +130,7 @@ class ItemStart:
         else:
             pending = DEFAULT_PENDING if self.pending is None else self.pending
             exclude = self.pending_exclude or {}
-        return (self.queue(user).filter(**pending).exclude(**exclude)
+        return (narrowed(self.queue(user), pending).exclude(**exclude)
                 .exclude(status__in=IN_FLIGHT).order_by('pk'))
 
     def to_clear(self, user, scope: str = ''):
@@ -116,7 +138,7 @@ class ItemStart:
         La MÊME lecture sert la confirmation, qui annonce les fichiers libérés."""
         found = self.queue(user).exclude(status__in=IN_FLIGHT)
         if scope:
-            found = found.filter(**CLEAR_SCOPES[scope][1])
+            found = narrowed(found, CLEAR_SCOPES[scope][1])
         return found.order_by('pk')
 
     def progress_cache_key(self, pk) -> str:

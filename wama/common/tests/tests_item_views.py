@@ -219,6 +219,26 @@ class QueueScopesTest(_ItemViewsFixture):
             code, body = self._post(self.views['clear_all'])           # main click : the queue
         self.assertEqual([awaiting.pk], list(AvatarJob.objects.values_list('pk', flat=True)))
 
+    def test_the_stale_scope_launches_and_clears_exactly_what_the_bar_counts(self):
+        """2026-11-08, Fabien : « ajouter la modalité périmés aux boutons lancer et effacer ». The
+        scope reads the process LINES, as the bar's counter does (`process_runs.stale_ids`) : a
+        success with a stale line is in it ; a fresh success, a failure, a waiting job are not."""
+        from wama.common.services import process_runs
+        fresh, stale = self._job(status='SUCCESS'), self._job(status='SUCCESS')
+        failed, waiting = self._job(status='FAILURE'), self._job()
+        for job in (fresh, stale):
+            process_runs.start(job, 'animate')
+            process_runs.succeed(job, 'animate')
+        process_runs.mark_stale(stale, ['animate'])
+        code, body = self._post_scope(self.views['start_all'], 'stale')
+        self.assertEqual((200, [stale.pk]), (code, body['started']))
+        AvatarJob.objects.filter(pk=stale.pk).update(status='SUCCESS')
+        with mock.patch('wama.common.utils.queue_duplication.release_card_files'):
+            code, body = self._post_scope(self.views['clear_all'], 'stale')
+        self.assertEqual((200, 1), (code, body['deleted']))
+        self.assertEqual({fresh.pk, failed.pk, waiting.pk},
+                         set(AvatarJob.objects.values_list('pk', flat=True)))
+
     def test_the_menu_entries_come_from_the_factory_tables(self):
         from wama.common.utils.item_views import CLEAR_SCOPES, START_SCOPES, queue_scopes
         self.assertEqual(list(START_SCOPES), [s['key'] for s in queue_scopes('start')])

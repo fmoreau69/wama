@@ -205,7 +205,7 @@
             downloadTargets(download).forEach(function (el) { setDownloadReady(el, done > 0); });
             var pending = d.pending || 0;
             setScopes(download, {
-                pending: pending, failure: failed, success: done,
+                pending: pending, failure: failed, success: done, stale: stale,
                 unfinished: d.unfinished != null ? d.unfinished : pending + failed,
                 relaunchable: d.relaunchable != null ? d.relaunchable : total - running,
             });
