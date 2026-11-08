@@ -39,7 +39,9 @@ boucle.{% endcomment %}
   {% comment %}Identité de la CARD — ni une propriété du fichier d'entrée, ni un élément d'état :
   elle identifie l'élément de file. Essayée dans ENTRÉE (mêlée aux propriétés du média) puis dans
   ÉTAT (encore moins à sa place), elle a désormais son propre bandeau, hors des 5 sections.{% endcomment %}
-  <div class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</div>
+  {% comment %}Le TITRE LU sur la partition (2026-11-08, `views._shown_title`) — celui de la page, sinon
+  celui de son lot, et le numéro de page lu : il nomme la card sans remplacer le nom du fichier.{% endcomment %}
+  <div class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}{% if elem.shown_title %}<span class="sep">·</span><span class="text-body-emphasis" data-card-field="read_title">{{ elem.shown_title }}</span>{% endif %}</div>
 
   <div class="wcv3">
 

@@ -46,6 +46,7 @@ class ScoreReadingBackend(BaseModelBackend):
         work_file: str,
         output_dir: Optional[str] = None,
         progress_callback: Optional[Callable[[int], None]] = None,
+        page_texts: Optional[list] = None,
     ) -> str:
         """Rend le TEXTE MusicXML de la partition de `work_file` — ses pages à la suite, une
         partition unique.
@@ -54,6 +55,12 @@ class ScoreReadingBackend(BaseModelBackend):
         `work_file`         : chemin absolu d'une image (PNG, JPEG…) ou d'un PDF ;
         `output_dir`        : dossier où le moteur peut ranger ses fichiers de travail (pages
                               rasterisées, caches) — facultatif, le texte rendu fait foi ;
-        `progress_callback` : reçoit un pourcentage (0-100).
+        `progress_callback` : reçoit un pourcentage (0-100) ;
+        `page_texts`        : le TEXTE de chaque page avec sa place et son RÔLE (2026-11-08) — une
+                              entrée par page, la page de `OCRBackend.read_lines` (`width`,
+                              `height`, `lines`) dont chaque ligne porte un `role` de
+                              `score_page.TEXT_ROLES` (titre, compositeur, numéro de page, nombre
+                              de reprises…). Facultatif : sans lui la musique se lit pareil, sans
+                              titre ni mots. Un moteur qui ne lit pas le texte l'ignore.
 
         Une page où aucune portée ne se lit LÈVE en le disant — jamais une partition vide."""

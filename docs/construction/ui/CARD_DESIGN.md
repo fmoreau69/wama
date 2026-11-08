@@ -317,7 +317,10 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 > « Batch #12 · 8 éléments ».
 
 - **Le titre se LIT, rien n'est déclaré** (`common/services/batch_identity.py`) : dans l'ordre, le
-  **nom donné** à la main ; l'**entrée commune** quand toutes les cards partagent la même (un fichier
+  **nom donné** à la main ; le **titre lu** dans le contenu (spec `content_title`, 2026-11-08 — les
+  pages photographiées d'une partition : le titre est écrit en haut de l'une d'elles, dans n'importe
+  quel ordre ; le plus lu des éléments l'emporte, et chaque card de page le montre dans son bandeau
+  d'identité, avec le numéro de page lu) ; l'**entrée commune** quand toutes les cards partagent la même (un fichier
   traité par plusieurs modèles) ; le **fichier de lot** (`batch_file`) ; le **dossier d'origine** de
   toutes les sources (provenance `InputProvenance.ref`, jamais une racine `users/<u>/temp` ou
   `mounts/<id>`) ; sinon la **plage des entrées** — leur début commun (« interview_0… »), ou « a +

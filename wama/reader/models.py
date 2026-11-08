@@ -4,6 +4,9 @@ from wama.common.models import (KeptOutputsMixin, ProcessingTimeMixin, ScopedVis
 from django.contrib.auth.models import User
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 
+#: Longueur d'un titre lu sur une partition (`ReadingItem.score_title`).
+SCORE_TITLE_MAX = 200
+
 
 class ReadingItem(KeptOutputsMixin, ProcessingTimeMixin, ScopedVisibility):
     # `KeptOutputsMixin` (2026-11-08) : les versions de la PARTITION lue se gardent, comme celles
@@ -112,6 +115,13 @@ class ReadingItem(KeptOutputsMixin, ProcessingTimeMixin, ScopedVisibility):
                                   blank=True, null=True)
     score_musicxml = models.FileField(max_length=500, upload_to=upload_to_user_output('reader'),
                                       blank=True, null=True)
+    # Le TITRE et le NUMÉRO DE PAGE lus sur la partition (2026-11-08, demande de Fabien : « plusieurs
+    # pages qui se suivent forment un lot, le titre est écrit en haut d'une des pages ») — ils
+    # nomment la card et son lot (`read_title`, spec `content_title`).
+    score_title = models.CharField(max_length=SCORE_TITLE_MAX, blank=True, default='', db_default='',
+                                   help_text='Titre lu sur la partition')
+    score_page = models.PositiveIntegerField(null=True, blank=True,
+                                             help_text='Numéro de page lu sur la partition')
 
     created_at    = models.DateTimeField(auto_now_add=True)
 
@@ -139,6 +149,12 @@ class ReadingItem(KeptOutputsMixin, ProcessingTimeMixin, ScopedVisibility):
         from wama.common.utils.card_gear import gear_data
         from .params import PARAMS
         return gear_data(self, PARAMS)
+
+    @property
+    def read_title(self) -> str:
+        """Le titre lu sur la page — tant qu'elle PORTE sa partition lue : relancée comme un texte,
+        la card perd sa partition (`release_absent`), et le titre qui allait avec."""
+        return self.score_title if getattr(self.score_file, 'name', '') else ''
 
     @property
     def filename(self):

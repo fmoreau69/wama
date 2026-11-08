@@ -2315,13 +2315,15 @@ duplicate_instance(), release_card_files() (retirer une card libère TOUT ce qu'
 
 ### Identité d'un lot (titre, ce qui varie, nom donné)
 
-Ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier, la page des partages et les notifications DISENT d'un lot — tout LU, rien déclaré : l'ENTRÉE de chaque élément (spec de la fiche Infos, son vrai nom par la provenance), l'ORIGINE (fichier de lot, sinon dossier commun des sources), ce qui VARIE (réglages `chip=True`, `card_chips.varying_chips_for_items`), et le NOM donné à la main (`BatchLabel`, adressé comme `BatchSettings`), qui prime. Titre : nom donné, entrée commune, fichier de lot, dossier, sinon plage des entrées. Deux requêtes par page, posées par `batch_common.attach_identities` dans les TROIS constructeurs de file (`build_batches_list`, le converter, l'index généré en FK directe). Geste « Renommer le lot… » du menu de la card mère → `common:api_batch_label` (`editable_or_404`)
+Ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier, la page des partages et les notifications DISENT d'un lot — tout LU, rien déclaré : l'ENTRÉE de chaque élément (spec de la fiche Infos, son vrai nom par la provenance), l'ORIGINE (fichier de lot, sinon dossier commun des sources), ce qui VARIE (réglages `chip=True`, `card_chips.varying_chips_for_items`), et le NOM donné à la main (`BatchLabel`, adressé comme `BatchSettings`), qui prime. Titre : nom donné, titre LU dans le contenu (spec `content_title`, le plus lu des éléments — les pages d'une partition, 2026-11-08), entrée commune, fichier de lot, dossier, sinon plage des entrées. Deux requêtes par page, posées par `batch_common.attach_identities` dans les TROIS constructeurs de file (`build_batches_list`, le converter, l'index généré en FK directe). Geste « Renommer le lot… » du menu de la card mère → `common:api_batch_label` (`editable_or_404`)
 
 - **Domicile** : `wama/common/services/batch_identity.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3quater](../construction/ui/CARD_DESIGN.md)
 - **Module** : IDENTITÉ D'UN LOT — ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier et la page des partages disent d'un lot (2026-10-19, demande de Fabien : « seul le numéro identifie un batch, pas son contenu »).
-- **API publique** (9) :
+- **API publique** (11) :
   - `entry_file(element) -> str` — Le fichier d'ENTRÉE déclaré d'un élément (`spec.source_file` de sa spec de détail), en
   - `element_entry(element, origins=None) -> dict` — L'entrée DÉCLARÉE d'un élément : `{'name', 'text', 'nature', 'origin'}` (`''` / None quand
+  - `read_title(element) -> str` — Le titre LU dans le contenu d'un élément (spec `content_title` de sa fiche), ou ''.
+  - `content_title(elements) -> str` — Le titre que portent les éléments d'un lot : celui que le plus d'entre eux ont LU (une page
   - `entry_label(entry) -> str` — Ce qu'on DIT d'une entrée : son texte (le prompt, le texte à dire) s'il y en a un — c'est
   - `identify(pairs) -> list` — L'identité de chaque lot de `pairs` — `[(lot, [éléments]), …]`, éléments dans l'ordre des
   - `identity_of(batch) -> dict` — L'identité d'UN lot, ses éléments lus par `batch_elements` (pour qui ne tient que le lot).
@@ -3389,14 +3391,22 @@ Jouer une partition sans générer d'audio (2026-11-08, demande de Fabien). Les 
   - `local_file(sound_bank: SoundBank) -> Path` — Le fichier vendorisé d'une banque (dans les sources statiques) — ce que lit un rendu serveur.
   - `page_banks() -> dict` — Ce que la page reçoit (configuration d'une surface) : les banques, chacune avec son adresse
 
-### La page porte-t-elle une partition ? (portées comptées)
+### La page de partition : portées, aplomb, texte à rôles
 
-Compte les PORTÉES d'une page — cinq lignes horizontales longues et régulièrement espacées, mesurées par la part d'encre de chaque rangée de pixels — sur une image ou les premières pages d'un PDF ; aucun modèle. Lue par la propriété d'entrée `has_staves` de la sonde (`media_probe.INPUT_PROPERTIES`), calculée seulement quand un réglage la demande (`Param.default_from`) : la case « Lire une partition » du Reader se coche d'après le fichier, l'utilisateur la change. Née le 2026-11-08 (demande de Fabien : « une détection automatique […] qui peut rester un choix de l'utilisateur »). Ne voit pas une photo de travers ni un manuscrit sans portée
+Compte les PORTÉES d'une page — cinq lignes horizontales longues et régulièrement espacées, mesurées par la part d'encre de chaque rangée de pixels — sur une image ou les premières pages d'un PDF ; aucun modèle. Lue par la propriété d'entrée `has_staves` de la sonde (`media_probe.INPUT_PROPERTIES`), calculée seulement quand un réglage la demande (`Param.default_from`) : la case « Lire une partition » du Reader se coche d'après le fichier, l'utilisateur la change. Née le 2026-11-08 (demande de Fabien : « une détection automatique […] qui peut rester un choix de l'utilisateur »). Ne voit pas un manuscrit sans portée. Le 2026-11-08 (six photos de partitions de batterie) : une PHOTO se met d'aplomb (EXIF, angle des lignes longues `page_angle`, feuille découpée du bureau `paper_box` ; `level_page` sert aussi la lecture), et le TEXTE d'une page lu par un OCR à positions reçoit ses rôles par sa place et sa taille (`text_roles` : titre, compositeur, numéro de page, « x3 ») ; `text_quality` départage les deux sens d'une page
 
 - **Domicile** : `wama/common/utils/score_page.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : La PAGE porte-t-elle une partition ? — compter ses PORTÉES (2026-11-08).
-- **API publique** (2) :
+- **API publique** (10) :
   - `count_staves(gray) -> int` — Le nombre de PORTÉES d'une page en niveaux de gris (tableau numpy 2-D, 0 = noir).
+  - `page_angle(gray, span: float=MAX_TILT) -> float` — L'angle (degrés) qui met d'aplomb les lignes longues d'une page en gris : celui qui rend le
+  - `paper_box(gray)` — La FEUILLE dans une photo en gris : la boîte `(x0, y0, x1, y1)` de la plus grande zone claire,
+  - `level_gray(gray)` — La page en gris mise d'aplomb et recadrée sur sa feuille (`_level`).
+  - `level_page(path: str, folder: str) -> str` — Le chemin de la page `path` (une IMAGE) mise d'aplomb et recadrée sur sa feuille, écrite en
+  - `text_roles(page: dict) -> dict` — La page `page` (forme de `OCRBackend.read_lines` : `width`, `height`, `lines`) dont chaque
+  - `page_identity(page: dict) -> dict` — `{'title', 'composer', 'page_number'}` d'une page aux rôles donnés (`text_roles`) — '' / None
+  - `text_quality(page: dict) -> float` — Ce que vaut la lecture du texte d'une page : la somme, sur ses lignes, de la confiance par le
+  - `half_turned(path: str, folder: str) -> str` — La page `path` tournée d'un demi-tour, écrite en PNG dans `folder`.
   - `page_staves(path: str)` — Le plus grand nombre de portées sur une page de `path` (image, ou les `PDF_PAGES`
 
 ### Langue d'un contenu (écrit, parlé)
@@ -3517,14 +3527,18 @@ Un MIDI à une piste par instrument → une partition ABC lisible : une voix par
 
 ### Partitions MusicXML (pages assemblées, MusicXML → ABC)
 
-Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBackend` : une page imprimée → son MusicXML) et à tout MusicXML importé : `merge_pages` fait UNE partition des pages lues (partie par partie, mesures renumérotées), `read_musicxml` lit un `.musicxml` ou un `.mxl` compressé, `musicxml_to_abc` rend l'ABC que lisent la page d'édition et YuE2 (xml2abc de W. G. Vree, librairie `abc-xml-converter` par la route). Née le 2026-11-06 (lecture de partition scannée, demande de Fabien) : aucune conversion MusicXML → ABC n'existait, et YuE2 refusait le MusicXML que le composer accepte en partition de référence ; patron de `midi_score`, ne connaît aucun moteur
+Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBackend` : une page imprimée → son MusicXML) et à tout MusicXML importé : `merge_pages` fait UNE partition des pages lues (partie par partie, mesures renumérotées), `read_musicxml` lit un `.musicxml` ou un `.mxl` compressé, `musicxml_to_abc` rend l'ABC que lisent la page d'édition et YuE2 (xml2abc de W. G. Vree, librairie `abc-xml-converter` par la route). Née le 2026-11-06 (lecture de partition scannée, demande de Fabien) : aucune conversion MusicXML → ABC n'existait, et YuE2 refusait le MusicXML que le composer accepte en partition de référence ; patron de `midi_score`, ne connaît aucun moteur. Le 2026-11-08 (partitions de batterie de Fabien) : `apply_repeat_counts` fait d'un « x3 » lu sur la page une reprise jouée trois fois (`<repeat times>`), et la conversion retire avant `xml2abc` une clé posée sur une portée sans note, qui le faisait lever
 
 - **Domicile** : `wama/common/utils/musicxml_score.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Partitions MUSICXML — la brique commune de WAMA (2026-11-06).
-- **API publique** (4) :
+- **API publique** (8) :
   - `read_musicxml(path) -> str` — Le TEXTE MusicXML d'un fichier `.musicxml` / `.xml`, ou d'un `.mxl` — l'archive compressée
   - `musicxml_to_abc(text: str, title: str='') -> str` — L'ABC de la partition MusicXML `text` (`xml2abc`) ; `title` remplace le titre écrit (sinon
   - `note_count(text: str) -> int` — Le nombre de NOTES (silences exclus) d'un document MusicXML.
+  - `work_title(text: str) -> str` — Le titre écrit dans un document MusicXML (`work/work-title`, sinon `movement-title`), ou ''.
+  - `repeat_count(text: str)` — Le nombre de passages que dit un texte de page — « x3 », « ×2 », « 4x », « XZ » (un « x2 »
+  - `repeat_words(times: int) -> str` — Les mots qui portent `times` passages jusqu'à la partition lue (`REPEAT_WORDS`).
+  - `apply_repeat_counts(text: str) -> str` — La partition MusicXML `text` où chaque compte de passages écrit (`REPEAT_WORDS`) devient une
   - `merge_pages(pages: list) -> str` — UNE partition MusicXML faite de `pages` (textes MusicXML « partwise », dans l'ordre) : la
 
 ### Pont référentiel ↔ cadres typés (WAMA Data)

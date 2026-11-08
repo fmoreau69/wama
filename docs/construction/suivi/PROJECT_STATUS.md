@@ -29258,6 +29258,56 @@ de MESURE ; chaque pièce suit un patron en service :
   n'affiche une image en lecture seule) ; l'écoute (abcjs vendorisé sans synthétiseur) ; une photo
   de travers ou un manuscrit ne sont pas vus par `has_staves` (la note le dit, l'utilisateur coche).
 
+## §PALIER 2026-11-08 (après-midi), « LES PAGES DE BATTERIE DE FABIEN : PHOTOS MISES D'APLOMB, TITRE ET PAGE LUS, « x3 » DEVENU REPRISE, LOT NOMMÉ PAR SON TITRE » — ce commit (local, non poussé) — 🔴 migration `reader/0020_score_title_page` DÉJÀ APPLIQUÉE ; relancer gunicorn + workers (default, gpu)
+
+> Mesure sur six photos de Fabien (`claude/tabs/` : « Welcome to the show », manuscrit, 2 pages ;
+> « Nothing Else Matters », imprimé, 2 pages + la page 1 photographiée penchée de 22° et couchée de
+> 90°), la chaîne du Reader jouée hors base (scratchpad `measure_tabs*.py`).
+
+- **Ce que la mesure a montré, avant** : la sonde `has_staves` disait « aucune portée » sur les SIX
+  (EXIF non appliqué, 1-2° d'inclinaison suffisent, la feuille n'occupe qu'une part de la photo) ;
+  la page penchée de 22° ne donnait qu'UNE mesure (10 notes) ; le classifieur d'orientation de docTR
+  (appris sur du texte) RETOURNAIT la page 2 droite ; aucun titre lu (copisteria ne lit le texte que
+  si on lui donne des boîtes à rôle) ; « x3 » ignoré ; une page manuscrite non convertible en ABC
+  (`xml2abc` lève sur une clé posée sur une portée sans note).
+- **`score_page`** (brique commune) : `level_gray` / `level_page` — EXIF, ANGLE des lignes longues
+  (`page_angle`, profil d'encre le plus contrasté, seuil adaptatif : le bureau noir n'est pas de
+  l'encre), FEUILLE découpée (`paper_box`) ; la sonde mesure la page mise d'aplomb, et la regarde
+  d'un quart de tour si elle n'y voit rien. Le TEXTE d'une page (OCR à positions,
+  `OCRBackend.read_lines`) reçoit ses rôles par sa place et sa taille (`text_roles` : titre,
+  compositeur et numéro DANS LA BANDE DU TITRE, pied, « x3 », mots) ; `text_quality` départage les deux
+  sens d'une page.
+- **`musicxml_score`** : `repeat_count` (« x3 », « ×2 », « 4x », « XZ » = un « x2 » manuscrit lu par
+  docTR), `apply_repeat_counts` — la mesure qui porte le compte (ou la reprise ouvrante qui la précède)
+  devient `|: … :|` avec `<repeat times="3"/>`, « ×3 » restant écrit ; les mesures vides d'une autre
+  partie ne reçoivent rien. `_without_staffless_clefs` avant `xml2abc`. ⚠ L'ABC garde la reprise et
+  « ×3 », pas le nombre : un lecteur ABC la joue deux fois (le MusicXML porte le compte).
+- **Contrat `ScoreReadingBackend.read_score(page_texts=…)`** ; copisteria les passe à
+  `transcribe(texts=…)` dans sa forme (rôles `pgHead_*`, pixels de la page lue) — un compte de
+  passages y entre comme MOTS (`repeat_words`), seule forme que la librairie place sur une mesure.
+- **Glu du Reader** (`tasks._read_score`) : redressement → `level_page` → `_score_page_texts` (OCR tiré
+  comme le process OCR commun, `positioned_ocr_keys`, demandé à la route ; page lue dans ses deux sens,
+  la plus sûre part au moteur ; confort : sans OCR, lecture sans titre) → moteur → reprises → titre
+  de l'ABC = titre lu. Sorties neuves `score_title` / `score_page` (migration 0020, `db_default`).
+- **Le lot et ses cards** : clé de spec `content_title` (`INSPECTOR_DETAIL_FIELDS §Le langage de la
+  spec`) ; `batch_identity` titre le lot du titre LU le plus fréquent de ses pages, quel que soit leur
+  ordre, juste après le nom donné à la main (`CARD_DESIGN §3quater`) ; la card l'affiche dans son
+  bandeau d'identité (« Nothing Else Matters — p. 2 »), une page sans titre prenant celui de son lot.
+  `ReadingItem.read_title` : le titre ne vit que tant que la card porte sa partition.
+- **Après** (mêmes six photos) : sonde 6/6 (10-11 portées) ; page penchée 358 notes, la même droite
+  360 ; page 2 retournée puis lue (titre + « p. 2 ») ; titre et compositeur lus sur les 4 pages
+  imprimées ; « ×2 » posé en reprise sur la 1ʳᵉ mesure manuscrite ; 6/6 converties en ABC. Le titre
+  manuscrit est lu FAUX par docTR (« Velcome lo Lhe >Row… ») : l'OCR à positions installé est un OCR
+  d'imprimé.
+- Tests : +20 (`tests_score_reading` +15, `tests_score` +5, une garde existante adaptée au contrat) ;
+  22 contre-épreuves, 22 rouges — dont une garde d'abord AVEUGLE (la perte de l'EXIF dans la sonde
+  était rattrapée par son quart de tour ; la garde lit désormais la page mesurée).
+- 🔚 Reste : la lecture de la batterie elle-même reste partielle (têtes en croix non distinguées par
+  le détecteur, instruments non nommés dans l'ABC, « % » de deux mesures recopié sur une seule par la
+  librairie) ; le MANUSCRIT n'est pas l'objet de copisteria ; un OCR à positions qui lise l'écriture
+  manuscrite (titre, « x3 ») ; l'ordre des cards d'un lot par numéro de page lu (aujourd'hui : nommées,
+  pas réordonnées) ; un PDF n'est ni mis d'aplomb ni lu dans ses deux sens.
+
 ## §PALIER 2026-11-08 (après-midi), « LISIBILITÉ DES ÉTAPES : LA ⚙ D'UNE ÉTAPE RANGE SOUS ELLE, LA CASE PORTE LE LIBELLÉ DE L'ÉTAPE, « PAROLES ÉCRITES » MONTRE CE QU'ELLE ÉCRIT, PARTITION RÉDUITE JOUÉE (SYMÉTRIE) » — ce commit (local, non poussé) — 🔴 migration `composer/0031_rendered_reduced_score` À APPLIQUER (avec la `0030`), puis relancer gunicorn + workers
 
 > Mesure des 10 apps (scratchpad `measure_steps.py`) et concile (5 avis distants + relecture,

@@ -57,9 +57,13 @@ class ReaderConfig(AppConfig):
             'result_text': 'result_text',
             # La partition lue (2026-11-08) : le fichier de sortie d'une page lue comme partition.
             'result_file': 'score_file',
+            # Le titre lu sur la partition (2026-11-08) : il nomme le lot de pages et la card.
+            'content_title': 'read_title',
             'extra': [
                 {'label': 'Mode de lecture', 'field': 'mode', 'display': True},
                 {'label': 'Langue', 'field': 'language'},
                 {'label': 'Pages', 'field': 'page_count'},
+                {'label': 'Titre lu', 'field': 'read_title'},
+                {'label': 'Page lue', 'field': 'score_page'},
             ],
         })

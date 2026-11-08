@@ -12,9 +12,12 @@ RIEN N'EST DÉCLARÉ ICI, TOUT SE LIT :
   • ce qui VARIE — les réglages `chip=True` du schéma de l'élément, lus comme la fiche Infos
     (`spec_schema` + porteur `extra_from_params`) et mis en forme comme les pastilles des cards
     (`card_chips.varying_chips_for_items`) ;
-  • le NOM donné à la main (`BatchLabel`, adressé comme `BatchSettings`), qui prime.
+  • le NOM donné à la main (`BatchLabel`, adressé comme `BatchSettings`), qui prime ;
+  • le TITRE LU dans le contenu (spec `content_title`, 2026-11-08 — les pages d'une partition
+    scannée : « le titre est écrit en haut d'une des pages », Fabien), quel que soit l'élément qui
+    le porte, puisque les pages n'arrivent pas forcément dans l'ordre (`content_title`).
 
-LE TITRE, dans cet ordre : le nom donné ; l'entrée si TOUS les éléments partagent la même (un même
+LE TITRE, dans cet ordre : le nom donné ; le titre lu ; l'entrée si TOUS les éléments partagent la même (un même
 fichier traité par plusieurs modèles) ; le fichier de lot ; le dossier d'origine ; sinon la plage
 des entrées (« interview_01 … interview_12 », ou « a + 3 autres »). Le numéro du lot reste affiché
 à côté : il identifie, le titre décrit.
@@ -95,6 +98,21 @@ def element_entry(element, origins=None) -> dict:
     if not isinstance(nature, str) or not nature:
         nature = category_of_path(name) if name else ''
     return {'name': name, 'text': text, 'nature': nature, 'origin': origin}
+
+
+def read_title(element) -> str:
+    """Le titre LU dans le contenu d'un élément (spec `content_title` de sa fiche), ou ''."""
+    from wama.common.utils.detail_registry import spec_value
+    _, spec = _spec_of(type(element))
+    value = spec_value(element, spec.get('content_title')) if spec.get('content_title') else ''
+    return ' '.join(str(value or '').split())
+
+
+def content_title(elements) -> str:
+    """Le titre que portent les éléments d'un lot : celui que le plus d'entre eux ont LU (une page
+    mal lue ne l'emporte pas), à égalité le premier dans l'ordre des lignes — '' si aucun."""
+    titles = [t for t in (read_title(e) for e in elements) if t]
+    return max(titles, key=titles.count) if titles else ''
 
 
 def entry_label(entry) -> str:
@@ -231,8 +249,11 @@ def _identity(batch, works, name, origins) -> dict:
     labels = _distinct(entry_label(e) for e in entries)
     batch_file = _file_name(getattr(batch, 'batch_file', None))
     details = []
+    read = content_title(works)
     if name:
         title, kind = name, 'manual'
+    elif read:
+        title, kind = read, 'content'
     elif len(works) > 1 and len(labels) == 1 and all(entry_label(e) for e in entries):
         title, kind = labels[0], 'shared_input'
     elif batch_file:

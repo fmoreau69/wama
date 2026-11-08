@@ -341,6 +341,47 @@ def _upright_work_file(item, folder: str) -> str:
     return upright_image(work_file, folder)
 
 
+def _score_page_texts(item, ctx, work_file: str, folder: str):
+    """`(fichier, page_texts)` d'une page de partition : son TEXTE lu avec sa place par un OCR qui la
+    rend (`ocr_process.positioned_ocr_keys`, tiré comme le process OCR commun), chaque ligne munie
+    de son rôle (`score_page.text_roles`) — titre, compositeur, numéro de page, « x3 ».
+
+    Une IMAGE se lit dans ses DEUX SENS et garde le meilleur (`score_page.text_quality`) : le
+    classifieur d'orientation, appris sur du texte, retourne une partition droite (mesuré le
+    2026-11-08, page 2 de « Nothing Else Matters ») ; c'est alors la page tournée qui part au moteur.
+    Le titre est un confort : sans OCR installé, ou s'il échoue, la page se lit sans texte."""
+    from wama.common.backends.manager import backend_instance_for_key
+    from wama.common.services.ocr_process import positioned_ocr_keys
+    from wama.common.utils.auto_model import resolve_model_choice
+    from wama.common.utils.model_readiness import ModelInstallRefused
+    from wama.common.utils.score_page import half_turned, text_quality, text_roles
+    candidates = positioned_ocr_keys()
+    if not candidates:
+        ctx.console("[Reader] Aucun OCR ne rend la place du texte : la partition se lit sans titre.")
+        return work_file, None
+    key = resolve_model_choice('auto', spec={'task': 'ocr'}, candidates=candidates, item=item,
+                               fallback=candidates[0]) or candidates[0]
+    try:
+        ctx.ensure_model(key)
+    except ModelInstallRefused as exc:
+        ctx.console(f"[Reader] Texte de la partition non lu ({exc}).")
+        return work_file, None
+    try:
+        engine = backend_instance_for_key(key, user=item.user)
+        pages = engine.read_lines(work_file)
+        if not work_file.lower().endswith('.pdf') and pages:
+            turned = half_turned(work_file, folder)
+            turned_pages = engine.read_lines(turned)
+            if turned_pages and text_quality(turned_pages[0]) > text_quality(pages[0]):
+                ctx.console("[Reader] La page était à l'envers : elle se lit retournée.")
+                work_file, pages = turned, turned_pages
+    except Exception as exc:
+        logger.warning("[Reader] texte de la partition #%s illisible : %s", item.pk, exc)
+        ctx.console(f"[Reader] Texte de la partition non lu ({exc}).")
+        return work_file, None
+    return work_file, [text_roles(page) for page in pages]
+
+
 def _ensure_page_count(item) -> None:
     """Le nombre de pages d'un PDF, compté une fois — l'ETA des deux lectures en dépend."""
     if item.page_count == 0 and item.input_file.name.lower().endswith('.pdf'):
@@ -360,8 +401,10 @@ def _read_score(item, ctx):
     from wama.common.backends.manager import backend_instance_for_key, run_contract
     from wama.common.utils.auto_model import model_for_task
     from wama.common.utils.model_keys import model_id
-    from wama.common.utils.musicxml_score import musicxml_to_abc
+    from wama.common.utils.musicxml_score import apply_repeat_counts, musicxml_to_abc, work_title
+    from wama.common.utils.score_page import level_page, page_identity
     from wama.common.utils.work_dir import work_dir
+    from wama.reader.models import SCORE_TITLE_MAX
     from wama.reader.utils.model_config import SCORE_READING_TASK
 
     ctx.console(f"[Reader] Partition : {item.filename}")
@@ -380,10 +423,21 @@ def _read_score(item, ctx):
             if not work_file.lower().endswith('.pdf'):
                 _request_page_orientation(ctx)
             work_file = _upright_work_file(item, str(travail))
+            if not work_file.lower().endswith('.pdf'):
+                # Une PHOTO : mise d'aplomb (quelques degrés suffisent à tout perdre) et recadrée
+                # sur sa feuille — le moteur ne redresse rien (`score_page`, 2026-11-08).
+                work_file = level_page(work_file, str(travail))
+            work_file, page_texts = _score_page_texts(item, ctx, work_file, str(travail))
             musicxml = run_contract(engine, model_id=model_id(key), work_file=work_file,
-                                    output_dir=str(travail), progress_callback=ctx.progress)
-        title = os.path.splitext(item.filename)[0]
-        abc = musicxml_to_abc(musicxml, title=title)
+                                    output_dir=str(travail), progress_callback=ctx.progress,
+                                    page_texts=page_texts)
+        musicxml = apply_repeat_counts(musicxml)
+        # Le TITRE et le numéro de page LUS (2026-11-08) : ils nomment la card et son lot
+        # (`batch_identity`, spec `content_title`) ; sans titre lu, le nom du fichier.
+        identities = [page_identity(page) for page in page_texts or []]
+        read_title = next((i['title'] for i in identities if i['title']), '') or work_title(musicxml)
+        page_number = next((i['page_number'] for i in identities if i['page_number']), None)
+        abc = musicxml_to_abc(musicxml, title=read_title or os.path.splitext(item.filename)[0])
         xml_rel, xml_abs = ctx.output_place('.musicxml', nature='score', model=model_id(key))
         with open(xml_abs, 'w', encoding='utf-8') as handle:
             handle.write(musicxml)
@@ -398,7 +452,8 @@ def _read_score(item, ctx):
     name = os.path.basename(abc_rel)
     ctx.progress(100, "Terminé")
     return {
-        'fields': {'score_file': abc_rel, 'score_musicxml': xml_rel, 'used_backend': key},
+        'fields': {'score_file': abc_rel, 'score_musicxml': xml_rel, 'used_backend': key,
+                   'score_title': read_title[:SCORE_TITLE_MAX], 'score_page': page_number},
         'output_ref': abc_rel,
         'models': [key],
         'eta': reader_eta_key_size(item, backend=key),

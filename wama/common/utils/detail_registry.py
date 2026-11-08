@@ -132,7 +132,11 @@ def register_app_detail_spec(app_name, model_class, spec):
        #   • PREMIER ÉLÉMENT D'UNE LISTE — dans la forme « premier champ non vide » ci-dessus,
        #     un champ qui porte une liste rend son premier élément (`['output_video',
        #     'output_images']` : la vidéo, sinon la première image).
-       'aliases': {'quality_preset': 'output_quality'}}
+       'aliases': {'quality_preset': 'output_quality'},
+       # TITRE LU dans le CONTENU (2026-11-08, la partition du Reader : « le titre est écrit en
+       # haut d'une des pages ») — une valeur de spec ; il nomme le LOT
+       # (`batch_identity`, après le nom donné à la main) et l'élément sur sa card.
+       'content_title': 'read_title'}
 
        # Plus de `result_tabs` (facettes TEXTE d'un résultat, retirées le 2026-10-13,
        # `REMOVAL_LEDGER R127`) : les lectures d'un même résultat — diarisation, résumé,

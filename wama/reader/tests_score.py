@@ -185,6 +185,105 @@ class TheGlueWritesTheScoreOnTheCardTest(TestCase):
             tasks._read_score(item, ctx)
         ctx.ensure_model.assert_called_once_with('huggingface:kobimusic/copisteria')
 
+    def test_the_page_text_names_the_card_and_an_upside_down_page_is_turned(self):
+        """2026-11-08, Fabien's drum pages : the orientation classifier turned a straight score
+        upside down ; the page is read both ways by the OCR and the surer reading wins. The title,
+        page number and « x3 » it reads reach the engine and the card."""
+        from wama.reader import tasks
+        from wama.reader.models import ReadingItem
+        _png(self.tmp, 'page.png', _page(staves=1))
+        item = ReadingItem.objects.create(user=self.user, input_file='page.png', read_as_score=True)
+        straight = {'width': 1200, 'height': 1600, 'lines': [
+            {'text': 'Nothing Else Matters', 'bbox': [400, 20, 800, 70], 'conf': 0.99},
+            {'text': '2', 'bbox': [1150, 25, 1165, 50], 'conf': 0.9},
+            {'text': 'x3', 'bbox': [600, 700, 630, 720], 'conf': 0.9}]}
+        noise = {'width': 1200, 'height': 1600,
+                 'lines': [{'text': 'SIOME OSIE', 'bbox': [400, 1500, 600, 1540], 'conf': 0.36}]}
+        ocr = mock.Mock(read_lines=lambda path: [straight if path.endswith('_turned.png') else noise])
+        calls = {}
+
+        def run_contract(engine, **values):
+            calls.update(values)
+            return MUSICXML_CDEF
+        ctx = SimpleNamespace(console=lambda *a: None, progress=lambda *a, **k: None,
+                              ensure_model=mock.Mock(),
+                              output_place=lambda ext, **k: (f'o{ext}', str(self.tmp / f'o{ext}')))
+        with mock.patch('wama.common.utils.auto_model.model_for_task',
+                        return_value='huggingface:kobimusic/copisteria'), \
+                mock.patch('wama.common.services.ocr_process.positioned_ocr_keys',
+                           return_value=['reader:doctr']), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                           return_value='reader:doctr'), \
+                mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                           side_effect=lambda key, **k: ocr if key == 'reader:doctr' else object()), \
+                mock.patch('wama.common.backends.manager.run_contract', side_effect=run_contract), \
+                mock.patch('wama.common.backends.ocr_base.upright_image', side_effect=lambda p, d: p):
+            result = tasks._read_score(item, ctx)
+        self.assertTrue(calls['work_file'].endswith('_turned.png'), 'the surer reading wins')
+        self.assertIn(mock.call('reader:doctr'), ctx.ensure_model.call_args_list,
+                      'the OCR is asked of the route like any model')
+        roles = [(l['role'], l['text']) for l in calls['page_texts'][0]['lines']]
+        self.assertEqual([('title', 'Nothing Else Matters'), ('page_number', '2'),
+                          ('repeat_count', 'x3')], roles)
+        self.assertEqual(('Nothing Else Matters', 2),
+                         (result['fields']['score_title'], result['fields']['score_page']))
+        self.assertIn('T:Nothing Else Matters', (self.tmp / 'o.abc').read_text())
+
+    def test_without_an_ocr_that_places_text_the_score_is_read_without_title(self):
+        from wama.reader import tasks
+        from wama.reader.models import ReadingItem
+        page = _png(self.tmp, 'page.png', _page(staves=1))
+        item = ReadingItem.objects.create(user=self.user, input_file='page.png', read_as_score=True)
+        ctx = SimpleNamespace(console=lambda *a: None, ensure_model=mock.Mock())
+        with mock.patch('wama.common.services.ocr_process.positioned_ocr_keys', return_value=[]):
+            self.assertEqual((str(page), None), tasks._score_page_texts(item, ctx, str(page), str(self.tmp)))
+        ctx.ensure_model.assert_not_called()
+
+
+class ThePagesOfAScoreNameTheirLotTest(TestCase):
+    """« Plusieurs pages qui se suivent d'une même partition forment un lot, le titre est écrit en
+    haut d'une des pages » (Fabien, 2026-11-08) — in any order."""
+
+    def setUp(self):
+        from wama.reader.models import BatchReadingItem, BatchReadingItemLink, ReadingItem
+        self.tmp = Path(tempfile.mkdtemp(prefix='reader_score_lot_'))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        media = override_settings(MEDIA_ROOT=str(self.tmp))
+        media.enable()
+        self.addCleanup(media.disable)
+        self.user = get_user_model().objects.create_user('reader_score_lot', password='x')
+        self.batch = BatchReadingItem.objects.create(user=self.user, total=3)
+        self.pages = []
+        for row, (title, number) in enumerate((('', 3), ('Nothing Else Matters', None),
+                                               ('', 2))):
+            item = ReadingItem.objects.create(user=self.user, read_as_score=True, status='SUCCESS',
+                                              original_filename=f'IMG_{row}.jpg', score_file=f'out/{row}.abc',
+                                              score_title=title, score_page=number)
+            BatchReadingItemLink.objects.create(batch=self.batch, reading=item, row_index=row)
+            self.pages.append(item)
+
+    def test_the_title_read_on_any_page_names_the_lot(self):
+        from wama.common.services.batch_identity import identity_of, rename
+        identity = identity_of(self.batch)
+        self.assertEqual(('Nothing Else Matters', 'content'), (identity['title'], identity['kind']))
+        rename(self.batch, 'Concert de juin')
+        self.assertEqual('Concert de juin', identity_of(self.batch)['title'], 'a given name wins')
+
+    def test_each_page_card_carries_the_title_and_its_page_number(self):
+        from wama.reader.views import _shown_title
+        first, titled, second = self.pages
+        self.assertEqual('Nothing Else Matters — p. 3', _shown_title(first))
+        self.assertEqual('Nothing Else Matters', _shown_title(titled))
+        self.assertEqual('Nothing Else Matters — p. 2', _shown_title(second, self.pages))
+
+    def test_a_page_that_lost_its_score_loses_its_title(self):
+        from wama.common.services.batch_identity import identity_of
+        for item in self.pages:
+            item.score_file = None
+            item.save(update_fields=['score_file'])
+        self.assertEqual('', self.pages[1].read_title)
+        self.assertNotEqual('content', identity_of(self.batch)['kind'])
+
 
 class TheCardFollowsTheScoreTest(TestCase):
 

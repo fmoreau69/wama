@@ -2067,7 +2067,9 @@ MECHANISMS = (
               "de chaque élément (spec de la fiche Infos, son vrai nom par la provenance), "
               "l'ORIGINE (fichier de lot, sinon dossier commun des sources), ce qui VARIE (réglages "
               "`chip=True`, `card_chips.varying_chips_for_items`), et le NOM donné à la main "
-              "(`BatchLabel`, adressé comme `BatchSettings`), qui prime. Titre : nom donné, entrée "
+              "(`BatchLabel`, adressé comme `BatchSettings`), qui prime. Titre : nom donné, titre "
+              "LU dans le contenu (spec `content_title`, le plus lu des éléments — les pages d'une "
+              "partition, 2026-11-08), entrée "
               "commune, fichier de lot, dossier, sinon plage des entrées. Deux requêtes par page, "
               "posées par `batch_common.attach_identities` dans les TROIS constructeurs de file "
               "(`build_batches_list`, le converter, l'index généré en FK directe). Geste « Renommer "
@@ -3476,13 +3478,17 @@ MECHANISMS = (
               "page d'édition et YuE2 (xml2abc de W. G. Vree, librairie `abc-xml-converter` par la "
               "route). Née le 2026-11-06 (lecture de partition scannée, demande de Fabien) : aucune "
               "conversion MusicXML → ABC n'existait, et YuE2 refusait le MusicXML que le composer "
-              "accepte en partition de référence ; patron de `midi_score`, ne connaît aucun moteur",
+              "accepte en partition de référence ; patron de `midi_score`, ne connaît aucun moteur. "
+              "Le 2026-11-08 (partitions de batterie de Fabien) : `apply_repeat_counts` fait d'un "
+              "« x3 » lu sur la page une reprise jouée trois fois (`<repeat times>`), et la "
+              "conversion retire avant `xml2abc` une clé posée sur une portée sans note, qui le "
+              "faisait lever",
               'wama/common/utils/musicxml_score.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               annexes=('wama/common/tests/tests_score_reading.py',
                        'wama/common/backends/score_reading_base.py',
                        'wama/common/backends/copisteria_backend.py')),
-    Mechanism('score_page', 'La page porte-t-elle une partition ? (portées comptées)',
+    Mechanism('score_page', 'La page de partition : portées, aplomb, texte à rôles',
               "Compte les PORTÉES d'une page — cinq lignes horizontales longues et régulièrement "
               "espacées, mesurées par la part d'encre de chaque rangée de pixels — sur une image ou "
               "les premières pages d'un PDF ; aucun modèle. Lue par la propriété d'entrée "
@@ -3490,10 +3496,15 @@ MECHANISMS = (
               "un réglage la demande (`Param.default_from`) : la case « Lire une partition » du "
               "Reader se coche d'après le fichier, l'utilisateur la change. Née le 2026-11-08 "
               "(demande de Fabien : « une détection automatique […] qui peut rester un choix de "
-              "l'utilisateur »). Ne voit pas une photo de travers ni un manuscrit sans portée",
+              "l'utilisateur »). Ne voit pas un manuscrit sans portée. Le 2026-11-08 (six photos "
+              "de partitions de batterie) : une PHOTO se met d'aplomb (EXIF, angle des lignes "
+              "longues `page_angle`, feuille découpée du bureau `paper_box` ; `level_page` sert "
+              "aussi la lecture), et le TEXTE d'une page lu par un OCR à positions reçoit ses rôles "
+              "par sa place et sa taille (`text_roles` : titre, compositeur, numéro de page, "
+              "« x3 ») ; `text_quality` départage les deux sens d'une page",
               'wama/common/utils/score_page.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
-              annexes=('wama/reader/tests_score.py',)),
+              annexes=('wama/reader/tests_score.py', 'wama/common/tests/tests_score_reading.py')),
     Mechanism('midi_reading', "La lecture MIDI d'une partition : banques de sons, page et serveur",
               "Jouer une partition sans générer d'audio (2026-11-08, demande de Fabien). Les BANQUES "
               "DE SONS se déclarent une fois (`sound_banks` : GeneralUser GS et MuseScore General, "

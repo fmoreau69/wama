@@ -22,7 +22,12 @@ Ce que ce backend décide, et pourquoi :
   • la librairie écrit ses caches À CÔTÉ de la page (`<page>.dets_*.json`, `.feat_*.npz`) : chaque
     page est d'abord copiée dans un dossier de TRAVAIL (`work_dir`), jamais lue là où l'utilisateur
     l'a rangée ;
-  • les pages lues deviennent UNE partition par la brique commune (`musicxml_score.merge_pages`).
+  • les pages lues deviennent UNE partition par la brique commune (`musicxml_score.merge_pages`) ;
+  • le TEXTE de la page (2026-11-08) : la librairie lit titre, compositeur et mots dans des boîtes
+    de texte à RÔLE (`<page>.texts.json`, que son auteur produit par un OCR à lui) ; WAMA les lui
+    passe en mémoire (`transcribe(texts=…)`), tirées de `page_texts` (rôles de
+    `score_page.text_roles`) par `_texts` — un nombre de passages (« x3 ») y entre comme des MOTS,
+    seule forme que la librairie place sur une mesure (`musicxml_score.repeat_words`).
 """
 from __future__ import annotations
 
@@ -65,6 +70,32 @@ COPISTERIA_FILES = [
 #: La résolution d'une page de PDF rendue en image : ce que portent les scans (la librairie rend
 #: aussi ses pages sans image à 300 ppi, `vision.page.scan.RENDER_PPI`).
 PDF_DPI = 300
+
+#: Le rôle d'une ligne de texte (`score_page.TEXT_ROLES`) → celui que la librairie lit
+#: (`docs/ARCHITECTURE.md` §Text, `write.NOT_NAMES`).
+TEXT_ROLE_NAMES = {'title': 'pgHead_title', 'composer': 'pgHead_composer',
+                   'subtitle': 'pgHead_subtitle', 'page_number': 'pgFoot', 'footer': 'pgFoot',
+                   'repeat_count': 'words', 'words': 'words'}
+
+
+def _texts(page: Optional[dict], image_size) -> Optional[list]:
+    """Les boîtes de texte d'une page dans la forme de la librairie (`{'text', 'xyxy', 'role'}`, en
+    pixels de l'image LUE) — tirées d'une page de `page_texts`, dont les coordonnées sont dans SON
+    unité (points d'un PDF, pixels d'une image) ; None sans page."""
+    if not page or not page.get('lines'):
+        return None
+    from wama.common.utils.musicxml_score import repeat_words
+    sx = image_size[0] / float(page.get('width') or image_size[0])
+    sy = image_size[1] / float(page.get('height') or image_size[1])
+    out = []
+    for line in page['lines']:
+        role = TEXT_ROLE_NAMES.get(line.get('role'))
+        if not role:
+            continue
+        x0, y0, x1, y1 = line['bbox']
+        text = repeat_words(line['times']) if line.get('role') == 'repeat_count' else line['text']
+        out.append({'text': text, 'xyxy': [x0 * sx, y0 * sy, x1 * sx, y1 * sy], 'role': role})
+    return out or None
 
 
 def model_folder() -> Path:
@@ -175,9 +206,11 @@ class CopisteriaBackend(ScoreReadingBackend):
         work_file: str,
         output_dir: Optional[str] = None,
         progress_callback: Optional[Callable[[int], None]] = None,
+        page_texts: Optional[list] = None,
     ) -> str:
         if self._model is None:
             self.load()
+        from PIL import Image
         from wama.common.utils.musicxml_score import merge_pages, note_count
         from wama.common.utils.work_dir import work_dir
         pipeline, _read = self._library()
@@ -189,7 +222,11 @@ class CopisteriaBackend(ScoreReadingBackend):
                 progress_callback(5)
             read = []
             for index, page in enumerate(pages):
-                read.append(pipeline.transcribe(page, self._model, device=self._device))
+                texts = None
+                if page_texts and index < len(page_texts):
+                    with Image.open(page) as image:
+                        texts = _texts(page_texts[index], image.size)
+                read.append(pipeline.transcribe(page, self._model, texts=texts, device=self._device))
                 if progress_callback:
                     progress_callback(5 + int(90 * (index + 1) / len(pages)))
         score = merge_pages(read)

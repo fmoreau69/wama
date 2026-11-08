@@ -172,13 +172,34 @@ def _output_chips(reading):
     return blueprint
 
 
-def _decorate_card(reading):
+def _shown_title(reading, batch_readings=None) -> str:
+    """Le titre que la card AFFICHE (2026-11-08) : celui qu'elle a lu sur sa partition, sinon celui
+    de son lot (`batch_identity.content_title` — une page sans titre prend celui d'une autre page du
+    même lot), suivi du numéro de page lu. `batch_readings` : les cards du lot, déjà lues (la file) ;
+    sinon lues ici (la card rendue seule)."""
+    from wama.common.services.batch_identity import content_title
+    title = reading.read_title
+    # Seule une page lue comme partition hérite d'un titre (une card de texte ne paie aucune requête).
+    if not title and reading.read_as_score:
+        if batch_readings is None:
+            link = BatchReadingItemLink.objects.filter(reading=reading).only('batch_id').first()
+            batch_readings = ([l.reading for l in BatchReadingItemLink.objects.filter(
+                batch_id=link.batch_id).select_related('reading') if l.reading]
+                if link else [])
+        title = content_title(batch_readings)
+    if title and reading.score_page and getattr(reading.score_file, 'name', ''):
+        title = f"{title} — p. {reading.score_page}"
+    return title
+
+
+def _decorate_card(reading, batch_readings=None):
     """Attache les 3 jeux de données des sections v3 à l'instance (Entrée · Réglages · Sortie).
     Point d'attache UNIQUE : appelé par IndexView ET par card_html — sinon la card rendue par
     l'endpoint diverge de celle du chargement (leçon describer)."""
     reading.chips = _chips(reading)
     reading.input_props = _input_props(reading)
     reading.output_chips = _output_chips(reading)
+    reading.shown_title = _shown_title(reading, batch_readings)
     return reading
 
 
@@ -208,7 +229,7 @@ class IndexView(View):
             success_count = sum(1 for r in readings if r.status == 'SUCCESS')
             first = readings[0] if readings else None
             for r in readings:
-                _decorate_card(r)     # sections card v3 (générées, CARD_DESIGN §11)
+                _decorate_card(r, readings)     # sections card v3 (générées, CARD_DESIGN §11)
             return {
                 'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
                 'first_backend': first.backend if first else '',
