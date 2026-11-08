@@ -783,9 +783,18 @@ modèles au catalogue — le profil porte des CHEMINS de fichier (`road_model_pa
 backend ; YOLOPv2 garde son propre cache GPU (`yolopv2_segmenter._MODEL_CACHE`), invisible du
 gouverneur, motif recopié par `common/backends/depth_engine.py`. Le portage : le profil désigne ses
 modèles par CLÉ du catalogue, chacun par la porte commune. Le reconnaisseur de gestes reste au
-navigateur. Dérives vues en chemin, non soldées : le Face Analyzer appelle `EmotionRecognizer`
-directement (`pipeline.py`), à côté de `DeepFaceBackend`, sans appelant — DeepFace (2,5 Go
-déclarés) échappe au gouverneur, prochaine étape (décision de Fabien, 2026-11-08) ; pyannote garde sa propre
+navigateur. Dérives vues en chemin, non soldées : le Face Analyzer tire DeepFace — son moteur
+d'émotions PAR DÉFAUT (`pipeline.py:48`), fonctionnel — par `EmotionRecognizer` directement
+(`pipeline.py`, `common/backends/emotions.py`), à côté de `DeepFaceBackend`, qui n'a aucun appelant :
+le chemin de l'app ne passe pas par la porte commune. *Corrigé le 2026-11-08, à la mesure (Fabien :
+« on ne suppose pas ») : cette ligne disait que DeepFace « échappe au gouverneur » avec 2,5 Go.
+FAUX sur `venv_linux` : TensorFlow 2.21 y est compilé avec CUDA mais ne voit AUCUNE carte (« Cannot
+dlopen some GPU libraries », `list_physical_devices('GPU') == []`, même environnement dans les
+workers) ; DeepFace tourne sur le PROCESSEUR, 0 Mio de VRAM mesuré (`nvidia-smi`), émotions comme
+âge et genre — il n'y a rien à échapper. Ce qui ne correspond pas à la mesure : les 2,5 Go
+déclarés par `DeepFaceBackend` et les 0,3 / 1,0 Go des trois lignes ; et que TensorFlow n'ait pas
+ses bibliothèques GPU est un état d'installation à trancher, pas un constat à corriger en
+silence.* ; pyannote garde sa propre
 instance (`get_diarizer`) à côté du cache commun ; `load()` à vide aussi chez `audiocpp`,
 `audiocraft`, `audio_enhancer` (à mesurer un par un : un moteur hors processus peut n'avoir rien
 à tenir).
