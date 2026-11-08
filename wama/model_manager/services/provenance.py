@@ -355,6 +355,10 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
     except Exception as e:
         return {'model': model_key, 'applied': False,
                 'error': f"projection impossible : {type(e).__name__}: {e}"}
+    # Le refus de la garde des pertes (`ingest.write_back`) : rien n'a été écrit, rien ne s'exporte.
+    if isinstance(plan, dict) and plan.get('losses'):
+        return {'model': model_key, 'applied': False, 'error': plan.get('error'),
+                'losses': plan['losses']}
 
     corpus = None
     if apply and export:

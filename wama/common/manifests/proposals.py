@@ -172,9 +172,14 @@ def apply(obj, user=None) -> dict:
     if errors:
         return {'applied': False, 'errors': errors}
     projection = write_back(merged, apply=True)
-    if isinstance(projection, dict) and (projection.get('absent') or projection.get('erreur')):
+    # `error` : le refus de la garde des pertes (`ingest.write_back`, 2026-11-08) — la proposition
+    # effacerait un fait que le registre a pris depuis qu'elle a été écrite.
+    if isinstance(projection, dict) and (projection.get('absent') or projection.get('erreur')
+                                         or projection.get('error')):
         transaction.set_rollback(True)
-        return {'applied': False, 'errors': [projection.get('erreur') or 'cible absente']}
+        return {'applied': False, 'errors': [projection.get('erreur') or projection.get('error')
+                                             or 'cible absente'],
+                **({'losses': projection['losses']} if projection.get('losses') else {})}
     obj.body = merged.get('body') or {}
     obj.errors = []
     obj.save(update_fields=['body', 'errors', 'updated_at'])

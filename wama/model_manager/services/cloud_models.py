@@ -76,6 +76,25 @@ def _tache_declaree(model_key: str):
     return None
 
 
+#: Familles DISTANTES qui VOIENT (une image dans le message) sans que la liste du fournisseur le
+#: dise — même nature que `FAMILLES_DISTANTES`, même règle de préfixe, déclaration HUMAINE.
+#: MESURÉ le 2026-11-08 : la liste d'Albert annonce désormais `text-generation` pour tous ses
+#: modèles de conversation, `lightonocr` compris (un OCR, qui ne lit que des images) ; son type ne
+#: distingue donc plus ceux qui voient. Les trois familles ci-dessous ont répondu « Red » à un carré
+#: rouge envoyé ce jour-là : sans cette déclaration, la synchro leur retirait la modalité `image`
+#: (et le corpus l'aurait figé). Une famille n'entre ici qu'après un tel essai.
+REMOTE_VISION_FAMILIES = (
+    'albert:gemma-4',
+    'albert:ministral-3',
+    'albert:mistral-small-3',
+)
+
+
+def declared_vision(model_key: str) -> bool:
+    """La famille de `model_key` est-elle DÉCLARÉE voir (`REMOTE_VISION_FAMILIES`) ?"""
+    return any(model_key.startswith(prefix) for prefix in REMOTE_VISION_FAMILIES)
+
+
 #: Version d'API qu'Anthropic exige sur chaque requête.
 ANTHROPIC_VERSION = '2023-06-01'
 #: Protocoles SANS liste de modèles. ⚠ MESURÉ le 2026-09-15 : le jeton `claude setup-token` est
@@ -266,6 +285,10 @@ def model_info_for(source: str, item: dict):
     # Modalités et entrées : ce que la tâche IMPLIQUE (table commune), plus l'image quand le
     # modèle VOIT — la même dérivation que la découverte Ollama (`_capacites_canoniques`).
     abilities = abilities_for(task, remote_type)
+    # Un modèle de conversation dont la famille est DÉCLARÉE voir voit, quel que soit le type que
+    # le fournisseur annonce (`REMOTE_VISION_FAMILIES`).
+    if abilities.get('completion') and declared_vision(key):
+        abilities['vision'] = True
     caps = {**default_inputs_for(task), 'task': task, **abilities}
     if abilities.get('vision') and 'image' not in caps.get('modalities', []):
         caps['modalities'] = [*caps.get('modalities', []), 'image']

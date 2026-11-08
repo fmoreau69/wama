@@ -237,6 +237,9 @@ class Command(BaseCommand):
                             help="N'écrit rien ; code de sortie 1 si le corpus est périmé.")
         parser.add_argument('--force', action='store_true',
                             help="Écrit même les manifestes invalides (déconseillé).")
+        parser.add_argument('--accept-losses', action='store_true',
+                            help="Écrit aussi un manifeste qui PERDRAIT des faits du fichier "
+                                 "actuel (`manifests/losses.py`) — après les avoir vérifiés.")
 
     def handle(self, *args, **o):
         from django.conf import settings
@@ -301,7 +304,7 @@ class Command(BaseCommand):
             cibles += [('pipeline', k) for k in _pipeline_keys()]
 
         w, s, e, warn = self.stdout.write, self.style.SUCCESS, self.style.ERROR, self.style.WARNING
-        ecrits, perimes, refuses, inchanges, removed = [], [], [], [], []
+        ecrits, perimes, refuses, inchanges, removed, lossy = [], [], [], [], [], []
 
         # Modèles SORTIS du catalogue (désinstallés, ou sans ligne) : leur manifeste est RETIRÉ,
         # jamais ré-extrait — y compris à la clé explicite, que `uninstall_model` appelle.
@@ -378,9 +381,29 @@ class Command(BaseCommand):
             if actuel == texte:
                 inchanges.append(app_id)
                 continue
+            # La garde des DEUX sens (2026-11-08) : le fichier actuel peut porter un fait que le
+            # registre n'a plus — une perte en base, du code retiré, ou une édition du manifeste
+            # pas encore appliquée. Le réécrire l'effacerait : il ne s'écrit que sur acceptation.
+            losses = []
+            if actuel is not None:
+                from wama.common.manifests.losses import describe, lost_facts
+                try:
+                    losses = lost_facts(json.loads(actuel), json.loads(texte))
+                except ValueError:
+                    losses = []             # un fichier illisible n'a pas de faits à garder
             if o['check']:
                 perimes.append(app_id)
-                w(warn(f"  {app_id:14s} PÉRIMÉ ({'absent' if actuel is None else 'différent'})"))
+                w(warn(f"  {app_id:14s} PÉRIMÉ ({'absent' if actuel is None else 'différent'})"
+                       + (f" — {len(losses)} PERTE(S)" if losses else '')))
+                for line in describe(losses) if losses else ():
+                    w(warn(f"    - {line}"))
+                continue
+            if losses and not o['accept_losses']:
+                lossy.append(app_id)
+                w(e(f"  {app_id:14s} NON ÉCRIT — l'export PERDRAIT {len(losses)} fait(s) du "
+                    f"fichier actuel :"))
+                for line in describe(losses):
+                    w(e(f"    - {line}"))
                 continue
 
             cible.write_text(texte, encoding='utf-8', newline='\n')
@@ -441,3 +464,12 @@ class Command(BaseCommand):
         if refuses:
             w(warn("Les manifestes refusés ne sont PAS des exemples utilisables : corriger "
                    "l'extraction ou la donnée source avant de les faire servir de référence."))
+        if lossy:
+            # Après les autres écritures, pour qu'une perte n'en bloque aucune ; une ERREUR, pour
+            # que la porte du corpus (`corpus.follow`) et son appelant le sachent.
+            from django.core.management.base import CommandError
+            raise CommandError(
+                f"{len(lossy)} manifeste(s) NON écrit(s), ils PERDRAIENT des faits du fichier "
+                f"actuel ({', '.join(lossy[:5])}{'…' if len(lossy) > 5 else ''}). Vérifier chaque "
+                f"perte (régression à corriger à la source, ou retrait voulu), puis relancer avec "
+                f"--accept-losses.")

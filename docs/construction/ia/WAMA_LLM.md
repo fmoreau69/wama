@@ -3380,6 +3380,14 @@ l'assistant, prospection), tous voulus. ⚠ Défaut trouvé et corrigé dans le 
 `model_type_for_task` rend une CHAÎNE là où `ModelInfo` attend un membre `ModelType` (le sync lit
 `.value`) — deux modèles échouaient au sync en silence. Gardes : `tests_taxonomie_ollama`.
 
+**Même règle pour la VISION (2026-11-08)** : la liste d'Albert annonce désormais `text-generation`
+pour tous ses modèles de conversation, LightOnOCR compris — son type ne dit plus lesquels voient,
+et la synchro avait retiré la modalité `image` de `gemma-4-31b-it`, `ministral-3-8b` et
+`mistral-small-3.2`. Mesuré le jour même : les trois répondent « Red » à un carré rouge. Les familles
+qui voient sont donc DÉCLARÉES (`cloud_models.REMOTE_VISION_FAMILIES`, préfixe de famille, une famille
+n'y entre qu'après cet essai) ; le type annoncé reste écrit tel quel (`extra_info.remote_type`).
+Garde : `tests_cloud_models.DecouverteTest.test_a_family_known_to_see_keeps_the_image_when_the_provider_stops_saying_so`.
+
 ⏳ Ce qui reste du même défaut (dette ANCIENNE, `models.py:31-34`) : `ModelType` mélange encore
 famille, modalité et tâche (`upscaling`, `lipsync`, `ocr` y sont des tâches) ; 12 modèles à
 re-typer. Et `check_model_taxonomy` signale 4 tâches non déclarées (`diarization`, `face-analysis`,

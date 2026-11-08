@@ -548,6 +548,28 @@ externes. La doctrine est saine et **à moitié outillée** :
 Autrement dit il ne manque que la **recopie retour** ; la moitié difficile — reconstruire le
 catalogue — est déjà là et n'a rien à apprendre.
 
+**Les deux sens EN MÊME TEMPS — la garde des pertes (2026-11-08, demande de Fabien).** On édite
+un manifeste pour l'appliquer, et on le régénère après une modification du code ou de la base :
+quand les deux arrivent ensemble, le second qui écrit efface ce que l'autre a posé, et rien ne
+le disait. Vécu le jour même : la liste d'Albert a cessé d'annoncer la vision de ses modèles, la
+base a perdu la modalité `image` de trois modèles qui voient (mesuré : ils lisent toujours une
+image), et l'export s'apprêtait à le figer au corpus — d'où la synchro l'aurait relu.
+✅ Une règle pour les deux portes, `wama/common/manifests/losses.py` (`lost_facts`) : un fait
+présent avant et absent après — clé non vide retirée, élément de liste retiré (listes comparées
+comme ensembles, objets appariés par leur clé naturelle), valeur vidée — est une **perte** ; un
+fait REMPLACÉ n'en est pas une.
+- **sortant** (`manifest_export`) : le nouvel export est comparé au fichier ACTUEL ; un fichier
+  qui perdrait un fait n'est pas écrit (les autres le sont), la commande finit en erreur et
+  `--check` nomme la perte. `--accept-losses` l'écrit, après vérification ;
+- **entrant** (`ingest.write_back`, donc `apply_manifests`, « Valider » une proposition,
+  `provenance.set_identity`) : pour les kinds qui écrivent en base, l'état est relu avant et
+  après l'écriture dans un point de sauvegarde qu'une perte annule ; pour `app`, qui écrit du
+  code, la comparaison se fait avant, sur les facettes projetées. Refus = `{error, losses}`,
+  `accept_losses=True` pour passer outre.
+Une perte acceptée est une DÉCISION : un retrait voulu (une clé déplacée dans le code, un
+réglage renommé) ou une régression à corriger à la source — jamais un export relancé jusqu'à ce
+qu'il passe. Garde : `wama/common/tests/tests_manifest_losses.py`.
+
 **Le cas `app`, et l'obstacle mesuré.** Deux pistes évoquées (Fabien) : faire installer une app
 par l'assistant depuis son manifeste (en tout ou partie), ou l'installer depuis un catalogue
 d'apps dans l'interface — les poids manquants se téléchargeant au 1ᵉʳ usage. ⚠ La seconde

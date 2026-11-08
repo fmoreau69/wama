@@ -67,6 +67,9 @@ class Command(BaseCommand):
                             help="Kind à appliquer (défaut : library).")
         parser.add_argument('--apply', action='store_true',
                             help="Écrire réellement (sinon : plan seul).")
+        parser.add_argument('--accept-losses', action='store_true',
+                            help="Appliquer aussi un manifeste qui ferait DISPARAÎTRE un fait des "
+                                 "registres (refusé sinon, `manifests/losses.py`).")
 
     def handle(self, *args, **o):
         from wama.common.manifests.ingest import write_back
@@ -96,7 +99,7 @@ class Command(BaseCommand):
         for f in fichiers:
             try:
                 manifeste = json.loads(f.read_text(encoding='utf-8'))
-                res = write_back(manifeste, apply=o['apply'])
+                res = write_back(manifeste, apply=o['apply'], accept_losses=o['accept_losses'])
             except Exception as e:
                 erreurs.append(f'{f.stem} : {e}')
                 continue

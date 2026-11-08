@@ -1552,7 +1552,10 @@ MECHANISMS = (
               "versionné suit le registre À CHAUD par UNE porte (`corpus.follow` : installation, "
               "validation d'une proposition, désinstallation — 2026-10-12), que le runner de "
               "tests coupe ; un modèle suivi entraîne, en tâche de fond, les manifestes d'app qui "
-              "le citent ou doivent le citer (`corpus.follow_apps`, 2026-11-02)",
+              "le citent ou doivent le citer (`corpus.follow_apps`, 2026-11-02). Les DEUX sens "
+              "sont gardés contre la perte (`manifests/losses.py`, 2026-11-08) : un export qui "
+              "retirerait un fait du fichier actuel, ou une application qui le retirerait des "
+              "registres, est refusé sans acceptation explicite (`--accept-losses`)",
               'wama/common/manifests/ingest.py', 'docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md',
               # Annexes complétées le 2026-08-31 (audit) : le dossier `manifests/` entrait au
               # balayage et ces modules — enveloppe, vocabulaire des kinds, table de projection,
@@ -1571,6 +1574,9 @@ MECHANISMS = (
                        # La porte du corpus à chaud (2026-10-12) et sa garde « une seule porte ».
                        'wama/common/manifests/corpus.py',
                        'wama/common/tests/tests_manifest_corpus.py',
+                       # La garde des deux sens d'écriture (2026-11-08, Fabien).
+                       'wama/common/manifests/losses.py',
+                       'wama/common/tests/tests_manifest_losses.py',
                        # À QUI EST un élément, enveloppe ↔ ligne de registre, et « seul le
                        # système entre au corpus » (ROADMAP §29, étape 2 — 2026-10-18).
                        'wama/common/manifests/ownership.py',

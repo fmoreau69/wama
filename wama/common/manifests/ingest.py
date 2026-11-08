@@ -151,14 +151,60 @@ def extract(kind: str, key: str) -> Optional[dict]:
     return mk.extract(key)
 
 
-def write_back(manifest: dict, *, apply: bool = False):
+def write_back(manifest: dict, *, apply: bool = False, accept_losses: bool = False):
     """Projette (write-back) le manifeste vers l'état committé — geste EXPLICITE, jamais automatique
-    (propriété de sûreté §2.1). `apply=False` = DRY-RUN (plan) ; `apply=True` = écrit. Délègue au kind."""
+    (propriété de sûreté §2.1). `apply=False` = DRY-RUN (plan) ; `apply=True` = écrit. Délègue au kind.
+
+    La garde des DEUX sens (2026-11-08, `manifests/losses.py`) : une application qui ferait
+    DISPARAÎTRE un fait des registres — un manifeste en retard sur une modification faite depuis
+    dans le code ou la base — est REFUSÉE sans rien écrire, sauf `accept_losses=True`. Le refus est
+    `{'error', 'losses'}`. Les kinds qui écrivent en base sont MESURÉS : l'état est relu avant et
+    après l'écriture, dans un point de sauvegarde qu'une perte annule. Le kind `app` écrit du code,
+    qu'aucune transaction n'annule : la comparaison se fait AVANT, sur les facettes qu'il projette."""
     env = Envelope.from_dict(manifest)
     mk = get_kind(env.manifest_kind)
     if not mk.write_back:
         raise NotImplementedError(f"kind '{env.manifest_kind}' n'implémente pas write_back()")
-    return mk.write_back(manifest, apply=apply)
+    if not apply or accept_losses or not mk.extract:
+        return mk.write_back(manifest, apply=apply)
+    before = _current_state(mk, env.key)
+    if before is None:                       # rien d'existant : aucune perte possible
+        return mk.write_back(manifest, apply=apply)
+    from .losses import lost_facts
+    if env.manifest_kind == 'app':
+        from .builtin.app import PROJECTED_FACETS
+        body = manifest.get('body') or {}
+        facets = [f for f in PROJECTED_FACETS if body.get(f)]
+        current = before.get('body') or {}
+        losses = lost_facts({f: current.get(f) for f in facets}, {f: body.get(f) for f in facets},
+                            'body')
+        if losses:
+            return _loss_refusal(env, losses)
+        return mk.write_back(manifest, apply=apply)
+    with transaction.atomic():
+        result = mk.write_back(manifest, apply=apply)
+        after = _current_state(mk, env.key)
+        losses = lost_facts(before, after) if after is not None else []
+        if losses:
+            transaction.set_rollback(True)
+            return _loss_refusal(env, losses)
+    return result
+
+
+def _current_state(mk, key):
+    """Le manifeste de l'état courant, ou None quand l'objet n'existe pas (ou ne s'extrait pas)."""
+    try:
+        return mk.extract(key) or None
+    except Exception:
+        return None
+
+
+def _loss_refusal(env, losses) -> dict:
+    from .losses import describe
+    return {'kind': env.manifest_kind, 'key': env.key, 'losses': losses,
+            'error': (f"application refusée : elle ferait disparaître {len(losses)} fait(s) des "
+                      f"registres ({'; '.join(describe(losses, 3))}) — le manifeste est en retard "
+                      f"sur une modification faite depuis ; le régénérer, ou accepter les pertes.")}
 
 
 # ── Verify (diff manifeste ↔ état courant) ──────────────────────────────────────

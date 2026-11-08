@@ -168,6 +168,29 @@ class DecouverteTest(TestCase):
         chat = AIModel.objects.get(model_key='albert:gemma-4-31b-it')
         self.assertEqual(('llm', True), (chat.model_type, chat.capabilities.get('vision')))
 
+    def test_a_family_known_to_see_keeps_the_image_when_the_provider_stops_saying_so(self):
+        """Depuis le 2026-11-08, Albert annonce `text-generation` pour tous ses modèles de
+        conversation — LightOnOCR compris : son type ne dit plus lesquels voient. Une famille
+        DÉCLARÉE voir (`REMOTE_VISION_FAMILIES`, mesurée au carré rouge) garde l'image ; un modèle
+        qui ne voit pas ne la gagne pas, et la tâche déclarée d'un OCR ne change pas."""
+        annonces = [
+            {'id': 'gemma-4-31b-it', 'type': 'text-generation', 'aliases': []},
+            {'id': 'ministral-3-8b-instruct-2512', 'type': 'text-generation', 'aliases': []},
+            {'id': 'mistral-small-3-2-24b-instruct-2506', 'type': 'text-generation', 'aliases': []},
+            {'id': 'gpt-oss-120b', 'type': 'text-generation', 'aliases': []},
+            {'id': 'lightonocr-2-1b', 'type': 'text-generation', 'aliases': []},
+        ]
+        with mock.patch.object(cloud_models, 'list_remote_models', return_value=annonces):
+            cloud_models.refresh_key(self.row)
+        for key in ('albert:gemma-4-31b-it', 'albert:ministral-3-8b-instruct-2512',
+                    'albert:mistral-small-3-2-24b-instruct-2506'):
+            caps = AIModel.objects.get(model_key=key).capabilities
+            self.assertEqual((True, True), (caps.get('vision'), 'image' in caps['modalities']), key)
+        blind = AIModel.objects.get(model_key='albert:gpt-oss-120b').capabilities
+        self.assertEqual((None, ['text']), (blind.get('vision'), blind['modalities']))
+        self.assertEqual('ocr', AIModel.objects.get(model_key='albert:lightonocr-2-1b')
+                         .capabilities['task'])
+
     def test_remote_engine_is_not_flagged_without_backend(self):
         from wama.common.backends.manager import backend_missing
         with mock.patch.object(cloud_models, 'list_remote_models', return_value=ALBERT_MODELS):
