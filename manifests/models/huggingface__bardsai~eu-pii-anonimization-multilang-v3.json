@@ -113,10 +113,10 @@
       ],
       "license": "apache-2.0",
       "vram_measured": {
-        "at": "2026-11-08T15:04:25+00:00",
-        "last_gb": 2.14,
+        "at": "2026-11-08T18:37:20+00:00",
+        "last_gb": 1.51,
         "max_gb": 6.55,
-        "n": 21
+        "n": 22
       },
       "vram_provenance": "declared"
     },
