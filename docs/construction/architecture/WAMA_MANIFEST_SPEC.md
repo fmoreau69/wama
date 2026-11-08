@@ -809,9 +809,24 @@ par le compteur de TensorFlow (`get_memory_info`) et la mémoire occupée de la 
   toujours à +4 610 Mio, jusqu'à la fin du processus ;*
 - *les VRAM déclarées (2,5 Go par `DeepFaceBackend`, 0,3 / 1,0 / 1,0 Go par les trois lignes) ne
   correspondent à aucun de ces deux états.*
-*La forme cible (passer par la carte, décision de Fabien du 2026-11-08) est à TRANCHER : le temps
-réel tourne dans gunicorn, une pipeline par image — un TensorFlow sur la carte y garderait jusqu'à
-~5 Go par worker web, que rien ne rend.* ; pyannote garde sa propre
+*La forme cible (passer par la carte, décision de Fabien du 2026-11-08) : le temps réel tourne dans
+gunicorn, une pipeline par image — un TensorFlow sur la carte y garderait jusqu'à ~5 Go par worker
+web, que rien ne rend. ✅ Protection posée (`TF_FORCE_GPU_ALLOW_GROWTH`, `settings.py`, e6ebd66bd).
+⏳ **Un SERVICE DÉDIÉ au visage, comme la voix** — décisions de Fabien du 2026-11-08 :*
+- *LIBÉRATION : le service S'ARRÊTE quand le gouverneur demande la carte (seul geste qui rende la
+  mémoire de TensorFlow), et il est RELANCÉ À LA DEMANDE (mécanisme neuf : aucun lanceur de service
+  n'existe ; `start_wama_prod.sh` seul les démarre) ;*
+- *REPLI, service éteint ou en démarrage : le même moteur dans le processus appelant, TensorFlow tenu
+  HORS de la carte (processeur) — aucune mémoire de carte dans un worker web ;*
+- *PÉRIMÈTRE : DeepFace ET FER (tout TensorFlow dans un seul processus) ;*
+- *PRÉCHAUFFAGE : l'expression seule (~0,4 Go) ; l'âge et le genre à la première demande.*
+*Patron : le service de confidentialité (`common/privacy/service.py` : Django initialisé, porte
+commune `backend_instance_for_key`, tenant déclaré `start_release_listener`, préchauffage en fond,
+503 « loading ») ; un `Tenant` dont le déchargement est l'ARRÊT (`resource_governor.Tenant`) ; la
+préparation du processus précharge le nvJitLink de la roue avant TensorFlow ; le contrat
+`face-analysis` avec un `DeepFaceBackend` SANS ÉTAT (le lissage temporel reste à l'`EmotionRecognizer`
+de chaque flux). À trancher en le construisant : la place de FER, sans ligne de catalogue
+(décision du 2026-09-05 : ses poids sont dans sa roue).* ; pyannote garde sa propre
 instance (`get_diarizer`) à côté du cache commun ; `load()` à vide aussi chez `audiocpp`,
 `audiocraft`, `audio_enhancer` (à mesurer un par un : un moteur hors processus peut n'avoir rien
 à tenir) ; le banc d'agrandissement construit l'agrandisseur lui-même
