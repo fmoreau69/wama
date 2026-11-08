@@ -82,7 +82,9 @@ for tool in "fluidsynth:fluidsynth"; do
   if command -v "$bin" >/dev/null 2>&1; then
     echo "  ✔ $bin disponible"
   else
-    echo "  ⚠ $bin absent — sous WSL2 : sudo apt install $pkg"
+    # Mis à jour et sans les recommandés (2026-11-08 : la forme nue a échoué, index périmé et 404
+    # sur les paquets d'interface qu'apportent les recommandés) — `midi_render.INSTALL_COMMAND`.
+    echo "  ⚠ $bin absent — sous WSL2 : sudo apt-get update && sudo apt-get install -y --no-install-recommends $pkg"
   fi
 done
 if [ ! -f "$ROOT/.env" ]; then

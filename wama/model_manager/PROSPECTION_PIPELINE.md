@@ -4370,7 +4370,8 @@ et bretelles… »* ; *« on ajoute bien les sources dans le registre des source
 - **Côté serveur** : `common/utils/midi_render.py` (FluidSynth, mêmes banques) et la route
   `…/surface/<app>/<clé>/<pk>/audio/` (lecture de la card exigée) — l'entrée « Audio WAV — <banque> »
   du menu « Exporter » de la partition. FluidSynth est un programme SYSTÈME : `install_wama.sh` le
-  vérifie et dit la commande ; ABSENT sur l'hôte au 2026-11-08 (le rendu le dit, 503).
+  vérifie et dit la commande ; ABSENT sur l'hôte jusqu'au soir du 2026-11-08 (le rendu le disait,
+  503 — installé ensuite, ci-dessous).
 - Gardes : `tests_sound_banks` (déclaration ↔ script, sources, adresses en ligne, scripts de la
   page, rendu serveur, route, et en V8 les lectures proposées et le REPLI en ligne → local —
   contre-épreuve rouge).
@@ -4384,8 +4385,17 @@ et bretelles… »* ; *« on ajoute bien les sources dans le registre des source
   revérification, le MIDI d'une partition n'a plus qu'UNE écriture (`WamaMidiPlayer.midiBytes`,
   que l'export de la brique lisait en double). Gardes V8 dans `tests_sound_banks`, contre-épreuves
   rouges.
+- **FluidSynth installé (2.3.4) et l'export joué au navigateur** (même soir, même témoin, par le
+  menu « Exporter ») : « Audio WAV — GeneralUser GS » rend `partition-<pk>-reduite-generaluser_gs.wav`
+  en 0,9 s, « … MuseScore General » en 10 s (banque `.sf3`, compressée, décodée au chargement) —
+  stéréo, 44,1 kHz, 16 bits, ~11,2 s, non muets (RMS 1343 et 1103, crête ~8000), « Audio de la
+  partition exporté. », aucune erreur console. ✗ **La commande donnée avait échoué** :
+  `apt install fluidsynth` nu → 404 sur `libinput10`, `libpcre2-16-0` (index périmé), paquets
+  qu'apportent les RECOMMANDÉS (Qt, 41 paquets) ; la commande dite par le rendu et par
+  `install_wama.sh` est désormais `apt-get update` puis `install -y --no-install-recommends` (7
+  paquets) — `midi_render.INSTALL_COMMAND`, gardée par `tests_sound_banks`.
 
-⏳ **Reste** : installer FluidSynth (`sudo apt install fluidsynth`, geste de Fabien) ; l'écoute
+⏳ **Reste** : l'écoute
 COMPARÉE des lectures pour garder la meilleure ; la vue ABC d'une partition MIDI/MusicXML fournie
 sur la page d'édition (défaut relevé plus haut) ; la lecture MIDI sur la page de partition du
 Reader (elle n'a pas de transport).

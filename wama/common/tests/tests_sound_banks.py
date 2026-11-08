@@ -70,8 +70,13 @@ class ServerRenderTest(TestCase):
         from unittest import mock
         from wama.common.utils import midi_render
         with mock.patch.object(midi_render, 'fluidsynth_path', return_value=''):
-            with self.assertRaisesMessage(midi_render.FluidSynthMissing, 'apt install fluidsynth'):
+            with self.assertRaisesMessage(midi_render.FluidSynthMissing, midi_render.INSTALL_COMMAND):
                 midi_render.render_wav(b'MThd', 'generaluser_gs')
+        self.assertIn('--no-install-recommends', midi_render.INSTALL_COMMAND,
+                      'the bare form failed on 2026-11-08 (stale index, recommended GUI packages)')
+        self.assertIn('install -y --no-install-recommends $pkg',
+                      (ROOT / 'tools' / 'install_wama.sh').read_text(encoding='utf-8'),
+                      'the install script gives the same command')
 
     def test_the_declared_bank_and_the_midi_go_to_fluidsynth(self):
         from pathlib import Path as P
