@@ -268,25 +268,12 @@ def _read(item, ctx):
         # `if/elif` par moteur vivait ici : un OCR installé demain — Ollama, un fournisseur — n'aurait
         # pas eu sa branche.
         from wama.common.backends.manager import backend_instance_for_key, run_contract
-        from wama.common.backends.ocr_base import PAGE_ORIENTATION_KEY, upright_image
-        from wama.common.utils.model_readiness import ModelInstallRefused
         from wama.common.utils.work_dir import work_dir
-        # Le classifieur d'orientation que le redressement charge (image reçue, ou pages d'un PDF
-        # chez GLM-OCR) : demandé à la route comme le moteur (2026-11-02). Un REFUS ne fait pas
-        # échouer la lecture — le redressement est un confort, l'image part alors telle quelle.
-        try:
-            ctx.ensure_model(PAGE_ORIENTATION_KEY)
-        except ModelInstallRefused as exc:
-            ctx.console(f"[Reader] Redressement des pages indisponible ({exc}) — lecture sans.")
+        # Le classifieur (pages d'un PDF chez GLM-OCR comprises) : demandé à la route d'abord.
+        _request_page_orientation(ctx)
         engine = backend_instance_for_key(backend, user=item.user)
         with work_dir('reader_upright') as travail:
-            # Une IMAGE est redressée avant tout moteur (EXIF, puis classifieur d'orientation de
-            # docTR) — card #1335 : une note photographiée de côté, illisible couchée. L'original
-            # reste intact ; la copie droite vit le temps de la lecture. Les PDF sont rastérisés
-            # par le moteur, qui redresse ses pages lui-même.
-            work_file = item.input_file.path
-            if not work_file.lower().endswith('.pdf'):
-                work_file = upright_image(work_file, str(travail))
+            work_file = _upright_work_file(item, str(travail))
             raw_text = run_contract(engine, work_file=work_file, mode=item.mode,
                                     language=item.language, progress_callback=ctx.progress,
                                     on_partial=_partial)
@@ -315,15 +302,43 @@ def _read(item, ctx):
     except ServiceNotReady:
         raise                              # une ATTENTE, pas une erreur : la card la dit
     except Exception as exc:
-        # Le front affiche le message d'étape : y refléter l'erreur avant le flux FAILURE
-        # standard de la brique (statut, console ✗, notification).
-        try:
-            from wama.common.utils.preview_utils import clear_partial
-            clear_partial('reader', item.pk)
-        except Exception:
-            pass
-        _set_progress(item, 0, f"Erreur : {exc}")
+        _show_failure(item, exc)
         raise
+
+
+def _show_failure(item, exc) -> None:
+    """Le front affiche le message d'étape : y refléter l'erreur avant le flux FAILURE standard
+    de la brique (statut, console ✗, notification) — les deux lectures, texte et partition."""
+    try:
+        from wama.common.utils.preview_utils import clear_partial
+        clear_partial('reader', item.pk)
+    except Exception:
+        pass
+    _set_progress(item, 0, f"Erreur : {exc}")
+
+
+def _request_page_orientation(ctx) -> None:
+    """Le classifieur d'orientation que le redressement charge : demandé à la route comme le
+    moteur (2026-11-02). Un REFUS ne fait pas échouer la lecture — le redressement est un confort,
+    l'image part alors telle quelle."""
+    from wama.common.backends.ocr_base import PAGE_ORIENTATION_KEY
+    from wama.common.utils.model_readiness import ModelInstallRefused
+    try:
+        ctx.ensure_model(PAGE_ORIENTATION_KEY)
+    except ModelInstallRefused as exc:
+        ctx.console(f"[Reader] Redressement des pages indisponible ({exc}) — lecture sans.")
+
+
+def _upright_work_file(item, folder: str) -> str:
+    """Le fichier que lit le moteur. Une IMAGE est redressée avant tout moteur (EXIF, puis
+    classifieur d'orientation de docTR) — card #1335 : une note photographiée de côté, illisible
+    couchée. L'original reste intact ; la copie droite vit dans `folder`, le temps de la lecture.
+    Un PDF part tel quel : le moteur le rastérise."""
+    from wama.common.backends.ocr_base import upright_image
+    work_file = item.input_file.path
+    if work_file.lower().endswith('.pdf'):
+        return work_file
+    return upright_image(work_file, folder)
 
 
 def _ensure_page_count(item) -> None:
@@ -340,10 +355,9 @@ def _read_score(item, ctx):
     la tâche `image-to-score` (`score_model`, sinon le tirage commun), par la PORTE COMMUNE (clé →
     backend, contrat `ScoreReadingBackend`). Deux sorties de la card : le MusicXML du moteur, tel
     quel, et l'ABC qu'en fait la brique commune (`musicxml_score`) — la notation que la page
-    « Éditer la partition » et le composer lisent. Une image est redressée avant le moteur, comme
-    pour le texte (`upright_image`)."""
+    « Éditer la partition » et le composer lisent. Une image est redressée avant le moteur, son
+    classifieur demandé à la route, comme pour le texte (`_upright_work_file`)."""
     from wama.common.backends.manager import backend_instance_for_key, run_contract
-    from wama.common.backends.ocr_base import upright_image
     from wama.common.utils.auto_model import model_for_task
     from wama.common.utils.model_keys import model_id
     from wama.common.utils.musicxml_score import musicxml_to_abc
@@ -352,28 +366,35 @@ def _read_score(item, ctx):
 
     ctx.console(f"[Reader] Partition : {item.filename}")
     ctx.progress(2, "Démarrage…")
-    _ensure_page_count(item)
-    key = model_for_task(SCORE_READING_TASK, item.score_model, item=item)
-    if not key:
-        raise RuntimeError("Aucun modèle de lecture de partition n'est installé "
-                           "(tâche « image-to-score »).")
-    ctx.console(f"[Reader] Modèle de partition : {key}")
-    ctx.ensure_model(key)                  # absent : la route l'installe, la tâche attend
-    engine = backend_instance_for_key(key, user=item.user)
-    with work_dir('reader_score') as travail:
-        work_file = item.input_file.path
-        if not work_file.lower().endswith('.pdf'):
-            work_file = upright_image(work_file, str(travail))
-        musicxml = run_contract(engine, model_id=model_id(key), work_file=work_file,
-                                output_dir=str(travail), progress_callback=ctx.progress)
-    title = os.path.splitext(item.filename)[0]
-    abc = musicxml_to_abc(musicxml, title=title)
-    xml_rel, xml_abs = ctx.output_place('.musicxml', nature='score', model=model_id(key))
-    with open(xml_abs, 'w', encoding='utf-8') as handle:
-        handle.write(musicxml)
-    abc_rel, abc_abs = ctx.output_place('.abc', nature='score', model=model_id(key))
-    with open(abc_abs, 'w', encoding='utf-8') as handle:
-        handle.write(abc)
+    try:
+        _ensure_page_count(item)
+        key = model_for_task(SCORE_READING_TASK, item.score_model, item=item)
+        if not key:
+            raise RuntimeError("Aucun modèle de lecture de partition n'est installé "
+                               "(tâche « image-to-score »).")
+        ctx.console(f"[Reader] Modèle de partition : {key}")
+        ctx.ensure_model(key)              # absent : la route l'installe, la tâche attend
+        engine = backend_instance_for_key(key, user=item.user)
+        with work_dir('reader_score') as travail:
+            work_file = item.input_file.path
+            if not work_file.lower().endswith('.pdf'):
+                _request_page_orientation(ctx)
+            work_file = _upright_work_file(item, str(travail))
+            musicxml = run_contract(engine, model_id=model_id(key), work_file=work_file,
+                                    output_dir=str(travail), progress_callback=ctx.progress)
+        title = os.path.splitext(item.filename)[0]
+        abc = musicxml_to_abc(musicxml, title=title)
+        xml_rel, xml_abs = ctx.output_place('.musicxml', nature='score', model=model_id(key))
+        with open(xml_abs, 'w', encoding='utf-8') as handle:
+            handle.write(musicxml)
+        abc_rel, abc_abs = ctx.output_place('.abc', nature='score', model=model_id(key))
+        with open(abc_abs, 'w', encoding='utf-8') as handle:
+            handle.write(abc)
+    except ServiceNotReady:
+        raise                              # une ATTENTE, pas une erreur : la card la dit
+    except Exception as exc:
+        _show_failure(item, exc)
+        raise
     name = os.path.basename(abc_rel)
     ctx.progress(100, "Terminé")
     return {

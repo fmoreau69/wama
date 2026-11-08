@@ -16,16 +16,19 @@ from wama.common.surfaces import BrickSlot, Surface, register_surface, validate_
 
 
 def _score_available(item) -> tuple:
-    if getattr(getattr(item, 'score_file', None), 'name', ''):
+    from wama.reader.function_specs import holds_score
+    if holds_score(item):
         return True, ''
-    if not item.read_as_score:
-        return False, ("Cette lecture n'est pas une partition : cocher « Lire une partition » dans "
-                       "ses réglages, puis relancer.")
-    return True, ''
+    if item.read_as_score:
+        return False, ("Aucun modèle de lecture de partition n'est installé : la page se lit comme "
+                       "un texte.")
+    return False, ("Cette lecture n'est pas une partition : cocher « Lire une partition » dans "
+                   "ses réglages, puis relancer.")
 
 
 def _text_available(item) -> tuple:
-    if getattr(getattr(item, 'score_file', None), 'name', '') or item.read_as_score:
+    from wama.reader.function_specs import holds_score
+    if holds_score(item):
         return False, "Cette lecture est une partition : elle se corrige dans « Éditer la partition »."
     if not (item.result_text or '').strip():
         return False, "Rien à corriger : lancer d'abord la lecture."

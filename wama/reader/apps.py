@@ -28,11 +28,15 @@ class ReaderConfig(AppConfig):
         # `json` suppose le résultat BRUT du moteur : un élément qui n'en a pas ne l'offre pas —
         # ni au bouton ⬇ de sa card, ni dans la visionneuse (2026-10-13, la règle vivait dans le
         # seul gabarit de la card). Une PARTITION lue (2026-11-08) n'offre que ses deux formats,
-        # un texte lu jamais ceux d'une partition.
+        # un texte lu jamais ceux d'une partition — lus par leur GROUPE au vocabulaire commun, jamais
+        # recopiés de la déclaration d'`APP_CATALOG`.
         def _missing(item):
-            if getattr(getattr(item, 'score_file', None), 'name', ''):
-                return ('txt', 'md', 'pdf', 'docx', 'json')
-            return ('abc', 'musicxml') + (() if getattr(item, 'raw_result', None) else ('json',))
+            from wama.common.utils.export_formats import SCORE, entries_for_app
+            from wama.reader.function_specs import has_read_score
+            score = has_read_score(item)
+            other_nature = tuple(e['value'] for e in entries_for_app('reader')
+                                 if (e['group'] == SCORE) != score)
+            return other_nature + (() if score or getattr(item, 'raw_result', None) else ('json',))
         register_export_missing('reader', _missing)
 
         # Versions GARDÉES de la partition lue (2026-11-08, le patron du composer) : chaque

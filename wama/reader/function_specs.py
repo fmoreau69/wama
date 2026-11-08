@@ -52,6 +52,19 @@ def reads_text(item, model_key=None) -> bool:
     return not reads_score(item, model_key)
 
 
+def has_read_score(item) -> bool:
+    """La card PORTE-t-elle une partition lue (sa sortie `score_file`) ? — ce qu'elle A, que
+    lisent ses formats de téléchargement."""
+    return bool(getattr(getattr(item, 'score_file', None), 'name', ''))
+
+
+def holds_score(item) -> bool:
+    """La card est-elle une PARTITION ? — sa partition lue, sinon ce que ses réglages liront
+    (`reads_score` : la case ET un modèle installé ; sans modèle, la page se lit comme un texte).
+    Une seule nature par card : la règle des deux pages d'édition (`surfaces.py`)."""
+    return has_read_score(item) or reads_score(item)
+
+
 def _score_reading_available() -> bool:
     """Un modèle de lecture de partition est-il installé ? (`ProcessSpec.available`)"""
     from wama.common.utils.auto_model import task_installed

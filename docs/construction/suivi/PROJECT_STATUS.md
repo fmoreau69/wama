@@ -29244,6 +29244,16 @@ de MESURE ; chaque pièce suit un patron en service :
 - ⚠ Docs générées (`WAMA_MECANISMES`, `docs/dev/briques.md`) : régénérées sur un worktree de HEAD +
   ce commit seul — elles rattrapent donc aussi des faits DÉJÀ COMMITÉS par d'autres sessions
   (`guarded_request`, `remount_shares`, paroles du composer…), jamais leur travail en cours.
+- **Revérification (même jour, `/reverif`)** — deux écarts de ma main, ramenés : (1) la nature de la
+  card se décidait sur la CASE seule dans les deux pages d'édition, à côté de la règle du pipeline
+  (`takes_place` : la case ET un modèle installé) — case cochée sans modèle, la page lue comme texte
+  ne s'ouvrait plus dans « Corriger le texte » ; une règle, `function_specs.holds_score`, que lisent
+  les deux pages, et les formats lus par leur GROUPE au vocabulaire (`export_formats.SCORE`) au lieu
+  d'une liste recopiée d'`APP_CATALOG` ; (2) la glu de partition redressait l'image SANS demander son
+  classifieur à la route ni dire l'échec au message d'étape — deux décisions de la lecture du texte,
+  sorties en `_request_page_orientation`, `_upright_work_file`, `_show_failure`, partagées. +2 tests et une assertion
+  (`tests_score`), 5 contre-épreuves rouges. Rouges d'autrui nommés : budgets de
+  `tests_identifier_language` (classes 134 > 132, méthodes 1290 > 1286, aucune ligne de ces fichiers).
 - 🔚 Reste : la mesure sur de VRAIS scans de Fabien ; le scan à côté de la gravure (aucune brique
   n'affiche une image en lecture seule) ; l'écoute (abcjs vendorisé sans synthétiseur) ; une photo
   de travers ou un manuscrit ne sont pas vus par `has_staves` (la note le dit, l'utilisateur coche).

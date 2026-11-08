@@ -139,7 +139,10 @@ class TheGlueWritesTheScoreOnTheCardTest(TestCase):
                 mock.patch('wama.common.backends.manager.run_contract', side_effect=run_contract), \
                 mock.patch('wama.common.backends.ocr_base.upright_image', side_effect=lambda p, d: p):
             result = tasks._read_score(item, ctx)
-        ctx.ensure_model.assert_called_once_with('huggingface:kobimusic/copisteria')
+        from wama.common.backends.ocr_base import PAGE_ORIENTATION_KEY
+        self.assertEqual([mock.call('huggingface:kobimusic/copisteria'),
+                          mock.call(PAGE_ORIENTATION_KEY)], ctx.ensure_model.call_args_list,
+                         'the score reader, then the classifier that uprights an image, by the route')
         self.assertEqual(str(page), calls['work_file'])
         self.assertEqual([('.musicxml', 'score', 'kobimusic/copisteria'),
                           ('.abc', 'score', 'kobimusic/copisteria')], places)
@@ -160,6 +163,27 @@ class TheGlueWritesTheScoreOnTheCardTest(TestCase):
         with mock.patch('wama.common.utils.auto_model.model_for_task', return_value=''):
             with self.assertRaisesMessage(RuntimeError, 'image-to-score'):
                 tasks._read_score(item, ctx)
+        from django.core.cache import cache
+        step = (cache.get(f'reader_progress_{item.pk}') or {}).get('msg', '')
+        self.assertTrue(step.startswith('Erreur'),
+                        'the step message tells the failure, like the text reading')
+
+    def test_a_pdf_score_needs_no_page_classifier(self):
+        from wama.reader import tasks
+        from wama.reader.models import ReadingItem
+        (self.tmp / 'page.pdf').write_bytes(b'%PDF-1.4\n')
+        item = ReadingItem.objects.create(user=self.user, input_file='page.pdf', read_as_score=True,
+                                          page_count=1)
+        ctx = SimpleNamespace(console=lambda *a: None, progress=lambda *a, **k: None,
+                              ensure_model=mock.Mock(),
+                              output_place=lambda ext, **k: (f'o{ext}', str(self.tmp / f'o{ext}')))
+        with mock.patch('wama.common.utils.auto_model.model_for_task',
+                        return_value='huggingface:kobimusic/copisteria'), \
+                mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                           return_value=object()), \
+                mock.patch('wama.common.backends.manager.run_contract', return_value=MUSICXML_CDEF):
+            tasks._read_score(item, ctx)
+        ctx.ensure_model.assert_called_once_with('huggingface:kobimusic/copisteria')
 
 
 class TheCardFollowsTheScoreTest(TestCase):
@@ -209,6 +233,20 @@ class TheCardFollowsTheScoreTest(TestCase):
         self.assertEqual((True, ''), text.can_open(read))
         self.assertIn('Lire une partition', score.can_open(read)[1])
         self.assertTrue(score.text_value, 'the ABC file is edited as text, its versions kept')
+
+    def test_a_ticked_page_without_a_score_reader_is_corrected_as_text(self):
+        """The switch alone does not make a score : without a model of the task the page is read
+        as a text (`takes_place`), and both pages say so — one rule, `holds_score`."""
+        from wama.common.surfaces import load_all, surface as get_surface
+        load_all()
+        from wama.reader.models import ReadingItem
+        read = ReadingItem(user=self.user, read_as_score=True, result_text='# Titre\n\ntexte',
+                           status='SUCCESS')
+        with mock.patch('wama.common.utils.auto_model.task_installed', return_value=False):
+            self.assertEqual((True, ''), get_surface('reader', 'text').can_open(read))
+            refused = get_surface('reader', 'score').can_open(read)
+        self.assertEqual(False, refused[0])
+        self.assertIn('Aucun modèle', refused[1])
 
     def test_the_assistant_status_carries_the_score(self):
         from wama.tool_api import TRIAD_SPECS
