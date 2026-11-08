@@ -29382,3 +29382,25 @@ de MESURE ; chaque pièce suit un patron en service :
 - ⚠ Revérification : `check_docs` 0 cassée / 3950 ; `doc_facts --check` : 4 blocs générés périmés
   (mécanismes, outils, roundtrip, briques) — l'arbre porte le travail non commité d'autres sessions
   sur ces docs, régénération laissée à la clôture commune.
+
+## §PALIER 2026-11-08 (nuit, fin), « LE MIDI GARDE SON INSTRUMENT, SES NUANCES ET SES TEMPOS ; VEILLE LECTURE MIDI ET PISTES SÉPARÉES » — ce commit (local, non poussé) — 🔴 relancer gunicorn + workers
+
+- **Question de Fabien** (« récupère-t-on bien toutes les informations MIDI ? ») — MESURÉ : la
+  lecture commune perdait l'INSTRUMENT (program change) et les VÉLOCITÉS, la notation n'écrivait que
+  le 1ᵉʳ tempo. Corrigé dans la brique commune `midi_score` (`MidiPart.program` / `velocities`,
+  `%%MIDI program` / `channel 10`, nuances `!p!`…`!ff!` quand elles changent, `[Q:…]` à sa mesure) —
+  la partition complète d'un cover et toute partition MIDI à venir s'en servent. Garde
+  `tests_midi_score.WhatTheMidiSaysIsKeptTest` (contre-épreuve rouge) ; 57 tests du domaine verts.
+- **Veille** (lecture MIDI dans le lecteur, banques de sons, synthèse neuronale, séparation de
+  pistes, génération par piste) consignée dans `PROSPECTION_PIPELINE.md §Session du 2026-11-08`,
+  avec ce qui reste perdu, le défaut de la page d'édition (partition MIDI/MusicXML fournie lue en
+  texte brut) et les décisions attendues.
+- 🔚 **Décisions de Fabien attendues** : (a) moteur de la version « MIDI » du lecteur (abcjs + banque
+  MIDI.js vendorisée, ou SpessaSynth + GeneralUser GS / MuseScore_General SF3) ; (b) banque et
+  licence ; (c) export audio serveur (FluidSynth, binaire système) ou non ; (d) renommage de
+  `users/1/temp/The Price Of Not Being Me_V96_320kbps.mp3` (5 cards, geste du gestionnaire prêt,
+  scratchpad `composer_inputs_plan.py`, `APPLY=1`). ⏳ Ensuite : la vue ABC d'une partition MIDI /
+  MusicXML fournie sur la page d'édition (avant l'arrivée des partitions du reader).
+- Rouge signalé par une instance sœur, hors de ce lot : `tests_tool_api_lectures.AddItemToMediaLibraryTest`
+  (`add_item_to_media_library` du composer rend `audio_music` au lieu des candidats — le
+  `result_role` du composer date du 2026-10-02 ; changement récent côté médiathèque).

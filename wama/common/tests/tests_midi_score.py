@@ -47,10 +47,19 @@ def _midi(instruments, metre=True, tempo=120.0, marker=None) -> bytes:
     return out.getvalue()
 
 
-def _body(abc: str, voice: str) -> str:
-    """The music lines of one voice (after `K:`)."""
+def _body(abc: str, voice: str, playback: bool = False) -> str:
+    """The music lines of one voice (after `K:`) — its NOTES : the playback lines (`%%MIDI`), the
+    dynamics (`!f!`) and the tempo changes (`[Q:…]`, 2026-11-08) are left out unless `playback`."""
+    import re
     lines = abc.split('K:C\n', 1)[1].splitlines()
-    return ''.join(lines[i + 1] for i, line in enumerate(lines) if line == f'V:{voice}')
+    out, inside = [], False
+    for line in lines:
+        if line.startswith('V:'):
+            inside = line == f'V:{voice}'
+        elif inside and (playback or not line.startswith('%%')):
+            out.append(line)
+    text = ''.join(out)
+    return text if playback else re.sub(r'!\w+!|\[Q:[^\]]*\]', '', text)
 
 
 class MidiToAbcTest(SimpleTestCase):
@@ -164,6 +173,50 @@ class ReadMidiTest(SimpleTestCase):
         self.assertEqual([(0, 500000), (480, 1000000)], song.tempi)
         self.assertAlmostEqual(0.5 + 1.0, song.seconds(960), msg='a beat at 120, then one at 60')
         self.assertEqual(2.0, song.quarters(960))
+
+
+class WhatTheMidiSaysIsKeptTest(SimpleTestCase):
+    """2026-11-08, Fabien : « récupère-t-on bien toutes les informations MIDI nécessaires (pistes
+    d'instruments et tempo principalement — en option les nuances) ? ». Measured : the reading kept
+    the tracks and the tempo map but dropped the INSTRUMENT (program change) and the VELOCITIES, and
+    the notation wrote only the first tempo. Now each voice carries its General MIDI instrument
+    (`%%MIDI program`, the drums `%%MIDI channel 10`), the dynamics are written when they change, and
+    a tempo change is written at its bar — all of which abcjs both engraves and PLAYS."""
+
+    def _song(self):
+        import mido
+        song = mido.MidiFile(ticks_per_beat=480, type=1)
+        meta = mido.MidiTrack([mido.MetaMessage('set_tempo', tempo=500000, time=0),
+                               mido.MetaMessage('time_signature', numerator=4, denominator=4, time=0),
+                               mido.MetaMessage('set_tempo', tempo=600000, time=4 * 480)])
+        strings = mido.MidiTrack([mido.MetaMessage('track_name', name='violin', time=0),
+                                  mido.Message('program_change', program=40, channel=0, time=0)])
+        for bar, velocity in enumerate((40, 40, 110)):          # p, p, then ff
+            strings += [mido.Message('note_on', note=72, velocity=velocity, channel=0,
+                                     time=0),
+                        mido.Message('note_off', note=72, channel=0, time=4 * 480)]
+        drums = mido.MidiTrack([mido.Message('note_on', note=36, velocity=90, channel=9, time=0),
+                                mido.Message('note_off', note=36, channel=9, time=240)])
+        song.tracks += [meta, strings, drums]
+        out = io.BytesIO()
+        song.save(file=out)
+        return out.getvalue()
+
+    def test_the_reading_keeps_the_instrument_and_the_velocities(self):
+        from wama.common.utils.midi_score import read_midi
+        violin = next(p for p in read_midi(self._song()).parts if not p.is_drum)
+        self.assertEqual((40, [40, 40, 110]), (violin.program, violin.velocities))
+
+    def test_the_notation_says_what_to_play_how_loud_and_at_what_tempo(self):
+        abc = midi_to_abc(self._song())
+        played = _body(abc, 'I0', playback=True)
+        self.assertTrue(played.startswith('%%MIDI program 40'), played)
+        self.assertEqual(['p', 'ff'], __import__('re').findall(r'!(\w+)!', played),
+                         'a dynamic is written when it CHANGES, not at every bar')
+        self.assertIn('[Q:1/4=100]', abc, 'the second tempo, at its bar')
+        self.assertIn('Q:1/4=120', abc, 'the first one in the header')
+        self.assertIn('%%MIDI channel 10', _body(abc, 'D1', playback=True))
+        self.assertEqual('c16|c16|c16|', _body(abc, 'I0'), 'the notes themselves do not change')
 
 
 class MuScriptorIsInstalledByTheRouteTest(SimpleTestCase):

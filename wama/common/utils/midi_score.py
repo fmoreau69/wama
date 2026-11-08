@@ -75,11 +75,16 @@ def instrument_label(name: str) -> str:
 
 class MidiPart:
     """Une partie du MIDI — une piste et un canal : son nom (`track_name`), batterie ou non (canal
-    10), ses notes `(début, fin, hauteur)` en TICKS."""
-    __slots__ = ('name', 'is_drum', 'notes')
+    10), ses notes `(début, fin, hauteur)` en TICKS ; et depuis le 2026-11-08 (question de Fabien :
+    « récupère-t-on bien toutes les informations MIDI nécessaires ? ») son INSTRUMENT General MIDI
+    (`program`, le premier `program_change` de son canal, None sans) et la VÉLOCITÉ de chaque note
+    (`velocities`, alignée sur `notes`) — ce qui fait les nuances."""
+    __slots__ = ('name', 'is_drum', 'notes', 'program', 'velocities')
 
-    def __init__(self, name: str, is_drum: bool, notes: list):
+    def __init__(self, name: str, is_drum: bool, notes: list, program=None, velocities=None):
         self.name, self.is_drum, self.notes = name, is_drum, notes
+        self.program = program
+        self.velocities = list(velocities) if velocities is not None else [64] * len(notes)
 
 
 class MidiSong:
@@ -133,29 +138,34 @@ def read_midi(source) -> MidiSong:
             markers.append(msg.text)
     parts = []
     for track in song.tracks:
-        name, tick, started, by_channel = '', 0, {}, {}
+        name, tick, started, by_channel, programs = '', 0, {}, {}, {}
         for msg in track:
             tick += msg.time
             if msg.type == 'track_name' and not name:
                 name = msg.name
+            elif msg.type == 'program_change':
+                programs.setdefault(msg.channel, msg.program)
             elif msg.type in ('note_on', 'note_off'):
                 slot = (msg.channel, msg.note)
                 if msg.type == 'note_on' and msg.velocity > 0:
-                    started.setdefault(slot, []).append(tick)
+                    started.setdefault(slot, []).append((tick, msg.velocity))
                 elif slot in started:
                     # Une fin ferme toutes les attaques ouvertes de cette hauteur SAUF celles de
                     # cet instant : une note re-frappée au tick où la précédente finit commence
                     # là (la règle de pretty_midi ; garder la seule 1re attaque perdait la note,
                     # mesuré le 2026-10-16 sur des MIDI écrits par MuScriptor).
-                    keep = [s for s in started[slot] if s == tick]
-                    closing = [s for s in started[slot] if s != tick]
-                    by_channel.setdefault(msg.channel, []).extend((s, tick, msg.note) for s in closing)
+                    keep = [s for s in started[slot] if s[0] == tick]
+                    closing = [s for s in started[slot] if s[0] != tick]
+                    by_channel.setdefault(msg.channel, []).extend(
+                        (s, tick, msg.note, velocity) for s, velocity in closing)
                     if closing and keep:
                         started[slot] = keep
                     else:
                         del started[slot]
-        parts += [MidiPart(name.strip(), channel == 9, sorted(notes))
-                  for channel, notes in sorted(by_channel.items())]
+        for channel, notes in sorted(by_channel.items()):
+            notes = sorted(notes)
+            parts.append(MidiPart(name.strip(), channel == 9, [n[:3] for n in notes],
+                                  program=programs.get(channel), velocities=[n[3] for n in notes]))
     return MidiSong(song.ticks_per_beat or 480, tempi, meter, key, markers, parts)
 
 
@@ -182,9 +192,36 @@ def _length(steps: int) -> str:
     return '' if steps == 1 else str(steps)
 
 
+#: Vélocité MIDI moyenne d'une mesure → nuance écrite (la plus faible dont le seuil la dépasse) —
+#: une décoration ABC que la gravure montre ET que le synthétiseur d'abcjs joue (2026-11-08).
+_DYNAMICS = ((36, 'pp'), (52, 'p'), (68, 'mp'), (84, 'mf'), (100, 'f'), (128, 'ff'))
+
+
+def dynamic_of(velocity: float) -> str:
+    """La nuance écrite d'une vélocité MIDI moyenne (`_DYNAMICS`)."""
+    return next(mark for limit, mark in _DYNAMICS if velocity < limit)
+
+
 class _Voice:
-    def __init__(self, vid: str, name: str, clef: str, notes: list, drum: bool = False):
+    def __init__(self, vid: str, name: str, clef: str, notes: list, drum: bool = False,
+                 program=None, attacks=()):
         self.id, self.name, self.clef, self.notes, self.drum = vid, name, clef, notes, drum
+        # L'instrument General MIDI de la voix, et ses attaques `(pas, hauteur, vélocité)` — d'où
+        # ses nuances (2026-11-08).
+        self.program, self.attacks = program, list(attacks)
+
+    def playback(self) -> list:
+        """Les lignes qui disent au synthétiseur d'abcjs QUOI jouer pour cette voix : son
+        instrument (`%%MIDI program`), ou le canal de la batterie (`%%MIDI channel 10`)."""
+        if self.drum:
+            return ['%%MIDI channel 10']
+        return [f'%%MIDI program {self.program}'] if self.program is not None else []
+
+    def dynamic(self, bar_start: int, bar_steps: int):
+        """La nuance de la mesure `[bar_start, bar_start + bar_steps)` — la moyenne des vélocités de
+        ses attaques ; None sans attaque."""
+        heard = [v for s, _p, v in self.attacks if bar_start <= s < bar_start + bar_steps]
+        return dynamic_of(sum(heard) / len(heard)) if heard else None
 
     def header(self) -> str:
         # La main gauche d'un clavier ne se nomme pas : l'accolade porte le nom, une fois.
@@ -322,22 +359,27 @@ def _voices_of(song: MidiSong, to_steps) -> list:
     voices = []
     for index, inst in enumerate(song.parts):
         notes = _quantize(inst.notes, to_steps)
+        attacks = [(start, pitch, velocity) for (start, _end, pitch), velocity
+                   in zip(notes, inst.velocities)]
         original = inst.name
         label = (instrument_label(original) if original
                  else ('Batterie' if inst.is_drum else f'Instrument {index + 1}')).replace('"', "'")
         if inst.is_drum:
-            voices.append(_Voice(f'D{index}', label, 'perc', notes, drum=True))
+            voices.append(_Voice(f'D{index}', label, 'perc', notes, drum=True, attacks=attacks))
             continue
         pitches = sorted(p for _, _, p in notes)
         wide = pitches[-1] - pitches[0] >= 24
         if any(w in original.lower() for w in _KEYBOARD_WORDS) and wide:
             right = [n for n in notes if n[2] >= 60]
             left = [n for n in notes if n[2] < 60]
-            voices.append(_Voice(f'P{index}R', label, 'treble', right))
-            voices.append(_Voice(f'P{index}L', label, 'bass', left))
+            voices.append(_Voice(f'P{index}R', label, 'treble', right, program=inst.program,
+                                 attacks=[a for a in attacks if a[1] >= 60]))
+            voices.append(_Voice(f'P{index}L', label, 'bass', left, program=inst.program,
+                                 attacks=[a for a in attacks if a[1] < 60]))
             continue
         median = pitches[len(pitches) // 2]
-        voices.append(_Voice(f'I{index}', label, 'bass' if median < 55 else 'treble', notes))
+        voices.append(_Voice(f'I{index}', label, 'bass' if median < 55 else 'treble', notes,
+                             program=inst.program, attacks=attacks))
     return voices
 
 
@@ -376,12 +418,21 @@ def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_l
     # Une note AVANT la mesure 1 (anacrouse avant le premier temps joué) : toute la partition
     # recule d'un nombre entier de mesures, rien n'est écrasé au temps 0.
     lowest = min(s for v in voices for s, _, _ in v.notes)
+    shift = 0
     if lowest < 0:
         shift = -(lowest // bar_steps) * bar_steps
         for v in voices:
             v.notes = [(s + shift, e + shift, p) for s, e, p in v.notes]
+            v.attacks = [(s + shift, p, vel) for s, p, vel in v.attacks]
     last = max(e for v in voices for _, e, _ in v.notes)
     bars = max(1, -(-last // bar_steps))
+    # Les CHANGEMENTS DE TEMPO (2026-11-08 : seul le premier était écrit), sur la grille du MIDI
+    # seulement — calée sur les temps joués, la partition suit déjà l'audio : mesure → tempo, posé
+    # en tête de la mesure (`[Q:…]`), que la gravure montre et que le synthétiseur joue.
+    tempo_at = {}
+    if song.meter is not None or beat_times is None or len(beat_times) < 8:
+        for tick, value in song.tempi[1:]:
+            tempo_at[int((to_steps(tick) + shift) // bar_steps)] = int(round(60e6 / value))
 
     groups = []
     for v in voices:
@@ -397,11 +448,21 @@ def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_l
     head += [v.header() for v in voices]
     head.append('K:C')
 
-    body = []
+    body, said = [], {}
     for first in range(0, bars, bars_per_line):
         span = range(first, min(bars, first + bars_per_line))
-        for v in voices:
+        for index, v in enumerate(voices):
             body.append(f'V:{v.id}')
-            body.append('|'.join(_bar_tokens(v.notes, b * bar_steps, bar_steps, v.drum)
-                                 for b in span) + '|')
+            if first == 0:
+                body += v.playback()        # l'instrument de la voix, une fois, dans SON bloc
+            bars_text = []
+            for b in span:
+                lead = f'[Q:1/4={tempo_at[b]}]' if index == 0 and b in tempo_at else ''
+                # La NUANCE, quand elle change (`said` : la dernière écrite de la voix).
+                mark = v.dynamic(b * bar_steps, bar_steps)
+                if mark and mark != said.get(v.id):
+                    said[v.id] = mark
+                    lead += f'!{mark}!'
+                bars_text.append(lead + _bar_tokens(v.notes, b * bar_steps, bar_steps, v.drum))
+            body.append('|'.join(bars_text) + '|')
     return '\n'.join(head + body) + '\n'

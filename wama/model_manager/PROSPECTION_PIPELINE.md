@@ -4237,3 +4237,100 @@ défaut vu s'est comblé dans la route, aucun dans la proposition.
   de `dev_run_role` n'annonçait aucun type pour `args`) — `tool_api.decode_structured_args`,
   `_tool_signature` ; une date du calendrier n'est plus un numéro de téléphone pour la porte de
   confidentialité (`privacy/engine._is_calendar_date`).
+
+## Session du 2026-11-08 — Lire une partition en MIDI, garder ce que dit le MIDI, vers des pistes séparées (veille, demande de Fabien)
+
+> Question de Fabien (une instance sœur prépare l'envoi des partitions scannées du reader vers le
+> composer) : *« récupère-t-on bien toutes les informations MIDI nécessaires depuis un fichier midi
+> ou une partition multi-instrument (pistes d'instruments et tempo principalement — en option les
+> nuances) ? […] si l'on part d'une partition sans l'audio, il faudrait pouvoir sélectionner dans le
+> player une version de lecture midi […] avec la meilleure restitution possible. A voir plus tard
+> pour intégrer des instruments virtuels de meilleure qualité. […] A terme, un modèle générant chaque
+> piste individuellement et un audio splitter, comme dans Suno. »*
+
+### Mesuré dans le code (avant ce jour)
+
+| information MIDI | lecture commune `midi_score.read_midi` | notation `midi_to_abc` | moteur YuE2 (`_midi_events`) |
+|---|---|---|---|
+| pistes × canaux, noms, batterie (canal 10) | ✅ | ✅ une voix par piste | réduit à la ligne CHANTÉE — voulu : YuE2 suit une mélodie |
+| carte des tempos | ✅ | ❌ le 1ᵉʳ seulement | le 1ᵉʳ |
+| mesure, tonalité | la 1ʳᵉ | 1ʳᵉ mesure ; `K:C` toujours (altérations écrites) | la 1ʳᵉ |
+| instrument (program change GM) | ❌ | ❌ (abcjs jouait tout au piano) | — |
+| vélocités (nuances) | ❌ | ❌ | — |
+| contrôleurs (pédale CC64, expression), paroles MIDI | ❌ | ❌ | — |
+
+✅ **Livré le jour même** (`midi_score`) : `MidiPart.program` (1ᵉʳ `program_change` du canal) et
+`MidiPart.velocities` (alignées sur `notes`) ; l'ABC porte par voix son instrument
+(`%%MIDI program N`, la batterie `%%MIDI channel 10`), les NUANCES quand elles changent (`!p!`…`!ff!`,
+moyenne des vélocités de la mesure, `dynamic_of`) et les CHANGEMENTS de tempo à leur mesure
+(`[Q:1/4=…]`, sur la grille du MIDI) — abcjs les grave ET les joue (source
+`abc_midi_sequencer.js` : `%%MIDI program/channel/drum…`, `!pppp!`…`!ffff!` → vélocités). Garde :
+`tests_midi_score.WhatTheMidiSaysIsKeptTest` (contre-épreuve : lecture de l'instrument neutralisée →
+rouge). ⏳ Restent perdus : pédale et contrôleurs, paroles MIDI, changements de mesure et de
+tonalité en cours de morceau (l'ABC standard n'exprime ni la vélocité note à note ni la pédale).
+⭐ Recommandation de la veille, retenue comme règle : **le `.mid` reste la source de vérité de la
+lecture** (lu et écrit par `mido`, sans perte au niveau message) ; l'ABC et le MusicXML sont des VUES
+pour la gravure.
+
+🔴 **Défaut relevé** (aucune card n'est concernée en base, mesuré) : la page « Éditer la partition »
+du composer lit la partition FOURNIE (`reference_score`, ABC / MIDI / MusicXML acceptés) comme du
+TEXTE brut (`surface_views._text`) — un `.mid` s'y afficherait en binaire, un MusicXML en XML, et
+« Enregistrer » récrirait le fichier en texte (`_write_text`). ⏳ À corriger avant l'arrivée des
+partitions du reader : la page montre la VUE ABC (`midi_to_abc` / `musicxml_to_abc`) et une
+correction s'enregistre dans un `.abc` à côté, la source gardée.
+
+### La lecture MIDI dans le lecteur, sans générer d'audio — l'état de l'art (veille web)
+
+- **Dans le navigateur** :
+  - abcjs (vendorisé) a son synthétiseur (`CreateSynth`, déjà employé pour l'export MIDI) mais tire
+    ses banques MIDI.js de `paulrosen.github.io` (externe : WAMA sert ses ressources en local) —
+    FluidR3_GM (CC-BY 3.0, banque d'origine 148 Mo) ou MusyngKite (CC-BY-SA 3.0, ~1 Go, meilleure),
+    hauteurs 27 à 87 seulement ;
+  - **SpessaSynth** (Apache-2.0, v4.4.0 ; npm `spessasynth_lib` 4.0.19) : SF2 / SF3 / DLS, effets
+    GS/XG, paroles, export WAV, livré avec GeneralUser GS — le meilleur rendu côté client trouvé, et
+    il lit le MIDI qu'abcjs produit ;
+  - js-synthesizer (FluidSynth en WASM, BSD-3 + LGPL-2.1) ; html-midi-player (BSD-2, peu actif
+    depuis 2024) ; WebAudioFont (GPL-3, échantillons de licence floue — à écarter).
+- **Côté serveur** (export WAV/MP3) : FluidSynth (LGPL-2.1, binaire SYSTÈME — hors PyPI, donc une
+  décision d'installation) + pyfluidsynth 1.4.0 ; sfizz (BSD-2) **archivé le 2026-06-21**.
+- **Banques** : GeneralUser GS 2.0 (licence maison permissive) ; MuseScore_General (MIT, sur
+  FluidR3) ; Salamander Grand Piano SFZ (CC-BY 3.0) ; VSCO-2 Community Edition (CC0, SFZ/WAV).
+- **Synthèse neuronale MIDI → audio** : rien de mûr, ouvert et multi-instrument en 2026 — MIDI-DDSP
+  archivé (2024) ; Magenta RealTime 2 (Apache-2.0 / CC-BY 4.0) est un générateur guidé par le MIDI,
+  pas un rendu fidèle ; P-MUSE, MIDI-VALLE, MIAO sans poids utilisables.
+- ⏳ **À trancher par Fabien** — (a) le moteur du lecteur : abcjs + une banque MIDI.js vendorisée
+  (le plus simple, déjà là) ou SpessaSynth + GeneralUser GS / MuseScore_General en SF3 (le meilleur
+  rendu) ; (b) la banque et sa licence (taille servie) ; (c) un export audio serveur (FluidSynth) ou
+  non. La forme visée, universelle : une version « MIDI » de plus dans le TRANSPORT commun
+  (`media_transport`, à côté des versions entrée / sortie), rendue depuis la partition affichée —
+  le WAV produit dans la page (`synth.download()` d'abcjs, ou l'export de SpessaSynth) devient une
+  source comme une autre, calée sur le même axe. Les banques s'installent par la ROUTE (fichiers
+  déclarés, origine épinglée) ; SpessaSynth se vendorise à côté d'abcjs.
+- ⏳ **Plus tard, « instruments virtuels de meilleure qualité »** : banques SFZ (Salamander, VSCO-2)
+  par un moteur SFZ maintenu (sfizz étant archivé, à rechercher), puis un rendu neuronal quand des
+  poids ouverts existeront.
+
+### Vers des pistes séparées, « comme Suno » (intentions, rien de lancé)
+
+- **Séparer un audio en pistes** (« audio splitter ») — utilisable dès maintenant sur 24 Go :
+  `audio-separator[gpu]` (MIT, ~0.44–0.47) qui fait tourner MDX / VR / Demucs / RoFormer ; meilleurs
+  modèles relevés (dépôt ZFTurbo, MIT ; licence par modèle NON donnée) : SCNet XL IHF 10,08 dB et
+  BS-RoFormer 9,65 dB de SDR sur MUSDB18-HQ (4 pistes), BS-RoFormer SW en 6 pistes (guitare, piano,
+  basse, batterie, voix, autre — chiffres MVSEP à confirmer), DrumSep (batterie en sous-pistes) ;
+  Demucs v4 (`htdemucs`, 9,00 dB ; `htdemucs_6s`, piano faible) est déjà dans `venv_linux` (poids
+  non téléchargés) mais l'auteur dit ses poids « usage recherche ». Chaîne visée : un process de
+  séparation, puis la transcription PAR PISTE (l'architecture 3 de la veille du 2026-10-16).
+- **Générer chaque piste** : ACE-Step 1.5 (MIT) — variantes `-base` / `-xl-base` : Extract, *Lego*
+  (ajouter une piste d'instrument à un morceau), Complete ; XL ≥ 20 Go sans déchargement, tient sur
+  la 4090. ⚠ Une instance sœur intègre ACE-Step le même jour : à rapprocher. Voie SYMBOLIQUE,
+  cohérente avec la lecture MIDI : générer un MIDI multipiste (Anticipatory Music Transformer,
+  poids Apache-2.0, accompagne une mélodie ; text2midi, Apache-2.0) puis le faire jouer par la
+  banque de sons. Non vérifiés : pistes séparées de YuE, MusicGen-Stem (poids annoncés), Stemphonic.
+- Sources principales : abcjs `src/synth/create-synth.js` et `abc_midi_sequencer.js` (dépôt
+  paulrosen/abcjs) ; github.com/gleitz/midi-js-soundfonts ; github.com/spessasus/SpessaSynth ;
+  github.com/FluidSynth/fluidsynth ; github.com/sfztools/sfizz ; mido.readthedocs.io ;
+  manpages.debian.org (midi2abc) ; github.com/ACE-Step/ACE-Step-1.5 ;
+  github.com/ZFTurbo/Music-Source-Separation-Training (docs/pretrained_models.md) ;
+  github.com/nomadkaraoke/python-audio-separator ; github.com/facebookresearch/demucs ;
+  huggingface.co/stanford-crfm/music-small-ar-800k ; huggingface.co/google/magenta-realtime-2. Les
+  points marqués « à confirmer » ou « non vérifiés » n'ont pas pu l'être.
