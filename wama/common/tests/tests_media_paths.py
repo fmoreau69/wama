@@ -294,7 +294,9 @@ class ChaqueChampFichierEcritAuDomicileTest(TestCase):
     #: Champs dont l'`upload_to` demande un état qu'on ne fabrique pas ici (relation absente).
     #: Mesuré le 2026-09-12 : les 2 de `face_analyzer`. Ce nombre est un PLAFOND, pas un
     #: objectif — le faire monter, c'est cesser de mesurer un champ de plus.
-    MUETS_ASSUMES = 2
+    #: 0 depuis le 2026-11-08 : ces deux muets écrivaient bien HORS du domicile, et `/media/`
+    #: gardé les refusait à leur propriétaire. Ils lisent désormais `user_id`, donc se mesurent.
+    MUETS_ASSUMES = 0
 
     @staticmethod
     def _chemin_simule(modele, upload_to):

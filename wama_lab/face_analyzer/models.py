@@ -34,44 +34,34 @@ def get_unique_filename(directory: str, filename: str) -> str:
     return unique_filename
 
 
-def analysis_upload_path(instance, filename):
-    """
-    Generate upload path for analysis input files.
-    Structure: face_analyzer/<user_id>/input/<original_filename>
+def _user_upload_path(instance, filename, subfolder):
+    """`users/<user_id>/face_analyzer/<subfolder>/<nom d'origine>` — le domicile de l'utilisateur,
+    par `app_media_dir`, la brique qui décide de ce chemin.
+
+    ⚠ Ces deux `upload_to` composaient encore `face_analyzer/<user_id>/…` à la main (2026-11-08) :
+    oubliés à la bascule du 2026-09-12, parce que `instance.user.id` interroge la base et que la
+    garde par champ (`tests_media_paths.ChaqueChampFichierEcritAuDomicileTest`) les tenait pour
+    « non mesurés ». Depuis que `/media/` passe par la règle de lecture (`media_paths.readable_by`),
+    un fichier hors de son arbre était refusé à son propriétaire. `user_id` se lit sans requête.
 
     Keeps the original filename unless it already exists,
     in which case a short UUID suffix is added.
     """
-    user_id = instance.user.id if instance.user else 0
+    from wama.common.utils.media_paths import app_media_dir
 
-    # Build the directory path
-    relative_dir = os.path.join('face_analyzer', str(user_id), 'input')
+    relative_dir = app_media_dir('face_analyzer', instance.user_id or 0, subfolder)
     full_dir = os.path.join(settings.MEDIA_ROOT, relative_dir)
+    return f"{relative_dir}/{get_unique_filename(full_dir, filename)}"
 
-    # Get unique filename
-    unique_filename = get_unique_filename(full_dir, filename)
 
-    return os.path.join(relative_dir, unique_filename)
+def analysis_upload_path(instance, filename):
+    """Upload path for analysis input files (`…/face_analyzer/input/`)."""
+    return _user_upload_path(instance, filename, 'input')
 
 
 def result_upload_path(instance, filename):
-    """
-    Generate upload path for analysis output files.
-    Structure: face_analyzer/<user_id>/output/<original_filename>
-
-    Keeps the original filename unless it already exists,
-    in which case a short UUID suffix is added.
-    """
-    user_id = instance.user.id if instance.user else 0
-
-    # Build the directory path
-    relative_dir = os.path.join('face_analyzer', str(user_id), 'output')
-    full_dir = os.path.join(settings.MEDIA_ROOT, relative_dir)
-
-    # Get unique filename
-    unique_filename = get_unique_filename(full_dir, filename)
-
-    return os.path.join(relative_dir, unique_filename)
+    """Upload path for analysis output files (`…/face_analyzer/output/`)."""
+    return _user_upload_path(instance, filename, 'output')
 
 
 class AnalysisSession(models.Model):

@@ -29619,3 +29619,19 @@ de MESURE ; chaque pièce suit un patron en service :
 - 🔚 **Restent** : le portage du Face Analyzer sur l'axe, puis du cam_analyzer ; les aperçus audio sur
   l'axe ; la barre de transport de la visionneuse. Le worktree `wt_preview_axis` est gardé, verrouillé,
   avec sa base `test_wama_db_axis`.
+
+### PALIER 2026-11-08 (soir) — le Face Analyzer range au domicile de l'utilisateur (régression de `9cd279cba`)
+
+Signalé par une autre session (scénario nocturne `common.axis_follow`, surface `face_analyzer.analysis`) :
+`/media/` gardé (`media_paths.readable_by`) refusait en 403 à son propriétaire l'entrée d'une session
+du Face Analyzer. Cause mesurée : ses deux `upload_to` (`analysis_upload_path`, `result_upload_path`)
+composaient encore `face_analyzer/<uid>/…` à la main, oubliés à la bascule du 2026-09-12 — la garde par
+champ (`tests_media_paths.ChaqueChampFichierEcritAuDomicileTest`) les tenait pour « non mesurés »
+(`instance.user.id` interroge la base), plafond `MUETS_ASSUMES = 2`. Ils passent par `app_media_dir` et
+lisent `user_id` ; le plafond tombe à 0 (contre-épreuves : l'ancien arbre → fautif, l'ancienne lecture →
+muet, ROUGE les deux). Les sorties de ses tâches y étaient déjà. Disque : seul arbre d'app à garder des
+dossiers par utilisateur hors de `users/`, et il ne contient qu'UN fichier, le témoin du compte de test
+(22) — `migrate_media_to_user_home --app face_analyzer` le déplacerait (1 fichier, 25 lignes) ; pas
+joué, le scénario fabrique un témoin neuf à chaque passe.
+⚠ La commande `migrate_media_to_user_home` sans `--app` plante (`OSError: File name too long`) sur une
+valeur de champ texte qui contient des `/` (un tableau en Markdown) : préexistant, non corrigé ici.
