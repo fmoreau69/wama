@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "MiniMax-M2.7 is a next-generation large language model designed for autonomous, real-world productivity and continuous improvement",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:MiniMaxAI/MiniMax-M2.7",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "MiniMax-M2.7 is a next-generation large language model designed for autonomous, real-world productivity and continuous improvement. Built to actively participate in its own evolution, M2.7 integrates advanced agentic capabilities through multi-agent...",
   "key": "openrouter:minimax/minimax-m2.7",
   "manifest_kind": "model",
   "name": "MiniMax: MiniMax M2.7",

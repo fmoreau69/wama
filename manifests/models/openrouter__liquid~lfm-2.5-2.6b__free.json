@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "LFM2.5-2.6B is a compact reasoning model from Liquid AI",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:LiquidAI/LFM2.5-2.6B",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "LFM2.5-2.6B is a compact reasoning model from Liquid AI. It is suited for agent workflows, data extraction, RAG, and long-context processing. Liquid advises against using it for agentic coding or...",
   "key": "openrouter:liquid/lfm-2.5-2.6b:free",
   "manifest_kind": "model",
   "name": "LiquidAI: LFM2.5-2.6B (free)",

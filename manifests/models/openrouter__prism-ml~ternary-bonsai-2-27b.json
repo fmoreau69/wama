@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Bonsai 2 27B is a 27B-parameter reasoning model from PrismML derived from Qwen3.8-27B",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:prism-ml/Ternary-Bonsai-2-27B-gguf",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Bonsai 2 27B is a 27B-parameter reasoning model from PrismML derived from Qwen3.8-27B. It supports coding, mathematics, tool calling, and image understanding with a 262K-token context window. Ternary compression shrinks...",
   "key": "openrouter:prism-ml/ternary-bonsai-2-27b",
   "manifest_kind": "model",
   "name": "PrismML: Ternary Bonsai 2 27B",

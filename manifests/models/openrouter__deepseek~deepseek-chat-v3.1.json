@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "DeepSeek-V3.1 is a large hybrid reasoning model (671B parameters, 37B active) that supports both thinking and non-thinking modes via prompt templates",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:deepseek-ai/DeepSeek-V3.1",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "DeepSeek-V3.1 is a large hybrid reasoning model (671B parameters, 37B active) that supports both thinking and non-thinking modes via prompt templates. It extends the DeepSeek-V3 base with a two-phase long-context...",
   "key": "openrouter:deepseek/deepseek-chat-v3.1",
   "manifest_kind": "model",
   "name": "DeepSeek: DeepSeek V3.1",

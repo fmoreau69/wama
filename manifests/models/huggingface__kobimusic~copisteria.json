@@ -1,0 +1,115 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "document"
+      ],
+      "task": "image-to-score"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "pt",
+          "pattern": "*.pt",
+          "role": "model"
+        }
+      ],
+      "runtime": {
+        "engine": "copisteria"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "evidence-2m.pt",
+            "repo": "kobimusic/copisteria",
+            "revision": "faad5609fa8f59e65c379158a20de23b215205f8",
+            "source": "huggingface"
+          },
+          "path": "evidence-2m.pt",
+          "sha256": "7a3eb0362b44016e941680c5df1e133239576592ab134057c3dbac8e9f3b8838",
+          "size": 8145299
+        },
+        {
+          "origin": {
+            "file": "v7_obj-recall-30m_best.pt",
+            "repo": "kobimusic/copisteria",
+            "revision": "faad5609fa8f59e65c379158a20de23b215205f8",
+            "source": "huggingface"
+          },
+          "path": "small/v7_obj-recall-30m_best.pt",
+          "sha256": "9f1db282271fb1064461387da4a2e15de14b099c49b619c21429cdc45be85cfe",
+          "size": 115352175
+        }
+      ],
+      "license": "apache-2.0",
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "pt"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Lecture de partition imprimée → MusicXML",
+      "license": null,
+      "model_type": "music",
+      "platform_ref": "huggingface:kobimusic/copisteria",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.11501598544418812,
+      "ram_gb": 0.0,
+      "vram_gb": 1.0
+    }
+  },
+  "description": "copisteria (KobiMusic, 2026) : une page de partition IMPRIMÉE (scan, photo, PDF) → son MusicXML — un détecteur de symboles de 28,7 M de paramètres, corrigé par un modèle d'évidence de 2 M. N'écrit pas les paroles ; le manuscrit n'est pas lu. Code et poids Apache-2.0.",
+  "key": "huggingface:kobimusic/copisteria",
+  "manifest_kind": "model",
+  "name": "copisteria (copista-28m)",
+  "projects": [],
+  "requires": [
+    {
+      "key": "opencv-python",
+      "kind": "library"
+    },
+    {
+      "key": "pillow",
+      "kind": "library"
+    },
+    {
+      "key": "scipy",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "torchvision",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:kobimusic/copisteria",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

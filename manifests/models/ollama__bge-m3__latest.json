@@ -8,6 +8,7 @@
       "completion": false,
       "context_length": 8192,
       "embedding": true,
+      "inputs_optional": [],
       "inputs_required": [
         "prompt"
       ],
@@ -16,6 +17,8 @@
       ],
       "params_active_b": 0.5667000000000001,
       "params_total_b": 0.5667000000000001,
+      "recommended_temperature": null,
+      "recommended_top_p": null,
       "task": "feature-extraction",
       "thinking": false,
       "tools": false,
@@ -27,6 +30,17 @@
       }
     },
     "extra_info": {
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://ollama.com/library/bge-m3:latest",
+          "https://build.nvidia.com/baai/bge-m3/deploy?nim=self-hosted",
+          "https://ollama.com/library/bge-m3:latest/blobs/daec91ffb5dd"
+        ]
+      },
+      "quantization": "F16",
       "vram_provenance": "heuristic"
     },
     "formats": {
@@ -35,7 +49,7 @@
     },
     "identity": {
       "author": "BAAI",
-      "description_short": "Ollama LLM (1.2 GB)",
+      "description_short": "Modèle d'embedding multilingue et multi-granulaire de BAAI pour la recherche dense, vectorielle et sparse.",
       "license": "mit",
       "model_type": "embedding",
       "platform_ref": "ollama:bge-m3",
@@ -57,7 +71,7 @@
       "vram_gb": 1.2
     }
   },
-  "description": "Ollama LLM (1.2 GB)",
+  "description": "Le modèle BGE-M3 est un embedding développé par BAAI (disponible via NVIDIA NIM ou Ollama) spécialisé dans les tâches de récupération de texte. Il prend en entrée des textes et génère des vecteurs d'embedding capables de gérer la densité, la multi-vecteurisation et la récupération sparse. Ses points forts incluent sa polyvalence multilingue et sa capacité à traiter un contexte jusqu'à 8192 tokens.",
   "key": "ollama:bge-m3:latest",
   "manifest_kind": "model",
   "name": "bge-m3:latest",

@@ -22,6 +22,18 @@
       }
     },
     "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "facial_expression_model_weights.h5",
+            "release": "serengil/deepface_models:v1.0",
+            "source": "github"
+          },
+          "path": "facial_expression_model_weights.h5",
+          "sha256": "e8e8851d3fa05c001b1c27fd8841dfe08d7f82bb786a53ad8776725b7a1e824c",
+          "size": 5977392
+        }
+      ],
       "model_id": "deepface-expression",
       "optional": false,
       "vram_provenance": "declared"
@@ -62,7 +74,12 @@
   "manifest_kind": "model",
   "name": "deepface-expression",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "deepface",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:face_analyzer:deepface-expression",

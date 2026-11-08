@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Qwen3-Next-80B-A3B-Instruct is an instruction-tuned chat model in the Qwen3-Next series optimized for fast, stable responses without “thinking” traces",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen3-Next-80B-A3B-Instruct",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Qwen3-Next-80B-A3B-Instruct is an instruction-tuned chat model in the Qwen3-Next series optimized for fast, stable responses without “thinking” traces. It targets complex tasks across reasoning, code generation, knowledge QA, and multilingual...",
   "key": "openrouter:qwen/qwen3-next-80b-a3b-instruct",
   "manifest_kind": "model",
   "name": "Qwen: Qwen3 Next 80B A3B Instruct",

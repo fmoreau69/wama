@@ -34,7 +34,7 @@
       "can_convert_to": [
         "onnx"
       ],
-      "format": "safetensors"
+      "format": "pt"
     },
     "identity": {
       "author": "facebook",
@@ -66,7 +66,12 @@
   "manifest_kind": "model",
   "name": "SAM3 (Segment Anything)",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "sam3",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:sam3",

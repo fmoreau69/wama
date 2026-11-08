@@ -16,6 +16,34 @@
       }
     },
     "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "archive_sha256": "49c52edc8947ae1f9bf50d81530beaf3a2c3245aeaf34b6f31ff535cd22284d2",
+            "file": "models/DeepFilterNet3.zip",
+            "member": "DeepFilterNet3/config.ini",
+            "repo": "Rikorose/DeepFilterNet",
+            "revision": "82b0c7ad33fc756284104053817d1e855d8d8386",
+            "source": "github"
+          },
+          "path": "DeepFilterNet3/config.ini",
+          "sha256": "415eb925d44990d938fb739f514aa3662c1ec0ea836cff044fa1291b82cb4290",
+          "size": 2067
+        },
+        {
+          "origin": {
+            "archive_sha256": "49c52edc8947ae1f9bf50d81530beaf3a2c3245aeaf34b6f31ff535cd22284d2",
+            "file": "models/DeepFilterNet3.zip",
+            "member": "DeepFilterNet3/checkpoints/model_120.ckpt.best",
+            "repo": "Rikorose/DeepFilterNet",
+            "revision": "82b0c7ad33fc756284104053817d1e855d8d8386",
+            "source": "github"
+          },
+          "path": "DeepFilterNet3/checkpoints/model_120.ckpt.best",
+          "sha256": "23b92884f63ccf54bb026014604625ab231657b6480df65db4095c4c171e6003",
+          "size": 8714073
+        }
+      ],
       "vram_provenance": "declared"
     },
     "formats": {
@@ -41,7 +69,7 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.0,
+      "disk_gb": 0.008117537945508957,
       "ram_gb": 0.0,
       "vram_gb": 1.0
     }

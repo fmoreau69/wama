@@ -30,12 +30,20 @@
     },
     "extra_info": {
       "category": "music",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/m-a-p/SheetSage2"
+        ]
+      },
       "family": "SheetSage2",
       "vram_measured": {
-        "at": "2026-10-04T18:27:21+00:00",
+        "at": "2026-11-03T22:50:21+00:00",
         "last_gb": 2.52,
         "max_gb": 2.52,
-        "n": 7
+        "n": 21
       },
       "vram_provenance": "estimated"
     },
@@ -45,7 +53,7 @@
     },
     "identity": {
       "author": "m-a-p",
-      "description_short": "Snapshot HF SheetSage2",
+      "description_short": "Convertit des enregistrements musicaux en partitions éditable (ABC/MIDI) et annotations temporelles.",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
       "platform_ref": "huggingface:m-a-p/SheetSage2",
@@ -75,7 +83,7 @@
       "vram_gb": 0.3
     }
   },
-  "description": "Snapshot HuggingFace installé (music/SheetSage2), catalogué par le balayage générique des modèles installés.",
+  "description": "SheetSage2 transforme les enregistrements audio complets en scores modifiables, accompagnements harmoniques et annotations temporelles. Il prend un fichier audio ou une onde sonore comme entrée et génère des fichiers ABC, MIDI séparés (mélodie/accords) ainsi que des événements temporisés. Le modèle est basé sur MERT-v2-FullSong avec supervision synthétique dérivée du MIDI, corrige automatiquement la notation enracinée selon la tonalité locale sans modifier les hauteurs sonores ou le timing.",
   "key": "huggingface:m-a-p/SheetSage2",
   "manifest_kind": "model",
   "name": "SheetSage2",

@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Qwen3-Coder-30B-A3B-Instruct is a 30.5B parameter Mixture-of-Experts (MoE) model with 128 experts (8 active per forward pass), designed for advanced code generation, repository-scale understanding,…",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen3-Coder-30B-A3B-Instruct",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Qwen3-Coder-30B-A3B-Instruct is a 30.5B parameter Mixture-of-Experts (MoE) model with 128 experts (8 active per forward pass), designed for advanced code generation, repository-scale understanding, and agentic tool use. Built on the...",
   "key": "openrouter:qwen/qwen3-coder-30b-a3b-instruct",
   "manifest_kind": "model",
   "name": "Qwen: Qwen3 Coder 30B A3B Instruct",

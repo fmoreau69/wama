@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "DeepSeek V4 Flash Vision Exp is an experimental vision-enabled version of [DeepSeek V4 Flash 0731](https://openrouter.ai/deepseek/deepseek-v4-flash-0731) from DeepSeek, adding image understanding w…",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "DeepSeek V4 Flash Vision Exp is an experimental vision-enabled version of [DeepSeek V4 Flash 0731](https://openrouter.ai/deepseek/deepseek-v4-flash-0731) from DeepSeek, adding image understanding while matching the base model on text capabilities including agents,...",
   "key": "openrouter:deepseek/deepseek-v4-flash-vision-exp",
   "manifest_kind": "model",
   "name": "DeepSeek: DeepSeek V4 Flash Vision Exp",

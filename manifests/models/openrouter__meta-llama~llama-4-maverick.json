@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Llama 4 Maverick 17B Instruct (128E) is a high-capacity multimodal language model from Meta, built on a mixture-of-experts (MoE) architecture with 128 experts and 17 billion active parameters per f…",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:meta-llama/Llama-4-Maverick-17B-128E-Instruct",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Llama 4 Maverick 17B Instruct (128E) is a high-capacity multimodal language model from Meta, built on a mixture-of-experts (MoE) architecture with 128 experts and 17 billion active parameters per forward...",
   "key": "openrouter:meta-llama/llama-4-maverick",
   "manifest_kind": "model",
   "name": "Meta: Llama 4 Maverick",

@@ -8,9 +8,13 @@
         "audio"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
+      "realtime": false,
       "recommended_temperature": 0.9,
+      "recommended_top_p": 1.0,
       "supports_cloning": false,
       "task": "text-to-speech"
     },
@@ -33,6 +37,14 @@
     },
     "extra_info": {
       "category": "speech",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+        ]
+      },
       "family": "Qwen3-TTS-12Hz-1.7B-CustomVoice",
       "vram_measured": {
         "at": "2026-10-03T07:50:16+00:00",
@@ -48,7 +60,7 @@
     },
     "identity": {
       "author": "Qwen",
-      "description_short": "Snapshot HF Qwen3-TTS-12Hz-1.7B-CustomVoice",
+      "description_short": "Modèle de synthèse vocale Qwen3-TTS-12Hz-1.7B-CustomVoice supportant 10 langues et le contrôle par instructions naturelles.",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "speech",
@@ -74,7 +86,7 @@
       "vram_gb": 5.4
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/Qwen3-TTS-12Hz-1.7B-CustomVoice), catalogué par le balayage générique des modèles installés.",
+  "description": "Ce modèle effectue la synthèse vocale end-to-end avec une génération en streaming ultra-rapide (latence <97ms) et un contrôle vocal via des instructions textuelles. Il prend en entrée du texte, une langue cible et des paramètres de voix, pour produire une sortie audio haute fidélité. Ses points forts incluent sa robustesse au bruit, sa capacité à préserver les informations paralinguistiques et son architecture légère non-DiT ; il ne mentionne pas explicitement de licence ou de limite de taille spécifique dans la source.",
   "key": "huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
   "manifest_kind": "model",
   "name": "Qwen3-TTS-12Hz-1.7B-CustomVoice",

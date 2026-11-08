@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "MiniMax-01 is a combines MiniMax-Text-01 for text generation and MiniMax-VL-01 for image understanding",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:MiniMaxAI/MiniMax-Text-01",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "MiniMax-01 is a combines MiniMax-Text-01 for text generation and MiniMax-VL-01 for image understanding. It has 456 billion parameters, with 45.9 billion parameters activated per inference, and can handle a context...",
   "key": "openrouter:minimax/minimax-01",
   "manifest_kind": "model",
   "name": "MiniMax: MiniMax-01",

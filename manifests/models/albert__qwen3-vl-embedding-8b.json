@@ -19,6 +19,14 @@
       "aliases": [
         "Qwen/Qwen3-VL-Embedding-8B"
       ],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/Qwen/Qwen3-VL-Embedding-8B"
+        ]
+      },
       "hosting": "sovereign",
       "remote_type": "text-embeddings-inference"
     },
@@ -28,7 +36,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Albert API (DINUM) — modèle distant (text-embeddings-inference)",
+      "description_short": "Modèle d'embedding multimodal (texte, images, vidéos) de 8B paramètres pour la recherche et le regroupement de contenu.",
       "license": null,
       "model_type": "embedding",
       "platform_ref": "huggingface:Qwen/Qwen3-VL-Embedding-8B",
@@ -53,7 +61,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Albert API (DINUM) — modèle distant (text-embeddings-inference)",
+  "description": "Le Qwen3-VL-Embedding-8B est un modèle d'embedding multimodal conçu pour générer des vecteurs riches sémantiquement à partir de textes, images, captures d'écran et vidéos. Il accepte des entrées mixtes et produit des sorties vectorielles de haute dimension (jusqu'à 4096) optimisées pour la recherche et le regroupement. Avec un contexte de 32k tokens et une prise en charge de plus de 30 langues, il offre des performances exceptionnelles dans les tâches de compréhension croisée modale.",
   "key": "albert:qwen3-vl-embedding-8b",
   "manifest_kind": "model",
   "name": "qwen3-vl-embedding-8b",

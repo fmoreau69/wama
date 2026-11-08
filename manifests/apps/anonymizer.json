@@ -73,6 +73,10 @@
               "args": [],
               "class": "django.db.models.FileField",
               "kwargs": {
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "upload_to": {
                   "expr": "wama.common.utils.media_paths.UploadToUserPath('anonymizer', 'input')",
                   "imports": [
@@ -792,6 +796,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -1127,7 +1135,8 @@
             "stales": null,
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ],
         "PARAMS_JSON": [
@@ -1188,7 +1197,8 @@
             ],
             "step": null,
             "type": "radio",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1243,7 +1253,8 @@
             ],
             "step": null,
             "type": "textarea",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1301,7 +1312,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1353,7 +1365,8 @@
             ],
             "step": 5,
             "type": "intent",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1405,7 +1418,8 @@
             ],
             "step": 0.05,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1457,7 +1471,8 @@
             ],
             "step": 2,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1507,7 +1522,8 @@
             ],
             "step": 1,
             "type": "number",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1559,7 +1575,8 @@
             ],
             "step": 0.05,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1611,7 +1628,8 @@
             ],
             "step": 1,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1661,7 +1679,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1714,7 +1733,8 @@
             ],
             "step": 1,
             "type": "number",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1764,7 +1784,8 @@
             ],
             "step": 1,
             "type": "number",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1814,7 +1835,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1862,7 +1884,8 @@
             "stales": [],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1910,7 +1933,8 @@
             "stales": [],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1958,7 +1982,8 @@
             "stales": [],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -2006,7 +2031,8 @@
             "stales": [],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -2132,7 +2158,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -2213,7 +2240,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ]
       }

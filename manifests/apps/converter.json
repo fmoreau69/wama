@@ -3,7 +3,12 @@
     "access": {
       "min_tier": null,
       "public": true,
-      "roles": []
+      "roles": [
+        "administratif",
+        "communication",
+        "ingenierie",
+        "recherche"
+      ]
     },
     "capabilities": {
       "accepts_url": true,
@@ -174,6 +179,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -259,6 +268,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "upload_to": {
                   "expr": "wama.common.utils.media_paths.UploadToUserPath('converter', 'input')",
                   "imports": [
@@ -321,6 +334,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -340,6 +357,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -1029,7 +1050,8 @@
             ],
             "step": null,
             "type": "hidden",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1116,7 +1138,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1178,7 +1201,8 @@
             ],
             "step": 1,
             "type": "intent",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1230,7 +1254,8 @@
             ],
             "step": 1,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1283,7 +1308,8 @@
             ],
             "step": null,
             "type": "number",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1336,7 +1362,8 @@
             ],
             "step": null,
             "type": "number",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1409,7 +1436,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1465,7 +1493,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1521,7 +1550,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1574,7 +1604,8 @@
             ],
             "step": null,
             "type": "number",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1627,7 +1658,8 @@
             ],
             "step": null,
             "type": "number",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1680,7 +1712,8 @@
             ],
             "step": null,
             "type": "number",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1733,7 +1766,8 @@
             ],
             "step": null,
             "type": "number",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1807,7 +1841,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1877,7 +1912,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1943,7 +1979,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1996,7 +2033,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2062,7 +2100,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2115,7 +2154,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2171,7 +2211,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ]
       }
@@ -2395,7 +2436,7 @@
             "upscale": "select — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU). (choix :  | x2 | x4)",
             "video_quality": "number — 0 = sans perte, 23 = défaut, 51 = pire qualité. [0–51]"
           },
-          "description": "Ajoute un élément à la file d'attente de Converter (Conversion de formats : image, vidéo, audio, documents, archives (Pillow + FFmpeg + Pandoc)) et renvoie son item_id."
+          "description": "Ajoute un élément à la file d'attente de Converter (Conversion de formats : image, vidéo, audio, documents, archives) et renvoie son item_id."
         },
         "get_converter_status": {
           "args": {},
@@ -2418,9 +2459,6 @@
         "queue_filter": {
           "ephemeral": false
         },
-        "reset": {
-          "error_message": ""
-        },
         "status_fields": {
           "error_message": {
             "attr": "error_message",
@@ -2437,17 +2475,49 @@
           "progress": "progress",
           "status": "status"
         },
-        "status_order": "-created_at",
-        "task": "wama.converter.tasks.convert_media_task"
+        "status_order": "-created_at"
       }
     }
   },
-  "description": "Conversion de formats : image, vidéo, audio, documents, archives (Pillow + FFmpeg + Pandoc).",
+  "description": "Conversion de formats : image, vidéo, audio, documents, archives.",
   "key": "converter",
   "manifest_kind": "app",
   "name": "Converter",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "PyMuPDF",
+      "kind": "library"
+    },
+    {
+      "key": "pdf2docx",
+      "kind": "library"
+    },
+    {
+      "key": "pillow",
+      "kind": "library"
+    },
+    {
+      "key": "playwright",
+      "kind": "library"
+    },
+    {
+      "key": "py7zr",
+      "kind": "library"
+    },
+    {
+      "key": "pypandoc",
+      "kind": "library"
+    },
+    {
+      "key": "rarfile",
+      "kind": "library"
+    },
+    {
+      "key": "weasyprint",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:converter",

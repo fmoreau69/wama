@@ -24,11 +24,65 @@
         "audio"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed"
       ],
       "recommended_temperature": 0.7,
+      "recommended_top_p": null,
       "supports_cloning": false,
-      "task": "text-to-speech"
+      "task": "text-to-speech",
+      "voices": [
+        {
+          "label": "Bark EN Speaker 0",
+          "language": "en",
+          "value": "bark_v2_en_0"
+        },
+        {
+          "label": "Bark EN Speaker 1",
+          "language": "en",
+          "value": "bark_v2_en_1"
+        },
+        {
+          "label": "Bark EN Speaker 2",
+          "language": "en",
+          "value": "bark_v2_en_2"
+        },
+        {
+          "label": "Bark EN Speaker 3",
+          "language": "en",
+          "value": "bark_v2_en_3"
+        },
+        {
+          "label": "Bark EN Speaker 4",
+          "language": "en",
+          "value": "bark_v2_en_4"
+        },
+        {
+          "label": "Bark EN Speaker 5",
+          "language": "en",
+          "value": "bark_v2_en_5"
+        },
+        {
+          "label": "Bark FR Speaker 0",
+          "language": "fr",
+          "value": "bark_v2_fr_0"
+        },
+        {
+          "label": "Bark FR Speaker 1",
+          "language": "fr",
+          "value": "bark_v2_fr_1"
+        },
+        {
+          "label": "Bark ES Speaker 0",
+          "language": "es",
+          "value": "bark_v2_es_0"
+        },
+        {
+          "label": "Bark DE Speaker 0",
+          "language": "de",
+          "value": "bark_v2_de_0"
+        }
+      ]
     },
     "composition": {
       "components": [

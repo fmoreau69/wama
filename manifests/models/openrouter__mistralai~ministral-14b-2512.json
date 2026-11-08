@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "The largest model in the Ministral 3 family, Ministral 3 14B offers frontier capabilities and performance comparable to its larger Mistral Small 3.2 24B counterpart",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Ministral-3-14B-Instruct-2512",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "The largest model in the Ministral 3 family, Ministral 3 14B offers frontier capabilities and performance comparable to its larger Mistral Small 3.2 24B counterpart. A powerful and efficient language...",
   "key": "openrouter:mistralai/ministral-14b-2512",
   "manifest_kind": "model",
   "name": "Mistral: Ministral 3 14B 2512",

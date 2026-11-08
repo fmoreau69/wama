@@ -5,11 +5,16 @@
       "inputs_required": [
         "prompt"
       ],
+      "languages": [
+        "en"
+      ],
       "modalities": [
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -30,11 +35,15 @@
       "format": null
     },
     "identity": {
-      "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
-      "license": null,
+      "author": "Qwen",
+      "description_short": "Qwen2.5 7B is the latest series of Qwen large language models",
+      "license": "apache-2.0",
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen2.5-7B-Instruct",
+      "publications": [
+        "2309.00071",
+        "2407.10671"
+      ],
       "source": "openrouter"
     },
     "prompts": {
@@ -53,7 +62,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Qwen2.5 7B is the latest series of Qwen large language models. Qwen2.5 brings the following improvements upon Qwen2: - Significantly more knowledge and has greatly improved capabilities in coding and...",
   "key": "openrouter:qwen/qwen-2.5-7b-instruct",
   "manifest_kind": "model",
   "name": "Qwen: Qwen2.5 7B Instruct",

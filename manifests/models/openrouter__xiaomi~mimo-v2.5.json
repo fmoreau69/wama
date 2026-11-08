@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "MiMo-V2.5 is a native omnimodal model by Xiaomi",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:XiaomiMiMo/MiMo-V2.5",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "MiMo-V2.5 is a native omnimodal model by Xiaomi. It delivers Pro-level agentic performance at roughly half the inference cost, while surpassing MiMo-V2-Omni in multimodal perception across image and video understanding...",
   "key": "openrouter:xiaomi/mimo-v2.5",
   "manifest_kind": "model",
   "name": "Xiaomi: MiMo-V2.5",

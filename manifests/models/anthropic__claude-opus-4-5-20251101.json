@@ -5,9 +5,13 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_temperature": 1.0,
       "modalities": [
         "text",
         "image"
+      ],
+      "params": [
+        "temperature"
       ],
       "task": "text-generation",
       "vision": true
@@ -19,6 +23,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://www.anthropic.com/news/claude-opus-4-5",
+          "https://platform.claude.com/docs/en/models/opus-4-5/overview",
+          "https://marketplace.microsoft.com/en-us/product/anthropic.anthropic-claude-opus-4-5-offer?tab=Overview"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -28,7 +42,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+      "description_short": "Modèle d'IA de pointe pour le codage, les agents et l'utilisation des ordinateurs.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -50,7 +64,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "description": "Claude Opus 4.5 est un modèle intelligent conçu par Anthropic, spécialisé dans le codage, les agents autonomes et l'utilisation des ordinateurs. Il accepte jusqu'à 200K tokens de contexte et peut générer jusqu'à 64K tokens de réponse. Bien qu'il soit disponible, la source recommande sa migration vers Claude Opus 5.5.",
   "key": "anthropic:claude-opus-4-5-20251101",
   "manifest_kind": "model",
   "name": "Claude Opus 4.5",

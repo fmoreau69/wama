@@ -27,7 +27,9 @@
         "audio"
       ],
       "params": [],
+      "realtime": true,
       "recommended_temperature": null,
+      "recommended_top_p": null,
       "reproducible": true,
       "supports_cloning": false,
       "supports_timestamps": true,
@@ -42,6 +44,86 @@
         "pl",
         "ru",
         "tr"
+      ],
+      "voices": [
+        {
+          "gender": "female",
+          "label": "Français féminin",
+          "language": "fr",
+          "value": "ff_siwis"
+        },
+        {
+          "gender": "female",
+          "label": "Anglais féminin",
+          "language": "en",
+          "value": "af_heart"
+        },
+        {
+          "gender": "male",
+          "label": "Anglais masculin",
+          "language": "en",
+          "value": "am_adam"
+        },
+        {
+          "gender": "female",
+          "label": "Espagnol féminin",
+          "language": "es",
+          "value": "ef_dora"
+        },
+        {
+          "gender": "male",
+          "label": "Espagnol masculin",
+          "language": "es",
+          "value": "em_alex"
+        },
+        {
+          "gender": "female",
+          "label": "Italien féminin",
+          "language": "it",
+          "value": "if_sara"
+        },
+        {
+          "gender": "male",
+          "label": "Italien masculin",
+          "language": "it",
+          "value": "im_nicola"
+        },
+        {
+          "gender": "female",
+          "label": "Portugais féminin",
+          "language": "pt",
+          "value": "pf_dora"
+        },
+        {
+          "gender": "male",
+          "label": "Portugais masculin",
+          "language": "pt",
+          "value": "pm_alex"
+        },
+        {
+          "gender": "female",
+          "label": "Japonais féminin",
+          "language": "ja",
+          "value": "jf_alpha"
+        },
+        {
+          "gender": "male",
+          "label": "Japonais masculin",
+          "language": "ja",
+          "value": "jm_kumo"
+        },
+        {
+          "gender": "female",
+          "label": "Chinois féminin",
+          "language": "zh-cn",
+          "value": "zf_001"
+        },
+        {
+          "gender": "male",
+          "label": "Chinois masculin",
+          "language": "zh-cn",
+          "value": "zm_010"
+        }
       ]
     },
     "composition": {

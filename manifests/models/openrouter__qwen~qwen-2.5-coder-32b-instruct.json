@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Qwen2.5-Coder is the latest series of Code-Specific Qwen large language models (formerly known as CodeQwen)",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen2.5-Coder-32B-Instruct",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Qwen2.5-Coder is the latest series of Code-Specific Qwen large language models (formerly known as CodeQwen). Qwen2.5-Coder brings the following improvements upon CodeQwen1.5: - Significantly improvements in **code generation**, **code reasoning**...",
   "key": "openrouter:qwen/qwen-2.5-coder-32b-instruct",
   "manifest_kind": "model",
   "name": "Qwen2.5 Coder 32B Instruct",

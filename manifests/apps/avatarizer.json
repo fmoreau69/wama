@@ -308,6 +308,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -367,6 +371,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -510,6 +518,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -594,6 +606,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -853,7 +869,8 @@
             ],
             "step": null,
             "type": "textarea",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -911,7 +928,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -968,7 +986,8 @@
             ],
             "step": 1,
             "type": "intent",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1083,7 +1102,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1141,7 +1161,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1210,7 +1231,8 @@
             ],
             "step": 0.05,
             "type": "temperature",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1270,7 +1292,8 @@
             ],
             "step": 1,
             "type": "seed",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1330,7 +1353,8 @@
             ],
             "step": 0.05,
             "type": "top_p",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1388,7 +1412,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1441,7 +1466,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1494,7 +1520,8 @@
             ],
             "step": 1,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1577,7 +1604,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1654,7 +1682,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ]
       }
@@ -1934,7 +1963,7 @@
             "output_format": "select — Format de sortie (choix : original | mp4 | webm | avi | mov | mkv | gif) (défaut : 'original')",
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max) (défaut : 'balanced')",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
-            "quality_mode": "str (défaut : 'fast')",
+            "quality_mode": "str",
             "text_content": "textarea — La relance régénère la voix depuis ce texte.",
             "tts_model": "select — Modèle TTS (défaut : 'synthesizer:coqui-xtts')",
             "tts_seed": "seed — Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine. [0–2147483647]",
@@ -1943,7 +1972,7 @@
             "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. Photo animée seulement : sans effet sur un avatar 3D. (défaut : False)",
             "voice_preset": "select — Voix (défaut : 'default')"
           },
-          "description": "Ajoute un élément à la file d'attente de Avatarizer (Génération de vidéos d'avatars parlants : une photo animée par IA (MuseTalk + CodeFormer) ou un avatar 3D riggé rendu par TalkingHead) et renvoie son item_id."
+          "description": "Ajoute un élément à la file d'attente de Avatarizer (Génération de vidéos d'avatars parlants : une photo animée par IA ou un avatar 3D riggé, dont les lèvres suivent la voix) et renvoie son item_id."
         },
         "get_avatarizer_status": {
           "args": {},
@@ -1958,14 +1987,20 @@
         }
       },
       "start": "start_avatarizer",
+      "start_selection": {
+        "pending": {},
+        "pending_exclude": {
+          "status__in": [
+            "RUNNING",
+            "SUCCESS"
+          ]
+        }
+      },
       "status": "get_avatarizer_status",
       "triad_spec": {
         "empty_msg": "Aucun job avatar en attente.",
         "id_kwarg": "job_id",
         "model": "wama.avatarizer.models.AvatarJob",
-        "reset": {
-          "error_message": ""
-        },
         "status_fields": {
           "duration_seconds": "duration_seconds",
           "error": {
@@ -1981,12 +2016,11 @@
           "progress": "progress",
           "status": "status"
         },
-        "status_order": "-id",
-        "task_for": "wama.avatarizer.views._task_for"
+        "status_order": "-id"
       }
     }
   },
-  "description": "Génération de vidéos d'avatars parlants : une photo animée par IA (MuseTalk + CodeFormer) ou un avatar 3D riggé rendu par TalkingHead.",
+  "description": "Génération de vidéos d'avatars parlants : une photo animée par IA ou un avatar 3D riggé, dont les lèvres suivent la voix.",
   "key": "avatarizer",
   "manifest_kind": "app",
   "name": "Avatarizer",
@@ -2037,7 +2071,23 @@
       "kind": "model"
     },
     {
+      "key": "basicsr",
+      "kind": "library"
+    },
+    {
       "key": "boson_multimodal",
+      "kind": "library"
+    },
+    {
+      "key": "coqui-tts",
+      "kind": "library"
+    },
+    {
+      "key": "encodec",
+      "kind": "library"
+    },
+    {
+      "key": "facexlib",
       "kind": "library"
     },
     {
@@ -2053,11 +2103,35 @@
       "kind": "library"
     },
     {
+      "key": "mmcv",
+      "kind": "library"
+    },
+    {
+      "key": "mmengine",
+      "kind": "library"
+    },
+    {
+      "key": "mmpose",
+      "kind": "library"
+    },
+    {
       "key": "onnxruntime-gpu",
       "kind": "library"
     },
     {
+      "key": "phonemizer",
+      "kind": "library"
+    },
+    {
+      "key": "playwright",
+      "kind": "library"
+    },
+    {
       "key": "ptts",
+      "kind": "library"
+    },
+    {
+      "key": "pyyaml",
       "kind": "library"
     },
     {
@@ -2070,6 +2144,10 @@
     },
     {
       "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "sox",
       "kind": "library"
     },
     {

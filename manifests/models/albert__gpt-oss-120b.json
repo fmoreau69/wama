@@ -9,9 +9,12 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
-      "task": "text-generation"
+      "task": "text-generation",
+      "thinking": true
     },
     "composition": {
       "runtime": {
@@ -23,6 +26,14 @@
         "openweight-large",
         "openai/gpt-oss-120b"
       ],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/openai/gpt-oss-120b"
+        ]
+      },
       "hosting": "sovereign",
       "remote_type": "text-generation"
     },
@@ -32,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Albert API (DINUM) — modèle distant (text-generation)",
+      "description_short": "Modèle IA open-weight gpt-oss-120b (117B paramètres) avec Apache 2.0, conçu pour le raisonnement et les tâches agentic sur GPU unique.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:openai/gpt-oss-120b",
@@ -57,7 +68,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Albert API (DINUM) — modèle distant (text-generation)",
+  "description": "Le modèle gpt-oss-120b est un modèle de langage open-weight à 117 milliards de paramètres entraîné dans le format Harmony pour des tâches de raisonnement avancé et d'exécution agentique. Il nécessite impérativement l'utilisation du format Harmony pour fonctionner correctement, bien qu'il soit quantifié en MXFP4 pour s'exécuter sur une seule carte GPU (ex: NVIDIA H100). Ses points forts incluent une licence permissive Apache 2.0 sans restrictions de copyleft, la possibilité d'ajuster le niveau de raisonnement (basique à profond) et sa capacité à être fine-tuné pour des cas d'usage spécifiques.",
   "key": "albert:gpt-oss-120b",
   "manifest_kind": "model",
   "name": "gpt-oss-120b",

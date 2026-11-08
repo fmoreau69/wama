@@ -58,7 +58,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": null
+      "format": "gguf"
     },
     "identity": {
       "author": "MiniMaxAI (poids) / audio-cpp (package GGUF)",

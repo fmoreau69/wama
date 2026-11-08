@@ -5,9 +5,13 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_temperature": 1.0,
       "modalities": [
         "text",
         "image"
+      ],
+      "params": [
+        "temperature"
       ],
       "task": "text-generation",
       "vision": true
@@ -19,6 +23,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://indianexpress.com/article/technology/tech-news-technology/anthropic-rolls-out-opus-5-ai-model-in-efficiency-upgrade-10802744/",
+          "https://decrypt.co/374305/claude-opus-5-outscores-fable-5-most-benchmarks-half-price",
+          "https://discuss.google.dev/t/claude-opus-5-is-now-available-on-agent-platform/384568"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -28,7 +42,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+      "description_short": "Le modèle Claude Opus 5 d'Anthropic offre des performances proches du Fable 5 à moitié prix, avec un focus sur le codage et la productivité.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -50,7 +64,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "description": "Claude Opus 5 est un modèle de langage généré par Anthropic disponible depuis juillet 2026, conçu pour les tâches quotidiennes et le développement logiciel. Il propose des performances supérieures au Fable 5 sur la plupart des benchmarks tout en coûtant à moitié prix (5 $/1M tokens d'entrée). Le modèle s'inscrit dans une licence commerciale via l'API OpenRouter ou Vercel AI Gateway, avec un contexte de 1 million de tokens et cinq niveaux d'effort.",
   "key": "anthropic:claude-opus-5",
   "manifest_kind": "model",
   "name": "Claude Opus 5",

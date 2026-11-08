@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Meta's latest class of model (Llama 3.1) launched with a variety of sizes & flavors",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:meta-llama/Meta-Llama-3.1-70B-Instruct",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Meta's latest class of model (Llama 3.1) launched with a variety of sizes & flavors. This 70B instruct-tuned version is optimized for high quality dialogue usecases. It has demonstrated strong...",
   "key": "openrouter:meta-llama/llama-3.1-70b-instruct",
   "manifest_kind": "model",
   "name": "Meta: Llama 3.1 70B Instruct",

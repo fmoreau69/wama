@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Qwen3.8 Flash is a multimodal reasoning model from Alibaba",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen3.8-Flash-Next",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Qwen3.8 Flash is a multimodal reasoning model from Alibaba. It is suited for coding assistance, agentic workflows, visual understanding, document and codebase analysis, desktop interaction, chart analysis, and long-video analysis.",
   "key": "openrouter:qwen/qwen3.8-flash",
   "manifest_kind": "model",
   "name": "Qwen: Qwen3.8 Flash",

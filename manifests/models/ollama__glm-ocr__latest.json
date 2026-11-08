@@ -10,6 +10,7 @@
       "completion": true,
       "context_length": 131072,
       "embedding": false,
+      "inputs_optional": [],
       "inputs_required": [
         "work_file"
       ],
@@ -22,6 +23,8 @@
       ],
       "params_active_b": 1.1,
       "params_total_b": 1.1,
+      "recommended_temperature": 0.0,
+      "recommended_top_p": null,
       "task": "ocr",
       "thinking": false,
       "tools": true,
@@ -33,6 +36,23 @@
       }
     },
     "extra_info": {
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://ollama.com/library/glm-ocr:latest",
+          "https://ollama.com/library/glm-ocr/tags",
+          "https://ollama.com/library/glm-ocr:latest/blobs/65493e1f85b9"
+        ]
+      },
+      "quantization": "F16",
+      "vram_measured": {
+        "at": "2026-11-08T04:58:26+00:00",
+        "last_gb": 7.21,
+        "max_gb": 7.21,
+        "n": 1
+      },
       "vram_provenance": "heuristic"
     },
     "formats": {
@@ -41,7 +61,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Ollama LLM (2.2 GB)",
+      "description_short": "Modèle OCR multimodal GLM-V pour la compréhension de documents complexes, supportant texte et images.",
       "license": null,
       "model_type": "ocr",
       "platform_ref": "ollama:glm-ocr",
@@ -63,7 +83,7 @@
       "vram_gb": 2.2
     }
   },
-  "description": "Ollama LLM (2.2 GB)",
+  "description": "GLM-OCR est un modèle OCR multimodal basé sur l'architecture encoder-décodeur GLM-V conçu pour comprendre des documents complexes. Il accepte du texte et des images en entrée et peut traiter jusqu'à une fenêtre de contexte de 128K tokens. Disponible sous différentes tailles (ex: glm-ocr:latest à 2,7 Go), il nécessite une licence commerciale.",
   "key": "ollama:glm-ocr:latest",
   "manifest_kind": "model",
   "name": "glm-ocr:latest",

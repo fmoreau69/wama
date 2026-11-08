@@ -1,0 +1,79 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ilaas"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603",
+          "https://catalog.ngc.nvidia.com/orgs/nim/mistralai/models/mistral-small-4-119b-2603/hf-b1a9048-nvfp4-mistral",
+          "https://huggingface.co/collections/mistralai/mistral-small-4"
+        ]
+      },
+      "hosting": "sovereign",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Modèle hybride multimodal de 119B paramètres unifiant les capacités d'instruction, de raisonnement et d'agents.",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "ilaas"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ilaas",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Mistral-Small-4 est un modèle hybride open-weight capable d'agir à la fois comme modèle d'instruction généraliste et de raisonnement. Il intègre une architecture Mixture-of-Experts granulaire qui fusionne les compétences des familles Instruct, Reasoning (Magistral) et Devstral dans un seul modèle unique. Ce modèle multimodal accepte des entrées textuelles et visuelles à grande échelle, avec des checkpoints FP8 pour optimiser l'exactitude.",
+  "key": "ilaas:mistral-small-4-119b",
+  "manifest_kind": "model",
+  "name": "mistral-small-4-119b",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ilaas:mistral-small-4-119b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

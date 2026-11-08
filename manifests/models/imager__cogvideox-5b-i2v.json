@@ -17,6 +17,9 @@
         "video"
       ],
       "native_resolution": "720x480",
+      "params": [
+        "seed"
+      ],
       "task": "image-to-video",
       "tasks": [
         "image-to-video"

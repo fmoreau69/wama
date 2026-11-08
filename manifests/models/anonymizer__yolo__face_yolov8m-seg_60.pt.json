@@ -82,7 +82,12 @@
   "manifest_kind": "model",
   "name": "face_yolov8m-seg_60.pt",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "ultralytics",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:yolo:face_yolov8m-seg_60.pt",

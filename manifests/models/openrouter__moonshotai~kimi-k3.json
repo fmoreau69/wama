@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Kimi K3 is a 2.8T parameter open-weight multimodal reasoning model from Moonshot AI",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:moonshotai/Kimi-K3",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Kimi K3 is a 2.8T parameter open-weight multimodal reasoning model from Moonshot AI. It is suited for complex coding, knowledge work, and long-horizon agentic workflows, and is particularly strong at...",
   "key": "openrouter:moonshotai/kimi-k3",
   "manifest_kind": "model",
   "name": "MoonshotAI: Kimi K3",

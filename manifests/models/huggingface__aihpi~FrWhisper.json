@@ -26,6 +26,14 @@
     },
     "extra_info": {
       "category": "speech",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/aihpi/FrWhisper"
+        ]
+      },
       "family": "FrWhisper",
       "vram_measured": {
         "at": "2026-10-02T20:26:40+00:00",
@@ -41,7 +49,7 @@
     },
     "identity": {
       "author": "aihpi",
-      "description_short": "Snapshot HF FrWhisper",
+      "description_short": "Modèle d'IA fine-tuné de Whisper Large-v3 pour la reconnaissance automatique de la parole en français conversationnel.",
       "license": "cc-by-nc-sa-4.0",
       "model_type": "speech",
       "platform_ref": "huggingface:aihpi/FrWhisper",
@@ -63,7 +71,7 @@
       "vram_gb": 7.4
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/FrWhisper), catalogué par le balayage générique des modèles installés.",
+  "description": "FrWhisper est une version fine-tunée du modèle openai/whisper-large-v3, entraînée sur les corpus ESLO et LangAge pour optimiser la transcription de discours conversationnels comportant des disfluences. Il accepte comme entrée un fichier audio (16 kHz mono) et produit en sortie le texte transcrit en français, avec une performance supérieure à la version base selon les tests WER/CER. Le modèle est disponible sous licence CC BY-NC-SA 4.0 uniquement pour la recherche académique non commerciale.",
   "key": "huggingface:aihpi/FrWhisper",
   "manifest_kind": "model",
   "name": "FrWhisper",

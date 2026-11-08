@@ -22,7 +22,8 @@
     },
     "extra_info": {
       "category": "vision",
-      "family": "locate-anything"
+      "family": "locate-anything",
+      "vram_provenance": "estimated"
     },
     "formats": {
       "can_convert_to": [],

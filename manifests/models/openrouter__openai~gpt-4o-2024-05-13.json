@@ -1,0 +1,71 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation",
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "hosting": "third_party",
+      "remote_type": "image-text-to-text"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "GPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as...",
+  "key": "openrouter:openai/gpt-4o-2024-05-13",
+  "manifest_kind": "model",
+  "name": "OpenAI: GPT-4o (2024-05-13)",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:openai/gpt-4o-2024-05-13",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

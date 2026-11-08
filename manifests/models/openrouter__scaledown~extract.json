@@ -1,0 +1,71 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation",
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "hosting": "third_party",
+      "remote_type": "image-text-to-text"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Extract is a description-driven entity extraction model from ScaleDown",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Extract is a description-driven entity extraction model from ScaleDown. Instead of a fixed set of entity types, callers describe the fields they want in plain English through `provider.options.scaledown.entities`, and the...",
+  "key": "openrouter:scaledown/extract",
+  "manifest_kind": "model",
+  "name": "ScaleDown: Extract",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:scaledown/extract",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

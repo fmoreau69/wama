@@ -124,7 +124,21 @@
     },
     "extra_info": {
       "category": "speech",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX"
+        ]
+      },
       "family": "Kokoro-82M-v1.0-ONNX",
+      "vram_measured": {
+        "at": "2026-11-08T15:02:02+00:00",
+        "last_gb": 0.52,
+        "max_gb": 0.53,
+        "n": 20
+      },
       "vram_provenance": "estimated"
     },
     "formats": {
@@ -135,7 +149,7 @@
       "author": "onnx-community",
       "base_model": "hexgrad/Kokoro-82M",
       "base_model_relation": "quantized",
-      "description_short": "Snapshot HF Kokoro-82M-v1.0-ONNX",
+      "description_short": "Modèle TTS de 82M paramètres converti en ONNX, supportant la génération audio à partir de texte via JavaScript ou Python.",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "speech",
@@ -158,7 +172,7 @@
       "vram_gb": 1.7
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/Kokoro-82M-v1.0-ONNX), catalogué par le balayage générique des modèles installés.",
+  "description": "Kokoro-82M-v1.0-ONNX est un modèle de synthèse vocale (TTS) léger de 82 millions de paramètres conçu pour fonctionner avec des quantisations variées (q8, fp16, etc.). Il prend en entrée du texte (converti en tokens phonémiques) et une représentation stylistique pour produire de l'audio WAV à 24 kHz. Le modèle est disponible via les bibliothèques kokoro-js et kokoro-python, avec des voix couvrant plusieurs nationalités (américaine, britannique) et genres.",
   "key": "huggingface:onnx-community/Kokoro-82M-v1.0-ONNX",
   "manifest_kind": "model",
   "name": "Kokoro-82M-v1.0-ONNX",

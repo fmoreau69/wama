@@ -47,7 +47,7 @@
       "gpu"
     ]
   },
-  "description": "Écoute les paroles du morceau à reprendre (cover) et les pose dans le champ « Paroles » de la card, en sections calées sur la partition : YuE2 ne reçoit ni l'audio ni son texte, et sa doc prescrit cette transcription. Seulement si le champ est vide et que le modèle chante ; à relire.",
+  "description": "Écoute les paroles du morceau à reprendre (cover) et en range les paroles horodatées au mot, que la partition de référence montre sous ses notes ; remplit le champ « Paroles », en sections calées sur la partition, s'il est vide : YuE2 ne reçoit ni l'audio ni son texte, et sa doc prescrit cette transcription. À relire.",
   "key": "composer.extract_lyrics",
   "manifest_kind": "function",
   "name": "Composer — paroles de l'entrée",

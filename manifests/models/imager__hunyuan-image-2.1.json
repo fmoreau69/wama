@@ -15,6 +15,9 @@
         "image"
       ],
       "native_resolution": "2048x2048",
+      "params": [
+        "seed"
+      ],
       "task": "text-to-image",
       "tasks": [
         "text-to-image"

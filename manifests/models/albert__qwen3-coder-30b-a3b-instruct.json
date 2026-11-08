@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -23,6 +25,14 @@
         "openweight-code",
         "Qwen/Qwen3-Coder-30B-A3B-Instruct"
       ],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct"
+        ]
+      },
       "hosting": "sovereign",
       "remote_type": "text-generation"
     },
@@ -32,7 +42,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Albert API (DINUM) — modèle distant (text-generation)",
+      "description_short": "Modèle de codage Qwen3-Coder-30B-A3B-Instruct (30,5B paramètres) spécialisé dans le développement logiciel et l'utilisation d'outils.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen3-Coder-30B-A3B-Instruct",
@@ -57,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Albert API (DINUM) — modèle distant (text-generation)",
+  "description": "Il s'agit d'un modèle de langage causal de 30,5 milliards de paramètres avec 262 144 tokens de contexte natif, optimisé pour les tâches de codage agentique et l'appel de fonctions. Il supporte la compréhension à grande échelle des dépôts via sa capacité native longue et intègre un format d'appel de fonction spécialement conçu pour les environnements comme Qwen Code ou CLINE. Ses entrées sont des prompts textuels ou des instructions, tandis que ses sorties sont du code généré ou des réponses structurées ; il ne supporte pas le mode réflexion (non-thinking) ni la génération de blocs ``</think>``.",
   "key": "albert:qwen3-coder-30b-a3b-instruct",
   "manifest_kind": "model",
   "name": "qwen3-coder-30b-a3b-instruct",

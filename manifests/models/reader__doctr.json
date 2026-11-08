@@ -17,6 +17,28 @@
       }
     },
     "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "fast_base-688a8b34.pt",
+            "release": "mindee/doctr:v0.8.1",
+            "source": "github"
+          },
+          "path": "models/fast_base-688a8b34.pt",
+          "sha256": "688a8b3489e9f5d0290c476c6272ec3b18de3ee646c8a0dc158203b1a9c62ace",
+          "size": 65814772
+        },
+        {
+          "origin": {
+            "file": "crnn_vgg16_bn-0417f351.pt",
+            "release": "mindee/doctr:v0.12.0",
+            "source": "github"
+          },
+          "path": "models/crnn_vgg16_bn-0417f351.pt",
+          "sha256": "0417f3511f5c75369bdcbe06539853b9c2d170aa3baceb2acc454c775ddac087",
+          "size": 63303144
+        }
+      ],
       "type": "ocr-pipeline"
     },
     "formats": {
@@ -42,7 +64,7 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.0,
+      "disk_gb": 0.12025042995810509,
       "ram_gb": 0.0,
       "vram_gb": 0.0
     }

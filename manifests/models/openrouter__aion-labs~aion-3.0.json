@@ -1,0 +1,69 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "hosting": "third_party",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Aion-3.0 is a multi-model roleplaying and storytelling system from AionLabs, built on the GLM family of models",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Aion-3.0 is a multi-model roleplaying and storytelling system from AionLabs, built on the GLM family of models. It uses a collaborative generation process in which multiple specialized models each contribute...",
+  "key": "openrouter:aion-labs/aion-3.0",
+  "manifest_kind": "model",
+  "name": "AionLabs: Aion-3.0",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:aion-labs/aion-3.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

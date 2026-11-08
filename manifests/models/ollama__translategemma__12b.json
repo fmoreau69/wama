@@ -9,6 +9,9 @@
       "completion": true,
       "context_length": 131072,
       "embedding": false,
+      "inputs_optional": [
+        "work_image"
+      ],
       "inputs_required": [
         "prompt"
       ],
@@ -16,8 +19,15 @@
         "text",
         "image"
       ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
       "params_active_b": 12.2,
       "params_total_b": 12.2,
+      "recommended_temperature": null,
+      "recommended_top_p": 0.95,
       "specialisation": "translation",
       "task": "text-generation",
       "thinking": false,
@@ -30,6 +40,23 @@
       }
     },
     "extra_info": {
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://huggingface.co/google/translategemma-12b-it",
+          "https://ollama.com/library/translategemma:12b",
+          "https://huggingface.co/google/translategemma-12b-it/blob/main/README.md"
+        ]
+      },
+      "quantization": "Q4_K_M",
+      "vram_measured": {
+        "at": "2026-11-07T20:09:43+00:00",
+        "last_gb": 12.71,
+        "max_gb": 12.85,
+        "n": 14
+      },
       "vram_provenance": "heuristic"
     },
     "formats": {
@@ -38,7 +65,7 @@
     },
     "identity": {
       "author": "Google",
-      "description_short": "Ollama LLM (8.1 GB)",
+      "description_short": "Modèle de traduction léger basé sur Gemma 3, supportant 55 langues.",
       "license": "gemma-terms",
       "model_type": "llm",
       "platform_ref": "ollama:translategemma",
@@ -60,7 +87,7 @@
       "vram_gb": 8.1
     }
   },
-  "description": "Ollama LLM (8.1 GB)",
+  "description": "Translategemma-12b est un modèle de traduction léger construit sur la base Gemma 3, conçu pour faciliter la communication entre 55 langues. Il accepte des prompts textuels en entrée et génère des traductions correspondantes en sortie. Le modèle est disponible sous licence open source via Hugging Face et Ollama.",
   "key": "ollama:translategemma:12b",
   "manifest_kind": "model",
   "name": "translategemma:12b",

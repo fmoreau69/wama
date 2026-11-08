@@ -12,6 +12,10 @@
       "completion": true,
       "context_length": 131072,
       "embedding": false,
+      "inputs_optional": [
+        "work_image",
+        "work_audio"
+      ],
       "inputs_required": [
         "prompt"
       ],
@@ -20,8 +24,15 @@
         "image",
         "audio"
       ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
       "params_active_b": 8.0,
       "params_total_b": 8.0,
+      "recommended_temperature": 1.0,
+      "recommended_top_p": 0.95,
       "task": "text-generation",
       "thinking": true,
       "tools": true,
@@ -33,6 +44,23 @@
       }
     },
     "extra_info": {
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://ollama.com/library/gemma4:e4b",
+          "https://developers.google.com/edge/litert-lm/models/gemma-4",
+          "https://open-llm-radar.com/models/gemma4-e4b"
+        ]
+      },
+      "quantization": "Q4_K_M",
+      "vram_measured": {
+        "at": "2026-10-29T11:57:30+00:00",
+        "last_gb": 5.71,
+        "max_gb": 5.71,
+        "n": 1
+      },
       "vram_provenance": "heuristic"
     },
     "formats": {
@@ -41,7 +69,7 @@
     },
     "identity": {
       "author": "Google DeepMind",
-      "description_short": "Ollama LLM (9.6 GB)",
+      "description_short": "Modèle Gemma 4 E4B (4,5B) optimisé pour le raisonnement, le codage et la compréhension multimodale avec support audio/vidéo.",
       "license": "apache-2.0",
       "model_type": "llm",
       "platform_ref": "ollama:gemma4",
@@ -63,7 +91,7 @@
       "vram_gb": 9.6
     }
   },
-  "description": "Ollama LLM (9.6 GB)",
+  "description": "Le modèle Gemma 4 E4B est conçu pour offrir des performances de pointe à chaque taille, ciblant les déploiements mobiles et sur périphériques (E2B, E4B) ainsi que les GPU consommateurs. Il excelle dans le raisonnement, les flux agencés, le codage et la compréhension multimodale, acceptant des entrées textuelles, images, audio et produisant du texte avec un contexte natif de 131k tokens sous licence Apache 2.0.",
   "key": "ollama:gemma4:e4b",
   "manifest_kind": "model",
   "name": "gemma4:e4b",

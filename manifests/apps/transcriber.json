@@ -58,6 +58,10 @@
               "args": [],
               "class": "django.db.models.FileField",
               "kwargs": {
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "upload_to": {
                   "expr": "wama.common.utils.media_paths.UploadToUserPath('transcriber', 'input')",
                   "imports": [
@@ -112,6 +116,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -131,6 +139,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -530,6 +542,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -549,6 +565,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -996,6 +1016,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -1272,7 +1296,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1323,7 +1348,8 @@
             "stales": null,
             "step": 1,
             "type": "intent",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1381,7 +1407,8 @@
             ],
             "step": null,
             "type": "textarea",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1432,7 +1459,8 @@
             "stales": null,
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1482,7 +1510,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1530,7 +1559,8 @@
             "stales": null,
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1593,7 +1623,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1656,7 +1687,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1707,7 +1739,8 @@
             "stales": null,
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1766,7 +1799,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1817,7 +1851,8 @@
             "stales": null,
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1879,7 +1914,8 @@
             ],
             "step": null,
             "type": "radio",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1930,7 +1966,8 @@
             "stales": null,
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1976,7 +2013,8 @@
             "stales": null,
             "step": null,
             "type": "text",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2022,7 +2060,8 @@
             "stales": null,
             "step": null,
             "type": "date",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2068,7 +2107,8 @@
             "stales": null,
             "step": null,
             "type": "mapping",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2114,7 +2154,8 @@
             "stales": null,
             "step": null,
             "type": "mapping",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ]
       }
@@ -2454,7 +2495,7 @@
             "vad_mode": "select — Whisper et Albert sautent les passages jugés sans parole. « Auto » vérifie d'abord que le filtre ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences. (choix : auto | on | off) (défaut : 'auto')",
             "verify_coherence": "toggle — Score + correction proposée côte à côte (défaut : False)"
           },
-          "description": "Ajoute un élément à la file d'attente de Transcriber (Transcription audio/vidéo en texte (Whisper)) et renvoie son item_id."
+          "description": "Ajoute un élément à la file d'attente de Transcriber (Transcription audio/vidéo en texte, locuteurs compris, avec page de correction) et renvoie son item_id."
         },
         "get_transcriber_status": {
           "args": {},
@@ -2469,12 +2510,17 @@
         }
       },
       "start": "start_transcriber",
+      "start_selection": {
+        "pending": {},
+        "pending_exclude": {
+          "status": "SUCCESS"
+        }
+      },
       "status": "get_transcriber_status",
       "triad_spec": {
         "empty_msg": "Aucune transcription en attente.",
         "id_kwarg": "transcript_id",
         "model": "wama.transcriber.models.Transcript",
-        "reset": "wama.transcriber.views._reset_and_clear_progress",
         "status_fields": {
           "backend": "backend",
           "duration_display": {
@@ -2499,12 +2545,11 @@
             "or_none": true
           }
         },
-        "status_order": "-id",
-        "task_for": "wama.transcriber.views._task_for"
+        "status_order": "-id"
       }
     }
   },
-  "description": "Transcription audio/vidéo en texte (Whisper).",
+  "description": "Transcription audio/vidéo en texte, locuteurs compris, avec page de correction.",
   "key": "transcriber",
   "manifest_kind": "app",
   "name": "Transcriber",
@@ -2559,11 +2604,23 @@
       "kind": "library"
     },
     {
+      "key": "huggingface_hub",
+      "kind": "library"
+    },
+    {
+      "key": "lhotse",
+      "kind": "library"
+    },
+    {
       "key": "librosa",
       "kind": "library"
     },
     {
-      "key": "openai-whisper",
+      "key": "nemo-toolkit",
+      "kind": "library"
+    },
+    {
+      "key": "omegaconf",
       "kind": "library"
     },
     {
@@ -2571,7 +2628,23 @@
       "kind": "library"
     },
     {
+      "key": "pyarrow",
+      "kind": "library"
+    },
+    {
+      "key": "python-docx",
+      "kind": "library"
+    },
+    {
+      "key": "qwen-asr",
+      "kind": "library"
+    },
+    {
       "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "text2num",
       "kind": "library"
     },
     {

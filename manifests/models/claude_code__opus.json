@@ -9,6 +9,7 @@
         "text",
         "image"
       ],
+      "params": [],
       "task": "text-generation",
       "vision": true
     },

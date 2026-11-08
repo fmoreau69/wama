@@ -22,10 +22,10 @@
     },
     "extra_info": {
       "vram_measured": {
-        "at": "2026-10-09T22:41:55+00:00",
-        "last_gb": 2.34,
+        "at": "2026-11-07T17:54:28+00:00",
+        "last_gb": 3.8,
         "max_gb": 3.8,
-        "n": 8
+        "n": 12
       },
       "vram_provenance": "declared"
     },

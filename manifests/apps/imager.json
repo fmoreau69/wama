@@ -118,6 +118,10 @@
                   "expr": "'Text file containing prompts for batch generation'",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -147,6 +151,10 @@
                 },
                 "help_text": {
                   "expr": "'Reference image for img2img, style transfer, or auto-describe'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -509,6 +517,10 @@
                   "expr": "'Generated video file'",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -738,6 +750,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -1052,7 +1068,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1108,7 +1125,8 @@
             ],
             "step": 1,
             "type": "intent",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1161,7 +1179,8 @@
             ],
             "step": null,
             "type": "textarea",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1231,7 +1250,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1290,7 +1310,8 @@
             ],
             "step": 1,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1348,7 +1369,8 @@
             ],
             "step": 0.5,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1409,7 +1431,8 @@
             ],
             "step": 1,
             "type": "seed",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1461,7 +1484,8 @@
             ],
             "step": 0.05,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1524,7 +1548,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1611,7 +1636,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1686,7 +1712,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ],
         "VIDEO_PARAMS_JSON": [
@@ -1743,7 +1770,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1799,7 +1827,8 @@
             ],
             "step": 1,
             "type": "intent",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1852,7 +1881,8 @@
             ],
             "step": null,
             "type": "textarea",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1919,7 +1949,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1977,7 +2008,8 @@
             ],
             "step": 1,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2036,7 +2068,8 @@
             ],
             "step": 1,
             "type": "number",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -2097,7 +2130,8 @@
             ],
             "step": 1,
             "type": "seed",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2156,7 +2190,8 @@
             ],
             "step": 1,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2214,7 +2249,8 @@
             ],
             "step": 0.5,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2293,7 +2329,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2366,7 +2403,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ]
       }
@@ -2691,7 +2729,7 @@
             "steps": "range — Nombre d'étapes de diffusion. [1–100] (défaut : 30)",
             "width": "int"
           },
-          "description": "Ajoute un élément à la file d'attente de Imager (Génération d'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…)) et renvoie son item_id."
+          "description": "Ajoute un élément à la file d'attente de Imager (Génération d'images et de vidéos par IA, depuis un texte ou une image) et renvoie son item_id."
         },
         "get_imager_status": {
           "args": {},
@@ -2740,7 +2778,7 @@
       }
     }
   },
-  "description": "Génération d'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…).",
+  "description": "Génération d'images et de vidéos par IA, depuis un texte ou une image.",
   "key": "imager",
   "manifest_kind": "app",
   "name": "Imager",
@@ -2807,6 +2845,10 @@
       "kind": "model"
     },
     {
+      "key": "PyYAML",
+      "kind": "library"
+    },
+    {
       "key": "accelerate",
       "kind": "library"
     },
@@ -2819,7 +2861,15 @@
       "kind": "library"
     },
     {
+      "key": "pillow",
+      "kind": "library"
+    },
+    {
       "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "torchao",
       "kind": "library"
     },
     {

@@ -30,9 +30,12 @@
         "audio"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "recommended_temperature": 0.75,
+      "recommended_top_p": 0.85,
       "supports_cloning": true,
       "task": "text-to-speech"
     },
@@ -52,11 +55,57 @@
       }
     },
     "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "config.json",
+            "repo": "coqui/XTTS-v2",
+            "revision": "6c2b0d75eae4b7047358e3b6bd9325f857d43f77",
+            "source": "huggingface"
+          },
+          "path": "tts/tts_models--multilingual--multi-dataset--xtts_v2/config.json",
+          "sha256": "ef262b1454dd2a77e1461b0b2cd53e19b8a7624cc131b837d36df67356bc75e8",
+          "size": 4368
+        },
+        {
+          "origin": {
+            "file": "model.pth",
+            "repo": "coqui/XTTS-v2",
+            "revision": "6c2b0d75eae4b7047358e3b6bd9325f857d43f77",
+            "source": "huggingface"
+          },
+          "path": "tts/tts_models--multilingual--multi-dataset--xtts_v2/model.pth",
+          "sha256": "c7ea20001c6a0a841c77e252d8409f6a74fb423e79b3206a0771ba5989776187",
+          "size": 1867929118
+        },
+        {
+          "origin": {
+            "file": "speakers_xtts.pth",
+            "repo": "coqui/XTTS-v2",
+            "revision": "6c2b0d75eae4b7047358e3b6bd9325f857d43f77",
+            "source": "huggingface"
+          },
+          "path": "tts/tts_models--multilingual--multi-dataset--xtts_v2/speakers_xtts.pth",
+          "sha256": "f0f6137c19a4eab0cbbe4c99b5babacf68b1746e50da90807708c10e645b943b",
+          "size": 7754818
+        },
+        {
+          "origin": {
+            "file": "vocab.json",
+            "repo": "coqui/XTTS-v2",
+            "revision": "6c2b0d75eae4b7047358e3b6bd9325f857d43f77",
+            "source": "huggingface"
+          },
+          "path": "tts/tts_models--multilingual--multi-dataset--xtts_v2/vocab.json",
+          "sha256": "928260878a59da8a72a2a5b7687fea29d5106137669d90945430fe17e415304a",
+          "size": 361219
+        }
+      ],
       "vram_measured": {
-        "at": "2026-09-26T23:12:42+00:00",
+        "at": "2026-11-08T04:46:39+00:00",
         "last_gb": 1.78,
         "max_gb": 1.78,
-        "n": 3
+        "n": 13
       },
       "vram_provenance": "declared"
     },
@@ -86,7 +135,7 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.0,
+      "disk_gb": 1.7472072718665004,
       "ram_gb": 4.0,
       "vram_gb": 2.0
     }

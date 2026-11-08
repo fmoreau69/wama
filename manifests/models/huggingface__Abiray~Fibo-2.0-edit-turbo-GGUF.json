@@ -1,0 +1,63 @@
+{
+  "body": {
+    "capabilities": {},
+    "composition": {},
+    "extra_info": {
+      "category": "diffusion",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://huggingface.co/Abiray/Fibo-2.0-edit-turbo-GGUF/blob/main/README.md",
+          "https://huggingface.co/Abiray/Fibo-2.0-edit-turbo-GGUF/tree/main",
+          "https://huggingface.co/models?other=base_model%3Aquantized%3AComfy-Org%2FFibo-2.0"
+        ]
+      },
+      "family": "Fibo-2.0",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf"
+    },
+    "identity": {
+      "author": null,
+      "base_model": "Comfy-Org/Fibo-2.0",
+      "base_model_relation": "quantized",
+      "description_short": "Quantisations GGUF du modèle Fibo-2.0-edit-turbo optimisées pour l'édition d'images via ComfyUI.",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:Abiray/Fibo-2.0-edit-turbo-GGUF",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 8.151268605142832,
+      "ram_gb": 0.0,
+      "vram_gb": 10.5
+    }
+  },
+  "description": "Ce modèle est une quantisation GGUF du modèle de base Comfy-Org/Fibo-2.0, conçue spécifiquement pour être utilisée directement dans ComfyUI via le plugin ComfyUI-GGUF. Il permet l'édition d'images et propose plusieurs niveaux de compression (Q3_K_M à Q8_0) avec des tailles allant jusqu'à 4 Go. Les sources indiquent une licence non spécifiée ('other') et ne mentionnent pas explicitement les langues supportées ou les limites d'utilisation.",
+  "key": "huggingface:Abiray/Fibo-2.0-edit-turbo-GGUF",
+  "manifest_kind": "model",
+  "name": "Fibo-2.0-edit-turbo-GGUF",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:Abiray/Fibo-2.0-edit-turbo-GGUF",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

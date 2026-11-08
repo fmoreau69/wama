@@ -5,9 +5,13 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_temperature": 1.0,
       "modalities": [
         "text",
         "image"
+      ],
+      "params": [
+        "temperature"
       ],
       "task": "text-generation",
       "vision": true
@@ -19,6 +23,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://www.anthropic.com/claude/opus?e45d281a_page=3&reference=FUZZ",
+          "https://www.anthropic.com/news/claude-opus-4-6",
+          "https://artificialanalysis.ai/articles/opus-4-6-everything-you-need-to-know"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -28,7 +42,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+      "description_short": "Modèle hybride d'IA de la suite Claude Opus avec une fenêtre de contexte de 1M, conçu pour le codage et les agents autonomes.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -50,7 +64,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "description": "Claude Opus 4.6 est un modèle hybride développé par Anthropic qui améliore les compétences en codage et la précision des workflows d'entreprise par rapport à sa prédécesseur. Il gère des tâches agiles sur de longues durées grâce à une fenêtre de contexte de 1M de tokens, tout en planifiant plus soigneusement pour maintenir la fiabilité dans les environnements complexes. Bien qu'il occupe la première place dans l'Index d'intelligence d'Artificial Analysis, il consomme deux fois plus de tokens de sortie que le modèle précédent lors du mode effort maximal.",
   "key": "anthropic:claude-opus-4-6",
   "manifest_kind": "model",
   "name": "Claude Opus 4.6",

@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "MiniMax-M3 is a multimodal foundation model from MiniMax",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:MiniMaxAI/Minimax-M3",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "MiniMax-M3 is a multimodal foundation model from MiniMax. It supports text, image, and video inputs with text output, a 1M-token context window, and is suited for long-horizon agentic work, coding,...",
   "key": "openrouter:minimax/minimax-m3",
   "manifest_kind": "model",
   "name": "MiniMax: MiniMax M3",

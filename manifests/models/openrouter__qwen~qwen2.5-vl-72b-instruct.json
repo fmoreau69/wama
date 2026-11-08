@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Qwen2.5-VL is proficient in recognizing common objects such as flowers, birds, fish, and insects",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen2.5-VL-72B-Instruct",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Qwen2.5-VL is proficient in recognizing common objects such as flowers, birds, fish, and insects. It is also highly capable of analyzing texts, charts, icons, graphics, and layouts within images.",
   "key": "openrouter:qwen/qwen2.5-vl-72b-instruct",
   "manifest_kind": "model",
   "name": "Qwen: Qwen2.5 VL 72B Instruct",

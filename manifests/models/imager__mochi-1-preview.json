@@ -15,6 +15,9 @@
         "video"
       ],
       "native_resolution": "848x480",
+      "params": [
+        "seed"
+      ],
       "task": "text-to-video",
       "tasks": [
         "text-to-video"

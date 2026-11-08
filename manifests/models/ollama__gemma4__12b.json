@@ -12,6 +12,10 @@
       "completion": true,
       "context_length": 262144,
       "embedding": false,
+      "inputs_optional": [
+        "work_image",
+        "work_audio"
+      ],
       "inputs_required": [
         "prompt"
       ],
@@ -20,8 +24,15 @@
         "image",
         "audio"
       ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
       "params_active_b": 11.9,
       "params_total_b": 11.9,
+      "recommended_temperature": 1.0,
+      "recommended_top_p": 0.95,
       "task": "text-generation",
       "thinking": true,
       "tools": true,
@@ -33,6 +44,23 @@
       }
     },
     "extra_info": {
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://ollama.com/library/gemma4:12b",
+          "https://ollama.com/library/gemma4:12b-it-qat",
+          "https://ollama.com/library/gemma4:12b-it-q4_K_M"
+        ]
+      },
+      "quantization": "Q4_K_M",
+      "vram_measured": {
+        "at": "2026-11-08T04:40:30+00:00",
+        "last_gb": 10.29,
+        "max_gb": 10.67,
+        "n": 4
+      },
       "vram_provenance": "heuristic"
     },
     "formats": {
@@ -41,7 +69,7 @@
     },
     "identity": {
       "author": "Google DeepMind",
-      "description_short": "Ollama LLM (7.6 GB)",
+      "description_short": "Modèles Gemma 4 (12B) pour le raisonnement, l'agentique, le codage et la compréhension multimodale via Ollama.",
       "license": "apache-2.0",
       "model_type": "llm",
       "platform_ref": "ollama:gemma4",
@@ -63,7 +91,7 @@
       "vram_gb": 7.6
     }
   },
-  "description": "Ollama LLM (7.6 GB)",
+  "description": "Ce modèle est conçu pour fournir une performance de pointe dans les tâches de raisonnement, les flux agencés, le codage et la compréhension multimodale. Il s'exécute sur Ollama avec des entrées sous forme de messages utilisateur et des sorties textuelles générées. Les variantes disponibles incluent différentes quantisations (qat, q4_K_M, bf16, nvfp4) pour optimiser les ressources.",
   "key": "ollama:gemma4:12b",
   "manifest_kind": "model",
   "name": "gemma4:12b",

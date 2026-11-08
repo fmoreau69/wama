@@ -16,6 +16,14 @@
     "composition": {},
     "extra_info": {
       "category": "diffusion",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/lightx2v/Minimax-h3-Turbo-SLA"
+        ]
+      },
       "family": "Minimax-h3-Turbo-SLA",
       "vram_provenance": "estimated"
     },
@@ -25,7 +33,7 @@
     },
     "identity": {
       "author": "lightx2v",
-      "description_short": "Snapshot HF Minimax-h3-Turbo-SLA",
+      "description_short": "LoRA pour MiniMax-H3 optimisé avec attention linéaire sparse (85%) et distillation 4 étapes.",
       "license": "apache-2.0",
       "model_type": "diffusion",
       "platform_ref": "huggingface:lightx2v/Minimax-h3-Turbo-SLA",
@@ -50,7 +58,7 @@
       "vram_gb": 4.0
     }
   },
-  "description": "Snapshot HuggingFace installé (diffusion/Minimax-h3-Turbo-SLA), catalogué par le balayage générique des modèles installés.",
+  "description": "Ce modèle est un LoRA entraîné sur la base MiniMax-H3, conçu pour accélérer l'inférence via une attention linéaire sparse (SLA) à 85% de densité. Il supporte la génération vidéo FL2V en résolution 768p et est compatible avec les environnements LightX2V et ComfyUI. Les performances sont testées sur NVIDIA RTX 5090, mais l'inférence nécessite le modèle base MiniMax-H3 original.",
   "key": "huggingface:lightx2v/Minimax-h3-Turbo-SLA",
   "manifest_kind": "model",
   "name": "Minimax-h3-Turbo-SLA",

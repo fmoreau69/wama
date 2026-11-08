@@ -5,9 +5,13 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_temperature": 1.0,
       "modalities": [
         "text",
         "image"
+      ],
+      "params": [
+        "temperature"
       ],
       "task": "text-generation",
       "vision": true
@@ -19,6 +23,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://www.anthropic.com/news/claude-opus-4-7?e45d281a_page=6&refid=033da51c-a5ab-418b-a979-2e775201040b",
+          "https://platform.claude.com/docs/en/models/opus-4-7/overview",
+          "https://www.anthropic.com/claude/opus"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -28,7 +42,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+      "description_short": "Modèle d'IA pour le développement logiciel et les agents autonomes avec une fenêtre de contexte de 1 million de tokens.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -50,7 +64,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "description": "Claude Opus 4.7 est un modèle hybride conçu pour l'ingénierie logicielle avancée, les flux de travail d'entreprise et les tâches agentiques à long terme. Il accepte jusqu'à 1 million de tokens en entrée et peut générer jusqu'à 128 000 tokens de sortie. Bien qu'il soit actuellement disponible, la source indique qu'il doit être migré vers Claude Opus 5.5.",
   "key": "anthropic:claude-opus-4-7",
   "manifest_kind": "model",
   "name": "Claude Opus 4.7",

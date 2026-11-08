@@ -224,6 +224,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -243,6 +247,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -285,6 +293,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -306,6 +318,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -325,6 +341,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -361,6 +381,132 @@
             },
             {
               "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Partition réduite : la mélodie du cover'",
+                  "imports": []
+                }
+              },
+              "name": "extract_reduced_score"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Rendre le morceau (décoché : partitions seules)'",
+                  "imports": []
+                }
+              },
+              "name": "generate_audio"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Paroles de l'entrée : écouter le morceau repris\"",
+                  "imports": []
+                }
+              },
+              "name": "extract_input_lyrics"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Paroles chantées : écouter le morceau produit'",
+                  "imports": []
+                }
+              },
+              "name": "extract_rendered_lyrics"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('composer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "input_lyrics_timed"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('composer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "rendered_lyrics_timed"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "blank": {
@@ -394,6 +540,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -406,6 +556,33 @@
                 }
               },
               "name": "parts_score"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Clé de catalogue du modèle de transcription des paroles, ou « auto ».'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "200",
+                  "imports": []
+                }
+              },
+              "name": "lyrics_model"
             },
             {
               "args": [],
@@ -434,6 +611,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -446,6 +627,50 @@
                 }
               },
               "name": "rendered_parts_score"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Partition réduite du rendu : mélodie et accords'",
+                  "imports": []
+                }
+              },
+              "name": "extract_rendered_score"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('composer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "rendered_score"
             },
             {
               "args": [],
@@ -612,6 +837,10 @@
                 },
                 "help_text": {
                   "expr": "'Fichier batch importé (null pour génération individuelle)'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -808,7 +1037,16 @@
         "composer:musicgen-small",
         "huggingface:ACE-Step/Ace-Step1.5",
         "huggingface:MuScriptor/muscriptor-large",
-        "huggingface:m-a-p/YuE2-3B"
+        "huggingface:aihpi/FrWhisper",
+        "huggingface:kyutai/stt-1b-en_fr-trfs",
+        "huggingface:linagora/linto_stt_fr_fastconformer_pc",
+        "huggingface:m-a-p/YuE2-3B",
+        "transcriber:canary-1b-v2",
+        "transcriber:parakeet-tdt-0.6b-v3",
+        "transcriber:qwen3-asr-0.6b",
+        "transcriber:qwen3-asr-1.7b",
+        "transcriber:vibevoice-asr",
+        "transcriber:whisper"
       ],
       "source_attr": "COMPOSER_MODELS"
     },
@@ -839,12 +1077,14 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "batch"
             ],
             "default": null,
             "default_from": null,
             "display_format": "",
             "dom_id": {
+              "batch": "batchSettingsPrompt",
               "item": "settingsPrompt"
             },
             "group": "",
@@ -881,7 +1121,8 @@
             ],
             "step": null,
             "type": "textarea",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -941,11 +1182,17 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
-            "cap_from": null,
+            "cap_from": {
+              "capability": "supports_vocals",
+              "field": "model",
+              "mode": "reads",
+              "reason": "Ce modèle ne chante pas : il ne joue que de l'instrumental."
+            },
             "chip": true,
             "chip_label": "",
             "choices": [
@@ -1009,11 +1256,17 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
-            "cap_from": null,
+            "cap_from": {
+              "capability": "supports_vocals",
+              "field": "model",
+              "mode": "reads",
+              "reason": "Ce modèle ne chante pas : il ne joue que de l'instrumental."
+            },
             "chip": false,
             "chip_label": "",
             "choices": null,
@@ -1027,7 +1280,7 @@
               "item": "settingsLyrics"
             },
             "group": "",
-            "help": "Paroles chantées, en sections balisées ([Verse], [Chorus]…). Écrites pour vous si vous demandez une chanson sans en donner ; modifiez-les puis relancez. Des paroles écrites dans le prompt, sous la description, priment.",
+            "help": "Paroles chantées, en sections balisées ([Verse], [Chorus]…). Laissées vides, elles se remplissent seules : écoutées dans le morceau repris (cover), écrites au lancement si vous demandez une chanson (étape « Paroles écrites »), ou écoutées dans le morceau produit (« Paroles chantées »). « Écrire les paroles » les écrit tout de suite, à la longueur du morceau, pour les relire avant de lancer. Des paroles écrites dans le prompt, sous la description, priment.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1066,7 +1319,15 @@
             ],
             "step": null,
             "type": "textarea",
-            "unit": ""
+            "unit": "",
+            "write_from": {
+              "app": "composer",
+              "duration": "duration",
+              "label": "Écrire les paroles",
+              "model": "model",
+              "source": "prompt",
+              "target": "prompt"
+            }
           },
           {
             "advanced": false,
@@ -1127,7 +1388,8 @@
             ],
             "step": 1,
             "type": "intent",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1187,7 +1449,8 @@
             ],
             "step": 5,
             "type": "range",
-            "unit": "s"
+            "unit": "s",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1258,7 +1521,8 @@
             ],
             "step": 0.05,
             "type": "temperature",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1321,7 +1585,118 @@
             ],
             "step": 1,
             "type": "seed",
-            "unit": ""
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsExtractReducedScore",
+              "item": "settingsExtractReducedScore",
+              "panel": "extractReducedScore"
+            },
+            "group": "",
+            "help": "Écrit la mélodie de l'audio repris (cover) en partition, lisible et corrigeable dans la page « Éditer la partition ». Imposée par un modèle qui reprend le morceau par sa partition.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-music",
+            "inline": false,
+            "label": "Partition réduite",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "extract_reduced_score",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "extract_score"
+            ],
+            "step": null,
+            "type": "toggle",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": true,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsGenerateAudio",
+              "item": "settingsGenerateAudio",
+              "panel": "generateAudio"
+            },
+            "group": "",
+            "help": "Rend l'audio depuis la consigne (et la partition, quand le modèle en suit une). Décochez pour n'obtenir que les partitions ou les paroles d'un morceau.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-wave-square",
+            "inline": false,
+            "label": "Générer le morceau",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "generate_audio",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "render"
+            ],
+            "step": null,
+            "type": "toggle",
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1349,7 +1724,7 @@
             "help_source": null,
             "icon": "fa-list-ol",
             "inline": false,
-            "label": "Partition complète (instruments)",
+            "label": "Partition complète",
             "max": null,
             "max_label": "",
             "min": null,
@@ -1375,7 +1750,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1403,7 +1779,7 @@
             "help_source": null,
             "icon": "fa-list-ol",
             "inline": false,
-            "label": "Partition de sortie (instruments)",
+            "label": "Partition complète jouée",
             "max": null,
             "max_label": "",
             "min": null,
@@ -1429,7 +1805,63 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsExtractRenderedScore",
+              "item": "settingsExtractRenderedScore",
+              "panel": "extractRenderedScore"
+            },
+            "group": "",
+            "help": "Après le rendu, écrit la mélodie et les accords du morceau PRODUIT, pour les comparer à la partition de référence dans la page « Éditer la partition ».",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-music",
+            "inline": false,
+            "label": "Partition réduite jouée",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "extract_rendered_score",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "rendered_score"
+            ],
+            "step": null,
+            "type": "toggle",
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1488,7 +1920,187 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": true,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsExtractInputLyrics",
+              "item": "settingsExtractInputLyrics",
+              "panel": "extractInputLyrics"
+            },
+            "group": "",
+            "help": "Écoute les paroles du morceau repris (cover) : posées sous les notes de la partition de référence, et dans le champ « Paroles » s'il est vide.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-microphone-lines",
+            "inline": false,
+            "label": "Paroles de l'entrée",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "extract_input_lyrics",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "extract_lyrics"
+            ],
+            "step": null,
+            "type": "toggle",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsExtractRenderedLyrics",
+              "item": "settingsExtractRenderedLyrics",
+              "panel": "extractRenderedLyrics"
+            },
+            "group": "",
+            "help": "Après le rendu, écoute ce que le modèle a chanté : posé sous les notes de la partition jouée, pour comparer avec ce qui était demandé — et dans le champ « Paroles » s'il est resté vide.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-microphone-lines",
+            "inline": false,
+            "label": "Paroles chantées",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "extract_rendered_lyrics",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "rendered_lyrics"
+            ],
+            "step": null,
+            "type": "toggle",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": "auto",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsLyricsModel",
+              "item": "settingsLyricsModel",
+              "panel": "lyricsModel"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": {
+              "auto": "Choisi au lancement : Qwen3-ASR d'abord, qui entend le chant là où Whisper invente, puis selon la mémoire GPU libre ; l'heure de chaque mot vient ensuite de l'aligneur."
+            },
+            "help_html": "",
+            "help_source": "composer",
+            "icon": "fa-microphone",
+            "inline": false,
+            "label": "Modèle d'écoute des paroles",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "lyrics_model",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": true,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": {
+              "task": "transcription"
+            },
+            "options_resolution": {
+              "available_inputs": [
+                "work_audio"
+              ],
+              "priority": [
+                "qwen",
+                "vibevoice",
+                "whisper"
+              ]
+            },
+            "options_source": "catalog",
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "extract_lyrics",
+              "rendered_lyrics"
+            ],
+            "step": null,
+            "type": "select",
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1573,7 +2185,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1649,7 +2262,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ]
       }
@@ -1805,6 +2419,7 @@
         }
       ],
       "ingest": {
+        "derive": "wama.composer.views._ingested_name",
         "mode": "audio",
         "source": "source_url",
         "target": "melody_reference"
@@ -1837,9 +2452,15 @@
             "duration",
             "temperature",
             "seed",
+            "extract_reduced_score",
+            "generate_audio",
             "extract_parts",
             "extract_rendered_parts",
+            "extract_rendered_score",
             "parts_model",
+            "extract_input_lyrics",
+            "extract_rendered_lyrics",
+            "lyrics_model",
             "output_format",
             "output_quality"
           ],
@@ -1853,6 +2474,7 @@
           "extracted_score",
           "parts_score",
           "rendered_parts_score",
+          "rendered_score",
           "reference_score"
         ],
         "keep": 20
@@ -1903,9 +2525,15 @@
         "add_to_composer": {
           "args": {
             "duration": "range — Durée [10–600s] (défaut : 210)",
+            "extract_input_lyrics": "toggle — Écoute les paroles du morceau repris (cover) : posées sous les notes de la partition de référence, et dans le champ « Paroles » s'il est vide. (défaut : True)",
             "extract_parts": "toggle — Écrit une partie par instrument entendu (voix, piano, basse, batterie…) dans l'audio repris (cover), à côté de la partition réduite que le rendu suit. Lisible et calée sur l'audio dans la page « Éditer la partition ». Une transcription automatique : à relire.",
+            "extract_reduced_score": "toggle — Écrit la mélodie de l'audio repris (cover) en partition, lisible et corrigeable dans la page « Éditer la partition ». Imposée par un modèle qui reprend le morceau par sa partition.",
+            "extract_rendered_lyrics": "toggle — Après le rendu, écoute ce que le modèle a chanté : posé sous les notes de la partition jouée, pour comparer avec ce qui était demandé — et dans le champ « Paroles » s'il est resté vide.",
             "extract_rendered_parts": "toggle — Après le rendu, écrit la partition complète du morceau PRODUIT, pour la comparer à celle de l'entrée dans la page « Éditer la partition ». Une transcription automatique : à relire.",
-            "lyrics": "textarea — Paroles chantées, en sections balisées ([Verse], [Chorus]…). Écrites pour vous si vous demandez une chanson sans en donner ; modifiez-les puis relancez. Des paroles écrites dans le prompt, sous la description, priment.",
+            "extract_rendered_score": "toggle — Après le rendu, écrit la mélodie et les accords du morceau PRODUIT, pour les comparer à la partition de référence dans la page « Éditer la partition ».",
+            "generate_audio": "toggle — Rend l'audio depuis la consigne (et la partition, quand le modèle en suit une). Décochez pour n'obtenir que les partitions ou les paroles d'un morceau. (défaut : True)",
+            "lyrics": "textarea — Paroles chantées, en sections balisées ([Verse], [Chorus]…). Laissées vides, elles se remplissent seules : écoutées dans le morceau repris (cover), écrites au lancement si vous demandez une chanson (étape « Paroles écrites »), ou écoutées dans le morceau produit (« Paroles chantées »). « Écrire les paroles » les écrit tout de suite, à la longueur du morceau, pour les relire avant de lancer. Des paroles écrites dans le prompt, sous la description, priment.",
+            "lyrics_model": "select — Modèle d'écoute des paroles (défaut : 'auto')",
             "model": "select — Modèle (défaut : 'auto:text-to-music')",
             "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus) (défaut : 'original')",
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max) (défaut : 'balanced')",
@@ -2001,7 +2629,43 @@
       "kind": "model"
     },
     {
+      "key": "huggingface:aihpi/FrWhisper",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:kyutai/stt-1b-en_fr-trfs",
+      "kind": "model"
+    },
+    {
+      "key": "huggingface:linagora/linto_stt_fr_fastconformer_pc",
+      "kind": "model"
+    },
+    {
       "key": "huggingface:m-a-p/YuE2-3B",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:canary-1b-v2",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:parakeet-tdt-0.6b-v3",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:qwen3-asr-0.6b",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:qwen3-asr-1.7b",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:vibevoice-asr",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:whisper",
       "kind": "model"
     },
     {
@@ -2013,7 +2677,23 @@
       "kind": "library"
     },
     {
+      "key": "faster-whisper",
+      "kind": "library"
+    },
+    {
+      "key": "lhotse",
+      "kind": "library"
+    },
+    {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
       "key": "mido",
+      "kind": "library"
+    },
+    {
+      "key": "mini-racer",
       "kind": "library"
     },
     {
@@ -2021,7 +2701,19 @@
       "kind": "library"
     },
     {
+      "key": "nemo-toolkit",
+      "kind": "library"
+    },
+    {
+      "key": "omegaconf",
+      "kind": "library"
+    },
+    {
       "key": "pretty_midi",
+      "kind": "library"
+    },
+    {
+      "key": "qwen-asr",
       "kind": "library"
     },
     {
@@ -2033,11 +2725,23 @@
       "kind": "library"
     },
     {
+      "key": "text2num",
+      "kind": "library"
+    },
+    {
       "key": "torch",
       "kind": "library"
     },
     {
       "key": "torchaudio",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    },
+    {
+      "key": "vibevoice",
       "kind": "library"
     }
   ],

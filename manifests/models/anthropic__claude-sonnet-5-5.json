@@ -5,9 +5,13 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_temperature": 1.0,
       "modalities": [
         "text",
         "image"
+      ],
+      "params": [
+        "temperature"
       ],
       "task": "text-generation",
       "vision": true
@@ -19,6 +23,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://www.anthropic.com/claude-sonnet-5-5",
+          "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+          "https://www.anthropic.com/claude/sonnet"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -28,7 +42,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+      "description_short": "Modèle d'IA Anthropic Claude Sonnet 5.5 (28 sept 2026), plus rapide et moins cher que la version précédente, optimisé pour le code et les tâches complexes.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -50,7 +64,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "description": "Claude Sonnet 5.5 est un modèle d'intelligence artificielle qui offre la meilleure combinaison de vitesse et d'intelligence, avec une fenêtre de contexte de 1 million de tokens et une sortie maximale de 128 K tokens. Il représente une amélioration significative par rapport à Claude Sonnet 5, exécutant les tâches jusqu'à 30 % plus rapidement et réduisant les coûts de traitement jusqu'à 30 %. Le modèle est disponible sur les plateformes Anthropic, AWS et Google Cloud (Antigravity), mais il s'agit d'un complément moins coûteux que Claude Opus 5.5, conçu pour des jugements complexes.",
   "key": "anthropic:claude-sonnet-5-5",
   "manifest_kind": "model",
   "name": "Claude Sonnet 5.5",

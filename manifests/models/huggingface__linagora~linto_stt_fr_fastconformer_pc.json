@@ -26,6 +26,14 @@
     },
     "extra_info": {
       "category": "speech",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/linagora/linto_stt_fr_fastconformer_pc"
+        ]
+      },
       "family": "linto_stt_fr_fastconformer_pc",
       "vram_measured": {
         "at": "2026-10-02T19:46:19+00:00",
@@ -37,11 +45,11 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "safetensors"
+      "format": "nemo"
     },
     "identity": {
       "author": "linagora",
-      "description_short": "Snapshot HF linto_stt_fr_fastconformer_pc",
+      "description_short": "Modèle d'ASR français (115M paramètres) basé sur FastConformer, entraîné avec Transducer et CTC pour la transcription de l'audio.",
       "license": "cc-by-4.0",
       "model_type": "speech",
       "platform_ref": "huggingface:linagora/linto_stt_fr_fastconformer_pc",
@@ -67,7 +75,7 @@
       "vram_gb": 1.1
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/linto_stt_fr_fastconformer_pc), catalogué par le balayage générique des modèles installés.",
+  "description": "Il s'agit d'un modèle hybrone de reconnaissance automatique de la parole (ASR) fine-tuné en français, utilisant les pertes Transducer et CTC. Il a été entraîné sur plus de 10 000 heures de données variées incluant ponctuation et différents accents. Ses entrées sont des fichiers audio (ex: .wav) et ses sorties du texte transcrit ; il présente une performance robuste mais peut avoir des difficultés avec le vocabulaire rare, les accents lourds ou l'audio multi-parleurs.",
   "key": "huggingface:linagora/linto_stt_fr_fastconformer_pc",
   "manifest_kind": "model",
   "name": "linto_stt_fr_fastconformer_pc",
@@ -87,6 +95,10 @@
     },
     {
       "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "text2num",
       "kind": "library"
     }
   ],

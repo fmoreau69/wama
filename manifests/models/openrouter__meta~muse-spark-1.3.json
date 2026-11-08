@@ -1,0 +1,71 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation",
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "hosting": "third_party",
+      "remote_type": "image-text-to-text"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Muse Spark 1.3 is a multimodal reasoning model from Meta for long-running agentic, multi-agent, and coding workflows",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Muse Spark 1.3 is a multimodal reasoning model from Meta for long-running agentic, multi-agent, and coding workflows. It is designed to keep track of information across extended tasks, work through...",
+  "key": "openrouter:meta/muse-spark-1.3",
+  "manifest_kind": "model",
+  "name": "Meta: Muse Spark 1.3",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:meta/muse-spark-1.3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

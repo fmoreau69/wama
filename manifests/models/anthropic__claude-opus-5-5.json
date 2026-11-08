@@ -5,9 +5,13 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_temperature": 1.0,
       "modalities": [
         "text",
         "image"
+      ],
+      "params": [
+        "temperature"
       ],
       "task": "text-generation",
       "vision": true
@@ -19,6 +23,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://platform.claude.com/docs/en/models/opus-5-5/overview",
+          "https://www.anthropic.com/claude-opus-5-5",
+          "https://www.deeplearning.ai/the-batch/claude-opus-5-5-leaps-forward"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -28,7 +42,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+      "description_short": "Modèle d'IA Claude Opus 5.5 pour le codage agentique et les tâches de connaissance à long terme.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -50,7 +64,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "description": "Claude Opus 5.5 est un modèle de raisonnement de classe Opus lancé en septembre 2026, conçu pour le codage agentique et les travaux de connaissance prolongés. Il accepte une fenêtre de contexte de 1 million de tokens et peut générer jusqu'à 128K tokens, avec des prix à l'entrée de 4 $/MTok et à la sortie de 20 $/MTok. Ses points forts incluent sa capacité à rivaliser avec Claude Fable 5.1 sur la plupart des tâches, son support natif des images, ses améliorations de sécurité contre les tentatives d'évasion et un coût réduit de 40 % par rapport à Opus 5.",
   "key": "anthropic:claude-opus-5-5",
   "manifest_kind": "model",
   "name": "Claude Opus 5.5",

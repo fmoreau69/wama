@@ -9,7 +9,7 @@
       ],
       "params": [
         "mode",
-        "strength",
+        "denoising_strength",
         "quality"
       ],
       "task": "audio-enhance"
@@ -20,6 +20,30 @@
       }
     },
     "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "enhancer_stage2/hparams.yaml",
+            "repo": "ResembleAI/resemble-enhance",
+            "revision": "4e3510ce4a8391159f665903544c5150bee7b2cb",
+            "source": "huggingface"
+          },
+          "path": "enhancer_stage2/hparams.yaml",
+          "sha256": "80c3f15bc5a5b2cacf2c698699a0f6599d62911c0d53e1d6dee895c0d7cbaeac",
+          "size": 717
+        },
+        {
+          "origin": {
+            "file": "enhancer_stage2/ds/G/default/mp_rank_00_model_states.pt",
+            "repo": "ResembleAI/resemble-enhance",
+            "revision": "4e3510ce4a8391159f665903544c5150bee7b2cb",
+            "source": "huggingface"
+          },
+          "path": "enhancer_stage2/ds/G/default/mp_rank_00_model_states.pt",
+          "sha256": "f9d035f318de3e6d919bc70cf7ad7d32b4fe92ec5cbe0b30029a27f5db07d9d6",
+          "size": 713176232
+        }
+      ],
       "vram_provenance": "declared"
     },
     "formats": {
@@ -45,7 +69,7 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.0,
+      "disk_gb": 0.6641977922990918,
       "ram_gb": 0.0,
       "vram_gb": 4.0
     }

@@ -13,6 +13,9 @@
         "image"
       ],
       "native_resolution": "512x512",
+      "params": [
+        "seed"
+      ],
       "task": "text-to-image",
       "tasks": [
         "text-to-image"
@@ -49,10 +52,10 @@
     },
     "extra_info": {
       "vram_measured": {
-        "at": "2026-10-04T09:54:04+00:00",
+        "at": "2026-11-01T00:58:25+00:00",
         "last_gb": 2.02,
         "max_gb": 2.02,
-        "n": 1
+        "n": 3
       },
       "vram_provenance": "declared"
     },

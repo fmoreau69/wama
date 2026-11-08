@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Lunaris 8B is a versatile generalist and roleplaying model based on Llama 3",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Sao10K/L3-8B-Lunaris-v1",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Lunaris 8B is a versatile generalist and roleplaying model based on Llama 3. It's a strategic merge of multiple models, designed to balance creativity with improved logic and general knowledge....",
   "key": "openrouter:sao10k/l3-lunaris-8b",
   "manifest_kind": "model",
   "name": "Sao10K: Llama 3 8B Lunaris",

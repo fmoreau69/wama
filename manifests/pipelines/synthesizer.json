@@ -31,6 +31,8 @@
             "sentence_pause",
             "clause_pause",
             "temperature",
+            "seed",
+            "top_p",
             "text_file",
             "voice_reference",
             "multi_speaker",

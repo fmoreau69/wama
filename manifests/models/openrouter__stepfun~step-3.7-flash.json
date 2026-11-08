@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Step 3.7 Flash is StepFun's latest high-efficiency multimodal Mixture-of-Experts model",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:stepfun-ai/Step-3.7-Flash",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Step 3.7 Flash is StepFun's latest high-efficiency multimodal Mixture-of-Experts model. It pairs a 196B-parameter language backbone with a vision encoder for native image and video understanding, activating roughly 11B parameters...",
   "key": "openrouter:stepfun/step-3.7-flash",
   "manifest_kind": "model",
   "name": "StepFun: Step 3.7 Flash",

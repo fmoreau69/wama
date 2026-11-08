@@ -37,10 +37,10 @@
       "gpu"
     ]
   },
-  "description": "Écoute ce que le modèle a chanté de lui-même et le pose dans le champ « Paroles » de la card, à relire et rejouer : aucun moteur ne rend le texte qu'il improvise. Seulement si le champ est resté vide.",
+  "description": "Écoute ce que le modèle a CHANTÉ et en range les paroles horodatées au mot, que la partition jouée montre sous ses notes, pour comparer avec ce qui était demandé ; remplit le champ « Paroles » s'il est resté vide (un texte improvisé).",
   "key": "composer.rendered_lyrics",
   "manifest_kind": "function",
-  "name": "Composer — paroles de sortie",
+  "name": "Composer — paroles chantées",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

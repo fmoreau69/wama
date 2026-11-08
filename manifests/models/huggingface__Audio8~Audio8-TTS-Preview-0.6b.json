@@ -21,9 +21,13 @@
         "audio"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
+      "realtime": false,
       "recommended_temperature": 0.8,
+      "recommended_top_p": 0.95,
       "supports_cloning": false,
       "task": "text-to-speech"
     },
@@ -46,6 +50,16 @@
     },
     "extra_info": {
       "category": "speech",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://huggingface.co/Audio8/Audio8-TTS-Preview-0.6b",
+          "https://edge0-ai.github.io/Audio8_TTS/preview-0.6b/",
+          "https://huggingface.co/Audio8/Audio8-TTS-Preview-0.6b/tree/main"
+        ]
+      },
       "family": "Audio8-TTS-Preview-0.6b",
       "vram_provenance": "estimated"
     },
@@ -55,7 +69,7 @@
     },
     "identity": {
       "author": "Audio8",
-      "description_short": "Snapshot HF Audio8-TTS-Preview-0.6b",
+      "description_short": "Modèle TTS multilingue à 0,6B paramètres avec clonage de voix en un clic.",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "speech",
@@ -78,7 +92,7 @@
       "vram_gb": 3.1
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/Audio8-TTS-Preview-0.6b), catalogué par le balayage générique des modèles installés.",
+  "description": "Audio8-TTS-Preview-0.6b est un modèle text-to-speech compact (0,6 milliard de paramètres) capable de génération polyglotte et de clonage de voix sans apprentissage supervisé. Il supporte la synthèse vocale dans 11 langues et inclut un codec audio neuronal à 44,1 kHz. Le modèle est disponible sous licence Apache 2.0.",
   "key": "huggingface:Audio8/Audio8-TTS-Preview-0.6b",
   "manifest_kind": "model",
   "name": "Audio8-TTS-Preview-0.6b",

@@ -17,6 +17,14 @@
     },
     "extra_info": {
       "category": "vision",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/microsoft/table-transformer-detection"
+        ]
+      },
       "family": "table-transformer-detection",
       "vram_provenance": "estimated"
     },
@@ -26,7 +34,7 @@
     },
     "identity": {
       "author": "microsoft",
-      "description_short": "Snapshot HF table-transformer-detection",
+      "description_short": "Modèle de détection d'objets (DETR) entraîné sur PubTables1M pour identifier les tables dans des documents non structurés.",
       "gated": "no",
       "license": "mit",
       "model_type": "vision",
@@ -52,7 +60,7 @@
       "vram_gb": 0.3
     }
   },
-  "description": "Snapshot HuggingFace installé (vision/table-transformer-detection), catalogué par le balayage générique des modèles installés.",
+  "description": "Table Transformer est un modèle basé sur l'architecture DETR, spécifiquement affiné pour la détection de tables à partir de documents non structurés. Il prend en entrée des images ou du texte et produit des coordonnées de détection (bounding boxes) pour chaque table trouvée. Le modèle utilise une normalisation avant (normalize before) dans son architecture attention et a été introduit par Smock et al. avec le dataset PubTables1M.",
   "key": "huggingface:microsoft/table-transformer-detection",
   "manifest_kind": "model",
   "name": "table-transformer-detection",

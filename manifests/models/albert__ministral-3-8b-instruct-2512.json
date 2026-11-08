@@ -23,7 +23,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -38,8 +40,16 @@
         "mistralai/Ministral-3-8B-Instruct-2512",
         "openweight-small"
       ],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512"
+        ]
+      },
       "hosting": "sovereign",
-      "remote_type": "image-text-to-text"
+      "remote_type": "text-generation"
     },
     "formats": {
       "can_convert_to": [],
@@ -47,7 +57,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Albert API (DINUM) — modèle distant (image-text-to-text)",
+      "description_short": "Modèle de langage multilingue et visionneuse optimisé pour le déploiement sur périphériques (edge) avec fenêtre de contexte 256k.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Ministral-3-8B-Instruct-2512",
@@ -72,7 +82,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Albert API (DINUM) — modèle distant (image-text-to-text)",
+  "description": "Ministral 3 8B Instruct est un modèle post-entraîné en FP8 combinant un langageur de 8,4B paramètres et un encodeur visuel de 0,4B. Il permet l'analyse d'images, le traitement multilingue (plusieurs langues) et le fonctionnement autonome via appels de fonctions natifs. Ses points forts incluent sa capacité à s'exécuter localement sur des GPU de 12 Go VRAM ou moins grâce à la quantisation, ainsi qu'une licence Apache 2.0 ouverte.",
   "key": "albert:ministral-3-8b-instruct-2512",
   "manifest_kind": "model",
   "name": "ministral-3-8b-instruct-2512",

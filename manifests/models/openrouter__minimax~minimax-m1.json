@@ -1,0 +1,69 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "hosting": "third_party",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "MiniMax-M1 is a large-scale, open-weight reasoning model designed for extended context and high-efficiency inference",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "MiniMax-M1 is a large-scale, open-weight reasoning model designed for extended context and high-efficiency inference. It leverages a hybrid Mixture-of-Experts (MoE) architecture paired with a custom \"lightning attention\" mechanism, allowing it...",
+  "key": "openrouter:minimax/minimax-m1",
+  "manifest_kind": "model",
+  "name": "MiniMax: MiniMax M1",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:minimax/minimax-m1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

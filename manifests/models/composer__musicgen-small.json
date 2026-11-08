@@ -12,9 +12,12 @@
         "audio"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed"
       ],
       "recommended_temperature": 1.0,
+      "recommended_top_p": null,
+      "supports_vocals": false,
       "task": "text-to-music"
     },
     "composition": {
@@ -40,7 +43,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": null
+      "format": "bin"
     },
     "identity": {
       "author": "facebook",
@@ -75,7 +78,12 @@
   "manifest_kind": "model",
   "name": "MusicGen Small — génération rapide, 300M params",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "audiocraft",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:composer:musicgen-small",

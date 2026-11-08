@@ -56,10 +56,10 @@
         }
       ],
       "vram_measured": {
-        "at": "2026-10-16T17:07:11+00:00",
+        "at": "2026-10-28T10:21:57+00:00",
         "last_gb": 5.14,
         "max_gb": 5.14,
-        "n": 4
+        "n": 11
       },
       "vram_provenance": "declared"
     },
@@ -91,7 +91,7 @@
     "resources": {
       "disk_gb": 5.16576729901135,
       "ram_gb": 0.0,
-      "vram_gb": 9.8
+      "vram_gb": 13.4
     }
   },
   "description": "MuScriptor large (Kyutai + Mirelo, 1,4 Md de paramètres) : un audio → un MIDI par instrument entendu (voix et batterie comprises), calé sur la grille de temps de Beat This!. Poids CC BY-NC 4.0, dépôt à accès contrôlé.",

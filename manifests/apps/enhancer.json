@@ -86,6 +86,10 @@
               "args": [],
               "class": "django.db.models.FileField",
               "kwargs": {
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "upload_to": {
                   "expr": "wama.common.utils.media_paths.UploadToUserPath('enhancer', 'input/media')",
                   "imports": [
@@ -101,6 +105,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -485,6 +493,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -504,6 +516,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -886,6 +902,10 @@
                   "expr": "True",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -1039,6 +1059,10 @@
               "kwargs": {
                 "blank": {
                   "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -1349,7 +1373,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1405,7 +1430,8 @@
             ],
             "step": 1,
             "type": "intent",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1478,7 +1504,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1538,7 +1565,8 @@
             ],
             "step": 0.1,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1611,7 +1639,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1695,7 +1724,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1770,7 +1800,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ],
         "MEDIA_PARAMS_JSON": [
@@ -1867,7 +1898,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1932,7 +1964,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1988,7 +2021,8 @@
             ],
             "step": 1,
             "type": "intent",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2041,7 +2075,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2094,7 +2129,8 @@
             ],
             "step": 0.1,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2147,7 +2183,8 @@
             ],
             "step": null,
             "type": "toggle",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2274,7 +2311,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -2363,7 +2401,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ]
       }
@@ -2799,7 +2838,7 @@
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "upscale_factor": "select — Facteur d'agrandissement (choix : 2 | 4) (défaut : '4')"
           },
-          "description": "Ajoute un élément à la file d'attente de Enhancer (Upscaling IA d'images/vidéos et amélioration audio (Resemble, DeepFilterNet)) et renvoie son item_id."
+          "description": "Ajoute un élément à la file d'attente de Enhancer (Agrandissement IA d'images et de vidéos, débruitage et restauration audio) et renvoie son item_id."
         },
         "get_enhancer_status": {
           "args": {},
@@ -2814,12 +2853,14 @@
         }
       },
       "start": "start_enhancer",
+      "start_selection": {
+        "pending": {}
+      },
       "status": "get_enhancer_status",
       "triad_spec": {
         "empty_msg": "Aucun enhancement en attente.",
         "id_kwarg": "enhancement_id",
         "model": "wama.enhancer.models.Enhancement",
-        "reset": "wama.enhancer.views._reset_media_and_clear_progress",
         "status_fields": {
           "ai_model": "ai_model",
           "id": "id",
@@ -2835,12 +2876,11 @@
           "progress": "progress",
           "status": "status"
         },
-        "status_order": "-id",
-        "task_for": "wama.enhancer.views._media_task"
+        "status_order": "-id"
       }
     }
   },
-  "description": "Upscaling IA d'images/vidéos et amélioration audio (Resemble, DeepFilterNet).",
+  "description": "Agrandissement IA d'images et de vidéos, débruitage et restauration audio.",
   "key": "enhancer",
   "manifest_kind": "app",
   "name": "Enhancer",
@@ -2900,6 +2940,14 @@
     },
     {
       "key": "onnxruntime-gpu",
+      "kind": "library"
+    },
+    {
+      "key": "opencv-python",
+      "kind": "library"
+    },
+    {
+      "key": "pillow",
       "kind": "library"
     },
     {

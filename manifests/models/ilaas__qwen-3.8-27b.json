@@ -1,0 +1,80 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation",
+      "thinking": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ilaas"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://console.groq.com/docs/model/qwen/qwen3.8-27b",
+          "https://cdn.venice.ai/models/qwen-3-8-27b",
+          "https://openrouter.ai/qwen/qwen3.8-27b"
+        ]
+      },
+      "hosting": "sovereign",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Modèle multimodal de 27 milliards de paramètres d'Alibaba pour le codage, la raisonement et les tâches à long terme.",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "ilaas"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ilaas",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Qwen 3.8 27B est un modèle dense open-weight (licence Apache 2.0) capable de traiter du texte, des images et d'utiliser des outils. Il excelle dans le codage agencé, la raisonement et les workflows à long terme avec un contexte natif jusqu'à 1 million de tokens.",
+  "key": "ilaas:qwen-3.8-27b",
+  "manifest_kind": "model",
+  "name": "qwen-3.8-27b",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ilaas:qwen-3.8-27b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

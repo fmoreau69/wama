@@ -17,6 +17,14 @@
     },
     "extra_info": {
       "category": "vision",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/microsoft/table-transformer-structure-recognition"
+        ]
+      },
       "family": "table-transformer-structure-recognition",
       "vram_provenance": "estimated"
     },
@@ -26,7 +34,7 @@
     },
     "identity": {
       "author": "microsoft",
-      "description_short": "Snapshot HF table-transformer-structure-recognition",
+      "description_short": "Modèle de reconnaissance de structure de table entraîné sur PubTables1M pour détecter les lignes et colonnes.",
       "gated": "no",
       "license": "mit",
       "model_type": "vision",
@@ -52,7 +60,7 @@
       "vram_gb": 0.3
     }
   },
-  "description": "Snapshot HuggingFace installé (vision/table-transformer-structure-recognition), catalogué par le balayage générique des modèles installés.",
+  "description": "Table Transformer est un modèle basé sur DETR, entraîné sur le dataset PubTables1M pour extraire la structure des tables (lignes, colonnes) à partir de documents non structurés. Il s'agit d'un modèle open source publié par Microsoft et disponible sur Hugging Face, dont la fiche a été rédigée par l'équipe Hugging Face car les auteurs n'en ont pas fourni une officielle.",
   "key": "huggingface:microsoft/table-transformer-structure-recognition",
   "manifest_kind": "model",
   "name": "table-transformer-structure-recognition",

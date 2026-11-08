@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "category": "upscaling",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://github.com/Phhofm/models/releases/tag/1xgaterv3_r_restore",
+          "https://github.com/Phhofm/models/releases/tag/1xgaterv3_r_sharpen",
+          "https://github.com/Phhofm/models/releases"
+        ]
+      },
       "family": "1xgaterv3_r_restore",
       "github_release": true,
       "vram_provenance": "estimated"
@@ -34,7 +44,7 @@
     },
     "identity": {
       "author": "Phhofm",
-      "description_short": "Version GitHub 1xgaterv3_r_restore",
+      "description_short": "Modèle de restauration d'image GaterV3 pour améliorer la qualité, gérer le bruit et la compression JPEG.",
       "license": "CC BY 4.0",
       "model_type": "upscaling",
       "platform_ref": "github:Phhofm/models/releases/tag/1xgaterv3_r_restore",
@@ -56,7 +66,7 @@
       "vram_gb": 0.1
     }
   },
-  "description": "Version GitHub installée (upscaling/1xgaterv3_r_restore), cataloguée par le balayage générique des modèles installés.",
+  "description": "Le modèle 1xgaterv3_r_restore est un modèle de restauration d'images à l'échelle 1× développé par Philip Hofmann. Il prend en entrée des images bruyantes ou compressées (comme les fichiers JPEG) et produit une version améliorée avec réduction du bruit et correction de la compression. Ce modèle utilise le réseau GaterV3, a été entraîné sur 180 000 itérations et est disponible sous licence CC BY 4.0.",
   "key": "github:Phhofm/models:1xgaterv3_r_restore",
   "manifest_kind": "model",
   "name": "1xgaterv3_r_restore",

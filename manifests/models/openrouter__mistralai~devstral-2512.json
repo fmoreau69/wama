@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Devstral 2 is a state-of-the-art open-source model by Mistral AI specializing in agentic coding",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Devstral-2-123B-Instruct-2512",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Devstral 2 is a state-of-the-art open-source model by Mistral AI specializing in agentic coding. It is a 123B-parameter dense transformer model supporting a 256K context window. Devstral 2 supports exploring...",
   "key": "openrouter:mistralai/devstral-2512",
   "manifest_kind": "model",
   "name": "Mistral: Devstral 2 2512",

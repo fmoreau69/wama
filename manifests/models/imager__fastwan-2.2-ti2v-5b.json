@@ -15,6 +15,9 @@
         "video"
       ],
       "native_resolution": "1280x704",
+      "params": [
+        "seed"
+      ],
       "recommended_guidance": 1.0,
       "recommended_steps": 3,
       "task": "text-to-video",

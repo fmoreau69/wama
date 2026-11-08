@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "MiMo-V2.6-Flash is an open-source foundation model developed by Xiaomi",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:XiaomiMiMo/MiMo-V2.6-Flash-RL",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "MiMo-V2.6-Flash is an open-source foundation model developed by Xiaomi. Built on a Mixture-of-Experts architecture with 309B total parameters and 15B activated per token, it employs a hybrid attention mechanism for...",
   "key": "openrouter:xiaomi/mimo-v2.6-flash",
   "manifest_kind": "model",
   "name": "Xiaomi: MiMo-V2.6-Flash",

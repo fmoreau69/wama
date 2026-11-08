@@ -22,9 +22,12 @@
         "audio"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "recommended_temperature": 0.7,
+      "recommended_top_p": 0.95,
       "supports_cloning": true,
       "task": "text-to-speech"
     },

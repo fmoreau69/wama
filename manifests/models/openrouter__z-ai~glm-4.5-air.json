@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "GLM-4.5-Air is the lightweight variant of our latest flagship model family, also purpose-built for agent-centric applications",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:zai-org/GLM-4.5-Air",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "GLM-4.5-Air is the lightweight variant of our latest flagship model family, also purpose-built for agent-centric applications. Like GLM-4.5, it adopts the Mixture-of-Experts (MoE) architecture but with a more compact parameter...",
   "key": "openrouter:z-ai/glm-4.5-air",
   "manifest_kind": "model",
   "name": "Z.ai: GLM 4.5 Air",

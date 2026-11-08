@@ -37,7 +37,21 @@
       }
     },
     "extra_info": {
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/SandLogicTechnologies/chandra-ocr-2-GGUF"
+        ]
+      },
       "quantization": "Q6_K",
+      "vram_measured": {
+        "at": "2026-11-08T04:43:13+00:00",
+        "last_gb": 7.08,
+        "max_gb": 7.08,
+        "n": 1
+      },
       "vram_provenance": "heuristic"
     },
     "formats": {
@@ -48,7 +62,7 @@
       "author": null,
       "base_model": "datalab-to/chandra-ocr-2",
       "base_model_relation": "quantized",
-      "description_short": "Ollama LLM (4.8 GB)",
+      "description_short": "Modèle OCR multimodal de 4 milliards de paramètres pour l'extraction et la compréhension de documents visuels, optimisé en GGUF pour le déploiement local.",
       "license": null,
       "model_type": "ocr",
       "platform_ref": "huggingface:SandLogicTechnologies/chandra-ocr-2-GGUF",
@@ -70,7 +84,7 @@
       "vram_gb": 4.8
     }
   },
-  "description": "Ollama LLM (4.8 GB)",
+  "description": "Chandra-OCR-2 est un modèle vision-langage optimisé pour la reconnaissance optique de caractères (OCR), l'analyse de mise en page et l'extraction d'informations structurées depuis des documents scannés ou images. Il prend en entrée des documents visuels multilingues et produit du texte structuré, avec une précision accrue sur les formats haute fidélité comme Q6_K. Bien qu'il soit entraîné par DataLab sous licence Apache 2.0, il nécessite des ressources mémoire plus élevées que les versions quantifiées agressives (IQ3/IQ4) pour maintenir la qualité d'extraction.",
   "key": "ollama:hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K",
   "manifest_kind": "model",
   "name": "hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K",

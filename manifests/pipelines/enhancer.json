@@ -25,15 +25,14 @@
             "engine",
             "quality_intent",
             "mode",
-            "strength",
+            "denoising_strength",
             "quality",
             "ai_model",
             "upscale_factor",
             "denoise",
             "blend_factor",
             "input_file",
-            "tile_size",
-            "denoising_strength"
+            "tile_size"
           ]
         }
       },

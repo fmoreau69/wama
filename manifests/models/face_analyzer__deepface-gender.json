@@ -22,6 +22,18 @@
       }
     },
     "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "gender_model_weights.h5",
+            "release": "serengil/deepface_models:v1.0",
+            "source": "github"
+          },
+          "path": "gender_model_weights.h5",
+          "sha256": "45513ce5678549112d25ab85b1926fb65986507d49c674a3d04b2ba70dba2eb5",
+          "size": 537149760
+        }
+      ],
       "model_id": "deepface-gender",
       "optional": true,
       "vram_provenance": "declared"
@@ -62,7 +74,12 @@
   "manifest_kind": "model",
   "name": "deepface-gender",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "deepface",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:face_analyzer:deepface-gender",

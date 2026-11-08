@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "GLM-5.3-Flash is a native multimodal model from Z.ai",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:zai-org/GLM-5.3-Flash",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "GLM-5.3-Flash is a native multimodal model from Z.ai. It is suited for efficient coding and long-horizon agent tasks. Its hybrid sparse and linear attention architecture maintains accurate long-context behavior while...",
   "key": "openrouter:z-ai/glm-5.3-flash",
   "manifest_kind": "model",
   "name": "Z.ai: GLM 5.3 Flash",

@@ -5,9 +5,13 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_temperature": 1.0,
       "modalities": [
         "text",
         "image"
+      ],
+      "params": [
+        "temperature"
       ],
       "task": "text-generation",
       "vision": true
@@ -19,6 +23,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://www.anthropic.com/claude/opus",
+          "https://platform.claude.com/docs/en/models/opus-4-8/overview",
+          "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/opus-4-8"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -28,7 +42,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+      "description_short": "Modèle d'IA à raisonnement hybride de 1M de contexte pour le codage et les agents.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -50,7 +64,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "description": "Claude Opus 4.8 est un modèle hybride conçu pour le codage complexe et les agents autonomes, avec une fenêtre de contexte de 1 million de tokens et une sortie maximale de 128K tokens. Bien que toujours disponible (jusqu'en mai 2027), il s'agit d'un modèle legacy dont Anthropic recommande la migration vers la version 5.5. Il est déployé sur plusieurs plateformes (AWS Bedrock, Google Cloud) avec une tarification à l'usage.",
   "key": "anthropic:claude-opus-4-8",
   "manifest_kind": "model",
   "name": "Claude Opus 4.8",

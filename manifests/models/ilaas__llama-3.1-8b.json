@@ -1,0 +1,79 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ilaas"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+          "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-meta-llama-3-1-8b-instruct.html",
+          "https://ai.azure.com/catalog/models/Meta-Llama-3.1-8B-Instruct"
+        ]
+      },
+      "hosting": "sovereign",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Modèle de langage compact (8 milliards paramètres) optimisé pour le dialogue multilingue et les déploiements sur périphériques.",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "ilaas"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ilaas",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Il s'agit d'un modèle instruct-tuned de Meta avec une fenêtre de contexte de 128K, conçu pour exceller dans les cas d'usage de dialogue multilingue. Ses entrées sont des textes ou dialogues, et ses sorties sont des réponses textuelles optimisées pour les benchmarks industriels. Le modèle est disponible en poids ouverts (licence communautaire) et sert sur plusieurs plateformes cloud comme AWS Bedrock, Azure et NVIDIA NGC.",
+  "key": "ilaas:llama-3.1-8b",
+  "manifest_kind": "model",
+  "name": "llama-3.1-8b",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ilaas:llama-3.1-8b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

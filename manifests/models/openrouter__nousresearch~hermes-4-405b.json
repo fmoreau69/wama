@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Hermes 4 is a large-scale reasoning model built on Meta-Llama-3.1-405B and released by Nous Research",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:NousResearch/Hermes-4-405B",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Hermes 4 is a large-scale reasoning model built on Meta-Llama-3.1-405B and released by Nous Research. It introduces a hybrid reasoning mode, where the model can choose to deliberate internally with...",
   "key": "openrouter:nousresearch/hermes-4-405b",
   "manifest_kind": "model",
   "name": "Nous: Hermes 4 405B",

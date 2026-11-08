@@ -5,9 +5,13 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_temperature": 1.0,
       "modalities": [
         "text",
         "image"
+      ],
+      "params": [
+        "temperature"
       ],
       "task": "text-generation",
       "vision": true
@@ -19,6 +23,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://www.anthropic.com/claude/sonnet?m=1",
+          "https://platform.claude.com/docs/en/models/sonnet-4-6/overview",
+          "https://www.anthropic.com/news/claude-sonnet-4-6"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -28,7 +42,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+      "description_short": "Modèle d'IA hybride de raisonnement d'Anthropic avec une fenêtre de contexte de 1M de tokens, optimisé pour le codage et les agents.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -50,7 +64,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "description": "Claude Sonnet 4.6 est un modèle hybride de raisonnement qui excelle dans le codage, l'utilisation des ordinateurs et la planification d'agents. Il accepte jusqu'à 1 million de tokens en contexte et peut générer jusqu'à 128 000 tokens de sortie. Bien qu'il soit disponible, Anthropic recommande sa migration vers Claude Sonnet 5.5.",
   "key": "anthropic:claude-sonnet-4-6",
   "manifest_kind": "model",
   "name": "Claude Sonnet 4.6",

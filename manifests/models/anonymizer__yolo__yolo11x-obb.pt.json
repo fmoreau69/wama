@@ -91,7 +91,12 @@
   "manifest_kind": "model",
   "name": "yolo11x-obb.pt",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "ultralytics",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:anonymizer:yolo:yolo11x-obb.pt",

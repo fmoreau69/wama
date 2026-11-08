@@ -115,6 +115,10 @@
     {
       "key": "soundfile",
       "kind": "library"
+    },
+    {
+      "key": "text2num",
+      "kind": "library"
     }
   ],
   "schema_version": "1.0",

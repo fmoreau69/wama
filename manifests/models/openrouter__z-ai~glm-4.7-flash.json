@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "As a 30B-class SOTA model, GLM-4.7-Flash offers a new option that balances performance and efficiency",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:zai-org/GLM-4.7-Flash",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "As a 30B-class SOTA model, GLM-4.7-Flash offers a new option that balances performance and efficiency. It is further optimized for agentic coding use cases, strengthening coding capabilities, long-horizon task planning,...",
   "key": "openrouter:z-ai/glm-4.7-flash",
   "manifest_kind": "model",
   "name": "Z.ai: GLM 4.7 Flash",

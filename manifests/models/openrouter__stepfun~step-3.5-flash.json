@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Step 3.5 Flash is StepFun's most capable open-source foundation model",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:stepfun-ai/Step-3.5-Flash",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Step 3.5 Flash is StepFun's most capable open-source foundation model. Built on a sparse Mixture of Experts (MoE) architecture, it selectively activates only 11B of its 196B parameters per token....",
   "key": "openrouter:stepfun/step-3.5-flash",
   "manifest_kind": "model",
   "name": "StepFun: Step 3.5 Flash",

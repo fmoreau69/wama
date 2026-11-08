@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "MiniMax-M2 is a compact, high-efficiency large language model optimized for end-to-end coding and agentic workflows",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:MiniMaxAI/MiniMax-M2",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "MiniMax-M2 is a compact, high-efficiency large language model optimized for end-to-end coding and agentic workflows. With 10 billion activated parameters (230 billion total), it delivers near-frontier intelligence across general reasoning,...",
   "key": "openrouter:minimax/minimax-m2",
   "manifest_kind": "model",
   "name": "MiniMax: MiniMax M2",

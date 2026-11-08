@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Laguna S 2.1 is the latest coding agent model from [Poolside](<https://poolside.ai/>)",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:poolside/Laguna-S-2.1",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Laguna S 2.1 is the latest coding agent model from [Poolside](<https://poolside.ai/>). Laguna S 2.1 is a 118B total parameter model with 8B active parameters, scoring 70.2% on Terminal-Bench 2.1 and...",
   "key": "openrouter:poolside/laguna-s-2.1:free",
   "manifest_kind": "model",
   "name": "Poolside: Laguna S 2.1 (free)",

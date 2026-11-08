@@ -24,6 +24,8 @@
       ],
       "params_active_b": 0.271,
       "params_total_b": 0.271,
+      "recommended_temperature": null,
+      "recommended_top_p": null,
       "task": "feature-extraction",
       "thinking": false,
       "tools": false,
@@ -35,6 +37,23 @@
       }
     },
     "extra_info": {
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://ollama.com/library/embeddinggemma-2:latest",
+          "https://ollama.com/library/embeddinggemma-2/tags",
+          "https://ollama.com/library/embeddinggemma-2:latest/blobs/111e84992a04"
+        ]
+      },
+      "quantization": "Q8_0",
+      "vram_measured": {
+        "at": "2026-11-08T01:05:12+00:00",
+        "last_gb": 1.9,
+        "max_gb": 1.91,
+        "n": 6
+      },
       "vram_provenance": "heuristic"
     },
     "formats": {
@@ -43,7 +62,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Ollama LLM (1.3 GB)",
+      "description_short": "Modèle d'embedding multimodal de Google basé sur Gemma 4 pour texte et image.",
       "license": null,
       "model_type": "embedding",
       "platform_ref": "ollama:embeddinggemma-2",
@@ -65,7 +84,7 @@
       "vram_gb": 1.3
     }
   },
-  "description": "Ollama LLM (1.3 GB)",
+  "description": "EmbeddingGemma 2 est un modèle d'embedding multimodal développé par Google sur l'architecture Gemma 4, conçu pour générer des embeddings à partir d'entrées textuelles et visuelles. Il supporte le traitement de l'audio et propose plusieurs tailles de contexte (jusqu'à 740 millions de tokens) avec une licence non spécifiée dans la source.",
   "key": "ollama:embeddinggemma-2:latest",
   "manifest_kind": "model",
   "name": "embeddinggemma-2:latest",

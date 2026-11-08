@@ -34,8 +34,16 @@
         "lightonai/LightOnOCR-2-1B",
         "openweight-ocr"
       ],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/lightonai/LightOnOCR-2-1B"
+        ]
+      },
       "hosting": "sovereign",
-      "remote_type": "image-text-to-text"
+      "remote_type": "text-generation"
     },
     "formats": {
       "can_convert_to": [],
@@ -43,7 +51,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Albert API (DINUM) — modèle distant (image-text-to-text)",
+      "description_short": "Modèle OCR end-to-end de 1B paramètres optimisé pour la précision et la vitesse, supportant le français et les documents complexes.",
       "license": null,
       "model_type": "ocr",
       "platform_ref": "huggingface:lightonai/LightOnOCR-2-1B",
@@ -69,7 +77,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Albert API (DINUM) — modèle distant (image-text-to-text)",
+  "description": "LightOnOCR-2-1B est un modèle vision-langue de 1 milliard de paramètres conçu pour convertir des documents (PDF, scans) en texte propre sans pipelines fragiles. Il atteint une performance d'état de l'art sur le benchmark OlmOCR-Bench tout en étant significativement plus rapide et efficace que les approches concurrentes. Le modèle prend en entrée des images ou des fichiers PDF et produit du texte structuré, gérant notamment les tableaux, les formulaires et la notation mathématique.",
   "key": "albert:lightonocr-2-1b",
   "manifest_kind": "model",
   "name": "lightonocr-2-1b",

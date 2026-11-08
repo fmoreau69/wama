@@ -5,9 +5,13 @@
       "inputs_required": [
         "prompt"
       ],
+      "max_temperature": 1.0,
       "modalities": [
         "text",
         "image"
+      ],
+      "params": [
+        "temperature"
       ],
       "task": "text-generation",
       "vision": true
@@ -19,6 +23,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://www.anthropic.com/claude/haiku",
+          "https://platform.claude.com/docs/en/models/haiku-4-5/overview",
+          "https://assets.claude.com/7aad69bf12627d42234e01ee7c36305dc2f6a970.pdf"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -28,7 +42,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+      "description_short": "Modèle IA hybride de Anthropic pour le codage et l'agent, rapide et peu coûteux.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -50,7 +64,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
+  "description": "Claude Haiku 4.5 est un modèle hybride de raisonnement développé par Anthropic, conçu pour les tâches de codage et d'utilisation des ordinateurs grâce à son équilibre vitesse/intelligence. Il dispose d'une fenêtre de contexte de 200K tokens et une sortie maximale de 64K tokens, avec des tarifs compétitifs (1$/MTok entrée, 5$/MTok sortie). Bien qu'il soit disponible, la source recommande sa migration vers Claude Haiku 5.5.",
   "key": "anthropic:claude-haiku-4-5-20251001",
   "manifest_kind": "model",
   "name": "Claude Haiku 4.5",

@@ -120,6 +120,14 @@
         "openai/whisper-large-v3",
         "openweight-audio"
       ],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/openai/whisper-large-v3"
+        ]
+      },
       "hosting": "sovereign",
       "remote_type": "automatic-speech-recognition"
     },
@@ -129,7 +137,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Albert API (DINUM) — modèle distant (automatic-speech-recognition)",
+      "description_short": "Modèle d'IA pour la reconnaissance automatique de la parole et la traduction vocale (ASR/ST), entraîné sur plus de 5 millions d'heures d'audio.",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:openai/whisper-large-v3",
@@ -161,7 +169,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Albert API (DINUM) — modèle distant (automatic-speech-recognition)",
+  "description": "Whisper est un modèle de reconnaissance automatique de la parole et de traduction vocale proposé par OpenAI, entraîné sur plus de 5 millions d'heures de données étiquetées. Il fonctionne en mode zéro-shot et accepte des entrées sous forme de spectrogrammes audio pour produire des transcriptions ou des traductions textuelles. Ses points forts incluent une forte capacité de généralisation à de nombreux domaines et une réduction de 10% à 20% des erreurs par rapport au modèle précédent, avec un support pour plus de 100 langues dont le cantonais.",
   "key": "albert:whisper-large-v3",
   "manifest_kind": "model",
   "name": "whisper-large-v3",

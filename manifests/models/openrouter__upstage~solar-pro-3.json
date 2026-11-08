@@ -1,0 +1,79 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://www.upstage.ai/blog/en/solar-pro-3-0127",
+          "https://openrouter.ai/upstage/solar-pro-3",
+          "https://modelsatlas.com/models/upstage/solar-pro-3"
+        ]
+      },
+      "hosting": "third_party",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Modèle de langage MoE (102B paramètres) d'Upstage optimisé pour le raisonnement à grande échelle et l'efficacité.",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Solar Pro 3 est un modèle Mixture-of-Experts (MoE) avec 102B paramètres totaux et 12B actifs par passe, conçu pour le raisonnement à grande échelle. Il prend en entrée des prompts textuels et génère des réponses optimisées pour l'analyse, le codage et les agents de production. Bien qu'optimisé spécifiquement pour le coréen, il supporte également l'anglais et le japonais, avec une fenêtre de contexte de 128K.",
+  "key": "openrouter:upstage/solar-pro-3",
+  "manifest_kind": "model",
+  "name": "Upstage: Solar Pro 3",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:upstage/solar-pro-3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

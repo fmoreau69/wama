@@ -14,6 +14,9 @@
         "image"
       ],
       "native_resolution": "1024x1024",
+      "params": [
+        "seed"
+      ],
       "recommended_guidance": 3.5,
       "recommended_steps": 28,
       "task": "text-to-image",

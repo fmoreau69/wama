@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "category": "upscaling",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://huggingface.co/Phips/4xNomosUni_span_multijpg",
+          "https://github.com/Phhofm/models/releases/tag/4xNomosUni_span_multijpg",
+          "https://huggingface.co/Phips/4xNomosUni_span_multijpg/blob/main/README.md"
+        ]
+      },
       "family": "4xNomosUni_span_multijpg",
       "github_release": true,
       "vram_provenance": "estimated"
@@ -34,7 +44,7 @@
     },
     "identity": {
       "author": "Phhofm",
-      "description_short": "Version GitHub 4xNomosUni_span_multijpg",
+      "description_short": "Upscaleur d'images universel x4 entraîné sur le dataset NomosUni, optimisé pour les photos JPEG.",
       "license": "CC BY 4.0",
       "model_type": "upscaling",
       "platform_ref": "github:Phhofm/models/releases/tag/4xNomosUni_span_multijpg",
@@ -56,7 +66,7 @@
       "vram_gb": 0.1
     }
   },
-  "description": "Version GitHub installée (upscaling/4xNomosUni_span_multijpg), cataloguée par le balayage générique des modèles installés.",
+  "description": "Il s'agit d'un modèle d'upscaling x4 rapide et universel entraîné par Philip Hofmann sur le dataset NomosUni (2989 images) sans OOTF. Le modèle fonctionne en image vers image via la architecture SPAN, avec des entrées de taille 512px et une sortie x4. Il est disponible sous licence CC BY 4.0, supporte les langages Python et ONNX, et peut tourner sur CPU ou WebGPU.",
   "key": "github:Phhofm/models:4xNomosUni_span_multijpg",
   "manifest_kind": "model",
   "name": "4xNomosUni_span_multijpg",

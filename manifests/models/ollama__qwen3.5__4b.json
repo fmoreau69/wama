@@ -11,6 +11,9 @@
       "completion": true,
       "context_length": 262144,
       "embedding": false,
+      "inputs_optional": [
+        "work_image"
+      ],
       "inputs_required": [
         "prompt"
       ],
@@ -18,8 +21,15 @@
         "text",
         "image"
       ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
       "params_active_b": 4.7,
       "params_total_b": 4.7,
+      "recommended_temperature": 1.0,
+      "recommended_top_p": 0.95,
       "task": "text-generation",
       "thinking": true,
       "tools": true,
@@ -31,6 +41,23 @@
       }
     },
     "extra_info": {
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://huggingface.co/Qwen/Qwen3.5-4B",
+          "https://huggingface.co/Qwen/Qwen3.5-4B/blob/main/README.md",
+          "https://docs.nvidia.com/nemo/automodel/model-coverage/vision-language-models/qwen/Qwen3.5-4B"
+        ]
+      },
+      "quantization": "Q4_K_M",
+      "vram_measured": {
+        "at": "2026-11-08T04:42:38+00:00",
+        "last_gb": 4.16,
+        "max_gb": 6.81,
+        "n": 89
+      },
       "vram_provenance": "heuristic"
     },
     "formats": {
@@ -39,7 +66,7 @@
     },
     "identity": {
       "author": "Qwen team, Alibaba",
-      "description_short": "Ollama LLM (3.4 GB)",
+      "description_short": "Modèle de vision-langage post-entraîné compatible Hugging Face Transformers pour tâches multimodales.",
       "license": "apache-2.0",
       "model_type": "llm",
       "platform_ref": "ollama:qwen3.5",
@@ -61,7 +88,7 @@
       "vram_gb": 3.4
     }
   },
-  "description": "Ollama LLM (3.4 GB)",
+  "description": "Qwen3.5-4B est un modèle de vision-langage post-entraîné fourni par Alibaba Cloud, conçu pour la compréhension d'images et de données multimodales. Il accepte des entrées visuelles et textuelles et produit des sorties textuelles via le format Hugging Face Transformers. Le modèle est compatible avec des outils comme vLLM, SGLang et KTransformers, sous licence Apache-2.0.",
   "key": "ollama:qwen3.5:4b",
   "manifest_kind": "model",
   "name": "qwen3.5:4b",

@@ -136,7 +136,8 @@
         "params": {},
         "process": {
           "degree": "optional",
-          "gpu": false,
+          "eta": "composer.tasks:write_lyrics_eta",
+          "gpu": true,
           "label": "Paroles écrites",
           "result": "composer.tasks:written_lyrics",
           "watched": [

@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -24,8 +26,16 @@
       "aliases": [
         "google/gemma-4-31B-it"
       ],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/google/gemma-4-31B-it"
+        ]
+      },
       "hosting": "sovereign",
-      "remote_type": "image-text-to-text"
+      "remote_type": "text-generation"
     },
     "formats": {
       "can_convert_to": [],
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Albert API (DINUM) — modèle distant (image-text-to-text)",
+      "description_short": "Modèles multimodaux (texte, image, audio) de Google DeepMind avec fenêtre de contexte jusqu'à 256K tokens et licence Apache 2.0.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:google/gemma-4-31B-it",
@@ -58,7 +68,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Albert API (DINUM) — modèle distant (image-text-to-text)",
+  "description": "Gemma 4 est une famille de modèles ouverts développés par Google DeepMind, supportant les entrées textuelles, visuelles et (sur certains modèles) audio pour générer du texte. Disponibles en cinq tailles différentes (E2B, E4B, 12B, 26B A4B MoE, 31B), ils offrent des architectures hybrides Dense ou Mixture-of-Experts avec une fenêtre de contexte allant jusqu'à 256K tokens et un support multilingue sur plus de 140 langues. Ces modèles sont optimisés pour le déploiement sur device (laptops, mobiles) grâce à des mécanismes d'attention efficaces et des paramètres réduits, tout en excellant dans les tâches de raisonnement, de codage et de compréhension multimodale.",
   "key": "albert:gemma-4-31b-it",
   "manifest_kind": "model",
   "name": "gemma-4-31b-it",

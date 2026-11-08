@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "gpt-oss-20b is an open-weight 21B parameter model released by OpenAI under the Apache 2.0 license",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:openai/gpt-oss-20b",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "gpt-oss-20b is an open-weight 21B parameter model released by OpenAI under the Apache 2.0 license. It uses a Mixture-of-Experts (MoE) architecture with 3.6B active parameters per forward pass, optimized for...",
   "key": "openrouter:openai/gpt-oss-20b",
   "manifest_kind": "model",
   "name": "OpenAI: gpt-oss-20b",

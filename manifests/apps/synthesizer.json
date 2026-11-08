@@ -83,6 +83,10 @@
                   "expr": "'Fichier texte à synthétiser'",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "upload_to": {
                   "expr": "wama.common.utils.media_paths.UploadToUserPath('synthesizer', 'input')",
                   "imports": [
@@ -123,6 +127,10 @@
                 },
                 "help_text": {
                   "expr": "'Échantillon audio pour clonage de voix (6-10 secondes recommandé)'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -425,6 +433,10 @@
                   "expr": "'Fichier audio généré'",
                   "imports": []
                 },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
                 "null": {
                   "expr": "True",
                   "imports": []
@@ -672,6 +684,10 @@
                 },
                 "help_text": {
                   "expr": "'Fichier batch source'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
                   "imports": []
                 },
                 "null": {
@@ -927,7 +943,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -984,7 +1001,8 @@
             ],
             "step": 1,
             "type": "intent",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1099,7 +1117,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1157,7 +1176,8 @@
             ],
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1211,7 +1231,8 @@
             ],
             "step": 0.1,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1265,7 +1286,8 @@
             ],
             "step": 0.1,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1317,7 +1339,8 @@
             ],
             "step": 0.05,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1369,7 +1392,8 @@
             ],
             "step": 0.05,
             "type": "range",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1438,7 +1462,8 @@
             ],
             "step": 0.05,
             "type": "temperature",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1498,7 +1523,8 @@
             ],
             "step": 1,
             "type": "seed",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": true,
@@ -1558,7 +1584,8 @@
             ],
             "step": 0.05,
             "type": "top_p",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1641,7 +1668,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           },
           {
             "advanced": false,
@@ -1715,7 +1743,8 @@
             "stales": null,
             "step": null,
             "type": "select",
-            "unit": ""
+            "unit": "",
+            "write_from": null
           }
         ]
       }
@@ -1963,7 +1992,7 @@
         "add_to_synthesizer": {
           "args": {
             "clause_pause": "range — Silence, en secondes, après une virgule, un point-virgule, deux-points, une parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle. [0–1] (défaut : 0.15)",
-            "emotion_intensity": "float (défaut : 1.0)",
+            "emotion_intensity": "float",
             "language": "select — Langue de synthèse (choix : fr | en | es | de | it | pt | pl | tr …) (défaut : 'fr')",
             "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus) (défaut : 'original')",
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max) (défaut : 'balanced')",
@@ -1980,7 +2009,7 @@
             "voice_preset": "select — Voix de référence (sa_…), voix clonée (ua_…) ou voix propre du moteur (défaut : 'default')",
             "work_file": "str"
           },
-          "description": "Ajoute un élément à la file d'attente de Synthesizer (Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…)) et renvoie son item_id."
+          "description": "Ajoute un élément à la file d'attente de Synthesizer (Synthèse vocale : un texte dit par une voix de synthèse ou clonée) et renvoie son item_id."
         },
         "get_synthesizer_status": {
           "args": {},
@@ -1995,12 +2024,14 @@
         }
       },
       "start": "start_synthesizer",
+      "start_selection": {
+        "pending": {}
+      },
       "status": "get_synthesizer_status",
       "triad_spec": {
         "empty_msg": "Aucune synthèse en attente.",
         "id_kwarg": "synthesis_id",
         "model": "wama.synthesizer.models.VoiceSynthesis",
-        "reset": "wama.synthesizer.views._reset_and_seed_progress",
         "status_fields": {
           "audio_url": {
             "attr": "audio_output",
@@ -2019,12 +2050,11 @@
           "voice_preset": "voice_preset",
           "word_count": "word_count"
         },
-        "status_order": "-id",
-        "task_for": "wama.synthesizer.views._task_for"
+        "status_order": "-id"
       }
     }
   },
-  "description": "Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…).",
+  "description": "Synthèse vocale : un texte dit par une voix de synthèse ou clonée.",
   "key": "synthesizer",
   "manifest_kind": "app",
   "name": "Synthesizer",
@@ -2063,7 +2093,19 @@
       "kind": "model"
     },
     {
+      "key": "PyPDF2",
+      "kind": "library"
+    },
+    {
       "key": "boson_multimodal",
+      "kind": "library"
+    },
+    {
+      "key": "coqui-tts",
+      "kind": "library"
+    },
+    {
+      "key": "encodec",
       "kind": "library"
     },
     {
@@ -2083,7 +2125,19 @@
       "kind": "library"
     },
     {
+      "key": "phonemizer",
+      "kind": "library"
+    },
+    {
       "key": "ptts",
+      "kind": "library"
+    },
+    {
+      "key": "pydub",
+      "kind": "library"
+    },
+    {
+      "key": "python-docx",
       "kind": "library"
     },
     {
@@ -2096,6 +2150,10 @@
     },
     {
       "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "sox",
       "kind": "library"
     },
     {

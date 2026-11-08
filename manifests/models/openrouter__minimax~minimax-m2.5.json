@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "MiniMax-M2.5 is a SOTA large language model designed for real-world productivity",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:MiniMaxAI/MiniMax-M2.5",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in a diverse range of complex real-world digital working environments, M2.5 builds upon the coding expertise of M2.1...",
   "key": "openrouter:minimax/minimax-m2.5",
   "manifest_kind": "model",
   "name": "MiniMax: MiniMax M2.5",

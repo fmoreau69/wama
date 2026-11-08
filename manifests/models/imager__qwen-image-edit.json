@@ -16,6 +16,9 @@
         "image"
       ],
       "native_resolution": "1024x1024",
+      "params": [
+        "seed"
+      ],
       "recommended_guidance": 4.0,
       "recommended_steps": 50,
       "task": "image-to-image",

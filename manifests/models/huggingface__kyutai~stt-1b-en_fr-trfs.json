@@ -29,6 +29,14 @@
     },
     "extra_info": {
       "category": "speech",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/kyutai/stt-1b-en_fr-trfs"
+        ]
+      },
       "family": "stt-1b-en_fr-trfs",
       "vram_measured": {
         "at": "2026-10-02T19:48:11+00:00",
@@ -44,7 +52,7 @@
     },
     "identity": {
       "author": "Kyutai",
-      "description_short": "Snapshot HF stt-1b-en_fr-trfs",
+      "description_short": "Modèle de reconnaissance vocale streaming en français et anglais avec faible latence.",
       "license": "cc-by-4.0",
       "model_type": "speech",
       "platform_ref": "huggingface:kyutai/stt-1b-en_fr-trfs",
@@ -69,7 +77,7 @@
       "vram_gb": 3.2
     }
   },
-  "description": "Snapshot HuggingFace installé (speech/stt-1b-en_fr-trfs), catalogué par le balayage générique des modèles installés.",
+  "description": "Kyutai STT est un modèle Transformer decoder-only conçu pour la transcription vocale en temps réel, capable de générer du texte dès quelques secondes d'audio. Il supporte le français et l'anglais (selon le modèle) avec une licence CC-BY 4.0, mais ne gère que les entrées audio à 24 kHz.",
   "key": "huggingface:kyutai/stt-1b-en_fr-trfs",
   "manifest_kind": "model",
   "name": "stt-1b-en_fr-trfs",

@@ -12,9 +12,12 @@
         "audio"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed"
       ],
       "recommended_temperature": 1.0,
+      "recommended_top_p": null,
+      "supports_vocals": false,
       "task": "text-to-audio"
     },
     "composition": {
@@ -40,7 +43,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": null
+      "format": "bin"
     },
     "identity": {
       "author": "facebook",
@@ -76,7 +79,12 @@
   "manifest_kind": "model",
   "name": "AudioGen Medium — bruitages et sons d'ambiance, 1.5B params",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "audiocraft",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:composer:audiogen-medium",

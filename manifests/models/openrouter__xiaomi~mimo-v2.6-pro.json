@@ -10,7 +10,9 @@
         "image"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation",
       "vision": true
@@ -33,7 +35,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "MiMo-V2.6-Pro is the flagship foundation model developed by Xiaomi",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:XiaomiMiMo/MiMo-V2.6-Pro-RL",
@@ -55,7 +57,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "MiMo-V2.6-Pro is the flagship foundation model developed by Xiaomi. Built at a scale of over 1T parameters, it is designed to push the ceiling of capability for the most demanding...",
   "key": "openrouter:xiaomi/mimo-v2.6-pro",
   "manifest_kind": "model",
   "name": "Xiaomi: MiMo-V2.6-Pro",

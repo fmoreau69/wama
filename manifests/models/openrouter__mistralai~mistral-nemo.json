@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "A 12B parameter model with a 128k token context length built by Mistral in collaboration with NVIDIA",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Mistral-Nemo-Instruct-2407",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "A 12B parameter model with a 128k token context length built by Mistral in collaboration with NVIDIA. The model is multilingual, supporting English, French, German, Spanish, Italian, Portuguese, Chinese, Japanese,...",
   "key": "openrouter:mistralai/mistral-nemo",
   "manifest_kind": "model",
   "name": "Mistral: Mistral Nemo",

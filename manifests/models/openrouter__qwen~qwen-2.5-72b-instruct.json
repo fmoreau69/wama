@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Qwen2.5 72B is the latest series of Qwen large language models",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen2.5-72B-Instruct",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Qwen2.5 72B is the latest series of Qwen large language models. Qwen2.5 brings the following improvements upon Qwen2: - Significantly more knowledge and has greatly improved capabilities in coding and...",
   "key": "openrouter:qwen/qwen-2.5-72b-instruct",
   "manifest_kind": "model",
   "name": "Qwen2.5 72B Instruct",

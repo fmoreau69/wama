@@ -20,6 +20,14 @@
         "BAAI/bge-m3",
         "openweight-embeddings"
       ],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/BAAI/bge-m3"
+        ]
+      },
       "hosting": "sovereign",
       "remote_type": "text-embeddings-inference"
     },
@@ -29,7 +37,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Albert API (DINUM) — modèle distant (text-embeddings-inference)",
+      "description_short": "Modèle d'IA multilingue et multifonctionnel pour la recherche hybride (dense, sparse, multi-vector) jusqu'à 8192 tokens.",
       "license": null,
       "model_type": "embedding",
       "platform_ref": "huggingface:BAAI/bge-m3",
@@ -58,7 +66,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Albert API (DINUM) — modèle distant (text-embeddings-inference)",
+  "description": "BGE-M3 est un modèle d'embedding capable de gérer simultanément trois modes de récupération : dense, sparse et multi-vector. Il supporte plus de 100 langues et accepte des entrées allant jusqu'à 8192 tokens. Ses points forts incluent une performance supérieure dans les benchmarks multilingues (MIRACL) et la possibilité d'intégrer la recherche hybride sans coût supplémentaire pour le calcul des poids lexicaux.",
   "key": "albert:bge-m3",
   "manifest_kind": "model",
   "name": "bge-m3",

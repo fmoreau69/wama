@@ -25,6 +25,14 @@
     },
     "extra_info": {
       "category": "upscaling",
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX"
+        ]
+      },
       "family": "swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
       "vram_provenance": "estimated"
     },
@@ -36,7 +44,7 @@
       "author": "onnx-community",
       "base_model": "caidas/swin2SR-realworld-sr-x4-64-bsrgan-psnr",
       "base_model_relation": "quantized",
-      "description_short": "Snapshot HF swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
+      "description_short": "Modèle de super-résolution x4 pour images réelles, basé sur SwinV2 et disponible en ONNX.",
       "license": "apache-2.0",
       "model_type": "upscaling",
       "platform_ref": "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
@@ -61,7 +69,7 @@
       "vram_gb": 0.1
     }
   },
-  "description": "Snapshot HuggingFace installé (upscaling/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX), catalogué par le balayage générique des modèles installés.",
+  "description": "Ce modèle effectue la super-résolution d'images (x4) dans des conditions réelles, utilisant l'architecture SwinV2 Transformer. Il prend une image basse résolution en entrée et produit une image haute résolution optimisée pour les cas d'utilisation réels.",
   "key": "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
   "manifest_kind": "model",
   "name": "swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",

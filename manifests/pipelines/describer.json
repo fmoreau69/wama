@@ -60,6 +60,8 @@
           "watched": [
             "vision_model",
             "vision_temperature",
+            "vision_seed",
+            "vision_top_p",
             "input_file"
           ]
         }
@@ -83,8 +85,12 @@
             "max_length",
             "vision_model",
             "vision_temperature",
+            "vision_seed",
+            "vision_top_p",
             "llm_model",
             "llm_temperature",
+            "llm_seed",
+            "llm_top_p",
             "input_file"
           ]
         }
@@ -107,6 +113,8 @@
             "output_language",
             "llm_model",
             "llm_temperature",
+            "llm_seed",
+            "llm_top_p",
             "summary_type"
           ]
         }
@@ -128,7 +136,9 @@
           "watched": [
             "output_language",
             "llm_model",
-            "llm_temperature"
+            "llm_temperature",
+            "llm_seed",
+            "llm_top_p"
           ]
         }
       }

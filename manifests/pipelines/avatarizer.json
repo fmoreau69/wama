@@ -34,7 +34,9 @@
             "quality_intent",
             "language",
             "voice_preset",
-            "tts_temperature"
+            "tts_temperature",
+            "tts_seed",
+            "tts_top_p"
           ]
         }
       },
@@ -73,10 +75,13 @@
           "degree": "required",
           "eta": "avatarizer.workers:enhance_eta_key_size",
           "gpu": true,
-          "label": "Visage",
+          "label": "Visage et sortie",
           "share": 3,
           "watched": [
-            "use_enhancer"
+            "use_enhancer",
+            "output_format",
+            "output_quality",
+            "output_upscale"
           ]
         }
       }
@@ -85,7 +90,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "avatarizer",
   "manifest_kind": "pipeline",
-  "name": "Avatarizer — voix, animation, visage (3 process)",
+  "name": "Avatarizer — voix, animation, visage et sortie (3 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

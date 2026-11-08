@@ -9,7 +9,9 @@
         "text"
       ],
       "params": [
-        "temperature"
+        "temperature",
+        "seed",
+        "top_p"
       ],
       "task": "text-generation"
     },
@@ -31,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "One of the highest performing and most popular fine-tunes of Llama 2 13B, with rich descriptions and roleplay",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Gryphe/MythoMax-L2-13b",
@@ -53,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "One of the highest performing and most popular fine-tunes of Llama 2 13B, with rich descriptions and roleplay. #merge",
   "key": "openrouter:gryphe/mythomax-l2-13b",
   "manifest_kind": "model",
   "name": "MythoMax 13B",

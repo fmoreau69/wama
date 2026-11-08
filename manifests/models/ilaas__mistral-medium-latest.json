@@ -1,0 +1,79 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ilaas"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://www.requesty.ai/models/mistral/mistral-medium-latest",
+          "https://models.dev/models/mistral/mistral-medium-latest/",
+          "https://pi.dev/models/mistral/mistral-medium-latest?provider=fireworks"
+        ]
+      },
+      "hosting": "sovereign",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Modèle IA multilingue de Mistral pour assistants d'entreprise, supportant texte et images avec un contexte de 262k tokens.",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "ilaas"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ilaas",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Le modèle mistral-medium-latest est conçu pour les assistants d'entreprise et le travail multilingue. Il accepte des entrées textuelles ou en image et génère du texte, avec une fenêtre de contexte et une limite de sortie de 262 144 tokens. Disponible via l'API Mistral (gestion UE uniquement), il offre un contexte étendu mais reste limité aux modèles de taille moyenne.",
+  "key": "ilaas:mistral-medium-latest",
+  "manifest_kind": "model",
+  "name": "mistral-medium-latest",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ilaas:mistral-medium-latest",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

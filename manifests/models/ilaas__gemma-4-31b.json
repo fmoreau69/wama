@@ -1,0 +1,79 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation"
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ilaas"
+      }
+    },
+    "extra_info": {
+      "aliases": [],
+      "description_source": {
+        "date": "2026-10-30",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://ai.google.dev/gemma/docs/core",
+          "https://huggingface.co/google/gemma-4-31B-it",
+          "https://www.together.ai/models/gemma-4-31b"
+        ]
+      },
+      "hosting": "sovereign",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Modèle multimodal de raisonement et génération de texte pour tâches variées, supportant l'image et le contexte 256K.",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": null,
+      "source": "ilaas"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ilaas",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Gemma 4 est un modèle génératif multimodal développé par Google DeepMind, capable de traiter des entrées textuelles et visuelles (avec audio sur certaines versions) pour produire du texte. Il dispose d'une fenêtre de contexte étendue à 256K tokens, prend en charge plus de 140 langues et inclut des modes de raisonnement et d'appel de fonctions natives. Les sources mentionnent qu'il est disponible avec des poids ouverts (Apache 2.0) pour un usage commercial responsable, bien que les détails précis sur la taille exacte des paramètres varient légèrement entre les descriptions (31B vs 30,7B).",
+  "key": "ilaas:gemma-4-31b",
+  "manifest_kind": "model",
+  "name": "gemma-4-31b",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ilaas:gemma-4-31b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
