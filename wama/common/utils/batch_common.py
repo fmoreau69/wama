@@ -664,6 +664,35 @@ def leave_batch(element):
     return lot
 
 
+def _order_field(member_model, direct: bool):
+    """Le champ d'ORDRE des lignes d'un lot : `batch_row_index` sur l'élément en FK directe,
+    `row_index` sur la ligne de liaison — None si le modèle n'en porte pas."""
+    fields = {f.name for f in member_model._meta.get_fields()}
+    name = 'batch_row_index' if direct else 'row_index'
+    return name if name in fields else None
+
+
+def set_batch_order(lot, element_model, ordered_ids) -> int:
+    """Range les éléments `ordered_ids` du lot dans CET ordre : leur ligne reçoit 0, 1, 2… — les
+    autres lignes ne bougent pas. Les deux formes de rattachement, par la ligne que
+    `batch_elements` pose sur chaque élément (`batch_link`). Un id hors du lot est ignoré. Rend le
+    nombre de lignes rangées.
+
+    Né le 2026-11-08 de deux copies du même geste — la vue `reorder` de chaque fabrique de
+    `queue_manipulation` (glisser-déposer dans un lot) — au moment d'en écrire une troisième : le
+    Reader range seul les pages d'une partition par le numéro de page LU (décision de Fabien)."""
+    links = {e.pk: e.batch_link for e in batch_elements(lot, element_model)}
+    done = 0
+    for index, pk in enumerate(ordered_ids):
+        link = links.get(pk)
+        field = (_order_field(type(link), isinstance(link, element_model))
+                 if link is not None else None)
+        if field:
+            type(link).objects.filter(pk=link.pk).update(**{field: index})
+            done += 1
+    return done
+
+
 def batch_elements(lot, element_model):
     """Les ÉLÉMENTS d'un lot, DANS L'ORDRE DES LIGNES — le pendant DESCENDANT de `batch_of`.
 
@@ -698,10 +727,8 @@ def batch_elements(lot, element_model):
     if manager is None:
         return []
     member_model = manager.model
-    member_fields = {f.name for f in member_model._meta.get_fields()}
     direct = issubclass(member_model, element_model)      # les membres SONT les éléments
-    row_field = ('batch_row_index' if direct and 'batch_row_index' in member_fields
-                 else 'row_index' if not direct and 'row_index' in member_fields else None)
+    row_field = _order_field(member_model, direct)
     # Forme par LIAISON : la relation (many_to_one ou one_to_one, non auto-créée) qui vise
     # exactement le modèle d'élément.
     element_field = None if direct else next(

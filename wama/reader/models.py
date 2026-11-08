@@ -157,6 +157,11 @@ class ReadingItem(KeptOutputsMixin, ProcessingTimeMixin, ScopedVisibility):
         return self.score_title if getattr(self.score_file, 'name', '') else ''
 
     @property
+    def read_page(self):
+        """Le numéro de page lu sur la partition — même règle que `read_title`."""
+        return self.score_page if getattr(self.score_file, 'name', '') else None
+
+    @property
     def filename(self):
         if self.original_filename:
             return self.original_filename

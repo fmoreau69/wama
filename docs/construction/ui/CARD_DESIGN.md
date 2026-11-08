@@ -320,7 +320,8 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   **nom donné** à la main ; le **titre lu** dans le contenu (spec `content_title`, 2026-11-08 — les
   pages photographiées d'une partition : le titre est écrit en haut de l'une d'elles, dans n'importe
   quel ordre ; le plus lu des éléments l'emporte, et chaque card de page le montre dans son bandeau
-  d'identité, avec le numéro de page lu) ; l'**entrée commune** quand toutes les cards partagent la même (un fichier
+  d'identité, avec le numéro de page lu ; les cards du lot se RANGENT seules par ce numéro, spec
+  `content_page`, décision de Fabien) ; l'**entrée commune** quand toutes les cards partagent la même (un fichier
   traité par plusieurs modèles) ; le **fichier de lot** (`batch_file`) ; le **dossier d'origine** de
   toutes les sources (provenance `InputProvenance.ref`, jamais une racine `users/<u>/temp` ou
   `mounts/<id>`) ; sinon la **plage des entrées** — leur début commun (« interview_0… »), ou « a +

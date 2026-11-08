@@ -257,8 +257,8 @@ def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_nam
         user = get_user(request)
         batch = get_object_or_404(batch_model, pk=request.POST.get('batch_id'), user=user)
         order = [int(x) for x in (request.POST.get('order') or '').split(',') if x.strip().isdigit()]
-        for idx, wid in enumerate(order):
-            item_model.objects.filter(batch=batch, **{f'{fk_name}_id': wid}).update(row_index=idx)
+        from wama.common.utils.batch_common import set_batch_order
+        set_batch_order(batch, work_model, order)
         return JsonResponse({'reordered': True, 'count': len(order)})
 
     @require_POST
@@ -425,8 +425,8 @@ def make_queue_manipulation_views_direct(*, work_model, batch_model,
         user = get_user(request)
         batch = get_object_or_404(batch_model, pk=request.POST.get('batch_id'), user=user)
         order = [int(x) for x in (request.POST.get('order') or '').split(',') if x.strip().isdigit()]
-        for idx, wid in enumerate(order):
-            work_model.objects.filter(pk=wid, user=user, **{batch_fk: batch}).update(**{row_field: idx})
+        from wama.common.utils.batch_common import set_batch_order
+        set_batch_order(batch, work_model, order)
         return JsonResponse({'reordered': True, 'count': len(order)})
 
     @require_POST

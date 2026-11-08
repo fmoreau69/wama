@@ -59,6 +59,8 @@ class ReaderConfig(AppConfig):
             'result_file': 'score_file',
             # Le titre lu sur la partition (2026-11-08) : il nomme le lot de pages et la card.
             'content_title': 'read_title',
+            # Le numéro de page lu : les pages d'un lot se rangent par lui (`order_by_read_pages`).
+            'content_page': 'read_page',
             'extra': [
                 {'label': 'Mode de lecture', 'field': 'mode', 'display': True},
                 {'label': 'Langue', 'field': 'language'},

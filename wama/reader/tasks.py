@@ -376,6 +376,27 @@ def _score_page_texts(item, ctx, work_file: str, folder: str):
     return work_file, [text_roles(page) for page in pages]
 
 
+def _order_lot_by_read_pages(item, fields: dict, ctx) -> None:
+    """Les pages du lot de `item` rangées par le numéro de page LU (décision de Fabien,
+    2026-11-08 : « réordonner seul ») — `batch_identity.order_by_read_pages`, la card qui vient
+    d'être lue y entrant avec ce qu'elle vient de lire (`fields`, pas encore écrits). Un confort :
+    un échec se dit à la console, la lecture reste réussie."""
+    from wama.common.services.batch_identity import order_by_read_pages
+    from wama.common.utils.batch_common import batch_of
+    from wama.reader.models import ReadingItem
+    try:
+        lot = batch_of(item)
+        if lot is None or getattr(lot, 'total', 0) < 2:
+            return
+        for name, value in fields.items():
+            setattr(item, name, value)
+        if order_by_read_pages(lot, ReadingItem, current=item):
+            ctx.console("[Reader] Les pages du lot sont rangées par le numéro de page lu.")
+    except Exception as exc:
+        logger.warning("[Reader] lot de #%s non rangé : %s", item.pk, exc)
+        ctx.console(f"[Reader] Pages du lot non rangées ({exc}).")
+
+
 def _ensure_page_count(item) -> None:
     """Le nombre de pages d'un PDF, compté une fois — l'ETA des deux lectures en dépend."""
     if item.page_count == 0 and item.input_file.name.lower().endswith('.pdf'):
@@ -444,10 +465,12 @@ def _read_score(item, ctx):
         _show_failure(item, exc)
         raise
     name = os.path.basename(abc_rel)
+    fields = {'score_file': abc_rel, 'score_musicxml': xml_rel, 'used_backend': key,
+              'score_title': read_title[:SCORE_TITLE_MAX], 'score_page': page_number}
+    _order_lot_by_read_pages(item, fields, ctx)
     ctx.progress(100, "Terminé")
     return {
-        'fields': {'score_file': abc_rel, 'score_musicxml': xml_rel, 'used_backend': key,
-                   'score_title': read_title[:SCORE_TITLE_MAX], 'score_page': page_number},
+        'fields': fields,
         'output_ref': abc_rel,
         'models': [key],
         'eta': reader_eta_key_size(item, backend=key),

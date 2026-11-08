@@ -29309,11 +29309,19 @@ de MESURE ; chaque pièce suit un patron en service :
   boîtes d'une page de `read_lines` vers l'image lue recopiait `document_text._ocr_scale` →
   `ocr_base.page_scale`, à côté du contrat, que les deux lisent. 3 contre-épreuves rouges ; suites
   du lecteur, du traducteur et de l'anonymizer (qui empruntent `ocr_step`) vertes.
+- **Restes repris (même jour, décisions de Fabien)** — (1) « RÉORDONNER SEUL » : les cards d'un lot
+  se rangent par le numéro de page lu (spec `content_page`, `batch_identity.order_by_read_pages` ; une
+  page sans numéro qui porte le titre ouvre l'œuvre, un numéro lu passe avant cette page 1 déduite),
+  appelé par la glu à la fin de chaque lecture avec ce qu'elle vient de lire. L'écriture de l'ordre
+  est une brique, `batch_common.set_batch_order`, née de DEUX copies du même geste (la vue `reorder`
+  de chaque fabrique de `queue_manipulation`, que rien ne testait — deux tests ajoutés). (2) « VEILLE
+  PUIS PROPOSITION » pour un OCR manuscrit qui rende la place du texte : rapport dans
+  `PROSPECTION_PIPELINE.md §Veille 2026-11-08 « OCR manuscrit à positions »` ; rien d'installé.
 - 🔚 Reste : la lecture de la batterie elle-même reste partielle (têtes en croix non distinguées par
   le détecteur, instruments non nommés dans l'ABC, « % » de deux mesures recopié sur une seule par la
   librairie) ; le MANUSCRIT n'est pas l'objet de copisteria ; un OCR à positions qui lise l'écriture
-  manuscrite (titre, « x3 ») ; l'ordre des cards d'un lot par numéro de page lu (aujourd'hui : nommées,
-  pas réordonnées) ; un PDF n'est ni mis d'aplomb ni lu dans ses deux sens.
+  manuscrite (titre, « x3 ») — veille faite, choix de Fabien en attente (ci-dessus) ; un PDF n'est ni
+  mis d'aplomb ni lu dans ses deux sens.
 
 ## §PALIER 2026-11-08 (après-midi), « LISIBILITÉ DES ÉTAPES : LA ⚙ D'UNE ÉTAPE RANGE SOUS ELLE, LA CASE PORTE LE LIBELLÉ DE L'ÉTAPE, « PAROLES ÉCRITES » MONTRE CE QU'ELLE ÉCRIT, PARTITION RÉDUITE JOUÉE (SYMÉTRIE) » — ce commit (local, non poussé) — 🔴 migration `composer/0031_rendered_reduced_score` À APPLIQUER (avec la `0030`), puis relancer gunicorn + workers
 

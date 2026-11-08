@@ -2071,7 +2071,8 @@ MECHANISMS = (
               "`chip=True`, `card_chips.varying_chips_for_items`), et le NOM donné à la main "
               "(`BatchLabel`, adressé comme `BatchSettings`), qui prime. Titre : nom donné, titre "
               "LU dans le contenu (spec `content_title`, le plus lu des éléments — les pages d'une "
-              "partition, 2026-11-08), entrée "
+              "partition, 2026-11-08 ; le numéro de page lu, spec `content_page`, les RANGE : "
+              "`order_by_read_pages`), entrée "
               "commune, fichier de lot, dossier, sinon plage des entrées. Deux requêtes par page, "
               "posées par `batch_common.attach_identities` dans les TROIS constructeurs de file "
               "(`build_batches_list`, le converter, l'index généré en FK directe). Geste « Renommer "
@@ -2086,7 +2087,11 @@ MECHANISMS = (
               "colonne au lieu de la calculer. `queue_index == 0` = jamais ordonné à la main, et "
               "passe EN TÊTE par récence : une file jamais manipulée s'affiche comme en tri "
               "`recent`, et un import arrivé après un classement manuel apparaît en haut au lieu "
-              "de se noyer dans un ordre qu'il n'a pas connu. `reorder_queue` écrit 1..N",
+              "de se noyer dans un ordre qu'il n'a pas connu. `reorder_queue` écrit 1..N. "
+              "L'ordre des cards DANS un lot (2026-11-08) : `batch_common.set_batch_order`, lu par "
+              "la vue `reorder` des deux fabriques de `queue_manipulation` et par "
+              "`batch_identity.order_by_read_pages` (les pages d'une partition rangées seules par "
+              "le numéro de page lu, spec `content_page`)",
               'wama/common/models.py', 'docs/construction/ui/CARD_DESIGN.md §3bis',
               annexes=(),
               symbol='QueueOrderMixin'),

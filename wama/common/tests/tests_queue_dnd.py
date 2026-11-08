@@ -500,6 +500,43 @@ class OrdreManuelDeFileTest(TestCase):
         self.assertEqual(1, len(tries))
 
 
+class ReorderInsideALotTest(TestCase):
+    """The `reorder` view of BOTH factories orders the rows of a lot through ONE brick
+    (`batch_common.set_batch_order`, 2026-11-08) — the gesture the Reader also uses to line up the
+    pages of a score."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('dnd_rows', 'rows@test.local', 'x')
+        self.rf = RequestFactory()
+
+    def _post(self, view, batch, ids):
+        request = self.rf.post('/', {'batch_id': batch.id, 'order': ','.join(map(str, ids))})
+        request.user = self.user
+        return view(request)
+
+    def test_a_linked_lot_takes_the_given_order(self):
+        from wama.common.utils.batch_common import batch_elements
+        from wama.transcriber.models import BatchTranscript, BatchTranscriptItem, Transcript
+        from wama.transcriber.views import reorder
+        batch = BatchTranscript.objects.create(user=self.user, total=3)
+        works = [Transcript.objects.create(user=self.user) for _ in range(3)]
+        for row, work in enumerate(works):
+            BatchTranscriptItem.objects.create(batch=batch, transcript=work, row_index=row)
+        self._post(reorder, batch, [works[2].id, works[0].id, works[1].id])
+        self.assertEqual([works[2].id, works[0].id, works[1].id],
+                         [e.id for e in batch_elements(batch, Transcript)])
+
+    def test_a_direct_lot_takes_the_given_order(self):
+        from wama.common.utils.batch_common import batch_elements
+        from wama.converter.models import ConversionBatch, ConversionJob
+        from wama.converter.views import reorder
+        batch = ConversionBatch.objects.create(user=self.user, total=2, media_type='image')
+        a, b = (ConversionJob.objects.create(user=self.user, media_type='image', batch=batch,
+                                             batch_row_index=row) for row in range(2))
+        self._post(reorder, batch, [b.id, a.id])
+        self.assertEqual([b.id, a.id], [e.id for e in batch_elements(batch, ConversionJob)])
+
+
 class ExpositionDesUrlsTest(TestCase):
     """La brique JS ne peut agir que sur ce que le gabarit lui DÉCLARE."""
 

@@ -2316,15 +2316,17 @@ duplicate_instance(), release_card_files() (retirer une card libère TOUT ce qu'
 
 ### Identité d'un lot (titre, ce qui varie, nom donné)
 
-Ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier, la page des partages et les notifications DISENT d'un lot — tout LU, rien déclaré : l'ENTRÉE de chaque élément (spec de la fiche Infos, son vrai nom par la provenance), l'ORIGINE (fichier de lot, sinon dossier commun des sources), ce qui VARIE (réglages `chip=True`, `card_chips.varying_chips_for_items`), et le NOM donné à la main (`BatchLabel`, adressé comme `BatchSettings`), qui prime. Titre : nom donné, titre LU dans le contenu (spec `content_title`, le plus lu des éléments — les pages d'une partition, 2026-11-08), entrée commune, fichier de lot, dossier, sinon plage des entrées. Deux requêtes par page, posées par `batch_common.attach_identities` dans les TROIS constructeurs de file (`build_batches_list`, le converter, l'index généré en FK directe). Geste « Renommer le lot… » du menu de la card mère → `common:api_batch_label` (`editable_or_404`)
+Ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier, la page des partages et les notifications DISENT d'un lot — tout LU, rien déclaré : l'ENTRÉE de chaque élément (spec de la fiche Infos, son vrai nom par la provenance), l'ORIGINE (fichier de lot, sinon dossier commun des sources), ce qui VARIE (réglages `chip=True`, `card_chips.varying_chips_for_items`), et le NOM donné à la main (`BatchLabel`, adressé comme `BatchSettings`), qui prime. Titre : nom donné, titre LU dans le contenu (spec `content_title`, le plus lu des éléments — les pages d'une partition, 2026-11-08 ; le numéro de page lu, spec `content_page`, les RANGE : `order_by_read_pages`), entrée commune, fichier de lot, dossier, sinon plage des entrées. Deux requêtes par page, posées par `batch_common.attach_identities` dans les TROIS constructeurs de file (`build_batches_list`, le converter, l'index généré en FK directe). Geste « Renommer le lot… » du menu de la card mère → `common:api_batch_label` (`editable_or_404`)
 
 - **Domicile** : `wama/common/services/batch_identity.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3quater](../construction/ui/CARD_DESIGN.md)
 - **Module** : IDENTITÉ D'UN LOT — ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier et la page des partages disent d'un lot (2026-10-19, demande de Fabien : « seul le numéro identifie un batch, pas son contenu »).
-- **API publique** (11) :
+- **API publique** (13) :
   - `entry_file(element) -> str` — Le fichier d'ENTRÉE déclaré d'un élément (`spec.source_file` de sa spec de détail), en
   - `element_entry(element, origins=None) -> dict` — L'entrée DÉCLARÉE d'un élément : `{'name', 'text', 'nature', 'origin'}` (`''` / None quand
   - `read_title(element) -> str` — Le titre LU dans le contenu d'un élément (spec `content_title` de sa fiche), ou ''.
   - `content_title(elements) -> str` — Le titre que portent les éléments d'un lot : celui que le plus d'entre eux ont LU (une page
+  - `read_page(element)` — Le numéro de page LU dans le contenu d'un élément (spec `content_page` de sa fiche), ou None.
+  - `order_by_read_pages(lot, element_model, current=None) -> bool` — Range les éléments du lot par le numéro de page LU (spec `content_page`) — décision de Fabien
   - `entry_label(entry) -> str` — Ce qu'on DIT d'une entrée : son texte (le prompt, le texte à dire) s'il y en a un — c'est
   - `identify(pairs) -> list` — L'identité de chaque lot de `pairs` — `[(lot, [éléments]), …]`, éléments dans l'ordre des
   - `identity_of(batch) -> dict` — L'identité d'UN lot, ses éléments lus par `batch_elements` (pour qui ne tient que le lot).
@@ -2419,7 +2421,7 @@ notify_job_end() — LA fin d'un traitement (squelette de tâche) : e-mail (noti
 
 ### Ordre MANUEL de la file
 
-Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queue_index`, 13 modèles de batch) + 6ᵉ tri « Manuel » — le SEUL tri qui LIT une colonne au lieu de la calculer. `queue_index == 0` = jamais ordonné à la main, et passe EN TÊTE par récence : une file jamais manipulée s'affiche comme en tri `recent`, et un import arrivé après un classement manuel apparaît en haut au lieu de se noyer dans un ordre qu'il n'a pas connu. `reorder_queue` écrit 1..N
+Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queue_index`, 13 modèles de batch) + 6ᵉ tri « Manuel » — le SEUL tri qui LIT une colonne au lieu de la calculer. `queue_index == 0` = jamais ordonné à la main, et passe EN TÊTE par récence : une file jamais manipulée s'affiche comme en tri `recent`, et un import arrivé après un classement manuel apparaît en haut au lieu de se noyer dans un ordre qu'il n'a pas connu. `reorder_queue` écrit 1..N. L'ordre des cards DANS un lot (2026-11-08) : `batch_common.set_batch_order`, lu par la vue `reorder` des deux fabriques de `queue_manipulation` et par `batch_identity.order_by_read_pages` (les pages d'une partition rangées seules par le numéro de page lu, spec `content_page`)
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).

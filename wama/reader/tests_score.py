@@ -217,8 +217,11 @@ class TheGlueWritesTheScoreOnTheCardTest(TestCase):
                 mock.patch('wama.common.backends.manager.backend_instance_for_key',
                            side_effect=lambda key, **k: ocr if key == 'reader:doctr' else object()), \
                 mock.patch('wama.common.backends.manager.run_contract', side_effect=run_contract), \
-                mock.patch('wama.common.backends.ocr_base.upright_image', side_effect=lambda p, d: p):
+                mock.patch('wama.common.backends.ocr_base.upright_image', side_effect=lambda p, d: p), \
+                mock.patch.object(tasks, '_order_lot_by_read_pages') as order:
             result = tasks._read_score(item, ctx)
+        self.assertEqual(2, order.call_args.args[1]['score_page'],
+                         'the lot is ordered with what the page just read')
         self.assertTrue(calls['work_file'].endswith('_turned.png'), 'the surer reading wins')
         self.assertIn(mock.call('reader:doctr'), ctx.ensure_model.call_args_list,
                       'the OCR is asked of the route like any model')
@@ -276,12 +279,47 @@ class ThePagesOfAScoreNameTheirLotTest(TestCase):
         self.assertEqual('Nothing Else Matters', _shown_title(titled))
         self.assertEqual('Nothing Else Matters — p. 2', _shown_title(second, self.pages))
 
+    def test_the_pages_line_up_by_the_page_number_read(self):
+        """Fabien, 2026-11-08 : « réordonner seul ». The page that carries the title and no number
+        opens the work ; the page just read enters with what it read, not yet written."""
+        from wama.common.services.batch_identity import order_by_read_pages
+        from wama.common.utils.batch_common import batch_elements
+        from wama.reader.models import ReadingItem
+        first, titled, second = self.pages              # rows : p.3, title, p.2
+        self.assertTrue(order_by_read_pages(self.batch, ReadingItem))
+        self.assertEqual([titled.pk, second.pk, first.pk],
+                         [e.pk for e in batch_elements(self.batch, ReadingItem)])
+        self.assertFalse(order_by_read_pages(self.batch, ReadingItem), 'already in order')
+        first.score_page = 1                             # just read, not yet saved
+        self.assertTrue(order_by_read_pages(self.batch, ReadingItem, current=first))
+        self.assertEqual(first.pk, batch_elements(self.batch, ReadingItem)[0].pk)
+
+    def test_the_glue_orders_the_lot_of_the_page_it_read(self):
+        from wama.common.utils.batch_common import batch_elements
+        from wama.reader import tasks
+        from wama.reader.models import ReadingItem
+        first, titled, second = self.pages
+        messages = []
+        ctx = SimpleNamespace(console=messages.append)
+        tasks._order_lot_by_read_pages(first, {'score_file': 'out/0.abc', 'score_page': 4}, ctx)
+        self.assertEqual([titled.pk, second.pk, first.pk],
+                         [e.pk for e in batch_elements(self.batch, ReadingItem)])
+        self.assertIn('rangées', messages[0])
+
+    def test_a_lot_without_any_page_read_does_not_move(self):
+        from wama.common.services.batch_identity import order_by_read_pages
+        from wama.reader.models import ReadingItem
+        ReadingItem.objects.filter(pk__in=[p.pk for p in self.pages]).update(score_title='',
+                                                                            score_page=None)
+        self.assertFalse(order_by_read_pages(self.batch, ReadingItem))
+
     def test_a_page_that_lost_its_score_loses_its_title(self):
         from wama.common.services.batch_identity import identity_of
         for item in self.pages:
             item.score_file = None
             item.save(update_fields=['score_file'])
         self.assertEqual('', self.pages[1].read_title)
+        self.assertIsNone(self.pages[0].read_page)
         self.assertNotEqual('content', identity_of(self.batch)['kind'])
 
 

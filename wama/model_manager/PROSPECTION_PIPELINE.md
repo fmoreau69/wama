@@ -4379,3 +4379,33 @@ et bretelles… »* ; *« on ajoute bien les sources dans le registre des source
 COMPARÉE des lectures pour garder la meilleure ; la vue ABC d'une partition MIDI/MusicXML fournie
 sur la page d'édition (défaut relevé plus haut) ; la lecture MIDI sur la page de partition du
 Reader (elle n'a pas de transport).
+
+## Veille 2026-11-08 « OCR manuscrit à positions » (demande de Fabien : « veille puis proposition »)
+
+> Besoin : les partitions photographiées portent un titre et des « x3 » ÉCRITS À LA MAIN ; la lecture
+> de partition du Reader en tire le titre du lot et les reprises (`score_page.text_roles`), à partir
+> d'un OCR qui rend la PLACE du texte (`OCRBackend.read_lines`, capacité `supports_text_positions`).
+> Le seul installé, docTR, ne lit que l'imprimé (« Velcome lo Lhe >Row > Cody JoRnSan »). Veille web
+> par un agent (sources primaires marquées V, secondaires S, inférences I) — **aucun chiffre n'est une
+> mesure WAMA, rien n'est installé**.
+
+| Candidat | Boîtes | Manuscrit | Poids | Licence code / poids | Branchement `read_lines` |
+|---|---|---|---|---|---|
+| **PaddleOCR-VL-1.6** (0,9 B) | ligne (quadrilatère, jetons `<LOC_n>`, S) ; pas de mot | non dit sur la carte (V) ; « repérage amélioré » en 1.6 (V) | `PaddlePaddle/PaddleOCR-VL-1.6` (+ GGUF) | Apache-2.0 / Apache-2.0 (V) | invite `Spotting:` + lecture des LOC ; ⚠ transformers ≥ 5 (V) contre l'épinglage `<5` (`requirements.txt:99`) ; voie Ollama (`glm_ocr_backend` sert déjà les GGUF) à mesurer : les jetons LOC survivent-ils au GGUF ? (I) |
+| **PP-OCRv5 en ONNX (RapidOCR)** | ligne (polygone, V) et mot (`return_word_box`, S) | en retrait des multimodaux sur l'anglais manuscrit (V, rapport technique) | `PaddlePaddle/PP-OCRv5_server_det_onnx` / `…_rec_onnx` (~85 Mo, S) | Apache-2.0 (I pour les ONNX) | natif, forme de docTR ; onnxruntime-gpu déjà au venv (patch n°10) |
+| Détecteur docTR + **TrOCR-large-handwritten** | lignes/mots de docTR (installé) | IAM ligne CER ≈ 2,9 (S) ; formulaires scannés, pas des photos | `microsoft/trocr-large-handwritten` (558 M) | MIT (S) | deux étages ; hallucine sur un recadrage sans texte (une portée) (I) |
+| HunyuanOCR | ligne, en texte (S) | catégorie manuscrite à son banc (S) | `tencent/HunyuanOCR` | licence communautaire Tencent (V) — clause territoriale à lire | lecture du texte ; 1.5 exige vLLM ≥ 0.25.1 / CUDA 13 (V) |
+| Qwen3-VL 4B/8B | ancrage relatif (V), pas de mode OCR à boîtes | lit l'écriture (I) | `Qwen/Qwen3-VL-8B-Instruct` | Apache-2.0 (V) | JSON à analyser ; ancrage faible mesuré sur la génération 2.5 (S) |
+| Florence-2-large | quadrilatères (V) | aucune preuve (V) | `microsoft/Florence-2-large` | MIT (V) | natif, `trust_remote_code` |
+| Surya 2.x, Kraken | lignes (V) | Surya : « mieux servi par l'API hébergée » (V) ; Kraken : manuscrits historiques (S) | Surya au Hub ; Kraken sur Zenodo (pas une origine de la route) | Apache / OpenRAIL-M ; Apache / CC-BY | moyen |
+
+Écartés : Chandra-2 (boîtes non documentées, OpenRAIL-M), dots.ocr (boîtes par bloc), GutenOCR-7B
+(cc-by-nc, pas de manuscrit annoncé) ; aucun modèle docTR de reconnaissance manuscrite au Hub.
+
+**Proposition (à trancher par Fabien)** : (1) **PaddleOCR-VL-1.6 en mode `Spotting:`** — seul à réunir
+une lecture VLM de l'écriture et des boîtes de ligne natives, Apache-2.0, 1 B, déjà cité par copisteria
+comme l'OCR « qui écrit les mêmes boîtes » ; préalable : mesurer par la voie Ollama que ses boîtes
+sortent (sinon la voie transformers est une décision de venv). (2) **PP-OCRv5 ONNX** en voie sûre :
+boîtes ligne et mot natives, < 100 Mo, mais faible sur le cursif — utile pour les « x3 », pas pour un
+titre manuscrit. Combinaison possible (I) : le détecteur donne les boîtes, PaddleOCR-VL relit chaque
+recadrage. **Préalable commun : un banc sur les six photos de Fabien (`claude/tabs/`) avant tout choix.**

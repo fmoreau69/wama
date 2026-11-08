@@ -115,6 +115,44 @@ def content_title(elements) -> str:
     return max(titles, key=titles.count) if titles else ''
 
 
+def read_page(element):
+    """Le numéro de page LU dans le contenu d'un élément (spec `content_page` de sa fiche), ou None."""
+    from wama.common.utils.detail_registry import spec_value
+    _, spec = _spec_of(type(element))
+    value = spec_value(element, spec.get('content_page')) if spec.get('content_page') else None
+    return value if isinstance(value, int) and value > 0 else None
+
+
+def order_by_read_pages(lot, element_model, current=None) -> bool:
+    """Range les éléments du lot par le numéro de page LU (spec `content_page`) — décision de Fabien
+    (2026-11-08) : les pages d'une partition déposées dans le désordre se rangent seules. Une page
+    sans numéro qui porte le TITRE lu ouvre l'œuvre (page 1) ; celles sans repère suivent, dans
+    leur ordre. `current` : l'élément qui vient d'être lu, tel qu'il est en mémoire (ses valeurs ne
+    sont pas encore écrites). Rend True si l'ordre a changé — rien ne bouge sans aucun repère."""
+    from wama.common.utils.batch_common import batch_elements, set_batch_order
+    elements = batch_elements(lot, element_model)
+    if current is not None:
+        elements = [current if e.pk == current.pk else e for e in elements]
+
+    def place(index, element):
+        """(sans repère ?, page, déduite ?, rang) — un numéro LU passe avant la page 1 déduite
+        du titre, à égalité de page."""
+        number = read_page(element)
+        if number:
+            return (False, number, False, index)
+        if read_title(element):
+            return (False, 1, True, index)
+        return (True, 0, False, index)
+    places = [(place(index, e), e) for index, e in enumerate(elements)]
+    if all(p[0] for p, _ in places):
+        return False
+    ordered = [e.pk for _, e in sorted(places, key=lambda t: t[0])]
+    if ordered == [e.pk for e in elements]:
+        return False
+    set_batch_order(lot, element_model, ordered)
+    return True
+
+
 def entry_label(entry) -> str:
     """Ce qu'on DIT d'une entrée : son texte (le prompt, le texte à dire) s'il y en a un — c'est
     lui que l'utilisateur a écrit, le fichier qui l'accompagne (image de référence, voix) est
