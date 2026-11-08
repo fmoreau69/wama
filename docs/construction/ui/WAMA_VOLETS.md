@@ -115,14 +115,27 @@ utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription 
 >    l'installer au bac à sable / la désinstaller (la supprimer) → la PROMOUVOIR (modale de choix
 >    des rôles qui y accèdent) → « Exporter (Linux/Windows) », bouton inactif en attendant
 >    `ROADMAP §18.3`. ⚠ Rejoint le reste n°1 d'une revue de sécurité (instance sœur, même jour) :
->    du code écrit par un LLM s'exécute aujourd'hui avant toute validation humaine (`repo_app`,
->    essai d'un backend proposé, `dev_claude_code(write=true)` + `dev_reload_web`) — la chaîne
->    ci-dessus en fait des gestes humains distincts ;
+>    la chaîne ci-dessus fait de la naissance, de l'essai et de la mise en service des gestes
+>    humains distincts ;
 > 4. médiathèque : le détail d'un média avec l'APERÇU commun, comme une card de file d'app ;
 > 5. utilisateurs : des cards par compte (détail, droits, accès au profil pour ajuster les accès
 >    par app — un compte sans rôle autorisé sur une seule app), le tableau devenant un récapitulatif
 >    qui se compacte avec la largeur ; matrice d'accès : plus tard ;
 > 6. converger les pages de forme A vers une fiche déclarée, APRÈS l'alignement.
+>
+> 🔄 **2026-11-08 — point 1, la FILE** : brique commune `common/_proposals_queue.html` +
+> `wama-proposals.js` (sortie de `mmLoadProposals` du model manager : plan, Valider/Rejeter réservés
+> à un administrateur, backends sur demande), montée sur la page des LIBRAIRIES (`kind=library`,
+> propositions du rôle `librarian`) ; garde `tests_proposals_queue` (page servie, filtre par
+> famille avec sa contre-épreuve, rendu V8 du fichier servi). ⏳ Le model manager passe sur la
+> brique (`kind=model` + backends) après le commit de l'instance qui y travaille (intégration
+> d'ACE-Step) — d'ici là il montre toutes les familles, une librairie s'y valide encore aussi.
+> ⏳ La page des APPS attend le point 3 : aucun rôle n'y DÉPOSE de proposition (le rôle `app`
+> écrit un fichier, d'où l'app naît au bac à sable), et « Valider » tel quel projetterait au
+> catalogue une app sans code — le geste est à définir avec son cycle de vie.
+> ⏳ La FICHE schéma-driven du volet (l'autre moitié du point 1) vient avec le point 2 : c'est la
+> fiche des librairies, avec leurs actions, qui la demande.
+> ⏳ L'assistant n'a pas d'outil pour lire ou trancher la file (`tool_api`) — manque antérieur.
 
 ### Le mécanisme existe, c'est l'ADOPTION qui manque
 

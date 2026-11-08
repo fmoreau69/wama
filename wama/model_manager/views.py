@@ -2345,6 +2345,9 @@ def library_catalog(request):
 
     # Volet = le détail de la librairie cliquée (inspecteur de registre, 2026-11-07) : ni aperçu
     # de média ni section Actions vide — on ne rouvre que ce qu'on remplit (`WAMA_VOLETS §2`).
+    # La file des propositions de LIBRAIRIES (rôle `librarian`) se lit ici, sur la page de son
+    # registre (décision de Fabien, 2026-11-07) — par les comptes qui lisent la file.
     return render(request, 'model_manager/library_catalog.html',
                   {'rows': rows, 'stats': stats, 'facettes_librairies': facettes,
-                   'volet': volet(medias=False, actions=False)})
+                   'volet': volet(medias=False, actions=False),
+                   'can_read_proposals': is_admin_or_dev(request.user)})

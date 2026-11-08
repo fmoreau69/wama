@@ -1,0 +1,28 @@
+{% load wama_static %}{% comment %}
+File « Propositions à valider » d'une page de registre — brique COMMUNE (`wama-proposals.js`,
+2026-11-08). Une proposition se valide sur la page de SON registre (décision de Fabien,
+2026-11-07, `WAMA_VOLETS §2`).
+
+Paramètres :
+  kind      — la famille montrée (`library`, `model`…) : la vue filtre (`?kind=`) ;
+  backends  — 1 pour montrer aussi les backends proposés (model manager) ;
+  reload    — 1 pour recharger la page après une décision (page rendue par le serveur) ;
+  anchor    — id du bloc, l'ancre d'une fin de tâche qui a proposé.
+Ne s'inclut que pour un compte qui peut lire la file (la vue est réservée aux développeurs et
+administrateurs) ; masqué tant qu'il n'y a rien en attente.
+
+Forme `as` : un gabarit est lu à chaud par le serveur en service — une route neuve qu'il ne
+connaît pas encore ne doit pas faire tomber la page avant sa relance.
+{% endcomment %}{% url 'model_manager:api_manifest_proposals' as proposals_list_url %}{% url 'model_manager:api_manifest_proposal_decide' as proposals_decide_url %}
+<div id="{{ anchor|default:'wamaProposals' }}" class="wama-proposals mt-3 p-2 rounded d-none"
+     style="background:rgba(var(--bs-success-rgb), 0.10);border:1px solid rgba(var(--bs-success-rgb), 0.45);"
+     data-wama-proposals data-list-url="{{ proposals_list_url }}{% if kind %}?kind={{ kind|urlencode }}{% endif %}"
+     data-decide-url="{{ proposals_decide_url }}" data-backends="{{ backends|default:0 }}"
+     data-reload="{{ reload|default:0 }}">
+    <div class="small text-body-emphasis fw-semibold mb-1">
+        <i class="fas fa-clipboard-check me-1" style="color:var(--bs-success-text-emphasis)"></i>Propositions à valider
+        <span class="badge bg-success ms-1" data-wama-proposals-count>0</span>
+    </div>
+    <div data-wama-proposals-list></div>
+</div>
+<script src="{% static_v 'common/js/wama-proposals.js' %}"></script>

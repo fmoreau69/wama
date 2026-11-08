@@ -1573,11 +1573,17 @@ MECHANISMS = (
               "vides (un manifeste brut effaçait la licence), projette, promeut, exporte au "
               "corpus ; « Rejeter » ne passe pas par un_ingest, qui déferait une projection "
               "jamais faite. Depuis le 18/10 (ROADMAP §29) la file lit la DEMANDE de promotion, "
-              "plus le privé, et valider rend l'élément au SYSTÈME, plus à l'admin qui valide",
+              "plus le privé, et valider rend l'élément au SYSTÈME, plus à l'admin qui valide. "
+              "Depuis le 08/11 la FILE est une brique commune (`_proposals_queue.html` + "
+              "`wama-proposals.js`), montée sur la page du registre de ce qu'elle propose "
+              "(librairies : `kind=library`) — décision de Fabien du 07/11, WAMA_VOLETS §2",
               'wama/common/manifests/proposals.py',
               'docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md',
               depends_on=('manifests',),
-              annexes=('wama/common/tests/tests_manifest_proposals.py',)),
+              annexes=('wama/common/tests/tests_manifest_proposals.py',
+                       'wama/common/templates/common/_proposals_queue.html',
+                       'wama/common/static/common/js/wama-proposals.js',
+                       'wama/common/tests/tests_proposals_queue.py')),
     # Entrée créée le 2026-08-31 (audit) : la chaîne était HORS carte — 5 gabarits sur 7 sans
     # domicile ni annexe, dossier hors balayage, donc AUCUN signal possible. 5ᵉ occurrence de
     # la leçon « un dossier hors balayage naît invisible » (cf. doc_facts.py, dossiers_balayes).

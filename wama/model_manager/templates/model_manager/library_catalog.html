@@ -21,7 +21,11 @@
 méta). La page avait retiré son volet le 2026-08-22 (trois cadres vides) ; elle le rouvre pour ce
 qu'elle remplit (`WAMA_VOLETS §2`, 2026-11-07).{% endcomment %}
 {% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
-{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}
+{% comment %}Les propositions de librairies du rôle `librarian` se valident ICI, sur la page de leur
+registre (décision de Fabien, 2026-11-07, `WAMA_VOLETS §2`) — brique commune ; la page se recharge
+après une décision, ses tuiles étant rendues par le serveur.{% endcomment %}
+{% if can_read_proposals %}{% include 'common/_proposals_queue.html' with kind='library' reload=1 anchor='libraryProposals' %}{% endif %}{% endblock %}
 
 {% block content %}
 <div class="wama-cat-wrap">
