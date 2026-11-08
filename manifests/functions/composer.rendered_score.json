@@ -1,0 +1,55 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "composer.tasks:compose_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Le morceau rendu.",
+        "group": "travail",
+        "key": "audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.rendered_score",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "score",
+        "description": "La mélodie et les accords joués.",
+        "key": "score",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "music",
+      "gpu"
+    ]
+  },
+  "description": "Écrit la partition RÉDUITE (mélodie et accords) du morceau PRODUIT, pour la comparer à la partition de référence — par le même modèle que la partition réduite de l'entrée. Optionnelle ; montrée sur la page d'édition, lue seulement.",
+  "key": "composer.rendered_score",
+  "manifest_kind": "function",
+  "name": "Composer — partition réduite jouée",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.rendered_score",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

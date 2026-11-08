@@ -117,7 +117,7 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     # par instrument (tâche `audio-to-midi`, MuScriptor), mise en notation par la brique commune
     # `midi_score`. Depuis le 2026-10-26 (décision de Fabien) elle lit l'ENTRÉE — l'audio du cover,
     # comme la partition réduite : les deux décrivent le même morceau ; la lecture du morceau
-    # PRODUIT est un autre process, « Partition de sortie » (`rendered_parts`, plus bas).
+    # PRODUIT est un autre process, « Partition complète jouée » (`rendered_parts`, plus bas).
     # `db_default` : le code en service crée des générations sans connaître la colonne.
     extract_parts = models.BooleanField(default=False, db_default=False,
                                         help_text='Partition complète : une partie par instrument')
@@ -163,6 +163,16 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     extract_rendered_parts = models.BooleanField(
         default=False, db_default=False, help_text='Partition du rendu : une partie par instrument')
     rendered_parts_score = models.FileField(
+        max_length=500, upload_to=upload_to_user_output('composer'),
+        blank=True, null=True,
+    )
+    # PARTITION RÉDUITE DU RENDU (2026-11-08, décision de Fabien : « ok pour la symétrie ») : process
+    # OPTIONNEL `rendered_score` — le morceau PRODUIT → sa mélodie et ses accords, le pendant de
+    # `extract_score` sur l'entrée, comparable à la partition de référence. Décochée par défaut
+    # (un modèle GPU de plus). `db_default` : cf. ci-dessus.
+    extract_rendered_score = models.BooleanField(
+        default=False, db_default=False, help_text='Partition réduite du rendu : mélodie et accords')
+    rendered_score = models.FileField(
         max_length=500, upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )

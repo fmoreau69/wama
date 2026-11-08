@@ -1,0 +1,55 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "composer.tasks:compose_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "prompt",
+        "description": "La consigne : ce dont la chanson parle.",
+        "group": "travail",
+        "key": "prompt",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.write_lyrics",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "prompt",
+        "description": "Les paroles écrites, en sections balisées.",
+        "key": "lyrics",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "music",
+      "llm"
+    ]
+  },
+  "description": "Écrit les paroles d'une chanson (voix « Chanson » sans paroles) depuis sa consigne, à la LONGUEUR du morceau, dans le champ « Paroles » — le même geste que le bouton « Écrire les paroles » du réglage. Avant la partition composée : YuE2 bâtit la structure de sa partition sur les sections des paroles.",
+  "key": "composer.write_lyrics",
+  "manifest_kind": "function",
+  "name": "Composer — écrire les paroles",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.write_lyrics",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

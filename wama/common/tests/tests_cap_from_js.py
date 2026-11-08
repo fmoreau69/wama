@@ -765,6 +765,44 @@ class ProcessSectionsTest(SimpleTestCase):
         self.assertEqual(['Partition complète', 'Partition de sortie'],
                          [s['label'] for s in composer['sections']])
 
+    def test_the_gear_of_a_step_files_a_shared_setting_under_that_step(self):
+        """2026-11-08, Fabien : in the gear of « Paroles chantées » the listening model sat under a
+        section « Paroles de l'entrée » — the first optional step sharing it. With the step in
+        focus, the shared setting goes to IT and its section names only it ; without a focus (the
+        general modal) the rule is unchanged (counter-proof)."""
+        processes = json.dumps([
+            {'key': 'extract_lyrics', 'label': "Paroles de l'entrée", 'optional': True,
+             'toggle': 'extract_input_lyrics', 'watched': ['extract_input_lyrics', 'lyrics_model']},
+            {'key': 'render', 'label': 'Rendu', 'optional': False, 'watched': ['duration']},
+            {'key': 'rendered_lyrics', 'label': 'Paroles chantées', 'optional': True,
+             'toggle': 'extract_rendered_lyrics',
+             'watched': ['extract_rendered_lyrics', 'lyrics_model']}])
+        schema = [{'name': 'extract_rendered_lyrics', 'type': 'toggle'},
+                  {'name': 'lyrics_model', 'type': 'select'},
+                  {'name': 'duration', 'stales': ['render']}]
+        focused = json.loads(self.v8.eval(
+            f"JSON.stringify(window.WamaParams.processSections({json.dumps(schema)}, {processes},"
+            " 'rendered_lyrics'))"))
+        self.assertEqual([('render', 'Rendu', ['duration']),
+                          ('rendered_lyrics', 'Paroles chantées', ['lyrics_model'])],
+                         [(s['key'], s['label'], s['names']) for s in focused['sections']])
+        general = self._sections(schema, processes)
+        self.assertEqual("Paroles de l'entrée", general['sections'][0]['label'],
+                         'no focus : the shared setting still goes with the first optional step')
+
+    def test_the_switch_of_a_step_wears_the_label_of_the_step(self):
+        """2026-11-08 : the strip and the section head said « Partition jouée », the switch rendered
+        flat (a step's gear, the panel) « Partition de sortie (instruments) ». Read on the step ; a
+        switch that commands no step keeps its own label (counter-proof)."""
+        out = self._rendered([{'name': 'extract_rendered_parts', 'type': 'toggle',
+                               'label': 'Partition de sortie (instruments)'},
+                              {'name': 'loop', 'type': 'toggle', 'label': 'En boucle'}],
+                             processes=json.dumps([{'key': 'rendered_parts', 'label': 'Partition jouée',
+                                                    'toggle': 'extract_rendered_parts'}]))
+        self.assertIn('Partition jouée', out)
+        self.assertNotIn('Partition de sortie (instruments)', out)
+        self.assertIn('En boucle', out)
+
     def test_nothing_to_structure_stays_flat(self):
         self.assertIsNone(self._sections([{'name': 'a', 'stales': ['render']},
                                           {'name': 'b', 'stales': ['render']}]),
@@ -976,6 +1014,19 @@ class ScopedSettingsModalTest(SimpleTestCase):
             return [first ? first.names.join(',') + '|' + first.label : null, second, empty, late];
         })()""")
         self.assertEqual(['duration|Rendu', None, None, None], list(out))
+
+    def test_the_scope_carries_its_step_into_the_modal(self):
+        """2026-11-08 : the gear of a step names ITS step (`data-process`), which the modal gets as
+        its focus (`processSections`) — a scope without a step gives none."""
+        out = self.v8.eval("""(function () {
+            var P = window.WamaParams;
+            P.scopeNextModal(['lyrics_model'], 'Paroles chantées', 'rendered_lyrics');
+            var cfg = P.scopedConfig({schema: [{name: 'lyrics_model'}]}, P.takeModalScope());
+            P.scopeNextModal(['lyrics_model'], 'Paroles chantées');
+            var bare = P.scopedConfig({schema: []}, P.takeModalScope());
+            return [cfg.processFocus, bare.processFocus];
+        })()""")
+        self.assertEqual(['rendered_lyrics', ''], list(out))
 
     def test_a_scoped_modal_renders_the_schema_only_and_still_collects(self):
         """The gear of « Sortie » showed the prompt of the imager and the classes of the

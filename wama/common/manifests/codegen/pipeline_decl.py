@@ -139,6 +139,7 @@ def process_specs(pipeline: dict) -> list:
             'result': declared.get('result', ''),
             'result_format': declared.get('result_format', ''),
             'checks': list(declared.get('checks') or []),
+            'writes': list(declared.get('writes') or []),
         })
     return out
 

@@ -29257,3 +29257,56 @@ de MESURE ; chaque pièce suit un patron en service :
 - 🔚 Reste : la mesure sur de VRAIS scans de Fabien ; le scan à côté de la gravure (aucune brique
   n'affiche une image en lecture seule) ; l'écoute (abcjs vendorisé sans synthétiseur) ; une photo
   de travers ou un manuscrit ne sont pas vus par `has_staves` (la note le dit, l'utilisateur coche).
+
+## §PALIER 2026-11-08 (après-midi), « LISIBILITÉ DES ÉTAPES : LA ⚙ D'UNE ÉTAPE RANGE SOUS ELLE, LA CASE PORTE LE LIBELLÉ DE L'ÉTAPE, « PAROLES ÉCRITES » MONTRE CE QU'ELLE ÉCRIT, PARTITION RÉDUITE JOUÉE (SYMÉTRIE) » — ce commit (local, non poussé) — 🔴 migration `composer/0031_rendered_reduced_score` À APPLIQUER (avec la `0030`), puis relancer gunicorn + workers
+
+> Mesure des 10 apps (scratchpad `measure_steps.py`) et concile (5 avis distants + relecture,
+> 190 s, dossier transmis mot pour mot — `WAMA_HARNESS §7.4`) sur la question de Fabien : « le
+> pipeline complet détaillé passe sur 2 lignes […] des incohérences ou imprécisions à lever ».
+> Décisions de Fabien : 1 (correctifs) et 3 (symétrie ; « la modale d'écrire les paroles devrait
+> contenir le champ paroles et le bouton de génération ») ACCEPTÉS ; 2 (étapes sœurs en une ligne de
+> puces) RETIRÉ — la bande empile DÉJÀ les sœurs d'une colonne (`wama-card-v3.css:446`), le concile
+> et moi l'ignorions ; deux leviers réels proposés, en attente : A (paroles de l'entrée au niveau des
+> partitions, 6 → 5 colonnes) et B (étape compacte : point + nom, case/⚙/▶ au survol).
+
+- **Bogue de la ⚙ d'étape (D3)** : la portée transporte la clé de l'étape (`scopeNextModal(names,
+  label, process)` ← `data-process`, `queue-actions.js`) ; `scopedConfig` la pose en `processFocus`,
+  `processSections(params, processes, focus)` range sous elle un réglage partagé qu'elle surveille
+  et ne nomme qu'elle. Avant : le modèle d'écoute sous « Paroles de l'entrée » dans la ⚙ de
+  « Paroles chantées », le modèle des partitions sous « Partition complète » dans celle de la
+  partition jouée. Sans focus (modale générale) : la règle est inchangée.
+- **La case d'une étape porte le libellé de l'étape** (`render`, `stepOfToggle`, lu dans
+  `WAMA_APP_PROCESSES`) : un seul nom à l'écran ; les `Param.label` des cases du composer alignés
+  aussi (ce que lisent l'assistant et les puces).
+- **`ProcessSpec.writes`** — les réglages du schéma qu'une étape ÉCRIT : sa ⚙ les montre
+  (`AppPipeline.step_settings` = `watched_of` + `writes`, lu par `card_rows['settings']` → `data-only`
+  ET par le nœud du Studio `node_params.step_schema`), sans qu'un changement la périme. Exporté au
+  manifeste `pipeline`, relu par le générateur (`pipeline_decl`, `function_specs_gen`), refusé sur
+  un process ajouté (`_NOT_ADDABLE`).
+- **« Paroles écrites »** (ex-« Écrire les paroles » : nommée par son produit, le bouton garde le
+  verbe) : `writes=('lyrics',)` — sa ⚙ montre le champ « Paroles » et son ✍️ ; résultat lisible
+  `tasks.written_lyrics` (le trou que relevait le palier du reader : `tests_pipeline_faces`) ; le
+  message de `vocals` lit le libellé sur le pipeline. Manifestes `functions/composer.write_lyrics`
+  et `composer.rendered_score` exportés.
+- **Symétrie (D4)** : process OPTIONNEL `rendered_score` « Partition réduite jouée » (case
+  `extract_rendered_score`, décochée par défaut, champ `rendered_score`), glu `_rendered_score`
+  sur le corps commun `_reduced_score` (entrée et rendu, comme `_full_score`) ; « Partition jouée »
+  devient « Partition complète jouée » ; la vue « Partition jouée » de la page d'édition propose
+  Réduite / Complète comme la référence (`versions` lues) ; versions gardées (`apps.py`).
+- **Levier A (décision de Fabien : « si c'est schéma-driven, ça me semble correct »)** : « Paroles
+  de l'entrée » ne dépend plus de la partition réduite — partitions et paroles au même niveau, en
+  entrée comme au rendu (6 → 5 colonnes). Elle en prend encore les sections quand la partition est
+  là : `topo_order` est STABLE, la partition déclarée avant passe d'abord (garde dans
+  `tests_pipeline`) ; corriger la partition ne périme plus les paroles.
+- ⏳ **Proposé, en attente de Fabien** : masquer sur la bande les étapes CERTAINES d'être sans objet
+  (raison « élément » ou « modèle désigné », sans ligne), une puce « + n sans objet » pour les
+  déplier — retour partiel sur « toujours afficher toutes les étapes » (2026-11-07). Le levier B
+  (étape compacte) n'est fait qu'après mesure, si une app déborde encore.
+- Rouges hors de ce lot, nommés : `tests_pipeline_faces.EveryProcessHasAReadableResultTest`
+  (`anonymizer.blur` est devenu lisible ailleurs — l'entrée d'`UNREADABLE` est à retirer par son
+  auteur), `studio.tests_pipeline_nodes…draggable` (`esc is not defined` dans la palette, après
+  `6653d02ed`), `tests_identifier_language` (budgets de noms de tests dépassés par d'autres
+  fichiers ; `--detail` filtré sur les miens : rien de neuf).
+- ⚠ `manifests/apps/composer.json` n'est PAS régénéré ici : il porte un chantier non commité d'une
+  autre session (+621 lignes) — ses aides et libellés de cases suivront sa régénération.
+- 🔚 Reste : le masquage conditionnel (décision de Fabien) ; vérification navigateur après migration.

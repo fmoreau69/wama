@@ -75,7 +75,7 @@ PARAMS = [
     Param(name="lyrics", type="textarea", label="Paroles", icon="fa-music",
           help="Paroles chantées, en sections balisées ([Verse], [Chorus]…). Laissées vides, elles "
                "se remplissent seules : écoutées dans le morceau repris (cover), écrites au "
-               "lancement si vous demandez une chanson (étape « Écrire les paroles »), ou écoutées "
+               "lancement si vous demandez une chanson (étape « Paroles écrites »), ou écoutées "
                "dans le morceau produit (« Paroles chantées »). « Écrire les paroles » les écrit "
                "tout de suite, à la longueur du morceau, pour les relire avant de lancer. Des "
                "paroles écrites dans le prompt, sous la description, priment.",
@@ -130,7 +130,7 @@ PARAMS = [
     # — la mélodie de l'audio repris, pour tout cover, même sans rien rendre. IMPOSÉE quand le
     # modèle choisi reprend le cover PAR sa partition (YuE2, `ProcessSpec.required_by`) : la case
     # se coche et se verrouille, en le disant. Ne périme qu'elle-même.
-    Param(name="extract_reduced_score", type="toggle", label="Partition réduite (mélodie)",
+    Param(name="extract_reduced_score", type="toggle", label="Partition réduite",
           icon="fa-music",
           help="Écrit la mélodie de l'audio repris (cover) en partition, lisible et corrigeable "
                "dans la page « Éditer la partition ». Imposée par un modèle qui reprend le "
@@ -152,7 +152,7 @@ PARAMS = [
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
     # `parts` (`ProcessSpec.toggle`) — depuis le 2026-10-26 sur l'ENTRÉE : l'audio repris, comme la
     # partition réduite. Ne périme qu'elle-même : le rendu suit la réduite, jamais celle-ci.
-    Param(name="extract_parts", type="toggle", label="Partition complète (instruments)",
+    Param(name="extract_parts", type="toggle", label="Partition complète",
           icon="fa-list-ol",
           help="Écrit une partie par instrument entendu (voix, piano, basse, batterie…) dans "
                "l'audio repris (cover), à côté de la partition réduite que le rendu suit. "
@@ -164,7 +164,9 @@ PARAMS = [
     # PARTITION DU RENDU (2026-10-26, décision de Fabien : « on propose les deux ») : la case du
     # process optionnel `rendered_parts` — le morceau PRODUIT → sa partition complète, pour le
     # comparer à l'entrée. Ne périme qu'elle-même.
-    Param(name="extract_rendered_parts", type="toggle", label="Partition de sortie (instruments)",
+    # Libellés des cases = libellés des étapes (2026-11-08) : la modale les lit sur l'étape
+    # (`wama-params.js`, `stepOfToggle`) ; ceux-ci sont ce que lisent l'assistant et les puces.
+    Param(name="extract_rendered_parts", type="toggle", label="Partition complète jouée",
           icon="fa-list-ol",
           help="Après le rendu, écrit la partition complète du morceau PRODUIT, pour la comparer "
                "à celle de l'entrée dans la page « Éditer la partition ». Une transcription "
@@ -172,6 +174,16 @@ PARAMS = [
           dom_id={"panel": "extractRenderedParts", "item": "settingsExtractRenderedParts",
                   "batch": "batchSettingsExtractRenderedParts"},
           contexts=PANEL_ITEM_BATCH, stales=("rendered_parts",)),
+    # PARTITION RÉDUITE DU RENDU (2026-11-08, décision de Fabien : la symétrie) : la case du process
+    # `rendered_score` — la mélodie et les accords du morceau PRODUIT, par le modèle de la partition
+    # réduite de l'entrée. Décochée par défaut. Ne périme qu'elle-même.
+    Param(name="extract_rendered_score", type="toggle", label="Partition réduite jouée",
+          icon="fa-music",
+          help="Après le rendu, écrit la mélodie et les accords du morceau PRODUIT, pour les "
+               "comparer à la partition de référence dans la page « Éditer la partition ».",
+          dom_id={"panel": "extractRenderedScore", "item": "settingsExtractRenderedScore",
+                  "batch": "batchSettingsExtractRenderedScore"},
+          contexts=PANEL_ITEM_BATCH, stales=("rendered_score",)),
     # Le MODÈLE des partitions complètes (2026-10-19) : plusieurs modèles peuvent écrire ces process
     # — le patron des modèles de rôle du describer (`asr_model`, route F4b : options du CATALOGUE
     # bornées par la TÂCHE, « auto » en tête et sa prévision). ⚠ Après `model` :

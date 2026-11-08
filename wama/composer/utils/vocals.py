@@ -109,8 +109,9 @@ def prepare_prompt(mode, text, model_key, *, stored_lyrics='', user=None, consol
         return text
     if lyrics:
         return text if from_prompt else _with(sung_in(caption, lyrics), lyrics)
-    say("⚠️ Chanson demandée sans paroles (l'étape « Écrire les paroles » n'en a pas écrit) : le "
-        "morceau est instrumental.")
+    from wama.composer.function_specs import PIPELINE   # paresseux : function_specs lit ce module
+    say(f"⚠️ Chanson demandée sans paroles (l'étape « {PIPELINE.spec('write_lyrics').label} » n'en "
+        "a pas écrit) : le morceau est instrumental.")
     return text
 
 

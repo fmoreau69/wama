@@ -212,6 +212,8 @@ def render_function_specs(manifest: dict) -> tuple:
             args.append(f"result_format={s['result_format']!r}")
         if s.get('checks'):
             args.append(f"checks={tuple(s['checks'])!r}")
+        if s.get('writes'):
+            args.append(f"writes={tuple(s['writes'])!r}")
         lines.append(f"    ProcessSpec({', '.join(args)}),")
     model_kw = ', model_of=_requested_model' if model_field else ''
     lines += [f"), label={(pipeline.get('name') or app_key)!r},",

@@ -518,7 +518,7 @@
         // que l'ouvreur appelle sans rien savoir d'elle. Aucune ligne par app.
         if (btn.dataset.only && window.WamaParams && WamaParams.scopeNextModal) {
             WamaParams.scopeNextModal(btn.dataset.only.split(',').map(function (s) { return s.trim(); }),
-                                      btn.dataset.scopeLabel || '');
+                                      btn.dataset.scopeLabel || '', btn.dataset.process || '');
         }
 
         const opener = pick(openers, btn);

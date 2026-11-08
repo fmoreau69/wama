@@ -1793,9 +1793,11 @@ class ComposerScoreSurfaceTest(TestCase):
         # RENDER in a second view, read only, to set beside it.
         self.assertEqual('reference_score', score.fields[0])
         rendered = score.slots[2]
-        self.assertEqual(('rendered', 'rendered_parts_score'),
-                         (rendered.options['role'], score.reads['rendered']))
+        # Reduced and full, as the reference (2026-11-08, Fabien : the symmetry) — both read only.
+        self.assertEqual([('rendered_score', 'rendered_score'), ('rendered', 'rendered_parts_score')],
+                         [(v['role'], score.reads[v['role']]) for v in rendered.options['versions']])
         self.assertIn('rendered', score.texts)
+        self.assertIn('rendered_score', score.texts)
         scripts = score.scripts()
         self.assertLess(scripts.index('vendors/abcjs-6.4.4/abcjs-basic-min.js'),
                         scripts.index('common/js/surfaces/brick-score-view.js'))

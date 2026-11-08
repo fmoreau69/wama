@@ -211,6 +211,12 @@ class ProcessSpec:
                   avec les mesures contre une référence. 2026-10-22, décision de Fabien : la part
                   de la parole que couvre une transcription (`speech_coverage`) — un texte perdu
                   se voit, quel que soit le moteur.
+      writes      RÉGLAGES du schéma que le process ÉCRIT (les `fields` que rend sa glu) quand ce
+                  réglage est son produit : les paroles qu'écrit `composer.write_lyrics`. Sa ⚙ les
+                  montre (`step_settings`) — on y relit et corrige ce qu'il a produit, et le geste
+                  qui le refait s'y trouve (le bouton du réglage) —, SANS qu'un changement le périme :
+                  ce n'est pas ce qu'il lit (2026-11-08, décision de Fabien : « la modale d'écrire les
+                  paroles devrait contenir le champ paroles et le bouton de génération »).
     """
     key: str
     label: str = ''
@@ -232,6 +238,7 @@ class ProcessSpec:
     split_from: str = ''
     upstream_switch: str = ''
     checks: tuple = ()
+    writes: tuple = ()
     required_by: object = None
 
 
@@ -284,7 +291,7 @@ def declared_stales(app: str) -> dict:
 #: Ce que la déclaration d'un process AJOUTÉ par une card ne peut pas porter (`AppPipeline.extended`) :
 #: des champs de l'élément — la card n'en a pas pour lui — et des chemins de code.
 _NOT_ADDABLE = ('watched', 'outputs', 'toggle', 'upstream_switch', 'card_model', 'eta', 'result',
-                'result_format')
+                'result_format', 'writes')
 
 
 class AppPipeline:
@@ -517,7 +524,9 @@ class AppPipeline:
                              **({'result_format': spec.result_format}
                                 if spec.result_format else {}),
                              # 2026-10-22 : écrit seulement quand il est posé (ajout pur).
-                             **({'checks': list(spec.checks)} if spec.checks else {})}}
+                             **({'checks': list(spec.checks)} if spec.checks else {}),
+                             # 2026-11-08 : écrit seulement quand il est posé (ajout pur).
+                             **({'writes': list(spec.writes)} if spec.writes else {})}}
                  for spec in self.specs]
         links = [{'from': upstream, 'to': spec.key, 'to_port': None}
                  for spec in self.specs for upstream in spec.depends_on]
@@ -984,6 +993,12 @@ class AppPipeline:
                     item, self._split_settings(self._by_key[split]))}
         return current
 
+    def step_settings(self, spec: ProcessSpec) -> tuple:
+        """Ce que montre la ⚙ de l'étape `spec` — sur la card (`card_rows`) et au nœud du Studio
+        (`node_params.step_schema`) : ce qu'elle surveille (`watched_of`), puis ce qu'elle produit
+        dans le schéma (`ProcessSpec.writes`), qu'on y relit sans que cela la périme."""
+        return tuple(dict.fromkeys(self.watched_of(spec) + tuple(spec.writes)))
+
     def _split_settings(self, spec: ProcessSpec) -> tuple:
         """Les réglages qui décident du travail d'un process détaché : ceux qu'il surveille, et
         son interrupteur — que son aval d'origine surveillait quand il faisait ce travail."""
@@ -1192,6 +1207,8 @@ class AppPipeline:
                 'error': (row.error_message or '') if row is not None else '',
                 # Les réglages que CE process surveille : ce que son ⚙ montre (P5, 5.1).
                 'watched': list(self.watched_of(spec)),
+                # Ce que sa ⚙ montre : ce qu'il surveille, puis ce qu'il écrit (`step_settings`).
+                'settings': list(self.step_settings(spec)),
                 # L'interrupteur d'un `optional` (case à cocher de la bande) et son état.
                 'toggle': spec.toggle,
                 'enabled': self.switched_on(spec, item, model_key),

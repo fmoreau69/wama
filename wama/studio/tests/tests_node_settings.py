@@ -273,7 +273,7 @@ class AProcessNodeIsTheStepOfItsCardTest(TestCase):
     def test_every_step_node_shows_the_settings_of_its_card_step(self):
         """Générique, aucune app nommée : pour CHAQUE process de CHAQUE pipeline d'app, les
         réglages d'app du nœud sont exactement ceux de la ⚙ de l'étape sur la card — ce qu'elle
-        surveille (`watched_of`), plus le champ qui COMMANDE un réglage retenu, plus les porteurs
+        surveille (`watched_of`) et ce qu'elle écrit (`writes`, 2026-11-08) — `step_settings` —, plus le champ qui COMMANDE un réglage retenu, plus les porteurs
         cachés (`scoped_names`, jumeau de `scopedSchema`, 2026-10-18). Une seconde règle,
         écrite pour le nœud seul, cachait l'interrupteur de l'étape et ne l'écrivait jamais."""
         from wama.common.services.process_pipeline import APP_PIPELINES, _load_declarations
@@ -290,7 +290,7 @@ class AProcessNodeIsTheStepOfItsCardTest(TestCase):
                     continue          # étape hors catalogue (le process « Sortie » commun)
                 shown = {p['name'] for p in schema['params']} & app_names
                 with self.subTest(step=f'{app}.{process.key}'):
-                    self.assertEqual(set(scoped_names(app_schema, pipeline.watched_of(process))),
+                    self.assertEqual(set(scoped_names(app_schema, pipeline.step_settings(process))),
                                      shown)
                 measured += 1
         self.assertGreater(measured, 15, 'non-vacuité : les étapes des pipelines d’app')

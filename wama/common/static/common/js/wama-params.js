@@ -841,7 +841,12 @@
   //     l'en-tête de la section de son étape (`section.toggle`), qui existe même sans autre
   //     réglage — repliées, les en-têtes forment la rangée des interrupteurs, dans l'ordre du
   //     pipeline. Avant, un interrupteur sans `stales` tombait en tête, un autre dans sa section.
-  function processSections(params, processes) {
+  //
+  // LA ⚙ D'UNE ÉTAPE (`focus`, 2026-11-08) : un réglage partagé que CETTE étape surveille se range
+  // sous elle, et sa section ne nomme qu'elle. Sans cela, la ⚙ de « Paroles chantées » montrait le
+  // modèle d'écoute sous le titre « Paroles de l'entrée » — la première étape optionnelle qui le
+  // partage —, et celle de « Partition jouée » le modèle des partitions sous « Partition complète ».
+  function processSections(params, processes, focus) {
     const order = {}, optional = {}, label = {}, byToggle = {}, watchers = {};
     (processes || []).forEach(function (p, i) {
       order[p.key] = i; optional[p.key] = !!p.optional; label[p.key] = p.label;
@@ -864,11 +869,13 @@
         .filter(function (k, i, all) { return k in order && all.indexOf(k) === i; })
         .sort(function (a, b) { return order[a] - order[b]; });
       let target = null;
-      if (keys.length === 1) target = keys[0];
+      const focused = !!focus && keys.indexOf(focus) !== -1;
+      if (focused) target = focus;
+      else if (keys.length === 1) target = keys[0];
       else if (keys.length > 1 && keys.every(function (k) { return optional[k]; })) target = keys[0];
       if (target) {
         (buckets[target] = buckets[target] || []).push(p.name);
-        served[target] = (served[target] || []).concat(keys);
+        served[target] = (served[target] || []).concat(focused ? [focus] : keys);
       } else general.push(p.name);
     });
     const own = function (k) { return buckets[k] || switches[k]; };
@@ -965,7 +972,15 @@
       return !p.contexts || p.contexts.indexOf(ctx) !== -1;
     });
     const procs = opts.processes || global.WAMA_APP_PROCESSES || [];
+    // L'INTERRUPTEUR D'UNE ÉTAPE porte le libellé de l'étape (2026-11-08, décision de Fabien) : la
+    // bande et l'en-tête de section disaient « Partition jouée », la case rendue à plat (une ⚙
+    // d'étape, le volet) « Partition de sortie (instruments) ». Lu sur l'étape, jamais recopié.
+    const stepOfToggle = {};
+    procs.forEach(function (proc) { if (proc.toggle) stepOfToggle[proc.toggle] = proc.label; });
     function rowHtml(p) {
+      if (stepOfToggle[p.name] && (!p.type || p.type === 'toggle')) {
+        p = Object.assign({}, p, { label: stepOfToggle[p.name] });
+      }
       const value = (p.name in values) ? values[p.name] : undefined;
       // Types `noRow` (hidden) : input nu, sans wrapper visible (pas de marge/label).
       if (typeSupports(p.type, 'noRow')) return controlHtml(p, ctx, value, resolver);
@@ -993,7 +1008,8 @@
     // garde, DANS la section de chaque étape. Avancés compris : un réglage avancé d'une étape
     // va dans un « Avancé » replié de SA section ; seuls ceux qu'aucune étape ne prend restent
     // dans le « Avancé » commun, en dernier.
-    const sections = processSections(params.filter(function (p) { return p.type !== 'hidden'; }), procs);
+    const sections = processSections(params.filter(function (p) { return p.type !== 'hidden'; }), procs,
+                                     opts.processFocus);
     let html;
     if (sections) {
       const byName = {}, procByKey = {};
@@ -2441,7 +2457,8 @@
     });
     const host = modal.querySelector('.wama-modal-fields');
     if (cfg.schema) render(host, cfg.schema, { context: cfg.context || 'item', values: cfg.values || {},
-                                               groups: cfg.groups, optionsResolver: cfg.optionsResolver });
+                                               groups: cfg.groups, optionsResolver: cfg.optionsResolver,
+                                               processFocus: cfg.processFocus });
     return { modal: modal, host: host, form: form };
   }
 
@@ -2474,9 +2491,12 @@
   // par un autre geste ne doit pas en hériter.
   let pendingScope = null;
 
-  function scopeNextModal(names, label) {
+  // `process` : la clé de l'étape dont c'est la ⚙ — la modale range ses réglages partagés sous
+  // elle (`processSections`, `focus`).
+  function scopeNextModal(names, label, process) {
     const kept = (names || []).filter(Boolean);
-    pendingScope = kept.length ? { names: kept, label: label || '', until: Date.now() + 3000 } : null;
+    pendingScope = kept.length ? { names: kept, label: label || '', process: process || '',
+                                   until: Date.now() + 3000 } : null;
   }
 
   function takeScope() {
@@ -2521,6 +2541,7 @@
       schema: scopedSchema(cfg.schema, scope.names),
       groups: scopedGroups(cfg.groups, scopedSchema(cfg.schema, scope.names)),
       title: (cfg.title || 'Paramètres') + (scope.label ? ' — ' + scope.label : ''),
+      processFocus: scope.process || '',
       // Les zones d'app HORS schéma (prompt, classes à flouter, résolution…) ne sont pas
       // des réglages de CE process : une modale à portée ne rend que le schéma réduit.
       // `collect` reste appelé — il ne poste que ce qu'il trouve, et porte le drapeau de
@@ -2548,7 +2569,7 @@
         id: cfg.id, title: cfg.title, titleIcon: cfg.titleIcon,
         schema: cfg.schema || [], groups: cfg.groups || [],
         values: data || {}, formClass: cfg.formClass, context: cfg.context,
-        optionsResolver: cfg.optionsResolver,
+        optionsResolver: cfg.optionsResolver, processFocus: cfg.processFocus,
       });
       const modal = res.modal, host = res.host;
       modal.dataset.wamaItemId = cfg.id;

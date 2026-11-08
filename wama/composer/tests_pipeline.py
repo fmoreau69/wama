@@ -512,6 +512,10 @@ class TheCardShowsItsProcessesTest(TestCase):
         self.assertIn('duration', gears['render'].split(','))
         self.assertNotIn('duration', gears['plan'].split(','))
         self.assertIn('prompt', gears['plan'].split(','))
+        # « Paroles écrites » (2026-11-08, Fabien) : its gear holds what it writes — the lyrics,
+        # with their ✍️ button —, which does not stale it.
+        self.assertIn('lyrics', gears['write_lyrics'].split(','))
+        self.assertNotIn('lyrics', PIPELINE.watched_of(PIPELINE.spec('write_lyrics')))
 
     def test_under_auto_the_output_score_has_its_checkbox_on_the_card(self):
         """2026-10-26, Fabien : « je ne vois pas le process "Partition de sortie" sur la card,
@@ -529,7 +533,7 @@ class TheCardShowsItsProcessesTest(TestCase):
         self.assertRegex(html, r'wcv3-proc-toggle"[^>]*data-toggle-field="extract_rendered_parts"'
                                r'[^>]*data-settings-url="' + reverse('composer:update_settings',
                                                                      args=[gen.pk]) + '"')
-        self.assertIn('Partition jouée', html)   # « de sortie » jusqu'au 2026-11-08
+        self.assertIn(PIPELINE.spec('rendered_parts').label, html)
 
     def test_a_single_step_model_shows_the_render_then_the_output_and_no_score(self):
         gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
@@ -704,6 +708,7 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
                           ('write_lyrics', 'composer.write_lyrics'),
                           ('plan', 'composer.plan'), ('render', 'composer.render'),
                           ('output', 'composer.output'),
+                          ('rendered_score', 'composer.rendered_score'),
                           ('rendered_parts', 'composer.rendered_parts'),
                           ('rendered_lyrics', 'composer.rendered_lyrics')],
                          [(node['id'], node['function']) for node in manifest['body']['nodes']])
@@ -714,11 +719,17 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         # them ; those of the output are a branch of the render.
         links = {(link['from'], link['to']) for link in manifest['body']['links']}
         # The written lyrics (2026-11-08) come after the heard ones and before the composed score.
-        self.assertEqual({('extract_score', 'extract_lyrics'), ('extract_lyrics', 'plan'),
+        # Since 2026-11-08 (Fabien : lyrics and scores on one level) the lyrics of the input no
+        # longer hang on the reduced score : declared after it, they still run after it.
+        self.assertLess([s.key for s in PIPELINE.ordered()].index('extract_score'),
+                        [s.key for s in PIPELINE.ordered()].index('extract_lyrics'))
+        self.assertEqual({('extract_lyrics', 'plan'),
                           ('extract_lyrics', 'write_lyrics'), ('write_lyrics', 'plan'),
                           ('write_lyrics', 'render'),
                           ('extract_score', 'render'), ('extract_lyrics', 'render'), ('plan', 'render'),
-                          ('render', 'output'), ('render', 'rendered_parts'), ('render', 'rendered_lyrics')},
+                          ('render', 'output'), ('render', 'rendered_parts'), ('render', 'rendered_lyrics'),
+                          # Sa partition réduite (2026-11-08, la symétrie) : une branche du rendu.
+                          ('render', 'rendered_score')},
                          links)
 
     def test_the_export_command_lists_it(self):
@@ -727,7 +738,7 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
 
     def test_the_task_has_a_glue_for_every_process(self):
         self.assertEqual({'extract_score', 'extract_lyrics', 'write_lyrics', 'plan', 'render',
-                          'output', 'parts', 'rendered_parts', 'rendered_lyrics'},
+                          'output', 'parts', 'rendered_score', 'rendered_parts', 'rendered_lyrics'},
                          {spec.key for spec in PIPELINE.specs})
         for spec in PIPELINE.specs:
             self.assertTrue(callable(getattr(tasks, f'_{spec.key}')), spec.key)

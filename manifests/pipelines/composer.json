@@ -3,11 +3,6 @@
     "layout": {},
     "links": [
       {
-        "from": "extract_score",
-        "to": "extract_lyrics",
-        "to_port": null
-      },
-      {
         "from": "extract_lyrics",
         "to": "write_lyrics",
         "to_port": null
@@ -45,6 +40,11 @@
       {
         "from": "render",
         "to": "output",
+        "to_port": null
+      },
+      {
+        "from": "render",
+        "to": "rendered_score",
         "to_port": null
       },
       {
@@ -137,9 +137,13 @@
         "process": {
           "degree": "optional",
           "gpu": false,
-          "label": "Écrire les paroles",
+          "label": "Paroles écrites",
+          "result": "composer.tasks:written_lyrics",
           "watched": [
             "prompt_processed"
+          ],
+          "writes": [
+            "lyrics"
           ]
         }
       },
@@ -220,6 +224,26 @@
       },
       {
         "app": null,
+        "function": "composer.rendered_score",
+        "id": "rendered_score",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "eta": "composer.tasks:extract_score_eta",
+          "gpu": true,
+          "label": "Partition réduite jouée",
+          "outputs": [
+            "rendered_score"
+          ],
+          "toggle": "extract_rendered_score",
+          "watched": [
+            "extract_rendered_score"
+          ]
+        }
+      },
+      {
+        "app": null,
         "function": "composer.rendered_parts",
         "id": "rendered_parts",
         "kind": "function",
@@ -228,7 +252,7 @@
           "degree": "optional",
           "eta": "composer.tasks:parts_eta",
           "gpu": true,
-          "label": "Partition jouée",
+          "label": "Partition complète jouée",
           "outputs": [
             "rendered_parts_score"
           ],
@@ -266,7 +290,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "composer",
   "manifest_kind": "pipeline",
-  "name": "Composer — partition, rendu, sortie (9 process)",
+  "name": "Composer — partition, rendu, sortie (10 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

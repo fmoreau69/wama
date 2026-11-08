@@ -170,7 +170,9 @@ class ProcessFacesTest(_MediaRootMixin, TestCase):
         faces = self._faces('composer', gen, output_data=self._face_of(audio))
         self.assertEqual(['plan'], list(faces), 'the render IS the Output : not repeated')
         meta, data = faces['plan']
-        self.assertEqual({'key': 'plan', 'label': 'Partition', 'icon': 'fa-music'}, meta)
+        from wama.composer.function_specs import PIPELINE
+        self.assertEqual({'key': 'plan', 'label': PIPELINE.spec('plan').label, 'icon': 'fa-music'},
+                         meta)
         self.assertEqual('text/vnd.abc', data['mime_type'], 'a score opens as text, everywhere')
 
     def test_a_file_gone_from_the_disk_is_not_shown(self):

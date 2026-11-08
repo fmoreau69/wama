@@ -52,7 +52,7 @@ def step_schema(pipeline, process) -> list:
     son exécuteur (`tasks._run_app_process`, qui écrit sur l'élément ce que le nœud a décidé)."""
     from wama.common.utils.param_schema import schema_for_app, scoped_names
     app_schema = schema_for_app(pipeline.app)
-    kept = set(scoped_names(app_schema, pipeline.watched_of(process)))
+    kept = set(scoped_names(app_schema, pipeline.step_settings(process)))
     return [p for p in app_schema if p.get('name') in kept]
 
 

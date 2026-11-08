@@ -66,12 +66,14 @@ class ThePromptOfThisLaunchFollowsTheVoiceTest(SimpleTestCase):
         writer.assert_not_called()
 
     def test_song_without_lyrics_writes_nothing_here_any_more_and_says_so(self):
-        """2026-11-08 (Fabien) : the lyrics are written by the STEP « Écrire les paroles », before
-        the composed score — no longer hidden inside the reading of the prompt."""
+        """2026-11-08 (Fabien) : the lyrics are written by the STEP « Paroles écrites », before
+        the composed score — no longer hidden inside the reading of the prompt. The message names
+        the step by ITS label, read on the pipeline."""
+        from wama.composer.function_specs import PIPELINE
         out, said, writer = self._prepare('song', 'une chanson sur la mer')
         self.assertEqual('une chanson sur la mer', out)
         writer.assert_not_called()
-        self.assertIn('Écrire les paroles', said[0])
+        self.assertIn(f"« {PIPELINE.spec('write_lyrics').label} »", said[0])
         self.assertIn('instrumental', said[0])
 
     def test_the_card_s_lyrics_are_sung_and_never_rewritten(self):

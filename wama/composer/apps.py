@@ -80,4 +80,4 @@ class ComposerConfig(AppConfig):
         # La partition COMPLÈTE aussi depuis le 2026-10-22 : elle se corrige sur la même surface.
         keep_outputs('composer', keep=20,
                      fields=tuple(ComposerGeneration.SCORE_FIELDS)
-                     + ('parts_score', 'rendered_parts_score', 'reference_score'))
+                     + ('parts_score', 'rendered_parts_score', 'rendered_score', 'reference_score'))

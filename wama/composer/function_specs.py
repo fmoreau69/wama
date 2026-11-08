@@ -18,7 +18,8 @@ TROIS process, et un seul est NORMAL :
     pas de la consigne. Jamais « transcribe » : ce verbe est celui du transcriber.
 Et deux process OPTIONNELS de lecture (2026-10-26, décision de Fabien), qui ne nourrissent rien :
   • `parts` — la partition COMPLÈTE de l'ENTRÉE (l'audio du cover), à côté de la réduite ;
-  • `rendered_parts` — la partition complète du morceau PRODUIT, dérivée du rendu, pour comparer.
+  • `rendered_parts` — la partition complète du morceau PRODUIT, dérivée du rendu, pour comparer ;
+  • `rendered_score` (2026-11-08, la symétrie) — sa partition réduite, le pendant d'`extract_score`.
 Et deux process d'ÉCOUTE, optionnels sans interrupteur (2026-11-03, décision de Fabien), qui
 remplissent le champ « Paroles » quand il est vide et que le modèle chante :
   • `extract_lyrics` — les paroles du morceau repris, avant ce qui les chante ;
@@ -152,7 +153,17 @@ register(FunctionSpec(
     outputs=[PortSpec('score', 'score', description="La partition, une partie par instrument.")]))
 
 register(FunctionSpec(
-    key='composer.rendered_parts', name='Composer — partition de sortie',
+    key='composer.rendered_score', name='Composer — partition réduite jouée',
+    description="Écrit la partition RÉDUITE (mélodie et accords) du morceau PRODUIT, pour la comparer "
+                "à la partition de référence — par le même modèle que la partition réduite de "
+                "l'entrée. Optionnelle ; montrée sur la page d'édition, lue seulement.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['audio', 'music', 'gpu'],
+    inputs=[PortSpec('audio', 'audio', description="Le morceau rendu.")],
+    outputs=[PortSpec('score', 'score', description="La mélodie et les accords joués.")]))
+
+register(FunctionSpec(
+    key='composer.rendered_parts', name='Composer — partition complète jouée',
     description="Écrit la partition COMPLÈTE du morceau PRODUIT, une partie par instrument, pour la "
                 "comparer à celle de l'entrée — par le même modèle et la même notation que la "
                 "partition complète. Optionnelle ; montrée sur la page d'édition, lue seulement.",
@@ -297,7 +308,14 @@ PIPELINE = register_app_pipeline(_APP, (
     # automatique), une card de MUSIQUE suffit (pas un modèle qui chante : on peut ne vouloir que la
     # partition et ses paroles), et elle RANGE ses paroles horodatées (`input_lyrics_timed`). Le
     # champ « Paroles » n'est rempli que s'il est vide (il périme `plan` et `render`).
-    ProcessSpec('extract_lyrics', label="Paroles de l'entrée", depends_on=('extract_score',),
+    # AU NIVEAU DES PARTITIONS depuis le 2026-11-08 (décision de Fabien : « paroles et partition sur
+    # un même niveau chronologique, cohérent partout » — en sortie, les paroles chantées sont déjà
+    # sœurs des partitions jouées) : elle ne DÉPEND plus de la partition réduite. Elle n'en tirait que
+    # ses sections, pour découper le champ « Paroles » ; elle les prend encore quand la partition est
+    # là (déclarée avant elle, elle passe d'abord : `topo_order` est STABLE, le patron des recalages
+    # du cam_analyzer), sinon les paroles restent d'un seul tenant — ce
+    # qui a toujours été le cas sans partition. Corriger la partition ne périme plus les paroles.
+    ProcessSpec('extract_lyrics', label="Paroles de l'entrée",
                 watched=('melody_reference', 'source_url'), toggle='extract_input_lyrics',
                 degree=OPTIONAL, gpu=True, share=1, needs=MAKES_MUSIC, applies=_lyrics_extract_applies,
                 available=_lyrics_available, outputs=('input_lyrics_timed',),
@@ -306,9 +324,12 @@ PIPELINE = register_app_pipeline(_APP, (
     # YuE2 bâtit la structure de sa partition sur les sections des paroles —, écrites à la LONGUEUR
     # du morceau. C'était une écriture cachée au début du premier process qui lisait la consigne.
     # Le même geste que le bouton du réglage « Paroles » (`write_lyrics_for`).
-    ProcessSpec('write_lyrics', label='Écrire les paroles', depends_on=('extract_lyrics',),
+    # « Paroles écrites » (2026-11-08, décision de Fabien) : nommée par ce qu'elle produit, comme
+    # ses voisines ; sa ⚙ montre ce produit, le champ « Paroles » et son bouton ✍️ (`writes`).
+    ProcessSpec('write_lyrics', label='Paroles écrites', depends_on=('extract_lyrics',),
                 watched=_PROMPT_WATCHED, degree=OPTIONAL, share=1, needs=SINGS,
-                applies=_lyrics_to_write),
+                applies=_lyrics_to_write, writes=('lyrics',),
+                result='composer.tasks:written_lyrics'),
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
     # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu. « Partition
     # composée » (2026-11-08) : celle que le modèle écrit depuis la consigne, l'alternative de la
@@ -333,7 +354,15 @@ PIPELINE = register_app_pipeline(_APP, (
     # sortie ») : optionnelle (`extract_rendered_parts`), une DÉRIVATION du rendu — à côté de la
     # sortie, pas après : elle lit l'audio du RENDU (`output_sources`), changer de format ne la
     # périme pas. Lue seulement, pour comparer ce qui a été demandé et ce qui a été joué.
-    ProcessSpec('rendered_parts', label='Partition jouée', depends_on=('render',),
+    # PARTITION RÉDUITE JOUÉE (2026-11-08, décision de Fabien : « ok pour la symétrie ») : le pendant
+    # de `extract_score` sur le RENDU — la mélodie réellement chantée, comparable à la référence.
+    # Décochée par défaut ; même modèle (`score_extractor`) et même disponibilité que l'entrée.
+    ProcessSpec('rendered_score', label='Partition réduite jouée', depends_on=('render',),
+                degree=OPTIONAL, toggle='extract_rendered_score', gpu=True, share=1,
+                needs=MAKES_MUSIC, available=_extract_available, outputs=('rendered_score',),
+                eta='composer.tasks:extract_score_eta'),
+    # « Partition complète jouée » (2026-11-08) : nommée comme son pendant de l'entrée.
+    ProcessSpec('rendered_parts', label='Partition complète jouée', depends_on=('render',),
                 degree=OPTIONAL, toggle='extract_rendered_parts', gpu=True, share=2, needs=MAKES_MUSIC,
                 available=_parts_available, outputs=('rendered_parts_score',),
                 eta='composer.tasks:parts_eta'),

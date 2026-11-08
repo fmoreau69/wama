@@ -755,6 +755,28 @@ class WhatTheCardShowsTest(TestCase):
         rows = {r['key']: r['watched'] for r in self.pipeline.card_rows(item)}
         self.assertEqual({'plan': ['prompt'], 'render': ['duration']}, rows)
 
+    def test_the_gear_of_a_step_also_shows_what_it_writes_without_staling_it(self):
+        """2026-11-08, Fabien : « la modale d'écrire les paroles devrait contenir le champ paroles et
+        le bouton de génération ». What a step WRITES (`ProcessSpec.writes`) joins its gear — on the
+        card (`settings` → `data-only`) and on the Studio node (`step_settings`) — but not what it
+        watches : changing the lyrics does not stale the step that wrote them (counter-proof)."""
+        from django.template.loader import render_to_string
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('write', label='Paroles écrites', watched=('prompt',), writes=('lyrics',)),
+            ProcessSpec('render', label='Rendu', depends_on=('write',), watched=('duration',)),
+        ), label='Demo')
+        self.assertEqual(('prompt', 'lyrics'), pipeline.step_settings(pipeline.spec('write')))
+        self.assertNotIn('lyrics', pipeline.watched_of(pipeline.spec('write')))
+        item = _Element(status=JOB_PENDING, prompt='la mer', lyrics='')
+        rows = {r['key']: r for r in pipeline.card_rows(item)}
+        self.assertEqual(['prompt', 'lyrics'], rows['write']['settings'])
+        self.assertEqual(['duration'], rows['render']['settings'], 'nothing written : the watched ones')
+        html = render_to_string('common/_card_processes.html', {'processes': list(rows.values()),
+                                                                'card_id': 7})
+        self.assertRegex(html, r'data-process="write" data-only="prompt,lyrics"')
+        self.assertIn('lyrics', [p for p in pipeline.graph()['nodes']
+                                 if p['id'] == 'write'][0]['process']['writes'])
+
     # ── the switch of an optional process (3.2) and non-file outputs ───────────────────────────
     def _with_an_option(self):
         return AppPipeline('demo_pipeline', (
@@ -945,7 +967,7 @@ class WhatTheCardShowsTest(TestCase):
                 starved = [s.key for s in pipeline.specs if pipeline.starved(s, item, None)]
                 if starved:
                     found[(app, toggle)] = starved
-        self.assertEqual({('composer', 'generate_audio'): ['output', 'rendered_parts',
+        self.assertEqual({('composer', 'generate_audio'): ['output', 'rendered_score', 'rendered_parts',
                                                             'rendered_lyrics']}, found)
 
     def test_a_cut_step_that_transforms_a_card_entry_starves_nothing(self):

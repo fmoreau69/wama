@@ -40,7 +40,7 @@
   "description": "Écrit la partition COMPLÈTE du morceau PRODUIT, une partie par instrument, pour la comparer à celle de l'entrée — par le même modèle et la même notation que la partition complète. Optionnelle ; montrée sur la page d'édition, lue seulement.",
   "key": "composer.rendered_parts",
   "manifest_kind": "function",
-  "name": "Composer — partition de sortie",
+  "name": "Composer — partition complète jouée",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

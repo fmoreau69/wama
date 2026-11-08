@@ -65,26 +65,33 @@ register_surface(Surface(
                'versions': [
                    {'label': 'Réduite'},
                    {'field': 'parts_score', 'label': 'Complète',
-                    'empty': "Pas encore de partition complète : cocher « Partition complète "
-                             "(instruments) » dans les réglages d'une card de reprise (cover), "
-                             "puis relancer."}]}),
+                    'empty': "Pas encore de partition complète : cocher « Partition complète » "
+                             "dans les réglages d'une card de reprise (cover), puis relancer."}]}),
            BrickSlot('transport', 'media_transport', 0, 14, 12, 3, {'role': 'audio'}),
-           # Ce qui a été JOUÉ, lu seulement (2026-10-26) : à placer à côté de la référence.
+           # Ce qui a été JOUÉ, lu seulement (2026-10-26) : à placer à côté de la référence. Réduite
+           # et complète comme la référence (2026-11-08, décision de Fabien : la symétrie).
            BrickSlot('rendered', 'score_view', 0, 17, 12, 12, {
-               'role': 'rendered', 'media': 'audio', 'title': 'Partition jouée',
-               'lyrics': 'lyrics_out',
-               'empty': "Pas encore de partition jouée : cocher « Partition jouée » (et « Paroles "
-                        "chantées » pour ses paroles) dans les réglages de la card, puis relancer."}),
+               'media': 'audio', 'title': 'Partition jouée', 'lyrics': 'lyrics_out',
+               'versions': [
+                   {'label': 'Réduite', 'role': 'rendered_score',
+                    'empty': "Pas encore de partition réduite jouée : cocher « Partition réduite "
+                             "jouée » (et « Paroles chantées » pour ses paroles) dans les réglages "
+                             "de la card, puis relancer."},
+                   {'label': 'Complète', 'role': 'rendered',
+                    'empty': "Pas encore de partition complète jouée : cocher « Partition complète "
+                             "jouée » dans les réglages de la card, puis relancer."}]}),
            BrickSlot('source', 'text_sections', 0, 29, 12, 6, {'title': 'Source ABC'}),
            BrickSlot('actions', 'surface_actions', 0, 0, 1, 5, zone='panel'),
            BrickSlot('versions', 'revision_history', 0, 5, 1, 6, zone='panel')),
     reads={'audio': 'audio_output', 'rendered': 'rendered_parts_score',
+           'rendered_score': 'rendered_score',
            'lyrics_in': 'input_lyrics_timed', 'lyrics_out': 'rendered_lyrics_timed'},
-    texts=('rendered', 'lyrics_in', 'lyrics_out'),
+    texts=('rendered', 'rendered_score', 'lyrics_in', 'lyrics_out'),
     edits=INPUT_SCORE_FIELDS,
     also_edits=('parts_score',),
     reruns='render', available=_score_available,
     # L'élément témoin des vignettes du catalogue des briques (nocturne) : une partition, sa
     # partition complète et un rendu audio — rien n'est lancé, les fichiers sont des témoins.
     witness={'prompt': "Témoin — la page d'édition de la partition", 'planned_score': '.abc',
-             'parts_score': '.abc', 'rendered_parts_score': '.abc', 'audio_output': '.wav'}))
+             'parts_score': '.abc', 'rendered_parts_score': '.abc', 'rendered_score': '.abc',
+             'audio_output': '.wav'}))

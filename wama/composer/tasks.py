@@ -51,7 +51,7 @@ def compose_task(self, generation_id: int, process: str | None = None):
                       processes={'extract_score': _extract_score, 'extract_lyrics': _extract_lyrics,
                                  'write_lyrics': _write_lyrics,
                                  'plan': _plan, 'render': _render, 'output': _output, 'parts': _parts,
-                                 'rendered_parts': _rendered_parts,
+                                 'rendered_score': _rendered_score, 'rendered_parts': _rendered_parts,
                                  'rendered_lyrics': _rendered_lyrics},
                       model_key=_model_key, notify_label='Composer',
                       only=process)
@@ -277,9 +277,31 @@ def _extract_score(gen, ctx):
     sélecteur commun. Son backend est propre à ce process et DÉCHARGÉ aussitôt — la carte
     graphique revient entière au rendu (YuE2), qui suit. La ligne d'exécution porte ce modèle
     (`models`)."""
+    from django.conf import settings
+    if not gen.melody_reference:
+        raise RuntimeError("Aucun audio à reprendre : le fichier du cover est absent.")
+    return _reduced_score(gen, ctx, os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name),
+                          field='extracted_score', nature='score', label='Partition réduite')
+
+
+def _rendered_score(gen, ctx):
+    """GLU du process `rendered_score` (2026-11-08, décision de Fabien : la symétrie) : le morceau
+    PRODUIT → sa partition réduite, la mélodie réellement chantée, à comparer à la partition de
+    référence. Lit l'audio du RENDU, comme la partition complète jouée."""
+    from wama.common.services.output_process import output_sources
+    sources = [p for p in output_sources(gen, 'audio_output') if os.path.isfile(p)]
+    if not sources:
+        raise RuntimeError("Aucun morceau rendu : la partition réduite jouée se lit sur le rendu.")
+    return _reduced_score(gen, ctx, sources[0], field='rendered_score', nature='render_score',
+                          label='Partition réduite jouée')
+
+
+def _reduced_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str):
+    """Un audio → sa partition RÉDUITE (mélodie et accords), rangée comme une sortie de la card
+    (`field`) — le corps commun des deux process de partition réduite (entrée, rendu), comme
+    `_full_score` l'est des deux partitions complètes. Même modèle, même ETA (par élément)."""
     import tempfile
 
-    from django.conf import settings
     from wama.common.backends.manager import backend_for_key
     from wama.common.utils.model_keys import model_id
     from .utils.model_choice import score_extractor
@@ -287,16 +309,12 @@ def _extract_score(gen, ctx):
     extractor_key = score_extractor()
     if not extractor_key:
         raise RuntimeError("Aucun modèle d'extraction de partition n'est installé "
-                           "(tâche « audio-to-score ») — l'audio du cover ne peut pas être repris.")
-    if not gen.melody_reference:
-        raise RuntimeError("Aucun audio à reprendre : le fichier du cover est absent.")
+                           "(tâche « audio-to-score »).")
     ctx.ensure_model(extractor_key)        # absent : la route l'installe, la tâche attend
     backend_class = backend_for_key(extractor_key)
     if backend_class is None:
         raise RuntimeError(f"« {extractor_key} » : aucun backend résolu depuis le catalogue.")
-    audio_abs = os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
-    ctx.console(f"[Composer] Partition réduite de l'audio : {extractor_key} — "
-                f"{os.path.basename(gen.melody_reference.name)}")
+    ctx.console(f"[Composer] {label} : {extractor_key} — {os.path.basename(audio_abs)}")
     backend = backend_class()
     try:
         with tempfile.TemporaryDirectory() as annexes:   # MIDI, temps : non gardés
@@ -319,15 +337,15 @@ def _extract_score(gen, ctx):
         except Exception:
             logger.warning("[composer] modèle d'extraction de #%s non déchargé", gen.pk,
                            exc_info=True)
-    score_rel, abs_path = ctx.output_place('.abc', nature='score', model=model_id(extractor_key))
+    score_rel, abs_path = ctx.output_place('.abc', nature=nature, model=model_id(extractor_key))
     name = os.path.basename(score_rel)
     with open(abs_path, 'w', encoding='utf-8') as handle:
         handle.write(text)
     return {
-        'fields': {'extracted_score': score_rel},
+        'fields': {field: score_rel},
         'output_ref': score_rel,
         'label': name,
-        'console_success': f"✓ Partition réduite : {name}",
+        'console_success': f"✓ {label} : {name}",
         'models': [extractor_key],
         'eta': extract_score_eta_key_size(gen),
     }
@@ -352,9 +370,9 @@ def _rendered_parts(gen, ctx):
     from wama.common.services.output_process import output_sources
     sources = [p for p in output_sources(gen, 'audio_output') if os.path.isfile(p)]
     if not sources:
-        raise RuntimeError("Aucun morceau rendu : la partition de sortie se lit sur le rendu.")
+        raise RuntimeError("Aucun morceau rendu : la partition complète jouée se lit sur le rendu.")
     return _full_score(gen, ctx, sources[0], field='rendered_parts_score', nature='render_score',
-                       label='Partition de sortie')
+                       label='Partition complète jouée')
 
 
 def _full_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str):
@@ -470,6 +488,12 @@ def _write_lyrics(gen, ctx):
             'label': f"{len(written.split())} mots",
             'console_success': f"✓ Paroles écrites en « {language} », gardées sur la card "
                                f"(Paramètres ⚙ → Paroles) :\n{written}"}
+
+
+def written_lyrics(gen):
+    """RÉSULTAT LISIBLE du process `write_lyrics` (`ProcessSpec.result`) : les paroles de la card —
+    ce qu'il a écrit, ou ce que l'utilisateur en a fait depuis. None tant qu'il n'y en a pas."""
+    return str(gen.lyrics or '').strip() or None
 
 
 def _score_sections(gen, score: str) -> list:
