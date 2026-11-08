@@ -413,8 +413,9 @@ class ModelSyncService:
             # rue), et la découverte n'a pas autorité pour l'écraser — même principe que
             # `platform_ref`/`quality_index` (2026-08-12). L'ABSENCE de fichier reste traitée par
             # `remove_missing`, qui pose False ; réactiver un modèle écarté est donc explicite.
+            # Le format RECOMMANDÉ n'est plus écrit : il se DÉRIVE du moteur déclaré
+            # (`AIModel.preferred_format`, 2026-11-08 — il venait du TYPE, `REMOVAL_LEDGER R229`).
             'format': model_info.format or '',
-            'preferred_format': model_info.preferred_format or '',
             'can_convert_to': model_info.can_convert_to or [],
             'backend_ref': model_info.backend_ref or '',
             # Où il s'exécute et ce qu'il coûte : dits par la découverte depuis que les modèles
@@ -489,10 +490,18 @@ class ModelSyncService:
         # l'anatomie de 10 modèles — le VAE de YuE2 et le parent MERT de SheetSage2 redevenus des
         # modèles tirables (le défaut du 03/10). `runtime` se fusionne de même, clé par clé.
         _compo = getattr(model_info, 'composition', None) or {}
+        _prior_compo = (AIModel.objects.filter(model_key=model_key)
+                        .values_list('composition', flat=True).first()) or {}
         if _compo:
-            _prior = (AIModel.objects.filter(model_key=model_key)
-                      .values_list('composition', flat=True).first()) or {}
-            defaults['composition'] = merged_composition(_prior, _compo)
+            defaults['composition'] = merged_composition(_prior_compo, _compo)
+        # FORMAT : celui des poids que l'anatomie DÉCLARE l'emporte sur le format « dominant » du
+        # disque (2026-11-08 — LinTO dit `safetensors` par sa conversion rangée près de son
+        # `.nemo`, SAM 3 et les modèles du composer de même) : c'est ce format que le moteur lit,
+        # et que le format recommandé lui compare (`format_policy`).
+        from wama.common.utils.format_policy import declared_weight_format
+        _declared_format = declared_weight_format(defaults.get('composition') or _prior_compo)
+        if _declared_format:
+            defaults['format'] = _declared_format
 
         # PROVENANCE de `vram_gb` (décision A, 16/09) : dite par le rédacteur (`ModelInfo`), écrite
         # ICI, au point unique par lequel toute découverte passe — 19 rédacteurs, une seule
@@ -524,7 +533,6 @@ class ModelSyncService:
         logger.info(
             f"[ModelSync] Syncing {model_key}: "
             f"format={defaults.get('format', 'EMPTY')!r}, "
-            f"preferred_format={defaults.get('preferred_format', 'EMPTY')!r}, "
             f"vram_gb={defaults.get('vram_gb', 0)}"
         )
 
@@ -744,11 +752,6 @@ class ModelSyncService:
 
         format_type = path.suffix.lstrip('.').lower()
 
-        # Determine preferred format from policy
-        from wama.common.utils.format_policy import get_preferred_format
-        category = source if source != 'anonymizer' else 'vision'
-        preferred = get_preferred_format(category)
-
         return ModelInfo(
             id=f"{source}:{path.stem}",
             name=path.stem,
@@ -757,7 +760,6 @@ class ModelSyncService:
             description=f"Discovered model ({file_size_mb:.1f}MB)",
             is_downloaded=True,
             format=format_type,
-            preferred_format=preferred,
             extra_info={
                 'path': str(path),
                 'size_mb': file_size_mb,

@@ -49,8 +49,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "nemo",
-      "preferred_format": "onnx"
+      "format": "nemo"
     },
     "identity": {
       "author": null,

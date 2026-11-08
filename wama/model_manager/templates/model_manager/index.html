@@ -87,13 +87,12 @@
         border-radius: 4px;
         text-transform: uppercase;
         font-weight: 600;
+        /* La couleur du TYPE et son texte, posés par la card depuis la valeur du type
+           (`--type-fill` / `--type-on` → `--wama-mm-type-<valeur>[-on]` du thème) : une règle pour
+           tous les types, aucun à recopier ici. Un type sans jeton garde le badge neutre. */
+        background: var(--type-fill, var(--wama-mm-badge));
+        color: var(--type-on, var(--wama-text-secondary));
     }
-    .type-vision { background: var(--wama-mm-type-vision); color: var(--wama-text-on-accent); }
-    .type-diffusion { background: var(--wama-mm-type-diffusion); color: var(--wama-text-on-accent); }
-    .type-speech { background: var(--wama-mm-type-speech); color: var(--wama-text-on-accent); }
-    .type-vlm { background: var(--wama-mm-type-vlm); color: var(--wama-text-on-bright); }
-    .type-llm { background: var(--wama-mm-type-llm); color: var(--wama-text-on-accent); }
-    .type-upscaling { background: var(--wama-mm-type-upscaling); color: var(--wama-text-on-accent); }
     .source-badge {
         font-size: 0.65rem;
         padding: 2px 6px;
@@ -1185,7 +1184,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="d-flex align-items-center">
                             <input type="checkbox" class="form-check-input model-checkbox me-2 model-select-cb"
                                    data-model-id="${model.id}" ${selectedModels.has(model.id) ? 'checked' : ''}>
-                            <span class="type-badge type-${model.type} me-1">${model.type}</span>
+                            ${(() => {
+                                // La couleur se lit par la VALEUR du type (jeton du thème), pour tous.
+                                const t = String(model.type || '').replace(/[^a-z0-9_-]/g, '');
+                                return `<span class="type-badge me-1" style="--type-fill:var(--wama-mm-type-${t});--type-on:var(--wama-mm-type-${t}-on)">${t}</span>`;
+                            })()}
                             ${cardSource(model).badge ? `<span class="source-badge">${WamaApp.escapeHtml(cardSource(model).badge)}</span>` : ''}
                         </div>
                         ${model.is_proposed ?

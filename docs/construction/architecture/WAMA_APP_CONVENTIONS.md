@@ -2050,7 +2050,7 @@ def duplicate(request, pk):
 | `media_paths.py` | `upload_to_user_input()`, `upload_to_user_output()`, `UploadToUserPath` | Chemins fichiers |
 | `console_utils.py` | `push_console_line()`, `get_console_lines()` | Logs console UI |
 | `llm_utils.py` | `get_describer_model()` | Sélection modèle LLM |
-| `format_policy.py` | `get_policy()`, `should_auto_convert()`, `get_preferred_format()` (corrigé le 2026-10-31 : `validate_format()` n'existe pas, `format_policy.py:169-320`) | Politique de format par catégorie |
+| `format_policy.py` | `preferred_format(composition)`, `engine_weight_format()`, `declared_weight_format()`, `conversion_suggestion()` | Format de poids recommandé, DÉRIVÉ du moteur déclaré — plus de politique par catégorie ni par type (2026-11-08, `REMOVAL_LEDGER R229`) |
 | `video_utils.py` | Utilitaires vidéo | Traitement vidéo |
 | `preview_utils.py` | Socle preview commune : faces Entrée/Comparer/Sortie dérivées des ports, phase « pendant », `register_app_preview()`, pics d'onde partiels | Prévisualisation |
 | `source_ingest.py` | `ensure_local_input()` piloté par `WAMA_INGEST` (URL→fichier local) | Ingest média déclaratif |

@@ -46,8 +46,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "glb",
-      "preferred_format": "glb"
+      "format": "glb"
     },
     "identity": {
       "author": null,

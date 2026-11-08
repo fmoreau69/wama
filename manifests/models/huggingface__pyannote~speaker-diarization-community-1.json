@@ -13,8 +13,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "bin",
-      "preferred_format": null
+      "format": "bin"
     },
     "identity": {
       "author": null,

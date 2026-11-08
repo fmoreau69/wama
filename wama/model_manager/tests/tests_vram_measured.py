@@ -74,7 +74,7 @@ class PersistanceDeLaMesureTest(TestCase):
             name='Qwen-Image', model_type=SimpleNamespace(value='image'),
             source=SimpleNamespace(value='imager'), description='', description_short='',
             vram_gb=16.0, ram_gb=0, is_downloaded=True, is_loaded=False, format='',
-            preferred_format='', can_convert_to=[], backend_ref='', extra_info={},
+            can_convert_to=[], backend_ref='', extra_info={},
             platform_ref='', quality_index=None, capabilities={}, composition={})
         ModelSyncService()._sync_model(CLE, decouverte)
         m = AIModel.objects.get(model_key=CLE)

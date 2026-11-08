@@ -2,15 +2,18 @@
 Format Converter Service
 
 Centralized service for model format conversions.
-Integrates with the format policy to provide automatic and manual conversion capabilities.
+
+Les conversions se font À LA MAIN (`can_convert_to`). Le format RECOMMANDÉ, que lisent les
+suggestions et les statistiques, se dérive du moteur DÉCLARÉ de chaque ligne du catalogue
+(`format_policy.preferred_format`) : jusqu'au 2026-11-08 il venait d'une catégorie devinée sur le
+NOM du dossier (`dir_to_category`, « diffusion » par défaut), et une conversion automatique à
+l'installation (`auto_convert_on_download`) n'avait aucun appelant (`REMOVAL_LEDGER R229`).
 """
 
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +38,7 @@ class ConversionSuggestion:
     model_path: str
     current_format: str
     suggested_format: str
-    category: str
+    engine: str
     reason: str
     priority: int = 0  # Higher = more important
 
@@ -302,43 +305,6 @@ class FormatConverter:
         path_lower = model_path.lower()
         return 'yolo' in path_lower or 'ultralytics' in path_lower
 
-    def auto_convert_on_download(
-        self,
-        model_path: str,
-        category: str,
-    ) -> Optional[str]:
-        """
-        Apply format policy after a model is downloaded.
-
-        Args:
-            model_path: Path to the downloaded model
-            category: Model category (e.g., 'vision', 'diffusion')
-
-        Returns:
-            Path to converted file, or None if no conversion needed/performed
-        """
-        from wama.common.utils.format_policy import (
-            get_policy,
-            is_format_preferred,
-        )
-        from wama.common.utils.safetensors_utils import get_model_format
-
-        policy = get_policy(category)
-        if not policy or not policy.auto_convert:
-            return None
-
-        current_format = get_model_format(model_path)
-        if is_format_preferred(current_format, category):
-            return None
-
-        result = self.convert_model(
-            model_path,
-            policy.preferred_format,
-            keep_original=policy.keep_original,
-        )
-
-        return result.target_path if result.success else None
-
     def get_conversion_options(self, model_path: str) -> List[str]:
         """
         Get available conversion options for a model.
@@ -363,71 +329,28 @@ class FormatConverter:
 
         return options
 
-    def scan_and_suggest(
-        self,
-        models_dir: Optional[str] = None,
-    ) -> List[ConversionSuggestion]:
-        """
-        Scan models and suggest conversions based on policy.
-
-        Args:
-            models_dir: Directory to scan (default: AI_MODELS_DIR)
-
-        Returns:
-            List of conversion suggestions
-        """
-        from wama.common.utils.format_policy import (
-            FORMAT_POLICY,
-            get_conversion_suggestion,
-            get_category_for_source,
-        )
-        from wama.common.utils.safetensors_utils import get_model_format
-
-        if models_dir is None:
-            models_dir = str(settings.AI_MODELS_DIR / "models")
+    def scan_and_suggest(self) -> List[ConversionSuggestion]:
+        """Les modèles INSTALLÉS du catalogue dont le format n'est pas celui que lit leur moteur
+        déclaré (`format_policy.conversion_suggestion`) — rien pour un moteur qui lit plusieurs
+        formats, ni pour une ligne sans moteur."""
+        from wama.common.utils.format_policy import conversion_suggestion
+        from wama.model_manager.models import AIModel
 
         suggestions = []
-        models_path = Path(models_dir)
-
-        if not models_path.exists():
-            return suggestions
-
-        # Define category mapping based on directory structure
-        dir_to_category = {
-            'diffusion': 'diffusion',
-            'vision': 'vision',
-            'speech': 'speech',
-            'upscaling': 'upscaling',
-            'vision-language': 'vlm',
-        }
-
-        # Scan for model files
-        for ext in ['*.pt', '*.pth', '*.bin']:
-            for model_file in models_path.rglob(ext):
-                # Determine category from path
-                category = 'diffusion'  # Default
-                for dir_name, cat in dir_to_category.items():
-                    if dir_name in str(model_file):
-                        category = cat
-                        break
-
-                current_format = get_model_format(str(model_file))
-                suggested = get_conversion_suggestion(current_format, category)
-
-                if suggested:
-                    policy = FORMAT_POLICY.get(category)
-                    suggestions.append(ConversionSuggestion(
-                        model_id=model_file.stem,
-                        model_path=str(model_file),
-                        current_format=current_format,
-                        suggested_format=suggested,
-                        category=category,
-                        reason=f"Policy recommends {suggested} for {category} models",
-                        priority=2 if policy and policy.auto_convert else 1,
-                    ))
-
-        # Sort by priority (descending)
-        suggestions.sort(key=lambda x: x.priority, reverse=True)
+        for row in AIModel.objects.filter(is_downloaded=True).exclude(format='') \
+                .only('model_key', 'local_path', 'format', 'composition'):
+            suggested = conversion_suggestion(row.format, row.composition)
+            if suggested:
+                engine = ((row.composition or {}).get('runtime') or {}).get('engine') or ''
+                suggestions.append(ConversionSuggestion(
+                    model_id=row.model_key,
+                    model_path=row.local_path,
+                    current_format=row.format,
+                    suggested_format=suggested,
+                    engine=engine,
+                    reason=f"le moteur déclaré ({engine}) lit le format {suggested}",
+                    priority=1,
+                ))
         return suggestions
 
     def batch_convert(
@@ -462,67 +385,25 @@ class FormatConverter:
             )
         return results
 
-    def get_format_stats(self, models_dir: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Get statistics about model formats in the models directory.
-
-        Args:
-            models_dir: Directory to analyze
-
-        Returns:
-            Dict with format counts and policy compliance stats
-        """
-        from wama.common.utils.format_policy import (
-            get_format_stats_template,
-            is_format_preferred,
-            FORMAT_POLICY,
-        )
-        from wama.common.utils.safetensors_utils import get_model_format
-
-        if models_dir is None:
-            models_dir = str(settings.AI_MODELS_DIR / "models")
+    def get_format_stats(self) -> Dict[str, Any]:
+        """Les formats des modèles INSTALLÉS du catalogue, par moteur déclaré, et leur conformité :
+        une ligne dont le moteur lit un seul format (`format_policy.preferred_format`) est conforme
+        quand elle l'a ; les autres n'ont pas de format recommandé et ne comptent pas."""
+        from wama.common.utils.format_policy import get_format_stats_template, preferred_format
+        from wama.model_manager.models import AIModel
 
         stats = get_format_stats_template()
         compliance = {'compliant': 0, 'non_compliant': 0}
-        by_category = {}
-
-        models_path = Path(models_dir)
-        if not models_path.exists():
-            return {'formats': stats, 'compliance': compliance, 'by_category': by_category}
-
-        # Scan all model files
-        extensions = ['*.pt', '*.pth', '*.safetensors', '*.onnx', '*.bin', '*.gguf']
-
-        dir_to_category = {
-            'diffusion': 'diffusion',
-            'vision': 'vision',
-            'speech': 'speech',
-            'upscaling': 'upscaling',
-            'vision-language': 'vlm',
-        }
-
-        for ext in extensions:
-            for model_file in models_path.rglob(ext):
-                fmt = get_model_format(str(model_file))
-                stats[fmt] = stats.get(fmt, 0) + 1
-
-                # Determine category
-                category = 'diffusion'
-                for dir_name, cat in dir_to_category.items():
-                    if dir_name in str(model_file):
-                        category = cat
-                        break
-
-                # Track by category
-                if category not in by_category:
-                    by_category[category] = get_format_stats_template()
-                by_category[category][fmt] = by_category[category].get(fmt, 0) + 1
-
-                # Check compliance
-                if is_format_preferred(fmt, category):
-                    compliance['compliant'] += 1
-                else:
-                    compliance['non_compliant'] += 1
+        by_engine = {}
+        for row in AIModel.objects.filter(is_downloaded=True).only('format', 'composition'):
+            fmt = (row.format or 'unknown').lower()
+            stats[fmt] = stats.get(fmt, 0) + 1
+            engine = ((row.composition or {}).get('runtime') or {}).get('engine') or ''
+            counts = by_engine.setdefault(engine, get_format_stats_template())
+            counts[fmt] = counts.get(fmt, 0) + 1
+            preferred = preferred_format(row.composition)
+            if preferred:
+                compliance['compliant' if fmt == preferred else 'non_compliant'] += 1
 
         total = compliance['compliant'] + compliance['non_compliant']
         compliance['percentage'] = round(
@@ -532,6 +413,6 @@ class FormatConverter:
         return {
             'formats': stats,
             'compliance': compliance,
-            'by_category': by_category,
-            'total_models': total,
+            'by_engine': by_engine,
+            'total_models': sum(stats.values()),
         }

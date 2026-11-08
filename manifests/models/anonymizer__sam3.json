@@ -34,8 +34,7 @@
       "can_convert_to": [
         "onnx"
       ],
-      "format": "safetensors",
-      "preferred_format": "onnx"
+      "format": "safetensors"
     },
     "identity": {
       "author": "facebook",

@@ -801,12 +801,6 @@ class AIModel(ScopedVisibility):
         default='',
         help_text="Current format: pt, safetensors, onnx, gguf, etc."
     )
-    preferred_format = models.CharField(
-        max_length=20,
-        blank=True,
-        default='',
-        help_text="Recommended format per policy"
-    )
 
     # Flexible metadata (JSON)
     extra_info = models.JSONField(
@@ -1012,6 +1006,15 @@ class AIModel(ScopedVisibility):
     composition = models.JSONField(default=dict, blank=True,
                                    help_text="Composants + runtime d'un modele compose "
                                              "(declare par son manifeste, vide sinon).")
+
+    @property
+    def preferred_format(self) -> str:
+        """Le format de poids RECOMMANDÉ — celui que lit le moteur DÉCLARÉ (`composition`), ''
+        quand il n'y en a pas (`format_policy.preferred_format`). DÉRIVÉ depuis le 2026-11-08 :
+        la colonne qu'écrivait la synchro le tenait du TYPE, et recommandait l'ONNX à 60 modèles
+        dont le moteur lit le format actuel (`REMOVAL_LEDGER R229`)."""
+        from wama.common.utils.format_policy import preferred_format
+        return preferred_format(self.composition)
 
     @property
     def hf_repo(self) -> str:

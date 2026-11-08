@@ -37,8 +37,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "pytorch",
-      "preferred_format": "onnx"
+      "format": "pytorch"
     },
     "identity": {
       "author": "pyannote",

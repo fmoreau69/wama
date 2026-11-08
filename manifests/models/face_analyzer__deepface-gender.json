@@ -28,8 +28,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "h5",
-      "preferred_format": "h5"
+      "format": "h5"
     },
     "identity": {
       "author": "Sefik Ilkin Serengil",

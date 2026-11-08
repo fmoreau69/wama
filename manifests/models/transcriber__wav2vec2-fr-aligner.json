@@ -33,8 +33,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "safetensors",
-      "preferred_format": "onnx"
+      "format": "safetensors"
     },
     "identity": {
       "author": null,

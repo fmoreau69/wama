@@ -64,8 +64,7 @@
       "can_convert_to": [
         "safetensors"
       ],
-      "format": "pth",
-      "preferred_format": "onnx"
+      "format": "pth"
     },
     "identity": {
       "author": "Coqui",

@@ -394,7 +394,7 @@ class LightThemeIsTheMirrorTest(SimpleTestCase):
         dark, light = blocks['dark'], blocks['light']
         for name, value in dark.items():
             with self.subTest(token=name):
-                if name in themes.LIGHT_FIXED or name.startswith(themes.LIGHT_FIXED_PREFIXES):
+                if name in themes.LIGHT_FIXED or name.startswith(tuple(themes.LIGHT_FIXED_PREFIXES)):
                     self.assertEqual(value.strip(), light[name].strip(), 'a FIXED token keeps its value')
                 elif name in themes.LIGHT_HAND:
                     self.assertNotEqual(value.strip(), light[name].strip(), 'a hand-set token differs')
@@ -416,8 +416,12 @@ class LightThemeIsTheMirrorTest(SimpleTestCase):
         for name in (*themes.LIGHT_FIXED, *themes.LIGHT_SURFACES, *themes.LIGHT_HAND):
             with self.subTest(token=name):
                 self.assertIn(name, tokens, 'an exception of a removed token is removed')
-        for name, why in {**themes.LIGHT_FIXED, **themes.LIGHT_HAND}.items():
+        for name, why in {**themes.LIGHT_FIXED, **themes.LIGHT_HAND, **themes.LIGHT_FIXED_PREFIXES}.items():
             self.assertTrue(why.strip())
+        for prefix in themes.LIGHT_FIXED_PREFIXES:
+            with self.subTest(prefix=prefix):
+                self.assertTrue(any(name.startswith(prefix) for name in tokens),
+                                'a fixed family of a removed prefix is removed')
 
     def test_the_mirror_keeps_every_contrast_ratio(self):
         """Contre-épreuve de la règle elle-même : le rapport d'un texte à son fond est conservé,
@@ -442,6 +446,91 @@ class LightThemeIsTheMirrorTest(SimpleTestCase):
         self.assertIn('\n[data-wama-theme="light"],\n', css)
         home = (ROOT / 'wama' / 'templates' / 'home.html').read_text(encoding='utf-8')
         self.assertIn('data-wama-theme="dark" data-bs-theme="dark"', home)
+
+
+#: Bootstrap, tel que la page le sert : ses couleurs de palette (`--bs-purple`…), qu'un token lit.
+BOOTSTRAP_CSS = ROOT / 'wama' / 'static' / 'css' / 'bootstrap.min.css'
+#: Le préfixe de la famille des types de modèles, et le suffixe du texte qu'on pose sur chacun.
+TYPE_TOKEN, TYPE_TEXT = '--wama-mm-type-', '-on'
+
+
+def bootstrap_palette():
+    """{`--bs-<couleur>`: valeur} du premier bloc de Bootstrap (`:root`, thème clair)."""
+    head = BOOTSTRAP_CSS.read_text(encoding='utf-8').split('}', 1)[0]
+    return dict(re.findall(r'(--bs-[a-z-]+):(#[0-9a-fA-F]{3,8})', head))
+
+
+def type_colour_faults(blocks, keys, values, palette):
+    """[(thème, type, défaut)] — un type de modèle sans sa couleur, sans son texte, ou dont le
+    texte ne passe pas 4,5:1 sur sa couleur. Un `var(--x)` se lit dans le bloc, puis dans
+    `palette`."""
+    from wama.common.theme_mirror import contrast_ratio, parse
+
+    def resolve(value, block, depth=0):
+        m = re.fullmatch(r'\s*var\(\s*(--[a-z0-9-]+)\s*\)\s*', value or '')
+        if not m or depth > 5:
+            return (value or '').strip()
+        name = m.group(1)
+        return resolve(block.get(name) or palette.get(name) or '', block, depth + 1)
+    found = []
+    for key in keys:
+        block = blocks[key]
+        for value in values:
+            fill, text = block.get(TYPE_TOKEN + value), block.get(TYPE_TOKEN + value + TYPE_TEXT)
+            if not fill or not text:
+                found.append((key, value, 'sans sa couleur' if not fill else 'sans son texte'))
+                continue
+            try:
+                ratio = contrast_ratio(parse(resolve(fill, block))[1], parse(resolve(text, block))[1])
+            except Exception:
+                found.append((key, value, f'illisible : {fill} / {text}'))
+                continue
+            if ratio < 4.5:
+                found.append((key, value, f'texte à {ratio:.2f}:1'))
+    return found
+
+
+def type_list_copy(values):
+    """Ce qui RECOPIE la liste des types au lieu de la lire par la valeur : une règle de badge par
+    type (`.type-vision {`), un alias de scène par type (`--wc-type-vision:`)."""
+    names = '|'.join(re.escape(v) for v in values)
+    return re.compile(rf'\.type-(?:{names})\s*\{{|--wc-type-(?:{names})\s*:')
+
+
+class ModelTypeColoursTest(SimpleTestCase):
+    """2026-11-08 (Fabien : « universel et uniforme ») — la couleur d'un type de modèle se
+    déclarait à CINQ endroits : six règles de badge (onze types), dix tokens de thème (sans
+    `nlp`), dix alias de la scène, dix noms recopiés dans `themes.py`. Le badge d'ACE-Step
+    (music) était gris. La couleur d'un type et son texte sont désormais DEUX tokens par type,
+    lus par la valeur du type ; ce test tient l'enum et les thèmes ensemble."""
+
+    def test_every_model_type_has_its_colour_and_a_legible_text_in_every_theme(self):
+        from wama.common.themes import THEMES
+        from wama.model_manager.models import ModelType
+        self.assertEqual([], type_colour_faults(theme_blocks(), [t.key for t in THEMES],
+                                                ModelType.values, bootstrap_palette()))
+
+    def test_the_type_guard_sees_a_missing_type_and_an_illegible_text(self):
+        """Contre-épreuve sur des blocs écrits pour elle."""
+        blocks = {'a': {'--wama-mm-type-x': 'var(--bs-yellow)', '--wama-mm-type-x-on': '#ffffff',
+                        '--wama-mm-type-y': '#000000'}}
+        self.assertEqual([('a', 'x', 'texte à 1.63:1'), ('a', 'y', 'sans son texte'),
+                          ('a', 'z', 'sans sa couleur')],
+                         type_colour_faults(blocks, ['a'], ['x', 'y', 'z'], {'--bs-yellow': '#ffc107'}))
+
+    def test_no_source_recopies_the_type_list(self):
+        from wama.model_manager.models import ModelType
+        copy = type_list_copy(ModelType.values)
+        found = [rel for rel, text in _sources(('.css', '.html', '.js'))
+                 if copy.search(text)]
+        self.assertEqual([], found)
+
+    def test_the_copy_guard_sees_a_rule_per_type(self):
+        """Contre-épreuve."""
+        copy = type_list_copy(['vision', 'ocr'])
+        self.assertTrue(copy.search('.type-vision { background: red; }'))
+        self.assertTrue(copy.search('  --wc-type-ocr: var(--wama-mm-type-ocr);'))
+        self.assertFalse(copy.search('.type-badge { font-size: .7rem; }'))
 
 
 COLOUR_LITERAL = re.compile(r'#[0-9a-fA-F]{3,8}\b|rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})'

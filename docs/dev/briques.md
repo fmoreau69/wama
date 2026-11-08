@@ -3590,7 +3590,7 @@ Une scène DÉCLARE ce qu'elle montre — couches, facteurs de distance pondér�
 
 - **Domicile** : `wama/common/scenes.py` · **doc** : [docs/construction/ui/WAMA_SCENES_3D.md](../construction/ui/WAMA_SCENES_3D.md)
 - **Module** : Les SCÈNES DE PROXIMITÉ (constellations 3D) — déclarées par leur domaine, montées par UNE brique.
-- **API publique** (10) :
+- **API publique** (11) :
   - `class Scene`
   - `register_scene(scene: Scene) -> Scene` — Déclare une scène. Les incohérences se voient À LA DÉCLARATION, pas dans le navigateur.
   - `get_scene(key: str) -> Optional[Scene]`
@@ -3600,6 +3600,7 @@ Une scène DÉCLARE ce qu'elle montre — couches, facteurs de distance pondér�
   - `data_url(scene: Scene) -> str`
   - `scene_data(scene: Scene, user) -> dict` — Le contrat de la scène, lu de sa source (`data`).
   - `scene_spec(scene: Scene) -> dict` — La déclaration, telle que la page la sert à la brique (`<script type="application/json">`).
+  - `layer_token(name) -> str` — Le jeton CSS de la pastille d'une couche (`dot`, `glow`) : un nom de la palette de la scène
   - `page_context(scene: Scene, embed: bool) -> dict` — Le contexte du gabarit commun : la déclaration, et l'état de départ de chaque puce.
 
 ### Servir un fichier par morceaux (HTTP Range)

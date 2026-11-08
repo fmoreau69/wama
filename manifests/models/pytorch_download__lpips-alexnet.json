@@ -30,8 +30,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "pth",
-      "preferred_format": "pth"
+      "format": "pth"
     },
     "identity": {
       "author": null,

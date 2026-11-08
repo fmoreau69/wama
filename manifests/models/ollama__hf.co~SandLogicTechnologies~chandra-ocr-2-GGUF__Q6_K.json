@@ -42,8 +42,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "gguf",
-      "preferred_format": "gguf"
+      "format": "gguf"
     },
     "identity": {
       "author": null,

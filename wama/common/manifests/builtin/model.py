@@ -311,10 +311,10 @@ def extract_model(key: str) -> Optional[dict]:
             'ram_gb': m.ram_gb,
             'disk_gb': m.disk_gb,
         },
-        # formats & conversions
+        # formats & conversions — le format RECOMMANDÉ n'est pas déclaré : il se dérive du moteur
+        # de `composition` (`AIModel.preferred_format`, 2026-11-08, `REMOVAL_LEDGER R229`)
         'formats': {
             'format': m.format or None,
-            'preferred_format': m.preferred_format or None,
             'can_convert_to': getattr(m, 'can_convert_to', None) or [],
         },
         # capacités fonctionnelles = source unique (filtrage UI, sélection par tâche, compat I/O)

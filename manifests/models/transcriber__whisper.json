@@ -31,8 +31,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "pt",
-      "preferred_format": "onnx"
+      "format": "pt"
     },
     "identity": {
       "author": "openai (poids) / Systran (conversion CTranslate2)",

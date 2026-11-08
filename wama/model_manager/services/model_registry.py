@@ -358,7 +358,6 @@ class ModelInfo:
     extra_info: Dict = field(default_factory=dict)
     # Format policy fields
     format: str = ""  # Current format: 'pt', 'safetensors', 'onnx', 'bin', etc.
-    preferred_format: str = ""  # Recommended format per policy
     can_convert_to: List[str] = field(default_factory=list)  # Available conversions
     capabilities: Dict = field(default_factory=dict)  # cloning/languages/classes/task… (cf. AIModel.capabilities)
     #: Anatomie déclarée du modèle — `{components, runtime}` (cf. `AIModel.composition`).
@@ -520,16 +519,13 @@ class ModelRegistry:
 
         # Log summary
         formats_found = {}
-        preferred_formats_found = {}
         for model in self._models.values():
             fmt = model.format or 'EMPTY'
-            pref = model.preferred_format or 'EMPTY'
             formats_found[fmt] = formats_found.get(fmt, 0) + 1
-            preferred_formats_found[pref] = preferred_formats_found.get(pref, 0) + 1
 
         logger.info(
             f"[ModelRegistry] Discovery complete. Total: {len(self._models)} models. "
-            f"Formats: {formats_found}. Preferred: {preferred_formats_found}"
+            f"Formats: {formats_found}"
         )
 
         return self._models
@@ -966,8 +962,6 @@ class ModelRegistry:
                     model_format = 'safetensors'
                     logger.debug(f"[ModelRegistry] {model_id}: Not downloaded, assuming format: safetensors")
 
-                # Get preferred format for diffusion models
-                preferred = self._get_preferred_format(ModelType.DIFFUSION)
                 convert_options = self._get_conversion_options(model_format, ModelType.DIFFUSION)
 
                 # Get VRAM from config
@@ -977,7 +971,7 @@ class ModelRegistry:
 
                 logger.info(
                     f"[ModelRegistry] Discovered imager model: {model_id}, "
-                    f"format={model_format or 'EMPTY'}, preferred={preferred or 'EMPTY'}, "
+                    f"format={model_format or 'EMPTY'}, "
                     f"vram_gb={vram_gb}, downloaded={is_downloaded}"
                 )
 
@@ -1041,7 +1035,6 @@ class ModelRegistry:
                     is_downloaded=is_downloaded,
                     backend_ref='imager',
                     format=model_format,
-                    preferred_format=preferred,
                     can_convert_to=convert_options,
                     # Anatomie DÉCLARÉE par l'app (`IMAGER_MODELS[*]['composition']`, posée le
                     # 2026-09-19). Sans cette ligne, la déclaration restait lettre morte : la
@@ -1197,9 +1190,7 @@ class ModelRegistry:
                     else:
                         model_format = 'safetensors'  # Default for HF models
 
-                # Get preferred format based on model type
-                preferred = self._get_preferred_format(model_type)
-                logger.debug(f"[ModelRegistry] Describer {model_id}: format={model_format}, preferred={preferred}")
+                logger.debug(f"[ModelRegistry] Describer {model_id}: format={model_format}")
                 convert_options = self._get_conversion_options(model_format, model_type)
 
                 self._models[f"describer:{model_id}"] = ModelInfo(
@@ -1216,7 +1207,6 @@ class ModelRegistry:
                     is_downloaded=is_downloaded,
                     backend_ref='describer',
                     format=model_format,
-                    preferred_format=preferred,
                     can_convert_to=convert_options,
                     # Capacités CANONIQUES : modalité d'entrée déduite du type de modèle.
                     # `task` + `inputs_required` complètent le tronc commun (2026-07-31) :
@@ -1277,9 +1267,7 @@ class ModelRegistry:
                     if not model_format:
                         model_format = 'pt'  # YOLO models are typically .pt files
 
-                    # Get preferred format for vision models
-                    preferred = self._get_preferred_format(ModelType.VISION)
-                    logger.debug(f"[ModelRegistry] YOLO {model_name}: format={model_format}, preferred={preferred}")
+                    logger.debug(f"[ModelRegistry] YOLO {model_name}: format={model_format}")
                     convert_options = self._get_conversion_options(model_format, ModelType.VISION)
 
                     # Build model identifier matching the Anonymizer's model_selector format
@@ -1349,7 +1337,6 @@ class ModelRegistry:
                             {'*': "un poids YOLO est un modèle ENTIER : les autres poids de ce "
                                   "dépôt sont d'autres modèles"}),
                         format=model_format,
-                        preferred_format=preferred,
                         can_convert_to=convert_options,
                         # Capacités : tâche YOLO + classes détectables (→ sélection par classe,
                         # filtrage UI : ne proposer qu'un modèle gérant les classes demandées).
@@ -1370,9 +1357,6 @@ class ModelRegistry:
                 # Description = source unique dans le model_config de l'app (R9) — plus de hardcode.
                 from wama.anonymizer.utils.model_config import REGISTRY_MODEL_DESCRIPTIONS as _ANON_DESC
                 status = get_sam3_status()
-
-                # SAM3 uses safetensors/pt format
-                preferred = self._get_preferred_format(ModelType.VISION)
 
                 self._models["anonymizer:sam3"] = ModelInfo(
                     id="anonymizer:sam3",
@@ -1399,7 +1383,6 @@ class ModelRegistry:
                     composition={'components': [{'role': 'model', 'pattern': 'sam3.pt'}],
                                  'runtime': {'engine': 'sam3'}},
                     format='safetensors',
-                    preferred_format=preferred,
                     can_convert_to=['onnx'],
                     # SAM3 : segmentation pilotée par prompt texte (open-vocabulary) — il exige
                     # DONC le média ET le prompt, là où YOLO se contente du média. C'est
@@ -1509,7 +1492,6 @@ class ModelRegistry:
                     is_downloaded=telecharge,
                     backend_ref='face_analyzer',
                     format='h5',
-                    preferred_format='h5',
                     extra_info={'path': str(chemin), 'size_bytes': taille,
                                 'model_id': model_id,
                                 # Un poids OPTIONNEL absent n'est pas une app cassée : `age` et
@@ -1552,7 +1534,6 @@ class ModelRegistry:
                 is_downloaded=declared_files_present(MEDIAPIPE_DIR, FACE_LANDMARKER_FILES),
                 backend_ref='face_analyzer',
                 format='task',
-                preferred_format='task',
                 extra_info={'path': str(face_landmarker_path()),
                             'size_bytes': sum(f['size'] for f in FACE_LANDMARKER_FILES),
                             'install_dir': str(MEDIAPIPE_DIR),
@@ -1654,7 +1635,6 @@ class ModelRegistry:
                 description_short="Zone roulable + voies (caméra embarquée)",
                 vram_gb=1.0,
                 format='pt',
-                preferred_format='pt',
                 is_downloaded=declared_files_present(root, YOLOPV2_FILES),
                 extra_info={'path': str(root / YOLOPV2_FILES[0]['path']),
                             'install_dir': str(root), 'declared_files': YOLOPV2_FILES,
@@ -1693,7 +1673,6 @@ class ModelRegistry:
                 description_short="Distance perceptuelle (banc d'agrandissement)",
                 vram_gb=0.5,
                 format='pth',
-                preferred_format='pth',
                 is_downloaded=declared_files_present(root, LPIPS_FILES),
                 extra_info={'path': str(root / LPIPS_FILES[0]['path']),
                             'install_dir': str(root), 'declared_files': LPIPS_FILES,
@@ -1739,7 +1718,6 @@ class ModelRegistry:
                 description_short="Précision Q8_0 de FLUX.1-dev (GGUF)",
                 platform_ref=hf_platform_ref(FLUX_GGUF_REPO),
                 format='gguf',
-                preferred_format='gguf',
                 is_downloaded=declared_files_present(root, files),
                 extra_info={'path': precision.weights_path(),
                             'size_bytes': sum(f['size'] for f in files),
@@ -1778,7 +1756,6 @@ class ModelRegistry:
                 description_short="Gestes de la main à la webcam (scènes 3D)",
                 vram_gb=0.0,
                 format='task',
-                preferred_format='task',
                 is_downloaded=gesture_model_installed(),
                 extra_info={'path': str(gesture_model_path()),
                             'size_bytes': sum(f['size'] for f in GESTURE_FILES),
@@ -1820,7 +1797,6 @@ class ModelRegistry:
                 platform_ref=hf_platform_ref(HF_REPO),
                 vram_gb=0.0,
                 format='onnx',
-                preferred_format='onnx',
                 is_downloaded=model_installed(),
                 extra_info={'path': str(model_path()),
                             'size_bytes': sum(f['size'] for f in TURN_FILES),
@@ -1866,7 +1842,6 @@ class ModelRegistry:
                 platform_ref=hf_platform_ref(HF_REPO),
                 vram_gb=0.0,
                 format='pt',
-                preferred_format='pt',
                 is_downloaded=installed,
                 extra_info={'path': str(model_folder()) if installed else '',
                             'install_dir': str(whisper_folder()),
@@ -1911,7 +1886,6 @@ class ModelRegistry:
                 platform_ref=github_platform_ref(PAGE_ORIENTATION_KEY.split(':', 1)[1]),
                 vram_gb=0.0,
                 format='pt',
-                preferred_format='pt',
                 is_downloaded=page_orientation_installed(),
                 extra_info={'path': str(doctr_folder() / PAGE_ORIENTATION_FILES[0]['path']),
                             'size_bytes': sum(f['size'] for f in PAGE_ORIENTATION_FILES),
@@ -1958,7 +1932,6 @@ class ModelRegistry:
                 platform_ref=hf_platform_ref(HF_REPO),
                 vram_gb=0.0,
                 format='gguf',
-                preferred_format='gguf',
                 is_downloaded=model_installed(),
                 extra_info={'path': str(model_folder()),
                             'size_bytes': sum(f['size'] for f in PHONON_FILES),
@@ -2021,7 +1994,6 @@ class ModelRegistry:
                     platform_ref=hf_platform_ref(backend.HF_REPO),
                     vram_gb=vram,
                     format=fmt,
-                    preferred_format=fmt,
                     is_downloaded=declared_files_present(root, files),
                     extra_info={'path': str(root),
                                 'size_bytes': sum(f['size'] for f in files),
@@ -2067,7 +2039,6 @@ class ModelRegistry:
                 # lots de quatre tranches (`muscriptor_backend.DETECTION_BATCH`).
                 vram_gb=13.4,
                 format='safetensors',
-                preferred_format='safetensors',
                 is_downloaded=declared_files_present(root, MUSCRIPTOR_FILES),
                 extra_info={'path': str(root),
                             'size_bytes': sum(f['size'] for f in MUSCRIPTOR_FILES),
@@ -2111,7 +2082,6 @@ class ModelRegistry:
                 # 0,68 Go sur une page dense de six systèmes (145 notes) ; arrondi au-dessus.
                 vram_gb=1.0,
                 format='pt',
-                preferred_format='pt',
                 is_downloaded=declared_files_present(root, COPISTERIA_FILES),
                 extra_info={'path': str(root),
                             'size_bytes': sum(f['size'] for f in COPISTERIA_FILES),
@@ -2185,7 +2155,6 @@ class ModelRegistry:
             # correspondance par préfixe de nom (2026-09-07). Import CIBLÉ et tardif, sûr au sync.
             from wama.common.backends.manager import backend_for_engine
 
-            preferred = self._get_preferred_format(ModelType.SPEECH)
             vibevoice_dir = Path(VIBEVOICE_DIR)
             qwen_asr_dir = Path(QWEN_ASR_DIR)
             from django.conf import settings as _s
@@ -2323,7 +2292,6 @@ class ModelRegistry:
                     is_downloaded=is_downloaded,
                     backend_ref='transcriber',
                     format=fmt,
-                    preferred_format=preferred,
                     can_convert_to=[],
                     extra_info=extra,
                     capabilities=caps,
@@ -2453,9 +2421,6 @@ class ModelRegistry:
                     compo['runtime'] = {**(compo.get('runtime') or {}), 'engine': moteur}
                 return compo
 
-            # Get preferred format for speech models
-            preferred = self._get_preferred_format(ModelType.SPEECH)
-
             # Get speech models directory
             speech_dir = settings.MODEL_PATHS.get('speech', {}).get('root')
             if not speech_dir:
@@ -2487,7 +2452,6 @@ class ModelRegistry:
                 is_downloaded=coqui_downloaded,
                 backend_ref='synthesizer',
                 format=coqui_format,
-                preferred_format=preferred,
                 # 'onnx' RETIRÉ (2026-08-31) : la route générique pt→ONNX exige un
                 # `input_shape` que l'UI n'envoie jamais, et un pipeline TTS multi-composants
                 # ne s'exporte pas d'un bloc — le bouton promettait un geste qui échouait
@@ -2526,7 +2490,6 @@ class ModelRegistry:
                 is_downloaded=bark_downloaded,
                 backend_ref='synthesizer',
                 format=bark_format,
-                preferred_format=preferred,
                 # 'onnx' retiré — même raison que coqui ci-dessus (2026-08-31).
                 can_convert_to=['safetensors'],
                 extra_info={'path': str(bark_model_path) if bark_model_path else '',
@@ -2558,7 +2521,6 @@ class ModelRegistry:
                 is_downloaded=higgs_downloaded,
                 backend_ref='synthesizer',
                 format='safetensors',
-                preferred_format=preferred,
                 can_convert_to=[],
                 extra_info={'path': str(higgs_dir)},
                 capabilities=_tts_caps(
@@ -2587,7 +2549,6 @@ class ModelRegistry:
                 is_downloaded=kokoro_downloaded,
                 backend_ref='synthesizer',
                 format='pt',
-                preferred_format=preferred,
                 # ['safetensors'] (2026-08-31) : le .pth du snapshot se convertit (la vue
                 # résout dossier → fichier de poids). L'ONNX, lui, ne se FABRIQUE pas ici :
                 # il s'INSTALLE — onnx-community/Kokoro-82M-v1.0-ONNX via la prospection
@@ -2617,9 +2578,6 @@ class ModelRegistry:
             from django.conf import settings
             # Descriptions = source unique dans le model_config de l'app (R9).
             from wama.enhancer.utils.model_config import REGISTRY_MODEL_DESCRIPTIONS as _ENH_DESC
-
-            # Get preferred format for upscaling models
-            preferred = self._get_preferred_format(ModelType.UPSCALING)
 
             # ALIGNEMENT 18/08 (route : clés canoniques = catalogue, SPEC §356) : la clé était
             # frappée sur le STEM DU FICHIER (RealESR_Gx4_fp16) — un artefact : `_fp16` est le
@@ -2665,7 +2623,6 @@ class ModelRegistry:
                     extra_info={'path': str(onnx_file), 'size_mb': size_mb, **(install or {})},
                     backend_ref='enhancer',
                     format='onnx',
-                    preferred_format=preferred,
                     can_convert_to=[],  # Already optimal format
                     capabilities=_caps,
                 )
@@ -3475,9 +3432,6 @@ class ModelRegistry:
                                 ram_gb = num if unit == 'GB' else (num / 1024 if unit == 'MB' else num * 1024)
                                 size_display = f"{sm.group(1)} {unit}"
 
-                            # Ollama models use GGUF format
-                            preferred = self._get_preferred_format(ModelType.LLM)
-
                             # Métadonnées structurelles → indice de qualité + axe de coût.
                             # `params_b` vient de `/api/show`, PAS du libellé de tag : ce
                             # dernier laissait `vram_gb=0.0` sur les noms composés (`35b-a3b`).
@@ -3544,7 +3498,6 @@ class ModelRegistry:
                                 # démon éteint les grise pour la bonne raison.
                                 composition={'runtime': {'engine': 'ollama'}},
                                 format='gguf',
-                                preferred_format=preferred,
                                 can_convert_to=[],  # Managed by Ollama
                                 extra_info={'disk_gb': ram_gb, 'ollama_id': model_id_hash,
                                             # La PRÉCISION des poids (`Q4_K_M`, `Q8_0`, `BF16`…),
@@ -3667,9 +3620,6 @@ class ModelRegistry:
                                     except Exception:
                                         pass
 
-                                    # Ollama models use GGUF format
-                                    preferred = self._get_preferred_format(ModelType.LLM)
-
                                     # Même dérivation que le chemin principal : ce repli
                                     # (manifestes sur disque) ne doit pas réintroduire le typage
                                     # en dur qu'on vient de retirer. `capacites` est dans la
@@ -3697,7 +3647,6 @@ class ModelRegistry:
                                         # Moteur = le démon (cf. site principal ci-dessus).
                                         composition={'runtime': {'engine': 'ollama'}},
                                         format='gguf',
-                                        preferred_format=preferred,
                                         can_convert_to=[],  # Managed by Ollama
                                     )
                 except Exception as e:
@@ -3707,18 +3656,6 @@ class ModelRegistry:
     # =========================================================================
     # Format Policy Methods
     # =========================================================================
-
-    def get_models_needing_conversion(self) -> List[ModelInfo]:
-        """
-        Get models that are not in their preferred format according to policy.
-
-        Returns:
-            List of ModelInfo objects needing conversion
-        """
-        return [
-            m for m in self._models.values()
-            if m.format and m.preferred_format and m.format != m.preferred_format
-        ]
 
     def get_format_stats(self) -> Dict[str, int]:
         """
@@ -3734,34 +3671,6 @@ class ModelRegistry:
             if model.format:
                 stats[model.format] = stats.get(model.format, 0) + 1
         return stats
-
-    def get_compliance_stats(self) -> Dict[str, any]:
-        """
-        Get format policy compliance statistics.
-
-        Returns:
-            Dict with compliance percentages and counts
-        """
-        compliant = 0
-        non_compliant = 0
-        no_policy = 0
-
-        for model in self._models.values():
-            if not model.preferred_format:
-                no_policy += 1
-            elif model.format == model.preferred_format:
-                compliant += 1
-            else:
-                non_compliant += 1
-
-        total = compliant + non_compliant
-        return {
-            'compliant': compliant,
-            'non_compliant': non_compliant,
-            'no_policy': no_policy,
-            'total': total,
-            'percentage': round((compliant / total * 100) if total > 0 else 100, 1),
-        }
 
     # Cache for YOLO model classes to avoid reloading models
     _yolo_classes_cache: Dict[str, List[str]] = {}
@@ -3922,27 +3831,6 @@ class ModelRegistry:
 
         return ''
 
-    def _get_preferred_format(self, model_type: ModelType) -> str:
-        """
-        Get the preferred format for a model type.
-
-        Args:
-            model_type: The ModelType enum value
-
-        Returns:
-            Preferred format string
-        """
-        try:
-            from wama.common.utils.format_policy import get_preferred_format, get_category_for_model_type
-
-            category = get_category_for_model_type(model_type.value)
-            preferred = get_preferred_format(category)
-            logger.debug(f"[ModelRegistry] Preferred format for {model_type.value} (category={category}): {preferred}")
-            return preferred
-        except Exception as e:
-            logger.error(f"[ModelRegistry] Error getting preferred format for {model_type}: {e}")
-            return 'safetensors'  # Default fallback
-
     def _get_conversion_options(self, current_format: str, model_type: ModelType) -> List[str]:
         """
         Get available conversion options for a model.
@@ -4011,7 +3899,6 @@ class ModelRegistry:
                     },
                     backend_ref='avatarizer',
                     format='pth',
-                    preferred_format='pth',
                     can_convert_to=[],
                 )
 
@@ -4051,7 +3938,6 @@ class ModelRegistry:
                                   'inputs_required': ['work_file'], 'pipeline_stage': True},
                     backend_ref='avatarizer',
                     format='pth',
-                    preferred_format='pth',
                     # Lien modèle↔moteur (l'autre moitié est `ENGINE = 'codeformer'` sur
                     # `avatarizer/backends/codeformer_backend.py`) + anatomie DÉCLARÉE : les
                     # trois sous-dossiers de poids sont des COMPOSANTS, ce qui évite que
@@ -4102,7 +3988,6 @@ class ModelRegistry:
                     },
                     backend_ref='avatarizer',
                     format='glb',
-                    preferred_format='glb',
                     can_convert_to=[],
                     composition={'runtime': {'engine': 'talkinghead'}},
                 )

@@ -33,8 +33,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "onnx",
-      "preferred_format": "onnx"
+      "format": "onnx"
     },
     "identity": {
       "author": "Xintao Wang (Tencent ARC Lab)",

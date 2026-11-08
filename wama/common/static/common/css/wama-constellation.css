@@ -60,18 +60,9 @@
   --wc-registry-library: var(--wama-pres-trans);
   --wc-registry-media: var(--wama-pres-media);
   --wc-registry-app: var(--wama-pres-lab);
-  /* Types de modèles (`ModelType`) : la couleur des badges de la gestion des modèles, déclarée une
-     fois par le thème (`--wama-mm-type-*`). Puis où ils tournent. */
-  --wc-type-llm: var(--wama-mm-type-llm);
-  --wc-type-vlm: var(--wama-mm-type-vlm);
-  --wc-type-vision: var(--wama-mm-type-vision);
-  --wc-type-diffusion: var(--wama-mm-type-diffusion);
-  --wc-type-speech: var(--wama-mm-type-speech);
-  --wc-type-music: var(--wama-mm-type-music);
-  --wc-type-embedding: var(--wama-mm-type-embedding);
-  --wc-type-upscaling: var(--wama-mm-type-upscaling);
-  --wc-type-lipsync: var(--wama-mm-type-lipsync);
-  --wc-type-ocr: var(--wama-mm-type-ocr);
+  /* Types de modèles (`ModelType`) : la scène lit DIRECTEMENT le jeton du thème
+     (`--wama-mm-type-<valeur>`, `model_scene.py`) — dix alias recopiés ici, sans le onzième type,
+     retirés le 2026-11-08. Puis où ils tournent. */
   --wc-hosting-local: var(--wama-pres-ok);
   --wc-hosting-private: var(--bs-teal);
   --wc-hosting-sovereign: var(--wama-pres-trans);

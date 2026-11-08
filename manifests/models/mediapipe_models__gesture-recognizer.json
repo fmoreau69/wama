@@ -30,8 +30,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "task",
-      "preferred_format": "task"
+      "format": "task"
     },
     "identity": {
       "author": null,

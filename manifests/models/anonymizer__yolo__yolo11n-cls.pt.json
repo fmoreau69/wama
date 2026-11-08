@@ -2029,8 +2029,7 @@
         "safetensors",
         "onnx"
       ],
-      "format": "pt",
-      "preferred_format": "onnx"
+      "format": "pt"
     },
     "identity": {
       "author": "Ultralytics",

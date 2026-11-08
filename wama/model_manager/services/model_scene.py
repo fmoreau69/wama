@@ -32,6 +32,9 @@ def model_scene(user=None) -> dict:
     from ..models import AIModel, ModelType, source_identity
 
     type_label = dict(ModelType.choices)
+    # La couleur d'un type : le jeton du THÈME, par la valeur du type (`--wama-mm-type-<valeur>`),
+    # celui du badge de la gestion des modèles — aucun alias de scène à recopier par type.
+    type_colour = '--wama-mm-type-{}'.format
     hosting_label = {xs.LOCAL_ORIGIN_KEY: xs.LOCAL_ORIGIN_LABEL, **xs.CLOUD_ORIGIN_LABELS}
     rows = list(AIModel.objects.catalogue_visible_to(user).filter(is_proposed=False)
                 .order_by('model_type', 'source', 'model_key'))
@@ -64,7 +67,7 @@ def model_scene(user=None) -> dict:
                     + (f' · {vram:g} Go de VRAM' if local and vram else ''),
                     f"Licence : {q['id'] or 'inconnue'} ({q['famille']})"],
             'detail': {
-                'badges': [{'text': type_label.get(m.model_type, m.model_type), 'color': f'--wc-type-{m.model_type}'},
+                'badges': [{'text': type_label.get(m.model_type, m.model_type), 'color': type_colour(m.model_type)},
                            {'text': hosting_label.get(m.hosting, m.hosting or 'distant')},
                            {'text': state_label}],
                 'text': m.description_short or m.description[:240],
@@ -86,14 +89,14 @@ def model_scene(user=None) -> dict:
             },
         })
     groups = ([{'id': f'type:{t}', 'kind': 'type', 'name': type_label.get(t, t), 'sub': 'Type de modèle',
-                'color': f'--wc-type-{t}'} for t in dict.fromkeys(m.model_type for m in rows)]
+                'color': type_colour(t)} for t in dict.fromkeys(m.model_type for m in rows)]
               + [{'id': f'src:{s}', 'kind': 'source', 'name': label, 'sub': 'Source',
                   'color': '--wc-ink-soft', 'legend': 'Source (app ou fournisseur)'}
                  for s, label in sources.items()])
     return {
         'nodes': nodes, 'groups': groups, 'links': [], 'beams': [],
         'colorings': {
-            'type': {'palette': {t: f'--wc-type-{t}' for t in type_label},
+            'type': {'palette': {t: type_colour(t) for t in type_label},
                      'legend': [[label, t] for t, label in type_label.items()]},
             'hosting': {'palette': {h: f'--wc-hosting-{h}' for h in hosting_label},
                         'legend': [[label, h] for h, label in hosting_label.items()]},
@@ -117,7 +120,7 @@ def register_scene():
         back_url_name='model_manager:index', back_label='Gestion des modèles',
         loading='Chargement du catalogue…', search_placeholder='Trouver un modèle…',
         layers=(
-            {'key': 'types', 'role': 'groups', 'label': 'Types', 'dot': 'type-vision', 'on': True},
+            {'key': 'types', 'role': 'groups', 'label': 'Types', 'dot': '--wama-mm-type-vision', 'on': True},
             {'key': 'sources', 'role': 'groups', 'label': 'Sources', 'dot': 'ink-soft', 'on': False},
             {'key': 'cloud', 'role': 'nodes', 'label': 'Modèles distants', 'dot': 'hosting-sovereign',
              'on': False},

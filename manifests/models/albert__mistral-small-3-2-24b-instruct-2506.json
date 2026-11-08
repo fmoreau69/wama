@@ -56,8 +56,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": null,
-      "preferred_format": null
+      "format": null
     },
     "identity": {
       "author": null,

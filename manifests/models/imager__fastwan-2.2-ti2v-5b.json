@@ -47,8 +47,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "safetensors",
-      "preferred_format": "safetensors"
+      "format": "safetensors"
     },
     "identity": {
       "author": null,

@@ -3,19 +3,9 @@ Common utilities for WAMA.
 """
 
 from .format_policy import (
-    FORMAT_POLICY,
-    FormatPolicyConfig,
-    ModelFormat,
-    RuntimeType,
-    get_preferred_format,
-    get_policy,
-    get_category_for_model_type,
-    get_category_for_source,
-    should_auto_convert,
-    get_convertible_formats,
-    is_format_preferred,
-    get_conversion_suggestion,
-    get_policy_summary,
+    engine_weight_format,
+    preferred_format,
+    conversion_suggestion,
 )
 
 from .safetensors_utils import (
@@ -48,20 +38,10 @@ from .disk_utils import (
 )
 
 __all__ = [
-    # Format Policy
-    'FORMAT_POLICY',
-    'FormatPolicyConfig',
-    'ModelFormat',
-    'RuntimeType',
-    'get_preferred_format',
-    'get_policy',
-    'get_category_for_model_type',
-    'get_category_for_source',
-    'should_auto_convert',
-    'get_convertible_formats',
-    'is_format_preferred',
-    'get_conversion_suggestion',
-    'get_policy_summary',
+    # Format Policy (dérivé du moteur déclaré)
+    'engine_weight_format',
+    'preferred_format',
+    'conversion_suggestion',
     # Safetensors Utils
     'get_model_format',
     'convert_pt_to_safetensors',

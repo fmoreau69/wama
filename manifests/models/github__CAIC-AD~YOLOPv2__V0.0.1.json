@@ -33,8 +33,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "pt",
-      "preferred_format": "pt"
+      "format": "pt"
     },
     "identity": {
       "author": null,

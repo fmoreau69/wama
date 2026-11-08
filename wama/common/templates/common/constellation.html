@@ -49,7 +49,7 @@
       <div class="wc-box-title">Couches</div>
       <div class="wc-chips wc-layers">
         {% for layer in scene_layers %}<button type="button" class="wc-chip{% if layer.on_now %} on{% endif %}" data-layer="{{ layer.key }}"{% if layer.title %}
-                title="{{ layer.title }}"{% endif %}>{% if layer.dot %}<span class="dot{% if layer.flat %} flat{% endif %}" style="--dot:var(--wc-{{ layer.dot }}){% if layer.glow %};--dot-glow:var(--wc-{{ layer.glow }}){% endif %}"></span>{% endif %}{{ layer.label }}</button>
+                title="{{ layer.title }}"{% endif %}>{% if layer.dot_token %}<span class="dot{% if layer.flat %} flat{% endif %}" style="--dot:var({{ layer.dot_token }}){% if layer.glow_token %};--dot-glow:var({{ layer.glow_token }}){% endif %}"></span>{% endif %}{{ layer.label }}</button>
         {% endfor %}
       </div>
       {% if scene.colorings %}<div class="wc-box-title">{{ scene.colorings_title }}</div>

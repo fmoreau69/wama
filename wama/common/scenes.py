@@ -150,13 +150,23 @@ def scene_spec(scene: Scene) -> dict:
     return spec
 
 
+def layer_token(name) -> str:
+    """Le jeton CSS de la pastille d'une couche (`dot`, `glow`) : un nom de la palette de la scène
+    (`'share'` → `--wc-share`), ou un jeton du THÈME nommé entier (`'--wama-mm-type-vision'` — la
+    couleur d'une donnée que le thème déclare, sans alias de scène à recopier) ; '' sans nom."""
+    if not name:
+        return ''
+    return name if name.startswith('--') else f'--wc-{name}'
+
+
 def page_context(scene: Scene, embed: bool) -> dict:
     """Le contexte du gabarit commun : la déclaration, et l'état de départ de chaque puce.
 
     La couche des NOMS s'éteint d'office quand une présentation intègre la page (`embed_on`) :
     elle se projette devant d'autres personnes. Le détail « Ce qui rapproche » s'y replie aussi."""
     from django.urls import reverse
-    layers = [dict(l, on_now=(l['embed_on'] if embed and 'embed_on' in l else l.get('on', False)))
+    layers = [dict(l, on_now=(l['embed_on'] if embed and 'embed_on' in l else l.get('on', False)),
+                   dot_token=layer_token(l.get('dot')), glow_token=layer_token(l.get('glow')))
               for l in scene.layers]
     return {
         'scene': scene,

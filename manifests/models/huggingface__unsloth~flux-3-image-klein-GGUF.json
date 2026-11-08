@@ -29,8 +29,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "gguf",
-      "preferred_format": null
+      "format": "gguf"
     },
     "identity": {
       "author": "unsloth",

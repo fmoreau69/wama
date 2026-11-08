@@ -21,8 +21,7 @@
     },
     "formats": {
       "can_convert_to": [],
-      "format": "safetensors",
-      "preferred_format": null
+      "format": "safetensors"
     },
     "identity": {
       "author": "lightx2v",

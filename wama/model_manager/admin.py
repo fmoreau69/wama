@@ -54,7 +54,7 @@ class AIModelAdmin(admin.ModelAdmin):
             'fields': ('vram_gb', 'ram_gb', 'disk_gb')
         }),
         ('Format', {
-            'fields': ('format', 'preferred_format', 'can_convert_to')
+            'fields': ('format', 'can_convert_to')
         }),
         ('Status', {
             'fields': ('is_downloaded', 'is_loaded', 'is_available')

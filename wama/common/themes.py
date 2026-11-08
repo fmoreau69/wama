@@ -195,16 +195,20 @@ LIGHT_FIXED = {
                      '--wama-studio-work', '--wama-studio-work-rgb', '--wama-studio-prompt',
                      '--wama-studio-reference', '--wama-studio-stale', '--wama-studio-stale-rgb',
                      '--wama-ml-active-tint', '--wama-ml-provider-tint', '--wama-mm-remote',
-                     '--wama-mm-type-upscaling',
-                     '--wama-mm-type-vision', '--wama-mm-type-diffusion', '--wama-mm-type-speech',
-                     '--wama-mm-type-vlm', '--wama-mm-type-llm', '--wama-mm-type-embedding',
-                     '--wama-mm-type-lipsync', '--wama-mm-type-music', '--wama-mm-type-ocr',
                      '--wama-mm-selection-tint', '--wama-tone-green-rgb', '--wama-home-info-border'),
                     _VIVID_FILL),
 }
-#: Familles de même valeur : les scènes AUTONOMES de présentation, sombres par dessein (elles ne
-#: passent pas par `base.html`, donc ne reçoivent jamais le thème du compte).
-LIGHT_FIXED_PREFIXES = ('--wama-pres-', '--wama-pres1-')
+_PRESENTATION = ("les scènes AUTONOMES de présentation, sombres par dessein (elles ne passent pas "
+                 "par `base.html`, donc ne reçoivent jamais le thème du compte)")
+#: Familles de même valeur, par PRÉFIXE — une famille dont chaque membre se déclare par une clé
+#: (la valeur d'un `ModelType`) ne se recopie pas nom par nom ici (2026-11-08 : dix noms listés,
+#: le onzième type, `nlp`, oublié).
+LIGHT_FIXED_PREFIXES = {
+    '--wama-pres-': _PRESENTATION,
+    '--wama-pres1-': _PRESENTATION,
+    '--wama-mm-type-': "la couleur d'un TYPE de modèle et le texte qu'on y pose : une identité de "
+                       "donnée, lue comme fond, la même dans tous les thèmes",
+}
 
 
 def theme(key: str) -> Theme:

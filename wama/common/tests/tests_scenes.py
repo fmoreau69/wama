@@ -186,3 +186,22 @@ class ModelSceneTest(TestCase):
         # La couche des distants existe, éteinte au départ.
         cloud = next(l for l in SCENES['models'].layers if l['key'] == 'cloud')
         self.assertEqual((cloud['role'], cloud['on']), ('nodes', False))
+
+    def test_every_model_type_is_coloured_by_its_theme_token(self):
+        """La couleur d'un type est le jeton du THÈME lu par sa valeur — le même que le badge de la
+        gestion des modèles —, pour TOUS les types de l'enum, `nlp` compris (2026-11-08 : dix alias
+        de scène recopiés, le onzième oublié)."""
+        from wama.common.scenes import layer_token, page_context
+        from wama.model_manager.models import ModelType
+        from wama.model_manager.services.model_scene import model_scene
+        data = model_scene(self.dev)
+        self.assertEqual({t: f'--wama-mm-type-{t}' for t in ModelType.values},
+                         data['colorings']['type']['palette'])
+        self.assertEqual({'--wama-mm-type-diffusion', '--wama-mm-type-llm'},
+                         {g['color'] for g in data['groups'] if g['kind'] == 'type'})
+        # Une pastille de couche nomme la palette de la scène, ou un jeton du thème entier.
+        self.assertEqual(('--wc-share', '--wama-mm-type-vision', ''),
+                         (layer_token('share'), layer_token('--wama-mm-type-vision'), layer_token('')))
+        types = next(l for l in page_context(SCENES['models'], embed=False)['scene_layers']
+                     if l['key'] == 'types')
+        self.assertEqual('--wama-mm-type-vision', types['dot_token'])

@@ -316,6 +316,12 @@ de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une foi
   voisines, pas identiques) et le libellé de l'état d'installation d'un modèle (« Not downloaded »
   dans la gestion des modèles, « Non installé » dans la scène). Domicile à créer : un jeton par
   famille dans le thème, comme `--wama-mm-type-*` pour les types de modèles (ramené le jour même).
+- ✅ **Les types de modèles, lus par leur valeur (2026-11-08)** : la scène des modèles recopiait
+  dix alias `--wc-type-*` (le onzième type, `nlp`, sans couleur) ; elle lit désormais le jeton du
+  THÈME par la valeur du type (`--wama-mm-type-<valeur>`, `model_scene.py`), comme le badge de la
+  gestion des modèles, et une pastille de couche peut nommer un jeton du thème entier
+  (`scenes.layer_token`). Garde : `tests_theme.ModelTypeColoursTest` (chaque type de l'enum a sa
+  couleur et un texte lisible dans chaque thème ; aucune source ne recopie la liste des types).
 - La mise en espace des scènes licences et modèles (`layout`, `label_limit`) est un premier réglage.
 - ✅ ~~**Capture caméra / micro sans brique commune**~~ (relevé le 2026-10-22 en écrivant les
   mains) — **soldé le 2026-10-26** : `common/js/wama-capture.js` (`WamaCapture`), adoptée par les

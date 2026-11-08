@@ -66,8 +66,7 @@
       "can_convert_to": [
         "safetensors"
       ],
-      "format": "pt",
-      "preferred_format": "onnx"
+      "format": "pt"
     },
     "identity": {
       "author": "hexgrad",

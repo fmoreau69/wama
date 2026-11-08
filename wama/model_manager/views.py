@@ -16,7 +16,7 @@ from .services.memory_monitor import WAMAMemoryMonitor
 from .services.memory_diagnostics import MemoryDiagnostics
 from .services.memory_cleaner import WAMAMemoryCleaner, get_memory_cleaner
 from wama.common.services.system_monitor import SystemMonitor
-from wama.common.utils.format_policy import get_policy_summary
+from wama.common.utils.format_policy import preferred_format
 from wama.common.utils.volet import volet
 
 logger = logging.getLogger(__name__)
@@ -122,9 +122,9 @@ def api_models_list(request):
                 'ram_gb': m.ram_gb,
                 'is_loaded': m.is_loaded,
                 'is_downloaded': m.is_downloaded,
-                # Format policy fields
+                # Format : le recommandé se DÉRIVE du moteur déclaré (`format_policy`)
                 'format': m.format,
-                'preferred_format': m.preferred_format,
+                'preferred_format': preferred_format(m.composition),
                 'can_convert_to': m.can_convert_to,
             }
             for m in models.values()
@@ -274,9 +274,8 @@ def api_format_stats(request):
         'success': True,
         'formats': stats['formats'],
         'compliance': stats['compliance'],
-        'by_category': stats['by_category'],
+        'by_engine': stats['by_engine'],
         'total_models': stats['total_models'],
-        'policy': get_policy_summary(),
     })
 
 
@@ -296,7 +295,7 @@ def api_conversion_suggestions(request):
                 'model_path': s.model_path,
                 'current_format': s.current_format,
                 'suggested_format': s.suggested_format,
-                'category': s.category,
+                'engine': s.engine,
                 'reason': s.reason,
                 'priority': s.priority,
             }
@@ -1754,16 +1753,12 @@ def api_diagnose_models(request):
         'diagnosis': {},
     }
 
-    # 1. Check what format_policy returns
+    # 1. Le format recommandé se dérive du MOTEUR déclaré (`format_policy`, 2026-11-08) : la
+    # table des moteurs qui lisent un seul format.
     try:
-        from wama.common.utils.format_policy import get_preferred_format, get_category_for_model_type
+        from wama.model_manager.services.prospector import WEIGHT_FORMAT_ENGINES
         result['diagnosis']['format_policy'] = {
-            'diffusion_category': get_category_for_model_type('diffusion'),
-            'diffusion_preferred': get_preferred_format('diffusion'),
-            'vision_category': get_category_for_model_type('vision'),
-            'vision_preferred': get_preferred_format('vision'),
-            'speech_preferred': get_preferred_format('speech'),
-        }
+            engine: ext.lstrip('.') for ext, engine in WEIGHT_FORMAT_ENGINES.items()}
     except Exception as e:
         result['diagnosis']['format_policy_error'] = str(e)
 
@@ -1779,7 +1774,7 @@ def api_diagnose_models(request):
                 'key': key,
                 'name': model.name,
                 'format': model.format,
-                'preferred_format': model.preferred_format,
+                'preferred_format': preferred_format(model.composition),
                 'vram_gb': model.vram_gb,
                 'is_downloaded': model.is_downloaded,
             })
@@ -1809,14 +1804,15 @@ def api_diagnose_models(request):
             'total_in_db': AIModel.objects.filter(is_available=True).count(),
             'sample_models': db_sample,
             'formats_in_db': list(AIModel.objects.values_list('format', flat=True).distinct()),
-            'preferred_formats_in_db': list(AIModel.objects.values_list('preferred_format', flat=True).distinct()),
+            'preferred_formats_in_db': sorted({m.preferred_format
+                                               for m in AIModel.objects.only('composition')}),
         }
     except Exception as e:
         result['diagnosis']['database_error'] = str(e)
 
     # 4. Check if a sync would fix the data
     result['diagnosis']['recommendation'] = (
-        "If format/preferred_format are empty in database but correct in registry, "
+        "If format is empty in database but correct in registry, "
         "a sync is needed. Call POST /model-manager/api/sync/ to sync."
     )
 
