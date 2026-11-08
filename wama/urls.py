@@ -1,7 +1,8 @@
-from django.urls import path, include
+import re
+
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.contrib import admin
-from django.conf.urls.static import static
 from django.views.generic.base import RedirectView
 from django.contrib.staticfiles.storage import staticfiles_storage
 from django.http import HttpResponse
@@ -76,9 +77,14 @@ try:
 except Exception:
     pass
 
-if settings.DEBUG:
-    # Par MORCEAUX (`Range`, 206) : sans eux un navigateur ne peut aller qu'à ce qu'il a déjà
-    # téléchargé d'un média (2026-10-15, `common/utils/ranged_response.py`).
-    from wama.common.utils.ranged_response import serve as ranged_serve
-    urlpatterns += static(settings.MEDIA_URL, view=ranged_serve, document_root=settings.MEDIA_ROOT)
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+# Médias et statiques servis QUEL QUE SOIT `DEBUG` (2026-11-08, reste n°2 de l'audit de sécurité) :
+# `/media/` sous la règle de lecture (session, propriétaire, partage, administrateur), par
+# MORCEAUX ; `/static/` tel quel. Ils n'étaient servis qu'en `DEBUG`, sans aucun contrôle —
+# d'où `DEBUG = True` en dur. Détail : `common/utils/media_serving.py`.
+from wama.common.utils.media_serving import serve_media, serve_static
+urlpatterns += [
+    re_path(r'^%s(?P<path>.+)$' % re.escape(settings.MEDIA_URL.lstrip('/')), serve_media,
+            name='media'),
+    re_path(r'^%s(?P<path>.+)$' % re.escape(settings.STATIC_URL.lstrip('/')), serve_static,
+            name='static'),
+]

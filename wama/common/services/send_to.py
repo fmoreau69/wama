@@ -211,7 +211,7 @@ def _requete_candidats(model, chemin: str):
     return q
 
 
-def item_for_output_path(user, chemin: str, *, visible: bool = False):
+def item_for_output_path(user, chemin: str, *, visible: bool = False, carried: bool = False):
     """L'élément dont `chemin` (relatif à `media/`) est une SORTIE déclarée — `(surface,
     instance)`, ou `(None, None)`.
 
@@ -235,6 +235,11 @@ def item_for_output_path(user, chemin: str, *, visible: bool = False):
     les siens et ceux qu'on lui partage). C'est la question de la LECTURE d'un fichier
     (`media_paths.readable_by`) : la sortie d'une card reçue s'envoie vers une autre app
     (`WAMA_COLLABORATION §3bis`, mode lecture) ; les gestes de l'arbre restent sur les siens.
+    `carried=True` (2026-11-08, « oui pour les entrées partagées » de Fabien) : un fichier que
+    l'élément PORTE dans un de ses champs fichier — son entrée — compte comme sa sortie. C'est la
+    question de la LECTURE seule (`readable_by`) ; les gestes de l'arbre n'en usent pas, ils
+    restent sur les sorties. Le champ JSON n'y entre pas : sa requête ne compare que le NOM du
+    fichier, la confirmation reste celle de `sorties_de`.
     ⚠ Une surface n'est rendue que si les DEUX registres la connaissent (détail ET preview) :
     ce sont les coordonnées qu'une card porte (`data-preview-url`), celles que partage,
     médiathèque et RAG consomment. `sorties_de` rend des URL DÉCODÉES ici (`unquote`) : le
@@ -271,7 +276,16 @@ def item_for_output_path(user, chemin: str, *, visible: bool = False):
         for instance in candidats:
             if chemin in {unquote(s) for s in sorties_de(surface, instance)}:
                 return surface, instance
+            if carried and chemin in _carried_files(instance):
+                return surface, instance
     return None, None
+
+
+def _carried_files(instance) -> set:
+    """Les chemins (relatifs à `media/`) que l'élément porte dans ses champs fichier."""
+    from django.db.models import FileField
+    return {str(getattr(getattr(instance, f.name, None), 'name', '') or '')
+            for f in instance._meta.get_fields() if isinstance(f, FileField)} - {''}
 
 
 def _apps_receveuses(user):

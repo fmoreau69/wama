@@ -24,8 +24,10 @@ register = template.Library()
 _PATH_CACHE = {}
 #: {path: (mtime, instant de la lecture)}.
 _MTIME_CACHE = {}
-#: En DEBUG (le cas du serveur en service), le mtime se relit au-delà de ce délai : une modif de
-#: JS/CSS reste visible au rechargement suivant, à quelques secondes près. Mesuré le 2026-10-02 :
+#: Le mtime se relit au-delà de ce délai : une modif de JS/CSS reste visible au rechargement
+#: suivant, à quelques secondes près. Lié à `DEBUG` jusqu'au 2026-11-08 ; la production tourne
+#: désormais `DEBUG` éteint, et ce geste quotidien (modifier un JS, recharger) ne doit pas exiger
+#: une relance de gunicorn — la relecture vaut donc partout. Mesuré le 2026-10-02 :
 #: SANS aucun cache en DEBUG, 51 statiques coûtaient 0,39 s sur les 0,53 s de l'accueil, 66 en
 #: coûtaient 0,51 s au transcriber (find 3,1 ms + deux stat à 2 ms chacun, sur /mnt/d).
 DEBUG_RECHECK_SECONDS = 5.0
@@ -55,8 +57,7 @@ def static_v(path):
     """URL statique + `?v=<mtime>` pour casser le cache navigateur au changement."""
     url = static(path)
     try:
-        from django.conf import settings
-        mtime = _mtime(path, bool(getattr(settings, 'DEBUG', False)))
+        mtime = _mtime(path, True)
         if mtime:
             sep = '&' if '?' in url else '?'
             url = f"{url}{sep}v={mtime}"

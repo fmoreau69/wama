@@ -3429,11 +3429,19 @@ MECHANISMS = (
 
     Mechanism('ranged_response', 'Servir un fichier par morceaux (HTTP Range)',
               "Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du "
-              "déjà-téléchargé ; sert `/media/` (`wama/urls.py`) et la vidéo du cam_analyzer, "
-              "dont la règle a été extraite (2026-10-15)",
+              "déjà-téléchargé ; sert `/media/` (par `media_serving`) et la vidéo du "
+              "cam_analyzer, dont la règle a été extraite (2026-10-15)",
               'wama/common/utils/ranged_response.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/tests/tests_ranged_response.py',)),
+    Mechanism('media_serving', 'Servir `/media/` sous la règle de lecture',
+              "`/media/` servi par WAMA quel que soit `DEBUG` : session exigée, chemin confiné, "
+              "fichier servi si `readable_by` l'accepte (son arbre, administrateur, partage — "
+              "entrée comprise), dérivé jugé sur son original, par morceaux, bac à sable html/svg ; "
+              "`/static/` routé de même (2026-11-08, audit de sécurité — l'Alias Apache retiré)",
+              'wama/common/utils/media_serving.py',
+              'docs/construction/exploitation/PROFILES_PERMISSIONS.md §1.5bis',
+              annexes=('wama/common/tests/tests_media_serving.py',)),
     Mechanism('static_versioning', 'Cache-busting statique',
               "`{% static_v %}` = `{% static %}` + `?v=<mtime>` : le navigateur re-télécharge "
               "un fichier statique dès qu'il change, le garde en cache sinon",

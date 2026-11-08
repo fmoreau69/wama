@@ -29479,3 +29479,42 @@ de MESURE ; chaque pièce suit un patron en service :
   mécanismes (`tests_score_reading.py` à deux propriétaires), budget de langue à recaler.
 - ⚠ Docs générées (`WAMA_MECANISMES.md`, `docs/dev/briques.md`) non régénérées ici : l'arbre porte le
   travail non commité d'autres sessions sur ces fichiers — à la clôture commune.
+
+### PALIER 2026-11-08 — sécurité, restes n°2 (`/media/` gardé, `DEBUG` éteint) et n°5 (registres)
+
+> Décisions de Fabien du 2026-11-08 : « 2b, oui pour l'admin, oui pour les entrées partagées » ;
+> « [les registres] en lecture seule pour les comptes connectés et en écriture pour les
+> administrateurs ». ⚠ **Effectif à la relance de gunicorn ET d'Apache** (Apache : shell admin).
+> Le reste n°3 (relais en boucle locale) est **vérifié en service** : seul `127.0.0.1:8000` écoute
+> côté Windows, Apache sert (200 en https).
+
+- **`/media/` sous la règle de lecture** : `common/utils/media_serving.serve_media` — session
+  (visiteur → connexion, sauf les fichiers de son identité d'essai), confinement
+  (`resolve_under_media_root`), `readable_by` (arbre, asset système, partages ; **administrateur**
+  et **entrée d'une card partagée** ajoutés — `send_to.item_for_output_path(carried=True)`), dérivé
+  jugé sur son original (`original_of_copy`), morceaux, `Last-Modified`/304,
+  `Cache-Control: private`, `nosniff`, bac à sable html/svg. `/static/` routé de même. L'`Alias
+  /media/` d'Apache est retiré (`wama-common.conf`, sauvegarde `.bak-20261108-avant-media-garde`,
+  `httpd -t` OK). Gunicorn : 4 fils par worker. Témoins du smoke dans l'arbre du compte de test
+  (`ui_smoke_preview._witness_folder`).
+- **`DEBUG`** lu de `WAMA_DEBUG` (posé par `start_wama_dev.sh` seul) ; `static_v` relit le mtime
+  toutes les 5 s quel que soit `DEBUG`. Retrait : `ranged_response.serve` et le bloc `static()`
+  (`REMOVAL_LEDGER R231`).
+- **Registres** : les pages que les registres DÉCLARENT (`Registry.url_name`) se lisent sous le
+  droit des Registres (`permissions.registry_page_prefixes`) et se ferment au visiteur
+  (`middleware.visitor_refusal`), `api/system-stats/full/` aussi. Écriture inchangée (déjà tenue).
+  Un navigateur sans compte y est RENVOYÉ À LA CONNEXION (comme le `@login_required` de
+  `/common/docs/`, que la dérivation avait d'abord changé en 403 — relevé par une autre instance,
+  `tests_docs_catalog.PageTest`) ; un `fetch` lit le motif ; les chemins fermés à la main
+  (`VISITOR_CLOSED`) gardent leur 403.
+- **Gardes** : `common/tests/tests_media_serving.py`, `accounts/tests/tests_access_points.
+  RegistriesAccessTests` ; contre-épreuve en processus.
+- **Docs** : `PROFILES_PERMISSIONS §1.5bis` points 2, 3, 8 ; `INFRA_WSL_VS_WINDOWS` ;
+  `MEDIA_STORAGE_TIERING` D25 et §9.8 ; `WAMA_COLLABORATION` ; `README` (bloc Apache).
+- ⚠ Non régénérées, portées par du travail d'autres instances dans l'arbre : `WAMA_MECANISMES.md`
+  (entrée `media_serving` ajoutée au registre) et `docs/dev/briques.md` (signature
+  `item_for_output_path`).
+- 🔚 **À Fabien** : (1) relancer gunicorn, puis Apache en shell administrateur
+  (`httpd -k restart`) ; vérifier une page, une vidéo d'une card (avance dans la lecture), et
+  `/media/…` sans session → connexion ; (2) bascule HTTPS (`WAMA_HTTPS`) et chiffrement par
+  utilisateur : analyses données, décisions en attente.

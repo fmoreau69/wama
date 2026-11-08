@@ -250,18 +250,8 @@ SetEnv no_proxy    "127.0.0.1,localhost"   ← required to avoid routing local p
     ServerName wama.local
     ProxyPreserveHost On
     ProxyTimeout 120
-    Alias /media/ "D:/WAMA/web-app-for-media-automation/media/"
-    <Directory "D:/WAMA/web-app-for-media-automation/media/">
-        Require all granted
-        Options -Indexes
-        # Files that can run script (HTML, SVG) are served SANDBOXED: shown, never executed
-        # with WAMA's origin (requires mod_headers).
-        <FilesMatch "\.(?i:html?|svg)$">
-            Header set Content-Security-Policy "sandbox"
-        </FilesMatch>
-        Header set X-Content-Type-Options "nosniff"
-    </Directory>
-    ProxyPass /media/ !
+    # No `Alias /media/`: WAMA serves media itself, under its read rule (session, owner, shares)
+    # — see `wama/common/utils/media_serving.py`.
     ProxyPass        / http://127.0.0.1:8000/ retry=0 timeout=130
     ProxyPassReverse / http://127.0.0.1:8000/
     ErrorDocument 502 "<html><body><h2>WAMA en cours de démarrage...</h2><p>Rechargez dans quelques secondes.</p></body></html>"
@@ -272,8 +262,9 @@ SetEnv no_proxy    "127.0.0.1,localhost"   ← required to avoid routing local p
 
 > **Note :** `SetEnv no_proxy` is critical — without it, Apache routes `ProxyPass` requests to `127.0.0.1` through the corporate proxy and fails with `AH01114 ECONNREFUSED`.
 > `retry=0` prevents Apache from blacklisting gunicorn for 60 s after a transient error.
-> The `<FilesMatch>` block needs `LoadModule headers_module modules/mod_headers.so`. Without it, an
-> HTML file opened from `/media/` runs its scripts as WAMA (see `MEDIA_STORAGE_TIERING.md §9.8`).
+> Never serve `/media/` from Apache directly (an `Alias` with `Require all granted`): every file of
+> every user would be readable without logging in. Until 2026-11-08 this README did exactly that;
+> WAMA now serves `/media/` with `nosniff` and HTML/SVG sandboxed (`MEDIA_STORAGE_TIERING.md §9.8`).
 
 ### WSL2 port forwarding
 

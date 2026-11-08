@@ -7,11 +7,10 @@ un navigateur ne peut alors aller qu'à ce qu'il a déjà téléchargé, et un r
 jamais. Tout lecteur de WAMA (cards, volet, éditeurs) avait la même limite sans la dire.
 
 La règle vivait déjà, une fois, dans le cam_analyzer (`stream_video`, ses quatre vidéos) : elle
-est extraite ici, et il la consomme. Deux usages :
-  • `ranged_file_response(request, path)` — pour une vue qui a déjà résolu et autorisé son fichier ;
-  • `serve(request, path, document_root)` — le service de `/media/` (`wama/urls.py`) : une requête
-    avec `Range` reçoit son morceau (206), toute autre passe par `static.serve` inchangé (304,
-    index, en-têtes) et apprend seulement que les morceaux sont acceptés.
+est extraite ici, et il la consomme. Un usage : `ranged_file_response(request, path)`, pour une
+vue qui a déjà résolu et AUTORISÉ son fichier — la vidéo du cam_analyzer, et depuis le 2026-11-08
+`/media/` lui-même (`media_serving.serve_media`, sous la règle de lecture). Le `serve()` qui
+servait `/media/` en `DEBUG`, sans contrôle, est retiré le même jour (`REMOVAL_LEDGER`).
 """
 from __future__ import annotations
 
@@ -75,21 +74,4 @@ def ranged_file_response(request, path: str, content_type: str | None = None):
         response = FileResponse(open(path, 'rb'), content_type=content_type)
         response['Content-Length'] = str(size)
     response['Accept-Ranges'] = 'bytes'
-    return response
-
-
-def serve(request, path, document_root=None, show_indexes=False):
-    """`django.views.static.serve`, plus les requêtes `Range` (206) — le service de `/media/`."""
-    from django.utils._os import safe_join
-    from django.views.static import serve as static_serve
-    if request.META.get('HTTP_RANGE') and document_root:
-        try:
-            full = safe_join(str(document_root), path)
-        except Exception:               # chemin hors de la racine : la règle de `static.serve`
-            full = None
-        if full and os.path.isfile(full):
-            return ranged_file_response(request, full)
-    response = static_serve(request, path, document_root=document_root, show_indexes=show_indexes)
-    if response.status_code == 200 and not show_indexes:
-        response['Accept-Ranges'] = 'bytes'
     return response

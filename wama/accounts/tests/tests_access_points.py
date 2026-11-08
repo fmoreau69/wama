@@ -18,7 +18,9 @@ qui portent sur l'ensemble des surfaces gardées et pas sur un cas relu à la ma
 import json
 from unittest import mock
 
+from django.conf import settings
 from django.contrib.auth.models import Group, User
+from django.shortcuts import resolve_url
 from django.test import TestCase
 from django.urls import reverse
 
@@ -455,6 +457,54 @@ class RegistriesAccessTests(TestCase):
             response = self.client.get(url)
             self.assertEqual(403, response.status_code, url)
             self.assertTrue(response.json()['login_required'])
+
+    def test_a_visitor_never_reads_the_page_of_any_registry(self):
+        """2026-11-08 (security audit, remainder 5): only four addresses were tied to the
+        Registries right by hand; the pages the registries DECLARE (`/common/sources/` and its
+        internal addresses and ports, backends, skills, licences, the app catalogue…) were read
+        without an account. They are derived from the registry of registries now."""
+        from wama.accounts.permissions import registry_page_prefixes
+        pages = registry_page_prefixes()
+        for expected in ('common/sources', 'common/backends', 'common/skills', 'common/licenses',
+                         'common/apps'):
+            self.assertIn(expected, pages)
+        closed = [p for p in pages if app_id_for_path(f'/{p}/') == 'registries']
+        self.assertGreaterEqual(len(closed), 10, 'too few pages: the test would measure nothing')
+        login = resolve_url(settings.LOGIN_URL)
+
+        def refused(response):
+            return ((response.status_code == 302 and response.url.startswith(login))
+                    or (response.status_code == 403 and response.json().get('login_required')))
+        reached = {}
+        for p in closed:
+            page = self.client.get(f'/{p}/')
+            fetch = self.client.get(f'/{p}/', HTTP_ACCEPT='application/json')
+            if not refused(page):
+                reached[p] = page.status_code
+            if fetch.status_code != 403 or not fetch.json().get('login_required'):
+                reached[f'{p} (fetch)'] = fetch.status_code
+        self.assertEqual({}, reached, 'a visitor reads these registry pages')
+        # A browser on a DERIVED page is sent to the common login page, as `@login_required` did
+        # before (`/common/docs/`); a fetch reads the refusal.
+        page = self.client.get(reverse('common:sources_catalog'))
+        self.assertEqual(302, page.status_code)
+        self.assertTrue(page.url.startswith(login), page.url)
+        self.assertEqual(403, self.client.get(reverse('common:system_stats_full')).status_code)
+
+    def test_a_registry_page_that_is_an_app_page_follows_the_app(self):
+        self.assertEqual('media_library', app_id_for_path('/media-library/'))
+
+    def test_a_member_reads_the_sources_and_still_sets_his_own_api_key(self):
+        """Counter-test, and Fabien's condition: a logged-in account keeps what it manages itself."""
+        from wama.accounts.api_keys import listing
+        member = self._account('reg_keys_member', 'utilisateur')
+        self.client.force_login(member)
+        self.assertEqual(200, self.client.get(reverse('common:sources_catalog')).status_code)
+        slug = listing(member)[0]['slug']
+        response = self.client.post(reverse('accounts:profile-api-key-save', args=[slug]),
+                                    json.dumps({'api_key': ''}), content_type='application/json')
+        self.assertEqual(200, response.status_code, response.content[:200])
+        self.assertTrue(response.json()['success'])
 
     def test_a_member_reads_the_registries_but_never_refreshes_them(self):
         self.client.force_login(self._account('reg_member', 'utilisateur'))

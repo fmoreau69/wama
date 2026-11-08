@@ -634,8 +634,7 @@ def check_preview_layout():
     token = _test_session_key(apps[0][0]) if apps else None
     if not token:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
-    folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_layout')
-    base = settings.MEDIA_URL + 'smoke_preview_layout/'
+    folder, base = _witness_folder(token, 'smoke_preview_layout')
     _in_plain_thread(_layout_witnesses, folder)
     # Une SÉQUENCE de deux éléments : les flèches de navigation s'affichent, leur place se mesure.
     opened = """([data, sides, item]) => { const face = Object.assign({}, data,
@@ -791,6 +790,18 @@ def _session_user_folder(token: str, sub: str) -> str:
     return folder
 
 
+def _witness_folder(token: str, sub: str) -> tuple:
+    """`(dossier, URL)` des témoins d'un scénario, DANS l'arbre du compte de la session.
+
+    Ils vivaient à la racine de `media/` (`smoke_preview_*`) jusqu'au 2026-11-08 : `/media/` est
+    désormais servi sous la règle de lecture (`common/utils/media_serving.py`), et un fichier
+    hors de l'arbre du compte de test lui serait refusé (403) — l'aperçu ne montrerait rien."""
+    from django.conf import settings
+    folder = _in_plain_thread(_session_user_folder, token, sub)
+    rel = os.path.relpath(folder, str(settings.MEDIA_ROOT)).replace('\\', '/')
+    return folder, f'{settings.MEDIA_URL}{rel}/'
+
+
 def _expect(page, title: str, counter: str = None, face: str = None, compare: bool = None,
             timeout_ms: int = 8000):
     """Attend que la visionneuse montre `title` (et le compteur, la face, Comparer demandés) ;
@@ -838,8 +849,8 @@ def check_preview_navigation():
     token = _test_session_key(apps[0][0]) if apps else None
     if not token:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
-    folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_nav')
-    base = settings.MEDIA_URL + 'smoke_preview_nav/'
+    # Les témoins à part des quatre fichiers que le scénario lit dans l'arbre (`fm_folder`).
+    folder, base = _witness_folder(token, 'smoke_preview_nav_witnesses')
     fm_folder = _in_plain_thread(_session_user_folder, token, 'smoke_preview_nav')
     _in_plain_thread(_nav_witnesses, folder)
     os.makedirs(fm_folder, exist_ok=True)
@@ -1080,8 +1091,7 @@ def check_preview_during():
     token = _test_session_key(apps[0][0]) if apps else None
     if not token:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
-    folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_during')
-    base = settings.MEDIA_URL + 'smoke_preview_during/'
+    folder, base = _witness_folder(token, 'smoke_preview_during')
     _in_plain_thread(_during_witnesses, folder)
     state = {'running': True, 'turns': 0}
     faults, seen = [], []
@@ -1210,8 +1220,7 @@ def check_chat_job_faces(neutralize: bool = False):
     token = _test_session_key(apps[0][0]) if apps else None
     if not token:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
-    folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_during')
-    base = settings.MEDIA_URL + 'smoke_preview_during/'
+    folder, base = _witness_folder(token, 'smoke_preview_during')
     _in_plain_thread(_during_witnesses, folder)
     state = {'running': True, 'turns': 0}
     faults, seen = [], []
@@ -1365,8 +1374,7 @@ def check_chat_batch(neutralize: bool = False):
     token = _test_session_key(apps[0][0]) if apps else None
     if not token:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
-    folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_during')
-    base = settings.MEDIA_URL + 'smoke_preview_during/'
+    folder, base = _witness_folder(token, 'smoke_preview_during')
     _in_plain_thread(_during_witnesses, folder)
     state = {'done': set()}
     faults, seen = [], []

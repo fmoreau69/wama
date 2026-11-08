@@ -198,8 +198,43 @@ PATH_APP_MAP = [
     # routes web. Le gestionnaire de fichiers, autre outil sans page, se résout par son 1er
     # segment (`/filemanager/`), comme toute app.
     ('api/ai-chat',       'assistant'),
+    # Les relevés complets de la machine (processeur, mémoire, carte, chemins des outils —
+    # `system_stats_full`, 2026-11-08) : une lecture de l'outillage, sous le droit des Registres.
+    ('common/api/system-stats/full', 'registries'),
     # 'studio' est désormais une vraie app montée sur /studio/ → résolu par le 1er segment.
 ]
+
+#: Les PAGES que les registres déclarent (`Registry.url_name`), en chemins — calculées au premier
+#: appel, le résolveur d'URL chargé. Voir `registry_page_prefixes`.
+_REGISTRY_PAGES = None
+
+
+def registry_page_prefixes() -> list:
+    """Les chemins (sans `/` aux bords) des pages que les registres DÉCLARENT — elles se lisent
+    sous le droit des Registres (tout compte, jamais le visiteur).
+
+    Dérivés du registre des registres (2026-11-08, reste n°5 de l'audit de sécurité, décision de
+    Fabien : « en lecture seule pour les comptes connectés, en écriture pour les administrateurs ») :
+    seules quatre adresses étaient rattachées ici à la main, et `/common/sources/` (adresses et
+    ports internes), `/common/backends/`, `/common/skills/`, `/common/licenses/`, `/common/apps/`…
+    se lisaient sans compte. Un registre de demain est couvert sans ligne de plus. La page d'un
+    registre qui est celle d'une APP (`/media-library/`) suit l'app : `PATH_APP_MAP` passe avant."""
+    global _REGISTRY_PAGES
+    if _REGISTRY_PAGES is None:
+        from django.urls import NoReverseMatch, reverse
+        from wama.common.registries import REGISTRIES
+        pages = set()
+        for registry in REGISTRIES.values():
+            if not registry.url_name:
+                continue
+            try:
+                pages.add(reverse(registry.url_name).strip('/'))
+            except NoReverseMatch:
+                continue
+        if not pages:
+            return []                  # registres pas encore chargés : rien à retenir
+        _REGISTRY_PAGES = sorted(pages)
+    return _REGISTRY_PAGES
 
 
 # ── Services du SUBSTRAT logés sous le préfixe d'une app ────────────────────────────────
@@ -248,6 +283,9 @@ def app_id_for_path(path):
     for prefix, app_id in PATH_APP_MAP:
         if p == prefix or p.startswith(prefix + '/'):
             return app_id
+    for prefix in registry_page_prefixes():
+        if p == prefix or p.startswith(prefix + '/'):
+            return 'registries'
     seg = p.split('/', 1)[0]
     return seg if seg in DEFAULT_APP_ACCESS else None
 

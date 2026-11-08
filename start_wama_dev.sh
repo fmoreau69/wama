@@ -43,6 +43,9 @@ source $VENV_DIR/bin/activate
 # pool solo (compatibilité WSL) — déclaré ici, hérité par la surveillance qui le relance.
 source $PROJECT_DIR/scripts/wama_services.sh
 export WAMA_DEFAULT_WORKER_POOL=solo
+# Page d'erreur détaillée en développement seulement : la production tourne `DEBUG` éteint
+# (`wama/settings.py`, 2026-11-08).
+export WAMA_DEBUG=1
 wama_runtime_env
 
 echo "=== Starting WAMA development script ==="

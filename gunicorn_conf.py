@@ -7,7 +7,10 @@ bind = "0.0.0.0:8000"
 # Worker processes - 4 stable workers, always available
 workers = 4
 worker_class = "gthread"
-threads = 2  # 4 workers x 2 threads = 8 concurrent requests
+# 4 workers x 4 threads = 16 concurrent requests. 2 fils jusqu'au 2026-11-08 : gunicorn sert
+# désormais `/media/` (sous la règle de lecture, `common/utils/media_serving.py`), qu'Apache
+# servait seul — une vidéo lue tient un fil pendant tout son envoi.
+threads = 4
 
 # Timeout
 # 120s to allow for first-request model loading via lazy imports

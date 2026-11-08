@@ -388,8 +388,13 @@ def readable_by(rel_path, user) -> bool:
     résolveur et l'import le refusaient (« Indisponible »). La règle est celle qui la LUI MONTRE
     (`scoping.listable_by`, par `send_to.item_for_output_path(visible=True)`) ; le fichier est
     alors COPIÉ chez lui (`reference_or_copy` ne pointe jamais l'arbre d'un autre).
-    ⚠ Le fichier d'un autre utilisateur qui n'est ni un asset partagé ni la sortie d'un élément
-    partagé (temporaire, entrée d'app) reste illisible ici.
+    Depuis le 2026-11-08 (décisions de Fabien, reste n°2 de l'audit de sécurité), c'est aussi la
+    règle qui SERT `/media/` (`common/utils/media_serving.serve_media`), et elle gagne deux cas :
+    **un administrateur lit tout** (« oui pour l'admin »), et **l'ENTRÉE d'un élément partagé**
+    se lit comme sa sortie (« oui pour les entrées partagées ») — un fichier que la card reçue
+    PORTE dans un champ fichier.
+    ⚠ Le fichier d'un autre utilisateur qui n'est ni un asset partagé ni un fichier d'un élément
+    partagé (temporaire, fichier rangé à la main) reste illisible ici.
     Le chemin est jugé NORMALISÉ (`_normalised_rel`, 2026-11-06) : chaque règle ci-dessous compare
     des préfixes ou des chemins enregistrés, qu'un `..` contournait.
     """
@@ -397,14 +402,16 @@ def readable_by(rel_path, user) -> bool:
     user_id = getattr(user, 'id', None)
     if not user_id or not rel:
         return False
-    return (in_user_home(rel, user_id) or is_system_asset_file(rel)
-            or _is_shared_asset_file(rel, user) or _is_shared_item_output(rel, user))
+    from wama.accounts.permissions import is_admin_tier
+    return (in_user_home(rel, user_id) or is_admin_tier(user) or is_system_asset_file(rel)
+            or _is_shared_asset_file(rel, user) or _is_shared_item_file(rel, user))
 
 
-def _is_shared_item_output(rel, user) -> bool:
-    """Ce chemin est-il la SORTIE déclarée d'un élément que `user` voit (partagé avec lui) ?"""
+def _is_shared_item_file(rel, user) -> bool:
+    """Ce chemin est-il la SORTIE déclarée, ou un fichier PORTÉ (son entrée), d'un élément que
+    `user` voit (partagé avec lui) ?"""
     from wama.common.services.send_to import item_for_output_path
-    _surface, item = item_for_output_path(user, rel, visible=True)
+    _surface, item = item_for_output_path(user, rel, visible=True, carried=True)
     return item is not None
 
 

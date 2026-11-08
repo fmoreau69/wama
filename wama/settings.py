@@ -24,7 +24,11 @@ load_dotenv()
 ENABLE_CELERY = True
 APPEND_SLASH = True
 ENABLE_LDAP = True
-DEBUG = True
+# Éteint par défaut depuis le 2026-11-08 (reste n°2 de l'audit de sécurité, décision de Fabien) :
+# il était écrit en dur à True, parce que lui seul faisait servir `/static/` et `/media/` — ce
+# que `wama/urls.py` fait désormais quel que soit `DEBUG`. Allumé, il affiche à tout visiteur la
+# page d'erreur détaillée (réglages, code, variables). `start_wama_dev.sh` pose `WAMA_DEBUG=1`.
+DEBUG = os.environ.get('WAMA_DEBUG', '') == '1'
 
 # Répertoires de base
 BASE_DIR = Path(__file__).resolve().parent.parent

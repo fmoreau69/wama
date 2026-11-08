@@ -36,6 +36,7 @@ par tous les visiteurs, l'import vers dix apps hors de cette garde, et la connex
 local QUELCONQUE du serveur, ensuite téléchargeable par tous. Le visiteur n'a qu'une app, le
 converter, qui dépose par ses propres routes ; il n'a donc pas d'arbre de fichiers.
 """
+from django.contrib.auth.views import redirect_to_login
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.contrib import messages
@@ -64,18 +65,29 @@ VISITOR_CLOSED = {
 VISITOR_CLOSED_PREFIXES = tuple(VISITOR_CLOSED)
 
 
+def _wants_json(request) -> bool:
+    """La requête attend du JSON (une API, un `fetch`), pas une page."""
+    return ('/api/' in request.path
+            or request.headers.get('x-requested-with') == 'XMLHttpRequest'
+            or 'application/json' in request.headers.get('accept', ''))
+
+
 def visitor_refusal(user, path: str) -> str | None:
     """Le motif que lit `user` sur `path` si ce chemin est FERMÉ au visiteur (lecture comprise)
     et que `user` en est un — sans session, ou compte de service de visiteur —, sinon None.
 
     Domicile UNIQUE de cette décision (2026-10-14) : le middleware l'applique à chaque requête,
     et l'assistant la lit avant de proposer une page (`permissions.can_open_page`)."""
-    from wama.accounts.permissions import is_guest_account
-    if not path.startswith(VISITOR_CLOSED_PREFIXES):
+    from wama.accounts.permissions import app_id_for_path, is_guest_account
+    # Toute page qui se lit sous le droit des Registres — celles que les registres DÉCLARENT
+    # comprises (`permissions.registry_page_prefixes`, 2026-11-08) — est fermée comme eux.
+    registry = app_id_for_path(path) == 'registries'
+    if not registry and not path.startswith(VISITOR_CLOSED_PREFIXES):
         return None
     if user is not None and user.is_authenticated and not is_guest_account(user):
         return None
-    return next(m for p, m in VISITOR_CLOSED.items() if path.startswith(p))
+    return next((m for p, m in VISITOR_CLOSED.items() if path.startswith(p)),
+                VISITOR_REGISTRIES_REFUSAL)
 
 
 class AppAccessMiddleware:
@@ -87,6 +99,11 @@ class AppAccessMiddleware:
         from wama.accounts.permissions import accessible, app_id_for_path, refused_app
         reason = visitor_refusal(user, request.path)
         if reason:
+            if not request.path.startswith(VISITOR_CLOSED_PREFIXES) and not _wants_json(request):
+                # Une page que les registres DÉCLARENT (2026-11-08) garde, pour un navigateur, la
+                # redirection de connexion commune de sa vue (`@login_required`, `/common/docs/`) :
+                # seul un `fetch` lit le motif.
+                return redirect_to_login(request.get_full_path())
             return JsonResponse({'error': reason, 'detail': reason, 'login_required': True}, status=403)
         if user is not None and user.is_authenticated:
             app_id = refused_app(user, request.path)
@@ -110,15 +127,9 @@ class AppAccessMiddleware:
     def _deny(request, app_id, visitor=False):
         detail = (VISITOR_REFUSAL.format(app=app_id) if visitor
                   else f"Accès non autorisé à l'application « {app_id} ».")
-        wants_json = (
-            '/api/' in request.path
-            or request.headers.get('x-requested-with') == 'XMLHttpRequest'
-            or 'application/json' in request.headers.get('accept', '')
-            # Un geste de visiteur est presque toujours un `fetch` de la page (ajout, lancement) :
-            # lui rendre une redirection ferait lire du HTML à du code qui attend du JSON.
-            or visitor
-        )
-        if wants_json:
+        # Un geste de visiteur est presque toujours un `fetch` de la page (ajout, lancement) :
+        # lui rendre une redirection ferait lire du HTML à du code qui attend du JSON.
+        if _wants_json(request) or visitor:
             return JsonResponse(
                 # `error` porte le motif LISIBLE pour un visiteur : les pages affichent ce champ
                 # dans leur toast. Pour un compte connecté, le contrat d'origine est inchangé.
