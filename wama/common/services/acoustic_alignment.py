@@ -87,9 +87,12 @@ def doubt_words_over_silence(turns: List[dict], audio_path: str,
 
 def timed_words(segments, audio_path: str, language: str, *, audio_end: Optional[float] = None,
                 ctx=None) -> dict:
-    """Les MOTS HORODATÉS d'une transcription d'`audio_path` — la composition que le transcriber et
-    l'avatar faisaient chacun de leur côté, posée ici au 3ᵉ consommateur (2026-11-08, les paroles du
-    composer, décision de Fabien : « le Transcriber sait déjà le faire, il faut réutiliser »).
+    """Les MOTS HORODATÉS d'une ÉCOUTE d'`audio_path` (2026-11-08, les paroles du composer, décision
+    de Fabien : « le Transcriber sait déjà le faire, il faut réutiliser »). Le 3ᵉ appelant de
+    `refine` : chacun a SON étage A — le transcriber ancre un document repris (`anchor_turns`),
+    l'avatar doute des mots qui avalent une pause (`doubt_words_over_silence`), ici les mots d'un
+    tour que le modèle d'écoute n'a pas datés sont répartis dans son intervalle ; l'étage B et sa
+    phrase (`alignment_said`) sont les mêmes pour les trois.
 
     `segments` : des tours (`.start`/`.end`/`.text`/`.words`, objets ou dicts). Un tour garde ses
     mots s'ils sont datés (Whisper) ; sinon ils sont répartis dans son intervalle
@@ -97,7 +100,7 @@ def timed_words(segments, audio_path: str, language: str, *, audio_end: Optional
     puis l'aligneur du catalogue réécoute les mots incertains (`refine`, installé par la route si
     `ctx`). Sans aligneur pour la langue, ou s'il échoue, les heures de l'étage A restent, et c'est
     DIT dans le rapport (`aligned`, `reason`). Rend `{'words': [{word, start, end, timing}],
-    'aligner': clé ou '', 'report': {...}, 'reason': ''}`."""
+    'aligner': clé ou '', 'report': {...}, 'reason': '', 'said': la phrase de la console}`."""
     from wama.common.services.word_anchoring import turn_words
 
     def read(segment, name):
@@ -114,7 +117,7 @@ def timed_words(segments, audio_path: str, language: str, *, audio_end: Optional
             for word in words:
                 word.setdefault('timing', 'exact')
             turns.append({**turn, 'words': words})
-    out = {'words': [], 'aligner': '', 'report': {}, 'reason': ''}
+    out = {'words': [], 'aligner': '', 'report': {}, 'reason': '', 'said': ''}
     if not turns:
         out['reason'] = 'aucun mot'
         return out
@@ -127,9 +130,11 @@ def timed_words(segments, audio_path: str, language: str, *, audio_end: Optional
         refined, out['reason'] = None, f"aligneur en échec : {exc}"
     if refined is None:
         out['reason'] = out['reason'] or f"aucun aligneur pour la langue « {language or '?'} »"
+        out['said'] = f"Alignement acoustique : {out['reason']} — les heures restent estimées."
     else:
         turns, out['report'], model = refined
         out['aligner'] = model.model_key
+        out['said'] = alignment_said(out['report'], model.name)
     out['words'] = [{'word': (w.get('word') or '').strip(), 'start': w['start'], 'end': w['end'],
                      'timing': w.get('timing', 'exact')}
                     for turn in turns for w in turn['words'] if (w.get('word') or '').strip()]

@@ -31,14 +31,22 @@ def normalize(value) -> str:
     return value if value in VALUES else AUTO
 
 
+def has_lyrics(text, stored_lyrics='') -> bool:
+    """Des paroles sont-elles DONNÉES ? Balisées dans le prompt, ou posées sur la card (`lyrics`).
+    Une lecture, trois lecteurs : la voix voulue sous « auto » (ci-dessous), l'étape « Écrire les
+    paroles » (`function_specs._lyrics_to_write`) et le champ qu'une écoute remplit
+    (`tasks._lyrics_field_open`) — 2026-11-08."""
+    from wama.common.backends.music_generation_base import tagged_lyrics
+    return bool(tagged_lyrics(text or '')[1]) or bool(str(stored_lyrics or '').strip())
+
+
 def wants_vocals(mode, text, stored_lyrics='') -> bool:
     """La voix est-elle voulue ? `auto` : oui si le prompt porte des paroles balisées, ou si la
     card en porte (`lyrics`, posées par l'utilisateur ou écrites à un lancement précédent)."""
     mode = normalize(mode)
     if mode != AUTO:
         return mode == SONG
-    from wama.common.backends.music_generation_base import tagged_lyrics
-    return bool(tagged_lyrics(text or '')[1]) or bool(str(stored_lyrics or '').strip())
+    return has_lyrics(text, stored_lyrics)
 
 
 def sings(model_key) -> bool:

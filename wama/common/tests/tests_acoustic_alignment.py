@@ -139,6 +139,8 @@ class RefineWithCatalogueAlignerTest(TestCase):
                          [(w['start'], w['end']) for w in got['words']])
         self.assertEqual(['aligned', 'aligned', 'aligned', 'exact'], [w['timing'] for w in got['words']])
         self.assertEqual('transcriber:wav2vec2-fr-aligner', got['aligner'])
+        self.assertTrue(got['said'].startswith('Alignement acoustique (aligneur) : 3 mot(s) recalé(s)'),
+                        'the sentence of every caller of the stage B (`alignment_said`)')
 
     def test_without_an_aligner_the_estimate_stays_and_says_why(self):
         from wama.common.services import acoustic_alignment
@@ -146,5 +148,6 @@ class RefineWithCatalogueAlignerTest(TestCase):
         got = acoustic_alignment.timed_words(segments, 'song.wav', 'xx')
         self.assertEqual('', got['aligner'])
         self.assertIn('aucun aligneur', got['reason'])
+        self.assertIn('les heures restent estimées', got['said'])
         self.assertEqual(['interpolated'] * 3, [w['timing'] for w in got['words']])
         self.assertTrue(all(0.0 <= w['start'] <= w['end'] <= 3.0 for w in got['words']))

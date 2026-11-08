@@ -560,15 +560,19 @@
         if (!voice) return { abc: abc, inserts: [] };
         var unitL = headerFraction(abc, 'L', 1 / 8), meter = headerFraction(abc, 'M', 1);
         var tempo = tempoOf(abc);
-        // 1er passage : les notes de la voix, ligne par ligne, et leur temps écrit (en ronde).
-        var lines = [], pos = 0, current = '', inBody = false, clock = 0;
-        abc.split('\n').forEach(function (line) {
-            var start = pos;
+        // 1er passage : les notes de la voix, ligne par ligne, et leur temps écrit (en ronde). Les
+        // blocs de voix sont ceux de `splitVoices` (la lecture des pistes) ; il garde toutes les
+        // lignes dans l'ordre, d'où la position de chacune dans le texte d'origine.
+        var parts = splitVoices(abc), lines = [], pos = 0, clock = 0;
+        parts.head.forEach(function (line) { pos += line.length + 1; });
+        var body = [];
+        parts.blocks.forEach(function (b) {
+            b.lines.forEach(function (line) { body.push({ id: b.id, line: line }); });
+        });
+        body.forEach(function (entry) {
+            var line = entry.line, start = pos;
             pos += line.length + 1;
-            if (/^K:/.test(line)) { inBody = true; return; }
-            if (!inBody) return;
-            if (/^V:/.test(line)) { current = line.replace(/^V:\s*/, '').split(/\s+/)[0]; return; }
-            if (current !== voice || !line.trim() || /^[A-Za-z]:|^%/.test(line)) return;
+            if (entry.id !== voice || !line.trim() || /^[A-Za-z]:|^%/.test(line)) return;
             var notes = [], countable = true;
             line.split('|').forEach(function (segment) {
                 var bar = segment.replace(/^[\]:]+/, '').replace(/[\[:]+$/, '');

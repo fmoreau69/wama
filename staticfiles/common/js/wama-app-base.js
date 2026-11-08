@@ -56,6 +56,7 @@
          + 'Un modèle trop gros pour la mémoire libre peut mettre plusieurs minutes : '
          + 'réessayez, ou choisissez un modèle plus léger.',
       502: 'Le serveur a coupé la connexion (502). Le traitement a peut-être été interrompu.',
+      401: 'Connexion requise (401) — session expirée ? Reconnectez-vous.',
       403: 'Accès refusé (403) — session expirée ? Rechargez la page.',
       500: 'Erreur interne du serveur (500). Elle est journalisée côté serveur.',
     };

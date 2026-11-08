@@ -543,9 +543,7 @@ def _heard_lyrics(gen, ctx, audio_abs: str, *, score: str = '', field: str,
     out['output_ref'] = rel
     out['label'] = f"{len(timed['words'])} mots" + ('' if timed['aligner'] else ' (heures estimées)')
     said = (f"[Composer] ✓ Paroles entendues ({heard.language or 'langue inconnue'}, "
-            f"{len(timed['words'])} mots horodatés"
-            + (f", recalés par {timed['aligner']}" if timed['aligner'] else f" — {timed['reason']}")
-            + ")")
+            f"{len(timed['words'])} mots horodatés). {timed['said']}")
     if _lyrics_field_open(gen):
         out['fields']['lyrics'] = lyrics
         said += f", posées dans « Paroles », à relire dans ⚙ :\n{lyrics}"
@@ -557,13 +555,10 @@ def _lyrics_field_open(gen) -> bool:
     """Le champ « Paroles » attend-il des paroles ENTENDUES ? Vide, sans paroles balisées dans la
     consigne (elles priment : on les doublerait), et la voix n'est pas « Instrumental » (elles ne
     seraient pas chantées). Les paroles horodatées, elles, se rangent toujours — pour la partition."""
-    from wama.common.backends.music_generation_base import tagged_lyrics
     from .utils import vocals
-    if str(gen.lyrics or '').strip():
-        return False
     if vocals.normalize(getattr(gen, 'vocals', None)) == vocals.INSTRUMENTAL:
         return False
-    return not tagged_lyrics(getattr(gen, 'prompt', '') or '')[1]
+    return not vocals.has_lyrics(getattr(gen, 'prompt', ''), gen.lyrics)
 
 
 def _plan(gen, ctx):

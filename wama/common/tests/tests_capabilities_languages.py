@@ -416,3 +416,25 @@ class QwenAsrAvailabilityTest(TestCase):
         self.assertEqual('fr', Q._wama_language('French'))
         self.assertEqual('fr', Q._wama_language('French,English'), "a merged detection keeps the first")
         self.assertEqual('', Q._wama_language(''))
+
+
+class PivotLanguageTest(TestCase):
+    """`lang_routing.pivot_language` (2026-11-08) : ONE rule for the fallback language a model
+    accepts — read by the translation pivot and by the language of the lyrics to write."""
+
+    def test_english_when_the_model_takes_it_else_its_first_language(self):
+        from wama.common.utils.lang_routing import pivot_language, resolve_language_routing
+        self.assertEqual('en', pivot_language(['zh', 'en']))
+        self.assertEqual('en', pivot_language(['*']))
+        self.assertEqual('zh', pivot_language(['zh', 'ja']))
+        self.assertEqual('zh', resolve_language_routing(['zh', 'ja'], input_lang='fr')['input_pivot'])
+
+    def test_the_lyrics_language_falls_back_on_the_same_pivot(self):
+        from types import SimpleNamespace
+        from wama.common.utils.app_metadata import lyrics_language
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key='huggingface:org/ZhSinger', name='ZhSinger',
+                               source='huggingface', capabilities={'languages': ['zh', 'ja']})
+        french = SimpleNamespace(profile=SimpleNamespace(preferred_language='fr'))
+        self.assertEqual('zh', lyrics_language('huggingface:org/ZhSinger', french))
+        self.assertEqual('fr', lyrics_language('auto:text-to-music', french), 'auto: the profile')

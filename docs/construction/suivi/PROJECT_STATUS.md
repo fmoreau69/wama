@@ -29196,3 +29196,15 @@ mots de l'aligneur.
 - 🔚 Reste : smoke navigateur du bouton et des paroles sous la partition (après migration + relance) ;
   la chaîne Reader → Composer (OMR, typage de document) ; le curseur rapide/qualité inerte sur la
   musique (un seul modèle mesuré — décision de Fabien).
+- **Revérification du 2026-11-08 (après `ef82459ba`)** — cinq recopies ramenées à leur domicile :
+  le bouton passe par `WamaApp.csrfFetch` + `jsonOrExplain` (qui gagne le message du 401) au lieu
+  d'un `fetch` à en-tête recopié ; la phrase de l'étage B est celle des trois appelants
+  (`alignment_said`, rendue par `timed_words`), et la docstring de `timed_words` ne prétend plus
+  que le transcriber et l'avatar faisaient sa composition (chacun a son étage A) ; la langue de
+  repli des paroles lit le pivot de traduction (`lang_routing.pivot_language`, extrait) ; « des
+  paroles sont données » est UNE lecture (`vocals.has_lyrics`, lue par la voix voulue, l'étape et
+  le champ) ; `WamaScore.withLyrics` lit les voix par `splitVoices`. Gardes : `PivotLanguageTest`
+  (neuf — le pivot n'avait aucun test), `tests_acoustic_alignment` (phrase) ; 764 tests du
+  périmètre + 111 des gardes transverses verts ; 3 contre-épreuves, 3 rouges. 🔚 consigné
+  (`WAMA_LLM.md`) : sous « auto », le bouton écrit dans la langue du profil, l'étape dans celle du
+  modèle tiré.

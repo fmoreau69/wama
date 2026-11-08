@@ -35,6 +35,14 @@ def _handles(langs, lang):
     return '*' in langs or lang in langs
 
 
+def pivot_language(langs):
+    """La langue de repli qu'un modèle accepte : l'anglais s'il le gère, sinon sa première langue
+    déclarée. Une règle, deux lecteurs : le pivot de traduction (ci-dessous) et la langue des
+    paroles à écrire (`app_metadata.lyrics_language`, 2026-11-08)."""
+    langs = list(langs or ['*'])
+    return 'en' if _handles(langs, 'en') else next((l for l in langs if l != '*'), 'en')
+
+
 def resolve_language_routing(model_langs, input_lang=None, output_lang=None,
                              has_text_input=True, has_text_output=True):
     """
@@ -47,11 +55,7 @@ def resolve_language_routing(model_langs, input_lang=None, output_lang=None,
     langs = list(model_langs or ['*'])
     known = bool(langs) and langs != ['*'] or '*' in langs  # '*' compte comme "connu = multilingue"
     multilingual = '*' in langs
-    # Pivot que le modèle accepte (préférer l'anglais).
-    if _handles(langs, 'en'):
-        pivot = 'en'
-    else:
-        pivot = next((l for l in langs if l != '*'), 'en')
+    pivot = pivot_language(langs)   # pivot que le modèle accepte (préférer l'anglais)
 
     in_tr = bool(has_text_input and input_lang and not _handles(langs, input_lang))
     out_tr = bool(has_text_output and output_lang and not _handles(langs, output_lang))

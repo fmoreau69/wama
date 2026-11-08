@@ -103,13 +103,10 @@ def _lyrics_to_write(gen, model_key) -> bool:
     ni sur la card, ni dans le prompt. Des paroles posées ne se réécrivent JAMAIS. Que le modèle
     CHANTE est une capacité (`needs=SINGS`). Celles qu'on écoute dans un morceau repris arrivent
     avant (`extract_lyrics`) : l'étape ne fait alors rien, et le dit."""
-    if str(getattr(gen, 'lyrics', '') or '').strip():
-        return False
-    from wama.common.backends.music_generation_base import tagged_lyrics
     from .utils import vocals
     if vocals.normalize(getattr(gen, 'vocals', None)) != vocals.SONG:
         return False
-    return not tagged_lyrics(getattr(gen, 'prompt', '') or '')[1]
+    return not vocals.has_lyrics(getattr(gen, 'prompt', ''), getattr(gen, 'lyrics', ''))
 
 
 def _lyrics_extract_applies(gen, model_key) -> bool:

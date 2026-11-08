@@ -228,7 +228,11 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   `WamaParams`, route commune `common:write_lyrics`) : il remplit le champ à l'écran, l'utilisateur
   relit et enregistre. Les deux passent la **durée** du morceau au LLM (« Length of the song »,
   `write_lyrics_for(duration=…)`) et la langue que le modèle chante (`app_metadata.lyrics_language`).
-  La lecture de la consigne (`vocals.prepare_prompt`) n'écrit plus rien. Qui chante : la
+  La lecture de la consigne (`vocals.prepare_prompt`) n'écrit plus rien. « Des paroles sont
+  données » est UNE lecture (`vocals.has_lyrics`), et la langue de repli celle du pivot de
+  traduction (`lang_routing.pivot_language`). ⚠ Sous « auto », le bouton ne connaît pas encore le
+  modèle qui sera tiré : il écrit dans la langue du profil, l'étape dans une langue que le modèle
+  TIRÉ chante (consigné le 2026-11-08 ; la prévision du tirage le lèverait). Qui chante : la
   capacité `supports_vocals` du MODÈLE, déclarée par son manifeste (YuE2, MiniMax-Music3 ; ACE-Step
   aussi depuis le 2026-10-05, mais sans backend musical il est dit inlançable — contrat de tâche
   `text-to-music` devenu LIANT le même jour —, donc ni tiré ni proposé sans grisage) ; « Chanson »

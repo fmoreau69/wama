@@ -265,7 +265,7 @@ def lyrics_language(model_key, user) -> str:
     du profil. Remontée du composer le 2026-11-08 : le bouton « Écrire les paroles » (commun) et
     l'étape du pipeline posent la même question — catalogue et profil, rien de propre à une app."""
     from wama.common.utils.auto_model import is_auto
-    from wama.common.utils.lang_routing import model_languages
+    from wama.common.utils.lang_routing import model_languages, pivot_language
     from wama.common.utils.prompt_pipeline import _user_lang
     mine = _user_lang(user)
     if not model_key or is_auto(model_key):
@@ -281,7 +281,7 @@ def lyrics_language(model_key, user) -> str:
     langs = model_languages(caps, mtype)
     if '*' in langs or mine in langs:
         return mine
-    return 'en' if 'en' in langs else next((lang for lang in langs if lang != '*'), 'en')
+    return pivot_language(langs)
 
 
 def write_lyrics_for(app, field, description, *, language='en', timeout=90, user=None,

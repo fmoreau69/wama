@@ -2180,8 +2180,9 @@
 
   // « ✍️ Écrire … » sous un champ qui le DÉCLARE (`Param.write_from`, 2026-11-08) : la description
   // (`source`), la durée (`duration`) et le modèle (`model`) de CE rendu partent à la route commune
-  // (`common:api_write_lyrics`, la fonction de l'étape du pipeline) ; le texte rendu remplit le champ,
-  // à relire et enregistrer comme une saisie. Un seul écouteur délégué par conteneur.
+  // (`common:write_lyrics`, la fonction de l'étape du pipeline) ; le texte rendu remplit le champ,
+  // à relire et enregistrer comme une saisie. Un seul écouteur délégué par conteneur. L'appel passe
+  // par les briques de `wama-app-base.js` (`csrfFetch`, `jsonOrExplain` : une page d'erreur se DIT).
   var WRITE_ENDPOINT = '/common/api/write-lyrics/';
 
   function _bindWriteFrom(container) {
@@ -2199,17 +2200,20 @@
       var cfg = JSON.parse(btn.getAttribute('data-write-from') || '{}');
       if (!field) return;
       var App = global.WamaApp || {};
-      var token = App.csrfToken ? App.csrfToken() : '';
       var label = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Écriture…';
-      fetch(WRITE_ENDPOINT, {
+      var opts = {
         method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': token },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ app: cfg.app || '', target: cfg.target || '',
                                description: valueOf(cfg.source), duration: valueOf(cfg.duration),
                                model: valueOf(cfg.model) })
-      }).then(function (r) { return r.json(); }).then(function (res) {
+      };
+      var send = App.csrfFetch
+        ? App.csrfFetch(WRITE_ENDPOINT, App.csrfToken ? App.csrfToken() : '', opts)
+        : global.fetch(WRITE_ENDPOINT, opts);
+      send.then(App.jsonOrExplain || function (r) { return r.json(); }).then(function (res) {
         if (res && res.lyrics) {
           field.value = res.lyrics;
           field.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2217,8 +2221,8 @@
         } else if (App.toast) {
           App.toast((res && res.error) || 'Paroles non écrites.', 'warning');
         }
-      }).catch(function () {
-        if (App.toast) App.toast('Paroles non écrites : le serveur ne répond pas.', 'warning');
+      }).catch(function (err) {
+        if (App.toast) App.toast('Paroles non écrites : ' + ((err && err.message) || 'le serveur ne répond pas.'), 'warning');
       }).then(function () { btn.disabled = false; btn.innerHTML = label; });
     });
   }
