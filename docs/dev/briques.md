@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**233 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**234 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1068,7 +1068,7 @@ La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studi
   - `rendered_formats(surface: str, instance) -> list` — `[{format, label, icon}]` — les formats que cette card late-binding sait RENDRE, dans
   - `format_destinations(user, formats) -> list` — Chaque format, avec les apps qui reçoivent son extension (`destinations` : les trois
   - `render_for_sending(surface: str, elements, formats, user) -> list` — Rend chaque format de chaque élément, et range le fichier dans les sorties de l'app de
-  - `item_for_output_path(user, chemin: str, *, visible: bool=False)` — L'élément dont `chemin` (relatif à `media/`) est une SORTIE déclarée — `(surface,
+  - `item_for_output_path(user, chemin: str, *, visible: bool=False, carried: bool=False)` — L'élément dont `chemin` (relatif à `media/`) est une SORTIE déclarée — `(surface,
   - `destinations(user, chemins, partiel: bool=False) -> list` — Apps qui savent RECEVOIR ces fichiers. Trois conditions, toutes nécessaires.
   - `destinations_dossier(user) -> list` — Apps qui savent recevoir un DOSSIER entier : importeur + accès (`_apps_receveuses`).
 
@@ -1230,8 +1230,9 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (22) :
+- **API publique** (23) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
+  - `declared_vision(model_key: str) -> bool` — La famille de `model_key` est-elle DÉCLARÉE voir (`REMOTE_VISION_FAMILIES`) ?
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
   - `type_from_modalities(architecture: dict) -> str` — Type (tag HuggingFace) d'un modèle décrit par ses MODALITÉS — la forme d'OpenRouter
@@ -1971,7 +1972,7 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 - **Domicile** : `wama/common/services/backend_proposals.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : BACKENDS PROPOSÉS par le rôle `backend` (marche B2) — contrôles, résolution simulée, smoke, puis le geste « Valider » qui ÉCRIT le module dans `wama/common/backends/`.
-- **API publique** (17) :
+- **API publique** (18) :
   - `backends_dir() -> Path`
   - `outputs_dir() -> Path`
   - `contract_for_task(task: str) -> tuple` — (module, classe) du contrat qu'un backend écrit pour `task` doit implémenter.
@@ -1984,6 +1985,7 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
   - `smoke_speech_clip()` — `(SystemAsset de parole, chemin de sa référence | None)` de l'extrait du smoke, ou
   - `smoke_score_clip(path, rate: int=22050) -> str` — Écrit la mélodie du smoke dans `path` (WAV) et rend ses NOMS de notes attendus (`CDEF…`).
   - `abc_note_names(abc: str) -> str` — Noms des notes d'un texte ABC, dans l'ordre et sans octave (`C4D4|c2` → `CDC`) — en-têtes,
+  - `smoke_face_image()` — Le chemin d'un PORTRAIT de la médiathèque système (`SystemAsset`, type `avatar` — ceux de
   - `smoke_orientation_page()` — (page droite, page tournée de `SMOKE_ORIENTATION_TURN`) — des lignes de texte dessinées, la
   - `pending() -> list` — Propositions de backend en attente : `outputs/backend_*.json` au statut PENDING.
   - `refusals(name: str) -> list` — Ce que « Valider » refuserait de ce backend proposé MAINTENANT — les contrôles qu'`apply`
@@ -2092,7 +2094,7 @@ Une image par page, rendue à la résolution demandée dans un dossier FOURNI pa
 
 ### Manifestes
 
-Extraction/validation/projection des 7 kinds vers les registres. Le corpus versionné suit le registre À CHAUD par UNE porte (`corpus.follow` : installation, validation d'une proposition, désinstallation — 2026-10-12), que le runner de tests coupe ; un modèle suivi entraîne, en tâche de fond, les manifestes d'app qui le citent ou doivent le citer (`corpus.follow_apps`, 2026-11-02)
+Extraction/validation/projection des 7 kinds vers les registres. Le corpus versionné suit le registre À CHAUD par UNE porte (`corpus.follow` : installation, validation d'une proposition, désinstallation — 2026-10-12), que le runner de tests coupe ; un modèle suivi entraîne, en tâche de fond, les manifestes d'app qui le citent ou doivent le citer (`corpus.follow_apps`, 2026-11-02). Les DEUX sens sont gardés contre la perte (`manifests/losses.py`, 2026-11-08) : un export qui retirerait un fait du fichier actuel, ou une application qui le retirerait des registres, est refusé sans acceptation explicite (`--accept-losses`)
 
 - **Domicile** : `wama/common/manifests/ingest.py` · **doc** : [docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md](../construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md)
 - **Module** : Moteur d'INGEST — validate → (sandbox) store → verify → promote → un-ingest.
@@ -2102,14 +2104,14 @@ Extraction/validation/projection des 7 kinds vers les registres. Le corpus versi
   - `ingest(manifest: dict, *, user=None, promote_to: Optional[str]=None, strict: bool=True)` — Crée ou met à jour la ligne `Manifest` (idempotent sur kind+key).
   - `promote(obj, *, by=None)` — Passe un manifeste AU SYSTÈME : plus de propriétaire, portée publique, demande close.
   - `extract(kind: str, key: str) -> Optional[dict]` — Produit le manifeste d'un objet EXISTANT en lisant les registres courants (round-trip).
-  - `write_back(manifest: dict, *, apply: bool=False)` — Projette (write-back) le manifeste vers l'état committé — geste EXPLICITE, jamais automatique
+  - `write_back(manifest: dict, *, apply: bool=False, accept_losses: bool=False)` — Projette (write-back) le manifeste vers l'état committé — geste EXPLICITE, jamais automatique
   - `verify(manifest: dict) -> list[dict]` — Retourne la liste des écarts entre le manifeste fourni et l'état courant des registres.
   - `un_ingest(kind: str, key: str) -> bool`
   - `diff_dicts(a: Any, b: Any, path: str='') -> list[dict]` — Écarts a(=manifeste) vs b(=courant). Ordre des listes ignoré pour les listes de scalaires.
 
 ### Passe-plat des déclarations de modèle
 
-Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la convention `wama/<app>/utils/model_config.py::<APP>_MODELS`, ne connaît aucune app, et surtout ne touche AUCUNE BASE. ⚠ Le catalogue `AIModel` porte la même information, mais le lire ajouterait une dépendance ORM à chaque backend — or c'est justement l'absence de Django qui les rend déplaçables. On lirait la bonne donnée en détruisant la propriété cherchée
+Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la convention `<paquet de l'app>/utils/model_config.py::<APP>_MODELS` (le paquet que déclare l'app, dans tous les mondes — `wama_lab.face_analyzer` depuis le 2026-11-08), ne connaît aucune app, et surtout ne touche AUCUNE BASE. ⚠ Le catalogue `AIModel` porte la même information, mais le lire ajouterait une dépendance ORM à chaque backend — or c'est justement l'absence de Django qui les rend déplaçables. On lirait la bonne donnée en détruisant la propriété cherchée
 
 - **Domicile** : `wama/common/utils/model_declarations.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lire la DÉCLARATION d'un modèle sans importer l'app qui la porte.
@@ -3046,10 +3048,11 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
-- **API publique** (21) :
+- **API publique** (22) :
   - `is_guest_account(user) -> bool` — Ce compte est-il un compte de SERVICE pour visiteur non connecté — le compte `anonymous`
   - `account_kind(user) -> str` — 'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
   - `app_group(app_id)`
+  - `registry_page_prefixes() -> list` — Les chemins (sans `/` aux bords) des pages que les registres DÉCLARENT — elles se lisent
   - `app_id_for_path(path)` — app_id gardé correspondant à un chemin de requête, ou None.
   - `unguarded_routes(app_id) -> list` — Les routes MONTÉES de l'app (son espace de noms, lu à son `url_name` du catalogue) que
   - `refused_app(user, path, allowed_apps=None)` — L'app gardée que `path` désigne et que `user` (connecté) n'a PAS le droit d'ouvrir, sinon
@@ -3644,16 +3647,26 @@ Une scène DÉCLARE ce qu'elle montre — couches, facteurs de distance pondér�
   - `layer_token(name) -> str` — Le jeton CSS de la pastille d'une couche (`dot`, `glow`) : un nom de la palette de la scène
   - `page_context(scene: Scene, embed: bool) -> dict` — Le contexte du gabarit commun : la déclaration, et l'état de départ de chaque puce.
 
+### Servir `/media/` sous la règle de lecture
+
+`/media/` servi par WAMA quel que soit `DEBUG` : session exigée, chemin confiné, fichier servi si `readable_by` l'accepte (son arbre, administrateur, partage — entrée comprise), dérivé jugé sur son original, par morceaux, bac à sable html/svg ; `/static/` routé de même (2026-11-08, audit de sécurité — l'Alias Apache retiré)
+
+- **Domicile** : `wama/common/utils/media_serving.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md §1.5bis](../construction/exploitation/PROFILES_PERMISSIONS.md)
+- **Module** : Servir `/media/` et `/static/` sans dépendre de `DEBUG` — et `/media/` sous une RÈGLE de lecture.
+- **API publique** (3) :
+  - `media_judged_path(rel: str) -> str` — Le chemin sur lequel se juge la lecture de `rel` : l'original d'un fichier dérivé, sinon
+  - `serve_media(request, path)` — `/media/<path>` — servi au compte qui a le droit de le lire, par morceaux si demandé.
+  - `serve_static(request, path)` — `/static/<path>` — les fichiers collectés (`STATIC_ROOT`), quel que soit `DEBUG`.
+
 ### Servir un fichier par morceaux (HTTP Range)
 
-Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du déjà-téléchargé ; sert `/media/` (`wama/urls.py`) et la vidéo du cam_analyzer, dont la règle a été extraite (2026-10-15)
+Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà du déjà-téléchargé ; sert `/media/` (par `media_serving`) et la vidéo du cam_analyzer, dont la règle a été extraite (2026-10-15)
 
 - **Domicile** : `wama/common/utils/ranged_response.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Servir un fichier PAR MORCEAUX (requêtes HTTP `Range`) — ce qui rend un média SEEKABLE.
-- **API publique** (3) :
+- **API publique** (2) :
   - `parse_range(header: str, size: int)` — `(début, fin)` inclusifs d'un en-tête `Range` à UN intervalle, bornés à la taille ; None si
   - `ranged_file_response(request, path: str, content_type: str | None=None)` — La réponse qui sert `path` — son morceau (206) si la requête en demande un, sinon le
-  - `serve(request, path, document_root=None, show_indexes=False)` — `django.views.static.serve`, plus les requêtes `Range` (206) — le service de `/media/`.
 
 ### Sonde média
 
