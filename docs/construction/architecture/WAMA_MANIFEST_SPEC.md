@@ -802,7 +802,12 @@ par le compteur de TensorFlow (`get_memory_info`) et la mémoire occupée de la 
   servi une tâche PyTorch, il l'est ;*
 - *`TF_FORCE_GPU_ALLOW_GROWTH` n'est posé nulle part : un TensorFlow qui voit la carte en prend
   TOUTE la mémoire à la première analyse (23 579 Mio occupés, 108 Mio utiles) — dans un worker de
-  la queue `gpu` qui a déjà importé PyTorch, c'est le cas, hors du gouverneur ;*
+  la queue `gpu` qui a déjà importé PyTorch, c'est le cas. Le gouverneur le VOIT (il décide sur la
+  carte lue, `card_free_gb` / `card_ceiling_gb`, tous occupants confondus) mais ne sait ni QUI le
+  tient (aucune ligne au registre) ni le lui faire rendre ; et c'est le cas que la doctrine
+  `USE_TF=0` (`scripts/wama_services.sh`, `wama_worker_env` : « WAMA est 100 % PyTorch […] TF
+  saisirait un contexte CUDA parallèle → cudaErrorUnknown en WSL2 ») existe pour éviter — TensorFlow
+  et PyTorch sur la carte dans le MÊME processus ;*
 - *avec la croissance progressive : expression +418 Mio, + âge +2 562, + genre +4 610 Mio sur la
   carte (pic de TensorFlow 1 950 Mio) ; 0,15–0,25 s par image chaude. Et TensorFlow ne REND PAS la
   mémoire : après cache vidé, `clear_session` et ramasse-miettes, son compteur est à 0 et la carte
@@ -814,8 +819,15 @@ gunicorn, une pipeline par image — un TensorFlow sur la carte y garderait jusq
 web, que rien ne rend. ✅ Protection posée (`TF_FORCE_GPU_ALLOW_GROWTH`, `settings.py`, e6ebd66bd).
 ⏳ **Un SERVICE DÉDIÉ au visage, comme la voix** — décisions de Fabien du 2026-11-08 :*
 - *LIBÉRATION : le service S'ARRÊTE quand le gouverneur demande la carte (seul geste qui rende la
-  mémoire de TensorFlow), et il est RELANCÉ À LA DEMANDE (mécanisme neuf : aucun lanceur de service
-  n'existe ; `start_wama_prod.sh` seul les démarre) ;*
+  mémoire de TensorFlow), et il est RELANCÉ À LA DEMANDE — par la surveillance qui existe déjà pour
+  les workers (`scripts/worker_watchdog.sh` : mort = processus disparu, budget de relances, rapport
+  `worker_died`, relance par la fonction de démarrage de `scripts/wama_services.sh`), ÉTENDUE aux
+  services, dont la commande de démarrage rejoint `wama_services.sh` (elle est aujourd'hui en ligne
+  dans `start_wama_prod.sh`, pour la voix, les vecteurs, la confidentialité). *Corrigé le jour même
+  à la relecture du gouverneur : cette ligne disait « mécanisme neuf, aucun lanceur n'existe ».* Le
+  service charge TensorFlow SEUL (aucun PyTorch dans son processus : hors du cas de `USE_TF=0`) et
+  ses backends déclarent `SERVED_BY` (le processus qui charge, `base.py`), comme la voix et la
+  confidentialité ;*
 - *REPLI, service éteint ou en démarrage : le même moteur dans le processus appelant, TensorFlow tenu
   HORS de la carte (processeur) — aucune mémoire de carte dans un worker web ;*
 - *PÉRIMÈTRE : DeepFace ET FER (tout TensorFlow dans un seul processus) ;*

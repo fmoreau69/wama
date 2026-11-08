@@ -17,6 +17,7 @@ import logging
 from typing import Optional
 
 from .end_of_turn_base import EndOfTurnBackend
+from .tts_base import TTS_SERVICE
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,11 @@ class SmartTurnBackend(EndOfTurnBackend):
 
     #: Ce que la recette écoute : les 8 DERNIÈRES secondes, complétées de silence au début.
     window_seconds = 8
+
+    #: Le PROCESSUS qui le charge, pour tous (`BaseModelBackend.SERVED_BY`) : le service de voix,
+    #: comme ses moteurs (`tts_base.TTS_SERVICE`) — le gouverneur cherche ses résidents là, pas dans
+    #: le processus qui demande l'avis (`resource_governor.served_resident_gb`).
+    SERVED_BY = TTS_SERVICE
 
     #: Le processeur, déclaré : la variante int8 est faite pour lui, et la carte reste à la voix.
     #: L'enveloppe du gouverneur ne publie rien.

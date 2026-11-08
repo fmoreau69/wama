@@ -60,6 +60,13 @@ class EndOfTurnThroughTheCommonContractTest(TestCase):
         self.assertEqual({'runtime': {'engine': 'onnxruntime'}},
                          merged_composition(prior, registry._models[MODEL_KEY].composition))
 
+    def test_the_model_is_served_by_the_voice_service(self):
+        """Le juge se charge dans le service de voix, pour tous : le gouverneur l'y cherche — par le
+        backend RÉSOLU, comme son appelant (`task_skeleton`, `served_resident_gb`)."""
+        from wama.common.backends.manager import backend_for_key, served_by_for_key
+        from wama.common.backends.tts_base import TTS_SERVICE
+        self.assertEqual(TTS_SERVICE, served_by_for_key(MODEL_KEY, backend_for_key(MODEL_KEY)))
+
     def test_the_voice_service_keeps_one_instance_of_the_backend(self):
         from wama.common.backends.smart_turn_backend import SmartTurnBackend
         from wama.common.tts import service
