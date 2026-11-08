@@ -226,6 +226,14 @@ def unwrap_format_fences(text: str) -> str:
     return '\n'.join(kept).strip() if len(kept) != len(lines) else text
 
 
+def page_scale(page: dict, width: float, height: float) -> tuple:
+    """`(sx, sy)` : des coordonnées d'une page de `OCRBackend.read_lines` (dans SON unité, points ou
+    pixels) à celles d'une page de `width` × `height` — la page d'un PDF qu'on réécrit
+    (`document_text`), l'image qu'un moteur de partition lit (copisteria). Une page sans taille
+    déclarée est prise à l'échelle 1."""
+    return (width / float(page.get('width') or width), height / float(page.get('height') or height))
+
+
 class OCRBackend(BaseModelBackend):
     """Un moteur d'OCR : un document (PDF ou image) → son texte."""
 

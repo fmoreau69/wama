@@ -84,9 +84,9 @@ def _texts(page: Optional[dict], image_size) -> Optional[list]:
     unité (points d'un PDF, pixels d'une image) ; None sans page."""
     if not page or not page.get('lines'):
         return None
+    from wama.common.backends.ocr_base import page_scale
     from wama.common.utils.musicxml_score import repeat_words
-    sx = image_size[0] / float(page.get('width') or image_size[0])
-    sy = image_size[1] / float(page.get('height') or image_size[1])
+    sx, sy = page_scale(page, *image_size)
     out = []
     for line in page['lines']:
         role = TEXT_ROLE_NAMES.get(line.get('role'))

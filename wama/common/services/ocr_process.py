@@ -46,6 +46,24 @@ def positioned_ocr_keys() -> list:
     return out
 
 
+def positioned_ocr_backend(item, ctx):
+    """`(clé, moteur)` de l'OCR qui rend la place du texte pour `item` : TIRÉ parmi les modèles
+    installés dont le moteur la rend (`positioned_ocr_keys`, choix commun `resolve_model_choice`),
+    DEMANDÉ À LA ROUTE (`ctx.ensure_model` : absent, il s'installe et la tâche attend), puis
+    instancié — `(None, None)` quand aucun n'est installé. Lu par ce process et par la lecture
+    de partition du Reader (titre, numéro de page, « x3 », 2026-11-08) : un choix, deux lecteurs.
+    Un refus d'installation (`ModelInstallRefused`) remonte à l'appelant, qui dit ce qu'il en fait."""
+    from wama.common.backends.manager import backend_instance_for_key
+    from wama.common.utils.auto_model import resolve_model_choice
+    candidates = positioned_ocr_keys()
+    if not candidates:
+        return None, None
+    key = resolve_model_choice('auto', spec={'task': 'ocr'}, candidates=candidates,
+                               item=item, fallback=candidates[0]) or candidates[0]
+    ctx.ensure_model(key)
+    return key, backend_instance_for_key(key, user=getattr(item, 'user', None))
+
+
 def ocr_step(source_field: str, output_field: str):
     """La GLU du process OCR, au contrat du squelette (`glu(item, ctx) -> dict`).
 
@@ -53,7 +71,6 @@ def ocr_step(source_field: str, output_field: str):
     ranger les lignes lues (un JSON `{'model', 'pages': {page: page du contrat}}`)."""
 
     def step(item, ctx):
-        from wama.common.utils.auto_model import resolve_model_choice
         from wama.common.utils.document_text import (native_figures, pages_without_text,
                                                      read_figure_text, read_pages_without_text)
         source = getattr(item, source_field, None)
@@ -67,16 +84,11 @@ def ocr_step(source_field: str, output_field: str):
             ctx.console("OCR : chaque page porte son texte, aucune image — rien à lire")
             return {'fields': {output_field: None}, 'label': 'Rien à lire',
                     'output_fingerprint': 'no-page'}
-        candidates = positioned_ocr_keys()
-        if not candidates:
+        key, backend = positioned_ocr_backend(item, ctx)
+        if not key:
             raise RuntimeError("OCR : aucun modèle d'OCR installé ne rend la place du texte "
                                "(docTR, par exemple)")
-        key = resolve_model_choice('auto', spec={'task': 'ocr'}, candidates=candidates,
-                                   item=item, fallback=candidates[0]) or candidates[0]
         ctx.console(f"OCR : {len(pages)} page(s) sans texte, {figures} image(s), moteur {key}")
-        ctx.ensure_model(key)
-        from wama.common.backends.manager import backend_instance_for_key
-        backend = backend_instance_for_key(key, user=getattr(item, 'user', None))
         ctx.progress(10, f"Lecture de {len(pages)} page(s) scannée(s) et {figures} image(s)…")
         read = read_figure_text(path, backend.read_lines) if figures else {}
         if pages:

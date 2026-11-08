@@ -182,10 +182,9 @@ def _shown_title(reading, batch_readings=None) -> str:
     # Seule une page lue comme partition hérite d'un titre (une card de texte ne paie aucune requête).
     if not title and reading.read_as_score:
         if batch_readings is None:
-            link = BatchReadingItemLink.objects.filter(reading=reading).only('batch_id').first()
-            batch_readings = ([l.reading for l in BatchReadingItemLink.objects.filter(
-                batch_id=link.batch_id).select_related('reading') if l.reading]
-                if link else [])
+            from wama.common.utils.batch_common import batch_elements, batch_of
+            batch = batch_of(reading)
+            batch_readings = batch_elements(batch, ReadingItem) if batch else []
         title = content_title(batch_readings)
     if title and reading.score_page and getattr(reading.score_file, 'name', ''):
         title = f"{title} — p. {reading.score_page}"

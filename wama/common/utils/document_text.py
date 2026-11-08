@@ -313,9 +313,10 @@ OCR_JOIN = '\n'
 
 def _ocr_scale(page, ocr_page) -> tuple:
     """(sx, sy) : des coordonnées d'un OCR (l'unité de SA page, `OCRBackend.read_lines`) aux points
-    de la page du PDF — lue par les deux lectures de ses lignes (`_ocr_words`, `_ocr_lines`)."""
-    return (page.rect.width / (ocr_page.get('width') or page.rect.width),
-            page.rect.height / (ocr_page.get('height') or page.rect.height))
+    de la page du PDF — lue par les deux lectures de ses lignes (`_ocr_words`, `_ocr_lines`) ;
+    l'échelle est celle du contrat (`ocr_base.page_scale`)."""
+    from wama.common.backends.ocr_base import page_scale
+    return page_scale(ocr_page, page.rect.width, page.rect.height)
 
 
 def _ocr_words(page, ocr_page) -> list:

@@ -2124,8 +2124,9 @@ Le process OPTIONNEL d'une app qui réécrit un document en gardant sa forme (20
 
 - **Domicile** : `wama/common/services/ocr_process.py` · **doc** : [docs/construction/suivi/ROADMAP.md §10.B](../construction/suivi/ROADMAP.md)
 - **Module** : Le process « OCR des scans et des images » d'une card — commun aux apps qui réécrivent un document en gardant sa forme (2026-10-29, décision de Fabien : « une étape optionnelle, son interrupteur s'adapte à l'entrée »). Le Translator d'abord ; le domaine document de l'Anonymizer ensuite.
-- **API publique** (3) :
+- **API publique** (4) :
   - `positioned_ocr_keys() -> list` — Les clés de catalogue des modèles d'OCR dont le MOTEUR rend la place du texte
+  - `positioned_ocr_backend(item, ctx)` — `(clé, moteur)` de l'OCR qui rend la place du texte pour `item` : TIRÉ parmi les modèles
   - `ocr_step(source_field: str, output_field: str)` — La GLU du process OCR, au contrat du squelette (`glu(item, ctx) -> dict`).
   - `read_ocr_file(item, field: str)` — Les lignes rangées par le process OCR (`{page: page du contrat}`), à passer à la couche
 

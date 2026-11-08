@@ -29302,6 +29302,13 @@ de MESURE ; chaque pièce suit un patron en service :
 - Tests : +20 (`tests_score_reading` +15, `tests_score` +5, une garde existante adaptée au contrat) ;
   22 contre-épreuves, 22 rouges — dont une garde d'abord AVEUGLE (la perte de l'EXIF dans la sonde
   était rattrapée par son quart de tour ; la garde lit désormais la page mesurée).
+- **Revérification (même jour, `/reverif`)** — trois DÉCISIONS de ma main que WAMA prenait déjà,
+  ramenées : (1) le choix de l'OCR à positions (tirage, demande à la route, instance) recopiait
+  `ocr_process.ocr_step` → `ocr_process.positioned_ocr_backend`, que les deux lisent ; (2) la card
+  relisait son lot à la main → `batch_common.batch_of` + `batch_elements` ; (3) l'échelle des
+  boîtes d'une page de `read_lines` vers l'image lue recopiait `document_text._ocr_scale` →
+  `ocr_base.page_scale`, à côté du contrat, que les deux lisent. 3 contre-épreuves rouges ; suites
+  du lecteur, du traducteur et de l'anonymizer (qui empruntent `ocr_step`) vertes.
 - 🔚 Reste : la lecture de la batterie elle-même reste partielle (têtes en croix non distinguées par
   le détecteur, instruments non nommés dans l'ABC, « % » de deux mesures recopié sur une seule par la
   librairie) ; le MANUSCRIT n'est pas l'objet de copisteria ; un OCR à positions qui lise l'écriture

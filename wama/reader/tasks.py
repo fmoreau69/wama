@@ -343,31 +343,25 @@ def _upright_work_file(item, folder: str) -> str:
 
 def _score_page_texts(item, ctx, work_file: str, folder: str):
     """`(fichier, page_texts)` d'une page de partition : son TEXTE lu avec sa place par un OCR qui la
-    rend (`ocr_process.positioned_ocr_keys`, tiré comme le process OCR commun), chaque ligne munie
+    rend (`ocr_process.positioned_ocr_backend`, le choix du process OCR commun), chaque ligne munie
     de son rôle (`score_page.text_roles`) — titre, compositeur, numéro de page, « x3 ».
 
     Une IMAGE se lit dans ses DEUX SENS et garde le meilleur (`score_page.text_quality`) : le
     classifieur d'orientation, appris sur du texte, retourne une partition droite (mesuré le
     2026-11-08, page 2 de « Nothing Else Matters ») ; c'est alors la page tournée qui part au moteur.
     Le titre est un confort : sans OCR installé, ou s'il échoue, la page se lit sans texte."""
-    from wama.common.backends.manager import backend_instance_for_key
-    from wama.common.services.ocr_process import positioned_ocr_keys
-    from wama.common.utils.auto_model import resolve_model_choice
+    from wama.common.services.ocr_process import positioned_ocr_backend
     from wama.common.utils.model_readiness import ModelInstallRefused
     from wama.common.utils.score_page import half_turned, text_quality, text_roles
-    candidates = positioned_ocr_keys()
-    if not candidates:
-        ctx.console("[Reader] Aucun OCR ne rend la place du texte : la partition se lit sans titre.")
-        return work_file, None
-    key = resolve_model_choice('auto', spec={'task': 'ocr'}, candidates=candidates, item=item,
-                               fallback=candidates[0]) or candidates[0]
     try:
-        ctx.ensure_model(key)
+        key, engine = positioned_ocr_backend(item, ctx)
     except ModelInstallRefused as exc:
         ctx.console(f"[Reader] Texte de la partition non lu ({exc}).")
         return work_file, None
+    if not key:
+        ctx.console("[Reader] Aucun OCR ne rend la place du texte : la partition se lit sans titre.")
+        return work_file, None
     try:
-        engine = backend_instance_for_key(key, user=item.user)
         pages = engine.read_lines(work_file)
         if not work_file.lower().endswith('.pdf') and pages:
             turned = half_turned(work_file, folder)
