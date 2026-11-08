@@ -222,8 +222,9 @@ class PollerLoopTest(SimpleTestCase):
             window.WamaGlobalProgress.init({url: '/composer/global-progress/'});
             answer({total: 5, done: 3, stale: 1, running: 1, failed: 1, overall_progress: 40});
         """)
-        self.assertEqual('2/5 terminé · 1 périmé · 1 en cours · 1 échoué',
-                         self._js('els.globalProgressStats.textContent'))
+        answer = self._js('els.globalProgressStats.textContent')
+        self.assertEqual('2/5 terminé · 1 en cours · 1 périmé · 1 échoué', answer,
+                         'the order : done, running, stale, failed last (Fabien, 2026-11-08)')
         self.assertEqual(1, self._js('window.WamaQueueStats.stale'))
 
 

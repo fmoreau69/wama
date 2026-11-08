@@ -29341,7 +29341,8 @@ de MESURE ; chaque pièce suit un patron en service :
 
 - **Demande de Fabien** : « ajouter à la barre de progression globale le nombre de cards périmées,
   en plus de terminé, en cours, échoué ». Texte commun (`wama-global-progress.js`) :
-  « X/Y terminé · N périmé · N en cours · N échoué ». Le serveur (`progress_views._counts`) compte
+  « X/Y terminé · N en cours · N périmé · N échoué » (ordre précisé par Fabien le soir même :
+  ce qui est fait, ce qui tourne, ce qui est à refaire, l'échec en dernier). Le serveur (`progress_views._counts`) compte
   les réussis dont une ligne de process est PÉRIMÉE en UNE requête (`process_runs.stale_ids`) —
   la péremption est écrite sur les lignes par `AppPipeline.refresh` à chaque rendu de card : la
   barre dit ce que les cards disent, sans recalcul par card à chaque tour. Un réussi périmé GARDE
