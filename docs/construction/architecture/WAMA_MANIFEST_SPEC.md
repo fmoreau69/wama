@@ -786,18 +786,41 @@ modèles par CLÉ du catalogue, chacun par la porte commune. Le reconnaisseur de
 navigateur. Dérives vues en chemin, non soldées : le Face Analyzer tire DeepFace — son moteur
 d'émotions PAR DÉFAUT (`pipeline.py:48`), fonctionnel — par `EmotionRecognizer` directement
 (`pipeline.py`, `common/backends/emotions.py`), à côté de `DeepFaceBackend`, qui n'a aucun appelant :
-le chemin de l'app ne passe pas par la porte commune. *Corrigé le 2026-11-08, à la mesure (Fabien :
-« on ne suppose pas ») : cette ligne disait que DeepFace « échappe au gouverneur » avec 2,5 Go.
-FAUX sur `venv_linux` : TensorFlow 2.21 y est compilé avec CUDA mais ne voit AUCUNE carte (« Cannot
-dlopen some GPU libraries », `list_physical_devices('GPU') == []`, même environnement dans les
-workers) ; DeepFace tourne sur le PROCESSEUR, 0 Mio de VRAM mesuré (`nvidia-smi`), émotions comme
-âge et genre — il n'y a rien à échapper. Ce qui ne correspond pas à la mesure : les 2,5 Go
-déclarés par `DeepFaceBackend` et les 0,3 / 1,0 Go des trois lignes ; et que TensorFlow n'ait pas
-ses bibliothèques GPU est un état d'installation à trancher, pas un constat à corriger en
-silence.* ; pyannote garde sa propre
+le chemin de l'app ne passe pas par la porte commune. *Corrigé deux fois le 2026-11-08, à la mesure
+(Fabien : « on ne suppose pas ») — cette ligne disait que DeepFace « échappe au gouverneur » avec
+2,5 Go, puis qu'il tourne sur le processeur avec « 0 Mio mesuré par `nvidia-smi` » : sous WSL,
+`nvidia-smi` ne donne PAS la mémoire par processus (`[N/A]`), ce chiffre ne prouvait rien. Mesuré
+par le compteur de TensorFlow (`get_memory_info`) et la mémoire occupée de la carte :*
+- *TensorFlow 2.21 voit la carte, ou non, selon l'ORDRE DES IMPORTS du processus. Sa
+  `libcusparse.so.12` (roue `nvidia-cusparse-cu12` 12.5.8.93) demande `__nvJitLink*_12_8` ; le
+  processus résout `libnvJitLink.so.12` par le cache du système, qui donne la copie du CUDA 12.0
+  d'Ubuntu (`/usr/lib/x86_64-linux-gnu/libnvJitLink.so.12.0.140`, paquet apt `libnvjitlink12`,
+  dépendance de `nvidia-cuda-toolkit` 12.0) au lieu de celle de la roue (12.8.93) — « Cannot dlopen
+  some GPU libraries », aucune carte. PyTorch, importé AVANT, précharge la copie de sa roue
+  (`torch/__init__._load_global_deps`, qui documente ce même défaut des roues « slim ») : TensorFlow
+  voit alors la carte. Après `django.setup()`, PyTorch n'est pas chargé ; dans un worker qui a déjà
+  servi une tâche PyTorch, il l'est ;*
+- *`TF_FORCE_GPU_ALLOW_GROWTH` n'est posé nulle part : un TensorFlow qui voit la carte en prend
+  TOUTE la mémoire à la première analyse (23 579 Mio occupés, 108 Mio utiles) — dans un worker de
+  la queue `gpu` qui a déjà importé PyTorch, c'est le cas, hors du gouverneur ;*
+- *avec la croissance progressive : expression +418 Mio, + âge +2 562, + genre +4 610 Mio sur la
+  carte (pic de TensorFlow 1 950 Mio) ; 0,15–0,25 s par image chaude. Et TensorFlow ne REND PAS la
+  mémoire : après cache vidé, `clear_session` et ramasse-miettes, son compteur est à 0 et la carte
+  toujours à +4 610 Mio, jusqu'à la fin du processus ;*
+- *les VRAM déclarées (2,5 Go par `DeepFaceBackend`, 0,3 / 1,0 / 1,0 Go par les trois lignes) ne
+  correspondent à aucun de ces deux états.*
+*La forme cible (passer par la carte, décision de Fabien du 2026-11-08) est à TRANCHER : le temps
+réel tourne dans gunicorn, une pipeline par image — un TensorFlow sur la carte y garderait jusqu'à
+~5 Go par worker web, que rien ne rend.* ; pyannote garde sa propre
 instance (`get_diarizer`) à côté du cache commun ; `load()` à vide aussi chez `audiocpp`,
 `audiocraft`, `audio_enhancer` (à mesurer un par un : un moteur hors processus peut n'avoir rien
-à tenir).
+à tenir) ; le banc d'agrandissement construit l'agrandisseur lui-même
+(`bench._bench_upscale` : `backend_class(model_name=…)`), à côté de la porte commune qui sert déjà
+son instrument (`_quality_metric`) ; et un trou de la route, latent (aucun cas au 2026-11-08) :
+une ligne dont la CLÉ change sans que son fichier bouge est supprimée par la synchro
+(`model_sync._drop_rows_superseded_by_location`, l'emplacement étant désigné par la nouvelle) sans
+que ses faits déclarés ni ses mesures suivent — ce que fait `succession.rekey`, qui refuse
+justement ce cas (« l'ancienne désigne encore des poids présents ») et arriverait trop tard.
 
 #### 7.1 ter — hooks par kind, MESURÉ le 2026-08-05
 

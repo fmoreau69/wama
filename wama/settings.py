@@ -288,6 +288,13 @@ os.environ.setdefault('COQUI_TOS_AGREED', '1')
 # au moins le 31/10, et un « Failed to clear GPU cache » en série le 31/10). Mesuré sur un worker
 # prefork jetable : avec la variable, l'enfant initialise CUDA lui-même et le plafond s'applique.
 os.environ.setdefault('PYTORCH_NVML_BASED_CUDA_CHECK', '1')
+# TensorFlow (DeepFace, FER du face_analyzer) — MÊME IDIOME (2026-11-08) : sans elle, un TensorFlow
+# qui voit la carte en prend TOUTE la mémoire à la première opération. Mesuré : 23 579 Mio occupés
+# pour 108 Mio utiles. Il la voit dès que PyTorch a été importé avant lui dans le processus (un
+# worker de la queue `gpu` qui a déjà servi une tâche PyTorch : `WAMA_MANIFEST_SPEC §7.1`). Avec
+# elle, il n'alloue que ce qu'il emploie (expression + âge + genre : ~4,6 Go, qu'il ne rend qu'à la
+# fin du processus). Elle n'ACTIVE pas la carte : elle borne ce qui arrive déjà.
+os.environ.setdefault('TF_FORCE_GPU_ALLOW_GROWTH', 'true')
 
 # HuggingFace access token — required for gated models (pyannote/speaker-diarization-3.1,
 # FLUX.1-schnell…). Generate at https://huggingface.co/settings/tokens (read access), and

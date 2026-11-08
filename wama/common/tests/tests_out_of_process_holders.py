@@ -89,6 +89,28 @@ class ForkSafeCudaCheckTest(SimpleTestCase):
         self.assertEqual(os.environ.get('PYTORCH_NVML_BASED_CUDA_CHECK'), '1')
 
 
+class TensorFlowGrowsItsMemoryTest(SimpleTestCase):
+    """Un TensorFlow qui voit la carte en prend TOUTE la mémoire sans `TF_FORCE_GPU_ALLOW_GROWTH`
+    (2026-11-08, mesuré : 23 579 Mio occupés pour 108 Mio utiles) — hors du gouverneur. La variable
+    se pose UNE fois, au démarrage du processus, avant tout import de TensorFlow."""
+
+    def test_the_settings_make_tensorflow_grow_its_memory(self):
+        self.assertEqual(os.environ.get('TF_FORCE_GPU_ALLOW_GROWTH'), 'true')
+
+    def test_a_django_process_has_it_before_tensorflow_is_imported(self):
+        import subprocess
+        import sys
+        from django.conf import settings
+        code = ("import os, django, sys; os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings'); "
+                "django.setup(); print(os.environ.get('TF_FORCE_GPU_ALLOW_GROWTH'), "
+                "'tensorflow' in sys.modules)")
+        env = {k: v for k, v in os.environ.items() if k != 'TF_FORCE_GPU_ALLOW_GROWTH'}
+        out = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True,
+                             cwd=str(settings.BASE_DIR), env=env, timeout=600)
+        self.assertEqual(0, out.returncode, out.stderr[-2000:])
+        self.assertEqual('true False', out.stdout.strip().splitlines()[-1])
+
+
 class OllamaHostTest(_WithRegistry):
 
     def test_a_granted_release_unloads_every_resident_of_the_host(self):
