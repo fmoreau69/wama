@@ -180,6 +180,20 @@
                     saveSettings(values);
                 }
             },
+            /** Ajoute (ou remplace, même `key`) une VERSION écoutable d'un rôle, faite DANS la page
+             *  (2026-11-08 : la lecture MIDI de la partition, `wama-midi-player.js`). Sans `url`,
+             *  elle porte `render()` -> Promise<{url, from}> : le transport la rend à la demande.
+             *  L'original reste en tête de la liste ; émet `sources` (`{role}`). */
+            addSource: function (role, version) {
+                var list = state.sources[role] = state.sources[role] || [];
+                if (!list.length && state.reads[role]) {
+                    list.push({ key: '', label: 'Audio', url: state.reads[role], peaks: state.media[role] });
+                }
+                var at = -1;
+                for (var i = 0; i < list.length; i++) if (list[i].key === version.key) at = i;
+                if (at < 0) list.push(version); else list[at] = version;
+                emit('sources', { role: role });
+            },
             context: function () { return state.context; },
             /** L'axe de temps PARTAGÉ de la surface (`WamaAxis`), créé au premier appel ; null si
              *  aucune brique chargée ne l'a demandé (`requires`). */

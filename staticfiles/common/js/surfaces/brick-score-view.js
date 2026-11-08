@@ -258,7 +258,13 @@
         exporter.className = 'form-select form-select-sm py-0 w-auto';
         exporter.title = 'Exporter la partition montrée (modifications non enregistrées comprises)';
         exporter.setAttribute('aria-label', 'Exporter');
-        [['', 'Exporter…'], ['mid', 'MIDI'], ['pdf', 'PDF (impression)'], ['abc', 'ABC']].forEach(function (o) {
+        // L'AUDIO de la partition, rendu par le serveur (FluidSynth, 2026-11-08) avec l'une des
+        // banques de la lecture MIDI — le même son que dans la page.
+        var exportBanks = (((ctx.config || {}).sound_banks || {}).audio_url
+                           ? ((ctx.config.sound_banks.banks) || []).filter(function (b) { return b.local; }) : []);
+        [['', 'Exporter…'], ['mid', 'MIDI'], ['pdf', 'PDF (impression)'], ['abc', 'ABC']]
+            .concat(exportBanks.map(function (b) { return ['wav:' + b.key, 'Audio WAV — ' + b.label]; }))
+            .forEach(function (o) {
             var option = document.createElement('option');
             option.value = o[0];
             option.textContent = o[1];
@@ -286,16 +292,38 @@
             var abc = shown || text();
             if (!abc.trim()) { ctx.status('Rien à exporter : la partition est vide.', 'error'); return; }
             if (kind === 'abc') { download(abc, 'text/vnd.abc;charset=utf-8', baseName() + '.abc'); return; }
-            if (kind === 'mid') {
+            if (kind === 'mid' || kind.indexOf('wav:') === 0) {
                 var midi = null;
                 try { midi = ABCJS.synth.getMidiFile(tune || abc, { midiOutputType: 'binary' }); }
                 catch (e) { midi = null; }
                 if (Array.isArray(midi)) midi = midi[0];
                 if (!midi || !midi.length) { ctx.status('Export MIDI impossible pour cette partition.', 'error'); return; }
-                download(midi, 'audio/midi', baseName() + '.mid');
+                if (kind === 'mid') { download(midi, 'audio/midi', baseName() + '.mid'); return; }
+                exportAudio(midi, kind.slice(4));
                 return;
             }
             if (kind === 'pdf') printScore(abc);
+        }
+
+        /** Le MIDI de la partition montrée, rendu en WAV par le SERVEUR (`…/audio/`, FluidSynth). */
+        function exportAudio(midi, bankKey) {
+            var form = new FormData();
+            form.append('midi', new Blob([midi], { type: 'audio/midi' }), 'partition.mid');
+            form.append('bank', bankKey);
+            ctx.status('Rendu audio de la partition…', 'busy');
+            App.csrfFetch(ctx.config.sound_banks.audio_url, App.csrfToken(), { method: 'POST', body: form })
+                .then(function (r) {
+                    if (!r.ok) {
+                        return r.json().then(function (e) { throw new Error(e.error || ('HTTP ' + r.status)); },
+                                             function () { throw new Error('HTTP ' + r.status); });
+                    }
+                    return r.blob();
+                })
+                .then(function (wav) {
+                    download(wav, 'audio/wav', baseName() + '-' + bankKey + '.wav');
+                    ctx.status('Audio de la partition exporté.', 'ok');
+                })
+                .catch(function (e) { ctx.status('Rendu audio impossible : ' + e.message, 'error'); });
         }
 
         /** La gravure, sans couleurs de lecture ni de choix, dans une fenêtre d'impression : le
@@ -523,6 +551,30 @@
 
         render();
         loadGrid();
+
+        // ── La LECTURE MIDI de la partition (2026-11-08, demande de Fabien) ──────────────────
+        // Des versions de plus pour le transport du média lu (`options.media`), une par lecture
+        // proposée (`WamaMidiPlayer.choices` : les banques de sons, et abcjs) : la partition
+        // MONTRÉE (la piste choisie, ses paroles) rendue en audio à la demande, sans rien générer.
+        // Une partition modifiée se rend de nouveau (le rendu fait est oublié).
+        var midiVersions = [];
+        var midiConfig = (ctx.config || {}).sound_banks;
+        if (options.media && midiConfig && global.WamaMidiPlayer && ctx.addSource) {
+            var heading = options.title || 'Partition';
+            global.WamaMidiPlayer.choices(midiConfig).forEach(function (choice) {
+                var version = {
+                    key: 'midi:' + heading + ':' + choice.key,
+                    label: choice.label + ' · ' + heading,
+                    url: '',
+                    render: function () {
+                        return global.WamaMidiPlayer.render(shown || text(), choice.key, midiConfig);
+                    },
+                };
+                midiVersions.push(version);
+                ctx.addSource(options.media, version);
+            });
+            ctx.on('change', function () { midiVersions.forEach(function (v) { v.url = ''; }); });
+        }
         var anyEdited = versions.some(function (version) { return !version.role; });
         return {
             refresh: function () { if (text() !== rendered) schedule(); },

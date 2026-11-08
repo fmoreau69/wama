@@ -17,6 +17,9 @@ DECLARED_GAPS = {
     # l'avatarizer (moteur, curseur, langue, voix, température) a rejoint le volet le 2026-10-22.
     ('avatarizer', 'PARAMS_JSON', 'text_content'): 'modal only — the prompt of the deposit card',
     ('composer', 'PARAMS_JSON', 'prompt'): 'modal only — not yet looked at',
+    # Les paroles appartiennent à UNE card (écrites pour elle, écoutées dans son morceau, son
+    # bouton ✍️ lit SA consigne et SA durée) ; le volet porte les réglages des cards À VENIR.
+    ('composer', 'PARAMS_JSON', 'lyrics'): 'modal only — the lyrics of one card, never a default',
     ('enhancer', 'AUDIO_PARAMS_JSON', 'output_format'): 'modal only — not yet looked at',
     ('enhancer', 'AUDIO_PARAMS_JSON', 'output_quality'): 'modal only — not yet looked at',
     ('reader', 'PARAMS_JSON', 'quality_intent'): 'panel only — not yet looked at',

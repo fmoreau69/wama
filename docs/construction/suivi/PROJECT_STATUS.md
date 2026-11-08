@@ -29404,3 +29404,21 @@ de MESURE ; chaque pièce suit un patron en service :
 - Rouge signalé par une instance sœur, hors de ce lot : `tests_tool_api_lectures.AddItemToMediaLibraryTest`
   (`add_item_to_media_library` du composer rend `audio_music` au lieu des candidats — le
   `result_role` du composer date du 2026-10-02 ; changement récent côté médiathèque).
+
+## §PALIER 2026-11-08 (fin de journée), « LA PARTITION SE LIT EN MIDI : SPESSASYNTH + DEUX BANQUES DANS LA PAGE, FLUIDSYNTH CÔTÉ SERVEUR ; ROUGES DU COMPOSER SOLDÉS » — ce commit (local, non poussé) — 🔴 relancer gunicorn + workers ; 🔴 `sudo apt install fluidsynth` (WSL)
+
+- Décisions de Fabien et détail : `PROSPECTION_PIPELINE.md §Session du 2026-11-08` (« Décisions de
+  Fabien et livraison ») ; mécanisme `midi_reading` au registre.
+- **Fichier d'entrée renommé** (accord de Fabien) : `users/1/temp/The Price Of Not Being
+  Me_V96_320kbps.mp3` → `The_Price_Of_Not_Being_Me_V96_320kbps.mp3` par le geste du gestionnaire
+  (`UserFile` + `file_references.repoint`) : 5 cards suivies, 3 provenances, 0 restée sur l'ancien nom.
+- **Rouges réclamés auprès de l'instance « Anonymizer Docs/Audio »** (répartition de la suite) :
+  `tests_process_eta` / `tests_process_governance` (`composer.write_lyrics` : ETA nommée
+  `write_lyrics_eta`, `gpu=True` — un appel LLM compte comme GPU) ; `tests_port_designation`
+  (composer `work_audio` : la base de test n'a pas de catalogue, et le repli codé en dur est retiré
+  depuis le 06/11 — la garde DÉCLARE la ligne de MusicGen Melody) ; `tests_settings_surfaces`
+  (« Paroles » : modale seule, déclarée — les paroles d'une card ne sont jamais un défaut).
+  Restent à d'autres : `quality_intent` du transcriber, écarts périmés de l'enhancer, scan des
+  mécanismes (`tests_score_reading.py` à deux propriétaires), budget de langue à recaler.
+- ⚠ Docs générées (`WAMA_MECANISMES.md`, `docs/dev/briques.md`) non régénérées ici : l'arbre porte le
+  travail non commité d'autres sessions sur ces fichiers — à la clôture commune.

@@ -104,28 +104,56 @@
         tools.className = 'd-inline-flex align-items-center gap-1';
 
         // ── La version écoutée ──────────────────────────────────────────────────────────────
-        var versions = (ctx.sources() || {})[role] || [];
-        if (versions.length > 1) {
-            var pick = document.createElement('select');
+        // Reconstruite quand une version ARRIVE (`ctx.addSource`, émis `sources` — 2026-11-08 : la
+        // lecture MIDI d'une partition, faite dans la page) : une partition sans audio n'avait
+        // aucune version, elle en gagne.
+        var pick = null;
+        function buildPick() {
+            var versions = (ctx.sources() || {})[role] || [];
+            if (pick) { pick.remove(); pick = null; }
+            if (versions.length < 2 && !(versions.length === 1 && versions[0].render)) return;
+            pick = document.createElement('select');
             pick.className = 'form-select form-select-sm py-0 w-auto';
             pick.title = 'Écouter : la version du média que lit le lecteur';
             pick.setAttribute('aria-label', 'Écouter');
             pick.dataset.transport = 'source';
+            var current = ctx.source(role).key;
+            // Aucun média lu (une partition sans audio) : rien n'est choisi tant qu'on ne choisit pas.
+            if (!versions.some(function (v) { return v.key === current; })) {
+                versions = [{ key: current, label: '— choisir une lecture —' }].concat(versions);
+            }
             versions.forEach(function (version) {
                 var option = document.createElement('option');
                 option.value = version.key;
                 option.textContent = version.label;
                 pick.appendChild(option);
             });
-            pick.value = ctx.source(role).key;
+            pick.value = current;
             pick.addEventListener('change', function () { ctx.setSource(role, pick.value); });
-            tools.appendChild(pick);
+            tools.insertBefore(pick, badge);
         }
         tools.appendChild(badge);
+        buildPick();
+        ctx.on('sources', function (p) { if (p && p.role === role) buildPick(); });
+
+        /** La version choisie : jouée, ou RENDUE d'abord quand elle se fait dans la page (`render`) —
+         *  le rendu dit d'où vient le son (`from`), jamais une substitution muette. */
+        function play(version, bust) {
+            if (version.url || !version.render) { load(version.url, version.peaks, bust); return; }
+            playerHost.textContent = 'Rendu de « ' + (version.label || 'la version') + ' »…';
+            version.render().then(function (got) {
+                version.url = got.url;
+                if (got.from) version.from = got.from;
+                if (ctx.source(role).key !== version.key) return;      // un autre choix entre-temps
+                load(got.url);
+                if (got.from) ctx.status('Lecture : ' + got.from, 'ok');
+            }).catch(function (e) {
+                playerHost.textContent = 'Rendu impossible : ' + e.message;
+            });
+        }
         ctx.on('source', function (p) {
             if (!p || p.role !== role) return;
-            var version = ctx.source(role);
-            load(version.url, version.peaks);
+            play(ctx.source(role));
         });
 
         function showState(states) {
@@ -145,11 +173,12 @@
         // d'où l'adresse « fraîche » qui contourne le cache du navigateur.
         ctx.on('redone', function () {
             var version = ctx.source(role);
+            if (version.render) return;          // faite dans la page : le serveur n'y a rien refait
             load(version.url, version.peaks, true);
         });
 
         var first = ctx.source(role);
-        load(first.url, first.peaks);
+        play(first);
         return {
             tools: tools,
             help: showWave ? 'Transport : clic dans l’onde = y aller' : null,

@@ -140,6 +140,17 @@ def lyrics_eta(gen):
     return (*lyrics_eta_key_size(gen), False, 0.0)
 
 
+def write_lyrics_eta_key_size(gen) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA du process `write_lyrics` (un appel LLM) : PAR ÉLÉMENT — la
+    longueur des paroles écrites suit la durée, mais l'appel coûte surtout son modèle."""
+    return 'composer:write_lyrics', 1.0, 'item'
+
+
+def write_lyrics_eta(gen):
+    """ETA déclarée du process `write_lyrics` : apprise seulement (clé de process, cf. `plan_eta`)."""
+    return (*write_lyrics_eta_key_size(gen), False, 0.0)
+
+
 #: Moteurs ouverts par les lancements EN COURS dans ce process : {id de génération: instance}.
 #: Tenu ici, et non sur le seul élément, pour que la tâche puisse le rendre quoi qu'il arrive.
 _OPEN_BACKENDS: dict = {}
@@ -485,6 +496,7 @@ def _write_lyrics(gen, ctx):
         raise RuntimeError("Paroles non écrites (LLM local indisponible) : le morceau sera "
                            "instrumental.")
     return {'fields': {'lyrics': written},
+            'eta': write_lyrics_eta_key_size(gen),
             'label': f"{len(written.split())} mots",
             'console_success': f"✓ Paroles écrites en « {language} », gardées sur la card "
                                f"(Paramètres ⚙ → Paroles) :\n{written}"}

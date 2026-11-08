@@ -998,7 +998,9 @@ register_brick(UIBrick(
                 "l'autre ; une partition lue ne s'édite pas.",
     script='common/js/surfaces/brick-score-view.js',
     requires=('vendors/abcjs-6.4.4/abcjs-basic-min.js', 'common/js/wama-axis.js',
-              'common/js/wama-score.js'),
+              'common/js/wama-score.js',
+              # La LECTURE MIDI de la partition (2026-11-08) : des versions de plus au transport.
+              'common/js/wama-midi-player.js'),
     consumes=('score',), emits=('score',),
     # « A la main » : le clavier dans la partition (son cadre a le focus), une note choisie.
     shortcuts=(Shortcut(('ArrowUp', 'ArrowDown'), "monter / descendre la note choisie d'un degré"),

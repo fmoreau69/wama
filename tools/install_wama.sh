@@ -74,6 +74,17 @@ if ! command -v python3.12 >/dev/null 2>&1 && [ ! -x "$PY" ]; then
   exit 1
 fi
 echo "  ✔ python3.12 disponible"
+# PROGRAMMES SYSTÈME (2026-11-08) : ce que pip n'installe pas — le script les VÉRIFIE et dit la
+# commande, il n'appelle jamais `sudo` lui-même. FluidSynth : le rendu audio d'une partition côté
+# serveur (`common/utils/midi_render.py`), avec les banques de `tools/update_vendors.sh`.
+for tool in "fluidsynth:fluidsynth"; do
+  bin=${tool%%:*}; pkg=${tool#*:}
+  if command -v "$bin" >/dev/null 2>&1; then
+    echo "  ✔ $bin disponible"
+  else
+    echo "  ⚠ $bin absent — sous WSL2 : sudo apt install $pkg"
+  fi
+done
 if [ ! -f "$ROOT/.env" ]; then
   echo "  ⚠ .env ABSENT — il sera créé depuis .env.example, mais DEVRA être complété"
   echo "    (DJANGO_SECRET_KEY, WAMA_DB_PASSWORD) avant que Django démarre."

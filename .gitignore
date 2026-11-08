@@ -146,6 +146,12 @@ staticfiles/vendors/avatars/
 # `mediapipe`) ; le JS qui les charge, lui, est versionné.
 wama/static/vendors/mediapipe-tasks-vision-*/wasm/*.wasm
 staticfiles/vendors/mediapipe-tasks-vision-*/wasm/*.wasm
+# Banques de sons (2026-11-08, lecture MIDI des partitions) : 32 et 40 Mo de binaire, même parti —
+# tirées par tools/update_vendors.sh (section `soundfonts`) ; leurs licences restent à côté.
+wama/static/vendors/soundfonts/*.sf2
+wama/static/vendors/soundfonts/*.sf3
+staticfiles/vendors/soundfonts/*.sf2
+staticfiles/vendors/soundfonts/*.sf3
 
 # Vignettes des briques UI (2026-10-18, decision de Fabien) -- des CAPTURES refaites par le
 # nocturne sur de vraies surfaces (`surfaces.THUMBNAILS_DIR`), servies depuis STATIC_ROOT ; une

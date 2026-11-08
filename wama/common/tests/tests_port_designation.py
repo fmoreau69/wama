@@ -53,6 +53,16 @@ class PortsReceiveDesignationsTest(TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content())
         SystemAsset.objects.create(name='witness.png', asset_type='avatar', file=rel)
+        # Le composer ne reçoit l'audio d'un cover que pour un modèle qui DÉCLARE le prendre
+        # (`model_choice.accepts_input`, sur le catalogue) : la base de test n'a pas de catalogue,
+        # et le repli codé en dur (« musicgen-melody ») est retiré depuis le 2026-11-06 — la ligne
+        # que porte le vrai catalogue est donc déclarée ici (mesuré le 2026-11-08 : sans elle, le
+        # port `work_audio` était ignoré en silence et le cas rouge).
+        from wama.model_manager.models import AIModel
+        AIModel.objects.update_or_create(
+            model_key='composer:musicgen-melody',
+            defaults={'name': 'MusicGen Melody', 'source': 'composer',
+                      'capabilities': {'task': 'text-to-music', 'inputs_optional': ['work_audio']}})
 
     def _witness(self, owner, stem, nature):
         ext, content = _WITNESSES[nature]

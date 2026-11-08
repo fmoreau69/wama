@@ -33,6 +33,9 @@ urlpatterns = [
          name='surface_data'),
     path('surface/<str:app>/<str:key>/<item:pk>/save/', surface_views.surface_save,
          name='surface_save'),
+    # L'export audio d'une partition, rendu par FluidSynth (2026-11-08) — lecture seule.
+    path('surface/<str:app>/<str:key>/<item:pk>/audio/', surface_views.surface_score_audio,
+         name='surface_score_audio'),
     # Les VERSIONS gardées du fichier édité (2026-10-13, `WAMA_COLLABORATION §7.2`).
     path('surface/<str:app>/<str:key>/<item:pk>/revisions/', surface_views.surface_revisions,
          name='surface_revisions'),

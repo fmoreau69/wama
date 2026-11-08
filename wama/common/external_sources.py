@@ -848,6 +848,33 @@ SOURCES: tuple[ExternalSource, ...] = (
         "(`facebook/encodec_24khz`) est au format transformers, pas celui que lit la librairie "
         "(2026-10-19)",
         kind='poids'),
+    # ── Ressources front et banques de sons (2026-11-08, décision de Fabien : « on ajoute bien les
+    # sources dans le registre des sources ») — la lecture MIDI des partitions (SpessaSynth).
+    ExternalSource(
+        'jsdelivr', 'jsDelivr (paquets npm)', 'https://cdn.jsdelivr.net/npm',
+        "Ressources front VENDORISÉES par `tools/update_vendors.sh` (Bootstrap, three, abcjs, "
+        "SpessaSynth…), versions épinglées — jamais chargées au runtime : la page sert ses copies",
+        kind='poids'),
+    ExternalSource(
+        'generaluser_gs', 'GeneralUser GS (dépôt de son auteur)',
+        'https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS',
+        "Banque de sons General MIDI que joue la lecture MIDI d'une partition (SpessaSynth, "
+        "FluidSynth) — épinglée à un commit ; la page la charge EN LIGNE (le serveur sert l'en-tête "
+        "CORS), sa copie vendorisée en secours si l'accès extérieur est coupé",
+        kind='poids'),
+    ExternalSource(
+        'musescore_soundfonts', 'Banques de sons MuseScore (miroir OSUOSL)',
+        'https://ftp.osuosl.org/pub/musescore/soundfont',
+        "MuseScore_General (SF3, MIT) — seconde banque de la lecture MIDI, à comparer à l'écoute ; "
+        "vendorisée seulement : le miroir ne sert pas l'en-tête CORS qu'un chargement en ligne exige",
+        kind='poids'),
+    ExternalSource(
+        'midi_js_soundfonts', 'Banques MIDI.js d’abcjs (FluidR3_GM, en ligne)',
+        'https://paulrosen.github.io/midi-js-soundfonts',
+        "La banque par défaut du synthétiseur d'abcjs (FluidR3_GM, CC-BY 3.0), chargée EN LIGNE par "
+        "la page — la version « abcjs » de la lecture MIDI, à comparer à SpessaSynth, qui la "
+        "remplace quand l'accès extérieur est coupé",
+        kind='poids'),
     ExternalSource(
         'osv', 'OSV (Open Source Vulnerabilities)', 'https://api.osv.dev/v1',
         "Audit de vulnérabilités des dépendances (contrôle nocturne)",

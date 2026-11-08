@@ -4343,3 +4343,39 @@ correction s'enregistre dans un `.abc` à côté, la source gardée.
   github.com/nomadkaraoke/python-audio-separator ; github.com/facebookresearch/demucs ;
   huggingface.co/stanford-crfm/music-small-ar-800k ; huggingface.co/google/magenta-realtime-2. Les
   points marqués « à confirmer » ou « non vérifiés » n'ont pas pu l'être.
+
+### Décisions de Fabien et livraison (2026-11-08, suite de la session ci-dessus)
+
+Décisions : *« SpessaSynth pour 2, FluidSynth oui. Pour 2, on pourrait tester les 2 pour voir ce qui
+sonne le mieux et garder le local en fallback si l'accès extérieur est coupé par exemple. Ceinture
+et bretelles… »* ; *« on ajoute bien les sources dans le registre des sources »*.
+
+✅ **Livré** (mécanisme `midi_reading` au registre) :
+- **Vendorisés par la route des ressources front** (`tools/update_vendors.sh`) : SpessaSynth 4.4.7
+  (+ `spessasynth_core` 4.4.9, `fflate` 0.8.3, `stb-vorbis` 0.0.7 — les imports NOMMÉS réécrits vers
+  les copies voisines : aucun nom de paquet à résoudre dans la page) ; les banques **GeneralUser GS**
+  (épinglée au commit `97049183…` de son dépôt, 32 319 396 octets vérifiés) et **MuseScore_General**
+  SF3 (39 900 972 octets) — gitignorées, leurs licences versionnées.
+- **Registre des sources** : `jsdelivr` (d'où viennent toutes les ressources front vendorisées, que
+  rien ne déclarait), `generaluser_gs` (servie avec l'en-tête CORS : chargeable EN LIGNE),
+  `musescore_soundfonts` (sans CORS : locale seulement), `midi_js_soundfonts` (la banque d'abcjs).
+- **Une déclaration** : `common/utils/sound_banks.py` (banques, moteur, pin tenu égal à celui du
+  script par `tests_sound_banks`), lue par la page et par le serveur.
+- **Dans la page** : `wama-midi-player.js` rend la partition MONTRÉE (piste choisie, paroles) en WAV,
+  à la demande — SpessaSynth hors temps réel avec une banque (en ligne d'abord, copie locale en
+  secours), ou abcjs et sa banque en ligne (repli sur SpessaSynth si l'accès est coupé) ; le rendu
+  DIT d'où vient le son. Ce sont des VERSIONS du transport commun (`ctx.addSource`, nouveau geste
+  du noyau des surfaces ; le transport reconstruit sa liste et rend une version à la demande) : une
+  partition sans audio gagne ses lectures, sur le même axe.
+- **Côté serveur** : `common/utils/midi_render.py` (FluidSynth, mêmes banques) et la route
+  `…/surface/<app>/<clé>/<pk>/audio/` (lecture de la card exigée) — l'entrée « Audio WAV — <banque> »
+  du menu « Exporter » de la partition. FluidSynth est un programme SYSTÈME : `install_wama.sh` le
+  vérifie et dit la commande ; ABSENT sur l'hôte au 2026-11-08 (le rendu le dit, 503).
+- Gardes : `tests_sound_banks` (déclaration ↔ script, sources, adresses en ligne, scripts de la
+  page, rendu serveur, route, et en V8 les lectures proposées et le REPLI en ligne → local —
+  contre-épreuve rouge).
+
+⏳ **Reste** : installer FluidSynth (`sudo apt install fluidsynth`, geste de Fabien) ; l'écoute
+COMPARÉE des lectures pour garder la meilleure ; la vue ABC d'une partition MIDI/MusicXML fournie
+sur la page d'édition (défaut relevé plus haut) ; la lecture MIDI sur la page de partition du
+Reader (elle n'a pas de transport).

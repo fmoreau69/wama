@@ -8,6 +8,8 @@ n'écrit ni page, ni lecture, ni enregistrement (2026-10-10, chantier SURFACES).
                                                          les pics fins d'un média lu (état ou pics) —
                                                          de l'une de ses versions (`sources_of`)
   save    POST  …/save/                                  le champ édité, validé par la surface
+  audio   POST  …/audio/                                 une partition (son MIDI) rendue en WAV par
+                                                         FluidSynth (2026-11-08) — lecture seule
           data/save/revisions acceptent `field` (2026-10-22) : un champ des `Surface.also_edits`
           édité à la place du principal (la partition complète du composer)
   layout  POST  /common/surface/<app>/<clé>/layout/      la disposition de l'UTILISATEUR (places,
@@ -25,15 +27,18 @@ CONFLIT (2026-10-13 — la règle de la page de correction du Transcriber, `WAMA
 from __future__ import annotations
 
 import json
+import logging
 import os
 
 from django.contrib.auth.decorators import login_required
-from django.http import Http404, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import NoReverseMatch, reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from wama.common.surfaces import surface as find_surface
+
+logger = logging.getLogger(__name__)
 
 
 def _surface_or_404(app: str, key: str):
@@ -171,10 +176,46 @@ def surface_page(request, app: str, key: str, pk: int):
             # Les routes de geste de l'app (`Surface.routes`) et celle de ses réglages.
             'routes': {gesture: _url(f'{app}:{name}', pk) for gesture, name in found.routes.items()},
             'settings_url': _settings_url(app, pk) if found.page_settings() else '',
+            # Les banques de sons de la LECTURE MIDI d'une partition (2026-11-08) — pour une surface
+            # qui grave une partition seulement (`wama-midi-player.js`, requis par `score_view`).
+            **({'sound_banks': {**_sound_banks(), 'audio_url': base + 'audio/'}}
+               if 'common/js/wama-midi-player.js' in found.scripts() else {}),
         },
         'scripts': found.scripts(),
         'styles': found.styles(),
     })
+
+
+def _sound_banks() -> dict:
+    from wama.common.utils.sound_banks import page_banks
+    return page_banks()
+
+
+@login_required
+@require_POST
+def surface_score_audio(request, app: str, key: str, pk: int):
+    """L'EXPORT AUDIO d'une partition, rendu par le serveur (FluidSynth, 2026-11-08) : la page envoie
+    le MIDI de la partition MONTRÉE (`midi`, fichier) et la banque (`bank`) ; la réponse est le WAV.
+    Le même son que la lecture dans la page (mêmes banques, `sound_banks`). Lecture seule : rien
+    n'est écrit sur la card."""
+    from wama.common.utils.midi_render import FluidSynthMissing, render_wav
+    found = _surface_or_404(app, key)
+    _readable_or_404(found, request.user, pk)
+    upload = request.FILES.get('midi')
+    if upload is None or upload.size > 5 * 1024 * 1024:
+        return JsonResponse({'error': 'MIDI absent ou trop gros (5 Mo au plus)'}, status=400)
+    try:
+        wav = render_wav(upload.read(), request.POST.get('bank') or 'generaluser_gs')
+    except FluidSynthMissing as e:
+        return JsonResponse({'error': str(e)}, status=503)
+    except ValueError as e:
+        return JsonResponse({'error': str(e)}, status=400)
+    except (RuntimeError, OSError) as e:
+        logger.warning('[surface] rendu audio de %s/%s #%s : %s', app, key, pk, e)
+        return JsonResponse({'error': str(e)}, status=500)
+    response = HttpResponse(wav, content_type='audio/wav')
+    response['Content-Disposition'] = f'attachment; filename="{app}-{pk}-partition.wav"'
+    return response
 
 
 @login_required

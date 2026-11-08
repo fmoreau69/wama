@@ -327,10 +327,12 @@ PIPELINE = register_app_pipeline(_APP, (
     # Le même geste que le bouton du réglage « Paroles » (`write_lyrics_for`).
     # « Paroles écrites » (2026-11-08, décision de Fabien) : nommée par ce qu'elle produit, comme
     # ses voisines ; sa ⚙ montre ce produit, le champ « Paroles » et son bouton ✍️ (`writes`).
+    # `gpu=True` : un appel LLM compte comme GPU tant que son modèle n'est connu qu'à l'appel
+    # (`ProcessSpec.gpu`) — la fonction est étiquetée `llm` au catalogue (`tests_process_governance`).
     ProcessSpec('write_lyrics', label='Paroles écrites', depends_on=('extract_lyrics',),
-                watched=_PROMPT_WATCHED, degree=OPTIONAL, share=1, needs=SINGS,
+                watched=_PROMPT_WATCHED, degree=OPTIONAL, gpu=True, share=1, needs=SINGS,
                 applies=_lyrics_to_write, writes=('lyrics',),
-                result='composer.tasks:written_lyrics'),
+                result='composer.tasks:written_lyrics', eta='composer.tasks:write_lyrics_eta'),
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
     # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu. « Partition
     # composée » (2026-11-08) : celle que le modèle écrit depuis la consigne, l'alternative de la

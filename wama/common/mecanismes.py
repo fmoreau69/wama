@@ -3494,6 +3494,21 @@ MECHANISMS = (
               'wama/common/utils/score_page.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               annexes=('wama/reader/tests_score.py',)),
+    Mechanism('midi_reading', "La lecture MIDI d'une partition : banques de sons, page et serveur",
+              "Jouer une partition sans générer d'audio (2026-11-08, demande de Fabien). Les BANQUES "
+              "DE SONS se déclarent une fois (`sound_banks` : GeneralUser GS et MuseScore General, "
+              "vendorisées par `tools/update_vendors.sh`, origines au registre des sources). Dans la "
+              "page, `wama-midi-player.js` rend la partition MONTRÉE en WAV (SpessaSynth hors temps "
+              "réel, la banque en ligne d'abord puis sa copie locale ; abcjs et sa banque en ligne, "
+              "repli sur SpessaSynth) — des versions de plus au transport commun (`ctx.addSource`, "
+              "rendues à la demande, d'où vient le son DIT). Côté serveur, `midi_render` joue le "
+              "même MIDI avec la même banque par FluidSynth (programme système, vérifié par "
+              "`tools/install_wama.sh`) : l'export « Audio WAV » de la partition",
+              'wama/common/utils/sound_banks.py',
+              'wama/model_manager/PROSPECTION_PIPELINE.md',
+              annexes=('wama/common/static/common/js/wama-midi-player.js',
+                       'wama/common/utils/midi_render.py',
+                       'wama/common/tests/tests_sound_banks.py')),
     )),
 
     *_domain("Studio & surface d'outils (API)", (

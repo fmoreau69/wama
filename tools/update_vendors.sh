@@ -66,6 +66,25 @@ MEDIAPIPE_TASKS_VER=1.1.1
 # (« Position sur les BIBLIOTHÈQUES ») : une bibliothèque qui DESSINE, faite pour les longues séries,
 # jamais une qui décide de la mise en page. Build IIFE (global `uPlot`) + sa feuille.
 UPLOT_VER=1.6.32
+# SpessaSynth (Apache-2.0) — la LECTURE MIDI d'une partition dans le navigateur, sans générer
+# d'audio (2026-11-08, décision de Fabien : « SpessaSynth », le meilleur rendu côté client de la
+# veille, `PROSPECTION_PIPELINE §Session du 2026-11-08`). Module ES + processeur AudioWorklet ; le
+# module importe par leur NOM `spessasynth_core`, qui importe `fflate` (MIT) et `stb-vorbis`
+# (Apache-2.0) — d'où quatre paquets épinglés ENSEMBLE, résolus par l'importmap de la brique
+# (`wama-midi-player.js`). `spessasynth_lib` 4.4.7 exige `spessasynth_core` ^4.4.9.
+SPESSASYNTH_LIB_VER=4.4.7
+SPESSASYNTH_CORE_VER=4.4.9
+FFLATE_VER=0.8.3
+STB_VORBIS_VER=0.0.7
+# Les BANQUES DE SONS que SpessaSynth (et FluidSynth, côté serveur) jouent — deux, à COMPARER à
+# l'écoute (décision de Fabien, même jour : « tester les 2 pour voir ce qui sonne le mieux »).
+# GITIGNORÉES comme l'avatar GLB (32 et 40 Mo de binaire). GeneralUser GS (licence permissive de son
+# auteur, `documentation/LICENSE.txt`), épinglée au COMMIT de son dépôt — elle se charge aussi en
+# ligne (`raw.githubusercontent.com` sert l'en-tête CORS), la copie locale en secours ;
+# MuseScore_General (MIT, `MuseScore_General_License.md`), en SF3 compressé, du miroir OSUOSL — sans
+# en-tête CORS, donc en local seulement.
+GENERALUSER_GS_COMMIT=97049183643d5fc5a9322a69c5b09efb667c6c3a
+MUSESCORE_GENERAL_BASE=https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 V="$ROOT/wama/static/vendors"
@@ -222,6 +241,39 @@ mkdir -p "$V/uplot-$UPLOT_VER"
 dl "https://cdn.jsdelivr.net/npm/uplot@$UPLOT_VER/dist/uPlot.iife.min.js" "$V/uplot-$UPLOT_VER/uPlot.iife.min.js"
 dl "https://cdn.jsdelivr.net/npm/uplot@$UPLOT_VER/dist/uPlot.min.css"     "$V/uplot-$UPLOT_VER/uPlot.min.css"
 dl "https://cdn.jsdelivr.net/npm/uplot@$UPLOT_VER/LICENSE"                "$V/uplot-$UPLOT_VER/LICENSE"
+fi
+
+if want spessasynth; then
+echo "== SpessaSynth $SPESSASYNTH_LIB_VER (+ core $SPESSASYNTH_CORE_VER, fflate $FFLATE_VER, stb-vorbis $STB_VORBIS_VER) =="
+D="$V/spessasynth-$SPESSASYNTH_LIB_VER"
+mkdir -p "$D/lib" "$D/core" "$D/fflate" "$D/stb-vorbis"
+NPM=https://cdn.jsdelivr.net/npm
+dl "$NPM/spessasynth_lib@$SPESSASYNTH_LIB_VER/dist/index.js"                     "$D/lib/index.js"
+dl "$NPM/spessasynth_lib@$SPESSASYNTH_LIB_VER/dist/spessasynth_processor.min.js" "$D/lib/spessasynth_processor.min.js"
+dl "$NPM/spessasynth_lib@$SPESSASYNTH_LIB_VER/LICENSE"                           "$D/lib/LICENSE"
+dl "$NPM/spessasynth_core@$SPESSASYNTH_CORE_VER/dist/index.js"                   "$D/core/index.js"
+dl "$NPM/spessasynth_core@$SPESSASYNTH_CORE_VER/LICENSE"                         "$D/core/LICENSE"
+dl "$NPM/fflate@$FFLATE_VER/esm/browser.js"                                      "$D/fflate/browser.js"
+dl "$NPM/fflate@$FFLATE_VER/LICENSE"                                             "$D/fflate/LICENSE"
+dl "$NPM/stb-vorbis@$STB_VORBIS_VER/dist/index.js"                               "$D/stb-vorbis/index.js"
+# Les imports NOMMÉS (`from "spessasynth_core"`…) réécrits vers les copies voisines : un navigateur
+# ne résout pas un nom de paquet sans importmap, et une importmap injectée à chaud dépend de
+# l'ordre de chargement des modules de la page. Le processeur AudioWorklet, lui, est autonome.
+sed -i 's#from "spessasynth_core"#from "../core/index.js"#g' "$D/lib/index.js"
+sed -i -e 's#from "fflate"#from "../fflate/browser.js"#g' -e 's#from "stb-vorbis"#from "../stb-vorbis/index.js"#g' "$D/core/index.js"
+if grep -q 'from "[a-z_-]*"' "$D/lib/index.js" "$D/core/index.js"; then
+  echo "  ECHEC: un import nommé reste à résoudre dans SpessaSynth"; exit 1
+fi
+fi
+
+if want soundfonts; then
+echo "== Banques de sons (GeneralUser GS @${GENERALUSER_GS_COMMIT:0:7}, MuseScore_General SF3) — NON COMMITÉES =="
+mkdir -p "$V/soundfonts"
+GU="https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/$GENERALUSER_GS_COMMIT"
+dl "$GU/GeneralUser-GS.sf2"                     "$V/soundfonts/GeneralUser-GS.sf2"
+dl "$GU/documentation/LICENSE.txt"              "$V/soundfonts/GeneralUser-GS_LICENSE.txt"
+dl "$MUSESCORE_GENERAL_BASE/MuseScore_General.sf3"         "$V/soundfonts/MuseScore_General.sf3"
+dl "$MUSESCORE_GENERAL_BASE/MuseScore_General_License.md"  "$V/soundfonts/MuseScore_General_License.md"
 fi
 
 if want avatar; then
