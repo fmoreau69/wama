@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load wama_static %}
 {% load wama_catalog %}
 {% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 {% block console_app_name %}model_manager{% endblock %}
@@ -16,16 +17,31 @@
 </style>
 {% endblock %}
 
-{% comment %}Volet droit = détail de la librairie cliquée, par l'inspecteur de registre COMMUN
-(`_inspector_registre.html`, fiche dérivée de la tuile : titre, description, facettes `data-f-*`,
-méta). La page avait retiré son volet le 2026-08-22 (trois cadres vides) ; elle le rouvre pour ce
-qu'elle remplit (`WAMA_VOLETS §2`, 2026-11-07).{% endcomment %}
-{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
-{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}
+{% comment %}Volet droit = la FICHE de la librairie cliquée et ses GESTES (2026-11-08, `WAMA_VOLETS §2`
+point 2 : « la fiche des modèles, plus des actions »). La fiche n'est plus dérivée de la tuile : la
+vue sert les champs du registre (`library-details`), `WamaDetails` les rend d'après le schéma de
+`library-catalog.js` — la forme de la fiche d'un modèle. Les gestes (simuler, installer, retirer)
+sont ceux de `manage.py install_library` / `uninstall_library`, par `request_library_action`.{% endcomment %}
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Fiche de la librairie{% endblock %}
+{% block right_panel_settings %}
+{% include 'common/_inspector_banner.html' with sans_cadre=1 sans_prefixe=1 icone='fas fa-cubes text-info' bouton_icone='fas fa-times' bouton_titre="Fermer l'inspecteur" %}
+<div id="inspectorActions">
+  <p class="small text-muted mb-0"><i class="fas fa-hand-pointer me-1"></i> Sélectionnez une librairie pour en voir la fiche.</p>
+</div>
 {% comment %}Les propositions de librairies du rôle `librarian` se valident ICI, sur la page de leur
 registre (décision de Fabien, 2026-11-07, `WAMA_VOLETS §2`) — brique commune ; la page se recharge
 après une décision, ses tuiles étant rendues par le serveur.{% endcomment %}
-{% if can_read_proposals %}{% include 'common/_proposals_queue.html' with kind='library' reload=1 anchor='libraryProposals' %}{% endif %}{% endblock %}
+{% if can_read_proposals %}{% include 'common/_proposals_queue.html' with kind='library' reload=1 %}{% endif %}{% endblock %}
+
+{% comment %}Les gestes : simuler pour un développeur, installer / aligner / retirer pour un
+administrateur (`request_library_action`). Un compte ordinaire n'a pas de section Actions
+(`volet(actions=…)` dans la vue).{% endcomment %}
+{% block right_panel_actions_title %}Actions{% endblock %}
+{% block right_panel_actions %}
+<div id="libraryActionButtons" class="d-flex flex-wrap gap-2">
+  <span class="text-muted small">—</span>
+</div>
+{% endblock %}
 
 {% block content %}
 <div class="wama-cat-wrap">
@@ -50,8 +66,11 @@ après une décision, ses tuiles étant rendues par le serveur.{% endcomment %}
   {% include 'common/_filter_bar.html' with facettes=facettes_librairies cible='.wama-cat-card' mode='client' placeholder='Rechercher une librairie…' %}
 
   {% if rows %}
-  <div class="wama-cat-grid" style="--cat-card-min: 320px;"
-       data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
+  {% url 'model_manager:api_library_action' as library_action_url %}
+  {% url 'model_manager:api_library_action_state' as library_state_url %}
+  <div class="wama-cat-grid" style="--cat-card-min: 320px;" data-library-catalog
+       data-action-url="{{ library_action_url }}" data-state-url="{{ library_state_url }}"
+       data-can-plan="{{ can_plan_libraries|yesno:'1,0' }}" data-can-install="{{ can_install_libraries|yesno:'1,0' }}">
     {% for r in rows %}
     {% comment %}Contrat de la barre : `data-f-<facette>` + `data-f-text`. L'état d'installation
     et l'allowlist sont les deux questions qu'on se pose sur cette page — ce sont donc les
@@ -93,4 +112,11 @@ après une décision, ses tuiles étant rendues par le serveur.{% endcomment %}
   </div>
   {% endif %}
 </div>
+{{ library_details|json_script:"library-details" }}
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+{# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne pas les ré-inclure (R7). #}
+<script src="{% static_v 'model_manager/js/library-catalog.js' %}"></script>
 {% endblock %}

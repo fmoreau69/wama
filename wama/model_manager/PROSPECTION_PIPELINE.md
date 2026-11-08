@@ -1094,6 +1094,13 @@ pip), pas de rejeu des patches venv, pas de marcheur `requires`→drivers.
   full-Linux — signalé dans chaque plan tant qu'il existe, plus une « règle des deux venvs »).
   Surface : `manage.py install_library <clé> [--allow] [--apply]` (`--allow` EST la
   décision humaine).
+  ✅ *Ajouté le 2026-11-08* : deux surfaces de plus, sur le MÊME pilote — la page des
+  librairies (fiche + « Simuler » / « Installer » / « Désinstaller », `WAMA_VOLETS §2` point 2)
+  et les outils de l'assistant `install_library(simulate=…)` / `uninstall_library` /
+  `get_library_action`. Un seul corps, `request_library_action` (pendant de `request_install`),
+  dispatche `library_action_task`, qui appelle ce pilote et `uninstall_library` ; la demande d'un
+  administrateur pose `is_allowed` (la décision que `--allow` porte), un développeur ne fait que
+  simuler. Garde : `tests_library_actions`.
 - **`install_requirements(app, apply=False)`** — le MARCHEUR (« application = modèles +
   librairies », cadrage Fabien) : lit les `requires` du manifeste d'app AU CORPUS et
   dispatche vers les drivers EXISTANTS — `library` → `install_library`, `model` → état

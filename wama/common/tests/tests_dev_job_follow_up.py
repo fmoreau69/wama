@@ -97,7 +97,8 @@ class FinishedJobIsAnnouncedOnceTest(TestCase):
 
     def test_a_job_whose_proposal_awaits_opens_the_queue_where_it_is_decided(self):
         """2026-11-05 (Fabien) : la fin du librarian disait « Propositions écrites (en attente de
-        validation) » sans bouton « Ouvrir » vers la file du model manager."""
+        validation) » sans bouton « Ouvrir » vers la file du model manager. Depuis le 2026-11-08,
+        une librairie se décide sur la page des librairies (`WAMA_VOLETS §2`)."""
         from django.urls import reverse
         from wama.common.manifests.proposals import propose
         output = 'wama-dev-ai/outputs/library_fake_engine_2026-11-05_17-48.json'
@@ -110,8 +111,11 @@ class FinishedJobIsAnnouncedOnceTest(TestCase):
              log="sortie : wama-dev-ai/outputs/codegen_nothing_waits.json\n")
         dev_tools.notify_finished_jobs()
         urls = dict(self._notes().values_list('object_id', 'url'))
-        self.assertEqual(reverse('model_manager:index') + '#' + dev_tools.PROPOSALS_ANCHOR,
+        self.assertEqual(reverse('model_manager:libraries_catalog') + '#' + dev_tools.PROPOSALS_ANCHOR,
                          urls['20261105-164742-d7583f'])
+        # Contre-épreuve : un modèle proposé se décide au model manager.
+        self.assertEqual(reverse('model_manager:index') + '#' + dev_tools.PROPOSALS_ANCHOR,
+                         dev_tools.proposals_page('model'))
         self.assertEqual('', urls['20261105-170000-eeeeee'],
                          "an output that no queue lists has no page where it is decided")
 

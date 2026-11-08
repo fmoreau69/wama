@@ -415,6 +415,50 @@ def install_catalog_task(self, model_key: str, user_id=None):
     return told
 
 
+#: L'état d'un geste sur une LIBRAIRIE (plan, installation, retrait), par clé du registre — publié
+#: par `library_action_task`, relu par la page des librairies (2026-11-08).
+LIBRARY_CACHE_PREFIX = 'model_manager:library_action:'
+
+#: Ce que la tâche dit pendant qu'elle travaille, par geste.
+LIBRARY_ACTION_STEPS = {
+    'plan': 'simulation de l’installation (pip --dry-run)…',
+    'install': 'installation par pip, puis patches du venv rejoués…',
+    'uninstall': 'retrait par pip, puis patches du venv rejoués…',
+}
+
+
+@shared_task(bind=True, name='model_manager.library_action')
+def library_action_task(self, key: str, action: str, user_id=None, via: str = ''):
+    """
+    Un geste sur une librairie du registre, demandé par `model_installer.request_library_action`
+    (bouton de la page des librairies, outil de l'assistant). Exécute les pilotes de la ligne de
+    commande — `install_library` (plan ou installation) et `uninstall_library` — et RIEN d'autre :
+    allowlist, pin exact, contraintes, journal daté et patches rejoués sont les leurs.
+    """
+    from wama.common.utils.task_progress import publier_progression
+
+    from .services.model_installer import install_library, uninstall_library
+
+    def publier(state: str, payload: dict):
+        publier_progression(LIBRARY_CACHE_PREFIX + key, self.request.id, state,
+                            dict(payload, library=key, action=action), INSTALL_TTL)
+
+    publier('RUNNING', {'status': LIBRARY_ACTION_STEPS.get(action, action)})
+    try:
+        if action == 'uninstall':
+            res = uninstall_library(key, apply=True, via=via)
+        else:
+            res = install_library(key, apply=(action == 'install'), via=via)
+    except Exception as exc:
+        logger.exception("[library_action] %s %s : échec inattendu", action, key)
+        publier('FAILURE', {'ok': False, 'error': f"{type(exc).__name__}: {exc}"})
+        raise
+    publier('SUCCESS' if res.get('ok') else 'FAILURE', res)
+    logger.info("[library_action] %s %s → %s", action, key,
+                'ok' if res.get('ok') else res.get('error'))
+    return res
+
+
 #: Avancement de la mesure de PERFORMANCE (bancs tiers) — pendant de ASSESS_CACHE_KEY.
 BENCH_CACHE_KEY = 'model_manager:sync_benchmarks'
 BENCH_TTL = 6 * 3600

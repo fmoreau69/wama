@@ -127,15 +127,39 @@ utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription 
 > `wama-proposals.js` (sortie de `mmLoadProposals` du model manager : plan, Valider/Rejeter réservés
 > à un administrateur, backends sur demande), montée sur la page des LIBRAIRIES (`kind=library`,
 > propositions du rôle `librarian`) ; garde `tests_proposals_queue` (page servie, filtre par
-> famille avec sa contre-épreuve, rendu V8 du fichier servi). ⏳ Le model manager passe sur la
-> brique (`kind=model` + backends) après le commit de l'instance qui y travaille (intégration
-> d'ACE-Step) — d'ici là il montre toutes les familles, une librairie s'y valide encore aussi.
+> famille avec sa contre-épreuve, rendu V8 du fichier servi). ✅ *Le même jour* : le model
+> manager passe sur la brique (`kind=model` + backends ; `mmLoadProposals`, ~95 lignes, retiré ;
+> une décision relit la grille par l'événement `wama:proposals-decided`), et l'ancre d'une fin de
+> tâche qui a proposé désigne la page du REGISTRE de sa famille (`dev_tools.proposals_page` :
+> `Registry.manifest_kind` → `url_name`), sur l'id par défaut de la brique (`wamaProposals`) — la
+> fin du librarian ouvre la page des librairies.
 > ⏳ La page des APPS attend le point 3 : aucun rôle n'y DÉPOSE de proposition (le rôle `app`
 > écrit un fichier, d'où l'app naît au bac à sable), et « Valider » tel quel projetterait au
 > catalogue une app sans code — le geste est à définir avec son cycle de vie.
 > ⏳ La FICHE schéma-driven du volet (l'autre moitié du point 1) vient avec le point 2 : c'est la
 > fiche des librairies, avec leurs actions, qui la demande.
 > ⏳ L'assistant n'a pas d'outil pour lire ou trancher la file (`tool_api`) — manque antérieur.
+>
+> 🔄 **2026-11-08 — point 2, les LIBRAIRIES** : la page sert la FICHE de chaque librairie (champs du
+> registre + version installée MESURÉE, dérive, route pip ou vendorisée, contraintes) que
+> `WamaDetails` rend d'après le schéma déclaré de `model_manager/js/library-catalog.js` — la forme
+> de la fiche d'un modèle — et ses GESTES : « Simuler l'installation » (développeur), « Installer »,
+> « Aligner sur la version déclarée », « Désinstaller » (administrateur). Un seul corps,
+> `model_installer.request_library_action`, appelé par la vue ET par les outils de l'assistant
+> (`install_library`, `uninstall_library`, `get_library_action`) ; il dispatche une tâche
+> (`library_action_task`) qui exécute les pilotes de la ligne de commande — la simulation pip
+> dure jusqu'à 300 s, un processus web est coupé à 120 s. La demande d'un administrateur EST la
+> décision d'allowlist (« pourquoi devrais-je confirmer ? ») ; la projection d'un manifeste ne la
+> pose toujours jamais. La page suit la tâche par le `Poller` commun et la reprend à la sélection
+> (un F5 n'efface rien). Garde `tests_library_actions` (13, dont le rendu V8 du fichier servi),
+> six contre-épreuves en processus, toutes rouges.
+> ⏳ Une installation de librairie n'est pas encore un ÉLÉMENT suivi par l'échange de l'assistant
+> (`job_families`, famille `model_manager` : `job_row` ne lit que les installations de modèles, et
+> `install_library` ouvre son événement lui-même, au moment où pip part) — l'assistant relit l'état
+> par `get_library_action` et le journal par `list_installations(kind='library')`.
+> ⏳ La fiche reste écrite PAR PAGE (le schéma de la page) : la brique universelle du point 1
+> (chaque page TIRE son schéma d'un registre) n'est pas construite ; les librairies sont sa
+> deuxième fiche déclarée après celle des modèles.
 
 ### Le mécanisme existe, c'est l'ADOPTION qui manque
 

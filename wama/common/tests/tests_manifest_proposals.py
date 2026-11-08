@@ -161,7 +161,12 @@ class ManifestProposalTest(TestCase):
                                                                     'decision': 'reject'}),
                                                content_type='application/json').status_code)
         page = self.client.get(reverse('model_manager:index'))
-        self.assertContains(page, 'id="mmProposals"')
+        self.assertContains(page, 'id="wamaProposals"')
+        # La brique COMMUNE de la file (2026-11-08), filtrée sur les modèles, backends compris :
+        # une librairie se valide sur la page des librairies.
+        self.assertContains(page, '?kind=model')
+        self.assertContains(page, 'data-backends="1"')
+        self.assertContains(page, 'common/js/wama-proposals.js')
 
     def test_the_same_gesture_carries_backend_proposals(self):
         """Marche B2 : la liste porte aussi les backends proposés, et la décision les reconnaît

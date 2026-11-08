@@ -169,17 +169,16 @@ class ServedRegistryPagesTest(TestCase):
     catalogues des librairies et des fonctions, qui déclaraient `VOLET_AUCUN` depuis le
     2026-08-22, et les souvenirs, dont l'hôte n'avait aucun conteneur."""
 
-    PAGES = ('model_manager:libraries_catalog', 'model_manager:functions_catalog',
-             'common:memories')
+    # Les LIBRAIRIES en sont sorties le 2026-11-08 : leur fiche n'est plus DÉRIVÉE de la tuile,
+    # elle est DÉCLARÉE (schéma de `library-catalog.js`, gestes compris — `WAMA_VOLETS §2` point 2),
+    # comme les sources externes ; la page servie est gardée par `tests_library_actions`.
+    PAGES = ('model_manager:functions_catalog', 'common:memories')
 
     @classmethod
     def setUpTestData(cls):
         from django.contrib.auth import get_user_model
         cls.account = get_user_model().objects.create_superuser(
             username='registry_inspector', email='registry@test.local', password='x')
-        # La grille des librairies (donc son conteneur) n'est rendue que s'il y a des lignes.
-        from wama.common.models import Library
-        Library.objects.create(key='registry-inspector-probe', name='probe', version='1.0')
 
     def setUp(self):
         self.client.force_login(self.account)

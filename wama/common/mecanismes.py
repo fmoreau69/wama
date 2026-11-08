@@ -698,7 +698,10 @@ MECHANISMS = (
               "`git+`, `file:`, `-e` et contrainte lâche ; `constraints.pip` (pins passés par "
               "`-c`) et `constraints.no_deps` (installer SANS les dépendances quand leur "
               "résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; "
-              "voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, "
+              "voie VENDOR pour un dépôt épinglé au commit ; depuis la page des librairies et "
+              "l'assistant, un seul corps (`request_library_action`, 2026-11-08) dispatche les "
+              "mêmes pilotes en tâche — simuler, installer (la demande d'un administrateur pose "
+              "l'allowlist), retirer. AUCUNE DÉRIVE (`AGENTS.md`, "
               "2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle "
               "`tests_install_route` (appels nommés, pip, et depuis le 2026-11-06 tout corps de "
               "réponse écrit dans un fichier), budget des dérives existantes qui ne peut que "
@@ -730,7 +733,11 @@ MECHANISMS = (
                        # du rôle `backend` sur le code d'un moteur vendorisé (2026-11-08).
                        'wama/common/utils/download_calls.py',
                        'wama/common/tests/tests_install_route.py',
-                       'wama/model_manager/tests/tests_anatomy.py')),
+                       'wama/model_manager/tests/tests_anatomy.py',
+                       # Les gestes d'une librairie depuis sa page et l'assistant (2026-11-08) :
+                       # `request_library_action` → tâche → les pilotes de la ligne de commande.
+                       'wama/model_manager/static/model_manager/js/library-catalog.js',
+                       'wama/model_manager/tests/tests_library_actions.py')),
     Mechanism('install_history', 'Journal des installations',
               "Date chaque installation et désinstallation (modèle, librairie) avec son issue et "
               "sa VOIE (model manager, assistant, marcheur d'app, ligne de commande), aux points "
@@ -1579,7 +1586,9 @@ MECHANISMS = (
               "plus le privé, et valider rend l'élément au SYSTÈME, plus à l'admin qui valide. "
               "Depuis le 08/11 la FILE est une brique commune (`_proposals_queue.html` + "
               "`wama-proposals.js`), montée sur la page du registre de ce qu'elle propose "
-              "(librairies : `kind=library`) — décision de Fabien du 07/11, WAMA_VOLETS §2",
+              "(librairies : `kind=library` ; model manager : `kind=model` + backends) — décision "
+              "de Fabien du 07/11, WAMA_VOLETS §2 ; la fin d'une tâche qui a proposé ouvre la page "
+              "du registre de sa famille (`dev_tools.proposals_page`)",
               'wama/common/manifests/proposals.py',
               'docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md',
               depends_on=('manifests',),

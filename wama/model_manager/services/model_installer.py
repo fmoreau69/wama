@@ -3255,6 +3255,87 @@ def uninstall_library(key: str, apply: bool = False, via: str = '') -> dict:
             'version': constat, 'patches': patches, 'plan': plan}
 
 
+#: Les gestes d'une librairie qu'une DEMANDE dispatche (2026-11-08, `WAMA_VOLETS §2` point 2) :
+#: le PLAN (`install_library(apply=False)`, simulation pip comprise — lecture seule), l'installation
+#: et le retrait. Trois gestes, deux pilotes : ceux de la ligne de commande, jamais un troisième.
+LIBRARY_ACTIONS = ('plan', 'install', 'uninstall')
+
+#: Les gestes qui ÉCRIVENT le venv de référence — réservés à un administrateur.
+LIBRARY_WRITE_ACTIONS = ('install', 'uninstall')
+
+
+def request_library_action(key: str, action: str, *, user=None, via: str = '') -> dict:
+    """
+    DEMANDE d'un geste sur une librairie du registre — corps UNIQUE du bouton de la page des
+    librairies et de l'outil de l'assistant (le pendant de `request_install` pour les modèles).
+
+    Pourquoi une tâche, même pour le plan : la simulation pip va jusqu'à 300 s
+    (`simuler_installation`), une installation davantage, et un processus web est coupé à 120 s
+    (`gunicorn_conf.timeout`). La tâche exécute les MÊMES pilotes que `manage.py install_library`
+    / `uninstall_library` ; elle publie son état au cache (`LIBRARY_CACHE_PREFIX`), que la page
+    relit, et le journal daté (`InstallEvent`) garde ce que pip a réellement fait.
+
+    Le droit : lire le plan, comme lire la file des propositions (développeur ou administrateur,
+    garde de la vue) ; installer ou retirer, un ADMINISTRATEUR seul (« les devs proposent, les
+    admins valident », `ROADMAP §29` b). La demande d'un administrateur EST la décision humaine que
+    `--allow` porte à la ligne de commande (Fabien, 2026-11-08 : « si je suis administrateur et que
+    je fais la demande, pourquoi devrais-je confirmer ? ») : elle pose `is_allowed` avant le
+    dispatch. La projection d'un manifeste, elle, ne le pose toujours jamais.
+
+    Retourne, sans jamais lever :
+      {'ok': True, 'started': True, 'library', 'action', 'task_id'}
+      {'ok': True, 'already_running': True, 'library', 'progress'}   # un re-clic REJOINT
+      {'ok': False, 'reason': 'unknown_action'|'not_found'|'forbidden', 'error'}
+    """
+    from wama.accounts.permissions import is_admin_tier
+    from wama.common.models import Library
+    from wama.common.utils.task_progress import progression_en_cours, publier_progression
+
+    from ..tasks import INSTALL_TTL, LIBRARY_CACHE_PREFIX, library_action_task
+
+    key = (key or '').strip()
+    if action not in LIBRARY_ACTIONS:
+        return {'ok': False, 'reason': 'unknown_action',
+                'error': f"geste inconnu « {action} » (attendus : {', '.join(LIBRARY_ACTIONS)})"}
+    lib = Library.objects.filter(key=key).first()
+    if lib is None:
+        return {'ok': False, 'reason': 'not_found',
+                'error': f"« {key} » absente du registre des librairies"}
+    if action in LIBRARY_WRITE_ACTIONS and not is_admin_tier(user):
+        return {'ok': False, 'reason': 'forbidden',
+                'error': "installer ou retirer une librairie est réservé à un administrateur"}
+    running = progression_en_cours(LIBRARY_CACHE_PREFIX + key)
+    if running:
+        return {'ok': True, 'already_running': True, 'library': key, 'progress': running}
+    if action == 'install' and not lib.is_allowed:
+        Library.objects.filter(pk=lib.pk).update(is_allowed=True)
+    task = library_action_task.delay(key, action, getattr(user, 'pk', None), via)
+    # « En cours » publié AVANT la prise en charge : un second clic rejoint cette tâche au lieu
+    # d'en enfiler une autre (la garde de `progression_en_cours`, Celery disant la tâche en attente).
+    publier_progression(LIBRARY_CACHE_PREFIX + key, task.id, 'RUNNING',
+                        {'library': key, 'action': action, 'status': 'en attente d’un worker'},
+                        INSTALL_TTL)
+    return {'ok': True, 'started': True, 'library': key, 'action': action, 'task_id': task.id}
+
+
+def library_action_state(key: str) -> dict:
+    """Où en est le dernier geste sur la librairie `key` : l'état que sa tâche a publié (`state`
+    RUNNING / SUCCESS / FAILURE, plus le résultat du pilote), `{}` s'il n'y en a pas. Un « en
+    cours » dont Celery ne dit plus la tâche vivante (worker tué) se lit INTERROMPU, jamais en
+    cours. Lu par la page des librairies et par l'outil `get_library_action`."""
+    from django.core.cache import cache
+
+    from wama.common.utils.task_progress import progression_en_cours
+
+    from ..tasks import LIBRARY_CACHE_PREFIX
+    cache_key = LIBRARY_CACHE_PREFIX + (key or '').strip()
+    state = cache.get(cache_key) or {}
+    if state.get('state') == 'RUNNING' and not progression_en_cours(cache_key):
+        state = dict(state, state='FAILURE', ok=False,
+                     error="tâche interrompue : son worker ne la porte plus")
+    return state
+
+
 def install_requirements(app_key: str, apply: bool = False) -> dict:
     """
     Le MARCHEUR d'app (« application = modèles + librairies », reste ③ de la route

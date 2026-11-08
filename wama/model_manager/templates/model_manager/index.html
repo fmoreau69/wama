@@ -883,15 +883,12 @@ qu'attendent WamaInspector (inspectorActions) et le JS de la page : ne pas renom
 </div>
 {% comment %} Propositions de MANIFESTES (2026-09-29) : ce qu'un rôle wama-dev-ai a écrit (anatomie,
 moteur, capacités) attend ici la décision humaine — le cycle sandbox → vérifié → promu de
-WAMA_MANIFEST_ARCHITECTURE §4, qui n'avait jusqu'ici aucun geste hors terminal. Masqué s'il n'y
-a rien en attente. {% endcomment %}
-<div id="mmProposals" class="mt-3 p-2 rounded d-none" style="background:rgba(var(--bs-success-rgb), 0.10);border:1px solid rgba(var(--bs-success-rgb), 0.45);">
-    <div class="small text-body-emphasis fw-semibold mb-1">
-        <i class="fas fa-clipboard-check me-1" style="color:var(--bs-success-text-emphasis)"></i>Propositions à valider
-        <span id="mmProposalsCount" class="badge bg-success ms-1">0</span>
-    </div>
-    <div id="mmProposalsList"></div>
-</div>
+WAMA_MANIFEST_ARCHITECTURE §4. Depuis le 2026-11-08, la brique COMMUNE de la file
+(`common/_proposals_queue.html`), filtrée sur les MODÈLES et leurs backends : une librairie se
+valide sur la page des librairies (décision de Fabien, 2026-11-07, `WAMA_VOLETS §2`). Son id par
+défaut (`wamaProposals`) est celui que masque l'inspecteur (`MM_HIDE_ON_INSPECT`) et qu'ancre une
+fin de tâche qui a proposé (`dev_tools.PROPOSALS_ANCHOR`). {% endcomment %}
+{% include 'common/_proposals_queue.html' with kind='model' backends=1 %}
 {# mmSystemRow (cleaner + idle models) déplacé ici par JS ; masqué quand une card est sélectionnée. #}
 <div id="mmSystemTitle" class="small text-body-emphasis fw-semibold mt-3 mb-1">
     <i class="fas fa-memory me-1" style="color:var(--wama-mm-memory-icon)"></i>Mémoire &amp; modèles chargés
@@ -2093,7 +2090,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // main branché sur le seul clic de la croix laissait le volet incomplet après
     // Échap. mmCatalogSection y figure car il vit hors de #media-section et n'est
     // donc pas couvert par keepMediaSection.
-    const MM_HIDE_ON_INSPECT = ['mmSystemRow', 'mmSystemTitle', 'mmProspectBar', 'mmProposals',
+    const MM_HIDE_ON_INSPECT = ['mmSystemRow', 'mmSystemTitle', 'mmProspectBar', 'wamaProposals',
                                 'mmCatalogSection'];
 
     // Pendant de renderModelInspector : remise du volet à « aucune sélection ».
@@ -2286,102 +2283,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (assessBtn) assessBtn.addEventListener('click', mmRunAssess);
         const benchBtn = document.getElementById('mmBenchBtn');
         if (benchBtn) benchBtn.addEventListener('click', mmRunBench);
-        if (CAN_MANAGE) mmLoadProposals();
-    }
-
-    // ── Propositions de manifestes (2026-09-29) ─────────────────────────────────────────
-    // Le PLAN vient du serveur (`proposals.plan`) : champs comblés, divergences NON appliquées,
-    // erreurs. Valider = superposition + write-back + promotion + corpus ; Rejeter ne défait rien.
-    async function mmLoadProposals() {
-        const box = document.getElementById('mmProposals');
-        const list = document.getElementById('mmProposalsList');
-        if (!box || !list) return;
-        // `canDecide` : seul un administrateur valide (`api_manifest_proposal_decide`, 403 sinon) ;
-        // un développeur voit la file où il propose, sans les boutons. Absent d'une réponse = l'ancien
-        // serveur, qui laissait décider : on garde les boutons.
-        let items = [], backends = [], canDecide = true;
-        try {
-            const r = await fetch('{% url "model_manager:api_manifest_proposals" %}');
-            const data = await r.json();
-            items = data.proposals || [];
-            backends = data.backends || [];
-            canDecide = data.can_decide !== false;
-        } catch (e) { console.error('Propositions indisponibles :', e); }
-        document.getElementById('mmProposalsCount').textContent = items.length + backends.length;
-        box.classList.toggle('d-none', items.length + backends.length === 0);
-        // Le bouton « Ouvrir » d'une fin de tâche qui a proposé (`dev_tools.proposals_url`) ancre
-        // ici : la file n'apparaît qu'une fois chargée, le navigateur n'a donc pas pu y descendre.
-        const reveal = location.hash === '#' + box.id && !box.classList.contains('d-none');
-        const esc = WamaApp.escapeHtml;
-        const waiting = canDecide ? '' : '<div class="text-muted fst-italic">En attente de validation par un administrateur.</div>';
-        const hideDecision = canDecide ? '' : ' d-none';
-        // Backend proposé (marche B2) : du CODE, que Valider écrit dans wama/common/backends/.
-        // Aucun contrôle ne juge la QUALITÉ de l'image : le smoke dit seulement qu'elle existe.
-        const backendHtml = b => {
-            const c = b.checks || {}, errors = c.errors || [], s = b.smoke || {}, r = b.resolution || {};
-            return `<div class="border-top border-secondary pt-1 mt-1 small">
-                <div class="text-body-emphasis text-break">backend · <code>${esc(b.module || '')}</code></div>
-                <div class="text-muted text-break">${esc(b.model_key || '')} — moteur ${esc(b.engine || '?')}, écrit par ${esc(b.model || '?')}</div>
-                ${errors.map(e => `<div class="text-danger text-break">${esc(e)}</div>`).join('')}
-                ${(c.warnings || []).map(w => `<div class="text-warning text-break">${esc(w)}</div>`).join('')}
-                ${r.resolved !== undefined ? `<div class="${r.resolved ? 'text-success' : 'text-danger'}">Résolution : ${r.resolved ? 'ce backend sera choisi' : 'NON choisi (' + esc(String(r.chosen)) + ')'}</div>` : ''}
-                ${s.ran ? `<div class="${s.ok ? 'text-success' : 'text-danger'} text-break">Smoke CPU : ${s.ok ? `image ${esc((s.size || []).join('×'))} en ${esc(String(s.seconds))} s — ${esc(s.image || '')}` : esc(s.error || 'échec')}</div>` : `<div class="text-muted">Smoke : ${esc(s.reason || 'non joué')}</div>`}
-                ${waiting}
-                <div class="d-flex gap-1 mt-1${hideDecision}">
-                    <button type="button" class="btn btn-sm btn-success py-0" data-file="${esc(b.file)}"
-                            data-decision="apply" ${errors.length ? 'disabled' : ''}
-                            title="Écrire le module dans wama/common/backends/ (jamais par-dessus un existant)">
-                        <i class="fas fa-check me-1"></i>Valider</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" data-file="${esc(b.file)}"
-                            data-decision="reject"><i class="fas fa-xmark me-1"></i>Rejeter</button>
-                </div></div>`;
-        };
-        list.innerHTML = backends.map(backendHtml).join('') + items.map(p => {
-            const errors = p.errors || [], filled = p.filled || [], div = p.divergences || [];
-            return `<div class="border-top border-secondary pt-1 mt-1 small">
-                <div class="text-body-emphasis text-break">${esc(p.kind || '')} · <code>${esc(p.key || '')}</code></div>
-                <div class="text-muted text-break">${p.origin ? 'Origine : ' + esc(p.origin) : ''}</div>
-                ${filled.length ? `<div class="text-success">Comblé : ${filled.map(esc).join(', ')}</div>` : ''}
-                ${div.map(d => `<div class="text-warning text-break">Divergence ${esc(d.path)} : établi
-                    <code>${esc(JSON.stringify(d.current))}</code>, proposé <code>${esc(JSON.stringify(d.proposed))}</code>
-                    — non appliqué</div>`).join('')}
-                ${errors.map(e => `<div class="text-danger text-break">${esc(e)}</div>`).join('')}
-                ${waiting}
-                <div class="d-flex gap-1 mt-1${hideDecision}">
-                    <button type="button" class="btn btn-sm btn-success py-0" data-proposal="${p.id}"
-                            data-decision="apply" ${errors.length || !filled.length ? 'disabled' : ''}
-                            title="${errors.length ? 'Invalide : corriger la proposition' : (filled.length ? 'Appliquer au catalogue et au corpus' : 'Rien à combler')}">
-                        <i class="fas fa-check me-1"></i>Valider</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary py-0" data-proposal="${p.id}"
-                            data-decision="reject"><i class="fas fa-xmark me-1"></i>Rejeter</button>
-                </div></div>`;
-        }).join('');
-        list.querySelectorAll('button[data-proposal], button[data-file]').forEach(b => b.addEventListener('click', async () => {
-            b.disabled = true;
-            const target = b.dataset.file ? { file: b.dataset.file } : { id: Number(b.dataset.proposal) };
-            try {
-                const r = await fetch('{% url "model_manager:api_manifest_proposal_decide" %}', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                    body: JSON.stringify({ ...target, decision: b.dataset.decision })
-                });
-                const data = await r.json();
-                if (!data.success) WamaApp.toast((data.errors || [data.error || 'Échec']).join(' ; '), 'danger');
-                {% comment %} L'étape suivante de la route (`plan_model_integration`, servie par la
-                vue) : validé, le manifeste d'ACE-Step ne disait pas qu'il restait le backend. {% endcomment %}
-                else WamaApp.toast(b.dataset.decision === 'apply'
-                    ? ('Proposition appliquée.' + (data.written ? ` ${data.written} écrit — ${data.note || ''}` : '')
-                       + (data.human_gesture ? ` Étape suivante : ${data.next_step} → ${data.human_gesture}` : ''))
-                    : 'Proposition rejetée.', 'success');
-            } catch (e) { WamaApp.toast('Échec : ' + e, 'danger'); }
-            mmLoadProposals();
-            loadModels();
-        }));
-        if (reveal) {
-            box.scrollIntoView({ block: 'start', behavior: 'smooth' });
-            // Une fois : la file se recharge après chaque décision, elle ne doit pas y ramener.
-            history.replaceState(null, '', location.pathname + location.search);
-        }
+        // La file des propositions est la brique commune (`wama-proposals.js`, montée par
+        // `_proposals_queue.html`) : une décision change le catalogue, la grille se relit.
+        if (CAN_MANAGE) document.addEventListener('wama:proposals-decided', () => loadModels());
     }
 
     function attachUnloadHandlers() {

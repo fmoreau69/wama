@@ -105,4 +105,8 @@ urlpatterns = [
     # 01/09) : `<pluriel-anglais>_catalog`. Les vues gardent leur nom (module ≠ URL).
     path('functions/', views.function_catalog, name='functions_catalog'),
     path('libraries/', views.library_catalog, name='libraries_catalog'),
+    # Les gestes d'une librairie (simuler, installer, retirer) et l'état de leur tâche (2026-11-08).
+    path('api/library/action/', views.api_library_action, name='api_library_action'),
+    path('api/library/action/state/', views.api_library_action_state,
+         name='api_library_action_state'),
 ]

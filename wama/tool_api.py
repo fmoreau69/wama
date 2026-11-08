@@ -2600,6 +2600,85 @@ def plan_library_integration(user, dist: str) -> dict:
     return {'dist': dist, 'state': etat, 'next_step': etape, 'human_gesture': geste}
 
 
+def _library_action_answer(res: dict) -> dict:
+    """La réponse d'un geste sur une librairie — la demande commune traduite pour l'assistant."""
+    if not res.get('ok'):
+        return {'error': res.get('error', 'refusé'), 'reason': res.get('reason')}
+    return {**{k: v for k, v in res.items() if k != 'ok'},
+            'next_step': ("tâche de fond : rappeler get_library_action avec la même clé rend son "
+                          "état (plan pip, issue) ; une installation ou un retrait réels sont aussi "
+                          "datés au journal (list_installations(kind='library'))")}
+
+
+@tool_effect(WRITE)
+def install_library(user, key: str, simulate: bool = False) -> dict:
+    """
+    INSTALL a Python library of the WAMA library registry into the reference environment — the
+    same verb as the "Installer" button of the libraries page and as
+    `manage.py install_library <key> --allow --apply`. Runs in the background.
+
+    With `simulate=True` nothing is installed: pip resolves the install (`--dry-run`) and the
+    result says what it WOULD install and which installed packages it would MOVE — read it before
+    a real install. Installing (not simulating) is reserved to an administrator: their request is
+    the human decision that allows the library. Only a library of the registry (seeded from its
+    `library` manifest, exact version pin) can be installed — never a free pip specifier.
+
+    Args:
+        key: registry key = PyPI distribution name (e.g. 'kokoro-onnx'); see plan_library_integration.
+        simulate: True = plan only (pip --dry-run), nothing written.
+
+    Returns:
+        {"started": true, "library", "action", "task_id", "next_step"}
+        {"already_running": true, "library", "progress", "next_step"}
+        {"error", "reason"} — reason 'not_found' | 'forbidden' | 'unknown_action'
+    """
+    from wama.model_manager.services.model_installer import request_library_action
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    return _library_action_answer(request_library_action(
+        key, 'plan' if simulate else 'install', user=user, via='assistant'))
+
+
+@tool_effect(DESTROY)
+def uninstall_library(user, key: str) -> dict:
+    """
+    UNINSTALL a library of the WAMA registry from the reference environment — the "Désinstaller"
+    button of the libraries page, `manage.py uninstall_library <key> --apply`. Administrator only.
+    REFUSED while an installed package or a manifest of the corpus still requires it (the result
+    names them); its own package only, never its dependencies. Runs in the background.
+
+    Args:
+        key: registry key (PyPI distribution name).
+
+    Returns: same shapes as install_library.
+    """
+    from wama.model_manager.services.model_installer import request_library_action
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    return _library_action_answer(request_library_action(key, 'uninstall', user=user,
+                                                         via='assistant'))
+
+
+@tool_effect(READ)
+def get_library_action(user, key: str) -> dict:
+    """
+    Where the last install / simulation / uninstall of the library `key` stands: `state`
+    RUNNING / SUCCESS / FAILURE, and the driver's result — for a simulation, `plan.simulation`
+    lists what pip would install (`would_install`) and what it would move (`retrogradations`).
+
+    Args:
+        key: registry key (PyPI distribution name).
+
+    Returns:
+        {"library", "state": {"state", "action", "status"?, "ok"?, "error"?, "plan"?, "version"?}}
+        — `state` is {} when nothing was asked for this library recently.
+    """
+    from wama.model_manager.services.model_installer import library_action_state
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    return {'library': (key or '').strip(), 'state': library_action_state(key)}
+
+
 @tool_effect(READ)
 def plan_model_integration(user, model: str) -> dict:
     """
@@ -4678,6 +4757,11 @@ TOOL_REGISTRY = {
     # HUMAIN, elles n'installent ni n'ingèrent rien (SPEC §2.1 : le write-back est un geste
     # explicite ; doctrine wama-dev-ai : l'agent propose, l'humain valide).
     'plan_library_integration': plan_library_integration,
+    # …et les GESTES de la page des librairies (2026-11-08) : simuler / installer / retirer, par le
+    # corps commun `request_library_action` (droit d'administrateur pour écrire le venv), et leur état.
+    'install_library':          install_library,
+    'uninstall_library':        uninstall_library,
+    'get_library_action':       get_library_action,
     'plan_model_integration':   plan_model_integration,
     'plan_app_integration':     plan_app_integration,
     # Claude Code sur l'ABONNEMENT du titulaire (ROADMAP §19.3) — surface DÉVELOPPEUR.
@@ -4801,6 +4885,11 @@ TOOL_APP_OVERRIDE = {
     'prospect_models':     'registries',
     # Écrit les relevés de variantes sur la proposition et appelle le Hub : même garde.
     'get_install_options': 'registries',
+    # Les gestes d'une LIBRAIRIE (2026-11-08) : la page des librairies est un registre ; écrire le
+    # venv est réservé à un administrateur DANS le corps commun (`request_library_action`).
+    'install_library':     'registries',
+    'uninstall_library':   'registries',
+    'get_library_action':  'registries',
     # Médiathèque : RANGER un fichier À SOI y est un geste TRANSVERSE, pas l'usage de l'app
     # `media_library` (décision Fabien, 2026-09-11 : « on rend commun et on porte sur les apps
     # de façon universelle »). Il était gaté sur `media_library` du seul FAIT DE SON NOM — le

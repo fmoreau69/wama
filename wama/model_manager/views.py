@@ -2345,20 +2345,37 @@ def library_catalog(request):
     décide dans l'admin (verrou n°2, hors write-back), l'installation via le provisionneur.
     Demandée par Fabien le 2026-08-11 (le registre existait sans surface)."""
     import importlib.metadata as im
+    from wama.accounts.permissions import is_admin_tier
     from wama.common.models import Library
 
-    rows = []
+    rows, details = [], []
     for lib in Library.objects.all():
         try:
             live = im.version(lib.key)
         except im.PackageNotFoundError:
-            live = None
+            # Une librairie VENDORISÉE n'est pas une distribution pip : son installation est celle
+            # que son installeur a constatée (`vendor_installer`), pas une métadonnée du venv.
+            live = (lib.installed_version or None) if lib.vendor and lib.is_installed else None
         declared = (lib.pip_spec.split('==', 1)[1] if '==' in (lib.pip_spec or '')
                     else lib.version or '')
-        rows.append({
-            'lib': lib,
-            'live_version': live,
-            'drift': bool(live and declared and live != declared),
+        drift = bool(live and declared and live != declared)
+        rows.append({'lib': lib, 'live_version': live, 'drift': drift})
+        # La FICHE du volet (2026-11-08, `WAMA_VOLETS §2` point 2) : les champs du registre tels
+        # qu'ils sont, plus ce que la page MESURE — rendue par `WamaDetails` d'après le schéma de
+        # la page, comme la fiche d'un modèle. Rien n'y est recalculé côté navigateur.
+        vendor = lib.vendor or {}
+        details.append({
+            'key': lib.key, 'name': lib.name, 'summary': lib.summary,
+            'declared_version': declared, 'live_version': live or '', 'drift': drift,
+            'route': 'vendor' if vendor else 'pip',
+            'pip_spec': lib.pip_spec, 'requires_python': lib.requires_python,
+            'license': lib.license, 'author': lib.author, 'repository': lib.repository,
+            'vendor': (f"{vendor.get('repo', '')}@{str(vendor.get('commit', ''))[:12]}"
+                       if vendor else ''),
+            'dependencies': list(lib.dependencies or []),
+            'constraints_pip': list((lib.constraints or {}).get('pip') or []),
+            'no_deps': bool((lib.constraints or {}).get('no_deps')),
+            'is_allowed': lib.is_allowed,
         })
     stats = {
         'total': len(rows),
@@ -2374,11 +2391,53 @@ def library_catalog(request):
         {'cle': 'allowlist', 'label': 'Allowlist', 'tous': 'Toutes'},
     ]
 
-    # Volet = le détail de la librairie cliquée (inspecteur de registre, 2026-11-07) : ni aperçu
-    # de média ni section Actions vide — on ne rouvre que ce qu'on remplit (`WAMA_VOLETS §2`).
+    # Volet = la fiche de la librairie cliquée, et ses ACTIONS (2026-11-08, `WAMA_VOLETS §2`
+    # point 2) : simuler l'installation pour un développeur, installer ou retirer pour un
+    # administrateur — les gestes de `request_library_action`. Un compte ordinaire lit la fiche
+    # sans section Actions : on ne rouvre que ce qu'on remplit.
     # La file des propositions de LIBRAIRIES (rôle `librarian`) se lit ici, sur la page de son
     # registre (décision de Fabien, 2026-11-07) — par les comptes qui lisent la file.
+    can_plan = is_admin_or_dev(request.user)
     return render(request, 'model_manager/library_catalog.html',
                   {'rows': rows, 'stats': stats, 'facettes_librairies': facettes,
-                   'volet': volet(medias=False, actions=False),
-                   'can_read_proposals': is_admin_or_dev(request.user)})
+                   'library_details': details,
+                   'volet': volet(medias=False, actions=can_plan),
+                   'can_read_proposals': can_plan,
+                   'can_plan_libraries': can_plan,
+                   'can_install_libraries': is_admin_tier(request.user)})
+
+
+#: Pourquoi une demande de geste sur une librairie est refusée → code HTTP.
+_LIBRARY_ACTION_CODES = {'unknown_action': 400, 'not_found': 404, 'forbidden': 403}
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
+def api_library_action(request):
+    """Demande un geste sur une librairie — `{key, action}`, `action` ∈ plan / install / uninstall.
+    Le corps vit dans `model_installer.request_library_action`, partagé avec l'outil de
+    l'assistant (droit d'administrateur pour écrire le venv compris) ; cette vue ne fait que
+    traduire son verdict en HTTP."""
+    from .services.model_installer import request_library_action
+    try:
+        data = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    res = request_library_action(str(data.get('key') or ''), str(data.get('action') or ''),
+                                 user=request.user, via='model_manager')
+    if not res.get('ok'):
+        return JsonResponse({'success': False, 'error': res.get('error', 'refusé')},
+                            status=_LIBRARY_ACTION_CODES.get(res.get('reason'), 500))
+    return JsonResponse({'success': True, **{k: v for k, v in res.items() if k != 'ok'}})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_GET
+def api_library_action_state(request):
+    """Où en est le dernier geste sur la librairie `?key=` (`model_installer.library_action_state`,
+    la lecture que l'outil `get_library_action` fait aussi)."""
+    from .services.model_installer import library_action_state
+    return JsonResponse({'success': True,
+                         'state': library_action_state(request.GET.get('key') or '')})

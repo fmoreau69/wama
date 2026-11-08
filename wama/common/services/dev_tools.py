@@ -386,28 +386,44 @@ def _job_summary(state: dict) -> str:
     return '\n'.join(lines)[:1500]
 
 
-#: L'ancre de la file « Propositions à valider » du model manager (`model_manager/index.html`).
-PROPOSALS_ANCHOR = 'mmProposals'
+#: L'ancre de la file « Propositions à valider », la même sur toute page de registre : l'id par
+#: défaut de la brique commune (`common/_proposals_queue.html`, 2026-11-08).
+PROPOSALS_ANCHOR = 'wamaProposals'
+
+
+def proposals_page(manifest_kind: str) -> str:
+    """La page où se décide une proposition de ce kind — celle du registre qui le DÉCLARE
+    (`Registry.manifest_kind` → `url_name` : une librairie aux librairies, un modèle au model
+    manager ; décision de Fabien, 2026-11-07, `WAMA_VOLETS §2`), ancrée sur la file. Le model
+    manager pour un kind qu'aucun registre ne déclare (sa file montrait toutes les familles)."""
+    from django.urls import reverse
+
+    from wama.common import registries
+    url_name = next((r.url_name for r in registries.REGISTRIES.values()
+                     if manifest_kind and r.manifest_kind == manifest_kind and r.url_name),
+                    'model_manager:index')
+    return f"{reverse(url_name)}#{PROPOSALS_ANCHOR}"
 
 
 def proposals_url(outputs) -> str:
-    """La page où se DÉCIDE ce qu'une tâche a proposé — la file du model manager, ancrée — quand
-    au moins une de ses sorties y attend : un manifeste au magasin (`proposals.pending`, désigné
-    par sa sortie d'`outputs/`) ou un backend (`backend_proposals.pending`). Sinon '' : une sortie
-    que rien ne liste (codegen, tâche) n'a pas de page de décision (2026-11-05, demande de Fabien :
-    la notification du librarian n'avait pas de bouton « Ouvrir »)."""
+    """La page où se DÉCIDE ce qu'une tâche a proposé — la file de la page de son registre, ancrée
+    — quand au moins une de ses sorties y attend : un manifeste au magasin (`proposals.pending`,
+    désigné par sa sortie d'`outputs/`) ou un backend (`backend_proposals.pending`, décidé au
+    model manager avec son modèle). Sinon '' : une sortie que rien ne liste (codegen, tâche) n'a
+    pas de page de décision (2026-11-05, demande de Fabien : la notification du librarian n'avait
+    pas de bouton « Ouvrir »)."""
     outputs = [str(o) for o in (outputs or [])]
     if not outputs:
         return ''
     try:
-        from django.urls import reverse
-
         import wama.common.manifests.proposals as proposals
         import wama.common.services.backend_proposals as backend_proposals
         names = {Path(o).name for o in outputs}
-        waiting = (proposals.pending().filter(source__ref__in=outputs).exists()
-                   or any(b.get('file') in names for b in backend_proposals.pending()))
-        return f"{reverse('model_manager:index')}#{PROPOSALS_ANCHOR}" if waiting else ''
+        if any(b.get('file') in names for b in backend_proposals.pending()):
+            return proposals_page('model')
+        kinds = sorted(set(proposals.pending().filter(source__ref__in=outputs)
+                           .values_list('manifest_kind', flat=True)))
+        return proposals_page(kinds[0]) if kinds else ''
     except Exception:
         logger.debug("[dev_tools] page des propositions indéterminable", exc_info=True)
         return ''
