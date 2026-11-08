@@ -1421,6 +1421,17 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       | idem — HD | 64-79 ms / 16,4 s ; un décalage constant de 25 ou 64 ms tenu toute une lecture | 4-44 ms / ≤ 215 ms (décrochage du décodeur, rattrapé en < 3 s) |
       | Comparer en lecture : même image présentée — 5 passes alternées, machine sans autre charge (2026-11-07) | 12 i/s 90,2 % (88-93), 25 i/s 79,8 % (75-86), HD 80,6 % (63-97) | 12 i/s **90,2 %** (89-92), 25 i/s **79,3 %** (64-90), HD **86,2 %** (84-88) |
       | positionnements par geste | 1 | 1 (+1 à la pause : posée au temps de l'axe) |
+      | **débit bridé** (2026-11-08, vidéo HD de 9,6 Mbit/s, relevés figés sur 56) — visionneuse | 1,5 / 8 / 12 / 30 Mbit/s : 46 / 5 / 0 / 0 | avant l'attente : 53 / **41** / **10** / 1 ; **après : 46 / 5 / 1 / 0** |
+      | idem — Comparer | 51 / 27 / 14 / 0 | avant : 54 / 48 / 44 / 2 ; **après : 52 / 27 / 17 / 0** |
+      | Comparer en lecture, débit local, après l'attente (2026-11-08, 5 passes) | 12 i/s 91,2 %, 25 i/s 79,4 %, HD 78,2 % | 12 i/s 91,0 %, 25 i/s **85,2 %**, HD 77,8 % — avec / sans l'attente, 6 passes : HD 86,2 / 83,2, 25 i/s 86,4 / 85,7 (bruit) |
+      🔄 **2026-11-08 — revérification à la demande de Fabien : une RÉGRESSION trouvée, corrigée.**
+      Le cas jamais mesuré : une vidéo plus lourde que le lien. L'axe courait, la repositionnait plus
+      loin, elle repartait charger (lignes « débit bridé » ci-dessus). Décision de Fabien : un média
+      qui joue et attend ses données retient l'axe, partout (bloc du 02/11 plus haut, `SYNC.hold`).
+      Branche reprise sur dev (`235deb446`, 82 commits), seuls conflits les deux docs générées
+      (régénérées, la seule part du chantier gardée) ; `syncVideos` au registre (`R232`). Restent
+      hors de la mesure : les navigateurs autres que Chromium (Firefox et Safari passent par
+      `requestVideoFrameCallback` aussi, un navigateur sans lui par `currentTime`, non mesuré).
       ⚠ **Deux points dits tels quels** : (a) ✅ **le « bloquant » du 05/11 était mal attribué —
       soldé le 2026-11-07.** Le 05/11 disait la branche en dessous à 12 i/s (83 % contre 93 %) et en
       accusait l'axe. Remesuré à 8 passes alternées sans autre charge : 12 i/s 87 contre 89 et 25 i/s
