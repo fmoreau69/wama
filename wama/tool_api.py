@@ -2639,12 +2639,37 @@ def plan_model_integration(user, model: str) -> dict:
                 libs.append(_etat_librairie(ref['key']))
     except Exception:
         pass
+    waiting = _awaiting_decision(row.model_key)
     etat = {'catalogued': True, 'key': row.model_key, 'downloaded': row.is_downloaded,
             'engine': moteur, 'engine_registered': bool(moteur and moteur in engine_backends()),
-            'loaded_by': loader, 'backend_missing': sans_backend, 'requires_libraries': libs}
+            'loaded_by': loader, 'backend_missing': sans_backend, 'requires_libraries': libs,
+            'awaiting_decision': waiting}
 
     if not row.is_downloaded:
         etape, geste = ("poids absents du disque", f"installation depuis le catalogue ({row.model_key})")
+    elif 'manifest' in waiting:
+        refused = waiting['manifest']['refused']
+        if refused:
+            etape = ("un manifeste proposé attend, et « Valider » le REFUSERAIT : "
+                     + ' ; '.join(refused))
+            geste = (f"relancer le rôle `model` (dev_run_role, catalog={row.model_key}) — sa "
+                     "reprise lit ce verdict —, ou rejeter la proposition au model manager")
+        else:
+            etape = "un manifeste proposé attend, et « Valider » l'accepterait"
+            geste = ("un administrateur le relit puis Valide au model manager, section "
+                     "« Propositions » — une décision humaine")
+    elif sans_backend and 'backend' in waiting:
+        accepted = [f for f, refused in waiting['backend'].items() if not refused]
+        if accepted:
+            etape = f"{sans_backend} ; un backend proposé attend ({', '.join(accepted)})"
+            geste = ("un administrateur relit son code puis Valide au model manager, section "
+                     "« Propositions » — une décision humaine")
+        else:
+            refused = next(iter(waiting['backend'].values()))
+            etape = (f"{sans_backend} ; le backend proposé, « Valider » le REFUSERAIT : "
+                     + ' ; '.join(refused))
+            geste = (f"relancer le rôle `backend` (dev_run_role, catalog={row.model_key}) — sa "
+                     "reprise lit ce verdict —, ou rejeter la proposition au model manager")
     elif not moteur and not loader:
         etape = ("aucun moteur DÉCLARÉ : le modèle ne peut pas être routé vers un backend, "
                  "et le grisage automatique n'a pas de verdict à rendre")
@@ -2653,9 +2678,13 @@ def plan_model_integration(user, model: str) -> dict:
                  "section « Propositions » : relire le plan, puis un administrateur Valide")
     elif sans_backend:
         etape = f"{sans_backend} : le modèle est proposé GRISÉ et refusé au lancement"
-        geste = (f"écrire le backend du moteur « {moteur} » sur le contrat commun "
-                 "(BaseModelBackend) et l'enregistrer dans la table de son app — le "
-                 "grisage se lèvera SEUL")
+        # Le rôle qui l'écrit, pas « l'écrire » (2026-11-07) : ce geste renvoyait l'assistant à une
+        # écriture à la main alors que le rôle `backend` (Marche B2) l'écrit sur le contrat commun
+        # et la dépose dans la même file que le manifeste — la route du docstring de `dev_run_role`.
+        geste = (f"rôle `backend` (dev_run_role, ou python wama-dev-ai/run_backend.py --catalog "
+                 f"{row.model_key}) — il écrit le backend du moteur « {moteur} » sur le contrat "
+                 "commun et le PROPOSE au model manager, section « Propositions » : relire le "
+                 "code, puis un administrateur Valide ; le grisage se lève SEUL")
     elif any(not lg['installed_version'] for lg in libs):
         manquantes = [lg['dist'] for lg in libs if not lg['installed_version']]
         etape = f"runtime absent : {', '.join(manquantes)}"
@@ -2667,6 +2696,32 @@ def plan_model_integration(user, model: str) -> dict:
         etape, geste = ("rien à faire : catalogué, poids présents, "
                         + (f"chargé par {loader}" if loader else "moteur servi"), None)
     return {'model': row.model_key, 'state': etat, 'next_step': etape, 'human_gesture': geste}
+
+
+def _awaiting_decision(model_key: str) -> dict:
+    """Ce qui attend la décision d'un administrateur pour ce modèle (2026-11-07) : le manifeste
+    proposé, avec ce que « Valider » en dirait (`proposals.plan`), et les backends proposés.
+    Sans cette lecture, le plan renvoyait au rôle déjà joué — et l'assistant, dans le fil
+    d'intégration d'ACE-Step, a cherché à « corriger » la proposition à la main."""
+    waiting = {}
+    try:
+        from wama.common.manifests import proposals
+        obj = proposals.pending('model').filter(key=model_key).first()
+        if obj is not None:
+            waiting['manifest'] = {'refused': proposals.plan(obj)['errors']}
+    except Exception:
+        logger.debug("[plan_model_integration] propositions de manifeste illisibles", exc_info=True)
+    try:
+        # Avec ce que « Valider » en dirait MAINTENANT (`backend_proposals.refusals`, 2026-11-08) :
+        # le premier backend d'ACE-Step, refusé par ses contrôles, était annoncé « à valider ».
+        from wama.common.services.backend_proposals import pending, refusals
+        files = {p['file']: refusals(p['file']) for p in pending()
+                 if p.get('model_key') == model_key}
+        if files:
+            waiting['backend'] = files
+    except Exception:
+        logger.debug("[plan_model_integration] propositions de backend illisibles", exc_info=True)
+    return waiting
 
 
 @tool_effect(READ)
@@ -5677,6 +5732,34 @@ def input_schema_for(fn, index=None) -> dict:
     return schema
 
 
+def decode_structured_args(fn, args: dict) -> dict:
+    """Les arguments d'un outil dont la signature annonce un OBJET ou une LISTE (`dict`/`list`, le
+    `type` que `input_schema_for` en dérive) et qu'un modèle a écrits en TEXTE JSON, décodés —
+    le reste tel quel, un texte qui ne décode pas vers le type annoncé aussi (l'outil dit alors
+    lui-même ce qu'il attend).
+
+    Vécu le 2026-11-07 (ACE-Step par l'assistant) : `dev_run_role(args='{"catalog": "…"}')` au
+    premier appel, refusé, corrigé au second — à chaque intégration. Le schéma disait `object` ;
+    la valeur était l'objet, écrit comme on l'écrit dans un prompt. Une seule règle pour les deux
+    portes (`sanitize_tool_args`, `dev_tools.call`) : celle du schéma qu'elles annoncent."""
+    sig = _tool_signature(fn) if fn is not None else None
+    if sig is None or not args:
+        return dict(args or {})
+    out = dict(args)
+    for name, value in args.items():
+        param = sig.parameters.get(name)
+        expected = getattr(param, 'annotation', None) if param is not None else None
+        if expected not in (dict, list) or not isinstance(value, str):
+            continue
+        try:
+            decoded = json.loads(value)
+        except ValueError:
+            continue
+        if isinstance(decoded, expected):
+            out[name] = decoded
+    return out
+
+
 #: Paramètres INTERNES d'un outil, jamais annoncés ni acceptés d'un appelant : `app_label`
 #: (2026-10-29) re-cible un créateur sur une JUMELLE — c'est la dérivation `add_to_<jumelle>` qui le
 #: fixe, comme `importer_for` le fait pour un importeur ; un modèle de langage ne choisit pas l'app
@@ -5686,10 +5769,18 @@ INTERNAL_TOOL_PARAMS = ('app_label',)
 
 def _tool_signature(fn):
     """La signature PUBLIQUE d'un outil — l'accesseur unique de toutes ses lectures (description,
-    schéma MCP, filtrage des arguments, ports du Studio) : sans ses paramètres internes."""
+    schéma MCP, filtrage des arguments, ports du Studio) : sans ses paramètres internes.
+
+    Annotations RÉSOLUES (`eval_str`, 2026-11-08) : un module à annotations différées
+    (`from __future__ import annotations`, `dev_tools`) les rendait en TEXTE — `'dict'` n'était
+    pas `dict`, le schéma MCP de `dev_run_role` n'annonçait aucun type pour `args`, et le modèle
+    l'écrivait en chaîne. Une annotation qui ne se résout pas garde la lecture brute."""
     import inspect
     try:
-        sig = inspect.signature(fn)
+        try:
+            sig = inspect.signature(fn, eval_str=True)
+        except (NameError, AttributeError, SyntaxError):
+            sig = inspect.signature(fn)
     except (TypeError, ValueError):
         return None
     return sig.replace(parameters=[p for n, p in sig.parameters.items()
@@ -5750,12 +5841,12 @@ def sanitize_tool_args(tool_name: str, args: dict):
     from wama.common.utils.param_schema import (schema_for_app, coerce_schema_values,
                                                 schema_arg_names)
 
-    args = dict(args or {})
+    fn = TOOL_REGISTRY.get(tool_name)
+    args = decode_structured_args(fn, args)
     app_id = app_id_for_tool(tool_name)
     schema = schema_for_app(app_id) if app_id else []
     merged = {**args, **coerce_schema_values(schema, args)}
 
-    fn = TOOL_REGISTRY.get(tool_name)
     sig = _tool_signature(fn) if fn else None
     if sig is None:
         return merged, []

@@ -43,6 +43,22 @@ CONNECT_TIMEOUT_S = 5
 LIST_CACHE_S = 60
 
 _list_cache: dict = {}   # user.pk → (expiration monotonic, liste)
+#: Comptes développeurs dont la DERNIÈRE lecture de la surface a échoué (2026-11-07). Le repli
+#: muet laissait le tour sans ses outils de dev, et un `dev_run_role` émis quand même revenait
+#: « Outil inconnu » de la porte commune : mesuré dans un fil d'intégration d'ACE-Step, pendant
+#: le démarrage de la surface relancée avec WAMA, le modèle s'est rabattu sur sept appels à
+#: Claude Code. Le tour le DIT désormais, au prompt et au résultat de l'appel.
+_unreachable: set = set()
+
+#: Ligne du prompt d'outils quand la surface ne répond pas — même langue que `tools_block`.
+UNREACHABLE_NOTICE = (
+    "Development tools: the development surface is UNREACHABLE right now (it may be restarting "
+    "with WAMA). The dev_* tools are unavailable this turn: tell the user so and suggest retrying "
+    "in a minute; do not emulate them with other tools.")
+#: Résultat d'un appel `dev_*` émis pendant que la surface ne répond pas.
+UNREACHABLE_REFUSAL = ("surface de développement injoignable (elle redémarre peut-être avec "
+                       "WAMA) : les outils dev_* sont indisponibles pour ce tour — dis-le à "
+                       "l'utilisateur et propose de réessayer dans une minute.")
 
 
 def is_dev_tool(name: str) -> bool:
@@ -132,19 +148,28 @@ def dev_tools_for(user) -> list:
                   'description': ' '.join((t.description or '').split()),
                   'args': list(((t.inputSchema or {}).get('properties') or {}).keys())}
                  for t in _run(user, action)]
+        _unreachable.discard(user.pk)
     except Exception:
         logger.debug("[mcp_client] surface dev injoignable à %s — aucun outil de développement "
                      "annoncé", dev_surface_url(), exc_info=True)
         tools = []
+        _unreachable.add(user.pk)
     _list_cache[user.pk] = (now + LIST_CACHE_S, tools)
     return tools
 
 
-def tools_block(tools: list) -> str:
+def dev_surface_unreachable(user) -> bool:
+    """Le compte est développeur et la surface n'a pas répondu à sa dernière lecture
+    (`dev_tools_for`) : ses outils ne sont pas annoncés, et le tour doit le dire."""
+    return getattr(user, 'pk', None) in _unreachable
+
+
+def tools_block(tools: list, unreachable: bool = False) -> str:
     """Bloc de prompt des outils de dev — MÊME forme que `tool_api.build_tools_list`
-    (`- nom(args): description`), précédé de ce qu'un modèle doit savoir de cette surface."""
+    (`- nom(args): description`), précédé de ce qu'un modèle doit savoir de cette surface.
+    Sans outils, la ligne qui dit la surface injoignable — jamais un silence pour un développeur."""
     if not tools:
-        return ''
+        return f'\n{UNREACHABLE_NOTICE}' if unreachable else ''
     lines = [
         '',
         "Development tools (the user is a WAMA developer; these run in the separate development "

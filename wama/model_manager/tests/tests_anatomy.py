@@ -119,6 +119,62 @@ class AnatomyGapsTest(SimpleTestCase):
         weighed = mi.components_of_files(repo)
         self.assertEqual(9.0, weighed['components']['model'])
 
+    def test_a_weight_the_vendored_engine_reads_cannot_be_set_aside(self):
+        """Lived on 2026-11-07: the role, refused for forgetting the text encoder, EXCLUDED it
+        (« not used ») with `silence_latent.pt` — both opened by ACE-Step's loader. The vendored
+        code names them; a library checkpoint name proves nothing alone; a test file is not the
+        engine; an engine that is not vendored refutes nothing."""
+        import tempfile
+        from pathlib import Path
+        from wama.model_manager.services import vendor_installer
+        import shutil
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / 'probe_engine' / 'pkg' / 'tests').mkdir(parents=True)
+        (root / 'probe_engine' / 'pkg' / 'loader.py').write_text(
+            'import os\nTEXT = os.path.join(ckpt, "Qwen3-Embedding-0.6B")\n'
+            'LATENT = "silence_latent.pt"\nWEIGHTS = "model.safetensors"\n', encoding='utf-8')
+        (root / 'probe_engine' / 'pkg' / 'tests' / 'test_x.py').write_text('X = "alt"\n',
+                                                                          encoding='utf-8')
+        self.addCleanup(vendor_installer._code_names.cache_clear)
+        files = ACE_STEP + ['alt/model.safetensors']
+        compo = {**ACE_ANATOMY, 'runtime': {'engine': 'probe_engine'}, 'excluded': [
+            {'pattern': 'Qwen3-Embedding-0.6B/model.safetensors', 'reason': 'not used'},
+            {'pattern': 'acestep-v15-turbo/silence_latent.pt', 'reason': 'buffer'},
+            {'pattern': 'alt/*', 'reason': 'another model'}]}
+        with self.settings(BACKEND_VENDOR_DIR=str(root)):
+            vendor_installer._code_names.cache_clear()
+            gaps = mi.anatomy_gaps(files, compo)
+            self.assertEqual({'Qwen3-Embedding-0.6B/model.safetensors': 'pkg/loader.py:2',
+                              'acestep-v15-turbo/silence_latent.pt': 'pkg/loader.py:3'},
+                             gaps['excluded_but_read'])
+            self.assertIn('Qwen3-Embedding-0.6B/model.safetensors (pkg/loader.py:2)',
+                          mi.anatomy_error(gaps))
+            self.assertEqual({}, mi.anatomy_gaps(files, {**compo, 'runtime': {'engine': 'other'}}))
+
+    def test_an_exclusion_sets_a_weight_aside_or_it_is_dead(self):
+        """The 2026-11-07 proposal « excluded » twenty configurations and tokenizers — files the
+        side patterns bring anyway: an exclusion designates a WEIGHT."""
+        gaps = mi.anatomy_gaps(['face_seg.pt', 'README.md', 'config.json'],
+                               _anatomy('face_seg.pt', excluded=['README.md', 'config.json']))
+        self.assertEqual(['README.md', 'config.json'], gaps['excludes_nothing'])
+
+    def test_a_composed_install_brings_what_loaders_read_beside_the_weights(self):
+        """Measured on 2026-11-07 over the 37 anatomies drawn from the Hub: a re-install by
+        anatomy left the remote code a `config.json` names (`auto_map`), the sentencepiece
+        vocabulary of the MusicGen T5, chat templates and tiktoken vocabularies. Counter-case:
+        illustrations and unclaimed weights stay on the Hub. The filter is the Hub's own."""
+        from huggingface_hub.utils import filter_repo_objects
+        repo = ['dit/model.safetensors', 'dit/config.json', 'dit/modeling_dit.py',
+                'dit/configuration_dit.py', 'spiece.model', 'lm/chat_template.jinja',
+                'lm/tokenizer.json', 'vocab.tiktoken', 'assets/demo.png', '.gitattributes',
+                'other/model.safetensors']
+        brought = set(filter_repo_objects(repo, allow_patterns=mi.patterns_from_composition(
+            {'components': [{'role': 'dit', 'pattern': 'dit/model.safetensors'}]})))
+        self.assertEqual({'dit/model.safetensors', 'dit/config.json', 'dit/modeling_dit.py',
+                          'dit/configuration_dit.py', 'spiece.model', 'lm/chat_template.jinja',
+                          'lm/tokenizer.json', 'vocab.tiktoken'}, brought)
+
     def test_a_quantization_marker_leaves_the_base_name_of_the_weight_set(self):
         self.assertEqual(('model', 'onnx', '_q4f16'),
                          tuple(mi._weight_set_key('model_q4f16.onnx')[i] for i in (0, 3, 4)))

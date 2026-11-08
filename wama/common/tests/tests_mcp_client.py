@@ -46,6 +46,7 @@ class DevToolsThroughTheAssistantTest(TestCase):
         from wama.accounts.permissions import set_account_tier
         set_account_tier(self.dev, 'developpeur')
         mcp_client._list_cache.clear()
+        mcp_client._unreachable.clear()
         # ⚠ L'ORM sous `anyio.run` ouvre une AUTRE connexion, qui ne voit pas la transaction du
         # test (mesuré : les groupes du compte y sont vides — piège déjà consigné le 15/09 sur
         # `tests_mcp_server`). Le prédicat est donc remplacé par une comparaison PURE, aux deux
@@ -159,6 +160,33 @@ class DevToolsThroughTheAssistantTest(TestCase):
         self.assertEqual('toujours là', result['response'])
         self.assertNotIn('dev_sandbox', seen[0])
         self.assertIn('injoignable', mcp_client.call_dev_tool(self.dev, 'dev_sandbox', {})['error'])
+
+    def test_an_unreachable_dev_surface_is_said_not_taken_for_an_unknown_tool(self):
+        """2026-11-07 (fil d'intégration d'ACE-Step) : la surface démarrait avec WAMA, le tour
+        perdait ses outils de dev en silence, et le `dev_run_role` du modèle revenait « Outil
+        inconnu » de la porte commune. Contre-épreuve : un non-développeur ne reçoit ni la
+        ligne ni ce refus — son `dev_*` reste un inconnu de la porte."""
+        def llm(messages, *a, **k):
+            if len(messages) == 2:
+                return ('{"tool": "dev_run_role", "args": {"role": "model"}}',
+                        {'input_tokens': 0, 'output_tokens': 0})
+            return 'dit', {'input_tokens': 0, 'output_tokens': 0}
+        seen = []
+
+        def watching(messages, *a, **k):
+            seen.append(messages[0]['content'])
+            return llm(messages, *a, **k)
+        with mock.patch.object(mcp_client, '_run', side_effect=ConnectionError('refusée')), \
+             mock.patch('wama.tool_api.execute_tool', return_value={'error': 'Outil inconnu'}) as gate:
+            result = self._turn(self.dev, watching)
+            self.assertIn(mcp_client.UNREACHABLE_NOTICE, seen[0])
+            self.assertEqual({'error': mcp_client.UNREACHABLE_REFUSAL},
+                             result['tool_steps'][0]['result'])
+            self.assertNotIn('dev_run_role', [c.args[0] for c in gate.call_args_list])
+            seen.clear()
+            ordinary = self._turn(self.ordinary, watching)
+        self.assertNotIn(mcp_client.UNREACHABLE_NOTICE, seen[0])
+        self.assertEqual({'error': 'Outil inconnu'}, ordinary['tool_steps'][0]['result'])
 
     def test_the_tool_list_is_cached_per_account(self):
         with mock.patch.object(mcp_client, '_run', side_effect=_in_memory_run) as connection:

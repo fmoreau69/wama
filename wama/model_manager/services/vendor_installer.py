@@ -20,6 +20,7 @@ Contrat — le même que la voie pip, verrou pour verrou :
 """
 from __future__ import annotations
 
+import functools
 import os
 import shutil
 import subprocess
@@ -41,6 +42,40 @@ def repo_root() -> Path:
 def vendor_dir(engine: str) -> Path:
     """Dossier du moteur vendorisé : racine DÉCLARÉE + nom du moteur (`vendor/README.md`)."""
     return Path(settings.BACKEND_VENDOR_DIR) / engine
+
+
+def vendored_code_names(engine: str) -> dict:
+    """`{chaîne: 'fichier:ligne'}` — les chaînes littérales du code vendorisé d'un moteur (tests
+    exclus), à leur première occurrence ; `{}` pour un moteur qui n'est pas vendorisé.
+
+    Ce qu'un moteur vendorisé lit dans son dossier de points de contrôle, il le NOMME
+    (2026-11-07, ACE-Step 1.5 : `os.path.join(checkpoint_dir, "Qwen3-Embedding-0.6B")`,
+    `"silence_latent.pt"`) — la preuve qu'un poids est un composant, que l'anatomie lit
+    (`model_installer.anatomy_gaps`). Une chaîne, pas une exécution : le code n'est qu'analysé."""
+    if not engine:
+        return {}
+    return _code_names(str(vendor_dir(engine)))
+
+
+@functools.lru_cache(maxsize=32)
+def _code_names(root: str) -> dict:
+    import ast
+    base, names = Path(root), {}
+    if not base.is_dir():
+        return names
+    for path in sorted(base.rglob('*.py')):
+        if 'tests' in path.parts or path.name.endswith('_test.py') or path.name.startswith('test_'):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding='utf-8', errors='replace'))
+        except (SyntaxError, ValueError):
+            continue
+        where = path.relative_to(base).as_posix()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str) \
+                    and 0 < len(node.value) <= 200 and '\n' not in node.value:
+                names.setdefault(node.value, f'{where}:{node.lineno}')
+    return names
 
 
 def repo_url(repo: str) -> str:
@@ -251,6 +286,9 @@ def install_vendor(lib, apply: bool = False, via: str = '') -> dict:
                 return {'ok': False, 'library': key, 'plan': plan, 'state': final,
                         'error': error}
             outcome.update({'ok': True, 'version': vendor['commit'][:12]})
+        _code_names.cache_clear()             # le code a changé : ce qu'il nomme aussi
+        from wama.common.utils.download_calls import _reaching
+        _reaching.cache_clear()               # et ce qu'il télécharge
         try:
             from wama.common.backends.manager import invalidate_engine_cache
             invalidate_engine_cache()

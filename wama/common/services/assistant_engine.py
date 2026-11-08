@@ -2574,11 +2574,13 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # la porte `execute_tool`. Un nom `dev_*` que personne n'a annoncé arrive à la porte, qui le
     # refuse comme inconnu : un non-développeur ne peut pas y appeler quoi que ce soit.
     # Un tour BORNÉ (`allowed_tools`) n'en reçoit aucun : le relais dev n'est pas une lecture.
-    dev_tools = []
+    # Une surface qui ne répond pas à un développeur se DIT (2026-11-07, `mcp_client._unreachable`).
+    dev_tools, dev_down = [], False
     if user:
         from wama.common.services import mcp_client
         if allowed_tools is None:
             dev_tools = mcp_client.dev_tools_for(user)
+            dev_down = mcp_client.dev_surface_unreachable(user)
     dev_names = {t['name'] for t in dev_tools}
     # La DÉLÉGATION (étape 2) : annoncée seulement là où elle peut s'exécuter. Un sous-agent ne
     # délègue pas, par construction : ses outils sont des LECTURES du registre, où `delegate`
@@ -2589,7 +2591,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
     delegate_line, delegate_spec = _delegate_tool() if delegation else ('', None)
     tools_prompt = (WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list(allowed_tools)
                                               + delegate_line
-                                              + mcp_client.tools_block(dev_tools))
+                                              + mcp_client.tools_block(dev_tools, dev_down))
                     + (_DELEGATION_RULE if delegation else '')
                     if user else "")
 
@@ -2907,6 +2909,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
                            'next_step': _POLL_AGAIN_NOTICE}
         elif tool_name in dev_names:
             tool_result = mcp_client.call_dev_tool(user, tool_name, tool_args)
+        elif dev_down and mcp_client.is_dev_tool(tool_name):
+            tool_result = {'error': mcp_client.UNREACHABLE_REFUSAL}
         else:
             tool_result = execute_tool(tool_name, tool_args, user, model_call=True)
             # Le curseur de l'assistant vaut pour les tâches qu'il lance (Fabien, 22/09) — et

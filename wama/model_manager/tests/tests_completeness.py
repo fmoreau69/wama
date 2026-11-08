@@ -181,3 +181,33 @@ class WeightsAxesTest(TestCase):
         self.assertNotIn('test:coherent', axes['peak_under_declared'],
                          "un pic SOUS la déclaration n'est pas un défaut : c'est le cas normal")
         self.assertNotIn('test:sous-declare', axes['weights_missing'])
+
+
+class TheCatalogueSaysWhatTheSelectsSayTest(TestCase):
+    """Le model manager porte le verdict d'exécutabilité des selects d'app (2026-11-08).
+
+    Vécu : ACE-Step 1.5, moteur déclaré et validé, aucun backend encore — le Composer le
+    grisait « backend absent », l'inspecteur du model manager le disait « téléchargé,
+    disponible ». `is_available` ne dit que l'appartenance aux choix ; seul `backend_missing`
+    dit qu'un backend sait l'exécuter, et c'est le MÊME verdict partout."""
+
+    def test_the_catalogue_listing_serves_the_verdict_of_the_selects(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+        from wama.common.backends.manager import backend_missing
+        row = _installe('huggingface:Org/NoBackend', source='huggingface',
+                        composition={'runtime': {'engine': 'no_such_engine_2026'}})
+        admin = get_user_model().objects.create_superuser('verdict_listing', password='x')
+        self.client.force_login(admin)
+        listed = {m['model_key']: m for m in
+                  self.client.get(reverse('model_manager:api_models_db')).json()['models']}
+        self.assertEqual(backend_missing(row), listed[row.model_key]['backend_missing'])
+        self.assertTrue(listed[row.model_key]['backend_missing'])
+
+    def test_the_inspector_says_it_before_available(self):
+        from pathlib import Path
+        page = (Path(__file__).resolve().parents[1] / 'templates' / 'model_manager'
+                / 'index.html').read_text(encoding='utf-8')
+        badge = page.index('m.is_available && m.backend_missing')
+        self.assertLess(badge, page.index("m.is_available ? '<span class=\"badge bg-success-subtle"))
+        self.assertIn('backend absent</span>', page[badge:badge + 300])

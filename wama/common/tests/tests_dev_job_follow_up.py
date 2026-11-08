@@ -202,6 +202,21 @@ class ClaudeCodeInTheBackgroundTest(TestCase):
         self.assertNotIn('sk-secret', json.dumps([args[2], kwargs['shown']]))
         self.assertEqual('timeout', args[2][0], "un process détaché a une borne")
 
+    def test_a_role_output_is_never_corrected_by_hand(self):
+        """2026-11-07 (ACE-Step par l'assistant) : Claude Code reçu en écriture pour « corriger »
+        l'anatomie dans le fichier d'`outputs/`. La proposition vit au magasin : refusé, le refus
+        dit la route. Contre-épreuve : le même fichier se LIT."""
+        task = ("Corriger wama-dev-ai/outputs/model_huggingface:ACE-Step_Ace-Step1.5_x.json : "
+                "ajouter le composant manquant")
+        prepared = {'argv': ['claude', '-p', task], 'env': {}}
+        with mock.patch('wama.common.services.claude_code.subscription_allowed', return_value=True), \
+             mock.patch('wama.common.services.claude_code.prepare', return_value=prepared), \
+             mock.patch.object(dev_tools, 'start_job', return_value={'job_id': 'J-4'}) as start:
+            with self.assertRaisesRegex(dev_tools.DevToolError, 'dev_run_role'):
+                dev_tools.dev_claude_code(self.user, task, write=True)
+            start.assert_not_called()
+            self.assertEqual('J-4', dev_tools.dev_claude_code(self.user, task)['job_id'])
+
     def test_a_refused_profile_never_starts_a_job(self):
         with mock.patch('wama.common.services.claude_code.subscription_allowed', return_value=True), \
              mock.patch('wama.common.services.claude_code.prepare',
@@ -210,3 +225,75 @@ class ClaudeCodeInTheBackgroundTest(TestCase):
             out = dev_tools.dev_claude_code(self.user, 'corrige', write=True)
         self.assertEqual('profil 100 % local', out['error'])
         start.assert_not_called()
+
+
+class StructuredArgumentsTest(TestCase):
+    """2026-11-07 : `dev_run_role(args='{"catalog": "…"}')` à chaque intégration, refusé au premier
+    appel. `dev_tools` reporte ses annotations : la signature lue portait `'dict'` en TEXTE, et le
+    schéma MCP n'annonçait aucun type pour `args`. Le schéma dit désormais `object`, et un objet
+    écrit en texte JSON se décode à la porte — la même règle sur les deux surfaces."""
+
+    def test_the_dev_schema_announces_an_object_for_a_dict_parameter(self):
+        from wama.tool_api import input_schema_for
+        schema = input_schema_for(dev_tools.dev_run_role)
+        self.assertEqual('object', schema['properties']['args'].get('type'), schema)
+
+    def test_an_object_written_as_json_text_reaches_the_tool_as_an_object(self):
+        from wama.tool_api import decode_structured_args
+        decoded = decode_structured_args(dev_tools.dev_run_role,
+                                         {'role': 'model', 'args': '{"catalog": "huggingface:Org/X"}'})
+        self.assertEqual({'catalog': 'huggingface:Org/X'}, decoded['args'])
+        self.assertEqual('model', decoded['role'])
+        # Contre-épreuve : un texte qui n'est pas l'objet annoncé reste tel quel — l'outil le
+        # refuse alors lui-même, en disant ce qu'il attend.
+        for raw in ('catalog=huggingface:Org/X', '["a"]'):
+            self.assertEqual(raw, decode_structured_args(dev_tools.dev_run_role, {'args': raw})['args'])
+
+
+class IntegrationStepTravelsWithTheOutputTest(TestCase):
+    """2026-11-07 : l'outil de plan d'intégration existait, l'assistant ne l'appelait pas et
+    improvisait l'étape suivante. Elle voyage désormais avec ce qu'il lit : la fin de la tâche du
+    rôle, son état, la lecture de sa sortie, la réponse de « Valider »."""
+
+    KEY = 'huggingface:Org/Unserved'
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key=self.KEY, name='Unserved', model_type='music',
+                               source='huggingface', is_downloaded=True, is_available=True,
+                               capabilities={'task': 'text-to-music'},
+                               composition={'runtime': {'engine': 'no_such_engine_2026'},
+                                            'components': [{'role': 'model', 'pattern': '*.pt'}]})
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__('shutil').rmtree, self.root, True)
+        (self.root / 'wama-dev-ai' / 'outputs').mkdir(parents=True)
+
+    def _output(self, name, content):
+        (self.root / 'wama-dev-ai' / 'outputs' / name).write_text(json.dumps(content), encoding='utf-8')
+        return f'wama-dev-ai/outputs/{name}'
+
+    def test_a_model_role_output_carries_the_next_step_of_the_route(self):
+        from wama.tool_api import plan_model_integration
+        relative = self._output('model_x.json', {'role': 'model', 'manifest': {
+            'manifest_kind': 'model', 'key': self.KEY}})
+        with mock.patch.object(dev_tools, 'base_dir', return_value=self.root):
+            step = dev_tools.integration_step([relative])
+            read = dev_tools.dev_read_output(None, relative)
+        plan = plan_model_integration(None, self.KEY)
+        self.assertEqual({self.KEY: {'next_step': plan['next_step'],
+                                     'human_gesture': plan['human_gesture']}}, step)
+        self.assertIn('backend', plan['human_gesture'])
+        self.assertEqual(step, read['integration_route'])
+
+    def test_an_output_about_no_model_carries_no_route(self):
+        """Contre-épreuve : une glu, un manifeste de librairie — pas de route de modèle."""
+        relative = self._output('librarian_x.json', {'role': 'librarian', 'manifest': {
+            'manifest_kind': 'library', 'key': 'somelib'}})
+        with mock.patch.object(dev_tools, 'base_dir', return_value=self.root):
+            self.assertEqual({}, dev_tools.integration_step([relative]))
+
+    def test_validating_says_the_next_step(self):
+        from wama.model_manager.views import _integration_next_step
+        step = _integration_next_step(self.KEY)
+        self.assertIn('backend', step['human_gesture'])
+        self.assertEqual({}, _integration_next_step(''))

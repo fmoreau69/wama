@@ -1589,7 +1589,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     : (m.execution === 'cloud' ? '<span class="badge bg-primary">distant — rien à télécharger</span>'
                     : (m.is_downloaded ? '<span class="badge bg-success">téléchargé</span>'
                         : '<span class="badge bg-secondary">non téléchargé</span>')),
-                m.is_available ? '<span class="badge bg-success-subtle text-success border border-success">disponible</span>'
+                {% comment %} « disponible » ne dit que l'appartenance aux choix : un modèle qu'aucun
+                backend n'exécute porte le verdict des selects d'app (`backend_missing`, servi par
+                `api_models_db`), leur libellé et leur raison au survol — 2026-11-08, ACE-Step 1.5
+                dit « disponible » ici et grisé au Composer. {% endcomment %}
+                m.is_available && m.backend_missing
+                    ? '<span class="badge bg-warning-subtle text-warning border border-warning" title="'
+                      + WamaApp.escapeHtml(m.backend_missing) + '">backend absent</span>'
+                : m.is_available ? '<span class="badge bg-success-subtle text-success border border-success">disponible</span>'
                     : (((m.extra_info || {}).exclusion || {}).by === 'superseded'
                         ? '<span class="badge bg-warning-subtle text-warning border border-warning" '
                           + 'title="Une nouvelle version l\'a remplacé partout où il était choisi ; ses poids restent jusqu\'à sa désinstallation">'
@@ -2360,8 +2367,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 const data = await r.json();
                 if (!data.success) WamaApp.toast((data.errors || [data.error || 'Échec']).join(' ; '), 'danger');
+                {% comment %} L'étape suivante de la route (`plan_model_integration`, servie par la
+                vue) : validé, le manifeste d'ACE-Step ne disait pas qu'il restait le backend. {% endcomment %}
                 else WamaApp.toast(b.dataset.decision === 'apply'
-                    ? ('Proposition appliquée.' + (data.written ? ` ${data.written} écrit — ${data.note || ''}` : ''))
+                    ? ('Proposition appliquée.' + (data.written ? ` ${data.written} écrit — ${data.note || ''}` : '')
+                       + (data.human_gesture ? ` Étape suivante : ${data.next_step} → ${data.human_gesture}` : ''))
                     : 'Proposition rejetée.', 'success');
             } catch (e) { WamaApp.toast('Échec : ' + e, 'danger'); }
             mmLoadProposals();

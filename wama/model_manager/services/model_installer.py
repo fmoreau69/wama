@@ -713,8 +713,10 @@ def anatomy_gaps(files, composition) -> dict:
       * `unclaimed` — poids qu'aucun composant ne réclame, qu'aucune règle n'écarte, qu'aucune
         exclusion déclarée ne couvre : l'anatomie est INCOMPLÈTE ;
       * `claims_nothing` — rôles dont le motif ne désigne aucun fichier ; `excludes_nothing` —
-        exclusions déclarées qui ne désignent rien (une déclaration morte se dit, comme un tag
-        Ollama mort) ;
+        exclusions déclarées qui ne désignent aucun POIDS (une déclaration morte se dit, comme un
+        tag Ollama mort) ;
+      * `excluded_but_read` — `{poids: 'fichier:ligne'}` écartés alors que le code VENDORISÉ du
+        moteur les nomme (`_named_by_engine` — lu sur le disque, jamais exécuté) ;
       * `set_aside` — `{chemin: raison}` de ce que les règles ont écarté, pour qu'on VOIE leur
         travail (le plan de validation l'affiche).
     """
@@ -740,7 +742,7 @@ def anatomy_gaps(files, composition) -> dict:
         if path in claimed:
             continue
         if any(fnmatch.fnmatch(path, pat) for pat in excluded):
-            set_aside[path] = 'écarté par la déclaration'
+            set_aside[path] = _DECLARED_ASIDE
             continue
         reason = 'jumeau de format' if path in twins else \
             _set_aside_reason(path, claimed, names, proven, engine)
@@ -754,12 +756,65 @@ def anatomy_gaps(files, composition) -> dict:
     nothing = [role for role, pat in declared if not any(fnmatch.fnmatch(p, pat) for p in names)]
     if nothing:
         out['claims_nothing'] = nothing
-    dead = [pat for pat in excluded if not any(fnmatch.fnmatch(p, pat) for p in names)]
+    # Une exclusion écarte un POIDS (`WAMA_MANIFEST_SPEC §7`) : celle qui n'en désigne aucun est
+    # morte (2026-11-07 — la proposition d'ACE-Step en « écartait » vingt : configurations,
+    # tokenizers, README, que l'installation tire de toute façon avec les fichiers de bord).
+    dead = [pat for pat in excluded if not any(fnmatch.fnmatch(p, pat) for p in weights)]
     if dead:
         out['excludes_nothing'] = dead
+    read = _named_by_engine([p for p, why in set_aside.items() if why == _DECLARED_ASIDE], engine)
+    if read:
+        out['excluded_but_read'] = {path: where for path, (_, where) in read.items()}
     if out and set_aside:
         out['set_aside'] = dict(sorted(set_aside.items()))
     return out
+
+
+#: Raison d'un poids que la déclaration écarte (`composition.excluded`).
+_DECLARED_ASIDE = 'écarté par la déclaration'
+
+
+def engine_read_weights(files, composition) -> dict:
+    """`{poids: (nom lu, 'fichier:ligne')}` — les poids de l'inventaire qu'aucun composant ne
+    réclame et que le code VENDORISÉ du moteur nomme (`_named_by_engine`), écartés ou non. Le
+    FAIT que le rôle `model` pose en composants (`role_utils.enforce_engine_read_anatomy`) avant
+    que « Valider » ne le confronte : la même lecture, des deux côtés. ⚠ Un code qui nomme
+    plusieurs tailles d'un sous-modèle les fait toutes réclamer si le dépôt les porte : un excès
+    (une installation plus lourde, revue au plan), jamais un trou."""
+    import fnmatch
+
+    from .prospector import _WEIGHT_EXTS
+    compo = composition or {}
+    patterns = [c['pattern'] for c in (compo.get('components') or [])
+                if isinstance(c, dict) and c.get('pattern')]
+    names = [f[0] if isinstance(f, (tuple, list)) else f for f in (files or [])]
+    loose = [p for p in names if p.lower().endswith(_WEIGHT_EXTS)
+             and not any(fnmatch.fnmatch(p, pat) for pat in patterns)]
+    return _named_by_engine(loose, (compo.get('runtime') or {}).get('engine') or '')
+
+
+def _named_by_engine(paths, engine) -> dict:
+    """`{poids: (nom lu, 'fichier:ligne')}` — les poids dont le code VENDORISÉ du moteur nomme le
+    fichier ou un dossier (`vendor_installer.vendored_code_names`) : le moteur les lit, ce sont
+    des composants. Vécu le 2026-11-07 : la proposition d'anatomie d'ACE-Step écartait son encodeur
+    de texte (« not used ») et `silence_latent.pt`, que son chargeur ouvre et dont l'absence le
+    fait lever. Un nom de point de contrôle de LIBRAIRIE (`model.safetensors`…) ne prouve rien seul
+    — tout chargeur le lit. Un moteur qui n'est pas vendorisé ne réfute rien : son code n'est pas
+    à nous."""
+    if not paths or not engine:
+        return {}
+    from .vendor_installer import vendored_code_names
+    named = vendored_code_names(engine)
+    if not named:
+        return {}
+    generic = {base for bases in _LIBRARY_CHECKPOINTS.values() for base in bases}
+    read = {}
+    for path in paths:
+        for part in reversed(path.split('/')):         # le fichier avant ses dossiers
+            if part in named and _weight_set_key(part)[0] not in generic:
+                read[path] = (part, named[part])
+                break
+    return read
 
 
 def anatomy_error(gaps) -> str:
@@ -777,8 +832,13 @@ def anatomy_error(gaps) -> str:
         parts.append(f"composant(s) dont le motif ne désigne aucun fichier du dépôt : "
                      f"{', '.join(gaps['claims_nothing'])}")
     if gaps.get('excludes_nothing'):
-        parts.append(f"exclusion(s) qui ne désignent aucun fichier : "
+        parts.append(f"exclusion(s) qui ne désignent aucun poids : "
                      f"{', '.join(gaps['excludes_nothing'])}")
+    if gaps.get('excluded_but_read'):
+        shown = list(gaps['excluded_but_read'].items())
+        parts.append("poids écarté(s) que le code du moteur LIT — ce sont des composants : "
+                     + ', '.join(f'{p} ({where})' for p, where in shown[:4])
+                     + (', …' if len(shown) > 4 else ''))
     return ('anatomie incomplète : ' + ' ; '.join(parts)) if parts else ''
 
 
@@ -2547,8 +2607,16 @@ def spec_for_catalog_row(model) -> dict | None:
     return spec
 
 
-#: Fichiers de bord tirés avec tout jeu de composants (config/tokenizer/licence — légers).
-_PATTERNS_DE_BORD = ['*.json', '*.txt', 'tokenizer*', '*.md']
+#: Fichiers de bord tirés avec tout jeu de composants (config/tokenizer/licence — légers) : ce que
+#: les chargeurs lisent à côté des poids. ⚠ Complété le 2026-11-07, MESURÉ sur les 37 anatomies
+#: tirées du Hub : une réinstallation par anatomie laissait le code distant (`configuration_*.py`,
+#: `modeling_*.py` qu'un `config.json` nomme par `auto_map` — Audio8, SheetSage2, le DiT d'ACE-Step
+#: chargé en `trust_remote_code`), le vocabulaire sentencepiece (`spiece.model` des trois MusicGen
+#: et de Supra2), les gabarits de chat (`chat_template.jinja` de Higgs, Qwen-Image-Edit) et les
+#: vocabulaires `*.tiktoken`. Le reste de ce qu'elle laisse (images, échantillons, `.gitattributes`,
+#: exports flax/openvino) n'est lu par aucun chargeur.
+_PATTERNS_DE_BORD = ['*.json', '*.txt', 'tokenizer*', '*.md', '*.py', '*.model', '*.tiktoken',
+                     '*.jinja']
 
 
 def patterns_from_composition(composition) -> list | None:

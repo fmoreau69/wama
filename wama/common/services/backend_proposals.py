@@ -265,6 +265,18 @@ def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> d
             errors.append(f"moteur VENDORISÉ « {engine} » : importer son code par "
                           "self.import_vendored(...) — il n'est pas installé dans le venv")
         errors += _vendored_import_errors(tree, engine)
+        # Ce que le moteur télécharge LUI-MÊME (2026-11-08, ACE-Step : `initialize_service` y mène
+        # par `_ensure_models_present`) : la lecture du contrôle de la route sur le clone. Le
+        # contrôle par motif ci-dessus ne voit que les appels écrits dans le backend.
+        from wama.common.utils.download_calls import called_name, functions_reaching_download
+        from wama.model_manager.services.vendor_installer import vendor_dir
+        reaching = functions_reaching_download(vendor_dir(engine))
+        reached = sorted({called_name(n) for n in ast.walk(tree) if isinstance(n, ast.Call)}
+                         & set(reaching))
+        if reached:
+            errors.append(f"appelle {', '.join(f'{n} ({reaching[n]})' for n in reached)} : "
+                          f"le code du moteur « {engine} » y télécharge lui-même — appeler les "
+                          "chargeurs qu'elles appellent, sur les chemins installés (component_paths)")
         own = _vendored_top_packages(engine) & set(attrs.get('REQUIRED_PACKAGES') or [])
         if own:
             errors.append(f"REQUIRED_PACKAGES nomme le code VENDORISÉ lui-même ({sorted(own)}) : "
@@ -844,6 +856,20 @@ def pending() -> list:
     return items
 
 
+def refusals(name: str) -> list:
+    """Ce que « Valider » refuserait de ce backend proposé MAINTENANT — les contrôles qu'`apply`
+    refait, sans rien écrire (le pendant de `proposals.plan` pour un manifeste, 2026-11-08)."""
+    _, data = _load(name)
+    module = data.get('module') or ''
+    if not MODULE_NAME.match(module):
+        return [f'nom de module refusé : {module!r}']
+    if (backends_dir() / f'{module}.py').exists():
+        return [f'{module}.py existe déjà — jamais écrasé']
+    return check_source(data.get('code') or '', engine=data.get('engine') or '',
+                        model_id=model_id_of(data.get('model_key') or ''),
+                        contract=tuple(data.get('contract') or DEFAULT_CONTRACT))['errors']
+
+
 def _load(name: str) -> tuple:
     f = outputs_dir() / Path(name).name          # jamais un chemin hors d'outputs/
     if not f.is_file() or not f.name.startswith('backend_'):
@@ -855,17 +881,11 @@ def apply(name: str, user=None) -> dict:
     """ÉCRIT le backend validé dans `wama/common/backends/<module>.py` — contrôles REFAITS,
     jamais par-dessus un module existant. L'inventaire le découvre seul (AST, `ENGINE`)."""
     f, data = _load(name)
-    module, code = data.get('module') or '', data.get('code') or ''
-    if not MODULE_NAME.match(module):
-        return {'applied': False, 'errors': [f'nom de module refusé : {module!r}']}
+    errors = refusals(name)
+    if errors:
+        return {'applied': False, 'errors': errors}
+    module, code = data['module'], data.get('code') or ''
     target = backends_dir() / f'{module}.py'
-    if target.exists():
-        return {'applied': False, 'errors': [f'{target.name} existe déjà — jamais écrasé']}
-    contract = tuple(data.get('contract') or DEFAULT_CONTRACT)
-    checks = check_source(code, engine=data.get('engine') or '',
-                          model_id=model_id_of(data.get('model_key') or ''), contract=contract)
-    if not checks['ok']:
-        return {'applied': False, 'errors': checks['errors']}
     try:
         written = str(target.relative_to(settings.BASE_DIR))
     except ValueError:
@@ -880,7 +900,7 @@ def apply(name: str, user=None) -> dict:
     f.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
     logger.warning("[backend_proposals] %s écrit par %s (proposition %s) — à relire et commiter",
                    target.name, getattr(user, 'username', '?'), f.name)
-    return {'applied': True, 'written': data['written'],
+    return {'applied': True, 'written': data['written'], 'model_key': data.get('model_key') or '',
             'note': "rechargez les workers pour qu'ils importent le nouveau backend"}
 
 

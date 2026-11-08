@@ -366,8 +366,14 @@ class VendoredEngineCheckTest(SimpleTestCase):
         pkg = Path(tmp.name) / 'yue' / 'src' / 'yue2'
         pkg.mkdir(parents=True)
         (pkg / '__init__.py').write_text('', encoding='utf-8')
+        # Un clone qui TÉLÉCHARGE ses poids derrière son entrée documentée (ACE-Step 1.5,
+        # 2026-11-08 : `initialize_service` → `_ensure_models_present` → `snapshot_download`).
         (pkg / 'pipeline.py').write_text(
-            'import torch\ntorch.cuda.set_per_process_memory_fraction(0.9)\n', encoding='utf-8')
+            'import torch\ntorch.cuda.set_per_process_memory_fraction(0.9)\n'
+            'from huggingface_hub import snapshot_download\n'
+            'def _fetch(path):\n    snapshot_download("org/x", local_dir=path)\n'
+            'def initialize_service(path):\n    _fetch(path)\n    return load_weights(path)\n'
+            'def load_weights(path):\n    return path\n', encoding='utf-8')
         override = override_settings(BACKEND_VENDOR_DIR=tmp.name)
         override.enable()
         self.addCleanup(override.disable)
@@ -398,11 +404,21 @@ class VendoredEngineCheckTest(SimpleTestCase):
                 'torch.cuda.set_per_process_memory_fraction(1.0)', 'pass'),
             'nomme le code VENDORISÉ': VENDORED_GOOD.replace('REQUIRED_PACKAGES: list = []',
                                                              'REQUIRED_PACKAGES = ["yue2"]'),
+            # L'entrée qui télécharge, appelée — le chargeur qu'elle appelle, lui, passe (le cas
+            # bien formé ci-dessus ne l'appelle pas ; le suivant l'appelle).
+            'y télécharge lui-même': VENDORED_GOOD.replace(
+                '        return True\n', '        self._p.initialize_service("/w")\n        return True\n', 1),
         }
         for expected, code in cases.items():
             res = self._check(code)
             self.assertFalse(res['ok'], expected)
             self.assertTrue(any(expected in e for e in res['errors']), (expected, res['errors']))
+
+    def test_the_loader_below_the_download_is_allowed(self):
+        """Contre-épreuve : appeler le chargeur que l'entrée appelle, sur les chemins installés."""
+        res = self._check(VENDORED_GOOD.replace(
+            '        return True\n', '        self._p.load_weights("/w")\n        return True\n', 1))
+        self.assertTrue(res['ok'], res['errors'])
 
     def test_an_annotated_class_attribute_is_read(self):
         """Contre-épreuve du faux positif : `REQUIRED_PACKAGES: list = []` est bien déclaré."""

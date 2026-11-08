@@ -2848,6 +2848,27 @@ d'abord un OCR en échec maquillé en succès.**
      battement 60 s → pile de tous les fils dans `gateway-discord.log` (la cause des coupures,
      enfin lisible) ; 300 s gelée ou 600 s déconnectée → le process se relance (`os.execv`).
 
+### 2026-11-07→08 — ACE-Step intégré par l'assistant : ce que la donnée doit porter
+
+Fil `ace-step-integration-2` (conv 60, ILaaS qwen-3.6-35b), route d'intégration d'un modèle
+menée par l'assistant (`PROSPECTION_PIPELINE §Session du 2026-11-08`). Les défauts côté
+assistant, chacun soldé par un contrôle ou par la donnée, jamais par une consigne :
+- **`args` d'un rôle écrit en texte JSON au premier appel, à chaque intégration.** Cause : la
+  signature de `dev_run_role` vient d'un module à annotations différées — `'dict'` en texte, le
+  schéma MCP n'annonçait AUCUN type. `tool_api._tool_signature` résout les annotations
+  (`eval_str`), et un objet écrit en texte se décode aux deux portes
+  (`decode_structured_args` : `sanitize_tool_args`, `dev_tools.call`). Mesuré le soir même : le
+  rôle `backend` lancé avec `args` en objet dès le premier appel.
+- **L'outil de plan d'intégration existait, l'assistant ne l'appelait pas** et improvisait
+  (corriger une sortie à la main, lancer `integrator`, puis une étape « codegen » inventée).
+  L'étape suivante voyage avec ce qu'il lit : fin et état d'une tâche de rôle, lecture d'une
+  sortie (`dev_tools.integration_step` → `plan_model_integration`).
+- **La porte de confidentialité masquait une date de nom de fichier en téléphone**
+  (`model_…_[TÉLÉPHONE_1]_21-46.json`, tâche confiée à Claude Code) :
+  `privacy/engine._is_calendar_date` — une date valide n'est jamais un numéro.
+- Vu, laissé : l'assistant passe `model: "opus"` à `dev_run_role` ; la route le remplace par le
+  modèle du niveau développement et le dit (`model_note`).
+
 ### ⭐ 2026-11-05 — une donnée INVENTÉE dans les ARGUMENTS d'un outil (card 399 du Writer)
 
 Le CV de la card 399 (Writer, compte de Fabien, 2026-11-01) porte « Né en avril 2002 », que le

@@ -158,7 +158,51 @@ def vendor_material(engine: str, repo_id: str) -> str:
     readme = root / 'README.md'
     if readme.is_file():
         parts.append(f'===== README DU MOTEUR VENDORISÉ =====\n{_read(readme, VENDOR_CHARS // 2)}')
+    # La DOCUMENTATION D'INFÉRENCE que le clone publie (2026-11-08, ACE-Step : ni son README ni
+    # aucun `from_pretrained` ne montraient son API — `initialize_service`, `generate_music`,
+    # `docs/en/INFERENCE.md`) : le pendant, côté moteur, des `INFERENCE_FILES` du snapshot.
+    docs = sorted((p for p in root.rglob('*.md') if p.stem.lower() == 'inference'
+                   and 'tests' not in p.parts),
+                  key=lambda p: ('/en/' not in p.as_posix(), len(p.parts)))
+    if docs:
+        parts.append(f'===== DOCUMENTATION D\'INFÉRENCE DU MOTEUR : {docs[0].relative_to(root)} '
+                     f'=====\n{_read(docs[0], VENDOR_CHARS)}')
+    # Ce que le code du moteur TÉLÉCHARGE lui-même, et ce qui y mène — la lecture du contrôle de
+    # la route (`download_calls`) : le backend n'en appelle aucune fonction, les poids sont là.
+    from wama.common.utils.download_calls import functions_reaching_download
+    reaching = functions_reaching_download(root)
+    if reaching:
+        parts.append(
+            "===== FONCTIONS DU MOTEUR QUI TÉLÉCHARGENT, OU QUI Y MÈNENT — N'EN APPELER AUCUNE "
+            "=====\nLes poids sont DÉJÀ installés par la route WAMA ; un chargement qui passe par "
+            "l'une d'elles téléchargerait à côté. Appeler les chargeurs qu'elles appellent, sur les "
+            "chemins de `component_paths` :\n"
+            + '\n'.join(f'{name}  ({where})' for name, where in reaching.items()))
+        # L'entrée DOCUMENTÉE qui y mène, en entier : c'est elle que le backend reproduit, ses
+        # chargeurs appelés sur les chemins installés, sans le téléchargement ni rien qui écrive
+        # dans le dossier des poids.
+        documented = docs[0].read_text(encoding='utf-8', errors='replace') if docs else ''
+        for name, where in reaching.items():
+            if documented and re.search(rf'\b{re.escape(name)}\s*\(', documented):
+                source = _function_source(root / where.rsplit(':', 1)[0], name)
+                if source:
+                    parts.append(f'===== CODE DE L\'ENTRÉE DOCUMENTÉE {name} ({where}) — à '
+                                 f'reproduire SANS ses téléchargements =====\n'
+                                 f'{source[:VENDOR_CHARS]}')
     return '\n\n'.join(parts)
+
+
+def _function_source(path: Path, name: str) -> str:
+    """Le source de la fonction `name` du module `path`, '' si introuvable."""
+    import ast
+    try:
+        text = path.read_text(encoding='utf-8', errors='replace')
+        tree = ast.parse(text)
+    except (OSError, SyntaxError, ValueError):
+        return ''
+    node = next((n for n in ast.walk(tree)
+                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name), None)
+    return (ast.get_source_segment(text, node) or '') if node is not None else ''
 
 
 def model_material(row) -> str:
@@ -251,6 +295,32 @@ def main():
     code = extract_code(reply)
 
     checks = bp.check_source(code, engine=engine, model_id=model_id, contract=contract)
+    # UNE reprise sur le verdict des contrôles, comme le rôle `model` sur celui de « Valider »
+    # (2026-11-08, ACE-Step par l'assistant) : refusé pour trois défauts mécaniques
+    # (`SUPPORTED_MODELS` dans la classe, `initialize_service` qui télécharge, le clone nommé en
+    # paquet requis), le backend restait dans la file sans que le rôle puisse se corriger. Les
+    # refus sont rendus au modèle mot pour mot ; la reprise n'est gardée que moins refusée.
+    if not checks['ok']:
+        print(f"[backend] contrôles refusent : {checks['errors']} — une reprise")
+        reprise = (f"{user_msg}\n\nTON MODULE :\n```python\n{code}```\n\nLes contrôles de WAMA le "
+                   "REFUSENT :\n" + '\n'.join(f'- {e}' for e in checks['errors'])
+                   + "\n\nCorrige ce qui est refusé, garde le reste, et rends le module complet "
+                     "(un seul bloc ```python).")
+        try:
+            second = extract_code(call_llm(args.provider, model, PROMPT, reprise,
+                                           num_ctx=LONG_WRITE_NUM_CTX, keep_alive=keep_alive,
+                                           timeout=1800))
+        except (RuntimeError, ValueError) as e:
+            second = None
+            print(f'[backend] reprise sans réponse ({e}) : la première est gardée')
+        if second:
+            second_checks = bp.check_source(second, engine=engine, model_id=model_id,
+                                            contract=contract)
+            kept = len(second_checks['errors']) < len(checks['errors'])
+            print(f"[backend] reprise : {len(second_checks['errors'])} refus contre "
+                  f"{len(checks['errors'])} — " + ('gardée' if kept else 'écartée'))
+            if kept:
+                code, checks = second, second_checks
     resolution = (bp.simulate_resolution(code, module=module, engine=engine, model_id=model_id,
                                          task=task)
                   if checks['ok'] else None)

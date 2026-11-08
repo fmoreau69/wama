@@ -1273,6 +1273,7 @@ def api_models_db(request):
 
     models = []
     full = is_admin_or_dev(request.user)
+    from wama.common.backends.manager import backend_missing
     for model in queryset:
         data = model.to_dict()
         if not data.get('is_loaded') and model.model_key in residents:
@@ -1281,6 +1282,11 @@ def api_models_db(request):
         data['open_to_me'] = not remote or model.model_key in chosen
         data['drawn_for_me'] = not remote or model.model_key in drawn
         data['internal_quality'] = internal.get(model.model_key) or []
+        # Exécutable ? Le verdict des selects d'app et de l'assistant (`backend_missing`), rabattu
+        # à la lecture comme la résidence (2026-11-08) : la carte disait « téléchargé, disponible »
+        # d'ACE-Step 1.5 alors que le Composer le grisait « backend absent » — « disponible » ne dit
+        # que l'appartenance aux choix, jamais qu'un backend sait l'exécuter.
+        data['backend_missing'] = '' if model.is_proposed else (backend_missing(model) or '')
         if model.owner_id:
             # Un modèle d'AUTEUR (`ROADMAP §29`) : sa provenance pour CE compte, et les gestes
             # de promotion (« Demander la promotion », « Voir la demande ») — la lecture commune
@@ -2033,8 +2039,16 @@ def api_manifest_proposals(request):
     from wama.accounts.permissions import is_admin_tier
     # Un développeur LIT la file (il y propose) ; seul un administrateur la décide — la page
     # masque alors Valider/Rejeter (`api_manifest_proposal_decide`).
-    return JsonResponse({'success': True, 'proposals': items,
-                         'backends': backend_proposals.pending(),
+    # Le verdict de « Valider » MAINTENANT (`refusals`), comme le plan d'un manifeste — celui du
+    # fichier est celui du rôle, à son heure, sous les contrôles de son heure (2026-11-08).
+    backends = []
+    for b in backend_proposals.pending():
+        try:
+            b['checks'] = {**(b.get('checks') or {}), 'errors': backend_proposals.refusals(b['file'])}
+        except Exception as e:
+            b['checks'] = {**(b.get('checks') or {}), 'errors': [f"contrôles impossibles : {e}"]}
+        backends.append(b)
+    return JsonResponse({'success': True, 'proposals': items, 'backends': backends,
                          'can_decide': is_admin_tier(request.user)})
 
 
@@ -2071,6 +2085,8 @@ def api_manifest_proposal_decide(request):
                                                                           request.user)})
             if decision == 'apply':
                 res = backend_proposals.apply(data['file'], request.user)
+                if res.get('applied'):
+                    res.update(_integration_next_step(res.get('model_key')))
                 return JsonResponse({'success': bool(res.get('applied')), **res},
                                     status=200 if res.get('applied') else 400)
         except FileNotFoundError:
@@ -2088,8 +2104,27 @@ def api_manifest_proposal_decide(request):
         return JsonResponse({'success': False, 'error': f"décision inconnue : {decision!r}"},
                             status=400)
     res = proposals.apply(obj, user=request.user)
+    if res.get('applied') and obj.manifest_kind == 'model':
+        res.update(_integration_next_step(obj.key))
     return JsonResponse({'success': bool(res.get('applied')), **res},
                         status=200 if res.get('applied') else 400)
+
+
+def _integration_next_step(model_key) -> dict:
+    """L'étape suivante de la route d'intégration après une validation (2026-11-08) — celle que
+    dit `tool_api.plan_model_integration`, la seule qui la dise : le manifeste d'ACE-Step validé,
+    rien n'annonçait qu'il restait à faire écrire son backend."""
+    if not model_key:
+        return {}
+    try:
+        from wama.tool_api import plan_model_integration
+        plan = plan_model_integration(None, model_key)
+    except Exception:
+        logger.debug('[proposals] étape suivante illisible pour %s', model_key, exc_info=True)
+        return {}
+    if not plan.get('human_gesture'):
+        return {}
+    return {'next_step': plan.get('next_step'), 'human_gesture': plan['human_gesture']}
 
 
 @login_required

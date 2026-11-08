@@ -726,6 +726,9 @@ MECHANISMS = (
               annexes=('wama/model_manager/services/vendor_installer.py',
                        'wama/model_manager/services/succession.py',
                        'wama/common/utils/disk_utils.py',
+                       # Ce qui télécharge, lu par l'AST : le contrôle de la route ET la matière
+                       # du rôle `backend` sur le code d'un moteur vendorisé (2026-11-08).
+                       'wama/common/utils/download_calls.py',
                        'wama/common/tests/tests_install_route.py',
                        'wama/model_manager/tests/tests_anatomy.py')),
     Mechanism('install_history', 'Journal des installations',

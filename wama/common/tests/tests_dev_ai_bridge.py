@@ -1113,3 +1113,253 @@ class FournisseurDesRolesTest(SimpleTestCase):
             self.role_utils.add_llm_arguments(parser)
             self.assertEqual('ollama', parser.parse_args([]).provider,
                              "sans variable, les rôles restent en local comme avant")
+
+
+class ModelRoleTakesOneRepriseOnTheVerdictTest(SimpleTestCase):
+    """Le rôle `model` juge sa sortie comme « Valider » la jugera, et se reprend UNE fois.
+
+    Vécu le 2026-11-07 (ACE-Step 1.5, intégré par l'assistant) : le rôle se disait « VALIDE »
+    d'une anatomie qui oubliait l'encodeur de texte ; « Valider » la refusait, et la chaîne
+    s'arrêtait dans la file sur un défaut que le contrôle avait déjà nommé."""
+
+    KEY = 'huggingface:Org/Composed'
+    VERDICT = "anatomie incomplète : 1 poids (text_encoder/model.safetensors)"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role = _charger('run_model_manifest')
+
+    def _run(self, answers, verdicts):
+        from types import SimpleNamespace
+        from unittest import mock
+        role = self.role
+        calls, written, proposed = [], {}, []
+
+        def llm(provider, model, system, user_msg, **kw):
+            calls.append(user_msg)
+            return json.dumps(answers[len(calls) - 1])
+
+        def output(_role, _slug, payload):
+            written.update(payload)
+            return role.REPO_ROOT / 'wama-dev-ai' / 'outputs' / 'model_test.json'
+
+        def propose(manifest, origin=''):
+            proposed.append(manifest)
+            return SimpleNamespace(manifest_kind='model', key=self.KEY, errors=[])
+
+        argv = ['run_model_manifest.py', '--catalog', self.KEY, '--provider', 'ilaas', '--model', 'm']
+        with mock.patch.object(sys, 'argv', argv),                 mock.patch.object(role, 'sources_catalog', return_value=('snapshot:/x', 'SRC')),                 mock.patch.object(role, 'resolve_model', return_value='m'),                 mock.patch.object(role, 'local_llm_guard', return_value=None),                 mock.patch.object(role, 'exemples', return_value=''),                 mock.patch.object(role, 'model_vocabularies', return_value=''),                 mock.patch.object(role, 'enforce_facts', return_value=[]),                 mock.patch.object(role, 'call_llm', side_effect=llm),                 mock.patch.object(role, 'write_output', side_effect=output),                 mock.patch('wama.common.manifests.builtin.model.extract_model', return_value=None),                 mock.patch('wama.common.manifests.proposals.propose', side_effect=propose),                 mock.patch('wama.common.manifests.proposals.judge',
+                           side_effect=lambda m: list(verdicts[m['name']])),                 mock.patch('builtins.print'):
+            role.main()
+        return calls, written, proposed
+
+    def _manifest(self, name):
+        return {'manifest_kind': 'model', 'key': self.KEY, 'name': name, 'body': {}}
+
+    def test_a_refused_anatomy_is_handed_back_once_and_the_complete_one_is_proposed(self):
+        calls, written, proposed = self._run(
+            [self._manifest('first'), self._manifest('second')],
+            {'first': [self.VERDICT], 'second': []})
+        self.assertEqual(2, len(calls))
+        self.assertIn(self.VERDICT, calls[1], "the reprise must carry the verdict word for word")
+        self.assertEqual(['second'], [m['name'] for m in proposed])
+        self.assertEqual([], written['validation_errors'])
+
+    def test_a_reprise_no_less_refused_keeps_the_first_answer_with_its_verdict(self):
+        calls, written, proposed = self._run(
+            [self._manifest('first'), self._manifest('second')],
+            {'first': [self.VERDICT], 'second': [self.VERDICT]})
+        self.assertEqual(['first'], [m['name'] for m in proposed])
+        self.assertEqual([self.VERDICT], written['validation_errors'],
+                         "the output must say what Validate will refuse, never VALID")
+
+    def test_an_accepted_answer_costs_a_single_call(self):
+        calls, written, _ = self._run([self._manifest('first')], {'first': []})
+        self.assertEqual(1, len(calls))
+        self.assertEqual([], written['validation_errors'])
+
+
+class EngineReadAnatomyIsAFactTest(SimpleTestCase):
+    """Ce que le juge de « Valider » établit sur l'anatomie, le rôle le pose (2026-11-07).
+
+    ACE-Step 1.5 : refusé pour avoir oublié son encodeur de texte, le rôle l'a ÉCARTÉ avec
+    `silence_latent.pt` et vingt configurations, puis n'a pas su se reprendre. Le code vendorisé
+    nomme les deux poids : ce sont des composants ; une exclusion sans poids tombe ; l'exclusion
+    d'un AUTRE modèle du dépôt, que le code ne nomme pas, reste."""
+
+    INVENTORY = [('acestep-5Hz-lm-1.7B/model.safetensors', 1), ('acestep-v15-turbo/model.safetensors', 1),
+                 ('acestep-v15-turbo/silence_latent.pt', 1), ('acestep-v15-turbo/config.json', 1),
+                 ('Qwen3-Embedding-0.6B/model.safetensors', 1), ('README.md', 1),
+                 ('alt/model.safetensors', 1)]
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    def test_the_weights_the_engine_reads_become_components(self):
+        import shutil
+        import tempfile
+        from wama.model_manager.services import model_installer, vendor_installer
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / 'probe_engine').mkdir()
+        # La forme du chargeur réel (`init_service_loader_components.py:90`,
+        # `init_service_loader.py:211`).
+        (root / 'probe_engine' / 'loader.py').write_text(
+            'import os\n'
+            'text_encoder_path = os.path.join(checkpoint_dir, "Qwen3-Embedding-0.6B")\n'
+            'silence_latent_path = os.path.join(model_checkpoint_path, "silence_latent.pt")\n',
+            encoding='utf-8')
+        self.addCleanup(vendor_installer._code_names.cache_clear)
+        manifest = {'body': {'composition': {
+            'components': [{'role': 'lm', 'pattern': 'acestep-5Hz-lm-1.7B/model.safetensors'},
+                           {'role': 'dit', 'pattern': 'acestep-v15-turbo/model.safetensors'}],
+            'excluded': [{'pattern': 'Qwen3-Embedding-0.6B/model.safetensors', 'reason': 'not used'},
+                         {'pattern': 'acestep-v15-turbo/silence_latent.pt', 'reason': 'buffer'},
+                         {'pattern': 'README.md', 'reason': 'doc'},
+                         {'pattern': 'alt/*', 'reason': 'another model'}],
+            'runtime': {'engine': 'probe_engine'}}}}
+        concerns = []
+        with self.settings(BACKEND_VENDOR_DIR=str(root)):
+            vendor_installer._code_names.cache_clear()
+            self.role_utils.enforce_engine_read_anatomy(manifest, self.INVENTORY, concerns)
+            compo = manifest['body']['composition']
+            self.assertEqual({}, model_installer.anatomy_gaps(self.INVENTORY, compo))
+        self.assertIn({'role': 'Qwen3-Embedding-0.6B',
+                       'pattern': 'Qwen3-Embedding-0.6B/model.safetensors'}, compo['components'])
+        self.assertIn({'role': 'silence_latent', 'pattern': 'acestep-v15-turbo/silence_latent.pt'},
+                      compo['components'])
+        self.assertEqual(['alt/*'], [e['pattern'] for e in compo['excluded']])
+        self.assertEqual(3, len(concerns), concerns)
+
+    def test_without_a_declared_anatomy_nothing_is_posed(self):
+        manifest = {'body': {'composition': {'runtime': {'engine': 'probe_engine'}}}}
+        self.role_utils.enforce_engine_read_anatomy(manifest, self.INVENTORY, [])
+        self.assertNotIn('components', manifest['body']['composition'])
+
+
+class RoleOutputNameIsReadableEverywhereTest(SimpleTestCase):
+    """Le nom d'une sortie de rôle suit l'assainissement des clés du corpus (2026-11-08) : la clé
+    de catalogue y gardait son `:`, et 41 sorties `model_huggingface:…` étaient illisibles depuis
+    Windows, où `:` est interdit dans un nom de fichier."""
+
+    def test_a_catalogue_key_is_named_as_the_corpus_names_it(self):
+        import tempfile
+        from unittest import mock
+        role_utils = _charger('role_utils')
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(role_utils, 'OUTPUTS', Path(folder)), \
+                mock.patch.object(role_utils, 'RELAYS', []):
+            out = role_utils.write_output('model', 'huggingface:ACE-Step/Ace-Step1.5', {})
+            composed = role_utils.write_output('codegen', 'reader__ocr', {})
+        self.assertTrue(out.name.startswith('model_huggingface__ACE-Step~Ace-Step1.5_'), out.name)
+        self.assertNotIn(':', out.name)
+        self.assertTrue(composed.name.startswith('codegen_reader__ocr_'), composed.name)
+
+
+class ProposalCarriesOnlyWhatItOwnsTest(SimpleTestCase):
+    """2026-11-07 (ACE-Step) : trois divergences à chaque proposition du rôle `model`, jamais
+    appliquées — `resources` à 0, la description réécrite face à la fiche du catalogue, et
+    `["text", "audio"]` pour un `text-to-music` dont la tâche dit `("audio",)`. Du bruit au plan,
+    qui noyait ce qui compte."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    def test_modalities_are_the_media_the_task_treats(self):
+        manifest = {'body': {'capabilities': {'task': 'text-to-music', 'modalities': ['text', 'audio']}}}
+        concerns = []
+        self.role_utils.enforce_modality_facts(manifest, concerns)
+        self.assertEqual(['audio'], manifest['body']['capabilities']['modalities'])
+        self.assertEqual(1, len(concerns))
+        # Contre-épreuve : un sous-ensemble des médias de la tâche reste tel quel.
+        detector = {'body': {'capabilities': {'task': 'detect', 'modalities': ['image']}}}
+        self.role_utils.enforce_modality_facts(detector, [])
+        self.assertEqual(['image'], detector['body']['capabilities']['modalities'])
+
+    def test_measured_resources_and_card_descriptions_are_not_proposed(self):
+        manifest = {'body': {'resources': {'vram_gb': 0, 'disk_gb': 0},
+                             'identity': {'license': 'mit', 'description_short': 'Open-source music…'},
+                             'capabilities': {'task': 'text-to-music'}}}
+        concerns = []
+        self.role_utils.enforce_owned_elsewhere(manifest, concerns)
+        self.assertNotIn('resources', manifest['body'])
+        self.assertEqual({'license': 'mit'}, manifest['body']['identity'])
+        self.assertEqual(1, len(concerns))
+
+
+class BackendRoleTakesOneRepriseOnItsChecksTest(SimpleTestCase):
+    """Le rôle `backend` se reprend UNE fois sur le verdict de ses contrôles (2026-11-08).
+
+    Vécu (ACE-Step 1.5, par l'assistant) : refusé pour trois défauts mécaniques — dont l'entrée du
+    moteur qui télécharge elle-même —, le backend restait dans la file, refusé, sans que le rôle
+    puisse se corriger. Même règle que le rôle `model` : le verdict mot pour mot, la reprise
+    gardée seulement si elle est moins refusée."""
+
+    KEY = 'huggingface:Org/Song'
+    VERDICT = "appelle initialize_service (x.py:1) : le code du moteur « e » y télécharge lui-même"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role = _charger('run_backend')
+
+    def _run(self, answers, verdicts):
+        from types import SimpleNamespace
+        from unittest import mock
+        import wama.common.services.backend_proposals as bp
+        role = self.role
+        calls, written = [], {}
+
+        def llm(provider, model, system, user_msg, **kw):
+            calls.append(user_msg)
+            return f"```python\n{answers[len(calls) - 1]}\n```"
+
+        def output(_role, _slug, payload):
+            written.update(payload)
+            return role.REPO_ROOT / 'wama-dev-ai' / 'outputs' / 'backend_test.json'
+
+        row = SimpleNamespace(model_key=self.KEY, capabilities={'task': 'text-to-music'}, hf_repo='Org/Song')
+        manifest = {'body': {'composition': {'runtime': {'engine': 'e'},
+                                             'components': [{'role': 'model', 'pattern': '*.pt'}]}}}
+        argv = ['run_backend.py', '--catalog', self.KEY, '--provider', 'ilaas', '--model', 'm', '--no-smoke']
+        with mock.patch.object(sys, 'argv', argv), \
+                mock.patch('wama.model_manager.models.AIModel.objects') as objects, \
+                mock.patch('wama.common.manifests.builtin.model.extract_model', return_value=manifest), \
+                mock.patch.object(role, 'neighbours', return_value=[]), \
+                mock.patch.object(role, 'model_material', return_value='SNAPSHOT'), \
+                mock.patch.object(role, 'vendor_material', return_value=''), \
+                mock.patch.object(role, 'base_excerpt', return_value=''), \
+                mock.patch.object(role, '_read', return_value=''), \
+                mock.patch.object(role, 'resolve_model', return_value='m'), \
+                mock.patch.object(role, 'local_llm_guard', return_value=None), \
+                mock.patch.object(role, 'call_llm', side_effect=llm), \
+                mock.patch.object(role, 'write_output', side_effect=output), \
+                mock.patch.object(bp, 'check_source', side_effect=lambda code, **kw: {
+                    'ok': not verdicts[code.strip()], 'errors': list(verdicts[code.strip()]),
+                    'warnings': []}), \
+                mock.patch.object(bp, 'simulate_resolution', return_value={'resolved': True}), \
+                mock.patch('builtins.print'):
+            objects.filter.return_value.first.return_value = row
+            role.main()
+        return calls, written
+
+    def test_refused_checks_are_handed_back_once_and_the_corrected_module_is_proposed(self):
+        calls, written = self._run(['first', 'second'], {'first': [self.VERDICT], 'second': []})
+        self.assertEqual(2, len(calls))
+        self.assertIn(self.VERDICT, calls[1], "the reprise must carry the verdict word for word")
+        self.assertEqual('second', written['code'].strip())
+        self.assertTrue(written['checks']['ok'])
+
+    def test_a_reprise_no_less_refused_keeps_the_first_module_with_its_verdict(self):
+        calls, written = self._run(['first', 'second'], {'first': [self.VERDICT], 'second': [self.VERDICT]})
+        self.assertEqual('first', written['code'].strip())
+        self.assertEqual([self.VERDICT], written['checks']['errors'])
+
+    def test_an_accepted_module_costs_a_single_call(self):
+        calls, written = self._run(['first'], {'first': []})
+        self.assertEqual(1, len(calls))

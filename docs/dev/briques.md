@@ -645,7 +645,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (57) :
+- **API publique** (58) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(repo_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, meter=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -655,6 +655,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `weight_for_spec(spec: dict)` — Poids en Go de ce qu'un descripteur d'installation va TIRER, ou None si indéterminable.
   - `components_of_files(files, *, composition=None, allow_patterns=None) -> dict` — Poids PAR COMPOSANT d'un inventaire de fichiers — dérivation PURE, aucun réseau.
   - `anatomy_gaps(files, composition) -> dict` — Ce que l'anatomie DÉCLARÉE laisse de côté d'un inventaire — dérivation PURE, aucun réseau.
+  - `engine_read_weights(files, composition) -> dict` — `{poids: (nom lu, 'fichier:ligne')}` — les poids de l'inventaire qu'aucun composant ne
   - `anatomy_error(gaps) -> str` — Le refus que disent les trous d'une anatomie (`anatomy_gaps`) — '' si elle est complète.
   - `anatomy_inventory(model)` — Les fichiers que l'anatomie d'une ligne doit décrire : ceux que son installation APPORTE —
   - `components_for_spec(spec: dict, *, files=None) -> dict` — Poids par composant de ce qu'un descripteur désigne — `{}` si indéterminable.
@@ -1161,13 +1162,14 @@ Le moteur de l'assistant RELAIE les outils `dev_*` (rôles wama-dev-ai, bac à s
 
 - **Domicile** : `wama/common/services/mcp_client.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Client MCP du moteur de l'assistant — la surface « wama-dev » vue DEPUIS l'assistant (ROADMAP §8d Phase 3, étape 5, moitié « outils de dev » ; demande de Fabien du 2026-09-22 : « améliorer WAMA depuis l'assistant, sans forcément passer par Claude, uniquement pour les rôles admin et dev »).
-- **API publique** (8) :
+- **API publique** (9) :
   - `is_dev_tool(name: str) -> bool`
   - `surface_url(surface: str) -> str` — Adresse de l'endpoint MCP d'une surface (`mcp_server.SURFACE_WAMA` / `SURFACE_DEV`) — le
   - `dev_surface_url() -> str` — Adresse de l'endpoint MCP de la surface dev.
   - `api_key(user) -> str` — Le jeton d'API WAMA du compte — l'identité de tout client MCP (`mcp_server.user_for_token`),
   - `dev_tools_for(user) -> list` — Outils de développement que l'assistant peut ANNONCER à `user` :
-  - `tools_block(tools: list) -> str` — Bloc de prompt des outils de dev — MÊME forme que `tool_api.build_tools_list`
+  - `dev_surface_unreachable(user) -> bool` — Le compte est développeur et la surface n'a pas répondu à sa dernière lecture
+  - `tools_block(tools: list, unreachable: bool=False) -> str` — Bloc de prompt des outils de dev — MÊME forme que `tool_api.build_tools_list`
   - `call_dev_tool(user, name: str, arguments) -> dict` — Relaie UN appel d'outil de dev à la surface, et rend son résultat comme `execute_tool`
   - `surface_tool_names(user, surface: str) -> list` — Les noms des outils qu'une surface du serveur ANNONCE à `user`, lus par le protocole MCP
 
@@ -1299,7 +1301,7 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
 
 - **Domicile** : `wama/common/services/dev_tools.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Outils de DÉVELOPPEMENT de WAMA — la surface du serveur MCP « wama-dev » (ROADMAP §8d Phase 3, étape 3).
-- **API publique** (26) :
+- **API publique** (27) :
   - `class DevToolError(ValueError)` — Refus LISIBLE — rendu comme `{'error': …}`, jamais comme une trace.
   - `base_dir() -> Path`
   - `jobs_dir() -> Path`
@@ -1324,6 +1326,7 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
   - `dev_read_report(user, job_id: str, offset: int=0) -> dict` — Le RAPPORT ENTIER d'une tâche de développement terminée (la réponse de Claude Code), par tranches : `offset` = où reprendre, `next_offset` = la tranche suivante (null à la fin). À appeler quand un rapport est dit « tronqué » — ne jamais en…
   - `dev_list_jobs(user, limit: int=20) -> dict` — Dernières tâches de développement lancées (tous développeurs), la plus récente d'abord.
   - `dev_read_output(user, path: str) -> dict` — Lit une proposition écrite par un rôle (fichier JSON de wama-dev-ai/outputs/) — lecture seule.
+  - `integration_step(outputs) -> dict` — `{clé du modèle: {next_step, human_gesture}}` — l'étape suivante de la route d'intégration
   - `tools_for(user) -> list` — Outils de développement visibles par `user` — aucun pour un non-développeur.
   - `call(user, name: str, arguments) -> dict` — Un appel d'outil de développement — droits vérifiés ICI, à chaque appel.
 
@@ -1964,7 +1967,7 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 - **Domicile** : `wama/common/services/backend_proposals.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : BACKENDS PROPOSÉS par le rôle `backend` (marche B2) — contrôles, résolution simulée, smoke, puis le geste « Valider » qui ÉCRIT le module dans `wama/common/backends/`.
-- **API publique** (16) :
+- **API publique** (17) :
   - `backends_dir() -> Path`
   - `outputs_dir() -> Path`
   - `contract_for_task(task: str) -> tuple` — (module, classe) du contrat qu'un backend écrit pour `task` doit implémenter.
@@ -1979,6 +1982,7 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
   - `abc_note_names(abc: str) -> str` — Noms des notes d'un texte ABC, dans l'ordre et sans octave (`C4D4|c2` → `CDC`) — en-têtes,
   - `smoke_orientation_page()` — (page droite, page tournée de `SMOKE_ORIENTATION_TURN`) — des lignes de texte dessinées, la
   - `pending() -> list` — Propositions de backend en attente : `outputs/backend_*.json` au statut PENDING.
+  - `refusals(name: str) -> list` — Ce que « Valider » refuserait de ce backend proposé MAINTENANT — les contrôles qu'`apply`
   - `apply(name: str, user=None) -> dict` — ÉCRIT le backend validé dans `wama/common/backends/<module>.py` — contrôles REFAITS,
   - `reject(name: str, user=None) -> bool`
 
@@ -2143,10 +2147,11 @@ Le cycle sandbox → vérifié → promu (WAMA_MANIFEST_ARCHITECTURE §4) reçoi
 
 - **Domicile** : `wama/common/manifests/proposals.py` · **doc** : [docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md](../construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md)
 - **Module** : PROPOSITIONS de manifestes — le geste de validation qui manquait entre un rôle LLM et l'ingest.
-- **API publique** (6) :
+- **API publique** (7) :
   - `fill_empty(current, proposed, path='')` — Superpose `proposed` sur `current` en ne comblant que les VIDES — récursif sur les dicts.
   - `propose(manifest: dict, *, origin: str='', user=None)` — Dépose un manifeste PROPOSÉ au magasin, en bac à sable. Rien n'est projeté.
   - `pending(kind: str=None)` — Promotions DEMANDÉES et non tranchées, plus récentes d'abord — pas tout ce qui est privé.
+  - `judge(manifest: dict) -> list` — Ce que « Valider » refuserait de ce manifeste s'il était proposé MAINTENANT — la même
   - `plan(obj) -> dict` — Ce que `apply()` FERAIT — sans rien écrire. `write_back` est le dry-run du kind.
   - `apply(obj, user=None) -> dict` — Applique une proposition : superposition, write-back RÉEL, promotion, export au corpus.
   - `reject(obj) -> bool` — Close une demande de promotion. N'appelle PAS `un_ingest` (cf. docstring du module).
@@ -3925,7 +3930,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (113) :
+- **API publique** (114) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -4022,6 +4027,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `tool_descriptions()` — Descriptions de TOUS les outils du registre, dérivées à la volée.
   - `tool_input_schema(tool_name: str) -> dict` — Schéma JSON (`type: object`) des arguments d'un outil du registre — DÉRIVÉ, jamais écrit.
   - `input_schema_for(fn, index=None) -> dict` — Schéma JSON des arguments d'une FONCTION d'outil : signature, complétée par le schéma
+  - `decode_structured_args(fn, args: dict) -> dict` — Les arguments d'un outil dont la signature annonce un OBJET ou une LISTE (`dict`/`list`, le
   - `primary_arg_name(tool_name: str)` — Nom du 1er paramètre « utile » d'un outil (celui qui suit `user`), ou None.
   - `tool_arg_names(tool_name: str) -> set` — Les arguments NOMMÉS d'un outil (hors `user`, `*args`, `**params`) — dérivés de la signature.
   - `sanitize_tool_args(tool_name: str, args: dict)` — Prépare les arguments d'un appel d'outil : coercition par le SCHÉMA de l'app puis

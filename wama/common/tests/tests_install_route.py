@@ -29,13 +29,12 @@ from pathlib import Path
 from django.conf import settings
 from django.test import SimpleTestCase
 
+# The reading itself is the common brick (`download_calls`, 2026-11-08) : the backend role reads
+# the same sites in a vendored engine's code.
+from wama.common.utils.download_calls import download_sites
+
 ROOTS = ('wama', 'wama_lab', 'wama_data')
 SKIPPED_PARTS = {'vendor', 'migrations', 'tests', '__pycache__', 'static', 'staticfiles'}
-
-#: Direct downloads of weights and pip runs, by the called name.
-DOWNLOAD_CALLS = {'download_asset', 'urlretrieve', 'load_state_dict_from_url',
-                  'download_url_to_file', 'hf_hub_download', 'snapshot_download',
-                  'pip_install_packages'}
 
 ROUTE = {
     'wama/model_manager/services/model_installer.py': "the installer and its drivers",
@@ -47,7 +46,7 @@ DATA = {
     'wama/model_manager/services/benchmark_sync.py': "benchmark result tables (datasets)",
     'wama/transcriber/management/commands/asr_eval_corpus.py': "evaluation corpus (dataset)",
     'wama/common/tts/voice_refs.py': "reference voices (audio files of the media library)",
-    # A response body written to a file (seen since 2026-11-06, `_writes_a_response_body`):
+    # A response body written to a file (seen since 2026-11-06, `download_calls.writes_a_response_body`):
     'wama/common/utils/video_utils.py': "a media the user imports by its URL (`url_ingest`)",
     'wama/common/utils/url_ingest.py': "a web page the user imports as an input (`fetch_html_page`)",
     'wama/common/tts/service_client.py': "the audio the LOCAL voice service has just rendered — "
@@ -58,38 +57,6 @@ DATA = {
 #: `quality-metric` row the bench installs and waits for), TripoSR (declared files), the dead
 #: single-file diffusion loader (removed, REMOVAL_LEDGER R148). EMPTY : any entry is a new drift.
 DRIFT_BUDGET = {}
-
-
-def _called_name(call: ast.Call) -> str:
-    func = call.func
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return func.id if isinstance(func, ast.Name) else ''
-
-
-def _writes_a_response_body(node) -> bool:
-    """An HTTP response body WRITTEN to a file (2026-11-06) — streamed (`for chunk in
-    r.iter_content(…): f.write(chunk)`) or whole (`f.write(r.content)`). The named calls above did
-    not see it : the anonymizer fetched official YOLO weights at first use this way, beside the
-    route. An upload copied by `chunks()` and a body read in memory are neither."""
-    if isinstance(node, ast.For) and isinstance(node.iter, ast.Call) \
-            and _called_name(node.iter) == 'iter_content' and isinstance(node.target, ast.Name):
-        loop_var = node.target.id
-        return any(isinstance(n, ast.Call) and _called_name(n) in ('write', 'write_bytes')
-                   and any(isinstance(a, ast.Name) and a.id == loop_var for a in n.args)
-                   for statement in node.body for n in ast.walk(statement))
-    return (isinstance(node, ast.Call) and _called_name(node) in ('write', 'write_bytes')
-            and any(isinstance(a, ast.Attribute) and a.attr == 'content' for a in node.args))
-
-
-def _runs_pip(call: ast.Call) -> bool:
-    """A subprocess whose argument list names `pip` and `install` (`[python, '-m', 'pip', …]`)."""
-    for arg in call.args:
-        if isinstance(arg, (ast.List, ast.Tuple)):
-            words = {e.value for e in arg.elts if isinstance(e, ast.Constant) and isinstance(e.value, str)}
-            if 'pip' in words and 'install' in words:
-                return True
-    return False
 
 
 def scan(base: Path) -> dict:
@@ -109,10 +76,7 @@ def scan(base: Path) -> dict:
                 tree = ast.parse(path.read_text(encoding='utf-8'))
             except (SyntaxError, UnicodeDecodeError):
                 continue
-            count = sum(1 for node in ast.walk(tree)
-                        if (isinstance(node, ast.Call)
-                            and (_called_name(node) in DOWNLOAD_CALLS or _runs_pip(node)))
-                        or _writes_a_response_body(node))
+            count = len(download_sites(tree))
             if count:
                 found[rel.as_posix()] = count
     return found

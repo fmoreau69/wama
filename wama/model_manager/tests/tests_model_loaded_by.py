@@ -155,6 +155,59 @@ class LoadedByTest(TestCase):
         self.assertIn('runtime absent : lpips', plan['next_step'])
         self.assertEqual('manage.py install_library lpips --allow --apply', plan['human_gesture'])
 
+    def test_an_engine_without_backend_is_sent_to_the_backend_role(self):
+        """2026-11-07 (ACE-Step) : le geste disait « écrire le backend » — l'assistant aurait écrit
+        à la main ce que le rôle `backend` écrit et propose à la validation."""
+        from wama.tool_api import plan_model_integration
+        self._row('unservedprobe:m', {'engine': 'unserved_probe_engine'}, source='unservedprobe')
+        gesture = plan_model_integration(None, 'unservedprobe:m')['human_gesture']
+        self.assertIn('rôle `backend`', gesture)
+        self.assertIn('--catalog unservedprobe:m', gesture)
+
+    def test_a_waiting_proposal_is_the_next_step_on_the_route(self):
+        """2026-11-07 (ACE-Step) : le plan ignorait la file — il renvoyait au rôle déjà joué, sans
+        dire que « Valider » refuserait sa proposition. Refusée : relancer le rôle ; acceptable :
+        la décision d'un administrateur ; un backend proposé attend de même."""
+        from unittest import mock
+        from wama.tool_api import plan_model_integration
+        self._row('unservedprobe:w', {}, source='unservedprobe')
+        refused = {'manifest': {'refused': ['anatomie incomplète : 1 poids (te/model.safetensors)']}}
+        with mock.patch('wama.tool_api._awaiting_decision', return_value=refused):
+            plan = plan_model_integration(None, 'unservedprobe:w')
+        self.assertIn('REFUSERAIT : anatomie incomplète', plan['next_step'])
+        self.assertIn('relancer le rôle `model`', plan['human_gesture'])
+        with mock.patch('wama.tool_api._awaiting_decision', return_value={'manifest': {'refused': []}}):
+            self.assertIn('administrateur', plan_model_integration(None, 'unservedprobe:w')['human_gesture'])
+        self._row('unservedprobe:b', {'engine': 'unserved_probe_engine'}, source='unservedprobe')
+        with mock.patch('wama.tool_api._awaiting_decision', return_value={'backend': {'backend_x.json': []}}):
+            plan = plan_model_integration(None, 'unservedprobe:b')
+        self.assertIn('backend_x.json', plan['next_step'])
+        self.assertIn('administrateur', plan['human_gesture'])
+        # Un backend que « Valider » refuserait (2026-11-08, ACE-Step) : relancer le rôle.
+        with mock.patch('wama.tool_api._awaiting_decision',
+                        return_value={'backend': {'backend_x.json': ['SUPPORTED_MODELS absent']}}):
+            plan = plan_model_integration(None, 'unservedprobe:b')
+        self.assertIn('REFUSERAIT : SUPPORTED_MODELS absent', plan['next_step'])
+        self.assertIn('relancer le rôle `backend`', plan['human_gesture'])
+
+    def test_the_route_reads_the_queue_itself(self):
+        """La lecture de la file, sans doublure : une proposition refusée du magasin y est vue."""
+        from unittest import mock
+        from wama.common.manifests import proposals
+        from wama.common.manifests.builtin.model import extract_model
+        from wama.tool_api import _awaiting_decision
+        self._row('huggingface:Probe/q', {}, source='huggingface')
+        manifest = extract_model('huggingface:Probe/q')
+        manifest['body']['composition'] = {'components': [{'role': 'm', 'pattern': 'a.safetensors'}],
+                                           'runtime': {'engine': 'transformers'}}
+        proposals.propose(manifest)
+        with mock.patch('wama.model_manager.services.model_installer.anatomy_inventory',
+                        return_value=[('a.safetensors', 1), ('te/b.safetensors', 1)]):
+            waiting = _awaiting_decision('huggingface:Probe/q')
+        self.assertEqual(1, len(waiting['manifest']['refused']), waiting)
+        self.assertIn('te/b.safetensors', waiting['manifest']['refused'][0])
+        self.assertEqual({}, _awaiting_decision('unservedprobe:w-none'))
+
     def test_a_model_loaded_by_a_module_is_not_condemned(self):
         from wama.common.backends.manager import backend_missing
         line = _line('pytorch_download:lpips-alexnet',

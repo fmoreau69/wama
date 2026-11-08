@@ -268,6 +268,48 @@ class ManifestProposalTest(TestCase):
         m['body']['capabilities'] = {'languages': ['fr', 'yue', 'zh-cn'], 'fallback_languages': ['*']}
         self.assertFalse([e for e in validate(m) if 'languages' in e])
 
+    def test_the_role_reads_the_verdict_validate_will_give_before_proposing(self):
+        """2026-11-07 (ACE-Step par l'assistant) : le rôle ne jugeait que la forme. `judge` rend la
+        liste que `plan` montrera, sur la même superposition — anatomie comprise — sans déposer."""
+        m = _llm_manifest()
+        m['body']['composition'] = {'components': [{'role': 'dit', 'pattern': 'dit/model.onnx'}],
+                                    'runtime': {'engine': 'onnxruntime'}}
+        from unittest import mock
+        with mock.patch('wama.model_manager.services.model_installer.anatomy_inventory',
+                        return_value=[('dit/model.onnx', 1), ('text_encoder/model.onnx', 1)]):
+            verdict = proposals.judge(m)
+            self.assertFalse(proposals.pending('model').exists())
+            self.assertTrue(any('text_encoder/model.onnx' in e for e in verdict), verdict)
+            self.assertEqual(verdict, proposals.plan(proposals.propose(m))['errors'])
+        self.assertEqual([], proposals.judge(_llm_manifest()))
+
+    def test_reading_a_role_output_says_what_validate_says_now(self):
+        """2026-11-07 (ACE-Step) : l'assistant a lu `validation_errors: []` dans la sortie du rôle —
+        un verdict de son heure — et a fait valider une anatomie que « Valider » refusait. La
+        lecture porte le verdict du moment. Contre-épreuve : une sortie sans proposition n'en a pas."""
+        import json
+        import shutil
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        from wama.common.services import dev_tools
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        outputs = root / 'wama-dev-ai' / 'outputs'
+        outputs.mkdir(parents=True)
+        for name in ('model_x.json', 'model_alone.json'):
+            (outputs / name).write_text(json.dumps({'validation_errors': []}), encoding='utf-8')
+        proposals.propose(_llm_manifest(), origin='wama-dev-ai/outputs/model_x.json')
+        with mock.patch.object(dev_tools, 'base_dir', return_value=root), \
+             mock.patch.object(dev_tools, 'outputs_dir', return_value=outputs), \
+             mock.patch('wama.model_manager.services.model_installer.anatomy_inventory',
+                        return_value=[('dit/model.onnx', 1), ('te/model.onnx', 1)]):
+            now = dev_tools.dev_read_output(None, 'model_x.json')['validate_now']
+            alone = dev_tools.dev_read_output(None, 'model_alone.json')
+        self.assertTrue(any('te/model.onnx' in e for e in now['refused']), now)
+        self.assertIn('REFUSERAIT', now['note'])
+        self.assertNotIn('validate_now', alone)
+
     def test_fill_empty_treats_lists_as_values(self):
         merged, filled, diverged = proposals.fill_empty(
             {'a': [], 'b': ['x'], 'c': {'d': ''}}, {'a': ['y'], 'b': ['z'], 'c': {'d': 'e'}})

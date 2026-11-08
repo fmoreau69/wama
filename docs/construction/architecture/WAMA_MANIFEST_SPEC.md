@@ -653,6 +653,13 @@ incomplètes avant correction, 1 après — `anonymizer:yolo:yolo11l_face_plate_
 la main avant la chaîne (son motif ne désignait aucun fichier du dépôt) ; renommé au nom PUBLIÉ le
 même jour, sa clé suivie par `succession.rekey`. **46 sur 46** une fois les deux versions GitHub
 confrontées.
+*Complété le 2026-11-07* (ACE-Step intégré par l'assistant, `PROSPECTION_PIPELINE §Session du
+2026-11-05`) : une exclusion n'écarte qu'un **poids** — celle qui n'en désigne aucun est morte
+(`excludes_nothing`) : configurations, tokenizers et code viennent avec les composants, par les
+fichiers de bord (`*.json`, `*.txt`, `tokenizer*`, `*.md`, `*.py`, `*.model`, `*.tiktoken`,
+`*.jinja`) ; et un poids que le code VENDORISÉ du moteur nomme ne s'écarte pas
+(`excluded_but_read`, lu par `vendor_installer.vendored_code_names`). Le rôle `model` pose ces deux
+faits lui-même et passe sa sortie au juge de « Valider » (`proposals.judge`) avant de la déposer.
 
 **2026-10-31 — `runtime.loaded_by`** (demande de Fabien après l'inventaire des modèles installés
 sans backend) : le MODULE qui charge le modèle lui-même, hors de tout backend —

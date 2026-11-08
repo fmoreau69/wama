@@ -254,12 +254,15 @@ class EveryPollingLoopIsTheCommonOneTest(SimpleTestCase):
         from wama.common.sandbox import sandbox_labels
         base = Path(settings.BASE_DIR)
         twins = set(sandbox_labels())
+        # Le code des moteurs VENDORISÉS (racine déclarée, route `library` voie vendor) n'est pas
+        # le nôtre : le clone d'ACE-Step 1.5 porte l'interface Gradio de son auteur (2026-11-08).
+        vendored = Path(settings.BACKEND_VENDOR_DIR)
         found = Counter()
         for root in (base / 'wama', base / 'wama_lab', base / 'wama_data'):
             for path in list(root.rglob('*.js')) + list(root.rglob('templates/**/*.html')):
                 parts = set(path.parts)
                 if 'vendors' in parts or twins & parts or path.name.endswith('.min.js') \
-                        or 'staticfiles' in parts:
+                        or 'staticfiles' in parts or path.is_relative_to(vendored):
                     continue
                 rel = path.relative_to(base).as_posix()
                 if rel.startswith('wama/static/js/'):

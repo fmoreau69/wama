@@ -345,6 +345,44 @@ def enforce_component_facts(manifest, repo_id, concerns, lister=repo_files):
     return manifest
 
 
+def enforce_engine_read_anatomy(manifest, inventory, concerns):
+    """Complète une anatomie DÉCLARÉE par deux faits du juge de « Valider » (`anatomy_gaps`).
+
+    Vécu le 2026-11-07 (ACE-Step 1.5, intégré par l'assistant) : refusé pour avoir oublié son
+    encodeur de texte, le rôle l'a ÉCARTÉ (« not used ») avec `silence_latent.pt`, et vingt
+    configurations ; repris sur le verdict, il n'a pas su corriger. Ce que le juge établit est
+    mécanique, donc posé ici, comme le moteur ou la tâche :
+      * un poids que le code VENDORISÉ du moteur nomme est un COMPOSANT (`engine_read_weights`),
+        rôle = le nom que le code lit, sans extension ; une exclusion qui le couvrait tombe ;
+      * une exclusion qui ne désigne aucun POIDS tombe (`excludes_nothing`).
+    Sans anatomie déclarée, rien : le dépôt entier est alors tiré."""
+    import fnmatch
+    from wama.model_manager.services.model_installer import anatomy_gaps, engine_read_weights
+    composition = (manifest.get('body') or {}).get('composition') or {}
+    if not composition.get('components') or not inventory:
+        return manifest
+    dead = set(anatomy_gaps(inventory, composition).get('excludes_nothing') or [])
+    read = engine_read_weights(inventory, composition)
+    kept = [e for e in composition.get('excluded') or []
+            if isinstance(e, dict) and e.get('pattern') not in dead
+            and not any(fnmatch.fnmatch(path, e.get('pattern') or '') for path in read)]
+    if dead:
+        concerns.append(f"exclusions RETIRÉES (fait mécanique) : {len(dead)} ne désignent aucun "
+                        "poids — configurations, tokenizers et code viennent avec les composants")
+    for path, (name, where) in sorted(read.items()):
+        is_file = name == path.rpartition('/')[2]        # un dossier garde son nom entier
+        composition['components'].append({'role': os.path.splitext(name)[0] if is_file else name,
+                                          'pattern': path})
+        concerns.append(f"composant POSÉ (fait mécanique) : {path} — le code du moteur le lit "
+                        f"({where})")
+    if 'excluded' in composition:
+        if kept:
+            composition['excluded'] = kept
+        else:
+            del composition['excluded']
+    return manifest
+
+
 def adapter_parent(repo_id, loader=None):
     """`(dépôt parent, révision)` qu'un `config.json` racine nomme par `base_model_name_or_path`,
     ou `(None, None)` — un adaptateur ne s'exécute pas sans son parent."""
@@ -912,6 +950,57 @@ def enforce_category_facts(manifest, concerns):
     return manifest
 
 
+def enforce_modality_facts(manifest, concerns):
+    """Les MODALITÉS sont les médias que la tâche traite (`default_inputs_for`, la table
+    `TASK_DEFAULT_INPUTS`) : une modalité hors de celles de la tâche est retirée, une liste vidée
+    reprend celles de la tâche. Une tâche hors table ne pose rien.
+
+    Vécu le 2026-11-07 (ACE-Step) : le rôle proposait `["text", "audio"]` pour un `text-to-music`,
+    dont la table dit `("audio",)` — le texte est une ENTRÉE (`inputs_required: prompt`), pas un
+    média traité. La divergence s'affichait au plan, jamais appliquée : du bruit à chaque
+    proposition."""
+    from wama.model_manager.models import default_inputs_for
+    caps = (manifest.get('body') or {}).get('capabilities') or {}
+    task = caps.get('task')
+    allowed = list((default_inputs_for(task) or {}).get('modalities') or ()) if task else []
+    declared = caps.get('modalities')
+    if not allowed or not isinstance(declared, list):
+        return manifest
+    kept = [m for m in declared if m in allowed] or allowed
+    if kept != declared:
+        concerns.append(f"modalities {declared} → {kept} (les médias que la tâche {task!r} traite, "
+                        "`TASK_DEFAULT_INPUTS`)")
+        caps['modalities'] = kept
+    return manifest
+
+
+#: Ce qu'un manifeste `model` proposé par un rôle ne DIT pas, parce qu'un autre processus en est
+#: le domicile : les ressources (la DÉCOUVERTE les mesure sur le disque, `extra_info.weights`)
+#: et les descriptions (`model_descriptions`, rédigées en français depuis la fiche, la source
+#: tracée). La description LONGUE vit dans l'enveloppe, que la superposition ne lit pas.
+OWNED_ELSEWHERE = (('resources',), ('identity', 'description_short'))
+
+
+def enforce_owned_elsewhere(manifest, concerns):
+    """Retire de la proposition ce qu'elle ne possède pas (`OWNED_ELSEWHERE`).
+
+    Vécu le 2026-11-07 (ACE-Step) : `resources` à 0 (un « je ne sais pas » écrit comme une
+    mesure, malgré la règle 10 du prompt) et la description réécrite en anglais face à la fiche
+    française du catalogue — deux divergences affichées au plan à chaque proposition, jamais
+    appliquées, qui noyaient celles qui comptent."""
+    body = manifest.get('body') or {}
+    dropped = []
+    for path in OWNED_ELSEWHERE:
+        holder = body
+        for part in path[:-1]:
+            holder = holder.get(part) if isinstance(holder, dict) else None
+        if isinstance(holder, dict) and holder.pop(path[-1], None) not in (None, '', {}, []):
+            dropped.append('.'.join(path))
+    if dropped:
+        concerns.append(f"retiré de la proposition (domicile ailleurs) : {', '.join(dropped)}")
+    return manifest
+
+
 def enforce_resolution_facts(manifest, repo_id, concerns, lister=repo_files, loader=None):
     """Pose `capabilities.native_resolution` quand un fichier de config du dépôt la DIT.
 
@@ -1284,7 +1373,15 @@ def write_output(role, slug, payload):
                    'relayed': list(RELAYS)}
     OUTPUTS.mkdir(exist_ok=True)
     horodatage = datetime.now().strftime('%Y-%m-%d_%H-%M')
-    sortie = OUTPUTS / f"{role}_{slug.replace('/', '_')}_{horodatage}.json"
+    # Le nom d'une CLÉ dans un nom de fichier : l'assainissement du corpus de manifestes (`:` →
+    # `__`, `/` → `~`). Le slug gardait le `:` d'une clé de catalogue (2026-11-07 : 41 sorties
+    # `model_huggingface:…` illisibles depuis Windows, où `:` est interdit).
+    from wama.common.management.commands.manifest_export import _nom_fichier
+    try:
+        name = _nom_fichier(slug)
+    except ValueError:                    # un slug composé qui porte déjà `__` : jamais une clé
+        name = slug.replace(':', '_').replace('/', '_')
+    sortie = OUTPUTS / f"{role}_{name}_{horodatage}.json"
     sortie.write_text(json.dumps({'status': 'PENDING_HUMAN_VALIDATION', 'role': role,
                                   **payload}, ensure_ascii=False, indent=2), encoding='utf-8')
     return sortie

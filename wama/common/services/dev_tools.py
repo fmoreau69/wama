@@ -95,7 +95,9 @@ _UNSAFE_CHARS = re.compile(r'[\x00-\x1f]')
 #: inventés de l'assistant (`assistant_engine._unsourced_job_ids`).
 JOB_ID_FORM = r'\d{8}-\d{6}-[0-9a-f]{6}'
 _JOB_ID = re.compile(rf'^{JOB_ID_FORM}$')
-_OUTPUT_LINE = re.compile(r'(wama-dev-ai/outputs/[^\s\'"]+\.json)')
+#: Le dossier des sorties de rôles, tel qu'un journal ou une tâche le nomment.
+OUTPUTS_PATH = 'wama-dev-ai/outputs/'
+_OUTPUT_LINE = re.compile(rf'({re.escape(OUTPUTS_PATH)}[^\s\'"]+\.json)')
 LOG_TAIL_CHARS = 6000
 
 
@@ -373,6 +375,9 @@ def _job_summary(state: dict) -> str:
     if state.get('outputs'):
         lines.append("Propositions écrites (en attente de validation) : "
                      + ', '.join(state['outputs']))
+        for key, step in integration_step(state['outputs']).items():
+            lines.append(f"Route d'intégration de {key} — étape suivante : {step['next_step']} "
+                         f"→ {step['human_gesture']}")
     if state['status'] != 'done' or not lines:
         tail = [line for line in (state.get('log_tail') or '').splitlines()
                 if line.strip() and 'Warning' not in line and 'warn(' not in line][-6:]
@@ -592,6 +597,16 @@ def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> di
     task = (task or '').strip()
     if not task:
         raise DevToolError("« task » vide : décrivez la tâche à confier à Claude Code.")
+    # Ce qu'un rôle propose ne se corrige pas à la main (2026-11-07, intégration d'ACE-Step par
+    # l'assistant) : le modèle a confié à Claude Code, en écriture, la « correction » de l'anatomie
+    # dans le fichier d'`outputs/`. Une sortie `model` n'est qu'une trace (sa proposition vit au
+    # magasin et ce fichier n'y retourne pas) ; une sortie `backend` EST la proposition, que
+    # « Valider » écrirait telle quelle, contrôles du rôle contournés.
+    if write and OUTPUTS_PATH in task:
+        raise DevToolError(
+            f"une sortie de rôle ({OUTPUTS_PATH}…) ne se corrige pas à la main : ce qu'un rôle "
+            "propose se refait par le rôle (dev_run_role — le rôle `model` reprend sur le verdict "
+            "de « Valider »), ou se rejette au model manager.")
     # La porte de confidentialité sur la tâche (`common/privacy/gate`). ⚠ En tâche de fond, la
     # réponse arrive au journal sans repasser par la porte : les pseudonymes y restent.
     from wama.common.privacy.gate import privacy_gate
@@ -625,6 +640,8 @@ def dev_job_status(user, job_id: str) -> dict:
         state['response'] = cut_with_notice(state['response'], LOG_TAIL_CHARS, job_id)
     if _write_note(state):
         state['next_step'] = _write_note(state)
+    if state.get('status') != 'running' and (route := integration_step(state.get('outputs'))):
+        state['integration_route'] = route
     return state
 
 
@@ -657,8 +674,70 @@ def dev_read_output(user, path: str) -> dict:
     candidate = (base_dir() / path).resolve() if '/' in path else (root / path).resolve()
     if root not in candidate.parents or candidate.suffix != '.json' or not candidate.is_file():
         raise DevToolError(f"proposition introuvable dans wama-dev-ai/outputs/ : {path!r}")
-    return {'path': str(candidate.relative_to(base_dir())),
-            'content': json.loads(candidate.read_text(encoding='utf-8'))}
+    relative = candidate.relative_to(base_dir()).as_posix()
+    out = {'path': relative, 'content': json.loads(candidate.read_text(encoding='utf-8'))}
+    if (decision := _validate_now(relative)) is not None:
+        out['validate_now'] = decision
+    if route := integration_step([relative]):
+        out['integration_route'] = route
+    return out
+
+
+def _model_of_output(relative: str) -> str:
+    """La clé du MODÈLE qu'une sortie de rôle concerne — son manifeste `model`, ou le modèle dont
+    elle écrit le backend — sinon ''."""
+    try:
+        content = json.loads((base_dir() / relative).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return ''
+    manifest = content.get('manifest') or {}
+    if manifest.get('manifest_kind') == 'model' and manifest.get('key'):
+        return manifest['key']
+    return content.get('model_key') or ''
+
+
+def integration_step(outputs) -> dict:
+    """`{clé du modèle: {next_step, human_gesture}}` — l'étape suivante de la route d'intégration
+    (`tool_api.plan_model_integration`, la seule qui la dise) pour chaque modèle que des sorties
+    de rôle concernent.
+
+    Vécu le 2026-11-07 (ACE-Step par l'assistant) : l'outil de plan existait, l'assistant ne
+    l'appelait pas — il improvisait l'étape suivante (corriger le fichier à la main, lancer
+    l'`integrator`). La donnée porte désormais l'étape, là où l'assistant la lit : la fin de la
+    tâche, son état, la lecture de sa sortie."""
+    from wama.tool_api import plan_model_integration
+    steps = {}
+    for relative in outputs or ():
+        key = _model_of_output(str(relative))
+        if key and key not in steps:
+            try:
+                plan = plan_model_integration(None, key)
+            except Exception:                    # une lecture ne tombe pas pour son annexe
+                logger.debug('[dev_tools] étape de la route illisible pour %s', key, exc_info=True)
+                continue
+            steps[key] = {'next_step': plan.get('next_step'),
+                          'human_gesture': plan.get('human_gesture')}
+    return steps
+
+
+def _validate_now(relative: str):
+    """Ce que « Valider » dit À CET INSTANT de la proposition qu'une sortie a déposée au magasin
+    (`proposals.plan`), ou None. Vécu le 2026-11-07 (ACE-Step) : l'assistant a lu
+    `validation_errors: []` dans le fichier — le verdict du rôle, à son heure, sous des règles
+    plus anciennes — et a demandé à l'administrateur de valider une anatomie que « Valider »
+    refusait."""
+    try:
+        from wama.common.manifests import proposals
+        obj = next((o for o in proposals.pending() if (o.source or {}).get('ref') == relative), None)
+        if obj is None:
+            return None
+        refused = proposals.plan(obj)['errors']
+    except Exception as e:                       # une lecture ne tombe pas pour son annexe
+        return {'refused': None, 'note': f"verdict de « Valider » illisible : {e}"}
+    return {'refused': refused,
+            'note': ("« Valider » la REFUSERAIT : relancer le rôle, ou la rejeter" if refused else
+                     "« Valider » l'accepterait : la décision revient à un administrateur")
+                    + " — `validation_errors` du fichier est le verdict du rôle, à son heure"}
 
 
 from wama.common.services.dev_inspect import (  # noqa: E402 — après DevToolError/base_dir
@@ -704,7 +783,11 @@ def call(user, name: str, arguments) -> dict:
     if fn is None:
         return {'error': f"Outil inconnu : {name!r}. Disponibles : {', '.join(sorted(DEV_TOOLS))}"}
     params = inspect.signature(fn).parameters
-    clean = {k: v for k, v in dict(arguments or {}).items() if k in params and k != 'user'}
+    # Un objet écrit en texte JSON par le modèle se décode, comme à la porte des outils WAMA
+    # (`tool_api.decode_structured_args` : la règle du schéma que la surface annonce).
+    from wama.tool_api import decode_structured_args
+    clean = {k: v for k, v in decode_structured_args(fn, dict(arguments or {})).items()
+             if k in params and k != 'user'}
     try:
         return fn(user, **clean)
     except DevToolError as e:

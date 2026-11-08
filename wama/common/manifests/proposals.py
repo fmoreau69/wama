@@ -102,10 +102,13 @@ def pending(kind: str = None):
 
 def _merged(obj) -> tuple:
     """(manifeste superposé, comblés, divergences) — la proposition sur l'extraction courante."""
+    return _superposed(obj.as_manifest(), obj.manifest_kind, obj.key)
+
+
+def _superposed(proposal: dict, kind: str, key: str) -> tuple:
     from .ingest import extract
-    proposal = obj.as_manifest()
     try:
-        current = extract(obj.manifest_kind, obj.key)
+        current = extract(kind, key)
     except Exception:
         current = None
     if not current:
@@ -129,6 +132,18 @@ def _errors(merged) -> list:
     if not errors and confront:
         errors += list(confront(merged) or [])
     return errors
+
+
+def judge(manifest: dict) -> list:
+    """Ce que « Valider » refuserait de ce manifeste s'il était proposé MAINTENANT — la même
+    superposition et la même liste que `plan`/`apply`, sans rien déposer.
+
+    Pour le rôle qui l'écrit (2026-11-07, ACE-Step par l'assistant) : le rôle `model` ne jugeait
+    que la FORME et se disait « VALIDE » d'une anatomie que « Valider » refusait, sans pouvoir se
+    reprendre — la chaîne s'arrêtait dans la file, au jugement d'un humain sur un défaut mécanique."""
+    merged, _, _ = _superposed(manifest, manifest.get('manifest_kind') or '',
+                               manifest.get('key') or '')
+    return _errors(merged)
 
 
 def plan(obj) -> dict:

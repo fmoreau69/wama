@@ -27,6 +27,11 @@ RÈGLES STRICTES :
    vers le réseau, un chemin écrit en dur, os.environ['HF_HUB_CACHE'] / HUGGINGFACE_HUB_CACHE /
    HF_HOME (jamais muter l'environnement). Un fichier annexe (tokenizer, config) se lit dans le
    DOSSIER d'un composant déclaré (`paths[<rôle>].parent`), jamais par un nouveau téléchargement.
+   Le dossier des poids est en LECTURE SEULE : rien n'y écrit (copie de code, conversion,
+   cache). Un MOTEUR VENDORISÉ qui télécharge ou réécrit ce dossier lui-même : tu n'appelles
+   AUCUNE des fonctions listées « qui téléchargent, ou qui y mènent » ; tu reproduis l'entrée
+   documentée en appelant ses chargeurs sur les chemins installés, et le code du modèle vient
+   du CLONE (`import_vendored`), jamais d'une copie écrite dans le dossier des poids.
 5. Moteur onnxruntime : les fournisseurs viennent de la brique commune, importée DANS la
    méthode qui crée les sessions (jamais en tête de module) :
        from wama.common.utils.onnx_utils import onnx_providers
