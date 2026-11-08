@@ -265,11 +265,21 @@ def _quality_scalars(pool, family=None):
     Retour : ({id(m): valeur} sur le sous-ensemble COMPARABLE, proxy_vram) — le drapeau dit
     si la « qualité » n'est que la taille (utile aux appelants pour doser leur confiance).
     """
-    def _family_score(m):
-        return ((getattr(m, 'benchmark_meta', None) or {}).get('family_scores') or {}).get(family)
+    from .benchmark_sync import (STALE_KEY, benchmarks_comparable, common_scale_values,
+                                 orderable_value, shared_percentile_values)
 
-    from .benchmark_sync import (benchmarks_comparable, common_scale_values, orderable_value,
-                                 shared_percentile_values)
+    def _family_score(m):
+        # Un sous-indice PÉRIMÉ (`STALE_KEY` : plus aucune source ne le confirme) ne classe pas
+        # (2026-11-08, demande de Fabien : « les meilleurs modèles disponibles » pour le code).
+        # Cet étage ne classe QUE ceux qu'il couvre : AA v5 ne publie plus `coding`, et la seule
+        # note v4 périmée d'`ilaas:qwen-3.6-35b-instruct` (41,9) en écartait qwen3.8 et
+        # gemma-4-31b, notés frais par l'Arena. La note garde sa place aux étages inter-échelles,
+        # où elle se compare aux autres au lieu de les exclure (décision du 2026-11-02 : gardée,
+        # marquée).
+        meta = getattr(m, 'benchmark_meta', None) or {}
+        if meta.get(STALE_KEY):
+            return None
+        return (meta.get('family_scores') or {}).get(family)
 
     batch = list(pool)
     if not batch:

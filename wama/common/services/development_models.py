@@ -26,6 +26,23 @@ fabule. Un modèle SANS score coding est exclu, sauf déclaration explicite
 (`DEV_UNSCORED_ALLOWED` : `albert:gpt-oss-120b`, décision de Fabien — à retirer le jour où le
 banc lui donne un score, la mesure primant alors la déclaration).
 
+⚠ COMPLÉTÉ LE 2026-11-08 (question de Fabien : « pourquoi ce n'est pas qwen3.8 ou gemma 31b qui
+sont appelés ? Il faut utiliser les meilleurs modèles disponibles »). Artificial Analysis est passé
+à l'Intelligence Index v5, qui ne publie PLUS de sous-indice `coding` (mesuré dans
+`logs/benchmarks/source_aa.json` : 94 entrées, familles legal/engineering/economics… et aucune
+`coding`). Le plancher ne lisait donc plus que des notes v4 PÉRIMÉES (`STALE_KEY`) : sur le compte
+de Fabien, deux candidats — `ilaas:qwen-3.6-35b-instruct` (41,9, périmée depuis le 02/11) et
+gpt-oss par déclaration —, quand qwen3.8 27B (Arena 1438) et gemma-4-31b (Arena 1443), notés
+frais, restaient dehors. La règle lit désormais la mesure qui EXISTE :
+  1. un score coding FRAIS décide, au même plancher ;
+  2. sans lui, le RANG CENTILE de l'échelle la plus partagée du lot
+     (`benchmark_sync.shared_percentile_values`, l'étage inter-échelles du sélecteur) doit
+     atteindre `DEV_RANK_FLOOR` ;
+  3. puis la déclaration, comme avant.
+Et le tirage classe sur l'échelle des signaux du sélecteur, où un sous-indice périmé ne classe plus
+seul (`model_selector._quality_scalars`) : mesuré ce jour, le tirage passe de qwen-3.6 à
+gemma-4-31b (79,5ᵉ centile), devant qwen3.8 (75,5ᵉ) et DeepSeek V4 Flash (72,2ᵉ).
+
 CE QUE LE BRIDAGE CHANGE, ET RIEN D'AUTRE :
   1. le curseur vaut 100 (« Qualité ») : réflexion demandée (`assistant_engine.thinking_wanted`),
      et le budget VRAM cesse de borner le tirage — l'attente ou l'offload est le prix assumé ;
@@ -53,6 +70,13 @@ logger = logging.getLogger(__name__)
 
 #: Score coding minimal au banc tiers (`family_scores['coding']`) pour compter comme modèle de dev.
 DEV_CODING_FLOOR = 40.0
+#: Rang centile minimal (`shared_percentile_values`) d'un modèle SANS score coding frais. Étalonné
+#: le 2026-11-08 sur les modèles que le plancher coding jugeait : admis qwen3.8 (75,5),
+#: gemma-4-31b (79,5), qwen-3.6-35b (58,1) ; exclus gemma4:12b (50,2), qwen3.5:4b (47,0),
+#: gemma4:e4b (33,3), ministral-3-8b (7,7). Toute valeur de ]50,2 ; 58,1] rend le MÊME verdict sur
+#: chacun ; 55 est au milieu. ⚠ Un rang est ordinal et dépend de la population de son banc
+#: (`percentile_rank`) : c'est un seuil d'admission, pas une mesure de qualité.
+DEV_RANK_FLOOR = 55.0
 #: Modèles SANS score coding admis par DÉCLARATION (Fabien, 22/09). Vide dès qu'ils sont mesurés.
 #: ⚠ Pour gpt-oss-120b ce n'est PAS une resynchronisation qui manque (mesuré le 22/09 en
 #: dry-run) : le lecteur d'identité du banc exige « famille + version » et ce nom n'a pas de
@@ -84,9 +108,14 @@ def role_user():
     return get_user_model().objects.filter(pk=int(user_id), is_active=True).first()
 
 
-def coding_score(model) -> float | None:
-    """Sous-indice coding du banc tiers, ou None s'il n'est pas mesuré."""
+def coding_score(model, fresh: bool = False) -> float | None:
+    """Sous-indice coding du banc tiers, ou None s'il n'est pas mesuré. `fresh` : None aussi
+    quand plus aucune source ne le confirme (`benchmark_sync.STALE_KEY`)."""
+    from wama.model_manager.services.benchmark_sync import STALE_KEY
+
     meta = getattr(model, 'benchmark_meta', None) or {}
+    if fresh and meta.get(STALE_KEY):
+        return None
     value = (meta.get('family_scores') or {}).get('coding')
     try:
         return float(value) if value is not None else None
@@ -94,11 +123,14 @@ def coding_score(model) -> float | None:
         return None
 
 
-def is_development_grade(model) -> bool:
-    """Ce modèle a-t-il le niveau développement ? Mesure d'abord, déclaration ensuite."""
-    score = coding_score(model)
+def is_development_grade(model, rank: float | None = None) -> bool:
+    """Ce modèle a-t-il le niveau développement ? Un score coding FRAIS d'abord, sinon son rang
+    centile dans le lot (`rank`, cf. `development_candidates`), la déclaration ensuite."""
+    score = coding_score(model, fresh=True)
     if score is not None:
         return score >= DEV_CODING_FLOOR
+    if rank is not None:
+        return rank >= DEV_RANK_FLOOR
     return getattr(model, 'model_key', '') in DEV_UNSCORED_ALLOWED
 
 
@@ -122,10 +154,9 @@ def dev_cloud_keys(user) -> set:
     return keys | drop_unavailable(user, opened)
 
 
-def _graded_candidates(cloud: set, grade, user=None) -> list:
-    """`model_key` des modèles de conversation lançables (locaux installés, distants de `cloud`)
-    qui passent `grade(model)`. Le lot est commun aux deux planchers — seul le prédicat change.
-    `user` : seuls les modèles qu'il voit (`ROADMAP §29` étape 3)."""
+def _launchable(cloud: set, user=None) -> list:
+    """Les modèles de conversation lançables (locaux installés, distants de `cloud`) — le lot
+    commun aux deux planchers. `user` : seuls les modèles qu'il voit (`ROADMAP §29` étape 3)."""
     from django.db.models import Q
     from wama.model_manager.models import AIModel, EXECUTION_LOCAL
 
@@ -136,17 +167,26 @@ def _graded_candidates(cloud: set, grade, user=None) -> list:
     # MÊME question (l'axe VRAM ne s'applique pas à un distant), et deux comparaisons de champ
     # pour un même prédicat sont deux occasions de diverger — la leçon de `subscription_allowed`.
     from wama.model_manager.services.model_selector import is_cloud
-    return [m.model_key for m in qs if not is_cloud(m) or m.model_key in cloud
-            if grade(m)]
+    return [m for m in qs if not is_cloud(m) or m.model_key in cloud]
+
+
+def _graded_candidates(cloud: set, grade, user=None) -> list:
+    """`model_key` des modèles lançables (`_launchable`) qui passent `grade(model)`."""
+    return [m.model_key for m in _launchable(cloud, user) if grade(m)]
 
 
 def development_candidates(user, source: str = '') -> list:
     """`model_key` des modèles de conversation de niveau dev que `user` peut lancer : locaux
     installés, distants qu'il autorise (`dev_cloud_keys`). `source` borne le lot à UN
-    fournisseur (`ollama`, `albert`…) — quand la demande le nomme (« fais-le avec Albert »)."""
+    fournisseur (`ollama`, `albert`…) — quand la demande le nomme (« fais-le avec Albert »).
+    Le rang d'un modèle sans score coding frais se lit dans le lot ENTIER, avant de le borner au
+    fournisseur : la population d'une échelle ne dépend pas de ce que l'on demande."""
     from wama.common.utils.model_keys import split_key
+    from wama.model_manager.services.benchmark_sync import shared_percentile_values
 
-    candidates = _graded_candidates(dev_cloud_keys(user), is_development_grade, user=user)
+    lot = _launchable(dev_cloud_keys(user), user)
+    ranks = shared_percentile_values(lot)
+    candidates = [m.model_key for m in lot if is_development_grade(m, ranks.get(id(m)))]
     if source:
         candidates = [k for k in candidates if split_key(k)[0] == source]
     return candidates
@@ -186,13 +226,13 @@ def development_model(user, requested: str = None, source: str = '') -> str | No
 
 def development_refusal(user=None, source: str = '') -> str:
     """La raison, lisible, quand aucun modèle de niveau dev n'est disponible."""
-    unscored = ', '.join(DEV_UNSCORED_ALLOWED)
+    rule = (f"score coding ≥ {DEV_CODING_FLOOR:g} au banc, sinon rang ≥ {DEV_RANK_FLOOR:g}ᵉ "
+            f"centile, ou {', '.join(DEV_UNSCORED_ALLOWED)}")
     if source:
-        return (f"Aucun modèle de niveau développement chez « {source} » pour ce compte (score "
-                f"coding ≥ {DEV_CODING_FLOOR:g} au banc, ou {unscored}) : choisir un autre "
-                "fournisseur, ou laisser le tirage choisir.")
-    return (f"Aucun modèle de niveau développement disponible (score coding ≥ {DEV_CODING_FLOOR:g} "
-            f"au banc, ou {unscored}) : installez un modèle local qui l'atteint, ou ouvrez Albert "
+        return (f"Aucun modèle de niveau développement chez « {source} » pour ce compte ({rule}) "
+                ": choisir un autre fournisseur, ou laisser le tirage choisir.")
+    return (f"Aucun modèle de niveau développement disponible ({rule}) : installez un modèle "
+            "local qui l'atteint, ou ouvrez Albert "
             "dans votre profil (le niveau « cloud si WAMA est saturé » suffit pour le "
             "développement).")
 

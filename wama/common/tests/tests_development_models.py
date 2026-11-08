@@ -101,6 +101,58 @@ class DevelopmentGradeTest(TestCase):
                          'la portée est la clé de l’utilisateur, qu’il a posée')
 
 
+def _ranked(key, rank, value, scale='arena_elo_text', coding=None, stale=None, vram=8.0):
+    """Une ligne telle que la synchro l'écrit : son échelle, sa valeur, son rang centile — et, pour
+    une note qu'aucune source ne confirme plus, son sous-indice v4 marqué périmé."""
+    model = _model(key, coding=coding, vram=vram)
+    model.benchmark_index = value
+    model.benchmark_meta = {**model.benchmark_meta, 'scale': scale, 'percentile_rank': rank,
+                            'scales': [{'scale': scale, 'value': value, 'percentile_rank': rank}],
+                            **({'stale_since': stale} if stale else {})}
+    model.save(update_fields=['benchmark_index', 'benchmark_meta'])
+    return model
+
+
+class DevelopmentLevelReadsALivingMeasureTest(TestCase):
+    """2026-11-08 (question de Fabien : « pourquoi ce n'est pas qwen3.8 ou gemma 31b qui sont
+    appelés ? »). AA v5 ne publie plus `coding` : le plancher ne voyait plus que la note v4
+    PÉRIMÉE de qwen-3.6 (41,9), qui l'emportait seule ; qwen3.8 et gemma-4-31b, notés frais par
+    l'Arena, restaient dehors. Lignes reprises du catalogue mesuré ce jour-là."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('dev_living', password='x')
+        self.gemma = _ranked('ollama:gemma-31b', 79.5, 1443.0)
+        self.qwen38 = _ranked('ollama:qwen3.8', 75.5, 1438.0)
+        self.stale = _ranked('ollama:qwen3.6', 58.1, 37.0, scale='aa_intelligence_index',
+                             coding=41.9, stale='2026-11-02')
+        self.small = _ranked('ollama:gemma-12b', 50.2, 25.0, scale='aa_intelligence_index',
+                             coding=31.0, stale='2026-11-02')
+        self.weak = _ranked('ollama:llama-8b', 16.2, 1193.0)
+        vram = mock.patch('wama.model_manager.services.model_selector.get_free_vram_gb',
+                          return_value=24.0)
+        vram.start()
+        self.addCleanup(vram.stop)
+
+    def test_a_fresh_rank_admits_and_a_low_one_excludes(self):
+        self.assertEqual({'ollama:gemma-31b', 'ollama:qwen3.8', 'ollama:qwen3.6'},
+                         set(dm.development_candidates(self.user)))
+
+    def test_the_draw_takes_the_best_living_measure_not_the_lone_stale_note(self):
+        self.assertEqual('ollama:gemma-31b', dm.development_model(self.user))
+
+    def test_a_fresh_coding_score_still_decides_alone(self):
+        fresh = _ranked('ollama:fresh-coder', 20.0, 30.0, scale='aa_intelligence_index', coding=45.0)
+        self.assertTrue(dm.is_development_grade(fresh, rank=20.0))
+        self.assertFalse(dm.is_development_grade(self.small, rank=None))
+
+    def test_without_the_stale_mark_the_lone_note_wins_again(self):
+        """Contre-épreuve : c'est la marque de péremption qui rend la main aux mesures fraîches."""
+        self.stale.benchmark_meta = {k: v for k, v in self.stale.benchmark_meta.items()
+                                     if k != 'stale_since'}
+        self.stale.save(update_fields=['benchmark_meta'])
+        self.assertEqual('ollama:qwen3.6', dm.development_model(self.user))
+
+
 class AgentFloorTest(TestCase):
     """Le plancher de l'assistant OUTILLÉ (29/09) : le tirage automatique d'un tour connecté ne
     retient plus un modèle MESURÉ sous `AGENT_CODING_FLOOR` — c'est `qwen3.5:4b` (22,6) qui a

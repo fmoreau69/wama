@@ -204,6 +204,20 @@ le tirage revient à `albert:gemma-4-31b-it`. Gardes : `tests_signal_scale_subse
 ⏳ Reste vu au passage : le sous-indice `coding` (tirage de développement) n'est plus porté que
 par des notes AA v4 PÉRIMÉES — AA v5 ne publie pas cette famille (`legal`, `engineering`…), donc
 `ilaas:qwen-3.6-35b-instruct` (v4, 41,9) l'emporte sur une note qu'aucune source ne confirme plus.
+✅ **Soldé pour le sous-indice le 2026-11-08** (question de Fabien : « pourquoi ce n'est pas qwen3.8
+ou gemma 31b qui sont appelés ? Il faut utiliser les meilleurs modèles disponibles pour le codegen
+et l'écriture des backends »). Mesuré sur son compte : deux candidats au niveau développement
+(qwen-3.6, périmée depuis le 02/11, et gpt-oss par déclaration), qwen3.8 27B et gemma-4-31b dehors
+faute de `coding` — AA v5 ne publie plus cette famille (`logs/benchmarks/source_aa.json` : 94
+entrées, aucune `coding`). Deux corrections : l'étage du sous-indice ne lit plus une note PÉRIMÉE
+(`model_selector._quality_scalars`) — il ne classe que ceux qu'il couvre, donc une note périmée
+seule y excluait toutes les mesures fraîches ; et le plancher de développement lit, sans score
+coding frais, le rang centile de l'échelle la plus partagée du lot (`development_models.
+DEV_RANK_FLOOR` = 55, étalonné sur les modèles que le plancher coding jugeait : même verdict sur
+chacun). Le tirage passe de qwen-3.6 à gemma-4-31b (79,5ᵉ centile Arena), devant qwen3.8 (75,5ᵉ)
+et DeepSeek V4 Flash (72,2ᵉ). Gardes : `tests_development_models.DevelopmentLevelReadsALivingMeasureTest`.
+⚠ Une note périmée garde sa place aux étages inter-échelles (décision du 02/11) : la question du
+2026-11-07 ci-dessous reste ouverte pour eux.
 ✅ **2026-11-07** — `AIModel.best_installed` (le référentiel « concurrence » de la prospection) se
 disait « même règle d'étage que la sélection » et n'en recopiait que trois étages : ni rang centile
 (absent depuis son branchement du 26/09), ni mesure interne, ni repli VRAM. Il LIT désormais
