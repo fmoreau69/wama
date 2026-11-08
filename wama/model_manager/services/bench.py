@@ -701,15 +701,11 @@ def _quality_metric():
     celle que le model manager installe : absente, elle s'installe par la route et le banc ATTEND
     (`model_readiness.install_and_wait`, le banc est une commande). Jamais dans le $HOME, où
     `torch.hub` la rangeait de lui-même. Jusqu'au 2026-11-07, le banc le chargeait lui-même
-    (`lpips_metric`)."""
+    (`lpips_metric`). Toujours absente après l'attente, c'est le backend qui le DIT à son `load`."""
     from wama.common.backends.manager import backend_instance_for_key
     from wama.common.utils.model_readiness import install_and_wait
-    weights = lpips_folder() / LPIPS_WEIGHTS
-    if not weights.exists():
+    if not (lpips_folder() / LPIPS_WEIGHTS).exists():
         install_and_wait(LPIPS_KEY, console=logger.info)
-        if not weights.exists():
-            raise RuntimeError(f"LPIPS : {weights} absent — installer « LPIPS (AlexNet) » depuis "
-                               f"le model manager (`pull_model {LPIPS_KEY}`)")
     metric = backend_instance_for_key(LPIPS_KEY)
     metric.load(LPIPS_KEY)
     return metric

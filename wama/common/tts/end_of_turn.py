@@ -20,7 +20,9 @@ ici se juge à l'usage, au casque, pas sur ce chiffre (`feedback` du 2026-10-28)
 LE MODÈLE est une ligne du catalogue comme une autre (`model_registry._discover_turn_end_models`),
 installée et désinstallée par la route (pilote `files`, origine Hub à un commit FIGÉ). Absent, rien
 ne casse : l'écoute ne le demande plus de la session. Il tourne dans le service vocal, sur le
-processeur (aucune VRAM) : Django lui donne le chemin, le service ne cherche dans aucun dossier.
+processeur (aucune VRAM), par le backend du contrat `end-of-turn` (`SmartTurnBackend`), qui lit son
+fichier déclaré au dossier que lit aussi Django (`model_folder`). Jusqu'au 2026-11-08, Django
+passait ce chemin au service, qui chargeait le modèle hors du contrat.
 """
 import logging
 from pathlib import Path
@@ -54,8 +56,10 @@ WAIT_BELOW = 0.2
 
 
 def model_folder() -> Path:
-    from django.conf import settings
-    return Path(settings.MODEL_PATHS['speech']['smart_turn'])
+    """`MODEL_PATHS['speech']['smart_turn']` — et le même dossier hors Django : le service vocal,
+    où le backend le lit (`tts_base.speech_folder`, la lecture commune des modèles de parole)."""
+    from wama.common.backends.tts_base import speech_folder
+    return speech_folder('smart_turn', 'smart-turn')
 
 
 def model_path() -> Path:
@@ -78,7 +82,7 @@ def judge(audio: bytes) -> dict:
         return {'available': False, 'complete': None, 'probability': None}
     from wama.common.tts.service_client import end_of_turn_via_service
     try:
-        probability = end_of_turn_via_service(audio, model_path=model_path())
+        probability = end_of_turn_via_service(audio)
     except Exception as exc:
         logger.warning(f"[end_of_turn] avis indisponible, le silence décide : {exc}")
         return {'available': True, 'complete': None, 'probability': None}

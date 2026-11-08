@@ -813,7 +813,9 @@ avait tiré `ollama:gemma4:12b` (résident, donc préféré par `prefer_loaded`)
   1. ✅ **Fin de tour** (`common/tts/end_of_turn.py`) : après **300 ms** de pause, l'écoute de la
      CONVERSATION demande l'avis de Smart Turn v3.2 (pipecat-ai, BSD-2, 8,7 Mo, processeur) —
      route `/api/end-of-turn/` → `/end-of-turn` du service vocal, chemin du modèle donné par
-     Django. **Trois zones, pas le seuil 0,5 de l'éditeur** : ≥ 0,95 la phrase part sans attendre
+     Django *(corrigé le 2026-11-08 : le service le juge par le backend du contrat `end-of-turn`,
+     `SmartTurnBackend`, qui lit son fichier déclaré lui-même — `WAMA_MANIFEST_SPEC §7.1`,
+     `REMOVAL_LEDGER R228`)*. **Trois zones, pas le seuil 0,5 de l'éditeur** : ≥ 0,95 la phrase part sans attendre
      les 900 ms ; ≤ 0,2 la pause peut durer **2 s** ; entre les deux, rien ne change. Sonde
      (voix Kokoro, 13 extraits — synthétiques, une ALERTE et pas une mesure) : au seuil de
      l'éditeur, deux hésitations sur trois (0,82 ; 0,94) auraient coupé une phrase que le silence

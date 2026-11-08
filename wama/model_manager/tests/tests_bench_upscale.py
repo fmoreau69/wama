@@ -112,6 +112,17 @@ class UpscaleBenchTest(TestCase):
         self.assertNotEqual(whole, ResultEvaluation.objects.get().reference_sha256)
 
 
+def _lpips_row():
+    """The catalogue row of the instrument, as the discovery writes it (`quality-metric`, engine
+    `lpips`) : the common gate resolves the backend from it."""
+    from wama.model_manager.models import AIModel
+    from wama.model_manager.services.bench import LPIPS_KEY
+    return AIModel.objects.create(model_key=LPIPS_KEY, name='lpips', model_type='vision',
+                                  source='pytorch_download', is_downloaded=True,
+                                  capabilities={'task': 'quality-metric'},
+                                  composition={'runtime': {'engine': 'lpips'}})
+
+
 class LpipsIsInstalledByTheRouteTest(TestCase):
     """2026-10-18 : LPIPS's AlexNet was pulled by `torch.hub` at the first bench, beside the
     installer. It has a catalogue row (`quality-metric`) the route installs ; the bench installs it
@@ -134,8 +145,10 @@ class LpipsIsInstalledByTheRouteTest(TestCase):
         self.assertEqual('quality-metric', registry._models[LPIPS_KEY].capabilities['task'])
 
     def test_a_missing_backbone_is_installed_by_the_route_and_awaited(self):
+        """Still missing after the wait, the backend's `load` says so (one message, one place)."""
         from pathlib import Path
         from wama.model_manager.services import bench
+        _lpips_row()
         folder = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, folder, True)
         with mock.patch.object(bench, 'lpips_folder', return_value=folder), \
@@ -154,13 +167,7 @@ class LpipsThroughTheCommonContractTest(TestCase):
     It is now the backend of the `quality-metric` contract, reached through the common gate."""
 
     def setUp(self):
-        from wama.model_manager.models import AIModel
-        from wama.model_manager.services.bench import LPIPS_KEY
-        self.key = LPIPS_KEY
-        AIModel.objects.create(model_key=LPIPS_KEY, name='lpips', model_type='vision',
-                               source='pytorch_download', is_downloaded=True,
-                               capabilities={'task': 'quality-metric'},
-                               composition={'runtime': {'engine': 'lpips'}})
+        self.key = _lpips_row().model_key
 
     def test_the_line_resolves_its_backend_of_the_contract(self):
         from wama.common.backends.lpips_backend import LPIPSBackend

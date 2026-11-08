@@ -722,9 +722,8 @@ class EndOfTurnViewTest(TestCase):
         self.assertEqual({'available': True, 'complete': True, 'probability': 0.97}, finished)
         self.assertIs(False, unfinished['complete'])
         self.assertIsNone(unsure['complete'], "une hésitation à 0,82 ne coupe pas la phrase")
-        from wama.common.tts.end_of_turn import model_path
-        self.assertEqual(model_path(), service.call_args.kwargs['model_path'],
-                         'Django donne le chemin : le service ne cherche dans aucun dossier')
+        # 2026-11-08 : only the clip — the backend in the voice service reads its declared file.
+        service.assert_called_with(b'RIFF....WAVE')
 
     def test_a_silent_service_gives_no_verdict_rather_than_an_error(self):
         with mock.patch('wama.common.tts.end_of_turn.model_installed', return_value=True), \
@@ -739,25 +738,27 @@ class EndOfTurnViewTest(TestCase):
         from wama.views import _STT_MAX_BYTES
         self.assertEqual(413, self._post(b'x' * (_STT_MAX_BYTES + 1)).status_code)
 
-    def test_the_client_posts_the_clip_and_the_model_path(self):
+    def test_the_client_posts_the_clip_alone(self):
         from wama.common.tts import service_client
         ok = SttServiceClientTest._response(None, 200, {'probability': 0.7})
         with mock.patch('requests.post', return_value=ok) as post:
-            self.assertEqual(0.7, service_client.end_of_turn_via_service(b'WAV', model_path='/m.onnx'))
+            self.assertEqual(0.7, service_client.end_of_turn_via_service(b'WAV'))
         self.assertTrue(post.call_args.args[0].endswith('/end-of-turn'))
-        self.assertEqual({'model_path': '/m.onnx'}, post.call_args.kwargs['params'])
+        self.assertNotIn('params', post.call_args.kwargs)
         self.assertEqual(b'WAV', post.call_args.kwargs['data'])
 
 
 class EndOfTurnServiceRecipeTest(SimpleTestCase):
     """`/end-of-turn` du service vocal suit la recette de l'éditeur : la FIN de la phrase, sur
     8 s, complétée par du silence AU DÉBUT. Un écart rendrait des avis plausibles et faux, que
-    rien ne montrerait à l'usage — d'où cette garde, sans modèle ni extracteur réels."""
+    rien ne montrerait à l'usage — d'où cette garde, sans modèle ni extracteur réels. Depuis le
+    2026-11-08 la recette est celle du backend (`SmartTurnBackend`), que le service tient."""
 
     def setUp(self):
         import numpy as np
         from fastapi.testclient import TestClient
 
+        from wama.common.backends.smart_turn_backend import SmartTurnBackend
         from wama.common.tts import service as tts_service
         self.np, self.service = np, tts_service
         self.client = TestClient(tts_service.app)
@@ -773,10 +774,11 @@ class EndOfTurnServiceRecipeTest(SimpleTestCase):
                 self.heard.append(feeds)
                 return [np.array([[0.91]], dtype='float32')]
 
-        for name, fake in (('_turn_features', Extractor()), ('_turn_session', Session())):
-            patcher = mock.patch.object(tts_service, name, lambda *a, _f=fake: _f)
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        backend = SmartTurnBackend()
+        backend._extractor, backend._session, backend._loaded = Extractor(), Session(), True
+        patcher = mock.patch.object(tts_service, '_turn_backend', return_value=backend)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _wav(self, samples, rate=16000):
         import soundfile as sf
@@ -787,9 +789,7 @@ class EndOfTurnServiceRecipeTest(SimpleTestCase):
     def test_a_short_phrase_is_padded_with_silence_before_it(self):
         np = self.np
         phrase = np.full(16000, 0.5, dtype='float32')
-        with mock.patch('os.path.isfile', return_value=True):
-            response = self.client.post('/end-of-turn', params={'model_path': '/m.onnx'},
-                                        content=self._wav(phrase))
+        response = self.client.post('/end-of-turn', content=self._wav(phrase))
         self.assertEqual({'probability': 0.91}, {k: round(v, 2) for k, v in response.json().items()})
         wave, kwargs = self.heard[0]
         self.assertEqual(8 * 16000, len(wave))
@@ -801,19 +801,23 @@ class EndOfTurnServiceRecipeTest(SimpleTestCase):
     def test_a_long_phrase_keeps_its_last_eight_seconds(self):
         np = self.np
         phrase = np.concatenate([np.full(5 * 16000, 0.1), np.full(8 * 16000, 0.7)]).astype('float32')
-        with mock.patch('os.path.isfile', return_value=True):
-            self.client.post('/end-of-turn', params={'model_path': '/m.onnx'}, content=self._wav(phrase))
+        self.client.post('/end-of-turn', content=self._wav(phrase))
         self.assertTrue(np.allclose(self.heard[0][0], 0.7), 'la FIN est gardée, pas le début')
 
-    def test_a_missing_model_or_a_wrong_rate_is_refused(self):
-        with mock.patch('os.path.isfile', return_value=False):
-            self.assertEqual(404, self.client.post('/end-of-turn', params={'model_path': '/m.onnx'},
-                                                   content=b'RIFF').status_code)
-        with mock.patch('os.path.isfile', return_value=True):
-            wrong = self.client.post('/end-of-turn', params={'model_path': '/m.onnx'},
-                                     content=self._wav(self.np.zeros(4800, dtype='float32'), 48000))
+    def test_a_missing_model_an_empty_body_or_a_wrong_rate_is_refused(self):
+        from wama.common.backends.smart_turn_backend import SmartTurnBackend
+        silence = self._wav(self.np.zeros(16000, dtype='float32'))
+        with mock.patch.object(self.service, '_turn_backend', return_value=SmartTurnBackend()), \
+                mock.patch('wama.common.tts.end_of_turn.model_folder',
+                           return_value=Path('/nowhere/smart-turn')):
+            missing = self.client.post('/end-of-turn', content=silence)
+        self.assertEqual(500, missing.status_code)
+        self.assertIn('Smart Turn absent', missing.json()['detail'])
+        self.assertEqual(400, self.client.post('/end-of-turn', content=b'').status_code)
+        wrong = self.client.post('/end-of-turn',
+                                 content=self._wav(self.np.zeros(4800, dtype='float32'), 48000))
         self.assertEqual(500, wrong.status_code)
-        self.assertIn('16 000', wrong.json()['detail'])
+        self.assertIn('16000', wrong.json()['detail'])
 
 
 class ReplyTimingLogTest(TestCase):

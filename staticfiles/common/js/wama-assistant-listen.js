@@ -95,7 +95,7 @@
   //: absent, service muet, réponse tardive) → `END_MS`, exactement comme avant. Le silence garde
   //: ses bornes : l'avis ne fait que déplacer la décision entre elles.
   //: `keepSeconds` n'allège que l'envoi : la fenêtre du modèle est celle du service
-  //: (`wama.common.tts.service.TURN_SECONDS`), qui tronque de toute façon.
+  //: (`SmartTurnBackend.window_seconds`), qui tronque de toute façon.
   var TURN = { askAfterMs: 300, patientMs: 2000, keepSeconds: 8 };
 
   var cfg = { sttUrl: '', turnUrl: '' };

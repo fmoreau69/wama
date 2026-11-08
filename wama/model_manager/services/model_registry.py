@@ -1826,10 +1826,10 @@ class ModelRegistry:
                             'size_bytes': sum(f['size'] for f in TURN_FILES),
                             'install_dir': str(model_folder()),
                             'declared_files': TURN_FILES},
-                # Aucun backend ne le charge, le service vocal oui (`_end_of_turn_clip`), par ONNX
-                # Runtime (2026-11-06 : son moteur, d'où la librairie que requiert son manifeste).
-                composition={'runtime': {'engine': 'onnxruntime',
-                                         'loaded_by': 'wama.common.tts.service'}},
+                # Son moteur, ONNX Runtime ; son backend, celui du contrat `end-of-turn`
+                # (`SmartTurnBackend`, que le service vocal tient). `loaded_by: None` RETIRE de la
+                # ligne en base le chargeur hors backend qu'elle nommait jusqu'au 2026-11-08.
+                composition={'runtime': {'engine': 'onnxruntime', 'loaded_by': None}},
                 capabilities={'task': 'end-of-turn', 'modalities': ['audio'],
                               'inputs_required': ['work_audio'],
                               # Les 23 langues du banc de l'éditeur (v3.2, 2026-01-07).

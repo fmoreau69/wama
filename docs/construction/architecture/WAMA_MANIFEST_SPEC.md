@@ -710,6 +710,17 @@ attend d'abord, une commande), le sens de la mesure rangée LU sur le backend (i
 `'lower'` dans le banc), essai du contrat (`SMOKES` : l'image intacte mieux notée que la bruitée,
 dans le sens déclaré), `R227`. Mesuré : le GOUVERNEUR le voit enfin (0,5 Go réservés pendant le
 chargement, rendus au déchargement) ; 0,0 face à elle-même, 0,063 bruitée.
+✅ **Smart Turn** (2026-11-08) : contrat `end-of-turn` (`end_of_turn_base`,
+`turn_end_probability(audio) → [0, 1]` ; les seuils qui en font un verdict restent à l'écoute,
+`common/tts/end_of_turn.py`), `SmartTurnBackend` (moteur `onnxruntime` partagé, borné par le contrat
+LIANT ; processeur), tenu par le service vocal comme son Whisper (`service._turn_backend`, patron de
+`_stt_backend`) — le service n'a pas de catalogue, donc pas de porte `backend_instance_for_key`.
+Le backend lit son fichier DÉCLARÉ par la lecture commune des modèles de parole
+(`tts_base.speech_folder`, la même dans Django et dans le service) : Django ne passe plus le
+chemin (décision du 2026-10-28, antérieure à cette lecture commune du 2026-11-02), essai du
+contrat (`SMOKES` : une probabilité finie dans [0, 1] sur l'extrait de corpus), `R228`. Mesuré :
+mêmes avis que la recette de HEAD sur trois extraits (parole réelle 0,6702, phrase coupée 0,9466,
+silence 0,988), le service répond par le backend.
 ⏳ **Le Cam Analyzer, session de portage DÉDIÉE** (décision de Fabien, 2026-11-07 : « le cam
 analyzer est trop important et on ne doit surtout rien y casser ») : il ne choisit aucun de ses
 modèles au catalogue — le profil porte des CHEMINS de fichier (`road_model_path`,
@@ -717,8 +728,8 @@ modèles au catalogue — le profil porte des CHEMINS de fichier (`road_model_pa
 `RoadSegmenter` ultralytics et le détecteur `YOLO(model_path)` (`tasks.py:2307`) se chargent hors
 backend ; YOLOPv2 garde son propre cache GPU (`yolopv2_segmenter._MODEL_CACHE`), invisible du
 gouverneur, motif recopié par `common/backends/depth_engine.py`. Le portage : le profil désigne ses
-modèles par CLÉ du catalogue, chacun par la porte commune. Restent aussi Smart Turn et le Face
-Landmarker ; le reconnaisseur de gestes reste au navigateur. Dérives vues en chemin, non soldées : pyannote garde sa propre
+modèles par CLÉ du catalogue, chacun par la porte commune. Reste aussi le Face Landmarker ; le
+reconnaisseur de gestes reste au navigateur. Dérives vues en chemin, non soldées : pyannote garde sa propre
 instance (`get_diarizer`) à côté du cache commun ; `load()` à vide aussi chez `audiocpp`,
 `audiocraft`, `audio_enhancer` (à mesurer un par un : un moteur hors processus peut n'avoir rien
 à tenir).

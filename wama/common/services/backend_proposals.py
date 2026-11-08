@@ -683,6 +683,46 @@ def _smoke_language(code: str, *, module: str, model_key: str, out_dir: Path) ->
     return out
 
 
+def _smoke_end_of_turn(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement, puis l'avis sur un extrait de parole réelle (celui du smoke de PAROLE) : une
+    probabilité finie dans [0, 1] (2026-11-08, contrat `end-of-turn`). Le seuil qui en fait un
+    verdict n'est pas au contrat : l'essai ne juge pas l'avis, seulement sa forme."""
+    import math
+    import tempfile
+    from unittest import mock
+
+    from wama.common.utils.audio_decode import decode_window
+    clip, _reference = smoke_speech_clip()
+    if clip is None:
+        return {'ran': False, 'reason': 'aucun corpus de parole versé en médiathèque système '
+                                        '(manage.py asr_eval_corpus)'}
+    started = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            backend = _proposed_backend(code, module, tmp, 'turn_end_probability')
+            if not type(backend).is_available():
+                return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
+            audio, _rate = decode_window(clip.file.path, backend.sample_rate, SMOKE_SPEECH_START,
+                                         SMOKE_SPEECH_SECONDS)
+            # CPU, comme les autres smokes : le rôle ne dispute jamais le GPU au worker.
+            with mock.patch('torch.cuda.is_available', return_value=False), \
+                    mock.patch('wama.common.utils.onnx_utils.onnx_providers',
+                               lambda *a, **k: ['CPUExecutionProvider']):
+                if not backend.load(model_id_of(model_key)):
+                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                probability = backend.turn_end_probability(audio=audio)
+            backend.unload()
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
+                    'seconds': round(time.time() - started, 1)}
+    seconds = round(time.time() - started, 1)
+    out = {'ran': True, 'ok': True, 'seconds': seconds, 'probability': probability}
+    if not (isinstance(probability, float) and math.isfinite(probability)
+            and 0.0 <= probability <= 1.0):
+        out.update(ok=False, error=f'réponse hors contrat : {probability!r}')
+    return out
+
+
 #: La page que redresse le smoke d'ORIENTATION : des lignes de texte, tournée de ce quart de tour.
 SMOKE_ORIENTATION_TURN = 90
 
@@ -782,6 +822,7 @@ def _smoke_quality_metric(code: str, *, module: str, model_key: str, out_dir: Pa
 SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_speech,
           'ScoreExtractionBackend': _smoke_score, 'PIIDetectionBackend': _smoke_pii,
           'LanguageIdentificationBackend': _smoke_language,
+          'EndOfTurnBackend': _smoke_end_of_turn,
           'PageOrientationBackend': _smoke_orientation,
           'QualityMetricBackend': _smoke_quality_metric}
 

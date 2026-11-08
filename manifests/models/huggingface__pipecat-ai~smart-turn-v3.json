@@ -36,8 +36,7 @@
     },
     "composition": {
       "runtime": {
-        "engine": "onnxruntime",
-        "loaded_by": "wama.common.tts.service"
+        "engine": "onnxruntime"
       }
     },
     "extra_info": {
@@ -92,6 +91,10 @@
   "requires": [
     {
       "key": "onnxruntime-gpu",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
       "kind": "library"
     }
   ],

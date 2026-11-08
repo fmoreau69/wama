@@ -1416,10 +1416,13 @@ MECHANISMS = (
               # + le 2026-10-28 : la FIN DE TOUR (`common/tts/end_of_turn.py`) — Smart Turn,
               # ligne du catalogue installée par la route, jugé au service vocal (`/end-of-turn`)
               # après 300 ms de pause : net, il avance ou retient la fin de phrase ; incertain,
-              # le silence décide comme avant.
+              # le silence décide comme avant. + le 2026-11-08 : Smart Turn au contrat commun
+              # (`end_of_turn_base`, `SmartTurnBackend`, tenu par le service vocal).
               annexes=('wama/common/services/assistant_commands.py',
                        'wama/common/tts/speech_input.py',
                        'wama/common/tts/end_of_turn.py',
+                       'wama/common/backends/end_of_turn_base.py',
+                       'wama/common/backends/smart_turn_backend.py',
                        'wama/common/static/common/js/wama-avatar.js',
                        'wama/common/static/common/js/wama-avatar-panel.js',
                        'wama/common/static/common/js/wama-assistant-voice.js',

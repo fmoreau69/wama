@@ -718,6 +718,10 @@ TASK_CONTRACTS = {
     # deux backends, et c'est ce contrat qui sépare l'identificateur du transcripteur.
     'language-identification': ('language_identification_base', 'LanguageIdentificationBackend',
                                 True),
+    # 2026-11-08 : la fin d'un tour de parole (Smart Turn, l'écoute de l'assistant), chargée
+    # jusque-là hors du contrat par le service vocal. LIANT : `onnxruntime` est le moteur de
+    # plusieurs backends, et c'est ce contrat qui borne le juge à sa tâche.
+    'end-of-turn': ('end_of_turn_base', 'EndOfTurnBackend', True),
     # 2026-10-07 : la signature que les trois moteurs OCR partageaient sans la déclarer. LIANT :
     # un modèle d'OCR n'est servi que par un backend OCR — c'est ce qui borne `GlmOcrBackend`
     # (moteur `ollama`, qui sert aussi le chat) à sa tâche.

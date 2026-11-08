@@ -627,86 +627,60 @@ def _speech_only_clip(audio: bytes, suffix: str) -> bytes:
 
 def _vad_warm_up():
     """Importe le filtre de parole au démarrage (fond) : la 1ʳᵉ phrase distante n'attend pas.
-    Et l'extracteur de la fin de tour : son premier avis arriverait sinon après la pause."""
+    Et charge le juge de la fin de tour : son premier avis arriverait sinon après la pause."""
     try:
         import faster_whisper.vad  # noqa: F401
         logger.info("Filtre de parole (Silero) prêt")
     except Exception as exc:
         logger.warning(f"Filtre de parole indisponible : {exc}")
     try:
-        _turn_features()
+        with _turn_lock:
+            _turn_backend().load()
     except Exception as exc:
         logger.warning(f"Fin de tour indisponible : {exc}")
 
 
 # ── Fin de tour (Smart Turn, 2026-10-28) ─────────────────────────────────────
 # La personne a-t-elle FINI sa phrase ? Juge sur les 8 dernières secondes, sur le processeur
-# (aucune VRAM, ~12 ms selon l'éditeur). Django donne le chemin du modèle installé par la route
-# (`wama/common/tts/end_of_turn.py`) ; le service ne cherche dans aucun dossier.
-TURN_SECONDS = 8
-_turn_sessions = {}
-_turn_extractor = None
+# (aucune VRAM, ~12 ms selon l'éditeur), par le backend du contrat `end-of-turn`
+# (`SmartTurnBackend`, qui lit son fichier déclaré — `wama/common/tts/end_of_turn.py`). Jusqu'au
+# 2026-11-08, ce service le chargeait lui-même, d'après un chemin que Django lui passait.
+_turn = None
+#: Un avis à la fois : une session ONNX, et un chargement qui ne se fait qu'une fois.
 _turn_lock = threading.Lock()
 
 
-def _turn_features():
-    global _turn_extractor
-    if _turn_extractor is None:
-        from transformers import WhisperFeatureExtractor
-        _turn_extractor = WhisperFeatureExtractor(chunk_length=TURN_SECONDS)
-    return _turn_extractor
+def _turn_backend():
+    global _turn
+    if _turn is None:
+        from wama.common.backends.smart_turn_backend import SmartTurnBackend
+        _turn = SmartTurnBackend()
+    return _turn
 
 
-def _turn_session(model_path: str):
-    with _turn_lock:
-        session = _turn_sessions.get(model_path)
-        if session is None:
-            import onnxruntime as ort
-            from wama.common.utils.onnx_utils import onnx_providers
-            options = ort.SessionOptions()
-            options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-            options.inter_op_num_threads = 1
-            options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-            # Processeur SEUL : la variante int8 est faite pour lui, et la carte reste à la voix.
-            session = ort.InferenceSession(model_path, sess_options=options,
-                                           providers=onnx_providers(cpu_only=True))
-            _turn_sessions[model_path] = session
-        return session
-
-
-def _end_of_turn_clip(audio: bytes, model_path: str) -> float:
-    """Probabilité que le tour soit FINI — la recette de l'éditeur (`inference.py` du dépôt
-    pipecat-ai/smart-turn) : la FIN de l'extrait gardée, complétée par du silence au début."""
+def _end_of_turn_clip(audio: bytes) -> float:
+    """Probabilité que le tour soit FINI : l'extrait décodé (WAV 16 kHz, mono), puis le backend."""
     import io
-    import numpy as np
     import soundfile as sf
     wave, rate = sf.read(io.BytesIO(audio), dtype="float32")
     if wave.ndim > 1:
         wave = wave.mean(axis=1)
-    if rate != 16000:
-        raise ValueError(f"extrait à {rate} Hz, 16 000 attendus")
-    size = TURN_SECONDS * 16000
-    wave = wave[-size:]
-    if len(wave) < size:
-        wave = np.pad(wave, (size - len(wave), 0))
-    features = _turn_features()(wave, sampling_rate=16000, return_tensors="np",
-                                padding="max_length", max_length=size, truncation=True,
-                                do_normalize=True)
-    inputs = features.input_features.squeeze(0).astype(np.float32)[None, ...]
-    outputs = _turn_session(model_path).run(None, {"input_features": inputs})
-    return float(outputs[0].reshape(-1)[0])
+    with _turn_lock:
+        backend = _turn_backend()
+        if rate != backend.sample_rate:
+            raise ValueError(f"extrait à {rate} Hz, {backend.sample_rate} attendus")
+        backend.load()
+        return backend.turn_end_probability(audio=wave)
 
 
 @app.post("/end-of-turn")
-async def end_of_turn_endpoint(request: Request, model_path: str = ""):
+async def end_of_turn_endpoint(request: Request):
     """Corps : la phrase dite jusqu'ici (WAV 16 kHz mono) → {probability} du tour FINI."""
     audio = await request.body()
-    if not audio or not model_path:
-        raise HTTPException(status_code=400, detail="audio ou modèle manquant")
-    if not os.path.isfile(model_path):
-        raise HTTPException(status_code=404, detail="modèle de fin de tour absent")
+    if not audio:
+        raise HTTPException(status_code=400, detail="audio manquant")
     try:
-        probability = await run_in_threadpool(_end_of_turn_clip, audio, model_path)
+        probability = await run_in_threadpool(_end_of_turn_clip, audio)
     except Exception as e:
         logger.error(f"Fin de tour : {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
