@@ -29526,3 +29526,55 @@ de MESURE ; chaque pièce suit un patron en service :
   (`httpd -k restart`) ; vérifier une page, une vidéo d'une card (avance dans la lecture), et
   `/media/…` sans session → connexion ; (2) bascule HTTPS (`WAMA_HTTPS`) et chiffrement par
   utilisateur : analyses données, décisions en attente.
+
+## §PALIER 2026-11-07→08, « LES MODÈLES CHARGÉS À PART PASSENT AU CONTRAT COMMUN ; TENSORFLOW ET LA CARTE » — 07b11ea8e, c01eb0cf7, 10b87632b, b018c847c, 3561701cf, cb86bd530, e5febe83d, e6ebd66bd (locaux, non poussés) — 🔴 relancer gunicorn + workers + service de voix (la protection TensorFlow de e6ebd66bd ne vaut qu'après)
+
+> Demandes de Fabien : « compléter le manifeste pour tout aligner », « `loaded_by` est un constat,
+> pas une route », « aucun pansement, aucune dérive », « Landmarker seul, DeepFace ensuite », « il
+> faut passer par la carte, voir pourquoi ce n'est pas le cas ». Détail et mesures :
+> `WAMA_MANIFEST_SPEC §7.1` (paragraphes du 2026-11-06 au 2026-11-08), `REMOVAL_LEDGER R225–R228,
+> R230`.
+
+- **Cinq modèles au contrat de leur tâche**, chacun : contrat (`TASK_CONTRACTS`, LIANT), backend,
+  porte commune, essai du contrat (`backend_proposals.SMOKES`), `loaded_by: None` (retrait),
+  manifeste régénéré par la route, contre-épreuves rouges — Whisper tiny (`language-identification`),
+  orientation de page (`page-orientation`, et `DocTRBackend.load` qui garde enfin son prédicteur),
+  LPIPS (`quality-metric`, le premier VU du gouverneur : 0,5 Go), Smart Turn (`end-of-turn`, tenu par
+  le service de voix ; le backend lit son fichier par `tts_base.speech_folder`, Django ne passe plus
+  de chemin), Face Landmarker (tâche NEUVE `face-landmark-detection`, backend au substrat, ligne
+  restée à l'app : `AIModel.source` est le lien app ↔ modèle).
+- **Route complétée en chemin** : le passe-plat `model_declarations` trouve l'app dans tous les
+  mondes (`_app_package`), `_overlay_declared_engines` passe par lui ; une clé de composition émise à
+  `None` est un retrait (`merged_composition`) ; une seule boucle de découverte sur
+  `FACE_ANALYZER_MODELS`.
+- **Constaté en service après relance** : les cinq lignes justes en base, backend résolu, aucun
+  manque ; restent `loaded_by` : YOLOPv2 (Cam Analyzer, session DÉDIÉE — décision de Fabien) et les
+  gestes (navigateur). Smart Turn chargé par son backend au démarrage du service de voix
+  (`logs/tts-service.log`). Une analyse vidéo réelle du Face Analyzer par le worker `gpu` en
+  service (compte `wama_nightly_test`) : 30/30 images, visage, émotion, âge, genre, pose.
+- ⚠ **Vécu, à retenir** : des workers démarrés AVANT un portage (ancienne découverte) lisant la
+  NOUVELLE déclaration ont récrit la ligne du Landmarker de travers toutes les 6 min (`format='h5'`,
+  `logs/model-sync.log`) jusqu'à la relance — relancer le parc juste après un changement de
+  déclaration lue par la découverte.
+- **TensorFlow et la carte** (DeepFace et FER, Face Analyzer) : il voit la carte ou non selon
+  l'ORDRE DES IMPORTS (la copie système de `libnvJitLink` du CUDA 12.0 d'Ubuntu masque celle de la
+  roue ; PyTorch importé avant la précharge) ; sans `TF_FORCE_GPU_ALLOW_GROWTH`, il prend la carte
+  ENTIÈRE ; avec, expression + âge + genre ~4,6 Go, qu'il ne REND PAS avant la fin du processus.
+  ✅ Protection posée (`settings.py`, e6ebd66bd), prouvée en processus de type worker (+270 Mio au
+  lieu de la carte entière). ⏳ **Forme retenue par Fabien : un SERVICE dédié, comme la voix** —
+  à concevoir, décisions ouvertes : la libération (TensorFlow ne rend rien : seul l'arrêt du
+  processus libère), le repli quand le service est éteint (TensorFlow tenu HORS de la carte dans les
+  autres processus), le périmètre (DeepFace seul, ou FER aussi), le préchauffage (expression ~0,4 Go,
+  ou âge et genre ~4,6 Go résidents), et la préparation du processus (nvJitLink de la roue préchargé).
+- **Dérives consignées, non soldées** (`WAMA_MANIFEST_SPEC §7.1`) : `DeepFaceBackend` sans appelant
+  et VRAM déclarées sans rapport avec la mesure ; pyannote (`get_diarizer`) ; `load()` à vide de
+  `audiocpp` / `audiocraft` / `audio_enhancer` ; `depth_engine` qui recopie le cache de YOLOPv2 ; le
+  banc qui construit l'agrandisseur lui-même ; une ligne dont la clé change sans que son fichier
+  bouge, supprimée par la synchro sans que faits et mesures suivent (`rekey` refuse ce cas).
+- Rouges vus, à d'autres : `face_analyzer.tests.EmotionBackendReachesTheVideoTaskTest` (dossier
+  `media_tests` absent à la ligne 215, avant tout code touché), `tests_hands` (403 au lieu de 302),
+  `tests_mecanismes_scan` (`tests_score_reading.py` à deux propriétaires).
+- 🔚 **Point d'entrée** : les décisions du service de visage ci-dessus, puis sa construction sur le
+  patron du service de confidentialité (`common/privacy/service.py` : Django initialisé, porte
+  commune, tenant déclaré, préchauffage, 503 « loading ») ; puis `DeepFaceBackend` au contrat
+  `face-analysis` (le `EmotionRecognizer` de l'app garde son lissage, le backend reste sans état).
