@@ -15,7 +15,8 @@
  * barre, ses parties se trouvent alors par leurs classes `wama-gp-*`).
  *
  * L'endpoint renvoie un JSON tolérant : { total, done|success|completed,
- *   running, failed|failure|error, overall_progress? }  (overall_progress dérivé si absent).
+ *   running, failed|failure|error, stale?, overall_progress? }  (overall_progress dérivé si
+ *   absent ; `stale` = les réussis périmés, parmi `done`, dits à part depuis le 2026-11-08).
  * dataKey : extrait data[dataKey] pour les endpoints imbriqués (ex. {image:{…}, video:{…}}).
  *
  * Plusieurs barres sur le MÊME endpoint partagent UN appel (une boucle `WamaApp.Poller` par
@@ -151,10 +152,13 @@
             bar.style.width = p + '%';
             bar.classList.add('active');  // balayage coloré permanent ; l'état (%) reste toujours affiché
 
+            // Les réussis PÉRIMÉS (2026-11-08, Fabien) : comptés par le serveur parmi `done` — ils
+            // ont un résultat (le ⬇ reste prêt) mais sont à refaire, donc hors de « terminé ».
+            var stale   = d.stale || 0;
             if (stats) {
                 stats.textContent = total
-                    ? (done + '/' + total + ' terminé · ' + running
-                       + ' en cours · ' + failed + ' échoué')
+                    ? ((done - stale) + '/' + total + ' terminé · ' + stale + ' périmé · '
+                       + running + ' en cours · ' + failed + ' échoué')
                     : 'Aucune tâche';
             }
             if (pct) pct.textContent = total ? p + '%' : '';
@@ -172,7 +176,8 @@
             var pane = statusEl && statusEl.closest ? statusEl.closest('.tab-pane[data-domain]') : null;
             if (!pane || pane.classList.contains('active')) {
                 var firstTime = !window.WamaQueueStats;
-                window.WamaQueueStats = { total: total, done: done, running: running, failed: failed };
+                window.WamaQueueStats = { total: total, done: done, running: running, failed: failed,
+                                          stale: stale };
                 if (firstTime) {
                     document.dispatchEvent(new CustomEvent('wama:queue-stats'));
                 }

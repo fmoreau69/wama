@@ -38,6 +38,36 @@ class QueueFormulaTest(SimpleTestCase):
         self.assertEqual(0, out['overall_progress'])
         self.assertEqual(0, out['total'])
 
+    def test_a_stale_success_has_a_result_but_is_work_to_redo(self):
+        """2026-11-08, Fabien : the queue bar says the STALE cards. A stale success keeps its
+        result (counted in `success` / `done` : the ⬇ is served) and is said apart (`stale`) ;
+        it weighs 0 in the progress — it is to be redone."""
+        from wama.common.utils.progress_views import SHOWN_STALE
+        out = queue_progress([('SUCCESS', 0), (SHOWN_STALE, 0)])
+        self.assertEqual((2, 2, 1), (out['success'], out['done'], out['stale']))
+        self.assertEqual(50, out['overall_progress'])
+        self.assertEqual(0, queue_progress([('SUCCESS', 0)])['stale'])
+
+
+class StaleCountTest(TestCase):
+    """The stale cards of a queue in ONE query on the process lines (`process_runs.stale_ids`) —
+    what `AppPipeline.refresh` wrote at the last rendering of each card."""
+
+    def test_only_the_elements_with_a_stale_line_are_counted(self):
+        from wama.common.services import process_runs
+        from wama.composer.models import ComposerGeneration
+        user = get_user_model().objects.create_user('progress-stale-count', password='x')
+        fresh, stale, other = (ComposerGeneration.objects.create(user=user, prompt=p, status='SUCCESS')
+                               for p in ('fresh', 'stale', 'other'))
+        for item in (fresh, stale):
+            for key in ('render', 'output'):
+                process_runs.start(item, key)
+                process_runs.succeed(item, key)
+        process_runs.mark_stale(stale, ['render'])
+        self.assertEqual({str(stale.pk)},
+                         process_runs.stale_ids(ComposerGeneration, [fresh.pk, stale.pk, other.pk]))
+        self.assertEqual(set(), process_runs.stale_ids(ComposerGeneration, []))
+
 
 class RequestUserTest(TestCase):
     """The default user of the factory (`request_user`) : the logged-in account, otherwise the

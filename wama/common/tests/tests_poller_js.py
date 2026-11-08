@@ -206,6 +206,26 @@ class PollerLoopTest(SimpleTestCase):
         self.assertEqual([True, 'true', False, False], self._js(state),
                          'the readiness follows each new answer, queue by queue')
 
+    def test_the_bar_says_the_stale_ones_apart_from_the_finished_ones(self):
+        """2026-11-08, Fabien : « ajouter à la barre de progression globale le nombre de cards
+        périmées ». The server counts them AMONG `done` (they have a result) : the bar says them
+        apart — « terminé » is what needs nothing more ; the ⬇ stays ready on a stale result."""
+        self.v8.eval("""
+            function bar() { return {style: {}, classList: classList(), textContent: ''}; }
+            var els = {globalProgressBar: bar(), globalProgressStats: bar()};
+            document.getElementById = function (id) { return els[id] || null; };
+            var CustomEvent = function (t) { this.type = t; };
+            document.dispatchEvent = function () {};
+        """)
+        self.v8.eval((JS / 'wama-global-progress.js').read_text(encoding='utf-8'))
+        self.v8.eval("""
+            window.WamaGlobalProgress.init({url: '/composer/global-progress/'});
+            answer({total: 5, done: 3, stale: 1, running: 1, failed: 1, overall_progress: 40});
+        """)
+        self.assertEqual('2/5 terminé · 1 périmé · 1 en cours · 1 échoué',
+                         self._js('els.globalProgressStats.textContent'))
+        self.assertEqual(1, self._js('window.WamaQueueStats.stale'))
+
 
 class EveryPollingLoopIsTheCommonOneTest(SimpleTestCase):
     """2026-10-13 — douze apps et pages interrogeaient le serveur par un `setInterval` local

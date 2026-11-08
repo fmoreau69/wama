@@ -41,14 +41,23 @@ def _bounded(value) -> int:
         return 0
 
 
+#: Le statut que la barre de file donne à un élément RÉUSSI dont une étape est périmée (2026-11-08) :
+#: il a un résultat (compté dans `success`, son ⬇ reste servi) mais il est à refaire — hors de
+#: « terminé » à l'écran (`stale`) et compté 0 dans la progression d'ensemble.
+SHOWN_STALE = 'STALE'
+
+
 def queue_progress(rows) -> dict:
     """Les compteurs d'une file et sa progression d'ensemble, au vocabulaire COMPLET.
-    `rows` : itérable de `(statut, progression vivante)`."""
-    total = pending = running = success = failure = 0
+    `rows` : itérable de `(statut, progression vivante)` — `SHOWN_STALE` pour un réussi périmé."""
+    total = pending = running = success = failure = stale = 0
     acc = 0
     for status, live in rows:
         total += 1
-        if status == 'SUCCESS':
+        if status == SHOWN_STALE:
+            success += 1
+            stale += 1
+        elif status == 'SUCCESS':
             success += 1
             acc += 100
         elif status == 'FAILURE':
@@ -64,6 +73,8 @@ def queue_progress(rows) -> dict:
         # Alias du contrat de `wama-global-progress.js` (`done`/`failed`) : les deux graphies
         # sont ÉMISES, le JS n'a plus à en deviner une.
         'done': success, 'failed': failure,
+        # Les réussis PÉRIMÉS, parmi `success` (2026-11-08) : la barre les dit à part.
+        'stale': stale,
         # Ce que lanceraient les périmètres du menu ▾ de « tout lancer » (`item_views.START_SCOPES`,
         # 2026-10-29) : la barre grise une entrée sans objet et en affiche le nombre.
         'unfinished': pending + failure, 'relaunchable': total - running,
@@ -238,9 +249,16 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
     def _counts(qs):
         # UNE requête sur trois colonnes : la barre interroge toutes les 2 à 3 s, et charger
         # chaque élément entier a coûté jusqu'à 0,7 s par appel (transcriber, 2026-10-03).
-        rows = qs.values_list('pk', 'status', progress_field)
+        rows = list(qs.values_list('pk', 'status', progress_field))
+        # Les réussis PÉRIMÉS (2026-11-08) : une requête de plus, sur les lignes de process — une
+        # app sans pipeline n'en a pas.
+        from wama.common.services.process_pipeline import app_pipeline
+        from wama.common.services.process_runs import stale_ids
+        stale = (stale_ids(work_model, [pk for pk, status, _ in rows if status == 'SUCCESS'])
+                 if app_pipeline(work_model._meta.app_label) is not None else set())
         return queue_progress(
-            (status, _live(_Row(pk, stored, progress_field)) if status == 'RUNNING' else 0)
+            (SHOWN_STALE if status == 'SUCCESS' and str(pk) in stale else status,
+             _live(_Row(pk, stored, progress_field)) if status == 'RUNNING' else 0)
             for pk, status, stored in rows)
 
     def global_progress(request):

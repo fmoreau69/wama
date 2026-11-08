@@ -87,6 +87,22 @@ def lines_by_item(items) -> dict:
     return grouped
 
 
+def stale_ids(model, object_ids) -> set:
+    """Les éléments (pk en texte, parmi `object_ids`) dont une ligne de process est PÉRIMÉE —
+    UNE requête, pour la barre de file (2026-11-08, Fabien : « ajouter à la barre de progression
+    globale le nombre de cards périmées »). La péremption est écrite sur les lignes par
+    `AppPipeline.refresh` (`mark_stale`), que joue tout rendu de card : une card s'affiche
+    « Périmé » exactement quand ses lignes le disent. Pas de recalcul par card à chaque tour."""
+    object_ids = [str(pk) for pk in object_ids]
+    if not object_ids:
+        return set()
+    from wama.common.models import ProcessRun
+    meta = model._meta
+    return set(ProcessRun.objects.filter(
+        app=meta.app_label, object_type=meta.object_name, object_id__in=object_ids,
+        instance_key='', status=JOB_STALE).values_list('object_id', flat=True).distinct())
+
+
 def line(item, node_id: str = MAIN_NODE, instance_key: str = ''):
     """La ligne d'un nœud, ou None s'il n'a jamais été lancé."""
     return lines(item).filter(node_id=node_id, instance_key=instance_key).first()

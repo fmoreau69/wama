@@ -29336,3 +29336,25 @@ de MESURE ; chaque pièce suit un patron en service :
   lectures repliées, la partition composée gardée ; avec audio : rien de replié).
 - 🔚 Reste : la vérification au navigateur (après relance) — le composer sur une ligne attendu
   pour une chanson depuis une consigne comme pour un cover ; le levier B seulement si une app déborde.
+
+## §PALIER 2026-11-08 (nuit), « LA BARRE DE FILE DIT LES CARDS PÉRIMÉES ; BANDE DU COMPOSER VÉRIFIÉE AU NAVIGATEUR » — ce commit (local, non poussé) — 🔴 relancer gunicorn + workers
+
+- **Demande de Fabien** : « ajouter à la barre de progression globale le nombre de cards périmées,
+  en plus de terminé, en cours, échoué ». Texte commun (`wama-global-progress.js`) :
+  « X/Y terminé · N périmé · N en cours · N échoué ». Le serveur (`progress_views._counts`) compte
+  les réussis dont une ligne de process est PÉRIMÉE en UNE requête (`process_runs.stale_ids`) —
+  la péremption est écrite sur les lignes par `AppPipeline.refresh` à chaque rendu de card : la
+  barre dit ce que les cards disent, sans recalcul par card à chaque tour. Un réussi périmé GARDE
+  son résultat (compté dans `success`/`done` : le ⬇ reste prêt) mais sort de « terminé » à l'écran
+  et pèse 0 dans la progression (`SHOWN_STALE`). Les périmètres du menu ▾ ne bougent pas (leur
+  compte doit rester celui de ce qu'ils lancent). Gardes : `tests_progress_views`
+  (formule, requête), `tests_poller_js` (le texte, V8), `tests_domain_page` (compteurs annoncés).
+- **Vérification navigateur** (live relancé, migrations 0030/0031 appliquées ; deux cards témoins
+  du compte de test, retirées ; sonde scratchpad `probe_steps.py`) : la bande du composer tient
+  sur UNE ligne — chanson depuis une consigne : 4 colonnes (Paroles écrites → Partition composée →
+  Rendu → Sortie + 3 lectures du rendu), « + 3 sans objet » ; cover : 4 colonnes (Partition réduite
+  / complète / Paroles de l'entrée → Partition composée → Rendu → Sortie + 3), « + 1 sans objet »
+  (Paroles écrites, paroles données). ⚙ de « Paroles chantées » : sa case (au libellé de l'étape) et
+  le modèle d'écoute, plus de titre « Paroles de l'entrée » ; ⚙ de « Paroles écrites » : Voix,
+  Paroles et le bouton ✍️. Zéro erreur console. ⚠ Non vu : la vue « Partition jouée » Réduite /
+  Complète (il faut une card déjà rendue) ; le levier B n'est pas nécessaire au composer.

@@ -295,7 +295,7 @@ class BarsStartThemselvesTest(SimpleTestCase):
             "[bars[0].parts['.wama-gp-bar'].style.width, bars[1].parts['.wama-gp-bar'].style.width]"))
 
     def test_the_counts_of_the_page_are_those_of_the_shown_domain(self):
-        self.assertEqual({'total': 4, 'done': 1, 'running': 0, 'failed': 0},
+        self.assertEqual({'total': 4, 'done': 1, 'running': 0, 'failed': 0, 'stale': 0},
                          self._js('window.WamaQueueStats'),
                          'the hidden image queue overwrote the counts of the shown one')
 
