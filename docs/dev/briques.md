@@ -1232,7 +1232,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
 - **API publique** (23) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
-  - `declared_vision(model_key: str) -> bool` — La famille de `model_key` est-elle DÉCLARÉE voir (`REMOTE_VISION_FAMILIES`) ?
+  - `declared_family(model_key: str) -> dict` — Déclaration de la famille de `model_key` (`FAMILLES_DISTANTES`), ou {}.
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
   - `type_from_modalities(architecture: dict) -> str` — Type (tag HuggingFace) d'un modèle décrit par ses MODALITÉS — la forme d'OpenRouter
