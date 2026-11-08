@@ -88,15 +88,27 @@ ROUTE_TOOLS = {
     'model_manager:api_convert_and_backup': 'convert_model_format',
 }
 #: Action routes without a tool. The value of the measure ; LOWER it in the commit that adds a tool.
-#: Measured on 2026-11-08 when this guard was written : 212 (225 action routes, 13 mapped). Some of
-#: them are already done by an existing tool and only lack their line here — map them first.
-ROUTES_WITHOUT_TOOL_BUDGET = 212
+#: Measured on 2026-11-08 when this guard was written : 208 (221 action routes, 13 mapped ; the
+#: twins' routes folded onto their source's). Some of them are already done by an existing tool and
+#: only lack their line here — map them first.
+ROUTES_WITHOUT_TOOL_BUDGET = 208
 
 
 def action_routes() -> dict:
     """`{route key: view}` of every action route — a path with an `api/` segment — outside the API's
-    own surfaces. The key is `<namespace>:<name>` (the name alone, or the path, without them)."""
+    own surfaces. The key is `<namespace>:<name>` (the name alone, or the path, without them).
+
+    A TWIN's routes fold onto its source's (`generated_from`) : its tools derive from the source's
+    (`_register_twin_creators`), and the sandbox is not versioned — counted apart, the budget would
+    depend on the installation (measured on 2026-11-08 : 212 in the tree, 208 on HEAD)."""
     from django.urls import URLPattern, URLResolver, get_resolver
+
+    from wama.common.app_registry import APP_CATALOG
+
+    def source_of(namespace):
+        head, _, rest = namespace.partition(':')
+        head = (APP_CATALOG.get(head) or {}).get('generated_from') or head
+        return ':'.join(filter(None, (head, rest)))
 
     def walk(resolver, prefix, namespace):
         for p in resolver.url_patterns:
@@ -112,7 +124,7 @@ def action_routes() -> dict:
             continue
         if view.__module__ in API_SURFACE_MODULES or (not namespace and name in ASSISTANT_CHANNEL_ROUTES):
             continue
-        routes[':'.join(filter(None, (namespace, name))) or path] = view
+        routes[':'.join(filter(None, (source_of(namespace), name))) or path] = view
     return routes
 
 
