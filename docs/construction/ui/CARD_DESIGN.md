@@ -664,6 +664,10 @@ Prospection LLM → router un modèle vers une app existante (capacités vs `APP
 2. Dossiers d'apps du filemanager (tri par catégorie + icône teintée — PAS de changement disque,
    décision 2026-07-05 : l'arborescence physique est un contrat, la catégorie est de la présentation).
 3. ✅ Liseré gauche des cards de travail — `--wama-app-color` posée par base.html (app courante via le catalogue), règle `.wama-card` dans wama-inspector.css.
+4. ✅ *2026-11-09* — les TYPES DE MODÈLES (badge de la gestion des modèles, scène 3D des modèles) :
+   même règle pour une famille sans catégorie, une teinte par membre dans l'ordre déclaré
+   (`theme_generator.identity_colours`, détail `WAMA_SCENES_3D.md`). Ils étaient la dernière
+   identité à onze couleurs écrites à la main.
 
 ### 9.3 Homogénéisation des « tuiles » (cards accueil / app manager / model manager / cards de travail)
 Consigné : unifier l'apparence de TOUTES les surfaces en carte (fond, bordure, radius, hover,

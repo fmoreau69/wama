@@ -23,6 +23,10 @@
        `safe` : des couleurs `#rrggbb` validées et une clé déclarée, rien de saisi tel quel ; le
        Profil remplace ce bloc sur place quand la couleur change.{% endcomment %}
     <style id="wama-theme-generated">{{ theme_generated_css|safe }}</style>
+    {% comment %}Couleurs d'IDENTITÉ dérivées (`theme_generator.model_type_css`) : une par type de
+       modèle, la même sous tous les thèmes — `safe` : des `#rrggbb` calculés et des valeurs de
+       l'enum, rien de saisi.{% endcomment %}
+    <style id="wama-identity-colours">{{ identity_css|safe }}</style>
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="{% static_v 'vendors/font-awesome-6.4.0/css/all.min.css' %}">

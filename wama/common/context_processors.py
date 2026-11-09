@@ -57,19 +57,24 @@ def theme(request):
     thème actif, qui peut changer sans recharger (Profil, « Automatique »). `theme_font_sheets` :
     les feuilles des polices que les chartes font servir (`themes.font_stylesheets`).
     `theme_generated_css` : le bloc GÉNÉRÉ d'un thème personnalisé choisi — ses graines, ou celles
-    de la charte choisie (`themes.account_generated_css`)."""
+    de la charte choisie (`themes.account_generated_css`). `identity_css` : les couleurs d'identité
+    DÉRIVÉES des types de modèles (`theme_generator.model_type_css`, 2026-11-09), les mêmes sous
+    tous les thèmes."""
+    from wama.common import theme_generator as derived
     from wama.common import themes as declared
     from wama.common.themes import THEMES, declared_for_pages, resolve, theme_choice
     user = getattr(request, 'user', None)
     choice = theme_choice(user)
     generated = getattr(declared, 'account_generated_css', None)
+    identity = getattr(derived, 'model_type_css', None)
     return {'theme': resolve(choice), 'theme_choice': choice,
             'theme_declared': declared_for_pages(choice),
             # `getattr` : un worker recyclé peut lire ce module neuf avec un `themes` déjà importé
             # d'avant `Theme.logo` (vécu le 2026-10-19 : toutes les pages en 500 jusqu'au rechargement)
             'theme_logos': [t for t in THEMES if getattr(t, 'logo', '')],
             'theme_font_sheets': getattr(declared, 'font_stylesheets', list)(),
-            'theme_generated_css': generated(user, choice) if generated else ''}
+            'theme_generated_css': generated(user, choice) if generated else '',
+            'identity_css': identity() if identity else ''}
 
 
 def public_address(request):

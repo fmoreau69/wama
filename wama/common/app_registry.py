@@ -1975,19 +1975,15 @@ _CATEGORY_HUES = {
 _FALLBACK_HUE = WORLD_SECTIONS['transverse']['hue']
 
 
-def _hsl_hex(h, s, l):
-    import colorsys
-    r, g, b = colorsys.hls_to_rgb((h % 360) / 360.0, l / 100.0, s / 100.0)
-    return '#%02x%02x%02x' % (round(r * 255), round(g * 255), round(b * 255))
-
-
 def world_color(world: str) -> str:
     """Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
     déclarée, et d'une source que rien n'identifie (gris-bleu du monde `transverse`)."""
-    return _hsl_hex((WORLD_SECTIONS.get(world) or {}).get('hue', _FALLBACK_HUE), 70, 55)
+    from wama.common.theme_mirror import hsl_hex
+    return hsl_hex((WORLD_SECTIONS.get(world) or {}).get('hue', _FALLBACK_HUE), 70, 55)
 
 
 def _assign_derived_colors():
+    from wama.common.theme_mirror import hsl_hex
     groups = {}
     for _name, _spec in APP_CATALOG.items():
         _cid = _spec.get('category') or derive_category(_spec)
@@ -1999,7 +1995,7 @@ def _assign_derived_colors():
             if 'color' in APP_CATALOG[_name]:
                 continue  # override déclaré : on respecte
             light = 46 + (20.0 * i / max(n - 1, 1))
-            APP_CATALOG[_name]['color'] = _hsl_hex(hue, 65, light)
+            APP_CATALOG[_name]['color'] = hsl_hex(hue, 65, light)
 
 
 _assign_derived_colors()

@@ -416,35 +416,11 @@
 
   /* ── Model manager ── */
   --wama-mm-remote: #6f8fd6;           /* liseré d'un modèle distant */
-  /* La couleur de CHAQUE type de modèle (`ModelType`), `--wama-mm-type-<valeur>`, et le texte
-     qu'on y pose, `…-on` (le plus lisible des deux textes de palette, 4,5:1 au moins) — lus par
-     le badge de la gestion des modèles et par la scène 3D des modèles, par la VALEUR du type :
-     déclarer un type, c'est déclarer ses deux jetons ici, dans chaque thème (`tests_theme`).
-     Une identité de DONNÉE, la même dans tous les thèmes (`themes.LIGHT_FIXED_PREFIXES`) : le
-     VLM ne suit plus l'accent du thème (2026-11-08 — sous UGE, l'indigo de la charte le
-     confondait avec le LLM, sous un texte noir illisible). */
-  --wama-mm-type-vision: var(--bs-purple);
-  --wama-mm-type-vision-on: var(--wama-text-on-accent);
-  --wama-mm-type-diffusion: var(--bs-orange);
-  --wama-mm-type-diffusion-on: var(--wama-text-on-bright);
-  --wama-mm-type-speech: var(--bs-teal);
-  --wama-mm-type-speech-on: var(--wama-text-on-bright);
-  --wama-mm-type-vlm: var(--bs-cyan);
-  --wama-mm-type-vlm-on: var(--wama-text-on-bright);
-  --wama-mm-type-llm: var(--bs-indigo);
-  --wama-mm-type-llm-on: var(--wama-text-on-accent);
-  --wama-mm-type-embedding: var(--bs-green);
-  --wama-mm-type-embedding-on: var(--wama-text-on-bright);
-  --wama-mm-type-upscaling: #e83e8c;
-  --wama-mm-type-upscaling-on: var(--wama-text-on-bright);
-  --wama-mm-type-lipsync: var(--bs-red);
-  --wama-mm-type-lipsync-on: var(--wama-text-on-bright);
-  --wama-mm-type-music: var(--bs-yellow);
-  --wama-mm-type-music-on: var(--wama-text-on-bright);
-  --wama-mm-type-ocr: var(--bs-blue);
-  --wama-mm-type-ocr-on: var(--wama-text-on-bright);
-  --wama-mm-type-nlp: #a0522d;         /* terre de Sienne : une teinte que nul autre type ne porte */
-  --wama-mm-type-nlp-on: var(--wama-text-on-accent);
+  /* La couleur de chaque type de modèle (`--wama-mm-type-<valeur>`) et son texte (`…-on`) ne
+     se déclarent plus ici : elles se DÉRIVENT de l'enum `ModelType` (`CARD_DESIGN §9.1`,
+     `theme_generator.model_type_css`, 2026-11-09), une identité de donnée posée par `base.html`
+     sur `:root`, la même sous tous les thèmes. Jusque-là onze couleurs choisies à la main, deux
+     fois (sombre, clair). */
   --wama-mm-badge: #495057;            /* badge de source, format .bin */
   --wama-mm-format-unknown: #343a40;
   --wama-mm-memory-muted: #b0b7bf;
@@ -986,29 +962,7 @@
 
   /* ── Model manager ── */
   --wama-mm-remote: #6f8fd6;                /* liseré d'un modèle distant */
-  /* chaque type de modèle et son texte : cf. thème sombre (mêmes valeurs) */
-  --wama-mm-type-vision: var(--bs-purple);
-  --wama-mm-type-vision-on: var(--wama-text-on-accent);
-  --wama-mm-type-diffusion: var(--bs-orange);
-  --wama-mm-type-diffusion-on: var(--wama-text-on-bright);
-  --wama-mm-type-speech: var(--bs-teal);
-  --wama-mm-type-speech-on: var(--wama-text-on-bright);
-  --wama-mm-type-vlm: var(--bs-cyan);
-  --wama-mm-type-vlm-on: var(--wama-text-on-bright);
-  --wama-mm-type-llm: var(--bs-indigo);
-  --wama-mm-type-llm-on: var(--wama-text-on-accent);
-  --wama-mm-type-embedding: var(--bs-green);
-  --wama-mm-type-embedding-on: var(--wama-text-on-bright);
-  --wama-mm-type-upscaling: #e83e8c;
-  --wama-mm-type-upscaling-on: var(--wama-text-on-bright);
-  --wama-mm-type-lipsync: var(--bs-red);
-  --wama-mm-type-lipsync-on: var(--wama-text-on-bright);
-  --wama-mm-type-music: var(--bs-yellow);
-  --wama-mm-type-music-on: var(--wama-text-on-bright);
-  --wama-mm-type-ocr: var(--bs-blue);
-  --wama-mm-type-ocr-on: var(--wama-text-on-bright);
-  --wama-mm-type-nlp: #a0522d;
-  --wama-mm-type-nlp-on: var(--wama-text-on-accent);
+  /* chaque type de modèle et son texte : dérivés, cf. thème sombre */
   --wama-mm-badge: #9ba2aa;                 /* badge de source, format .bin */
   --wama-mm-format-unknown: #b9c0c8;
   --wama-mm-memory-muted: #3b4047;

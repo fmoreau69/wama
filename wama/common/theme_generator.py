@@ -144,3 +144,47 @@ def css_block(key: str, base: str, accent: str, font: str = '') -> str:
     """La règle CSS du thème `key` : ce que `base.html` pose dans `#wama-theme-generated`."""
     body = ''.join(f'  {name}: {value};\n' for name, value in generate(base, accent, font).items())
     return f'[data-wama-theme="{key}"] {{\n{body}}}\n'
+
+
+# ── Les couleurs d'IDENTITÉ d'une famille de données (2026-11-09) ─────────────────────────────
+# `CARD_DESIGN §9.1` (validé par Fabien le 2026-07-05) : « déclaratif et dérivé, pas 10 hex à la
+# main — une 11ᵉ hérite sa nuance ». Appliqué aux apps depuis ce jour-là (`app_registry`), pas aux
+# types de modèles : onze couleurs choisies à la main dans chaque thème, et le onzième type, `nlp`,
+# qui attendait la sienne. Une famille sans catégorie (les types n'en déclarent aucune) reçoit une
+# teinte par membre, répartie sur le cercle dans l'ordre déclaré, à la saturation des apps.
+
+#: Saturation et luminosité d'une couleur d'identité (`app_registry._assign_derived_colors` : 65 %,
+#: une luminosité étagée de 46 à 66 % dans une catégorie — ici une seule teinte par membre).
+IDENTITY_SATURATION, IDENTITY_LIGHTNESS = 65, 50
+#: Les deux textes de palette qu'on pose sur un fond, les mêmes dans tous les thèmes
+#: (`themes.LIGHT_FIXED`, « texte posé sur un fond de palette »).
+ON_FILL_TOKENS = ('--wama-text-on-accent', '--wama-text-on-bright')
+
+
+def identity_colours(keys) -> dict:
+    """{clé: (fond `#rrggbb`, jeton du texte posé dessus)} — une teinte par clé, dans l'ordre donné.
+    Le texte est le plus lisible des deux textes de palette ; le fond s'en écarte juste assez pour
+    passer 4,5:1 (`_toward`), sans quitter sa teinte."""
+    from wama.common.theme_mirror import hsl_hex
+    keys = list(keys)
+    texts = {token: _rgb(base_values('dark')[token]) for token in ON_FILL_TOKENS}
+    out = {}
+    for i, key in enumerate(keys):
+        fill = _rgb(hsl_hex(360.0 * i / max(len(keys), 1), IDENTITY_SATURATION, IDENTITY_LIGHTNESS))
+        token = max(texts, key=lambda t: ratio(fill, texts[t]))
+        # Le fond s'écarte du texte : vers le blanc sous un texte sombre, vers le noir sous un clair.
+        away = _WHITE if ratio(texts[token], _WHITE) > ratio(texts[token], _BLACK) else _BLACK
+        out[key] = (_hex(_toward(fill, away, (texts[token],))), token)
+    return out
+
+
+@lru_cache(maxsize=1)
+def model_type_css() -> str:
+    """La règle que `base.html` pose pour les types de modèles (`ModelType`) : `--wama-mm-type-<valeur>`
+    et `…-on` (son texte), lus par le badge de la gestion des modèles et la scène 3D des modèles.
+    Une identité de DONNÉE : la même sous tous les thèmes, donc sur `:root`. Calculée une fois par
+    processus — l'enum et la feuille des thèmes n'y changent pas sans relance."""
+    from wama.model_manager.models import ModelType
+    body = ''.join(f'  --wama-mm-type-{key}: {fill};\n  --wama-mm-type-{key}-on: var({token});\n'
+                   for key, (fill, token) in identity_colours(ModelType.values).items())
+    return f':root {{\n{body}}}\n'

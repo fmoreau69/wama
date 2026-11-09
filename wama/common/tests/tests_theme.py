@@ -502,13 +502,47 @@ class ModelTypeColoursTest(SimpleTestCase):
     déclarait à CINQ endroits : six règles de badge (onze types), dix tokens de thème (sans
     `nlp`), dix alias de la scène, dix noms recopiés dans `themes.py`. Le badge d'ACE-Step
     (music) était gris. La couleur d'un type et son texte sont désormais DEUX tokens par type,
-    lus par la valeur du type ; ce test tient l'enum et les thèmes ensemble."""
+    lus par la valeur du type ; ce test tient l'enum et les thèmes ensemble.
+
+    2026-11-09 (`CARD_DESIGN §9.1`, « déclaratif et dérivé ») : les valeurs ne se choisissent plus à
+    la main dans chaque thème, elles se DÉRIVENT de l'enum (`theme_generator.model_type_css`) et
+    `base.html` les pose sur `:root` — leur texte se lit encore sous chaque thème."""
+
+    @staticmethod
+    def derived_tokens():
+        from wama.common.theme_generator import model_type_css
+        return dict(re.findall(r'(--wama-mm-type-[a-z0-9-]+)\s*:\s*([^;]+);', model_type_css()))
 
     def test_every_model_type_has_its_colour_and_a_legible_text_in_every_theme(self):
         from wama.common.themes import THEMES
         from wama.model_manager.models import ModelType
-        self.assertEqual([], type_colour_faults(theme_blocks(), [t.key for t in THEMES],
+        derived = self.derived_tokens()
+        blocks = {key: {**block, **derived} for key, block in theme_blocks().items()}
+        self.assertEqual([], type_colour_faults(blocks, [t.key for t in THEMES],
                                                 ModelType.values, bootstrap_palette()))
+
+    def test_the_colours_are_derived_once_never_written_in_a_theme(self):
+        """Une seule source : aucun bloc de thème ne déclare un type, et la page pose la dérivation."""
+        from wama.model_manager.models import ModelType
+        for key, block in theme_blocks().items():
+            with self.subTest(theme=key):
+                self.assertEqual([], [t for t in block if t.startswith(TYPE_TOKEN)])
+        fills = {v for t, v in self.derived_tokens().items() if not t.endswith(TYPE_TEXT)}
+        self.assertEqual(len(ModelType.values), len(fills), 'one distinct colour per type')
+        base = (ROOT / 'wama' / 'templates' / 'base.html').read_text(encoding='utf-8')
+        self.assertIn('<style id="wama-identity-colours">{{ identity_css|safe }}</style>', base)
+
+    def test_a_new_type_inherits_its_colour(self):
+        """« Une 11ᵉ hérite sa nuance » : la dérivation d'une famille quelconque, texte lisible."""
+        from wama.common.theme_generator import identity_colours
+        from wama.common.theme_mirror import contrast_ratio, parse
+        palette = identity_colours([f'type{i}' for i in range(14)])
+        self.assertEqual(14, len({fill for fill, _token in palette.values()}))
+        dark = theme_blocks()['dark']
+        for key, (fill, token) in palette.items():
+            with self.subTest(key=key):
+                self.assertGreaterEqual(
+                    contrast_ratio(parse(fill)[1], parse(dark[token])[1]), 4.5)
 
     def test_the_type_guard_sees_a_missing_type_and_an_illegible_text(self):
         """Contre-épreuve sur des blocs écrits pour elle."""

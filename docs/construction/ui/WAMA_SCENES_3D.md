@@ -322,6 +322,17 @@ de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une foi
   gestion des modèles, et une pastille de couche peut nommer un jeton du thème entier
   (`scenes.layer_token`). Garde : `tests_theme.ModelTypeColoursTest` (chaque type de l'enum a sa
   couleur et un texte lisible dans chaque thème ; aucune source ne recopie la liste des types).
+- ✅ **Leurs couleurs se DÉRIVENT de l'enum (2026-11-09, accord de Fabien)** — `CARD_DESIGN §9.1`
+  (« déclaratif et dérivé, pas 10 hex à la main — une 11ᵉ hérite sa nuance »), appliqué aux apps
+  depuis le 2026-07-05 mais pas aux types, dont les onze couleurs se choisissaient à la main, deux
+  fois (sombre, clair). `theme_generator.identity_colours` répartit une teinte par type sur le
+  cercle, dans l'ordre de `ModelType`, à la saturation des apps (65 %) ; le texte posé dessus est
+  le plus lisible des deux textes de palette, et le fond s'en écarte juste assez pour 4,5:1.
+  `base.html` pose le bloc sur `:root` (`#wama-identity-colours`, `theme_generator.model_type_css`
+  par le processeur de contexte `theme`) : les jetons ont QUITTÉ `wama-theme.css`, une seule source.
+  Changement visible : les onze types changent de couleur. Gardes : `ModelTypeColoursTest` (lisible
+  sous chaque thème, une couleur distincte par type, aucun bloc de thème ne les déclare, une famille
+  quelconque hérite les siennes). `hsl_hex` vit désormais dans `theme_mirror` (deux lecteurs).
 - La mise en espace des scènes licences et modèles (`layout`, `label_limit`) est un premier réglage.
 - ✅ ~~**Capture caméra / micro sans brique commune**~~ (relevé le 2026-10-22 en écrivant les
   mains) — **soldé le 2026-10-26** : `common/js/wama-capture.js` (`WamaCapture`), adoptée par les

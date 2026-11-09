@@ -201,13 +201,12 @@ LIGHT_FIXED = {
 _PRESENTATION = ("les scènes AUTONOMES de présentation, sombres par dessein (elles ne passent pas "
                  "par `base.html`, donc ne reçoivent jamais le thème du compte)")
 #: Familles de même valeur, par PRÉFIXE — une famille dont chaque membre se déclare par une clé
-#: (la valeur d'un `ModelType`) ne se recopie pas nom par nom ici (2026-11-08 : dix noms listés,
-#: le onzième type, `nlp`, oublié).
+#: ne se recopie pas nom par nom ici (2026-11-08 : dix noms listés, le onzième type, `nlp`,
+#: oublié). Les types de modèles (`--wama-mm-type-`) en sont sortis le 2026-11-09 : leurs couleurs
+#: se DÉRIVENT de l'enum, hors des blocs de thème (`theme_generator.model_type_css`).
 LIGHT_FIXED_PREFIXES = {
     '--wama-pres-': _PRESENTATION,
     '--wama-pres1-': _PRESENTATION,
-    '--wama-mm-type-': "la couleur d'un TYPE de modèle et le texte qu'on y pose : une identité de "
-                       "donnée, lue comme fond, la même dans tous les thèmes",
 }
 
 

@@ -46,6 +46,16 @@ def mirrored_luminance(y: float) -> float:
     return 0.0525 / (y + 0.05) - 0.05
 
 
+def hsl_hex(h, s, l) -> str:
+    """`#rrggbb` d'une couleur HSL (h en degrés, s et l en %) — la dérivation des couleurs
+    d'IDENTITÉ (`CARD_DESIGN §9.1`) : les apps (`app_registry`), les types de modèles
+    (`theme_generator.identity_colours`). Sorti d'`app_registry` le 2026-11-09 : il avait un
+    second lecteur."""
+    import colorsys
+    r, g, b = colorsys.hls_to_rgb((h % 360) / 360.0, l / 100.0, s / 100.0)
+    return '#%02x%02x%02x' % (round(r * 255), round(g * 255), round(b * 255))
+
+
 def _oklab(rgb):
     r, g, b = (_lin(x) for x in rgb)
     l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
