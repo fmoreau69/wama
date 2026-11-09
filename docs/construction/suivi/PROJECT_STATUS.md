@@ -29679,3 +29679,37 @@ valeur de champ texte qui contient des `/` (un tableau en Markdown) : préexista
 - 🔚 Restes : la légende ne nomme pas les AUTRES cards du lot (question lot / card ci-dessus) ; têtes
   en croix lues par le moteur (aucune classe) ; « % » de deux mesures ; propositions (a)/(b) de l'OCR ;
   un PDF n'est ni mis d'aplomb ni lu dans ses deux sens.
+
+## §PALIER 2026-11-09, « RACCOURCIS D'OPENROUTER ; PORTAGE : L'APPARIEMENT CÂBLÉ UNE FOIS, LA PROGRESSION DÉCLARÉE AUX VUES DE LOT » — `283de6d12`, `89280e43f`, `550d4daa4`, `011072623` (locaux, non poussés) — 🔴 relancer gunicorn + workers AVANT la sonde de nuit — 🔚 la glu des jumelles (marche B, décision de Fabien)
+
+Suite de la revérification d'Albert (`9f2e0ee09`) : WAMA relancé à 16:43, deux synchros du service
+avec le nouveau code (16:49, 17:04 : +0 ~592 −0, aucune erreur), aucune 5xx sur 1388 requêtes ; les
+trois modèles d'Albert qui voient ont `vision`, l'image et `work_image` en base.
+
+- **Les 19 clés `openrouter:~…-latest`** (refusées à chaque export : `~` encode le `/` des noms de
+  manifestes) sont des RACCOURCIS — OpenRouter publie leur cible (`alias_target.slug`), les 19
+  cibles étaient au catalogue. `list_remote_models` ne les range plus et les note sur la cible
+  (`routing_aliases`, sur la liste gardée de la clé seulement) ; `drop_renamed` les lit. Relu par
+  `refresh_key` : 19 → 0 lignes (`REMOVAL_LEDGER R233`). ⚠ Jusqu'à la relance, la sonde de nuit
+  (ancien code) les recréerait. Corpus : 0 refusé (`89280e43f`).
+- **Portage, restes de `ROUTE §11 #41` sans décision** :
+  ① `WamaInputMatch.fromCardMatch` — le câblage de l'appariement lu par le serveur, écrit une fois,
+  appelé par le gabarit généré et par la modale du Studio ; `input_match_ui` reconnaît ses deux
+  entrées (`550d4daa4`). ② `make_batch_views(progress_field=…)` — la jumelle ne recopie plus les
+  clés de remise à zéro ; mesuré au passage : le ▶ de lot de la jumelle laissait `blur_progress`, et
+  le `batch_status` de l'anonymizer RÉEL disait 0 (`011072623`).
+- **Jumelles** : onze régénérées (`substitute urls+views+templates`, toutes « tient »),
+  anonymizer_01 refaite après ② ; transcriber_01 reste au témoin. Pages rendues en processus :
+  200 ×12, appariement réel sur six. Mesure : sources 10 × 100 %, écart cumulé des jumelles
+  **−33** (inchangé : ① et ② retirent une copie et un défaut, aucun critère) ; translator_01 95 %,
+  writer_01 91 % (+1 chacune, régénérées pour la première fois depuis le 19/10 et le 05/10).
+- Gardes : `OpenRouterListingTest`, `ShortcutRowTest`, `tests_input_match_card_match`,
+  `DeclaredProgressColumnTest` (+ tests du générateur, du Studio, de la grille) ; neuf
+  contre-épreuves en processus, toutes rouges.
+
+**Laissé à leurs propriétaires** : la copie de l'arbre de `docs/dev/briques.md` (en retard sur
+HEAD, et porteuse d'ajouts d'autres sessions) ; `cloud_models.py` et `model_manager/views.py` en
+cours dans une autre session (deux renvois `views.py:2257` périmés par `check_docs`) ;
+`tests_mecanismes_scan` rouge (`tests_score_reading.py` à deux propriétaires, session partition).
+**Restes du portage** (`ROUTE §11 #41`) : la glu (marche B), la seconde famille de l'enhancer, le
+process « Sortie » de l'avatarizer, les déclarations des apps nées — décisions.
