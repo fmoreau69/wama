@@ -42,7 +42,47 @@
         var midi = global.ABCJS.synth.getMidiFile(abcOrTune, { midiOutputType: 'binary' });
         if (Array.isArray(midi)) midi = midi[0];
         if (!midi || !midi.length) throw new Error('partition sans notes à jouer');
-        return midi instanceof Uint8Array ? midi : new Uint8Array(midi);
+        return programsOnTheirChannels(midi instanceof Uint8Array ? midi : new Uint8Array(midi));
+    }
+
+    /** Chaque changement d'instrument sur le canal des notes de SA piste. abcjs 6.4.4 écrit le canal
+     *  0 en dur (`setInstrument` : `%C0`, mesuré le 2026-11-09 sur une vraie partition à 5 voix) : hors
+     *  de son propre synthétiseur, la première voix prenait le son du dernier instrument et toutes les
+     *  autres celui du piano. Une piste d'abcjs ne joue qu'un canal, et son instrument précède ses notes. */
+    function programsOnTheirChannels(midi) {
+        var word = function (at) { return (midi[at] * 16777216) + (midi[at + 1] << 16) + (midi[at + 2] << 8) + midi[at + 3]; };
+        var at = 8 + word(4);
+        while (at + 8 <= midi.length) {
+            var start = at + 8, end = start + word(at + 4);
+            if (midi[at] === 77 && midi[at + 1] === 84 && midi[at + 2] === 114 && midi[at + 3] === 107) { // MTrk
+                moveProgramsOfTrack(midi, start, Math.min(end, midi.length));
+            }
+            at = end;
+        }
+        return midi;
+    }
+
+    function moveProgramsOfTrack(midi, at, end) {
+        var programs = [], status = 0;
+        function skipLength() {
+            var size = 0, byte;
+            do { byte = midi[at++]; size = size * 128 + (byte & 127); } while ((byte & 128) && at < end);
+            return size;
+        }
+        while (at < end) {
+            skipLength();                            // le délai de l'événement
+            var explicit = midi[at] >= 128;
+            if (explicit) status = midi[at++];
+            if (status === 255) { at++; var meta = skipLength(); at += meta; continue; }
+            if (status === 240 || status === 247) { var sysex = skipLength(); at += sysex; continue; }
+            var kind = status & 240;
+            if (kind === 144) {                      // la première note : le canal de la piste
+                programs.forEach(function (where) { midi[where] = 192 | (status & 15); });
+                return;
+            }
+            if (kind === 192 && explicit) programs.push(at - 1);
+            at += (kind === 192 || kind === 208) ? 1 : 2;
+        }
     }
 
     function midiOf(abc) {

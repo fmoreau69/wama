@@ -158,6 +158,32 @@ class MidiPlayerTest(SimpleTestCase):
         """)
         self.assertEqual([True, [77, 84, 104, 100]], json.loads(got))
 
+    def test_each_instrument_change_goes_to_the_channel_of_its_track(self):
+        """abcjs 6.4.4 writes every program change on channel 0 (measured on 2026-11-09 on a real
+        five-voice score): the banks played the first voice with the last instrument and the others
+        as a piano. The bytes given to the reader carry each one on the channel of its track's notes."""
+        def track(*events):
+            body = [byte for event in events for byte in event]
+            return [77, 84, 114, 107, 0, 0, 0, len(body)] + body
+        name = [0, 255, 3, 2, 65, 66]
+        end = [0, 255, 47, 0]
+        song = ([77, 84, 104, 100, 0, 0, 0, 6, 0, 1, 0, 4, 1, 224]
+                + track([0, 255, 81, 3, 7, 161, 32], end)
+                + track(name, [0, 192, 52], [0, 176, 121, 0], [0, 144, 60, 100], [96, 128, 60, 0], end)
+                + track(name, [0, 192, 24], [0, 177, 121, 0], [0, 145, 62, 100], [96, 129, 62, 0], end)
+                + track([0, 192, 0], [0, 185, 121, 0], [0, 153, 36, 100], [96, 137, 36, 0], end)
+                + track([0, 192, 32], [0, 179, 121, 0], [0, 147, 40, 100], [0, 192, 99], end))
+        got = json.loads(self.v8.eval(f"""
+            window.ABCJS = {{synth: {{getMidiFile: function () {{ return [{song}]; }}}}}};
+            JSON.stringify(Array.from(window.WamaMidiPlayer.midiBytes('X:1')));
+        """))
+        statuses = [(status, program) for status, program in zip(got, got[1:])
+                    if 192 <= status <= 207 and program in (52, 24, 0, 32)]
+        self.assertEqual([(192, 52), (193, 24), (201, 0), (195, 32)], statuses)
+        self.assertEqual(len(song), len(got))
+        self.assertEqual([a for a in song if not 192 <= a <= 207],
+                         [a for a in got if not 192 <= a <= 207], 'nothing else moves')
+
     def test_one_reading_per_installed_bank_and_abcjs(self):
         labels = self.v8.eval(f'JSON.stringify(window.WamaMidiPlayer.choices({self.CONFIG}))')
         self.assertEqual([('gu', 'MIDI — GeneralUser GS'), ('ms', 'MIDI — MuseScore General'),

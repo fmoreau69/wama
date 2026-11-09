@@ -4449,9 +4449,30 @@ et bretelles… »* ; *« on ajoute bien les sources dans le registre des source
   qu'apportent les RECOMMANDÉS (Qt, 41 paquets) ; la commande dite par le rendu et par
   `install_wama.sh` est désormais `apt-get update` puis `install -y --no-install-recommends` (7
   paquets) — `midi_render.INSTALL_COMMAND`, gardée par `tests_sound_banks`.
+- **Décision de Fabien (2026-11-09)**, après écoute de deux extraits de quelques notes de piano
+  (MuseScore lui a semblé meilleur, insuffisant pour trancher) : *« garder les 2 et pouvoir
+  sélectionner l'un et l'autre sur de vrais exemples dans le composer. Si l'un est vraiment
+  meilleur, on pourra retirer l'autre. »* Le choix existe : le transport et le menu « Exporter » de
+  la page « Éditer la partition » proposent les deux banques.
+- **Mesuré sur une vraie partition** (card 880, partition complète, 5 voix, 3 min 33) : ✗ **les
+  instruments n'arrivaient pas aux banques, pour deux raisons.** (1) `midi_score` n'écrit
+  `%%MIDI program` que depuis `0e631c4cc` : aucune des 23 partitions existantes n'en porte, et la
+  chaîne neuve les donne bien (`MuScriptor` écrit ses `program_change`, relu sur sa fonction
+  d'écriture). (2) abcjs 6.4.4 écrit tout changement d'instrument sur le canal 0 en dur
+  (`setInstrument` : `%C0`) : hors de son propre synthétiseur, la première voix prenait le son du
+  dernier instrument et les autres celui du piano — lecture, WAV et `.mid` exporté compris.
+  `midiBytes` (l'écriture unique) reporte chacun sur le canal des notes de sa piste
+  (`programsOnTheirChannels`, garde V8 + contre-épreuve rouge). Après correction, avec les lignes
+  d'instrument ajoutées EN MÉMOIRE (fichiers de la card intacts) : programmes 52, 24, 32, 30 sur
+  les canaux 0, 1, 3, 4, batterie sur le 9. Rendus de la page : GeneralUser GS 11 s, MuseScore
+  11 s, abcjs 4 s ; serveur : 4,5 s et 10 s. ⚠ abcjs sort environ trois fois plus fort (RMS 10241
+  contre 3600), à compenser à l'oreille.
 
-⏳ **Reste** : l'écoute
-COMPARÉE des lectures pour garder la meilleure ; la vue ABC d'une partition MIDI/MusicXML fournie
+⏳ **Reste** : relancer « Partition complète » sur une card pour que sa partition porte ses
+instruments (les réduites, à deux voix sans instrument déclaré, restent au piano) ; l'écoute
+COMPARÉE sur de vrais exemples, et retirer une banque seulement si l'une l'emporte nettement ; à
+part, un chantier distinct (Fabien, 2026-11-09) : de meilleures librairies et instruments
+virtuels ; la vue ABC d'une partition MIDI/MusicXML fournie
 sur la page d'édition (défaut relevé plus haut) ; la lecture MIDI sur la page de partition du
 Reader (elle n'a pas de transport).
 
