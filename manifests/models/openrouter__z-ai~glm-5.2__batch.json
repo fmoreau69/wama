@@ -1,0 +1,73 @@
+{
+  "body": {
+    "capabilities": {
+      "completion": true,
+      "inputs_optional": [],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "text"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "task": "text-generation",
+      "vision": false
+    },
+    "composition": {
+      "runtime": {
+        "engine": "openrouter"
+      }
+    },
+    "extra_info": {
+      "aliases": [
+        "zai-org/GLM-5.2"
+      ],
+      "hosting": "third_party",
+      "remote_type": "text-generation"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null
+    },
+    "identity": {
+      "author": null,
+      "description_short": "GLM 5.2 is a large-scale reasoning model from Z.ai",
+      "license": null,
+      "model_type": "llm",
+      "platform_ref": "huggingface:zai-org/GLM-5.2",
+      "source": "openrouter"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "openrouter",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "GLM 5.2 is a large-scale reasoning model from Z.ai. It supports text input and output with a 1M-token context window, and is suited for long-horizon agent workflows, project-level software engineering,...",
+  "key": "openrouter:z-ai/glm-5.2:batch",
+  "manifest_kind": "model",
+  "name": "Z.ai: GLM 5.2 (batch)",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:openrouter:z-ai/glm-5.2:batch",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
