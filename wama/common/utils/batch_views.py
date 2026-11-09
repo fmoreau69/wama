@@ -53,6 +53,12 @@ from wama.common.utils.queue_duplication import duplicate_instance, release_card
 DEFAULT_RESET = {'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''}
 
 
+def default_reset(progress_field: str = 'progress') -> dict:
+    """`DEFAULT_RESET` d'un élément dont la progression porte un autre nom (anonymizer :
+    `blur_progress`) — c'est cette colonne qu'une relance et une copie remettent à zéro."""
+    return {(progress_field if key == 'progress' else key): value for key, value in DEFAULT_RESET.items()}
+
+
 def read_settings_payload(request, schema=None, schema_names=(), empty_is_value=(), list_names=()):
     """Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
 
@@ -447,7 +453,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      item_model=None, fk_name=None, batch_attr='batch',
                      row_field='batch_row_index', items_related='items',
                      batch_extra=None, reset_on_start=None, reset_on_duplicate=None,
-                     zip_name=None, progress_of=None, item_label=None, on_delete=None,
+                     zip_name=None, progress_field='progress', progress_of=None,
+                     item_label=None, on_delete=None,
                      empty_is_value=(), task_for=None, start_only_pending=False,
                      after_update=None, item_extra=None, read_lookup=None,
                      output_name=None, start_reset_for=None, startable=None, output_text=None,
@@ -497,8 +504,13 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                           (describer : `_reset_for_relaunch`) ; défaut `DEFAULT_RESET` sans
                           `status`/`task_id` — `begin_processing` pose RUNNING lui-même.
         reset_on_duplicate : dict de remise à zéro de la copie (défaut `DEFAULT_RESET`).
+        progress_field  : colonne de progression ENREGISTRÉE (défaut `progress` ; anonymizer :
+                          `blur_progress`) — celle que les remises à zéro par défaut visent et que
+                          `batch_status` lit sans `progress_of`. Même nom que chez
+                          `progress_views.make_progress_views`, qui reçoit la même déclaration
+                          (2026-11-09 : la jumelle de l'anonymizer recopiait ses clés à la main).
         progress_of     : callable(élément)->int — d'où lire la progression pour `batch_status`
-                          (describer/transcriber : le cache `<app>_progress_<id>`) ; défaut `progress`.
+                          (describer/transcriber : le cache `<app>_progress_<id>`) ; défaut `progress_field`.
         item_label      : callable(élément)->str — le `filename` de chaque ligne de `batch_status`
                           (idiome mesuré : describer/transcriber) ; défaut `input_filename`/`filename`.
         on_delete       : callable(élément) appelé AVANT `item.delete()` dans `batch_delete`
@@ -573,10 +585,12 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     if (caller == owner or caller.startswith(owner + '.')) and '.tests' not in caller:
         _ZIP_DECLARATIONS[work_model] = zip_declaration
     if reset_on_start is None:
-        start_reset = {k: v for k, v in DEFAULT_RESET.items() if k not in ('status', 'task_id')}
+        start_reset = {k: v for k, v in default_reset(progress_field).items()
+                       if k not in ('status', 'task_id')}
     else:
         start_reset = reset_on_start if callable(reset_on_start) else dict(reset_on_start)
-    dup_reset = dict(reset_on_duplicate) if reset_on_duplicate is not None else dict(DEFAULT_RESET)
+    dup_reset = (dict(reset_on_duplicate) if reset_on_duplicate is not None
+                 else default_reset(progress_field))
     link_kwargs = ({'item_model': item_model, 'fk_name': fk_name} if item_model is not None
                    else {'batch_attr': batch_attr, 'row_field': row_field})
 
@@ -586,7 +600,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                 return int(progress_of(item) or 0)
             except Exception:
                 pass
-        return int(getattr(item, 'progress', 0) or 0)
+        return int(getattr(item, progress_field, 0) or 0)
 
     def _label(item):
         return element_label(item, item_label)

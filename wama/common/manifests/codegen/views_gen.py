@@ -1088,12 +1088,10 @@ card_html = make_card_view(work_model={item}, template='{app}/_generic_card.html
                  else '')
     bv_extra = (f"""
     batch_extra=lambda lot: {{'{d['batch_extra']}': lot.{d['batch_extra']}}},""" if d['batch_extra'] else '')
-    # Remise à zéro d'une COPIE (⧉ d'une card et du lot) : la brique remet `progress` par défaut
-    # (`DEFAULT_RESET`) ; une colonne de progression nommée autrement se déclare — c'est celle que
-    # le ⧉ écrit ici remettait à zéro.
-    bv_reset = ('' if progress == 'progress' else
-                f"\n    reset_on_duplicate={{'status': 'PENDING', '{progress}': 0, 'task_id': '',"
-                f" 'error_message': ''}},")
+    # Une colonne de progression nommée autrement se DÉCLARE à la fabrique (`progress_field`,
+    # 2026-11-09) : ses remises à zéro par défaut (▶ et ⧉ du lot, ⧉ d'une card) et `batch_status`
+    # la visent — ces clés étaient recopiées ici à la main, et le ▶ de lot laissait la progression.
+    bv_reset = '' if progress == 'progress' else f"\n    progress_field='{progress}',"
     fabrique_lot = f'''
 
 # Fabrique COMMUNE des VUES DE LOT (`batch_views`, 2026-09-22) : les six actions de lot,

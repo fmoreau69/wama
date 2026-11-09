@@ -30,6 +30,43 @@ def _user():
     return User.objects.create_user('lot_views', password='x')
 
 
+class DeclaredProgressColumnTest(TestCase):
+    """Une progression enregistrée sous un AUTRE nom (`blur_progress`, anonymizer) se déclare à la
+    fabrique (`progress_field`, 2026-11-09) : ▶ et ⧉ du lot la remettent à zéro, `batch_status`
+    la lit. Avant : `progress` en dur — la copie et la relance la laissaient, le statut disait 0."""
+
+    def setUp(self):
+        from wama.anonymizer.models import BatchAnonymizer, BatchAnonymizerItem, Media
+        from wama.common.utils.batch_common import attach_to_batch
+        self.u = _user()
+        self.rf = RequestFactory()
+        self.lot = BatchAnonymizer.objects.create(user=self.u, total=1)
+        self.media = Media.objects.create(user=self.u, file='anonymizer/x/input/sample.png',
+                                          status='FAILURE', blur_progress=40)
+        attach_to_batch(self.media, self.lot, 0, item_model=BatchAnonymizerItem, fk_name='media')
+        self.views = make_batch_views(
+            work_model=Media, batch_model=BatchAnonymizer, get_user=lambda r: self.u,
+            task=_FakeTask(), item_model=BatchAnonymizerItem, fk_name='media',
+            progress_field='blur_progress')
+
+    def _call(self, name, method='post'):
+        req = getattr(self.rf, method)('/x/')
+        req.user = self.u
+        return json.loads(self.views[name](req, self.lot.pk).content)
+
+    def test_the_status_reads_the_declared_column(self):
+        self.assertEqual(40, self._call('batch_status', 'get')['items'][0]['progress'])
+
+    def test_a_relaunch_and_a_copy_reset_the_declared_column(self):
+        from wama.anonymizer.models import Media
+        self.assertTrue(self._call('batch_duplicate')['success'])
+        copy = Media.objects.exclude(pk=self.media.pk).get(user=self.u)
+        self.assertEqual((0, 'PENDING'), (copy.blur_progress, copy.status))
+        self.assertEqual(1, self._call('batch_start')['count'])
+        self.media.refresh_from_db()
+        self.assertEqual((0, 'RUNNING'), (self.media.blur_progress, self.media.status))
+
+
 class DirectFormBatchViewsTest(TestCase):
     """Forme à FK DIRECTE — converter."""
 

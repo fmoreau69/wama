@@ -2509,7 +2509,8 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
 
 - **Domicile** : `wama/common/utils/batch_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les VUES DE LOT : fabrique commune (`make_batch_views`).
-- **API publique** (12) :
+- **API publique** (13) :
+  - `default_reset(progress_field: str='progress') -> dict` — `DEFAULT_RESET` d'un élément dont la progression porte un autre nom (anonymizer :
   - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=(), list_names=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
   - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
   - `columns_snapshot(item) -> dict` — Les colonnes de `item` telles qu'elles sont À CET INSTANT — à prendre juste après l'avoir

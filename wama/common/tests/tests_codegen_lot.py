@@ -1265,17 +1265,19 @@ class GeneratedCardGesturesTest(SimpleTestCase):
                          'an exemption no longer needed: remove it')
 
     def test_a_copy_resets_the_declared_progress_column(self):
-        """La copie remet à zéro la colonne de progression DÉCLARÉE (`blur_progress` chez
-        l'anonymizer) — c'est celle que le ⧉ écrit à la main remettait à zéro ; la brique, seule,
-        remet `progress`. Contre-épreuve : une app conventionnelle garde le défaut de la brique."""
+        """La colonne de progression DÉCLARÉE (`blur_progress` chez l'anonymizer) est passée à la
+        fabrique de lot (`progress_field`, 2026-11-09) — jamais ses clés de remise à zéro
+        recopiées. Contre-épreuve : une app conventionnelle garde le défaut de la brique."""
         from wama.common.manifests.ingest import extract
         src, why = render_views(extract('app', 'anonymizer'))
         self.assertTrue(src, why)
         bv = src[src.index('_bv = make_batch_views('):]
-        self.assertIn("reset_on_duplicate={'status': 'PENDING', 'blur_progress': 0,", bv[:bv.index('\n)')])
+        self.assertIn("progress_field='blur_progress',", bv[:bv.index('\n)')])
+        self.assertNotIn('reset_on_duplicate=', src)
         src, why = _vues_generees(SOURCE)
         self.assertTrue(src, why)
         self.assertNotIn('reset_on_duplicate=', src)
+        self.assertNotIn('progress_field=', src)
 
     def test_a_direct_form_the_queue_bricks_do_not_read_is_refused(self):
         """Les briques de file lisent la FK directe `batch` + `batch_row_index` (la convention de

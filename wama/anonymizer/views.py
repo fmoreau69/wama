@@ -386,8 +386,10 @@ def _live_progress(media):
 # `blur_progress`). L'ETA est celle de ses PROCESS (`function_specs.PIPELINE`, 2026-10-05).
 from wama.common.utils.progress_views import make_progress_views  # noqa: E402
 
-_pv = make_progress_views(work_model=Media, app_id='anonymizer',
-                          progress_field='blur_progress', progress_of=_live_progress)
+#: La progression d'un média, déclarée UNE fois pour les deux fabriques (progression, lot).
+PROGRESS = {'progress_field': 'blur_progress', 'progress_of': _live_progress}
+
+_pv = make_progress_views(work_model=Media, app_id='anonymizer', **PROGRESS)
 progress, global_progress = _pv['progress'], _pv['global_progress']
 
 
@@ -576,7 +578,7 @@ _bv = make_batch_views(
     schema=_media_schema, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
     list_settings=(CLASSES_SETTING,),
     apply_settings=_apply_media_settings, after_update=_mark_customised,
-    item_model=BatchAnonymizerItem, fk_name='media',
+    item_model=BatchAnonymizerItem, fk_name='media', **PROGRESS,
     reset_on_duplicate={'status': 'PENDING', 'blur_progress': 0},
     on_delete=_forget_outputs,
 )
