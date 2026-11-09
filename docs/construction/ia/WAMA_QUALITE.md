@@ -223,6 +223,20 @@ de chaque type, plus aucune note périmée ne passe devant une note fraîche —
 Arena) puis les trois notes v4 périmées (50,2 / 47,0 / 33,3) ; `diffusion` : SDXL et SD 1.5,
 périmés, derniers. La question du 07/11 n'a donc plus de cas ; la décision du 02/11 (gardée,
 marquée, comparée) tient telle quelle.
+⚠ **Défaut du 08/11 vu le 2026-11-09, corrigé** (rôle `backend` d'ACE-Step, Albert injoignable) :
+le relais a tiré `ilaas:qwen-3.6-35b-instruct`, et non gemma-4-31b chez ILaaS. Deux causes, mesurées
+sur le compte de Fabien : ① le RANG d'admission se lisait sur le lot DISPONIBLE — sans Albert,
+l'échelle la plus partagée basculait de l'Arena vers AA v5 et il ne restait qu'UN candidat
+(qwen-3.6), le qwen3.8 LOCAL compris était sorti ; ② à couverture ÉGALE (lot ILaaS : AA v5 et
+l'Arena notent chacune gemma et qwen-3.8), la priorité des sources donnait AA v5 — 94 modèles,
+surtout frontière : gemma au 2,1ᵉ centile, qwen-3.8 au 23,4ᵉ — et le 58,1ᵉ d'une note AA v4
+périmée (570) passait devant. Corrigé : le rang se lit sur tout ce que le compte PEUT lancer, la
+panne n'écartant qu'au tirage (`development_models.development_candidates`,
+`allowed_cloud_keys(available_only=False)`) ; à couverture égale, la population la plus LARGE
+départage (`benchmark_sync.shared_percentile_values`). Remesuré : Albert en panne, quatre candidats
+(gemma, qwen-3.6, qwen-3.8 chez ILaaS, qwen3.8 local), tirage `ilaas:gemma-4-31b` ; Albert là,
+`albert:gemma-4-31b-it`. Gardes : `tests_development_models.AnOutageDoesNotChangeTheRankTest`,
+`tests_signal_scale_subset.SharedPopulationRankTest.test_at_equal_coverage_the_larger_population_wins`.
 ✅ **2026-11-07** — `AIModel.best_installed` (le référentiel « concurrence » de la prospection) se
 disait « même règle d'étage que la sélection » et n'en recopiait que trois étages : ni rang centile
 (absent depuis son branchement du 26/09), ni mesure interne, ni repli VRAM. Il LIT désormais

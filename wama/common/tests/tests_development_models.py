@@ -153,6 +153,58 @@ class DevelopmentLevelReadsALivingMeasureTest(TestCase):
         self.assertEqual('ollama:qwen3.6', dm.development_model(self.user))
 
 
+def _scaled(key, *scales, execution='local', source='ollama'):
+    """Une ligne notée sur plusieurs échelles : `scales` = (échelle, valeur, rang, population)."""
+    model = _model(key, execution=execution, source=source, downloaded=execution == 'local',
+                   vram=8.0 if execution == 'local' else 0)
+    model.benchmark_index = scales[0][1]
+    model.benchmark_meta = {'scale': scales[0][0], 'percentile_rank': scales[0][2],
+                            'scales': [{'scale': s, 'value': v, 'percentile_rank': r,
+                                        'population': n} for s, v, r, n in scales]}
+    model.save(update_fields=['benchmark_index', 'benchmark_meta'])
+    return model
+
+
+class AnOutageDoesNotChangeTheRankTest(TestCase):
+    """2026-11-09 (rôle `backend` d'ACE-Step, Albert injoignable) : le rang d'admission se lisait
+    sur le lot DISPONIBLE. Sans Albert, l'échelle la plus partagée du lot basculait de l'Arena vers
+    AA v5 — et qwen3.8 LOCAL, 75ᵉ centile à l'Arena, 18ᵉ chez AA v5, sortait du niveau dev. La
+    population du rang est tout ce que le compte PEUT lancer ; la panne n'écarte qu'au tirage."""
+
+    V5, ARENA = 'aa_intelligence_index_v5', 'arena_elo_text'
+
+    def setUp(self):
+        from wama.accounts.models import UserApiKey
+        self.user = get_user_model().objects.create_user('dev_outage', password='x')
+        self.user.profile.cloud_policy = 'cloud_when_saturated'
+        self.user.profile.save()
+        _scaled('ollama:qwen3.8', (self.V5, 15.7, 18.1, 94), (self.ARENA, 1437.0, 75.2, 302))
+        _scaled('ollama:gemma-12b', (self.V5, 10.0, 9.0, 94))
+        _scaled('ollama:mini', (self.V5, 5.0, 4.0, 94))
+        albert = {'albert:gemma-4-31b-it': ((self.V5, 4.4, 2.1, 94), (self.ARENA, 1442.0, 77.8, 302)),
+                  'albert:deepseek-v4': ((self.ARENA, 1431.0, 72.2, 302),),
+                  'albert:mistral-small': ((self.ARENA, 1338.0, 40.1, 302),),
+                  'albert:other': ((self.ARENA, 1400.0, 60.0, 302),)}
+        for key, scales in albert.items():
+            _scaled(key, *scales, execution='cloud', source='albert')
+        with mock.patch('wama.common.utils.secret_crypto.storage_available', return_value=True):
+            UserApiKey.objects.create(user=self.user, source='albert', api_key='k',
+                                      open_models=list(albert))
+        vram = mock.patch('wama.model_manager.services.model_selector.get_free_vram_gb',
+                          return_value=24.0)
+        vram.start()
+        self.addCleanup(vram.stop)
+
+    def test_the_local_model_stays_development_grade_while_albert_is_down(self):
+        self.assertIn('ollama:qwen3.8', dm.development_candidates(self.user))
+        down = lambda keys, scope: {k: 'panne' for k in keys if k.startswith('albert:')}
+        with mock.patch('wama.common.services.source_quota.unavailable_keys', side_effect=down):
+            candidates = dm.development_candidates(self.user)
+            drawn = dm.development_model(self.user)
+        self.assertEqual(['ollama:qwen3.8'], candidates, 'Albert out, the local qwen3.8 in')
+        self.assertEqual('ollama:qwen3.8', drawn)
+
+
 class AgentFloorTest(TestCase):
     """Le plancher de l'assistant OUTILLÉ (29/09) : le tirage automatique d'un tour connecté ne
     retient plus un modèle MESURÉ sous `AGENT_CODING_FLOOR` — c'est `qwen3.5:4b` (22,6) qui a

@@ -134,14 +134,16 @@ def is_development_grade(model, rank: float | None = None) -> bool:
     return getattr(model, 'model_key', '') in DEV_UNSCORED_ALLOWED
 
 
-def dev_cloud_keys(user) -> set:
+def dev_cloud_keys(user, available_only: bool = True) -> set:
     """Modèles distants admis au tirage de DÉVELOPPEMENT pour `user` : la règle commune
     (`allowed_cloud_keys`, automatique), plus les SOUVERAINS ouverts par ses clés dès le niveau
-    « cloud si WAMA est saturé ». Sans utilisateur (rôle en ligne de commande) : aucun."""
+    « cloud si WAMA est saturé ». Sans utilisateur (rôle en ligne de commande) : aucun.
+    `available_only=False` : sources notées en panne comprises — la population du rang
+    (`development_candidates`)."""
     if user is None or not getattr(user, 'is_authenticated', False):
         return set()
     from wama.model_manager.services.cloud_models import allowed_cloud_keys, drop_unavailable
-    keys = set(allowed_cloud_keys(user, automatic=True))
+    keys = set(allowed_cloud_keys(user, automatic=True, available_only=available_only))
     if not DEV_SOVEREIGN_AUTOMATIC:
         return keys
     from wama.common import external_sources
@@ -151,7 +153,7 @@ def dev_cloud_keys(user) -> set:
     # tirable par un rôle de développement).
     opened = {key for key in allowed_cloud_keys(user, automatic=False)
               if key.partition(':')[0] in sovereign} - keys
-    return keys | drop_unavailable(user, opened)
+    return keys | (drop_unavailable(user, opened) if available_only else opened)
 
 
 def _launchable(cloud: set, user=None) -> list:
@@ -180,12 +182,19 @@ def development_candidates(user, source: str = '') -> list:
     installés, distants qu'il autorise (`dev_cloud_keys`). `source` borne le lot à UN
     fournisseur (`ollama`, `albert`…) — quand la demande le nomme (« fais-le avec Albert »).
     Le rang d'un modèle sans score coding frais se lit dans le lot ENTIER, avant de le borner au
-    fournisseur : la population d'une échelle ne dépend pas de ce que l'on demande."""
+    fournisseur : la population d'une échelle ne dépend pas de ce que l'on demande — ni de ce qui
+    est en panne (2026-11-09). Mesuré ce jour-là, Albert injoignable : le lot sans lui partageait
+    une autre échelle, et il ne restait qu'UN candidat, qwen-3.6 — le qwen3.8 LOCAL compris était
+    sorti. Le rang se lit donc sur tout ce que le compte peut lancer, et la panne n'écarte qu'au
+    tirage."""
     from wama.common.utils.model_keys import split_key
     from wama.model_manager.services.benchmark_sync import shared_percentile_values
 
-    lot = _launchable(dev_cloud_keys(user), user)
-    ranks = shared_percentile_values(lot)
+    possible = dev_cloud_keys(user, available_only=False)
+    population = _launchable(possible, user)
+    ranks = shared_percentile_values(population)
+    available = dev_cloud_keys(user) if possible else set()
+    lot = [m for m in population if m.model_key not in possible or m.model_key in available]
     candidates = [m.model_key for m in lot if is_development_grade(m, ranks.get(id(m)))]
     if source:
         candidates = [k for k in candidates if split_key(k)[0] == source]

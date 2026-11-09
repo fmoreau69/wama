@@ -615,7 +615,7 @@ def cloud_refusal(user, source: str = '') -> str:
     return ''
 
 
-def allowed_cloud_keys(user, automatic: bool = True) -> set:
+def allowed_cloud_keys(user, automatic: bool = True, available_only: bool = True) -> set:
     """`model_key` des modèles distants que `user` autorise — à passer à `select_model(cloud_keys=…)`.
 
     Les 3 niveaux du profil (Fabien, 15/09) :
@@ -651,6 +651,9 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
     14/10 (étape 3), un modèle dont le quota est atteint l'est aussi, AVANT le refus — les deux
     vivent dans `common/services/source_quota.py`. Le choix MANUEL n'est pas concerné : il reste
     un consentement explicite, et c'est l'appelant qui propose alors un relais.
+    `available_only=False` : ce que le tirage automatique ouvre, sources notées comprises — la
+    POPULATION d'un classement, qui ne doit pas changer avec la panne d'un fournisseur
+    (`development_models.development_candidates`, 2026-11-09).
     """
     if user is None or not getattr(user, 'is_authenticated', False):
         return set()
@@ -700,7 +703,7 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
             source = key.split(':', 1)[0]
             if (source in free_only and key not in free) or (source in no_free and key in free):
                 keys.discard(key)
-    if automatic and keys:
+    if automatic and keys and available_only:
         keys = drop_unavailable(user, keys, personal_sources=set(personal))
     return keys
 

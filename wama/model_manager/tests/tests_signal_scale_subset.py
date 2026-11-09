@@ -232,9 +232,24 @@ class SharedPopulationRankTest(TestCase):
         self.assertEqual(79.1, shared_percentile_values(lot)[id(gemma)])
         # Avec Mistral seul, c'est AA v5 qui note le plus de modèles du lot.
         self.assertEqual(2.2, shared_percentile_values([gemma, mistral])[id(gemma)])
-        # Seule, Gemma est notée autant par l'une que par l'autre : l'ordre de ses échelles (la
-        # priorité des sources) tranche.
+        # Seule, Gemma est notée autant par l'une que par l'autre : sans population connue, l'ordre
+        # de ses échelles (la priorité des sources) tranche.
         self.assertEqual(2.2, shared_percentile_values([gemma])[id(gemma)])
+
+    def test_at_equal_coverage_the_larger_population_wins(self):
+        """2026-11-09 (lot ILaaS, Albert en panne) : AA v5 (94 modèles, surtout frontière) et
+        l'Arena (302) notaient chacune gemma et qwen-3.8 ; la priorité des sources donnait AA v5, et
+        le 58ᵉ centile d'une note AA v4 PÉRIMÉE (570) passait devant les deux."""
+        from wama.model_manager.services.benchmark_sync import shared_percentile_values
+        gemma, _deepseek, qwen, _mistral, _small = self._measured_lot()
+        for m, populations in ((gemma, (94, 302)), (qwen, (94, 302))):
+            for entry, n in zip(m.benchmark_meta['scales'], populations):
+                entry['population'] = n
+        stale = _row('ilaas:qwen-3.6-35b-instruct', benchmark_index=18.2,
+                     scale='aa_intelligence_index', rank=58.1, cloud=True)
+        values = shared_percentile_values([gemma, qwen, stale])
+        self.assertEqual((79.1, 75.5, 58.1), (values[id(gemma)], values[id(qwen)], values[id(stale)]))
+        self.assertEqual(79.1, shared_percentile_values([gemma])[id(gemma)])
 
     def test_a_row_synced_before_the_per_scale_rank_reads_its_carrier_rank(self):
         legacy = _row('legacy', benchmark_index=26.2, scale='aa_intelligence_index', rank=80.0,

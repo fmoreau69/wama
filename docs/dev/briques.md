@@ -1215,7 +1215,7 @@ UN domicile pour « quel modèle a le droit de travailler sur le code » : planc
   - `role_user()` — Le compte pour lequel ce process de rôle travaille (`ROLE_USER_ENV`), ou None.
   - `coding_score(model, fresh: bool=False) -> float | None` — Sous-indice coding du banc tiers, ou None s'il n'est pas mesuré. `fresh` : None aussi
   - `is_development_grade(model, rank: float | None=None) -> bool` — Ce modèle a-t-il le niveau développement ? Un score coding FRAIS d'abord, sinon son rang
-  - `dev_cloud_keys(user) -> set` — Modèles distants admis au tirage de DÉVELOPPEMENT pour `user` : la règle commune
+  - `dev_cloud_keys(user, available_only: bool=True) -> set` — Modèles distants admis au tirage de DÉVELOPPEMENT pour `user` : la règle commune
   - `development_candidates(user, source: str='') -> list` — `model_key` des modèles de conversation de niveau dev que `user` peut lancer : locaux
   - `development_model(user, requested: str=None, source: str='') -> str | None` — Le modèle de niveau dev pour ce travail — `model_key` complet (`ollama:…`, `albert:…`), ou
   - `development_refusal(user=None, source: str='') -> str` — La raison, lisible, quand aucun modèle de niveau dev n'est disponible.
@@ -1249,7 +1249,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
   - `hosting_ceiling(user) -> str` — PLAFOND d'hébergement du profil (`UserProfile.cloud_hosting_max`), sur l'échelle
   - `data_reuse_accepted(user) -> bool` — `user` accepte-t-il qu'un hébergeur garde ou réutilise ses requêtes ? Le dernier cran de
   - `cloud_refusal(user, source: str='') -> str` — Motif de refus d'un appel distant pour `user`, sinon ''. Sans utilisateur : ''.
-  - `allowed_cloud_keys(user, automatic: bool=True) -> set` — `model_key` des modèles distants que `user` autorise — à passer à `select_model(cloud_keys=…)`.
+  - `allowed_cloud_keys(user, automatic: bool=True, available_only: bool=True) -> set` — `model_key` des modèles distants que `user` autorise — à passer à `select_model(cloud_keys=…)`.
   - `drop_unavailable(user, keys, personal_sources=None) -> set` — `keys` moins les modèles qu'un TIRAGE ne peut pas retenir maintenant : une source notée
   - `is_cloud_key(model_key) -> bool` — La clé de catalogue `model_key` désigne-t-elle un modèle servi par un FOURNISSEUR
   - `class CloudAccessRefused(RuntimeError)` — Appel distant refusé — message lisible par l'utilisateur ; `status` = code HTTP à rendre.

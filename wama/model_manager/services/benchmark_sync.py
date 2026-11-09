@@ -1368,26 +1368,34 @@ def shared_percentile_values(pool) -> dict:
     de leurs valeurs ; le rang ne fait le pont qu'avec ceux qu'elle ne note pas.
 
     L'échelle d'un modèle est celle qui note le plus de modèles du lot parmi les siennes ; à
-    égalité, l'ordre de ses échelles (la priorité des sources). Une ligne synchronisée avant le
-    rang par échelle garde le rang de son porteur. ⚠ Les deux réserves de `percentile_rank`
-    restent entières : ordinal, et dépendant de la population de son banc."""
+    égalité, celle dont la POPULATION est la plus large (2026-11-09), puis l'ordre de ses échelles
+    (la priorité des sources). Une ligne synchronisée avant le rang par échelle garde le rang de son
+    porteur. ⚠ Les deux réserves de `percentile_rank` restent entières : ordinal, et dépendant de la
+    population de son banc — d'où le départage par la population.
+
+    Le départage par la population, mesuré le 2026-11-09 (rôle `backend` d'ACE-Step, Albert en
+    panne) : sur le lot ILaaS, AA v5 (94 modèles, surtout frontière) et l'Arena (302) notaient
+    chacune gemma-4-31b et qwen-3.8 ; la priorité des sources donnait AA v5, où gemma tombe au
+    2,1ᵉ centile et qwen-3.8 au 23,4ᵉ — et le 58,1ᵉ d'une note AA v4 PÉRIMÉE (570 modèles) les
+    passait tous deux. Le rang d'une population large fait le meilleur pont."""
     def ranks(m):
         meta = getattr(m, 'benchmark_meta', None) or {}
-        out = [(e.get('scale'), e['percentile_rank']) for e in meta.get('scales') or []
-               if e.get('percentile_rank') is not None]
+        out = [(e.get('scale'), e['percentile_rank'], e.get('population') or 0)
+               for e in meta.get('scales') or [] if e.get('percentile_rank') is not None]
         if not out and meta.get('percentile_rank') is not None:
-            out = [(meta.get('scale'), meta['percentile_rank'])]
+            out = [(meta.get('scale'), meta['percentile_rank'], meta.get('population') or 0)]
         return out
 
     carried = {id(m): ranks(m) for m in pool}
     coverage = {}
     for entries in carried.values():
-        for scale in {s for s, _ in entries}:
+        for scale in {s for s, _r, _n in entries}:
             coverage[scale] = coverage.get(scale, 0) + 1
     values = {}
     for key, entries in carried.items():
         if entries:
-            best = max(range(len(entries)), key=lambda i: (coverage[entries[i][0]], -i))
+            best = max(range(len(entries)),
+                       key=lambda i: (coverage[entries[i][0]], entries[i][2], -i))
             values[key] = entries[best][1]
     return values
 
