@@ -413,7 +413,7 @@ qu'APRÈS 10 apps réelles. Écrire 2-3 plugins d'abord, extraire ensuite (règl
   1. `Binding` ne déclare que `PURE` et `APP` (`common/catalog/function_catalog.py:208-212`) — pas
      de `USER`, alors que le kind manifeste et `UserFunction.to_dict()` l'emploient déjà ;
   2. une `UserFunction` n'est **jamais fusionnée au `FUNCTION_CATALOG`** — ses seuls lecteurs sont
-     l'admin, le kind `function` et la page catalogue (`model_manager/views.py:2257-2259`) — donc
+     l'admin, le kind `function` et la page catalogue (`model_manager/views.py:2122-2125`) — donc
      l'exécuteur de pipeline refuse sa clé (`studio/tasks.py:463-465`). ⚠ La docstring du modèle
      annonce pourtant « fusionnée au catalogue par le filtre des catalogues (`catalogue_visible_to`) »
      (`common/models.py:913-919`, relu le 2026-10-31) : ce filtre est celui de la PAGE catalogue, pas

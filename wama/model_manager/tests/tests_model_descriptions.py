@@ -10,6 +10,7 @@ filler it writes; the provider's description is kept; the marked rows are filled
 card (or the web), summarised — in English since 2026-11-08, WAMA's source language —, the source
 recorded. The fillers themselves are written in English since 2026-11-09.
 """
+import re
 from unittest import mock
 
 from django.test import SimpleTestCase, TestCase
@@ -192,3 +193,44 @@ class SummarizeTest(SimpleTestCase):
         prompt = md.PROMPT.format(short=md.SHORT_CHARS, name='M', origin='fiche', text='t')
         self.assertIn('write in English', prompt)
         self.assertNotIn('français', prompt)
+
+
+class ProspectionWritesItsStandInsInEnglishTest(SimpleTestCase):
+    """A proposed model carries a stand-in description until its card describes it
+    (« [ocr] 386 downloads… », `PROSPECTION_PIPELINE` point 6). The revalidation of 2026-11-09
+    found 179 proposals still in French in the catalogue: the prospection templates had been left
+    out of the English rewrite. Read at the source — every string handed to `description=`, to a
+    `'description'` key or to `desc` in the prospection modules —, so a new template is held too."""
+
+    FRENCH = re.compile(
+        r"[éèàùçêâôîû]|\b(le|la|les|des|du|par|pour|avec|une|est|sur|dans|sous|il y a)\b", re.I)
+
+    def _templates(self, module):
+        import ast
+        import inspect
+        tree = ast.parse(inspect.getsource(module))
+
+        def text(node):
+            return ''.join(n.value for n in ast.walk(node)
+                           if isinstance(n, ast.Constant) and isinstance(n.value, str))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.keyword) and (node.arg or '').startswith('description'):
+                yield node.value.lineno, text(node.value)
+            elif isinstance(node, ast.Dict):
+                for key, value in zip(node.keys, node.values):
+                    if isinstance(key, ast.Constant) and key.value == 'description':
+                        yield value.lineno, text(value)
+            elif isinstance(node, ast.Assign) and any(
+                    isinstance(t, ast.Name) and t.id == 'desc' for t in node.targets):
+                yield node.lineno, text(node.value)
+
+    def test_every_stand_in_description_is_english(self):
+        from wama.model_manager.services import prospect_agents, prospect_ollama, prospector
+        found, french = 0, []
+        for module in (prospector, prospect_ollama, prospect_agents):
+            for line, template in self._templates(module):
+                found += bool(template.strip())
+                if self.FRENCH.search(template):
+                    french.append(f"{module.__name__}:{line} : {template!r}")
+        self.assertEqual([], french)
+        self.assertGreaterEqual(found, 8, 'the reading no longer sees the templates')

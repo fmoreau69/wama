@@ -218,17 +218,17 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
         cand_key = PROPOSED_PREFIX + origine
         vus_maj.add(cand_key)
         if cible:
-            desc = (f"Successeur disponible : {cible} (remplace {nom_installe}, "
-                    f"installé il y a {age} j).")
+            desc = (f"Successor available: {cible} (replaces {nom_installe}, "
+                    f"installed {age} days ago).")
             conf = 0.9
         elif maj_reelle:
             # Le tag n'a pas changé de nom, mais son CONTENU a été republié : c'est une vraie
             # mise à jour en place, et on l'affirme sur preuve (digests différents), pas sur l'âge.
-            desc = (f"Nouvelle version publiée sous le même tag {nom_installe} "
-                    f"(local installé il y a {age} j).")
+            desc = (f"New version published under the same tag {nom_installe} "
+                    f"(local copy installed {age} days ago).")
             conf = 0.9
         else:
-            desc = f"Mise à jour suggérée — {r.get('reason', 'version locale ancienne')}."
+            desc = f"Update suggested — {r.get('reason', 'old local version')}."
             conf = _confidence_from_age(age)
         cree = write_candidate(cand_key, nom=cible or src.name, model_type=src.model_type,
                                description=desc, kind='update', confidence=conf,
@@ -295,7 +295,7 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
                     retenus += 1
                     cree = write_candidate(
                         cand_key, nom=ref, model_type=role['model_type'],
-                        description=f"[{role['libelle']}] Proposé par la bibliothèque Ollama.",
+                        description=f"[{role['libelle']}] Proposed from the Ollama library.",
                         kind='new', confidence=None,
                         extra={'kind': 'new', 'role': nom_role, 'name': ref,
                                'reason': f"rôle {nom_role} — non installé",

@@ -1457,8 +1457,8 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
             cree = _write_hf_candidate(
                 repo_id, facts=facts, refs_type=refs_type, role=f"hf:{tache}",
                 reason=f"tâche {tache} — non installé",
-                description=(f"[{tache}] {c['downloads']} téléchargements, "
-                             f"{c['likes']} ♥ — proposé par la bibliothèque HuggingFace."),
+                description=(f"[{tache}] {c['downloads']} downloads, "
+                             f"{c['likes']} ♥ — proposed from the HuggingFace library."),
                 note=f"prospection HF {tache}", weight_gb=poids,
                 license=c.get('license'), base_model=c.get('base_model'),
                 downloads=c['downloads'], likes=c['likes'], metric=c.get('metrique'))
@@ -1644,8 +1644,8 @@ def seed_benchmark_candidates(per_category: int = BENCH_CANDIDATES_PER_CATEGORY,
             created_now = _write_hf_candidate(
                 repo_id, facts=facts, refs_type=refs_type, role=f"bench:{cat}",
                 reason=f"{e['rank']}ᵉ sur {e['population']} au classement {label} — non installé",
-                description=(f"[{label}] {e['rank']}ᵉ sur {e['population']} "
-                             f"({e['value']:g}) — proposé par le classement."),
+                description=(f"[{label}] ranked {e['rank']} of {e['population']} "
+                             f"({e['value']:g}) — proposed from the leaderboard."),
                 note=f"classement {label}", weight_gb=weight,
                 license=cd.get('license'), base_model=cd.get('base_model'),
                 downloads=getattr(info, 'downloads', 0) or 0,
@@ -1760,8 +1760,8 @@ def seed_hf_successors(workers: int = 8) -> dict:
         created_now = _write_hf_candidate(
             successor, facts=facts, refs_type=refs_type, role=SUCCESSOR_ROLE,
             reason=f"la carte de {repo} désigne {chain[0]} comme nouvelle version",
-            description=(f"Nouvelle version désignée par l'auteur : {successor} "
-                         f"(remplace {repo})."),
+            description=(f"New version named by the author: {successor} "
+                         f"(replaces {repo})."),
             note=f"successeur de {repo}", weight_gb=_repo_weight_gb(successor),
             license=cd.get('license'), base_model=cd.get('base_model'),
             downloads=getattr(info, 'downloads', 0) or 0,
@@ -1929,7 +1929,7 @@ def seed_candidate_from_manifest(manifest: dict) -> dict:
         cand_key, nom=manifest.get('name') or name, model_type=model_type,
         source=source,
         description=(identity.get('description_short') or manifest.get('description')
-                     or f"[{task or model_type}] Proposé par le rôle scout.")[:500],
+                     or f"[{task or model_type}] Proposed by the scout role.")[:500],
         kind='new', confidence=None,
         extra={'kind': 'new', 'role': f"scout:{task or model_type}", 'name': ref,
                'reason': "manifeste produit par le rôle scout (wama-dev-ai)",
@@ -1997,7 +1997,7 @@ def seed_yolo_candidate(name: str) -> dict:
         # `ollama` pour les autres candidats —, ici celle de son identité (`github`). Il portait
         # `yolo`, une clé hors du vocabulaire `ModelSource`, que le filtre « Source » montrait brute.
         cand_key, nom=base, model_type='vision', source=platform_ref.partition(':')[0],
-        description=f"[{task}] Poids officiels Ultralytics, demandés par leur nom.",
+        description=f"[{task}] Official Ultralytics weights, requested by name.",
         kind='new', confidence=None,
         extra={'kind': 'new', 'role': f"yolo:{task}", 'name': base,
                'reason': "poids YOLO officiels — demande explicite", 'spec': spec},
@@ -2059,7 +2059,7 @@ def seed_ollama_candidate(name: str) -> dict:
     spec = {'kind': 'ollama', 'ref': ref}
     created = write_candidate(
         cand_key, nom=ref, model_type=_type_ollama('').value,
-        description="Modèle Ollama demandé par son nom.",
+        description="Ollama model requested by name.",
         kind='new', confidence=None,
         extra={'kind': 'new', 'role': NAMED_OLLAMA_ROLE, 'name': ref,
                'reason': "modèle Ollama — demande explicite"},
@@ -2320,8 +2320,8 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
                                    getattr(m, 'tags', None) or (), carte),
             refs_type=refs_type, role=f"hf:{tache}",
             reason=f"recherche ciblée « {query} »",
-            description=(f"[{tache}] {dl} téléchargements, "
-                         f"{likes} ♥ — recherche ciblée « {query} »."),
+            description=(f"[{tache}] {dl} downloads, "
+                         f"{likes} ♥ — targeted search “{query}”."),
             note=f"recherche ciblée « {query} » ({tache})", weight_gb=poids,
             license=cd.get('license'), base_model=cd.get('base_model'),
             downloads=dl, likes=likes, metric=_metrique_declaree(carte))
@@ -2366,7 +2366,7 @@ def apply_recommendations(candidates, source: str, task: str):
                 # `platform_ref` se dérive du même fait, sans requête supplémentaire.
                 'license': str(c.get('license') or '')[:64],
                 'platform_ref': hf_platform_ref(repo_id),
-                'description': f"(Recommandé · prospection) {task} — {c['downloads']} téléchargements, {c['likes']} ♥",
+                'description': f"(Recommended · prospection) {task} — {c['downloads']} downloads, {c['likes']} ♥",
                 'is_downloaded': False,
                 'is_available': False,
                 'extra_info': {'recommended': {

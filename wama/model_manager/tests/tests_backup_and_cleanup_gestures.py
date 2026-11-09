@@ -43,6 +43,24 @@ class BackupResolvesTheCatalogueKeyTest(TestCase):
         self.service.backup_directory.assert_called_once_with(
             str(self.folder), 'unknown', 'backup-test', 'models', overwrite=False)
 
+    def test_a_declared_family_root_is_never_backed_up_whole(self):
+        # `speech/qwen_asr` is declared by BOTH sizes of Qwen3-ASR : the folder carries other models,
+        # `weights_dir_of` refuses it (uninstall), and so does the backup.
+        family = self.folder / 'speech' / 'shared_family'
+        family.mkdir(parents=True)
+        (family / 'other_model.bin').write_bytes(b'x')
+        self.row.local_path = str(family)
+        self.row.save(update_fields=['local_path'])
+        with mock.patch('wama.common.utils.model_locations.models_root', return_value=self.folder), \
+                mock.patch('wama.common.utils.model_locations.installed_snapshots', return_value={}):
+            self.assertIsNone(RB.resolve_model_location('reader:backup-test'))
+
+    def test_a_declared_weight_file_is_backed_up_alone(self):
+        weight = self.folder / 'weights.safetensors'
+        self.row.local_path = str(weight)
+        self.row.save(update_fields=['local_path'])
+        self.assertEqual(weight, RB.resolve_model_location('reader:backup-test'))
+
     def test_a_key_nothing_resolves_is_said_not_found(self):
         with mock.patch.object(RB, 'get_backup_service', return_value=self.service):
             out = RB.backup_model('reader:nothing-here')

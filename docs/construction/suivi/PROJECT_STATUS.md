@@ -29714,7 +29714,8 @@ trois modèles d'Albert qui voient ont `vision`, l'image et `work_image` en base
 
 **Laissé à leurs propriétaires** : la copie de l'arbre de `docs/dev/briques.md` (en retard sur
 HEAD, et porteuse d'ajouts d'autres sessions) ; `cloud_models.py` et `model_manager/views.py` en
-cours dans une autre session (deux renvois `views.py:2257` périmés par `check_docs`) ;
+cours dans une autre session (deux renvois à la ligne 2257 de `views.py`, périmés par `check_docs` —
+recalés le soir même sur la lecture des fonctions d'utilisateur, l. 2122-2125) ;
 `tests_mecanismes_scan` rouge (`tests_score_reading.py` à deux propriétaires, session partition).
 **Restes du portage** (`ROUTE §11 #41`) : la glu (marche B), la seconde famille de l'enhancer, le
 process « Sortie » de l'avatarizer, les déclarations des apps nées — décisions.

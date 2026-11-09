@@ -316,6 +316,9 @@ de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une foi
   voisines, pas identiques) et le libellé de l'état d'installation d'un modèle (« Not downloaded »
   dans la gestion des modèles, « Non installé » dans la scène). Domicile à créer : un jeton par
   famille dans le thème, comme `--wama-mm-type-*` pour les types de modèles (ramené le jour même).
+  *Depuis le 2026-11-09, ce domicile est une DÉRIVATION, plus un jeton écrit : une famille de
+  données reçoit ses couleurs de `theme_generator.identity_colours` (ci-dessous) — c'est là que
+  viendrait la famille de licences.*
 - ✅ **Les types de modèles, lus par leur valeur (2026-11-08)** : la scène des modèles recopiait
   dix alias `--wc-type-*` (le onzième type, `nlp`, sans couleur) ; elle lit désormais le jeton du
   THÈME par la valeur du type (`--wama-mm-type-<valeur>`, `model_scene.py`), comme le badge de la

@@ -7519,7 +7519,7 @@ le résultat n'est plus rejouable et « une représentation, deux éditeurs » (
   ① le code ne connaît que deux bindings — `Binding.PURE` et `Binding.APP`
   (`common/catalog/function_catalog.py:210-211`) ; ② une `UserFunction` n'est **jamais fusionnée au
   `FUNCTION_CATALOG`** (ses seuls lecteurs sont l'admin, le kind `function` et la page
-  `/model-manager/functions/` — `model_manager/views.py:2257-2258`), donc l'exécuteur refuse sa clé
+  `/model-manager/functions/` — `model_manager/views.py:2123-2125`), donc l'exécuteur refuse sa clé
   (« absent du catalogue », `studio/tasks.py:465`) ; ③ `impl` est aujourd'hui un **chemin**
   (`"cam_analyzer.tasks:compute_distance_task"`, `function_catalog.py:208`) et le champ du modèle
   porte encore « référence/code (à venir) » (`models.py:930`) — pour une fonction utilisateur, `impl`

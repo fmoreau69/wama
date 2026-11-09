@@ -4248,6 +4248,18 @@ défaut vu s'est comblé dans la route, aucun dans la proposition.
   faisaient pas partie des 188 : ⏳ à décider. Garde-fou de la synchro : la garde des pertes
   compare la provenance d'une description d'un bloc (`manifests/losses.WHOLE_FACTS`) — ses 68
   adresses remplacées n'étaient pas des pertes.*
+  ⚠ *Revérification du même soir, sur la BASE relancée et non plus sur le corpus : **182** lignes
+  encore en français, dont **179 propositions** — le relevé ne lisait que `manifests/models/`, où
+  une proposition n'entre pas. Leurs textes d'attente venaient de DOUZE gabarits de la prospection,
+  désormais en anglais — huit vus à la relecture (`prospector` : bibliothèque HF, classement,
+  recherche ciblée, recommandation ; `prospect_ollama` : successeur, republication, mise à jour,
+  bibliothèque), quatre trouvés par la garde seulement (`prospector` : rôle scout, successeur
+  désigné par l'auteur, poids Ultralytics demandés par leur nom, modèle Ollama demandé par son nom) ; garde
+  `tests_model_descriptions.ProspectionWritesItsStandInsInEnglishTest` (lecture AST de tout texte
+  passé à `description=`, gabarit futur compris). Une proposition se réécrit à la prochaine passe
+  qui la revoit ; celles sorties de la tendance gardent l'ancien texte : ⏳ à décider (réécriture
+  en un geste, ou attendre). `reader:olmocr` est un reste en base d'un modèle RETIRÉ
+  (`reader/utils/model_config.py:30`) : aucun code ne l'écrit plus.*
   ⚠ *Les workers relancés seulement font tenir la base : tant qu'ils tournent avec l'ancien code,
   chaque réconciliation qu'ils exécutent (au démarrage de tout processus Django, `apps.py`)
   réécrit les anciens textes en base — le corpus versionné, lui, est juste.*
@@ -4285,8 +4297,11 @@ qui restaient sans outil (mémoire et carte, disque, nettoyeur, surveillance, sa
   méthode qu'elle accepte), `ModelManagerToolsOnTheRealViewsTest`.
 - **« Backup selected » échouait toujours** : la page envoie la CLÉ du modèle en `source_path`, la vue
   la prenait pour un chemin — le défaut que `resolve_weight_file` a soldé pour « Convertir » le
-  2026-08-31. Corps sorti vers `remote_backup.backup_model` (clé → emplacement entier : déclaré,
-  sinon `weights_dir_of`), lu par la vue et par `start_backup`.
+  2026-08-31. Corps sorti vers `remote_backup.backup_model` (clé → son poids-FICHIER déclaré, sinon
+  le dossier de ses poids par `weights_dir_of`), lu par la vue et par `start_backup`. *Corrigé à la
+  revérification du même soir : le dossier DÉCLARÉ était pris tel quel, or une racine de famille porte
+  d'autres modèles (`speech/qwen_asr`, les deux tailles) — la règle que `weights_dir_of` tient pour la
+  désinstallation ; garde `test_a_declared_family_root_is_never_backed_up_whole`.*
 - **« Clean Idle », « Aggressive » et « Clear GPU » ne déchargeaient rien depuis gunicorn** : le
   canal des tenants (`unload_resident`, 03/11) ne servait qu'à « Décharger ». Les gestes HUMAINS le
   prennent (`everywhere=True`), les appelants automatiques restent dans leur process (B1). Garde :

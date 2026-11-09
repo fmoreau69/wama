@@ -459,8 +459,10 @@ class RemoteBackupService:
 def resolve_model_location(ref: str) -> Optional[Path]:
     """
     Ce que sauvegarder pour `ref` : un chemin existant (rendu tel quel), ou une clé de catalogue —
-    son emplacement DÉCLARÉ (`local_path`, `extra_info['path']`) s'il existe, sinon le dossier de
-    ses poids (`model_installer.weights_dir_of`, le lien de la désinstallation). None sinon.
+    son poids-FICHIER déclaré (`local_path`, `extra_info['path']` : les `.pt` YOLO), sinon le
+    dossier de ses poids par `model_installer.weights_dir_of`, le lien de la désinstallation. Un
+    dossier déclaré ne se prend jamais tel quel : une racine de famille porte d'autres modèles
+    (`speech/qwen_asr`, les deux tailles de Qwen3-ASR), et ce résolveur la refuse déjà. None sinon.
 
     Le bouton « Backup selected » envoie la CLÉ du modèle dans `source_path` : la vue la prenait
     pour un chemin, « Source file not found » à chaque fois (constaté le 2026-11-09) — le défaut
@@ -477,7 +479,7 @@ def resolve_model_location(ref: str) -> Optional[Path]:
     if row is None:
         return None
     declared = row.local_path or (row.extra_info or {}).get('path') or ''
-    if declared and Path(declared).exists():
+    if declared and Path(declared).is_file():
         return Path(declared)
     from .model_installer import weights_dir_of
     weights = weights_dir_of(row)
