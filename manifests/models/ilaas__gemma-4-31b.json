@@ -25,13 +25,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://ai.google.dev/gemma/docs/core",
-          "https://huggingface.co/google/gemma-4-31B-it",
-          "https://www.together.ai/models/gemma-4-31b"
+          "https://artificialanalysis.ai/models/gemma-4-31b",
+          "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-google-gemma-4-31b.html",
+          "https://deepmind.google/models/gemma/gemma-4/"
         ]
       },
       "hosting": "sovereign",
@@ -43,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle multimodal de raisonement et génération de texte pour tâches variées, supportant l'image et le contexte 256K.",
+      "description_short": "Gemma 4 31B is a 30.7B parameter multimodal open-weight model with up to 256K context and multilingual support.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -65,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Gemma 4 est un modèle génératif multimodal développé par Google DeepMind, capable de traiter des entrées textuelles et visuelles (avec audio sur certaines versions) pour produire du texte. Il dispose d'une fenêtre de contexte étendue à 256K tokens, prend en charge plus de 140 langues et inclut des modes de raisonnement et d'appel de fonctions natives. Les sources mentionnent qu'il est disponible avec des poids ouverts (Apache 2.0) pour un usage commercial responsable, bien que les détails précis sur la taille exacte des paramètres varient légèrement entre les descriptions (31B vs 30,7B).",
+  "description": "Gemma 4 31B is Google's 30.7-billion parameter dense model featuring built-in reasoning, instruction tuning, and multimodal capabilities for handling text and image inputs (with audio support on certain variants). It supports a context window of up to 256K tokens and operates in over 140 languages while maintaining open weights for responsible commercial use.",
   "key": "ilaas:gemma-4-31b",
   "manifest_kind": "model",
   "name": "gemma-4-31b",

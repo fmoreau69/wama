@@ -27,13 +27,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://www.anthropic.com/claude-sonnet-5-5",
           "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
-          "https://www.anthropic.com/claude/sonnet"
+          "https://claude.dev/blog/building-with-claude-sonnet-5-5/"
         ]
       },
       "hosting": "third_party",
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle d'IA Anthropic Claude Sonnet 5.5 (28 sept 2026), plus rapide et moins cher que la version précédente, optimisé pour le code et les tâches complexes.",
+      "description_short": "Claude Sonnet 5.5 is a faster, lower-cost AI model optimized for everyday coding and agent tasks.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -67,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Sonnet 5.5 est un modèle d'intelligence artificielle qui offre la meilleure combinaison de vitesse et d'intelligence, avec une fenêtre de contexte de 1 million de tokens et une sortie maximale de 128 K tokens. Il représente une amélioration significative par rapport à Claude Sonnet 5, exécutant les tâches jusqu'à 30 % plus rapidement et réduisant les coûts de traitement jusqu'à 30 %. Le modèle est disponible sur les plateformes Anthropic, AWS et Google Cloud (Antigravity), mais il s'agit d'un complément moins coûteux que Claude Opus 5.5, conçu pour des jugements complexes.",
+  "description": "Released on September 28, 2026, Claude Sonnet 5.5 offers the best combination of speed and intelligence with a context window of 1M tokens and max output of 128K tokens. It runs 30%+ faster than its predecessor while costing up to 30% less for most work, serving as a complement to the more judgment-focused Opus 5.5. The model is available on Amazon Bedrock and Claude Platform with input pricing at $2/MTok and output pricing at $10/MTok.",
   "key": "anthropic:claude-sonnet-5-5",
   "manifest_kind": "model",
   "name": "Claude Sonnet 5.5",

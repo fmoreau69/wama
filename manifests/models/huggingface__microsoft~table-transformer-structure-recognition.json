@@ -18,7 +18,7 @@
     "extra_info": {
       "category": "vision",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
@@ -34,7 +34,7 @@
     },
     "identity": {
       "author": "microsoft",
-      "description_short": "Modèle de reconnaissance de structure de table entraîné sur PubTables1M pour détecter les lignes et colonnes.",
+      "description_short": "Table Transformer (DETR) detects table structure (rows, columns) from unstructured documents using PubTables1M training data.",
       "gated": "no",
       "license": "mit",
       "model_type": "vision",
@@ -60,7 +60,7 @@
       "vram_gb": 0.3
     }
   },
-  "description": "Table Transformer est un modèle basé sur DETR, entraîné sur le dataset PubTables1M pour extraire la structure des tables (lignes, colonnes) à partir de documents non structurés. Il s'agit d'un modèle open source publié par Microsoft et disponible sur Hugging Face, dont la fiche a été rédigée par l'équipe Hugging Face car les auteurs n'en ont pas fourni une officielle.",
+  "description": "This model is a fine-tuned DETR-based object detection system trained on the PubTables1M dataset to extract table structures from unstructured documents. It accepts raw image or document inputs and outputs detected structural elements such as rows and columns. The source notes that it uses the 'normalize before' setting of DETR, where layernorm is applied before self- and cross-attention.",
   "key": "huggingface:microsoft/table-transformer-structure-recognition",
   "manifest_kind": "model",
   "name": "table-transformer-structure-recognition",

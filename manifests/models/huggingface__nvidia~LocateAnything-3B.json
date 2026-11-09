@@ -22,6 +22,14 @@
     },
     "extra_info": {
       "category": "vision",
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/nvidia/locateanything-3b"
+        ]
+      },
       "family": "locate-anything",
       "vram_provenance": "estimated"
     },
@@ -31,7 +39,7 @@
     },
     "identity": {
       "author": "nvidia",
-      "description_short": "Snapshot HF LocateAnything-3B — installé, en attente d'intégration",
+      "description_short": "LocateAnything-3B is a vision-language model that performs fast, high-quality visual grounding using parallel box decoding for object localization across diver…",
       "gated": "no",
       "license": "other",
       "model_type": "vision",
@@ -64,7 +72,7 @@
       "vram_gb": 9.4
     }
   },
-  "description": "Snapshot HuggingFace installé (vision/locate-anything) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "description": "LocateAnything-3B is a 3-billion parameter Transformer-based vision-language model designed for precise object localization, dense detection, and point-based grounding in complex scenes. It utilizes Parallel Box Decoding to predict complete bounding boxes in a single step, achieving up to 2.5× higher throughput than autoregressive approaches while supporting inputs of up to 2.5K images and 24K tokens. The model is built on the MoonViT vision encoder and Qwen2.5-3B-Instruct language model and is released under a non-commercial NVIDIA License for research purposes only.",
   "key": "huggingface:nvidia/LocateAnything-3B",
   "manifest_kind": "model",
   "name": "LocateAnything-3B",

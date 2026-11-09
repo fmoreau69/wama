@@ -29,7 +29,7 @@
     },
     "identity": {
       "author": "microsoft",
-      "description_short": "VibeVoice-ASR — multi-locuteurs, précis, un seul passage. Diarisation + timestamps natifs.",
+      "description_short": "VibeVoice-ASR — multi-speaker, accurate, one pass. Native diarisation + timestamps.",
       "gated": "no",
       "license": "mit",
       "model_type": "speech",
@@ -55,7 +55,7 @@
       "vram_gb": 16.0
     }
   },
-  "description": "VibeVoice ASR (Microsoft, 7B) : transcription, diarisation des locuteurs et timestamps produits nativement en un seul passage (pas de pyannote). Idéal pour les réunions/entretiens multi-locuteurs. Chargement long (~10 min). Les longs audios sont automatiquement découpés en segments (~20 min) puis recollés (timestamps inclus) pour rester stables sous le budget de contexte du modèle. ~16–24 Go VRAM.",
+  "description": "VibeVoice ASR (Microsoft, 7B): transcription, speaker diarisation and timestamps produced natively in a single pass (no pyannote). Ideal for multi-speaker meetings and interviews. Slow to load (~10 min). Long audio is split automatically into segments (~20 min) and stitched back (timestamps included) to stay stable within the model's context budget. ~16–24 GB VRAM.",
   "key": "transcriber:vibevoice-asr",
   "manifest_kind": "model",
   "name": "VibeVoice ASR",

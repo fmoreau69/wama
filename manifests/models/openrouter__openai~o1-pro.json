@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/o1-pro",
+          "https://techcrunch.com/2025/03/19/openais-o1-pro-is-its-most-expensive-model-yet/",
+          "https://modeldatabase.com/models/openai/o1-pro.html"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "OpenAI's o1-pro is a reasoning model trained with reinforcement learning that uses more compute to provide consistently better answers.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "The o1-pro model utilizes reinforcement learning to think before answering, employing greater computational resources than the base o1 model for complex reasoning tasks. It accepts inputs up to 200K tokens and produces outputs in formats such as JSON or structured data via its developer API. As of March 2025, it is OpenAI's most expensive model with a closed/proprietary license.",
   "key": "openrouter:openai/o1-pro",
   "manifest_kind": "model",
   "name": "OpenAI: o1-pro",

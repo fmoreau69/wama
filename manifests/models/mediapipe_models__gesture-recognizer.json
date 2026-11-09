@@ -34,7 +34,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Gestes de la main à la webcam (scènes 3D)",
+      "description_short": "Hand gestures from the webcam (3D scenes)",
       "license": null,
       "model_type": "vision",
       "platform_ref": null,
@@ -56,7 +56,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Reconnaissance des gestes de la main (21 repères par main, jusqu'à deux mains ; poing fermé, main ouverte, index levé…) — exécutée dans le navigateur, aucune image ne part au serveur. Pilote les scènes 3D à la webcam : poing pour tourner, deux poings pour zoomer.",
+  "description": "Hand gesture recognition (21 landmarks per hand, up to two hands; closed fist, open palm, pointing up…) — run in the browser, no image leaves for the server. Drives the 3D scenes from the webcam: a fist to turn, two fists to zoom.",
   "key": "mediapipe_models:gesture-recognizer",
   "manifest_kind": "model",
   "name": "MediaPipe Gesture Recognizer",

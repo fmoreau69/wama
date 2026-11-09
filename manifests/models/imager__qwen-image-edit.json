@@ -54,7 +54,7 @@
     },
     "identity": {
       "author": "Qwen",
-      "description_short": "Qwen Image Edit — édition multi-image, 14 images, 2K",
+      "description_short": "Qwen Image Edit — multi-image editing, 14 images, 2K",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "diffusion",
@@ -80,10 +80,10 @@
       "vram_gb": 38.0
     }
   },
-  "description": "Qwen-Image-Edit (Alibaba) : édition d'images guidée par instruction — retouche, fusion et composition jusqu'à 14 images de référence, sortie 2K. Pour modifier une image existante plutôt qu'en créer une.",
+  "description": "Qwen-Image-Edit (Alibaba): instruction-guided image editing — retouching, merging and composing up to 14 reference images, 2K output. To change an existing image rather than create one.",
   "key": "imager:qwen-image-edit",
   "manifest_kind": "model",
-  "name": "Qwen Image Edit — édition multi-image, 14 images, 2K",
+  "name": "Qwen Image Edit — multi-image editing, 14 images, 2K",
   "projects": [],
   "requires": [
     {

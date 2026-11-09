@@ -27,13 +27,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://www.anthropic.com/news/claude-opus-4-7?e45d281a_page=6&refid=033da51c-a5ab-418b-a979-2e775201040b",
+          "https://www.anthropic.com/news/claude-opus-4-7",
           "https://platform.claude.com/docs/en/models/opus-4-7/overview",
-          "https://www.anthropic.com/claude/opus"
+          "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html"
         ]
       },
       "hosting": "third_party",
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle d'IA pour le développement logiciel et les agents autonomes avec une fenêtre de contexte de 1 million de tokens.",
+      "description_short": "Claude Opus 4.7 is an advanced coding model optimized for complex software engineering tasks and enterprise agents.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -67,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Opus 4.7 est un modèle hybride conçu pour l'ingénierie logicielle avancée, les flux de travail d'entreprise et les tâches agentiques à long terme. Il accepte jusqu'à 1 million de tokens en entrée et peut générer jusqu'à 128 000 tokens de sortie. Bien qu'il soit actuellement disponible, la source indique qu'il doit être migré vers Claude Opus 5.5.",
+  "description": "Released on April 16, 2026, Claude Opus 4.7 represents a significant improvement over Opus 4.6, particularly in handling difficult software engineering challenges that previously required close human supervision. The model features a context window of 1 million tokens and can generate up to 128K tokens, though it is marked as legacy with a retirement date of April 16, 2027. While available on platforms like Amazon Bedrock and Google Cloud, users are advised to consider migrating to the newer Claude Opus 5.5 model.",
   "key": "anthropic:claude-opus-4-7",
   "manifest_kind": "model",
   "name": "Claude Opus 4.7",

@@ -58,7 +58,7 @@
     },
     "identity": {
       "author": "Lightricks",
-      "description_short": "LTX-Video 13B Distilled — rapide, T2V + I2V",
+      "description_short": "LTX-Video 13B Distilled — fast, T2V + I2V",
       "gated": "no",
       "license": "ltxv-open-weights",
       "model_type": "diffusion",
@@ -81,10 +81,10 @@
       "vram_gb": 14.0
     }
   },
-  "description": "LTX-Video 13B Distilled (Lightricks) : génération vidéo rapide, en texte-vers-vidéo comme en image-vers-vidéo. La distillation réduit fortement le nombre d'étapes — bon choix par défaut pour itérer vite.",
+  "description": "LTX-Video 13B Distilled (Lightricks): fast video generation, text to video as well as image to video. Distillation cuts the number of steps sharply — a good default to iterate quickly.",
   "key": "imager:ltx-video-13b-0.9.8-distilled",
   "manifest_kind": "model",
-  "name": "LTX-Video 13B Distilled — rapide, T2V + I2V",
+  "name": "LTX-Video 13B Distilled — fast, T2V + I2V",
   "projects": [],
   "requires": [
     {

@@ -44,7 +44,7 @@
     },
     "identity": {
       "author": "Sefik Ilkin Serengil",
-      "description_short": "Estimation d'âge — chargé seulement si « Âge & Genre » est activé",
+      "description_short": "Age estimation — loaded only when age & gender analysis is enabled",
       "license": "mit",
       "model_type": "vision",
       "platform_ref": "github:serengil/deepface_models",
@@ -69,7 +69,7 @@
       "vram_gb": 1.0
     }
   },
-  "description": "Estimation d'âge — chargé seulement si « Âge & Genre » est activé",
+  "description": "Age estimation — loaded only when age & gender analysis is enabled",
   "key": "face_analyzer:deepface-age",
   "manifest_kind": "model",
   "name": "deepface-age",

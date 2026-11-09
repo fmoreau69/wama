@@ -24,6 +24,14 @@
       "aliases": [
         "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8"
       ],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/nvidia/nvidia-nemotron-3-super-120b-a12b-fp8"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "text-generation"
     },
@@ -33,7 +41,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "NVIDIA Nemotron-3-Super is a 120B parameter LLM optimized for agentic workflows, long-context reasoning, and high-volume tasks like IT automation.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
@@ -55,7 +63,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "This hybrid LatentMoE model features 12B active parameters and supports up to 1M token context lengths. It generates responses by first creating a reasoning trace before concluding, with capabilities in English, French, German, Italian, Japanese, Spanish, and Chinese. The model requires at least two H100-80GB GPUs for deployment.",
   "key": "openrouter:nvidia/nemotron-3-super-120b-a12b:free",
   "manifest_kind": "model",
   "name": "NVIDIA: Nemotron 3 Super (free)",

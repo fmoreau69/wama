@@ -42,21 +42,21 @@
     },
     "extra_info": {
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://huggingface.co/Qwen/Qwen3.5-4B",
-          "https://huggingface.co/Qwen/Qwen3.5-4B/blob/main/README.md",
-          "https://docs.nvidia.com/nemo/automodel/model-coverage/vision-language-models/qwen/Qwen3.5-4B"
+          "https://artificialanalysis.ai/models/qwen3-5-4b",
+          "https://modal.com/library/qwen/qwen3-5-4b"
         ]
       },
       "quantization": "Q4_K_M",
       "vram_measured": {
-        "at": "2026-11-09T03:43:01+00:00",
-        "last_gb": 6.37,
+        "at": "2026-11-09T18:01:15+00:00",
+        "last_gb": 6.32,
         "max_gb": 6.81,
-        "n": 91
+        "n": 92
       },
       "vram_provenance": "heuristic"
     },
@@ -66,7 +66,7 @@
     },
     "identity": {
       "author": "Qwen team, Alibaba",
-      "description_short": "Modèle de vision-langage post-entraîné compatible Hugging Face Transformers pour tâches multimodales.",
+      "description_short": "Qwen3.5-4B is a dense 4-billion parameter open-weights vision-language model with native multimodal capabilities and a 262K token context.",
       "license": "apache-2.0",
       "model_type": "llm",
       "platform_ref": "ollama:qwen3.5",
@@ -88,7 +88,7 @@
       "vram_gb": 3.4
     }
   },
-  "description": "Qwen3.5-4B est un modèle de vision-langage post-entraîné fourni par Alibaba Cloud, conçu pour la compréhension d'images et de données multimodales. Il accepte des entrées visuelles et textuelles et produit des sorties textuelles via le format Hugging Face Transformers. Le modèle est compatible avec des outils comme vLLM, SGLang et KTransformers, sous licence Apache-2.0.",
+  "description": "Qwen3.5-4B is a compact, dense 4-billion parameter vision-language model released in March 2026 as part of Alibaba Cloud's Qwen3.5 family. It features native multimodal support with a vision encoder, operates with a default 262K token context extensible to 1M via YaRN, and covers over 201 languages. The model utilizes an Efficient Hybrid Architecture combining Gated Delta Networks for reasoning, and its weights are available under the Apache 2.0 license.",
   "key": "ollama:qwen3.5:4b",
   "manifest_kind": "model",
   "name": "qwen3.5:4b",

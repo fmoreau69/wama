@@ -38,7 +38,7 @@
       "author": null,
       "base_model": "black-forest-labs/FLUX.1-dev",
       "base_model_relation": "quantized",
-      "description_short": "Précision Q8_0 de FLUX.1-dev (GGUF)",
+      "description_short": "Q8_0 precision of FLUX.1-dev (GGUF)",
       "license": null,
       "model_type": "diffusion",
       "platform_ref": "huggingface:city96/FLUX.1-dev-gguf",
@@ -60,7 +60,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Transformeur de FLUX.1-dev quantifié en Q8_0 (GGUF, city96) : la précision huit bits que le moteur diffusers charge quand les poids pleins ne tiennent pas sur la carte. Les encodeurs et le VAE restent ceux de FLUX.1-dev. Licence non commerciale de FLUX.1-dev.",
+  "description": "The FLUX.1-dev transformer quantised to Q8_0 (GGUF, city96): the eight-bit precision the diffusers engine loads when the full weights do not fit on the card. The encoders and the VAE stay those of FLUX.1-dev. FLUX.1-dev's non-commercial licence.",
   "key": "huggingface:city96/FLUX.1-dev-gguf",
   "manifest_kind": "model",
   "name": "FLUX.1-dev Q8_0 (GGUF)",

@@ -22,6 +22,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/o3-mini:batch",
+          "https://modelsatlas.com/models/openai/o3-mini%3Abatch",
+          "https://picksbymodel.com/models/openai-o3-mini-batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "text-generation"
     },
@@ -31,7 +41,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "A cost-efficient OpenAI model optimized for STEM reasoning, supporting adjustable thinking effort and a 200k token context.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -53,7 +63,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "OpenAI o3-mini is a language model designed for science, mathematics, and coding tasks, featuring an adjustable `reasoning_effort` parameter. It accepts text and file inputs up to a 200,000 token context window and outputs reasoning results at a price of $2.20 per million output tokens.",
   "key": "openrouter:openai/o3-mini:batch",
   "manifest_kind": "model",
   "name": "OpenAI: o3 Mini (batch)",

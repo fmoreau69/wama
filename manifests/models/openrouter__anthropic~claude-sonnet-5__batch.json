@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/anthropic/claude-sonnet-5:batch",
+          "https://www.nautili.ai/models/anthropic/claude-sonnet-5%3Abatch?from=anthropic",
+          "https://llm-cost.io/model/anthropic--claude-sonnet-5-batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Claude Sonnet 5 (batch) is Anthropic's most capable Sonnet-class model with frontier performance in coding, agents, and professional work.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "This model supports tool calling, structured outputs, reasoning, vision, and a context window of 1 million tokens across text, image, and file inputs. It delivers high-quality results for complex tasks but is limited to the Sonnet class with specific pricing at $1 per 1M input tokens and $5 per 1M output tokens.",
   "key": "openrouter:anthropic/claude-sonnet-5:batch",
   "manifest_kind": "model",
   "name": "Anthropic: Claude Sonnet 5 (batch)",

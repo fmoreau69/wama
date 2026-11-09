@@ -55,7 +55,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Reconstruction mono-image → maillage 3D texturé (LRM, ~0,5 s/objet sur GPU), MIT",
+      "description_short": "Single-image → textured 3D mesh reconstruction (LRM, ~0.5 s per object on GPU), MIT",
       "license": null,
       "model_type": "vision",
       "platform_ref": "huggingface:stabilityai/TripoSR",
@@ -81,7 +81,7 @@
       "vram_gb": 6.0
     }
   },
-  "description": "Reconstruction mono-image → maillage 3D texturé (LRM, ~0,5 s/objet sur GPU), MIT. ⚠ Reconstruction PLAUSIBLE, pas métrique : les faces occultées sont hallucinées (§17ter) — props de simulation, jamais une mesure.",
+  "description": "Single-image → textured 3D mesh reconstruction (LRM, ~0.5 s per object on GPU), MIT. ⚠ A PLAUSIBLE reconstruction, not a metric one: hidden faces are hallucinated (§17ter) — simulation props, never a measure.",
   "key": "huggingface:triposr",
   "manifest_kind": "model",
   "name": "TripoSR",

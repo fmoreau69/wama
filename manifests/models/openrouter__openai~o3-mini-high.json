@@ -22,6 +22,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/o3-mini-high",
+          "https://modeldatabase.com/models/openai/o3-mini-high.html",
+          "https://www.geeksforgeeks.org/artificial-intelligence/openai-o3-mini-vs-o3-mini-high/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "text-generation"
     },
@@ -31,7 +41,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "OpenAI's o3 Mini High is the same as o3-mini but with high reasoning effort, optimized for STEM tasks.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -53,7 +63,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "This model is identical to OpenAI's o3-mini but configured with a high reasoning_effort setting. It excels in science, mathematics, and coding while supporting a context window of up to 200K tokens. Released on February 12, 2025, it features adjustable reasoning levels that impact response time and performance.",
   "key": "openrouter:openai/o3-mini-high",
   "manifest_kind": "model",
   "name": "OpenAI: o3 Mini High",

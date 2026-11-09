@@ -31,11 +31,11 @@
     "extra_info": {
       "category": "music",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/m-a-p/SheetSage2"
+          "https://huggingface.co/m-a-p/sheetsage2"
         ]
       },
       "family": "SheetSage2",
@@ -53,7 +53,7 @@
     },
     "identity": {
       "author": "m-a-p",
-      "description_short": "Convertit des enregistrements musicaux en partitions éditable (ABC/MIDI) et annotations temporelles.",
+      "description_short": "SheetSage2 transcribes music recordings into editable lead sheets (ABC/MIDI) with timed annotations.",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
       "platform_ref": "huggingface:m-a-p/SheetSage2",
@@ -83,7 +83,7 @@
       "vram_gb": 0.3
     }
   },
-  "description": "SheetSage2 transforme les enregistrements audio complets en scores modifiables, accompagnements harmoniques et annotations temporelles. Il prend un fichier audio ou une onde sonore comme entrée et génère des fichiers ABC, MIDI séparés (mélodie/accords) ainsi que des événements temporisés. Le modèle est basé sur MERT-v2-FullSong avec supervision synthétique dérivée du MIDI, corrige automatiquement la notation enracinée selon la tonalité locale sans modifier les hauteurs sonores ou le timing.",
+  "description": "SheetSage2 converts audio recordings into editable scores, including melody, chords, beats, key, and structure. It accepts audio files or waveforms as input and outputs ABC notation, MIDI files, separate vocal/instrumental tracks, and timed event logs. Built on the MERT-v2 architecture with synthetic supervision, it corrects enharmonic spelling based on local keys but does not alter musical pitches or timing.",
   "key": "huggingface:m-a-p/SheetSage2",
   "manifest_kind": "model",
   "name": "SheetSage2",

@@ -25,13 +25,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://bidouiage.forge.apps.education.fr/outils/annuaire-modeles-ia/",
           "https://ai4users.com/Articles/3/Qwen-3.6-35B-vs-Qwen-3.6-27B:-benchmark-results-analysis",
-          "https://github.com/QuantStack/jupyter-ai-tutor"
+          "https://explore.n1n.ai/blog/qwen3-6-vs-claude-4-7-local-llm-review-2026-04-17"
         ]
       },
       "hosting": "sovereign",
@@ -43,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Assistant IA de laboratoire basé sur Qwen 3.6 (35B), optimisé pour la raison visuelle et les tâches complexes.",
+      "description_short": "Qwen 3.6-35B-A3B is a mixture-of-experts open-source model optimized for visual reasoning and handling long documents.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -65,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Il s'agit d'un modèle Qwen 3.6 de 35 milliards de paramètres, conçu comme un mélange d'experts (mixture-of-experts) pour exceller dans la raison visuelle et les tâches difficiles. Bien qu'il soit environ quatre fois plus rapide que la version 27B en mode réflexion, il obtient parfois des scores inférieurs sur certains benchmarks NVFP4. Il est présenté comme surpassant Claude Opus 4.7 en raisonnement visuel local.",
+  "description": "This model, identified as Qwen 3.6-35B-A3B, is an open-source large language model designed to balance performance with efficiency. It excels in visual reasoning tasks, outperforming models like Claude Opus 4.7 in specific benchmarks, and can process long reports or images alongside text. As a mixture-of-experts architecture, it offers flexibility for handling diverse inputs while remaining accessible as an open-source option.",
   "key": "ilaas:qwen-3.6-35b-instruct",
   "manifest_kind": "model",
   "name": "qwen-3.6-35b-instruct",

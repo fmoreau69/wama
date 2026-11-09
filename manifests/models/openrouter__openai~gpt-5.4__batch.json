@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/gpt-5.4:batch",
+          "https://router.tangle.tools/openai/gpt-5.4:batch",
+          "https://krypton.bot/models/openai/gpt-5.4-batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "OpenAI's GPT-5.4 (batch) is a frontier model unifying Codex and GPT lines for high-context reasoning, coding, and multimodal analysis.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "GPT-5.4 (batch) is OpenAI's latest frontier model that unifies the Codex and GPT lines into a single system. It accepts text, image, and file inputs to produce text outputs within a context window of up to 1M+ tokens (922K input, 128K output). The model supports high-context reasoning, coding, and multimodal analysis but is priced at $1.25 per 1M input tokens and $7.50 per 1M output tokens.",
   "key": "openrouter:openai/gpt-5.4:batch",
   "manifest_kind": "model",
   "name": "OpenAI: GPT-5.4 (batch)",

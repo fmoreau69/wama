@@ -54,7 +54,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "FastWan 2.2 TI2V 5B — distillé 3 pas",
+      "description_short": "FastWan 2.2 TI2V 5B — distilled to 3 steps",
       "license": null,
       "model_type": "diffusion",
       "platform_ref": "huggingface:FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",
@@ -80,10 +80,10 @@
       "vram_gb": 23.0
     }
   },
-  "description": "FastWan 2.2 (FastVideo) : Wan 2.2 TI2V 5B distillé en 3 pas de débruitage, pour générer une vidéo à partir d'un texte beaucoup plus vite que les modèles non distillés. Limites du modèle : 5 secondes au plus en un passage (121 images à 24 i/s — au-delà, la vidéo est prolongée par segments enchaînés, chacun repartant de la dernière image : la continuité n'est pas garantie), cadence fixe de 24 i/s, résolution native 1280×704 (en dessous, la qualité baisse). Le nombre de pas, le guidage et donc le prompt négatif sont imposés par la distillation (sans effet ici).",
+  "description": "FastWan 2.2 (FastVideo): Wan 2.2 TI2V 5B distilled to 3 denoising steps, to generate a video from a text much faster than undistilled models. Model limits: at most 5 seconds in one pass (121 frames at 24 fps — beyond that, the video is extended by chained segments, each starting again from the last frame: continuity is not guaranteed), a fixed 24 fps rate, native resolution 1280×704 (below it, quality drops). The number of steps, the guidance and therefore the negative prompt are imposed by the distillation (no effect here).",
   "key": "imager:fastwan-2.2-ti2v-5b",
   "manifest_kind": "model",
-  "name": "FastWan 2.2 TI2V 5B — distillé 3 pas",
+  "name": "FastWan 2.2 TI2V 5B — distilled to 3 steps",
   "projects": [],
   "requires": [
     {

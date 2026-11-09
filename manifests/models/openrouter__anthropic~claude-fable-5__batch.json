@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/anthropic/claude-fable-5:batch",
+          "https://api-cost.com/models/anthropic/claude-fable-5%3Abatch",
+          "https://picksbymodel.com/models/anthropic-claude-fable-5-batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Claude Fable 5 (batch) is a Mythos-class model from Anthropic designed for autonomous knowledge work and coding.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "This model accepts text, image, and file inputs to produce text outputs while supporting tool calling, reasoning, and structured results. It features a context window of 1 million tokens with a maximum output of 128,000 tokens.",
   "key": "openrouter:anthropic/claude-fable-5:batch",
   "manifest_kind": "model",
   "name": "Anthropic: Claude Fable 5 (batch)",

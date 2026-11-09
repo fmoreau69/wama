@@ -55,7 +55,7 @@
     },
     "identity": {
       "author": "Tencent Hunyuan",
-      "description_short": "HunyuanImage 2.1 — qualité max, text rendering, 1K-4K",
+      "description_short": "HunyuanImage 2.1 — top quality, text rendering, 1K-4K",
       "gated": "no",
       "license": "hunyuan-community",
       "model_type": "diffusion",
@@ -78,10 +78,10 @@
       "vram_gb": 16.0
     }
   },
-  "description": "HunyuanImage 2.1 (Tencent) : génération d'images haut de gamme, excellent rendu du texte dans l'image et résolutions 1K à 4K. Le choix qualité maximale quand le temps de génération importe peu.",
+  "description": "HunyuanImage 2.1 (Tencent): high-end image generation, excellent rendering of text in the image and 1K to 4K resolutions. The top-quality choice when generation time matters little.",
   "key": "imager:hunyuan-image-2.1",
   "manifest_kind": "model",
-  "name": "HunyuanImage 2.1 — qualité max, text rendering, 1K-4K",
+  "name": "HunyuanImage 2.1 — top quality, text rendering, 1K-4K",
   "projects": [],
   "requires": [
     {

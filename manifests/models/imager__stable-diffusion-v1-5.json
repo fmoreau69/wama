@@ -65,7 +65,7 @@
     },
     "identity": {
       "author": "stable-diffusion-v1-5",
-      "description_short": "Stable Diffusion 1.5 — classique (compatibilité LoRA)",
+      "description_short": "Stable Diffusion 1.5 — the classic (LoRA compatibility)",
       "gated": "no",
       "license": "creativeml-openrail-m",
       "model_type": "diffusion",
@@ -95,10 +95,10 @@
       "vram_gb": 4.0
     }
   },
-  "description": "Stable Diffusion 1.5 (Runway/CompVis) : le classique historique de la génération d'images, porté par le plus vaste écosystème de LoRA et de fine-tunes. Qualité datée en natif, mais base de compatibilité inégalée.",
+  "description": "Stable Diffusion 1.5 (Runway/CompVis): the historic classic of image generation, carried by the largest ecosystem of LoRAs and fine-tunes. Dated quality out of the box, but an unmatched compatibility base.",
   "key": "imager:stable-diffusion-v1-5",
   "manifest_kind": "model",
-  "name": "Stable Diffusion 1.5 — classique (compatibilité LoRA)",
+  "name": "Stable Diffusion 1.5 — the classic (LoRA compatibility)",
   "projects": [],
   "requires": [
     {

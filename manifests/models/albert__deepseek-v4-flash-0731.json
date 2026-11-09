@@ -28,11 +28,11 @@
         "deepseek-v4-flash"
       ],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731"
+          "https://huggingface.co/deepseek-ai/deepseek-v4-flash-0731"
         ]
       },
       "hosting": "sovereign",
@@ -44,7 +44,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle IA DeepSeek-V4-Flash-0731 avec capacités agentic renforcées et décodage spéculatif, surpassant les modèles propriétaires sur les benchmarks.",
+      "description_short": "DeepSeek-V4-Flash-0731 is a large language model with enhanced agentic capabilities and speculative decoding.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:deepseek-ai/DeepSeek-V4-Flash-0731",
@@ -69,7 +69,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "DeepSeek-V4-Flash-0731 est une version officielle superséchant DeepSeek-V4-Flash avec des capacités agentic substantiellement améliorées. Il dépasse DeepSeek-V4-Pro (Preview) sur la plupart des benchmarks tout en ayant un nombre de paramètres activés bien inférieur, et est compétitif avec les meilleurs modèles propriétaires. Le modèle fonctionne sous licence MIT, supporte trois niveaux d'effort de raisonnement (low, high, max) et nécessite une configuration spécifique pour le décodage spéculatif via vLLM ou SGLang.",
+  "description": "This model, released by DeepSeek-AI under the MIT license, features substantially improved agentic performance compared to its predecessor despite having fewer activated parameters. It includes a speculative decoding module (DSpark) for efficiency and supports three reasoning effort levels: low, high, and max. Users can run it via vLLM or SGLang with specific configuration flags for optimal performance.",
   "key": "albert:deepseek-v4-flash-0731",
   "manifest_kind": "model",
   "name": "deepseek-v4-flash-0731",

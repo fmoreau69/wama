@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/o3:batch",
+          "https://modelsatlas.com/models/openai/o3%3Abatch",
+          "https://www.thegeeksclub.com/ai-models/openai-o3-batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "OpenAI's o3 (batch) is a powerful multimodal reasoning model excelling in math, science, coding, visual reasoning, and instruction-following.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "The o3 (batch) model sets a new standard for complex tasks including math, science, coding, visual reasoning, technical writing, and instruction-following. It accepts inputs up to 200K tokens and generates outputs up to 100K tokens with support for tool calling and structured outputs. Served by OpenAI via providers like OpenRouter, the model costs $1.00 per million input tokens and $4.00 per million output tokens.",
   "key": "openrouter:openai/o3:batch",
   "manifest_kind": "model",
   "name": "OpenAI: o3 (batch)",

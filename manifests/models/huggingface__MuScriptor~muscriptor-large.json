@@ -69,7 +69,7 @@
     },
     "identity": {
       "author": "MuScriptor (Kyutai x Mirelo)",
-      "description_short": "Transcription multi-instrument audio → MIDI",
+      "description_short": "Multi-instrument transcription audio → MIDI",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
       "platform_ref": "huggingface:MuScriptor/muscriptor-large",
@@ -94,7 +94,7 @@
       "vram_gb": 13.4
     }
   },
-  "description": "MuScriptor large (Kyutai + Mirelo, 1,4 Md de paramètres) : un audio → un MIDI par instrument entendu (voix et batterie comprises), calé sur la grille de temps de Beat This!. Poids CC BY-NC 4.0, dépôt à accès contrôlé.",
+  "description": "MuScriptor large (Kyutai + Mirelo, 1.4 B parameters): one audio → one MIDI per instrument heard (voice and drums included), aligned on Beat This!'s time grid. CC BY-NC 4.0 weights, gated repository.",
   "key": "huggingface:MuScriptor/muscriptor-large",
   "manifest_kind": "model",
   "name": "MuScriptor large",

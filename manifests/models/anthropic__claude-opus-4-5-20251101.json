@@ -27,13 +27,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://www.anthropic.com/news/claude-opus-4-5",
-          "https://platform.claude.com/docs/en/models/opus-4-5/overview",
-          "https://marketplace.microsoft.com/en-us/product/anthropic.anthropic-claude-opus-4-5-offer?tab=Overview"
+          "https://www-cdn.anthropic.com/bf10f64990cfda0ba858290be7b8cc6317685f47.pdf",
+          "https://artificialanalysis.ai/models/claude-opus-4-5-thinking",
+          "https://artificialanalysis.ai/articles/claude-opus-4-5-benchmarks-and-analysis"
         ]
       },
       "hosting": "third_party",
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle d'IA de pointe pour le codage, les agents et l'utilisation des ordinateurs.",
+      "description_short": "Claude Opus 4.5 is a proprietary AI model released in November 2025, recognized as Anthropic's most intelligent model with strengths in coding, agent execution…",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -67,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Opus 4.5 est un modèle intelligent conçu par Anthropic, spécialisé dans le codage, les agents autonomes et l'utilisation des ordinateurs. Il accepte jusqu'à 200K tokens de contexte et peut générer jusqu'à 64K tokens de réponse. Bien qu'il soit disponible, la source recommande sa migration vers Claude Opus 5.5.",
+  "description": "Claude Opus 4.5 is a proprietary reasoning model released by Anthropic in November 2025, positioned as their most intelligent model and an industry leader in coding, agents, and enterprise workflows. It delivers a substantial intelligence uplift over previous versions like Claude Sonnet 4.5 and ranks highly in general intelligence benchmarks. The model operates under a proprietary license, and users are advised to consider the newer release, Claude Opus 4.6.",
   "key": "anthropic:claude-opus-4-5-20251101",
   "manifest_kind": "model",
   "name": "Claude Opus 4.5",

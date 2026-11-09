@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/anthropic/claude-opus-4.7:batch",
+          "https://modelsatlas.com/models/anthropic/claude-opus-4.7%3Abatch",
+          "https://person.run/docs/models/anthropic-claude-opus-4-7-batch"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Anthropic's Claude Opus 4.7 (batch) is a multimodal LLM optimized for long-running, asynchronous agents and complex multi-step tasks.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Claude Opus 4.7 (batch) is the next generation of Anthropic's Opus family, designed specifically for reliable agentic execution in long-running scenarios. It builds upon the coding strengths of Opus 4.6 while delivering improved performance on knowledge work such as drafting documents and analyzing data. The model supports a context window of 1 million tokens with batch pricing starting at $2.50 per 1M input tokens.",
   "key": "openrouter:anthropic/claude-opus-4.7:batch",
   "manifest_kind": "model",
   "name": "Anthropic: Claude Opus 4.7 (batch)",

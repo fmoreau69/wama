@@ -37,7 +37,7 @@
     },
     "identity": {
       "author": "Xintao Wang (Tencent ARC Lab)",
-      "description_short": "Real-ESR general ×4 — généraliste ultra-léger.",
+      "description_short": "Real-ESR general ×4 — ultra-light general-purpose.",
       "license": "bsd-3-clause",
       "model_type": "upscaling",
       "platform_ref": "github:xinntao/Real-ESRGAN",
@@ -59,7 +59,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Real-ESR general ×4 (fp16, ONNX) : version généraliste très compacte de Real-ESRGAN. Rapide et sobre, qualité légèrement en retrait — pour les traitements en volume ou les machines modestes.",
+  "description": "Real-ESR general ×4 (fp16, ONNX): a very compact general-purpose version of Real-ESRGAN. Fast and frugal, slightly lower quality — for batch processing or modest machines.",
   "key": "enhancer:RealESR_Gx4",
   "manifest_kind": "model",
   "name": "RealESR_Gx4",

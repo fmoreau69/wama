@@ -5,13 +5,13 @@
     "extra_info": {
       "category": "diffusion",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://huggingface.co/Abiray/Fibo-2.0-edit-turbo-GGUF/blob/main/README.md",
-          "https://huggingface.co/Abiray/Fibo-2.0-edit-turbo-GGUF/tree/main",
-          "https://huggingface.co/models?other=base_model%3Aquantized%3AComfy-Org%2FFibo-2.0"
+          "https://huggingface.co/Abiray/Fibo-2.0-edit-turbo-GGUF",
+          "https://ggufmodels.com/model/fibo-2-0-edit-turbo-by-abiray",
+          "https://huggingface.co/Abiray/Fibo-2.0-edit-turbo-GGUF/tree/main"
         ]
       },
       "family": "Fibo-2.0",
@@ -25,7 +25,7 @@
       "author": null,
       "base_model": "Comfy-Org/Fibo-2.0",
       "base_model_relation": "quantized",
-      "description_short": "Quantisations GGUF du modèle Fibo-2.0-edit-turbo optimisées pour l'édition d'images via ComfyUI.",
+      "description_short": "GGUF quantized versions of the Fibo-2.0-edit-turbo model optimized for low-VRAM use in ComfyUI.",
       "license": null,
       "model_type": "diffusion",
       "platform_ref": "huggingface:Abiray/Fibo-2.0-edit-turbo-GGUF",
@@ -47,7 +47,7 @@
       "vram_gb": 10.5
     }
   },
-  "description": "Ce modèle est une quantisation GGUF du modèle de base Comfy-Org/Fibo-2.0, conçue spécifiquement pour être utilisée directement dans ComfyUI via le plugin ComfyUI-GGUF. Il permet l'édition d'images et propose plusieurs niveaux de compression (Q3_K_M à Q8_0) avec des tailles allant jusqu'à 4 Go. Les sources indiquent une licence non spécifiée ('other') et ne mentionnent pas explicitement les langues supportées ou les limites d'utilisation.",
+  "description": "This entry provides GGUF quantizations of the Fibo-2.0-edit-turbo model, designed specifically for direct inference in ComfyUI via the ComfyUI-GGUF extension. The available files range from 4.0 GB to over 8 GB and support an 8K context window with parameters totaling 8.23B. While optimized for low-VRAM setups, the largest quantization requires approximately 6.4 GB of memory to run effectively.",
   "key": "huggingface:Abiray/Fibo-2.0-edit-turbo-GGUF",
   "manifest_kind": "model",
   "name": "Fibo-2.0-edit-turbo-GGUF",

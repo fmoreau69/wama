@@ -57,11 +57,11 @@
         "openweight-medium"
       ],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506"
+          "https://huggingface.co/mistralai/mistral-small-3.2-24b-instruct-2506"
         ]
       },
       "hosting": "sovereign",
@@ -73,7 +73,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Mistral-Small-3.2-24B-Instruct-2506 est une mise à jour mineure de Mistral-Small-3.1 avec des améliorations en instruction following, réduction des répétitions…",
+      "description_short": "Mistral-Small-3.2 is a 24B parameter instruction-tuned model optimized for precise instruction following, reduced repetition errors, and robust function callin…",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Mistral-Small-3.2-24B-Instruct-2506",
@@ -95,7 +95,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Il s'agit d'un modèle instructeur de 24 milliards de paramètres issu de la famille Mistral-Small, conçu pour suivre les instructions précises et réduire les erreurs de répétition. Ses entrées incluent du texte, des images (jusqu'à 10) et des appels de fonctions, tandis que ses sorties sont des réponses textuelles ou structurées. Bien qu'il maintienne les capacités STEM et vision de sa version précédente, il présente une légère baisse sur certains benchmarks visuels tout en améliorant significativement la précision dans le suivi d'instructions et la génération infinie.",
+  "description": "This model is a minor update of Mistral-Small-3.1, featuring improved performance in instruction following, reduced infinite generations, and more robust function calling capabilities. It supports multimodal inputs (up to 10 images per prompt) and can be deployed via vLLM or transformers, requiring approximately 55 GB of GPU RAM for inference. Users are advised to use a low temperature (e.g., 0.15) and provide a system prompt to tailor the model's behavior.",
   "key": "albert:mistral-small-3-2-24b-instruct-2506",
   "manifest_kind": "model",
   "name": "mistral-small-3-2-24b-instruct-2506",

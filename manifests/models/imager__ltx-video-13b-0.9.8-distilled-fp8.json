@@ -65,7 +65,7 @@
     },
     "identity": {
       "author": "Lightricks",
-      "description_short": "LTX-Video 13B Distilled FP8 — léger, T2V + I2V",
+      "description_short": "LTX-Video 13B Distilled FP8 — light, T2V + I2V",
       "gated": "no",
       "license": "ltxv-open-weights",
       "model_type": "diffusion",
@@ -88,10 +88,10 @@
       "vram_gb": 8.0
     }
   },
-  "description": "LTX-Video 13B Distilled en quantification FP8 : mêmes usages que la version distillée (T2V + I2V) avec une empreinte mémoire réduite, au prix d'une légère perte de qualité. Pour GPU plus modestes.",
+  "description": "LTX-Video 13B Distilled quantised to FP8: the same uses as the distilled version (T2V + I2V) with a smaller memory footprint, at the cost of a slight loss of quality. For more modest GPUs.",
   "key": "imager:ltx-video-13b-0.9.8-distilled-fp8",
   "manifest_kind": "model",
-  "name": "LTX-Video 13B Distilled FP8 — léger, T2V + I2V",
+  "name": "LTX-Video 13B Distilled FP8 — light, T2V + I2V",
   "projects": [],
   "requires": [
     {

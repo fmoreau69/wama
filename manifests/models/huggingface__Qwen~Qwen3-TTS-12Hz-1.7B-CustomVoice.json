@@ -38,11 +38,11 @@
     "extra_info": {
       "category": "speech",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+          "https://huggingface.co/qwen/qwen3-tts-12hz-1.7b-customvoice"
         ]
       },
       "family": "Qwen3-TTS-12Hz-1.7B-CustomVoice",
@@ -60,7 +60,7 @@
     },
     "identity": {
       "author": "Qwen",
-      "description_short": "Modèle de synthèse vocale Qwen3-TTS-12Hz-1.7B-CustomVoice supportant 10 langues et le contrôle par instructions naturelles.",
+      "description_short": "Qwen3-TTS-12Hz-1.7B-CustomVoice is an end-to-end text-to-speech model supporting 10 languages with low-latency streaming and instruction-based voice control.",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "speech",
@@ -86,7 +86,7 @@
       "vram_gb": 5.4
     }
   },
-  "description": "Ce modèle effectue la synthèse vocale end-to-end avec une génération en streaming ultra-rapide (latence <97ms) et un contrôle vocal via des instructions textuelles. Il prend en entrée du texte, une langue cible et des paramètres de voix, pour produire une sortie audio haute fidélité. Ses points forts incluent sa robustesse au bruit, sa capacité à préserver les informations paralinguistiques et son architecture légère non-DiT ; il ne mentionne pas explicitement de licence ou de limite de taille spécifique dans la source.",
+  "description": "This model generates high-fidelity speech from text across 10 major languages (Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian) using a discrete multi-codebook large language model architecture. It supports real-time streaming generation with latency as low as 97ms and allows users to control timbre, emotion, and prosody via natural language instructions for 9 premium voice profiles. The source states the model is available under standard license terms (implied by PyPI availability) and requires hardware compatible with FlashAttention 2 for optimal performance.",
   "key": "huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
   "manifest_kind": "model",
   "name": "Qwen3-TTS-12Hz-1.7B-CustomVoice",

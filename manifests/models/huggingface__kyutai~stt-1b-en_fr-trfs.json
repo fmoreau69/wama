@@ -30,7 +30,7 @@
     "extra_info": {
       "category": "speech",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
@@ -52,7 +52,7 @@
     },
     "identity": {
       "author": "Kyutai",
-      "description_short": "Modèle de reconnaissance vocale streaming en français et anglais avec faible latence.",
+      "description_short": "Streaming speech-to-text model for English and French with low latency.",
       "license": "cc-by-4.0",
       "model_type": "speech",
       "platform_ref": "huggingface:kyutai/stt-1b-en_fr-trfs",
@@ -77,7 +77,7 @@
       "vram_gb": 3.2
     }
   },
-  "description": "Kyutai STT est un modèle Transformer decoder-only conçu pour la transcription vocale en temps réel, capable de générer du texte dès quelques secondes d'audio. Il supporte le français et l'anglais (selon le modèle) avec une licence CC-BY 4.0, mais ne gère que les entrées audio à 24 kHz.",
+  "description": "Kyutai STT is a decoder-only Transformer designed for streaming automatic speech recognition (ASR), outputting transcripts as audio becomes available rather than waiting for the full recording. The platform offers two versions: a ~1B parameter model supporting English and French with a 0.5s delay, and a ~2.6B parameter English-only model with a 2.5s delay. Both models leverage Mimi tokenization and operate at 12.5 Hz frame rates, producing transcripts with capitalization and punctuation under a CC-BY 4.0 license.",
   "key": "huggingface:kyutai/stt-1b-en_fr-trfs",
   "manifest_kind": "model",
   "name": "stt-1b-en_fr-trfs",

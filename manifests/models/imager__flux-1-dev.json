@@ -58,7 +58,7 @@
     },
     "identity": {
       "author": "Black Forest Labs",
-      "description_short": "FLUX.1-dev — adhérence au prompt de référence",
+      "description_short": "FLUX.1-dev — the reference for prompt adherence",
       "gated": "auto",
       "license": "flux-1-dev-non-commercial",
       "model_type": "diffusion",
@@ -81,10 +81,10 @@
       "vram_gb": 24.0
     }
   },
-  "description": "FLUX.1-dev (Black Forest Labs, 12B) : référence open-weights pour l'adhérence au prompt et l'esthétique générale. Déjà présent localement — il servait uniquement de modèle de base au LoRA logo. Rectified flow : guidance 3.5 et ~28 étapes. Licence non commerciale (recherche/usage interne).",
+  "description": "FLUX.1-dev (Black Forest Labs, 12B): the open-weights reference for prompt adherence and overall aesthetics. Already present locally — it served only as the base model of the logo LoRA. Rectified flow: guidance 3.5 and ~28 steps. Non-commercial licence (research / internal use).",
   "key": "imager:flux-1-dev",
   "manifest_kind": "model",
-  "name": "FLUX.1-dev — adhérence au prompt de référence",
+  "name": "FLUX.1-dev — the reference for prompt adherence",
   "projects": [],
   "requires": [
     {

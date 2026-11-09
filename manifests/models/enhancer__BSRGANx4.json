@@ -38,7 +38,7 @@
     },
     "identity": {
       "author": "Kai Zhang (cszn), ETH Zurich",
-      "description_short": "BSRGAN ×4 — robuste aux dégradations réelles.",
+      "description_short": "BSRGAN ×4 — robust to real-world degradations.",
       "license": "apache-2.0",
       "model_type": "upscaling",
       "platform_ref": "github:cszn/BSRGAN",
@@ -60,7 +60,7 @@
       "vram_gb": 0.1
     }
   },
-  "description": "BSRGAN ×4 (fp16, ONNX) : super-résolution entraînée sur des dégradations réalistes (flou, bruit, compression JPEG). Robuste sur images de qualité médiocre là où d'autres modèles amplifient les artefacts.",
+  "description": "BSRGAN ×4 (fp16, ONNX): super-resolution trained on realistic degradations (blur, noise, JPEG compression). Robust on poor-quality images where other models amplify the artefacts.",
   "key": "enhancer:BSRGANx4",
   "manifest_kind": "model",
   "name": "BSRGANx4",

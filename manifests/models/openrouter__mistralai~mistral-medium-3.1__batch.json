@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/mistralai/mistral-medium-3.1:batch",
+          "https://specifiction.org/models/mistralai-mistral-medium-3-1-batch/",
+          "https://api-cost.com/models/mistralai/mistral-medium-3.1%3Abatch"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Mistral Medium 3.1 (batch) is an enterprise-grade multimodal language model with a 131K context window and no native reasoning capabilities.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "This updated version of Mistral Medium 3 is designed for high-performance tasks such as coding, STEM reasoning, and multimodal work at reduced operational cost. It accepts text, images, and files as input but does not support native reasoning or open weights. Released on August 13, 2025, the model has been retired by Mistral.",
   "key": "openrouter:mistralai/mistral-medium-3.1:batch",
   "manifest_kind": "model",
   "name": "Mistral: Mistral Medium 3.1 (batch)",

@@ -24,6 +24,16 @@
       "aliases": [
         "arcee-ai/Trinity-Large-Thinking"
       ],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://huggingface.co/arcee-ai/Trinity-Large-Thinking",
+          "https://openrouter.ai/arcee-ai/trinity-large-thinking",
+          "https://www.arcee.ai/open-source-catalog"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "text-generation"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Trinity-Large-Thinking is a 398B-parameter sparse MoE model optimized for advanced reasoning and agentic workloads.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:arcee-ai/Trinity-Large-Thinking",
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "This model is a reasoning-optimized variant of Arcee AI's Trinity-Large family, featuring approximately 13B active parameters per token. Built on the Trinity-Large-Base architecture and post-trained with extended chain-of-thought reasoning and agentic reinforcement learning, it demonstrates state-of-the-art performance in PinchBench and reasoning tasks. As an open-source model, it is designed for developers seeking powerful inference capabilities for complex logical problems.",
   "key": "openrouter:arcee-ai/trinity-large-thinking",
   "manifest_kind": "model",
   "name": "Arcee AI: Trinity Large Thinking",

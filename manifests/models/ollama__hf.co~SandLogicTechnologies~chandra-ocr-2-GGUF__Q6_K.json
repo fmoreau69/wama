@@ -38,11 +38,13 @@
     },
     "extra_info": {
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
-        "origin": "fiche",
+        "origin": "web",
         "ref": [
-          "https://huggingface.co/SandLogicTechnologies/chandra-ocr-2-GGUF"
+          "https://huggingface.co/SandLogicTechnologies/chandra-ocr-2-GGUF",
+          "https://huggingface.co/prithivMLmods/chandra-ocr-2-GGUF/blob/main/chandra-ocr-2.Q6_K.gguf",
+          "https://ggufmodels.com/model/chandra-ocr-2-by-sandlogictechnologies"
         ]
       },
       "quantization": "Q6_K",
@@ -62,7 +64,7 @@
       "author": null,
       "base_model": "datalab-to/chandra-ocr-2",
       "base_model_relation": "quantized",
-      "description_short": "Modèle OCR multimodal de 4 milliards de paramètres pour l'extraction et la compréhension de documents visuels, optimisé en GGUF pour le déploiement local.",
+      "description_short": "Chandra-OCR-2 is a multimodal vision-language model for document understanding, text extraction, and layout analysis optimized for local inference.",
       "license": null,
       "model_type": "ocr",
       "platform_ref": "huggingface:SandLogicTechnologies/chandra-ocr-2-GGUF",
@@ -84,7 +86,7 @@
       "vram_gb": 4.8
     }
   },
-  "description": "Chandra-OCR-2 est un modèle vision-langage optimisé pour la reconnaissance optique de caractères (OCR), l'analyse de mise en page et l'extraction d'informations structurées depuis des documents scannés ou images. Il prend en entrée des documents visuels multilingues et produit du texte structuré, avec une précision accrue sur les formats haute fidélité comme Q6_K. Bien qu'il soit entraîné par DataLab sous licence Apache 2.0, il nécessite des ressources mémoire plus élevées que les versions quantifiées agressives (IQ3/IQ4) pour maintenir la qualité d'extraction.",
+  "description": "Chandra-OCR-2 is a state-of-the-art OCR model designed to extract text, analyze layouts, and retrieve structured information from visual documents across over 90 languages. It outputs structured data in formats such as markdown, HTML, or JSON while preserving precise layout details. The model supports an 8K context window and achieves strong benchmarks in math equation parsing and complex table reconstruction.",
   "key": "ollama:hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K",
   "manifest_kind": "model",
   "name": "hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K",

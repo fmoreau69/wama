@@ -117,7 +117,7 @@
     },
     "identity": {
       "author": "Coqui",
-      "description_short": "Coqui XTTS v2 — TTS multilingue avec clonage de voix.",
+      "description_short": "Coqui XTTS v2 — multilingual TTS with voice cloning.",
       "gated": "no",
       "license": "cpml-1.0",
       "model_type": "speech",
@@ -140,7 +140,7 @@
       "vram_gb": 2.0
     }
   },
-  "description": "Coqui XTTS v2 : synthèse vocale multilingue (17 langues) avec clonage de voix à partir d'un simple échantillon de référence de quelques secondes. Bon compromis qualité/rapidité, référence polyvalente pour la plupart des usages.",
+  "description": "Coqui XTTS v2: multilingual speech synthesis (17 languages) with voice cloning from a single reference sample of a few seconds. A good quality/speed compromise, the versatile reference for most uses.",
   "key": "synthesizer:coqui-xtts",
   "manifest_kind": "model",
   "name": "Coqui XTTS v2",

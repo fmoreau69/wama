@@ -29,7 +29,7 @@
         "openai/gpt-oss-120b"
       ],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle IA open-weight gpt-oss-120b (117B paramètres) avec Apache 2.0, conçu pour le raisonnement et les tâches agentic sur GPU unique.",
+      "description_short": "OpenAI's gpt-oss-120b is an open-weight model with Apache 2.0 licensing, designed for high-reasoning tasks on a single 80GB GPU.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:openai/gpt-oss-120b",
@@ -70,7 +70,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Le modèle gpt-oss-120b est un modèle de langage open-weight à 117 milliards de paramètres entraîné dans le format Harmony pour des tâches de raisonnement avancé et d'exécution agentique. Il nécessite impérativement l'utilisation du format Harmony pour fonctionner correctement, bien qu'il soit quantifié en MXFP4 pour s'exécuter sur une seule carte GPU (ex: NVIDIA H100). Ses points forts incluent une licence permissive Apache 2.0 sans restrictions de copyleft, la possibilité d'ajuster le niveau de raisonnement (basique à profond) et sa capacité à être fine-tuné pour des cas d'usage spécifiques.",
+  "description": "The gpt-oss-120b model features 117B parameters (5.1B active) and runs on a single 80GB GPU using MXFP4 quantization. It supports configurable reasoning levels, full chain-of-thought access, and fine-tuning, but requires the Harmony response format for correct operation. The model is released under a permissive Apache 2.0 license.",
   "key": "albert:gpt-oss-120b",
   "manifest_kind": "model",
   "name": "gpt-oss-120b",

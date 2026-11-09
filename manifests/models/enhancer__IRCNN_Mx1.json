@@ -36,7 +36,7 @@
     },
     "identity": {
       "author": "Kai Zhang (cszn), ETH Zurich",
-      "description_short": "IRCNN M ×1 — débruitage sans agrandissement (variante M).",
+      "description_short": "IRCNN M ×1 — denoising without enlargement (variant M).",
       "license": "mit",
       "model_type": "upscaling",
       "platform_ref": "github:cszn/KAIR",
@@ -58,7 +58,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "IRCNN variante M (fp16, ONNX) : débruitage pur (×1), intensité de filtrage différente de la variante L — essayer les deux selon le niveau de bruit de la source.",
+  "description": "IRCNN variant M (fp16, ONNX): pure denoising (×1), a filtering strength different from variant L — try both depending on the source's noise level.",
   "key": "enhancer:IRCNN_Mx1",
   "manifest_kind": "model",
   "name": "IRCNN_Mx1",

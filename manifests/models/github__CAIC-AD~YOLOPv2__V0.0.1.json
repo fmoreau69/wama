@@ -37,7 +37,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Zone roulable + voies (caméra embarquée)",
+      "description_short": "Drivable area + lanes (dashcam)",
       "license": null,
       "model_type": "vision",
       "platform_ref": null,
@@ -59,7 +59,7 @@
       "vram_gb": 1.0
     }
   },
-  "description": "YOLOPv2 (CAIC-AD, MIT) : perception de conduite en une passe — zone roulable et lignes de voie (et détection) d'une caméra embarquée. TorchScript multi-tête : PAS un modèle Ultralytics.",
+  "description": "YOLOPv2 (CAIC-AD, MIT): one-pass driving perception — drivable area and lane lines (and detection) from a dashcam. Multi-head TorchScript: NOT an Ultralytics model.",
   "key": "github:CAIC-AD/YOLOPv2:V0.0.1",
   "manifest_kind": "model",
   "name": "YOLOPv2",

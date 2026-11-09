@@ -26,7 +26,7 @@
       "author": "openai (poids) / Systran (conversion CTranslate2)",
       "base_model": "openai/whisper-tiny",
       "base_model_relation": "quantized",
-      "description_short": "Langue parlée (sonde du transcriber)",
+      "description_short": "Spoken language (the transcriber's probe)",
       "gated": "no",
       "license": "apache-2.0 AND mit",
       "model_type": "speech",
@@ -52,7 +52,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Whisper tiny (OpenAI, converti en CTranslate2 par Systran) : dit quelle langue est parlée, fenêtre par fenêtre. Le transcriber l'écoute avant un moteur qui transcrit par passages (Canary, Parakeet, Qwen3-ASR) — une seule langue imposée, ou chaque passage dans la sienne. Processeur, aucune VRAM.",
+  "description": "Whisper tiny (OpenAI, converted to CTranslate2 by Systran): tells which language is spoken, window by window. The transcriber listens to it before an engine that transcribes by passages (Canary, Parakeet, Qwen3-ASR) — one imposed language, or each passage in its own. Processor, no VRAM.",
   "key": "huggingface:Systran/faster-whisper-tiny",
   "manifest_kind": "model",
   "name": "Whisper tiny (langue parlée)",

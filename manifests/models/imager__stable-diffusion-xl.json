@@ -65,7 +65,7 @@
     },
     "identity": {
       "author": "stabilityai",
-      "description_short": "Stable Diffusion XL — haute résolution (compatibilité LoRA)",
+      "description_short": "Stable Diffusion XL — high resolution (LoRA compatibility)",
       "gated": "no",
       "license": "openrail++",
       "model_type": "diffusion",
@@ -94,10 +94,10 @@
       "vram_gb": 10.0
     }
   },
-  "description": "Stable Diffusion XL (Stability AI) : génération native en 1024 px, compositions et anatomies bien plus fiables que SD 1.5, large choix de LoRA. La valeur sûre polyvalente de la famille Stable Diffusion.",
+  "description": "Stable Diffusion XL (Stability AI): native 1024 px generation, far more reliable compositions and anatomy than SD 1.5, a wide choice of LoRAs. The safe, versatile pick of the Stable Diffusion family.",
   "key": "imager:stable-diffusion-xl",
   "manifest_kind": "model",
-  "name": "Stable Diffusion XL — haute résolution (compatibilité LoRA)",
+  "name": "Stable Diffusion XL — high resolution (LoRA compatibility)",
   "projects": [],
   "requires": [
     {

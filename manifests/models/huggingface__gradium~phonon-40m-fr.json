@@ -177,7 +177,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Synthèse vocale française sur processeur, quatre voix",
+      "description_short": "French speech synthesis on the processor, four voices",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:gradium/phonon-40m-fr",
@@ -199,7 +199,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Phonon (Gradium, sur Pocket TTS de Kyutai) : synthèse vocale française 24 kHz, 40 M de paramètres, sur le PROCESSEUR — aucune VRAM. Quatre voix (Noémie, Tiphaine, Augustin, Lucien). Poids CC BY-NC 4.0 (usage non commercial).",
+  "description": "Phonon (Gradium, on Kyutai's Pocket TTS): French speech synthesis at 24 kHz, 40 M parameters, on the PROCESSOR — no VRAM. Four voices (Noémie, Tiphaine, Augustin, Lucien). CC BY-NC 4.0 weights (non-commercial use).",
   "key": "huggingface:gradium/phonon-40m-fr",
   "manifest_kind": "model",
   "name": "Phonon 40m (français)",

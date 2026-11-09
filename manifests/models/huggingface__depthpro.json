@@ -24,7 +24,7 @@
     },
     "identity": {
       "author": "apple",
-      "description_short": "Profondeur monoculaire métrique + focale estimée, natif transformers (Apache-2.0)",
+      "description_short": "Metric monocular depth + estimated focal length, native to transformers (Apache-2.0)",
       "gated": "no",
       "license": "apple-amlr",
       "model_type": "vision",
@@ -50,7 +50,7 @@
       "vram_gb": 8.0
     }
   },
-  "description": "Profondeur monoculaire métrique + focale estimée, natif transformers (Apache-2.0). Candidat cam_analyzer (re-calage du plan de sol, §[E]).",
+  "description": "Metric monocular depth + estimated focal length, native to transformers (Apache-2.0). cam_analyzer candidate (ground-plane recalibration, §[E]).",
   "key": "huggingface:depthpro",
   "manifest_kind": "model",
   "name": "Apple Depth Pro",

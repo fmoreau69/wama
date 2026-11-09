@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/meta/muse-spark-1.2-contributor",
+          "https://models.litellm.ai/models/muse-spark-1.2-contributor",
+          "https://vercel.com/ai-gateway/models/muse-spark-1.2-contributor"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Meta's reasoning model optimized for low-cost development via data-sharing training arrangements.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Muse Spark 1.2 Contributor is a reasoning model from Meta designed for developers who want to start building at a lower cost by using data-sharing arrangements where inputs and outputs are used to train future models. It supports tool calling, structured outputs, and features a context window of 1,048,576 tokens with the ability to return up to 131,072 tokens per response. The model is available via API providers such as OpenRouter and LLMTR at significantly reduced pricing compared to the standard tier.",
   "key": "openrouter:meta/muse-spark-1.2-contributor",
   "manifest_kind": "model",
   "name": "Meta: Muse Spark 1.2 Contributor",

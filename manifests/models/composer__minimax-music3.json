@@ -64,7 +64,7 @@
       "author": "MiniMaxAI (poids) / audio-cpp (package GGUF)",
       "base_model": "MiniMaxAI/MiniMax-Music3",
       "base_model_relation": "quantized",
-      "description_short": "MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)",
+      "description_short": "MiniMax-Music3 — full songs with sung lyrics (Q8)",
       "gated": "no",
       "license": "minimax-music3-community",
       "model_type": "music",
@@ -87,10 +87,10 @@
       "vram_gb": 13.0
     }
   },
-  "description": "MiniMax-Music3 (MiniMax, package GGUF Q8 via audio.cpp) : génération de CHANSONS complètes — voix chantées, paroles avec tags [verse]/[chorus], structure longue (jusqu'à 5 min). Complémentaire de MusicGen (instrumental court). Le prompt attendu est riche : description globale + voix + arrangement, et les paroles dans des sections taguées ; sans tag de paroles, la génération part en instrumental.",
+  "description": "MiniMax-Music3 (MiniMax, GGUF Q8 package through audio.cpp): generation of full SONGS — sung vocals, lyrics with [verse]/[chorus] tags, long structure (up to 5 min). Complements MusicGen (short instrumentals). The prompt it expects is rich: overall description + voice + arrangement, and the lyrics in tagged sections; without a lyrics tag, the generation turns instrumental.",
   "key": "composer:minimax-music3",
   "manifest_kind": "model",
-  "name": "MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)",
+  "name": "MiniMax-Music3 — full songs with sung lyrics (Q8)",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",

@@ -104,7 +104,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Données personnelles à types ouverts, 7 langues",
+      "description_short": "Personal data with open types, 7 languages",
       "license": null,
       "model_type": "nlp",
       "platform_ref": "huggingface:fastino/gliner2-privacy-filter-PII-multi",
@@ -126,7 +126,7 @@
       "vram_gb": 1.5
     }
   },
-  "description": "Détecteur de données personnelles à vocabulaire OUVERT (Fastino, GLiNER2 205 M) : 42 types qu'on lui nomme, 7 langues (en, fr, es, de, it, pt, nl). Rappel élevé, précision faible selon l'éditeur (il sur-détecte les noms) : il complète les autres détecteurs de l'union. Entraîné sur des textes synthétiques.",
+  "description": "OPEN-vocabulary personal-data detector (Fastino, GLiNER2 205 M): 42 types named to it, 7 languages (en, fr, es, de, it, pt, nl). High recall, low precision according to the publisher (it over-detects names): it complements the other detectors of the union. Trained on synthetic texts.",
   "key": "huggingface:fastino/gliner2-privacy-filter-PII-multi",
   "manifest_kind": "model",
   "name": "GLiNER2-PII (multilingue)",

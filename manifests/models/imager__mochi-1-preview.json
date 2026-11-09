@@ -51,7 +51,7 @@
     },
     "identity": {
       "author": "genmo",
-      "description_short": "Mochi-1 Preview — haute qualité",
+      "description_short": "Mochi-1 Preview — high quality",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "diffusion",
@@ -74,10 +74,10 @@
       "vram_gb": 22.0
     }
   },
-  "description": "Mochi-1 Preview (Genmo) : génération vidéo haute fidélité à 30 images/s, mouvements naturels et bonne adhérence au prompt. Le plus gourmand des modèles vidéo — à réserver aux rendus soignés.",
+  "description": "Mochi-1 Preview (Genmo): high-fidelity video generation at 30 fps, natural motion and good prompt adherence. The most demanding of the video models — keep it for polished renders.",
   "key": "imager:mochi-1-preview",
   "manifest_kind": "model",
-  "name": "Mochi-1 Preview — haute qualité",
+  "name": "Mochi-1 Preview — high quality",
   "projects": [],
   "requires": [
     {

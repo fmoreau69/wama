@@ -52,7 +52,7 @@
     },
     "identity": {
       "author": "black-forest-labs",
-      "description_short": "FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0",
+      "description_short": "FLUX.2 Klein 4B — ultra-fast (<1 s), Apache 2.0",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "diffusion",
@@ -75,10 +75,10 @@
       "vram_gb": 13.0
     }
   },
-  "description": "FLUX.2 Klein 4B (Black Forest Labs) : version distillée ultra-rapide de FLUX.2 — image en moins d'une seconde, licence Apache 2.0. Parfait pour itérer sur des idées avant un rendu final sur un modèle lourd.",
+  "description": "FLUX.2 Klein 4B (Black Forest Labs): an ultra-fast distilled version of FLUX.2 — an image in under a second, Apache 2.0 licence. Perfect to iterate on ideas before a final render on a heavy model.",
   "key": "imager:flux2-klein-4b",
   "manifest_kind": "model",
-  "name": "FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0",
+  "name": "FLUX.2 Klein 4B — ultra-fast (<1 s), Apache 2.0",
   "projects": [],
   "requires": [
     {

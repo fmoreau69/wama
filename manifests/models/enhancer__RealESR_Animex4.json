@@ -37,7 +37,7 @@
     },
     "identity": {
       "author": "Xintao Wang (Tencent ARC Lab)",
-      "description_short": "Real-ESRGAN Anime ×4 — dessins et illustrations.",
+      "description_short": "Real-ESRGAN Anime ×4 — drawings and illustrations.",
       "license": "bsd-3-clause",
       "model_type": "upscaling",
       "platform_ref": "github:xinntao/Real-ESRGAN",
@@ -59,7 +59,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Real-ESRGAN Anime ×4 (fp16, ONNX) : variante spécialisée dessins, anime et illustrations — préserve les aplats et les contours nets sans inventer de texture photographique.",
+  "description": "Real-ESRGAN Anime ×4 (fp16, ONNX): a variant specialised for drawings, anime and illustrations — keeps flat areas and sharp outlines without inventing a photographic texture.",
   "key": "enhancer:RealESR_Animex4",
   "manifest_kind": "model",
   "name": "RealESR_Animex4",

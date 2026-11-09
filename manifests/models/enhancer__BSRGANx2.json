@@ -38,7 +38,7 @@
     },
     "identity": {
       "author": "Kai Zhang (cszn), ETH Zurich",
-      "description_short": "BSRGAN ×2 — agrandissement modéré, robuste.",
+      "description_short": "BSRGAN ×2 — moderate enlargement, robust.",
       "license": "apache-2.0",
       "model_type": "upscaling",
       "platform_ref": "github:cszn/BSRGAN",
@@ -60,7 +60,7 @@
       "vram_gb": 0.1
     }
   },
-  "description": "BSRGAN ×2 (fp16, ONNX) : même robustesse aux dégradations réelles que la version ×4, avec un agrandissement modéré ×2 — utile quand la source est déjà d'une taille correcte.",
+  "description": "BSRGAN ×2 (fp16, ONNX): the same robustness to real-world degradations as the ×4 version, with a moderate ×2 enlargement — useful when the source already has a decent size.",
   "key": "enhancer:BSRGANx2",
   "manifest_kind": "model",
   "name": "BSRGANx2",

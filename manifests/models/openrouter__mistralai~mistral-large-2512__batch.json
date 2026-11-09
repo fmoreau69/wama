@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/mistralai/mistral-large-2512:batch",
+          "https://lmmarketcap.com/model/mistral-mistral-large-3-2512-batch",
+          "https://specifiction.org/models/mistralai-mistral-large-2512-batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Mistral's most capable model with a sparse MoE architecture, 41B active parameters, and Apache 2.0 licensing.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Mistral Large 3 2512 (batch) is Mistral's most capable model to date, featuring a sparse mixture-of-experts architecture with 41 billion active parameters out of 675 billion total. It accepts text input up to a context window of 262K tokens and generates output up to 210K tokens per reply under the Apache 2.0 license.",
   "key": "openrouter:mistralai/mistral-large-2512:batch",
   "manifest_kind": "model",
   "name": "Mistral: Mistral Large 3 2512 (batch)",

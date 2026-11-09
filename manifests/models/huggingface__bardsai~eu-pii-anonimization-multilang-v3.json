@@ -126,7 +126,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Données personnelles, 24 langues de l'UE (ONNX)",
+      "description_short": "Personal data, 24 EU languages (ONNX)",
       "license": null,
       "model_type": "nlp",
       "platform_ref": "huggingface:bardsai/eu-pii-anonimization-multilang-v3",
@@ -148,7 +148,7 @@
       "vram_gb": 1.5
     }
   },
-  "description": "Détecteur de données personnelles des 24 langues de l'UE (bardsai, ModernBERT mmBERT-base, 307 M) : 37 types — personnes, contacts, adresses, identifiants, comptes, secrets, et les catégories particulières du RGPD. Servi en ONNX (FP32 sur la carte, INT8 sur le processeur) avec le décodeur par mot de l'auteur. Chiffres de l'éditeur (F1 strict 0,980 sur 455 passages réels) — une mesure WAMA fera foi.",
+  "description": "Personal-data detector for the 24 EU languages (bardsai, ModernBERT mmBERT-base, 307 M): 37 types — people, contacts, addresses, identifiers, accounts, secrets, and the GDPR's special categories. Served in ONNX (FP32 on the card, INT8 on the processor) with the author's per-word decoder. Publisher's figures (strict F1 0.980 on 455 real passages) — a WAMA measure will settle it.",
   "key": "huggingface:bardsai/eu-pii-anonimization-multilang-v3",
   "manifest_kind": "model",
   "name": "bardsai EU PII v3",

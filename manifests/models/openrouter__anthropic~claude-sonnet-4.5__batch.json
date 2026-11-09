@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/anthropic/claude-sonnet-4.5:batch",
+          "https://modelsatlas.com/models/anthropic/claude-sonnet-4.5%3Abatch",
+          "https://bertrande.com/en/ai/openrouter/anthropic--claude-sonnet-4.5:batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Claude Sonnet 4.5 (batch) is Anthropic's advanced model optimized for agents and coding, featuring multimodal capabilities.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Released on September 29, 2025, this multimodal large language model delivers state-of-the-art performance on coding benchmarks like SWE-bench Verified. It supports a context window of 1 million tokens and operates in English (implied by source context). The model is available via API with pricing starting at $1.50 per million input tokens and $7.50 per million output tokens.",
   "key": "openrouter:anthropic/claude-sonnet-4.5:batch",
   "manifest_kind": "model",
   "name": "Anthropic: Claude Sonnet 4.5 (batch)",

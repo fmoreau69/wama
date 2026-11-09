@@ -47,7 +47,7 @@
     },
     "identity": {
       "author": "Mindee",
-      "description_short": "docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires",
+      "description_short": "docTR (Mindee) — CPU pipeline, printed text, handles forms well",
       "license": "apache-2.0",
       "model_type": "ocr",
       "platform_ref": "github:mindee/doctr",
@@ -69,10 +69,10 @@
       "vram_gb": 0.0
     }
   },
-  "description": "docTR (Mindee) : pipeline OCR classique en deux étapes (détection + reconnaissance), fonctionne sur CPU. Rapide et sobre pour documents imprimés simples et formulaires ; moins adapté au manuscrit et aux mises en page complexes.",
+  "description": "docTR (Mindee): a classic two-stage OCR pipeline (detection + recognition), runs on CPU. Fast and frugal for simple printed documents and forms; less suited to handwriting and complex layouts.",
   "key": "reader:doctr",
   "manifest_kind": "model",
-  "name": "docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires",
+  "name": "docTR (Mindee) — CPU pipeline, printed text, handles forms well",
   "projects": [],
   "requires": [
     {

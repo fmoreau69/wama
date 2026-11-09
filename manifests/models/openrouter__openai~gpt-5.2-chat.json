@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/gpt-5.2-chat",
+          "https://modeldatabase.com/models/openai/gpt-5.2-chat.html",
+          "https://langmart.ai/model-docs/models/openai_gpt-5.2-chat.html"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "GPT-5.2 Chat (Instant) is a fast, lightweight multimodal LLM optimized for low-latency chat with adaptive reasoning.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "This model is the fast, lightweight member of the GPT-5.2 family, designed for low-latency conversational use while retaining strong general intelligence. It utilizes adaptive reasoning to selectively think on complex tasks and supports tool calling and structured outputs. The source states it has a context window of 128K tokens and operates as a multimodal LLM released in December 2025.",
   "key": "openrouter:openai/gpt-5.2-chat",
   "manifest_kind": "model",
   "name": "OpenAI: GPT-5.2 Chat",

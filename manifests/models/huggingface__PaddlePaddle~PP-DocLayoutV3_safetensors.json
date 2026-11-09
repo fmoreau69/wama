@@ -21,11 +21,11 @@
     "extra_info": {
       "category": "vision",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/PaddlePaddle/PP-DocLayoutV3_safetensors"
+          "https://huggingface.co/paddlepaddle/pp-doclayoutv3_safetensors"
         ]
       },
       "family": "PP-DocLayoutV3_safetensors",
@@ -37,7 +37,7 @@
     },
     "identity": {
       "author": "PaddlePaddle",
-      "description_short": "Module de détection et classification de mise en page pour documents, intégré à PaddleOCR-VL, GLM-OCR et Xiaomi-OCR.",
+      "description_short": "Unified layout module for PaddleOCR-VL, GLM-OCR, and Xiaomi-OCR supporting document structure analysis.",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "vision",
@@ -63,7 +63,7 @@
       "vram_gb": 0.2
     }
   },
-  "description": "Ce modèle analyse les mises en page de documents pour extraire des informations structurées. Il prend en entrée une image ou un fichier document et retourne une structure JSON décrivant la disposition (titres, paragraphes, tableaux). Il est compatible avec les modèles PaddleOCR-VL 1.5/1.6, GLM-OCR et Xiaomi-OCR-0.",
+  "description": "This model serves as a unified layout module designed to work with PaddleOCR-VL 1.5/1.6, GLM-OCR, and Xiaomi-OCR-0. It processes input documents to analyze their structural layout. The source states it is available on Hugging Face and ModelScope but does not specify technical details regarding language support, model size, or licensing terms.",
   "key": "huggingface:PaddlePaddle/PP-DocLayoutV3_safetensors",
   "manifest_kind": "model",
   "name": "PP-DocLayoutV3_safetensors",

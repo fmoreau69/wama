@@ -19,6 +19,14 @@
       "aliases": [
         "Sao10K/L3.3-70B-Euryale-v2.3"
       ],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/sao10k/l3.3-70b-euryale-v2.3"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "text-generation"
     },
@@ -28,7 +36,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Llama 3.3 70B Euryale v2.3 is a directly trained successor to Llama 3.3 Instruct, offering improved performance over previous versions.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Sao10K/L3.3-70B-Euryale-v2.3",
@@ -50,7 +58,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "This model is entirely trained on top of the Llama 3.3 Instruct base rather than using LoRA extraction. It serves as a direct replacement for Euryale v2.2 and operates with a sequence length of 16,384 tokens. The source notes it performs slightly better than Hanami-x1 but does not specify language support, licensing terms, or specific output formats.",
   "key": "openrouter:sao10k/l3.3-euryale-70b",
   "manifest_kind": "model",
   "name": "Sao10K: Llama 3.3 Euryale 70B",

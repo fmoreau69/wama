@@ -32,7 +32,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Le plus récent Claude Sonnet, par l'alias « sonnet » de Claude Code.",
+      "description_short": "The latest Claude Sonnet, through Claude Code's “sonnet” alias.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -54,7 +54,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Le plus récent Claude Sonnet, par l'alias « sonnet » de Claude Code.",
+  "description": "The latest Claude Sonnet, through Claude Code's “sonnet” alias.",
   "key": "claude_code:sonnet",
   "manifest_kind": "model",
   "name": "Claude Code — Sonnet",

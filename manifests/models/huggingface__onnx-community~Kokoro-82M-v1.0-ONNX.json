@@ -125,11 +125,11 @@
     "extra_info": {
       "category": "speech",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX"
+          "https://huggingface.co/onnx-community/kokoro-82m-v1.0-onnx"
         ]
       },
       "family": "Kokoro-82M-v1.0-ONNX",
@@ -149,7 +149,7 @@
       "author": "onnx-community",
       "base_model": "hexgrad/Kokoro-82M",
       "base_model_relation": "quantized",
-      "description_short": "Modèle TTS de 82M paramètres converti en ONNX, supportant la génération audio à partir de texte via JavaScript ou Python.",
+      "description_short": "Kokoro-82M-v1.0-ONNX is a frontier text-to-speech model with 82 million parameters, supporting multiple quantizations and various voice styles.",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "speech",
@@ -172,7 +172,7 @@
       "vram_gb": 1.7
     }
   },
-  "description": "Kokoro-82M-v1.0-ONNX est un modèle de synthèse vocale (TTS) léger de 82 millions de paramètres conçu pour fonctionner avec des quantisations variées (q8, fp16, etc.). Il prend en entrée du texte (converti en tokens phonémiques) et une représentation stylistique pour produire de l'audio WAV à 24 kHz. Le modèle est disponible via les bibliothèques kokoro-js et kokoro-python, avec des voix couvrant plusieurs nationalités (américaine, britannique) et genres.",
+  "description": "This model converts input text (converted to phonemes or token IDs) into audio output using ONNX Runtime. It supports multiple quantization formats (fp32, fp16, q8, q4, etc.) and offers a wide range of voices in American and British accents for both male and female speakers. The model accepts inputs as token sequences and style vectors, producing audio at a fixed 24 kHz sample rate.",
   "key": "huggingface:onnx-community/Kokoro-82M-v1.0-ONNX",
   "manifest_kind": "model",
   "name": "Kokoro-82M-v1.0-ONNX",

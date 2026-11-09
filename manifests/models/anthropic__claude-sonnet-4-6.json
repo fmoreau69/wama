@@ -27,13 +27,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://www.anthropic.com/claude/sonnet?m=1",
+          "https://www.anthropic.com/news/claude-sonnet-4-6",
           "https://platform.claude.com/docs/en/models/sonnet-4-6/overview",
-          "https://www.anthropic.com/news/claude-sonnet-4-6"
+          "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-6.html"
         ]
       },
       "hosting": "third_party",
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle d'IA hybride de raisonnement d'Anthropic avec une fenêtre de contexte de 1M de tokens, optimisé pour le codage et les agents.",
+      "description_short": "Claude Sonnet 4.6 is a full upgrade of the mid-tier model with improved coding, computer use, long-context reasoning, agent planning, knowledge work, and desig…",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -67,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Sonnet 4.6 est un modèle hybride de raisonnement qui excelle dans le codage, l'utilisation des ordinateurs et la planification d'agents. Il accepte jusqu'à 1 million de tokens en contexte et peut générer jusqu'à 128 000 tokens de sortie. Bien qu'il soit disponible, Anthropic recommande sa migration vers Claude Sonnet 5.5.",
+  "description": "Released on February 17, 2026, this proprietary model features a 1M token context window (beta) and supports outputs up to 128K tokens. It serves as a full upgrade across coding, computer use, reasoning, planning, knowledge work, and design, though users are advised to consider migrating to Claude Sonnet 5.5. The model is available via Anthropic's Free and Pro plans, with input pricing at $3/MTok and output pricing at $15/MTok.",
   "key": "anthropic:claude-sonnet-4-6",
   "manifest_kind": "model",
   "name": "Claude Sonnet 4.6",

@@ -27,13 +27,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://platform.claude.com/docs/en/models/sonnet-5/overview",
           "https://www.anthropic.com/news/claude-sonnet-5",
-          "https://www.anthropic.com/research/claude-sonnet-5"
+          "https://platform.claude.com/docs/en/models/sonnet-5/overview",
+          "https://aws.amazon.com/blogs/machine-learning/introducing-claude-sonnet-5-on-aws-anthropics-most-capable-sonnet-model/"
         ]
       },
       "hosting": "third_party",
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle IA agentic de niveau moyen (mid-tier) lancé le 30 juin 2026, capable de planifier et d'utiliser des outils autonomement.",
+      "description_short": "Claude Sonnet 5 is Anthropic's most capable Sonnet model, designed for coding, autonomous agency, and professional work at scale.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -67,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Sonnet 5 est un modèle agentic conçu pour planifier, utiliser des outils comme les navigateurs et terminaux, et fonctionner de manière autonome. Il dispose d'une fenêtre de contexte de 1 million de tokens et peut générer jusqu'à 128 K tokens de sortie. Avec une vitesse de génération élevée (~94 tok/s), il offre des performances proches du modèle Opus à un coût fractionnaire (2 $/MTok pour l'entrée, 10 $/MTok pour la sortie). Bien qu'il soit toujours disponible, les documents recommandent sa migration vers Claude Sonnet 5.5.",
+  "description": "Released on June 30, 2026, this model features a context window of 1M tokens and can generate up to 128K tokens. It is built to be the most agentic Sonnet model yet, capable of making plans, using tools like browsers and terminals, and running autonomously. While it brings near-Opus intelligence for coding and code reviews, Anthropic recommends migrating to Claude Sonnet 5.5 as a newer alternative.",
   "key": "anthropic:claude-sonnet-5",
   "manifest_kind": "model",
   "name": "Claude Sonnet 5",

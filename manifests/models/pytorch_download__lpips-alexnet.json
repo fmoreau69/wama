@@ -34,7 +34,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Distance perceptuelle (banc d'agrandissement)",
+      "description_short": "Perceptual distance (upscaling benchmark)",
       "license": null,
       "model_type": "vision",
       "platform_ref": null,
@@ -56,7 +56,7 @@
       "vram_gb": 0.5
     }
   },
-  "description": "LPIPS : distance perceptuelle entre deux images (plus bas = plus proche), sur la dorsale AlexNet de torchvision. Instrument de MESURE du banc d'agrandissement (`WAMA_QUALITE §4`), il ne produit rien.",
+  "description": "LPIPS: perceptual distance between two images (lower = closer), on torchvision's AlexNet backbone. A MEASURING instrument of the upscaling benchmark (`WAMA_QUALITE §4`); it produces nothing.",
   "key": "pytorch_download:lpips-alexnet",
   "manifest_kind": "model",
   "name": "LPIPS (AlexNet)",

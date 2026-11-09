@@ -19,6 +19,14 @@
       "aliases": [
         "deepseek-ai/DeepSeek-R1"
       ],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/deepseek-ai/deepseek-r1"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "text-generation"
     },
@@ -28,7 +36,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "DeepSeek-R1 is a large-scale reasoning model trained with reinforcement learning and cold-start data, achieving performance comparable to OpenAI-o1.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:deepseek-ai/DeepSeek-R1",
@@ -50,7 +58,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "DeepSeek-R1 is a first-generation reasoning model that combines supervised fine-tuning with large-scale reinforcement learning to achieve performance comparable to OpenAI-o1 across math, code, and reasoning tasks. It supports a context length of 128K tokens and is available in multiple sizes ranging from distilled versions based on Llama and Qwen to the main 671B parameter model. The project is open-sourced under an MIT license.",
   "key": "openrouter:deepseek/deepseek-r1",
   "manifest_kind": "model",
   "name": "DeepSeek: R1",

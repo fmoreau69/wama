@@ -22,6 +22,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openai.com/index/openai-o3-mini/",
+          "https://community.openai.com/t/launching-o3-mini-in-the-api/1109387",
+          "https://simonwillison.net/2025/Jan/31/o3-mini/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "text-generation"
     },
@@ -31,7 +41,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "OpenAI's cost-effective reasoning model optimized for STEM tasks.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -53,7 +63,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "OpenAI o3-mini is a reasoning model designed to outperform predecessors in science, mathematics, and programming while being faster and more cost-efficient. It features a 200,000-token context window and can generate up to 100,000 tokens per response, with pricing starting at $1.10 per 1M input tokens. The model is deprecated in the API as of January 31, 2025, though it remains available for use.",
   "key": "openrouter:openai/o3-mini",
   "manifest_kind": "model",
   "name": "OpenAI: o3 Mini",

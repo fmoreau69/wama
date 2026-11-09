@@ -44,11 +44,11 @@
         "openweight-small"
       ],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512"
+          "https://huggingface.co/mistralai/ministral-3-8b-instruct-2512"
         ]
       },
       "hosting": "sovereign",
@@ -60,7 +60,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle de langage multilingue et visionneuse optimisé pour le déploiement sur périphériques (edge) avec fenêtre de contexte 256k.",
+      "description_short": "Ministral 3 8B Instruct is a balanced, FP8 language model with vision capabilities designed for edge deployment and instruction tasks.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Ministral-3-8B-Instruct-2512",
@@ -85,7 +85,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Ministral 3 8B Instruct est un modèle post-entraîné en FP8 combinant un langageur de 8,4B paramètres et un encodeur visuel de 0,4B. Il permet l'analyse d'images, le traitement multilingue (plusieurs langues) et le fonctionnement autonome via appels de fonctions natifs. Ses points forts incluent sa capacité à s'exécuter localement sur des GPU de 12 Go VRAM ou moins grâce à la quantisation, ainsi qu'une licence Apache 2.0 ouverte.",
+  "description": "This instruct post-trained model combines an 8.4B language model with a 0.4B vision encoder to analyze images and text in dozens of languages. It features native function calling, supports a 256k context window, and runs efficiently on hardware with as little as 12GB VRAM in FP8 precision. Distributed under the Apache 2.0 license, it is optimized for local chat interfaces, agentic use cases, and resource-constrained environments.",
   "key": "albert:ministral-3-8b-instruct-2512",
   "manifest_kind": "model",
   "name": "ministral-3-8b-instruct-2512",

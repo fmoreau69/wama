@@ -25,13 +25,13 @@
     "extra_info": {
       "category": "upscaling",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://huggingface.co/Phips/4xNomosUni_span_multijpg",
           "https://github.com/Phhofm/models/releases/tag/4xNomosUni_span_multijpg",
-          "https://huggingface.co/Phips/4xNomosUni_span_multijpg/blob/main/README.md"
+          "https://chunks.md/4x-nomosuni-span-online"
         ]
       },
       "family": "4xNomosUni_span_multijpg",
@@ -44,7 +44,7 @@
     },
     "identity": {
       "author": "Phhofm",
-      "description_short": "Upscaleur d'images universel x4 entraîné sur le dataset NomosUni, optimisé pour les photos JPEG.",
+      "description_short": "A compact, fast 4x universal image upscaler trained on JPEG-compressed photos.",
       "license": "CC BY 4.0",
       "model_type": "upscaling",
       "platform_ref": "github:Phhofm/models/releases/tag/4xNomosUni_span_multijpg",
@@ -66,7 +66,7 @@
       "vram_gb": 0.1
     }
   },
-  "description": "Il s'agit d'un modèle d'upscaling x4 rapide et universel entraîné par Philip Hofmann sur le dataset NomosUni (2989 images) sans OOTF. Le modèle fonctionne en image vers image via la architecture SPAN, avec des entrées de taille 512px et une sortie x4. Il est disponible sous licence CC BY 4.0, supporte les langages Python et ONNX, et peut tourner sur CPU ou WebGPU.",
+  "description": "This model is a small photo upscaler designed to run locally on CPU or WebGPU devices. It was trained specifically against repeated JPEG compression artifacts using the NomosUni dataset and utilizes overlapping tile inference for efficiency. The source states it is suitable when larger models are too slow, with ONNX weights available under a CC BY 4.0 license.",
   "key": "github:Phhofm/models:4xNomosUni_span_multijpg",
   "manifest_kind": "model",
   "name": "4xNomosUni_span_multijpg",

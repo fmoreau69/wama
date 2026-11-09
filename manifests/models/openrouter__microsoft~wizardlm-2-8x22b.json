@@ -19,6 +19,16 @@
       "aliases": [
         "microsoft/WizardLM-2-8x22B"
       ],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://wizardlm.github.io/WizardLM2/",
+          "https://openrouter.ai/microsoft/wizardlm-2-8x22b",
+          "https://llmlearner.com/models/wizardlm-2-8x22b"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "text-generation"
     },
@@ -28,7 +38,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "WizardLM-2 8x22B is an open-source instruct-finetuned large language model based on Mixtral 8x22B.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:microsoft/WizardLM-2-8x22B",
@@ -50,7 +60,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Released by Microsoft on April 15, 2024, this state-of-the-art model demonstrates highly competitive performance compared to leading proprietary models. It serves as the flagship of the WizardLM-2 family, which also includes 7B and 70B variants, with improvements in complex chat, multilingual capabilities, reasoning, and agent tasks. While originally intended for open weights distribution, the official weights were withdrawn shortly after release due to a missing toxicity evaluation, though community copies remain available.",
   "key": "openrouter:microsoft/wizardlm-2-8x22b",
   "manifest_kind": "model",
   "name": "WizardLM-2 8x22B",

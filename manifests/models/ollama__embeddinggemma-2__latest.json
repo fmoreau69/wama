@@ -38,13 +38,13 @@
     },
     "extra_info": {
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://ollama.com/library/embeddinggemma-2:latest",
           "https://ollama.com/library/embeddinggemma-2/tags",
-          "https://ollama.com/library/embeddinggemma-2:latest/blobs/111e84992a04"
+          "https://github.com/ollama/ollama/issues/18971"
         ]
       },
       "quantization": "Q8_0",
@@ -62,7 +62,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle d'embedding multimodal de Google basé sur Gemma 4 pour texte et image.",
+      "description_short": "EmbeddingGemma 2 is a multimodal embedding model from Google that generates embeddings for text and images.",
       "license": null,
       "model_type": "embedding",
       "platform_ref": "ollama:embeddinggemma-2",
@@ -84,7 +84,7 @@
       "vram_gb": 1.3
     }
   },
-  "description": "EmbeddingGemma 2 est un modèle d'embedding multimodal développé par Google sur l'architecture Gemma 4, conçu pour générer des embeddings à partir d'entrées textuelles et visuelles. Il supporte le traitement de l'audio et propose plusieurs tailles de contexte (jusqu'à 740 millions de tokens) avec une licence non spécifiée dans la source.",
+  "description": "This model is an open multimodal embedding system built on the Gemma 4 architecture, capable of processing both text and image inputs. It offers several variants with different sizes (ranging from 270m to 740m) and a context window up to 256K tokens. The source notes that some specific tags may be missing an MLX badge on the Ollama website.",
   "key": "ollama:embeddinggemma-2:latest",
   "manifest_kind": "model",
   "name": "embeddinggemma-2:latest",

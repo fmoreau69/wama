@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/o4-mini:batch",
+          "https://developers.openai.com/api/docs/models/o4-mini",
+          "https://openai.com/index/introducing-o3-and-o4-mini/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "A compact reasoning model optimized for fast, cost-efficient performance with tool calling and structured outputs.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "o4 Mini (batch) is a small o-series model designed for fast and effective reasoning while supporting multimodal inputs, tool use, and JSON outputs. It features a 200K context window and is available via API pricing of $0.55 per 1M input tokens and $2.20 per 1M output tokens. Please note that this model has been deprecated in the API and is no longer available in ChatGPT.",
   "key": "openrouter:openai/o4-mini:batch",
   "manifest_kind": "model",
   "name": "OpenAI: o4 Mini (batch)",

@@ -25,7 +25,7 @@
     "extra_info": {
       "category": "upscaling",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
@@ -44,7 +44,7 @@
     },
     "identity": {
       "author": "Phhofm",
-      "description_short": "Modèle de restauration d'image GaterV3 pour améliorer la qualité, gérer le bruit et la compression JPEG.",
+      "description_short": "A 1× GaterV3 restoration model that improves image quality by handling noise, resizing, JPEG compression, and mild blur.",
       "license": "CC BY 4.0",
       "model_type": "upscaling",
       "platform_ref": "github:Phhofm/models/releases/tag/1xgaterv3_r_restore",
@@ -66,7 +66,7 @@
       "vram_gb": 0.1
     }
   },
-  "description": "Le modèle 1xgaterv3_r_restore est un modèle de restauration d'images à l'échelle 1× développé par Philip Hofmann. Il prend en entrée des images bruyantes ou compressées (comme les fichiers JPEG) et produit une version améliorée avec réduction du bruit et correction de la compression. Ce modèle utilise le réseau GaterV3, a été entraîné sur 180 000 itérations et est disponible sous licence CC BY 4.0.",
+  "description": "This is a single-image super-resolution (SISR) model designed to restore images by addressing noise, resizing artifacts, JPEG compression, and mild blur. It uses the GaterV3 network architecture with 180,000 iterations and operates at a 1× scale. The model is released under the CC BY 4.0 license.",
   "key": "github:Phhofm/models:1xgaterv3_r_restore",
   "manifest_kind": "model",
   "name": "1xgaterv3_r_restore",

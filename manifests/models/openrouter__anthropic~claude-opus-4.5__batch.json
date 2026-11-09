@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/anthropic/claude-opus-4.5:batch",
+          "https://promnest.com/models/anthropic-claude-opus-4-5-batch/",
+          "https://useantimatter.com/planet/anthropic/claude-opus-4.5%3Abatch"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Claude Opus 4.5 (batch) is a frontier reasoning model optimized for complex software engineering, agentic workflows, and long-horizon computer use.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "This model supports tool calling, structured outputs, and can read text, images, and files up to about 200 pages while replying up to about 64 pages. It features settings to trade depth against length and is designed for complex development, research, and multi-step planning tasks.",
   "key": "openrouter:anthropic/claude-opus-4.5:batch",
   "manifest_kind": "model",
   "name": "Anthropic: Claude Opus 4.5 (batch)",

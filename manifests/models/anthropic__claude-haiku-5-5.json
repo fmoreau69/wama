@@ -27,13 +27,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://www.anthropic.com/claude-haiku-5-5",
-          "https://www-cdn.anthropic.com/e1080d6bf5ae2018ea3c2f414064be03232f5be5/Claude%20Haiku%205.5%20System%20Card.pdf",
-          "https://aws.amazon.com/blogs/machine-learning/introducing-claude-haiku-5-5-on-aws/"
+          "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
+          "https://artificialanalysis.ai/models/claude-haiku-5-5"
         ]
       },
       "hosting": "third_party",
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle IA de haute performance et peu coûteux d'Anthropic pour les tâches répétitives à volume élevé.",
+      "description_short": "Claude Haiku 5.5 is a high-volume, cost-sensitive small model optimized for low-latency tasks like summaries and classification.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -67,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Haiku 5.5 est un modèle petit (small model) conçu pour des travaux rapides, répétés et sensibles au coût, surpassant son prédécesseur Claude Haiku 4.5 dans de nombreux domaines. Il gère efficacement des charges de travail comme les résumés, la classification ou les requêtes de base de données avec une latence faible. Les sources mentionnent sa disponibilité sur Amazon Bedrock et AWS depuis octobre 2026, ainsi que ses performances élevées en vitesse et intelligence.",
+  "description": "Released on October 7, 2026, Claude Haiku 5.5 is designed for high-volume, latency-sensitive workloads such as summarization, extraction, routing, and database queries. It features a context window of 1 million tokens and supports output up to 128K tokens, with input pricing starting at $0.10 per million tokens. The model is proprietary, available on Amazon Bedrock and the Claude Platform, and costs approximately 75% less than the previous year's Haiku 4.5.",
   "key": "anthropic:claude-haiku-5-5",
   "manifest_kind": "model",
   "name": "Claude Haiku 5.5",

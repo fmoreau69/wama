@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/sakana/sakana-namazu",
+          "https://models.dev/models/sakana/sakana-namazu/",
+          "https://developer.puter.com/ai/sakana/sakana-namazu/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Japanese-specialized reasoning model based on Kimi K2.6, tuned for Japanese language, culture, and business workflows.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Sakana Namazu is a large language model from Sakana AI designed for Japanese instruction following, business writing, mathematics, coding, and multi-step agent workflows. It accepts text, image, and file inputs with a context window of 262K tokens and produces text outputs up to 65K-66K tokens long. The model is built on Kimi K2.6 with additional training for Japanese nuances and business contexts.",
   "key": "openrouter:sakana/sakana-namazu",
   "manifest_kind": "model",
   "name": "Sakana: Sakana Namazu",

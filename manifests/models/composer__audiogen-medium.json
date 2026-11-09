@@ -47,7 +47,7 @@
     },
     "identity": {
       "author": "facebook",
-      "description_short": "AudioGen Medium — bruitages et sons d'ambiance, 1.5B params",
+      "description_short": "AudioGen Medium — sound effects and ambiences, 1.5B params",
       "gated": "no",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
@@ -74,10 +74,10 @@
       "vram_gb": 16.0
     }
   },
-  "description": "AudioGen Medium (Meta AudioCraft, 1.5B) : génération de BRUITAGES et d'ambiances sonores (pas de musique) depuis un prompt texte — pas, pluie, foule, machines… Complémentaire de MusicGen pour le sound design.",
+  "description": "AudioGen Medium (Meta AudioCraft, 1.5B): generation of SOUND EFFECTS and ambiences (no music) from a text prompt — footsteps, rain, crowds, machines… Complements MusicGen for sound design.",
   "key": "composer:audiogen-medium",
   "manifest_kind": "model",
-  "name": "AudioGen Medium — bruitages et sons d'ambiance, 1.5B params",
+  "name": "AudioGen Medium — sound effects and ambiences, 1.5B params",
   "projects": [],
   "requires": [
     {

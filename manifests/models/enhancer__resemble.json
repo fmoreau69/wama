@@ -52,7 +52,7 @@
     },
     "identity": {
       "author": "Resemble AI",
-      "description_short": "Restauration par diffusion — débruitage + extension de bande, meilleure qualité",
+      "description_short": "Diffusion restoration — denoising + bandwidth extension, best quality",
       "license": "mit",
       "model_type": "speech",
       "platform_ref": "github:resemble-ai/resemble-enhance",
@@ -74,7 +74,7 @@
       "vram_gb": 4.0
     }
   },
-  "description": "Resemble Enhance : modèle génératif (diffusion) qui débruite ET restaure les hautes fréquences (super-résolution audio). Qualité supérieure mais plus lent ; les réglages Mode / Force / Qualité (NFE) s'appliquent.",
+  "description": "Resemble Enhance: a generative (diffusion) model that denoises AND restores the high frequencies (audio super-resolution). Higher quality but slower; the Mode / Strength / Quality (NFE) settings apply.",
   "key": "enhancer:resemble",
   "manifest_kind": "model",
   "name": "Resemble Enhance",

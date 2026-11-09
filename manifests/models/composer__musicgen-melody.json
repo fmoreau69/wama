@@ -50,7 +50,7 @@
     },
     "identity": {
       "author": "facebook",
-      "description_short": "MusicGen Melody — conditionné par mélodie de référence",
+      "description_short": "MusicGen Melody — conditioned on a reference melody",
       "gated": "no",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
@@ -76,10 +76,10 @@
       "vram_gb": 8.0
     }
   },
-  "description": "MusicGen Melody (Meta AudioCraft) : génération guidée par une MÉLODIE de référence (fichier audio) en plus du prompt — le modèle suit la ligne mélodique fournie en changeant style et instrumentation. Pour décliner un thème existant.",
+  "description": "MusicGen Melody (Meta AudioCraft): generation guided by a reference MELODY (audio file) on top of the prompt — the model follows the given melodic line while changing style and instrumentation. To make variations on an existing theme.",
   "key": "composer:musicgen-melody",
   "manifest_kind": "model",
-  "name": "MusicGen Melody — conditionné par mélodie de référence",
+  "name": "MusicGen Melody — conditioned on a reference melody",
   "projects": [],
   "requires": [
     {

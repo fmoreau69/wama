@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/gpt-5.4-nano:batch",
+          "https://vitna.ai/models/openai/gpt-5.4-nano%3Abatch",
+          "https://api-cost.com/models/openai/gpt-5.4-nano%3Abatch"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "GPT-5.4 Nano (batch) is the most lightweight and cost-efficient variant of the GPT-5.4 family, optimized for speed-critical and high-volume tasks.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "This model accepts text and image inputs with a context window of 400,000 tokens and produces up to 128,000 tokens of output. It is designed for low-latency use cases such as classification, data extraction, ranking, and sub-agent tasks. Pricing is $0.10 per 1M input tokens and $0.625 per 1M output tokens.",
   "key": "openrouter:openai/gpt-5.4-nano:batch",
   "manifest_kind": "model",
   "name": "OpenAI: GPT-5.4 Nano (batch)",

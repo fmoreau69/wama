@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/anthropic/claude-haiku-4.5:batch",
+          "https://ai-model-matrix.com/models/anthropic-claude-haiku-4-5-batch/",
+          "https://promnest.com/models/anthropic-claude-haiku-4-5-batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Claude Haiku 4.5 (batch) is Anthropic's fastest model matching Sonnet 4's performance at lower cost.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Claude Haiku 4.5 (batch) is Anthropic's fastest and most efficient model, delivering near-frontier intelligence at a fraction of the cost and latency of larger models. It matches Claude Sonnet 4's performance across reasoning, coding, and computer-use tasks while reading text, images, and files up to about 200 pages. The model replies up to about 64 pages with adjustable thinking time and scored over 73 percent on a widely used coding test.",
   "key": "openrouter:anthropic/claude-haiku-4.5:batch",
   "manifest_kind": "model",
   "name": "Anthropic: Claude Haiku 4.5 (batch)",

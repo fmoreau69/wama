@@ -25,12 +25,12 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603",
-          "https://catalog.ngc.nvidia.com/orgs/nim/mistralai/models/mistral-small-4-119b-2603/hf-b1a9048-nvfp4-mistral",
+          "https://huggingface.co/mistralai/Mistral-Small-4-119B-2603-NVFP4",
           "https://huggingface.co/collections/mistralai/mistral-small-4"
         ]
       },
@@ -43,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle hybride multimodal de 119B paramètres unifiant les capacités d'instruction, de raisonnement et d'agents.",
+      "description_short": "Mistral Small 4-119B is a hybrid open-weight model unifying instruction, reasoning, and agentic skills with multimodal support.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -65,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Mistral-Small-4 est un modèle hybride open-weight capable d'agir à la fois comme modèle d'instruction généraliste et de raisonnement. Il intègre une architecture Mixture-of-Experts granulaire qui fusionne les compétences des familles Instruct, Reasoning (Magistral) et Devstral dans un seul modèle unique. Ce modèle multimodal accepte des entrées textuelles et visuelles à grande échelle, avec des checkpoints FP8 pour optimiser l'exactitude.",
+  "description": "This state-of-the-art open-weight model acts as both a general instruction model and a reasoning model by fusing capabilities from Instruct, Reasoning (Magistral), and Devstral families. It features a granular Mixture-of-Experts architecture with efficient design for flexible mode switching and multimodal tasks.",
   "key": "ilaas:mistral-small-4-119b",
   "manifest_kind": "model",
   "name": "mistral-small-4-119b",

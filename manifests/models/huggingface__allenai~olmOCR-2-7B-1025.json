@@ -21,11 +21,11 @@
     "extra_info": {
       "category": "ocr",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/allenai/olmOCR-2-7B-1025"
+          "https://huggingface.co/allenai/olmocr-2-7b-1025"
         ]
       },
       "family": "olmOCR-2-7B-1025",
@@ -37,7 +37,7 @@
     },
     "identity": {
       "author": "allenai",
-      "description_short": "Modèle OCR vision linguistique fin-tuné pour la reconnaissance de texte, mathématiques et tableaux dans les documents PDF.",
+      "description_short": "A 7B parameter OCR model fine-tuned from Qwen2.5-VL-7B-Instruct for math, tables, and tricky text, licensed under Apache 2.0.",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "ocr",
@@ -60,7 +60,7 @@
       "vram_gb": 19.9
     }
   },
-  "description": "olmOCR-2-7B-1025 est une version BF16 du modèle olmOCR-2-7B-1025, fine-tuné à partir de Qwen2.5-VL-7B-Instruct sur des données OCR et renforcé par GRPO RL pour les équations mathématiques et tableaux complexes. Il accepte comme entrée une image de document (PDF rendu en PNG) avec une dimension maximale de 1288 pixels et un prompt contenant des métadonnées, produisant une sortie textuelle structurée incluant la langue, la rotation et le type de contenu. Ce modèle est sous licence Apache 2.0 pour la recherche et l'éducation.",
+  "description": "This is a BF16 version of olmOCR-2-7B-1025, fine-tuned from Qwen2.5-VL-7B-Instruct using the olmOCR-mix-1025 dataset and GRPO RL training to improve performance on math equations, tables, and difficult OCR cases. It accepts a single document image (rendered with a longest dimension of 1288 pixels) as input and outputs structured text metadata including language, rotation validity, and content type detection. The model is licensed under Apache 2.0 for research and educational use.",
   "key": "huggingface:allenai/olmOCR-2-7B-1025",
   "manifest_kind": "model",
   "name": "olmOCR-2-7B-1025",

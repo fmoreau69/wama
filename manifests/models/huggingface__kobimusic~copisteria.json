@@ -56,7 +56,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Lecture de partition imprimée → MusicXML",
+      "description_short": "Printed score reading → MusicXML",
       "license": null,
       "model_type": "music",
       "platform_ref": "huggingface:kobimusic/copisteria",
@@ -78,7 +78,7 @@
       "vram_gb": 1.0
     }
   },
-  "description": "copisteria (KobiMusic, 2026) : une page de partition IMPRIMÉE (scan, photo, PDF) → son MusicXML — un détecteur de symboles de 28,7 M de paramètres, corrigé par un modèle d'évidence de 2 M. N'écrit pas les paroles ; le manuscrit n'est pas lu. Code et poids Apache-2.0.",
+  "description": "copisteria (KobiMusic, 2026): a PRINTED score page (scan, photo, PDF) → its MusicXML — a 28.7 M-parameter symbol detector, corrected by a 2 M evidence model. Does not write the lyrics; handwriting is not read. Apache-2.0 code and weights.",
   "key": "huggingface:kobimusic/copisteria",
   "manifest_kind": "model",
   "name": "copisteria (copista-28m)",

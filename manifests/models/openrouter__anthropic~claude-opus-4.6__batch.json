@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/anthropic/claude-opus-4.6:batch",
+          "https://modelsatlas.com/models/anthropic/claude-opus-4.6%3Abatch",
+          "https://person.run/docs/models/anthropic-claude-opus-4-6-batch"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Claude Opus 4.6 (batch) is Anthropic's strongest model for coding and long-running professional tasks, optimized for agents handling entire workflows.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "It excels in the software development lifecycle by breaking through hard problems, identifying complex bugs, and demonstrating deeper codebase understanding. The model accepts text, images, and files as input and generates text output, with a context window of 1 million tokens. It is available via multiple providers including Amazon Bedrock at a blended price of $5.00 per 1M input tokens.",
   "key": "openrouter:anthropic/claude-opus-4.6:batch",
   "manifest_kind": "model",
   "name": "Anthropic: Claude Opus 4.6 (batch)",

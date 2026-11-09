@@ -45,13 +45,13 @@
     },
     "extra_info": {
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://ollama.com/library/gemma4:12b",
-          "https://ollama.com/library/gemma4:12b-it-qat",
-          "https://ollama.com/library/gemma4:12b-it-q4_K_M"
+          "https://techsy.io/en/blog/gemma-4-12b",
+          "https://llmsystems.dev/models/gemma4-12b/"
         ]
       },
       "quantization": "Q4_K_M",
@@ -69,7 +69,7 @@
     },
     "identity": {
       "author": "Google DeepMind",
-      "description_short": "Modèles Gemma 4 (12B) pour le raisonnement, l'agentique, le codage et la compréhension multimodale via Ollama.",
+      "description_short": "Gemma 4:12b is a frontier-level unified text, image, and audio model designed for reasoning, coding, and agentic workflows.",
       "license": "apache-2.0",
       "model_type": "llm",
       "platform_ref": "ollama:gemma4",
@@ -91,7 +91,7 @@
       "vram_gb": 7.6
     }
   },
-  "description": "Ce modèle est conçu pour fournir une performance de pointe dans les tâches de raisonnement, les flux agencés, le codage et la compréhension multimodale. Il s'exécute sur Ollama avec des entrées sous forme de messages utilisateur et des sorties textuelles générées. Les variantes disponibles incluent différentes quantisations (qat, q4_K_M, bf16, nvfp4) pour optimiser les ressources.",
+  "description": "Developed by Google DeepMind, this 12.0B parameter model features a native context window of 262,144 tokens and supports multimodal inputs (text, image, audio) that are processed into text outputs. It is well-suited for reasoning and coding tasks but does not generate speech or pictures directly. The model requires specific setup instructions depending on the version (e.g., Instruct vs. Unified) and can be run locally via tools like Ollama or Apple Silicon.",
   "key": "ollama:gemma4:12b",
   "manifest_kind": "model",
   "name": "gemma4:12b",

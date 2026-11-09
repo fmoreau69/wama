@@ -35,11 +35,11 @@
         "openweight-ocr"
       ],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/lightonai/LightOnOCR-2-1B"
+          "https://huggingface.co/lightonai/lightonocr-2-1b"
         ]
       },
       "hosting": "sovereign",
@@ -51,7 +51,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle OCR end-to-end de 1B paramètres optimisé pour la précision et la vitesse, supportant le français et les documents complexes.",
+      "description_short": "LightOnOCR-2-1B is a state-of-the-art, efficient end-to-end vision-language model for converting documents into clean text.",
       "license": null,
       "model_type": "ocr",
       "platform_ref": "huggingface:lightonai/LightOnOCR-2-1B",
@@ -77,7 +77,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "LightOnOCR-2-1B est un modèle vision-langue de 1 milliard de paramètres conçu pour convertir des documents (PDF, scans) en texte propre sans pipelines fragiles. Il atteint une performance d'état de l'art sur le benchmark OlmOCR-Bench tout en étant significativement plus rapide et efficace que les approches concurrentes. Le modèle prend en entrée des images ou des fichiers PDF et produit du texte structuré, gérant notamment les tableaux, les formulaires et la notation mathématique.",
+  "description": "LightOnOCR-2-1B is an efficient end-to-end 1B-parameter vision-language model designed to convert documents (PDFs, scans, images) into clean, naturally ordered text without relying on brittle pipelines. It supports multilingual fine-tuning and handles various document types including tables, receipts, forms, and math notation. The model operates under the Apache License 2.0.",
   "key": "albert:lightonocr-2-1b",
   "manifest_kind": "model",
   "name": "lightonocr-2-1b",

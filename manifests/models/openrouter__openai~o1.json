@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openai.com/o1/",
+          "https://openai.com/index/learning-to-reason-with-llms/",
+          "https://en.wikipedia.org/wiki/OpenAI_o1"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "OpenAI o1 is a large language model trained with reinforcement learning to perform complex reasoning by thinking before responding.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "OpenAI o1 is a generative pre-trained transformer designed to spend more time thinking before it responds, producing a long internal chain of thought. It was released in September 2024 and features proprietary licensing. Note that the model is deprecated in the API.",
   "key": "openrouter:openai/o1",
   "manifest_kind": "model",
   "name": "OpenAI: o1",

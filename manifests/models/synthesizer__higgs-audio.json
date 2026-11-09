@@ -55,7 +55,7 @@
     },
     "identity": {
       "author": "Boson AI",
-      "description_short": "Higgs Audio v2 — multi-locuteurs avec clonage de voix.",
+      "description_short": "Higgs Audio v2 — multi-speaker with voice cloning.",
       "gated": "no",
       "license": "higgs-community",
       "model_type": "speech",
@@ -81,7 +81,7 @@
       "vram_gb": 24.0
     }
   },
-  "description": "Higgs Audio v2 (Boson AI, 3B) : synthèse multi-locuteurs avec clonage de voix et conditionnement de scène pour des dialogues à plusieurs voix. 9 langues. Le plus détaillé mais le plus gourmand en ressources.",
+  "description": "Higgs Audio v2 (Boson AI, 3B): multi-speaker synthesis with voice cloning and scene conditioning for dialogues with several voices. 9 languages. The most detailed but the most resource-hungry.",
   "key": "synthesizer:higgs-audio",
   "manifest_kind": "model",
   "name": "Higgs Audio v2",

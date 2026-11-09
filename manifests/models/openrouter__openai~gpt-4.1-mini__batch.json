@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/gpt-4.1-mini:batch",
+          "https://modelsatlas.com/models/openai/gpt-4.1-mini%3Abatch",
+          "https://privateer.pro/models/openai/gpt-4.1-mini-batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "A mid-sized multimodal model offering GPT-4o-like performance at lower latency and cost with a 1 million token context.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "GPT-4.1 Mini (batch) is a multimodal large language model that delivers performance competitive with GPT-4o while providing substantially lower latency and cost. It supports inputs including images, text, and files, along with capabilities such as tool calling and structured output generation. The model features a 1 million token context window and a maximum output of approximately 32,000 to 33,000 tokens.",
   "key": "openrouter:openai/gpt-4.1-mini:batch",
   "manifest_kind": "model",
   "name": "OpenAI: GPT-4.1 Mini (batch)",

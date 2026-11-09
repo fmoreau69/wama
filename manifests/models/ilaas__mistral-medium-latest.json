@@ -25,13 +25,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://www.requesty.ai/models/mistral/mistral-medium-latest",
           "https://models.dev/models/mistral/mistral-medium-latest/",
-          "https://pi.dev/models/mistral/mistral-medium-latest?provider=fireworks"
+          "https://mistral.ai/cloud/inference/",
+          "https://modelcompare.dev/models/mistral/medium-latest"
         ]
       },
       "hosting": "sovereign",
@@ -43,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle IA multilingue de Mistral pour assistants d'entreprise, supportant texte et images avec un contexte de 262k tokens.",
+      "description_short": "A balanced Mistral model for enterprise assistants and multilingual work with a 262K context window.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -65,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Le modèle mistral-medium-latest est conçu pour les assistants d'entreprise et le travail multilingue. Il accepte des entrées textuelles ou en image et génère du texte, avec une fenêtre de contexte et une limite de sortie de 262 144 tokens. Disponible via l'API Mistral (gestion UE uniquement), il offre un contexte étendu mais reste limité aux modèles de taille moyenne.",
+  "description": "The Mistral Medium (latest) is a balanced AI model designed for enterprise assistants, multilingual tasks, and tool usage. It accepts text and image inputs and supports reasoning, operating within a 262,144 token context and output limits. The model features pricing of $1.50 per 1M input tokens and $7.50 per 1M output tokens, along with capabilities including temperature control (0-1.5), tool choice, and structured outputs.",
   "key": "ilaas:mistral-medium-latest",
   "manifest_kind": "model",
   "name": "mistral-medium-latest",

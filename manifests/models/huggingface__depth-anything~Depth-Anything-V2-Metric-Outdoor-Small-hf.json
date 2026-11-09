@@ -9,11 +9,11 @@
     "extra_info": {
       "category": "vision",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf"
+          "https://huggingface.co/depth-anything/depth-anything-v2-metric-outdoor-small-hf"
         ]
       },
       "family": "depth-anything"
@@ -24,7 +24,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle de profondeur métrique fine-tuné pour l'estimation de distance en extérieur via des données synthétiques.",
+      "description_short": "Fine-tuned transformer model for zero-shot metric depth estimation on outdoor scenes using synthetic Virtual KITTI data.",
       "license": null,
       "model_type": "vision",
       "platform_ref": "huggingface:depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf",
@@ -50,7 +50,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Ce modèle est une version fine-tunée de Depth Anything V2, basée sur l'architecture DPT avec un backbone DINOv2, entraînée sur environ 600 000 images synthétiques étiquetées pour l'estimation métrique en extérieur. Il accepte des images comme entrée et produit une prédiction de profondeur interpolée à la taille originale, compatible avec la bibliothèque transformers (version >=4.45.0). Ses points forts incluent des prédictions fines et robustes grâce à un modèle enseignant plus grand et des données synthétiques, tandis que ses limites sont liées à son optimisation spécifique pour les scènes extérieures plutôt qu'intérieures.",
+  "description": "This model is a fine-tuned version of Depth Anything V2 specialized for outdoor metric depth estimation, leveraging the DPT architecture with a DINOv2 backbone. It processes input images to produce absolute depth maps, achieving state-of-the-art results on synthetic and real unlabeled datasets. The specific entry targets the 'Depth-Anything-V2-Metric-Outdoor-Small-hf' variant (24.8M parameters), which requires the transformers library for operation.",
   "key": "huggingface:depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf",
   "manifest_kind": "model",
   "name": "Depth-Anything-V2-Metric-Outdoor-Small-hf",

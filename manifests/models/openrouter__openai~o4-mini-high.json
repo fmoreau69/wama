@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/o4-mini-high",
+          "https://modeldatabase.com/models/openai/o4-mini-high.html",
+          "https://benchmarklist.com/models/openai-o4-mini-high/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "OpenAI's o4 Mini High is a compact reasoning model optimized for fast, cost-efficient performance with strong multimodal and agentic capabilities.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "This model is identical to OpenAI's o4-mini but configured with reasoning_effort set to high. It supports text, vision, function-calling, and JSON mode, featuring a context window of up to 200K tokens. The source notes it was released on April 16, 2025, with a knowledge cutoff of June 30, 2024.",
   "key": "openrouter:openai/o4-mini-high",
   "manifest_kind": "model",
   "name": "OpenAI: o4 Mini High",

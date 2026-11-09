@@ -36,7 +36,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Repères du visage (478 points) — API « tasks » de MediaPipe, sur le processeur ; la géométrie que le Face Analyzer mesure image par image.",
+      "description_short": "Face landmarks (478 points) — MediaPipe's “tasks” API, on the processor; the geometry the Face Analyzer measures frame by frame.",
       "license": null,
       "model_type": "vision",
       "platform_ref": null,
@@ -58,7 +58,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Repères du visage (478 points) — API « tasks » de MediaPipe, sur le processeur ; la géométrie que le Face Analyzer mesure image par image.",
+  "description": "Face landmarks (478 points) — MediaPipe's “tasks” API, on the processor; the geometry the Face Analyzer measures frame by frame.",
   "key": "face_analyzer:mediapipe-face-landmarker",
   "manifest_kind": "model",
   "name": "MediaPipe Face Landmarker",

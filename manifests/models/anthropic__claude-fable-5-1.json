@@ -27,13 +27,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://platform.claude.com/docs/en/models/fable-5-1/overview",
           "https://www.anthropic.com/claude-fable-and-mythos-5-1",
-          "https://www.anthropic.com/claude/fable"
+          "https://platform.claude.com/docs/en/models/fable-5-1/overview",
+          "https://www-cdn.anthropic.com/0339e6a7c5c7b87f5c07798616dc32c215d14235/Claude%2520Fable%25205.1%2520%26%2520Claude%2520Mythos%25205.1%2520System%2520Card.pdf"
         ]
       },
       "hosting": "third_party",
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle d'IA spécialisé dans le raisonnement complexe, le codage autonome et les tâches scientifiques à long terme.",
+      "description_short": "Claude Fable 5.1 is a proprietary model released in September 2026 designed for demanding reasoning, coding, and scientific research tasks.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -67,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Fable 5.1 est un modèle de raisonement avancé conçu pour des travaux de connaissance exigeants et des flux de travail agistiques longs. Il prend en entrée du contexte jusqu'à 1 million de tokens et génère jusqu'à 128K tokens, avec des capacités d'analyse financière et de génération visuelle de code. Ses points forts incluent le raisonnement adaptatif et la gestion de tâches asynchrones complexes, bien que sa licence spécifique ne soit pas détaillée dans les sources fournies.",
+  "description": "This model extends Claude Fable 5 with capabilities specifically advanced for coding, knowledge work, and novel mathematical or scientific problem-solving. It operates with a context window of 1M tokens and can generate up to 128K tokens of output. As a proprietary release from Anthropic, it is priced at $10 per million input tokens and $50 per million output tokens.",
   "key": "anthropic:claude-fable-5-1",
   "manifest_kind": "model",
   "name": "Claude Fable 5.1",

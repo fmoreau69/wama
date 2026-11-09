@@ -37,7 +37,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Aligne un texte connu sur l'audio, mot à mot — ne transcrit pas.",
+      "description_short": "Aligns a known text on the audio, word by word — does not transcribe.",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:jonatasgrosman/wav2vec2-large-xlsr-53-french",
@@ -59,7 +59,7 @@
       "vram_gb": 2.0
     }
   },
-  "description": "Alignement forcé acoustique : à partir d'un texte déjà écrit (une transcription reprise, une correction) et de l'audio, donne l'heure de début et de fin de chaque mot. Modèle wav2vec2 CTC ; ne produit aucun texte. Sert à resynchroniser les passages qu'une correction a modifiés, là où la transcription automatique n'a pas d'heure fiable.",
+  "description": "Acoustic forced alignment: from an already written text (a reworked transcription, a correction) and the audio, gives the start and end time of each word. A wav2vec2 CTC model; produces no text. Used to resynchronise the passages a correction changed, where the automatic transcription has no reliable timing.",
   "key": "transcriber:wav2vec2-fr-aligner",
   "manifest_kind": "model",
   "name": "wav2vec2-large-xlsr-53-french (alignement)",

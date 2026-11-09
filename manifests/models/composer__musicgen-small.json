@@ -47,7 +47,7 @@
     },
     "identity": {
       "author": "facebook",
-      "description_short": "MusicGen Small — génération rapide, 300M params",
+      "description_short": "MusicGen Small — fast generation, 300M params",
       "gated": "no",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
@@ -73,10 +73,10 @@
       "vram_gb": 4.0
     }
   },
-  "description": "MusicGen Small (Meta AudioCraft, 300M) : génération musicale depuis un prompt texte, version la plus légère et rapide de la famille. Qualité en retrait — idéal pour esquisser des idées avant un rendu sur Medium.",
+  "description": "MusicGen Small (Meta AudioCraft, 300M): music generation from a text prompt, the lightest and fastest version of the family. Lower quality — ideal to sketch ideas before a render on Medium.",
   "key": "composer:musicgen-small",
   "manifest_kind": "model",
-  "name": "MusicGen Small — génération rapide, 300M params",
+  "name": "MusicGen Small — fast generation, 300M params",
   "projects": [],
   "requires": [
     {

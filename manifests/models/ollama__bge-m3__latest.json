@@ -31,7 +31,7 @@
     },
     "extra_info": {
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
@@ -49,7 +49,7 @@
     },
     "identity": {
       "author": "BAAI",
-      "description_short": "Modèle d'embedding multilingue et multi-granulaire de BAAI pour la recherche dense, vectorielle et sparse.",
+      "description_short": "BGE-M3 is a multilingual embedding model from BAAI that generates dense, sparse, and ColBERT-style multi-vector representations in over 100 languages.",
       "license": "mit",
       "model_type": "embedding",
       "platform_ref": "ollama:bge-m3",
@@ -71,7 +71,7 @@
       "vram_gb": 1.2
     }
   },
-  "description": "Le modèle BGE-M3 est un embedding développé par BAAI (disponible via NVIDIA NIM ou Ollama) spécialisé dans les tâches de récupération de texte. Il prend en entrée des textes et génère des vecteurs d'embedding capables de gérer la densité, la multi-vecteurisation et la récupération sparse. Ses points forts incluent sa polyvalence multilingue et sa capacité à traiter un contexte jusqu'à 8192 tokens.",
+  "description": "BGE-M3 is an open-weight embedding model by BAAI designed for versatile text retrieval tasks across more than 100 languages with an 8K context window. It produces dense, sparse (lexical), and ColBERT-style multi-vector representations in a single inference pass. The model supports quantization options to optimize VRAM usage while maintaining performance.",
   "key": "ollama:bge-m3:latest",
   "manifest_kind": "model",
   "name": "bge-m3:latest",

@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/gpt-4.1-nano:batch",
+          "https://modelsatlas.com/models/openai/gpt-4.1-nano%3Abatch",
+          "https://llmcostindex.com/models/openai/gpt-4.1-nano-batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "GPT-4.1 Nano (batch) is a multimodal LLM offering low latency, high performance, and competitive pricing with a 1M+ context window.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Released in April 2025, this OpenAI model delivers exceptional performance at a small size, scoring 80.1% on MMLU and 9.8% on Aider polyglot coding. It supports multimodal inputs including images, text, and files, with a context window of approximately 1 million tokens and a maximum output of 32,768 tokens. The batch variant costs $0.05 per 1M input tokens and $0.20 per 1M output tokens.",
   "key": "openrouter:openai/gpt-4.1-nano:batch",
   "manifest_kind": "model",
   "name": "OpenAI: GPT-4.1 Nano (batch)",

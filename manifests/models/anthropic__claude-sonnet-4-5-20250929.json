@@ -27,13 +27,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://platform.claude.com/docs/en/models/sonnet-4-5/overview",
-          "https://www.anthropic.com/claude/sonnet",
-          "https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/claude/sonnet-4-5"
+          "https://www.anthropic.com/news/claude-sonnet-4-5?=",
+          "https://techcrunch.com/2025/09/29/anthropic-launches-claude-sonnet-4-5-its-best-ai-model-for-coding/"
         ]
       },
       "hosting": "third_party",
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle hybride de raisonnement d'Anthropic (déprécié) spécialisé dans le codage et l'utilisation autonome des ordinateurs.",
+      "description_short": "Deprecated Claude Sonnet 4.5 model for coding and agents; functional until November 30, 2026.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -67,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Sonnet 4.5 est un modèle hybride de raisonnement conçu pour les agents autonomes et le traitement de gros volumes, avec une fenêtre de contexte de 200K tokens. Il excelle en programmation, cybersécurité et manipulation d'équipements informatiques, capable de fonctionner pendant 30 heures sans interruption. Bien qu'il soit toujours fonctionnel, il est désormais déprécié par Anthropic au profit du modèle Sonnet 5.5.",
+  "description": "Claude Sonnet 4.5 is a deprecated AI model released on September 29, 2025, which is no longer recommended but remains functional until its retirement on November 30, 2026. It supports a context window of 200K tokens and can generate up to 64K tokens of output, with pricing at $3 per million input tokens and $15 per million output tokens. The model is specifically designed for coding tasks, building complex agents, computer use, and autonomous operation for up to 30 hours.",
   "key": "anthropic:claude-sonnet-4-5-20250929",
   "manifest_kind": "model",
   "name": "Claude Sonnet 4.5",

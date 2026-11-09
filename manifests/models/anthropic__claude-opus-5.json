@@ -27,13 +27,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://indianexpress.com/article/technology/tech-news-technology/anthropic-rolls-out-opus-5-ai-model-in-efficiency-upgrade-10802744/",
-          "https://decrypt.co/374305/claude-opus-5-outscores-fable-5-most-benchmarks-half-price",
-          "https://discuss.google.dev/t/claude-opus-5-is-now-available-on-agent-platform/384568"
+          "https://platform.claude.com/docs/en/models/opus-5/overview",
+          "https://www.anthropic.com/claude/opus",
+          "https://felloai.com/claude-opus-5/"
         ]
       },
       "hosting": "third_party",
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Le modèle Claude Opus 5 d'Anthropic offre des performances proches du Fable 5 à moitié prix, avec un focus sur le codage et la productivité.",
+      "description_short": "Legacy Claude Opus 5 model offering 1M context window and high output limits at $5/$25 per million tokens.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -67,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Opus 5 est un modèle de langage généré par Anthropic disponible depuis juillet 2026, conçu pour les tâches quotidiennes et le développement logiciel. Il propose des performances supérieures au Fable 5 sur la plupart des benchmarks tout en coûtant à moitié prix (5 $/1M tokens d'entrée). Le modèle s'inscrit dans une licence commerciale via l'API OpenRouter ou Vercel AI Gateway, avec un contexte de 1 million de tokens et cinq niveaux d'effort.",
+  "description": "Claude Opus 5 is a legacy hybrid reasoning model released on July 24, 2026, featuring a 1M token context window and up to 128K output tokens. It supports English input and output with pricing of $5 per million input tokens and $25 per million output tokens. Users are advised to migrate to the newer Claude Opus 5.5 model as Opus 5 is no longer the current lineup.",
   "key": "anthropic:claude-opus-5",
   "manifest_kind": "model",
   "name": "Claude Opus 5",

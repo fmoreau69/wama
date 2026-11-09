@@ -45,13 +45,13 @@
     },
     "extra_info": {
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://ollama.com/library/gemma4:e4b",
           "https://developers.google.com/edge/litert-lm/models/gemma-4",
-          "https://open-llm-radar.com/models/gemma4-e4b"
+          "https://recipes.vllm.ai/Google/gemma-4-E4B-it"
         ]
       },
       "quantization": "Q4_K_M",
@@ -69,7 +69,7 @@
     },
     "identity": {
       "author": "Google DeepMind",
-      "description_short": "Modèle Gemma 4 E4B (4,5B) optimisé pour le raisonnement, le codage et la compréhension multimodale avec support audio/vidéo.",
+      "description_short": "Gemma 4 E4B is a compact multimodal model designed for edge devices, supporting text, image, video, and audio with a 128K context window.",
       "license": "apache-2.0",
       "model_type": "llm",
       "platform_ref": "ollama:gemma4",
@@ -91,7 +91,7 @@
       "vram_gb": 9.6
     }
   },
-  "description": "Le modèle Gemma 4 E4B est conçu pour offrir des performances de pointe à chaque taille, ciblant les déploiements mobiles et sur périphériques (E2B, E4B) ainsi que les GPU consommateurs. Il excelle dans le raisonnement, les flux agencés, le codage et la compréhension multimodale, acceptant des entrées textuelles, images, audio et produisant du texte avec un contexte natif de 131k tokens sous licence Apache 2.0.",
+  "description": "The Gemma 4 E4B model delivers frontier-level performance at an effective 4.5B parameter size, targeting deployment on mobile, edge devices, and consumer GPUs. It supports multimodal inputs (text, image, video, audio) and outputs alongside features like native thinking mode and tool-use protocols. Released under the Apache License 2.0, it is optimized for scenarios ranging from Jetson hardware to workstations with up to 131,072 tokens context.",
   "key": "ollama:gemma4:e4b",
   "manifest_kind": "model",
   "name": "gemma4:e4b",

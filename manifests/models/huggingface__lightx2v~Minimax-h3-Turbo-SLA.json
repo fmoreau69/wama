@@ -17,11 +17,11 @@
     "extra_info": {
       "category": "diffusion",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/lightx2v/Minimax-h3-Turbo-SLA"
+          "https://huggingface.co/lightx2v/minimax-h3-turbo-sla"
         ]
       },
       "family": "Minimax-h3-Turbo-SLA",
@@ -33,7 +33,7 @@
     },
     "identity": {
       "author": "lightx2v",
-      "description_short": "LoRA pour MiniMax-H3 optimisé avec attention linéaire sparse (85%) et distillation 4 étapes.",
+      "description_short": "MiniMax-H3 Turbo-SLA is a 4-step distilled LoRA adapter for video generation using sparse linear attention.",
       "license": "apache-2.0",
       "model_type": "diffusion",
       "platform_ref": "huggingface:lightx2v/Minimax-h3-Turbo-SLA",
@@ -58,7 +58,7 @@
       "vram_gb": 4.0
     }
   },
-  "description": "Ce modèle est un LoRA entraîné sur la base MiniMax-H3, conçu pour accélérer l'inférence via une attention linéaire sparse (SLA) à 85% de densité. Il supporte la génération vidéo FL2V en résolution 768p et est compatible avec les environnements LightX2V et ComfyUI. Les performances sont testées sur NVIDIA RTX 5090, mais l'inférence nécessite le modèle base MiniMax-H3 original.",
+  "description": "This model is a 4-step distilled FL2V checkpoint based on MiniMax-H3, enhanced with Sparse–Linear Attention (SLA) to achieve approximately 2.5× inference acceleration while retaining competitive visual quality. It supports 768p video generation and requires the original MiniMax-H3 base model for inference, as it is released under the Apache 2.0 License.",
   "key": "huggingface:lightx2v/Minimax-h3-Turbo-SLA",
   "manifest_kind": "model",
   "name": "Minimax-h3-Turbo-SLA",

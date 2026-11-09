@@ -41,7 +41,7 @@
     },
     "identity": {
       "author": "pyannote",
-      "description_short": "pyannote 3.1 — diarisation (qui parle, et quand)",
+      "description_short": "pyannote 3.1 — diarisation (who speaks, and when)",
       "gated": "auto",
       "license": "mit",
       "model_type": "speech",
@@ -68,7 +68,7 @@
       "vram_gb": 0.032
     }
   },
-  "description": "pyannote 3.1 — diarisation (qui parle, et quand)",
+  "description": "pyannote 3.1 — diarisation (who speaks, and when)",
   "key": "transcriber:pyannote-diarization",
   "manifest_kind": "model",
   "name": "pyannote 3.1 (diarisation)",

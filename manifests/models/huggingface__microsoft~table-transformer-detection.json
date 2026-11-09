@@ -18,7 +18,7 @@
     "extra_info": {
       "category": "vision",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
@@ -34,7 +34,7 @@
     },
     "identity": {
       "author": "microsoft",
-      "description_short": "Modèle de détection d'objets (DETR) entraîné sur PubTables1M pour identifier les tables dans des documents non structurés.",
+      "description_short": "Table Transformer (DETR) detects tables in unstructured documents using PubTables1M training data.",
       "gated": "no",
       "license": "mit",
       "model_type": "vision",
@@ -60,7 +60,7 @@
       "vram_gb": 0.3
     }
   },
-  "description": "Table Transformer est un modèle basé sur l'architecture DETR, spécifiquement affiné pour la détection de tables à partir de documents non structurés. Il prend en entrée des images ou du texte et produit des coordonnées de détection (bounding boxes) pour chaque table trouvée. Le modèle utilise une normalisation avant (normalize before) dans son architecture attention et a été introduit par Smock et al. avec le dataset PubTables1M.",
+  "description": "This model is a fine-tuned DETR-based object detection system trained on the PubTables1M dataset to detect tables in unstructured documents. It accepts document images or text as input and outputs detected table locations, though specific output formats are not detailed in the source. The model was introduced by Smock et al. and released by Microsoft, with no native model card provided by the original authors.",
   "key": "huggingface:microsoft/table-transformer-detection",
   "manifest_kind": "model",
   "name": "table-transformer-detection",

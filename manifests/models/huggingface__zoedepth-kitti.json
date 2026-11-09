@@ -24,7 +24,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Profondeur monoculaire entraînée sur de la conduite (KITTI), natif transformers (MIT)",
+      "description_short": "Monocular depth trained on driving scenes (KITTI), native to transformers (MIT)",
       "license": null,
       "model_type": "vision",
       "platform_ref": "huggingface:Intel/zoedepth-kitti",
@@ -49,7 +49,7 @@
       "vram_gb": 2.0
     }
   },
-  "description": "Profondeur monoculaire entraînée sur de la conduite (KITTI), natif transformers (MIT). Échelle à ancrer par l'appelant (hauteur de caméra) ; défaut de cam_analyzer §[E] depuis le 2026-09-28.",
+  "description": "Monocular depth trained on driving scenes (KITTI), native to transformers (MIT). The scale is anchored by the caller (camera height); cam_analyzer §[E] default since 2026-09-28.",
   "key": "huggingface:zoedepth-kitti",
   "manifest_kind": "model",
   "name": "ZoeDepth (KITTI)",

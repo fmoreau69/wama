@@ -27,13 +27,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://www.anthropic.com/claude/opus?e45d281a_page=3&reference=FUZZ",
           "https://www.anthropic.com/news/claude-opus-4-6",
-          "https://artificialanalysis.ai/articles/opus-4-6-everything-you-need-to-know"
+          "https://platform.claude.com/docs/en/models/opus-4-6/overview",
+          "https://www-cdn.anthropic.com/0dd865075ad3132672ee0ab40b05a53f14cf5288.pdf"
         ]
       },
       "hosting": "third_party",
@@ -45,7 +45,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle hybride d'IA de la suite Claude Opus avec une fenêtre de contexte de 1M, conçu pour le codage et les agents autonomes.",
+      "description_short": "Claude Opus 4.6 is a frontier LLM from Anthropic specializing in software engineering, long-context reasoning, and complex agentic tasks.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -67,7 +67,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Claude Opus 4.6 est un modèle hybride développé par Anthropic qui améliore les compétences en codage et la précision des workflows d'entreprise par rapport à sa prédécesseur. Il gère des tâches agiles sur de longues durées grâce à une fenêtre de contexte de 1M de tokens, tout en planifiant plus soigneusement pour maintenir la fiabilité dans les environnements complexes. Bien qu'il occupe la première place dans l'Index d'intelligence d'Artificial Analysis, il consomme deux fois plus de tokens de sortie que le modèle précédent lors du mode effort maximal.",
+  "description": "Released on February 5, 2026, this large language model features a context window of 1M tokens and supports outputs up to 128K tokens. It excels in software engineering, code review, debugging, and multi-step research workflows, though it is marked as legacy with a recommendation to migrate to Claude Opus 5.5.",
   "key": "anthropic:claude-opus-4-6",
   "manifest_kind": "model",
   "name": "Claude Opus 4.6",

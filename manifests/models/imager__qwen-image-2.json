@@ -53,7 +53,7 @@
     },
     "identity": {
       "author": "Qwen",
-      "description_short": "Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif",
+      "description_short": "Qwen Image 2 (20B) — #1 open source, text rendering, native 2K",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "diffusion",
@@ -79,10 +79,10 @@
       "vram_gb": 38.0
     }
   },
-  "description": "Qwen-Image 2 (Alibaba, 20B) : parmi les meilleurs modèles image open-source, rendu du texte dans l'image remarquable et 2K natif. Qualité proche des services propriétaires, au prix d'une VRAM élevée.",
+  "description": "Qwen-Image 2 (Alibaba, 20B): among the best open-source image models, remarkable rendering of text in the image and native 2K. Quality close to proprietary services, at the cost of high VRAM.",
   "key": "imager:qwen-image-2",
   "manifest_kind": "model",
-  "name": "Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif",
+  "name": "Qwen Image 2 (20B) — #1 open source, text rendering, native 2K",
   "projects": [],
   "requires": [
     {

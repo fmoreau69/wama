@@ -79,7 +79,7 @@
       "vram_gb": 21.0
     }
   },
-  "description": "CogVideoX 5B I2V (Zhipu/THUDM) : anime une image de référence en clip vidéo guidé par le prompt. Limites du modèle : 6 secondes (49 images à 8 i/s), 720×480. Au-delà, la vidéo est prolongée par segments enchaînés (chaque segment repart de la dernière image).",
+  "description": "CogVideoX 5B I2V (Zhipu/THUDM): animates a reference image into a video clip guided by the prompt. Model limits: 6 seconds (49 frames at 8 fps), 720×480. Beyond that, the video is extended by chained segments (each segment starts again from the last frame).",
   "key": "imager:cogvideox-5b-i2v",
   "manifest_kind": "model",
   "name": "CogVideoX 5B — Image-to-Video",

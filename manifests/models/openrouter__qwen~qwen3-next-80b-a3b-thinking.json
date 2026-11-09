@@ -24,6 +24,14 @@
       "aliases": [
         "Qwen/Qwen3-Next-80B-A3B-Thinking"
       ],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/qwen/qwen3-next-80b-a3b-thinking"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "text-generation"
     },
@@ -33,7 +41,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Qwen3-Next-80B-A3B-Thinking is a causal language model with 80B parameters and 262K native context length, featuring hybrid attention and high-sparsity MoE for…",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen3-Next-80B-A3B-Thinking",
@@ -55,7 +63,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Qwen3-Next-80B-A3B-Thinking is a causal language model trained on 15T tokens that supports only thinking mode with an ultra-long native context length of 262,144 tokens. It utilizes hybrid attention and high-sparsity mixture-of-experts architecture to achieve superior performance in complex reasoning tasks while maintaining parameter efficiency. The model outperforms previous Qwen versions and proprietary models like Gemini-2.5-Flash-Thinking on benchmarks such as MMLU-Pro, AIME25, and coding evaluations.",
   "key": "openrouter:qwen/qwen3-next-80b-a3b-thinking",
   "manifest_kind": "model",
   "name": "Qwen: Qwen3 Next 80B A3B Thinking",

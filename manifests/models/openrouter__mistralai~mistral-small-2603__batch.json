@@ -26,6 +26,14 @@
       "aliases": [
         "mistralai/Mistral-Small-4-119B-2603"
       ],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/mistralai/mistral-small-4-119b-2603"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -35,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Mistral Small 4 is a hybrid multimodal model (119B parameters, 256k context) supporting text and images with configurable reasoning modes.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Mistral-Small-4-119B-2603",
@@ -57,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Mistral Small 4 is a powerful hybrid model that unifies instruction following, reasoning, and multimodal capabilities into a single architecture. It accepts text and image inputs to produce text outputs, featuring a 256k context window and support for dozens of languages under an Apache 2.0 license. The model offers flexible performance modes, including fast instant replies and deep step-by-step reasoning with test-time compute, achieving significant latency and throughput improvements over previous versions.",
   "key": "openrouter:mistralai/mistral-small-2603:batch",
   "manifest_kind": "model",
   "name": "Mistral: Mistral Small 4 (batch)",

@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openai.com/index/introducing-o3-and-o4-mini/",
+          "https://www.llmboard.ai/models/o4-mini",
+          "https://models.litellm.ai/models/o4-mini"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "OpenAI o4-mini is a compact, multimodal reasoning model designed for fast coding and visual tasks with full tool access.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "Released on April 16, 2025, o4-mini uses test-time compute to deliberate before answering and succeeds o3-mini as OpenAI's cost-efficient reasoning option. It supports Python, browsing, and image inputs by default, featuring a 200,000-token context window and up to 100,000 output tokens per response. As of November 2026, it is deprecated in the API but remains available on various providers with pricing starting at $1.10 per 1M input tokens.",
   "key": "openrouter:openai/o4-mini",
   "manifest_kind": "model",
   "name": "OpenAI: o4 Mini",

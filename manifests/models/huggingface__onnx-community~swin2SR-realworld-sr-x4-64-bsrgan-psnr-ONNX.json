@@ -26,11 +26,13 @@
     "extra_info": {
       "category": "upscaling",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
-        "origin": "fiche",
+        "origin": "web",
         "ref": [
-          "https://huggingface.co/onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX"
+          "https://huggingface.co/onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
+          "https://huggingface.co/onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX/blob/main/onnx/model.onnx",
+          "https://huggingface.co/onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX/tree/main/onnx"
         ]
       },
       "family": "swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
@@ -44,7 +46,7 @@
       "author": "onnx-community",
       "base_model": "caidas/swin2SR-realworld-sr-x4-64-bsrgan-psnr",
       "base_model_relation": "quantized",
-      "description_short": "Modèle de super-résolution x4 pour images réelles, basé sur SwinV2 et disponible en ONNX.",
+      "description_short": "An ONNX implementation of the Swin2SR real-world super-resolution model for image-to-image tasks.",
       "license": "apache-2.0",
       "model_type": "upscaling",
       "platform_ref": "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
@@ -69,7 +71,7 @@
       "vram_gb": 0.1
     }
   },
-  "description": "Ce modèle effectue la super-résolution d'images (x4) dans des conditions réelles, utilisant l'architecture SwinV2 Transformer. Il prend une image basse résolution en entrée et produit une image haute résolution optimisée pour les cas d'utilisation réels.",
+  "description": "This model provides an ONNX version of the swin2SR-realworld-sr-x4-64-bsrgan-psnr architecture, automatically converted from its original PyTorch implementation. It is designed for image-to-image tasks, specifically real-world super-resolution at a 4x scale. The source notes that it was uploaded using Hugging Face Spaces and references the Transformers.js pipeline for usage.",
   "key": "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
   "manifest_kind": "model",
   "name": "swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",

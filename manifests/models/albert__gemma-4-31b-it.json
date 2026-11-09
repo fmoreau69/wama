@@ -30,11 +30,11 @@
         "google/gemma-4-31B-it"
       ],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/google/gemma-4-31B-it"
+          "https://huggingface.co/google/gemma-4-31b-it"
         ]
       },
       "hosting": "sovereign",
@@ -46,7 +46,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèles multimodaux (texte, image, audio) de Google DeepMind avec fenêtre de contexte jusqu'à 256K tokens et licence Apache 2.0.",
+      "description_short": "Gemma 4 is a multimodal open-weights model family from Google DeepMind supporting text, image, audio, and video with up to 256K context.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:google/gemma-4-31B-it",
@@ -71,7 +71,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Gemma 4 est une famille de modèles ouverts développés par Google DeepMind, supportant les entrées textuelles, visuelles et (sur certains modèles) audio pour générer du texte. Disponibles en cinq tailles différentes (E2B, E4B, 12B, 26B A4B MoE, 31B), ils offrent des architectures hybrides Dense ou Mixture-of-Experts avec une fenêtre de contexte allant jusqu'à 256K tokens et un support multilingue sur plus de 140 langues. Ces modèles sont optimisés pour le déploiement sur device (laptops, mobiles) grâce à des mécanismes d'attention efficaces et des paramètres réduits, tout en excellant dans les tâches de raisonnement, de codage et de compréhension multimodale.",
+  "description": "Gemma 4 models are multimodal systems capable of handling text, images, audio (on E2B, E4B, and 12B variants), and video inputs while generating text outputs. Available in five sizes ranging from 2.3B to 31B parameters under an Apache 2.0 license, they feature Dense and Mixture-of-Experts architectures with native reasoning modes and function-calling support for autonomous agents.",
   "key": "albert:gemma-4-31b-it",
   "manifest_kind": "model",
   "name": "gemma-4-31b-it",

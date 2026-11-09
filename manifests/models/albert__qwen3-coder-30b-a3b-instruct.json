@@ -28,11 +28,11 @@
         "Qwen/Qwen3-Coder-30B-A3B-Instruct"
       ],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/Qwen/Qwen3-Coder-30B-A3B-Instruct"
+          "https://huggingface.co/qwen/qwen3-coder-30b-a3b-instruct"
         ]
       },
       "hosting": "sovereign",
@@ -44,7 +44,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle de codage Qwen3-Coder-30B-A3B-Instruct (30,5B paramètres) spécialisé dans le développement logiciel et l'utilisation d'outils.",
+      "description_short": "Qwen3-Coder-30B-A3B-Instruct is a 30.5B parameter causal language model optimized for agentic coding with native 262K context support.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen3-Coder-30B-A3B-Instruct",
@@ -69,7 +69,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Il s'agit d'un modèle de langage causal de 30,5 milliards de paramètres avec 262 144 tokens de contexte natif, optimisé pour les tâches de codage agentique et l'appel de fonctions. Il supporte la compréhension à grande échelle des dépôts via sa capacité native longue et intègre un format d'appel de fonction spécialement conçu pour les environnements comme Qwen Code ou CLINE. Ses entrées sont des prompts textuels ou des instructions, tandis que ses sorties sont du code généré ou des réponses structurées ; il ne supporte pas le mode réflexion (non-thinking) ni la génération de blocs ``</think>``.",
+  "description": "This model specializes in agentic coding and tool calling, featuring native support for 262,144 tokens (extendable to 1M via Yarn) and 3.3B activated parameters out of 30.5B total. It supports various platforms like Qwen Code and CLINE but operates only in non-thinking mode without generating ``</think>`` blocks. Users are advised to use `transformers>=4.51.0` and may need to reduce context length if encountering out-of-memory issues.",
   "key": "albert:qwen3-coder-30b-a3b-instruct",
   "manifest_kind": "model",
   "name": "qwen3-coder-30b-a3b-instruct",

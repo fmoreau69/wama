@@ -26,6 +26,14 @@
       "aliases": [
         "mistralai/Ministral-3-8B-Instruct-2512"
       ],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "fiche",
+        "ref": [
+          "https://huggingface.co/mistralai/ministral-3-8b-instruct-2512"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -35,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Ministral 3 8B Instruct is an efficient, FP8-tuned language model with vision capabilities for edge deployment.",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Ministral-3-8B-Instruct-2512",
@@ -57,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "This instruct post-trained model combines an 8.4B language model and a 0.4B vision encoder to analyze images and text in dozens of languages. It supports a 256k context window and offers best-in-class agentic capabilities, including native function calling and JSON outputting. Designed for edge deployment, it fits in 12GB VRAM when running in FP8 precision under an Apache 2.0 license.",
   "key": "openrouter:mistralai/ministral-8b-2512:batch",
   "manifest_kind": "model",
   "name": "Mistral: Ministral 3 8B 2512 (batch)",

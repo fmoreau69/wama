@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/gpt-4o:batch",
+          "https://api-cost.com/models/openai/gpt-4o%3Abatch",
+          "https://www.respan.ai/models/gpt-4o%3Abatch"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "OpenAI's GPT-4o (batch) is a multimodal model supporting text and image inputs with text outputs, optimized for high-throughput asynchronous workloads.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "GPT-4o (batch) is OpenAI's latest AI model that maintains the intelligence of GPT-4 Turbo while being twice as fast and 50% more cost-effective. It supports a context window of 128,000 tokens and can process text, images, and files to generate up to 16,384 tokens of text output. The model handles non-English languages better than previous versions but operates under standard API licensing terms.",
   "key": "openrouter:openai/gpt-4o:batch",
   "manifest_kind": "model",
   "name": "OpenAI: GPT-4o (batch)",

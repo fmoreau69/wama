@@ -32,13 +32,13 @@
     },
     "extra_info": {
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://huggingface.co/Qwen/Qwen3-Embedding-4B?library=sentence-transformers",
+          "https://huggingface.co/Qwen/Qwen3-Embedding-4B",
           "https://github.com/QwenLM/Qwen3-Embedding",
-          "https://huggingface.co/Qwen/Qwen3-Embedding-4B/blob/main/README.md"
+          "https://www.azion.com/en/documentation/products/ai/ai-inference/models/qwen3-embedding-4b/"
         ]
       },
       "quantization": "Q4_K_M",
@@ -56,7 +56,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle d'embedding multilingue de 4 milliards de paramètres pour le classement et la recherche de texte/code.",
+      "description_short": "A 4B-parameter multilingual embedding model optimized for text and code retrieval, classification, clustering, and bitext mining with a 32K context window.",
       "license": null,
       "model_type": "embedding",
       "platform_ref": "ollama:qwen3-embedding",
@@ -78,7 +78,7 @@
       "vram_gb": 2.5
     }
   },
-  "description": "Qwen3-Embedding-4B est un modèle propriétaire de la famille Qwen conçu pour les tâches d'embedding et de classement textuel. Il accepte du texte ou du code en entrée et produit des vecteurs de 2560 dimensions optimisés pour le multilinguisme (contexte jusqu'à 32K tokens). Le modèle fonctionne sous licence Apache-2.0 et est disponible via plusieurs plateformes, avec une architecture de 36 couches.",
+  "description": "Qwen3-Embedding-4B is a proprietary 4B-parameter model designed specifically for text embedding and ranking tasks, supporting instruction-conditioned embeddings. It accepts text or code as input and outputs 2560-dimensional vectors suitable for multilingual representation learning across various sizes (0.6B, 4B, and 8B). The model features a 32K context window and is optimized for efficient cross-lingual tasks, though specific licensing details are not provided in the source.",
   "key": "ollama:qwen3-embedding:4b",
   "manifest_kind": "model",
   "name": "qwen3-embedding:4b",

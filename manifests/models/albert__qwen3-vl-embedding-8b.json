@@ -20,11 +20,11 @@
         "Qwen/Qwen3-VL-Embedding-8B"
       ],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/Qwen/Qwen3-VL-Embedding-8B"
+          "https://huggingface.co/qwen/qwen3-vl-embedding-8b"
         ]
       },
       "hosting": "sovereign",
@@ -36,7 +36,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle d'embedding multimodal (texte, images, vidéos) de 8B paramètres pour la recherche et le regroupement de contenu.",
+      "description_short": "Generates high-dimensional vectors for multimodal retrieval and clustering from text, images, videos, or mixed inputs.",
       "license": null,
       "model_type": "embedding",
       "platform_ref": "huggingface:Qwen/Qwen3-VL-Embedding-8B",
@@ -61,7 +61,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Le Qwen3-VL-Embedding-8B est un modèle d'embedding multimodal conçu pour générer des vecteurs riches sémantiquement à partir de textes, images, captures d'écran et vidéos. Il accepte des entrées mixtes et produit des sorties vectorielles de haute dimension (jusqu'à 4096) optimisées pour la recherche et le regroupement. Avec un contexte de 32k tokens et une prise en charge de plus de 30 langues, il offre des performances exceptionnelles dans les tâches de compréhension croisée modale.",
+  "description": "The Qwen3-VL-Embedding-8B is a multi-modal embedding model designed to generate semantically rich vectors that capture both visual and textual information. It accepts diverse inputs including text, images, screenshots, videos, and arbitrary multimodal combinations, supporting over 30 languages with up to 4096 dimensions. While it excels in tasks like image-text retrieval and visual question answering, its primary function is initial recall within a two-stage pipeline where it is typically paired with a reranker model.",
   "key": "albert:qwen3-vl-embedding-8b",
   "manifest_kind": "model",
   "name": "qwen3-vl-embedding-8b",

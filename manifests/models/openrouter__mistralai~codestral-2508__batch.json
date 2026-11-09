@@ -22,6 +22,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/mistralai/codestral-2508:batch",
+          "https://lmmarketcap.com/model/mistral-codestral-2508-batch",
+          "https://specifiction.org/models/mistralai-codestral-2508-batch/"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "text-generation"
     },
@@ -31,7 +41,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "Mistral's coding specialist model optimized for low-latency tasks like code correction and test generation.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -53,7 +63,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "Codestral 2508 (batch) is a cutting-edge language model released in August 2025, specializing in high-frequency coding tasks such as fill-in-the-middle (FIM), code correction, and test generation. It accepts text and file inputs with a 256K context window and produces outputs up to 205K tokens, but it does not support reasoning, image input, or open weights. The model is priced at $0.15 per 1M input tokens and $0.45 per 1M output tokens.",
   "key": "openrouter:mistralai/codestral-2508:batch",
   "manifest_kind": "model",
   "name": "Mistral: Codestral 2508 (batch)",

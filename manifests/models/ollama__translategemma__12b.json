@@ -41,13 +41,13 @@
     },
     "extra_info": {
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://huggingface.co/google/translategemma-12b-it",
           "https://ollama.com/library/translategemma:12b",
-          "https://huggingface.co/google/translategemma-12b-it/blob/main/README.md"
+          "https://slm.expert/models/translategemma-12b-it/"
         ]
       },
       "quantization": "Q4_K_M",
@@ -65,7 +65,7 @@
     },
     "identity": {
       "author": "Google",
-      "description_short": "Modèle de traduction léger basé sur Gemma 3, supportant 55 langues.",
+      "description_short": "Google's 12B instruction-tuned translation model based on Gemma 3, supporting text and image inputs across 55 languages.",
       "license": "gemma-terms",
       "model_type": "llm",
       "platform_ref": "ollama:translategemma",
@@ -87,7 +87,7 @@
       "vram_gb": 8.1
     }
   },
-  "description": "Translategemma-12b est un modèle de traduction léger construit sur la base Gemma 3, conçu pour faciliter la communication entre 55 langues. Il accepte des prompts textuels en entrée et génère des traductions correspondantes en sortie. Le modèle est disponible sous licence open source via Hugging Face et Ollama.",
+  "description": "TranslateGemma 12B IT is a dense decoder-only transformer model fine-tuned for text and image-text translation across 55 languages. It accepts text or images as input and outperforms the larger Gemma 3 27B baseline on WMT24++ benchmarks. The model is part of Google's TranslateGemma family, available in 4B, 12B, and 27B sizes.",
   "key": "ollama:translategemma:12b",
   "manifest_kind": "model",
   "name": "translategemma:12b",

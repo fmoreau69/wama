@@ -52,7 +52,7 @@
     },
     "identity": {
       "author": "Hendrik Schroeter (Rikorose)",
-      "description_short": "Débruitage temps réel — rapide, faible empreinte",
+      "description_short": "Real-time denoising — fast, small footprint",
       "license": "mit",
       "model_type": "speech",
       "platform_ref": "github:Rikorose/DeepFilterNet",
@@ -74,7 +74,7 @@
       "vram_gb": 1.0
     }
   },
-  "description": "DeepFilterNet 3 : débruitage discriminatif temps réel (48 kHz), très rapide et léger, sans extension de bande. Recommandé pour prétraiter avant transcription ; les réglages Mode / Force / Qualité ne s'appliquent pas.",
+  "description": "DeepFilterNet 3: real-time discriminative denoising (48 kHz), very fast and light, no bandwidth extension. Recommended to preprocess before transcription; the Mode / Strength / Quality settings do not apply.",
   "key": "enhancer:deepfilternet",
   "manifest_kind": "model",
   "name": "DeepFilterNet 3",

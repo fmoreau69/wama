@@ -30,7 +30,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "EgoBlur (Meta) — plaques d'immatriculation, vidéo embarquée.",
+      "description_short": "EgoBlur (Meta) — licence plates, dashcam video.",
       "license": null,
       "model_type": "vision",
       "platform_ref": null,
@@ -52,7 +52,7 @@
       "vram_gb": 2.0
     }
   },
-  "description": "EgoBlur (Meta, Apache-2.0) : détecteur de plaques entraîné pour ANONYMISER la vidéo embarquée, réglé pour ne rien rater. Meilleur rappel mesuré sur des caméras de véhicule basse résolution (59,5 % des plaques des véhicules proches, contre 20 % aux YOLO plaques), 42 ms par image. Poids distribués par Meta sur formulaire : à déposer dans le dossier `vision/egoblur`.",
+  "description": "EgoBlur (Meta, Apache-2.0): a licence-plate detector trained to ANONYMISE dashcam video, tuned to miss nothing. Best recall measured on low-resolution vehicle cameras (59.5 % of the plates of nearby vehicles, against 20 % for the YOLO plate models), 42 ms per frame. Weights distributed by Meta through a form: drop them in the `vision/egoblur` folder.",
   "key": "anonymizer:egoblur-lp-gen1",
   "manifest_kind": "model",
   "name": "EgoBlur plaques (gen1)",

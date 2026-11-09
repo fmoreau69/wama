@@ -42,11 +42,11 @@
     "extra_info": {
       "category": "music",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/m-a-p/YuE2-3B"
+          "https://huggingface.co/m-a-p/yue2-3b"
         ]
       },
       "family": "YuE2-3B",
@@ -58,7 +58,7 @@
     },
     "identity": {
       "author": "m-a-p",
-      "description_short": "Modèle de génération musicale open source capable de composer des chansons complètes à partir de paroles et d'un prompt, avec possibilité d'édition via notatio…",
+      "description_short": "YuE2-3B is an open music generation model that creates complete songs from lyrics and style prompts, with frontier quality competitive with Suno v5/v6.",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
       "platform_ref": "huggingface:m-a-p/YuE2-3B",
@@ -85,7 +85,7 @@
       "vram_gb": 8.8
     }
   },
-  "description": "YuE2-3B est un modèle de génération musicale open source qui transforme les paroles et un prompt de style en une chanson complète avec voix et accompagnement. Ses entrées incluent des textes (lyrics) et des descriptions stylistiques, tandis que ses sorties sont des fichiers audio stéréo haute qualité (48 kHz). Le modèle se distingue par sa capacité à générer des scores modifiables pour composer ou réviser la mélodie et les accords, offrant ainsi un contrôle plus fin que les modèles propriétaires. Il est disponible localement sur GPU NVIDIA de 24 Go et présente des résultats d'état de l'art sur le benchmark WildSongBench.",
+  "description": "YuE2-3B generates complete songs with vocals and accompaniment from text prompts (lyrics and style) or covers existing songs in new styles. It supports composing melodies and chords via editable scores, allowing users to bring their own ABC notation or use an agent for revisions. The model achieves state-of-the-art results on the WildSongBench benchmark, outperforming proprietary models like Suno v5 and v6.",
   "key": "huggingface:m-a-p/YuE2-3B",
   "manifest_kind": "model",
   "name": "YuE2-3B",

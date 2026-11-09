@@ -37,13 +37,13 @@
     },
     "extra_info": {
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
           "https://ollama.com/library/glm-ocr:latest",
-          "https://ollama.com/library/glm-ocr/tags",
-          "https://ollama.com/library/glm-ocr:latest/blobs/65493e1f85b9"
+          "https://ollama.com/library/glm-ocr%3Alatest/blobs/65493e1f85b9",
+          "https://github.com/zai-org/GLM-OCR/blob/main/examples/ollama-deploy/README.md"
         ]
       },
       "quantization": "F16",
@@ -61,7 +61,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle OCR multimodal GLM-V pour la compréhension de documents complexes, supportant texte et images.",
+      "description_short": "GLM-OCR is a multimodal OCR model for complex document understanding based on the GLM-V encoder–decoder architecture.",
       "license": null,
       "model_type": "ocr",
       "platform_ref": "ollama:glm-ocr",
@@ -83,7 +83,7 @@
       "vram_gb": 2.2
     }
   },
-  "description": "GLM-OCR est un modèle OCR multimodal basé sur l'architecture encoder-décodeur GLM-V conçu pour comprendre des documents complexes. Il accepte du texte et des images en entrée et peut traiter jusqu'à une fenêtre de contexte de 128K tokens. Disponible sous différentes tailles (ex: glm-ocr:latest à 2,7 Go), il nécessite une licence commerciale.",
+  "description": "GLM-OCR is a multimodal OCR model designed for complex document understanding, built on the GLM-V encoder–decoder architecture. It accepts text and image inputs and supports a context window of up to 128K tokens. The model is available in multiple variants with different file sizes, including versions using F16 and q8_0 quantization.",
   "key": "ollama:glm-ocr:latest",
   "manifest_kind": "model",
   "name": "glm-ocr:latest",

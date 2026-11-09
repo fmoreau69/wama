@@ -25,7 +25,7 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
@@ -43,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle de langage compact (8 milliards paramètres) optimisé pour le dialogue multilingue et les déploiements sur périphériques.",
+      "description_short": "Meta's compact 8-billion parameter instruction-tuned model optimized for multilingual dialogue with a 128K context window.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -65,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Il s'agit d'un modèle instruct-tuned de Meta avec une fenêtre de contexte de 128K, conçu pour exceller dans les cas d'usage de dialogue multilingue. Ses entrées sont des textes ou dialogues, et ses sorties sont des réponses textuelles optimisées pour les benchmarks industriels. Le modèle est disponible en poids ouverts (licence communautaire) et sert sur plusieurs plateformes cloud comme AWS Bedrock, Azure et NVIDIA NGC.",
+  "description": "Llama 3.1-8B-Instruct is Meta's open-weight, instruction-tuned text-only model designed for multilingual dialogue use cases and edge deployment. It features a 128K context window and outperforms many available open source and closed chat models on common industry benchmarks. Released on July 23, 2024 under the Llama 3.1 Community License, it supports text-in/text-out generation.",
   "key": "ilaas:llama-3.1-8b",
   "manifest_kind": "model",
   "name": "llama-3.1-8b",

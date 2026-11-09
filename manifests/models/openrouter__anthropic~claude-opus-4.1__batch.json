@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/anthropic/claude-opus-4.1:batch",
+          "https://picksbymodel.com/models/anthropic-claude-opus-4-1-batch/",
+          "https://theverificationplatform.com/models/anthropic/claude-opus-4.1%3Abatch"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "Claude Opus 4.1 (batch) is an updated Anthropic flagship model supporting tool calling, structured outputs, and advanced reasoning.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "This model supports multiple input modalities including text, images, and files up to approximately 200 pages, with a context window of 200,000 tokens and a maximum output of 32,000 tokens. It demonstrates improved performance in coding, reasoning, and agentic tasks, achieving a score of 74.5% on SWE-bench Verified while handling precise debugging and data analysis effectively.",
   "key": "openrouter:anthropic/claude-opus-4.1:batch",
   "manifest_kind": "model",
   "name": "Anthropic: Claude Opus 4.1 (batch)",

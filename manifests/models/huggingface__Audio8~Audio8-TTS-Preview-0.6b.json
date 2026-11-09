@@ -51,13 +51,11 @@
     "extra_info": {
       "category": "speech",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
-        "origin": "web",
+        "origin": "fiche",
         "ref": [
-          "https://huggingface.co/Audio8/Audio8-TTS-Preview-0.6b",
-          "https://edge0-ai.github.io/Audio8_TTS/preview-0.6b/",
-          "https://huggingface.co/Audio8/Audio8-TTS-Preview-0.6b/tree/main"
+          "https://huggingface.co/audio8/audio8-tts-preview-0.6b"
         ]
       },
       "family": "Audio8-TTS-Preview-0.6b",
@@ -69,7 +67,7 @@
     },
     "identity": {
       "author": "Audio8",
-      "description_short": "Modèle TTS multilingue à 0,6B paramètres avec clonage de voix en un clic.",
+      "description_short": "A compact 0.6B multilingual text-to-speech model supporting zero-shot voice cloning.",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "speech",
@@ -92,7 +90,7 @@
       "vram_gb": 3.1
     }
   },
-  "description": "Audio8-TTS-Preview-0.6b est un modèle text-to-speech compact (0,6 milliard de paramètres) capable de génération polyglotte et de clonage de voix sans apprentissage supervisé. Il supporte la synthèse vocale dans 11 langues et inclut un codec audio neuronal à 44,1 kHz. Le modèle est disponible sous licence Apache 2.0.",
+  "description": "Audio8 TTS Preview is a 0.6B-parameter multilingual text-to-speech model capable of zero-shot voice cloning, utilizing a DualAR architecture with up to 2,048 context positions. It supports specific languages including Cantonese, Chinese, English, French, German, Italian, Japanese, Korean, Polish, and Spanish, under an Apache 2.0 license. While language coverage is intentionally limited in this release, the model achieves state-of-the-art performance on benchmarks despite its small parameter count.",
   "key": "huggingface:Audio8/Audio8-TTS-Preview-0.6b",
   "manifest_kind": "model",
   "name": "Audio8-TTS-Preview-0.6b",

@@ -28,7 +28,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "RT-DETR v2 — plaques d'immatriculation (transformers).",
+      "description_short": "RT-DETR v2 — licence plates (transformers).",
       "license": null,
       "model_type": "vision",
       "platform_ref": "huggingface:justjuu/rtdetr-v2-license-plate-detection",
@@ -50,7 +50,7 @@
       "vram_gb": 1.0
     }
   },
-  "description": "RT-DETR v2 affiné sur les plaques (Apache-2.0) : 40 % de rappel sur des caméras de véhicule basse résolution, 69 ms par image. Ses erreurs diffèrent de celles d'EgoBlur : réunis, ils trouvent 64,6 % des plaques — c'est un complément d'ensemble pour l'anonymisation.",
+  "description": "RT-DETR v2 fine-tuned on licence plates (Apache-2.0): 40 % recall on low-resolution vehicle cameras, 69 ms per frame. Its errors differ from EgoBlur's: together they find 64.6 % of the plates — an ensemble complement for anonymisation.",
   "key": "anonymizer:rtdetr-v2-license-plate",
   "manifest_kind": "model",
   "name": "RT-DETR v2 plaques",

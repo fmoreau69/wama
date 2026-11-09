@@ -24,6 +24,16 @@
     },
     "extra_info": {
       "aliases": [],
+      "description_source": {
+        "date": "2026-11-09",
+        "model": "qwen3.5:4b",
+        "origin": "web",
+        "ref": [
+          "https://openrouter.ai/openai/gpt-4.1:batch",
+          "https://picksbymodel.com/models/openai-gpt-4-1-batch/",
+          "https://api-cost.com/models/openai/gpt-4.1%3Abatch"
+        ]
+      },
       "hosting": "third_party",
       "remote_type": "image-text-to-text"
     },
@@ -33,7 +43,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (image-text-to-text)",
+      "description_short": "GPT-4.1 (batch) is a large language model with a 1M token context window optimized for instruction following, software engineering, and long-context reasoning.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -55,7 +65,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (image-text-to-text)",
+  "description": "It supports text, image, and file input modalities and produces text output up to 32,768 tokens. As a batch-processing variant of OpenAI's GPT-4.1, it is designed for asynchronous high-throughput workloads.",
   "key": "openrouter:openai/gpt-4.1:batch",
   "manifest_kind": "model",
   "name": "OpenAI: GPT-4.1 (batch)",

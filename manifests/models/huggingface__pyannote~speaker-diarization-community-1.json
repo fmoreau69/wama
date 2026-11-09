@@ -9,11 +9,13 @@
     "extra_info": {
       "category": "speech",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
-        "origin": "fiche",
+        "origin": "web",
         "ref": [
-          "https://huggingface.co/pyannote/speaker-diarization-community-1"
+          "https://huggingface.co/pyannote/speaker-diarization-community-1",
+          "https://www.pyannote.ai/blog/community-1",
+          "https://github.com/pyannote/pyannote-audio"
         ]
       },
       "family": "speaker-diarization-community-1",
@@ -25,7 +27,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle de diarisation d'orateurs qui ingère des fichiers audio mono à 16 kHz et améliore l'affectation et le comptage des orateurs.",
+      "description_short": "A pretrained model for speech diarization that ingests mono or multi-channel audio and outputs speaker assignments.",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:pyannote/speaker-diarization-community-1",
@@ -53,7 +55,7 @@
       "vram_gb": 0.1
     }
   },
-  "description": "Ce modèle prend en entrée des fichiers audio mono (ou multi-canal convertis automatiquement) échantillonnés à 16 kHz pour produire une diarisation d'orateurs. Ses points forts incluent une meilleure précision dans l'affectation et le comptage des orateurs par rapport aux modèles précédents, ainsi qu'une fonctionnalité de diarisation exclusive facilitant la réconciliation avec les timestamps de transcriptions. Il permet un usage hors ligne ou via le cloud pyannoteAI.",
+  "description": "This model ingests mono audio sampled at 16kHz (automatically resampling stereo/multi-channel files to mono) and outputs speaker diarization results. It is released under a Creative Commons Attribution 4.0 license, though the repository itself uses an MIT License.",
   "key": "huggingface:pyannote/speaker-diarization-community-1",
   "manifest_kind": "model",
   "name": "speaker-diarization-community-1",

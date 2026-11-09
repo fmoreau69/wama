@@ -83,7 +83,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "CodeFormer — restauration de visage (option qualité supérieure, use_enhancer).",
+      "description_short": "CodeFormer — face restoration (higher-quality option, use_enhancer).",
       "license": null,
       "model_type": "vision",
       "platform_ref": "huggingface:sczhou/CodeFormer",
@@ -105,7 +105,7 @@
       "vram_gb": 3.0
     }
   },
-  "description": "CodeFormer — restauration de visage (option qualité supérieure, use_enhancer).",
+  "description": "CodeFormer — face restoration (higher-quality option, use_enhancer).",
   "key": "avatarizer:codeformer",
   "manifest_kind": "model",
   "name": "CodeFormer",

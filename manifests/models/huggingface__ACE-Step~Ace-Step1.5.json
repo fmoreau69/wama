@@ -40,11 +40,11 @@
     "extra_info": {
       "category": "music",
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "fiche",
         "ref": [
-          "https://huggingface.co/ACE-Step/Ace-Step1.5"
+          "https://huggingface.co/ace-step/ace-step1.5"
         ]
       },
       "family": "Ace-Step1.5",
@@ -56,7 +56,7 @@
     },
     "identity": {
       "author": "ACE-Step",
-      "description_short": "Modèle open-source de génération musicale commerciale prêt à l'emploi, fonctionnant sur matériel consommateur avec support multi-langues.",
+      "description_short": "ACE-Step 1.5 is a commercial-ready, open-source text-to-music model capable of generating songs in under 2 seconds on consumer hardware.",
       "gated": "no",
       "license": "mit",
       "model_type": "music",
@@ -82,7 +82,7 @@
       "vram_gb": 12.1
     }
   },
-  "description": "ACE-Step v1.5 est un modèle de génération musicale (Text2Music) d'origine ouverte entraîné sur des données légales et synthétiques, permettant une utilisation commerciale stricte. Il transforme des requêtes textuelles en compositions musicales complètes via un planificateur LM intégré et un Diffusion Transformer, avec contrôle stylistique précis et support pour plus de 50 langues. Le modèle fonctionne localement avec moins de 4 Go de VRAM (ex: A100 ou RTX 3090) et génère une chanson complète en moins de 2 secondes sur hardware dédié.",
+  "description": "ACE-Step 1.5 is an efficient open-source music foundation model designed for commercial use and consumer hardware with less than 4GB VRAM. It accepts text prompts in over 50 languages and outputs generated music, lyrics, and metadata through a hybrid architecture that uses intrinsic reinforcement learning. While it supports various editing tasks like cover generation and repainting, the specific capabilities vary by model variant, such as the `turbo` version which prioritizes speed.",
   "key": "huggingface:ACE-Step/Ace-Step1.5",
   "manifest_kind": "model",
   "name": "Ace-Step1.5",

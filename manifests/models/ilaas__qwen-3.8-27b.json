@@ -26,13 +26,13 @@
     "extra_info": {
       "aliases": [],
       "description_source": {
-        "date": "2026-10-30",
+        "date": "2026-11-09",
         "model": "qwen3.5:4b",
         "origin": "web",
         "ref": [
-          "https://console.groq.com/docs/model/qwen/qwen3.8-27b",
-          "https://cdn.venice.ai/models/qwen-3-8-27b",
-          "https://openrouter.ai/qwen/qwen3.8-27b"
+          "https://simonwillison.net/2026/aug/16/qwen-38-27b/",
+          "https://openrouter.ai/qwen/qwen3.8-27b",
+          "https://console.groq.com/docs/model/qwen/qwen3.8-27b"
         ]
       },
       "hosting": "sovereign",
@@ -44,7 +44,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Modèle multimodal de 27 milliards de paramètres d'Alibaba pour le codage, la raisonement et les tâches à long terme.",
+      "description_short": "Qwen 3.8 27B is an Apache 2 licensed 27B multimodal LLM excelling in coding, reasoning, and long-horizon tasks.",
       "license": null,
       "model_type": "llm",
       "platform_ref": null,
@@ -66,7 +66,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Qwen 3.8 27B est un modèle dense open-weight (licence Apache 2.0) capable de traiter du texte, des images et d'utiliser des outils. Il excelle dans le codage agencé, la raisonement et les workflows à long terme avec un contexte natif jusqu'à 1 million de tokens.",
+  "description": "This 27-billion-parameter dense vision-language model from Alibaba's Qwen research lab accepts text and image inputs to produce text outputs. It supports tool calling, structured outputs (JSON), and configurable reasoning, making it suited for agentic workflows, professional coding, and multimodal interaction. While the source notes it defaults to overthinking, it delivers frontier-level performance that rivals models many times its size.",
   "key": "ilaas:qwen-3.8-27b",
   "manifest_kind": "model",
   "name": "qwen-3.8-27b",

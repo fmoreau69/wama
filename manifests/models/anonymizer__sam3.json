@@ -38,7 +38,7 @@
     },
     "identity": {
       "author": "facebook",
-      "description_short": "SAM3 (Meta) — segmentation par prompt texte.",
+      "description_short": "SAM3 (Meta) — segmentation from a text prompt.",
       "gated": "manual",
       "license": "sam-license",
       "model_type": "vision",
@@ -61,7 +61,7 @@
       "vram_gb": 3.0
     }
   },
-  "description": "SAM3 (Meta, Segment Anything 3) : segmentation open-vocabulary pilotée par un prompt texte libre (ex. « blur all faces and license plates ») au lieu de classes YOLO fixes. ~3 Go VRAM. Nécessite un token HuggingFace configuré.",
+  "description": "SAM3 (Meta, Segment Anything 3): open-vocabulary segmentation driven by a free text prompt (e.g. “blur all faces and license plates”) instead of fixed YOLO classes. ~3 GB VRAM. Requires a configured HuggingFace token.",
   "key": "anonymizer:sam3",
   "manifest_kind": "model",
   "name": "SAM3 (Segment Anything)",

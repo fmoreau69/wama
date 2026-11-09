@@ -152,7 +152,7 @@
     },
     "identity": {
       "author": "hexgrad",
-      "description_short": "Kokoro 82M — TTS multilingue ultra-léger.",
+      "description_short": "Kokoro 82M — ultra-light multilingual TTS.",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "speech",
@@ -179,7 +179,7 @@
       "vram_gb": 0.5
     }
   },
-  "description": "Kokoro 82M : modèle de synthèse vocale très léger (82M paramètres) couvrant FR/EN/ES/IT/PT/JA/ZH avec des voix fixes par langue. Extrêmement rapide et peu gourmand, adapté au temps réel et aux petites configurations.",
+  "description": "Kokoro 82M: a very light speech synthesis model (82M parameters) covering FR/EN/ES/IT/PT/JA/ZH with fixed voices per language. Extremely fast and frugal, suited to real time and small setups.",
   "key": "synthesizer:kokoro",
   "manifest_kind": "model",
   "name": "Kokoro 82M",

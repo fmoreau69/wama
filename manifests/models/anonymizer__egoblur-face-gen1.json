@@ -30,7 +30,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "EgoBlur (Meta) — visages, vidéo embarquée.",
+      "description_short": "EgoBlur (Meta) — faces, dashcam video.",
       "license": null,
       "model_type": "vision",
       "platform_ref": null,
@@ -52,7 +52,7 @@
       "vram_gb": 2.0
     }
   },
-  "description": "EgoBlur (Meta, Apache-2.0) : détecteur de visages entraîné pour ANONYMISER, réglé pour ne rien rater. Rend au plus 100 visages par image : une foule dense le sature. Poids distribués par Meta sur formulaire : à déposer dans le dossier `vision/egoblur`.",
+  "description": "EgoBlur (Meta, Apache-2.0): a face detector trained to ANONYMISE, tuned to miss nothing. Returns at most 100 faces per frame: a dense crowd saturates it. Weights distributed by Meta through a form: drop them in the `vision/egoblur` folder.",
   "key": "anonymizer:egoblur-face-gen1",
   "manifest_kind": "model",
   "name": "EgoBlur visages (gen1)",

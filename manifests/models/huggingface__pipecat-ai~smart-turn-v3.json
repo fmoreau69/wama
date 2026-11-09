@@ -60,7 +60,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Fin de tour de parole (conversation vocale)",
+      "description_short": "End of a speaking turn (voice conversation)",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:pipecat-ai/smart-turn-v3",
@@ -82,7 +82,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "Smart Turn (pipecat-ai, BSD-2) : juge sur le son seul — intonation, fin de mot — si la personne a fini sa phrase ou reprend son souffle. L'écoute de l'assistant le consulte après une pause courte : la réponse part plus tôt, une pause au milieu d'une idée ne coupe plus la phrase. 23 langues dont le français ; processeur, aucune VRAM.",
+  "description": "Smart Turn (pipecat-ai, BSD-2): judges from the sound alone — intonation, word endings — whether the speaker has finished their sentence or is taking a breath. The assistant's listening asks it after a short pause: the answer starts sooner, and a pause in the middle of a thought no longer cuts the sentence. 23 languages including French; processor, no VRAM.",
   "key": "huggingface:pipecat-ai/smart-turn-v3",
   "manifest_kind": "model",
   "name": "Smart Turn v3.2",
