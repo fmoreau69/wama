@@ -456,6 +456,70 @@ class RemoteBackupService:
         return mirror_tree(root, self.remote_path, overwrite=overwrite, progress_cb=progress_cb)
 
 
+def resolve_model_location(ref: str) -> Optional[Path]:
+    """
+    Ce que sauvegarder pour `ref` : un chemin existant (rendu tel quel), ou une clé de catalogue —
+    son emplacement DÉCLARÉ (`local_path`, `extra_info['path']`) s'il existe, sinon le dossier de
+    ses poids (`model_installer.weights_dir_of`, le lien de la désinstallation). None sinon.
+
+    Le bouton « Backup selected » envoie la CLÉ du modèle dans `source_path` : la vue la prenait
+    pour un chemin, « Source file not found » à chaque fois (constaté le 2026-11-09) — le défaut
+    que `format_converter.resolve_weight_file` a soldé pour « Convertir » le 2026-08-31. Ici
+    l'emplacement ENTIER, pas le plus gros fichier : une sauvegarde emporte tout le modèle.
+    """
+    if not ref:
+        return None
+    path = Path(ref)
+    if path.exists():
+        return path
+    from wama.model_manager.models import AIModel
+    row = AIModel.objects.filter(model_key=ref).first()
+    if row is None:
+        return None
+    declared = row.local_path or (row.extra_info or {}).get('path') or ''
+    if declared and Path(declared).exists():
+        return Path(declared)
+    from .model_installer import weights_dir_of
+    weights = weights_dir_of(row)
+    return weights if weights is not None and weights.exists() else None
+
+
+def backup_model(ref: str, model_type: str = 'unknown', model_name: str = '',
+                 format_type: str = 'safetensors', overwrite: bool = False) -> dict:
+    """
+    Sauvegarde d'UN modèle sur l'espace distant — le corps du bouton « Backup selected »
+    (`api_backup_model`) et de l'outil `start_backup(target='model')` de l'assistant (2026-11-09).
+    `ref` : chemin ou clé de catalogue (`resolve_model_location`) ; `model_name` par défaut, le
+    dernier segment de la clé, comme la page. Un dossier se sauvegarde fichier par fichier.
+
+    Rend la réponse de la vue, plus `not_found` quand rien ne se résout (la vue en fait un 404).
+    """
+    location = resolve_model_location(ref)
+    if location is None:
+        return {'success': False, 'not_found': True,
+                'error': f"Aucun fichier ni dossier de poids pour « {ref} »."}
+    name = model_name or str(ref).split(':')[-1] or location.name
+    service = get_backup_service()
+    if not service.is_available():
+        return {'success': False, 'error': 'Remote backup path not accessible'}
+    if location.is_dir():
+        results = service.backup_directory(str(location), model_type, name, format_type,
+                                           overwrite=overwrite)
+        return {
+            'success': any(r.success for r in results),
+            'files_backed_up': sum(1 for r in results if r.success),
+            'total_files': len(results),
+            'total_size_mb': sum(r.size_mb for r in results if r.success),
+            'results': [{'source': r.source_path, 'dest': r.dest_path, 'success': r.success,
+                         'size_mb': r.size_mb, 'error': r.error} for r in results],
+        }
+    result = service.backup_file(str(location), model_type, name, format_type,
+                                 overwrite=overwrite)
+    return {'success': result.success, 'source_path': result.source_path,
+            'dest_path': result.dest_path, 'size_mb': result.size_mb,
+            'duration_seconds': result.duration_seconds, 'error': result.error}
+
+
 # Singleton instance
 _backup_service: Optional[RemoteBackupService] = None
 

@@ -709,8 +709,18 @@ class MemoryManager:
             return {'error': str(e)}
 
     @staticmethod
-    def clear_gpu_memory() -> bool:
-        """Clear all GPU memory."""
+    def clear_gpu_memory(everywhere: bool = False) -> bool:
+        """Clear all GPU memory.
+
+        `everywhere` (2026-11-09) : le geste HUMAIN (bouton « Clear GPU », outil `free_memory`)
+        décharge d'abord les modèles résidents de TOUS les process, par le canal des tenants — de
+        gunicorn, `_unload_all_backends` ne voit que le sien, qui n'en tient aucun. Un tenant au
+        travail garde son modèle (`unload_resident`)."""
+        if everywhere:
+            from wama.common.services.resource_governor import resident_models, unload_resident
+            for model_key in list(resident_models()):
+                unloaded, message = unload_resident(model_key)
+                logger.info(f"{'🗑️' if unloaded else '⏸'} {message}")
         try:
             import torch
             if torch.cuda.is_available():

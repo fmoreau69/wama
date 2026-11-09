@@ -18,7 +18,10 @@ What is held, DERIVED from what WAMA declares, never from a list of names :
   5. every ACTION ROUTE of WAMA (a path with an `api/` segment) maps to the tool that does it — a
      route without a tool is a declared budget that can only shrink (2026-11-08, Fabien : « si les
      API existent, l'assistant doit pouvoir les utiliser ». Measured that day : 252 such routes,
-     the guards above saw none of them ; the format routes of the model manager had no tool).
+     the guards above saw none of them ; the format routes of the model manager had no tool) ;
+  6. each tool of the model manager posts THE view of its button, with the method it accepts, and
+     asks the user's agreement where the page does (2026-11-09 : the whole page, 46 routes) ;
+  7. what the model reads of every tool is a whole sentence (2026-11-09 : 44 of 144 were cut).
 The recipe to complete the API is the skill `/api-outils`.
 """
 import ast
@@ -86,12 +89,59 @@ ROUTE_TOOLS = {
     'model_manager:api_convert_model': 'convert_model_format',
     'model_manager:api_batch_convert': 'convert_model_format',
     'model_manager:api_convert_and_backup': 'convert_model_format',
+    # Every other gesture of the model manager page (2026-11-09) — each tool posts the button's view.
+    'model_manager:api_memory_stats': 'get_memory_state',
+    'model_manager:api_memory_detailed': 'get_memory_state',
+    'model_manager:api_tracked_models': 'get_memory_state',
+    'model_manager:api_idle_models': 'get_memory_state',
+    'model_manager:api_large_objects': 'get_memory_state',
+    'model_manager:api_memory_snapshot': 'get_memory_state',
+    'model_manager:api_debug_stats': 'get_memory_state',
+    'model_manager:api_cleaner_status': 'get_memory_state',
+    'model_manager:api_disk_space': 'get_disk_space',
+    'model_manager:api_check_disk_space': 'get_disk_space',
+    'model_manager:api_catalog_stats': 'get_model_catalog_state',
+    'model_manager:api_sync_logs': 'get_model_catalog_state',
+    'model_manager:api_diagnose_models': 'get_model_catalog_state',
+    'model_manager:api_models_list': 'get_model_catalog_state',
+    'model_manager:api_watcher_status': 'get_model_catalog_state',
+    'model_manager:api_backup_status': 'get_backup_state',
+    'model_manager:api_backup_list': 'get_backup_state',
+    'model_manager:api_backup_models_progress': 'get_backup_state',
+    'model_manager:api_backup_media_progress': 'get_backup_state',
+    'model_manager:api_prospect_assess_progress': 'get_model_evaluation_progress',
+    'model_manager:api_sync_benchmarks_progress': 'get_model_evaluation_progress',
+    'model_manager:api_manifest_proposals': 'list_model_proposals',
+    'model_manager:api_model_options': 'list_model_choices',
+    'model_manager:api_unload_model': 'free_memory',
+    'model_manager:api_unload_model_by_id': 'free_memory',
+    'model_manager:api_cleanup_idle': 'free_memory',
+    'model_manager:api_aggressive_cleanup': 'free_memory',
+    'model_manager:api_clear_gpu': 'free_memory',
+    'model_manager:api_clear_gpu_cache': 'free_memory',
+    'model_manager:api_force_gc': 'free_memory',
+    'model_manager:api_vram_grant': 'free_gpu_for_item',
+    'model_manager:api_cleaner_start': 'control_memory_cleaner',
+    'model_manager:api_cleaner_stop': 'control_memory_cleaner',
+    'model_manager:api_cleaner_configure': 'control_memory_cleaner',
+    'model_manager:api_watcher_control': 'control_model_watcher',
+    'model_manager:api_backup_db': 'start_backup',
+    'model_manager:api_backup_models_start': 'start_backup',
+    'model_manager:api_backup_media_start': 'start_backup',
+    'model_manager:api_backup_model': 'start_backup',
+    'model_manager:api_sync_models': 'sync_model_catalog',
+    'model_manager:api_prospect_assess': 'assess_proposed_models',
+    'model_manager:api_sync_benchmarks': 'sync_model_benchmarks',
+    'model_manager:api_prospect_reject': 'reject_proposed_model',
+    'model_manager:api_model_uninstall': 'uninstall_model',
+    'model_manager:api_model_task_limit': 'set_model_task_limit',
+    'model_manager:api_manifest_proposal_decide': 'decide_model_proposal',
 }
 #: Action routes without a tool. The value of the measure ; LOWER it in the commit that adds a tool.
 #: Measured on 2026-11-08 when this guard was written : 208 (221 action routes, 13 mapped ; the
 #: twins' routes folded onto their source's). Some of them are already done by an existing tool and
-#: only lack their line here — map them first.
-ROUTES_WITHOUT_TOOL_BUDGET = 208
+#: only lack their line here — map them first. 208 → 162 on 2026-11-09 : the whole model manager.
+ROUTES_WITHOUT_TOOL_BUDGET = 162
 
 
 def action_routes() -> dict:
@@ -401,3 +451,251 @@ class SandboxAppsThroughTheToolsTest(TestCase):
     def test_the_cycle_verbs_apply_it(self):
         self.assertEqual('forbidden', T.delete_item(self.other_dev, 'writer_01', 1).get('error'))
         self.assertEqual('forbidden', T.stop_item(self.other_dev, 'writer_01', 1).get('error'))
+
+
+# ── The model manager's gestures (2026-11-09) ────────────────────────────────────────────────────
+
+#: Each route of the model manager's page → the tool call that must reach its view. Read against
+#: ROUTE_TOOLS both ways : a route mapped to one of these tools without a call here fails.
+VIEW_CALLS = {
+    'model_manager:api_memory_stats': ('get_memory_state', {}),
+    'model_manager:api_memory_detailed': ('get_memory_state', {'view': 'detailed'}),
+    'model_manager:api_tracked_models': ('get_memory_state', {'view': 'resident'}),
+    'model_manager:api_idle_models': ('get_memory_state', {'view': 'idle'}),
+    'model_manager:api_large_objects': ('get_memory_state', {'view': 'large_objects'}),
+    'model_manager:api_memory_snapshot': ('get_memory_state', {'view': 'snapshot'}),
+    'model_manager:api_debug_stats': ('get_memory_state', {'view': 'raw'}),
+    'model_manager:api_cleaner_status': ('get_memory_state', {'view': 'cleaner'}),
+    'model_manager:api_disk_space': ('get_disk_space', {}),
+    'model_manager:api_check_disk_space': ('get_disk_space', {'required_gb': 12}),
+    'model_manager:api_catalog_stats': ('get_model_catalog_state', {}),
+    'model_manager:api_sync_logs': ('get_model_catalog_state', {'view': 'sync_logs'}),
+    'model_manager:api_diagnose_models': ('get_model_catalog_state', {'view': 'diagnose'}),
+    'model_manager:api_models_list': ('get_model_catalog_state', {'view': 'discovered'}),
+    'model_manager:api_watcher_status': ('get_model_catalog_state', {'view': 'watcher'}),
+    'model_manager:api_backup_status': ('get_backup_state', {}),
+    'model_manager:api_backup_list': ('get_backup_state', {'view': 'list'}),
+    'model_manager:api_backup_models_progress': ('get_backup_state', {'view': 'models_mirror'}),
+    'model_manager:api_backup_media_progress': ('get_backup_state', {'view': 'media_mirror'}),
+    'model_manager:api_prospect_assess_progress': ('get_model_evaluation_progress', {}),
+    'model_manager:api_sync_benchmarks_progress': ('get_model_evaluation_progress',
+                                                   {'kind': 'benchmarks'}),
+    'model_manager:api_manifest_proposals': ('list_model_proposals', {}),
+    'model_manager:api_model_options': ('list_model_choices', {'task': 'text-to-speech'}),
+    'model_manager:api_unload_model': ('free_memory', {'action': 'unload', 'model_key': 'a:b',
+                                                       'confirm': True}),
+    'model_manager:api_cleanup_idle': ('free_memory', {'action': 'idle'}),
+    'model_manager:api_aggressive_cleanup': ('free_memory', {'action': 'all', 'confirm': True}),
+    'model_manager:api_clear_gpu': ('free_memory', {'action': 'gpu', 'confirm': True}),
+    'model_manager:api_clear_gpu_cache': ('free_memory', {'action': 'gpu_cache'}),
+    'model_manager:api_force_gc': ('free_memory', {'action': 'gc'}),
+    'model_manager:api_vram_grant': ('free_gpu_for_item', {'app': 'imager', 'item_id': 1,
+                                                           'confirm': True}),
+    'model_manager:api_cleaner_start': ('control_memory_cleaner', {'action': 'start'}),
+    'model_manager:api_cleaner_stop': ('control_memory_cleaner', {'action': 'stop'}),
+    'model_manager:api_cleaner_configure': ('control_memory_cleaner',
+                                            {'action': 'configure', 'idle_threshold_s': 600}),
+    'model_manager:api_watcher_control': ('control_model_watcher', {'action': 'stop'}),
+    'model_manager:api_backup_db': ('start_backup', {'target': 'database', 'confirm': True}),
+    'model_manager:api_backup_models_start': ('start_backup', {'target': 'models', 'confirm': True}),
+    'model_manager:api_backup_media_start': ('start_backup', {'target': 'media', 'confirm': True}),
+    'model_manager:api_backup_model': ('start_backup', {'target': 'model', 'model_key': 'a:b',
+                                                        'confirm': True}),
+    'model_manager:api_sync_models': ('sync_model_catalog', {}),
+    'model_manager:api_prospect_assess': ('assess_proposed_models', {'confirm': True}),
+    'model_manager:api_sync_benchmarks': ('sync_model_benchmarks', {}),
+    'model_manager:api_prospect_reject': ('reject_proposed_model', {'model_key': 'a:b',
+                                                                    'confirm': True}),
+    'model_manager:api_model_uninstall': ('uninstall_model', {'model_key': 'a:b', 'confirm': True}),
+    'model_manager:api_model_task_limit': ('set_model_task_limit', {'model_key': 'a:b',
+                                                                    'minutes': 90}),
+    'model_manager:api_manifest_proposal_decide': ('decide_model_proposal',
+                                                   {'decision': 'reject', 'file': 'backend_x.json',
+                                                    'confirm': True}),
+}
+#: The tools that post a view of the page. The route `api_unload_model_by_id` shares the unload
+#: body : the tool posts `api_unload_model`, the page's « Décharger ».
+MODEL_MANAGER_VIEW_TOOLS = {tool for tool, _args in VIEW_CALLS.values()}
+VIEW_ROUTE_ALIASES = {'model_manager:api_unload_model_by_id': 'model_manager:api_unload_model'}
+
+
+def allowed_methods(view) -> set:
+    """The HTTP methods a view accepts, read from its `require_http_methods` wrapper — the list it
+    closes over, reached through the `__wrapped__` chain of the decorators."""
+    while view is not None:
+        for cell in (getattr(view, '__closure__', None) or ()):
+            value = cell.cell_contents
+            if isinstance(value, (list, tuple)) and value and all(
+                    isinstance(m, str) and m.isupper() for m in value):
+                return set(value)
+        view = getattr(view, '__wrapped__', None)
+    return set()
+
+
+class EveryToolDescriptionIsAWholeSentenceTest(SimpleTestCase):
+    """What the model reads of a tool (the prompt's list, the MCP server) is its docstring's first
+    PARAGRAPH (`_doc_summary`). It was the first physical LINE until 2026-11-09 : docstrings wrap at
+    100 columns, and 44 tools of 144 showed the model a sentence cut in the middle."""
+
+    def test_each_description_ends_as_a_sentence_and_holds_no_section(self):
+        for name, meta in T.tool_descriptions().items():
+            text = meta['description']
+            with self.subTest(tool=name):
+                self.assertTrue(text and text[-1] in '.!?)»`"\'', text[-80:])
+                self.assertNotRegex(text, r'\b(Args|Returns):')
+
+    def test_the_summary_stops_at_the_first_blank_line_or_section(self):
+        def tool():
+            """First line of a sentence
+            that goes on.
+
+            Second paragraph.
+            """
+        def packed():
+            """One sentence.
+            Args:
+                x: y.
+            """
+        self.assertEqual('First line of a sentence that goes on.', T._doc_summary(tool))
+        self.assertEqual('One sentence.', T._doc_summary(packed))
+
+
+class ModelManagerToolsReachTheirViewTest(SimpleTestCase):
+    """Each tool posts THE view of the page's button — the route ROUTE_TOOLS names, with the method
+    that view accepts, a JSON body for a POST (the views read `request.body`)."""
+
+    def _reached(self, tool, args):
+        calls = []
+
+        def fake_call_view(user, view, args_=(), kwargs=None, **kw):
+            calls.append((view, kw))
+            return 200, {'success': True}
+        with mock.patch.object(T, '_call_view', side_effect=fake_call_view), \
+                mock.patch.object(T, '_unknown_model_key', return_value=None), \
+                mock.patch.object(T, '_refus_app', return_value=None), \
+                mock.patch('wama.accounts.permissions.can_manage_registries', return_value=True), \
+                mock.patch('wama.accounts.permissions.is_admin_tier', return_value=True):
+            out = getattr(T, tool)(mock.Mock(is_authenticated=True), **args)
+        return out, calls
+
+    def test_every_call_reaches_its_route_with_the_method_the_view_accepts(self):
+        from django.urls import resolve, reverse
+        for route, (tool, args) in VIEW_CALLS.items():
+            with self.subTest(route=route):
+                self.assertEqual(tool, ROUTE_TOOLS.get(route), 'VIEW_CALLS and ROUTE_TOOLS disagree')
+                out, calls = self._reached(tool, args)
+                self.assertNotIn('error', out, out)
+                self.assertEqual(1, len(calls), calls)
+                view, kw = calls[0]
+                self.assertIs(resolve(reverse(route)).func, view)
+                method = kw.get('method', 'post').upper()
+                self.assertIn(method, allowed_methods(view))
+                self.assertEqual(method == 'POST', kw.get('json_body'))
+
+    def test_every_route_of_these_tools_has_its_call(self):
+        for route, tool in ROUTE_TOOLS.items():
+            if tool in MODEL_MANAGER_VIEW_TOOLS:
+                with self.subTest(route=route):
+                    self.assertIn(VIEW_ROUTE_ALIASES.get(route, route), VIEW_CALLS)
+
+    def test_a_simple_user_is_refused_every_management_tool(self):
+        with mock.patch('wama.accounts.permissions.can_manage_registries', return_value=False), \
+                mock.patch.object(T, '_call_view') as reached:
+            for route, (tool, args) in VIEW_CALLS.items():
+                if T.TOOL_APP_OVERRIDE.get(tool) != 'registries':
+                    continue
+                with self.subTest(tool=tool):
+                    self.assertEqual('forbidden', getattr(T, tool)(mock.Mock(), **args).get('error'))
+            reached.assert_not_called()
+
+    def test_a_gesture_the_page_confirms_is_refused_without_the_agreement(self):
+        for route, (tool, args) in VIEW_CALLS.items():
+            if not args.get('confirm'):
+                continue
+            with self.subTest(route=route):
+                out, calls = self._reached(tool, {**args, 'confirm': False})
+                self.assertIn('confirm=true', out.get('error', ''))
+                self.assertEqual([], calls)
+
+    def test_the_effects_are_declared(self):
+        reads = {'get_memory_state', 'get_disk_space', 'get_model_catalog_state', 'get_backup_state',
+                 'get_model_evaluation_progress', 'list_model_proposals', 'list_model_choices'}
+        destroys = {'reject_proposed_model', 'uninstall_model'}
+        for tool in MODEL_MANAGER_VIEW_TOOLS:
+            with self.subTest(tool=tool):
+                expected = 'read' if tool in reads else 'destroy' if tool in destroys else 'write'
+                self.assertEqual(expected, T.effect_of(tool)['effect'])
+
+
+class ModelManagerToolsOnTheRealViewsTest(TestCase):
+    """The tools through the REAL views, their bodies stubbed at the service seam."""
+
+    def setUp(self):
+        self.admin = _account('mm_tools_admin', 'admin')
+        self.dev = _account('mm_tools_dev', 'developpeur')
+        self.user = _account('mm_tools_user')
+
+    def test_a_proposal_is_decided_by_an_administrator_only_and_said_before_the_agreement(self):
+        import wama.common.services.backend_proposals as B
+        with mock.patch.object(B, 'reject', return_value=True) as reject:
+            refused = T.decide_model_proposal(self.dev, 'reject', file='backend_x.json')
+            self.assertEqual('forbidden', refused.get('error'), 'a developer proposes, never decides')
+            asked = T.decide_model_proposal(self.admin, 'reject', file='backend_x.json')
+            self.assertIn('confirm=true', asked['error'])
+            reject.assert_not_called()
+            done = T.decide_model_proposal(self.admin, 'reject', file='backend_x.json', confirm=True)
+        self.assertEqual({'success': True}, done)
+        reject.assert_called_once_with('backend_x.json', self.admin)
+
+    def test_shared_weights_ask_a_second_agreement_with_what_they_carry(self):
+        from wama.model_manager.services import model_installer
+        sharing = {'ok': False, 'needs_confirmation': True, 'error': 'poids partagés',
+                   'sharing': ['reader:x'], 'dependents': []}
+        with mock.patch.object(T, '_unknown_model_key', return_value=None), \
+                mock.patch.object(model_installer, 'uninstall_model', return_value=sharing) as body:
+            out = T.uninstall_model(self.dev, 'reader:y', confirm=True)
+        self.assertEqual((True, ['reader:x']), (out['needs_confirmation'], out['sharing']))
+        body.assert_called_once_with('reader:y', include_shared=False, via='model_manager',
+                                     withdraw=True)
+
+    def test_free_gpu_for_an_item_of_someone_else_is_refused(self):
+        from wama.common.services import resource_governor
+        from wama.imager.models import ImageGeneration
+        owner = _account('mm_tools_owner', role='communication')
+        stranger = _account('mm_tools_stranger', role='communication')
+        item = ImageGeneration.objects.create(user=owner, prompt='a cat')
+        with mock.patch.object(resource_governor, 'grant_release', return_value=True) as grant:
+            self.assertIn('error', T.free_gpu_for_item(stranger, 'imager', item.pk, confirm=True))
+            grant.assert_not_called()
+            out = T.free_gpu_for_item(owner, 'imager', item.pk, confirm=True)
+        self.assertTrue(out.get('success'), out)
+        grant.assert_called_once_with('imager', item.pk, user_id=owner.pk)
+
+    def test_the_model_choices_are_open_to_any_account_but_not_to_a_visitor(self):
+        from django.contrib.auth.models import AnonymousUser
+        self.assertIn('error', T.list_model_choices(AnonymousUser(), task='text-to-speech'))
+        with mock.patch('wama.model_manager.services.get_registry_models',
+                        return_value=([('m', 'M')], [])):
+            out = T.list_model_choices(self.user, task='text-to-speech')
+        self.assertNotIn('error', out, out)
+
+    def test_the_cleanup_buttons_unload_in_every_process(self):
+        """« Clean Idle », « Aggressive » and « Clear GPU » — human gestures — reach the models of
+        the workers through the tenants' channel ; from gunicorn they unloaded none (2026-11-09)."""
+        from wama.common.services import resource_governor as gov
+        idle = [{'model_key': 'reader:ocr', 'vram_gb': 2.0, 'idle_seconds': 900,
+                 'idle_minutes': 15, 'jamais_utilise': False, 'owner': 'x'}]
+        stats = {'cpu_info': None, 'gpu_info': None, 'system_info': None}
+        # The test process never touches the card : CUDA is said absent, the monitor stubbed.
+        with mock.patch('torch.cuda.is_available', return_value=False), \
+                mock.patch('wama.model_manager.views.SystemMonitor.get_model_manager_stats',
+                           return_value=stats), \
+                mock.patch.object(gov, 'idle_models', return_value=idle), \
+                mock.patch.object(gov, 'resident_models', return_value={'reader:ocr': 2.0}), \
+                mock.patch.object(gov, 'unload_resident', return_value=(True, 'ok')) as channel:
+            for args in ({'action': 'idle'}, {'action': 'all', 'confirm': True},
+                         {'action': 'gpu', 'confirm': True}):
+                with self.subTest(**args):
+                    channel.reset_mock()
+                    self.assertNotIn('error', T.free_memory(self.dev, **args))
+                    channel.assert_called_with('reader:ocr')

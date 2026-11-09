@@ -183,8 +183,8 @@ def api_unload_model(request):
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_clear_gpu(request):
-    """API: Clear all GPU memory."""
-    success = MemoryManager.clear_gpu_memory()
+    """API: Clear all GPU memory — in every process (a human gesture, `clear_gpu_memory`)."""
+    success = MemoryManager.clear_gpu_memory(everywhere=True)
 
     # Get updated stats from centralized monitor
     stats = SystemMonitor.get_model_manager_stats()
@@ -572,9 +572,9 @@ def api_large_objects(request):
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_cleanup_idle(request):
-    """API: Clean up idle models."""
+    """API: Clean up idle models — in every process (a human gesture, `_unload_model`)."""
     cleaner = get_memory_cleaner()
-    result = cleaner.cleanup_idle_models()
+    result = cleaner.cleanup_idle_models(everywhere=True)
 
     return JsonResponse({
         'success': result.success,
@@ -590,9 +590,9 @@ def api_cleanup_idle(request):
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_aggressive_cleanup(request):
-    """API: Aggressive cleanup of all memory."""
+    """API: Aggressive cleanup of all memory — in every process (a human gesture)."""
     cleaner = get_memory_cleaner()
-    result = cleaner.aggressive_cleanup()
+    result = cleaner.aggressive_cleanup(everywhere=True)
 
     return JsonResponse({
         'success': result.success,
@@ -918,69 +918,21 @@ def api_backup_media_progress(request):
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_backup_model(request):
-    """API: Backup a model to remote storage."""
-    from .services.remote_backup import get_backup_service
+    """API: Backup a model to remote storage — `source_path` is a path or the model's catalogue
+    key, which the page sends. Its body is `remote_backup.backup_model`, shared with the
+    assistant's tool (`tool_api.start_backup`) since 2026-11-09."""
+    from .services.remote_backup import backup_model
 
     try:
         data = json.loads(request.body)
-        source_path = data.get('source_path')
-        model_type = data.get('model_type', 'unknown')
-        model_name = data.get('model_name')
-        format_type = data.get('format_type', 'safetensors')
-        overwrite = data.get('overwrite', False)
-
-        if not source_path:
+        if not data.get('source_path'):
             return JsonResponse({'success': False, 'error': 'source_path required'}, status=400)
-        if not model_name:
-            return JsonResponse({'success': False, 'error': 'model_name required'}, status=400)
-
-        service = get_backup_service()
-
-        if not service.is_available():
-            return JsonResponse({
-                'success': False,
-                'error': 'Remote backup path not accessible',
-            })
-
-        import os
-        if os.path.isdir(source_path):
-            results = service.backup_directory(
-                source_path, model_type, model_name, format_type,
-                overwrite=overwrite
-            )
-            success_count = sum(1 for r in results if r.success)
-            total_size = sum(r.size_mb for r in results if r.success)
-
-            return JsonResponse({
-                'success': success_count > 0,
-                'files_backed_up': success_count,
-                'total_files': len(results),
-                'total_size_mb': total_size,
-                'results': [
-                    {
-                        'source': r.source_path,
-                        'dest': r.dest_path,
-                        'success': r.success,
-                        'size_mb': r.size_mb,
-                        'error': r.error,
-                    }
-                    for r in results
-                ],
-            })
-        else:
-            result = service.backup_file(
-                source_path, model_type, model_name, format_type,
-                overwrite=overwrite
-            )
-
-            return JsonResponse({
-                'success': result.success,
-                'source_path': result.source_path,
-                'dest_path': result.dest_path,
-                'size_mb': result.size_mb,
-                'duration_seconds': result.duration_seconds,
-                'error': result.error,
-            })
+        res = backup_model(data['source_path'], model_type=data.get('model_type', 'unknown'),
+                           model_name=data.get('model_name') or '',
+                           format_type=data.get('format_type', 'safetensors'),
+                           overwrite=bool(data.get('overwrite', False)))
+        missing = res.pop('not_found', False)
+        return JsonResponse(res, status=404 if missing else 200)
 
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)

@@ -5914,6 +5914,11 @@ Cela ferme le reste ouvert ③ de la session résidence (§REPRISE 2026-08-12).
 « Clean Idle » ne peut pas décharger un modèle tenu par un worker Celery — il n'existe aucun
 broadcast de reclaim cross-process (conçu, non implémenté). Depuis un worker
 (`nightly_tests`, `cam_analyzer`), il décharge réellement — ce qui n'était **pas** le cas avant.
+*(Constat dépassé, corrigé le 2026-11-09 : le canal existe depuis le 2026-11-03,
+`resource_governor.unload_resident`, mais seul « Décharger » l'empruntait. « Clean Idle »,
+« Aggressive » et « Clear GPU » le prennent désormais — gestes HUMAINS, `everywhere=True` ; les
+appelants automatiques restent dans leur process, décision B1. Garde :
+`tests_backup_and_cleanup_gestures.CleanupUnloadsEverywhereOnlyForAHumanGestureTest`.)*
 
 **`wama_lab` vérifié** : hors venv, une seule dépendance à cette chaîne
 (`cam_analyzer/tasks.py:2341` → `aggressive_cleanup()`), rendue effective par le rebranchement.

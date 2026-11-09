@@ -2780,6 +2780,555 @@ def convert_model_format(user, model_key: str, target_format: str = 'safetensors
     return res
 
 
+# ── Les autres gestes du model manager (2026-11-09, Fabien : « si elles existent, l'assistant doit
+# pouvoir les utiliser ») — mémoire et carte, disque, nettoyeur, surveillance, sauvegardes,
+# catalogue, prospection, propositions : 46 routes de la page sans outil. Chaque outil POSTE la
+# VUE du bouton (`_model_manager_view`), jamais un second chemin ; la garde de gestion des
+# registres passe AVANT, car la garde de la vue (`user_passes_test`) répond par une redirection,
+# que `_verdict` lirait comme un succès. Un geste que la page fait confirmer exige `confirm=true`.
+
+def _model_manager_view(user, route: str, what: str, *, method: str = 'post', data=None):
+    """La vue `model_manager:<route>` appelée au nom de `user` → (échec | None, charge). La charge
+    est rendue même en échec : une désinstallation qui attend une seconde confirmation (409) y dit
+    pourquoi."""
+    from django.http import Http404
+    from django.urls import resolve, reverse
+
+    url = reverse(f'model_manager:{route}')
+    view, v_args, v_kwargs = resolve(url)
+    try:
+        status_code, payload = _call_view(user, view, v_args, v_kwargs, url=url, method=method,
+                                          data=data, json_body=method != 'get')
+    except Http404:
+        return {'error': f"{what} : élément introuvable."}, {}
+    except Exception as e:
+        logger.warning(f"[tool_api] model_manager:{route} : {e}")
+        return {'error': f"{what} impossible : {e}"}, {}
+    return _verdict(status_code, payload, what), payload
+
+
+def _model_manager_answer(user, route: str, what: str, *, method: str = 'post', data=None):
+    """La réponse d'un geste du model manager pour l'assistant : la charge de la vue, ou l'échec."""
+    failure, payload = _model_manager_view(user, route, what, method=method, data=data)
+    return failure or payload
+
+
+def _unconfirmed(gesture: str, **context) -> dict:
+    """Le refus d'un geste que la page fait confirmer, appelé sans `confirm=true`."""
+    return {'error': f"{gesture} : geste à confirmer. Dites à l'utilisateur ce qu'il va faire, "
+                     "obtenez son accord explicite, puis rappelez avec confirm=true.", **context}
+
+
+#: `view` de get_memory_state → (route, paramètres d'adresse lus par la vue).
+_MEMORY_VIEWS = {
+    'summary': 'api_memory_stats', 'detailed': 'api_memory_detailed',
+    'resident': 'api_tracked_models', 'idle': 'api_idle_models',
+    'large_objects': 'api_large_objects', 'snapshot': 'api_memory_snapshot',
+    'raw': 'api_debug_stats', 'cleaner': 'api_cleaner_status',
+}
+
+
+@tool_effect(READ)
+def get_memory_state(user, view: str = 'summary', idle_threshold_s: int = 300,
+                     min_size_mb: float = 10, label: str = '') -> dict:
+    """
+    Read the memory of the machine and of the graphics card, as the model manager page shows it:
+    'summary' (RAM, CPU, GPU), 'detailed', 'resident' (models loaded on the card, in every WAMA
+    process), 'idle' (resident models unused for `idle_threshold_s`), 'large_objects',
+    'snapshot', 'raw' (unprocessed system values), 'cleaner' (state and history of the automatic
+    memory cleaner). Reserved to developers and administrators.
+
+    'large_objects', 'snapshot' and 'cleaner' describe the WAMA process that runs the call (the web
+    server for the page and the web assistant), the others the whole machine.
+
+    Args:
+        view: one of summary, detailed, resident, idle, large_objects, snapshot, raw, cleaner.
+        idle_threshold_s: for 'idle', seconds without use (default 300).
+        min_size_mb: for 'large_objects', the smallest object listed (default 10).
+        label: for 'snapshot', a label kept with it.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    route = _MEMORY_VIEWS.get((view or '').strip().lower())
+    if not route:
+        return {'error': f"view « {view} » : {', '.join(_MEMORY_VIEWS)}."}
+    params = {'api_idle_models': {'threshold': int(idle_threshold_s)},
+              'api_large_objects': {'min_size_mb': float(min_size_mb)},
+              'api_memory_snapshot': {'label': label or ''}}.get(route)
+    return _model_manager_answer(user, route, 'Lecture de la mémoire', method='get', data=params)
+
+
+@tool_effect(READ)
+def get_disk_space(user, required_gb: float = 0) -> dict:
+    """
+    Free space on the disk that holds the AI models — and, with `required_gb`, whether a download
+    of that size fits with the page's safety margin (5 GB). Reserved to developers and
+    administrators.
+
+    Args:
+        required_gb: size of a planned download, in GB (0 = just read the disk).
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    if float(required_gb or 0) > 0:
+        return _model_manager_answer(user, 'api_check_disk_space', "Contrôle de l'espace disque",
+                                     method='get', data={'required_gb': float(required_gb)})
+    return _model_manager_answer(user, 'api_disk_space', "Lecture de l'espace disque", method='get')
+
+
+_CATALOG_VIEWS = {
+    'stats': 'api_catalog_stats', 'sync_logs': 'api_sync_logs',
+    'diagnose': 'api_diagnose_models', 'discovered': 'api_models_list',
+    'watcher': 'api_watcher_status',
+}
+
+
+@tool_effect(READ)
+def get_model_catalog_state(user, view: str = 'stats', limit: int = 20) -> dict:
+    """
+    Read the state of the model catalogue: 'stats' (counts), 'sync_logs' (last synchronisations
+    with the disk), 'diagnose' (disk discovery against the database), 'discovered' (every model
+    found on disk — a full scan, can take minutes), 'watcher' (the watcher of the models folder).
+    Reserved to developers and administrators. To list catalogue rows, use list_ai_models.
+
+    Args:
+        view: one of stats, sync_logs, diagnose, discovered, watcher.
+        limit: for 'sync_logs', how many (default 20).
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    route = _CATALOG_VIEWS.get((view or '').strip().lower())
+    if not route:
+        return {'error': f"view « {view} » : {', '.join(_CATALOG_VIEWS)}."}
+    params = {'limit': int(limit)} if route == 'api_sync_logs' else None
+    return _model_manager_answer(user, route, 'Lecture du catalogue', method='get', data=params)
+
+
+_BACKUP_VIEWS = {
+    'status': 'api_backup_status', 'list': 'api_backup_list',
+    'models_mirror': 'api_backup_models_progress', 'media_mirror': 'api_backup_media_progress',
+}
+
+
+@tool_effect(READ)
+def get_backup_state(user, view: str = 'status', format_type: str = '', model_type: str = '') -> dict:
+    """
+    Read the remote backup space: 'status' (reachable, path, count), 'list' (backed-up models —
+    slow on the network share), 'models_mirror' / 'media_mirror' (progress and last run of the
+    whole-models and media mirrors started by start_backup). Reserved to developers and
+    administrators.
+
+    Args:
+        view: one of status, list, models_mirror, media_mirror.
+        format_type: for 'list', keep this format folder only.
+        model_type: for 'list', keep this type folder only.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    route = _BACKUP_VIEWS.get((view or '').strip().lower())
+    if not route:
+        return {'error': f"view « {view} » : {', '.join(_BACKUP_VIEWS)}."}
+    params = ({k: v for k, v in (('format', format_type), ('type', model_type)) if v}
+              if route == 'api_backup_list' else None)
+    return _model_manager_answer(user, route, 'Lecture des sauvegardes', method='get', data=params)
+
+
+@tool_effect(READ)
+def get_model_evaluation_progress(user, kind: str = 'assess') -> dict:
+    """
+    Progress of a model evaluation started by assess_proposed_models ('assess') or
+    sync_model_benchmarks ('benchmarks'): `running`, and the progress the task publishes. Reserved
+    to developers and administrators.
+
+    Args:
+        kind: 'assess' or 'benchmarks'.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    route = {'assess': 'api_prospect_assess_progress',
+             'benchmarks': 'api_sync_benchmarks_progress'}.get((kind or '').strip().lower())
+    if not route:
+        return {'error': f"kind « {kind} » : 'assess' ou 'benchmarks'."}
+    return _model_manager_answer(user, route, "Avancement de l'évaluation", method='get')
+
+
+@tool_effect(READ)
+def list_model_proposals(user, kind: str = '') -> dict:
+    """
+    The PROPOSALS waiting for an administrator's decision (model manager, « Propositions »):
+    manifests proposed by the development roles, each with its plan (fields filled, divergences,
+    errors), and BACKENDS proposed by the `backend` role, each with what « Valider » would say
+    now (`checks.errors`). `can_decide` says whether the caller may decide (administrators only).
+    Reserved to developers and administrators.
+
+    Args:
+        kind: keep one manifest kind ('model', 'library'…) — '' for all.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    return _model_manager_answer(user, 'api_manifest_proposals', 'Lecture des propositions',
+                                 method='get', data={'kind': kind} if kind else None)
+
+
+@tool_effect(READ)
+def list_model_choices(user, task: str = '', model_type: str = '', modality: str = '',
+                       source: str = '', app: str = '', domain: str = '', mode: str = '',
+                       cloud: bool = False) -> dict:
+    """
+    The models an app's model selector offers, read from the catalogue — the same list as the
+    select of a settings form. Give at least `task`, `model_type` or `source`; `app` + `domain` +
+    `mode` narrow it to a declared mode of the app; `cloud` adds the remote models the user's key
+    opens. Listing is not choosing: inputs that rule a model out are said by the app, not here.
+
+    Args:
+        task: one task, or several 'a,b' (e.g. 'text-to-speech').
+        model_type: catalogue type (e.g. 'speech', 'vision').
+        modality: input modality.
+        source: catalogue source (the app that declares the models).
+        app: app whose declared mode bounds the list (with domain and mode).
+        domain: domain of that mode.
+        mode: declared mode.
+        cloud: also list the remote models open to the user.
+    """
+    if refusal := _signed_in_refusal(user, 'Lecture'):
+        return refusal
+    params = {k: v for k, v in (('task', task), ('model_type', model_type), ('modality', modality),
+                                ('source', source), ('app', app), ('domain', domain),
+                                ('mode', mode)) if v}
+    if _truthy(cloud):
+        params['cloud'] = '1'
+    return _model_manager_answer(user, 'api_model_options', 'Liste des modèles', method='get',
+                                 data=params)
+
+
+#: `action` de free_memory → (route, la page le fait-elle confirmer ?).
+_FREE_MEMORY_ACTIONS = {
+    'unload': ('api_unload_model', True), 'idle': ('api_cleanup_idle', False),
+    'all': ('api_aggressive_cleanup', True), 'gpu': ('api_clear_gpu', True),
+    'gpu_cache': ('api_clear_gpu_cache', False), 'gc': ('api_force_gc', False),
+}
+
+
+@tool_effect(WRITE)
+def free_memory(user, action: str, model_key: str = '', confirm: bool = False) -> dict:
+    """
+    Free memory as the model manager's buttons do: 'unload' one resident model (`model_key`),
+    'idle' unload the models unused for 5 minutes, 'all' unload every resident model and clear
+    the caches, 'gpu' unload every model and empty the card, 'gpu_cache' empty the card's cache,
+    'gc' run Python's garbage collector. Models are unloaded wherever they live; a model serving a
+    task keeps running. 'unload', 'all' and 'gpu' need the user's agreement (confirm=true).
+    Reserved to developers and administrators.
+
+    'gpu_cache' and 'gc' act on the WAMA process that runs the call. Read what is loaded first
+    with get_memory_state(view='resident').
+
+    Args:
+        action: one of unload, idle, all, gpu, gpu_cache, gc.
+        model_key: for 'unload', the resident model's key.
+        confirm: true once the user agreed ('unload', 'all', 'gpu').
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    act = (action or '').strip().lower()
+    if act not in _FREE_MEMORY_ACTIONS:
+        return {'error': f"action « {action} » : {', '.join(_FREE_MEMORY_ACTIONS)}."}
+    route, needs_agreement = _FREE_MEMORY_ACTIONS[act]
+    if act == 'unload' and not (model_key or '').strip():
+        return {'error': "model_key requis : la clé d'un modèle résident "
+                         "(get_memory_state(view='resident'))."}
+    if needs_agreement and not _truthy(confirm):
+        return _unconfirmed('Libérer la mémoire', action=act, model_key=model_key)
+    data = {'model_id': model_key.strip()} if act == 'unload' else None
+    return _model_manager_answer(user, route, 'Libération de la mémoire', data=data)
+
+
+@tool_effect(WRITE)
+def free_gpu_for_item(user, app: str, item_id: int, confirm: bool = False) -> dict:
+    """
+    Agree that the WHOLE graphics card be freed so one of the user's items waiting for resources
+    can start — the « Libérer la carte » gesture of a waiting card. WAMA never frees the card on
+    its own: ask the user, then call with confirm=true. The item starts at its next attempt (less
+    than a minute). The user's own items only (any item for an administrator).
+
+    Args:
+        app: the item's app.
+        item_id: the waiting item.
+        confirm: true once the user agreed.
+    """
+    if refusal := _refus_app(user, app):
+        return refusal
+    if not _truthy(confirm):
+        return _unconfirmed('Libérer toute la carte', app=app, item_id=item_id)
+    return _model_manager_answer(user, 'api_vram_grant', 'Libération de la carte',
+                                 data={'app': app, 'item': item_id})
+
+
+@tool_effect(WRITE)
+def control_memory_cleaner(user, action: str, check_interval_s: int = 0,
+                           idle_threshold_s: int = 0, ram_warning_percent: float = 0,
+                           ram_critical_percent: float = 0) -> dict:
+    """
+    Start, stop or configure the automatic memory cleaner of the model manager page, which unloads
+    the idle models of the process it runs in (the web server) and cleans harder when RAM is
+    critical. Its state: get_memory_state(view='cleaner'). Reserved to developers and
+    administrators.
+
+    Args:
+        action: 'start', 'stop' or 'configure'.
+        check_interval_s: for 'configure', seconds between checks (0 = unchanged).
+        idle_threshold_s: for 'configure', seconds before a model counts as idle (0 = unchanged).
+        ram_warning_percent: for 'configure', RAM % that triggers the idle cleanup (0 = unchanged).
+        ram_critical_percent: for 'configure', RAM % that triggers the full cleanup (0 = unchanged).
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    act = (action or '').strip().lower()
+    if act in ('start', 'stop'):
+        return _model_manager_answer(user, f'api_cleaner_{act}', 'Nettoyeur de mémoire')
+    if act != 'configure':
+        return {'error': f"action « {action} » : 'start', 'stop' ou 'configure'."}
+    data = {k: v for k, v in (('check_interval', int(check_interval_s or 0)),
+                              ('idle_threshold', int(idle_threshold_s or 0)),
+                              ('ram_warning_threshold', float(ram_warning_percent or 0)),
+                              ('ram_critical_threshold', float(ram_critical_percent or 0))) if v}
+    if not data:
+        return {'error': "configure : donner au moins un réglage (check_interval_s, "
+                         "idle_threshold_s, ram_warning_percent, ram_critical_percent)."}
+    return _model_manager_answer(user, 'api_cleaner_configure', 'Réglage du nettoyeur', data=data)
+
+
+@tool_effect(WRITE)
+def control_model_watcher(user, action: str) -> dict:
+    """
+    Start or stop the watcher of the models folder, which updates the catalogue when weights
+    appear or disappear on disk. Its state: get_model_catalog_state(view='watcher'). Reserved to
+    developers and administrators.
+
+    Args:
+        action: 'start' or 'stop'.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    act = (action or '').strip().lower()
+    if act not in ('start', 'stop'):
+        return {'error': f"action « {action} » : 'start' ou 'stop'."}
+    return _model_manager_answer(user, 'api_watcher_control', 'Surveillance des modèles',
+                                 data={'action': act})
+
+
+_BACKUP_TARGETS = {'database': 'api_backup_db', 'models': 'api_backup_models_start',
+                   'media': 'api_backup_media_start', 'model': 'api_backup_model'}
+
+
+@tool_effect(WRITE)
+def start_backup(user, target: str, model_key: str = '', overwrite: bool = False,
+                 confirm: bool = False) -> dict:
+    """
+    Back up to the remote backup space, as the model manager's buttons do: 'database' (a dump of
+    the database, copied remotely), 'models' (mirror of every model folder, in the background),
+    'media' (mirror of the users' media, in the background), 'model' (one model, `model_key`).
+    Nothing remote is ever deleted. Needs the user's agreement (confirm=true). Reserved to
+    developers and administrators.
+
+    Follow a mirror with get_backup_state(view='models_mirror' or 'media_mirror').
+
+    Args:
+        target: one of database, models, media, model.
+        model_key: for 'model', the catalogue key of the model.
+        overwrite: copy again files already backed up (default False: skipped when identical).
+        confirm: true once the user agreed.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    what = (target or '').strip().lower()
+    route = _BACKUP_TARGETS.get(what)
+    if not route:
+        return {'error': f"target « {target} » : {', '.join(_BACKUP_TARGETS)}."}
+    key = (model_key or '').strip()
+    if what == 'model':
+        if not key:
+            return {'error': "model_key requis : la clé du modèle à sauvegarder (list_ai_models)."}
+        if unknown := _unknown_model_key(key):
+            return unknown
+    if not _truthy(confirm):
+        return _unconfirmed('Sauvegarde', target=what, model_key=key)
+    # La page envoie la clé, le dernier segment pour nom et le dossier « models » (`index.html`).
+    data = ({'source_path': key, 'model_name': key.split(':')[-1], 'model_type': 'unknown',
+             'format_type': 'models', 'overwrite': _truthy(overwrite)} if what == 'model'
+            else {'overwrite': _truthy(overwrite)})
+    return _model_manager_answer(user, route, 'Sauvegarde', data=data)
+
+
+@tool_effect(WRITE)
+def sync_model_catalog(user, clean: bool = False, delete_missing: bool = True) -> dict:
+    """
+    Synchronise the model catalogue with the disk and the apps' declarations — the page's
+    « Sync » button: adds the models found, updates the others and, by default, deletes the rows
+    whose weights are gone. Reserved to developers and administrators.
+
+    Args:
+        clean: only mark the missing models unavailable (legacy).
+        delete_missing: delete the rows whose model no longer exists (default True, like the page).
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    return _model_manager_answer(user, 'api_sync_models', 'Synchronisation du catalogue',
+                                 data={'clean': _truthy(clean),
+                                       'delete_missing': _truthy(delete_missing)})
+
+
+@tool_effect(WRITE)
+def assess_proposed_models(user, confirm: bool = False) -> dict:
+    """
+    Evaluate the CONFIDENCE of the proposed models with a local LLM jury — the page's « Évaluer la
+    confiance » button. It loads the graphics card (queued behind running work): ask the user,
+    then call with confirm=true. Runs in the background; follow it with
+    get_model_evaluation_progress(kind='assess'). Reserved to developers and administrators.
+
+    Args:
+        confirm: true once the user agreed.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    if not _truthy(confirm):
+        return _unconfirmed('Évaluer la confiance des candidats (charge la carte graphique)')
+    return _model_manager_answer(user, 'api_prospect_assess', 'Évaluation de la confiance')
+
+
+@tool_effect(WRITE)
+def sync_model_benchmarks(user) -> dict:
+    """
+    Measure the PERFORMANCE of the catalogue's models from third-party benchmarks (Artificial
+    Analysis, Arena) — the page's « Mesurer la performance » button. Network only, no graphics
+    card. Runs in the background; follow it with get_model_evaluation_progress(kind='benchmarks').
+    Reserved to developers and administrators.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    return _model_manager_answer(user, 'api_sync_benchmarks', 'Mesure de la performance')
+
+
+@tool_effect(DESTROY)
+def reject_proposed_model(user, model_key: str, confirm: bool = False) -> dict:
+    """
+    Reject a proposed model (prospection candidate): its catalogue row is deleted, nothing was
+    installed. Ask the user, then call with confirm=true. Reserved to developers and
+    administrators.
+
+    Args:
+        model_key: the candidate's catalogue key.
+        confirm: true once the user agreed.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    key = (model_key or '').strip()
+    if not key:
+        return {'error': "model_key requis : la clé du candidat (list_ai_models)."}
+    if not _truthy(confirm):
+        return _unconfirmed('Rejeter la proposition', model_key=key)
+    failure, payload = _model_manager_view(user, 'api_prospect_reject', 'Rejet', data={'model_id': key})
+    if failure:
+        return failure
+    return payload if payload.get('success') else {
+        'error': f"« {key} » n'est pas un modèle proposé (rien rejeté)."}
+
+
+@tool_effect(DESTROY)
+def uninstall_model(user, model_key: str, withdraw: bool = True, include_shared: bool = False,
+                    confirm: bool = False) -> dict:
+    """
+    UNINSTALL an installed model — the model manager's « Désinstaller »: its weights are removed
+    from disk, the catalogue is updated, its backend is never touched; refused while it is loaded.
+    Ask the user, then call with confirm=true. When its weights are SHARED with other rows the
+    answer says which (`needs_confirmation`): tell the user, and only with their agreement call
+    again with include_shared=true. Reserved to developers and administrators.
+
+    Args:
+        model_key: catalogue key of the installed model.
+        withdraw: also remove it from the apps' choices (default True, like the page).
+        include_shared: also remove weights shared with other rows (second agreement).
+        confirm: true once the user agreed.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    key = (model_key or '').strip()
+    if not key:
+        return {'error': "model_key requis : la clé du modèle installé (list_ai_models)."}
+    if unknown := _unknown_model_key(key):
+        return unknown
+    if not _truthy(confirm):
+        return _unconfirmed('Désinstaller le modèle', model_key=key)
+    failure, payload = _model_manager_view(
+        user, 'api_model_uninstall', 'Désinstallation',
+        data={'model_id': key, 'withdraw': _truthy(withdraw),
+              'include_shared': _truthy(include_shared)})
+    if failure and payload.get('needs_confirmation'):
+        return {'needs_confirmation': True, 'model_key': key, 'error': payload.get('error'),
+                'sharing': payload.get('sharing'), 'dependents': payload.get('dependents'),
+                'next_step': "dire à l'utilisateur ce qui serait aussi retiré ; avec son accord, "
+                             "rappeler avec include_shared=true"}
+    return failure or payload
+
+
+@tool_effect(WRITE)
+def set_model_task_limit(user, model_key: str, minutes: int) -> dict:
+    """
+    Set how long ONE task may run with this model before it is stopped cleanly and marked failed
+    (relaunchable) — the model manager's « Durée max »; 0 = the app's default (30 min). Reserved
+    to developers and administrators.
+
+    Args:
+        model_key: catalogue key of the model.
+        minutes: 0 to 1440.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    key = (model_key or '').strip()
+    if not key:
+        return {'error': "model_key requis : la clé du modèle (list_ai_models)."}
+    if unknown := _unknown_model_key(key):
+        return unknown
+    return _model_manager_answer(user, 'api_model_task_limit', 'Durée max',
+                                 data={'model_id': key, 'minutes': minutes})
+
+
+@tool_effect(WRITE)
+def decide_model_proposal(user, decision: str, proposal_id: int = 0, file: str = '',
+                          confirm: bool = False) -> dict:
+    """
+    VALIDATE ('apply') or REJECT ('reject') a proposal of the model manager — an ADMINISTRATOR's
+    decision, never yours: act only when an administrator asks for it. Show them the proposal
+    first (list_model_proposals: its plan, or for a backend its code checks), get their explicit
+    go, then call with confirm=true. Validating a backend WRITES its module into WAMA; nothing is
+    committed.
+
+    Args:
+        decision: 'apply' or 'reject'.
+        proposal_id: id of a manifest proposal (list_model_proposals → proposals[].id).
+        file: for a proposed backend, its file (list_model_proposals → backends[].file).
+        confirm: true once the administrator agreed.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    # Dit AVANT la confirmation : demander l'accord pour un geste qui sera refusé égarerait. La
+    # vue garde le même prédicat (`is_admin_tier`) et reste celle qui tranche.
+    from wama.accounts.permissions import is_admin_tier
+    if not is_admin_tier(user):
+        return {'error': 'forbidden',
+                'detail': "Valider ou rejeter une proposition est réservé à un administrateur."}
+    verdict = (decision or '').strip().lower()
+    if verdict not in ('apply', 'reject'):
+        return {'error': f"decision « {decision} » : 'apply' ou 'reject'."}
+    if not (file or proposal_id):
+        return {'error': "proposal_id (manifeste) ou file (backend) requis : list_model_proposals."}
+    target = {'file': file} if file else {'id': int(proposal_id)}
+    if not _truthy(confirm):
+        return _unconfirmed('Valider' if verdict == 'apply' else 'Rejeter', decision=verdict,
+                            **target)
+    return _model_manager_answer(user, 'api_manifest_proposal_decide', 'Décision',
+                                 data={'decision': verdict, **target})
+
+
 @tool_effect(READ)
 def plan_model_integration(user, model: str) -> dict:
     """
@@ -3701,13 +4250,19 @@ def _route_dispo(app: str, canonique: str, args):
 
 
 def _call_view(user, view, args=(), kwargs=None, *, url: str = '/', method: str = 'post',
-               data=None):
-    """Appelle une vue par une requête synthétique au nom de `user` (`data` en champs de
-    formulaire). Rend (status_code, charge JSON | {})."""
+               data=None, json_body: bool = False):
+    """Appelle une vue par une requête synthétique au nom de `user` : `data` en champs de
+    formulaire, en corps JSON (`json_body`, les vues du model manager le lisent), ou en paramètres
+    d'adresse pour un GET. Rend (status_code, charge JSON | {})."""
     from django.test import RequestFactory
 
     factory = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE)
-    request = factory.get(url) if method == 'get' else factory.post(url, data or {})
+    if method == 'get':
+        request = factory.get(url, data or {})
+    elif json_body:
+        request = factory.post(url, json.dumps(data or {}), content_type='application/json')
+    else:
+        request = factory.post(url, data or {})
     request.user = user
     response = view(request, *args, **(kwargs or {}))
     try:
@@ -4867,6 +5422,28 @@ TOOL_REGISTRY = {
     # page, par les corps communs de `format_converter` (lire, convertir par la clé du modèle).
     'get_model_formats':        get_model_formats,
     'convert_model_format':     convert_model_format,
+    # …et TOUS les autres gestes de la page (2026-11-09) — mémoire et carte, disque, nettoyeur,
+    # surveillance, sauvegardes, catalogue, évaluations, propositions : la VUE de chaque bouton
+    # (`_model_manager_view`), sous la garde de gestion des registres.
+    'get_memory_state':              get_memory_state,
+    'get_disk_space':                get_disk_space,
+    'get_model_catalog_state':       get_model_catalog_state,
+    'get_backup_state':              get_backup_state,
+    'get_model_evaluation_progress': get_model_evaluation_progress,
+    'list_model_proposals':          list_model_proposals,
+    'list_model_choices':            list_model_choices,
+    'free_memory':                   free_memory,
+    'free_gpu_for_item':             free_gpu_for_item,
+    'control_memory_cleaner':        control_memory_cleaner,
+    'control_model_watcher':         control_model_watcher,
+    'start_backup':                  start_backup,
+    'sync_model_catalog':            sync_model_catalog,
+    'assess_proposed_models':        assess_proposed_models,
+    'sync_model_benchmarks':         sync_model_benchmarks,
+    'reject_proposed_model':         reject_proposed_model,
+    'uninstall_model':               uninstall_model,
+    'set_model_task_limit':          set_model_task_limit,
+    'decide_model_proposal':         decide_model_proposal,
     'plan_model_integration':   plan_model_integration,
     'plan_app_integration':     plan_app_integration,
     # Claude Code sur l'ABONNEMENT du titulaire (ROADMAP §19.3) — surface DÉVELOPPEUR.
@@ -4998,6 +5575,30 @@ TOOL_APP_OVERRIDE = {
     # Les formats des poids (2026-11-08) : même page, même garde (développeurs, dans le corps).
     'get_model_formats':    'registries',
     'convert_model_format': 'registries',
+    # Les autres gestes de la page (2026-11-09) : même page, même garde dans le corps ; la
+    # décision d'une proposition exige en plus un administrateur (`is_admin_tier`, celui de la vue).
+    'get_memory_state':              'registries',
+    'get_disk_space':                'registries',
+    'get_model_catalog_state':       'registries',
+    'get_backup_state':              'registries',
+    'get_model_evaluation_progress': 'registries',
+    'list_model_proposals':          'registries',
+    'free_memory':                   'registries',
+    'control_memory_cleaner':        'registries',
+    'control_model_watcher':         'registries',
+    'start_backup':                  'registries',
+    'sync_model_catalog':            'registries',
+    'assess_proposed_models':        'registries',
+    'sync_model_benchmarks':         'registries',
+    'reject_proposed_model':         'registries',
+    'uninstall_model':               'registries',
+    'set_model_task_limit':          'registries',
+    'decide_model_proposal':         'registries',
+    # Ouverts à tout compte identifié, comme leurs routes (`login_required` seul) : la liste d'un
+    # sélecteur de modèle (refus des non-identifiés au corps), et l'accord de libérer la carte pour
+    # SON élément (garde d'app au corps, `_refus_app` ; la vue refait l'appartenance).
+    'list_model_choices':            None,
+    'free_gpu_for_item':             None,
     # Médiathèque : RANGER un fichier À SOI y est un geste TRANSVERSE, pas l'usage de l'app
     # `media_library` (décision Fabien, 2026-09-11 : « on rend commun et on porte sur les apps
     # de façon universelle »). Il était gaté sur `media_library` du seul FAIT DE SON NOM — le
@@ -5733,10 +6334,22 @@ _ROLE_SENTENCE = {
 }
 
 
-def _first_doc_line(fn):
+#: Les en-têtes de section d'une docstring : le résumé s'arrête avant eux, comme à la ligne vide.
+_DOC_SECTION = re.compile(r'^(Args|Arguments|Returns?|Raises|Examples?|Notes?)\s*:')
+
+
+def _doc_summary(fn):
+    """La description qu'un modèle lit d'un outil : le PREMIER PARAGRAPHE de sa docstring, ses
+    lignes jointes. Jusqu'au 2026-11-09 c'était la première ligne PHYSIQUE — or les docstrings se
+    replient à 100 colonnes : 44 outils sur 144 montraient au modèle (prompt et serveur MCP) une
+    phrase coupée au milieu, « … the model manager's format routes. Without »."""
     import inspect
-    doc = (inspect.getdoc(fn) or '').strip()
-    return doc.splitlines()[0].strip() if doc else ''
+    lines = []
+    for line in (inspect.getdoc(fn) or '').strip().splitlines():
+        if not line.strip() or _DOC_SECTION.match(line.strip()):
+            break
+        lines.append(line.strip())
+    return ' '.join(lines)
 
 
 def _tool_sentence(tool_name, fn):
@@ -5753,7 +6366,7 @@ def _tool_sentence(tool_name, fn):
         desc = (identity.get('description') or '').rstrip('.')
         if desc:
             return _ROLE_SENTENCE[role].format(label=label, desc=desc)
-    return _first_doc_line(fn)
+    return _doc_summary(fn)
 
 
 def _arg_text(entry, sig_param):

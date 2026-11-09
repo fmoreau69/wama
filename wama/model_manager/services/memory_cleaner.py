@@ -191,12 +191,15 @@ class WAMAMemoryCleaner:
             self.cleanup_idle_models(quiet=True)
             self._last_cleanup_time = current_time
 
-    def cleanup_idle_models(self, quiet: bool = False) -> CleanupResult:
+    def cleanup_idle_models(self, quiet: bool = False, everywhere: bool = False) -> CleanupResult:
         """
         Unload models that have been idle.
 
         Args:
             quiet: Don't log if nothing to clean
+            everywhere: a HUMAN gesture (the page's button, the assistant) — unload in every
+                process through the tenants' channel (`_unload_model`); the cleaner's own loop
+                and the in-worker callers keep to their process (never an unload by default)
 
         Returns:
             CleanupResult with details
@@ -217,7 +220,7 @@ class WAMAMemoryCleaner:
             logger.info("No idle models to clean")
 
         for model_info in inactifs:
-            if self._unload_model(model_info['model_key']):
+            if self._unload_model(model_info['model_key'], everywhere=everywhere):
                 models_unloaded.append(model_info['model_key'])
                 memory_freed += model_info['vram_gb'] * 1024
 
@@ -248,9 +251,12 @@ class WAMAMemoryCleaner:
 
         return result
 
-    def aggressive_cleanup(self) -> CleanupResult:
+    def aggressive_cleanup(self, everywhere: bool = False) -> CleanupResult:
         """
         Aggressive cleanup - unload all idle models and clear caches.
+
+        Args:
+            everywhere: a HUMAN gesture — see `cleanup_idle_models`.
 
         Returns:
             CleanupResult with details
@@ -276,7 +282,7 @@ class WAMAMemoryCleaner:
         poids = resident_models()
         for model_info in idle_partages(idle_threshold_s=0):
             cle = model_info['model_key']
-            if self._unload_model(cle):
+            if self._unload_model(cle, everywhere=everywhere):
                 models_unloaded.append(cle)
                 memory_freed += poids.get(cle, model_info['vram_gb']) * 1024
 
@@ -326,9 +332,16 @@ class WAMAMemoryCleaner:
 
         return result
 
-    def _unload_model(self, model_id: str) -> bool:
+    def _unload_model(self, model_id: str, everywhere: bool = False) -> bool:
         """
         Décharge les modèles résidents de l'app portée par `model_id` (`<app>:<modèle>`).
+
+        `everywhere` (2026-11-09) : le geste HUMAIN — boutons « Clean Idle » et « Aggressive »,
+        outil `free_memory` de l'assistant — passe par le canal des tenants
+        (`resource_governor.unload_resident`, celui du bouton « Décharger » depuis le 03/11) : depuis
+        gunicorn, ces deux boutons ne déchargeaient AUCUN modèle d'un worker. Les appelants
+        automatiques (la boucle du nettoyeur, `nightly_tests`, `cam_analyzer`) restent dans leur
+        process : décharger les modèles des autres sans accord est exclu (décision B1, 2026-09-20).
 
         Passait par `WAMAMemoryTracker` : callback d'unload puis `unregister_model()`. Le
         registre étant toujours vide, le callback valait toujours None et la méthode
@@ -345,6 +358,12 @@ class WAMAMemoryCleaner:
             True if successfully unloaded
         """
         try:
+            if everywhere:
+                from wama.common.services.resource_governor import unload_resident
+                unloaded, message = unload_resident(model_id)
+                logger.info(f"  {'🗑️' if unloaded else '⏸'} {message}")
+                return unloaded
+
             from .memory_manager import MemoryManager
 
             if MemoryManager.unload_model(model_id):

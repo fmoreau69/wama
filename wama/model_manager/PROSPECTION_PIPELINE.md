@@ -4247,6 +4247,44 @@ défaut vu s'est comblé dans la route, aucun dans la proposition.
   `_tool_signature` ; une date du calendrier n'est plus un numéro de téléphone pour la porte de
   confidentialité (`privacy/engine._is_calendar_date`).
 
+## Session du 2026-11-09 : la page entière à l'assistant — et trois boutons qui échouaient en silence
+
+Fabien : *« si les API existent, l'assistant doit pouvoir les utiliser »* — les 46 routes de la page
+qui restaient sans outil (mémoire et carte, disque, nettoyeur, surveillance, sauvegardes, catalogue,
+évaluations, propositions) en ont un.
+
+- **Dix-neuf outils, chacun POSTE la vue du bouton** (`tool_api._model_manager_view`, corps JSON
+  par `_call_view(json_body=True)`) : lectures `get_memory_state`, `get_disk_space`,
+  `get_model_catalog_state`, `get_backup_state`, `get_model_evaluation_progress`,
+  `list_model_proposals`, `list_model_choices` ; gestes `free_memory`, `free_gpu_for_item`,
+  `control_memory_cleaner`, `control_model_watcher`, `start_backup`, `sync_model_catalog`,
+  `assess_proposed_models`, `sync_model_benchmarks`, `reject_proposed_model`, `uninstall_model`,
+  `set_model_task_limit`, `decide_model_proposal`. La garde de gestion des registres passe AVANT la
+  vue (`user_passes_test` redirige, ce que `_verdict` lirait comme un succès) ; un geste que la page
+  fait confirmer exige `confirm=true` ; valider ou rejeter une proposition reste une décision
+  d'ADMINISTRATEUR, dite avant de demander l'accord (décision de Fabien : « validation avec
+  confirmation admin »). Budget des routes sans outil : 208 → 162. Gardes :
+  `tests_tool_api_coverage.ModelManagerToolsReachTheirViewTest` (chaque appel atteint SA vue, avec la
+  méthode qu'elle accepte), `ModelManagerToolsOnTheRealViewsTest`.
+- **« Backup selected » échouait toujours** : la page envoie la CLÉ du modèle en `source_path`, la vue
+  la prenait pour un chemin — le défaut que `resolve_weight_file` a soldé pour « Convertir » le
+  2026-08-31. Corps sorti vers `remote_backup.backup_model` (clé → emplacement entier : déclaré,
+  sinon `weights_dir_of`), lu par la vue et par `start_backup`.
+- **« Clean Idle », « Aggressive » et « Clear GPU » ne déchargeaient rien depuis gunicorn** : le
+  canal des tenants (`unload_resident`, 03/11) ne servait qu'à « Décharger ». Les gestes HUMAINS le
+  prennent (`everywhere=True`), les appelants automatiques restent dans leur process (B1). Garde :
+  `tests_backup_and_cleanup_gestures`.
+- **Ce que le modèle lit d'un outil était coupé** : la première LIGNE de la docstring, repliée à 100
+  colonnes — 44 outils sur 144, ici comme au serveur MCP. Désormais le premier paragraphe
+  (`tool_api._doc_summary`), garde `EveryToolDescriptionIsAWholeSentenceTest`.
+- **ACE-Step, rôle `backend` relancé deux fois** : Albert injoignable les deux fois. Le premier
+  relais a tiré `ilaas:qwen-3.6-35b-instruct` — deux défauts du tirage de développement du 08/11,
+  corrigés (`WAMA_QUALITE.md`, remarque du 2026-11-09) ; le second a bien tiré `ilaas:gemma-4-31b`.
+  Les deux propositions butent sur le MÊME contrôle : le code appelle `initialize_service`, qui
+  télécharge lui-même — deux modèles, un seul obstacle : c'est la matière que le rôle reçoit du
+  moteur vendorisé qui ne dit pas quels chargeurs appeler sur les chemins installés. ⏳ Les deux
+  propositions attendent la décision de Fabien (rejeter) ; la suite est sur la matière du rôle.
+
 ## Session du 2026-11-08 — Lire une partition en MIDI, garder ce que dit le MIDI, vers des pistes séparées (veille, demande de Fabien)
 
 > Question de Fabien (une instance sœur prépare l'envoi des partitions scannées du reader vers le

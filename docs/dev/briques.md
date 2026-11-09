@@ -3986,7 +3986,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (119) :
+- **API publique** (138) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -4038,6 +4038,25 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `get_library_action(user, key: str) -> dict` — Where the last install / simulation / uninstall of the library `key` stands: `state`
   - `get_model_formats(user, model_key: str='') -> dict` — The WEIGHT FORMATS of the installed models — the model manager's format routes. Without
   - `convert_model_format(user, model_key: str, target_format: str='safetensors', backup: bool=True, delete_source: bool=False) -> dict` — CONVERT the weights of an installed model to another format — the « Convertir » button of the
+  - `get_memory_state(user, view: str='summary', idle_threshold_s: int=300, min_size_mb: float=10, label: str='') -> dict` — Read the memory of the machine and of the graphics card, as the model manager page shows it:
+  - `get_disk_space(user, required_gb: float=0) -> dict` — Free space on the disk that holds the AI models — and, with `required_gb`, whether a download
+  - `get_model_catalog_state(user, view: str='stats', limit: int=20) -> dict` — Read the state of the model catalogue: 'stats' (counts), 'sync_logs' (last synchronisations
+  - `get_backup_state(user, view: str='status', format_type: str='', model_type: str='') -> dict` — Read the remote backup space: 'status' (reachable, path, count), 'list' (backed-up models —
+  - `get_model_evaluation_progress(user, kind: str='assess') -> dict` — Progress of a model evaluation started by assess_proposed_models ('assess') or
+  - `list_model_proposals(user, kind: str='') -> dict` — The PROPOSALS waiting for an administrator's decision (model manager, « Propositions »):
+  - `list_model_choices(user, task: str='', model_type: str='', modality: str='', source: str='', app: str='', domain: str='', mode: str='', cloud: bool=False) -> d…` — The models an app's model selector offers, read from the catalogue — the same list as the
+  - `free_memory(user, action: str, model_key: str='', confirm: bool=False) -> dict` — Free memory as the model manager's buttons do: 'unload' one resident model (`model_key`),
+  - `free_gpu_for_item(user, app: str, item_id: int, confirm: bool=False) -> dict` — Agree that the WHOLE graphics card be freed so one of the user's items waiting for resources
+  - `control_memory_cleaner(user, action: str, check_interval_s: int=0, idle_threshold_s: int=0, ram_warning_percent: float=0, ram_critical_percent: float=0) -> dict` — Start, stop or configure the automatic memory cleaner of the model manager page, which unloads
+  - `control_model_watcher(user, action: str) -> dict` — Start or stop the watcher of the models folder, which updates the catalogue when weights
+  - `start_backup(user, target: str, model_key: str='', overwrite: bool=False, confirm: bool=False) -> dict` — Back up to the remote backup space, as the model manager's buttons do: 'database' (a dump of
+  - `sync_model_catalog(user, clean: bool=False, delete_missing: bool=True) -> dict` — Synchronise the model catalogue with the disk and the apps' declarations — the page's
+  - `assess_proposed_models(user, confirm: bool=False) -> dict` — Evaluate the CONFIDENCE of the proposed models with a local LLM jury — the page's « Évaluer la
+  - `sync_model_benchmarks(user) -> dict` — Measure the PERFORMANCE of the catalogue's models from third-party benchmarks (Artificial
+  - `reject_proposed_model(user, model_key: str, confirm: bool=False) -> dict` — Reject a proposed model (prospection candidate): its catalogue row is deleted, nothing was
+  - `uninstall_model(user, model_key: str, withdraw: bool=True, include_shared: bool=False, confirm: bool=False) -> dict` — UNINSTALL an installed model — the model manager's « Désinstaller »: its weights are removed
+  - `set_model_task_limit(user, model_key: str, minutes: int) -> dict` — Set how long ONE task may run with this model before it is stopped cleanly and marked failed
+  - `decide_model_proposal(user, decision: str, proposal_id: int=0, file: str='', confirm: bool=False) -> dict` — VALIDATE ('apply') or REJECT ('reject') a proposal of the model manager — an ADMINISTRATOR's
   - `plan_model_integration(user, model: str) -> dict` — PLAN for integrating an AI model — read-only, executes nothing.
   - `plan_app_integration(user, target: str) -> dict` — PLAN for integrating a GitHub project as a WAMA app (UI + models + libraries).
   - `memory_recall(user, query: str, k: int=5, include_rag: bool=True, include_memory: bool=True, niveaux: list=None) -> dict` — Cherche dans la mémoire et les documents de l'utilisateur (`WAMA_MEMORY.md`).

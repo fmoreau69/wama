@@ -25,7 +25,7 @@ FABRIQUE de l'app (le même geste que le bouton), jamais un second chemin.
 | app **née d'un manifeste** | rien à écrire dans `tool_api.py` | facette `tool_api.triad_spec` du manifeste (`manifests/app_drafts/<clé>.json`, chemins `wama.<clé>.…`), puis `app_sandbox substitute <label> params` qui relit le registre (`born_registry_facts`) ; le créateur se dérive de la vue de dépôt et des ports (`_born_creator`) |
 | **geste neuf** d'une card (`make_item_views`) | un verbe TRANSVERSE (`<geste>_item`) qui poste la vue par `_card_gesture` | `TOOL_REGISTRY` + ligne `GESTURE_TOOLS` de `tests_tool_api_coverage` |
 | **geste neuf** d'un lot (`make_batch_views`) | un verbe TRANSVERSE (`<geste>_batch`) qui appelle la vue retenue par la fabrique (`_batch_view` ; une ÉCRITURE passe d'abord par `_batch_write_refusal`) — jamais un nom en `start_…`/`get_…_status`, pris pour une triade | idem |
-| route d'action (un chemin `api/…`, d'une app OU d'une page : model manager, registres, médiathèque…) | un outil qui appelle le MÊME corps que la route (le sortir de la vue vers un service s'il y vit), ou un argument d'un outil existant | `TOOL_REGISTRY` (+ `TOOL_APP_OVERRIDE` si le nom ne suit pas la triade) + ligne `ROUTE_TOOLS` de `tests_tool_api_coverage` (2026-11-08 : les routes de formats du model manager n'avaient aucun outil, et aucune garde ne regardait les routes) |
+| route d'action (un chemin `api/…`, d'une app OU d'une page : model manager, registres, médiathèque…) | un outil qui appelle le MÊME corps que la route (le sortir de la vue vers un service s'il y vit), ou un argument d'un outil existant ; une page de gestes tous ronds — le model manager — POSTE la vue du bouton (`_model_manager_view` : corps JSON, la garde de droit AVANT, car `user_passes_test` répond par une redirection que `_verdict` lirait comme un succès) | `TOOL_REGISTRY` (+ `TOOL_APP_OVERRIDE` si le nom ne suit pas la triade) + ligne `ROUTE_TOOLS` de `tests_tool_api_coverage` (2026-11-08 : les routes de formats du model manager n'avaient aucun outil, et aucune garde ne regardait les routes ; 2026-11-09 : les 46 autres de la page, et `VIEW_CALLS` dit quel appel atteint quelle vue, avec la méthode qu'elle accepte) |
 | **page** neuve | rien, si elle est au registre de navigation | `open_page` la trouve (`navigation`) ; une page du compte qui se LIT a son `get_my_<page>` |
 | process / étape d'un pipeline | rien | `start_<app>(…, process=…)` lit la fabrique (`process_views`) |
 | réglage neuf au schéma | rien | `**params` du créateur et `update_item_settings` lisent le schéma |
@@ -40,12 +40,17 @@ FABRIQUE de l'app (le même geste que le bouton), jamais un second chemin.
   administrateur toutes les apps, un développeur les siennes et celles qu'on lui ouvre
   (`accounts.AccessGrant`), un utilisateur simple aucune. Un outil ne décide jamais à part : il
   passe par `tool_accessible` (outil nommé d'après l'app) ou `_refus_app` (verbe transverse).
-- **Docstring en anglais** (elle devient la description vue par le modèle : `tool_descriptions`),
-  arguments typés (ils deviennent le schéma MCP : `tool_input_schema`) ; identifiants en anglais
-  (`check_identifier_language`).
+- **Docstring en anglais** — son PREMIER PARAGRAPHE devient la description vue par le modèle
+  (`tool_descriptions`, prompt et serveur MCP) : une ou deux phrases ENTIÈRES qui disent le geste,
+  ses choix et qui y a droit ; le détail va dans les paragraphes suivants (2026-11-09 : la
+  dérivation prenait la première LIGNE, 44 outils sur 144 montraient une phrase coupée —
+  `EveryToolDescriptionIsAWholeSentenceTest`). Arguments typés (ils deviennent le schéma MCP :
+  `tool_input_schema`) ; identifiants en anglais (`check_identifier_language`).
 - **Contrat de retour** : une création rend `item_id` (`tests_tool_item_contract`) ; une erreur
   rend `{'error': …}` lisible — jamais une exception (`execute_tool` ne lève pas).
-- **Destructif** : demander confirmation (docstring), `confirm=true` pour un geste de masse.
+- **Confirmation** : un geste que la PAGE fait confirmer (`confirm(…)` du gabarit) exige
+  `confirm=true` dans l'outil (`_unconfirmed`), comme un destructif ou un geste de masse ; une
+  décision réservée (valider une proposition) dit le droit AVANT de demander l'accord.
 
 ## 3. Vérifier
 
