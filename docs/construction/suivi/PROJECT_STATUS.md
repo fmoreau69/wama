@@ -29561,11 +29561,14 @@ de MESURE ; chaque pièce suit un patron en service :
   roue ; PyTorch importé avant la précharge) ; sans `TF_FORCE_GPU_ALLOW_GROWTH`, il prend la carte
   ENTIÈRE ; avec, expression + âge + genre ~4,6 Go, qu'il ne REND PAS avant la fin du processus.
   ✅ Protection posée (`settings.py`, e6ebd66bd), prouvée en processus de type worker (+270 Mio au
-  lieu de la carte entière). ⏳ **Forme retenue par Fabien : un SERVICE dédié, comme la voix** —
-  à concevoir, décisions ouvertes : la libération (TensorFlow ne rend rien : seul l'arrêt du
-  processus libère), le repli quand le service est éteint (TensorFlow tenu HORS de la carte dans les
-  autres processus), le périmètre (DeepFace seul, ou FER aussi), le préchauffage (expression ~0,4 Go,
-  ou âge et genre ~4,6 Go résidents), et la préparation du processus (nvJitLink de la roue préchargé).
+  lieu de la carte entière). ⏳ **Forme retenue par Fabien : un SERVICE TENSORFLOW, comme la voix**
+  — décisions du 2026-11-08 (a91630002) : il S'ARRÊTE quand le gouverneur demande la carte et est
+  RELANCÉ À LA DEMANDE (surveillance des workers ÉTENDUE aux services) ; repli dans le processus
+  appelant, TensorFlow tenu HORS de la carte ; DeepFace ET FER ; préchauffage de l'expression seule ;
+  nvJitLink de la roue préchargé. Frontière tranchée le 2026-11-09 : délimité par son MOTEUR, pas par
+  le visage (un seul module importe TensorFlow, `common/backends/emotions.py`) ; MediaPipe n'y entre
+  pas — le Landmarker reste dans le processus appelant, les gestes de la main au NAVIGATEUR
+  (`wama-hands.js`, aucune image de la webcam au serveur). Détail : `WAMA_MANIFEST_SPEC §7.1`.
 - **Dérives consignées, non soldées** (`WAMA_MANIFEST_SPEC §7.1`) : `DeepFaceBackend` sans appelant
   et VRAM déclarées sans rapport avec la mesure ; pyannote (`get_diarizer`) ; `load()` à vide de
   `audiocpp` / `audiocraft` / `audio_enhancer` ; `depth_engine` qui recopie le cache de YOLOPv2 ; le
@@ -29574,7 +29577,7 @@ de MESURE ; chaque pièce suit un patron en service :
 - Rouges vus, à d'autres : `face_analyzer.tests.EmotionBackendReachesTheVideoTaskTest` (dossier
   `media_tests` absent à la ligne 215, avant tout code touché), `tests_hands` (403 au lieu de 302),
   `tests_mecanismes_scan` (`tests_score_reading.py` à deux propriétaires).
-- 🔚 **Point d'entrée** : les décisions du service de visage ci-dessus, puis sa construction sur le
+- 🔚 **Point d'entrée** : le service TensorFlow ci-dessus, construit sur le
   patron du service de confidentialité (`common/privacy/service.py` : Django initialisé, porte
   commune, tenant déclaré, préchauffage, 503 « loading ») ; puis `DeepFaceBackend` au contrat
   `face-analysis` (le `EmotionRecognizer` de l'app garde son lissage, le backend reste sans état).

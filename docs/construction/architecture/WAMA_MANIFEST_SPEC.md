@@ -817,7 +817,17 @@ par le compteur de TensorFlow (`get_memory_info`) et la mémoire occupée de la 
 *La forme cible (passer par la carte, décision de Fabien du 2026-11-08) : le temps réel tourne dans
 gunicorn, une pipeline par image — un TensorFlow sur la carte y garderait jusqu'à ~5 Go par worker
 web, que rien ne rend. ✅ Protection posée (`TF_FORCE_GPU_ALLOW_GROWTH`, `settings.py`, e6ebd66bd).
-⏳ **Un SERVICE DÉDIÉ au visage, comme la voix** — décisions de Fabien du 2026-11-08 :*
+⏳ **Un SERVICE TENSORFLOW, comme la voix** — décisions de Fabien du 2026-11-08 :*
+- *FRONTIÈRE : le service est délimité par son MOTEUR, pas par le visage (décision de Fabien du
+  2026-11-09 ; la ligne disait « un service dédié au visage »). Ce qui le justifie est TensorFlow —
+  une mémoire de carte rendue seulement à la fin du processus, et le conflit avec PyTorch dans un
+  même processus (`USE_TF=0`) —, ni MediaPipe ni le visage. Mesuré le 2026-11-09 : un seul module
+  de `wama/`, `wama_lab/`, `wama_data/` importe une librairie TensorFlow
+  (`common/backends/emotions.py`, DeepFace et FER) ; ce sont ses premiers occupants, et tout modèle
+  TensorFlow à venir y entre sans service neuf. MediaPipe reste où il est : le Face Landmarker dans
+  le processus appelant (processeur, contrat `face-landmark-detection`, rend tout au déchargement),
+  les gestes de la main AU NAVIGATEUR (`common/static/common/js/wama-hands.js` : « aucune image de
+  la webcam ne quitte la page » ; le serveur ne sert que le fichier du modèle, `common:hand_model`) ;*
 - *LIBÉRATION : le service S'ARRÊTE quand le gouverneur demande la carte (seul geste qui rende la
   mémoire de TensorFlow), et il est RELANCÉ À LA DEMANDE — par la surveillance qui existe déjà pour
   les workers (`scripts/worker_watchdog.sh` : mort = processus disparu, budget de relances, rapport
