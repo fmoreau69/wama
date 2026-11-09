@@ -1631,6 +1631,15 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   plus. `cloud_models.drop_renamed`, appelée par `retire_unlisted`, le supprime, sauf s'il porte
   un historique d'exécution. Vérifié en direct chez Albert, appliqué : deux lignes
   (`…-A3b-…`, `openai/gpt-oss-120b`). Garde : `tests_cloud_models.RenamedModelTest`.
+  Même sort, depuis le 2026-11-09, pour un RACCOURCI qu'un fournisseur liste à côté de ses
+  modèles : OpenRouter publie 19 entrées `~…-latest` qui suivent le dernier modèle d'une famille
+  et nomment leur cible (`alias_target.slug`). Ce n'est pas un modèle — sa cible change sans
+  prévenir, donc rien ne s'y mesure — et sa clé ne s'exportait pas (`~` encode le `/` des noms
+  de manifestes). `list_remote_models` ne la range plus et la note sur sa cible
+  (`routing_aliases`, sur la liste gardée de la clé seulement : dans `aliases`, la provenance la
+  lirait comme un dépôt du Hub, et sur la ligne, chaque changement de cible ferait refuser
+  l'export par la garde des pertes) ; `drop_renamed` la lit. Appliqué : 19 lignes supprimées
+  (`REMOVAL_LEDGER R233`). Gardes : `OpenRouterListingTest`, `ShortcutRowTest`.
 - **Apps** : `select_model()` (model_manager) — VRAM-aware, `prefer_loaded`, capacités requises ;
   les tiers de `llm_utils` s'appuient dessus.
 - **Cible non atteinte** (§15 + ROADMAP §8d) : croiser **intention + fichiers d'entrée +

@@ -192,9 +192,22 @@ def list_remote_models(source: str, api_key: str, timeout: float = 20.0) -> list
     else:
         raise CloudDiscoveryError(f"{label} n'a rendu aucun modèle ({LISTING_ATTEMPTS} lectures) : "
                                   "liste précédente conservée")
+    # Un RACCOURCI n'est pas un modèle (2026-11-09, Fabien) : OpenRouter liste 19 entrées `~…-latest`
+    # qui « redirigent toujours vers le dernier modèle de la famille » et nomment leur cible
+    # (`alias_target.slug`), déjà listée. Rangées comme des modèles, elles doublaient leur cible
+    # avec un comportement qui change sans prévenir, et leur clé était refusée par le corpus
+    # (`~` y encode le `/` des noms de fichiers). Le raccourci est noté sur la cible
+    # (`routing_aliases`, lu par `drop_renamed`) — pas dans `aliases`, que la provenance lit
+    # comme un dépôt du Hub (`provenance.cloud_identity`).
+    routes, shortcuts = {}, set()
+    for m in data:
+        target = m.get('alias_target')
+        if isinstance(target, dict) and target.get('slug') and m.get('id'):
+            routes.setdefault(target['slug'], []).append(m['id'])
+            shortcuts.add(m['id'])
     out = []
     for m in data:
-        if not m.get('id'):
+        if not m.get('id') or m['id'] in shortcuts:
             continue
         # Protocole OpenAI (Albert) : `type` est une tâche. Chez Anthropic, `type` vaut « model »
         # (la nature de l'objet), pas une tâche : on prend alors le type DÉCLARÉ par la source.
@@ -221,6 +234,8 @@ def list_remote_models(source: str, api_key: str, timeout: float = 20.0) -> list
             item['description'] = m['description'].strip()
         if _is_free(m.get('pricing')):
             item['cost_tier'] = 'free'      # un modèle gratuit chez un fournisseur facturé
+        if routes.get(m['id']):
+            item['routing_aliases'] = routes[m['id']]
         out.append(item)
     return out
 
@@ -428,6 +443,13 @@ def drop_renamed(source: str) -> list:
     live = list(rows.filter(is_available=True))
     names = {m.model_key.partition(':')[2].lower() for m in live}
     aliases = {str(a) for m in live for a in ((m.extra_info or {}).get('aliases') or [])}
+    # Les RACCOURCIS qu'un fournisseur déclare vers un modèle (`routing_aliases`, 2026-11-09) :
+    # lus sur la liste gardée des clés, pas sur la ligne — ils changent de cible sans prévenir,
+    # et un fait qui bouge seul ferait refuser l'export par la garde des pertes.
+    aliases |= {str(a) for model in _key_models()
+                for listing in model.objects.filter(source=source).values_list('remote_listing', flat=True)
+                for item in (listing or []) if isinstance(item, dict)
+                for a in (item.get('routing_aliases') or [])}
     doomed = [g.model_key for g in rows.filter(is_available=False)
               if (g.model_key.partition(':')[2].lower() in names
                   or g.model_key.partition(':')[2] in aliases)

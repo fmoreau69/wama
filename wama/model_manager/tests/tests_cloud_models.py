@@ -987,6 +987,28 @@ class RenamedModelTest(TestCase):
         self.assertEqual(['albert:org/gpt-x'], dropped)
 
 
+class ShortcutRowTest(TestCase):
+    """A row filed under a provider's SHORTCUT (`~…-latest`, 2026-11-09) is not a model: once the
+    list notes the shortcut on its target, the row goes the way of an old name."""
+
+    def setUp(self):
+        from wama.accounts.models import InstanceApiKey
+        InstanceApiKey.objects.create(
+            source='openrouter', api_key='sk', open_models=['openrouter:v/m-2'],
+            remote_listing=[{'id': 'v/m-2', 'type': 'text-generation', 'aliases': [],
+                             'routing_aliases': ['~v/m-latest']}])
+        row = {'model_type': 'llm', 'source': 'openrouter', 'execution': 'cloud'}
+        AIModel.objects.create(model_key='openrouter:v/m-2', name='m2', **row)
+        for key in ('openrouter:~v/m-latest', 'openrouter:~v/other-latest'):
+            AIModel.objects.create(model_key=key, name=key, **row)
+
+    def test_the_shortcut_row_is_deleted_an_unnamed_one_stays_marked(self):
+        cloud_models.retire_unlisted('openrouter')
+        rows = dict(AIModel.objects.filter(source='openrouter').values_list('model_key', 'is_available'))
+        # `~v/other-latest` is named by no live target: withdrawn, kept marked like any model.
+        self.assertEqual({'openrouter:v/m-2': True, 'openrouter:~v/other-latest': False}, rows)
+
+
 class OriginLabelTest(TestCase):
     """L'ORIGINE d'un modèle se DÉRIVE de sa ligne (exécution, source, hébergement, coût) —
     affichée sous les sélecteurs de modèle (`WamaModelHelp`)."""
@@ -1133,6 +1155,21 @@ class OpenRouterListingTest(TestCase):
         # Counter-check: an id with a « / » is not a repository, and a paid model keeps the
         # source's tier.
         self.assertEqual(('metered', None), (paid.cost_tier, paid.platform_ref))
+
+    def test_a_shortcut_to_the_latest_model_is_noted_on_its_target_not_listed_as_a_model(self):
+        # Shape of the real `~…-latest` entries (2026-11-09): they name their target.
+        shortcut = {'id': '~google/gemini-latest', 'name': 'Gemini Latest',
+                    'alias_target': {'name': 'Gemini X', 'slug': 'google/gemini-x'},
+                    'architecture': {'input_modalities': ['text', 'image'], 'output_modalities': ['text']},
+                    'pricing': {'prompt': '0.0000003', 'completion': '0.0000025'}}
+        with mock.patch.object(self, 'LISTING', self.LISTING + [shortcut]):
+            _, models = self._list()
+        self.assertNotIn('~google/gemini-latest', models)
+        target = models['google/gemini-x']
+        self.assertEqual((['~google/gemini-latest'], []), (target['routing_aliases'], target['aliases']))
+        # Counter-check: the shortcut is not read as a served repository (`cloud_identity`).
+        self.assertIsNone(cloud_models.model_info_for('openrouter', target).platform_ref)
+        self.assertNotIn('routing_aliases', models['meta-llama/llama-3.3-70b-instruct:free'])
 
     def test_a_listing_without_modalities_still_reads_its_type(self):
         # Counter-check: Albert's shape (a `type`, no `architecture`) is unchanged.
