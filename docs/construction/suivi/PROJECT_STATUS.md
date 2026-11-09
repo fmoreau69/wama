@@ -29638,3 +29638,44 @@ dossiers par utilisateur hors de `users/`, et il ne contient qu'UN fichier, le t
 joué, le scénario fabrique un témoin neuf à chaque passe.
 ⚠ La commande `migrate_media_to_user_home` sans `--app` plante (`OSError: File name too long`) sur une
 valeur de champ texte qui contient des `/` (un tableau en Markdown) : préexistant, non corrigé ici.
+
+## §PALIER 2026-11-09, « LA LÉGENDE DE BATTERIE NOMME LES NOTES ; BANC DE PADDLEOCR-VL SUR LES PHOTOS DE FABIEN » — ce commit (local, non poussé) — 🔴 relancer les workers (default, gpu)
+
+> Réponses de Fabien aux trois questions du 08/11 : « oui pour le banc PaddleOCR-VL », « lire la
+> légende de la page », les PDF restent un reste. Et une question de fond, ouverte : un lot de pages
+> ou une card qui porte un PDF de plusieurs pages ; un geste « assembler en un PDF » sur tout lot
+> d'images ou de pages (à côté du ZIP) — **d'abord l'inventaire MESURÉ des files de toutes les apps,
+> puis le concile, puis sa décision**.
+
+- **Légende de batterie (« Drum Key »)** — copisteria lit la portée de légende comme une MESURE 1 (en
+  clé de sol, « Snarei Drum » en mot) et ne dit ni où est chaque note ni quel instrument joue sur
+  quelle ligne. Le backend garde désormais sa lecture intermédiaire (`copisteria_backend._transcription`
+  au lieu de `pipeline.transcribe`, qui la jette) : portées, boîte et place (`pos`) de chaque note.
+  `score_page.drum_key` y trouve la légende (un mot « Key » / « Legend » / « Légende » à GAUCHE d'une
+  portée), donne à chaque note l'étiquette OCR la plus proche en largeur, une seconde rangée nommant
+  la FAMILLE (« Snare Drum » sous « Normal » et « Crosstick » : deux têtes que la lecture ne
+  distingue pas), et laisse SANS NOM une place que la légende donne à deux instruments.
+  `midi_score.drum_sound` reconnaît le mot (lexique `DRUM_NAMES`, anglais et français, lecture
+  approchée comprise) et donne son son General MIDI ; `musicxml_score.drop_leading_measures` retire
+  la mesure de légende, `apply_drum_key` pose `score-instrument` / `midi-unpitched` / tête en croix
+  sur TOUTE la partition (la légende d'une page vaut pour les pages suivantes du même fichier).
+  ⭐ `xml2abc` écrivait DÉJÀ la table de percussion de l'ABC (`I:percmap`, `%%MIDI drummap`) depuis ces
+  éléments : rien n'a été réécrit côté ABC.
+- **Mesuré** sur les 3 photos qui portent la légende : même table sur les trois (grosse caisse E4,
+  caisse claire C5, charleston F5, crash A5, toms) ; sur la photo la plus penchée la caisse claire
+  « Normal » est lue un cran trop haut, sur la place du premier tom → cette place reste sans nom.
+  Deux défauts trouvés à la mesure et corrigés : la boîte de mesure de copisteria couvre parfois une
+  PART de la portée (elle finissait au 2ᵉ tom sur une photo, commençait au charleston sur une autre)
+  → la portée couvre ses notes. La page 2 (sans légende) ne reçoit rien.
+- **Banc PaddleOCR-VL-1.6** : `PROSPECTION_PIPELINE.md §Veille 2026-11-08 « OCR manuscrit à positions »`,
+  bloc « Banc du 2026-11-09 ». GGUF officiel (avec projecteur) installé par la route
+  (`ollama:hf.co/PaddlePaddle/PaddleOCR-VL-1.6-GGUF:latest`). Manuscrit bien lu, mais Ollama retire les
+  jetons de position : aucune boîte. docTR place + PaddleOCR-VL relit le recadrage = titre manuscrit
+  juste. Proposition (a) relecture par recadrage, (b) positions natives = llama.cpp ou transformers ≥ 5.
+- **Revérification** : `tests_mecanismes_scan` rouge depuis `ac8ef6651` (ma session du 08/11) —
+  `tests_score_reading.py` annexe de DEUX mécanismes ; laissé à `musicxml_score`.
+- Tests : +9 (légende, lexique, retrait de mesure, instruments, moteur, glu) ; 14 contre-épreuves
+  rouges (une garde d'abord aveugle — le mot-clé à GAUCHE de la portée — complétée).
+- 🔚 Restes : la légende ne nomme pas les AUTRES cards du lot (question lot / card ci-dessus) ; têtes
+  en croix lues par le moteur (aucune classe) ; « % » de deux mesures ; propositions (a)/(b) de l'OCR ;
+  un PDF n'est ni mis d'aplomb ni lu dans ses deux sens.

@@ -185,6 +185,28 @@ class TheGlueWritesTheScoreOnTheCardTest(TestCase):
             tasks._read_score(item, ctx)
         ctx.ensure_model.assert_called_once_with('huggingface:kobimusic/copisteria')
 
+    def test_the_instruments_the_drum_key_names_are_told(self):
+        """2026-11-09 : the engine names the drum notes from the key printed on the page."""
+        from wama.common.tests.tests_score_reading import KEY_ENTRIES, _drum_score
+        from wama.common.utils.musicxml_score import apply_drum_key
+        from wama.reader import tasks
+        from wama.reader.models import ReadingItem
+        (self.tmp / 'page.pdf').write_bytes(b'%PDF-1.4\n')
+        item = ReadingItem.objects.create(user=self.user, input_file='page.pdf', read_as_score=True,
+                                          page_count=1)
+        messages = []
+        ctx = SimpleNamespace(console=messages.append, progress=lambda *a, **k: None,
+                              ensure_model=mock.Mock(),
+                              output_place=lambda ext, **k: (f'o{ext}', str(self.tmp / f'o{ext}')))
+        with mock.patch('wama.common.utils.auto_model.model_for_task',
+                        return_value='huggingface:kobimusic/copisteria'), \
+                mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                           return_value=object()), \
+                mock.patch('wama.common.backends.manager.run_contract',
+                           return_value=apply_drum_key(_drum_score(), KEY_ENTRIES)):
+            tasks._read_score(item, ctx)
+        self.assertIn('[Reader] Légende de batterie lue : Bass Drum, Snare Drum, Hi-Hat.', messages)
+
     def test_the_page_text_names_the_card_and_an_upside_down_page_is_turned(self):
         """2026-11-08, Fabien's drum pages : the orientation classifier turned a straight score
         upside down ; the page is read both ways by the OCR and the surer reading wins. The title,

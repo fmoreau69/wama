@@ -843,6 +843,7 @@
         "ollama:gemma4:12b",
         "ollama:gemma4:e4b",
         "ollama:glm-ocr:latest",
+        "ollama:hf.co/PaddlePaddle/PaddleOCR-VL-1.6-GGUF:latest",
         "ollama:hf.co/SandLogicTechnologies/chandra-ocr-2-GGUF:Q6_K",
         "ollama:qwen3.5:4b",
         "ollama:qwen3.8:latest",
@@ -1960,6 +1961,10 @@
     },
     {
       "key": "ollama:glm-ocr:latest",
+      "kind": "model"
+    },
+    {
+      "key": "ollama:hf.co/PaddlePaddle/PaddleOCR-VL-1.6-GGUF:latest",
       "kind": "model"
     },
     {

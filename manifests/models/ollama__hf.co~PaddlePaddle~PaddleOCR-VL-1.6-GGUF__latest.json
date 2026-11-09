@@ -1,0 +1,95 @@
+{
+  "body": {
+    "capabilities": {
+      "abilities": [
+        "completion",
+        "vision"
+      ],
+      "audio": false,
+      "completion": true,
+      "context_length": 131072,
+      "embedding": false,
+      "inputs_optional": [],
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "document"
+      ],
+      "params": [
+        "language"
+      ],
+      "params_active_b": 0.467,
+      "params_total_b": 0.467,
+      "recommended_temperature": null,
+      "recommended_top_p": null,
+      "task": "ocr",
+      "thinking": false,
+      "tools": false,
+      "vision": true
+    },
+    "composition": {
+      "runtime": {
+        "engine": "ollama"
+      }
+    },
+    "extra_info": {
+      "quantization": "BF16",
+      "vram_measured": {
+        "at": "2026-11-09T16:46:42+00:00",
+        "last_gb": 3.6,
+        "max_gb": 3.6,
+        "n": 1
+      },
+      "vram_provenance": "heuristic"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf"
+    },
+    "identity": {
+      "author": null,
+      "base_model": "PaddlePaddle/PaddleOCR-VL-1.6",
+      "base_model_relation": "quantized",
+      "description_short": "Ollama LLM (1.8 GB)",
+      "license": null,
+      "model_type": "ocr",
+      "platform_ref": "huggingface:PaddlePaddle/PaddleOCR-VL-1.6-GGUF",
+      "source": "ollama"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": "ollama",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 1.8,
+      "ram_gb": 1.8,
+      "vram_gb": 1.8
+    }
+  },
+  "description": "Ollama LLM (1.8 GB)",
+  "key": "ollama:hf.co/PaddlePaddle/PaddleOCR-VL-1.6-GGUF:latest",
+  "manifest_kind": "model",
+  "name": "hf.co/PaddlePaddle/PaddleOCR-VL-1.6-GGUF:latest",
+  "projects": [],
+  "requires": [
+    {
+      "key": "httpx",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:ollama:hf.co/PaddlePaddle/PaddleOCR-VL-1.6-GGUF:latest",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

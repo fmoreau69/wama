@@ -107,11 +107,10 @@ class TheEngineReadsPagesTheWamaWayTest(SimpleTestCase):
         engine._model = object()
         seen = []
 
-        def transcribe(png, model, texts=None, device='cpu'):
+        def transcription(png, texts):
             seen.append(Path(png))
-            return pages_read[len(seen) - 1]
-        library = mock.Mock(transcribe=transcribe)
-        with mock.patch.object(CopisteriaBackend, '_library', return_value=(library, None)):
+            return pages_read[len(seen) - 1], None
+        with mock.patch.object(CopisteriaBackend, '_transcription', side_effect=transcription):
             return engine.read_score('copisteria', str(_pdf(self.tmp / 'two.pdf', len(pages_read)))), seen
 
     def test_the_pages_are_read_in_order_and_joined_into_one_score(self):
@@ -456,16 +455,153 @@ class TheEngineReceivesThePageTextTest(SimpleTestCase):
         engine._model = object()
         received = []
 
-        def transcribe(png, model, texts=None, device='cpu'):
+        def transcription(png, texts):
             received.append(texts)
-            return _page('CD')
-        library = mock.Mock(transcribe=transcribe)
+            return _page('CD'), None
         with tempfile.TemporaryDirectory() as tmp:
             image = Path(tmp) / 'page.png'
             Image.new('L', (500, 700), 255).save(image)
             page = {'width': 500, 'height': 700,
                     'lines': [{'text': 'Groove', 'bbox': [0, 0, 50, 20], 'role': 'title'}]}
-            with mock.patch.object(CopisteriaBackend, '_library', return_value=(library, None)):
+            with mock.patch.object(CopisteriaBackend, '_transcription', side_effect=transcription):
                 engine.read_score('copisteria', str(image), page_texts=[page])
         self.assertEqual([[{'text': 'Groove', 'xyxy': [0.0, 0.0, 50.0, 20.0], 'role': 'pgHead_title'}]],
                          received)
+
+
+# ── The drum key of a page (2026-11-09, Fabien : « lire la légende de la page ») ─────────────
+
+#: The « Drum Key » of « Nothing Else Matters » as copisteria and docTR read it on Fabien's photo
+#: (20261108_133511) : the staff, the place of each note (half staff spaces, 0 = middle line) and
+#: the captions — the plain snare read one place too high, where the first tom also sits.
+KEY_STAFF = {'index': 0, 'system': 0, 'box': (218, 280, 1572, 334), 'space': 13.4, 'measures': 1,
+             'notes': [{'x': x, 'pos': p} for x, p in ((330, -4), (533, 2), (694, 1), (938, 4),
+                                                       (1185, 6), (1455, 2), (1552, 0), (1651, -2))]}
+BODY_STAFF = {'index': 1, 'system': 1, 'box': (100, 500, 1800, 554), 'space': 13.4, 'measures': 4,
+              'notes': [{'x': 300, 'pos': -4}, {'x': 400, 'pos': 4}]}
+KEY_LINES = [{'text': t, 'bbox': list(b)} for t, b in (
+    ('Nothing Else Matters', (702, 140, 1227, 204)), ('Drum', (108, 270, 212, 310)),
+    ('Key', (111, 315, 185, 360)), ('Bass Drum', (273, 347, 408, 387)),
+    ('Normal', (482, 347, 578, 384)), ('Crosstick', (655, 352, 769, 387)),
+    ('Hi-Hat', (891, 350, 994, 389)), ('Crash Cymbal', (1105, 350, 1270, 389)),
+    ('Tom Toms', (1482, 344, 1623, 381)), ('Snarei Drum', (554, 379, 697, 419)),
+    ('6', (363, 432, 395, 469)))]
+KEY_ENTRIES = [{'pos': -4, 'name': 'Bass Drum', 'sound': 36}, {'pos': -2, 'name': 'Tom-Toms 2', 'sound': 41},
+               {'pos': 0, 'name': 'Tom-Toms 1', 'sound': 50}, {'pos': 1, 'name': 'Snare Drum', 'sound': 38},
+               {'pos': 4, 'name': 'Hi-Hat', 'sound': 42}, {'pos': 6, 'name': 'Crash Cymbal', 'sound': 49}]
+
+
+class TheDrumKeyOfAPageTest(SimpleTestCase):
+
+    def test_each_place_gets_the_instrument_printed_under_its_note(self):
+        from wama.common.utils.score_page import drum_key
+        key = drum_key(KEY_LINES, [KEY_STAFF, BODY_STAFF])
+        self.assertEqual(0, key['staff'])
+        self.assertEqual(KEY_ENTRIES, key['entries'],
+                         '« Normal » and « Crosstick » are the snare named below them ; the toms are '
+                         'numbered from the highest place')
+        self.assertEqual([2], key['ambiguous'], 'the place given to the snare AND a tom stays unnamed')
+
+    def test_a_staff_box_that_starts_after_its_first_notes_still_reads_them(self):
+        """Measured on another photo of the same page : the measure box began at the hi-hat."""
+        from wama.common.utils.score_page import drum_key
+        cut = dict(KEY_STAFF, box=(900, 280, 1572, 334))
+        self.assertEqual(KEY_ENTRIES, drum_key(KEY_LINES, [cut])['entries'])
+
+    def test_a_staff_without_a_key_word_at_its_left_is_music(self):
+        from wama.common.utils.score_page import drum_key
+        lines = [l for l in KEY_LINES if l['text'] != 'Key']
+        self.assertIsNone(drum_key(lines, [KEY_STAFF, BODY_STAFF]))
+        self.assertIsNone(drum_key(KEY_LINES, [BODY_STAFF]), 'the key word stands at ITS staff')
+        on_the_right = [dict(l, bbox=[1700, 315, 1774, 360]) if l['text'] == 'Key' else l for l in KEY_LINES]
+        self.assertIsNone(drum_key(on_the_right, [KEY_STAFF]), '… and at its LEFT, before its lines')
+
+    def test_a_drum_name_is_recognised_even_misread_and_in_french(self):
+        from wama.common.utils.midi_score import drum_sound
+        self.assertEqual(('Snare Drum', 38), drum_sound('Snarei Drum'))
+        self.assertEqual(('Bass Drum', 36), drum_sound('Grosse caisse'))
+        self.assertEqual(('Hi-Hat', 42), drum_sound('Hi - Hat'))
+        self.assertEqual(('Normal', None), drum_sound(' Normal '), 'an unknown word keeps its name')
+
+
+def _drum_score() -> str:
+    """A drum page as copisteria writes it : the key read as a first measure (treble clef), then a
+    percussion measure — bass drum (E4), hi-hat (F5), and a note at a place the key leaves unnamed."""
+    def note(step, octave):
+        return (f'<note><unpitched><display-step>{step}</display-step><display-octave>{octave}'
+                f'</display-octave></unpitched><duration>1</duration><voice>1</voice><type>quarter</type>'
+                f'<stem>up</stem></note>')
+    return ('<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Part 1</part-name>'
+            '</score-part></part-list><part id="P1">'
+            '<measure number="1"><attributes><divisions>1</divisions><clef><sign>G</sign><line>2</line>'
+            '</clef></attributes>' + note('E', 4) + note('C', 5) + '</measure>'
+            '<measure number="2"><attributes><clef><sign>percussion</sign></clef></attributes>'
+            + note('E', 4) + note('F', 5) + note('D', 5) + '</measure></part></score-partwise>')
+
+
+class TheKeyNamesTheNotesOfTheScoreTest(SimpleTestCase):
+
+    def test_the_key_measure_leaves_and_what_it_declared_passes_on(self):
+        import xml.etree.ElementTree as ET
+        from wama.common.utils.musicxml_score import drop_leading_measures
+        part = ET.fromstring(drop_leading_measures(_drum_score(), 1)).find('part')
+        (measure,) = part.findall('measure')
+        self.assertEqual('1', measure.get('number'))
+        self.assertEqual('1', measure.findtext('attributes/divisions'), 'the divisions are carried')
+        self.assertEqual(['percussion'], [c.findtext('sign') for c in measure.iter('clef')],
+                         'the kept measure keeps its own clef')
+        self.assertEqual(_drum_score(), drop_leading_measures(_drum_score(), 0))
+
+    def test_each_note_plays_its_instrument_and_the_abc_maps_the_lines(self):
+        import xml.etree.ElementTree as ET
+        from wama.common.utils.musicxml_score import (apply_drum_key, drum_instruments,
+                                                      drop_leading_measures, musicxml_to_abc)
+        score = apply_drum_key(drop_leading_measures(_drum_score(), 1), KEY_ENTRIES)
+        root = ET.fromstring(score)
+        declared = {si.get('id'): si.findtext('instrument-name') for si in root.iter('score-instrument')}
+        sounds = {mi.get('id'): mi.findtext('midi-unpitched') for mi in root.iter('midi-instrument')}
+        bass, hihat, unnamed = root.iter('note')
+        self.assertEqual('Bass Drum', declared[bass.find('instrument').get('id')])
+        self.assertEqual('37', sounds[bass.find('instrument').get('id')], 'General MIDI 36, counted from 1')
+        self.assertEqual('Hi-Hat', declared[hihat.find('instrument').get('id')])
+        self.assertEqual('x', hihat.findtext('notehead'), 'a hi-hat is written with a cross head')
+        self.assertIsNone(bass.find('notehead'))
+        self.assertIsNone(unnamed.find('instrument'), 'a place the key does not name stays as read')
+        self.assertEqual(['Bass Drum', 'Hi-Hat'], drum_instruments(score))
+        abc = musicxml_to_abc(score)
+        self.assertIn('I:percmap ^f f 42 x', abc)
+        self.assertIn('I:percmap E E 36 normal', abc)
+        self.assertEqual(_drum_score(), apply_drum_key(_drum_score(), []), 'no key : the score as read')
+
+    def test_the_engine_reads_the_key_once_and_names_the_whole_score(self):
+        import xml.etree.ElementTree as ET
+        from types import SimpleNamespace
+        from PIL import Image
+        from wama.common.backends import copisteria_backend as cb
+        staves, syms, tok = [], [], {}
+        for staff in (KEY_STAFF, BODY_STAFF):
+            x0, y0, x1, y1 = staff['box']
+            staves.append(SimpleNamespace(system=staff['system'], x0=x0, y0=y0, x1=x1, y1=y1, sp=staff['space']))
+            syms.append(SimpleNamespace(staff=staff['index'], fam='measure', box=staff['box']))
+            tok[len(syms) - 1] = {'real': {'p': 0.9}}
+            for note in staff['notes']:
+                syms.append(SimpleNamespace(staff=staff['index'], fam='note',
+                                            box=(note['x'] - 8, 300, note['x'] + 8, 315)))
+                tok[len(syms) - 1] = {'real': {'p': 0.95}, 'pos': {'v': note['pos']}}
+        syms.append(SimpleNamespace(staff=0, fam='note', box=(1700, 300, 1716, 315)))
+        tok[len(syms) - 1] = {'real': {'p': 0.1}, 'pos': {'v': 3}}          # a false note : dropped
+        reading = SimpleNamespace(layout=SimpleNamespace(staves=staves, syms=syms), tok=tok)
+        self.assertEqual(KEY_STAFF['notes'], cb._staves(reading)[0]['notes'])
+        engine = cb.CopisteriaBackend()
+        engine._model = object()
+        with tempfile.TemporaryDirectory() as tmp:
+            image = Path(tmp) / 'page.png'
+            Image.new('L', (1883, 2716), 255).save(image)
+            page = {'width': 1883, 'height': 2716, 'lines': KEY_LINES}
+            with mock.patch.object(cb.CopisteriaBackend, '_transcription',
+                                   return_value=(_drum_score(), reading)):
+                score = engine.read_score('copisteria', str(image), page_texts=[page])
+        measures = ET.fromstring(score).find('part').findall('measure')
+        self.assertEqual(1, len(measures), 'the key is no music')
+        self.assertEqual(['P1-I1', 'P1-I2'], [n.find('instrument').get('id')
+                                              for n in measures[0].iter('note') if n.find('instrument') is not None])

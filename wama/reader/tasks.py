@@ -416,7 +416,8 @@ def _read_score(item, ctx):
     from wama.common.backends.manager import backend_instance_for_key, run_contract
     from wama.common.utils.auto_model import model_for_task
     from wama.common.utils.model_keys import model_id
-    from wama.common.utils.musicxml_score import apply_repeat_counts, musicxml_to_abc, work_title
+    from wama.common.utils.musicxml_score import (apply_repeat_counts, drum_instruments,
+                                                  musicxml_to_abc, work_title)
     from wama.common.utils.score_page import level_page, page_identity
     from wama.common.utils.work_dir import work_dir
     from wama.reader.models import SCORE_TITLE_MAX
@@ -447,6 +448,10 @@ def _read_score(item, ctx):
                                     output_dir=str(travail), progress_callback=ctx.progress,
                                     page_texts=page_texts)
         musicxml = apply_repeat_counts(musicxml)
+        # Les instruments que la LÉGENDE de la page nomme (« Drum Key », 2026-11-09).
+        instruments = drum_instruments(musicxml)
+        if instruments:
+            ctx.console(f"[Reader] Légende de batterie lue : {', '.join(instruments)}.")
         # Le TITRE et le numéro de page LUS (2026-11-08) : ils nomment la card et son lot
         # (`batch_identity`, spec `content_title`) ; sans titre lu, le nom du fichier.
         identities = [page_identity(page) for page in page_texts or []]

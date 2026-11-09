@@ -44,6 +44,58 @@ _DRUM_LINES = {
 #: tête en croix.
 _DRUM_SOUNDS = {'F': 36, 'c': 38, 'A': 45, 'B': 47, 'd': 48, 'e': 50, 'g': 42, 'a': 49, 'f': 51}
 _DRUM_CROSS = ('g', 'a', 'f')
+#: Les sons General MIDI joués avec une tête en croix : ceux que `_DRUM_LINES` range sur une ligne
+#: en croix (charleston, cymbales).
+CROSS_SOUNDS = frozenset(sound for sound, line in _DRUM_LINES.items() if line in _DRUM_CROSS)
+
+#: Les noms qu'une LÉGENDE de batterie imprime (« Drum Key », 2026-11-09) → le nom retenu et son
+#: son General MIDI. La légende décide quelle ligne de la portée porte quel instrument ; ce lexique
+#: ne sert qu'à RECONNAÎTRE le mot (une lecture OCR approchée comprise : « Snarei Drum ») et à en
+#: donner le son. Un mot inconnu garde son nom, sans son.
+DRUM_NAMES = {
+    'Bass Drum': (36, ('bass drum', 'kick', 'kick drum', 'grosse caisse')),
+    'Snare Drum': (38, ('snare drum', 'snare', 'caisse claire')),
+    'Cross Stick': (37, ('cross stick', 'crosstick', 'side stick', 'rim click')),
+    'Rimshot': (40, ('rimshot', 'rim shot')),
+    'Hi-Hat': (42, ('hi hat', 'hihat', 'closed hi hat', 'charleston', 'charley')),
+    'Open Hi-Hat': (46, ('open hi hat', 'open hihat', 'charleston ouvert')),
+    'Hi-Hat Pedal': (44, ('hi hat pedal', 'pedal hi hat', 'hi hat foot', 'foot hi hat',
+                          'charleston au pied')),
+    'Crash Cymbal': (49, ('crash cymbal', 'crash', 'cymbale crash')),
+    'Ride Cymbal': (51, ('ride cymbal', 'ride', 'cymbale ride')),
+    'Ride Bell': (53, ('ride bell', 'bell', 'cloche')),
+    'China Cymbal': (52, ('china cymbal', 'china', 'chinese cymbal')),
+    'Splash Cymbal': (55, ('splash cymbal', 'splash')),
+    'Cowbell': (56, ('cowbell', 'cloche de vache')),
+    'Tambourine': (54, ('tambourine', 'tambourin')),
+    'Tom-Toms': (47, ('tom toms', 'tom tom', 'toms', 'tom')),
+    'High Tom': (50, ('high tom', 'hi tom', 'tom 1', 'tom aigu')),
+    'Mid Tom': (47, ('mid tom', 'middle tom', 'tom 2', 'tom medium')),
+    'Low Tom': (45, ('low tom', 'tom 3', 'tom grave')),
+    'Floor Tom': (41, ('floor tom', 'tom basse', 'tom de sol')),
+}
+#: Les toms, du plus aigu au plus grave : une famille « Tom-Toms » qui couvre plusieurs lignes en
+#: reçoit un par ligne, la plus haute ligne le plus aigu.
+TOM_SOUNDS = (50, 48, 47, 45, 43, 41)
+#: Ressemblance minimale d'un mot lu avec un nom du lexique (`difflib`), en deçà : inconnu.
+DRUM_NAME_CUTOFF = 0.8
+
+
+def _drum_words(text: str) -> str:
+    return ' '.join(''.join(ch if ch.isalnum() else ' ' for ch in (text or '').lower()).split())
+
+
+def drum_sound(label: str):
+    """`(nom, son General MIDI)` d'un instrument de batterie que nomme `label` (`DRUM_NAMES`), ou
+    `(label nettoyé, None)` pour un mot que le lexique ne reconnaît pas."""
+    import difflib
+    words = _drum_words(label)
+    aliases = {alias: name for name, (_sound, names) in DRUM_NAMES.items() for alias in names}
+    match = aliases.get(words) or next(iter(
+        aliases[a] for a in difflib.get_close_matches(words, aliases, n=1, cutoff=DRUM_NAME_CUTOFF)), None)
+    if not match:
+        return ' '.join((label or '').split()), None
+    return match, DRUM_NAMES[match][0]
 #: Valeurs écrivables, en pas de grille (double croche → ronde), de la plus longue à la plus courte.
 _WRITABLE = (16, 12, 8, 6, 4, 3, 2, 1)
 #: Un instrument de clavier : deux portées (main droite / main gauche).

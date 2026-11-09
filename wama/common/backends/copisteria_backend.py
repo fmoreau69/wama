@@ -27,7 +27,13 @@ Ce que ce backend décide, et pourquoi :
     de texte à RÔLE (`<page>.texts.json`, que son auteur produit par un OCR à lui) ; WAMA les lui
     passe en mémoire (`transcribe(texts=…)`), tirées de `page_texts` (rôles de
     `score_page.text_roles`) par `_texts` — un nombre de passages (« x3 ») y entre comme des MOTS,
-    seule forme que la librairie place sur une mesure (`musicxml_score.repeat_words`).
+    seule forme que la librairie place sur une mesure (`musicxml_score.repeat_words`) ;
+  • la LÉGENDE d'une partition de batterie (2026-11-09, « Drum Key ») : la librairie la lit comme
+    une mesure de musique et ne dit pas quel instrument joue sur quelle ligne. La lecture de la
+    page est donc gardée (`_transcription`, au lieu de `pipeline.transcribe` qui la jette) : ses
+    portées et la place de chaque note, avec les étiquettes lues par l'OCR, donnent la légende
+    (`score_page.drum_key`) ; sa mesure est retirée, et ses instruments nomment les notes de
+    toute la partition (`musicxml_score.apply_drum_key`).
 """
 from __future__ import annotations
 
@@ -96,6 +102,45 @@ def _texts(page: Optional[dict], image_size) -> Optional[list]:
         text = repeat_words(line['times']) if line.get('role') == 'repeat_count' else line['text']
         out.append({'text': text, 'xyxy': [x0 * sx, y0 * sy, x1 * sx, y1 * sy], 'role': role})
     return out or None
+
+
+def _lines(page: Optional[dict], image_size) -> list:
+    """Les lignes de texte d'une page de `page_texts` (`{'text', 'bbox'}`), en pixels de l'image
+    LUE."""
+    if not page or not page.get('lines'):
+        return []
+    from wama.common.backends.ocr_base import page_scale
+    sx, sy = page_scale(page, *image_size)
+    return [{'text': line['text'], 'bbox': [line['bbox'][0] * sx, line['bbox'][1] * sy,
+                                           line['bbox'][2] * sx, line['bbox'][3] * sy]}
+            for line in page['lines'] if line.get('text')]
+
+
+#: La probabilité sous laquelle la librairie tient un symbole pour un faux (`read.Reading.tok`,
+#: `real.p` ; son propre seuil, `read._changed`).
+REAL_SYMBOL = 0.5
+
+
+def _staves(reading) -> list:
+    """Les portées d'une page lue (`read.Reading`) dans la forme de `score_page.drum_key` — leur
+    boîte, leur interligne, leurs notes (centre en largeur, place lue) et leur nombre de mesures.
+    Aucune pour une lecture absente."""
+    if reading is None:
+        return []
+    layout = reading.layout
+    staves = [{'index': index, 'system': staff.system, 'box': (staff.x0, staff.y0, staff.x1, staff.y1),
+               'space': staff.sp, 'notes': [], 'measures': 0} for index, staff in enumerate(layout.staves)]
+    for index, symbol in enumerate(layout.syms):
+        token = reading.tok.get(index) or {}
+        if symbol.staff is None or not 0 <= symbol.staff < len(staves) \
+                or (token.get('real') or {}).get('p', 0) < REAL_SYMBOL:
+            continue
+        staff = staves[symbol.staff]
+        if symbol.fam == 'measure':
+            staff['measures'] += 1
+        elif symbol.fam == 'note' and (token.get('pos') or {}).get('v') is not None:
+            staff['notes'].append({'x': (symbol.box[0] + symbol.box[2]) / 2, 'pos': int(token['pos']['v'])})
+    return staves
 
 
 def model_folder() -> Path:
@@ -200,6 +245,43 @@ class CopisteriaBackend(ScoreReadingBackend):
             image.convert('L').save(page)
         return [page]
 
+    def _transcription(self, page: Path, texts: Optional[list]):
+        """`(MusicXML, lecture)` d'une page — ce que fait `pipeline.transcribe`, dont la librairie
+        jette la lecture intermédiaire (`read.Reading`) : c'est elle qui dit où est chaque note et
+        sur quelle portée, ce que la LÉGENDE de batterie demande (2026-11-09)."""
+        from PIL import Image
+        pipeline, _read = self._library()
+        revise = self.import_vendored('copisteria.revise', subdir='src')
+        write = self.import_vendored('copisteria.write', subdir='src')
+        dets, cands, feats = pipeline.inputs(page, self._model)
+        with Image.open(page) as image:
+            gray = image.convert('L')
+        reading = revise.read_revised(dets, gray.width, gray.height, self._model, device=self._device,
+                                      attention=False, image=gray, cands=cands, feats=feats)
+        return write.write(reading, texts=texts, image=gray), reading
+
+    def _read_page(self, page: Path, text_page: Optional[dict]):
+        """`(MusicXML, légende)` d'une page. La légende de batterie (`score_page.drum_key`) se lit
+        des portées de la lecture et des lignes de texte ; sa portée, lue comme de la musique, est
+        retirée de la partition quand elle en ouvre la page ; la légende (ou None) est rendue pour
+        nommer les instruments."""
+        from PIL import Image
+        from wama.common.utils.musicxml_score import drop_leading_measures
+        from wama.common.utils.score_page import drum_key
+        with Image.open(page) as image:
+            size = image.size
+        xml, reading = self._transcription(page, _texts(text_page, size))
+        staves = _staves(reading)
+        legend = drum_key(_lines(text_page, size), staves)
+        if legend:
+            staff = staves[legend['staff']]
+            if staff['system'] == min(s['system'] for s in staves):
+                xml = drop_leading_measures(xml, staff['measures'])
+            logger.info("[copisteria] légende de batterie : %s%s", ', '.join(
+                f"{e['name']} ({e['pos']})" for e in legend['entries']),
+                f" ; places ambiguës {legend['ambiguous']}" if legend['ambiguous'] else '')
+        return xml, legend
+
     def read_score(
         self,
         model_id: str,
@@ -210,26 +292,26 @@ class CopisteriaBackend(ScoreReadingBackend):
     ) -> str:
         if self._model is None:
             self.load()
-        from PIL import Image
-        from wama.common.utils.musicxml_score import merge_pages, note_count
+        from wama.common.utils.musicxml_score import apply_drum_key, merge_pages, note_count
         from wama.common.utils.work_dir import work_dir
-        pipeline, _read = self._library()
         if progress_callback:
             progress_callback(0)
         with work_dir('copisteria') as folder:
             pages = self._pages(work_file, folder)
             if progress_callback:
                 progress_callback(5)
-            read = []
+            read, key = [], None
             for index, page in enumerate(pages):
-                texts = None
-                if page_texts and index < len(page_texts):
-                    with Image.open(page) as image:
-                        texts = _texts(page_texts[index], image.size)
-                read.append(pipeline.transcribe(page, self._model, texts=texts, device=self._device))
+                text_page = page_texts[index] if page_texts and index < len(page_texts) else None
+                xml, legend = self._read_page(page, text_page)
+                read.append(xml)
+                # La légende d'une page vaut pour toute la partition (elle est imprimée en tête).
+                key = key or legend
                 if progress_callback:
                     progress_callback(5 + int(90 * (index + 1) / len(pages)))
         score = merge_pages(read)
+        if key:
+            score = apply_drum_key(score, key['entries'])
         if not note_count(score):
             raise ValueError("Aucune note lue : la page ne porte pas de portée lisible "
                              "(une partition IMPRIMÉE est attendue — le manuscrit n'est pas lu)")

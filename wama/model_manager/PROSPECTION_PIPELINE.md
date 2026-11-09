@@ -4429,3 +4429,29 @@ sortent (sinon la voie transformers est une décision de venv). (2) **PP-OCRv5 O
 boîtes ligne et mot natives, < 100 Mo, mais faible sur le cursif — utile pour les « x3 », pas pour un
 titre manuscrit. Combinaison possible (I) : le détecteur donne les boîtes, PaddleOCR-VL relit chaque
 recadrage. **Préalable commun : un banc sur les six photos de Fabien (`claude/tabs/`) avant tout choix.**
+
+**Banc du 2026-11-09 (« oui pour le banc », Fabien)** — PaddleOCR-VL-1.6, le GGUF OFFICIEL
+(`PaddlePaddle/PaddleOCR-VL-1.6-GGUF`, projecteur `mmproj` compris : le dépôt tiers essayé le 10/10 n'en
+avait pas, d'où les modèles « aveugles »), installé PAR LA ROUTE (`install_model` sur la proposition,
+variante désignée → ligne `ollama:hf.co/PaddlePaddle/PaddleOCR-VL-1.6-GGUF:latest`, 1,8 Go), servi par
+Ollama 0.40.13, client commun `llm_chat`. Les six photos mises d'aplomb par la glu (`score_page.level_page`).
+MESURES WAMA :
+- **Texte manuscrit : net progrès.** Page 1 entière, invite `OCR:` : « Welcome to the show - Code Johnson »,
+  « ×3 ×3 ×2 » (docTR : « Velcome lo Lhe >Row > Cody JoRnSan », un seul « XZ »). Page 2 manuscrite (un
+  seul « ×3 ») : réponse VIDE, à trois tailles d'image.
+- **Imprimé** : titre, compositeur, légende de batterie lus ; en `OCR:` une page part en boucle sur des
+  numéros de mesure inventés (6 → 55) ; `Spotting:` ne boucle pas.
+- **Aucune position** : `Spotting:` rend les lignes SANS leurs jetons `<LOC_n>` — Ollama les retire de la
+  sortie. L'auteur documente le mode par llama.cpp (`llama-server` + métadonnée `image_max_pixels` posée
+  dans le `mmproj`) ou transformers ≥ 5 : ni l'un ni l'autre n'est dans WAMA (`requirements.txt:99`).
+- **docTR place, PaddleOCR-VL relit le recadrage** (proposition de la veille, mesurée) : titre manuscrit
+  → « Welcome to the show, Cody Johnson » (1,5 s), « XZ » → « ×2 », « X3 » → « ×3 » (0,1 s chacun) ; un
+  « ×3 » dont docTR coupe la boîte (« X ») reste perdu (« x. »). La relecture ne rattrape pas ce que
+  docTR ne DÉTECTE pas (page 2 : aucune ligne).
+- Durée : < 1 s par page entière une fois chargé (9,7 s au premier appel).
+
+**Proposition (à trancher)** : (a) la relecture par recadrage — docTR garde la place, un OCR plus fort
+(PaddleOCR-VL par Ollama, déjà installé) relit les lignes de TÊTE et les comptes de passages ; un mécanisme
+de l'OCR à positions (`ocr_process`), pas du Reader. (b) Les positions natives de PaddleOCR-VL
+(détection comprise, page 2) demandent un moteur llama.cpp ou transformers ≥ 5 : décision de venv/route.
+La ligne installée reste au catalogue en attendant ; elle se retire par le bouton si (a) est écarté.

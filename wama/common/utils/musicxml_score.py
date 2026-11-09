@@ -232,6 +232,127 @@ def apply_repeat_counts(text: str) -> str:
     return HEADER + ET.tostring(root, encoding='unicode')
 
 
+# ── La légende d'une partition de batterie ───────────────────────────────────────────────────
+
+_STEPS = 'CDEFGAB'
+#: La place 0 d'une portée (`score_page.drum_key`, demi-interlignes) : la ligne du milieu, si4 —
+#: l'écriture de la portée de percussion comme d'une clé de sol, celle des moteurs lus.
+_MIDDLE_LINE = 4 * 7 + _STEPS.index('B')
+#: Ce qui suit une tête dans une note MusicXML (sa place de `<notehead>`), et ce qui précède la
+#: place de `<instrument>`.
+_AFTER_NOTEHEAD = ('notehead-text', 'staff', 'beam', 'notations', 'lyric', 'play', 'listen')
+_BEFORE_INSTRUMENT = ('duration', 'tie')
+#: Ce qu'une `score-part` écrit après ses `score-instrument`.
+_AFTER_SCORE_INSTRUMENT = ('player', 'midi-device', 'midi-instrument')
+
+
+def unpitched_position(step: str, octave) -> int:
+    """La place d'une note sans hauteur sur la portée (demi-interlignes, 0 = ligne du milieu)."""
+    return int(octave) * 7 + _STEPS.index(step) - _MIDDLE_LINE
+
+
+def drop_leading_measures(text: str, count: int) -> str:
+    """La partition `text` sans ses `count` premières mesures — une LÉGENDE lue comme de la musique
+    (2026-11-09 : la « Drum Key » d'une page de batterie devenait la mesure 1, en clé de sol). Les
+    attributs qu'elles portent (divisions, mesure, clé) passent à la première mesure gardée qui ne
+    les écrit pas ; les mesures sont renumérotées. `count` ≤ 0 rend `text` tel quel."""
+    if count <= 0:
+        return text
+    root = _root(text)
+    for part in root.findall('part'):
+        measures = part.findall('measure')
+        if len(measures) <= count:
+            continue
+        kept = measures[count]
+        carried = {}
+        for measure in measures[:count]:
+            for attributes in measure.findall('attributes'):
+                for child in attributes:
+                    carried[child.tag] = child
+            part.remove(measure)
+        if carried:
+            target = kept.find('attributes')
+            if target is None:
+                target = ET.Element('attributes')
+                kept.insert(next((i for i, c in enumerate(kept) if c.tag != 'print'), len(kept)), target)
+            own = {child.tag for child in target}
+            for tag, child in carried.items():
+                if tag not in own:
+                    target.insert(0 if tag == 'divisions' else len(target), child)
+        for number, measure in enumerate(part.findall('measure'), start=1):
+            measure.set('number', str(number))
+    return HEADER + ET.tostring(root, encoding='unicode')
+
+
+def _insert_before(parent, element, tags) -> None:
+    position = next((i for i, child in enumerate(parent) if child.tag in tags), len(parent))
+    parent.insert(position, element)
+
+
+def apply_drum_key(text: str, entries: list) -> str:
+    """La partition `text` dont les notes sans hauteur portent l'instrument que leur donne la
+    légende de la page (`entries` : `{'pos', 'name', 'sound'}`, `score_page.drum_key`) : chaque
+    partie de batterie déclare ses instruments (`score-instrument`, `midi-instrument` au canal 10,
+    `midi-unpitched` = son General MIDI + 1), chaque note le sien (`<instrument id>`), et une
+    cymbale ou un charleston sa tête en croix. `xml2abc` en tire la table de percussion de l'ABC
+    (`I:percmap`, `%%MIDI drummap`). Une note à une place que la légende ne nomme pas reste telle
+    quelle. Sans entrée, `text` est rendu tel quel."""
+    from wama.common.utils.midi_score import CROSS_SOUNDS
+    by_pos = {entry['pos']: entry for entry in entries or ()}
+    if not by_pos:
+        return text
+    root = _root(text)
+    declared = {sp.get('id'): sp for sp in root.findall('part-list/score-part')}
+    changed = False
+    taken = {el.get('id') for el in root.iter('score-instrument')}
+    for part in root.findall('part'):
+        ids = {}
+        for note in part.iter('note'):
+            unpitched = note.find('unpitched')
+            if unpitched is None:
+                continue
+            step, octave = unpitched.findtext('display-step'), unpitched.findtext('display-octave')
+            if not step or not octave:
+                continue
+            entry = by_pos.get(unpitched_position(step, octave))
+            if entry is None:
+                continue
+            if entry['pos'] not in ids:
+                ident = next(f"{part.get('id')}-I{n}" for n in range(len(ids) + 1, len(ids) + len(taken) + 2)
+                             if f"{part.get('id')}-I{n}" not in taken)
+                ids[entry['pos']] = ident
+                taken.add(ident)
+            ident = ids[entry['pos']]
+            if note.find('instrument') is None:
+                before = [i for i, child in enumerate(note) if child.tag in _BEFORE_INSTRUMENT]
+                note.insert(before[-1] + 1 if before else list(note).index(unpitched) + 1,
+                            ET.Element('instrument', {'id': ident}))
+            if entry.get('sound') in CROSS_SOUNDS and note.find('notehead') is None:
+                head = ET.Element('notehead')
+                head.text = 'x'
+                _insert_before(note, head, _AFTER_NOTEHEAD)
+            changed = True
+        score_part = declared.get(part.get('id'))
+        if not ids or score_part is None:
+            continue
+        for pos, ident in ids.items():
+            entry = by_pos[pos]
+            instrument = ET.Element('score-instrument', {'id': ident})
+            ET.SubElement(instrument, 'instrument-name').text = entry['name']
+            _insert_before(score_part, instrument, _AFTER_SCORE_INSTRUMENT)
+            midi = ET.SubElement(score_part, 'midi-instrument', {'id': ident})
+            ET.SubElement(midi, 'midi-channel').text = '10'
+            if entry.get('sound'):
+                ET.SubElement(midi, 'midi-unpitched').text = str(int(entry['sound']) + 1)
+    return HEADER + ET.tostring(root, encoding='unicode') if changed else text
+
+
+def drum_instruments(text: str) -> list:
+    """Les noms des instruments que déclarent les parties d'une partition (`score-instrument`)."""
+    return [name for name in (' '.join((el.text or '').split())
+                              for el in _root(text).iter('instrument-name')) if name]
+
+
 def merge_pages(pages: list) -> str:
     """UNE partition MusicXML faite de `pages` (textes MusicXML « partwise », dans l'ordre) : la
     i-ème partie de chaque page prolonge la i-ème partie de la première, ses mesures renumérotées

@@ -29,6 +29,8 @@ restent au classifieur d'orientation (`ocr_base.upright_image`), appelé avant.
 """
 from __future__ import annotations
 
+import re
+
 #: Lignes d'une portée.
 STAFF_LINES = 5
 #: Part minimale d'encre d'une rangée de pixels pour qu'elle soit une LIGNE de portée : une portée
@@ -346,6 +348,85 @@ def half_turned(path: str, folder: str) -> str:
     with Image.open(path) as image:
         image.rotate(180, expand=True).save(target)
     return str(target)
+
+
+# ── La légende d'une partition de batterie (« Drum Key ») ─────────────────────────────────────
+
+#: Le mot qui annonce une légende, à gauche de sa portée (« Drum Key », « Legend », « Légende »).
+KEY_WORDS = re.compile(r'\b(key|legend|l[ée]gende)\b', re.I)
+#: La bande sous la portée où se lisent ses étiquettes, en interlignes de la portée.
+LABEL_DEPTH = 5.0
+
+
+def _centre(box) -> float:
+    return (box[0] + box[2]) / 2
+
+
+def drum_key(lines: list, staves: list):
+    """La LÉGENDE de batterie d'une page (demande de Fabien, 2026-11-09 : « lire la légende de la
+    page ») — `{'staff', 'system', 'entries': [{'pos', 'name', 'sound'}], 'ambiguous': [pos]}`, ou
+    None quand aucune portée n'en porte.
+
+    `lines` : les lignes de texte de la page (`{'text', 'bbox'}`) ; `staves` : ses portées
+    (`{'index', 'system', 'box', 'space', 'notes': [{'x', 'pos'}]}`), lignes et portées dans la même
+    unité. `pos` est la place d'une tête sur la portée, en demi-interlignes (0 = ligne du milieu).
+
+    Une portée est une légende quand un mot-clé (`KEY_WORDS`) est écrit à sa gauche, à sa hauteur.
+    Chaque note reçoit l'étiquette la plus proche en largeur sous la portée ; une seconde rangée
+    d'étiquettes nomme une FAMILLE (« Snare Drum » sous « Normal » et « Crosstick » : deux têtes de
+    la même caisse, que la lecture ne distingue pas). Une place que la légende donne à deux
+    instruments ne reçoit aucun nom (`ambiguous`) : un nom faux est pire qu'aucun. Une famille qui
+    couvre plusieurs places (« Tom-Toms ») les numérote de la plus haute à la plus basse."""
+    from wama.common.utils.midi_score import TOM_SOUNDS, drum_sound
+    for staff in staves:
+        x0, y0, x1, y1 = staff['box']
+        space = float(staff.get('space') or (y1 - y0) / 4 or 1)
+        # La boîte d'une portée lue peut ne couvrir qu'une part de ses notes (mesuré le 2026-11-09 :
+        # la mesure d'une légende finissait au deuxième tom, celle d'une autre photo commençait au
+        # charleston) : la largeur couvre aussi les notes.
+        xs = [note['x'] for note in staff.get('notes') or ()]
+        x0, x1 = min([x0] + xs), max([x1] + xs)
+        keyed = [l for l in lines if KEY_WORDS.search(l['text'])
+                 and l['bbox'][2] <= x0 + space and l['bbox'][1] < y1 + 2 * space
+                 and l['bbox'][3] > y0 - 2 * space]
+        if not keyed or not staff.get('notes'):
+            continue
+        labels = [l for l in lines if l not in keyed and _letters(l['text']) >= 2
+                  and x0 - space <= _centre(l['bbox']) <= x1 + space
+                  and y1 - space <= l['bbox'][1] <= y1 + LABEL_DEPTH * space]
+        if not labels:
+            continue
+        top = min(l['bbox'][1] for l in labels)
+        height = sorted(l['bbox'][3] - l['bbox'][1] for l in labels)[len(labels) // 2]
+        first = [l for l in labels if l['bbox'][1] <= top + height / 2]
+        second = [l for l in labels if l not in first]
+        family = {}
+        for label in first:
+            for below in second:
+                if below['bbox'][0] < label['bbox'][2] and label['bbox'][0] < below['bbox'][2]:
+                    family[id(label)] = below['text']
+        names = {}                                       # place → noms lus
+        for note in staff['notes']:
+            label = min(first, key=lambda l: abs(_centre(l['bbox']) - note['x']))
+            names.setdefault(note['pos'], set()).add(drum_sound(family.get(id(label), label['text'])))
+        ambiguous = sorted(pos for pos, found in names.items() if len(found) > 1)
+        by_name = {}
+        for pos, found in names.items():
+            if pos not in ambiguous:
+                by_name.setdefault(next(iter(found)), []).append(pos)
+        entries = []
+        for (name, sound), places in by_name.items():
+            places.sort(reverse=True)
+            for rank, pos in enumerate(places):
+                own_sound = sound
+                if len(places) > 1 and sound in TOM_SOUNDS:
+                    own_sound = TOM_SOUNDS[round(rank * (len(TOM_SOUNDS) - 1) / (len(places) - 1))]
+                entries.append({'pos': pos, 'name': f'{name} {rank + 1}' if len(places) > 1 else name,
+                                'sound': own_sound})
+        if entries:
+            return {'staff': staff['index'], 'system': staff.get('system'),
+                    'entries': sorted(entries, key=lambda e: e['pos']), 'ambiguous': ambiguous}
+    return None
 
 
 def page_staves(path: str):

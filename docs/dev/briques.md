@@ -3399,11 +3399,11 @@ Jouer une partition sans générer d'audio (2026-11-08, demande de Fabien). Les 
 
 ### La page de partition : portées, aplomb, texte à rôles
 
-Compte les PORTÉES d'une page — cinq lignes horizontales longues et régulièrement espacées, mesurées par la part d'encre de chaque rangée de pixels — sur une image ou les premières pages d'un PDF ; aucun modèle. Lue par la propriété d'entrée `has_staves` de la sonde (`media_probe.INPUT_PROPERTIES`), calculée seulement quand un réglage la demande (`Param.default_from`) : la case « Lire une partition » du Reader se coche d'après le fichier, l'utilisateur la change. Née le 2026-11-08 (demande de Fabien : « une détection automatique […] qui peut rester un choix de l'utilisateur »). Ne voit pas un manuscrit sans portée. Le 2026-11-08 (six photos de partitions de batterie) : une PHOTO se met d'aplomb (EXIF, angle des lignes longues `page_angle`, feuille découpée du bureau `paper_box` ; `level_page` sert aussi la lecture), et le TEXTE d'une page lu par un OCR à positions reçoit ses rôles par sa place et sa taille (`text_roles` : titre, compositeur, numéro de page, « x3 ») ; `text_quality` départage les deux sens d'une page
+Compte les PORTÉES d'une page — cinq lignes horizontales longues et régulièrement espacées, mesurées par la part d'encre de chaque rangée de pixels — sur une image ou les premières pages d'un PDF ; aucun modèle. Lue par la propriété d'entrée `has_staves` de la sonde (`media_probe.INPUT_PROPERTIES`), calculée seulement quand un réglage la demande (`Param.default_from`) : la case « Lire une partition » du Reader se coche d'après le fichier, l'utilisateur la change. Née le 2026-11-08 (demande de Fabien : « une détection automatique […] qui peut rester un choix de l'utilisateur »). Ne voit pas un manuscrit sans portée. Le 2026-11-08 (six photos de partitions de batterie) : une PHOTO se met d'aplomb (EXIF, angle des lignes longues `page_angle`, feuille découpée du bureau `paper_box` ; `level_page` sert aussi la lecture), et le TEXTE d'une page lu par un OCR à positions reçoit ses rôles par sa place et sa taille (`text_roles` : titre, compositeur, numéro de page, « x3 ») ; `text_quality` départage les deux sens d'une page. Le 2026-11-09 (« lire la légende de la page », Fabien) : `drum_key` lit la LÉGENDE d'une page de batterie — la portée qu'un mot « Key » / « Légende » annonce à sa gauche, chaque note nommée par l'étiquette sous elle (une seconde rangée nomme la famille), une place donnée à deux instruments laissée sans nom
 
 - **Domicile** : `wama/common/utils/score_page.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : La PAGE porte-t-elle une partition ? — compter ses PORTÉES (2026-11-08).
-- **API publique** (10) :
+- **API publique** (11) :
   - `count_staves(gray) -> int` — Le nombre de PORTÉES d'une page en niveaux de gris (tableau numpy 2-D, 0 = noir).
   - `page_angle(gray, span: float=MAX_TILT) -> float` — L'angle (degrés) qui met d'aplomb les lignes longues d'une page en gris : celui qui rend le
   - `paper_box(gray)` — La FEUILLE dans une photo en gris : la boîte `(x0, y0, x1, y1)` de la plus grande zone claire,
@@ -3413,6 +3413,7 @@ Compte les PORTÉES d'une page — cinq lignes horizontales longues et réguliè
   - `page_identity(page: dict) -> dict` — `{'title', 'composer', 'page_number'}` d'une page aux rôles donnés (`text_roles`) — '' / None
   - `text_quality(page: dict) -> float` — Ce que vaut la lecture du texte d'une page : la somme, sur ses lignes, de la confiance par le
   - `half_turned(path: str, folder: str) -> str` — La page `path` tournée d'un demi-tour, écrite en PNG dans `folder`.
+  - `drum_key(lines: list, staves: list)` — La LÉGENDE de batterie d'une page (demande de Fabien, 2026-11-09 : « lire la légende de la
   - `page_staves(path: str)` — Le plus grand nombre de portées sur une page de `path` (image, ou les `PDF_PAGES`
 
 ### Langue d'un contenu (écrit, parlé)
@@ -3513,11 +3514,12 @@ DOMICILE UNIQUE de la règle « le nom se DÉRIVE des paramètres, il ne se sais
 
 ### Notation d'un MIDI multi-instrument (MIDI → ABC)
 
-Un MIDI à une piste par instrument → une partition ABC lisible : une voix par instrument (libellé français), clavier sur deux portées, batterie en portée de percussion, accords, liaisons, altérations par mesure. Sur la métrique du MIDI quand le moteur en a trouvé une, sinon sur les temps JOUÉS de l'audio (`audio_rhythm`), anacrouse comprise. Né le 2026-10-16 pour la partition complète du composer (MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur. Porte aussi la LECTURE MIDI commune (`read_midi` : tempos, mesure, tonalité, marqueurs, une partie par piste et canal), que le moteur YuE2 consomme pour suivre une partition MIDI
+Un MIDI à une piste par instrument → une partition ABC lisible : une voix par instrument (libellé français), clavier sur deux portées, batterie en portée de percussion, accords, liaisons, altérations par mesure. Sur la métrique du MIDI quand le moteur en a trouvé une, sinon sur les temps JOUÉS de l'audio (`audio_rhythm`), anacrouse comprise. Né le 2026-10-16 pour la partition complète du composer (MuScriptor, tâche `audio-to-midi`) ; ne connaît aucun moteur. Porte aussi la LECTURE MIDI commune (`read_midi` : tempos, mesure, tonalité, marqueurs, une partie par piste et canal), que le moteur YuE2 consomme pour suivre une partition MIDI. Le 2026-11-09 : le lexique des noms de BATTERIE (`drum_sound` : un mot lu sur une légende, approché ou en français → son nom et son son General MIDI)
 
 - **Domicile** : `wama/common/utils/midi_score.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Un MIDI multi-pistes → une partition ABC LISIBLE (2026-10-16, la « Partition complète » du composer).
-- **API publique** (12) :
+- **API publique** (13) :
+  - `drum_sound(label: str)` — `(nom, son General MIDI)` d'un instrument de batterie que nomme `label` (`DRUM_NAMES`), ou
   - `instrument_label(name: str) -> str` — Le libellé français d'une piste nommée par le moteur (`INSTRUMENT_LABELS`).
   - `class MidiPart` — Une partie du MIDI — une piste et un canal : son nom (`track_name`), batterie ou non (canal
   - `class MidiSong` — Ce qu'un fichier MIDI déclare, lu une fois (`read_midi`) : la base de temps, la carte des
@@ -3533,11 +3535,11 @@ Un MIDI à une piste par instrument → une partition ABC lisible : une voix par
 
 ### Partitions MusicXML (pages assemblées, MusicXML → ABC)
 
-Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBackend` : une page imprimée → son MusicXML) et à tout MusicXML importé : `merge_pages` fait UNE partition des pages lues (partie par partie, mesures renumérotées), `read_musicxml` lit un `.musicxml` ou un `.mxl` compressé, `musicxml_to_abc` rend l'ABC que lisent la page d'édition et YuE2 (xml2abc de W. G. Vree, librairie `abc-xml-converter` par la route). Née le 2026-11-06 (lecture de partition scannée, demande de Fabien) : aucune conversion MusicXML → ABC n'existait, et YuE2 refusait le MusicXML que le composer accepte en partition de référence ; patron de `midi_score`, ne connaît aucun moteur. Le 2026-11-08 (partitions de batterie de Fabien) : `apply_repeat_counts` fait d'un « x3 » lu sur la page une reprise jouée trois fois (`<repeat times>`), et la conversion retire avant `xml2abc` une clé posée sur une portée sans note, qui le faisait lever
+Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBackend` : une page imprimée → son MusicXML) et à tout MusicXML importé : `merge_pages` fait UNE partition des pages lues (partie par partie, mesures renumérotées), `read_musicxml` lit un `.musicxml` ou un `.mxl` compressé, `musicxml_to_abc` rend l'ABC que lisent la page d'édition et YuE2 (xml2abc de W. G. Vree, librairie `abc-xml-converter` par la route). Née le 2026-11-06 (lecture de partition scannée, demande de Fabien) : aucune conversion MusicXML → ABC n'existait, et YuE2 refusait le MusicXML que le composer accepte en partition de référence ; patron de `midi_score`, ne connaît aucun moteur. Le 2026-11-08 (partitions de batterie de Fabien) : `apply_repeat_counts` fait d'un « x3 » lu sur la page une reprise jouée trois fois (`<repeat times>`), et la conversion retire avant `xml2abc` une clé posée sur une portée sans note, qui le faisait lever. Le 2026-11-09 (légende de batterie) : `drop_leading_measures` retire une légende lue comme une mesure, `apply_drum_key` donne à chaque note sans hauteur l'instrument de sa ligne (`score-instrument`, `midi-unpitched`, tête en croix) — `xml2abc` en tire la table de percussion de l'ABC (`I:percmap`)
 
 - **Domicile** : `wama/common/utils/musicxml_score.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Partitions MUSICXML — la brique commune de WAMA (2026-11-06).
-- **API publique** (8) :
+- **API publique** (12) :
   - `read_musicxml(path) -> str` — Le TEXTE MusicXML d'un fichier `.musicxml` / `.xml`, ou d'un `.mxl` — l'archive compressée
   - `musicxml_to_abc(text: str, title: str='') -> str` — L'ABC de la partition MusicXML `text` (`xml2abc`) ; `title` remplace le titre écrit (sinon
   - `note_count(text: str) -> int` — Le nombre de NOTES (silences exclus) d'un document MusicXML.
@@ -3545,6 +3547,10 @@ Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBacke
   - `repeat_count(text: str)` — Le nombre de passages que dit un texte de page — « x3 », « ×2 », « 4x », « XZ » (un « x2 »
   - `repeat_words(times: int) -> str` — Les mots qui portent `times` passages jusqu'à la partition lue (`REPEAT_WORDS`).
   - `apply_repeat_counts(text: str) -> str` — La partition MusicXML `text` où chaque compte de passages écrit (`REPEAT_WORDS`) devient une
+  - `unpitched_position(step: str, octave) -> int` — La place d'une note sans hauteur sur la portée (demi-interlignes, 0 = ligne du milieu).
+  - `drop_leading_measures(text: str, count: int) -> str` — La partition `text` sans ses `count` premières mesures — une LÉGENDE lue comme de la musique
+  - `apply_drum_key(text: str, entries: list) -> str` — La partition `text` dont les notes sans hauteur portent l'instrument que leur donne la
+  - `drum_instruments(text: str) -> list` — Les noms des instruments que déclarent les parties d'une partition (`score-instrument`).
   - `merge_pages(pages: list) -> str` — UNE partition MusicXML faite de `pages` (textes MusicXML « partwise », dans l'ordre) : la
 
 ### Pont référentiel ↔ cadres typés (WAMA Data)
