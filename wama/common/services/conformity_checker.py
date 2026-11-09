@@ -2711,9 +2711,11 @@ CRITERIA: list[Criterion] = [
     # SÉLECTEUR il n'y a pas d'hôte (verdict Fabien 17/08 — describer routage auto,
     # avatarizer MuseTalk fixe → gate commun _has_engine_select, comme model_help).
     # Un APPEL de la brique hors commentaire (2026-10-13) — le NOM dans le texte brut comptait
-    # les commentaires, comme le faux vert de `model_caps_ui` relevé le même jour.
+    # les commentaires, comme le faux vert de `model_caps_ui` relevé le même jour. Ses deux
+    # entrées (2026-11-09) : `init`, et `fromCardMatch` — l'appariement lu par le serveur.
     Criterion('input_match_ui', 'F2', 'Grisage des modèles incompatibles (WamaInputMatch)',
-              lambda f: _present(f, TEMPLATES + JS, r'\bWamaInputMatch\s*\.\s*init\s*\(', code=True)
+              lambda f: _present(f, TEMPLATES + JS, r'\bWamaInputMatch\s*\.\s*(?:init|fromCardMatch)\s*\(',
+                                 code=True)
               if _uses_models(f) and _has_engine_select(f) else (None, None),
               mechanism='model_capabilities'),
     Criterion('filemanager_import', 'F2', 'Réception « Envoyer vers app » (wama:fileimported)',

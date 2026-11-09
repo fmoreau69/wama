@@ -159,27 +159,16 @@ def render_index(manifest: dict) -> tuple:
     // les défauts — un hôte, trois moments (paramètres de FILE, constat Fabien 31/08).
     function showPanelParams(on) {{ if (ph && !on && window.WamaParams) WamaParams.apply(ph, PANEL_DEFAULTS); }}
 
-    // APPARIEMENT entrée ↔ modèle (2026-11-06) : le geste des pages d'app (`WamaInputMatch.init`),
-    // sur ce que le serveur a lu (`input_match.card_match`, la lecture de la modale d'entrée du
-    // Studio) — le select de modèle du schéma, rendu ci-dessus au volet, et les seuls ports qu'il
-    // JUGE, pris à la card par sa brique (`WamaInputSlots.filePorts`). Une entrée fournie grise les
-    // modèles qui ne la prennent pas ; la ligne d'état de la card dit pourquoi. Rien à apparier
-    // (`{{}}`) : rien n'est câblé.
+    // APPARIEMENT entrée ↔ modèle (2026-11-06) : sur ce que le serveur a lu (`input_match.card_match`,
+    // la lecture de la modale d'entrée du Studio), par la brique qui câble ce que la modale câble
+    // aussi (`WamaInputMatch.fromCardMatch`, 2026-11-09) — le select de modèle du schéma, rendu
+    // ci-dessus au volet, et les seuls ports qu'il JUGE. Une entrée fournie grise les modèles qui
+    // ne la prennent pas ; la ligne d'état de la card dit pourquoi. Rien à apparier : rien n'est câblé.
     var MATCH = {{{{ input_match|default:'{{}}'|script_json }}}};
     var matchCard = document.getElementById('{app}DropZone');
     matchCard = matchCard && matchCard.closest('.wama-new-item-card');
-    if (matchCard && ph && MATCH.field && window.WamaInputMatch && window.WamaInputSlots) {{
-        var matchRow = ph.querySelector('[data-param-row="' + MATCH.field + '"]');
-        var matchSelect = matchRow ? matchRow.querySelector('select') : null;
-        var matchSlots = {{}};
-        WamaInputSlots.filePorts(matchCard).forEach(function (p) {{
-            if ((MATCH.ports || []).indexOf(p.id) >= 0) matchSlots[p.id] = {{ inputId: p.inputId, zoneId: p.zoneId }};
-        }});
-        if (matchSelect && matchSelect.id && Object.keys(matchSlots).length) {{
-            WamaInputMatch.init({{ selectId: matchSelect.id, meta: MATCH.meta || {{}},
-                                   inputLabels: MATCH.labels || {{}}, slots: matchSlots,
-                                   statusId: '{app}MatchStatus' }});
-        }}
+    if (window.WamaInputMatch && WamaInputMatch.fromCardMatch) {{
+        WamaInputMatch.fromCardMatch(matchCard, ph, MATCH, {{ statusId: '{app}MatchStatus' }});
     }}
 
     // Inspecteur contextuel — DÉRIVÉ de la facette `inspector` du manifeste.

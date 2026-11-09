@@ -725,11 +725,11 @@ var card = {querySelectorAll: function (sel) { return sel === '[data-port-tab]' 
         self.assertNotIn('ENTRY_MODES', canvas, 'what a modal shows is declared by the registry')
 
     def test_the_modal_matches_the_card_with_the_model_select_of_its_panel(self):
-        """The gesture of the app pages (`WamaInputMatch.init`, slots = the card's ports by its
-        brick), on the select the SERVER named — rewired at each render of the panel."""
+        """The gesture of the generated pages (`WamaInputMatch.fromCardMatch`), on the select the
+        SERVER named — rewired at each render of the panel."""
         src = self._src('studio/js/wama-studio-entry.js')
-        self.assertIn('WamaInputMatch.init(', src)
-        self.assertIn("'[data-param-row=\"' + MATCH.field + '\"]'", src)
+        self.assertIn('WamaInputMatch.fromCardMatch(card, state.settingsHost, MATCH', src)
+        self.assertNotIn('data-param-row', src, 'the select is found by the brick, once')
         self.assertIn('statusId: IDS.match', src)
         self.assertIn('opts.settings(settingsHost, wireMatch)', src)
         canvas = self._src('studio/js/wama-studio.js')

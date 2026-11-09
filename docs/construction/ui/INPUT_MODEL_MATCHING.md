@@ -215,6 +215,12 @@ transmettait qu'un. Convention « port = argument du même nom de l'outil » et 
   généré : trouver le select du champ, construire les slots des ports jugés, appeler `init`. Sa
   place est la brique (`wama-input-match.js`), adoptée par les deux ; non fait le jour même (brique
   servie aux dix apps, Studio à adopter, onze jumelles à régénérer).
+  ✅ *2026-11-09* : `WamaInputMatch.fromCardMatch(card, host, match, opts)` — le select du champ,
+  les ports jugés pris à la card par leur brique, `init` ; l'appelant n'y ajoute que ce qui est à
+  lui (`keep`, `isProvided`, `onPort`, `unless` : le Studio garde ses ports retenus, ses URL et
+  ses entrées déjà retenues). Le gabarit généré et `wireMatch` l'appellent ; le critère
+  `input_match_ui` reconnaît ses deux entrées. Gardes `tests_input_match_card_match` (V8 sur la
+  brique servie), `GeneratedInputMatchTest`, `tests_entries`, `tests_cap_from_declared`.
 
 ~~⚠ **Un seul point du dépôt dit encore le contraire** : `INPUT_TYPES['prompt'].port == 'travail'`.
 C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse.~~

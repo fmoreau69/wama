@@ -128,11 +128,11 @@
     }
 
     // ── L'appariement entrée ↔ modèle : la card à gauche, le select de modèle du volet à droite ──
-    // Le geste des pages d'app (`WamaInputMatch.init`, slots = ports de la card par sa brique,
-    // comme le composer), sur ce que le serveur a lu (`card_match`) : le select de modèle du schéma
-    // et les seuls ports qu'il JUGE. Une entrée fournie grise les modèles qui ne la prennent pas ;
-    // la ligne d'état de la card dit pourquoi. Fournie = jointe, désignée, une URL saisie, ou déjà
-    // RETENUE par la card du Studio. Rejoué à chaque rendu du volet (le select est recréé).
+    // Le geste des pages générées (`WamaInputMatch.fromCardMatch`), sur ce que le serveur a lu
+    // (`card_match`) : le select de modèle du schéma et les seuls ports qu'il JUGE. Une entrée
+    // fournie grise les modèles qui ne la prennent pas ; la ligne d'état de la card dit pourquoi.
+    // Propre au Studio : seuls les ports RETENUS par sa card comptent, et fournie = jointe,
+    // désignée, une URL saisie, ou déjà retenue. Rejoué à chaque rendu du volet (select recréé).
     function provided(port, input, urlId) {
         var url = urlId ? document.getElementById(urlId) : null;
         var kept = state.mode === 'files' ? state.entry.files : (state.entry.ports || {})[port];
@@ -142,27 +142,24 @@
     }
     function wireMatch() {
         var card = IDS.card ? document.getElementById(IDS.card) : null;
-        var host = state && state.settingsHost;
-        if (!card || !host || !global.WamaInputMatch || !MATCH.field) return;
-        var row = host.querySelector('[data-param-row="' + MATCH.field + '"]');
-        var select = row ? row.querySelector('select') : null;
-        if (!select || !select.id || select === state.matchSelect) return;
-        var slots = {};
-        WamaInputSlots.filePorts(card).forEach(function (p) {
-            if ((MATCH.ports || []).indexOf(p.id) < 0 || (state.kept || []).indexOf(p.id) < 0) return;
-            slots[p.id] = { inputId: p.inputId, zoneId: p.zoneId,
-                            isProvided: function (input) { return provided(p.id, input, p.urlInputId); } };
-            var url = p.urlInputId ? document.getElementById(p.urlInputId) : null;
-            if (url && !url.dataset.studioMatch) {
-                url.dataset.studioMatch = '1';
-                url.addEventListener('input', function () { if (state.match) state.match.refresh(); });
-            }
+        if (!card || !state || !global.WamaInputMatch) return;
+        var match = WamaInputMatch.fromCardMatch(card, state.settingsHost, MATCH, {
+            statusId: IDS.match,
+            unless: function (select) { return select === state.matchSelect; },
+            keep: function (p) { return (state.kept || []).indexOf(p.id) >= 0; },
+            isProvided: function (p, input) { return provided(p.id, input, p.urlInputId); },
+            onPort: function (p) {
+                var url = p.urlInputId ? document.getElementById(p.urlInputId) : null;
+                if (url && !url.dataset.studioMatch) {
+                    url.dataset.studioMatch = '1';
+                    url.addEventListener('input', function () { if (state.match) state.match.refresh(); });
+                }
+            },
         });
-        if (!Object.keys(slots).length) return;
-        state.matchSelect = select;
-        state.match = WamaInputMatch.init({ selectId: select.id, meta: MATCH.meta || {},
-                                            inputLabels: MATCH.labels || {}, slots: slots,
-                                            statusId: IDS.match });
+        if (match) {
+            state.matchSelect = match.select;
+            state.match = match;
+        }
     }
 
     // Le fichier de lot (onglet du fichier de lot) : déposé, puis lu par la règle du lancement.

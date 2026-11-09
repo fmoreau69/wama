@@ -977,7 +977,9 @@ class GeneratedInputMatchTest(SimpleTestCase):
         if not index:
             self.skipTest(f'gabarit non généré : {reason}')
         self.assertIn("with with_input_match=True", index)
-        self.assertIn('WamaInputMatch.init(', index)
+        # La brique qui câble l'appariement lu par le serveur — la même que la modale du Studio.
+        self.assertIn('WamaInputMatch.fromCardMatch(', index)
+        self.assertNotIn('WamaInputSlots.filePorts', index, 'the wiring lives in the brick, once')
         self.assertIn('input_match|default', index)
         # La ligne d'état que la card rend est celle que le script lit — un seul id, deux lecteurs.
         status = re.search(r"match_status_id='(\w+)'", index)

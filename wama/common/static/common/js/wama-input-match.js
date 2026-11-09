@@ -576,7 +576,39 @@
     return { reorder: reorder, tellDefaultVoice: tellDefaultVoice };
   }
 
-  global.WamaInputMatch = { init: init, voiceSlot: voiceSlot, langSlot: langSlot,
+  /*
+   * ── L'appariement que le SERVEUR a lu (`input_match.card_match`, 2026-11-09) ──────────────
+   * La page d'une app générée et la modale d'entrée du Studio câblaient la même chose, chacune
+   * à sa façon (ROUTE §11 #41, INPUT_MODEL_MATCHING §6.4) : le select du champ `match.field`
+   * rendu sous `host`, et les seuls ports de la card que le serveur JUGE (`match.ports`), pris
+   * par leur brique (`WamaInputSlots.filePorts`). Une fois, ici.
+   * `opts` : `statusId` (la ligne d'état que la card rend), `keep(port)` (les ports que
+   * l'appelant garde), `isProvided(port, input)` (ce qui compte pour « fourni » chez lui),
+   * `onPort(port)` (un port câblé), `unless(select)` (le select est déjà câblé : rien de neuf).
+   * Rend l'instance d'`init`, avec son `select`, ou null quand il n'y a rien à apparier.
+   */
+  function fromCardMatch(card, host, match, opts) {
+    opts = opts || {};
+    if (!card || !host || !match || !match.field || !global.WamaInputSlots) return null;
+    const row = host.querySelector('[data-param-row="' + match.field + '"]');
+    const select = row ? row.querySelector('select') : null;
+    if (!select || !select.id || (opts.unless && opts.unless(select))) return null;
+    const slots = {};
+    WamaInputSlots.filePorts(card).forEach(function (p) {
+      if ((match.ports || []).indexOf(p.id) < 0 || (opts.keep && !opts.keep(p))) return;
+      slots[p.id] = { inputId: p.inputId, zoneId: p.zoneId };
+      if (opts.isProvided) slots[p.id].isProvided = function (input) { return opts.isProvided(p, input); };
+      if (opts.onPort) opts.onPort(p);
+    });
+    if (!Object.keys(slots).length) return null;
+    const instance = init({ selectId: select.id, meta: match.meta || {}, inputLabels: match.labels || {},
+                            slots: slots, statusId: opts.statusId });
+    instance.select = select;
+    return instance;
+  }
+
+  global.WamaInputMatch = { init: init, fromCardMatch: fromCardMatch,
+                            voiceSlot: voiceSlot, langSlot: langSlot,
                             capabilitySlot: capabilitySlot, modalitySlot: modalitySlot,
                             isAutoValue: isAutoValue,
                             voicesFollowLanguage: voicesFollowLanguage,

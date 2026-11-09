@@ -234,6 +234,14 @@ class TheGridCountsACallNotAMentionTest(SimpleTestCase):
                 self.assertIs(state, True)
                 self.assertIn('index.js:2', evidence)
 
+    def test_the_server_read_matching_is_an_adoption_too(self):
+        """`fromCardMatch` (2026-11-09) is the brick's second entry: the generated pages call it."""
+        files = dict(COMMENTED)
+        files['static/app/js/index.js'] += 'WamaInputMatch.fromCardMatch(card, ph, MATCH, {});\n'
+        state, evidence = self._verdict('input_match_ui', files)
+        self.assertIs(state, True)
+        self.assertIn('index.js:2', evidence)
+
     def test_nothing_to_derive_is_outside_with_its_reason_never_blindly(self):
         """No capability of the proposed models names a setting (the describer): outside, said.
         An unreadable catalogue (None) is NOT « nothing »: red, never N/A on a blind read."""
