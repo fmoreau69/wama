@@ -103,7 +103,7 @@ FACE_ANALYZER_MODELS = {
         'engine': 'deepface',
         'optional': False,
         'vram_gb': 0.3,
-        'description': "Reconnaissance d'expressions faciales (7 émotions) — backend DeepFace",
+        'description': "Facial expression recognition (7 emotions) — DeepFace backend",
     },
     'deepface-age': {
         'fichier': 'age_model_weights.h5',
@@ -116,7 +116,7 @@ FACE_ANALYZER_MODELS = {
         'engine': 'deepface',
         'optional': True,
         'vram_gb': 1.0,
-        'description': "Estimation d'âge — chargé seulement si « Âge & Genre » est activé",
+        'description': "Age estimation — loaded only when age & gender analysis is enabled",
     },
     'deepface-gender': {
         'fichier': 'gender_model_weights.h5',
@@ -129,7 +129,7 @@ FACE_ANALYZER_MODELS = {
         'engine': 'deepface',
         'optional': True,
         'vram_gb': 1.0,
-        'description': "Estimation de genre — chargé seulement si « Âge & Genre » est activé",
+        'description': "Gender estimation — loaded only when age & gender analysis is enabled",
     },
     'mediapipe-face-landmarker': {
         'name': 'MediaPipe Face Landmarker',
@@ -141,8 +141,8 @@ FACE_ANALYZER_MODELS = {
         'engine': 'mediapipe',
         'optional': False,
         'vram_gb': 0.0,
-        'description': "Repères du visage (478 points) — API « tasks » de MediaPipe, sur le "
-                       "processeur ; la géométrie que le Face Analyzer mesure image par image.",
+        'description': "Face landmarks (478 points) — MediaPipe's “tasks” API, on the processor; "
+                       "the geometry the Face Analyzer measures frame by frame.",
     },
 }
 

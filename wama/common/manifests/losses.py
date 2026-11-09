@@ -40,6 +40,13 @@ NATURAL_KEYS = ('key', 'name', 'id', 'value', 'field', 'path', 'capability', 'mo
 #: Combien de pertes un message montre par manifeste (toutes restent dans la liste rendue).
 SHOWN = 8
 
+#: Clés dont la valeur est UN fait, remplacé d'un bloc — seule sa disparition est une perte. La
+#: PROVENANCE d'une description (`description_source` : origine, adresses, modèle, date) date la
+#: description qu'elle accompagne : la description réécrite, ses anciennes adresses ne sont pas des
+#: faits perdus (2026-11-09 : 68 « pertes » au premier export après la réécriture des 63 résumés
+#: en anglais, toutes des adresses de la provenance remplacée).
+WHOLE_FACTS = ('description_source',)
+
 
 def _empty(value) -> bool:
     return value is None or value == '' or value == [] or value == {}
@@ -93,6 +100,9 @@ def lost_facts(before: Any, after: Any, path: str = '') -> list[dict]:
             sub = f'{path}.{key}' if path else str(key)
             if key not in after:
                 if not _empty(value):
+                    out.append({'path': sub, 'lost': _short(value)})
+            elif key in WHOLE_FACTS:
+                if not _empty(value) and _empty(after[key]):
                     out.append({'path': sub, 'lost': _short(value)})
             else:
                 out += lost_facts(value, after[key], sub)

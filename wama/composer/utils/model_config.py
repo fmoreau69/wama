@@ -85,11 +85,10 @@ COMPOSER_MODELS = {
         'audiocraft_name': 'small',
         'type': 'music',
         'vram_gb': 4,
-        'description': 'MusicGen Small — génération rapide, 300M params',
-        'description_long': "MusicGen Small (Meta AudioCraft, 300M) : génération musicale depuis "
-                            "un prompt texte, version la plus légère et rapide de la famille. "
-                            "Qualité en retrait — idéal pour esquisser des idées avant un rendu "
-                            "sur Medium.",
+        'description': 'MusicGen Small — fast generation, 300M params',
+        'description_long': "MusicGen Small (Meta AudioCraft, 300M): music generation from a text "
+                            "prompt, the lightest and fastest version of the family. Lower "
+                            "quality — ideal to sketch ideas before a render on Medium.",
         'max_duration': 30,
         'sample_rate': 32000,
         'cache_dir': MUSICGEN_DIR,
@@ -107,11 +106,11 @@ COMPOSER_MODELS = {
         'audiocraft_name': 'medium',
         'type': 'music',
         'vram_gb': 8,
-        'description': 'MusicGen Medium — meilleure qualité, 1.5B params',
-        'description_long': "MusicGen Medium (Meta AudioCraft, 1.5B) : le meilleur équilibre "
-                            "qualité/ressources de la famille MusicGen. Pistes instrumentales "
-                            "cohérentes depuis un prompt texte (anglais — traduction automatique "
-                            "en amont). Le choix par défaut.",
+        'description': 'MusicGen Medium — best quality, 1.5B params',
+        'description_long': "MusicGen Medium (Meta AudioCraft, 1.5B): the best quality/resources "
+                            "balance of the MusicGen family. Coherent instrumental tracks from a "
+                            "text prompt (English — translated automatically beforehand). The "
+                            "default choice.",
         'max_duration': 30,
         'sample_rate': 32000,
         'cache_dir': MUSICGEN_DIR,
@@ -127,11 +126,11 @@ COMPOSER_MODELS = {
         'audiocraft_name': 'melody',
         'type': 'music',
         'vram_gb': 8,
-        'description': 'MusicGen Melody — conditionné par mélodie de référence',
-        'description_long': "MusicGen Melody (Meta AudioCraft) : génération guidée par une "
-                            "MÉLODIE de référence (fichier audio) en plus du prompt — le modèle "
-                            "suit la ligne mélodique fournie en changeant style et "
-                            "instrumentation. Pour décliner un thème existant.",
+        'description': 'MusicGen Melody — conditioned on a reference melody',
+        'description_long': "MusicGen Melody (Meta AudioCraft): generation guided by a reference "
+                            "MELODY (audio file) on top of the prompt — the model follows the "
+                            "given melodic line while changing style and instrumentation. To make "
+                            "variations on an existing theme.",
         'max_duration': 30,
         'sample_rate': 32000,
         'cache_dir': MUSICGEN_DIR,
@@ -147,14 +146,13 @@ COMPOSER_MODELS = {
         'backend': 'audiocpp',
         'type': 'music',
         'vram_gb': 13,
-        'description': 'MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)',
-        'description_long': "MiniMax-Music3 (MiniMax, package GGUF Q8 via audio.cpp) : "
-                            "génération de CHANSONS complètes — voix chantées, paroles avec "
-                            "tags [verse]/[chorus], structure longue (jusqu'à 5 min). "
-                            "Complémentaire de MusicGen (instrumental court). Le prompt "
-                            "attendu est riche : description globale + voix + arrangement, "
-                            "et les paroles dans des sections taguées ; sans tag de paroles, "
-                            "la génération part en instrumental.",
+        'description': 'MiniMax-Music3 — full songs with sung lyrics (Q8)',
+        'description_long': "MiniMax-Music3 (MiniMax, GGUF Q8 package through audio.cpp): "
+                            "generation of full SONGS — sung vocals, lyrics with [verse]/[chorus] "
+                            "tags, long structure (up to 5 min). Complements MusicGen (short "
+                            "instrumentals). The prompt it expects is rich: overall description "
+                            "+ voice + arrangement, and the lyrics in tagged sections; without a "
+                            "lyrics tag, the generation turns instrumental.",
         'max_duration': 300,
         'sample_rate': 32000,
         'cache_dir': MINIMAX_MUSIC3_DIR,
@@ -174,11 +172,10 @@ COMPOSER_MODELS = {
         'audiocraft_name': 'facebook/audiogen-medium',
         'type': 'sfx',
         'vram_gb': 16,
-        'description': 'AudioGen Medium — bruitages et sons d\'ambiance, 1.5B params',
-        'description_long': "AudioGen Medium (Meta AudioCraft, 1.5B) : génération de BRUITAGES et "
-                            "d'ambiances sonores (pas de musique) depuis un prompt texte — pas, "
-                            "pluie, foule, machines… Complémentaire de MusicGen pour le sound "
-                            "design.",
+        'description': 'AudioGen Medium — sound effects and ambiences, 1.5B params',
+        'description_long': "AudioGen Medium (Meta AudioCraft, 1.5B): generation of SOUND EFFECTS "
+                            "and ambiences (no music) from a text prompt — footsteps, rain, "
+                            "crowds, machines… Complements MusicGen for sound design.",
         'max_duration': 30,
         'sample_rate': 16000,
         'cache_dir': AUDIOGEN_DIR,

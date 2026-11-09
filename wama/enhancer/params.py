@@ -50,19 +50,19 @@ RESEMBLE_KEY = 'enhancer:resemble'
 # indexé par CLÉ de catalogue (2026-10-07) : ce sont les valeurs d'option du select.
 AUDIO_ENGINE_HELP = {
     RESEMBLE_KEY: {
-        'description': 'Restauration par diffusion — débruitage + extension de bande, meilleure qualité',
+        'description': 'Diffusion restoration — denoising + bandwidth extension, best quality',
         'description_long': (
-            "Resemble Enhance : modèle génératif (diffusion) qui débruite ET restaure les hautes "
-            "fréquences (super-résolution audio). Qualité supérieure mais plus lent ; les réglages "
-            "Mode / Force / Qualité (NFE) s'appliquent. Idéal pour des voix dégradées."),
+            "Resemble Enhance: a generative (diffusion) model that denoises AND restores the high "
+            "frequencies (audio super-resolution). Higher quality but slower; the Mode / Strength / "
+            "Quality (NFE) settings apply. Ideal for degraded voices."),
         'recommended_vram_gb': 4,
     },
     'enhancer:deepfilternet': {
-        'description': 'Débruitage temps réel — rapide, faible empreinte',
+        'description': 'Real-time denoising — fast, small footprint',
         'description_long': (
-            "DeepFilterNet 3 : débruitage discriminatif temps réel (48 kHz), très rapide et léger, "
-            "sans extension de bande. Recommandé pour prétraiter avant transcription. Les réglages "
-            "Mode / Force / Qualité ne s'appliquent pas."),
+            "DeepFilterNet 3: real-time discriminative denoising (48 kHz), very fast and light, no "
+            "bandwidth extension. Recommended to preprocess before transcription. The Mode / "
+            "Strength / Quality settings do not apply."),
         'recommended_vram_gb': 1,
     },
 }

@@ -44,12 +44,11 @@ READER_MODELS = {
         # Pas de `platform_ref` : les modèles sont embarqués dans le paquet docTR.
         'type':        'ocr-pipeline',
         'vram_gb':     0.0,  # CPU
-        'description': 'docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires',
+        'description': 'docTR (Mindee) — CPU pipeline, printed text, handles forms well',
         'params':      [],
-        'description_long': "docTR (Mindee) : pipeline OCR classique en deux étapes (détection + "
-                            "reconnaissance), fonctionne sur CPU. Rapide et sobre pour documents "
-                            "imprimés simples et formulaires ; moins adapté au manuscrit et aux "
-                            "mises en page complexes.",
+        'description_long': "docTR (Mindee): a classic two-stage OCR pipeline (detection + "
+                            "recognition), runs on CPU. Fast and frugal for simple printed "
+                            "documents and forms; less suited to handwriting and complex layouts.",
     },
 }
 

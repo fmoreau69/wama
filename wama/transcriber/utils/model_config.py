@@ -182,7 +182,7 @@ DIARIZATION_MODELS = {
         'platform_ref': 'huggingface:pyannote/speaker-diarization-3.1',
         'type': 'diarization',
         'size_gb': 0.032,
-        'description': "pyannote 3.1 — diarisation (qui parle, et quand)",
+        'description': "pyannote 3.1 — diarisation (who speaks, and when)",
         'composition': {
             'components': [
                 {'role': 'segmentation', 'repo': 'pyannote/segmentation-3.0',

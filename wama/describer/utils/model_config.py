@@ -43,11 +43,10 @@ DESCRIBER_MODELS = {
         'type': 'vision-language',
         'task': 'image-to-text',
         'local_dir': BLIP_DIR,
-        'description': "BLIP — légendage d'images (captioning)",
-        'description_long': "BLIP (Salesforce) : modèle de légendage d'images — produit une "
-                            "description textuelle du contenu visuel. Léger et rapide, utilisé "
-                            "comme repli local quand aucun modèle vision plus riche (Ollama) "
-                            "n'est disponible.",
+        'description': "BLIP — image captioning",
+        'description_long': "BLIP (Salesforce): an image-captioning model — produces a textual "
+                            "description of the visual content. Light and fast, used as the "
+                            "local fallback when no richer vision model (Ollama) is available.",
         'size_gb': 1.8,
         'source': 'huggingface',
         # Les réglages que le moteur LIT (capacité `params`) : aucun — BLIP cherche en faisceau

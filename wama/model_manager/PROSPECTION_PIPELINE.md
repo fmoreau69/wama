@@ -4234,6 +4234,23 @@ défaut vu s'est comblé dans la route, aucun dans la proposition.
   DÉCLARÉES en français dans le code (`model_config` des apps, `common`, `model_manager`), 56
   textes de remplissage de la synchro (« Snapshot HuggingFace installé… », « … — modèle distant ») ;
   ⏳ les réécrire en anglais, à leur source.*
+  ✅ *Réécrites le 2026-11-09 (accord de Fabien), chacune à sa source : les 63 résumés refaits
+  (`describe_models --keys … --apply`, 63/63) ; les 70 textes DÉCLARÉS traduits dans le code
+  (`model_config` des apps, moteurs de transcription, `model_registry`, `external_sources` —
+  descriptions longues ET courtes, MuseTalk compris, que le relevé ne voyait pas) ; les gabarits de
+  remplissage en anglais (`cloud_models.model_info_for`, balayages générique et GitHub). Les 74
+  lignes distantes et le snapshot qui portaient l'ANCIEN remplissage ne le recevaient pas : écrites
+  avant la marque du 29/10, elles passaient pour de vraies descriptions — décrites par la commande
+  (73/74). Corpus régénéré : 189 manifestes, 188 descriptions. Restent : `openrouter:liquid/lfm-2.5-2.6b`
+  (aucune clé ne l'ouvre plus, fiche sans résumé exploitable — marqué remplissage, il prendra le
+  gabarit anglais si une clé l'ouvre de nouveau) ; Phonon n'est qu'un faux positif du relevé (les
+  prénoms accentués de ses voix). Les noms d'affichage (« Whisper tiny (langue parlée) »…) ne
+  faisaient pas partie des 188 : ⏳ à décider. Garde-fou de la synchro : la garde des pertes
+  compare la provenance d'une description d'un bloc (`manifests/losses.WHOLE_FACTS`) — ses 68
+  adresses remplacées n'étaient pas des pertes.*
+  ⚠ *Les workers relancés seulement font tenir la base : tant qu'ils tournent avec l'ancien code,
+  chaque réconciliation qu'ils exécutent (au démarrage de tout processus Django, `apps.py`)
+  réécrit les anciens textes en base — le corpus versionné, lui, est juste.*
 - **Le rôle d'une anatomie posée mécaniquement reste le nom que le code lit**
   (`Qwen3-Embedding-0.6B`, pas `text_encoder`) : essayé et ABANDONNÉ — le code lie ce fichier à
   `text_encoder_path` ET `text_path`, et `silence_latent.pt` à trois variables ; choisir entre

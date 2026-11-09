@@ -646,13 +646,13 @@ SOURCES: tuple[ExternalSource, ...] = (
         # RÉELLEMENT servi est lu dans la réponse du CLI et affiché (`claude_code.demander`).
         declared_models=(
             ('default', 'Claude Code — modèle par défaut',
-             "Le modèle que Claude Code choisit lui-même pour votre abonnement."),
+             "The model Claude Code chooses itself for your subscription."),
             ('fable', 'Claude Code — Fable',
-             "Le plus récent Claude Fable, par l'alias « fable » de Claude Code."),
+             "The latest Claude Fable, through Claude Code's “fable” alias."),
             ('opus', 'Claude Code — Opus',
-             "Le plus récent Claude Opus, par l'alias « opus » de Claude Code."),
+             "The latest Claude Opus, through Claude Code's “opus” alias."),
             ('sonnet', 'Claude Code — Sonnet',
-             "Le plus récent Claude Sonnet, par l'alias « sonnet » de Claude Code."),
+             "The latest Claude Sonnet, through Claude Code's “sonnet” alias."),
         ),
         doc='docs/construction/suivi/ROADMAP.md'),
 

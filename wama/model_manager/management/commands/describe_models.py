@@ -1,6 +1,7 @@
 """Comble les DESCRIPTIONS du catalogue qui ne sont qu'un remplissage de la découverte — la fiche du
-modèle (README du Hub), sinon une recherche web, résumée en français par le LLM local par défaut
-(`services/model_descriptions.py`). Sans `--apply`, montre ce qui serait écrit et n'écrit rien.
+modèle (README du Hub), sinon une recherche web, résumée en anglais — la langue source de WAMA —
+par le LLM local par défaut (`services/model_descriptions.py`). Sans `--apply`, montre ce qui serait
+écrit et n'écrit rien. Une description à refaire se nomme par `--keys`.
 
 Le résumé charge un modèle sur l'Ollama de l'hôte : une commande lancée à la demande, jamais une
 tâche déclenchée par chaque installation (la montée de VRAM a déjà fait tomber la machine,

@@ -36,12 +36,12 @@ class Wav2Vec2AlignerBackend(ForcedAlignmentBackend):
 
     name = "wav2vec2_aligner"
     display_name = "wav2vec2 (alignement forcé)"
-    description = "Aligne un texte connu sur l'audio, mot à mot — ne transcrit pas."
+    description = "Aligns a known text on the audio, word by word — does not transcribe."
     description_long = (
-        "Alignement forcé acoustique : à partir d'un texte déjà écrit (une transcription reprise, "
-        "une correction) et de l'audio, donne l'heure de début et de fin de chaque mot. Modèle "
-        "wav2vec2 CTC ; ne produit aucun texte. Sert à resynchroniser les passages qu'une "
-        "correction a modifiés, là où la transcription automatique n'a pas d'heure fiable."
+        "Acoustic forced alignment: from an already written text (a reworked transcription, a "
+        "correction) and the audio, gives the start and end time of each word. A wav2vec2 CTC "
+        "model; produces no text. Used to resynchronise the passages a correction changed, where "
+        "the automatic transcription has no reliable timing."
     )
 
     #: Horodatage au MOT — c'est tout ce qu'il produit.

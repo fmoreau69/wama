@@ -50,28 +50,28 @@ Path(KOKORO_DIR).mkdir(parents=True, exist_ok=True)
 
 REGISTRY_MODEL_DESCRIPTIONS = {
     'coqui-xtts': {
-        'short': "Coqui XTTS v2 — TTS multilingue avec clonage de voix.",
-        'long': "Coqui XTTS v2 : synthèse vocale multilingue (17 langues) avec clonage de voix "
-                "à partir d'un simple échantillon de référence de quelques secondes. Bon compromis "
-                "qualité/rapidité, référence polyvalente pour la plupart des usages.",
+        'short': "Coqui XTTS v2 — multilingual TTS with voice cloning.",
+        'long': "Coqui XTTS v2: multilingual speech synthesis (17 languages) with voice cloning "
+                "from a single reference sample of a few seconds. A good quality/speed "
+                "compromise, the versatile reference for most uses.",
     },
     'bark': {
-        'short': "Bark — TTS expressif avec effets sonores.",
-        'long': "Bark (Suno) : synthèse vocale expressive capable de générer rires, soupirs, "
-                "hésitations et bruitages. Presets de locuteurs sur 13 langues ; ne fait pas de "
-                "clonage de voix libre. Idéal pour un rendu vivant et naturel.",
+        'short': "Bark — expressive TTS with sound effects.",
+        'long': "Bark (Suno): expressive speech synthesis able to generate laughs, sighs, "
+                "hesitations and sound effects. Speaker presets in 13 languages; no free voice "
+                "cloning. Ideal for a lively, natural rendering.",
     },
     'higgs-audio': {
-        'short': "Higgs Audio v2 — multi-locuteurs avec clonage de voix.",
-        'long': "Higgs Audio v2 (Boson AI, 3B) : synthèse multi-locuteurs avec clonage de voix et "
-                "conditionnement de scène pour des dialogues à plusieurs voix. 9 langues. Le plus "
-                "détaillé mais le plus gourmand en ressources.",
+        'short': "Higgs Audio v2 — multi-speaker with voice cloning.",
+        'long': "Higgs Audio v2 (Boson AI, 3B): multi-speaker synthesis with voice cloning and "
+                "scene conditioning for dialogues with several voices. 9 languages. The most "
+                "detailed but the most resource-hungry.",
     },
     'kokoro': {
-        'short': "Kokoro 82M — TTS multilingue ultra-léger.",
-        'long': "Kokoro 82M : modèle de synthèse vocale très léger (82M paramètres) couvrant "
-                "FR/EN/ES/IT/PT/JA/ZH avec des voix fixes par langue. Extrêmement rapide et peu "
-                "gourmand, adapté au temps réel et aux petites configurations.",
+        'short': "Kokoro 82M — ultra-light multilingual TTS.",
+        'long': "Kokoro 82M: a very light speech synthesis model (82M parameters) covering "
+                "FR/EN/ES/IT/PT/JA/ZH with fixed voices per language. Extremely fast and frugal, "
+                "suited to real time and small setups.",
     },
 }
 
@@ -201,7 +201,7 @@ SYNTHESIZER_MODELS = {
             'runtime': {'engine': 'kokoro'}},
         'multilingual': True,
         'voice_cloning': False,
-        'description': 'Kokoro 82M - Léger, FR/EN/ES/IT/PT/JA/ZH, sans clonage vocal',
+        'description': 'Kokoro 82M - Light, FR/EN/ES/IT/PT/JA/ZH, no voice cloning',
         'languages': ['fr', 'en', 'es', 'it', 'pt', 'ja', 'zh-cn'],
     },
 }

@@ -7,7 +7,8 @@ Measured that day on 666 rows: 27 generic sweep texts (« Snapshot HF … »), 1
 text at every pass, so a real description could not survive; OpenRouter's own description was
 thrown away. Three remedies: the sync never replaces a real description by a filler, and marks the
 filler it writes; the provider's description is kept; the marked rows are filled from the model
-card (or the web), summarised in French, the source recorded.
+card (or the web), summarised — in English since 2026-11-08, WAMA's source language —, the source
+recorded. The fillers themselves are written in English since 2026-11-09.
 """
 from unittest import mock
 
@@ -20,7 +21,7 @@ from wama.model_manager.services.model_registry import ModelInfo
 from wama.model_manager.services.model_sync import ModelSyncService
 
 KEY = 'huggingface:org/some-ocr'
-FILLER = 'Snapshot HuggingFace installé (ocr/Fam), catalogué par le balayage générique.'
+FILLER = 'Installed HuggingFace snapshot (ocr/Fam), catalogued by the generic scan of installed models.'
 
 
 def _info(description=FILLER, placeholder=True, extra=None):

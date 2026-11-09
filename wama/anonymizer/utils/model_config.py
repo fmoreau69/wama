@@ -74,10 +74,10 @@ MODEL_SPEC = {'task': ','.join(DETECTION_TASKS)}
 
 REGISTRY_MODEL_DESCRIPTIONS = {
     'sam3': {
-        'short': "SAM3 (Meta) — segmentation par prompt texte.",
-        'long': "SAM3 (Meta, Segment Anything 3) : segmentation open-vocabulary pilotée par un "
-                "prompt texte libre (ex. « blur all faces and license plates ») au lieu de classes "
-                "YOLO fixes. ~3 Go VRAM. Nécessite un token HuggingFace configuré.",
+        'short': "SAM3 (Meta) — segmentation from a text prompt.",
+        'long': "SAM3 (Meta, Segment Anything 3): open-vocabulary segmentation driven by a free "
+                "text prompt (e.g. “blur all faces and license plates”) instead of fixed YOLO "
+                "classes. ~3 GB VRAM. Requires a configured HuggingFace token.",
     },
 }
 
@@ -180,12 +180,12 @@ FRAME_DETECTORS = {
         'dir_key': 'egoblur', 'file': 'ego_blur_lp_gen1.jit',
         'repo': 'https://github.com/facebookresearch/EgoBlur', 'license': 'Apache-2.0',
         'vram_gb': 2.0,
-        'short': "EgoBlur (Meta) — plaques d'immatriculation, vidéo embarquée.",
-        'long': "EgoBlur (Meta, Apache-2.0) : détecteur de plaques entraîné pour ANONYMISER la "
-                "vidéo embarquée, réglé pour ne rien rater. Meilleur rappel mesuré sur des "
-                "caméras de véhicule basse résolution (59,5 % des plaques des véhicules proches, "
-                "contre 20 % aux YOLO plaques), 42 ms par image. Poids distribués par Meta sur "
-                "formulaire : à déposer dans le dossier `vision/egoblur`.",
+        'short': "EgoBlur (Meta) — licence plates, dashcam video.",
+        'long': "EgoBlur (Meta, Apache-2.0): a licence-plate detector trained to ANONYMISE dashcam "
+                "video, tuned to miss nothing. Best recall measured on low-resolution vehicle "
+                "cameras (59.5 % of the plates of nearby vehicles, against 20 % for the YOLO plate "
+                "models), 42 ms per frame. Weights distributed by Meta through a form: drop them "
+                "in the `vision/egoblur` folder.",
     },
     'egoblur-face-gen1': {
         'name': 'EgoBlur visages (gen1)',
@@ -194,11 +194,10 @@ FRAME_DETECTORS = {
         'dir_key': 'egoblur', 'file': 'ego_blur_face_gen1.jit',
         'repo': 'https://github.com/facebookresearch/EgoBlur', 'license': 'Apache-2.0',
         'vram_gb': 2.0,
-        'short': "EgoBlur (Meta) — visages, vidéo embarquée.",
-        'long': "EgoBlur (Meta, Apache-2.0) : détecteur de visages entraîné pour ANONYMISER, "
-                "réglé pour ne rien rater. Rend au plus 100 visages par image : une foule dense "
-                "le sature. Poids distribués par Meta sur formulaire : à déposer dans le dossier "
-                "`vision/egoblur`.",
+        'short': "EgoBlur (Meta) — faces, dashcam video.",
+        'long': "EgoBlur (Meta, Apache-2.0): a face detector trained to ANONYMISE, tuned to miss "
+                "nothing. Returns at most 100 faces per frame: a dense crowd saturates it. Weights "
+                "distributed by Meta through a form: drop them in the `vision/egoblur` folder.",
     },
     'rtdetr-v2-license-plate': {
         'name': 'RT-DETR v2 plaques',
@@ -206,11 +205,11 @@ FRAME_DETECTORS = {
         'classes': ['license_plate'],
         'dir_key': 'object_detection', 'platform_ref': 'huggingface:justjuu/rtdetr-v2-license-plate-detection',
         'vram_gb': 1.0,
-        'short': "RT-DETR v2 — plaques d'immatriculation (transformers).",
-        'long': "RT-DETR v2 affiné sur les plaques (Apache-2.0) : 40 % de rappel sur des caméras "
-                "de véhicule basse résolution, 69 ms par image. Ses erreurs diffèrent de celles "
-                "d'EgoBlur : réunis, ils trouvent 64,6 % des plaques — c'est un complément "
-                "d'ensemble pour l'anonymisation.",
+        'short': "RT-DETR v2 — licence plates (transformers).",
+        'long': "RT-DETR v2 fine-tuned on licence plates (Apache-2.0): 40 % recall on "
+                "low-resolution vehicle cameras, 69 ms per frame. Its errors differ from "
+                "EgoBlur's: together they find 64.6 % of the plates — an ensemble complement for "
+                "anonymisation.",
     },
 }
 

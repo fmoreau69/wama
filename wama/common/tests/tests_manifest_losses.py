@@ -50,6 +50,21 @@ class LostFactsTest(SimpleTestCase):
             [(x['path'], 'library' if 'library' in x['lost'] else x['lost'])
              for x in lost_facts(before, after)])
 
+    def test_the_provenance_of_a_rewritten_description_is_replaced_whole(self):
+        """2026-11-09 : the 63 summaries rewritten in English cite other pages — 68 « losses » at
+        the export, all addresses of the provenance they replaced. Only its disappearance is one."""
+        old = {'origin': 'web', 'ref': ['https://a', 'https://b'], 'date': '2026-10-30'}
+        new = {'origin': 'fiche', 'ref': ['https://c'], 'date': '2026-11-09'}
+        self.assertEqual([], lost_facts({'extra_info': {'description_source': old}},
+                                        {'extra_info': {'description_source': new}}))
+        self.assertEqual(['extra_info.description_source'],
+                         [x['path'] for x in lost_facts({'extra_info': {'description_source': old}},
+                                                        {'extra_info': {'description_source': {}}})])
+        # Counter-check: any other list keeps its items as facts.
+        self.assertEqual(['extra_info.aliases'],
+                         [x['path'] for x in lost_facts({'extra_info': {'aliases': ['a', 'b']}},
+                                                        {'extra_info': {'aliases': ['c']}})][:1])
+
     def test_objects_sharing_a_key_are_not_confused(self):
         """The three bounds of a temperature setting all carry `field: model` (false positives at
         the first guarded export): they are named by ALL their natural keys, in any order."""

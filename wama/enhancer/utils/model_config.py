@@ -38,46 +38,44 @@ Path(ONNX_MODELS_DIR).mkdir(parents=True, exist_ok=True)
 
 REGISTRY_MODEL_DESCRIPTIONS = {
     'RealESRGANx4': {
-        'short': "Real-ESRGAN ×4 — super-résolution photo de référence.",
-        'long': "Real-ESRGAN ×4 (fp16, ONNX) : la référence de la super-résolution "
-                "photographique — agrandit ×4 en reconstruisant détails et textures. "
-                "Bon choix par défaut pour photos et captures réelles.",
+        'short': "Real-ESRGAN ×4 — the reference photo super-resolution.",
+        'long': "Real-ESRGAN ×4 (fp16, ONNX): the reference of photographic super-resolution — "
+                "enlarges ×4 while rebuilding details and textures. A good default for photos "
+                "and real-world captures.",
     },
     'RealESR_Animex4': {
-        'short': "Real-ESRGAN Anime ×4 — dessins et illustrations.",
-        'long': "Real-ESRGAN Anime ×4 (fp16, ONNX) : variante spécialisée dessins, anime et "
-                "illustrations — préserve les aplats et les contours nets sans inventer de "
-                "texture photographique.",
+        'short': "Real-ESRGAN Anime ×4 — drawings and illustrations.",
+        'long': "Real-ESRGAN Anime ×4 (fp16, ONNX): a variant specialised for drawings, anime and "
+                "illustrations — keeps flat areas and sharp outlines without inventing a "
+                "photographic texture.",
     },
     'RealESR_Gx4': {
-        'short': "Real-ESR general ×4 — généraliste ultra-léger.",
-        'long': "Real-ESR general ×4 (fp16, ONNX) : version généraliste très compacte de "
-                "Real-ESRGAN. Rapide et sobre, qualité légèrement en retrait — pour les "
-                "traitements en volume ou les machines modestes.",
+        'short': "Real-ESR general ×4 — ultra-light general-purpose.",
+        'long': "Real-ESR general ×4 (fp16, ONNX): a very compact general-purpose version of "
+                "Real-ESRGAN. Fast and frugal, slightly lower quality — for batch processing or "
+                "modest machines.",
     },
     'BSRGANx4': {
-        'short': "BSRGAN ×4 — robuste aux dégradations réelles.",
-        'long': "BSRGAN ×4 (fp16, ONNX) : super-résolution entraînée sur des dégradations "
-                "réalistes (flou, bruit, compression JPEG). Robuste sur images de qualité "
-                "médiocre là où d'autres modèles amplifient les artefacts.",
+        'short': "BSRGAN ×4 — robust to real-world degradations.",
+        'long': "BSRGAN ×4 (fp16, ONNX): super-resolution trained on realistic degradations "
+                "(blur, noise, JPEG compression). Robust on poor-quality images where other "
+                "models amplify the artefacts.",
     },
     'BSRGANx2': {
-        'short': "BSRGAN ×2 — agrandissement modéré, robuste.",
-        'long': "BSRGAN ×2 (fp16, ONNX) : même robustesse aux dégradations réelles que la "
-                "version ×4, avec un agrandissement modéré ×2 — utile quand la source est "
-                "déjà d'une taille correcte.",
+        'short': "BSRGAN ×2 — moderate enlargement, robust.",
+        'long': "BSRGAN ×2 (fp16, ONNX): the same robustness to real-world degradations as the "
+                "×4 version, with a moderate ×2 enlargement — useful when the source already has "
+                "a decent size.",
     },
     'IRCNN_Lx1': {
-        'short': "IRCNN L ×1 — débruitage sans agrandissement.",
-        'long': "IRCNN variante L (fp16, ONNX) : débruitage pur (×1, aucune mise à l'échelle). "
-                "Nettoie le bruit et les artefacts avant un éventuel upscale — à combiner avec "
-                "un modèle ×2/×4.",
+        'short': "IRCNN L ×1 — denoising without enlargement.",
+        'long': "IRCNN variant L (fp16, ONNX): pure denoising (×1, no rescaling). Cleans noise "
+                "and artefacts before a possible upscale — to combine with a ×2/×4 model.",
     },
     'IRCNN_Mx1': {
-        'short': "IRCNN M ×1 — débruitage sans agrandissement (variante M).",
-        'long': "IRCNN variante M (fp16, ONNX) : débruitage pur (×1), intensité de filtrage "
-                "différente de la variante L — essayer les deux selon le niveau de bruit de "
-                "la source.",
+        'short': "IRCNN M ×1 — denoising without enlargement (variant M).",
+        'long': "IRCNN variant M (fp16, ONNX): pure denoising (×1), a filtering strength "
+                "different from variant L — try both depending on the source's noise level.",
     },
 }
 

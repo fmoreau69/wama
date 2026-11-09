@@ -224,7 +224,7 @@ class DiffusersBackend(ImageGenerationBackend):
         "qwen-image-2": {
             "name": "Qwen Image 2 (20B)",
             "platform_ref": "huggingface:Qwen/Qwen-Image-2512",
-            "description": "#1 open-source (AI Arena) - 16GB VRAM - 2K natif, text rendering",
+            "description": "#1 open-source (AI Arena) - 16GB VRAM - native 2K, text rendering",
             "vram": "16GB",
             "pipeline": "qwen_image",
             "min_resolution": 512,

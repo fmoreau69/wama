@@ -1547,8 +1547,8 @@ class ModelRegistry:
                 name='Apple Depth Pro',
                 model_type=ModelType.VISION,
                 source=ModelSource.HUGGINGFACE,
-                description='Profondeur monoculaire métrique + focale estimée, natif transformers '
-                            '(Apache-2.0). Candidat cam_analyzer (re-calage du plan de sol, §[E]).',
+                description='Metric monocular depth + estimated focal length, native to transformers '
+                            '(Apache-2.0). cam_analyzer candidate (ground-plane recalibration, §[E]).',
                 platform_ref='huggingface:apple/DepthPro-hf',
                 # Moteur : `transformers` — la description ci-dessus le dit déjà
                 # (« natif transformers », AutoModelForDepthEstimation).
@@ -1574,9 +1574,9 @@ class ModelRegistry:
                     name='ZoeDepth (KITTI)',
                     model_type=ModelType.VISION,
                     source=ModelSource.HUGGINGFACE,
-                    description='Profondeur monoculaire entraînée sur de la conduite (KITTI), natif '
-                                'transformers (MIT). Échelle à ancrer par l\'appelant (hauteur de '
-                                'caméra) ; défaut de cam_analyzer §[E] depuis le 2026-09-28.',
+                    description='Monocular depth trained on driving scenes (KITTI), native to '
+                                'transformers (MIT). The scale is anchored by the caller (camera '
+                                'height); cam_analyzer §[E] default since 2026-09-28.',
                     platform_ref='huggingface:Intel/zoedepth-kitti',
                     composition={'runtime': {'engine': 'transformers'}},
                     vram_gb=2.0,
@@ -1602,10 +1602,10 @@ class ModelRegistry:
                 name='YOLOPv2',
                 model_type=ModelType.VISION,
                 source=ModelSource.GITHUB,
-                description="YOLOPv2 (CAIC-AD, MIT) : perception de conduite en une passe — zone "
-                            "roulable et lignes de voie (et détection) d'une caméra embarquée. "
-                            "TorchScript multi-tête : PAS un modèle Ultralytics.",
-                description_short="Zone roulable + voies (caméra embarquée)",
+                description="YOLOPv2 (CAIC-AD, MIT): one-pass driving perception — drivable area "
+                            "and lane lines (and detection) from a dashcam. Multi-head TorchScript: "
+                            "NOT an Ultralytics model.",
+                description_short="Drivable area + lanes (dashcam)",
                 vram_gb=1.0,
                 format='pt',
                 is_downloaded=declared_files_present(root, YOLOPV2_FILES),
@@ -1640,10 +1640,10 @@ class ModelRegistry:
                 name='LPIPS (AlexNet)',
                 model_type=ModelType.VISION,
                 source=ModelSource(split_key(LPIPS_KEY)[0]),   # la clé dit la source
-                description="LPIPS : distance perceptuelle entre deux images (plus bas = plus "
-                            "proche), sur la dorsale AlexNet de torchvision. Instrument de MESURE du "
-                            "banc d'agrandissement (`WAMA_QUALITE §4`), il ne produit rien.",
-                description_short="Distance perceptuelle (banc d'agrandissement)",
+                description="LPIPS: perceptual distance between two images (lower = closer), on "
+                            "torchvision's AlexNet backbone. A MEASURING instrument of the upscaling "
+                            "benchmark (`WAMA_QUALITE §4`); it produces nothing.",
+                description_short="Perceptual distance (upscaling benchmark)",
                 vram_gb=0.5,
                 format='pth',
                 is_downloaded=declared_files_present(root, LPIPS_FILES),
@@ -1684,11 +1684,11 @@ class ModelRegistry:
                 name='FLUX.1-dev Q8_0 (GGUF)',
                 model_type=ModelType.DIFFUSION,
                 source=ModelSource.HUGGINGFACE,
-                description="Transformeur de FLUX.1-dev quantifié en Q8_0 (GGUF, city96) : la "
-                            "précision huit bits que le moteur diffusers charge quand les poids "
-                            "pleins ne tiennent pas sur la carte. Les encodeurs et le VAE restent "
-                            "ceux de FLUX.1-dev. Licence non commerciale de FLUX.1-dev.",
-                description_short="Précision Q8_0 de FLUX.1-dev (GGUF)",
+                description="The FLUX.1-dev transformer quantised to Q8_0 (GGUF, city96): the "
+                            "eight-bit precision the diffusers engine loads when the full weights do "
+                            "not fit on the card. The encoders and the VAE stay those of FLUX.1-dev. "
+                            "FLUX.1-dev's non-commercial licence.",
+                description_short="Q8_0 precision of FLUX.1-dev (GGUF)",
                 platform_ref=hf_platform_ref(FLUX_GGUF_REPO),
                 format='gguf',
                 is_downloaded=declared_files_present(root, files),
@@ -1722,11 +1722,11 @@ class ModelRegistry:
                 name='MediaPipe Gesture Recognizer',
                 model_type=ModelType.VISION,
                 source=ModelSource(split_key(GESTURE_KEY)[0]),   # la clé dit la source
-                description="Reconnaissance des gestes de la main (21 repères par main, jusqu'à deux "
-                            "mains ; poing fermé, main ouverte, index levé…) — exécutée dans le "
-                            "navigateur, aucune image ne part au serveur. Pilote les scènes 3D à la "
-                            "webcam : poing pour tourner, deux poings pour zoomer.",
-                description_short="Gestes de la main à la webcam (scènes 3D)",
+                description="Hand gesture recognition (21 landmarks per hand, up to two hands; "
+                            "closed fist, open palm, pointing up…) — run in the browser, no image "
+                            "leaves for the server. Drives the 3D scenes from the webcam: a fist to "
+                            "turn, two fists to zoom.",
+                description_short="Hand gestures from the webcam (3D scenes)",
                 vram_gb=0.0,
                 format='task',
                 is_downloaded=gesture_model_installed(),
@@ -1761,12 +1761,13 @@ class ModelRegistry:
                 name='Smart Turn v3.2',
                 model_type=ModelType.SPEECH,
                 source=ModelSource.HUGGINGFACE,
-                description="Smart Turn (pipecat-ai, BSD-2) : juge sur le son seul — intonation, fin "
-                            "de mot — si la personne a fini sa phrase ou reprend son souffle. "
-                            "L'écoute de l'assistant le consulte après une pause courte : la "
-                            "réponse part plus tôt, une pause au milieu d'une idée ne coupe plus "
-                            "la phrase. 23 langues dont le français ; processeur, aucune VRAM.",
-                description_short="Fin de tour de parole (conversation vocale)",
+                description="Smart Turn (pipecat-ai, BSD-2): judges from the sound alone — "
+                            "intonation, word endings — whether the speaker has finished their "
+                            "sentence or is taking a breath. The assistant's listening asks it after "
+                            "a short pause: the answer starts sooner, and a pause in the middle of a "
+                            "thought no longer cuts the sentence. 23 languages including French; "
+                            "processor, no VRAM.",
+                description_short="End of a speaking turn (voice conversation)",
                 platform_ref=hf_platform_ref(HF_REPO),
                 vram_gb=0.0,
                 format='onnx',
@@ -1806,12 +1807,12 @@ class ModelRegistry:
                 name='Whisper tiny (langue parlée)',
                 model_type=ModelType.SPEECH,
                 source=ModelSource.HUGGINGFACE,
-                description="Whisper tiny (OpenAI, converti en CTranslate2 par Systran) : dit quelle "
-                            "langue est parlée, fenêtre "
-                            "par fenêtre. Le transcriber l'écoute avant un moteur qui transcrit par "
-                            "passages (Canary, Parakeet, Qwen3-ASR) — une seule langue imposée, ou "
-                            "chaque passage dans la sienne. Processeur, aucune VRAM.",
-                description_short="Langue parlée (sonde du transcriber)",
+                description="Whisper tiny (OpenAI, converted to CTranslate2 by Systran): tells which "
+                            "language is spoken, window by window. The transcriber listens to it "
+                            "before an engine that transcribes by passages (Canary, Parakeet, "
+                            "Qwen3-ASR) — one imposed language, or each passage in its own. "
+                            "Processor, no VRAM.",
+                description_short="Spoken language (the transcriber's probe)",
                 platform_ref=hf_platform_ref(HF_REPO),
                 vram_gb=0.0,
                 format='pt',
@@ -1850,12 +1851,11 @@ class ModelRegistry:
                 name="Orientation de page (docTR)",
                 model_type=ModelType.VISION,
                 source=ModelSource.GITHUB,
-                description="Classifieur d'orientation de page de docTR (Mindee, Apache-2.0, "
-                            "MobileNet v3) : dit de combien une page photographiée est tournée "
-                            "(0, 90, 180, 270°). Le reader redresse ainsi une image avant tout "
-                            "moteur d'OCR — une note prise de côté est illisible couchée. "
-                            "Processeur, 6 Mo.",
-                description_short="Redressement des pages avant l'OCR",
+                description="docTR's page-orientation classifier (Mindee, Apache-2.0, MobileNet v3): "
+                            "tells how far a photographed page is rotated (0, 90, 180, 270°). The "
+                            "reader thus straightens an image before any OCR engine — a note shot "
+                            "sideways is unreadable lying down. Processor, 6 MB.",
+                description_short="Straightens pages before OCR",
                 platform_ref=github_platform_ref(PAGE_ORIENTATION_KEY.split(':', 1)[1]),
                 vram_gb=0.0,
                 format='pt',
@@ -1897,11 +1897,11 @@ class ModelRegistry:
                 name='Phonon 40m (français)',
                 model_type=ModelType.SPEECH,
                 source=ModelSource.HUGGINGFACE,
-                description="Phonon (Gradium, sur Pocket TTS de Kyutai) : synthèse vocale française "
-                            "24 kHz, 40 M de paramètres, sur le PROCESSEUR — aucune VRAM. Quatre voix "
-                            "(Noémie, Tiphaine, Augustin, Lucien). Poids CC BY-NC 4.0 (usage non "
-                            "commercial).",
-                description_short="Synthèse vocale française sur processeur, quatre voix",
+                description="Phonon (Gradium, on Kyutai's Pocket TTS): French speech synthesis at "
+                            "24 kHz, 40 M parameters, on the PROCESSOR — no VRAM. Four voices "
+                            "(Noémie, Tiphaine, Augustin, Lucien). CC BY-NC 4.0 weights "
+                            "(non-commercial use).",
+                description_short="French speech synthesis on the processor, four voices",
                 platform_ref=hf_platform_ref(HF_REPO),
                 vram_gb=0.0,
                 format='gguf',
@@ -1934,21 +1934,21 @@ class ModelRegistry:
         from wama.model_manager.services.model_installer import declared_files_present
         detectors = (
             ('bardsai_pii_backend', 'BARDSAI_FILES', 'bardsai EU PII v3',
-             "Détecteur de données personnelles des 24 langues de l'UE (bardsai, ModernBERT "
-             "mmBERT-base, 307 M) : 37 types — personnes, contacts, adresses, identifiants, "
-             "comptes, secrets, et les catégories particulières du RGPD. Servi en ONNX (FP32 sur "
-             "la carte, INT8 sur le processeur) avec le décodeur par mot de l'auteur. Chiffres "
-             "de l'éditeur (F1 strict 0,980 sur 455 passages réels) — une mesure WAMA fera foi.",
-             "Données personnelles, 24 langues de l'UE (ONNX)",
+             "Personal-data detector for the 24 EU languages (bardsai, ModernBERT mmBERT-base, "
+             "307 M): 37 types — people, contacts, addresses, identifiers, accounts, secrets, and "
+             "the GDPR's special categories. Served in ONNX (FP32 on the card, INT8 on the "
+             "processor) with the author's per-word decoder. Publisher's figures (strict F1 0.980 "
+             "on 455 real passages) — a WAMA measure will settle it.",
+             "Personal data, 24 EU languages (ONNX)",
              'onnxruntime', 'onnx', 1.5,
              [{'role': 'model', 'pattern': 'onnx/model.onnx', 'format': 'onnx'},
               {'role': 'model_cpu', 'pattern': 'onnx/model_quantized.onnx', 'format': 'onnx'}]),
             ('gliner2_pii_backend', 'GLINER2_FILES', 'GLiNER2-PII (multilingue)',
-             "Détecteur de données personnelles à vocabulaire OUVERT (Fastino, GLiNER2 205 M) : "
-             "42 types qu'on lui nomme, 7 langues (en, fr, es, de, it, pt, nl). Rappel élevé, "
-             "précision faible selon l'éditeur (il sur-détecte les noms) : il complète les autres "
-             "détecteurs de l'union. Entraîné sur des textes synthétiques.",
-             "Données personnelles à types ouverts, 7 langues",
+             "OPEN-vocabulary personal-data detector (Fastino, GLiNER2 205 M): 42 types named to "
+             "it, 7 languages (en, fr, es, de, it, pt, nl). High recall, low precision according "
+             "to the publisher (it over-detects names): it complements the other detectors of the "
+             "union. Trained on synthetic texts.",
+             "Personal data with open types, 7 languages",
              'gliner2', 'safetensors', 1.5,
              [{'role': 'model', 'pattern': 'model.safetensors', 'format': 'safetensors'}]),
         )
@@ -2001,11 +2001,10 @@ class ModelRegistry:
                 name='MuScriptor large',
                 model_type=ModelType.MUSIC,
                 source=ModelSource.HUGGINGFACE,
-                description="MuScriptor large (Kyutai + Mirelo, 1,4 Md de paramètres) : un audio "
-                            "→ un MIDI par instrument entendu (voix et batterie comprises), calé "
-                            "sur la grille de temps de Beat This!. Poids CC BY-NC 4.0, dépôt à "
-                            "accès contrôlé.",
-                description_short="Transcription multi-instrument audio → MIDI",
+                description="MuScriptor large (Kyutai + Mirelo, 1.4 B parameters): one audio → one "
+                            "MIDI per instrument heard (voice and drums included), aligned on Beat "
+                            "This!'s time grid. CC BY-NC 4.0 weights, gated repository.",
+                description_short="Multi-instrument transcription audio → MIDI",
                 platform_ref=hf_platform_ref(HF_REPO),
                 # Pic MESURÉ le 2026-10-16 sur #754 (210 s, RTX 4090) : 9,77 Go ; 13,34 Go le
                 # 2026-10-22 sur #880 (215 s) depuis le passage de DÉTECTION des instruments, par
@@ -2045,11 +2044,11 @@ class ModelRegistry:
                 name='copisteria (copista-28m)',
                 model_type=ModelType.MUSIC,
                 source=ModelSource.HUGGINGFACE,
-                description="copisteria (KobiMusic, 2026) : une page de partition IMPRIMÉE (scan, "
-                            "photo, PDF) → son MusicXML — un détecteur de symboles de 28,7 M de "
-                            "paramètres, corrigé par un modèle d'évidence de 2 M. N'écrit pas les "
-                            "paroles ; le manuscrit n'est pas lu. Code et poids Apache-2.0.",
-                description_short="Lecture de partition imprimée → MusicXML",
+                description="copisteria (KobiMusic, 2026): a PRINTED score page (scan, photo, PDF) "
+                            "→ its MusicXML — a 28.7 M-parameter symbol detector, corrected by a "
+                            "2 M evidence model. Does not write the lyrics; handwriting is not "
+                            "read. Apache-2.0 code and weights.",
+                description_short="Printed score reading → MusicXML",
                 platform_ref=hf_platform_ref(HF_REPO),
                 # Pic MESURÉ le 2026-11-07 (RTX 4090, `max_memory_allocated`) : 0,3 Go sur une gamme,
                 # 0,68 Go sur une page dense de six systèmes (145 notes) ; arrondi au-dessus.
@@ -2090,10 +2089,9 @@ class ModelRegistry:
                 name='TripoSR',
                 model_type=ModelType.VISION,
                 source=ModelSource.HUGGINGFACE,
-                description='Reconstruction mono-image → maillage 3D texturé (LRM, ~0,5 s/objet '
-                            'sur GPU), MIT. ⚠ Reconstruction PLAUSIBLE, pas métrique : les faces '
-                            'occultées sont hallucinées (§17ter) — props de simulation, jamais '
-                            'une mesure.',
+                description='Single-image → textured 3D mesh reconstruction (LRM, ~0.5 s per object '
+                            'on GPU), MIT. ⚠ A PLAUSIBLE reconstruction, not a metric one: hidden '
+                            'faces are hallucinated (§17ter) — simulation props, never a measure.',
                 platform_ref='huggingface:stabilityai/TripoSR',
                 # Moteur : le code TripoSR vendorisé (`common/backends/vendor/triposr`, comme
                 # MuseTalk/CodeFormer) — la moitié backend est `TripoSRBackend.ENGINE`.
@@ -2631,10 +2629,10 @@ class ModelRegistry:
         _audio_engines = {
             'resemble': {
                 'name': 'Resemble Enhance',
-                'short': 'Restauration par diffusion — débruitage + extension de bande, meilleure qualité',
-                'long': ('Resemble Enhance : modèle génératif (diffusion) qui débruite ET restaure les '
-                         'hautes fréquences (super-résolution audio). Qualité supérieure mais plus lent ; '
-                         'les réglages Mode / Force / Qualité (NFE) s\'appliquent.'),
+                'short': 'Diffusion restoration — denoising + bandwidth extension, best quality',
+                'long': ('Resemble Enhance: a generative (diffusion) model that denoises AND restores '
+                         'the high frequencies (audio super-resolution). Higher quality but slower; '
+                         'the Mode / Strength / Quality (NFE) settings apply.'),
                 'vram': 4.0,
                 # Les NOMS des réglages que le moteur lit — ceux du schéma audio (`cap_from`
                 # « reads »). `strength` → `denoising_strength` le 2026-10-28, quand le réglage a
@@ -2645,10 +2643,10 @@ class ModelRegistry:
             },
             'deepfilternet': {
                 'name': 'DeepFilterNet 3',
-                'short': 'Débruitage temps réel — rapide, faible empreinte',
-                'long': ('DeepFilterNet 3 : débruitage discriminatif temps réel (48 kHz), très rapide et '
-                         'léger, sans extension de bande. Recommandé pour prétraiter avant transcription ; '
-                         'les réglages Mode / Force / Qualité ne s\'appliquent pas.'),
+                'short': 'Real-time denoising — fast, small footprint',
+                'long': ('DeepFilterNet 3: real-time discriminative denoising (48 kHz), very fast and '
+                         'light, no bandwidth extension. Recommended to preprocess before '
+                         'transcription; the Mode / Strength / Quality settings do not apply.'),
                 'vram': 1.0,
                 'params': [],
                 'engine': 'deepfilternet',   # cf. `DeepFilterNetBackend.ENGINE`
@@ -2888,8 +2886,8 @@ class ModelRegistry:
             # chaque balayage — donc FAUX dès l'intégration (FrWhisper, Supra2-IMG, Swin2SR le
             # portaient servis par leur backend). Qu'un backend le serve se CALCULE
             # (`backend_missing`, grisage des selects) ; un texte généré ne l'affirme pas.
-            description=(f"Snapshot HuggingFace installé ({mtype.value}/{fam_dir.name}), "
-                         "catalogué par le balayage générique des modèles installés."),
+            description=(f"Installed HuggingFace snapshot ({mtype.value}/{fam_dir.name}), "
+                         "catalogued by the generic scan of installed models."),
             description_short=f"Snapshot HF {nom_court}",
             description_placeholder=True,
             platform_ref=hf_platform_ref(repo_id),
@@ -2937,9 +2935,9 @@ class ModelRegistry:
             name=tag,
             model_type=mtype,
             source=ModelSource.GITHUB,
-            description=(f"Version GitHub installée ({mtype.value}/{fam_dir.name}), "
-                         "cataloguée par le balayage générique des modèles installés."),
-            description_short=f"Version GitHub {tag}",
+            description=(f"Installed GitHub release ({mtype.value}/{fam_dir.name}), "
+                         "catalogued by the generic scan of installed models."),
+            description_short=f"GitHub release {tag}",
             description_placeholder=True,
             is_downloaded=not incomplete,
             format=_dominant_format(weights),

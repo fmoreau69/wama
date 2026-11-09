@@ -162,10 +162,10 @@ HUNYUAN_MODELS = {
                                             text_encoder_2=False, vae=False),
         # Tailles (2026-09-30, reprises de l'ex-`MODEL_RESOLUTION_CONFIG` de l'imager) : 2K natif.
         'resolution': '2048x2048', 'min_resolution': 1024, 'max_resolution': 2048,
-        'description': 'HunyuanImage 2.1 — qualité max, text rendering, 1K-4K',
-        'description_long': "HunyuanImage 2.1 (Tencent) : génération d'images haut de gamme, "
-                            "excellent rendu du texte dans l'image et résolutions 1K à 4K. "
-                            "Le choix qualité maximale quand le temps de génération importe peu.",
+        'description': 'HunyuanImage 2.1 — top quality, text rendering, 1K-4K',
+        'description_long': "HunyuanImage 2.1 (Tencent): high-end image generation, excellent "
+                            "rendering of text in the image and 1K to 4K resolutions. The "
+                            "top-quality choice when generation time matters little.",
     },
 }
 
@@ -197,10 +197,10 @@ COGVIDEOX_MODELS = {
         'max_frames': 49,
         'resolution': '720x480',
         'description': 'CogVideoX 5B — Image-to-Video',
-        'description_long': "CogVideoX 5B I2V (Zhipu/THUDM) : anime une image de référence en "
-                            "clip vidéo guidé par le prompt. Limites du modèle : 6 secondes (49 "
-                            "images à 8 i/s), 720×480. Au-delà, la vidéo est prolongée par "
-                            "segments enchaînés (chaque segment repart de la dernière image).",
+        'description_long': "CogVideoX 5B I2V (Zhipu/THUDM): animates a reference image into a "
+                            "video clip guided by the prompt. Model limits: 6 seconds (49 frames "
+                            "at 8 fps), 720×480. Beyond that, the video is extended by chained "
+                            "segments (each segment starts again from the last frame).",
     },
 }
 
@@ -237,10 +237,10 @@ LTX_MODELS = {
         # le calcul (CFG) et dégradent l'image. Rappelés à l'écran par `recommended_*`.
         'default_steps': 8,
         'default_guidance_scale': 1.0,
-        'description': 'LTX-Video 13B Distilled — rapide, T2V + I2V',
-        'description_long': "LTX-Video 13B Distilled (Lightricks) : génération vidéo rapide, en "
-                            "texte-vers-vidéo comme en image-vers-vidéo. La distillation réduit "
-                            "fortement le nombre d'étapes — bon choix par défaut pour itérer vite.",
+        'description': 'LTX-Video 13B Distilled — fast, T2V + I2V',
+        'description_long': "LTX-Video 13B Distilled (Lightricks): fast video generation, text to "
+                            "video as well as image to video. Distillation cuts the number of "
+                            "steps sharply — a good default to iterate quickly.",
     },
     # ── 13B Distilled FP8 — meilleur ratio qualité/VRAM sur RTX 4090 ─────────
     'ltx-video-13b-0.9.8-distilled-fp8': {
@@ -266,10 +266,10 @@ LTX_MODELS = {
         # 59 fichiers, aucun marqueur fp8). Une composition décrit des FICHIERS ; seul `vram_gb`
         # porte l'écart de précision.
         'composition': _pipeline_composition(transformer=True, text_encoder=True, vae=False),
-        'description': 'LTX-Video 13B Distilled FP8 — léger, T2V + I2V',
-        'description_long': "LTX-Video 13B Distilled en quantification FP8 : mêmes usages que la "
-                            "version distillée (T2V + I2V) avec une empreinte mémoire réduite, au "
-                            "prix d'une légère perte de qualité. Pour GPU plus modestes.",
+        'description': 'LTX-Video 13B Distilled FP8 — light, T2V + I2V',
+        'description_long': "LTX-Video 13B Distilled quantised to FP8: the same uses as the "
+                            "distilled version (T2V + I2V) with a smaller memory footprint, at the "
+                            "cost of a slight loss of quality. For more modest GPUs.",
     },
 }
 
@@ -297,10 +297,10 @@ MOCHI_MODELS = {
         # prolongation possible par segments, la durée est donc bornée à l'écran.
         'max_frames': 84,
         'resolution': '848x480',
-        'description': 'Mochi-1 Preview — haute qualité',
-        'description_long': "Mochi-1 Preview (Genmo) : génération vidéo haute fidélité à 30 "
-                            "images/s, mouvements naturels et bonne adhérence au prompt. Le plus "
-                            "gourmand des modèles vidéo — à réserver aux rendus soignés.",
+        'description': 'Mochi-1 Preview — high quality',
+        'description_long': "Mochi-1 Preview (Genmo): high-fidelity video generation at 30 fps, "
+                            "natural motion and good prompt adherence. The most demanding of the "
+                            "video models — keep it for polished renders.",
     },
 }
 
@@ -340,16 +340,15 @@ WAN_MODELS = {
         # Les LIMITES (5 s natives, 24 i/s, 1280×704) ne sont PAS recopiées dans la description
         # courte : l'aide sous le sélecteur les DÉRIVE des capacités (`fps`, `max_frames`,
         # `resolution` ci-dessus — `WamaModelHelp`), un seul fait, jamais deux (2026-09-23).
-        'description': 'FastWan 2.2 TI2V 5B — distillé 3 pas',
-        'description_long': "FastWan 2.2 (FastVideo) : Wan 2.2 TI2V 5B distillé en 3 pas de "
-                            "débruitage, pour générer une vidéo à partir d'un texte beaucoup plus "
-                            "vite que les modèles non distillés. Limites du modèle : 5 secondes au "
-                            "plus en un passage (121 images à 24 i/s — au-delà, la vidéo est "
-                            "prolongée par segments enchaînés, chacun repartant de la dernière "
-                            "image : la continuité n'est pas garantie), "
-                            "cadence fixe de 24 i/s, résolution native 1280×704 (en dessous, la "
-                            "qualité baisse). Le nombre de pas, le guidage et donc le prompt "
-                            "négatif sont imposés par la distillation (sans effet ici).",
+        'description': 'FastWan 2.2 TI2V 5B — distilled to 3 steps',
+        'description_long': "FastWan 2.2 (FastVideo): Wan 2.2 TI2V 5B distilled to 3 denoising "
+                            "steps, to generate a video from a text much faster than undistilled "
+                            "models. Model limits: at most 5 seconds in one pass (121 frames at "
+                            "24 fps — beyond that, the video is extended by chained segments, each "
+                            "starting again from the last frame: continuity is not guaranteed), a "
+                            "fixed 24 fps rate, native resolution 1280×704 (below it, quality "
+                            "drops). The number of steps, the guidance and therefore the negative "
+                            "prompt are imposed by the distillation (no effect here).",
     },
 }
 
@@ -393,10 +392,10 @@ STABLE_DIFFUSION_MODELS = {
                       'unet/*non_ema*': "poids NON-EMA, ceux de l'entraînement : l'inférence lit "
                                         "les poids EMA"}),
         'resolution': '512x512', 'min_resolution': 256, 'max_resolution': 768,
-        'description': 'Stable Diffusion 1.5 — classique (compatibilité LoRA)',
-        'description_long': "Stable Diffusion 1.5 (Runway/CompVis) : le classique historique de la "
-                            "génération d'images, porté par le plus vaste écosystème de LoRA et de "
-                            "fine-tunes. Qualité datée en natif, mais base de compatibilité inégalée.",
+        'description': 'Stable Diffusion 1.5 — the classic (LoRA compatibility)',
+        'description_long': "Stable Diffusion 1.5 (Runway/CompVis): the historic classic of image "
+                            "generation, carried by the largest ecosystem of LoRAs and fine-tunes. "
+                            "Dated quality out of the box, but an unmatched compatibility base.",
     },
     'stable-diffusion-xl': {
         'model_id': 'stable-diffusion-xl',
@@ -430,10 +429,10 @@ STABLE_DIFFUSION_MODELS = {
             excluded={'vae_1_0/*': "VAE ALTERNATIF de la version 1.0, non chargé : le pipeline "
                                    "lit `vae/`"}),
         'resolution': '1024x1024', 'min_resolution': 512, 'max_resolution': 1536,
-        'description': 'Stable Diffusion XL — haute résolution (compatibilité LoRA)',
-        'description_long': "Stable Diffusion XL (Stability AI) : génération native en 1024 px, "
-                            "compositions et anatomies bien plus fiables que SD 1.5, large choix "
-                            "de LoRA. La valeur sûre polyvalente de la famille Stable Diffusion.",
+        'description': 'Stable Diffusion XL — high resolution (LoRA compatibility)',
+        'description_long': "Stable Diffusion XL (Stability AI): native 1024 px generation, far "
+                            "more reliable compositions and anatomy than SD 1.5, a wide choice of "
+                            "LoRAs. The safe, versatile pick of the Stable Diffusion family.",
     },
     # 'dreamlike-art-2' (1,99 GiB) et 'deliberate-v6' (1,99 GiB) RETIRÉS du parc local le
     # 2026-07-28 : deux fine-tunes SD 1.5 de 2022-2023 sur le même créneau que SD 1.5 lui-même,
@@ -476,10 +475,10 @@ QWEN_IMAGE_MODELS = {
         # get_model_defaults() retombait sur les valeurs SD et bridait le modèle par défaut.
         'default_steps': 50,
         'default_guidance_scale': 4.0,
-        'description': 'Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif',
-        'description_long': "Qwen-Image 2 (Alibaba, 20B) : parmi les meilleurs modèles image "
-                            "open-source, rendu du texte dans l'image remarquable et 2K natif. "
-                            "Qualité proche des services propriétaires, au prix d'une VRAM élevée.",
+        'description': 'Qwen Image 2 (20B) — #1 open source, text rendering, native 2K',
+        'description_long': "Qwen-Image 2 (Alibaba, 20B): among the best open-source image models, "
+                            "remarkable rendering of text in the image and native 2K. Quality close "
+                            "to proprietary services, at the cost of high VRAM.",
         'license': 'apache-2.0',
     },
     'qwen-image-edit': {
@@ -503,10 +502,10 @@ QWEN_IMAGE_MODELS = {
         # Idem qwen-image-2 : valeurs du backend Qwen, pas celles de SD.
         'default_steps': 50,
         'default_guidance_scale': 4.0,
-        'description': 'Qwen Image Edit — édition multi-image, 14 images, 2K',
-        'description_long': "Qwen-Image-Edit (Alibaba) : édition d'images guidée par instruction "
-                            "— retouche, fusion et composition jusqu'à 14 images de référence, "
-                            "sortie 2K. Pour modifier une image existante plutôt qu'en créer une.",
+        'description': 'Qwen Image Edit — multi-image editing, 14 images, 2K',
+        'description_long': "Qwen-Image-Edit (Alibaba): instruction-guided image editing — "
+                            "retouching, merging and composing up to 14 reference images, 2K "
+                            "output. To change an existing image rather than create one.",
         'license': 'apache-2.0',
     },
 }
@@ -531,10 +530,10 @@ FLUX2_KLEIN_MODELS = {
         # pour les chargeurs qui ne lisent pas l'arborescence diffusers, pas un composant.
         'composition': _pipeline_composition(transformer=False, text_encoder=True, vae=False),
         'resolution': '1024x1024', 'min_resolution': 256, 'max_resolution': 1024,
-        'description': 'FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0',
-        'description_long': "FLUX.2 Klein 4B (Black Forest Labs) : version distillée ultra-rapide "
-                            "de FLUX.2 — image en moins d'une seconde, licence Apache 2.0. Parfait "
-                            "pour itérer sur des idées avant un rendu final sur un modèle lourd.",
+        'description': 'FLUX.2 Klein 4B — ultra-fast (<1 s), Apache 2.0',
+        'description_long': "FLUX.2 Klein 4B (Black Forest Labs): an ultra-fast distilled version "
+                            "of FLUX.2 — an image in under a second, Apache 2.0 licence. Perfect to "
+                            "iterate on ideas before a final render on a heavy model.",
         'license': 'apache-2.0',
         'default_guidance_scale': 1.0,
         'default_steps': 4,
@@ -577,10 +576,10 @@ LOGO_MODELS = {
         'default_guidance_scale': 3.5,
         'default_steps': 24,
         'license': 'flux-1-dev-non-commercial',
-        'description': 'FLUX Logo Design LoRA — logos pro, open-source, max 768 px',
-        'description_long': "FLUX Logo Design (Shakker-Labs) : LoRA spécialisé création de logos "
-                            "professionnels sur base FLUX, réglages dédiés appliqués "
-                            "automatiquement. Référence open-source du domaine.",
+        'description': 'FLUX Logo Design LoRA — professional logos, open-source, max 768 px',
+        'description_long': "FLUX Logo Design (Shakker-Labs): a LoRA specialised in professional "
+                            "logo design on a FLUX base, its dedicated settings applied "
+                            "automatically. The open-source reference of the field.",
         'prompt_tips': [
             'Dual Combination: "wablogo, Minimalist, Dual Combination: mountain and coffee cup"',
             'Font Combination: "wablogo, logo, Minimalist, Font Combination: rocket with letter S"',
@@ -625,12 +624,12 @@ FLUX_MODELS = {
         'default_guidance_scale': 3.5,
         'default_steps': 28,
         'license': 'flux-1-dev-non-commercial',
-        'description': 'FLUX.1-dev — adhérence au prompt de référence',
+        'description': 'FLUX.1-dev — the reference for prompt adherence',
         'description_long': (
-            "FLUX.1-dev (Black Forest Labs, 12B) : référence open-weights pour l'adhérence au "
-            "prompt et l'esthétique générale. Déjà présent localement — il servait uniquement de "
-            "modèle de base au LoRA logo. Rectified flow : guidance 3.5 et ~28 étapes. "
-            "Licence non commerciale (recherche/usage interne)."
+            "FLUX.1-dev (Black Forest Labs, 12B): the open-weights reference for prompt "
+            "adherence and overall aesthetics. Already present locally — it served only as the "
+            "base model of the logo LoRA. Rectified flow: guidance 3.5 and ~28 steps. "
+            "Non-commercial licence (research / internal use)."
         ),
     },
 }

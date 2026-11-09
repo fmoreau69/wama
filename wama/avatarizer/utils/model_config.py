@@ -156,7 +156,7 @@ AVATARIZER_MODELS = {
         'type': 'lipsync',
         'vram_gb': MUSETALK_VRAM_GB,
         'version': 'v15',
-        'description': "MuseTalk V1.5 — lip-sync temps quasi réel, meilleure fidélité labiale.",
+        'description': "MuseTalk V1.5 — near-real-time lip sync, the most faithful lip shapes.",
         'files': MUSETALK_FILES,
     },
     # Avatar 3D riggé rendu en vidéo (2026-09-30) — PAS de poids : le moteur est TalkingHead
@@ -172,15 +172,15 @@ AVATARIZER_MODELS = {
         'vram_gb': 0.2,          # mesuré le 2026-09-30 (talkinghead_backend.recommended_vram_gb)
         # Langues ayant un module de visèmes (wama-avatar.js) ; les autres parlent en visèmes anglais.
         'languages': ['fr', 'en', 'de', 'fi', 'lt'],
-        'description': "TalkingHead — avatar 3D riggé (GLB) animé par l'audio, rendu image par image ; "
-                       "rapide, sans modèle génératif, non photoréaliste.",
+        'description': "TalkingHead — a rigged 3D avatar (GLB) driven by the audio, rendered frame by "
+                       "frame; fast, no generative model, not photorealistic.",
     },
     'codeformer': {
         'model_id': 'codeformer',
         'platform_ref': 'huggingface:sczhou/CodeFormer',
         'type': 'face-restoration',
         'vram_gb': CODEFORMER_VRAM_GB,
-        'description': "CodeFormer — restauration de visage (option qualité supérieure, use_enhancer).",
+        'description': "CodeFormer — face restoration (higher-quality option, use_enhancer).",
         'files': CODEFORMER_FILES,
     },
 }

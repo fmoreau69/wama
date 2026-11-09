@@ -329,8 +329,8 @@ def model_info_for(source: str, item: dict):
         id=item['id'], name=item.get('name') or item['id'],
         model_type=ModelType(model_type), source=ModelSource(source),
         description=(item.get('description')
-                     or (f"{src.label} — le modèle est choisi par le fournisseur" if declared
-                         else f"{src.label} — modèle distant ({remote_type})")),
+                     or (f"{src.label} — the provider chooses the model" if declared
+                         else f"{src.label} — remote model ({remote_type})")),
         # Sans description du fournisseur, le texte ci-dessus est un REMPLISSAGE : il ne remplace
         # pas une vraie description à la synchronisation (`ModelInfo.description_placeholder`).
         description_placeholder=not item.get('description'),

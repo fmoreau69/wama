@@ -61,13 +61,12 @@ class QwenASRBackend(SpeechToTextBackend):
                         'qwen3-asr-1.7b': {'platform_ref': 'huggingface:Qwen/Qwen3-ASR-1.7B'}}
     name = "qwen_asr"
     display_name = "Qwen3-ASR (Alibaba)"
-    description = "Qwen3-ASR — multilingue, context biasing des mots-clés. Diarisation via pyannote."
+    description = "Qwen3-ASR — multilingual, keyword context biasing. Diarisation through pyannote."
     description_long = (
-        "Qwen3-ASR (Alibaba) : transcription multilingue (30 langues, dont le français) avec "
-        "context biasing natif — les mots-clés fournis entrent dans le contexte du modèle pour "
-        "mieux reconnaître le vocabulaire métier. Pas de diarisation native (pyannote en "
-        "post-traitement) ; segments de 30 s, l'heure de chaque mot vient de l'alignement "
-        "acoustique. ~2–4 Go VRAM."
+        "Qwen3-ASR (Alibaba): multilingual transcription (30 languages, French included) with "
+        "native context biasing — the keywords given enter the model's context to recognise the "
+        "domain vocabulary better. No native diarisation (pyannote in post-processing); 30 s "
+        "segments, each word's time comes from the acoustic alignment. ~2–4 GB VRAM."
     )
 
     supports_diarization = False   # pyannote post-processing in workers.py

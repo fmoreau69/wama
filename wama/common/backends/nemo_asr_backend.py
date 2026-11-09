@@ -69,11 +69,11 @@ class NemoASRBackend(SpeechToTextBackend):
     }
     name = "nemo"
     display_name = "NVIDIA NeMo (Canary / Parakeet / LinTO)"
-    description = "NVIDIA NeMo — Canary 1B v2 / Parakeet TDT v3, 25 langues européennes, heure au mot."
+    description = "NVIDIA NeMo — Canary 1B v2 / Parakeet TDT v3, 25 European languages, word timing."
     description_long = (
-        "Moteurs ASR NVIDIA : Canary 1B v2 (le plus précis en français parmi les modèles ouverts, "
-        "langue à préciser) et Parakeet TDT 0.6B v3 (très rapide, langue détectée). 25 langues "
-        "européennes, horodatage au mot natif. Diarisation via pyannote. ~3–8 Go VRAM."
+        "NVIDIA ASR engines: Canary 1B v2 (the most accurate in French among open models, the "
+        "language must be given) and Parakeet TDT 0.6B v3 (very fast, language detected). 25 "
+        "European languages, native word timestamps. Diarisation through pyannote. ~3–8 GB VRAM."
     )
 
     supports_diarization = False   # pyannote post-processing in workers.py
