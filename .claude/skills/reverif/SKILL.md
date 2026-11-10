@@ -126,6 +126,12 @@ un autre lecteur du même cache), puis le lire ; et comparer le neuf à ce qu'il
   saisie (forme d'entrée non dérivée). Le geste qui l'a vu : client connecté, `GET` de la page,
   présence de l'attribut de la zone et de son script — plus la contre-épreuve sur une app qui ne
   déclare rien.
+- 🔴 **Un témoin ne voit pas ce qu'il ne porte pas** (vécu le 2026-11-09, lecture MIDI). Sur le
+  témoin de la page (une voix, sans instrument déclaré), lectures et exports étaient justes : son
+  présent, durée juste, aucune erreur. La première vraie partition à cinq voix a montré que tous
+  les instruments partaient sur le canal 0. ✅ Une fois le geste vert sur le témoin, le rejouer
+  EN LECTURE SEULE sur la donnée réelle la plus riche, et comparer au réel ce qui doit y arriver
+  (ici : programme et notes par canal).
 
 ## 3. Consigné — la doc confrontée au code
 

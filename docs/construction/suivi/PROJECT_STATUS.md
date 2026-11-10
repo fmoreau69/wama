@@ -29835,3 +29835,55 @@ livraison ») ; mécanisme `midi_reading`.
 - **Laissé à leurs propriétaires** : le bloc précédent de ce fichier, le hunk `tensorflow`
   d'`external_sources.py`, `tests_sound_banks.py`, le `vram` des manifestes DeepFace, le service
   TensorFlow, `mecanismes.py`, le worktree `wt_preview_axis` (verrouillé).
+
+## §CLÔTURE 2026-11-10, « PARTITION LUE EN MIDI : DEUX BANQUES GARDÉES, INSTRUMENTS SUR LEUR CANAL, ABC → MIDI CÔTÉ SERVEUR ; BANDE DES PROCESS CONDITIONNELLE, PÉRIMÉS COMPTÉS » — locaux, non poussés — 🔚 relancer « Partition complète » sur une card, puis comparer les deux banques à l'oreille
+
+**Périmètre de la session (08→10/11)** : `09c6081cc` (étapes lisibles), `9e9a72811` (une étape inutile
+n'apparaît pas), `871a78d71` + `bfb8fa6a9` + `3b350a469` (périmés : compteur, ordre, menus ▾),
+`0e631c4cc` (le MIDI garde instrument, nuances, tempos), `4e017f13c` + `121edb49f` (lecture MIDI),
+`bf17c56b0` (commande FluidSynth), `f0b6534c3` (instruments sur leur canal), `c25af95ed` (consignation),
+`8c4aacdd7` (ABC → MIDI) et le commit de cette clôture. Détail : les paliers du 08/11 et du 09/11
+ci-dessus, `PROSPECTION_PIPELINE.md §Session du 2026-11-08`.
+
+**Décisions de Fabien du 2026-11-10** : l'outil d'assistant de l'export WAV attend le verdict sur les
+banques (*« on attend le verdict sur les banques »*) ; la conversion, non (*« dans tous les cas, il
+faut la conversion de l'ABC en midi. On le fait dans le même temps »*).
+
+- **ABC → MIDI côté serveur** (`midi_render.abc_to_midi`) : les scripts mêmes de la page sous V8
+  (`mini-racer`, déjà déclarée), donc aucune seconde écriture. Mesuré sur les 23 partitions réelles
+  du composer plus la 880 avec ses instruments : 24 MIDI identiques à l'octet à ceux de la page, en
+  2 à 3 s pour les 24. Garde `AbcToMidiOnTheServerTest`, cinq contre-épreuves rouges.
+- ✗ **Défaut trouvé par cette garde** : abcjs rend un fichier sans note plutôt qu'une erreur ; le refus
+  « partition sans notes à jouer » de `midiBytes` ne se déclenchait jamais et une telle partition
+  aurait sonné muette. Refusée désormais, page comprise.
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : le verdict de Fabien à l'oreille sur GeneralUser GS et MuseScore
+General (`ROADMAP §13`), puis l'outil d'assistant de l'export WAV par `/api-outils`, sur `abc_to_midi` +
+`render_wav`. ⚠ BLOQUANT pour cet outil : ce verdict.
+
+**Limites de ce que la session a construit** (à elle) :
+- `abc_to_midi` n'a encore aucun appelant : voulu, l'appelant est l'outil ci-dessus.
+- Les 23 partitions d'avant `0e631c4cc` n'ont pas d'instrument déclaré (piano, batterie à part) ; seule
+  une relance de « Partition complète » ou un MIDI importé donne de vrais instruments.
+- ⚠ Non vu au navigateur : la vue « Partition jouée » Réduite / Complète (il faut une card rendue).
+- ⏳ La vue ABC d'une partition MIDI/MusicXML fournie sur la page d'édition ; la lecture MIDI sur la
+  page de partition du Reader (pas de transport) ; à part, de meilleures librairies et instruments
+  virtuels (rien d'ouvert).
+
+**Hérités, à leurs propriétaires** : `WAMA_MECANISMES`, `docs/dev/briques.md` et le bloc d'outils de la route
+à régénérer pour le travail en cours d'autres sessions (la part de cette session est commitée à la
+main) ; 8 manifestes périmés du corpus, dont des modèles OpenRouter, hors de cette session ; 79
+lignes au `git status`, aucune de cette session. Les rouges nommés au palier du 08/11 (`quality_intent` du
+transcriber, écarts de l'enhancer, `tool_api_lectures` du composer) n'ont pas été remesurés : la suite
+complète n'a pas été lancée ici.
+
+**Pendings système** : aucune relance de WAMA n'est requise par `f0b6534c3` et `8c4aacdd7` (script servi
+recopié, fonction serveur sans appelant) : recharger la page suffit. Commits non poussés (toutes sessions
+confondues). Aucun serveur jetable, aucun worktree de cette session ; témoins retirés par leur garde ;
+sondes et rendus d'écoute de la card 880 dans le scratchpad, jetables.
+
+**Contrôles attendus au prochain /reprise** : `tests_sound_banks` + `tests_midi_score` 38 OK ; avec
+`tests_identifier_language`, `tests_tool_api_coverage`, `tests_mecanismes_scan`, `tests_test_layout`,
+`tests_install_route` : 103 OK ; noms de tests français 1286, égal au budget ; `check_docs` 0 cassée sur
+4000 ; `check_redundancy` 114, dans les fichiers de la session un seul rapprochement, de nom
+(`composer/tasks.py::_render` contre `render_wav`, sans rapport) ; `check_skills` 0 défaut franc.

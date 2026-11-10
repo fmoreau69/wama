@@ -119,6 +119,11 @@ print('COUNTERPROOF <nom>: failures =', failures,
 
 - **Rouge attendu** : la garde mesure. Reporter le fait dans le commit (« contre-épreuve à blanc :
   brique neutralisée → rouge »), jamais seulement dans la tête.
+  🔴 **Un rouge ne prouve rien si le test est DÉJÀ rouge sur le code sain** (vécu le 2026-11-10,
+  conversion ABC → MIDI : quatre mutations toutes rouges, et l'une des gardes échouait sans
+  mutation, sur un vrai défaut). ✅ Lancer les gardes SANS mutation dans la même série, d'abord, et
+  exiger leur vert ; un rouge de mutation dont le message est le même que celui du code sain ne
+  compte pas.
 - **Vert** = le test est AVEUGLE, et c'est une découverte, pas un contretemps. Deux causes vues :
   1. le test **exclut le cas** qu'il devrait mesurer — vécu le 27/09 : il écartait « le chemin rendu
      est celui de la source », qui venait justement de devenir le cas NORMAL. *Un test qui exclut le
