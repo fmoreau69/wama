@@ -30328,3 +30328,10 @@ de ce périmètre : `tests_backend_deprecation`, `tests_manifest_library`, `test
   image / vidéo jusqu'à l'arrivée (rangé dans le bon domaine ensuite) ; ⑤ l'option « piste audio »
   du domaine vidéo, avec le domaine audio (décidée le 28/10) ; ⑥ Translator → le reste de
   `document_text` ; ⑦ la jumelle, côté générateur, après la décision de Fabien.
+- **Revérifié le 10/11 contre les commits d'après la livraison** (17 commits du 03 au 10/11 touchent
+  `wama/anonymizer`, `common/privacy`, `document_text` ou `ocr_process`) : `874f55dc6` (08/11) écarte
+  des téléphones une date de calendrier VALIDE, mais une PLAGE d'années sort encore `PHONE_NUMBER` à
+  0,4 (« 2018 - 2021 », « 2015-2017 », mesuré au moteur à motifs seuls) — reste ① ; `28826db58`
+  garde le service de confidentialité dans `WAMA_SERVICES_AT_START` (préchauffage au démarrage
+  inchangé) ; `1a958e24d` et `a27e73918` touchent le domaine image, `c84b824d2` et `79c2284cf`
+  passent des noms à l'anglais — rien ne contredit ce bloc.
