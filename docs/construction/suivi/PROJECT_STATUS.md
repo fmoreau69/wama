@@ -30546,3 +30546,39 @@ Revérification complète (`/reverif`) des commits `283de6d12`, `89280e43f`, `55
   vert sur le service (15/15 à 1440 et 1920 px, 2/2 lot inachevé). Leçons au rituel : `/smoke §4` (un menu
   ne se masque qu'ouvert vers le bas ; un état forcé dans le DOM d'une file est écrasé par son suivi) et
   `/reverif §2` (nom de test vérifié par la langue avant le commit — `refuses` puis `declares` le même jour).
+
+## §CLÔTURE 2026-11-10, « ANONYMIZER DOCUMENTS » (suite de la §PASSATION 2026-11-02→10 ci-dessus) — 83c695ec4, c1c58037e, 601ce8ff9, 3686537a9 (locaux) — 🔴 relancer gunicorn + workers + service de confidentialité (`privacy/engine.py`, vues et tâches de l'Anonymizer) — 🔚 session fraîche de Fabien sur l'app documents
+
+- **Soldé après la passation** : le reste ① « une plage d'années lue comme téléphone » (`83c695ec4` :
+  `engine._is_calendar_date` écarte aussi deux années de 1900 à 2100 ; garde
+  `CalendarDateIsNoPhoneTest.test_a_range_of_years_is_not_a_phone`, contre-épreuve rouge) ; la glu
+  `_detect_text` renommée `_detect_personal_data` (`601ce8ff9`, faux positif de
+  `check_redundancy` par le nom ; la clé du process ne change pas).
+- **Revérification (`/reverif`)** : aligné — la brique `surface_source_nature` a deux voisines de
+  même nature qui ne sont PAS des copies : `describer._source_nature` (lecture sans la porte,
+  voulue, `REMOVAL_LEDGER R199`) et le converter (sa politique `SUPPORTED_CONVERSIONS`). Écart
+  trouvé et consigné (`c1c58037e`, `INPUT_MODEL_MATCHING §7bis`) : une entrée reçue par URL ne
+  propose rien à son arrivée, hors de l'Anonymizer — reader et composer déclarent `default_from`
+  sans cette reprise ; à poser une fois au récepteur `source_ingest`.
+- **Mesuré** : anonymizer + `tests_privacy` 102 OK après la dernière écriture de code ; quatre
+  contre-épreuves rouges dans la session ; `check_redundancy` 114 → 113, une trouvaille restante
+  dans l'Anonymizer qui n'est pas de cette session (`tasks._output` contre `output_naming.output_tag`,
+  le process « Sortie » du 2026-10-04) ; `doc_facts --check` à jour ; `check_docs` 0 cassée.
+- **Rouges hors chantier, par leur nom** : `tests_identifier_language` (budget des noms de méthodes
+  de test ; aucun de mes fichiers à `--detail --test-names`) ; `tests_mecanismes_scan.OneFileOneOwnerTest`
+  (`scripts/wama_services.sh` et `scripts/worker_watchdog.sh` déclarés par `process_control` ET
+  `service_supervision`, session des services) ; `enhancer.tests_declared_weights` (code
+  vendorisé d'ACE-Step du 05/11, dossier ignoré par git).
+- **Transmis** : domaines et régénération de la jumelle `anonymizer_01` → session du générateur
+  (`-65`), qui soumet à Fabien un champ `domain` du nœud de pipeline (`7c18ac806`).
+- **Skill** : `commit-partiel` §1 (`3686537a9`) — `PROJECT_STATUS` n'est jamais un fichier propre
+  (vécu ici : `df1c11517`, refait en `46625c013`).
+- **Effets de bord** : les deux workers gunicorn redémarrés le 09/11 (mémoire GPU 18,5 → 6,5 Go) ;
+  scripts jetables dans le scratchpad de session ; rien en file, aucun compte semé.
+- 🔚 **POINT D'ENTRÉE** — session fraîche « Anonymizer documents » : ① la MESURE WAMA de la
+  détection sur un vrai jeu (CV #2297 : dates et intitulés de poste pris pour des données,
+  « diabète » non vu) avant toute correction ; ② la page de correction par passage ; ③ `remaining`
+  ne relit pas un scan ; ④ une URL sans nom de fichier naît image/vidéo jusqu'à l'arrivée ; ⑤ la
+  « piste audio » de la vidéo ; ⑥ Translator → `document_text` ; et le chantier commun des
+  propositions à l'arrivée d'une URL. **Pendings système** : relances ci-dessus ; `dev` a 9 commits
+  d'avance au moment d'écrire, plus celui de ce bloc.
