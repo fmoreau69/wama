@@ -168,6 +168,7 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 >    base gardée n'avait plus leurs tables. Sur une base neuve : **32**, aucun de la session. *Une
 >    base de test gardée ne suit pas les jumelles qui naissent et meurent* — `ProgrammingError
 >    … column … of relation "<jumelle>_…" does not exist` en est la signature.
+>    ⚠ **Une jumelle se remesure JUSTE avant d'écrire son état, et le bloc date sa mesure** (vécu le 2026-11-10) : « tables présentes, module vert », mesuré à 17:46 et consigné à 17:53, était déjà faux : une autre session l'avait recréée à 17:49. ✅ Dans le script qui écrit le bloc : `app_sandbox list` et la date de ses fichiers générés.
 >
 > ⚠⚠ **Un test qui SKIPPE après une migration est plus grave qu'un rouge.** Même session :
 > `CorpusReelTest` ne cherche plus son corpus au bon endroit, donc il passe en `skipped` — *un
