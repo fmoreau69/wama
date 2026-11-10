@@ -80,8 +80,10 @@ class RafraichissementTest(TestCase):
         self.assertEqual((n, errors), (1, []))
         self.assertIn(f"-->{len(REGISTRIES)}<!--", fresh)
 
-    def test_a_tag_in_a_quoted_code_block_stays_code(self):
-        text = "> ```\n> <!-- WAMA:FAIT(x/y/z) -->v<!-- /WAMA:FAIT -->\n> ```\n"
+    def test_a_tag_in_a_longer_fence_stays_code_past_a_shorter_one(self):
+        # La règle commune (`doc_sections.code_fence`) : un bloc ouvert par ```` ne se ferme pas
+        # sur ```, la balise qui suit reste citée.
+        text = "````\n```\n<!-- WAMA:FAIT(x/y/z) -->v<!-- /WAMA:FAIT -->\n```\n````\n"
         self.assertEqual(refresh_text(text), (text, 0, []))
 
     def test_les_blocs_WAMA_FAITS_ne_sont_pas_des_balises_en_ligne(self):

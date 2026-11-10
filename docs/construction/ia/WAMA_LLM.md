@@ -3311,7 +3311,8 @@ n'ajoute aucun mécanisme, elle rend un geste existant explicite : `/concile` (o
 message, `WAMA_HARNESS §7.4`), `/competence <clé> <question>` (le `domain` du tour, lu dans
 `assistant_skills.DOMAINES` — choix MANUEL de l'utilisateur, l'arbitrage du 21/08 vise l'adaptateur
 qui devinerait ; seule, ou `/competences`, elle LISTE ce qu'on peut imposer, l'annonce au modèle le
-dit et la page des skills affiche la frappe de chacune, décision de Fabien du 2026-11-10), `/effort` (le curseur, positions de `QUALITY_PRESETS`), `/modele` (`set_chat_model`),
+dit en nommant aussi les postures d'agent qu'elle n'annonce pas (sans elles, un vrai modèle répondait
+« six » pour huit), et la page des skills affiche la frappe de chacune, décision de Fabien du 2026-11-10), `/effort` (le curseur, positions de `QUALITY_PRESETS`), `/modele` (`set_chat_model`),
 `/oublier` (`clear_thread`), `/code` (`ask_claude_code`, coût affiché), `/aide` (générée de la
 déclaration). Préfixe `/` ou `!` partout ; la réponse reprend celui que la personne a tapé, l'aide d'un
 canal montre `!` (sur Discord, `/` ouvre le sélecteur des commandes natives). Une commande qui répond

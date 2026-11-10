@@ -552,8 +552,9 @@ class CouncilTest(TestCase):
             self.assertEqual(key, resolve_domain(key).key)
             self.assertTrue(role_instructions(key))
             self.assertIn(key, spec['function']['parameters']['properties']['agents']['items']['enum'])
-            # Postures d'AGENT : nommées par `delegate`, pas annoncées à chaque tour principal.
-            self.assertNotIn(f'`{key}`', competences_announcement())
+            # Postures d'AGENT : nommées par `delegate`, hors de la liste des compétences que le
+            # modèle charge de lui-même ; la ligne de l'utilisateur les nomme (2026-11-10).
+            self.assertNotIn(f'- `{key}`', competences_announcement())
 
 
 class CouncilUnderTrialTest(TestCase):

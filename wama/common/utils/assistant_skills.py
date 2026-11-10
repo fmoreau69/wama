@@ -141,14 +141,16 @@ def competences_announcement(sauf: str = None) -> str:
     if not lignes:
         return ''
     # Le choix MANUEL de l'utilisateur, dit au modèle pour qu'une demande en clair (« quelles
-    # compétences puis-je imposer ? ») trouve une réponse : les postures d'agent, non annoncées
-    # ici, sont dans la liste que rend la commande (décision de Fabien, 2026-11-10).
+    # compétences puis-je imposer ? ») trouve une réponse (décision de Fabien, 2026-11-10). Les
+    # postures d'agent, hors de la liste ci-dessus, y sont NOMMÉES : sans elles, un vrai modèle
+    # répondait « six compétences » quand la commande en rend huit.
     from wama.common.services.assistant_commands import competence_usage
+    agents = ', '.join(f"`{d.key}`" for d in DOMAINES if not d.announced)
     return ("\n\nSpecialised competences you can load with the `charger_competence` tool "
             "when the request calls for one (do it BEFORE answering, and only once per "
             "topic):\n" + "\n".join(lignes)
-            + f"\nThe user can impose one: `{competence_usage('<key>')}` (`!` on a channel); "
-              "typed alone, it lists them all.")
+            + "\nThe user can impose one" + (f", {agents} included" if agents else '')
+            + f": `{competence_usage('<key>')}` (`!` on a channel); typed alone, it lists them all.")
 
 
 def laboratory_context(user, question: str, key: str = None) -> str:

@@ -38,7 +38,12 @@ class RegistreDomainesTests(TestCase):
     def test_the_announcement_tells_the_model_how_a_user_imposes_a_competence(self):
         """Sans cette ligne, « quelles compétences puis-je imposer ? » n'avait pas de réponse."""
         from wama.common.services.assistant_commands import competence_usage
-        self.assertIn(competence_usage('<key>'), sk.competences_announcement())
+        announcement = sk.competences_announcement()
+        self.assertIn(competence_usage('<key>'), announcement)
+        # Chaque compétence que la commande rend est NOMMÉE au modèle, annoncée ou non : un vrai
+        # modèle ne citait que les annoncées (6 sur 8, mesuré en service le 2026-11-10).
+        for d in sk.DOMAINES:
+            self.assertIn(f'`{d.key}`', announcement, d.key)
 
 
 class ContexteLaboratoireTests(TestCase):
@@ -196,5 +201,7 @@ class ChargementParLAssistantTests(TestCase):
         entiers = sum(len(sk.role_instructions(d.key)) for d in sk.DOMAINES)
         # 600 → 700 le 2026-11-10 : la seule ligne qui dit au modèle comment un utilisateur impose
         # une compétence (décision de Fabien). Toute autre ligne se paie à chaque tour.
-        self.assertLess(annonce, 700)
+        # 700 → 750 le même jour : la ligne NOMME aussi les postures d'agent (733 mesurés ;
+        # une dizaine de jetons, décision de Fabien).
+        self.assertLess(annonce, 750)
         self.assertLess(annonce * 5, entiers)     # au moins 5× moins cher

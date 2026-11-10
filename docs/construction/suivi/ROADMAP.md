@@ -5266,7 +5266,7 @@ lui-même sa compétence par l'outil `charger_competence` (`tool_api.py:2838`), 
 (`assistant_skills.py:108`) n'a toujours aucun appelant hors test. Retirer ces deux ⏳ (ou garder
 le sélecteur UI comme doublure de l'outil) est une décision de Fabien.
 ↳ *2026-11-10* : le choix manuel existe aussi par `/competence` (`f5400183c`) ; la décision du sélecteur UI reste à Fabien.
-↳ *Décision de Fabien, 2026-11-10* : pas de sélecteur dans l'interface pour le moment, on s'en tient aux commandes. `/competence` seule (ou `/competences`, `/skills`) liste les compétences qu'on peut imposer ; l'annonce au modèle le dit, pour une demande en clair ; la page des skills affiche la frappe de chacune. `domains_for_ui` est retirée (`REMOVAL_LEDGER R235`), la déduction du domaine depuis le canal reste écartée (arbitrage du 21/08).
+↳ *Décision de Fabien, 2026-11-10* : pas de sélecteur dans l'interface pour le moment, on s'en tient aux commandes. `/competence` seule (ou `/competences`, `/skills`) liste les compétences qu'on peut imposer ; l'annonce au modèle le dit, pour une demande en clair, en nommant aussi les postures d'agent qu'elle n'annonce pas (un vrai modèle en citait 6 sur 8, mesuré en service) ; la page des skills affiche la frappe de chacune. `domains_for_ui` est retirée (`REMOVAL_LEDGER R235`), la déduction du domaine depuis le canal reste écartée (arbitrage du 21/08).
 
 ### 19.6 ⚠ CONTRAT À DÉFENDRE entre les 3 chantiers de l'assistant (posé le 2026-08-21)
 

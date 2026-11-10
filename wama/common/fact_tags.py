@@ -36,11 +36,12 @@ TAG = re.compile(r'<!-- WAMA:FAIT\(([^)\s]+)\) -->(.*?)<!-- /WAMA:FAIT -->')
 #: Une balise CITÉE en code (bloc ``` ou `en ligne`) n'est pas une balise : une doc doit pouvoir
 #: EXPLIQUER la syntaxe sans que le résolveur la prenne pour un fait. Trouvé le 2026-09-11 par la
 #: garde de corpus, à sa première exécution — sur la phrase même qui présentait la syntaxe.
-#: Le code est capturé EN PREMIER (groupe 1) et rendu tel quel ; seul ce qui reste est une balise.
-#: Un bloc commence et finit en TÊTE DE LIGNE (citation `>` admise), comme pour le rendu Markdown :
-#: trois accents graves cités dans une phrase rendaient la suite du fichier « code », et la seule
-#: balise de la ROADMAP a dit 17 registres pour 21 sans que `doc_facts --check` le voie (2026-11-10).
-_CODE_OU_TAG = re.compile(r'((?ms:^[ \t>]*```.*?^[ \t>]*```)|`[^`\n]*`)|' + TAG.pattern)
+#: Les BLOCS suivent la règle commune des `.md` (`doc_sections.code_fence`), ligne par ligne ; sur
+#: une ligne hors bloc, le code en ligne est capturé EN PREMIER (groupe 1) et rendu tel quel. Ce
+#: module avait sa propre règle (« ``` … ``` » n'importe où) : trois accents graves cités dans une
+#: phrase rendaient la suite du fichier « code », et la seule balise de la ROADMAP a dit
+#: 17 registres pour 21 sans que `doc_facts --check` le voie (2026-11-10).
+_INLINE_CODE_OR_TAG = re.compile(r'(`[^`\n]*`)|' + TAG.pattern)
 
 #: Le registre des registres : il n'est pas une entrée de `REGISTRIES`, il EST leur liste.
 META = 'registres'
@@ -144,4 +145,10 @@ def refresh_text(texte: str) -> Tuple[str, int, List[Tuple[str, str]]]:
                 return m.group(0)
         return f"<!-- WAMA:FAIT({chemin}) -->{valeurs[chemin]}<!-- /WAMA:FAIT -->"
 
-    return _CODE_OU_TAG.sub(_remplacer, texte), compte, erreurs
+    from .doc_sections import code_fence
+    out, fenced = [], ''
+    for line in texte.splitlines(keepends=True):
+        is_fence, after = code_fence(line.rstrip('\r\n'), fenced)
+        out.append(line if (is_fence or fenced) else _INLINE_CODE_OR_TAG.sub(_remplacer, line))
+        fenced = after
+    return ''.join(out), compte, erreurs
