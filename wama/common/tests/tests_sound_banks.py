@@ -122,6 +122,47 @@ class ServerRenderTest(TestCase):
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class AbcToMidiOnTheServerTest(SimpleTestCase):
+    """ABC → MIDI on the server (2026-11-10, Fabien : « dans tous les cas, il faut la conversion de
+    l'ABC en midi ») : the very scripts of the page under V8, so the MIDI is the one that is heard."""
+    SCORE = ('X:1\nM:4/4\nL:1/4\nQ:1/4=120\nK:C\n'
+             'V:A\n%%MIDI program 52\nC D E F|\n'
+             'V:B\n%%MIDI program 24\nG A B c|\n'
+             'V:D\n%%MIDI channel 10\nC C C C|\n')
+
+    def test_each_voice_comes_out_with_its_instrument_on_its_channel(self):
+        import io
+        import mido
+        from wama.common.utils.midi_render import abc_to_midi
+        song = mido.MidiFile(file=io.BytesIO(abc_to_midi(self.SCORE)))
+        programs, notes = {}, {}
+        for message in (m for track in song.tracks for m in track):
+            if message.type == 'program_change':
+                programs[message.channel] = message.program
+            if message.type == 'note_on' and message.velocity:
+                notes[message.channel] = notes.get(message.channel, 0) + 1
+        self.assertEqual({0: 52, 1: 24, 9: 0}, programs)
+        self.assertEqual({0: 4, 1: 4, 9: 4}, notes)
+        self.assertAlmostEqual(2.0, song.length, delta=0.1)
+
+    def test_a_score_without_notes_raises_and_says_why(self):
+        from wama.common.utils.midi_render import abc_to_midi
+        with self.assertRaisesMessage(ValueError, 'partition vide'):
+            abc_to_midi('  ')
+        for silent in ('X:1\nK:C\n', 'X:1\nL:1/4\nK:C\nz4|\n'):
+            with self.subTest(score=silent), self.assertRaisesMessage(ValueError, 'sans notes à jouer'):
+                abc_to_midi(silent)
+
+    def test_the_server_writes_with_the_scripts_of_the_score_brick(self):
+        from wama.common.surfaces import BRICKS
+        from wama.common.utils.midi_render import midi_writer_scripts
+        scripts = midi_writer_scripts()
+        self.assertEqual(2, len(scripts))
+        self.assertTrue(set(scripts) <= set(BRICKS['score_view'].requires))
+        self.assertTrue(any(path.endswith('wama-midi-player.js') for path in scripts))
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class MidiPlayerTest(SimpleTestCase):
     CONFIG = json.dumps({
         'banks': [{'key': 'gu', 'label': 'GeneralUser GS', 'local': '/static/gu.sf2',
@@ -151,12 +192,14 @@ class MidiPlayerTest(SimpleTestCase):
         callers = sorted(str(p.relative_to(JS)) for p in JS.rglob('*.js')
                          if 'getMidiFile(' in p.read_text(encoding='utf-8'))
         self.assertEqual(['wama-midi-player.js'], callers)
-        got = self.v8.eval("""
-            window.ABCJS = {synth: {getMidiFile: function () { return [[77, 84, 104, 100]]; }}};
+        song = [77, 84, 104, 100, 0, 0, 0, 6, 0, 1, 0, 1, 1, 224,
+                77, 84, 114, 107, 0, 0, 0, 12, 0, 144, 60, 100, 96, 128, 60, 0, 0, 255, 47, 0]
+        got = self.v8.eval(f"""
+            window.ABCJS = {{synth: {{getMidiFile: function () {{ return [{song}]; }}}}}};
             var m = window.WamaMidiPlayer.midiBytes('X:1');
             JSON.stringify([m instanceof Uint8Array, Array.from(m)]);
         """)
-        self.assertEqual([True, [77, 84, 104, 100]], json.loads(got))
+        self.assertEqual([True, song], json.loads(got))
 
     def test_each_instrument_change_goes_to_the_channel_of_its_track(self):
         """abcjs 6.4.4 writes every program change on channel 0 (measured on 2026-11-09 on a real

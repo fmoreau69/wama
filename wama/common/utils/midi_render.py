@@ -1,13 +1,19 @@
-"""Le RENDU AUDIO d'un MIDI côté serveur, par FluidSynth (2026-11-08, décision de Fabien :
-« FluidSynth oui ») — l'export WAV d'une partition, avec les MÊMES banques que la lecture dans la page
-(`sound_banks`), donc le même son. Veille : `PROSPECTION_PIPELINE.md §Session du 2026-11-08`.
+"""Une partition rendue côté serveur : son MIDI, écrit depuis l'ABC, et son AUDIO, par FluidSynth
+(2026-11-08, décision de Fabien : « FluidSynth oui ») — l'export WAV d'une partition, avec les MÊMES
+banques que la lecture dans la page (`sound_banks`), donc le même son. Veille :
+`PROSPECTION_PIPELINE.md §Session du 2026-11-08`.
 
 FluidSynth est un programme SYSTÈME (LGPL-2.1), pas un paquet PyPI : `tools/install_wama.sh` le
 vérifie et dit la commande (`INSTALL_COMMAND`) ; absent, le rendu le DIT
 (`FluidSynthMissing`), il ne retombe sur rien en silence.
+
+ABC → MIDI (2026-11-10, Fabien : « dans tous les cas, il faut la conversion de l'ABC en midi ») :
+`abc_to_midi` exécute sous V8 LES scripts de la page (abcjs et `WamaMidiPlayer.midiBytes`). Un autre
+convertisseur serait une seconde écriture, qui donnerait un autre MIDI que celui qu'on écoute.
 """
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import tempfile
@@ -26,12 +32,43 @@ TIMEOUT_S = 600
 INSTALL_COMMAND = 'sudo apt-get update && sudo apt-get install -y --no-install-recommends fluidsynth'
 
 
+#: Le temps laissé à V8 pour écrire le MIDI d'une partition (s).
+ABC_TIMEOUT_S = 60
+
+
 class FluidSynthMissing(RuntimeError):
     """FluidSynth n'est pas installé sur l'hôte."""
 
 
 def fluidsynth_path() -> str:
     return shutil.which('fluidsynth') or ''
+
+
+def midi_writer_scripts() -> list[str]:
+    """Les scripts qui écrivent le MIDI d'une partition, tels que la brique partition les déclare."""
+    from wama.common.surfaces import BRICKS
+    return [path for path in BRICKS['score_view'].requires
+            if 'abcjs' in path or path.endswith('wama-midi-player.js')]
+
+
+def abc_to_midi(abc: str) -> bytes:
+    """Les octets MIDI d'une partition ABC : ceux qu'écrit la page, instruments sur leurs canaux
+    compris. Lève `ValueError` (partition vide, illisible ou sans notes)."""
+    from django.contrib.staticfiles import finders
+    from py_mini_racer import JSEvalException, MiniRacer
+    if not str(abc or '').strip():
+        raise ValueError('partition vide')
+    sources = [Path(finders.find(path)).read_text(encoding='utf-8') for path in midi_writer_scripts()]
+    with MiniRacer() as v8:
+        try:
+            v8.eval('var window = globalThis;')
+            for source in sources:
+                v8.eval(source)
+            written = v8.eval(f'Array.from(window.WamaMidiPlayer.midiBytes({json.dumps(abc)})).join(",")',
+                              timeout_sec=ABC_TIMEOUT_S)
+        except JSEvalException as error:
+            raise ValueError(f'partition illisible : {str(error)[:200]}') from error
+    return bytes(int(byte) for byte in written.split(','))
 
 
 def render_wav(midi: bytes, bank_key: str) -> bytes:

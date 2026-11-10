@@ -3363,7 +3363,8 @@ Deux voies, complémentaires :
 - **Composer / lecture MIDI d'une partition** : comparer à l'oreille GeneralUser GS et MuseScore General
   sur de vraies partitions, n'en retirer une que si l'autre l'emporte nettement ; à part, **de meilleures
   librairies et instruments virtuels**, rien d'ouvert (Fabien, 2026-11-09 — `PROSPECTION_PIPELINE.md
-  §Session du 2026-11-08`)
+  §Session du 2026-11-08`) ; l'outil d'assistant de l'export WAV attend ce verdict
+  (`midi_render.abc_to_midi` est prêt, 2026-11-10)
 
 ---
 

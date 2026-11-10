@@ -3558,7 +3558,9 @@ MECHANISMS = (
               "repli sur SpessaSynth) — des versions de plus au transport commun (`ctx.addSource`, "
               "rendues à la demande, d'où vient le son DIT). Côté serveur, `midi_render` joue le "
               "même MIDI avec la même banque par FluidSynth (programme système, vérifié par "
-              "`tools/install_wama.sh`) : l'export « Audio WAV » de la partition",
+              "`tools/install_wama.sh`) : l'export « Audio WAV » de la partition. `abc_to_midi` "
+              "(2026-11-10) écrit le MIDI d'une partition côté serveur : LES scripts de la "
+              "page sous V8, donc le même MIDI",
               'wama/common/utils/sound_banks.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               annexes=('wama/common/static/common/js/wama-midi-player.js',

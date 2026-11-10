@@ -4506,13 +4506,21 @@ et bretelles… »* ; *« on ajoute bien les sources dans le registre des source
   Écrêtage des rendus FluidSynth de la card 880 au gain 0,8 : GeneralUser GS aucun (crête 31 235),
   MuseScore General 72 échantillons au plafond sur 3 min 40, plus long plateau 7 échantillons :
   négligeable, le gain reste.
+- **ABC → MIDI côté serveur (2026-11-10, Fabien : « dans tous les cas, il faut la conversion de
+  l'ABC en midi »)** : `midi_render.abc_to_midi` exécute sous V8 (`mini-racer`, librairie déjà
+  déclarée) les deux scripts que la brique partition déclare, abcjs et
+  `WamaMidiPlayer.midiBytes` : aucune seconde écriture, aucune dépendance neuve. Mesuré sur les 23
+  partitions réelles du composer plus la 880 avec ses instruments : 24 MIDI identiques à l'octet à
+  ceux de la page, 2 à 3 s pour les 24. Garde `AbcToMidiOnTheServerTest`, cinq contre-épreuves
+  rouges. Une partition sans notes est désormais refusée, page comprise : abcjs rendait un fichier
+  muet. Aucun appelant encore : l'outil d'assistant attend le verdict sur les banques.
 
 ⏳ **Reste** : relancer « Partition complète » sur une card pour que sa partition porte ses
 instruments (les réduites, à deux voix sans instrument déclaré, restent au piano) ; l'écoute
 COMPARÉE sur de vrais exemples, et retirer une banque seulement si l'une l'emporte nettement ; à
 part, un chantier distinct (Fabien, 2026-11-09) : de meilleures librairies et instruments
-virtuels ; un outil d'assistant pour l'export WAV (le MIDI s'écrit dans la page, aucune écriture
-ABC → MIDI côté serveur : décision à prendre) ; la vue ABC d'une partition MIDI/MusicXML fournie
+virtuels ; l'outil d'assistant de l'export WAV, qui attend le verdict sur les banques (Fabien,
+2026-11-10) ; la vue ABC d'une partition MIDI/MusicXML fournie
 sur la page d'édition (défaut relevé plus haut) ; la lecture MIDI sur la page de partition du
 Reader (elle n'a pas de transport).
 
