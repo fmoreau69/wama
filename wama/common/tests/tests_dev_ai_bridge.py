@@ -1398,6 +1398,15 @@ class BackendRoleTakesOneRepriseOnItsChecksTest(SimpleTestCase):
         self.assertIn("la racine des poids : paths['tokenizer'].parent", text)
         self.assertIn("la racine des poids : paths['deep'].parents[2]", text)
 
+    def test_the_common_contract_excerpt_always_carries_its_abstract_methods(self):
+        """They begin past the 22 000th character of `BaseModelBackend`: cut at 7 000, the excerpt
+        never showed `load(...) -> bool`, and three modules wrote `-> None` (2026-11-10)."""
+        excerpt = self.role.base_excerpt()
+        self.assertIn('def load(self, model: Optional[str] = None) -> bool:', excerpt)
+        self.assertIn('    @property\n    @abstractmethod\n    def is_loaded(self) -> bool:', excerpt)
+        self.assertIn('def unload(self) -> None:', excerpt)
+        self.assertLess(len(excerpt), self.role.BASE_CHARS + 3000, 'the head stays bounded')
+
     def test_a_loader_too_long_for_its_share_is_served_by_its_signature_doc_and_parameter_uses(self):
         """In the compact material the budget ran out before `_load_vae_model`, which joins `vae`
         to the folder it receives: the module passed `…/vae` (2026-11-10, `…/vae/vae`)."""

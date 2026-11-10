@@ -101,6 +101,51 @@ def probe_answer(user) -> str:
     return (models[0] or {}).get('key', '') if models else ''
 
 
+#: La consigne de la mesure de taille : une réponse d'un mot, pour que la durée soit celle de la
+#: LECTURE de la requête, pas d'une écriture.
+SIZE_PROBE_QUESTION = "\n\nIgnore le texte ci-dessus. Réponds uniquement par le mot : OK"
+
+
+def parse_sizes(raw: str) -> list:
+    """`'15000, 30000'` → `[15000, 30000]`, croissantes ; une valeur non entière ou nulle LÈVE."""
+    try:
+        sizes = sorted({int(part) for part in raw.split(',') if part.strip()})
+    except ValueError:
+        raise CommandError(f"--input-sizes : des nombres entiers séparés par des virgules, pas {raw!r}")
+    if not sizes or sizes[0] <= 0:
+        raise CommandError("--input-sizes : au moins une taille positive")
+    return sizes
+
+
+def sized_request(size: int) -> str:
+    """Une requête de `size` caractères EXACTEMENT : du code de WAMA (une matière de la nature de
+    celle des rôles), répété au besoin, puis la consigne courte."""
+    from pathlib import Path
+    source = Path(__file__).read_text(encoding='utf-8')
+    room = max(size - len(SIZE_PROBE_QUESTION), 0)
+    filler = (source * (room // len(source) + 1))[:room]
+    return filler + SIZE_PROBE_QUESTION
+
+
+def input_verdict(accepted: list) -> str:
+    """La conclusion d'une série `[(taille, accepté)]` : la plus grande acceptée, et si un refus
+    vient APRÈS elle (une limite) ou s'intercale (une panne qui n'a rien dit de la taille)."""
+    ok = [size for size, good in accepted if good]
+    refused = [size for size, good in accepted if not good]
+    if not refused:
+        return f"Toutes acceptées, jusqu'à {max(ok)} caractères."
+    if not ok:
+        return "Aucune acceptée — panne ou refus du fournisseur : refaire la série avant de conclure."
+    if min(refused) > max(ok):
+        # Le domicile du fait existe : la fenêtre du modèle au catalogue, d'où l'assistant tire déjà
+        # sa limite en caractères (`assistant_engine._safe_char_limit`, ~4 caractères par jeton).
+        return (f"Acceptée jusqu'à {max(ok)} caractères, refusée dès {min(refused)} — une limite "
+                "d'entrée, à confirmer par une seconde série ; elle se DÉCLARE dans la fenêtre du "
+                "modèle (`capabilities['context_length']`, par son manifeste), geste humain.")
+    return (f"Refus intercalés ({refused}) entre des tailles acceptées — instable, rien à conclure "
+            "sur la taille.")
+
+
 class Command(BaseCommand):
     help = ("Valide la passerelle LiteLLM (Ollama local par défaut ; cloud en option, clé requise) "
             "et mesure l'accès aux outils de WAMA (--tools, --provider claude_code).")
@@ -124,6 +169,11 @@ class Command(BaseCommand):
                                  "n'est pas déclarable).")
         parser.add_argument('--live', action='store_true',
                             help="claude_code : un appel RÉEL au CLI (crédit de l'abonnement).")
+        parser.add_argument('--input-sizes', default='',
+                            help="Tailles de requête en caractères, séparées par des virgules "
+                                 "(ex. 15000,30000,60000,90000) : la même consigne courte, une "
+                                 "matière de plus en plus longue — la limite d'ENTRÉE d'un "
+                                 "fournisseur, séparée du temps d'écriture. Exige --user.")
 
     def _user(self, options):
         from django.contrib.auth import get_user_model
@@ -141,7 +191,40 @@ class Command(BaseCommand):
             return self._subscription(options)
         if options['tools']:
             return self._native_tools(options)
+        if options['input_sizes']:
+            return self._input_sizes(options)
         return self._gateway(options)
+
+    # ── La limite d'ENTRÉE d'un fournisseur (2026-11-10) ─────────────────────────────────────
+    def _input_sizes(self, options):
+        """La même consigne courte derrière une matière de plus en plus longue, par le chemin des
+        rôles (`chat_with_source` : la clé et la garde du compte). Mesuré le 2026-11-10 : le rôle
+        `backend` d'ACE-Step (~90 000 caractères) n'a obtenu AUCUNE réponse d'Albert en sept
+        tentatives, quand Albert répondait aux appels courts — une limite de taille, ou une
+        panne ? Une réponse courte sépare la taille du temps d'écriture."""
+        import time
+
+        from wama.common.utils.llm_utils import chat_with_source, default_cloud_model
+        user = self._user(options)
+        provider = options['provider']
+        model = options['model'] or default_cloud_model(provider)
+        sizes = parse_sizes(options['input_sizes'])
+        self.stdout.write(f"Limite d'entrée → {provider} / {model}, pour {user.username} "
+                          f"(délai {options['timeout']} s par essai)")
+        accepted = []
+        for size in sizes:
+            started = time.time()
+            text, err = chat_with_source(
+                provider, model, [{'role': 'user', 'content': sized_request(size)}], user=user,
+                num_predict=512, think=False, temperature=None, timeout=options['timeout'])
+            seconds = time.time() - started
+            ok = bool(text) and 'OK' in text.upper()
+            accepted.append((size, ok))
+            line = (f"  {size:>7} car. {seconds:6.1f} s  "
+                    + (f"✓ {text.strip()[:30]!r}" if ok else
+                       f"✗ {(str(err) if text is None else repr(text))[:160]}"))
+            self.stdout.write(self.style.SUCCESS(line) if ok else self.style.WARNING(line))
+        self.stdout.write(input_verdict(accepted))
 
     # ── La passerelle (comportement d'origine) ───────────────────────────────────────────────
     def _gateway(self, options):

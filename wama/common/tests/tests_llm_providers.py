@@ -188,6 +188,39 @@ class ProvidersMustBeDeclaredTest(SimpleTestCase):
         self.assertEqual('page-key', fake.completion.call_args.kwargs['api_key'])
 
 
+class InputSizeProbeTest(SimpleTestCase):
+    """`llm_gateway_check --input-sizes` (2026-11-10): the backend role's ~90 000-character request
+    got no answer from Albert seven times while short calls passed — a size limit or an outage? The
+    same one-word question behind growing material separates reading from writing."""
+
+    def test_each_request_has_exactly_the_asked_size_and_ends_with_the_question(self):
+        from wama.model_manager.management.commands.llm_gateway_check import (
+            SIZE_PROBE_QUESTION, sized_request)
+        for size in (100, 15000, 90000):
+            with self.subTest(size=size):
+                request = sized_request(size)
+                self.assertEqual(size, len(request))
+                self.assertTrue(request.endswith(SIZE_PROBE_QUESTION))
+
+    def test_sizes_are_read_sorted_and_a_wrong_list_is_refused(self):
+        from django.core.management.base import CommandError
+
+        from wama.model_manager.management.commands.llm_gateway_check import parse_sizes
+        self.assertEqual([15000, 90000], parse_sizes('90000, 15000,15000'))
+        for wrong in ('', 'ninety', '0,100'):
+            with self.subTest(wrong=wrong), self.assertRaises(CommandError):
+                parse_sizes(wrong)
+
+    def test_the_verdict_tells_a_limit_from_an_outage(self):
+        from wama.model_manager.management.commands.llm_gateway_check import input_verdict
+        limit = input_verdict([(15000, True), (30000, True), (60000, False), (90000, False)])
+        self.assertIn("Acceptée jusqu'à 30000", limit)
+        self.assertIn("capabilities['context_length']", limit, 'the fact has a home: the window')
+        self.assertIn('instable', input_verdict([(15000, True), (30000, False), (60000, True)]))
+        self.assertIn('Aucune acceptée', input_verdict([(15000, False)]))
+        self.assertIn('Toutes acceptées', input_verdict([(15000, True), (90000, True)]))
+
+
 class DeclaredRateLimitWaitTest(SimpleTestCase):
     """2026-10-11 (chantier 5 ③): the wait after a 429 WITHOUT `Retry-After` is the one the
     source MEASURED (`rate_limit_wait_s`, Albert: a whole window), otherwise the common one."""

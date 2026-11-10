@@ -65,12 +65,31 @@ def _read(path: Path, limit: int) -> str:
 
 
 def base_excerpt() -> str:
-    """La classe `BaseModelBackend` jusqu'à ses méthodes abstraites : les attributs déclaratifs
-    (ENGINE, REQUIRED_PACKAGES…) et leur sens — pas les 600 lignes du module."""
+    """La tête de la classe `BaseModelBackend` (les attributs déclaratifs — ENGINE,
+    REQUIRED_PACKAGES… — et leur sens), PUIS ses méthodes abstraites, lues par l'AST : le contrat
+    à implémenter. Mesuré le 2026-11-10 : elles commencent au 22 293ᵉ caractère de la classe, et
+    l'extrait tronqué à 7 000 (3 500 en compact) ne les a jamais servies — trois modules d'ACE-Step
+    ont écrit `load(...) -> None`, chargé tous les poids, et échoué à l'essai."""
+    import ast
+
     from wama.common.services.backend_proposals import backends_dir
     text = (backends_dir() / 'base.py').read_text(encoding='utf-8')
     start = text.find('class BaseModelBackend')
-    return text[start:start + BASE_CHARS] if start >= 0 else ''
+    if start < 0:
+        return ''
+    head = text[start:start + BASE_CHARS]
+    cls = next((n for n in ast.parse(text).body
+                if isinstance(n, ast.ClassDef) and n.name == 'BaseModelBackend'), None)
+    lines = text.splitlines()
+    # Chaque méthode abstraite telle qu'ÉCRITE, décorateurs compris (`is_loaded` est une
+    # `@property` abstraite : le perdre ferait écrire une méthode).
+    abstract = ['\n'.join(lines[n.decorator_list[0].lineno - 1:n.end_lineno])
+                for n in (cls.body if cls else [])
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and any(getattr(d, 'id', getattr(d, 'attr', '')) == 'abstractmethod'
+                        for d in n.decorator_list)]
+    return (head + '\n    # … [tronqué]\n\n    # ── Les méthodes ABSTRAITES du contrat commun '
+            '(signatures exactes, à implémenter) ──\n' + '\n\n'.join(abstract))
 
 
 def task_engines(task: str) -> set:

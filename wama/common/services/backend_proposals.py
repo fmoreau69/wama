@@ -397,6 +397,19 @@ def smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: P
     return runner(code, module=module, model_key=model_key, out_dir=out_dir)
 
 
+def _load_refusal(backend, model_key: str):
+    """Le verdict d'un essai dont le CHARGEMENT échoue, ou None. Le contrat commun
+    (`BaseModelBackend.load -> bool`) veut True : le message dit ce que `load()` a VRAIMENT rendu —
+    « a rendu False » se lisait pour un `None`, celui d'un `load(...) -> None` qui avait pourtant
+    tout chargé (ACE-Step, 2026-11-10, trois passages), et le rôle ne pouvait pas s'en corriger."""
+    loaded = backend.load(model_id_of(model_key))
+    if loaded:
+        return None
+    return {'ran': True, 'ok': False,
+            'error': f'load() a rendu {loaded!r} — le contrat commun attend True '
+                     '(BaseModelBackend.load -> bool, True une fois chargé)'}
+
+
 def _proposed_backend(code: str, module: str, tmp: str, method: str):
     """Instance du backend proposé, chargé depuis `tmp` sous un nom DANS le paquet : les imports
     relatifs (`from .image_generation_base …`) résolvent, alors que le fichier n'y est pas —
@@ -426,8 +439,8 @@ def _smoke_image(code: str, *, module: str, model_key: str, out_dir: Path) -> di
                 return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
             with mock.patch('wama.common.utils.onnx_utils.onnx_providers',
                             lambda *a, **k: ['CPUExecutionProvider']):
-                if not backend.load(model_id_of(model_key)):
-                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                if refused := _load_refusal(backend, model_key):
+                    return refused
                 # 10 pas : on éprouve un COMPORTEMENT (chargement, nombre, variété), pas une
                 # qualité — deux images à 10 pas coûtent ce qu'une coûtait à 20.
                 result = backend.generate(GenerationParams(
@@ -541,8 +554,8 @@ def _smoke_speech(code: str, *, module: str, model_key: str, out_dir: Path) -> d
                 return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
             # CPU, comme le smoke image : le rôle ne dispute jamais le GPU au worker.
             with mock.patch('torch.cuda.is_available', return_value=False):
-                if not backend.load(model_id_of(model_key)):
-                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                if refused := _load_refusal(backend, model_key):
+                    return refused
                 result = backend.transcribe(audio_path=str(extract), language=language)
             backend.unload()
         except Exception as e:
@@ -641,8 +654,8 @@ def _smoke_score(code: str, *, module: str, model_key: str, out_dir: Path) -> di
                 return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
             # CPU, comme les autres smokes : le rôle ne dispute jamais le GPU au worker.
             with mock.patch('torch.cuda.is_available', return_value=False):
-                if not backend.load(model_id_of(model_key)):
-                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                if refused := _load_refusal(backend, model_key):
+                    return refused
                 abc = backend.extract_score(model_id=model_id_of(model_key),
                                                audio_path=str(clip),
                                                output_dir=str(Path(tmp) / 'out'),
@@ -717,8 +730,8 @@ def _smoke_music(code: str, *, module: str, model_key: str, out_dir: Path) -> di
                 return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
             # CPU, comme les autres smokes : le rôle ne dispute jamais le GPU au worker.
             with mock.patch('torch.cuda.is_available', return_value=False):
-                if not backend.load(model_id_of(model_key)):
-                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                if refused := _load_refusal(backend, model_key):
+                    return refused
                 # Le rappel de progression du COMPOSER : un argument, un pourcentage. Sans lui, le
                 # backend d'ACE-Step passait l'essai en transmettant au moteur un rappel que ce
                 # dernier appelle avec DEUX arguments — l'erreur du tout premier essai (2026-11-10).
@@ -801,8 +814,8 @@ def _smoke_pii(code: str, *, module: str, model_key: str, out_dir: Path) -> dict
             with mock.patch('torch.cuda.is_available', return_value=False), \
                     mock.patch('wama.common.utils.onnx_utils.onnx_providers',
                                lambda *a, **k: ['CPUExecutionProvider']):
-                if not backend.load(model_id_of(model_key)):
-                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                if refused := _load_refusal(backend, model_key):
+                    return refused
                 found = backend.detect_entities(model_id=model_id_of(model_key),
                                                 text=SMOKE_PII_TEXT, language='fr')
             backend.unload()
@@ -851,8 +864,8 @@ def _smoke_language(code: str, *, module: str, model_key: str, out_dir: Path) ->
                                          SMOKE_SPEECH_SECONDS)
             # CPU, comme les autres smokes : le rôle ne dispute jamais le GPU au worker.
             with mock.patch('torch.cuda.is_available', return_value=False):
-                if not backend.load(model_id_of(model_key)):
-                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                if refused := _load_refusal(backend, model_key):
+                    return refused
                 language, probability = backend.identify_language(audio=audio)
             backend.unload()
         except Exception as e:
@@ -893,8 +906,8 @@ def _smoke_end_of_turn(code: str, *, module: str, model_key: str, out_dir: Path)
             with mock.patch('torch.cuda.is_available', return_value=False), \
                     mock.patch('wama.common.utils.onnx_utils.onnx_providers',
                                lambda *a, **k: ['CPUExecutionProvider']):
-                if not backend.load(model_id_of(model_key)):
-                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                if refused := _load_refusal(backend, model_key):
+                    return refused
                 probability = backend.turn_end_probability(audio=audio)
             backend.unload()
         except Exception as e:
@@ -937,8 +950,8 @@ def _smoke_face_landmarks(code: str, *, module: str, model_key: str, out_dir: Pa
             backend = _proposed_backend(code, module, tmp, 'detect_face_landmarks')
             if not type(backend).is_available():
                 return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
-            if not backend.load(model_id_of(model_key)):
-                return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+            if refused := _load_refusal(backend, model_key):
+                return refused
             faces = backend.detect_face_landmarks(image=portrait)
             none = backend.detect_face_landmarks(image=blank)
             backend.unload()
@@ -981,8 +994,8 @@ def _smoke_face_analysis(code: str, *, module: str, model_key: str, out_dir: Pat
             backend = _proposed_backend(code, module, tmp, 'analyze_face')
             if not type(backend).is_available():
                 return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
-            if not backend.load(model_id_of(model_key)):
-                return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+            if refused := _load_refusal(backend, model_key):
+                return refused
             answer = backend.analyze_face(image=portrait)
             backend.unload()
         except Exception as e:
@@ -1033,8 +1046,8 @@ def _smoke_orientation(code: str, *, module: str, model_key: str, out_dir: Path)
             backend = _proposed_backend(code, module, tmp, 'page_orientation')
             if not type(backend).is_available():
                 return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
-            if not backend.load(model_id_of(model_key)):
-                return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+            if refused := _load_refusal(backend, model_key):
+                return refused
             angle, confidence = backend.page_orientation(image=np.asarray(turned))
             backend.unload()
         except Exception as e:
@@ -1071,8 +1084,8 @@ def _smoke_quality_metric(code: str, *, module: str, model_key: str, out_dir: Pa
             backend = _proposed_backend(code, module, tmp, 'score')
             if not type(backend).is_available():
                 return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
-            if not backend.load(model_id_of(model_key)):
-                return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+            if refused := _load_refusal(backend, model_key):
+                return refused
             same = backend.score(image=reference, reference=reference)
             degraded = backend.score(image=noisy, reference=reference)
             direction = getattr(backend, 'direction', '')

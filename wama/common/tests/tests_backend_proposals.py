@@ -60,6 +60,25 @@ def _generating(images_expr):
         '        return GenerationResult(success=True, images=' + images_expr + ')')
 
 
+class LoadRefusalTest(SimpleTestCase):
+    """Every contract's trial loads through `_load_refusal` (2026-11-10): « load() a rendu False »
+    was written for a `None` — a `load(...) -> None` that had loaded every weight (ACE-Step, three
+    runs) — and the role could not correct what it was not told."""
+
+    def _refusal(self, value):
+        backend = mock.Mock()
+        backend.load.return_value = value
+        return bp._load_refusal(backend, 'huggingface:Org/X')
+
+    def test_the_verdict_says_what_load_really_returned(self):
+        self.assertIn('a rendu None', self._refusal(None)['error'])
+        self.assertIn('a rendu False', self._refusal(False)['error'])
+        self.assertIn('BaseModelBackend.load -> bool', self._refusal(None)['error'])
+
+    def test_a_loaded_backend_passes(self):
+        self.assertIsNone(self._refusal(True))
+
+
 class SmokeContractTest(SimpleTestCase):
     """The smoke asks for TWO images and requires two DISTINCT ones (2026-09-30): the two backends
     proposed for Supra2-IMG passed a one-image smoke while one ignored `num_images` and the other
