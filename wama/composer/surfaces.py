@@ -23,6 +23,9 @@ d'ENTRÉE — celle qu'on IMPORTE prime sur celle d'un cover (« elle doit être
 puis l'extraite ou la planifiée ; sa partition complète décrit le MÊME audio d'entrée. La partition
 du morceau PRODUIT (`rendered_parts`) se lit dans une SECONDE vue, pour juxtaposer l'entrée et la
 sortie (« deux briques partition côte à côte ») ; la disposition se règle sur la page.
+
+Une partition importée en MIDI ou MusicXML (2026-11-10) s'y ouvre par sa vue ABC, le fichier
+importé jamais réécrit (`common/utils/score_source.py`, règle de toutes les surfaces).
 """
 from wama.common.surfaces import BrickSlot, Surface, register_surface
 from wama.composer.models import ComposerGeneration

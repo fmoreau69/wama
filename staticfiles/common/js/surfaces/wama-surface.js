@@ -90,6 +90,15 @@
     }
 
 
+    /** La réponse d'une route de la surface : 409 et 400 portent un corps JSON qui DIT la raison
+     *  (une partition illisible, un conflit), lu avant le repli commun, qui n'en dirait que le code. */
+    function readAnswer(response) {
+        if (response.status === 409 || response.status === 400) {
+            return response.json().then(function (res) { res.httpStatus = response.status; return res; });
+        }
+        return global.WamaApp.jsonOrExplain(response);
+    }
+
     function mount(root, config) {
         var App = global.WamaApp || {};
         var surface = config.surface;
@@ -303,13 +312,7 @@
             return App.csrfFetch(config.save_url, App.csrfToken(), {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
-            }).then(function (response) {
-                // 409 et 400 portent un corps JSON qui DIT la raison : lus avant le repli commun.
-                if (response.status === 409 || response.status === 400) {
-                    return response.json().then(function (res) { res.httpStatus = response.status; return res; });
-                }
-                return App.jsonOrExplain(response);
-            }).then(function (res) {
+            }).then(readAnswer).then(function (res) {
                 if (res.httpStatus === 409) { showConflict(res); return false; }
                 if (res.error) throw new Error(res.error);
                 if (res.token) state.token = res.token;
@@ -349,7 +352,7 @@
                 status('Chargement…', 'busy');
                 return fetch(config.data_url + (field ? '?field=' + encodeURIComponent(field) : ''),
                              { credentials: 'same-origin' })
-                    .then(App.jsonOrExplain).then(function (data) {
+                    .then(readAnswer).then(function (data) {
                         if (data.error) throw new Error(data.error);
                         target = field;
                         state.value = data.value == null ? {} : data.value;
@@ -529,7 +532,7 @@
         }
 
         status('Chargement…', 'busy');
-        fetch(config.data_url, { credentials: 'same-origin' }).then(App.jsonOrExplain)
+        fetch(config.data_url, { credentials: 'same-origin' }).then(readAnswer)
             .then(function (data) {
                 if (data.error) throw new Error(data.error);
                 state.reads = data.reads || {};
@@ -557,5 +560,6 @@
         return ctx;
     }
 
-    global.WamaSurface = { registerBrick: registerBrick, mount: mount, keptSources: keptSources };
+    global.WamaSurface = { registerBrick: registerBrick, mount: mount, keptSources: keptSources,
+                           readAnswer: readAnswer };
 })(window);

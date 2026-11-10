@@ -29866,9 +29866,9 @@ General (`ROADMAP §13`), puis l'outil d'assistant de l'export WAV par `/api-out
 - Les 23 partitions d'avant `0e631c4cc` n'ont pas d'instrument déclaré (piano, batterie à part) ; seule
   une relance de « Partition complète » ou un MIDI importé donne de vrais instruments.
 - ⚠ Non vu au navigateur : la vue « Partition jouée » Réduite / Complète (il faut une card rendue).
-- ⏳ La vue ABC d'une partition MIDI/MusicXML fournie sur la page d'édition ; la lecture MIDI sur la
-  page de partition du Reader (pas de transport) ; à part, de meilleures librairies et instruments
-  virtuels (rien d'ouvert).
+- ⏳ À part, de meilleures librairies et instruments virtuels (rien d'ouvert). *(Corrigé le 2026-11-10 :
+  cette ligne citait aussi une lecture MIDI sur le Reader, jamais demandée, et la vue ABC, livrée depuis
+  — palier suivant.)*
 
 **Hérités, à leurs propriétaires** : `WAMA_MECANISMES`, `docs/dev/briques.md` et le bloc d'outils de la route
 à régénérer pour le travail en cours d'autres sessions (la part de cette session est commitée à la
@@ -30030,3 +30030,29 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
 - **Contrôles attendus au prochain /reprise** : `check_docs` 0 cible distincte ; `doc_facts --check` 2 blocs périmés (`conformite`, `mecanismes`, fichiers portant le travail non commité d'autres sessions) ; `manifest_export --check` 19 périmés, aucun de ce chantier ; `check_redundancy` 114 trouvailles, 0 dans les fichiers du service ; `check_skills` 0 défaut franc. ⚠ `face_analyzer:deepface-expression` se repérime à chaque chargement réel : le manifeste porte la mesure (`n`, `at`), régénéré ici.
 - **Effets de bord déclarés** : le service garde âge et genre sur la carte (environ 6,5 Go) jusqu'à ce que le gouverneur la réclame ; ligne `Library` de `tensorflow` en base réelle (`is_allowed` et `is_installed` à False) ; base de test `test_wama_db_tfverif` laissée en place, jetable.
 - **Décision ouverte, à Fabien, non bloquante** : une passe `/doc-sync §2`. 558 commits depuis la dernière confrontation complète de la `ROADMAP` et de la vision (26/10), un maximum : les sections réellement périmées ne sont pas comptées.
+
+## §PALIER 2026-11-10, « VUE ABC D'UNE PARTITION MIDI OU MUSICXML FOURNIE » — locaux, non poussés
+
+Demande de Fabien (*« on termine ça : la vue ABC d'une partition MIDI ou MusicXML fournie »*), avec une
+correction : la « lecture MIDI sur la page de partition du Reader » que le bloc de clôture citait n'a
+jamais été demandée. Le Reader reconnaît du texte et de l'écriture, il ne joue pas de musique : ligne
+retirée ici et dans `PROSPECTION_PIPELINE.md`.
+
+- ✅ **La page lit la partition fournie** (`common/utils/score_source.py`, `surface_views._file_text`) :
+  `midi_to_abc` / `musicxml_to_abc` au lieu du binaire ou du XML brut. Une correction va dans un `.abc`
+  que `reference_score` désigne ensuite ; le rendu la suit et passe périmé. Le fichier fourni reste à
+  sa place, et sa copie dans les versions, que « Reprendre » relit en ABC. Un fichier illisible se dit
+  à l'ouverture. Valable pour toute surface : la règle est dans les vues communes.
+- ⚠ La conversion ne se fait qu'à l'ouverture de la page, jamais dans `Surface.can_open` : le bouton ✎
+  l'appelle pour chaque card d'une file.
+- Mesuré : aucun `.mid` ni MusicXML dans `media/`. Vingt-deux partitions réelles passées en MIDI puis
+  en vue ABC puis rejouées (V8) : 21 au même nombre de notes, la 880 complète 5307 sur 5319, 0,24 s au
+  pire. Douze en MusicXML (abc2xml) : 8 au même nombre, 4 avec 4 à 9 notes de plus sur 1078 à 1948.
+- ✗ **Défaut vu sur la page servie** (serveur jetable, card témoin) : un fichier illisible s'affichait
+  « Le serveur a répondu 400 », la raison perdue au chargement. `readAnswer` lit désormais la raison au
+  chargement comme à l'enregistrement. Vu ensuite à l'écran : la 880 complète gravée (5 instruments,
+  2530 notes), aucune erreur ; le MIDI corrompu dit « partition illisible ».
+- Garde `tests_surfaces.SuppliedScoreShownAsAbcTest` (8 tests, 11 contre-épreuves rouges). 343 tests du
+  domaine verts ; suite complète non lancée.
+- Limite : passé la rétention des versions (20 dernières), la copie du fichier fourni part ; l'original
+  reste sur le disque, dans les fichiers de l'utilisateur, mais la card ne le désigne plus.

@@ -3575,10 +3575,13 @@ MECHANISMS = (
               "l'instrument de sa ligne (`score-instrument`, `midi-unpitched`, tête en croix) — "
               "`xml2abc` en tire la table de percussion de l'ABC (`I:percmap`). Le 2026-11-10 : "
               "`merge_drum_pages` assemble les pages d'un lot, la légende relue sur l'une "
-              "(`drum_key_entries`) nommant les notes de toutes",
+              "(`drum_key_entries`) nommant les notes de toutes. Le 2026-11-10 : `score_source.abc_view` "
+              "montre sur la page d'édition une partition fournie en MIDI ou MusicXML, le "
+              "fichier fourni jamais réécrit",
               'wama/common/utils/musicxml_score.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               annexes=('wama/common/tests/tests_score_reading.py',
+                       'wama/common/utils/score_source.py',
                        'wama/common/backends/score_reading_base.py',
                        'wama/common/backends/copisteria_backend.py')),
     Mechanism('score_page', 'La page de partition : portées, aplomb, texte à rôles',

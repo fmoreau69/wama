@@ -2171,6 +2171,163 @@ class ComposerScoreSurfaceTest(TestCase):
         self.assertEqual(404, self._save('X:1\n').status_code)
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+class SuppliedScoreShownAsAbcTest(TestCase):
+    """2026-11-10, Fabien : a score supplied as MIDI or MusicXML opens on the edit page by its ABC
+    view. The supplied file is never rewritten ; a correction goes to a `.abc` beside it."""
+
+    def setUp(self):
+        from wama.common.utils.media_paths import app_media_dir, get_app_media_path
+        from wama.composer.models import ComposerGeneration
+        _remove_throwaway_media(self)
+        self.user = get_user_model().objects.create_user('supplied_owner', password='x')
+        self.folder = get_app_media_path('composer', self.user.id, 'input')
+        self.folder.mkdir(parents=True, exist_ok=True)
+        self.relative = app_media_dir('composer', self.user.id, 'input')
+        self.gen = ComposerGeneration.objects.create(user=self.user, prompt='pop')
+        self.base = f'/common/surface/composer/score/{self.gen.pk}/'
+        self.client.force_login(self.user)
+
+    def _supply(self, name, data) -> bytes:
+        (self.folder / name).write_bytes(data)
+        type(self.gen).objects.filter(pk=self.gen.pk).update(reference_score=f'{self.relative}/{name}')
+        self.gen.refresh_from_db()
+        return data
+
+    @staticmethod
+    def _midi() -> bytes:
+        import io
+
+        import mido
+        track = mido.MidiTrack([mido.MetaMessage('track_name', name='Lead', time=0),
+                                mido.MetaMessage('set_tempo', tempo=500000, time=0),
+                                mido.MetaMessage('time_signature', numerator=4, denominator=4, time=0),
+                                mido.Message('program_change', program=65, time=0)])
+        for pitch in (60, 62, 64, 65):
+            track.append(mido.Message('note_on', note=pitch, velocity=90, time=0))
+            track.append(mido.Message('note_off', note=pitch, velocity=0, time=480))
+        out = io.BytesIO()
+        mido.MidiFile(tracks=[track], ticks_per_beat=480).save(file=out)
+        return out.getvalue()
+
+    def _save(self, value, base):
+        return self.client.post(self.base + 'save/', json.dumps({'value': value, 'base': base}),
+                                content_type='application/json')
+
+    def test_a_supplied_midi_opens_as_abc_with_what_it_says(self):
+        supplied = self._supply('take.mid', self._midi())
+        data = self.client.get(self.base + 'data/').json()
+        self.assertEqual('reference_score', data['field'])
+        self.assertIn('T:take', data['value'])
+        self.assertIn('%%MIDI program 65', data['value'], 'the instrument of the MIDI is kept')
+        self.assertIn('C4D4E4F4|', data['value'])
+        self.assertEqual(supplied, (self.folder / 'take.mid').read_bytes())
+
+    def test_a_supplied_musicxml_opens_as_abc_plain_or_compressed(self):
+        import io
+        import zipfile
+
+        from wama.common.tests.tests_score_input import MUSICXML_CDEF as MUSICXML, MXL_CONTAINER
+        self._supply('sheet.musicxml', MUSICXML.encode('utf-8'))
+        plain = self.client.get(self.base + 'data/').json()['value']
+        self.assertIn('C D E F', plain)
+        self.assertIn('T:sheet', plain, 'a file without a written title is named by its file')
+        titled = MUSICXML.replace('<part-list>', '<work><work-title>Written</work-title></work><part-list>')
+        self._supply('sheet.musicxml', titled.encode('utf-8'))
+        self.assertIn('T:Written', self.client.get(self.base + 'data/').json()['value'])
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, 'w') as out:
+            out.writestr('META-INF/container.xml', MXL_CONTAINER)
+            out.writestr('score.xml', MUSICXML)
+        self._supply('sheet.mxl', archive.getvalue())
+        self.assertIn('C D E F', self.client.get(self.base + 'data/').json()['value'])
+
+    def test_a_correction_goes_beside_the_source_and_the_render_follows_it(self):
+        from wama.common.backends.yue2_3b_backend import YuE2Backend
+        from wama.common.models import ItemRevision
+        from wama.common.services import process_runs
+        from wama.composer.function_specs import PIPELINE
+        from wama.composer.tasks import _score_to_follow
+        from wama.composer.tests_pipeline import SCORE_MODEL, catalogue_rows
+        catalogue_rows()
+        supplied = self._supply('take.mid', self._midi())
+        type(self.gen).objects.filter(pk=self.gen.pk).update(model=SCORE_MODEL)
+        self.gen.refresh_from_db()
+        process_runs.succeed(self.gen, 'render', process_key='composer.render',
+                             settings_snapshot=PIPELINE.snapshot(PIPELINE.spec('render'), self.gen))
+        opened = self.client.get(self.base + 'data/').json()
+        corrected = opened['value'].replace('C4D4', 'D4D4')
+        res = self._save(corrected, opened['token'])
+        self.assertEqual(200, res.status_code, res.content)
+        self.assertIn('render', res.json()['stale'], 'the render follows the correction')
+        self.gen.refresh_from_db()
+        self.assertEqual(f'{self.relative}/take.abc', self.gen.reference_score.name)
+        self.assertEqual(corrected, (self.folder / 'take.abc').read_text(encoding='utf-8'))
+        self.assertEqual(supplied, (self.folder / 'take.mid').read_bytes(), 'the source stays as it is')
+        self.assertEqual(corrected, self.client.get(self.base + 'data/').json()['value'])
+        self.assertEqual(self.gen.reference_score.name, _score_to_follow(self.gen, SCORE_MODEL))
+        self.assertIn('V: Vocal', YuE2Backend._score_abc(self.gen.reference_score.path),
+                      'the engine reads the view it was never written for')
+        self.assertEqual([ItemRevision.ORIGIN_PROCESS, ItemRevision.ORIGIN_MANUAL],
+                         list(ItemRevision.objects.filter(app='composer', object_id=self.gen.pk)
+                              .order_by('number').values_list('origin', flat=True)))
+        self.assertEqual(opened['value'], self.client.get(self.base + 'revisions/1/').json()['value'],
+                         'the supplied score is resumed by its ABC view, under its own title')
+        self.assertEqual(corrected, self.client.get(self.base + 'revisions/2/').json()['value'])
+
+    def test_the_view_saved_unchanged_writes_nothing(self):
+        from wama.common.models import ItemRevision
+        self._supply('take.mid', self._midi())
+        opened = self.client.get(self.base + 'data/').json()
+        self.assertEqual(200, self._save(opened['value'], opened['token']).status_code)
+        self.gen.refresh_from_db()
+        self.assertTrue(self.gen.reference_score.name.endswith('take.mid'))
+        self.assertFalse((self.folder / 'take.abc').exists())
+        self.assertFalse(ItemRevision.objects.filter(app='composer', object_id=self.gen.pk).exists())
+
+    def test_an_unreadable_supplied_score_says_why(self):
+        self._supply('broken.mid', b'not a midi file')
+        res = self.client.get(self.base + 'data/')
+        self.assertEqual(400, res.status_code)
+        self.assertIn('broken.mid : partition illisible', res.json()['error'])
+        self.assertEqual(200, self.client.get(self.base).status_code, 'the page opens and says it')
+
+    def test_the_page_shows_the_reason_the_server_gives(self):
+        """Seen on the served page : a 400 was shown as « Le serveur a répondu 400 ». `readAnswer` in
+        V8 on the SERVED file, and every route that returns a reason goes through it."""
+        from py_mini_racer import MiniRacer
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'surfaces'
+                  / 'wama-surface.js').read_text(encoding='utf-8')
+        self.assertEqual(3, source.count('.then(readAnswer)'), 'the load, the save, the other field')
+        engine = MiniRacer()
+        engine.eval('var window = {WamaApp: {jsonOrExplain: function () { return "generic"; }}};' + source)
+        answer = ('window.WamaSurface.readAnswer({status: %d, json: function () { return {then: '
+                  'function (done) { return done({error: "why"}); }}; }})')
+        self.assertEqual({'error': 'why', 'httpStatus': 400},
+                         json.loads(engine.eval('JSON.stringify(' + answer % 400 + ')')))
+        self.assertEqual('generic', engine.eval(answer % 500))
+
+    def test_an_abc_file_is_still_read_and_rewritten_in_place(self):
+        self._supply('tune.abc', ABC.encode('utf-8'))
+        opened = self.client.get(self.base + 'data/').json()
+        self.assertEqual(ABC, opened['value'])
+        corrected = ABC.replace('C2 D2', 'D2 D2')
+        self.assertEqual(200, self._save(corrected, opened['token']).status_code)
+        self.gen.refresh_from_db()
+        self.assertEqual(f'{self.relative}/tune.abc', self.gen.reference_score.name)
+        self.assertEqual(corrected, (self.folder / 'tune.abc').read_text(encoding='utf-8'))
+
+    def test_the_card_button_never_converts(self):
+        """`can_open` runs for every card of a queue (the ✎ button) : a conversion reads the file."""
+        from unittest import mock
+
+        from wama.common.surfaces import surface
+        self._supply('take.mid', self._midi())
+        with mock.patch('wama.common.utils.score_source.abc_view') as convert:
+            self.assertEqual((True, ''), surface('composer', 'score').can_open(self.gen))
+        convert.assert_not_called()
+
+
 class SurfacesGeneratorTest(SimpleTestCase):
     """A generated app DECLARES its surfaces in its manifest ; `surfaces.py` is rendered (rule D5 :
     only the manifest is written by hand)."""

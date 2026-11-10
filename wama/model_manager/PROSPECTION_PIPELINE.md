@@ -4412,9 +4412,8 @@ pour la gravure.
 🔴 **Défaut relevé** (aucune card n'est concernée en base, mesuré) : la page « Éditer la partition »
 du composer lit la partition FOURNIE (`reference_score`, ABC / MIDI / MusicXML acceptés) comme du
 TEXTE brut (`surface_views._text`) — un `.mid` s'y afficherait en binaire, un MusicXML en XML, et
-« Enregistrer » récrirait le fichier en texte (`_write_text`). ⏳ À corriger avant l'arrivée des
-partitions du reader : la page montre la VUE ABC (`midi_to_abc` / `musicxml_to_abc`) et une
-correction s'enregistre dans un `.abc` à côté, la source gardée.
+« Enregistrer » récrirait le fichier en texte (`_write_text`). ✅ Soldé le 2026-11-10 : voir la vue
+ABC plus bas.
 
 ### La lecture MIDI dans le lecteur, sans générer d'audio — l'état de l'art (veille web)
 
@@ -4554,15 +4553,19 @@ et bretelles… »* ; *« on ajoute bien les sources dans le registre des source
   ceux de la page, 2 à 3 s pour les 24. Garde `AbcToMidiOnTheServerTest`, cinq contre-épreuves
   rouges. Une partition sans notes est désormais refusée, page comprise : abcjs rendait un fichier
   muet. Aucun appelant encore : l'outil d'assistant attend le verdict sur les banques.
+- **La vue ABC d'une partition fournie** (2026-11-10, demande de Fabien, `score_source.abc_view`) : la
+  page d'édition lit un MIDI ou un MusicXML par `midi_to_abc` / `musicxml_to_abc`, le fichier fourni
+  jamais réécrit ; une correction va dans un `.abc` que le champ désigne ensuite. Sur 22 partitions
+  réelles passées en MIDI puis en vue ABC puis rejouées : 21 au même nombre de notes, la 880 complète
+  5307 sur 5319, 0,24 s au pire.
 
 ⏳ **Reste** : relancer « Partition complète » sur une card pour que sa partition porte ses
 instruments (les réduites, à deux voix sans instrument déclaré, restent au piano) ; l'écoute
 COMPARÉE sur de vrais exemples, et retirer une banque seulement si l'une l'emporte nettement ; à
 part, un chantier distinct (Fabien, 2026-11-09) : de meilleures librairies et instruments
 virtuels ; l'outil d'assistant de l'export WAV, qui attend le verdict sur les banques (Fabien,
-2026-11-10) ; la vue ABC d'une partition MIDI/MusicXML fournie
-sur la page d'édition (défaut relevé plus haut) ; la lecture MIDI sur la page de partition du
-Reader (elle n'a pas de transport).
+2026-11-10). *(Corrigé le 2026-11-10 : cette ligne citait aussi une lecture MIDI sur le Reader, jamais
+demandée — le Reader reconnaît du texte et de l'écriture.)*
 
 ## Veille 2026-11-08 « OCR manuscrit à positions » (demande de Fabien : « veille puis proposition »)
 

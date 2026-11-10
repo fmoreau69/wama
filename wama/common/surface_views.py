@@ -279,9 +279,10 @@ def surface_data(request, app: str, key: str, pk: int):
                              'processes': _process_states(item)})
     try:
         field = found.target(item, request.GET.get('field') or '')
+        # Une partition fournie illisible se dit ici (`_edited_text`), à l'ouverture de la page.
+        value = _value_of(found, item, field)
     except ValueError as error:
         return JsonResponse({'error': str(error)}, status=400)
-    value = _value_of(found, item, field)
     return JsonResponse({
         'processes': _process_states(item),
         'reads': reads,
@@ -348,8 +349,9 @@ def surface_revision_value(request, app: str, key: str, pk: int, number: int):
     if not rel:
         raise Http404("aucune version gardée pour cette révision")
     try:
-        with open(os.path.join(settings.MEDIA_ROOT, rel), encoding='utf-8', errors='replace') as source:
-            value = validate_text(source.read())
+        # Le titre vient du fichier vivant : une copie gardée se nomme `<nom>.r3.mid`.
+        title = os.path.splitext(os.path.basename(getattr(item, edited).name))[0]
+        value = validate_text(_file_text(os.path.join(settings.MEDIA_ROOT, rel), title=title))
     except (OSError, ValueError):
         raise Http404("version illisible")
     return JsonResponse({'number': number, 'value': value})
@@ -420,14 +422,14 @@ def _value_of(found, item, field: str = ''):
     """La valeur ÉDITÉE telle que la page la reçoit : celle que la surface déclare (`value`), sinon
     le texte du fichier, ou le champ de donnée. `field` : un champ des `also_edits` (son texte)."""
     if field and field in found.also_edits:
-        return _text(getattr(item, field, None))
+        return _edited_text(getattr(item, field, None))
     if found.value is not None:
         return found.value(item)
     if found.read_only:
         return None
     edited = found.edited(item)
     if found.text_value:
-        return _text(getattr(item, edited, None))
+        return _edited_text(getattr(item, edited, None))
     return getattr(item, edited, None) or {}
 
 
@@ -441,15 +443,22 @@ def _write_text(item, field_name: str, text: str) -> bool:
     fichiers), une coupure ne laisse pas un fichier à moitié écrit.
     Sinon (un fichier qu'elle ne fait que désigner, ou qu'une autre ligne désigne aussi) : jamais
     réécrit — un NOUVEAU fichier chez l'app de la card, que ses lignes d'exécution désignent
-    désormais à la place de l'ancien, qui reste intact pour ses autres porteurs."""
+    désormais à la place de l'ancien, qui reste intact pour ses autres porteurs.
+    Une partition fournie en MIDI ou MusicXML (`shown_as_abc`, 2026-11-10) n'est jamais réécrite :
+    la page en montre la vue ABC, et la correction va dans un `.abc` que le champ désigne ensuite ;
+    le fichier fourni reste où il est, et sa copie dans les versions (`ensure_kept`)."""
     from django.core.files.base import ContentFile
 
     from wama.common.services import process_runs
     from wama.common.utils.queue_duplication import is_shared_elsewhere, owns_file
+    from wama.common.utils.score_source import shown_as_abc
     field = getattr(item, field_name)
     old = field.name
     data = text.encode('utf-8')
-    if old and owns_file(item, old) and not is_shared_elsewhere(item, field_name, old):
+    converted = shown_as_abc(old)
+    if converted and text == _edited_text(field):
+        return False
+    if old and not converted and owns_file(item, old) and not is_shared_elsewhere(item, field_name, old):
         path = field.path
         try:
             with open(path, 'rb') as current:
@@ -462,7 +471,8 @@ def _write_text(item, field_name: str, text: str) -> bool:
             out.write(data)
         os.replace(partial, path)
         return True
-    field.save(os.path.basename(old) if old else f'{field_name}.md', ContentFile(data), save=False)
+    name = os.path.basename(old) if old else f'{field_name}.md'
+    field.save(f'{os.path.splitext(name)[0]}.abc' if converted else name, ContentFile(data), save=False)
     item.save(update_fields=[field_name])
     if old:
         process_runs.lines(item).filter(output_ref=old).update(output_ref=field.name)
@@ -472,13 +482,31 @@ def _write_text(item, field_name: str, text: str) -> bool:
 def _text(value, limit: int = -1) -> str:
     """Le texte du fichier d'un champ — l'édité entier (`_value_of`), un rôle lu en lecture seule
     plafonné (`Surface.texts`, `MAX_TEXT_CHARS`) ; '' sans fichier ou illisible."""
+    try:
+        return _edited_text(value, limit)
+    except ValueError:
+        return ''
+
+
+def _edited_text(value, limit: int = -1) -> str:
+    """Le texte du fichier d'un champ, '' sans fichier. Une partition fournie illisible lève
+    `ValueError` en disant pourquoi : la page l'affiche au lieu d'une partition vide."""
     if not getattr(value, 'name', ''):
         return ''
     try:
-        with open(value.path, encoding='utf-8', errors='replace') as source:
-            return source.read(limit)
+        return _file_text(value.path, limit)
     except OSError:
         return ''
+
+
+def _file_text(path: str, limit: int = -1, title: str = '') -> str:
+    """Le texte d'un fichier tel que la page le lit : son contenu, ou la VUE ABC d'une partition
+    MIDI ou MusicXML (`score_source`, `title` pour le fichier qui n'en écrit aucun)."""
+    from wama.common.utils.score_source import abc_view, shown_as_abc
+    if shown_as_abc(path):
+        return abc_view(path, title)[:limit if limit >= 0 else None]
+    with open(path, encoding='utf-8', errors='replace') as source:
+        return source.read(limit)
 
 
 def _document(value):

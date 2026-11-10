@@ -941,6 +941,9 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         MIDI d'une partition n'a qu'UNE écriture, `WamaMidiPlayer.midiBytes` (mécanisme `midi_reading`).
         ✅ 2026-11-10 : côté serveur aussi, `midi_render.abc_to_midi` exécute ces scripts sous V8 ; la
         phrase « aucune librairie serveur ne lit l'ABC » ci-dessus date d'avant.
+        ✅ 2026-11-10 : une partition fournie en MIDI ou MusicXML s'ouvre par sa vue ABC, pour toute
+        surface (`score_source.abc_view`, lue par `surface_views._file_text`) ; le fichier fourni
+        n'est jamais réécrit, une correction va dans un `.abc` que le champ désigne ensuite.
         ✅ **2026-10-26 — ENTRÉE et SORTIE (décisions de Fabien : « la partition doit refléter
         l'audio d'entrée », « on propose les deux », « une partition importée est affichée à la
         place de celle d'un cover », réduction pour YuE2)** : la partition complète (`parts`) lit
