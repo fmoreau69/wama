@@ -350,7 +350,7 @@ def surface_revision_value(request, app: str, key: str, pk: int, number: int):
         raise Http404("aucune version gardée pour cette révision")
     try:
         # Le titre vient du fichier vivant : une copie gardée se nomme `<nom>.r3.mid`.
-        title = os.path.splitext(os.path.basename(getattr(item, edited).name))[0]
+        title = os.path.splitext(os.path.basename(getattr(item, edited).name or ''))[0]
         value = validate_text(_file_text(os.path.join(settings.MEDIA_ROOT, rel), title=title))
     except (OSError, ValueError):
         raise Http404("version illisible")
@@ -579,10 +579,16 @@ def surface_save(request, app: str, key: str, pk: int):
     if found.reruns:
         # La péremption suit le champ SURVEILLÉ — on la recalcule ici pour la dire à la page.
         try:
+            from wama.common.services import process_runs
             from wama.common.services.process_pipeline import pipeline_of
             pipeline = pipeline_of(item)
             if pipeline is not None:
-                stale = sorted(pipeline.refresh(item))
+                # Un fichier d'ENTRÉE surveillé (la partition importée), réécrit en place, garde
+                # son chemin : la photo du process ne voit rien changer (2026-11-10).
+                rewritten = (changed and found.text_value
+                             and field in pipeline.watched_of(pipeline.spec(found.reruns))
+                             and process_runs.mark_stale(item, [found.reruns]))
+                stale = sorted(({found.reruns} if rewritten else set()) | pipeline.refresh(item))
         except Exception:
             stale = []
     return JsonResponse({'ok': True, 'value': value, 'stale': stale, 'finished': finished,

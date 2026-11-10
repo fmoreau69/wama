@@ -269,10 +269,19 @@ class _Voice:
             return ['%%MIDI channel 10']
         return [f'%%MIDI program {self.program}'] if self.program is not None else []
 
-    def dynamic(self, bar_start: int, bar_steps: int):
-        """La nuance de la mesure `[bar_start, bar_start + bar_steps)` — la moyenne des vélocités de
-        ses attaques ; None sans attaque."""
-        heard = [v for s, _p, v in self.attacks if bar_start <= s < bar_start + bar_steps]
+    def place(self, bar_steps: int) -> None:
+        """Range une fois notes et attaques par mesure : relire toute la voix à chaque mesure coûtait
+        mesures × notes (17 s sur un MIDI de 770 Ko, mesuré le 2026-11-10, et la page le lit)."""
+        self.bars, self.heard = {}, {}
+        for note in self.notes:
+            for bar in range(note[0] // bar_steps, (note[1] - 1) // bar_steps + 1):
+                self.bars.setdefault(bar, []).append(note)
+        for step, _pitch, velocity in self.attacks:
+            self.heard.setdefault(step // bar_steps, []).append(velocity)
+
+    def dynamic(self, bar: int):
+        """La nuance de la mesure `bar` — la moyenne des vélocités de ses attaques ; None sans attaque."""
+        heard = self.heard.get(bar)
         return dynamic_of(sum(heard) / len(heard)) if heard else None
 
     def header(self) -> str:
@@ -500,6 +509,8 @@ def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_l
     head += [v.header() for v in voices]
     head.append('K:C')
 
+    for v in voices:
+        v.place(bar_steps)
     body, said = [], {}
     for first in range(0, bars, bars_per_line):
         span = range(first, min(bars, first + bars_per_line))
@@ -511,10 +522,10 @@ def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_l
             for b in span:
                 lead = f'[Q:1/4={tempo_at[b]}]' if index == 0 and b in tempo_at else ''
                 # La NUANCE, quand elle change (`said` : la dernière écrite de la voix).
-                mark = v.dynamic(b * bar_steps, bar_steps)
+                mark = v.dynamic(b)
                 if mark and mark != said.get(v.id):
                     said[v.id] = mark
                     lead += f'!{mark}!'
-                bars_text.append(lead + _bar_tokens(v.notes, b * bar_steps, bar_steps, v.drum))
+                bars_text.append(lead + _bar_tokens(v.bars.get(b, ()), b * bar_steps, bar_steps, v.drum))
             body.append('|'.join(bars_text) + '|')
     return '\n'.join(head + body) + '\n'

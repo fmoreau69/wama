@@ -30057,6 +30057,25 @@ retirée ici et dans `PROSPECTION_PIPELINE.md`.
 - Limite : passé la rétention des versions (20 dernières), la copie du fichier fourni part ; l'original
   reste sur le disque, dans les fichiers de l'utilisateur, mais la card ne le désigne plus.
 
+**Revérification du même jour** — trois défauts trouvés et corrigés, aucun visible au premier passage :
+- ✗ Une partition importée réécrite EN PLACE (`.abc` importé, ou seconde correction d'un MIDI) ne
+  périmait pas le rendu : la photo du process ne surveille que le CHEMIN. `surface_save` le périme.
+- ✗ `midi_to_abc` relisait toute la voix à chaque mesure : 18 s sur un MIDI de 770 Ko, trois lectures
+  par enregistrement, dans une requête web. Rangé par mesure (`_Voice.place`) : 5 s, le même ABC à
+  l'octet sur les 22 partitions réelles.
+- ✗ « Reprendre » une version d'un champ vidé levait une erreur 500.
+- ⚠ Limite de la vue MIDI : écrite en do (`K:C`, altérations écrites), la tonalité déclarée par le
+  fichier (`MidiSong.key`) n'est pas reprise. Ce qui sonne est juste, la notation moins lisible.
+- Vu : le parcours réel sur serveur jetable, MIDI réel (taper, Enregistrer, Reprendre) : le champ passe
+  au `.abc`, le `.mid` reste identique à l'octet, versions `.r1.mid` et `.r2.abc`, aucune erreur.
+  ⚠ Le même parcours sur le service en place n'a rien prouvé : son gunicorn datait de 10:47, le code de
+  11:26. 🔴 Relancer gunicorn avant d'essayer un MIDI fourni : l'ancien code réécrit le fichier en texte.
+- Gardes : `SuppliedScoreShownAsAbcTest` 10 tests, 16 contre-épreuves rouges au total. 644 tests du
+  périmètre et des gardes transverses : un seul rouge, `tests_mecanismes_scan.OneFileOneOwnerTest`
+  (`scripts/worker_watchdog.sh`, `scripts/wama_services.sh` entre `process_control` et
+  `service_supervision`, autre session, commit `28826db58`). `check_docs` 0 cassée ; `doc_facts` :
+  `outils` et `dev-briques` à régénérer, la part de cette session écrite à la main.
+
 ## §CLÔTURE 2026-11-10, « AUDIT DE SÉCURITÉ DU 06/11 : CRITIQUES, ÉLEVÉS, MÉDIAS GARDÉS, HTTPS FORCÉ — EN SERVICE ET POUSSÉS » — `5881099ff` → `3e0e6aefc` — 🔚 rien de bloquant : décision de Fabien sur le chiffrement des médias par utilisateur
 
 **État mesuré.** Les sept commits de l'audit (`5881099ff`, `6653d02ed`, `38568fec7`, `e3df8b944`,

@@ -2317,6 +2317,32 @@ class SuppliedScoreShownAsAbcTest(TestCase):
         self.assertEqual(f'{self.relative}/tune.abc', self.gen.reference_score.name)
         self.assertEqual(corrected, (self.folder / 'tune.abc').read_text(encoding='utf-8'))
 
+    def test_a_score_rewritten_in_place_still_stales_the_render(self):
+        """Same path, new content : the render's photo of `reference_score` sees nothing change."""
+        from wama.common.services import process_runs
+        from wama.composer.function_specs import PIPELINE
+        from wama.composer.tests_pipeline import SCORE_MODEL, catalogue_rows
+        catalogue_rows()
+        self._supply('tune.abc', ABC.encode('utf-8'))
+        type(self.gen).objects.filter(pk=self.gen.pk).update(model=SCORE_MODEL)
+        self.gen.refresh_from_db()
+        process_runs.succeed(self.gen, 'render', process_key='composer.render',
+                             settings_snapshot=PIPELINE.snapshot(PIPELINE.spec('render'), self.gen))
+        opened = self.client.get(self.base + 'data/').json()
+        same = self._save(opened['value'], opened['token']).json()
+        self.assertEqual([], same['stale'], 'nothing changed : nothing to redo')
+        res = self._save(ABC.replace('C2 D2', 'D2 D2'), opened['token']).json()
+        self.assertEqual(['render'], res['stale'])
+
+    def test_a_kept_version_opens_after_its_field_was_emptied(self):
+        self._supply('take.mid', self._midi())
+        opened = self.client.get(self.base + 'data/').json()
+        self.assertEqual(200, self._save(opened['value'].replace('C4D4', 'D4D4'), opened['token']).status_code)
+        type(self.gen).objects.filter(pk=self.gen.pk).update(reference_score=None)
+        res = self.client.get(self.base + 'revisions/1/')
+        self.assertEqual(200, res.status_code)
+        self.assertIn('C4D4E4F4|', res.json()['value'])
+
     def test_the_card_button_never_converts(self):
         """`can_open` runs for every card of a queue (the ✎ button) : a conversion reads the file."""
         from unittest import mock

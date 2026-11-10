@@ -4,8 +4,8 @@ La SOURCE ABC d'une partition fournie en MIDI ou en MusicXML (2026-11-10, demand
 La page d'édition d'une partition, ses versions et sa gravure travaillent sur du TEXTE ABC. Une
 partition FOURNIE peut être un `.mid` ou un `.musicxml` : on en montre la VUE ABC, tirée par les
 conversions communes (`midi_score.midi_to_abc`, `musicxml_score.musicxml_to_abc`). Le fichier
-fourni n'est jamais réécrit ; une correction s'enregistre dans un `.abc` à côté de lui
-(`surface_views._write_text`), que le rendu suit dès lors.
+fourni n'est jamais réécrit ; une correction s'enregistre dans un `.abc` chez l'app de la card
+(`surface_views._write_text`), que le champ désigne et que le rendu suit dès lors.
 
 ⚠ Une conversion lit tout le fichier : jamais depuis ce qui s'exécute par card d'une file
 (`Surface.can_open`, que le bouton ✎ appelle), seulement à l'ouverture de la page.

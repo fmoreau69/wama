@@ -17,6 +17,10 @@ le RENDU RÉEL, pas la structure du code.
   recharge jamais soi-même ; la mesure se fait alors sur un **serveur de dev jetable, sur un autre
   port** (recette en fin de skill), qu'on arrête après. C'est la seule exception à « ne pas
   démarrer soi-même », et elle ne touche pas au live.
+  🔴 **« C'est relancé » se MESURE** (vécu le 2026-11-10) : le gunicorn du port 8000 datait d'avant le
+  commit, et le parcours « en service » a joué l'ancien code. Avant de conclure, comparer
+  `ps -eo lstart,args | grep [g]unicorn` à `git log -1 --format=%ci <sha>` ; plus ancien : le dire,
+  et mesurer sur un serveur jetable (recette en fin de skill).
 - **Le MCP Playwright existe, mais sa disponibilité VARIE — la vérifier, jamais la supposer.**
   Corrigé le 2026-08-22 : ce skill affirmait « aucun MCP Playwright n'est configuré » (constat du
   31/07). C'est faux — ses outils sont déclarés dans les allowlists (`.claude/settings.json` et
