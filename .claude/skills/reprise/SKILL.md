@@ -43,6 +43,11 @@ contre les commits depuis : `grep -n -m2 -i "mise à jour\|confrontation" docs/c
 docs/construction/mondes/WAMA_VISION_COMPLET.md`, puis `git log --since=<cette date> --oneline | wc -l`.
 Des centaines de commits depuis = la doc a décroché : le DIRE à l'ouverture et proposer
 `/doc-sync §2` (passe longue) — mesuré ce jour-là : 3 025 commits depuis l'en-tête de la ROADMAP.
+⚠ **Lire la PHRASE de l'en-tête, pas la seule ligne que le motif rend** (vécu le 2026-11-10) : pour la
+vision, le motif s'arrêtait sur « (2026-08-27 pour cette édition ; confrontation complète », et la date
+qui compte, 2026-10-26, ouvrait la ligne suivante. Fabien a reçu un décrochage cinq fois trop grand. Ouvrir
+l'en-tête (`Read`) avant de compter, et dire qu'un compte de commits est un MAXIMUM : il ne dit pas combien
+de sections sont périmées.
 
 > 🔴 **La suite se lance DEPUIS WSL2 (`venv_linux`) — c'est le runtime réel** (ajouté le
 > 2026-09-05). Mesuré ce jour : **4 tests étaient verts depuis venv_win et n'avaient JAMAIS pu
