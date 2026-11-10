@@ -268,10 +268,9 @@ def _read(item, ctx):
         # `if/elif` par moteur vivait ici : un OCR installé demain — Ollama, un fournisseur — n'aurait
         # pas eu sa branche.
         from wama.common.backends.manager import backend_instance_for_key, run_contract
-        # Le classifieur qui redresse le document : demandé à la route d'abord. Le redressement
-        # lui-même est celui du CONTRAT OCR, avant le moteur (`ocr_base._reads_upright`, depuis le
-        # 2026-11-10 : la glu le faisait, une jumelle générée n'en avait pas).
-        _request_page_orientation(ctx)
+        # Le document arrive redressé par le CONTRAT OCR (`ocr_base._reads_upright`), et le
+        # classifieur qu'il charge a été demandé à la route avec le moteur, plus haut
+        # (`OCRBackend.OPTIONAL_MODELS`, 2026-11-10 : la glu faisait les deux, une jumelle aucun).
         engine = backend_instance_for_key(backend, user=item.user)
         raw_text = run_contract(engine, work_file=item.input_file.path, mode=item.mode,
                                 language=item.language, progress_callback=ctx.progress,
@@ -317,9 +316,11 @@ def _show_failure(item, exc) -> None:
 
 
 def _request_page_orientation(ctx) -> None:
-    """Le classifieur d'orientation que le redressement charge : demandé à la route comme le
-    moteur (2026-11-02). Un REFUS ne fait pas échouer la lecture — le redressement est un confort,
-    l'image part alors telle quelle."""
+    """Le classifieur d'orientation que le redressement de la PARTITION charge : demandé à la route
+    comme le moteur (2026-11-02). Un REFUS ne fait pas échouer la lecture — le redressement est un
+    confort, l'image part alors telle quelle. La lecture du texte n'en a plus besoin depuis le
+    2026-11-10 : le contrat OCR le déclare (`OPTIONAL_MODELS`), la route l'amène avec le moteur ;
+    ici c'est la GLU qui redresse (`_upright_work_file`), pas le moteur de partition."""
     from wama.common.backends.ocr_base import PAGE_ORIENTATION_KEY
     from wama.common.utils.model_readiness import ModelInstallRefused
     try:

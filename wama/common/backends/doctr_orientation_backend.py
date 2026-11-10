@@ -9,8 +9,9 @@ par classe (`manager.backend_instance`), et le classifieur sert aussi les autres
 
 Sur le PROCESSEUR, comme tout docTR dans WAMA (ses modèles restent où la librairie les crée) :
 6 Mo, ~0,04 s par image — `recommended_vram_gb = 0`. Ses poids sont DÉCLARÉS à côté de la brique
-d'OCR (`ocr_base.PAGE_ORIENTATION_FILES`) et installés par la route ; la glu du reader le demande
-avant (`ctx.ensure_model(PAGE_ORIENTATION_KEY)`).
+d'OCR (`ocr_base.PAGE_ORIENTATION_FILES`) et installés par la route ; le contrat OCR le déclare
+(`OCRBackend.OPTIONAL_MODELS`, 2026-11-10), la route l'amène donc avec tout moteur d'OCR — la glu
+de partition du reader le demande elle-même, c'est elle qui y redresse.
 """
 from __future__ import annotations
 

@@ -29969,10 +29969,28 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
   la case « un seul document », jouée au navigateur : posée À CÔTÉ de la zone, elle était une tuile
   de plus de la rangée flex et l'écrasait (79 px) — elle vit DANS la zone, son libellé passe la
   garde du clic (`a, input, label`). Tests : 3 + 2 (V8), contre-épreuves 4 + 2 rouges.
-  ⏳ Reste de cette passe : une jumelle ne DEMANDE pas le classifieur à la route (la glu du Reader
-  le fait, `_request_page_orientation`) — installé, il sert ; absent, l'EXIF seul s'applique ; et
-  `reader_01` (générée le 06/11) précède `read_score` (08/11) : sa régénération est à décider.
-- 🔚 Restes : la lecture d'une page de PDF dans ses deux sens (demi-tour) reste aux images ; un lot de TEXTES
+  ✅ **Ses deux restes, soldés le même jour (décisions de Fabien : « oui pour le mécanisme du
+  contrat, et régénère reader_01 »)** — ① un contrat DÉCLARE les modèles facultatifs qu'il emploie
+  à côté du modèle servi (`BaseModelBackend.OPTIONAL_MODELS` ; `OCRBackend` : le classifieur
+  d'orientation) ; `model_readiness.ensure_installed` / `install_and_wait` les demandent à la route
+  APRÈS le modèle (dorsale d'abord, comme avant), une attente se tient comme pour lui, un refus se
+  DIT et la tâche continue (`contract_optional_models`). Toute glu qui fait `ctx.ensure_model(<ocr>)`
+  — le Reader, le corps B1 généré d'une jumelle, l'OCR des scans (`ocr_process`) — l'amène sans une
+  ligne ; la lecture de texte du Reader ne le demande plus elle-même ; la partition le garde
+  (`_request_page_orientation` : c'est SA glu qui redresse). Tests +7 (`tests_model_readiness`),
+  garde du Reader réécrite (le classifieur après le moteur, par le contrat) ; contre-épreuves 3/3
+  rouges (boucle, déclaration, confort). ② `reader_01` RECRÉÉE (`remove` + `create --owner
+  fabien.moreau` + la chaîne ; 0 card, 0 lot mesurés avant) : `apps`, `urls+views+templates`,
+  `params` GÉNÉRÉS et tenus ; `tasks+function_specs` et `models` REVENUS au témoin — la jumelle
+  lit donc la partition par la copie des tâches du Reader. Causes nommées par le juge, trois
+  manques du GÉNÉRATEUR nés avec la partition : le manifeste extrait d'une app n'a pas de facette
+  `surfaces` (seule une app de zéro la rédige), `surfaces.py` reste copié et importe
+  `holds_score`, que `function_specs` généré n'émet pas ; `models` généré perd `.filename`
+  (connu depuis le 20/10) et la constante `SCORE_TITLE_MAX`. `converge` : 83 tests de l'original,
+  19 rouges — clés renommées par la copie (`'reader:…'` → `'reader_01:…'`), routes et page
+  générées, migrations de l'original absentes ; aucun ne touche le contrat.
+- 🔚 Restes : les trois manques du générateur que `reader_01` a nommés (facette `surfaces` d'une app
+  existante, fonctions propres que lit un fichier copié, membres de modèle) ; la lecture d'une page de PDF dans ses deux sens (demi-tour) reste aux images ; un lot de TEXTES
   ne se combine pas encore ; le bouton « Fusionné » d'un lot de pages n'apparaît qu'au rendu suivant
   la fin du lot (les pages se lisent sur les fichiers) ; le verdict du critère `recursive_import`
   pour les cards en mode attache, à remesurer.

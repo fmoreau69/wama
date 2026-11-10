@@ -254,6 +254,94 @@ class AnAdapterBringsItsBackboneTest(TestCase):
         self.assertEqual(['imager:test-base', 'imager:test-lora'], installed)
 
 
+class AContractBringsItsOptionalModelsTest(TestCase):
+    """2026-11-10, decision of Fabien : the models a CONTRACT uses beside the served one
+    (`BaseModelBackend.OPTIONAL_MODELS` — the page orientation classifier of every OCR engine) are
+    asked of the route WITH the model, whoever asks for it : the Reader glue asked for the
+    classifier alone, a generated twin never did. Optional : a refusal is said, the task goes on."""
+
+    ENGINE = 'reader:test-ocr'
+
+    def setUp(self):
+        from unittest import mock
+        from wama.common.backends.ocr_base import PAGE_ORIENTATION_KEY, OCRBackend
+        from wama.model_manager.models import AIModel
+        self.CLASSIFIER = PAGE_ORIENTATION_KEY
+        self.engine = AIModel.objects.create(model_key=self.ENGINE, name='OCR', model_type='ocr',
+                                             source='reader', is_downloaded=True)
+        self.classifier, _ = AIModel.objects.update_or_create(
+            model_key=PAGE_ORIENTATION_KEY,
+            defaults={'name': 'Orientation', 'model_type': 'ocr', 'source': 'github',
+                      'is_downloaded': False, 'is_proposed': False})
+        for target, value in (('wama.model_manager.services.model_installer.spec_for_catalog_row',
+                               {'kind': 'files'}),
+                              ('wama.common.utils.model_readiness._last_install', {}),
+                              ('wama.common.backends.manager.backend_for_key', OCRBackend)):
+            patcher = mock.patch(target, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _ensure(self, answer, **kw):
+        from unittest import mock
+        from wama.common.utils.model_readiness import ensure_installed
+        said = []
+        with mock.patch('wama.model_manager.services.model_installer.request_install',
+                        side_effect=answer) as install:
+            try:
+                out = ensure_installed(self.ENGINE, console=said.append, **kw)
+            except Exception as exc:
+                out = exc
+        return out, said, [c.args[0] for c in install.call_args_list]
+
+    def test_the_ocr_contract_names_the_page_classifier(self):
+        from wama.common.utils.model_readiness import contract_optional_models
+        self.assertEqual((self.CLASSIFIER,), contract_optional_models(self.ENGINE))
+
+    def test_an_absent_classifier_is_installed_and_the_task_waits_for_it(self):
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        out, _said, asked = self._ensure(lambda key, **kw: {'ok': True, 'started': True})
+        self.assertIsInstance(out, ServiceNotReady)
+        self.assertEqual([self.CLASSIFIER], asked)
+
+    def test_the_engine_first_then_what_its_contract_uses(self):
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        type(self.engine).objects.filter(pk=self.engine.pk).update(is_downloaded=False)
+        out, _said, asked = self._ensure(lambda key, **kw: {'ok': True, 'started': True})
+        self.assertIsInstance(out, ServiceNotReady)
+        self.assertEqual([self.ENGINE], asked, 'the engine is waited for before its classifier')
+
+    def test_a_refused_classifier_is_said_and_the_task_goes_on(self):
+        out, said, asked = self._ensure(lambda key, **kw: {'ok': False, 'reason': 'interdit'})
+        self.assertIs(True, out)
+        self.assertEqual([self.CLASSIFIER], asked)
+        self.assertTrue(any('facultatif' in line for line in said), said)
+
+    def test_a_failed_classifier_install_does_not_fail_the_task_back_from_its_wait(self):
+        from wama.common.utils import model_readiness
+        from unittest import mock
+        with mock.patch.object(model_readiness, '_last_install',
+                               return_value={'state': 'FAILURE', 'error': 'HTTP 404'}):
+            out, said, _asked = self._ensure(lambda key, **kw: {'ok': True}, redelivered=True)
+        self.assertIs(True, out)
+        self.assertTrue(any('HTTP 404' in line for line in said), said)
+
+    def test_a_refused_engine_still_fails_the_task(self):
+        from wama.common.utils.model_readiness import ModelInstallRefused
+        type(self.engine).objects.filter(pk=self.engine.pk).update(is_downloaded=False)
+        out, _said, _asked = self._ensure(lambda key, **kw: {'ok': False, 'reason': 'interdit'})
+        self.assertIsInstance(out, ModelInstallRefused)
+
+    def test_a_synchronous_caller_is_not_failed_by_a_refused_classifier(self):
+        from unittest import mock
+        from wama.common.utils.model_readiness import install_and_wait
+        said = []
+        with mock.patch('wama.model_manager.services.model_installer.request_install',
+                        return_value={'ok': False, 'reason': 'interdit'}) as install:
+            self.assertTrue(install_and_wait(self.ENGINE, console=said.append, poll_s=0))
+        self.assertEqual([self.CLASSIFIER], [c.args[0] for c in install.call_args_list])
+        self.assertTrue(any('facultatif' in line for line in said), said)
+
+
 class TheSkeletonInstallsTheCardModelTest(TestCase):
     """The skeleton calls the brick INSIDE its main `try` : a wait re-delivers the task, a refusal
     fails the card with its reason (seen through the composer, a skeleton app)."""

@@ -13,7 +13,9 @@ l'installation soit complètement faite, proprement et alignée sur la route. »
     échouée fait échouer la tâche EN LE DISANT — jamais un téléchargement « au chargement » à côté.
     Une glu l'appelle par `ctx.ensure_model(clé)` (`task_skeleton.TaskContext`), une tâche hors
     squelette par `redeliver_later`. Un ADAPTATEUR (LoRA) amène sa dorsale, demandée d'abord
-    (2026-10-19, `_with_backbone`) ;
+    (2026-10-19, `_with_backbone`) ; un modèle amène ensuite les modèles FACULTATIFS que le contrat
+    de son backend déclare (`OPTIONAL_MODELS`, 2026-11-10 : le classifieur d'orientation de l'OCR),
+    un refus dit sans arrêter la tâche ;
   • `install_and_wait` — le même geste pour un appelant SYNCHRONE (une commande : le banc) ;
   • `warn_if_weights_missing` — l'ancienne annonce, gardée pour la seule ligne que la route ne
     sait pas installer (aucun emplacement déclaré) : son backend télécharge au chargement, par un
@@ -157,14 +159,36 @@ def _start_install(row, user, via: str) -> str:
     return res.get('error') or res.get('reason') or 'installation refusée'
 
 
-def _announce(row, console) -> None:
+def _tell(console, message: str) -> None:
     if not console:
         return
     try:
-        console(f"« {row.name} » n'est pas installé : installation par le model manager{_volume(row)} — "
-                f"la tâche attend qu'elle soit COMPLÈTE, puis reprend d'elle-même.")
+        console(message)
     except Exception:
         pass
+
+
+def _announce(row, console) -> None:
+    _tell(console, f"« {row.name} » n'est pas installé : installation par le model manager{_volume(row)} — "
+                   f"la tâche attend qu'elle soit COMPLÈTE, puis reprend d'elle-même.")
+
+
+def contract_optional_models(model_key: str) -> tuple:
+    """Les modèles FACULTATIFS que le contrat du backend de `model_key` emploie à côté de lui
+    (`BaseModelBackend.OPTIONAL_MODELS`, 2026-11-10 : le classifieur d'orientation de tout OCR) —
+    lus sur la classe que la porte commune résout (`backend_for_key`). Vide si rien ne sert la clé."""
+    try:
+        from wama.common.backends.manager import backend_for_key
+        cls = backend_for_key(model_key)
+    except Exception as e:
+        logger.debug('[readiness] backend de %s non résolu : %s', model_key, e)
+        return ()
+    return tuple(k for k in (getattr(cls, 'OPTIONAL_MODELS', ()) or ()) if k and k != model_key)
+
+
+def _optional_refused(exc, console) -> None:
+    """Un modèle facultatif que la route n'installe pas : la tâche continue sans lui, en le disant."""
+    _tell(console, f"{exc} — modèle facultatif, la tâche continue sans lui.")
 
 
 def _with_backbone(model_key: str) -> list:
@@ -185,7 +209,9 @@ def _with_backbone(model_key: str) -> list:
 def ensure_installed(model_key: str, *, user=None, console=None, redelivered: bool = False,
                      via: str = 'task') -> bool:
     """Pour une TÂCHE : rend True quand le modèle est prêt à servir (ou que rien ne le concerne).
-    Un adaptateur demande aussi sa dorsale (`_with_backbone`), elle d'abord.
+    Un adaptateur demande aussi sa dorsale (`_with_backbone`), elle d'abord ; puis les modèles
+    FACULTATIFS que son contrat emploie (`contract_optional_models`) — attendus comme lui, mais un
+    refus n'arrête pas la tâche : il se dit.
 
     Lève `task_skeleton.ServiceNotReady` tant que la route installe (la tâche rend son worker et
     revient) ; `ModelInstallRefused` si la route refuse ou si l'installation que la tâche attendait
@@ -195,6 +221,11 @@ def ensure_installed(model_key: str, *, user=None, console=None, redelivered: bo
         return True
     for key in _with_backbone(model_key):
         _ensure_one(key, user=user, console=console, redelivered=redelivered, via=via)
+    for key in contract_optional_models(model_key):
+        try:
+            _ensure_one(key, user=user, console=console, redelivered=redelivered, via=via)
+        except ModelInstallRefused as exc:
+            _optional_refused(exc, console)
     return True
 
 
@@ -230,10 +261,18 @@ def install_and_wait(model_key: str, *, user=None, console=None, via: str = 'com
     """Le même geste pour un appelant SYNCHRONE (une commande, jamais un worker) : installe par la
     route et ATTEND la fin. Rend True quand le modèle est installé, lève `ModelInstallRefused` si
     la route refuse, échoue ou ne finit pas à temps ; False si la route ne sait pas l'installer.
-    Un adaptateur attend aussi sa dorsale, elle d'abord (`_with_backbone`)."""
-    return all(_install_one_and_wait(key, user=user, console=console, via=via, poll_s=poll_s,
-                                     timeout_s=timeout_s)
-               for key in _with_backbone(model_key))
+    Un adaptateur attend aussi sa dorsale, elle d'abord (`_with_backbone`) ; les modèles
+    facultatifs du contrat ensuite, un refus dit sans changer le verdict."""
+    ready = all(_install_one_and_wait(key, user=user, console=console, via=via, poll_s=poll_s,
+                                      timeout_s=timeout_s)
+                for key in _with_backbone(model_key))
+    for key in (contract_optional_models(model_key) if ready else ()):
+        try:
+            _install_one_and_wait(key, user=user, console=console, via=via, poll_s=poll_s,
+                                  timeout_s=timeout_s)
+        except ModelInstallRefused as exc:
+            _optional_refused(exc, console)
+    return ready
 
 
 def _install_one_and_wait(model_key: str, *, user, console, via: str, poll_s: float,

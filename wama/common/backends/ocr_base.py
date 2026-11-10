@@ -101,8 +101,8 @@ def _orientation_backend():
     """Le backend du classifieur d'orientation de PAGE (`PAGE_ORIENTATION_KEY`, contrat
     `page-orientation`), chargé — par la porte commune (`backend_instance_for_key`, puis `load`,
     idempotent ; gardé chargé par le cache commun). Ses poids sont DÉCLARÉS
-    (`PAGE_ORIENTATION_FILES`) et installés par la route — la glu du reader le demande avant
-    (`ctx.ensure_model(PAGE_ORIENTATION_KEY)`). None s'il n'est pas installé ou s'il ne se charge
+    (`PAGE_ORIENTATION_FILES`) et installés par la route — demandé avec tout moteur d'OCR, que le
+    contrat le déclare (`OCRBackend.OPTIONAL_MODELS`). None s'il n'est pas installé ou s'il ne se charge
     pas : le redressement est un confort, et la librairie ne doit pas le télécharger d'elle-même.
     Jusqu'au 2026-11-07 ce module le chargeait lui-même (`page_orientation_predictor`)."""
     if not page_orientation_installed():
@@ -304,6 +304,10 @@ class OCRBackend(BaseModelBackend):
     #: lors du DERNIER `run` — remis à vide au début de chaque `run` d'un moteur qui coupe, lu par l'appelant après lui
     #: (`loop_cut_notice`). Un moteur qui ne coupe jamais n'a rien à faire.
     cut_pages: tuple = ()
+
+    #: Le classifieur que le redressement charge (`_orientation_backend`) : demandé à la route
+    #: avec le moteur, quel que soit l'appelant (2026-11-10 — la glu du Reader le demandait seule).
+    OPTIONAL_MODELS = (PAGE_ORIENTATION_KEY,)
 
     def __init_subclass__(cls, **kwargs):
         """Chaque moteur lit son document redressé (`_reads_upright`) — la rotation est une

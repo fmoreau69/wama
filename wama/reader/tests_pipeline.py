@@ -242,25 +242,31 @@ class PageOrientationModelAskedTest(_Cards):
     """2026-11-02 — the page orientation classifier that straightens an image before ANY OCR
     engine is a catalogue row of its own, installed by the route: the reading asks for it (it used
     to be fetched by docTR at first use). A refused installation does not fail the reading — the
-    straightening is a comfort."""
+    straightening is a comfort. Since 2026-11-10 the OCR CONTRACT declares it
+    (`OCRBackend.OPTIONAL_MODELS`) and the route brings it with the engine: the glue no longer
+    asks, so a generated twin gets it too."""
 
     def _asked(self, refuse=False):
         from wama.common.backends.ocr_base import PAGE_ORIENTATION_KEY
-        from wama.common.utils.model_readiness import ModelInstallRefused
+        from wama.common.utils import model_readiness
         asked = []
 
-        def ensure(key, **kwargs):
+        def ensure_one(key, **kwargs):
             asked.append((key, self.engine_runs))
             if refuse and key == PAGE_ORIENTATION_KEY:
-                raise ModelInstallRefused('espace disque insuffisant')
-        with mock.patch('wama.common.utils.model_readiness.ensure_installed', side_effect=ensure):
+                raise model_readiness.ModelInstallRefused('espace disque insuffisant')
+        with mock.patch.object(model_readiness, '_ensure_one', side_effect=ensure_one), \
+                mock.patch.object(model_readiness, '_with_backbone', side_effect=lambda key: [key]), \
+                mock.patch('wama.common.backends.manager.backend_for_key', return_value=_FakeOCR):
             card = self._run(self._card(format_markdown=False))
         return card, asked, PAGE_ORIENTATION_KEY
 
-    def test_the_classifier_is_asked_before_the_engine_reads(self):
+    def test_the_classifier_is_asked_with_the_engine_before_it_reads(self):
         card, asked, key = self._asked()
         self.assertEqual('SUCCESS', card.status)
         self.assertIn((key, 0), asked, 'asked before the engine ran')
+        self.assertLess(asked.index(('reader:doctr', 0)), asked.index((key, 0)),
+                        'the engine first, then what its contract uses')
 
     def test_a_refused_classifier_does_not_fail_the_reading(self):
         card, asked, key = self._asked(refuse=True)

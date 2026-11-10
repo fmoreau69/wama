@@ -609,6 +609,12 @@ class BaseModelBackend(ABC):
     PIP_NO_DEPS: bool = False
     recommended_vram_gb: Optional[float] = None
     description: str = ""
+    #: Les modèles du catalogue que le CONTRAT emploie à côté du modèle servi, s'ils sont
+    #: installés (2026-11-10, décision de Fabien) : le classifieur d'orientation qui redresse le
+    #: document de tout moteur d'OCR. Demandés à la route avec le modèle, par `ctx.ensure_model`
+    #: et par le squelette (`model_readiness.ensure_installed`) — une jumelle générée les reçoit
+    #: sans une ligne de glu. Facultatifs : un refus d'installation se DIT, la tâche continue.
+    OPTIONAL_MODELS: tuple = ()
 
     #: MOTEUR piloté par ce backend — la librairie qui exécute réellement le modèle
     #: (`faster-whisper`, `diffusers`, `coqui`, `audio-cpp`…), déclarée le 2026-09-03
