@@ -236,6 +236,22 @@ class ValidatedLibraryIsNeverReproposedTest(TestCase):
         self.assertIn('library:zz_lib_test', role.call_args.args[1])
         self.assertTrue(finish.call_args.args[1]['library']['reused'])
 
+    def test_the_call_options_reach_every_role_of_the_chain(self):
+        """`--llm-timeout` and `--num-ctx` are WAMA's rules for a model call (2026-11-10): the chain
+        hands them to each role it launches, as it hands the provider and the model."""
+        import sys
+        from unittest import mock
+        self.addCleanup(self.chain.LLM_OPTIONS.clear)
+        argv = ['run_repo_app.py', '--repo', 'Owner/None', '--key', 'zz_app', '--need', 'x',
+                '--llm-timeout', '3600', '--num-ctx', '65536']
+        with mock.patch.object(sys, 'argv', argv), \
+                mock.patch.object(self.chain, 'run', return_value=(1, '')) as launched, \
+                mock.patch.object(self.chain, 'finish'):
+            self.chain.main()
+        command = launched.call_args_list[0].args[0]
+        self.assertTrue(command[1].endswith('run_librarian.py'))
+        self.assertEqual(['--llm-timeout', '3600', '--num-ctx', '65536'], command[-4:])
+
 
 class PlanAppIntegrationReadsPriorDecisionsTest(SimpleTestCase):
     """Le plan d'un DÉPÔT cherche lui-même ce que WAMA a déjà décidé : l'assistant, sans son skill

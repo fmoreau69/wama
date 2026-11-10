@@ -1408,6 +1408,37 @@ class BackendRoleTakesOneRepriseOnItsChecksTest(SimpleTestCase):
         self.assertIn("la racine des poids : paths['tokenizer'].parent", text)
         self.assertIn("la racine des poids : paths['deep'].parents[2]", text)
 
+    def test_every_loader_gets_its_share_of_the_budget_and_none_is_left_out(self):
+        """In the compact material the budget was spent in calling order and the last loaders were
+        left out — `_load_vae_model` among them, and the module passed `…/vae` (2026-11-10)."""
+        import tempfile
+        from unittest import mock
+
+        from django.test import override_settings
+        filler = ''.join(f'        step_{i} = {i}\n' for i in range(40))
+        loaders = ''.join(
+            f'    def _load_{name}(self, path):\n        """Loads {name} from <path>/{name}."""\n'
+            f'{filler}        self.{name} = read(path + "/{name}")\n' for name in 'abc')
+        source = ('from huggingface_hub import snapshot_download\n'
+                  'class Mixin:\n'
+                  '    def entry(self, path):\n        self._fetch(path)\n'
+                  '        self._load_a(path)\n        self._load_b(path)\n        self._load_c(path)\n'
+                  '    def _fetch(self, path):\n        snapshot_download("o/x", local_dir=path)\n'
+                  + loaders)
+        with tempfile.TemporaryDirectory() as tmp:
+            package = Path(tmp) / 'eng' / 'pkg'
+            package.mkdir(parents=True)
+            (package / '__init__.py').write_text('', encoding='utf-8')
+            (package / 'mod.py').write_text(source, encoding='utf-8')
+            with override_settings(BACKEND_VENDOR_DIR=tmp), \
+                    mock.patch.object(self.role, 'VENDOR_CHARS', 900):
+                text = self.role.entry_loaders_material(Path(tmp) / 'eng', 'eng', 'entry', source)
+        for name in 'abc':
+            with self.subTest(loader=name):
+                self.assertIn(f'----- _load_{name} ', text)
+                self.assertIn(f'self.{name} = read(path + "/{name}")', text, 'what it joins to the path')
+        self.assertNotIn('step_39', text, 'a loader past its share is served by its digest')
+
     def test_the_common_contract_excerpt_always_carries_its_abstract_methods(self):
         """They begin past the 22 000th character of `BaseModelBackend`: cut at 7 000, the excerpt
         never showed `load(...) -> bool`, and three modules wrote `-> None` (2026-11-10)."""

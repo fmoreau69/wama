@@ -4417,6 +4417,29 @@ qui restaient sans outil (mémoire et carte, disque, nettoyeur, surveillance, sa
   (`dev_run_role(role="backend", args={"catalog": "huggingface:ACE-Step/Ace-Step1.5"})`) ; le
   modèle local de niveau développement (`ollama:qwen3.8`) occuperait la carte — décision de
   Fabien.*
+  ✅ *Le soir même (Fabien a rejeté les propositions 1 à 5 ; « les tests locaux doivent passer »,
+  « on ne réinvente rien ») — six manques de plus, chacun trouvé par un passage, comblé dans la
+  route :*
+  6. *l'essai musical ENREGISTRE la forme d'appel du moteur sur le rappel du composer et la nomme
+     (`progress(0.51, desc=…)`), même quand le moteur avale l'erreur ; la progression se juge avant
+     le 100 final (un module envoyait `int(0.51)` = 0 tout du long) ;*
+  7. *le contrat commun servi au rôle porte TOUJOURS ses méthodes abstraites (`run_backend.base_excerpt`)
+     — elles commencent au 22 293ᵉ caractère de `BaseModelBackend`, l'extrait s'arrêtait à 7 000 :
+     trois modules ont écrit `load(...) -> None` ; l'essai dit ce que `load()` a rendu
+     (`_load_refusal`, une fonction pour les onze essais) ;*
+  8. *chaque chargeur a sa PART du budget de la matière (code entier, sinon signature, docstring et
+     emplois de ses paramètres) — au profil compact, `_load_vae_model` n'était plus servi ;*
+  9. *le profil compact (`--compact`, ~60 000 caractères au lieu de ~90 000) ;*
+  10. *le délai et la fenêtre de l'appel, deux règles de WAMA, en options communes à tous les rôles
+      (`--llm-timeout`, `--num-ctx`) ;*
+  11. *la sonde de la limite d'entrée d'un fournisseur (`llm_gateway_check --input-sizes`).*
+  *Résultats : `ilaas:qwen-3.8-27b`, matière COMPLÈTE — contrôles OK du premier coup, essai réel OK
+  après une reprise (10 s, 48 kHz, 196 s sur CPU) ; relu : il passe tout, mais sa progression restait
+  à 0 jusqu'à 100 (vu à la relecture, d'où le point 6) et un `tempfile.mkdtemp` n'est jamais effacé.
+  `ollama:qwen3.8`, matière compacte, carte libérée : requête servie (1 h 17), essai ❌ sur
+  `load() -> None` (d'où le point 7). Limites mesurées, local et distant : `WAMA_LLM.md` §« 2026-11-10 —
+  LIMITES D'USAGE d'un rôle ». ⏳ Un passage du rôle sur la route complète (points 1 à 11), puis la
+  relecture du module qui réussit, puis la validation de Fabien.*
 - **Deux jumeaux laissés par la session (revérification du 2026-11-10)** : ⏳ `dev_docs.module_api`
   (l.80) résume une fonction par la première LIGNE de sa docstring, le défaut que
   `tool_api._doc_summary` a soldé pour les outils — corriger régénère presque tout

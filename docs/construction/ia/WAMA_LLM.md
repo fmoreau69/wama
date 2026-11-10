@@ -3055,6 +3055,45 @@ comptent, rien ne nourrit l'ETA d'un rôle), la boucle d'outils et l'extraction 
 double (`core/tools.parse_tool_calls`, `role_utils.extract_json`), `cli.py` et l'audit sur
 `config.py`, les deux sondes de VRAM copiées.
 
+### 2026-11-10 — LIMITES D'USAGE d'un rôle : ce qui vient de WAMA, ce qui vient du fournisseur (mesuré)
+
+Fabien : *« on fait tous les essais nécessaires locaux/distant pour éprouver la route, établir les
+limites d'usage pour la génération d'un backend, ce qui servira aussi potentiellement aux limites
+générales […] ces quotas ou limites peuvent évoluer dans le temps »*. Banc : le rôle `backend`
+d'ACE-Step 1.5 (`PROSPECTION_PIPELINE`, entrée ACE-Step), sa matière complète (~90 000 caractères,
+26 631 jetons pour `qwen3.8`) et compacte (~60 000). Chaque chiffre est DATÉ : il se remesure.
+
+| | ce qui limite | mesuré le 2026-11-10 | levier |
+|---|---|---|---|
+| **local** (`ollama:qwen3.8`) | le DÉLAI d'attente de l'appel — règle de WAMA (600 s par défaut, 900 `task`/`app`, 1800 `backend`) ; l'appel n'est pas en flux | coupé à 30 min pile, matière complète | `--llm-timeout` (0 = aucune limite) |
+| local | la FENÊTRE — règle de WAMA (`LONG_WRITE_NUM_CTX` = 32 768 jetons), le modèle en accepte 262 144 (`context_length` au catalogue) | réponse VIDE en 2 min : 26 631 jetons de requête, la génération a rempli la fenêtre (`truncated = 1`, journal d'Ollama) | `--num-ctx` (coûte de la VRAM) ; matière compacte (passe) |
+| local | la CARTE — 18,2 Go mesurés pour `qwen3.8`, plus les services résidents (5,6 Go) | `CUDA error: an illegal memory access` (Ollama HTTP 500) | libérer la carte avant (`free_memory`, action `gpu`, geste du model manager) : la même requête passe ensuite |
+| **ILaaS** | sa DISPONIBILITÉ | la requête complète servie 5 fois sur 8 (`gemma-4-31b`), `qwen-3.8-27b` 1/1 ; les 3 échecs (« Connection error ») tous entre 13:48 et 15:35 | le relais du rôle (`role_utils._relay`) |
+| **Albert** | inconnu : TAILLE ou panne | aucune requête longue servie (0/7 : `deepseek-v4-flash`, `gemma-4-31b-it`), les appels courts servis à 15:13 | à mesurer par la sonde ci-dessous |
+
+**Les leviers posés** (communs à tous les rôles, admis par la surface `dev_run_role` —
+`COMMON_ROLE_ARGS` —, transmis par la chaîne `repo_app`) : `--llm-timeout`, `--num-ctx`
+(`role_utils.add_llm_arguments`, une seule surcharge, `LLM_OVERRIDES`) ; `--compact` du rôle `backend`
+(budgets resserrés, chaque chargeur à sa part — signature, docstring, emplois de ses paramètres).
+**La sonde** : `manage.py llm_gateway_check --provider <p> --model <m> --user <compte>
+--input-sizes 15000,30000,60000,90000` — la même consigne d'un mot derrière une matière croissante,
+par le chemin des rôles ; elle sépare la limite d'ENTRÉE du temps d'écriture et d'une panne.
+
+**Le domicile du fait, à ne pas doubler** : la fenêtre d'un modèle se DÉCLARE dans
+`capabilities['context_length']` (vocabulaire canonique, `model_capabilities`), d'où l'assistant tire
+déjà sa limite en caractères (`assistant_engine._safe_char_limit`). Elle est INCONNUE pour les modèles
+distants (120 000 caractères supposés) : une mesure de la sonde s'y déclare, par le manifeste.
+
+⏳ **Suites** :
+1. Mesurer Albert et ILaaS par la sonde (une série par modèle, deux si un refus apparaît) et
+   déclarer les fenêtres mesurées.
+2. Le rôle AJUSTE sa matière à la fenêtre déclarée du modèle tiré (la règle de l'assistant), au lieu
+   d'un `--compact` choisi à la main ; et la fenêtre locale se règle sur la taille de la requête.
+3. Un appel en flux avec un délai d'INACTIVITÉ (« aucun jeton depuis N s ») plutôt qu'une durée
+   totale : une génération longue qui avance ne se coupe plus comme un appel figé.
+4. Le passage local, matière complète, fenêtre 65 536, carte libérée (job `20261110-200042-a189e2`) :
+   son verdict au handoff.
+
 ### ⭐ 2026-10-13 — « les tests bloquent-ils ma tâche ? » : l'assistant lit la place que montre la card
 
 Fil Discord, OCR #1485 : *« Je pense que les tests en cours bloquent le traitement. Peux-tu me

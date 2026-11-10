@@ -53,6 +53,13 @@ développement (2026-09-22) et **s'arrête en le disant** s'il n'y en a pas — 
 `config.py` ne sert plus qu'au cas « catalogue injoignable » (`WAMA_LLM.md §1ter`). ⚠ Un
 fournisseur distant nommé sans `--model` prend encore son modèle par défaut.
 
+**Les réglages d'appel** (tous les rôles, 2026-11-10) : `--llm-timeout <s>` relève le délai
+d'attente de la réponse (600 s par défaut, 900 `task`/`app`, 1800 `backend` ; `0` = aucune limite)
+et `--num-ctx <jetons>` la fenêtre d'un modèle LOCAL (16 384, ou 32 768 pour les rôles qui écrivent
+long) — deux règles de WAMA, pas des limites du modèle. Le rôle `backend` admet `--compact` (matière
+réduite). Limites mesurées et sonde des fournisseurs : `WAMA_LLM.md` §« 2026-11-10 — LIMITES
+D'USAGE d'un rôle ».
+
 ⚠ **Garde GPU commune** (`role_utils.local_llm_guard`, ~~les six rôles~~ tous les rôles — huit au
 2026-10-31 : task, backend, integrator, codegen, scout, librarian, app, model — et l'audit, depuis le
 2026-10-13 — elle vivait dans le seul `run_model_manifest.py`) : le mode dépannage

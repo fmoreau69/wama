@@ -30595,3 +30595,45 @@ Revérification complète (`/reverif`) des commits `283de6d12`, `89280e43f`, `55
 - **Leçon de la sonde mise dans son skill** : `/smoke §0`, une remise en état se conditionne sur la forme réelle de la réponse, lue par une clé exigée.
 - **Artefacts déclarés** : une base de test à part, `wama_db_tfverif`, gardée (`--keepdb`) pour les passes de la session ; scripts de sonde et de contre-épreuve dans le scratchpad, jetables.
 - **Restent de ce chantier** (fiche `project_backend_contract`) : le temps réel du Face Analyzer au portage, l'interrupteur Auto par worker, la part structurelle de `ROADMAP §25.2` (décision de Fabien).
+
+## §CLÔTURE 2026-11-10 (soir), « ACE-STEP PAR LA ROUTE (suite) ; LIMITES D'USAGE LOCAL / DISTANT ; RÈGLE DES TESTS GÉNÉRIQUES ; MASSE DES TESTS » — `e39771bac`, `e90f00993`, `5c71b6cd9`, `a231a1547`, `bf7863d0b` et le commit de clôture (locaux, non poussés) — 🔚 le verdict du passage local en cours, puis un passage du rôle sur la route complète
+
+- **Suite du palier de l'après-midi.** Le rôle `backend` d'ACE-Step : six manques de plus comblés
+  dans la route (forme d'appel de progression enregistrée, contrat commun servi avec ses méthodes
+  abstraites, part de budget par chargeur, profil compact, délai et fenêtre en options communes,
+  sonde d'entrée d'un fournisseur) ; `ilaas:qwen-3.8-27b` a produit, sur la matière complète, un
+  module qui passe contrôles et essai réel (relu : progression figée, dossier temporaire jamais
+  effacé). Détail : `PROSPECTION_PIPELINE`, entrée ACE-Step (points 6 à 11).
+- **Limites d'usage mesurées** (`WAMA_LLM.md` §« 2026-11-10 — LIMITES D'USAGE d'un rôle ») : en local,
+  le délai (30 min) et la fenêtre (32 768) sont des RÈGLES de WAMA, la carte doit être libérée avant
+  (sinon `CUDA illegal memory access`) ; ILaaS sert la requête complète hors indisponibilité ; Albert
+  n'a servi aucune requête longue (0/7) — taille ou panne, à mesurer par
+  `llm_gateway_check --input-sizes`.
+- **Règle des tests** (Fabien) : `AGENTS.md` « UN TEST EST GÉNÉRIQUE PAR DÉFAUT — ET UNE GARDE NEUVE
+  REJOINT, ÉTEND OU REMPLACE », portée dans `/reverif`, `/cloture`, `/reprise`, `/contre-epreuve` ;
+  état des lieux mesuré de la masse des tests : `WAMA_VERIFICATION §11` (11 928 tests ; la suite du
+  commun sans verdict hebdomadaire depuis le 26/10 ; nuit 147 min, dimanche 247 min ; `--parallel` et
+  `--durations` jamais employés) — session dédiée à venir.
+- **Leçon de commit** : `241c99eda` avait effacé le bloc « témoins du Face Analyzer » d'une autre
+  session (blob de `PROJECT_STATUS` composé avant 20 min d'attente) — rétabli par elle
+  (`c874157e4`), vérifié complet ; `/commit-partiel` dit désormais de composer le blob au BASE du
+  commit. Les commits du soir, vérifiés un par un : parent = dernier HEAD, seules mes lignes retirées.
+- 🔚 **Pendings** :
+  1. le passage LOCAL, matière complète, fenêtre 65 536, carte libérée — job
+     `20261110-200042-a189e2` (lancé 21:00 ; à 21:14, carte graphique : 23,2 Go de mémoire occupés
+     sur 24, calcul à 99 %, `nvidia-smi` — il générait) : lire `logs/dev_jobs/<job>.log`
+     (lignes `[backend]`) et la proposition `wama-dev-ai/outputs/backend_huggingface__ACE-Step~…`
+     du soir ; consigner son verdict dans `WAMA_LLM` (tableau des limites) ;
+  2. la sonde d'entrée sur ILaaS et Albert (une série par modèle) puis la déclaration des fenêtres ;
+  3. un passage du rôle sur la route complète, la relecture du module qui réussit, puis la
+     validation de Fabien ; les propositions du soir restent en file (les rejeter : Fabien) ;
+  4. relancer gunicorn + workers (le geste « Valider » refait les contrôles avec le code chargé) ;
+  5. le rouge du budget des noms de tests vient d'un nom d'une autre session
+     (`test_each_element_goes_under_the_name_the_app_declares`, lot de textes, non commité).
+- **Gardes** : chaque livrable du soir a la sienne, chacune prouvée par sa mutation (rouge, puis
+  restauration à l'octet) ; aucune n'ouvre de fichier de tests neuf — toutes étendent un module
+  existant (règle du jour) ; la dernière série : transmission des options par la chaîne `repo_app`
+  et part de budget de chaque chargeur.
+- **Effets de bord** : la carte libérée quatre fois par le geste du model manager (`free_memory`,
+  action `gpu`, accord de Fabien : « il y a l'option de tout décharger ») ; neuf passages du rôle,
+  leurs propositions en file ; les morceaux d'essai gardés sous `wama-dev-ai/outputs/`.
