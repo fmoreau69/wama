@@ -2544,6 +2544,64 @@
       "params_module": "wama.anonymizer.params",
       "runnable": true
     },
+    "surfaces": [
+      {
+        "_unsupported": [
+          "context.classes"
+        ],
+        "available": "wama.anonymizer.surfaces._review_available",
+        "documents": [
+          "detections"
+        ],
+        "edits": "detection_corrections",
+        "key": "review",
+        "label": "Corriger les détections",
+        "reads": {
+          "detections": "detections_file",
+          "image": "file"
+        },
+        "reruns": "blur",
+        "slots": [
+          {
+            "brick": "image_boxes",
+            "h": 14,
+            "id": "image",
+            "options": {},
+            "w": 9,
+            "x": 0,
+            "y": 0,
+            "zone": "grid"
+          },
+          {
+            "brick": "object_list",
+            "h": 9,
+            "id": "objects",
+            "options": {},
+            "w": 3,
+            "x": 9,
+            "y": 0,
+            "zone": "grid"
+          },
+          {
+            "brick": "surface_actions",
+            "h": 5,
+            "id": "actions",
+            "options": {},
+            "w": 3,
+            "x": 9,
+            "y": 9,
+            "zone": "grid"
+          }
+        ],
+        "validate": "wama.anonymizer.surfaces.validate_corrections",
+        "witness": {
+          "detections_file": "detections",
+          "file": ".png",
+          "file_ext": ".png",
+          "media_type": "image"
+        }
+      }
+    ],
     "tool_api": {
       "add": "add_to_anonymizer",
       "descriptions": {

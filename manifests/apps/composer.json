@@ -2519,6 +2519,139 @@
       "params_module": "wama.composer.params",
       "runnable": true
     },
+    "surfaces": [
+      {
+        "also_edits": [
+          "parts_score"
+        ],
+        "available": "wama.composer.surfaces._score_available",
+        "edits": [
+          "reference_score",
+          "planned_score",
+          "extracted_score"
+        ],
+        "key": "score",
+        "label": "Éditer la partition",
+        "reads": {
+          "audio": "audio_output",
+          "lyrics_in": "input_lyrics_timed",
+          "lyrics_out": "rendered_lyrics_timed",
+          "rendered": "rendered_parts_score",
+          "rendered_score": "rendered_score"
+        },
+        "reruns": "render",
+        "slots": [
+          {
+            "brick": "score_view",
+            "h": 14,
+            "id": "score",
+            "options": {
+              "lyrics": "lyrics_in",
+              "media": "audio",
+              "title": "Partition de référence",
+              "versions": [
+                {
+                  "label": "Réduite"
+                },
+                {
+                  "empty": "Pas encore de partition complète : cocher « Partition complète » dans les réglages d'une card de reprise (cover), puis relancer.",
+                  "field": "parts_score",
+                  "label": "Complète"
+                }
+              ]
+            },
+            "w": 12,
+            "x": 0,
+            "y": 0,
+            "zone": "grid"
+          },
+          {
+            "brick": "media_transport",
+            "h": 3,
+            "id": "transport",
+            "options": {
+              "role": "audio"
+            },
+            "w": 12,
+            "x": 0,
+            "y": 14,
+            "zone": "grid"
+          },
+          {
+            "brick": "score_view",
+            "h": 12,
+            "id": "rendered",
+            "options": {
+              "lyrics": "lyrics_out",
+              "media": "audio",
+              "title": "Partition jouée",
+              "versions": [
+                {
+                  "empty": "Pas encore de partition réduite jouée : cocher « Partition réduite jouée » (et « Paroles chantées » pour ses paroles) dans les réglages de la card, puis relancer.",
+                  "label": "Réduite",
+                  "role": "rendered_score"
+                },
+                {
+                  "empty": "Pas encore de partition complète jouée : cocher « Partition complète jouée » dans les réglages de la card, puis relancer.",
+                  "label": "Complète",
+                  "role": "rendered"
+                }
+              ]
+            },
+            "w": 12,
+            "x": 0,
+            "y": 17,
+            "zone": "grid"
+          },
+          {
+            "brick": "text_sections",
+            "h": 6,
+            "id": "source",
+            "options": {
+              "title": "Source ABC"
+            },
+            "w": 12,
+            "x": 0,
+            "y": 29,
+            "zone": "grid"
+          },
+          {
+            "brick": "surface_actions",
+            "h": 5,
+            "id": "actions",
+            "options": {},
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "zone": "panel"
+          },
+          {
+            "brick": "revision_history",
+            "h": 6,
+            "id": "versions",
+            "options": {},
+            "w": 1,
+            "x": 0,
+            "y": 5,
+            "zone": "panel"
+          }
+        ],
+        "texts": [
+          "rendered",
+          "rendered_score",
+          "lyrics_in",
+          "lyrics_out"
+        ],
+        "witness": {
+          "audio_output": ".wav",
+          "parts_score": ".abc",
+          "planned_score": ".abc",
+          "prompt": "Témoin — la page d'édition de la partition",
+          "rendered_parts_score": ".abc",
+          "rendered_score": ".abc"
+        }
+      }
+    ],
     "tool_api": {
       "add": "add_to_composer",
       "descriptions": {

@@ -53,10 +53,10 @@
       },
       "quantization": "Q4_K_M",
       "vram_measured": {
-        "at": "2026-10-28T23:55:11+00:00",
-        "last_gb": 18.18,
-        "max_gb": 18.18,
-        "n": 1
+        "at": "2026-11-10T19:15:28+00:00",
+        "last_gb": 19.67,
+        "max_gb": 19.67,
+        "n": 2
       },
       "vram_provenance": "heuristic"
     },

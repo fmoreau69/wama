@@ -1859,6 +1859,103 @@
       "params_module": "wama.reader.params",
       "runnable": true
     },
+    "surfaces": [
+      {
+        "available": "wama.reader.surfaces._score_available",
+        "edits": "score_file",
+        "key": "score",
+        "label": "Éditer la partition",
+        "reads": {},
+        "slots": [
+          {
+            "brick": "score_view",
+            "h": 14,
+            "id": "score",
+            "options": {
+              "title": "Partition lue"
+            },
+            "w": 12,
+            "x": 0,
+            "y": 0,
+            "zone": "grid"
+          },
+          {
+            "brick": "text_sections",
+            "h": 6,
+            "id": "source",
+            "options": {
+              "title": "Source ABC"
+            },
+            "w": 12,
+            "x": 0,
+            "y": 14,
+            "zone": "grid"
+          },
+          {
+            "brick": "surface_actions",
+            "h": 5,
+            "id": "actions",
+            "options": {},
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "zone": "panel"
+          },
+          {
+            "brick": "revision_history",
+            "h": 6,
+            "id": "versions",
+            "options": {},
+            "w": 1,
+            "x": 0,
+            "y": 5,
+            "zone": "panel"
+          }
+        ],
+        "witness": {
+          "read_as_score": true,
+          "score_file": ".abc",
+          "status": "SUCCESS"
+        }
+      },
+      {
+        "available": "wama.reader.surfaces._text_available",
+        "edits": "result_text",
+        "key": "text",
+        "label": "Corriger le texte",
+        "reads": {},
+        "reruns": "analyze",
+        "slots": [
+          {
+            "brick": "text_sections",
+            "h": 20,
+            "id": "text",
+            "options": {
+              "title": "Texte lu"
+            },
+            "w": 12,
+            "x": 0,
+            "y": 0,
+            "zone": "grid"
+          },
+          {
+            "brick": "surface_actions",
+            "h": 5,
+            "id": "actions",
+            "options": {},
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "zone": "panel"
+          }
+        ],
+        "validate": "wama.common.surfaces.validate_text",
+        "witness": {
+          "result_text": "# Témoin\n\nLe texte lu, une section.",
+          "status": "SUCCESS"
+        }
+      }
+    ],
     "tool_api": {
       "add": "add_to_reader",
       "descriptions": {

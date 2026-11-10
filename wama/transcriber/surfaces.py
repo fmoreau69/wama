@@ -53,6 +53,7 @@ def _saved(transcript, segments, user, finished):
     correction_saved(transcript, segments, user, finished)
 
 
+# wama:redondance-ok — la page de correction s'ouvre-t-elle (`Surface.available`), sans rapport avec les formats de téléchargement d'`export_formats.available_formats`
 def _available(transcript) -> tuple:
     if transcript.status != 'SUCCESS':
         return False, "La correction n'est disponible qu'après une transcription réussie."

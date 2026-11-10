@@ -2471,6 +2471,164 @@
       "params_module": "wama.transcriber.params",
       "runnable": true
     },
+    "surfaces": [
+      {
+        "_unsupported": [
+          "context.corrected",
+          "context.facts",
+          "edit_state"
+        ],
+        "autosave": true,
+        "available": "wama.transcriber.surfaces._available",
+        "documents": [
+          "latest"
+        ],
+        "edits": "corrected_segments_json",
+        "finish": "Terminer la correction",
+        "key": "correct",
+        "label": "Corriger la transcription",
+        "reads": {
+          "audio": "audio",
+          "latest": "segments_json"
+        },
+        "routes": {
+          "retime": "retime_segments",
+          "suggest_speakers": "suggest_speakers",
+          "write_cursor": "write_cursor",
+          "write_results": "write_results"
+        },
+        "saved": "wama.transcriber.surfaces._saved",
+        "settings": [
+          "title",
+          "meeting_date",
+          "speaker_map"
+        ],
+        "slots": [
+          {
+            "brick": "segment_list",
+            "h": 10,
+            "id": "segments",
+            "options": {
+              "latest": "latest",
+              "names": "speaker_map"
+            },
+            "w": 12,
+            "x": 0,
+            "y": 0,
+            "zone": "grid"
+          },
+          {
+            "brick": "media_timeline",
+            "h": 4,
+            "id": "timeline",
+            "options": {
+              "boundaries": "retime",
+              "minimap": true,
+              "quality": true,
+              "role": "audio",
+              "segments": true,
+              "zoom": true
+            },
+            "w": 12,
+            "x": 0,
+            "y": 10,
+            "zone": "grid"
+          },
+          {
+            "brick": "media_transport",
+            "h": 2,
+            "id": "transport",
+            "options": {
+              "goto": true,
+              "role": "audio",
+              "speed": "steps",
+              "wave": false
+            },
+            "w": 12,
+            "x": 0,
+            "y": 14,
+            "zone": "grid"
+          },
+          {
+            "brick": "playback_writing",
+            "h": 3,
+            "id": "writing",
+            "options": {},
+            "w": 12,
+            "x": 0,
+            "y": 16,
+            "zone": "grid"
+          },
+          {
+            "brick": "surface_actions",
+            "h": 6,
+            "id": "actions",
+            "options": {},
+            "w": 1,
+            "x": 0,
+            "y": 0,
+            "zone": "panel"
+          },
+          {
+            "brick": "item_settings",
+            "h": 5,
+            "id": "document",
+            "options": {
+              "facts": "facts",
+              "fields": [
+                "title",
+                "meeting_date"
+              ],
+              "title": "Document"
+            },
+            "w": 1,
+            "x": 0,
+            "y": 6,
+            "zone": "panel"
+          },
+          {
+            "brick": "speaker_names",
+            "h": 6,
+            "id": "speakers",
+            "options": {
+              "setting": "speaker_map",
+              "suggest": "suggest_speakers"
+            },
+            "w": 1,
+            "x": 0,
+            "y": 11,
+            "zone": "panel"
+          }
+        ],
+        "sources_setting": "listened_sources",
+        "validate": "wama.transcriber.surfaces.validate_segments",
+        "value": "wama.transcriber.surfaces._segments",
+        "witness": {
+          "audio": ".wav",
+          "segments_json": [
+            {
+              "end_time": 2.0,
+              "speaker_id": "SPEAKER_00",
+              "start_time": 0.0,
+              "text": "Témoin"
+            },
+            {
+              "end_time": 4.0,
+              "speaker_id": "SPEAKER_00",
+              "start_time": 2.0,
+              "text": "de la"
+            },
+            {
+              "end_time": 6.0,
+              "speaker_id": "SPEAKER_00",
+              "start_time": 4.0,
+              "text": "correction"
+            }
+          ],
+          "status": "SUCCESS"
+        }
+      }
+    ],
     "tool_api": {
       "add": "add_to_transcriber",
       "descriptions": {

@@ -134,10 +134,10 @@
       },
       "family": "Kokoro-82M-v1.0-ONNX",
       "vram_measured": {
-        "at": "2026-11-09T15:44:59+00:00",
-        "last_gb": 0.53,
-        "max_gb": 0.53,
-        "n": 22
+        "at": "2026-11-10T19:53:06+00:00",
+        "last_gb": 0.52,
+        "max_gb": 1.04,
+        "n": 32
       },
       "vram_provenance": "estimated"
     },

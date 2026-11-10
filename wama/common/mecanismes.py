@@ -291,11 +291,14 @@ MECHANISMS = (
               "modèle sans propriétaire se réconcilie en entier à l'ouverture de sa page "
               "(`reconcile_queue_of`, 2026-11-06)",
               'wama/common/utils/process_control.py', 'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
+              # Les scripts de surveillance appartiennent à `service_supervision`, qui les déclare
+              # depuis le 2026-11-10 : la relation se dit par `depends_on` (un fichier, un
+              # propriétaire — `tests_mecanismes_scan.OneFileOneOwnerTest`).
               annexes=('wama/celery.py', 'wama/common/management/commands/worker_died.py',
-                       'scripts/worker_watchdog.sh', 'scripts/wama_services.sh',
                        # CodeFormer l'emploie aussi ; il est rattaché à `work_dir` (un fichier,
                        # un propriétaire).
-                       'wama/common/backends/musetalk_backend.py')),
+                       'wama/common/backends/musetalk_backend.py'),
+              depends_on=('service_supervision',)),
     Mechanism('memory_manager', 'Mémoire GPU',
               "Choisit la stratégie de chargement (plein GPU, déchargement) sur la vue de SON "
               "process, garantit la VRAM avant un chargement, la reprend sur les autres modèles, "

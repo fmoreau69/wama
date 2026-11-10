@@ -30551,6 +30551,15 @@ Revérification complète (`/reverif`) des commits `283de6d12`, `89280e43f`, `55
   l'original n'aurait plus été gardé avant sa première correction). Gardée : `KeptPathTest`, trois cas,
   contre-épreuve rouge. La vision ne porte aucune ligne sur la réunion d'un lot (rien à marquer) ; `ROADMAP §7`
   « Concaténation » est à jour.
+- **Réglé avant clôture, à la demande de Fabien (les restes nommés ci-dessus)** : `OneFileOneOwnerTest` vert —
+  les scripts de surveillance à la seule supervision des services, `process_control` en `depends_on` ;
+  `transcriber/surfaces.py::_available`, homonyme de `available_formats` et non doublon, assumé par le pragma
+  `wama:redondance-ok` (une ligne de commentaire, aucun code du transcriber touché ; le manifeste cite ce
+  crochet par son nom) ; corpus de manifestes à jour (940, 0 refusé — facette `surfaces` de 4 apps, mesures
+  de VRAM des modèles, 5 manifestes neufs du catalogue jusque-là non suivis) ; `WAMA_MECANISMES` régénéré
+  sur HEAD seul (worktree jetable). Tests : 354 (mécanismes, surfaces, tout le transcriber) + 256 (corpus,
+  docs), aucun rouge ; `check_redundancy` 113 → 111. Restent hors de ce périmètre : d'autres trouvailles
+  anciennes du gardien dans le transcriber (`_segments`, des noms de réglages recopiés), non examinées.
 
 ## §CLÔTURE 2026-11-10, « ANONYMIZER DOCUMENTS » (suite de la §PASSATION 2026-11-02→10 ci-dessus) — 83c695ec4, c1c58037e, 601ce8ff9, 3686537a9 (locaux) — 🔴 relancer gunicorn + workers + service de confidentialité (`privacy/engine.py`, vues et tâches de l'Anonymizer) — 🔚 session fraîche de Fabien sur l'app documents
 

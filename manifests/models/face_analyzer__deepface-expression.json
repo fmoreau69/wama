@@ -37,10 +37,10 @@
       "model_id": "deepface-expression",
       "optional": false,
       "vram_measured": {
-        "at": "2026-11-10T09:49:52+00:00",
-        "last_gb": 0.64,
-        "max_gb": 0.64,
-        "n": 5
+        "at": "2026-11-10T15:11:34+00:00",
+        "last_gb": 0.69,
+        "max_gb": 0.69,
+        "n": 13
       },
       "vram_provenance": "declared"
     },
