@@ -509,6 +509,7 @@ class ServiceTest(SimpleTestCase):
     def test_stopping_gives_its_lines_back_says_it_is_on_purpose_and_exits_after_the_answer(self):
         backend = mock.Mock()
         with mock.patch.object(self.service, '_on_card_backends', return_value=[backend]), \
+                mock.patch('wama.common.backends.base._LIVE_BACKENDS', [backend]), \
                 mock.patch.object(self.service.threading, 'Timer') as timer:
             self.assertEqual(1, self.service._stop_for_the_card())
         backend.unload.assert_called_once_with()
@@ -520,6 +521,16 @@ class ServiceTest(SimpleTestCase):
             self.service._leave()
         noted.assert_called_once_with('tensorflow_service')
         left.assert_called_once_with(0)
+
+    def test_a_model_that_fails_to_unload_does_not_keep_the_process_from_leaving(self):
+        broken, other = mock.Mock(), mock.Mock()
+        broken.unload.side_effect = RuntimeError('boom')
+        with mock.patch.object(self.service, '_on_card_backends', return_value=[broken, other]), \
+                mock.patch('wama.common.backends.base._LIVE_BACKENDS', [broken, other]), \
+                mock.patch.object(self.service.threading, 'Timer') as timer:
+            self.assertEqual(2, self.service._stop_for_the_card())
+        other.unload.assert_called_once_with()
+        timer.return_value.start.assert_called_once_with()
 
     def test_it_is_busy_while_it_loads_or_serves_the_flow_of_images(self):
         with mock.patch.object(gov, 'busy_tenants', return_value=set()):

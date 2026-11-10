@@ -96,8 +96,10 @@ def _stop_for_the_card() -> int:
     if not held:
         return 0
     _stopping.set()
-    for backend in held:
-        backend.unload()
+    # La boucle commune : un déchargement qui échoue n'arrête ni les suivants ni la sortie du processus
+    # (« stopping » à vie, la surveillance le verrait vivant et ne le relancerait pas).
+    from wama.common.backends.base import unload_live_backends
+    unload_live_backends()
     logger.info('Arrêt demandé par le gouverneur : %d modèle(s) sur la carte', len(held))
     threading.Timer(STOP_DELAY_S, _leave).start()
     return len(held)
