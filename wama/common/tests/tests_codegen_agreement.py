@@ -292,6 +292,12 @@ class TheSurfacesOfAnExistingAppAreExtractedTest(_Rendered):
         review = _surface(self.manifests['anonymizer'], 'review')
         self.assertIn('context.classes', review['_unsupported'])
         self.assertEqual(['detections'], review['documents'], 'its data are extracted all the same')
+        # A hook passed as an anonymous function has no path either — named, never a bogus path.
+        correct = _surface(self.manifests['transcriber'], 'correct')
+        self.assertIn('edit_state', correct['_unsupported'])
+        self.assertNotIn('edit_state', correct)
+        self.assertEqual('wama.transcriber.surfaces._segments', correct['value'],
+                         'a module function gets its path')
         self.assertIn('fonction anonyme', render_surfaces(self.manifests['anonymizer'])[1])
 
     def test_the_other_data_of_a_surface_are_rendered_with_the_type_of_their_field(self):

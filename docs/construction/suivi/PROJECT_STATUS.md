@@ -29907,7 +29907,7 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
 ✅ Cookies mesurés en service le 2026-11-10 (`csrftoken` … `Secure` à travers Apache, gunicorn relancé
 à 01:40). ⏳ La redirection, effective au redémarrage d'Apache (`httpd -k restart`, shell administrateur).
 
-## §PALIER 2026-11-10, « UN LOT, UN FICHIER : LE « FUSIONNÉ » À CÔTÉ DU ZIP (PARTITION COMPLÈTE, PDF DES PAGES) ; LES PAGES D'UN PDF REDRESSÉES COMME UNE PHOTO ; LE DÉPÔT « UN SEUL DOCUMENT » DU READER » — ce commit (local, non poussé) — 🔴 relancer gunicorn + workers (default, gpu)
+## §PALIER 2026-11-10, « UN LOT, UN FICHIER : LE « FUSIONNÉ » À CÔTÉ DU ZIP (PARTITION COMPLÈTE, PDF DES PAGES) ; LES PAGES D'UN PDF REDRESSÉES COMME UNE PHOTO ; LE DÉPÔT « UN SEUL DOCUMENT » DU READER » — `637ad7241` `d56f3845d` `2aabe70da` `ec9105873` `d6f83db95` `91d47ebba` (+ la garde de clôture), tous sur `origin/dev` au 2026-11-10 soir — 🔴 relancer gunicorn + workers : `reader_01` recréée (gunicorn la sert à sa relance), `common/surfaces.py` (✎ des cards), passe nocturne `ui_smoke_surfaces` (worker)
 
 > Question de fond de Fabien (2026-11-09) : un lot de pages ou une card qui porte un PDF de
 > plusieurs pages ? **Mesuré** (inventaire des dix files par un agent, constats vérifiés aux lignes,
@@ -29999,7 +29999,7 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
   son contrat écrit dans la docstring de l'appelant (garde `DeclaredGlueHolesTest`, qui l'a exigé) ;
   ② un crochet déclaré dans `function_specs`/`tasks` y reçoit son trou ; ③ `models_gen` introspecté :
   `__str__`/`filename` (`_spine_name_lines`, une émission pour les deux chemins) et constantes
-  littérales du module (`_own_constants`, précédent `_own_default`). Tests +13
+  littérales du module (`_own_constants`, précédent `_own_default`). Tests +14
   (`tests_codegen_agreement` ⑤⑥⑦, `tests_surfaces.AnUnreadableAvailabilityClosesThePageTest`).
   **`/reverif` (demandé par Fabien) a ramené trois écarts de ma main** : `_own_constants` relisait
   `tree.body` à côté de LA lecture du bac à sable des noms de niveau module (`sandbox.exposed_names`,
@@ -30007,7 +30007,7 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
   et empruntée ; le gabarit recopiait la liste et les types des champs de `Surface` (`_DATA`,
   `_TUPLES`) et l'extracteur en doublait une part → dérivés de la dataclass, une déclaration
   `SURFACE_OWN` pour les deux ; quatre noms de test sur la racine « declar » renommés. Gardes
-  ajoutées pour les deux premiers ; contre-épreuves 9/9 rouges (dont la règle des témoins).
+  ajoutées pour les deux premiers ; contre-épreuves 10/10 rouges (dont la règle des témoins ; la 10ᵉ, à la question de clôture de Fabien : une fonction anonyme passée en crochet direct n'avait aucune garde).
   `reader_01` recréée : **9/9 cibles générées, aucun fichier copié** ; ses deux ✎ grisés avec leur
   raison tant que la glu de leur disponibilité manque. `converge` 43/83 rouges : la glu privée de
   l'original (32 — `_read`, `_read_score`, `read_title`…) et les routes générées (11) — la marche B,
