@@ -30283,3 +30283,48 @@ de ce périmètre : `tests_backend_deprecation`, `tests_manifest_library`, `test
 - ⚠ Les règles CSS sont gardées par un contrôle de leur présence et par la mesure au navigateur, aucun
   scénario nocturne ne rejoue le menu ouvert. Les blocs générés (`WAMA_MECANISMES`, `docs/dev/briques`) se
   régénèrent à la clôture commune.
+
+## §PASSATION 2026-11-02→10, « ANONYMIZER DOCUMENTS : UN PDF OU UN DOCX ANONYMISÉ DANS SA FORME ; LE DOCUMENT REÇU PAR URL » — 97afa1b64, fef25cdb0, 7bddaca7b, 798f34485, 9c420ecaa, af07f4ad0, cfae067d9, cf11b0165, 22fbd1d75 (locaux, non poussés) — 🔴 relancer gunicorn + workers (cf11b0165) — 🔚 session neuve de Fabien sur l'app documents
+
+> Volet repris de `ROADMAP §16.4bis` (domicile, décisions D1–D5 et celles du 28/10). Cette passation
+> n'avait pas été écrite à la livraison du 02→03/11 : elle l'est ici, avec le palier du 10/11.
+
+- **Livré (02→03/11)**, vérifié en service le 02/11 au soir (compte de test) : le domaine
+  `document` de l'Anonymizer (`app_modes`, même `Media`, `media_type='document'`), ses trois process
+  réservés au domaine par `ProcessSpec.applies` dans le pipeline unique — `ocr` (process commun,
+  proposé par `needs_ocr`), `detect_text`, `occult_text` (brique `common/privacy` sur la couche texte
+  commune `document_text`) — `fef25cdb0` ; un passage lu sur un scan occulté dans ses boîtes de mots,
+  pixels effacés (`97afa1b64`) ; le service de confidentialité (:8003) PRÉCHAUFFÉ, la tâche qui
+  attend au lieu d'échouer, `USE_TF=0` (`7bddaca7b`, document #2297 « délai dépassé 180 s ») ; le
+  libellé à la FORME du texte remplacé, sans aplat blanc, réduit sur sa ligne (`798f34485`,
+  `9c420ecaa`) ; champs fichier à 500 caractères dans 14 apps (`af07f4ad0`) ; « Envoyer vers » au
+  FORMAT choisi (`cfae067d9`).
+- **Palier du 10/11** : un PDF reçu par URL naissait VIDÉO, avec les réglages de l'image. Brique
+  commune `app_modes.surface_source_nature` (la nature d'une URL ou d'une ligne de lot avant son
+  arrivée — l'enhancer l'écrivait en ligne, porté) ; l'Anonymizer fait naître la source dans son
+  domaine (`_born_from_source`) et finit la naissance d'un document à l'arrivée du fichier (réglages
+  du domaine, OCR proposé par un scan, `tasks._ingested_metadata`) — `cf11b0165`, docs générées
+  `22fbd1d75`. Gardes : `ADocumentFromAUrlIsBornADocumentTest` (5),
+  `tests_domain_arrival…test_a_source_says_its_nature_before_its_file_arrives` ; deux
+  contre-épreuves rouges. Suite ciblée (anonymizer document, arrivée de domaine, enhancer) : 121
+  tests, 1 rouge hors chantier (`enhancer.tests_declared_weights` : le code vendorisé d'ACE-Step du
+  05/11, dossier ignoré par git).
+- **Constat corrigé** : « les jumelles n'ont pas le domaine » était FAUX depuis leur recréation du
+  06/11 — `anonymizer_01` l'a au modèle, au schéma, à la naissance et aux process. Mesuré
+  (`PIPELINE.applicable`) : faute d'`applies` rendu, une image ET un document y jouent les cinq
+  process. Transmis à la session du générateur (`-65`) avec la page à onglets de domaine, la porte
+  `surface_file_nature` et la naissance d'une source (`ROUTE §11 #42` ⑦) ; elle soumet à Fabien le
+  champ `domain` du nœud de pipeline (décision de formalisme) et ne veut aucune édition de codegen
+  ni des jumelles d'ici là.
+- **Laissé à leurs propriétaires** : `tests_identifier_language` rouge sur le budget des noms de
+  méthodes de test (aucun de mes fichiers à `--detail --test-names`) ; le reste de
+  `wama/common/mecanismes.py`, `docs/dev/briques.md`, `WAMA_MECANISMES.md` et
+  `wama/anonymizer/utils/model_config.py` (noms de détecteurs passés à l'anglais), en cours ailleurs.
+- 🔚 **Restes, pour la session neuve de Fabien** (domicile `ROADMAP §16.4bis`) : ① la MESURE WAMA de
+  la détection avant toute correction (CV de #2297 : dates et intitulés de poste pris pour des
+  données, une année lue comme téléphone, « diabète » non vu) ; ② la page de CORRECTION par passage
+  (`detection_corrections` accepte déjà les `span`, relue à l'occultation) ; ③ le contrôle
+  `remaining` ne relit pas un scan ; ④ un document reçu par une URL SANS nom de fichier naît encore
+  image / vidéo jusqu'à l'arrivée (rangé dans le bon domaine ensuite) ; ⑤ l'option « piste audio »
+  du domaine vidéo, avec le domaine audio (décidée le 28/10) ; ⑥ Translator → le reste de
+  `document_text` ; ⑦ la jumelle, côté générateur, après la décision de Fabien.
