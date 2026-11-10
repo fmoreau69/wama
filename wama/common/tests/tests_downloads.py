@@ -327,8 +327,10 @@ class BatchCardZipButtonTests(SimpleTestCase):
         self.assertNotIn('format=txt', part, 'only the formats the app joins in')
         self.assertIn('data-batch-combined hidden', self._scores_card(success_count=1),
                       'a lot not fully done is not joined')
-        self.assertNotIn('data-batch-combined', self._scores_card(success_count=2, scores=False),
-                         'a lot of texts has nothing to join')
+        texts = self._scores_card(success_count=2, scores=False)
+        self.assertIn('/lot/7/dl/?combine=1&amp;format=txt', texts, 'a lot of texts joins as a text')
+        self.assertNotIn('combine=1&amp;format=abc', texts)
+        self.assertNotIn('combine=1&amp;format=json', texts, "an engine's raw output does not join")
 
     def test_no_app_template_lists_batch_formats_by_hand(self):
         """Absence guard: a hand-written batch menu would bring the copied formats back."""

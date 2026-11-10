@@ -283,10 +283,17 @@ def _registered(registry: dict, app_name: str):
 # (`output_formats.output_format_params`, table du converter par nature). Le PDF y est la sortie
 # DÉCLARÉE de la nature image (`CONVERTER_OUTPUT_FORMATS['image']`) : assembler les images d'un
 # lot, c'est la conversion image → PDF du converter passée d'un fichier à N (§6.4).
+#
+# Et de même pour un lot de TEXTES (2026-11-10, Fabien : « aligner le fonctionnement ») : une app
+# qui rend ses éléments (`register_export_builder`) les réunit sans rien déclarer de plus, chacun
+# rendu par son builder, dans l'ordre du lot (`_joined_texts`).
 _LOT_BUILDERS: dict = {}
 _LOT_FORMATS: dict = {}
 #: Le format du lot fait de PAGES.
 PAGES_FORMAT = 'pdf'
+#: Les formats qui se réunissent, parmi ceux que l'app déclare : pas les sous-titres (`srt`, dont
+#: les temps repartent de zéro à chaque élément), ni le brut d'un moteur (`json`).
+TEXT_JOINS = ('txt', 'md', 'pdf', 'docx')
 
 
 def register_lot_builder(app_name: str, builder, formats) -> None:
@@ -337,15 +344,25 @@ def _pages_combine(items) -> bool:
             and all(result_pages(item) for item in items))
 
 
+def _text_formats(app_name: str) -> list:
+    """Les formats en lesquels un lot de TEXTES se réunit : ceux de `TEXT_JOINS` que l'app déclare
+    au téléchargement, dès qu'elle sait rendre un élément. Ne lit aucun résultat : le menu d'une
+    card mère se rend à chaque affichage de la file, la section attend que le lot ait réussi."""
+    if export_builder_for(app_name) is None:
+        return []
+    return [e['value'] for e in entries_for_app(app_name) if e['value'] in TEXT_JOINS]
+
+
 def combined_formats(app_name: str, items) -> list:
     """Les formats en lesquels les éléments `items` d'un lot se combinent en UN fichier : ceux du
-    rendu que l'app déclare, sinon le PDF quand leurs résultats sont des pages ; [] pour un lot
-    d'un seul élément (son ⬇ suffit). Les pages se lisent sur les RÉSULTATS : un lot dont un
-    élément n'a pas encore rendu n'offre pas le PDF."""
+    rendu que l'app déclare, sinon le PDF quand leurs résultats sont des pages, sinon les formats
+    de texte de l'app ; [] pour un lot d'un seul élément (son ⬇ suffit). Les pages se lisent sur
+    les RÉSULTATS : un lot dont un élément n'a pas encore rendu n'offre pas le PDF."""
     items = list(items or ())
     if len(items) < 2:
         return []
-    return _own_formats(app_name, items) or ([PAGES_FORMAT] if _pages_combine(items) else [])
+    return (_own_formats(app_name, items) or ([PAGES_FORMAT] if _pages_combine(items) else [])
+            or _text_formats(app_name))
 
 
 def combined_url(lot_url: str) -> str:
@@ -372,19 +389,66 @@ def lot_menu(app_name: str, lot_url: str, items, ready: bool) -> list:
                    for index, e in enumerate(joined)]
 
 
-def combine_lot(app_name: str, items, fmt: str):
-    """`(ext, bytes)` du fichier combiné des `items` au format `fmt`, ou None — le rendu déclaré de
-    l'app pour ses formats, sinon les pages assemblées (`pdf_pages.pages_to_pdf`)."""
-    items = list(items)
-    if fmt in _own_formats(app_name, items):
-        return lot_builder_for(app_name)(items, fmt)
-    if fmt != PAGES_FORMAT or not _pages_combine(items):
-        return None
-    import tempfile
+def _pages_pdf(pages, folder) -> bytes:
+    """Les octets du PDF fait de `pages` (`pdf_pages.pages_to_pdf`), écrit dans `folder`."""
     from pathlib import Path
 
     from wama.common.utils.pdf_pages import pages_to_pdf
-    with tempfile.TemporaryDirectory() as folder:
-        target = Path(folder) / 'lot.pdf'
-        pages_to_pdf([page for item in items for page in result_pages(item)], str(target))
-        return PAGES_FORMAT, target.read_bytes()
+    target = Path(folder) / 'lot.pdf'
+    pages_to_pdf(pages, str(target))
+    return target.read_bytes()
+
+
+def _joined_texts(app_name: str, items, fmt: str):
+    """`(ext, bytes)` d'UN document fait des éléments d'un lot de textes, dans l'ordre du lot, chacun
+    sous son nom — ou None. Chaque élément est rendu par le builder de l'app : un PDF ou un DOCX
+    garde ainsi la mise en forme d'un élément téléchargé seul. Un élément sans texte (une page
+    blanche) est sauté ; un texte qu'on ne sait pas rendre refuse le tout, un document incomplet
+    se lirait comme le lot entier."""
+    from pathlib import Path
+
+    from wama.common.utils.batch_views import element_label
+    render = export_builder_for(app_name)
+    parts = []
+    for rank, item in enumerate(items, 1):
+        built = render(item, fmt)
+        if built is None:
+            if render(item, 'txt') is not None:
+                return None
+            continue
+        parts.append((element_label(item) or f'Élément {rank}', built[1]))
+    if not parts:
+        return None
+    if fmt == 'docx':
+        from wama.common.utils.document_export import join_docx
+        return fmt, join_docx([data for _name, data in parts])
+    if fmt == PAGES_FORMAT:
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            pages = []
+            for rank, (_name, data) in enumerate(parts):
+                page = Path(folder) / f'{rank}.pdf'
+                page.write_bytes(data)
+                pages.append(page)
+            return fmt, _pages_pdf(pages, folder)
+    blocks = []
+    for name, data in parts:
+        title = f'# {name}' if fmt == 'md' else f"{name}\n{'=' * len(name)}"
+        blocks.append(f"{title}\n\n{data.decode('utf-8', errors='replace').strip()}\n")
+    return fmt, '\n'.join(blocks).encode('utf-8')
+
+
+def combine_lot(app_name: str, items, fmt: str):
+    """`(ext, bytes)` du fichier combiné des `items` au format `fmt`, ou None — le rendu déclaré de
+    l'app pour ses formats, sinon les pages assemblées (`pdf_pages.pages_to_pdf`), sinon ses textes
+    réunis (`_joined_texts`)."""
+    items = list(items)
+    if fmt in _own_formats(app_name, items):
+        return lot_builder_for(app_name)(items, fmt)
+    if fmt == PAGES_FORMAT and _pages_combine(items):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            return PAGES_FORMAT, _pages_pdf([page for item in items for page in result_pages(item)], folder)
+    if fmt in _text_formats(app_name):
+        return _joined_texts(app_name, items, fmt)
+    return None

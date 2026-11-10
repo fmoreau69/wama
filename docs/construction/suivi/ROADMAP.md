@@ -1507,7 +1507,7 @@ STANDARD comme toutes les apps, `filemanager` → `import_to_converter` ; `queue
 | **Rotation** (90°/180°/270° + flip H/V) | ✅ Phase 6 (2026-05-16) | PIL `Image.Transpose` / ffmpeg `transpose,hflip,vflip` |
 | **Crop de zone** (image + vidéo, UI canvas) | ⏳ Phase 7 | Vision initiale — canvas JS overlay + ffmpeg crop |
 | Extraction de frames vidéo | ⏳ Phase 8 | Intervalle fixe ou détection de scène (PySceneDetect) |
-| Concaténation (N fichiers → 1) | 🔄 Phase 9 | ✅ 2026-11-10 images / PDF → UN PDF (`common/utils/pdf_pages.pages_to_pdf`) : le fichier « Fusionné » de tout lot dont les résultats sont des pages (`WAMA_APP_CONVENTIONS §9.10`) et le dépôt « un seul document » du Reader · ⏳ vidéo / audio (FFmpeg concat demuxer) |
+| Concaténation (N fichiers → 1) | 🔄 Phase 9 | ✅ 2026-11-10 images / PDF → UN PDF (`common/utils/pdf_pages.pages_to_pdf`) : le fichier unique de tout lot dont les résultats sont des pages, et les textes d'un lot en un document (`WAMA_APP_CONVENTIONS §9.10`) et le dépôt « un seul document » du Reader · ⏳ vidéo / audio (FFmpeg concat demuxer) |
 | Time-lapse / slow-motion (interpolation RIFE/DAIN) | ⏳ Phase 10 | Modèle ~500 MB, deps lourdes |
 | **Watermarking invisible** (stéganographie) | ⏳ Phase 11 | Vision initiale (Claude) — lib `stegano` ou DWT |
 | **Shell integration OS** (Win .reg / macOS Service / Linux .desktop) | ⏳ Phase 12 | Vision initiale — accès depuis explorateur natif |

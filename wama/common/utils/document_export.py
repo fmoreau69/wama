@@ -534,6 +534,28 @@ def generate_reader_docx(item) -> bytes:
     return buf.read()
 
 
+def join_docx(documents) -> bytes:
+    """UN DOCX fait de `documents` (octets), dans l'ordre, chacun à partir d'une nouvelle page — le
+    fichier unique d'un lot de textes (`export_formats._joined_texts`, 2026-11-10). Les DOCX de ce
+    module ne portent ni image ni style propre : leurs paragraphes et tableaux se recopient tels
+    quels, sans relation à reporter."""
+    from copy import deepcopy
+
+    from docx import Document
+
+    joined = Document(io.BytesIO(documents[0]))
+    for data in documents[1:]:
+        joined.add_page_break()
+        end = joined.element.body.sectPr
+        source = Document(io.BytesIO(data)).element.body
+        for node in source:
+            if node is not source.sectPr:
+                end.addprevious(deepcopy(node))
+    buf = io.BytesIO()
+    joined.save(buf)
+    return buf.getvalue()
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # TRANSCRIBER — DOCX
 # ──────────────────────────────────────────────────────────────────────────────

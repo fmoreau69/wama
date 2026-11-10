@@ -896,6 +896,107 @@ class LateBindingBatchDownloadTest(TestCase):
                 self.assertEqual('wama.common.utils.batch_views', views.batch_download.__module__)
 
 
+class ALotOfTextsJoinsInOneDocumentTest(TestCase):
+    """2026-11-10, Fabien : a lot of texts in ONE document, aligned on the lot of pages. Any app
+    that renders its elements (`register_export_builder`) joins them, nothing more to declare ;
+    each element through its own builder, in the order of the lot, under its name."""
+
+    from wama.common.tests import tests_queue_delete_contract as _contract
+    _account_for = _contract.SuppressionDansChaqueAppTest._compte_pour
+
+    def setUp(self):
+        from wama.reader.models import BatchReadingItemLink, ReadingItem
+        self.account = self._account_for('reader')
+        self.lot, self.items = self._contract._lot_de(ReadingItem, self.account, 3)
+        links = BatchReadingItemLink.objects.filter(batch=self.lot).order_by('row_index')
+        self.assertEqual(3, links.count())
+        for index, link in enumerate(links):
+            ReadingItem.objects.filter(pk=link.reading_id).update(
+                status='SUCCESS', original_filename=f'scan{index}.png', result_text=f'**Contenu** numero{index}')
+        self.items = [link.reading for link in BatchReadingItemLink.objects.filter(batch=self.lot).order_by('row_index')]
+        self.ReadingItem = ReadingItem
+
+    def _get(self, fmt):
+        from django.urls import reverse
+        return self.client.get(reverse('reader:batch_download', args=[self.lot.pk]),
+                               {'combine': '1', 'format': fmt})
+
+    def _in_order(self, text):
+        positions = [text.index(f'numero{index}') for index in range(3)]
+        self.assertEqual(sorted(positions), positions, 'in the order of the lot')
+
+    def test_a_plain_text_is_each_element_under_its_name(self):
+        response = self._get('txt')
+        self.assertEqual(200, response.status_code, response.content[:300])
+        text = response.content.decode()
+        self._in_order(text)
+        self.assertIn('scan0.png\n=========', text)
+        self.assertNotIn('**', text, "the element's own TXT rendering : no Markdown")
+
+    def test_a_markdown_keeps_the_markdown_of_each_element(self):
+        text = self._get('md').content.decode()
+        self._in_order(text)
+        self.assertIn('# scan1.png', text)
+        self.assertIn('**Contenu**', text)
+
+    def test_a_pdf_has_the_pages_of_every_element(self):
+        import fitz
+        response = self._get('pdf')
+        self.assertEqual(200, response.status_code, response.content[:300])
+        with fitz.open(stream=response.content, filetype='pdf') as pdf:
+            self.assertGreaterEqual(pdf.page_count, 3, 'each element on its own pages')
+            self._in_order(''.join(page.get_text() for page in pdf))
+
+    def test_a_docx_has_every_element_on_a_new_page(self):
+        import io
+        from docx import Document
+        response = self._get('docx')
+        self.assertEqual(200, response.status_code, response.content[:300])
+        document = Document(io.BytesIO(response.content))
+        self._in_order('\n'.join(p.text for p in document.paragraphs))
+        self.assertEqual(3, len(document.tables), 'the metadata table of each element')
+        breaks = sum(1 for p in document.paragraphs if 'w:br w:type="page"' in p._p.xml)
+        self.assertEqual(2, breaks)
+
+    def test_a_blank_page_is_skipped(self):
+        self.ReadingItem.objects.filter(pk=self.items[1].pk).update(result_text='')
+        text = self._get('txt').content.decode()
+        self.assertIn('numero2', text)
+        self.assertNotIn('scan1.png', text)
+
+    def test_a_text_that_cannot_be_rendered_blocks_the_whole_document(self):
+        from unittest import mock
+        from wama.common.utils import export_formats
+        real = export_formats.export_builder_for('reader')
+
+        def broken(item, fmt):
+            return None if fmt == 'pdf' and item.pk == self.items[1].pk else real(item, fmt)
+        with mock.patch.object(export_formats, 'export_builder_for', return_value=broken):
+            self.assertIsNone(export_formats.combine_lot('reader', self.items, 'pdf'))
+
+    def test_a_lot_with_nothing_to_join_says_so(self):
+        self.ReadingItem.objects.filter(pk__in=[i.pk for i in self.items]).update(result_text='')
+        self.assertEqual(422, self._get('txt').status_code)
+
+    def test_subtitles_and_raw_output_do_not_join(self):
+        from wama.common.utils.export_formats import combined_formats
+        from wama.describer.models import Description
+        from wama.transcriber.models import Transcript
+        self.assertEqual(['txt', 'pdf', 'docx'], combined_formats('transcriber', [Transcript(), Transcript()]))
+        self.assertEqual(['txt', 'pdf', 'docx'], combined_formats('describer', [Description(), Description()]))
+        self.assertEqual(['txt', 'md', 'pdf', 'docx'], combined_formats('reader', self.items))
+
+    def test_an_app_without_a_renderer_has_no_text_to_join(self):
+        from wama.common.utils.export_formats import combined_formats
+        from wama.converter.models import ConversionJob
+        self.assertEqual([], combined_formats('converter', [ConversionJob(), ConversionJob()]))
+
+    def test_the_assistant_gives_the_joined_document(self):
+        from wama import tool_api
+        result = tool_api.get_batch_result(self.account, 'reader', self.lot.pk)
+        self.assertEqual(['txt', 'md', 'pdf', 'docx'], result['combined']['formats'])
+
+
 class ALotOfPagesJoinsInOnePdfTest(TestCase):
     """2026-11-10, Fabien : « fusionner tous les éléments du lot en un seul fichier pdf ». Any app
     whose lot RESULTS are pages — images, PDF — offers ONE PDF (`export_formats.combine_lot`),

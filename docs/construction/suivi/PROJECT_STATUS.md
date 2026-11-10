@@ -30248,3 +30248,38 @@ de ce périmètre : `tests_backend_deprecation`, `tests_manifest_library`, `test
 - **Défaut trouvé par cette mesure, soldé** : une triple apostrophe inverse citée dans une ligne de la ROADMAP rendait la suite du fichier « code » pour `fact_tags` ; sa seule balise n'était plus résolue et disait 17 registres pour 21, sans que `doc_facts --check` le voie. Ligne réécrite, balise résolue. ⚠ La faiblesse reste : une clôture de bloc impaire rend muette la fin d'un document.
 - **Non joué** : `/competences` et la page sur le serveur en service, qui n'a pas ce code ; une demande en clair à un vrai modèle. Attesté par les tests et par `run_command` dans un processus à part.
 - **Contrôles attendus au prochain `/reprise`** : 311 tests OK (`tests_assistant_commands`, `tests_assistant_skills`, `tests_skills_catalog`, `tests_delegation`, `tests_identifier_language`, `tests_tool_api_coverage`, `tests_docs_catalog`, `gateway.tests`), trois contre-épreuves rouges, `check_docs` 0 cassée sur 4027, `check_redundancy` 113 dont 0 dans ces fichiers. `doc_facts --check` signale `WAMA_MECANISMES` périmé : le travail non commité d'autres sessions, aucune ligne de celle-ci.
+
+## §PALIER 2026-11-10 (soir), « UN SEUL BOUTON DE SORTIE SUR LA CARD MÈRE ; SON MENU N'EST PLUS MASQUÉ ; UN LOT DE TEXTES EN UN DOCUMENT ; LA v1 D'UN FICHIER FOURNI LE DIT » — `c15ff0a67` + ce commit (locaux, non poussés) — 🔴 relancer gunicorn pour les textes
+
+> Demandes de Fabien, le même jour : le « Fusionné » posé à côté du « ZIP » « prend beaucoup de place et
+> fait sauter la mise en page » ; « 1 seul bouton qui regroupe toutes les sorties possibles », comme sur
+> les cards unitaires et filles ; « le menu est parfois masqué par la card juste en dessous » ; et, sur la
+> fusion des textes : « aligner le fonctionnement ».
+
+- **Un seul ⬇ sur la card mère** (`c15ff0a67`) : icône seule, menu « Archive ZIP » + « Tout le lot en un
+  seul fichier » (`export_formats.lot_menu`, tag `lot_combined`, brique `download_button`). La rangée faisait
+  375 px pour 278 disponibles (⧉ coupé, 🗑 et … hors de la card) : 229 px, et elle passe à la ligne
+  quand les deux volets réduisent la colonne. Mesuré au navigateur à 1500 et 1920 px, sur le service.
+- **Le menu ouvert n'est plus masqué** (`c15ff0a67`) : `.wama-card { container-type }` enferme la card,
+  la suivante, peinte après elle, passait dessus — 9 lignes de menu sur 26 recouvertes dans l'Anonymizer
+  (`elementFromPoint` au centre de chaque ligne), 0 après (`.wama-card:has(.dropdown-menu.show)`).
+- **La v1 d'un fichier fourni dit « Fichier fourni »** (`c15ff0a67`, `ItemRevision.ORIGIN_SUPPLIED`,
+  migration `common/0038`, sans écriture en base) : `ensure_kept` supposait qu'un état non gardé venait d'un
+  traitement. Lu de la DÉCLARATION (`spec.outputs`), pas de `produced_fields`, qui suit le modèle choisi.
+  Mesuré : les 638 révisions « traitement » de la base ont un vrai traitement, aucune à reprendre.
+- **Un lot de textes en un document** (ce commit, `export_formats._joined_texts`, `document_export.join_docx`,
+  règle : `WAMA_APP_CONVENTIONS §9.10`) : toute app qui rend ses éléments (`register_export_builder` :
+  Reader, Transcriber, Describer et leurs jumelles), rien à déclarer de plus ; TXT, Markdown, PDF, DOCX
+  parmi ses formats, dans l'ordre du lot. Le PDF et le DOCX gardent la mise en forme d'un élément
+  téléchargé seul, chacun à partir d'une nouvelle page ; le TXT et le Markdown mettent chacun sous son
+  nom. Ni les sous-titres ni le brut d'un moteur. Une page blanche est sautée ; un texte qu'on ne sait pas
+  rendre refuse le tout. Mesuré sur de vrais lots, en lecture seule : Transcriber 5 éléments → PDF de
+  118 pages en 5,2 s, DOCX en 1,0 s ; Reader et Describer 2 éléments.
+- Gardes : `ALotOfTextsJoinsInOneDocumentTest` (10 tests), `BatchCardZipButtonTests`, `SuppliedScoreShownAsAbcTest`
+  ; 15 contre-épreuves rouges (étiquette 3, bouton 4 dont le gabarit d'avant, textes 8). 313 tests du périmètre
+  et des gardes transverses : un seul rouge, `tests_mecanismes_scan.OneFileOneOwnerTest`
+  (`scripts/worker_watchdog.sh`, `scripts/wama_services.sh`, commit `28826db58`, autre session). Suite
+  complète non lancée. `check_docs` 0 cassée sur 4026.
+- ⚠ Les règles CSS sont gardées par un contrôle de leur présence et par la mesure au navigateur, aucun
+  scénario nocturne ne rejoue le menu ouvert. Les blocs générés (`WAMA_MECANISMES`, `docs/dev/briques`) se
+  régénèrent à la clôture commune.

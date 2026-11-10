@@ -720,7 +720,8 @@ def build_reading_bytes(item, fmt):
 def reading_lot_formats(items):
     """Les formats en lesquels un lot du reader se combine en UN fichier : ceux du groupe PARTITION
     quand toutes ses cards sont des partitions (`holds_score`) — les pages d'une œuvre ; aucun pour
-    un lot de textes (2026-11-10). Lus par leur groupe au vocabulaire commun, jamais recopiés."""
+    un lot de textes, que le commun réunit (`export_formats._joined_texts`). Lus par leur groupe au
+    vocabulaire commun, jamais recopiés."""
     from wama.common.utils.export_formats import SCORE, entries_for_app
     from wama.reader.function_specs import holds_score
     if not all(holds_score(item) for item in items):

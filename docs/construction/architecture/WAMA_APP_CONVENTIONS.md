@@ -1924,7 +1924,17 @@ reçoit avec le ZIP (`get_batch_result` → `combined`).
   pages assemblées dans l'ordre du lot (rangé par la page lue), la légende de batterie d'une page
   nommant les notes de toutes (`musicxml_score.merge_drum_pages`). ⚠ Une correction faite à la
   main sur l'ABC d'une page n'y entre pas (aller-retour ABC → MusicXML mesuré : notes gardées,
-  légende perdue). Un lot de textes ne se combine pas (encore).
+  légende perdue).
+- **Toute app qui rend ses éléments, rien à déclarer de plus — les textes** (2026-11-10, Fabien :
+  « aligner le fonctionnement ») : un lot du Reader, du Transcriber ou du Describer se réunit en un
+  document (`export_formats._joined_texts`) aux formats de `TEXT_JOINS` que l'app déclare (`txt`, `md`,
+  `pdf`, `docx` ; ni les sous-titres, dont les temps repartent de zéro, ni le brut d'un moteur).
+  Chaque élément passe par le builder de son app (`register_export_builder`), dans l'ordre du lot :
+  un PDF ou un DOCX garde la mise en forme d'un élément téléchargé seul, chacun à partir d'une
+  nouvelle page (`pdf_pages.pages_to_pdf`, `document_export.join_docx`) ; un TXT ou un Markdown met
+  chacun sous son nom. Un élément sans texte (page blanche) est sauté ; un texte qu'on ne sait pas
+  rendre refuse le tout. Partitions et pages d'abord : ces formats ne servent que si les deux
+  règles précédentes ne s'appliquent pas.
 - **Au DÉPÔT, côté Reader** (même décision) : la case « Images déposées ensemble : un seul
   document (PDF) » de la brique d'import (`WamaImport`, option `joinPages` déclarée par l'app, case
   posée à côté de la zone, `join_pages=1` posté) réunit les images d'un même dépôt en UN PDF

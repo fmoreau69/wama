@@ -2415,7 +2415,8 @@ MECHANISMS = (
               "partition), offert dans le menu du ⬇ unique de la card mère (tag `lot_combined`, `lot_menu`) "
               "; et, pour TOUTE app, le PDF d'un lot dont les résultats sont des pages "
               "(`combine_lot`) — le PDF étant la sortie déclarée de la nature image "
-              "(`CONVERTER_OUTPUT_FORMATS`), non un format de téléchargement",
+              "(`CONVERTER_OUTPUT_FORMATS`), non un format de téléchargement ; et, pour toute app "
+              "qui rend ses éléments, leurs textes réunis en un document (`_joined_texts`)",
               'wama/common/utils/export_formats.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3',
               annexes=('wama/common/templates/common/_download_button.html',
                        'wama/common/templatetags/wama_actions.py')),

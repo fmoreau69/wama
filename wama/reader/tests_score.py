@@ -500,11 +500,13 @@ class TheLotOfPagesJoinsInOneScoreTest(TestCase):
         self.assertEqual(409, response.status_code)
         self.assertEqual(['IMG_0.jpg'], json.loads(response.content)['not_done'])
 
-    def test_a_lot_of_texts_is_not_joined(self):
+    def test_a_lot_of_texts_is_joined_as_a_text(self):
         from wama.reader.models import ReadingItem
         ReadingItem.objects.filter(pk__in=[p.pk for p in self.pages]).update(
             read_as_score=False, score_file=None, result_text='texte')
-        self.assertEqual(404, self._get().status_code)
+        response = self._get()
+        self.assertEqual(200, response.status_code, response.content[:300])
+        self.assertEqual(2, response.content.decode().count('texte'))
 
     def test_the_assistant_gives_the_joined_file_with_the_zip(self):
         from wama import tool_api
