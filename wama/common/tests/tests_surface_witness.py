@@ -2,6 +2,7 @@
 catalogue). Each surface declares it (`Surface.witness`, data — also written in a generated app's
 manifest) ; the nightly opens the surface on it and captures its bricks. These guards name no app :
 they walk the declared surfaces."""
+import ast
 import io
 import json
 from contextlib import redirect_stdout
@@ -12,6 +13,7 @@ from django.test import TestCase
 
 from wama.common.services.ui_smoke import (WITNESS_IMAGE_SIZE, WITNESS_OBJECTS, _garde_de_montage,
                                            witness_sample)
+from wama.common.services import ui_smoke_surfaces
 from wama.common.services.ui_smoke_surfaces import mount_witness, witness_guard, witness_guards
 from wama.common.surfaces import SURFACES, BrickSlot, Surface, load_all
 
@@ -97,6 +99,14 @@ class WitnessCleanupTest(TestCase):
         models = {s.model_class() for s in self.surfaces}
         self.assertLess(len(models), len(self.surfaces), 'the corpus has two surfaces of one model')
         self.assertEqual(len(models), len(witness_guards(self.surfaces, 'test')))
+
+    def test_every_witness_mount_goes_through_the_guard_of_its_surface(self):
+        """A direct call would fall back to the preview registry : the defect, one mount site away."""
+        tree = ast.parse(Path(ui_smoke_surfaces.__file__).read_text(encoding='utf-8'))
+        callers = [node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+                   and any(isinstance(call, ast.Call) and getattr(call.func, 'id', '') == '_garde_de_montage'
+                           for call in ast.walk(node))]
+        self.assertEqual(['witness_guard'], callers)
 
     def test_a_guard_that_knows_no_model_says_it_will_remove_nothing(self):
         out = io.StringIO()
