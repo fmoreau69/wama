@@ -1043,6 +1043,14 @@ un mécanisme qui gère les ko, Mo, Go, on pourrait y ajouter la gestion min/sec
     réglage la demande, jamais pour chaque image de chaque app ;
   - ⚠ une photo de travers ou un manuscrit sans portée imprimée n'est pas vu : la note le dit,
     l'utilisateur coche. Tenu par `reader/tests_score.py`.
+- ⏳ **Relevé le 2026-11-10 (revérification de l'Anonymizer documents) — une entrée reçue par URL
+  ne propose RIEN** : à la naissance son fichier n'est pas là (`inputs` vide), et à son arrivée
+  (`source_ingest.ensure_local_input`, puis le `derive` de l'app) aucune lecture commune ne rejoue
+  `input_proposals`. Seul l'anonymizer le fait, dans son `derive` (`tasks._ingested_metadata` :
+  réglages du domaine document et OCR d'un scan, `cf11b0165`) ; le reader (`has_staves`) et le
+  composer (la durée) déclarent `default_from` sans cette reprise. La lecture existe déjà sur un
+  élément qui porte son fichier (`batch_settings.computed_values`) : la poser une fois au
+  récepteur commun, après le `derive`, et retirer celle de l'anonymizer.
 
 ---
 
