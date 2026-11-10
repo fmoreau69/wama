@@ -897,8 +897,10 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         formats = combined_formats(app, items)
         if not formats:
             return JsonResponse({'error': 'ce lot ne se combine pas en un seul fichier'}, status=404)
+        # « Le lot a-t-il réussi ? » : la règle de `batch_status` (`lot_overview`), jamais une autre.
+        _counts, overall = lot_overview([getattr(i, 'status', '') for i in items], b.total or len(items))
         missing = [_label(i) for i in items if getattr(i, 'status', '') != 'SUCCESS']
-        if missing or len(items) < (b.total or len(items)):
+        if overall != 'SUCCESS':
             return JsonResponse({'error': "le lot ne se combine qu'entier : tous ses éléments "
                                           "doivent avoir réussi", 'not_done': missing}, status=409)
         asked = str(request.GET.get('format') or '').lower().lstrip('.')

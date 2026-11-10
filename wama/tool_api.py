@@ -4677,8 +4677,8 @@ def _batch_combined(app: str, zip_url: str, payload: dict):
     from wama.common.utils.preview_registry import PreviewRegistry
     model = PreviewRegistry.get_model(app)
     rows = payload.get('items') or []
-    if model is None or not rows or any(r.get('status') != 'SUCCESS' for r in rows) \
-            or len(rows) < (payload.get('total') or len(rows)):
+    # L'état du lot est celui que `batch_status` a décidé (`lot_overview`) : il ne se recalcule pas.
+    if model is None or not rows or payload.get('status') != 'SUCCESS':
         return None
     formats = combined_formats(model._meta.app_label,
                                list(model.objects.filter(pk__in=[r['id'] for r in rows])))
