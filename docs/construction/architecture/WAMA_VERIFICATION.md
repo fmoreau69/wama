@@ -1541,6 +1541,13 @@ Les scénarios ont **déjà** un filet : la garde de montage retire ce qu'ils on
 **différence d'ids** (c'est le geste 5 qui l'a durcie). Elle est bonne — et elle est **aveugle à la
 moitié du problème**, parce qu'elle raisonne sur des **objets**.
 
+> ⚠ **L'autre moitié, vue le 2026-11-10 : la garde ne recense que le modèle qu'elle connaît.** Elle
+> le lisait au registre d'aperçus, où le Face Analyzer n'est pas : son témoin de surface gardait sa
+> ligne à chaque passage, le fichier balayé (38 lignes retirées ce jour-là). Un témoin de surface
+> passe désormais par `witness_guard`, qui lit le modèle DE LA SURFACE, et une garde sans modèle
+> le dit au lieu de ne rien faire. Tenu par `tests_surface_witness.WitnessCleanupTest`, sur toutes
+> les surfaces déclarées.
+
 > ⚠⚠ **Un filet ORM ne rattrape que ce qui a une LIGNE en base.** Un fichier que l'app a copié dans
 > `media/<app>/<uid>/input/` sans qu'un élément survive — import refusé, scénario interrompu,
 > `delete()` d'une vue qui ne débranche pas le `FileField` — ne lui apparaît **jamais**. Mesuré le

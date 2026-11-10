@@ -30154,3 +30154,23 @@ de ce périmètre : `tests_backend_deprecation`, `tests_manifest_library`, `test
 - **Limite existante, signalée** : le nettoyeur de mémoire est un singleton par processus, gunicorn en lance quatre. L'interrupteur Auto, comme les anciens boutons, agit sur le worker qui reçoit la requête. Non corrigé.
 - **Non joué** : l'interrupteur Auto au navigateur (état propre à un worker), et la page servie par le gunicorn relancé.
 - **État laissé** : service TensorFlow en marche, expression seule. La surveillance en service n'a pas encore la correction « à la demande » : elle viendra avec la relance.
+
+## §CLÔTURE 2026-11-10, « TÉMOINS DU FACE ANALYZER : LE NETTOYAGE DU PASSAGE NOCTURNE LIT LE MODÈLE DE LA SURFACE » — ce commit (local, non poussé) — 🔚 au prochain passage nocturne, vérifier qu'aucune analyse du compte de test ne s'ajoute
+
+**Suite de la clôture de l'audit de sécurité.** Le point que celle-ci laissait à décider (35 lignes du compte de test nocturne pointant vers des témoins disparus) est soldé : 38 lignes retirées à la demande de Fabien, 3 s'étant ajoutées depuis le relevé. Lignes seules, aucun fichier ; les 5 analyses restantes sont intactes.
+
+**La cause.** La garde de montage du scénario lisait son modèle au registre d'aperçus, où le Face Analyzer n'est pas : `get_model('face_analyzer')` rendait `None` et la garde ne faisait rien, sans le dire. Le balayage retirait le fichier, la ligne restait. Sur les 10 surfaces à témoin mesurées, c'était la seule.
+
+**Le correctif.** Les cinq montages de témoins passent par `witness_guard` / `witness_guards` (`ui_smoke_surfaces`), qui donnent à la garde le modèle DE LA SURFACE, une garde par modèle. Une garde sans modèle l'écrit désormais. Le Face Analyzer n'est pas inscrit au registre d'aperçus pour autant : ce registre sert aux aperçus. Domicile : `WAMA_VERIFICATION §3quater`.
+
+**Limites de cette session (à elle).**
+- Le correctif n'a pas encore été joué par un vrai passage nocturne, qui charge le code au démarrage de son worker : il attend la relance de WAMA déjà demandée à Fabien.
+- Les autres appelants de la garde lisent toujours le registre d'aperçus. Ils le font pour des apps qui y sont, et une absence s'écrit maintenant dans le journal du scénario.
+
+**Hérités ou ouverts (à d'autres, ou à Fabien).** Reste n°1 de l'audit, à une autre session. Décision de Fabien, non bloquante : chiffrement des médias par utilisateur.
+
+**Effets de bord.** Les 38 lignes retirées sont gardées en JSON dans le scratchpad de la session (jetable). Une base de test propre à cette vérification a été créée puis détruite par son lanceur.
+
+**Rouges nommés.** Sur la base de test partagée, six sous-tests de `tests_surface_witness` échouent en `relation "reader_01_readingitem" does not exist` : la jumelle `reader_01` (ignorée par git, née le 10/11 à 15:19, d'une autre session) n'a pas sa table dans cette base gardée. Sur une base neuve, le module est vert. `tests_identifier_language` a rougi une fois de mon fait (une affectation de `modele` en plus), corrigé sans toucher au budget.
+
+**Contrôles attendus au prochain /reprise.** `tests_surface_witness` : 13 verts, sur une base qui a les tables des jumelles ; `WitnessCleanupTest`, 6 contre-épreuves en mémoire, 6 rouges. Avec les gardes transverses et les tests nocturnes : 126 tests, aucun rouge hors du cas `reader_01`. `check_redundancy` : 114 trouvailles au total, aucune dans ces fichiers. `check_docs` : 0 cassée, 0 périmée.

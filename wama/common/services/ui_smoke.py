@@ -4162,8 +4162,12 @@ def _total_nettoye(bilan) -> int:
 
 
 @contextmanager
-def _garde_de_montage(app: str, etiquette: str):
+def _garde_de_montage(app: str, etiquette: str, model=None):
     """Recense les objets de l'app AVANT, puis supprime EN SORTIE ceux que le passage a créés.
+
+    `model` : le modèle que le passage crée, quand l'appelant le connaît. Sinon, celui que
+    `PreviewRegistry` déclare pour l'app ; une app absente de ce registre n'a rien à recenser, et
+    la garde le DIT.
 
     ⚠ DOIT ENVELOPPER le bloc `sync_playwright()`, jamais vivre dedans : l'ORM y lève
     `SynchronousOnlyOperation`, et un `except Exception: pass` AVALE cette erreur — le
@@ -4176,17 +4180,21 @@ def _garde_de_montage(app: str, etiquette: str):
     On ne touche QUE ce que ce passage a créé (différence d'ids).
     """
     from wama.common.utils.batch_common import batch_model_for
-    try:
-        from wama.common.utils.preview_registry import PreviewRegistry
-        modele = PreviewRegistry.get_model(app)
-    except Exception:
-        modele = None
+    modele = model
+    if modele is None:
+        try:
+            from wama.common.utils.preview_registry import PreviewRegistry
+            modele = PreviewRegistry.get_model(app)
+        except Exception:
+            pass
     ids_avant = set()
     if modele is not None:
         try:
             ids_avant = set(modele.objects.values_list('id', flat=True))
         except Exception:
             modele = None
+    if modele is None:
+        print(f"[{etiquette}] {app} : aucun modèle connu, ce passage ne retirera rien")
     # Le montage cree aussi des LOTS : `PreviewRegistry` ne connait que le modele d'ELEMENT,
     # d'ou l'accesseur DERIVE. Sans lui, des lots vides survivaient a chaque passage (9 chez
     # converter).

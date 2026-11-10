@@ -4,12 +4,15 @@ manifest) ; the nightly opens the surface on it and captures its bricks. These g
 they walk the declared surfaces."""
 import io
 import json
+from contextlib import redirect_stdout
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from wama.common.services.ui_smoke import WITNESS_IMAGE_SIZE, WITNESS_OBJECTS, witness_sample
-from wama.common.services.ui_smoke_surfaces import mount_witness
+from wama.common.services.ui_smoke import (WITNESS_IMAGE_SIZE, WITNESS_OBJECTS, _garde_de_montage,
+                                           witness_sample)
+from wama.common.services.ui_smoke_surfaces import mount_witness, witness_guard, witness_guards
 from wama.common.surfaces import SURFACES, BrickSlot, Surface, load_all
 
 
@@ -49,6 +52,58 @@ class DeclaredWitnessTest(TestCase):
         problems = ' '.join(bad.witness_problems())
         self.assertIn('invented', problems)
         self.assertIn('no_such_field', problems)
+
+
+class WitnessCleanupTest(TestCase):
+    """What a passage mounts leaves with it, on EVERY declared surface. The guard used to find its
+    model through the preview registry, where an app can be absent : its witnesses stayed, one row
+    per passage (Face Analyzer, 38 rows on 2026-11-10)."""
+
+    def setUp(self):
+        load_all()
+        self.user = get_user_model().objects.create_user('witness-cleanup', password='x')
+        self.surfaces = [s for s in SURFACES.values() if s.witness]
+
+    def _file_paths(self, item):
+        fields = [f.name for f in item._meta.fields
+                  if f.get_internal_type() in ('FileField', 'ImageField')]
+        return [Path(getattr(item, name).path) for name in fields if getattr(item, name)]
+
+    def test_a_passage_leaves_neither_the_row_nor_the_files_of_its_witness(self):
+        files_seen = 0
+        for surface in self.surfaces:
+            with self.subTest(surface=surface.id):
+                model = surface.model_class()
+                before = set(model.objects.values_list('pk', flat=True))
+                with witness_guard(surface, 'test'):
+                    item = model.objects.get(pk=mount_witness(surface, self.user.pk))
+                    paths = self._file_paths(item)
+                    self.assertTrue(all(p.is_file() for p in paths))
+                files_seen += len(paths)
+                self.assertEqual(before, set(model.objects.values_list('pk', flat=True)))
+                self.assertFalse([p for p in paths if p.exists()])
+        self.assertTrue(files_seen, 'witnesses carry files : the file half of this guard measures')
+
+    def test_a_passage_keeps_what_existed_before_it(self):
+        for surface in self.surfaces:
+            with self.subTest(surface=surface.id):
+                model = surface.model_class()
+                kept = mount_witness(surface, self.user.pk)
+                with witness_guard(surface, 'test'):
+                    mount_witness(surface, self.user.pk)
+                self.assertTrue(model.objects.filter(pk=kept).exists())
+
+    def test_surfaces_of_one_model_share_one_guard(self):
+        models = {s.model_class() for s in self.surfaces}
+        self.assertLess(len(models), len(self.surfaces), 'the corpus has two surfaces of one model')
+        self.assertEqual(len(models), len(witness_guards(self.surfaces, 'test')))
+
+    def test_a_guard_that_knows_no_model_says_it_will_remove_nothing(self):
+        out = io.StringIO()
+        with redirect_stdout(out), _garde_de_montage('no_such_app', 'test') as cleaned:
+            pass
+        self.assertEqual([], cleaned)
+        self.assertIn('no_such_app', out.getvalue())
 
 
 class WitnessSampleTest(TestCase):

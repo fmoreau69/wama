@@ -77,6 +77,22 @@ def mount_witness(surface, user_id: int):
     return item.pk
 
 
+def witness_guard(surface, label: str):
+    """La garde de montage d'un témoin : elle retire ce que `mount_witness` crée, le modèle DE LA
+    SURFACE.
+
+    Le registre d'aperçus, que la garde lit par défaut, ne connaît pas toute app qui déclare une
+    surface. Le Face Analyzer n'y est pas : son témoin survivait au passage, le fichier balayé et
+    la ligne restée (38 lignes relevées le 2026-11-10)."""
+    return _garde_de_montage(surface.app, label, model=surface.model_class())
+
+
+def witness_guards(surfaces, label: str):
+    """Une garde par MODÈLE : deux surfaces d'un même modèle (lecture, partition) n'en font qu'une."""
+    by_model = {surface.model_class(): surface for surface in surfaces}
+    return [witness_guard(surface, label) for surface in by_model.values()]
+
+
 def _capture_surface(context, token, surface, pk, captured, opened, faults, reverse):
     """Ouvre UNE surface sur son témoin et capture celles de ses briques pas encore capturées.
 
@@ -129,8 +145,7 @@ def capture_brick_thumbnails():
     faults, captured, opened = list(refused), {}, []
     sessions_before = _session_keys()
     with ExitStack() as guards:
-        cleaned = [guards.enter_context(_garde_de_montage(app, 'surfaces'))
-                   for app in sorted({s.app for s in surfaces})]
+        cleaned = [guards.enter_context(guard) for guard in witness_guards(surfaces, 'surfaces')]
         plan = []
         for surface in surfaces:
             token, uid = _test_session_key(surface.app), _test_account_id(surface.app)
@@ -324,7 +339,7 @@ def _on_layout_witness(gestures, page_hook=None):
 
     sessions_before = _session_keys()
     try:
-        with _garde_de_montage(surface.app, 'surfaces'):
+        with witness_guard(surface, 'surfaces'):
             pk = _in_plain_thread(mount_witness, surface, uid)
             _in_plain_thread(restore, None)          # le passage part de la disposition déclarée
             declared = {s.id: {'x': s.x, 'y': s.y, 'w': s.w, 'h': s.h, 'zone': s.zone}
@@ -1560,7 +1575,7 @@ def check_score_keys(page_hook=None):
 
     sessions_before = _session_keys()
     try:
-        with _garde_de_montage(surface.app, 'score_keys'):
+        with witness_guard(surface, 'score_keys'):
             pk = _in_plain_thread(mount_witness, surface, uid)
             url = BASE_URL.rstrip('/') + reverse('common:surface', args=[surface.app, surface.key, pk])
             with sync_playwright() as p:
@@ -1668,7 +1683,7 @@ def check_image_boxes_keys(page_hook=None):
 
     sessions_before = _session_keys()
     try:
-        with _garde_de_montage(surface.app, 'image_keys'):
+        with witness_guard(surface, 'image_keys'):
             pk = _in_plain_thread(mount_witness, surface, uid)
             url = BASE_URL.rstrip('/') + reverse('common:surface', args=[surface.app, surface.key, pk])
             with sync_playwright() as p:
@@ -1807,8 +1822,8 @@ def check_axis_follow(page_hook=None):
         verdicts.append((bool(ok), text))
 
     with ExitStack() as guards:
-        for app in sorted({s.app for s in surfaces}):
-            guards.enter_context(_garde_de_montage(app, 'axis'))
+        for guard in witness_guards(surfaces, 'axis'):
+            guards.enter_context(guard)
         plan = []
         for surface in surfaces:
             token, uid = _test_session_key(surface.app), _test_account_id(surface.app)
