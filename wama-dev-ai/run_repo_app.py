@@ -61,11 +61,17 @@ def run(argv: list) -> tuple:
         return 124, f'marche interrompue après {STEP_TIMEOUT_S} s : {exc}'
 
 
+#: Les options communes d'appel au modèle reçues par la chaîne, transmises à chaque rôle
+#: (`--llm-timeout`, `role_utils.add_llm_arguments`, 2026-11-10).
+LLM_OPTIONS = []
+
+
 def run_role(script: str, args: list, provider: str, model: str, log: list) -> tuple:
     """Une marche-rôle. Une coupure d'un fournisseur distant est rejouée en local DANS le rôle
     (`role_utils.call_llm`, 2026-10-16) — la chaîne la rejouait elle-même la veille, et le rôle
     `app` lancé seul par l'assistant n'en avait aucune."""
     llm = (['--provider', provider] if provider else []) + (['--model', model] if model else [])
+    llm += LLM_OPTIONS
     rc, out = run([sys.executable, str(DEV_AI / script), *args, *llm])
     log.append({'step': script, 'provider': provider or 'ollama', 'rc': rc,
                 'tail': out.strip().splitlines()[-12:]})
@@ -107,7 +113,11 @@ def main():
     ap.add_argument('--model', default='')
     ap.add_argument('--no-sandbox', action='store_true',
                     help="S'arrêter au brouillon, sans faire naître l'app")
+    ap.add_argument('--llm-timeout', type=int, default=None,
+                    help="Délai d'attente de la réponse du modèle, transmis à chaque rôle")
     args = ap.parse_args()
+    if args.llm_timeout is not None:
+        LLM_OPTIONS[:] = ['--llm-timeout', str(args.llm_timeout)]
 
     log, summary = [], {'repo': args.repo, 'key': args.key, 'need': args.need,
                         'like': args.like}

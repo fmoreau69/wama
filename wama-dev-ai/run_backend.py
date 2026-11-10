@@ -118,6 +118,20 @@ def neighbours(engine: str, contract: tuple, task: str = '', limit: int = 2) -> 
 
 #: Budget de la matière lue dans le code VENDORISÉ du moteur.
 VENDOR_CHARS = 14000
+#: Le README du clone est-il servi ? (le profil compact s'en passe : l'usage est dans la doc
+#: d'inférence et l'entrée documentée)
+VENDOR_README = True
+
+#: Le profil COMPACT (`--compact`, 2026-11-10, Fabien : « réduis la matière envoyée au rôle […]
+#: si ça passe avec une matière réduite, on sait qu'on peut le lancer en distant dans certaines
+#: limites de contenu de la requête »). Mesuré le jour même : ILaaS et Albert coupent la requête
+#: complète du backend d'ACE-Step (~91 000 caractères, « Connection error ») et répondent aux
+#: appels courts. Les mêmes sections, aux budgets resserrés ; un seul voisin, sans README.
+COMPACT_BUDGETS = {'BASE_CHARS': 3500, 'NEIGHBOUR_CHARS': 5000, 'MODEL_CHARS': 4000,
+                   'MAX_FILES': 20, 'VENDOR_CHARS': 8000, 'VENDOR_README': False,
+                   'NEIGHBOURS': 1, 'MANIFEST_CHARS': 4000}
+NEIGHBOURS = 2
+MANIFEST_CHARS = 6000
 
 
 def vendor_material(engine: str, repo_id: str) -> str:
@@ -159,7 +173,7 @@ def vendor_material(engine: str, repo_id: str) -> str:
                 parts.append(f'===== CODE VENDORISÉ : {path.relative_to(root)} =====\n{text}')
                 break
     readme = root / 'README.md'
-    if readme.is_file():
+    if VENDOR_README and readme.is_file():
         parts.append(f'===== README DU MOTEUR VENDORISÉ =====\n{_read(readme, VENDOR_CHARS // 2)}')
     # La DOCUMENTATION D'INFÉRENCE que le clone publie (2026-11-08, ACE-Step : ni son README ni
     # aucun `from_pretrained` ne montraient son API — `initialize_service`, `generate_music`,
@@ -206,16 +220,48 @@ def entry_loaders_material(root: Path, engine: str, entry: str, entry_source: st
     from wama.common.utils.download_calls import entry_loaders
     loaders = entry_loaders(root, entry)['loaders']
     parts = [f'===== À LA PLACE DE {entry} =====\n{replacing_loaders(engine, entry)}']
+    # Chaque chargeur a sa PART du budget : son code entier s'il y tient, sinon ce que le rôle doit
+    # en savoir — sa signature et les lignes qui emploient ses paramètres. Le budget épuisé dans
+    # l'ordre d'appel laissait les derniers DEHORS : au profil compact, `_load_vae_model` (qui
+    # joint lui-même `vae` au dossier reçu) n'était pas servi, et le module passait `…/vae`
+    # (2026-11-10, `…/vae/vae` à l'essai).
     budget = VENDOR_CHARS
     order = sorted(loaders, key=lambda n: (entry_source.find(n) % (len(entry_source) + 1), n))
-    for name in order:
+    for index, name in enumerate(order):
         source = _function_source(root / loaders[name].rsplit(':', 1)[0], name)
-        if not source or budget <= 0:
+        if not source:
             continue
-        source = source[:min(budget, VENDOR_CHARS // 3)]
-        budget -= len(source)
-        parts.append(f'----- {name} ({loaders[name]}) -----\n{source}')
+        share = max(budget // (len(order) - index), 0)
+        shown = source if len(source) <= share else parameter_uses(source)
+        budget -= len(shown)
+        parts.append(f'----- {name} ({loaders[name]})'
+                     + ('' if shown is source else ' — signature et emplois de ses paramètres')
+                     + f' -----\n{shown}')
     return '\n'.join(parts)
+
+
+def parameter_uses(source: str) -> str:
+    """La signature d'une fonction, puis chaque ligne de son corps qui emploie l'un de ses
+    paramètres — ce qu'un appelant doit savoir pour lui passer les bons chemins, en quelques
+    lignes au lieu du corps entier."""
+    import ast
+    try:
+        node = ast.parse(source).body[0]
+    except (SyntaxError, IndexError):
+        return source[:600]
+    params = {a.arg for a in [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]}
+    params -= {'self', 'cls'}
+    lines = source.splitlines()
+    # La docstring fait partie de la tête : c'est elle qui dit ce qu'un paramètre doit désigner
+    # (`checkpoint_dir: Root checkpoint directory … = <checkpoint_dir>/vae`, ACE-Step).
+    first = node.body[0] if node.body else None
+    documented = (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                  and isinstance(first.value.value, str))
+    end = (first.end_lineno if documented else first.lineno - 1) if first else 1
+    head = lines[:end]
+    used = [line for line in lines[len(head):]
+            if any(re.search(rf'\b{re.escape(p)}\b', line) for p in params)]
+    return '\n'.join(head + ['    # … lignes qui emploient ses paramètres :'] + used)
 
 
 def _function_source(path: Path, name: str) -> str:
@@ -291,8 +337,12 @@ def main():
     ap.add_argument('--catalog', required=True, help="Clé AIModel du modèle INSTALLÉ")
     ap.add_argument('--dry-run', action='store_true', help='Matière seule, aucun appel LLM')
     ap.add_argument('--no-smoke', action='store_true', help='Sauter le smoke CPU')
+    ap.add_argument('--compact', action='store_true',
+                    help='Matière réduite (COMPACT_BUDGETS) : une requête plus courte')
     add_llm_arguments(ap, role='dev')
     args = ap.parse_args()
+    if args.compact:
+        globals().update(COMPACT_BUDGETS)
 
     from wama.common.manifests.builtin.model import extract_model
     import wama.common.services.backend_proposals as bp
@@ -313,7 +363,7 @@ def main():
     contract = bp.contract_for_task(task)
     model_id = bp.model_id_of(args.catalog)
     module = module_name(args.catalog)
-    near = neighbours(engine, contract, task)
+    near = neighbours(engine, contract, task, limit=NEIGHBOURS)
     print(f'[backend] {args.catalog} | tâche {task or "?"} | moteur {engine} | contrat '
           f'{contract[1]} | module {module} | voisins {[p.name for p in near]}')
 
@@ -326,7 +376,7 @@ def main():
         f"{model_id}\nMOTEUR (ENGINE) : {engine}\nCONTRAT : {contract[1]} "
         f"(from .{contract[0]} import {contract[1]})\nMÉTHODES À IMPLÉMENTER : "
         f"{sorted(bp.required_methods(contract))}",
-        f"===== MANIFESTE DU MODÈLE =====\n{json.dumps(manifest.get('body'), ensure_ascii=False, indent=1)[:6000]}",
+        f"===== MANIFESTE DU MODÈLE =====\n{json.dumps(manifest.get('body'), ensure_ascii=False, indent=1)[:MANIFEST_CHARS]}",
         f"===== CONTRAT : {contract[0]}.py =====\n{_read(bp.backends_dir() / f'{contract[0]}.py', CONTRACT_CHARS)}",
         f"===== CONTRAT COMMUN (extrait de base.py) =====\n{base_excerpt()}",
         *[f"===== VOISIN : {p.name} =====\n{_read(p, NEIGHBOUR_CHARS)}" for p in near],
@@ -334,7 +384,8 @@ def main():
         *([vendored] if vendored else []),
         "Écris le module de backend (un seul bloc ```python).",
     ])
-    print(f'[backend] matière : {len(user_msg)} caractères')
+    print(f'[backend] matière : {len(user_msg)} caractères'
+          + (' (profil compact)' if args.compact else ''))
     if args.dry_run:
         print('[backend] --dry-run : aucun appel LLM')
         return

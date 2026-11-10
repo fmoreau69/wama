@@ -87,6 +87,19 @@ class ArgumentsTest(SimpleTestCase):
                 with self.assertRaises(dev_tools.DevToolError):
                     dev_tools.role_command('librarian', {'dist': valeur})
 
+    def test_the_model_timeout_is_admitted_by_every_role_and_checked(self):
+        """`llm_timeout` is WAMA's rule, not the model's (2026-11-10): every role takes it, as a
+        whole number of seconds, 0 = no limit."""
+        for role, spec in dev_tools.ROLES.items():
+            first = next(iter(spec['args']))
+            args = {first: True if spec['args'][first] is bool else 'x', 'llm_timeout': 3600}
+            with self.subTest(role=role):
+                argv = dev_tools.role_command(role, args)
+                self.assertEqual('3600', argv[argv.index('--llm-timeout') + 1])
+        for wrong in (-1, 'soon'):
+            with self.subTest(wrong=wrong), self.assertRaises(dev_tools.DevToolError):
+                dev_tools.role_command('backend', {'catalog': 'k:m', 'llm_timeout': wrong})
+
     def test_le_bac_a_sable_exige_ses_arguments(self):
         self.assertEqual(['app_sandbox', 'list'], dev_tools.sandbox_command('list')[2:])
         self.assertEqual(['app_sandbox', 'create', 'converter', '--owner', 'fab'],

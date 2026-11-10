@@ -677,6 +677,17 @@ SMOKE_MUSIC_SECONDS = 10.0
 SMOKE_MUSIC_MIN_RMS = 1e-3
 
 
+def _progress_misuse(misuse: list) -> str:
+    """Ce que l'essai a vu de la forme d'appel du moteur sur le rappel du composer, '' sinon."""
+    if not misuse:
+        return ''
+    args, kwargs = misuse[0]
+    return (f" — le rappel de progression du composer (UN argument : un pourcentage de 0 à 100) a "
+            f"reçu args={args!r} kwargs={kwargs!r} : c'est ainsi que le MOTEUR appelle sa "
+            f"progression ; l'adapter (signature du moteur → pourcentage), jamais le lui passer tel "
+            f"quel")
+
+
 def _smoke_music(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
     """Chargement, puis un court instrumental : le fichier écrit à `output_path` et ce chemin
     rendu (le contrat), lisible, d'une durée plausible (au plus le double de la demande — un moteur
@@ -687,7 +698,16 @@ def _smoke_music(code: str, *, module: str, model_key: str, out_dir: Path) -> di
 
     import numpy as np
     import soundfile as sf
-    started, progress = time.time(), []
+    started, progress, misuse = time.time(), [], []
+
+    def composer_progress(*args, **kwargs):
+        """Le rappel du COMPOSER : un argument, un pourcentage. Un autre appel est ENREGISTRÉ —
+        c'est la forme d'appel du MOTEUR, que le backend doit adapter (ACE-Step appelle
+        `progress(0.51, desc='Preparing inputs...')`) — puis refusé comme le ferait le composer."""
+        if len(args) != 1 or kwargs:
+            misuse.append((args, kwargs))
+            raise TypeError(f'progress_callback prend UN argument ; appelé avec {args!r} {kwargs!r}')
+        progress.append(args[0])
     with tempfile.TemporaryDirectory() as tmp:
         output = Path(tmp) / 'out' / 'smoke_music.wav'
         output.parent.mkdir()                          # le composer donne un dossier existant
@@ -706,12 +726,15 @@ def _smoke_music(code: str, *, module: str, model_key: str, out_dir: Path) -> di
                                             prompt=SMOKE_MUSIC_PROMPT,
                                             duration=SMOKE_MUSIC_SECONDS,
                                             output_path=str(output), sampling={'seed': 0},
-                                            progress_callback=progress.append)
+                                            progress_callback=composer_progress)
             backend.unload()
         except Exception as e:
-            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
-                    'seconds': round(time.time() - started, 1)}
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}'
+                    + _progress_misuse(misuse), 'seconds': round(time.time() - started, 1)}
         seconds = round(time.time() - started, 1)
+        if misuse:
+            return {'ran': True, 'ok': False, 'seconds': seconds,
+                    'error': _progress_misuse(misuse).lstrip(' —')}
         if not output.is_file():
             return {'ran': True, 'ok': False, 'seconds': seconds,
                     'error': f'aucun fichier à output_path (rendu : {returned!r})'}
@@ -735,9 +758,12 @@ def _smoke_music(code: str, *, module: str, model_key: str, out_dir: Path) -> di
            'rate': rate, 'rms': round(rms, 4),
            'audio': str(kept.relative_to(base) if kept.is_relative_to(base) else kept)}
     off_scale = [p for p in progress if not isinstance(p, (int, float)) or not 0 <= p <= 100]
+    # Jugée AVANT le 100 final : un module qui passait au composer `int(0.51)` envoyait 0 tout du
+    # long, puis 100 — le dernier appel masquait la fraction (ACE-Step, 2026-11-10).
+    during = progress[:-1] if progress and progress[-1] == 100 else progress
     if not finite:
         out.update(ok=False, error='audio vide ou fait de valeurs non finies (NaN, inf)')
-    elif off_scale or (len(progress) > 1 and max(progress) <= 1):
+    elif off_scale or (len(during) > 1 and max(during) <= 1):
         out.update(ok=False, error=f'progression hors contrat ({(off_scale or progress)[:5]}) : '
                                    f'progress_callback reçoit un pourcentage, de 0 à 100')
     elif not 1.0 <= length <= 2 * SMOKE_MUSIC_SECONDS:

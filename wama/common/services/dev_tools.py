@@ -69,7 +69,7 @@ ROLES = {
     # Marche B2 (2026-09-29) : écrit le BACKEND d'un modèle installé ; sa proposition se valide
     # au model manager, qui seul l'écrit dans wama/common/backends/.
     'backend':    {'script': 'run_backend.py',
-                   'args': {'catalog': str, 'dry_run': bool, 'no_smoke': bool}},
+                   'args': {'catalog': str, 'dry_run': bool, 'no_smoke': bool, 'compact': bool}},
     # Tâche de DÉVELOPPEMENT (2026-10-15, décision de Fabien : levée progressive de la règle
     # « wama-dev-ai ne touche pas au code ») — l'autre voie, à côté de la génération et de
     # l'intégration. Lecture seule, ou édits PROPOSÉS ; `--apply` n'est volontairement pas admis.
@@ -143,6 +143,12 @@ def _clean(value, name: str) -> str:
 
 # ── Construction des commandes — une LISTE d'arguments, jamais une chaîne ───────────────────
 
+#: Options COMMUNES à tous les rôles (`role_utils.add_llm_arguments`), admises quel que soit le rôle :
+#: `llm_timeout`, le délai d'attente de la réponse du modèle en secondes — une règle de WAMA (600 à
+#: 1800 s selon le rôle), relevée au besoin, 0 = aucune limite (2026-11-10, Fabien).
+COMMON_ROLE_ARGS = {'llm_timeout': int}
+
+
 def role_command(role: str, args=None, provider: str = '', model: str = '') -> list:
     spec = ROLES.get(role)
     if spec is None:
@@ -154,15 +160,22 @@ def role_command(role: str, args=None, provider: str = '', model: str = '') -> l
                            f"{{\"{next(iter(spec['args']))}\": \"…\"}} —, pas une chaîne")
     argv = [sys.executable, str(base_dir() / 'wama-dev-ai' / spec['script'])]
     for name, value in (args or {}).items():
-        kind = spec['args'].get(name)
+        kind = spec['args'].get(name) or COMMON_ROLE_ARGS.get(name)
         if kind is None:
             raise DevToolError(f"argument « {name} » non admis pour le rôle {role} "
-                               f"(admis : {', '.join(sorted(spec['args']))})")
+                               f"(admis : {', '.join(sorted({**spec['args'], **COMMON_ROLE_ARGS}))})")
         option = '--' + name.replace('_', '-')
         if kind is bool:
             if value in (True, 'true', 'True', '1', 1):
                 argv.append(option)
             continue
+        if kind is int:
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                raise DevToolError(f"« {name} » : un nombre entier attendu, pas {value!r}") from None
+            if value < 0:
+                raise DevToolError(f"« {name} » : {value} — un nombre positif (0 = aucune limite)")
         argv += [option, _clean(value, name)]
     if provider:
         argv += ['--provider', _clean(provider, 'provider')]
@@ -496,7 +509,8 @@ def dev_run_role(user, role: str, args: dict = None, provider: str = '', model: 
     integrator (manifest, besoin, dry_run), codegen (app = id d'une app du catalogue, task = NOM
     de sa tâche Celery comme read_document_task, truth = module:fonction de référence — écrit la
     GLU de cette seule tâche ; ce n'est PAS un rôle de modification générale du code : pour cela,
-    dev_claude_code avec write=true), backend (catalog, dry_run, no_smoke), task (tâche de
+    dev_claude_code avec write=true), backend (catalog, dry_run, no_smoke, compact = matière
+    réduite, une requête plus courte pour un fournisseur distant qui coupe les longues), task (tâche de
     DÉVELOPPEMENT par wama-dev-ai : task = la tâche en clair, files = chemins du dépôt séparés par
     des virgules, `chemin:début-fin` pour une tranche, 8 au plus ; sans write, réponse citée
     ligne par ligne ; write=true, édits PROPOSÉS et contrôlés, appliqués après validation
@@ -510,7 +524,9 @@ def dev_run_role(user, role: str, args: dict = None, provider: str = '', model: 
     composants), validation au model manager, PUIS backend (il exige le moteur déclaré).
     Modèle : laisser vide = tirage du niveau développement pour ton compte (local, ou souverain
     selon ton profil). provider borne ce tirage à un fournisseur (ollama = local, charge le GPU ;
-    albert…) ; model est un choix précis, remplacé s'il n'a pas le niveau. Rend job_id et le
+    albert…) ; model est un choix précis, remplacé s'il n'a pas le niveau. Tout rôle admet
+    llm_timeout = délai d'attente de la réponse du modèle en secondes (défaut du rôle, 600 à
+    1800 ; 0 = aucune limite) — à relever pour un modèle local lent. Rend job_id et le
     modèle retenu — la fin de la tâche est annoncée ; dev_read_output lit la proposition.
     """
     role_command(role, args)          # les arguments d'abord : on ne tire pas pour une commande refusée

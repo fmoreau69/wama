@@ -6,6 +6,7 @@ même règle que wama/common/ côté produit).
 Tout est BORNÉ (leçons wama-dev-ai) : un appel Ollama one-shot, sorties dans outputs/ avec
 PENDING_HUMAN_VALIDATION, jamais d'auto-application.
 """
+import argparse
 import copy
 import json
 import os
@@ -1161,6 +1162,30 @@ def add_llm_arguments(parser, role='dev'):
     parser.add_argument(
         '--wait-max', type=float, default=300.0,
         help="Attente maximale de VRAM libre en mode dépannage, en secondes (défaut 300)")
+    parser.add_argument(
+        '--llm-timeout', type=int, default=None, action=_LlmTimeoutAction, metavar='SECONDES',
+        help="Délai d'attente de la réponse du modèle (défaut : celui du rôle, 600 à 1800 s ; "
+             "0 = aucune limite côté WAMA)")
+
+
+#: Délai d'attente choisi par `--llm-timeout` : il prime sur le délai que CHAQUE rôle passe à
+#: `call_llm` (600 s par défaut, 900 pour `task` et `app`, 1800 pour `backend`). Une RÈGLE de WAMA,
+#: pas une limite du modèle (Fabien, 2026-11-10) : l'appel n'est pas en flux, la réponse n'arrive
+#: qu'à la fin, et le rôle `backend` d'ACE-Step en local a été coupé à 30 min pile. `_UNSET` =
+#: le délai du rôle ; None = aucune limite.
+_UNSET = object()
+LLM_TIMEOUT = _UNSET
+
+
+class _LlmTimeoutAction(argparse.Action):
+    """Pose `LLM_TIMEOUT` au moment même où l'option est lue : les rôles n'ont rien à recopier."""
+
+    def __call__(self, parser, namespace, value, option_string=None):
+        global LLM_TIMEOUT
+        if value < 0:
+            parser.error('--llm-timeout : un nombre de secondes, 0 pour aucune limite')
+        LLM_TIMEOUT = None if value == 0 else value
+        setattr(namespace, self.dest, value)
 
 
 def resolve_model(provider, role, model=None):
@@ -1222,7 +1247,10 @@ def call_llm(provider, model, system, user_msg, num_ctx=16384, keep_alive=None,
     commune (profil « 100 % local », modèle non ouvert par sa clé) qui refuse AVANT l'appel. Sans
     compte (rôle lancé à la main), aucune clé n'est passée : celle de l'instance, comme avant.
     `think=True` : la valeur que `llm_chat` prenait par défaut ici — rien ne change pour le modèle.
+    `--llm-timeout` (`LLM_TIMEOUT`) prime sur le `timeout` du rôle.
     """
+    if LLM_TIMEOUT is not _UNSET:
+        timeout = LLM_TIMEOUT
     if provider == 'ollama':
         return call_ollama(model, system, user_msg, num_ctx=num_ctx, keep_alive=keep_alive,
                            temperature=temperature, timeout=timeout)

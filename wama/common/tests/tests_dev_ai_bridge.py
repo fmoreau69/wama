@@ -1049,6 +1049,23 @@ class FournisseurDesRolesTest(SimpleTestCase):
         super().setUpClass()
         cls.role_utils = _charger('role_utils')
 
+    def test_the_model_timeout_option_overrides_the_role_s_and_zero_lifts_it(self):
+        """WAMA's 30 min cut the `backend` role on a local model mid-writing (2026-11-10) — a rule
+        of WAMA, relevable by `--llm-timeout`, and 0 removes it."""
+        import argparse
+        from unittest.mock import patch
+        role_utils = self.role_utils
+        self.addCleanup(setattr, role_utils, 'LLM_TIMEOUT', role_utils._UNSET)
+        for given, expected in ((None, 1800), ('7200', 7200), ('0', None)):
+            with self.subTest(given=given):
+                role_utils.LLM_TIMEOUT = role_utils._UNSET
+                parser = argparse.ArgumentParser()
+                role_utils.add_llm_arguments(parser)
+                parser.parse_args(['--llm-timeout', given] if given else [])
+                with patch.object(role_utils, 'call_ollama', return_value='OK') as direct:
+                    role_utils.call_llm('ollama', 'm', 'sys', 'msg', timeout=1800)
+                self.assertEqual(expected, direct.call_args.kwargs['timeout'])
+
     def test_ollama_reste_call_ollama_a_l_identique(self):
         from unittest.mock import patch
         with patch.object(self.role_utils, 'call_ollama', return_value='OK') as direct:
@@ -1380,6 +1397,21 @@ class BackendRoleTakesOneRepriseOnItsChecksTest(SimpleTestCase):
         self.assertIn("la racine des poids : paths['vae'].parents[1]", text)
         self.assertIn("la racine des poids : paths['tokenizer'].parent", text)
         self.assertIn("la racine des poids : paths['deep'].parents[2]", text)
+
+    def test_a_loader_too_long_for_its_share_is_served_by_its_signature_doc_and_parameter_uses(self):
+        """In the compact material the budget ran out before `_load_vae_model`, which joins `vae`
+        to the folder it receives: the module passed `…/vae` (2026-11-10, `…/vae/vae`)."""
+        source = ('def _load_vae_model(self, *, checkpoint_dir, device):\n'
+                  '    """checkpoint_dir: Root checkpoint directory (= <checkpoint_dir>/vae)."""\n'
+                  '    import os\n'
+                  '    unrelated = 1\n'
+                  '    path = os.path.join(checkpoint_dir, "vae")\n'
+                  '    self.vae = load(path).to(device)\n')
+        digest = self.role.parameter_uses(source)
+        self.assertIn('Root checkpoint directory', digest)
+        self.assertIn('os.path.join(checkpoint_dir, "vae")', digest)
+        self.assertIn('.to(device)', digest)
+        self.assertNotIn('unrelated', digest)
 
     #: What the trial said of the module the role proposed for ACE-Step on 2026-11-10.
     TRIAL = ("RuntimeError: ACE-Step generation failed: AceStepBackend.generate.<locals>."

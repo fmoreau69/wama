@@ -260,7 +260,11 @@ class SongSmokeBackend(MusicGenerationBackend):
         t = np.arange(int(rate * duration * SPAN)) / rate
         sf.write(output_path, LEVEL * np.sin(2 * np.pi * 440 * t), rate)
         for step in PROGRESS if progress_callback else ():
-            progress_callback(*step)
+            try:
+                progress_callback(*step)
+            except TypeError:
+                if not SWALLOW:
+                    raise
         return RETURNED
 '''
 
@@ -270,9 +274,11 @@ class MusicSmokeContractTest(SimpleTestCase):
     was validated without a single run (`pas de smoke pour le contrat`, ACE-Step). The trial
     writes a short instrumental and reads it back — a guard against nonsense, not a judge of music."""
 
-    def _smoke(self, span=1.0, level=0.3, returned='output_path', progress=((50,), (100,))):
+    def _smoke(self, span=1.0, level=0.3, returned='output_path', progress=((50,), (100,)),
+               swallow=False):
         code = (MUSICAL.replace('SPAN', repr(span)).replace('LEVEL', repr(level))
-                .replace('RETURNED', returned).replace('PROGRESS', repr(progress)))
+                .replace('RETURNED', returned).replace('PROGRESS', repr(progress))
+                .replace('SWALLOW', repr(swallow)))
         with tempfile.TemporaryDirectory() as out:
             res = bp.smoke(code, module='song_smoke', model_key='huggingface:Org/Song',
                            contract=MUSIC, out_dir=Path(out))
@@ -300,12 +306,29 @@ class MusicSmokeContractTest(SimpleTestCase):
         one-argument callback, it broke the first trial (2026-11-10)."""
         res = self._smoke(progress=((0.5, 'Generating'),))
         self.assertFalse(res['ok'])
-        self.assertIn('TypeError', res['error'])
+        # The verdict NAMES the engine's call shape: told only « takes exactly one argument (2
+        # given) », the reprise wrapped it in another one-argument function (2026-11-10).
+        self.assertIn("args=(0.5, 'Generating')", res['error'])
+
+    def test_a_backend_that_swallows_the_callback_error_is_still_caught(self):
+        """ACE-Step catches the exception and returns its text: the record, not the raise, says it."""
+        res = self._smoke(progress=((0.5, 'Generating'),), returned='output_path',
+                          swallow=True)
+        self.assertFalse(res['ok'])
+        self.assertIn('args=(0.5,', res['error'])
 
     def test_a_progress_in_fractions_instead_of_percent_fails(self):
         res = self._smoke(progress=((0.1,), (0.9,)))
         self.assertFalse(res['ok'])
         self.assertIn('pourcentage', res['error'])
+
+    def test_a_final_hundred_does_not_hide_a_progress_stuck_in_fractions(self):
+        """The module proposed on 2026-11-10 sent `int(0.51)` — 0 all along — then 100."""
+        res = self._smoke(progress=((0,), (0,), (0,), (100,)))
+        self.assertFalse(res['ok'])
+        self.assertIn('pourcentage', res['error'])
+        # Counter-proof: a start, then the end, is a sound progress.
+        self.assertTrue(self._smoke(progress=((0,), (100,)))['ok'])
 
     def test_returning_another_path_than_output_path_fails(self):
         res = self._smoke(returned='output_path + ".wav"')
