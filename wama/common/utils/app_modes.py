@@ -696,6 +696,23 @@ def surface_file_nature(app: str, surface: str, path) -> str | None:
     return None
 
 
+def surface_source_nature(app: str, surface: str, source) -> str | None:
+    """La nature d'une SOURCE (une URL, la ligne d'un lot) qui entre par une surface, AVANT que son
+    fichier n'arrive : une adresse qui NOMME son fichier passe la porte du dépôt
+    (`surface_file_nature`, None = refus) ; sinon ce que l'adresse dit d'avance
+    (`url_ingest.url_nature` : une plateforme média), '' quand seul le téléchargement le dira — le
+    `derive` de l'app la pose alors. Le chemin se lit sans sa requête (`photo.jpg?w=1` est une
+    image). Écrit le 2026-11-10 : l'enhancer le faisait en ligne, l'anonymizer faisait naître un
+    PDF reçu par URL en vidéo, avec les réglages de l'image."""
+    import os
+    from urllib.parse import unquote, urlparse
+    from wama.common.utils.url_ingest import url_nature
+    path = unquote(urlparse(str(source or '')).path)
+    if os.path.splitext(path)[1]:
+        return surface_file_nature(app, surface, path)
+    return url_nature(source)
+
+
 def mode_param(app: str, domain_id: str) -> str:
     """Le param du schéma qui porte le mode de ce domaine ('' si le domaine n'en déclare pas)."""
     return get_domain(app, domain_id).get('mode_param') or ''

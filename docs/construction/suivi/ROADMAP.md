@@ -3817,11 +3817,22 @@ eds-pseudo, privacy-filter dès transformers ≥ 5.6 ou par l'ONNX).
   reculé hors de sa colonne ; un passage recouvert par un plus long ne porte pas de second libellé
   (`PdfLabelFormTest`, cinq contre-épreuves rouges). ⏳ Restent : la page de CORRECTION par passage (`surfaces.py` la dit
   à venir ; la couche `detection_corrections` accepte déjà les `span`, relue à l'occultation) ;
-  un document reçu par URL naît avec les réglages de l'image avant que son fichier n'arrive ;
-  les jumelles (`anonymizer_01`) n'ont pas le domaine tant que le générateur ignore les domaines
-  (`ROUTE §11 #42` ⑦) ; le contrôle `remaining` ne relit pas un scan (second OCR) ; la mesure WAMA
+  le contrôle `remaining` ne relit pas un scan (second OCR) ; la mesure WAMA
   — le CV de #2297 la réclame : dates et intitulés de poste pris pour des données (`[DATE]`,
   `[ORGANISATION]`), une année lue comme `[TÉLÉPHONE]`.
+  ✅ *2026-11-10* : un document reçu par URL NAÎT document — sa nature lue à l'adresse quand elle
+  nomme son fichier (brique commune `app_modes.surface_source_nature`, que l'enhancer écrivait en
+  ligne), et à l'arrivée du fichier il finit de naître comme un document déposé : réglages de son
+  domaine, OCR proposé par un scan (`tasks._ingested_metadata`) ; garde
+  `ADocumentFromAUrlIsBornADocumentTest`, deux contre-épreuves rouges. *Corrigé le même jour* :
+  « les jumelles n'ont pas le domaine » était FAUX depuis leur recréation du 2026-11-06 —
+  `anonymizer_01` a le domaine au modèle (`media_type`, champs à 500), au schéma
+  (`DOCUMENT_PARAMS_JSON`, `apps.py`), à la naissance et aux trois process ; lui manquent ce que le
+  générateur ne REND pas encore, transmis à la session du générateur (`ROUTE §11 #42` ⑦) : la
+  réservation des process à leur domaine (`ProcessSpec.applies` — une image jouerait aussi les
+  trois process du document), la page à onglets de domaine (une file, une barre, une zone de
+  dépôt pour les deux), la porte de dépôt par `surface_file_nature` au lieu de `category_of_path`,
+  et la glu des deux process du texte (marche B, comme celle de toute la jumelle).
 - **Vidéo : l'image ET le son (décision de Fabien, 2026-10-28)** — une option « piste audio » du
   domaine vidéo de l'Anonymizer, qui appelle la brique du futur domaine audio (voix du locuteur,
   données dites — transcription mot à mot → union de détecteurs → bip sur leurs instants), plutôt

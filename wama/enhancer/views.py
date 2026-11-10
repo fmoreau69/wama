@@ -314,17 +314,11 @@ def upload(request):
     # de la requête (`source_ingest`, 2026-10-13) — même geste que `batch_create`. Une nature
     # connue d'avance hors image/vidéo est refusée ici ; inconnue, le `derive` la pose à l'arrivée.
     if media_url and not file:
-        from urllib.parse import unquote, urlparse
-        from wama.common.utils.app_modes import surface_file_nature
-        from wama.common.utils.url_ingest import url_nature
-        nature = url_nature(media_url)
-        url_path = unquote(urlparse(media_url).path)
-        if os.path.splitext(url_path)[1]:
-            # Un fichier nommé : la même lecture que le dépôt (domaine, `extension_natures`).
-            nature = surface_file_nature('enhancer', 'enhancer', url_path)
-            if not nature:
-                return JsonResponse({'error': 'Format non supporté'}, status=400)
-        elif nature and nature not in ('image', 'video'):
+        # Un fichier nommé passe la porte du dépôt (domaine, `extension_natures`) ; sinon ce que
+        # l'adresse dit d'avance — la brique commune `surface_source_nature`.
+        from wama.common.utils.app_modes import surface_source_nature
+        nature = surface_source_nature('enhancer', 'enhancer', media_url)
+        if nature is None or nature not in ('', 'image', 'video'):
             return JsonResponse({'error': 'Format non supporté'}, status=400)
         enhancement = Enhancement.objects.create(
             user=user, media_type=nature, source_url=media_url,
@@ -521,7 +515,7 @@ def batch_preview(request):
 @require_POST
 def batch_create(request):
     """Parse batch file (URLs/paths), create BatchEnhancement + Enhancement entries."""
-    from wama.common.utils.app_modes import surface_file_nature
+    from wama.common.utils.app_modes import surface_source_nature
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -551,10 +545,10 @@ def batch_create(request):
     created_ids = []
     for i, item in enumerate(items):
         url_or_path = item['path']
-        fname = url_or_path.split('/')[-1].split('\\')[-1] or url_or_path
-        # La lecture du dépôt (`surface_file_nature`) ; une ligne sans nature lisible reste une
-        # image, comme avant.
-        media_type = surface_file_nature('enhancer', 'enhancer', fname) or 'image'
+        # La lecture d'une source (`surface_source_nature` : la porte du dépôt pour un fichier
+        # nommé, sans sa requête ; une plateforme média est une vidéo) ; une ligne sans nature
+        # lisible reste une image, comme avant.
+        media_type = surface_source_nature('enhancer', 'enhancer', url_or_path) or 'image'
 
         enhancement = Enhancement.objects.create(
             **settings_values,

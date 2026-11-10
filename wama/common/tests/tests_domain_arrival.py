@@ -40,7 +40,7 @@ from wama.common.app_registry import APP_CATALOG, category_of_path
 from wama.common.tests.tests_cap_from_js import FAKE_DOM
 from wama.common.utils.app_modes import (APP_MODES, accepts, arrival_domain, domain_nature,
                                          element_domain, file_nature, get_domains,
-                                         surface_file_nature)
+                                         surface_file_nature, surface_source_nature)
 from wama.filemanager.tests_send_to_settings import SendToTestBase
 
 HAS_V8 = importlib.util.find_spec('py_mini_racer') is not None
@@ -93,6 +93,20 @@ class ArrivalDomainIsTheFileNatureTest(SimpleTestCase):
         self.assertEqual('audio', surface_file_nature('enhancer', 'audio_enhancer', 'voice.wav'))
         self.assertIsNone(surface_file_nature('enhancer', 'audio_enhancer', 'photo.png'))
         self.assertEqual('image', surface_file_nature('enhancer', 'enhancer', 'photo.heif'))
+
+    def test_a_source_says_its_nature_before_its_file_arrives(self):
+        """`surface_source_nature` (2026-11-10): an address that names its file goes through the
+        gate, its query left aside; otherwise what the address says ahead (a media platform);
+        '' when only the download will tell."""
+        self.assertEqual('document', surface_source_nature(
+            'anonymizer', 'anonymizer', 'https://ex.org/lettre.pdf?dl=1'))
+        self.assertEqual('image', surface_source_nature('enhancer', 'enhancer',
+                                                        'https://ex.org/photo.jpg?w=1'))
+        self.assertIsNone(surface_source_nature('enhancer', 'enhancer', 'https://ex.org/a.wav'))
+        self.assertEqual('video', surface_source_nature(
+            'enhancer', 'enhancer', 'https://www.youtube.com/watch?v=abc'))
+        self.assertEqual('', surface_source_nature('anonymizer', 'anonymizer',
+                                                   'https://ex.org/download'))
 
 
 class DescriberReadsTheCommonNatureTest(SimpleTestCase):

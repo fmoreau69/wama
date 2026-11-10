@@ -194,6 +194,50 @@ class DocumentBirthTest(TestCase):
         self.assertEqual([], self._inputs())
 
 
+class ADocumentFromAUrlIsBornADocumentTest(TestCase):
+    """2026-11-10 (ROADMAP §16.4bis, rest): a PDF received by URL was born a VIDEO, with the image's
+    settings — its nature is now read from the address when it names its file
+    (`app_modes.surface_source_nature`), and when the file arrives the document ends its birth as a
+    deposited one does: its domain's settings, and what the file proposes (the OCR of a scan)."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.enterContext(override_settings(MEDIA_ROOT=self.root))
+        self.enterContext(mock.patch('wama.common.app_registry.file_ports_for',
+                                     return_value=DocumentBirthTest.WORK_PORT))
+        self.user = User.objects.create_user('doc_url', password='x')
+
+    def _from(self, url):
+        from wama.anonymizer.models import Media
+        from wama.anonymizer.views import _media_from_url
+        return Media.objects.get(pk=_media_from_url(url, self.user)['id'])
+
+    def test_an_address_that_names_a_pdf_is_born_a_document(self):
+        self.assertEqual('document', self._from('https://ex.org/files/lettre.pdf?dl=1').media_type)
+
+    def test_an_address_that_names_an_image_is_born_an_image(self):
+        self.assertEqual('image', self._from('https://ex.org/photo.jpg').media_type)
+
+    def test_an_address_that_names_nothing_waits_for_its_file(self):
+        self.assertEqual('video', self._from('https://ex.org/download').media_type)
+
+    def test_a_batch_line_is_born_in_the_domain_of_its_file(self):
+        from wama.anonymizer.views import _born_from_source
+        self.assertEqual('document', _born_from_source(self.user, '/data/lettre.docx')['media_type'])
+
+    def test_a_scan_that_arrives_ticks_its_ocr(self):
+        from wama.anonymizer import tasks
+        media = self._from('https://ex.org/download')
+        self.assertFalse(media.ocr_scanned_pages)
+        path = os.path.join(self.root, 'scan.pdf')
+        _scanned_pdf(path)
+        fields = tasks._ingested_metadata(media, path, 'scan.pdf')
+        self.assertEqual('document', media.media_type)
+        self.assertTrue(media.ocr_scanned_pages)
+        self.assertIn('ocr_scanned_pages', fields)
+
+
 class DocumentGluesTest(TestCase):
     """The two glues of the document, end to end on a real file — the detection by the PATTERN
     detectors only (no model loaded here): the e-mail address is found, then blacked out in the

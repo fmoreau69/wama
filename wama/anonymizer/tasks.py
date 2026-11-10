@@ -177,11 +177,23 @@ def process_single_media(self, media_id, force_individual=False, process=None):
 def _ingested_metadata(inst, save_path, fname):
     """Métadonnées relevées sur le fichier téléchargé (mêmes champs que l'upload) — déclaré à
     l'ingestion commune (`source_ingest.ensure_local_input`, `derive=`)."""
-    from wama.anonymizer.views import add_media_to_db
+    from wama.anonymizer.views import add_media_to_db, new_media_settings
     add_media_to_db(inst, save_path)
     inst.file_ext = os.path.splitext(save_path)[1].lstrip('.').lower()
-    return ['file_ext', 'width', 'height', 'fps',
-            'duration_inSec', 'duration_inMinSec', 'media_type']
+    fields = ['file_ext', 'width', 'height', 'fps',
+              'duration_inSec', 'duration_inMinSec', 'media_type']
+    if inst.media_type == 'document':
+        # Un document reçu par URL finit de naître comme un document DÉPOSÉ (2026-11-10) : les
+        # réglages de son domaine, et ce que le FICHIER propose (l'OCR d'un scan,
+        # `Param.default_from`), qui n'était pas là à la création.
+        from wama.common.utils.user_settings import inputs_by_port
+        app = inst._meta.app_label
+        columns = new_media_settings(inst.user, model=type(inst), app=app, nature='document',
+                                     inputs=inputs_by_port(app, save_path))
+        for name, value in columns.items():
+            setattr(inst, name, value)
+        fields += [name for name in columns if name not in fields]
+    return fields
 
 
 def _catalogue_key(value):

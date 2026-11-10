@@ -226,9 +226,22 @@ def _media_from_url(url, user, post=None):
     (`derive` déclaré dans `WAMA_INGEST`). Même forme que les lignes de `batch_create`."""
     filename = url.split('?')[0].rstrip('/').split('/')[-1] or url
     media = Media.objects.create(user=user, title=filename, source_url=url, file='',
-                                 file_ext='', **new_media_settings(user, post=post))
+                                 file_ext='', **_born_from_source(user, url, post))
     return {'is_valid': True, 'id': media.id, 'name': filename, 'source_url': url,
             'username': user.username}
+
+
+def _born_from_source(user, source, post=None):
+    """Les colonnes d'un média qui naît d'une SOURCE (URL, ligne de lot) : sa nature quand
+    l'adresse la dit d'avance (`app_modes.surface_source_nature`), et les réglages du domaine où
+    elle le range — un PDF reçu par URL naissait vidéo, avec ceux de l'image (2026-11-10).
+    Inconnue, l'image / vidéo ; le `derive` la corrige à l'arrivée du fichier."""
+    from wama.common.utils.app_modes import surface_source_nature
+    nature = surface_source_nature('anonymizer', 'anonymizer', source) or ''
+    columns = new_media_settings(user, post=post, nature=nature or None)
+    if nature:
+        columns['media_type'] = nature
+    return columns
 
 
 def upload_from_url(request, user, media_file=None):
@@ -1050,7 +1063,7 @@ def batch_create(request):
             source_url=url_or_path,
             file='',
             file_ext='',
-            **new_media_settings(user),
+            **_born_from_source(user, url_or_path),
         )
         BatchAnonymizerItem.objects.create(batch=batch, media=m, row_index=i)
         created_ids.append(m.id)

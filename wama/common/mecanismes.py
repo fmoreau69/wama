@@ -2403,7 +2403,8 @@ MECHANISMS = (
               "(`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un "
               "domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine "
               "pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit "
-              "sans la porte (`domain_nature`)",
+              "sans la porte (`domain_nature`), et une SOURCE pas encore arrivée dit sa nature par "
+              "son adresse (`surface_source_nature`, 2026-11-10)",
               'wama/common/utils/app_modes.py', 'docs/construction/ui/MODES_QUEUE_UX.md',
               annexes=('wama/common/static/common/js/wama-modes.js',
                        'wama/common/templates/common/_domain_tabs.html')),
