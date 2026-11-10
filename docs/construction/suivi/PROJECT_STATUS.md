@@ -30011,3 +30011,11 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
 - 🔚 🔴 **Rien de partagé n'a été relancé.** Tant que Fabien n'a pas relancé gunicorn, les workers et les
   services, le code en service reste l'ancien et le port 8004 n'écoute pas. Après relance : une analyse
   Face Analyzer réelle, et le port 8004 présent dans `wama_services.sh status`.
+- ✍ **Correctif du 2026-11-10, à la relecture de ce bloc : deux lignes ci-dessus sont fausses.** ① La vision a
+  elle aussi été confrontée au code le 26/10 (`docs/construction/mondes/WAMA_VISION_COMPLET.md:21-22`) : le
+  décrochage est de 558 commits depuis cette date pour les DEUX documents, pas de 2629 pour la vision, et c'est
+  un maximum (les passes courtes ont corrigé des sections entre-temps, combien n'est pas mesuré). ② `wama_services.sh`
+  n'a pas de commande `status` (le mot n'y figure nulle part) : le contrôle est le port à l'écoute (`ss -ltn`)
+  et `/health`. Le 🔴 est soldé : Fabien a relancé le 10/11 vers 10:48 ; port 8004 à l'écoute, `/health` à `ok`,
+  deux demandes `/run` réelles adressées au service sans le client (donc sans repli possible) : HTTP 200 en 0,38 s
+  puis 0,12 s, expression seule. Reste une analyse Face Analyzer depuis l'interface, âge et genre compris.
