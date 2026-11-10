@@ -68,6 +68,11 @@ le RENDU RÉEL, pas la structure du code.
   comportement. Ne pas forger un compte : en inventer un inventerait ses droits.
 - ⚠ JAMAIS d'action destructive : pas de suppression d'items, pas de « Tout effacer », pas de
   lancement de génération lourde GPU sans accord. Le user id=1 est le compte réel de Fabien.
+- ⚠ **Une sonde qui remet en état après elle (vider un fil, retirer un élément) conditionne ce
+  geste sur la forme RÉELLE de la réponse, lue par une clé exigée** (`data['entries']`, jamais
+  `data.get('messages') or []`). Vécu le 2026-11-10 : la clé lue n'existait pas, la condition
+  « fil vide avant » valait donc toujours vrai, et le fil du compte de sonde, qui portait un
+  échange d'une autre sonde, a été effacé.
 
 ## 1. Sources des points à valider
 - `docs/construction/suivi/PROJECT_STATUS.md` : chercher « valider navigateur » / « validation navigateur » (sections

@@ -30582,3 +30582,11 @@ Revérification complète (`/reverif`) des commits `283de6d12`, `89280e43f`, `55
   « piste audio » de la vidéo ; ⑥ Translator → `document_text` ; et le chantier commun des
   propositions à l'arrivée d'une URL. **Pendings système** : relances ci-dessus ; `dev` a 9 commits
   d'avance au moment d'écrire, plus celui de ce bloc.
+
+## §CLÔTURE 2026-11-10, « DEMANDE EN CLAIR : LES 8 COMPÉTENCES CITÉES EN SERVICE » — 🔚 rien à relancer pour ce périmètre ; poussée à la demande de Fabien
+
+- **Relance de Fabien** à 20:51, après `529e2f15c` : le « 🔴 relancer » du bloc « POSTURES D'AGENT NOMMÉES AU MODÈLE » est soldé.
+- **Demande en clair à un vrai modèle** (`gemma4:12b`, compte de sonde, vrai chat de l'accueil) : la réponse cite les 8 compétences, `critique` et `methodology` comprises, et renvoie à `/competence` pour la liste. Aucune erreur, conversation vide avant la question, vidée après.
+- **Leçon de la sonde mise dans son skill** : `/smoke §0`, une remise en état se conditionne sur la forme réelle de la réponse, lue par une clé exigée.
+- **Artefacts déclarés** : une base de test à part, `wama_db_tfverif`, gardée (`--keepdb`) pour les passes de la session ; scripts de sonde et de contre-épreuve dans le scratchpad, jetables.
+- **Restent de ce chantier** (fiche `project_backend_contract`) : le temps réel du Face Analyzer au portage, l'interrupteur Auto par worker, la part structurelle de `ROADMAP §25.2` (décision de Fabien).
