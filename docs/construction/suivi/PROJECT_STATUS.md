@@ -29964,3 +29964,50 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
   ne se combine pas encore ; le bouton « Fusionné » d'un lot de pages n'apparaît qu'au rendu suivant
   la fin du lot (les pages se lisent sur les fichiers) ; le verdict du critère `recursive_import`
   pour les cards en mode attache, à remesurer.
+
+## §PALIER 2026-11-09→10, « SERVICE TENSORFLOW : DEEPFACE ET FER SEULS SUR LA CARTE » — d6c9fc31a — 🔚 🔴 Fabien relance gunicorn + workers + services (surveillance comprise) pour que le service réel démarre sur 8004
+
+> Décisions de Fabien du 2026-11-08 et bilan des mesures : `WAMA_MANIFEST_SPEC §7.1` (domicile, marqué ✅).
+> Mécanisme `tensorflow_service` ; infra : `INFRA_WSL_VS_WINDOWS.md`.
+
+- **Livré** : `common/tensorflow_service/` (uvicorn 127.0.0.1:8004, aucun PyTorch dedans, seul lieu où
+  TensorFlow voit la carte) ; un `Tenant` dont la libération est l'arrêt du processus ; relance à la
+  demande par la surveillance des workers ÉTENDUE aux services (`worker_watchdog.sh`, `wama_services.sh`,
+  `service_supervision`), hors budget et sans rapport de mort ; repli chez l'appelant, TensorFlow hors de
+  la carte ; préchauffage de l'expression seule ; contrat `face-analysis` sans état, DeepFace une classe
+  par poids, FER backend du contrat sans ligne de catalogue (`BUNDLED_WEIGHTS`).
+- **Mesuré** (mémoire occupée de la carte, `nvidia-smi` par processus rendant [N/A] sous WSL) : expression
+  0,65 Go, âge 6,6, genre 6,5, les trois ensemble 6,7 à 7,2 (une seule réserve, par paliers). Catalogue,
+  backends et manifestes recalés ; `CardRoomMatchesTheCatalogueTest` tient les deux déclarations ensemble.
+- **Épreuve réelle** (service jetable port 18004, compte `wama_nightly_test`, jamais le service partagé) :
+  analyse vidéo identique à la référence sur 30 images sur 30, écart maximal d'une émotion 0,003 ; 80,1 s
+  avant, 58,1 s en service, 71,8 s en repli service éteint avec 0 Mio pris sur la carte ; libération
+  acquittée en 1,5 s, carte 14128 → 6953 Mio, processus sorti ; `supervise_one` réel : « arrêt voulu »
+  puis relance à la demande, drapeaux effacés.
+- **Contre-épreuves** : 26/26 rouges (`mutate_in_process`, aucune écriture sur le disque).
+- **Trouvé par la suite complète, soldé dans le commit** (10932 tests, 5 échecs + 1 erreur, comparés par
+  nom à la référence d'avant chantier) : deux rouges de ma main, invisibles des lots ciblés.
+  ① `orphelins` lit `bundled_weights`, absent des entrées semées de `tests_backend_deprecation` : le test
+  sème le champ et gagne le cas « poids dans la roue » (contre-épreuve rouge). ② `tensorflow` est désormais
+  importé en direct (`runtime.py`) sans être au registre : `manifests/libraries/tensorflow.json` semé par
+  `manifest_export --kind library`, projeté SEUL par `write_back` (`apply_manifests` aurait aussi projeté
+  une autre librairie en écart, à quelqu'un d'autre) ; `is_allowed` et `is_installed` restent à leur
+  défaut, `write_back` ne les écrit pas.
+- **Vérifié sur HEAD** (worktree WSL, migrations recopiées, `makemigrations --check` : No changes, base de
+  test à part) : 143 tests OK (`tests_tensorflow_service`, `tests_backend_deprecation`,
+  `EveryImportedLibraryIsSeededTest`, `tests_worker_watchdog`, `tests_vram_wait`, `tests_network_exposure`,
+  `tests_identifier_language`, `face_analyzer`).
+- **Rouges restants de la suite, tous antérieurs au chantier et hors de ses fichiers** :
+  `test_no_module_reads_a_routes_table_itself` (`model_manager/services/cloud_models.py`),
+  `test_every_app_that_declares_a_voice_goes_through_the_door` (`synthesizer_01`, `avatarizer_01`),
+  `test_nothing_calls_them_any_more` (code vendorisé d'ACE-Step, ignoré par git),
+  `test_the_two_iou_copies_are_the_common_one`.
+- **Laissé dans l'arbre, à d'autres** : dans `WAMA_MECANISMES.md`, les décomptes de consommateurs (régénérés
+  sur un arbre qui porte le travail non commité d'autres sessions ; ma ligne et ses totaux sont commités) ;
+  la ligne 157/157 de `WAMA_MANIFEST_SPEC`. `tests_network_exposure` (`wama_services.sh` surveillé) est
+  entré dans `3e0e6aefc`, commit d'une autre session.
+- **Décrochage de la doc, signalé** : 545 commits depuis l'en-tête de la `ROADMAP` (26/10), 2629 depuis
+  celui de la vision (27/08). Une passe `/doc-sync §2` reste à décider.
+- 🔚 🔴 **Rien de partagé n'a été relancé.** Tant que Fabien n'a pas relancé gunicorn, les workers et les
+  services, le code en service reste l'ancien et le port 8004 n'écoute pas. Après relance : une analyse
+  Face Analyzer réelle, et le port 8004 présent dans `wama_services.sh status`.
