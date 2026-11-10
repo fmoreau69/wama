@@ -135,6 +135,18 @@ le RENDU RÉEL, pas la structure du code.
   de brique globale (`MediaPicker`) sur 2 apps dès la 1re exécution (relevé du 19/08), sur des
   pages utilisées tous
   les jours. `node --check` ne voit que la syntaxe, jamais une erreur au chargement.
+- ⚠⚠ **Un menu « masqué par la card suivante » ne se voit que s'il s'ouvre VERS LE BAS** (vécu le
+  2026-11-10, « parfois » selon Fabien). Card centrée ou proche du bas d'une file courte, Popper
+  l'ouvre vers le haut, sur les cards précédentes, qui ne le masquent pas : le premier scénario
+  restait vert la règle CSS neutralisée. ✅ Mesurer `elementFromPoint` au centre de chaque ligne,
+  card placée en HAUT de l'écran, avec des cards sous elle (file assez longue), et exiger le rouge
+  sur la règle neutralisée (`common.lot.output_menu`).
+- ⚠⚠ **Un état forcé dans le DOM d'une file est écrasé par son propre suivi** (même jour) : passer
+  une card à `data-status="SUCCESS"` en JS était annulé par le rechargement serveur de la card en
+  cours. ✅ Changer l'état EN BASE, depuis un fil à part (l'ORM est interdit dans celui de
+  Playwright), et attendre que la page le voie. ⚠ Et si la page se RECHARGE à la fin d'une card
+  (transcriber), la branche JS qui devait montrer le résultat n'est pas jouée : la garder à part,
+  sous V8, avec sa contre-épreuve.
 - ⚠ **Une capture d'ÉLÉMENT hors de la zone visible d'un conteneur qui DÉFILE sort déformée**
   (2026-10-10) : `locator('#llmKeysList').screenshot()` dans le volet droit, liste à y=941 dans une
   fenêtre de 1000, rendait des lignes superposées et une police à empattements — on aurait conclu

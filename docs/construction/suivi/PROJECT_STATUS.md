@@ -30515,3 +30515,34 @@ Revérification complète (`/reverif`) des commits `283de6d12`, `89280e43f`, `55
 - **Écart trouvé par la revérification, ramené** : le correctif de `fact_tags` de `0615958a4` écrivait une seconde règle des blocs de code, à côté de `doc_sections.code_fence`, qui la porte « une fois pour tous les lecteurs de `.md` ». `refresh_text` lit désormais ligne par ligne avec `code_fence`, le code en ligne gardant sa propre expression. Sur les 5 docs à balises, HEAD et l'arbre rendent la même chose. La garde du bloc cité par `>` est retirée, la règle commune ne lisant pas les citations ; elle est remplacée par une clôture plus longue qu'une autre.
 - **Précision demandée par Fabien sur la « mémoire »** : le modèle ne garde rien d'un appel à l'autre, c'est WAMA qui fait la mémoire en recomposant chaque appel : consignes fixes (dont l'annonce des compétences), historique du fil (`conversation_store.history`), extraits du corpus du labo selon le domaine (`laboratory_context`). L'annonce est dans la partie FIXE, placée en tête pour que le cache d'Ollama la réutilise d'un tour à l'autre (`assistant_engine`, « ORDRE : le FIXE d'abord »). Ce n'est pas un manque de la mémoire ; ma formulation était fausse. Aucun chantier ouvert.
 - **Contrôles attendus au prochain `/reprise`** : 287 tests OK (`tests_assistant_skills`, `tests_delegation`, `tests_assistant_commands`, `tests_skills_catalog`, `tests_fact_tags`, `tests_docs_catalog`, `tests_identifier_language`, `gateway.tests`), puis 45 OK après le retour à la règle commune (`tests_fact_tags`, `tests_doc_sections`, `tests_identifier_language`). Quatre contre-épreuves rouges, fichiers intacts : postures retirées de la ligne, postures remises dans la liste chargeable, règle des blocs ignorée, ancienne règle remise. `check_redundancy` 113, dont 0 dans ces fichiers.
+
+## §CLÔTURE 2026-11-10 (soir), « PARTITION FOURNIE, SORTIES D'UN LOT » — `38d44d298` `b7d7393d9` `c15ff0a67` `775acb170` `135437f96` `b68f9dfa0` `528ec93e5` + ce commit — 🔚 ton verdict à l'oreille sur les deux banques, puis l'outil d'assistant de l'export WAV
+
+> Session qui a livré, le même jour : la vue ABC d'une partition MIDI/MusicXML fournie (`§PALIER 2026-11-10,
+> « VUE ABC… »`), puis les sorties d'un lot (`§PALIER 2026-11-10 (soir), « UN SEUL BOUTON DE SORTIE… »`, et sa
+> revérification). Chacun est vu au navigateur sur WAMA relancé (gunicorn de 18:35).
+
+- **🔚 Point d'entrée** : le verdict à l'oreille de Fabien sur GeneralUser GS / MuseScore General (transport
+  et « Exporter » de « Éditer la partition »), puis l'outil d'assistant de l'export WAV (`/api-outils`,
+  `midi_render.abc_to_midi` + `render_wav`) — `PROSPECTION_PIPELINE §Session du 2026-11-08`.
+- **Pendings système** : poussée des commits (6 non poussés au moment de ce bloc, toutes sessions) à la
+  demande de Fabien. Rien à relancer pour ce périmètre : gunicorn de 18:35 porte tout, la migration
+  `common/0038` (choix seuls, sans écriture) est appliquée — fichier hors git comme toutes les migrations.
+  Un navigateur ouvert avant 16:50 garde l'ancienne feuille : Ctrl+F5.
+- **Limites de ce qui a été construit (à cette session)** : la vue d'un MIDI est écrite en do (`K:C`, la
+  tonalité du fichier non reprise) ; passé la rétention (20 versions), la copie du fichier fourni est purgée ;
+  une page sans texte d'un lot de textes est sautée sans le dire, et une partition dans un lot mêlé du Reader
+  le serait aussi (aucun lot réel ne l'est, mesuré) ; le scénario `common.lot.output_menu` joue le gabarit
+  commun à travers le transcriber, dont la page se recharge quand une card finit (la branche JS est gardée
+  sous V8).
+- **Restes hérités, à d'autres** : `tests_mecanismes_scan.OneFileOneOwnerTest` rouge (`scripts/worker_watchdog.sh`,
+  `scripts/wama_services.sh`, commit `28826db58`) ; `check_redundancy` relève `transcriber/surfaces.py::_available`
+  contre `export_formats.available_formats` (code du 2026-10-21, `e235ee0bb`) ; `manifest_export --check` :
+  9 périmés, dont 4 apps (anonymizer, composer, reader, transcriber) par la facette `surfaces` extraite par
+  une autre session, et 5 modèles ; `doc_facts` : `mecanismes` périmé par la seule ligne « Tests nocturnes »
+  (64 → 65), pas de cette session — ses lignes à elle sont identiques au générateur (mesuré).
+- **Contrôles attendus au prochain /reprise** : 313 tests du périmètre et des gardes transverses, un seul
+  rouge (ci-dessus) ; `check_docs` 0 cassée sur 4054 ; `check_skills` aucun défaut franc ; `common.lot.output_menu`
+  vert sur le service (15/15 à 1440 et 1920 px, 2/2 lot inachevé). Leçons au rituel : `/smoke §4` (un menu
+  ne se masque qu'ouvert vers le bas ; un état forcé dans le DOM d'une file est écrasé par son suivi) et
+  `/reverif §2` (nom de test vérifié par la langue avant le commit — `refuses` puis `declares` le même jour).

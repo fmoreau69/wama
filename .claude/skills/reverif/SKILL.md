@@ -117,6 +117,10 @@ un autre lecteur du même cache), puis le lire ; et comparer le neuf à ce qu'il
   de test (`…_declares_…`, racine « déclar »), trouvé à la clôture. ✅
   `check_identifier_language --detail --test-names | grep -E "<mes fichiers>"` doit être VIDE
   pour attribuer le rouge à autrui ; sinon renommer, relancer, et le budget redevient vert.
+  🔴 **Et AVANT de commiter un test neuf, pas après le rouge** (récidive le 2026-11-10 : `…_refuses_…`
+  puis `…_declares_…`, deux noms neufs le même jour, chacun vu une fois la garde rouge). Les racines
+  « refus » et « déclar » sont comptées même dans une phrase anglaise : la liste filtrée sur ses
+  fichiers se lit au moment d'écrire le nom.
 - Garder : `/cloture §2a bis` — une ligne par livrable : son symbole → le test qui le nomme.
 - 🔴 **Et OÙ vit chaque garde neuve** (règle d'`AGENTS.md`, « un test est générique par défaut »,
   2026-11-10) : pour chacune, une ligne de plus à la table — *contrat ou spécifique ?* Un contrat
