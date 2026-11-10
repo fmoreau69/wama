@@ -29907,7 +29907,7 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
 ✅ Cookies mesurés en service le 2026-11-10 (`csrftoken` … `Secure` à travers Apache, gunicorn relancé
 à 01:40). ⏳ La redirection, effective au redémarrage d'Apache (`httpd -k restart`, shell administrateur).
 
-## §PALIER 2026-11-10, « UN LOT, UN FICHIER : LE « FUSIONNÉ » À CÔTÉ DU ZIP (PARTITION COMPLÈTE, PDF DES PAGES) ; LES PAGES D'UN PDF REDRESSÉES COMME UNE PHOTO ; LE DÉPÔT « UN SEUL DOCUMENT » DU READER » — `637ad7241` `d56f3845d` `2aabe70da` `ec9105873` `d6f83db95` `91d47ebba` (+ la garde de clôture), tous sur `origin/dev` au 2026-11-10 soir — 🔴 relancer gunicorn + workers : `reader_01` recréée (gunicorn la sert à sa relance), `common/surfaces.py` (✎ des cards), passe nocturne `ui_smoke_surfaces` (worker)
+## §PALIER 2026-11-10, « UN LOT, UN FICHIER : LE « FUSIONNÉ » À CÔTÉ DU ZIP (PARTITION COMPLÈTE, PDF DES PAGES) ; LES PAGES D'UN PDF REDRESSÉES COMME UNE PHOTO ; LE DÉPÔT « UN SEUL DOCUMENT » DU READER » — `637ad7241` `d56f3845d` `2aabe70da` `ec9105873` `d6f83db95` `91d47ebba`, sur `origin/dev` au 2026-11-10 soir ; la garde de clôture `9e2821642` LOCALE (le push de 19:40 la précède, mesuré par `git ls-remote`) — ✅ gunicorn + workers relancés par Fabien le 2026-11-10 soir (`reader_01` recréée, `common/surfaces.py` pour les ✎ des cards, passe nocturne `ui_smoke_surfaces`)
 
 > Question de fond de Fabien (2026-11-09) : un lot de pages ou une card qui porte un PDF de
 > plusieurs pages ? **Mesuré** (inventaire des dix files par un agent, constats vérifiés aux lignes,
