@@ -5227,7 +5227,9 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
   le constructeur d'`AppPipeline`, comme pour un pipeline déclaré.
 - **Marches** (une validation de Fabien entre chacune) :
   1. ✅ le moteur — `extended`, ses deux règles, la garde d'identité par app (2026-10-29) ;
-  2. ⏳ la card PORTE son pipeline étendu — **forme revue à la revérification du 29/10**, avant
+  2. ⏳ la card PORTE son pipeline étendu — ✅ **forme ci-dessous VALIDÉE par Fabien le
+     2026-11-10** (« je valide les marches 2 et les méta-process, on y va »), code ⏳, livré avec la
+     marche 3 ; **forme revue à la revérification du 29/10**, avant
      tout code. La proposition d'origine (« une table qui DÉSIGNE un pipeline par sa clé de
      manifeste, numérique → `StudioPipeline` ») ne tenait pas, pour trois raisons mesurées :
      ① un `StudioPipeline` est un objet de TRAVAIL de son auteur, modifiable, supprimable et
@@ -5276,6 +5278,12 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
   fille de lot) et son rendu par membre (inspecteur du Studio, rendu commun) ; ce qui reste est la
   décision elle-même, puis l'ouverture d'`AppPipeline.extended()` au nœud `pipeline` (⏳ listé en
   fin de marche 2 du 3.1). Toujours à trancher avec la forme de la marche 2 ci-dessus.*
+  ✅ **Validé par Fabien le 2026-11-10, avec la forme de la marche 2** : un méta-process = un nœud
+  `pipeline` par module, une ligne sur la card, sa ⚙ la modale commune à une section par
+  sous-process ; `extended()` admet donc le nœud `pipeline` (ses membres sont des fonctions du
+  catalogue, sous les mêmes règles qu'un process ajouté). Question posée le même jour, réponse
+  en attente : la page d'ÉDITION des modules (interfaces de BIND : Segmenter, Calculator) —
+  `WAMA_DATA_WORLD §11.8 ①`.
 
 **3.3 Réglages et péremption.** Chaque process porte le schéma de SES réglages (le `params.py` de
 l'app pour un process d'app, `FunctionSpec` pour une fonction) et la liste des réglages qu'il
