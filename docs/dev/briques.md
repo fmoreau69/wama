@@ -1704,7 +1704,7 @@ Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app
 
 - **Domicile** : `wama/common/utils/document_export.py`
 - **Module** : WAMA — Document Export Utilities Génération de fichiers PDF (fpdf2) et DOCX (python-docx) à partir des résultats des applications Describer et Transcriber.
-- **API publique** (8) :
+- **API publique** (9) :
   - `strip_markdown(text: str) -> str` — Le texte SANS sa mise en forme Markdown, paragraphes gardés — pour le PDF, le DOCX et, depuis
   - `generate_description_pdf(description) -> bytes` — Generate a PDF from a Description instance.
   - `generate_description_docx(description) -> bytes` — Generate a DOCX from a Description instance. Returns raw bytes.
@@ -1712,6 +1712,7 @@ Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app
   - `generate_transcript_pdf(transcript) -> bytes` — Generate a PDF from a Transcript instance. Returns raw PDF bytes.
   - `generate_reader_pdf(item) -> bytes` — Generate a PDF from a ReadingItem instance. Returns raw PDF bytes.
   - `generate_reader_docx(item) -> bytes` — Generate a DOCX from a ReadingItem instance. Returns raw bytes.
+  - `join_docx(documents) -> bytes` — UN DOCX fait de `documents` (octets), dans l'ordre, chacun à partir d'une nouvelle page — le
   - `generate_transcript_docx(transcript) -> bytes` — Generate a DOCX from a Transcript instance. Returns raw bytes.
 
 ### Familles suivies hors des files
@@ -2750,7 +2751,7 @@ Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, gr
 
 - **Domicile** : `wama/common/utils/export_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : Vocabulaire COMMUN des formats de TÉLÉCHARGEMENT — libellé, icône et regroupement.
-- **API publique** (18) :
+- **API publique** (19) :
   - `entry(value: str) -> dict` — Décrit UN format. Un format inconnu du vocabulaire reste affichable (repli neutre) —
   - `entries(formats, available=None) -> list[dict]` — Liste ordonnée d'entrées prêtes pour `common/_download_button.html`.
   - `entries_for_app(app_name: str, available=None) -> list[dict]` — Idem, en lisant la déclaration de l'app — l'appelant n'a que son nom à donner.
@@ -2768,7 +2769,8 @@ Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, gr
   - `result_pages(item) -> list` — Les fichiers résultats DÉCLARÉS de `item` (`send_to.result_paths`, la lecture du ZIP et
   - `combined_formats(app_name: str, items) -> list` — Les formats en lesquels les éléments `items` d'un lot se combinent en UN fichier : ceux du
   - `combined_url(lot_url: str) -> str` — L'adresse du fichier combiné d'un lot : celle de son ZIP (`batch_download`), `combine=1`
-  - `combine_lot(app_name: str, items, fmt: str)` — `(ext, bytes)` du fichier combiné des `items` au format `fmt`, ou None — le rendu déclaré de
+  - `lot_menu(app_name: str, lot_url: str, items, ready: bool) -> list` — Les entrées du bouton ⬇ UNIQUE de la card mère d'un lot (2026-11-10, Fabien : un bouton qui
+  - `combine_lot(app_name: str, items, fmt: str, item_label=None)` — `(ext, bytes)` du fichier combiné des `items` au format `fmt`, ou None — le rendu déclaré de
 
 ### Gestes au pointeur (glisser, défiler, pincer, appui long)
 
