@@ -54,6 +54,12 @@ retrouve-t-elle TOUT ? »*
   `git show --stat --format='%h' HEAD | tail -5` avait COUPÉ la ligne du sha ; j'ai annoncé à
   Fabien un sha qui n'existait pas, rattrapé à la clôture suivante seulement. ✅ Le relire à part,
   `git log -1 --format=%h`, avant de l'écrire dans un message ou un handoff.
+- 🔴 **Relire HEAD APRÈS le dernier geste, pas seulement après SON commit** (vécu le 2026-11-10).
+  Trois minutes après mon commit, une autre session a commité un `PROJECT_STATUS` construit sur une
+  version antérieure : mon bloc a disparu de HEAD, sans qu'aucun contrôle de mon commit ne puisse le
+  voir, et `git log -1` rendait SON sha. ✅ À la toute fin, compter l'ancre du bloc dans
+  `git show HEAD:<fichier>` écrit dans un fichier, et retrouver son sha par le message
+  (`git log --grep`). Un bloc retiré se rétablit par un commit neuf sur HEAD, sans réécrire celui d'autrui.
 
 ## 2. Contrôles mécaniques
 
