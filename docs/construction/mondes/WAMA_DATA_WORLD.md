@@ -3122,6 +3122,34 @@ première parle des **MOTEURS** (pas de moteur Explorer séparé), la seconde de
 Explorer ouverte depuis une card reste **motorisée par** le Calculator. Ce que §9quater interdit,
 c'est un moteur Explorer distinct, pas un bouton Explorer.
 
+> ⭐ **Précisé le 2026-11-10 (Fabien) — UN bouton ✎, UN onglet par module.** Les interfaces des
+> modules (les écrans du Segmenter et du Calculator de BIND, moteurs livrés, écrans absents)
+> s'ouvrent depuis le bouton ✎ de la card, sur UNE page à un onglet par module ; chaque onglet est
+> une surface composée de briques UI (`ROUTE §F3b`), qui se déplacent, s'empilent, s'épinglent à
+> un bord ou se détachent dans une autre fenêtre (le détachement suffit, « fenêtres flottantes »
+> de ⑥ comprises). Le « ni un onglet chacun » ci-dessus visait l'onglet d'APP (un module n'est
+> pas une app ni un onglet de la page du Data Analyzer) ; les onglets de la page d'une card ne
+> le contredisent pas. Quatre règles, pour rester aligné :
+> 1. **les onglets sont un mécanisme COMMUN à tous les mondes**, déduits des surfaces que l'app
+>    déclare (jamais écrits en dur) — un Médias s'en sert autant (le composer : partition, paroles) ;
+> 2. **un onglet par MODULE, pas par fonction** : il suit le méta-process (un nœud `pipeline` par
+>    module, `ROUTE §10.6 3.2bis`, validé le même jour). Un onglet n'est pas forcément lié à un
+>    process : l'Explorer et le Visualizer montrent sans état d'exécution (⑨) — une surface en
+>    lecture seule existe (`Surface.edits=None`, face_analyzer) ;
+> 3. **un onglet existe avant son process** : en mode B (⑨), la card naît avec un pipeline vide,
+>    et c'est le geste dans l'onglet qui AJOUTE le process déclaré ;
+> 4. **la ⚙ et l'onglet éditent la MÊME donnée** (ce que la card ajoute à son pipeline, marche 2
+>    du `ROUTE §10.6 3.2bis`) — une représentation, deux éditeurs (④). Qu'une surface écrive le
+>    pipeline de la card, et plus seulement un champ de l'élément, est la marche 5.
+>
+> **Et les interfaces de dépôts GitHub** (intention de Fabien, même jour : des pages d'édition
+> « suivant le pipeline », jusqu'à une app complète — `WAMA_VISION_COMPLET §3.6`) : elles suivent
+> la règle des bibliothèques de §9quater.7 — *une bibliothèque qui DESSINE, oui ; une qui décide
+> de la MISE EN PAGE, non*. L'interface d'un dépôt (Gradio, Streamlit, Dash…) ne s'embarque pas
+> telle quelle (second système de widgets, et souvent son propre serveur) : elle se CARTOGRAPHIE
+> comme les écrans de BIND (§11.9), puis se réexprime en surface déclarée de briques, son moteur
+> passant par la route des modèles et des librairies.
+
 **② La correspondance BIND ↔ WAMA — corrigée par Fabien.** La première version (Liste→file) était
 **fausse** : la file WAMA est **CURATÉE**, on n'y verse pas un dossier entier hors batch.
 

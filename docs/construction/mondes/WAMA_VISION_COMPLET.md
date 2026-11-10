@@ -405,6 +405,17 @@ doit alors savoir arbitrer sur n'importe quel poste — processeur seul compris 
 sur la carte NVIDIA du serveur. *Mesure, piste et prérequis (2026-11-06) : `ROADMAP §18.3` et
 §Gouvernance des ressources point 6.*
 
+⏳ **L'application COMPLÈTE — précisé par Fabien le 2026-11-10.** Dans tous les mondes, une app
+pourra recevoir des **pages d'édition par process qui en ont besoin**, ouvertes depuis le bouton ✎
+de la card, **un onglet par process** (mécanisme commun) : l'app devient alors l'interface d'un
+pipeline complet. Des interfaces avancées de projets GitHub pourront y entrer sous forme de pages
+d'édition suivant le pipeline — **réexprimées en briques UI**, jamais embarquées telles quelles
+(`WAMA_DATA_WORLD §11.8 ①`, règle des bibliothèques). C'est ce qui rend l'export utile et ouvre une
+seconde forme : **un site web simplifié**, sans la complexité de WAMA, où la file d'attente devient
+un **back-end invisible** qui gère le travail **par projet** — au monde Data, les lots se forment
+déjà par les axes du plan d'expérience (§13 de `WAMA_DATA_WORLD`). ⚠ Ce n'est pas le « mode
+simplifié » retiré le 2026-10-27 (`WAMA_VOLETS §7`, R182), qui masquait seulement les volets.
+
 ---
 
 # Partie 4 — Le Studio et l'orchestration

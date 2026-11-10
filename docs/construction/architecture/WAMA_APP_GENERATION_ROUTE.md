@@ -5281,9 +5281,12 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
   ✅ **Validé par Fabien le 2026-11-10, avec la forme de la marche 2** : un méta-process = un nœud
   `pipeline` par module, une ligne sur la card, sa ⚙ la modale commune à une section par
   sous-process ; `extended()` admet donc le nœud `pipeline` (ses membres sont des fonctions du
-  catalogue, sous les mêmes règles qu'un process ajouté). Question posée le même jour, réponse
-  en attente : la page d'ÉDITION des modules (interfaces de BIND : Segmenter, Calculator) —
-  `WAMA_DATA_WORLD §11.8 ①`.
+  catalogue, sous les mêmes règles qu'un process ajouté). Même jour, la page d'ÉDITION des
+  modules (interfaces de BIND : Segmenter, Calculator) est tranchée : un bouton ✎, un onglet par
+  module, onglets COMMUNS à tous les mondes et déduits des surfaces déclarées, la ⚙ et l'onglet
+  éditant la même donnée (cette marche 2) ; écrire le pipeline de la card depuis une surface est
+  la marche 5 — `WAMA_DATA_WORLD §11.8 ①` ; intention d'ensemble (app complète, site
+  simplifié) : `WAMA_VISION_COMPLET §3.6`.
 
 **3.3 Réglages et péremption.** Chaque process porte le schéma de SES réglages (le `params.py` de
 l'app pour un process d'app, `FunctionSpec` pour une fonction) et la liste des réglages qu'il
