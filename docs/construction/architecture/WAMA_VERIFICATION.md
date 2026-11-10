@@ -2111,3 +2111,75 @@ Et une troisième moitié, propre aux thèmes : `tests_theme.LightThemeIsTheMirr
 clair est le miroir de luminance du sombre, qui CONSERVE chaque rapport de contraste
 (`theme_mirror.py`) ; un contraste vérifié en sombre l'est donc en clair par construction, sauf
 pour ce que `themes.py` déclare autrement.
+
+---
+
+## 11. La MASSE des tests — universalité, redondance, durée (état des lieux du 2026-11-10, session dédiée à venir)
+
+> Fabien, 2026-11-10 : *« les tests sont générés au fur et à mesure des développements et ajoutés
+> aux tests nocturnes et week-end. Ces tests s'accumulent. […] je souhaite que les tests soient les
+> plus universels possible pour éviter la démultiplication […] Je n'ai encore jamais fait de passe
+> de vérification complète de tous les tests […] les tests prennent de plus en plus de temps […]
+> L'idée est de consigner cette réflexion avec tes avis et compléments de mesures pour attaquer le
+> sujet dans une session dédiée. »* Rien n'est changé ici : un état des lieux MESURÉ (lecture des
+> rapports nocturnes de `logs/nightly_tests/` et des fichiers de tests, aucun test lancé pour lui).
+
+### 11.1 Ce qui est mesuré
+
+| mesure | valeur | source |
+|---|---|---|
+| méthodes `test_*` (Python) | **11 928** dans **652** fichiers | `grep "^    def test_"` sous `wama/`, `wama_data/`, `wama_lab/` (vendor exclu) |
+| dont le COMMUN (`wama/common`) | **6 668** (56 %), **342** fichiers | idem |
+| apps médias (transcriber → avatarizer, 10 apps) | **990** au total, 40 à 218 par app | idem |
+| fichiers de tests AJOUTÉS depuis le 2026-09-10 | **499** | `git log --diff-filter=A` |
+| suite `wama.common` au nocturne hebdomadaire | 3 437 tests le 12/10 (35 min) → **plus de verdict depuis le 26/10** : « dépassé 2400 s sans rendre son verdict », trois dimanches de suite (26/10, 01/11, 08/11) | `nightly_*.json`, scénario `wama.common.suite` |
+| suite `wama.model_manager` | 653 tests, 4 min (12/10) → **1 103 tests, 12,5 min** (08/11) | idem |
+| campagne quotidienne (lun.→sam.) | **367 scénarios, 147 min** ; `ui` = 99 % | `nightly_20261110_070450` |
+| campagne hebdomadaire (dim.) | **340 scénarios, 247 min** : `suite` 113 min, `ui` 107 min (dont **jumelles 10 × 11–17 min**), `output` 27 min | `nightly_20261108_084450` |
+| scénarios les plus longs (quotidien) | `common.contrast` **16,6 min**, `common.layout.screens` **8,4 min**, puis chaque `<app>.ui` 1–2 min | idem |
+| leviers non employés | Django **5.2.6** : `manage.py test --durations N` (durée PAR test, jamais relevée) et `--parallel` (le lanceur WAMA ne l'emploie pas — `common/runners.py`) ; aucun `TransactionTestCase` ni `LiveServerTestCase` | |
+
+### 11.2 Avis — l'étendue des dégâts
+
+- **Pas de chaos dans la répartition** : la règle du §8 (générique par défaut) est largement
+  suivie — 56 % des tests sont au commun, les apps médias n'en portent que 990, et les gestes
+  navigateur bouclent déjà sur les apps (`ui_smoke*.register_*_scenarios`).
+- **Le vrai défaut est l'ACCRÉTION au commun** : un livrable = une garde (`/cloture §2a bis`,
+  `/contre-epreuve`), écrite dans le module du livrable. Ça garde bien le défaut qui ne se voit pas
+  à l'usage — mais rien ne demande jamais de RETIRER ou de FUSIONNER. 499 fichiers neufs en deux
+  mois ; la redondance probable est INTERNE au commun (plusieurs gardes d'un même contrat, écrites
+  par des sessions différentes), pas entre apps. Non mesurée : c'est l'objet de la passe dédiée.
+- **Le dégât le plus grave, et il est déjà là** : la suite du commun n'a plus de verdict
+  hebdomadaire depuis deux semaines. Ce n'est pas un rouge qu'on voit, c'est une ABSENCE de
+  mesure — la famille « ce qui ne plante pas ne se signale pas ».
+- **La règle n'est écrite qu'ici** (§8, 2026-09-26) et dans la mémoire d'un agent : ni `AGENTS.md`,
+  ni `/reverif`, ni `/cloture` ne la portent. Un agent qui écrit une garde n'a aucune raison de la lire.
+
+### 11.3 Pistes pour la session dédiée (dans l'ordre proposé)
+
+1. **Rendre son verdict à la suite du commun** (urgent, avant tout) : la scinder par sous-paquet
+   au nocturne, ou relever le plafond À LA MESURE — et mesurer `--durations 50` pour savoir qui
+   coûte.
+2. **`--parallel`** : le levier le plus gros à portée (16 cœurs). ⚠ La base de test est PARTAGÉE
+   entre instances (`/cloture §2a`) : Django clone la base par processus (`test_<nom>_1…N`) —
+   compatible si chaque lanceur garde son nom de base ; à éprouver sur une base à part.
+3. **Durée par test** : `--durations` sur une suite complète, puis traiter les plus lents (une
+   donnée lourde en `setUp` au lieu de `setUpTestData`, un import de torch, une lecture de
+   `/mnt/d`…).
+4. **Nocturne** : `common.contrast` (16,6 min) et `layout.screens` (8,4 min) — échantillonner ou
+   passer en hebdomadaire ; les JUMELLES rejouent chaque geste (10 × ~12 min) alors qu'elles
+   naissent des mêmes gabarits — une jumelle par génération de gabarit suffirait peut-être.
+5. **Redondance et péremption** : regrouper les tests par ce qu'ils EXERCENT (couverture par
+   contexte de test, `coverage --contexts`), repérer les gardes incluses dans une autre ; les gardes
+   « exige son absence » d'un retrait (`REMOVAL_LEDGER`) pourraient vivre dans UN registre lu par
+   un seul test.
+6. ✅ **Règle écrite là où elle se lit** (Fabien, le jour même : « porte la règle maintenant ») :
+   `AGENTS.md`, « UN TEST EST GÉNÉRIQUE PAR DÉFAUT — ET UNE GARDE NEUVE REJOINT, ÉTEND OU
+   REMPLACE » ; `/reverif §2` (où vit chaque garde neuve, fichiers de tests neufs comptés) ;
+   `/cloture §2a bis` (« garder n'est pas empiler ») ; `/reprise §3a` (les verdicts ABSENTS des
+   rapports nocturnes) ; `/contre-epreuve §3` (un faux qui échoue pour une autre raison).
+7. **Serveur Linux** : supprime le coût d'E/S de WSL2 sur `/mnt/d` (`reference_page_perf_debug`,
+   `ROADMAP` déploiement) — un levier, pas une excuse pour 1 à 6.
+
+⚠ Les limites mesurées ici évoluent : chaque chiffre est daté et se REMESURE à l'ouverture de la
+session dédiée (les rapports nocturnes le permettent sans rien relancer).

@@ -43,6 +43,14 @@ contre les commits depuis : `grep -n -m2 -i "mise à jour\|confrontation" docs/c
 docs/construction/mondes/WAMA_VISION_COMPLET.md`, puis `git log --since=<cette date> --oneline | wc -l`.
 Des centaines de commits depuis = la doc a décroché : le DIRE à l'ouverture et proposer
 `/doc-sync §2` (passe longue) — mesuré ce jour-là : 3 025 commits depuis l'en-tête de la ROADMAP.
+
+🔴 **Et les VERDICTS ABSENTS des derniers rapports nocturnes** (2026-11-10) — un rouge se voit,
+une mesure qui n'a pas eu lieu non : la suite du commun dépassait son plafond (« dépassé 2400 s
+sans rendre son verdict ») trois dimanches de suite sans qu'aucune ouverture ne le relève. Lire
+le dernier rapport quotidien ET le dernier hebdomadaire (`logs/nightly_tests/nightly_*.json`, les
+plus gros) : scénarios `ok: false`, et parmi eux ceux dont le détail dit « sans rendre son
+verdict » ou « dépassé » — à dire à l'ouverture, avec la durée totale (`duration_s` sommé) comparée
+à la précédente du même rythme (`WAMA_VERIFICATION §11`).
 ⚠ **Lire la PHRASE de l'en-tête, pas la seule ligne que le motif rend** (vécu le 2026-11-10) : pour la
 vision, le motif s'arrêtait sur « (2026-08-27 pour cette édition ; confrontation complète », et la date
 qui compte, 2026-10-26, ouvrait la ligne suivante. Fabien a reçu un décrochage cinq fois trop grand. Ouvrir

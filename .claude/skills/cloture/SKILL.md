@@ -93,6 +93,8 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 > sort en `ImportError` compté dans `errors=` : il pollue le chiffre et ne teste rien. Partir des
 > SYMBOLES livrés : `grep -rl "<symbole>" --include="tests*.py" wama wama_lab wama_data`
 > (⚠ sans `--` devant le motif : il fait lire `--include` comme un chemin).
+> Récidive le 2026-11-10 (`tests_mecanismes`, ajouté de mémoire à une liste de modules : 1 erreur
+> sur 1785 tests). ✅ Avant d'envoyer une liste de modules : `ls` de chaque fichier nommé.
 >
 > Ciblé suffit ici (`/reprise` lance la suite complète à l'ouverture) ; ce qui compte est que
 > **le chiffre reporté au §4 soit MESURÉ dans cette session**, pas recopié du handoff précédent.
@@ -193,6 +195,15 @@ grep -rl "<symbole>" --include="tests*.py" wama/ wama_lab/
 Chaque livrable est **gardé**, ou **déclaré non gardé dans le handoff avec sa raison**. Pas de
 troisième état. ⚠ « Les tests existants passent » n'est PAS une réponse : ils passaient déjà
 avant que le code existe.
+
+🔴 **Garder n'est pas EMPILER** (règle d'`AGENTS.md`, « un test est générique par défaut »,
+2026-11-10 — 499 fichiers de tests ajoutés en deux mois, la suite du commun sans verdict
+hebdomadaire). Ce paragraphe faisait écrire une garde par livrable sans jamais demander où elle
+vit ni laquelle elle double. Pour chaque garde neuve, une colonne de plus au tableau :
+**contrat** (au commun, sur les déclarations, aucun nom d'app) ou **spécifique** (dans l'app) ;
+et **le module existant qui garde déjà ce symbole** (le `grep` ci-dessus) — s'il existe, la
+garde s'y AJOUTE au lieu d'ouvrir un fichier, et une garde d'app qu'un générique double se retire
+dans le même commit. Un fichier de tests neuf se justifie dans le message du commit.
 
 🔴 **Priorité absolue au défaut QUI NE SE VOIT PAS À L'EXÉCUTION LOCALE.** C'est le critère qui
 trie, et il est plus utile que « couverture » :

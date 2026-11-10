@@ -118,8 +118,22 @@ un autre lecteur du même cache), puis le lire ; et comparer le neuf à ce qu'il
   `check_identifier_language --detail --test-names | grep -E "<mes fichiers>"` doit être VIDE
   pour attribuer le rouge à autrui ; sinon renommer, relancer, et le budget redevient vert.
 - Garder : `/cloture §2a bis` — une ligne par livrable : son symbole → le test qui le nomme.
+- 🔴 **Et OÙ vit chaque garde neuve** (règle d'`AGENTS.md`, « un test est générique par défaut »,
+  2026-11-10) : pour chacune, une ligne de plus à la table — *contrat ou spécifique ?* Un contrat
+  testé dans une app, ou un nom d'app dans un test de contrat, se ramène au commun sur les
+  déclarations ; une garde qui recouvre une garde EXISTANTE du même symbole (greper le symbole
+  dans `tests*.py`) s'y fusionne. Compter : les fichiers de tests NEUFS de la session
+  (`git diff --name-only --diff-filter=A <premier sha>..HEAD -- '*tests*'`) — chacun se justifie
+  (aucun module existant ne garde ce contrat), sinon il rejoint son voisin.
 - Prouver : `/contre-epreuve` sur chaque garde neuve (brique neutralisée → ROUGE exigé). Vécu le
   2026-10-12 : sept gardes, toutes rouges — mais c'est la seule façon de le SAVOIR.
+- 🔴 **Un ESSAI réel ne voit que ce qu'il EXERCE — relire ce qui le réussit** (vécu le 2026-11-10,
+  backend d'ACE-Step proposé par le rôle `backend`) : le module générait 10 s d'audio, essai vert ;
+  relu, il ignorait mélodie et partition et passait au moteur le rappel de progression du composer,
+  qu'il appelle avec deux arguments — l'essai ne passait aucun rappel. Le passage suivant, vert lui
+  aussi, envoyait 0 % jusqu'au 100 final. ✅ Un vert d'essai se RELIT en se demandant quel
+  paramètre du contrat l'essai n'a pas exercé ; chaque trouvaille devient une vérification de
+  l'essai ou du contrôle (ici `MUST_READ`, le rappel du composer), pas une remarque.
 - 🔴 **Un livrable VISIBLE se vérifie sur la PAGE servie, pas sur sa route** (vécu le 2026-10-17).
   La zone de saisie instantanée avait ses tests (déclaration, vue, tag, V8) et sa route traduisait
   au smoke ; la page `/translator_01/` ne l'affichait pas — le gabarit généré ne rendait aucune

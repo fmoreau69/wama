@@ -134,6 +134,12 @@ print('COUNTERPROOF <nom>: failures =', failures,
      2026-10-29 (`blur_box_inside`) : le rapport « détail restant / détail d'origine » divisait par
      l'image déjà floutée, donc valait 1 quel que soit le flou ; la mutation est restée verte deux
      fois. ✅ Mesurer la référence AVANT l'appel, et passer une COPIE à la brique.
+  4. le **faux échoue de LUI-MÊME, pour une autre raison** — vécu le 2026-11-10 (essai musical) :
+     la garde « le rappel du moteur à deux arguments casse le rappel du composer » exigeait une
+     `TypeError` ; la mutation retirait le rappel de l'essai, et le faux backend appelait alors
+     `None(…)` — `TypeError` aussi, garde verte. ✅ Une garde d'échec vérifie le MESSAGE propre au
+     défaut (ici la forme d'appel enregistrée, `args=(0.5, 'Generating')`), jamais le seul type
+     d'exception ; et le faux n'exerce que ce qu'on lui donne (`if progress_callback:`).
 
 ## 4. Pièges VÉCUS du harnais de contre-épreuve
 

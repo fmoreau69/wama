@@ -286,6 +286,37 @@ d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
 
 ---
 
+## 🔴 RÈGLE OBLIGATOIRE : UN TEST EST GÉNÉRIQUE PAR DÉFAUT — ET UNE GARDE NEUVE REJOINT, ÉTEND OU REMPLACE
+
+> Fabien, 2026-09-26 : *« Je veux qu'un test soit générique et s'applique à toutes les applications
+> par défaut en schéma-driven. Sinon, on multiplie les tests. »* Puis le 2026-11-10 : *« ces tests
+> s'accumulent […] je souhaite que les tests soient les plus universels possible pour éviter la
+> démultiplication »*. La règle n'était écrite que dans `WAMA_VERIFICATION §8` : un agent qui écrit
+> une garde n'avait aucune raison de la lire. Mesuré ce jour-là (`WAMA_VERIFICATION §11`) : 11 928
+> tests, 499 fichiers de tests ajoutés en deux mois, et la suite du commun qui ne rend plus de
+> verdict hebdomadaire (plafond de 40 min dépassé trois dimanches de suite).
+
+1. **Un CONTRAT se teste UNE fois, au commun, sur les DÉCLARATIONS** — route, dépôt, lot, réglages,
+   squelette, rendu, fichiers servis, geste de card : `wama/common/tests/tests_*.py` qui boucle sur
+   `APP_CATALOG`, `schema_for_app`, les registres ; une app neuve y entre sans une ligne de test.
+   **Jamais un nom d'app dans un test de contrat.** Un test dans `wama/<app>/` n'est légitime que
+   pour un comportement PROPRE à l'app. Même règle pour les scénarios nocturnes.
+2. **Avant d'écrire une garde, chercher celle qui garde déjà le même contrat** (greper le symbole
+   gardé dans `tests*.py`) et l'ÉTENDRE — un cas de plus, une contre-épreuve de plus —, plutôt
+   qu'un fichier de plus. Une garde d'app qui double un générique se RETIRE dans le même commit.
+3. **Un écart non tranché se LISTE dans le test générique** (motif `DECLARED_GAPS`), liste qui ne
+   peut que baisser — jamais un test par app pour le contourner.
+4. **Une garde coûte du temps à CHAQUE suite** : `SimpleTestCase` quand la base n'est pas lue,
+   `setUpTestData` plutôt que `setUp` pour une donnée commune, aucun import lourd (torch, modèle)
+   ni lecture de disque réel hors d'un test qui l'exige. La durée par test se mesure
+   (`manage.py test --durations 30`), elle ne se devine pas.
+
+Détail, mesures et contrats déjà généralisés : `WAMA_VERIFICATION §8` ; état des lieux et pistes
+(verdict de la suite du commun, `--parallel`, redondance, nocturne) : `WAMA_VERIFICATION §11`.
+Tenu par `/reverif §2` et `/cloture §2a bis`.
+
+---
+
 ## 🔴 RÈGLE OBLIGATOIRE : PATCHES DE COMPATIBILITÉ VENV → `patches/apply_patches.py`
 
 > **Toute correction manuelle dans `venv_linux/` ou `venv_win/` DOIT être ajoutée à `patches/apply_patches.py`.**
