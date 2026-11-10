@@ -179,7 +179,9 @@ contextualiser. Constat qui corrige une intuition naturelle (« aligner sur les 
 
 *2026-11-10 (demande de Fabien) : son volet sans sélection, mesuré à 3 100 px pour un écran de 1 060,
 est resserré. Une ligne par ressource, un interrupteur « Auto » pour le nettoyeur, les sauvegardes
-sorties de la mémoire, une section « Services » ; règles CSS limitées aux emplacements du volet.*
+sorties de la mémoire, une section « Services » ; règles CSS limitées aux emplacements du volet.
+Mise en page validée par Fabien le jour même, sur le WAMA relancé : « ça me convient, c'est beaucoup
+plus concis ».*
 
 ---
 
