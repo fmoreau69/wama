@@ -310,6 +310,36 @@ def _deposit_settings(user, post, inputs=None):
     return new_reading_settings(user, post=post, inputs=inputs)
 
 
+def _joined_pages(post, files):
+    """Les fichiers reçus, où plusieurs IMAGES arrivées ensemble deviennent UN PDF de ces pages
+    quand l'utilisateur l'a choisi AU DÉPÔT (la case « un seul document » de la brique d'import,
+    `join_pages` — un choix du dépôt, pas un réglage d'élément) : une seule card lit alors le
+    document entier (2026-11-10). Le PDF suit l'ordre du dépôt ; il est NEUF (ni téléversé ni
+    désigné, il n'a pas de provenance à retenir). Un PDF, une seule image, la case décochée : rien
+    ne change."""
+    from contextlib import ExitStack
+
+    from django.core.files.base import ContentFile
+
+    from wama.common.app_registry import category_of_path
+    from wama.common.utils.media_paths import ReceivedInput
+    from wama.common.utils.param_schema import TRUTHY
+    from wama.common.utils.pdf_pages import pages_to_pdf
+    from wama.common.utils.work_dir import work_dir
+    images = [f for f in files if category_of_path(f.name) == 'image']
+    # Ce que poste la case « un seul document » de la brique d'import (`WamaImport`, `joinPages`),
+    # lu par la règle d'un interrupteur du schéma.
+    if len(images) < 2 or str(post.get('join_pages', '')).strip().lower() not in TRUTHY:
+        return files
+    with work_dir('reader_join') as folder, ExitStack() as stack:
+        paths = [stack.enter_context(f.readable_path()) for f in images]
+        stem = os.path.splitext(images[0].name)[0]
+        target = pages_to_pdf(paths, str(folder / f'{stem}.pdf'))
+        from pathlib import Path
+        joined = ReceivedInput(f'{stem}.pdf', ContentFile(Path(target).read_bytes(), name=f'{stem}.pdf'))
+    return [joined] + [f for f in files if f not in images]
+
+
 @require_POST
 def upload(request):
     """Upload one or more files to the reading queue."""
@@ -323,6 +353,7 @@ def upload(request):
 
     # Tous les réglages, ceux du pipeline compris, par la cascade COMMUNE d'un dépôt.
     reading = _deposit_settings(user, request.POST)
+    files = _joined_pages(request.POST, files)
 
     from wama.common.app_registry import accepts_file
     from wama.common.utils.user_settings import inputs_by_port
@@ -362,15 +393,14 @@ def upload(request):
         return JsonResponse({'created': [], 'error': 'Aucun fichier au format pris en charge'},
                             status=400)
 
+    # Les fichiers arrivés ENSEMBLE se rangent par la brique commune (`consolidate_arrival` : un lot,
+    # ou le lot d'un élément seul) — cette vue construisait le sien jusqu'au 2026-11-10, seule app
+    # hors de la brique (inventaire des files, PROJECT_STATUS §PALIER 2026-11-10).
+    from wama.common.utils.queue_manipulation import consolidate_arrival
+    lots = consolidate_arrival(ReadingItem, [item.pk for item in items_created], user)
     if len(items_created) > 1:
-        # Multiple files → one multi-item batch
-        batch = BatchReadingItem.objects.create(user=user, total=len(items_created))
-        for i, item in enumerate(items_created):
-            BatchReadingItemLink.objects.create(batch=batch, reading=item, row_index=i)
-        return JsonResponse({'created': created, 'batch_id': batch.id, 'multi': True})
-    else:
-        _wrap_reading_in_batch(items_created[0])
-        return JsonResponse({'created': created})
+        return JsonResponse({'created': created, 'batch_id': lots[0].id, 'multi': True})
+    return JsonResponse({'created': created})
 
 
 def _reset_for_relaunch(item):
@@ -685,6 +715,45 @@ def build_reading_bytes(item, fmt):
     # forme ») ; elle y partait telle quelle (`#`, `**`, `|`).
     from wama.common.utils.document_export import strip_markdown
     return ('txt', strip_markdown(text).encode('utf-8'))
+
+
+def reading_lot_formats(items):
+    """Les formats en lesquels un lot du reader se combine en UN fichier : ceux du groupe PARTITION
+    quand toutes ses cards sont des partitions (`holds_score`) — les pages d'une œuvre ; aucun pour
+    un lot de textes (2026-11-10). Lus par leur groupe au vocabulaire commun, jamais recopiés."""
+    from wama.common.utils.export_formats import SCORE, entries_for_app
+    from wama.reader.function_specs import holds_score
+    if not all(holds_score(item) for item in items):
+        return []
+    return [e['value'] for e in entries_for_app('reader') if e['group'] == SCORE]
+
+
+def build_reading_lot_bytes(items, fmt):
+    """Return (ext, bytes) for ONE score made of the pages of a lot (in lot order), or None.
+
+    Les MusicXML LUS de chaque page, assemblés (`musicxml_score.merge_drum_pages` : la légende de
+    batterie lue sur une page vaut pour toutes) ; l'ABC en est tirée, titrée par le titre lu sur les
+    pages (`batch_identity.content_title`). ⚠ Une correction faite à la main sur l'ABC d'une page
+    (« Éditer la partition ») n'y entre pas : l'aller-retour ABC → MusicXML garde les notes mais
+    perd la légende (mesuré le 2026-11-10 : `abc2xml` nomme « Part 1 » chaque son de batterie)."""
+    if fmt not in ('abc', 'musicxml'):
+        return None
+    from wama.common.services.batch_identity import content_title
+    from wama.common.utils.musicxml_score import merge_drum_pages, musicxml_to_abc
+    pages = []
+    for item in items:
+        field = item.score_musicxml
+        if not getattr(field, 'name', ''):
+            return None
+        try:
+            with field.open('rb') as handle:
+                pages.append(handle.read().decode('utf-8', errors='replace'))
+        except OSError:
+            return None
+    score = merge_drum_pages(pages)
+    if fmt == 'musicxml':
+        return ('musicxml', score.encode('utf-8'))
+    return ('abc', musicxml_to_abc(score, title=content_title(items)).encode('utf-8'))
 
 
 def console_content(request):

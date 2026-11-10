@@ -29906,3 +29906,61 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
 
 ✅ Cookies mesurés en service le 2026-11-10 (`csrftoken` … `Secure` à travers Apache, gunicorn relancé
 à 01:40). ⏳ La redirection, effective au redémarrage d'Apache (`httpd -k restart`, shell administrateur).
+
+## §PALIER 2026-11-10, « UN LOT, UN FICHIER : LE « FUSIONNÉ » À CÔTÉ DU ZIP (PARTITION COMPLÈTE, PDF DES PAGES) ; LES PAGES D'UN PDF REDRESSÉES COMME UNE PHOTO ; LE DÉPÔT « UN SEUL DOCUMENT » DU READER » — ce commit (local, non poussé) — 🔴 relancer gunicorn + workers (default, gpu)
+
+> Question de fond de Fabien (2026-11-09) : un lot de pages ou une card qui porte un PDF de
+> plusieurs pages ? **Mesuré** (inventaire des dix files par un agent, constats vérifiés aux lignes,
+> concile de l'assistant, fil n° 61 `concile-lots-2026-11-09`) : « plusieurs fichiers → un lot,
+> un fichier de plusieurs pages → une card » EST déjà le fonctionnement de WAMA ; aucun lot ne
+> combinait les résultats de ses éléments ; rien n'assemblait des images en un PDF. **Décisions** :
+> « les deux, dans l'ordre » (résultat combiné, puis assembler en PDF) et « corriger les écarts ».
+> Concile : d'accord sur le résultat combiné de lot ; son « découper un document long en cards
+> filles pour la mémoire » écarté — une card traite déjà ses pages une à une (mesuré).
+
+- **Le fichier combiné d'un lot** — `batch_download?combine=1&format=<ext>` (fabrique
+  `make_batch_views`, même route, même garde que le ZIP ; nommé par l'identité du lot) ; seul un
+  lot ENTIER et RÉUSSI se combine (409 qui nomme les éléments sinon). Registre
+  `export_formats.register_lot_builder` (rendu et formats par app, chemins pointés) ; bouton
+  « Fusionné » de la card mère (tag `lot_combined`, `download_button … formats=`), montré par
+  `queue-actions.js::updateBatchHeader` quand tout a réussi ; l'assistant le reçoit
+  (`get_batch_result` → `combined`). Règle : `WAMA_APP_CONVENTIONS §9.10`.
+  - **Reader** : la partition COMPLÈTE d'un lot de pages (ABC, MusicXML), dans l'ordre du lot,
+    la légende de batterie d'une page nommant les notes de toutes (`musicxml_score.merge_drum_pages`,
+    `drum_key_entries`, `without_drum_key`). ⚠ Une correction faite à la main sur l'ABC d'une page
+    n'y entre pas : l'aller-retour ABC → MusicXML (`abc2xml`) garde les notes (352/352, 437/437),
+    perd la légende (« Part 1 », « dummy ») — mesuré.
+  - **Toute app, rien à déclarer** : un lot dont les résultats DÉCLARÉS (`send_to.sorties_de`) sont
+    des pages (images, PDF) donne UN PDF (`export_formats.combine_lot`, `pdf_pages.pages_to_pdf`).
+    ⚠ Correction d'un raisonnement faux, relevée par Fabien : les apps early-binding « ne déclarent
+    aucun format » était faux — leurs formats se règlent AVANT la génération
+    (`output_formats.output_format_params`, table du converter par nature, `§6.4`) ; le PDF est la
+    sortie déclarée de la nature image (`CONVERTER_OUTPUT_FORMATS`) : c'est la conversion image →
+    PDF du converter passée d'un fichier à N. `ROADMAP §7` (Concaténation) → 🔄.
+- **Les pages d'un PDF redressées et mises d'aplomb** (question de Fabien : « on ne gère la remise
+  d'aplomb que des images ? ») — mesuré avant : `upright_image` (quart de tour) pour les images
+  seules, GLM-OCR redressant seul les pages d'un PDF (olmOCR, docTR, copisteria non) ;
+  `level_page` (petit angle) images seules, la sonde des portées aussi. `ocr_base.upright_document`
+  : un PDF page par page comme une photo, réassemblé à la même résolution, rendu tel quel si
+  rien n'a bougé ; la glu du Reader l'emprunte (texte ; partition avec `level`, 300 ppp), la sonde
+  met d'aplomb les pages d'un PDF. Le redressement propre à GLM-OCR est GARDÉ : les jumelles
+  générées appellent le moteur sans la glu du Reader.
+- **Dépôt « un seul document » du Reader** — option `joinPages` de la brique d'import
+  (`WamaImport` : une case à côté de la zone, `join_pages=1` posté) ; la vue réunit les images d'un
+  même dépôt en UN PDF, une card (`reader/views._joined_pages`). Rangée d'abord comme réglage du
+  schéma (volet seul) : `tests_settings_surfaces` a rougi, et c'est juste — un choix de DÉPÔT n'a
+  rien à faire dans la ⚙ d'une card.
+- **Écarts de l'inventaire, corrigés** : le dépôt du Reader construisait son lot hors de la brique
+  commune (→ `consolidate_arrival`) ; `MEDIA_STORAGE_TIERING §8` (transcriber « N cards isolées »,
+  describer/enhancer/avatarizer/imager « 1 lot » → par nature), docstring `conformity_checker`
+  (mode attache périmé ; le verdict NON APPLICABLE du critère dossier n'est pas remesuré), commentaire
+  de `wama-import.js` (contrat `job_ids` disparu).
+- Tests : +22 (dépôt, combiné, PDF de pages, pages_to_pdf, upright_document, sonde, glu, carte
+  mère) ; contre-épreuves 12 + 15, deux gardes d'abord aveugles complétées (lot d'un élément ;
+  ancrage du PDF dans la table du converter).
+- 🔚 Restes : la case « un seul document » non jouée au navigateur (V8 seul) ; les jumelles
+  générées ne redressent pas leurs IMAGES (seul GLM-OCR redresse, et seulement les pages de PDF) ;
+  la lecture d'une page de PDF dans ses deux sens (demi-tour) reste aux images ; un lot de TEXTES
+  ne se combine pas encore ; le bouton « Fusionné » d'un lot de pages n'apparaît qu'au rendu suivant
+  la fin du lot (les pages se lisent sur les fichiers) ; le verdict du critère `recursive_import`
+  pour les cards en mode attache, à remesurer.

@@ -221,6 +221,33 @@ class PdfPagesBrickTest(SimpleTestCase):
         self.assertEqual('RGB', images[0].mode)
         self.assertEqual(before, set(Path(tempfile.gettempdir()).glob('olmocr_pages_*')))
 
+    def test_pages_join_in_one_pdf_in_order_at_the_converter_resolution(self):
+        """2026-11-10 (« fusionner tous les éléments du lot en un seul fichier pdf ») : images and
+        PDF pages in ONE PDF — a photo is a page at its size read at 150 dpi (the converter's
+        image → PDF), its JPEG bytes kept as they are, its EXIF orientation applied."""
+        import fitz
+        from PIL import Image
+        from wama.common.utils.pdf_pages import pages_to_pdf
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            Image.new('RGB', (300, 600), 'white').save(tmp / 'a.jpg', quality=90)
+            turned = Image.new('RGB', (600, 300), 'white')
+            exif = Image.Exif()
+            exif[0x0112] = 6                                   # « rotate 90° clockwise to display »
+            turned.save(tmp / 'b.jpg', exif=exif)
+            out = pages_to_pdf([tmp / 'a.jpg', _pdf(tmp / 'two.pdf', 2), tmp / 'b.jpg'],
+                               str(tmp / 'joined.pdf'))
+            with fitz.open(out) as pdf:
+                sizes = [(round(p.rect.width), round(p.rect.height)) for p in pdf]
+                first_image = pdf.extract_image(pdf[0].get_images()[0][0])
+            self.assertEqual([(144, 288), (200, 100), (200, 100), (144, 288)], sizes,
+                             'image, the two PDF pages, the photo shown upright')
+            self.assertEqual((tmp / 'a.jpg').read_bytes(), first_image['image'],
+                             'a JPEG is placed as it is, never re-encoded')
+            (tmp / 'notes.txt').write_text('x')
+            with self.assertRaisesMessage(ValueError, 'notes.txt'):
+                pages_to_pdf([tmp / 'notes.txt'], str(tmp / 'no.pdf'))
+
 
 # ── 2026-11-08 : the photographed DRUM pages of Fabien — « x3 », titles, tilted photos ─────────
 
@@ -417,6 +444,18 @@ class APhotographedPageIsLeveledTest(SimpleTestCase):
             (page,) = _gray_pages(str(path))
             self.assertGreater(page.shape[0], page.shape[1], 'the sheet stands, as photographed')
 
+    def test_the_probe_levels_a_tilted_page_of_a_pdf_too(self):
+        """2026-11-10 : a scanned PDF page, tilted, showed no staff — the probe leveled images only."""
+        from PIL import Image
+        from wama.common.utils.pdf_pages import pages_to_pdf
+        from wama.common.utils.score_page import count_staves, page_staves
+        with tempfile.TemporaryDirectory() as tmp:
+            tilted = _photo(angle=7)
+            self.assertEqual(0, count_staves(tilted), 'counter-proof : tilted, no row fills')
+            Image.fromarray(tilted).save(Path(tmp) / 'scan.png')
+            pdf = pages_to_pdf([Path(tmp) / 'scan.png'], str(Path(tmp) / 'scan.pdf'))
+            self.assertEqual(3, page_staves(pdf))
+
     def test_a_straight_full_page_is_not_rewritten(self):
         from PIL import Image
         from wama.common.utils.score_page import level_page
@@ -572,6 +611,33 @@ class TheKeyNamesTheNotesOfTheScoreTest(SimpleTestCase):
         self.assertIn('I:percmap ^f f 42 x', abc)
         self.assertIn('I:percmap E E 36 normal', abc)
         self.assertEqual(_drum_score(), apply_drum_key(_drum_score(), []), 'no key : the score as read')
+
+    def test_the_key_read_on_one_page_names_the_pages_joined_with_it(self):
+        """2026-11-10 : the pages of a lot joined in one score — the key printed on the first page
+        names the notes of the next ones, whichever page carries it."""
+        import xml.etree.ElementTree as ET
+        from wama.common.utils.musicxml_score import (apply_drum_key, drop_leading_measures,
+                                                      drum_instruments, drum_key_entries,
+                                                      merge_drum_pages, merge_pages,
+                                                      without_drum_key)
+        bare = drop_leading_measures(_drum_score(), 1)
+        keyed = apply_drum_key(bare, KEY_ENTRIES)
+        self.assertEqual([{'pos': -4, 'name': 'Bass Drum', 'sound': 36},
+                          {'pos': 4, 'name': 'Hi-Hat', 'sound': 42}], drum_key_entries(keyed),
+                         'the key a score carries is read back from its notes')
+        self.assertEqual([], drum_key_entries(without_drum_key(keyed)))
+        self.assertEqual(bare, without_drum_key(bare), 'a score without key is returned as is')
+        for pages in ([keyed, bare], [bare, keyed]):
+            with self.subTest(key_on_page=pages.index(keyed) + 1):
+                joined = merge_drum_pages(pages)
+                part = ET.fromstring(joined).find('part')
+                self.assertEqual(['1', '2'], [m.get('number') for m in part.findall('measure')])
+                named = [n for n in part.iter('note') if n.find('instrument') is not None]
+                self.assertEqual(4, len(named), 'bass drum and hi-hat named on BOTH pages')
+                self.assertEqual(['Bass Drum', 'Hi-Hat'], drum_instruments(joined),
+                                 'each instrument declared once')
+        self.assertEqual(merge_pages([bare, bare]), merge_drum_pages([bare, bare]),
+                         'no key anywhere : the pages as merged')
 
     def test_the_engine_reads_the_key_once_and_names_the_whole_score(self):
         import xml.etree.ElementTree as ET

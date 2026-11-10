@@ -253,6 +253,9 @@
             folderInputId:'readerFolderInput',
             batch:        window._batchImport,
             multiple:     true,
+            // Des images déposées ENSEMBLE, les pages d'un seul document (2026-11-10) : la case
+            // de la brique, un choix du dépôt — le serveur les réunit en UN PDF, une card.
+            joinPages:    true,
             extraFields:  function (fd) {
                 fd.append('backend',       document.getElementById('backendSelect')?.value || 'auto');
                 fd.append('mode',          document.getElementById('modeSelect')?.value || 'auto');

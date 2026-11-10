@@ -347,6 +347,58 @@ def apply_drum_key(text: str, entries: list) -> str:
     return HEADER + ET.tostring(root, encoding='unicode') if changed else text
 
 
+def drum_key_entries(text: str) -> list:
+    """La légende que PORTENT les notes d'une partition — `apply_drum_key` à l'envers :
+    `[{'pos', 'name', 'sound'}]` lus de leurs `<instrument>` et des déclarations de leur partie,
+    [] sans instrument. Une place garde le premier instrument qu'elle porte."""
+    root = _root(text)
+    declared = {}
+    for score_part in root.findall('part-list/score-part'):
+        names = {si.get('id'): ' '.join((si.findtext('instrument-name') or '').split())
+                 for si in score_part.findall('score-instrument')}
+        sounds = {mi.get('id'): mi.findtext('midi-unpitched') for mi in score_part.findall('midi-instrument')}
+        for ident, name in names.items():
+            sound = sounds.get(ident)
+            declared[ident] = (name, int(sound) - 1 if sound and sound.isdigit() else None)
+    entries = {}
+    for note in root.iter('note'):
+        unpitched, instrument = note.find('unpitched'), note.find('instrument')
+        if unpitched is None or instrument is None or instrument.get('id') not in declared:
+            continue
+        step, octave = unpitched.findtext('display-step'), unpitched.findtext('display-octave')
+        if step and octave:
+            name, sound = declared[instrument.get('id')]
+            entries.setdefault(unpitched_position(step, octave), {'name': name, 'sound': sound})
+    return [{'pos': pos, **entry} for pos, entry in sorted(entries.items())]
+
+
+def without_drum_key(text: str) -> str:
+    """La partition `text` sans ses instruments de batterie (déclarations et renvois des notes) —
+    `text` tel quel s'il n'en a pas."""
+    root = _root(text)
+    removed = False
+    for score_part in root.findall('part-list/score-part'):
+        for tag in ('score-instrument', 'midi-instrument'):
+            for element in score_part.findall(tag):
+                score_part.remove(element)
+                removed = True
+    for note in root.iter('note'):
+        for instrument in note.findall('instrument'):
+            note.remove(instrument)
+            removed = True
+    return HEADER + ET.tostring(root, encoding='unicode') if removed else text
+
+
+def merge_drum_pages(pages: list) -> str:
+    """UNE partition des `pages` (`merge_pages`), la LÉGENDE de batterie lue sur l'une d'elles
+    valant pour toutes (2026-11-10 : la légende est imprimée en tête de la première page, les
+    suivantes ne la répètent pas). Sans légende, `merge_pages` seul."""
+    entries = next((found for found in (drum_key_entries(p) for p in pages if p and p.strip()) if found), [])
+    if not entries:
+        return merge_pages(pages)
+    return apply_drum_key(merge_pages([without_drum_key(p) for p in pages if p and p.strip()]), entries)
+
+
 def drum_instruments(text: str) -> list:
     """Les noms des instruments que déclarent les parties d'une partition (`score-instrument`)."""
     return [name for name in (' '.join((el.text or '').split())

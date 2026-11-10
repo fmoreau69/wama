@@ -14,9 +14,22 @@ from django import template
 register = template.Library()
 
 
+@register.simple_tag
+def lot_combined(app, url, batch_info):
+    """Le FICHIER COMBINÉ d'un lot pour sa card mère (2026-11-10) : `{'url', 'formats', 'ready'}`.
+    `url` : celle du ZIP du lot, à laquelle `combine=1` s'ajoute (`batch_download`) ; `formats` :
+    ceux en lesquels l'app sait combiner CE lot (`export_formats.combined_formats`), vides sinon ;
+    `ready` : tous ses éléments ont réussi — la vue ne combine qu'un lot entier et réussi."""
+    from wama.common.utils.export_formats import combined_formats, combined_url
+    works = [getattr(it, 'elem', it) for it in (batch_info or {}).get('items') or ()]
+    formats = combined_formats(app, works) if url else []
+    return {'url': combined_url(url) if formats else '', 'formats': formats,
+            'ready': bool(formats) and (batch_info or {}).get('success_count') == len(works)}
+
+
 @register.inclusion_tag('common/_download_button.html')
 def download_button(app, url, ready, available=None, title=None, empty_title=None, css_class=None,
-                    html_id=None, label=None, split=True, item=None, queue=False):
+                    html_id=None, label=None, split=True, item=None, queue=False, formats=None):
     """Rend le bouton ⬇ de l'app `app` selon `WAMA_APP_CONVENTIONS §6.3`.
 
     `url`       : URL de téléchargement SANS query (`{% url 'app:download' o.id %}`).
@@ -50,14 +63,18 @@ def download_button(app, url, ready, available=None, title=None, empty_title=Non
 
     ⚠ Renommé le 2026-08-30 (ex-`bouton_telecharger`, params `pret`/`disponibles`/`titre`/
     `titre_vide`/`classe`) : un tag est lu dans 12 gabarits, donc une API — anglais obligatoire.
+
+    `formats` (2026-11-10) : les formats OFFERTS quand ce ne sont pas ceux que l'app déclare au
+    téléchargement — le fichier combiné d'un lot (`lot_combined`) : le PDF des pages d'une app
+    early-binding, qui ne déclare aucun format de téléchargement (`export_formats` vide).
     """
-    from wama.common.utils.export_formats import available_formats, entries_for_app
+    from wama.common.utils.export_formats import available_formats, entries, entries_for_app
     if available is None and item is not None:
         available = available_formats(app, item)
     return {
         'url': url,
         'ready': bool(ready),
-        'formats': entries_for_app(app, available),
+        'formats': entries(formats) if formats is not None else entries_for_app(app, available),
         'title': title,
         'empty_title': empty_title,
         'css_class': css_class,

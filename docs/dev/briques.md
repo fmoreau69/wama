@@ -1073,8 +1073,9 @@ La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studi
 
 - **Domicile** : `wama/common/services/send_to.py` · **doc** : [docs/construction/architecture/WAMA_VERIFICATION.md](../construction/architecture/WAMA_VERIFICATION.md)
 - **Module** : ENVOYER VERS — la sortie d'une card devient l'entrée d'une autre app.
-- **API publique** (8) :
+- **API publique** (9) :
   - `sorties_de(surface: str, instance) -> list` — Chemins RELATIFS à `media/` des sorties DÉCLARÉES de cet élément.
+  - `result_paths(surface: str, instance) -> list` — Les sorties DÉCLARÉES de cet élément (`sorties_de`), en chemins ABSOLUS de fichiers présents
   - `batch_outputs(surface: str, batch, viewer=None) -> tuple` — Les sorties DÉCLARÉES de tous les éléments d'un LOT — `(chemins, éléments, sans_sortie)`.
   - `rendered_formats(surface: str, instance) -> list` — `[{format, label, icon}]` — les formats que cette card late-binding sait RENDRE, dans
   - `format_destinations(user, formats) -> list` — Chaque format, avec les apps qui reçoivent son extension (`destinations` : les trois
@@ -2096,12 +2097,13 @@ Mesure les 8 facettes F1–F8 des apps par analyse du code réel
 
 ### Les pages d'un PDF en images
 
-Une image par page, rendue à la résolution demandée dans un dossier FOURNI par l'appelant (son `work_dir`, qui le supprime quoi qu'il advienne) ; PyMuPDF, `pdf2image` en repli, la rotation de la page appliquée. Née le 2026-11-06 de deux copies privées, dans les moteurs d'OCR GLM-OCR et olmOCR (portés), quand la lecture de partition (copisteria, qui appelait poppler, absent de l'hôte) en demandait une troisième
+Une image par page, rendue à la résolution demandée dans un dossier FOURNI par l'appelant (son `work_dir`, qui le supprime quoi qu'il advienne) ; PyMuPDF, `pdf2image` en repli, la rotation de la page appliquée. Née le 2026-11-06 de deux copies privées, dans les moteurs d'OCR GLM-OCR et olmOCR (portés), quand la lecture de partition (copisteria, qui appelait poppler, absent de l'hôte) en demandait une troisième. Le 2026-11-10 (décision de Fabien), l'INVERSE : `pages_to_pdf`, des pages (images, PDF) en UN PDF — une image à 150 ppp (la règle du converter pour une image → PDF), un JPEG posé tel quel, l'EXIF appliqué — lue par le fichier « Fusionné » d'un lot de pages (`export_formats.combine_lot`), le dépôt « un seul document » du Reader, et `ocr_base.upright_document` (les pages d'un PDF redressées et mises d'aplomb comme une photo, avant tout moteur)
 
 - **Domicile** : `wama/common/utils/pdf_pages.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
-- **Module** : Les PAGES d'un PDF en images — une par page, écrites dans un dossier FOURNI par l'appelant.
-- **API publique** (1) :
+- **Module** : Les PAGES d'un PDF en images — une par page, écrites dans un dossier FOURNI par l'appelant ; et l'inverse, des pages (images, PDF) en UN PDF (`pages_to_pdf`, 2026-11-10).
+- **API publique** (2) :
   - `pdf_page_images(pdf_path: str, dest_dir: str, dpi: int=200, prefix: str='page') -> list` — Les chemins des images (`<prefix>_0000.png`…, une par page, dans l'ordre) de `pdf_path`,
+  - `pages_to_pdf(paths, output_path: str, dpi: int=PAGE_DPI) -> str` — UN PDF fait de `paths`, dans l'ordre (2026-11-10, décision de Fabien : « fusionner tous
 
 ### Manifestes
 
@@ -2516,7 +2518,7 @@ Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE
 
 ### Vues de lot (fabrique commune)
 
-Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, batch_update, batch_delete, batch_duplicate, batch_download, batch_status — et l'ÉCRIVAIN de ZIP partagé avec la file (`zip_elements`, 2026-10-17 : rendu late-binding, sinon les sorties DÉCLARÉES de la card ; nommage déclaré ici une fois ; `ResultArchive` depuis le 2026-10-20, qui range dans UN ZIP les cards de plusieurs apps — celui d'une exécution du Studio ; `lot_overview`, la règle d'état d'un lot de `batch_status`, extraite le même jour pour le run de lot du Studio) — paramétrée comme la fabrique de file (les deux formes de rattachement par `batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps réelles les écrivaient chacune à la main (60 lectures de lot recopiées, `ROUTE §11 #36`) — ADOPTÉE 10/10 le 2026-09-23, spécificités en kwargs (jamais un `if app`), chaque élément lu portant `batch_link` (la ligne qui le porte). Plus aucune vue de lot locale depuis le 2026-10-02 : le ZIP multi-format lit les formats DÉCLARÉS et le rendu ENREGISTRÉ (`export_formats`), et `batch_update` appelle la fonction de réglage de l'APP, celle de sa route d'élément (`apply_settings` — le lot et l'élément ne peuvent plus diverger ; refus = 400, aucune fille écrite). Critère `batch_views_common` VRAI 10/10 ; garde générique `tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`
+Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, batch_update, batch_delete, batch_duplicate, batch_download, batch_status — et l'ÉCRIVAIN de ZIP partagé avec la file (`zip_elements`, 2026-10-17 : rendu late-binding, sinon les sorties DÉCLARÉES de la card ; nommage déclaré ici une fois ; `ResultArchive` depuis le 2026-10-20, qui range dans UN ZIP les cards de plusieurs apps — celui d'une exécution du Studio ; `lot_overview`, la règle d'état d'un lot de `batch_status`, extraite le même jour pour le run de lot du Studio) — paramétrée comme la fabrique de file (les deux formes de rattachement par `batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps réelles les écrivaient chacune à la main (60 lectures de lot recopiées, `ROUTE §11 #36`) — ADOPTÉE 10/10 le 2026-09-23, spécificités en kwargs (jamais un `if app`), chaque élément lu portant `batch_link` (la ligne qui le porte). Plus aucune vue de lot locale depuis le 2026-10-02 : le ZIP multi-format lit les formats DÉCLARÉS et le rendu ENREGISTRÉ (`export_formats`), et `batch_update` appelle la fonction de réglage de l'APP, celle de sa route d'élément (`apply_settings` — le lot et l'élément ne peuvent plus diverger ; refus = 400, aucune fille écrite). Critère `batch_views_common` VRAI 10/10 ; garde générique `tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`. Le 2026-11-10 (décision de Fabien) : `batch_download?combine=1` sert UN fichier fait des résultats du lot entier et réussi, quand l'app en déclare le rendu (`export_formats.register_lot_builder`), ou pour toute app un PDF quand ces résultats sont des pages (`export_formats.combine_lot`) — même route, rien à écrire par app
 
 - **Domicile** : `wama/common/utils/batch_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les VUES DE LOT : fabrique commune (`make_batch_views`).
@@ -2717,11 +2719,11 @@ Comportements communs des files : collapse de batch persisté, mode Solitaire (a
 
 ### Formats de téléchargement (⬇ late-binding)
 
-Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, groupe) + split-button dérivé de la déclaration export_binding — pendant late-binding d'output_formats ; 6ᵉ action de card. Depuis le 2026-09-18, porte aussi le REGISTRE des builders de rendu (`register_export_builder`, un par app late-binding, chemin pointé résolu à l'usage) : c'est ce qui permet au geste médiathèque de rendre le format choisi par LE MÊME code que le ⬇. Depuis le 2026-10-02 le ZIP de LOT lit les deux mêmes déclarations (fabrique `make_batch_views`, format borné par `requested_format`, bouton de la card mère rendu par ce même ⬇) : les trois niveaux — card, lot, barre de file — parlent `?format=`. Depuis le 2026-10-13 la visionneuse commune offre les mêmes formats, et ce qu'un ÉLÉMENT ne peut pas rendre se déclare (`register_export_missing` : le `json` du reader sans résultat brut), lu par le ⬇ de la card (`item=`) et par elle
+Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, groupe) + split-button dérivé de la déclaration export_binding — pendant late-binding d'output_formats ; 6ᵉ action de card. Depuis le 2026-09-18, porte aussi le REGISTRE des builders de rendu (`register_export_builder`, un par app late-binding, chemin pointé résolu à l'usage) : c'est ce qui permet au geste médiathèque de rendre le format choisi par LE MÊME code que le ⬇. Depuis le 2026-10-02 le ZIP de LOT lit les deux mêmes déclarations (fabrique `make_batch_views`, format borné par `requested_format`, bouton de la card mère rendu par ce même ⬇) : les trois niveaux — card, lot, barre de file — parlent `?format=`. Depuis le 2026-10-13 la visionneuse commune offre les mêmes formats, et ce qu'un ÉLÉMENT ne peut pas rendre se déclare (`register_export_missing` : le `json` du reader sans résultat brut), lu par le ⬇ de la card (`item=`) et par elle. Depuis le 2026-11-10, le registre du rendu COMBINÉ d'un lot (`register_lot_builder`, `combined_formats` : les pages d'une partition en une partition), offert par le bouton « Fusionné » de la card mère (tag `lot_combined`) ; et, pour TOUTE app, le PDF d'un lot dont les résultats sont des pages (`combine_lot`) — le PDF étant la sortie déclarée de la nature image (`CONVERTER_OUTPUT_FORMATS`), non un format de téléchargement
 
 - **Domicile** : `wama/common/utils/export_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : Vocabulaire COMMUN des formats de TÉLÉCHARGEMENT — libellé, icône et regroupement.
-- **API publique** (11) :
+- **API publique** (18) :
   - `entry(value: str) -> dict` — Décrit UN format. Un format inconnu du vocabulaire reste affichable (repli neutre) —
   - `entries(formats, available=None) -> list[dict]` — Liste ordonnée d'entrées prêtes pour `common/_download_button.html`.
   - `entries_for_app(app_name: str, available=None) -> list[dict]` — Idem, en lisant la déclaration de l'app — l'appelant n'a que son nom à donner.
@@ -2729,10 +2731,17 @@ Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, gr
   - `available_formats(app_name: str, item)` — Les formats déclarés que `item` peut rendre, ou None (= tous ceux que l'app déclare).
   - `requested_format(app_name: str, query) -> str` — Le format DEMANDÉ à un téléchargement d'une app late-binding, lu dans la query du bouton ⬇
   - `download_response(app_name: str, item, query, stem: str)` — Le ⬇ d'UN élément d'une app late-binding : le format DEMANDÉ (`requested_format`, borné aux
+  - `attachment(data, ext: str, stem: str)` — La réponse qui sert `data` en fichier `<stem>.<ext>`, au type du vocabulaire — celle d'un
   - `rendered_stem(app_name: str, instance, source_name: str='') -> str` — Souche du nom d'un rendu late-binding — la convention du téléchargement
   - `is_late_binding(app_name: str) -> bool` — L'app choisit-elle son format AU TÉLÉCHARGEMENT (`export_binding='late'`, §6.4) ?
   - `register_export_builder(app_name: str, builder) -> None` — `builder` : callable `(instance, fmt) -> (ext, bytes) | None`, ou son chemin pointé
   - `export_builder_for(app_name: str)` — Le rendu déclaré par l'app, ou `None`. Une app early-binding n'en déclare pas : son
+  - `register_lot_builder(app_name: str, builder, formats) -> None` — `builder` : `(éléments, fmt) -> (ext, bytes) | None` — UN fichier fait des résultats des
+  - `lot_builder_for(app_name: str)` — Le rendu combiné déclaré par l'app (`register_lot_builder`), ou None.
+  - `result_pages(item) -> list` — Les fichiers résultats DÉCLARÉS de `item` (`send_to.result_paths`, la lecture du ZIP et
+  - `combined_formats(app_name: str, items) -> list` — Les formats en lesquels les éléments `items` d'un lot se combinent en UN fichier : ceux du
+  - `combined_url(lot_url: str) -> str` — L'adresse du fichier combiné d'un lot : celle de son ZIP (`batch_download`), `combine=1`
+  - `combine_lot(app_name: str, items, fmt: str)` — `(ext, bytes)` du fichier combiné des `items` au format `fmt`, ou None — le rendu déclaré de
 
 ### Gestes au pointeur (glisser, défiler, pincer, appui long)
 
@@ -3029,7 +3038,7 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
 
 ### Voie d'import (front)
 
-Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension). ⭐ Depuis le 2026-09-28 elle DÉSIGNE aussi (`handleDesignations` : médiathèque, arbre — `<champ>__designated`, pointé par le serveur) et se retrouve par l'id de sa zone ou de son input (`forElement`)
+Envoi d'un fichier vers l'endpoint upload de l'app (dépôt, clic), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension). ⭐ Depuis le 2026-09-28 elle DÉSIGNE aussi (`handleDesignations` : médiathèque, arbre — `<champ>__designated`, pointé par le serveur) et se retrouve par l'id de sa zone ou de son input (`forElement`). Depuis le 2026-11-10 l'app peut déclarer `joinPages` : une case « un seul document » à côté de la zone, `join_pages=1` posté — un choix du DÉPÔT (le Reader réunit alors les images en UN PDF, une card), jamais un réglage d'élément
 
 - **Domicile** : `wama/common/static/common/js/wama-import.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 
@@ -3548,11 +3557,11 @@ Un MIDI à une piste par instrument → une partition ABC lisible : une voix par
 
 ### Partitions MusicXML (pages assemblées, MusicXML → ABC)
 
-Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBackend` : une page imprimée → son MusicXML) et à tout MusicXML importé : `merge_pages` fait UNE partition des pages lues (partie par partie, mesures renumérotées), `read_musicxml` lit un `.musicxml` ou un `.mxl` compressé, `musicxml_to_abc` rend l'ABC que lisent la page d'édition et YuE2 (xml2abc de W. G. Vree, librairie `abc-xml-converter` par la route). Née le 2026-11-06 (lecture de partition scannée, demande de Fabien) : aucune conversion MusicXML → ABC n'existait, et YuE2 refusait le MusicXML que le composer accepte en partition de référence ; patron de `midi_score`, ne connaît aucun moteur. Le 2026-11-08 (partitions de batterie de Fabien) : `apply_repeat_counts` fait d'un « x3 » lu sur la page une reprise jouée trois fois (`<repeat times>`), et la conversion retire avant `xml2abc` une clé posée sur une portée sans note, qui le faisait lever. Le 2026-11-09 (légende de batterie) : `drop_leading_measures` retire une légende lue comme une mesure, `apply_drum_key` donne à chaque note sans hauteur l'instrument de sa ligne (`score-instrument`, `midi-unpitched`, tête en croix) — `xml2abc` en tire la table de percussion de l'ABC (`I:percmap`)
+Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBackend` : une page imprimée → son MusicXML) et à tout MusicXML importé : `merge_pages` fait UNE partition des pages lues (partie par partie, mesures renumérotées), `read_musicxml` lit un `.musicxml` ou un `.mxl` compressé, `musicxml_to_abc` rend l'ABC que lisent la page d'édition et YuE2 (xml2abc de W. G. Vree, librairie `abc-xml-converter` par la route). Née le 2026-11-06 (lecture de partition scannée, demande de Fabien) : aucune conversion MusicXML → ABC n'existait, et YuE2 refusait le MusicXML que le composer accepte en partition de référence ; patron de `midi_score`, ne connaît aucun moteur. Le 2026-11-08 (partitions de batterie de Fabien) : `apply_repeat_counts` fait d'un « x3 » lu sur la page une reprise jouée trois fois (`<repeat times>`), et la conversion retire avant `xml2abc` une clé posée sur une portée sans note, qui le faisait lever. Le 2026-11-09 (légende de batterie) : `drop_leading_measures` retire une légende lue comme une mesure, `apply_drum_key` donne à chaque note sans hauteur l'instrument de sa ligne (`score-instrument`, `midi-unpitched`, tête en croix) — `xml2abc` en tire la table de percussion de l'ABC (`I:percmap`). Le 2026-11-10 : `merge_drum_pages` assemble les pages d'un lot, la légende relue sur l'une (`drum_key_entries`) nommant les notes de toutes
 
 - **Domicile** : `wama/common/utils/musicxml_score.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Partitions MUSICXML — la brique commune de WAMA (2026-11-06).
-- **API publique** (12) :
+- **API publique** (15) :
   - `read_musicxml(path) -> str` — Le TEXTE MusicXML d'un fichier `.musicxml` / `.xml`, ou d'un `.mxl` — l'archive compressée
   - `musicxml_to_abc(text: str, title: str='') -> str` — L'ABC de la partition MusicXML `text` (`xml2abc`) ; `title` remplace le titre écrit (sinon
   - `note_count(text: str) -> int` — Le nombre de NOTES (silences exclus) d'un document MusicXML.
@@ -3563,6 +3572,9 @@ Commune à tout moteur de la tâche `image-to-score` (contrat `ScoreReadingBacke
   - `unpitched_position(step: str, octave) -> int` — La place d'une note sans hauteur sur la portée (demi-interlignes, 0 = ligne du milieu).
   - `drop_leading_measures(text: str, count: int) -> str` — La partition `text` sans ses `count` premières mesures — une LÉGENDE lue comme de la musique
   - `apply_drum_key(text: str, entries: list) -> str` — La partition `text` dont les notes sans hauteur portent l'instrument que leur donne la
+  - `drum_key_entries(text: str) -> list` — La légende que PORTENT les notes d'une partition — `apply_drum_key` à l'envers :
+  - `without_drum_key(text: str) -> str` — La partition `text` sans ses instruments de batterie (déclarations et renvois des notes) —
+  - `merge_drum_pages(pages: list) -> str` — UNE partition des `pages` (`merge_pages`), la LÉGENDE de batterie lue sur l'une d'elles
   - `drum_instruments(text: str) -> list` — Les noms des instruments que déclarent les parties d'une partition (`score-instrument`).
   - `merge_pages(pages: list) -> str` — UNE partition MusicXML faite de `pages` (textes MusicXML « partwise », dans l'ordre) : la
 

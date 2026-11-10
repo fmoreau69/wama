@@ -896,6 +896,88 @@ class LateBindingBatchDownloadTest(TestCase):
                 self.assertEqual('wama.common.utils.batch_views', views.batch_download.__module__)
 
 
+class ALotOfPagesJoinsInOnePdfTest(TestCase):
+    """2026-11-10, Fabien : « fusionner tous les éléments du lot en un seul fichier pdf ». Any app
+    whose lot RESULTS are pages — images, PDF — offers ONE PDF (`export_formats.combine_lot`),
+    nothing declared by the app. Measured through the converter, an EARLY-binding app : its
+    formats are set before the generation (`output_formats`, the converter table by nature), its
+    download formats are none — the PDF is the declared output of the image nature."""
+
+    from wama.common.tests import tests_queue_delete_contract as _contract
+    _account_for = _contract.SuppressionDansChaqueAppTest._compte_pour
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        from django.test import override_settings
+        from PIL import Image
+        from wama.converter.models import ConversionJob
+        self.tmp = Path(tempfile.mkdtemp(prefix='lot_pages_'))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        media = override_settings(MEDIA_ROOT=str(self.tmp))
+        media.enable()
+        self.addCleanup(media.disable)
+        account = self._account_for('converter')
+        self.lot, self.jobs = self._contract._lot_de(ConversionJob, account, 2)
+        (self.tmp / 'out').mkdir()
+        for index, job in enumerate(self.jobs):
+            name = f'out/page{index}.jpg'
+            Image.new('RGB', (300, 400), 'white').save(self.tmp / name)
+            ConversionJob.objects.filter(pk=job.pk).update(status='SUCCESS', output_file=name,
+                                                           media_type='image', output_format='jpg')
+        self.jobs = list(ConversionJob.objects.filter(pk__in=[j.pk for j in self.jobs]))
+
+    def _get(self, **query):
+        from django.urls import reverse
+        return self.client.get(reverse('converter:batch_download', args=[self.lot.pk]),
+                               {'combine': '1', **query})
+
+    def test_the_pages_of_the_lot_give_one_pdf(self):
+        import fitz
+        from wama.common.utils.export_formats import combined_formats
+        self.assertEqual(['pdf'], combined_formats('converter', self.jobs))
+        response = self._get(format='pdf')
+        self.assertEqual(200, response.status_code, response.content[:300])
+        with fitz.open(stream=response.content, filetype='pdf') as pdf:
+            self.assertEqual(2, pdf.page_count, 'one page per element, in the order of the lot')
+
+    def test_a_lot_whose_results_are_not_pages_is_not_joined(self):
+        from wama.converter.models import ConversionJob
+        (self.tmp / 'out' / 'song.mp3').write_bytes(b'ID3')
+        ConversionJob.objects.filter(pk=self.jobs[1].pk).update(output_file='out/song.mp3')
+        self.assertEqual(404, self._get(format='pdf').status_code)
+
+    def test_the_pdf_rests_on_the_declared_output_of_the_image_nature(self):
+        """Not a format written here : without `pdf` in the converter's image outputs, nothing."""
+        from unittest import mock
+        from wama.common import app_registry
+        from wama.common.utils.export_formats import combined_formats
+        table = {**app_registry.CONVERTER_OUTPUT_FORMATS,
+                 'image': [f for f in app_registry.CONVERTER_OUTPUT_FORMATS['image'] if f != 'pdf']}
+        with mock.patch.object(app_registry, 'CONVERTER_OUTPUT_FORMATS', table):
+            self.assertEqual([], combined_formats('converter', self.jobs))
+
+    def test_the_parent_card_offers_the_pdf_with_its_own_formats(self):
+        """An early-binding app declares no DOWNLOAD format : the button carries the lot's."""
+        import re
+        from types import SimpleNamespace
+        from django.template.loader import render_to_string
+        batch_info = {'obj': SimpleNamespace(id=self.lot.pk, total=2, pk=self.lot.pk),
+                      'items': self.jobs, 'has_success': True, 'success_count': 2,
+                      'running_count': 0, 'failure_count': 0}
+        html = re.sub(r'\s+', ' ', render_to_string('common/_batch_card.html', {
+            'batch_info': batch_info, 'app': 'converter', 'download_url': '/lot/dl/'}))
+        part = html[html.index('data-batch-combined'):]
+        self.assertIn('/lot/dl/?combine=1&format=pdf', part)
+
+    def test_a_lot_of_one_element_has_nothing_to_join(self):
+        """Its own ⬇ suffices — found by a counter-proof : no guard held this rule."""
+        from wama.common.utils.export_formats import combined_formats
+        self.assertEqual([], combined_formats('converter', self.jobs[:1]))
+        self.assertEqual(['pdf'], combined_formats('converter', self.jobs))
+
+
 class BatchViewsCriterionTest(TestCase):
     """The grid criterion `batch_views_common` sees a local batch view under EVERY spelling.
 

@@ -183,6 +183,19 @@ lot… » du menu de la card.{% endcomment %}
                 <span data-batch-zip{% if not batch_info.has_success %} hidden{% endif %}>
                 {% download_button app zip_url True css_class='btn-outline-info py-0 px-2' label='ZIP' split=False title='Télécharger toutes les sorties (ZIP)' %}
                 </span>
+                {% comment %}UN FICHIER pour tout le lot (2026-11-10, décision de Fabien) : offert quand
+                l'app sait COMBINER ce lot (`export_formats.register_lot_builder` — les pages d'une
+                partition en une partition), ou quand ses résultats sont des pages, images ou PDF
+                (un PDF, toute app — `export_formats.combine_lot`), à côté du ZIP, par le même
+                bouton commun et ses formats (`formats=`) ; MASQUÉ tant
+                que tous les éléments n'ont pas réussi (`queue-actions.js::updateBatchHeader` le
+                montre alors), puisque la vue ne combine qu'un lot entier.{% endcomment %}
+                {% lot_combined app zip_url batch_info as combined %}
+                {% if combined.formats %}
+                <span data-batch-combined{% if not combined.ready %} hidden{% endif %}>
+                {% download_button app combined.url True formats=combined.formats css_class='btn-outline-info py-0 px-2' label='Fusionné' split=False title='Tout le lot réuni en un seul fichier' %}
+                </span>
+                {% endif %}
                 {% endif %}
                 <button class="btn btn-sm btn-outline-warning batch-duplicate-btn py-0 px-2"
                         data-batch-id="{{ batch_info.obj.id }}"

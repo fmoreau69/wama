@@ -77,6 +77,18 @@ def sorties_de(surface: str, instance) -> list:
     return chemins
 
 
+def result_paths(surface: str, instance) -> list:
+    """Les sorties DÉCLARÉES de cet élément (`sorties_de`), en chemins ABSOLUS de fichiers présents
+    sur le disque — la lecture de l'écrivain de ZIP (`batch_views.ResultArchive`) et du fichier
+    combiné d'un lot (`export_formats.result_pages`, 2026-11-10), qui la recopiait."""
+    from pathlib import Path
+    from urllib.parse import unquote
+
+    from django.conf import settings
+    root = Path(settings.MEDIA_ROOT)
+    return [p for p in (root / unquote(rel) for rel in sorties_de(surface, instance)) if p.is_file()]
+
+
 def batch_outputs(surface: str, batch, viewer=None) -> tuple:
     """Les sorties DÉCLARÉES de tous les éléments d'un LOT — `(chemins, éléments, sans_sortie)`.
 

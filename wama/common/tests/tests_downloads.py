@@ -270,6 +270,35 @@ class BatchCardZipButtonTests(SimpleTestCase):
                 self.assertIn('data-batch-zip hidden', html)
                 self.assertNotIn('disabled', zip_part)
 
+    def _scores_card(self, success_count, scores=True):
+        """The reader's parent card over two pages read as scores (or as texts)."""
+        from types import SimpleNamespace
+        from django.template.loader import render_to_string
+        from wama.reader.models import ReadingItem
+        pages = [SimpleNamespace(elem=ReadingItem(score_file='out/p.abc' if scores else None,
+                                                  result_text='' if scores else 'texte'))
+                 for _ in range(2)]
+        batch_info = {'obj': SimpleNamespace(id=7, total=2, pk=7), 'items': pages,
+                      'has_success': bool(success_count), 'success_count': success_count,
+                      'running_count': 0, 'failure_count': 0}
+        return re.sub(r'\s+', ' ', render_to_string(
+            'common/_batch_card.html', {'batch_info': batch_info, 'app': 'reader',
+                                        'download_url': '/lot/7/dl/'}))
+
+    def test_a_lot_the_app_can_join_offers_one_file_next_to_the_zip(self):
+        """2026-11-10, Fabien : the elements of a lot in ONE file (the pages of a score), offered
+        by the common ⬇ button with the formats the app joins in — only for a lot fully done."""
+        html = self._scores_card(success_count=2)
+        part = html[html.index('data-batch-combined'):html.index('batch-duplicate-btn')]
+        self.assertNotIn('data-batch-combined hidden', html)
+        for fmt in ('abc', 'musicxml'):
+            self.assertIn(f'/lot/7/dl/?combine=1&format={fmt}', part)
+        self.assertNotIn('format=txt', part, 'only the formats the app joins in')
+        self.assertIn('data-batch-combined hidden', self._scores_card(success_count=1),
+                      'a lot not fully done is not joined')
+        self.assertNotIn('data-batch-combined', self._scores_card(success_count=2, scores=False),
+                         'a lot of texts has nothing to join')
+
     def test_no_app_template_lists_batch_formats_by_hand(self):
         """Absence guard: a hand-written batch menu would bring the copied formats back."""
         racine = Path(settings.BASE_DIR)

@@ -1831,6 +1831,11 @@ def _recursive_import(f: _AppFiles):
     au littéral `depot_cree=False` des gabarits ; depuis le 2026-10-19 elle se DÉDUIT de
     l'obligation des ports (`app_registry.entry_form`, rendue par `input_slots`) — le critère la
     lit là, comme la card.
+    ⚠ Constat corrigé le 2026-11-10 (inventaire des files) : « attache le premier, refuse les
+    autres » n'est plus vrai depuis le 2026-11-03 — le port principal d'une card qui joint garde
+    TOUS les fichiers déposés et « Ajouter à la file » crée un élément par fichier, puis un lot
+    (`CARD_DESIGN.md §Le LOT n'a PAS de port`, `WamaApp.addToQueue`). Le verdict NON APPLICABLE
+    n'a pas été remesuré contre le geste `<app>.folder_import` depuis : point ouvert.
     """
     clic = f.find(TEMPLATES + JS, r'webkitdirectory|folder_input_id|folderInputId')
     if clic:

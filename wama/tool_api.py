@@ -4647,10 +4647,13 @@ def get_batch_state(user, app: str, batch_id: int) -> dict:
 def get_batch_result(user, app: str, batch_id: int) -> dict:
     """
     The results of a whole batch: its state and the address of the ZIP of its outputs — the
-    ZIP button of the batch card. Give the `link` to the user to download it.
+    ZIP button of the batch card. Give the `link` to the user to download it. When the app can
+    join the batch into ONE file (the pages of a score into one score) and every item succeeded,
+    `combined` gives that file — the « Fusionné » button of the batch card.
 
     Returns:
-        {"batch_id", "status", "counts", "download_url", "link"} or {"error"}
+        {"batch_id", "status", "counts", "download_url", "link",
+         "combined": {"formats", "download_url", "link"}?} or {"error"}
     """
     failure, payload = _batch_view(user, app, 'batch_status', batch_id, 'Résultats', method='get')
     if failure:
@@ -4658,9 +4661,31 @@ def get_batch_result(user, app: str, batch_id: int) -> dict:
     from wama.common.services.navigation import absolute_url
     url = _batch_zip_url(app, batch_id)
     done = (payload.get('counts') or {}).get('success', 0)
-    return {'batch_id': batch_id, 'status': payload.get('status'), 'counts': payload.get('counts'),
-            'download_url': url if done else '', 'link': absolute_url(url) if (url and done) else '',
-            **({} if done else {'message': "Aucun résultat à télécharger pour l'instant."})}
+    result = {'batch_id': batch_id, 'status': payload.get('status'), 'counts': payload.get('counts'),
+              'download_url': url if done else '', 'link': absolute_url(url) if (url and done) else '',
+              **({} if done else {'message': "Aucun résultat à télécharger pour l'instant."})}
+    combined = _batch_combined(app, url, payload) if url else None
+    return {**result, 'combined': combined} if combined else result
+
+
+def _batch_combined(app: str, zip_url: str, payload: dict):
+    """Le fichier COMBINÉ d'un lot (`batch_download?combine=1`, 2026-11-10) — ses formats et son
+    adresse —, ou None : l'app ne sait pas combiner ce lot, ou tous ses éléments n'ont pas réussi
+    (la règle de la vue). `payload` : la réponse de `batch_status`, ses éléments VISIBLES compris."""
+    from wama.common.services.navigation import absolute_url
+    from wama.common.utils.export_formats import combined_formats, combined_url
+    from wama.common.utils.preview_registry import PreviewRegistry
+    model = PreviewRegistry.get_model(app)
+    rows = payload.get('items') or []
+    if model is None or not rows or any(r.get('status') != 'SUCCESS' for r in rows) \
+            or len(rows) < (payload.get('total') or len(rows)):
+        return None
+    formats = combined_formats(model._meta.app_label,
+                               list(model.objects.filter(pk__in=[r['id'] for r in rows])))
+    if not formats:
+        return None
+    url = combined_url(zip_url)
+    return {'formats': formats, 'download_url': url, 'link': absolute_url(url)}
 
 
 # L'ACCÈS aux apps du bac à sable (2026-11-02, `accounts.app_access`) : un développeur DEMANDE à

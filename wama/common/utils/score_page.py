@@ -226,8 +226,9 @@ def level_page(path: str, folder: str) -> str:
 
 
 def _gray_pages(path: str):
-    """Les pages d'une image ou des premières pages d'un PDF, en tableaux de gris — une image mise
-    d'aplomb et recadrée sur sa feuille (`level_gray`)."""
+    """Les pages d'une image ou des premières pages d'un PDF, en tableaux de gris, mises d'aplomb
+    et recadrées sur leur feuille (`level_gray`) — une page de PDF aussi depuis le 2026-11-10 (un
+    scan penché d'un PDF ne montrait pas plus ses portées qu'une photo penchée)."""
     from pathlib import Path
 
     import numpy as np
@@ -237,7 +238,7 @@ def _gray_pages(path: str):
         with fitz.open(path) as doc:
             for page in list(doc)[:PDF_PAGES]:
                 pix = page.get_pixmap(dpi=PDF_DPI, colorspace=fitz.csGRAY, alpha=False)
-                yield np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width)
+                yield level_gray(np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width))
         return
     gray = _upright_gray(path)
     if gray.shape[1] > MAX_WIDTH:

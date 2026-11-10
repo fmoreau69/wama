@@ -154,6 +154,47 @@ def upright_image(image_path: str, dest_dir: str) -> str:
         return image_path
 
 
+#: La résolution à laquelle les pages d'un PDF sont redressées — celle à laquelle GLM-OCR les lit
+#: (`glm_ocr_backend.run`, 200 ppp) ; une partition passe la sienne.
+PDF_UPRIGHT_DPI = 200
+
+
+def _upright_page(path: str, dest_dir: str, level: bool) -> str:
+    path = upright_image(path, dest_dir)
+    if level:
+        from wama.common.utils.score_page import level_page
+        path = level_page(path, dest_dir)
+    return path
+
+
+def upright_document(path: str, dest_dir: str, *, level: bool = False,
+                     dpi: int = PDF_UPRIGHT_DPI) -> str:
+    """Le document `path` prêt pour un moteur : une IMAGE redressée (`upright_image`) — et, avec
+    `level`, mise d'aplomb et découpée sur sa feuille (`score_page.level_page`, une partition) ;
+    un PDF PAGE PAR PAGE de même (`pdf_pages.pdf_page_images` à `dpi`), ses pages réassemblées
+    (`pdf_pages.pages_to_pdf`, à la même résolution : le moteur qui le rend à `dpi` retrouve ses
+    pixels). Un PDF dont aucune page n'a bougé revient tel quel (rien n'est rastérisé pour rien).
+
+    POURQUOI (2026-11-10, question de Fabien : « on ne gère la remise d'aplomb que des
+    images ? ») : la règle est « un seul redressement sert tous les moteurs » (`upright_image`),
+    mais un PDF partait tel quel — GLM-OCR seul en redressait les pages, olmOCR, docTR et la
+    lecture de partition non ; et la mise d'aplomb ne voyait que les images."""
+    from wama.common.utils.pdf_pages import pages_to_pdf, pdf_page_images
+    source = Path(path)
+    if source.suffix.lower() != '.pdf':
+        return _upright_page(path, dest_dir, level)
+    pages = pdf_page_images(path, dest_dir, dpi=dpi, prefix=f'{source.stem}_page')
+    if not pages:
+        return path
+    fixed = [_upright_page(page, dest_dir, level) for page in pages]
+    if fixed == pages:
+        return path
+    target = Path(dest_dir) / f'{source.stem}_upright.pdf'
+    logger.info("[OCR] %s : %d page(s) redressée(s) ou mise(s) d'aplomb", source.name,
+                sum(a != b for a, b in zip(fixed, pages)))
+    return pages_to_pdf(fixed, str(target), dpi=dpi)
+
+
 #: Lignes non vides consécutives dont le RETOUR, à l'identique, marque le début de la recopie.
 LOOP_WINDOW_LINES = 4
 

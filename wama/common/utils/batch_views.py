@@ -341,9 +341,7 @@ class ResultArchive:
         (2026-10-21) ; sa souche pour une entrée rendue, l'extension du fichier s'il n'en porte pas.
         """
         import os
-        from urllib.parse import unquote
 
-        from django.conf import settings
         from wama.common.utils.export_formats import (export_builder_for, is_late_binding,
                                                       requested_format)
         app = work_model._meta.app_label
@@ -379,10 +377,8 @@ class ResultArchive:
                 continue
             paths = []
             if surface:
-                from wama.common.services.send_to import sorties_de
-                root = Path(settings.MEDIA_ROOT)
-                paths = [p for p in (root / unquote(rel) for rel in sorties_de(surface, item))
-                         if p.is_file()]
+                from wama.common.services.send_to import result_paths
+                paths = result_paths(surface, item)
             if paths:
                 single = len(paths) == 1
                 declared = (self.named(name, paths[0].suffix) if single else '') or \
@@ -563,6 +559,14 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     rendu que l'app a ENREGISTRÉ (`export_formats.export_builder_for`) — les mêmes deux
     déclarations que le bouton ⬇ de la card et celui de la barre de file. Avant : trois vues
     `batch_download` recopiées, chacune avec sa liste de formats en dur et sa graphie `?fmt=`.
+
+    UN FICHIER POUR TOUT LE LOT (2026-11-10, décision de Fabien) — rien à passer non plus :
+    `batch_download?combine=1&format=<ext>` sert UN fichier fait des résultats du lot quand l'app
+    en DÉCLARE le rendu (`export_formats.register_lot_builder` : les pages d'une partition en une
+    partition), et pour toute app un PDF quand ces résultats sont des pages, images ou PDF
+    (`export_formats.combine_lot`). Le lot reste N fois le même traitement ; la combinaison n'en lit que les résultats,
+    le lot ENTIER et réussi, dans son ordre — sinon 409 qui le dit. Même route, même garde de
+    lecture que le ZIP ; nommé par l'identité du lot (`batch_identity`).
 
     Chaque élément lu porte `batch_link` (posé par `batch_elements`) : la ligne de liaison en
     forme à liaison, l'élément lui-même en FK directe — `output_name`, `item_label`, `item_extra`
@@ -879,9 +883,41 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             batch_identity.rename(new_b, f'{name} (copie)')
         return JsonResponse({'success': True, 'id': new_b.id, 'batch_id': new_b.id})
 
+    def _combined(request, b):
+        """`?combine=1` : UN fichier fait des résultats du lot, au format demandé — le rendu que
+        l'app DÉCLARE (`export_formats.register_lot_builder`, 2026-11-10), sinon le PDF de ses
+        pages (`export_formats.combine_lot`). Le lot se combine
+        ENTIER (tous les éléments, tous réussis), dans son ordre ; un refus dit pourquoi."""
+        import os
+        from wama.common.services import batch_identity
+        from wama.common.utils.export_formats import attachment, combine_lot, combined_formats
+        from wama.common.utils.output_naming import compose_output_name
+        app = work_model._meta.app_label
+        items = list(_members(request, b))
+        formats = combined_formats(app, items)
+        if not formats:
+            return JsonResponse({'error': 'ce lot ne se combine pas en un seul fichier'}, status=404)
+        missing = [_label(i) for i in items if getattr(i, 'status', '') != 'SUCCESS']
+        if missing or len(items) < (b.total or len(items)):
+            return JsonResponse({'error': "le lot ne se combine qu'entier : tous ses éléments "
+                                          "doivent avoir réussi", 'not_done': missing}, status=409)
+        asked = str(request.GET.get('format') or '').lower().lstrip('.')
+        fmt = asked if asked in formats else formats[0]
+        built = combine_lot(app, items, fmt)
+        if not built:
+            return JsonResponse({'error': f'combinaison impossible au format {fmt}'}, status=422)
+        ext, data = built
+        title = batch_identity.display_title(batch_identity.identify([(b, items)])[0])
+        # L'extension est passée avec le titre : `compose_output_name` coupe celle de son
+        # `source_name`, et un titre à point (« Sonate Op. 27 ») y perdrait sa fin.
+        stem = os.path.splitext(compose_output_name(app=app, source_name=f'{title}.{ext}'))[0]
+        return attachment(data, ext, stem)
+
     @require_GET
     def batch_download(request, pk):
         b = _batch_read(request, pk)
+        if request.GET.get('combine'):
+            return _combined(request, b)
         from wama.common.utils.export_formats import export_builder_for, is_late_binding
         app = work_model._meta.app_label
         render = export_builder_for(app) if is_late_binding(app) else None

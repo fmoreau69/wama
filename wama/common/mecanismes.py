@@ -1828,7 +1828,12 @@ MECHANISMS = (
               "`pdf2image` en repli, la rotation de la page appliquée. Née le 2026-11-06 de deux "
               "copies privées, dans les moteurs d'OCR GLM-OCR et olmOCR (portés), quand la lecture "
               "de partition (copisteria, qui appelait poppler, absent de l'hôte) en demandait une "
-              "troisième",
+              "troisième. Le 2026-11-10 (décision de Fabien), l'INVERSE : `pages_to_pdf`, des "
+              "pages (images, PDF) en UN PDF — une image à 150 ppp (la règle du converter pour "
+              "une image → PDF), un JPEG posé tel quel, l'EXIF appliqué — lue par le fichier "
+              "« Fusionné » d'un lot de pages (`export_formats.combine_lot`), le dépôt « un seul "
+              "document » du Reader, et `ocr_base.upright_document` (les pages d'un PDF "
+              "redressées et mises d'aplomb comme une photo, avant tout moteur)",
               'wama/common/utils/pdf_pages.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               # Le moteur de partition et ses gardes sont l'annexe de `musicxml_score` (un fichier,
@@ -2029,7 +2034,12 @@ MECHANISMS = (
               "fonction de réglage de l'APP, celle de sa route d'élément (`apply_settings` — le "
               "lot et l'élément ne peuvent plus diverger ; refus = 400, aucune fille écrite). "
               "Critère `batch_views_common` VRAI 10/10 ; garde générique "
-              "`tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`",
+              "`tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`. Le 2026-11-10 "
+              "(décision de Fabien) : `batch_download?combine=1` sert UN fichier fait des résultats "
+              "du lot entier et réussi, quand l'app en déclare le rendu "
+              "(`export_formats.register_lot_builder`), ou pour toute app un PDF quand ces "
+              "résultats sont des pages (`export_formats.combine_lot`) — même route, rien à "
+              "écrire par app",
               'wama/common/utils/batch_views.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11'),
     Mechanism('progress_views', 'Vues de progression (fabrique commune)',
               "Le suivi d'UNE card (`progress`), la barre de FILE (`global_progress`) et le ZIP "
@@ -2352,7 +2362,13 @@ MECHANISMS = (
               "rendu par ce même ⬇) : les trois niveaux — card, lot, barre de file — parlent "
               "`?format=`. Depuis le 2026-10-13 la visionneuse commune offre les mêmes formats, "
               "et ce qu'un ÉLÉMENT ne peut pas rendre se déclare (`register_export_missing` : le "
-              "`json` du reader sans résultat brut), lu par le ⬇ de la card (`item=`) et par elle",
+              "`json` du reader sans résultat brut), lu par le ⬇ de la card (`item=`) et par elle. "
+              "Depuis le 2026-11-10, le registre du rendu COMBINÉ d'un lot "
+              "(`register_lot_builder`, `combined_formats` : les pages d'une partition en une "
+              "partition), offert par le bouton « Fusionné » de la card mère (tag `lot_combined`) "
+              "; et, pour TOUTE app, le PDF d'un lot dont les résultats sont des pages "
+              "(`combine_lot`) — le PDF étant la sortie déclarée de la nature image "
+              "(`CONVERTER_OUTPUT_FORMATS`), non un format de téléchargement",
               'wama/common/utils/export_formats.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3',
               annexes=('wama/common/templates/common/_download_button.html',
                        'wama/common/templatetags/wama_actions.py')),
@@ -2626,7 +2642,10 @@ MECHANISMS = (
               "LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni "
               "MIME ni extension). ⭐ Depuis le 2026-09-28 elle DÉSIGNE aussi "
               "(`handleDesignations` : médiathèque, arbre — `<champ>__designated`, pointé par le "
-              "serveur) et se retrouve par l'id de sa zone ou de son input (`forElement`)",
+              "serveur) et se retrouve par l'id de sa zone ou de son input (`forElement`). Depuis "
+              "le 2026-11-10 l'app peut déclarer `joinPages` : une case « un seul document » à "
+              "côté de la zone, `join_pages=1` posté — un choix du DÉPÔT (le Reader réunit alors "
+              "les images en UN PDF, une card), jamais un réglage d'élément",
               'wama/common/static/common/js/wama-import.js', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/templates/common/_app_scripts.html',),
               # ⚠ SYMBOLE, pas nom de fichier (2026-09-06) : une brique chargée GLOBALEMENT
@@ -3527,7 +3546,9 @@ MECHANISMS = (
               "faisait lever. Le 2026-11-09 (légende de batterie) : `drop_leading_measures` retire "
               "une légende lue comme une mesure, `apply_drum_key` donne à chaque note sans hauteur "
               "l'instrument de sa ligne (`score-instrument`, `midi-unpitched`, tête en croix) — "
-              "`xml2abc` en tire la table de percussion de l'ABC (`I:percmap`)",
+              "`xml2abc` en tire la table de percussion de l'ABC (`I:percmap`). Le 2026-11-10 : "
+              "`merge_drum_pages` assemble les pages d'un lot, la légende relue sur l'une "
+              "(`drum_key_entries`) nommant les notes de toutes",
               'wama/common/utils/musicxml_score.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               annexes=('wama/common/tests/tests_score_reading.py',

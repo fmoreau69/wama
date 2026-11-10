@@ -168,7 +168,9 @@ class TheGlueWritesTheScoreOnTheCardTest(TestCase):
         self.assertTrue(step.startswith('Erreur'),
                         'the step message tells the failure, like the text reading')
 
-    def test_a_pdf_score_needs_no_page_classifier(self):
+    def test_a_pdf_score_asks_the_page_classifier_too(self):
+        """Since 2026-11-10 the pages of a PDF are uprighted and leveled like a photo
+        (`ocr_base.upright_document`) : the classifier is asked for a PDF too."""
         from wama.reader import tasks
         from wama.reader.models import ReadingItem
         (self.tmp / 'page.pdf').write_bytes(b'%PDF-1.4\n')
@@ -177,13 +179,20 @@ class TheGlueWritesTheScoreOnTheCardTest(TestCase):
         ctx = SimpleNamespace(console=lambda *a: None, progress=lambda *a, **k: None,
                               ensure_model=mock.Mock(),
                               output_place=lambda ext, **k: (f'o{ext}', str(self.tmp / f'o{ext}')))
+        from wama.common.backends import ocr_base
         with mock.patch('wama.common.utils.auto_model.model_for_task',
                         return_value='huggingface:kobimusic/copisteria'), \
                 mock.patch('wama.common.backends.manager.backend_instance_for_key',
                            return_value=object()), \
-                mock.patch('wama.common.backends.manager.run_contract', return_value=MUSICXML_CDEF):
+                mock.patch('wama.common.backends.manager.run_contract', return_value=MUSICXML_CDEF), \
+                mock.patch.object(ocr_base, 'upright_document',
+                                  wraps=ocr_base.upright_document) as upright:
             tasks._read_score(item, ctx)
-        ctx.ensure_model.assert_called_once_with('huggingface:kobimusic/copisteria')
+        self.assertEqual({'level': True, 'dpi': tasks.SCORE_PAGE_DPI}, upright.call_args.kwargs,
+                         'a score page is leveled, at the resolution the engine renders a PDF')
+        from wama.common.backends.ocr_base import PAGE_ORIENTATION_KEY
+        self.assertEqual([mock.call('huggingface:kobimusic/copisteria'),
+                          mock.call(PAGE_ORIENTATION_KEY)], ctx.ensure_model.call_args_list)
 
     def test_the_instruments_the_drum_key_names_are_told(self):
         """2026-11-09 : the engine names the drum notes from the key printed on the page."""
@@ -265,6 +274,88 @@ class TheGlueWritesTheScoreOnTheCardTest(TestCase):
         ctx.ensure_model.assert_not_called()
 
 
+class ThePagesDroppedTogetherFormOneLotTest(TestCase):
+    """The upload view ranges what arrives together by the COMMON brick (`consolidate_arrival`) —
+    it built its own lot until 2026-11-10, the only app outside it (queue inventory)."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import GROUP_PREFIX
+        self.tmp = Path(tempfile.mkdtemp(prefix='reader_upload_lot_'))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        media = override_settings(MEDIA_ROOT=str(self.tmp))
+        media.enable()
+        self.addCleanup(media.disable)
+        self.user = get_user_model().objects.create_user('reader_upload_lot', password='x')
+        # `AppAccessMiddleware` : the reader's role, as in `tests_intent_vision`.
+        group, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')
+        self.user.groups.add(group)
+        self.client.force_login(self.user)
+
+    def _post(self, *names, **fields):
+        import io
+        import json
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        from PIL import Image
+
+        def png():
+            buffer = io.BytesIO()
+            Image.new('RGB', (40, 60), 'white').save(buffer, 'PNG')
+            return buffer.getvalue()
+        files = [SimpleUploadedFile(n, png(), content_type='image/png') for n in names]
+        response = self.client.post(reverse('wama.reader:upload'),
+                                    {'files': files, 'backend': 'auto', **fields})
+        self.assertEqual(200, response.status_code, response.content)
+        return json.loads(response.content)
+
+    def test_images_dropped_together_become_one_document_when_asked(self):
+        """2026-11-10, Fabien : « proposer à l'ajout de plusieurs images dans le reader, de les
+        fusionner en 1 seul fichier pdf » — a choice of the DEPOSIT, the box of the import brick
+        (`WamaImport` `joinPages`, posted `join_pages`), never a setting of an element."""
+        import fitz
+        from wama.reader.models import ReadingItem
+        data = self._post('p1.png', 'p2.png', join_pages='true')
+        (item,) = ReadingItem.objects.filter(user=self.user)
+        self.assertNotIn('multi', data, 'one card, no lot')
+        self.assertTrue(item.input_file.name.endswith('.pdf'))
+        self.assertEqual('p1.pdf', item.original_filename)
+        with fitz.open(item.input_file.path) as pdf:
+            self.assertEqual(2, pdf.page_count, 'the pages in the order of the drop')
+        self.assertEqual(2, item.page_count)
+        ReadingItem.objects.filter(user=self.user).delete()
+        self.assertTrue(self._post('p1.png', 'p2.png', join_pages='false')['multi'],
+                        'unticked : a lot, one card per image, as before')
+
+    def test_two_pages_form_one_lot_in_the_order_of_the_drop(self):
+        from wama.common.utils.batch_common import batch_elements
+        from wama.reader.models import BatchReadingItem, ReadingItem
+        data = self._post('p2.png', 'p1.png')
+        lot = BatchReadingItem.objects.get(pk=data['batch_id'])
+        self.assertTrue(data['multi'])
+        self.assertEqual(['p2.png', 'p1.png'],
+                         [e.original_filename for e in batch_elements(lot, ReadingItem)])
+        self.assertEqual(1, BatchReadingItem.objects.filter(user=self.user).count(),
+                         'no lot of one is left behind')
+
+    def test_the_lot_is_made_by_the_common_brick(self):
+        from wama.common.utils import queue_manipulation
+        from wama.reader.models import ReadingItem
+        with mock.patch.object(queue_manipulation, 'consolidate_arrival',
+                               wraps=queue_manipulation.consolidate_arrival) as arrival:
+            self._post('a.png', 'b.png')
+        ((model, ids, user), _kw), = arrival.call_args_list
+        self.assertEqual((ReadingItem, self.user), (model, user))
+        self.assertEqual(2, len(ids))
+
+    def test_a_single_page_gets_its_lot_of_one(self):
+        from wama.reader.models import BatchReadingItem, ReadingItem
+        data = self._post('page.png')
+        self.assertNotIn('multi', data)
+        item = ReadingItem.objects.get(user=self.user)
+        self.assertEqual(1, BatchReadingItem.objects.filter(user=self.user, items__reading=item).count())
+
+
 class ThePagesOfAScoreNameTheirLotTest(TestCase):
     """« Plusieurs pages qui se suivent d'une même partition forment un lot, le titre est écrit en
     haut d'une des pages » (Fabien, 2026-11-08) — in any order."""
@@ -343,6 +434,86 @@ class ThePagesOfAScoreNameTheirLotTest(TestCase):
         self.assertEqual('', self.pages[1].read_title)
         self.assertIsNone(self.pages[0].read_page)
         self.assertNotEqual('content', identity_of(self.batch)['kind'])
+
+
+class TheLotOfPagesJoinsInOneScoreTest(TestCase):
+    """2026-11-10, Fabien (inventory of the queues + council) : the lot keeps reading each page ;
+    its ⬇ also gives ONE score made of its pages, in the lot's order, the drum key of one page
+    naming the notes of all — `batch_download?combine=1`, the reader's `register_lot_builder`."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import GROUP_PREFIX
+        from wama.common.tests.tests_score_reading import KEY_ENTRIES, _drum_score
+        from wama.common.utils.musicxml_score import apply_drum_key, drop_leading_measures
+        from wama.reader.models import BatchReadingItem, BatchReadingItemLink, ReadingItem
+        self.tmp = Path(tempfile.mkdtemp(prefix='reader_score_join_'))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        media = override_settings(MEDIA_ROOT=str(self.tmp))
+        media.enable()
+        self.addCleanup(media.disable)
+        self.user = get_user_model().objects.create_user('reader_score_join', password='x')
+        group, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')
+        self.user.groups.add(group)
+        self.client.force_login(self.user)
+        bare = drop_leading_measures(_drum_score(), 1)
+        (self.tmp / 'out').mkdir()
+        self.lot = BatchReadingItem.objects.create(user=self.user, total=2)
+        self.pages = []
+        # Row 0 : page 2 (no key) ; row 1 : page 1, which carries the key and the title.
+        for row, (text, title) in enumerate(((bare, ''), (apply_drum_key(bare, KEY_ENTRIES),
+                                                         'Nothing Else Matters'))):
+            (self.tmp / 'out' / f'{row}.musicxml').write_text(text, encoding='utf-8')
+            (self.tmp / 'out' / f'{row}.abc').write_text('X:1\n', encoding='utf-8')
+            item = ReadingItem.objects.create(user=self.user, read_as_score=True, status='SUCCESS',
+                                              original_filename=f'IMG_{row}.jpg',
+                                              score_file=f'out/{row}.abc',
+                                              score_musicxml=f'out/{row}.musicxml', score_title=title)
+            BatchReadingItemLink.objects.create(batch=self.lot, reading=item, row_index=row)
+            self.pages.append(item)
+
+    def _get(self, **query):
+        from django.urls import reverse
+        return self.client.get(reverse('reader:batch_download', args=[self.lot.pk]),
+                               {'combine': '1', **query})
+
+    def test_the_lot_gives_one_score_named_by_its_key_in_its_order(self):
+        import xml.etree.ElementTree as ET
+        response = self._get(format='musicxml')
+        self.assertEqual(200, response.status_code, response.content[:300])
+        self.assertIn('Nothing Else Matters', response['Content-Disposition'])
+        self.assertTrue(response['Content-Disposition'].rstrip('"').endswith('.musicxml'))
+        measures = ET.fromstring(response.content).find('part').findall('measure')
+        self.assertEqual(2, len(measures), 'one page, then the other')
+        first_page_notes = list(measures[0].iter('note'))
+        self.assertTrue(any(n.find('instrument') is not None for n in first_page_notes),
+                        'the page WITHOUT the key is named by the key of the other page')
+        abc = self._get(format='abc').content.decode()
+        self.assertIn('T:Nothing Else Matters', abc)
+        self.assertIn('I:percmap ^f f 42 x', abc)
+
+    def test_a_lot_not_fully_done_is_not_joined_and_says_why(self):
+        import json
+        from wama.reader.models import ReadingItem
+        ReadingItem.objects.filter(pk=self.pages[0].pk).update(status='PENDING')
+        response = self._get(format='abc')
+        self.assertEqual(409, response.status_code)
+        self.assertEqual(['IMG_0.jpg'], json.loads(response.content)['not_done'])
+
+    def test_a_lot_of_texts_is_not_joined(self):
+        from wama.reader.models import ReadingItem
+        ReadingItem.objects.filter(pk__in=[p.pk for p in self.pages]).update(
+            read_as_score=False, score_file=None, result_text='texte')
+        self.assertEqual(404, self._get().status_code)
+
+    def test_the_assistant_gives_the_joined_file_with_the_zip(self):
+        from wama import tool_api
+        result = tool_api.get_batch_result(self.user, 'reader', self.lot.pk)
+        self.assertEqual(['abc', 'musicxml'], result['combined']['formats'])
+        self.assertIn('combine=1', result['combined']['download_url'])
+        from wama.reader.models import ReadingItem
+        ReadingItem.objects.filter(pk=self.pages[0].pk).update(status='FAILURE')
+        self.assertNotIn('combined', tool_api.get_batch_result(self.user, 'reader', self.lot.pk))
 
 
 class TheCardFollowsTheScoreTest(TestCase):

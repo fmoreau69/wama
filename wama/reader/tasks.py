@@ -329,16 +329,19 @@ def _request_page_orientation(ctx) -> None:
         ctx.console(f"[Reader] Redressement des pages indisponible ({exc}) — lecture sans.")
 
 
-def _upright_work_file(item, folder: str) -> str:
+#: La résolution à laquelle les pages d'un PDF de PARTITION sont redressées : celle d'un scan,
+#: et celle à laquelle le moteur rend une page de PDF (copisteria, 300 ppp).
+SCORE_PAGE_DPI = 300
+
+
+def _upright_work_file(item, folder: str, *, level: bool = False, dpi: int = None) -> str:
     """Le fichier que lit le moteur. Une IMAGE est redressée avant tout moteur (EXIF, puis
     classifieur d'orientation de docTR) — card #1335 : une note photographiée de côté, illisible
-    couchée. L'original reste intact ; la copie droite vit dans `folder`, le temps de la lecture.
-    Un PDF part tel quel : le moteur le rastérise."""
-    from wama.common.backends.ocr_base import upright_image
-    work_file = item.input_file.path
-    if work_file.lower().endswith('.pdf'):
-        return work_file
-    return upright_image(work_file, folder)
+    couchée —, et un PDF page par page depuis le 2026-11-10 (il partait tel quel : seul GLM-OCR en
+    redressait les pages) ; `level` : mise d'aplomb aussi (une partition). L'original reste
+    intact ; la copie droite vit dans `folder`, le temps de la lecture (`ocr_base.upright_document`)."""
+    from wama.common.backends.ocr_base import PDF_UPRIGHT_DPI, upright_document
+    return upright_document(item.input_file.path, folder, level=level, dpi=dpi or PDF_UPRIGHT_DPI)
 
 
 def _score_page_texts(item, ctx, work_file: str, folder: str):
@@ -411,14 +414,15 @@ def _read_score(item, ctx):
     la tâche `image-to-score` (`score_model`, sinon le tirage commun), par la PORTE COMMUNE (clé →
     backend, contrat `ScoreReadingBackend`). Deux sorties de la card : le MusicXML du moteur, tel
     quel, et l'ABC qu'en fait la brique commune (`musicxml_score`) — la notation que la page
-    « Éditer la partition » et le composer lisent. Une image est redressée avant le moteur, son
-    classifieur demandé à la route, comme pour le texte (`_upright_work_file`)."""
+    « Éditer la partition » et le composer lisent. Une image — ou chaque page d'un PDF, depuis le
+    2026-11-10 — est redressée et mise d'aplomb avant le moteur, son classifieur demandé à la
+    route, comme pour le texte (`_upright_work_file`)."""
     from wama.common.backends.manager import backend_instance_for_key, run_contract
     from wama.common.utils.auto_model import model_for_task
     from wama.common.utils.model_keys import model_id
     from wama.common.utils.musicxml_score import (apply_repeat_counts, drum_instruments,
                                                   musicxml_to_abc, work_title)
-    from wama.common.utils.score_page import level_page, page_identity
+    from wama.common.utils.score_page import page_identity
     from wama.common.utils.work_dir import work_dir
     from wama.reader.models import SCORE_TITLE_MAX
     from wama.reader.utils.model_config import SCORE_READING_TASK
@@ -435,14 +439,11 @@ def _read_score(item, ctx):
         ctx.ensure_model(key)              # absent : la route l'installe, la tâche attend
         engine = backend_instance_for_key(key, user=item.user)
         with work_dir('reader_score') as travail:
-            work_file = item.input_file.path
-            if not work_file.lower().endswith('.pdf'):
-                _request_page_orientation(ctx)
-            work_file = _upright_work_file(item, str(travail))
-            if not work_file.lower().endswith('.pdf'):
-                # Une PHOTO : mise d'aplomb (quelques degrés suffisent à tout perdre) et recadrée
-                # sur sa feuille — le moteur ne redresse rien (`score_page`, 2026-11-08).
-                work_file = level_page(work_file, str(travail))
+            _request_page_orientation(ctx)
+            # Chaque page — une PHOTO, ou chaque page d'un PDF depuis le 2026-11-10 — redressée,
+            # mise d'aplomb (quelques degrés suffisent à tout perdre) et recadrée sur sa feuille :
+            # le moteur ne redresse rien (`score_page`, 2026-11-08 ; `ocr_base.upright_document`).
+            work_file = _upright_work_file(item, str(travail), level=True, dpi=SCORE_PAGE_DPI)
             work_file, page_texts = _score_page_texts(item, ctx, work_file, str(travail))
             musicxml = run_contract(engine, model_id=model_id(key), work_file=work_file,
                                     output_dir=str(travail), progress_callback=ctx.progress,

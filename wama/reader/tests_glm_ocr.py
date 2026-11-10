@@ -233,3 +233,73 @@ class UprightImageTests(SimpleTestCase):
         source, result, size = self._upright(0, exif_orientation=6)
         self.assertNotEqual(source, result)
         self.assertEqual((20, 40), size)
+
+
+class UprightDocumentTests(SimpleTestCase):
+    """`ocr_base.upright_document` (2026-11-10, Fabien : « on ne gère la remise d'aplomb que des
+    images ? ») — a PDF page by page like a photo : it left as it was, GLM-OCR alone uprighting
+    its pages, olmOCR, docTR and the score reading not ; and the leveling saw images only."""
+
+    def _pdf(self, folder, images):
+        from PIL import Image
+        from wama.common.utils.pdf_pages import pages_to_pdf
+        paths = []
+        for index, image in enumerate(images):
+            path = folder / f'p{index}.png'
+            (image if hasattr(image, 'save') else Image.fromarray(image)).save(path)
+            paths.append(path)
+        return pages_to_pdf(paths, str(folder / 'doc.pdf'), dpi=100)
+
+    def _sizes(self, path):
+        import fitz
+        with fitz.open(path) as pdf:
+            return [(round(p.rect.width), round(p.rect.height)) for p in pdf]
+
+    def _classifier(self):
+        """A stand-in classifier : a page wider than tall lies on its side."""
+        from unittest import mock
+        orientation = mock.Mock()
+        orientation.page_orientation.side_effect = lambda image: (
+            (90, 0.95) if image.shape[1] > image.shape[0] else (0, 0.95))
+        return orientation
+
+    def test_a_page_on_its_side_is_turned_and_the_pdf_rebuilt(self):
+        import tempfile
+        from unittest import mock
+
+        from PIL import Image
+        from wama.common.backends import ocr_base
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            source = self._pdf(tmp, [Image.new('RGB', (200, 300), 'white'),
+                                     Image.new('RGB', (300, 200), 'white')])
+            with mock.patch.object(ocr_base, '_orientation_backend', return_value=self._classifier()):
+                result = ocr_base.upright_document(source, str(tmp), dpi=100)
+                (tmp / 'straight').mkdir()
+                straight = self._pdf(tmp / 'straight', [Image.new('RGB', (200, 300), 'white')])
+                unchanged = ocr_base.upright_document(straight, str(tmp), dpi=100)
+            self.assertNotEqual(source, result, 'the original is never rewritten')
+            self.assertEqual([(144, 216), (144, 216)], self._sizes(result))
+            self.assertEqual(straight, unchanged, 'a PDF whose pages stand is returned as it is')
+
+    def test_a_tilted_score_page_of_a_pdf_is_leveled(self):
+        import tempfile
+        from unittest import mock
+
+        import fitz
+        import numpy as np
+        from wama.common.backends import ocr_base
+        from wama.common.tests.tests_score_reading import _photo
+        from wama.common.utils.score_page import page_angle
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            source = self._pdf(tmp, [_photo(angle=6)])
+            with mock.patch.object(ocr_base, '_orientation_backend', return_value=None):
+                self.assertEqual(source, ocr_base.upright_document(source, str(tmp), dpi=100),
+                                 'without `level`, a tilt is left to the engine')
+                result = ocr_base.upright_document(source, str(tmp), level=True, dpi=100)
+            with fitz.open(result) as pdf:
+                pix = pdf[0].get_pixmap(dpi=100, colorspace=fitz.csGRAY, alpha=False)
+            gray = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width)
+            self.assertNotEqual(source, result)
+            self.assertAlmostEqual(0, page_angle(gray), delta=0.5)

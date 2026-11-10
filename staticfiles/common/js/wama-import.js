@@ -28,8 +28,9 @@
  *     batch:          window._batchImport,          // instance WamaBatchImport (optionnel)
  *     batchScope:     'single' | 'each',            // défaut 'single' : lot testé si fichier SEUL
  *     consolidateUrl: APP.urls.consolidate,         // optionnel : regroupe N dépôts en lot
- *     consolidateField: 'ids',                      // 'job_ids' pour le contrat historique
+ *     consolidateField: 'ids',                      // le champ que lit la fabrique commune
  *     multiple:       false,                        // true : N fichiers en UNE requête (champ `files`)
+ *     joinPages:      false,                        // true (ou un libellé) : case « un seul document » → `join_pages=1`
  *     fieldName:      'file',                       // nom du champ POST (défaut : file / files)
  *     attach:         ['melodyInput'],               // optionnel : ATTACHE au 1er input dont l'accept admet le fichier
  *                                                    //   — ou 'card' : les ports de la card, si un dépôt y JOINT
@@ -267,6 +268,7 @@
         else fd.append(champ, f);
       });
       if (typeof cfg.extraFields === 'function') cfg.extraFields(fd, fichiers[0], fichiers);
+      if (joinPagesWanted()) fd.append('join_pages', '1');
       var afficher = (typeof cfg.onProgress === 'function') ? cfg.onProgress : progressionCommune;
       try {
         // TOUJOURS par XHR (08/09) : la progression d'envoi est un retour COMMUN, pas une
@@ -430,14 +432,12 @@
 
       // Regroupement en lot(s) — l'app le déclare ; sans URL, les cards restent unitaires.
       //
-      // ⚠ DEUX contrats coexistent, et se tromper ne PLANTE PAS : le regroupement répond
-      // simplement `{"consolidated": false}` et les cards restent isolées, sans message.
-      //   • fabrique commune (`queue_manipulation`) → lit `ids`  ← le défaut, car c'est elle
-      //     qu'utilise toute app générée ;
-      //   • vue propre au converter (`views.py:605`) → lit `job_ids`.
-      // Mesuré le 2026-08-22 : j'avais repris `job_ids` de converter.js, donc la voie
-      // « plusieurs fichiers » créait bien les cards mais ne les groupait jamais.
-      // Une app au contrat historique passe `consolidateField: 'job_ids'`.
+      // ⚠ Se tromper de champ ne PLANTE PAS : le regroupement répond simplement
+      // `{"consolidated": false}` et les cards restent isolées, sans message. La vue est celle de
+      // la fabrique commune (`queue_manipulation`), qui lit `ids` — dans toutes les apps depuis
+      // que le converter a perdu sa vue propre et son champ `job_ids` (2026-10-16 ; mesuré le
+      // 2026-08-22 : `job_ids` repris de converter.js créait les cards sans jamais les grouper).
+      // Commentaire corrigé le 2026-11-10 : il décrivait encore les deux contrats.
       if (cfg.consolidateUrl && ids.length > 1) {
         var fd = new FormData();
         var champ = cfg.consolidateField || 'ids';
@@ -457,9 +457,38 @@
       return handleFiles([new File([text], filename || 'import.txt', { type: 'text/plain' })]);
     }
 
+    /**
+     * « UN SEUL DOCUMENT » (2026-11-10, décision de Fabien : « proposer à l'ajout de plusieurs
+     * images […] de les fusionner en 1 seul fichier pdf ») — un choix du DÉPÔT, pas un réglage
+     * d'élément : l'app le DÉCLARE (`joinPages: true`, ou le libellé), la brique pose la case à
+     * côté de la zone (une SŒUR : dans la zone, son clic ouvrirait le sélecteur) et poste
+     * `join_pages=1` avec les fichiers. Le serveur réunit les images en UN PDF, une seule card
+     * (`reader/views._joined_pages`, brique `pdf_pages.pages_to_pdf`).
+     */
+    var JOIN_PAGES_LABEL = 'Images déposées ensemble : un seul document (PDF)';
+    function joinPagesBox() { return cfg.dropZoneId ? el(cfg.dropZoneId + 'JoinPages') : null; }
+    function joinPagesWanted() { var box = joinPagesBox(); return !!(box && box.checked); }
+    function placeJoinPagesBox(dz) {
+      if (!cfg.joinPages || !dz || joinPagesBox()) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'form-check small mt-1';
+      var box = document.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'form-check-input';
+      box.id = cfg.dropZoneId + 'JoinPages';
+      var label = document.createElement('label');
+      label.className = 'form-check-label';
+      label.htmlFor = box.id;
+      label.textContent = (typeof cfg.joinPages === 'string') ? cfg.joinPages : JOIN_PAGES_LABEL;
+      wrap.appendChild(box);
+      wrap.appendChild(label);
+      dz.insertAdjacentElement('afterend', wrap);
+    }
+
     function brancher() {
       var dz = el(cfg.dropZoneId);
       var fi = el(cfg.fileInputId);
+      placeJoinPagesBox(dz);
 
       if (dz) {
         // Repères posés sur l'élément : un second branchement (batch-import pose les siens)

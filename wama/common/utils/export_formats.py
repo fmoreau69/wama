@@ -164,14 +164,20 @@ def download_response(app_name: str, item, query, stem: str):
     Avant le 2026-10-28, les trois vues `download` (transcriber, describer, reader) recodaient
     chacune leurs formats à côté de ce rendu : le SRT du transcriber s'écrivait de quatre façons
     selon le chemin, et le fichier d'un élément n'était pas celui de son entrée dans le ZIP."""
-    from django.http import HttpResponse
-    from django.utils.http import content_disposition_header
     render = export_builder_for(app_name)
     fmt = requested_format(app_name, query)
     built = render(item, fmt) if (render is not None and fmt) else None
     if not built:
         return None
     ext, data = built
+    return attachment(data, ext, stem)
+
+
+def attachment(data, ext: str, stem: str):
+    """La réponse qui sert `data` en fichier `<stem>.<ext>`, au type du vocabulaire — celle d'un
+    élément (`download_response`) et du fichier combiné d'un lot (`batch_download?combine=1`)."""
+    from django.http import HttpResponse
+    from django.utils.http import content_disposition_header
     response = HttpResponse(data, content_type=(VOCABULARY.get(ext) or {}).get(
         'mime', 'application/octet-stream'))
     response['Content-Disposition'] = content_disposition_header(True, f'{stem}.{ext}')
@@ -233,14 +239,20 @@ def export_builder_for(app_name: str):
     que l'élément. Trouvé par le parcours de TOUTES les apps du registre (19/09) : `describer_01`
     répondait « rien à ranger » sur une description terminée.
     """
-    b = _BUILDERS.get(app_name)
+    return _registered(_BUILDERS, app_name)
+
+
+def _registered(registry: dict, app_name: str):
+    """Le callable inscrit pour `app_name` dans `registry` — son chemin pointé résolu au premier
+    usage —, sinon celui de la SOURCE d'une jumelle de bac à sable (`generated_from`), sinon None."""
+    b = registry.get(app_name)
     if b is None:
         try:
             from wama.common.app_registry import APP_CATALOG
             source = (APP_CATALOG.get(app_name) or {}).get('generated_from')
         except Exception:
             source = None
-        return export_builder_for(source) if source and source != app_name else None
+        return _registered(registry, source) if source and source != app_name else None
     if isinstance(b, str):
         from importlib import import_module
         module, _, attr = b.partition(':')
@@ -248,5 +260,110 @@ def export_builder_for(app_name: str):
             b = getattr(import_module(module), attr)
         except Exception:
             return None
-        _BUILDERS[app_name] = b
+        registry[app_name] = b
     return b if callable(b) else None
+
+
+# ── Le fichier COMBINÉ d'un lot (2026-11-10) ────────────────────────────────────────────────
+#
+# Décision de Fabien (inventaire mesuré des files + concile, 2026-11-09) : un lot fait tourner le
+# même traitement une fois par élément (`CARD_DESIGN.md §Le LOT n'a PAS de port`), et rien, dans
+# aucune app, ne faisait UN fichier de ses éléments — le lot n'offrait que le ZIP. Le lot garde sa
+# règle ; une app qui sait COMBINER les résultats de ses éléments (les pages d'une partition en une
+# partition) le DÉCLARE ici, et le ⬇ du lot l'offre à côté du ZIP (`batch_download?combine=1`,
+# `make_batch_views`). Seul un lot dont TOUS les éléments ont réussi se combine : un fichier fait
+# d'une partie du lot se lirait comme le tout.
+#
+# Et pour TOUTE app, sans rien déclarer : un lot dont les résultats sont des PAGES (images, PDF)
+# se combine en UN PDF (`pages_to_pdf`). Les formats d'une app EARLY-binding ne sont pas ceux du
+# téléchargement (`export_formats`, vide chez elle) : ils se règlent AVANT la génération
+# (`output_formats.output_format_params`, table du converter par nature). Le PDF y est la sortie
+# DÉCLARÉE de la nature image (`CONVERTER_OUTPUT_FORMATS['image']`) : assembler les images d'un
+# lot, c'est la conversion image → PDF du converter passée d'un fichier à N (§6.4).
+_LOT_BUILDERS: dict = {}
+_LOT_FORMATS: dict = {}
+#: Le format du lot fait de PAGES.
+PAGES_FORMAT = 'pdf'
+
+
+def register_lot_builder(app_name: str, builder, formats) -> None:
+    """`builder` : `(éléments, fmt) -> (ext, bytes) | None` — UN fichier fait des résultats des
+    éléments d'un lot, dans l'ordre du lot ; `formats` : `(éléments) -> formats` — ceux qu'il sait
+    combiner pour CES éléments, parmi les formats que l'app rend (aucun : il ne combine pas ce lot).
+    Chacun peut être un chemin pointé `'wama.<app>.views:…'`, résolu à l'usage."""
+    _LOT_BUILDERS[app_name] = builder
+    _LOT_FORMATS[app_name] = formats
+
+
+def lot_builder_for(app_name: str):
+    """Le rendu combiné déclaré par l'app (`register_lot_builder`), ou None."""
+    return _registered(_LOT_BUILDERS, app_name)
+
+
+def _own_formats(app_name: str, items) -> list:
+    """Les formats que le rendu DÉCLARÉ de l'app combine pour `items` — bornés, pour une app
+    late-binding, aux formats qu'elle déclare au téléchargement."""
+    formats = _registered(_LOT_FORMATS, app_name)
+    if formats is None or lot_builder_for(app_name) is None:
+        return []
+    found = list(formats(items) or ())
+    if is_late_binding(app_name):
+        declared = [e['value'] for e in entries_for_app(app_name)]
+        found = [f for f in found if f in declared]
+    return found
+
+
+def result_pages(item) -> list:
+    """Les fichiers résultats DÉCLARÉS de `item` (`send_to.result_paths`, la lecture du ZIP et
+    d'« Envoyer vers ») quand ce sont TOUS des pages — images ou PDF —, sinon []."""
+    from wama.common.app_registry import category_of_path
+    from wama.common.services.send_to import result_paths
+    from wama.common.utils.detail_registry import DetailRegistry
+    surface = DetailRegistry.surface_of(type(item))
+    paths = result_paths(surface, item) if surface else []
+    if paths and all(p.suffix.lower() == '.pdf' or category_of_path(p) == 'image' for p in paths):
+        return paths
+    return []
+
+
+def _pages_combine(items) -> bool:
+    """Le lot se combine-t-il en PDF ? Tous ses éléments ont des pages pour résultat, et le PDF est
+    une sortie déclarée de la nature image (`CONVERTER_OUTPUT_FORMATS`)."""
+    from wama.common.app_registry import CONVERTER_OUTPUT_FORMATS
+    return (PAGES_FORMAT in (CONVERTER_OUTPUT_FORMATS.get('image') or ())
+            and all(result_pages(item) for item in items))
+
+
+def combined_formats(app_name: str, items) -> list:
+    """Les formats en lesquels les éléments `items` d'un lot se combinent en UN fichier : ceux du
+    rendu que l'app déclare, sinon le PDF quand leurs résultats sont des pages ; [] pour un lot
+    d'un seul élément (son ⬇ suffit). Les pages se lisent sur les RÉSULTATS : un lot dont un
+    élément n'a pas encore rendu n'offre pas le PDF."""
+    items = list(items or ())
+    if len(items) < 2:
+        return []
+    return _own_formats(app_name, items) or ([PAGES_FORMAT] if _pages_combine(items) else [])
+
+
+def combined_url(lot_url: str) -> str:
+    """L'adresse du fichier combiné d'un lot : celle de son ZIP (`batch_download`), `combine=1`
+    ajouté — lue par le bouton de la card mère (`lot_combined`) et par l'assistant."""
+    return f"{lot_url}{'&' if '?' in lot_url else '?'}combine=1" if lot_url else ''
+
+
+def combine_lot(app_name: str, items, fmt: str):
+    """`(ext, bytes)` du fichier combiné des `items` au format `fmt`, ou None — le rendu déclaré de
+    l'app pour ses formats, sinon les pages assemblées (`pdf_pages.pages_to_pdf`)."""
+    items = list(items)
+    if fmt in _own_formats(app_name, items):
+        return lot_builder_for(app_name)(items, fmt)
+    if fmt != PAGES_FORMAT or not _pages_combine(items):
+        return None
+    import tempfile
+    from pathlib import Path
+
+    from wama.common.utils.pdf_pages import pages_to_pdf
+    with tempfile.TemporaryDirectory() as folder:
+        target = Path(folder) / 'lot.pdf'
+        pages_to_pdf([page for item in items for page in result_pages(item)], str(target))
+        return PAGES_FORMAT, target.read_bytes()

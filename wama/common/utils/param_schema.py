@@ -1096,7 +1096,9 @@ def schema_choice_values(app_id, name) -> set:
     return set(choice_values(p)) if p else set()
 
 
-_TRUTHY = ('1', 'true', 'on', 'oui', 'yes')
+#: Ce qu'un formulaire poste pour « coché » — la règle d'un interrupteur du schéma, lue aussi par
+#: un choix de dépôt hors schéma (la case « un seul document » du Reader, 2026-11-10).
+TRUTHY = ('1', 'true', 'on', 'oui', 'yes')
 
 
 #: Plafonds d'un réglage `mapping` : des noms, pas un document.
@@ -1174,7 +1176,7 @@ def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
                 val = int(val)          # 3.0 → 3 : les champs entiers n'aiment pas les floats
             out[name] = val
         elif ptype == 'toggle':
-            out[name] = raw if isinstance(raw, bool) else str(raw).strip().lower() in _TRUTHY
+            out[name] = raw if isinstance(raw, bool) else str(raw).strip().lower() in TRUTHY
         else:
             out[name] = raw
     return out

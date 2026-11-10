@@ -1892,6 +1892,44 @@ contient les sorties telles quelles).
   — chaque app ENREGISTRE son rendu `build_<obj>_bytes(obj, fmt)` (`register_export_builder`) ;
   le ZIP de lot l'appelle par la fabrique, `batch_download?format=<ext>` (GET).
 
+**Variante « un seul fichier » — ✅ 2026-11-10 (décision de Fabien, après l'inventaire mesuré des
+files et le concile du 2026-11-09).** Le lot garde sa règle : N éléments, le même traitement une
+fois par élément (`CARD_DESIGN.md §Le LOT n'a PAS de port`). Ce qui manquait, mesuré dans les dix
+apps : aucun lot ne faisait UN fichier de ses éléments. Une app qui sait COMBINER les résultats de
+ses éléments le DÉCLARE — `export_formats.register_lot_builder(app, rendu, formats)`, rendu
+`(éléments, fmt) -> (ext, octets)` dans l'ordre du lot, `formats(éléments)` ceux qu'il sait combiner
+pour CE lot —, et le ⬇ du lot offre, à côté du ZIP, un bouton **« Fusionné »** (même brique
+`download_button`, tag `lot_combined`) vers `batch_download?combine=1&format=<ext>` : même route,
+même garde de lecture, rien à écrire par app. Il n'apparaît que quand TOUS les éléments ont réussi
+(`queue-actions.js::updateBatchHeader` le montre alors) ; la vue refuse sinon (409, éléments nommés).
+Le fichier est nommé par l'identité du lot (`batch_identity`, `compose_output_name`). L'assistant le
+reçoit avec le ZIP (`get_batch_result` → `combined`).
+- **Toute app, rien à déclarer — le PDF des pages** : un lot dont les RÉSULTATS déclarés de chaque
+  élément (`result_file` / `result_files` de la spec, lus par `send_to.sorties_de` comme le ZIP)
+  sont tous des pages — images ou PDF (`app_registry.category_of_path`) — se combine en UN PDF
+  (`pdf_pages.pages_to_pdf` : une image = une page à 150 ppp, la résolution du converter pour une
+  image → PDF ; un PDF apporte toutes ses pages ; un JPEG posé tel quel). ⚠ Les formats d'une app
+  EARLY-binding ne sont pas ses formats de TÉLÉCHARGEMENT (`export_formats`, vide chez elle) mais
+  ceux réglés AVANT la génération (§6.4, `output_formats.output_format_params`, table du converter
+  par nature) : le PDF est la sortie DÉCLARÉE de la nature image (`CONVERTER_OUTPUT_FORMATS`).
+  Assembler les images d'un lot, c'est donc la conversion image → PDF du converter passée d'un
+  fichier à N — converter, imager, enhancer (images), anonymizer. Le bouton ne se rend qu'une fois
+  les résultats là (les pages se lisent sur les fichiers) ; il porte ses formats (`download_button
+  … formats=`), puisque l'app n'en déclare pas au téléchargement.
+- **Reader** (premier adopteur) : un lot de PARTITIONS donne la partition complète (ABC, MusicXML),
+  pages assemblées dans l'ordre du lot (rangé par la page lue), la légende de batterie d'une page
+  nommant les notes de toutes (`musicxml_score.merge_drum_pages`). ⚠ Une correction faite à la
+  main sur l'ABC d'une page n'y entre pas (aller-retour ABC → MusicXML mesuré : notes gardées,
+  légende perdue). Un lot de textes ne se combine pas (encore).
+- **Au DÉPÔT, côté Reader** (même décision) : la case « Images déposées ensemble : un seul
+  document (PDF) » de la brique d'import (`WamaImport`, option `joinPages` déclarée par l'app, case
+  posée à côté de la zone, `join_pages=1` posté) réunit les images d'un même dépôt en UN PDF
+  (`pdf_pages.pages_to_pdf`), lu par UNE card au lieu d'un lot. Un choix du DÉPÔT, pas un réglage
+  d'élément : rangé d'abord au schéma (volet seul), il faisait rougir `tests_settings_surfaces`
+  (« un réglage vit sur les deux surfaces ») — et n'avait pas de sens dans la ⚙ d'une card. Les
+  pages de ce PDF sont redressées et mises d'aplomb comme une photo (`ocr_base.upright_document`,
+  2026-11-10 — un PDF partait jusque-là tel quel).
+
 ---
 
 ## 10. Paramètres — Cohérence entre Volet, Item et Batch

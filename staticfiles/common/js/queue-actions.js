@@ -423,6 +423,11 @@
         header.querySelectorAll('[data-batch-zip]').forEach(function (el) {
             el.hidden = !batch.has_success;
         });
+        // Le fichier COMBINÉ du lot (2026-11-10) : seulement quand TOUS ses éléments ont réussi —
+        // la vue ne combine qu'un lot entier (`batch_download?combine=1`).
+        header.querySelectorAll('[data-batch-combined]').forEach(function (el) {
+            el.hidden = !(total && counts.success_count === total);
+        });
         header.querySelectorAll('.wama-eta[data-eta-ids]').forEach(function (el) {
             el.dataset.etaIds = el.dataset.etaIds.split(',')
                 .filter(function (x) { return x.trim() && x.trim() !== String(removedId); })

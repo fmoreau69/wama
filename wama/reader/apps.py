@@ -38,6 +38,11 @@ class ReaderConfig(AppConfig):
                                  if (e['group'] == SCORE) != score)
             return other_nature + (() if score or getattr(item, 'raw_result', None) else ('json',))
         register_export_missing('reader', _missing)
+        # UN fichier pour tout le lot (2026-11-10, décision de Fabien) : les pages d'une partition
+        # en une partition, offert par le ⬇ du lot à côté du ZIP (`batch_download?combine=1`).
+        from wama.common.utils.export_formats import register_lot_builder
+        register_lot_builder('reader', 'wama.reader.views:build_reading_lot_bytes',
+                             'wama.reader.views:reading_lot_formats')
 
         # Versions GARDÉES de la partition lue (2026-11-08, le patron du composer) : chaque
         # révision copie son ABC — produite, ou corrigée à la main sur la page « Éditer la
