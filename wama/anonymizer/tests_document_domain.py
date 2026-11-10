@@ -263,7 +263,7 @@ class DocumentGluesTest(TestCase):
         patterns_only = lambda path, language='', ocr=None, **kw: engine.detect_file(   # noqa: E731
             path, language, ocr=ocr, detectors=())
         with mock.patch('wama.common.privacy.service_client.detect_file', patterns_only):
-            found = tasks._detect_text(media, ctx)
+            found = tasks._detect_personal_data(media, ctx)
         self.assertEqual('1 passage(s)', found['label'])
         media.detections_file.name = found['fields']['detections_file']
         done = tasks._occult_text(media, ctx)
@@ -289,5 +289,5 @@ class AStartingPrivacyServiceIsWaitedForTest(SimpleTestCase):
                         side_effect=PrivacyServiceLoading('loading')),                 mock.patch('wama.common.services.ocr_process.read_ocr_file', return_value=None),                 mock.patch.object(type(media.file), 'path', new_callable=mock.PropertyMock,
                                   return_value='/x/lettre.pdf'),                 mock.patch.object(tasks, '_console'):
             with self.assertRaises(ServiceNotReady) as caught:
-                tasks._detect_text(media, mock.Mock())
+                tasks._detect_personal_data(media, mock.Mock())
         self.assertGreaterEqual(caught.exception.countdown * caught.exception.max_attempts, 300)

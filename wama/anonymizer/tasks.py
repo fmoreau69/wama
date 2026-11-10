@@ -163,7 +163,7 @@ def process_single_media(self, media_id, force_individual=False, process=None):
         run_item_task(self, app_id='anonymizer', model=Media, item_id=media_id,
                       pipeline=PIPELINE,
                       processes={'detect': _detect, 'blur': _blur, 'output': _output,
-                                 'ocr': _ocr, 'detect_text': _detect_text,
+                                 'ocr': _ocr, 'detect_text': _detect_personal_data,
                                  'occult_text': _occult_text},
                       notify_label='Anonymizer', only=process,
                       progress_fn=lambda item, pct, msg: set_media_progress(item.pk, pct))
@@ -629,7 +629,7 @@ def _ocr(media, ctx):
     return ocr_step('file', 'ocr_file')(media, ctx)
 
 
-def _detect_text(media, ctx):
+def _detect_personal_data(media, ctx):
     """GLU du process `detect_text` : les données personnelles du document, par la brique de
     confidentialité (`common/privacy` : Presidio orchestre les motifs et les détecteurs installés,
     service :8003 ou moteur dans ce process) sur la couche texte commune, les lignes de l'OCR
