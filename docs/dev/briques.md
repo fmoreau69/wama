@@ -311,9 +311,10 @@ DEPUIS LE 2026-10-16 (décision de Fabien : « la dérive arrive si l'installati
 
 - **Domicile** : `wama/common/utils/model_readiness.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Un modèle s'INSTALLE par la route avant de servir — et l'utilisateur le sait.
-- **API publique** (4) :
+- **API publique** (5) :
   - `warn_if_weights_missing(model_key: str, console=None) -> bool` — Prévient (console) si les poids de `model_key` sont ABSENTS. Rend True si prévenu.
   - `class ModelInstallRefused(RuntimeError)` — La route n'a pas installé le modèle (refus ou échec) : la tâche échoue en le DISANT.
+  - `contract_optional_models(model_key: str) -> tuple` — Les modèles FACULTATIFS que le contrat du backend de `model_key` emploie à côté de lui
   - `ensure_installed(model_key: str, *, user=None, console=None, redelivered: bool=False, via: str='task') -> bool` — Pour une TÂCHE : rend True quand le modèle est prêt à servir (ou que rien ne le concerne).
   - `install_and_wait(model_key: str, *, user=None, console=None, via: str='command', poll_s: float=5, timeout_s: float=None) -> bool` — Le même geste pour un appelant SYNCHRONE (une commande, jamais un worker) : installe par la
 
