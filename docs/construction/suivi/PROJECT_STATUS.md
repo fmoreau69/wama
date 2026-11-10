@@ -30100,3 +30100,15 @@ de ce périmètre : `tests_backend_deprecation`, `tests_manifest_library`, `test
 **Contrôles attendus au prochain /reprise.** `check_docs` : 0 cassée, 0 périmée. `check_redundancy` :
 114 trouvailles au total, aucune dans les fichiers de l'audit. `tests_https_front`,
 `tests_media_serving`, `tests_network_exposure` verts.
+
+## §PALIER 2026-11-10, « LES SERVICES SE VOIENT, SE LANCENT ET S'ARRÊTENT DEPUIS LE MODEL MANAGER ; LA LISTE DE DÉMARRAGE DANS START_WAMA ; PASSE LONGUE DE LA DOC » — `28826db58`, `b4e7d693c` — 🔚 🔴 Fabien relance WAMA, puis un clic réel sur chaque geste ; refonte du volet droit proposée, à décider
+
+- **Décisions de Fabien** : gérer les services sous « Idle Models » ; le service TensorFlow ne démarre plus avec WAMA ; une section des scripts `start_wama` dit ce qui démarre, la voix en tête.
+- **Livré** : section « Services » du volet droit, routes `api_services` et `api_service_control`, outil `control_service` et vue `services` de `get_memory_state`. La page dépose un ordre dans `logs/`, `supervise_one` l'exécute avec les fonctions du démarrage ; mécanisme `service_supervision`.
+- **`WAMA_SERVICES_AT_START`**, en tête de `start_wama_prod.sh` et `start_wama_dev.sh` : voix, vectorisation, confidentialité. Dans la liste, un service démarre avec WAMA et il est relancé s'il tombe ; hors de la liste, il démarre au premier appelant (`ask_for_service`, étendu à la voix, aux vecteurs et à la confidentialité).
+- **Choix de construction, à confirmer par l'usage** : un service arrêté à la main le reste, demande ou pas, jusqu'à un « Lancer » ou au prochain démarrage de WAMA. Sans surveillance vivante (`logs/worker_watchdog.alive`), aucun ordre n'est accepté.
+- **Vérifié** : 259 tests OK sur l'arbre, 174 sur HEAD en worktree (`makemigrations --check` : No changes) ; contre-épreuves 10/10 rouges, témoin sans mutation vert. Épreuve réelle sur un service jetable (port à part) : lancer, relancer avec un nouveau processus, arrêter, rester arrêté malgré une demande. Page sur serveur jetable : section dans le volet, état réel des quatre services, boutons désactivés et avis affiché, la surveillance en service étant l'ancienne.
+- ⚠ **Non joué** : un ordre réel exécuté par la surveillance partagée, et un clic réel sur les boutons : il faut que WAMA soit relancé.
+- **Mesuré pour la refonte du volet** (sans sélection, largeur 329 px) : Assistant 515 px, Catalogue 264, Ressources système 683, Inspecteur / Système 1660, dont intro 205, prospection 230, Memory Cleaner 475, Idle Models 103, Services 529. Rien n'est changé, proposition à décider.
+- **Passe longue de la doc** (`/doc-sync §2`, `ROADMAP §24.10`) : 67 éditions sur la ROADMAP et la vision, chaque preuve relue. Décisions demandées à Fabien : la condition de Zen, D-e, le sélecteur de domaine face à `/competence`, `§25.2`, le mot « embryon » du Face Analyzer dans la vision.
+- **Laissé dans l'arbre, à d'autres** : `WAMA_MECANISMES` (décomptes), `WAMA_APP_GENERATION_ROUTE` (bloc `outils`), deux hunks de `mecanismes.py`, les manifestes de modèles régénérés, et le reste de leur travail en cours.
