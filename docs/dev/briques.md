@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**236 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**237 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -840,6 +840,21 @@ Délimité par son MOTEUR (2026-11-09, décisions de Fabien, `WAMA_MANIFEST_SPEC
 - **API publique** (2) :
   - `health()`
   - `run(params: str=Query(...), body: bytes=Body(..., media_type='application/octet-stream'))` — Une demande : `params` en JSON (`task`, `engine`, `models`, `options`), l'image en `.npy`.
+
+### Services uvicorn — voir, lancer, arrêter
+
+Le volet droit du model manager et l'outil `control_service` montrent l'état des services (leur `/health`, leurs drapeaux) et déposent un ORDRE dans `logs/` ; le serveur web ne touche à aucun processus. La surveillance (`supervise_one`) l'exécute avec les fonctions et l'environnement du démarrage, hors budget et sans rapport. Arrêté à la main, un service le reste jusqu'à un « Lancer » ou au prochain démarrage de WAMA. La section `WAMA_SERVICES_AT_START` des scripts `start_wama` décide (décision de Fabien, 2026-11-10) : dans la liste, il démarre avec WAMA et il est relancé s'il tombe ; hors de la liste, il démarre au premier appelant qui le trouve éteint. Sans surveillance vivante (signe de vie dans `logs/`), aucun ordre n'est accepté
+
+- **Domicile** : `wama/common/utils/service_supervision.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
+- **Module** : Ce qu'un processus Python dit à la surveillance des services (`scripts/worker_watchdog.sh`), et ce qu'il lit de leur état.
+- **API publique** (7) :
+  - `ask_for_service(service: str) -> None` — Le service est éteint et quelqu'un en a besoin : la surveillance le relancera.
+  - `note_stopped_on_purpose(service: str) -> None` — Le service s'arrête parce qu'on le lui demande, pas parce qu'il est tombé.
+  - `declared_services() -> list` — Les services que la surveillance connaît : la liste du script qui les lance, seule déclaration.
+  - `services_at_start() -> list` — Ceux qui démarrent avec WAMA : la section des scripts `start_wama`, héritée de leur environnement.
+  - `watchdog_state() -> str` — `running`, `paused` ou `absent`, d'après le signe de vie que la surveillance écrit à chaque passage.
+  - `services_overview() -> dict` — L'état de chaque service, et de la surveillance qui exécute les ordres.
+  - `control_service(service: str, action: str) -> tuple` — Dépose l'ordre `start`, `stop` ou `restart` → (accepté ?, message à montrer).
 
 ### Sonde vision
 
@@ -4021,7 +4036,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (138) :
+- **API publique** (139) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -4083,6 +4098,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `free_memory(user, action: str, model_key: str='', confirm: bool=False) -> dict` — Free memory as the model manager's buttons do: 'unload' one resident model (`model_key`),
   - `free_gpu_for_item(user, app: str, item_id: int, confirm: bool=False) -> dict` — Agree that the WHOLE graphics card be freed so one of the user's items waiting for resources
   - `control_memory_cleaner(user, action: str, check_interval_s: int=0, idle_threshold_s: int=0, ram_warning_percent: float=0, ram_critical_percent: float=0) -> dict` — Start, stop or configure the automatic memory cleaner of the model manager page, which unloads
+  - `control_service(user, service: str, action: str, confirm: bool=False) -> dict` — Start, stop or restart one of WAMA's background services (voice, vectors, privacy, TensorFlow),
   - `control_model_watcher(user, action: str) -> dict` — Start or stop the watcher of the models folder, which updates the catalogue when weights
   - `start_backup(user, target: str, model_key: str='', overwrite: bool=False, confirm: bool=False) -> dict` — Back up to the remote backup space, as the model manager's buttons do: 'database' (a dump of
   - `sync_model_catalog(user, clean: bool=False, delete_missing: bool=True) -> dict` — Synchronise the model catalogue with the disk and the apps' declarations — the page's

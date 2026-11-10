@@ -188,6 +188,13 @@ class TheDeclarationsHoldTogetherTest(SimpleTestCase):
             calls = re.findall(r'start_wama_service (\S+)', starter.read_text(encoding='utf-8'))
             self.assertEqual({'tts_service', '"$s"'}, set(calls), starter.name)
 
+    def test_the_web_server_start_does_not_trust_a_process_search(self):
+        source = STARTERS[0].read_text(encoding='utf-8')
+        launch = source[:source.index('gunicorn wama.wsgi:application')]
+        guard = launch[launch.rindex('\nif '):]
+        self.assertIn('gunicorn.pid', guard)
+        self.assertNotIn('pgrep', guard)
+
     def test_a_restart_of_wama_forgets_the_orders_of_the_previous_run(self):
         for starter in STARTERS:
             source = starter.read_text(encoding='utf-8')

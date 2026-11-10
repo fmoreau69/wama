@@ -640,9 +640,18 @@ class SupervisionShellTest(SimpleTestCase):
         out = self._pass('tensorflow_service')
         self.assertEqual('', out.stdout, out.stderr)
 
-    def test_asked_for_it_comes_back_and_an_ordinary_death_is_reported(self):
+    def test_asked_for_it_comes_up_and_nobody_is_told_of_a_death(self):
         out = self._pass('tensorflow_service', wanted=True)
-        self.assertEqual('START tensorflow_service\nREPORT tensorflow_service restarted service\n',
+        self.assertEqual('START tensorflow_service\n', out.stdout, out.stderr)
+
+    def test_the_death_of_a_service_of_the_start_list_is_reported(self):
+        out = self._pass('privacy_service', at_start='privacy_service')
+        self.assertEqual('START privacy_service\nREPORT privacy_service restarted service\n',
+                         out.stdout, out.stderr)
+
+    def test_a_demanded_service_that_fails_to_come_up_is_reported(self):
+        out = self._pass('tensorflow_service', wanted=True, comes_up=False)
+        self.assertEqual('START tensorflow_service\nREPORT tensorflow_service restart_failed service\n',
                          out.stdout, out.stderr)
 
     def test_a_stop_on_purpose_is_neither_reported_nor_counted_against_the_budget(self):

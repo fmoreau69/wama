@@ -245,7 +245,9 @@ fi
 # ------------------------------------------------------
 # GUNICORN
 # ------------------------------------------------------
-if ! pgrep -f "gunicorn wama.wsgi" > /dev/null; then
+# Par le fichier de PID (`gunicorn_conf.py`) et non par `pgrep -f` : ce motif trouvait aussi toute autre
+# commande qui le citait, et le démarrage sautait alors gunicorn (vécu le 2026-11-10).
+if ! { [ -f "$LOG_DIR/gunicorn.pid" ] && kill -0 "$(cat "$LOG_DIR/gunicorn.pid")" 2>/dev/null; }; then
     echo "=== Starting Gunicorn ==="
     gunicorn wama.wsgi:application \
         --config gunicorn_conf.py \

@@ -251,8 +251,11 @@ supervise_one() {
     [ "$policy" = on_demand ] && [ ! -f "$wanted" ] && return 0
     [ -n "${GAVE_UP[$w]}" ] && return 0
 
-    local on_purpose='' now recent='' n=0 t outcome=restart_failed waited=0
+    local on_purpose='' expected='' now recent='' n=0 t outcome=restart_failed waited=0
     [ "$kind" = service ] && [ -f "$stopped" ] && on_purpose=1
+    # Un service hors de la liste de démarrage qu'un appelant réclame : ce n'est pas une mort, on ne
+    # prévient personne. Son démarrage compte au budget : un service qui tombe à chaque appel s'arrêtera.
+    [ "$policy" = on_demand ] && expected=1
     now=$(date +%s)
     for t in ${RESTARTS[$w]}; do
         if [ $((now - t)) -lt "$WINDOW_S" ]; then recent="$recent $t"; n=$((n + 1)); fi
@@ -269,7 +272,11 @@ supervise_one() {
     if [ -n "$on_purpose" ]; then
         log "$w : arrêt voulu, relance à la demande"
     else
-        log "$w MORT — relance ($((n + 1))/$MAX_RESTARTS dans la fenêtre)"
+        if [ -n "$expected" ]; then
+            log "$w : démarrage à la demande ($((n + 1))/$MAX_RESTARTS dans la fenêtre)"
+        else
+            log "$w MORT — relance ($((n + 1))/$MAX_RESTARTS dans la fenêtre)"
+        fi
         RESTARTS[$w]="${RESTARTS[$w]} $now"
     fi
     "$start" "$w"
@@ -281,7 +288,7 @@ supervise_one() {
     log "$w : $outcome"
     rm -f "$stopped"
     # Une relance voulue et réussie n'est pas un incident : on ne prévient personne.
-    if [ -z "$on_purpose" ] || [ "$outcome" != restarted ]; then
+    if { [ -z "$on_purpose" ] && [ -z "$expected" ]; } || [ "$outcome" != restarted ]; then
         report "$w" "$outcome" "$((n + 1))" "$kind"
     fi
 }
