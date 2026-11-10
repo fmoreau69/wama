@@ -4710,3 +4710,61 @@ MESURES WAMA :
 de l'OCR à positions (`ocr_process`), pas du Reader. (b) Les positions natives de PaddleOCR-VL
 (détection comprise, page 2) demandent un moteur llama.cpp ou transformers ≥ 5 : décision de venv/route.
 La ligne installée reste au catalogue en attendant ; elle se retire par le bouton si (a) est écarté.
+
+## Session du 2026-11-10 (nuit) : la prospection ne remonte pas toujours le MEILLEUR de la famille (constat mesuré, chantier ouvert)
+
+Fabien, à propos d'ACE-Step : *« en refaisant la recherche telle que tu l'as faite, il a bien trouvé
+le bon modèle : acestep-v15-sft. Donc […] si je ne précise pas suffisamment ma recherche, je
+(l'utilisateur) risque d'installer un moins bon modèle que le meilleur qui pourrait tenir en vram.
+Ce sera un chantier à consigner […] y aurait-il des leviers pour améliorer la prospection dans ce
+sens ? »* Sa recherche « ACE-Step » a rendu `Comfy-Org/ACE-Step-1.5` (58,8 Go, 75,8 Go de VRAM
+estimés — ne tient pas) en canonique, et des GGUF de `Serveurperso/ACE-Step-1.5-GGUF` en options ;
+aucun des dépôts officiels `ACE-Step/acestep-v15-{sft,base,xl-sft,xl-base}`.
+
+**Mesuré dans le code** :
+- la recherche (`prospector.seed_hf_search`) : une requête plein texte, `sort='downloads'`,
+  `limit=10`, et les 5 premiers retenus (`max_retenus`) qui passent la tâche installable, le
+  « pas déjà installé » et le plancher de poids ;
+- les options d'installation (`install_options`) : poids pleins + variantes QUANTISÉES du même
+  modèle (`quantized_variants` : nom, puis marqueur de quantisation), recommandation = la plus
+  précise qui tient sur la carte (`recommended_option`) ;
+- les successeurs (`hf_successor`, nocturne) : le `new_version` que l'AUTEUR déclare.
+Rien ne cherche la FAMILLE de l'auteur (ses variantes base / SFT / XL, dépôts frères et non
+quantisations), et aucun signal de qualité n'ordonne les membres d'une famille : le tri par
+téléchargements fait gagner les reconditionnements.
+
+**Leviers proposés** (rien d'écrit — à décider), chacun sur une brique existante :
+1. **Remonter à l'officiel** : un reconditionnement déclare souvent `base_model` sur sa carte —
+   la chaîne qu'`analyze_license` suit déjà pour hériter d'une licence ; proposer l'original de
+   l'auteur plutôt que le repack (⚠ à vérifier sur la carte de `Comfy-Org/ACE-Step-1.5`).
+2. **Regrouper au lieu d'empiler** : les reconditionnements d'un même modèle (`names_the_same_model`)
+   deviennent des OPTIONS de sa proposition, au lieu d'occuper chacun une des 5 places.
+3. **La famille officielle dans les options** : les membres de la COLLECTION de l'auteur sur le Hub
+   (ACE-Step : `ACE-Step/ace-step-15`, citée par chaque carte) entrent dans `install_options`, avec
+   poids, VRAM et « tient / ne tient pas » ; la recommandation désigne le plus grand membre de
+   l'auteur qui tient sur la carte — ce qui répond à une demande approximative.
+4. **La limite (5)** ne se relève qu'après 2 et 3 : sans regroupement, plus de places = plus de
+   reconditionnements.
+5. **Savoir si l'on a atteint le meilleur** : la couverture de la collection de l'auteur (membres
+   qui tiennent / membres proposés), et l'indice de qualité du catalogue là où un banc existe
+   (`benchmark_sync`) ; la musique n'a pas de banc — l'auteur publie sa table de qualité sur ses
+   cartes (« Model Zoo »), pas lisible par machine.
+
+⏳ **Chantier (Fabien)** : vérifier, pour chaque modèle INSTALLÉ, si un membre de sa famille
+officielle (collection, `new_version`) de meilleure qualité tient sur la carte, et le PROPOSER en
+remplacement — décision humaine, remplacement par `succession.supersede`. Peu de cas attendus ;
+ACE-Step en est un (turbo installé, SFT / XL-SFT plus fidèles).
+
+**Question ouverte, liée — relier une VARIANTE à la ligne principale** : les variantes d'ACE-Step ne
+portent que leur DiT ; VAE, encodeur et modèle de langage sont ceux de `ACE-Step/Ace-Step1.5`, déjà
+installé. Deux mécanismes existent : la **dorsale** (`base_model`, né pour les LoRA : la dorsale
+s'installe d'abord, sa désinstallation prévient — `model_readiness`, `rows_depending_on`) — rien en
+double, mais la relation décrit aujourd'hui un adaptateur ; le **dépôt frère** (composant `repo`,
+`component_repos`, né pour le VAE de YuE2) — tel quel, mais il rangerait le dépôt principal (9 Go)
+à côté de chaque variante. ⏳ Décision de Fabien. En attendant : `acestep-v15-sft` est INSTALLÉE
+(par la route : `scout` → « Installer »), sa proposition d'anatomie (rôle `model`, 0 refus) reste en
+file et n'est PAS validable — rôle du DiT nommé `dit` au lieu de `diffusion_transformer` (le rôle
+n'aligne pas les noms sur une ligne existante du même moteur : manque de la route), composants du
+dépôt principal absents ; le contrôle mécanique ne reconnaît pas un dépôt nommé dans une TABLE du
+code vendorisé (`SUBMODEL_REGISTRY`), seulement dans une constante. Le `scout` de l'XL-SFT a buté sur
+une limite du Hub (429, pendant le téléchargement de la SFT) : à relancer.
