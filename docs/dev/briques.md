@@ -2638,11 +2638,11 @@ data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui li
 
 ### Domaines → modes
 
-Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines rend leurs onglets par la pièce `_domain_tabs.html` (`WamaModes.domainTabs` : volets de file, réglages du volet, domaine retenu, 2026-11-01) ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE (`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit sans la porte (`domain_nature`)
+Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines rend leurs onglets par la pièce `_domain_tabs.html` (`WamaModes.domainTabs` : volets de file, réglages du volet, domaine retenu, 2026-11-01) ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE (`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit sans la porte (`domain_nature`), et une SOURCE pas encore arrivée dit sa nature par son adresse (`surface_source_nature`, 2026-11-10)
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (28) :
+- **API publique** (29) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs.
@@ -2667,6 +2667,7 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
   - `domain_nature(app: str, domain_id: str, path) -> str | None` — La nature d'un fichier DÉJÀ REÇU, lue par ce domaine — `file_nature` sans la porte : un
   - `arrival_domain(app: str, path) -> str | None` — Le domaine qui REÇOIT un fichier arrivé hors de sa card — « Envoyer vers », importeurs du
   - `surface_file_nature(app: str, surface: str, path) -> str | None` — La nature d'un fichier qui entre par une SURFACE (la vue d'upload d'une famille de routes,
+  - `surface_source_nature(app: str, surface: str, source) -> str | None` — La nature d'une SOURCE (une URL, la ligne d'un lot) qui entre par une surface, AVANT que son
   - `mode_param(app: str, domain_id: str) -> str` — Le param du schéma qui porte le mode de ce domaine ('' si le domaine n'en déclare pas).
   - `options_mode_for(app: str, domain_id: str) -> dict` — La déclaration `Param.options_mode` d'un select de modèle borné par le mode de ce
   - `mode_model_filter(app: str, domain_id: str, mode_id: str) -> dict` — Ce que le mode impose au MODÈLE, dans le vocabulaire de `model_selector.matches_inputs` :
