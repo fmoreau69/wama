@@ -1,6 +1,6 @@
 # WAMA — Roadmap
 
-> Dernière mise à jour : 2026-10-26 — **confrontation complète au code** (Frise, Horizons, statuts
+> Dernière mise à jour : 2026-11-10 — passe longue, relevé au **§24.10** ; précédente **confrontation complète au code** le 2026-10-26 (Frise, Horizons, statuts
 > de toutes les sections ; relevé et méthode au **§24.9** ; les traces datées ne sont pas réécrites,
 > elles reçoivent un relevé daté). Précédente mise à jour d'en-tête : 2026-07-20 (Horizons + GNM ; **dédoublonnage exécuté** : sections actées → archive + renvois PROJECT_STATUS, bugs §0 → PROJECT_STATUS). Précédent : 2026-07-11 (audit conformité — PROJECT_STATUS §31 ; l'en-tête « 2026-05-16 » mentait, le contenu allait jusqu'à 2026-07-01)
 > Légende : ✅ Fait · 🔄 En cours · ⏳ Planifié · 💡 Proposé · ❌ Abandonné · 🐛 Bug bloquant
@@ -135,13 +135,13 @@
    🔄 *2026-10-28* : **reprise** — un objectif, plus une intention (Fabien) ; décisions et ordre au
    `§16.4bis`. ✅ librairies, catalogue `nlp`/`pii-detection`, détecteurs, couche texte de document
    et **porte avant un modèle distant** livrées (`common/privacy/gate.py::privacy_gate`, appelée par
-   `llm_utils.py:828` et `claude_code.py:322` ; geste choisi au profil, `UserProfile.cloud_privacy` ;
+   `llm_utils.py:893` et `claude_code.py:322` ; geste choisi au profil, `UserProfile.cloud_privacy` ;
    `f8ff1641`) ; ✅ *2026-11-02* domaine `document` de l'Anonymizer (OCR des scans, détection et
    occultation dans le fichier même) ; ⏳ page de correction par passage, mesure WAMA — détail
    `§16.4bis` *(corrigé le 2026-10-31, mesuré sur le code)*.
 5. Évaluation continue : jeux de test par capacité + QC câblé ; la veille ne propose un modèle
    qu'avec delta mesuré. Prospection suites (multi-agents, routing capacité→app Phase A).
-6. Face Analyzer : intégration au catalogue (flag lab) + premier flux exploitable.
+6. Face Analyzer : intégration au catalogue (flag lab) + premier flux exploitable. 🔄 *2026-11-10 : poids et Face Landmarker au catalogue, par le contrat commun ; ⏳ une analyse de bout en bout depuis l'interface.*
 
 ### H2-parallèle — Couche Data (décision Fabien 2026-07-20 : fil indépendant, démarrage progressif)
 > Reclassée depuis « lointain » : c'est le **prochain grand chantier** après H1/H2, à intégrer
@@ -501,6 +501,7 @@ Celery beat : 0 2 * * *
 > (budget faux) ; ③ motif **`select_progressif`** (répondre tout de suite avec un modèle léger
 > pendant que le meilleur se charge en parallèle — exige un microservice) : idée consignée dans
 > le seul handoff, jamais tracée comme chantier.
+> ✅ *Relevé du 2026-11-10* : la découverte principale pose la taille d'`ollama list` en `vram_gb` (`vram_provenance='heuristic'`, `wama/model_manager/services/model_registry.py`).
 
 ### Fiabilité de la découverte — « constater, ne jamais deviner » (FAIT)
 - **Bug whisper corrigé** : la détection devinait `faster-whisper-{model_id}` (=`...-large`)
@@ -879,6 +880,7 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
       `soft_time_limit` à MESURER avec `--pool=solo` avant de choisir, sinon garde-temps du
       squelette ; information systématique sur la card. Adoptants imager vidéo + composer :
       `vram_needed` dépend du pic (sœur) et du portage de ces apps (autres sessions).
+      *Relevé du 2026-11-10* : l'angle mort `_VRAM_UNLOADERS` est fermé depuis le 2026-09-20 (`resource_governor.contract_tenant`) ; reste Kokoro-gunicorn.
     - **B2 — admission et ordonnancement (À CONCEVOIR ICI avec Fabien avant une ligne)** : le worker
       GPU est `--pool=solo` = UNE tâche à la fois, tous utilisateurs, FIFO (les paliers réordonnent,
       n'empilent pas). « Empiler des process en VRAM et jusqu'où », la file de files inter-utilisateurs
@@ -916,6 +918,7 @@ chiffre (pic par stratégie et dtype, marge 4 Go, `memory_manager`), la migratio
 dépôts frères pesés par le réseau seul (`unresolved` bien qu'installés) ; les VARIANTES de précision
 (cartographie vérifiée au même palier : seul LTX est représenté, FLUX seul se réduit automatiquement,
 Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à construire sur `_best_by_vram`.
+*Relevé du 2026-11-10* : ✅ le second chiffre est calculé (`peaks_for_precision`, `reduced_peak_gb`, `model_footprint_gb`) et lu par la garde ; ⏳ restent la migration des presets et le filtre du tirage.
 
 **⏳ Reste — à ajouter ICI, jamais dans les apps**
 1. ~~Câbler les priorités dans le routage Celery~~ ✅ 2026-07-29 (ci-dessus, 14 assertions).
@@ -983,6 +986,7 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    dépôt**. La décision existe, l'instrument manque : l'ajouter autour du GESTE (pas du
    chargement) est le geste minimal, et c'est lui qui rendra la marge mesurable au lieu d'être
    choisie.
+   *Relevé du 2026-11-10* : `max_memory_allocated` n'existe que dans un script de preuve (`scripts/poc_locate_anything.py`), rien dans `wama/`.
 
    **d. Les réductions — trois familles à ne pas confondre**, parce qu'elles n'agissent pas sur la
    même grandeur (pic = résidence + activations) :
@@ -1023,7 +1027,7 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    **Décisions de Fabien** : ~~(1) le schéma `composition` n'a aucun moyen de dire « hérite de sa
    dorsale » — champ à ajouter, ou règle dérivée de `base_model` ?~~ ✅ tranchée le 2026-09-21 :
    règle dérivée de `base_model`, nominale au catalogue, marginale à l'exécution
-   (`memory_manager.model_footprint_gb`). ⏳ (2) une réduction choisie automatiquement doit-elle être
+   (`memory_manager.model_footprint_gb`). ✅ (2) *(tranchée le 2026-11-05, `cff828598` : recalculée à chaque lancement, jamais mémorisée)* une réduction choisie automatiquement doit-elle être
    MÉMORISÉE par modèle (préférence utilisateur) ou recalculée à chaque tirage selon l'état de la
    carte ?
 
@@ -1282,7 +1286,7 @@ VRAM + **éviction LRU** des modèles à la demande (s'appuie sur memory_manager
 applicatif (le call-site diariseur a été annulé par le revert `6cc37ec`). 🔄 *2026-10-26* : un
 appelant, la stratégie FULL_GPU de `memory_manager` (`c10c597b`, `memory_manager.py:951`) ;
 aucun appel direct d'app.
-Set temps réel : LLM→Ollama, vocalisation/preview→microservice TTS, speak→futur service Whisper
+Set temps réel : LLM→Ollama, vocalisation/preview→microservice TTS, speak→service vocal (`/stt`, livré les 10 et 12/10, relevé du 2026-11-10), à l'origine futur service Whisper
 chaud, traduction→Ollama.
 
 ### Backup réseau (vrlescot) — ✅ FAIT, 4 domaines + tirage (2026-08-10)
@@ -1292,7 +1296,7 @@ chaud, traduction→Ollama.
   `remote_is_available`, `resolve_remote_root`, `purge_keep_latest`, `run_mirror_job`). Aucune
   autre implémentation de copie/miroir dans le projet — ne pas en réintroduire.
 - **4 domaines** sous `DEEP_LEARNING/` : `MODELS`, `DB`, `MEDIAS`, `INSTALL` (secrets).
-  Planification beat : config 02:20, médias 02:30, base 03:30, **avant** la purge de rétention
+  Planification beat : modèles 01:30 (depuis le 2026-09-30), config 02:20, médias 02:30, base 03:30, **avant** la purge de rétention
   de 04:00. Boutons « Backup DB / Models / Médias » dans les outils système du model_manager.
 - **Tirage** : `manage.py restore_backup --domain models|media|config` (= `mirror_tree` dans
   l'autre sens) et `manage.py restore_db` (destructif, CLI uniquement).
@@ -1333,6 +1337,7 @@ chaud, traduction→Ollama.
   ex. import Python OK) ≠ **VRAM** (`get_free_vram_gb`). + règle **keep_loaded**.
 - `priority` (préférence ordonnée, domine la VRAM) pour les apps « par moteur » (Transcriber
   whisper-first) ; logique VRAM-greedy (le plus gros qui tient) pour les apps « par variante ».
+  *Relevé du 2026-11-10* : `select_model` reçoit aussi `benchmark_family`, `specialization`, `quality_intent`, `cloud_keys`, `user` ; le tirage pondère qualité et légèreté au curseur, le budget VRAM est un filtre, levé à curseur haut (`_best_by_vram`).
 - **Descriptions à deux tiers** : `AIModel.description` (long) + `description_short` (court),
   dérivation auto, migration 0003. `WamaModelHelp` : court sous le sélecteur + long en ⓘ.
 - **Étape 3 (✅ — relevé du 2026-10-26 : 9/9 apps à modèle, par `resolve_model_choice` ou la
@@ -1492,10 +1497,10 @@ STANDARD comme toutes les apps, `filemanager` → `import_to_converter` ; `queue
 | Menu contextuel Filemanager — "Conversion rapide" | ✅ (2026-06-01) | Entrée top-level dédiée → modal `#converterQuickModal`. **Vraie conversion à la volée** (modèle FileConverter) : job **éphémère** (jamais dans la file, `ephemeral=True`), sortie écrite **à côté de la source** (`dest_dir`, anti-collision de nom), barre de progression inline, refresh auto de l'arbre, puis `dismiss` (ligne DB supprimée, fichier conservé). Presets qualité Web/Équilibré/Max. Visible pour tout type convertible. |
 | Presets de qualité (Web/Équilibré/Maximum) | ✅ (2026-06-01) | `utils/quality_presets.py` — image (quality 80/90/98), vidéo (CRF 23/20/16 + preset x264), audio (160/224/320k). Appliqués en mode rapide ; l'explicite l'emporte. video_backend honore l'option `preset`. |
 | Conversion rapide — annulation + robustesse | ✅ (2026-06-02) | Endpoint `cancel` (revoke Celery + suppression job éphémère) ; annulation à toute fermeture de modale (Annuler/X/Esc/backdrop via `hide.bs.modal`) ; **sortie atomique** (temp → move) → annuler/échouer ne laisse jamais de fichier corrompu près de la source ; **garde-fou** : worker muet >20 s → message "le worker ne répond pas" + revoke du job zombie. Tâches Celery désormais auto-découvertes (`autodiscover_tasks()`). |
-| Modal Paramètres item (édition output_format + options sur job existant) | ✅ (2026-05-16) | Endpoint `POST /<pk>/update/` + form dynamique selon media_type ; bouton "Appliquer" et "Appliquer & (Re)lancer" |
+| Modal Paramètres item (édition output_format + options sur job existant) | ✅ (2026-05-16) | Endpoint `POST /settings/<pk>/` *(corrigé le 2026-11-10)* + form dynamique selon media_type ; bouton "Appliquer" et "Appliquer & (Re)lancer" |
 | Profils de conversion sauvegardables | ✅ (2026-05-16) | Endpoints `profile_list/save/delete` ; dropdown filtré par media_type dans panneau settings ; bouton "Sauver comme profil…" dans modal item |
-| Option upscaling ×2/×4 (Real-ESRGAN via Enhancer) | ✅ IMAGE (2026-08-18) / ⏳ vidéo | Wiring complet : schéma dérivé de `CROSS_APP_OPTIONS` (params.py), split `options`↔`cross_app_options` (views.update_job), application inline `utils/cross_app.py` (`upscale_image_file` enhancer ; x2=BSRGANx2, x4=RealESRGANx4, denoise IRCNN). **Upscale VIDÉO différé** : ~~mécanisme à extraire de `enhancer/tasks.py::_enhance_video` (2ᵉ consommateur) APRÈS validation GPU du during enhancer~~ mécanisme extrait depuis le 21/09 (`enhancer/backends/media_backend.py:67` `enhance_video`, rendu commun `video_render`) ; ⏳ le brancher au converter reste à décider (cf. Phase 2 ci-dessous) *(corrigé le 2026-10-31)* |
-| Format de sortie inline dans chaque app (Imager, Enhancer…) | ✅ *(relevé du 2026-10-26)* brique commune `common/utils/output_formats.py`, adoptée par imager, enhancer, synthesizer, composer et anonymizer (process « Sortie » commun, `anonymizer/tasks.py:100` `output_step`, `params.py:30` — ajouté le 2026-10-31) | `CONVERTER_OUTPUT_FORMATS` disponible depuis app_registry, UI P2 |
+| Option upscaling ×2/×4 (Real-ESRGAN via Enhancer) | ✅ IMAGE (2026-08-18) / ⏳ vidéo | Wiring complet : schéma dérivé de `CROSS_APP_OPTIONS` (params.py), split `options`↔`cross_app_options` (views.update_settings), application inline `utils/cross_app.py` (`common/backends/ai_upscaler.upscale_image_file` ; upscaler tiré du catalogue depuis le 2026-09-30, `59ad80cb`, denoise IRCNN — *corrigé le 2026-11-10*). **Upscale VIDÉO différé** : ~~mécanisme à extraire de `enhancer/tasks.py::_enhance_video` (2ᵉ consommateur) APRÈS validation GPU du during enhancer~~ mécanisme extrait depuis le 21/09 (`enhancer/backends/media_backend.py:67` `enhance_video`, rendu commun `video_render`) ; ⏳ le brancher au converter reste à décider (cf. Phase 2 ci-dessous) *(corrigé le 2026-10-31)* |
+| Format de sortie inline dans chaque app (Imager, Enhancer…) | ✅ *(relevé du 2026-10-26)* brique commune `common/utils/output_formats.py`, adoptée par imager, enhancer, synthesizer, composer et anonymizer (process « Sortie » commun, `anonymizer/tasks.py:100` `output_step`, `params.py:30` — ajouté le 2026-10-31) | `CONVERTER_OUTPUT_FORMATS` disponible depuis app_registry, UI livrée par le schéma commun ; avatarizer aussi (`wama/avatarizer/workers.py:562`) *(2026-11-10)* |
 | Batch avec aperçu avant/après sur échantillon | ⏳ Phase 5 | Essentiel sur gros volumes |
 | Conversion document (PDF ↔ DOCX ↔ MD ↔ HTML ↔ TXT) | ✅ Phase 4 (2026-06-01, chaîne PDF refondue 2026-07) | Pandoc + pypandoc 1.13 ; PDF input via PyMuPDF ; **HTML→PDF = brique commune `common/utils/html_render.py`** (Chromium headless → WeasyPrint → fallback pandoc/xelatex — commits 34e84af/8013f22/1329638) |
 | Option enhancement audio lors conversion vidéo (Enhancer) | ✅ (2026-08-18) | DeepFilterNet via `cross_app_options` : audio direct (ré-encodage au format cible) + vidéo (demux → enhance → remux, flux vidéo copié) — `utils/cross_app.py` ; ⚠ validation GPU navigateur = Fabien |
@@ -1581,6 +1586,7 @@ Converter. Quand un pipeline interne a besoin d'un .mp4 H.264 playable
 Converter consomme `common.video_compat` **en interne** pour son cas
 trivial H.264 (pas de duplication de logique ffmpeg). À implémenter
 quand l'app Converter sera reprise.
+⏳ *Relevé du 2026-11-10* : aucun appel dans `wama/converter/`.
 
 ---
 
@@ -1651,7 +1657,7 @@ quand l'app Converter sera reprise.
 > (`TRANSCRIBER_CORRECTION §2a`) ; ⏳ le surlignage par MOT et les homophones.
 - Highlight automatique des mots à faible confiance (probability < seuil → fond orange)
 - Suggestions d'homophones pour les erreurs détectées (LLM local)
-- Export WebVTT (sous-titres web)
+- ⏳ Export WebVTT (sous-titres web) *(relevé du 2026-11-10 : le VTT est lu à l'import, aucun rendu ne le produit)*
 - Mode "révision rapide" : navigation clavier entre segments à corriger
 
 ---
@@ -1772,7 +1778,7 @@ session de travail Q&A + génération de contenu depuis ces sources.
 | Étape | Outil WAMA |
 |-------|-----------|
 | Script LLM (1 narrateur) | Ollama (Qwen3.5) |
-| TTS | Synthesizer WAMA (backend disponible — Higgs non fonctionnel pour l'instant, cf. §0) |
+| TTS | Synthesizer WAMA (backend disponible — Higgs non fonctionnel pour l'instant, cf. `PROJECT_STATUS` « Higgs Audio V2 », *renvoi corrigé le 2026-11-10*) |
 | Musique de fond + ambiance | Piste secondaire dans Composer — mix avec le speech |
 | Export | MP3 + transcript du podcast |
 
@@ -2264,6 +2270,7 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    ⚠ `apply_manifests --kind library --apply` aurait EFFACÉ 4 licences enrichies à la main au
    registre (kokoro-onnx, pyannote-audio, torchaudio, vibevoice — le corpus les porte vides) :
    la projection a été faite pour `mcp` SEUL. Écart signalé, non traité.
+   *Relevé du 2026-11-10* : torchaudio porte sa licence ; kokoro-onnx, pyannote-audio et vibevoice restent à `null`.
 2. ✅ **Serveur « wama »** (15/09) — `common/services/mcp_server.py` + `manage.py run_mcp_server`
    (HTTP streamable à l'adresse `external_sources['wama_mcp']`, ou stdio avec `WAMA_MCP_TOKEN`).
    `tools/list` = `TOOL_REGISTRY` filtré par `tool_accessible` ; `tools/call` = `execute_tool`
@@ -2562,7 +2569,7 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    `tests_intake.py:165`). MAIS c'est le MODÈLE qui décide d'appeler l'outil, et aucun test ne
    montre qu'un modèle le fait réellement ; le domaine par défaut est `general`, déclaré `rag=False`
    (`assistant_skills.py:66`), donc sans appel de l'outil il n'y a AUCUN rappel du labo sur le
-   web ni sur Discord. ⏳ À ajouter avec les tests des gestes : un tour de bout en bout où un faux
+   web ni sur Discord. ✅ *(2026-11-10 : fait, `tests_assistant_surfaces.py`, `168ff685d` ; ⏳ reste à mesurer qu'un modèle réel appelle l'outil)* À ajouter avec les tests des gestes : un tour de bout en bout où un faux
    LLM émet l'appel d'outil, pour prouver que la boucle charge bien le skill.
 5. 🔄 **Moteur de l'assistant client MCP** — même chemin pour Ollama, Albert et Claude Code
    (`--mcp-config`) *(✅ Ollama/Albert/API Anthropic par la porte commune `execute_tool` ; ✅
@@ -2728,7 +2735,7 @@ Pattern de dépendances pour les computers découplés :
 Helper partagé `wama/converter/utils/inline_convert.py` : `apply_inline_conversion(src, fmt, preset)`
 → réutilise les backends + `quality_presets` du Converter. Appelé en fin de tâche de chaque app.
 ⚠ *(relevé du 2026-10-26)* : les fonctions de câblage par app du tableau ci-dessous (`_apply_output_format`,
-`_apply_enhancer_output_format`, `_apply_anonymizer_output_format`) n'existent plus — les cinq apps
+`_apply_enhancer_output_format`, `_apply_anonymizer_output_format`) n'existent plus — les cinq apps *(six avec l'avatarizer, 2026-11-10)*
 passent par le process « Sortie » COMMUN (`common/utils/output_formats.apply_output_settings`,
 2026-10-03/04, `7bb27699`, `2fa28825`, `299fd30b`). Tableau du 2026-06-02 :
 
@@ -2744,9 +2751,11 @@ Backend testé et migré ; défaut `output_format='original'` = aucun changement
 
 **Anonymizer — option spéciale `'input'`** : reconvertit la sortie vers le format du fichier
 SOURCE (utile si le pipeline a changé le format, ex. .mov → .mp4 imposé par le floutage → reconverti en .mov).
+*Relevé du 2026-11-10* : valeur `input` retirée le 2026-10-28 ; « Original » vaut le format déposé (`detections.rewrite_media`).
 
 **Limites connues :** Imager = images uniquement (vidéo générative au format natif) ; câblage fait sur les
 chemins de création (panneau) — modales settings par-item + globals `start_all` non couverts (suffit pour le cas d'usage principal).
+*Relevé du 2026-11-10* : ces deux limites sont levées par le process « Sortie » commun (schéma `panel`/`item`, vidéo comprise, `wama/imager/params.py:266`).
 
 ### 9.2.bis Pass tracking — infrastructure incrémentale ✅ (livrée ; depuis le 2026-10-04 l'état d'une passe est la ligne commune `ProcessRun`, `d71e24e6`)
 
@@ -2946,7 +2955,7 @@ FR · EN · ES · DE · IT · PT · NL · JA · ZH
 
 ---
 
-### 10.B — Translator runtime : enrichissement + traduction des consignes & sorties ⏳
+### 10.B — Translator runtime : enrichissement + traduction des consignes & sorties 🔄 *(2026-11-10)*
 
 > **Vision.** L'utilisateur s'exprime et visualise WAMA **dans sa propre langue**. L'anglais (ou la langue
 > optimale du modèle) n'est qu'un **pivot interne**. Toute consigne libre (AI-Assistant, prompt SAM3,
@@ -3038,7 +3047,7 @@ produire le prompt optimisé directement dans la langue/format du modèle cible)
 - **Caveat « universel » = best-effort** (FR/EN excellent, ZH/RU/ES correct, langues rares variables) → d'où la couche de transparence.
 
 #### Graine posée (2026-06-21) — Describer
-Branche « direct » de §10.B appliquée au Describer : `image_describer._vision_prompt(output_format, output_language, model)` prompte le modèle vision **dans `output_language`** si le modèle est multilingue (gemma4/qwen), sinon EN (reformaté en aval). Évite la chaîne « caption EN → reformatage FR ». Limite graine : FR/EN seulement (les autres langues → EN ; §10.B complet généralisera via translategemma). Lié au câblage gemma4:12b comme describer ([[project-intelligent-architecture]]).
+Branche « direct » de §10.B appliquée au Describer : `image_describer._vision_prompt(output_format, output_language, model)` prompte le modèle vision **dans `output_language`** si le modèle est multilingue (gemma4/qwen), sinon EN (reformaté en aval). Évite la chaîne « caption EN → reformatage FR ». Limite graine : FR/EN seulement (les autres langues → EN ; §10.B complet généralisera via translategemma). Lié au câblage gemma4:12b comme describer ([[project-intelligent-architecture]]). *(Relevé du 2026-11-10 : `wama/describer/backends/image_backend.py:137`, paramètre `output_style`.)*
 
 #### Compréhension de documents ≠ traduction (décidé 2026-06-21)
 **Distinction clé** : « comprendre un document scientifique (figures, schémas, layout) » n'est PAS un problème de traduction. Traduire le **texte** d'un PDF structuré **détruit** figures/mise en page/explications visuelles. Deux couches :
@@ -3075,7 +3084,7 @@ Branche « direct » de §10.B appliquée au Describer : `image_describer._visio
   traduire un document structuré EN PRÉTRAITEMENT d'une compréhension. Ici la traduction est le
   LIVRABLE, et elle doit justement préserver la structure.
 
-##### Documents (PDF, DOCX…) : garder la forme d'origine — chantier progressif ⏳
+##### Documents (PDF, DOCX…) : garder la forme d'origine — chantier progressif 🔄 *(2026-11-10)*
 
 Intention de Fabien : *« trouver petit à petit le moyen de conserver la mise en forme du document
 d'origine tout en appliquant les traductions au texte, et aux contenus médias (graphes, images…).
@@ -3091,7 +3100,7 @@ Ce qui EXISTE, vérifié dans le code le 16/10 :
 | HTML → PDF fidèle | `common/utils/html_render.py` (Chromium) | ✅ |
 | séparer le FOND de la FORME, et appliquer une forme à un fond | Writer : process `write` / `layout`, port « Modèle de mise en page » (`reference_layout`, lu pour sa FORME) | ✅ |
 | structure des tableaux d'un document | `common/backends/table_transformer_backend.py` (`extract_tables` : image + mots positionnés) | 🔄 brique et tests ; **aucun appelant** hors `reader/tests_table_transformer.py` (relu le 29/10 — la ligne disait ✅ « Reader ») : elle attend les mots POSITIONNÉS d'un OCR |
-| texte d'une image (OCR), puis image rééditée | Reader (OCR) ; Imager (édition d'image, qwen-image-edit) | ✅ les deux apps, ⏳ leur enchaînement pour traduire le texte d'une figure |
+| texte d'une image (OCR), puis image rééditée | Reader (OCR) ; Imager (édition d'image, qwen-image-edit) | ✅ les deux apps, ✅ *2026-10-30* texte d'une figure traduit par OCR, effacement et texte posé (`72a4a9098`) ; ⏳ réédition par modèle d'image : voie non retenue à ce jour |
 | parse structuré des PDF (blocs, figures, ordre de lecture) | Docling, prévu le 21/06 | ⏳ **absent du code** (aucun import) |
 
 Deux voies, complémentaires :
@@ -3250,6 +3259,7 @@ Deux voies, complémentaires :
    d'origine et à leurs appelants (outils `add_to_*`) — aujourd'hui seuls le composer (durée, lue
    côté client) et le Translator déclarent `default_from`. Et à juger sur un VRAI scan, workers
    relancés.
+   ✅ *Relevé du 2026-11-10* : porté le 30/10 (`5a8c17835`) ; `default_from` déclaré aussi par l'anonymizer (`needs_ocr`) et le reader (`has_staves`). ⏳ À juger sur un vrai scan.
    ✅ **Les deux restes du 29/10, soldés le 30/10.** (1) **Deux passages balisés PERMUTÉS** par la
    traduction (DOCX ; le PDF donnait déjà à chaque passage le style de SA balise, quelle que soit
    sa place) : le second rejoignait le morceau d'avant et perdait sa mise en forme — il reçoit
@@ -3353,7 +3363,7 @@ Deux voies, complémentaires :
   `folder_input_id='anonFolderInput'` → `common/_new_item_card_v4.html:207` `webkitdirectory` ; critère
   mesuré `recursive_import`)*
 - **Synthesizer** : ETA par item + ETA global batch ✅ (ETA commune par card et par lot, `d385442b`, 16/10)
-- **Reader** : export batch PDF résultats OCR
+- **Reader** : export batch PDF résultats OCR ✅ *relevé du 2026-11-10 : export au format demandé par la fabrique commune, PDF compris.*
 - **Imager** : galerie des générations passées par utilisateur
 - **Model Manager** : UI affichage VRAM temps réel multi-GPU
 - **AI assistant WAMA** : historique conversations par utilisateur (dépend RAG §8c) — 🔄 store
@@ -3376,7 +3386,7 @@ Deux voies, complémentaires :
 > La formaliser est le levier à plus fort impact ; tout le reste en découle.
 
 Chaque app WAMA expose, en source unique :
-- **Tool API** (`tool_api`, FAIT — 36 outils ; 86 au 2026-10-26, fait `WAMA:FAITS(outils)`) ;
+- **Tool API** (`tool_api`, FAIT — 36 outils ; 86 au 2026-10-26, 127 au 2026-11-10, fait `WAMA:FAITS(outils)`) ;
 - **Capacités modèles** (cloning, langues, modalités, aptitude par tâche, VRAM) — cf. §5b ;
 - **Schéma de paramètres** (`params.py` / `WamaParams`, amorcé Transcriber ; ✅ les 10 apps et
   l'assistant au 2026-10-26) ;
@@ -3398,7 +3408,7 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
 >
 > Divergence assumée vs spec : le canvas est finalement **vanilla JS + SVG** (vérifié
 > 2026-07-20 : aucune lib React Flow/Rete/LiteGraph), pas de réutilisation de lib node-graph.
-> Restes ouverts (repris en Horizons H1.3) : runners restants, sorties → dossier studio,
+> Restes ouverts (renvoi corrigé le 2026-11-10 : `docs/construction/mondes/STUDIO_VISION.md`, « Prochaines marches techniques ») : runners restants, sorties → dossier studio,
 > appliquer une chaîne à une file (batch), entrée « contexte » (gatée RAG §8c).
 > *Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`* : les nœuds ne sont plus seulement
 > des « nœuds-app » (fonctions et source `dataset_input` depuis le 09-09, type `pipeline` prévu) ;
@@ -3407,6 +3417,7 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
 > pipelines sauvegardés visibles au catalogue, glisser-déposer (§10.6 point 5.4) — ✅ livrés le
 > 2026-10-03 (`ccf93023`), ajout au seul glisser-déposer le 07/10 (`a8c54b6a`).
 > Spec d'origine archivée : `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
+> *Relevé du 2026-11-10* : ✅ runners (10 apps, `GENERIC_APPS`) ; ✅ lot côté Studio (`2e73ca7d0`).
 
 ## 16. Grappe IA de DEV + orchestrateur cloud/local (chantier infra — à cadrer)
 
@@ -3621,6 +3632,7 @@ tout de suite »*) :
   🔄 *(relevé du 2026-10-26)* : YuE ✅ (`manifests/libraries/yue.json`, `accelerate==1.12.0`, backend
   `yue2_3b_backend`, `2455615c`/`f7e5e9da`) ; ⏳ ACE-Step 1.5, LongCat-Video, InfiniteTalk,
   SoulX-FlashHead.
+  🔄 *Relevé du 2026-11-10* : ACE-Step 1.5 a sa librairie installée par la route et son manifeste validé (`f0f48c4c5`) ; ⏳ son backend.
 - **D-b — un artefact intermédiaire ÉDITABLE dans une app de génération.** Propre à YuE2, et
   INDÉPENDANTE de D-a. Aucune app ne l'a : partout c'est consigne → sortie, en un coup. La forme
   existe pourtant ailleurs (transcriber : un master puis une correction humaine qui fait autorité).
@@ -3770,6 +3782,7 @@ Décidé le 28/10, en plus :
   du Translator et la forme d'un scan au Reader. ✅ Même jour : le contrat (`read_lines`, docTR)
   et la page scannée de `document_text` (`ocr=`, pixels effacés sous le texte réécrit) — le
   domaine document y trouvera de quoi occulter un scan.
+  ✅ *2026-11-02* : livré, le scan compris, dans le domaine `document` (`fef25cdb0`, `97afa1b64`).
 - **Catégorie de modèle** : `ModelType` gagne `nlp` (la catégorie « Natural Language Processing » de
   Hugging Face — aucun type existant ne convenait : `embedding` aurait fait entrer les détecteurs
   dans le relevé des vectoriseurs) ; tâche `pii-detection` ↔ tag HF `token-classification`.
@@ -3794,6 +3807,7 @@ Recherche complète du 28/10 (Hub, PyPI, GitHub ; chiffres d'éditeurs, une mesu
   relu à la main fera foi (`WAMA_QUALITE`).
 - PyMuPDF 1.27.2.2 est dans le venv HORS route ; sa 2.0 dépend d'`onnxruntime` — à figer en 1.27.x
   par un manifeste `library`.
+  ✅ *Relevé du 2026-11-10* : figée et installée par la route (`4828335d7`).
 
 Ordre : librairies par la route → catalogue (`nlp`, `pii-detection`, lignes) → contrat
 `pii_detection_base` (+ `TASK_CONTRACTS`, `SMOKES`) AVANT les backends → détecteurs → brique
@@ -3916,7 +3930,7 @@ quand même trahirait celui de l'utilisateur.
 **Principe directeur : NE PAS reconstruire le « runtime » — WAMA l'a déjà à ~70 %.** Une étude externe proposait de bâtir orchestrateur/scheduler/MCP/router/mémoire from scratch en 5 phases. Mapping réel de l'existant :
 - Model Router → `model_selector.select_model()` (VRAM-aware, keep_loaded, capacités).
 - `ModelCapability` → `AIModel.capabilities` (peuplé).
-- MCP layer → `tool_api.py` (TOOL_REGISTRY, 36 outils ; 86 au 2026-10-26).
+- MCP layer → `tool_api.py` (TOOL_REGISTRY, 36 outils ; 86 au 2026-10-26, 127 au 2026-11-10).
 - Scheduler → Celery Beat. Dev Cluster → `wama-dev-ai`. Exec cloud/local → LiteLLM (`llm_gateway_check`).
 - Research agent (cœur) → détecteur `check_model_updates`. Memory → ChromaDB + MEMORY.md (*au relevé du 20/06 ; réel : `wama/common/memory/`, pgvector +
 plein texte*).
@@ -4071,7 +4085,7 @@ imager gardées vs supprimées (préférence), prompts enrichis acceptés vs ré
 > détecter erreurs et **redondances**.
 
 **Le formalisme est déjà là : c'est le MANIFESTE.** Ne pas en définir un troisième. Les 6 kinds
-(`app`, `model`, `dataset`, `function`, `pipeline`, `project` — plus `library` à créer) décrivent
+(`app`, `model`, `dataset`, `function`, `pipeline`, `project` — plus `library`, créé depuis ce cadrage, *relevé du 2026-11-10*) décrivent
 déjà formellement chaque entité. Les deux outils sont donc des **CONSOMMATEURS** de la chaîne
 existante `manifeste → ingest → registres → mécanismes`, pas de nouvelles sources. C'est ce qui
 les empêche de devenir eux-mêmes des mécanismes concurrents.
@@ -4714,6 +4728,7 @@ COMPORTEMENT (grille + smoke Playwright + endpoints sur l'app générée), jamai
 textuel ; PROLONGEMENT du roundtrip existant (même corpus, même gate consistency), pas un
 2ᵉ mécanisme. Candidat n°1 : converter (93 %, zéro modèle IA) ; sinon reader. Bénéfice :
 même sans finir les ports à la main, la boucle générer→diff→corriger-le-manifeste converge.
+✅ *Marqué le 2026-11-10* : pilote converter du 2026-08-11 (`app_regen_check`, jumelle `converter_01`).
 
 **② Surfaces de TRAVAIL déclarées** — les apps exigent souvent une UI dédiée complémentaire
 (édition médias, correction transcription, édition texte). Germe EXISTANT : la page de
@@ -4723,6 +4738,7 @@ primitives requises — forme d'onde, synchro texte, recadrage, diff…) + petit
 primitives d'édition vendorées que les manifestes composent. Le pipeline « cloner une app
 GitHub → l'observer au Playwright → transposer » = récolte de PRIOR-ART UX (précédent
 MusicVideoGenerator), pas une transposition automatique (colle spéculative).
+🔄 *Marqué le 2026-11-10* : registre `common/surfaces.py` et facette `surfaces` rendue par `codegen/surfaces_gen.py` ; ⏳ aucun manifeste d'app réelle ne la porte encore.
 
 **③ Portage wama-lab** — EN DERNIER : la valeur des apps lab EST leur UI dédiée ; ② est le
 prérequis (sinon on les aplatit dans le moule card-centric ou on re-code du spécifique).
@@ -4837,6 +4853,7 @@ Ce que dit la mesure :
    moteur, à décider avec ce chantier ; ③ ffmpeg, pandoc, Chromium sont des outils système (strate
    3, `WAMA_MANIFEST_SPEC §7.4` point 5) — ⏳ ; ④ Pillow n'est PAS un trou de la règle : la
    dérivation le trouve (`['PyMuPDF', 'pillow']`), le manifeste du corpus était seulement périmé.
+   ↳ *Relevé du 2026-11-10* : `requires` porte aussi pdf2docx, pillow, playwright, py7zr, pypandoc, rarfile, weasyprint (`b9081fe64`) ; ffmpeg, pandoc et Chromium restent non déclarés.
 
 **Piste retenue pour étude — deux étages, le CŒUR et les APPS.** Fabien : empaqueter WAMA entier
 pour un convertisseur n'a pas d'intérêt ; produire séparément le cœur et les apps, si. C'est
@@ -4887,7 +4904,7 @@ sous-ensemble, multi-nœud.
 
 **Intention.** Utiliser WAMA depuis un canal de discussion — deux usages distincts :
 1. **Usage utilisateur (labo)** : déposer un fichier, lancer une tâche, suivre son statut,
-   récupérer la sortie — soit exactement ce que l'AI-Assistant sait déjà faire (48 outils).
+   récupérer la sortie — soit exactement ce que l'AI-Assistant sait déjà faire (48 outils ; 127 au 2026-11-10).
 2. **Usage développeur (Fabien, depuis smartphone)** : lancer des audits/cartographies à
    wama-dev-ai, et déclencher des tâches Claude Code — surface SÉPARÉE et verrouillée.
 
@@ -5166,6 +5183,7 @@ de provenance `assistant`, non approuvé) — la seule jonction utile entre les 
 > **autre chose** : des souvenirs et des fragments RAG, écrits par `sync_memory` — et
 > `PROV_ASSISTANT` (`common/models.py:629`) n'a **aucun producteur**, donc aucun tour de chat
 > n'y entre. Il ne faut pas compter sur un store déjà prêt : il est **entièrement à écrire**.
+> *Relevé du 2026-11-10* : producteur `remember_fact` ; la projection d'un fil clos reste à faire.
 >
 > Ce que le chantier mémoire apporte quand même, et qu'il faut réutiliser : `ScopedVisibility`
 > (gouvernance multi-utilisateur héritée), `Embedded`, `content_hash`, et le `recall()`
@@ -5217,7 +5235,7 @@ inutile (enrichir un prompt déjà enrichi) ou un assistant sans posture :
 `science` (RAG), `design` (RAG), `dev` — **5** depuis le 2026-08-29 : + `investigation` (web, sans
 RAG, `e23ef2d4`) — **7** depuis le 2026-10-29 : + `critique` et `methodology` (postures de
 réflexion non annoncées, `announced=False`, `WAMA_HARNESS §7.4`, `347bf7e6`) ; un 8ᵉ, `models`
-(2026-10-30), est dans l'arbre de travail, non commité au 2026-10-31 (`assistant_skills.py:65-92`). Ajouter un domaine = une entrée au registre + un
+(2026-10-30), est dans l'arbre de travail, non commité au 2026-10-31, commité depuis (`1f812587b`, relevé du 2026-11-10) (`assistant_skills.py:65-92`). Ajouter un domaine = une entrée au registre + un
 fichier `assistant-<clé>.md`, **aucune vue à modifier**.
 
 **Le contexte du laboratoire** est ce qui rend l'assistant « du labo » plutôt que générique —
@@ -5240,6 +5258,7 @@ lui-même sa compétence par l'outil `charger_competence` (`tool_api.py:2838`), 
 `tool_api.py:2859-2862` écarte explicitement la déduction par le nom d'un salon. `domains_for_ui`
 (`assistant_skills.py:108`) n'a toujours aucun appelant hors test. Retirer ces deux ⏳ (ou garder
 le sélecteur UI comme doublure de l'outil) est une décision de Fabien.
+↳ *2026-11-10* : le choix manuel existe aussi par `/competence` (`f5400183c`) ; la décision du sélecteur UI reste à Fabien.
 
 ### 19.6 ⚠ CONTRAT À DÉFENDRE entre les 3 chantiers de l'assistant (posé le 2026-08-21)
 
@@ -5428,6 +5447,7 @@ déclarant leur ETA a une barre sans ETA d'amorce dans l'échange. Le remède es
 `eta_for` sont déclarés à leur `make_progress_views`) : un chantier, pas un correctif.
 *(Un visiteur sans compte reçoit 200 et une liste vide : l'assistant est une app PUBLIQUE, le
 middleware lui donne une identité éphémère — la règle d'`ai_chat`, pas une fuite.)*
+↳ *Relevé du 2026-11-10* : aucune app ne déclare plus `eta_for` ; l'écart d'ETA est sans objet, reste la double lecture de la progression.
 ✅ **Et les FACES de l'élément sous sa barre, le 2026-10-28** (Fabien : *« intégrer la preview dans
 l'échange avec l'assistant pour avoir le rendu preview — entrée/during/comparaison/sortie »*) : la
 ligne porte l'adresse d'aperçu commune (`job_progress.preview_url`) et monte l'afficheur de faces
@@ -5560,6 +5580,7 @@ clôture DÉCLARÉE, `close_interrupted`, que `_mark_reconciled` emprunte : la f
 s'écrivent par le journal ; la page du model manager réconcilie à l'ouverture, une installation
 n'ayant pas de propriétaire). ⚠ Le champ demande sa migration (`model_manager/0033`, sur le disque
 comme toutes les migrations) AVANT la relance.
+✅ *Appliquée, WAMA relancé (clôture du 2026-11-07 ; relevé du 2026-11-10).*
 
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) 🔄 *(relevé du 2026-10-26)*
 
@@ -5644,6 +5665,7 @@ l'assistant est celui des apps (`wama/assistant/params.py`, `wama/views.py:85-88
 choisit comme MODÈLE (`claude_code:*`), le fournisseur se dérive du modèle ; `abonnement_visible`
 a disparu (0 occurrence dans `wama/`) ; la garde reste `claude_code.subscription_allowed`
 (`claude_code.py:119`).
+Discord aussi (relevé du 2026-11-10) : sans fournisseur imposé, le tour lit le réglage de l'utilisateur, sinon le tirage « auto » (`assistant_engine.resolve_turn_model`).
 
 - ⚠⚠ **Deux avertissements distincts, longtemps confondus** (question de Fabien, tranchée le
   31/08) — ils ne parlent PAS de la même chose :
@@ -6452,10 +6474,11 @@ item ET lot · tests des presets recalés au nouveau modèle.
 gif_fps/gif_width inertes — mineur, à filtrer par visibilité) · l'étalement du preset au
 clic côté GÉNÉRÉ s'émet avec la marche B · le reset des AUTRES apps (synthesizer a le sien,
 maison, volet seul) converge sur la brique avec la généralisation des profils (§22).
+↳ *Relevé du 2026-11-10* : le synthesizer passe par `WamaParams.applyDefaults`.
 
 ### 23.3 Ce qui reste à trancher
 
-- **converter** : 17 réglages → colonnes NULLABLES + migration des valeurs de `options`
+- ✅ *(relevé du 2026-11-10 : colonnes en place, `wama/converter/models.py:105-122`, jumelle comprise ; enhancer aussi)* **converter** : 17 réglages → colonnes NULLABLES + migration des valeurs de `options`
   (properties `options`/`cross_app_options` reconstruites depuis les colonnes, pour que les
   ~8 lecteurs actuels — `resolve_options`, backends, `cross_app`, `gear_data`, chips —
   continuent sans modification) ; **enhancer** : ses 4, même forme.
@@ -6616,6 +6639,7 @@ construit à l'import.* Ce qui manque est ailleurs, et vérifié **par le sens, 
   calendrier (`get_my_calendar`), notifications (`list_my_notifications`), partages
   (`list_my_shares`) — `wama/tool_api.py`. Restent sans outil : annuler, régler (①quater 4 ci-dessous),
   tests nocturnes (①quater 6).
+  ↳ *Relevé du 2026-11-10* : arrêter (`stop_item`) et régler (`update_item_settings`) ont leur outil depuis le 2026-11-02 (`0232c9e73`) ; reste sans outil : les tests nocturnes (①quater 6).
 
 ⚠ Cela nuance la philosophie §5 d'`AGENTS.md` (« chaque app expose son API à l'assistant IA
 (`tool_api.py`) ») : il n'y a pas un `tool_api.py` par app mais **un seul fichier central**
@@ -6666,6 +6690,7 @@ utilisateurs guident l'API). `run_nightly_tests --list` catalogue **14 familles 
 
 **2 familles couvertes sur 14.** C'est la mesure la plus parlante du trou, et elle ne doit rien
 à une opinion : ce sont les gestes que le dépôt teste déjà comme étant ceux de l'utilisateur.
+↳ *Relevé du 2026-11-10 (la mesure ci-dessus reste celle du 2026-09-10)* : `settings`, `duplicate_delete`, `clear_all` et `batch_actions` ont désormais leurs outils.
 
 **① quater — ordre proposé (quick wins d'abord, à valider)**
 
@@ -6706,6 +6731,7 @@ utilisateurs guident l'API). `run_nightly_tests --list` catalogue **14 familles 
    `imager/urls.py:51`… ; l'anonymizer seul manque, critère `settings_route`). Le verbe `settings`
    n'a plus d'obstacle côté apps ; aucun outil de réglage dans `tool_api.py` — la décision reste à
    Fabien (`§25.2`).
+   ↳ *Relevé du 2026-11-10* : l'anonymizer a sa route depuis le 2026-10-31 (`94d81d261`), donc 10 apps sur 10 ; l'outil existe (`update_item_settings`, `0232c9e73`). Vérifier si `§25.2` tient encore.
 5. ~~**Raccordement de `add_to_*`** (① bis) — ⏸ même attente que le point 2.~~ ✅ **FAIT le 2026-09-28**
    (`1d995811` : les outils fichier DÉSIGNENT comme les vues d'upload, voir ① bis).
 6. **Lancer les tests nocturnes** depuis l'assistant (`run_nightly_tests` est une commande de
@@ -6840,12 +6866,12 @@ La distribution ci-dessus, elle, est vérifiable et ne bouge que si le code boug
 
 ### 24.7 Faut-il un mécanisme d'évaluation de la progression ? — **il en existe DÉJÀ trois**
 
-Vérifié avant de proposer quoi que ce soit (`mecanismes.py` : **133 mécanismes**, aucun ne porte
+Vérifié avant de proposer quoi que ce soit (`mecanismes.py` : **133 mécanismes** (*237 au 2026-11-10*), aucun ne porte
 sur la progression ; `vision_probe` concerne la capacité VISION d'un modèle, rien à voir).
 
 | ce qui existe | ce qu'il mesure | généré ? |
 |---|---|---|
-| `check_app_conformity` | **89 critères** × 10 apps — l'ADOPTION du standard d'app | ✅ oui, écrase les booléens déclarés |
+| `check_app_conformity` | **89 critères** (*114 au 2026-11-10*) × 10 apps — l'ADOPTION du standard d'app | ✅ oui, écrase les booléens déclarés |
 | `WAMA_VERIFICATION §3` | le catalogue des **GESTES** exécutables — le FONCTIONNEMENT | partiellement (nocturne) |
 | marquage ✅/🔄/⏳ de la vision | l'avancement par section de vision | ❌ **écrit à la main** |
 
@@ -6996,6 +7022,16 @@ datés vieillissent bien — mais il n'en fait pas la preuve.
 - **Pourquoi la doc avait décroché** : rien ne faisait suivre le STATUT de la section qui planifiait
   un livrable. `/doc-sync §1` (passe courte) est désormais appelée par douze skills (`2eca1fe2`).
 
+### 24.10 Relevé du 2026-11-10 — seconde passe longue, depuis le 2026-10-26
+
+- **Méthode** : sept lectures par tranche (la ROADMAP en six, la vision entière) contre le code et les commits depuis le 26/10, puis chaque preuve relue avant édition, et 26 shas vérifiés. Règle : constat corrigé, intention marquée, trace datée complétée sans être réécrite.
+- **Sections touchées** : la marque ou le relevé des lignes dont le chantier a avancé (couche LLM, gouverneur, sortie commune, documents, Studio, outils de l'assistant, provenance) ; comptes d'outils (127), de critères (114) et de mécanismes (237).
+- **Resté vrai** : aucun lien `.md` ni chemin de code cité n'est absent. Sur la vision, les marques des mondes tiennent, à des compléments près.
+- **Repères de ligne décalés** : `tool_api.py`, `assistant_engine.py`, `model_selector.py`, `model_installer.py`, `mecanismes.py` et quelques autres ont glissé. Sur les traces datées ils ne sont pas réécrits : ils se lisent par symbole.
+- **Non tranché, faute de preuve ouverte** : le bouton ▶ d'un pipeline de fonctions, la tuile Médiathèque de l'Imager et de l'Avatarizer à l'écran, les deux rayons du Cam Analyzer, `folder_input_id` de l'Imager, et la ligne « quatorze sites » du §5b.
+- **Décisions demandées à Fabien, non prises ici** : la condition de Zen (« servi hors du poste », WAMA l'étant déjà sur le réseau interne) ; D-e, l'archétype de surface de la page vidéo ; le sélecteur de domaine, maintenant que `/competence` existe ; si `§25.2` tient encore ; le mot « embryon » du Face Analyzer dans la vision.
+
+
 ## 25. Documentation — trois publics, UNE source de vérité (ouvert le 2026-09-11)
 
 > **Cadre** : `AGENTS.md §Trois docs, trois publics` (la règle) et la règle CONSTAT / INTENTION
@@ -7061,6 +7097,7 @@ réécriture), l'adaptation des skills `/reprise` et `/cloture`, la déclaration
    ↳ *Prémisse levée (relevé du 2026-10-31)* : la route `settings/<int:pk>/` existe sur 9 apps sur
    10 (anonymizer seul manque, critère `settings_route`) ; plus d'obstacle côté apps, la décision
    reste à Fabien.
+   ↳ *Relevé du 2026-11-10* : 10 apps sur 10 depuis `94d81d261` ; la décision sur le verbe `settings` reste à Fabien.
 2. **Puis la révision de fond**, sur les seuls docs qui portent la connaissance (pas
    `PROJECT_STATUS`, pas les changelogs) : marquer audience × type par section, séparer
    constats et intentions, remplacer chaque chiffre recopié par une balise ①.
@@ -7722,12 +7759,12 @@ vocabulaire**. On n'ajoute pas un troisième axe.
 | manifestes, la porte d'entrée de toute capacité | `owner` + `visibility` stockés, bac à sable = `private` (`common/models.py:1069`, `Manifest` ; `visibility` `:1096`) | jamais filtrés, et les portées sont des CODES (CharField) que `scoped_visible_q` ne sait pas lire (`PROFILES_PERMISSIONS §1.6`) |
 | pipelines du Studio | propriétaire seul (`studio/models.py:30`) | la portée |
 
+| briques UI | déclarées dans le code (`common/mecanismes.py`), donc système par construction | une brique d'UTILISATEUR n'a aucun lieu |
+| sélection automatique | `select_model()` (`model_selector.py:505`) | elle ne reçoit pas le compte : un modèle privé y serait choisi pour n'importe qui |
 *(Repères recalés le 2026-10-31 ; le tableau reste la photo du 2026-10-18. Depuis, par les étapes
 ci-dessous : `AIModel` hérite de `ScopedVisibility` (`model_manager/models.py:664`) et `model`,
 `function`, `skill` se décident par la provenance — `KIND_DECISION`, `accounts/permissions.py:135-145`
 —, `library` restant « S3 ».)*
-| briques UI | déclarées dans le code (`common/mecanismes.py`), donc système par construction | une brique d'UTILISATEUR n'a aucun lieu |
-| sélection automatique | `select_model()` (`model_selector.py:505`) | elle ne reçoit pas le compte : un modèle privé y serait choisi pour n'importe qui |
 
 **Le modèle proposé :**
 1. **Tout élément du catalogue a une provenance.** Soit il est **système** : sans propriétaire,
@@ -8042,9 +8079,9 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
      (`common/_owned_row_gestures.html`), que la page des skills emprunte aussi.
    - Détail, voix et service vocal : `WAMA_LLM.md` (vocalisation, 2026-10-27 soir). Gardes :
      `tests_pronunciations`, `media_library/tests/tests_prompt_keywords`.
-5. Les briques UI d'utilisateur et les jumelles : la provenance déclarée, et la promotion par
+5. ⏳ *(2026-11-10 : `apps` et `ui_bricks` toujours au budget `TO_CARRY`)* Les briques UI d'utilisateur et les jumelles : la provenance déclarée, et la promotion par
    déplacement vers `common/`.
-6. La pastille et la facette.
+6. 🔄 La pastille et la facette. *(2026-11-10 : la pastille existe sur les lignes d'auteur, `ownership.provenance_of` ; ⏳ sur chaque card du catalogue, et la facette « mes / système / partagés ».)*
    - **6a. ✅ « Demander la promotion » (2026-10-20, demande de Fabien), avancé avant la
      pastille.** L'état est celui de `Manifest.promotion_requested_at` (étape 2 : *privé est une
      portée, promotion demandée est une demande*), porté par la LIGNE : champ

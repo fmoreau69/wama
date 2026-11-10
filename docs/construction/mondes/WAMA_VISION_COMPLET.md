@@ -19,7 +19,7 @@
 > existe** ; le futur et le conditionnel décrivent ce qui est visé. Chaque partie porte un
 > marquage d'état — **✅ acquis** · **🔄 en chantier** · **⏳ visé** · **📜 doctrine** (acté, pas du
 > code) — daté de la dernière confrontation au code (2026-08-27 pour cette édition ; confrontation complète
-> reprise le 2026-10-26, chaque correction y porte sa date). Le marquage
+> reprise les 2026-10-26 et 2026-11-10, chaque correction y porte sa date). Le marquage
 > de maturité `[ÉTAGÈRE]` (intégration d'outils existants) / `[INGÉNIERIE]` (construction
 > maîtrisée) / `[RECHERCHE]` (problème ouvert, axe de collaboration scientifique) qualifie les
 > ambitions.
@@ -228,6 +228,7 @@ fonctions typées, manifeste de dataset exécutable. Son UI et son application g
 monde Data** (même file que les apps Médias, `WAMA_DATA_WORLD §11.8`) et **entre dans `APP_CATALOG`
 sous le monde `data`** — ses cards portent des pipelines composés de modules
 (`WAMA_APP_GENERATION_ROUTE.md §10.6` point 6.3).
+🔄 *Relevé du 2026-11-10* : les deux premiers plugins graphiques du monde Data (courbes dans le temps, vidéo horloge de l'axe) existent comme briques UI communes (`wama/common/surfaces.py:1017`), employées d'abord par le Face Analyzer ; ⏳ le Data Analyzer.
 
 **Monde Lab 🔄** : les applications scientifiques spécifiques, là où se concentre l'expertise
 difficilement automatisable (voir Partie 7). Sa trajectoire est la décomposition progressive en
@@ -381,6 +382,7 @@ on décrit un pari dont chaque maillon doit être validé.
 (`app_sandbox create --from-manifest`) — Writer (2026-10-01), Translator (2026-10-16, brouillon
 produit par le rôle `app` de wama-dev-ai), deux jumelles entièrement régénérées (2026-10-20) —,
 privées à leur auteur, revues par un humain, jamais promues d'office.
+🔄 *Relevé du 2026-11-10* : depuis les 1ᵉʳ et 2 novembre, une app née d'un manifeste reçoit ses outils et son nœud du Studio par dérivation de sa déclaration, et son créateur ou un administrateur peut l'ouvrir à d'autres développeurs (`request_app_access`, `grant_app_access`) ; elle n'est jamais promue pour autant.
 
 ## 3.6 Exporter une application hors de WAMA ⏳ `[INGÉNIERIE]` — prospectif
 
@@ -442,7 +444,7 @@ avec les cards d'entrée médias et les lignes d'exécution communes (`ProcessRu
 
 Un nœud n'est pas seulement un appel de modèle : il peut représenter une application complète,
 une analyse scientifique, un traitement data, une source de données — et un **pipeline enregistré**
-(type de nœud prévu, précisé le 2026-09-15, ROUTE §10.6 point 3.1). Les **ports typés** sont
+(type de nœud ✅ codé le 2026-11-02, `bc490607d`, ROUTE §10.6 point 3.1 — *corrigé le 2026-11-10*). Les **ports typés** sont
 dérivés des déclarations du catalogue (pas d'adaptateurs écrits à la main côté Studio — c'est le
 **contrat uniforme** : quand une app ne s'y conforme pas, on finit le port de l'app, on n'écrit
 pas d'adaptateur). Les types scientifiques (DataFrame, signaux, embeddings) rejoindront le typage
@@ -473,6 +475,7 @@ skills institutionnels (couplés au RAG organisationnel, ⏳), skills utilisateu
 (`common/utils/assistant_skills.py`, 2026-08-21 ; *+ le 2026-10-29, deux postures de réflexion non
 annoncées, Contradicteur et Méthodologie, chargées par l'assistant ou un sous-agent — §5.7*) ; 🔄 un skill utilisateur a un auteur et une
 portée, et se promeut par un administrateur (2026-10-20).
+*+ le 2026-10-30, un domaine « Modèles » (`wama/common/utils/assistant_skills.py:75`) — relevé du 2026-11-10.*
 
 ## 5.2 La chaîne unifiée du prompt au modèle ✅ (socle) 🔄 (RAG branché, QC)
 
@@ -558,7 +561,7 @@ raisonnement du LLM évite de polluer son contexte avec du formatage.
 
 L'assistant n'est pas le cœur du système : c'est une **interface naturelle** vers les capacités
 existantes. Chaque application expose ses actions via l'API d'outils commune (une cinquantaine
-d'outils au 2026-08-27, **86** au 2026-10-26 — source : `wama/tool_api.py`, `TOOL_REGISTRY`) : comprendre une demande, trouver
+d'outils au 2026-08-27, **86** au 2026-10-26, **127** au 2026-11-10 — source : `wama/tool_api.py`, `TOOL_REGISTRY`) : comprendre une demande, trouver
 l'application, construire le traitement, le lancer, synthétiser. C'est le même pivot que le
 Studio utilise pour exécuter ses nœuds — **un cerveau, N surfaces**. *(2026-10-26 : la boucle
 enchaîne jusqu'à huit appels d'outils par tour, `assistant_engine.MAX_TOOL_ITERATIONS`, avec
@@ -573,6 +576,7 @@ Code, qui tourne sa propre boucle. Ce que le profil autorise en matière d'expos
 soit offert. Qu'un modèle sache vraiment appeler un outil se MESURE avant de le déclarer
 (`llm_gateway_check --tools`) ⏳ — ILaaS, le principal cloud souverain, à mesurer sur ses six
 modèles à la sortie de sa maintenance.
+✅ *Relevé du 2026-11-10* : ILaaS mesuré le 2026-10-26 à sa sortie de maintenance, cinq modèles sur six déclarés `native_tools` (`2c1fcacdb`) ; ⏳ `mistral-medium-latest` à rejouer (saturé).
 
 **Plusieurs agents pour une demande, une réflexion de RECHERCHE 🔄 (Fabien, 2026-10-29).** Au-delà
 de l'assistant de laboratoire : mener ensemble plusieurs travaux (un audit, une recherche sur le web,
@@ -660,6 +664,7 @@ Réf. : `wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md`.
 Analyse faciale en vidéo expérimentale : expressions, indicateurs physiologiques et
 oculométriques, variables comportementales croisables avec les autres données. L'application
 existe hors catalogue ; son intégration UI/file suit le standard des apps génériques.
+🔄 *Relevé du 2026-11-10* : surface d'analyse en lecture seule (vidéo, six graphes sur l'axe commun), Face Landmarker au contrat commun, DeepFace et FER dans le service TensorFlow (`d6c9fc31a`) ; ⏳ passage à la file commune.
 
 ## 7.3 Vers le Studio ⏳→🔄
 
@@ -827,7 +832,7 @@ seul lieu d'où le lancer).
 
 WAMA participe à sa propre maintenance : tests nocturnes gouvernés par un registre (runner
 VRAM-aware), patches de compatibilité systématisés et rejouables, contrôles mécaniques des docs
-et des gabarits, grille de conformité **mesurée** (82 critères au 2026-08-26, **112** sur 8 facettes au 2026-10-26,
+et des gabarits, grille de conformité **mesurée** (82 critères au 2026-08-26, **112** sur 8 facettes au 2026-10-26, **114** au 2026-11-10,
 rapport écrit par la commande — les booléens déclarés sont écrasés par la mesure).
 
 Doctrine de vérification (`WAMA_VERIFICATION.md`) : **un critère de grille atteste une ADOPTION,
@@ -927,7 +932,7 @@ occultation par libellé entre crochets, forme d'origine conservée ; décisions
 commit `f8ff1641` du 2026-10-28) — par niveau d'hébergement, le geste choisi au profil
 (`UserProfile.cloud_privacy` : pseudonymisation réversible par défaut chez un cloud commercial,
 rien chez un souverain ou un privé) ; détection impossible ⇒ rien ne part ; branchée sur
-`llm_utils.chat_with_source` (`llm_utils.py:863-867`) et l'abonnement Claude Code
+`llm_utils.chat_with_source` (`llm_utils.py:892-896`, *ligne relevée le 2026-11-10*) et l'abonnement Claude Code
 (`services/claude_code.py:320-322`). Hors de sa portée (consigné dans `gate.py`) : les images
 jointes, et les résultats d'outils que le CLI Claude Code obtient par MCP. ✅ *2026-11-02* : le
 domaine document de l'Anonymizer, sur la même brique (`ROADMAP §16.4bis`).
