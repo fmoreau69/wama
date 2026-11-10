@@ -122,6 +122,8 @@ def _is_code_identifier(text: str, span: dict) -> bool:
 
 #: Une date du CALENDRIER écrite en chiffres : ISO (`2026-11-07`) ou jour d'abord (`07/11/2026`).
 _CALENDAR_DATE = re.compile(r'(\d{4})([-/.])(\d{2})\2(\d{2})|(\d{2})([-/.])(\d{2})\6(\d{4})')
+#: Une PLAGE d'années (`2018 - 2021`, `2015-2017`, `2019–2020`) : la période d'un CV, d'un contrat.
+_YEAR_RANGE = re.compile(r'(\d{4})\s*[-–—/]\s*(\d{4})')
 
 
 def _is_calendar_date(text: str, span: dict) -> bool:
@@ -129,11 +131,18 @@ def _is_calendar_date(text: str, span: dict) -> bool:
     `2026-11-07` pour un numéro (score 0,4), dans une phrase comme dans un nom de fichier — la
     tâche confiée à Claude Code est partie avec `model_…_[TÉLÉPHONE_1]_21-46.json`. Une date
     valide n'est jamais un numéro de téléphone ; elle reste une DATE pour qui la détecte comme
-    telle (`DATE_TIME`)."""
+    telle (`DATE_TIME`). Une plage d'années non plus (2026-11-10, CV du document #2297 : chaque
+    période d'emploi occultée en `[TÉLÉPHONE]`) — deux années de 1900 à 2100, la seconde pas avant
+    la première."""
     import datetime
     if span['entity'] != 'PHONE_NUMBER':
         return False
-    m = _CALENDAR_DATE.fullmatch(text[span['start']:span['end']].strip())
+    passage = text[span['start']:span['end']].strip()
+    years = _YEAR_RANGE.fullmatch(passage)
+    if years:
+        first, last = int(years.group(1)), int(years.group(2))
+        return 1900 <= first <= last <= 2100
+    m = _CALENDAR_DATE.fullmatch(passage)
     if not m:
         return False
     year, month, day = ((m.group(1), m.group(3), m.group(4)) if m.group(1)

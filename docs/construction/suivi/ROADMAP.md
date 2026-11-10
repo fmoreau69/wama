@@ -3868,7 +3868,10 @@ eds-pseudo, privacy-filter dès transformers ≥ 5.6 ou par l'ONNX).
   à venir ; la couche `detection_corrections` accepte déjà les `span`, relue à l'occultation) ;
   le contrôle `remaining` ne relit pas un scan (second OCR) ; la mesure WAMA
   — le CV de #2297 la réclame : dates et intitulés de poste pris pour des données (`[DATE]`,
-  `[ORGANISATION]`), une année lue comme `[TÉLÉPHONE]`.
+  `[ORGANISATION]`), une année lue comme `[TÉLÉPHONE]`. ✅ *2026-11-10* : une PLAGE d'années
+  (`2018 - 2021`, `2015-2017`, `2019/2020`) n'est plus un téléphone (`engine._is_calendar_date`,
+  qui écartait depuis le 08/11 une date complète valide) — mesurée avant `PHONE_NUMBER` à 0,4 ;
+  garde `CalendarDateIsNoPhoneTest.test_a_range_of_years_is_not_a_phone`, contre-épreuve rouge.
   ✅ *2026-11-10* : un document reçu par URL NAÎT document — sa nature lue à l'adresse quand elle
   nomme son fichier (brique commune `app_modes.surface_source_nature`, que l'enhancer écrivait en
   ligne), et à l'arrivée du fichier il finit de naître comme un document déposé : réglages de son

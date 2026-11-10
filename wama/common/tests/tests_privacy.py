@@ -169,6 +169,12 @@ class CalendarDateIsNoPhoneTest(SimpleTestCase):
             'Lis wama-dev-ai/outputs/model_huggingface__Org~Name_2026-11-07_21-46.json.'))
         self.assertEqual([], self._phones('Rendez-vous le 2026-11-07, ou le 07/11/2026.'))
 
+    def test_a_range_of_years_is_not_a_phone(self):
+        """2026-11-10, the CV of document #2297: each period of employment was blacked out as
+        `[TÉLÉPHONE]`."""
+        self.assertEqual([], self._phones('Ingénieur études, 2018 - 2021, Univ. Gustave Eiffel.'))
+        self.assertEqual([], self._phones('Période 2015-2017, puis 2019/2020.'))
+
     def test_a_real_phone_number_is_still_found(self):
         """Counter-proof : the exemption is a VALID date, nothing wider."""
         self.assertEqual(['06 12 34 56 78', '+33 6 12 34 56 78'],
