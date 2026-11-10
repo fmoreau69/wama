@@ -5247,14 +5247,19 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
   méta-process du Segmenter, et le bouton Paramètres qui ouvre une modale présentant tous les
   process de segmentation demandés ; de même pour les calculs »*. Ce que la route a déjà : les
   **étages = sous-pipelines** (3.4, le cam_analyzer, `analyse` / `calcul`, déclarés comme
-  pipelines), le **type de nœud `pipeline`** qui en référence un (3.1, ⏳, « laissé à la première
-  session qui en a un besoin réel » — c'est celui-ci), la ligne d'exécution qui le connaît
+  pipelines), le **type de nœud `pipeline`** qui en référence un (3.1 — ✅ codé depuis, marches 1-2
+  le 2026-11-02, surcharge des réglages internes en marche 3 le 2026-11-06), la ligne d'exécution qui le connaît
   (`ProcessRun.KIND_PIPELINE`), la ⚙ d'une ligne de la bande réduite aux réglages de son process
   et les sections par process en accordéon dans la modale (5.1, 2026-10-26), la clé d'instance
   pour un même calcul joué une fois par découpage (décision n°3). ⏳ Proposition, à trancher :
   un méta-process = un nœud `pipeline` par MODULE (Segmenter, Calculator), une ligne sur la card,
   sa ⚙ = la modale commune à une section par sous-process. Conséquence pour la marche 2 : la
   règle « seuls des nœuds fonction composent une card » devra admettre ce nœud.
+  *Précisé le 2026-11-10 (relecture « a-t-on tout consigné ? ») : la marche 3 du nœud `pipeline`
+  donne à cette ⚙ sa forme de DONNÉES (`{<id déployé interne>: {réglage: valeur}}`, celle d'une
+  fille de lot) et son rendu par membre (inspecteur du Studio, rendu commun) ; ce qui reste est la
+  décision elle-même, puis l'ouverture d'`AppPipeline.extended()` au nœud `pipeline` (⏳ listé en
+  fin de marche 2 du 3.1). Toujours à trancher avec la forme de la marche 2 ci-dessus.*
 
 **3.3 Réglages et péremption.** Chaque process porte le schéma de SES réglages (le `params.py` de
 l'app pour un process d'app, `FunctionSpec` pour une fonction) et la liste des réglages qu'il
