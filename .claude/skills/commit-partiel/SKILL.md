@@ -119,6 +119,15 @@ blob venait d'une lecture plus ancienne encore. ✅ Le blob se compose DANS le s
 depuis `git show $BASE:<fichier>` + le bloc, jamais d'un fichier préparé plus tôt ; et après le
 commit, `git diff --numstat HEAD~1 HEAD -- <fichier>` doit montrer **0** suppression pour un ajout
 de bloc.
+🔴 **`PROJECT_STATUS` n'est JAMAIS un fichier « propre », même quand son diff l'était** (vécu le
+2026-11-10, `df1c11517`, refait en `46625c013`). Geste : `git diff --quiet` vide, bloc ajouté à la
+fin de l'ARBRE, puis `git commit <PROJECT_STATUS>` par chemin. Entre les deux, une autre session a
+écrit 21 lignes dans l'arbre (emportées sous mon message), et deux autres avaient commité leurs
+blocs par index temporaire sans que l'arbre les porte encore à la fin : mon bloc s'est retrouvé au
+MILIEU de HEAD, avant des blocs plus anciens que lui. La fin de l'arbre n'est pas la fin de HEAD.
+✅ Toujours la forme ci-dessus (blob `$BASE` + bloc, dans le script du commit) ; l'arbre se
+réaligne ensuite à part : retirer le bloc de là où il est, le poser après la dernière ligne qui est
+à soi, et exiger que `git diff -U0 HEAD -- <fichier>` ne montre plus que le travail d'autrui.
 
 ## 2. Si l'index n'est PAS vide au départ
 
