@@ -109,6 +109,17 @@ autre ; le hunk affiché comme `@@ -N,5 +N,20 @@` au lieu de `@@ -N,0 +N,20 @@` 
 ⭐ *La règle « aucun commit depuis l'index partagé » a une sœur : aucune écriture depuis une
 lecture périmée.*
 
+🔴 **Et un BLOB recomposé (« HEAD + mon bloc ») est une lecture comme une autre** (vécu le
+2026-11-10, `241c99eda`). Le blob de `PROJECT_STATUS` avait été composé depuis le HEAD d'avant une
+suite de tests de 20 minutes ; le commit, posé sur le HEAD d'après (`commit-tree -p $BASE`, BASE lu
+au moment du commit — juste), a ainsi REMIS le journal dans son état d'avant : le bloc « témoins
+du Face Analyzer », commité entre-temps par une autre session, a disparu — rétabli par elle
+(`c874157e4`). La garde « HEAD n'a pas bougé depuis le `read-tree` » ne pouvait rien voir : le
+blob venait d'une lecture plus ancienne encore. ✅ Le blob se compose DANS le script du commit,
+depuis `git show $BASE:<fichier>` + le bloc, jamais d'un fichier préparé plus tôt ; et après le
+commit, `git diff --numstat HEAD~1 HEAD -- <fichier>` doit montrer **0** suppression pour un ajout
+de bloc.
+
 ## 2. Si l'index n'est PAS vide au départ
 
 C'est le WIP stagé d'une autre instance. Deux issues, jamais une troisième : **attendre** son
