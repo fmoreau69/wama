@@ -3334,6 +3334,10 @@ Deux voies, complémentaires :
 - **wama-dev-ai** : ajout outil `web_fetch(url)` pour veille modèles sans cron séparé
 - **Describer** : intégration `Llama-3.1_OpenScholar-8B` — à benchmarker vs Qwen3.5:9b sur corpus Lescot avant décision
 - **RAG** : connecteur Isidore API (SHS francophones) comme source d'enrichissement secondaire (§8c Phase 2+)
+- **Composer / lecture MIDI d'une partition** : comparer à l'oreille GeneralUser GS et MuseScore General
+  sur de vraies partitions, n'en retirer une que si l'autre l'emporte nettement ; à part, **de meilleures
+  librairies et instruments virtuels**, rien d'ouvert (Fabien, 2026-11-09 — `PROSPECTION_PIPELINE.md
+  §Session du 2026-11-08`)
 
 ---
 

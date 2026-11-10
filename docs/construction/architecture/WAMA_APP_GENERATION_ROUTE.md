@@ -934,6 +934,11 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         navigateur du lecteur. `WamaScore.retime(…, pas)` en fraction de ronde, ramenée à l'unité
         `L:` en vigueur (`unitAt`) ; plus fin que l'écrit, des durées fractionnaires (`A/2`) ; un
         silence plus court que le pas ne le cède pas (refus dit).
+        ✅ **2026-11-08 — LA PARTITION SE LIT EN MIDI (décisions de Fabien, détail et mesures :
+        `PROSPECTION_PIPELINE.md §Session du 2026-11-08`)** : le noyau des surfaces gagne
+        `ctx.addSource` — une lecture rendue dans la page devient une version du transport commun —,
+        le menu « Exporter » gagne « Audio WAV — <banque> » (route `…/audio/`, FluidSynth), et le
+        MIDI d'une partition n'a qu'UNE écriture, `WamaMidiPlayer.midiBytes` (mécanisme `midi_reading`).
         ✅ **2026-10-26 — ENTRÉE et SORTIE (décisions de Fabien : « la partition doit refléter
         l'audio d'entrée », « on propose les deux », « une partition importée est affichée à la
         place de celle d'un cover », réduction pour YuE2)** : la partition complète (`parts`) lit

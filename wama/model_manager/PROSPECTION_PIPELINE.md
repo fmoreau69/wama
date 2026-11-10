@@ -4482,12 +4482,19 @@ et bretelles… »* ; *« on ajoute bien les sources dans le registre des source
   les canaux 0, 1, 3, 4, batterie sur le 9. Rendus de la page : GeneralUser GS 11 s, MuseScore
   11 s, abcjs 4 s ; serveur : 4,5 s et 10 s. ⚠ abcjs sort environ trois fois plus fort (RMS 10241
   contre 3600), à compenser à l'oreille.
+- **Relu à la revérification (2026-11-10)** : abcjs n'a qu'UN instrument par piste, posé en tête
+  (`endTrack`), le dernier déclaré l'emporte ; une piste qui n'en déclare aucun hérite de celui de
+  la précédente (`startTrack`). Reporter l'instrument sur le canal de la piste suffit donc.
+  Écrêtage des rendus FluidSynth de la card 880 au gain 0,8 : GeneralUser GS aucun (crête 31 235),
+  MuseScore General 72 échantillons au plafond sur 3 min 40, plus long plateau 7 échantillons :
+  négligeable, le gain reste.
 
 ⏳ **Reste** : relancer « Partition complète » sur une card pour que sa partition porte ses
 instruments (les réduites, à deux voix sans instrument déclaré, restent au piano) ; l'écoute
 COMPARÉE sur de vrais exemples, et retirer une banque seulement si l'une l'emporte nettement ; à
 part, un chantier distinct (Fabien, 2026-11-09) : de meilleures librairies et instruments
-virtuels ; la vue ABC d'une partition MIDI/MusicXML fournie
+virtuels ; un outil d'assistant pour l'export WAV (le MIDI s'écrit dans la page, aucune écriture
+ABC → MIDI côté serveur : décision à prendre) ; la vue ABC d'une partition MIDI/MusicXML fournie
 sur la page d'édition (défaut relevé plus haut) ; la lecture MIDI sur la page de partition du
 Reader (elle n'a pas de transport).
 

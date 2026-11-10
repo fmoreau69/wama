@@ -29719,3 +29719,42 @@ recalés le soir même sur la lecture des fonctions d'utilisateur, l. 2122-2125)
 `tests_mecanismes_scan` rouge (`tests_score_reading.py` à deux propriétaires, session partition).
 **Restes du portage** (`ROUTE §11 #41`) : la glu (marche B), la seconde famille de l'enhancer, le
 process « Sortie » de l'avatarizer, les déclarations des apps nées — décisions.
+
+## §PALIER 2026-11-09 (soir), revérifié le 10/11, « LES DEUX BANQUES SE COMPARENT SUR DE VRAIES PARTITIONS ; CHAQUE INSTRUMENT SUR SON CANAL ; L'EXPORT WAV JOUÉ » — `bf17c56b0`, `f0b6534c3`, ce commit (locaux, non poussés) — 🔚 relancer « Partition complète » puis comparer à l'oreille
+
+Détail et mesures : `PROSPECTION_PIPELINE.md §Session du 2026-11-08` (« Décisions de Fabien et
+livraison ») ; mécanisme `midi_reading`.
+
+- **FluidSynth** : l'installation a échoué en 404 (`libinput10`, `libpcre2-16-0` : index périmé,
+  paquets tirés par les seuls recommandés). Installé par `apt-get update` puis
+  `--no-install-recommends` (7 paquets au lieu de 41, version 2.3.4) ; la commande que WAMA donne
+  est désormais celle-là (`midi_render.INSTALL_COMMAND`, `tools/install_wama.sh`, `bf17c56b0`).
+- **Export WAV joué au navigateur**, par le menu « Exporter » : GeneralUser GS 0,9 s, MuseScore
+  General 10 s, stéréo 44,1 kHz 16 bits, non muets, aucune erreur console.
+- **Décision de Fabien (2026-11-09)**, après écoute de deux extraits de quelques notes de piano
+  (MuseScore lui a semblé meilleur, insuffisant pour trancher) : *« garder les 2 et de pouvoir
+  sélectionner l'un et l'autre sur de vrais exemples dans le composer. Si l'un est vraiment
+  meilleur, on pourra retirer l'autre. En attendant, on teste les 2. On pourra aussi peut-être
+  trouver de meilleures librairies et instruments virtuels à terme, mais c'est un chantier à
+  part. »* Le choix existe déjà : transport et menu « Exporter » de « Éditer la partition ». Le
+  chantier à part est noté au `ROADMAP §13`, rien d'ouvert.
+- ✗ **Défaut trouvé sur la card 880 (5 voix)** : abcjs 6.4.4 écrit tout changement d'instrument
+  sur le canal 0 ; lecture, WAV et `.mid` exporté jouaient le mauvais son. `midiBytes` reporte
+  chacun sur le canal de sa piste (`f0b6534c3`, garde V8, contre-épreuve rouge).
+- ⚠ **Limite à connaître pour l'écoute** : les 23 partitions existantes n'ont aucun `%%MIDI
+  program` (écrit depuis `0e631c4cc`) et jouent au piano, batterie à part ; les réduites resteront
+  au piano. abcjs sort environ trois fois plus fort que les banques : comparer à niveau égal.
+- **Revérification du 10/11** : `tests_sound_banks`, `tests_midi_score` et les gardes transverses
+  (`tests_theme`, `tests_test_layout`, `tests_install_route`, `tests_hf_cache_routing`,
+  `tests_tool_api_coverage`) verts, 177 tests. `tests_identifier_language` a rougi une fois
+  (noms de tests 1289 > 1286) sur un état de l'arbre porté par d'autres sessions ; aucun nom
+  français neuf dans les fichiers de test de cette session, et remesuré ensuite : 1286, égal au
+  budget. `check_docs` : 0 cassée sur 3991. `doc_facts --check` : `WAMA_MECANISMES` et
+  `dev-briques` à régénérer pour le travail en cours d'autres sessions, rien de cette session
+  (le mécanisme est déjà dans HEAD).
+- ⏳ **Écart consigné, décision à venir** : l'export WAV n'a pas d'outil d'assistant. Le MIDI s'écrit
+  dans la page (abcjs) et WAMA n'a aucune écriture ABC → MIDI côté serveur ; la route `…/audio/`
+  n'a pas de segment `api/`, donc `tests_tool_api_coverage` ne la compte pas.
+- 🔚 **Gestes de Fabien** : relancer « Partition complète » sur une card (la 880 a toujours son
+  morceau d'entrée ; calcul GPU) ou importer un MIDI à vrais instruments, comparer les banques,
+  n'en retirer une que si l'autre l'emporte nettement.
