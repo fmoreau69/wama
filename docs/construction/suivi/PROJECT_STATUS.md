@@ -30335,3 +30335,42 @@ de ce périmètre : `tests_backend_deprecation`, `tests_manifest_library`, `test
   garde le service de confidentialité dans `WAMA_SERVICES_AT_START` (préchauffage au démarrage
   inchangé) ; `1a958e24d` et `a27e73918` touchent le domaine image, `c84b824d2` et `79c2284cf`
   passent des noms à l'anglais — rien ne contredit ce bloc.
+
+## §CLÔTURE 2026-11-10, « PORTAGE ET JUMELLES : LE DOMAINE AU-DESSUS DE LA PAGE ? — QUESTION OUVERTE, ÉTAT DE L'ART, INTERFACE SPATIALE » — rien d'implémenté — 🔚 session neuve de CONCEPTION (+ concile) : où se choisit le domaine
+
+Suite du palier du 09/11 (`3b781f11a`). La session Anonymizer Docs a transmis, à la demande de
+Fabien, les restes du domaine `document` de l'anonymizer_01 côté générateur (`ROUTE §11 #42` ⑦,
+`ROADMAP §16.4bis`) ; trois vérifiés au code (`function_specs_gen.py:15`,
+`anonymizer/function_specs.py:137-151`, `views_gen.py:387`). **Aucun n'a été traité** : Fabien a
+posé la question de fond qu'ils supposent.
+
+- **La question** : le domaine doit-il englober File d'attente, Console, À propos et Aide ? Mesuré :
+  seuls la file et le volet droit suivent le domaine ; À propos, Aide et Console sont PAR APP
+  (`app_about.py` et `console.js` n'ont aucune notion de domaine) ; deux lignes d'onglets et un
+  compte redit (« File d'attente [50] » / « Image/Vidéo [50] ») ; le domaine retenu par navigateur,
+  hors de l'URL. **Direction pressentie par Fabien** : un domaine explicite partout, aligné entre les
+  mondes et la génération ; **écartées** : des apps séparées par nature.
+- **État de l'art** (trois recherches, sources dans les docs) : une seule ligne d'onglets ; le
+  sélecteur de PORTÉE dans le titre (Vercel, Notion, Linear), la palette scopée (GitHub), Firefly
+  (espaces Image / Vidéo / Audio) ; flèches, swipe et carrousels peu découvrables. **Recommandation
+  de la session** : le domaine AU-DESSUS de la page et devenu une ADRESSE (URL par domaine, retenu par
+  compte), le TITRE comme sélecteur (« Anonymizer · Document ▾ »), les mêmes liens dans le menu Apps
+  (sous-menu déjà possible, cas « Bac à sable ») ; la page d'un domaine = celle d'une app
+  mono-domaine. Consigné : `docs/construction/ui/MODES_QUEUE_UX.md §2ter`.
+- **L'interface entière, progressivement 3D et spatiale** (demande de Fabien : holographique,
+  mains, gestes, regard, tout support) : aucune app de productivité web à navigation globale 3D
+  n'existe ; une app web bien construite est déjà pilotable au regard + pincement dans les
+  navigateurs de casque ; principes en quatre couches (DOM = vérité → CSS 3D / View Transitions →
+  îlots WebGL → casque), une même structure rendue en 2D ou en spatial depuis les métadonnées ;
+  huit pistes (prisme de domaine, aperçu en relief, constellation sémantique…). Consigné :
+  `docs/construction/ui/WAMA_SCENES_3D.md §3.7` et §7 point 5.
+- **Suspendus jusqu'à la décision** : les restes ⑦ (a)-(d) de l'anonymizer_01 ; ne PAS recopier des
+  onglets de domaine dans le gabarit généré — si le domaine monte dans le socle, les jumelles en
+  héritent. La glu des jumelles (marche B), la seconde famille de l'enhancer, le process « Sortie »
+  de l'avatarizer et les déclarations des apps nées restent aux décisions de `ROUTE §11 #41`.
+
+**🔚 Point d'entrée de la session neuve** : relire `MODES_QUEUE_UX.md §2ter` (constat, options,
+« À trancher ») ; mesurer d'abord le RATTACHEMENT modèle ↔ domaine (rien ne le déclare) et l'origine
+des lignes de la Console ; proposer des maquettes avec le plugin `frontend-design`, juger sur la page
+servie (`/smoke`) ; concile quand les ressources se libèrent. 🔴 Si ce n'est pas fait : relancer
+gunicorn + workers avant la sonde de nuit (palier du 09/11). Rien n'est poussé.

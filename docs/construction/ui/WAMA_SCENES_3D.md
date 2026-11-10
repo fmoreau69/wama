@@ -218,6 +218,108 @@ le Face Landmarker du Face Analyzer : la découverte d'une ligne DÉCLARÉE hors
 pas de licence. Trou du catalogue, préexistant, non ouvert ici ; il fait compter ces deux modèles en
 « inconnue » dans l'audit des licences.
 
+### 3.7 L'interface ENTIÈRE, progressivement 3D et spatiale — veille et pistes (Fabien, 2026-11-10) ⏳
+
+> Rien n'est décidé ni implémenté. Né de la question du choix du domaine
+> (`MODES_QUEUE_UX.md §2ter`) : *« on pourrait imaginer que les pages soient des objets 3D à
+> facettes, chaque face un domaine, avec un effet de bascule […] et à terme de la manipulation avec
+> le mode main »*, puis élargi par Fabien à l'interface complète de WAMA : *« une interface web
+> holographique 3D manipulable avec les mains, les gestes, le regard […] comme dans Minority Report
+> ou plus récent »*, **à condition de garder une expérience optimale sur tout support (PC, Mac,
+> tablette, smartphone, VR), en Responsive Web Design**. Recherche du 2026-11-10 ; les sources sont
+> LUES sauf mention. ⚠ Ce fichier couvrait jusqu'ici les vues 3D des DONNÉES ; cette section l'étend
+> à l'interface — si le chantier s'ouvre, sa place (ce fichier ou un domaine propre) est à décider,
+> avec sa ligne dans la table des domaines d'`AGENTS.md`.
+
+**Ce qui existe déjà dans WAMA** : three.js vendorisé et monté partout (importmap de `base.html`,
+pour l'avatar de l'assistant) ; le registre des scènes (§4) ; les MAINS à la webcam, universelles
+(pointeur, pincement = clic) et déclarées par page (§3.6) ; les gestes au doigt (`wama-gestures.js`,
+`ROADMAP §27`). Rien pour le REGARD, WebXR ou un casque.
+
+**Ce que disent les plateformes spatiales** — elles convergent : *l'œil vise, la main reste basse
+et confirme* :
+- visionOS (HIG Spatial layout, https://developer.apple.com/design/human-interface-guidelines/spatial-layout) :
+  pas de contenu ancré à la tête, pas de profondeur sur le TEXTE, peu de changements de profondeur,
+  gestes INDIRECTS (regarder + pincer, main au repos), cibles à 60 pt d'entraxe (un point y est un
+  angle) ; les « ornaments » accrochent les barres d'outils au bord d'une fenêtre ;
+- Meta Horizon (https://developers.meta.com/horizon/design/hands-ui-best-practices/) : cibles ≥ 22 mm,
+  commandes fréquentes dans la moitié BASSE, aucun bouton qui bouge au survol, un retour sonore et
+  visuel à chaque sélection (pas d'haptique) ; plus de 60 % des usages Quest 3 passent par le
+  navigateur et des panneaux 2D ;
+- Android XR (https://developer.android.com/design/ui/xr/guides/spatial-ui) : « Material Design for XR »
+  reprend les MÊMES composants Material 3, spatialisés sur casque — la même interface, une projection
+  de plus ;
+- la fatigue du bras levé (« gorilla arm ») se mesure (Consumed Endurance, CHI 2014 ; NICER, 2024).
+
+**Ce qui marche AUJOURD'HUI dans un navigateur** :
+- WebXR : Quest Browser (mains par défaut), Chrome sur Android XR (Hand Input, ancres), Safari
+  visionOS en `immersive-vr` (le pincement arrive en « transient-pointer ») ; pas Safari iOS/macOS,
+  pas Firefox ;
+- l'élément HTML `<model>` (visionOS 26 : relief sur casque, rendu 2D ailleurs) ; le « Spatial CSS »
+  de WebKit reste une proposition ; **WebSpatial** (https://webspatial.dev/docs, présenté au W3C le
+  2025-11-10) : de petites extensions HTML/CSS — la MÊME app rendue en page ordinaire, spatialisée
+  sur casque — l'approche la plus proche du principe métadonnée-driven de WAMA ;
+- HTML-in-canvas (essai Chromium, avril 2026) : du DOM dessiné dans une scène 3D en restant dans
+  l'arbre d'accessibilité ;
+- la View Transitions API est disponible dans tous les navigateurs majeurs (fin 2025) : une bascule
+  animée sur le DOM RÉEL, sans WebGL ;
+- **le fait principal** : une app web bien construite est DÉJÀ pilotable à la souris, au doigt et au
+  regard + pincement — Safari visionOS, Quest Browser et Chrome Android XR traduisent le pincement en
+  clic. ⚠ Une page web ne reçoit JAMAIS le regard sur visionOS (vie privée : le survol est dessiné
+  par Safari).
+
+**Sans casque** : MediaPipe (déjà vendorisé, §3.6) pour la main ; le regard par webcam (WebGazer) a
+2 à 3,7° d'erreur (~100 px) et dérive — utilisable pour une ZONE, jamais un bouton, et le projet n'est
+plus maintenu ; Google Project Gameface (tête + expressions) en fait un outil d'ACCESSIBILITÉ.
+
+**Minority Report, et ce qu'on en a retenu** : John Underkoffler (conseiller du film) a construit
+g-speak puis Mezzanine (Oblong) ; il disait lui-même que le geste compte moins que la COLLABORATION.
+Oblong s'est reconvertie en 2025 hors de l'interface. La critique HCI est constante (bras levés =
+fatigue en minutes) ; les films récents (Blade Runner 2049) ont quitté l'hologramme tape-à-l'œil.
+**Aucune application de productivité web à navigation globale en 3D n'a été trouvée** : les sites 3D
+primés (Awwwards 2024 : Igloo Inc) sont des vitrines, invisibles aux lecteurs d'écran sans DOM
+parallèle ; les bureaux 3D (Looking Glass de Sun, le cube de Compiz) ont été montrés puis oubliés.
+⇒ l'idée de Fabien d'une interface globale 3D et multi-supports n'existe pas en production : c'est un
+terrain libre, à condition d'éviter les échecs connus.
+
+**Les principes qui en découlent (proposés)** — quatre couches, chacune facultative au-dessus de la
+précédente, la 2D restant la vérité :
+- **C0** le DOM porte tout (accessibilité, URL, clavier) ; **C1** profondeur et bascules en CSS 3D +
+  View Transitions sur ce DOM ; **C2** des îlots WebGL (les scènes du §4) avec leur double DOM ;
+  **C3** casque (WebXR, WebSpatial, `<model>`), activé par DÉTECTION de fonction ;
+- une seule saisie, les Pointer Events : cibles larges, rien caché derrière un survol (visionOS
+  l'ignore), `prefers-reduced-motion` (la bascule devient un fondu), pas de profondeur sur le texte ;
+- **une même structure rendue en 2D ou en spatial**, comme Material for XR, SwiftUI sur visionOS et
+  WebSpatial : pour WAMA, la source est le schéma qui existe déjà (`APP_CATALOG`, `app_modes`, la spec
+  de détail, `to_dict()`) — le rendu spatial en est une PROJECTION de plus, jamais une seconde
+  interface écrite à la main (principe 3 d'`AGENTS.md`).
+
+**Pistes de concepts pour WAMA (proposées, aucune retenue)** :
+1. **Prisme de domaine** — chaque app est un prisme, une face par domaine ; changer de domaine fait
+   tourner le prisme. CSS 3D + View Transitions sur le DOM réel (rotation < 400 ms, fondu en
+   `reduced-motion`) ; le focus et l'URL suivent. C'est la forme 3D de l'idée de Fabien, posée en
+   TRANSITION sur un sélecteur accessible (`MODES_QUEUE_UX.md §2ter`), pas en seul accès.
+2. **Pipeline en profondeur** — les nœuds d'un pipeline (`ROUTE §10.6`) étagés sur l'axe Z, les cards
+   avancent à mesure qu'elles progressent : une vue d'ensemble d'un lot, jamais l'édition.
+3. **Établi spatial d'une card** — sur casque, le résultat grandeur nature (avant/après côte à côte,
+   forme d'onde en arc), les réglages en panneau bas ; seulement s'il est GÉNÉRÉ des métadonnées de
+   la card.
+4. **Revue de masse au geste** — pouce haut / bas / suivant pour trier des centaines d'éléments, à la
+   webcam (les mains du §3.6) ; désactivée par défaut, équivalent clavier et annulation.
+5. **« Ce lot-ci »** — la voix de l'assistant désigne, un regard grossier situe la ZONE visée ; le
+   regard ne déclenche jamais rien (et rien sur visionOS).
+6. **Médiathèque en constellation sémantique** — les médias placés par proximité de leurs vecteurs
+   (pgvector existe) ; la brique du §4 la porte ; une projection 2D et des filtres à côté.
+7. **Aperçu en relief des sorties 3D** — avatars, `.glb`, vidéos stéréo ouverts en `<model>` ou Quick
+   Look ; le meilleur rapport gain/coût (⚠ médias 3D : hors du périmètre initial de ce fichier).
+8. **Salle de revue collaborative** — la leçon d'Underkoffler : un grand écran ou un casque partagé en
+   réunion de labo, chaque participant pointe et classe depuis son téléphone ; commencer par
+   « présentateur + spectateurs ».
+Ordre suggéré par la recherche : 7 et 1 (faible coût, aucune perte d'accessibilité), puis 6 et 2,
+puis 3 quand WebSpatial ou le Spatial CSS se stabilisent ; 4 et 5 expérimentales, sur option.
+**Non confirmé** : `<model>` sur iOS/macOS 27, l'AR WebXR sur visionOS 26, une mesure publiée de la
+latence de MediaPipe dans le navigateur (à mesurer chez nous).
+
 ## 4. La brique commune — ✅ livrée le 2026-10-21
 
 **Ce qui existe** (mesuré au commit) :
@@ -363,3 +465,6 @@ de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une foi
    dans l'espace `text`, et calculer les voisins côté serveur ?
 4. Le côte à côte dans la présentation : deux emplacements dans une frame, ou une vue « deux
    frames » ?
+5. (2026-11-10, §3.7) L'interface progressivement 3D et spatiale : ouvrir le chantier ? avec quelles
+   pistes d'abord (la recherche suggère l'aperçu en relief et le prisme de domaine) ? dans ce fichier
+   ou dans un domaine propre ? — session de conception + concile.

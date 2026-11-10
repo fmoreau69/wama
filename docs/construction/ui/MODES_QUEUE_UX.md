@@ -103,6 +103,110 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
   transcriber (normal/temps réel) — et toutes trois les rendent **depuis la déclaration**. Anonymizer a
   été la dernière branchée : elle déclarait ses modes ET les rendait à la main (deux sources non reliées).
 
+## 2ter. OÙ se choisit le domaine — question ouverte (Fabien, 2026-11-10) ⏳ session de conception, concile si besoin
+
+> Rien n'est décidé ni implémenté : cette section consigne la question, le constat mesuré, l'état
+> de l'art et les options, pour une session neuve. Venue des restes du domaine `document` de
+> l'anonymizer côté générateur (`ROUTE §11 #42`, message de la session Anonymizer Docs du 10/11).
+
+**La question de Fabien.** Le domaine doit-il englober File d'attente, Console, À propos et Aide ?
+Sinon la Console, l'À propos et l'Aide mélangent des domaines dont les modèles n'ont rien en commun.
+Le sous-titre, l'À propos et l'Aide ne parlent aujourd'hui que de l'anonymizer image/vidéo.
+**Direction pressentie par Fabien** : pérenniser et finir d'universaliser les domaines — un domaine
+EXPLICITE partout, aligné entre les mondes et la génération d'apps. **Écartée par lui** : des apps
+séparées par nature (« Anonymizer Image / Vidéo » + « Anonymizer Documents »), qui empileraient des
+apps pour un même usage et reviendraient sur `app_modes`.
+
+**Constat mesuré le 2026-11-10** :
+- la ligne File d'attente / Console / À propos / Aide est au niveau de la PAGE
+  (`common/templates/common/app_modern_base.html:120-143`) ; les onglets de domaine sont DANS la file
+  (`_domain_tabs.html`, inclus par `anonymizer/index.html:414` ; `wama-modes.js:135-148`) — d'où
+  « File d'attente [50] » puis « Image/Vidéo [50] » « Document [2] » : deux lignes d'onglets, un
+  compte redit (et `#queueCount` en double sur la page de l'anonymizer, `app_modern_base.html:125` et
+  `anonymizer/index.html:437`) ;
+- l'À propos et l'Aide sont PAR APP (`/common/about/<app>/`, `/common/help/<app>/`) :
+  `common/app_about.py` n'a aucune notion de domaine (le mot n'y figure qu'en prose, l.330) ; la
+  Console filtre par nom d'app seulement (`console.js:99-103`, aucune notion de domaine) ;
+- seuls le volet droit (`[data-domain-settings]`) et la file suivent le domaine ;
+- le titre et le sous-titre sont rendus au serveur, sans domaine ; neuf apps réécrivent le bloc
+  `app_description` à la main malgré `app_modern_base.html:114` (huit `base.html` et l'avatarizer
+  dans son `index.html` ; le générateur l'écrit aussi, `codegen/templates_gen.py`) — celui de l'anonymizer
+  (`anonymizer/base.html:10`, « visages et plaques ») contredit `APP_CATALOG` (`app_registry.py:1321-1322`,
+  qui cite les documents) ;
+- le domaine choisi se retient en `localStorage` (`wama-app-base.js:572-581`), donc par navigateur,
+  pas par compte, et ne vit pas dans l'URL ;
+- le menu Apps du header sait déjà rendre un SOUS-MENU en cascade (groupe « Bac à sable » :
+  `accounts/context_processors.py:165-172`, `includes/header.html:24-46`, clavier ← → ↑ ↓).
+
+**Les idées de Fabien** (à évaluer, aucune retenue) : un sous-menu par domaine dans le menu Apps du
+header (arriver directement au bon domaine) ; un sous-titre généralisé qui nomme les domaines
+(« Anonymisez automatiquement images, vidéos, audios et documents pour la conformité RGPD »), homogène
+avec les autres apps ; les files des domaines sur la même ligne que Console / À propos / Aide, l'À
+propos commun avec ses spécificités en sous-onglets ou accordéons, la Console filtrable par domaine
+(viable mais mélange les domaines) ; **la forme qu'il préfère : choisir le domaine AU-DESSUS de la
+page, sans seconde ligne d'onglets — une fois le domaine choisi, la page est IDENTIQUE à celle d'une
+app d'un seul domaine** ; pour le sélecteur : une ligne de boutons pleine largeur sous le titre (comme
+le switch de modes), un menu déroulant ou des boutons resserrés à gauche de l'intitulé, des flèches de
+part et d'autre du titre, et à terme une page en objet 3D à facettes, une face par domaine, basculée au
+changement (cf. `WAMA_SCENES_3D.md §3.7`).
+
+**L'état de l'art** (recherche du 2026-11-10 ; sources lues, les autres marquées) :
+- une seule ligne d'onglets, ordre stable — NN/g (relayé : https://www.nngroup.com/videos/tabs-used-right/) ;
+  Apple : le segmented control pour des sous-vues PROCHES, la tab bar pour des sections séparées,
+  « avoid overflow tabs » (https://developer.apple.com/design/human-interface-guidelines/segmented-controls,
+  …/tab-bars) ; Primer : pas de segmented control qui change l'URL, repli en menu quand l'espace manque
+  (https://primer.style/product/components/segmented-control/guidelines) ; Fluent 2 : une tablist ne
+  passe pas à la ligne, repli en menu ou accordéon sur petit écran ;
+- le SÉLECTEUR DE PORTÉE dans le titre ou le fil d'Ariane — Vercel (« without losing context »,
+  https://vercel.com/changelog/improved-experience-for-moving-between-your-teams-and-projects), Notion,
+  Linear (équipes et sous-équipes) ; la palette de commandes scopée — GitHub
+  (https://docs.github.com/en/get-started/accessibility/github-command-palette) ;
+- Adobe Firefly (refonte d'avril 2025, relayé) : un accueil, puis des espaces Image, Vidéo et Audio
+  séparés — le cas le plus proche du nôtre ;
+- carrousels, swipe et flèches : peu découvrables, ordre artificiel, ambiguïté du swipe (NN/g, relayé,
+  https://www.nngroup.com/articles/mobile-carousels/) ; un geste sur un trajet exige une alternative en
+  un seul pointeur (WCAG 2.5.1, relayé) ;
+- accessibilité : un sélecteur qui CHANGE D'URL relève de `<nav>` + liens + `aria-current`, pas de
+  `tablist` (WAI-ARIA APG Tabs et Menu Button, https://www.w3.org/WAI/ARIA/apg/patterns/tabs/).
+
+**Recommandation de la session (Claude, 2026-11-10), à confronter au concile** :
+1. **Le domaine monte AU-DESSUS de la page, et devient une ADRESSE.** Une URL par domaine (favoris,
+   partage, Retour, liens de l'assistant et d'« Envoyer vers »), le domaine retenu par COMPTE ; le
+   socle commun (`app_modern_base.html`) rend la page d'un domaine exactement comme celle d'une app
+   mono-domaine — plus de seconde ligne d'onglets, le compte de la file redevient UN.
+2. **Le sélecteur = le TITRE** (« Anonymizer · Document ▾ ») : un menu à liens sous le titre (icône et
+   une phrase par domaine), une feuille du bas sur téléphone, une grande cible sur casque ; les MÊMES
+   liens, tirés de la même déclaration (`app_modes`), dans le sous-menu du menu Apps (déjà possible :
+   le cas « Bac à sable ») et dans la palette de commandes le jour où elle existe. Le sous-titre nomme
+   l'app entière à l'arrivée (une phrase homogène, tirée d'`APP_CATALOG` — plus de réécriture par app),
+   puis le domaine choisi.
+3. En seconde option, si la visibilité permanente des domaines prime : un segmented control de LIENS
+   sous le titre (au plus 3-4 domaines), replié en sélecteur sous ~600 px — à condition que le switch
+   de MODES ne forme pas une seconde ligne.
+4. Flèches, swipe, cube 3D : jamais comme accès principal ; une TRANSITION entre domaines au plus
+   (bascule 3D en CSS sur le DOM réel, fondu si `prefers-reduced-motion`) — `WAMA_SCENES_3D.md §3.7`.
+
+**Ce que la direction entraîne, à mesurer avant d'écrire** :
+- **l'À propos et l'Aide par domaine** : une partie commune (ce que fait l'app), une partie du
+  domaine (ses modèles, ses fonctions, ses limites) ; ⚠ le RATTACHEMENT d'un modèle à un domaine
+  n'est déclaré nulle part — par `accepts`, par la tâche du modèle, par la couverture
+  (`model_coverage`) ? C'est la question de fond derrière « ne pas mélanger des modèles qui n'ont
+  rien en commun » : à mesurer d'abord ;
+- **la Console par domaine** : une ligne de journal ne sait pas de quel domaine elle vient
+  (`console.js` ne filtre que par app) — à mesurer côté `console_utils` ;
+- **la génération** : si le domaine se choisit dans le SOCLE, les jumelles et les apps nées en
+  héritent par construction, et le point ② des restes de l'anonymizer_01 (pas d'onglets de domaine
+  dans la page générée, `ROUTE §11 #42`) disparaît au lieu d'être recopié ; le point ① (un process
+  réservé à son domaine) relève de la même direction : le nœud du pipeline déclare son domaine ;
+- **les mondes** : un domaine explicite partout vaut aussi pour le Studio, l'assistant (`tool_api`,
+  les surfaces `domain_surface`) et WAMA Data.
+
+**À trancher (Fabien, puis concile)** : la disposition (domaine au-dessus de la page — recommandée —
+ou une variante) ; la forme du sélecteur ; le domaine par URL et par compte ; le rattachement
+modèle ↔ domaine (mesurer d'abord) ; l'ordre : socle → À propos/Aide → Console → générateur.
+Outils de la session : le plugin `frontend-design` (déjà prescrit pour la direction visuelle,
+`ROADMAP.md:297-301`), le skill `/smoke` pour juger sur la page servie.
+
 ## 3. Le MODE = norme applicative (LA couche d'abstraction ajoutée)
 - Chaque app **déclare ses modes** en métadonnée :
   `modes = [{id, label, icône, temps_réel?, entrées:[prompt|fichiers|références|url], sections_réglages:[…], capacités}]`.
