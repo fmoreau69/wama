@@ -30056,3 +30056,47 @@ retirée ici et dans `PROSPECTION_PIPELINE.md`.
   domaine verts ; suite complète non lancée.
 - Limite : passé la rétention des versions (20 dernières), la copie du fichier fourni part ; l'original
   reste sur le disque, dans les fichiers de l'utilisateur, mais la card ne le désigne plus.
+
+## §CLÔTURE 2026-11-10, « AUDIT DE SÉCURITÉ DU 06/11 : CRITIQUES, ÉLEVÉS, MÉDIAS GARDÉS, HTTPS FORCÉ — EN SERVICE ET POUSSÉS » — `5881099ff` → `3e0e6aefc` — 🔚 rien de bloquant : décision de Fabien sur le chiffrement des médias par utilisateur
+
+**État mesuré.** Les sept commits de l'audit (`5881099ff`, `6653d02ed`, `38568fec7`, `e3df8b944`,
+`9cd279cba`, `e0ba750c2`, `3e0e6aefc`) sont sur `origin/dev`, poussés par Fabien. Domiciles :
+`PROFILES_PERMISSIONS §1.5bis` et `INFRA_WSL_VS_WINDOWS.md §HTTPS`.
+
+**En service depuis le redémarrage d'Apache du 10/11 à 11:51**, mesuré à travers lui : `http` → 301
+vers le nom officiel, chemin et paramètres gardés ; média sans session → 302 vers la connexion,
+servi par gunicorn ; cookie CSRF `Secure` ; statiques servis ; certificat valable 334 jours. Les
+aperçus s'affichent pour un compte connecté (constat de Fabien, à l'écran). Relais `netsh` : une
+seule règle, en `127.0.0.1:8000`.
+
+**Limites de cette session (à elle).**
+- Le frontal n'est gardé par aucun test : les tests et la nocturne parlent à gunicorn. Un `Alias`
+  de `/media/` rétabli ou une redirection retirée dans Apache ne se verraient pas. Seule
+  l'expiration du certificat est surveillée (`common.consistency.tls_certificate`).
+- 🧭 HSTS, `ALLOWED_HOSTS` et le certificat de la DSI se rouvrent à une exposition hors du réseau
+  de l'université (périmètre de Fabien du 10/11).
+- `check --deploy` affiche toujours W008, W012 et W016 : ils lisent `WAMA_HTTPS`, que ce montage
+  n'emploie pas.
+
+**Hérités ou ouverts (à d'autres, ou à Fabien).**
+- Reste n°1 de l'audit : porté par une autre session, à ne pas reprendre ici.
+- Décision de Fabien, non bloquante : chiffrement des médias par utilisateur avec rotation (demandé
+  le 08/11, analysé ; le cadrage « réseau interne » le rend moins urgent).
+- Décision de Fabien, non urgente : 35 lignes du compte de test nocturne pointent vers des témoins
+  disparus (passages du 3 au 9 novembre), aucun vrai utilisateur touché.
+
+**Effets de bord d'infra.** Hors dépôt, sauvegardes gardées : `httpd.conf.bak-20261110-avant-redirection-https`,
+`wama-common.conf.bak-20261108-avant-media-garde`. Aucune relance en attente pour ce périmètre.
+
+**Rouges nommés.** Module par module sur les tests de l'audit plus les gardes transverses : 519
+tests, 1 rouge, `tests_doc_plans.PiloteTest.test_chaque_fichier_derive_est_ce_que_son_plan_produit`
+— `docs/dev/briques.md` compte 138 outils, le code 139, par le contrôle des services non commité
+d'une autre session (`control_service`, `service_supervision`) ; mes ancres sont dans HEAD. Les
+trois autres blocs périmés de `doc_facts --check` (conformité, mécanismes, outils) viennent du même
+travail en cours et ne sont pas régénérés ici. La suite complète de la nuit laissait 5 rouges hors
+de ce périmètre : `tests_backend_deprecation`, `tests_manifest_library`, `tests_route_for_nature`,
+`tests_voice_refs`, `enhancer.tests_declared_weights`.
+
+**Contrôles attendus au prochain /reprise.** `check_docs` : 0 cassée, 0 périmée. `check_redundancy` :
+114 trouvailles au total, aucune dans les fichiers de l'audit. `tests_https_front`,
+`tests_media_serving`, `tests_network_exposure` verts.
