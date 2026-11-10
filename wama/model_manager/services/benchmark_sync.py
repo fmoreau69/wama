@@ -1643,7 +1643,7 @@ SOURCES = (
      'meta': _meta_mteb},
     # 2026-10-10 : DERNIÈRE priorité — une valeur auto-déclarée ne porte l'index que si aucun
     # banc indépendant n'a apparié le modèle. Sa provenance se lit PAR ENTRÉE (`verified`).
-    {'key': 'hf_bench', 'label': 'Classements des jeux de référence officiels (Hugging Face)',
+    {'key': 'hf_bench', 'label': 'Official benchmark leaderboards (Hugging Face)',
      'priority': 5, 'provenance': PROVENANCE_SELF_DECLARED,
      'source_name': 'hf-benchmarks', 'loader': lambda: load_hf_benchmarks(),
      'value': lambda e: e.get('value'),
@@ -1652,7 +1652,7 @@ SOURCES = (
      'meta': _meta_hf_bench},
     # 2026-10-29 : un harnais unique pour 34 modèles sur sept jeux français — indépendant, sauf
     # pour les modèles de son propre auteur (provenance lue par entrée).
-    {'key': 'linagora_asr', 'label': 'Classement français de transcription (Linagora)',
+    {'key': 'linagora_asr', 'label': 'French ASR Leaderboard (Linagora)',
      'priority': 6, 'provenance': PROVENANCE_INDEPENDENT,
      'source_name': 'linagora-asr', 'loader': lambda: load_linagora_asr(),
      'value': lambda e: e.get('value'), 'direction': 'lower',
@@ -1662,7 +1662,7 @@ SOURCES = (
     # portée par l'entrée (le même jeu et la même métrique qu'un autre banc gardent SON nom :
     # olmOCR-2 rejoint ainsi le classement d'olmOCR-Bench). Pas une source de DÉCOUVERTE : un
     # tableau d'auteur ne classe que ses propres modèles, et un poids GitHub n'est pas un dépôt.
-    {'key': 'published_tables', 'label': 'Tableaux publiés par les auteurs', 'priority': 7,
+    {'key': 'published_tables', 'label': 'Tables published by the authors', 'priority': 7,
      'provenance': PROVENANCE_SELF_DECLARED, 'discovery': False,
      'source_name': 'published-tables', 'loader': lambda: load_published_tables(),
      'value': lambda e: e.get('value'),

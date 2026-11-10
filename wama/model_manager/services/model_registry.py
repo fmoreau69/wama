@@ -1804,7 +1804,7 @@ class ModelRegistry:
             installed = _check_hf_model_downloaded(whisper_folder(), HF_REPO)
             self._models[MODEL_KEY] = ModelInfo(
                 id=MODEL_KEY,
-                name='Whisper tiny (langue parlée)',
+                name='Whisper tiny (spoken language)',
                 model_type=ModelType.SPEECH,
                 source=ModelSource.HUGGINGFACE,
                 description="Whisper tiny (OpenAI, converted to CTranslate2 by Systran): tells which "
@@ -1848,7 +1848,7 @@ class ModelRegistry:
             from wama.common.external_sources import github_platform_ref
             self._models[PAGE_ORIENTATION_KEY] = ModelInfo(
                 id=PAGE_ORIENTATION_KEY,
-                name="Orientation de page (docTR)",
+                name="Page orientation (docTR)",
                 model_type=ModelType.VISION,
                 source=ModelSource.GITHUB,
                 description="docTR's page-orientation classifier (Mindee, Apache-2.0, MobileNet v3): "
@@ -1894,7 +1894,7 @@ class ModelRegistry:
             engine = 'phonon'
             self._models[MODEL_KEY] = ModelInfo(
                 id=MODEL_KEY,
-                name='Phonon 40m (français)',
+                name='Phonon 40m (French)',
                 model_type=ModelType.SPEECH,
                 source=ModelSource.HUGGINGFACE,
                 description="Phonon (Gradium, on Kyutai's Pocket TTS): French speech synthesis at "
@@ -1943,7 +1943,7 @@ class ModelRegistry:
              'onnxruntime', 'onnx', 1.5,
              [{'role': 'model', 'pattern': 'onnx/model.onnx', 'format': 'onnx'},
               {'role': 'model_cpu', 'pattern': 'onnx/model_quantized.onnx', 'format': 'onnx'}]),
-            ('gliner2_pii_backend', 'GLINER2_FILES', 'GLiNER2-PII (multilingue)',
+            ('gliner2_pii_backend', 'GLINER2_FILES', 'GLiNER2-PII (multilingual)',
              "OPEN-vocabulary personal-data detector (Fastino, GLiNER2 205 M): 42 types named to "
              "it, 7 languages (en, fr, es, de, it, pt, nl). High recall, low precision according "
              "to the publisher (it over-detects names): it complements the other detectors of the "
@@ -2185,7 +2185,7 @@ class ModelRegistry:
                     # aucun poids propre à exiger (`weights_required=False`, 2026-09-28).
                     is_downloaded = _check_hf_model_downloaded(diarization_dir, repo_id,
                                                                weights_required=False)
-                    name = "pyannote 3.1 (diarisation)"
+                    name = "pyannote 3.1 (diarization)"
                     fmt = 'pytorch'
                     extra = {'path': str(diarization_dir),
                              'install_dir': str(diarization_dir)}
@@ -2194,7 +2194,7 @@ class ModelRegistry:
                     # Aligneur acoustique (étage B de l'alignement forcé) : même constat par le
                     # helper commun, dans le dossier de la famille.
                     is_downloaded = _check_hf_model_downloaded(Path(ALIGNMENT_DIR), repo_id)
-                    name = f"{repo_id.split('/')[-1]} (alignement)"
+                    name = f"{repo_id.split('/')[-1]} (alignment)"
                     fmt = 'safetensors'
                     extra = {'path': str(ALIGNMENT_DIR),
                              'install_dir': str(ALIGNMENT_DIR)}
@@ -3928,7 +3928,7 @@ class ModelRegistry:
                 engine_cls = backend_for_engine(th.get('engine') or 'talkinghead')
                 self._models['avatarizer:talkinghead'] = ModelInfo(
                     id='avatarizer:talkinghead',
-                    name='TalkingHead (avatar 3D)',
+                    name='TalkingHead (3D avatar)',
                     model_type=ModelType.LIPSYNC,
                     source=ModelSource.WAMA_AVATARIZER,
                     description=th.get('description', ''),

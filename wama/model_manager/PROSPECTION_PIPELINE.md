@@ -4281,6 +4281,25 @@ défaut vu s'est comblé dans la route, aucun dans la proposition.
   ⚠ *Les workers relancés seulement font tenir la base : tant qu'ils tournent avec l'ancien code,
   chaque réconciliation qu'ils exécutent (au démarrage de tout processus Django, `apps.py`)
   réécrit les anciens textes en base — le corpus versionné, lui, est juste.*
+  ✅ *Décidé et fait le 2026-11-10 (Fabien : « réécris-les en un geste, et traduis aussi les noms
+  d'affichage »). Les **179** propositions réécrites en base, chacune depuis ses propres chiffres
+  par le gabarit anglais d'aujourd'hui (sans LLM ni réseau ; essai à blanc 179/179, puis 179
+  écrites) : bibliothèque HF 103, recherche ciblée 25, Ollama 31, classement 18, republication 2.
+  L'essai à blanc a trouvé deux gabarits « anglais » qui restaient français par la DONNÉE qu'ils
+  insèrent : le libellé du rôle Ollama (`prospect_ollama.ROLES[*]['label']`, ex-`libelle`,
+  « LLM généraliste… ») et le nom du classement Linagora (`benchmark_sync.SOURCES`, avec les deux
+  autres libellés français du même tuple). Les deux sont traduits, et une garde les tient :
+  `ProspectionWritesItsStandInsInEnglishTest.test_the_labels_a_template_interpolates_are_english_too`
+  — sa contre-épreuve l'a trouvée AVEUGLE à « Traduction (translator) » (ni accent ni mot-outil) :
+  elle lit aussi le détecteur des identifiants (`check_identifier_language.is_french`), dont la
+  liste noire gagne `traduction` (aucun identifiant ne le portait, budgets inchangés).
+  Les noms d'affichage français (11) sont traduits à leur source (`anonymizer/utils/model_config.py`
+  ×3, `model_registry` ×7, `external_sources` : l'abonnement Claude Code ; et le `display_name` du
+  moteur `whisper_language`). Les libellés de l'enum des tâches (`models.Task`) restent : c'est le
+  vocabulaire de l'interface (`ROADMAP §10.A`). ⏳ Les noms en base et le corpus suivent la relance
+  des workers (la réconciliation de l'ancien code les réécrit, vu le jour même : synchro `9506`
+  par-dessus la mienne). Restent en français : `openrouter:liquid/lfm-2.5-2.6b` (cf. plus haut) et
+  `reader:olmocr`, ligne d'un modèle retiré.*
 - **Le rôle d'une anatomie posée mécaniquement reste le nom que le code lit**
   (`Qwen3-Embedding-0.6B`, pas `text_encoder`) : essayé et ABANDONNÉ — le code lie ce fichier à
   `text_encoder_path` ET `text_path`, et `silence_latent.pt` à trois variables ; choisir entre
@@ -4334,6 +4353,27 @@ qui restaient sans outil (mémoire et carte, disque, nettoyeur, surveillance, sa
   télécharge lui-même — deux modèles, un seul obstacle : c'est la matière que le rôle reçoit du
   moteur vendorisé qui ne dit pas quels chargeurs appeler sur les chemins installés. ⏳ Les deux
   propositions attendent la décision de Fabien (rejeter) ; la suite est sur la matière du rôle.
+  ✅ *Rejetées par Fabien le 2026-11-10.* Lu le même jour, ce qui manque au rôle (mesuré, rien
+  d'écrit) : (1) le refus nomme l'entrée qui télécharge, pas les chargeurs à appeler à sa place —
+  `initialize_service` (`acestep/core/generation/handler/init_service_orchestrator.py:48`) ne
+  télécharge que par `_ensure_models_present` et écrit dans le dossier des poids par
+  `_sync_model_code_if_needed` ; ses chargeurs `_load_main_model_from_checkpoint`,
+  `_load_vae_model`, `_load_text_encoder_and_tokenizer` n'atteignent aucun téléchargement
+  (`download_calls.functions_reaching_download` ne les liste pas, `LLMHandler.initialize` non
+  plus). Le refus de `check_source` (l.276-279) et la matière de `run_backend.vendor_material`
+  pourraient les nommer, lus par AST (les appels de l'entrée moins ceux qui mènent au
+  téléchargement) ; (2) **aucun essai réel pour un backend de musique** : `backend_proposals.SMOKES`
+  n'a pas d'entrée `MusicGenerationBackend`, une proposition qui passerait les contrôles serait
+  validée sans preuve qu'elle génère. ⏳ Décision de Fabien : combler (1) et (2) puis relancer le
+  rôle sur un modèle plus fort, ou écrire le backend hors du rôle.
+- **Deux jumeaux laissés par la session (revérification du 2026-11-10)** : ⏳ `dev_docs.module_api`
+  (l.80) résume une fonction par la première LIGNE de sa docstring, le défaut que
+  `tool_api._doc_summary` a soldé pour les outils — corriger régénère presque tout
+  `docs/dev/briques.md`, co-édité par d'autres sessions ; ⏳ le repli `AUDIO_ENGINE_HELP`
+  (`enhancer/params.py:51`) recopie les descriptions des deux moteurs audio que le catalogue porte.
+  Et un troisième, d'avant la session : les libellés de `benchmark_sync.SOURCES` recopient
+  l'`attribution` de la source déclarée dans `external_sources` (MTEB mot pour mot) — deux
+  domiciles pour un nom.
 
 ## Session du 2026-11-08 — Lire une partition en MIDI, garder ce que dit le MIDI, vers des pistes séparées (veille, demande de Fabien)
 

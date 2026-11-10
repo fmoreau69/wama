@@ -91,6 +91,10 @@ FRENCH_WORDS = frozenset({
     'dorsale', 'dorsales', 'saut', 'sauts', 'remplacement', 'remplacements',
     'texte', 'textes', 'courant', 'courants', 'courante', 'frais', 'perimee', 'perimees',
     'ouvrant', 'ouvrants', 'fermant', 'fermants',
+    # 2026-11-10 : `Traduction (translator)`, le libelle d'un role de la prospection Ollama, passait
+    # la garde des textes d'attente (aucun accent) — trouve par sa contre-epreuve. Mesure : aucun
+    # identifiant du depot ne le porte, les budgets ne bougent pas.
+    'traduction', 'traductions',
 })
 #: Identifiants ACCEPTES malgre un mot de la liste : homonymes anglais, ou API tierce imposee.
 #: ⚠ `declare`/`declares` ne se retirent PAS de la liste bien qu'anglais aussi : mesuré le

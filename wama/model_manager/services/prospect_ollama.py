@@ -38,24 +38,24 @@ PROPOSED_PREFIX = "proposed:"
 #: les comptait « sans task ») là où les candidats HF en portaient une depuis le matin.
 ROLES = {
     'llm': {
-        'libelle': 'LLM généraliste (describer, assistant)',
+        'label': 'General-purpose LLM (describer, assistant)',
         'capacite': 'tools', 'requetes': (), 'model_type': 'llm', 'task': 'text-generation',
     },
     'vlm': {
-        'libelle': 'Vision / VLM (describer image, reader OCR)',
+        'label': 'Vision / VLM (describer image, reader OCR)',
         'capacite': 'vision', 'requetes': (), 'model_type': 'vlm', 'task': 'captioning',
     },
     'embedding': {
-        'libelle': 'Embedding (RAG)',
+        'label': 'Embedding (RAG)',
         'capacite': 'embedding', 'requetes': (), 'model_type': 'embedding',
         'task': 'feature-extraction',
     },
     'coder': {
-        'libelle': 'Code (wama-dev-ai)',
+        'label': 'Code (wama-dev-ai)',
         'capacite': '', 'requetes': ('coder',), 'model_type': 'llm', 'task': 'text-generation',
     },
     'translation': {
-        'libelle': 'Traduction (translator)',
+        'label': 'Translation (translator)',
         'capacite': '', 'requetes': ('translate',), 'model_type': 'llm',
         'task': 'text-generation',
     },
@@ -295,7 +295,7 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
                     retenus += 1
                     cree = write_candidate(
                         cand_key, nom=ref, model_type=role['model_type'],
-                        description=f"[{role['libelle']}] Proposed from the Ollama library.",
+                        description=f"[{role['label']}] Proposed from the Ollama library.",
                         kind='new', confidence=None,
                         extra={'kind': 'new', 'role': nom_role, 'name': ref,
                                'reason': f"rôle {nom_role} — non installé",

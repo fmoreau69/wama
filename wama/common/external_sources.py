@@ -645,7 +645,7 @@ SOURCES: tuple[ExternalSource, ...] = (
         # version tout seul : rien à remettre à jour ici quand un modèle sort. Le modèle
         # RÉELLEMENT servi est lu dans la réponse du CLI et affiché (`claude_code.demander`).
         declared_models=(
-            ('default', 'Claude Code — modèle par défaut',
+            ('default', 'Claude Code — default model',
              "The model Claude Code chooses itself for your subscription."),
             ('fable', 'Claude Code — Fable',
              "The latest Claude Fable, through Claude Code's “fable” alias."),

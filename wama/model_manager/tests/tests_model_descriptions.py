@@ -234,3 +234,19 @@ class ProspectionWritesItsStandInsInEnglishTest(SimpleTestCase):
                     french.append(f"{module.__name__}:{line} : {template!r}")
         self.assertEqual([], french)
         self.assertGreaterEqual(found, 8, 'the reading no longer sees the templates')
+
+    def test_the_labels_a_template_interpolates_are_english_too(self):
+        """The Ollama template was English on 2026-11-09 and its 31 proposals still read
+        « [LLM généraliste (describer, assistant)] … »: it interpolates the role's `label`, a datum
+        the template reading cannot see (2026-11-10)."""
+        from wama.common.management.commands.check_identifier_language import is_french
+        from wama.model_manager.services.benchmark_sync import SOURCES
+        from wama.model_manager.services.prospect_ollama import ROLES
+        labels = {**{f'ollama:{key}': role['label'] for key, role in ROLES.items()},
+                  **{f"leaderboard:{source['key']}": source['label'] for source in SOURCES}}
+        # A label has no stopword to catch: « Traduction (translator) » passed the pattern. The
+        # words also go through WAMA's French detector, the identifiers' blacklist.
+        french = {key: label for key, label in labels.items()
+                  if self.FRENCH.search(label)
+                  or is_french('_'.join(re.findall(r'[^\W\d_]+', label)).lower())}
+        self.assertEqual({}, french)

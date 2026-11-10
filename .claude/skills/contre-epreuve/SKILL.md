@@ -41,6 +41,14 @@ préférence :
 ⚠ **Ne jamais neutraliser l'ASSERTION** (commenter la ligne, forcer l'attendu) : ça prouve que le
 test peut échouer, pas qu'il VOIT le défaut.
 
+⚠ **Une garde de LANGUE ou de MOTIF se contre-éprouve avec le cas le plus PAUVRE, pas le plus
+évident** (vécu le 2026-11-10). La garde « les libellés insérés par les gabarits sont en anglais »
+rougissait sur « Classement français de transcription » (accent, mot-outil) et restait VERTE sur
+« Traduction (translator) » : un mot sans accent ni mot-outil passe le motif. ✅ Deux mutations
+au moins — l'une que le motif attrape à coup sûr, l'autre sans aucun de ses signaux — et la garde
+lit aussi le détecteur commun (`check_identifier_language.is_french`), dont la liste noire
+s'étend du mot trouvé.
+
 ## 2. La recette, sans toucher au dépôt
 
 ```python

@@ -37,7 +37,7 @@ class WhisperLanguageBackend(LanguageIdentificationBackend):
                                         'model_key': 'huggingface:Systran/faster-whisper-tiny'},
     }
     name = 'whisper-language'
-    display_name = 'Whisper (langue parlée)'
+    display_name = 'Whisper (spoken language)'
     description = "Langue parlée d'un audio, fenêtre par fenêtre (Whisper tiny, processeur)."
 
     REQUIRED_PACKAGES = ['faster_whisper']

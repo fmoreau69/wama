@@ -174,7 +174,7 @@ YOLO_WEIGHTS_PLATFORM_REF = {
 #:   distribué par formulaire) ; `platform_ref` : dépôt tiré par le geste « Installer » du catalogue.
 FRAME_DETECTORS = {
     'egoblur-lp-gen1': {
-        'name': 'EgoBlur plaques (gen1)',
+        'name': 'EgoBlur license plates (gen1)',
         'engine': 'torchscript',
         'classes': ['license_plate'],
         'dir_key': 'egoblur', 'file': 'ego_blur_lp_gen1.jit',
@@ -188,7 +188,7 @@ FRAME_DETECTORS = {
                 "in the `vision/egoblur` folder.",
     },
     'egoblur-face-gen1': {
-        'name': 'EgoBlur visages (gen1)',
+        'name': 'EgoBlur faces (gen1)',
         'engine': 'torchscript',
         'classes': ['face'],
         'dir_key': 'egoblur', 'file': 'ego_blur_face_gen1.jit',
@@ -200,7 +200,7 @@ FRAME_DETECTORS = {
                 "distributed by Meta through a form: drop them in the `vision/egoblur` folder.",
     },
     'rtdetr-v2-license-plate': {
-        'name': 'RT-DETR v2 plaques',
+        'name': 'RT-DETR v2 license plates',
         'engine': 'transformers',
         'classes': ['license_plate'],
         'dir_key': 'object_detection', 'platform_ref': 'huggingface:justjuu/rtdetr-v2-license-plate-detection',

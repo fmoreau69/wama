@@ -29784,3 +29784,54 @@ livraison ») ; mécanisme `midi_reading`.
 - **Laissé à leurs propriétaires** : les 14 groupes de rouges recensés le 08/11 (pris par la
   session « Anonymizer Docs/Audio ») ; le worktree `wt_verif_lot_1108`, sans dossier
   d'administration depuis un élagage du 08/11 vers 14:27, propriétaire inconnu.
+
+## §CLÔTURE 2026-11-09→10, « LE MODEL MANAGER À L'ASSISTANT ; DESCRIPTIONS, PROPOSITIONS ET NOMS EN ANGLAIS ; COULEURS DES TYPES DÉRIVÉES ; LE RÔLE `backend` D'ACE-STEP » — `4e3e2607c`, `c84b824d2`, `ed3c6d984`, `3f956b04e`, `018dfc734`, `d1afa1c48` et le commit de clôture (locaux, non poussés) — 🔴 relancer gunicorn + workers — 🔚 décision de Fabien sur le backend d'ACE-Step
+
+- **Livré** (accord de Fabien du 09/11, « oui pour les 4, validation avec confirmation admin ») :
+  dix-neuf outils pour les 46 routes du model manager restées sans outil, chacun POSTE la vue du
+  bouton, valider/rejeter une proposition reste à un administrateur (`4e3e2607c`) ; descriptions
+  des modèles en anglais à leur source et corpus régénéré (`c84b824d2`, `ed3c6d984`) ; couleurs des
+  types de modèles dérivées de l'enum (`3f956b04e`, `CARD_DESIGN §9.1`) ; tirage du niveau
+  développement insensible à une panne de fournisseur (`018dfc734`) ; revérification
+  (`d1afa1c48` : sauvegarde d'une racine de famille, 12 gabarits de prospection traduits).
+- **Le 10/11** (Fabien : « réécris-les en un geste, et traduis aussi les noms d'affichage ») : les
+  179 propositions réécrites en base depuis leurs propres chiffres (script de session du
+  scratchpad, jetable, sans LLM ni réseau) ; libellés insérés par les gabarits traduits
+  (`prospect_ollama.ROLES[*]['label']`, `benchmark_sync.SOURCES`) avec leur garde ; 11 noms
+  d'affichage traduits à leur source. Détail : `PROSPECTION_PIPELINE` (session du 2026-11-09,
+  paragraphe « Décidé et fait le 2026-11-10 »).
+- 🔴 **Pendings système** : relancer gunicorn + workers — tant qu'ils tournent sur l'ancien code,
+  leur réconciliation réécrit les anciens noms en base (vu : synchro `9506` par-dessus la mienne).
+  Après la relance : `manage.py manifest_export` depuis WSL, puis commiter les SEULS manifestes dont
+  le `name` a changé (les DeepFace portent le `vram` d'une autre session) ; ⏳ alors poser la garde
+  du corpus (noms et descriptions des `manifests/models/` en anglais, Phonon et DeepSeek déclarés
+  faux positifs) — non écrite ce soir, le corpus n'étant pas régénérable avant la relance. Pousser :
+  non demandé.
+- 🔚 **Décision bloquante — le backend d'ACE-Step** (propositions rejetées par Fabien le 10/11) :
+  combler la matière du rôle (le refus nomme les chargeurs à appeler ; un essai réel
+  `MusicGenerationBackend`, absent de `backend_proposals.SMOKES`) puis relancer le rôle sur un
+  modèle plus fort, OU écrire le backend hors du rôle. Diagnostic : `PROSPECTION_PIPELINE`, entrée
+  « ACE-Step, rôle `backend` relancé deux fois ».
+- **Limites de cette session** (à elle, avec leur domicile, `PROSPECTION_PIPELINE`, « Deux jumeaux
+  laissés par la session ») : `dev_docs.module_api` l.80 résume par la première ligne de docstring
+  (jumeau de `tool_api._doc_summary`) ; le repli `AUDIO_ENGINE_HELP` de l'enhancer recopie deux
+  descriptions ; les libellés de `benchmark_sync.SOURCES` recopient l'`attribution`
+  d'`external_sources` (antérieur). Lignes restées françaises en base : `openrouter:liquid/lfm-2.5-2.6b`
+  (aucune clé ne l'ouvre) et `reader:olmocr` (modèle retiré) — retirer cette dernière est une
+  décision de Fabien.
+- **Contrôles mesurés ce soir** : périmètre (`wama.model_manager` + gardes transverses + anonymizer)
+  **1543 tests, 3 rouges**, tous le budget des noms de tests (1287 > 1286), dû à
+  `test_the_server_writes_with_the_scripts_the_score_brick_declares`, WIP non commité de
+  `tests_sound_banks.py` (session partition/MIDI) — relance ciblée après les dernières écritures :
+  **57 OK**, budget compris. Contre-épreuve de la garde des libellés : deux mutations, deux rouges,
+  restauration à l'octet (la première passe l'avait trouvée aveugle à « Traduction », d'où
+  `traduction` à la liste noire, budgets inchangés 2523 / 132 / 1287). `check_docs` **0 cassée,
+  0 périmée sur 3997**, aucune cible distincte. `doc_facts --check` : `mecanismes` et
+  `dev-briques` périmés par le WIP d'autres sessions (`briques` rendue à jour puis périmée à une
+  minute d'écart, sans écriture de ma part). `check_redundancy` : 114, aucune dans les lignes de la
+  session (`benchmark_sync._identity`, l.472, date du 2026-09-19).
+- **Effets de bord** : 179 lignes `is_proposed` réécrites ; un `sync_models` complet lancé à la main
+  (synchro `9505`, 575 lignes) ; aucun compte ni item de test semé.
+- **Laissé à leurs propriétaires** : le bloc précédent de ce fichier, le hunk `tensorflow`
+  d'`external_sources.py`, `tests_sound_banks.py`, le `vram` des manifestes DeepFace, le service
+  TensorFlow, `mecanismes.py`, le worktree `wt_preview_axis` (verrouillé).
