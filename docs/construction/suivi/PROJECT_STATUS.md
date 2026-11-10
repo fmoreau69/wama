@@ -29887,3 +29887,22 @@ sondes et rendus d'écoute de la card 880 dans le scratchpad, jetables.
 `tests_install_route` : 103 OK ; noms de tests français 1286, égal au budget ; `check_docs` 0 cassée sur
 4000 ; `check_redundancy` 114, dans les fichiers de la session un seul rapprochement, de nom
 (`composer/tasks.py::_render` contre `render_wav`, sans rapport) ; `check_skills` 0 défaut franc.
+
+---
+
+## 🔚 PALIER 2026-11-10 — HTTPS forcé par le frontal, cookies `Secure` à la requête, expiration surveillée
+
+Décision de Fabien (fin de la question ouverte par l'audit du 2026-11-06). Le détail vit dans
+`INFRA_WSL_VS_WINDOWS.md §HTTPS` (bloc de cette date), le périmètre retenu dans
+`PROFILES_PERMISSIONS §1.5bis` point 3 : réseau interne seulement pour l'instant, la sécurité
+avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une exposition extérieure.
+
+- Apache (hors dépôt) : le vhost `:80` redirige vers le nom officiel.
+- `common.middleware.SecureCookiesOnHttpsMiddleware`, et non `WAMA_HTTPS=1` : le réglage faisait
+  tomber la suite de tests et les contrôles nocturnes, qui parlent http à gunicorn.
+- `manage.py check_tls_certificate`, scénario `common.consistency.tls_certificate` : rouge à moins
+  de 30 jours. Garde : `common/tests/tests_https_front.py`.
+- `tests_network_exposure` suit le lancement des services dans `scripts/wama_services.sh`.
+
+✅ Cookies mesurés en service le 2026-11-10 (`csrftoken` … `Secure` à travers Apache, gunicorn relancé
+à 01:40). ⏳ La redirection, effective au redémarrage d'Apache (`httpd -k restart`, shell administrateur).

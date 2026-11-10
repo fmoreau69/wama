@@ -4,8 +4,8 @@ Deux familles, une règle : la boucle locale.
 - le relais Windows → WSL2 (`netsh interface portproxy`) que pose `start_wama_prod.sh` : son seul
   client est Apache (`ProxyPass / http://127.0.0.1:8000/`) ; écouté sur 0.0.0.0, il ouvrait
   gunicorn au réseau sans passer par Apache (2026-11-07) ;
-- les services sans authentification (voix :8001, vecteurs :8002, confidentialité :8003) : leurs
-  clients visent `localhost` (2026-11-06).
+- les services sans authentification (voix :8001, vecteurs :8002, confidentialité :8003,
+  TensorFlow :8004) : leurs clients visent `localhost` (2026-11-06, TensorFlow le 2026-11-09).
 
 Gunicorn, lui, écoute sur 0.0.0.0 DANS WSL2 (`gunicorn_conf.bind`) : le relais vise l'adresse de
 la machine WSL2, et le NAT de WSL2 ne la rend joignable que depuis l'hôte.
@@ -17,7 +17,8 @@ from django.conf import settings
 from django.test import SimpleTestCase
 
 ROOT = Path(settings.BASE_DIR)
-SCRIPTS = ('start_wama_prod.sh', 'start_wama_dev.sh')
+#: `wama_services.sh` lance désormais les services : sans lui la garde ne verrait plus aucune écoute.
+SCRIPTS = ('start_wama_prod.sh', 'start_wama_dev.sh', 'scripts/wama_services.sh')
 LOOPBACK = '127.0.0.1'
 
 

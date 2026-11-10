@@ -571,6 +571,7 @@ REST_FRAMEWORK = {
 # Middleware
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'wama.common.middleware.SecureCookiesOnHttpsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -778,10 +779,12 @@ if WAMA_PUBLIC_URL:
             "CSRF_TRUSTED_ORIGINS non posé, et le QR d'appariement produira une URL "
             "inutilisable. Corrigez la valeur dans .env.", RuntimeWarning)
 
-# Bascule HTTPS — TOUT est à OFF par défaut, et ce défaut est un choix : WAMA sert
-# aujourd'hui en http (interne + VPN). ⚠ Un réglage « sécurisé » posé AVANT le HTTPS
-# casse silencieusement la connexion — un cookie `Secure` n'est jamais renvoyé sur une
-# page http, donc la session n'existe plus et le login boucle sans message d'erreur.
+# Bascule HTTPS — OFF, et ce défaut est un choix. Derrière Apache, HTTPS est forcé SANS elle
+# depuis le 2026-11-10 : le vhost :80 redirige vers le nom officiel, et les cookies deviennent
+# `Secure` requête par requête (`SecureCookiesOnHttpsMiddleware`). ⚠ La poser ici vaudrait pour
+# tout processus qui lit `.env` : la suite de tests et les contrôles nocturnes, qui parlent http
+# à gunicorn, tomberaient (la redirection les envoie vers un https que gunicorn ne parle pas).
+# Elle reste pour une instance sans frontal qui force lui-même.
 WAMA_HTTPS = os.environ.get('WAMA_HTTPS', '') == '1'
 # Le SCHÉMA de la requête, lui, se lit TOUJOURS chez le frontal — sorti de la bascule le
 # 2026-10-13. Apache termine le TLS et parle http à Django : sans cet en-tête, Django se croit

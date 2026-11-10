@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**234 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**235 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -965,8 +965,9 @@ Middleware : telecharge/supprime/relance lus de resolver_match — zéro ligne p
 
 - **Domicile** : `wama/common/middleware.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7bis](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Captation GÉNÉRIQUE des gestes utilisateur vers `RunOutcome`. Doc : `WAMA_MEMORY.md §7bis`.
-- **API publique** (2) :
+- **API publique** (3) :
   - `app_of(match) -> str` — L'app d'une route résolue, sous le nom que connaissent les registres (`DetailRegistry`).
+  - `class SecureCookiesOnHttpsMiddleware` — Tout cookie émis pour une requête venue en https ne repartira qu'en https.
   - `class RunOutcomeCaptureMiddleware` — Enregistre telecharge / supprime / relance depuis les routes de file, sans code par app.
 
 ### Catalogue & lecteur de docs
@@ -988,6 +989,16 @@ Déclare les docs de référence (famille, AUDIENCE, journal) et les rend lisibl
   - `entries() -> List[dict]`
   - `render_doc(doc: Doc, admin: bool=True) -> dict` — `{'html', 'toc'}` du doc, tel que le lit un administrateur ou non — les liens vers une doc
   - `render_markdown(text: str, source_path: str='', visible=None) -> dict` — Markdown → `{'html', 'toc'}`. `source_path` sert à résoudre les liens relatifs ;
+
+### Certificat https servi
+
+Lit le certificat présenté par une vraie poignée de main avec le frontal et rougit à moins de 30 jours de son expiration : le port 80 redirige vers https, il n'y a plus de voie de secours en clair
+
+- **Domicile** : `wama/common/management/commands/check_tls_certificate.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
+- **Module** : check_tls_certificate — combien de jours reste-t-il au certificat que WAMA SERT ?
+- **API publique** (2) :
+  - `served_certificate(host: str, port: int) -> x509.Certificate` — Le certificat que présente le frontal, tel quel.
+  - `class Command(BaseCommand)`
 
 ### Chiffrement RÉVERSIBLE des secrets d'utilisateur
 

@@ -1300,6 +1300,13 @@ MECHANISMS = (
               "rouge et pas warning",
               'wama/common/management/commands/check_secret_leaks.py', 'docs/construction/suivi/ROADMAP.md §16.10',
               symbol='check_secret_leaks'),
+    Mechanism('tls_certificate', 'Certificat https servi',
+              "Lit le certificat présenté par une vraie poignée de main avec le frontal et rougit "
+              "à moins de 30 jours de son expiration : le port 80 redirige vers https, il n'y a "
+              "plus de voie de secours en clair",
+              'wama/common/management/commands/check_tls_certificate.py',
+              'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
+              symbol='check_tls_certificate'),
 
     )),
 

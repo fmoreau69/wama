@@ -4197,6 +4197,9 @@ purgés (historique réécrit 2026-07-23) — le besoin est la garde anti-récid
   d'attribution sur les branches (contrat 0 depuis la réécriture d'historique du 12/10).
   Configuration gitleaks versionnée : `.gitleaks.toml` (règles par défaut + une exception par
   ligne de faux positif lue).
+- `manage.py check_tls_certificate` (`common.consistency.tls_certificate`, ajouté le 2026-11-10
+  avec la redirection https) : jours restants au certificat que SERT le frontal, lu par une vraie
+  poignée de main. Rouge à moins de 30 jours ; code 3 = frontal injoignable → SKIP.
 
 **Dette actionnable relevée au triage initial (hors pile ML, upgrades patch-level possibles)** :
 Django 5.2.6/5.2.8 (52-60 avis — patch release à passer au prochain palier de maintenance),

@@ -9,7 +9,7 @@ l'assistant éprouvé chaque nuit — versé du banc d'épreuve demandé par Fab
 
 Ce module n'implémente AUCUN contrôle : il joue les commandes existantes (check_docs,
 check_app_conformity, manifest_export --check, manifest_roundtrip, doc_facts --check,
-check_redundancy, check_dep_vulns, check_secret_leaks) et traduit leur verdict en
+check_redundancy, check_dep_vulns, check_secret_leaks, check_tls_certificate) et traduit leur verdict en
 (ok, detail). Les seuils de tolérance sont
 les CONTRATS DOCUMENTÉS du projet, pas des choix locaux :
   - check_docs : 2 CASSÉ assumés (cibles à créer, REPRISE §3a) — une 3ᵉ = dérive ;
@@ -186,22 +186,26 @@ def _run_media_integrity(ctx):
     return not depassements, (' ; '.join(depassements) + ' — ' if depassements else '') + detail
 
 
-def _run_dep_vulns(ctx):
-    # Les deux commandes sécurité utilisent le code 3 = « dépendance d'outillage/réseau
-    # absente » → SKIP (ni succès ni échec), jamais un rouge trompeur.
-    code, out = _capture('check_dep_vulns')
-    derniere = (out.strip().splitlines() or ["?"])[-1]
+def _run_security_command(name):
+    # Les commandes sécurité utilisent le code 3 = « dépendance d'outillage/réseau absente »
+    # → SKIP (ni succès ni échec), jamais un rouge trompeur.
+    code, out = _capture(name)
+    last_line = (out.strip().splitlines() or ["?"])[-1]
     if code == 3:
-        raise SkipScenario(derniere)
-    return code == 0, derniere
+        raise SkipScenario(last_line)
+    return code == 0, last_line
+
+
+def _run_dep_vulns(ctx):
+    return _run_security_command('check_dep_vulns')
 
 
 def _run_secret_leaks(ctx):
-    code, out = _capture('check_secret_leaks')
-    derniere = (out.strip().splitlines() or ["?"])[-1]
-    if code == 3:
-        raise SkipScenario(derniere)
-    return code == 0, derniere
+    return _run_security_command('check_secret_leaks')
+
+
+def _run_tls_certificate(ctx):
+    return _run_security_command('check_tls_certificate')
 
 
 # ── Contrat TOOL_API (stage 'wired') — versé du banc d'épreuve du 2026-08-18 ─────────────
@@ -498,6 +502,10 @@ def register_scenarios():
     register(id='common.consistency.secrets', app='common', stage='consistency',
              description='Fuites de secrets et attribution : historique git complet + hooks git versionnés (gitleaks)',
              run=_run_secret_leaks, timeout_s=300)
+    register(id='common.consistency.tls_certificate', app='common', stage='consistency',
+             description='Certificat réellement servi par le frontal https : rouge à moins de 30 jours '
+                         'de son expiration (le port 80 redirige, plus de voie de secours en clair)',
+             run=_run_tls_certificate, timeout_s=60)
     # ── Contrat tool_api (stage 'wired' : CPU + DB, aucun GPU, sondes sous rollback) ──
     register(id='common.tool_api.inventaire', app='common', stage='wired',
              description='Contrat structurel du pivot assistant (descriptions, triades, args dérivables)',

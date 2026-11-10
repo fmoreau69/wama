@@ -68,6 +68,30 @@ def app_of(match) -> str:
     return raw[1] or raw[0].rsplit('.', 1)[-1]
 
 
+class SecureCookiesOnHttpsMiddleware:
+    """Tout cookie émis pour une requête venue en https ne repartira qu'en https.
+
+    Doc : `INFRA_WSL_VS_WINDOWS.md §HTTPS`, bloc du 2026-11-10. `SESSION_COOKIE_SECURE` (posé par
+    `WAMA_HTTPS`) vaut pour TOUT le processus : la suite de tests et les contrôles nocturnes, qui
+    parlent http à gunicorn sur la boucle locale, perdraient leur session — mesuré : 9 tests sur
+    26 de `tests_preview_entry` tombent sous `WAMA_HTTPS=1`. Juger requête par requête laisse ce
+    chemin intact, et `request.is_secure()` ne ment pas : Apache écrase `X-Forwarded-Proto`.
+
+    Placé juste après `SecurityMiddleware`, donc AVANT ceux qui posent les cookies : c'est à la
+    remontée de la réponse qu'il passe, une fois la session et le jeton CSRF écrits.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if request.is_secure():
+            for morsel in response.cookies.values():
+                morsel['secure'] = True
+        return response
+
+
 class RunOutcomeCaptureMiddleware:
     """Enregistre telecharge / supprime / relance depuis les routes de file, sans code par app."""
 

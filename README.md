@@ -272,7 +272,7 @@ Apache (Windows) cannot reach gunicorn (WSL2) on `127.0.0.1:8000` unless a portp
 
 ```powershell
 $wsl = (wsl hostname -I).Trim().Split()[0]
-netsh interface portproxy add v4tov4 listenport=8000 listenaddress=0.0.0.0 connectport=8000 connectaddress=$wsl
+netsh interface portproxy add v4tov4 listenport=8000 listenaddress=127.0.0.1 connectport=8000 connectaddress=$wsl
 ```
 
 ---
