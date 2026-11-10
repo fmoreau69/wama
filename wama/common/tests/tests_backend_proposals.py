@@ -329,6 +329,23 @@ class MusicSmokeContractTest(SimpleTestCase):
         # given) », the reprise wrapped it in another one-argument function (2026-11-10).
         self.assertIn("args=(0.5, 'Generating')", res['error'])
 
+    def test_every_call_shape_of_the_engine_is_named_once(self):
+        """ACE-Step calls its progress positionally on one side and with `desc=` on the other: told
+        only the first shape, the reprise wrote an adapter the second one broke (2026-11-10)."""
+        code = MUSICAL.replace('SPAN', '1.0').replace('LEVEL', '0.3').replace('RETURNED', 'output_path')
+        code = code.replace('        for step in PROGRESS if progress_callback else ():\n',
+                            '        progress_callback(0.1, "Phase 1")\n'
+                            '        progress_callback(0.2, "Phase 1")\n'
+                            '        progress_callback(0.5, desc="Decoding")\n'
+                            '        for step in () if progress_callback else ():\n')
+        with tempfile.TemporaryDirectory() as out:
+            res = bp.smoke(code, module='song_smoke', model_key='huggingface:Org/Song',
+                           contract=MUSIC, out_dir=Path(out))
+        self.assertFalse(res['ok'])
+        self.assertIn('2 forme(s)', res['error'])
+        self.assertIn("args=(0.1, 'Phase 1')", res['error'])
+        self.assertIn("kwargs={'desc': 'Decoding'}", res['error'])
+
     def test_a_backend_that_swallows_the_callback_error_is_still_caught(self):
         """ACE-Step catches the exception and returns its text: the record, not the raise, says it."""
         res = self._smoke(progress=((0.5, 'Generating'),), returned='output_path',

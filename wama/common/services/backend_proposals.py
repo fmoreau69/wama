@@ -694,11 +694,19 @@ def _progress_misuse(misuse: list) -> str:
     """Ce que l'essai a vu de la forme d'appel du moteur sur le rappel du composer, '' sinon."""
     if not misuse:
         return ''
-    args, kwargs = misuse[0]
+    # TOUTES les formes, une fois chacune (2026-11-10 : ACE-Step appelle sa progression en position
+    # `(0.1, 'Phase 1…')` côté modèle de langage ET avec `desc=` côté DiT ; ne nommer que la
+    # première a fait écrire un adaptateur à deux arguments positionnels, refusé par la seconde).
+    shapes, seen = [], set()
+    for args, kwargs in misuse:
+        shape = (tuple(type(a).__name__ for a in args), tuple(sorted(kwargs)))
+        if shape not in seen:
+            seen.add(shape)
+            shapes.append(f"args={args!r} kwargs={kwargs!r}")
     return (f" — le rappel de progression du composer (UN argument : un pourcentage de 0 à 100) a "
-            f"reçu args={args!r} kwargs={kwargs!r} : c'est ainsi que le MOTEUR appelle sa "
-            f"progression ; l'adapter (signature du moteur → pourcentage), jamais le lui passer tel "
-            f"quel")
+            f"reçu {len(shapes)} forme(s) d'appel : " + ' ; '.join(shapes[:4])
+            + " — ce sont les formes du MOTEUR ; un adaptateur doit les accepter TOUTES (signature "
+              "du moteur → pourcentage), jamais lui passer le rappel tel quel")
 
 
 def _smoke_music(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
@@ -715,11 +723,12 @@ def _smoke_music(code: str, *, module: str, model_key: str, out_dir: Path) -> di
 
     def composer_progress(*args, **kwargs):
         """Le rappel du COMPOSER : un argument, un pourcentage. Un autre appel est ENREGISTRÉ —
-        c'est la forme d'appel du MOTEUR, que le backend doit adapter (ACE-Step appelle
-        `progress(0.51, desc='Preparing inputs...')`) — puis refusé comme le ferait le composer."""
+        c'est une forme d'appel du MOTEUR, que le backend doit adapter (ACE-Step appelle
+        `progress(0.51, desc='Preparing inputs...')`) — SANS lever : le moteur va au bout et livre
+        toutes ses formes, que le verdict nomme (l'essai échoue quand même, `misuse`)."""
         if len(args) != 1 or kwargs:
             misuse.append((args, kwargs))
-            raise TypeError(f'progress_callback prend UN argument ; appelé avec {args!r} {kwargs!r}')
+            return
         progress.append(args[0])
     with tempfile.TemporaryDirectory() as tmp:
         output = Path(tmp) / 'out' / 'smoke_music.wav'
