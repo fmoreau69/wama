@@ -124,7 +124,8 @@ def _rank_key(pool, family=None):
     # L'ÉCHELLE DES SIGNAUX vit désormais dans `_quality_scalars` (02/09) — un seul
     # domicile pour le TRI (ici) et le SCORE pondéré du curseur (`_best_by_vram`) :
     # sous-indice de domaine (2026-08-19 : qwen3.8 = 52,0 en général, 68,1 en coding —
-    # un rôle codegen trie là-dessus) si TOUT le lot le porte, sinon benchmark tiers
+    # un rôle codegen trie là-dessus) s'il compare au moins deux modèles du lot (« si TOUT le
+    # lot le porte » jusqu'au 2026-09-26, cf. `_quality_scalars`), sinon benchmark tiers
     # COMPARABLE (jamais `benchmark_index` nu : un WER se trie à l'envers d'un Elo, seul
     # le module qui écrit l'échelle connaît son sens), sinon a priori, sinon VRAM.
     scalars, _ = _quality_scalars(pool, family)
@@ -292,25 +293,48 @@ def _quality_scalars(pool, family=None):
     if internal:
         return internal, False
 
+    # ⚠ UN ÉTAGE CLASSE S'IL COMPARE (2026-11-10, régression du Composer relevée par Fabien :
+    # « on ne laisse pas un tel piège en suspens »). La règle de la mesure interne — au moins DEUX
+    # modèles, « sinon le seul mesuré gagnerait par défaut » — vaut pour tous les étages de qualité.
+    # Mesuré : depuis `966bd5f0b` (10/10), MiniMax Music 3 porte une note AA et il est le SEUL du
+    # lot `text-to-music` ; l'étage benchmark le classait seul, les a priori déclarés des quatre
+    # autres (YuE2 67,3 au-dessus de lui) n'étaient plus lus, et le curseur rendait MiniMax (13 Go)
+    # à TOUTES les positions, rapide compris. Un étage qui ne couvre qu'UN modèle cède donc la place
+    # au premier étage inférieur qui en compare plusieurs ; si aucun ne compare, il garde la sienne
+    # (un modèle noté passe encore devant un modèle que rien ne note). La VRAM n'est pas un étage
+    # de qualité : elle ne prend la place de personne.
+    single = None
+
+    def stage(values):
+        nonlocal single
+        if len(values) >= 2:
+            return values
+        if values and single is None:
+            single = values
+        return None
+
     if family:
         covered = [m for m in batch if _family_score(m) is not None]
         # Un sous-indice est mesuré sur l'échelle de SON banc : deux versions d'un indice ne se
         # comparent pas plus que leurs indices généraux (`benchmark_sync.aa_scale`, 2026-10-30).
         # Plusieurs échelles parmi les couverts → l'étage s'abstient, comme la mesure interne.
         scales = {(getattr(m, 'benchmark_meta', None) or {}).get('scale') for m in covered}
-        if covered and len(scales) == 1:
-            return {id(m): _family_score(m) for m in covered}, False
+        values = stage({id(m): _family_score(m) for m in covered}) if len(scales) == 1 else None
+        if values:
+            return values, False
 
     # Étage benchmark TIERS : le sous-ensemble mesuré doit AUSSI partager une seule échelle
     # (un Elo et un Intelligence Index ne se classent pas ensemble — `benchmarks_comparable`).
     measured = [m for m in batch if getattr(m, 'benchmark_index', None) is not None]
     if measured and benchmarks_comparable(measured):
-        return {id(m): orderable_value(m) for m in measured}, False
+        values = stage({id(m): orderable_value(m) for m in measured})
+        if values:
+            return values, False
 
     # Étage ÉCHELLE COMMUNE (2026-10-30, décision de Fabien) : des porteurs différents, mais une
     # échelle que TOUT le sous-ensemble mesuré porte aussi (l'Arena derrière un porteur AA) — la
     # valeur sur cette échelle avant le rang centile (`benchmark_sync.common_scale_values`).
-    common = common_scale_values(measured)
+    common = stage(common_scale_values(measured))
     if common:
         return common, False
 
@@ -333,13 +357,15 @@ def _quality_scalars(pool, family=None):
     # ⚠ Et chaque modèle s'y lit dans la population la plus PARTAGÉE du lot (2026-11-06) : le
     # rang du seul porteur faisait comparer trois populations à des modèles que l'Arena notait
     # presque tous (`benchmark_sync.shared_percentile_values`).
-    ranked = shared_percentile_values(batch)
+    ranked = stage(shared_percentile_values(batch))
     if ranked:
         return ranked, False
 
-    rated = [m for m in batch if m.quality_index is not None]
+    rated = stage({id(m): m.quality_index for m in batch if m.quality_index is not None})
     if rated:
-        return {id(m): m.quality_index for m in rated}, False
+        return rated, False
+    if single:
+        return single, False
 
     sized = [m for m in batch if not is_cloud(m) and m.vram_gb]
     if sized:

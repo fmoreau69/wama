@@ -104,11 +104,20 @@ class SubsetScaleTest(TestCase):
         values, _ = _quality_scalars(batch, None)
         self.assertEqual([26.2, 18.2], [values[id(m)] for m in batch])
 
-    def test_the_family_tier_beats_the_benchmark_tier_when_it_covers_someone(self):
+    def test_the_family_tier_beats_the_benchmark_tier_when_it_compares(self):
         batch = [_row('a', coding=70.0, benchmark_index=10, scale='ii', vram=5.0),
-               _row('b', benchmark_index=90, scale='ii', vram=5.0)]
+                 _row('c', coding=60.0, benchmark_index=95, scale='ii', vram=5.0),
+                 _row('b', benchmark_index=90, scale='ii', vram=5.0)]
         values, _ = _quality_scalars(batch, 'coding')
-        self.assertEqual([70.0], list(values.values()))
+        self.assertEqual([70.0, 60.0], list(values.values()))
+
+    def test_a_family_score_on_one_model_yields_to_a_tier_that_compares(self):
+        """2026-11-10 : un étage qui ne note qu'UN modèle ne compare rien — l'étage inférieur qui
+        compare le lot l'emporte (`AStageRanksOnlyIfItComparesTest`)."""
+        batch = [_row('a', coding=70.0, benchmark_index=10, scale='ii', vram=5.0),
+                 _row('b', benchmark_index=90, scale='ii', vram=5.0)]
+        values, _ = _quality_scalars(batch, 'coding')
+        self.assertEqual([10, 90], [values[id(m)] for m in batch])
 
     def test_sub_scores_of_two_index_versions_are_not_compared(self):
         """2026-10-30 : AA est passé à l'Intelligence Index v5 — un sous-indice v4 et un sous-indice
@@ -119,6 +128,43 @@ class SubsetScaleTest(TestCase):
                       rank=40.0, vram=5.0)]
         values, _ = _quality_scalars(batch, 'coding')
         self.assertEqual([80.0, 40.0], [values[id(m)] for m in batch])
+
+
+class AStageRanksOnlyIfItComparesTest(TestCase):
+    """2026-11-10, régression du Composer relevée par Fabien (« il ne faut rien casser du tirage
+    des modèles du composer […] on ne laisse pas un tel piège en suspens »). Depuis `966bd5f0b`
+    (10/10), MiniMax Music 3 porte une note AA et il est le SEUL du lot `text-to-music` : l'étage
+    benchmark le classait seul, les a priori DÉCLARÉS des quatre autres n'étaient plus lus, et le
+    curseur rendait MiniMax (13 Go) à toutes ses positions. La règle de la mesure interne — au moins
+    deux modèles — vaut pour chaque étage de qualité. Valeurs du catalogue, mesurées ce jour."""
+
+    def _music_lot(self):
+        return [_row('composer:minimax-music3', benchmark_index=1000.0,
+                     scale='aa_elo_music_with_vocals', quality_index=62.83, vram=13.0),
+                _row('composer:musicgen-medium', quality_index=60.12, vram=8.0),
+                _row('composer:musicgen-small', quality_index=57.62, vram=4.0),
+                _row('huggingface:ACE-Step/Ace-Step1.5', quality_index=60.12, vram=12.1),
+                _row('huggingface:m-a-p/YuE2-3B', quality_index=67.32, vram=8.8)]
+
+    def test_a_lone_benchmark_does_not_hide_the_priors_of_the_others(self):
+        lot = self._music_lot()
+        values, proxy_vram = _quality_scalars(lot, None)
+        self.assertFalse(proxy_vram)
+        self.assertEqual([62.83, 60.12, 57.62, 60.12, 67.32], [values[id(m)] for m in lot])
+
+    def test_the_cursor_moves_again_on_the_music_draw(self):
+        """Le comportement mesuré le 2026-10-03 (`WAMA_QUALITE §0`) : rapide → MusicGen Small,
+        équilibré et qualité → YuE2."""
+        lot = self._music_lot()
+        picks = [_best_by_vram(lot, budget_gb=24.0, quality_intent=i).model_key for i in (0, 50, 100)]
+        self.assertEqual(['composer:musicgen-small', 'huggingface:m-a-p/YuE2-3B',
+                          'huggingface:m-a-p/YuE2-3B'], picks)
+
+    def test_the_lone_measured_model_still_beats_what_nothing_rates(self):
+        """Contre-épreuve : quand aucun étage ne compare, le seul modèle noté garde sa place —
+        devant un modèle que rien ne note, même plus gros."""
+        lot = [_row('rated', benchmark_index=1000.0, scale='x', vram=4.0), _row('unrated', vram=20.0)]
+        self.assertEqual('rated', _best_by_vram(lot, budget_gb=None, quality_intent=100).model_key)
 
 
 class CommonScaleTest(TestCase):

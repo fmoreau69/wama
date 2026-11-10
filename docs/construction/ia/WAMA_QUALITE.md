@@ -289,6 +289,10 @@ mesure interne, PRIME dès qu'il existe.
   cf. §0) : 13 modèles en chanté, 19 en instrumental ; YuE2 et ACE-Step n'y sont pas,
   « MusicGen » sans taille ne s'apparie à aucune variante, MiniMax Music 3.0 attend un `ALIAS`
   confirmé — les valeurs déclarées ci-dessous restent donc l'étage qui classe la musique ;
+  ⚠ **faux le jour même, corrigé le 2026-11-10** : l'`ALIAS` confirmé (`966bd5f0b`, 10/10) a donné
+  à MiniMax Music 3 une note AA (1 000, `aa_elo_music_with_vocals`) ; seul noté du lot, il prenait
+  l'étage benchmark et les valeurs déclarées n'étaient plus lues — « Un étage classe s'il
+  COMPARE », plus bas ;
 - ses classements musique n'existent que sur la PAGE web (votes humains) : en **instrumental**,
   MiniMax Music 3.0 = 1000 (ancre), **MusicGen = 881** (−119 Elo) ; en **chanté**, aucun modèle
   ouvert (ni YuE, ni ACE-Step, ni MusicGen) ;
@@ -299,6 +303,53 @@ deux protocoles — les raccorder serait un choix, pas une mesure). Les valeurs 
 donc telles quelles ; la corroboration est portée dans leur source (`DECLARED_PRIORS`).
 ⇒ La voie qui reste est la **mesure interne** (étage 3) : un évaluateur automatique de qualité
 musicale tourné sur les sorties du composer — chantier à décider, pas un reste d'intégration.
+
+🔧 **Un étage classe s'il COMPARE — régression du Composer réparée le 2026-11-10** (vue en
+mesurant les trous de notation ; Fabien : *« Il ne faut rien casser du tirage des modèles du
+composer. Ou si quelque chose est cassé, il faut le réparer. On ne laisse pas un tel piège en
+suspens »*). Du 10/10 au 10/11, le tirage `text-to-music` rendait MiniMax Music 3 (13 Go) dès que
+le curseur passait 80 (le budget cesse de borner) et à TOUTES les positions quand 13 Go étaient
+libres : seul porteur d'une note de banc, il était seul classé, et le curseur ne choisit que parmi
+les classés (`_best_by_vram`, `rankable`). Règle posée, celle de la mesure interne — « au moins
+DEUX, sinon le seul mesuré gagnerait par défaut » (`model_selector._internal_values`) —, étendue à
+chaque étage de qualité de `_quality_scalars` : un étage qui ne note qu'un modèle cède la place au
+premier étage inférieur qui compare ; si aucun ne compare, il la garde (un modèle noté passe encore
+devant un modèle que rien ne note) ; la VRAM n'est pas un étage de qualité. Mesuré avant/après sur
+le catalogue, en lecture seule (1 395 tirages : chaque tâche, local / distant / les deux, cinq
+positions, trois budgets, `coding` pour `llm` et `vlm`) : **24 changent, tous `text-to-music`** —
+rapide → MusicGen Small, équilibré et qualité → YuE2, le comportement mesuré le 03/10. Tirage réel
+du Composer (`resolve_auto_model`, VRAM libre du moment) : qualité 85 et 100 → YuE2 au lieu de
+MiniMax, chanté compris ; 0 à 50 inchangés. Gardes : `tests_signal_scale_subset.
+AStageRanksOnlyIfItComparesTest` ; le test qui disait « le sous-indice gagne dès qu'il couvre
+quelqu'un » dit désormais « dès qu'il compare ».
+
+⏳ **TROUS DE NOTATION, TROUS DE SÉLECTION — question ouverte de Fabien (2026-11-10), pour une
+session neuve et le concile** (Q10, §8). *« Peut-on compléter les notes des modèles ? Mais le souci
+de modèles sans notation reviendra forcément à mon avis. Donc il faut à la fois gérer les trous de
+sélection et les trous de notation pour que le curseur ait une réponse honnête et alignée sur la
+demande de l'utilisateur, sans omettre de modèle. »*
+- **Ce que fait le code** (lu le 2026-11-10) : le curseur ne choisit que parmi les modèles qu'un
+  étage note (`_best_by_vram` : `rankable = [m for m in pool if id(m) in values] or pool`) ; le tri
+  les met derniers (`_rank_key`, `-inf`) ; rien ne dit à l'utilisateur qu'un modèle a été écarté
+  faute de note. Un modèle sans note n'est donc jamais tiré quand un autre en a une — même au
+  curseur rapide, où il serait le plus léger.
+- **Relevé du catalogue** (lecture seule, par catégorie — un tirage réel filtre encore par tâche) :
+  `llm` distants, 353 sans valeur sur 508 ; `llm` locaux installés, 1 sur 5 (translategemma) ;
+  `diffusion` 9 sur 13 ; `speech` 15 sur 23 ; `upscaling` 4 sur 10 ; `vision` 30 sur 73 (lot classé à
+  la VRAM). Lot `transcription` installé : 9 candidats, 6 classés — `linto_stt_fr_fastconformer_pc`
+  porte une note Linagora (WER 12,96, meilleure que les 19,03 de kyutai, classé) mais aucun rang
+  centile, et n'entre pas au classement (cause à établir : la valeur de l'auteur du banc,
+  `LINAGORA_OWN_PREFIX`, ne reçoit pas de rang).
+- **Deux trous, deux réponses à construire** : la **notation** — compléter (lignes OpenRouter à
+  l'identité collée, ~69 gagnables, `PROSPECTION_PIPELINE` ; tableaux officiels des auteurs,
+  `benchmark_sync` du 2026-10-29 ; a priori déclarés par tâche, `DECLARED_PRIORS` ; mesure interne),
+  sachant que chaque prospection amène des modèles neufs sans note : le trou reviendra ; la
+  **sélection** — ce que le curseur fait d'un modèle sans note : l'écarter (aujourd'hui), le placer
+  à une valeur neutre, l'essayer pour le mesurer, et dans tous les cas le DIRE (l'étage qui a classé
+  et les modèles écartés, rendus avec le choix).
+- **Ce qui borne toute réponse** : on ne mélange jamais deux échelles, et « inconnu » n'est pas
+  « mauvais » (`model_selector._rank_key`, docstring) ; un étage classe s'il compare (ci-dessus).
+  Rien d'implémenté.
 
 ⏳ **`AIModel.cost_tier` reste NON LU, et c'est délibéré** (question tranchée le 26/09,
 demande initiale de Fabien de « brancher l'arbitrage honnête », retirée après mesure). Le
@@ -871,6 +922,7 @@ catégorie est un réglage à part) ; où la catégorie vit sur la card.
 | **Q7** | **où tourne la nocturne comparative** | ② | R760xa ; l'hôte de dev ne joue plus aucun banc GPU. ⚠ **Précision de Fabien (2026-09-30)** : *« aujourd'hui la machine est stable »* — l'instabilité de l'hôte est résolue (`INFRA_WSL_VS_WINDOWS`), la condition « machine stable » de P4 ne bloque plus sur l'hôte actuel |
 | **Q8** | **domicile de l'indice interne** : `benchmark_meta` source `internal` (vérifier ce que `synchronize` fait d'une source inconnue) ou champ dédié | ⑧ | `benchmark_meta`, après vérification ; un champ de plus serait une 3ᵉ échelle de plus à ne pas mélanger. ✅ **Vérifié (2026-09-23)** : `synchronize` REMPLACE `benchmark_meta` des modèles appariés — `benchmark_meta` n'est PAS un domicile sûr sans le modifier. En phase lecture, aucun domicile : la note est calculée à la lecture (`internal_quality`). La question renaît avec Q3. ✅ **Close avec Q3 (2026-10-14)** : le tri LIT la note calculée, rien n'est écrit — aucun domicile n'est nécessaire |
 | **Q9** | **la consistance de lignée** dans M6 : pondérer l'accord par la diversité des familles (deux YOLO ≠ un YOLO + un DETR) — déclarer la famille où ? | M6 | `AIModel.extra_info['family']` existe pour les snapshots HF ; à généraliser, ou ignorer en phase 1 |
+| **Q10** | **trous de notation et trous de sélection** (Fabien, 2026-11-10) : comment le curseur répond honnêtement, sans omettre de modèle, quand une partie du lot n'a aucune note — et comment compléter les notes, sachant que des modèles neufs en arriveront toujours sans | le curseur de toutes les apps, `best_installed` | aucune — session neuve (Fable 5.2) + concile ; constat mesuré et pistes au §0, « TROUS DE NOTATION, TROUS DE SÉLECTION » |
 
 ---
 

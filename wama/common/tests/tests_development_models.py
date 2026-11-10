@@ -145,8 +145,13 @@ class DevelopmentLevelReadsALivingMeasureTest(TestCase):
         self.assertTrue(dm.is_development_grade(fresh, rank=20.0))
         self.assertFalse(dm.is_development_grade(self.small, rank=None))
 
-    def test_without_the_stale_mark_the_lone_note_wins_again(self):
-        """Contre-épreuve : c'est la marque de péremption qui rend la main aux mesures fraîches."""
+    def test_without_the_stale_mark_the_coding_note_decides_again(self):
+        """Contre-épreuve : c'est la marque de péremption qui rend la main aux mesures fraîches.
+        Depuis le 2026-11-10, une note coding SEULE ne décide plus de toute façon — un étage classe
+        s'il compare (`model_selector._quality_scalars`) ; la contre-épreuve oppose donc deux notes
+        de la même échelle, dont la périmée."""
+        _ranked('ollama:coder-b', 60.0, 30.0, scale='aa_intelligence_index', coding=40.5)
+        self.assertEqual('ollama:gemma-31b', dm.development_model(self.user))
         self.stale.benchmark_meta = {k: v for k, v in self.stale.benchmark_meta.items()
                                      if k != 'stale_since'}
         self.stale.save(update_fields=['benchmark_meta'])

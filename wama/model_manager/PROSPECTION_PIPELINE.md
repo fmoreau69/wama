@@ -3986,8 +3986,10 @@ non datée au banc). Le travail ne dépend d'aucune clé (la liste vient de la c
 USAGE par un compte, si : OpenRouter est une clé personnelle non partageable (`WAMA_LLM`,
 2026-10-10), d'où le lien avec les quotas d'essai des clés d'instance (`ROADMAP` Phase 3, point
 4a, « Devenue INTENTION le 2026-11-07 »).
-⏳ Non notés, remesuré le 2026-11-10 : `albert:gpt-oss-120b` ; `mistral-medium-latest` n'a plus de
-ligne à ce nom au catalogue (seules les lignes `openrouter:mistralai/mistral-medium-*`, sans note).
+⏳ Non notés, remesuré le 2026-11-10 : `albert:gpt-oss-120b` ; ~~`mistral-medium-latest` n'a plus de
+ligne à ce nom au catalogue~~ — **faux, corrigé le même jour** : la ligne est `ilaas:mistral-medium-latest`
+(distante, sans note), à côté des lignes `openrouter:mistralai/mistral-medium-*`, sans note elles
+aussi. Ce que le curseur fait de ces lignes : `WAMA_QUALITE §0`, « TROUS DE NOTATION ».
 
 ## Veille du 2026-11-06 : LIRE UNE PARTITION SCANNÉE (OMR) dans le Reader — moteurs possibles, rien d'installé
 
