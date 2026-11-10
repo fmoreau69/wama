@@ -221,6 +221,14 @@ transmettait qu'un. Convention « port = argument du même nom de l'outil » et 
   ses entrées déjà retenues). Le gabarit généré et `wireMatch` l'appellent ; le critère
   `input_match_ui` reconnaît ses deux entrées. Gardes `tests_input_match_card_match` (V8 sur la
   brique servie), `GeneratedInputMatchTest`, `tests_entries`, `tests_cap_from_declared`.
+  ⏳ *Relevé le 2026-11-10 (revérification)* : les apps SOURCES câblent encore `init` elles-mêmes,
+  sur une méta lue côté client — anonymizer (`templates/anonymizer/index.html:369`), enhancer
+  (deux selects, `index.html:286,291`), synthesizer (`:321`), transcriber (`:144`), describer
+  (`:168`, cascade de modalités), composer (`index.html:308`, `js/index.js:116`), reader (`:123`),
+  imager (`js/input_card.js:67`), avatarizer (`js/index.js:492`) ; leurs jumelles passent par
+  `card_match` + `fromCardMatch`. Les porter alignerait sources et jumelles sur UNE lecture ; non
+  mesuré : ce que `card_match` ne sait pas dire (les modalités du describer, deux selects sur une
+  card) — à mesurer avant d'écrire (`ROUTE §11 #41`).
 
 ~~⚠ **Un seul point du dépôt dit encore le contraire** : `INPUT_TYPES['prompt'].port == 'travail'`.
 C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse.~~

@@ -2181,5 +2181,17 @@ pour ce que `themes.py` déclare autrement.
 7. **Serveur Linux** : supprime le coût d'E/S de WSL2 sur `/mnt/d` (`reference_page_perf_debug`,
    `ROADMAP` déploiement) — un levier, pas une excuse pour 1 à 6.
 
+### 11.4 Cas relevés par les revérifications, à verser à la passe dédiée
+
+- *2026-11-10, revérification du portage du 09/11 (deux gardes écrites la veille de la règle)* :
+  ① `tests_batch_views.DeclaredProgressColumnTest` garde un CONTRAT de la fabrique
+  (`make_batch_views(progress_field=…)`) en nommant l'anonymizer (`Media.blur_progress`) — la
+  colonne de progression n'est déclarée dans aucun registre (l'app la passe à la fabrique dans
+  `anonymizer/views.py`, le générateur la lit au manifeste) : la forme générique bouclerait sur les
+  apps qui la déclarent, une fois le lieu de déclaration choisi. ② La brique d'appariement
+  (`wama-input-match.js`) a TROIS modules V8 par sujet — `tests_input_match_capability`,
+  `tests_input_match_modality`, `tests_input_match_card_match` (ajouté le 09/11) —, chacun avec sa
+  copie de `_v8` : un module de la brique, une fixture commune.
+
 ⚠ Les limites mesurées ici évoluent : chaque chiffre est daté et se REMESURE à l'ouverture de la
 session dédiée (les rapports nocturnes le permettent sans rien relancer).

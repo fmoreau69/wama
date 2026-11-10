@@ -30463,3 +30463,27 @@ gunicorn + workers avant la sonde de nuit (palier du 09/11). Rien n'est poussé.
 - **Pendings système** : relancer gunicorn + workers pour que le tirage réparé serve (le code en
   service est l'ancien) ; pousser `dev` (16 commits d'avance avant ce bloc, dont deux de cette
   session).
+
+## §CLÔTURE 2026-11-10 (revérification finale), « PORTAGE DU 09/11 + QUESTION DU DOMAINE » — ✅ revérifiée — 🔚 inchangé : session de conception du domaine (`MODES_QUEUE_UX §2ter`)
+
+Revérification complète (`/reverif`) des commits `283de6d12`, `89280e43f`, `550d4daa4`, `011072623`,
+`3b781f11a`, `7c18ac806`.
+
+- **Testé** : 563 tests du périmètre et des gardes transverses (WSL, `--keepdb`) — seul rouge,
+  `tests_identifier_language` (noms de méthodes de test 1318 > 1317) : le nom en trop est
+  `tests_batch_views.py:985` `test_each_element_goes_under_the_name_the_app_declares` (racine
+  « déclar »), NON COMMITÉ, d'une autre session (lot de textes) — aucun nom relevé dans mes
+  fichiers. `doc_facts --check` à jour ; `check_docs` 0 / 4054.
+- **Ramené à son domicile** : les apps SOURCES câblent encore `WamaInputMatch.init` à la main sur
+  une méta lue côté client (neuf sites), quand leurs jumelles passent par `card_match` +
+  `fromCardMatch` — ⏳ consigné `INPUT_MODEL_MATCHING §6.4` (à mesurer : ce que `card_match` ne dit
+  pas, modalités du describer, deux selects de l'enhancer).
+- **Gardes au regard de la règle du jour** (`AGENTS.md`, « un test est générique par défaut »,
+  `e39771bac`) : `DeclaredProgressColumnTest` nomme l'anonymizer dans un test de contrat, et
+  `tests_input_match_card_match` est un 3ᵉ module V8 de la même brique — consignés
+  `WAMA_VERIFICATION §11.4` pour la passe dédiée aux tests, pas retouchés en fin de session.
+- **Laissé à ses propriétaires** : six manifestes de modèles re-mesurés (VRAM du 10/11) et cinq
+  manifestes neufs non suivis (`claude-fable-5-2`, `muse-ember`, `inkling-2-small`…) — un export
+  d'une autre session, non commité ; le WIP de `batch_views.py`, `INPUT_MODEL_MATCHING.md`,
+  `ROUTE`, `PROJECT_STATUS`.
+- Rien n'est poussé. 🔴 Si ce n'est pas fait : relancer gunicorn + workers avant la sonde de nuit.
