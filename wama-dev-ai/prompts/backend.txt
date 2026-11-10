@@ -38,7 +38,9 @@ RÈGLES STRICTES :
        session = ort.InferenceSession(str(path), providers=onnx_providers())
 6. Imports LOURDS (torch, onnxruntime, numpy, transformers, PIL) À L'INTÉRIEUR des méthodes,
    jamais en tête de module — sauf ce que le contrat et les voisins importent déjà en tête.
-   `is_available()` vérifie seulement que les paquets s'importent (pas de chargement).
+   `is_available()` vérifie seulement que les paquets s'importent (pas de chargement, pas de
+   test du GPU). Le périphérique se DÉCIDE au chargement (`'cuda' if torch.cuda.is_available()
+   else 'cpu'`), jamais écrit en dur : l'essai de ta proposition tourne sur CPU.
 7. Tu reproduis FIDÈLEMENT l'algorithme du code d'inférence publié (étapes, formes des
    tenseurs, normalisations, ordonnanceur, décodage), adapté aux paramètres du contrat
    (prompt, negative_prompt, width, height, steps, guidance_scale, seed, num_images). Une

@@ -3633,6 +3633,7 @@ tout de suite »*) :
   `yue2_3b_backend`, `2455615c`/`f7e5e9da`) ; ⏳ ACE-Step 1.5, LongCat-Video, InfiniteTalk,
   SoulX-FlashHead.
   🔄 *Relevé du 2026-11-10* : ACE-Step 1.5 a sa librairie installée par la route et son manifeste validé (`f0f48c4c5`) ; ⏳ son backend.
+  🔄 *Le soir même* : le rôle `backend` a produit un module qui GÉNÈRE (essai réel sur CPU, 10 s à 48 kHz) une fois la route comblée de cinq manques (chargeurs nommés à la place de l'entrée qui télécharge, essai musical, reprise sur l'essai, chemins des composants, paramètres que le contrat interdit d'ignorer — `PROSPECTION_PIPELINE`, entrée ACE-Step) ; ⏳ un dernier passage du rôle, les fournisseurs souverains étant tombés, puis la validation de Fabien.
 - **D-b — un artefact intermédiaire ÉDITABLE dans une app de génération.** Propre à YuE2, et
   INDÉPENDANTE de D-a. Aucune app ne l'a : partout c'est consigne → sortie, en un coup. La forme
   existe pourtant ailleurs (transcriber : un master puis une correction humaine qui fait autorité).

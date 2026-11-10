@@ -57,7 +57,7 @@
   "description": "The model Claude Code chooses itself for your subscription.",
   "key": "claude_code:default",
   "manifest_kind": "model",
-  "name": "Claude Code — modèle par défaut",
+  "name": "Claude Code — default model",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",

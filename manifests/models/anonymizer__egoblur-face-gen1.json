@@ -55,7 +55,7 @@
   "description": "EgoBlur (Meta, Apache-2.0): a face detector trained to ANONYMISE, tuned to miss nothing. Returns at most 100 faces per frame: a dense crowd saturates it. Weights distributed by Meta through a form: drop them in the `vision/egoblur` folder.",
   "key": "anonymizer:egoblur-face-gen1",
   "manifest_kind": "model",
-  "name": "EgoBlur visages (gen1)",
+  "name": "EgoBlur faces (gen1)",
   "projects": [],
   "requires": [
     {

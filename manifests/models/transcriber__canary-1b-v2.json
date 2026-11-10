@@ -59,7 +59,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Canary 1B v2 (NVIDIA) — 25 langues européennes, meilleur banc FR ouvert",
+      "description_short": "Canary 1B v2 (NVIDIA) — 25 European languages, best open model on the French benchmark",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:nvidia/canary-1b-v2",

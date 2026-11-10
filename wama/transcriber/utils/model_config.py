@@ -107,7 +107,7 @@ QWEN_ASR_MODELS = {
         'vram_gb': 2,
         # Description PAR-MODÈLE (2 tailles pour un même moteur) — la VRAM vient du catalogue
         # (vram_gb), jamais du texte.
-        'description': 'Qwen3-ASR 0.6B — rapide, context biasing, 30 langues',
+        'description': 'Qwen3-ASR 0.6B — fast, context biasing, 30 languages',
         # `supports_*` retirés — données mortes (cf. VIBEVOICE_MODELS ci-dessus).
         # 30 = `qwen_asr.inference.utils.SUPPORTED_LANGUAGES` (runtime 0.0.6) ; « 52 » était
         # l'annonce de la carte du modèle, que le runtime ne tient pas (2026-09-28).
@@ -120,7 +120,7 @@ QWEN_ASR_MODELS = {
         'type': 'speech-to-text',
         'size_gb': 3.5,
         'vram_gb': 4,
-        'description': 'Qwen3-ASR 1.7B — précis, context biasing, 30 langues',
+        'description': 'Qwen3-ASR 1.7B — accurate, context biasing, 30 languages',
         # `supports_*` retirés — données mortes (cf. VIBEVOICE_MODELS ci-dessus).
         'languages': '30',
     },
@@ -142,7 +142,7 @@ NEMO_ASR_MODELS = {
         'size_gb': 6.4,
         'vram_gb': 7.6,
         'dir': CANARY_DIR,
-        'description': 'Canary 1B v2 (NVIDIA) — 25 langues européennes, meilleur banc FR ouvert',
+        'description': 'Canary 1B v2 (NVIDIA) — 25 European languages, best open model on the French benchmark',
         'languages': list(NEMO_LANGUAGES),
     },
     'parakeet-tdt-0.6b-v3': {
@@ -153,7 +153,7 @@ NEMO_ASR_MODELS = {
         'size_gb': 2.5,
         'vram_gb': 3,
         'dir': PARAKEET_DIR,
-        'description': 'Parakeet TDT 0.6B v3 (NVIDIA) — très rapide, 25 langues, langue détectée',
+        'description': 'Parakeet TDT 0.6B v3 (NVIDIA) — very fast, 25 languages, language detected',
         'languages': list(NEMO_LANGUAGES),
     },
 }

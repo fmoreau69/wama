@@ -287,8 +287,8 @@ def install_vendor(lib, apply: bool = False, via: str = '') -> dict:
                         'error': error}
             outcome.update({'ok': True, 'version': vendor['commit'][:12]})
         _code_names.cache_clear()             # le code a changé : ce qu'il nomme aussi
-        from wama.common.utils.download_calls import _reaching
-        _reaching.cache_clear()               # et ce qu'il télécharge
+        from wama.common.utils.download_calls import forget_readings
+        forget_readings()                     # et ce qu'il télécharge ou écrit
         try:
             from wama.common.backends.manager import invalidate_engine_cache
             invalidate_engine_cache()

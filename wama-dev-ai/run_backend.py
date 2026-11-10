@@ -16,7 +16,9 @@ Pilote BORNÉ (même discipline que les cinq autres rôles) :
   2. UN appel LLM (bridé au niveau développement, `role_utils.resolve_model`) ;
   3. contrôles MÉCANIQUES (`backend_proposals.check_source`), résolution SIMULÉE par
      l'inventaire, smoke CPU PAR CONTRAT (`backend_proposals.SMOKES` : génération d'images, ou
-     transcription d'un extrait de parole réelle face à sa référence — 2026-10-02) ;
+     transcription d'un extrait de parole réelle face à sa référence — 2026-10-02 —, génération
+     d'un court morceau — 2026-11-10…) ; UNE reprise sur le verdict des contrôles, UNE sur celui
+     de l'essai, chacun rendu mot pour mot ;
   4. écrit la proposition dans `outputs/` (PENDING_HUMAN_VALIDATION). L'ÉCRITURE dans
      `wama/common/backends/` est le geste « Valider » du model manager, jamais ce script.
 
@@ -130,7 +132,8 @@ def vendor_material(engine: str, repo_id: str) -> str:
     # Le GESTE d'import du contrat commun, dit en clair : le base.py servi au rôle est un extrait
     # tronqué qui n'atteint pas `import_vendored` (vécu le 2026-10-01 : `from yue2… import` nu).
     src = 'src' if (root / 'src').is_dir() else ''
-    packages = sorted(p.parent.name for p in (root / src if src else root).glob('*/__init__.py'))
+    from wama.common.utils.download_calls import code_packages
+    packages = sorted(code_packages(root, modules=False))
     from wama.common.services.backend_proposals import _vendored_code_caps_process_vram
     parts = [f"===== MOTEUR VENDORISÉ « {engine} » — À RESPECTER =====\n"
              f"Code cloné sous settings.BACKEND_VENDOR_DIR/{engine}/ (jamais installé dans le venv).\n"
@@ -189,7 +192,30 @@ def vendor_material(engine: str, repo_id: str) -> str:
                     parts.append(f'===== CODE DE L\'ENTRÉE DOCUMENTÉE {name} ({where}) — à '
                                  f'reproduire SANS ses téléchargements =====\n'
                                  f'{source[:VENDOR_CHARS]}')
+                    parts.append(entry_loaders_material(root, engine, name, source))
     return '\n\n'.join(parts)
+
+
+def entry_loaders_material(root: Path, engine: str, entry: str, entry_source: str) -> str:
+    """Les CHARGEURS à appeler à la place d'une entrée qui télécharge — la phrase même du refus
+    de `check_source` (`backend_proposals.replacing_loaders`), puis leur code, dans l'ordre où
+    l'entrée les appelle : leurs signatures et ce qu'ils attendent des chemins (2026-11-10 —
+    deux modèles, à qui l'on disait seulement de ne pas appeler `initialize_service`, l'ont
+    rappelé)."""
+    from wama.common.services.backend_proposals import replacing_loaders
+    from wama.common.utils.download_calls import entry_loaders
+    loaders = entry_loaders(root, entry)['loaders']
+    parts = [f'===== À LA PLACE DE {entry} =====\n{replacing_loaders(engine, entry)}']
+    budget = VENDOR_CHARS
+    order = sorted(loaders, key=lambda n: (entry_source.find(n) % (len(entry_source) + 1), n))
+    for name in order:
+        source = _function_source(root / loaders[name].rsplit(':', 1)[0], name)
+        if not source or budget <= 0:
+            continue
+        source = source[:min(budget, VENDOR_CHARS // 3)]
+        budget -= len(source)
+        parts.append(f'----- {name} ({loaders[name]}) -----\n{source}')
+    return '\n'.join(parts)
 
 
 def _function_source(path: Path, name: str) -> str:
@@ -205,6 +231,33 @@ def _function_source(path: Path, name: str) -> str:
     return (ast.get_source_segment(text, node) or '') if node is not None else ''
 
 
+def components_material(model_key: str, root: Path) -> str:
+    """Ce que `component_paths(clé)` rend ICI, rôle par rôle — un FICHIER chacun — et l'expression
+    qui en remonte à la racine des poids. Vécu le 2026-11-10 (ACE-Step) : ses chargeurs attendent
+    des DOSSIERS (`checkpoint_dir`, `model_checkpoint_path`) ; deux propositions du même modèle ont
+    remonté l'une de deux niveaux (juste), l'autre d'un seul (`…/vae/vae`, introuvable à l'essai)."""
+    from wama.common.utils.model_components import ComponentsUnavailable, component_paths
+    try:
+        paths = component_paths(model_key)
+    except ComponentsUnavailable as e:
+        return f'===== component_paths =====\n{e}'
+    lines = []
+    for role, path in paths.items():
+        try:
+            depth = len(path.relative_to(root).parts)
+        except ValueError:
+            lines.append(f'paths[{role!r}] = {path}  (hors du snapshot)')
+            continue
+        to_root = 'parent' if depth == 1 else f'parents[{depth - 1}]'
+        lines.append(f'paths[{role!r}] = <racine>/{path.relative_to(root).as_posix()}  — son '
+                     f'dossier : paths[{role!r}].parent ; la racine des poids : '
+                     f'paths[{role!r}].{to_root}')
+    return (f"===== CE QUE component_paths('{model_key}') REND SUR CETTE MACHINE =====\n"
+            "Un FICHIER par rôle. Un chargeur qui attend un DOSSIER reçoit le dossier du composant "
+            "ou la racine des poids, selon ce que son code joint ensuite — jamais le fichier.\n"
+            + '\n'.join(lines))
+
+
 def model_material(row) -> str:
     """Inventaire du snapshot + fichiers d'inférence publiés (README en DERNIER : il déborde)."""
     from wama.common.utils.model_components import snapshot_dir
@@ -214,7 +267,8 @@ def model_material(row) -> str:
     files = sorted((p for p in root.rglob('*') if p.is_file()),
                    key=lambda p: p.stat().st_size, reverse=True)[:MAX_FILES]
     parts = ['===== INVENTAIRE DU SNAPSHOT =====\n' + '\n'.join(
-        f'{p.relative_to(root)}  ({p.stat().st_size / 1e6:.1f} Mo)' for p in files)]
+        f'{p.relative_to(root)}  ({p.stat().st_size / 1e6:.1f} Mo)' for p in files),
+             components_material(row.model_key, root)]
     for name in INFERENCE_FILES:
         found = next(iter(sorted(root.rglob(name))), None)
         if found is not None:
@@ -294,7 +348,29 @@ def main():
                      keep_alive=keep_alive, timeout=1800)
     code = extract_code(reply)
 
-    checks = bp.check_source(code, engine=engine, model_id=model_id, contract=contract)
+    def reprise(code, heading, defects):
+        """La réponse du modèle à son module rendu avec un VERDICT mécanique, mot pour mot ; None
+        s'il ne répond pas."""
+        request = (f"{user_msg}\n\nTON MODULE :\n```python\n{code}```\n\n{heading}\n"
+                   + '\n'.join(f'- {e}' for e in defects)
+                   + "\n\nCorrige ce qui est refusé, garde le reste, et rends le module complet "
+                     "(un seul bloc ```python).")
+        try:
+            return extract_code(call_llm(args.provider, model, PROMPT, request,
+                                         num_ctx=LONG_WRITE_NUM_CTX, keep_alive=keep_alive,
+                                         timeout=1800))
+        except (RuntimeError, ValueError) as e:
+            print(f'[backend] reprise sans réponse ({e}) : la première est gardée')
+            return None
+
+    def check(code):
+        return bp.check_source(code, engine=engine, model_id=model_id, contract=contract)
+
+    def run_smoke(code):
+        return bp.smoke(code, module=module, model_key=args.catalog, contract=contract,
+                        out_dir=REPO_ROOT / 'wama-dev-ai' / 'outputs')
+
+    checks = check(code)
     # UNE reprise sur le verdict des contrôles, comme le rôle `model` sur celui de « Valider »
     # (2026-11-08, ACE-Step par l'assistant) : refusé pour trois défauts mécaniques
     # (`SUPPORTED_MODELS` dans la classe, `initialize_service` qui télécharge, le clone nommé en
@@ -302,32 +378,36 @@ def main():
     # refus sont rendus au modèle mot pour mot ; la reprise n'est gardée que moins refusée.
     if not checks['ok']:
         print(f"[backend] contrôles refusent : {checks['errors']} — une reprise")
-        reprise = (f"{user_msg}\n\nTON MODULE :\n```python\n{code}```\n\nLes contrôles de WAMA le "
-                   "REFUSENT :\n" + '\n'.join(f'- {e}' for e in checks['errors'])
-                   + "\n\nCorrige ce qui est refusé, garde le reste, et rends le module complet "
-                     "(un seul bloc ```python).")
-        try:
-            second = extract_code(call_llm(args.provider, model, PROMPT, reprise,
-                                           num_ctx=LONG_WRITE_NUM_CTX, keep_alive=keep_alive,
-                                           timeout=1800))
-        except (RuntimeError, ValueError) as e:
-            second = None
-            print(f'[backend] reprise sans réponse ({e}) : la première est gardée')
+        second = reprise(code, 'Les contrôles de WAMA le REFUSENT :', checks['errors'])
         if second:
-            second_checks = bp.check_source(second, engine=engine, model_id=model_id,
-                                            contract=contract)
+            second_checks = check(second)
             kept = len(second_checks['errors']) < len(checks['errors'])
             print(f"[backend] reprise : {len(second_checks['errors'])} refus contre "
                   f"{len(checks['errors'])} — " + ('gardée' if kept else 'écartée'))
             if kept:
                 code, checks = second, second_checks
+    smoke = None
+    if checks['ok'] and not args.no_smoke:
+        smoke = run_smoke(code)
+        # Et UNE reprise sur le verdict de l'ESSAI RÉEL (2026-11-10, ACE-Step) : le module passait
+        # les contrôles, chargeait le modèle, puis la génération échouait sur une erreur que l'essai
+        # nomme exactement (un rappel de progression à un argument, le moteur en passe deux) —
+        # le rôle ne la recevait jamais. Gardée seulement si son essai réussit.
+        if smoke.get('ran') and not smoke.get('ok'):
+            print(f"[backend] l'essai échoue : {smoke.get('error')} — une reprise")
+            second = reprise(code, "L'ESSAI RÉEL de WAMA (chargement, puis une exécution sur CPU) "
+                                   "ÉCHOUE :", [smoke.get('error') or '?'])
+            second_checks = check(second) if second else None
+            second_smoke = run_smoke(second) if second_checks and second_checks['ok'] else None
+            kept = bool(second_smoke and second_smoke.get('ok'))
+            print(f"[backend] reprise de l'essai : "
+                  + (str(second_smoke) if second_smoke else 'refusée aux contrôles' if second
+                     else 'sans réponse') + (' — gardée' if kept else ' — écartée'))
+            if kept:
+                code, checks, smoke = second, second_checks, second_smoke
     resolution = (bp.simulate_resolution(code, module=module, engine=engine, model_id=model_id,
                                          task=task)
                   if checks['ok'] else None)
-    smoke = None
-    if checks['ok'] and not args.no_smoke:
-        smoke = bp.smoke(code, module=module, model_key=args.catalog, contract=contract,
-                         out_dir=REPO_ROOT / 'wama-dev-ai' / 'outputs')
     out = write_output('backend', args.catalog, {
         'model_key': args.catalog, 'module': module, 'engine': engine,
         'contract': list(contract), 'provider': args.provider, 'model': model,

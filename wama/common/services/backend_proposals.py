@@ -79,6 +79,24 @@ def required_methods(contract: tuple) -> set:
     return (set(info['propres_abstraites']) | base_abstract) - set(info['definies'])
 
 
+def contract_must_read(contract: tuple) -> dict:
+    """`{méthode: (paramètres…)}` que le CONTRAT déclare impossibles à ignorer (`MUST_READ`, lu par
+    AST dans son module, jamais importé — même lecture que `required_methods`)."""
+    module, cls = contract
+    try:
+        tree = ast.parse((backends_dir() / f'{module}.py').read_text(encoding='utf-8'))
+    except (OSError, SyntaxError):
+        return {}
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == cls:
+            for s in node.body:
+                if isinstance(s, ast.Assign) and any(getattr(t, 'id', '') == 'MUST_READ'
+                                                     for t in s.targets):
+                    value = _literal(s.value)
+                    return value if isinstance(value, dict) else {}
+    return {}
+
+
 def model_id_of(model_key: str) -> str:
     """Identifiant que `SUPPORTED_MODELS` doit déclarer — la règle de `backend_for_model`,
     désormais commune (`model_keys.backend_model_id`, 2026-10-07)."""
@@ -122,9 +140,9 @@ def _vendored_code_caps_process_vram(engine: str) -> bool:
 def _vendored_top_packages(engine: str) -> set:
     """Paquets de premier niveau du clone (racine ou `src/`) — des noms d'import ABSENTS du venv."""
     from django.conf import settings
-    root = Path(settings.BACKEND_VENDOR_DIR) / engine
-    return {p.parent.name for base in (root, root / 'src') if base.is_dir()
-            for p in base.glob('*/__init__.py')}
+
+    from wama.common.utils.download_calls import code_packages
+    return code_packages(Path(settings.BACKEND_VENDOR_DIR) / engine, modules=False)
 
 
 def _vendored_import_errors(tree, engine: str) -> list:
@@ -202,6 +220,41 @@ def supported_entry_errors(model_id: str, entry, code: str = None) -> list:
     return errors
 
 
+def replacing_loaders(engine: str, entry: str) -> str:
+    """Ce qu'un backend appelle À LA PLACE de `entry`, une fonction du moteur vendorisé qui
+    télécharge — dit en clair, pour le refus de `check_source` et la matière du rôle : ses
+    chargeurs qui ne téléchargent ni n'écrivent, et les étapes qu'il laisse
+    (`download_calls.entry_loaders`). Vécu le 2026-11-09 : deux modèles, refusés sur
+    « appeler les chargeurs qu'elles appellent », ont rappelé `initialize_service` faute de les
+    connaître."""
+    from wama.common.utils.download_calls import entry_loaders
+    from wama.model_manager.services.vendor_installer import vendor_dir
+    parts = entry_loaders(vendor_dir(engine), entry)
+    if not parts['loaders']:
+        return (f"{entry} : reproduire ses étapes sans télécharger, sur les chemins installés "
+                "(component_paths)")
+    owners = parts['owners']
+    skipped = [f'{n} (télécharge)' for n in parts['downloads']] + \
+              [f'{n} (écrit un fichier)' for n in parts['writes']]
+
+    def named(name, where):
+        return (f'{name} (méthode de {owners[name]}, {where})' if name in owners
+                else f'{name} (fonction de module, {where})')
+    # L'objet qui porte l'entrée (2026-11-10, ACE-Step : des méthodes de mixins appelées comme des
+    # fonctions de leur module, `AttributeError` à l'essai).
+    host = ''
+    if entry in owners:
+        heirs = ', '.join(f'{c} ({w})' for c, w in parts['heirs'].items())
+        host = (f" ; {entry} est une méthode de {owners[entry]}"
+                + (f", dont hérite {heirs}" if heirs else '')
+                + " : ses chargeurs-méthodes s'appellent sur la MÊME instance "
+                  "(`instance.<chargeur>(…)`), jamais sur le module qui les définit")
+    return (f"à la place de {entry}, appeler sur les chemins installés (component_paths) ses "
+            f"chargeurs qui ne téléchargent ni n'écrivent : "
+            + ', '.join(named(n, where) for n, where in parts['loaders'].items())
+            + (f" — sans {', '.join(skipped)}" if skipped else '') + host)
+
+
 def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> dict:
     """Contrôles de FORME d'un module de backend proposé. `ok` = aucune erreur."""
     errors, warnings = [], []
@@ -250,6 +303,18 @@ def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> d
     missing = sorted(required_methods(contract) - defined)
     if missing:
         errors.append(f'méthodes du contrat non implémentées : {missing}')
+    for method, params in contract_must_read(contract).items():
+        node = next((s for s in cls.body if isinstance(s, (ast.FunctionDef, ast.AsyncFunctionDef))
+                     and s.name == method), None)
+        if node is None:
+            continue
+        read = {n.id for statement in node.body for n in ast.walk(statement)
+                if isinstance(n, ast.Name)}
+        unread = [p for p in params if p not in read]
+        if unread:
+            errors.append(f"{method} ne lit jamais {unread} : le contrat veut qu'un moteur qui ne "
+                          "les suit pas les REFUSE en le disant (ex. self.refuse_score), jamais en "
+                          "les ignorant")
     if HF_ENV_MUTATION.search(code):
         errors.append("mutation du cache HF dans l'environnement (interdit, AGENTS.md)")
     if NETWORK_FETCH.search(code):
@@ -275,8 +340,8 @@ def check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> d
                          & set(reaching))
         if reached:
             errors.append(f"appelle {', '.join(f'{n} ({reaching[n]})' for n in reached)} : "
-                          f"le code du moteur « {engine} » y télécharge lui-même — appeler les "
-                          "chargeurs qu'elles appellent, sur les chemins installés (component_paths)")
+                          f"le code du moteur « {engine} » y télécharge lui-même — "
+                          + '; '.join(replacing_loaders(engine, n) for n in reached))
         own = _vendored_top_packages(engine) & set(attrs.get('REQUIRED_PACKAGES') or [])
         if own:
             errors.append(f"REQUIRED_PACKAGES nomme le code VENDORISÉ lui-même ({sorted(own)}) : "
@@ -598,6 +663,88 @@ def _smoke_score(code: str, *, module: str, model_key: str, out_dir: Path) -> di
         out.update(ok=False, error=f'{match:.0%} des notes de la mélodie retrouvées (< '
                                    f'{SMOKE_SCORE_MIN_MATCH:.0%}) : la partition n\'a pas de '
                                    f'rapport avec ce qui est joué')
+    return out
+
+
+#: Le smoke de MUSIQUE (2026-11-10, ACE-Step 1.5) : un instrumental court, demandé comme le
+#: composer le demande. Avant lui, un backend `text-to-music` qui passait les contrôles se validait
+#: sans aucune exécution (`smoke` : « pas de smoke pour le contrat »). 10 s : la durée minimale
+#: qu'ACE-Step accepte (`acestep/constants.py`, `DURATION_MIN`), courte pour un essai sur CPU.
+SMOKE_MUSIC_PROMPT = 'A calm acoustic guitar instrumental, slow tempo.'
+SMOKE_MUSIC_SECONDS = 10.0
+#: Sous ce niveau efficace (échantillons dans [-1, 1]), l'audio est du SILENCE — un garde-fou
+#: contre l'absurde (latents nuls, décodage raté), pas un critère de qualité.
+SMOKE_MUSIC_MIN_RMS = 1e-3
+
+
+def _smoke_music(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement, puis un court instrumental : le fichier écrit à `output_path` et ce chemin
+    rendu (le contrat), lisible, d'une durée plausible (au plus le double de la demande — un moteur
+    qui ne la maîtrise pas la traite en borne), fait de valeurs finies et non silencieux."""
+    import shutil
+    import tempfile
+    from unittest import mock
+
+    import numpy as np
+    import soundfile as sf
+    started, progress = time.time(), []
+    with tempfile.TemporaryDirectory() as tmp:
+        output = Path(tmp) / 'out' / 'smoke_music.wav'
+        output.parent.mkdir()                          # le composer donne un dossier existant
+        try:
+            backend = _proposed_backend(code, module, tmp, 'generate')
+            if not type(backend).is_available():
+                return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
+            # CPU, comme les autres smokes : le rôle ne dispute jamais le GPU au worker.
+            with mock.patch('torch.cuda.is_available', return_value=False):
+                if not backend.load(model_id_of(model_key)):
+                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                # Le rappel de progression du COMPOSER : un argument, un pourcentage. Sans lui, le
+                # backend d'ACE-Step passait l'essai en transmettant au moteur un rappel que ce
+                # dernier appelle avec DEUX arguments — l'erreur du tout premier essai (2026-11-10).
+                returned = backend.generate(model_id=model_id_of(model_key),
+                                            prompt=SMOKE_MUSIC_PROMPT,
+                                            duration=SMOKE_MUSIC_SECONDS,
+                                            output_path=str(output), sampling={'seed': 0},
+                                            progress_callback=progress.append)
+            backend.unload()
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
+                    'seconds': round(time.time() - started, 1)}
+        seconds = round(time.time() - started, 1)
+        if not output.is_file():
+            return {'ran': True, 'ok': False, 'seconds': seconds,
+                    'error': f'aucun fichier à output_path (rendu : {returned!r})'}
+        if Path(str(returned)) != output:
+            return {'ran': True, 'ok': False, 'seconds': seconds,
+                    'error': f'rend {returned!r} au lieu de output_path (contrat : écrire à '
+                             f'output_path et rendre ce chemin)'}
+        try:
+            audio, rate = sf.read(str(output), always_2d=True, dtype='float32')
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'seconds': seconds,
+                    'error': f'fichier audio illisible : {type(e).__name__}: {e}'}
+        out_dir.mkdir(parents=True, exist_ok=True)
+        kept = out_dir / f'backend_smoke_{module}.wav'
+        shutil.copyfile(output, kept)
+    length = len(audio) / rate if rate else 0.0
+    finite = bool(audio.size) and bool(np.isfinite(audio).all())
+    rms = float(np.sqrt(np.mean(np.square(audio)))) if finite else 0.0
+    base = Path(settings.BASE_DIR)
+    out = {'ran': True, 'ok': True, 'seconds': seconds, 'duration': round(length, 2),
+           'rate': rate, 'rms': round(rms, 4),
+           'audio': str(kept.relative_to(base) if kept.is_relative_to(base) else kept)}
+    off_scale = [p for p in progress if not isinstance(p, (int, float)) or not 0 <= p <= 100]
+    if not finite:
+        out.update(ok=False, error='audio vide ou fait de valeurs non finies (NaN, inf)')
+    elif off_scale or (len(progress) > 1 and max(progress) <= 1):
+        out.update(ok=False, error=f'progression hors contrat ({(off_scale or progress)[:5]}) : '
+                                   f'progress_callback reçoit un pourcentage, de 0 à 100')
+    elif not 1.0 <= length <= 2 * SMOKE_MUSIC_SECONDS:
+        out.update(ok=False, error=f'{length:.1f} s pour {SMOKE_MUSIC_SECONDS:g} s demandées '
+                                   f'(attendu entre 1 s et le double)')
+    elif rms < SMOKE_MUSIC_MIN_RMS:
+        out.update(ok=False, error=f'audio SILENCIEUX (niveau efficace {rms:.5f})')
     return out
 
 
@@ -923,6 +1070,7 @@ def _smoke_quality_metric(code: str, *, module: str, model_key: str, out_dir: Pa
 #: Un essai par CONTRAT — un contrat sans entrée le dit (`smoke`).
 SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_speech,
           'ScoreExtractionBackend': _smoke_score, 'PIIDetectionBackend': _smoke_pii,
+          'MusicGenerationBackend': _smoke_music,
           'LanguageIdentificationBackend': _smoke_language,
           'EndOfTurnBackend': _smoke_end_of_turn,
           'PageOrientationBackend': _smoke_orientation,

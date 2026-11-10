@@ -48,6 +48,12 @@ def split_caption_lyrics(prompt: str) -> tuple[str, str]:
 class MusicGenerationBackend(BaseModelBackend):
     """Génère un fichier audio depuis une consigne — un modèle `text-to-music` du catalogue."""
 
+    #: Paramètres qu'une implémentation ne peut pas IGNORER : elle les suit, ou les REFUSE en le
+    #: disant (`refuse_score`). Lus par le contrôle d'un backend proposé
+    #: (`backend_proposals.check_source`) : le backend d'ACE-Step proposé le 2026-11-10 passait
+    #: l'essai réel sans jamais lire ni la mélodie ni la partition.
+    MUST_READ = {'generate': ('melody_path', 'score_path')}
+
     def process(self, **kwargs):
         """Point d'entrée générique (contrat commun) → délègue à `generate()`."""
         return self.generate(**kwargs)

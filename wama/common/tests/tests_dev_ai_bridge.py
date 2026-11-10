@@ -1308,7 +1308,7 @@ class BackendRoleTakesOneRepriseOnItsChecksTest(SimpleTestCase):
         super().setUpClass()
         cls.role = _charger('run_backend')
 
-    def _run(self, answers, verdicts):
+    def _run(self, answers, verdicts, smokes=None):
         from types import SimpleNamespace
         from unittest import mock
         import wama.common.services.backend_proposals as bp
@@ -1326,7 +1326,8 @@ class BackendRoleTakesOneRepriseOnItsChecksTest(SimpleTestCase):
         row = SimpleNamespace(model_key=self.KEY, capabilities={'task': 'text-to-music'}, hf_repo='Org/Song')
         manifest = {'body': {'composition': {'runtime': {'engine': 'e'},
                                              'components': [{'role': 'model', 'pattern': '*.pt'}]}}}
-        argv = ['run_backend.py', '--catalog', self.KEY, '--provider', 'ilaas', '--model', 'm', '--no-smoke']
+        argv = ['run_backend.py', '--catalog', self.KEY, '--provider', 'ilaas', '--model', 'm'] + (
+            [] if smokes else ['--no-smoke'])
         with mock.patch.object(sys, 'argv', argv), \
                 mock.patch('wama.model_manager.models.AIModel.objects') as objects, \
                 mock.patch('wama.common.manifests.builtin.model.extract_model', return_value=manifest), \
@@ -1343,6 +1344,8 @@ class BackendRoleTakesOneRepriseOnItsChecksTest(SimpleTestCase):
                     'ok': not verdicts[code.strip()], 'errors': list(verdicts[code.strip()]),
                     'warnings': []}), \
                 mock.patch.object(bp, 'simulate_resolution', return_value={'resolved': True}), \
+                mock.patch.object(bp, 'smoke', side_effect=lambda code, **kw: dict(
+                    (smokes or {})[code.strip()])), \
                 mock.patch('builtins.print'):
             objects.filter.return_value.first.return_value = row
             role.main()
@@ -1362,4 +1365,45 @@ class BackendRoleTakesOneRepriseOnItsChecksTest(SimpleTestCase):
 
     def test_an_accepted_module_costs_a_single_call(self):
         calls, written = self._run(['first'], {'first': []})
+        self.assertEqual(1, len(calls))
+
+    def test_the_material_says_how_each_component_file_climbs_to_the_weights_root(self):
+        """`component_paths` gives a FILE per role; ACE-Step's loaders want folders. Two proposals
+        of the same model climbed two levels (right) then one (`…/vae/vae`, missing at the trial)."""
+        from unittest import mock
+        root = Path('/w/snap')
+        paths = {'vae': root / 'vae' / 'model.safetensors', 'tokenizer': root / 'tok.json',
+                 'deep': root / 'a' / 'b' / 'c.bin'}
+        with mock.patch('wama.common.utils.model_components.component_paths', return_value=paths):
+            text = self.role.components_material('huggingface:Org/Song', root)
+        self.assertIn("paths['vae'] = <racine>/vae/model.safetensors", text)
+        self.assertIn("la racine des poids : paths['vae'].parents[1]", text)
+        self.assertIn("la racine des poids : paths['tokenizer'].parent", text)
+        self.assertIn("la racine des poids : paths['deep'].parents[2]", text)
+
+    #: What the trial said of the module the role proposed for ACE-Step on 2026-11-10.
+    TRIAL = ("RuntimeError: ACE-Step generation failed: AceStepBackend.generate.<locals>."
+             "wama_progress() takes 1 positional argument but 2 were given")
+
+    def test_a_failed_trial_is_handed_back_once_and_kept_only_when_its_own_trial_passes(self):
+        """The module passed the checks, loaded the model, and failed at generation on an error
+        the trial names exactly — the role never received it (ACE-Step, 2026-11-10)."""
+        calls, written = self._run(['first', 'second'], {'first': [], 'second': []}, smokes={
+            'first': {'ran': True, 'ok': False, 'error': self.TRIAL},
+            'second': {'ran': True, 'ok': True}})
+        self.assertEqual(2, len(calls))
+        self.assertIn(self.TRIAL, calls[1], 'the reprise must carry the trial word for word')
+        self.assertEqual('second', written['code'].strip())
+        self.assertTrue(written['smoke']['ok'])
+
+    def test_a_reprise_whose_trial_still_fails_keeps_the_first_module_and_its_trial(self):
+        calls, written = self._run(['first', 'second'], {'first': [], 'second': []}, smokes={
+            'first': {'ran': True, 'ok': False, 'error': self.TRIAL},
+            'second': {'ran': True, 'ok': False, 'error': 'another'}})
+        self.assertEqual('first', written['code'].strip())
+        self.assertEqual(self.TRIAL, written['smoke']['error'])
+
+    def test_a_trial_that_could_not_run_is_no_verdict_to_hand_back(self):
+        calls, written = self._run(['first'], {'first': []}, smokes={
+            'first': {'ran': False, 'reason': 'pas de smoke pour le contrat X'}})
         self.assertEqual(1, len(calls))

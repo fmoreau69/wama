@@ -35,7 +35,7 @@
     },
     "identity": {
       "author": "Qwen",
-      "description_short": "Qwen3-ASR 1.7B — précis, context biasing, 30 langues",
+      "description_short": "Qwen3-ASR 1.7B — accurate, context biasing, 30 languages",
       "gated": "no",
       "license": "apache-2.0",
       "model_type": "speech",

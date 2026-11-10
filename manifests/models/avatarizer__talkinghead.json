@@ -75,7 +75,7 @@
   "description": "TalkingHead — a rigged 3D avatar (GLB) driven by the audio, rendered frame by frame; fast, no generative model, not photorealistic.",
   "key": "avatarizer:talkinghead",
   "manifest_kind": "model",
-  "name": "TalkingHead (avatar 3D)",
+  "name": "TalkingHead (3D avatar)",
   "projects": [],
   "requires": [
     {

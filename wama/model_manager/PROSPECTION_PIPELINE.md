@@ -4300,6 +4300,21 @@ défaut vu s'est comblé dans la route, aucun dans la proposition.
   des workers (la réconciliation de l'ancien code les réécrit, vu le jour même : synchro `9506`
   par-dessus la mienne). Restent en français : `openrouter:liquid/lfm-2.5-2.6b` (cf. plus haut) et
   `reader:olmocr`, ligne d'un modèle retiré.*
+  ✅ *Après la relance du 2026-11-10 (Fabien) : les onze noms sont en base et au corpus (dix
+  manifestes dont seul le nom change, plus GLiNER2). `claude_code:default` gardait son ancien nom :
+  une ligne d'abonnement se réécrit quand sa liste DÉCLARÉE change (`refresh_key`, nocturne
+  `refresh_all_keys`) — rafraîchie par ce geste. La ligne `reader:olmocr` est RETIRÉE (Fabien :
+  « doit être retirée, déjà remplacée par la v2 » ; `REMOVAL_LEDGER R234`). Le remplissage de LFM
+  réécrit au gabarit anglais d'aujourd'hui. La garde du CORPUS est posée
+  (`tests_model_descriptions.TheCorpusSpeaksEnglishTest` : noms et descriptions que WAMA écrit —
+  le nom et la description d'un fournisseur sont ses mots, lus seulement quand WAMA les a écrits) ;
+  elle a trouvé quatre descriptions courtes du transcriber restées françaises
+  (`transcriber/utils/model_config.py` : Canary, Parakeet, Qwen3-ASR ×2 — ni accent ni mot-outil),
+  traduites à leur source. Sa contre-épreuve l'a trouvée aveugle à « EgoBlur plaques » puis à
+  « (alignement) » : la liste noire des identifiants gagne cinq radicaux (`multilingue`,
+  `alignement`, `rapide`, `francais`, `defaut`), budgets recalés dans le même geste (affûtage :
+  code 2523 → 2556, classes 132 → 138, noms de tests 1286 → 1317) ; `plaque`, `visage` et
+  `diarisation` (graphie britannique) restent dehors, anglais aussi.*
 - **Le rôle d'une anatomie posée mécaniquement reste le nom que le code lit**
   (`Qwen3-Embedding-0.6B`, pas `text_encoder`) : essayé et ABANDONNÉ — le code lie ce fichier à
   `text_encoder_path` ET `text_path`, et `silence_latent.pt` à trois variables ; choisir entre
@@ -4366,6 +4381,40 @@ qui restaient sans outil (mémoire et carte, disque, nettoyeur, surveillance, sa
   n'a pas d'entrée `MusicGenerationBackend`, une proposition qui passerait les contrôles serait
   validée sans preuve qu'elle génère. ⏳ Décision de Fabien : combler (1) et (2) puis relancer le
   rôle sur un modèle plus fort, ou écrire le backend hors du rôle.
+  ✅ *Décidé le 2026-11-10 (Fabien : « il faut réussir à construire le backend d'ACE-Step par la
+  route de WAMA »). Comblé DANS la route, passage après passage — chaque passage du rôle a
+  montré le manque suivant, aucun ne s'est corrigé dans le module proposé :*
+  1. *le refus nomme ce qu'il faut appeler À LA PLACE de l'entrée qui télécharge
+     (`backend_proposals.replacing_loaders`, sur `download_calls.entry_loaders`) : ses chargeurs
+     qui ne téléchargent ni n'ÉCRIVENT — la lecture gagne les écritures de fichier
+     (`is_write_site`, `functions_reaching_write` : `_sync_model_code_if_needed` réécrit le code du
+     modèle dans le dossier des poids), suivies par les seuls appels qui se RÉSOLVENT vers le clone
+     (par le nom seul, `torch.load` menait à une fonction `load` du clone et 307 fonctions
+     « écrivaient ») —, avec la CLASSE de chacun et la classe à instancier en suivant l'héritage
+     (`AceStepHandler` ← `InitServiceMixin` ← `InitServiceOrchestratorMixin`) ; la matière du rôle
+     y joint leur code (`run_backend.entry_loaders_material`). Effet mesuré : 5 refus → 0 à la
+     reprise, à chaque passage ;*
+  2. *un ESSAI RÉEL pour la musique (`backend_proposals._smoke_music`) : 10 s d'instrumental sur CPU,
+     le fichier à `output_path` et ce chemin rendu, lisible, d'une durée plausible, non
+     silencieux, et une progression conforme au rappel du composer (un argument, un pourcentage) ;
+     le morceau est gardé (`outputs/backend_smoke_<module>.wav`) pour être écouté ;*
+  3. *une reprise sur le verdict de l'essai, comme sur celui des contrôles (passage 1 : rappel de
+     progression à un argument, le moteur en passe deux) ;*
+  4. *ce que `component_paths` rend SUR LA MACHINE, rôle par rôle, et l'expression qui remonte à la
+     racine des poids (`run_backend.components_material` — passage 2 : `…/vae/vae`) ;*
+  5. *les paramètres que le contrat interdit d'ignorer, DÉCLARÉS par lui
+     (`MusicGenerationBackend.MUST_READ` : mélodie, partition), refusés par le contrôle s'ils ne
+     sont jamais lus — le passage 4 générait (10,0 s, 48 kHz, niveau 0,128, 305 s sur CPU) en les
+     ignorant tous deux et en passant au moteur le rappel du composer, que l'essai sans rappel ne
+     voyait pas.*
+  *Albert a été injoignable à chaque passage (relais commun vers `ilaas:gemma-4-31b`, le modèle des
+  passages 2 à 5) ; au passage 5, ILaaS a coupé la reprise, au passage 6 ILaaS et Albert étaient
+  injoignables dès le premier appel (aucune proposition). Les propositions des passages 1 à 5
+  restent dans la file : les rejeter est le geste de Fabien — aucune ne passe les points 2 et 5
+  (écrits après elles). ⏳ Relancer le rôle quand un fournisseur souverain répond
+  (`dev_run_role(role="backend", args={"catalog": "huggingface:ACE-Step/Ace-Step1.5"})`) ; le
+  modèle local de niveau développement (`ollama:qwen3.8`) occuperait la carte — décision de
+  Fabien.*
 - **Deux jumeaux laissés par la session (revérification du 2026-11-10)** : ⏳ `dev_docs.module_api`
   (l.80) résume une fonction par la première LIGNE de sa docstring, le défaut que
   `tool_api._doc_summary` a soldé pour les outils — corriger régénère presque tout

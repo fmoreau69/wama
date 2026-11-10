@@ -55,7 +55,7 @@
   "description": "Whisper tiny (OpenAI, converted to CTranslate2 by Systran): tells which language is spoken, window by window. The transcriber listens to it before an engine that transcribes by passages (Canary, Parakeet, Qwen3-ASR) — one imposed language, or each passage in its own. Processor, no VRAM.",
   "key": "huggingface:Systran/faster-whisper-tiny",
   "manifest_kind": "model",
-  "name": "Whisper tiny (langue parlée)",
+  "name": "Whisper tiny (spoken language)",
   "projects": [],
   "requires": [
     {

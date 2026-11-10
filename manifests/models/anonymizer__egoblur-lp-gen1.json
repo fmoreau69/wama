@@ -55,7 +55,7 @@
   "description": "EgoBlur (Meta, Apache-2.0): a licence-plate detector trained to ANONYMISE dashcam video, tuned to miss nothing. Best recall measured on low-resolution vehicle cameras (59.5 % of the plates of nearby vehicles, against 20 % for the YOLO plate models), 42 ms per frame. Weights distributed by Meta through a form: drop them in the `vision/egoblur` folder.",
   "key": "anonymizer:egoblur-lp-gen1",
   "manifest_kind": "model",
-  "name": "EgoBlur plaques (gen1)",
+  "name": "EgoBlur license plates (gen1)",
   "projects": [],
   "requires": [
     {

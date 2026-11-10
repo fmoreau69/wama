@@ -129,7 +129,7 @@
   "description": "OPEN-vocabulary personal-data detector (Fastino, GLiNER2 205 M): 42 types named to it, 7 languages (en, fr, es, de, it, pt, nl). High recall, low precision according to the publisher (it over-detects names): it complements the other detectors of the union. Trained on synthetic texts.",
   "key": "huggingface:fastino/gliner2-privacy-filter-PII-multi",
   "manifest_kind": "model",
-  "name": "GLiNER2-PII (multilingue)",
+  "name": "GLiNER2-PII (multilingual)",
   "projects": [],
   "requires": [
     {

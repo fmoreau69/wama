@@ -62,7 +62,7 @@
   "description": "Acoustic forced alignment: from an already written text (a reworked transcription, a correction) and the audio, gives the start and end time of each word. A wav2vec2 CTC model; produces no text. Used to resynchronise the passages a correction changed, where the automatic transcription has no reliable timing.",
   "key": "transcriber:wav2vec2-fr-aligner",
   "manifest_kind": "model",
-  "name": "wav2vec2-large-xlsr-53-french (alignement)",
+  "name": "wav2vec2-large-xlsr-53-french (alignment)",
   "projects": [],
   "requires": [
     {

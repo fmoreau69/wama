@@ -250,3 +250,66 @@ class ProspectionWritesItsStandInsInEnglishTest(SimpleTestCase):
                   if self.FRENCH.search(label)
                   or is_french('_'.join(re.findall(r'[^\W\d_]+', label)).lower())}
         self.assertEqual({}, french)
+
+
+class TheCorpusSpeaksEnglishTest(SimpleTestCase):
+    """Names and descriptions of the versioned corpus (`manifests/models/`) are English — every
+    text WAMA writes there. The rewrite of 2026-11-09 read the descriptions, the names were
+    translated the next day, and four short descriptions of the transcriber (« Qwen3-ASR 0.6B —
+    rapide, context biasing, 30 langues ») slipped past both: no accent, no stopword, only a word
+    the identifiers' blacklist knows (2026-11-10).
+
+    A remote provider's own name and description are its words, not WAMA's: they are read only
+    when WAMA wrote them (its filler « <source> — remote model (…) », or a description summarised
+    by `describe_models`, which records its `description_source`)."""
+
+    FRENCH = ProspectionWritesItsStandInsInEnglishTest.FRENCH
+    #: Words of the identifiers' blacklist that are English as well, in a WAMA text of the corpus.
+    ENGLISH_HOMOGRAPHS = {'categories', 'ensemble', 'pose'}
+    #: Proper nouns: Phonon's four voices have French first names.
+    PROPER_NOUNS = ('Noémie',)
+
+    def _wama_texts(self, data):
+        from wama.common import external_sources
+        from wama.model_manager.services.cloud_models import UNLISTABLE_PROTOCOLS
+        source = data['key'].partition(':')[0]
+        known = {s.key: s for s in external_sources.SOURCES}
+        provider = known.get(source)
+        listed = (provider is not None and provider.kind == 'llm'
+                  and provider.protocol not in UNLISTABLE_PROTOCOLS)
+        described = 'description_source' in ((data.get('body') or {}).get('extra_info') or {})
+        texts = {} if listed else {'name': data.get('name') or ''}
+        short = ((data.get('body') or {}).get('identity') or {}).get('description_short') or ''
+        for field, text in (('description', data.get('description') or ''), ('description_short', short)):
+            if not listed or described or (text.startswith(f'{provider.label} — ')):
+                texts[field] = text
+        return texts
+
+    def _is_french(self, text):
+        from wama.common.management.commands.check_identifier_language import is_french
+        for noun in self.PROPER_NOUNS:
+            text = text.replace(noun, '')
+        return bool(self.FRENCH.search(text)) or any(
+            is_french(word.lower()) for word in re.findall(r'[^\W\d_]+', text)
+            if word.lower() not in self.ENGLISH_HOMOGRAPHS)
+
+    def test_every_name_and_description_wama_writes_is_english(self):
+        import json
+        from pathlib import Path
+
+        from django.conf import settings
+        paths = sorted((Path(settings.BASE_DIR) / 'manifests' / 'models').glob('*.json'))
+        self.assertGreater(len(paths), 100, 'the corpus is not where the guard reads it')
+        french, read = [], 0
+        for path in paths:
+            for field, text in self._wama_texts(json.loads(path.read_text(encoding='utf-8'))).items():
+                read += bool(text)
+                if self._is_french(text):
+                    french.append(f'{path.name} [{field}] {text[:90]!r}')
+        self.assertEqual([], french)
+        self.assertGreater(read, 300, 'the guard no longer reads the texts')
+
+    def test_the_guard_sees_a_french_text_without_accent_nor_stopword(self):
+        """Counter-proof kept in the suite: the poorest case the corpus held."""
+        self.assertTrue(self._is_french('Qwen3-ASR 0.6B — rapide, context biasing, 30 langues'))
+        self.assertFalse(self._is_french('Qwen3-ASR 0.6B — fast, context biasing, 30 languages'))

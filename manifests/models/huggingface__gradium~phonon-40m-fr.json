@@ -202,7 +202,7 @@
   "description": "Phonon (Gradium, on Kyutai's Pocket TTS): French speech synthesis at 24 kHz, 40 M parameters, on the PROCESSOR — no VRAM. Four voices (Noémie, Tiphaine, Augustin, Lucien). CC BY-NC 4.0 weights (non-commercial use).",
   "key": "huggingface:gradium/phonon-40m-fr",
   "manifest_kind": "model",
-  "name": "Phonon 40m (français)",
+  "name": "Phonon 40m (French)",
   "projects": [],
   "requires": [
     {

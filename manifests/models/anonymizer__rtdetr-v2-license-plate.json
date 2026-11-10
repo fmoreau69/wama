@@ -53,7 +53,7 @@
   "description": "RT-DETR v2 fine-tuned on licence plates (Apache-2.0): 40 % recall on low-resolution vehicle cameras, 69 ms per frame. Its errors differ from EgoBlur's: together they find 64.6 % of the plates — an ensemble complement for anonymisation.",
   "key": "anonymizer:rtdetr-v2-license-plate",
   "manifest_kind": "model",
-  "name": "RT-DETR v2 plaques",
+  "name": "RT-DETR v2 license plates",
   "projects": [],
   "requires": [
     {

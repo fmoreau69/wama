@@ -33,7 +33,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "OpenRouter — modèle distant (text-generation)",
+      "description_short": "OpenRouter — remote model (text-generation)",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:LiquidAI/LFM2.5-2.6B",
@@ -55,7 +55,7 @@
       "vram_gb": 0.0
     }
   },
-  "description": "OpenRouter — modèle distant (text-generation)",
+  "description": "OpenRouter — remote model (text-generation)",
   "key": "openrouter:liquid/lfm-2.5-2.6b",
   "manifest_kind": "model",
   "name": "LiquidAI: LFM2.5-2.6B",

@@ -230,6 +230,89 @@ class ScoreSmokeContractTest(SimpleTestCase):
         self.assertAlmostEqual(32 * 0.5 + bp.SMOKE_SCORE_TAIL_SECONDS, info.duration, places=1)
 
 
+MUSICAL = '''
+"""Backend de test."""
+from .music_generation_base import MusicGenerationBackend
+
+SUPPORTED_MODELS = {"Org/Song": {}}
+
+
+class SongSmokeBackend(MusicGenerationBackend):
+    ENGINE = "song-engine"
+    REQUIRED_PACKAGES = []
+    name = "song_smoke"
+
+    def load(self, model=None):
+        return True
+
+    @property
+    def is_loaded(self):
+        return True
+
+    def unload(self):
+        pass
+
+    def generate(self, model_id, prompt, duration, output_path, melody_path=None,
+                 progress_callback=None, on_audio=None, score_path=None, sampling=None):
+        import numpy as np
+        import soundfile as sf
+        rate = 16000
+        t = np.arange(int(rate * duration * SPAN)) / rate
+        sf.write(output_path, LEVEL * np.sin(2 * np.pi * 440 * t), rate)
+        for step in PROGRESS if progress_callback else ():
+            progress_callback(*step)
+        return RETURNED
+'''
+
+
+class MusicSmokeContractTest(SimpleTestCase):
+    """The `text-to-music` contract (2026-11-10): before it, a music backend that passed the checks
+    was validated without a single run (`pas de smoke pour le contrat`, ACE-Step). The trial
+    writes a short instrumental and reads it back — a guard against nonsense, not a judge of music."""
+
+    def _smoke(self, span=1.0, level=0.3, returned='output_path', progress=((50,), (100,))):
+        code = (MUSICAL.replace('SPAN', repr(span)).replace('LEVEL', repr(level))
+                .replace('RETURNED', returned).replace('PROGRESS', repr(progress)))
+        with tempfile.TemporaryDirectory() as out:
+            res = bp.smoke(code, module='song_smoke', model_key='huggingface:Org/Song',
+                           contract=MUSIC, out_dir=Path(out))
+            res['kept'] = (Path(out) / 'backend_smoke_song_smoke.wav').is_file()
+        return res
+
+    def test_an_audible_piece_of_the_asked_length_passes_and_is_kept_to_listen(self):
+        res = self._smoke()
+        self.assertTrue(res['ok'], res)
+        self.assertAlmostEqual(bp.SMOKE_MUSIC_SECONDS, res['duration'], places=1)
+        self.assertTrue(res['kept'], 'the human listens to it before validating')
+
+    def test_silence_fails(self):
+        res = self._smoke(level=0.0)
+        self.assertFalse(res['ok'])
+        self.assertIn('SILENCIEUX', res['error'])
+
+    def test_a_piece_far_longer_than_asked_fails(self):
+        res = self._smoke(span=3.0)
+        self.assertFalse(res['ok'])
+        self.assertIn('demandées', res['error'])
+
+    def test_the_engine_s_two_argument_progress_reaching_the_composer_s_callback_fails(self):
+        """ACE-Step calls its progress with (value, text): handed straight to the composer's
+        one-argument callback, it broke the first trial (2026-11-10)."""
+        res = self._smoke(progress=((0.5, 'Generating'),))
+        self.assertFalse(res['ok'])
+        self.assertIn('TypeError', res['error'])
+
+    def test_a_progress_in_fractions_instead_of_percent_fails(self):
+        res = self._smoke(progress=((0.1,), (0.9,)))
+        self.assertFalse(res['ok'])
+        self.assertIn('pourcentage', res['error'])
+
+    def test_returning_another_path_than_output_path_fails(self):
+        res = self._smoke(returned='output_path + ".wav"')
+        self.assertFalse(res['ok'])
+        self.assertIn('au lieu de output_path', res['error'])
+
+
 class CheckSourceTest(SimpleTestCase):
 
     def _check(self, code, engine='onnxruntime'):
@@ -350,7 +433,10 @@ class SongBackend(MusicGenerationBackend):
         torch.cuda.set_per_process_memory_fraction(1.0)
 
     def generate(self, model_id, prompt, duration, output_path, melody_path=None,
-                 progress_callback=None, on_audio=None):
+                 progress_callback=None, on_audio=None, score_path=None):
+        self.refuse_score(score_path, "YuE")
+        if melody_path:
+            raise ValueError("pas de mélodie de référence")
         style, lyrics = split_caption_lyrics(prompt)
         return output_path
 '''
@@ -368,12 +454,28 @@ class VendoredEngineCheckTest(SimpleTestCase):
         (pkg / '__init__.py').write_text('', encoding='utf-8')
         # Un clone qui TÉLÉCHARGE ses poids derrière son entrée documentée (ACE-Step 1.5,
         # 2026-11-08 : `initialize_service` → `_ensure_models_present` → `snapshot_download`).
+        # Et qui RÉÉCRIT le dossier des poids sans rien télécharger (`_sync_model_code_if_needed`,
+        # 2026-11-10) ; `load_weights` lit par `torch.load`, homonyme de la fonction `load` du
+        # clone qui écrit — un homonyme de bibliothèque n'en fait pas un écrivain.
         (pkg / 'pipeline.py').write_text(
-            'import torch\ntorch.cuda.set_per_process_memory_fraction(0.9)\n'
+            'import shutil\nimport torch\ntorch.cuda.set_per_process_memory_fraction(0.9)\n'
             'from huggingface_hub import snapshot_download\n'
             'def _fetch(path):\n    snapshot_download("org/x", local_dir=path)\n'
-            'def initialize_service(path):\n    _fetch(path)\n    return load_weights(path)\n'
-            'def load_weights(path):\n    return path\n', encoding='utf-8')
+            'def _sync_code(path):\n    shutil.copy2("modeling.py", path)\n'
+            'def initialize_service(path):\n    _fetch(path)\n    _sync_code(path)\n'
+            '    return load_weights(path)\n'
+            'def load_weights(path):\n    return torch.load(path)\n'
+            'def load(secret):\n    open(secret, "w").write("x")\n', encoding='utf-8')
+        # Et une entrée qui est la MÉTHODE d'un mixin, hérité par la classe qu'on instancie
+        # (ACE-Step : `AceStepHandler` ← `InitServiceMixin` ← `InitServiceOrchestratorMixin`).
+        (pkg / 'service.py').write_text(
+            'from huggingface_hub import snapshot_download\n'
+            'class SetupMixin:\n    def _prepare(self, path):\n        return path\n'
+            'class EntryMixin:\n    def start(self, path):\n        self._prepare(path)\n'
+            '        self._download(path)\n'
+            '    def _download(self, path):\n        snapshot_download("org/x", local_dir=path)\n'
+            'class Base(EntryMixin, SetupMixin):\n    pass\n'
+            'class Handler(Base):\n    pass\n', encoding='utf-8')
         override = override_settings(BACKEND_VENDOR_DIR=tmp.name)
         override.enable()
         self.addCleanup(override.disable)
@@ -408,11 +510,46 @@ class VendoredEngineCheckTest(SimpleTestCase):
             # bien formé ci-dessus ne l'appelle pas ; le suivant l'appelle).
             'y télécharge lui-même': VENDORED_GOOD.replace(
                 '        return True\n', '        self._p.initialize_service("/w")\n        return True\n', 1),
+            # A contract parameter ignored instead of refused (`MUST_READ`, ACE-Step 2026-11-10).
+            "ne lit jamais ['score_path']": VENDORED_GOOD.replace(
+                '        self.refuse_score(score_path, "YuE")\n', ''),
         }
         for expected, code in cases.items():
             res = self._check(code)
             self.assertFalse(res['ok'], expected)
             self.assertTrue(any(expected in e for e in res['errors']), (expected, res['errors']))
+
+    def test_the_refusal_names_the_loaders_to_call_instead(self):
+        """Refused on « call the loaders it calls », two models called `initialize_service` again
+        (ACE-Step, 2026-11-09): the refusal names them, and the steps the backend leaves out."""
+        res = self._check(VENDORED_GOOD.replace(
+            '        return True\n', '        self._p.initialize_service("/w")\n        return True\n', 1))
+        refusal = next(e for e in res['errors'] if 'y télécharge lui-même' in e)
+        self.assertIn('load_weights (fonction de module, src/yue2/pipeline.py:', refusal)
+        self.assertIn('_fetch (télécharge)', refusal)
+        self.assertIn('_sync_code (écrit un fichier)', refusal)
+
+    def test_a_method_loader_is_named_with_its_class_and_the_class_to_instantiate(self):
+        """Told only `file:line`, a model called `_resolve_initialize_device` on its MODULE — it is
+        a method of a mixin of the engine's handler (ACE-Step, 2026-11-10, `AttributeError`)."""
+        sentence = bp.replacing_loaders('yue', 'start')
+        self.assertIn('_prepare (méthode de SetupMixin', sentence)
+        self.assertIn('_download (télécharge)', sentence)
+        self.assertIn('start est une méthode de EntryMixin, dont hérite Base', sentence)
+        self.assertIn('Handler (src/yue2/service.py:', sentence)
+        # Counter-proof: a module function says so.
+        self.assertIn('load_weights (fonction de module',
+                      bp.replacing_loaders('yue', 'initialize_service'))
+
+    def test_a_library_homonym_does_not_make_a_writer(self):
+        """`torch.load` is not the clone's `load`: read by the bare name, every loader of ACE-Step
+        « wrote » (307 functions, measured on 2026-11-10). A call on `self`, a bare name, or a
+        module of the clone is followed; a library's method is not."""
+        from wama.common.utils.download_calls import entry_loaders, functions_reaching_write
+        root = Path(settings.BACKEND_VENDOR_DIR) / 'yue'
+        writers = functions_reaching_write(root)
+        self.assertEqual({'_sync_code', 'initialize_service', 'load'}, set(writers))
+        self.assertEqual(['load_weights'], list(entry_loaders(root, 'initialize_service')['loaders']))
 
     def test_the_loader_below_the_download_is_allowed(self):
         """Contre-épreuve : appeler le chargeur que l'entrée appelle, sur les chemins installés."""

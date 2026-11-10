@@ -66,7 +66,7 @@
   "description": "docTR's page-orientation classifier (Mindee, Apache-2.0, MobileNet v3): tells how far a photographed page is rotated (0, 90, 180, 270°). The reader thus straightens an image before any OCR engine — a note shot sideways is unreadable lying down. Processor, 6 MB.",
   "key": "github:mindee/doctr:v0.8.1",
   "manifest_kind": "model",
-  "name": "Orientation de page (docTR)",
+  "name": "Page orientation (docTR)",
   "projects": [],
   "requires": [
     {
