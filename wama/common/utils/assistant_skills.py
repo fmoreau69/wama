@@ -105,11 +105,6 @@ def resolve_domain(key: str = None) -> AssistantDomain:
     return _BY_KEY.get((key or '').strip().lower(), _BY_KEY[DEFAULT_DOMAIN])
 
 
-def domains_for_ui() -> list:
-    """Options du sélecteur de domaine — dérivées du registre, jamais réécrites à la main."""
-    return [{'value': d.key, 'label': d.label, 'help': d.help_text} for d in DOMAINES]
-
-
 def role_instructions(key: str = None) -> str:
     """
     Texte du skill de rôle pour ce domaine — '' si le fichier est absent.
@@ -145,9 +140,15 @@ def competences_announcement(sauf: str = None) -> str:
               if d.key != (sauf or '') and d.announced]
     if not lignes:
         return ''
+    # Le choix MANUEL de l'utilisateur, dit au modèle pour qu'une demande en clair (« quelles
+    # compétences puis-je imposer ? ») trouve une réponse : les postures d'agent, non annoncées
+    # ici, sont dans la liste que rend la commande (décision de Fabien, 2026-11-10).
+    from wama.common.services.assistant_commands import competence_usage
     return ("\n\nSpecialised competences you can load with the `charger_competence` tool "
             "when the request calls for one (do it BEFORE answering, and only once per "
-            "topic):\n" + "\n".join(lignes))
+            "topic):\n" + "\n".join(lignes)
+            + f"\nThe user can impose one: `{competence_usage('<key>')}` (`!` on a channel); "
+              "typed alone, it lists them all.")
 
 
 def laboratory_context(user, question: str, key: str = None) -> str:

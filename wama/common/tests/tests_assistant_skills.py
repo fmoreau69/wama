@@ -35,10 +35,10 @@ class RegistreDomainesTests(TestCase):
         self.assertEqual(sk.resolve_domain(None).key, sk.DEFAULT_DOMAIN)
         self.assertEqual(sk.resolve_domain('  SCIENCE  ').key, 'science')   # tolérant
 
-    def test_options_ui_derivees_du_registre(self):
-        options = sk.domains_for_ui()
-        self.assertEqual([o['value'] for o in options], [d.key for d in sk.DOMAINES])
-        self.assertTrue(all(o['label'] and o['help'] for o in options))
+    def test_the_announcement_tells_the_model_how_a_user_imposes_a_competence(self):
+        """Sans cette ligne, « quelles compétences puis-je imposer ? » n'avait pas de réponse."""
+        from wama.common.services.assistant_commands import competence_usage
+        self.assertIn(competence_usage('<key>'), sk.competences_announcement())
 
 
 class ContexteLaboratoireTests(TestCase):
@@ -194,5 +194,7 @@ class ChargementParLAssistantTests(TestCase):
         """La raison d'être de l'annonce : la fenêtre des modèles locaux est étroite."""
         annonce = len(sk.competences_announcement())
         entiers = sum(len(sk.role_instructions(d.key)) for d in sk.DOMAINES)
-        self.assertLess(annonce, 600)
+        # 600 → 700 le 2026-11-10 : la seule ligne qui dit au modèle comment un utilisateur impose
+        # une compétence (décision de Fabien). Toute autre ligne se paie à chaque tour.
+        self.assertLess(annonce, 700)
         self.assertLess(annonce * 5, entiers)     # au moins 5× moins cher

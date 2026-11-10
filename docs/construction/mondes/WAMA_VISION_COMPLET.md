@@ -206,7 +206,7 @@ scientifique — l'abstraction devient un argument au lieu d'une contradiction.
 |---|---|---|---|
 | **Médias** | les applications génériques de traitement de médias | média → média | ✅ dix apps en service |
 | **Data** | le moteur de données scientifiques (`wama_data/`) : référentiel temporel, lecteurs, fonctions typées, sessions | données → tri/traitement → données | 🔄 socle réel (moteur sans UI ; premières entrées/sorties Data au Studio, 2026-10-11) |
-| **Lab** | les applications métier de recherche (`wama_lab/`) | domaine-spécifique | 🔄 Cam Analyzer avancé, Face Analyzer embryon |
+| **Lab** | les applications métier de recherche (`wama_lab/`) | domaine-spécifique | 🔄 Cam Analyzer avancé ; Face Analyzer : analyse vidéo en service, temps réel et file commune à porter |
 | **Transversal** | le substrat commun : assistant IA, model manager, mémoire/RAG, pipeline de prompts, Studio, médiathèque, comptes | services partagés | 🔄 riche et vivant |
 
 **Monde Médias — les dix applications génériques ✅** : Anonymizer (floutage visages/plaques,
@@ -659,7 +659,7 @@ des vitesses et les mesures absolues. Application adossée à un projet de reche
 
 Réf. : `wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md`.
 
-## 7.2 Face Analyzer 🔄 embryon
+## 7.2 Face Analyzer 🔄 analyse vidéo en service ; temps réel et file commune à porter
 
 Analyse faciale en vidéo expérimentale : expressions, indicateurs physiologiques et
 oculométriques, variables comportementales croisables avec les autres données. L'application

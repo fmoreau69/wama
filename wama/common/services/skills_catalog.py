@@ -135,8 +135,12 @@ def _consommateurs_role() -> dict:
     except Exception:
         logger.debug("[skills_catalog] domaines d'assistant indisponibles", exc_info=True)
         return {}
-    return {d.skill: [f"Assistant · domaine « {d.label} »"
-                      + (" · rappel RAG" if d.rag else "")] for d in DOMAINES}
+    from django.utils.html import escape
+
+    from .assistant_commands import competence_usage
+    return {d.skill: [f"Assistant · domaine « {d.label} »" + (" · rappel RAG" if d.rag else ""),
+                      f"À imposer : <code>{escape(competence_usage(d.key))}</code>"]
+            for d in DOMAINES}
 
 
 def _racine():

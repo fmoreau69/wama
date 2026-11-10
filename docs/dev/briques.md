@@ -1885,10 +1885,9 @@ Posture et domaine de l'assistant (science, design, dev) + rappel du contexte de
 
 - **Domicile** : `wama/common/utils/assistant_skills.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.7](../construction/suivi/ROADMAP.md)
 - **Module** : Skills de RÔLE de l'assistant — qui il est, ce qu'il sait, comment il répond.
-- **API publique** (7) :
+- **API publique** (6) :
   - `class AssistantDomain` — Un domaine d'intervention de l'assistant.
   - `resolve_domain(key: str=None) -> AssistantDomain` — Domaine déclaré, ou le domaine par défaut si la clé est inconnue (fail-safe).
-  - `domains_for_ui() -> list` — Options du sélecteur de domaine — dérivées du registre, jamais réécrites à la main.
   - `role_instructions(key: str=None) -> str` — Texte du skill de rôle pour ce domaine — '' si le fichier est absent.
   - `competences_announcement(sauf: str=None) -> str` — Ligne d'annonce injectée au prompt système : quelles compétences existent, et comment
   - `laboratory_context(user, question: str, key: str=None) -> str` — Extraits du corpus du laboratoire pertinents pour la question — '' si rien.

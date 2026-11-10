@@ -3729,8 +3729,9 @@ les candidats sur nos propres clips (`WAMA_QUALITE`) avant de choisir.
   ou base dédiée.
 - **D-d — choix du moteur** : LiveEdit directement (pour son flux), ou confrontation préalable à un
   éditeur non causal sur nos clips.
-- **D-e — archétype de surface** pour la page vidéo : relève de `ROUTE §13`, à trancher en
-  ouverture du chantier SURFACES.
+- ~~**D-e — archétype de surface** pour la page vidéo : relève de `ROUTE §13`, à trancher en
+  ouverture du chantier SURFACES.~~ ✅ *Soldée le 2026-11-10 (décision de Fabien) : `ROUTE §13` a été
+  tranché le 2026-10-10, pas d'archétype figé, une page d'édition se compose de briques déclarées.*
 
 ### 16.3 Questions ouvertes — à trancher prochainement
 1. **Routeur local/cloud pour modèles NON-LLM** (le vrai besoin reformulé par Fabien) : LiteLLM reste le routeur du cerveau LLM ; pour les modèles non-LLM, choisir entre (a) exposition standardisée OpenAI-compatible via **LocalAI** (couvre Whisper/SD/Flux/Llava + désormais visages/détection), (b) garder les apps WAMA comme couche de service et n'ajouter qu'un routeur local/cloud par-dessus. → décider après le test LocalAI/Transcriber.
@@ -4231,7 +4232,9 @@ pillow 11.3.0 (36), aiohttp (48), cryptography, pyjwt, python-multipart, urllib3
    dashboard/auto-triage en plus de la nocturne. Compatible avec 1, pas un remplacement.
 3. **Zen (firewall runtime Django)** : UNIQUEMENT au palier de déploiement exposé (§11), avec
    smoke gunicorn+Celery et question gouvernance RGPD (télémétrie vers le cloud Aikido) posée
-   au labo. Prématuré tant que WAMA n'est pas servi hors du poste.
+   au labo. ~~Prématuré tant que WAMA n'est pas servi hors du poste.~~ *Condition réécrite le
+   2026-11-10 (décision de Fabien), WAMA étant déjà servi sur le réseau interne : à ouvrir lors
+   d'une ouverture hors du réseau de l'université, après accord RGPD du labo.* ⏳ Rien d'installé d'ici là.
 4. **Réputation de paquet à l'ingest `library`** (esprit Safe Chain) : interroger OSV.dev au
    moment d'ingérer un manifeste `library` (LibreTranslate…) — s'ajoutera au pipeline
    d'ingest des manifestes, pas comme wrapper de pip.
@@ -5260,6 +5263,7 @@ lui-même sa compétence par l'outil `charger_competence` (`tool_api.py:2838`), 
 (`assistant_skills.py:108`) n'a toujours aucun appelant hors test. Retirer ces deux ⏳ (ou garder
 le sélecteur UI comme doublure de l'outil) est une décision de Fabien.
 ↳ *2026-11-10* : le choix manuel existe aussi par `/competence` (`f5400183c`) ; la décision du sélecteur UI reste à Fabien.
+↳ *Décision de Fabien, 2026-11-10* : pas de sélecteur dans l'interface pour le moment, on s'en tient aux commandes. `/competence` seule (ou `/competences`, `/skills`) liste les compétences qu'on peut imposer ; l'annonce au modèle le dit, pour une demande en clair ; la page des skills affiche la frappe de chacune. `domains_for_ui` est retirée (`REMOVAL_LEDGER R235`), la déduction du domaine depuis le canal reste écartée (arbitrage du 21/08).
 
 ### 19.6 ⚠ CONTRAT À DÉFENDRE entre les 3 chantiers de l'assistant (posé le 2026-08-21)
 
@@ -6019,7 +6023,7 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
      `document_layout`) : découpage du fond (règle de `text_sections`, tenue sous V8), plan par la
      part de mots changés (`text_metrics`, seuil `PATCH_CEILING` = 0,3), remplacement de texte dans
      la forme sans modèle, remise en forme d'UNE section par le modèle de la glu, repères
-     `data-wama-section`, réponse sans « ```html » et avec `<meta charset>` (deux restes soldés).
+     `data-wama-section`, réponse sans enrobage de code HTML et avec `<meta charset>` (deux restes soldés).
      Base = copies gardées + photo de ce que le process surveille (`ctx.previous_snapshot`,
      squelette) : la forme demandée a changé → tout refaire. Montrées au rôle `codegen` pour le
      seul process qu'une surface rejoue. La GLU `layout` se régénère PAR LE RÔLE (D5).
@@ -6733,6 +6737,7 @@ utilisateurs guident l'API). `run_nightly_tests --list` catalogue **14 familles 
    n'a plus d'obstacle côté apps ; aucun outil de réglage dans `tool_api.py` — la décision reste à
    Fabien (`§25.2`).
    ↳ *Relevé du 2026-11-10* : l'anonymizer a sa route depuis le 2026-10-31 (`94d81d261`), donc 10 apps sur 10 ; l'outil existe (`update_item_settings`, `0232c9e73`). Vérifier si `§25.2` tient encore.
+   ↳ *Vérifié le 2026-11-10, à la demande de Fabien* : soldé. L'outil est au registre, donc servi aussi par l'API REST (`tools/run/`) et le MCP ; il n'y a plus de décision à prendre sur ce verbe.
 5. ~~**Raccordement de `add_to_*`** (① bis) — ⏸ même attente que le point 2.~~ ✅ **FAIT le 2026-09-28**
    (`1d995811` : les outils fichier DÉSIGNENT comme les vues d'upload, voir ① bis).
 6. **Lancer les tests nocturnes** depuis l'assistant (`run_nightly_tests` est une commande de
@@ -7031,6 +7036,7 @@ datés vieillissent bien — mais il n'en fait pas la preuve.
 - **Repères de ligne décalés** : `tool_api.py`, `assistant_engine.py`, `model_selector.py`, `model_installer.py`, `mecanismes.py` et quelques autres ont glissé. Sur les traces datées ils ne sont pas réécrits : ils se lisent par symbole.
 - **Non tranché, faute de preuve ouverte** : le bouton ▶ d'un pipeline de fonctions, la tuile Médiathèque de l'Imager et de l'Avatarizer à l'écran, les deux rayons du Cam Analyzer, `folder_input_id` de l'Imager, et la ligne « quatorze sites » du §5b.
 - **Décisions demandées à Fabien, non prises ici** : la condition de Zen (« servi hors du poste », WAMA l'étant déjà sur le réseau interne) ; D-e, l'archétype de surface de la page vidéo ; le sélecteur de domaine, maintenant que `/competence` existe ; si `§25.2` tient encore ; le mot « embryon » du Face Analyzer dans la vision.
+- **Réponses de Fabien, le même jour** : Zen, D-e, sélecteur de domaine et « embryon » tranchés, chacun à sa section. `§25.2` vérifié : le verbe `settings` est soldé, la part structurelle de la révision reste ouverte.
 
 
 ## 25. Documentation — trois publics, UNE source de vérité (ouvert le 2026-09-11)
@@ -7054,7 +7060,7 @@ développeur CALCULÉES à la lecture (`common/dev_docs.py`) — un amorçage, p
 
 | # | pièce | état |
 |---|---|---|
-| ① | **Faits en ligne** : `<!-- WAMA:FAIT(registre/clé/champ) -->valeur<!-- /WAMA:FAIT -->`, résolus depuis `Registry.entries`, régénérés par `doc_facts`, confrontés par `--check` (`common/fact_tags.py`). Le registre des registres en compte aujourd'hui <!-- WAMA:FAIT(registres) -->17<!-- /WAMA:FAIT --> | 🔄 livré le 2026-09-11 ; fiches déclarées pour quelques registres, les autres à suivre |
+| ① | **Faits en ligne** : `<!-- WAMA:FAIT(registre/clé/champ) -->valeur<!-- /WAMA:FAIT -->`, résolus depuis `Registry.entries`, régénérés par `doc_facts`, confrontés par `--check` (`common/fact_tags.py`). Le registre des registres en compte aujourd'hui <!-- WAMA:FAIT(registres) -->21<!-- /WAMA:FAIT --> | 🔄 livré le 2026-09-11 ; fiches déclarées pour quelques registres, les autres à suivre |
 | ② | **Marquage des sections** de la doc de construction — par SECTION, pas par paragraphe (le coût connu de DITA) : `<!-- WAMA:SECTION(audience=developpeur,utilisateur; type=guide; nature=constat; etat=✅) -->` sur la ligne qui suit le titre ; une sous-section sans balise hérite. `type` ∈ tutoriel · guide · reference · explication (Diátaxis). **Double vérification** (Fabien) : `nature=constat` ⇒ ✅, `nature=intention` ⇒ 🔄 ou ⏳ — `check_docs` refuse les incohérences (`common/doc_sections.py`) | 🔄 livré le 2026-09-11 (syntaxe validée par Fabien) : marquage, contrôle, extraction ; pilote : `AGENTS.md §Trois docs` ; les docs de fond seront marqués à la révision (§25.2) |
 | ③ | **Plans des docs dérivées** : un plan déclaré dans `docs_catalog.py` (étapes `Excerpt` = section marquée de la doc de construction, `Facts` = bloc calculé depuis un registre) → `.md` écrit par `doc_facts`, lisible hors WAMA (`common/doc_plans.py`). Refusé : source ou section introuvable, section non marquée pour ce public | 🔄 livré le 2026-09-11 ; pilote `docs/dev/registres.md` (« Les registres de WAMA ») |
 | ④ | **Confrontation doc → doc** | ✅ **gratuite** : la dérivation étant MÉCANIQUE, une source modifiée change le fichier produit et `doc_facts --check` le voit. Une empreinte des sources ne servirait que si un humain ou un modèle réécrivait le texte |
@@ -7099,11 +7105,14 @@ réécriture), l'adaptation des skills `/reprise` et `/cloture`, la déclaration
    10 (anonymizer seul manque, critère `settings_route`) ; plus d'obstacle côté apps, la décision
    reste à Fabien.
    ↳ *Relevé du 2026-11-10* : 10 apps sur 10 depuis `94d81d261` ; la décision sur le verbe `settings` reste à Fabien.
+   ↳ *Vérifié le même jour* : ✅ soldée, `update_item_settings` couvre ce verbe depuis le 2026-11-02 (`0232c9e73`).
 2. **Puis la révision de fond**, sur les seuls docs qui portent la connaissance (pas
    `PROJECT_STATUS`, pas les changelogs) : marquer audience × type par section, séparer
    constats et intentions, remplacer chaque chiffre recopié par une balise ①.
 3. Ensuite, ajouter une app, une librairie, un modèle — tout ce qui vit dans un registre — ne
    pourra plus faire dériver la doc.
+
+↳ *Relevé du 2026-11-10, mesuré à la demande de Fabien (« on a révisé la doc déjà »)* : **soldé en partie.** ✅ Le point 1 et son reste sont soldés. ✅ La confrontation des CONSTATS au code est faite : audit de 680 écarts sur 47 docs appliqué le 2026-10-31, passes longues `§24.9` et `§24.10`, sous la règle constat / intention. ⏳ La part STRUCTURELLE du point 2 ne l'est pas : 4 sections portent `WAMA:SECTION` dans les 53 docs du catalogue (`AGENTS.md` 1, `WAMA_DATA_WORLD` 1, `TRANSCRIBER_CORRECTION` 2), une seule balise de fait en ligne existe, et 7 docs ont un bloc généré. Le point 3 n'est donc pas atteint, et le préalable `§25.1bis` non plus (aucun dossier de journal, `PROJECT_STATUS` à 30 285 lignes). Cette part reste une intention ; seule une décision la retire.
 
 ### 25.3 D'où vient cette approche (pour ne pas la réinventer)
 

@@ -46,6 +46,15 @@ PREFIXES = ('/', '!')
 _COMMAND_HEAD = re.compile(
     r'([' + re.escape(''.join(PREFIXES)) + r'])(\w+)(?:\s+(.*))?$', re.S)
 
+#: La commande que d'autres surfaces NOMMENT : l'annonce des compétences au modèle et la page des
+#: skills la citent par `competence_usage`, jamais par une chaîne recopiée.
+COMPETENCE_COMMAND = 'competence'
+
+
+def competence_usage(key: str = '<clé>', prefix: str = PREFIXES[0]) -> str:
+    """La frappe qui impose une compétence — celle de l'usage, de l'annonce et de la page des skills."""
+    return f"{prefix}{COMPETENCE_COMMAND} {key} <question>"
+
 
 @dataclass(frozen=True)
 class CommandContext:
@@ -142,10 +151,10 @@ def _competence(user, args, ctx) -> dict:
     if domain is None:
         listed = '\n'.join(f"• `{d.key}` — {d.label} : {d.help_text}" for d in DOMAINES)
         head = f"⛔ Compétence inconnue : « {key} ».\n" if key else ''
-        return {'reply': f"{head}Usage : `{ctx.prefix}competence <clé> <votre question>`. "
+        return {'reply': f"{head}Usage : `{competence_usage(prefix=ctx.prefix)}`. "
                          f"Compétences :\n{listed}"}
     if not question.strip():
-        return {'reply': f"Usage : `{ctx.prefix}competence {domain.key} <votre question>`."}
+        return {'reply': f"Usage : `{competence_usage(domain.key, ctx.prefix)}`."}
     return {'turn': {'message': question.strip(), 'domain': domain.key}}
 
 
@@ -197,8 +206,8 @@ def _code(user, args, ctx) -> dict:
 COMMANDS = (
     Command('concile', "réunir un concile sur une question : plusieurs agents, une relecture "
                        "croisée, un arbitre", _council, usage='<question>', aliases=('council',)),
-    Command('competence', "répondre avec une compétence précise (seule, la commande les liste)",
-            _competence, usage='<clé> <question>', aliases=('skill',)),
+    Command(COMPETENCE_COMMAND, "répondre avec une compétence précise (seule, la commande les liste)",
+            _competence, usage='<clé> <question>', aliases=('competences', 'skill', 'skills')),
     Command('effort', "voir ou régler le curseur Rapide ↔ Qualité", _effort,
             usage=_EFFORT_USAGE),
     Command('modele', "voir ou changer le modèle de réflexion, sans perdre la conversation",

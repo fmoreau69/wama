@@ -163,6 +163,16 @@ class CommandsInTheCommonTurnTest(TestCase):
         for domain in DOMAINES:
             self.assertIn(f'`{domain.key}`', result['response'])
 
+    def test_competence_alone_or_plural_lists_every_domain_without_calling_a_model(self):
+        from wama.common.utils.assistant_skills import DOMAINES
+        for typed in ('/competence', '/compétences', '!skills'):
+            with self.subTest(typed=typed):
+                result, engine = self._turn(typed)
+                engine.assert_not_called()
+                self.assertNotIn('⛔', result['response'])
+                for domain in DOMAINES:
+                    self.assertIn(f'`{domain.key}`', result['response'])
+
     def test_forget_erases_the_web_thread_only_and_says_it_to_the_screen(self):
         from wama.common.models import Conversation
         from wama.common.services import conversation_store as store

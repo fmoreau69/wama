@@ -52,6 +52,15 @@ class SyntheseTests(SimpleTestCase):
             self.assertEqual(s['famille'], 'role')
             self.assertTrue(s['consommateurs'], d.skill)
 
+    def test_a_role_skill_shows_the_command_that_imposes_it(self):
+        from django.utils.html import escape
+
+        from wama.common.services.assistant_commands import competence_usage
+        from wama.common.utils.assistant_skills import DOMAINES
+        for d in DOMAINES:
+            self.assertIn(f"<code>{escape(competence_usage(d.key))}</code>",
+                          self.par_nom[d.skill]['consommateurs'][-1])
+
     def test_un_skill_d_enrichissement_cite_le_champ_qui_le_resout(self):
         # `composer-music` est résolu par le target `composer.prompt` (domain='music', statique).
         s = self.par_nom.get('composer-music')
