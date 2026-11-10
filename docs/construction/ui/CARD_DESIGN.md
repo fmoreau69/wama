@@ -122,7 +122,7 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 |--------|---------|-------|-------|
 | **Paramètres** | `secondary` (gris) | `fa-cog` | ouvre l'inspecteur volet droit |
 | **Lancer / Relancer** | `success` (vert) | `fa-play` ▶ / **`fa-redo` ↻** | état : ▶ Démarrer · ⏳`fa-spinner` En cours (disabled) · ↻ Relancer (si terminé) |
-| **Télécharger** | `info` (bleu) | `fa-download` | `<a>` si sortie dispo, sinon `<button disabled>` ; split ▾ formats si pertinent |
+| **Télécharger** | `info` (bleu) | `fa-download` | `<a>` si sortie dispo, sinon `<button disabled>` ; split ▾ formats si pertinent. Card mère de lot : UN seul ⬇, icône et menu (archive ZIP, fichier unique ; `WAMA_APP_CONVENTIONS §9.10`) |
 | **Dupliquer** | `warning` (jaune) | `fa-copy` | **jaune** → distinct du Télécharger (bleu) et du Paramètres (gris), zéro collision |
 | **Supprimer** | `danger` (rouge) | `fa-trash` | |
 

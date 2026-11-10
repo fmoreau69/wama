@@ -273,7 +273,7 @@ def _registered(registry: dict, app_name: str):
 # même traitement une fois par élément (`CARD_DESIGN.md §Le LOT n'a PAS de port`), et rien, dans
 # aucune app, ne faisait UN fichier de ses éléments — le lot n'offrait que le ZIP. Le lot garde sa
 # règle ; une app qui sait COMBINER les résultats de ses éléments (les pages d'une partition en une
-# partition) le DÉCLARE ici, et le ⬇ du lot l'offre à côté du ZIP (`batch_download?combine=1`,
+# partition) le DÉCLARE ici, et le ⬇ du lot l'offre dans son menu (`batch_download?combine=1`,
 # `make_batch_views`). Seul un lot dont TOUS les éléments ont réussi se combine : un fichier fait
 # d'une partie du lot se lirait comme le tout.
 #
@@ -399,9 +399,10 @@ def _pages_pdf(pages, folder) -> bytes:
     return target.read_bytes()
 
 
-def _joined_texts(app_name: str, items, fmt: str):
+def _joined_texts(app_name: str, items, fmt: str, item_label=None):
     """`(ext, bytes)` d'UN document fait des éléments d'un lot de textes, dans l'ordre du lot, chacun
-    sous son nom — ou None. Chaque élément est rendu par le builder de l'app : un PDF ou un DOCX
+    sous son nom (`element_label`, le nom que le ZIP et l'état du lot donnent, `item_label` compris)
+    — ou None. Chaque élément est rendu par le builder de l'app : un PDF ou un DOCX
     garde ainsi la mise en forme d'un élément téléchargé seul. Un élément sans texte (une page
     blanche) est sauté ; un texte qu'on ne sait pas rendre refuse le tout, un document incomplet
     se lirait comme le lot entier."""
@@ -416,7 +417,7 @@ def _joined_texts(app_name: str, items, fmt: str):
             if render(item, 'txt') is not None:
                 return None
             continue
-        parts.append((element_label(item) or f'Élément {rank}', built[1]))
+        parts.append((element_label(item, item_label) or f'Élément {rank}', built[1]))
     if not parts:
         return None
     if fmt == 'docx':
@@ -438,10 +439,10 @@ def _joined_texts(app_name: str, items, fmt: str):
     return fmt, '\n'.join(blocks).encode('utf-8')
 
 
-def combine_lot(app_name: str, items, fmt: str):
+def combine_lot(app_name: str, items, fmt: str, item_label=None):
     """`(ext, bytes)` du fichier combiné des `items` au format `fmt`, ou None — le rendu déclaré de
     l'app pour ses formats, sinon les pages assemblées (`pdf_pages.pages_to_pdf`), sinon ses textes
-    réunis (`_joined_texts`)."""
+    réunis (`_joined_texts`, chacun sous le nom que l'app déclare : `item_label`)."""
     items = list(items)
     if fmt in _own_formats(app_name, items):
         return lot_builder_for(app_name)(items, fmt)
@@ -450,5 +451,5 @@ def combine_lot(app_name: str, items, fmt: str):
         with tempfile.TemporaryDirectory() as folder:
             return PAGES_FORMAT, _pages_pdf([page for item in items for page in result_pages(item)], folder)
     if fmt in _text_formats(app_name):
-        return _joined_texts(app_name, items, fmt)
+        return _joined_texts(app_name, items, fmt, item_label)
     return None

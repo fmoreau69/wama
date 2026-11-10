@@ -1594,10 +1594,164 @@ def check_keyboard_owners(path: str, page_hook=None):
     return True, f"{len(checks)}/{len(checks)} : " + ' → '.join([label for _, label in checks] + steps)
 
 
+#: La rangée d'actions d'une card mère : un seul bouton de sortie, rien hors de la card.
+_LOT_ROW_JS = """pk => {
+    const card = document.querySelector('.batch-delete-btn[data-batch-id="' + pk + '"]').closest('.wama-card');
+    const row = card.querySelector('.btn-group-actions');
+    const shown = [...row.querySelectorAll('a.btn, button.btn')].filter(e => e.getClientRects().length);
+    const edge = card.getBoundingClientRect().right;
+    return {outputs: [...row.querySelectorAll('.fa-download')].filter(e => e.getClientRects().length).length,
+            inside: shown.every(b => b.getBoundingClientRect().right <= edge + 1)}; }"""
+#: Chaque ligne du menu ouvert est-elle bien ce qu'on voit à sa place ? Et combien de fichiers uniques ?
+_LOT_MENU_JS = """pk => {
+    const card = document.querySelector('.batch-delete-btn[data-batch-id="' + pk + '"]').closest('.wama-card');
+    const menu = card.querySelector('[data-batch-zip] .dropdown-menu.show');
+    if (!menu) return {open: false, covered: [], joined: 0};
+    const lines = [...menu.querySelectorAll('.dropdown-item')].filter(e => e.getClientRects().length);
+    const covered = lines.filter(e => { const r = e.getBoundingClientRect();
+        const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !top || !menu.contains(top); }).map(e => e.innerText.trim());
+    return {open: true, covered,
+            joined: lines.filter(e => e.closest('[data-batch-combined]')).length}; }"""
+#: La card mère compte-t-elle toutes ses cards terminées ?
+_LOT_ALL_DONE_JS = """pk => {
+    const header = document.querySelector('.batch-delete-btn[data-batch-id="' + pk + '"]').closest('.batch-group-header');
+    return header.dataset.batchSuccess === header.dataset.batchTotal; }"""
+
+
+def _finish_in_background(model, pk):
+    """Passe l'élément `pk` à « terminé » EN BASE, depuis un fil à part : l'ORM est interdit dans le
+    fil de Playwright. C'est le serveur qui change, la page le voit par son propre suivi."""
+    import threading
+
+    from django.db import connection
+
+    def finish():
+        try:
+            model.objects.filter(pk=pk).update(status='SUCCESS')
+        finally:
+            connection.close()
+    worker = threading.Thread(target=finish)
+    worker.start()
+    worker.join()
+
+
+def _mount_lots(uid):
+    """Quatre lots de deux transcriptions du compte de test (`_mount_transcripts`, un lot par card,
+    regroupées ici), le PREMIER en cours : il est le plus ancien, donc en bas de la file, et les lots
+    réussis ont une card sous eux — sur une file trop courte, un menu ouvert près du bas de la page
+    s'ouvre vers le haut et rien ne le recouvre. Rend `(transcriptions, lots réussis, lot inachevé)` ;
+    la transcription en cours est `made[1]`."""
+    from wama.transcriber.models import Transcript
+
+    made = _mount_transcripts(uid, count=8)
+    lots = []
+    for first, second in zip(made[::2], made[1::2]):
+        keep, link = first.batch_item.batch, second.batch_item
+        emptied = link.batch
+        link.batch, link.row_index = keep, 1
+        link.save(update_fields=['batch', 'row_index'])
+        emptied.delete()
+        keep.total = 2
+        keep.save(update_fields=['total'])
+        lots.append(keep.pk)
+    Transcript.objects.filter(pk=made[1].pk).update(status='RUNNING')
+    return made, lots[1:], lots[0]
+
+
+def _open_lot_menu(page, pk):
+    """Ouvre le ⬇ de la card mère `pk`, en HAUT de l'écran, et rend la mesure du menu. En haut : le
+    menu s'ouvre alors vers le bas, sur les cards suivantes — centrée, il s'ouvrait vers le haut,
+    sur les précédentes, qui ne le masquent pas (le « parfois » du défaut relevé par Fabien)."""
+    card = page.locator(f'.batch-delete-btn[data-batch-id="{pk}"]').locator(
+        'xpath=ancestor::*[contains(@class,"wama-card")][1]')
+    card.evaluate("e => { e.scrollIntoView({block: 'start'}); window.scrollBy(0, -140); }")
+    page.wait_for_timeout(250)
+    card.locator('[data-batch-zip] .dropdown-toggle').first.click()
+    page.wait_for_timeout(350)
+    measured = page.evaluate(_LOT_MENU_JS, pk)
+    page.keyboard.press('Escape')
+    page.mouse.click(5, 500)
+    page.wait_for_timeout(150)
+    return measured
+
+
+def check_lot_output_menu(path: str, page_hook=None):
+    """Le ⬇ unique d'une card mère (2026-11-10, relevé par Fabien) : aux deux largeurs, volets ouverts,
+    un seul bouton de sortie et aucune action hors de la card ; le menu ouvert passe devant la card
+    suivante, chaque ligne est bien visible ; le fichier unique attend que le lot ait réussi, et
+    apparaît sans recharger quand sa dernière card finit (en base, la page le voit par son suivi).
+    Écritures de la page bloquées, aucune tâche ne part."""
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.transcriber.models import Transcript
+    from .ui_smoke import _garde_de_montage, _test_account_id, _total_nettoye
+
+    sessions_before = _session_keys()
+    token, uid = _test_session_key('transcriber'), _test_account_id('transcriber')
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+    url = BASE_URL.rstrip('/') + path
+    faults, steps = [], []
+    with _garde_de_montage('transcriber', 'lot_output_menu') as cleaned:
+        made, finished, unfinished = _mount_lots(uid)
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                try:
+                    ctx, page, resp, errors = _desktop_page(browser, token, url, page_hook)
+                    _exiger_la_page(page, resp, url)
+                    for width in (1440, 1920):
+                        page.set_viewport_size({'width': width, 'height': 900})
+                        page.wait_for_selector(f'.batch-delete-btn[data-batch-id="{finished[0]}"]', state='attached')
+                        page.wait_for_timeout(1200)
+                        checks = []
+                        for pk in finished:
+                            row = page.evaluate(_LOT_ROW_JS, pk)
+                            checks += [(row['outputs'] == 1, f"lot {pk} : {row['outputs']} bouton(s) de sortie"),
+                                       (row['inside'], f"lot {pk} : une action hors de la card")]
+                            menu = _open_lot_menu(page, pk)
+                            checks += [(menu['open'], f"lot {pk} : menu fermé au clic"),
+                                       (not menu['covered'], f"lot {pk} : lignes masquées {menu['covered']}"),
+                                       (menu['joined'] > 0, f"lot {pk} : aucun fichier unique offert")]
+                        _collect(f'{width} px', checks, errors, faults, steps)
+                    waiting = _open_lot_menu(page, unfinished)
+                    _finish_in_background(Transcript, made[1].pk)
+                    try:
+                        page.wait_for_function(f'() => ({_LOT_ALL_DONE_JS})({unfinished})', timeout=30000)
+                    except Exception:
+                        pass
+                    done = _open_lot_menu(page, unfinished)
+                    _collect('lot inachevé', [
+                        (waiting['joined'] == 0, f"fichier unique offert trop tôt ({waiting['joined']})"),
+                        (done['joined'] > 0, "fichier unique toujours caché une fois les cards finies"),
+                    ], errors, faults, steps)
+                    ctx.close()
+                finally:
+                    browser.close()
+        except SkipScenario:
+            raise
+        except Exception as exc:
+            raise SkipScenario(_motif_skip(exc))
+        finally:
+            _drop_new_sessions(sessions_before)
+            for t in made:                     # le FICHIER : la garde ne retire que les lignes
+                try:
+                    t.audio.delete(save=False)
+                except Exception:
+                    pass
+    if cleaned:
+        steps.append(f"{_total_nettoye(cleaned)} objet(s) de montage retiré(s)")
+    if faults:
+        return False, ' ; '.join(faults)
+    return True, ' → '.join(steps)
+
+
 def register_layout_scenarios():
     """Enregistre `common.layout.tablet` (la mise en page à largeur de tablette), `common.layout.
-    screens` (de l'écran 21:9 au téléphone), `common.gestures.touch` (les gestes au doigt) et
-    `common.gestures.mouse` (les mêmes à la souris)."""
+    screens` (de l'écran 21:9 au téléphone), `common.gestures.touch` (les gestes au doigt),
+    `common.gestures.mouse` (les mêmes à la souris) et `common.lot.output_menu` (le ⬇ unique d'un lot)."""
     from django.urls import NoReverseMatch, reverse
 
     from wama.common.services.nightly_tests import register
@@ -1649,6 +1803,14 @@ def register_layout_scenarios():
                      "Espace, plage Maj), onde du transcriber, panneau de la cloche"),
         run=(lambda g=gesture_paths: (lambda ctx: check_mouse_gestures(g)))(),
         timeout_s=240, vram_gb=0.0,
+    )
+    register(
+        id="common.lot.output_menu", app="common", stage="ui",
+        description=("Le ⬇ unique d'une card mère : un seul bouton de sortie, aucune action hors de la "
+                     "card, le menu ouvert passe devant la card suivante, le fichier unique apparaît "
+                     "quand tout le lot a réussi — écritures refusées"),
+        run=(lambda p=path: (lambda ctx: check_lot_output_menu(p)))(),
+        timeout_s=180, vram_gb=0.0,
     )
     register(
         id="common.keyboard_owners", app="common", stage="ui",

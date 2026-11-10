@@ -307,6 +307,27 @@ class BatchCardZipButtonTests(SimpleTestCase):
         css = (Path(settings.BASE_DIR) / 'wama/common/static/common/css/wama-card-v3.css').read_text(encoding='utf-8')
         self.assertRegex(css, r'\.wama-card:has\(\.dropdown-menu\.show\) \{ position: relative; z-index: \d+; \}')
 
+    def test_the_single_file_shows_once_every_card_of_the_lot_is_done(self):
+        """The served `updateBatchHeader`, under V8 : a page that does not reload when a card ends
+        (the transcriber's does — the nightly `common.lot.output_menu` sees its server render)."""
+        import json
+        from py_mini_racer import MiniRacer
+        src = (Path(settings.BASE_DIR) / 'staticfiles/common/js/queue-actions.js').read_text(encoding='utf-8')
+        start = src.index('    function updateBatchHeader')
+        body = src[start:src.index('\n    }\n', start) + 7]
+        ctx = MiniRacer()
+        ctx.eval(body + """
+            function run(success, total) {
+                const lists = {'[data-batch-zip]': [{hidden: true}], '[data-batch-combined]': [{hidden: true}, {hidden: true}]};
+                const header = {dataset: {}, querySelectorAll: s => lists[s] || []};
+                updateBatchHeader({querySelector: () => header},
+                                  {total: total, success_count: success, has_success: success > 0}, null);
+                return JSON.stringify({zip: lists['[data-batch-zip]'][0].hidden,
+                                       joined: lists['[data-batch-combined]'].map(e => e.hidden)});
+            }""")
+        self.assertEqual({'zip': False, 'joined': [True, True]}, json.loads(ctx.call('run', 1, 2)))
+        self.assertEqual({'zip': False, 'joined': [False, False]}, json.loads(ctx.call('run', 2, 2)))
+
     def test_a_lot_of_pages_with_no_download_format_keeps_its_zip_in_the_menu(self):
         """The early-binding form : no declared format, the archive is an entry of its own."""
         from wama.common.utils import export_formats

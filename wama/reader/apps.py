@@ -39,7 +39,7 @@ class ReaderConfig(AppConfig):
             return other_nature + (() if score or getattr(item, 'raw_result', None) else ('json',))
         register_export_missing('reader', _missing)
         # UN fichier pour tout le lot (2026-11-10, décision de Fabien) : les pages d'une partition
-        # en une partition, offert par le ⬇ du lot à côté du ZIP (`batch_download?combine=1`).
+        # en une partition, offert dans le menu du ⬇ du lot (`batch_download?combine=1`).
         from wama.common.utils.export_formats import register_lot_builder
         register_lot_builder('reader', 'wama.reader.views:build_reading_lot_bytes',
                              'wama.reader.views:reading_lot_formats')

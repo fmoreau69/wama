@@ -563,7 +563,8 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     UN FICHIER POUR TOUT LE LOT (2026-11-10, décision de Fabien) — rien à passer non plus :
     `batch_download?combine=1&format=<ext>` sert UN fichier fait des résultats du lot quand l'app
     en DÉCLARE le rendu (`export_formats.register_lot_builder` : les pages d'une partition en une
-    partition), et pour toute app un PDF quand ces résultats sont des pages, images ou PDF
+    partition), pour toute app un PDF quand ces résultats sont des pages, images ou PDF, et pour
+    toute app qui rend ses éléments leurs textes réunis
     (`export_formats.combine_lot`). Le lot reste N fois le même traitement ; la combinaison n'en lit que les résultats,
     le lot ENTIER et réussi, dans son ordre — sinon 409 qui le dit. Même route, même garde de
     lecture que le ZIP ; nommé par l'identité du lot (`batch_identity`).
@@ -905,7 +906,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                                           "doivent avoir réussi", 'not_done': missing}, status=409)
         asked = str(request.GET.get('format') or '').lower().lstrip('.')
         fmt = asked if asked in formats else formats[0]
-        built = combine_lot(app, items, fmt)
+        built = combine_lot(app, items, fmt, item_label=item_label)
         if not built:
             return JsonResponse({'error': f'combinaison impossible au format {fmt}'}, status=422)
         ext, data = built

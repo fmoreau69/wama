@@ -4674,7 +4674,8 @@ def get_batch_result(user, app: str, batch_id: int) -> dict:
     """
     The results of a whole batch: its state and the address of the ZIP of its outputs — the
     ZIP button of the batch card. Give the `link` to the user to download it. When the app can
-    join the batch into ONE file (the pages of a score into one score) and every item succeeded,
+    join the batch into ONE file (the pages of a score, images into a PDF, texts into one
+    document) and every item succeeded,
     `combined` gives that file — the single-file section of the batch card's download menu.
 
     Returns:

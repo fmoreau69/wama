@@ -30323,6 +30323,27 @@ Message envoyé à cette session le 10/11, en attente de sa réponse. Une surfac
   scénario nocturne ne rejoue le menu ouvert. Les blocs générés (`WAMA_MECANISMES`, `docs/dev/briques`) se
   régénèrent à la clôture commune.
 
+**Revérification du même soir, sur WAMA relancé (gunicorn de 18:35, après `775acb170`)** — parcours réel
+au navigateur : un lot de textes réussi offre TXT, Markdown, PDF (3 pages) et DOCX, téléchargés par un vrai
+clic, dans l'ordre du lot ; la section reste cachée sur un lot inachevé ; 0 ligne de menu masquée sur 26.
+Trois écarts trouvés et ramenés :
+- ✗ un texte réuni se nommait sans le nom que l'app DÉCLARE (`item_label`, celui du ZIP et de l'état du
+  lot) : `combine_lot(…, item_label=)`, passé par la fabrique.
+- ✗ les gardes des textes nommaient trois apps : contrat rendu générique, il boucle sur les apps qui
+  rendent leurs éléments (`export_formats._BUILDERS`), aucune app nommée.
+- ✗ aucun scénario ne rejouait le menu : `common.lot.output_menu` (nocturne, `ui_smoke_layout`) — un seul
+  bouton de sortie, aucune action hors de la card, aucune ligne masquée, le fichier unique montré quand la
+  dernière card finit (passée en base, la page le voit seule). Prouvé : vert sain ; rouge règle du menu
+  neutralisée ; rouge sans retour à la ligne. ⚠ Le menu ne se masquait que lorsqu'il s'ouvre VERS LE BAS :
+  centrée, la card l'ouvre vers le haut, sur les cards précédentes — d'où le « parfois », et un premier
+  scénario aveugle, corrigé. La page du transcriber se RECHARGE quand une card finit : la ligne JS qui montre
+  la section (`updateBatchHeader`) est donc gardée à part, sous V8 (`BatchCardZipButtonTests`, contre-épreuve
+  rouge).
+- Mesuré, sans suite : aucun lot réel du Reader ne mêle partitions et textes (un élément sans texte y
+  serait sauté).
+- Gardes : 313 tests du périmètre et des gardes transverses, un seul rouge, `OneFileOneOwnerTest` (autre
+  session) ; 8 contre-épreuves des textes rejouées sur le contrat générique, toutes rouges.
+
 ## §PASSATION 2026-11-02→10, « ANONYMIZER DOCUMENTS : UN PDF OU UN DOCX ANONYMISÉ DANS SA FORME ; LE DOCUMENT REÇU PAR URL » — 97afa1b64, fef25cdb0, 7bddaca7b, 798f34485, 9c420ecaa, af07f4ad0, cfae067d9, cf11b0165, 22fbd1d75 (locaux, non poussés) — 🔴 relancer gunicorn + workers (cf11b0165) — 🔚 session neuve de Fabien sur l'app documents
 
 > Volet repris de `ROADMAP §16.4bis` (domicile, décisions D1–D5 et celles du 28/10). Cette passation
