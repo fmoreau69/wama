@@ -4440,6 +4440,20 @@ qui restaient sans outil (mémoire et carte, disque, nettoyeur, surveillance, sa
   `load() -> None` (d'où le point 7). Limites mesurées, local et distant : `WAMA_LLM.md` §« 2026-11-10 —
   LIMITES D'USAGE d'un rôle ». ⏳ Un passage du rôle sur la route complète (points 1 à 11), puis la
   relecture du module qui réussit, puis la validation de Fabien.*
+  ✅ *Proposition ACCEPTABLE le 2026-11-10 à 22:04 (`outputs/backend_huggingface__ACE-Step~Ace-Step1.5_2026-11-10_22-04.json`)
+  — `ollama:qwen3.8` en LOCAL, matière complète, fenêtre 65 536, carte libérée : contrôles OK du
+  premier coup, essai ❌ (`torchaudio` → `libtorchcodec` cassé dans le venv), reprise ✅ (10,0 s, 48 kHz,
+  niveau 0,106, 145 s sur CPU ; morceau à écouter : `outputs/backend_smoke_ace_step1_5_backend.wav`).
+  Point 12, comblé juste avant : l'essai nomme TOUTES les formes d'appel de progression du moteur
+  (ACE-Step en a deux — `(0.1, 'Phase 1…')` et `desc=`), le passage précédent n'en connaissait
+  qu'une. Relu : chargeurs du moteur sur les chemins installés, `load -> True`, adaptateur des deux
+  formes de progression, aucun dossier temporaire (`save_dir=None`, WAV écrit par `wave`), partition
+  refusée, mélodie en audio de référence, plafond de VRAM rendu. ⚠ Un écart mineur : le tirage est lu
+  dans le dictionnaire au lieu des aides communes (`sampling_temperature/_seed/_top_p`, `base.py`) —
+  la graine n'est pas posée sur les générateurs (`seed_generators`) ; à corriger après validation.
+  Les six propositions précédentes du soir : à rejeter (aucune ne passe l'essai d'aujourd'hui).
+  ⏳ Validation de Fabien (« Valider » écrit le module ; relancer les workers pour que le composer
+  l'emploie).*
 - **Deux jumeaux laissés par la session (revérification du 2026-11-10)** : ⏳ `dev_docs.module_api`
   (l.80) résume une fonction par la première LIGNE de sa docstring, le défaut que
   `tool_api._doc_summary` a soldé pour les outils — corriger régénère presque tout

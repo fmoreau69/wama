@@ -30646,3 +30646,23 @@ Revérification complète (`/reverif`) des commits `283de6d12`, `89280e43f`, `55
 - **Effets de bord** : la carte libérée quatre fois par le geste du model manager (`free_memory`,
   action `gpu`, accord de Fabien : « il y a l'option de tout décharger ») ; neuf passages du rôle,
   leurs propositions en file ; les morceaux d'essai gardés sous `wama-dev-ai/outputs/`.
+
+## §PALIER 2026-11-10 (nuit), « ACE-STEP : UNE PROPOSITION ACCEPTABLE PAR LA ROUTE » — `e7a7f3c11` et le commit de ce palier (locaux, non poussés) — 🔚 validation de Fabien
+
+- **Le backend d'ACE-Step a une proposition acceptable**, produite par le rôle `backend` en LOCAL
+  (`ollama:qwen3.8`, matière complète, `--num-ctx 65536`, `--llm-timeout 3600`, carte libérée) :
+  `wama-dev-ai/outputs/backend_huggingface__ACE-Step~Ace-Step1.5_2026-11-10_22-04.json` — contrôles OK
+  du premier coup, essai réel OK après une reprise (10 s, 48 kHz). Relue : conforme, un écart mineur
+  (tirage lu sans les aides communes, graine non posée sur les générateurs). Détail et relecture :
+  `PROSPECTION_PIPELINE`, entrée ACE-Step (point 12).
+- **Route** : `e7a7f3c11` — l'essai musical nomme toutes les formes d'appel de progression du moteur.
+- **Fournisseurs** : ILaaS de nouveau indisponible à 21:44 (relais Albert aussi) — troisième fenêtre
+  de la journée (`WAMA_LLM` §« LIMITES D'USAGE »).
+- 🔚 **Pendings** :
+  1. Fabien : rejeter les six propositions précédentes du soir ; valider celle de 22:04 (« Valider »
+     écrit `wama/common/backends/ace_step1_5_backend.py`) ; écouter le morceau d'essai
+     (`wama-dev-ai/outputs/backend_smoke_ace_step1_5_backend.wav`) ;
+  2. relancer gunicorn + workers après la validation (le composer charge les backends au démarrage) ;
+  3. après validation : le tirage par les aides communes (`sampling_temperature/_seed/_top_p`) ;
+  4. inchangés depuis la clôture du soir : sonde d'entrée ILaaS/Albert, matière ajustée à la fenêtre
+     déclarée, appel en flux, session « masse des tests ».
