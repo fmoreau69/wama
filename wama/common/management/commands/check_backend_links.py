@@ -97,7 +97,8 @@ class Command(BaseCommand):
         self.stdout.write(f'\n{ligne}\nBACKENDS SANS MODÈLE — l’oubli et la décision\n{ligne}')
         for e in expliques:
             self.stdout.write(self.style.SUCCESS(
-                f'  ⊙ {e.name} — CONSERVÉ : {e.deprecated[:96]}…'))
+                f'  ⊙ {e.name} — CONSERVÉ : {e.deprecated[:96]}…' if e.deprecated else
+                f'  ⊙ {e.name} — SANS LIGNE : {e.bundled_weights[:96]}…'))
         for e in muets:
             self.stdout.write(self.style.WARNING(
                 f'  ⚠ {e.name} — aucun modèle ne le désigne et AUCUNE raison déclarée : '

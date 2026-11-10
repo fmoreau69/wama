@@ -21,6 +21,11 @@
 # tâches de son prédécesseur (`wama/celery.py`, `worker_ready`) : les cards basculent en échec
 # relançable à leur prochain rafraîchissement, sans recharger la page.
 #
+# LES SERVICES uvicorn (2026-11-09, `WAMA_MANIFEST_SPEC §7.1`) suivent les mêmes règles, à une
+# différence près, déclarée par service (`wama_service_spec`) : celui qui s'arrête pour rendre la
+# carte ne revient que si un appelant l'a trouvé éteint, et sa relance ne compte pas dans le budget.
+# Le passage sur un processus vit dans `scripts/wama_services.sh` (`supervise_one`).
+#
 # Pause (maintenance, arrêt volontaire d'un worker) : `touch logs/worker_watchdog.pause`.
 # ------------------------------------------------------------------------------------------
 PROJECT_DIR=${PROJECT_DIR:-/mnt/d/WAMA/web-app-for-media-automation}
@@ -43,54 +48,21 @@ declare -A GAVE_UP    # worker → 1 quand le budget est épuisé
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*"; }
 
-report() {   # $1 = worker, $2 = issue, $3 = relances dans la fenêtre
+report() {   # $1 = processus, $2 = issue, $3 = relances dans la fenêtre, $4 = celery|service
     local node
     node=$(celery_worker_node "$1")
     # Seule la ligne de bilan de la commande (« <nœud>: <issue> ; … ») va au journal : le reste
     # de la sortie de Django (avertissements de bibliothèques) n'y a pas sa place.
-    python manage.py worker_died --node "$node" --outcome "$2" --restarts "$3" 2>&1 \
+    python manage.py worker_died --node "$node" --outcome "$2" --restarts "$3" --kind "$4" 2>&1 \
         | grep -F "$node: " | tail -1
 }
 
-log "surveillance démarrée : $WAMA_CELERY_WORKERS — toutes les ${INTERVAL_S}s, " \
-    "au plus $MAX_RESTARTS relances en ${WINDOW_S}s par worker"
+log "surveillance démarrée : $WAMA_CELERY_WORKERS $WAMA_SERVICES — toutes les ${INTERVAL_S}s, " \
+    "au plus $MAX_RESTARTS relances en ${WINDOW_S}s par processus"
 
 while true; do
     sleep "$INTERVAL_S"
     [ -f "$PAUSE_FILE" ] && continue
-    for w in $WAMA_CELERY_WORKERS; do
-        if celery_worker_alive "$w"; then
-            GAVE_UP[$w]=''            # relancé à la main après une suspension : on reprend
-            continue
-        fi
-        [ -n "${GAVE_UP[$w]}" ] && continue
-
-        now=$(date +%s)
-        recent=''
-        n=0
-        for t in ${RESTARTS[$w]}; do
-            if [ $((now - t)) -lt "$WINDOW_S" ]; then recent="$recent $t"; n=$((n + 1)); fi
-        done
-        RESTARTS[$w]=$recent
-
-        if [ "$n" -ge "$MAX_RESTARTS" ]; then
-            GAVE_UP[$w]=1
-            log "$w MORT — $n relances en ${WINDOW_S}s : relances SUSPENDUES"
-            report "$w" gave_up "$n"
-            continue
-        fi
-
-        log "$w MORT — relance ($((n + 1))/$MAX_RESTARTS dans la fenêtre)"
-        start_celery_worker "$w"
-        RESTARTS[$w]="${RESTARTS[$w]} $now"
-        outcome=restart_failed
-        waited=0
-        while [ "$waited" -lt "$READY_WAIT_S" ]; do
-            sleep 2
-            waited=$((waited + 2))
-            if celery_worker_alive "$w"; then outcome=restarted; break; fi
-        done
-        log "$w : $outcome"
-        report "$w" "$outcome" "$((n + 1))"
-    done
+    for w in $WAMA_CELERY_WORKERS; do supervise_one "$w" celery; done
+    for s in $WAMA_SERVICES; do supervise_one "$s" service; done
 done

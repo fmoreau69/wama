@@ -95,6 +95,10 @@ class BackendEntry:
     #: (`DEPRECATED`) — vide = en service. Distingue l'OUBLI (à corriger) de la DÉCISION (à
     #: laisser) : les deux se ressemblent à l'écran, ils ne se traitent pas pareil.
     deprecated: str = ''
+    #: Pourquoi ce backend EN SERVICE n'a pas de ligne de catalogue : ses poids sont dans sa roue
+    #: (`BUNDLED_WEIGHTS`) — vide = ses modèles sont au catalogue. L'autre décision qui explique un
+    #: backend qu'aucun modèle ne désigne (2026-11-09, FER).
+    bundled_weights: str = ''
     #: MOTEURS (librairies d'exécution) que ce backend appelle — DÉRIVÉS des modèles servis
     #: (`composition.runtime.engine`). ⚠ Backend ≠ moteur (recadrage Fabien 2026-09-03) : le
     #: backend est l'adaptateur WAMA (contrat load/unload/process), le moteur est la
@@ -484,6 +488,7 @@ def inventory() -> List[AppBackends]:
                 engine=(info['attrs'].get('ENGINE') or '').strip(),
                 isolation=isolation,
                 deprecated=(info['attrs'].get('DEPRECATED') or '').strip(),
+                bundled_weights=(info['attrs'].get('BUNDLED_WEIGHTS') or '').strip(),
                 engine_installed=_packages_present(
                     info['attrs'].get('REQUIRED_PACKAGES'), isolation),
                 models=servis,
@@ -649,13 +654,14 @@ def orphelins(entrees, servis) -> tuple:
 
     `servis` : noms de classes que le catalogue désigne (via le lien déclaré).
     Un backend MUET est un OUBLI (le lien modèle→moteur manque) ; un backend EXPLIQUÉ est une
-    DÉCISION (`DEPRECATED` dit pourquoi on le garde). Les deux se ressemblent à l'écran, ils ne
-    se traitent pas pareil — c'est toute la raison de cette séparation.
+    DÉCISION (`DEPRECATED` dit pourquoi on le garde, `BUNDLED_WEIGHTS` pourquoi il sert sans ligne).
+    Les deux se ressemblent à l'écran, ils ne se traitent pas pareil — c'est toute la raison de
+    cette séparation.
     """
     vus = set(servis)
     classes = [e for e in entrees if e.kind == 'classe' and e.name not in vus]
-    return ([e for e in classes if not e.deprecated],
-            [e for e in classes if e.deprecated])
+    return ([e for e in classes if not (e.deprecated or e.bundled_weights)],
+            [e for e in classes if e.deprecated or e.bundled_weights])
 
 
 #: Le vivier de la résolution, mémorisé `ENGINE_CACHE_TTL_S` comme le verdict d'importabilité
@@ -722,6 +728,10 @@ TASK_CONTRACTS = {
     # jusque-là hors du contrat par le service vocal. LIANT : `onnxruntime` est le moteur de
     # plusieurs backends, et c'est ce contrat qui borne le juge à sa tâche.
     'end-of-turn': ('end_of_turn_base', 'EndOfTurnBackend', True),
+    # 2026-11-09 : ce qu'on lit sur un visage (émotions, âge, genre : DeepFace, FER), appelé jusque-là
+    # depuis `emotions.EmotionRecognizer`, à côté du contrat. LIANT : c'est la première tâche du
+    # service TensorFlow, et ce contrat qui borne ses backends.
+    'face-analysis': ('face_analysis_base', 'FaceAnalysisBackend', True),
     # 2026-10-07 : la signature que les trois moteurs OCR partageaient sans la déclarer. LIANT :
     # un modèle d'OCR n'est servi que par un backend OCR — c'est ce qui borne `GlmOcrBackend`
     # (moteur `ollama`, qui sert aussi le chat) à sa tâche.

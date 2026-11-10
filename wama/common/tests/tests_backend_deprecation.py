@@ -46,14 +46,15 @@ class BackendOrphelinExpliqueTest(TestCase):
         """
         from types import SimpleNamespace as N
         entrees = [
-            N(kind='classe', name='EnService', deprecated=''),
-            N(kind='classe', name='GardeExplique', deprecated='conservé comme exemple'),
-            N(kind='classe', name='Oubli', deprecated=''),
-            N(kind='route', name='UneRoute', deprecated=''),      # jamais concernée
+            N(kind='classe', name='EnService', deprecated='', bundled_weights=''),
+            N(kind='classe', name='GardeExplique', deprecated='conservé comme exemple', bundled_weights=''),
+            N(kind='classe', name='PoidsDansLaRoue', deprecated='', bundled_weights='fournis par la roue'),
+            N(kind='classe', name='Oubli', deprecated='', bundled_weights=''),
+            N(kind='route', name='UneRoute', deprecated='', bundled_weights=''),      # jamais concernée
         ]
         muets, expliques = bi.orphelins(entrees, servis={'EnService'})
         self.assertEqual([e.name for e in muets], ['Oubli'])
-        self.assertEqual([e.name for e in expliques], ['GardeExplique'])
+        self.assertEqual([e.name for e in expliques], ['GardeExplique', 'PoidsDansLaRoue'])
 
     def test_un_backend_SERVI_n_est_jamais_compte_comme_orphelin(self):
         """Contre-épreuve : une raison posée « au cas où » sur un backend servi ne le sort pas

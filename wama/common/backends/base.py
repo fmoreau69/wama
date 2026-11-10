@@ -248,7 +248,25 @@ def _untrack_live(instance) -> None:
     _LIVE_BACKENDS.discard(instance)
 
 
-def _footprint_to_publish(instance, before, owner, free_before=None):
+def _card_used_gb() -> Optional[float]:
+    """La mémoire occupée de la carte, tous occupants confondus — None si elle ne se lit pas."""
+    try:
+        from wama.common.services.resource_governor import card_used_gb
+        return card_used_gb()
+    except Exception:
+        return None
+
+
+def _shares_card_reserve(instance) -> bool:
+    """Un autre modèle de ce processus sans PyTorch tient déjà une réserve sur la carte : le delta de
+    celui-ci ne dit que ce qu'elle a dû grandir (mesuré le 2026-11-09 : l'âge seul +6,6 Go, le genre
+    après lui +0). Ce n'est donc PAS l'empreinte du modèle, et elle ne remonte pas au catalogue."""
+    return any(other is not instance and getattr(other, 'NO_TORCH_IN_PROCESS', False)
+               and getattr(other, _GOV_GB, None) and _still_loaded(other)
+               for other in list(_LIVE_BACKENDS))
+
+
+def _footprint_to_publish(instance, before, owner, free_before=None, card_before=None):
     """(Go, déjà pris ?) à publier après un chargement RÉUSSI — (None, False) : rien à réserver.
 
     Du plus sûr au moins sûr :
@@ -256,6 +274,12 @@ def _footprint_to_publish(instance, before, owner, free_before=None):
       2. rechargement IDEMPOTENT — même détenteur déjà publié, mesure nulle puisque rien n'a
          bougé → on garde ce qui avait été publié. Jusqu'au 2026-09-14 la valeur DÉCLARÉE
          écrasait alors la mesure (un modèle mesuré 38 Go repassait à son preset) ;
+      2 bis. backend mesuré à la CARTE (`NO_TORCH_IN_PROCESS`, `card_before` lu avant le
+         chargement) → le delta de la mémoire occupée, marqué pris hors de torch ; un delta nul
+         quand le processus tient déjà une réserve sur la carte (mesuré le 2026-11-09 : l'âge puis
+         le genre, le second +0) → une ligne minimale ; sinon sa valeur déclarée. Un tel moteur
+         n'a pas de PyTorch dans son processus : les étapes suivantes, qui l'importeraient, ne
+         le concernent pas ;
       3. pas de CUDA dans ce process → rien : un process sans GPU ne peut pas en occuper ;
       4. backend qui se déclare sur CPU (`device`) → rien : sa valeur déclarée est celle du GPU ;
       5. MESURE du contexte CUDA concluante (`_measured_outside_torch_gb`) → Go mesurés, marqués
@@ -269,6 +293,18 @@ def _footprint_to_publish(instance, before, owner, free_before=None):
         return gb, True
     if getattr(instance, _GOV_KEY, None) == owner and getattr(instance, _GOV_GB, None):
         return float(getattr(instance, _GOV_GB)), getattr(instance, _GOV_ALLOC, False)
+    if card_before is not None:
+        card_after = _card_used_gb()
+        delta = None if card_after is None else card_after - card_before
+        from wama.common.services.resource_governor import OUTSIDE_TORCH
+        if delta is not None and delta >= _MEASURE_FLOOR_GB:
+            return delta, OUTSIDE_TORCH
+        # La réserve de ce processus a suffi au modèle : il n'a rien ajouté à la carte, sa déclaration
+        # compterait deux fois ce qu'elle tient. Une ligne minimale le dit résident.
+        if delta is not None and _shares_card_reserve(instance):
+            return _MEASURE_FLOOR_GB, OUTSIDE_TORCH
+        declared = getattr(instance, 'recommended_vram_gb', None)
+        return (float(declared), False) if declared else (None, False)
     if before is None:
         return None, False
     if str(getattr(instance, 'device', '') or '').lower().startswith('cpu'):
@@ -309,7 +345,12 @@ def _wrap_load(func):
     def wrapper(self, *args, **kwargs):
         # Rien à mesurer pour un backend qui ne tient rien ici (cf. `_holds_no_local_vram`) :
         # sans mesure, `_footprint_to_publish` ne publie rien — ce que sa déclaration de 0 disait.
-        before = None if _holds_no_local_vram(self) else _vram_snapshot()
+        # Un moteur sans PyTorch dans son processus (`NO_TORCH_IN_PROCESS`) se mesure à la CARTE : la
+        # sonde d'avant chargement y importerait PyTorch.
+        no_local = _holds_no_local_vram(self)
+        card_before = (_card_used_gb() if getattr(self, 'NO_TORCH_IN_PROCESS', False) and not no_local
+                       else None)
+        before = None if no_local or card_before is not None else _vram_snapshot()
         free_before = None if before is None else _context_free_bytes()
         result = func(self, *args, **kwargs)
         try:
@@ -318,7 +359,7 @@ def _wrap_load(func):
                     release_reservation, reserve_vram,
                 )
                 owner = _governor_owner(self)
-                gb, allocated = _footprint_to_publish(self, before, owner, free_before)
+                gb, allocated = _footprint_to_publish(self, before, owner, free_before, card_before)
                 # La clé porte désormais le modèle : un backend qui BASCULE de modèle
                 # sans décharger (diffusers, cogvideox…) publierait deux lignes pour un
                 # seul détenteur, dont une fantôme jusqu'à expiration du TTL. On rend
@@ -334,7 +375,8 @@ def _wrap_load(func):
                         # Rendre la MESURE au catalogue (2026-09-14) : seulement une mesure
                         # FRAÎCHE — ni la valeur gardée d'un rechargement idempotent (même
                         # détenteur déjà publié), ni une valeur déclarée (`allocated` faux).
-                        if allocated and prev != owner:
+                        if allocated and prev != owner and not (
+                                card_before is not None and _shares_card_reserve(self)):
                             from wama.common.services.resource_governor import (
                                 record_measured_vram)
                             record_measured_vram(owner, float(gb))
@@ -446,6 +488,10 @@ def _backend_model_key(instance, model=None) -> Optional[str]:
                 break
     if not name:
         return None
+    if getattr(instance, 'NO_TORCH_IN_PROCESS', False):
+        declared = ((getattr(instance, 'SUPPORTED_MODELS', None) or {}).get(name) or {}).get('model_key')
+        if declared:
+            return declared
     from wama.common.services.resource_governor import OWNER_LOCAL_NAME_PREFIX
     return f"{OWNER_LOCAL_NAME_PREFIX}{name}"
 
@@ -637,6 +683,13 @@ class BaseModelBackend(ABC):
     #: `SERVED_BY` dit le PROCESS qui charge, dans le même venv (le service de voix en est un).
     SERVED_BY: str = ''
 
+    #: Ce moteur tourne dans un processus qui ne doit importer NI PyTorch NI le reste du parc
+    #: (TensorFlow, 2026-11-09). D'où deux conséquences dans l'enveloppe du gouverneur : le chargement
+    #: se mesure à la mémoire OCCUPÉE de la carte (nvidia-smi), jamais à l'allocateur de PyTorch ; et
+    #: la ligne porte la CLÉ de catalogue déclarée (`SUPPORTED_MODELS`), que `model_keys_of` lit sans
+    #: `catalog_keys_for_owner`, dont l'index importe tous les backends.
+    NO_TORCH_IN_PROCESS: bool = False
+
     @classmethod
     def load_precisions(cls, model_id: str) -> tuple:
         """Les précisions (`LoadPrecision`) que ce moteur sait charger pour `model_id`, de la plus
@@ -693,6 +746,12 @@ class BaseModelBackend(ABC):
     #: un backend déprécié reste comptabilisé, testé et entretenu ; il est simplement EXPLIQUÉ.
     #:   ex. ``DEPRECATED = "modèles retirés du catalogue le 2026-01 ; conservé comme exemple"``
     DEPRECATED: str = ""
+
+    #: Ce backend n'a PAS de ligne de catalogue parce que ses poids sont dans la roue de sa librairie :
+    #: rien à installer ni à retirer séparément — vide = ses modèles sont au catalogue. Écrit le
+    #: 2026-11-09 pour FER (décision du 2026-09-05) : ni un oubli, ni un backend qu'on garde par
+    #: décision (`DEPRECATED`), il sert. ⚠ Littéral : l'inventaire le lit par AST.
+    BUNDLED_WEIGHTS: str = ""
 
     # ── Capacités déclarées par le moteur (vocabulaire commun) ───────────────
     # Vocabulaire figé par `common/utils/model_capabilities.py` (source unique) — qui annonce

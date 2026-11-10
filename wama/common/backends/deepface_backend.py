@@ -1,79 +1,132 @@
-"""Backend DeepFace — analyse d'émotions (+ âge/genre optionnels) sur une image.
+"""DeepFace — le contrat `face-analysis` sur la librairie `deepface` : émotions, âge, genre.
 
-Il n'ENVELOPPE pas une nouvelle logique : `emotions.EmotionRecognizer` porte déjà le lissage
-temporel, le choix de détecteur et la normalisation des résultats. Ce backend l'expose au
-CONTRAT COMMUN (`load`/`unload`/`process`/`is_loaded`) — ce qui apporte trois choses que
-l'app n'avait pas :
+Trois lignes au catalogue, trois fichiers de poids, TROIS classes : le contrat garde une instance par
+classe (`manager.backend_instance`), et c'est ainsi que chaque modèle a SA ligne au gouverneur, sa
+mesure et son état chargé — l'âge et le genre ne se chargent qu'à la demande (décision du 2026-11-08).
+La règle est celle des modèles auxiliaires (`WAMA_MANIFEST_SPEC §7.1`, 2026-11-06) : le moteur partagé
+se départage par la liste de chacun (`SUPPORTED_MODELS`). Une demande d'âge et de genre est donc une
+demande à deux modèles, dont `tensorflow_service.engine.run` fusionne les réponses.
 
-  • le **lien modèle↔moteur** se referme (`ENGINE = 'deepface'` répond aux 3 poids catalogués
-    qui déclarent `runtime.engine = 'deepface'`) — préalable au retrait de `backend_ref` ;
-  • le **gouverneur de ressources** voit enfin la VRAM prise : `BaseModelBackend.__init_subclass__`
-    enveloppe `load`/`unload` et publie la réservation, à n'importe quelle profondeur d'héritage ;
-  • le **grisage** devient mesurable (`REQUIRED_PACKAGES` → `missing_packages()`), au lieu d'être
-    supposé.
+SANS ÉTAT : une image, une réponse. Le lissage entre les images d'un flux reste à
+`emotions.EmotionRecognizer`.
 
-⚠ FER n'a PAS de backend ici, et c'est délibéré : `ENGINE` nomme le moteur qu'on pilote, or
-aucun modèle catalogué ne déclare `engine='fer'` — les poids de FER sont embarqués dans sa roue
-pip, donc ils ne sont pas au catalogue (cf. `utils/model_config.py`). Déclarer un moteur que
-personne n'exige gonflerait l'inventaire sans fermer aucun lien.
+⚠ Les poids s'installent par la route (pilote `files`, `face_analyzer/utils/model_config.py`) : absents,
+ce backend le DIT au lieu de laisser DeepFace les tirer lui-même au premier usage.
 """
+import gc
 import logging
+from pathlib import Path
 from typing import Optional
 
-from wama.common.backends.base import BaseModelBackend
+from wama.common.tensorflow_service import runtime
+
+from .face_analysis_base import FaceAnalysisBackend
+from .tensorflow_base import TensorFlowBackend
 
 logger = logging.getLogger(__name__)
 
 
-class DeepFaceBackend(BaseModelBackend):
-    """Émotions, âge et genre par DeepFace, au contrat commun."""
+class DeepFaceBackend(TensorFlowBackend, FaceAnalysisBackend):
+    """Les sept émotions du premier visage, par le modèle d'expression de DeepFace."""
 
     #: Le moteur PILOTÉ — même graphie que `composition.runtime.engine` des 3 poids catalogués.
-    #: Une graphie différente rouvrirait le trou que ce fichier existe pour fermer.
     ENGINE = 'deepface'
-
-    #: Nom d'IMPORT (pas le nom pip) — `find_spec` est ce que `missing_packages()` interroge.
+    #: ⚠ En LITTÉRAL, sur chaque classe : l'inventaire lit par AST, sans héritage.
+    SUPPORTED_MODELS = {'deepface-expression': {'model_key': 'face_analyzer:deepface-expression'}}
     REQUIRED_PACKAGES = ['deepface']
-    #: `tf-keras` est le nom pip de l'API Keras 2 dont DeepFace a besoin sous TensorFlow ≥ 2.16 ;
-    #: son module s'importe `tf_keras`. Les deux graphies diffèrent, d'où la déclaration séparée.
+    #: `tf-keras` est le nom pip de l'API Keras 2 dont DeepFace a besoin sous TensorFlow ≥ 2.16.
     PIP_PACKAGES = ['deepface', 'tf-keras>=2.21']
+    #: Mémoire OCCUPÉE de la carte, modèle seul dans son processus (2026-11-09, deux relevés sur
+    #: trois à 0,65 Go, le troisième perturbé par un autre occupant). De même pour l'âge (6,59 et
+    #: 6,51 Go) et le genre (6,50 Go, deux fois) : leur pic TensorFlow n'est que de 3 Go, mais sa
+    #: réserve croît par paliers, et c'est elle que la carte garde. Chargés ensemble, ils la partagent.
+    recommended_vram_gb = 0.7
+    description = "Émotions du visage, par DeepFace"
 
-    #: Mesuré au chargement des 3 poids (expression 6 Mo, âge et genre ~514 Mo chacun) ; l'âge
-    #: et le genre ne se chargent QUE si l'appelant les demande, d'où une borne haute assumée.
-    recommended_vram_gb = 2.5
-    description = "Analyse faciale DeepFace : émotions, et âge/genre à la demande"
+    #: Le nom du modèle chez DeepFace, et l'action de `DeepFace.analyze` qui le lit.
+    WEIGHTS = 'Emotion'
+    ACTION = 'emotion'
 
-    def __init__(self, deepface_detector: str = 'opencv'):
-        self._recognizer = None
-        self._detector = deepface_detector
+    @classmethod
+    def weights_file(cls) -> Path:
+        """Le fichier DÉCLARÉ de ce modèle — existe ou non, c'est l'appelant qui mesure."""
+        from django.conf import settings
 
-    @property
-    def is_loaded(self) -> bool:
-        return self._recognizer is not None
+        from wama.common.utils.model_declarations import declaration_for
+        key = next(iter(cls.SUPPORTED_MODELS.values()))['model_key']
+        return (Path(settings.MODEL_PATHS['vision']['deepface']) / '.deepface' / 'weights'
+                / declaration_for(key)['fichier'])
 
-    def load(self, model: Optional[str] = None, *, enable_age_gender: bool = False) -> bool:
-        """Instancie le reconnaisseur. `model` est ignoré : DeepFace choisit ses poids seul.
-
-        ⚠ Le chargement RÉEL des `.h5` est PARESSEUX chez DeepFace (au premier appel), donc la
-        mesure de VRAM autour de `load()` sera nulle et le gouverneur retombera sur
-        `recommended_vram_gb`. C'est le comportement prévu par le contrat commun — le noter ici
-        évite qu'on prenne un jour cette mesure nulle pour une absence d'empreinte.
-        """
-        if self.is_loaded:
+    def load(self, model: Optional[str] = None) -> bool:
+        if self._loaded:
             return True
-        from .emotions import EmotionRecognizer
-        self._recognizer = EmotionRecognizer(backend='deepface',
-                                             enable_age_gender=enable_age_gender)
-        logger.info("[face_analyzer] backend DeepFace chargé (âge/genre=%s)", enable_age_gender)
+        path = self.weights_file()
+        if not path.is_file():
+            model_id = next(iter(self.SUPPORTED_MODELS))
+            raise RuntimeError(f"Poids DeepFace « {path.name} » absents ({path.parent}) — ils "
+                               f"s'installent par le model manager (« Installer ») ou : python "
+                               f"manage.py pull_model face_analyzer:{model_id}")
+        runtime.tensorflow()
+        import numpy as np
+        from deepface.modules import modeling
+        # La première prédiction place le modèle : sa mesure compte, et la première image n'attend pas.
+        modeling.build_model(task='facial_attribute', model_name=self.WEIGHTS).predict(
+            np.zeros((224, 224, 3), dtype=np.float32))
+        self._loaded, self._current_model = True, next(iter(self.SUPPORTED_MODELS))
+        logger.info('[DeepFace] %s chargé (%s)', self.WEIGHTS,
+                    'carte' if runtime.on_the_card() else 'processeur')
         return True
 
     def unload(self) -> None:
-        self._recognizer = None
+        from deepface.modules import modeling
+        getattr(modeling, 'cached_models', {}).get('facial_attribute', {}).pop(self.WEIGHTS, None)
+        self._loaded, self._current_model = False, None
+        gc.collect()
 
-    def process(self, frame=None, timestamp: float = None, **kwargs):
-        """Analyse UNE image. Rend l'`EmotionResult` de l'app, ou None si aucun visage."""
-        if frame is None:
-            raise ValueError("DeepFaceBackend.process attend une image (`frame`)")
-        if not self.is_loaded:
-            self.load(enable_age_gender=bool(kwargs.get('enable_age_gender')))
-        return self._recognizer.process(frame, timestamp)
+    def analyze_face(self, image, detector: str = 'opencv') -> Optional[dict]:
+        if not self._loaded:
+            raise RuntimeError(f"{type(self).__name__} : modèle non chargé (`load()` d'abord)")
+        from deepface import DeepFace
+        found = DeepFace.analyze(image, actions=[self.ACTION], enforce_detection=False,
+                                 detector_backend=detector, silent=True)
+        if not found:
+            return None
+        return self._read(found[0] if isinstance(found, list) else found)
+
+    def _read(self, found: dict) -> dict:
+        emotions = found.get('emotion') or {}
+        if sum(emotions.values()) > 0:
+            emotions = {k.lower(): float(v) / 100.0 for k, v in emotions.items()}
+        return {'emotions': emotions}
+
+
+class DeepFaceAgeBackend(DeepFaceBackend):
+    """L'âge apparent du premier visage."""
+
+    ENGINE = 'deepface'
+    SUPPORTED_MODELS = {'deepface-age': {'model_key': 'face_analyzer:deepface-age'}}
+    REQUIRED_PACKAGES = ['deepface']
+    recommended_vram_gb = 6.6
+    description = "Âge apparent du visage, par DeepFace"
+    WEIGHTS = 'Age'
+    ACTION = 'age'
+
+    def _read(self, found: dict) -> dict:
+        return {'age': int(found['age'])}
+
+
+class DeepFaceGenderBackend(DeepFaceBackend):
+    """Le genre du premier visage et la confiance du modèle."""
+
+    ENGINE = 'deepface'
+    SUPPORTED_MODELS = {'deepface-gender': {'model_key': 'face_analyzer:deepface-gender'}}
+    REQUIRED_PACKAGES = ['deepface']
+    recommended_vram_gb = 6.5
+    description = "Genre du visage, par DeepFace"
+    WEIGHTS = 'Gender'
+    ACTION = 'gender'
+
+    def _read(self, found: dict) -> dict:
+        scores = found.get('gender') or {}
+        return {'gender': found.get('dominant_gender', 'Unknown'),
+                'gender_confidence': float(max(scores.values())) / 100.0 if scores else 0.0}

@@ -486,6 +486,13 @@ SOURCES: tuple[ExternalSource, ...] = (
         kind='service', scope=LOCAL, setting='PRIVACY_SERVICE_URL', env='PRIVACY_SERVICE_URL',
         doc='docs/construction/suivi/ROADMAP.md'),
     ExternalSource(
+        'tensorflow_service', 'Service TensorFlow WAMA', 'http://127.0.0.1:8004',
+        "Les modèles TensorFlow sur la carte, seuls dans leur processus (DeepFace, FER) : "
+        "TensorFlow ne rend sa mémoire qu'en s'arrêtant, et ne cohabite pas avec PyTorch",
+        kind='service', scope=LOCAL, setting='TENSORFLOW_SERVICE_URL',
+        env='TENSORFLOW_SERVICE_URL',
+        doc='docs/construction/architecture/WAMA_MANIFEST_SPEC.md'),
+    ExternalSource(
         'wama_self', 'WAMA (cette instance)', 'http://127.0.0.1:8000',
         "WAMA s'interroge lui-même : smoke navigateur, matrice de droits",
         kind='service', scope=LOCAL, env='WAMA_UI_SMOKE_BASE'),

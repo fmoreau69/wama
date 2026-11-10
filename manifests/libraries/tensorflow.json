@@ -1,0 +1,58 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "absl-py",
+      "astunparse",
+      "flatbuffers",
+      "gast",
+      "google_pasta",
+      "grpcio",
+      "h5py",
+      "keras",
+      "libclang",
+      "ml_dtypes",
+      "numpy",
+      "opt_einsum",
+      "packaging",
+      "protobuf",
+      "requests",
+      "setuptools",
+      "six",
+      "termcolor",
+      "typing_extensions",
+      "wrapt"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "saved_model_cli",
+        "tf_upgrade_v2",
+        "tflite_convert",
+        "toco"
+      ]
+    },
+    "identity": {
+      "author": "Google Inc.",
+      "license": "Apache 2.0",
+      "repository": "https://www.tensorflow.org/",
+      "summary": "TensorFlow is an open source machine learning framework for everyone.",
+      "version": "2.21.0"
+    },
+    "install": {
+      "pip": "tensorflow==2.21.0",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "TensorFlow is an open source machine learning framework for everyone.",
+  "key": "tensorflow",
+  "manifest_kind": "library",
+  "name": "tensorflow",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:tensorflow==2.21.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

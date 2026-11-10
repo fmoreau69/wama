@@ -64,6 +64,8 @@ RUNTIME_LOGS = (
     "model-sync.log",
     "tts-service.log",
     "vector-service.log",  # service de vectorisation (start_wama_prod.sh, WAMA_MEMORY §7sexies)
+    "privacy-service.log",  # service de confidentialité (scripts/wama_services.sh)
+    "tensorflow-service.log",  # service TensorFlow (scripts/wama_services.sh, 2026-11-09)
     "wama.log",          # journal applicatif global (loggers `wama.*`, common/apps.py)
 )
 

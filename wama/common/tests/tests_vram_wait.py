@@ -351,11 +351,13 @@ class ServedByTwinTest(TestCase):
     def test_every_served_by_is_a_declared_local_service(self):
         from wama.common.backends.glm_ocr_backend import GlmOcrBackend
         from wama.common.backends.pii_detection_base import PIIDetectionBackend
+        from wama.common.backends.tensorflow_base import TensorFlowBackend
         from wama.common.backends.tts_base import TTSBackend
         from wama.common.external_sources import SOURCES
         from wama.common.utils.ollama_host import ollama_engine_inventory
         services = {s.key for s in SOURCES if s.kind == 'service'}
         declared = {TTSBackend.SERVED_BY, PIIDetectionBackend.SERVED_BY, GlmOcrBackend.SERVED_BY,
+                    TensorFlowBackend.SERVED_BY,
                     ollama_engine_inventory()['ollama'].SERVED_BY, gov.OLLAMA_HOST_SOURCE}
         self.assertEqual(declared - services, set())
 
@@ -366,6 +368,8 @@ class ServedByTwinTest(TestCase):
         self.assertIn('Tenant(TTS_SERVICE', (base / 'tts' / 'service.py').read_text(encoding='utf-8'))
         self.assertIn('contract_tenant(PRIVACY_SERVICE',
                       (base / 'privacy' / 'service.py').read_text(encoding='utf-8'))
+        self.assertIn('Tenant(TENSORFLOW_SERVICE',
+                      (base / 'tensorflow_service' / 'service.py').read_text(encoding='utf-8'))
 
 
 class FluxPrecisionTwinTest(TestCase):

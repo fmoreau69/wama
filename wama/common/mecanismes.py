@@ -549,6 +549,33 @@ MECHANISMS = (
                        'wama/common/tests/tests_privacy_gate.py'),
               depends_on=('pii_detection', 'detections_document', 'external_sources',
                           'document_text')),
+    Mechanism('tensorflow_service', 'Service TensorFlow — les modèles TensorFlow, seuls sur la carte',
+              "Délimité par son MOTEUR (2026-11-09, décisions de Fabien, `WAMA_MANIFEST_SPEC §7.1`) : "
+              "TensorFlow ne rend sa mémoire de carte qu'à la fin de son processus et ne cohabite pas "
+              "avec PyTorch. Service uvicorn 127.0.0.1:8004 (`--workers 1`), aucun PyTorch dedans, seul "
+              "lieu où TensorFlow voit la carte (`runtime` : préchargement du nvJitLink de la roue, "
+              "`use_the_card`). LIBÉRER, C'EST S'ARRÊTER : son `Tenant` rend ses lignes au registre et "
+              "sort quand le gouverneur demande la carte ; la surveillance des workers, ÉTENDUE aux "
+              "services (`worker_watchdog.sh`, `supervise_one`), le relance à la demande du premier "
+              "appelant (`service_supervision`, drapeaux dans `logs/`) et hors budget. REPLI, service "
+              "éteint, en démarrage ou sans place : le même moteur chez l'appelant, TensorFlow tenu "
+              "HORS de la carte (`service_client`). Préchauffe l'expression seule. Premiers occupants, "
+              "contrat `face-analysis` SANS ÉTAT : DeepFace (une classe par poids), FER (poids dans sa "
+              "roue, `BUNDLED_WEIGHTS`) ; le lissage du flux reste à `EmotionRecognizer`. Mesure à la "
+              "carte (`NO_TORCH_IN_PROCESS`), jamais par l'allocateur de torch. Frontière tenue par "
+              "AST : seules trois portes importent une librairie TensorFlow",
+              'wama/common/tensorflow_service/service.py',
+              'docs/construction/architecture/WAMA_MANIFEST_SPEC.md §7.1',
+              annexes=('wama/common/tensorflow_service/runtime.py',
+                       'wama/common/tensorflow_service/engine.py',
+                       'wama/common/tensorflow_service/service_client.py',
+                       'wama/common/utils/service_supervision.py',
+                       'wama/common/backends/face_analysis_base.py',
+                       'wama/common/backends/tensorflow_base.py',
+                       'wama/common/backends/deepface_backend.py',
+                       'wama/common/backends/fer_backend.py',
+                       'wama/common/tests/tests_tensorflow_service.py'),
+              depends_on=('resource_governor', 'backend_contract', 'external_sources')),
     Mechanism('document_text', 'Couche TEXTE d\'un document — lire, réécrire sur place',
               "Lire les passages d'un document (segments : page d'un PDF natif, paragraphe `w:p` "
               "d'un DOCX — corps, tableaux, zones de texte, en-têtes, pieds, commentaires, notes —, "

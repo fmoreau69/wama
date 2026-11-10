@@ -1007,6 +1007,13 @@ def card_free_gb() -> float | None:
     return _card_reading()[0]
 
 
+def card_used_gb() -> float | None:
+    """Mémoire OCCUPÉE de la carte (nvidia-smi), tous occupants confondus ; None si elle ne se lit
+    pas. C'est la seule mesure de ce que TensorFlow y prend : `nvidia-smi` par processus rend [N/A]
+    sous WSL, et son compteur à lui ne dit pas ce qu'il garde (`BaseModelBackend.NO_TORCH_IN_PROCESS`)."""
+    return _card_reading()[1]
+
+
 def card_ceiling_gb() -> float | None:
     """Ce que la carte peut libérer AU MIEUX : son libre, plus ce que les détenteurs du registre y
     tiennent déjà (ils se déchargent, `obtain_vram` ; un sous-processus finit) — donc la carte moins

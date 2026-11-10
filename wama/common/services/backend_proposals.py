@@ -790,6 +790,41 @@ def _smoke_face_landmarks(code: str, *, module: str, model_key: str, out_dir: Pa
     return out
 
 
+def _smoke_face_analysis(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement, puis un portrait : une réponse aux clés du contrat, ou None si le modèle n'y voit
+    pas de visage — ce qui ne se confond pas avec une erreur (2026-11-09, contrat `face-analysis`)."""
+    import tempfile
+
+    import numpy as np
+    from PIL import Image
+    path = smoke_face_image()
+    if path is None:
+        return {'ran': False, 'reason': 'aucun portrait versé en médiathèque système (type avatar)'}
+    with Image.open(path) as source:
+        portrait = np.asarray(source.convert('RGB'))[:, :, ::-1].copy()     # le contrat lit du BGR
+    started = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            backend = _proposed_backend(code, module, tmp, 'analyze_face')
+            if not type(backend).is_available():
+                return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
+            if not backend.load(model_id_of(model_key)):
+                return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+            answer = backend.analyze_face(image=portrait)
+            backend.unload()
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
+                    'seconds': round(time.time() - started, 1)}
+    out = {'ran': True, 'ok': True, 'seconds': round(time.time() - started, 1),
+           'attributes': sorted(answer or [])}
+    if answer is not None and (not isinstance(answer, dict)
+                               or not set(answer) <= {'emotions', 'age', 'gender', 'gender_confidence'}):
+        out.update(ok=False, error=f'réponse hors contrat : {answer!r:.120}')
+    elif not answer:
+        out.update(ok=False, error='aucun attribut lu sur le portrait')
+    return out
+
+
 #: La page que redresse le smoke d'ORIENTATION : des lignes de texte, tournée de ce quart de tour.
 SMOKE_ORIENTATION_TURN = 90
 
@@ -892,6 +927,7 @@ SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_
           'EndOfTurnBackend': _smoke_end_of_turn,
           'PageOrientationBackend': _smoke_orientation,
           'FaceLandmarkDetectionBackend': _smoke_face_landmarks,
+          'FaceAnalysisBackend': _smoke_face_analysis,
           'QualityMetricBackend': _smoke_quality_metric}
 
 

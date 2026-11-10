@@ -43,8 +43,14 @@ class WorkerSupervisionScriptsTest(SimpleTestCase):
             src = _read(path)
             env_call = re.search(r'(?m)^wama_worker_env\s*$', src)
             self.assertIsNotNone(env_call, path.name)
-            first_service = src.index('uvicorn wama.common.')
+            first_service = src.index('start_wama_service')
             self.assertLess(env_call.start(), first_service, path.name)
+
+    def test_the_start_scripts_launch_services_only_through_the_shared_definition(self):
+        """A service started by hand in a script is a second copy of its port and its options."""
+        for path in STARTERS:
+            self.assertNotRegex(_read(path), r'(?m)^\s*(nohup\s+)?python -m uvicorn',
+                                f'{path.name}: a second copy of a service launch')
 
     def test_the_supervision_is_stopped_before_the_workers_are_killed(self):
         """Left alive, it would relaunch the workers the restart is stopping."""
@@ -57,14 +63,17 @@ class WorkerSupervisionScriptsTest(SimpleTestCase):
         """The solo gpu worker does not answer `inspect ping` while it works: a ping would take a
         busy worker for a dead one (the inverted signal of 2026-07-25)."""
         src = _read(WATCHDOG)
-        self.assertIn('celery_worker_alive', src)
-        self.assertNotRegex(src, r'(?m)^[^#]*inspect\s+ping')
+        self.assertIn('supervise_one', src)
+        self.assertIn('celery_worker_alive', _read(SERVICES))
+        for path in (WATCHDOG, SERVICES):
+            self.assertNotRegex(_read(path), r'(?m)^[^#]*inspect\s+ping', path.name)
         self.assertIn('source "$PROJECT_DIR/scripts/wama_services.sh"', src)
 
     def test_every_outcome_the_supervision_reports_is_known_to_the_command(self):
         from wama.common.management.commands.worker_died import OUTCOMES
-        passed = set(re.findall(r'\breport "\$w" "?(\w+)"?', _read(WATCHDOG)))
-        passed |= set(re.findall(r'\boutcome=(\w+)', _read(WATCHDOG)))
+        src = _read(WATCHDOG) + _read(SERVICES)
+        passed = set(re.findall(r'\breport "\$w" "?(\w+)"?', src))
+        passed |= set(re.findall(r'\boutcome=(\w+)', src))
         self.assertTrue(passed)
         self.assertLessEqual(passed, set(OUTCOMES), passed - set(OUTCOMES))
 

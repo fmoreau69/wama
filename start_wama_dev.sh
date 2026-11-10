@@ -5,18 +5,14 @@ set -e
 # STOP DES PROCESS EXISTANTS
 # ------------------------------------------------------
 echo "=== Stopping old processes if any ==="
+# La définition commune d'abord : l'arrêt lit les motifs des services qu'elle déclare.
+PROJECT_DIR=/mnt/d/WAMA/web-app-for-media-automation
+source $PROJECT_DIR/scripts/wama_services.sh
 pkill -f "manage.py runserver" || true
 # La surveillance des workers d'abord : laissée en vie, elle relancerait ceux qu'on arrête.
 pkill -f "scripts/[w]orker_watchdog.sh" || true
 pkill -f "celery" || true
-# Services dans leur paquet depuis le 2026-10-28 ; les motifs reconnaissent aussi l'ancienne
-# ligne de commande (modules de la racine), comme dans start_wama_prod.sh.
-TTS_SERVICE_PATTERN="uvicorn (wama\.common\.tts\.service|tts_service):app"
-VECTOR_SERVICE_PATTERN="uvicorn (wama\.common\.vectors\.service|vector_service):app"
-PRIVACY_SERVICE_PATTERN="uvicorn wama\.common\.privacy\.service:app"
-pkill -f "$TTS_SERVICE_PATTERN" || true
-pkill -f "$VECTOR_SERVICE_PATTERN" || true
-pkill -f "$PRIVACY_SERVICE_PATTERN" || true
+for s in $WAMA_SERVICES; do pkill -f "$(wama_service_pattern "$s")" || true; done
 pkill -f "redis-server" || true
 
 sleep 2
@@ -24,7 +20,6 @@ sleep 2
 # ------------------------------------------------------
 # CONFIGURATION
 # ------------------------------------------------------
-PROJECT_DIR=/mnt/d/WAMA/web-app-for-media-automation
 VENV_DIR=$PROJECT_DIR/venv_linux
 DJANGO_SETTINGS_MODULE=wama.settings
 DJANGO_PORT=8000
@@ -40,8 +35,10 @@ source $VENV_DIR/bin/activate
 
 # Environnement d'exécution et lancement des workers : UNE définition, partagée avec la production
 # et la surveillance des workers (scripts/wama_services.sh). En dev, le worker default tourne en
-# pool solo (compatibilité WSL) — déclaré ici, hérité par la surveillance qui le relance.
-source $PROJECT_DIR/scripts/wama_services.sh
+# pool solo (compatibilité WSL) — déclaré ici, hérité par la surveillance qui le relance. Les
+# services lancés ici gardent leur sortie au terminal (non exporté : la surveillance écrit au journal).
+WAMA_SERVICE_ON_TERMINAL=1
+rm -f "$LOG_DIR"/service_wanted.* "$LOG_DIR"/service_stopped.*
 export WAMA_DEFAULT_WORKER_POOL=solo
 # Page d'erreur détaillée en développement seulement : la production tourne `DEBUG` éteint
 # (`wama/settings.py`, 2026-11-08).
@@ -140,13 +137,9 @@ wama_worker_env
 # ------------------------------------------------------
 # TTS SERVICE (FastAPI, preloads XTTS v2)
 # ------------------------------------------------------
-if ! pgrep -f "$TTS_SERVICE_PATTERN" > /dev/null; then
+if ! wama_service_alive tts_service; then
     echo "=== Starting TTS Service (port 8001) ==="
-    python -m uvicorn wama.common.tts.service:app \
-        --host 127.0.0.1 \
-        --port 8001 \
-        --workers 1 \
-        --log-level info &
+    start_wama_service tts_service
     echo "Waiting for TTS Service to load model..."
     for i in $(seq 1 60); do
         if curl -s http://localhost:8001/health > /dev/null 2>&1; then
@@ -160,19 +153,27 @@ else
 fi
 
 # Service de vectorisation (WAMA_MEMORY.md §7sexies) — boucle locale seule, rien à précharger.
-if ! pgrep -f "$VECTOR_SERVICE_PATTERN" > /dev/null; then
+if ! wama_service_alive vector_service; then
     echo "=== Starting Vector Service (port 8002) ==="
-    python -m uvicorn wama.common.vectors.service:app --host 127.0.0.1 --port 8002 --workers 1 --log-level info &
+    start_wama_service vector_service
 else
     echo "Vector Service is already running."
 fi
 
 # Service de confidentialité (ROADMAP §16.4bis) — boucle locale seule, rien de préchargé.
-if ! pgrep -f "$PRIVACY_SERVICE_PATTERN" > /dev/null; then
+if ! wama_service_alive privacy_service; then
     echo "=== Starting Privacy Service (port 8003) ==="
-    python -m uvicorn wama.common.privacy.service:app --host 127.0.0.1 --port 8003 --workers 1 --log-level info &
+    start_wama_service privacy_service
 else
     echo "Privacy Service is already running."
+fi
+
+# Service TensorFlow (WAMA_MANIFEST_SPEC §7.1) — sur la carte, s'arrête quand le gouverneur la demande.
+if ! wama_service_alive tensorflow_service; then
+    echo "=== Starting TensorFlow Service (port 8004) ==="
+    start_wama_service tensorflow_service
+else
+    echo "TensorFlow Service is already running."
 fi
 
 # ------------------------------------------------------
@@ -211,7 +212,5 @@ python manage.py runserver 0.0.0.0:$DJANGO_PORT --settings=$DJANGO_SETTINGS_MODU
 echo ""
 echo "=== Shutting down... ==="
 pkill -f "celery" || true
-pkill -f "$TTS_SERVICE_PATTERN" || true
-pkill -f "$VECTOR_SERVICE_PATTERN" || true
-pkill -f "$PRIVACY_SERVICE_PATTERN" || true
+for s in $WAMA_SERVICES; do pkill -f "$(wama_service_pattern "$s")" || true; done
 echo "=== WAMA development stack stopped ==="

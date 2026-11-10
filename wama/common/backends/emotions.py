@@ -97,41 +97,13 @@ class EmotionResult:
         }
 
 
-def _import_fer():
-    """Rend la classe `FER`, quelle que soit la disposition du paquet.
-
-    ⚠ DÉFAUT MESURÉ le 2026-09-05 : le backend FER — qui est le backend PAR DÉFAUT de cette
-    app — levait `ImportError: cannot import name 'FER' from 'fer'`. Cause : `fer` 25.10.3
-    n'expose plus que `log`/`logging` à sa racine ; la classe a migré dans le sous-module
-    `fer.fer`. Le paquet est le même projet (justinshenk/fer), c'est sa surface publique qui
-    a changé — et `requirements/linux.txt` demandait `fer>=22.5.0`, borne haute absente, donc
-    la montée en 25.x s'est faite toute seule.
-
-    On essaie les DEUX dispositions plutôt que d'épingler : rien à rétrograder, et l'app
-    marche avec l'ancienne comme avec la nouvelle. *Un pin fige une version ; suivre les deux
-    dispositions suit le paquet.*
-    """
-    try:
-        from fer import FER            # disposition ≤ 24.x
-        return FER
-    except ImportError as racine:
-        try:
-            from fer.fer import FER    # disposition ≥ 25.x
-            return FER
-        except ImportError as feuille:
-            # Les DEUX dispositions ont échoué : l'erreur utile est la SECONDE (la première
-            # est attendue en 25.x), mais on garde la chaîne pour ne pas perdre le contexte.
-            raise ImportError(
-                f"`fer` présent mais inutilisable — racine: {racine} / sous-module: {feuille}"
-            ) from feuille
-
-
 class EmotionRecognizer:
     """
     Facial emotion recognition.
 
-    Uses DeepFace or FER for emotion detection from facial images.
-    Supports real-time analysis with temporal smoothing.
+    Le FLUX est ici (lissage temporel, valence, une instance par flux) ; les MODÈLES sont au
+    contrat `face-analysis`, servis par le service TensorFlow (`tensorflow_service.service_client`,
+    `WAMA_MANIFEST_SPEC §7.1`). Ce module n'importe plus aucune librairie TensorFlow.
 
     Backends:
     - 'fer': Fast, lightweight, emotions only
@@ -188,29 +160,16 @@ class EmotionRecognizer:
         if self._initialized:
             return
 
-        try:
-            if self.backend == 'fer':
-                self._detector = _import_fer()(mtcnn=False)  # OpenCV : plus rapide
-                logger.info("FER emotion detector initialized (emotions only)")
-            elif self.backend == 'deepface':
-                # DeepFace is used directly without pre-initialization
-                import deepface
-                self._detector = 'deepface'
-                actions = ['emotion']
-                if self.enable_age_gender:
-                    actions.extend(['age', 'gender'])
-                logger.info(f"DeepFace initialized (actions: {actions}, detector: {self.deepface_detector})")
-            else:
-                logger.warning(f"Unknown backend: {self.backend}, using FER")
-                self._detector = _import_fer()(mtcnn=False)
-                self.backend = 'fer'
+        import importlib.util
 
-            self._initialized = True
-
-        except ImportError as e:
-            logger.error(f"Failed to import emotion detection library: {e}")
-            logger.info("Install with: pip install fer  OR  pip install deepface")
-            raise
+        if self.backend not in ('fer', 'deepface'):
+            logger.warning(f"Unknown backend: {self.backend}, using FER")
+            self.backend = 'fer'
+        elif self.backend == 'deepface' and importlib.util.find_spec('deepface') is None:
+            logger.error("DeepFace absent de ce venv : repli sur FER (émotions seules)")
+            self.backend = 'fer'
+            self.enable_age_gender = False
+        self._initialized = True
 
     def reset(self):
         """Reset recognizer state."""
@@ -302,74 +261,18 @@ class EmotionRecognizer:
         Returns:
             Dictionary with 'emotions', and optionally 'age', 'gender' keys.
         """
+        models = {'fer': [''],
+                  'deepface': ['deepface-expression'] + (['deepface-age', 'deepface-gender']
+                                                         if self.enable_age_gender else [])}
         try:
-            if self.backend == 'fer' and hasattr(self._detector, 'detect_emotions'):
-                results = self._detector.detect_emotions(frame)
-                if results and len(results) > 0:
-                    # Get the first face's emotions
-                    return {'emotions': results[0]['emotions']}
-
-            elif self.backend == 'deepface':
-                try:
-                    from deepface import DeepFace
-                except ImportError as import_err:
-                    logger.error(f"DeepFace import failed: {import_err}")
-                    logger.info("Falling back to FER backend. Install with: pip install deepface tf-keras")
-                    # Fallback to FER
-                    self.backend = 'fer'
-                    self._detector = _import_fer()(mtcnn=False)
-                    results = self._detector.detect_emotions(frame)
-                    if results and len(results) > 0:
-                        return {'emotions': results[0]['emotions']}
-                    return None
-
-                # Build actions list
-                actions = ['emotion']
-                if self.enable_age_gender:
-                    actions.extend(['age', 'gender'])
-
-                result = DeepFace.analyze(
-                    frame,
-                    actions=actions,
-                    enforce_detection=False,
-                    detector_backend=self.deepface_detector,
-                    silent=True
-                )
-
-                if result:
-                    if isinstance(result, list):
-                        result = result[0]
-
-                    # Extract emotions and normalize to 0-1
-                    emotions = result.get('emotion', {})
-                    total = sum(emotions.values())
-                    if total > 0:
-                        emotions = {k.lower(): v / 100.0 for k, v in emotions.items()}
-
-                    detection = {'emotions': emotions}
-
-                    # Extract age if available
-                    if 'age' in result:
-                        detection['age'] = int(result['age'])
-                        logger.debug(f"DeepFace age: {detection['age']}")
-
-                    # Extract gender if available
-                    if 'gender' in result or 'dominant_gender' in result:
-                        gender_data = result.get('gender', {})
-                        if isinstance(gender_data, dict):
-                            # Get dominant gender
-                            detection['gender'] = result.get('dominant_gender', 'Unknown')
-                            detection['gender_confidence'] = max(gender_data.values()) / 100.0 if gender_data else 0.0
-                        else:
-                            detection['gender'] = str(gender_data)
-                            detection['gender_confidence'] = 1.0
-                        logger.debug(f"DeepFace gender: {detection['gender']}")
-
-                    return detection
-
+            from wama.common.tensorflow_service import service_client
+            return service_client.run('face-analysis', engine=self.backend,
+                                      models=models[self.backend], image=frame,
+                                      options={'detector': self.deepface_detector})
         except Exception as e:
-            logger.debug(f"Emotion detection failed: {e}")
-
+            # L'analyse n'a pas eu lieu : ni la tâche ni les autres images n'ont à s'arrêter, mais
+            # cela se DIT (un visage absent, lui, rend None sans erreur).
+            logger.warning(f"Emotion detection failed: {type(e).__name__}: {e}")
         return None
 
     def _smooth_emotions(self) -> Dict[str, float]:

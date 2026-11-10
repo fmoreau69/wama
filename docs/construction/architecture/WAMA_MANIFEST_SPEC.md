@@ -813,11 +813,12 @@ par le compteur de TensorFlow (`get_memory_info`) et la mémoire occupée de la 
   mémoire : après cache vidé, `clear_session` et ramasse-miettes, son compteur est à 0 et la carte
   toujours à +4 610 Mio, jusqu'à la fin du processus ;*
 - *les VRAM déclarées (2,5 Go par `DeepFaceBackend`, 0,3 / 1,0 / 1,0 Go par les trois lignes) ne
-  correspondent à aucun de ces deux états.*
+  correspondent à aucun de ces deux états (recalées sur la mesure le 2026-11-09, ci-dessous).*
 *La forme cible (passer par la carte, décision de Fabien du 2026-11-08) : le temps réel tourne dans
 gunicorn, une pipeline par image — un TensorFlow sur la carte y garderait jusqu'à ~5 Go par worker
 web, que rien ne rend. ✅ Protection posée (`TF_FORCE_GPU_ALLOW_GROWTH`, `settings.py`, e6ebd66bd).
-⏳ **Un SERVICE TENSORFLOW, comme la voix** — décisions de Fabien du 2026-11-08 :*
+✅ **Un SERVICE TENSORFLOW, comme la voix** (livré le 2026-11-09, bilan ci-dessous) — décisions de
+Fabien du 2026-11-08 :*
 - *FRONTIÈRE : le service est délimité par son MOTEUR, pas par le visage (décision de Fabien du
   2026-11-09 ; la ligne disait « un service dédié au visage »). Ce qui le justifie est TensorFlow —
   une mémoire de carte rendue seulement à la fin du processus, et le conflit avec PyTorch dans un
@@ -848,7 +849,23 @@ commune `backend_instance_for_key`, tenant déclaré `start_release_listener`, p
 préparation du processus précharge le nvJitLink de la roue avant TensorFlow ; le contrat
 `face-analysis` avec un `DeepFaceBackend` SANS ÉTAT (le lissage temporel reste à l'`EmotionRecognizer`
 de chaque flux). À trancher en le construisant : la place de FER, sans ligne de catalogue
-(décision du 2026-09-05 : ses poids sont dans sa roue).* ; pyannote garde sa propre
+(décision du 2026-09-05 : ses poids sont dans sa roue).*
+*Livré le 2026-11-09 (`common/tensorflow_service/`, mécanisme `tensorflow_service`, port 8004). FER
+est un backend du contrat, trouvé par son moteur, sans ligne : `BUNDLED_WEIGHTS` le dit à l'inventaire
+(`orphelins`), son interpréteur TFLite reste sur le processeur. DeepFace : une classe par poids, chacun
+sa ligne au gouverneur ; le mixin `TensorFlowBackend` ne dérive pas du contrat commun, l'inventaire
+lisant l'abstraction par AST branche par branche. Mesuré, modèle seul dans le service (mémoire occupée
+de la carte, `nvidia-smi` par processus rendant [N/A]) : expression 0,65 Go, âge 6,6, genre 6,5 — le pic
+de TensorFlow n'est que de 3 Go, sa réserve grandit par paliers, et c'est elle que la carte garde ; les
+trois ensemble 6,8 Go, une seule réserve, d'où `_shares_card_reserve` (le suivant publie une ligne
+minimale, et sa mesure ne remonte pas au catalogue). `NO_TORCH_IN_PROCESS` : mesure à la carte, et clé de
+catalogue portée par la ligne — mesuré à l'épreuve réelle, `catalog_keys_for_owner` importait tout le
+parc dans le service (20 s, le module Diffusers). Épreuve sur un service jetable : analyse vidéo réelle
+identique à la référence sur 30 images sur 30 (dominante, âge, genre ; écart maximal d'une émotion
+0,003), 58 s au lieu de 80 ; libération acquittée en 1,5 s, 7,2 Go rendus, processus sorti ; repli
+service éteint, mêmes résultats, 0 Mio pris sur la carte, 72 s ; relance à la demande par un passage
+réel de `supervise_one`, hors budget et sans rapport. Le jour où un modèle TensorFlow d'une autre tâche
+arrive : son contrat, le mixin, rien d'autre.* ; pyannote garde sa propre
 instance (`get_diarizer`) à côté du cache commun ; `load()` à vide aussi chez `audiocpp`,
 `audiocraft`, `audio_enhancer` (à mesurer un par un : un moteur hors processus peut n'avoir rien
 à tenir) ; le banc d'agrandissement construit l'agrandisseur lui-même

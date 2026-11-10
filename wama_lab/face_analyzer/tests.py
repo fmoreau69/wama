@@ -32,7 +32,7 @@ class BackendEmotionsImportableTest(SimpleTestCase):
 
     @unittest.skipUnless(_FER_PRESENT, "paquet `fer` absent de ce venv")
     def test_la_classe_FER_se_trouve_quelle_que_soit_la_disposition(self):
-        from wama.common.backends.emotions import _import_fer
+        from wama.common.backends.fer_backend import _import_fer
         try:
             classe = _import_fer()
         except ImportError as e:
@@ -56,7 +56,7 @@ class BackendEmotionsImportableTest(SimpleTestCase):
         # garde a cassé au déplacement du backend vers le substrat (2026-09-07) alors que le
         # comportement qu'elle mesure n'avait pas bougé d'une ligne. Un contrôle qui suit le
         # code plutôt qu'un chemin survit au prochain déménagement.
-        from wama.common.backends import emotions as _mod
+        from wama.common.backends import fer_backend as _mod
         source = Path(_mod.__file__).read_text(encoding='utf-8')
         # Les deux lignes du résolveur lui-même sont les seules légitimes.
         lignes = [l.strip() for l in source.splitlines()
@@ -276,3 +276,18 @@ class RealtimeFrameAnswersJsonTest(TestCase):
                 content_type='application/json')
         self.assertEqual(response.status_code, 200, response.content[:300])
         self.assertEqual(response.json()['data'], {'heart_rate': 72, 'blinks': [1], 'score': 0.5})
+
+
+class CardRoomMatchesTheCatalogueTest(SimpleTestCase):
+    """La place sur la carte se dit à deux endroits : au catalogue (`vram_gb`, lu par le sélecteur et
+    l'affichage) et au backend (`recommended_vram_gb`, d'où le service décide s'il a la place). Les
+    deux viennent de la même mesure (2026-11-09) : l'une ne bouge pas sans l'autre."""
+
+    def test_each_deepface_weight_needs_the_room_of_its_catalogue_line(self):
+        from wama.common.backends.deepface_backend import (
+            DeepFaceAgeBackend, DeepFaceBackend, DeepFaceGenderBackend)
+        from wama_lab.face_analyzer.utils.model_config import FACE_ANALYZER_MODELS
+        for backend in (DeepFaceBackend, DeepFaceAgeBackend, DeepFaceGenderBackend):
+            (model_id,) = backend.SUPPORTED_MODELS
+            with self.subTest(model=model_id):
+                self.assertEqual(FACE_ANALYZER_MODELS[model_id]['vram_gb'], backend.recommended_vram_gb)

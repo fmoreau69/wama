@@ -36,6 +36,12 @@
       ],
       "model_id": "deepface-expression",
       "optional": false,
+      "vram_measured": {
+        "at": "2026-11-10T00:43:40+00:00",
+        "last_gb": 0.64,
+        "max_gb": 0.64,
+        "n": 4
+      },
       "vram_provenance": "declared"
     },
     "formats": {
@@ -66,7 +72,7 @@
     "resources": {
       "disk_gb": 0.005566880106925964,
       "ram_gb": 0.0,
-      "vram_gb": 0.3
+      "vram_gb": 0.7
     }
   },
   "description": "Facial expression recognition (7 emotions) — DeepFace backend",

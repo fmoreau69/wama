@@ -91,6 +91,8 @@ FACE_LANDMARKER_FILES = [
 #: `optional`, qui explique pourquoi 1 Go peut manquer sans que l'app soit cassée.
 #: Le Face Landmarker y entre le 2026-11-08 (il était déclaré à côté) : son backend, au substrat,
 #: lit sa déclaration par le passe-plat, sans importer l'app.
+#: `vram_gb` des trois poids DeepFace : la mémoire occupée de la carte, modèle seul dans le service
+#: TensorFlow, mesurée le 2026-11-09 (`common/backends/deepface_backend.py`).
 FACE_ANALYZER_MODELS = {
     'deepface-expression': {
         'fichier': 'facial_expression_model_weights.h5',
@@ -102,7 +104,7 @@ FACE_ANALYZER_MODELS = {
         'task': 'face-analysis',
         'engine': 'deepface',
         'optional': False,
-        'vram_gb': 0.3,
+        'vram_gb': 0.7,
         'description': "Facial expression recognition (7 emotions) — DeepFace backend",
     },
     'deepface-age': {
@@ -115,7 +117,7 @@ FACE_ANALYZER_MODELS = {
         'task': 'face-analysis',
         'engine': 'deepface',
         'optional': True,
-        'vram_gb': 1.0,
+        'vram_gb': 6.6,
         'description': "Age estimation — loaded only when age & gender analysis is enabled",
     },
     'deepface-gender': {
@@ -128,7 +130,7 @@ FACE_ANALYZER_MODELS = {
         'task': 'face-analysis',
         'engine': 'deepface',
         'optional': True,
-        'vram_gb': 1.0,
+        'vram_gb': 6.5,
         'description': "Gender estimation — loaded only when age & gender analysis is enabled",
     },
     'mediapipe-face-landmarker': {

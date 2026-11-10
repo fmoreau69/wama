@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**235 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**236 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -146,7 +146,7 @@ Arbitre la VRAM entre process : réservation, résidence, attente, libération ;
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (65) :
+- **API publique** (66) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
   - `configure_cuda_process_when_torch_loads() -> None` — Le plafond CUDA du processus, posé au PREMIER IMPORT de torch plutôt qu'au démarrage
   - `capped_child_env(env: dict | None=None) -> dict` — L'environnement d'un SOUS-PROCESSUS Python qui charge torch, avec le plafond CUDA du
@@ -172,6 +172,7 @@ Arbitre la VRAM entre process : réservation, résidence, attente, libération ;
   - `forget_measured_vram(rendues: dict) -> int` — Oublie les mesures RENDUES au catalogue — `rendues` : owner → horodatage lu.
   - `idle_models(idle_threshold_s: int=300) -> list[dict]` — Modèles RÉSIDENTS inactifs depuis plus de `idle_threshold_s`, tous process confondus.
   - `card_free_gb() -> float | None` — VRAM libre de la CARTE (nvidia-smi), tous occupants confondus : les process de WAMA, ses
+  - `card_used_gb() -> float | None` — Mémoire OCCUPÉE de la carte (nvidia-smi), tous occupants confondus ; None si elle ne se lit
   - `card_ceiling_gb() -> float | None` — Ce que la carte peut libérer AU MIEUX : son libre, plus ce que les détenteurs du registre y
   - `effective_free_gb(exclude: str | None=None) -> float` — VRAM réellement disponible = ce que la CARTE a de libre, MOINS ce que des process ont
   - `gpu_safe_mode() -> bool` — Vrai si le mode dépannage GPU est actif (settings/env `WAMA_GPU_SAFE_MODE`).
@@ -829,6 +830,16 @@ Identité chez l'éditeur (licence, auteur, plateforme, publications arXiv de la
   - `identity_for_spec(spec: dict) -> Optional[dict]` — Identité déductible du descripteur d'installation (`install_from_spec`).
   - `set_identity(model_key: str, identity: dict, *, capabilities: dict=None, engine: str=None, composition: dict=None, apply: bool=True, export: bool=True) -> dict` — Pose l'identité — et les capacités DÉCLARÉES — sur un modèle DU CATALOGUE, en passant
   - `record_after_install(spec: dict, appeared_keys, owner=None) -> dict` — Après installation + sync : pose l'identité sur les modèles qui viennent d'APPARAÎTRE.
+
+### Service TensorFlow — les modèles TensorFlow, seuls sur la carte
+
+Délimité par son MOTEUR (2026-11-09, décisions de Fabien, `WAMA_MANIFEST_SPEC §7.1`) : TensorFlow ne rend sa mémoire de carte qu'à la fin de son processus et ne cohabite pas avec PyTorch. Service uvicorn 127.0.0.1:8004 (`--workers 1`), aucun PyTorch dedans, seul lieu où TensorFlow voit la carte (`runtime` : préchargement du nvJitLink de la roue, `use_the_card`). LIBÉRER, C'EST S'ARRÊTER : son `Tenant` rend ses lignes au registre et sort quand le gouverneur demande la carte ; la surveillance des workers, ÉTENDUE aux services (`worker_watchdog.sh`, `supervise_one`), le relance à la demande du premier appelant (`service_supervision`, drapeaux dans `logs/`) et hors budget. REPLI, service éteint, en démarrage ou sans place : le même moteur chez l'appelant, TensorFlow tenu HORS de la carte (`service_client`). Préchauffe l'expression seule. Premiers occupants, contrat `face-analysis` SANS ÉTAT : DeepFace (une classe par poids), FER (poids dans sa roue, `BUNDLED_WEIGHTS`) ; le lissage du flux reste à `EmotionRecognizer`. Mesure à la carte (`NO_TORCH_IN_PROCESS`), jamais par l'allocateur de torch. Frontière tenue par AST : seules trois portes importent une librairie TensorFlow
+
+- **Domicile** : `wama/common/tensorflow_service/service.py` · **doc** : [docs/construction/architecture/WAMA_MANIFEST_SPEC.md §7.1](../construction/architecture/WAMA_MANIFEST_SPEC.md)
+- **Module** : WAMA — service TENSORFLOW (FastAPI) : les modèles TensorFlow, sur la carte, dans un seul processus.
+- **API publique** (2) :
+  - `health()`
+  - `run(params: str=Query(...), body: bytes=Body(..., media_type='application/octet-stream'))` — Une demande : `params` en JSON (`task`, `engine`, `models`, `options`), l'image en `.npy`.
 
 ### Sonde vision
 

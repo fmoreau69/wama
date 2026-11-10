@@ -1197,7 +1197,9 @@ mesuré dans `/proc` sur les services en service : sans `USE_TF=0`, alors que Te
 (`b54785643`, autre instance). Gunicorn : mesuré, il ne tient aucun modèle du contrat — seulement
 le repli sur place des clients privacy/vecteurs quand leur service est éteint —, et le temps réel du
 face_analyzer (DeepFace) y tourne sur processeur (TensorFlow ne voit pas la carte) : pas de tenant à
-poser tant que cela tient. Gardes : `tests_out_of_process_holders.ChildStopsWithItsTaskTest`,
+poser tant que cela tient. *(Depuis le 2026-11-09, DeepFace et FER passent par le service TensorFlow,
+tenant à part entière (`WAMA_MANIFEST_SPEC §7.1`) ; chez l'appelant ne reste que son repli, sur le
+processeur, qui ne tient rien sur la carte.)* Gardes : `tests_out_of_process_holders.ChildStopsWithItsTaskTest`,
 `tests_musetalk_backend`, `tests_worker_watchdog`.
 
 **✅ 2026-11-04 — le libre d'une décision se lit à la CARTE** (défaut vécu par Fabien : un lot de

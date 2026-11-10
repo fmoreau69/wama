@@ -66,7 +66,7 @@
     "resources": {
       "disk_gb": 0.5002596974372864,
       "ram_gb": 0.0,
-      "vram_gb": 1.0
+      "vram_gb": 6.5
     }
   },
   "description": "Gender estimation — loaded only when age & gender analysis is enabled",

@@ -18,6 +18,9 @@ done
 # STOP DES PROCESS EXISTANTS
 # ------------------------------------------------------
 echo "=== Stopping old processes if any ==="
+# La définition commune d'abord : l'arrêt lit les motifs des services qu'elle déclare.
+PROJECT_DIR=/mnt/d/WAMA/web-app-for-media-automation
+source $PROJECT_DIR/scripts/wama_services.sh
 pkill -f "gunicorn wama.wsgi" || true
 # La SURVEILLANCE des workers d'abord (scripts/worker_watchdog.sh) : laissée en vie, elle
 # relancerait les workers que la ligne suivante arrête. Crochets : le motif ne se trouve pas
@@ -25,19 +28,13 @@ pkill -f "gunicorn wama.wsgi" || true
 pkill -f "scripts/[w]orker_watchdog.sh" || true
 pkill -f "celery" || true
 # Graceful stop: SIGTERM first, then wait, then SIGKILL
-# Les deux services vivent dans leur paquet depuis le 2026-10-28 (`wama.common.tts.service`,
-# `wama.common.vectors.service`) ; les motifs reconnaissent AUSSI l'ancienne ligne de commande
-# (`tts_service:app`, `vector_service:app`, modules de la racine) : sans elle, un service lancé
-# avant le déplacement survivrait à l'arrêt et garderait son port.
-TTS_SERVICE_PATTERN="uvicorn (wama\.common\.tts\.service|tts_service):app"
-VECTOR_SERVICE_PATTERN="uvicorn (wama\.common\.vectors\.service|vector_service):app"
-PRIVACY_SERVICE_PATTERN="uvicorn wama\.common\.privacy\.service:app"
-if pkill -f "$TTS_SERVICE_PATTERN" 2>/dev/null; then
+if pkill -f "$(wama_service_pattern tts_service)" 2>/dev/null; then
     sleep 3
-    pkill -9 -f "$TTS_SERVICE_PATTERN" 2>/dev/null || true
+    pkill -9 -f "$(wama_service_pattern tts_service)" 2>/dev/null || true
 fi
-pkill -f "$VECTOR_SERVICE_PATTERN" || true
-pkill -f "$PRIVACY_SERVICE_PATTERN" || true
+pkill -f "$(wama_service_pattern vector_service)" || true
+pkill -f "$(wama_service_pattern privacy_service)" || true
+pkill -f "$(wama_service_pattern tensorflow_service)" || true
 # Passerelle de canaux : on l'arrête ICI comme les autres, pour deux raisons —
 #   • elle doit repartir sur le code du run courant (elle a l'ORM et les settings) ;
 #   • la rotation des journaux plus bas exige les services ARRÊTÉS (renommer un fichier
@@ -60,7 +57,6 @@ sleep 2
 # ------------------------------------------------------
 # CONFIGURATION
 # ------------------------------------------------------
-PROJECT_DIR=/mnt/d/WAMA/web-app-for-media-automation
 VENV_DIR=$PROJECT_DIR/venv_linux
 DJANGO_SETTINGS_MODULE=wama.settings
 DJANGO_PORT=8000
@@ -69,8 +65,9 @@ LOG_DIR=$PROJECT_DIR/logs
 
 # Environnement d'exécution et lancement des workers : UNE définition, partagée avec la
 # surveillance des workers (scripts/wama_services.sh — OLLAMA_HOST, TZ, sauvegarde distante).
-source $PROJECT_DIR/scripts/wama_services.sh
 wama_runtime_env
+# Les demandes d'un service à relancer datent du run précédent, dont les services viennent d'être arrêtés.
+rm -f "$LOG_DIR"/service_wanted.* "$LOG_DIR"/service_stopped.*
 
 # ------------------------------------------------------
 # SUDO : `-n` en non-interactif, interactif quand il y a un TERMINAL
@@ -302,31 +299,26 @@ wama_worker_env
 # pourraient tenir N moteurs lourds sur la même carte ; Kokoro serait préchargé N fois ;
 # et les verrous de bascule/génération ne sérialisent rien entre process. La cause
 # autrefois citée ici (mutation concurrente de HF_HUB_CACHE) n'existe plus.
-if ! pgrep -f "$TTS_SERVICE_PATTERN" > /dev/null; then
+#
+# --fast = redémarrage de développement : on ne veut RIEN charger sur le GPU.
+# ATTENTION : --fast ne rendait le TTS que « fire & forget » (il sautait l'ATTENTE
+# de disponibilité, pas le chargement). C'est ce que TTS_SKIP_PRELOAD=1 compensait
+# en désactivant le préchargement pour tout le monde, prod comprise.
+# Exportés HORS du `if` : la surveillance, lancée plus bas, en hérite pour relancer le service.
+if [ $FAST -eq 1 ]; then
+    export TTS_PRELOAD=none
+else
+    export TTS_PRELOAD=kokoro-onnx
+fi
+export HIGGS_DISABLE_CUDA_GRAPHS=1
+if ! wama_service_alive tts_service; then
     echo "=== Starting TTS Service (port 8001) ==="
-    # --fast = redémarrage de développement : on ne veut RIEN charger sur le GPU.
-    # ATTENTION : --fast ne rendait le TTS que « fire & forget » (il sautait l'ATTENTE
-    # de disponibilité, pas le chargement). C'est ce que TTS_SKIP_PRELOAD=1 compensait
-    # en désactivant le préchargement pour tout le monde, prod comprise.
+    [ $FAST -eq 1 ] && echo "  (--fast : aucun préchargement TTS, les modèles se chargeront à la demande)"
+    start_wama_service tts_service
     if [ $FAST -eq 1 ]; then
-        export TTS_PRELOAD=none
-        echo "  (--fast : aucun préchargement TTS, les modèles se chargeront à la demande)"
+        echo "TTS Service started — fire & forget (--fast)"
     else
-        export TTS_PRELOAD=kokoro-onnx
-    fi
-    export HIGGS_DISABLE_CUDA_GRAPHS=1
-    nohup python -m uvicorn wama.common.tts.service:app \
-        --host 127.0.0.1 \
-        --port 8001 \
-        --workers 1 \
-        --log-level warning \
-        >> $LOG_DIR/tts-service.log 2>&1 &
-    TTS_PID=$!
-    disown $TTS_PID
-    if [ $FAST -eq 1 ]; then
-        echo "TTS Service started (PID $TTS_PID) — fire & forget (--fast)"
-    else
-        echo "TTS Service started (PID $TTS_PID), waiting for service to be ready..."
+        echo "TTS Service started, waiting for service to be ready..."
         TTS_READY=0
         # Wait up to 10 minutes (300 × 2s). First pass: wait for uvicorn to respond at all,
         # then wait for status=="ok" (background model loading complete).
@@ -359,17 +351,10 @@ fi
 # Rien à précharger : les modèles vivent dans Ollama, qui les charge à l'appel ; /health
 # répond aussitôt. Boucle locale SEULE (127.0.0.1) : le service n'a pas d'authentification.
 # Éteint, rien ne casse — le client exécute le même moteur dans son propre process.
-if ! pgrep -f "$VECTOR_SERVICE_PATTERN" > /dev/null; then
+if ! wama_service_alive vector_service; then
     echo "=== Starting Vector Service (port 8002) ==="
-    nohup python -m uvicorn wama.common.vectors.service:app \
-        --host 127.0.0.1 \
-        --port 8002 \
-        --workers 1 \
-        --log-level warning \
-        >> $LOG_DIR/vector-service.log 2>&1 &
-    VECTOR_PID=$!
-    disown $VECTOR_PID
-    echo "Vector Service started (PID $VECTOR_PID)"
+    start_wama_service vector_service
+    echo "Vector Service started"
 else
     echo "Vector Service is already running."
 fi
@@ -382,19 +367,29 @@ fi
 # appel paie le chargement ; rien n'est préchargé au démarrage. Boucle locale SEULE (aucune
 # authentification, il voit des textes personnels). Éteint, rien ne casse — le client exécute le
 # même moteur dans son propre process.
-if ! pgrep -f "$PRIVACY_SERVICE_PATTERN" > /dev/null; then
+if ! wama_service_alive privacy_service; then
     echo "=== Starting Privacy Service (port 8003) ==="
-    nohup python -m uvicorn wama.common.privacy.service:app \
-        --host 127.0.0.1 \
-        --port 8003 \
-        --workers 1 \
-        --log-level warning \
-        >> $LOG_DIR/privacy-service.log 2>&1 &
-    PRIVACY_PID=$!
-    disown $PRIVACY_PID
-    echo "Privacy Service started (PID $PRIVACY_PID)"
+    start_wama_service privacy_service
+    echo "Privacy Service started"
 else
     echo "Privacy Service is already running."
+fi
+
+# ------------------------------------------------------
+# SERVICE TENSORFLOW (FastAPI) — WAMA_MANIFEST_SPEC §7.1
+# ------------------------------------------------------
+# Les modèles TensorFlow (DeepFace, FER) sur la carte, seuls dans leur processus. Il préchauffe
+# l'expression, s'arrête quand le gouverneur demande la carte, et la surveillance le relance à la
+# demande. Éteint, rien ne casse — le client exécute le même moteur chez lui, sur le processeur.
+# --fast : rien sur le GPU, il viendra au premier appelant.
+if [ $FAST -eq 1 ]; then
+    echo "TensorFlow Service : à la demande (--fast)"
+elif ! wama_service_alive tensorflow_service; then
+    echo "=== Starting TensorFlow Service (port 8004) ==="
+    start_wama_service tensorflow_service
+    echo "TensorFlow Service started"
+else
+    echo "TensorFlow Service is already running."
 fi
 
 # ------------------------------------------------------
