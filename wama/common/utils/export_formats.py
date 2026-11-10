@@ -83,7 +83,10 @@ def entries(formats, available=None) -> list[dict]:
                   élément ne doit pas s'afficher : la déclaration dit ce que l'app sait faire,
                   l'item dit ce qu'il a.
     Chaque entrée porte `separator=True` quand elle ouvre un nouveau groupe (jamais la première).
+    Des entrées DÉJÀ construites (`lot_menu`) passent telles quelles.
     """
+    if isinstance(formats, (list, tuple)) and formats and isinstance(formats[0], dict):
+        return list(formats)
     if isinstance(formats, str):
         formats = [f for f in formats.replace(' ', '').split(',') if f]
     wanted = [f.lower().lstrip('.') for f in (formats or [])]
@@ -349,6 +352,24 @@ def combined_url(lot_url: str) -> str:
     """L'adresse du fichier combiné d'un lot : celle de son ZIP (`batch_download`), `combine=1`
     ajouté — lue par le bouton de la card mère (`lot_combined`) et par l'assistant."""
     return f"{lot_url}{'&' if '?' in lot_url else '?'}combine=1" if lot_url else ''
+
+
+def lot_menu(app_name: str, lot_url: str, items, ready: bool) -> list:
+    """Les entrées du bouton ⬇ UNIQUE de la card mère d'un lot (2026-11-10, Fabien : un bouton qui
+    regroupe toutes les sorties, comme sur une fille) : les formats de l'archive ZIP, puis ceux du
+    fichier unique. Sans fichier unique possible, la forme que l'app déclare (un lien, ou le menu
+    de ses formats). Les entrées du fichier unique portent `joined`, et `hidden` tant que le lot
+    n'a pas entièrement réussi (`queue-actions.js::updateBatchHeader` les montre alors)."""
+    archive = entries_for_app(app_name)
+    joined = entries(combined_formats(app_name, items)) if lot_url else []
+    if not joined:
+        return archive
+    head = ([{**archive[0], 'heading': _('Archive ZIP')}, *archive[1:]] if archive else
+            [{'value': 'zip', 'label': _('Archive ZIP'), 'icon': 'fas fa-file-archive', 'url': lot_url}])
+    base = combined_url(lot_url)
+    return head + [{**e, 'url': f"{base}&format={e['value']}", 'joined': True, 'hidden': not ready,
+                    'separator': not index, 'heading': _('Tout le lot en un seul fichier') if not index else ''}
+                   for index, e in enumerate(joined)]
 
 
 def combine_lot(app_name: str, items, fmt: str):

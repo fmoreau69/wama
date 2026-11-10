@@ -1877,7 +1877,7 @@ MECHANISMS = (
               "troisième. Le 2026-11-10 (décision de Fabien), l'INVERSE : `pages_to_pdf`, des "
               "pages (images, PDF) en UN PDF — une image à 150 ppp (la règle du converter pour "
               "une image → PDF), un JPEG posé tel quel, l'EXIF appliqué — lue par le fichier "
-              "« Fusionné » d'un lot de pages (`export_formats.combine_lot`), le dépôt « un seul "
+              "fichier unique d'un lot de pages (`export_formats.combine_lot`), le dépôt « un seul "
               "document » du Reader, et `ocr_base.upright_document` (les pages d'un PDF "
               "redressées et mises d'aplomb comme une photo, avant tout moteur — le contrat OCR "
               "l'applique à chaque `run`, jumelles générées comprises)",
@@ -2412,7 +2412,7 @@ MECHANISMS = (
               "`json` du reader sans résultat brut), lu par le ⬇ de la card (`item=`) et par elle. "
               "Depuis le 2026-11-10, le registre du rendu COMBINÉ d'un lot "
               "(`register_lot_builder`, `combined_formats` : les pages d'une partition en une "
-              "partition), offert par le bouton « Fusionné » de la card mère (tag `lot_combined`) "
+              "partition), offert dans le menu du ⬇ unique de la card mère (tag `lot_combined`, `lot_menu`) "
               "; et, pour TOUTE app, le PDF d'un lot dont les résultats sont des pages "
               "(`combine_lot`) — le PDF étant la sortie déclarée de la nature image "
               "(`CONVERTER_OUTPUT_FORMATS`), non un format de téléchargement",

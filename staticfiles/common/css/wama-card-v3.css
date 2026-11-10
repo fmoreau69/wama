@@ -287,6 +287,10 @@
    l'exception : la card doit se mesurer à SON conteneur.
    La card est elle-même le conteneur : sa largeur EST la largeur utile. */
 .wama-card { container-type: inline-size; }
+/* Conteneur, la card enferme ce qu'elle contient : son menu ouvert, quel que soit son z-index, passait
+   SOUS la card suivante, peinte après elle (2026-11-10, le PDF d'un lot masqué : 9 lignes sur 26).
+   La card dont un menu est ouvert passe donc devant ses voisines, sous la barre du haut. */
+.wama-card:has(.dropdown-menu.show) { position: relative; z-index: 1000; }
 
 /* Chips : bornés à leur piste, jamais par-dessus la voisine. Le libellé complet reste
    accessible par le title (déjà posé par la brique card_chips). */

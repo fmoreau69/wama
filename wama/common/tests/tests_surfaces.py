@@ -2268,9 +2268,12 @@ class SuppliedScoreShownAsAbcTest(TestCase):
         self.assertEqual(self.gen.reference_score.name, _score_to_follow(self.gen, SCORE_MODEL))
         self.assertIn('V: Vocal', YuE2Backend._score_abc(self.gen.reference_score.path),
                       'the engine reads the view it was never written for')
-        self.assertEqual([ItemRevision.ORIGIN_PROCESS, ItemRevision.ORIGIN_MANUAL],
+        self.assertEqual([ItemRevision.ORIGIN_SUPPLIED, ItemRevision.ORIGIN_MANUAL],
                          list(ItemRevision.objects.filter(app='composer', object_id=self.gen.pk)
                               .order_by('number').values_list('origin', flat=True)))
+        self.assertEqual(['Corrigé à la main', 'Fichier fourni'],
+                         [r['origin_label'] for r in self.client.get(self.base + 'revisions/').json()['revisions']],
+                         'the supplied file is never presented as the result of a process')
         self.assertEqual(opened['value'], self.client.get(self.base + 'revisions/1/').json()['value'],
                          'the supplied score is resumed by its ABC view, under its own title')
         self.assertEqual(corrected, self.client.get(self.base + 'revisions/2/').json()['value'])

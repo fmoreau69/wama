@@ -1898,10 +1898,14 @@ fois par élément (`CARD_DESIGN.md §Le LOT n'a PAS de port`). Ce qui manquait,
 apps : aucun lot ne faisait UN fichier de ses éléments. Une app qui sait COMBINER les résultats de
 ses éléments le DÉCLARE — `export_formats.register_lot_builder(app, rendu, formats)`, rendu
 `(éléments, fmt) -> (ext, octets)` dans l'ordre du lot, `formats(éléments)` ceux qu'il sait combiner
-pour CE lot —, et le ⬇ du lot offre, à côté du ZIP, un bouton **« Fusionné »** (même brique
-`download_button`, tag `lot_combined`) vers `batch_download?combine=1&format=<ext>` : même route,
-même garde de lecture, rien à écrire par app. Il n'apparaît que quand TOUS les éléments ont réussi
-(`queue-actions.js::updateBatchHeader` le montre alors) ; la vue refuse sinon (409, éléments nommés).
+pour CE lot —, et le **⬇ unique** de la card mère (icône seule, comme sur une fille ; brique
+`download_button`, tag `lot_combined`, entrées `export_formats.lot_menu`) offre, dans le même menu que
+l'archive ZIP, une section **« Tout le lot en un seul fichier »** vers
+`batch_download?combine=1&format=<ext>` : même route, même garde de lecture, rien à écrire par app.
+(Le bouton « Fusionné » posé à côté du ZIP le 2026-11-10 faisait sortir la rangée de la card : retiré
+le jour même, demande de Fabien — une card a UN bouton de sortie.) Cette section n'apparaît que quand
+TOUS les éléments ont réussi (`queue-actions.js::updateBatchHeader` la montre alors) ; la vue refuse
+sinon (409, éléments nommés).
 Le fichier est nommé par l'identité du lot (`batch_identity`, `compose_output_name`). L'assistant le
 reçoit avec le ZIP (`get_batch_result` → `combined`).
 - **Toute app, rien à déclarer — le PDF des pages** : un lot dont les RÉSULTATS déclarés de chaque

@@ -969,7 +969,7 @@ class ALotOfPagesJoinsInOnePdfTest(TestCase):
         html = re.sub(r'\s+', ' ', render_to_string('common/_batch_card.html', {
             'batch_info': batch_info, 'app': 'converter', 'download_url': '/lot/dl/'}))
         part = html[html.index('data-batch-combined'):]
-        self.assertIn('/lot/dl/?combine=1&format=pdf', part)
+        self.assertIn('/lot/dl/?combine=1&amp;format=pdf', part)
 
     def test_a_lot_of_one_element_has_nothing_to_join(self):
         """Its own ⬇ suffices — found by a counter-proof : no guard held this rule."""

@@ -16,15 +16,13 @@ register = template.Library()
 
 @register.simple_tag
 def lot_combined(app, url, batch_info):
-    """Le FICHIER COMBINÉ d'un lot pour sa card mère (2026-11-10) : `{'url', 'formats', 'ready'}`.
-    `url` : celle du ZIP du lot, à laquelle `combine=1` s'ajoute (`batch_download`) ; `formats` :
-    ceux en lesquels l'app sait combiner CE lot (`export_formats.combined_formats`), vides sinon ;
-    `ready` : tous ses éléments ont réussi — la vue ne combine qu'un lot entier et réussi."""
-    from wama.common.utils.export_formats import combined_formats, combined_url
+    """Les sorties d'un lot pour le ⬇ unique de sa card mère (2026-11-10) : `{'menu'}`, les entrées
+    du bouton (`export_formats.lot_menu`) — l'archive ZIP de `url`, et le fichier unique quand l'app
+    sait combiner CE lot, montré quand tous ses éléments ont réussi : la vue ne combine qu'un lot
+    entier."""
+    from wama.common.utils.export_formats import lot_menu
     works = [getattr(it, 'elem', it) for it in (batch_info or {}).get('items') or ()]
-    formats = combined_formats(app, works) if url else []
-    return {'url': combined_url(url) if formats else '', 'formats': formats,
-            'ready': bool(formats) and (batch_info or {}).get('success_count') == len(works)}
+    return {'menu': lot_menu(app, url, works, (batch_info or {}).get('success_count') == len(works))}
 
 
 @register.inclusion_tag('common/_download_button.html')
@@ -64,9 +62,9 @@ def download_button(app, url, ready, available=None, title=None, empty_title=Non
     ⚠ Renommé le 2026-08-30 (ex-`bouton_telecharger`, params `pret`/`disponibles`/`titre`/
     `titre_vide`/`classe`) : un tag est lu dans 12 gabarits, donc une API — anglais obligatoire.
 
-    `formats` (2026-11-10) : les formats OFFERTS quand ce ne sont pas ceux que l'app déclare au
-    téléchargement — le fichier combiné d'un lot (`lot_combined`) : le PDF des pages d'une app
-    early-binding, qui ne déclare aucun format de téléchargement (`export_formats` vide).
+    `formats` (2026-11-10) : les entrées OFFERTES quand ce ne sont pas celles que l'app déclare au
+    téléchargement — le menu d'un lot (`lot_combined`), archive et fichier unique ensemble : le PDF
+    des pages d'une app early-binding, qui ne déclare aucun format de téléchargement.
     """
     from wama.common.utils.export_formats import available_formats, entries, entries_for_app
     if available is None and item is not None:

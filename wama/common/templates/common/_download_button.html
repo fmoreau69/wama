@@ -58,10 +58,13 @@ pas en profiter pour le changer.
       <i class="fas fa-download"></i>{% if label %} <span class="wama-btn-label">{{ label }}</span>{% endif %}
     </button>
     <ul class="dropdown-menu">
+      {% comment %}Une entrée peut porter son adresse (`url`), son titre de section (`heading`), et être
+      le fichier unique d'un lot (`joined`, masqué tant que `hidden` — `export_formats.lot_menu`).{% endcomment %}
       {% for f in formats %}
-        {% if f.separator %}<li><hr class="dropdown-divider"></li>{% endif %}
-        <li>
-          <a class="dropdown-item" href="{{ url }}{{ join }}format={{ f.value }}">
+        <li{% if f.joined %} data-batch-combined{% if f.hidden %} hidden{% endif %}{% endif %}>
+          {% if f.separator %}<hr class="dropdown-divider">{% endif %}
+          {% if f.heading %}<h6 class="dropdown-header">{{ f.heading }}</h6>{% endif %}
+          <a class="dropdown-item" href="{% if f.url %}{{ f.url }}{% else %}{{ url }}{{ join }}format={{ f.value }}{% endif %}">
             <i class="{{ f.icon }} me-2"></i>{{ f.label }}
           </a>
         </li>

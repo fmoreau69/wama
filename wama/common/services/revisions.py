@@ -310,15 +310,29 @@ def prune_kept(app_id: str, item) -> list:
     return removed
 
 
+def _unkept_state_origin(item, field: str) -> str:
+    """D'où vient un état qu'aucune copie gardée ne porte : le fichier FOURNI quand aucun process
+    de l'élément ne déclare ce champ en sortie (la partition importée), un traitement sinon.
+    La DÉCLARATION, pas `produced_fields` : celui-ci suit le modèle choisi, et une partition
+    extraite resterait « fournie » sur une card passée depuis à un modèle sans extraction."""
+    from wama.common.models import ItemRevision
+    from wama.common.services.process_pipeline import pipeline_of
+    pipeline = pipeline_of(item)
+    if pipeline is None or any(field in spec.outputs for spec in pipeline.specs):
+        return ItemRevision.ORIGIN_PROCESS
+    return ItemRevision.ORIGIN_SUPPLIED
+
+
 def ensure_kept(app_id: str, item, field: str):
     """Garde l'état PRÉSENT du fichier `field` avant qu'une correction à la main ne le réécrive
     en place (2026-10-15, surface « Éditer la partition » du composer).
 
-    Un état qu'aucune copie gardée ne porte ne peut venir que d'un traitement joué AVANT que
-    l'app ne garde ses sorties (une correction à la main est toujours gardée, et la dernière
-    révision n'est jamais purgée) : sans ce geste, la 1ʳᵉ correction d'une card ancienne effaçait
-    l'original sans retour. Il devient une révision « produit par un traitement » — son origine
-    réelle. Rend la révision créée, ou None (rien à garder, app qui ne garde pas). Best-effort."""
+    Un état qu'aucune copie gardée ne porte vient d'un traitement joué AVANT que l'app ne garde
+    ses sorties, ou de l'utilisateur qui l'a fourni (une correction à la main est toujours gardée,
+    et la dernière révision n'est jamais purgée) : sans ce geste, la 1ʳᵉ correction effaçait
+    l'original sans retour. Il devient une révision qui dit son origine réelle
+    (`_unkept_state_origin`). Rend la révision créée, ou None (rien à garder, app qui ne garde
+    pas). Best-effort."""
     if not keeps_field(app_id, field) or not hasattr(item, KEPT_FIELD):
         return None
     try:
@@ -329,8 +343,7 @@ def ensure_kept(app_id: str, item, field: str):
         current = sha256_of(value.path)
         if any(e.get('field') == field and e.get('sha256') == current for e in _kept_entries(item)):
             return None
-        from wama.common.models import ItemRevision
-        return record_revision(app_id, item, origin=ItemRevision.ORIGIN_PROCESS,
+        return record_revision(app_id, item, origin=_unkept_state_origin(item, field),
                                output_fields=[field])
     except Exception as exc:
         logger.warning("[revisions] état présent de %s non gardé (%s: %s)", field,

@@ -1364,11 +1364,14 @@ class ItemRevision(models.Model):
 
     ORIGIN_PROCESS = 'process'
     ORIGIN_MANUAL = 'manual'
+    ORIGIN_SUPPLIED = 'supplied'
     #: D'où vient l'état — un FAIT, pas un auteur présumé : un traitement (modèle d'IA ou outil,
-    #: `model_keys` le dit) ou une correction à la main.
+    #: `model_keys` le dit), une correction à la main, ou le fichier que l'utilisateur a fourni
+    #: (2026-11-10 : la partition importée, gardée avant sa première correction).
     ORIGIN_CHOICES = [
         (ORIGIN_PROCESS, 'Produit par un traitement'),
         (ORIGIN_MANUAL, 'Corrigé à la main'),
+        (ORIGIN_SUPPLIED, 'Fichier fourni'),
     ]
 
     app = models.CharField(max_length=32, db_index=True)

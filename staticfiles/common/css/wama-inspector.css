@@ -121,6 +121,9 @@ body.wama-right-collapsed .wama-settings-hint--collapsed { display: inline; }
     padding: .45rem .7rem;
 }
 .wama-card.is-batch:hover { background: var(--wama-surface-batch-hover); }
+/* Les actions passent à la ligne comme celles d'une fille (`.wcv3-actions`) : quand les deux volets
+   réduisent la colonne, la rangée sortait de la card (2026-11-10, mesuré à 1500 px de large). */
+.wama-card.is-batch .btn-group-actions { flex-wrap: wrap; }
 
 /* ── Survol d'une card de file — UNE règle pour toutes les apps (2026-10-16, demande de Fabien) ─
    Il n'y en avait pas de commune : une ombre noire sur fond sombre, invisible

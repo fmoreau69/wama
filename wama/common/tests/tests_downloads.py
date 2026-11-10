@@ -285,14 +285,45 @@ class BatchCardZipButtonTests(SimpleTestCase):
             'common/_batch_card.html', {'batch_info': batch_info, 'app': 'reader',
                                         'download_url': '/lot/7/dl/'}))
 
-    def test_a_lot_the_app_can_join_offers_one_file_next_to_the_zip(self):
+    def test_all_the_outputs_of_a_lot_are_in_one_button(self):
+        """2026-11-10, Fabien : « ZIP » and « Fusionné » side by side pushed the row out of the
+        card — one ⬇, an icon as on a child card, its menu holding every output."""
+        html = self._scores_card(success_count=2)
+        actions = html[html.index('data-batch-zip'):html.index('batch-duplicate-btn')]
+        self.assertEqual(1, actions.count('fa-download'))
+        self.assertEqual(1, actions.count('dropdown-toggle'))
+        self.assertNotIn('wama-btn-label', actions, 'an icon, no label that widens the row')
+        self.assertIn('/lot/7/dl/?format=txt', actions)
+        self.assertIn('Archive ZIP', actions)
+        self.assertIn('Tout le lot en un seul fichier', actions)
+
+    def test_the_actions_of_a_parent_card_wrap_inside_it(self):
+        """With both side panels open the column is narrow : the row left the card."""
+        css = (Path(settings.BASE_DIR) / 'wama/common/static/common/css/wama-inspector.css').read_text(encoding='utf-8')
+        self.assertRegex(css, r'\.wama-card\.is-batch \.btn-group-actions \{ flex-wrap: wrap; \}')
+
+    def test_a_card_with_an_open_menu_passes_over_the_next_one(self):
+        """A card is a container, which encloses its menu : the next card painted over it."""
+        css = (Path(settings.BASE_DIR) / 'wama/common/static/common/css/wama-card-v3.css').read_text(encoding='utf-8')
+        self.assertRegex(css, r'\.wama-card:has\(\.dropdown-menu\.show\) \{ position: relative; z-index: \d+; \}')
+
+    def test_a_lot_of_pages_with_no_download_format_keeps_its_zip_in_the_menu(self):
+        """The early-binding form : no declared format, the archive is an entry of its own."""
+        from wama.common.utils import export_formats
+        from unittest import mock
+        with mock.patch.object(export_formats, 'combined_formats', return_value=['pdf']):
+            menu = export_formats.lot_menu('anonymizer', '/lot/7/dl/', [object(), object()], False)
+        self.assertEqual([('zip', '/lot/7/dl/', False), ('pdf', '/lot/7/dl/?combine=1&format=pdf', True)],
+                         [(e['value'], e['url'], e.get('hidden', False)) for e in menu])
+
+    def test_a_lot_the_app_can_join_offers_one_file_in_its_menu(self):
         """2026-11-10, Fabien : the elements of a lot in ONE file (the pages of a score), offered
         by the common ⬇ button with the formats the app joins in — only for a lot fully done."""
         html = self._scores_card(success_count=2)
         part = html[html.index('data-batch-combined'):html.index('batch-duplicate-btn')]
         self.assertNotIn('data-batch-combined hidden', html)
         for fmt in ('abc', 'musicxml'):
-            self.assertIn(f'/lot/7/dl/?combine=1&format={fmt}', part)
+            self.assertIn(f'/lot/7/dl/?combine=1&amp;format={fmt}', part)
         self.assertNotIn('format=txt', part, 'only the formats the app joins in')
         self.assertIn('data-batch-combined hidden', self._scores_card(success_count=1),
                       'a lot not fully done is not joined')
