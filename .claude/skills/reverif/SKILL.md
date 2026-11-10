@@ -146,6 +146,14 @@ un autre lecteur du même cache), puis le lire ; et comparer le neuf à ce qu'il
   les instruments partaient sur le canal 0. ✅ Une fois le geste vert sur le témoin, le rejouer
   EN LECTURE SEULE sur la donnée réelle la plus riche, et comparer au réel ce qui doit y arriver
   (ici : programme et notes par canal).
+- 🔴 **Une DÉCISION partagée qui change se mesure AVANT/APRÈS sur toutes ses entrées réelles**
+  (vécu le 2026-11-10, règle « un étage classe s'il compare » du sélecteur). Les tests disaient
+  le cas visé ; seule la comparaison disait ce qui bougeait AILLEURS. ✅ Charger la version de HEAD
+  du module à côté de celle de l'arbre, sans stash : `git show HEAD:<module>` dans le scratchpad,
+  puis `importlib.util.spec_from_file_location('<paquet>.<module>_old', <copie>)` (le nom garde le
+  paquet, donc les imports relatifs) ; jouer les deux sur chaque entrée réelle du catalogue, en
+  lecture seule, et ne lister que les différences. Mesuré : 1 395 tirages, 24 différences, toutes
+  celles visées — c'est ce chiffre qui permet d'écrire « rien d'autre ne bouge ».
 
 ## 3. Consigné — la doc confrontée au code
 

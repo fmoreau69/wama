@@ -30423,3 +30423,43 @@ gunicorn + workers avant la sonde de nuit (palier du 09/11). Rien n'est poussé.
 - **Effet de bord, par erreur de ma sonde** : le fil web du compte `wama_pw_smoke` portait un échange d'une sonde antérieure (« présente-toi en deux phrases »). Ma sonde l'a effacé après sa question : sa garde lisait la clé `messages`, la route du fil rend `entries`. Aucun scénario ne s'en sert (aucune occurrence dans le code).
 - **Non joué** : `!competences` sur Discord. Même `run_command`, gardé par `!skills` dans `tests_assistant_commands`.
 - **Contrôles attendus au prochain `/reprise`** : 13 modules de la session (commandes, compétences, skills, services, TensorFlow, surveillance, réseau, couverture de l'API, langue, catalogue des docs, thème, disposition des tests, passerelle), 429 tests, 4 rouges, tous dans `tests_identifier_language`. Trois étaient à moi (`texte` et `erreurs` repris des tests voisins dans mes gardes), renommés : le budget du code revient à 2556. Le 4ᵉ n'est pas de cette session : le nom `test_each_element_goes_under_the_name_the_app_declares` (racine « declar »), dans le travail non commité de `tests_batch_views.py`. `tests_fact_tags` + `tests_docs_catalog` : 50 OK. `check_redundancy` 114, dont 0 dans les fichiers de la session. `check_skills` : 0 défaut franc. `doc_facts --check` : `roundtrip` périmé (`WAMA_MANIFEST_ARCHITECTURE`), par le travail non commité du générateur et des manifestes d'autres sessions (plusieurs apps y passent à « erreurs »). Aucune ligne de cette session.
+
+## §CLÔTURE 2026-11-10, « SÉLECTEUR : TIRAGE DU COMPOSER RÉPARÉ ; TROUS DE NOTATION ET DE SÉLECTION (Q10) » — `def889db3` + ce commit (non poussés) — fin de la session 06→10/11 (`§PALIER 2026-11-06→10` plus haut) — 🔚 session NEUVE (Fable 5.2) + concile sur Q10
+
+- **Réparé** (Fabien : « Il ne faut rien casser du tirage des modèles du composer. Ou si quelque
+  chose est cassé, il faut le réparer. On ne laisse pas un tel piège en suspens ») : depuis
+  `966bd5f0b` (10/10), MiniMax Music 3 portait la seule note de banc du lot `text-to-music` ; seul
+  classé, il était tiré au curseur ≥ 80 toujours, et à toutes les positions quand 13 Go étaient
+  libres — les a priori déclarés des quatre autres n'étaient plus lus. Règle : un étage de
+  `model_selector._quality_scalars` classe s'il COMPARE (≥ 2 modèles), celle que
+  `_internal_values` posait déjà. Avant/après sur le catalogue : 1 395 tirages, 24 changent, tous
+  `text-to-music` (rapide → MusicGen Small, équilibré et qualité → YuE2, comme mesuré le 03/10) ;
+  `resolve_auto_model` réel : 85 et 100 → YuE2. Détail : `WAMA_QUALITE §0`, « Un étage classe
+  s'il COMPARE ». Garde : `tests_signal_scale_subset.AStageRanksOnlyIfItComparesTest`,
+  contre-épreuve à blanc rouge (3 sur 4, le 4ᵉ devant rester vert).
+- **Question ouverte Q10** (`WAMA_QUALITE §0` « TROUS DE NOTATION, TROUS DE SÉLECTION », et §8) —
+  la citation de Fabien, le code lu, le relevé du catalogue, les pistes. Rien d'implémenté.
+- **Corrigé au passage** : `PROSPECTION_PIPELINE` disait qu'aucune ligne `mistral-medium-latest`
+  n'existait — c'est `ilaas:mistral-medium-latest`, sans note.
+- **Tests mesurés ce soir (WSL)** : les 36 modules qui exercent le sélecteur, 1 112 tests — 1 échec
+  de ma main (la contre-épreuve de la marque de péremption supposait qu'une note seule gagne :
+  réécrite, `tests_development_models` 34/34) et 6 erreurs `NameError: argparse` des rôles
+  `wama-dev-ai`, vertes au rejeu (écriture en cours d'une autre session dans `role_utils.py`,
+  `run_backend.py`, `run_repo_app.py`). Après la dernière écriture : `tests_signal_scale_subset` +
+  `tests_identifier_language` 44 tests, seul rouge le budget des noms de méthodes de test (1318 >
+  1317) — `test_each_element_goes_under_the_name_the_app_declares`, ajouté dans
+  `tests_batch_views.py` (modifié à 18:59 par une autre session, non commité) : à son
+  propriétaire. `check_docs` : 0 cassée sur `WAMA_QUALITE` et `PROSPECTION_PIPELINE` ;
+  `check_redundancy` : 114, aucune dans mes fichiers.
+- **Rituel** : `/reverif §2` gagne « une décision partagée qui change se mesure avant/après sur
+  toutes ses entrées réelles » (le geste qui a tranché ce correctif).
+- 🔚 **POINT D'ENTRÉE** : session NEUVE sous Fable 5.2, avis complémentaire sur Q10, puis
+  `/concile` dans l'assistant. Lire d'abord `WAMA_QUALITE §0` (de « L'échelle des signaux » à
+  « TROUS DE NOTATION ») et `model_selector._quality_scalars` / `_best_by_vram` ; ne rien coder
+  avant la décision de Fabien.
+- **Décisions de Fabien en attente, inchangées** : quotas d'essai des clés d'instance (5
+  questions, `ROADMAP` Phase 3, 4a) ; D2, D3 (`PROSPECTION_PIPELINE`) ; D4 (`WAMA_LLM`) ; D5
+  (`ROUTE §10.6` 3.1) ; D1-A/B sans urgence ; Q10.
+- **Pendings système** : relancer gunicorn + workers pour que le tirage réparé serve (le code en
+  service est l'ancien) ; pousser `dev` (16 commits d'avance avant ce bloc, dont deux de cette
+  session).
