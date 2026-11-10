@@ -399,7 +399,7 @@
         </div>
         <div class="col-md-4">
             <div class="memory-card h-100">
-                <h5 class="mb-3"><i class="fas fa-memory me-2 text-success"></i>System RAM</h5>
+                <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0"><i class="fas fa-memory me-2 text-success"></i>RAM</h5></div>
                 <div class="memory-bar mb-2">
                     <div class="memory-bar-fill ram {% if system_info.percent > 80 %}high{% endif %}"
                          style="width: {{ system_info.percent }}%"
@@ -447,7 +447,7 @@
         <div class="col-12">
             <div class="memory-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="fas fa-hdd me-2 text-secondary"></i>Disk Space</h5>
+                    <h5 class="mb-0"><i class="fas fa-hdd me-2 text-secondary"></i>Disque</h5>
                     <span class="badge bg-body" id="disk-drive">-</span>
                 </div>
                 <div class="memory-bar mb-2">
@@ -472,75 +472,57 @@
     <div class="row mb-4" id="mmSystemRow">
         <div class="col-md-8">
             <div class="memory-card h-100">
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-3 mm-card-head">
                     <h5 class="mb-0">
-                        <i class="fas fa-broom me-2 text-warning"></i>Memory Cleaner
+                        <i class="fas fa-broom me-2 text-warning"></i>Mémoire
                     </h5>
-                    <div class="cleaner-status">
+                    <div class="d-flex align-items-center gap-2 cleaner-status">
                         <span class="status-indicator" id="cleaner-indicator"></span>
-                        <span id="cleaner-status-text">Loading...</span>
-                    </div>
-                </div>
-
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <div class="d-flex flex-wrap gap-2">
-                            <button class="btn btn-outline-warning btn-sm memory-action-btn" id="btn-cleanup-idle" title="Unload idle models">
-                                <i class="fas fa-clock me-1"></i> Clean Idle
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm memory-action-btn" id="btn-aggressive-cleanup" title="Aggressive cleanup">
-                                <i class="fas fa-fire me-1"></i> Aggressive
-                            </button>
-                            <button class="btn btn-outline-info btn-sm memory-action-btn" id="btn-clear-gpu-cache" title="Clear GPU cache only">
-                                <i class="fas fa-microchip me-1"></i> GPU Cache
-                            </button>
-                            <button class="btn btn-outline-secondary btn-sm memory-action-btn" id="btn-force-gc" title="Force garbage collection">
-                                <i class="fas fa-recycle me-1"></i> Force GC
-                            </button>
-                            <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-db" title="pg_dump + copie sur l'espace de sauvegarde distant">
-                                <i class="fas fa-database me-1"></i> Backup DB
-                            </button>
-                            <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-models" title="Sauvegarde incrémentale de AI-models/models/ vers l'espace distant (sens unique : rien n'est supprimé à distance). Automatique chaque nuit à 01:30.">
-                                <i class="fas fa-cloud-upload-alt me-1"></i> Backup Models
-                            </button>
-                            <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-media" title="Sauvegarde incrémentale de media/ vers l'espace distant (sens unique : rien n'est supprimé à distance, ~Archives préservé). Automatique chaque nuit à 02:30.">
-                                <i class="fas fa-photo-film me-1"></i> Backup Médias
-                            </button>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="d-flex flex-wrap gap-2 justify-content-md-end mt-2 mt-md-0">
-                            <button class="btn btn-success btn-sm" id="btn-cleaner-start" title="Start auto cleaner">
-                                <i class="fas fa-play me-1"></i> Start Auto
-                            </button>
-                            <button class="btn btn-secondary btn-sm" id="btn-cleaner-stop" title="Stop auto cleaner">
-                                <i class="fas fa-stop me-1"></i> Stop Auto
-                            </button>
+                        <div class="form-check form-switch m-0" title="Nettoyage automatique des modèles inactifs">
+                            <input class="form-check-input" type="checkbox" role="switch" id="cleaner-auto">
+                            <label class="form-check-label small" for="cleaner-auto">Auto</label>
                         </div>
                     </div>
                 </div>
 
-                <!-- Process Memory -->
-                <div class="row">
-                    <div class="col-md-4">
-                        <small class="text-muted d-block mb-1">Process RSS</small>
-                        <span id="process-rss" class="text-info">-</span>
-                    </div>
-                    <div class="col-md-4">
-                        <small class="text-muted d-block mb-1">Tracked Models</small>
-                        <span id="tracked-total" class="text-warning">-</span>
-                    </div>
-                    <div class="col-md-4">
-                        <small class="text-muted d-block mb-1">Idle Threshold</small>
-                        <span id="idle-threshold" class="text-secondary">-</span> sec
-                    </div>
+                <div class="mm-clean-grid mb-2">
+                    <button class="btn btn-outline-warning btn-sm memory-action-btn" id="btn-cleanup-idle" title="Décharger les modèles inactifs">
+                        <i class="fas fa-clock me-1"></i>Idle
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm memory-action-btn" id="btn-aggressive-cleanup" title="Décharger tous les modèles et vider les caches">
+                        <i class="fas fa-fire me-1"></i>Agressif
+                    </button>
+                    <button class="btn btn-outline-info btn-sm memory-action-btn" id="btn-clear-gpu-cache" title="Vider le cache de la carte graphique">
+                        <i class="fas fa-microchip me-1"></i>GPU
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm memory-action-btn" id="btn-force-gc" title="Forcer le ramasse-miettes">
+                        <i class="fas fa-recycle me-1"></i>GC
+                    </button>
+                </div>
+
+                <small class="text-muted d-block">
+                    <span title="Mémoire du processus web">RSS <span id="process-rss" class="text-info">-</span></span>
+                    · <span title="Modèles suivis">Suivis <span id="tracked-total" class="text-warning">-</span></span>
+                    · <span title="Seuil d'inactivité"><span id="idle-threshold" class="text-secondary">-</span> s</span>
+                </small>
+            </div>
+        </div>
+
+        {% comment %} Sorties du nettoyeur le 2026-11-10 : une sauvegarde n'est pas de la mémoire. {% endcomment %}
+        <div class="col-12">
+            <div class="memory-card d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                <h5 class="mb-0"><i class="fas fa-cloud-upload-alt me-2 text-success"></i>Sauvegardes</h5>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-db" title="pg_dump + copie sur l'espace de sauvegarde distant">Base</button>
+                    <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-models" title="Sauvegarde incrémentale de AI-models/models/ vers l'espace distant (sens unique : rien n'est supprimé à distance). Automatique chaque nuit à 01:30.">Modèles</button>
+                    <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-media" title="Sauvegarde incrémentale de media/ vers l'espace distant (sens unique : rien n'est supprimé à distance, ~Archives préservé). Automatique chaque nuit à 02:30.">Médias</button>
                 </div>
             </div>
         </div>
 
         <div class="col-md-4">
             <div class="memory-card h-100">
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-3 mm-card-head">
                     <h5 class="mb-0">
                         <i class="fas fa-hourglass-half me-2 text-warning"></i>Idle Models
                     </h5>
@@ -558,7 +540,7 @@
         l'exécute (`common/utils/service_supervision.py`). {% endcomment %}
         <div class="col-12">
             <div class="memory-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-3 mm-card-head">
                     <h5 class="mb-0">
                         <i class="fas fa-server me-2 text-info"></i>Services
                     </h5>
@@ -799,6 +781,31 @@
     #mmResourceSlot > .row:last-child > [class*="col-"]:last-child,
     #mmSystemSlot > .row:last-child > [class*="col-"]:last-child { padding-bottom: 0; }
     #mmResourceSlot .card, #mmSystemSlot .card { margin-bottom: 0; }
+
+    /* Volet droit compact (2026-11-10, demande de Fabien : le volet faisait 3 100 px). Portée limitée aux
+       emplacements du volet. Les identifiants lus par le script ne changent pas. */
+    #mmCatalogSlot .memory-card, #mmResourceSlot .memory-card, #mmSystemSlot .memory-card {
+        padding: 8px 10px; border-radius: 8px;
+    }
+    #mmCatalogSlot h5, #mmResourceSlot h5, #mmSystemSlot h5 { font-size: .9rem; }
+    #mmCatalogSlot h5, #mmSystemSlot .mm-card-head { margin-bottom: .4rem !important; }
+    #mmCatalogSlot .stats-badge { font-size: 1.15rem; line-height: 1.2; }
+    #mmResourceSlot > .row > [class*="col-"],
+    #mmSystemSlot > .row > [class*="col-"] { padding-bottom: .4rem; }
+    /* Une ressource = une ligne : son nom, sa barre, et ses valeurs dessous. */
+    #mmResourceSlot .memory-card {
+        display: grid; grid-template-columns: 3.1rem 1fr; column-gap: .4rem; align-items: center;
+    }
+    #mmResourceSlot .memory-card > .d-flex:first-child { margin: 0 !important; grid-row: span 2; }
+    #mmResourceSlot .memory-card > .d-flex:first-child .badge { display: none; }
+    #mmResourceSlot h5 i { display: none; }
+    #mmResourceSlot .memory-bar { height: 14px; margin: 0 !important; }
+    #mmResourceSlot .memory-bar-fill { font-size: .62rem; }
+    #mmResourceSlot .memory-card small { font-size: .68rem; }
+    #mmResourceSlot .memory-card > .mt-2 { grid-column: 1 / -1; margin: 0 !important; }
+    #mmSystemSlot .idle-model-item { padding: 5px 8px; margin-bottom: 4px; font-size: .85rem; }
+    #mmSystemSlot .mm-clean-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+    #mmSystemSlot .memory-action-btn { min-width: 0; padding: 1px 4px; }
 </style>
 
 <!-- Loading Overlay -->
@@ -848,15 +855,10 @@ qu'attendent WamaInspector (inspectorActions) et le JS de la page : ne pas renom
     </p>
 </div>
     {% else %}
-    <p class="text-muted small mb-2">
+    <p class="text-muted small mb-0"
+       title="Sans sélection, ce volet est le poste de maintenance du catalogue : prospection, mémoire et modèles chargés, services, sauvegardes.">
         <i class="fas fa-hand-pointer me-1"></i>Cliquez une carte pour inspecter un modèle.
-        Sans sélection, ce volet est le <strong>poste de maintenance</strong> du catalogue :
     </p>
-    <ul class="small text-muted ps-3 mb-0" style="line-height:1.6">
-        <li><strong class="text-body-emphasis">Prospection</strong> — détecter mises à jour et modèles concurrents, évaluer leur confiance</li>
-        <li><strong class="text-body-emphasis">Mémoire &amp; modèles chargés</strong> — suivi de la VRAM, modèles inactifs, déchargement</li>
-        <li><strong class="text-body-emphasis">Sauvegardes</strong> — miroir des modèles et de la base (panneau principal)</li>
-    </ul>
 </div>
 {# Prospection (proposés par IA) — visible quand aucune card n'est sélectionnée. #}
 <div id="mmProspectBar" class="mt-3 p-2 rounded" style="background:rgba(var(--wama-purple-rgb), 0.12);border:1px solid rgba(var(--wama-purple-rgb), 0.4);">
@@ -2996,22 +2998,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // =========================================================================
 
     function updateCleanerStatus(status) {
-        const indicator = document.getElementById('cleaner-indicator');
-        const statusText = document.getElementById('cleaner-status-text');
-        const btnStart = document.getElementById('btn-cleaner-start');
-        const btnStop = document.getElementById('btn-cleaner-stop');
-
-        if (status.running) {
-            indicator.className = 'status-indicator status-running';
-            statusText.textContent = 'Running';
-            btnStart.disabled = true;
-            btnStop.disabled = false;
-        } else {
-            indicator.className = 'status-indicator status-stopped';
-            statusText.textContent = 'Stopped';
-            btnStart.disabled = false;
-            btnStop.disabled = true;
-        }
+        document.getElementById('cleaner-indicator').className =
+            `status-indicator ${status.running ? 'status-running' : 'status-stopped'}`;
+        document.getElementById('cleaner-auto').checked = Boolean(status.running);
 
         document.getElementById('idle-threshold').textContent = status.idle_threshold || '-';
     }
@@ -3462,34 +3451,24 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Start Auto Cleaner
-    document.getElementById('btn-cleaner-start').addEventListener('click', async function() {
+    // Un interrupteur pour les deux routes ; en cas d'échec il reprend l'état réel du nettoyeur.
+    document.getElementById('cleaner-auto').addEventListener('change', async function() {
+        const url = this.checked ? '{% url "model_manager:api_cleaner_start" %}'
+                                 : '{% url "model_manager:api_cleaner_stop" %}';
         try {
-            const response = await fetch('{% url "model_manager:api_cleaner_start" %}', {
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'X-CSRFToken': csrfToken }
             });
             const data = await response.json();
             if (data.success) {
                 updateCleanerStatus(data.status);
+            } else {
+                loadCleanerStatus();
             }
         } catch (err) {
             alert('Error: ' + err.message);
-        }
-    });
-
-    // Stop Auto Cleaner
-    document.getElementById('btn-cleaner-stop').addEventListener('click', async function() {
-        try {
-            const response = await fetch('{% url "model_manager:api_cleaner_stop" %}', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrfToken }
-            });
-            const data = await response.json();
-            if (data.success) {
-                updateCleanerStatus(data.status);
-            }
-        } catch (err) {
-            alert('Error: ' + err.message);
+            loadCleanerStatus();
         }
     });
 

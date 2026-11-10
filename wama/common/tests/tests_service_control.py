@@ -297,5 +297,43 @@ class ThePageTest(TestCase):
         self.assertIn('disabled', v8.eval("nodes['services-list'].innerHTML"))
         self.assertFalse(v8.eval("nodes['services-watchdog'].hidden"))
 
+    def test_the_compact_panel_keeps_every_element_the_script_reads(self):
+        for element in ('cpu-bar', 'ram-bar', 'ram-used', 'ram-free', 'gpu-bar', 'gpu-used', 'gpu-free',
+                        'disk-bar', 'disk-used', 'disk-free', 'disk-total', 'disk-warning',
+                        'cleaner-indicator', 'cleaner-auto', 'process-rss', 'tracked-total',
+                        'idle-threshold', 'idle-count', 'btn-cleanup-idle', 'btn-aggressive-cleanup',
+                        'btn-clear-gpu-cache', 'btn-force-gc', 'btn-backup-db', 'btn-backup-models',
+                        'btn-backup-media'):
+            self.assertEqual(1, self.html.count(f'id="{element}"'), element)
+
+    def test_the_backups_left_the_memory_card(self):
+        self.assertLess(self.html.index('id="btn-force-gc"'), self.html.index('>Sauvegardes</h5>'))
+        self.assertLess(self.html.index('>Sauvegardes</h5>'), self.html.index('id="btn-backup-db"'))
+
+    def test_the_switch_replaced_the_two_buttons(self):
+        self.assertNotIn('btn-cleaner-start', self.html)
+        self.assertNotIn('btn-cleaner-stop', self.html)
+        handler = self.html[self.html.index("getElementById('cleaner-auto').addEventListener"):]
+        self.assertIn(reverse('model_manager:api_cleaner_start'), handler[:400])
+        self.assertIn(reverse('model_manager:api_cleaner_stop'), handler[:400])
+
+    @skipUnless(HAS_V8, 'V8 (py_mini_racer) absent')
+    def test_the_switch_shows_the_real_state_of_the_cleaner(self):
+        from py_mini_racer import MiniRacer
+        script = self.html[self.html.index('function updateCleanerStatus('):self.html.index('function updateIdleModels(')]
+        v8 = MiniRacer()
+        v8.eval('''
+            var nodes = {};
+            var document = {getElementById: function (id) {
+                return nodes[id] = nodes[id] || {className: '', checked: false, textContent: ''}; }};
+        ''')
+        v8.eval(script)
+        v8.eval("updateCleanerStatus({running: true, idle_threshold: 300})")
+        self.assertTrue(v8.eval("nodes['cleaner-auto'].checked"))
+        self.assertIn('status-running', v8.eval("nodes['cleaner-indicator'].className"))
+        v8.eval("updateCleanerStatus({running: false, idle_threshold: 300})")
+        self.assertFalse(v8.eval("nodes['cleaner-auto'].checked"))
+        self.assertIn('status-stopped', v8.eval("nodes['cleaner-indicator'].className"))
+
     def test_a_simple_account_gets_no_state_reading_from_the_script(self):
         self.assertIn('if (CAN_MANAGE) Object.keys(MEMORY_DETAIL)', self.html)

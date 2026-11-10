@@ -177,6 +177,10 @@ utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription 
 **lui la référence à généraliser**, pas les apps média — elles consomment le socle sans le
 contextualiser. Constat qui corrige une intuition naturelle (« aligner sur les apps »).
 
+*2026-11-10 (demande de Fabien) : son volet sans sélection, mesuré à 3 100 px pour un écran de 1 060,
+est resserré. Une ligne par ressource, un interrupteur « Auto » pour le nettoyeur, les sauvegardes
+sorties de la mémoire, une section « Services » ; règles CSS limitées aux emplacements du volet.*
+
 ---
 
 ## 3. Les quatre états contextuels — `common/static/common/js/wama-inspector.js`
