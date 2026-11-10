@@ -63,6 +63,15 @@ from django.core.management.base import BaseCommand, CommandError
 DEFAULT_ENGINES = ('transcriber:whisper', 'transcriber:qwen3-asr-1.7b', 'transcriber:canary-1b-v2',
                    'transcriber:parakeet-tdt-0.6b-v3')
 
+
+def _schema_choices(name: str) -> tuple:
+    """Les valeurs d'un réglage telles que le schéma du transcriber les déclare : l'option de la
+    commande pose ce réglage sur les cards, elle ne recopie pas sa liste (2026-11-10)."""
+    from wama.transcriber.params import PARAMS_JSON
+    param = next(p for p in PARAMS_JSON if p['name'] == name)
+    return tuple(c.get('value') if isinstance(c, dict) else c[0] if isinstance(c, (list, tuple)) else c
+                 for c in param['choices'])
+
 #: Corpus déclarés : clé → manifeste `dataset` (la source, sa licence, sa langue y vivent).
 CORPORA = {'summ-re': 'manifests/datasets/summ-re.json',
            'fleurs-cs': 'manifests/datasets/fleurs-cs.json',
@@ -285,10 +294,10 @@ class Command(BaseCommand):
                             help="Cards avec le prétraitement audio (débruitage IA DeepFilterNet).")
         parser.add_argument('--level', action='store_true',
                             help="Cards avec le nivellement de la parole (`speech_leveling`).")
-        parser.add_argument('--vad', choices=('auto', 'on', 'off'), default='auto',
+        parser.add_argument('--vad', choices=_schema_choices('vad_mode'), default='auto',
                             help="Filtre de parole des moteurs qui le déclarent (Whisper, "
                                  "Albert) ; sans effet sur les autres.")
-        parser.add_argument('--language-mode', nargs='+', choices=('auto', 'single', 'multi'),
+        parser.add_argument('--language-mode', nargs='+', choices=_schema_choices('language_mode'),
                             default=['auto'],
                             help="Réglage(s) « Langues parlées » des cards posées — plusieurs "
                                  "valeurs posent une configuration par valeur.")

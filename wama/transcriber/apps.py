@@ -162,6 +162,7 @@ class TranscriberConfig(AppConfig):
             # prétraitement, sont deux configurations à comparer (lots #442/#443, 2026-09-25).
             # Le résumé, la cohérence ne touchent pas le texte mesuré ; le PIPELINE de diarisation
             # change le cpWER et le DER (2026-09-30) : deux pipelines = deux configurations.
+            # wama:redondance-ok — les réglages qui changent les MOTS transcrits : une sélection, pas une copie
             config_params=('preprocess_audio', 'level_speech', 'vad_mode', 'language_mode',
                            'hotwords', 'diarization_model'),
             disagreement=_disagreement,

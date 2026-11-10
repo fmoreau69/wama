@@ -472,6 +472,7 @@ def _release_run(transcript_id: int) -> None:
     cache.set(f"transcriber_status_msg_{transcript_id}", '', timeout=3600)
 
 
+# wama:redondance-ok — le modèle tiré pour CE lancement de la card, homonyme de `model_key_of` (la clé d'un propriétaire du gouverneur)
 def _model_key(t) -> str:
     """Clé de catalogue du modèle de CE lancement : celui de la card, ou le tirage « auto » de la
     brique commune — fait UNE fois par lancement (le squelette la demande avant de choisir les

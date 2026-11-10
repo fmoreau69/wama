@@ -42,6 +42,7 @@ def validate_segments(value) -> list:
     return value
 
 
+# wama:redondance-ok — les segments de l'éditeur (la correction, sinon l'ASR), homonyme de `segments_text` qui les écrit en texte
 def _segments(transcript):
     """La correction si elle existe, sinon la sortie ASR — locuteurs sous leur forme canonique."""
     from wama.transcriber.views import _editor_segments
@@ -95,6 +96,7 @@ register_surface(Surface(
     edits='corrected_segments_json', validate=validate_segments,
     value=_segments, autosave=True,
     finish='Terminer la correction', saved=_saved,
+    # wama:redondance-ok — les réglages que la page de correction montre : une sélection, pas une copie
     settings=('title', 'meeting_date', 'speaker_map'),
     # « Écouter » (original, nivellement, débruitage) se retrouve à la prochaine ouverture.
     sources_setting='listened_sources',

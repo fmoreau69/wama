@@ -30560,6 +30560,12 @@ Revérification complète (`/reverif`) des commits `283de6d12`, `89280e43f`, `55
   sur HEAD seul (worktree jetable). Tests : 354 (mécanismes, surfaces, tout le transcriber) + 256 (corpus,
   docs), aucun rouge ; `check_redundancy` 113 → 111. Restent hors de ce périmètre : d'autres trouvailles
   anciennes du gardien dans le transcriber (`_segments`, des noms de réglages recopiés), non examinées.
+- **Puis examinées, même soir** (Fabien : « ne rien casser, pas ne rien toucher ») : les 7 trouvailles du
+  transcriber lues une à une — 1 vraie recopie retirée (les choix de `asr_eval_corpus` lus au schéma, aide
+  identique), 6 déclarations assumées par `wama:redondance-ok` avec leur raison (`SETTINGS_FIELDS` : le
+  dériver changerait le comportement, il exclut `quality_intent` ; `ITEM_ONLY_SETTINGS`, `config_params`,
+  les réglages de la page de correction ; homonymes `_segments`, `_model_key`). `check_redundancy` 111 → 97,
+  0 dans le transcriber ; 375 + 64 tests verts, dont tout `wama.transcriber`.
 
 ## §CLÔTURE 2026-11-10, « ANONYMIZER DOCUMENTS » (suite de la §PASSATION 2026-11-02→10 ci-dessus) — 83c695ec4, c1c58037e, 601ce8ff9, 3686537a9 (locaux) — 🔴 relancer gunicorn + workers + service de confidentialité (`privacy/engine.py`, vues et tâches de l'Anonymizer) — 🔚 session fraîche de Fabien sur l'app documents
 

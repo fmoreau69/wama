@@ -76,6 +76,7 @@ from wama.transcriber.params import PARAMS_JSON as _SCHEMA
 #: Réglages d'un transcript écrits par la modale et le volet (schéma `params.py`) ; `temperature`
 #: et `max_tokens` sont hors schéma depuis leur retrait des réglages, gardés pour un client qui
 #: les posterait encore (JSON déjà typé).
+# wama:redondance-ok — sous-ensemble DÉCIDÉ du schéma : sans le curseur `quality_intent`, sans les réglages d'un seul élément, plus deux réglages hors schéma gardés pour un client ancien
 SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'use_prepared_audio',
                    'vad_mode',
                    'language_mode',
@@ -85,6 +86,7 @@ SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'u
 #: Réglages d'UN élément seulement (le document de sortie : titre, date, noms des intervenants —
 #: page de correction, 2026-10-21) : la route d'un élément les écrit, celle d'un lot jamais.
 #: Un titre vide est une valeur (« pas de titre »), une date vide l'efface (type `date`).
+# wama:redondance-ok — dit lesquels des réglages du schéma n'appartiennent qu'à un élément, jamais au lot
 ITEM_ONLY_SETTINGS = ('title', 'meeting_date', 'speaker_map', 'listened_sources')
 
 def _get_user(request):
