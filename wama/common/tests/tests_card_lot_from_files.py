@@ -125,6 +125,50 @@ class DepositOnAPortTest(SimpleTestCase):
         self.assertEqual(['x.abc'], self._held(ctx, 'score'))
 
 
+class JoinPagesBoxInTheZoneTest(SimpleTestCase):
+    """The « un seul document » box of `WamaImport` (`joinPages`, 2026-11-10), seen in the browser
+    after the restart : set NEXT to the zone, it became one more tile of the flex row and crushed
+    the zone to 79 px. It lives IN the zone now, and its label ticks it without opening the picker."""
+
+    FAKE_DOM = """
+    var window = this; var picked = 0; var handlers = {};
+    function node(tag, id) { return { tagName: tag.toUpperCase(), id: id || '', dataset: {}, children: [],
+      parent: null, files: [], getAttribute: function () { return null; },
+      appendChild: function (c) { c.parent = this; this.children.push(c); return c; },
+      addEventListener: function (t, f) { handlers[this.id + ':' + t] = f; },
+      closest: function (sel) { var tags = sel.split(',').map(function (s) { return s.trim().toUpperCase(); });
+        for (var n = this; n; n = n.parent) { if (tags.indexOf(n.tagName) >= 0) return n; } return null; },
+      click: function () { if (this.id === 'work') picked += 1; } }; }
+    var elements = { zone: node('div', 'zone'), work: node('input', 'work') };
+    function find(n, id) { if (n.id === id) return n;
+      for (var i = 0; i < n.children.length; i++) { var f = find(n.children[i], id); if (f) return f; } return null; }
+    var document = { readyState: 'complete', createElement: function (t) { return node(t); },
+      getElementById: function (id) { return elements[id] || find(elements.zone, id); },
+      addEventListener: function () {}, querySelectorAll: function () { return []; },
+      querySelector: function () { return null; } };
+    """
+
+    def _zone(self):
+        ctx = _mini_racer(self)
+        ctx.eval(self.FAKE_DOM)
+        ctx.eval((SERVED / 'common/js/wama-import.js').read_text(encoding='utf-8'))
+        ctx.eval("WamaImport({csrfToken: 't', dropZoneId: 'zone', fileInputId: 'work', joinPages: true});"
+                 "var box = document.getElementById('zoneJoinPages');")
+        return ctx
+
+    def test_the_box_is_in_the_zone_and_its_label_does_not_open_the_picker(self):
+        ctx = self._zone()
+        self.assertTrue(ctx.eval("box.parent.parent === elements.zone"), 'inside the zone, not a tile')
+        ctx.eval("handlers['zone:click']({target: box.parent.children[1]});")
+        self.assertEqual(0, ctx.eval('picked'), 'the label ticks the box, the picker stays shut')
+
+    def test_a_click_on_the_zone_still_opens_the_picker(self):
+        """Counter-proof : the guard lets the labels through, not the zone."""
+        ctx = self._zone()
+        ctx.eval("handlers['zone:click']({target: elements.zone.appendChild(node('span'))});")
+        self.assertEqual(1, ctx.eval('picked'))
+
+
 class AddToQueueTest(SimpleTestCase):
     """`WamaApp.addToQueue` : N fichiers sur un port, N créations puis UN regroupement."""
 

@@ -1875,7 +1875,8 @@ MECHANISMS = (
               "une image → PDF), un JPEG posé tel quel, l'EXIF appliqué — lue par le fichier "
               "« Fusionné » d'un lot de pages (`export_formats.combine_lot`), le dépôt « un seul "
               "document » du Reader, et `ocr_base.upright_document` (les pages d'un PDF "
-              "redressées et mises d'aplomb comme une photo, avant tout moteur)",
+              "redressées et mises d'aplomb comme une photo, avant tout moteur — le contrat OCR "
+              "l'applique à chaque `run`, jumelles générées comprises)",
               'wama/common/utils/pdf_pages.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               # Le moteur de partition et ses gardes sont l'annexe de `musicxml_score` (un fichier,
@@ -2685,8 +2686,8 @@ MECHANISMS = (
               "MIME ni extension). ⭐ Depuis le 2026-09-28 elle DÉSIGNE aussi "
               "(`handleDesignations` : médiathèque, arbre — `<champ>__designated`, pointé par le "
               "serveur) et se retrouve par l'id de sa zone ou de son input (`forElement`). Depuis "
-              "le 2026-11-10 l'app peut déclarer `joinPages` : une case « un seul document » à "
-              "côté de la zone, `join_pages=1` posté — un choix du DÉPÔT (le Reader réunit alors "
+              "le 2026-11-10 l'app peut déclarer `joinPages` : une case « un seul document » dans "
+              "la zone, `join_pages=1` posté — un choix du DÉPÔT (le Reader réunit alors "
               "les images en UN PDF, une card), jamais un réglage d'élément",
               'wama/common/static/common/js/wama-import.js', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/templates/common/_app_scripts.html',),

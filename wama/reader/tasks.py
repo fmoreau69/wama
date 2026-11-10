@@ -268,15 +268,14 @@ def _read(item, ctx):
         # `if/elif` par moteur vivait ici : un OCR installé demain — Ollama, un fournisseur — n'aurait
         # pas eu sa branche.
         from wama.common.backends.manager import backend_instance_for_key, run_contract
-        from wama.common.utils.work_dir import work_dir
-        # Le classifieur (pages d'un PDF chez GLM-OCR comprises) : demandé à la route d'abord.
+        # Le classifieur qui redresse le document : demandé à la route d'abord. Le redressement
+        # lui-même est celui du CONTRAT OCR, avant le moteur (`ocr_base._reads_upright`, depuis le
+        # 2026-11-10 : la glu le faisait, une jumelle générée n'en avait pas).
         _request_page_orientation(ctx)
         engine = backend_instance_for_key(backend, user=item.user)
-        with work_dir('reader_upright') as travail:
-            work_file = _upright_work_file(item, str(travail))
-            raw_text = run_contract(engine, work_file=work_file, mode=item.mode,
-                                    language=item.language, progress_callback=ctx.progress,
-                                    on_partial=_partial)
+        raw_text = run_contract(engine, work_file=item.input_file.path, mode=item.mode,
+                                language=item.language, progress_callback=ctx.progress,
+                                on_partial=_partial)
 
         result_text = _extract_natural_text(raw_text)
         # Une lecture coupée au premier passage (boucle du moteur) se DIT sur la card : la coupe
@@ -335,11 +334,11 @@ SCORE_PAGE_DPI = 300
 
 
 def _upright_work_file(item, folder: str, *, level: bool = False, dpi: int = None) -> str:
-    """Le fichier que lit le moteur. Une IMAGE est redressée avant tout moteur (EXIF, puis
-    classifieur d'orientation de docTR) — card #1335 : une note photographiée de côté, illisible
-    couchée —, et un PDF page par page depuis le 2026-11-10 (il partait tel quel : seul GLM-OCR en
-    redressait les pages) ; `level` : mise d'aplomb aussi (une partition). L'original reste
-    intact ; la copie droite vit dans `folder`, le temps de la lecture (`ocr_base.upright_document`)."""
+    """Le fichier que lit le moteur de PARTITION : la page redressée (EXIF, puis classifieur
+    d'orientation de docTR), un PDF page par page, et — `level` — mise d'aplomb et découpée sur sa
+    feuille. L'original reste intact ; la copie droite vit dans `folder`, le temps de la lecture
+    (`ocr_base.upright_document`). La lecture du TEXTE n'en a plus besoin depuis le 2026-11-10 :
+    le contrat OCR redresse avant tout moteur."""
     from wama.common.backends.ocr_base import PDF_UPRIGHT_DPI, upright_document
     return upright_document(item.input_file.path, folder, level=level, dpi=dpi or PDF_UPRIGHT_DPI)
 

@@ -20,7 +20,14 @@ le nom de tous les autres contrats et des routes par nature.
 
 Ce que le contrat NE fait pas : choisir le modèle. La clé de catalogue choisie arrive par
 `catalogue_key` (contrat commun) ; un moteur qui sert plusieurs modèles la lit.
+
+Ce que le contrat FAIT avant tout moteur (2026-11-10) : le document lui arrive REDRESSÉ
+(`upright_document`) — `__init_subclass__` enveloppe le `run` de chaque moteur, présent et à
+venir, comme `BaseModelBackend` enveloppe `load`/`process`. Le redressement vivait dans la glu du
+Reader : une jumelle générée, qui appelle le moteur par `run_contract` sans cette glu, lisait ses
+photos couchées.
 """
+import functools
 import logging
 import re
 import zlib
@@ -178,7 +185,10 @@ def upright_document(path: str, dest_dir: str, *, level: bool = False,
     POURQUOI (2026-11-10, question de Fabien : « on ne gère la remise d'aplomb que des
     images ? ») : la règle est « un seul redressement sert tous les moteurs » (`upright_image`),
     mais un PDF partait tel quel — GLM-OCR seul en redressait les pages, olmOCR, docTR et la
-    lecture de partition non ; et la mise d'aplomb ne voyait que les images."""
+    lecture de partition non ; et la mise d'aplomb ne voyait que les images.
+
+    Appelé par le contrat OCR avant tout `run` (`_reads_upright`), et par la lecture de partition
+    du Reader avec `level` (son moteur n'est pas un OCR)."""
     from wama.common.utils.pdf_pages import pages_to_pdf, pdf_page_images
     source = Path(path)
     if source.suffix.lower() != '.pdf':
@@ -275,13 +285,35 @@ def page_scale(page: dict, width: float, height: float) -> tuple:
     return (width / float(page.get('width') or width), height / float(page.get('height') or height))
 
 
+def _reads_upright(run):
+    """Le `run` d'un moteur, qui reçoit son document REDRESSÉ (`upright_document`) : une copie dans
+    un dossier de travail tenu le temps de la lecture, l'original intact. La SIGNATURE reste celle
+    du moteur (`functools.wraps`) : `run_contract` y lit les valeurs qu'il accepte."""
+    @functools.wraps(run)
+    def wrapper(self, work_file, *args, **kwargs):
+        from wama.common.utils.work_dir import work_dir
+        with work_dir('ocr_upright') as folder:
+            return run(self, upright_document(work_file, str(folder)), *args, **kwargs)
+    return wrapper
+
+
 class OCRBackend(BaseModelBackend):
-    """Un moteur d'OCR : un document (PDF ou image) → son texte."""
+    """Un moteur d'OCR : un document (PDF ou image) → son texte, lu DROIT."""
 
     #: Pages (à partir de 1) dont la lecture tournait en boucle et a été COUPÉE au premier passage
     #: lors du DERNIER `run` — remis à vide au début de chaque `run` d'un moteur qui coupe, lu par l'appelant après lui
     #: (`loop_cut_notice`). Un moteur qui ne coupe jamais n'a rien à faire.
     cut_pages: tuple = ()
+
+    def __init_subclass__(cls, **kwargs):
+        """Chaque moteur lit son document redressé (`_reads_upright`) — la rotation est une
+        propriété de la PHOTO, pas du moteur. Seul le `run` que la classe DÉFINIT est enveloppé
+        (le garde de `BaseModelBackend` : une sous-classe ne redresse pas deux fois).
+        ⚠ `read_lines` ne l'est PAS : ses boîtes se rapportent à la page que l'appelant lui donne
+        (il les reporte sur SON document — caviardage, partition lue dans ses deux sens)."""
+        super().__init_subclass__(**kwargs)
+        if 'run' in cls.__dict__:
+            cls.run = _reads_upright(cls.__dict__['run'])
 
     @abstractmethod
     def run(

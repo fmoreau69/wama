@@ -29958,9 +29958,21 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
 - Tests : +22 (dépôt, combiné, PDF de pages, pages_to_pdf, upright_document, sonde, glu, carte
   mère) ; contre-épreuves 12 + 15, deux gardes d'abord aveugles complétées (lot d'un élément ;
   ancrage du PDF dans la table du converter).
-- 🔚 Restes : la case « un seul document » non jouée au navigateur (V8 seul) ; les jumelles
-  générées ne redressent pas leurs IMAGES (seul GLM-OCR redresse, et seulement les pages de PDF) ;
-  la lecture d'une page de PDF dans ses deux sens (demi-tour) reste aux images ; un lot de TEXTES
+- ✅ **Soldé le jour même, après relance** (question de Fabien : « les apps générées, les
+  régénérer ou porter ? ») — PORTER : le générateur (`tasks_gen`, corps B1 « saveur MODÈLE »)
+  écrit `run_contract(engine, work_file=item.input_file.path)`, une régénération rendait le même
+  corps. Le redressement est passé de la glu du Reader au CONTRAT OCR : `OCRBackend.__init_subclass__`
+  enveloppe le `run` de chaque moteur (`ocr_base._reads_upright`, le geste de `BaseModelBackend` pour
+  `load`/`process`) — Reader, jumelles et moteurs à venir, une passe par page ; celle de GLM-OCR, qui
+  doublait le classifieur sous le Reader, retirée ; `read_lines` non enveloppé (ses boîtes se
+  reportent sur la page reçue). La partition garde sa glu (`level`, lecture dans les deux sens). Et
+  la case « un seul document », jouée au navigateur : posée À CÔTÉ de la zone, elle était une tuile
+  de plus de la rangée flex et l'écrasait (79 px) — elle vit DANS la zone, son libellé passe la
+  garde du clic (`a, input, label`). Tests : 3 + 2 (V8), contre-épreuves 4 + 2 rouges.
+  ⏳ Reste de cette passe : une jumelle ne DEMANDE pas le classifieur à la route (la glu du Reader
+  le fait, `_request_page_orientation`) — installé, il sert ; absent, l'EXIF seul s'applique ; et
+  `reader_01` (générée le 06/11) précède `read_score` (08/11) : sa régénération est à décider.
+- 🔚 Restes : la lecture d'une page de PDF dans ses deux sens (demi-tour) reste aux images ; un lot de TEXTES
   ne se combine pas encore ; le bouton « Fusionné » d'un lot de pages n'apparaît qu'au rendu suivant
   la fin du lot (les pages se lisent sur les fichiers) ; le verdict du critère `recursive_import`
   pour les cards en mode attache, à remesurer.

@@ -460,18 +460,22 @@
     /**
      * « UN SEUL DOCUMENT » (2026-11-10, décision de Fabien : « proposer à l'ajout de plusieurs
      * images […] de les fusionner en 1 seul fichier pdf ») — un choix du DÉPÔT, pas un réglage
-     * d'élément : l'app le DÉCLARE (`joinPages: true`, ou le libellé), la brique pose la case à
-     * côté de la zone (une SŒUR : dans la zone, son clic ouvrirait le sélecteur) et poste
-     * `join_pages=1` avec les fichiers. Le serveur réunit les images en UN PDF, une seule card
-     * (`reader/views._joined_pages`, brique `pdf_pages.pages_to_pdf`).
+     * d'élément : l'app le DÉCLARE (`joinPages: true`, ou le libellé), la brique pose la case
+     * DANS la zone, sous son texte, et poste `join_pages=1` avec les fichiers. Le serveur réunit
+     * les images en UN PDF, une seule card (`reader/views._joined_pages`, brique
+     * `pdf_pages.pages_to_pdf`). Dans la zone et non à côté (vu au navigateur le 2026-11-10) : la
+     * zone est une TUILE d'une rangée flex, une sœur devenait une tuile de plus et l'écrasait. Son
+     * clic n'ouvre pas le sélecteur : la garde du clic laisse passer les libellés.
      */
-    var JOIN_PAGES_LABEL = 'Images déposées ensemble : un seul document (PDF)';
+    var JOIN_PAGES_LABEL = 'Un seul document (PDF)';
+    var JOIN_PAGES_TITLE = 'Les images déposées ensemble deviennent un seul document PDF, une seule card';
     function joinPagesBox() { return cfg.dropZoneId ? el(cfg.dropZoneId + 'JoinPages') : null; }
     function joinPagesWanted() { var box = joinPagesBox(); return !!(box && box.checked); }
     function placeJoinPagesBox(dz) {
       if (!cfg.joinPages || !dz || joinPagesBox()) return;
       var wrap = document.createElement('div');
-      wrap.className = 'form-check small mt-1';
+      wrap.className = 'form-check small mb-0';
+      wrap.title = JOIN_PAGES_TITLE;
       var box = document.createElement('input');
       box.type = 'checkbox';
       box.className = 'form-check-input';
@@ -482,7 +486,7 @@
       label.textContent = (typeof cfg.joinPages === 'string') ? cfg.joinPages : JOIN_PAGES_LABEL;
       wrap.appendChild(box);
       wrap.appendChild(label);
-      dz.insertAdjacentElement('afterend', wrap);
+      dz.appendChild(wrap);
     }
 
     function brancher() {
@@ -513,8 +517,10 @@
           // ÉMET.* Le geste nocturne ne pouvait pas le voir : il vérifie que l'`onclick`
           // cite l'input, puis pilote l'input DIRECTEMENT (`set_input_files`) — il
           // n'emprunte jamais le chemin humain.
+          // Les LIBELLÉS (2026-11-10) : celui de la case « un seul document » (`joinPages`), posée
+          // dans la zone — son clic coche la case, il n'ouvre pas le sélecteur.
           if (fi) dz.addEventListener('click', function (e) {
-            if (e.target && e.target.closest && e.target.closest('a, input')) return;
+            if (e.target && e.target.closest && e.target.closest('a, input, label')) return;
             fi.click();
           });
           // DEUX classes de survol, à dessein (2026-09-07, 1ʳᵉ adoption par une app EN

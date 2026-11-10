@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 def _image_to_b64(image_path: str) -> str:
     """Read an image file and return its base64-encoded content.
 
-    ⚠ Le décodeur d'Ollama ignore l'EXIF : l'image doit arriver DÉJÀ droite — c'est le rôle de
-    `ocr_base.upright_image`, appelé par le reader (image en entrée) et par `run` (pages de PDF)."""
+    ⚠ Le décodeur d'Ollama ignore l'EXIF : l'image doit arriver DÉJÀ droite — c'est le rôle du
+    contrat OCR, qui redresse le document avant tout `run` (`ocr_base._reads_upright`)."""
     with open(image_path, 'rb') as fh:
         return base64.b64encode(fh.read()).decode('utf-8')
 
@@ -178,13 +178,12 @@ class GlmOcrBackend(OCRBackend):
             if ext == '.pdf':
                 if progress_callback:
                     progress_callback(10, "Conversion PDF → images…")
+                # Les pages arrivent déjà droites : le contrat OCR redresse le document avant
+                # `run` (`ocr_base._reads_upright`) ; jusqu'au 2026-11-10 ce moteur redressait
+                # lui-même les pages d'un PDF — une seconde passe du classifieur sous le Reader.
                 tmp_images = pdf_page_images(work_file, str(travail), dpi=200)
                 if not tmp_images:
                     raise RuntimeError("Impossible de convertir le PDF en images")
-                # Un PDF de photos ou de scans peut porter des pages couchées : chacune est
-                # redressée (le reader ne redresse que les images qu'il reçoit telles quelles).
-                from wama.common.backends.ocr_base import upright_image
-                tmp_images = [upright_image(page, str(travail)) for page in tmp_images]
             else:
                 # Single image file — use directly
                 tmp_images = [work_file]

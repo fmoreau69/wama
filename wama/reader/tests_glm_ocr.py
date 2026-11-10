@@ -12,7 +12,10 @@ rien à parcourir.
 import tempfile
 from pathlib import Path
 
-from django.test import SimpleTestCase
+from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase, TestCase
+
+from wama.reader.models import ReadingItem
 
 
 def _dossiers_glmocr() -> set:
@@ -303,3 +306,67 @@ class UprightDocumentTests(SimpleTestCase):
             gray = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width)
             self.assertNotEqual(source, result)
             self.assertAlmostEqual(0, page_angle(gray), delta=0.5)
+
+
+class TheOcrContractReadsUprightTests(TestCase):
+    """2026-11-10, Fabien (« les apps générées : régénérer ou porter ? ») — the uprighting lived in
+    the Reader's glue : a generated twin calls the engine through `run_contract`, without that
+    glue, and read its photos lying down. It is the OCR CONTRACT's now (`ocr_base._reads_upright`),
+    once per page whoever calls."""
+
+    def _counting(self):
+        from unittest import mock
+        calls = []
+        return calls, mock.patch('wama.common.backends.ocr_base.upright_image',
+                                 side_effect=lambda path, folder: calls.append(path) or path)
+
+    def test_the_common_door_hands_any_engine_its_document_upright(self):
+        from unittest import mock
+
+        from wama.common.backends.manager import run_contract
+        from wama.reader.tests_model_keys import _FakeOCR
+
+        class Recorder(_FakeOCR):
+            def run(self, work_file, mode='auto', language='', progress_callback=None,
+                    on_partial=None):
+                self.seen = (work_file, mode)
+                return 'text'
+        engine = Recorder()
+        with mock.patch('wama.common.backends.ocr_base.upright_document',
+                        side_effect=lambda path, folder: f'{path}.upright'):
+            self.assertEqual('text', run_contract(engine, work_file='/scan.png', mode='printed',
+                                                  not_an_argument='x'))
+        self.assertEqual(('/scan.png.upright', 'printed'), engine.seen,
+                         'upright, and the settings still chosen on the signature of the engine')
+
+    def test_glm_ocr_uprights_each_page_of_a_pdf_once(self):
+        import tempfile
+        from unittest import mock
+
+        from PIL import Image
+        from wama.common.backends import glm_ocr_backend
+        engine = glm_ocr_backend.GlmOcrBackend()
+        engine.catalogue_key = 'ollama:glm-ocr:latest'
+        calls, counting = self._counting()
+        with tempfile.TemporaryDirectory() as tmp:
+            source = UprightDocumentTests()._pdf(Path(tmp), [Image.new('RGB', (200, 300), 'white')] * 2)
+            with counting, mock.patch.object(glm_ocr_backend, '_ocr_image', return_value='page'):
+                engine.run(source)
+        self.assertEqual(2, len(calls), 'the contract uprights the pages, the engine no more')
+
+    def test_the_reader_text_reading_uprights_its_image_once(self):
+        from wama.reader import tasks
+        from wama.reader.tests_model_keys import _Ctx, _FakeOCR
+        from unittest import mock
+        user = get_user_model().objects.create_user('reader_upright_once', password='x')
+        item = ReadingItem.objects.create(user=user, backend='reader:doctr',
+                                          input_file='reader/x/input/scan.png')
+        calls, counting = self._counting()
+        with counting, mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                                  return_value=_FakeOCR()), \
+                mock.patch.object(tasks, '_format_as_markdown', side_effect=lambda t, l: t), \
+                mock.patch('wama.common.utils.preview_utils.publish_partial_text'), \
+                mock.patch('wama.common.utils.preview_utils.clear_partial'):
+            tasks._read(item, _Ctx())
+        self.assertEqual([item.input_file.path], calls,
+                         'the glue hands the engine its file ; the contract uprights it')
