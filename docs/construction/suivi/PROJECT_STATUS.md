@@ -30546,6 +30546,11 @@ Revérification complète (`/reverif`) des commits `283de6d12`, `89280e43f`, `55
   vert sur le service (15/15 à 1440 et 1920 px, 2/2 lot inachevé). Leçons au rituel : `/smoke §4` (un menu
   ne se masque qu'ouvert vers le bas ; un état forcé dans le DOM d'une file est écrasé par son suivi) et
   `/reverif §2` (nom de test vérifié par la langue avant le commit — `refuses` puis `declares` le même jour).
+- **Dernière question de Fabien (« tous les tests nécessaires ? »)** : une branche n'était gardée par rien —
+  l'origine d'un état non gardé quand l'élément n'a AUCUN pipeline (mutée, 28 tests restaient verts ; en réel,
+  l'original n'aurait plus été gardé avant sa première correction). Gardée : `KeptPathTest`, trois cas,
+  contre-épreuve rouge. La vision ne porte aucune ligne sur la réunion d'un lot (rien à marquer) ; `ROADMAP §7`
+  « Concaténation » est à jour.
 
 ## §CLÔTURE 2026-11-10, « ANONYMIZER DOCUMENTS » (suite de la §PASSATION 2026-11-02→10 ci-dessus) — 83c695ec4, c1c58037e, 601ce8ff9, 3686537a9 (locaux) — 🔴 relancer gunicorn + workers + service de confidentialité (`privacy/engine.py`, vues et tâches de l'Anonymizer) — 🔚 session fraîche de Fabien sur l'app documents
 

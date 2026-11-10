@@ -40,6 +40,23 @@ class KeptPathTest(SimpleTestCase):
                          kept_path('users/1/writer/drafts/7_draft.md', 3))
         self.assertEqual('users/1/x/revisions/sans_extension.r1', kept_path('users/1/x/sans_extension', 1))
 
+    def test_a_state_kept_before_its_first_correction_says_where_it_comes_from(self):
+        """2026-11-10 : a field no process of the item writes was SUPPLIED ; an output, or an item
+        with no pipeline at all, was produced. Without a pipeline the rule must not fail : the
+        first correction would then lose the original, `ensure_kept` swallowing the error."""
+        from types import SimpleNamespace
+        from unittest import mock
+        from wama.common.models import ItemRevision
+        from wama.common.services import process_pipeline, revisions
+        pipeline = SimpleNamespace(specs=[SimpleNamespace(outputs=('score_file',))])
+        cases = ((pipeline, 'score_file', ItemRevision.ORIGIN_PROCESS),
+                 (pipeline, 'reference_score', ItemRevision.ORIGIN_SUPPLIED),
+                 (None, 'reference_score', ItemRevision.ORIGIN_PROCESS))
+        for found, field, origin in cases:
+            with self.subTest(pipeline=found is not None, field=field), \
+                    mock.patch.object(process_pipeline, 'pipeline_of', return_value=found):
+                self.assertEqual(origin, revisions._unkept_state_origin(object(), field))
+
 
 class KeptRevisionOutputsTest(TestCase):
 
