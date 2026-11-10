@@ -552,6 +552,25 @@
                 </div>
             </div>
         </div>
+
+        {% if services_api %}
+        {% comment %} Les services uvicorn (2026-11-10) : la page dépose un ordre, la surveillance
+        l'exécute (`common/utils/service_supervision.py`). {% endcomment %}
+        <div class="col-12">
+            <div class="memory-card">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">
+                        <i class="fas fa-server me-2 text-info"></i>Services
+                    </h5>
+                    <span class="badge bg-info text-dark" id="services-count">-</span>
+                </div>
+                <p class="small text-warning mb-2" id="services-watchdog" hidden></p>
+                <div id="services-list">
+                    <p class="text-muted small mb-0">Lecture…</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- Filter Bar -->
@@ -3059,6 +3078,76 @@ document.addEventListener('DOMContentLoaded', function() {
             apply: (data) => { document.getElementById('tracked-total').textContent = WamaApp.formatSize(data.total_tracked_mb, 'MB'); },
         },
     };
+    // Les services uvicorn : le relevé rejoint la boucle commune, le bouton dépose un ordre que la
+    // surveillance exécute à son prochain passage (d'où les états « demandé »).
+    const SERVICES_API = '{{ services_api|default:"" }}';
+    const SERVICES_CONTROL_API = '{{ services_control_api|default:"" }}';
+    const SERVICE_TONES = {
+        success: 'bg-success', warning: 'bg-warning text-dark', info: 'bg-info text-dark',
+        secondary: 'bg-secondary', danger: 'bg-danger',
+    };
+    const SERVICE_BUTTONS = {
+        start: ['fa-play', 'btn-outline-success', 'Lancer'],
+        stop: ['fa-stop', 'btn-outline-danger', 'Arrêter'],
+        restart: ['fa-rotate', 'btn-outline-secondary', 'Relancer'],
+    };
+    let knownServices = {};
+
+    function updateServices(data) {
+        const notice = document.getElementById('services-watchdog');
+        notice.hidden = !data.watchdog_message;
+        notice.textContent = data.watchdog_message || '';
+        const running = data.services.filter((s) => ['ok', 'loading', 'busy'].includes(s.state)).length;
+        document.getElementById('services-count').textContent = `${running}/${data.services.length}`;
+        knownServices = Object.fromEntries(data.services.map((s) => [s.key, s]));
+        const canOrder = data.watchdog === 'running';
+        document.getElementById('services-list').innerHTML = data.services.map((s) => `
+            <div class="idle-model-item d-flex justify-content-between align-items-center gap-2"
+                 title="${WamaApp.escapeHtml(s.usage)}">
+                <div>
+                    <span class="text-body-emphasis">${WamaApp.escapeHtml(s.label)}</span>
+                    <br><span class="badge ${SERVICE_TONES[s.tone]}">${WamaApp.escapeHtml(s.state_label)}</span>
+                    <small class="text-muted">:${s.port}</small>
+                    ${s.at_start ? '<i class="fas fa-power-off small text-muted ms-1" title="Démarre avec WAMA"></i>' : ''}
+                </div>
+                <div class="d-flex gap-1 flex-shrink-0">
+                    ${s.actions.map((action) => `
+                        <button type="button" class="btn btn-sm ${SERVICE_BUTTONS[action][1]}"
+                                data-service="${s.key}" data-action="${action}"
+                                title="${SERVICE_BUTTONS[action][2]}" ${canOrder ? '' : 'disabled'}>
+                            <i class="fas ${SERVICE_BUTTONS[action][0]}"></i>
+                        </button>`).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function controlService(key, action) {
+        const service = knownServices[key];
+        if (action !== 'start'
+                && !confirm(`${SERVICE_BUTTONS[action][2]} « ${service.label} » ?\n${service.when_off}`)) return;
+        try {
+            const response = await fetch(SERVICES_CONTROL_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ service: key, action }),
+            });
+            const data = await response.json();
+            showToastOrAlert(data.success ? data.message : data.error);
+        } catch (err) {
+            showToastOrAlert('Error: ' + err.message);
+        }
+        memoryDetailPoller.poke('services');
+    }
+
+    if (SERVICES_API) {
+        MEMORY_DETAIL.services = { url: SERVICES_API, apply: updateServices };
+        document.getElementById('services-list').addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-service]');
+            if (button) controlService(button.dataset.service, button.dataset.action);
+        });
+    }
+
     const memoryDetailPoller = new WamaApp.Poller({
         urlTemplate: (key) => MEMORY_DETAIL[key].url,
         interval: 15000,

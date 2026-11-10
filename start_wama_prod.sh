@@ -15,6 +15,14 @@ done
 [ $FAST -eq 1 ] && echo "=== Mode FAST activé (skip collectstatic, aucun préchargement TTS) ===" || true
 
 # ------------------------------------------------------
+# SERVICES LANCÉS AU DÉMARRAGE — la liste à ajuster
+# ------------------------------------------------------
+# Ceux-ci démarrent avec WAMA et la surveillance les relance s'ils tombent. Les autres services
+# (`WAMA_SERVICES`, scripts/wama_services.sh) démarrent à la demande : au premier appelant, ou depuis
+# le volet droit du model manager. Exporté : gunicorn et la surveillance en héritent.
+export WAMA_SERVICES_AT_START="tts_service vector_service privacy_service"
+
+# ------------------------------------------------------
 # STOP DES PROCESS EXISTANTS
 # ------------------------------------------------------
 echo "=== Stopping old processes if any ==="
@@ -66,8 +74,8 @@ LOG_DIR=$PROJECT_DIR/logs
 # Environnement d'exécution et lancement des workers : UNE définition, partagée avec la
 # surveillance des workers (scripts/wama_services.sh — OLLAMA_HOST, TZ, sauvegarde distante).
 wama_runtime_env
-# Les demandes d'un service à relancer datent du run précédent, dont les services viennent d'être arrêtés.
-rm -f "$LOG_DIR"/service_wanted.* "$LOG_DIR"/service_stopped.*
+# Les demandes et les ordres sur un service datent du run précédent, dont les services viennent d'être arrêtés.
+rm -f "$LOG_DIR"/service_wanted.* "$LOG_DIR"/service_stopped.* "$LOG_DIR"/service_held.* "$LOG_DIR"/service_launch.*
 
 # ------------------------------------------------------
 # SUDO : `-n` en non-interactif, interactif quand il y a un TERMINAL
@@ -311,7 +319,9 @@ else
     export TTS_PRELOAD=kokoro-onnx
 fi
 export HIGGS_DISABLE_CUDA_GRAPHS=1
-if ! wama_service_alive tts_service; then
+if ! wama_service_at_start tts_service; then
+    echo "TTS Service : à la demande (hors de WAMA_SERVICES_AT_START)"
+elif ! wama_service_alive tts_service; then
     echo "=== Starting TTS Service (port 8001) ==="
     [ $FAST -eq 1 ] && echo "  (--fast : aucun préchargement TTS, les modèles se chargeront à la demande)"
     start_wama_service tts_service
@@ -345,52 +355,21 @@ else
 fi
 
 # ------------------------------------------------------
-# SERVICE DE VECTORISATION (FastAPI) — WAMA_MEMORY.md §7sexies
+# LES AUTRES SERVICES DE LA LISTE (FastAPI, boucle locale seule)
 # ------------------------------------------------------
-# Les embeddings (RAG, recherche des médias par contenu) hors des process web et workers.
-# Rien à précharger : les modèles vivent dans Ollama, qui les charge à l'appel ; /health
-# répond aussitôt. Boucle locale SEULE (127.0.0.1) : le service n'a pas d'authentification.
-# Éteint, rien ne casse — le client exécute le même moteur dans son propre process.
-if ! wama_service_alive vector_service; then
-    echo "=== Starting Vector Service (port 8002) ==="
-    start_wama_service vector_service
-    echo "Vector Service started"
-else
-    echo "Vector Service is already running."
-fi
-
-# ------------------------------------------------------
-# SERVICE DE CONFIDENTIALITÉ (FastAPI) — ROADMAP §16.4bis
-# ------------------------------------------------------
-# Détection des données personnelles d'un texte (union de détecteurs orchestrée par Presidio) :
-# les modèles restent chargés dans CE process au lieu de l'être dans chaque gunicorn. Le premier
-# appel paie le chargement ; rien n'est préchargé au démarrage. Boucle locale SEULE (aucune
-# authentification, il voit des textes personnels). Éteint, rien ne casse — le client exécute le
-# même moteur dans son propre process.
-if ! wama_service_alive privacy_service; then
-    echo "=== Starting Privacy Service (port 8003) ==="
-    start_wama_service privacy_service
-    echo "Privacy Service started"
-else
-    echo "Privacy Service is already running."
-fi
-
-# ------------------------------------------------------
-# SERVICE TENSORFLOW (FastAPI) — WAMA_MANIFEST_SPEC §7.1
-# ------------------------------------------------------
-# Les modèles TensorFlow (DeepFace, FER) sur la carte, seuls dans leur processus. Il préchauffe
-# l'expression, s'arrête quand le gouverneur demande la carte, et la surveillance le relance à la
-# demande. Éteint, rien ne casse — le client exécute le même moteur chez lui, sur le processeur.
-# --fast : rien sur le GPU, il viendra au premier appelant.
-if [ $FAST -eq 1 ]; then
-    echo "TensorFlow Service : à la demande (--fast)"
-elif ! wama_service_alive tensorflow_service; then
-    echo "=== Starting TensorFlow Service (port 8004) ==="
-    start_wama_service tensorflow_service
-    echo "TensorFlow Service started"
-else
-    echo "TensorFlow Service is already running."
-fi
+# Vectorisation (WAMA_MEMORY.md §7sexies) : rien à précharger, les modèles vivent dans Ollama.
+# Confidentialité (ROADMAP §16.4bis) : le premier appel paie le chargement des détecteurs.
+# TensorFlow (WAMA_MANIFEST_SPEC §7.1) : hors de la liste depuis le 2026-11-10, à la demande.
+# Éteints, rien ne casse : le client exécute le même moteur dans son propre processus.
+for s in $WAMA_SERVICES_AT_START; do
+    [ "$s" = tts_service ] && continue       # plus haut : il a son attente de préchargement
+    if ! wama_service_alive "$s"; then
+        echo "=== Starting $s ==="
+        start_wama_service "$s"
+    else
+        echo "$s is already running."
+    fi
+done
 
 # ------------------------------------------------------
 # REMONTAGE DES PARTAGES CIFS WAMA (partages réseau invités uniquement)

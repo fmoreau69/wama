@@ -29,6 +29,8 @@ urlpatterns = [
     path('api/memory/detailed/', views.api_memory_detailed, name='api_memory_detailed'),
     path('api/memory/tracked/', views.api_tracked_models, name='api_tracked_models'),
     path('api/memory/idle/', views.api_idle_models, name='api_idle_models'),
+    path('api/services/', views.api_services, name='api_services'),
+    path('api/services/control/', views.api_service_control, name='api_service_control'),
     # Accord EXPLICITE de l'utilisateur pour libérer toute la carte au profit d'UN item en
     # attente de ressources (B1, 2026-09-20) — le gouverneur ne décharge jamais d'office.
     path('api/vram/grant/', views.api_vram_grant, name='api_vram_grant'),

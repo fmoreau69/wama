@@ -569,13 +569,28 @@ MECHANISMS = (
               annexes=('wama/common/tensorflow_service/runtime.py',
                        'wama/common/tensorflow_service/engine.py',
                        'wama/common/tensorflow_service/service_client.py',
-                       'wama/common/utils/service_supervision.py',
                        'wama/common/backends/face_analysis_base.py',
                        'wama/common/backends/tensorflow_base.py',
                        'wama/common/backends/deepface_backend.py',
                        'wama/common/backends/fer_backend.py',
                        'wama/common/tests/tests_tensorflow_service.py'),
-              depends_on=('resource_governor', 'backend_contract', 'external_sources')),
+              depends_on=('resource_governor', 'backend_contract', 'external_sources',
+                          'service_supervision')),
+    Mechanism('service_supervision', 'Services uvicorn — voir, lancer, arrêter',
+              "Le volet droit du model manager et l'outil `control_service` montrent l'état des services "
+              "(leur `/health`, leurs drapeaux) et déposent un ORDRE dans `logs/` ; le serveur web ne "
+              "touche à aucun processus. La surveillance (`supervise_one`) l'exécute avec les fonctions "
+              "et l'environnement du démarrage, hors budget et sans rapport. Arrêté à la main, un "
+              "service le reste jusqu'à un « Lancer » ou au prochain démarrage de WAMA. La section "
+              "`WAMA_SERVICES_AT_START` des scripts `start_wama` décide (décision de Fabien, "
+              "2026-11-10) : dans la liste, il démarre avec WAMA et il est relancé s'il tombe ; hors de "
+              "la liste, il démarre au premier appelant qui le trouve éteint. Sans surveillance vivante "
+              "(signe de vie dans `logs/`), aucun ordre n'est accepté",
+              'wama/common/utils/service_supervision.py',
+              'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
+              annexes=('scripts/wama_services.sh', 'scripts/worker_watchdog.sh',
+                       'wama/common/tests/tests_service_control.py'),
+              depends_on=('external_sources',)),
     Mechanism('document_text', 'Couche TEXTE d\'un document — lire, réécrire sur place',
               "Lire les passages d'un document (segments : page d'un PDF natif, paragraphe `w:p` "
               "d'un DOCX — corps, tableaux, zones de texte, en-têtes, pieds, commentaires, notes —, "

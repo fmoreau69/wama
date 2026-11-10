@@ -843,6 +843,7 @@ Fabien du 2026-11-08 :*
   HORS de la carte (processeur) — aucune mémoire de carte dans un worker web ;*
 - *PÉRIMÈTRE : DeepFace ET FER (tout TensorFlow dans un seul processus) ;*
 - *PRÉCHAUFFAGE : l'expression seule (~0,4 Go) ; l'âge et le genre à la première demande.*
+- *DÉMARRAGE (décision de Fabien du 2026-11-10 : application peu utilisée, temps réel ponctuel) : hors de `WAMA_SERVICES_AT_START`, le service ne démarre plus avec WAMA mais au premier appelant ou depuis le model manager ; le préchauffage ci-dessus vaut à ce moment-là ;*
 *Patron : le service de confidentialité (`common/privacy/service.py` : Django initialisé, porte
 commune `backend_instance_for_key`, tenant déclaré `start_release_listener`, préchauffage en fond,
 503 « loading ») ; un `Tenant` dont le déchargement est l'ARRÊT (`resource_governor.Tenant`) ; la

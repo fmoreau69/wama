@@ -406,6 +406,8 @@ class ExternalSource:
     #: training) »). Le tirage automatique ne les retient donc qu'au dernier cran du plafond
     #: (`cloud_models.allowed_cloud_keys`) — sinon il tirerait un modèle voué à l'échec.
     free_models_need_data_reuse: bool = False
+    #: Service WAMA : ce que l'arrêter change pour l'utilisateur, montré avant de le faire (model manager).
+    when_off: str = ''
     #: Fournisseur LLM : attente, en secondes, après un refus de débit (HTTP 429) qui ne dit pas
     #: quand recommencer (`Retry-After`) — MESURÉE sur le fournisseur ; 0 = l'attente commune
     #: (`llm_utils.RATE_LIMIT_WAIT_S`). Chantier 5 ③ de `WAMA_HARNESS.md` (2026-10-11) : la
@@ -473,25 +475,29 @@ SOURCES: tuple[ExternalSource, ...] = (
     ExternalSource(
         'tts_service', 'Service TTS WAMA', 'http://localhost:8001',
         "Vocalisation hors du process web (évite de charger un modèle dans gunicorn)",
-        kind='service', scope=LOCAL, setting='TTS_SERVICE_URL', env='TTS_SERVICE_URL'),
+        kind='service', scope=LOCAL, setting='TTS_SERVICE_URL', env='TTS_SERVICE_URL',
+        when_off="L'assistant et les apps de synthèse vocale n'ont plus de voix."),
     ExternalSource(
         'vector_service', 'Service de vectorisation WAMA', 'http://127.0.0.1:8002',
         "Embeddings texte et médias hors des process web et workers (RAG, recherche par contenu)",
         kind='service', scope=LOCAL, setting='VECTOR_SERVICE_URL', env='VECTOR_SERVICE_URL',
-        doc='docs/construction/ia/WAMA_MEMORY.md'),
+        doc='docs/construction/ia/WAMA_MEMORY.md',
+        when_off="Le RAG et la recherche par contenu passent par le processus appelant."),
     ExternalSource(
         'privacy_service', 'Service de confidentialité WAMA', 'http://127.0.0.1:8003',
         "Détection des données personnelles d'un texte hors des process web et workers (union "
         "de détecteurs orchestrée par Presidio, modèles gardés chargés)",
         kind='service', scope=LOCAL, setting='PRIVACY_SERVICE_URL', env='PRIVACY_SERVICE_URL',
-        doc='docs/construction/suivi/ROADMAP.md'),
+        doc='docs/construction/suivi/ROADMAP.md',
+        when_off="La détection des données personnelles charge ses modèles dans le processus appelant."),
     ExternalSource(
         'tensorflow_service', 'Service TensorFlow WAMA', 'http://127.0.0.1:8004',
         "Les modèles TensorFlow sur la carte, seuls dans leur processus (DeepFace, FER) : "
         "TensorFlow ne rend sa mémoire qu'en s'arrêtant, et ne cohabite pas avec PyTorch",
         kind='service', scope=LOCAL, setting='TENSORFLOW_SERVICE_URL',
         env='TENSORFLOW_SERVICE_URL',
-        doc='docs/construction/architecture/WAMA_MANIFEST_SPEC.md'),
+        doc='docs/construction/architecture/WAMA_MANIFEST_SPEC.md',
+        when_off="Le Face Analyzer tourne sur le processeur, plus lentement."),
     ExternalSource(
         'wama_self', 'WAMA (cette instance)', 'http://127.0.0.1:8000',
         "WAMA s'interroge lui-même : smoke navigateur, matrice de droits",

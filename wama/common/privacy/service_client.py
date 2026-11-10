@@ -59,6 +59,8 @@ def detect_segments(segments, language: str = '', *, entities=None, detectors=No
     except requests.ConnectionError:
         logger.info('[privacy] service injoignable à %s — moteur exécuté dans ce process',
                     service_url())
+        from wama.common.utils.service_supervision import ask_for_service
+        ask_for_service('privacy_service')
         return engine.detect_segments(list(segments), language, entities=entities,
                                       detectors=detectors, threshold=threshold)
     except requests.Timeout as exc:

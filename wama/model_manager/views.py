@@ -73,6 +73,10 @@ def index(request):
     from .models import source_groups
     context = {
         'can_manage': can_manage,
+        # Par le contexte et non par `{% url %}` : un gabarit relu avant le rechargement des workers
+        # citerait des routes encore inconnues (500) ; sans ces clés, la section ne s'affiche pas.
+        'services_api': reverse('model_manager:api_services'),
+        'services_control_api': reverse('model_manager:api_service_control'),
         'origin_choices': origin_choices,
         # Groupes du filtre « Source » — les mondes des apps puis les familles du registre des
         # sources (`source_groups`, 2026-10-22) ; chaque modèle porte son groupe et son nom
@@ -542,6 +546,31 @@ def api_idle_models(request):
         'count': len(inactifs),
         'total_size_mb': round(sum(m['vram_gb'] for m in inactifs) * 1024, 1),
     })
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_GET
+def api_services(request):
+    """API: l'état des services uvicorn et de la surveillance qui exécute les ordres."""
+    from wama.common.utils.service_supervision import services_overview
+    return JsonResponse({'success': True, **services_overview()})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
+def api_service_control(request):
+    """API: dépose un ordre pour un service (`start`, `stop`, `restart`), exécuté par la surveillance."""
+    from wama.common.utils.service_supervision import control_service
+    try:
+        data = json.loads(request.body or b'{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'JSON invalide.'}, status=400)
+    accepted, message = control_service(str(data.get('service') or ''), str(data.get('action') or ''))
+    if not accepted:
+        return JsonResponse({'success': False, 'error': message}, status=409)
+    return JsonResponse({'success': True, 'message': message})
 
 
 @login_required

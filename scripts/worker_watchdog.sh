@@ -22,8 +22,9 @@
 # relançable à leur prochain rafraîchissement, sans recharger la page.
 #
 # LES SERVICES uvicorn (2026-11-09, `WAMA_MANIFEST_SPEC §7.1`) suivent les mêmes règles, à une
-# différence près, déclarée par service (`wama_service_spec`) : celui qui s'arrête pour rendre la
-# carte ne revient que si un appelant l'a trouvé éteint, et sa relance ne compte pas dans le budget.
+# différence près : un service absent de la liste de démarrage (`WAMA_SERVICES_AT_START`) ne revient
+# que si un appelant l'a trouvé éteint, et un arrêt voulu ne compte pas dans le budget. La
+# surveillance exécute aussi les ordres du model manager (lancer, arrêter, relancer : 2026-11-10).
 # Le passage sur un processus vit dans `scripts/wama_services.sh` (`supervise_one`).
 #
 # Pause (maintenance, arrêt volontaire d'un worker) : `touch logs/worker_watchdog.pause`.
@@ -60,8 +61,14 @@ report() {   # $1 = processus, $2 = issue, $3 = relances dans la fenêtre, $4 = 
 log "surveillance démarrée : $WAMA_CELERY_WORKERS $WAMA_SERVICES — toutes les ${INTERVAL_S}s, " \
     "au plus $MAX_RESTARTS relances en ${WINDOW_S}s par processus"
 
+# Le signe de vie que lit le model manager (`service_supervision.watchdog_state`) : un ordre déposé
+# pour une surveillance absente ne serait jamais exécuté.
+ALIVE_FILE=$LOG_DIR/worker_watchdog.alive
+touch "$ALIVE_FILE"
+
 while true; do
     sleep "$INTERVAL_S"
+    touch "$ALIVE_FILE"
     [ -f "$PAUSE_FILE" ] && continue
     for w in $WAMA_CELERY_WORKERS; do supervise_one "$w" celery; done
     for s in $WAMA_SERVICES; do supervise_one "$s" service; done

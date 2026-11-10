@@ -134,20 +134,31 @@ start_celery_worker() {
 # (`common/external_sources.py`, tenu par `tests_tensorflow_service`).
 # ------------------------------------------------------------------------------------------
 
-#: Les services surveillés et relancés, dans l'ordre de lancement.
+#: Les services que la surveillance connaît. Ceux qui démarrent avec WAMA : la section
+#: `WAMA_SERVICES_AT_START` de `start_wama_prod.sh` et de `start_wama_dev.sh`.
 WAMA_SERVICES="tts_service vector_service privacy_service tensorflow_service"
 
-# "<module> <port> <journal> <politique>". Politique : `always` = relancé dès qu'il meurt ;
-# `on_demand` = relancé seulement quand un appelant l'a trouvé éteint (`service_wanted`) — le
-# service TensorFlow s'arrête pour rendre la carte, le relancer aussitôt la reprendrait.
+# "<module> <port> <journal>".
 wama_service_spec() {
     case "$1" in
-        tts_service)        echo "wama.common.tts.service 8001 tts-service.log always" ;;
-        vector_service)     echo "wama.common.vectors.service 8002 vector-service.log always" ;;
-        privacy_service)    echo "wama.common.privacy.service 8003 privacy-service.log always" ;;
-        tensorflow_service) echo "wama.common.tensorflow_service.service 8004 tensorflow-service.log on_demand" ;;
+        tts_service)        echo "wama.common.tts.service 8001 tts-service.log" ;;
+        vector_service)     echo "wama.common.vectors.service 8002 vector-service.log" ;;
+        privacy_service)    echo "wama.common.privacy.service 8003 privacy-service.log" ;;
+        tensorflow_service) echo "wama.common.tensorflow_service.service 8004 tensorflow-service.log" ;;
         *) return 1 ;;
     esac
+}
+
+wama_service_at_start() {
+    case " ${WAMA_SERVICES_AT_START:-} " in *" $1 "*) return 0 ;; *) return 1 ;; esac
+}
+
+# Ce que la surveillance fait d'un service éteint. `always` = de la liste de démarrage, relancé dès
+# qu'il meurt ; `on_demand` = relancé seulement quand un appelant l'a trouvé éteint (`service_wanted`)
+# — un service hors de la liste n'occupe rien tant que personne n'en a besoin, et celui qui s'arrête
+# pour rendre la carte ne la reprend pas aussitôt.
+wama_service_policy() {
+    if wama_service_at_start "$1"; then echo always; else echo on_demand; fi
 }
 
 # Motif `pgrep -f` : crochets comme pour les workers. La voix et les vecteurs reconnaissent AUSSI
@@ -173,9 +184,9 @@ wama_service_alive() {
 # processus tiendraient N fois les modèles. `WAMA_SERVICE_ON_TERMINAL` (non exportée, posée par le
 # script de développement) laisse la sortie au terminal : la surveillance, elle, écrit au journal.
 start_wama_service() {
-    local spec module port log_file _policy
+    local spec module port log_file
     spec=$(wama_service_spec "$1") || { echo "service inconnu : $1" >&2; return 1; }
-    read -r module port log_file _policy <<< "$spec"
+    read -r module port log_file <<< "$spec"
     if [ -n "${WAMA_SERVICE_ON_TERMINAL:-}" ]; then
         python -m uvicorn "$module:app" --host 127.0.0.1 --port "$port" --workers 1 \
             --log-level "${WAMA_SERVICE_LOG_LEVEL:-info}" &
@@ -186,23 +197,54 @@ start_wama_service() {
     fi
 }
 
+# SIGTERM, le temps de finir, puis SIGKILL : un service en plein calcul ne rendrait jamais la main.
+stop_wama_service() {
+    local pattern waited=0
+    pattern=$(wama_service_pattern "$1") || return 1
+    pkill -f "$pattern" 2>/dev/null || true
+    while [ "$waited" -lt "${WAMA_SERVICE_STOP_WAIT_S:-10}" ] && pgrep -f "$pattern" > /dev/null; do
+        sleep 1
+        waited=$((waited + 1))
+    done
+    pkill -9 -f "$pattern" 2>/dev/null || true
+}
+
 # UN passage de la surveillance sur UN processus ($1 = nom, $2 = celery|service). Ici et pas dans
 # `worker_watchdog.sh` pour s'exécuter sous test. L'appelant fournit `log`, `report`, `RESTARTS`,
 # `GAVE_UP`, `MAX_RESTARTS`, `WINDOW_S` et `READY_WAIT_S`.
 # Drapeaux d'un service (`common/utils/service_supervision.py`) : `service_wanted` = un appelant
-# l'a trouvé éteint ; `service_stopped` = arrêt VOULU, sa relance est hors budget et sans rapport.
+# l'a trouvé éteint ; `service_stopped` = arrêt VOULU, sa relance est hors budget et sans rapport ;
+# `service_held` = arrêté par un administrateur, il le reste ; `service_launch` = un administrateur
+# veut le (re)lancer. Ces deux ordres viennent du model manager, qui ne touche à aucun processus.
 supervise_one() {
     local w=$1 kind=$2 alive=celery_worker_alive start=start_celery_worker policy=always
-    local _module _port _log wanted="$LOG_DIR/service_wanted.$1" stopped="$LOG_DIR/service_stopped.$1"
+    local wanted="$LOG_DIR/service_wanted.$1" stopped="$LOG_DIR/service_stopped.$1"
+    local held="$LOG_DIR/service_held.$1" launch="$LOG_DIR/service_launch.$1"
     if [ "$kind" = service ]; then
         alive=wama_service_alive
         start=start_wama_service
-        read -r _module _port _log policy <<< "$(wama_service_spec "$w")"
+        policy=$(wama_service_policy "$w")
+
+        if [ -f "$held" ]; then
+            if "$alive" "$w"; then
+                log "$w : arrêté par un administrateur"
+                stop_wama_service "$w"
+            fi
+            rm -f "$wanted" "$stopped"
+            return 0
+        fi
+        if [ -f "$launch" ]; then
+            rm -f "$launch"
+            log "$w : (re)lancé par un administrateur"
+            if "$alive" "$w"; then stop_wama_service "$w"; fi
+            GAVE_UP[$w]=''
+            touch "$wanted" "$stopped"    # la suite le relance : hors budget et sans rapport
+        fi
     fi
 
     if "$alive" "$w"; then
         GAVE_UP[$w]=''            # relancé à la main après une suspension : on reprend
-        [ "$policy" = on_demand ] && rm -f "$wanted" "$stopped"
+        [ "$kind" = service ] && rm -f "$wanted" "$stopped"
         return 0
     fi
     # Personne n'en a besoin : un service arrêté pour rendre la carte reste arrêté.

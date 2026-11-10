@@ -611,18 +611,21 @@ class SupervisionShellTest(SimpleTestCase):
         self.addCleanup(shutil.rmtree, folder, True)
         self.logs = Path(folder)
 
-    def _pass(self, service, *, alive=False, passes=1, wanted=False, stopped=False, comes_up=True):
-        """`passes` supervision passes on `service`; stub start/report/log print what happens."""
-        if wanted:
-            (self.logs / f'service_wanted.{service}').touch()
-        if stopped:
-            (self.logs / f'service_stopped.{service}').touch()
+    def _pass(self, service, *, alive=False, passes=1, wanted=False, stopped=False, comes_up=True,
+              held=False, launch=False, at_start='', gave_up=False):
+        """`passes` supervision passes on `service`; stub start/stop/report/log print what happens."""
+        for flag, raised in (('wanted', wanted), ('stopped', stopped), ('held', held), ('launch', launch)):
+            if raised:
+                (self.logs / f'service_{flag}.{service}').touch()
         script = f'''
             PROJECT_DIR="{BASE}"; LOG_DIR="{self.logs}"; source "{SERVICES_SH}"
+            WAMA_SERVICES_AT_START="{at_start}"
             declare -A RESTARTS GAVE_UP
+            {f'GAVE_UP[{service}]=1' if gave_up else ''}
             MAX_RESTARTS=2; WINDOW_S=1800; READY_WAIT_S=2; UP={'1' if alive else '0'}
             wama_service_alive() {{ [ "$UP" = 1 ]; }}
             start_wama_service() {{ echo "START $1"; {'UP=1' if comes_up else ':'}; }}
+            stop_wama_service() {{ echo "STOP $1"; UP=0; }}
             log() {{ :; }}
             report() {{ echo "REPORT $1 $2 $4"; }}
             sleep() {{ :; }}
@@ -657,9 +660,40 @@ class SupervisionShellTest(SimpleTestCase):
         self.assertEqual(2, out.stdout.count('START'), out.stdout + out.stderr)
         self.assertEqual(1, out.stdout.count('REPORT tensorflow_service gave_up service'), out.stdout)
 
-    def test_a_service_of_the_always_family_is_restarted_without_being_asked(self):
-        out = self._pass('privacy_service')
+    def test_a_service_of_the_start_list_is_restarted_without_being_asked(self):
+        out = self._pass('privacy_service', at_start='tts_service privacy_service')
         self.assertIn('START privacy_service', out.stdout, out.stderr)
+
+    def test_a_service_out_of_the_start_list_waits_for_a_caller(self):
+        self.assertEqual('', self._pass('privacy_service', at_start='tts_service').stdout)
+
+    def test_an_administrators_stop_stops_it_and_the_stop_lasts(self):
+        out = self._pass('privacy_service', alive=True, held=True, at_start='privacy_service')
+        self.assertEqual('STOP privacy_service\n', out.stdout, out.stderr)
+        self.assertTrue((self.logs / 'service_held.privacy_service').exists())
+
+    def test_a_held_service_comes_back_neither_by_itself_nor_for_a_caller(self):
+        out = self._pass('privacy_service', held=True, wanted=True, at_start='privacy_service')
+        self.assertEqual('', out.stdout, out.stderr)
+        self.assertFalse((self.logs / 'service_wanted.privacy_service').exists())
+
+    def test_a_launch_order_starts_a_service_out_of_the_list_without_a_report(self):
+        out = self._pass('tensorflow_service', launch=True)
+        self.assertEqual('START tensorflow_service\n', out.stdout, out.stderr)
+        self.assertFalse((self.logs / 'service_launch.tensorflow_service').exists())
+
+    def test_a_launch_order_on_a_living_service_restarts_it(self):
+        out = self._pass('tts_service', alive=True, launch=True, at_start='tts_service')
+        self.assertEqual('STOP tts_service\nSTART tts_service\n', out.stdout, out.stderr)
+
+    def test_a_launch_order_gets_past_an_exhausted_budget(self):
+        out = self._pass('tts_service', launch=True, gave_up=True, at_start='tts_service')
+        self.assertEqual('START tts_service\n', out.stdout, out.stderr)
+
+    def test_stopping_asks_first_then_kills_what_did_not_listen(self):
+        out = self._source('pkill() { echo "PKILL $1"; }; pgrep() { return 0; }; sleep() { :; }; '
+                           'WAMA_SERVICE_STOP_WAIT_S=2; stop_wama_service tensorflow_service')
+        self.assertEqual('PKILL -f\nPKILL -9\n', out.stdout, out.stderr)
 
     def _source(self, command):
         return subprocess.run([self.bash, '-c', f'PROJECT_DIR="{BASE}"; LOG_DIR=/tmp; source "{SERVICES_SH}"; {command}'],
@@ -675,6 +709,7 @@ class SupervisionShellTest(SimpleTestCase):
             spec = self._source(f'wama_service_spec {name}').stdout.split()
             module, port = spec[0], int(spec[1])
             self.assertEqual(port, urlparse(sources[name].base).port, name)
+            self.assertEqual(3, len(spec), spec)
             self.assertTrue((BASE / (module.replace('.', '/') + '.py')).is_file(), module)
 
     def test_every_service_pattern_is_bracketed_and_an_unknown_one_is_never_alive(self):

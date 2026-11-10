@@ -2824,7 +2824,7 @@ _MEMORY_VIEWS = {
     'summary': 'api_memory_stats', 'detailed': 'api_memory_detailed',
     'resident': 'api_tracked_models', 'idle': 'api_idle_models',
     'large_objects': 'api_large_objects', 'snapshot': 'api_memory_snapshot',
-    'raw': 'api_debug_stats', 'cleaner': 'api_cleaner_status',
+    'raw': 'api_debug_stats', 'cleaner': 'api_cleaner_status', 'services': 'api_services',
 }
 
 
@@ -2836,13 +2836,14 @@ def get_memory_state(user, view: str = 'summary', idle_threshold_s: int = 300,
     'summary' (RAM, CPU, GPU), 'detailed', 'resident' (models loaded on the card, in every WAMA
     process), 'idle' (resident models unused for `idle_threshold_s`), 'large_objects',
     'snapshot', 'raw' (unprocessed system values), 'cleaner' (state and history of the automatic
-    memory cleaner). Reserved to developers and administrators.
+    memory cleaner), 'services' (WAMA's background services: running or not, started with WAMA or on
+    demand). Reserved to developers and administrators.
 
     'large_objects', 'snapshot' and 'cleaner' describe the WAMA process that runs the call (the web
     server for the page and the web assistant), the others the whole machine.
 
     Args:
-        view: one of summary, detailed, resident, idle, large_objects, snapshot, raw, cleaner.
+        view: one of summary, detailed, resident, idle, large_objects, snapshot, raw, cleaner, services.
         idle_threshold_s: for 'idle', seconds without use (default 300).
         min_size_mb: for 'large_objects', the smallest object listed (default 10).
         label: for 'snapshot', a label kept with it.
@@ -3095,6 +3096,31 @@ def control_memory_cleaner(user, action: str, check_interval_s: int = 0,
         return {'error': "configure : donner au moins un réglage (check_interval_s, "
                          "idle_threshold_s, ram_warning_percent, ram_critical_percent)."}
     return _model_manager_answer(user, 'api_cleaner_configure', 'Réglage du nettoyeur', data=data)
+
+
+@tool_effect(WRITE)
+def control_service(user, service: str, action: str, confirm: bool = False) -> dict:
+    """
+    Start, stop or restart one of WAMA's background services (voice, vectors, privacy, TensorFlow),
+    as the model manager page does: the service supervision carries the order out within a minute.
+    Their state and keys: get_memory_state(view='services'). Reserved to developers and administrators.
+
+    A stopped service stays stopped until it is started again or WAMA restarts. Stopping or
+    restarting needs the user's explicit agreement: say what the service does, then call again with
+    confirm=true.
+
+    Args:
+        service: the service key, for example 'tts_service' or 'tensorflow_service'.
+        action: 'start', 'stop' or 'restart'.
+        confirm: true once the user has agreed to stop or restart it.
+    """
+    if refusal := _registry_management_refusal(user):
+        return refusal
+    act = (action or '').strip().lower()
+    if act in ('stop', 'restart') and not _truthy(confirm):
+        return _unconfirmed(f"Service {service} : {act}", service=service, action=act)
+    return _model_manager_answer(user, 'api_service_control', 'Ordre au service',
+                                 data={'service': service, 'action': act})
 
 
 @tool_effect(WRITE)
@@ -5460,6 +5486,7 @@ TOOL_REGISTRY = {
     'free_memory':                   free_memory,
     'free_gpu_for_item':             free_gpu_for_item,
     'control_memory_cleaner':        control_memory_cleaner,
+    'control_service':               control_service,
     'control_model_watcher':         control_model_watcher,
     'start_backup':                  start_backup,
     'sync_model_catalog':            sync_model_catalog,
@@ -5610,6 +5637,7 @@ TOOL_APP_OVERRIDE = {
     'list_model_proposals':          'registries',
     'free_memory':                   'registries',
     'control_memory_cleaner':        'registries',
+    'control_service':               'registries',
     'control_model_watcher':         'registries',
     'start_backup':                  'registries',
     'sync_model_catalog':            'registries',

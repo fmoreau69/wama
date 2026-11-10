@@ -198,9 +198,11 @@ def _post(path, read_timeout, **kwargs):
                              timeout=(5, read_timeout), **kwargs)  # (connexion, lecture)
         resp.raise_for_status()
     except requests.ConnectionError:
+        from wama.common.utils.service_supervision import ask_for_service
+        ask_for_service('tts_service')
         raise RuntimeError(
-            f"Service TTS inaccessible à {url}. "
-            "Démarrage : python -m uvicorn wama.common.tts.service:app --port 8001"
+            f"Service TTS inaccessible à {url} : démarrage demandé, réessayez dans une minute "
+            "(état dans le volet droit du model manager)."
         )
     except requests.Timeout:
         raise RuntimeError(f"Service TTS : délai dépassé après {read_timeout}s")

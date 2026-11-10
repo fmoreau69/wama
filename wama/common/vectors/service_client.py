@@ -73,6 +73,8 @@ def _embed_prepared(space: VectorSpace, inputs, *, timeout: float, keep_alive) -
     except requests.ConnectionError:
         logger.info('[vectors] service injoignable à %s — moteur exécuté dans ce process',
                     service_url())
+        from wama.common.utils.service_supervision import ask_for_service
+        ask_for_service('vector_service')
         return engine.embed_inputs(space, inputs, timeout=timeout, keep_alive=keep_alive)
     except requests.Timeout:
         logger.warning('[vectors] service : délai dépassé (%s s) pour %s', timeout, space.key)

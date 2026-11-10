@@ -2,6 +2,14 @@
 set -e
 
 # ------------------------------------------------------
+# SERVICES LANCÉS AU DÉMARRAGE — la liste à ajuster
+# ------------------------------------------------------
+# Ceux-ci démarrent avec WAMA et la surveillance les relance s'ils tombent. Les autres services
+# (`WAMA_SERVICES`, scripts/wama_services.sh) démarrent à la demande : au premier appelant, ou depuis
+# le volet droit du model manager. Exporté : Django et la surveillance en héritent.
+export WAMA_SERVICES_AT_START="tts_service vector_service privacy_service"
+
+# ------------------------------------------------------
 # STOP DES PROCESS EXISTANTS
 # ------------------------------------------------------
 echo "=== Stopping old processes if any ==="
@@ -38,7 +46,7 @@ source $VENV_DIR/bin/activate
 # pool solo (compatibilité WSL) — déclaré ici, hérité par la surveillance qui le relance. Les
 # services lancés ici gardent leur sortie au terminal (non exporté : la surveillance écrit au journal).
 WAMA_SERVICE_ON_TERMINAL=1
-rm -f "$LOG_DIR"/service_wanted.* "$LOG_DIR"/service_stopped.*
+rm -f "$LOG_DIR"/service_wanted.* "$LOG_DIR"/service_stopped.* "$LOG_DIR"/service_held.* "$LOG_DIR"/service_launch.*
 export WAMA_DEFAULT_WORKER_POOL=solo
 # Page d'erreur détaillée en développement seulement : la production tourne `DEBUG` éteint
 # (`wama/settings.py`, 2026-11-08).
@@ -137,7 +145,9 @@ wama_worker_env
 # ------------------------------------------------------
 # TTS SERVICE (FastAPI, preloads XTTS v2)
 # ------------------------------------------------------
-if ! wama_service_alive tts_service; then
+if ! wama_service_at_start tts_service; then
+    echo "TTS Service : à la demande (hors de WAMA_SERVICES_AT_START)"
+elif ! wama_service_alive tts_service; then
     echo "=== Starting TTS Service (port 8001) ==="
     start_wama_service tts_service
     echo "Waiting for TTS Service to load model..."
@@ -152,29 +162,16 @@ else
     echo "TTS Service is already running."
 fi
 
-# Service de vectorisation (WAMA_MEMORY.md §7sexies) — boucle locale seule, rien à précharger.
-if ! wama_service_alive vector_service; then
-    echo "=== Starting Vector Service (port 8002) ==="
-    start_wama_service vector_service
-else
-    echo "Vector Service is already running."
-fi
-
-# Service de confidentialité (ROADMAP §16.4bis) — boucle locale seule, rien de préchargé.
-if ! wama_service_alive privacy_service; then
-    echo "=== Starting Privacy Service (port 8003) ==="
-    start_wama_service privacy_service
-else
-    echo "Privacy Service is already running."
-fi
-
-# Service TensorFlow (WAMA_MANIFEST_SPEC §7.1) — sur la carte, s'arrête quand le gouverneur la demande.
-if ! wama_service_alive tensorflow_service; then
-    echo "=== Starting TensorFlow Service (port 8004) ==="
-    start_wama_service tensorflow_service
-else
-    echo "TensorFlow Service is already running."
-fi
+# Les autres services de la liste (boucle locale seule) — mêmes rôles que dans start_wama_prod.sh.
+for s in $WAMA_SERVICES_AT_START; do
+    [ "$s" = tts_service ] && continue       # plus haut : il a son attente de préchargement
+    if ! wama_service_alive "$s"; then
+        echo "=== Starting $s ==="
+        start_wama_service "$s"
+    else
+        echo "$s is already running."
+    fi
+done
 
 # ------------------------------------------------------
 # CELERY WORKERS (2 workers: gpu + default)
