@@ -1107,11 +1107,16 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    du moteur déclaré d'une LIGNE reste écrite en place (celle d'une CLÉ est commune :
    `backends.manager.engine_of`, revérification du soir — `detection_ensemble` l'emprunte,
    `served_by_for_key` aussi). *Remesuré le 2026-11-07* (motif
-   `get('runtime') or {}).get('engine')`, code hors tests) : **onze** sites, pas trois —
-   `tts/ui_meta.py:92`, `avatarizer/workers.py:340`, `model_installer.py:736`, `provenance.py:328,500`,
-   `model_registry.py:68,703,818,2197`, `check_model_completeness.py:140,204` ; `tool_api` ne
-   l'écrit plus sous cette forme. La brique (une lecture de `composition`, que `engine_of`
-   emprunterait) attend que les fichiers d'installation, en cours de remaniement par d'autres
+   `get('runtime') or {}).get('engine')`, code hors tests) : **onze** sites, pas trois ; `tool_api`
+   ne l'écrit plus sous cette forme. *Remesuré le 2026-11-10* (même motif, `engine_of` lui-même
+   exclu) : **quatorze** — la dette GRANDIT pendant que la brique attend : `format_converter.py:344,401`
+   et `model_installer.py:793` sont nés depuis le 07/11 —, soit `tts/ui_meta.py:92`,
+   `avatarizer/workers.py:340`, `model_installer.py:738,793`, `provenance.py:328,504`,
+   `model_registry.py:70,696,811,2145`, `check_model_completeness.py:140,204`,
+   `format_converter.py:344,401`. Et une lecture de `composition` existe déjà, sous une autre
+   forme et privée à son usage : `format_policy.preferred_format(composition)` (2026-11-08, R229).
+   La brique (une lecture de `composition`, que `engine_of` et `preferred_format` emprunteraient)
+   attend que les fichiers d'installation et les backends, en cours de remaniement par d'autres
    sessions, se posent.
    ✅ **Poids GGUF — le moteur diffusers les lit** (2026-11-06, décision de Fabien : option B, « fais-le
    toi ») : FLUX.1-dev déclare la précision `Q8_0` (`diffusers_backend.FLUX_PRECISIONS`, entre BF16
