@@ -5145,6 +5145,11 @@ réel, orpheline signalée puis retirée, console sans erreur). ⏳ Ce que la ma
 geste inverse de la promotion d'un lot (« porter ces valeurs dans le pipeline référencé », qui
 écrirait chez son auteur) ; l'état `STALE` d'un nœud dont la surcharge devient orpheline (signalée
 dans l'inspecteur seulement) ; la version de la référence (inchangé).
+⏳ **L'ordre de la suite, à Fabien (D5, consigné le 2026-11-10)** : six travaux restent — l'épinglage
+de la version référencée (et le signal « le pipeline référencé a changé »), l'export avec sa
+dépendance déclarée, l'état imbriqué dans « Contenu », la vérification de visibilité au partage,
+l'état `STALE` d'une surcharge orpheline, le geste inverse de la promotion. L'ordre proposé par le
+concile (ci-dessus : version → export → état imbriqué → partage) ne place pas les deux derniers.
 
 **3.2 Le degré de liberté de chaque process** (champ à ajouter au nœud) :
 

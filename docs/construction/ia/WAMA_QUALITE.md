@@ -246,6 +246,22 @@ qwen3.5:4b, gemma4:e4b — le même défaut que le tirage local, désormais vu a
 (une note v4 PÉRIMÉE au 50ᵉ centile de 570 modèles passe devant une note v5 fraîche au 17ᵉ de 93) :
 ⏳ décision de Fabien en attente (les notes périmées dans les tirages, 2026-11-07). `diffusion`,
 `speech`, `vision`, `ocr` changent aussi d'ordre ; `vlm`, `embedding`, `audio` non.
+📏 **Ce ⏳ n'a plus de cas — remesuré le 2026-11-10** (demande de Fabien : « vérifie si 51de73718
+couvre D1 »). D1, posée le 07/11, demandait si une note périmée peut décider d'un tirage ; deux
+réponses proposées : **A** lire les catégories de l'Arena (`coding`, `french`, `math`… — le parquet
+les porte, la synchro ne lit que `overall`) comme sous-indices frais ; **B** une note périmée ne
+passe jamais devant une note fraîche. Ce qui l'a soldée, sans A ni B : `51de73718` (08/11, l'étage
+du sous-indice ignore une note périmée — le tirage de développement) et `018dfc734` (09/11, à
+couverture égale la population la plus large départage — qwen3.8 se lit sur l'Arena, 302 modèles,
+et non plus sur AA v5, 94). Mesuré en lecture seule sur le catalogue : `llm` installés locaux —
+qwen3.8 75,2 (Arena, frais) puis gemma4:12b 50,2, qwen3.5:4b 47,0, gemma4:e4b 33,3 (AA v4,
+périmés), translategemma sans note ; `best_installed('llm')` dans le même ordre ; `select_model
+(model_type='llm')` → qwen3.8 au curseur qualité (100), qwen3.5:4b à 15 et à 50 (le curseur
+arbitre la taille, pas la note). ⏳ **Ce qui reste, sans urgence et à Fabien** : B n'est pas une
+RÈGLE — aucune note périmée ne passe devant une fraîche aujourd'hui parce que les valeurs le
+donnent, pas parce que l'étage l'interdit (décision du 02/11 : gardée, marquée, comparée) ; et A
+rendrait au sous-indice `coding` une mesure fraîche, ce qui demande d'abord que l'étage du
+sous-indice vérifie l'échelle de CHAQUE note (il ne regarde que l'échelle du porteur).
 Le rang du porteur, lui, n'est plus écrit qu'une fois : c'est l'entrée de sa propre échelle.
 
 **L'étage a priori a désormais des valeurs DÉCLARÉES, avec leur source** (2026-10-03, décision de

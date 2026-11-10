@@ -2521,6 +2521,12 @@ Le fil a été éprouvé par l'assistant : prospecter, puis installer trois OCR.
      (« Répondre avec … » : le message renvoyé avec ce modèle, pour lui seul).
      Gardes : `tests_cloud_failover`, `tests_llm_providers.ProviderSaturationNoteTest`,
      `tests_cloud_models.SaturatedSourceOutOfTheDrawTest`.
+     ⏳ **À décider par Fabien (D4, relevé le 2026-11-07, consigné le 2026-11-10)** : la note de
+     saturation vaut pour la SOURCE entière, alors que le compte se tient par modèle — clé
+     `wama:cloud_saturated:<source>:<portée>`, sans modèle (`source_quota.note_saturation`,
+     l.78-88 ; `saturated_sources`, l.91-106). Un modèle saturé (vu : `mistral-medium-latest`, 503)
+     écarte donc du tirage tous les modèles de sa source pendant la note. Par source (aujourd'hui)
+     ou par modèle ? Une panne (`ALL_KEYS`) reste, elle, une affaire de fournisseur.
    - **Le relais garde le HARNAIS** (2026-10-13, question de Fabien : « comme Claude qui change
      de modèle en gardant le contexte ») : le tour continue sur les MÊMES messages — prompt
      système (consignes, compétence de rôle, contexte du labo tiré de la mémoire, état de WAMA),

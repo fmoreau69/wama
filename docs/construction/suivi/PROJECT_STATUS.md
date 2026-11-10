@@ -29758,3 +29758,29 @@ livraison ») ; mécanisme `midi_reading`.
 - 🔚 **Gestes de Fabien** : relancer « Partition complète » sur une card (la 880 a toujours son
   morceau d'entrée ; calcul GPU) ou importer un MIDI à vrais instruments, comparer les banques,
   n'en retirer une que si l'autre l'emporte nettement.
+
+## §PALIER 2026-11-06→10, « SÉLECTEUR, ABONNEMENT, PIPELINES IMBRIQUÉS : LES DÉCISIONS QUI RESTENT » — `b610bd1dd`, `f22690195`, `7eaa533f6`, `4c579cc38` (poussés) + ce commit de consignation — 🔚 six décisions de Fabien
+
+- **Livré et poussé** (06→07/11) : rang centile lu dans la population la plus partagée du lot
+  (`benchmark_sync.shared_percentile_values`, prolongé le 09/11 par `018dfc734` d'une autre
+  session : à couverture égale, la population la plus large) ; l'abonnement Claude Code mesuré
+  (quatre `ALIAS`) et écarté du tirage automatique (`allowed_cloud_keys`) ; la surcharge des
+  réglages internes d'un nœud `pipeline` (`ROUTE §10.6` 3.1, marche 3) ; `AIModel.best_installed`
+  sur l'échelle des signaux de la sélection. Vérifié après la réparation de git du 08/11 : les
+  quatre commits dans `dev`, chaque ligne ajoutée présente (sept réécrites depuis, chacune
+  identifiée), périmètre vert (`tests_pipeline_nodes` 43/43 après `a48d975b3` d'une autre session).
+- **D1 n'a plus de cas** (remesuré le 10/11, `WAMA_QUALITE §0`, « Ce ⏳ n'a plus de cas ») :
+  `51de73718` et `018dfc734` l'ont soldée sans les options A ni B, qui restent des idées.
+- 🔚 **Décisions de Fabien, chacune à son domicile** :
+  ① quotas d'essai sur toute clé d'instance, cinq questions (`ROADMAP` Phase 3, 4a, « Devenue
+  INTENTION le 2026-11-07 ») ; ② D2 l'effort de l'abonnement, ③ D3 la mesure facturée de l'API
+  (`PROSPECTION_PIPELINE §Session du 2026-11-06`) ; ④ D4 saturation par source ou par modèle
+  (`WAMA_LLM`, « Bascule sur panne ») ; ⑤ D5 l'ordre des six travaux des pipelines imbriqués
+  (`ROUTE §10.6` 3.1) ; ⑥ D1-A / D1-B, sans urgence (`WAMA_QUALITE §0`).
+- **Restes sans décision** : 354 lignes OpenRouter sans note sur 477 (identité éditeur collée,
+  `PROSPECTION_PIPELINE`, remesuré le 10/11) ; `albert:gpt-oss-120b` sans note.
+- **Corrigé au passage** : `ROADMAP` Phase 2 ③ disait les quotas comptés « par (utilisateur,
+  source) » — ils le sont par clé.
+- **Laissé à leurs propriétaires** : les 14 groupes de rouges recensés le 08/11 (pris par la
+  session « Anonymizer Docs/Audio ») ; le worktree `wt_verif_lot_1108`, sans dossier
+  d'administration depuis un élagage du 08/11 vers 14:27, propriétaire inconnu.

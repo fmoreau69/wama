@@ -1900,7 +1900,7 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      appel, après la limite d'outils, bascule aussi. La note et l'écart se lisent dans les
      journaux (`[cloud] … noté saturé`, `[cloud] écartées du tirage`) : sans eux, « quota ou
      défaut ? » ne se tranchait pas.
-  3. ✅ **Quotas comptés** (2026-10-14, `b4c259af` — `common/services/source_quota.py`) : requêtes par (utilisateur, source) et par fenêtre, contre les quotas
+  3. ✅ **Quotas comptés** (2026-10-14, `b4c259af` — `common/services/source_quota.py`) : requêtes par (CLÉ, source, modèle) et par fenêtre — *corrigé le 2026-11-10, mesuré : la ligne disait « par (utilisateur, source) » ; la portée est la clé (`user:<pk>` ou une seule `instance` pour tous ceux qui n'ont pas la leur, `source_quota.py:25-27`, `saturation_scope` l.67-75)* —, contre les quotas
      DÉCLARÉS sur la source (OpenRouter sans crédit : 20/min et 50/jour ; Albert) → la source est
      tenue pour saturée AVANT le 429.
      ➕ **Mesuré le 14/10** (une vraie réponse par fournisseur, compte `fabien.moreau`) :
@@ -2341,6 +2341,32 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    ⏳ **Idée de Fabien, non tranchée — des QUOTAS sur les jetons système** : au lieu du refus
    actuel, laisser un utilisateur sans jeton télécharger avec celui de l'instance dans une limite
    (« x essais / heure »), en lui disant qu'il lève la limite en posant le sien.
+   🎯 **Devenue INTENTION le 2026-11-07, élargie à toute clé d'instance** (Fabien : *« Si c'est une
+   clé d'instance, c'est une clé système, donc utilisable aussi par les utilisateurs. C'est prévu
+   comme ça. Ce qu'il manque encore, c'est la mise en place de quotas utilisateurs automatiques
+   pour toutes clé API d'instance (système) pour permettre aux utilisateurs de faire quelques
+   requêtes pour tester sans forcément avoir à ajouter sa propre clé. Si le quota est atteint,
+   l'utilisateur reçoit un message l'informant que pour continuer, il doit ajouter sa propre clé
+   API avec redirection vers le champ à remplir dans son profil. »*).
+   **Ce que fait le code aujourd'hui** (lu le 2026-11-07) : un compte n'utilise que SA clé
+   (`accounts/api_keys.key_for`, l.79-87 — règle du 15/09 ci-dessus), sauf une clé d'instance
+   PARTAGÉE d'une source `shareable` (`shared_instance_row`, l.90-99 — exception du 07/10, ILaaS
+   seule, `external_sources.py:543`) ; sans clé, `cloud_models.cloud_access` refuse (« Aucune clé
+   d'API … ajoutez-la dans le volet « Clés d'API » de la page Profil », sans lien) ; aucun compte
+   par utilisateur sur une clé d'instance (`source_quota`, portée = la clé).
+   **Les briques que la construction prolongerait** (aucune neuve) : une portée par utilisateur
+   SUR la clé d'instance dans `source_quota` (à côté de `instance`) ; un quota d'essai DÉCLARÉ
+   (registre des sources, comme `ExternalSource.quotas`, ou valeur commune) ; le refus par
+   `cloud_access`, point d'entrée de tout appel distant d'un compte, avec un lien vers le champ du
+   profil (`#key-<source>`, posé par `WamaKeyField`) ; l'admission au tirage par
+   `allowed_cloud_keys`.
+   ⏳ **Décisions de Fabien avant d'écrire une ligne** : ① la règle du 15/09 (« pas de repli ») est-
+   elle remplacée par l'essai ? ② la case « partager » du 07/10 reste-t-elle (clé ouverte SANS
+   limite à tout le labo, ILaaS) ou disparaît-elle ? ③ les exceptions — l'abonnement Claude Code
+   (jeton personnel : `claude_code.py:60-64` refuse qu'un compte prenne celui de la machine), le
+   jeton Hugging Face (il porte les acceptations de licences de son titulaire, décision du 27/09),
+   Albert et OpenRouter (déclarés non partageables : quotas et crédits par compte) ; ④ la taille
+   et la fenêtre du quota (commune, ou par source) ; ⑤ le message « essai épuisé » et son lien.
 4b. 🔄 **Verrou du catalogue levé — premier palier** (15/09) : `ModelSource.ALBERT`, champs
    `AIModel.execution` (local/cloud) et `cost_tier` ; hébergement et coût déclarés sur la source
    (`external_sources`, Albert = `sovereign`/`free`). DÉCOUVERTE par la clé de l'utilisateur
