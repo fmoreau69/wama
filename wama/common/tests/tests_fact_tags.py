@@ -71,6 +71,19 @@ class RafraichissementTest(TestCase):
                  "```\n<!-- WAMA:FAIT(x/y/z) -->v<!-- /WAMA:FAIT -->\n```\n")
         self.assertEqual(refresh_text(texte), (texte, 0, []))
 
+    def test_a_triple_backtick_quoted_in_a_sentence_does_not_mute_the_tags_after_it(self):
+        from ..registries import REGISTRIES
+        text = ("Une phrase cite ``` au passage.\n\n"
+                "Il y a <!-- WAMA:FAIT(registres) -->3<!-- /WAMA:FAIT --> registres.\n\n"
+                "Une autre cite ``` aussi.\n")
+        fresh, n, errors = refresh_text(text)
+        self.assertEqual((n, errors), (1, []))
+        self.assertIn(f"-->{len(REGISTRIES)}<!--", fresh)
+
+    def test_a_tag_in_a_quoted_code_block_stays_code(self):
+        text = "> ```\n> <!-- WAMA:FAIT(x/y/z) -->v<!-- /WAMA:FAIT -->\n> ```\n"
+        self.assertEqual(refresh_text(text), (text, 0, []))
+
     def test_les_blocs_WAMA_FAITS_ne_sont_pas_des_balises_en_ligne(self):
         texte = "<!-- WAMA:FAITS(outils) — généré -->\ncontenu\n<!-- /WAMA:FAITS(outils) -->"
         self.assertEqual(refresh_text(texte), (texte, 0, []))

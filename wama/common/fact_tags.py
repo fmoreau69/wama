@@ -37,7 +37,10 @@ TAG = re.compile(r'<!-- WAMA:FAIT\(([^)\s]+)\) -->(.*?)<!-- /WAMA:FAIT -->')
 #: EXPLIQUER la syntaxe sans que le résolveur la prenne pour un fait. Trouvé le 2026-09-11 par la
 #: garde de corpus, à sa première exécution — sur la phrase même qui présentait la syntaxe.
 #: Le code est capturé EN PREMIER (groupe 1) et rendu tel quel ; seul ce qui reste est une balise.
-_CODE_OU_TAG = re.compile(r'((?s:```.*?```)|`[^`\n]*`)|' + TAG.pattern)
+#: Un bloc commence et finit en TÊTE DE LIGNE (citation `>` admise), comme pour le rendu Markdown :
+#: trois accents graves cités dans une phrase rendaient la suite du fichier « code », et la seule
+#: balise de la ROADMAP a dit 17 registres pour 21 sans que `doc_facts --check` le voie (2026-11-10).
+_CODE_OU_TAG = re.compile(r'((?ms:^[ \t>]*```.*?^[ \t>]*```)|`[^`\n]*`)|' + TAG.pattern)
 
 #: Le registre des registres : il n'est pas une entrée de `REGISTRIES`, il EST leur liste.
 META = 'registres'
