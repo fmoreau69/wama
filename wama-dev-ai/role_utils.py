@@ -1163,28 +1163,34 @@ def add_llm_arguments(parser, role='dev'):
         '--wait-max', type=float, default=300.0,
         help="Attente maximale de VRAM libre en mode dépannage, en secondes (défaut 300)")
     parser.add_argument(
-        '--llm-timeout', type=int, default=None, action=_LlmTimeoutAction, metavar='SECONDES',
+        '--llm-timeout', type=int, default=None, action=_LlmOverride, metavar='SECONDES',
         help="Délai d'attente de la réponse du modèle (défaut : celui du rôle, 600 à 1800 s ; "
              "0 = aucune limite côté WAMA)")
+    parser.add_argument(
+        '--num-ctx', type=int, default=None, action=_LlmOverride, metavar='JETONS',
+        help="Fenêtre d'un modèle LOCAL, en jetons (défaut : celle du rôle, 16 384, 32 768 pour "
+             "les rôles qui écrivent long) ; à garder sous celle du modèle (sa `context_length` "
+             "au catalogue). Elle coûte de la VRAM")
 
 
-#: Délai d'attente choisi par `--llm-timeout` : il prime sur le délai que CHAQUE rôle passe à
-#: `call_llm` (600 s par défaut, 900 pour `task` et `app`, 1800 pour `backend`). Une RÈGLE de WAMA,
-#: pas une limite du modèle (Fabien, 2026-11-10) : l'appel n'est pas en flux, la réponse n'arrive
-#: qu'à la fin, et le rôle `backend` d'ACE-Step en local a été coupé à 30 min pile. `_UNSET` =
-#: le délai du rôle ; None = aucune limite.
-_UNSET = object()
-LLM_TIMEOUT = _UNSET
+#: Les réglages d'appel choisis en ligne de commande, qui priment sur ceux que CHAQUE rôle passe à
+#: `call_llm` : `llm_timeout` (600 s par défaut, 900 pour `task` et `app`, 1800 pour `backend` ;
+#: 0 = aucune limite) et `num_ctx` (16 384, ou `LONG_WRITE_NUM_CTX`). Des RÈGLES de WAMA, pas des
+#: limites du modèle (Fabien, 2026-11-10) — mesuré le jour même sur le rôle `backend` d'ACE-Step
+#: en local : coupé à 30 min pile par le délai, puis réponse vide par la fenêtre (26 631 jetons de
+#: requête dans 32 768, « truncated » au journal d'Ollama), quand `qwen3.8` en accepte 262 144.
+LLM_OVERRIDES = {}
 
 
-class _LlmTimeoutAction(argparse.Action):
-    """Pose `LLM_TIMEOUT` au moment même où l'option est lue : les rôles n'ont rien à recopier."""
+class _LlmOverride(argparse.Action):
+    """Pose `LLM_OVERRIDES[<option>]` au moment même où l'option est lue : les rôles n'ont rien à
+    recopier. Un nombre négatif est refusé ; `llm_timeout=0` lève la limite."""
 
     def __call__(self, parser, namespace, value, option_string=None):
-        global LLM_TIMEOUT
-        if value < 0:
-            parser.error('--llm-timeout : un nombre de secondes, 0 pour aucune limite')
-        LLM_TIMEOUT = None if value == 0 else value
+        if value < 0 or (self.dest == 'num_ctx' and value == 0):
+            parser.error(f'{option_string} : {value} — un nombre positif'
+                         + (' (0 = aucune limite)' if self.dest == 'llm_timeout' else ''))
+        LLM_OVERRIDES[self.dest] = None if (self.dest == 'llm_timeout' and value == 0) else value
         setattr(namespace, self.dest, value)
 
 
@@ -1247,10 +1253,10 @@ def call_llm(provider, model, system, user_msg, num_ctx=16384, keep_alive=None,
     commune (profil « 100 % local », modèle non ouvert par sa clé) qui refuse AVANT l'appel. Sans
     compte (rôle lancé à la main), aucune clé n'est passée : celle de l'instance, comme avant.
     `think=True` : la valeur que `llm_chat` prenait par défaut ici — rien ne change pour le modèle.
-    `--llm-timeout` (`LLM_TIMEOUT`) prime sur le `timeout` du rôle.
+    `--llm-timeout` et `--num-ctx` (`LLM_OVERRIDES`) priment sur le `timeout` et la fenêtre du rôle.
     """
-    if LLM_TIMEOUT is not _UNSET:
-        timeout = LLM_TIMEOUT
+    timeout = LLM_OVERRIDES.get('llm_timeout', timeout)
+    num_ctx = LLM_OVERRIDES.get('num_ctx', num_ctx)
     if provider == 'ollama':
         return call_ollama(model, system, user_msg, num_ctx=num_ctx, keep_alive=keep_alive,
                            temperature=temperature, timeout=timeout)

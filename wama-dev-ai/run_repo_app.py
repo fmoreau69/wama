@@ -115,9 +115,12 @@ def main():
                     help="S'arrêter au brouillon, sans faire naître l'app")
     ap.add_argument('--llm-timeout', type=int, default=None,
                     help="Délai d'attente de la réponse du modèle, transmis à chaque rôle")
+    ap.add_argument('--num-ctx', type=int, default=None,
+                    help="Fenêtre d'un modèle local, transmise à chaque rôle")
     args = ap.parse_args()
-    if args.llm_timeout is not None:
-        LLM_OPTIONS[:] = ['--llm-timeout', str(args.llm_timeout)]
+    LLM_OPTIONS[:] = [part for name in ('llm_timeout', 'num_ctx')
+                      if getattr(args, name) is not None
+                      for part in ('--' + name.replace('_', '-'), str(getattr(args, name)))]
 
     log, summary = [], {'repo': args.repo, 'key': args.key, 'need': args.need,
                         'like': args.like}

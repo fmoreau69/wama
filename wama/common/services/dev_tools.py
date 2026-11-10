@@ -146,7 +146,8 @@ def _clean(value, name: str) -> str:
 #: Options COMMUNES à tous les rôles (`role_utils.add_llm_arguments`), admises quel que soit le rôle :
 #: `llm_timeout`, le délai d'attente de la réponse du modèle en secondes — une règle de WAMA (600 à
 #: 1800 s selon le rôle), relevée au besoin, 0 = aucune limite (2026-11-10, Fabien).
-COMMON_ROLE_ARGS = {'llm_timeout': int}
+#: `num_ctx`, la fenêtre d'un modèle LOCAL en jetons (16 384 ou 32 768 selon le rôle).
+COMMON_ROLE_ARGS = {'llm_timeout': int, 'num_ctx': int}
 
 
 def role_command(role: str, args=None, provider: str = '', model: str = '') -> list:
@@ -526,7 +527,8 @@ def dev_run_role(user, role: str, args: dict = None, provider: str = '', model: 
     selon ton profil). provider borne ce tirage à un fournisseur (ollama = local, charge le GPU ;
     albert…) ; model est un choix précis, remplacé s'il n'a pas le niveau. Tout rôle admet
     llm_timeout = délai d'attente de la réponse du modèle en secondes (défaut du rôle, 600 à
-    1800 ; 0 = aucune limite) — à relever pour un modèle local lent. Rend job_id et le
+    1800 ; 0 = aucune limite) — à relever pour un modèle local lent — et num_ctx = fenêtre
+    d'un modèle LOCAL en jetons (16 384 ou 32 768 selon le rôle ; coûte de la VRAM). Rend job_id et le
     modèle retenu — la fin de la tâche est annoncée ; dev_read_output lit la proposition.
     """
     role_command(role, args)          # les arguments d'abord : on ne tire pas pour une commande refusée

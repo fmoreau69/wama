@@ -1049,22 +1049,32 @@ class FournisseurDesRolesTest(SimpleTestCase):
         super().setUpClass()
         cls.role_utils = _charger('role_utils')
 
-    def test_the_model_timeout_option_overrides_the_role_s_and_zero_lifts_it(self):
-        """WAMA's 30 min cut the `backend` role on a local model mid-writing (2026-11-10) — a rule
-        of WAMA, relevable by `--llm-timeout`, and 0 removes it."""
+    def test_the_call_options_override_the_role_s_and_zero_lifts_the_timeout(self):
+        """Two rules of WAMA cut the `backend` role on a local model (2026-11-10): the 30 min wait,
+        then the 32 768-token window (26 631 tokens of request, « truncated » in Ollama's log) —
+        relevable by `--llm-timeout` (0 removes it) and `--num-ctx`."""
         import argparse
         from unittest.mock import patch
         role_utils = self.role_utils
-        self.addCleanup(setattr, role_utils, 'LLM_TIMEOUT', role_utils._UNSET)
-        for given, expected in ((None, 1800), ('7200', 7200), ('0', None)):
-            with self.subTest(given=given):
-                role_utils.LLM_TIMEOUT = role_utils._UNSET
+        self.addCleanup(role_utils.LLM_OVERRIDES.clear)
+        cases = (([], 1800, 32768), (['--llm-timeout', '7200'], 7200, 32768),
+                 (['--llm-timeout', '0'], None, 32768), (['--num-ctx', '65536'], 1800, 65536))
+        for argv, timeout, num_ctx in cases:
+            with self.subTest(argv=argv):
+                role_utils.LLM_OVERRIDES.clear()
                 parser = argparse.ArgumentParser()
                 role_utils.add_llm_arguments(parser)
-                parser.parse_args(['--llm-timeout', given] if given else [])
+                parser.parse_args(argv)
                 with patch.object(role_utils, 'call_ollama', return_value='OK') as direct:
-                    role_utils.call_llm('ollama', 'm', 'sys', 'msg', timeout=1800)
-                self.assertEqual(expected, direct.call_args.kwargs['timeout'])
+                    role_utils.call_llm('ollama', 'm', 'sys', 'msg', timeout=1800, num_ctx=32768)
+                self.assertEqual(timeout, direct.call_args.kwargs['timeout'])
+                self.assertEqual(num_ctx, direct.call_args.kwargs['num_ctx'])
+        for wrong in (['--num-ctx', '0'], ['--llm-timeout', '-1']):
+            with self.subTest(wrong=wrong), self.assertRaises(SystemExit), \
+                    patch('sys.stderr'):
+                parser = argparse.ArgumentParser()
+                role_utils.add_llm_arguments(parser)
+                parser.parse_args(wrong)
 
     def test_ollama_reste_call_ollama_a_l_identique(self):
         from unittest.mock import patch

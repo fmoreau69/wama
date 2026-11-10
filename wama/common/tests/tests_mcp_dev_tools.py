@@ -92,10 +92,12 @@ class ArgumentsTest(SimpleTestCase):
         whole number of seconds, 0 = no limit."""
         for role, spec in dev_tools.ROLES.items():
             first = next(iter(spec['args']))
-            args = {first: True if spec['args'][first] is bool else 'x', 'llm_timeout': 3600}
+            args = {first: True if spec['args'][first] is bool else 'x', 'llm_timeout': 3600,
+                    'num_ctx': 65536}
             with self.subTest(role=role):
                 argv = dev_tools.role_command(role, args)
                 self.assertEqual('3600', argv[argv.index('--llm-timeout') + 1])
+                self.assertEqual('65536', argv[argv.index('--num-ctx') + 1])
         for wrong in (-1, 'soon'):
             with self.subTest(wrong=wrong), self.assertRaises(dev_tools.DevToolError):
                 dev_tools.role_command('backend', {'catalog': 'k:m', 'llm_timeout': wrong})
