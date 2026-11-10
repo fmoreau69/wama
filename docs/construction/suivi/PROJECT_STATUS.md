@@ -29989,8 +29989,41 @@ avancée (HSTS, `ALLOWED_HOSTS`, certificat de la DSI) se rouvre à une expositi
   (connu depuis le 20/10) et la constante `SCORE_TITLE_MAX`. `converge` : 83 tests de l'original,
   19 rouges — clés renommées par la copie (`'reader:…'` → `'reader_01:…'`), routes et page
   générées, migrations de l'original absentes ; aucun ne touche le contrat.
-- 🔚 Restes : les trois manques du générateur que `reader_01` a nommés (facette `surfaces` d'une app
-  existante, fonctions propres que lit un fichier copié, membres de modèle) ; la lecture d'une page de PDF dans ses deux sens (demi-tour) reste aux images ; un lot de TEXTES
+- ✅ **Les trois manques du générateur, corrigés le soir même** (Fabien : « corrige les trois manques
+  du générateur, puis régénère reader_01 […] parfaitement aligné sur le fonctionnement de wama ») —
+  détail `ROUTE §11 #47`, spec de la facette `WAMA_MANIFEST_SPEC` (son ⏳ « l'extraire demandera de
+  dire quoi faire d'une validation en Python » : un crochet par CHEMIN POINTÉ, comme
+  `ProcessSpec.eta`). ① facette `surfaces` extraite (`builtin/app._surfaces`), rendue avec trous de
+  glu (`tasks_gen._DECLARED_GLUE` : rôles `available`, `validate`) et imports du commun ; une
+  disponibilité illisible ferme la page en le disant (`Surface.can_open`, la règle de `process_eta`),
+  son contrat écrit dans la docstring de l'appelant (garde `DeclaredGlueHolesTest`, qui l'a exigé) ;
+  ② un crochet déclaré dans `function_specs`/`tasks` y reçoit son trou ; ③ `models_gen` introspecté :
+  `__str__`/`filename` (`_spine_name_lines`, une émission pour les deux chemins) et constantes
+  littérales du module (`_own_constants`, précédent `_own_default`). Tests +13
+  (`tests_codegen_agreement` ⑤⑥⑦, `tests_surfaces.AnUnreadableAvailabilityClosesThePageTest`).
+  **`/reverif` (demandé par Fabien) a ramené trois écarts de ma main** : `_own_constants` relisait
+  `tree.body` à côté de LA lecture du bac à sable des noms de niveau module (`sandbox.exposed_names`,
+  blocs de tête compris — leçon du 2026-10-12) → `sandbox.module_level_statements` rendue publique
+  et empruntée ; le gabarit recopiait la liste et les types des champs de `Surface` (`_DATA`,
+  `_TUPLES`) et l'extracteur en doublait une part → dérivés de la dataclass, une déclaration
+  `SURFACE_OWN` pour les deux ; quatre noms de test sur la racine « declar » renommés. Gardes
+  ajoutées pour les deux premiers ; contre-épreuves 9/9 rouges (dont la règle des témoins).
+  `reader_01` recréée : **9/9 cibles générées, aucun fichier copié** ; ses deux ✎ grisés avec leur
+  raison tant que la glu de leur disponibilité manque. `converge` 43/83 rouges : la glu privée de
+  l'original (32 — `_read`, `_read_score`, `read_title`…) et les routes générées (11) — la marche B,
+  que le rôle `codegen` remplit (`app_sandbox glue`).
+- ✅ **Rouge relevé par une autre session et tranché ici** (`§PASSATION 2026-11-10 « reader_01… »`) :
+  la jumelle régénérée faisait rougir six sous-tests de `tests_surface_witness`, car ses pages à glu
+  en attente ne s'ouvrent pas sur leur témoin. Ma suite des 644 tests avait tourné AVANT la
+  régénération. Elles sont écartées EN LE DISANT, lues sur le marqueur du trou
+  (`Surface.glue_pending`, `ui_smoke_surfaces.witness_surfaces`), sans nom d'app.
+- 🔚 Restes : crochets de PAGE (`value`, `saved`, `edit_state`) et fonctions anonymes refusés par le
+  gabarit des surfaces (transcriber, anonymizer, face_analyzer gardent la leur copiée), partition
+  IMPORTÉE éditée au composer ; la glu de `reader_01` (marche B) ; le `function_specs` GÉNÉRÉ ne
+  rend ni `applies` ni `available` (déclaré par son gabarit, l'export du pipeline n'écrit que les
+  crochets déjà déclarés par chaîne) — dans `reader_01`, lecture du texte et partition joueraient
+  toutes deux ; la lecture `builtin/app._dotted_path` permettrait de les exporter par chemin, comme
+  ceux des surfaces ; la lecture d'une page de PDF dans ses deux sens (demi-tour) reste aux images ; un lot de TEXTES
   ne se combine pas encore ; le bouton « Fusionné » d'un lot de pages n'apparaît qu'au rendu suivant
   la fin du lot (les pages se lisent sur les fichiers) ; le verdict du critère `recursive_import`
   pour les cards en mode attache, à remesurer.
@@ -30230,6 +30263,8 @@ de ce périmètre : `tests_backend_deprecation`, `tests_manifest_library`, `test
 ## §PASSATION 2026-11-10, « reader_01 : les pages d'édition à glu manquante font rougir les gardes de témoins » → la session de `ROUTE §11 #47`
 
 Message envoyé à cette session le 10/11, en attente de sa réponse. Une surface générée dont le crochet `available` est un trou de glu ferme sa page, donc `mount_witness` lève et six sous-tests de `tests_surface_witness` rougissent ; le passage nocturne monte le même témoin. À trancher par elle : écrire la glu, écarter ces surfaces en le déclarant, ou revenir au témoin pendant la marche B.
+
+→ **Tranché le 10/11 par la session de `#47` : écartées EN LE DISANT.** La glu est la marche B du rôle `codegen`, et revenir au témoin effacerait la mesure du générateur. Un crochet encore trou de glu se lit sur son marqueur (`tasks_gen.GLUE_HOLE_MARK` / `is_glue_hole`, celui que `replace_glue_hole` exige), sans nom d'app : `Surface.glue_pending()`, puis UN sélecteur, `ui_smoke_surfaces.witness_surfaces()` → `(à ouvrir, glu en attente)`. Les cinq passages nocturnes le lisent (`_witness_surfaces`), et la capture nomme les surfaces écartées dans son détail. Les gardes d'ouverture et de nettoyage de `tests_surface_witness` le lisent aussi ; celle qui fabrique le témoin couvre toujours toutes les surfaces. Garde `GluePendingSurfaceTest`.
 
 ## §CLÔTURE 2026-11-10, « SERVICES : VOLET DROIT VALIDÉ, ORDRES ÉPROUVÉS SUR WAMA RELANCÉ, TEMPS RÉEL À FROID » — 🔚 décisions de `ROADMAP §24.10`, puis le temps réel du Face Analyzer au portage
 

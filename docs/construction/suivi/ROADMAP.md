@@ -4745,7 +4745,7 @@ primitives requises — forme d'onde, synchro texte, recadrage, diff…) + petit
 primitives d'édition vendorées que les manifestes composent. Le pipeline « cloner une app
 GitHub → l'observer au Playwright → transposer » = récolte de PRIOR-ART UX (précédent
 MusicVideoGenerator), pas une transposition automatique (colle spéculative).
-🔄 *Marqué le 2026-11-10* : registre `common/surfaces.py` et facette `surfaces` rendue par `codegen/surfaces_gen.py` ; ⏳ aucun manifeste d'app réelle ne la porte encore.
+🔄 *Marqué le 2026-11-10* : registre `common/surfaces.py` et facette `surfaces` rendue par `codegen/surfaces_gen.py` ; ~~⏳ aucun manifeste d'app réelle ne la porte encore~~ → le soir même, la facette est EXTRAITE des apps réelles (crochets par chemin pointé, `WAMA_MANIFEST_SPEC`) ; ⏳ les crochets de page (`value`, `saved`, `edit_state`) et les fonctions anonymes restent refusés.
 
 **③ Portage wama-lab** — EN DERNIER : la valeur des apps lab EST leur UI dédiée ; ② est le
 prérequis (sinon on les aplatit dans le moule card-centric ou on re-code du spécifique).

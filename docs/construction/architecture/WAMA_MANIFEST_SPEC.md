@@ -220,13 +220,20 @@ body:                                   # (sous l'enveloppe commune)
   # ses briques (vignettes du catalogue `ui_bricks`). Pour un champ FICHIER la valeur nomme un
   # contenu — une extension connue de la taxonomie (`.md`, `.html`, `.png`…) ou un type de données
   # (`detections`) ; pour un autre champ, la valeur littérale. Jugé par `Surface.witness_problems`.
-  # `edits` doit être un FICHIER produit par un process déclaré (`pipeline.outputs`) : il s'édite
-  # comme TEXTE, validation/disponibilité/écriture communes. Une couche de DONNÉES (corrections de
-  # l'anonymizer) porte sa validation en Python : elle s'écrit dans l'app, le gabarit la REFUSE.
-  # ⏳ Non encore EXTRAITE (`builtin/app.py` ne lit pas les surfaces) — alors que l'anonymizer, le
-  # composer et le transcriber en déclarent dans `<app>/surfaces.py` (corrigé le 2026-10-31 : la
-  # ligne disait « seule une app née d'un manifeste la porte »). L'extraire demandera de dire quoi
-  # faire d'une validation en Python.
+  # `edits` est un FICHIER produit par un process déclaré (`pipeline.outputs`) : il s'édite comme
+  # TEXTE, validation/disponibilité/écriture communes — ou une DONNÉE dont la surface déclare la
+  # validation (`validate`). Ni l'un ni l'autre : le gabarit REFUSE.
+  # ✅ EXTRAITE depuis le 2026-11-10 (`builtin/app._surfaces`, demande de Fabien : `reader_01`
+  # gardait sa page d'édition COPIÉE) — la réponse à « que faire d'une validation en Python » : un
+  # crochet de CODE se déclare par CHEMIN POINTÉ, comme `ProcessSpec.eta` —
+  #   available?: "wama.<app>.surfaces._score_available", validate?: "wama.common.surfaces.validate_text"
+  # Le gabarit importe un crochet du commun et pose un TROU DE GLU pour celui de l'app, dans le
+  # module qu'il désigne (`tasks_gen._DECLARED_GLUE`) ; tant que la glu manque, la page se dit
+  # indisponible (`Surface.can_open` ne lève pas). Les autres données de `Surface` (also_edits,
+  # documents, texts, context, settings, routes, sources_setting, autosave, finish) passent telles
+  # quelles. ⏳ Refusés en le disant : une fonction anonyme (`_unsupported` de l'extraction : le
+  # `context` de l'anonymizer, l'`edit_state` du transcriber) et les crochets lus au RENDU de la
+  # page (`value`, `saved`, `edit_state`) — un trou y casserait la page au lieu de la fermer.
   # SORTIE = 3 CONCERNS SÉPARÉS (jamais surchargés — corrigé 2026-07-22, détail WAMA_APP_GENERATION_ROUTE §F2) :
   #   output_type   = catégorie média FIXE (ports/preview/routage) ; converter = 'mirror/any'
   #   output_format = mécanisme COMMUN hérité du converter (générique-par-catégorie ∪ app-spécifique) ; sélecteur download

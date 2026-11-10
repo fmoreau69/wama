@@ -2610,3 +2610,27 @@ class DataPluginBricksTest(SimpleTestCase):
         with mock.patch('wama.accounts.permissions.is_guest_account', return_value=False):
             self.assertEqual({'user': 'u'}, listable_by(Plain(), 'u'))
             self.assertEqual('shared', listable_by(Shared(), 'u'), 'sharing untouched')
+
+
+class AnUnreadableAvailabilityClosesThePageTest(SimpleTestCase):
+    """2026-11-10 — a generated app declares the `available` of its surfaces as a GLUE HOLE until its
+    glue is written: the card that carries the ✎ must not break, the page says it is unavailable —
+    the rule of every declaration read by string (`process_eta`, `declared_result`)."""
+
+    def _surface(self, available):
+        from wama.common.surfaces import BrickSlot, Surface
+        return Surface(app='x', key='edit', label='Éditer', model='x.Item',
+                       slots=(BrickSlot('text', 'text_sections', 0, 0, 12, 10),),
+                       reads={}, edits='draft_file', available=available)
+
+    def test_a_hole_closes_the_page_with_its_reason(self):
+        def hole(item):
+            raise NotImplementedError('available `hole` non généré (marche B)')
+        with self.assertLogs('wama.common.surfaces', level='WARNING'):
+            ok, reason = self._surface(hole).can_open(object())
+        self.assertFalse(ok)
+        self.assertIn('non généré', reason)
+
+    def test_a_refusal_of_the_app_is_still_said_as_written(self):
+        ok, reason = self._surface(lambda item: (False, 'Rien à lire.')).can_open(object())
+        self.assertEqual((False, 'Rien à lire.'), (ok, reason))

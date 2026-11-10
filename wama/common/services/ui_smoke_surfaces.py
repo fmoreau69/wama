@@ -40,14 +40,22 @@ _TAG_SLOTS_JS = """() => {
     return out; }"""
 
 
-def _witness_surfaces():
-    """Les surfaces qui déclarent un témoin, et ce qui empêche d'en fabriquer un (par surface)."""
+def witness_surfaces() -> tuple:
+    """`(à ouvrir, glu en attente)` — les surfaces qui déclarent un témoin. Celles dont un crochet
+    est encore un TROU DE GLU (`Surface.glue_pending` : une app générée en marche B, 2026-11-10)
+    ne s'ouvrent pas : elles sont rendues À PART, pour être dites — ce n'est pas une panne. Lu par
+    chaque passage qui ouvre une surface sur son témoin, et par leurs gardes. Aucune app nommée."""
     from wama.common.surfaces import SURFACES, load_all
     load_all()
+    declaring = [s for s in SURFACES.values() if s.witness]
+    return ([s for s in declaring if not s.glue_pending()],
+            [s for s in declaring if s.glue_pending()])
+
+
+def _witness_surfaces():
+    """Les surfaces à ouvrir sur leur témoin, et ce qui empêche d'en fabriquer un (par surface)."""
     ready, refused = [], []
-    for surface in SURFACES.values():
-        if not surface.witness:
-            continue
+    for surface in witness_surfaces()[0]:
         problems = surface.witness_problems()
         (refused if problems else ready).append((surface, problems))
     return [s for s, _p in ready], [p for _s, problems in refused for p in problems]
@@ -177,7 +185,10 @@ def capture_brick_thumbnails():
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(shot)
     dropped = _drop_new_sessions(sessions_before)
+    pending = [f"{s.id} ({', '.join(s.glue_pending())})" for s in witness_surfaces()[1]]
     detail = (f"{len(opened)} surface(s) ouverte(s) sur leur témoin ({', '.join(opened) or '—'}) ; "
+              + (f"glu en attente, non ouverte(s) : {', '.join(pending)} ; " if pending else '')
+              + f"{len(captured)} brique(s) capturée(s) : "
               f"{len(captured)} brique(s) capturée(s) : "
               + ', '.join(f'{b} ← {s}' for b, (_r, s, _shot) in sorted(captured.items()))
               + f" ; {sum(_total_nettoye(c) for c in cleaned)} objet(s) témoin(s) retiré(s)"

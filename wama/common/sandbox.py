@@ -137,20 +137,21 @@ def _paths_in(value, prefix: str) -> list:
     return [value] if isinstance(value, str) and value.startswith(prefix) else []
 
 
-def _module_level_statements(body):
+def module_level_statements(body):
     """Les instructions exécutées AU NIVEAU DU MODULE, blocs compris : un nom posé dans un
     `try:`/`if`/`with` de tête est exposé comme un autre (`MODELS_ROOT` de l'anonymizer, posé
     dans un `try/except ImportError` — faux « absent » mesuré le 2026-10-07). On ne descend
-    jamais dans une fonction ni une classe : leurs noms sont locaux."""
+    jamais dans une fonction ni une classe : leurs noms sont locaux. Lue aussi par `models_gen`
+    (les constantes d'un `models.py` source, 2026-11-10)."""
     import ast
     for n in body:
         yield n
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             continue
         for field in ('body', 'orelse', 'finalbody'):
-            yield from _module_level_statements(getattr(n, field, None) or [])
+            yield from module_level_statements(getattr(n, field, None) or [])
         for h in getattr(n, 'handlers', None) or []:
-            yield from _module_level_statements(h.body)
+            yield from module_level_statements(h.body)
 
 
 def exposed_names(tree) -> set:
@@ -160,7 +161,7 @@ def exposed_names(tree) -> set:
     la seconde l'avait recopiée sans les blocs de tête."""
     import ast
     names = set()
-    for n in _module_level_statements(tree.body):
+    for n in module_level_statements(tree.body):
         if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             names.add(n.name)
         elif isinstance(n, ast.Assign):

@@ -36,8 +36,9 @@ class DeclaredWitnessTest(TestCase):
 
     def test_every_declared_witness_really_opens_its_surface(self):
         """Made like the nightly makes it (`mount_witness`), the item opens the page — what the
-        surface declares and what it requires to open cannot drift apart."""
-        for surface in self._declaring():
+        surface declares and what it requires to open cannot drift apart. A surface whose glue is
+        not written yet is set aside by the nightly's own selection (`witness_surfaces`)."""
+        for surface in ui_smoke_surfaces.witness_surfaces()[0]:
             with self.subTest(surface=surface.id):
                 pk = mount_witness(surface, self.user.pk)
                 item = surface.model_class().objects.get(pk=pk)
@@ -64,7 +65,7 @@ class WitnessCleanupTest(TestCase):
     def setUp(self):
         load_all()
         self.user = get_user_model().objects.create_user('witness-cleanup', password='x')
-        self.surfaces = [s for s in SURFACES.values() if s.witness]
+        self.surfaces = ui_smoke_surfaces.witness_surfaces()[0]
 
     def _file_paths(self, item):
         fields = [f.name for f in item._meta.fields
@@ -114,6 +115,38 @@ class WitnessCleanupTest(TestCase):
             pass
         self.assertEqual([], cleaned)
         self.assertIn('no_such_app', out.getvalue())
+
+
+class GluePendingSurfaceTest(TestCase):
+    """2026-11-10 — a GENERATED app's surface whose `available` is still a glue hole (`reader_01`)
+    cannot open: the passages that open surfaces on their witness set it aside and SAY so, read on
+    the hole's mark — no app named. Written glue makes it a surface like the others."""
+
+    def _surface(self, available):
+        return Surface(app='glue_pending_app', key='edit', label='x', model='reader.ReadingItem',
+                       slots=(BrickSlot('a', 'text_sections', 0, 0, 1, 1),), reads={},
+                       edits='result_text', available=available, witness={'status': 'SUCCESS'})
+
+    def test_a_hole_is_set_aside_and_said_written_glue_is_not(self):
+        from unittest import mock
+
+        def hole(item):
+            """TROU DE GLU [mark] — fonction DÉCLARÉE par chaîne (`Surface.available`), marche B."""
+            raise NotImplementedError
+
+        def written_glue(item):
+            """La glu écrite : la page s'ouvre."""
+            return True, ''
+
+        pending, written = self._surface(hole), self._surface(written_glue)
+        self.assertEqual(['available'], pending.glue_pending())
+        self.assertEqual([], written.glue_pending())
+        with mock.patch.dict(SURFACES, {'glue_pending_app.a': pending, 'glue_pending_app.b': written}):
+            ready, waiting = ui_smoke_surfaces.witness_surfaces()
+        self.assertIn(written, ready)
+        self.assertNotIn(pending, ready)
+        self.assertIn(pending, waiting)
+        self.assertNotIn(written, waiting)
 
 
 class WitnessSampleTest(TestCase):

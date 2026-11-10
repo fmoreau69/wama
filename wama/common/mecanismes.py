@@ -473,7 +473,13 @@ MECHANISMS = (
               "la disposition — `WAMA_VOLETS §3-ter`, scénario `common.surface_stack`. 2026-10-28 : "
               "la DISPOSITION sort du noyau en brique commune (`wama-brick-layout.js`), pour que "
               "les pages d'apps la montent sans le noyau d'édition ; tout panneau s'ouvre DANS UNE "
-              "AUTRE FENÊTRE (déplacé, pas recréé ; gestes relayés à la page)",
+              "AUTRE FENÊTRE (déplacé, pas recréé ; gestes relayés à la page). 2026-11-10 : la "
+              "facette `surfaces` d'une app EXISTANTE est EXTRAITE (`builtin/app._surfaces`), ses "
+              "crochets `available`/`validate` par CHEMIN POINTÉ — le gabarit importe ceux du commun "
+              "et pose un trou de glu pour ceux de l'app ; une disponibilité illisible ferme la page "
+              "en le disant, jamais la card (`Surface.can_open`) ; une surface à glu EN ATTENTE "
+              "(`Surface.glue_pending`, lu sur le marqueur du trou) est écartée des passages qui "
+              "ouvrent les témoins, et dite (`ui_smoke_surfaces.witness_surfaces`)",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',

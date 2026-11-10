@@ -191,6 +191,8 @@ DECLARED_VALUES = (
     (_is_named_form, ('inspector.detail_spec.result_file', 'inspector.detail_spec.result_text',
                       'inspector.detail_spec.source_text')),
     (_is_attr, ('tool_api.triad_spec.status_fields*',)),
+    # Les crochets d'une surface (2026-11-10, `surfaces_gen.SURFACE_HOOKS`) : un import ou un nom.
+    (is_path, ('surfaces[].available', 'surfaces[].validate')),
     (_is_view, ('processing.extra_routes[].view',)),
     (_is_dotted, ('processing.tasks[].task_name',)),
     (_is_text, ('processing.extra_routes[].pattern', 'processing.extra_routes[].name',

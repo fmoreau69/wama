@@ -442,16 +442,16 @@ en code sauf pour `access`.
 <!-- WAMA:FAITS(roundtrip) — généré par « python manage.py doc_facts », ne pas éditer -->
 | App | Facettes | Projetables | Fidélité | Validation |
 |---|---|---|---|---|
-| anonymizer | 14 | 10/12 | ✅ aucun écart | ✅ OK |
+| anonymizer | 15 | 10/12 | ✅ aucun écart | ✅ OK |
 | avatarizer | 13 | 9/11 | ✅ aucun écart | ✅ OK |
-| composer | 14 | 10/12 | ✅ aucun écart | ✅ OK |
+| composer | 15 | 10/12 | ✅ aucun écart | ✅ OK |
 | converter | 12 | 9/10 | ✅ aucun écart | ✅ OK |
 | describer | 13 | 9/11 | ✅ aucun écart | ✅ OK |
 | enhancer | 13 | 9/11 | ✅ aucun écart | ✅ OK |
 | imager | 14 | 10/12 | ✅ aucun écart | ✅ OK |
-| reader | 13 | 9/11 | ✅ aucun écart | ✅ OK |
+| reader | 14 | 9/11 | ✅ aucun écart | ✅ OK |
 | synthesizer | 13 | 9/11 | ✅ aucun écart | ✅ OK |
-| transcriber | 13 | 9/11 | ✅ aucun écart | ✅ OK |
+| transcriber | 14 | 9/11 | ✅ aucun écart | ✅ OK |
 <!-- /WAMA:FAITS(roundtrip) -->
 
 ---

@@ -294,6 +294,10 @@ def extract_app(app_id: str) -> Optional[dict]:
         body['data'] = data
 
     body['inspector'] = _inspector(app_id)
+    # Les SURFACES (pages d'édition) : une app sans surface n'en déclare pas — le cas normal.
+    surfaces = _surfaces(app_id)
+    if surfaces:
+        body['surfaces'] = surfaces
 
     # F4 MODÈLES
     models = _models(app_id)
@@ -467,6 +471,69 @@ def _inspector(app_id):
     except Exception:
         info['preview_registered'] = None
     return info
+
+
+def _dotted_path(fn) -> str:
+    """`module.fonction` d'une fonction de MODULE — celui que résout `import_string`, la lecture
+    des déclarations par chaîne ; '' pour une fonction anonyme ou imbriquée (aucun chemin)."""
+    from django.utils.module_loading import import_string
+    path = f"{getattr(fn, '__module__', '')}.{getattr(fn, '__qualname__', '')}"
+    try:
+        return path if import_string(path) is fn else ''
+    except ImportError:
+        return ''
+
+
+def _surfaces(app_id) -> list:
+    """La facette `surfaces` d'une app EXISTANTE (2026-11-10, ⏳ de `WAMA_MANIFEST_SPEC` : « l'extraire
+    demandera de dire quoi faire d'une validation en Python ») — lue au registre
+    (`surfaces.surfaces_of`), sous la forme qu'une app née d'un manifeste RÉDIGE : ses données
+    telles quelles (sans les valeurs par défaut), ses emplacements (`BrickSlot.to_dict`).
+    Un crochet de CODE (`available`, `validate`…) s'y déclare par son chemin pointé, comme
+    `ProcessSpec.eta` : le gabarit en importe un commun, pose un trou de glu pour celui de l'app.
+    Une fonction anonyme n'a pas de chemin : elle est NOMMÉE dans `_unsupported` (le gabarit
+    refuse alors la surface en le disant), jamais devinée."""
+    import dataclasses
+    from ..codegen.surfaces_gen import SURFACE_OWN
+    try:
+        from wama.common.surfaces import surfaces_of
+        declared = surfaces_of(app_id)
+    except Exception as e:
+        logger.debug('[manifest] surfaces de %s illisibles : %s', app_id, e)
+        return []
+    out = []
+    for surface in declared:
+        entry = {'key': surface.key, 'label': surface.label,
+                 'slots': [slot.to_dict() for slot in surface.slots]}
+        unsupported = []
+        for f in dataclasses.fields(surface):
+            if f.name in SURFACE_OWN:
+                continue
+            value = getattr(surface, f.name)
+            default = (f.default if f.default is not dataclasses.MISSING
+                       else f.default_factory() if f.default_factory is not dataclasses.MISSING
+                       else dataclasses.MISSING)
+            if value == default:
+                continue
+            if f.name == 'context':
+                # Un champ de l'élément se nomme ; une fonction de l'élément est du code.
+                unsupported += [f'context.{k}' for k, v in value.items() if callable(v)]
+                value = {k: v for k, v in value.items() if not callable(v)}
+                if not value:
+                    continue
+            elif callable(value):
+                path = _dotted_path(value)
+                if not path:
+                    unsupported.append(f.name)
+                    continue
+                value = path
+            elif isinstance(value, tuple):
+                value = list(value)
+            entry[f.name] = value
+        if unsupported:
+            entry['_unsupported'] = unsupported
+        out.append(entry)
+    return out
 
 
 def _models(app_id):

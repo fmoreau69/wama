@@ -528,9 +528,36 @@ class Surface:
             raise ValueError(f"surface {self.id} : aucune validation déclarée pour « {self.edits} »")
         return self.validate(value)
 
+    def glue_pending(self) -> list:
+        """Les crochets de code de la surface encore TROUS DE GLU (`tasks_gen.is_glue_hole`) : une
+        app GÉNÉRÉE dont la glu n'est pas écrite (marche B, 2026-11-10). Sa page ne s'ouvre pas ;
+        les passages qui ouvrent les surfaces sur leur témoin l'écartent EN LE DISANT — ce n'est
+        pas une panne (`ui_smoke_surfaces.witness_surfaces`)."""
+        import dataclasses
+        from wama.common.manifests.codegen.tasks_gen import is_glue_hole
+        return [f.name for f in dataclasses.fields(self)
+                if 'Callable' in str(f.type) and is_glue_hole(getattr(self, f.name))]
+
     def can_open(self, item) -> tuple:
+        """`(ouvrable, raison)` : l'élément s'ouvre-t-il dans cette surface ? La raison s'affiche
+        sur le ✎ grisé et sur la page.
+
+        Contrat de `available(item) -> (bool, raison)` (le trou de glu d'une app générée) : dire
+        si la page s'ouvre sur CET élément et, sinon, pourquoi en une phrase pour l'utilisateur —
+        une nature que la card n'a pas, un réglage à changer, un modèle à installer. Rien à dire
+        d'un fichier édité encore vide : la règle commune nomme alors le process qui le produit.
+        Lu à CHAQUE rendu d'une card : ni écriture, ni calcul long."""
         if self.available is not None:
-            ok, reason = self.available(item)
+            try:
+                ok, reason = self.available(item)
+            except Exception as error:
+                # Une disponibilité ILLISIBLE ferme la page en le disant, jamais la card qui porte
+                # son ✎ (2026-11-10) — la règle des déclarations lues par chaîne (`process_eta`,
+                # `declared_result`). Une app générée y a son trou de glu tant que la glu manque.
+                import logging
+                logging.getLogger(__name__).warning(
+                    "[surfaces] disponibilité de %s illisible", self.id, exc_info=True)
+                return False, f"Page indisponible : {error}"
             if not ok:
                 return ok, reason
         if self.text_value and not getattr(getattr(item, self.edited(item), None), 'name', ''):

@@ -11,6 +11,12 @@ the apps (`PROJECT_STATUS §PALIER 2026-10-20 soir`, gaps ①–④):
     own module (describer, reader);
   ④ the views dispatched the FIRST declared task, not the lifecycle one (synthesizer:
     `download_voice_refs_task`, absent from the generated `tasks.py`).
+And the three of 2026-11-10 (`reader_01` regenerated, `ROUTE §11 #47`):
+  ⑤ the manifest extracted from an existing app had no `surfaces` facet — `surfaces.py` stayed
+    COPIED, and the copy imported glue the generated files do not emit;
+  ⑥ a hook a declaration NAMES in another generated module (`function_specs`) had no glue hole;
+  ⑦ the introspected `models.py` lost the name of the spine (`__str__`, `filename`) the skeleton
+    renders, and the literal constants of the source module (`SCORE_TITLE_MAX`).
 Each test renders from the LIVE manifest of the real apps, as `app_sandbox substitute` does.
 """
 import ast
@@ -251,3 +257,141 @@ class FunctionSpecsReadTheDeclaredTaskTest(_Rendered):
             self.assertEqual(set(), declared - _defined(source), app)
             for name in declared:
                 self.assertIn('TROU DE GLU', source.split(f'def {name}(')[1].split('def ')[0])
+
+
+def _surface(manifest: dict, key: str) -> dict:
+    return next(s for s in manifest['body']['surfaces'] if s['key'] == key)
+
+
+class TheSurfacesOfAnExistingAppAreExtractedTest(_Rendered):
+    """⑤: the surfaces of an existing app are EXTRACTED, their code hooks by dotted path — the
+    app's own become glue holes of the generated `surfaces.py`, the common ones are imported."""
+
+    def test_the_reader_surfaces_are_extracted_with_their_hooks_by_path(self):
+        surfaces = self.manifests['reader']['body']['surfaces']
+        self.assertEqual(['score', 'text'], [s['key'] for s in surfaces])
+        self.assertEqual('wama.reader.surfaces._score_available',
+                         _surface(self.manifests['reader'], 'score')['available'])
+        self.assertEqual('wama.common.surfaces.validate_text',
+                         _surface(self.manifests['reader'], 'text')['validate'])
+        self.assertNotIn('model', surfaces[0], 'the item model is the one of `processing`')
+
+    def test_the_reader_surfaces_render_with_their_holes_and_common_imports(self):
+        from wama.common.manifests.codegen.surfaces_gen import render_surfaces
+        source, reason = render_surfaces(self.manifests['reader'])
+        self.assertIsNone(reason)
+        compile(source, 'reader/surfaces.py', 'exec')
+        self.assertIn('from wama.common.surfaces import validate_text', source)
+        for hole in ('_score_available', '_text_available'):
+            self.assertIn('TROU DE GLU', source.split(f'def {hole}(item):')[1].split('register_surface')[0])
+            self.assertIn(f'available={hole}', source)
+        self.assertNotIn('holds_score', source, 'the glue of the source is never copied')
+
+    def test_an_anonymous_hook_is_named_never_guessed(self):
+        from wama.common.manifests.codegen.surfaces_gen import render_surfaces
+        review = _surface(self.manifests['anonymizer'], 'review')
+        self.assertIn('context.classes', review['_unsupported'])
+        self.assertEqual(['detections'], review['documents'], 'its data are extracted all the same')
+        self.assertIn('fonction anonyme', render_surfaces(self.manifests['anonymizer'])[1])
+
+    def test_the_other_data_of_a_surface_are_rendered_with_the_type_of_their_field(self):
+        """Read on the `Surface` dataclass, never listed again: a tuple field comes out a tuple."""
+        import copy
+        from wama.common.manifests.codegen.surfaces_gen import render_surfaces
+        manifest = copy.deepcopy(self.manifests['reader'])
+        _surface(manifest, 'score').update(texts=['rendered'], autosave=True,
+                                           routes={'retime': 'retime_segments'})
+        source, reason = render_surfaces(manifest)
+        self.assertIsNone(reason)
+        for expected in ("texts=('rendered',)", 'autosave=True', "routes={'retime': 'retime_segments'}"):
+            self.assertIn(expected, source)
+
+    def test_what_the_template_does_not_render_is_refused_with_its_reason(self):
+        import copy
+        from wama.common.manifests.codegen.surfaces_gen import render_surfaces
+        cases = {'available': ('wama.composer.surfaces._score_available', "hors de l'app et du commun"),
+                 'value': ('wama.reader.surfaces._value', 'non généré(s) par ce gabarit')}
+        for hook, (path, expected) in cases.items():
+            with self.subTest(hook=hook):
+                manifest = copy.deepcopy(self.manifests['reader'])
+                _surface(manifest, 'score')[hook] = path
+                self.assertIn(expected, render_surfaces(manifest)[1])
+
+    def test_a_data_field_is_rendered_only_with_its_validation_path(self):
+        import copy
+        from wama.common.manifests.codegen.surfaces_gen import render_surfaces
+        manifest = copy.deepcopy(self.manifests['reader'])
+        del _surface(manifest, 'text')['validate']
+        self.assertIn("« result_text » n'est la sortie d'aucun process", render_surfaces(manifest)[1])
+
+
+class AHookNamedInAnotherModuleGetsItsHoleThereTest(_Rendered):
+    """⑥: a surface hook declared in the app's `function_specs` is imported RELATIVELY by the
+    generated `surfaces.py` (a twin reads its own) and becomes a glue hole of `function_specs`."""
+
+    def test_the_hook_is_imported_and_defined_where_it_is_named(self):
+        import copy
+        from wama.common.manifests.codegen.function_specs_gen import render_function_specs
+        from wama.common.manifests.codegen.surfaces_gen import render_surfaces
+        manifest = copy.deepcopy(self.manifests['reader'])
+        _surface(manifest, 'score')['available'] = 'wama.reader.function_specs.can_edit_score'
+        surfaces, _ = render_surfaces(manifest)
+        self.assertIn('from .function_specs import can_edit_score', surfaces)
+        specs, _ = render_function_specs(manifest)
+        self.assertIn('can_edit_score', _defined(specs))
+        self.assertIn('TROU DE GLU', specs.split('def can_edit_score(item):')[1].split('def ')[0])
+
+
+class TheModelSpineIsNamedOnBothPathsTest(_Rendered):
+    """⑦: the introspected `models.py` names its item like the skeleton does, and re-emits the
+    literal constants of the source module."""
+
+    def _item(self, app):
+        from wama.common.manifests.codegen.models_gen import render_models
+        from wama.common.management.commands.app_sandbox import render_payload
+        manifest = self.manifests[app]
+        source, _ = render_models(render_payload(manifest, 'models', False))
+        name = manifest['body']['processing']['model_spec']['item']['name']
+        item = next(n for n in ast.parse(source).body if isinstance(n, ast.ClassDef) and n.name == name)
+        return source, {n.name for n in item.body if isinstance(n, ast.FunctionDef)}
+
+    def test_the_item_has_its_name_and_a_filename_field_is_never_shadowed(self):
+        _source, methods = self._item('reader')
+        self.assertLessEqual({'__str__', 'filename'}, methods)
+        _source, methods = self._item('describer')
+        self.assertIn('__str__', methods)
+        self.assertNotIn('filename', methods, 'the describer stores its file name in a field')
+
+    def test_the_literal_constants_of_the_source_module_are_rendered(self):
+        from wama.reader.models import SCORE_TITLE_MAX
+        source, _ = self._item('reader')
+        self.assertIn(f'SCORE_TITLE_MAX = {SCORE_TITLE_MAX!r}', source)
+
+    def test_only_module_level_literal_constants_are_rendered(self):
+        import importlib
+        import sys
+        import tempfile
+        from wama.common.manifests.codegen.models_gen import _own_constants
+        import shutil
+        folder = tempfile.mkdtemp(prefix='wama-own-constants-')
+        self.addCleanup(shutil.rmtree, folder, True)
+        Path(folder, 'wama_test_constants.py').write_text(
+            'from os import SEEK_END as IMPORTED\n'
+            'LIMIT = 200\n'
+            'FIELDS = ("a", "b")\n'
+            'MARKER = object()\n'
+            '_PRIVATE = 1\n'
+            'lower = 2\n'
+            'try:\n'
+            '    GUARDED = 4\n'
+            'except ImportError:\n'
+            '    GUARDED = 5\n'
+            'class Item:\n'
+            '    INNER = 3\n', encoding='utf-8')
+        sys.path.insert(0, folder)
+        self.addCleanup(sys.path.remove, folder)
+        self.addCleanup(sys.modules.pop, 'wama_test_constants', None)
+        importlib.invalidate_caches()
+        self.assertEqual("LIMIT = 200\nFIELDS = ('a', 'b')\nGUARDED = 4",
+                         _own_constants('wama_test_constants'),
+                         'a constant set in a head block counts once, with the value of the module')

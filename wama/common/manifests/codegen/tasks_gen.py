@@ -209,6 +209,17 @@ def _instant_hole(manifest: dict, mark: str) -> list:
     ]
 
 
+#: Le marqueur de tout trou de glu : sa docstring commence par lui (le geste `app_sandbox glue` ne
+#: remplace qu'une fonction qui le porte encore, `replace_glue_hole`).
+GLUE_HOLE_MARK = 'TROU DE GLU'
+
+
+def is_glue_hole(fn) -> bool:
+    """`fn` est-elle encore un TROU DE GLU (marche B) — rien d'écrit à sa place ? Lu sur son marqueur,
+    jamais en l'appelant : un passage qui écarte une page encore à écrire ne la déclenche pas."""
+    return callable(fn) and (getattr(fn, '__doc__', None) or '').lstrip().startswith(GLUE_HOLE_MARK)
+
+
 #: Les fonctions qu'une AUTRE déclaration désigne PAR CHAÎNE dans le module de tâches de l'app —
 #: rôle → (signature, la déclaration qui la nomme, l'appelant dont la docstring FAIT le contrat).
 #: Elles ne sont pas des tâches : rien ne les importe, un chemin pointé les résout à l'exécution.
@@ -221,6 +232,10 @@ _DECLARED_GLUE = {
     'eta': ('item', '`ProcessSpec.eta`', 'wama.common.services.process_runs.process_eta'),
     'result': ('item', '`ProcessSpec.result`',
                'wama.common.services.process_pipeline.AppPipeline.declared_result'),
+    # Les crochets d'une SURFACE (facette `surfaces`, 2026-11-10) : un chemin pointé comme les
+    # autres — le trou se pose dans le module qu'il désigne (`surfaces.py` le plus souvent).
+    'available': ('item', '`Surface.available`', 'wama.common.surfaces.Surface.can_open'),
+    'validate': ('value', '`Surface.validate`', 'wama.common.surfaces.Surface.clean'),
 }
 
 
@@ -280,14 +295,19 @@ def generated_task_path(manifest: dict, path):
 
 def declared_glue(manifest: dict, steps: list, modules=None) -> list:
     """`[(nom, rôle)]` des fonctions que le manifeste et le pipeline déclarent dans le module de
-    tâches de l'app : le `derive` de l'ingest, l'`eta` et le `result` de chaque process.
+    tâches de l'app : le `derive` de l'ingest, l'`eta` et le `result` de chaque process, et les
+    crochets des surfaces (`surfaces_gen.SURFACE_HOOKS`, 2026-11-10).
     `modules` (noms de module de l'app) en vise un autre : `function_specs_gen` y lit les lectures
-    de résultat qu'un pipeline loge dans `function_specs` (describer, reader — 2026-10-20)."""
+    de résultat qu'un pipeline loge dans `function_specs` (describer, reader — 2026-10-20),
+    `surfaces_gen` les crochets que ses surfaces logent dans `surfaces`."""
+    from .surfaces_gen import SURFACE_HOOKS, declared_surfaces
     app_id = manifest.get('key') or ''
     proc = (manifest.get('body') or {}).get('processing') or {}
     modules = {f'{app_id}.{m}' for m in (modules or _task_modules(manifest))}
     declared = [((proc.get('ingest') or {}).get('derive'), 'derive')]
     declared += [(s.get(role), role) for s in steps for role in ('eta', 'result')]
+    declared += [(s.get(role), role) for s in declared_surfaces(manifest) if isinstance(s, dict)
+                 for role in SURFACE_HOOKS]
     out = []
     for path, role in declared:
         module, name, _ = split_declared_path(path)
@@ -309,7 +329,7 @@ def declared_glue_holes(manifest: dict, steps: list, mark: str, emitted: set,
             '',
             '',
             f'def {name}({params}):',
-            f'    """TROU DE GLU {mark} — fonction DÉCLARÉE par chaîne ({declaration}), marche B.',
+            f'    """{GLUE_HOLE_MARK} {mark} — fonction DÉCLARÉE par chaîne ({declaration}), marche B.',
             '',
             f'    Contrat : la docstring de son appelant, `{caller}`."""',
             f"    raise NotImplementedError('{mark} {role} `{name}` non généré (marche B)')",

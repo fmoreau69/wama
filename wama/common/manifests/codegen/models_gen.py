@@ -149,12 +149,13 @@ def _is_django_model(path: str) -> bool:
 
 
 def _render_from_data(app_id: str, data: dict, ingest: dict = None,
-                      item_name: str = '', params_symbol: str = '') -> str:
+                      item_name: str = '', params_symbol: str = '', input_field: str = '') -> str:
     """Rendu FIDÈLE depuis la facette `data` (marche S2) : chaque modèle avec ses champs tels
     que les migrations les sérialisent (`MigrationWriter.serialize` à l'extraction) — la
     fidélité de schéma est PAR CONSTRUCTION, verdict mesurable = makemigrations « No
-    changes » sur la jumelle. La GLU (properties, __str__, méthodes) reste le trou déclaré
-    des marches B — le SCHÉMA, lui, est complet.
+    changes » sur la jumelle. La GLU (properties propres à l'app, méthodes) reste le trou déclaré
+    des marches B — le SCHÉMA, lui, est complet, avec le nom du spine (`__str__`, `filename`) et
+    les constantes littérales du module (2026-11-10).
 
     ⚠ `WAMA_INGEST` N'EST PLUS DANS CE TROU (2026-08-22, sur question posée en session a propos des
     « sous-chemins parallèles »). Il l'était par CONSTRUCTION : ce rendu part du sérialiseur
@@ -226,6 +227,15 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
         if params_symbol and item_name and m.get('name') == item_name:
             corps += _gear_data_lines(params_symbol, any(
                 f.get('name') == 'options' for f in m.get('fields') or []))
+        # `__str__` et `filename` du SPINE, comme le chemin squelette (2026-11-10) : la glu de toutes
+        # les apps lit `item.filename` (console, notifications, nom de card) — ce chemin ne
+        # l'émettait pas, et une jumelle générée perdait un membre que sa source et une app neuve
+        # portent. Une app dont `filename` est un CHAMP (le describer) le garde, sans propriété.
+        if item_name and m.get('name') == item_name:
+            corps += _spine_name_lines(
+                item_name, (ingest or {}).get('target') or input_field or 'input_file',
+                (ingest or {}).get('name_field') or '',
+                has_field=any(f.get('name') == 'filename' for f in m.get('fields') or []))
         meta = m.get('meta') or {}
         if meta:
             corps.append('')
@@ -251,7 +261,7 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
         f'{mark} — models.py GÉNÉRÉ depuis la facette `data` (marche S2, spine introspecté).',
         '',
         'SCHÉMA COMPLET par construction (sérialiseur des migrations à l\'extraction).',
-        'La GLU reste le trou déclaré (marche B) : WAMA_INGEST, properties, __str__, méthodes.',
+        'La GLU reste le trou déclaré (marche B) : properties propres à l\'app, méthodes.',
         'CREATE-ONLY après le premier makemigrations (même contrat que le gabarit A5).',
         '"""',
         'from django.db import models',
@@ -259,7 +269,46 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
         '', '',
     ]
     defaults = [_own_default(own_module, name, mark) for name in own_defaults]
-    return '\n'.join(tete) + '\n\n\n'.join(defaults + blocs) + '\n'
+    constants = _own_constants(own_module)
+    return ('\n'.join(tete) + (constants + '\n\n\n' if constants else '')
+            + '\n\n\n'.join(defaults + blocs) + '\n')
+
+
+def _own_constants(module: str) -> str:
+    """Les CONSTANTES de module de la source (`SCORE_TITLE_MAX = 200`), réémises : un nom en
+    majuscules assigné au niveau du module, blocs de tête compris (relu dans son fichier par LA
+    lecture du bac à sable, `sandbox.module_level_statements` : jamais un nom importé), sa
+    valeur relue à la génération quand c'est un littéral — la règle d'`_own_default`. Un autre
+    fichier du paquet les importe (2026-11-10, `reader_01` : la glu de partition lisait
+    `SCORE_TITLE_MAX`), et le sérialiseur des champs les avait déjà remplacées par leur valeur.
+    Une valeur non littérale n'est pas réémise : elle reste de la glu."""
+    import ast
+    import importlib
+    import inspect
+    from wama.common.manifests.codegen.params_gen import _literal
+    from wama.common.sandbox import module_level_statements
+    try:
+        source = importlib.import_module(module)
+        tree = ast.parse(inspect.getsource(source))
+    except Exception:
+        return ''
+    lines, seen = [], set()
+    for node in module_level_statements(tree.body):
+        targets = node.targets if isinstance(node, ast.Assign) else []
+        if len(targets) != 1 or not isinstance(targets[0], ast.Name):
+            continue
+        name = targets[0].id
+        if not (name.isupper() and not name.startswith('_')) or name in seen:
+            continue
+        seen.add(name)
+        try:
+            value = _literal(getattr(source, name))
+            ast.literal_eval(repr(value))
+        except Exception:
+            continue
+        # La valeur qu'a le module CHARGÉ : posée deux fois (un `try` et son repli), une seule ligne.
+        lines.append(f'{name} = {value!r}')
+    return '\n'.join(lines)
 
 
 def _own_default(module: str, name: str, mark: str) -> str:
@@ -296,6 +345,25 @@ def _gear_data_lines(params_symbol: str, has_options: bool) -> list:
             f'        return gear_data(self, {params_symbol}{values})']
 
 
+def _spine_name_lines(item_name: str, input_field: str, name_field: str,
+                      has_field: bool = False) -> list:
+    """`__str__` et la propriété `filename` de l'élément — le nom affiché : le champ de nom de
+    l'ingest s'il est rempli, sinon celui du fichier d'entrée. UNE émission pour les deux chemins
+    de rendu (introspecté et squelette, 2026-11-10). `has_field` : le modèle porte un CHAMP
+    `filename`, la propriété ne s'émet pas."""
+    lines = ['',
+             '    def __str__(self):',
+             f'        return f"{item_name} {{self.id}} ({{self.filename}})"']
+    if has_field:
+        return lines
+    lines += ['', '    @property', '    def filename(self):', '        import os']
+    if name_field:
+        lines += [f'        if self.{name_field}:', f'            return self.{name_field}']
+    lines.append(f"        return os.path.basename(self.{input_field}.name) "
+                 f"if self.{input_field} else ''")
+    return lines
+
+
 def render_models(manifest: dict) -> tuple:
     """(source, raison) — models.py. Depuis la facette `data` (spine INTROSPECTÉ, fidèle au
     schéma) quand elle est là — repli sur le squelette A5 (spine conventionnel + params)
@@ -319,6 +387,7 @@ def render_models(manifest: dict) -> tuple:
             app_id, data,
             ingest=ingest,
             item_name=((proc.get('model_spec') or {}).get('item') or {}).get('name') or '',
+            input_field=((proc.get('model_spec') or {}).get('item') or {}).get('input_field') or '',
             params_symbol=(((body.get('params') or {}).get('schemas') or {}) and
                            ((body.get('params') or {}).get('primary') or 'PARAMS_JSON')) or '',
         ), None
@@ -464,19 +533,8 @@ def render_models(manifest: dict) -> tuple:
           '    # et logique métier : marche B, puis migration dédiée. Le spine ne bouge pas.',
           '',
           '    class Meta:',
-          f'        ordering = {list(ordering)!r}',
-          '',
-          '    def __str__(self):',
-          f'        return f"{nom_item} {{self.id}} ({{self.filename}})"',
-          '',
-          '    @property',
-          '    def filename(self):',
-          '        import os']
-    if name_field:
-        l += [f'        if self.{name_field}:',
-              f'            return self.{name_field}']
-    l += [f'        return os.path.basename(self.{input_field}.name) '
-          f'if self.{input_field} else \'\'']
+          f'        ordering = {list(ordering)!r}']
+    l += _spine_name_lines(nom_item, input_field, name_field)
     # Le ⚙ de la card, comme le chemin introspecté (2026-11-06) : une app NÉE d'un manifeste
     # passe par ce squelette, et sa card n'avait aucun data-* de réglage (`card_gear` rouge sur
     # writer_01 et translator_01) — deux rendus, deux comportements.
