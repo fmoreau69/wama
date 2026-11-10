@@ -30672,3 +30672,37 @@ Revérification complète (`/reverif`) des commits `283de6d12`, `89280e43f`, `55
   3. après validation : le tirage par les aides communes (`sampling_temperature/_seed/_top_p`) ;
   4. inchangés depuis la clôture du soir : sonde d'entrée ILaaS/Albert, matière ajustée à la fenêtre
      déclarée, appel en flux, session « masse des tests ».
+
+## §CLÔTURE — 2026-11-10, « GOUVERNEUR : PRÉCISION GGUF Q8_0 DE FLUX.1-DEV » — clos — 🔚 brique de lecture du moteur d'une ligne, quand l'installation et les backends se seront posés
+
+**Livré** (06→10/11, option B de Fabien « fais-le toi ») : `33e5bfab5` (FLUX.1-dev déclare la
+précision `Q8_0`, transformeur GGUF de city96 installé par le pilote `files`, pesé à sa taille
+déclarée), `ca298b8a3` (revérification : la précision lit SA déclaration, ligne de catalogue
+dérivée), `6d98da163` (validé EN SERVICE : génération 1412, Q8_0 annoncé à 11,8 Go, SUCCESS en
+400 s), `33dd99503` (constat remesuré : quatorze sites lisent le moteur d'une ligne, onze le 07/11).
+Détail et mesures : `ROADMAP §Gouvernance i` ; fiche mémoire du gouverneur.
+
+**Contrôles mesurés le 2026-11-10** : `tests_vram_wait` + `tests_vram_peaks` 62 OK ;
+`tests_install_route` + `tests_hf_cache_routing` + `tests_identifier_language` 29 OK ;
+`manifest_export huggingface:city96/FLUX.1-dev-gguf --check` à jour ; `check_docs` 0 cassée sur
+4067 ; `doc_facts --check` : 3 blocs à régénérer, portés par le WIP d'autres sessions
+(`docs/dev/briques.md`, `parcours.md` modifiés dans l'arbre), pas par celle-ci ;
+`check_redundancy` 97, aucune dans les fichiers de la session (deux homonymes `_chosen` des tests
+du converter, faux positifs de nom).
+
+**Laissé de côté — limites de CE chantier** (domicile `ROADMAP §Gouvernance i`) :
+1. la brique de lecture du moteur déclaré d'une ligne (14 sites ; `format_policy.preferred_format`
+   lit déjà une composition, `backends.manager.engine_of` une clé) — attend que les fichiers
+   d'installation et les backends, remaniés par d'autres sessions, se posent ;
+2. la stratégie de déchargement ; 3. le FP8 de torchao, à mesurer ; 4. la pesée d'un composant
+   réduit EN PARTIE (T5 8 bits mesuré 21,05 Go) ; 5. LTX en deux lignes de catalogue ;
+6. la qualité Q8_0 face aux poids pleins, non mesurée (BF16 demande 22,2 Go, la carte en libère
+   20,1 tant que voix et confidentialité sont chargées).
+
+**Décisions de Fabien, non bloquantes** : FLUX 3 = migration de diffusers 0.42 (huggingface-hub
+>= 1.32, en conflit avec transformers 4.57 et sam3) ; 13,3 Go de GGUF flux-3 installés et
+inutilisés ; marge de la recommandation d'installation (`recommended_option` sans la marge de
+`chosen_precision`).
+
+**Artefacts** : la génération de test 1412 n'existe plus (ligne et fichier absents au
+2026-11-10). Aucun worker recyclé, aucun drapeau posé. Pendings système : aucun pour ce chantier.
