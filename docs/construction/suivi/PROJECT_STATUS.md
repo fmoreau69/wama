@@ -30207,7 +30207,7 @@ de ce périmètre : `tests_backend_deprecation`, `tests_manifest_library`, `test
 - **Laissé** : les manifestes régénérés qui ne portent pas un nom (mesures de VRAM du jour,
   modèles distants neufs) — corpus vivant, hors de ce palier ; le WIP des autres sessions.
 
-## §CLÔTURE 2026-11-10, « TÉMOINS DU FACE ANALYZER : LE NETTOYAGE DU PASSAGE NOCTURNE LIT LE MODÈLE DE LA SURFACE » — `54b3a6b42` (local, non poussé) — 🔚 au prochain passage nocturne, vérifier qu'aucune analyse du compte de test ne s'ajoute
+## §CLÔTURE 2026-11-10, « TÉMOINS DU FACE ANALYZER : LE NETTOYAGE DU PASSAGE NOCTURNE LIT LE MODÈLE DE LA SURFACE » — `54b3a6b42` (poussé) — 🔚 au prochain passage nocturne, vérifier qu'aucune analyse du compte de test ne s'ajoute
 
 **Suite de la clôture de l'audit de sécurité.** Le point que celle-ci laissait à décider (35 lignes du compte de test nocturne pointant vers des témoins disparus) est soldé : 38 lignes retirées à la demande de Fabien, 3 s'étant ajoutées depuis le relevé. Lignes seules, aucun fichier ; les 5 analyses restantes sont intactes.
 
@@ -30216,16 +30216,16 @@ de ce périmètre : `tests_backend_deprecation`, `tests_manifest_library`, `test
 **Le correctif.** Les cinq montages de témoins passent par `witness_guard` / `witness_guards` (`ui_smoke_surfaces`), qui donnent à la garde le modèle DE LA SURFACE, une garde par modèle. Une garde sans modèle l'écrit désormais. Le Face Analyzer n'est pas inscrit au registre d'aperçus pour autant : ce registre sert aux aperçus. Domicile : `WAMA_VERIFICATION §3quater`.
 
 **Limites de cette session (à elle).**
-- Le correctif n'a pas encore été joué par un vrai passage nocturne, qui charge le code au démarrage de son worker : il attend la relance de WAMA déjà demandée à Fabien.
+- Le correctif n'a pas encore été joué par un vrai passage nocturne. WAMA a été relancé le 10/11 à 16:52-16:55, après le commit : le worker nocturne porte le code. Mesuré après la relance : 5 analyses, dont 1 du compte de test, rien d'ajouté depuis le nettoyage. Le scénario n'a pas été joué sur le serveur en service, la carte étant à 100 %.
 - Les autres appelants de la garde lisent toujours le registre d'aperçus. Ils le font pour des apps qui y sont, et une absence s'écrit maintenant dans le journal du scénario.
 
 **Hérités ou ouverts (à d'autres, ou à Fabien).** Reste n°1 de l'audit, à une autre session. Décision de Fabien, non bloquante : chiffrement des médias par utilisateur.
 
 **Effets de bord.** Les 38 lignes retirées sont gardées en JSON dans le scratchpad de la session (jetable). Une base de test propre à cette vérification a été créée puis détruite par son lanceur.
 
-**Rouges nommés.** Sur la base de test partagée, six sous-tests de `tests_surface_witness` échouent en `relation "reader_01_readingitem" does not exist` : la jumelle `reader_01` (ignorée par git, née le 10/11 à 15:19, d'une autre session) n'a pas sa table dans cette base gardée. Sur une base neuve, le module est vert. `tests_identifier_language` a rougi une fois de mon fait (une affectation de `modele` en plus), corrigé sans toucher au budget.
+**Rouges nommés.** Les six sous-tests de `tests_surface_witness` qui échouaient sur la base de test partagée (`relation "reader_01_readingitem" does not exist`) sont soldés : la jumelle recréée à 15:19 a depuis sa migration et ses trois tables dans cette base comme dans la base réelle, colonnes conformes au modèle, et le module est vert sur la base partagée. La page `/reader_01/` répond et sert le commutateur de partition. La jumelle n'est pas convergée pour autant, et ce chantier n'est pas celui de cette session : `wama.reader_01`, joué sur une base neuve, rend 83 tests et 19 rouges, le compte de sa recréation. Onze viennent de la copie (quatre noms privés des vues d'origine, quatre `reverse` vers un espace de noms mal renommé dans le test, deux clés renommées, une migration d'origine absente). Huit sont des réponses différentes des routes ou de la page générées (statut, type de contenu, page vide pour le client du test), non départagées ici. `tests_identifier_language` a rougi une fois de mon fait (une affectation de `modele` en plus), corrigé sans toucher au budget.
 
-**Contrôles attendus au prochain /reprise.** `tests_surface_witness` : 13 verts, sur une base qui a les tables des jumelles ; `WitnessCleanupTest`, 6 contre-épreuves en mémoire, 6 rouges. Avec les gardes transverses et les tests nocturnes : 126 tests, aucun rouge hors du cas `reader_01`. `check_redundancy` : 114 trouvailles au total, aucune dans ces fichiers. `check_docs` : 0 cassée, 0 périmée.
+**Contrôles attendus au prochain /reprise.** Revérifié après la relance du 10/11 : 251 tests OK sur la base partagée (`tests_surface_witness` et ses 6 contre-épreuves rouges, tests nocturnes, `tests_identifier_language`, `tests_theme`, `tests_install_route`, `tests_hf_cache_routing`, `tests_tool_api_coverage`, `tests_test_layout`). `check_redundancy` : 113 trouvailles au total, aucune dans ces fichiers. `check_docs` : 0 cassée, 0 périmée.
 
 ## §CLÔTURE 2026-11-10, « SERVICES : VOLET DROIT VALIDÉ, ORDRES ÉPROUVÉS SUR WAMA RELANCÉ, TEMPS RÉEL À FROID » — 🔚 décisions de `ROADMAP §24.10`, puis le temps réel du Face Analyzer au portage
 
