@@ -31050,8 +31050,11 @@ processus orphelins d'un service d'environnement.
 `tests_install_recommendation`, `tests_prospection_sources`, `tests_anatomy`,
 `tests_platform_ref_only`, `tests_named_search` et les gardes transverses (`tests_identifier_language`,
 `tests_test_layout`, `tests_install_route`, `tests_hf_cache_routing`, `tests_tool_api_coverage`,
-`tests_mecanismes_scan`) ; 16 gardes neuves, chacune prouvée par une mutation (rouge exigé,
-obtenu, fichier restauré à l'empreinte) ; `check_redundancy` 97 (le même total qu'en début de
+`tests_mecanismes_scan`) ; 17 méthodes de test neuves, dont 13 prouvées par une mutation (rouge
+exigé, obtenu, fichier restauré à l'empreinte) — non mutées : la contre-épreuve « le venv de
+référence se patche lui-même », « l'environnement de référence vient en premier », « chaque service
+tourne dans un environnement déclaré », « un service sans déclaration part dans l'environnement de
+référence » (lancement) ; `check_redundancy` 97 (le même total qu'en début de
 session), aucune dans les fichiers de la session ; `check_docs` 0 cassée sur 4088 ; `doc_facts --check` à jour hors la cellule « Inspecteur
 contextuel » de la carte des mécanismes, qui compte un fichier de test non suivi d'une autre
 session (`wama/common/tests/tests_inspector_apply_select.py`, laissé dans l'arbre).
