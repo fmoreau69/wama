@@ -108,6 +108,12 @@ suppression dans un patch qui prétend AJOUTER un bloc est le signe qu'on emport
 autre ; le hunk affiché comme `@@ -N,5 +N,20 @@` au lieu de `@@ -N,0 +N,20 @@` le dit aussi.
 ⭐ *La règle « aucun commit depuis l'index partagé » a une sœur : aucune écriture depuis une
 lecture périmée.*
+⚠ **Et un bloc composé AU HEAD (blob, sans toucher l'arbre) laisse l'ARBRE EN RETARD sur HEAD**
+(vécu le 2026-11-11, clôture ACE-Step) : après le commit, le fichier apparaît modifié — c'est le
+retrait de MON bloc, et la prochaine session qui commite ce fichier depuis l'arbre l'effacerait.
+✅ Juste après le commit : `git diff --numstat -- <f>` doit être `0 <lignes de mon bloc>` (aucun
+ajout = personne d'autre n'y a écrit) ; alors `git checkout HEAD -- <f>` recale l'arbre. Un ajout
+dans ce diff = le WIP d'autrui : ne rien écraser, recomposer l'arbre (son WIP + mon bloc).
 
 🔴 **Et un BLOB recomposé (« HEAD + mon bloc ») est une lecture comme une autre** (vécu le
 2026-11-10, `241c99eda`). Le blob de `PROJECT_STATUS` avait été composé depuis le HEAD d'avant une
