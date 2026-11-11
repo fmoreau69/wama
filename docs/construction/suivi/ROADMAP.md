@@ -3639,6 +3639,7 @@ tout de suite »*) :
   SoulX-FlashHead.
   🔄 *Relevé du 2026-11-10* : ACE-Step 1.5 a sa librairie installée par la route et son manifeste validé (`f0f48c4c5`) ; ⏳ son backend.
   🔄 *Le soir même* : le rôle `backend` a produit un module qui GÉNÈRE (essai réel sur CPU, 10 s à 48 kHz) une fois la route comblée de cinq manques (chargeurs nommés à la place de l'entrée qui télécharge, essai musical, reprise sur l'essai, chemins des composants, paramètres que le contrat interdit d'ignorer — `PROSPECTION_PIPELINE`, entrée ACE-Step) ; ⏳ un dernier passage du rôle, les fournisseurs souverains étant tombés, puis la validation de Fabien.
+  ✅ *Nuit du 10 au 11/11* : backend validé par Fabien (`bdb487518`), puis corrigé PAR LA ROUTE (rôle `task`, local, appliqué par `run_task --apply`) : trois variantes (turbo, SFT, XL-SFT) avec leurs réglages, les deux SFT reliées à la ligne principale par leur DORSALE (`878451d5f`), la précision de chargement déclarée (`1dcb2e582`). Exemples générés par le Composer depuis le compte de Fabien : turbo et SFT ✅ (cards 1446, 1447) ; ⏳ XL-SFT et la preuve réelle « turbo désinstallée → dorsale reprise sans revenir dans les choix » attendent la relance des workers (`PROSPECTION_PIPELINE`, suite de la session du 2026-11-10).
 - **D-b — un artefact intermédiaire ÉDITABLE dans une app de génération.** Propre à YuE2, et
   INDÉPENDANTE de D-a. Aucune app ne l'a : partout c'est consigne → sortie, en un coup. La forme
   existe pourtant ailleurs (transcriber : un master puis une correction humaine qui fait autorité).

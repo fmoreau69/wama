@@ -215,7 +215,7 @@ class TheEngineUsesThemTest(SimpleTestCase):
         self.assertEqual((8, 3.0, 1.0), (turbo['inference_steps'], turbo['shift'], turbo['guidance_scale']))
         self.assertEqual((0.85, -1, 0.9), (turbo['lm_temperature'], turbo['seed'], turbo['lm_top_p']))
 
-    def test_ace_step_refuses_a_model_it_does_not_serve(self):
+    def test_ace_step_rejects_a_model_it_does_not_serve(self):
         from wama.common.backends.ace_step1_5_backend import AceStepBackend
         with self.assertRaisesRegex(ValueError, 'modèle inconnu'):
             AceStepBackend().load('ACE-Step/not-a-variant')

@@ -4850,6 +4850,51 @@ exigé, obtenu).
   gouttière à moitié recopiée). Le rôle `task` reçoit donc, comme `model` et `backend`, UNE reprise
   sur ses refus, gardée si elle est moins refusée (`run_task.reprise_on_checks`).
 
-⏳ **Reste** : le rôle `model` de la XL-SFT, puis Valider (Fabien) ; la proposition du rôle `task`,
-puis l'appliquer après validation (`run_task.py --apply`) ; une génération réelle par variante, à
-écouter.
+### Suite (même nuit) — le backend corrigé par la route, les exemples, le retrait sans piège
+
+- ✅ Rôle `model` de la XL-SFT : moteur par la table, rôles alignés malgré ses poids en quatre
+  morceaux, dorsale posée, 0 erreur ; les deux propositions VALIDÉES par Fabien. La tâche de la SFT
+  corrigée en `text-to-music` par la voie prévue (extraction courante → `write_back`, garde de
+  pertes NON forcée : elle refusait tant que le backend ne servait pas la SFT, ses `requires` se
+  dérivant du backend qui la sert) ; corpus des deux régénéré (`corpus.follow`). Cause : la
+  recherche ne demandait pas les tags au Hub (`SEARCH_EXPAND`, corrigé).
+- ✅ Backend corrigé par le rôle `task` : 4 passages distants (gemma-4-31b, ILaaS/Albert) refusés
+  par les contrôles — le modèle perdait chaque fois la guillemet fermante d'une docstring —, puis
+  `ollama:qwen3.8` en local, verdict clean du premier coup. Deux défauts trouvés à la RELECTURE,
+  que les contrôles ne voient pas, corrigés à la consigne puis repassés : les réglages de la card
+  lus à plat (le composer les passe ainsi, les aides communes lisent `options` — idiome
+  `audiocraft_backend.py:216`) et `model_id=None` (`KeyError`). Garde :
+  `tests_seed_top_p.TheEngineUsesThemTest` (trois cas, trois mutations rouges).
+- ✅ Précision déclarée (`load_precisions`, BF16 sur le DiT) : la XL-SFT publie son DiT en F32 et
+  le moteur le charge en BF16 — le gouverneur la pesait 27,9 Go (fichiers), elle en demande 14,17.
+- ✅ Exemples par le COMPOSER, depuis le compte de Fabien (outil `compose_music`, même prompt
+  « warm acoustic guitar ballad… », 30 s) : turbo (card 1446) et SFT (card 1447) — 30,0 s stéréo
+  48 kHz, signal présent ; le journal du worker montre la SFT chargée comme telle et ses 50 pas.
+- ✅ Retrait d'un modèle, reprise de sa dorsale (Fabien : « il ne faut pas laisser de piège ») :
+  désinstallée, la turbo REVENAIT dans les choix dès qu'une génération SFT réinstallait sa dorsale
+  (`restore_withdrawn`, à la demande et en fin d'installation). Désormais la route la réinstalle
+  par la voie `backbone` et la laisse retirée ; « Installer » sur la ligne présente l'y rend. Sans
+  téléchargement, la SUCCESSION (`supersede_model`, commande seule aujourd'hui) retire un modèle
+  des choix en gardant ses poids. Garde : `tests_uninstall_withdraws` (quatre branches, quatre
+  mutations rouges).
+
+⏳ **Attend la relance des workers (geste de Fabien)** — ils tournent avec le code chargé à leur
+démarrage (le 10/11 au soir) : l'ancien `memory_manager` additionne la dorsale (SFT pesée 13,8 Go
+au lieu de 9,34, XL-SFT 27,9) et l'ancien backend n'a pas la précision BF16. Après la relance :
+1. relancer la XL-SFT (`start_composer(generation_id=1448)`) ;
+2. la PREUVE réelle du retrait : désinstaller la turbo (avec confirmation), lancer une génération
+   SFT, vérifier que la ligne principale se réinstalle par la voie `backbone` et reste hors des
+   choix, puis l'y rendre par « Installer » (≈ 9,4 Go retéléchargés).
+⏳ Une incidence mesurée au passage : mon rôle `task` lancé en LOCAL pendant les générations a pris
+la carte (`qwen3.8`, ~18 Go) et fait échouer la SFT une première fois — `local_llm_guard` n'a pas
+attendu (« mode dépannage éteint : aucune attente »). Un rôle local ne devrait pas se lancer
+pendant qu'une card génère : à confronter au gouverneur.
+⏳ **Chantier (dette de ma main)** : la règle « UNE reprise, gardée si moins refusée » vit
+désormais en TROIS copies — `run_backend.py:448-456`, `run_model_manifest.py:203-223`,
+`run_task.reprise_on_checks` — : à ramener à une brique de `role_utils`, leurs gardes
+(`ModelRoleTakesOneRepriseOnTheVerdictTest`, `BackendRoleTakesOneRepriseOnItsChecksTest`,
+`tests_dev_ai_task_role`) faisant foi.
+Assumés, déclarés : `_HUB_LINK` (tous les liens d'une fiche, collections comprises) à côté de
+`named_repo` (une requête collée, ancrée au début) ; `role_utils._component_architecture` lit
+l'`architectures` du dossier LOCAL d'un composant, les trois autres lecteurs la racine d'un dépôt
+pour son moteur.
