@@ -568,8 +568,8 @@ def _watched_changed(taken: dict, now: dict) -> bool:
     l'app (2026-10-04 : la voix et les paroles du composer). Les clés en `@` (empreintes d'amont,
     `process_pipeline.UPSTREAM_KEY` ; réglages du nœud d'un process ajouté par la card,
     `process_pipeline.NODE_KEY`, 2026-11-11) ne sont pas des champs de l'élément : elles se
-    comparent toujours, une sortie absente exceptée (`_fingerprints_changed`). Une photo VIDE (ligne d'avant les photos)
-    garde la règle d'origine."""
+    comparent toujours, une sortie absente exceptée (`_fingerprints_changed`). Une photo VIDE
+    (ligne d'avant les photos) garde la règle d'origine."""
     if not taken:
         return taken != now
     keys = (set(taken) & set(now)) | {k for k in set(taken) | set(now) if k.startswith('@')}
