@@ -160,6 +160,12 @@ class TripSchema(ContainerSchema):
             out.append(f"pertes d'acquisition non portées ({', '.join(losses[:5])}) : le schéma "
                        f"BIND n'a aucun champ pour un compte d'échantillons manquants")
 
+        tables = [str(t.get('name') or '') for t in context.tables]
+        if tables:
+            out.append(f"{len(tables)} table(s) NON temporelle(s) non portée(s) "
+                       f"({', '.join(tables[:5])}) : le schéma BIND ne range que des flux à clé de "
+                       f"temps (`data_`, `event_`, `situation_`)")
+
         lookups = [e.meta.name for e in entries if e.meta.default_lookup]
         if lookups:
             out.append(f"politique de résolution (`default_lookup`) non portée pour "

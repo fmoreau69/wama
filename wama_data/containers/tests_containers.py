@@ -574,6 +574,101 @@ class WdatAllerRetourTest(unittest.TestCase):
         self.assertEqual(referentiel.names, ['marqueurs', 'phases', 'vitesse'])
         self.assertEqual(referentiel.at('vitesse', 0.11), 1)
 
+    def test_a_table_without_a_time_key_comes_back_beside_the_streams(self):
+        """The NON temporal tables (questionnaires, metadata, results without a time key —
+        provisional form agreed by Fabien on 2026-11-11) : written beside the streams, read back
+        whole with their type and units, and never mistaken for a stream."""
+        from .. import sources
+        self.contexte.tables.append({
+            'name': 'answers', 'data_type': DataType.TABLE, 'columns': ['item', 'value'],
+            'rows': [['q1', 4], ['q2', None]], 'units': {'value': 'points'}})
+        write(self.ref, self.cible, context=self.contexte)
+        tables = lecteur_wdat.WdatReader().tables(self.cible)
+        self.assertEqual({'answers': {'data_type': DataType.TABLE, 'columns': ['item', 'value'],
+                                      'rows': [['q1', 4], ['q2', None]],
+                                      'units': {'value': 'points'}}}, tables)
+        self.assertEqual(['marqueurs', 'phases', 'vitesse'], sources.load(self.cible).names)
+
+    def test_a_container_written_before_its_tables_has_none(self):
+        write(self.ref, self.cible, context=self.contexte)
+        con = sqlite3.connect(self.cible)
+        con.execute('DROP TABLE "WamaTables"')
+        con.commit()
+        con.close()
+        self.assertEqual({}, lecteur_wdat.WdatReader().tables(self.cible))
+
+    def test_a_trip_COUNTS_the_tables_it_cannot_carry(self):
+        self.contexte.tables.append({'name': 'answers', 'data_type': DataType.TABLE,
+                                     'columns': ['item'], 'rows': [['q1']]})
+        report = write(self.ref, self.dossier / 'essai.trip', context=self.contexte)
+        self.assertTrue(any('NON temporelle' in loss and 'answers' in loss
+                            for loss in report.losses), report.losses)
+
+
+class WorkFileTest(unittest.TestCase):
+    """The WORK FILE of a card — the transient `.wdat`, sandbox of its processes (Fabien's decision
+    of 2026-11-11, `WAMA_DATA_WORLD §11.8 ⑩.2`) : what the Data world registers to the substrate
+    (`function_process.register_work_store`). A timed output becomes a stream, any other a table ;
+    replaying a process REPLACES its table and keeps the rest of the file."""
+
+    def setUp(self):
+        self.dossier = Path(tempfile.mkdtemp(prefix='wama_travail_'))
+        self.cible = self.dossier / 'card.wdat'
+
+    def tearDown(self):
+        for f in self.dossier.glob('*'):
+            f.unlink(missing_ok=True)
+        self.dossier.rmdir()
+
+    @staticmethod
+    def _frame(data_type, **columns):
+        import pandas as pd
+        from wama.common.catalog.data_types import TypedFrame
+        return TypedFrame(pd.DataFrame(columns), data_type)
+
+    def test_a_timed_output_is_a_stream_and_any_other_a_table(self):
+        from ..work_file import STORE
+        STORE.write(self.cible, 'speed', self._frame(DataType.TIMESERIES, time=[0.2, 0.0, 0.1],
+                                                      value=[3.0, 1.0, 2.0]))
+        STORE.write(self.cible, 'per_phase', self._frame(DataType.TABLE, phase=['a', 'b'],
+                                                          mean=[1.5, None]))
+        speed = STORE.read(self.cible, 'speed')
+        self.assertEqual((DataType.TIMESERIES, [0.0, 0.1, 0.2], [1.0, 2.0, 3.0]),
+                         (speed.data_type, speed.df['time'].tolist(), speed.df['value'].tolist()),
+                         'a stream is indexed by its time : the rows come back in time order')
+        table = STORE.read(self.cible, 'per_phase')
+        self.assertEqual((DataType.TABLE, ['a', 'b']), (table.data_type, table.df['phase'].tolist()))
+        self.assertTrue(table.df['mean'].isna().tolist()[1], 'a hole stays a hole')
+
+    def test_the_family_the_function_gave_is_kept(self):
+        from ..work_file import STORE
+        STORE.write(self.cible, 'marks', self._frame(DataType.EVENTS, time=[1.0, 2.0],
+                                                      label=['in', 'out']))
+        self.assertEqual(DataType.EVENTS, STORE.read(self.cible, 'marks').data_type)
+
+    def test_replaying_a_process_replaces_its_table_and_keeps_the_others(self):
+        from ..work_file import STORE
+        STORE.write(self.cible, 'speed', self._frame(DataType.TIMESERIES, time=[0.0], value=[1.0]))
+        first = STORE.write(self.cible, 'answers', self._frame(DataType.TABLE, item=['q1']))
+        again = STORE.write(self.cible, 'speed',
+                            self._frame(DataType.TIMESERIES, time=[0.0, 1.0], value=[5.0, 6.0]))
+        self.assertEqual([5.0, 6.0], STORE.read(self.cible, 'speed').df['value'].tolist())
+        self.assertEqual(['q1'], STORE.read(self.cible, 'answers').df['item'].tolist())
+        same = STORE.write(self.cible, 'answers', self._frame(DataType.TABLE, item=['q1']))
+        self.assertEqual(first['fingerprint'], same['fingerprint'],
+                         'the fingerprint is the CONTENT of the table, not of the shared file')
+        self.assertNotEqual(first['fingerprint'], again['fingerprint'])
+
+    def test_the_coordinates_of_the_file_survive_a_new_table(self):
+        from .. import sources
+        from ..work_file import STORE
+        ref = TemporalReferential()
+        ref.add(_signal('x', [0.0], [{'a': 1}]))
+        write(ref, self.cible, context=Context(attributes={'axe.participant': 'P12'}))
+        STORE.write(self.cible, 'answers', self._frame(DataType.TABLE, item=['q1']))
+        info = sources.probe(self.cible)
+        self.assertEqual(('P12', ['x']), (info.attributes.get('axe.participant'), info.streams))
+
 
 class NomAbandonneTest(unittest.TestCase):
     """⚠ LA GARDE DU RENOMMAGE (D17, 2026-08-24). Le conteneur natif s'est appelé `.wrec` pendant

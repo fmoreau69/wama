@@ -16,6 +16,7 @@ What is held here, and why each point:
     the ones before it valid.
 """
 import json
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -308,6 +309,76 @@ class ACardExtendedPipelineTest(SimpleTestCase):
                                    ('again', 'measure')])
         with self.assertRaisesMessage(ValueError, 'cycle'):
             self.pipeline.extended(graph)
+
+    def test_the_settings_of_an_added_process_are_kept_and_given_back_by_its_graph(self):
+        """Marche 2-3 (2026-11-11) : the `params` of an added node are what the common glue gives
+        the function — kept on the card pipeline, and given back by `graph()`, so that re-extending
+        the card's own graph changes nothing."""
+        graph = self._graph(('measure', self.ADDED, {}), links=[('render', 'measure')])
+        graph['nodes'][-1]['params'] = {'factor': 2}
+        card_pipeline = self.pipeline.extended(graph)
+        self.assertEqual({'measure': {'factor': 2}}, card_pipeline.added_params)
+        again = self.pipeline.extended(card_pipeline.graph())
+        self.assertEqual(({'measure'}, {'factor': 2}),
+                         (set(again.added), again.added_params['measure']))
+        self.assertEqual({}, self.pipeline.added_params, 'the declared pipeline adds nothing')
+
+    # ── A META-PROCESS : one `pipeline` node per module (validated by Fabien on 2026-11-10) ────
+    def _module(self, *members, links=()):
+        """A saved pipeline the card may reference : `resolve(key) -> (name, canvas graph)`."""
+        sub = {'nodes': [{'id': mid, 'app': app, 'params': dict(params)}
+                         for mid, app, params in members],
+               'links': [{'from': up, 'to': down, 'to_port': None} for up, down in links]}
+
+        def resolve(key):
+            if key != '7':
+                raise ValueError(f'pipeline {key} introuvable')
+            return 'Module', sub
+        return resolve
+
+    def _with_module(self, **params):
+        graph = self.pipeline.graph()
+        graph['nodes'].append({'id': 'module', 'app': 'pipeline:7', 'params': dict(params)})
+        graph['links'].append({'from': 'render', 'to': 'module', 'to_port': None})
+        return graph
+
+    def test_a_module_is_ONE_added_process_whose_members_are_catalogue_functions(self):
+        resolve = self._module(('cut', f'function:{self.ADDED}', {'threshold': 1}),
+                               ('count', f'function:{self.ADDED}', {}),
+                               links=[('cut', 'count')])
+        card_pipeline = self.pipeline.extended(self._with_module(cut={'threshold': 3}), resolve)
+        module = card_pipeline.spec('module')
+        self.assertEqual((('render',), '7', 'pipeline:7'),
+                         (module.depends_on, module.pipeline, card_pipeline.function_key(module)))
+        self.assertEqual(['plan', 'render', 'module'], _keys(card_pipeline.ordered()))
+        deployed = card_pipeline.metas['module']
+        self.assertEqual(['module/cut', 'module/count'], [n['id'] for n in deployed['nodes']])
+        self.assertEqual({'threshold': 3}, deployed['nodes'][0]['params'],
+                         'the node keeps only what it OVERRIDES, laid over the referenced one')
+        # Its graph gives back the `pipeline` node and its override : the same card pipeline.
+        again = self.pipeline.extended(card_pipeline.graph(), resolve)
+        self.assertEqual(('7', {'cut': {'threshold': 3}}),
+                         (again.spec('module').pipeline, again.added_params['module']))
+
+    def test_a_module_is_read_for_the_account_of_the_card(self):
+        with self.assertRaisesMessage(ValueError, 'aucun compte'):
+            self.pipeline.extended(self._with_module())
+        with self.assertRaisesMessage(ValueError, 'introuvable'):
+            self.pipeline.extended(
+                {**self._with_module(), 'nodes': self._with_module()['nodes'][:-1]
+                 + [{'id': 'module', 'app': 'pipeline:8', 'params': {}}]},
+                self._module(('cut', f'function:{self.ADDED}', {})))
+
+    def test_a_module_composes_functions_only_under_the_rules_of_an_added_process(self):
+        cases = {
+            'ne compose que des fonctions': self._module(('in', 'dataset_input', {})),
+            'module › module/step': self._module(('step', f'function:{self.STEP}', {})),
+            "n'est pas au catalogue": self._module(('x', 'function:demo_card_pipeline.nowhere',
+                                                    {})),
+        }
+        for message, resolve in cases.items():
+            with self.subTest(message), self.assertRaisesMessage(ValueError, message):
+                self.pipeline.extended(self._with_module(), resolve)
 
 
 class WhatALaunchReplaysTest(TestCase):
@@ -1101,13 +1172,15 @@ class WhatTheCardShowsTest(TestCase):
         with CaptureQueriesContext(connection) as page:
             preload(cards)
             views = [card_view(card, preloaded=True) for card in cards]
-        self.assertEqual(1, len(page), [q['sql'][:80] for q in page])
+        # Two queries for the whole page : the lines, and what the cards ADD to their pipeline
+        # (`card_pipelines`, 2026-11-11) — never one per card.
+        self.assertEqual(2, len(page), [q['sql'][:80] for q in page])
         self.assertTrue(all(view[1] == JOB_SUCCESS and len(view[0]) == 2 for view in views))
         alone = _Element(status=JOB_SUCCESS)
         self._played(alone, 'render')
         with CaptureQueriesContext(connection) as single:
             card_view(alone)
-        self.assertEqual(1, len(single))
+        self.assertEqual(2, len(single))
         self.assertFalse(hasattr(alone, PRELOADED), 'nothing read stays on a kept instance')
 
     def test_a_fresh_process_loads_the_declarations_before_saying_there_is_no_pipeline(self):
@@ -1911,3 +1984,318 @@ class EveryAppPipelineTest(SimpleTestCase):
                                  [node['id'] for node in graph['nodes']])
                 for link in graph['links']:
                     self.assertTrue(link['to_port'], f"{link['from']} -> {link['to']} has no port")
+
+
+# ── ROUTE §10.6 3.2bis, marches 2 et 3 (2026-11-11) — the card CARRIES its pipeline ─────────────
+
+class _MemoryWorkStore:
+    """A work store kept in memory — the contract of `function_process.register_work_store`, so
+    the substrate is tested without any world. The file is TOUCHED : a line keeps its address,
+    and a lost file is a lost output (`process_runs.output_lost`)."""
+
+    extension = '.mem'
+
+    def __init__(self):
+        self.tables = {}
+
+    def write(self, path, name, frame):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).touch()
+        self.tables.setdefault(os.path.normpath(str(path)), {})[name] = frame
+        return {'table': name, 'fingerprint': f"{name}:{frame.df.to_csv(index=False)}"}
+
+    def read(self, path, table):
+        return self.tables[os.path.normpath(str(path))][table]
+
+
+def _card_functions():
+    """Two PURE functions of the catalogue (table → table) and one bound to an app — registered
+    for the test, removed by the caller."""
+    import pandas as pd
+    from wama.common.catalog.data_types import TypedFrame
+    from wama.common.catalog.function_catalog import (FUNCTION_CATALOG, Binding, FunctionSpec,
+                                                      ParamSpec, PortSpec)
+
+    def scaled(frame, factor=2.0):
+        return TypedFrame(frame.df.assign(value=frame.df['value'] * factor), 'table')
+
+    def total(frame):
+        return TypedFrame(pd.DataFrame({'total': [float(frame.df['value'].sum())]}), 'table')
+
+    specs = {
+        'demo_card_glue.scaled': FunctionSpec(
+            key='demo_card_glue.scaled', name='scaled', description='', category='transform',
+            fn=scaled, inputs=[PortSpec('rows', 'table')], outputs=[PortSpec('rows', 'table')],
+            params=[ParamSpec('factor', 'float', default=2.0)]),
+        'demo_card_glue.total': FunctionSpec(
+            key='demo_card_glue.total', name='total', description='', category='aggregate',
+            fn=total, inputs=[PortSpec('rows', 'table')], outputs=[PortSpec('total', 'table')]),
+        'demo_card_glue.job': FunctionSpec(
+            key='demo_card_glue.job', name='job', description='', category='transform',
+            binding=Binding.APP, impl='nowhere:task', inputs=[PortSpec('rows', 'table')]),
+    }
+    FUNCTION_CATALOG.update(specs)
+    return specs
+
+
+class ACardCarriesItsPipelineTest(TestCase):
+    """Marche 2 : what a card ADDS to its declared pipeline is kept on a common table addressed like
+    `ProcessRun` (`PipelineExtension`, `card_pipelines`) — only the addition, recomposed with the
+    declared pipeline of the MOMENT by `extended` ; `pipeline_of(item)` gives it ; it follows a
+    duplication, goes with the card, and an orphan is swept."""
+
+    def setUp(self):
+        from wama.common.catalog.function_catalog import FUNCTION_CATALOG
+        self.app, self.model = _adopters()[0]
+        self.declared = AppPipeline(self.app, (
+            ProcessSpec('plan'), ProcessSpec('render', depends_on=('plan',)),
+        ), label='Demo')
+        from wama.common.services.process_pipeline import _load_declarations
+        _load_declarations()      # restored as it is NOW : the fleet stays for the next tests
+        patched = mock.patch.dict(APP_PIPELINES, {self.app: self.declared})
+        patched.start()
+        self.addCleanup(patched.stop)
+        for key in _card_functions():
+            self.addCleanup(FUNCTION_CATALOG.pop, key, None)
+        self.user = get_user_model().objects.create_user('card_pipeline', password='x')
+
+    def _graph(self, factor=3):
+        graph = self.declared.graph()
+        graph['nodes'].append({'id': 'scaled', 'app': 'function:demo_card_glue.scaled',
+                               'params': {'factor': factor}})
+        graph['links'].append({'from': 'render', 'to': 'scaled', 'to_port': None})
+        return graph
+
+    def _card(self):
+        return _instance(self.model, self.user)
+
+    def test_the_card_keeps_only_what_it_adds_and_pipeline_of_gives_it(self):
+        from wama.common.models import PipelineExtension
+        from wama.common.services import card_pipelines
+        from wama.common.services.process_pipeline import pipeline_of
+        item = self._card()
+        self.assertIs(self.declared, pipeline_of(item), 'nothing added : the declared pipeline')
+        card_pipelines.set_added(item, self._graph(), source={'type': 'studio', 'ref': '12'})
+        row = PipelineExtension.objects.get(**card_pipelines.address(item))
+        self.assertEqual((['scaled'], {'type': 'studio', 'ref': '12'}),
+                         ([n['id'] for n in row.body['nodes']], row.source))
+        self.assertEqual(['render'], [l['from'] for l in row.body['links']],
+                         'a declared process is not copied, only the link that reaches the addition')
+        fresh = self.model.objects.get(pk=item.pk)
+        card_pipeline = pipeline_of(fresh)
+        self.assertIs(self.declared, card_pipeline.base)
+        self.assertEqual((['plan', 'render', 'scaled'], {'factor': 3}),
+                         (_keys(card_pipeline.ordered()), card_pipeline.added_params['scaled']))
+        self.assertIs(card_pipeline, pipeline_of(fresh), 'built once per instance')
+
+    def test_saving_the_declared_pipeline_as_it_is_removes_the_addition(self):
+        from wama.common.models import PipelineExtension
+        from wama.common.services import card_pipelines
+        item = self._card()
+        card_pipelines.set_added(item, self._graph())
+        self.assertIs(self.declared, card_pipelines.set_added(item, self.declared.graph()))
+        self.assertFalse(PipelineExtension.objects.filter(**card_pipelines.address(item)).exists())
+
+    def test_a_refused_addition_is_named_and_nothing_is_kept(self):
+        from wama.common.models import PipelineExtension
+        from wama.common.services import card_pipelines
+        item = self._card()
+        graph = self._graph()
+        graph['links'].append({'from': 'scaled', 'to': 'plan', 'to_port': None})
+        with self.assertRaisesMessage(ValueError, 'jamais avant ni entre'):
+            card_pipelines.set_added(item, graph)
+        self.assertFalse(PipelineExtension.objects.exists())
+
+    def test_an_addition_that_no_longer_composes_fails_its_launch_by_name(self):
+        """An app evolution can make an addition invalid (an added key now declared) : the card is
+        read with its declared pipeline, and a launch fails SAYING it (`strict`)."""
+        from wama.common.models import PipelineExtension
+        from wama.common.services import card_pipelines
+        item = self._card()
+        PipelineExtension.objects.create(
+            **card_pipelines.address(item),
+            body={'nodes': [{'id': 'render', 'kind': 'function',
+                             'function': 'demo_card_glue.scaled', 'params': {}}], 'links': []})
+        self.assertIs(self.declared, card_pipelines.card_pipeline(item, self.declared))
+        card_pipelines.release(item)
+        with self.assertRaisesMessage(ValueError, 'ne se compose plus'):
+            card_pipelines.card_pipeline(item, self.declared, strict=True)
+
+    def test_the_addition_follows_a_duplicate_and_goes_with_the_card(self):
+        from wama.common.models import PipelineExtension
+        from wama.common.services import card_pipelines
+        from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
+        item = self._card()
+        card_pipelines.set_added(item, self._graph(factor=5))
+        copy = duplicate_instance(item)
+        self.assertEqual({'factor': 5}, card_pipelines.added(copy)['nodes'][0]['params'])
+        release_card_files(item)
+        self.assertFalse(PipelineExtension.objects.filter(**card_pipelines.address(item)).exists())
+        self.assertTrue(PipelineExtension.objects.filter(**card_pipelines.address(copy)).exists())
+
+    def test_an_orphan_addition_is_swept_with_the_orphan_lines(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from wama.common.models import PipelineExtension
+        from wama.common.services import card_pipelines
+        item = self._card()
+        card_pipelines.set_added(item, self._graph())
+        address = card_pipelines.address(item)
+        self.model.objects.filter(pk=item.pk).delete()
+        PipelineExtension.objects.filter(**address).update(
+            updated_at=timezone.now() - timedelta(seconds=process_runs.ORPHAN_GRACE_SECONDS + 60))
+        self.assertGreaterEqual(process_runs.forget_orphans(dry_run=True)['orphans'], 1)
+        self.assertTrue(PipelineExtension.objects.filter(**address).exists(), 'dry run')
+        process_runs.forget_orphans()
+        self.assertFalse(PipelineExtension.objects.filter(**address).exists())
+
+    def test_a_page_reads_the_additions_of_all_its_cards_in_one_query(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from wama.common.services import card_pipelines
+        from wama.common.services.process_pipeline import pipeline_of, preload
+        cards = [self._card() for _ in range(3)]
+        card_pipelines.set_added(cards[1], self._graph())
+        page = [self.model.objects.get(pk=c.pk) for c in cards]
+        with CaptureQueriesContext(connection) as queries:
+            preload(page)
+            pipelines = [pipeline_of(c) for c in page]
+        self.assertEqual(2, len(queries), [q['sql'][:80] for q in queries])
+        self.assertEqual([False, True, False], [p is not self.declared for p in pipelines])
+
+
+class AnAddedProcessRunsByTheCommonGlueTest(TestCase):
+    """Marche 3 : a process the card adds is played by the task skeleton like the others, through
+    the COMMON glue (`function_process`) — the function of the catalogue by the Studio's door
+    (`run_pure_function`), its typed inputs read from what its upstreams STORED in the card's work
+    file, its output stored there : the line keeps its ADDRESS (file, table) and the fingerprint of
+    its CONTENT, never a value in WAMA's base. Which world stores is registered
+    (`register_work_store`) : here a store in memory."""
+
+    def setUp(self):
+        from wama.common.catalog.function_catalog import FUNCTION_CATALOG, FunctionSpec, PortSpec
+        from wama.common.services import function_process
+        self.app, self.model = _adopters()[0]
+        self.load_spec = f'{self.app}.load'
+        self._register_load('table')
+        self.addCleanup(FUNCTION_CATALOG.pop, self.load_spec, None)
+        for key in _card_functions():
+            self.addCleanup(FUNCTION_CATALOG.pop, key, None)
+        self.declared = AppPipeline(self.app, (ProcessSpec('load'),), label='Demo')
+        from wama.common.services.process_pipeline import _load_declarations
+        _load_declarations()      # restored as it is NOW : the fleet stays for the next tests
+        patched = mock.patch.dict(APP_PIPELINES, {self.app: self.declared})
+        patched.start()
+        self.addCleanup(patched.stop)
+        self.store = _MemoryWorkStore()
+        stored = mock.patch.object(function_process, '_STORE', self.store)
+        stored.start()
+        self.addCleanup(stored.stop)
+        self.user = get_user_model().objects.create_user('card_glue', password='x')
+        self.load = self._stores_rows
+
+    def _register_load(self, data_type):
+        from wama.common.catalog.function_catalog import FUNCTION_CATALOG, FunctionSpec, PortSpec
+        FUNCTION_CATALOG[self.load_spec] = FunctionSpec(
+            key=self.load_spec, name='load', description='', category='transform',
+            outputs=[PortSpec('rows', data_type)])
+
+    def _stores_rows(self, element, ctx):
+        """A DECLARED process that stores typed data in the work file — what a source process
+        of the Data Analyzer will do ; the contract the added processes read."""
+        import pandas as pd
+        from django.conf import settings
+        from wama.common.catalog.data_types import TypedFrame
+        from wama.common.services import function_process
+        rel = function_process.work_file(element, self.store.extension)
+        self.addCleanup(Path(settings.MEDIA_ROOT, rel).unlink, missing_ok=True)
+        done = self.store.write(Path(settings.MEDIA_ROOT, rel), 'load',
+                                TypedFrame(pd.DataFrame({'value': [1.0, 2.0, 3.0]}), 'table'))
+        return {'output_ref': rel, 'output_table': done['table'],
+                'output_fingerprint': done['fingerprint'], 'label': 'load'}
+
+    def _card(self, *added):
+        """A card whose pipeline adds `added` : (id, canvas app, params, upstream)."""
+        from wama.common.services import card_pipelines
+        item = _instance(self.model, self.user)
+        self.model.objects.filter(pk=item.pk).update(status='RUNNING')
+        graph = self.declared.graph()
+        for key, app, params, upstream in added:
+            graph['nodes'].append({'id': key, 'app': app, 'params': params})
+            graph['links'].append({'from': upstream, 'to': key, 'to_port': None})
+        card_pipelines.set_added(item, graph)
+        return item
+
+    def _run(self, item):
+        from wama.common.utils.task_skeleton import run_item_task
+        with mock.patch('wama.common.utils.task_skeleton.close_old_connections'):
+            run_item_task(_task(), app_id=self.app, model=self.model, item_id=item.pk,
+                          pipeline=self.declared, processes={'load': self.load})
+        return self.model.objects.get(pk=item.pk)
+
+    def _stored(self, row, table):
+        from django.conf import settings
+        return self.store.read(Path(settings.MEDIA_ROOT, row.output_ref), table)
+
+    def test_the_added_processes_run_after_the_declared_one_and_store_their_output(self):
+        item = self._run(self._card(
+            ('scaled', 'function:demo_card_glue.scaled', {'factor': 10}, 'load'),
+            ('total', 'function:demo_card_glue.total', {}, 'scaled')))
+        self.assertEqual('SUCCESS', item.status,
+                         {r.node_id: r.error_message for r in process_runs.lines(item)})
+        lines = {row.node_id: row for row in process_runs.lines(item)}
+        self.assertEqual({'load', 'scaled', 'total'}, set(lines))
+        scaled, total = lines['scaled'], lines['total']
+        self.assertEqual(('function', 'demo_card_glue.scaled', JOB_SUCCESS, 'scaled'),
+                         (scaled.process_kind, scaled.process_key, scaled.status,
+                          scaled.output_summary.get('table')))
+        self.assertEqual(scaled.output_ref, total.output_ref, 'ONE work file per card')
+        self.assertIn(f'users/{self.user.pk}/temp/work/', scaled.output_ref)
+        self.assertEqual([60.0], self._stored(total, 'total').df['total'].tolist(),
+                         'its setting reached the function, its upstream fed the next one')
+        self.assertTrue(scaled.output_summary.get('fingerprint'),
+                        'the fingerprint of the CONTENT, not of the shared file')
+
+    def test_a_port_no_upstream_feeds_is_refused_by_name(self):
+        """The added process downstream of nothing typed (a media process) : its required port is
+        not fed, and the card fails SAYING which port."""
+        self._register_load('audio')
+        self.load = lambda element, ctx: {'label': 'a media'}
+        item = self._run(self._card(('scaled', 'function:demo_card_glue.scaled', {}, 'load')))
+        self.assertEqual('FAILURE', item.status)
+        self.assertIn('port « rows »', process_runs.line(item, 'scaled').error_message)
+
+    def test_an_added_process_bound_to_an_app_has_no_glue_and_is_refused_by_name(self):
+        item = self._run(self._card(('job', 'function:demo_card_glue.job', {}, 'load')))
+        self.assertEqual('FAILURE', item.status)
+        self.assertIn('process sans glu : job', getattr(item, 'error_message', ''))
+
+    def test_without_a_world_that_stores_typed_data_the_process_is_refused_by_name(self):
+        from wama.common.services import function_process
+        item = self._card(('scaled', 'function:demo_card_glue.scaled', {}, 'load'))
+        self.load = lambda element, ctx: {'label': 'load'}
+        with mock.patch.object(function_process, '_STORE', None):
+            item = self._run(item)
+        self.assertEqual('FAILURE', item.status)
+        self.assertIn('aucun monde ne range', process_runs.line(item, 'scaled').error_message)
+
+    def test_a_module_plays_its_members_in_order_on_ONE_line(self):
+        """A META-PROCESS (one `pipeline` node per module) : its members run in the order of its
+        deployed graph, data in memory from one to the next, ONE line of kind `pipeline` whose
+        table is the output of its terminal member."""
+        from wama.common.services import card_pipelines
+        sub = {'nodes': [{'id': 'scale', 'app': 'function:demo_card_glue.scaled',
+                          'params': {'factor': 2}},
+                         {'id': 'sum', 'app': 'function:demo_card_glue.total', 'params': {}}],
+               'links': [{'from': 'scale', 'to': 'sum', 'to_port': None}]}
+        with mock.patch.object(card_pipelines, 'resolver_for',
+                               lambda item: (lambda key: ('Module', sub))):
+            item = self._run(self._card(('module', 'pipeline:7', {'scale': {'factor': 5}},
+                                         'load')))
+        self.assertEqual('SUCCESS', item.status,
+                         {r.node_id: r.error_message for r in process_runs.lines(item)})
+        line = process_runs.line(item, 'module')
+        self.assertEqual(('pipeline', 'pipeline:7', 'module/sum'),
+                         (line.process_kind, line.process_key, line.output_summary.get('table')))
+        self.assertEqual([30.0], self._stored(line, 'module/sum').df['total'].tolist(),
+                         'the override reached its member : (1 + 2 + 3) × 5')

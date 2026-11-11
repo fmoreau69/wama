@@ -1866,6 +1866,32 @@ MECHANISMS = (
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=(),
               depends_on=('output_formats',)),
+    # Ajoutés le 2026-11-11 (ROUTE §10.6 3.2bis, marches 2-3, forme validée par Fabien le 10/11).
+    Mechanism('card_pipelines', 'Pipeline étendu porté par la card',
+              "Ce qu'une card AJOUTE au pipeline déclaré de son app — nœuds, réglages, liens, au "
+              "format du body du kind `pipeline` — sur une table commune adressée comme "
+              "`ProcessRun` (`PipelineExtension`), avec sa PROVENANCE (`source` `{type, ref}`, "
+              "jamais une désignation d'un pipeline du Studio). Recomposé au pipeline déclaré DU "
+              "MOMENT par `AppPipeline.extended` (ses deux règles, le méta-process `pipeline`) : "
+              "`pipeline_of(item)` le rend, lu une fois par card (une requête pour une page), le "
+              "squelette le joue (`strict` : un ajout devenu invalide fait échouer le lancement en "
+              "le disant). Suit la duplication, part avec la card, balayé orphelin "
+              "(`process_runs.forget_orphans`) ; promu dans un lot sous `@pipeline`",
+              'wama/common/services/card_pipelines.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
+              depends_on=('process_pipeline', 'batch_settings')),
+    Mechanism('function_process', 'Process « fonction » ajouté à une card (glu commune)',
+              "La glu commune d'un process que la card ajoute (`with_added_glues`), sur le patron "
+              "d'`output_process` : la fonction PURE du catalogue jouée par la porte de l'exécuteur "
+              "du Studio (`run_pure_function`, remontée ici), un méta-process par ses membres ; "
+              "ses entrées TYPÉES lues dans ce que ses amonts ont rangé, sa sortie rangée dans le "
+              "FICHIER DE TRAVAIL de la card (un par card, dossier temporaire du propriétaire) — la "
+              "donnée TRANSITE, jamais dans la base de WAMA ; la ligne garde l'adresse et "
+              "l'empreinte du contenu. Le FORMAT est celui du monde inscrit "
+              "(`register_work_store` : le `.wdat` transitoire du monde Data, `wama_data/work_file.py`)",
+              'wama/common/services/function_process.py',
+              'docs/construction/mondes/WAMA_DATA_WORLD.md §11.8 ⑩',
+              depends_on=('card_pipelines', 'output_process')),
     Mechanism('ocr_process', 'Process « OCR des scans et des images » d\'une card',
               "Le process OPTIONNEL d'une app qui réécrit un document en gardant sa forme "
               "(2026-10-29, le Translator ; le domaine document de l'Anonymizer ensuite), sur le "

@@ -70,6 +70,10 @@ VERSION = '1'
 #: « ceci est un flux », jamais « ceci est un segment ». La famille se lit dans le catalogue.
 PREFIXE = 'flux_'
 
+#: Préfixe des tables NON temporelles (`Context.tables`, forme provisoire du 2026-11-11) — distinct de
+#: `flux_` : une table sans clé de temps n'est pas un flux.
+TABLE_PREFIX = 'table_'
+
 
 class WdatSchema(ContainerSchema):
     format = 'wdat'
@@ -96,6 +100,7 @@ class WdatSchema(ContainerSchema):
         self._variables(con, entries)
         self._medias(con, context)
         self._manifestes(con, context)
+        self._tables(con, context)
 
     @staticmethod
     def _meta(con, entries: Sequence[Entry], context: Context) -> None:
@@ -169,6 +174,40 @@ class WdatSchema(ContainerSchema):
             rows.append((kind, key, str(m.get('schema_version') or m.get('version') or ''),
                            1, json.dumps(m, ensure_ascii=False, default=str)))
         con.executemany('INSERT OR REPLACE INTO "WamaManifests" VALUES (?, ?, ?, ?, ?)', rows)
+
+    @staticmethod
+    def _tables(con, context: Context) -> None:
+        """Les tables NON TEMPORELLES (`Context.tables`) — forme PROVISOIRE, 2026-11-11 : une table
+        de contenu `table_<nom>` (mêmes types de colonne que les flux), décrite au catalogue
+        `WamaTables` ; ses colonnes et leurs unités rejoignent `WamaVariables` (le flux nommé par la
+        table). Pas de clé de temps : ce n'est pas un flux, le référentiel ne la voit pas."""
+        from . import _sqlite_type, sql_value
+        from ..core.values import missing
+        con.execute('CREATE TABLE "WamaTables" ('
+                    'name TEXT PRIMARY KEY, table_name TEXT, data_type TEXT, rows_count INTEGER)')
+        for t in context.tables:
+            name = str(t.get('name') or '')
+            if not name:
+                raise ValueError("table non temporelle sans nom")
+            table = TABLE_PREFIX + normalize(name)
+            columns = [str(c) for c in t.get('columns') or []]
+            rows = [list(r) for r in t.get('rows') or []]
+            types = {}
+            for i, col in enumerate(columns):
+                sample = next((r[i] for r in rows if i < len(r) and not missing(r[i])), None)
+                types[col] = _sqlite_type(sample) if sample is not None else 'TEXT'
+            con.execute(f'CREATE TABLE {ident(table)} ('
+                        + ', '.join(f'{ident(c)} {types[c]}' for c in columns) + ')')
+            if columns and rows:
+                con.executemany(
+                    f'INSERT INTO {ident(table)} VALUES ({", ".join("?" * len(columns))})',
+                    [[sql_value(r[i]) if i < len(r) else None for i in range(len(columns))]
+                     for r in rows])
+            con.execute('INSERT INTO "WamaTables" VALUES (?, ?, ?, ?)',
+                        (name, table, str(t.get('data_type') or ''), len(rows)))
+            units = t.get('units') or {}
+            con.executemany('INSERT OR REPLACE INTO "WamaVariables" VALUES (?, ?, ?, ?)',
+                            [(name, c, str(units.get(c) or ''), types[c]) for c in columns])
 
     def losses(self, entries: Sequence[Entry], context: Context) -> List[str]:
         """Le format natif porte tout ce que le référentiel sait dire — par construction."""

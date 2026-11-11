@@ -44,7 +44,7 @@ from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
-from wama.common.services import batch_identity, batch_settings
+from wama.common.services import batch_identity, batch_settings, card_pipelines
 from wama.common.utils.batch_common import attach_to_batch, batch_elements
 from wama.common.utils.process_control import begin_processing
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
@@ -720,10 +720,25 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         La référence d'avant le geste dit ce qui est personnalisé."""
         reference = batch_settings.stored(b)
         pending = []                              # (élément, champs touchés ; None = tous)
+        pipelines = []                            # (élément, ajout à son pipeline)
         for item in _members(request, b):
             if item.pk in skip or getattr(item, 'status', '') == 'RUNNING':
                 continue
-            data = data_for(item)
+            data = dict(data_for(item))
+            # Ce que la card AJOUTE à son pipeline voyage dans la charge utile (`card_pipelines`,
+            # ROUTE §10.6 3.2bis marche 2) : il ne s'écrit pas comme un réglage. Il reste celui de
+            # la fille quand le geste garde ses valeurs personnalisées et qu'elle s'en écarte.
+            body = data.pop(card_pipelines.PIPELINE_KEY, None)
+            if body is not None and not (
+                    scope == batch_settings.KEEP_OWN
+                    and card_pipelines.PIPELINE_KEY not in set(replace or ())
+                    and (card_pipelines.added(item) or {}) != ((reference or {}).get(
+                        card_pipelines.PIPELINE_KEY) or {})):
+                try:
+                    card_pipelines.check_body(item, body)
+                except ValueError as refusal:
+                    return None, JsonResponse({'error': str(refusal)}, status=400)
+                pipelines.append((item, body))
             keep = batch_settings.kept(
                 batch_settings.own_settings(item, _schema_of(item), reference), scope, replace)
             data = {k: v for k, v in data.items() if k not in keep}
@@ -738,7 +753,10 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                 item.save()
             else:
                 item.save(update_fields=touched)
-        return len(pending), None
+        for item, body in pipelines:
+            card_pipelines.set_added_body(item, body or None,
+                                          source={'type': 'batch', 'ref': str(b.pk)})
+        return len({i.pk for i, _t in pending} | {i.pk for i, _b in pipelines}), None
 
     def _schema_of(item):
         """Le schéma de CET élément, lu UNE fois par geste (retenu sur l'instance) : les réglages
@@ -814,6 +832,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
             return JsonResponse({'error': "la card de référence n'appartient pas à ce lot"},
                                 status=400)
         payload = _payload_of(source)
+        # Le pipeline de la fille fait partie de ce qu'elle promeut : son ajout, ou — quand le lot
+        # en portait un et qu'elle n'en a pas — son absence (les sœurs reviennent au déclaré).
+        added = card_pipelines.added(source)
+        if added or (batch_settings.stored(b) or {}).get(card_pipelines.PIPELINE_KEY):
+            payload[card_pipelines.PIPELINE_KEY] = added or {}
         if not payload:
             return JsonResponse({'error': "cette card ne porte aucun réglage à promouvoir"},
                                 status=400)

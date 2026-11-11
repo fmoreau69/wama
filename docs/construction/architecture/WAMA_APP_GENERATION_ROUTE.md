@@ -5227,9 +5227,19 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
   le constructeur d'`AppPipeline`, comme pour un pipeline déclaré.
 - **Marches** (une validation de Fabien entre chacune) :
   1. ✅ le moteur — `extended`, ses deux règles, la garde d'identité par app (2026-10-29) ;
-  2. ⏳ la card PORTE son pipeline étendu — ✅ **forme ci-dessous VALIDÉE par Fabien le
-     2026-11-10** (« je valide les marches 2 et les méta-process, on y va »), code ⏳, livré avec la
-     marche 3 ; **forme revue à la revérification du 29/10**, avant
+  2. ✅ la card PORTE son pipeline étendu — ✅ **forme ci-dessous VALIDÉE par Fabien le
+     2026-11-10** (« je valide les marches 2 et les méta-process, on y va »), ✅ **codée le
+     2026-11-11 avec la marche 3** : `PipelineExtension` + `common/services/card_pipelines.py` ;
+     `pipeline_of(item)` rend le pipeline de la card (lu une fois par card, une requête par page) ;
+     le squelette le joue (`card_pipeline(strict=True)` : un ajout que le pipeline d'aujourd'hui
+     refuse fait échouer le lancement en le disant) ; la ligne suit `duplicate_instance`, part par
+     `release_card_files`, est balayée par `forget_orphans` ; dans un lot, l'ajout voyage dans la
+     charge utile promue sous `@pipeline` (gardé par une fille qui s'en écarte, sous la portée
+     « garder les valeurs personnalisées »). `extended()` admet le nœud `pipeline` (méta-process :
+     déployé pour le compte de la card, `card_pipelines.resolver_for` ; membres = fonctions sous
+     les règles d'un process ajouté) et garde les réglages des nœuds ajoutés (`added_params`,
+     rendus par `graph()`). Gardes : `tests_process_pipeline` (`ACardExtendedPipelineTest`,
+     `ACardCarriesItsPipelineTest`), `tests_batch_views` ; **forme revue à la revérification du 29/10**, avant
      tout code. La proposition d'origine (« une table qui DÉSIGNE un pipeline par sa clé de
      manifeste, numérique → `StudioPipeline` ») ne tenait pas, pour trois raisons mesurées :
      ① un `StudioPipeline` est un objet de TRAVAIL de son auteur, modifiable, supprimable et
@@ -5253,10 +5263,24 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
      (`release_card_files` → `process_runs.forget`, balayage `forget_orphans`), comme les lignes
      d'exécution. ⚠ Couplée à la marche 3 : un process ajouté sans glu est refusé au lancement
      (`_selected_steps`, « process sans glu ») — les deux se livrent ensemble ;
-  3. ⏳ la glu COMMUNE d'un process ajouté — l'exécuteur de fonction du Studio
+  3. ✅ la glu COMMUNE d'un process ajouté — l'exécuteur de fonction du Studio
      (`studio/tasks._run_pure_function`) remonté au moteur ; sa sortie sur sa LIGNE (`output_ref`,
      la card n'a pas de champ pour elle) ; en Data, écrite dans le `.wdat` de travail
-     (`WAMA_DATA_WORLD §11.8 ⑩`) ;
+     (`WAMA_DATA_WORLD §11.8 ⑩`). ✅ **Codée le 2026-11-11** : `common/services/function_process.py`
+     (`run_pure_function`, que le Studio appelle désormais ; `with_added_glues` donne sa glu à
+     chaque process ajouté PUR — une fonction rattachée à une app reste « process sans glu »).
+     ⭐ **Révisé par Fabien le même jour : TOUJOURS un `.wdat` transitoire**, bac à sable des
+     traitements, quelle que soit la source ; les données TRANSITENT, aucune valeur dans la base de
+     WAMA ; écrire dans la source est un geste de l'utilisateur (`WAMA_DATA_WORLD §11.8 ⑩.2`). La
+     ligne garde l'ADRESSE (`output_ref` = le fichier de travail de la card, un par card, dossier
+     temporaire de son propriétaire ; `output_summary['table']`) et l'empreinte du CONTENU ; le
+     FORMAT est celui du monde inscrit (`register_work_store` — le monde Data y inscrit
+     `wama_data/work_file.py`), le substrat ne cite aucun monde. Entrées : ce que les amonts LUS
+     ont rangé, attribué aux ports par leur type ; un port requis non alimenté est un refus nommé.
+     Méta-process : ses membres dans l'ordre de son sous-graphe, une ligne de nature `pipeline`.
+     Gardes : `AnAddedProcessRunsByTheCommonGlueTest`, `wama_data.containers.tests_containers`
+     (`WorkFileTest`, tables non temporelles). ⏳ La recopie d'une table de la SOURCE connectée et
+     le geste de REPORT par comparaison viennent avec la card du Data Analyzer ;
   4. ⏳ la photo d'un process ajouté lit les réglages de son NŒUD (aujourd'hui il ne surveille que
      ses amonts) ;
   5. ⏳ le geste à l'écran (ouvrir le pipeline d'une card au Studio, l'enregistrer pour elle).

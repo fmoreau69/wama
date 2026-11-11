@@ -80,6 +80,11 @@ class Context:
     attributes: Dict[str, Any] = field(default_factory=dict)
     media: List[Dict[str, Any]] = field(default_factory=list)
     manifests: List[Dict[str, Any]] = field(default_factory=list)
+    #: Les tables NON TEMPORELLES — questionnaires, métadonnées, résultats sans clé de temps —, sous
+    #: une forme PROVISOIRE (accord de Fabien du 2026-11-11, `WAMA_DATA_WORLD §11.8 ⑩.2` point 5) :
+    #: `[{name, data_type, columns: [noms], rows: [[valeurs]], units: {colonne: unité}}]`. À revoir au
+    #: premier cas réel (questionnaires LimeSurvey ou Q2, §15.1).
+    tables: List[Dict[str, Any]] = field(default_factory=list)
 
     def date(self) -> str:
         """Horodatage fourni, ou l'instant courant en ISO/UTC."""

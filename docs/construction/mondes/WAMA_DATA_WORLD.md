@@ -36,7 +36,7 @@
 
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
-| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wdat` | ✅ | 9/9 | 3 | 9/2 | §6.6, §6.6bis, §9bis.1, §9quater.2, §9duodecies, §9terdecies |
+| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wdat` | ✅ | 9/9 | 3 | 10/2 | §6.6, §6.6bis, §9bis.1, §9quater.2, §9duodecies, §9terdecies |
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 4/0 | §2, §3, §9quater.7 |
 | **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wdat` natif) → référentiel | 🔶 | 4/4 | 1 | 4/0 | §6.2, §9quater.2, §9terdecies |
 | **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | 🔶 | 2/2 | 2 | 3/0 | §7, §9quater.6, §9quater.7 |
@@ -58,7 +58,7 @@
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
 - **Exporter** — MOTEUR écrit et éprouvé le 2026-08-23 (49 tests — 37 sur le cœur pur, 12 sur la frontière pandas) sur le modèle RÉEL cette fois : une DÉCLARATION sérialisable, DEUX axes de regroupement au lieu des quatre branches recopiées, l'aperçu qui EST l'export borné. ⚠ Il n'est PAS au catalogue de fonctions et ce n'est pas un oubli : un puits n'a pas de `FunctionCategory` honnête. ⚠ MAIS SON BLOCAGE A CHANGÉ DE NATURE le 2026-08-24 : **D13 est TRANCHÉE** (§9undecies.2 — un seul kind `pipeline`, étendu d'un nœud `function`). Ce n'est donc plus une décision qu'on attend, c'est une IMPLÉMENTATION qui manque, et l'abstention de `functions/io/export.py` — écrite « tant que D13 n'est pas tranchée » — doit être relue à cette lumière. Le nœud `function` du kind est CODÉ depuis le 2026-09-09 (corrigé le 2026-09-15). Forme PRÉCISÉE par Fabien le 2026-09-15 (§11.8 ⑨ ; ~~« décision ouverte 6 »~~ corrigé le 2026-10-11) : l'export est un NŒUD DE SORTIE qui porte sa `Declaration` — N exports (tables, événements, situations) = N nœuds de sortie — et un pipeline SANS process (entrée → sortie) doit être accepté. ✅ LIVRÉ le 2026-10-11 : nœud de sortie `data_export` (`functions/io/export.export_lots`), pipeline sans process accepté par `studio/services/launch.py` (`WAMA_APP_GENERATION_ROUTE §10.6` point 3.6). Restent : l'ÉDITEUR des déclarations (famille → tables → colonnes ordonnées → aperçu, §11.1 — saisie JSON en attendant), les formats `xlsx`/`mat` (refusés explicitement, pas écrits), et l'app qui le pilote (l'Analyzer)
 - **Recorder** — périmètre v1 non tranché (D5)
-- **Analyzer** — D13 TRANCHÉE le 2026-08-24 (§9undecies.2) et CODÉE le 2026-09-09 : le kind `pipeline` accepte le nœud `function`, l'exécuteur du Studio (`studio/tasks.py`) dispatche sur le kind — app = job de file asynchrone, fonction pure = transformation typée synchrone, fonction app-bound = `impl` pollée — et le registre `cam_analyzer.PASSES` s'exporte en manifeste `pipeline` (`manifests/pipelines/`). Depuis, le moteur commun est LIVRÉ (P3, P5, P6 : `ProcessRun`, états communs dont `STALE`, bande des process de la card, promotion fille ↔ mère, dix apps Médias dessus). Ce qui manque à l'Analyzer (relevé le 2026-10-11) : l'APP-FILE elle-même (entrée au catalogue sous le monde `data`, décidée le 2026-09-15) ; les réglages d'un nœud `ParamSpec` rendus dans l'Analyzer lui-même (le Studio les rend déjà par `WamaParams`, depuis `f1c3d4e1`, marche R1 — route tous mondes : `WAMA_APP_GENERATION_ROUTE §10.6` 3.3bis, marche P7a) ; un pipeline porté PAR LA CARD (composition exploratoire — aujourd'hui un pipeline est déclaré par app, en code) ; ~~l'export en nœuds de sortie et le pipeline sans process~~ (✅ 2026-10-11) ; l'empreinte des entrées connectées ; la porte d'ingestion d'un manifeste de pipeline (marche E) — séquence : `WAMA_APP_GENERATION_ROUTE §10.6` marche P7
+- **Analyzer** — D13 TRANCHÉE le 2026-08-24 (§9undecies.2) et CODÉE le 2026-09-09 : le kind `pipeline` accepte le nœud `function`, l'exécuteur du Studio (`studio/tasks.py`) dispatche sur le kind — app = job de file asynchrone, fonction pure = transformation typée synchrone, fonction app-bound = `impl` pollée — et le registre `cam_analyzer.PASSES` s'exporte en manifeste `pipeline` (`manifests/pipelines/`). Depuis, le moteur commun est LIVRÉ (P3, P5, P6 : `ProcessRun`, états communs dont `STALE`, bande des process de la card, promotion fille ↔ mère, dix apps Médias dessus). Ce qui manque à l'Analyzer (relevé le 2026-10-11) : l'APP-FILE elle-même (entrée au catalogue sous le monde `data`, décidée le 2026-09-15) ; les réglages d'un nœud `ParamSpec` rendus dans l'Analyzer lui-même (le Studio les rend déjà par `WamaParams`, depuis `f1c3d4e1`, marche R1 — route tous mondes : `WAMA_APP_GENERATION_ROUTE §10.6` 3.3bis, marche P7a) ; ~~un pipeline porté PAR LA CARD~~ (✅ moteur le 2026-11-11, `ROUTE §10.6` 3.2bis marches 2-3 : la card porte ce qu'elle ajoute, méta-process compris, joué par la glu commune dans son `.wdat` de travail — reste le GESTE à l'écran, marche 5) ; ~~l'export en nœuds de sortie et le pipeline sans process~~ (✅ 2026-10-11) ; l'empreinte des entrées connectées ; la porte d'ingestion d'un manifeste de pipeline (marche E) — séquence : `WAMA_APP_GENERATION_ROUTE §10.6` marche P7
 
 </details>
 <!-- /WAMA:FAITS(wama_data) -->
@@ -3284,6 +3284,66 @@ Trois points, issus d'une confrontation de la cartographie du moteur commun à c
      où d'autres travaillent : écrire y modifie la base de tous), et le domicile du réglage de profil.
      Ce qu'un process désigne dans sa ligne d'exécution (table, colonne du fichier de travail) se
      précisera avec le moteur.
+   - ⭐ **Révisé le 2026-11-11 (Fabien) — TOUJOURS un `.wdat` transitoire, BAC À SABLE des
+     traitements.** *« De la même manière qu'on construit une application en bac à sable dans
+     WAMA, il faut passer par un `.wdat` transitoire qui sert lui-même de bac à sable aux
+     traitements, permettant de faire des tests à volonté, sans risque de corruption de la bdd
+     source, et c'est l'utilisateur qui décide de l'écriture du résultat dans la bdd source. »* Le
+     souvenir de BIND (écrire directement dans le `.trip` connecté) est abandonné. Les médias et les
+     données de l'utilisateur **transitent** par WAMA le temps des process, ils n'y entrent pas :
+     aucune valeur dans une table de la base WAMA, la ligne d'exécution ne garde qu'une RÉFÉRENCE.
+     Le chemin retenu (même jour), et ce qui le fonde :
+     1. **Universel et uniforme** : quelle que soit la source (`.wdat`, `.trip`, fichiers importés,
+        aucune), un process n'écrit QUE dans le `.wdat` de travail de sa card. La source n'est
+        jamais ouverte en écriture par un process ; les données brutes jamais du tout (§9quater.5bis).
+     2. **Un `.wdat` de travail par card** (l'instance de pipeline), dans le dossier TEMPORAIRE de
+        l'utilisateur (`users/<id>/temp/work/`, règle `temp_retention_days`). Les lignes d'exécution
+        de la card en gardent l'ADRESSE (`ProcessRun.output_ref` = le fichier, `output_summary` = la
+        table et l'empreinte de son contenu) — une adresse, pas une désignation au sens de
+        `file_references` (la règle du 2026-10-28 : une ligne ne retient pas un fichier). Il est
+        RÉGÉNÉRABLE par construction : purgé ou supprimé, la bande dit « sortie perdue » et la
+        relance le refait (`process_runs.output_lost`). Au retrait de la card il est libéré et
+        annoncé, jamais effacé en silence. Rejouer un process REMPLACE sa table : on teste à volonté.
+     3. **Il reprend l'ORGANISATION de la source** — même nom de table, même clé temporelle (`time`,
+        ou `start`/`end` d'un segment), mêmes coordonnées d'axes (`WamaMeta`). C'est déjà la forme de
+        ce que rend un process qui ne change pas la clé (`ENRICHER`, `TRANSFORM`, §9quater.4) : la
+        table d'entrée recopiée, plus ses colonnes calculées (`_avec_colonne` copie le cadre). Le
+        `.trip` réel le montre deux fois : `data_ECG_processed` (`isBase=0`) recopie `ecg` de
+        `data_BIOPAC_MP150` et lui ajoute `RRIntervals`, `HRInterp`… ; les `situation_*` portent
+        leurs indicateurs en COLONNES ajoutées (§6.7). Un process qui change la clé (`AGGREGATE`,
+        `DETECTOR`…) rend une table NEUVE, nommée par règle dérivée.
+        ⭐ **Tranché par Fabien le 2026-11-11 (sur l'avis du concile, §15.3) : la table de travail
+        d'un process qui garde la clé ne porte que la CLÉ et les colonnes CALCULÉES** — jamais la
+        table d'entrée recopiée. Constat du code : un enrichisseur rend sa table d'entrée entière
+        plus ses colonnes (`_avec_colonne` copie le cadre) — sur `data_BIOPAC_MP150` (2 037 207
+        lignes, §6.7), une seule colonne calculée recopierait tout le flux. Le reste se lit dans la source, par la clé ; c'est aussi la
+        forme de la comparaison du report (point 4). Une colonne calculée porte toujours un nom
+        DÉRIVÉ (`core/naming.derived_name`) : elle ne remplace jamais une colonne de la source.
+        ⏳ À appliquer avec la recopie d'une table source (card du Data Analyzer) — le
+        `.wdat` de travail d'aujourd'hui range encore le cadre tel que la fonction le rend.
+     4. **L'écriture dans la source est un GESTE de l'utilisateur, par COMPARAISON** table de travail
+        ↔ table source (même nom, même clé) : colonnes nouvelles ajoutées, lignes appariées par la
+        clé ; une colonne qui existe déjà dans la source avec d'autres valeurs est un CONFLIT montré,
+        jamais un écrasement ; une source qui a changé depuis la copie (son empreinte, gardée à la
+        création de la table de travail) est un refus nommé ; une table nouvelle est créée, jamais à
+        la place d'une existante ; le catalogue suit (`isBase=0`, unités, provenance, copie projetée
+        du protocole, et le journal des calculs que BIND tenait dans `MetaTripDatas` :
+        `calcul_<x>: OK`). Vers un `.trip`, ce que BIND ne sait pas porter est compté
+        (`Report.losses`). Des fichiers importés n'ont pas de « source » où écrire : le report va
+        dans le `.wdat` dont l'utilisateur a choisi l'emplacement (§compat G).
+     5. **Tables NON temporelles** (questionnaires, métadonnées, tables de résultats sans clé de
+        temps — un `table`, un `scalar`) : écrites dans le `.wdat` à côté des flux, sous une forme
+        PROVISOIRE (accord de Fabien le même jour) à revoir au premier cas réel — questionnaires
+        LimeSurvey ou Q2 (§15.1 : réponses en format LONG, une ligne par observation × item).
+     ✅ La marche 3 de `ROUTE §10.6 3.2bis` (2026-11-11) porte les points 1, 2, 3 (une sortie rejouée
+     remplace sa table) et 5 : `common/services/function_process.py` (la glu commune, le substrat
+     décide de l'emplacement) et `wama_data/work_file.py` (le format, inscrit depuis `apps.py`) ;
+     tables non temporelles : `Context.tables`, `WamaTables` + `table_<nom>`, relues par
+     `WdatReader.tables`, comptées comme perte vers un `.trip`. ⏳ Le point 4 — le geste de report et sa comparaison — vient avec la card du Data Analyzer ;
+     ⏳ la recopie d'une table SOURCE dans le `.wdat` de travail aussi : tant qu'aucune card n'a de
+     source connectée, un process ajouté ne lit que ce que ses amonts ont écrit dans le `.wdat` de
+     travail. Restent ouverts : une base connectée PARTAGÉE, et le domicile du choix mémorisable au
+     profil.
 
 3. **L'export est un MODULE porté par les cards, pas un réglage de sortie.** Il exporte TOUT le
    contenu, de façon entièrement configurable (`Declaration` : famille → tables → colonnes ordonnées,
@@ -4630,6 +4690,159 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
    `wama_data.tests_vue`) : à mettre à jour avec `tests_vue.py → tests_view.py`.
 3. `doc_facts.py:314` — `from wama_data.modules import mesurer` (déjà au plan, passe D).
    Le runner nocturne, lui, **découvre** les suites dynamiquement — sûr par construction.
+
+---
+
+## 15. PISTES D'INTÉGRATION — questionnaires (Q2) et composition en blocs (BIND_GS) (2026-11-11)
+
+> Demande de Fabien, le 2026-11-11 : évaluer l'alignement de deux projets internes avec le monde
+> Data, pour une intégration FUTURE — *« si c'est trop pour un seul chantier, on peut reporter la
+> partie questionnaire dans un autre chantier mais faire une 1ʳᵉ analyse + consignation »*. Rien
+> n'est engagé. Cartographie en lecture seule (deux passes déléguées, leurs points décisifs relus
+> sur les sources) ; les références `fichier:ligne` sont celles des dépôts d'origine.
+
+### 15.1 Q2 — le constructeur de questionnaires d'expérimentation
+
+**Ce que c'est.** Un projet PHP + MySQL de 2018 (un commit, « Initial import, needs refactoring,
+and needs to become generic »), dépôt `uge-lescot/Q2`, cloné sur le partage du laboratoire. Il
+recueille des modalités SUBJECTIVES des participants pendant une passation (ressenti, acceptation,
+confiance), lancé en fenêtre d'application sur un écran du simulateur. Les questionnaires du
+laboratoire passent par ailleurs le plus souvent par LimeSurvey.
+
+| | relevé |
+|---|---|
+| modèle | une SÉRIE = des pages ; une page = N sous-questions, chacune texte + type + paramètres `k,v;k,v` + position en pixels ; tables créées À LA VOLÉE par série (`questions<n>`, `ordre<n>`, `reponses<n>` — `editor.php:20`, `order_editor.php:21`, `index.php:38`), colonnes ajoutées par `ALTER TABLE` ; aucun schéma déclaré |
+| types | `slider` (bornes, pas, libellés, préfixe/suffixe, image de fond, forme), `likert` (n points, libellés), `oui_non`, `multi_slider` (N valeurs dans UNE colonne), affichages `texte` / `image` / `table_csv` ; `araignée` mort, mode circulaire du multi-curseur non rendu, **aucun texte libre** (la fonction existe, jamais appelée), **aucun disque des émotions** (seulement des images de fond) |
+| ordre | plusieurs ordres de pages par série = un contrebalancement ; navigation linéaire, aucune condition |
+| passation | n° de sujet, série, scénario et chemin d'export SAISIS à la main ; aucun lien avec le simulateur |
+| réponses | une ligne par page validée, horodatage serveur seul ; colonnes `reponseN` compactées (l'identité d'un item est POSITIONNELLE) |
+| export | codé pour deux séries d'une étude, en-têtes propres à cette étude, puis **`TRUNCATE` des réponses** (`functions/export.php:38,69`) ; aucun format LimeSurvey |
+| sécurité | base `root` sans mot de passe, injection SQL, lecture de fichier arbitraire (`download.php`) — **rien du CODE ne se reprend** |
+
+**Alignement avec le modèle du §13 — le cas « le plus naturel » du §13.10 se confirme.**
+- `id_sujet` = l'axe `observation` ; le scénario = un `factor` CROISÉ (`crosses`, `manipulated`) —
+  le questionnaire répété par scénario est le rôle ③ du §13.10 ; les ordres de pages =
+  `counterbalanced: true` ; les conditions manipulées de l'étude (écart, mode de conduite) sont des
+  facteurs — Q2 encode le second dans le NUMÉRO DE SÉRIE, donc le confond avec l'instrument.
+- Une réponse est une valeur sur l'observation, jamais un signal (critère de constance, §13.3ter).
+- ⚠ **Tension à trancher** : §13.10 range une réponse à niveaux FERMÉS (Likert, oui/non) côté
+  `factor` (« niveaux fermés → `reference_tables` ») ; or elle QUALIFIE l'observation sans
+  l'identifier — un `attribute` au critère SDMX (§13.3ter) — et le validateur réserve `levels` aux
+  facteurs (`builtin/dataset.py`, `_FACTOR_ONLY`). Les deux lectures ne tiennent pas ensemble.
+- Manque des deux côtés : l'identité de l'INSTRUMENT (échelle, version — le `MeasurementToolMetadata`
+  de BIDS, §13.10) ; le TEXTE LIBRE et les verbatims, que §13.10 veut rattacher au quantitatif.
+- Horodatage : une validation de page n'est pas sur l'axe de la passation (aucune horloge commune
+  avec le simulateur) — un événement de la passation possible, pas un instant de l'expérience.
+
+**Forme d'une intégration WAMA (proposition, rien d'engagé).** Un questionnaire = une DÉCLARATION
+(items à CLÉ STABLE, type et paramètres — le vocabulaire de types de Q2 en est le point de départ,
+pas son code —, niveaux renvoyés à `reference_tables`, ordres, instrument nommé et versionné),
+rendue par l'UI générée (`Param` / `WamaParams`, briques UI) comme une surface, jamais des pages
+écrites à la main. Les réponses en format LONG — une ligne par (observation, facteurs, item,
+valeur, horodatage) — dans une table NON temporelle du `.wdat` (§11.8 ⑩.2, point 5), le catalogue
+des variables dans `WamaVariables`, la déclaration en copie projetée (`WamaManifests`). LimeSurvey
+entre par un LECTEUR (registre `sources`) qui projette vers la même déclaration et la même table —
+⚠ ce qu'on sait du format LimeSurvey (`.lss`, `.lsa`, CSV) n'a pas été vérifié sur un fichier réel.
+
+**À trancher par Fabien** : la propriété et la licence de Q2 (aucun fichier de licence) ; le statut
+d'une réponse à niveaux fermés (ci-dessus) ; un lien simulateur → questionnaire (scénario et
+conditions transmis, horloge commune) ; les types à concevoir (texte libre, disque des émotions,
+curseur circulaire) ; ~~un moteur de passation WAMA, ou LimeSurvey par import/export~~. → **chantier à
+part**, ouvert quand Fabien le décidera.
+
+⭐ **Tranché par Fabien le 2026-11-11 — un module de questionnaires DANS WAMA, sur la base de Q2 ;
+LimeSurvey est UNE voie, pas la voie.** *« LimeSurvey est limité et n'offre pas certaines formes de
+recueil comme les graphes sur des formes géométriques (roue des émotions, diagrammes et autres
+formalismes spécifiques) […] pas suffisamment complet et exhaustif. »* Le concile recommandait
+l'inverse (collecte par LimeSurvey, §15.3) : écarté. Conséquences, dans les règles du monde :
+- la CRÉATION et la PASSATION se font dans WAMA ; un questionnaire LimeSurvey s'IMPORTE (un lecteur
+  qui projette vers la même déclaration), il ne la remplace pas ;
+- les réponses suivent la doctrine du TRANSIT (§11.8 ⑩.2) : elles vont dans la base de
+  l'expérimentation (`.wdat`, table non temporelle en format long), jamais dans la base de WAMA ;
+- un TYPE de recueil apporte du comportement (un rendu, un geste, un codage de la valeur) et doit
+  pouvoir s'ajouter sans toucher au moteur : c'est un REGISTRE (critère §9quinquies.2), chaque type
+  une BRIQUE UI (`surfaces.UIBrick`) — une roue, une grille, un diagramme sont des briques qui
+  dessinent et rendent une valeur codée, jamais un second système de formulaires.
+
+**Première recherche d'existant (2026-11-11, à approfondir dans le chantier — licences NON
+vérifiées sur les dépôts, seulement sur les pages lues) :**
+
+| projet | ce que c'est | ce qu'on peut en faire, à la règle des bibliothèques (§9quater.7) |
+|---|---|---|
+| **SurveyJS Form Library** | bibliothèque JS de formulaires définis en JSON, types de question personnalisables ; la bibliothèque seule est MIT, l'éditeur visuel et le reste sont commerciaux | ❌ comme moteur de rendu (il décide de la mise en page : un second système de formulaires) ; ⚠ son FORMAT JSON comme format d'échange possible (lecteur/écrivain), à juger |
+| **XLSForm** (ODK, KoboToolbox) | norme de définition de formulaires très répandue (tableur), widgets déterminés par type + apparence | format d'IMPORT candidat, comme LimeSurvey ; ses widgets sont ceux d'un recueil de terrain, pas les formes géométriques voulues |
+| **jsPsych** (+ `jspsych-contrib`) | cadre d'expériences comportementales dans le navigateur ; greffons communautaires `survey-slider`, `survey-vas` (échelles visuelles analogiques), `survey-grid` | ❌ comme cadre (il décide du déroulé) ; ses greffons sont des MODÈLES de briques (échelle analogique, grille de Likert) |
+| **lab.js**, **formr** (BSD-3, PHP + R) | constructeur d'expériences ; plateforme d'enquêtes de recherche (plans complexes, retours calculés) | état de l'art à cartographier comme Q2 et BIND (§11.9) ; rien à embarquer |
+| **Roue des émotions de Genève (GEW)** | implémentations JS : `@psychological-components/gew` (npm, licence non lue), `geneva-emotion-wheel` (composant web Svelte), `lawmercado/gew` (**sans licence**) ; ⚠ l'instrument lui-même a ses règles d'usage (citer Scherer 2005 et Scherer et al. 2013) | une BRIQUE WAMA qui dessine la roue (géométrie simple, SVG) ; l'INSTRUMENT se déclare (nom, version, référence — le `MeasurementToolMetadata` manquant) |
+| **Self-Assessment Manikin (SAM)** | aucune implémentation ouverte trouvée (Inquisit : sous licence) ; Bradley & Lang 1994 | ⏳ brique à écrire ; ⚠ droits des figures à vérifier avant |
+| **affect-kit** | composants web de notation dimensionnelle des émotions, dont un pavé valence-éveil | ⏳ à lire (licence, forme de la valeur) — candidat à la même famille que la grille d'affect |
+| **LimeSurvey** (thèmes de question) | un thème habille un type EXISTANT (Twig, `config.xml`) ; un type neuf passe par un greffon ; un thème à SVG cliquable a buté sur la protection XSS (forum, version 4.x) | confirme le constat de Fabien : l'extension y est étroite — LimeSurvey reste une voie d'IMPORT |
+
+Sources lues : unige.ch/cisa/gew ; pkgstats.com (`@psychological-components/gew`,
+`geneva-emotion-wheel`, `affect-kit`) ; github.com/lawmercado/gew ; surveyjs.io/documentation/library ;
+github.com/jspsych/jspsych-contrib ; docs.getodk.org/form-question-types ; formr.org/about ;
+labjs.readthedocs.io ; manual.limesurvey.org/Question_themes et forums.limesurvey.org (fils
+« create custom question template », « developing a question theme ») ;
+millisecond.com/library/selfassessmentmanikin ; pubmed 7962581 (Bradley & Lang 1994).
+
+### 15.2 BIND_GS — la composition en blocs « à la Scratch »
+
+**Ce que c'est, et jusqu'où il est allé.** Une maquette MATLAB de 2017 (33 commits sur sept
+semaines, un contributeur ; le README de BIND : « visual programming front-end (early stage) »).
+Ce qui est abouti est la MÉCANIQUE d'empilement : traîner une pile entière (« comme au solitaire »),
+aimantation par proximité avec insertion au milieu d'une pile, poubelle comme cible de dépôt, une
+couleur par famille. Ce qui ne l'est pas : un bloc ne porte **ni libellé, ni paramètre, ni créneau
+typé**, et ne correspond à **aucune fonction de BIND** ; `if` / `else` / `end` ne sont que des
+décalages d'indentation dans une liste plate ; ni variable ni boucle ; Ouvrir, Enregistrer,
+« Export code » et « Run code » sont désactivés (`BINDGSCore.m:191-223`) — ni génération de code,
+ni interpréteur. **Rien du code ne se reprend.**
+
+**Alignement — oui, comme SECOND ÉDITEUR du même manifeste, jamais comme représentation.**
+- Le pipeline WAMA est un FLUX DE DONNÉES (un DAG de nœuds à ports typés, les liens portent le
+  sens) ; Scratch est IMPÉRATIF (l'ordre, le flux de contrôle et un état mutable portent le sens).
+  Reprendre le modèle de BIND_GS — un fichier de blocs `if`/`else`/`end` — créerait une seconde
+  représentation, ce que §9bis.3 (une source, N rendus) et **G2** (pas de second canvas)
+  interdisent.
+- Ce qui se transpose : une PILE de transformations = une CHAÎNE de nœuds (le lien va au port
+  compatible, `_resolve_to_port`) ; les créneaux = les ports, les champs = les `params` ; un bloc
+  « personnalisé » = le nœud `pipeline` (méta-process, `ROUTE §10.6 3.1`) ; le chapeau et la fin =
+  les nœuds source et sortie ; et les ENCOCHES deviennent la compatibilité des TYPES de port
+  (`is_compatible`) — ce qui s'emboîte se lit dans la déclaration.
+- Ce qui ne se transpose pas, et que WAMA tient autrement : la BOUCLE est le LOT (un traitement
+  répété sur N cards, le groupement par axe du §13) ; la CONDITION est une DONNÉE (la chaîne de
+  conditions en arbre du Segmenter, §9ter.6 B), pas un saut ; une variable mutable n'a pas de place
+  dans un DAG.
+
+**Forme proposée (rien d'engagé).** Un rendu « blocs » DU pipeline, dans le Studio : les blocs
+GÉNÉRÉS du catalogue de fonctions et des apps (jamais une palette écrite), une pile lue comme une
+chaîne, une branche (une sortie vers deux nœuds, deux entrées vers un) qui retombe sur la vue
+graphe, l'enregistrement par `graph_to_body` + `validate_pipeline_body`. Une bibliothèque de blocs
+(Blockly, Apache-2.0) ne ferait que DESSINER (règle des bibliothèques, §9quater.7) — son format de
+sauvegarde jamais persisté — ; le canvas actuel du Studio étant écrit sans bibliothèque, une pile
+sur sa propre base reste possible. ⚠ Constat au passage : aucun test ne tient G2, et le rendu
+Mermaid / script du pipeline (§9bis.3) reste une intention.
+
+### 15.3 L'avis du concile de WAMA (2026-11-11) — et sa lecture
+
+> Demandé par Fabien sur l'ensemble : pipeline ajustable (marches 2-3, méta-process), `.wdat`
+> transitoire, questionnaires (Q2, LimeSurvey), éditeur en blocs, alignement avec le monde Médias.
+> Premier essai sans avis (Albert et ILaaS indisponibles, relais local muet) ; second essai, les deux
+> serveurs éprouvés d'abord : 214 s, parent Albert `gemma-4-31b-it`, deux délégations. ⚠ Un avis,
+> pas une mesure : les agents n'ont pas relu le code — chaque point est confronté ci-dessous.
+
+| point du concile | lecture |
+|---|---|
+| le pipeline étendu comme PROJECTION (seul l'ajout gardé, recomposé au déclaré) évite qu'une évolution de l'app casse les cards | ✅ c'est la forme validée (marche 2) |
+| la glu commune ne sert aucune des dix apps Médias à court terme : risque d'infrastructure sans usage | ✅ constat juste, et déjà dit (aucune fonction pure ne lit un média) ; le moteur est le préalable du Data Analyzer, deux modules du substrat, rien de lourd |
+| ⭐ VOLUME : recopier une table source de millions de lignes dans le `.wdat` de travail sature le dossier temporaire et ralentit | ✅ **TRANCHÉ par Fabien le jour même : clé + colonnes calculées seulement** (§11.8 ⑩.2, point 3). ⭐ **point le plus utile** : un process qui garde la clé (`ENRICHER`) rend aujourd'hui la table d'entrée ENTIÈRE plus ses colonnes — 2 M de lignes recopiées pour une colonne. Fabien le disait déjà (« par comparaison de la table source avec la table transitoire et les données nécessaires aux calculs ») : la table de travail d'un enrichisseur ne garderait que la CLÉ et les colonnes CALCULÉES, la comparaison se faisant par la clé. ⏳ à trancher avec le point 3 de ⑩.2 (recopie d'une table source), avant la card du Data Analyzer |
+| CONCURRENCE : un report vers une base partagée par plusieurs chercheurs, sans verrou, crée des conflits d'empreintes | ✅ c'est le point déjà OUVERT de ⑩.2 (« une base connectée PARTAGÉE ») ; l'empreinte de la source gardée à la copie en est le premier garde-fou (refus si elle a changé) |
+| un « nettoyage » des `.wdat` orphelins | ✅ existe : règle du dossier temporaire (`temp_retention_days`), libération annoncée au retrait de la card (`function_process.release_work_file`) |
+| une réponse Likert = `factor`, parce qu'elle n'est pas une mesure continue | ⚠ **raisonnement à écarter** : §13.3 tranche que le critère ne parle « ni de mesure, ni d'unité, ni de continu vs discret » — il parle d'IDENTIFICATION (SDMX). La question reste ouverte pour Fabien (§15.1) ; l'argument du concile est celui que §13.3 a corrigé le 2026-08-25 |
+| à déclarer dès maintenant : le couple `(clé, libellé)` de chaque valeur de réponse, le SENS de l'échelle, un identifiant de passation STABLE pour les jointures | ✅ utile, et cohérent avec §15.1 (items à clé stable, niveaux dans `reference_tables`) — le sens de l'échelle n'y figurait pas |
+| s'appuyer sur LimeSurvey pour la collecte, WAMA pour l'exploitation | ❌ **écarté par Fabien le jour même** : LimeSurvey est UNE voie (import), pas la voie — il n'offre pas les formes de recueil propres au laboratoire (roue des émotions, diagrammes, formes géométriques). Décision et première recherche d'existant : §15.1 |
+| l'éditeur en blocs est un complément, à synchronisation bidirectionnelle stricte, sans fonction qu'il serait seul à offrir | ✅ c'est la règle « une représentation, N éditeurs » : deux éditeurs du MÊME manifeste n'ont rien à synchroniser — s'ils en ont, c'est qu'il y a deux représentations |
+| angle mort : le flux « collecte → manifeste → analyse » d'un questionnaire n'est pas détaillé | ✅ juste — c'est le chantier questionnaire, reporté |
+| ordre : marches 2-3, puis le transit Data, puis le connecteur LimeSurvey, puis les blocs | ✅ conforme au chemin en cours |
 
 ---
 

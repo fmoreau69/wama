@@ -92,6 +92,27 @@ class WdatReader(SqliteSourceReader):
                         'SELECT manifest_kind, key, version, read_only, body '
                         'FROM "WamaManifests" ORDER BY manifest_kind, key')]
 
+    def tables(self, path: Path) -> Dict[str, Dict[str, Any]]:
+        """Les tables NON temporelles du conteneur (forme PROVISOIRE du 2026-11-11, `WamaTables`) :
+        `{nom: {data_type, columns, rows, units}}`, lues en entier — ce sont des tables de
+        questionnaires, de métadonnées, de résultats, pas des flux à millions d'échantillons. `{}`
+        pour un conteneur écrit avant elles."""
+        from ..containers import ident
+        if 'WamaTables' not in self._tables(path):
+            return {}
+        unites = self._unites(path)
+        out: Dict[str, Dict[str, Any]] = {}
+        with self._open(path) as con:
+            declared = list(con.execute(
+                'SELECT name, table_name, data_type FROM "WamaTables" ORDER BY name'))
+            for name, table, data_type in declared:
+                cursor = con.execute(f'SELECT * FROM {ident(table)}')
+                out[name] = {'data_type': data_type or '',
+                             'columns': [d[0] for d in cursor.description or ()],
+                             'rows': [list(r) for r in cursor.fetchall()],
+                             'units': unites.get(name, {})}
+        return out
+
     # ── Lecture ───────────────────────────────────────────────────────────────────────────────
     def read(self, path: Path, streams: Optional[Iterable[str]] = None,
              timestampers: Optional[Dict[str, Any]] = None) -> List[StreamSpec]:

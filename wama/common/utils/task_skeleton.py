@@ -814,6 +814,10 @@ def _line_summary(res: dict, spec=None, item=None):
         summary['label'] = res['label']
     if res.get('output_fingerprint'):
         summary['fingerprint'] = str(res['output_fingerprint'])
+    # La TABLE où la sortie est rangée quand `output_ref` désigne un conteneur de plusieurs tables
+    # (le `.wdat` de travail d'une card, `function_process`, 2026-11-11).
+    if res.get('output_table'):
+        summary['table'] = str(res['output_table'])
     # Les REMARQUES sur le résultat (2026-10-29) : la ligne garde son résumé d'un rendu à l'autre
     # (`process_runs.succeed` le complète), donc la clé s'écrit dès que la glu la rend, vide comprise.
     if 'notices' in res:
@@ -830,6 +834,12 @@ def _line_summary(res: dict, spec=None, item=None):
     if eta and len(eta) >= 2 and eta[1]:
         summary[process_runs.ETA_SIZE_KEY] = round(float(eta[1]), 3)
     return summary or None
+
+
+def _line_kind(spec) -> str:
+    """La nature de la ligne d'un process de pipeline : un MÉTA-PROCESS (nœud `pipeline` ajouté
+    par la card) est `pipeline`, tout autre process une `function` (`ProcessRun.KIND_*`)."""
+    return 'pipeline' if getattr(spec, 'pipeline', '') else 'function'
 
 
 def _selected_steps(app_id, item, process, pipeline, processes, resolved_key, only=None) -> list:
@@ -989,6 +999,15 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     #: Le lancement CONTINUE ailleurs (re-livraison) : sa mémoire et ses fichiers restent.
     continues = False
     try:
+        # Le pipeline de CETTE card (ROUTE §10.6 3.2bis, marches 2-3, 2026-11-11) : l'app passe le
+        # pipeline qu'elle DÉCLARE (`pipeline=PIPELINE`, aux dix apps et au générateur) ; une card
+        # qui lui AJOUTE des process joue le sien (`card_pipelines`), et chaque process ajouté reçoit
+        # la glu commune (`function_process`). Un ajout que le pipeline d'aujourd'hui refuse fait
+        # échouer le lancement EN LE DISANT, jamais jouer le déclaré en silence.
+        if pipeline is not None:
+            from wama.common.services import card_pipelines, function_process
+            pipeline = card_pipelines.card_pipeline(item, pipeline, strict=True)
+            processes = function_process.with_added_glues(pipeline, processes)
         # Le modèle de la card absent : la ROUTE l'installe (garde d'espace, journal, jeton), la
         # card le dit, la tâche rend son worker et revient (`ServiceNotReady`) — décision de Fabien
         # du 2026-10-16, `model_readiness`. HORS du garde de durée : un téléchargement de 20 Go
@@ -1015,7 +1034,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                 # pendant le traitement, ce que joue CE lancement — un ▶ borné n'en joue qu'une
                 # partie — et donc ce que la vue de progression additionne (ETA par process).
                 process_runs.safely(process_runs.plan, item,
-                                    [(node_, key_, 'function') for node_, key_, *_r in steps],
+                                    [(node_, key_, _line_kind(spec_))
+                                     for node_, key_, _glue, spec_ in steps],
                                     task_id=task_ref)
             # Ce que le lancement a déjà rendu lors d'une livraison précédente : sa part de barre
             # et ses secondes restent comptées (`_launch_done`).
@@ -1063,7 +1083,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                                              if spec.key in prior else None)
                 process_runs.safely(
                     process_runs.start, item, node, process_key=process_key,
-                    kind='app' if spec is None else 'function',
+                    kind='app' if spec is None else _line_kind(spec),
                     settings_snapshot=ctx.snapshot if spec is not None else None,
                     model_key=resolved_key or '', task_id=task_ref)
                 t_step = time.time()

@@ -76,22 +76,31 @@ def preload(items) -> None:
 
     La même fenêtre retient les réponses de `applies` (2026-10-05) : celui du composer et du
     transcriber résout le backend du modèle — 0,56 s l'appel sur ce poste —, et la bande des
-    process, l'ETA du lancement et la card posaient chacune la question."""
+    process, l'ETA du lancement et la card posaient chacune la question.
+
+    Et ce que chaque card AJOUTE à son pipeline (`card_pipelines`, 2026-11-11) : une seconde
+    requête pour toute la page — chaque card a SON pipeline (`pipeline_of`)."""
+    from wama.common.services import card_pipelines
     items = [item for item in items if item is not None]
     grouped = process_runs.lines_by_item(items)
-    pipeline = pipeline_of(items[0]) if items else None
+    if items and app_pipeline(items[0]._meta.app_label) is not None:
+        card_pipelines.preload(items)
     for item in items:
         setattr(item, PRELOADED, grouped.get(str(item.pk), []))
         item.__dict__.setdefault(APPLIES_MEMO, {})
+        pipeline = pipeline_of(item)
         if pipeline is not None and pipeline.backfill_prior_runs(item):
             setattr(item, PRELOADED, list(process_runs.lines(item)))
 
 
 def release(item) -> None:
     """Referme la fenêtre de `preload` sur cet élément : une instance gardée par l'appelant (un
-    test, une vue qui écrit ensuite) ne relira ni des lignes ni des réponses périmées."""
+    test, une vue qui écrit ensuite) ne relira ni des lignes, ni des réponses, ni un pipeline de
+    card périmés."""
+    from wama.common.services import card_pipelines
     item.__dict__.pop(PRELOADED, None)
     item.__dict__.pop(APPLIES_MEMO, None)
+    card_pipelines.release(item)
 
 
 @dataclass(frozen=True)
@@ -217,6 +226,9 @@ class ProcessSpec:
                   qui le refait s'y trouve (le bouton du réglage) —, SANS qu'un changement le périme :
                   ce n'est pas ce qu'il lit (2026-11-08, décision de Fabien : « la modale d'écrire les
                   paroles devrait contenir le champ paroles et le bouton de génération »).
+      pipeline    la clé du pipeline ENREGISTRÉ qu'un MÉTA-PROCESS référence (un nœud `pipeline`
+                  ajouté par la card, ROUTE §10.6 3.2bis, 2026-11-11) — '' pour un process qui est
+                  une fonction. Jamais déclaré en code : seul `extended` le pose.
     """
     key: str
     label: str = ''
@@ -240,6 +252,7 @@ class ProcessSpec:
     checks: tuple = ()
     writes: tuple = ()
     required_by: object = None
+    pipeline: str = ''
 
 
 def output_fingerprint(ref: str) -> str:
@@ -301,6 +314,10 @@ class AppPipeline:
     base = None
     #: Les clés des process que la card AJOUTE au pipeline déclaré.
     added = frozenset()
+    #: `{clé ajoutée: réglages de son nœud}` — ce que la glu commune passe à la fonction.
+    added_params = {}
+    #: `{clé d'un méta-process: son sous-graphe DÉPLOYÉ}` (`expand_pipeline_nodes`).
+    metas = {}
 
     def __init__(self, app: str, specs, *, label: str, description: str = '',
                  source_ref: str = '', model_of=None):
@@ -359,7 +376,12 @@ class AppPipeline:
             return None
 
     def function_key(self, spec: ProcessSpec) -> str:
-        """Clé `FUNCTION_CATALOG` du process — le nœud `function` qu'il devient au manifeste."""
+        """Clé `FUNCTION_CATALOG` du process — le nœud `function` qu'il devient au manifeste. Un
+        méta-process n'est pas au catalogue : sa clé est sa référence, `pipeline:<clé>` (la forme
+        canvas du nœud), ce que sa ligne d'exécution retient comme process."""
+        if spec.pipeline:
+            from wama.common.manifests.builtin.pipeline import PIPELINE_NODE_PREFIX
+            return f'{PIPELINE_NODE_PREFIX}{spec.pipeline}'
         return spec.function or f'{self.app}.{spec.key}'
 
     def watched_of(self, spec: ProcessSpec) -> tuple:
@@ -503,8 +525,12 @@ class AppPipeline:
         # GÉNÉRATEUR relit ce manifeste pour écrire `function_specs.py`, les colonnes de sortie et
         # la remise à zéro d'un ▶ borné — sans eux, un pipeline exporté puis régénéré perdait
         # ce que `reset_outputs` remplace. Ajout pur : un champ vide n'est pas écrit.
-        nodes = [{'id': spec.key, 'app': f'{FUNCTION_NODE_PREFIX}{self.function_key(spec)}',
-                  'params': {},
+        # Un process AJOUTÉ par la card garde ses réglages (`added_params`), et un méta-process
+        # reste le nœud `pipeline` qu'il est (2026-11-11) : `extended(graph())` rend le même.
+        nodes = [{'id': spec.key,
+                  'app': (self.function_key(spec) if spec.pipeline
+                          else f'{FUNCTION_NODE_PREFIX}{self.function_key(spec)}'),
+                  'params': dict(self.added_params.get(spec.key) or {}),
                   'process': {'degree': spec.degree, 'gpu': spec.gpu,
                              'watched': list(self.watched_of(spec)),
                              **({'toggle': spec.toggle} if spec.toggle else {}),
@@ -554,7 +580,7 @@ class AppPipeline:
         }
 
     # ── Le pipeline ÉTENDU d'une card (ROUTE §10.6 3.2bis, 2026-10-29) ───────────────────────
-    def extended(self, graph: dict) -> 'AppPipeline':
+    def extended(self, graph: dict, resolve=None) -> 'AppPipeline':
         """Le pipeline d'une card AJUSTÉ par l'utilisateur : ce pipeline déclaré, plus les process
         que le graphe `graph` (forme canvas du Studio, celle de `graph()`) lui AJOUTE. Rend `self`
         quand le graphe n'ajoute rien : une card dont le pipeline est ouvert au Studio puis
@@ -572,19 +598,32 @@ class AppPipeline:
         porte aucun champ de l'élément (`_NOT_ADDABLE`). Un refus lève `ValueError` en nommant
         le nœud.
 
+        Un MÉTA-PROCESS (validé par Fabien le 2026-11-10 : un module du monde Data — Segmenter,
+        Calculator — = un nœud `pipeline`, une ligne sur la card, sa ⚙ une section par
+        sous-process) s'ajoute aussi : le nœud RÉFÉRENCE un pipeline enregistré, déployé par
+        `expand_pipeline_nodes` avec `resolve` (ce que le compte de la card peut référencer,
+        `card_pipelines.resolver_for`) ; ses membres sont des fonctions du catalogue sous les
+        mêmes règles qu'un process ajouté, et il ne porte ni entrée ni sortie propre — ses
+        données viennent de la card et vont à sa ligne. Sa surcharge des réglages internes est
+        celle du nœud (`{<id interne>: {réglage: valeur}}`).
+
+        Les RÉGLAGES d'un process ajouté (les `params` de son nœud) sont gardés
+        (`added_params`) : `graph()` les rend, la glu commune les passe à la fonction.
+
         « Étendu » est le mot de la route (3.2 : seule la SOURCE des process d'une card s'étend) ;
         une « variante » est autre chose — une card dupliquée liée à sa source
         (`WAMA_COLLABORATION §7`)."""
         if self.base is not None:
-            return self.base.extended(graph)
-        from wama.common.catalog import function_catalog as fc
-        from wama.common.manifests.builtin.pipeline import node_kind, validate_pipeline_body
+            return self.base.extended(graph, resolve)
+        from wama.common.manifests.builtin.pipeline import (expand_pipeline_nodes, node_kind,
+                                                            pipeline_key, validate_pipeline_body)
         from wama.common.manifests.codegen.pipeline_decl import process_specs
         nodes = (graph or {}).get('nodes') or []
-        others = [str(node.get('id')) for node in nodes if node_kind(node) != 'function']
+        others = [str(node.get('id')) for node in nodes
+                  if node_kind(node) not in ('function', 'pipeline')]
         if others:
-            raise ValueError(f"pipeline de {self.app} : seuls des process (nœuds fonction) "
-                             f"composent une card — {', '.join(others)}")
+            raise ValueError(f"pipeline de {self.app} : seuls des process (nœuds fonction ou "
+                             f"pipeline) composent une card — {', '.join(others)}")
         errors = validate_pipeline_body(graph or {})
         if errors:
             raise ValueError(f"pipeline de {self.app} : {' ; '.join(errors)}")
@@ -601,26 +640,52 @@ class AppPipeline:
                 raise ValueError(f"pipeline de {self.app} : « {key} » est un process déclaré, ses "
                                  f"amonts restent ceux qu'il déclare — un process s'ajoute en aval "
                                  f"ou en dérivation, jamais avant ni entre deux process déclarés")
-        added = []
+        params = {str(node.get('id')): dict(node.get('params') or {}) for node in nodes}
+        added, metas = [], {}
         for key, node in read.items():
             if key in self._by_key:
                 continue
-            if fc.get(node['function']) is None:
-                raise ValueError(f"pipeline de {self.app} : « {key} » — la fonction "
-                                 f"« {node['function']} » n'est pas au catalogue")
-            owner, step = process_of_function(node['function'])
-            if step is not None:
-                raise ValueError(f"pipeline de {self.app} : « {key} » est une étape de card de "
-                                 f"{owner.app} — elle se lance sur une card de {owner.app}")
-            carried = [name for name in _NOT_ADDABLE if node.get(name)]
-            if carried:
-                raise ValueError(f"pipeline de {self.app} : « {key} » est un process ajouté, il ne "
-                                 f"porte aucun champ de la card ni chemin de code — "
-                                 f"{', '.join(carried)}")
+            self._check_addable(key, node['function'], node)
             added.append(ProcessSpec(key, label=node['label'], depends_on=tuple(node['depends_on']),
                                      degree=node['degree'], function=node['function'],
                                      gpu=node['gpu'], share=node['share'],
                                      checks=tuple(node['checks'])))
+        links = (graph or {}).get('links') or []
+        for node in nodes:
+            if node_kind(node) != 'pipeline':
+                continue
+            key, ref = str(node.get('id')), pipeline_key(node)
+            if key in self._by_key:
+                raise ValueError(f"pipeline de {self.app} : « {key} » est un process déclaré, sa "
+                                 f"fonction ne se remplace pas")
+            if resolve is None:
+                raise ValueError(f"pipeline de {self.app} : « {key} » référence le pipeline {ref}, "
+                                 f"qui se lit pour le compte de la card — aucun compte ici")
+            deployed = expand_pipeline_nodes({'nodes': [node], 'links': []}, resolve)
+            members = deployed['nodes']
+            if not members:
+                raise ValueError(f"pipeline de {self.app} : « {key} » — le pipeline {ref} est vide")
+            loose = [str(m['id']) for m in members if node_kind(m) != 'function']
+            if loose:
+                raise ValueError(f"pipeline de {self.app} : « {key} » est un méta-process, il ne "
+                                 f"compose que des fonctions (ses données viennent de la card et vont "
+                                 f"à sa ligne) — {', '.join(loose)}")
+            from wama.common.manifests.builtin.pipeline import function_key as node_function
+            for member in members:
+                self._check_addable(f"{key} › {member['id']}", node_function(member),
+                                    member.get('process') or {})
+            declared = node.get('process') or {}
+            carried = [name for name in _NOT_ADDABLE if declared.get(name)]
+            if carried:
+                raise ValueError(f"pipeline de {self.app} : « {key} » est un process ajouté, il ne "
+                                 f"porte aucun champ de la card ni chemin de code — "
+                                 f"{', '.join(carried)}")
+            added.append(ProcessSpec(
+                key, label=declared.get('label', ''), pipeline=ref,
+                depends_on=tuple(l['from'] for l in links if l.get('to') == key and l.get('from')),
+                degree=declared.get('degree', REQUIRED), share=int(declared.get('share') or 1),
+                gpu=bool(declared.get('gpu'))))
+            metas[key] = deployed
         if not added:
             return self
         pipeline = AppPipeline(self.app, self.specs + tuple(added), label=self.label,
@@ -628,7 +693,27 @@ class AppPipeline:
                                model_of=self.model_of)
         pipeline.base = self
         pipeline.added = frozenset(spec.key for spec in added)
+        pipeline.added_params = {spec.key: params.get(spec.key, {}) for spec in added}
+        pipeline.metas = metas
         return pipeline
+
+    def _check_addable(self, key: str, function: str, declared: dict) -> None:
+        """Les règles d'un process AJOUTÉ (ou d'un membre de méta-process) : une fonction du
+        catalogue, étape d'aucune app, sans champ de la card ni chemin de code (`_NOT_ADDABLE`).
+        Lève `ValueError` en nommant le nœud."""
+        from wama.common.catalog import function_catalog as fc
+        if fc.get(function) is None:
+            raise ValueError(f"pipeline de {self.app} : « {key} » — la fonction "
+                             f"« {function} » n'est pas au catalogue")
+        owner, step = process_of_function(function)
+        if step is not None:
+            raise ValueError(f"pipeline de {self.app} : « {key} » est une étape de card de "
+                             f"{owner.app} — elle se lance sur une card de {owner.app}")
+        carried = [name for name in _NOT_ADDABLE if declared.get(name)]
+        if carried:
+            raise ValueError(f"pipeline de {self.app} : « {key} » est un process ajouté, il ne "
+                             f"porte aucun champ de la card ni chemin de code — "
+                             f"{', '.join(carried)}")
 
     def ordered(self, keys=None) -> list:
         """Les process (tous, ou ceux de `keys`) dans l'ordre topologique du graphe."""
@@ -1393,13 +1478,19 @@ def process_of_function(function_key: str):
 
 
 def pipeline_of(item) -> AppPipeline | None:
-    """Le pipeline déclaré par l'app de cet élément, ou None (app à un seul process). Charge
-    les déclarations des apps si ce processus ne l'a pas encore fait."""
+    """Le pipeline de CETTE card : celui que son app déclare, ÉTENDU de ce que la card lui ajoute
+    (`card_pipelines`, ROUTE §10.6 3.2bis marche 2) — ou None (app à un seul process). Une card
+    qui n'ajoute rien reçoit le pipeline déclaré lui-même. Charge les déclarations des apps si ce
+    processus ne l'a pas encore fait ; l'ajout est lu une fois par instance."""
     try:
         label = item._meta.app_label
     except AttributeError:
         return None
-    return app_pipeline(label)
+    declared = app_pipeline(label)
+    if declared is None:
+        return None
+    from wama.common.services import card_pipelines
+    return card_pipelines.card_pipeline(item, declared)
 
 
 def app_pipeline(app: str) -> AppPipeline | None:

@@ -140,36 +140,9 @@ def builtin_node_values(node) -> dict:
         raise ValueError(f"Nœud « {node_label(node['app'])} » : {exc}")
 
 
-def _run_pure_function(spec, frames_by_port: dict, params: dict):
-    """`spec.fn(premier port, <autres ports par mot-clé>, **params)` — le contrat que
-    `wama_data/view.py::apply` applique déjà (premier port positionnel) étendu aux fonctions
-    à plusieurs entrées (`gps_map_match(track, road_map)` : ports suivants par NOM de port).
-    Un port `many` reçoit la liste des frames amont."""
-    from wama.common.catalog.data_types import TypedFrame
-    positional, keywords = None, {}
-    for i, port in enumerate(spec.inputs):
-        got = frames_by_port.get(port.key)
-        if got is None:
-            if port.optional:
-                continue
-            raise ValueError(f"port « {port.key} » ({port.data_type}) non alimenté — "
-                             f"connectez un nœud amont typé")
-        if port.cardinality != 'many' and isinstance(got, list):
-            got = got[-1]
-        if i == 0:
-            positional = got
-        else:
-            keywords[port.key] = got
-    if positional is None:
-        raise ValueError("aucune entrée")
-    # Les réglages passent par LA porte de la fonction (`FunctionSpec.call_params` : le pont vers
-    # `Param`, puis `checked_values`) — types ET bornes, refus nommés. L'ancienne coercition locale
-    # ne connaissait que les types : une borne déclarée n'était tenue nulle part au lancement.
-    result = spec.fn(positional, **keywords, **spec.call_params(params))
-    if not isinstance(result, TypedFrame):
-        raise ValueError(f"la fonction n'a pas rendu un TypedFrame ({type(result).__name__}) — "
-                         f"contrat `pure` non honoré (noyau branché à la place du wrapper ?)")
-    return result
+# L'exécution d'une fonction PURE vit au moteur commun depuis le 2026-11-11
+# (`common/services/function_process.run_pure_function`) : la glu d'un process ajouté à une card la
+# joue par la même porte (ROUTE §10.6 3.2bis, marche 3).
 
 
 def _impl_callable(impl: str):
@@ -521,7 +494,7 @@ def _execute_run(run, task_id, notify=True):
                         # se perdait en silence : un graphe sauvegardé AVANT cette date porte le
                         # RÔLE du port (`travail`), et les ports intégrés du JS (Sortie, Jeu de
                         # données) n'ont pas d'id du tout. Sans ce repli, la donnée était rangée
-                        # sous une clé que `_run_pure_function` ne lit jamais, et le port requis
+                        # sous une clé que `run_pure_function` ne lit jamais, et le port requis
                         # ressortait « non alimenté » — un message qui accuse le graphe alors que
                         # c'est le nom du lien qui a vieilli.
                         port = l.get('to_port')
@@ -530,7 +503,8 @@ def _execute_run(run, task_id, notify=True):
                         frames.setdefault(port, []).append(up['value'])
                     frames = {p: (v if len(v) > 1 else v[0]) for p, v in frames.items()}
                     try:
-                        result = _run_pure_function(spec, frames, node.get('params') or {})
+                        from wama.common.services.function_process import run_pure_function
+                        result = run_pure_function(spec, frames, node.get('params') or {})
                     except ValueError as exc:
                         raise ValueError(f"Nœud fonction « {key} » : {exc}")
                     # La facette estimateur du port VOYAGE avec la donnée : c'est ce que

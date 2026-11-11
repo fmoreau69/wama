@@ -41,6 +41,14 @@ class WamaDataConfig(AppConfig):
             self._register_media_nature()
         except Exception:
             log.warning('wama_data nature dataset non déclarée', exc_info=True)
+        try:
+            # Le FICHIER DE TRAVAIL des process ajoutés à une card (`.wdat` transitoire, décision de
+            # Fabien du 2026-11-11) : le substrat en décide l'emplacement, le monde Data le format.
+            from wama.common.services.function_process import register_work_store
+            from .work_file import STORE
+            register_work_store(STORE)
+        except Exception:
+            log.warning('wama_data fichier de travail non déclaré', exc_info=True)
 
     # ──────────────────────────────────────────────────────────────────────────────────────────
     @staticmethod

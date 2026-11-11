@@ -252,9 +252,10 @@ MODULES: Tuple[ModuleData, ...] = (
                    "sous le monde `data`, décidée le 2026-09-15) ; les réglages d'un nœud "
                    "`ParamSpec` rendus dans l'Analyzer lui-même (le Studio les rend déjà par "
                    "`WamaParams`, depuis `f1c3d4e1`, marche R1 — route tous mondes : "
-                   "`WAMA_APP_GENERATION_ROUTE §10.6` 3.3bis, marche P7a) ; un pipeline porté PAR LA "
-                   "CARD (composition exploratoire — aujourd'hui un pipeline est déclaré par app, "
-                   "en code) ; ~~l'export en nœuds de sortie et le pipeline sans process~~ "
+                   "`WAMA_APP_GENERATION_ROUTE §10.6` 3.3bis, marche P7a) ; ~~un pipeline porté PAR "
+                   "LA CARD~~ (✅ moteur le 2026-11-11, `ROUTE §10.6` 3.2bis marches 2-3 : la card "
+                   "porte ce qu'elle ajoute, méta-process compris, joué par la glu commune dans son "
+                   "`.wdat` de travail — reste le GESTE à l'écran, marche 5) ; ~~l'export en nœuds de sortie et le pipeline sans process~~ "
                    "(✅ 2026-10-11) ; l'empreinte des entrées connectées ; la porte d'ingestion d'un manifeste de "
                    "pipeline (marche E) — séquence : `WAMA_APP_GENERATION_ROUTE §10.6` marche P7",
     ),

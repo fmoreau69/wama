@@ -487,6 +487,36 @@ class PromotionBetweenChildAndMotherTest(TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertIsNone(batch_settings.stored(self.lot), 'un refus ne pose pas de référence')
 
+    def test_what_a_child_adds_to_its_pipeline_is_promoted_with_its_settings(self):
+        """ROUTE §10.6 3.2bis marche 2 (2026-11-11) : in a batch, the pipeline is set on the mother
+        and promoted — what a child ADDS to it travels in the promoted payload (`@pipeline`) and
+        lands on her sisters ; promoting a child that adds nothing brings them back."""
+        from wama.common.catalog.function_catalog import FUNCTION_CATALOG
+        from wama.common.services import batch_settings, card_pipelines
+        from wama.common.services.process_pipeline import app_pipeline
+        from wama.common.tests.tests_process_pipeline import _card_functions
+        from wama.converter.models import ConversionJob
+        for key in _card_functions():
+            self.addCleanup(FUNCTION_CATALOG.pop, key, None)
+        graph = app_pipeline('converter').graph()
+        graph['nodes'].append({'id': 'scaled', 'app': 'function:demo_card_glue.scaled',
+                               'params': {'factor': 4}})
+        graph['links'].append({'from': 'enhance', 'to': 'scaled', 'to_port': None})
+        card_pipelines.set_added(self.b, graph)
+        r = self._post('batch_promote', {'source': self.b.pk})
+        self.assertEqual(r.status_code, 200, r.content)
+        sister = card_pipelines.added(ConversionJob.objects.get(pk=self.a.pk))
+        self.assertEqual([('scaled', {'factor': 4})],
+                         [(n['id'], n['params']) for n in (sister or {}).get('nodes') or []])
+        self.assertIn(card_pipelines.PIPELINE_KEY, batch_settings.stored(self.lot))
+        self.assertEqual(self.a.output_format, 'mp4')
+        self.a.refresh_from_db()
+        self.assertEqual(self.a.output_format, 'webm', 'her settings travelled with it')
+        card_pipelines.set_added(self.b, None)
+        self._post('batch_promote', {'source': self.b.pk})
+        self.assertIsNone(card_pipelines.added(ConversionJob.objects.get(pk=self.a.pk)),
+                          'a child that adds nothing brings her sisters back to the declared one')
+
     def test_the_reference_follows_duplication_and_leaves_with_deletion(self):
         from wama.common.services import batch_settings
         from wama.converter.models import ConversionBatch

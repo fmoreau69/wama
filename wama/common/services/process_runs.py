@@ -343,15 +343,30 @@ def forget_orphans(*, dry_run: bool = False, chunk: int = 5000) -> dict:
     registre (`sandbox.sandbox_labels` — née après le démarrage de ce processus, elle n'y est pas
     chargée) ; sinon les lignes dont l'identifiant n'est plus en base, lu par le gestionnaire de
     BASE (un gestionnaire filtré ferait prendre un élément masqué pour un disparu). Un identifiant
-    illisible est gardé, jamais deviné. Rend `{'orphans', 'deleted', 'by_type'}`."""
+    illisible est gardé, jamais deviné. Rend `{'orphans', 'deleted', 'by_type'}`.
+
+    Le même balayage tient ce qu'une card AJOUTE à son pipeline (`PipelineExtension`, 2026-11-11) :
+    même adressage, même raison — une ligne sans card ne se relit jamais."""
+    from wama.common.models import PipelineExtension, ProcessRun
+    total = {'orphans': 0, 'deleted': 0, 'by_type': {}}
+    for model in (ProcessRun, PipelineExtension):
+        found = _forget_orphans_of(model, dry_run=dry_run, chunk=chunk)
+        total['orphans'] += found['orphans']
+        total['deleted'] += found['deleted']
+        for key, n in found['by_type'].items():
+            total['by_type'][key] = total['by_type'].get(key, 0) + n
+    return total
+
+
+def _forget_orphans_of(table, *, dry_run: bool, chunk: int) -> dict:
+    """Le balayage de `forget_orphans` sur UNE table adressée comme `ProcessRun`."""
     from datetime import timedelta
 
     from django.apps import apps
 
-    from wama.common.models import ProcessRun
     from wama.common.sandbox import sandbox_labels
 
-    old = ProcessRun.objects.filter(
+    old = table.objects.filter(
         updated_at__lt=timezone.now() - timedelta(seconds=ORPHAN_GRACE_SECONDS))
     twins = set(sandbox_labels())
     by_type, doomed = {}, []
@@ -382,7 +397,7 @@ def forget_orphans(*, dry_run: bool = False, chunk: int = 5000) -> dict:
     deleted = 0
     if not dry_run:
         for start in range(0, len(doomed), chunk):
-            deleted += ProcessRun.objects.filter(pk__in=doomed[start:start + chunk]).delete()[0]
+            deleted += table.objects.filter(pk__in=doomed[start:start + chunk]).delete()[0]
     return {'orphans': len(doomed), 'deleted': deleted, 'by_type': by_type}
 
 

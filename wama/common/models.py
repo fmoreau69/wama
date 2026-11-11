@@ -1571,6 +1571,45 @@ class BatchLabel(models.Model):
         return f"{self.app}:{self.batch_type}#{self.batch_id} · {self.label}"
 
 
+class PipelineExtension(models.Model):
+    """Ce qu'une CARD AJOUTE à son pipeline déclaré — `WAMA_APP_GENERATION_ROUTE §10.6` 3.2bis,
+    marche 2 (forme validée par Fabien le 2026-11-10). UNE ligne par card qui ajoute quelque chose ;
+    aucune ligne = la card joue le pipeline de son app, tel que le code le déclare.
+
+    Elle ne garde QUE l'ajout — les nœuds ajoutés, leurs réglages, leurs liens, au format du body du
+    kind `pipeline` —, jamais le graphe entier : recomposé au pipeline déclaré DU MOMENT
+    (`AppPipeline.extended`), il suit les évolutions de l'app (un process ajouté en code n'en rend
+    aucune illisible). `source` dit d'où vient l'ajout (`{type, ref}` de l'enveloppe des manifestes,
+    p. ex. un pipeline enregistré du Studio) : une PROVENANCE, jamais une désignation — un
+    `StudioPipeline` reste l'objet de travail de son auteur.
+
+    Adressage : celui de `ProcessRun` (`app` = label Django du modèle de l'élément, `object_id` en
+    texte) — l'instance de pipeline reste l'élément (décision n°1). Service :
+    `common/services/card_pipelines.py`.
+    """
+
+    app = models.CharField(max_length=32, db_index=True)
+    object_type = models.CharField(max_length=64)
+    object_id = models.CharField(max_length=64)
+    #: L'AJOUT : `{nodes, links}` au format du body du kind `pipeline` (`graph_to_body`).
+    body = models.JSONField(default=dict, blank=True)
+    #: D'où vient l'ajout — `{type, ref}`, vide pour un ajout fait sur la card.
+    source = models.JSONField(default=dict, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Pipeline étendu d’une card'
+        verbose_name_plural = 'Pipelines étendus des cards'
+        constraints = [
+            models.UniqueConstraint(fields=['app', 'object_type', 'object_id'],
+                                    name='pipeline_extension_unique_card'),
+        ]
+
+    def __str__(self):
+        added = len((self.body or {}).get('nodes') or [])
+        return f"{self.app}:{self.object_type}#{self.object_id} · {added} process ajouté(s)"
+
+
 class ResultEvaluation(models.Model):
     """
     La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière

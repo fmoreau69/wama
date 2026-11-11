@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**237 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**239 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -364,7 +364,7 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
   - `class AppPipeline` — Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive.
   - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='', model_of=None) -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
   - `process_of_function(function_key: str)` — `(pipeline, ProcessSpec)` de l'ÉTAPE de card qu'est la fonction `function_key` — le process
-  - `pipeline_of(item) -> AppPipeline | None` — Le pipeline déclaré par l'app de cet élément, ou None (app à un seul process). Charge
+  - `pipeline_of(item) -> AppPipeline | None` — Le pipeline de CETTE card : celui que son app déclare, ÉTENDU de ce que la card lui ajoute
   - `app_pipeline(app: str) -> AppPipeline | None` — Le pipeline déclaré par l'app `app`, ou None — même lecture que `pipeline_of`, quand on
   - `card_view(item, model_key=DECLARED, preloaded: bool=False)` — Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
   - `decorate(item, model_key=DECLARED, preloaded: bool=False)` — Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
@@ -2168,6 +2168,46 @@ Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la
   - `declaration(source: str, model_id: str) -> Optional[dict]` — Déclaration de `model_id` telle que l'app `source` la porte, ou None.
   - `declaration_for(value: str, default_source: str='') -> Optional[dict]` — Déclaration du modèle désigné par une CLÉ de catalogue — ou par un identifiant nu, lu dans
 
+### Pipeline étendu porté par la card
+
+Ce qu'une card AJOUTE au pipeline déclaré de son app — nœuds, réglages, liens, au format du body du kind `pipeline` — sur une table commune adressée comme `ProcessRun` (`PipelineExtension`), avec sa PROVENANCE (`source` `{type, ref}`, jamais une désignation d'un pipeline du Studio). Recomposé au pipeline déclaré DU MOMENT par `AppPipeline.extended` (ses deux règles, le méta-process `pipeline`) : `pipeline_of(item)` le rend, lu une fois par card (une requête pour une page), le squelette le joue (`strict` : un ajout devenu invalide fait échouer le lancement en le disant). Suit la duplication, part avec la card, balayé orphelin (`process_runs.forget_orphans`) ; promu dans un lot sous `@pipeline`
+
+- **Domicile** : `wama/common/services/card_pipelines.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : Le pipeline que la CARD porte — ce qu'elle AJOUTE au pipeline déclaré de son app. `WAMA_APP_GENERATION_ROUTE §10.6` 3.2bis, marche 2 (forme validée par Fabien le 2026-11-10).
+- **API publique** (14) :
+  - `address(item) -> dict` — Adresse de la card : celle de ses lignes d'exécution (`process_runs`).
+  - `preload(items) -> None` — Lit en UNE requête l'ajout de chaque card de `items` et le retient sur l'instance — la page
+  - `release(item) -> None` — Oublie ce qui a été lu sur l'instance (`process_pipeline.release`).
+  - `added(item) -> dict | None` — L'ajout de la card (`{nodes, links}` au format du body du kind `pipeline`), ou None. Lu une
+  - `source_of(item) -> dict` — La provenance de l'ajout (`{type, ref}`), `{}` sans ajout ou ajout fait sur la card.
+  - `composed(declared, body) -> dict` — Le graphe CANVAS du pipeline de la card : celui du pipeline déclaré, plus l'ajout.
+  - `resolver_for(item)` — Ce que la card peut RÉFÉRENCER comme nœud `pipeline` : la règle du Studio pour le compte qui
+  - `card_pipeline(item, declared, *, strict: bool=False)` — Le pipeline de la card : `declared` étendu de ce qu'elle ajoute, ou `declared` lui-même.
+  - `added_body(declared, graph: dict) -> dict` — Ce qu'un graphe CANVAS ajoute au pipeline `declared` : ses nœuds non déclarés et les liens
+  - `set_added(item, graph: dict | None, *, source: dict | None=None)` — La card PORTE désormais le pipeline `graph` (forme canvas du Studio, celle de
+  - `check_body(item, body: dict | None) -> None` — Lève `ValueError` (nommé) si l'ajout `body` ne se compose pas au pipeline de cette card —
+  - `set_added_body(item, body: dict | None, *, source: dict | None=None)` — Comme `set_added`, depuis l'AJOUT lui-même (la charge utile d'une promotion, une copie).
+  - `copy(source_item, target_item) -> bool` — La copie d'une card (`duplicate_instance`) porte le même pipeline que sa source. Rend True
+  - `forget(item) -> int` — La card disparaît : son ajout aussi. Rend le nombre de lignes retirées.
+
+### Process « fonction » ajouté à une card (glu commune)
+
+La glu commune d'un process que la card ajoute (`with_added_glues`), sur le patron d'`output_process` : la fonction PURE du catalogue jouée par la porte de l'exécuteur du Studio (`run_pure_function`, remontée ici), un méta-process par ses membres ; ses entrées TYPÉES lues dans ce que ses amonts ont rangé, sa sortie rangée dans le FICHIER DE TRAVAIL de la card (un par card, dossier temporaire du propriétaire) — la donnée TRANSITE, jamais dans la base de WAMA ; la ligne garde l'adresse et l'empreinte du contenu. Le FORMAT est celui du monde inscrit (`register_work_store` : le `.wdat` transitoire du monde Data, `wama_data/work_file.py`)
+
+- **Domicile** : `wama/common/services/function_process.py` · **doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §11.8 ⑩](../construction/mondes/WAMA_DATA_WORLD.md)
+- **Module** : Le process FONCTION qu'une card ajoute à son pipeline — commun à tous les mondes.
+- **API publique** (10) :
+  - `register_work_store(store) -> None` — Le monde qui RANGE une donnée typée s'inscrit (idempotent : le dernier inscrit gagne). Le
+  - `work_store()` — Le rangement inscrit, ou None (aucun monde ne range de donnée typée dans ce processus).
+  - `run_pure_function(spec, frames_by_port: dict, params: dict)` — `spec.fn(premier port, <autres ports par mot-clé>, **params)` — le contrat que
+  - `work_file(item, extension: str) -> str` — L'emplacement (relatif à `MEDIA_ROOT`) du fichier de travail de CETTE card : un par card,
+  - `is_pure(pipeline, spec) -> bool` — Le process ajouté a-t-il une glu ici ? Une fonction PURE du catalogue, ou un méta-process
+  - `with_added_glues(pipeline, processes) -> dict` — Les glus de l'app, plus celle de chaque process que la card AJOUTE et qui a une glu ici
+  - `upstream_frames(pipeline, spec, item, store) -> list` — Les données TYPÉES que les amonts LUS du process (`read_upstreams`) ont rangées dans le
+  - `frames_by_port(function, frames) -> dict` — `{port: cadre(s)}` — chaque cadre va au premier port d'entrée dont le type l'ACCEPTE
+  - `function_step(pipeline, key: str)` — La GLU commune du process ajouté `key` de `pipeline`, au contrat du squelette.
+  - `release_work_file(item) -> bool` — La card est RETIRÉE : son fichier de travail est libéré et annoncé (`released_files`), jamais
+
 ### Process « OCR des scans et des images » d'une card
 
 Le process OPTIONNEL d'une app qui réécrit un document en gardant sa forme (2026-10-29, le Translator ; le domaine document de l'Anonymizer ensuite), sur le patron d'`output_process` : `ocr_step` (la glu) tire un moteur qui rend la place du texte (`positioned_ocr_keys`, `supports_text_positions`), lit les pages sans couche texte et, depuis le 30/10, les images bitmap des pages natives (`document_text.read_figure_text` : étiquettes lues par leurs MOTS, le dessin pris pour du texte écarté) et range leurs lignes sur la card ; `read_ocr_file` les rend au process suivant (`ocr=` de la couche texte). Son interrupteur se PROPOSE d'après l'entrée (`Param.default_from`, `needs_ocr`) — ROADMAP §10.B
@@ -2475,7 +2515,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (47) :
+- **API publique** (48) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2513,6 +2553,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class ProcessRun(models.Model)` — La LIGNE D'EXÉCUTION d'un process : « tel process, pour telle card, dans tel état » —
   - `class BatchSettings(models.Model)` — Les réglages de RÉFÉRENCE d'un lot — ce que la card mère tient (`MODES_QUEUE_UX §5ter`,
   - `class BatchLabel(models.Model)` — Le NOM qu'un utilisateur donne à un lot (2026-10-19, demande de Fabien) — il prime sur le
+  - `class PipelineExtension(models.Model)` — Ce qu'une CARD AJOUTE à son pipeline déclaré — `WAMA_APP_GENERATION_ROUTE §10.6` 3.2bis,
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
   - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
@@ -3916,7 +3957,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (47) :
+- **API publique** (48) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -3954,6 +3995,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
   - `class ProcessRun(models.Model)` — La LIGNE D'EXÉCUTION d'un process : « tel process, pour telle card, dans tel état » —
   - `class BatchSettings(models.Model)` — Les réglages de RÉFÉRENCE d'un lot — ce que la card mère tient (`MODES_QUEUE_UX §5ter`,
   - `class BatchLabel(models.Model)` — Le NOM qu'un utilisateur donne à un lot (2026-10-19, demande de Fabien) — il prime sur le
+  - `class PipelineExtension(models.Model)` — Ce qu'une CARD AJOUTE à son pipeline déclaré — `WAMA_APP_GENERATION_ROUTE §10.6` 3.2bis,
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
   - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
