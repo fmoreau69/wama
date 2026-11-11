@@ -7,7 +7,14 @@
       "modalities": [
         "audio"
       ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
       "recommended_steps": 50,
+      "recommended_temperature": 0.85,
+      "recommended_top_p": 0.9,
       "task": "text-to-music",
       "text_promptable": true
     },

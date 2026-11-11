@@ -30706,3 +30706,27 @@ inutilisés ; marge de la recommandation d'installation (`recommended_option` sa
 
 **Artefacts** : la génération de test 1412 n'existe plus (ligne et fichier absents au
 2026-11-10). Aucun worker recyclé, aucun drapeau posé. Pendings système : aucun pour ce chantier.
+
+## §CLÔTURE 2026-11-11 (nuit), « ACE-STEP : DORSALE, VARIANTES, LEVIERS DE PROSPECTION, BACKEND CORRIGÉ PAR LA ROUTE, RETRAIT SANS PIÈGE » — `878451d5f` `cc97e5852` `c6d03f447` `1dcb2e582` `4e9c50d80` `ad2aaf4b7` + ce commit (locaux, non poussés) — 🔴 relancer gunicorn + workers — 🔚 relancer la XL-SFT (card 1448), puis la preuve réelle du retrait de la turbo
+
+Décisions de Fabien de la nuit : « Dorsale, et lance tous les leviers que tu proposes » ; corrections du backend par le rôle `task` ; « il ne faut pas laisser de piège […] la route [doit permettre] le retrait d'un modèle mais la reprise de la dorsale » ; exemples depuis son compte, écoutés le lendemain. Détail : `PROSPECTION_PIPELINE.md` §« Session du 2026-11-10 (nuit) » et ses deux suites.
+
+**Livré (mesuré)** :
+- DORSALE d'une variante (SFT, XL-SFT d'ACE-Step : leur DiT seul) — rôle `model` (table du code vendorisé, rôles alignés sur la ligne du même moteur, `identity.base_model` relation `finetune`) ; `component_paths(…, with_backbone=True)` ; empreinte FUSIONNÉE (`replacing_weights` : SFT 9,34 Go et non 13,8). Les deux propositions VALIDÉES par Fabien ; tâche de la SFT corrigée en `text-to-music` (garde de pertes non forcée).
+- Backend ACE-Step corrigé PAR LA ROUTE (rôle `task`, `ollama:qwen3.8` local, appliqué par `run_task --apply`) : trois variantes et leurs réglages, modèle demandé chargé, réglages de la card lus, `use_cot_caption=False` ; précision BF16 déclarée (XL-SFT 14,17 Go au lieu de 27,9). Rôle `task` : gouttière de numérotation retirée, une reprise sur ses refus, consigne longue par fichier sous `outputs/`.
+- Prospection : un reconditionnement remonte à son original (`repack_original`), les reconditionnements d'un retenu se regroupent, 20 dépôts lus pour 5 modèles, la recherche DEMANDE les tags au Hub (`SEARCH_EXPAND` — cause du `text-to-audio` de la SFT), la FAMILLE de l'auteur dans les options (jamais recommandée par le poids : mesuré, la SFT pèse moins que le turbo qu'elle surpasse) et en source de « Prospecter » (`seed_hf_family_upgrades`, candidats `update`).
+- Retrait sans piège : une dorsale réinstallée pour une variante ne revient plus dans les choix (voie `backbone`, `keep_out_of_choices`) ; « Installer » sur la ligne présente l'y rend ; message de confirmation corrigé (les dépendants tournent encore ; la succession garde les poids).
+- File « Propositions à valider » : le compte « 2 » sans propositions — `WamaApp.escapeHtml` levait sur l'id numérique (`c6d03f447`).
+- Exemples par le Composer, compte de Fabien (« warm acoustic guitar ballad… », 30 s) : **turbo card 1446 ✅, SFT card 1447 ✅** (30,0 s stéréo 48 kHz ; journal du worker : la SFT chargée comme telle, 50 pas).
+
+**Contrôles attendus au prochain /reprise** (mesurés cette nuit) : suite du périmètre (`wama.model_manager` + gardes communes touchées + transverses + `wama.composer`) **1898 tests**, 3 rouges tous `tests_identifier_language` (un nom de test à moi, racine « refus ») — corrigé, garde verte (40 OK) ; `check_docs` **0 cassée / 0 périmée sur 4079**, 0 cible distincte ; `doc_facts --check` à jour ; `check_redundancy` 97, **0 dans mes fichiers** ; `check_skills` 0 défaut franc ; corpus : mes deux manifestes ACE-Step régénérés dans ce commit, 8 autres périmés (PII, Ollama, OpenRouter) **pas à moi**.
+
+**Pendings système (Fabien)** :
+- 🔴 relancer gunicorn + workers : ils tournent avec le code du 10/11 au soir (ancien `memory_manager` — dorsale additionnée —, backend sans la précision BF16, ancien `model_readiness` sans la voie `backbone`). La XL-SFT reste refusée (« 27.9 Go ») d'ici là.
+- Commits locaux non poussés (ceux de cette clôture et des précédentes).
+
+**🔚 POINT D'ENTRÉE** — après la relance : `start_composer(generation_id=1448)` (XL-SFT) ; puis la PREUVE RÉELLE du retrait : désinstaller la turbo (confirmation), lancer une génération SFT, vérifier que la ligne principale se réinstalle par la voie `backbone` et reste hors des choix, puis l'y rendre par « Installer » (≈ 9,4 Go). Écoute des exemples 1446 / 1447 (Fabien).
+
+**Restes, à qui** :
+- LIMITES de ce que la session a construit (à elle) : la règle « une reprise gardée si moins refusée » en TROIS copies (`run_backend.py:448-456`, `run_model_manifest.py:203-223`, `run_task.reprise_on_checks`) — à ramener à `role_utils` ; la famille de l'auteur n'est que ce qu'il RELIE (sa fiche, ses collections lisibles) : les XL ne sont pas reliées à la SFT 2 Md ; un rôle LOCAL lancé pendant une génération a pris la carte (`local_llm_guard` n'attend pas, « mode dépannage éteint ») et fait échouer la SFT une première fois — à confronter au gouverneur ; la succession n'existe qu'en commande (`supersede_model`), sans geste dans l'interface ni outil d'assistant.
+- Effets de bord de la nuit : la carte libérée cinq fois (`free_memory`, action `gpu`, geste du model manager) ; XL-SFT installée (18,6 Go, `AI-models/models/music/acestep-v15-xl-sft/`) ; cards 1446-1448 dans le compte de Fabien (voulues) ; consignes du rôle `task` sous `wama-dev-ai/outputs/` (non versionné) ; ancienne proposition invalide de la SFT disparue de la file.

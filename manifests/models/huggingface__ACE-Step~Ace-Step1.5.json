@@ -7,6 +7,13 @@
       "modalities": [
         "audio"
       ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "recommended_temperature": 0.85,
+      "recommended_top_p": 0.9,
       "supports_vocals": true,
       "task": "text-to-music"
     },
@@ -87,7 +94,20 @@
   "manifest_kind": "model",
   "name": "Ace-Step1.5",
   "projects": [],
-  "requires": [],
+  "requires": [
+    {
+      "key": "diffusers",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "AIModel:huggingface:ACE-Step/Ace-Step1.5",
