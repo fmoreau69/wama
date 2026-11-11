@@ -76,7 +76,8 @@ def _candidate(task='ocr'):
                      'task': task},
             'own_gguf': [],                    # the canonical repository holds no GGUF
             'quant_variants': [{'repo_id': 'Mungert/PaddleOCR-VL-1.6-GGUF', 'disk_gb': 1.0,
-                                'files': files}]}})
+                                'files': files}],
+            'family': []}})                    # the author's family, already read: no network
 
 
 class VariantChoiceTest(TestCase):
@@ -246,7 +247,7 @@ def _gguf_repo_candidate(files=None, projector=True):
     (`mradermacher/PaddleOCR-VL-1.6-GGUF`, thread n° 38, 2026-10-11)."""
     prospect = {'spec': {'kind': 'hf', 'ref': 'mradermacher/PaddleOCR-VL-1.6-GGUF',
                          'category': 'ocr', 'task': 'ocr'},
-                'quant_variants': []}
+                'quant_variants': [], 'family': []}
     if files is not None:
         prospect['own_gguf'] = files
         prospect['own_projector'] = projector

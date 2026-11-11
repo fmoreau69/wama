@@ -21,7 +21,8 @@ GGUF = 'someone/olmOCR-2-7B-1025-GGUF'
 ABSENT = ['wama_package_absent_for_this_test']
 
 
-def _olmocr2(disk_gb=16.6, fp8_method='compressed-tensors'):
+def _olmocr2(disk_gb=16.6, fp8_method='compressed-tensors', family=()):
+    """`family` : la famille de l'auteur DÉJÀ lue (aucun réseau) ; None = jamais lue."""
     fp8 = {'repo_id': FP8, 'disk_gb': 10.0, 'downloads': 900,
            'files': [{'file': 'model-00001-of-00002.safetensors', 'gb': 5.0}]}
     if fp8_method is not None:
@@ -41,7 +42,8 @@ def _olmocr2(disk_gb=16.6, fp8_method='compressed-tensors'):
                  'files': [{'file': 'model.safetensors', 'gb': 8.4}]},
                 {'repo_id': GGUF, 'disk_gb': 9.4, 'downloads': 500,
                  'files': [{'file': 'olmOCR-2-7B-1025-Q8_0.gguf', 'gb': 8.1},
-                           {'file': 'mmproj-F16.gguf', 'gb': 1.3}]}]}})
+                           {'file': 'mmproj-F16.gguf', 'gb': 1.3}]}],
+            **({} if family is None else {'family': list(family)})}})
 
 
 def _empty_card(card_gb=24.0):
@@ -56,8 +58,10 @@ def _empty_card(card_gb=24.0):
     return stack
 
 
-def _options(cand, packages=ABSENT, card_gb=24.0):
-    with _empty_card(card_gb), patch.object(p, '_quant_packages', return_value=packages):
+def _options(cand, packages=ABSENT, card_gb=24.0, family=()):
+    """`family` : ce que le Hub rendrait pour la famille de l'auteur — aucun réseau ici."""
+    with _empty_card(card_gb), patch.object(p, '_quant_packages', return_value=packages), \
+            patch.object(p, 'family_members', return_value=None if family is None else list(family)):
         return p.install_options(cand)
 
 
@@ -124,6 +128,99 @@ class TheRecommendationIsTheMostPreciseThatFitsTest(TestCase):
     def test_an_option_that_does_not_run_is_never_recommended(self):
         res = _options(_olmocr2(disk_gb=54.0), card_gb=12.0)
         self.assertTrue(res['options'][res['recommended']]['runnable'])
+
+
+class TheAuthorsFamilyIsOfferedNeverRecommendedTest(TestCase):
+    """2026-11-10 (Fabien : « si je ne précise pas suffisamment ma recherche, je risque d'installer
+    un moins bon modèle que le meilleur qui pourrait tenir en VRAM ») : les autres modèles que
+    l'auteur relie (`family_members`) sont des OPTIONS, avec leur poids — jamais recommandés par
+    lui : la SFT d'ACE-Step (4,8 Go) pèse moins que le turbo (9 Go) qu'elle surpasse."""
+
+    XL = 'allenai/olmOCR-2-XL'
+
+    def _cand(self, members):
+        cand = _olmocr2()
+        cand.extra_info['prospect']['family'] = members
+        cand.save(update_fields=['extra_info'])
+        return cand
+
+    def test_a_larger_member_that_fits_is_offered_not_recommended(self):
+        res = _options(self._cand([{'repo_id': self.XL, 'disk_gb': 18.0, 'downloads': 5}]),
+                       card_gb=48.0)
+        member = _by_ref(res)[(self.XL, None)]
+        self.assertEqual(('family', True), (member['kind'], member['fits']))
+        self.assertEqual('full', res['options'][res['recommended']]['kind'])
+        self.assertEqual({'read': True, 'members': 1, 'installed': 0, 'offered': 1, 'fitting': 1},
+                         res['family'])
+
+    def test_an_installed_member_is_counted_not_offered(self):
+        AIModel.objects.create(model_key=f'huggingface:{self.XL}', name='xl', model_type='ocr',
+                               source='huggingface', is_downloaded=True,
+                               platform_ref=f'huggingface:{self.XL}')
+        res = _options(self._cand([{'repo_id': self.XL, 'disk_gb': 18.0, 'downloads': 5}]))
+        self.assertNotIn((self.XL, None), _by_ref(res))
+        self.assertEqual((1, 0), (res['family']['installed'], res['family']['offered']))
+
+    def test_a_silent_hub_freezes_no_family(self):
+        cand = _olmocr2(family=None)
+        res = _options(cand, family=None)
+        self.assertFalse(res['family']['read'])
+        cand.refresh_from_db()
+        self.assertNotIn('family', cand.extra_info['prospect'])
+
+    def test_a_chosen_member_installs_under_its_own_name(self):
+        cand = self._cand([{'repo_id': self.XL, 'disk_gb': 18.0}])
+        spec = p.spec_for_choice(cand, self.XL, None)
+        self.assertEqual(self.XL, spec['ref'])
+        self.assertNotIn('family', spec, "un autre modèle : pas rangé avec les poids du candidat")
+        self.assertIsNone(p.spec_for_choice(cand, 'someone/not-offered', None))
+
+
+class FamilyMembersAreWhatTheAuthorLinksTest(SimpleTestCase):
+    """`family_members` : les dépôts que la FICHE de l'auteur cite et ceux de ses collections qui
+    contiennent le modèle, restreints à ses dépôts de la même tâche, sans quantisations ni
+    reconditionnements d'un membre. Cas réel d'ACE-Step (mesuré le 2026-11-10)."""
+
+    README = ('| [acestep-v15-base](https://huggingface.co/ACE-Step/acestep-v15-base) |\n'
+              '| [sft](https://huggingface.co/ACE-Step/acestep-v15-sft) |\n'
+              'https://huggingface.co/collections/ACE-Step/ace-step-15 '
+              'https://huggingface.co/spaces/ACE-Step/demo https://huggingface.co/other/acestep-fork')
+
+    def _api(self):
+        def model(repo, downloads=1):
+            return SimpleNamespace(id=repo, downloads=downloads, likes=0)
+        api = SimpleNamespace()
+        api.model_info = lambda repo, **kw: SimpleNamespace(id=repo, pipeline_tag='text-to-audio')
+        api.list_models = lambda **kw: iter([
+            model('ACE-Step/Ace-Step1.5', 96000), model('ACE-Step/acestep-v15-base', 5900),
+            model('ACE-Step/acestep-v15-sft', 5400), model('ACE-Step/acestep-v15-xl-sft', 10000),
+            model('ACE-Step/acestep-v15-xl-sft-diffusers', 2700),
+            model('ACE-Step/acestep-v15-sft-GGUF', 100)])
+        item = lambda repo: SimpleNamespace(item_id=repo, item_type='model')  # noqa: E731
+        xl = SimpleNamespace(slug='ACE-Step/xl-1', items=[item('ACE-Step/acestep-v15-xl-sft')])
+        api.list_collections = lambda **kw: iter([xl])
+        api.get_collection = lambda slug: SimpleNamespace(
+            items=[item('ACE-Step/acestep-v15-xl-sft'), item('ACE-Step/acestep-v15-xl-sft-diffusers')])
+        return api
+
+    def _members(self, repo, readme=README, status=200):
+        with patch.object(p, 'hub_raw_file', return_value=SimpleNamespace(status_code=status,
+                                                                          text=readme)):
+            return p.family_members(repo, api=self._api())
+
+    def test_the_card_links_of_the_same_author_and_task(self):
+        self.assertEqual(['ACE-Step/acestep-v15-base', 'ACE-Step/acestep-v15-sft'],
+                         [m['repo_id'] for m in self._members('ACE-Step/Ace-Step1.5')])
+
+    def test_a_collection_holding_the_model_adds_its_members_but_not_their_repacks(self):
+        members = [m['repo_id'] for m in self._members('ACE-Step/acestep-v15-sft',
+                                                       readme='see huggingface.co/ACE-Step/acestep-v15-xl-sft')]
+        self.assertEqual(['ACE-Step/acestep-v15-xl-sft'], members,
+                         "le dépôt -diffusers reconditionne la XL-SFT : il n'est pas un membre")
+
+    def test_an_unread_card_says_so(self):
+        """Contre-épreuve : un Hub muet rend None (rien n'est figé), pas une famille vide."""
+        self.assertIsNone(self._members('ACE-Step/Ace-Step1.5', status=503))
 
 
 class TheQuantisationIsReadOnceTest(TestCase):

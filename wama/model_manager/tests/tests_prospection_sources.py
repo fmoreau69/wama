@@ -242,12 +242,72 @@ class SuccessorCandidatesTest(TestCase):
         self.assertEqual(('qwen3.5:9b', 6.6), replaced_model(cand))
 
 
+@patch.object(p, 'analyze_license', return_value=None)
+@patch.object(p, '_repo_weight_gb', return_value=10.0)
+@patch('wama.common.services.resource_governor.fits_alone', return_value=True)
+@patch('huggingface_hub.HfApi')
+class FamilyUpgradeCandidatesTest(TestCase):
+    """2026-11-10, le chantier de Fabien : pour chaque modèle INSTALLÉ, les membres de la famille de
+    son auteur qui tiennent sur la carte sont PROPOSÉS en remplacement (`kind='update'`, comme un
+    successeur, mais à 0,5 : l'auteur les relie sans dire lequel remplace l'autre — le jury lit sa
+    fiche)."""
+
+    MEMBER = 'allenai/olmOCR-2-XL'
+    KEY = 'proposed:hf-family:allenai/olmOCR-2-XL'
+
+    def setUp(self):
+        AIModel.objects.create(
+            model_key='reader:olmocr', name='olmOCR', model_type='ocr', source='reader',
+            is_downloaded=True, platform_ref='huggingface:allenai/olmOCR-2-7B-1025',
+            capabilities={'task': 'ocr'})
+
+    def _seed(self, members):
+        with patch.object(p, 'family_members', return_value=members):
+            return p.seed_hf_family_upgrades(workers=1)
+
+    def test_a_member_that_fits_is_proposed_as_a_replacement(self, *_):
+        self._seed([{'repo_id': self.MEMBER, 'downloads': 5}])
+        cand = AIModel.objects.get(model_key=self.KEY)
+        prospect = cand.extra_info['prospect']
+        self.assertEqual(('update', 0.5), (cand.proposal_kind, cand.confidence))
+        self.assertEqual(('reader:olmocr', self.MEMBER, 'famille', p.FAMILY_ROLE),
+                         (prospect['origin_key'], prospect['cible'], prospect['maj'], prospect['role']))
+        self.assertEqual(('ocr', 'ocr'), (cand.capabilities['task'], cand.model_type))
+
+    def test_an_installed_or_oversized_member_is_not_proposed(self, _api, fits, *_):
+        AIModel.objects.create(model_key=f'huggingface:{self.MEMBER}', name='xl', model_type='ocr',
+                               source='huggingface', is_downloaded=True,
+                               platform_ref=f'huggingface:{self.MEMBER}')
+        self.assertEqual(0, self._seed([{'repo_id': self.MEMBER}])['total'])
+        fits.return_value = False
+        self.assertEqual(0, self._seed([{'repo_id': 'allenai/other-member'}])['total'])
+
+    def test_an_unread_family_keeps_its_proposals_while_the_others_are_read(self, *_):
+        """Une passe où UN modèle n'a pas été relu (429) et un autre si : les propositions du
+        premier restent — ne pas l'avoir relu ne prouve pas que son auteur l'a délié."""
+        AIModel.objects.create(
+            model_key='reader:other', name='other', model_type='ocr', source='reader',
+            is_downloaded=True, platform_ref='huggingface:someone/other', capabilities={'task': 'ocr'})
+        self._seed([{'repo_id': self.MEMBER}])
+        by_repo = {'allenai/olmOCR-2-7B-1025': None, 'someone/other': []}
+        with patch.object(p, 'family_members', side_effect=lambda repo, **kw: by_repo[repo]):
+            p.seed_hf_family_upgrades(workers=1)
+        self.assertTrue(AIModel.objects.filter(model_key=self.KEY).exists())
+
+    def test_a_member_no_longer_linked_is_withdrawn(self, *_):
+        """Contre-épreuve : une famille RELUE sans ce membre retire sa proposition."""
+        self._seed([{'repo_id': self.MEMBER}])
+        self._seed([])
+        self.assertFalse(AIModel.objects.filter(model_key=self.KEY).exists())
+
+
 class ProspectVerbTest(TestCase):
     """« Prospecter » (2026-10-10): the assistant's `prospect_models` and the page's button share
     ONE body (`run_prospection`) — the assistant takes the same verbs as the page."""
 
     SUMMARY = {'created': 1, 'updated': 2, 'removed': 0, 'total': 9,
                'hf_successors': {'created': 1, 'updated': 0, 'removed': 0, 'total': 1},
+               'hf_family': {'created': 2, 'updated': 0, 'removed': 0, 'total': 2},
                'hf': {'error': 'indisponible'},
                'benchmarks': {'created': 5, 'updated': 0, 'removed': 1, 'total': 5,
                               'boards_ok': ['ocr-olmocr-bench']},
@@ -263,6 +323,7 @@ class ProspectVerbTest(TestCase):
         self.assertEqual(9, out['total'])
         self.assertEqual({'error': 'indisponible'}, out['sources']['hf'])
         self.assertEqual(5, out['sources']['benchmarks']['created'])
+        self.assertEqual(2, out['sources']['hf_family']['created'])
         self.assertEqual({'created': 1, 'updated': 2, 'removed': 0}, out['sources']['ollama'])
 
     def test_the_button_runs_the_same_body(self):
@@ -280,6 +341,7 @@ class ProspectVerbTest(TestCase):
         with patch('wama.model_manager.services.prospect_ollama.prospect_ollama',
                    return_value={'created': 0, 'updated': 0, 'removed': 0, 'total': 0}), \
                 patch.object(p, 'seed_hf_successors', side_effect=RuntimeError('offline')), \
+                patch.object(p, 'seed_hf_family_upgrades', return_value={'total': 0}), \
                 patch.object(p, 'seed_hf_candidates', return_value={'total': 2}), \
                 patch.object(p, 'seed_benchmark_candidates', return_value={'total': 3}), \
                 patch.object(p, 'enqueue_after_prospection',

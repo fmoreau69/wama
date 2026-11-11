@@ -1830,7 +1830,7 @@ def _choice_gap(cand, variant_ref: str, variant_file: str) -> str:
     if ((cand.extra_info or {}).get('prospect') or {}).get('spec', {}).get('kind') != 'hf':
         return ''
     ref, file = variant_ref or cand.hf_repo, variant_file or None
-    for option in install_options(cand).get('options') or []:
+    for option in install_options(cand, with_family=False).get('options') or []:
         if option.get('ref') == ref and (option.get('file') or None) == file:
             return option.get('reason') or ''
     return ''
@@ -1867,7 +1867,9 @@ def _choice_weight_gb(cand, variant_ref: str, variant_file: str):
     """Le poids en Go d'un choix de variante du candidat (None = inconnu) — celui que la garde
     d'espace compte (`_persist_variant_choice`) et que la mesure attend (`install_weight_gb`)."""
     prospect = (cand.extra_info or {}).get('prospect') or {}
-    variantes = {v['repo_id']: v for v in (prospect.get('quant_variants') or [])}
+    # Un membre de la FAMILLE de l'auteur (`prospector.family_members`) se pèse comme une variante.
+    variantes = {v['repo_id']: v for v in (prospect.get('family') or [])
+                 + (prospect.get('quant_variants') or [])}
     if variant_file:
         # Un fichier du dépôt du candidat lui-même (dépôt GGUF) ou d'une variante.
         chosen_files = (prospect.get('own_gguf') if variant_ref == cand.hf_repo
@@ -1988,7 +1990,7 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
             # tirait le dépôt entier par le Hub, vers un dossier que rien ne lit.
             from .prospector import install_options, needs_variant_choice
             if needs_variant_choice(cand):
-                offered = install_options(cand)
+                offered = install_options(cand, with_family=False)
                 options = offered['options']
                 if not options:
                     return {'ok': False, 'reason': 'not_installable',

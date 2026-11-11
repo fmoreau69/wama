@@ -116,3 +116,103 @@ class DesignatedRepoOutsideTheSweepTest(TestCase):
         res, written, _ = self._search('lightonocr', [_vlm('lightonai/lightonocr-3-1b', ['ocr'])])
         self.assertEqual([], written)
         self.assertEqual(1, res['skipped'])
+
+
+class TheSearchReadsTheCardTagsTest(TestCase):
+    """2026-11-11 : `ACE-Step/acestep-v15-sft`, taguée `music` et `text2music` sur le Hub, s'est
+    installée en `text-to-audio` — les bruitages du Composer. La règle qui départage existe
+    (`hf_task_to_wama`), mais la recherche ne demandait pas les TAGS (`expand` ne rend que ce qu'il
+    nomme) : la règle lisait un sac vide."""
+
+    def test_the_search_asks_the_hub_for_the_tags_and_a_music_repo_is_music(self):
+        repo = SimpleNamespace(id='org/music-model', pipeline_tag='text-to-audio', downloads=5,
+                               likes=0, card_data=None, tags=['audio', 'music', 'text2music'])
+        api = mock.Mock()
+        api.list_models.return_value = [repo]
+        written = {}
+        with mock.patch('huggingface_hub.HfApi', return_value=api), \
+             mock.patch.object(prospector, '_repo_weight_gb', return_value=5.0), \
+             mock.patch.object(prospector, 'analyze_license', return_value=None), \
+             mock.patch('wama.model_manager.services.prospect_ollama.write_candidate',
+                        side_effect=lambda key, **kw: written.update({key: kw}) or True):
+            prospector.seed_hf_search('music model')
+        self.assertIn('tags', api.list_models.call_args.kwargs['expand'])
+        self.assertEqual('text-to-music',
+                         written['proposed:hf:org/music-model']['capabilities']['task'])
+
+
+def _carded(repo_id, card, downloads=0):
+    return SimpleNamespace(id=repo_id, pipeline_tag='text-to-image', downloads=downloads, likes=0,
+                           card_data=card, tags=['text-to-image'])
+
+
+class ARepackClimbsToItsOriginalTest(TestCase):
+    """2026-11-10 (Fabien, ACE-Step) : la recherche « ACE-Step » rendait `Comfy-Org/ACE-Step-1.5`
+    (58,8 Go) et des GGUF d'un publieur, jamais l'officiel de l'auteur. Un reconditionnement
+    remonte à l'ORIGINAL que sa carte déclare ; un second reconditionnement du même original ne
+    prend pas de place (il est l'une de ses options d'installation)."""
+
+    ORIGINAL = 'ACE-Step/Ace-Step1.5'
+
+    def _search(self, query, listed):
+        api = mock.Mock()
+        api.list_models.return_value = listed
+        api.model_info.side_effect = lambda repo, **kw: _carded(repo, None, 90000)
+        written = []
+        with mock.patch('huggingface_hub.HfApi', return_value=api), \
+             mock.patch.object(prospector, '_repo_weight_gb', return_value=9.0), \
+             mock.patch.object(prospector, 'analyze_license', return_value=None), \
+             mock.patch('wama.model_manager.services.prospect_ollama.write_candidate',
+                        side_effect=lambda key, **kw: written.append(key) or True):
+            res = prospector.seed_hf_search(query)
+        return res, written
+
+    def test_the_repacks_give_the_original_once(self):
+        res, written = self._search('ACE-Step', [
+            _carded('Comfy-Org/ACE-Step-1.5', {'base_model': self.ORIGINAL}, 500000),
+            _carded('Serveurperso/ACE-Step-1.5-GGUF',
+                    {'base_model': [self.ORIGINAL], 'base_model_relation': 'quantized'}, 9000),
+            _carded('someone/other-model', None, 10)])
+        self.assertEqual([f'proposed:hf:{self.ORIGINAL}', 'proposed:hf:someone/other-model'], written)
+        self.assertEqual(1, res['grouped'])
+        self.assertEqual({'Comfy-Org/ACE-Step-1.5': self.ORIGINAL}, res['climbed'])
+
+    def test_an_installed_original_makes_its_repack_already_ours(self):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key=f'huggingface:{self.ORIGINAL}', name='ace', model_type='music',
+                               source='huggingface', is_downloaded=True,
+                               platform_ref=f'huggingface:{self.ORIGINAL}')
+        res, written = self._search('ACE-Step', [
+            _carded('Comfy-Org/ACE-Step-1.5', {'base_model': self.ORIGINAL})])
+        self.assertEqual([], written)
+        self.assertEqual(1, res['already'])
+
+    def test_a_finetune_or_a_renamed_derivative_is_its_own_model(self):
+        """Contre-épreuve : un affinage déclare aussi `base_model` — c'est un autre modèle."""
+        self.assertIsNone(prospector.repack_original(
+            'someone/ACE-Step-1.5-anime', {'base_model': self.ORIGINAL, 'base_model_relation': 'finetune'}))
+        self.assertIsNone(prospector.repack_original(
+            'someone/music-gen', {'base_model': self.ORIGINAL}))
+        self.assertIsNone(prospector.repack_original(
+            'ACE-Step/acestep-v15-sft', {'base_model': self.ORIGINAL}), "même auteur : pas un repack")
+        # La relation `quantized` seule ne suffit pas : le Hub la pose parfois sur un affinage (la
+        # règle de `provenance.quantized_base_identity`) — le NOM complet de l'original, si.
+        self.assertIsNone(prospector.repack_original(
+            'someone/gguf-of-it', {'base_model': self.ORIGINAL, 'base_model_relation': 'quantized'}))
+        self.assertEqual(self.ORIGINAL, prospector.repack_original(
+            'someone/Ace-Step1.5-GGUF', {'base_model': self.ORIGINAL, 'base_model_relation': 'quantized'}))
+
+    def test_a_designated_repack_is_kept(self):
+        """Contre-épreuve : un reconditionnement NOMMÉ est celui qu'on a demandé."""
+        repack = _carded('Comfy-Org/ACE-Step-1.5', {'base_model': self.ORIGINAL})
+        api = mock.Mock()
+        api.list_models.return_value = []
+        api.model_info.return_value = repack
+        written = []
+        with mock.patch('huggingface_hub.HfApi', return_value=api), \
+             mock.patch.object(prospector, '_repo_weight_gb', return_value=9.0), \
+             mock.patch.object(prospector, 'analyze_license', return_value=None), \
+             mock.patch('wama.model_manager.services.prospect_ollama.write_candidate',
+                        side_effect=lambda key, **kw: written.append(key) or True):
+            prospector.seed_hf_search('Comfy-Org/ACE-Step-1.5')
+        self.assertEqual(['proposed:hf:Comfy-Org/ACE-Step-1.5'], written)

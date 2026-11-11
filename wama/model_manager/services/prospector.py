@@ -738,6 +738,98 @@ def quantized_variants(repo_id: str, limit: int = 5) -> list[dict]:
     return variantes[:limit]
 
 
+#: Lien d'une fiche du Hub vers un dépôt (`huggingface.co/org/nom`) ou une collection
+#: (`huggingface.co/collections/org/slug`).
+_HUB_LINK = re.compile(r'huggingface\.co/(collections/)?([\w.-]+)/([\w.-]+)')
+
+#: Membres de famille gardés au plus par modèle — chacun coûte une lecture de ses fichiers.
+FAMILY_MAX = 8
+
+#: Collections de l'auteur dépliées au plus (une requête chacune).
+FAMILY_COLLECTIONS_MAX = 3
+
+
+def family_members(repo_id: str, api=None, memo: dict | None = None):
+    """
+    Les membres de la FAMILLE OFFICIELLE d'un modèle — les autres modèles que son AUTEUR relie à
+    lui —, triés par téléchargements, ou None quand le Hub n'a pas pu être lu (rien n'est figé).
+
+    Ce que l'auteur publie, et rien d'autre (2026-11-10, demande de Fabien : « si je ne précise pas
+    suffisamment ma recherche, je risque d'installer un moins bon modèle que le meilleur qui
+    pourrait tenir en VRAM ») :
+      • les dépôts de l'auteur que sa FICHE cite (ACE-Step : son tableau « Model Zoo ») ;
+      • les modèles de ses COLLECTIONS qui contiennent ce modèle ou un dépôt cité ;
+    restreints aux dépôts de l'auteur de la MÊME tâche (`pipeline_tag`), sans les dépôts
+    quantisés (ce sont des précisions, `quantized_variants`) ni les reconditionnements d'un membre
+    (« acestep-v15-xl-sft-diffusers » est « acestep-v15-xl-sft »).
+
+    ⚠ Mesuré le jour même : l'auteur ne relie pas toute sa famille. La fiche de la SFT 2 Md cite
+    la base, la SFT et la ligne principale ; celle de la XL-SFT cite les XL et les modèles de
+    langage ; leur seule collection lisible ne porte que les XL. Une famille rendue ici est
+    donc ce que l'auteur DIT, pas un inventaire.
+    `memo` : les listes d'un AUTEUR (ses dépôts d'une tâche, ses collections), lues une fois par
+    un passage qui parcourt plusieurs de ses modèles (`seed_hf_family_upgrades`).
+    ⚠ Et la TAILLE ne classe pas les membres : la SFT (son DiT seul, 4,8 Go) pèse moins que la
+    ligne turbo principale (9 Go, modèle de langage et VAE compris). D'où des OPTIONS montrées,
+    jamais recommandées par le poids (`recommended_option`) ; leur qualité relative se juge sur
+    la fiche (le jury de prospection la lit).
+    """
+    if '/' not in (repo_id or ''):
+        return []
+    org = repo_id.split('/')[0]
+    response = hub_raw_file(repo_id, 'README.md', timeout=(5, 30))
+    if response is None or response.status_code not in (200, 404):
+        return None
+    text = response.text if response.status_code == 200 else ''
+    cited = {f"{owner}/{name}".lower() for is_collection, owner, name in _HUB_LINK.findall(text)
+             if not is_collection and owner.lower() == org.lower()}
+    try:
+        from huggingface_hub import HfApi
+        api = api or HfApi()
+        tag = getattr(_hub_model_info(api, repo_id), 'pipeline_tag', None)
+        if not tag:
+            return []
+        memo = {} if memo is None else memo
+        if (org, tag) not in memo:
+            memo[(org, tag)] = {m.id.lower(): m for m in _hub_call(lambda: list(api.list_models(
+                author=org, pipeline_tag=tag, expand=['downloads', 'likes'], limit=200)),
+                f"author={org}")}
+        same_task = memo[(org, tag)]
+        anchors = cited | {repo_id.lower()}
+        collected = set()
+        if org not in memo:
+            memo[org] = _hub_call(lambda: list(api.list_collections(owner=org, limit=50)),
+                                  f"collections={org}")
+        collections = memo[org]
+        relevant = [c for c in collections
+                    if any((i.item_id or '').lower() in anchors for i in (c.items or []))]
+        for c in relevant[:FAMILY_COLLECTIONS_MAX]:
+            if ('collection', c.slug) not in memo:
+                memo[('collection', c.slug)] = _hub_call(lambda c=c: api.get_collection(c.slug),
+                                                         f"collection={c.slug}")
+            collected |= {i.item_id.lower() for i in memo[('collection', c.slug)].items
+                          if i.item_type == 'model'}
+    except HubRateLimited:
+        return None
+    except Exception as e:
+        logger.warning("[family_members] %s non lu : %s", repo_id, e)
+        return None
+    candidates = [same_task[r] for r in (cited | collected) - {repo_id.lower()} if r in same_task]
+    names = [repo_id] + [m.id for m in candidates]
+    members = []
+    for m in candidates:
+        low = m.id.lower()
+        if any(marker in low for marker in _QUANT_MARKERS):
+            continue
+        if any(other != m.id and len(other) < len(m.id) and names_the_same_model(other, m.id)
+               for other in names):
+            continue                                       # un reconditionnement d'un membre
+        members.append({'repo_id': m.id, 'downloads': getattr(m, 'downloads', 0) or 0,
+                        'likes': getattr(m, 'likes', 0) or 0})
+    members.sort(key=lambda m: m['downloads'], reverse=True)
+    return members[:FAMILY_MAX]
+
+
 #: Licences SPDX standard SANS restriction territoriale : le texte n'est pas relu.
 _SAFE_LICENSES = {'apache-2.0', 'mit', 'bsd-2-clause', 'bsd-3-clause', 'cc0-1.0',
                    'cc-by-4.0', 'openrail', 'openrail++', 'bigscience-openrail-m'}
@@ -831,7 +923,7 @@ def _analyze_license_text(repo_id: str, lid: str):
 
 
 
-def install_options(cand) -> dict:
+def install_options(cand, with_family: bool = True) -> dict:
     """
     Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
     chacune avec son poids disque — l'information à montrer AVANT d'installer, pour que
@@ -917,6 +1009,22 @@ def install_options(cand) -> dict:
         if method is not None:
             prospect['own_quant_method'] = method
             a_persister = True
+    # La FAMILLE de l'auteur (`family_members`, 2026-11-10) : d'autres modèles, montrés avec leur
+    # poids, lus une fois et gardés comme les variantes. Un dépôt GGUF (`own_gguf`) est la
+    # quantification d'un modèle, pas un modèle d'auteur : sa « famille » serait celle du publieur.
+    # `with_family=False` : qui ne MONTRE pas les options (`needs_variant_choice`, à chaque
+    # installation) ne paie pas leur lecture ; une famille déjà lue reste montrée.
+    family = [] if own_gguf else prospect.get('family')
+    if family is None and not with_family:
+        family = []
+    family_read = family is not None
+    if family is None:
+        family = family_members(cand.hf_repo)
+        family_read = family is not None
+        family = [dict(m, disk_gb=_poids_total_gb(_siblings(m['repo_id']))) for m in family or []]
+        if family_read:
+            prospect['family'] = family
+            a_persister = True
     if a_persister:
         if variants_read:
             prospect['quant_variants'] = enrichies
@@ -957,6 +1065,16 @@ def install_options(cand) -> dict:
                 'downloads': v.get('downloads'), 'kind': 'variant',
                 'quant_method': v.get('quant_method') or '',
             })
+    installed = _installed_repos() if family else set()
+    for m in family:
+        if m['repo_id'].lower() in installed:
+            continue                         # déjà chez nous : compté, pas reproposé
+        options.append({
+            'ref': m['repo_id'], 'file': None,
+            'label': f"Famille de l'auteur — {m['repo_id']}",
+            'disk_gb': m.get('disk_gb'), 'vram_note': "",
+            'downloads': m.get('downloads'), 'kind': 'family', 'quant_method': '',
+        })
     from wama.common.services.resource_governor import fits_alone
     card_gb = _gpu_total_gb()
     for o in options:
@@ -968,8 +1086,14 @@ def install_options(cand) -> dict:
         if o['fits'] is False and not o['vram_note']:
             o['vram_note'] = (f"VRAM estimée {o['vram_estimated_gb']:.1f} Go : ne tient pas sur la "
                               f"carte ({card_gb:.0f} Go) sans quantisation ni déchargement")
+    offered = [o for o in options if o['kind'] == 'family']
+    # Savoir si l'on a vu le MEILLEUR de la famille (levier 5) : ce que l'auteur relie, ce qui en
+    # est déjà installé, ce qui est proposé et ce qui tient — `read` faux = le Hub n'a pas répondu.
+    coverage = {'read': family_read, 'members': len(family),
+                'installed': sum(1 for m in family if m['repo_id'].lower() in installed),
+                'offered': len(offered), 'fitting': sum(1 for o in offered if o['fits'])}
     return {'choice': len(options) > 1, 'options': options,
-            'recommended': recommended_option(options)}
+            'recommended': recommended_option(options), 'family': coverage}
 
 
 def _option_vram_gb(option) -> float:
@@ -1094,8 +1218,12 @@ def recommended_option(options) -> int | None:
     tient, la plus légère qui tourne — la seule chance de tenir. None si aucune ne tourne.
 
     Le poids sert de mesure de la précision parce que, pour un même modèle, il n'y en a pas
-    d'autre de commune aux formats (BF16, FP8, GGUF Q8…) ; c'est un fait mesuré du dépôt."""
-    sized = [(i, o) for i, o in enumerate(options) if o.get('runnable') and o.get('disk_gb')]
+    d'autre de commune aux formats (BF16, FP8, GGUF Q8…) ; c'est un fait mesuré du dépôt.
+    ⚠ Pour un même modèle SEULEMENT : un membre de la famille (`kind == 'family'`) est un autre
+    modèle, que le poids ne classe pas (la SFT d'ACE-Step pèse moins que le turbo qu'elle
+    surpasse) — jamais recommandé ici."""
+    sized = [(i, o) for i, o in enumerate(options)
+             if o.get('runnable') and o.get('disk_gb') and o.get('kind') != 'family']
     fitting = [(i, o) for i, o in sized if o.get('fits')]
     if fitting:
         best = max(fitting, key=lambda io: (round(float(io[1]['disk_gb'])),
@@ -1104,7 +1232,7 @@ def recommended_option(options) -> int | None:
         return best[0]
     if sized:
         return min(sized, key=lambda io: float(io[1]['disk_gb']))[0]
-    runnable = [i for i, o in enumerate(options) if o.get('runnable')]
+    runnable = [i for i, o in enumerate(options) if o.get('runnable') and o.get('kind') != 'family']
     return runnable[0] if runnable else None
 
 
@@ -1113,7 +1241,7 @@ def needs_variant_choice(cand) -> bool:
     « poids pleins » (un dépôt GGUF servi par Ollama), ou quand des fichiers exécutés par Ollama
     leur font concurrence : installer sans variante tirerait alors, en silence, ce que rien ne lit
     peut-être. `request_install` refuse ce cas et renvoie aux options."""
-    options = install_options(cand).get('options') or []
+    options = install_options(cand, with_family=False).get('options') or []
     own_gguf = ((cand.extra_info or {}).get('prospect') or {}).get('own_gguf')
     # Des fichiers EXÉCUTÉS PAR OLLAMA existent à côté des poids pleins : le défaut n'est plus
     # évident, on choisit (fil n° 42, 2026-10-11 — « installe PaddleOCR-VL-1.6 » sans variante a
@@ -1181,6 +1309,13 @@ def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | 
         # Poids pleins : le spec d'origine, inchangé — sauf pour un dépôt GGUF servi par Ollama,
         # qui n'en a pas (`install_options` ne les propose pas).
         return None if own_gguf else dict(base)
+    if variant_ref in {m['repo_id'] for m in (prospect.get('family') or [])} and not variant_file:
+        # Un membre de la FAMILLE de l'auteur (`family_members`) : un autre modèle, rangé sous SON
+        # nom — pas avec les poids du candidat, qu'il ne remplace pas.
+        spec = dict(base)
+        spec['ref'] = variant_ref
+        spec['note'] = f"membre de la famille de {cand.hf_repo}, choisi par l'utilisateur"
+        return spec
     if variant_ref == cand.hf_repo:
         files = own_gguf                       # un fichier du dépôt du candidat lui-même
         projector = bool(prospect.get('own_projector'))
@@ -1484,6 +1619,9 @@ BENCH_CANDIDATES_PER_CATEGORY = 3
 #: Le rôle des candidats SUCCESSEURS — un seul périmètre de purge, toutes tâches confondues.
 SUCCESSOR_ROLE = 'hf:successor'
 
+#: Le rôle des candidats de la FAMILLE de l'auteur (`seed_hf_family_upgrades`, 2026-11-10).
+FAMILY_ROLE = 'hf:family'
+
 
 #: Ratio poids publiés / poids quantifiés 4 bits pour un dépôt en 16 bits — le REPLI de
 #: `_q4_size_gb` quand le Hub ne dit pas le nombre de paramètres. Un candidat de classement dont
@@ -1786,6 +1924,97 @@ def seed_hf_successors(workers: int = 8) -> dict:
     return summary
 
 
+def seed_hf_family_upgrades(workers: int = 4) -> dict:
+    """
+    Candidats de REMPLACEMENT des modèles Hugging Face installés, pris dans la FAMILLE de leur
+    auteur (`family_members`) : les membres non installés qui tiennent sur la carte — le chantier
+    ouvert par Fabien le 2026-11-10 (« vérifier, pour chaque modèle installé, si un membre de sa
+    famille de meilleure qualité tient sur la carte, et le proposer en remplacement »).
+
+    Sœur de `seed_hf_successors`, avec la même forme de candidat (`kind='update'`, `origin_key`,
+    aucun retrait automatique : `succession.supersede` reste un geste humain) — mais une preuve
+    plus FAIBLE : l'auteur RELIE ces modèles, il ne dit pas lequel remplace l'autre (confiance
+    0,5, contre 0,9 au successeur). Le poids ne les classe pas (cf. `family_members`) : c'est le
+    jury de prospection, qui lit la fiche de l'auteur, qui juge le meilleur ; la suite de
+    « Prospecter » le lance (`enqueue_after_prospection`).
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from huggingface_hub import HfApi
+
+    from wama.common.services.resource_governor import fits_alone
+    from wama.model_manager.models import AIModel
+
+    from .model_registry import _estimated_vram
+    from .prospect_ollama import PROPOSED_PREFIX
+
+    rows = [(m, m.hf_repo) for m in
+            AIModel.objects.filter(is_proposed=False, is_downloaded=True).exclude(source='ollama')
+            if m.hf_repo and '/' in m.hf_repo]
+    api, memo = HfApi(), {}
+
+    def lookup(row):
+        try:
+            return row, family_members(row[1], api=api, memo=memo), None
+        except Exception as exc:
+            return row, None, exc
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        results = list(pool.map(lookup, rows))
+    reached = sum(1 for _r, members, _e in results if members is not None)
+
+    installed = _installed_repos()
+    # UNE proposition par membre, quel que soit le nombre de modèles installés qui le relient
+    # (la base d'ACE-Step est reliée par la ligne principale ET par la SFT) — toutes ses ORIGINES
+    # gardées : c'est par elles qu'une lecture échouée la préserve.
+    linked: dict = {}
+    for (m, repo), members, _exc in sorted(results, key=lambda r: r[0][0].model_key):
+        for member in members or []:
+            if member['repo_id'].lower() not in installed:
+                linked.setdefault(member['repo_id'], []).append((m, repo, member))
+    created = updated = 0
+    seen: set = set()
+    refs_type: dict = {}
+    for target, origins in linked.items():
+        weight = _repo_weight_gb(target)
+        if not weight or fits_alone(_estimated_vram(int(weight * 1024 ** 3), False)) is False:
+            continue                           # poids inconnu ou ne tient pas : rien à proposer
+        m, repo, member = origins[0]
+        key = PROPOSED_PREFIX + f"hf-family:{target}"
+        seen.add(key)
+        # Un membre de la famille exerce le MÊME métier (même `pipeline_tag` de l'auteur) : la
+        # tâche et la catégorie de la ligne installée, comme pour un successeur.
+        task = (m.capabilities or {}).get('task') or ''
+        facts = {'task': task, 'model_type': m.model_type,
+                 'capabilities': _task_capabilities({}, task), 'engine': None}
+        created_now = _write_hf_candidate(
+            target, facts=facts, refs_type=refs_type, role=FAMILY_ROLE,
+            reason=f"l'auteur de {repo} relie {target} à ce modèle (même famille)",
+            description=f"Same author family as {repo}: {target} — judged on the author's card.",
+            note=f"famille de {repo}", weight_gb=weight,
+            downloads=member.get('downloads') or 0, likes=member.get('likes') or 0,
+            kind='update', confidence=0.5, key=key,
+            extra={'origin_key': m.model_key, 'cible': target, 'maj': 'famille',
+                   'origins': [o[0].model_key for o in origins]})
+        created += int(created_now)
+        updated += int(not created_now)
+
+    # Une lecture ÉCHOUÉE n'efface rien (règle des successeurs) : une proposition dont une ORIGINE
+    # n'a pas été relue est gardée ; aucun dépôt joint, aucune purge du tout.
+    unread = {m.model_key for (m, _repo), members, _e in results if members is None}
+    if unread:
+        seen |= {c.model_key for c in AIModel.objects.filter(
+            is_proposed=True, model_key__startswith=PROPOSED_PREFIX + 'hf-family:')
+            if set(((c.extra_info or {}).get('prospect') or {}).get('origins') or ()) & unread}
+    roles_ok = {FAMILY_ROLE} if (reached or not rows) else set()
+    removed, preserved = _purge_hf_candidates(roles_ok, seen, kind='update')
+    summary = {'created': created, 'updated': updated, 'removed': removed,
+               'preserved': preserved, 'total': created + updated, 'checked': len(rows),
+               'reached': reached, 'unread': len(unread)}
+    logger.info("[seed_hf_family_upgrades] %s", summary)
+    return summary
+
+
 def enqueue_after_prospection() -> dict:
     """La suite de « Prospecter » : bancs tiers PUIS jury LLM, dans cet ordre (ex-
     `views._enqueue_after_prospect`, déplacée le 2026-10-10 pour être partagée avec l'assistant).
@@ -1847,6 +2076,7 @@ def run_prospection() -> dict:
 
     summary = prospect_ollama()
     for label, seed in (('hf_successors', seed_hf_successors),
+                        ('hf_family', seed_hf_family_upgrades),
                         ('benchmarks', seed_benchmark_candidates),
                         ('hf', seed_hf_candidates)):
         try:
@@ -2231,7 +2461,38 @@ def named_repo(query: str):
     return q if re.fullmatch(r'[\w.-]+/[\w.-]+', q) else None
 
 
-def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
+#: Ce que la recherche CIBLÉE demande au Hub pour chaque dépôt : les TAGS compris — sans eux,
+#: `hf_task_to_wama` reçoit un sac vide et ne départage plus ce que le pipeline mélange (mesuré le
+#: 2026-11-11 : `ACE-Step/acestep-v15-sft`, taguée `music` et `text2music`, installée en
+#: `text-to-audio`, le groupe des bruitages du Composer). `expand` ne rend QUE ce qu'il nomme.
+SEARCH_EXPAND = ['downloads', 'likes', 'pipeline_tag', 'cardData', 'tags']
+
+
+def repack_original(repo_id: str, card: dict):
+    """L'ORIGINAL d'un reconditionnement, d'après la carte du reconditionnement — ou None.
+
+    Un reconditionnement (Comfy-Org, un publieur de GGUF) déclare le modèle qu'il reprend dans
+    `base_model`, la chaîne qu'`analyze_license` suit déjà. Ce n'en est un que s'il porte le NOM
+    complet de l'original (`names_the_same_model`), chez un AUTRE auteur — même quand la relation
+    dit `quantized` : la règle de `provenance.quantized_base_identity`, le Hub nommant parfois le
+    socle d'un affinage ; un affinage, un adaptateur ou une fusion déclarent aussi `base_model`, et
+    ce sont d'autres modèles. Mesuré le 2026-11-10 : la recherche « ACE-Step » rendait
+    `Comfy-Org/ACE-Step-1.5` (58,8 Go) en tête, pas `ACE-Step/Ace-Step1.5`."""
+    base = (card or {}).get('base_model')
+    if isinstance(base, (list, tuple)):
+        base = base[0] if len(base) == 1 else None
+    if not isinstance(base, str) or base.strip().count('/') != 1:
+        return None
+    base = base.strip()
+    relation = (card or {}).get('base_model_relation')
+    if relation in ('adapter', 'finetune', 'merge'):
+        return None
+    if base.split('/')[0].lower() == repo_id.split('/')[0].lower():
+        return None
+    return base if names_the_same_model(base, repo_id) else None
+
+
+def seed_hf_search(query: str, limit: int = 20, max_retenus: int = 5) -> dict:
     """
     Prospection CIBLÉE : cherche `query` dans les noms de dépôts HF (toutes tâches de
     `HF_TASKS` confondues) et écrit les résultats en candidats `is_proposed` — le pendant
@@ -2248,7 +2509,11 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
         la garde anti-dérivés protège un listing subi, pas une demande nommée ;
       • AUCUNE purge : une recherche AJOUTE des candidats, elle ne redessine pas la liste ;
       • un dépôt DÉSIGNÉ échappe au plancher de poids de sa tâche (2026-09-29) — cf. `named`
-        ci-dessous.
+        ci-dessous ;
+      • un RECONDITIONNEMENT non désigné remonte à l'ORIGINAL de son auteur (`repack_original`),
+        et un dépôt qui reconditionne un retenu ne prend pas de place : il est l'une de ses
+        options (`install_options`, variantes quantisées) — 2026-11-10, d'où `limit` à 20 pour
+        5 modèles DISTINCTS retenus.
     """
     query = (query or '').strip()
     if not query:
@@ -2259,8 +2524,7 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
         from huggingface_hub import HfApi
         api = HfApi()
         models = list(api.list_models(
-            search=search, sort='downloads', limit=limit,
-            expand=['downloads', 'likes', 'pipeline_tag', 'cardData']))
+            search=search, sort='downloads', limit=limit, expand=SEARCH_EXPAND))
         # Le dépôt désigné passe EN TÊTE, même si la recherche plein texte ne le rend pas (ou le
         # rend au-delà de `limit`) : c'est lui qu'on a demandé.
         if named:
@@ -2283,12 +2547,34 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
     # recherche, pas compté comme possédé par sa propre ligne.
     have = _installed_repos()
 
-    crees = maj = deja = ignores = 0
+    crees = maj = deja = ignores = grouped = 0
     retenus: list = []
+    climbed: dict = {}
     refs_type: dict = {}
     for m in models:
         if len(retenus) >= max_retenus:
             break
+        original = None if _designated(m.id) else repack_original(
+            m.id, _card_dict(getattr(m, 'card_data', None)))
+        if original:
+            if original.lower() in have:
+                deja += 1                # l'original est chez nous : le repack n'apporte rien
+                continue
+            if original.lower() in {r.lower() for r in retenus}:
+                grouped += 1
+                continue
+            try:
+                info = _hub_call(lambda: api.model_info(original, expand=SEARCH_EXPAND), original)
+            except Exception as e:
+                logger.info("[seed_hf_search] original %s de %s non lu : %s", original, m.id, e)
+            else:
+                climbed[m.id] = info.id
+                m = info
+        if m.id.lower() in {r.lower() for r in retenus} or (
+                any(names_the_same_model(r, m.id) for r in retenus)
+                and any(marker in m.id.lower() for marker in _QUANT_MARKERS)):
+            grouped += 1                 # une variante d'un retenu : l'une de SES options
+            continue
         tache = getattr(m, 'pipeline_tag', None)
         regle = HF_TASKS.get(tache or '')
         if regle is None and _designated(m.id):
@@ -2319,7 +2605,8 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
             m.id, facts=card_facts(getattr(m, 'pipeline_tag', None) or tache,
                                    getattr(m, 'tags', None) or (), carte),
             refs_type=refs_type, role=f"hf:{tache}",
-            reason=f"recherche ciblée « {query} »",
+            reason=f"recherche ciblée « {query} »" + next(
+                (f" — original de {repack}" for repack, orig in climbed.items() if orig == m.id), ''),
             description=(f"[{tache}] {dl} downloads, "
                          f"{likes} ♥ — targeted search “{query}”."),
             note=f"recherche ciblée « {query} » ({tache})", weight_gb=poids,
@@ -2330,7 +2617,8 @@ def seed_hf_search(query: str, limit: int = 10, max_retenus: int = 5) -> dict:
         retenus.append(m.id)
 
     resume = {'ok': True, 'query': query, 'created': crees, 'updated': maj,
-              'already': deja, 'skipped': ignores, 'total': len(retenus), 'refs': retenus}
+              'already': deja, 'skipped': ignores, 'grouped': grouped, 'climbed': climbed,
+              'total': len(retenus), 'refs': retenus}
     logger.info("[seed_hf_search] %s", resume)
     return resume
 

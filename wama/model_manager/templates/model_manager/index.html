@@ -1509,7 +1509,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 </span>
                 ${i === recommended ? '<span class="badge bg-primary">recommandé</span>' : ''}
                 ${o.kind === 'full' ? '<span class="badge bg-secondary">canonique</span>'
-                                    : '<span class="badge bg-success">quantisé</span>'}
+                  : o.kind === 'family' ? '<span class="badge bg-info text-dark">famille</span>'
+                                        : '<span class="badge bg-success">quantisé</span>'}
             </label>`).join('');
         const el = document.createElement('div');
         el.id = 'mmVariantModal';
@@ -1525,7 +1526,9 @@ document.addEventListener('DOMContentLoaded', function() {
                   <p class="small text-muted mb-2">WAMA recommande l'option la plus précise qui tourne
                   sur cette machine et tient sur la carte graphique ; une option grisée ne tournerait
                   pas ici (raison indiquée). Le téléchargement se fait en tâche de fond, dans le
-                  dossier canonique du modèle.</p>
+                  dossier canonique du modèle. Une option « famille » est un AUTRE modèle que
+                  l'auteur relie à celui-ci : le poids ne dit pas lequel est meilleur, sa fiche
+                  le dit — jamais recommandée d'office.</p>
                   <div class="list-group">${rows}</div>
                 </div>
                 <div class="modal-footer">

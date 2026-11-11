@@ -698,7 +698,10 @@ MECHANISMS = (
               "empreinte lue ou MESURÉE) pour le scout (`--github owner/repo:tag`, 2026-10-07) ; "
               "les CLASSEMENTS des bancs (tâche et rang, `seed_benchmark_candidates`) et les "
               "SUCCESSEURS déclarés par l'auteur (`new_version`, `seed_hf_successors`) sont des "
-              "sources de candidats (2026-10-10)",
+              "sources de candidats (2026-10-10) ; la FAMILLE que l'auteur relie (`family_members` : "
+              "liens de sa fiche et ses collections) en est une aussi (`seed_hf_family_upgrades`), "
+              "et des options d'installation jamais recommandées par le poids ; un reconditionnement "
+              "remonte à son original (`repack_original`, 2026-11-10)",
               'wama/model_manager/services/prospector.py',
               'wama/model_manager/PROSPECTION_PIPELINE.md',
               annexes=('wama/model_manager/services/prospect_agents.py',

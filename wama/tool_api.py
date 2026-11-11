@@ -2294,7 +2294,7 @@ def _registry_management_refusal(user):
             'detail': "Gérer les modèles (chercher, prospecter, installer) est réservé aux développeurs."}
 
 @tool_effect(WRITE)
-def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> dict:
+def search_models(user, query: str, limit: int = 20, max_results: int = 5) -> dict:
     """
     SEARCH HuggingFace for models matching `query` and record them as prospection
     PROPOSALS (visible on the model manager page, one click to install or reject).
@@ -2305,11 +2305,14 @@ def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> di
 
     Args:
         query: free text matched against repository names (e.g. 'kokoro onnx').
-        limit: how many repositories to fetch from HuggingFace (default 10).
-        max_results: how many proposals to keep at most (default 5).
+        limit: how many repositories to fetch from HuggingFace (default 20).
+        max_results: how many proposals to keep at most (default 5). A REPACK (Comfy-Org, a GGUF
+            publisher) is replaced by the author's ORIGINAL it declares (`climbed`), and a repack
+            of a kept model takes no slot (`grouped`): it is one of that model's install options.
 
     Returns:
-        {"query", "created", "updated", "already", "skipped", "total", "refs": [repo],
+        {"query", "created", "updated", "already", "skipped", "grouped", "climbed": {repack: original},
+         "total", "refs": [repo],
          "catalog": [{"key","name","task","proposed","downloaded"}]} — `catalog` = the rows
         ALREADY in the catalogue that match the query (proposals and installed models, the ones
         just written included): use their `key` with get_install_options / install_model.
@@ -2324,7 +2327,7 @@ def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> di
     q = (query or '').strip()
     if not q:
         return {'error': "query requis : le nom (même partiel) d'un modèle à chercher."}
-    res = seed_hf_search(q, limit=max(1, min(int(limit or 10), 30)),
+    res = seed_hf_search(q, limit=max(1, min(int(limit or 20), 30)),
                          max_retenus=max(1, min(int(max_results or 5), 10)))
     if not res.get('ok'):
         # Le Hub refuse (429, panne) : le CATALOGUE, lui, répond encore (fil n° 40 — deux
@@ -2379,7 +2382,9 @@ def prospect_models(user) -> dict:
     "Prospecter" button (one body, `prospector.run_prospection`). Nothing is downloaded.
 
     Sources, each in its own scope: the Ollama library (new models per role, named successors),
-    Hugging Face (successors DECLARED by the author on the card, top models per task), and the
+    Hugging Face (successors DECLARED by the author on the card; members of the author's FAMILY
+    that fit the GPU, `hf_family`, proposed as replacements of an installed model and judged on
+    the author's card — not ranked by size; top models per task), and the
     benchmark LEADERBOARDS — the best-ranked repositories of each benchmark tied to a task
     (OCR, transcription, embeddings…), proposed with their rank. Third-party benchmarks, then
     the confidence jury, follow in the background.
@@ -2402,7 +2407,7 @@ def prospect_models(user) -> dict:
         return refusal
     summary = run_prospection()
     sources = {}
-    for label in ('hf_successors', 'hf', 'benchmarks'):
+    for label in ('hf_successors', 'hf_family', 'hf', 'benchmarks'):
         part = summary.get(label) or {}
         sources[label] = ({'error': part['error']} if part.get('error') else
                           {k: part.get(k) for k in ('created', 'updated', 'removed', 'total',
@@ -2426,6 +2431,9 @@ def get_install_options(user, model_key: str) -> dict:
     another engine such as Apple MLX, or a quantisation whose library is missing) and its estimated
     VRAM. `recommended` is the index of the option WAMA recommends — the most precise one that runs
     and fits the GPU, the same one the page preselects: take it unless the user asked otherwise.
+    `kind: 'family'` options are OTHER models the author links to this one (its card, its
+    collections): never recommended by size — the card says which is better; `family` counts
+    them (`members`, `installed`, `offered`, `fitting`; `read: false` = the Hub did not answer).
 
     Then call install_model(model_key, variant_ref=<ref>, variant_file=<file>) with the chosen
     option (or no variant for full weights). The first call reads the Hub (a few requests), the
@@ -2453,6 +2461,7 @@ def get_install_options(user, model_key: str) -> dict:
                 **({'similar_keys': near} if near else {})}
     res = install_options(cand)
     return {'choice': res.get('choice', False), 'recommended': res.get('recommended'),
+            'family': res.get('family'),
             'options': [{k: o.get(k) for k in ('kind', 'ref', 'file', 'disk_gb', 'driver', 'label',
                                                'runnable', 'reason', 'vram_estimated_gb', 'fits')}
                         for o in (res.get('options') or [])],

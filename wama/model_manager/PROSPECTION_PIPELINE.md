@@ -4768,3 +4768,88 @@ n'aligne pas les noms sur une ligne existante du même moteur : manque de la rou
 dépôt principal absents ; le contrôle mécanique ne reconnaît pas un dépôt nommé dans une TABLE du
 code vendorisé (`SUBMODEL_REGISTRY`), seulement dans une constante. Le `scout` de l'XL-SFT a buté sur
 une limite du Hub (429, pendant le téléchargement de la SFT) : à relancer.
+
+### Suite (nuit du 10 au 11/11) — la DORSALE tranchée, les leviers livrés, deux d'entre eux corrigés par la mesure
+
+Fabien : *« Dorsale, et lance tous les leviers que tu proposes. »*
+
+**La dorsale, de bout en bout** (✅) :
+- rôle `model` — trois faits mécaniques neufs (`wama-dev-ai/role_utils.py`) : `vendor_names_repo` lit
+  aussi les VALEURS d'une table de module (`SUBMODEL_REGISTRY[acestep-v15-sft]`) ;
+  `enforce_backbone_from_siblings` aligne le nom de rôle d'un composant sur celui qu'une ligne
+  INSTALLÉE du même moteur donne au même poids (même nom de fichier ET même `architectures` dans la
+  `config.json` du dossier — le nom seul ne départage pas, trois composants d'ACE-Step s'appellent
+  `model.safetensors` ; une correspondance non unique ne renomme rien), puis pose
+  `identity.base_model` (relation `finetune`) quand UNE seule ligne du moteur couvre les rôles qui
+  manquent. Branchés dans `run_model_manifest.enforce_facts`, après l'anatomie lue par le moteur.
+  Mesuré avant d'écrire : sur tous les moteurs vendorisés, les tables ne nomment que des lignes
+  d'ACE-Step dans son propre moteur (le piège SheetSage2 reste fermé).
+- relancé sur la SFT (job `20261110-230127-ea0d0c`, Albert gemma-4-31b) : moteur `ace_step_1_5`
+  posé par la table, `transformer` → `diffusion_transformer`, `latent` → `silence_latent`, dorsale
+  `ACE-Step/Ace-Step1.5` (`finetune`), 0 erreur de validation. ⏳ Valider (Fabien) ; l'ANCIENNE
+  proposition de la SFT (rôle `dit`, sans dorsale) est à rejeter.
+- exécution — `model_components.component_paths(clé, with_backbone=True)` prend chez la dorsale les
+  rôles que la variante ne porte pas, les siens primant ;
+- empreinte — `memory_manager.replacing_weights` : une variante qui porte un rôle de sa dorsale le
+  REMPLACE (son DiT, pas deux) ; `model_footprint_gb` et `resource_governor.chosen_precision` pèsent
+  l'anatomie fusionnée (un adaptateur, sans rôle commun, s'ajoute toujours). Sans cela la SFT
+  annonçait le DiT turbo ET le sien.
+
+**Les leviers** :
+1. ✅ **Remonter à l'original** — `prospector.repack_original` : un reconditionnement (autre auteur,
+   portant le NOM complet de l'original — la relation `quantized` seule ne suffit pas, règle de
+   `provenance.quantized_base_identity`) est remplacé par l'original que sa carte déclare ; un affinage, un adaptateur ou une fusion restent eux-mêmes ; un dépôt
+   DÉSIGNÉ est gardé. Rapporté (`climbed`) par la page et par `search_models`.
+2. ✅ **Regrouper** — un second reconditionnement d'un retenu ne prend pas de place (`grouped`) : il
+   est l'une de ses options (`quantized_variants`, marqueur `comfy` compris).
+3. 🔄 **La famille dans les options — corrigé par la mesure** : (a) la collection citée par les cartes
+   (`ACE-Step/ace-step-15`) n'est pas lisible (401) et la seule collection de l'auteur ne porte que
+   les XL ; la fiche de la SFT 2 Md cite base/SFT/principale, celle de la XL cite les XL et les
+   modèles de langage. `family_members` prend donc ce que l'auteur RELIE (liens de sa fiche ∪ ses
+   collections qui contiennent le modèle ou un dépôt cité), restreint à ses dépôts de la MÊME tâche,
+   sans quantisations ni reconditionnements d'un membre (`…-xl-sft-diffusers`) — ce que l'auteur dit,
+   pas un inventaire. (b) **La taille ne classe PAS les membres** : la SFT (DiT seul, 4,8 Go) pèse
+   moins que la ligne turbo (9 Go, LM et VAE compris) — « le plus grand qui tient » aurait recommandé
+   le turbo. Les membres sont des options `kind: 'family'`, montrées avec poids et « tient »,
+   JAMAIS recommandées (`recommended_option`) ; installer l'un les range sous SON nom
+   (`spec_for_choice`). Lus une fois, gardés (`prospect['family']`) ; `needs_variant_choice` et la
+   garde d'installation ne les lisent pas (`with_family=False`).
+4. ✅ **La limite** — 20 dépôts lus pour 5 modèles DISTINCTS retenus (page et `search_models`).
+5. ✅ **La couverture** — `install_options()['family']` : `members`, `installed`, `offered`,
+   `fitting`, `read` (faux = le Hub n'a pas répondu) ; exposée par `get_install_options`.
+
+✅ **Le chantier de Fabien, en source de « Prospecter »** — `seed_hf_family_upgrades` (sœur de
+`seed_hf_successors`, rôle `hf:family`) : pour chaque modèle INSTALLÉ, les membres de sa famille non
+installés qui tiennent sur la carte deviennent des candidats `update` (confiance 0,5 contre 0,9 au
+successeur : l'auteur les relie sans dire lequel remplace l'autre), UNE proposition par membre avec
+toutes ses origines ; le jury de prospection, qui lit la fiche de l'auteur (son « Model Zoo »), juge
+le meilleur ; installer = l'ancien sort des choix (`supersede_after_install`), ses poids restent.
+Une lecture échouée ne retire rien (la garde l'a prouvé : une première version gardait UNE origine
+et perdait la proposition d'un modèle non relu).
+
+Gardes : `tests_dev_ai_bridge` (`VendorEngineFromSourcesTest`, `BackboneFromEngineSiblingsTest`),
+`tests_vram_peaks.AdapterFootprintTest`, `tests_vram_wait.PrecisionChosenByTheGovernorTest`,
+`tests_github_install`, `tests_named_search.ARepackClimbsToItsOriginalTest`,
+`tests_install_recommendation` (famille offerte jamais recommandée, `family_members`),
+`tests_prospection_sources.FamilyUpgradeCandidatesTest` — chacune prouvée par une mutation (rouge
+exigé, obtenu).
+
+**Deux manques de route comblés en chemin** :
+- la XL-SFT (installée par la route, install n° 74, 18,6 Go) déclare la MÊME architecture que le DiT
+  principal (mesuré : `config.json` → `AceStepConditionGenerationModel`) mais publie ses poids en
+  quatre morceaux : l'alignement par nom de fichier ne la voyait pas. À défaut du même nom, même
+  architecture ET même format suffisent — toujours à correspondance unique (un `Qwen3Model` ne
+  bouge pas) ;
+- le rôle `task` (corrections du backend, consigne `wama-dev-ai/outputs/task_spec_ace_step_backend.md`
+  — la surface plafonne une consigne à 500 caractères sur une ligne, `dev_tools.MAX_VALUE_CHARS` :
+  une consigne longue passe par un fichier que le rôle LIT sous `outputs/`, jamais écrit par lui) a
+  rendu 9 édits tous refusés : le modèle recopiait la gouttière de numérotation (`    2| …`) dans
+  `old`. `run_task.without_gutter` la retire quand TOUTES les lignes la portent et que le texte brut
+  est introuvable (garde `tests_dev_ai_task_role`) ; rejoué, 8 édits sur 9 passaient, le 9ᵉ
+  recopiait mal une docstring (refus légitime) ; relancé, 7 sur 9 (la même docstring, une
+  gouttière à moitié recopiée). Le rôle `task` reçoit donc, comme `model` et `backend`, UNE reprise
+  sur ses refus, gardée si elle est moins refusée (`run_task.reprise_on_checks`).
+
+⏳ **Reste** : le rôle `model` de la XL-SFT, puis Valider (Fabien) ; la proposition du rôle `task`,
+puis l'appliquer après validation (`run_task.py --apply`) ; une génération réelle par variante, à
+écouter.
