@@ -30969,3 +30969,25 @@ sondes (`ui_smoke._drop_new_sessions`) ne retire volontairement que les ANONYMES
 Recommandation : garder les comptes de test ; purger les seules sessions EXPIRÉES par la commande de Django
 (`manage.py clearsessions`, une fois), puis la planifier (Celery beat, en INTERVALLE quotidien hors de la
 plage réservée aux tests nocturnes — `tests_calendar`). Aucune session valide n'est touchée.
+
+## §PALIER — 2026-11-11 (soir, fin), « SESSIONS PURGÉES, MOT DE PASSE DE WAMA ENTIER À CHAQUE FOIS » — livré (`e387ff016`) — 🔚 relancer beat, worker default et serveur web (depuis la page)
+
+Les deux décisions ouvertes des blocs précédents, tranchées par Fabien le jour même et livrées :
+- **Sessions** : purge jouée par `manage.py clearsessions` — 2 960 sessions restantes, 0 expirée (les
+  27 639 expirées retirées, comptes de test conservés). Puis planifiée : tâche
+  `common.clear_expired_sessions` (`SessionStore.clear_expired`), chaque jour à 01:55, file default, hors de
+  la plage réservée (`tests_calendar` vert). Garde `tests_session_policy.ExpiredSessionsArePurgedTests`.
+- **Mot de passe** : WAMA entier le redemande À CHAQUE fois, la fenêtre de 5 min ne valant plus que pour un
+  worker (`model_manager.views._reconfirmed(window=False)`). Garde
+  `ProcessRoutesTest.test_restarting_all_of_wama_asks_the_password_every_time`. Mutations : 3 rouges.
+  Domicile : `INFRA_WSL_VS_WINDOWS.md`, ligne « Services au démarrage ».
+
+⚠ **Correction** : j'avais attribué au commit `3f0d4ba86` de la session sœur la péremption de la carte des
+mécanismes (`doc_facts --check`). FAUX, mesuré par elle cellule par cellule : six décomptes en retard,
+quatre déjà à HEAD par des commits d'autres sessions depuis la dernière régénération, un par son WIP, un
+par un fichier de test non suivi d'une autre session. Elle commite les quatre lignes de HEAD. *Une date
+de commit voisine n'attribue rien : la cellule mesurée, si.*
+
+⏳ **À relancer (Fabien), depuis la page du model manager** : `beat` (la planification neuve), worker
+`default` (la tâche neuve) et serveur web (la vue). Le mot de passe n'est demandé que si un worker est
+occupé au moment du clic.
