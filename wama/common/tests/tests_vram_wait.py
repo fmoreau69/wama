@@ -349,6 +349,31 @@ class PrecisionChosenByTheGovernorTest(_Card):
         self.assertIsNone(gov.chosen_precision(self.KEY, _Plain))
 
 
+class AceStepUnloadReleasesItsWeightsTest(TestCase):
+    """2026-11-11 : après la XL-SFT (card 1448), « Modèle déchargé » au journal mais ~19 Go restés
+    sur la carte — même le geste « libérer la carte » n'y changeait rien —, et les deux générations
+    suivantes refusées faute de place. Décharger lâche les POIDS du handler DiT (pas seulement la
+    référence au handler, qu'un autre objet peut garder) et passe par la libération du moteur pour
+    le modèle de langage."""
+
+    def test_unload_drops_the_weights_even_if_the_handler_is_still_held(self):
+        from types import SimpleNamespace
+
+        from wama.common.backends.ace_step1_5_backend import AceStepBackend
+        engine = AceStepBackend()
+        dit = SimpleNamespace(model=object(), vae=object(), text_encoder=object(),
+                              text_tokenizer=object(), silence_latent=object())
+        llm = mock.Mock()
+        engine._dit_handler, engine._llm_handler, engine._loaded = dit, llm, True
+        held_elsewhere = dit
+        engine.unload()
+        self.assertEqual([None] * 5, [getattr(held_elsewhere, name) for name in
+                                      ('model', 'vae', 'text_encoder', 'text_tokenizer',
+                                       'silence_latent')])
+        llm.unload.assert_called_once_with()
+        self.assertFalse(engine.is_loaded)
+
+
 class ServedModelNeedTest(_Card):
     """Un modèle déjà chargé dans le process qui le SERVIRA n'est pas un besoin (2026-11-05)."""
 

@@ -275,6 +275,23 @@ class AceStepBackend(MusicGenerationBackend):
         """Décharge le modèle et restaure la fraction VRAM plafonnée par le moteur."""
         if not self._loaded:
             return
+        # Constat (2026-11-11) : après unload(), la carte restait à ~19 Go —
+        # des références aux handlers survivaient ailleurs et leurs poids
+        # n'étaient jamais libérés. On libère donc explicitement le LM par le
+        # moteur et les poids du handler DiT avant de lâcher les références.
+        if self._llm_handler is not None:
+            try:
+                self._llm_handler.unload()
+            except Exception:
+                logger.debug("[ACE-Step] unload() du LM ignoré", exc_info=True)
+        if self._dit_handler is not None:
+            try:
+                for attr in ('model', 'vae', 'text_encoder', 'text_tokenizer',
+                             'silence_latent', 'mlx_decoder', 'mlx_vae'):
+                    if getattr(self._dit_handler, attr, None) is not None:
+                        setattr(self._dit_handler, attr, None)
+            except Exception:
+                logger.debug("[ACE-Step] libération des poids DiT ignorée", exc_info=True)
         self._dit_handler = None
         self._llm_handler = None
         self._loaded = False
