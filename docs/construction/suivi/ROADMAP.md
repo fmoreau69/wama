@@ -1157,7 +1157,11 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    Coqui (`isin_mps_friendly` retiré) — les quatre épinglent transformers 4.57 chez leurs auteurs.
    Un import réussi ne prouve pas qu'un modèle tourne. ⇒ pas de migration du venv partagé sans
    décision ; l'autre voie est un PROCESSUS à part avec son propre environnement (`ISOLATION`, au
-   contrat, que rien n'exécute encore). *Et le 2026-11-11, la route propose enfin l'OFFICIEL*
+   contrat, que rien n'exécute encore). ✅ **Décidé le 2026-11-11 (Fabien)** : la voie multi-venv —
+   un service par environnement (le worker `gpu` seul ordonnanceur), un venv complet par
+   environnement (gel du principal + surcharges, fichiers communs par liens durs), le tout
+   fonctionnant comme en mono-venv ; avis du concile et socle en cours :
+   `INFRA_WSL_VS_WINDOWS §Plan multi-venv du 2026-11-11`. FLUX 3 en sera le premier occupant. *Et le 2026-11-11, la route propose enfin l'OFFICIEL*
    (`black-forest-labs/flux-3-image-klein`, 18,9 Go de composants, recommandé « tient »), que le
    GGUF partiel masquait — `PROSPECTION_PIPELINE §« Session du 2026-11-11 »` ; sa licence est à
    accepter sur le Hub. La vitesse (Q8_0

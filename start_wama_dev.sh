@@ -28,7 +28,7 @@ sleep 2
 # ------------------------------------------------------
 # CONFIGURATION
 # ------------------------------------------------------
-VENV_DIR=$PROJECT_DIR/venv_linux
+VENV_DIR=$(wama_reference_venv)        # l'environnement de référence (scripts/wama_services.sh)
 DJANGO_SETTINGS_MODULE=wama.settings
 DJANGO_PORT=8000
 LOG_DIR=$PROJECT_DIR/logs

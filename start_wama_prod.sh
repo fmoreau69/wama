@@ -40,9 +40,11 @@ if pkill -f "$(wama_service_pattern tts_service)" 2>/dev/null; then
     sleep 3
     pkill -9 -f "$(wama_service_pattern tts_service)" 2>/dev/null || true
 fi
-pkill -f "$(wama_service_pattern vector_service)" || true
-pkill -f "$(wama_service_pattern privacy_service)" || true
-pkill -f "$(wama_service_pattern tensorflow_service)" || true
+# Les autres services : ceux que la définition commune DÉCLARE, quel que soit leur environnement
+# (2026-11-11 — la liste écrite ici à la main n'aurait pas arrêté un service ajouté).
+for s in $WAMA_SERVICES; do
+    [ "$s" = tts_service ] || pkill -f "$(wama_service_pattern "$s")" || true
+done
 # Passerelle de canaux : on l'arrête ICI comme les autres, pour deux raisons —
 #   • elle doit repartir sur le code du run courant (elle a l'ORM et les settings) ;
 #   • la rotation des journaux plus bas exige les services ARRÊTÉS (renommer un fichier
@@ -65,7 +67,7 @@ sleep 2
 # ------------------------------------------------------
 # CONFIGURATION
 # ------------------------------------------------------
-VENV_DIR=$PROJECT_DIR/venv_linux
+VENV_DIR=$(wama_reference_venv)        # l'environnement de référence (scripts/wama_services.sh)
 DJANGO_SETTINGS_MODULE=wama.settings
 DJANGO_PORT=8000
 GUNICORN_WORKERS=4

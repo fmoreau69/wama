@@ -213,7 +213,9 @@ _PROCESS_TEXTS = {
     WEB: ('Serveur web (gunicorn)', "Rechargement à chaud : ses processus relisent le code, les "
                                     "pages restent servies."),
     WAMA: ('WAMA entier', "Relance complète par le script de démarrage : toutes les pages se coupent "
-                          "environ deux minutes, les traitements en cours sont interrompus."),
+                          "plusieurs minutes (mesuré le 2026-11-11 : environ 7 min avant que les "
+                          "pages reviennent, les traitements reprennent ensuite), les traitements en "
+                          "cours sont interrompus."),
 }
 
 
@@ -292,8 +294,9 @@ def control_process(key: str, action: str) -> tuple:
     try:
         if key == WAMA:
             (_logs() / 'wama_restart').touch()
-            return True, ("Relance de WAMA demandée : la page va se couper environ deux minutes, "
-                          "puis revenir.")
+            return True, ("Relance de WAMA demandée : la page va se couper plusieurs minutes (mesuré "
+                          "le 2026-11-11 : environ 7 min), puis revenir ; les traitements reprennent "
+                          "ensuite.")
         _flag('launch', key).touch()
     except OSError as exc:
         return False, f"{key} : ordre non déposé ({exc})."

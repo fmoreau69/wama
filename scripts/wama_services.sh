@@ -168,6 +168,12 @@ wama_environment_venv() {
     return 1
 }
 
+# Le venv de l'environnement de RÉFÉRENCE — celui qu'activent les scripts de démarrage et la
+# surveillance (ils l'écrivaient chacun en dur avant le 2026-11-11).
+wama_reference_venv() {
+    wama_environment_venv "${WAMA_ENVIRONMENTS%%:*}"
+}
+
 # "<module> <port> <journal>".
 wama_service_spec() {
     case "$1" in

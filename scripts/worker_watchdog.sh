@@ -32,9 +32,10 @@
 PROJECT_DIR=${PROJECT_DIR:-/mnt/d/WAMA/web-app-for-media-automation}
 LOG_DIR=${LOG_DIR:-$PROJECT_DIR/logs}
 cd "$PROJECT_DIR" || exit 1
-[ -n "$VIRTUAL_ENV" ] || source "$PROJECT_DIR/venv_linux/bin/activate"
 # shellcheck source=scripts/wama_services.sh
 source "$PROJECT_DIR/scripts/wama_services.sh"
+# Le venv de l'environnement de référence, celui que déclare la définition commune.
+[ -n "$VIRTUAL_ENV" ] || source "$(wama_reference_venv)/bin/activate"
 wama_runtime_env
 wama_worker_env
 

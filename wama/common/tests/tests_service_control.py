@@ -241,6 +241,22 @@ class EnvironmentsTest(SimpleTestCase):
         named = [pair.partition(':')[0] for pair in supervision._script_list('WAMA_SERVICE_ENVIRONMENTS')]
         self.assertLessEqual(set(named), set(supervision.declared_services()))
 
+    def test_no_script_writes_the_reference_venv_by_hand(self):
+        """The starters and the watchdog wrote `venv_linux` each, beside the declaration."""
+        for script in (*STARTERS, BASE / 'scripts' / 'worker_watchdog.sh'):
+            source = script.read_text(encoding='utf-8')
+            self.assertNotIn('venv_linux', source, script.name)
+            self.assertIn('wama_reference_venv', source, script.name)
+
+    def test_both_starters_stop_every_declared_service(self):
+        """The production starter named three services by hand: one added for another environment
+        would have survived a restart, holding its port and its share of the card."""
+        for starter in STARTERS:
+            source = starter.read_text(encoding='utf-8')
+            stop = source[:source.index('CONFIGURATION')]
+            self.assertIn('for s in $WAMA_SERVICES', stop, starter.name)
+            self.assertNotIn('wama_service_pattern vector_service', stop, starter.name)
+
     def test_a_service_without_declaration_runs_in_the_reference_environment(self):
         with mock.patch.object(supervision, '_script_list', side_effect=lambda name: {
                 'WAMA_ENVIRONMENTS': ['main:venv_a', 'recent:venv_b'],
