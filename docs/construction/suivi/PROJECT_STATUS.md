@@ -30991,3 +30991,74 @@ de commit voisine n'attribue rien : la cellule mesurée, si.*
 ⏳ **À relancer (Fabien), depuis la page du model manager** : `beat` (la planification neuve), worker
 `default` (la tâche neuve) et serveur web (la vue). Le mot de passe n'est demandé que si un worker est
 occupé au moment du clic.
+
+## §CLÔTURE — 2026-11-11 (soir), « POIDS D'ORIGINE PAR LA ROUTE ; SOCLE MULTI-VENV » — clos — 🔚 route des librairies par environnement (`install_library` / `simuler_installation` / version constatée visant le Python d'un environnement, `Library` relevée par environnement)
+
+**Livré** :
+- *Prospection, poids d'origine* (`d69f677fe`, revérifié `2cfa44997`) — demande de Fabien sur FLUX 3,
+  éprouvée par les outils de l'assistant : « déjà chez nous » ne compte plus le modèle d'origine
+  d'une quantification que rien n'exécute (`catalogue_repos` + `backend_missing`) ; la pesée lit
+  l'index d'un pipeline diffusers MODULAIRE et la règle « `<rôle>/<fichier>` » vaut pour la pesée
+  et l'anatomie ; les poids pleins et les membres de famille se pèsent par composant, comme au
+  lancement. L'officiel `black-forest-labs/flux-3-image-klein` est proposé, recommandé en poids
+  pleins (18,9 Go, tient). Détail : `PROSPECTION_PIPELINE §« Session du 2026-11-11 »`.
+- *Migration diffusers 0.42 mesurée* (venv jetable superposé, `venv_linux` jamais écrit) : tous les
+  pipelines du parc s'importent avec peft 0.21.2, mais qwen_asr, qwen_tts, vibevoice et TTS de Coqui
+  cassent ; WAMA démarre (`django.setup()` 10 s) avec les libs récentes. `ROADMAP §Gouvernance i`.
+- *Décision de Fabien* : multi-venv — un service par environnement (worker `gpu` seul
+  ordonnanceur), un venv complet par environnement (gel du principal + surcharges, fichiers communs
+  par liens durs, mesurés sur D:), tout fonctionnant comme en mono-venv, les services partageant
+  base, Redis et gouverneur. Concile (4 avis distants, relecture croisée, arbitre) : « plan correct
+  avec corrections ». Tout est consigné : `INFRA_WSL_VS_WINDOWS §Plan multi-venv du 2026-11-11`.
+- *Socle* : `f2efdb5a0` (les patches se rejouent dans le venv de l'interpréteur), `3f0d4ba86`
+  (`WAMA_ENVIRONMENTS` / `WAMA_SERVICE_ENVIRONMENTS` déclarés une fois, `start_wama_service` lance
+  avec le Python de l'environnement du service), `54eb9c62b` (revérification : `wama_reference_venv`
+  pour les démarrages et la surveillance, arrêt de la production en boucle sur `WAMA_SERVICES`,
+  libellés de durée d'une relance demandés par la session sœur, cinq cellules de la carte des
+  mécanismes). **Prouvé en service** : la relance complète de 17:41 (demandée depuis WAMA, mesure
+  de la session sœur) a tourné avec ces retouches — services lancés par `<venv>/bin/python -m
+  uvicorn`, workers et page revenus.
+
+**Partition** : la session `ed` m'a cédé `scripts/wama_services.sh`, `service_supervision.py`,
+`tests_service_control.py`, `start_wama_*.sh` et `process_control.py` après son commit
+`853333d12` ; elle a depuis ajouté un seul test dans `tests_service_control.py` (`e387ff016`).
+
+**⏳ Restes de CE chantier, dans l'ordre** (domicile : `INFRA_WSL_VS_WINDOWS §Plan multi-venv`) :
+1. la route des librairies par environnement (`install_library`, sa simulation, la version
+   constatée et la désinstallation visent le Python d'un environnement ; `Library` garde une ligne
+   par librairie et relève la version installée par environnement) ;
+2. `apply_patches.py` en remplacement ATOMIQUE (un venv à liens durs ne supporte aucune écriture sur
+   place) ;
+3. la construction du second venv : gel exact du principal (torch et CUDA `+cu128` épinglés), copie
+   par liens durs, surcharges par la route (diffusers 0.42.1, transformers 5.22.2,
+   huggingface_hub 2.4.0, tokenizers 0.23.3, safetensors 0.8.0, peft 0.21.2), et sa sonde positive
+   (import réel, `django.setup()`, liens intacts) ;
+4. le contrat LONG par jobs (soumission, état sondé, ⏹ par canal séparé, garde-temps), la
+   progression passant par les canaux communs ;
+5. la découverte des pipelines modulaires (moteur dérivé et anatomie depuis
+   `modular_model_index.json`) ;
+6. les tests du contrat joués dans le second venv, AVANT
+7. l'exécuteur d'`ISOLATION` (un backend routé vers le service de son environnement) ;
+8. FLUX 3 : premier occupant, dans son propre service. Les licences des deux dépôts officiels sont
+   acceptées par Fabien. La déclaration de son anatomie évitera de tirer les 40,3 Go du dépôt pour
+   18,9 utiles.
+Vigilance du concile : mémoire vive (mesurée : 96 Go, WSL plafonné à 48, 33 disponibles) et
+processus orphelins d'un service d'environnement.
+
+**Contrôles mesurés à la clôture** (après le dernier commit de code) : **377 tests OK** —
+`tests_service_control`, `tests_tensorflow_service`, `tests_worker_watchdog`, `tests_library_install`,
+`tests_install_recommendation`, `tests_prospection_sources`, `tests_anatomy`,
+`tests_platform_ref_only`, `tests_named_search` et les gardes transverses (`tests_identifier_language`,
+`tests_test_layout`, `tests_install_route`, `tests_hf_cache_routing`, `tests_tool_api_coverage`,
+`tests_mecanismes_scan`) ; 16 gardes neuves, chacune prouvée par une mutation (rouge exigé,
+obtenu, fichier restauré à l'empreinte) ; `check_redundancy` 97 (le même total qu'en début de
+session), aucune dans les fichiers de la session ; `check_docs` 0 cassée sur 4088 ; `doc_facts --check` à jour hors la cellule « Inspecteur
+contextuel » de la carte des mécanismes, qui compte un fichier de test non suivi d'une autre
+session (`wama/common/tests/tests_inspector_apply_select.py`, laissé dans l'arbre).
+
+**Artefacts et effets de bord** : la recherche nommée a écrit la proposition
+`proposed:hf:black-forest-labs/flux-3-image-klein` et relevé les poids des deux propositions
+officielles (effet normal de la route). Les venvs de sonde de `/tmp` sont supprimés (vérifié). Le
+GGUF `unsloth/flux-3-image-klein-GGUF` reste installé (10,3 Go, inutilisable seul) : à retirer par
+la route quand l'officiel sera installé. Aucun worker recyclé par cette session ; la relance de
+17:41 n'est pas de son fait.
