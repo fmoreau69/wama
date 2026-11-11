@@ -30730,3 +30730,56 @@ Décisions de Fabien de la nuit : « Dorsale, et lance tous les leviers que tu p
 **Restes, à qui** :
 - LIMITES de ce que la session a construit (à elle) : la règle « une reprise gardée si moins refusée » en TROIS copies (`run_backend.py:448-456`, `run_model_manifest.py:203-223`, `run_task.reprise_on_checks`) — à ramener à `role_utils` ; la famille de l'auteur n'est que ce qu'il RELIE (sa fiche, ses collections lisibles) : les XL ne sont pas reliées à la SFT 2 Md ; un rôle LOCAL lancé pendant une génération a pris la carte (`local_llm_guard` n'attend pas, « mode dépannage éteint ») et fait échouer la SFT une première fois — à confronter au gouverneur ; la succession n'existe qu'en commande (`supersede_model`), sans geste dans l'interface ni outil d'assistant.
 - Effets de bord de la nuit : la carte libérée cinq fois (`free_memory`, action `gpu`, geste du model manager) ; XL-SFT installée (18,6 Go, `AI-models/models/music/acestep-v15-xl-sft/`) ; cards 1446-1448 dans le compte de Fabien (voulues) ; consignes du rôle `task` sous `wama-dev-ai/outputs/` (non versionné) ; ancienne proposition invalide de la SFT disparue de la file.
+
+## §CLÔTURE 2026-11-11, « PIPELINE PORTÉ PAR LA CARD, GLU COMMUNE (ROUTE §10.6 3.2bis marches 2-3), .wdat TRANSITOIRE » — `687634d63`, `20dd11468`, `ede46c992` + ce bloc (LOCAUX, non poussés) — 🔚 marche 4 (photo des réglages du nœud ajouté) puis marche 5 (geste ✎ et onglets)
+
+**Livré** (domicile : `ROUTE §10.6 3.2bis` marches 2-3 ; `WAMA_DATA_WORLD §11.8 ⑩.2` et §15) :
+- marche 2 — la card PORTE ce qu'elle ajoute à son pipeline : table commune `PipelineExtension`
+  (migration common 0039, appliquée au live le 11/11), `common/services/card_pipelines.py` ;
+  `pipeline_of(item)` = pipeline de la card ; `extended()` admet le MÉTA-PROCESS (nœud `pipeline`)
+  et garde les réglages des nœuds ajoutés ; l'ajout suit la duplication, part avec la card, est
+  balayé orphelin, voyage dans la promotion d'un lot sous `@pipeline`.
+- marche 3 — la glu commune : `common/services/function_process.py` (`run_pure_function` remonté du
+  Studio, porte unique d'une fonction pure, facette estimateur comprise) ; la sortie va dans le
+  FICHIER DE TRAVAIL de la card (`.wdat` transitoire, un par card, dossier temporaire du
+  propriétaire), la ligne n'en garde que l'adresse et l'empreinte du contenu ; le monde Data
+  s'inscrit (`register_work_store`, `wama_data/work_file.py`) ; tables NON temporelles au `.wdat`
+  (forme provisoire).
+- décisions de Fabien du 11/11 consignées (⑩.2 révisé) : TOUJOURS un `.wdat` transitoire, en miroir
+  de la source ; écrire dans la source = geste de l'utilisateur par comparaison ; table de travail
+  d'un enrichisseur = CLÉ + colonnes CALCULÉES seulement ; questionnaires = module dans WAMA sur la
+  base de Q2, LimeSurvey = une voie d'import (§15.1) ; avis du concile lu en §15.3.
+- revérification (`20dd11468`) : trois écarts de ma main ramenés — adresse recopiée de
+  `process_runs.address`, `to_port` des liens internes d'un méta-process ignoré (le Studio le suit),
+  facette estimateur posée par le seul Studio. Clôture (`ede46c992`) : garde de la libération du
+  fichier de travail ; `card_pipelines.source_of`, sans appelant, retiré.
+- question de Fabien « fusionner `card_pipelines` et `process_runs` ? » : non — l'une dit ce que la
+  card JOUE (une ligne par card qui ajoute), l'autre ce qu'elle a FAIT (une ligne par process,
+  réécrite à chaque lancement), le découpage de `BatchSettings` ; adresse et balayage partagés.
+
+**Gardes** : `tests_process_pipeline` (`ACardExtendedPipelineTest`, `ACardCarriesItsPipelineTest`,
+`AnAddedProcessRunsByTheCommonGlueTest`, `ThePureFunctionDoorTest`), `tests_batch_views`,
+`wama_data.containers.tests_containers` (`WorkFileTest`) ; 19 contre-épreuves, toutes rouges.
+
+**Contrôles attendus au prochain /reprise** (mesurés le 11/11, après le dernier code) : périmètre
+(pipeline, lots, conteneurs, studio) 561 OK ; gardes transverses 165 OK ; `check_docs` 0 cassée sur
+4079 ; `check_redundancy` 97, aucune dans les fichiers de la session ; `doc_facts --check` : ma part
+à jour (restent l'inspecteur et la surface d'outils de `WAMA_MECANISMES`, WIP d'autrui) ;
+`manifest_export --check` : 11 périmés, aucun de cette session (`composer` = WIP d'autrui, lignes de
+catalogue OpenRouter / Ollama / Hub de la prospection). Suite du commun (relevé de la nuit, 6670
+tests) : rouges à autrui — `tests_route_for_nature` (`cloud_models.py:237-238`, `018dfc734`),
+`tests_voice_refs` (jumelles synthesizer_01 / avatarizer_01), `enhancer NoParallelDownloaderTest`
+(vendor ACE-Step 1.5 gitignoré).
+
+**Pendings système** : POUSSER les commits de la session (décision de Fabien) ; RELANCER les workers
+et gunicorn — le squelette de tâche et la file lisent le pipeline de la card (sans relance, une card
+qui ajoute un process est jouée par l'ancien code, qui ignore l'ajout).
+
+**Restes de CE chantier** (limites de ce qui a été construit) : marche 4 (la photo d'un process
+ajouté lit les réglages de son nœud) ; marche 5 (geste ✎, onglets, outil d'assistant —
+`/api-outils`) ; recopie d'une table de la SOURCE dans le `.wdat` (clé + colonnes calculées) et geste
+de REPORT par comparaison — avec la card du Data Analyzer ; la facette estimateur ne traverse pas le
+`.wdat` entre deux process AJOUTÉS ; aucun test ne tient G2 (`WAMA_DATA_WORLD §15.2`) ; format
+LimeSurvey non vérifié sur un fichier réel.
+**Décisions ouvertes (Fabien)** : la réponse à niveaux fermés (Likert, oui/non) — `attribute` ou
+`factor` (§15, tension avec §13.10) ; le moment du chantier questionnaires ; ⑩.3 et D19.
