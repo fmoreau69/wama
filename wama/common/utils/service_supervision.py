@@ -89,11 +89,16 @@ def note_stopped_on_purpose(service: str) -> None:
     _raise_flag('stopped', service)
 
 
-def declared_services() -> list:
-    """Les services que la surveillance connaît : la liste du script qui les lance, seule déclaration."""
+def _script_list(name: str) -> list:
+    """Une liste que déclare `scripts/wama_services.sh` (`NOM="a b c"`) : sa seule déclaration."""
     from django.conf import settings
     script = Path(settings.BASE_DIR) / 'scripts' / 'wama_services.sh'
-    return re.search(r'^WAMA_SERVICES="([^"]+)"', script.read_text(encoding='utf-8'), re.M).group(1).split()
+    return re.search(rf'^{name}="([^"]+)"', script.read_text(encoding='utf-8'), re.M).group(1).split()
+
+
+def declared_services() -> list:
+    """Les services que la surveillance connaît : la liste du script qui les lance, seule déclaration."""
+    return _script_list('WAMA_SERVICES')
 
 
 def services_at_start() -> list:
@@ -187,26 +192,25 @@ _PROCESS_TEXTS = {
 
 def declared_workers() -> list:
     """Les processus Celery que la surveillance connaît : la liste du script qui les lance."""
-    from django.conf import settings
-    script = Path(settings.BASE_DIR) / 'scripts' / 'wama_services.sh'
-    return re.search(r'^WAMA_CELERY_WORKERS="([^"]+)"', script.read_text(encoding='utf-8'),
-                     re.M).group(1).split()
+    return _script_list('WAMA_CELERY_WORKERS')
 
 
 def _worker_busy(worker: str) -> bool:
     """Le worker exécute-t-il une tâche ? Sans réponse, on le tient pour OCCUPÉ : un worker gpu en
     pool solo ne répond pas pendant une tâche (`worker_watchdog.sh`, en-tête) — et c'est le cas qui
-    coupe. `beat` n'exécute rien."""
+    coupe. `beat` n'exécute rien. La lecture de la flotte est celle de la réconciliation
+    (`process_control.collect_worker_snapshot`), avec la même règle : une absence de réponse ne
+    prouve rien."""
     if worker == 'beat':
         return False
     import socket
-    try:
-        from wama.celery import app
-        active = app.control.inspect(destination=[f'{worker}@{socket.gethostname()}'],
-                                     timeout=1.0).active()
-    except Exception:
+
+    from wama.common.utils.process_control import collect_worker_snapshot
+    snapshot = collect_worker_snapshot(timeout=1.0)
+    node = f'{worker}@{socket.gethostname()}'
+    if not snapshot or node not in snapshot['workers']:
         return True
-    return not active or any(active.values())
+    return snapshot.get('busy', {}).get(node, 0) > 0
 
 
 def needs_password(key: str, action: str) -> bool:

@@ -371,6 +371,12 @@ python manage.py manifest_export --check    # sort en erreur si le corpus est p�
   le runner de tests coupe (`MANIFEST_CORPUS_SYNC = False`, comme il redirige `MEDIA_ROOT`).
   Tenu par `tests_manifest_corpus` (la porte, l'interrupteur, aucun écrivain hors de la porte)
   et `tests_corpus_follows_uninstall`.
+  *(2026-11-11)* Le RETRAIT d'une ligne des choix (`keep_out_of_choices`, succession) et sa LEVÉE
+  (`restore_withdrawn`) passent aussi par cette porte. La levée DÉCLARE ce qu'elle lève
+  (`manifest_export --lifted body.extra_info.exclusion`, transmis par `corpus.follow`) : la garde
+  des pertes (`manifests/losses.py`) tenait la disparition de l'exclusion pour un fait perdu et
+  refusait l'écriture — la dorsale d'ACE-Step rendue aux choix gardait au corpus son exclusion.
+  Toute autre perte reste refusée (`tests_manifest_losses`).
 - **JSON trié, indentation stable** → le `git diff` du corpus devient la **revue de ce qui change
   dans la surface déclarée d'une app**. C'est la raison de le versionner malgré son caractère dérivé.
 

@@ -275,7 +275,10 @@ def collect_worker_snapshot(timeout: float = 2.0):
                 tid = t.get("id") if isinstance(t, dict) else None
                 if tid:
                     ids.add(tid)
-    return {'workers': workers, 'task_ids': ids}
+    # `busy` : les tâches EN COURS par worker ayant répondu (2026-11-11, la relance d'un worker
+    # depuis WAMA demande le mot de passe s'il en a une — `service_supervision.needs_password`).
+    busy = {worker: len(tasks or []) for worker, tasks in (active or {}).items()}
+    return {'workers': workers, 'task_ids': ids, 'busy': busy}
 
 
 def task_owner(task_id: str) -> str | None:

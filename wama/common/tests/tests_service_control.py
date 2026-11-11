@@ -307,13 +307,17 @@ class ProcessOrdersTest(_WithLogs):
             self.assertTrue(supervision.needs_password('wama', 'restart'))
 
     def test_a_worker_that_does_not_answer_is_held_busy(self):
-        """Un worker gpu en pool solo ne répond pas pendant une tâche : sans réponse, OCCUPÉ."""
+        """Un worker gpu en pool solo ne répond pas pendant une tâche : sans réponse, OCCUPÉ. La
+        lecture est la photo de la réconciliation (`collect_worker_snapshot`), pas une seconde."""
+        import socket
+        node = f'gpu@{socket.gethostname()}'
         inspect = mock.Mock()
-        with mock.patch('wama.celery.app.control.inspect', return_value=inspect):
-            for answer, busy in (({}, True), (None, True), ({'gpu@h': []}, False),
-                                 ({'gpu@h': [{'id': 't'}]}, True)):
-                inspect.active.return_value = answer
-                self.assertEqual(busy, supervision._worker_busy('gpu'), answer)
+        with mock.patch('celery.current_app.control.inspect', return_value=inspect):
+            for active, busy in ((None, True), ({'other@h': []}, True), ({node: []}, False),
+                                 ({node: [{'id': 't'}]}, True)):
+                inspect.active.return_value = active
+                inspect.reserved.return_value = {}
+                self.assertEqual(busy, supervision._worker_busy('gpu'), active)
         self.assertFalse(supervision._worker_busy('beat'))
 
     def test_the_overview_reads_the_sign_of_life_and_the_orders_in_flight(self):
@@ -459,6 +463,9 @@ class ProcessOrdersShellTest(SimpleTestCase):
             source = starter.read_text(encoding='utf-8')
             self.assertIn(f'export WAMA_START_SCRIPT="$PROJECT_DIR/{starter.name}"', source)
             self.assertIn('"$LOG_DIR"/wama_restart', source)
+            # Relancé DÉTACHÉ, sans terminal : un `sudo` nu échoue et `set -e` arrête tout après
+            # avoir tué la pile (start_wama_dev.sh, vu à la revérification du 2026-11-11).
+            self.assertEqual([], re.findall(r'^\s*sudo\s+(?!-n\b).*$', source, re.M), starter.name)
         watchdog = (BASE / 'scripts' / 'worker_watchdog.sh').read_text(encoding='utf-8')
         self.assertIn('supervise_web', watchdog)
         self.assertIn('supervise_wama_restart', watchdog)
