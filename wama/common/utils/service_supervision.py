@@ -17,6 +17,19 @@ Des drapeaux, dans `logs/`, le même canal que la pause de la surveillance
 Le serveur web ne lance ni ne tue aucun processus : il dépose l'ordre, la surveillance l'exécute
 avec les fonctions et l'environnement du démarrage (`scripts/wama_services.sh`). Sans surveillance
 vivante, un ordre ne serait jamais exécuté : il est refusé, et la page le dit.
+
+LES AUTRES PROCESSUS DE WAMA (2026-11-11, demande de Fabien : « relancer depuis WAMA tout ce qui
+est relançable ») — sur le même canal, réservés à un administrateur :
+  • un WORKER Celery (`WAMA_CELERY_WORKERS`) : `service_launch.<worker>` → la surveillance lui
+    demande un arrêt À CHAUD (il finit sa tâche en cours) puis le relance, hors budget et sans
+    rapport. `worker_seen.<worker>` : le signe de vie qu'elle pose quand elle le trouve en marche ;
+  • le SERVEUR WEB (`web`) : `service_launch.web` → rechargement à chaud de gunicorn (`HUP` au
+    maître) — ses workers relisent le code, le port reste ouvert ;
+  • TOUT WAMA (`wama`) : `wama_restart` → la surveillance lance le script de démarrage DÉTACHÉ
+    (`WAMA_START_SCRIPT`), qui l'arrête elle-même en route.
+Ce qui exige les droits root (PostgreSQL, Apache, WSL, la machine) n'est PAS relançable d'ici : le
+mot de passe système ne transite jamais par WAMA. Le geste qui COUPE (tout WAMA, un worker en pleine
+tâche) demande le mot de passe WAMA de l'administrateur (`needs_password`, vérifié par la vue).
 """
 import os
 import re
@@ -153,7 +166,109 @@ def services_overview() -> dict:
     at_start = services_at_start()
     watchdog = watchdog_state()
     return {'watchdog': watchdog, 'watchdog_message': _WATCHDOG_REFUSALS.get(watchdog, ''),
-            'services': [_describe(service, at_start) for service in declared_services()]}
+            'services': [_describe(service, at_start) for service in declared_services()],
+            'processes': processes_overview()}
+
+
+#: Une reconfirmation du mot de passe vaut pour les gestes suivants de la même session, ce temps-là.
+REAUTH_WINDOW_S = 300
+
+#: Le serveur web et WAMA entier : deux clés de plus, à côté des services et des workers.
+WEB, WAMA = 'web', 'wama'
+
+#: Ce que redit l'ordre à l'administrateur, et ce qu'il coupe (la confirmation de la page).
+_PROCESS_TEXTS = {
+    WEB: ('Serveur web (gunicorn)', "Rechargement à chaud : ses processus relisent le code, les "
+                                    "pages restent servies."),
+    WAMA: ('WAMA entier', "Relance complète par le script de démarrage : toutes les pages se coupent "
+                          "environ deux minutes, les traitements en cours sont interrompus."),
+}
+
+
+def declared_workers() -> list:
+    """Les processus Celery que la surveillance connaît : la liste du script qui les lance."""
+    from django.conf import settings
+    script = Path(settings.BASE_DIR) / 'scripts' / 'wama_services.sh'
+    return re.search(r'^WAMA_CELERY_WORKERS="([^"]+)"', script.read_text(encoding='utf-8'),
+                     re.M).group(1).split()
+
+
+def _worker_busy(worker: str) -> bool:
+    """Le worker exécute-t-il une tâche ? Sans réponse, on le tient pour OCCUPÉ : un worker gpu en
+    pool solo ne répond pas pendant une tâche (`worker_watchdog.sh`, en-tête) — et c'est le cas qui
+    coupe. `beat` n'exécute rien."""
+    if worker == 'beat':
+        return False
+    import socket
+    try:
+        from wama.celery import app
+        active = app.control.inspect(destination=[f'{worker}@{socket.gethostname()}'],
+                                     timeout=1.0).active()
+    except Exception:
+        return True
+    return not active or any(active.values())
+
+
+def needs_password(key: str, action: str) -> bool:
+    """Le geste COUPE-t-il un travail en cours ? Alors l'administrateur redonne son mot de passe
+    WAMA (recommandation retenue par Fabien, 2026-11-11) : relancer tout WAMA, ou un worker en pleine
+    tâche. Recharger le serveur web, lancer ou arrêter un service : la confirmation habituelle."""
+    if key == WAMA:
+        return True
+    return key in declared_workers() and action == 'restart' and _worker_busy(key)
+
+
+def _worker_state(worker: str) -> str:
+    # L'ordre déposé, puis l'arrêt à chaud que la surveillance a engagé (`service_stopped`).
+    if _flag('launch', worker).exists() or _flag('stopped', worker).exists():
+        return 'restarting'
+    try:
+        seen = time.time() - (_logs() / f'worker_seen.{worker}').stat().st_mtime
+    except OSError:
+        return 'down'
+    return 'ok' if seen <= WATCHDOG_SILENCE_S else 'down'
+
+
+def processes_overview() -> list:
+    """Les workers, le serveur web et WAMA entier — ce que la page offre de relancer."""
+    rows = []
+    for worker in declared_workers():
+        state = _worker_state(worker)
+        label, tone = _STATES[state]
+        rows.append({'key': worker, 'label': f'Worker {worker}', 'kind': 'worker', 'state': state,
+                     'state_label': label, 'tone': tone,
+                     'actions': ['restart'] if state in ('ok', 'down') else []})
+    for key in (WEB, WAMA):
+        label, when = _PROCESS_TEXTS[key]
+        restarting = (_logs() / 'wama_restart').exists() if key == WAMA else _flag('launch', key).exists()
+        state = 'restarting' if restarting else 'ok'
+        rows.append({'key': key, 'label': label, 'kind': key, 'when_off': when, 'state': state,
+                     'state_label': _STATES[state][0], 'tone': _STATES[state][1],
+                     'actions': [] if restarting else ['restart']})
+    return rows
+
+
+def control_process(key: str, action: str) -> tuple:
+    """Dépose l'ordre de relancer un worker, le serveur web ou WAMA entier → (accepté ?, message).
+    Seul `restart` existe : arrêter un worker laisserait sa file sans consommateur."""
+    if action != 'restart':
+        return False, f"Action inconnue : {action}."
+    if key not in declared_workers() and key not in (WEB, WAMA):
+        return False, f"Processus inconnu : {key}."
+    watchdog = watchdog_state()
+    if watchdog != 'running':
+        return False, _WATCHDOG_REFUSALS[watchdog]
+    try:
+        if key == WAMA:
+            (_logs() / 'wama_restart').touch()
+            return True, ("Relance de WAMA demandée : la page va se couper environ deux minutes, "
+                          "puis revenir.")
+        _flag('launch', key).touch()
+    except OSError as exc:
+        return False, f"{key} : ordre non déposé ({exc})."
+    if key == WEB:
+        return True, "Rechargement du serveur web demandé : les pages restent servies."
+    return True, f"Worker {key} : relance demandée — il finit sa tâche en cours avant de redémarrer."
 
 
 def control_service(service: str, action: str) -> tuple:

@@ -47,6 +47,7 @@ source $VENV_DIR/bin/activate
 # services lancés ici gardent leur sortie au terminal (non exporté : la surveillance écrit au journal).
 WAMA_SERVICE_ON_TERMINAL=1
 rm -f "$LOG_DIR"/service_wanted.* "$LOG_DIR"/service_stopped.* "$LOG_DIR"/service_held.* "$LOG_DIR"/service_launch.*
+rm -f "$LOG_DIR"/wama_restart "$LOG_DIR"/worker_seen.*
 export WAMA_DEFAULT_WORKER_POOL=solo
 # Page d'erreur détaillée en développement seulement : la production tourne `DEBUG` éteint
 # (`wama/settings.py`, 2026-11-08).
@@ -191,6 +192,7 @@ done
 # Surveillance des workers (relance d'un worker mort) — cf. start_wama_prod.sh.
 if ! pgrep -f "scripts/[w]orker_watchdog.sh" > /dev/null; then
     echo "=== Starting worker watchdog ==="
+    export WAMA_START_SCRIPT="$PROJECT_DIR/start_wama_dev.sh"
     nohup bash $PROJECT_DIR/scripts/worker_watchdog.sh >> $LOG_DIR/worker-watchdog.log 2>&1 &
     disown $!
 fi

@@ -40,7 +40,8 @@ class _WithLogs(SimpleTestCase):
         self.logs.mkdir()
         (self.root / 'scripts').mkdir()
         (self.root / 'scripts' / 'wama_services.sh').write_text(
-            'x=1\nWAMA_SERVICES="tts_service tensorflow_service"\n', encoding='utf-8')
+            'x=1\nWAMA_CELERY_WORKERS="gpu default"\nWAMA_SERVICES="tts_service tensorflow_service"\n',
+            encoding='utf-8')
         override = override_settings(BASE_DIR=self.root)
         override.enable()
         self.addCleanup(override.disable)
@@ -258,13 +259,209 @@ class TheRoutesTest(TestCase):
     def test_the_tool_needs_the_users_agreement_to_stop_or_restart(self):
         from wama import tool_api
         admin = User.objects.get(username='services_admin')
-        with mock.patch.object(tool_api, '_model_manager_answer', return_value={'success': True}) as answer:
+        with mock.patch.object(tool_api, '_model_manager_view',
+                               return_value=(None, {'success': True})) as view:
             for action in ('stop', 'restart'):
                 self.assertIn('error', tool_api.control_service(admin, 'tts_service', action))
-            answer.assert_not_called()
+            view.assert_not_called()
             self.assertEqual({'success': True},
                              tool_api.control_service(admin, 'tts_service', 'stop', confirm=True))
             self.assertEqual({'success': True}, tool_api.control_service(admin, 'tts_service', 'start'))
+
+
+class ProcessOrdersTest(_WithLogs):
+    """Relancer depuis WAMA ce qui est relançable (2026-11-11, demande de Fabien) : un worker, le
+    serveur web, WAMA entier — sur la même voie d'ordre que les services."""
+
+    def setUp(self):
+        super().setUp()
+        (self.root / 'scripts' / 'wama_services.sh').write_text(
+            'WAMA_CELERY_WORKERS="gpu default beat"\nWAMA_SERVICES="tts_service"\n', encoding='utf-8')
+
+    def _files(self):
+        return {p.name for p in self.logs.iterdir() if not p.name.startswith('worker_watchdog')}
+
+    def test_each_order_drops_its_flag_for_the_watchdog(self):
+        self._watchdog_alive()
+        for key, flag in (('gpu', 'service_launch.gpu'), ('web', 'service_launch.web'),
+                          ('wama', 'wama_restart')):
+            with self.subTest(key=key):
+                accepted, _ = supervision.control_process(key, 'restart')
+                self.assertTrue(accepted)
+                self.assertIn(flag, self._files())
+
+    def test_only_a_restart_of_a_known_process_is_taken_and_never_without_a_watchdog(self):
+        self.assertFalse(supervision.control_process('gpu', 'restart')[0])   # pas de surveillance
+        self._watchdog_alive()
+        self.assertFalse(supervision.control_process('gpu', 'stop')[0])
+        self.assertFalse(supervision.control_process('postgresql', 'restart')[0])
+        self.assertEqual(set(), self._files())
+
+    def test_what_cuts_a_running_task_needs_the_password(self):
+        with mock.patch.object(supervision, '_worker_busy', return_value=True):
+            self.assertTrue(supervision.needs_password('gpu', 'restart'))
+            self.assertTrue(supervision.needs_password('wama', 'restart'))
+            self.assertFalse(supervision.needs_password('web', 'restart'))
+        with mock.patch.object(supervision, '_worker_busy', return_value=False):
+            self.assertFalse(supervision.needs_password('gpu', 'restart'))
+            self.assertTrue(supervision.needs_password('wama', 'restart'))
+
+    def test_a_worker_that_does_not_answer_is_held_busy(self):
+        """Un worker gpu en pool solo ne répond pas pendant une tâche : sans réponse, OCCUPÉ."""
+        inspect = mock.Mock()
+        with mock.patch('wama.celery.app.control.inspect', return_value=inspect):
+            for answer, busy in (({}, True), (None, True), ({'gpu@h': []}, False),
+                                 ({'gpu@h': [{'id': 't'}]}, True)):
+                inspect.active.return_value = answer
+                self.assertEqual(busy, supervision._worker_busy('gpu'), answer)
+        self.assertFalse(supervision._worker_busy('beat'))
+
+    def test_the_overview_reads_the_sign_of_life_and_the_orders_in_flight(self):
+        self._watchdog_alive()
+        (self.logs / 'worker_seen.gpu').touch()
+        (self.logs / 'service_stopped.default').touch()
+        rows = {p['key']: (p['state'], p['actions']) for p in supervision.processes_overview()}
+        self.assertEqual(('ok', ['restart']), rows['gpu'])
+        self.assertEqual(('restarting', []), rows['default'])
+        self.assertEqual(('down', ['restart']), rows['beat'])
+        self.assertEqual(('ok', ['restart']), rows['web'])
+        (self.logs / 'wama_restart').touch()
+        self.assertEqual('restarting', {p['key']: p['state'] for p in supervision.processes_overview()}['wama'])
+
+
+class ProcessRoutesTest(TestCase):
+    """La vue : administrateur seul, mot de passe WAMA revérifié pour ce qui coupe, une fenêtre de
+    session ; l'outil de l'assistant ne transporte jamais de mot de passe."""
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('process_admin', 'a@x.fr', 'the-password')
+        self.client.force_login(self.admin)
+
+    def _order(self, key, password=''):
+        return self.client.post(reverse('model_manager:api_service_control'),
+                                json.dumps({'service': key, 'action': 'restart', 'password': password}),
+                                content_type='application/json')
+
+    def test_what_cuts_asks_the_password_and_a_good_one_opens_a_window(self):
+        with mock.patch.object(supervision, 'declared_workers', return_value=['gpu']), \
+                mock.patch.object(supervision, '_worker_busy', return_value=True), \
+                mock.patch.object(supervision, 'control_process', return_value=(True, 'fait')) as order, \
+                mock.patch('wama.common.utils.notifications.notify_admins', return_value=(1, False)):
+            refused = self._order('gpu')
+            self.assertEqual((403, True), (refused.status_code, refused.json().get('needs_password')))
+            self.assertEqual(403, self._order('gpu', 'wrong').status_code)
+            order.assert_not_called()
+            self.assertEqual(200, self._order('gpu', 'the-password').status_code)
+            self.assertEqual(200, self._order('gpu').status_code, "la fenêtre de reconfirmation")
+            self.assertEqual(2, order.call_count)
+
+    def test_an_idle_worker_or_the_web_server_need_no_password(self):
+        with mock.patch.object(supervision, 'declared_workers', return_value=['gpu']), \
+                mock.patch.object(supervision, '_worker_busy', return_value=False), \
+                mock.patch.object(supervision, 'control_process', return_value=(True, 'fait')):
+            self.assertEqual(200, self._order('gpu').status_code)
+            self.assertEqual(200, self._order('web').status_code)
+
+    def test_a_developer_sees_and_orders_no_process(self):
+        from wama.accounts.permissions import is_admin_tier
+        developer = User.objects.create_user('process_dev', password='x')
+        self.client.force_login(developer)
+        with mock.patch('wama.model_manager.views.is_admin_or_dev', return_value=True), \
+                mock.patch('wama.accounts.permissions.is_admin_tier', return_value=False), \
+                mock.patch.object(supervision, 'control_process') as order:
+            self.assertFalse(is_admin_tier(developer))
+            response = self._order('web')
+            order.assert_not_called()
+        self.assertIn(response.status_code, (302, 403))
+
+    def test_the_assistant_never_carries_a_password(self):
+        from wama import tool_api
+        with mock.patch.object(tool_api, '_model_manager_view',
+                               return_value=({'error': 'x'}, {'needs_password': True})):
+            told = tool_api.control_service(self.admin, 'gpu', 'restart', confirm=True)
+        self.assertTrue(told.get('needs_password'))
+        self.assertIn('page du model manager', told['error'])
+
+
+class ProcessOrdersShellTest(SimpleTestCase):
+    """La surveillance exécute les ordres (bash, avec des bouchons) — sautée sans bash (Windows)."""
+
+    def setUp(self):
+        import shutil
+        self.bash = shutil.which('bash')
+        if not self.bash or not Path('/proc/version').exists():
+            self.skipTest('bash (Linux) required')
+        folder = tempfile.TemporaryDirectory(prefix='wama-processes-')
+        self.addCleanup(folder.cleanup)
+        self.logs = Path(folder.name)
+
+    def _run(self, body):
+        import subprocess
+        script = f'''
+            PROJECT_DIR="{BASE}"; LOG_DIR="{self.logs}"; source "{BASE / 'scripts' / 'wama_services.sh'}"
+            declare -A RESTARTS GAVE_UP
+            MAX_RESTARTS=2; WINDOW_S=1800; READY_WAIT_S=2
+            log() {{ :; }}
+            report() {{ echo "REPORT $1 $2 $4"; }}
+            sleep() {{ :; }}
+            {body}
+        '''
+        return subprocess.run([self.bash, '-c', script], capture_output=True, text=True, timeout=30)
+
+    def test_a_worker_is_stopped_warm_then_restarted_without_a_report(self):
+        (self.logs / 'service_launch.gpu').touch()
+        out = self._run('''
+            UP=1
+            celery_worker_alive() { [ "$UP" = 1 ]; }
+            pgrep() { echo 4242; }
+            kill() { echo "KILL $*"; UP=0; }
+            start_celery_worker() { echo "START $1"; UP=1; }
+            supervise_one gpu celery
+            supervise_one gpu celery
+        ''')
+        self.assertEqual('KILL -TERM 4242\nSTART gpu\n', out.stdout, out.stderr)
+        self.assertEqual([], [p.name for p in self.logs.iterdir() if p.name.startswith('service_')])
+
+    def test_a_worker_in_warm_shutdown_is_left_to_finish(self):
+        (self.logs / 'service_stopped.gpu').touch()
+        out = self._run('''
+            celery_worker_alive() { true; }
+            start_celery_worker() { echo "START $1"; }
+            supervise_one gpu celery
+        ''')
+        self.assertEqual('', out.stdout, out.stderr)
+        self.assertTrue((self.logs / 'service_stopped.gpu').exists())
+        self.assertFalse((self.logs / 'worker_seen.gpu').exists())
+
+    def test_a_running_worker_leaves_its_sign_of_life(self):
+        out = self._run('celery_worker_alive() { true; }; supervise_one gpu celery')
+        self.assertEqual('', out.stdout, out.stderr)
+        self.assertTrue((self.logs / 'worker_seen.gpu').exists())
+
+    def test_the_web_server_is_reloaded_by_its_pid_file(self):
+        (self.logs / 'gunicorn.pid').write_text('777')
+        (self.logs / 'service_launch.web').touch()
+        out = self._run('kill() { echo "KILL $*"; }; supervise_web; supervise_web')
+        self.assertEqual('KILL -HUP 777\n', out.stdout, out.stderr)
+
+    def test_a_restart_of_wama_runs_the_start_script_once(self):
+        starter = self.logs / 'fake_start.sh'
+        starter.write_text(f'touch "{self.logs}/started"\n')
+        (self.logs / 'wama_restart').touch()
+        out = self._run(f'WAMA_START_SCRIPT="{starter}"; unset -f sleep; supervise_wama_restart; '
+                        f'supervise_wama_restart; for i in 1 2 3 4 5 6 7 8 9 10; do '
+                        f'[ -f "{self.logs}/started" ] && break; command sleep 0.2; done')
+        self.assertTrue((self.logs / 'started').exists(), out.stderr)
+        self.assertFalse((self.logs / 'wama_restart').exists())
+
+    def test_the_starters_say_which_script_restarts_wama_and_forget_the_order(self):
+        for starter in STARTERS:
+            source = starter.read_text(encoding='utf-8')
+            self.assertIn(f'export WAMA_START_SCRIPT="$PROJECT_DIR/{starter.name}"', source)
+            self.assertIn('"$LOG_DIR"/wama_restart', source)
+        watchdog = (BASE / 'scripts' / 'worker_watchdog.sh').read_text(encoding='utf-8')
+        self.assertIn('supervise_web', watchdog)
+        self.assertIn('supervise_wama_restart', watchdog)
 
 
 class ThePageTest(TestCase):
@@ -303,6 +500,38 @@ class ThePageTest(TestCase):
         v8.eval(f"updateServices({{watchdog:'absent',watchdog_message:'pas de surveillance',services:[{service}]}})")
         self.assertIn('disabled', v8.eval("nodes['services-list'].innerHTML"))
         self.assertFalse(v8.eval("nodes['services-watchdog'].hidden"))
+        # Les processus : rendus pour l'administrateur seul (la vue les retire pour un développeur).
+        self.assertTrue(v8.eval("nodes['processes-block'].hidden"))
+        process = ("{key:'gpu',label:'Worker gpu',kind:'worker',state:'ok',state_label:'En marche',"
+                   "tone:'success',actions:['restart'],when_off:'w'}")
+        v8.eval(f"updateServices({{watchdog:'running',watchdog_message:'',services:[{service}],"
+                f"processes:[{process}]}})")
+        self.assertFalse(v8.eval("nodes['processes-block'].hidden"))
+        html = v8.eval("nodes['processes-list'].innerHTML")
+        self.assertIn('data-process="gpu"', html)
+        self.assertNotIn('disabled', html)
+
+    @skipUnless(HAS_V8, 'V8 (py_mini_racer) absent')
+    def test_the_password_is_never_asked_in_clear_without_the_modal(self):
+        """La reconfirmation passe par la confirmation commune (`WamaApp.ask`, champ masqué) ; sans
+        Bootstrap son repli est `window.prompt`, qui l'afficherait en clair : le geste est refusé."""
+        import re
+        from py_mini_racer import MiniRacer
+        src = (Path(settings.BASE_DIR) / 'wama/common/static/common/js/wama-app-base.js').read_text(
+            encoding='utf-8')
+        served = Path(settings.BASE_DIR) / 'staticfiles/common/js/wama-app-base.js'
+        self.assertEqual(src, served.read_text(encoding='utf-8'), 'staticfiles/ en retard')
+        body = re.search(r'\n  function ask\(opts\) \{.*?\n  \}\n', src, re.S).group(0)
+        v8 = MiniRacer()
+        v8.eval('var prompted = 0, answer = null; var global = {prompt: function () { prompted++; '
+                'return "x"; }, confirm: function () { return true; }}; '
+                'function escapeHtml(t) { return String(t); }' + body)
+        v8.eval("ask({text: 't', input: {label: 'Mot de passe WAMA', secret: true}})"
+                ".then(function (r) { answer = r; })")
+        self.assertEqual(0, v8.eval('prompted'))
+        self.assertFalse(v8.eval('answer.ok'))
+        v8.eval("ask({text: 't', input: {label: 'Nom'}}).then(function (r) { answer = r; })")
+        self.assertEqual(1, v8.eval('prompted'), 'contre-épreuve : un champ ordinaire garde son repli')
 
     def test_the_compact_panel_keeps_every_element_the_script_reads(self):
         for element in ('cpu-bar', 'ram-bar', 'ram-used', 'ram-free', 'gpu-bar', 'gpu-used', 'gpu-free',

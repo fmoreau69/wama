@@ -3120,13 +3120,18 @@ def control_service(user, service: str, action: str, confirm: bool = False) -> d
     as the model manager page does: the service supervision carries the order out within a minute.
     Their state and keys: get_memory_state(view='services'). Reserved to developers and administrators.
 
+    An ADMINISTRATOR may also 'restart' a Celery worker ('gpu', 'default', 'studio', 'nightly',
+    'beat' — it finishes its current task first) or reload the web server ('web'). A gesture that
+    would cut a running task (a busy worker) or restart the whole of WAMA needs the administrator's
+    WAMA password: never ask for it here — tell the user to do it from the model manager page.
+
     A stopped service stays stopped until it is started again or WAMA restarts. Stopping or
     restarting needs the user's explicit agreement: say what the service does, then call again with
     confirm=true.
 
     Args:
-        service: the service key, for example 'tts_service' or 'tensorflow_service'.
-        action: 'start', 'stop' or 'restart'.
+        service: the service key ('tts_service', 'tensorflow_service'…), a worker ('gpu'…) or 'web'.
+        action: 'start', 'stop' or 'restart' (only 'restart' for a worker or 'web').
         confirm: true once the user has agreed to stop or restart it.
     """
     if refusal := _registry_management_refusal(user):
@@ -3134,8 +3139,13 @@ def control_service(user, service: str, action: str, confirm: bool = False) -> d
     act = (action or '').strip().lower()
     if act in ('stop', 'restart') and not _truthy(confirm):
         return _unconfirmed(f"Service {service} : {act}", service=service, action=act)
-    return _model_manager_answer(user, 'api_service_control', 'Ordre au service',
-                                 data={'service': service, 'action': act})
+    failure, payload = _model_manager_view(user, 'api_service_control', 'Ordre au service',
+                                           data={'service': service, 'action': act})
+    if payload.get('needs_password'):
+        return {'error': "Ce geste coupe un travail en cours : l'administrateur le fait depuis la "
+                         "page du model manager, qui redemande son mot de passe WAMA — jamais ici.",
+                'needs_password': True}
+    return failure or payload
 
 
 @tool_effect(WRITE)

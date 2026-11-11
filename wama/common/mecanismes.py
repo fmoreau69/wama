@@ -597,7 +597,10 @@ MECHANISMS = (
               "`WAMA_SERVICES_AT_START` des scripts `start_wama` décide (décision de Fabien, "
               "2026-11-10) : dans la liste, il démarre avec WAMA et il est relancé s'il tombe ; hors de "
               "la liste, il démarre au premier appelant qui le trouve éteint. Sans surveillance vivante "
-              "(signe de vie dans `logs/`), aucun ordre n'est accepté",
+              "(signe de vie dans `logs/`), aucun ordre n'est accepté. RELANCER (2026-11-11, "
+              "administrateur seul) : un worker Celery à chaud, le serveur web (`HUP` à gunicorn), "
+              "WAMA entier (`WAMA_START_SCRIPT`) — ce qui coupe un travail demande le mot de passe WAMA "
+              "(`needs_password`, fenêtre de session), jamais le mot de passe système",
               'wama/common/utils/service_supervision.py',
               'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
               annexes=('scripts/wama_services.sh', 'scripts/worker_watchdog.sh',

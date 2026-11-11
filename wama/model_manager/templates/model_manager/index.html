@@ -550,6 +550,15 @@
                 <div id="services-list">
                     <p class="text-muted small mb-0">Lecture…</p>
                 </div>
+                {% comment %} Les AUTRES processus (2026-11-11, administrateur seul : la vue ne les rend
+                qu'à lui) — workers, serveur web, WAMA entier. Même voie d'ordre ; le geste qui coupe un
+                travail redemande le mot de passe WAMA (`service_supervision.needs_password`). {% endcomment %}
+                <div id="processes-block" hidden>
+                    <h6 class="small text-body-emphasis fw-semibold mt-3 mb-2">
+                        <i class="fas fa-gears me-1 text-info"></i>Processus de WAMA
+                    </h6>
+                    <div id="processes-list"></div>
+                </div>
             </div>
         </div>
         {% endif %}
@@ -3136,6 +3145,64 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             </div>
         `).join('');
+        updateProcesses(data.processes, canOrder);
+    }
+
+    // Les workers, le serveur web et WAMA entier (administrateur seul : la vue ne les rend qu'à lui).
+    let knownProcesses = {};
+    function updateProcesses(processes, canOrder) {
+        const block = document.getElementById('processes-block');
+        block.hidden = !processes;
+        if (!processes) return;
+        knownProcesses = Object.fromEntries(processes.map((p) => [p.key, p]));
+        document.getElementById('processes-list').innerHTML = processes.map((p) => `
+            <div class="idle-model-item d-flex justify-content-between align-items-center gap-2"
+                 title="${WamaApp.escapeHtml(p.when_off || '')}">
+                <div>
+                    <span class="text-body-emphasis">${WamaApp.escapeHtml(p.label)}</span>
+                    <br><span class="badge ${SERVICE_TONES[p.tone]}">${WamaApp.escapeHtml(p.state_label)}</span>
+                </div>
+                <div class="d-flex gap-1 flex-shrink-0">
+                    ${p.actions.map(() => `
+                        <button type="button" class="btn btn-sm ${p.kind === 'wama' ? 'btn-outline-danger' : 'btn-outline-secondary'}"
+                                data-process="${p.key}" title="Relancer" ${canOrder ? '' : 'disabled'}>
+                            <i class="fas fa-rotate"></i>
+                        </button>`).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function postProcessOrder(key, password) {
+        const response = await fetch(SERVICES_CONTROL_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ service: key, action: 'restart', password: password || '' }),
+        });
+        return response.json();
+    }
+
+    // Relancer : la confirmation, puis — si le serveur répond que le geste COUPE un travail — le mot
+    // de passe WAMA, dans la confirmation commune (champ masqué), jamais en clair.
+    async function controlProcess(key) {
+        const process = knownProcesses[key];
+        const said = process.when_off ? `\n${process.when_off}` : '';
+        if (!confirm(`Relancer « ${process.label} » ?${said}`)) return;
+        try {
+            let data = await postProcessOrder(key);
+            if (data.needs_password) {
+                const answer = await WamaApp.ask({
+                    text: data.error, okLabel: 'Relancer',
+                    input: { label: 'Mot de passe WAMA', secret: true },
+                });
+                if (!answer.ok) return;
+                data = await postProcessOrder(key, answer.value);
+            }
+            showToastOrAlert(data.success ? data.message : data.error);
+        } catch (err) {
+            showToastOrAlert('Error: ' + err.message);
+        }
+        memoryDetailPoller.poke('services');
     }
 
     async function controlService(key, action) {
@@ -3161,6 +3228,10 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('services-list').addEventListener('click', (event) => {
             const button = event.target.closest('button[data-service]');
             if (button) controlService(button.dataset.service, button.dataset.action);
+        });
+        document.getElementById('processes-list').addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-process]');
+            if (button) controlProcess(button.dataset.process);
         });
     }
 

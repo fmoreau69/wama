@@ -552,22 +552,67 @@ def api_idle_models(request):
 @user_passes_test(is_admin_or_dev)
 @require_GET
 def api_services(request):
-    """API: l'état des services uvicorn et de la surveillance qui exécute les ordres."""
+    """API: l'état des services uvicorn et de la surveillance qui exécute les ordres — et, pour un
+    administrateur, celui des workers, du serveur web et de WAMA entier (`processes`)."""
+    from wama.accounts.permissions import is_admin_tier
     from wama.common.utils.service_supervision import services_overview
-    return JsonResponse({'success': True, **services_overview()})
+    overview = services_overview()
+    if not is_admin_tier(request.user):
+        overview.pop('processes', None)
+    return JsonResponse({'success': True, **overview})
+
+
+def _reconfirmed(request, password: str) -> bool:
+    """Le mot de passe WAMA de l'administrateur, revérifié par l'authentification de Django (LDAP
+    compris) ; une reconfirmation vaut `REAUTH_WINDOW_S` pour la session. Jamais le mot de passe
+    système : ce qui l'exigerait n'est pas relançable d'ici (`service_supervision`, en-tête)."""
+    import time
+
+    from django.contrib.auth import authenticate
+
+    from wama.common.utils.service_supervision import REAUTH_WINDOW_S
+    if time.time() < float(request.session.get('process_reauth_until') or 0):
+        return True
+    if not password:
+        return False
+    if authenticate(request, username=request.user.get_username(), password=password) is None:
+        return False
+    request.session['process_reauth_until'] = time.time() + REAUTH_WINDOW_S
+    return True
 
 
 @login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_service_control(request):
-    """API: dépose un ordre pour un service (`start`, `stop`, `restart`), exécuté par la surveillance."""
-    from wama.common.utils.service_supervision import control_service
+    """API: dépose un ordre, exécuté par la surveillance — un service (`start`, `stop`, `restart`),
+    ou, pour un ADMINISTRATEUR, la relance d'un worker, du serveur web ou de WAMA entier (2026-11-11).
+    Un geste qui coupe un travail (`needs_password`) exige le mot de passe WAMA (`password`)."""
+    from wama.accounts.permissions import is_admin_tier
+    from wama.common.utils import service_supervision as supervision
     try:
         data = json.loads(request.body or b'{}')
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'JSON invalide.'}, status=400)
-    accepted, message = control_service(str(data.get('service') or ''), str(data.get('action') or ''))
+    key, action = str(data.get('service') or ''), str(data.get('action') or '')
+    if key in supervision.declared_services():
+        accepted, message = supervision.control_service(key, action)
+    else:
+        if not is_admin_tier(request.user):
+            return JsonResponse({'success': False, 'error': "Relancer un processus de WAMA est "
+                                 "réservé à un administrateur."}, status=403)
+        cuts = supervision.needs_password(key, action)
+        if cuts and not _reconfirmed(request, str(data.get('password') or '')):
+            return JsonResponse({'success': False, 'needs_password': True,
+                                 'error': "Ce geste coupe un travail en cours : confirmez avec votre "
+                                          "mot de passe WAMA."}, status=403)
+        accepted, message = supervision.control_process(key, action)
+        if accepted:
+            logger.warning("[processus] %s : %s demandé par %s", key, action, request.user)
+            if cuts:
+                from wama.common.utils.notifications import notify_admins
+                notify_admins('process_restart', f"Relance demandée : {key}",
+                              f"{request.user} a demandé : {message}")
     if not accepted:
         return JsonResponse({'success': False, 'error': message}, status=409)
     return JsonResponse({'success': True, 'message': message})

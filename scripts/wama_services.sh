@@ -241,10 +241,24 @@ supervise_one() {
             touch "$wanted" "$stopped"    # la suite le relance : hors budget et sans rapport
         fi
     fi
+    # Un WORKER que l'administrateur relance (2026-11-11, `service_supervision.control_process`) :
+    # arrêt À CHAUD — TERM au seul processus principal (`pgrep -o`), Celery finit la tâche en cours
+    # puis s'arrête. Le passage suivant qui le trouve éteint le relance, hors budget et sans rapport.
+    if [ "$kind" = celery ] && [ -f "$launch" ]; then
+        rm -f "$launch"
+        touch "$stopped"
+        GAVE_UP[$w]=''
+        if "$alive" "$w"; then
+            log "$w : relance demandée par un administrateur — arrêt à chaud (fin de la tâche en cours)"
+            kill -TERM "$(pgrep -o -f "$(celery_worker_pattern "$w")")" 2>/dev/null || true
+        fi
+    fi
 
     if "$alive" "$w"; then
         GAVE_UP[$w]=''            # relancé à la main après une suspension : on reprend
         [ "$kind" = service ] && rm -f "$wanted" "$stopped"
+        # Le signe de vie d'un worker, que lit la page ; en arrêt à chaud, il n'en pose plus.
+        [ "$kind" = celery ] && [ ! -f "$stopped" ] && touch "$LOG_DIR/worker_seen.$w"
         return 0
     fi
     # Personne n'en a besoin : un service arrêté pour rendre la carte reste arrêté.
@@ -252,7 +266,7 @@ supervise_one() {
     [ -n "${GAVE_UP[$w]}" ] && return 0
 
     local on_purpose='' expected='' now recent='' n=0 t outcome=restart_failed waited=0
-    [ "$kind" = service ] && [ -f "$stopped" ] && on_purpose=1
+    [ -f "$stopped" ] && on_purpose=1
     # Un service hors de la liste de démarrage qu'un appelant réclame : ce n'est pas une mort, on ne
     # prévient personne. Son démarrage compte au budget : un service qui tombe à chaque appel s'arrêtera.
     [ "$policy" = on_demand ] && expected=1
@@ -291,4 +305,29 @@ supervise_one() {
     if { [ -z "$on_purpose" ] && [ -z "$expected" ]; } || [ "$outcome" != restarted ]; then
         report "$w" "$outcome" "$((n + 1))" "$kind"
     fi
+}
+
+# Le SERVEUR WEB que l'administrateur recharge (2026-11-11) : `HUP` au maître gunicorn, lu dans son
+# fichier de PID (jamais par `pgrep`, cf. le démarrage) — ses workers relisent le code, le port reste
+# ouvert. Appelant : la surveillance, à chaque passage.
+supervise_web() {
+    local order="$LOG_DIR/service_launch.web" pid_file="$LOG_DIR/gunicorn.pid"
+    [ -f "$order" ] || return 0
+    rm -f "$order"
+    if [ -f "$pid_file" ] && kill -HUP "$(cat "$pid_file")" 2>/dev/null; then
+        log "serveur web : rechargé à chaud par un administrateur"
+    else
+        log "serveur web : rechargement impossible (pas de maître gunicorn dans $pid_file)"
+    fi
+}
+
+# WAMA ENTIER que l'administrateur relance (2026-11-11) : le script de démarrage, DÉTACHÉ (`setsid`) —
+# il arrête la surveillance elle-même en route. `WAMA_START_SCRIPT` : posé par le script qui l'a lancée.
+supervise_wama_restart() {
+    local order="$LOG_DIR/wama_restart"
+    [ -f "$order" ] || return 0
+    rm -f "$order"
+    local script=${WAMA_START_SCRIPT:-$PROJECT_DIR/start_wama_prod.sh}
+    log "WAMA : relance complète demandée par un administrateur ($script)"
+    setsid nohup bash "$script" >> "$LOG_DIR/wama-restart.log" 2>&1 < /dev/null &
 }

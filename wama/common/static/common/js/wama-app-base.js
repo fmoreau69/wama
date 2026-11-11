@@ -309,7 +309,9 @@
   //            option: {label, checked=false} | null,   // case proposée (absente si null)
   //            details: ['nom', …],                      // ce que l'option concerne (5 montrés)
   //            input: {label, placeholder, value,         // champ texte (« Transférer à… »)
-  //                    attach: fn(champ)} | null }       // ex. une complétion (2026-10-07)
+  //                    attach: fn(champ),                 // ex. une complétion (2026-10-07)
+  //                    secret: true} | null }             // un MOT DE PASSE (2026-11-11) : masqué,
+  //                                                       // ni rogné, ni demandé en clair sans Bootstrap
   // Rend `{ok, option, value}` — `value` : le texte saisi (champ `input`), '' sinon.
   // Repli sur `window.confirm` si Bootstrap manque : la question reste posée, l'option tombe.
   // ⚠ Le harnais nocturne y répond par `ui_smoke.accept_dialogs` (comme il accepte un
@@ -318,6 +320,9 @@
   function ask(opts) {
     opts = opts || {};
     if (!global.bootstrap || !global.bootstrap.Modal) {
+      if (opts.input && opts.input.secret) {
+        return Promise.resolve({ ok: false, option: false, value: '' });   // jamais en clair
+      }
       if (opts.input) {
         const typed = global.prompt(opts.text || '', opts.input.value || '');
         return Promise.resolve({ ok: typed !== null, option: false, value: (typed || '').trim() });
@@ -333,8 +338,10 @@
       const input = opts.input ? (
         '<div class="mt-3"><label class="form-label small" for="' + inputId + '">' +
           escapeHtml(opts.input.label || '') + '</label>' +
-          '<input type="text" class="form-control form-control-sm bg-body text-body-emphasis border-secondary" id="' +
-          inputId + '" data-confirm-input autocomplete="off" placeholder="' +
+          '<input type="' + (opts.input.secret ? 'password' : 'text') +
+          '" class="form-control form-control-sm bg-body text-body-emphasis border-secondary" id="' +
+          inputId + '" data-confirm-input autocomplete="' +
+          (opts.input.secret ? 'current-password' : 'off') + '" placeholder="' +
           escapeHtml(opts.input.placeholder || '') + '" value="' + escapeHtml(opts.input.value || '') + '">' +
         '</div>') : '';
       const names = (opts.details || []).slice(0, 5).map(function (n) {
@@ -367,7 +374,9 @@
       if (field && opts.input && typeof opts.input.attach === 'function') opts.input.attach(field);
       modal.querySelector('[data-confirm-ok]').addEventListener('click', function () {
         const box = modal.querySelector('[data-confirm-option]');
-        answer = { ok: true, option: !!(box && box.checked), value: field ? field.value.trim() : '' };
+        const typed = field ? field.value : '';
+        answer = { ok: true, option: !!(box && box.checked),
+                   value: opts.input && opts.input.secret ? typed : typed.trim() };
         bs.hide();
       });
       if (field) {

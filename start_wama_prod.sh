@@ -76,6 +76,8 @@ LOG_DIR=$PROJECT_DIR/logs
 wama_runtime_env
 # Les demandes et les ordres sur un service datent du run précédent, dont les services viennent d'être arrêtés.
 rm -f "$LOG_DIR"/service_wanted.* "$LOG_DIR"/service_stopped.* "$LOG_DIR"/service_held.* "$LOG_DIR"/service_launch.*
+# De même la relance de WAMA demandée (c'est elle qui tourne) et les signes de vie des workers.
+rm -f "$LOG_DIR"/wama_restart "$LOG_DIR"/worker_seen.*
 
 # ------------------------------------------------------
 # SUDO : `-n` en non-interactif, interactif quand il y a un TERMINAL
@@ -426,6 +428,8 @@ done
 # Pause pour une maintenance : `touch logs/worker_watchdog.pause` (supprimer pour reprendre).
 if ! pgrep -f "scripts/[w]orker_watchdog.sh" > /dev/null; then
     echo "=== Starting worker watchdog ==="
+    # Le script que la surveillance relance quand un administrateur relance WAMA depuis WAMA.
+    export WAMA_START_SCRIPT="$PROJECT_DIR/start_wama_prod.sh"
     nohup bash $PROJECT_DIR/scripts/worker_watchdog.sh >> $LOG_DIR/worker-watchdog.log 2>&1 &
     WATCHDOG_PID=$!
     disown $WATCHDOG_PID

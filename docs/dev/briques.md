@@ -849,17 +849,21 @@ Délimité par son MOTEUR (2026-11-09, décisions de Fabien, `WAMA_MANIFEST_SPEC
 
 ### Services uvicorn — voir, lancer, arrêter
 
-Le volet droit du model manager et l'outil `control_service` montrent l'état des services (leur `/health`, leurs drapeaux) et déposent un ORDRE dans `logs/` ; le serveur web ne touche à aucun processus. La surveillance (`supervise_one`) l'exécute avec les fonctions et l'environnement du démarrage, hors budget et sans rapport. Arrêté à la main, un service le reste jusqu'à un « Lancer » ou au prochain démarrage de WAMA. La section `WAMA_SERVICES_AT_START` des scripts `start_wama` décide (décision de Fabien, 2026-11-10) : dans la liste, il démarre avec WAMA et il est relancé s'il tombe ; hors de la liste, il démarre au premier appelant qui le trouve éteint. Sans surveillance vivante (signe de vie dans `logs/`), aucun ordre n'est accepté
+Le volet droit du model manager et l'outil `control_service` montrent l'état des services (leur `/health`, leurs drapeaux) et déposent un ORDRE dans `logs/` ; le serveur web ne touche à aucun processus. La surveillance (`supervise_one`) l'exécute avec les fonctions et l'environnement du démarrage, hors budget et sans rapport. Arrêté à la main, un service le reste jusqu'à un « Lancer » ou au prochain démarrage de WAMA. La section `WAMA_SERVICES_AT_START` des scripts `start_wama` décide (décision de Fabien, 2026-11-10) : dans la liste, il démarre avec WAMA et il est relancé s'il tombe ; hors de la liste, il démarre au premier appelant qui le trouve éteint. Sans surveillance vivante (signe de vie dans `logs/`), aucun ordre n'est accepté. RELANCER (2026-11-11, administrateur seul) : un worker Celery à chaud, le serveur web (`HUP` à gunicorn), WAMA entier (`WAMA_START_SCRIPT`) — ce qui coupe un travail demande le mot de passe WAMA (`needs_password`, fenêtre de session), jamais le mot de passe système
 
 - **Domicile** : `wama/common/utils/service_supervision.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Ce qu'un processus Python dit à la surveillance des services (`scripts/worker_watchdog.sh`), et ce qu'il lit de leur état.
-- **API publique** (7) :
+- **API publique** (11) :
   - `ask_for_service(service: str) -> None` — Le service est éteint et quelqu'un en a besoin : la surveillance le relancera.
   - `note_stopped_on_purpose(service: str) -> None` — Le service s'arrête parce qu'on le lui demande, pas parce qu'il est tombé.
   - `declared_services() -> list` — Les services que la surveillance connaît : la liste du script qui les lance, seule déclaration.
   - `services_at_start() -> list` — Ceux qui démarrent avec WAMA : la section des scripts `start_wama`, héritée de leur environnement.
   - `watchdog_state() -> str` — `running`, `paused` ou `absent`, d'après le signe de vie que la surveillance écrit à chaque passage.
   - `services_overview() -> dict` — L'état de chaque service, et de la surveillance qui exécute les ordres.
+  - `declared_workers() -> list` — Les processus Celery que la surveillance connaît : la liste du script qui les lance.
+  - `needs_password(key: str, action: str) -> bool` — Le geste COUPE-t-il un travail en cours ? Alors l'administrateur redonne son mot de passe
+  - `processes_overview() -> list` — Les workers, le serveur web et WAMA entier — ce que la page offre de relancer.
+  - `control_process(key: str, action: str) -> tuple` — Dépose l'ordre de relancer un worker, le serveur web ou WAMA entier → (accepté ?, message).
   - `control_service(service: str, action: str) -> tuple` — Dépose l'ordre `start`, `stop` ou `restart` → (accepté ?, message à montrer).
 
 ### Sonde vision
