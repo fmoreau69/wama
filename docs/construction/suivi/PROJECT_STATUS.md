@@ -30842,3 +30842,78 @@ Dernière vérification (« tous les tests nécessaires ajoutés ? ») des branc
   et le `§PALIER … « MARCHE 4 … »`).
 Pendings système inchangés : relancer gunicorn + workers (la relance de 15:05 précède la marche 4) ;
 pousser les 9 commits de la session + ce bloc (Fabien).
+
+## §PALIER — 2026-11-11 (fin d'après-midi), « RELANCER DEPUIS WAMA, PREUVE DU RETRAIT D'ACE-STEP, CORPUS QUI SUIT LA LEVÉE » — livré et revérifié — 🔚 relancer TOUT par `start_wama_prod.sh`, puis jouer les quatre relances depuis la page
+
+**Commits** : `0d191644a` (relancer un worker, le serveur web ou WAMA entier — administrateur seul),
+`e39d8202c` (une installation envoyée est déjà « en cours » ; une card réussie ne garde pas le
+message d'une attente), `f4adfcaab` (le corpus suit le retrait d'une ligne des choix et sa levée,
+`manifest_export --lifted`), `853333d12` (revérification, ci-dessous).
+
+**Mot de passe (recommandation retenue)** : ce qui COUPE un travail — WAMA entier, un worker
+occupé (sans réponse, un worker gpu en pool solo est tenu pour occupé) — redemande le mot de passe
+WAMA de l'administrateur, revérifié par l'authentification de Django, fenêtre de 5 min par
+session ; le reste, une confirmation. Le mot de passe système ne transite jamais par WAMA ;
+l'assistant ne demande ni ne transporte de mot de passe. Domicile : `INFRA_WSL_VS_WINDOWS.md`
+(ligne « Services au démarrage »), mécanisme `service_supervision`.
+
+**Preuve réelle du retrait d'ACE-Step : A/B/C jouées** — détail et deux défauts trouvés en route
+dans `PROSPECTION_PIPELINE.md` (« Suite (11/11, après la relance) »).
+
+**Revérification (`/reverif`)** — trois écarts ramenés, de ma main :
+- `_worker_busy` interrogeait Celery à côté de LA lecture de la flotte
+  (`process_control.collect_worker_snapshot`, même mise en garde sur le pool solo) : il la lit
+  désormais, la photo gagne `busy` (tâches en cours par worker) ;
+- `declared_services` / `declared_workers` : deux lectures du même script → `_script_list` ;
+- 🔴 piège : relancer WAMA en DÉVELOPPEMENT tuait la pile puis s'arrêtait — `start_wama_dev.sh`
+  appelait `sudo` nu sous `set -e`, et le script repart détaché, sans terminal. Il prend la règle
+  de la production (`sudo -n` sans terminal) ; garde : aucun `sudo` nu dans les scripts de
+  démarrage (`tests_service_control`), mutation rouge.
+Tests : 1515 tests (gardes transverses, supervision, squelette, corpus, model_manager entier), OK, aucun ignoré — mesurés sur l'arbre final de la revérification. Contre-épreuves : 12 mutations, 12 rouges. `doc_facts --check` à jour,
+`check_docs` 0 cassée / 0 périmée.
+
+⏳ **À faire (Fabien)** : relancer TOUT par `start_wama_prod.sh` — la surveillance en service a
+les anciennes fonctions bash, les ordres de relance ne s'exécutent qu'après ; puis depuis le
+volet droit du model manager : worker `default` au repos (confirmation seule), worker `gpu`
+pendant une génération (mot de passe), serveur web (rechargement), WAMA entier (mot de passe).
+
+⏳ **Limites consignées, non traitées** :
+1. une installation ENVOYÉE puis jamais prise (message perdu) reste « en attente d'un worker »
+   jusqu'à `INSTALL_TTL` (6 h) et bloque sa réinstallation. Même trou, préexistant, pour une
+   installation dont le worker meurt : la réconciliation ne conclut jamais d'un PENDING
+   (`process_control.reconcile_if_stuck`) et `InstallEvent.close_interrupted` ne vide pas le
+   cache d'installation. Piste : que la clôture d'un événement vide ce cache quand il porte son
+   `task_id` ;
+2. en développement, WAMA relancé depuis WAMA repart DÉTACHÉ : `runserver` écrit dans
+   `logs/wama-restart.log`, le terminal d'origine perd la main.
+
+**Budget de langue** : `tests_identifier_language` était rouge à la première mesure (code
+2557 > 2556) ; aucun identifiant signalé n'était sur mes 471 lignes ajoutées (croisement de
+`check_identifier_language --detail` avec `git diff -U0`). Vert à la mesure finale : soldé par
+son propriétaire.
+
+**Question de Fabien — pourquoi mes cards n'affichent pas les premières étapes (partition,
+paroles)** : c'est la règle « une étape inutile n'a pas lieu d'apparaître » (2026-11-08,
+`AppPipeline.step_state`). Mes cards NOMMENT ACE-Step : « Partition composée » (`plan`) exige un
+moteur qui planifie (`PLANS_A_SCORE`, YuE2) → repliée ; pas de cover → ni partition ni paroles de
+l'entrée ; voix « auto » → pas d'« Écrire les paroles ». Les cards de la page sont sous « auto » :
+`plan` y reste visible tant que le tirage n'est pas fait ; les covers montrent la partition de
+l'entrée. Les étapes de sortie (« Paroles chantées », partitions jouées) sont des cases
+décochées par défaut.
+
+**Veille** : « effets sonores de trottinettes pour Unreal » (discussion externe de Fabien, avec
+avis critique) — `PROSPECTION_PIPELINE.md`, « Veille 2026-11-11 ». Rien de lancé.
+
+**Coordination** : une session sœur (multi-venv) prend `scripts/wama_services.sh`,
+`service_supervision.py` et `tests_service_control.py` après ce commit.
+
+**Contrôles attendus au prochain /reprise** (mesurés le 2026-11-11, fin d'après-midi) :
+`check_docs` 0 cassée / 0 périmée sur 4086 (0 cible distincte) ; `doc_facts --check` à jour ;
+`manifest_export --check` : 10 périmés, aucun de cette session (PII, Kokoro, Ollama, OpenRouter) ;
+`check_redundancy` 97 trouvailles, 0 dans mes fichiers ; `check_skills` 0 défaut franc.
+⚠ Le message de `e39d8202c` dit que le chantier flux-3-image-klein « reste hors du commit » dans
+`model_installer.py` : au moment du commit, l'autre session l'avait déjà commité — le fichier ne
+portait plus que mes deux hunks.
+
+🔚 **POINT D'ENTRÉE** : relancer WAMA par `start_wama_prod.sh`, puis jouer les quatre relances du
+volet droit du model manager (worker au repos, worker occupé, serveur web, WAMA entier).
