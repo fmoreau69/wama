@@ -1810,10 +1810,17 @@ MECHANISMS = (
               "interroge `find_spec` dans CE processus, verdict muet sur un backend qui vit "
               "ailleurs. Le défaut est UN venv — l'isolement se DÉCLARE, ne se génère jamais : "
               "son coût n'est pas le disque mais la VRAM, chaque processus isolé étant un "
-              "détenteur que le gouverneur ne voit pas. Zéro isolement aujourd'hui",
+              "détenteur que le gouverneur ne voit pas. Zéro isolement aujourd'hui. "
+              "Socle multi-venv (2026-11-11) : les ENVIRONNEMENTS se déclarent une fois "
+              "(`WAMA_ENVIRONMENTS` / `WAMA_SERVICE_ENVIRONMENTS` de `scripts/wama_services.sh`, "
+              "lus par `service_supervision.declared_environments`) ; un service est lancé avec le "
+              "Python de SON environnement par le même lanceur, surveillé par la même surveillance ; "
+              "les patches se rejouent dans le venv de l'interpréteur",
               'wama/common/backends/base.py', 'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
               symbol='ISOLATION',
-              annexes=('wama/common/tests/tests_backend_inventory.py',)),
+              annexes=('wama/common/tests/tests_backend_inventory.py',
+                       'wama/common/tests/tests_service_control.py',
+                       'wama/model_manager/tests/tests_library_install.py')),
     Mechanism('hf_weights', 'Routage des poids hors HuggingFace',
               "QUATRE leviers pour tenir la règle « modèle principal catégorisé, "
               "sous-dépendances au cache partagé » (ROADMAP §5b), et le choix est imposé par la "

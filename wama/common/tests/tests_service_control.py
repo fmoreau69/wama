@@ -222,6 +222,88 @@ class TheDeclarationsHoldTogetherTest(SimpleTestCase):
         self.assertIn("ask_for_service('tts_service')", branch)
 
 
+class EnvironmentsTest(SimpleTestCase):
+    """Multi-venv (2026-11-11): environments are declared ONCE, in the script that launches the
+    services, and the Python reads the same lines — a service of another environment is launched,
+    watched and stopped by the same functions as any other."""
+
+    def test_the_reference_environment_comes_first_and_is_the_venv_running_wama(self):
+        import sys
+        environments = supervision.declared_environments()
+        self.assertEqual(supervision.reference_environment(), next(iter(environments)))
+        self.assertEqual(Path(sys.prefix).resolve(),
+                         environments[supervision.reference_environment()].resolve())
+
+    def test_every_service_runs_in_a_declared_environment(self):
+        environments = supervision.declared_environments()
+        for service in supervision.declared_services():
+            self.assertIn(supervision.service_environment(service), environments, service)
+        named = [pair.partition(':')[0] for pair in supervision._script_list('WAMA_SERVICE_ENVIRONMENTS')]
+        self.assertLessEqual(set(named), set(supervision.declared_services()))
+
+    def test_a_service_without_declaration_runs_in_the_reference_environment(self):
+        with mock.patch.object(supervision, '_script_list', side_effect=lambda name: {
+                'WAMA_ENVIRONMENTS': ['main:venv_a', 'recent:venv_b'],
+                'WAMA_SERVICE_ENVIRONMENTS': ['flux_service:recent']}[name]):
+            self.assertEqual('recent', supervision.service_environment('flux_service'))
+            self.assertEqual('main', supervision.service_environment('tts_service'))
+            self.assertEqual(BASE / 'venv_b' / 'bin' / 'python', supervision.environment_python('recent'))
+
+
+class EnvironmentLaunchShellTest(SimpleTestCase):
+    """`start_wama_service` launches a service with the python of ITS environment, that venv at the
+    head of PATH and in VIRTUAL_ENV (bash, fake venvs) — skipped without bash (Windows)."""
+
+    def setUp(self):
+        import shutil
+        self.bash = shutil.which('bash')
+        if not self.bash or not Path('/proc/version').exists():
+            self.skipTest('bash (Linux) required')
+        folder = tempfile.TemporaryDirectory(prefix='wama-environments-')
+        self.addCleanup(folder.cleanup)
+        self.root = Path(folder.name)
+        for venv in ('venv_a', 'venv_b'):
+            python = self.root / venv / 'bin' / 'python'
+            python.parent.mkdir(parents=True)
+            python.write_text(f'#!/bin/bash\necho "{venv} $VIRTUAL_ENV ${{PATH%%:*}} $*" '
+                              f'>> "{self.root}/launched"\n', encoding='utf-8')
+            python.chmod(0o755)
+
+    def _launch(self, service):
+        import subprocess
+        script = f'''
+            PROJECT_DIR="{self.root}"; LOG_DIR="{self.root}"; source "{BASE / 'scripts' / 'wama_services.sh'}"
+            WAMA_ENVIRONMENTS="main:venv_a recent:venv_b"
+            WAMA_SERVICE_ENVIRONMENTS="tensorflow_service:recent"
+            start_wama_service {service}; echo "rc=$?"
+            # The launch is detached (`nohup … & disown`): wait for its line, not for the job.
+            for i in $(seq 50); do [ -s "{self.root}/launched" ] && break; sleep 0.1; done
+        '''
+        out = subprocess.run([self.bash, '-c', script], capture_output=True, text=True, timeout=30)
+        launched = self.root / 'launched'
+        return out, (launched.read_text(encoding='utf-8').strip() if launched.exists() else '')
+
+    def test_a_service_of_another_environment_runs_with_its_python(self):
+        out, launched = self._launch('tensorflow_service')
+        self.assertIn('rc=0', out.stdout, out.stderr)
+        venv = self.root / 'venv_b'
+        self.assertEqual(f'venv_b {venv} {venv}/bin -m uvicorn wama.common.tensorflow_service.service:app '
+                         '--host 127.0.0.1 --port 8004 --workers 1 --log-level warning', launched)
+
+    def test_a_service_without_declaration_runs_in_the_reference_environment(self):
+        out, launched = self._launch('tts_service')
+        self.assertIn('rc=0', out.stdout, out.stderr)
+        self.assertTrue(launched.startswith(f'venv_a {self.root / "venv_a"} '), launched)
+
+    def test_a_missing_venv_launches_nothing_and_says_so(self):
+        import shutil
+        shutil.rmtree(self.root / 'venv_b')
+        out, launched = self._launch('tensorflow_service')
+        self.assertIn('rc=1', out.stdout)
+        self.assertIn('venv absent', out.stderr)
+        self.assertEqual('', launched)
+
+
 class TheRoutesTest(TestCase):
 
     def setUp(self):

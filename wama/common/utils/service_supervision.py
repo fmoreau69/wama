@@ -90,15 +90,42 @@ def note_stopped_on_purpose(service: str) -> None:
 
 
 def _script_list(name: str) -> list:
-    """Une liste que déclare `scripts/wama_services.sh` (`NOM="a b c"`) : sa seule déclaration."""
+    """Une liste que déclare `scripts/wama_services.sh` (`NOM="a b c"`) : sa seule déclaration. Une
+    liste VIDE (`NOM=""`) en est une (`WAMA_SERVICE_ENVIRONMENTS` en mono-venv)."""
     from django.conf import settings
     script = Path(settings.BASE_DIR) / 'scripts' / 'wama_services.sh'
-    return re.search(rf'^{name}="([^"]+)"', script.read_text(encoding='utf-8'), re.M).group(1).split()
+    return re.search(rf'^{name}="([^"]*)"', script.read_text(encoding='utf-8'), re.M).group(1).split()
 
 
 def declared_services() -> list:
     """Les services que la surveillance connaît : la liste du script qui les lance, seule déclaration."""
     return _script_list('WAMA_SERVICES')
+
+
+def declared_environments() -> dict:
+    """Les ENVIRONNEMENTS d'exécution `{nom: dossier du venv}`, dans l'ordre déclaré — le premier est
+    celui de référence (`WAMA_ENVIRONMENTS` du script, sa seule déclaration ; multi-venv, 2026-11-11).
+    Le dossier est absolu, sous la racine du dépôt."""
+    from django.conf import settings
+    return {name: Path(settings.BASE_DIR) / folder
+            for name, _, folder in (pair.partition(':') for pair in _script_list('WAMA_ENVIRONMENTS'))}
+
+
+def reference_environment() -> str:
+    """L'environnement de référence : celui des workers, du serveur web et des services sans autre."""
+    return next(iter(declared_environments()))
+
+
+def service_environment(service: str) -> str:
+    """L'environnement dans lequel la surveillance lance `service` (`WAMA_SERVICE_ENVIRONMENTS`), celui
+    de référence s'il n'en déclare pas — la règle de `wama_service_environment`, côté Python."""
+    pairs = dict(pair.partition(':')[::2] for pair in _script_list('WAMA_SERVICE_ENVIRONMENTS'))
+    return pairs.get(service) or reference_environment()
+
+
+def environment_python(environment: str) -> Path:
+    """Le Python d'un environnement déclaré (`<venv>/bin/python`). KeyError pour un nom inconnu."""
+    return declared_environments()[environment] / 'bin' / 'python'
 
 
 def services_at_start() -> list:

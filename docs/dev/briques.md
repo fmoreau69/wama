@@ -853,10 +853,14 @@ Le volet droit du model manager et l'outil `control_service` montrent l'état de
 
 - **Domicile** : `wama/common/utils/service_supervision.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Ce qu'un processus Python dit à la surveillance des services (`scripts/worker_watchdog.sh`), et ce qu'il lit de leur état.
-- **API publique** (11) :
+- **API publique** (15) :
   - `ask_for_service(service: str) -> None` — Le service est éteint et quelqu'un en a besoin : la surveillance le relancera.
   - `note_stopped_on_purpose(service: str) -> None` — Le service s'arrête parce qu'on le lui demande, pas parce qu'il est tombé.
   - `declared_services() -> list` — Les services que la surveillance connaît : la liste du script qui les lance, seule déclaration.
+  - `declared_environments() -> dict` — Les ENVIRONNEMENTS d'exécution `{nom: dossier du venv}`, dans l'ordre déclaré — le premier est
+  - `reference_environment() -> str` — L'environnement de référence : celui des workers, du serveur web et des services sans autre.
+  - `service_environment(service: str) -> str` — L'environnement dans lequel la surveillance lance `service` (`WAMA_SERVICE_ENVIRONMENTS`), celui
+  - `environment_python(environment: str) -> Path` — Le Python d'un environnement déclaré (`<venv>/bin/python`). KeyError pour un nom inconnu.
   - `services_at_start() -> list` — Ceux qui démarrent avec WAMA : la section des scripts `start_wama`, héritée de leur environnement.
   - `watchdog_state() -> str` — `running`, `paused` ou `absent`, d'après le signe de vie que la surveillance écrit à chaque passage.
   - `services_overview() -> dict` — L'état de chaque service, et de la surveillance qui exécute les ordres.
@@ -2074,7 +2078,7 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
 
 ### Environnement d'exécution d'un backend
 
-`ISOLATION` déclare où tourne un backend (`venv:<chemin>` | `service:<url>`, vide = venv principal). Sans elle le GRISAGE MENT : `missing_packages()` interroge `find_spec` dans CE processus, verdict muet sur un backend qui vit ailleurs. Le défaut est UN venv — l'isolement se DÉCLARE, ne se génère jamais : son coût n'est pas le disque mais la VRAM, chaque processus isolé étant un détenteur que le gouverneur ne voit pas. Zéro isolement aujourd'hui
+`ISOLATION` déclare où tourne un backend (`venv:<chemin>` | `service:<url>`, vide = venv principal). Sans elle le GRISAGE MENT : `missing_packages()` interroge `find_spec` dans CE processus, verdict muet sur un backend qui vit ailleurs. Le défaut est UN venv — l'isolement se DÉCLARE, ne se génère jamais : son coût n'est pas le disque mais la VRAM, chaque processus isolé étant un détenteur que le gouverneur ne voit pas. Zéro isolement aujourd'hui. Socle multi-venv (2026-11-11) : les ENVIRONNEMENTS se déclarent une fois (`WAMA_ENVIRONMENTS` / `WAMA_SERVICE_ENVIRONMENTS` de `scripts/wama_services.sh`, lus par `service_supervision.declared_environments`) ; un service est lancé avec le Python de SON environnement par le même lanceur, surveillé par la même surveillance ; les patches se rejouent dans le venv de l'interpréteur
 
 - **Domicile** : `wama/common/backends/base.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Contrat de backend de modèle COMMUN à WAMA — extrait de l'app de référence (Transcriber).

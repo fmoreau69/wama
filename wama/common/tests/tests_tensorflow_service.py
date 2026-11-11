@@ -729,7 +729,15 @@ class SupervisionShellTest(SimpleTestCase):
 
     def test_the_start_is_a_local_uvicorn_with_one_worker(self):
         log = self.logs / 'tensorflow-service.log'
-        out = self._source(f'python() {{ echo "$*"; }}; nohup() {{ "$@"; }}; LOG_DIR="{self.logs}"; '
+        # The launcher runs the python of the service's ENVIRONMENT (multi-venv, 2026-11-11): a fake
+        # venv whose python prints its arguments — a shell function `python` is no longer called,
+        # and must never be, or this test would start the real service.
+        fake = self.logs / 'venv_fake' / 'bin' / 'python'
+        fake.parent.mkdir(parents=True)
+        fake.write_text('#!/bin/bash\necho "$*"\n', encoding='utf-8')
+        fake.chmod(0o755)
+        out = self._source(f'nohup() {{ "$@"; }}; LOG_DIR="{self.logs}"; PROJECT_DIR="{self.logs}"; '
+                           f'WAMA_ENVIRONMENTS="main:venv_fake"; '
                            f'start_wama_service tensorflow_service; '
                            f'for i in $(seq 50); do [ -s "{log}" ] && break; sleep 0.1; done')
         self.assertIn('-m uvicorn wama.common.tensorflow_service.service:app --host 127.0.0.1 '

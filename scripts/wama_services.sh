@@ -138,6 +138,36 @@ start_celery_worker() {
 #: `WAMA_SERVICES_AT_START` de `start_wama_prod.sh` et de `start_wama_dev.sh`.
 WAMA_SERVICES="tts_service vector_service privacy_service tensorflow_service"
 
+# Les ENVIRONNEMENTS d'exécution (multi-venv, 2026-11-11 — plan validé par Fabien : un service par
+# environnement, un venv complet par environnement). `<nom>:<dossier du venv>`, relatif au dépôt ;
+# le PREMIER est l'environnement de référence, celui des workers, du serveur web et de tout service
+# qui n'en déclare pas d'autre. Un environnement de plus n'ajoute aucun chemin à part : ses services
+# sont lancés, surveillés, arrêtés et relancés par les fonctions ci-dessous, et partagent la base,
+# Redis et le gouverneur avec tout WAMA (ils font `django.setup()` sur les mêmes réglages).
+# Lues aussi par le Python (`service_supervision.declared_environments`) : cette déclaration seule.
+WAMA_ENVIRONMENTS="main:venv_linux"
+#: `<service>:<environnement>` d'un service qui ne tourne pas dans l'environnement de référence.
+WAMA_SERVICE_ENVIRONMENTS=""
+
+# L'environnement d'un service : celui qu'il déclare, sinon celui de référence.
+wama_service_environment() {
+    local pair
+    for pair in $WAMA_SERVICE_ENVIRONMENTS; do
+        [ "${pair%%:*}" = "$1" ] && { echo "${pair#*:}"; return 0; }
+    done
+    echo "${WAMA_ENVIRONMENTS%%:*}"
+}
+
+# Le dossier du venv d'un environnement (absolu).
+wama_environment_venv() {
+    local pair
+    for pair in $WAMA_ENVIRONMENTS; do
+        [ "${pair%%:*}" = "$1" ] && { echo "$PROJECT_DIR/${pair#*:}"; return 0; }
+    done
+    echo "environnement inconnu : $1" >&2
+    return 1
+}
+
 # "<module> <port> <journal>".
 wama_service_spec() {
     case "$1" in
@@ -183,15 +213,22 @@ wama_service_alive() {
 # Boucle locale SEULE, aucun service n'a d'authentification. `--workers 1` est structurant : N
 # processus tiendraient N fois les modèles. `WAMA_SERVICE_ON_TERMINAL` (non exportée, posée par le
 # script de développement) laisse la sortie au terminal : la surveillance, elle, écrit au journal.
+#
+# Le service tourne avec le Python de SON environnement (`wama_service_environment`), son venv en tête
+# du PATH et dans VIRTUAL_ENV : un sous-processus qu'il lance (`python`, un outil du venv) reste dans
+# cet environnement. Pour l'environnement de référence, c'est le venv déjà activé : rien ne change.
 start_wama_service() {
-    local spec module port log_file
+    local spec module port log_file venv
     spec=$(wama_service_spec "$1") || { echo "service inconnu : $1" >&2; return 1; }
     read -r module port log_file <<< "$spec"
+    venv=$(wama_environment_venv "$(wama_service_environment "$1")") || return 1
+    [ -x "$venv/bin/python" ] || { echo "venv absent pour $1 : $venv" >&2; return 1; }
     if [ -n "${WAMA_SERVICE_ON_TERMINAL:-}" ]; then
-        python -m uvicorn "$module:app" --host 127.0.0.1 --port "$port" --workers 1 \
-            --log-level "${WAMA_SERVICE_LOG_LEVEL:-info}" &
+        VIRTUAL_ENV="$venv" PATH="$venv/bin:$PATH" "$venv/bin/python" -m uvicorn "$module:app" \
+            --host 127.0.0.1 --port "$port" --workers 1 --log-level "${WAMA_SERVICE_LOG_LEVEL:-info}" &
     else
-        nohup python -m uvicorn "$module:app" --host 127.0.0.1 --port "$port" --workers 1 \
+        VIRTUAL_ENV="$venv" PATH="$venv/bin:$PATH" nohup "$venv/bin/python" -m uvicorn "$module:app" \
+            --host 127.0.0.1 --port "$port" --workers 1 \
             --log-level "${WAMA_SERVICE_LOG_LEVEL:-warning}" >> "$LOG_DIR/$log_file" 2>&1 &
         disown $!
     fi
