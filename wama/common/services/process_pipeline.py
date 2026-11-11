@@ -767,9 +767,10 @@ class AppPipeline:
     def node_settings(self, spec: ProcessSpec) -> dict:
         """Ce que règle le NŒUD d'un process ajouté par la card (ROUTE §10.6 3.2bis marche 4) :
         les réglages de son nœud tels que la fonction les reçoit — passés par sa porte
-        (`FunctionSpec.call_params`, qui type : « 3 » et 3 sont le même réglage). Pour un méta-process, chaque membre de son sous-graphe DÉPLOYÉ avec sa fonction :
-        sa surcharge par la card comme ce que l'auteur du pipeline référencé y a changé (il est lu
-        à chaque lancement, décision du 2026-11-06) rendent sa ligne périmée."""
+        (`FunctionSpec.call_params`, qui type : « 3 » et 3 sont le même réglage). Pour un
+        méta-process, chaque membre de son sous-graphe DÉPLOYÉ avec sa fonction : sa surcharge par
+        la card comme ce que l'auteur du pipeline référencé y a changé (il est lu à chaque
+        lancement, décision du 2026-11-06) rendent sa ligne périmée."""
         from wama.common.catalog import function_catalog as fc
         from wama.common.manifests.builtin.pipeline import function_key
 
