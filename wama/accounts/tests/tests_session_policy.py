@@ -10,7 +10,7 @@ apparemment aléatoires, chez l'utilisateur, des jours plus tard.
 Lancer : `python manage.py test wama.accounts.tests.tests_session_policy` (venv WSL).
 """
 from django.conf import settings
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.settings import SESSION_AGE_PAR_DEFAUT, _politique_session_inactivite
 
@@ -49,3 +49,31 @@ class ActivationTests(SimpleTestCase):
         plein travail — ce n'est pas ce que « auto-déconnexion » veut dire."""
         _, glissant = _politique_session_inactivite(30)
         self.assertTrue(glissant)
+
+
+class ExpiredSessionsArePurgedTests(TestCase):
+    """2026-11-11 (décision de Fabien) : 27 639 sessions expirées sur 30 599 — `clearsessions` n'était
+    joué par personne. Une tâche quotidienne le joue ; une session valide n'est jamais touchée."""
+
+    def test_the_task_removes_the_expired_and_keeps_the_valid(self):
+        from datetime import timedelta
+        from importlib import import_module
+
+        from django.contrib.sessions.models import Session
+        from django.utils import timezone
+
+        from wama.common.tasks import clear_expired_sessions_task
+        store = import_module(settings.SESSION_ENGINE).SessionStore
+        valid, expired = store(), store()
+        valid.create()
+        expired.create()
+        Session.objects.filter(session_key=expired.session_key).update(
+            expire_date=timezone.now() - timedelta(days=1))
+        self.assertGreaterEqual(clear_expired_sessions_task()['purged'], 1)
+        self.assertTrue(Session.objects.filter(session_key=valid.session_key).exists())
+        self.assertFalse(Session.objects.filter(session_key=expired.session_key).exists())
+
+    def test_it_is_planned_every_day(self):
+        entry = settings.CELERY_BEAT_SCHEDULE['clear-expired-sessions']
+        self.assertEqual('common.clear_expired_sessions', entry['task'])
+        self.assertEqual('default', entry['options']['queue'])

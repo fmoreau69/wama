@@ -464,6 +464,22 @@ class ProcessRoutesTest(TestCase):
             self.assertEqual(200, self._order('gpu').status_code)
             self.assertEqual(200, self._order('web').status_code)
 
+    def test_restarting_all_of_wama_asks_the_password_every_time(self):
+        """Décision de Fabien (2026-11-11) : WAMA entier redemande le mot de passe À CHAQUE fois —
+        la fenêtre ouverte par un autre geste ne vaut pas pour lui (vu en service : sans cette règle,
+        la relance de WAMA juste après celle d'un worker occupé passait sans mot de passe)."""
+        with mock.patch.object(supervision, 'declared_workers', return_value=['gpu']), \
+                mock.patch.object(supervision, '_worker_busy', return_value=True), \
+                mock.patch.object(supervision, 'control_process', return_value=(True, 'fait')) as order, \
+                mock.patch('wama.common.utils.notifications.notify_admins', return_value=(1, False)):
+            self.assertEqual(200, self._order('gpu', 'the-password').status_code)   # fenêtre ouverte
+            again = self._order('wama')
+            self.assertEqual((403, True), (again.status_code, again.json().get('needs_password')))
+            self.assertEqual(200, self._order('wama', 'the-password').status_code)
+            self.assertEqual(403, self._order('wama').status_code, 'pas de fenêtre pour WAMA entier')
+            self.assertEqual(200, self._order('gpu').status_code, 'contre-épreuve : la fenêtre vaut ailleurs')
+            self.assertEqual(3, order.call_count)
+
     def test_a_developer_sees_and_orders_no_process(self):
         from wama.accounts.permissions import is_admin_tier
         developer = User.objects.create_user('process_dev', password='x')

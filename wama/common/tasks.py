@@ -217,6 +217,24 @@ def purge_access_log_task(dry_run=False):
     return summary
 
 
+@shared_task(name='common.clear_expired_sessions')
+def clear_expired_sessions_task():
+    """Purge quotidienne des sessions EXPIRÉES — le geste de `manage.py clearsessions`
+    (`SessionStore.clear_expired`), qu'aucun ordonnanceur ne jouait : mesuré le 2026-11-11, 27 639
+    expirées sur 30 599, surtout celles des comptes des tests nocturnes. Les comptes restent (décision
+    de Fabien) ; une session valide n'est jamais touchée."""
+    from importlib import import_module
+
+    from django.conf import settings
+    from django.contrib.sessions.models import Session
+    from django.utils import timezone
+    expired = Session.objects.filter(expire_date__lt=timezone.now()).count()
+    import_module(settings.SESSION_ENGINE).SessionStore.clear_expired()
+    if expired:
+        logger.info("[sessions] %s session(s) expirée(s) purgée(s)", expired)
+    return {'purged': expired}
+
+
 @shared_task(name='common.forget_orphan_process_runs')
 def forget_orphan_process_runs_task(dry_run=False):
     """Balayage quotidien des lignes de process dont l'ÉLÉMENT a disparu par un autre chemin que

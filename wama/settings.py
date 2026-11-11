@@ -1005,6 +1005,14 @@ if ENABLE_CELERY:
             'schedule': crontab(hour=1, minute=40),
             'options': {'queue': 'default'},
         },
+        # Sessions EXPIRÉES (2026-11-11, décision de Fabien) : `clearsessions` n'était joué par
+        # personne — 27 639 sur 30 599 en base, surtout celles des tests nocturnes. Après la purge
+        # du journal des connexions, loin de la plage réservée aux tests (04:15).
+        'clear-expired-sessions': {
+            'task': 'common.clear_expired_sessions',
+            'schedule': crontab(hour=1, minute=55),
+            'options': {'queue': 'default'},  # requêtes en base, aucun modèle
+        },
         # Lignes de process ORPHELINES (2026-10-27) : celles dont l'élément a disparu sans passer
         # par son retrait (cascade, témoins du nocturne, jumelle retirée) — `process_runs.forget_orphans`.
         'forget-orphan-process-runs': {

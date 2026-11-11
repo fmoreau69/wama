@@ -562,16 +562,18 @@ def api_services(request):
     return JsonResponse({'success': True, **overview})
 
 
-def _reconfirmed(request, password: str) -> bool:
+def _reconfirmed(request, password: str, *, window: bool = True) -> bool:
     """Le mot de passe WAMA de l'administrateur, revérifié par l'authentification de Django (LDAP
     compris) ; une reconfirmation vaut `REAUTH_WINDOW_S` pour la session. Jamais le mot de passe
-    système : ce qui l'exigerait n'est pas relançable d'ici (`service_supervision`, en-tête)."""
+    système : ce qui l'exigerait n'est pas relançable d'ici (`service_supervision`, en-tête).
+    `window=False` : le mot de passe est redemandé quoi qu'il en soit — WAMA entier (décision de
+    Fabien, 2026-11-11 : « à chaque fois », sa relance dure plus que la fenêtre)."""
     import time
 
     from django.contrib.auth import authenticate
 
     from wama.common.utils.service_supervision import REAUTH_WINDOW_S
-    if time.time() < float(request.session.get('process_reauth_until') or 0):
+    if window and time.time() < float(request.session.get('process_reauth_until') or 0):
         return True
     if not password:
         return False
@@ -602,7 +604,8 @@ def api_service_control(request):
             return JsonResponse({'success': False, 'error': "Relancer un processus de WAMA est "
                                  "réservé à un administrateur."}, status=403)
         cuts = supervision.needs_password(key, action)
-        if cuts and not _reconfirmed(request, str(data.get('password') or '')):
+        if cuts and not _reconfirmed(request, str(data.get('password') or ''),
+                                     window=key != supervision.WAMA):
             return JsonResponse({'success': False, 'needs_password': True,
                                  'error': "Ce geste coupe un travail en cours : confirmez avec votre "
                                           "mot de passe WAMA."}, status=403)
