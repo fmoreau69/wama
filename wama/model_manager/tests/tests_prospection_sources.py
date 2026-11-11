@@ -242,8 +242,14 @@ class SuccessorCandidatesTest(TestCase):
         self.assertEqual(('qwen3.5:9b', 6.6), replaced_model(cand))
 
 
+#: A member's Hub inventory (`_siblings`): a diffusers pipeline with a single-file copy of its
+#: transformer at the root — 18 GB of components in a 28 GB repository.
+MEMBER_FILES = [('model_index.json', 400), ('transformer/diffusion_pytorch_model.safetensors', 10 * 1024 ** 3),
+                ('text_encoder/model.safetensors', 8 * 1024 ** 3), ('member.safetensors', 10 * 1024 ** 3)]
+
+
 @patch.object(p, 'analyze_license', return_value=None)
-@patch.object(p, '_repo_weight_gb', return_value=10.0)
+@patch.object(p, '_siblings', return_value=MEMBER_FILES)
 @patch('wama.common.services.resource_governor.fits_alone', return_value=True)
 @patch('huggingface_hub.HfApi')
 class FamilyUpgradeCandidatesTest(TestCase):
@@ -273,6 +279,13 @@ class FamilyUpgradeCandidatesTest(TestCase):
         self.assertEqual(('reader:olmocr', self.MEMBER, 'famille', p.FAMILY_ROLE),
                          (prospect['origin_key'], prospect['cible'], prospect['maj'], prospect['role']))
         self.assertEqual(('ocr', 'ocr'), (cand.capabilities['task'], cand.model_type))
+
+    def test_a_member_is_judged_on_its_components_not_on_its_repository(self, _api, fits, *_):
+        """2026-11-11: « repository × 1.2 » judged a member on its single-file copy too (33.6 GB
+        here, « does not fit ») — the rule of the install options (`_repo_vram_gb`): 18 GB."""
+        self._seed([{'repo_id': self.MEMBER}])
+        self.assertEqual(18.0, fits.call_args.args[0])
+        self.assertEqual(28.0, AIModel.objects.get(model_key=self.KEY).disk_gb, 'the download weighs it all')
 
     def test_an_installed_or_oversized_member_is_not_proposed(self, _api, fits, *_):
         AIModel.objects.create(model_key=f'huggingface:{self.MEMBER}', name='xl', model_type='ocr',

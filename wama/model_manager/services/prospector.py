@@ -458,6 +458,23 @@ def _fichiers_de_poids(fichiers):
     return [(n, t) for n, t in (fichiers or []) if n.lower().endswith(_WEIGHT_EXTS)]
 
 
+def _repo_vram_gb(files) -> float:
+    """VRAM des poids pleins d'un dépôt du Hub d'après son INVENTAIRE (`_siblings`), 0.0 s'il est
+    inconnu — un dépôt sans ligne au catalogue, donc sans moteur connu : la SOMME de ses composants
+    (`model_installer.components_of_files`, le lecteur de l'installation), sinon l'estimation
+    commune (`model_registry._estimated_vram`, poids du dépôt × 1,2). La règle de `_option_vram_gb`
+    pour un candidat qui a sa ligne ; écrite le 2026-11-11 pour les MEMBRES de la famille d'un
+    modèle, que « dépôt × 1,2 » jugeait sur leurs copies monofichier et leurs précisions publiées."""
+    from .memory_manager import peaks_from_weights
+    from .model_installer import components_of_files
+    from .model_registry import _estimated_vram
+    full = peaks_from_weights(components_of_files(files)).get('full')
+    if full:
+        return round(float(full), 1)
+    total = _poids_total_gb(files)
+    return _estimated_vram(int(total * 1024 ** 3), False) if total else 0.0
+
+
 def _repo_weight_gb(repo_id: str):
     """Poids total d'un dépôt HF en Go, ou None si indéterminable. Un appel HTTP par dépôt.
     Conservée : trois appelants ne veulent QUE cette valeur (`prospect_hf_seed` ×2,
@@ -1021,7 +1038,8 @@ def install_options(cand, with_family: bool = True) -> dict:
     if family is None:
         family = family_members(cand.hf_repo)
         family_read = family is not None
-        family = [dict(m, disk_gb=_poids_total_gb(_siblings(m['repo_id']))) for m in family or []]
+        family = [dict(m, disk_gb=_poids_total_gb(files), vram_gb=_repo_vram_gb(files))
+                  for m, files in ((m, _siblings(m['repo_id'])) for m in family or [])]
         if family_read:
             prospect['family'] = family
             a_persister = True
@@ -1074,6 +1092,9 @@ def install_options(cand, with_family: bool = True) -> dict:
             'label': f"Famille de l'auteur — {m['repo_id']}",
             'disk_gb': m.get('disk_gb'), 'vram_note': "",
             'downloads': m.get('downloads'), 'kind': 'family', 'quant_method': '',
+            # Son pic, lu à ses composants (`_repo_vram_gb`) ; une famille lue avant le 2026-11-11
+            # ne le porte pas, `_option_vram_gb` l'estime alors au poids du dépôt.
+            'vram_gb': m.get('vram_gb'),
         })
     if any(o['kind'] == 'full' for o in options):
         # Le poids PAR COMPOSANT des poids pleins, relevé UNE fois et gardé, comme les variantes —
@@ -1128,6 +1149,8 @@ def _option_vram_gb(option, cand=None) -> float:
         # d'un candidat qui en porte le nom, et la VRAM déclarée d'une proposition vaut 0.
         if footprint and provenance.split('+')[0] in ('source', 'measured'):
             return round(float(footprint), 1)
+    if option.get('vram_gb'):
+        return float(option['vram_gb'])      # un membre de la famille, pesé à ses composants
     gb = option.get('disk_gb')
     return _estimated_vram(int(float(gb) * 1024 ** 3), False) if gb else 0.0
 
@@ -1987,7 +2010,6 @@ def seed_hf_family_upgrades(workers: int = 4) -> dict:
     from wama.common.services.resource_governor import fits_alone
     from wama.model_manager.models import AIModel
 
-    from .model_registry import _estimated_vram
     from .prospect_ollama import PROPOSED_PREFIX
 
     rows = [(m, m.hf_repo) for m in
@@ -2018,8 +2040,9 @@ def seed_hf_family_upgrades(workers: int = 4) -> dict:
     seen: set = set()
     refs_type: dict = {}
     for target, origins in linked.items():
-        weight = _repo_weight_gb(target)
-        if not weight or fits_alone(_estimated_vram(int(weight * 1024 ** 3), False)) is False:
+        files = _siblings(target)               # un appel : le poids ET la VRAM en dérivent
+        weight = _poids_total_gb(files)
+        if not weight or fits_alone(_repo_vram_gb(files)) is False:
             continue                           # poids inconnu ou ne tient pas : rien à proposer
         m, repo, member = origins[0]
         key = PROPOSED_PREFIX + f"hf-family:{target}"

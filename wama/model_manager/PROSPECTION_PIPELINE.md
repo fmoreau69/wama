@@ -5014,7 +5014,7 @@ pour `…-klein-base` la recommandation retombait sur un GGUF de même précisio
    `Comfy-Org/Fibo-2.0` (un GGUF Fibo partiel), rien d'autre.
 2. ✅ **La pesée ne reconnaissait pas un pipeline diffusers MODULAIRE.** `_split_pipeline` ne lisait
    que `model_index.json` ; l'officiel ne porte que `modular_model_index.json`
-   (`ModularPipeline.config_name`, `modular_model_index.json` en 0.37 : `modular_pipeline.py:1586`).
+   (le `config_name` de `ModularPipeline` dans diffusers 0.37, lu dans le module installé).
    Sa copie monofichier de tête (11,1 Go) était pesée en composant de plus, et ses précisions
    publiées sous `variants/fp8r/` et `variants/nvfp4/` en un composant « variants ». Les deux index
    (`model_installer.DIFFUSERS_PIPELINE_INDEXES`) ; et la règle « diffusers ne lit que
@@ -5035,6 +5035,14 @@ pour `…-klein-base` la recommandation retombait sur un GGUF de même précisio
    ⚠ La MARGE n'a pas bougé : `fits_alone` juge sans elle, comme la garde (a) du squelette ;
    `chosen_precision` l'ajoute — la question « une seule marge » reste au `ROADMAP §Gouvernance` (b).
 
+4. ✅ **Ramené à la revérification — la même décision écrite une seconde fois.** « Ce dépôt
+   tient-il sur la carte ? » se prenait aussi pour les MEMBRES de la famille d'un modèle
+   (`seed_hf_family_upgrades` : un membre jugé « ne tient pas » n'est jamais proposé, en silence ;
+   les options `kind: 'family'` de la page), avec « dépôt × 1,2 ». Une règle, `_repo_vram_gb` :
+   la somme des composants lus dans l'inventaire déjà relevé (`components_of_files`, aucune requête
+   de plus — `_siblings` sert le poids ET la VRAM), l'estimation commune en dernier recours. Une
+   famille lue avant ce jour ne porte pas ce chiffre et s'estime comme avant.
+
 **Rejoué par l'assistant après correction** : `search_models` remonte du GGUF à l'officiel
 (`climbed`), et `get_install_options` recommande les **poids pleins officiels** des deux dépôts
 (18,9 Go, « tient »). ⚠ Un Hub muet n'écrit aucun relevé (vu une fois sur `…-klein-base`, rejoué :
@@ -5044,7 +5052,8 @@ Gardes, chacune prouvée par une mutation (rouge exigé, obtenu, fichier restaur
 `tests_platform_ref_only.QuantizedBaseTest.test_a_quantized_component_nothing_runs_is_not_its_canonical_model`,
 `tests_anatomy.AnatomyGapsTest.test_both_readers_of_a_pipeline_set_aside_its_root_copy_and_what_lies_deeper`
 (trois mutations : index modulaire, pesée, anatomie), `tests_install_recommendation`
-(`…weighed_by_their_components…`, `…peak_of_the_strategy…`, `…components_are_read_once…`).
+(`…weighed_by_their_components…`, `…peak_of_the_strategy…`, `…components_are_read_once…`,
+`…member_is_shown_with_the_peak_of_its_components`), `tests_prospection_sources.FamilyUpgradeCandidatesTest.test_a_member_is_judged_on_its_components_not_on_its_repository`.
 
 **Ce qui reste — décisions de Fabien** : (a) accepter la licence des deux dépôts officiels sur le
 Hub (le jeton est présent ; ils répondent 403 tant qu'elle ne l'est pas), puis installer par la

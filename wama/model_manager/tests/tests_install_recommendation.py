@@ -200,6 +200,13 @@ class TheAuthorsFamilyIsOfferedNeverRecommendedTest(TestCase):
         self.assertEqual({'read': True, 'members': 1, 'installed': 0, 'offered': 1, 'fitting': 1},
                          res['family'])
 
+    def test_a_member_is_shown_with_the_peak_of_its_components(self):
+        """Same rule as the full weights (2026-11-11): a 40 GB repository whose components weigh
+        18.9 GB fits a 24 GB card — « repository × 1.2 » said 48 GB."""
+        member = _by_ref(_options(self._cand([{'repo_id': self.XL, 'disk_gb': 40.0,
+                                               'vram_gb': 18.9}])))[(self.XL, None)]
+        self.assertEqual((18.9, True), (member['vram_estimated_gb'], member['fits']))
+
     def test_an_installed_member_is_counted_not_offered(self):
         AIModel.objects.create(model_key=f'huggingface:{self.XL}', name='xl', model_type='ocr',
                                source='huggingface', is_downloaded=True,
