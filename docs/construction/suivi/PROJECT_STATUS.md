@@ -30917,3 +30917,41 @@ portait plus que mes deux hunks.
 
 🔚 **POINT D'ENTRÉE** : relancer WAMA par `start_wama_prod.sh`, puis jouer les quatre relances du
 volet droit du model manager (worker au repos, worker occupé, serveur web, WAMA entier).
+
+## §PALIER — 2026-11-11 (soir), « LES QUATRE RELANCES JOUÉES EN SERVICE » — vertes — 🔚 rien à faire ; une décision de Fabien (mot de passe de « WAMA entier » à chaque fois ?)
+
+Suite du §PALIER « RELANCER DEPUIS WAMA… » (fin d'après-midi) : son 🔚 est soldé. WAMA relancé par Fabien
+à 17:16, puis les quatre relances jouées DEPUIS LA PAGE du model manager (Playwright, compte de test
+`wama_pw_smoke` élevé administrateur le temps de la sonde, mot de passe TEMPORAIRE aléatoire ; niveau,
+mot de passe, session, card et fichier rétablis ou retirés — vérifié en sortie). Preuves : le journal de
+la surveillance (`logs/worker-watchdog.log`).
+1. **Worker `default` au repos** — confirmation seule, 200 ; arrêt à chaud 17:32:20, relancé 17:32:57.
+2. **Serveur web** — 200 ; « rechargé à chaud » 17:33:27, même maître gunicorn (pid inchangé), page servie.
+3. **Worker `gpu` PENDANT une génération** (card 1484 du compte de test, musicgen-small 30 s) — le
+   serveur répond 403 `needs_password`, la page ouvre la confirmation commune avec un champ
+   `type=password`, le mot de passe accepté : ordre à 17:36:28, la génération FINIT (SUCCESS 100 %),
+   puis arrêt 17:40:29 et relance 17:40:36. Rien n'est coupé.
+4. **WAMA entier** — 200 ; lancé à 17:41:06, pages revenues après 413 s, surveillance à 17:48:34,
+   les cinq workers en marche à 17:49:20 (≈ 8 min). ⚠ Il n'a PAS redemandé le mot de passe : la
+   fenêtre de 5 min ouverte au geste 3 courait encore — c'est le comportement voulu, mais voir la
+   décision ci-dessous. La relance a tourné avec les retouches NON commitées de `start_wama_prod.sh`
+   d'une session sœur (multi-venv) : elle les éprouve aussi.
+
+**La tentative de Fabien avant le redémarrage** (17:11:38, 409) : `{"error": "Service inconnu : wama."}`
+(54 octets dans `gunicorn-access.log`, identifiés en recalculant chaque refus possible). Le serveur
+servait un MÉLANGE : gabarit et `service_supervision` (importé DANS la vue) neufs, la vue chargée au
+démarrage ancienne ; et l'ancienne surveillance n'aurait de toute façon pas exécuté l'ordre. Leçon en
+mémoire (`feedback_gabarit_lu_a_chaud_en_prod`, variante du 2026-11-11).
+
+**Corrigé** : les deux textes annonçaient « environ deux minutes » de coupure — mesuré ~7 min (pages)
+et 8 min (workers). La correction est dans l'arbre de la session sœur, qui tient désormais
+`service_supervision.py` (« plusieurs minutes… »), à son prochain commit ; la mesure est datée dans
+`INFRA_WSL_VS_WINDOWS.md` (ligne « Services au démarrage »).
+
+**Effets de bord déclarés** : deux notifications « Relance demandée » envoyées aux administrateurs
+au nom de `wama_pw_smoke` (gestes 3 et 4) ; `wama-restart.log` porte l'avertissement attendu « extension
+pgvector non vérifiée (sudo indisponible) » (le `sudo -n` sans terminal, base déjà démarrée).
+
+⏳ **Décision de Fabien** : la relance de WAMA ENTIER doit-elle redemander le mot de passe à CHAQUE fois,
+fenêtre de 5 min ou non ? Aujourd'hui la fenêtre vaut pour tous les gestes qui coupent
+(`service_supervision.REAUTH_WINDOW_S`, `model_manager.views._reconfirmed`).
