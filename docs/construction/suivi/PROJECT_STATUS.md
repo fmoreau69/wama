@@ -30822,3 +30822,23 @@ Fin de la session des `§CLÔTURE 2026-11-11, « PIPELINE PORTÉ PAR LA CARD, GL
 - Restes inchangés (voir la §CLÔTURE du jour) : recopie de source + report par comparaison (card
   du Data Analyzer), facette estimateur à travers le `.wdat`, G2, format LimeSurvey ; décisions :
   Likert `attribute`/`factor`, moment du chantier questionnaires, ⑩.3 et D19.
+
+## §CLÔTURE 2026-11-11 (fin), « BRANCHES DU PIPELINE DE CARD : GARDÉES OU DÉCLARÉES » — `e27ec8748` + ce bloc (LOCAUX, non poussés) — 🔚 inchangé : marche 5
+
+Dernière vérification (« tous les tests nécessaires ajoutés ? ») des branches écrites aux marches
+2-4, une par une :
+- ✅ gardées à la clôture (`e27ec8748`, `tests_batch_views`) : la sœur qui garde le pipeline
+  qu'elle a fait sien sous « garder les miennes » (sauf « remplacer aussi » `@pipeline`) — écrasé
+  en silence, il aurait rendu un résultat plausible et faux — et le refus nommé d'un ajout qui ne
+  se compose pas sur une sœur (rien d'écrit nulle part, référence intacte) ; 3 contre-épreuves
+  rouges.
+- ⚠ NON gardées, DÉCLARÉES — chacune échoue en le DISANT, aucune ne rend un résultat faux : card
+  sans propriétaire (`card_pipelines.resolver_for`, `function_process.work_file` : `ValueError`
+  nommée) ; port `many` alimenté par plusieurs cadres (`frames_by_port`) ; méta-process à
+  PLUSIEURS sorties terminales (`_run_meta` : sa ligne n'a pas de table, un aval refuse son port
+  requis en le nommant). À garder si l'un devient un cas réel (le Segmenter / Calculator de la
+  card du Data Analyzer).
+- Tout le reste est gardé (liste dans la `§CLÔTURE 2026-11-11, « PIPELINE PORTÉ PAR LA CARD … »`
+  et le `§PALIER … « MARCHE 4 … »`).
+Pendings système inchangés : relancer gunicorn + workers (la relance de 15:05 précède la marche 4) ;
+pousser les 9 commits de la session + ce bloc (Fabien).
