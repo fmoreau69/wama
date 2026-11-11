@@ -15,7 +15,10 @@
 
   // ── Helpers sans état ────────────────────────────────────────────────
   function escapeHtml(str) {
-    return (str || '').replace(/[&<>"']/g, function (m) {
+    // Toute valeur, pas seulement une chaîne (2026-11-11) : un identifiant NUMÉRIQUE levait ici
+    // (`(34).replace` n'existe pas) et la file « Propositions à valider » du model manager
+    // affichait son compte sans aucune proposition — le rendu cassait entre les deux.
+    return String(str == null ? '' : str).replace(/[&<>"']/g, function (m) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
     });
   }

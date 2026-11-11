@@ -77,6 +77,20 @@ class ServedQueueRendersThePlanTest(SimpleTestCase):
         self.assertIn('&lt;img src=x&gt;', html)
         self.assertNotIn('<img src=x>', html)
 
+    def test_the_page_s_shared_escaping_renders_a_numeric_id(self):
+        """2026-11-11 : sur la page, `esc` délègue à `WamaApp.escapeHtml` (monté par `base.html`),
+        qui levait sur un NOMBRE — l'`id` d'une proposition — : le compte « 2 » s'affichait, la
+        liste restait vide. Ce test chargeait la brique SANS `WamaApp` (son repli acceptait un
+        nombre) : il ne pouvait pas le voir. Ici les deux fichiers SERVIS, comme sur la page."""
+        ctx = self._ctx()
+        base = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'wama-app-base.js'
+        ctx.eval(base.read_text(encoding='utf-8'))
+        self.assertEqual('34', ctx.eval('WamaApp.escapeHtml(34)'))
+        self.assertEqual('', ctx.eval('WamaApp.escapeHtml(null)'))
+        html = self._html(ctx, {'id': 34, 'kind': 'model', 'key': 'huggingface:ACE-Step/acestep-v15-xl-sft',
+                                'filled': ['body.identity.base_model'], 'errors': []})
+        self.assertIn('data-proposal="34"', html)
+
     def test_a_valid_proposal_offers_validate_and_hides_the_buttons_from_a_developer(self):
         ctx = self._ctx()
         proposal = {'id': 4, 'kind': 'library', 'key': 'rosbags', 'filled': ['body'], 'errors': []}
