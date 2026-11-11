@@ -113,6 +113,24 @@ class ReinstallingGivesItBackTest(TestCase):
         self.assertTrue(row.is_available)
         self.assertNotIn('exclusion', row.extra_info)
 
+    def test_a_generic_hub_snapshot_reinstalls_where_it_lived(self):
+        """2026-11-11 (preuve du retrait d'ACE-Step) : une ligne installée par la PROSPECTION n'a
+        pas d'`install_dir` ; désinstallée, ni une tâche ni « Installer » ne savaient la réinstaller
+        (« poids absents, annonce faite »). Son dossier de famille est le parent de celui de ses
+        poids. Contre-épreuve : un dossier qui ne porte pas le nom du dépôt ne désigne rien."""
+        with tempfile.TemporaryDirectory() as tmp, override_settings(AI_MODELS_DIR=Path(tmp)):
+            row = _installed(Path(tmp), platform_ref='huggingface:Org/Old')
+            _uninstall(Path(tmp), row.model_key)
+            row.refresh_from_db()
+            self.assertNotIn('install_dir', row.extra_info)
+            spec = mi.spec_for_catalog_row(row)
+            self.assertEqual(('hf', 'Org/Old', 'ocr', 'Fam'),
+                             (spec['kind'], spec['ref'], spec['category'], spec['family']))
+            self.assertTrue(row.is_installable)
+            AIModel.objects.filter(pk=row.pk).update(local_path=str(Path(tmp) / 'models' / 'ocr' / 'Fam'))
+            row.refresh_from_db()
+            self.assertIsNone(mi.spec_for_catalog_row(row))
+
     def test_the_row_an_install_reaches_comes_back(self):
         # A Hub snapshot re-proposed after its uninstall: its row is reached by its identity.
         from wama.model_manager.services.provenance import record_after_install

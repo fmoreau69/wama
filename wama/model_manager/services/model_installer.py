@@ -2609,6 +2609,16 @@ def spec_for_catalog_row(model) -> dict | None:
 
     repo_id = model.hf_repo
     install_dir = ((model.extra_info or {}).get('install_dir') or '').strip()
+    if not install_dir and repo_id:
+        # Un snapshot GÉNÉRIQUE du Hub (installé par la prospection : aucune app ne le déclare) n'a
+        # pas d'`install_dir` — son dossier de FAMILLE est le parent de celui de ses poids
+        # (`<catégorie>/<famille>/models--org--nom`), que la ligne garde désinstallée. Mesuré le
+        # 2026-11-11 : la turbo d'ACE-Step désinstallée, la génération SFT n'a pu réinstaller sa
+        # dorsale (« poids absents, annonce faite ») — aucune ligne venue de la prospection ne se
+        # réinstallait depuis le catalogue, ni par une tâche, ni par « Installer ».
+        own = (model.extra_info or {}).get('path') or model.local_path or ''
+        if own and Path(own).name == 'models--' + repo_id.replace('/', '--'):
+            install_dir = str(Path(own).parent)
     # Les fichiers que l'app DÉCLARE, chacun avec son origine (pilote `files`, 2026-10-11 ;
     # CodeFormer depuis le 10/10) : ils priment sur le `platform_ref`, qui peut nommer un dépôt sans
     # rapport avec les poids réellement lus — ou n'en nommer qu'un parmi plusieurs (MuseTalk).
