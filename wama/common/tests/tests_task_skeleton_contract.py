@@ -73,6 +73,19 @@ class TaskSkeletonOutcomeContractTest(TestCase):
                 if hasattr(item, 'processing_seconds'):
                     self.assertIsNotNone(item.processing_seconds, 'processing time not recorded')
 
+    def test_a_success_after_a_wait_keeps_no_trace_of_the_wait(self):
+        """Vécu le 2026-11-11 : la card réussie disait encore « Installation … en cours » — le
+        message d'une attente (`ServiceNotReady`) restait dans le champ d'erreur."""
+        def glue(item, ctx):
+            type(item).objects.filter(pk=item.pk).update(
+                error_message='Installation de « X » en cours — nouvelle tentative dans 30 s (3/720)')
+            return {}
+        waiters = [(a, m) for a, m in _adopters() if any(f.name == 'error_message' for f in m._meta.fields)]
+        self.assertTrue(waiters)
+        for app, model in waiters:
+            with self.subTest(app=app):
+                self.assertEqual('', self._run(app, model, glue).error_message)
+
     def test_a_success_gives_the_element_a_revision_tied_to_the_produced_fact(self):
         """Marche 8a (`WAMA_COLLABORATION §7.1`): every result becomes a numbered revision of the
         element, attached to the `produit` fact of `RunOutcome` — one journal, not two — and

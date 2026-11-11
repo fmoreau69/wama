@@ -2149,11 +2149,25 @@ def dispatch_install(task, row, *, user_id=None, via=''):
     l'ancien code le refusait (`TypeError: unexpected keyword argument`) et l'installation
     échouait. La tâche reprend l'événement par sa clé (`install_history.resumed`).
     La tâche envoyée est rattachée à l'événement (`set_task`, 2026-11-06) : si son worker meurt,
-    la réconciliation commune clôt l'installation au lieu de la laisser « en cours »."""
+    la réconciliation commune clôt l'installation au lieu de la laisser « en cours ».
+
+    L'installation est publiée EN COURS dès l'envoi, sous l'identifiant de la tâche (2026-11-11) :
+    la garde « déjà en cours » de `request_install` ne lisait que ce que la tâche publie en
+    DÉMARRANT. Pendant qu'elle attendait un worker, une tâche qui attendait la dorsale d'ACE-Step
+    (`model_readiness`, un tour toutes les 30 s) en a envoyé onze, téléchargées en parallèle dans
+    le même dossier — deux ont échoué sur les fichiers que les autres écrivaient."""
+    from wama.common.utils.task_progress import publier_progression
+
+    from ..tasks import INSTALL_CACHE_PREFIX, INSTALL_TTL
     from .install_history import queued, set_task
     event_id = queued('model', row.model_key, name=row.name, via=via)
     started = task.delay(row.model_key, user_id=user_id)
-    set_task(event_id, getattr(started, 'id', None))
+    task_id = getattr(started, 'id', None)
+    set_task(event_id, task_id)
+    if isinstance(task_id, str) and task_id:
+        publier_progression(INSTALL_CACHE_PREFIX + row.model_key, task_id, 'RUNNING',
+                            {'status': "en attente d'un worker…", 'done_gb': 0,
+                             'name': row.name, 'install_id': event_id}, INSTALL_TTL)
     return started
 
 

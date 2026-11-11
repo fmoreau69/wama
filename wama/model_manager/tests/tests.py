@@ -21,7 +21,7 @@ CE QUE CES TESTS PROTÈGENT, ET POURQUOI ILS EXISTENT
     référence de manifeste devenue non résolvable. Aucune alerte entre les deux.
 """
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.test import TestCase, override_settings
 
@@ -2056,6 +2056,27 @@ class RouteUniqueDInstallationTest(TestCase):
             res = mi.request_install(cand.model_key)
         self.assertTrue(res['already_running'])
         delay.assert_not_called()
+
+    def test_a_second_request_joins_an_install_still_waiting_for_a_worker(self):
+        """Vécu le 2026-11-11 : une tâche qui attendait la dorsale d'ACE-Step redemandait
+        l'installation toutes les 30 s, et la garde ne voyait que ce que la tâche publie en
+        DÉMARRANT — onze installations du même dossier. Envoyée, elle est déjà « en cours »."""
+        from django.core.cache import cache
+        from ..services import model_installer as mi
+        from ..tasks import INSTALL_CACHE_PREFIX
+        cand = self._candidat_hf()
+        cache.delete(INSTALL_CACHE_PREFIX + cand.model_key)
+        self.addCleanup(cache.delete, INSTALL_CACHE_PREFIX + cand.model_key)
+        with patch.object(mi, 'disk_space_guard', return_value=None), \
+                patch('celery.result.AsyncResult', return_value=Mock(state='PENDING')), \
+                patch('wama.model_manager.tasks.install_proposed_task.delay',
+                      return_value=Mock(id='tid-queued')) as delay:
+            first = mi.request_install(cand.model_key)
+            second = mi.request_install(cand.model_key)
+        self.assertTrue(first['started'])
+        self.assertTrue(second.get('already_running'), second)
+        self.assertEqual(1, delay.call_count)
+        self.assertEqual("en attente d'un worker…", second['progress']['status'])
 
     def test_l_assistant_installe_par_le_meme_corps_que_le_bouton(self):
         """« L'assistant prend les mêmes verbes que le bouton » : un seul corps, donc une

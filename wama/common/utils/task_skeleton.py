@@ -1154,6 +1154,10 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         ctx.check_current(force=True)         # le succès d'un lancement remplacé ne s'écrit pas
         fields = dict(written)
         fields['status'] = 'SUCCESS'
+        if _has_field(model, error_field) and error_field not in written:
+            # Le message d'une ATTENTE (installation, service — `ServiceNotReady`) n'est pas une
+            # erreur : une card réussie le gardait (« Installation … en cours », 2026-11-11).
+            fields[error_field] = ''
         if _has_field(model, 'progress'):
             fields['progress'] = 100
         if _has_field(model, 'processing_seconds'):

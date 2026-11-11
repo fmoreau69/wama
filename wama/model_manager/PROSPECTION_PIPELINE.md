@@ -4900,6 +4900,100 @@ Assumés, déclarés : `_HUB_LINK` (tous les liens d'une fiche, collections comp
 l'`architectures` du dossier LOCAL d'un composant, les trois autres lecteurs la racine d'un dépôt
 pour son moteur.
 
+### Suite (11/11, après la relance) — la preuve du retrait jouée, deux défauts qu'elle a montrés
+
+- ✅ **Preuve réelle, trois temps.** (A) la turbo `huggingface:ACE-Step/Ace-Step1.5` refuse d'abord
+  sa désinstallation en nommant ses dépendants, puis part sur confirmation (événement 75, 9,4 Go
+  libérés, `withdrawn`). (B) une génération SFT (card 1482, chantée, 45 s) réinstalle la dorsale
+  par la voie `backbone` (24 fichiers vérifiés contre le Hub) : la ligne est installée,
+  `is_available=False`, exclusion `backbone_only`, absente des choix, « Rendre aux choix »
+  proposé ; la card sort un WAV de 45,0 s stéréo 48 kHz. (C) `install_model` sur la ligne la rend
+  aux choix sans rien télécharger (`restored`). La XL-SFT (card 1448) est sortie avant.
+- ✅ **Onze installations du même modèle en parallèle** — vu pendant B (événements 76 à 86). La
+  tâche qui attend sa dorsale redemande l'installation à chaque tour (30 s) ; la garde « déjà en
+  cours » de `request_install` ne lisait que l'avancement que la tâche publie en DÉMARRANT, donc
+  rien tant qu'elle attendait un worker. Deux installations ont échoué sur les fichiers que les
+  autres écrivaient, quatre n'ont jamais été prises. Corrigé au seul point d'envoi
+  (`dispatch_install` publie « en attente d'un worker… » sous l'id de la tâche, que
+  `progression_en_cours` tient pour vivante tant qu'elle est PENDING). Garde :
+  `tests.RouteUniqueDInstallationTest.test_a_second_request_joins_an_install_still_waiting_for_a_worker`
+  (mutation rouge).
+- ✅ **La card réussie disait encore « Installation … en cours »** : le message d'une attente
+  (`ServiceNotReady`) restait dans `error_message`. Le squelette le vide au succès (sauf si la glu
+  l'a écrit), comme le report pour VRAM le faisait déjà. Garde :
+  `tests_task_skeleton_contract.test_a_success_after_a_wait_keeps_no_trace_of_the_wait` (toutes
+  les apps du squelette, mutation rouge sur 10).
+
+## Veille 2026-11-11 « effets sonores de trottinettes pour une expérience sous Unreal » — discussion EXTERNE, avec avis
+
+> **Origine** : une discussion de Fabien avec un autre assistant, collée en session le 2026-11-11
+> pour être reprise à froid. Rien n'est lancé ; ce qui suit RÉSUME ses affirmations (non
+> vérifiées ici), puis donne un avis critique. Les chiffres sont ceux du constructeur, relayés.
+
+**Ce qu'elle affirme.** (1) Aucun modèle de texte vers audio ne donne le contrôle voulu (vitesse,
+accélération, Doppler selon la trajectoire) : la dynamique est « cuite » dans le clip. (2) Mieux
+qu'AudioGen, deux candidats : **Stable Audio 3** (Stability AI, mai 2026 ; Small-SFX, Small-Music et
+Medium en poids ouverts, Large par API ; rapport technique arXiv 2605.17991 : Medium FAD 0,369 /
+CLAP 0,369 contre 0,501 / 0,263 pour Stable Audio Open sur des clips BBC de 5 s ; licence
+« Community », gratuite sous 1 M$ de revenus) et **MOSS-SoundEffect v2.0** (OpenMOSS, mai 2026 ;
+48 kHz, jusqu'à 30 s, scènes urbaines, 1,3 Md de paramètres, Apache 2.0, aucun banc indépendant).
+AudioGen et MMAudio sont sous CC-BY-NC 4.0. (3) Le contrôle temporel (PicoAudio2) place des
+événements mais gère mal les chevauchements ; les modèles spatiaux à sources mobiles (SonicMotion,
+Ambisonique, ~15° d'erreur ; PhysWave) sont de la recherche hors ligne ; la vidéo vers audio
+(HunyuanVideo-Foley, MMAudio) synchronise bien mais contrôle peu. (4) Architecture recommandée :
+générer des sources SÈCHES (fond de ville en boucle sans trottinettes ; par signature, moteur et
+roulement à vitesse constante, de près, à plusieurs régimes), puis piloter la dynamique dans Unreal
+par MetaSounds (vitesse → hauteur et niveau de roulement ; accélération → charge ; distance et
+direction → atténuation, Doppler, binaural pour le piéton). Paquet « Simple Engine Sound »
+(granulaire piloté par le régime) ; un vieux fil du forum Unreal dit le Doppler simple en Blueprint
+et un mapping « truqué » souvent meilleur que la physique. Littérature : thèse de York sur
+l'auralisation de passages de véhicules (synthèse roulement + propulsion). Elle proposait un
+script d'A/B AudioGen / Stable Audio 3 / MOSS sur une dizaine de prompts.
+Sources citées : arxiv.org/html/2605.17991v1 (Stable Audio 3), huggingface.co/OpenMOSS-Team/MOSS-SoundEffect-v2.0,
+arxiv.org/html/2509.00683 (PicoAudio2), arxiv.org/html/2507.07318 (SonicMotion),
+etheses.whiterose.ac.uk/28802 (thèse de York), forums.unrealengine.com/t/audio-engine-thread/87288/24,
+plus trois blogs relais (MarkTechPost, Boppy, 8frame) et la fiche de Stable Audio Open (openlaboratory.com).
+
+**Avis (Claude, 2026-11-11).**
+- ✅ **L'architecture est la bonne** : la dynamique d'une expérience doit SUIVRE la trajectoire
+  simulée et rester reproductible ; un clip généré ne le peut pas. Le Doppler est de la physique
+  déterministe (ligne à retard variable, f' = f·c/(c − v·cosθ)) : aucun modèle n'y est utile.
+- ⚠ **Le contexte de Fabien manque à la discussion.** C'est une expérience de RECHERCHE
+  universitaire, sans exploitation commerciale : la licence CC-BY-NC d'AudioGen n'y est pas un
+  défaut éliminatoire, contrairement à ce qu'elle laisse entendre. Le choix de licence reste celui
+  de Fabien (`LICENSING.md`) ; à vérifier sur les fiches elles-mêmes, pas sur les blogs cités :
+  la licence Community de Stability porte aussi des conditions (attribution, enregistrement), et
+  une licence de code et une licence de poids peuvent différer (MOSS).
+- ⚠ **Un chiffre suspect** : FAD 0,369 ET CLAP 0,369 pour le Medium — deux métriques différentes à
+  la même valeur ressemblent à une erreur de recopie. À lire dans le rapport avant de citer. Et un
+  banc du constructeur n'est pas une mesure WAMA.
+- ⚠ **Une trottinette électrique n'a pas de « moteur » au sens thermique.** Sa signature est un
+  sifflement TONAL du moteur électrique, de fréquence proportionnelle à la vitesse de roue, plus le
+  roulement des petites roues dures sur le revêtement (souvent dominant) et des cliquetis.
+  « Charge moteur » et « régimes » sont un vocabulaire de moteur thermique : à reformuler en
+  vitesse de roue, courant (accélération → amplitude du sifflement) et revêtement. La question d'un
+  son d'alerte (type AVAS) pour la perception du piéton n'est pas abordée.
+- ⚠ **Ce qui manque pour une expérience perceptive** : calibrer le niveau de restitution (dB SPL),
+  des sources bouclables sans couture, une fréquence d'échantillonnage unique (48 kHz), et surtout
+  une RÉFÉRENCE RÉELLE : enregistrer quelques trottinettes donne à la fois la validité écologique et
+  l'étalon contre lequel juger les sons générés (un A/B entre modèles ne dit pas lequel est vrai).
+  La synthèse granulaire à partir d'enregistrements réels est une alternative sérieuse à la
+  génération.
+- ⚠ Le fil du forum Unreal est ancien (antérieur à MetaSounds) : à revérifier sur UE 5.x, qui
+  porte peut-être déjà le Doppler dans ses réglages d'atténuation.
+
+**Ce que WAMA en ferait, par sa route (rien de lancé — décisions de Fabien).**
+1. **AudioGen est déjà au catalogue** (`composer:audiogen-medium`, `wama/composer/utils/model_config.py`) :
+   c'est la référence de l'A/B. Les candidats entrent par la PROSPECTION (manifeste → backend au
+   contrat par le rôle `backend` → validation), pas par un script à côté : l'A/B devient des cards
+   du Composer au même prompt, un modèle par card, écoutées par Fabien.
+2. **Les sources sèches à plusieurs vitesses sont un PLAN D'EXPÉRIENCE** (prompt × vitesse ×
+   modèle) : le kind `dataset` porte `axes[]` (A1/A5 livrées, `WAMA_APPRENTISSAGE.md §3`).
+3. **Idée inter-mondes, à confronter** : les TRAJECTOIRES mesurées par le Cam Analyzer (Lab)
+   pourraient piloter une auralisation hors ligne (Doppler, atténuation, vitesse de roue) — une
+   fonction déterministe du monde Data, pour des stimuli reproductibles hors Unreal. Le temps réel
+   reste dans Unreal ; WAMA y livre les sources.
+
 ## Session du 2026-11-11 : la route ne proposait pas les poids d'origine de FLUX 3 — trois trous, éprouvés par l'assistant
 
 Fabien : *« Est-ce que les poids installés GGUF de flux-3 correspondent à la meilleure version que
