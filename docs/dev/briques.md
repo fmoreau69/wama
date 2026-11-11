@@ -333,7 +333,7 @@ Choisit la stratégie de chargement (plein GPU, déchargement) sur la vue de SON
 
 - **Domicile** : `wama/model_manager/services/memory_manager.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Memory Manager - GPU/RAM memory utilities for model management.
-- **API publique** (12) :
+- **API publique** (13) :
   - `peaks_from_weights(weights: dict) -> dict` — Les DEUX pics d'un modèle, dérivés du poids par composant — `{}` si on ne sait pas.
   - `class MemoryStrategy(Enum)` — Memory loading strategies for AI models.
   - `preset_vram_gb(model_key: str) -> Optional[float]` — Empreinte VRAM d'exécution d'un modèle, depuis `MODEL_SIZE_PRESETS`.
@@ -341,6 +341,7 @@ Choisit la stratégie de chargement (plein GPU, déchargement) sur la vue de SON
   - `peaks_for_precision(weights: dict, label: str) -> dict` — Les deux pics RECALCULÉS pour une précision de chargement — `{}` si on ne peut pas.
   - `reduced_peak_gb(weights: dict, precision, *, offload: bool, reduced_gb: Optional[float]=None) -> Optional[float]` — Le pic d'un modèle chargé dans une précision que son moteur DÉCLARE (`backends.base.
   - `backbone_row(row)` — La ligne de catalogue de la DORSALE d'un adaptateur, ou None si ce n'en est pas un.
+  - `replacing_weights(row, backbone) -> Optional[dict]` — Le relevé de poids d'une VARIANTE qui REMPLACE des composants de sa dorsale — ou None.
   - `model_footprint_gb(row, *, offload: bool=True, count_backbone: bool=True) -> tuple` — `(Go, provenance)` que ce modèle EXIGE — ou `(None, 'unknown')` si personne ne sait.
   - `fits_full_gpu(model_key: str, total_vram_gb: float, headroom_gb: float=4.0) -> Optional[bool]` — Ce modèle peut-il tenir ENTIÈREMENT sur la carte (donc tourner en FULL_GPU, sans offload) ?
   - `register_vram_unloader(name: str, fn) -> None` — Déclare un callable qui libère la VRAM d'une app (idempotent par `name`).
@@ -648,7 +649,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (60) :
+- **API publique** (61) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(repo_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, meter=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -689,7 +690,8 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `weights_dir_of(model, index: dict | None=None) -> Path | None` — Dossier des POIDS d'une ligne de catalogue installée, ou None s'il ne se désigne pas.
   - `rows_depending_on(model, target: Path, index: dict | None=None) -> tuple[list, list]` — Les AUTRES lignes installées que retirer `target` toucherait — `(sharing, dependents)`.
   - `withdraw_from_choices(rows, stamp: str, *, by: str='', superseded_by: str='') -> list` — Retire ces lignes des CHOIX des applications : `is_available=False` + `exclusion` datée,
-  - `restore_withdrawn(keys) -> list` — Rend aux choix des applications les lignes qu'une DÉSINSTALLATION en avait retirées — appelé
+  - `keep_out_of_choices(keys) -> list` — Les lignes RETIRÉES DES CHOIX que la route réinstalle comme DORSALE d'un autre modèle le
+  - `restore_withdrawn(keys, *, explicit: bool=False) -> list` — Rend aux choix des applications les lignes qu'une DÉSINSTALLATION en avait retirées — appelé
   - `uninstall_model(model_key: str, include_shared: bool=False, via: str='', withdraw: bool=True) -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
   - `forget_in_corpus(model_keys) -> None` — Le corpus de manifestes SUIT la désinstallation, comme il suit l'installation
   - `spec_for_catalog_row(model) -> dict | None` — Spec d'installation DÉRIVÉ d'une ligne de catalogue non téléchargée — le geste « Installer »
@@ -772,11 +774,11 @@ Le fond Markdown découpé en sections (règle de la brique `text_sections`, ten
 
 ### Prospection de modèles
 
-Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; versions GitHub lues sur `github_api` (fichiers, licence et facteur DÉCLARÉS, empreinte lue ou MESURÉE) pour le scout (`--github owner/repo:tag`, 2026-10-07) ; les CLASSEMENTS des bancs (tâche et rang, `seed_benchmark_candidates`) et les SUCCESSEURS déclarés par l'auteur (`new_version`, `seed_hf_successors`) sont des sources de candidats (2026-10-10)
+Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; versions GitHub lues sur `github_api` (fichiers, licence et facteur DÉCLARÉS, empreinte lue ou MESURÉE) pour le scout (`--github owner/repo:tag`, 2026-10-07) ; les CLASSEMENTS des bancs (tâche et rang, `seed_benchmark_candidates`) et les SUCCESSEURS déclarés par l'auteur (`new_version`, `seed_hf_successors`) sont des sources de candidats (2026-10-10) ; la FAMILLE que l'auteur relie (`family_members` : liens de sa fiche et ses collections) en est une aussi (`seed_hf_family_upgrades`), et des options d'installation jamais recommandées par le poids ; un reconditionnement remonte à son original (`repack_original`, 2026-11-10)
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (38) :
+- **API publique** (41) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
@@ -789,8 +791,9 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
   - `remote_precision(repo_id: str, files_by_role) -> dict` — JUMEAU DISTANT de `precision_of_files`, même forme `{rôle: {params, dtypes,
   - `names_the_same_model(base_repo: str, variant_repo: str) -> bool` — Le dépôt `variant_repo` porte-t-il le NOM COMPLET du modèle `base_repo` (alphanumérique, sans
   - `quantized_variants(repo_id: str, limit: int=5) -> list[dict]` — Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
+  - `family_members(repo_id: str, api=None, memo: dict | None=None)` — Les membres de la FAMILLE OFFICIELLE d'un modèle — les autres modèles que son AUTEUR relie à
   - `analyze_license(repo_id: str, license_id: str='', base_model=None, _profondeur: int=0)` — Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
-  - `install_options(cand) -> dict` — Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
+  - `install_options(cand, with_family: bool=True) -> dict` — Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
   - `hub_raw_file(repo_id: str, filename: str, timeout=(5, 20))` — La réponse HTTP d'UN fichier d'un dépôt du Hub, lu par son adresse `raw` (`hf_hub_url`) —
   - `recommended_option(options) -> int | None` — L'option que WAMA RECOMMANDE, par son indice : parmi celles qui tournent ici et dont le
   - `needs_variant_choice(cand) -> bool` — Le candidat n'a-t-il AUCUN choix par défaut ? — vrai quand ses options ne portent pas de
@@ -801,6 +804,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
   - `seed_benchmark_candidates(per_category: int=BENCH_CANDIDATES_PER_CATEGORY, tasks=None, cache: str='read') -> dict` — Candidats `is_proposed` tirés des CLASSEMENTS (2026-10-10, demande de Fabien) : pour chaque
   - `hf_successor(repo: str, max_depth: int=5, api=None)` — `(chaîne, info du dernier)` des NOUVELLES VERSIONS qu'un auteur déclare sur la carte de son
   - `seed_hf_successors(workers: int=8) -> dict` — Candidats de MISE À JOUR des modèles Hugging Face installés, désignés par leur auteur
+  - `seed_hf_family_upgrades(workers: int=4) -> dict` — Candidats de REMPLACEMENT des modèles Hugging Face installés, pris dans la FAMILLE de leur
   - `enqueue_after_prospection() -> dict` — La suite de « Prospecter » : bancs tiers PUIS jury LLM, dans cet ordre (ex-
   - `run_prospection() -> dict` — Le verbe « Prospecter » — corps UNIQUE du bouton du model manager et de l'outil
   - `seed_candidate_from_manifest(manifest: dict) -> dict` — Écrit/rafraîchit un CANDIDAT de prospection depuis un manifeste `model` — le chemin du
@@ -813,7 +817,8 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
   - `pinned_github_asset(ref: str, asset: str, release: dict=None) -> dict` — {'asset', 'size', 'sha256', 'measured'} de l'asset d'une version, ou {'error'}.
   - `github_spec_from_manifest(manifest: dict) -> dict` — Descripteur `github` d'un manifeste `model` de source `github`, empreinte ÉPINGLÉE —
   - `named_repo(query: str)` — Le dépôt HF qu'une requête DÉSIGNE — URL de page (`https://huggingface.co/org/nom`, avec ou
-  - `seed_hf_search(query: str, limit: int=10, max_retenus: int=5) -> dict` — Prospection CIBLÉE : cherche `query` dans les noms de dépôts HF (toutes tâches de
+  - `repack_original(repo_id: str, card: dict)` — L'ORIGINAL d'un reconditionnement, d'après la carte du reconditionnement — ou None.
+  - `seed_hf_search(query: str, limit: int=20, max_retenus: int=5) -> dict` — Prospection CIBLÉE : cherche `query` dans les noms de dépôts HF (toutes tâches de
   - `apply_recommendations(candidates, source: str, task: str)` — Crée/maj des entrées `recommended` dans le catalogue pour les candidats NOUVEAUX (pas déjà
 
 ### Provenance de modèle
@@ -2012,13 +2017,15 @@ Le rôle `backend` (wama-dev-ai/run_backend.py) écrit le backend d'un modèle i
 
 - **Domicile** : `wama/common/services/backend_proposals.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : BACKENDS PROPOSÉS par le rôle `backend` (marche B2) — contrôles, résolution simulée, smoke, puis le geste « Valider » qui ÉCRIT le module dans `wama/common/backends/`.
-- **API publique** (18) :
+- **API publique** (20) :
   - `backends_dir() -> Path`
   - `outputs_dir() -> Path`
   - `contract_for_task(task: str) -> tuple` — (module, classe) du contrat qu'un backend écrit pour `task` doit implémenter.
   - `required_methods(contract: tuple) -> set` — Méthodes abstraites que le contrat laisse à implémenter — lues par AST, jamais importées
+  - `contract_must_read(contract: tuple) -> dict` — `{méthode: (paramètres…)}` que le CONTRAT déclare impossibles à ignorer (`MUST_READ`, lu par
   - `model_id_of(model_key: str) -> str` — Identifiant que `SUPPORTED_MODELS` doit déclarer — la règle de `backend_for_model`,
   - `supported_entry_errors(model_id: str, entry, code: str=None) -> list` — Erreurs de l'entrée `SUPPORTED_MODELS[model_id]` d'un modèle installé : `model_key` (s'il
+  - `replacing_loaders(engine: str, entry: str) -> str` — Ce qu'un backend appelle À LA PLACE de `entry`, une fonction du moteur vendorisé qui
   - `check_source(code: str, *, engine: str, model_id: str, contract: tuple) -> dict` — Contrôles de FORME d'un module de backend proposé. `ok` = aucune erreur.
   - `simulate_resolution(code: str, *, module: str, engine: str, model_id: str, task: str='') -> dict` — La résolution que l'inventaire fera APRÈS écriture : le vivier réel + cette entrée.
   - `smoke(code: str, *, module: str, model_key: str, contract: tuple, out_dir: Path) -> dict` — Exécute le backend proposé SUR CPU, sans l'écrire dans le paquet — un essai par CONTRAT
@@ -2086,7 +2093,7 @@ Une CLÉ de catalogue → `{rôle: Path}` des composants de `composition.compone
   - `snapshot_dir(model) -> Path | None` — Dossier du snapshot d'une ligne de catalogue installée (révision de `refs/main`, sinon la
   - `installed_snapshot(model_key: str) -> Path` — Snapshot sur disque d'un modèle du CATALOGUE, désigné par sa clé — pour un backend qui
   - `component_repos(model_key: str) -> dict` — `{rôle: (dépôt HF, cache_dir)}` des composants DÉPÔTS FRÈRES du modèle (`repo` déclaré).
-  - `component_paths(model_key: str) -> dict` — `{rôle: Path}` pour chaque composant DÉCLARÉ du modèle `model_key`.
+  - `component_paths(model_key: str, *, with_backbone: bool=False) -> dict` — `{rôle: Path}` pour chaque composant DÉCLARÉ du modèle `model_key`.
 
 ### Fournisseurs d'exécution ONNX
 
@@ -2125,7 +2132,7 @@ Mesure les 8 facettes F1–F8 des apps par analyse du code réel
 
 ### Les pages d'un PDF en images
 
-Une image par page, rendue à la résolution demandée dans un dossier FOURNI par l'appelant (son `work_dir`, qui le supprime quoi qu'il advienne) ; PyMuPDF, `pdf2image` en repli, la rotation de la page appliquée. Née le 2026-11-06 de deux copies privées, dans les moteurs d'OCR GLM-OCR et olmOCR (portés), quand la lecture de partition (copisteria, qui appelait poppler, absent de l'hôte) en demandait une troisième. Le 2026-11-10 (décision de Fabien), l'INVERSE : `pages_to_pdf`, des pages (images, PDF) en UN PDF — une image à 150 ppp (la règle du converter pour une image → PDF), un JPEG posé tel quel, l'EXIF appliqué — lue par le fichier « Fusionné » d'un lot de pages (`export_formats.combine_lot`), le dépôt « un seul document » du Reader, et `ocr_base.upright_document` (les pages d'un PDF redressées et mises d'aplomb comme une photo, avant tout moteur — le contrat OCR l'applique à chaque `run`, jumelles générées comprises)
+Une image par page, rendue à la résolution demandée dans un dossier FOURNI par l'appelant (son `work_dir`, qui le supprime quoi qu'il advienne) ; PyMuPDF, `pdf2image` en repli, la rotation de la page appliquée. Née le 2026-11-06 de deux copies privées, dans les moteurs d'OCR GLM-OCR et olmOCR (portés), quand la lecture de partition (copisteria, qui appelait poppler, absent de l'hôte) en demandait une troisième. Le 2026-11-10 (décision de Fabien), l'INVERSE : `pages_to_pdf`, des pages (images, PDF) en UN PDF — une image à 150 ppp (la règle du converter pour une image → PDF), un JPEG posé tel quel, l'EXIF appliqué — lue par le fichier fichier unique d'un lot de pages (`export_formats.combine_lot`), le dépôt « un seul document » du Reader, et `ocr_base.upright_document` (les pages d'un PDF redressées et mises d'aplomb comme une photo, avant tout moteur — le contrat OCR l'applique à chaque `run`, jumelles générées comprises)
 
 - **Domicile** : `wama/common/utils/pdf_pages.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Les PAGES d'un PDF en images — une par page, écrites dans un dossier FOURNI par l'appelant ; et l'inverse, des pages (images, PDF) en UN PDF (`pages_to_pdf`, 2026-11-10).
@@ -4081,7 +4088,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `list_ai_models(user, app: str=None, task: str=None, modality: str=None, downloaded_only: bool=False, include_proposed: bool=False, limit: int=50, query: str=No…` — List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
   - `get_ai_model(user, model_key: str) -> dict` — Full catalogue record of ONE model (read-only). `model_key` = '<app>:<id>'
   - `list_installations(user, kind: str='model', limit: int=20, install_id: int=None) -> dict` — The DATED history of model (or library) installations and uninstallations, most recent first:
-  - `search_models(user, query: str, limit: int=10, max_results: int=5) -> dict` — SEARCH HuggingFace for models matching `query` and record them as prospection
+  - `search_models(user, query: str, limit: int=20, max_results: int=5) -> dict` — SEARCH HuggingFace for models matching `query` and record them as prospection
   - `prospect_models(user) -> dict` — PROSPECT for new models and record them as PROPOSALS — same verb as the page's
   - `get_install_options(user, model_key: str) -> dict` — INSTALL CHOICES of a proposal — same verb as the options the page shows before « Installer »
   - `install_model(user, model_key: str, force: bool=False, variant_ref: str='', variant_file: str='') -> dict` — INSTALL a model that is already PROPOSED (prospection candidate) or already in the
