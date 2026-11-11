@@ -91,11 +91,6 @@ def added(item) -> dict | None:
     return cached
 
 
-def source_of(item) -> dict:
-    """La provenance de l'ajout (`{type, ref}`), `{}` sans ajout ou ajout fait sur la card."""
-    return dict((_rows([item]).get(str(getattr(item, 'pk', ''))) or (None, None))[1] or {})
-
-
 def composed(declared, body) -> dict:
     """Le graphe CANVAS du pipeline de la card : celui du pipeline déclaré, plus l'ajout."""
     from wama.common.manifests.builtin.pipeline import body_to_graph

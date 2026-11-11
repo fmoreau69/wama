@@ -2174,11 +2174,10 @@ Ce qu'une card AJOUTE au pipeline déclaré de son app — nœuds, réglages, li
 
 - **Domicile** : `wama/common/services/card_pipelines.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Le pipeline que la CARD porte — ce qu'elle AJOUTE au pipeline déclaré de son app. `WAMA_APP_GENERATION_ROUTE §10.6` 3.2bis, marche 2 (forme validée par Fabien le 2026-11-10).
-- **API publique** (13) :
+- **API publique** (12) :
   - `preload(items) -> None` — Lit en UNE requête l'ajout de chaque card de `items` et le retient sur l'instance — la page
   - `release(item) -> None` — Oublie ce qui a été lu sur l'instance (`process_pipeline.release`).
   - `added(item) -> dict | None` — L'ajout de la card (`{nodes, links}` au format du body du kind `pipeline`), ou None. Lu une
-  - `source_of(item) -> dict` — La provenance de l'ajout (`{type, ref}`), `{}` sans ajout ou ajout fait sur la card.
   - `composed(declared, body) -> dict` — Le graphe CANVAS du pipeline de la card : celui du pipeline déclaré, plus l'ajout.
   - `resolver_for(item)` — Ce que la card peut RÉFÉRENCER comme nœud `pipeline` : la règle du Studio pour le compte qui
   - `card_pipeline(item, declared, *, strict: bool=False)` — Le pipeline de la card : `declared` étendu de ce qu'elle ajoute, ou `declared` lui-même.

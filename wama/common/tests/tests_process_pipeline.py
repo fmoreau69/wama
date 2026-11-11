@@ -2279,6 +2279,19 @@ class AnAddedProcessRunsByTheCommonGlueTest(TestCase):
         self.assertEqual('FAILURE', item.status)
         self.assertIn('aucun monde ne range', process_runs.line(item, 'scaled').error_message)
 
+    def test_retiring_the_card_releases_its_work_file_and_never_deletes_it(self):
+        """The work file is the card's : retiring the card ANNOUNCES it (`released_files`), it
+        then lives under the rule of the temporary folder — never a silent deletion."""
+        from django.conf import settings
+        from wama.common.models import ReleasedFile
+        from wama.common.utils.queue_duplication import release_card_files
+        item = self._run(self._card(('scaled', 'function:demo_card_glue.scaled', {}, 'load')))
+        rel = process_runs.line(item, 'scaled').output_ref
+        release_card_files(item)
+        self.assertTrue(Path(settings.MEDIA_ROOT, rel).is_file(), 'the file stays')
+        (row,) = ReleasedFile.objects.filter(path=rel)
+        self.assertIn('fichier de travail', row.origin)
+
     def test_a_module_plays_its_members_in_order_on_ONE_line(self):
         """A META-PROCESS (one `pipeline` node per module) : its members run in the order of its
         deployed graph, data in memory from one to the next, ONE line of kind `pipeline` whose
