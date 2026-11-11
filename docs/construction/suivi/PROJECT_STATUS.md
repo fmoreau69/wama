@@ -30955,3 +30955,17 @@ pgvector non vérifiée (sudo indisponible) » (le `sudo -n` sans terminal, base
 ⏳ **Décision de Fabien** : la relance de WAMA ENTIER doit-elle redemander le mot de passe à CHAQUE fois,
 fenêtre de 5 min ou non ? Aujourd'hui la fenêtre vaut pour tous les gestes qui coupent
 (`service_supervision.REAUTH_WINDOW_S`, `model_manager.views._reconfirmed`).
+
+## §PALIER — 2026-11-11 (soir, suite), « SESSIONS EXPIRÉES JAMAIS PURGÉES » — constat mesuré — 🔚 décision de Fabien : purge `clearsessions` + sa planification
+
+Relevé en vérifiant la sonde des relances (question de Fabien : « que faire des sessions ? les utilisateurs
+de test se conservent ») : **30 599 sessions en base, dont 27 639 EXPIRÉES** (90 %) — `wama_nightly_test`
+18 830, `wama_nightly_dev` 6 277, anonymes 1 331, `fabien.moreau` 905, `wama_ui_smoke_v3` 99,
+`wama_pw_smoke` 74 (toutes expirées, la plus récente du 10/10). Durée d'une session : 7 jours
+(`SESSION_COOKIE_AGE`), moteur base de données. **Aucune purge n'existe** : ni `clearsessions` ni
+`clear_expired` dans le code ou la planification. Une session expirée ne donne plus aucun accès (pas de
+risque), elle encombre la table. Cause : chaque scénario nocturne ouvre une session, et le nettoyage des
+sondes (`ui_smoke._drop_new_sessions`) ne retire volontairement que les ANONYMES.
+Recommandation : garder les comptes de test ; purger les seules sessions EXPIRÉES par la commande de Django
+(`manage.py clearsessions`, une fois), puis la planifier (Celery beat, en INTERVALLE quotidien hors de la
+plage réservée aux tests nocturnes — `tests_calendar`). Aucune session valide n'est touchée.
