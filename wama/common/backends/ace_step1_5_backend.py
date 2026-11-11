@@ -29,6 +29,7 @@ import wave
 from pathlib import Path
 from typing import Callable, Optional
 
+from wama.common.backends.base import LoadPrecision
 from wama.common.backends.music_generation_base import (
     MusicGenerationBackend, split_caption_lyrics)
 from wama.common.utils.model_components import component_paths
@@ -129,6 +130,16 @@ class AceStepBackend(MusicGenerationBackend):
     reads_seed = True
     #: top_p transmis au LM (défaut 0.9).
     default_top_p = 0.9
+
+    @classmethod
+    def load_precisions(cls, model_id: str) -> tuple:
+        # Le moteur charge le DiT en BF16 sur CUDA (init_service_loader.py:179,
+        # `dtype=self.dtype`), alors que la XL-SFT publie ses poids en F32.
+        # On déclare cette précision pour que le gouverneur calcule la VRAM
+        # réelle (~14 Go) au lieu de la taille des fichiers (~18,6 Go).
+        if model_id not in SUPPORTED_MODELS:
+            return ()
+        return (LoadPrecision('BF16', quantized=('diffusion_transformer',)),)
 
     def __init__(self):
         self._dit_handler = None

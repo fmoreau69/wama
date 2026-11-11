@@ -319,6 +319,26 @@ class PrecisionChosenByTheGovernorTest(_Card):
             choice = gov.chosen_precision('imager:flux-finetune', DiffusersBackend)
         self.assertEqual((choice.precision.label, choice.peak_gb), ('NF4', 8.87))
 
+    def test_ace_step_xl_is_weighed_in_the_precision_it_loads_not_its_f32_files(self):
+        """2026-11-11 : la XL-SFT publie son DiT en F32 (18,6 Go de fichier), le moteur le charge
+        en BF16 (`dtype=self.dtype`) — la garde du Composer refusait (« 27.9 Go ») ce qui tient en
+        ~14. Le backend DÉCLARE la précision qu'il applique ; un modèle qu'il ne sert pas, aucune."""
+        from wama.common.backends.ace_step1_5_backend import AceStepBackend
+        from wama.model_manager.models import AIModel
+        key = 'huggingface:ACE-Step/acestep-v15-xl-sft'
+        AIModel.objects.create(
+            model_key=key, name='xl-sft', model_type='music', source='huggingface',
+            is_downloaded=True, platform_ref='huggingface:' + key.split(':', 1)[1],
+            composition={'runtime': {'engine': 'ace_step_1_5'}},
+            extra_info={'weights': {'total_gb': 18.89, 'largest_gb': 18.58,
+                                    'components': {'diffusion_transformer': 18.58, 'vae': 0.31},
+                                    'precision': {'diffusion_transformer': {
+                                        'params': 4987310726, 'params_by_dtype': {'F32': 4987310726}}}}})
+        with self.card(20.3, 3.7):
+            choice = gov.chosen_precision(key, AceStepBackend)
+        self.assertEqual(('BF16', 9.6), (choice.precision.label, choice.peak_gb))
+        self.assertEqual((), AceStepBackend.load_precisions('ACE-Step/not-a-variant'))
+
     def test_an_engine_without_precisions_keeps_the_catalogue_cascade(self):
         class _Plain:
             OFFLOADS = False
