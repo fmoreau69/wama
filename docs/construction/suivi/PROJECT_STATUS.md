@@ -30803,3 +30803,22 @@ reprise à la demande de Fabien après la relance de WAMA — vérifiée : gunic
   suivie) retiré avec sa branche, à la demande de Fabien.
 - Docs générées : `doc_facts` ne porte rien de ce palier ; ce qu'il régénère (API de
   `service_supervision`, comptes de consommateurs) est le WIP d'autres sessions, laissé.
+
+## §CLÔTURE 2026-11-11 (fin d'après-midi), « MARCHE 4 REVÉRIFIÉE » — `7a087d4f6`, `2a6770d18`, `e59b0f5a9` + ce bloc (LOCAUX, non poussés) — 🔚 marche 5 (geste ✎ : ouvrir le pipeline d'une card au Studio et l'enregistrer pour elle ; onglets ; ⚙ d'un process ajouté sur la bande ; outil d'assistant — `/api-outils`)
+
+Fin de la session des `§CLÔTURE 2026-11-11, « PIPELINE PORTÉ PAR LA CARD, GLU COMMUNE … »` et
+`§PALIER … « MARCHE 4 … »`.
+- `/reverif` de la marche 4 : aucun défaut de code ; deux constats de docstring corrigés
+  (`_watched_changed` nomme aussi `@node` ; largeur de `node_settings`). Lecteurs de la photo
+  relus : `document_sections`, `model_quality` — aucun faussé par `@node`.
+- Contrôles mesurés après le dernier code : périmètre + gardes 589 OK, puis 215 OK
+  (pipeline, lignes, sections), gardes transverses 139 OK ; `check_redundancy` 97, aucune
+  trouvaille dont la recopie soit dans un fichier de la session ; `check_docs` 0 cassée / 4083.
+- ⚠ Non vérifié sur la PAGE servie : aucun écran ne pose encore d'ajout (marche 5), la base réelle
+  n'en a aucun, et gunicorn sert le code d'avant la marche 4. Le test passe par `refresh`, celui
+  que joue le rendu d'une card.
+- **Pendings système** : RELANCER gunicorn + workers (la relance de 15:05 précède la marche 4) ;
+  POUSSER les 7 commits de la session + ce bloc (décision de Fabien).
+- Restes inchangés (voir la §CLÔTURE du jour) : recopie de source + report par comparaison (card
+  du Data Analyzer), facette estimateur à travers le `.wdat`, G2, format LimeSurvey ; décisions :
+  Likert `attribute`/`factor`, moment du chantier questionnaires, ⑩.3 et D19.
