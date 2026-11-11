@@ -5277,7 +5277,15 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
      FORMAT est celui du monde inscrit (`register_work_store` — le monde Data y inscrit
      `wama_data/work_file.py`), le substrat ne cite aucun monde. Entrées : ce que les amonts LUS
      ont rangé, attribué aux ports par leur type ; un port requis non alimenté est un refus nommé.
-     Méta-process : ses membres dans l'ordre de son sous-graphe, une ligne de nature `pipeline`.
+     Méta-process : ses membres dans l'ordre de son sous-graphe, une ligne de nature `pipeline` ;
+     un lien interne qui NOMME son port y entre, comme à l'exécuteur du Studio pour le même
+     sous-graphe. *Revérifié le même jour : la glu ignorait ce `to_port` et la facette estimateur
+     n'était posée que par l'exécuteur du Studio — elle l'est désormais par `run_pure_function`
+     (`ThePureFunctionDoorTest`) ; l'adresse de la card est celle de `process_runs`, plus une copie.*
+     ⏳ Entre deux process AJOUTÉS, la donnée passe par le `.wdat`, qui ne garde que les unités
+     des colonnes : la facette estimateur n'y survit pas (elle voyage entre les membres d'un
+     méta-process, en mémoire) — à porter au format quand une fusion d'estimateurs sera ajoutée à
+     une card.
      Gardes : `AnAddedProcessRunsByTheCommonGlueTest`, `wama_data.containers.tests_containers`
      (`WorkFileTest`, tables non temporelles). ⏳ La recopie d'une table de la SOURCE connectée et
      le geste de REPORT par comparaison viennent avec la card du Data Analyzer ;

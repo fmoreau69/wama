@@ -2299,3 +2299,54 @@ class AnAddedProcessRunsByTheCommonGlueTest(TestCase):
                          (line.process_kind, line.process_key, line.output_summary.get('table')))
         self.assertEqual([30.0], self._stored(line, 'module/sum').df['total'].tolist(),
                          'the override reached its member : (1 + 2 + 3) × 5')
+
+    def test_a_member_link_that_names_its_port_lands_on_it_as_in_the_studio(self):
+        """Inside a module, a link that NAMES its port enters that port — the rule of the Studio's
+        executor for the same graph ; two ports of one type would otherwise take the links in
+        their order."""
+        import pandas as pd
+        from wama.common.catalog.data_types import TypedFrame
+        from wama.common.catalog.function_catalog import FUNCTION_CATALOG, FunctionSpec, PortSpec
+        from wama.common.services import card_pipelines
+
+        def minus(left, right):
+            return TypedFrame(pd.DataFrame({'total': [float(left.df['value'].sum()
+                                                            - right.df['value'].sum())]}), 'table')
+        FUNCTION_CATALOG['demo_card_glue.minus'] = FunctionSpec(
+            key='demo_card_glue.minus', name='minus', description='', category='aggregate',
+            fn=minus, inputs=[PortSpec('left', 'table'), PortSpec('right', 'table')],
+            outputs=[PortSpec('total', 'table')])
+        self.addCleanup(FUNCTION_CATALOG.pop, 'demo_card_glue.minus', None)
+        sub = {'nodes': [{'id': 'big', 'app': 'function:demo_card_glue.scaled',
+                          'params': {'factor': 10}},
+                         {'id': 'same', 'app': 'function:demo_card_glue.scaled',
+                          'params': {'factor': 1}},
+                         {'id': 'diff', 'app': 'function:demo_card_glue.minus', 'params': {}}],
+               'links': [{'from': 'big', 'to': 'diff', 'to_port': 'right'},
+                         {'from': 'same', 'to': 'diff', 'to_port': 'left'}]}
+        with mock.patch.object(card_pipelines, 'resolver_for',
+                               lambda item: (lambda key: ('Module', sub))):
+            item = self._run(self._card(('module', 'pipeline:8', {}, 'load')))
+        self.assertEqual('SUCCESS', item.status,
+                         {r.node_id: r.error_message for r in process_runs.lines(item)})
+        line = process_runs.line(item, 'module')
+        self.assertEqual([6.0 - 60.0], self._stored(line, 'module/diff').df['total'].tolist())
+
+
+class ThePureFunctionDoorTest(SimpleTestCase):
+    """`run_pure_function` is THE door of a pure function — the Studio's executor and the glue of
+    a card both go through it : what it decides holds for both."""
+
+    def test_the_estimate_facet_of_the_output_port_travels_with_the_data(self):
+        import pandas as pd
+        from wama.common.catalog.data_types import TypedFrame
+        from wama.common.catalog.function_catalog import FunctionSpec, PortSpec
+        from wama.common.services.function_process import run_pure_function
+        spec = FunctionSpec(
+            key='demo_door.speed', name='speed', description='', category='transform',
+            fn=lambda frame: TypedFrame(frame.df, 'table'), inputs=[PortSpec('rows', 'table')],
+            outputs=[PortSpec('speed', 'table', estimates='distance', derived_from=['gps'],
+                              uncertainty=1.0)])
+        frame = TypedFrame(pd.DataFrame({'value': [1.0]}), 'table')
+        facet = run_pure_function(spec, {'rows': frame}, {}).meta.get('estimate') or {}
+        self.assertEqual(('distance', 'demo_door.speed'), (facet.get('quantity'), facet.get('name')))

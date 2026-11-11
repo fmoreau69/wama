@@ -452,7 +452,6 @@ def _execute_run(run, task_id, notify=True):
             # Nœud FONCTION (D13) : dispatch sur le kind, ICI et nulle part ailleurs.
             if node_kind(node) == 'function':
                 from wama.common.catalog import function_catalog as fc
-                from wama.common.catalog.function_catalog import port_estimate_meta
                 fc.load_all()
                 key = function_key(node)
                 spec = fc.get(key)
@@ -507,12 +506,8 @@ def _execute_run(run, task_id, notify=True):
                         result = run_pure_function(spec, frames, node.get('params') or {})
                     except ValueError as exc:
                         raise ValueError(f"Nœud fonction « {key} » : {exc}")
-                    # La facette estimateur du port VOYAGE avec la donnée : c'est ce que
-                    # `fuse_estimates` lit en aval (et rien d'autre).
-                    if spec.outputs:
-                        facet = port_estimate_meta(spec.outputs[0])
-                        if facet and 'estimate' not in result.meta:
-                            result.meta['estimate'] = {**facet, 'name': key}
+                    # La facette estimateur du port est posée par la porte commune
+                    # (`run_pure_function`, 2026-11-11).
                     outputs[nid] = {'type': result.data_type, 'value': result, 'is_frame': True}
                     _save_state(nid, status=JOB_SUCCESS, progress=100, output=_frame_summary(result))
                     _console(user.id, f"Studio run #{run.pk} : fonction {key} ✔ → {_frame_summary(result)}")

@@ -193,8 +193,9 @@ def validate_port_facet(port: dict, side: str) -> list:
 
 def port_estimate_meta(port: PortSpec) -> Optional[dict]:
     """La facette d'un port de sortie sous la forme que porte un `TypedFrame.meta['estimate']`
-    à l'exécution — c'est ce que `fusion.fuse_estimates` lit, et ce que l'exécuteur du Studio
-    pose sur chaque sortie de nœud `function`. `None` si le port n'estime rien."""
+    à l'exécution — c'est ce que `fusion.fuse_estimates` lit, et ce que la porte commune d'une
+    fonction pure (`function_process.run_pure_function`, Studio et glu d'une card) pose sur sa
+    sortie. `None` si le port n'estime rien."""
     if not port.estimates:
         return None
     return {'quantity': port.estimates,

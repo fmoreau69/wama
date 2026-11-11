@@ -88,6 +88,14 @@ def run_pure_function(spec, frames_by_port: dict, params: dict):
     if not isinstance(result, TypedFrame):
         raise ValueError(f"la fonction n'a pas rendu un TypedFrame ({type(result).__name__}) — "
                          f"contrat `pure` non honoré (noyau branché à la place du wrapper ?)")
+    # La facette estimateur du port VOYAGE avec la donnée : c'est ce que `fuse_estimates` lit en
+    # aval (et rien d'autre). Posée par l'exécuteur du Studio jusqu'au 2026-11-11, ICI depuis : la
+    # porte commune la pose pour tout appelant, membre d'un méta-process compris.
+    if spec.outputs:
+        from wama.common.catalog.function_catalog import port_estimate_meta
+        facet = port_estimate_meta(spec.outputs[0])
+        if facet and 'estimate' not in result.meta:
+            result.meta['estimate'] = {**facet, 'name': spec.key}
     return result
 
 
@@ -156,14 +164,17 @@ def upstream_frames(pipeline, spec, item, store) -> list:
     return frames
 
 
-def frames_by_port(function, frames) -> dict:
+def frames_by_port(function, frames, taken=()) -> dict:
     """`{port: cadre(s)}` — chaque cadre va au premier port d'entrée dont le type l'ACCEPTE
-    (`data_types.is_compatible`), un port `many` les recevant tous. Le lien d'une card ne nomme pas
-    son port (ses amonts sont des process) : c'est le type qui décide, comme `_resolve_to_port` au
-    Studio pour un lien qui n'en précise pas."""
+    (`data_types.is_compatible`), un port `many` les recevant tous ; les ports de `taken` (déjà
+    alimentés par un lien qui les nomme) sont passés. Le lien d'une card ne nomme pas son port
+    (ses amonts sont des process) : c'est le type qui décide, comme `_resolve_to_port` au Studio
+    pour un lien qui n'en précise pas."""
     from wama.common.catalog.data_types import is_compatible
     out, used = {}, set()
     for port in function.inputs:
+        if port.key in taken:
+            continue
         fitting = [i for i, frame in enumerate(frames)
                    if i not in used and is_compatible(frame.data_type, port.data_type)]
         if not fitting:
@@ -184,6 +195,22 @@ def _summary(frame) -> str:
         return str(getattr(frame, 'data_type', ''))
 
 
+def _member_inputs(function, incoming, produced) -> dict:
+    """Les entrées d'un membre de méta-process depuis ses liens internes : un lien qui NOMME un port
+    de la fonction y entre — la règle de l'exécuteur du Studio pour le même sous-graphe —, les
+    autres vont au port que leur type accepte (`frames_by_port`)."""
+    known = {p.key for p in function.inputs}
+    named, loose = {}, []
+    for link in incoming:
+        port = link.get('to_port')
+        if port in known:
+            named.setdefault(port, []).append(produced[link['from']])
+        else:
+            loose.append(produced[link['from']])
+    named = {p: (v if len(v) > 1 else v[0]) for p, v in named.items()}
+    return {**frames_by_port(function, loose, taken=named), **named}
+
+
 def _run_meta(pipeline, spec, frames, write) -> tuple:
     """Les membres d'un méta-process, dans l'ordre de son sous-graphe : un membre sans amont
     interne reçoit les données de la card, les autres celles de leurs amonts internes. Chaque
@@ -197,11 +224,11 @@ def _run_meta(pipeline, spec, frames, write) -> tuple:
     produced, written, outs = {}, {}, []
     for member in topo_order(deployed):
         mid = member['id']
-        ups = [l['from'] for l in links if l.get('to') == mid and l['from'] in produced]
-        inputs = [produced[u] for u in ups] if ups else frames
+        incoming = [l for l in links if l.get('to') == mid and l['from'] in produced]
         function = fc.get(function_key(member))
-        produced[mid] = run_pure_function(function, frames_by_port(function, inputs),
-                                          member.get('params') or {})
+        inputs = (_member_inputs(function, incoming, produced) if incoming
+                  else frames_by_port(function, frames))
+        produced[mid] = run_pure_function(function, inputs, member.get('params') or {})
         written[mid] = write(mid, produced[mid])
     terminals = [m for m in produced if not any(l.get('from') == m for l in links)]
     outs = [f"{t} : {_summary(produced[t])}" for t in terminals]

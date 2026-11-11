@@ -27,6 +27,9 @@ from __future__ import annotations
 
 import logging
 
+# L'adresse de la card est celle de ses lignes d'exécution : la MÊME fonction, pas une copie.
+from wama.common.services.process_runs import address  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 #: Attribut posé sur un élément : l'ajout de sa card (dict body) ou None — lu une fois.
@@ -37,12 +40,6 @@ BUILT_ATTR = '_card_pipeline'
 #: (la convention de `process_pipeline.UPSTREAM_KEY`).
 PIPELINE_KEY = '@pipeline'
 _MISSING = object()
-
-
-def address(item) -> dict:
-    """Adresse de la card : celle de ses lignes d'exécution (`process_runs`)."""
-    meta = item._meta
-    return {'app': meta.app_label, 'object_type': meta.object_name, 'object_id': str(item.pk)}
 
 
 def _rows(items):

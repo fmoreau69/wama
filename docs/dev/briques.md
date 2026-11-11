@@ -2174,8 +2174,7 @@ Ce qu'une card AJOUTE au pipeline déclaré de son app — nœuds, réglages, li
 
 - **Domicile** : `wama/common/services/card_pipelines.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Le pipeline que la CARD porte — ce qu'elle AJOUTE au pipeline déclaré de son app. `WAMA_APP_GENERATION_ROUTE §10.6` 3.2bis, marche 2 (forme validée par Fabien le 2026-11-10).
-- **API publique** (14) :
-  - `address(item) -> dict` — Adresse de la card : celle de ses lignes d'exécution (`process_runs`).
+- **API publique** (13) :
   - `preload(items) -> None` — Lit en UNE requête l'ajout de chaque card de `items` et le retient sur l'instance — la page
   - `release(item) -> None` — Oublie ce qui a été lu sur l'instance (`process_pipeline.release`).
   - `added(item) -> dict | None` — L'ajout de la card (`{nodes, links}` au format du body du kind `pipeline`), ou None. Lu une
@@ -2204,7 +2203,7 @@ La glu commune d'un process que la card ajoute (`with_added_glues`), sur le patr
   - `is_pure(pipeline, spec) -> bool` — Le process ajouté a-t-il une glu ici ? Une fonction PURE du catalogue, ou un méta-process
   - `with_added_glues(pipeline, processes) -> dict` — Les glus de l'app, plus celle de chaque process que la card AJOUTE et qui a une glu ici
   - `upstream_frames(pipeline, spec, item, store) -> list` — Les données TYPÉES que les amonts LUS du process (`read_upstreams`) ont rangées dans le
-  - `frames_by_port(function, frames) -> dict` — `{port: cadre(s)}` — chaque cadre va au premier port d'entrée dont le type l'ACCEPTE
+  - `frames_by_port(function, frames, taken=()) -> dict` — `{port: cadre(s)}` — chaque cadre va au premier port d'entrée dont le type l'ACCEPTE
   - `function_step(pipeline, key: str)` — La GLU commune du process ajouté `key` de `pipeline`, au contrat du squelette.
   - `release_work_file(item) -> bool` — La card est RETIRÉE : son fichier de travail est libéré et annoncé (`released_files`), jamais
 
