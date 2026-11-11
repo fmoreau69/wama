@@ -44,7 +44,11 @@ def apply_patch(path: Path, search: str, replace: str, description: str) -> bool
 
 script_dir = Path(__file__).parent
 project_dir = script_dir.parent
-venv_dir = project_dir / "venv_linux"
+# The venv of the interpreter that RUNS this script (2026-11-11, multi-venv): the install route
+# replays it with the python of the environment it just installed into
+# (`model_installer._replay_patches`), so the patches land in THAT venv. Run by a python outside any
+# venv, the reference venv `venv_linux`, as before. In the single venv both name the same folder.
+venv_dir = Path(sys.prefix) if sys.prefix != sys.base_prefix else project_dir / "venv_linux"
 
 if not venv_dir.exists():
     print(f"ERROR: venv not found at {venv_dir}")

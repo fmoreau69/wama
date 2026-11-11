@@ -7,8 +7,13 @@ effet. Aucun test n'installe quoi que ce soit — le chemin `--apply` réel se v
 main sur une librairie choisie (geste humain par définition).
 """
 import os
+import subprocess
+import sys
+import tempfile
+import venv
+from pathlib import Path
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.models import Library
 from wama.model_manager.services.model_installer import (
@@ -304,3 +309,31 @@ class UninstallLibraryTest(TestCase):
             res = uninstall_library('probe-lib', apply=True)
         self.assertFalse(res['ok'])
         run.assert_not_called()
+
+
+class PatchesLandInTheInterpreterVenvTest(SimpleTestCase):
+    """Multi-venv (2026-11-11): `patches/apply_patches.py` patched `venv_linux` whatever python ran
+    it, so a library installed into another environment would have had its patches replayed into
+    the reference venv. It now patches the venv of the interpreter that runs it — the one
+    `_replay_patches` passes — and in the single venv both are the same folder."""
+
+    SCRIPT = Path(__file__).resolve().parents[3] / 'patches' / 'apply_patches.py'
+
+    def _site_line(self, python):
+        out = subprocess.run([python, str(self.SCRIPT)], capture_output=True, text=True,
+                             timeout=300, cwd=str(self.SCRIPT.parents[1])).stdout
+        return next((line for line in out.splitlines() if line.startswith('site-packages:')), '')
+
+    def test_another_environment_is_patched_in_its_own_venv(self):
+        if not Path('/proc/version').exists():
+            self.skipTest('Linux venv layout (lib/python*/site-packages) required')
+        with tempfile.TemporaryDirectory() as tmp:
+            venv.create(tmp, with_pip=False)
+            line = self._site_line(str(Path(tmp) / 'bin' / 'python'))
+        self.assertIn(str(Path(tmp)), line)
+        self.assertNotIn('venv_linux', line)
+
+    def test_the_reference_venv_still_patches_itself(self):
+        if not Path('/proc/version').exists():
+            self.skipTest('Linux venv layout (lib/python*/site-packages) required')
+        self.assertIn(sys.prefix, self._site_line(sys.executable))
