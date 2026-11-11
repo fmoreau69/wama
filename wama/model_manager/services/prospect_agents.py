@@ -271,7 +271,8 @@ def _attach_weights(cand) -> None:
     """Relève UNE fois le poids par composant d'un candidat HF depuis les fichiers de son dépôt
     (sans rien télécharger) et le persiste dans `extra_info['weights']`, la même clé que les
     installés — donc les mêmes pics (`memory_manager.model_footprint_gb`) pour le juge, le tri et
-    l'inspecteur (demande de Fabien, 2026-09-23). Un seul lecteur des poids, celui de
+    l'inspecteur (demande de Fabien, 2026-09-23), et la VRAM des poids pleins dans les options
+    d'installation (`prospector.install_options`, 2026-11-11). Un seul lecteur des poids, celui de
     l'installation (`components_for_spec`), sur le descripteur que l'installation tirera.
     Dépôt injoignable → rien n'est écrit (repassera) ; rien à peser → `{'empty': True}` (ne se
     re-demande pas). ⚠ Les précisions ne sont pas lues à distance : un composant stocké en F32

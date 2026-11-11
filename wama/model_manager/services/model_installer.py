@@ -468,12 +468,23 @@ def _weight_set_key(filename: str) -> tuple:
     return (base, total, dtype, foreign, quant)
 
 
+#: Les INDEX d'un pipeline `diffusers`, ceux que la librairie publie : `DiffusionPipeline.config_name`
+#: (`pipeline_utils.py:202` en 0.37) et `ModularPipeline.config_name` (`modular_pipeline.py:1586`).
+#: Le second manquait jusqu'au 2026-11-11 : `black-forest-labs/flux-3-image-klein` ne porte que lui,
+#: et sa copie monofichier de tête (`model.safetensors`, 11,1 Go, son transformeur) était pesée en
+#: composant de plus.
+DIFFUSERS_PIPELINE_INDEXES = ('model_index.json', 'modular_model_index.json')
+
+
 def _split_pipeline(names, roles) -> bool:
-    """Un pipeline `diffusers` rangé PAR COMPOSANT — `model_index.json` et au moins deux rôles en
-    sous-dossiers : un poids à sa racine y est la copie MONOFICHIER du tout, pour les chargeurs
-    qui ne lisent pas l'arborescence (`dit.safetensors` de mochi, `flux1-dev.safetensors`).
+    """Un pipeline `diffusers` rangé PAR COMPOSANT — un index de pipeline (`DIFFUSERS_PIPELINE_INDEXES`)
+    et au moins deux rôles en sous-dossiers : un poids à sa racine y est la copie MONOFICHIER du
+    tout, pour les chargeurs qui ne lisent pas l'arborescence (`dit.safetensors` de mochi,
+    `flux1-dev.safetensors`), et un poids plus profond que `<rôle>/<fichier>` n'est chargé par
+    aucun composant (diffusers lit le dossier du composant, un seul niveau).
     Une règle, deux lecteurs : la pesée (`components_of_files`) et l'anatomie (`anatomy_gaps`)."""
-    return 'model_index.json' in names and len(set(roles) - {_SINGLE_ROLE}) >= 2
+    return (any(index in names for index in DIFFUSERS_PIPELINE_INDEXES)
+            and len(set(roles) - {_SINGLE_ROLE}) >= 2)
 
 
 def components_of_files(files, *, composition=None, allow_patterns=None) -> dict:
@@ -487,7 +498,7 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
     chargeur ».* D'où la restriction ci-dessous, qui n'est pas un filtre de confort : sans elle,
     les deux chiffres feraient écarter du tirage la moitié du parc.
 
-    ⚠ Et les quatre causes du gonflement sont NOMMÉES, chacune par un cas mesuré — c'est ce
+    ⚠ Et les cinq causes du gonflement sont NOMMÉES, chacune par un cas mesuré — c'est ce
     que traitent `_WEIGHT_SET_KEY` et les règles plus bas :
     1. **une copie MONOFICHIER du pipeline entier à la racine**, pour les chargeurs qui ne
        lisent pas l'arborescence diffusers — `genmo/mochi-1-preview:dit.safetensors` 37,4 Go
@@ -501,11 +512,12 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
     4. **deux jeux de SHARDS concurrents sous le même nom de base** —
        `text_encoder/model-00001-of-00002` (8,9 Go) ET `…-00001-of-00004` (17,8 Go) dans le
        même mochi : rien dans le NOM ne les distingue, seul leur découpage le fait.
-    ⚠ Reste un cas que cette dérivation ne sait PAS traiter : un dépôt qui IMBRIQUE un
-    pipeline sous un rôle (`Lightricks/…:vae/transformer/…`, `vae/text_encoder/…` — d'où un
-    « vae » de 44 Go). Le premier segment n'est alors pas le composant, et seule la lecture de
-    `model_index.json` le dirait. C'est pour ces dépôts que la composition DÉCLARÉE est la
-    seule réponse juste.
+    5. **des poids PLUS PROFONDS qu'un composant** dans un pipeline — un pipeline imbriqué sous
+       un rôle (`Lightricks/…:vae/transformer/…`, d'où un « vae » de 44 Go) ou des précisions
+       publiées dans un dossier à part (`flux-3-image-klein:variants/fp8r/model.safetensors`,
+       2026-11-11) : diffusers ne lit que `<rôle>/<fichier>`, la règle que l'anatomie appliquait
+       déjà (`_set_aside_reason`). Ce que le dossier IMBRIQUÉ contient d'autre reste un cas que
+       seule la composition DÉCLARÉE tranche.
 
     `composition` : l'anatomie DÉCLARÉE du modèle (`AIModel.composition`, schéma validé par
     `manifests.builtin.model._validate_composition`) — `{'components': [{'role', 'pattern'}]}`.
@@ -543,8 +555,9 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
       LOURD parmi les non marqués** — arbitrage déjà écrit dans `MODEL_SIZE_PRESETS`
       (`memory_manager.py:87-91`) : *sur-estimer coûte de l'offload, sous-estimer fait tenter
       un plein GPU et déborde en RAM hôte*, ce qui a produit les kernel panics du 29/07 ;
-    - la **copie monofichier à la racine** quand le dépôt est un pipeline (`model_index.json`
-      présent ET des rôles en sous-dossiers).
+    - la **copie monofichier à la racine** quand le dépôt est un pipeline (un index de pipeline,
+      `DIFFUSERS_PIPELINE_INDEXES`, ET des rôles en sous-dossiers), et dans ce même pipeline les
+      poids **plus profonds que `<rôle>/<fichier>`** (cause 5).
     Rien n'est jeté : tout ce qui est écarté se retrouve dans `variants`, pour qu'un choix reste
     possible en amont et qu'on voie ce que la règle a fait.
 
@@ -579,13 +592,25 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
         return path.split('/')[0] if '/' in path else _SINGLE_ROLE
 
     # ── 1. Peser chaque JEU de poids, par rôle ───────────────────────────────────────────
+    # Un pipeline diffusers ne charge que `<rôle>/<fichier>` (`_split_pipeline` ; la même règle
+    # écarte de l'anatomie le « pipeline imbriqué sous un composant », `_set_aside_reason`) : un
+    # poids plus profond est une variante, pas un composant. Mesuré le 2026-11-11 :
+    # `flux-3-image-klein` range ses précisions publiées sous `variants/fp8r/` et `variants/nvfp4/`,
+    # pesées 10,8 Go d'un composant « variants ». Une composition DÉCLARÉE a déjà tranché.
+    weight_paths = [p for p, _ in sized if p not in twins and p.lower().endswith(_WEIGHT_EXTS)]
+    nested_aside = not declared and _split_pipeline(
+        names, {p.split('/')[0] for p in weight_paths if p.count('/') == 1})
     sets = {}                      # (rôle, clé de jeu) → Go
     members = {}                   # (rôle, clé de jeu) → [(chemin, octets)]
+    nested = {}                    # premier dossier → Go écartés (plus profonds qu'un composant)
     for path, size in sized:
         if path in twins or not path.lower().endswith(_WEIGHT_EXTS):
             continue
         role = role_of(path)
         if role is None:
+            continue
+        if nested_aside and path.count('/') >= 2:
+            nested[role] = nested.get(role, 0.0) + size / 1024 ** 3
             continue
         key = _weight_set_key(path.rsplit('/', 1)[-1])
         sets[(role, key)] = sets.get((role, key), 0.0) + size / 1024 ** 3
@@ -623,6 +648,8 @@ def components_of_files(files, *, composition=None, allow_patterns=None) -> dict
     if not declared and _split_pipeline(names, roles) and _SINGLE_ROLE in full:
         variants[_SINGLE_ROLE] = variants.get(_SINGLE_ROLE, 0.0) + full.pop(_SINGLE_ROLE)
         kept.pop(_SINGLE_ROLE, None)
+    for role, gb in nested.items():
+        variants[role] = variants.get(role, 0.0) + gb
 
     if not full:
         return {}
@@ -657,7 +684,7 @@ def _set_aside_reason(path, claimed, names, proven_format, engine) -> str:
       * même nom qu'un poids réclamé du même dossier, autre format → jumeau de format ;
       * même JEU qu'un poids réclamé du même dossier (`_weight_set_key` : précision,
         quantisation, découpage de shards, moteur étranger) → variante ;
-      * pipeline `diffusers` (`model_index.json`) : un poids à la racine quand les composants sont
+      * pipeline `diffusers` (`DIFFUSERS_PIPELINE_INDEXES`) : un poids à la racine quand les composants sont
         en sous-dossiers (la copie monofichier, règle 3 de `components_of_files`), ou plus profond
         que `<rôle>/<fichier>` (diffusers ne lit qu'un niveau : le pipeline imbriqué de LTX) ;
       * marqué d'un AUTRE moteur (`_FOREIGN_ENGINE_MARKERS`) quand aucun poids réclamé ne l'est ;
@@ -678,8 +705,11 @@ def _set_aside_reason(path, claimed, names, proven_format, engine) -> str:
     if _split_pipeline(names, claimed_roles):
         if '/' not in path and _SINGLE_ROLE not in claimed_roles:
             return 'copie monofichier du pipeline'
-        if path.count('/') >= 2 and path.split('/')[0] in claimed_roles:
-            return 'pipeline imbriqué sous un composant'
+        if path.count('/') >= 2:
+            # La règle dite plus haut, sans condition de dossier (2026-11-11) : les précisions que
+            # `flux-3-image-klein` range sous `variants/<précision>/` ne sont sous aucun composant.
+            return ('pipeline imbriqué sous un composant' if path.split('/')[0] in claimed_roles
+                    else 'plus profond qu\'un composant')
     if key[3] and not any(_weight_set_key(c.rpartition('/')[2])[3] for c in claimed):
         return 'poids d\'un autre moteur'
     library = next((lib for lib, bases in _LIBRARY_CHECKPOINTS.items() if key[0] in bases), None)

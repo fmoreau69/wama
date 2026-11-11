@@ -81,6 +81,35 @@ class AnatomyGapsTest(SimpleTestCase):
         self.assertEqual({}, mi.anatomy_gaps(['onnx/model.onnx', 'model.safetensors'],
                                              _anatomy('onnx/model.onnx', engine='onnxruntime')))
 
+    #: `black-forest-labs/flux-3-image-klein`, inventory read on 2026-11-11: a MODULAR diffusers
+    #: pipeline (its index is `modular_model_index.json`), a single-file copy of the transformer and
+    #: of the VAE at the root, and its published precisions one level BELOW a folder.
+    FLUX3 = [('modular_model_index.json', 2_000), ('model.safetensors', 11_100_000_000),
+             ('ae.safetensors', 336_000_000),
+             ('text_encoder/model-00001-of-00002.safetensors', 4_970_000_000),
+             ('text_encoder/model-00002-of-00002.safetensors', 3_910_000_000),
+             ('transformer/diffusion_pytorch_model-00001-of-00002.safetensors', 9_910_000_000),
+             ('transformer/diffusion_pytorch_model-00002-of-00002.safetensors', 1_190_000_000),
+             ('vae/diffusion_pytorch_model.safetensors', 336_000_000),
+             ('variants/fp8r/model.safetensors', 6_270_000_000),
+             ('variants/nvfp4/model.safetensors', 5_280_000_000)]
+
+    def test_both_readers_of_a_pipeline_set_aside_its_root_copy_and_what_lies_deeper(self):
+        """One rule, two readers (`_split_pipeline`): the weighing counted the root copy (11.1 GB)
+        and a « variants » component (10.8 GB) — 40 GB for an 18.9 GB model — because it knew the
+        index of a `DiffusionPipeline` only, and did not apply the anatomy's « diffusers reads one
+        level » rule."""
+        weighed = mi.components_of_files(self.FLUX3)
+        self.assertEqual({'text_encoder', 'transformer', 'vae'}, set(weighed['components']))
+        self.assertEqual(18.9, round(weighed['total_gb'], 1))
+        self.assertEqual({'model', 'variants'}, set(weighed['variants']), 'nothing is thrown away')
+        gaps = mi.anatomy_gaps(self.FLUX3, _anatomy('text_encoder/*', 'transformer/*', 'vae/*',
+                                                    engine='diffusers'))
+        self.assertEqual([], gaps.get('unclaimed', []))
+        # Counter-check: without a pipeline index the root weight IS the model (a one-piece repo).
+        no_index = [f for f in self.FLUX3 if f[0] != 'modular_model_index.json']
+        self.assertIn('model', mi.components_of_files(no_index)['components'])
+
     def test_a_library_checkpoint_read_by_its_own_library_is_not_a_conversion(self):
         """Counter-case: when the declared engine IS the library, its checkpoint is no copy."""
         gaps = mi.anatomy_gaps(['speaker.pt', 'model.safetensors'],

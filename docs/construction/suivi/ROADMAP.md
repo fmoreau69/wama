@@ -1103,7 +1103,9 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    lignes de catalogue au lieu d'une déclaration ; la qualité d'une réduction face aux poids
    pleins, non mesurée ; la recommandation d'installation (`prospector.recommended_option`) juge
    « tient » par `fits_alone`, SANS la marge que `chosen_precision` ajoute — deux admissibilités
-   pour une même question (point b, « une seule marge »), à unifier par une décision ; la lecture
+   pour une même question (point b, « une seule marge »), à unifier par une décision (l'ESTIMATION
+   des poids pleins, elle, est alignée le 2026-11-11 : la cascade `model_footprint_gb` sur le poids
+   par composant, `PROSPECTION_PIPELINE §« Session du 2026-11-11 »`) ; la lecture
    du moteur déclaré d'une LIGNE reste écrite en place (celle d'une CLÉ est commune :
    `backends.manager.engine_of`, revérification du soir — `detection_ensemble` l'emprunte,
    `served_by_for_key` aussi). *Remesuré le 2026-11-07* (motif
@@ -1142,7 +1144,23 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    fichier, en BF16 : 273 tenseurs BF16, 86 F32 — aucune réduction) est une architecture
    (`f3-image-small`) que diffusers 0.37 ne connaît pas ; `Flux3Transformer2DModel` arrive en
    0.42.1, qui exige `huggingface-hub >= 1.32` (transformers 4.57 et `sam3` l'exigent `< 1.0`) et
-   `safetensors >= 0.8` : une migration du venv entier, décision de Fabien ; la vitesse (Q8_0
+   `safetensors >= 0.8` : une migration du venv entier, décision de Fabien. *Mesuré le 2026-11-11*
+   (`pip install --dry-run`, puis un venv jetable SUPERPOSÉ à `venv_linux` dans `/tmp`, imports
+   comparés avant/après, `venv_linux` jamais écrit) : la résolution tire huggingface-hub **2.4.0**,
+   transformers **5.22.2**, tokenizers 0.23.3, safetensors 0.8.0 — et peft **0.21.2** est requis,
+   sans quoi TOUS les pipelines diffusers tombent à l'import (`HybridCache` retiré de transformers ;
+   peft monté avec ses dépendances déplace aussi `nvidia-nccl-cu12`, une dépendance de torch). Ce
+   qui s'importe encore : tous les pipelines du parc (FLUX.1/2, SDXL, Qwen-Image, Hunyuan, CogVideoX,
+   Mochi, LTX, Wan), le GGUF, `Flux3Transformer2DModel`, sam3, doctr, Higgs, NeMo, pyannote,
+   faster-whisper, audiocraft, Kokoro, YOLO. Ce qui CASSE à l'import : **qwen_asr** et **qwen_tts**
+   (`check_model_inputs`), **vibevoice** (classe de configuration déjà enregistrée), **TTS** de
+   Coqui (`isin_mps_friendly` retiré) — les quatre épinglent transformers 4.57 chez leurs auteurs.
+   Un import réussi ne prouve pas qu'un modèle tourne. ⇒ pas de migration du venv partagé sans
+   décision ; l'autre voie est un PROCESSUS à part avec son propre environnement (`ISOLATION`, au
+   contrat, que rien n'exécute encore). *Et le 2026-11-11, la route propose enfin l'OFFICIEL*
+   (`black-forest-labs/flux-3-image-klein`, 18,9 Go de composants, recommandé « tient »), que le
+   GGUF partiel masquait — `PROSPECTION_PIPELINE §« Session du 2026-11-11 »` ; sa licence est à
+   accepter sur le Hub. La vitesse (Q8_0
    plus lent que NF4 à 10 pas : 138 s contre 102) n'entre pas dans le choix du gouverneur, qui
    retient la plus FIDÈLE qui tient (décision (2)).
 

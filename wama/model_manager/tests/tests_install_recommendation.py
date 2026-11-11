@@ -21,8 +21,10 @@ GGUF = 'someone/olmOCR-2-7B-1025-GGUF'
 ABSENT = ['wama_package_absent_for_this_test']
 
 
-def _olmocr2(disk_gb=16.6, fp8_method='compressed-tensors', family=()):
-    """`family` : la famille de l'auteur DÉJÀ lue (aucun réseau) ; None = jamais lue."""
+def _olmocr2(disk_gb=16.6, fp8_method='compressed-tensors', family=(), weights=None):
+    """`family` : la famille de l'auteur DÉJÀ lue (aucun réseau) ; None = jamais lue.
+    `weights` : le poids par composant DÉJÀ relevé (aucun réseau) ; par défaut, un relevé sans
+    rien à peser — les poids pleins s'estiment alors par le poids du dépôt."""
     fp8 = {'repo_id': FP8, 'disk_gb': 10.0, 'downloads': 900,
            'files': [{'file': 'model-00001-of-00002.safetensors', 'gb': 5.0}]}
     if fp8_method is not None:
@@ -32,7 +34,7 @@ def _olmocr2(disk_gb=16.6, fp8_method='compressed-tensors', family=()):
         model_type='ocr', source='huggingface', is_proposed=True, proposal_kind='update',
         platform_ref='huggingface:allenai/olmOCR-2-7B-1025', disk_gb=disk_gb,
         capabilities={'task': 'ocr'},
-        extra_info={'prospect': {
+        extra_info={'weights': dict(weights or {'empty': True}), 'prospect': {
             'spec': {'kind': 'hf', 'ref': 'allenai/olmOCR-2-7B-1025', 'category': 'ocr',
                      'task': 'ocr'},
             'own_gguf': [],
@@ -128,6 +130,51 @@ class TheRecommendationIsTheMostPreciseThatFitsTest(TestCase):
     def test_an_option_that_does_not_run_is_never_recommended(self):
         res = _options(_olmocr2(disk_gb=54.0), card_gb=12.0)
         self.assertTrue(res['options'][res['recommended']]['runnable'])
+
+    #: `flux-3-image-klein-base`, mesuré le 2026-11-11 : 40,3 Go de dépôt (copie monofichier et
+    #: précisions publiées en plus) pour 18,9 Go de composants.
+    FLUX3_LIKE = {'components': {'text_encoder': 8.27, 'transformer': 10.32, 'vae': 0.31},
+                  'total_gb': 18.9, 'largest_gb': 10.32, 'source': 'repo'}
+
+    def test_full_weights_are_weighed_by_their_components_not_by_the_repository(self):
+        cand = _olmocr2(disk_gb=40.3, weights=self.FLUX3_LIKE)
+        res = _options(cand, packages=[])
+        full = _by_ref(res)[('allenai/olmOCR-2-7B-1025', None)]
+        self.assertEqual((18.9, True), (full['vram_estimated_gb'], full['fits']))
+        self.assertEqual('full', res['options'][res['recommended']]['kind'],
+                         "the original weights fit: a variant must not be preferred to them")
+        # Counter-check: the same repository, its components unknown, is judged by its size.
+        cand.extra_info['weights'] = {'empty': True}
+        cand.save(update_fields=['extra_info'])
+        res = _options(cand, packages=[])
+        self.assertFalse(_by_ref(res)[('allenai/olmOCR-2-7B-1025', None)]['fits'])
+        self.assertEqual(FP8, res['options'][res['recommended']]['ref'])
+
+    def test_full_weights_take_the_peak_of_the_strategy_their_engine_applies(self):
+        """The launch guard's rule (`task_skeleton._vram_need`): an engine that OFFLOADS needs its
+        largest component, any other the sum — and a candidate no backend serves yet, the sum."""
+        cand = _olmocr2(disk_gb=40.3, weights=self.FLUX3_LIKE)
+        offloads = type('OffloadingBackend', (), {'OFFLOADS': True})
+        with patch('wama.common.backends.manager.backend_for_model', return_value=offloads):
+            res = _options(cand, packages=[], card_gb=12.0)
+        self.assertEqual((10.3, True), (_by_ref(res)[(cand.hf_repo, None)]['vram_estimated_gb'],
+                                        _by_ref(res)[(cand.hf_repo, None)]['fits']))
+        res = _options(cand, packages=[], card_gb=12.0)
+        self.assertEqual((18.9, False), (_by_ref(res)[(cand.hf_repo, None)]['vram_estimated_gb'],
+                                         _by_ref(res)[(cand.hf_repo, None)]['fits']))
+
+    def test_the_components_are_read_once_and_kept(self):
+        cand = _olmocr2()
+        cand.extra_info.pop('weights')
+        cand.save(update_fields=['extra_info'])
+        from wama.model_manager.services import model_installer as mi
+        with patch.object(mi, 'components_for_spec', return_value=dict(self.FLUX3_LIKE)) as read, \
+                patch.object(p, 'remote_precision', return_value=None):
+            _options(cand)
+            _options(cand)
+        self.assertEqual(1, read.call_count)
+        cand.refresh_from_db()
+        self.assertEqual(18.9, cand.extra_info['weights']['total_gb'])
 
 
 class TheAuthorsFamilyIsOfferedNeverRecommendedTest(TestCase):

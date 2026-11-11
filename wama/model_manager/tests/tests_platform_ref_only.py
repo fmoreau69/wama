@@ -106,6 +106,21 @@ class QuantizedBaseTest(TestCase):
         self.assertIn('org/canon-4b', have)
         self.assertIn('repack/canon-4b-gguf', have)
 
+    def test_a_quantized_component_nothing_runs_is_not_its_canonical_model(self):
+        """Lived on 2026-11-11: `unsloth/flux-3-image-klein-GGUF` (the transformer alone, installed
+        by the Hub driver, no engine) made the official `black-forest-labs/flux-3-image-klein`
+        « already ours », so the named search never proposed it. The identity is kept (bench,
+        cards); « already ours » asks whether WAMA RUNS it (`backend_missing`)."""
+        from wama.model_manager.services.prospector import catalogue_repos
+        component = AIModel.objects.create(
+            model_key='huggingface:Repack/Canon-4B-GGUF', name='Canon-4B-GGUF',
+            model_type='diffusion', source='huggingface', is_downloaded=True,
+            platform_ref='huggingface:Repack/Canon-4B-GGUF', extra_info=dict(GGUF_INFO))
+        have = catalogue_repos(AIModel.objects.all())
+        self.assertNotIn('org/canon-4b', have)
+        self.assertIn('repack/canon-4b-gguf', have, 'its own files are still ours')
+        self.assertIn('org/canon-4b', component.hub_repos(), 'the declared identity is unchanged')
+
     def test_a_quantization_carries_no_backbone_footprint(self):
         from wama.model_manager.services.memory_manager import backbone_row
         AIModel.objects.create(model_key='huggingface:Org/Canon-4B', name='Canon', model_type='ocr',

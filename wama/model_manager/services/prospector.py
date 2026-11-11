@@ -1075,12 +1075,19 @@ def install_options(cand, with_family: bool = True) -> dict:
             'disk_gb': m.get('disk_gb'), 'vram_note': "",
             'downloads': m.get('downloads'), 'kind': 'family', 'quant_method': '',
         })
+    if any(o['kind'] == 'full' for o in options):
+        # Le poids PAR COMPOSANT des poids pleins, relevé UNE fois et gardé, comme les variantes —
+        # par le lecteur que le jury emploie déjà (`prospect_agents._attach_weights` →
+        # `components_for_spec`, celui de l'installation) : `_option_vram_gb` en tire le pic que
+        # le lancement demandera. Un Hub muet n'écrit rien (on repassera).
+        from .prospect_agents import _attach_weights
+        _attach_weights(cand)
     from wama.common.services.resource_governor import fits_alone
     card_gb = _gpu_total_gb()
     for o in options:
         o['reason'] = _runtime_gap(o, cand)
         o['runnable'] = not o['reason']
-        o['vram_estimated_gb'] = _option_vram_gb(o)
+        o['vram_estimated_gb'] = _option_vram_gb(o, cand)
         # Tiendrait-il sur la carte VIDE ? La règle du gouverneur, None sans GPU ni poids connu.
         o['fits'] = fits_alone(o['vram_estimated_gb']) if o['vram_estimated_gb'] else None
         if o['fits'] is False and not o['vram_note']:
@@ -1096,11 +1103,31 @@ def install_options(cand, with_family: bool = True) -> dict:
             'recommended': recommended_option(options), 'family': coverage}
 
 
-def _option_vram_gb(option) -> float:
-    """VRAM estimée d'une option d'installation, 0.0 si son poids est inconnu — l'estimation
-    COMMUNE des modèles installés (`model_registry._estimated_vram` : poids × 1,2), pas une seconde
-    règle."""
+def _option_vram_gb(option, cand=None) -> float:
+    """VRAM estimée d'une option d'installation, 0.0 si son poids est inconnu.
+
+    Les POIDS PLEINS du candidat (`cand`) se pèsent comme le lancement les pèsera : la cascade
+    commune (`memory_manager.model_footprint_gb`) sur leur poids PAR COMPOSANT
+    (`extra_info['weights']`, que `install_options` fait relever une fois) — le pic de la stratégie
+    que son moteur sait appliquer (`OFFLOADS`, comme la garde du squelette, `task_skeleton._vram_need`),
+    la somme quand aucun backend ne le sert encore. ⚠ POURQUOI (2026-11-11, limite connue depuis le
+    29/10 : « le poids des poids pleins est celui du DÉPÔT entier ») : un dépôt est un CATALOGUE de
+    fichiers. Mesuré sur `flux-3-image-klein-base` : 40,3 Go de dépôt × 1,2 = 51,9 Go « ne tient
+    pas », pour 18,9 Go de composants — sa copie monofichier et ses précisions publiées en plus —, et
+    la recommandation retombait sur un GGUF de MÊME précision.
+    Faute de relevé, et pour une variante (dont on ne connaît que le poids du dépôt ou du fichier),
+    l'estimation COMMUNE des modèles installés (`model_registry._estimated_vram` : poids × 1,2) —
+    le dernier étage de la même cascade, pas une seconde règle."""
     from .model_registry import _estimated_vram
+    if cand is not None and option.get('kind') == 'full' and option.get('ref') == cand.hf_repo:
+        from wama.common.backends.manager import backend_for_model
+        from .memory_manager import model_footprint_gb
+        offload = bool(getattr(backend_for_model(cand), 'OFFLOADS', False))
+        footprint, provenance = model_footprint_gb(cand, offload=offload)
+        # Les FICHIERS (ou une mesure) seulement : un préréglage de famille (`preset`) ne dit rien
+        # d'un candidat qui en porte le nom, et la VRAM déclarée d'une proposition vaut 0.
+        if footprint and provenance.split('+')[0] in ('source', 'measured'):
+            return round(float(footprint), 1)
     gb = option.get('disk_gb')
     return _estimated_vram(int(float(gb) * 1024 ** 3), False) if gb else 0.0
 
@@ -1410,12 +1437,27 @@ def _card_dict(card) -> dict:
 def catalogue_repos(rows) -> set:
     """Dépôts du Hub que des lignes de catalogue PORTENT, en minuscules : celui d'où viennent
     leurs poids (`AIModel.hf_repo`, dérivé de `platform_ref`) et le modèle canonique d'une
-    quantification (`AIModel.quantized_base` : un GGUF tiré par Ollama EST ce modèle). Ces deux
+    quantification qui TOURNE ici (`AIModel.quantized_base` : un GGUF tiré par Ollama EST ce
+    modèle ; un composant seul, sans route d'exécution, ne l'est pas — cf. plus bas). Ces deux
     faits vivaient dans `hf_id` et `platform_ref` jusqu'au 2026-10-27 ; la règle est ici, une
     fois, pour « déjà chez nous » et « déjà installé »."""
+    # ⚠ Une quantification n'est ce modèle que si WAMA la FAIT TOURNER (2026-11-11). Un GGUF tiré
+    # par Ollama est le modèle entier ; un GGUF tiré par le Hub peut n'en être qu'UN composant, que
+    # rien n'exécute : `unsloth/flux-3-image-klein-GGUF` (le transformeur seul, aucun moteur
+    # déclaré) rendait l'officiel `black-forest-labs/flux-3-image-klein` « déjà chez nous », et la
+    # recherche nommée ne le proposait jamais. Le verdict est celui de toute la plateforme,
+    # `backend_missing` : une ligne POSITIVEMENT sans route d'exécution garde son propre dépôt, pas
+    # celui du modèle qu'elle quantifie. L'identité (`AIModel.hub_repos`) ne change pas : le banc et
+    # les fiches la lisent telle que la carte la déclare.
+    from wama.common.backends.manager import backend_missing
     out = set()
-    for m in rows.only('platform_ref', 'extra_info'):
-        out |= m.hub_repos()
+    for m in rows.only('model_key', 'platform_ref', 'extra_info', 'composition', 'capabilities',
+                       'source', 'is_proposed', 'execution'):
+        repos = m.hub_repos()
+        base = m.quantized_base.lower()
+        if base and base != m.hf_repo.lower() and backend_missing(m):
+            repos.discard(base)
+        out |= repos
     return out
 
 

@@ -3528,7 +3528,8 @@ l'assistant ne recommandait rien.
    (`not_runnable`), avec sa raison. Mesuré sur les 87 propositions dont les variantes étaient
    relevées : **24 variantes MLX** grisées, aucune recommandée.
    ⚠ Deux limites connues : le poids des « poids pleins » est celui du DÉPÔT entier (un dépôt de
-   diffusion qui porte deux jeux de poids paraît trop lourd — la variante mesurée l'emporte alors) ;
+   diffusion qui porte deux jeux de poids paraît trop lourd — la variante mesurée l'emporte alors —
+   *levée le 2026-11-11 : les poids pleins se pèsent par composant, §« Session du 2026-11-11 »*) ;
    un GGUF tiré par le Hub pour une tâche qu'aucun moteur GGUF ne sert reste jugé « tourne » (rien ne
    déclare quels moteurs lisent le GGUF : on ne devine pas).
 2. ✅ **La désinstallation retire des choix des applications** — option COCHÉE par défaut sur la
@@ -4898,3 +4899,63 @@ Assumés, déclarés : `_HUB_LINK` (tous les liens d'une fiche, collections comp
 `named_repo` (une requête collée, ancrée au début) ; `role_utils._component_architecture` lit
 l'`architectures` du dossier LOCAL d'un composant, les trois autres lecteurs la racine d'un dépôt
 pour son moteur.
+
+## Session du 2026-11-11 : la route ne proposait pas les poids d'origine de FLUX 3 — trois trous, éprouvés par l'assistant
+
+Fabien : *« Est-ce que les poids installés GGUF de flux-3 correspondent à la meilleure version que
+l'on peut faire tourner ici ? […] Peux-tu éprouver la route et voir s'il y a mieux ? »* Éprouvé par
+les outils de l'assistant (`search_models` « flux-3-image-klein », puis `get_install_options` sur
+chaque proposition). Installé : `unsloth/flux-3-image-klein-GGUF`, un fichier, le TRANSFORMEUR seul
+en BF16 (aucune réduction, aucun encodeur, aucun VAE, aucun moteur déclaré). L'officiel
+`black-forest-labs/flux-3-image-klein` (diffusers, accès sous licence) n'était jamais proposé, et
+pour `…-klein-base` la recommandation retombait sur un GGUF de même précision.
+
+1. ✅ **« Déjà chez nous » comptait un composant que rien n'exécute comme le modèle entier.** La
+   règle « une quantification EST son modèle » (`AIModel.quantized_base`, 2026-10-27) a été écrite
+   pour un GGUF tiré par Ollama, qui EST le modèle entier. Un GGUF tiré par le Hub peut n'en être
+   qu'un composant. `prospector.catalogue_repos` ne compte plus le modèle d'origine d'une ligne
+   POSITIVEMENT sans route d'exécution — le verdict de la plateforme, `backend_missing`. L'identité
+   (`hub_repos`, lue par le banc et les fiches) ne change pas. Mesuré avant/après sur le catalogue :
+   82 → 80 dépôts installés, exactement `black-forest-labs/flux-3-image-klein` et
+   `Comfy-Org/Fibo-2.0` (un GGUF Fibo partiel), rien d'autre.
+2. ✅ **La pesée ne reconnaissait pas un pipeline diffusers MODULAIRE.** `_split_pipeline` ne lisait
+   que `model_index.json` ; l'officiel ne porte que `modular_model_index.json`
+   (`ModularPipeline.config_name`, `modular_model_index.json` en 0.37 : `modular_pipeline.py:1586`).
+   Sa copie monofichier de tête (11,1 Go) était pesée en composant de plus, et ses précisions
+   publiées sous `variants/fp8r/` et `variants/nvfp4/` en un composant « variants ». Les deux index
+   (`model_installer.DIFFUSERS_PIPELINE_INDEXES`) ; et la règle « diffusers ne lit que
+   `<rôle>/<fichier>` », que l'anatomie appliquait déjà (`_set_aside_reason`, sous un composant
+   réclamé seulement — sa propre docstring la disait générale), vaut maintenant pour les deux
+   lecteurs. 40,0 Go → **18,9 Go** (encodeur 8,3, transformeur 10,3, VAE 0,3). Mesuré avant/après :
+   aucune des 51 lignes installées ne change ; le « vae de 44 Go » de LTX, que la docstring disait
+   non traité, retombe à 2,3 Go ; FLUX.2 et Mochi inchangés.
+3. ✅ **La recommandation pesait les poids pleins au DÉPÔT** (limite connue depuis le 29/10, plus
+   haut : « le poids des poids pleins est celui du DÉPÔT entier ») : 40,3 Go × 1,2 = 51,9 Go, « ne
+   tient pas ». Les poids pleins se pèsent maintenant comme le lancement les pèsera : la cascade
+   commune (`memory_manager.model_footprint_gb`) sur le poids PAR COMPOSANT, relevé une fois et
+   gardé par le lecteur que le jury employait déjà (`prospect_agents._attach_weights` →
+   `components_for_spec`) — le pic de la stratégie que son moteur sait appliquer (`OFFLOADS`, comme
+   la garde `task_skeleton._vram_need`), la somme quand aucun backend ne le sert encore ; les fichiers
+   ou une mesure seulement (un préréglage de famille ne dit rien d'un candidat). Faute de relevé, et
+   pour une variante, l'estimation commune (poids × 1,2), dernier étage de la même cascade.
+   ⚠ La MARGE n'a pas bougé : `fits_alone` juge sans elle, comme la garde (a) du squelette ;
+   `chosen_precision` l'ajoute — la question « une seule marge » reste au `ROADMAP §Gouvernance` (b).
+
+**Rejoué par l'assistant après correction** : `search_models` remonte du GGUF à l'officiel
+(`climbed`), et `get_install_options` recommande les **poids pleins officiels** des deux dépôts
+(18,9 Go, « tient »). ⚠ Un Hub muet n'écrit aucun relevé (vu une fois sur `…-klein-base`, rejoué :
+relevé fait).
+
+Gardes, chacune prouvée par une mutation (rouge exigé, obtenu, fichier restauré à l'empreinte) :
+`tests_platform_ref_only.QuantizedBaseTest.test_a_quantized_component_nothing_runs_is_not_its_canonical_model`,
+`tests_anatomy.AnatomyGapsTest.test_both_readers_of_a_pipeline_set_aside_its_root_copy_and_what_lies_deeper`
+(trois mutations : index modulaire, pesée, anatomie), `tests_install_recommendation`
+(`…weighed_by_their_components…`, `…peak_of_the_strategy…`, `…components_are_read_once…`).
+
+**Ce qui reste — décisions de Fabien** : (a) accepter la licence des deux dépôts officiels sur le
+Hub (le jeton est présent ; ils répondent 403 tant qu'elle ne l'est pas), puis installer par la
+route ; (b) FLUX 3 ne tourne qu'avec diffusers 0.42, dont la migration du venv partagé casse à
+l'import Qwen3-ASR, Qwen3-TTS, VibeVoice et Coqui XTTS (sonde superposée au venv, mesurée le
+2026-11-11, `ROADMAP §Gouvernance i`) ; (c) la découverte d'un pipeline modulaire installé
+(`model_registry`, moteur dérivé de `model_index.json` seul) et son chargement sont du chantier
+FLUX 3, pas de la prospection.

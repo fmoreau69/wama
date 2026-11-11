@@ -1087,7 +1087,9 @@ class AIModel(ScopedVisibility):
         """Les dépôts du Hub que cette ligne EST, en minuscules : celui de ses poids (`hf_repo`) et,
         pour une quantification, son modèle canonique (`quantized_base`). LA règle par ligne de
         « déjà chez nous » (`prospector.catalogue_repos`) et de l'appariement du banc
-        (`benchmark_sync._local_repos`), qui la recopiaient chacun."""
+        (`benchmark_sync._local_repos`), qui la recopiaient chacun. C'est l'IDENTITÉ déclarée :
+        « déjà chez nous » n'y compte le modèle d'origine que si la ligne tourne ici
+        (`prospector.catalogue_repos`, 2026-11-11 — un GGUF qui n'est qu'un composant ne l'est pas)."""
         return {r.lower() for r in (self.hf_repo, self.quantized_base) if r}
 
     def platform_refs(self):
