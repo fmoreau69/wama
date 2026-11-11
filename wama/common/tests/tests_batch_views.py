@@ -517,6 +517,57 @@ class PromotionBetweenChildAndMotherTest(TestCase):
         self.assertIsNone(card_pipelines.added(ConversionJob.objects.get(pk=self.a.pk)),
                           'a child that adds nothing brings her sisters back to the declared one')
 
+    def _added_graph(self, factor):
+        from wama.common.catalog.function_catalog import FUNCTION_CATALOG
+        from wama.common.services.process_pipeline import app_pipeline
+        from wama.common.tests.tests_process_pipeline import _card_functions
+        for key in _card_functions():
+            self.addCleanup(FUNCTION_CATALOG.pop, key, None)
+        graph = app_pipeline('converter').graph()
+        graph['nodes'].append({'id': 'scaled', 'app': 'function:demo_card_glue.scaled',
+                               'params': {'factor': factor}})
+        graph['links'].append({'from': 'enhance', 'to': 'scaled', 'to_port': None})
+        return graph
+
+    def _factor_of(self, job):
+        from wama.common.services import card_pipelines
+        from wama.converter.models import ConversionJob
+        added = card_pipelines.added(ConversionJob.objects.get(pk=job.pk)) or {}
+        return [n['params'].get('factor') for n in added.get('nodes') or []]
+
+    def test_a_sister_keeps_the_pipeline_she_made_her_own_unless_it_is_replaced(self):
+        """Like a setting set by hand : under « keep own », a sister whose pipeline differs from
+        the batch reference keeps it ; « replace too » on `@pipeline` replaces it."""
+        from wama.common.services import card_pipelines
+        card_pipelines.set_added(self.b, self._added_graph(4))
+        self._post('batch_promote', {'source': self.b.pk})
+        self.assertEqual([4], self._factor_of(self.a))
+        card_pipelines.set_added(self.a, self._added_graph(7))
+        card_pipelines.set_added(self.b, self._added_graph(9))
+        self._post('batch_promote', {'source': self.b.pk, 'scope': 'keep_own'})
+        self.assertEqual([7], self._factor_of(self.a), 'her own pipeline is kept')
+        self._post('batch_promote', {'source': self.b.pk, 'scope': 'keep_own',
+                                     'replace_own': card_pipelines.PIPELINE_KEY})
+        self.assertEqual([9], self._factor_of(self.a), '« replace too » on the pipeline')
+
+    def test_an_addition_refused_on_one_sister_writes_nothing_anywhere(self):
+        """A promoted addition that does not compose on one sister : the gesture is refused by
+        name, and no sister — nor the reference — is half written."""
+        from unittest import mock
+        from wama.common.services import batch_settings, card_pipelines
+        card_pipelines.set_added(self.b, self._added_graph(4))
+
+        def refuse(item, body):
+            if item.pk == self.a.pk:
+                raise ValueError("le pipeline de cette card ne se compose plus")
+        with mock.patch.object(card_pipelines, 'check_body', side_effect=refuse):
+            r = self._post('batch_promote', {'source': self.b.pk})
+        self.assertEqual(400, r.status_code)
+        self.assertIn('ne se compose plus', json.loads(r.content)['error'])
+        self.assertEqual(([], 'mp4'), (self._factor_of(self.a), type(self.a).objects.get(
+            pk=self.a.pk).output_format))
+        self.assertIsNone(batch_settings.stored(self.lot))
+
     def test_the_reference_follows_duplication_and_leaves_with_deletion(self):
         from wama.common.services import batch_settings
         from wama.converter.models import ConversionBatch
