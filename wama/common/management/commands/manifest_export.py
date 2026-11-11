@@ -240,6 +240,10 @@ class Command(BaseCommand):
         parser.add_argument('--accept-losses', action='store_true',
                             help="Écrit aussi un manifeste qui PERDRAIT des faits du fichier "
                                  "actuel (`manifests/losses.py`) — après les avoir vérifiés.")
+        parser.add_argument('--lifted', action='append', default=[], metavar='CHEMIN',
+                            help="Un fait LEVÉ par le geste qui exporte (ex. "
+                                 "`body.extra_info.exclusion`, une ligne rendue aux choix) : sa "
+                                 "disparition n'est pas une perte. Les autres pertes restent gardées.")
 
     def handle(self, *args, **o):
         from django.conf import settings
@@ -389,6 +393,9 @@ class Command(BaseCommand):
                 from wama.common.manifests.losses import describe, lost_facts
                 try:
                     losses = lost_facts(json.loads(actuel), json.loads(texte))
+                    lifted = tuple(o.get('lifted') or ())
+                    losses = [x for x in losses if not any(
+                        x['path'] == p or x['path'].startswith(p + '.') for p in lifted)]
                 except ValueError:
                     losses = []             # un fichier illisible n'a pas de faits à garder
             if o['check']:

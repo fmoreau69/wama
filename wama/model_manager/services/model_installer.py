@@ -2416,6 +2416,7 @@ def keep_out_of_choices(keys) -> list:
         info['exclusion'] = {**(info.get('exclusion') or {}), BACKBONE_ONLY: True}
         AIModel.objects.filter(pk=row.pk).update(extra_info=info)
         kept.append(row.model_key)
+    forget_in_corpus(kept)            # le manifeste porte l'exclusion : il la suit (2026-11-11)
     return kept
 
 
@@ -2435,6 +2436,9 @@ def restore_withdrawn(keys, *, explicit: bool = False) -> list:
         info.pop('exclusion', None)
         AIModel.objects.filter(pk=row.pk).update(is_available=True, extra_info=info)
         restored.append(row.model_key)
+    # Le manifeste suit la levée comme il a suivi le retrait (2026-11-11 : rendue aux choix sans
+    # téléchargement, la dorsale d'ACE-Step gardait au corpus une exclusion levée en base).
+    forget_in_corpus(restored, lifted=LIFTED_EXCLUSION)
     return restored
 
 
@@ -2617,7 +2621,11 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '',
     return result
 
 
-def forget_in_corpus(model_keys) -> None:
+#: Ce que lève une ligne rendue aux choix : son exclusion quitte le manifeste, ce n'est pas une perte.
+LIFTED_EXCLUSION = ('body.extra_info.exclusion',)
+
+
+def forget_in_corpus(model_keys, lifted: tuple = ()) -> None:
     """Le corpus de manifestes SUIT la désinstallation, comme il suit l'installation
     (`provenance` y écrit le manifeste) : le même `manifest_export` à la clé retire le fichier
     d'un modèle désinstallé (`_gone_model_keys`, 2026-10-11). Jamais bloquant : le retrait des
@@ -2629,7 +2637,7 @@ def forget_in_corpus(model_keys) -> None:
     from wama.common.manifests.corpus import follow
     for key in model_keys:
         try:
-            follow(key, kind='model')
+            follow(key, kind='model', lifted=lifted)
         except Exception as e:
             logger.warning("[uninstall] corpus non suivi pour %s : %s", key, e)
 

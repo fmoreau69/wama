@@ -693,7 +693,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `keep_out_of_choices(keys) -> list` — Les lignes RETIRÉES DES CHOIX que la route réinstalle comme DORSALE d'un autre modèle le
   - `restore_withdrawn(keys, *, explicit: bool=False) -> list` — Rend aux choix des applications les lignes qu'une DÉSINSTALLATION en avait retirées — appelé
   - `uninstall_model(model_key: str, include_shared: bool=False, via: str='', withdraw: bool=True) -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
-  - `forget_in_corpus(model_keys) -> None` — Le corpus de manifestes SUIT la désinstallation, comme il suit l'installation
+  - `forget_in_corpus(model_keys, lifted: tuple=()) -> None` — Le corpus de manifestes SUIT la désinstallation, comme il suit l'installation
   - `spec_for_catalog_row(model) -> dict | None` — Spec d'installation DÉRIVÉ d'une ligne de catalogue non téléchargée — le geste « Installer »
   - `patterns_from_composition(composition) -> list | None` — `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
   - `install_owner(user_id)` — À qui revient un modèle que l'installation fait NAÎTRE (`ROADMAP §29` étape 3, décision de

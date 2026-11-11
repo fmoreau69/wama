@@ -18,7 +18,7 @@ from django.conf import settings
 SWITCHED_OFF = 'coupé'
 
 
-def follow(key: str, kind: str = 'model') -> str:
+def follow(key: str, kind: str = 'model', lifted: tuple = ()) -> str:
     """Réexporte `key` au corpus — l'écrit, le réécrit ou le retire selon le registre.
 
     Un MODÈLE entraîne les apps concernées (2026-11-02, Fabien : « c'est en double sens, une
@@ -31,11 +31,15 @@ def follow(key: str, kind: str = 'model') -> str:
 
     Rend `'écrit'`, ou `SWITCHED_OFF` si `settings.MANIFEST_CORPUS_SYNC` est faux. Lève comme
     la commande : l'appelant garde sa politique d'échec (le corpus est un miroir, il se rattrape
-    au prochain export complet)."""
+    au prochain export complet).
+
+    `lifted` : les faits que le geste appelant LÈVE (une exclusion, 2026-11-11) — leur disparition
+    du manifeste est voulue ; toute autre perte reste refusée par la garde (`manifests/losses.py`)."""
     if not getattr(settings, 'MANIFEST_CORPUS_SYNC', True):
         return SWITCHED_OFF
     from django.core.management import call_command
-    call_command('manifest_export', key, kind=kind, verbosity=0)
+    call_command('manifest_export', key, kind=kind, verbosity=0,
+                 **({'lifted': list(lifted)} if lifted else {}))
     if kind == 'model':
         from django.db import transaction
         from wama.model_manager.tasks import follow_apps_in_corpus_task

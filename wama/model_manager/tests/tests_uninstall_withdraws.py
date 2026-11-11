@@ -191,6 +191,18 @@ class ABackboneReinstalledForAnotherModelStaysWithdrawnTest(TestCase):
         row.refresh_from_db()
         self.assertTrue(row.is_available)
 
+    def test_the_corpus_follows_both_the_mark_and_its_lifting(self):
+        """Vécu le 2026-11-11 : rendue aux choix sans téléchargement, la ligne gardait au corpus
+        l'exclusion levée en base (`manifest_export --check` : « 1 PERTE »)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            row = self._withdrawn_backbone(tmp)
+            with mock.patch.object(mi, 'forget_in_corpus') as follow:
+                mi.keep_out_of_choices([row.model_key])
+                follow.assert_called_with([row.model_key])
+                mi.restore_withdrawn([row.model_key], explicit=True)
+                follow.assert_called_with([row.model_key], lifted=mi.LIFTED_EXCLUSION)
+                self.assertEqual(2, follow.call_count)
+
     def test_the_page_and_the_assistant_offer_and_play_the_gesture_that_gives_it_back(self):
         """2026-11-11 : « Installer » ne vise qu'une ligne ABSENTE — la turbo réinstallée comme
         dorsale n'avait aucun bouton pour revenir, et la vue lisait un `task_id` qu'un retour aux

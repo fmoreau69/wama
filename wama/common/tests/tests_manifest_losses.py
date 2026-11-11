@@ -109,6 +109,24 @@ class ExportRefusesALossTest(TestCase):
             written = self._export(out, accept_losses=True)
             self.assertEqual(['text'], written['body']['capabilities']['modalities'])
 
+    def test_a_lifted_fact_is_written_and_any_other_loss_still_refused(self):
+        """2026-11-11 : la dorsale d'ACE-Step rendue aux choix gardait au corpus son exclusion — la
+        garde tenait la levée pour une perte. Le geste qui lève la déclare (`--lifted`)."""
+        row = _row(extra_info={'exclusion': {'by': 'uninstall', 'date': '2026-11-11'}})
+        lifted = ['body.extra_info.exclusion']
+        with tempfile.TemporaryDirectory() as out:
+            self.assertIn('exclusion', self._export(out)['body']['extra_info'])
+            row.extra_info = {}
+            row.capabilities = {**row.capabilities, 'modalities': ['text']}
+            row.save(update_fields=['extra_info', 'capabilities'])
+            with self.assertRaises(CommandError):        # la modalité perdue n'est pas levée
+                self._export(out, lifted=lifted)
+            row.capabilities = {**row.capabilities, 'modalities': ['text', 'image']}
+            row.save(update_fields=['capabilities'])
+            with self.assertRaises(CommandError):        # contre-épreuve : sans la déclaration
+                self._export(out)
+            self.assertNotIn('exclusion', self._export(out, lifted=lifted)['body'].get('extra_info') or {})
+
     def test_check_names_the_loss_and_writes_nothing(self):
         row = _row()
         with tempfile.TemporaryDirectory() as out:

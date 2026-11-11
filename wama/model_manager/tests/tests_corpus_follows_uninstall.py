@@ -136,3 +136,8 @@ class UninstallForgetsInCorpusTest(TestCase):
             forget_in_corpus(['huggingface:Org/Gone'])
         export.assert_called_once_with('manifest_export', 'huggingface:Org/Gone',
                                        kind='model', verbosity=0)
+        with override_settings(MANIFEST_CORPUS_SYNC=True), \
+                mock.patch('django.core.management.call_command') as export:
+            forget_in_corpus(['huggingface:Org/Back'], lifted=('body.extra_info.exclusion',))
+        export.assert_called_once_with('manifest_export', 'huggingface:Org/Back', kind='model',
+                                       verbosity=0, lifted=['body.extra_info.exclusion'])
