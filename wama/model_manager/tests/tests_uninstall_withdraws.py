@@ -128,6 +128,63 @@ class ReinstallingGivesItBackTest(TestCase):
         self.assertTrue(row.is_available)
 
 
+class ABackboneReinstalledForAnotherModelStaysWithdrawnTest(TestCase):
+    """2026-11-11 (Fabien : « il faut que la route permette le retrait d'un modèle mais la reprise
+    de la dorsale […] il ne faut pas laisser de piège ») : la turbo d'ACE-Step désinstallée, une
+    génération SFT réinstalle sa dorsale par la route — et la remettait dans les CHOIX
+    (`restore_withdrawn`, deux fois : demande et fin d'installation). Réinstallée comme dorsale,
+    elle reste retirée ; « Installer » sur la ligne, geste explicite, l'y rend."""
+
+    def _withdrawn_backbone(self, tmp):
+        row = _installed(Path(tmp), key='reader:base', platform_ref='huggingface:Org/Base')
+        _uninstall(Path(tmp), row.model_key)
+        AIModel.objects.filter(pk=row.pk).update(extra_info={
+            **AIModel.objects.get(pk=row.pk).extra_info,
+            'install_dir': str(Path(tmp) / 'models' / 'ocr' / 'Fam')})
+        return row
+
+    def _request(self, tmp, key, via):
+        with override_settings(AI_MODELS_DIR=Path(tmp)), \
+                mock.patch.object(mi, 'dispatch_install', return_value=SimpleNamespace(id='t')), \
+                mock.patch.object(mi, 'disk_space_guard', return_value=None):
+            return mi.request_install(key, via=via)
+
+    def test_the_route_reinstalls_the_backbone_without_giving_it_back(self):
+        from wama.model_manager.services.provenance import record_after_install
+        with tempfile.TemporaryDirectory() as tmp:
+            row = self._withdrawn_backbone(tmp)
+            self.assertTrue(self._request(tmp, row.model_key, mi.VIA_BACKBONE)['started'])
+        with mock.patch('wama.model_manager.services.provenance.identity_for_spec',
+                        return_value={'platform_ref': 'huggingface:Org/Base'}), \
+                mock.patch('wama.model_manager.services.provenance.set_identity',
+                           return_value={'model': row.model_key}):
+            record_after_install({'kind': 'hf', 'ref': 'Org/Base', 'category': 'ocr'}, [])
+        row.refresh_from_db()
+        self.assertFalse(row.is_available, "réinstallée comme dorsale : toujours hors des choix")
+
+    def test_installer_on_the_present_row_gives_it_back(self):
+        """Contre-épreuve : ses poids revenus, le geste explicite la rend aux choix."""
+        with tempfile.TemporaryDirectory() as tmp:
+            row = self._withdrawn_backbone(tmp)
+            self._request(tmp, row.model_key, mi.VIA_BACKBONE)
+            AIModel.objects.filter(pk=row.pk).update(is_downloaded=True)
+            out = self._request(tmp, row.model_key, 'model_manager')
+        self.assertTrue(out.get('restored'), out)
+        row.refresh_from_db()
+        self.assertTrue(row.is_available)
+
+    def test_a_task_asks_the_backbone_by_its_own_way(self):
+        """`ensure_installed` demande la DORSALE par la voie `backbone`, le modèle par la sienne."""
+        from wama.common.utils import model_readiness
+        asked = []
+        with mock.patch.object(model_readiness, '_with_backbone', return_value=['base', 'variant']), \
+                mock.patch.object(model_readiness, '_ensure_one',
+                                  side_effect=lambda key, **kw: asked.append((key, kw['via']))), \
+                mock.patch.object(model_readiness, 'contract_optional_models', return_value=()):
+            model_readiness.ensure_installed('variant', via='task')
+        self.assertEqual([('base', mi.VIA_BACKBONE), ('variant', 'task')], asked)
+
+
 class TheCatalogueStillShowsItTest(TestCase):
 
     def test_the_model_manager_lists_a_withdrawn_row_not_a_human_exclusion(self):

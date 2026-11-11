@@ -266,3 +266,37 @@ class AdapterFootprintTest(TestCase):
             extra_info={'weights': {'total_gb': 0.04, 'largest_gb': 0.04},
                         'model_type': 'lora', 'base_model': 'org/jamais-installee'})
         self.assertEqual(model_footprint_gb(orpheline), (0.04, 'source'))
+
+    def _variant(self):
+        """ACE-Step, 2026-11-10 (Fabien : « Dorsale ») : la SFT ne publie que son DiT, sous le
+        MÊME rôle que celui de sa dorsale ; VAE, encodeur et modèle de langage sont ceux de la
+        ligne principale."""
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(
+            model_key='hf:ace-main', name='ACE main', model_type='music', source='huggingface',
+            platform_ref='huggingface:org/ace-main',
+            extra_info={'weights': {'components': {'diffusion_transformer': 4.46, 'language_model': 3.45,
+                                                   'vae': 0.31},
+                                    'total_gb': 8.22, 'largest_gb': 4.46}})
+        return AIModel.objects.create(
+            model_key='hf:ace-sft', name='ACE SFT', model_type='music', source='huggingface',
+            platform_ref='huggingface:org/ace-sft',
+            extra_info={'base_model': 'org/ace-main', 'base_model_relation': 'finetune',
+                        'weights': {'components': {'diffusion_transformer': 5.0},
+                                    'total_gb': 5.0, 'largest_gb': 5.0}})
+
+    def test_a_variant_replaces_the_backbone_component_of_the_same_role(self):
+        """Le DiT de la variante REMPLACE celui de la dorsale : 5,0 + 3,45 + 0,31 en plein GPU, le
+        plus gros (5,0) en déchargement — additionner compterait deux DiT (13,22 / 9,46)."""
+        sft = self._variant()
+        self.assertEqual((8.76, 'source+backbone'), model_footprint_gb(sft, offload=False))
+        self.assertEqual((5.0, 'source+backbone'), model_footprint_gb(sft))
+
+    def test_an_adapter_without_a_shared_role_still_adds_up(self):
+        """Contre-épreuve : un adaptateur (aucun rôle commun avec sa dorsale) s'AJOUTE toujours."""
+        from wama.model_manager.services.memory_manager import backbone_row, replacing_weights
+        _, lora = self._pair()
+        lora.extra_info['weights']['components'] = {'lora': 0.036}
+        backbone = backbone_row(lora)
+        backbone.extra_info['weights']['components'] = {'transformer': 22.17, 'vae': 0.3}
+        self.assertIsNone(replacing_weights(lora, backbone))

@@ -867,6 +867,126 @@ class VendorEngineFromSourcesTest(SimpleTestCase):
             self.assertEqual([{'role': 'vae', 'pattern': 'vae/*'}], compo['components'],
                              'a constant names the repo, not its roles: components are kept')
 
+    def test_an_engine_naming_the_repo_in_a_module_table_gets_its_engine(self):
+        """2026-11-10, ACE-Step SFT: the engine names its variants as VALUES of a module table
+        (`SUBMODEL_REGISTRY`), not as constants — the SFT had no engine. A table naming another
+        repo, or a table inside a function, sets nothing."""
+        src = self.root / 'ace_step_1_5' / 'acestep'
+        src.mkdir(parents=True)
+        (src / 'model_downloader.py').write_text(
+            'SUBMODEL_REGISTRY: dict = {"acestep-v15-sft": "ACE-Step/acestep-v15-sft",\n'
+            '                           "other": "someone/other-model"}\n'
+            'def f():\n    LOCAL = {"x": "m-a-p/SheetSage2"}\n', encoding='utf-8')
+        self.assertEqual(['acestep/model_downloader.py:SUBMODEL_REGISTRY[acestep-v15-sft]'],
+                         self.role_utils.vendor_names_repo(self.root / 'ace_step_1_5',
+                                                           'ACE-Step/acestep-v15-sft'))
+        self.assertEqual([], self.role_utils.vendor_names_repo(self.root / 'ace_step_1_5',
+                                                               'm-a-p/SheetSage2'))
+
+
+class BackboneFromEngineSiblingsTest(SimpleTestCase):
+    """Une VARIANTE qui ne porte qu'une partie de l'anatomie de son moteur (2026-11-10, Fabien :
+    « Dorsale ») : ses rôles prennent le nom que la ligne du même moteur donne au même poids, et la
+    seule ligne installée qui couvre ce qui manque devient sa dorsale (`identity.base_model`).
+
+    Cas réel : `ACE-Step/acestep-v15-sft` ne publie que son DiT ; le rôle l'avait nommé `dit` et la
+    proposition n'avait ni VAE, ni encodeur, ni modèle de langage."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.role_utils = _charger('role_utils')
+
+    def setUp(self):
+        import json
+        import tempfile
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+
+        def folder(root, rel, arch):
+            (root / rel).mkdir(parents=True, exist_ok=True)
+            (root / rel / 'model.safetensors').write_bytes(b'0')
+            if arch:
+                (root / rel / 'config.json').write_text(json.dumps({'architectures': [arch]}))
+
+        self.main = self.tmp / 'main'
+        for rel, arch in (('acestep-v15-turbo', 'AceStepConditionGenerationModel'),
+                          ('acestep-5Hz-lm-1.7B', 'Qwen3Model'), ('Qwen3-Embedding-0.6B', 'Qwen3Model'),
+                          ('vae', None)):
+            folder(self.main, rel, arch)
+        self.sft = self.tmp / 'sft'
+        folder(self.sft, '.', 'AceStepConditionGenerationModel')
+        self.main_components = [
+            {'role': 'diffusion_transformer', 'pattern': 'acestep-v15-turbo/model.safetensors'},
+            {'role': 'language_model', 'pattern': 'acestep-5Hz-lm-1.7B/model.safetensors'},
+            {'role': 'Qwen3-Embedding-0.6B', 'pattern': 'Qwen3-Embedding-0.6B/model.safetensors'},
+            {'role': 'vae', 'pattern': 'vae/model.safetensors'}]
+
+    def _manifest(self, role='dit'):
+        return {'key': 'huggingface:ACE-Step/acestep-v15-sft', 'body': {'composition': {
+            'runtime': {'engine': 'ace_step_1_5'},
+            'components': [{'role': role, 'pattern': 'model.safetensors'}]}}}
+
+    def _enforce(self, manifest, siblings):
+        concerns = []
+        self.role_utils.enforce_backbone_from_siblings(manifest, self.sft, concerns, siblings=siblings)
+        return manifest, concerns
+
+    def test_the_role_is_aligned_and_the_backbone_is_posed(self):
+        sibling = ('huggingface:ACE-Step/Ace-Step1.5', 'ACE-Step/Ace-Step1.5', self.main,
+                   self.main_components)
+        manifest, concerns = self._enforce(self._manifest(), [sibling])
+        body = manifest['body']
+        self.assertEqual([{'role': 'diffusion_transformer', 'pattern': 'model.safetensors'}],
+                         body['composition']['components'])
+        self.assertEqual({'base_model': 'ACE-Step/Ace-Step1.5', 'base_model_relation': 'finetune'},
+                         body['identity'])
+        self.assertEqual(2, len(concerns), concerns)
+
+    def test_an_architecture_shared_by_two_roles_renames_nothing(self):
+        """Contre-épreuve : le modèle de langage et l'encodeur sont tous deux des `Qwen3Model` —
+        une correspondance non UNIQUE ne renomme rien."""
+        (self.sft / 'config.json').write_text('{"architectures": ["Qwen3Model"]}')
+        sibling = ('k', 'ACE-Step/Ace-Step1.5', self.main, self.main_components)
+        manifest, _ = self._enforce(self._manifest('encoder'), [sibling])
+        self.assertEqual('encoder', manifest['body']['composition']['components'][0]['role'])
+
+    def test_sharded_weights_of_the_same_architecture_take_the_role(self):
+        """La XL-SFT (2026-11-11) : DiT en quatre morceaux, même architecture que le DiT de la
+        sœur — le rôle s'aligne ; un morceau `Qwen3Model` (deux rôles chez la sœur) ne bouge pas."""
+        (self.sft / 'model.safetensors').unlink()
+        (self.sft / 'model-00001-of-00004.safetensors').write_bytes(b'0')
+        sibling = ('k', 'ACE-Step/Ace-Step1.5', self.main, self.main_components)
+        manifest = self._manifest()
+        manifest['body']['composition']['components'] = [
+            {'role': 'transformer', 'pattern': 'model-*.safetensors'}]
+        manifest, _ = self._enforce(manifest, [sibling])
+        self.assertEqual('diffusion_transformer', manifest['body']['composition']['components'][0]['role'])
+        (self.sft / 'config.json').write_text('{"architectures": ["Qwen3Model"]}')
+        manifest = self._manifest('encoder')
+        manifest['body']['composition']['components'] = [
+            {'role': 'encoder', 'pattern': 'model-*.safetensors'}]
+        manifest, _ = self._enforce(manifest, [sibling])
+        self.assertEqual('encoder', manifest['body']['composition']['components'][0]['role'])
+
+    def test_two_covering_lines_leave_the_backbone_to_judgment(self):
+        siblings = [('a', 'org/a', self.main, self.main_components),
+                    ('b', 'org/b', self.main, self.main_components)]
+        manifest, concerns = self._enforce(self._manifest(), siblings)
+        self.assertNotIn('base_model', manifest['body'].get('identity') or {})
+        self.assertTrue(any('PLUSIEURS' in c for c in concerns), concerns)
+
+    def test_a_complete_line_gets_no_backbone(self):
+        """Contre-épreuve : une ligne qui porte déjà tous les rôles de sa sœur n'en hérite pas."""
+        manifest = {'key': 'k2', 'body': {'composition': {'runtime': {'engine': 'ace_step_1_5'},
+                                                          'components': list(self.main_components)}}}
+        concerns = []
+        self.role_utils.enforce_backbone_from_siblings(
+            manifest, self.main, concerns, siblings=[('k', 'org/k', self.main, self.main_components)])
+        self.assertNotIn('identity', manifest['body'])
+        self.assertEqual([], concerns)
+
 
 class AdapterParentTest(SimpleTestCase):
     """Le parent d'un ADAPTATEUR entre dans l'anatomie (2026-10-03, SheetSage2 → MERT)."""

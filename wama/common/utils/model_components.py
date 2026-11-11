@@ -83,17 +83,32 @@ def component_repos(model_key: str) -> dict:
             if c.get('role') and c.get('repo') and not c.get('pattern')}
 
 
-def component_paths(model_key: str) -> dict:
+def component_paths(model_key: str, *, with_backbone: bool = False) -> dict:
     """`{rôle: Path}` pour chaque composant DÉCLARÉ du modèle `model_key`.
 
     Un motif qui désigne plusieurs fichiers rend le premier par ordre de nom ; un composant
     introuvable LÈVE `ComponentsUnavailable` avec son rôle et son motif — un backend qui
     chargerait sans lui échouerait plus loin, avec un message moins clair.
+
+    `with_backbone` : une VARIANTE qui ne publie qu'une partie de l'anatomie (ACE-Step SFT, son DiT
+    seul) prend les autres rôles chez sa DORSALE (`identity.base_model`, résolue par
+    `memory_manager.backbone_row` — installée avant elle par `model_readiness`) ; ses propres
+    composants priment sur ceux du même rôle. Sans dorsale, rien ne s'ajoute.
     """
     from wama.model_manager.models import AIModel
     row = AIModel.objects.filter(model_key=model_key).first()
     if row is None:
         raise ComponentsUnavailable(f"{model_key} : absent du catalogue")
+    paths = _row_paths(row, model_key)
+    if with_backbone:
+        from wama.model_manager.services.memory_manager import backbone_row
+        backbone = backbone_row(row)
+        if backbone is not None:
+            paths = {**_row_paths(backbone, backbone.model_key), **paths}
+    return paths
+
+
+def _row_paths(row, model_key: str) -> dict:
     components = ((row.composition or {}).get('components') or [])
     if not components:
         raise ComponentsUnavailable(

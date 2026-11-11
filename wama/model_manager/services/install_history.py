@@ -37,6 +37,7 @@ VIA_LABELS = {
     'assistant': 'assistant IA',
     'app_requirements': 'prérequis d’une app',
     'cli': 'ligne de commande',
+    'backbone': 'dorsale d’un autre modèle',
 }
 
 #: Contre quoi un pilote a vérifié ce qu'il a posé — le vocabulaire de `detail['verified']`

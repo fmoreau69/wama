@@ -1,0 +1,102 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "*"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "params": [
+        "temperature",
+        "seed",
+        "top_p"
+      ],
+      "recommended_temperature": 0.85,
+      "recommended_top_p": 0.9,
+      "task": "text-to-music"
+    },
+    "composition": {
+      "components": [
+        {
+          "pattern": "model.safetensors",
+          "role": "diffusion_transformer"
+        },
+        {
+          "pattern": "silence_latent.pt",
+          "role": "silence_latent"
+        }
+      ],
+      "runtime": {
+        "engine": "ace_step_1_5"
+      }
+    },
+    "extra_info": {
+      "category": "music",
+      "family": "acestep-v15-sft",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors"
+    },
+    "identity": {
+      "author": "ACE-Step",
+      "base_model": "ACE-Step/Ace-Step1.5",
+      "base_model_relation": "finetune",
+      "description_short": "Snapshot HF acestep-v15-sft",
+      "gated": "no",
+      "license": "mit",
+      "model_type": "music",
+      "platform_ref": "huggingface:ACE-Step/acestep-v15-sft",
+      "publications": [
+        "2602.00744"
+      ],
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 4.462704781442881,
+      "ram_gb": 0.0,
+      "vram_gb": 5.8
+    }
+  },
+  "description": "Installed HuggingFace snapshot (music/acestep-v15-sft), catalogued by the generic scan of installed models.",
+  "key": "huggingface:ACE-Step/acestep-v15-sft",
+  "manifest_kind": "model",
+  "name": "acestep-v15-sft",
+  "projects": [],
+  "requires": [
+    {
+      "key": "diffusers",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:ACE-Step/acestep-v15-sft",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

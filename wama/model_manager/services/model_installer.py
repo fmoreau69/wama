@@ -2043,6 +2043,12 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
         # Cas d'origine : musicgen-melody affichait « Not downloaded » sans qu'aucun geste ne
         # permette de le télécharger.
         if row.is_downloaded:
+            # Ses poids sont là, mais il est RETIRÉ DES CHOIX (réinstallé comme DORSALE d'un autre
+            # modèle, 2026-11-11) : « Installer » est le geste explicite qui l'y rend.
+            if via != VIA_BACKBONE and restore_withdrawn([row.model_key], explicit=True):
+                return {'ok': True, 'restored': True, 'model_key': row.model_key,
+                        'note': f"« {row.name} » est rendu aux choix des applications "
+                                "(ses poids étaient déjà là)."}
             return {'ok': False, 'reason': 'already_downloaded',
                     'error': f"« {row.name} » est déjà téléchargé."}
         if spec_for_catalog_row(row) is None and row.source == 'ollama':
@@ -2078,8 +2084,14 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
                 'progress': en_cours}
     if cand is None:
         # Réinstaller une ligne RETIRÉE DES CHOIX par sa désinstallation la leur rend : c'est le
-        # geste explicite que l'exclusion attend (2026-10-29).
-        restore_withdrawn([row.model_key])
+        # geste explicite que l'exclusion attend (2026-10-29). Pas quand la route la réinstalle
+        # seulement comme DORSALE d'un autre modèle (`model_readiness`, 2026-11-11) : la turbo
+        # d'ACE-Step désinstallée revenait dans les choix dès qu'une génération SFT en reprenait
+        # le VAE et le modèle de langage — elle reste retirée, ses poids servent l'autre.
+        if via == VIA_BACKBONE:
+            keep_out_of_choices([row.model_key])
+        else:
+            restore_withdrawn([row.model_key], explicit=True)
     # `user_id` : le téléchargement se fera avec le jeton de CETTE personne (2026-09-27,
     # `accounts.api_keys.download_token`) — la tâche relit la clé, qui ne transite jamais.
     started = dispatch_install(task, target, user_id=getattr(user, 'pk', None), via=via)
@@ -2338,15 +2350,42 @@ def withdraw_from_choices(rows, stamp: str, *, by: str = '', superseded_by: str 
     return withdrawn
 
 
-def restore_withdrawn(keys) -> list:
+#: La voie d'une installation que la route demande pour servir de DORSALE à un autre modèle
+#: (`model_readiness.ensure_installed`) — elle ne rend pas la ligne aux choix des applications.
+VIA_BACKBONE = 'backbone'
+
+#: Marque, dans l'`exclusion` d'une ligne retirée des choix, qu'elle n'a été réinstallée que comme
+#: dorsale : la levée automatique de fin d'installation la laisse retirée.
+BACKBONE_ONLY = 'backbone_only'
+
+
+def keep_out_of_choices(keys) -> list:
+    """Les lignes RETIRÉES DES CHOIX que la route réinstalle comme DORSALE d'un autre modèle le
+    restent (`BACKBONE_ONLY`) : seule une demande explicite les rend (`restore_withdrawn(…,
+    explicit=True)`). Une ligne qui n'est pas retirée n'est pas touchée. Rend les clés marquées."""
+    from ..models import AIModel, withdrawn_q
+    kept = []
+    for row in AIModel.objects.filter(withdrawn_q(), model_key__in=list(keys or ())):
+        info = dict(row.extra_info or {})
+        info['exclusion'] = {**(info.get('exclusion') or {}), BACKBONE_ONLY: True}
+        AIModel.objects.filter(pk=row.pk).update(extra_info=info)
+        kept.append(row.model_key)
+    return kept
+
+
+def restore_withdrawn(keys, *, explicit: bool = False) -> list:
     """Rend aux choix des applications les lignes qu'une DÉSINSTALLATION en avait retirées — appelé
     quand une installation les vise (`provenance.record_after_install`, demande d'installation
     d'une ligne du catalogue). Une exclusion d'une autre origine (décision humaine) reste : la
-    lever est un geste explicite. Rend les clés rendues."""
+    lever est un geste explicite. Une ligne réinstallée comme DORSALE (`BACKBONE_ONLY`) ne revient
+    que par une demande `explicit` — la fin d'installation, elle, ne sait pas qui l'a demandée.
+    Rend les clés rendues."""
     from ..models import AIModel, withdrawn_q
     restored = []
     for row in AIModel.objects.filter(withdrawn_q(), model_key__in=list(keys or ())):
         info = dict(row.extra_info or {})
+        if (info.get('exclusion') or {}).get(BACKBONE_ONLY) and not explicit:
+            continue
         info.pop('exclusion', None)
         AIModel.objects.filter(pk=row.pk).update(is_available=True, extra_info=info)
         restored.append(row.model_key)
@@ -2471,8 +2510,14 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '',
                     parts.append("ces poids sont AUSSI ceux de : " + ', '.join(names)
                                  + " — ils seront désinstallés ensemble")
                 if users:
+                    # Ils TOURNENT encore (2026-11-11) : leur prochaine tâche réinstalle la dorsale
+                    # par la route (`model_readiness`), sans la rendre aux choix. Garder les poids
+                    # et retirer seulement ce modèle des choix, c'est la SUCCESSION.
                     parts.append("s'en servent comme modèle de base : " + ', '.join(users)
-                                 + " — ils resteront installés mais ne pourront plus tourner")
+                                 + " — ils resteront installés, et leur prochaine tâche "
+                                   "retéléchargera ces poids (sans remettre ce modèle dans les "
+                                   "choix). Pour le retirer des choix SANS supprimer ses poids : "
+                                   "le remplacer par l'un d'eux (succession, `supersede_model`)")
                 return {'ok': False, 'needs_confirmation': True, 'sharing': names,
                         'dependents': users, 'error': ' ; '.join(parts) + '.'}
             loaded = [m.name for m in sharing if m.is_loaded]

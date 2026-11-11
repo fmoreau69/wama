@@ -55,6 +55,38 @@ class TaskRoleChecksTest(SimpleTestCase):
                     {'edits': [{'path': 'pkg/mod.py', 'old': old, 'new': 'x'}]}, self._scope())
                 self.assertTrue(any(f'trouvé {count} fois' in c for c in concerns), concerns)
 
+    def test_the_line_gutter_copied_into_an_edit_is_read_without_it(self):
+        """2026-11-11 (backend ACE-Step) : le modèle recopiait la gouttière de `numbered` dans
+        `old` et `new` — les 9 édits refusés, `old` introuvable. Un texte qui la porte sur TOUTES
+        ses lignes se lit sans elle ; une ligne sans gouttière laisse le texte tel quel."""
+        proposal = {'edits': [{'path': 'pkg/mod.py',
+                               'old': '    5| def first(values):\n    6|     return values[0]',
+                               'new': '    5| def first(values):\n    6|     return values[-1]'}]}
+        concerns, results = self.task.check_edits(proposal, self._scope())
+        self.assertEqual([], concerns)
+        self.assertIn('+    return values[-1]', self.task.unified(results))
+        mixed = '    5| def first(values):\n    return values[0]'
+        self.assertEqual(mixed, self.task.without_gutter(mixed))
+
+    def test_refused_edits_get_one_reprise_kept_only_if_less_refused(self):
+        """Comme les rôles `model` et `backend` : les refus rendus au modèle, UNE reprise, gardée
+        seulement si elle est moins refusée (2026-11-11, deux `old` mal recopiés sur neuf)."""
+        bad = {'edits': [{'path': 'pkg/mod.py', 'old': 'return nothing', 'new': 'x'}]}
+        good = {'edits': [{'path': 'pkg/mod.py', 'old': '    return values[0]',
+                           'new': '    return values[-1]'}]}
+        checks, _ = self.task.check_edits(bad, self._scope())
+        asked = []
+        proposal, after, results = self.task.reprise_on_checks(
+            lambda text: asked.append(text) or json.dumps(good), 'TASK', bad, checks, self._scope())
+        self.assertEqual(([], good), (after, proposal))
+        self.assertIn('trouvé 0 fois', asked[0], "le refus est rendu au modèle mot pour mot")
+        self.assertIn('+    return values[-1]', self.task.unified(results))
+        # Contre-épreuve : une reprise PLUS refusée est écartée, la première reste.
+        worse = {'edits': bad['edits'] + [{'path': 'pkg/mod.py', 'old': 'nowhere', 'new': 'y'}]}
+        proposal, after, _ = self.task.reprise_on_checks(
+            lambda text: json.dumps(worse), 'TASK', bad, checks, self._scope())
+        self.assertEqual((bad, checks), (proposal, after))
+
     def test_an_edit_that_breaks_the_syntax_is_refused(self):
         concerns, _ = self.task.check_edits(
             {'edits': [{'path': 'pkg/mod.py', 'old': 'def first(values):',

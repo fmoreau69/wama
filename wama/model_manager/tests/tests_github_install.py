@@ -11,6 +11,7 @@ import io
 import os
 import shutil
 import tempfile
+from pathlib import Path
 import zipfile
 from unittest.mock import patch
 
@@ -336,6 +337,35 @@ class AnInstalledReleaseResolvesLikeASnapshotTest(TestCase):
             self.assertEqual(release, mi.weights_dir_of(row))
             self.assertEqual(release / '4xNomosUni_span_multijpg_fp32_opset17.onnx',
                              component_paths(key)['model'])
+
+    def test_a_variant_takes_its_missing_roles_from_its_backbone(self):
+        """2026-11-10, ACE-Step SFT (Fabien : « Dorsale ») : la variante ne publie que son DiT ;
+        `with_backbone` prend le reste chez la ligne de `base_model`, son propre DiT primant.
+        Sans l'option, rien ne s'ajoute (contre-épreuve : la lecture d'hier ne change pas)."""
+        from wama.common.utils.model_components import component_paths
+        from wama.model_manager.models import AIModel
+        with tempfile.TemporaryDirectory() as root, self.settings(AI_MODELS_DIR=root):
+            main, sft = Path(root) / 'main', Path(root) / 'sft'
+            for folder in (main / 'dit', main / 'vae', sft):
+                folder.mkdir(parents=True)
+            for f in (main / 'dit' / 'model.safetensors', main / 'vae' / 'vae.safetensors',
+                      sft / 'model.safetensors'):
+                f.write_bytes(b'0')
+            AIModel.objects.create(
+                model_key='huggingface:org/main', name='main', model_type='music', source='huggingface',
+                platform_ref='huggingface:org/main', is_downloaded=True, extra_info={'path': str(main)},
+                composition={'components': [{'role': 'diffusion_transformer', 'pattern': 'dit/model.safetensors'},
+                                            {'role': 'vae', 'pattern': 'vae/*.safetensors'}]})
+            AIModel.objects.create(
+                model_key='huggingface:org/sft', name='sft', model_type='music', source='huggingface',
+                platform_ref='huggingface:org/sft', is_downloaded=True,
+                extra_info={'path': str(sft), 'base_model': 'org/main', 'base_model_relation': 'finetune'},
+                composition={'components': [{'role': 'diffusion_transformer', 'pattern': 'model.safetensors'}]})
+            self.assertEqual({'diffusion_transformer': sft / 'model.safetensors',
+                              'vae': main / 'vae' / 'vae.safetensors'},
+                             component_paths('huggingface:org/sft', with_backbone=True))
+            self.assertEqual({'diffusion_transformer': sft / 'model.safetensors'},
+                             component_paths('huggingface:org/sft'))
 
     def test_without_engine_it_is_greyed_like_a_huggingface_snapshot(self):
         from types import SimpleNamespace

@@ -91,7 +91,10 @@ humaine.
 wama-dev-ai`)** : une tâche de développement en clair, bornée à des fichiers nommés
 (`--files` : chemins du dépôt séparés par des virgules, `chemin:début-fin` pour une tranche,
 8 au plus). Sans `--write`, une réponse citée ligne par ligne ; avec,
-des édits PROPOSÉS et contrôlés (`old` unique, fichier lisible après, diff). `--apply <sortie>`
+des édits PROPOSÉS et contrôlés (`old` unique, fichier lisible après, diff ; la gouttière `NN| `
+recopiée du contexte numéroté est retirée, et des édits refusés reçoivent UNE reprise, gardée si
+moins refusée — 2026-11-11). Une consigne de plus de 500 caractères (`dev_tools.MAX_VALUE_CHARS`)
+s'écrit dans un fichier sous `outputs/`, que la tâche nomme dans `--files`. `--apply <sortie>`
 applique une proposition validée en refaisant les contrôles — geste du superviseur, que la surface
 de développement n'expose pas. Lecture des lenteurs : skill `/audit-lenteurs`.
 

@@ -1,19 +1,24 @@
 """
 Backend ACE-Step 1.5 — génération musicale text-to-music via le moteur vendorisé ace_step_1_5.
 
-Poids : installés par la route WAMA sous le dossier du modèle (catalogue
-`huggingface:ACE-Step/Ace-Step1.5`), lus via `component_paths`. Le moteur est un
-clone vendorisé (settings.BACKEND_VENDOR_DIR/ace_step_1_5/), importé par
-`import_vendored`.
+Poids : installés par la route WAMA sous le dossier du modèle, lus via
+`component_paths(model_key, with_backbone=True)`. Le moteur est un clone vendorisé
+(settings.BACKEND_VENDOR_DIR/ace_step_1_5/), importé par `import_vendored`.
 
-Architecture : DiT turbo (8 pas, shift=3.0) + LM 5 Hz (Qwen3-1.7B, planificateur CoT)
-+ VAE (AutoencoderOobleck) + encodeur texte (Qwen3-Embedding-0.6B).
+Variantes (SUPPORTED_MODELS) :
+- turbo (ACE-Step/Ace-Step1.5) : 8 pas, shift=3.0, guidance_scale=1.0
+- SFT (ACE-Step/acestep-v15-sft) : 50 pas, shift=1.0, guidance_scale=7.0
+- SFT XL (ACE-Step/acestep-v15-xl-sft) : 50 pas, shift=1.0, guidance_scale=7.0
+
+Architecture : DiT + LM 5 Hz (Qwen3-1.7B, planificateur CoT) + VAE (AutoencoderOobleck)
++ encodeur texte (Qwen3-Embedding-0.6B). Les variantes SFT ne publient que leur DiT
+et leur silence_latent ; VAE, encodeur et LM proviennent de la dorsale (backbone).
 
 Limites :
 - Durée 10 s à 600 s (bornée, annoncée dans le log).
 - Pas de partition (score_path refusée via refuse_score).
 - Mélodie de référence supportée (→ reference_audio).
-- Turbo : guidance_scale auto-corrigé à 1.0 par le pipeline, shift=3.0 imposé.
+- Turbo : guidance_scale imposé à 1.0 par le pipeline, shift=3.0.
 - Pas d'aperçu partiel (on_audio non supporté par ce moteur).
 - Écriture WAV via le module stdlib `wave` (pas de torchaudio/torchcodec).
 """
@@ -33,6 +38,21 @@ logger = logging.getLogger(__name__)
 SUPPORTED_MODELS = {
     'ACE-Step/Ace-Step1.5': {
         'model_key': 'huggingface:ACE-Step/Ace-Step1.5',
+        'inference_steps': 8,
+        'shift': 3.0,
+        'guidance_scale': 1.0,
+    },
+    'ACE-Step/acestep-v15-sft': {
+        'model_key': 'huggingface:ACE-Step/acestep-v15-sft',
+        'inference_steps': 50,
+        'shift': 1.0,
+        'guidance_scale': 7.0,
+    },
+    'ACE-Step/acestep-v15-xl-sft': {
+        'model_key': 'huggingface:ACE-Step/acestep-v15-xl-sft',
+        'inference_steps': 50,
+        'shift': 1.0,
+        'guidance_scale': 7.0,
     },
 }
 
@@ -102,7 +122,7 @@ class AceStepBackend(MusicGenerationBackend):
     VENDORED = True
     REQUIRED_PACKAGES = ['torch', 'transformers', 'diffusers', 'numpy']
     recommended_vram_gb = 12.1
-    description = "ACE-Step 1.5 — text-to-music turbo (DiT + LM 5 Hz + VAE), < 10 s sur GPU."
+    description = "ACE-Step 1.5 — text-to-music (DiT + LM 5 Hz + VAE) ; turbo < 10 s sur GPU, SFT ~50 pas."
     #: Le LM tire ses jetons : température 0.85 (défaut du moteur).
     default_temperature = 0.85
     #: La graine se pose sur GenerationParams.seed.
@@ -114,6 +134,7 @@ class AceStepBackend(MusicGenerationBackend):
         self._dit_handler = None
         self._llm_handler = None
         self._loaded = False
+        self._loaded_model = None
         self._device = 'cpu'
 
     # ------------------------------------------------------------------
@@ -133,15 +154,30 @@ class AceStepBackend(MusicGenerationBackend):
             return False
 
     def load(self, model: Optional[str] = None) -> bool:
-        """Charge DiT + VAE + encodeur texte + LM 5 Hz depuis les poids installés."""
+        """Charge DiT + VAE + encodeur texte + LM 5 Hz depuis les poids installés.
+
+        `model` : clé de `SUPPORTED_MODELS` (défaut : la turbo). Si une autre
+        variante est déjà chargée, elle est déchargée avant le rechargement.
+        """
+        if model is not None and model not in SUPPORTED_MODELS:
+            raise ValueError(
+                f"[ACE-Step] modèle inconnu : {model!r} — variantes disponibles : "
+                f"{', '.join(SUPPORTED_MODELS)}")
+
+        model = model or 'ACE-Step/Ace-Step1.5'
+
+        # Si une autre variante est chargée, décharger d'abord.
+        if self._loaded and self._loaded_model != model:
+            self.unload()
+
         if self._loaded:
             return True
 
         import torch
 
-        model_key = SUPPORTED_MODELS['ACE-Step/Ace-Step1.5']['model_key']
-        paths = component_paths(model_key)
-        root = paths['diffusion_transformer'].parents[1]
+        model_key = SUPPORTED_MODELS[model]['model_key']
+        paths = component_paths(model_key, with_backbone=True)
+        root = paths['vae'].parent.parent
 
         # Périphérique
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -182,14 +218,14 @@ class AceStepBackend(MusicGenerationBackend):
             quantization=None,
         )
 
-        # VAE : le dossier racine contient vae/
+        # VAE : le dossier racine (dorsale) contient vae/
         dit_handler._load_vae_model(
             checkpoint_dir=str(root),
             device=device,
             compile_model=False,
         )
 
-        # Encodeur texte : le dossier racine contient Qwen3-Embedding-0.6B/
+        # Encodeur texte : le dossier racine (dorsale) contient Qwen3-Embedding-0.6B/
         dit_handler._load_text_encoder_and_tokenizer(
             checkpoint_dir=str(root),
             device=device,
@@ -209,14 +245,15 @@ class AceStepBackend(MusicGenerationBackend):
         llm_handler = llm_mod.LLMHandler()
         llm_handler.initialize(
             checkpoint_dir=str(root),
-            lm_model_path='acestep-5Hz-lm-1.7B',
+            lm_model_path=paths['language_model'].parent.name,
             backend='transformers',
             device=device,
         )
         self._llm_handler = llm_handler
 
         self._loaded = True
-        logger.info("[ACE-Step] Modèle chargé sur %s (dtype=%s)", device, dtype)
+        self._loaded_model = model
+        logger.info("[ACE-Step] Modèle %s chargé sur %s (dtype=%s)", model, device, dtype)
         return True
 
     @property
@@ -230,6 +267,7 @@ class AceStepBackend(MusicGenerationBackend):
         self._dit_handler = None
         self._llm_handler = None
         self._loaded = False
+        self._loaded_model = None
         gc.collect()
         # Le moteur plafonne la VRAM du processus — la rendre.
         try:
@@ -258,8 +296,7 @@ class AceStepBackend(MusicGenerationBackend):
         sampling: Optional[dict] = None,
     ) -> str:
         """Génère un morceau et l'écrit dans `output_path` (WAV 16-bit)."""
-        if not self._loaded:
-            self.load()
+        self.load(model_id)
 
         # Partition : non supportée par ce moteur → refus explicite.
         self.refuse_score(score_path, self.ENGINE)
@@ -279,18 +316,13 @@ class AceStepBackend(MusicGenerationBackend):
             logger.warning("[ACE-Step] durée %.1f s > 600 s — bornée à 600 s", duration)
             duration = 600.0
 
-        # Paramètres de tirage (sampling)
-        seed = -1
-        temperature = self.default_temperature
-        top_p = self.default_top_p
-        if sampling:
-            opts = sampling.get('options', sampling)
-            if opts.get('seed') is not None:
-                seed = int(opts['seed'])
-            if opts.get('temperature') is not None:
-                temperature = float(opts['temperature'])
-            if opts.get('top_p') is not None:
-                top_p = float(opts['top_p'])
+        # Paramètres de tirage — aides communes de la classe de base
+        options = {'options': sampling or {}}
+        temperature = self.sampling_temperature(options)
+        seed = self.sampling_seed(options)
+        if seed is None:
+            seed = -1  # le moteur attend -1 pour « graine aléatoire »
+        top_p = self.sampling_top_p(options)
 
         # Mélodie de référence → reference_audio (supportée par ACE-Step)
         reference_audio = melody_path
@@ -301,6 +333,9 @@ class AceStepBackend(MusicGenerationBackend):
         GenerationConfig = inference_mod.GenerationConfig
         generate_music = inference_mod.generate_music
 
+        # Réglages de la variante réellement chargée
+        variant = SUPPORTED_MODELS[self._loaded_model]
+
         params = GenerationParams(
             task_type="text2music",
             caption=caption,
@@ -308,14 +343,15 @@ class AceStepBackend(MusicGenerationBackend):
             instrumental=(lyrics == '[instrumental]'),
             duration=duration,
             reference_audio=reference_audio,
-            inference_steps=8,       # turbo
+            inference_steps=variant['inference_steps'],
             seed=seed,
-            shift=3.0,              # turbo (imposé par la doc)
+            shift=variant['shift'],
+            guidance_scale=variant['guidance_scale'],
             lm_temperature=temperature,
             lm_top_p=top_p,
             thinking=True,
             use_cot_metas=True,
-            use_cot_caption=True,
+            use_cot_caption=False,
             use_cot_lyrics=False,
             use_cot_language=True,
             use_constrained_decoding=True,

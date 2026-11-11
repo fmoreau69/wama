@@ -566,6 +566,12 @@ disait le modèle qu'il EST et `platform_ref` le dépôt d'où viennent ses poid
   `identity.base_model_relation`** (`adapter`, `finetune`, `merge`, `quantized`), en PAIRE, projetés
   dans `extra_info` au déclaré seulement (règle des publications) — `AIModel.quantized_base` les lit
   pour une quantification ; le `base_model` d'une LoRA reste celui de la déclaration de l'app ;
+- ✅ 2026-11-10 (Fabien, « Dorsale ») — une VARIANTE `finetune` qui ne publie qu'une partie de
+  l'anatomie de son moteur (ACE-Step SFT : son DiT seul) a pour `base_model` la ligne qui porte le
+  reste : ses rôles prennent les noms de cette ligne, les autres composants s'y lisent
+  (`component_paths(…, with_backbone=True)`), et son empreinte est l'anatomie FUSIONNÉE
+  (`memory_manager.replacing_weights`). Posé par le rôle `model` quand une seule ligne installée du
+  moteur couvre les rôles manquants (`role_utils.enforce_backbone_from_siblings`) ;
 - ✅ le même jour, avec le corpus : `identity.hf_id` n'est plus ni extrait ni projeté
   (`builtin/model.py`) et un manifeste qui le porte est REFUSÉ par le validateur
   (`RETIRED_IDENTITY_FIELDS`), ses producteurs `wama-dev-ai` ne l'écrivent plus (et ôtent, par la

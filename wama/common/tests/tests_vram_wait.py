@@ -296,6 +296,29 @@ class PrecisionChosenByTheGovernorTest(_Card):
             choice = gov.chosen_precision('imager:flux-lora-logo-design')
         self.assertEqual((choice.precision.label, choice.peak_gb), ('NF4', 8.91))
 
+    def test_a_variant_replacing_a_backbone_component_is_reduced_on_the_merged_anatomy(self):
+        """Une variante affinée qui publie son seul transformer, sous le rôle de sa dorsale
+        (2026-11-10, le cas d'ACE-Step SFT : « Dorsale ») : son transformer REMPLACE celui de la
+        dorsale — le pic est celui de FLUX réduit (8,87), pas 8,87 + ses 22,17 Go de fichier."""
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(
+            model_key='imager:flux-finetune', name='FLUX affiné', model_type='image',
+            source='imager', is_downloaded=True, capabilities={'task': 'text-to-image'},
+            platform_ref='huggingface:org/flux-finetune',
+            composition={'runtime': {'engine': 'diffusers'}},
+            extra_info={'base_model': 'black-forest-labs/FLUX.1-dev', 'base_model_relation': 'finetune',
+                        'weights': {'total_gb': 22.168, 'largest_gb': 22.168,
+                                    'components': {'transformer': 22.168},
+                                    'precision': {'transformer': {'params': 11901408320}}}})
+        from wama.common.backends.diffusers_backend import DiffusersBackend
+        # La variante n'est pas au `model_config` de l'imager : le moteur lui déclare les
+        # précisions de FLUX comme à sa dorsale.
+        with self.card(20.3, 3.7), mock.patch.object(
+                DiffusersBackend, 'load_precisions',
+                classmethod(lambda cls, model_id: cls.FLUX_PRECISIONS)):
+            choice = gov.chosen_precision('imager:flux-finetune', DiffusersBackend)
+        self.assertEqual((choice.precision.label, choice.peak_gb), ('NF4', 8.87))
+
     def test_an_engine_without_precisions_keeps_the_catalogue_cascade(self):
         class _Plain:
             OFFLOADS = False

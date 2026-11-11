@@ -150,6 +150,22 @@ def syntax_error(path: str, text: str) -> str:
     return ''
 
 
+#: La gouttière de `numbered` (`   12| `) — ce que le modèle voit devant chaque ligne.
+_GUTTER = re.compile(r'^ *\d+\| ?')
+
+
+def without_gutter(text: str) -> str:
+    """`text` sans la gouttière de `numbered`, quand TOUTES ses lignes non vides la portent ; sinon
+    tel quel. Vécu le 2026-11-11 (backend ACE-Step, gemma-4-31b d'ILaaS) : les 9 édits recopiaient
+    `    2| …` dans `old` — refusés à raison, `old` introuvable. Une ligne de code ne commence
+    jamais par `12| ` : retirer la gouttière d'un texte qui la porte PARTOUT ne change pas le code."""
+    lines = text.split('\n')
+    if not any(line.strip() for line in lines) or not all(
+            _GUTTER.match(line) for line in lines if line.strip()):
+        return text
+    return '\n'.join(_GUTTER.sub('', line, count=1) for line in lines)
+
+
 def check_edits(proposal: dict, scope: list) -> tuple:
     """`(concerns, {path: (avant, après)})` — les édits appliqués EN MÉMOIRE, dans l'ordre."""
     concerns, results, shown = [], {}, {e['path'] for e in scope}
@@ -169,6 +185,10 @@ def check_edits(proposal: dict, scope: list) -> tuple:
             continue
         before, current = results.get(path, (read_text(path),) * 2)
         count = current.count(old)
+        if count == 0 and without_gutter(old) != old:
+            # La gouttière recopiée : `old` et `new` se lisent sans elle (`without_gutter`).
+            old, new = without_gutter(old), without_gutter(new)
+            count = current.count(old)
         if count != 1:
             concerns.append(f"édit {i} ({path}) : `old` trouvé {count} fois, il faut exactement 1")
             continue
@@ -178,6 +198,31 @@ def check_edits(proposal: dict, scope: list) -> tuple:
         if err:
             concerns.append(f"{path} ne se lit plus après les édits : {err}")
     return concerns, results
+
+
+def reprise_on_checks(ask, user_msg: str, proposal: dict, checks: list, scope: list) -> tuple:
+    """UNE reprise quand les contrôles refusent des édits — comme le rôle `model` sur le verdict de
+    « Valider » et le rôle `backend` sur ses contrôles : les refus rendus au modèle mot pour mot,
+    la reprise gardée seulement si elle est MOINS refusée. Rend `(proposition, refus, résultats)`.
+
+    Vécu le 2026-11-11 (backend ACE-Step, gemma-4-31b) : deux fois de suite, 7 édits justes sur 9
+    et deux `old` mal recopiés (une guillemet de docstring perdue) — la proposition entière était
+    inapplicable, et rien ne lui rendait ses refus."""
+    results = check_edits(proposal, scope)[1]
+    text = (f'{user_msg}\n\nTA PROPOSITION :\n{json.dumps(proposal, ensure_ascii=False)}\n\n'
+            'Les contrôles de WAMA la REFUSENT :\n' + '\n'.join(f'- {c}' for c in checks)
+            + '\n\nCorrige ce qui est refusé (un `old` se recopie EXACTEMENT, sans la gouttière '
+              '`NN| `), garde le reste, et rends la proposition complète (JSON seul).')
+    try:
+        second = extract_json(ask(text))
+    except (RuntimeError, ValueError) as e:
+        print(f'[task] reprise sans proposition lisible ({e}) : la première est gardée')
+        return proposal, checks, results
+    second_checks, second_results = check_edits(second, scope)
+    kept = len(second_checks) < len(checks)
+    print(f'[task] reprise : {len(second_checks)} refus contre {len(checks)} — '
+          + ('gardée' if kept else 'écartée'))
+    return (second, second_checks, second_results) if kept else (proposal, checks, results)
 
 
 def unified(results: dict) -> str:
@@ -261,6 +306,12 @@ def main():
             diff = ''
         else:
             checks, results = check_edits(proposal, scope)
+            if checks:
+                print(f'[task] contrôles refusent : {checks} — une reprise')
+                proposal, checks, results = reprise_on_checks(
+                    lambda text: call_llm(args.provider, model, PROMPT, text,
+                                          keep_alive=keep_alive, timeout=900),
+                    user_msg, proposal, checks, scope)
             diff = unified(results)
 
     payload = {'mode': mode, 'task': args.task, 'files': scope,

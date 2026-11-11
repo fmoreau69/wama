@@ -1229,13 +1229,15 @@ def chosen_precision(model_key: str, backend=None, *, fits_now: bool = False):
     if row is None:
         return None
     from wama.model_manager.services.memory_manager import (
-        FULL_GPU_MIN_FREE_GB, backbone_row, peaks_from_weights, reduced_peak_gb)
+        FULL_GPU_MIN_FREE_GB, backbone_row, peaks_from_weights, reduced_peak_gb, replacing_weights)
     # Un ADAPTATEUR (la LoRA logo) se charge sur sa dorsale : c'est elle qu'on réduit, son propre
     # fichier s'y ajoute (option B de `memory_manager.model_footprint_gb`, décision du 2026-09-21).
+    # Une variante qui REMPLACE des composants de sa dorsale (ACE-Step SFT) : l'anatomie fusionnée.
     backbone = backbone_row(row)
-    weights = ((backbone if backbone is not None else row).extra_info or {}).get('weights') or {}
+    merged = replacing_weights(row, backbone) if backbone is not None else None
+    weights = merged or ((backbone if backbone is not None else row).extra_info or {}).get('weights') or {}
     own_gb = (peaks_from_weights((row.extra_info or {}).get('weights') or {}).get('full', 0.0)
-              if backbone is not None else 0.0)
+              if backbone is not None and merged is None else 0.0)
     offload = bool(getattr(backend, 'OFFLOADS', False))
     # Une précision aux poids publiés à part (un GGUF) se pèse à leur taille déclarée.
     peaks = [(p, reduced_peak_gb(weights, p, offload=offload, reduced_gb=p.weights_gb()))

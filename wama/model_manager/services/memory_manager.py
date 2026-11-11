@@ -370,6 +370,28 @@ def backbone_row(row):
         return None
 
 
+def replacing_weights(row, backbone) -> Optional[dict]:
+    """Le relevé de poids d'une VARIANTE qui REMPLACE des composants de sa dorsale — ou None.
+
+    Un adaptateur (LoRA) se pose SUR sa dorsale : ses poids s'AJOUTENT (option B ci-dessous). Une
+    variante affinée qui ne publie qu'une partie de l'anatomie (ACE-Step SFT : son DiT seul, VAE,
+    encodeur et modèle de langage pris à `ACE-Step/Ace-Step1.5` — décision de Fabien, 2026-11-10,
+    « Dorsale ») porte des composants sous les MÊMES rôles que sa dorsale : le sien remplace celui
+    de la dorsale, qui ne se charge pas. Additionner compterait deux DiT.
+    Rend `{components, precision, total_gb, largest_gb}` — la dorsale, rôles remplacés par ceux de
+    la variante — dès qu'un rôle est commun ; None sinon (aucun relevé, ou adaptateur)."""
+    own = (getattr(row, 'extra_info', None) or {}).get('weights') or {}
+    base = (getattr(backbone, 'extra_info', None) or {}).get('weights') or {}
+    own_parts, base_parts = own.get('components') or {}, base.get('components') or {}
+    if not own_parts or not base_parts or not set(own_parts) & set(base_parts):
+        return None
+    parts = {**base_parts, **own_parts}
+    sizes = [float(gb or 0) for gb in parts.values()]
+    return {'components': parts,
+            'precision': {**(base.get('precision') or {}), **(own.get('precision') or {})},
+            'total_gb': round(sum(sizes), 3), 'largest_gb': round(max(sizes), 3)}
+
+
 def model_footprint_gb(row, *, offload: bool = True, count_backbone: bool = True) -> tuple:
     """`(Go, provenance)` que ce modèle EXIGE — ou `(None, 'unknown')` si personne ne sait.
 
@@ -412,11 +434,14 @@ def model_footprint_gb(row, *, offload: bool = True, count_backbone: bool = True
     # s'empile à l'infini si quelqu'un déclarait un jour une dorsale qui est elle-même un
     # adaptateur.
     backbone = backbone_row(row) if count_backbone else None
+    # Une variante qui REMPLACE des composants de sa dorsale se pèse sur l'anatomie fusionnée
+    # (`replacing_weights`) : rien ne s'ajoute, la provenance le dit quand même.
+    merged = replacing_weights(row, backbone) if backbone is not None else None
     base_gb = 0.0
-    if backbone is not None:
+    if backbone is not None and merged is None:
         base_gb = model_footprint_gb(backbone, offload=offload, count_backbone=False)[0] or 0.0
 
-    weights = info.get('weights') or {}
+    weights = merged or info.get('weights') or {}
     # Une ligne qui DÉCLARE sa quantification ne pèse pas ses fichiers : elle pèse ce qu'elle
     # chargera. `imager:ltx-…-distilled-fp8` et `…-distilled` pointent le MÊME dépôt, donc le même
     # relevé de fichiers — sans ce recalcul, la ligne fp8 héritait du pic pleine précision
@@ -429,6 +454,8 @@ def model_footprint_gb(row, *, offload: bool = True, count_backbone: bool = True
 
     def _with_backbone(gb, provenance):
         """Ajoute la dorsale au chiffre de l'adaptateur, et le DIT dans la provenance."""
+        if gb is not None and merged is not None:
+            return gb, f'{provenance}+backbone'
         if gb is None or not base_gb:
             return gb, provenance
         return round(gb + base_gb, 2), f'{provenance}+backbone'

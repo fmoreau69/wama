@@ -1,0 +1,94 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "recommended_steps": 50,
+      "task": "text-to-music",
+      "text_promptable": true
+    },
+    "composition": {
+      "components": [
+        {
+          "pattern": "model-*.safetensors",
+          "role": "diffusion_transformer"
+        },
+        {
+          "pattern": "silence_latent.pt",
+          "role": "silence_latent"
+        }
+      ],
+      "runtime": {
+        "engine": "ace_step_1_5"
+      }
+    },
+    "extra_info": {
+      "category": "music",
+      "family": "acestep-v15-xl-sft",
+      "vram_provenance": "estimated"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors"
+    },
+    "identity": {
+      "author": "ACE-Step",
+      "base_model": "ACE-Step/Ace-Step1.5",
+      "base_model_relation": "finetune",
+      "description_short": "Snapshot HF acestep-v15-xl-sft",
+      "gated": "no",
+      "license": "mit",
+      "model_type": "music",
+      "platform_ref": "huggingface:ACE-Step/acestep-v15-xl-sft",
+      "publications": [
+        "2602.00744"
+      ],
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 18.583041516132653,
+      "ram_gb": 0.0,
+      "vram_gb": 23.9
+    }
+  },
+  "description": "Installed HuggingFace snapshot (music/acestep-v15-xl-sft), catalogued by the generic scan of installed models.",
+  "key": "huggingface:ACE-Step/acestep-v15-xl-sft",
+  "manifest_kind": "model",
+  "name": "acestep-v15-xl-sft",
+  "projects": [],
+  "requires": [
+    {
+      "key": "diffusers",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:ACE-Step/acestep-v15-xl-sft",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

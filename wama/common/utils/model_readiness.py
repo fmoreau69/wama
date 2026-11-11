@@ -219,8 +219,12 @@ def ensure_installed(model_key: str, *, user=None, console=None, redelivered: bo
     alors au lieu d'être relancée en boucle ; un nouveau lancement, lui, la retente."""
     if not model_key:
         return True
+    from wama.model_manager.services.model_installer import VIA_BACKBONE
     for key in _with_backbone(model_key):
-        _ensure_one(key, user=user, console=console, redelivered=redelivered, via=via)
+        # La DORSALE s'installe par sa voie (2026-11-11) : retirée des choix (une turbo d'ACE-Step
+        # désinstallée), elle y reste — ses poids servent la variante, pas les sélecteurs.
+        _ensure_one(key, user=user, console=console, redelivered=redelivered,
+                    via=via if key == model_key else VIA_BACKBONE)
     for key in contract_optional_models(model_key):
         try:
             _ensure_one(key, user=user, console=console, redelivered=redelivered, via=via)

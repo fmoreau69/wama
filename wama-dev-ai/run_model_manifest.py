@@ -57,7 +57,8 @@ import django  # noqa: E402
 django.setup()
 
 from role_utils import (  # noqa: E402
-    add_llm_arguments, call_llm, card_languages, enforce_adapter_parent, enforce_category_facts,
+    add_llm_arguments, call_llm, card_languages, enforce_adapter_parent,
+    enforce_backbone_from_siblings, enforce_category_facts,
     enforce_component_facts, enforce_engine_facts, enforce_engine_read_anatomy,
     enforce_identity,
     enforce_language_facts, enforce_modality_facts, enforce_owned_elsewhere,
@@ -308,6 +309,10 @@ def enforce_facts(manifest, args, provenance, full_sources) -> list:
         # le moteur, sur l'inventaire même que « Valider » confronte (`anatomy_inventory`).
         from wama.model_manager.services.model_installer import anatomy_inventory
         enforce_engine_read_anatomy(manifest, anatomy_inventory(row), concerns)
+        # Une VARIANTE qui emprunte une partie de l'anatomie d'une ligne du même moteur (2026-11-10,
+        # ACE-Step SFT : « Dorsale ») : APRÈS l'anatomie, dont elle aligne les noms de rôles.
+        from wama.common.utils.model_components import snapshot_dir
+        enforce_backbone_from_siblings(manifest, snapshot_dir(row), concerns)
     # La catégorie suit la tâche, quelle que soit la source (2026-10-07, garde partagée avec le
     # scout) — APRÈS `enforce_task_facts`, qui peut avoir corrigé la tâche. Les modalités aussi.
     enforce_category_facts(manifest, concerns)

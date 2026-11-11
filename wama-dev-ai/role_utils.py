@@ -384,6 +384,90 @@ def enforce_engine_read_anatomy(manifest, inventory, concerns):
     return manifest
 
 
+def engine_siblings(engine: str, exclude_key: str) -> list:
+    """`[(clé, dépôt du Hub, racine du snapshot, composants)]` des lignes INSTALLÉES servies par le
+    même moteur — celles dont une variante emprunte le vocabulaire et, au besoin, les composants."""
+    from wama.common.utils.model_components import snapshot_dir
+    from wama.model_manager.models import AIModel
+    out = []
+    for row in (AIModel.objects.filter(composition__runtime__engine=engine, is_downloaded=True,
+                                       is_proposed=False).exclude(model_key=exclude_key)
+                .order_by('model_key')):
+        root = snapshot_dir(row)
+        components = [c for c in ((row.composition or {}).get('components') or [])
+                      if c.get('role') and c.get('pattern')]
+        if root is not None and components:
+            out.append((row.model_key, row.hf_repo, root, components))
+    return out
+
+
+def _component_architecture(root, pattern: str):
+    """L'`architectures` que la `config.json` du DOSSIER d'un composant déclare, ou None."""
+    import json as _json
+    config = (Path(root) / pattern).parent / 'config.json'
+    try:
+        value = _json.loads(config.read_text(encoding='utf-8')).get('architectures')
+    except (OSError, ValueError, AttributeError):
+        return None
+    return tuple(value) if isinstance(value, list) and value else None
+
+
+def enforce_backbone_from_siblings(manifest, snapshot, concerns, siblings=None):
+    """Une VARIANTE d'un moteur qui ne porte qu'une partie de son anatomie — deux faits, posés ici :
+
+    1. ses composants prennent le NOM de rôle qu'une ligne du même moteur donne au même poids —
+       même nom de fichier ET même architecture déclarée par la `config.json` du dossier (le nom
+       seul ne départage pas : trois composants d'ACE-Step s'appellent `model.safetensors`) ; une
+       correspondance non UNIQUE ne renomme rien ;
+    2. si UNE seule ligne installée du moteur porte, en plus, des rôles qui lui manquent, cette
+       ligne est sa DORSALE (`identity.base_model`, relation `finetune` : le mécanisme des
+       adaptateurs, `memory_manager.backbone_row` — installée d'abord, comptée dans l'empreinte,
+       sa désinstallation prévient).
+    Vécu le 2026-11-10 (Fabien : « Dorsale ») : `ACE-Step/acestep-v15-sft` ne publie que son DiT et
+    son silence latent ; VAE, encodeur et modèle de langage sont ceux de `ACE-Step/Ace-Step1.5`, que
+    le code du moteur range à côté (`SUBMODEL_REGISTRY`) — et le rôle avait nommé le DiT `dit`."""
+    body = manifest.get('body') or {}
+    composition = body.get('composition') or {}
+    engine = (composition.get('runtime') or {}).get('engine')
+    components = [c for c in composition.get('components') or [] if c.get('pattern')]
+    if not engine or not components or not snapshot:
+        return manifest
+    key = manifest.get('key') or ''
+    siblings = engine_siblings(engine, key) if siblings is None else siblings
+    if not siblings:
+        return manifest
+    for c in components:
+        name, arch = c['pattern'].rpartition('/')[2], _component_architecture(snapshot, c['pattern'])
+        roles = {s['role'] for _, _, root, comps in siblings for s in comps
+                 if s['pattern'].rpartition('/')[2] == name
+                 and _component_architecture(root, s['pattern']) == arch}
+        if not roles and arch:
+            # Des poids en MORCEAUX (la XL-SFT : `model-0000N-of-00004.safetensors`) ne portent pas
+            # le nom du fichier unique de la sœur : même architecture et même format suffisent.
+            ext = Path(name).suffix
+            roles = {s['role'] for _, _, root, comps in siblings for s in comps
+                     if Path(s['pattern']).suffix == ext
+                     and _component_architecture(root, s['pattern']) == arch}
+        if len(roles) == 1 and c['role'] not in roles:
+            role = roles.pop()
+            concerns.append(f"rôle {c['role']!r} RENOMMÉ {role!r} (fait mécanique) : le même poids "
+                            f"porte ce nom dans une ligne du moteur {engine!r}")
+            c['role'] = role
+    own = {c['role'] for c in components}
+    covering = [(k, repo) for k, repo, _, comps in siblings
+                if own < {s['role'] for s in comps}]
+    if len(covering) == 1 and covering[0][1] and not (body.get('identity') or {}).get('base_model'):
+        sibling_key, repo = covering[0]
+        identity = body.setdefault('identity', {})
+        identity['base_model'], identity['base_model_relation'] = repo, 'finetune'
+        concerns.append(f"DORSALE posée (fait mécanique) : {repo} — la ligne {sibling_key} du moteur "
+                        f"{engine!r} porte les composants qui manquent ici")
+    elif len(covering) > 1:
+        concerns.append(f"PLUSIEURS lignes du moteur {engine!r} couvrent cette anatomie "
+                        f"({', '.join(k for k, _ in covering)}) — dorsale laissée au jugement")
+    return manifest
+
+
 def adapter_parent(repo_id, loader=None):
     """`(dépôt parent, révision)` qu'un `config.json` racine nomme par `base_model_name_or_path`,
     ou `(None, None)` — un adaptateur ne s'exécute pas sans son parent."""
@@ -769,8 +853,17 @@ def vendor_names_repo(engine_dir, repo_id) -> list:
     ACE-Step 1.5 le nomme `MAIN_MODEL_REPO = "ACE-Step/Ace-Step1.5"` (son chargeur lit un
     dossier de points de contrôle, pas un `from_pretrained`), et le rôle `model` ne posait pas le
     moteur. Mesuré avant d'écrire : sur les moteurs vendorisés installés, aucune constante ne
-    nomme un AUTRE modèle du catalogue (le piège SheetSage2 reste fermé). Les tests sont ignorés."""
+    nomme un AUTRE modèle du catalogue (le piège SheetSage2 reste fermé). Les tests sont ignorés.
+
+    Et les VALEURS d'une table de module (`fichier:NOM[clé]`, 2026-11-10) : ACE-Step nomme ses
+    variantes dans `SUBMODEL_REGISTRY = {"acestep-v15-sft": "ACE-Step/acestep-v15-sft", …}`
+    (`acestep/model_downloader.py`) — le moteur de la SFT n'était pas posé."""
     import ast
+    target = repo_id.lower()
+
+    def _is_repo(value):
+        return isinstance(value, ast.Constant) and str(value.value).lower() == target
+
     found = []
     for path in sorted(Path(engine_dir).rglob('*.py')):
         if 'tests' in path.parts or path.name.endswith('_test.py'):
@@ -779,11 +872,21 @@ def vendor_names_repo(engine_dir, repo_id) -> list:
             tree = ast.parse(path.read_text(encoding='utf-8', errors='replace'))
         except SyntaxError:
             continue
+        where = path.relative_to(engine_dir).as_posix()
         for node in tree.body:
-            if (isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
-                    and str(node.value.value).lower() == repo_id.lower()):
-                found += [f"{path.relative_to(engine_dir).as_posix()}:{t.id}"
-                          for t in node.targets if isinstance(t, ast.Name)]
+            if isinstance(node, ast.AnnAssign) and node.value is not None:
+                targets, value = [node.target], node.value
+            elif isinstance(node, ast.Assign):
+                targets, value = node.targets, node.value
+            else:
+                continue
+            names = [t.id for t in targets if isinstance(t, ast.Name)]
+            if _is_repo(value):
+                found += [f"{where}:{name}" for name in names]
+            elif isinstance(value, ast.Dict):
+                keys = [k.value for k, v in zip(value.keys, value.values)
+                        if _is_repo(v) and isinstance(k, ast.Constant)]
+                found += [f"{where}:{name}[{key}]" for name in names for key in keys]
     return found
 
 

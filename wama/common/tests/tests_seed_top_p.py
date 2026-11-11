@@ -176,6 +176,50 @@ class TheEngineUsesThemTest(SimpleTestCase):
         Path(engine.process(text='Bonjour', options={'top_p': 0.6})).unlink()
         self.assertEqual(0.6, engine._model.generate.call_args.kwargs['top_p'])
 
+    def _ace_step_call(self, model_id, sampling=None):
+        """`AceStepBackend.generate` with the engine stubbed: the `GenerationParams` it builds."""
+        from types import SimpleNamespace
+
+        from wama.common.backends import ace_step1_5_backend as ace
+        engine = ace.AceStepBackend()
+        built = {}
+
+        def fake_load(model=None):
+            engine._loaded, engine._loaded_model = True, model or 'ACE-Step/Ace-Step1.5'
+            return True
+        inference = SimpleNamespace(
+            GenerationParams=lambda **kw: built.update(kw) or kw,
+            GenerationConfig=lambda **kw: kw,
+            generate_music=lambda *a, **kw: SimpleNamespace(success=True, audios=[
+                {'tensor': SimpleNamespace(shape=(2, 10)), 'sample_rate': 48000}]))
+        with mock.patch.object(engine, 'load', side_effect=fake_load), \
+                mock.patch.object(engine, 'import_vendored', return_value=inference), \
+                mock.patch.object(ace, '_save_wav'):
+            engine.generate(model_id=model_id, prompt='calm piano', duration=30,
+                            output_path='/tmp/x.wav', sampling=sampling)
+        return built
+
+    def test_ace_step_draws_with_its_variant_and_the_cards_settings(self):
+        """2026-11-11 (Fabien : « mettre une garde pour cela ») — the backend corrected by the
+        `task` role: each variant its own steps / shift / guidance, the card's temperature, seed
+        and top_p read from the FLAT `sampling` the composer sends, the caption not rewritten."""
+        sft = self._ace_step_call('ACE-Step/acestep-v15-sft',
+                                  {'temperature': 0.3, 'seed': 7, 'top_p': 0.5})
+        self.assertEqual((50, 1.0, 7.0), (sft['inference_steps'], sft['shift'], sft['guidance_scale']))
+        self.assertEqual((0.3, 7, 0.5), (sft['lm_temperature'], sft['seed'], sft['lm_top_p']))
+        self.assertFalse(sft['use_cot_caption'])
+
+    def test_ace_step_without_a_model_id_draws_the_turbo_and_its_own_settings(self):
+        """No `model_id`: the turbo is loaded, and its settings follow — never a `KeyError`."""
+        turbo = self._ace_step_call(None)
+        self.assertEqual((8, 3.0, 1.0), (turbo['inference_steps'], turbo['shift'], turbo['guidance_scale']))
+        self.assertEqual((0.85, -1, 0.9), (turbo['lm_temperature'], turbo['seed'], turbo['lm_top_p']))
+
+    def test_ace_step_refuses_a_model_it_does_not_serve(self):
+        from wama.common.backends.ace_step1_5_backend import AceStepBackend
+        with self.assertRaisesRegex(ValueError, 'modèle inconnu'):
+            AceStepBackend().load('ACE-Step/not-a-variant')
+
     def test_yue_takes_the_cards_seed_or_its_fixed_one(self):
         from wama.common.backends.yue2_3b_backend import YuE2Backend
         engine = YuE2Backend()
