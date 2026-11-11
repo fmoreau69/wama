@@ -1820,6 +1820,10 @@ def api_prospect_install(request):
                 return JsonResponse(res['blocked'], status=507)   # 507 Insufficient Storage
             return JsonResponse({'success': False, 'error': res.get('error', 'échec')},
                                 status=CODES.get(res.get('reason'), 500))
+        if res.get('restored'):
+            # Ses poids étaient là : il est seulement rendu aux choix (`AIModel.is_restorable`).
+            return JsonResponse({'success': True, 'model_id': res['model_key'], 'restored': True,
+                                 'note': res.get('note', '')})
         return JsonResponse({'success': True, 'model_id': res['model_key'],
                              **({'already_running': True, 'progress': res['progress']}
                                 if res.get('already_running')

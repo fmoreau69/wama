@@ -1142,6 +1142,17 @@ class AIModel(ScopedVisibility):
         return spec_for_catalog_row(self) is not None
 
     @property
+    def is_restorable(self):
+        """Ses poids sont là mais WAMA l'a RETIRÉ DES CHOIX (désinstallation puis réinstallation
+        comme dorsale d'un autre modèle, succession — `withdrawn_q`) : le geste « Rendre aux choix »
+        de la page l'y remet (`request_install`, même route que « Installer »). 2026-11-11 : une
+        turbo d'ACE-Step réinstallée comme dorsale de la SFT n'avait aucun bouton pour revenir —
+        « Installer » ne vise qu'une ligne absente. Une exclusion HUMAINE n'en est pas une."""
+        if self.is_proposed or not self.is_downloaded or self.is_available:
+            return False
+        return (self.extra_info or {}).get('exclusion', {}).get('by') in WITHDRAWN_ORIGINS
+
+    @property
     def platform_label(self):
         """Nom de la plateforme, pour libeller le lien sans le deviner cote template — le NOM
         que la source déclare au registre (« HuggingFace Hub », « ollama.com »…). Une plateforme
@@ -1265,6 +1276,7 @@ class AIModel(ScopedVisibility):
             'platform_url': self.platform_url,
             'platform_label': self.platform_label,
             'installable': self.is_installable,
+            'restorable': self.is_restorable,
             'vram_gb': self.vram_gb,
             'ram_gb': self.ram_gb,
             'disk_gb': self.disk_gb,

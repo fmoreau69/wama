@@ -1864,6 +1864,11 @@ document.addEventListener('DOMContentLoaded', function() {
         { label: 'Installer', icon: 'fas fa-download', cls: 'btn btn-sm btn-primary',
           when: function (m) { return !!m.installable; },
           onClick: function (m) { mmCatalogInstall(m); } },
+        // Ses poids sont là, WAMA l'a retiré des choix (réinstallé comme dorsale d'un autre modèle,
+        // remplacé) : le geste explicite qui l'y rend, par la même route (2026-11-11).
+        { label: 'Rendre aux choix', icon: 'fas fa-rotate-left', cls: 'btn btn-sm btn-outline-success',
+          when: function (m) { return !!m.restorable; },
+          onClick: function (m) { mmCatalogRestore(m); } },
         { expand: function (m) {
             return (Array.isArray(m.can_convert_to) ? m.can_convert_to : []).map(function (fmt) {
                 return {
@@ -1906,6 +1911,25 @@ document.addEventListener('DOMContentLoaded', function() {
             hideLoading();
             alert('Échec : ' + (data.error || 'inconnu'));
         } catch (err) { hideLoading(); alert('Erreur : ' + err.message); }
+    }
+
+    async function mmCatalogRestore(m) {
+        if (!confirm(`Rendre « ${m.name} » aux choix des applications ?\n\n`
+            + 'Ses poids sont déjà installés : rien ne se télécharge.')) return;
+        try {
+            const r = await fetch('{% url "model_manager:api_prospect_install" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ catalog_key: m.model_key || m.id })
+            });
+            const data = await r.json();
+            if (data.success && data.restored) {
+                WamaApp.toast(`« ${m.name} » est rendu aux choix des applications.`, 'success');
+                loadModels();
+                return;
+            }
+            alert('Échec : ' + (data.error || 'inconnu'));
+        } catch (err) { alert('Erreur : ' + err.message); }
     }
 
     // Confirmation de la désinstallation, avec l'option « retirer des choix des applications »

@@ -2514,6 +2514,9 @@ def install_model(user, model_key: str, force: bool = False,
             with the same key answers `already_running` + `progress`; once installed the
             proposal is gone and the model is listed by list_ai_models(downloaded_only=True)
         {"already_running": true, "model_key", "progress", "item_id", "next_step"}
+        {"restored": true, "model_key", "note"}  — its weights were there, it had been withdrawn
+            from the apps' choices (uninstalled then reinstalled as another model's backbone,
+            or superseded): it is given back to the choices, nothing is downloaded
         {"error", "reason"}  — 'insufficient_storage' carries `needed_gb`/`free_gb`/`after_gb`
     """
     from wama.model_manager.services.model_installer import request_install
@@ -2525,6 +2528,9 @@ def install_model(user, model_key: str, force: bool = False,
     res = request_install((model_key or '').strip(), force=bool(force),
                           variant_ref=variant_ref or '', variant_file=variant_file or '',
                           user=user, via='assistant')
+    if res.get('ok') and res.get('restored'):
+        # Ses poids étaient là, retiré des choix : il y est RENDU, rien ne se télécharge.
+        return {'restored': True, 'model_key': res.get('model_key'), 'note': res.get('note', '')}
     if res.get('ok'):
         # Le SUIVI voyage avec le résultat (fil n° 41, 2026-10-11) : sans lui, Albert a pris le
         # `task_id` pour un job de développement (`dev_job_status`), ce qui a basculé le tour au

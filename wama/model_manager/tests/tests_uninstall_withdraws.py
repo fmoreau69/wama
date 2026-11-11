@@ -173,6 +173,41 @@ class ABackboneReinstalledForAnotherModelStaysWithdrawnTest(TestCase):
         row.refresh_from_db()
         self.assertTrue(row.is_available)
 
+    def test_the_page_and_the_assistant_offer_and_play_the_gesture_that_gives_it_back(self):
+        """2026-11-11 : « Installer » ne vise qu'une ligne ABSENTE — la turbo réinstallée comme
+        dorsale n'avait aucun bouton pour revenir, et la vue lisait un `task_id` qu'un retour aux
+        choix n'a pas (500). La ligne se dit `restorable`, la page offre « Rendre aux choix », la
+        vue et l'outil de l'assistant rendent `restored`. Contre-épreuve : une exclusion HUMAINE
+        n'est pas `restorable`."""
+        from django.urls import reverse
+
+        from wama import tool_api
+        with tempfile.TemporaryDirectory() as tmp:
+            row = self._withdrawn_backbone(tmp)
+            self._request(tmp, row.model_key, mi.VIA_BACKBONE)
+            AIModel.objects.filter(pk=row.pk).update(is_downloaded=True)
+            row.refresh_from_db()
+            self.assertTrue(row.is_restorable)
+            self.assertTrue(row.to_dict()['restorable'])
+            admin = get_user_model().objects.create_superuser('restore_admin', password='x')
+            self.client.force_login(admin)
+            page = self.client.get(reverse('model_manager:index'))
+            self.assertContains(page, 'Rendre aux choix')
+            answer = self.client.post(reverse('model_manager:api_prospect_install'),
+                                      {'catalog_key': row.model_key}, content_type='application/json')
+            self.assertEqual((200, True), (answer.status_code, answer.json().get('restored')))
+            row.refresh_from_db()
+            self.assertTrue(row.is_available)
+            self.assertFalse(row.is_restorable)
+            mi.withdraw_from_choices([row], '2026-11-11T00:00:00')
+            told = tool_api.install_model(admin, row.model_key)
+            self.assertTrue(told.get('restored'), told)
+            self.assertNotIn('next_step', told, "rien ne se télécharge : aucun suivi annoncé")
+        human = AIModel.objects.create(model_key='reader:human', name='h', model_type='ocr',
+                                       source='reader', is_downloaded=True, is_available=False,
+                                       extra_info={'exclusion': dict(HUMAN)})
+        self.assertFalse(human.is_restorable)
+
     def test_a_task_asks_the_backbone_by_its_own_way(self):
         """`ensure_installed` demande la DORSALE par la voie `backbone`, le modèle par la sienne."""
         from wama.common.utils import model_readiness
