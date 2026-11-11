@@ -5289,8 +5289,17 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
      Gardes : `AnAddedProcessRunsByTheCommonGlueTest`, `wama_data.containers.tests_containers`
      (`WorkFileTest`, tables non temporelles). ⏳ La recopie d'une table de la SOURCE connectée et
      le geste de REPORT par comparaison viennent avec la card du Data Analyzer ;
-  4. ⏳ la photo d'un process ajouté lit les réglages de son NŒUD (aujourd'hui il ne surveille que
-     ses amonts) ;
+  4. ✅ la photo d'un process ajouté lit les réglages de son NŒUD (il ne surveillait que ses
+     amonts). **Codée le 2026-11-11** : `AppPipeline.node_settings`, sous la clé `@node` de la photo
+     (`NODE_KEY`, une clé en `@` comme l'empreinte des amonts : elle se compare toujours) — les
+     réglages du nœud tels que la fonction les reçoit (`FunctionSpec.call_params`, donc typés :
+     « 10 » et 10 ne périment rien) ; pour un méta-process, chaque membre de son sous-graphe DÉPLOYÉ
+     avec sa fonction — la surcharge de la card comme un changement de l'auteur du pipeline référencé
+     (relu à chaque lancement, décision du 2026-11-06) périment sa ligne, puis son aval par la cascade
+     commune. Gardes : `test_a_setting_of_an_added_process_stales_it_and_its_downstream_only`,
+     `test_a_module_is_stale_when_its_override_or_its_referenced_pipeline_changes` ; contre-épreuves
+     (photo retirée, typage retiré, fonction du membre retirée) : rouges. Aucune ligne existante
+     concernée (0 ajout en base le jour même) ;
   5. ⏳ le geste à l'écran (ouvrir le pipeline d'une card au Studio, l'enregistrer pour elle).
 - **Question de Fabien (29/10) — une card Data à TRÈS nombreux process** (plusieurs découpages,
   plusieurs calculs sur chacun) : *« des méta-process qui portent tous les sous-process — le

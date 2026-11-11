@@ -48,6 +48,9 @@ from wama.common.services.process_runs import OPTIONAL, REQUIRED
 #: Clé de la photo qui porte l'empreinte des sorties d'amont (« entrée remplacée », point 4.3).
 #: Le `@` l'écarte de tout nom de réglage.
 UPSTREAM_KEY = '@upstream'
+#: Clé de la photo d'un process AJOUTÉ par la card qui porte les réglages de son NŒUD (ROUTE §10.6
+#: 3.2bis marche 4) : ils ne sont pas des champs de l'élément, ils vivent dans l'ajout de la card.
+NODE_KEY = '@node'
 
 #: Les formes du résultat lisible d'un process (`ProcessSpec.result_format`) : '' = texte brut.
 RESULT_FORMATS = ('', 'markdown', 'coherence', 'segments')
@@ -749,14 +752,41 @@ class AppPipeline:
     def snapshot(self, spec: ProcessSpec, item, rows: dict | None = None) -> dict:
         """Photo de ce que le process SURVEILLE aujourd'hui : ses réglages, et l'empreinte de la
         sortie de chacun des amonts qu'il LIT (`read_upstreams`) qui a tourné ET compte encore
-        (`_live_rows` : un amont sans ligne, ou qui n'a plus lieu, n'y figure pas)."""
+        (`_live_rows` : un amont sans ligne, ou qui n'a plus lieu, n'y figure pas) ; pour un
+        process que la card AJOUTE, les réglages de son nœud (`node_settings`, sous `NODE_KEY`)."""
         rows = self._live_rows(item) if rows is None else rows
         taken = process_runs.snapshot(item, self.watched_of(spec))
         upstream = {key: _fingerprint_of(rows[key])
                     for key in self.read_upstreams(spec, item) if key in rows}
         if upstream:
             taken[UPSTREAM_KEY] = upstream
+        if spec.key in self.added:
+            taken[NODE_KEY] = self.node_settings(spec)
         return taken
+
+    def node_settings(self, spec: ProcessSpec) -> dict:
+        """Ce que règle le NŒUD d'un process ajouté par la card (ROUTE §10.6 3.2bis marche 4) :
+        les réglages de son nœud tels que la fonction les reçoit — passés par sa porte
+        (`FunctionSpec.call_params`, qui type : « 3 » et 3 sont le même réglage). Pour un méta-process, chaque membre de son sous-graphe DÉPLOYÉ avec sa fonction :
+        sa surcharge par la card comme ce que l'auteur du pipeline référencé y a changé (il est lu
+        à chaque lancement, décision du 2026-11-06) rendent sa ligne périmée."""
+        from wama.common.catalog import function_catalog as fc
+        from wama.common.manifests.builtin.pipeline import function_key
+
+        def effective(key, raw):
+            function = fc.get(key)
+            try:
+                values = function.call_params(raw) if function is not None else dict(raw or {})
+            except ValueError:
+                # Refusé au lancement, en le nommant : la photo garde ce qui est écrit.
+                values = dict(raw or {})
+            return process_runs.snapshot(values, list(values))
+
+        if spec.pipeline:
+            return {member['id']: {'function': function_key(member),
+                                   'params': effective(function_key(member), member.get('params'))}
+                    for member in (self.metas.get(spec.key) or {}).get('nodes') or []}
+        return effective(self.function_key(spec), self.added_params.get(spec.key))
 
     @staticmethod
     def enabled(spec: ProcessSpec, item) -> bool:

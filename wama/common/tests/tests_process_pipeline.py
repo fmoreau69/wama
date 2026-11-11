@@ -2219,12 +2219,23 @@ class AnAddedProcessRunsByTheCommonGlueTest(TestCase):
         from wama.common.services import card_pipelines
         item = _instance(self.model, self.user)
         self.model.objects.filter(pk=item.pk).update(status='RUNNING')
+        card_pipelines.set_added(item, self._graph(*added))
+        return item
+
+    def _graph(self, *added):
         graph = self.declared.graph()
         for key, app, params, upstream in added:
             graph['nodes'].append({'id': key, 'app': app, 'params': params})
             graph['links'].append({'from': upstream, 'to': key, 'to_port': None})
-        card_pipelines.set_added(item, graph)
-        return item
+        return graph
+
+    def _stale_after(self, item, *added):
+        """What a page sees stale once the card's addition is saved again as `added`."""
+        from wama.common.services import card_pipelines
+        from wama.common.services.process_pipeline import pipeline_of
+        card_pipelines.set_added(item, self._graph(*added))
+        fresh = self.model.objects.get(pk=item.pk)
+        return pipeline_of(fresh).refresh(fresh)
 
     def _run(self, item):
         from wama.common.utils.task_skeleton import run_item_task
@@ -2278,6 +2289,49 @@ class AnAddedProcessRunsByTheCommonGlueTest(TestCase):
             item = self._run(item)
         self.assertEqual('FAILURE', item.status)
         self.assertIn('aucun monde ne range', process_runs.line(item, 'scaled').error_message)
+
+    def test_a_setting_of_an_added_process_stales_it_and_its_downstream_only(self):
+        """Marche 4 : the photo of an added process holds the settings of its NODE — changing one
+        stales it and what reads it, never its upstream ; saving the same settings (or the same
+        value written differently) stales nothing."""
+        added = [('scaled', 'function:demo_card_glue.scaled', {'factor': 10}, 'load'),
+                 ('total', 'function:demo_card_glue.total', {}, 'scaled')]
+        item = self._run(self._card(*added))
+        self.assertEqual('SUCCESS', item.status,
+                         {r.node_id: r.error_message for r in process_runs.lines(item)})
+        self.assertEqual(set(), self._stale_after(item, *added))
+        self.assertEqual(set(), self._stale_after(
+            item, ('scaled', 'function:demo_card_glue.scaled', {'factor': '10'}, 'load'), added[1]))
+        self.assertEqual({'scaled', 'total'}, self._stale_after(
+            item, ('scaled', 'function:demo_card_glue.scaled', {'factor': 4}, 'load'), added[1]))
+
+    def test_a_module_is_stale_when_its_override_or_its_referenced_pipeline_changes(self):
+        """A meta-process photographs each member of its DEPLOYED graph : the card's override and a
+        change by the author of the referenced pipeline (read at each launch) both stale it."""
+        from wama.common.services import card_pipelines
+        sub = {'nodes': [{'id': 'scale', 'app': 'function:demo_card_glue.scaled',
+                          'params': {'factor': 2}},
+                         {'id': 'sum', 'app': 'function:demo_card_glue.total', 'params': {}}],
+               'links': [{'from': 'scale', 'to': 'sum', 'to_port': None}]}
+        resolve = mock.patch.object(card_pipelines, 'resolver_for',
+                                    lambda item: (lambda key: ('Module', sub)))
+        resolve.start()
+        self.addCleanup(resolve.stop)
+        module = ('module', 'pipeline:7', {'scale': {'factor': 5}}, 'load')
+        item = self._run(self._card(module))
+        self.assertEqual('SUCCESS', item.status,
+                         {r.node_id: r.error_message for r in process_runs.lines(item)})
+        self.assertEqual(set(), self._stale_after(item, module))
+        self.assertEqual({'module'}, self._stale_after(
+            item, ('module', 'pipeline:7', {'scale': {'factor': 6}}, 'load')))
+        self.model.objects.filter(pk=item.pk).update(status='RUNNING')
+        item = self._run(self.model.objects.get(pk=item.pk))
+        self.assertEqual(set(), self._stale_after(
+            item, ('module', 'pipeline:7', {'scale': {'factor': 6}}, 'load')), 'replayed')
+        sub['nodes'][1]['app'] = 'function:demo_card_glue.scaled'
+        self.assertEqual({'module'}, self._stale_after(
+            item, ('module', 'pipeline:7', {'scale': {'factor': 6}}, 'load')),
+            "the author of the referenced pipeline changed a member's function")
 
     def test_retiring_the_card_releases_its_work_file_and_never_deletes_it(self):
         """The work file is the card's : retiring the card ANNOUNCES it (`released_files`), it

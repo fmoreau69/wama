@@ -30783,3 +30783,23 @@ de REPORT par comparaison — avec la card du Data Analyzer ; la facette estimat
 LimeSurvey non vérifié sur un fichier réel.
 **Décisions ouvertes (Fabien)** : la réponse à niveaux fermés (Likert, oui/non) — `attribute` ou
 `factor` (§15, tension avec §13.10) ; le moment du chantier questionnaires ; ⑩.3 et D19.
+
+## §PALIER 2026-11-11 (après-midi), « MARCHE 4 : LA PHOTO D'UN PROCESS AJOUTÉ LIT SON NŒUD » — commit de ce palier (local, non poussé) — 🔚 marche 5 (geste ✎, onglets, outil d'assistant)
+
+Suite de la `§CLÔTURE 2026-11-11, « PIPELINE PORTÉ PAR LA CARD, GLU COMMUNE … »` (même session,
+reprise à la demande de Fabien après la relance de WAMA — vérifiée : gunicorn 15:03, workers
+15:05-15:10, après le dernier commit de code ; HTTP 200 ; worker default prêt sans erreur).
+- ✅ `ROUTE §10.6 3.2bis` marche 4 : `AppPipeline.node_settings`, photo sous `@node`
+  (`process_pipeline.NODE_KEY`) — réglages du nœud typés par la porte de la fonction ; un
+  méta-process photographie chaque membre déployé avec sa fonction (surcharge de la card ET
+  changement de l'auteur du pipeline référencé périment sa ligne, puis l'aval par la cascade).
+  Aucune décision nouvelle : la règle « relu à chaque lancement » (2026-11-06) tranche.
+- Gardes : `test_a_setting_of_an_added_process_stales_it_and_its_downstream_only`,
+  `test_a_module_is_stale_when_its_override_or_its_referenced_pipeline_changes` ; 3 contre-épreuves
+  en processus, rouges. Périmètre + gardes de langue, mécanismes, disposition : 589 OK.
+- Base réelle : 0 `PipelineExtension`, 0 ligne `pipeline` — aucune ligne existante ne peut
+  passer périmée à tort.
+- Worktree `wt_preview_axis` (branche `preview-axis`, entièrement dans `dev`, aucune modification
+  suivie) retiré avec sa branche, à la demande de Fabien.
+- Docs générées : `doc_facts` ne porte rien de ce palier ; ce qu'il régénère (API de
+  `service_supervision`, comptes de consommateurs) est le WIP d'autres sessions, laissé.
