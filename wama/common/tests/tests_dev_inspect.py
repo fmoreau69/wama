@@ -179,3 +179,14 @@ class FilesTest(_Base):
         deep = self._call(self.admin, 'dev_list_code', pattern='**/*.py')
         self.assertEqual(['pkg/a.py', 'pkg/deep/b.py'], sorted(deep['paths']))
         self.assertIn('error', self._call(self.admin, 'dev_list_code', path='logs'))
+
+
+class JobNotificationOpensSomewhereTest(TestCase):
+    """2026-11-12: the end of a development task with no proposal had nothing to open (74
+    notifications measured). It now opens the assistant's thread, where the end is told."""
+
+    def test_a_task_without_a_proposal_opens_the_assistant_and_a_proposal_its_queue(self):
+        from django.urls import reverse
+        self.assertEqual(reverse('home'), dev_tools.job_open_url([]))
+        with mock.patch.object(dev_tools, 'proposals_url', return_value='/models/#wamaProposals'):
+            self.assertEqual('/models/#wamaProposals', dev_tools.job_open_url(['x.json']))

@@ -443,6 +443,16 @@ def proposals_url(outputs) -> str:
         return ''
 
 
+def job_open_url(outputs) -> str:
+    """Ce que « Ouvrir » montre de la fin d'une tâche de développement : la page où se DÉCIDE ce
+    qu'elle a proposé (`proposals_url`), sinon le fil de l'assistant — c'est là que la fin est
+    racontée et que le rapport entier se demande (`dev_read_report`). Décision de Fabien,
+    2026-11-12 (« pour le moment ») : 74 notifications de tâche n'avaient rien à ouvrir ; une page
+    de rapport viendra avec l'app de consultation du code (vision, non construite)."""
+    from django.urls import reverse
+    return proposals_url(outputs) or reverse('home')
+
+
 def notify_finished_jobs() -> int:
     """Annonce, une fois, chaque tâche de développement TERMINÉE : une notification DANS WAMA
     (cloche du web) que la passerelle relaie dans le fil d'où la tâche a été demandée — le chemin
@@ -471,7 +481,7 @@ def notify_finished_jobs() -> int:
                              f"{'terminée' if success else 'en échec'}")
                     created += notify_in_app([user], 'job_done' if success else 'job_failed',
                                              title, body=_job_summary(state),
-                                             url=proposals_url(state.get('outputs')),
+                                             url=job_open_url(state.get('outputs')),
                                              app=DEV_JOB_APP, object_type=DEV_JOB_TYPE,
                                              object_id=meta['id'])
             meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding='utf-8')

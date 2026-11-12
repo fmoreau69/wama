@@ -853,7 +853,7 @@ Le volet droit du model manager et l'outil `control_service` montrent l'état de
 
 - **Domicile** : `wama/common/utils/service_supervision.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Ce qu'un processus Python dit à la surveillance des services (`scripts/worker_watchdog.sh`), et ce qu'il lit de leur état.
-- **API publique** (15) :
+- **API publique** (16) :
   - `ask_for_service(service: str) -> None` — Le service est éteint et quelqu'un en a besoin : la surveillance le relancera.
   - `note_stopped_on_purpose(service: str) -> None` — Le service s'arrête parce qu'on le lui demande, pas parce qu'il est tombé.
   - `declared_services() -> list` — Les services que la surveillance connaît : la liste du script qui les lance, seule déclaration.
@@ -864,9 +864,10 @@ Le volet droit du model manager et l'outil `control_service` montrent l'état de
   - `services_at_start() -> list` — Ceux qui démarrent avec WAMA : la section des scripts `start_wama`, héritée de leur environnement.
   - `watchdog_state() -> str` — `running`, `paused` ou `absent`, d'après le signe de vie que la surveillance écrit à chaque passage.
   - `services_overview() -> dict` — L'état de chaque service, et de la surveillance qui exécute les ordres.
+  - `declared_companions() -> list` — La passerelle et les serveurs MCP que la surveillance sait relancer : la liste du script.
   - `declared_workers() -> list` — Les processus Celery que la surveillance connaît : la liste du script qui les lance.
   - `needs_password(key: str, action: str) -> bool` — Le geste COUPE-t-il un travail en cours ? Alors l'administrateur redonne son mot de passe
-  - `processes_overview() -> list` — Les workers, le serveur web et WAMA entier — ce que la page offre de relancer.
+  - `processes_overview() -> list` — Les workers (un par un, et tous d'un geste), la passerelle et les serveurs MCP, le serveur
   - `control_process(key: str, action: str) -> tuple` — Dépose l'ordre de relancer un worker, le serveur web ou WAMA entier → (accepté ?, message).
   - `control_service(service: str, action: str) -> tuple` — Dépose l'ordre `start`, `stop` ou `restart` → (accepté ?, message à montrer).
 
@@ -1357,7 +1358,7 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
 
 - **Domicile** : `wama/common/services/dev_tools.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Outils de DÉVELOPPEMENT de WAMA — la surface du serveur MCP « wama-dev » (ROADMAP §8d Phase 3, étape 3).
-- **API publique** (29) :
+- **API publique** (30) :
   - `class DevToolError(ValueError)` — Refus LISIBLE — rendu comme `{'error': …}`, jamais comme une trace.
   - `base_dir() -> Path`
   - `jobs_dir() -> Path`
@@ -1372,6 +1373,7 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
   - `cut_with_notice(text: str, limit: int, job_id: str) -> str` — `text` borné à `limit`, la coupure DITE avec le geste qui donne la suite (2026-10-30, fil
   - `proposals_page(manifest_kind: str) -> str` — La page où se décide une proposition de ce kind — celle du registre qui le DÉCLARE
   - `proposals_url(outputs) -> str` — La page où se DÉCIDE ce qu'une tâche a proposé — la file de la page de son registre, ancrée
+  - `job_open_url(outputs) -> str` — Ce que « Ouvrir » montre de la fin d'une tâche de développement : la page où se DÉCIDE ce
   - `notify_finished_jobs() -> int` — Annonce, une fois, chaque tâche de développement TERMINÉE : une notification DANS WAMA
   - `start_job_watcher() -> None` — Le veilleur des fins de tâche, dans le process du serveur de développement — celui qui
   - `dev_run_role(user, role: str, args: dict=None, provider: str='', model: str='') -> dict` — Lance un rôle wama-dev-ai en tâche de fond ; il écrit une PROPOSITION en attente de validation, n'applique rien.
