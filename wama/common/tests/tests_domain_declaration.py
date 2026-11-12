@@ -23,7 +23,7 @@ from wama.common.utils.detail_registry import DetailRegistry
 
 #: The vocabulary a declaration may use — a key outside it is read by nothing (the per-mode
 #: `settings` lists were exactly that, and drifted for four months without a signal).
-DOMAIN_KEYS = {'id', 'label', 'icon', 'variant', 'accepts', 'params_schema', 'route_prefix',
+DOMAIN_KEYS = {'id', 'label', 'icon', 'variant', 'description', 'accepts', 'params_schema', 'route_prefix',
                'mode_param', 'inputs', 'library_natures', 'extension_natures', 'modes'}
 MODE_KEYS = {'id', 'label', 'icon', 'variant', 'realtime', 'inputs'}
 
@@ -72,6 +72,26 @@ class EveryAppDeclaresANamedDomainTest(SimpleTestCase):
         with mock.patch.object(app_modes, 'get_app_modes', side_effect=answers.get):
             self.assertEqual([('implicit', ['default']), ('none', [])],
                              _apps_without_a_named_domain(sorted(answers)))
+
+
+class ADomainOneCanChooseSaysWhatItDoesTest(SimpleTestCase):
+    """2026-11-12: the domain is chosen in the page TITLE; the menu, the subtitle and « À propos »
+    say what each one does — so every domain of an app that has several declares its sentence."""
+
+    def test_every_domain_of_an_app_with_several_says_what_it_does(self):
+        silent = [(app, d['id']) for app, decl in sorted(APP_MODES.items())
+                  if len(decl.get('domains', [])) > 1
+                  for d in decl['domains'] if not (d.get('description') or '').strip()]
+        self.assertEqual([], silent)
+
+    def test_the_measure_sees_a_silent_domain(self):
+        # Counter-check, on a declaration of the same shape.
+        fake = {'x': {'domains': [{'id': 'a', 'description': 'Does a.'}, {'id': 'b'}]}}
+        with mock.patch.dict(APP_MODES, fake, clear=True):
+            silent = [(app, d['id']) for app, decl in sorted(APP_MODES.items())
+                      if len(decl.get('domains', [])) > 1
+                      for d in decl['domains'] if not (d.get('description') or '').strip()]
+        self.assertEqual([('x', 'b')], silent)
 
 
 class EveryDomainHasItsSchemaTest(SimpleTestCase):

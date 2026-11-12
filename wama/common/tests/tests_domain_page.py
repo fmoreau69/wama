@@ -195,6 +195,24 @@ class TheServedPageCarriesTheDomainsTest(TestCase):
                     self.assertNotRegex(html, rf'href="{re.escape(index)}\?domain={other["id"]}" '
                                               r'aria-current="page"')
 
+    def test_the_page_and_its_about_tab_say_what_the_domain_does(self):
+        """Sous-titre et À propos PAR domaine : la phrase que le domaine déclare, et l'À propos du
+        domaine de la page (celui que le compte a retenu), pas de l'app entière."""
+        from wama.common.tests.tests_endpoints import EveryEndpointAnswersTest
+        for app in MULTI:
+            with self.subTest(app=app):
+                account = EveryEndpointAnswersTest._account_for(self, app)
+                self.client.force_login(account)
+                second = get_domains(app)[1]
+                page = self.client.get(reverse(f'{app}:index'), {'domain': second['id']})
+                html = page.content.decode(errors='replace')
+                self.assertIn('data-wama-page-domain-what', html)
+                self.assertIn(second['description'].replace("'", '&#x27;'), html)
+                about = self.client.get(reverse('common:app_about', args=[app]))
+                self.assertEqual(200, about.status_code)
+                self.assertIn(f'data-about-domain="{second["id"]}"',
+                              about.content.decode(errors='replace'))
+
     def test_the_address_names_the_domain_and_the_account_keeps_it(self):
         from wama.common.models import UserAppSetting
         from wama.common.tests.tests_endpoints import EveryEndpointAnswersTest

@@ -2906,7 +2906,7 @@ Ce que l'app DÉCLARE (résumé, fonctionnalités, aide propre — jamais un nom
   - `short_name(name: str) -> str` — Le nom COURT d'un modèle pour une pastille : avant le tiret qui ouvre sa description
   - `engines(app_id: str, groups=None) -> list` — Les MOTEURS actuels, par groupe (un select de catalogue) : `[{label, names, more}]` — la
   - `reports(app_id: str) -> list` — Les rapports publiés qui parlent de l'app (déclarés dans `common/reports.py`), avec leur
-  - `about_facts(app_id: str, groups=None) -> dict` — Ce que l'onglet « À propos » montre : le déclaré et le dérivé, prêts à rendre.
+  - `about_facts(app_id: str, groups=None, domain: str=None) -> dict` — Ce que l'onglet « À propos » montre : le déclaré et le dérivé, prêts à rendre.
   - `help_facts(app_id: str) -> dict` — Ce que l'onglet « Aide » montre : les gestes COMMUNS (le gabarit), les capacités déclarées
 
 ### Panneau de la cloche

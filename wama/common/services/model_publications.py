@@ -66,11 +66,14 @@ def _model_rows(keys: list, seen: set) -> list:
     return out
 
 
-def app_models(app_id: str) -> list:
+def app_models(app_id: str, domain: str = None) -> list:
     """
     `[{label, models: [{key, name, description, platform_url, publications}]}]` — un groupe par
     select de catalogue de l'app, dans l'ordre du schéma. Un modèle déjà montré par un groupe
     précédent n'est pas répété.
+
+    `domain` : les seuls modèles de CE domaine — l'À propos de la page d'un domaine ne mêle pas
+    des modèles qui n'ont rien en commun (question de Fabien, 2026-11-10). Sans lui, l'app entière.
 
     Aucune lecture recopiée (revérification du 2026-10-10) : les selects se lisent par
     `param_schema.catalog_choice_keys` (la lecture côté serveur `catalog_options`, valeurs
@@ -86,7 +89,9 @@ def app_models(app_id: str) -> list:
     # les moteurs audio de l'enhancer (2026-11-12). La passe sur l'app entière vient ensuite,
     # pour ce qu'aucun domaine ne nomme — un modèle déjà montré n'est pas répété.
     passes = [(None, '')]
-    if app_modes.has_domain_tabs(app_id):
+    if domain:
+        passes = [(domain, '')]
+    elif app_modes.has_domain_tabs(app_id):
         passes = [(d.get('id'), d.get('label') or d.get('id') or '')
                   for d in app_modes.get_domains(app_id)] + passes
     groups, seen = [], set()
@@ -97,7 +102,7 @@ def app_models(app_id: str) -> list:
                 label = field.get('label') or field.get('name') or ''
                 groups.append({'label': f'{domain_label} — {label}' if domain_label else label,
                                'models': models})
-    if not groups:
+    if not groups and not domain:
         from wama.common.manifests.builtin.app import _models
         models = _model_rows(((_models(app_id) or {}).get('catalog_keys') or []), seen)
         if models:

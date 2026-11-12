@@ -36,8 +36,9 @@ thème seuls (`tests_theme`) ; la couleur de l'app vient de sa déclaration.{% e
     <div class="wama-about-head">
         <div class="wama-about-icon"{% if about.color %} style="color:{{ about.color }};"{% endif %}><i class="{{ about.icon }}"></i></div>
         <div>
-            <h3>{{ about.label }}</h3>
+            <h3>{{ about.label }}{% if about.domain %} <span class="wama-about-group" data-about-domain="{{ about.domain.id }}">/ {{ about.domain.label }}</span>{% endif %}</h3>
             <p class="wama-about-lead">{{ about.summary }}</p>
+            {% if about.domain.description %}<p class="wama-about-lead mt-1"><strong>{{ about.domain.label }}</strong> — {{ about.domain.description }}</p>{% endif %}
             <div class="wama-about-origin" data-about-origin="{{ about.origin.kind }}">
                 {% if about.origin.kind == 'wama' %}
                 <i class="fas fa-circle-check"></i> {{ about.origin.label }}{% if about.origin.world %} · monde {{ about.origin.world }}{% endif %}

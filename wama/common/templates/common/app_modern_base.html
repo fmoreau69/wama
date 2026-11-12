@@ -92,6 +92,8 @@
     .wama-page-domain .dropdown-item[aria-current="page"] {
         background: rgba(var(--wama-accent-rgb), .16); }
 
+    .wama-page-domain-what { color: var(--wama-text-small); margin: -.5rem 0 0; }
+
     /* App blocks spécifiques */
     {% block app_styles %}{% endblock %}
 </style>
@@ -128,6 +130,8 @@
             {# Le sous-titre : la description DÉCLARÉE de l'app (`APP_CATALOG`, 2026-11-06) — une page qui l'écrit à la main la recopie. #}
             {% block app_description %}{{ current_app_spec.description|default:'' }}{% endblock %}
         </p>
+        {# Ce que fait le DOMAINE de la page, sous ce que fait l'app (2026-11-12) — déclaré par le domaine. #}
+        {% if page_domain.description %}<p class="wama-page-domain-what" data-wama-page-domain-what>{{ page_domain.description }}</p>{% endif %}
     </div>
 
     <!-- Onglets de navigation -->

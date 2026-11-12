@@ -234,8 +234,13 @@ domaines, groupés par domaine.
 - « Envoyer vers » dit au serveur quel domaine a reçu le fichier (`common:api_page_domain`) : le
   `localStorage` n'est plus lu.
 
-**Reste, dans l'ordre** : le sous-titre et l'À propos / l'Aide PAR domaine (l'À propos montre déjà
-les modèles par domaine ; le fragment ne reçoit pas encore le domaine de la page) ; la Console par
+**Livré ensuite, le même soir** : chaque domaine d'une app qui en a plusieurs DÉCLARE ce qu'il fait
+(`description`, `app_modes` — six phrases ; garde `tests_domain_declaration`) ; le socle l'affiche sous
+le sous-titre de l'app et dans le menu du titre ; l'À propos de la page est celui de SON domaine
+(`app_about.about_facts(domain=…)`, `model_publications.app_models(domain=…)` : libellé, phrase,
+entrées acceptées, modèles de ce seul domaine). L'Aide n'a rien de propre à un domaine aujourd'hui.
+
+**Reste, dans l'ordre** : la Console par
 domaine (une ligne de journal ne porte que l'app) ; le sous-menu par domaine dans le menu Apps ;
 le compte de la file sur l'onglet (`#queueCount` compte encore l'app entière) ; puis ⑥ et ⑦ de
 `ROUTE §11 #42` — le générateur hérite du sélecteur par le socle, mais la page générée doit ranger

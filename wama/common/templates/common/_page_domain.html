@@ -15,7 +15,7 @@ chaque domaine est posé par sa barre de progression (`wama:domain-stats`, `wama
         {% for d in page_domain.domains %}
         <a class="dropdown-item d-flex align-items-center" href="{{ d.url }}"{% if d.current %} aria-current="page"{% endif %}>
             {% if d.icon %}<i class="fas {{ d.icon }} me-2" aria-hidden="true"></i>{% endif %}
-            <span class="flex-grow-1">{{ d.label }}</span>
+            <span class="flex-grow-1">{{ d.label }}{% if d.description %}<small class="d-block text-body-secondary text-wrap">{{ d.description }}</small>{% endif %}</span>
             <span class="badge bg-secondary ms-3" data-domain-count="{{ d.id }}"></span>
         </a>
         {% endfor %}

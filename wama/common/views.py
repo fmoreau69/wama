@@ -1987,9 +1987,13 @@ def app_about(request, app_id: str):
     # Une app gardée garde son droit : l'« À propos » d'une app fermée n'est pas lisible.
     if _closed_app(request.user, app_id):
         raise Http404
-    groups = app_models(app_id)
+    # La page d'une app à plusieurs domaines est celle d'UN domaine (`navigation.page_domain` :
+    # l'adresse, sinon le compte) : son À propos ne montre que ce domaine.
+    from .services.navigation import page_domain
+    domain = (page_domain(request, app_id) or {}).get('current')
+    groups = app_models(app_id, domain=domain)
     return render(request, 'common/_app_about.html',
-                  {'about': about_facts(app_id, groups), 'groups': groups})
+                  {'about': about_facts(app_id, groups, domain=domain), 'groups': groups})
 
 
 @login_required

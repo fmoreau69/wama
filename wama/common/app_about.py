@@ -845,11 +845,27 @@ def reports(app_id: str) -> list:
     return reports_for(declaration_key(app_id))
 
 
-def about_facts(app_id: str, groups=None) -> dict:
-    """Ce que l'onglet « À propos » montre : le déclaré et le dérivé, prêts à rendre."""
+def about_facts(app_id: str, groups=None, domain: str = None) -> dict:
+    """Ce que l'onglet « À propos » montre : le déclaré et le dérivé, prêts à rendre.
+
+    `domain` : la page est celle d'UN domaine de l'app (2026-11-12) — son libellé et ce qu'il fait
+    (sa déclaration, `app_modes`) s'ajoutent, et les entrées sont celles qu'IL accepte."""
     spec = _spec(app_id)
     who = spec or _identity(app_id)
     mine = declared(app_id)
+    from wama.common.utils import app_modes
+    chosen = app_modes.get_domain(app_id, domain) if domain else {}
+    facts = _about_facts(app_id, groups, spec, who, mine)
+    if chosen:
+        facts['domain'] = {'id': chosen.get('id'), 'label': chosen.get('label') or chosen.get('id'),
+                           'description': chosen.get('description') or ''}
+        if chosen.get('accepts'):
+            facts['inputs'] = [_type_label(t) for t in chosen['accepts']]
+            facts['extensions'] = []
+    return facts
+
+
+def _about_facts(app_id, groups, spec, who, mine) -> dict:
     return {
         'app': app_id,
         'label': (who.get('label') or app_id).replace(SANDBOX_BADGE, ''),

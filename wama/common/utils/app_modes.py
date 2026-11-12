@@ -246,6 +246,7 @@ APP_MODES = {
     'imager': {
         'domains': [
             {'id': 'image', 'label': 'Image', 'icon': 'fa-image', 'variant': 'primary',
+             'description': "Créer ou retoucher une image à partir d'un texte ou d'une image.",
              # accepts = ce que le DOMAINE prend en ENTRÉE (le prompt est du `text`) ; son NOM
              # dit la SORTIE. Les deux domaines acceptent la même chose et diffèrent par ce
              # qu'ils produisent — la preuve qu'un domaine n'est pas une nature de fichier.
@@ -254,6 +255,7 @@ APP_MODES = {
              # référence (`reference_accept='image/*'`), fichier de prompts batch (.txt/.csv).
              'inputs': ['prompt', 'reference_image'], 'modes': []},
             {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'variant': 'success',
+             'description': "Générer une vidéo à partir d'un texte ou d'une image de départ.",
              'accepts': ('prompt', 'image'), 'params_schema': 'VIDEO_PARAMS_JSON',
              # Card vidéo (index.html:175) : prompt + image de DÉPART (i2v) — pas de batch file.
              'inputs': ['prompt', 'reference_image'], 'modes': []},
@@ -267,6 +269,7 @@ APP_MODES = {
     'enhancer': {
         'domains': [
             {'id': 'image_video', 'label': 'Image / Vidéo', 'icon': 'fa-photo-film',
+             'description': "Agrandir et restaurer une image ou une vidéo.",
              'variant': 'primary', 'accepts': ('image', 'video'),
              'params_schema': 'MEDIA_PARAMS_JSON',
              # Un GIF est une IMAGE pour la taxonomie, ANIMÉE : il passe par la route vidéo, qui
@@ -284,6 +287,7 @@ APP_MODES = {
             # préfixe » se casserait au premier réordonnancement, et rien ne l'aurait signalé.
             # Absent = pas de préfixe, ce qui est le cas de tous les autres domaines.
             {'id': 'audio', 'label': 'Audio', 'icon': 'fa-volume-high', 'variant': 'success',
+             'description': "Débruiter et restaurer un enregistrement sonore.",
              'accepts': ('audio',), 'route_prefix': 'audio', 'params_schema': 'AUDIO_PARAMS_JSON',
              'modes': [
                 {'id': 'enhance_audio', 'label': 'Débruitage / Restauration', 'icon': 'fa-wave-square',
@@ -380,6 +384,8 @@ APP_MODES = {
     'anonymizer': {
         'domains': [
             {'id': 'image_video', 'label': 'Image / Vidéo', 'icon': 'fa-photo-film',
+             'description': "Flouter les visages, les plaques et ce que l'on décrit dans une image "
+                            "ou une vidéo.",
              'accepts': ('image', 'video'), 'params_schema': 'PARAMS_JSON',
              # Le réglage du schéma qui PORTE le mode (valeurs = ids ci-dessous).
              'mode_param': 'target_mode',
@@ -394,6 +400,7 @@ APP_MODES = {
             # document, occultées dans le fichier même, sa forme gardée. Même élément (`Media`,
             # sa nature le range ici : la spec de détail le dit), son schéma à lui.
             {'id': 'document', 'label': 'Document', 'icon': 'fa-file-shield',
+             'description': "Occulter les données personnelles d'un document, sa mise en forme gardée.",
              'accepts': ('document',), 'params_schema': 'DOCUMENT_PARAMS_JSON',
              'inputs': ['work_file']},
             # futur : {'id':'audio',…}

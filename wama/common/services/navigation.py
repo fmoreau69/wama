@@ -114,7 +114,8 @@ def page_domain(request, app: str):
     du 2026-11-12 : le domaine se choisit AU-DESSUS de la page, le titre est le sélecteur).
 
     None pour une app d'un seul domaine : sa page n'a rien à choisir. Sinon
-    `{'app', 'current', 'label', 'icon', 'domains': [{'id', 'label', 'icon', 'url', 'current'}]}`.
+    `{'app', 'current', 'label', 'icon', 'description', 'domains': [{'id', 'label', 'icon',
+    'description', 'url', 'current'}]}` — `description` : ce que le domaine fait, tel qu'il le déclare.
     Le domaine est celui que l'ADRESSE nomme (`?domain=…` — une adresse par domaine : favori,
     partage, bouton Retour), sinon celui que le compte a retenu, sinon le premier déclaré. Une
     adresse qui en nomme un le retient pour le compte ; un domaine inconnu est ignoré."""
@@ -137,9 +138,10 @@ def page_domain(request, app: str):
         current = retained if retained in ids else ids[0]
     chosen = next(d for d in domains if d.get('id') == current)
     return {'app': app, 'current': current, 'label': chosen.get('label') or current,
-            'icon': chosen.get('icon') or '',
+            'icon': chosen.get('icon') or '', 'description': chosen.get('description') or '',
             'domains': [{'id': d.get('id'), 'label': d.get('label') or d.get('id'),
                          'icon': d.get('icon') or '', 'current': d.get('id') == current,
+                         'description': d.get('description') or '',
                          'url': f"{request.path}?{PAGE_DOMAIN_PARAM}={d.get('id')}"}
                         for d in domains]}
 

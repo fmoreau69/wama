@@ -150,6 +150,17 @@ class EveryDomainIsShownTest(TestCase):
         self.assertEqual([('Image — Moteur', ['LightOnOCR']), ('Vidéo — Moteur', ['docTR'])],
                          [(g['label'], [m['name'] for m in g['models']]) for g in groups])
 
+    def test_the_page_of_one_domain_shows_its_models_only(self):
+        """2026-11-12: « À propos » of the page of a domain does not mix models that have nothing
+        in common — the question that opened the chantier."""
+        a, b, c, d = self._two_domains()
+        with a, b, c, d:
+            groups = mp.app_models('reader', domain='b')
+            whole = mp.app_models('reader')
+        self.assertEqual([('Moteur', ['docTR'])],
+                         [(g['label'], [m['name'] for m in g['models']]) for g in groups])
+        self.assertEqual(2, len(whole), 'counter-check: without a domain, the whole app')
+
     def test_the_whole_app_reading_counts_a_shared_field_once(self):
         # The main schema and domain « a » hold the SAME field: read once, not twice.
         from wama.common.utils.param_schema import catalog_choice_keys
