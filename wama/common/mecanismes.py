@@ -2526,9 +2526,12 @@ MECHANISMS = (
               "d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en "
               "base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode "
               "est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une "
-              "page à plusieurs domaines rend leurs onglets par la pièce `_domain_tabs.html` "
-              "(`WamaModes.domainTabs` : volets de file, réglages du volet, domaine retenu, "
-              "2026-11-01) ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE "
+              "page à plusieurs domaines montre les volets de UN domaine (`_domain_tabs.html`, "
+              "`WamaModes.domainTabs` : volets de file, réglages du volet, 2026-11-01) — celui que "
+              "le SOCLE choisit depuis le 2026-11-12 : l'adresse (`?domain=`), sinon le compte "
+              "(`navigation.page_domain`), le titre de la page en sélecteur (`_page_domain.html`), "
+              "plus d'onglets ; chaque domaine déclare ce qu'il fait (`description`) et l'À propos, "
+              "la Console et le compte de la file sont ceux du domaine de la page ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE "
               "(`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un "
               "domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine "
               "pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit "
@@ -2637,7 +2640,11 @@ MECHANISMS = (
               "depuis le même jour (aucune n'écoute plus le clavier de la page elle-même, "
               "`tests_surfaces.PageKeyListenersTest`). Les touches de chaque brique se "
               "DÉCLARENT au registre des briques (`surfaces.UIBrick.shortcuts`), d'où la liste de "
-              "l'aide de la page (contrôles de page) et du catalogue",
+              "l'aide de la page (contrôles de page) et du catalogue. Depuis le 2026-11-12, une "
+              "brique lui demande l'ACTION d'une frappe d'après sa table (`WamaKeys.action`, "
+              "surchargeable par le nom de l'action : `remap`) au lieu de tester une touche — le "
+              "transport, l'outil Bornes, l'écriture à la lecture ; les autres suivent — et il "
+              "donne le RELÂCHÉ d'une touche à celui qui a pris son appui (`up`)",
               'wama/common/static/common/js/wama-keys.js',
               'docs/construction/ui/WAMA_VOLETS.md §3-ter',
               symbol='WamaKeys',            # global de base.html : compté par son symbole

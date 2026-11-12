@@ -1060,8 +1060,10 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     `wama-keys.js` gagne `WamaKeys.action(frappe, propriétaire, défauts)` et `WamaKeys.remap` : une
     touche se dit par sa position (`KeyJ`, `Shift+ArrowLeft`) ou par le caractère qu'elle produit
     (`,` — où que la disposition du clavier la mette) ; une surcharge redonne ses touches à une
-    action par son NOM, les autres gardent les leurs ; la page peut en servir (`keymap` de
-    `#wama-page-controls` — rien ne l'écrit encore). `Shortcut.names` nomme l'action de chaque
+    action par son NOM, les autres gardent les leurs. ⚠ Rien n'appelle encore `remap` hors de
+    sa garde : c'est le préréglage d'une page qui le fera (un premier lecteur d'un `keymap` servi
+    par la page a été retiré à la revérification — il n'avait pas d'écrivain et refaisait la
+    lecture de `wama-page-controls.js`). `Shortcut.names` nomme l'action de chaque
     touche. Le magnéto (`WamaAxis.keys`, donc les surfaces et la visionneuse) demande l'action à sa
     table `TRANSPORT_KEYS` ; aucune touche existante ne change. NEUF : `,` et `.` reculent et
     avancent d'un pas, la lecture arrêtée — premier appelant de `axis.step` ; ⚠ le pas reste celui
