@@ -8231,3 +8231,39 @@ au moment venu.
 **30.4 Question consignée, rien à faire** — musique et paysages sonores dans le Composer : deux
 MODES plutôt que deux domaines, si leurs réglages divergent (`WAMA_QUALITE §0`, à rapprocher de
 `composer/utils/model_choice.py:13-14`).
+
+## 31. EXPLOITER et DÉVELOPPER WAMA depuis WAMA — idées consignées, rien de décidé (ouvert le 2026-11-12, Fabien) 💡
+
+> Consignation de VISION, volontairement peu précisée (« très exploratoire pour le moment »). Rien
+> n'est construit de ce qui suit, sauf mention ✅. Né d'une parenthèse sur l'assistant : la relance
+> depuis WAMA « fait gagner du temps et permet de continuer à travailler en relançant par étapes,
+> comme les étapes du Cam Analyzer — une uniformité de comportement ».
+
+**31.1 Une page d'EXPLOITATION** ⏳ — la page du model manager porte désormais des gestes qui ne
+concernent plus les modèles : relancer un worker, tous les workers, la passerelle, un serveur MCP,
+le serveur web, WAMA entier (✅ 2026-11-11 et 12, `service_supervision.processes_overview`). Fabien :
+*« à force de multiplier ce que j'ai le droit de relancer, on alourdit la page du model manager
+[…] certaines fonctions pourraient être intéressantes à exécuter depuis WAMA, comme les tests,
+check_docs… Ne faut-il pas un endroit pour centraliser tout ça ? »* Piste (session du 12/11, à
+valider) : une page d'administration « Exploitation » dans la section WAMA du menu, qui rassemble
+(a) les processus à relancer — lus de la même brique, donc déplacés sans réécriture —, (b) des
+OPÉRATIONS déclarées (contrôles mécaniques : `check_docs`, `doc_facts --check`,
+`manifest_export --check`, `check_app_conformity`, un test ciblé — ✅ `dev_run_tests` pour
+l'assistant), lancées en tâche de fond et SUIVIES comme une card, (c) les rapports nocturnes. Le
+model manager ne garderait que les services qui tiennent des modèles. À rapprocher de la suite du
+pipeline universel (`ROUTE §10.6`) : une opération est un process, une relance par étapes en est le
+geste commun.
+
+**31.2 Une app « Coder »** ⏳ — consulter et ÉDITER le code depuis WAMA, développeurs et
+administrateurs seuls : en quelque sorte un IDE intégré. Elle porterait aussi la page de RAPPORT
+d'une tâche de développement (aujourd'hui la notification ouvre le fil de l'assistant, faute de
+page — ✅ 2026-11-12). À articuler avec la levée progressive de la règle « wama-dev-ai ne touche pas
+au code » (`AGENTS.md`) et avec les outils d'inspection de l'assistant (`dev_inspect`).
+
+**31.3 Une app de consultation de la BASE** ⏳ — simplifiée, à la manière de pgAdmin ou de SQLite
+Studio. Question d'ordre laissée ouverte : avant ou après l'explorateur du monde Data, qui consulte
+déjà les données d'un dataset (`WAMA_DATA_WORLD.md`) — les deux lisent des tables, une seule brique
+de consultation est à viser.
+
+**31.4 Le menu du compte** ⏳ — voir `§CLÔTURE`/`§PALIER` du 2026-11-12 dans `PROJECT_STATUS` pour la
+proposition ; à trancher par Fabien, concile si besoin.
