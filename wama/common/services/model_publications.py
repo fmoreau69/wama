@@ -78,13 +78,25 @@ def app_models(app_id: str) -> list:
     modèles qu'elle déclare, par la facette `models` de son manifeste
     (`manifests.builtin.app._models`).
     """
+    from wama.common.utils import app_modes
     from wama.common.utils.param_schema import catalog_choice_keys
 
+    # Une app à PLUSIEURS domaines les montre tous, chaque groupe nommé par son domaine
+    # (« Vidéo — Modèle ») : le schéma principal seul taisait les modèles vidéo de l'imager et
+    # les moteurs audio de l'enhancer (2026-11-12). La passe sur l'app entière vient ensuite,
+    # pour ce qu'aucun domaine ne nomme — un modèle déjà montré n'est pas répété.
+    passes = [(None, '')]
+    if app_modes.has_domain_tabs(app_id):
+        passes = [(d.get('id'), d.get('label') or d.get('id') or '')
+                  for d in app_modes.get_domains(app_id)] + passes
     groups, seen = [], set()
-    for field, keys in catalog_choice_keys(app_id):
-        models = _model_rows(keys, seen)
-        if models:
-            groups.append({'label': field.get('label') or field.get('name') or '', 'models': models})
+    for domain, domain_label in passes:
+        for field, keys in catalog_choice_keys(app_id, domain):
+            models = _model_rows(keys, seen)
+            if models:
+                label = field.get('label') or field.get('name') or ''
+                groups.append({'label': f'{domain_label} — {label}' if domain_label else label,
+                               'models': models})
     if not groups:
         from wama.common.manifests.builtin.app import _models
         models = _model_rows(((_models(app_id) or {}).get('catalog_keys') or []), seen)

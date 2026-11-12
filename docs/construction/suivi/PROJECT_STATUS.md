@@ -31124,3 +31124,37 @@ modèle grisé) ; la pesée des candidats (`d69f677fe`) lit les fichiers de la s
 **Plan corrigé** (`INFRA_WSL_VS_WINDOWS §Plan multi-venv`) : FLUX 3 passe par la route
 d'intégration, que le multi-venv doit rendre consciente de l'environnement (preuve du moteur, essai
 du backend généré et anatomie joués dans le venv qui exécutera le modèle).
+
+## §PALIER 2026-11-12, « DOMAINES : l'À propos lit TOUS les domaines, la règle du domaine nommé est gardée, maquette du sélecteur » — commit local, non poussé — 🔴 relancer gunicorn (`param_schema`, `app_modes`, `model_publications`) — 🔚 choix de la maquette par Fabien, puis décisions (a)(b)(c) de ⑤
+
+**Constat corrigé** (handoff du 10/11, `MODES_QUEUE_UX §2ter` : « le rattachement d'un modèle à un
+domaine n'est déclaré nulle part ») : il se DÉRIVE — domaine → son schéma (`params_schema`) → ses
+selects de catalogue. Mesuré : imager image 9 / vidéo 6, enhancer image_video 10 / audio 2, aucun
+modèle commun ; l'À propos ne lisait que le schéma principal (`schema_for_app`) et taisait les 6
+modèles vidéo de l'imager et les 2 moteurs audio de l'enhancer.
+
+**Livré** : `app_modes.app_schemas` (le principal, puis le schéma que chaque domaine nomme) ;
+`param_schema.catalog_choice_keys(app, domain=None)` lit l'app entière par défaut, un domaine à la
+demande ; `model_publications.app_models` nomme chaque groupe par son domaine quand l'app en a
+plusieurs (« Vidéo — Modèle »). Remesuré : imager 15, enhancer 12, les huit autres inchangés ; le
+corpus de manifestes ne bouge pas (la facette `models` avait déjà ces lignes par `source == app`).
+
+**Gardes** (au commun, sur les déclarations) : `tests_model_publications.EveryDomainIsShownTest`
+— contre-épreuve ROUGE sur l'ancienne lecture (`imager/video/model`, `enhancer/audio/engine`) ;
+`tests_domain_declaration.EveryAppDeclaresANamedDomainTest` — la règle « un domaine toujours
+déclaré et nommé, même seul » n'était tenue par rien (les gardes bouclaient sur `APP_MODES`) ;
+22 apps sur 22 la respectent, jumelles et apps nées comprises.
+
+**Maquette du sélecteur** (hors dépôt, fichier du scratchpad de la session) : le titre porte le
+domaine et ouvre un menu de liens, une adresse par domaine, mêmes liens dans le menu Apps, feuille
+du bas sur téléphone, bascule à facettes comme TRANSITION ; variante à liens toujours visibles.
+Parsée sous V8, pas vue rendue par la session (le navigateur piloté refuse `file:` et ne joint pas
+le poste). Rien du socle n'est touché.
+
+**Suite complète du 12/11 (avant ces écritures)** : 11 181 tests, 5 650 s, 5 rouges, aucun de
+cette session — `tests_password_autofill` (`wama-app-base.js:343-344`, `current-password` de la
+confirmation par mot de passe, `0d191644a`), `tests_route_for_nature`
+(`cloud_models.py:237-238`, une variable nommée `routes`), `tests_voice_refs`
+(`synthesizer_01`, `avatarizer_01`), `enhancer.tests_declared_weights` (26 occurrences dans le
+code vendorisé d'ACE-Step, gitignoré), `kinematics.tests_gap_fill` (`box_iou` : même fonction,
+objet différent dans la suite — `multicam_tracker.py:421` délègue bien). Non traités ici.

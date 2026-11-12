@@ -101,6 +101,66 @@ class AppModelsTest(TestCase):
                          (group['label'], [m['name'] for m in group['models']]))
 
 
+class EveryDomainIsShownTest(TestCase):
+    """2026-11-12: an app with several domains shows the models of ALL of them. The main schema
+    alone left the imager's video models and the enhancer's audio engines out of « À propos »."""
+
+    def setUp(self):
+        AIModel.objects.create(model_key='reader:lighton', name='LightOnOCR', model_type='ocr',
+                               source='reader')
+        AIModel.objects.create(model_key='reader:doctr', name='docTR', model_type='ocr',
+                               source='reader')
+
+    def test_every_catalogue_select_of_every_declared_domain_is_read(self):
+        # The contract, on the DECLARATIONS: no app named here, a new domain enters by itself.
+        from wama.common.utils import app_modes
+        from wama.common.utils.param_schema import _pget, catalog_choice_keys
+        missing = []
+        with patch('wama.model_manager.services.get_registry_models',
+                   return_value=([('m', 'M')], [])):
+            for app in app_modes.APP_MODES:
+                read = {id(field) for field, _keys in catalog_choice_keys(app)}
+                for domain in app_modes.get_domains(app):
+                    for field in app_modes.domain_schema(app, domain['id']):
+                        if _pget(field, 'options_source') == 'catalog' and id(field) not in read:
+                            missing.append(f"{app}/{domain['id']}/{_pget(field, 'name')}")
+        self.assertEqual([], missing)
+
+    def _two_domains(self):
+        first = {'name': 'model', 'label': 'Moteur', 'options_source': 'catalog',
+                 'options_query': {'source': 'reader', 'task': 'first'}}
+        second = {'name': 'model', 'label': 'Moteur', 'options_source': 'catalog',
+                  'options_query': {'source': 'reader', 'task': 'second'}}
+        domains = [{'id': 'a', 'label': 'Image', 'params_schema': 'A'},
+                   {'id': 'b', 'label': 'Vidéo', 'params_schema': 'B'}]
+
+        def registry(source, task=None, **_kw):
+            return ([('lighton', 'LightOnOCR')] if task == 'first' else [('doctr', 'docTR')]), []
+
+        return (patch('wama.common.utils.app_modes.get_domains', return_value=domains),
+                patch('wama.common.utils.param_schema.schema_for_app', return_value=[first]),
+                patch('wama.common.utils.param_schema.declared_param_schemas',
+                      return_value={'schemas': {'A': [first], 'B': [second]}}),
+                patch('wama.model_manager.services.get_registry_models', side_effect=registry))
+
+    def test_each_domain_gets_its_own_group_named_after_it(self):
+        a, b, c, d = self._two_domains()
+        with a, b, c, d:
+            groups = mp.app_models('reader')
+        self.assertEqual([('Image — Moteur', ['LightOnOCR']), ('Vidéo — Moteur', ['docTR'])],
+                         [(g['label'], [m['name'] for m in g['models']]) for g in groups])
+
+    def test_the_whole_app_reading_counts_a_shared_field_once(self):
+        # The main schema and domain « a » hold the SAME field: read once, not twice.
+        from wama.common.utils.param_schema import catalog_choice_keys
+        a, b, c, d = self._two_domains()
+        with a, b, c, d:
+            whole = catalog_choice_keys('reader')
+            only_b = catalog_choice_keys('reader', 'b')
+        self.assertEqual([['reader:lighton'], ['reader:doctr']], [keys for _f, keys in whole])
+        self.assertEqual([['reader:doctr']], [keys for _f, keys in only_b])
+
+
 class AboutFragmentTest(TestCase):
 
     def setUp(self):

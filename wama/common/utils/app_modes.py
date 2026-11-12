@@ -530,6 +530,22 @@ def domain_schema(app: str, domain_id: str) -> list:
     return list(((declared_param_schemas(app) or {}).get('schemas') or {}).get(name) or [])
 
 
+def app_schemas(app: str) -> list:
+    """`[(domaine | None, schéma)]` — TOUS les schémas de réglages de l'app : le principal
+    (`None`), puis celui de chaque domaine qui en NOMME un. Un domaine sans `params_schema` lit le
+    principal, déjà rendu.
+
+    Pour qui doit parler de l'app ENTIÈRE (l'À-propos, la facette `models` du manifeste) : lire
+    `schema_for_app` seul ne rend que le schéma principal, et laissait hors de l'À-propos les
+    modèles vidéo de l'imager et les moteurs audio de l'enhancer (mesuré le 2026-11-12)."""
+    from wama.common.utils.param_schema import schema_for_app
+    out = [(None, schema_for_app(app) or [])]
+    for d in get_domains(app):
+        if domain_schema_name(app, d.get('id')):
+            out.append((d.get('id'), domain_schema(app, d.get('id'))))
+    return out
+
+
 def element_domain(element) -> str | None:
     """Le domaine d'un ÉLÉMENT, dérivé de ce qui est déjà déclaré : la surface de son modèle
     (`DetailRegistry.surface_of`) désigne le domaine qu'elle sert ; quand elle en sert deux, le

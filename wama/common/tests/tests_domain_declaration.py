@@ -44,6 +44,36 @@ class DeclarationVocabularyTest(SimpleTestCase):
                                          f"mode {m.get('id')}: keys no reader knows")
 
 
+def _apps_without_a_named_domain(apps):
+    """Apps that declare no domain, or an implicit one (`default`) — the rule of `app_modes`:
+    « un domaine est TOUJOURS déclaré et NOMMÉ, même seul »."""
+    out = []
+    for app in apps:
+        ids = [d.get('id') for d in app_modes.get_domains(app)]
+        if not ids or not all(ids) or 'default' in ids or len(ids) != len(set(ids)):
+            out.append((app, ids))
+    return out
+
+
+class EveryAppDeclaresANamedDomainTest(SimpleTestCase):
+    """2026-11-12: the rule was written and held by nothing — the guards below loop over
+    `APP_MODES`, so an app absent from it passed in silence. It is what lets a SECOND domain be
+    added to any app later: there is always a first one to stand next to."""
+
+    def test_every_app_of_the_catalogue_has_at_least_one_named_domain(self):
+        from wama.common.app_registry import APP_CATALOG
+        self.assertGreaterEqual(len(APP_CATALOG), 10)
+        self.assertEqual([], _apps_without_a_named_domain(sorted(APP_CATALOG)))
+
+    def test_an_app_without_a_domain_or_with_an_implicit_one_is_reported(self):
+        # Counter-check: the measure sees what it is meant to see.
+        answers = {'none': {}, 'implicit': {'domains': [{'id': 'default'}]},
+                   'named': {'domains': [{'id': 'lecture'}]}}
+        with mock.patch.object(app_modes, 'get_app_modes', side_effect=answers.get):
+            self.assertEqual([('implicit', ['default']), ('none', [])],
+                             _apps_without_a_named_domain(sorted(answers)))
+
+
 class EveryDomainHasItsSchemaTest(SimpleTestCase):
 
     def test_the_fleet_is_measured(self):
