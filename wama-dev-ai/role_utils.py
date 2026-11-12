@@ -98,18 +98,24 @@ def diffusers_class_known(class_name) -> bool:
 
 
 def diffusers_pipeline_class(repo_id):
-    """(`_class_name` du `model_index.json` racine, ou None ; raison lisible) — fait MÉCANIQUE."""
+    """(`_class_name` de l'index de pipeline racine, ou None ; raison lisible) — fait MÉCANIQUE.
+    Les index sont ceux de la découverte et de la pesée (`model_installer.DIFFUSERS_PIPELINE_INDEXES` :
+    `model_index.json`, puis `modular_model_index.json` d'un pipeline MODULAIRE — 2026-11-12,
+    `flux-3-image-klein` ne porte que le second)."""
     import json as _json
     from huggingface_hub import hf_hub_download
-    try:
-        path = hf_hub_download(repo_id, 'model_index.json')
-    except Exception:
-        return None, "aucun model_index.json à la racine du dépôt"
-    with open(path, encoding='utf-8') as f:
-        class_name = (_json.load(f) or {}).get('_class_name')
-    if not class_name:
-        return None, "model_index.json sans _class_name"
-    return class_name, f"model_index.json nomme {class_name!r}"
+    from wama.model_manager.services.model_installer import DIFFUSERS_PIPELINE_INDEXES
+    for index in DIFFUSERS_PIPELINE_INDEXES:
+        try:
+            path = hf_hub_download(repo_id, index)
+        except Exception:
+            continue
+        with open(path, encoding='utf-8') as f:
+            class_name = (_json.load(f) or {}).get('_class_name')
+        if not class_name:
+            return None, f"{index} sans _class_name"
+        return class_name, f"{index} nomme {class_name!r}"
+    return None, f"aucun index de pipeline à la racine du dépôt ({', '.join(DIFFUSERS_PIPELINE_INDEXES)})"
 
 
 def transformers_class_known(class_name) -> bool:

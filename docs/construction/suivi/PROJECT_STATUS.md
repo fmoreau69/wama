@@ -31087,3 +31087,18 @@ Gardes : `tests_library_install.PatchesLandInTheInterpreterVenvTest.test_a_file_
 (un vrai venv jetable, un fichier Higgs lié par lien dur), `tests_engine_derivation.DerivationDuMoteurTest.test_a_modular_pipeline_index_gives_diffusers_and_its_class`
 — chacune prouvée par une mutation. Mesuré : 91 tests OK (patches, dérivation, corpus après
 désinstallation, retrait des choix, gardes transverses).
+
+## §PALIER — 2026-11-12 (suite), « MULTI-VENV : REVÉRIFICATION DES QUICK WINS » — fait — 🔚 inchangé : la route des librairies par environnement
+
+Revérification de `66c60ad7c` : un SECOND lecteur de la même donnée (la classe d'un pipeline lue dans
+son index) ne connaissait que `model_index.json` — `wama-dev-ai/role_utils.diffusers_pipeline_class`
+(rôle `model`), qui aurait répondu « aucun index » pour flux-3. Aligné sur
+`model_installer.DIFFUSERS_PIPELINE_INDEXES` ; garde
+`tests_dev_ai_bridge.DiffusersEngineMustBeProvenTest.test_the_pipeline_class_is_read_from_a_modular_index_too`
+(faux téléchargement du Hub, contre-épreuve), prouvée par mutation. L'écriture atomique des patches
+suit l'usage de WAMA (`os.replace` en ligne dans `generated_media`, `output_formats`, `waveform` :
+aucune brique commune à emprunter, et `apply_patches.py` est un script hors du paquet). Le lecteur
+d'anatomie (`model_anatomy.components_from_snapshot`) reste sur `model_index.json` : c'est
+l'anatomie modulaire, consignée pour l'étape FLUX 3. Mesuré : 119 tests du pont, 66 tests des gardes
+transverses et des modules touchés, OK ; `check_docs` 0 cassée sur 4090 ; `check_redundancy` 97,
+aucune dans les fichiers de la session.

@@ -218,6 +218,28 @@ class DiffusersEngineMustBeProvenTest(SimpleTestCase):
                                              lister=lambda _hf: list(files))
         return manifest, concerns
 
+    def test_the_pipeline_class_is_read_from_a_modular_index_too(self):
+        """`flux-3-image-klein` (2026-11-12) has no `model_index.json`, only a
+        `modular_model_index.json`: the role read the first only and said « no index »."""
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as tmp:
+            modular = Path(tmp) / 'modular_model_index.json'
+            modular.write_text(json.dumps({'_class_name': 'Flux3DistilledModularPipeline'}), encoding='utf-8')
+
+            def download(repo_id, name):
+                if name != 'modular_model_index.json':
+                    raise FileNotFoundError(name)
+                return str(modular)
+            with mock.patch('huggingface_hub.hf_hub_download', side_effect=download):
+                found, reason = self.role_utils.diffusers_pipeline_class('bfl/klein')
+                self.assertEqual('Flux3DistilledModularPipeline', found, reason)
+            # Counter-check: neither index → no class, and the reason names both.
+            with mock.patch('huggingface_hub.hf_hub_download', side_effect=FileNotFoundError):
+                found, reason = self.role_utils.diffusers_pipeline_class('o/none')
+                self.assertIsNone(found)
+                self.assertIn('modular_model_index.json', reason)
+
     def test_a_real_diffusers_pipeline_keeps_its_engine(self):
         manifest, concerns = self._enforce(self._manifest(), 'StableDiffusionXLPipeline')
         self.assertEqual('diffusers', manifest['body']['composition']['runtime']['engine'])
