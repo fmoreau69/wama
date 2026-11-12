@@ -52,6 +52,8 @@ class AdminGuardTest(_Base):
         for fn in (dev_inspect.dev_read_log, dev_inspect.dev_read_code):
             self.assertEqual('forbidden', fn(self.dev, 'x')['error'])
         self.assertEqual('forbidden', dev_inspect.dev_list_code(self.dev)['error'])
+        self.assertEqual('forbidden', dev_inspect.dev_search_code(self.dev, 'x')['error'])
+        self.assertEqual('forbidden', dev_tools.dev_run_tests(self.dev, 'wama.common.tests')['error'])
 
 
 class DatabaseTest(_Base):
@@ -98,6 +100,53 @@ class FilesTest(_Base):
         for path in ('/etc/passwd', '../pkg/a.py', 'notes.txt'):
             with self.subTest(path=path):
                 self.assertIn('error', self._call(self.admin, 'dev_read_log', path=path))
+
+    def test_dev_read_log_without_a_path_lists_the_journals_most_recent_first(self):
+        import os
+        for age, name in enumerate(('old.log', 'gunicorn-error.log', 'notes.txt')):
+            f = self.root / 'logs' / name
+            f.write_text('x', encoding='utf-8')
+            os.utime(f, (1_700_000_000 - age * 100, 1_700_000_000 - age * 100))
+        os.utime(self.root / 'logs' / 'gunicorn-error.log', (1_800_000_000, 1_800_000_000))
+        listed = self._call(self.admin, 'dev_read_log')['journals']
+        self.assertEqual(['gunicorn-error.log', 'old.log'], [j['name'] for j in listed])
+        self.assertEqual(1, listed[0]['bytes'])
+
+    def test_a_guessed_log_name_is_refused_with_the_real_ones(self):
+        """2026-11-12 : « gunicorn.log » n'existe pas ; le refus nu a fait renoncer l'assistant."""
+        (self.root / 'logs' / 'gunicorn-error.log').write_text('x', encoding='utf-8')
+        error = self._call(self.admin, 'dev_read_log', path='gunicorn.log')['error']
+        self.assertIn('gunicorn-error.log', error)
+
+    def test_dev_search_code_finds_lines_and_skips_denied_places(self):
+        (self.root / 'pkg' / 'a.py').write_text('x = 1\nraise Boom("no export")\n', encoding='utf-8')
+        (self.root / 'pkg' / 'page.html').write_text('no export here\n', encoding='utf-8')
+        (self.root / 'logs' / 'c.py').write_text('no export\n', encoding='utf-8')
+        (self.root / '.env').write_text('no export\n', encoding='utf-8')
+        found = self._call(self.admin, 'dev_search_code', pattern='no export')
+        self.assertEqual(['pkg/a.py:2: raise Boom("no export")'], found['matches'])
+        html = self._call(self.admin, 'dev_search_code', pattern='no export', glob='*')
+        self.assertEqual({'pkg/a.py', 'pkg/page.html'}, {m.split(':')[0] for m in html['matches']})
+        # A regular expression is one only when asked; a broken one is refused, not raised.
+        self.assertEqual([], self._call(self.admin, 'dev_search_code', pattern='x = \\d')['matches'])
+        self.assertEqual(1, len(self._call(self.admin, 'dev_search_code', pattern='x = \\d',
+                                           regex=True)['matches']))
+        self.assertIn('error', self._call(self.admin, 'dev_search_code', pattern='(', regex=True))
+        for refused in ({'pattern': 'x', 'path': 'logs'}, {'pattern': 'x', 'path': '..'},
+                        {'pattern': 'x', 'glob': '../*'}, {'pattern': ''}):
+            with self.subTest(refused=refused):
+                self.assertIn('error', self._call(self.admin, 'dev_search_code', **refused))
+
+    def test_dev_run_tests_starts_one_label_and_never_the_whole_suite(self):
+        with mock.patch.object(dev_tools, 'start_job', return_value={'job_id': 'j'}) as started:
+            self.assertEqual({'job_id': 'j'}, self._call(self.admin, 'dev_run_tests',
+                                                         label='wama.common.tests.tests_user_settings'))
+            argv = started.call_args.args[2]
+            self.assertEqual(['test', 'wama.common.tests.tests_user_settings', '--keepdb'], argv[2:])
+            for label in ('', 'wama', 'os.system', 'wama.common; rm -rf x', '--help', 'wama..tests'):
+                with self.subTest(label=label):
+                    self.assertIn('error', self._call(self.admin, 'dev_run_tests', label=label))
+            self.assertEqual(1, started.call_count)
 
     def test_dev_read_code_numbers_lines(self):
         (self.root / 'pkg' / 'a.py').write_text('x = 1\ny = 2\n', encoding='utf-8')

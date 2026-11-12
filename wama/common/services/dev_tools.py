@@ -614,7 +614,7 @@ CLAUDE_CODE_JOB_TIMEOUT_S = 3600
 
 
 def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> dict:
-    """Confie une tâche de développement à Claude Code (abonnement du demandeur) en TÂCHE DE FOND : audit, explication, ou modification du dépôt avec write=true. Réponds aussitôt à l'utilisateur ; la réponse de Claude Code arrive dans le fil à la fin.
+    """Confie une tâche de développement à Claude Code (abonnement du demandeur) en TÂCHE DE FOND : audit, explication, ou modification du dépôt avec write=true. Réponds aussitôt à l'utilisateur ; la réponse de Claude Code arrive dans le fil à la fin. Devant une PANNE, diagnostique d'abord toi-même quand tu as les outils d'inspection (dev_read_log sans chemin puis le journal récent, dev_search_code sur le message d'erreur, dev_read_code, dev_db_query) et confie ICI la correction en disant ce que tu as trouvé — fichier, ligne, message du journal.
 
     task : la tâche en clair. write : autoriser la modification du dépôt (sinon lecture seule).
     model : un modèle déclaré de l'abonnement (opus, sonnet…) — vide = choix du CLI.
@@ -663,6 +663,28 @@ def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> di
     shown = [f"write={bool(write)}", f"model={model or 'défaut'}", shown_task[:300]]
     return start_job(user, CLAUDE_CODE_TOOL + (':write' if write else ''), argv,
                      env=prepared['env'], shown=shown)
+
+
+#: Un libellé de test : un module ou une classe sous l'une des trois racines du projet — jamais la
+#: suite entière (plus d'une heure, et la base de test est partagée).
+_TEST_LABEL = re.compile(r'^(wama|wama_lab|wama_data)(\.\w+)+$')
+
+
+def dev_run_tests(user, label: str) -> dict:
+    """Lance les tests d'UN module ou d'UNE classe par le lanceur de WAMA (manage.py test, base de test, médias de test), en TÂCHE DE FOND — ADMIN. Pour vérifier une correction : la fin du journal donne « OK » ou les tests en échec.
+
+    label : chemin pointé, par exemple wama.common.tests.tests_user_settings ou
+    wama.reader.tests.MaClasseTest. La suite entière n'est pas lançable d'ici.
+    """
+    from wama.accounts.permissions import is_admin_tier
+    if not is_admin_tier(user):
+        return {'error': 'forbidden', 'detail': "Outil réservé aux administrateurs."}
+    label = (label or '').strip()
+    if not _TEST_LABEL.match(label):
+        raise DevToolError(f"libellé refusé : {label!r} — attendu un module ou une classe de tests "
+                           "(wama.<app>.tests…, wama.common.tests.tests_…), pas la suite entière")
+    return start_job(user, 'tests', [sys.executable, str(base_dir() / 'manage.py'), 'test', label,
+                                     '--keepdb'])
 
 
 def dev_job_status(user, job_id: str) -> dict:
@@ -775,17 +797,18 @@ def _validate_now(relative: str):
 
 
 from wama.common.services.dev_inspect import (  # noqa: E402 — après DevToolError/base_dir
-    dev_db_query, dev_db_schema, dev_list_code, dev_read_code, dev_read_log)
+    dev_db_query, dev_db_schema, dev_list_code, dev_read_code, dev_read_log, dev_search_code)
 
 DEV_TOOLS = {fn.__name__: fn for fn in (dev_run_role, dev_sandbox, dev_regen_check, dev_reload_web,
                                          dev_claude_code, dev_job_status, dev_read_report,
                                          dev_list_jobs, dev_read_output, dev_db_query, dev_db_schema,
-                                         dev_read_log, dev_read_code, dev_list_code)}
+                                         dev_read_log, dev_read_code, dev_list_code,
+                                         dev_search_code, dev_run_tests)}
 
 #: Outils d'inspection (`dev_inspect`) réservés aux ADMINISTRATEURS : ni annoncés ni appelables
 #: par un développeur qui ne l'est pas — chacun double la garde dans son corps (`@admin_only`).
 ADMIN_ONLY = frozenset({'dev_db_query', 'dev_db_schema', 'dev_read_log', 'dev_read_code',
-                        'dev_list_code'})
+                        'dev_list_code', 'dev_search_code', 'dev_run_tests'})
 
 
 # ── L'interface qu'attend `mcp_server` : lister, appeler ────────────────────────────────────

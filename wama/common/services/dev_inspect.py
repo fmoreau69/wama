@@ -35,6 +35,8 @@ MAX_LIST = 100
 LOG_WINDOW_BYTES = 4 * 1024 * 1024
 MAX_CODE_BYTES = 1024 * 1024
 DEFAULT_CODE_LINES = 400
+MAX_MATCHES = 100
+MAX_MATCH_CHARS = 240
 
 #: Familles d'apps dont les tables sont interrogeables : le projet WAMA, pas Django.
 ALLOWED_APP_PREFIXES = ('wama', 'wama_lab', 'wama_data')
@@ -189,18 +191,40 @@ def dev_db_schema(user, table: str) -> dict:
 
 # ── Fichiers ─────────────────────────────────────────────────────────────────────────────────
 
-@admin_only
-def dev_read_log(user, path: str, grep: str = '', lines: int = 100, start_line: int = 0,
-                 end_line: int = 0) -> dict:
-    """Lit la fin d'un journal de logs/ (fichiers .log et rotations .log.N) — ADMIN.
+def _journals() -> list:
+    """Les journaux de `logs/` (premier niveau), le plus récemment écrit d'abord."""
+    from datetime import datetime
+    root = base_dir() / 'logs'
+    found = [p for p in root.iterdir() if p.is_file() and LOG_NAME.search(p.name)] \
+        if root.is_dir() else []
+    found.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return [{'name': p.name, 'bytes': p.stat().st_size,
+             'modified': datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec='seconds')}
+            for p in found[:MAX_LIST]]
 
-    path : relatif à logs/ (gunicorn.log…). lines : les N dernières lignes (1..2000) ;
-    start_line/end_line (1-based, dans la fenêtre lue) les remplacent. grep : sous-chaîne qui
-    filtre les lignes retenues. Les jetons et mots de passe sont masqués.
+
+@admin_only
+def dev_read_log(user, path: str = '', grep: str = '', lines: int = 100, start_line: int = 0,
+                 end_line: int = 0) -> dict:
+    """Lit la fin d'un journal de logs/, ou LISTE les journaux quand `path` est vide — ADMIN. Premier geste d'un diagnostic : lister, puis lire le journal le plus récemment écrit (erreurs du serveur web : gunicorn-error.log et django-errors.log ; tâches : celery-*.log).
+
+    path : relatif à logs/ ; vide = la liste (nom, taille, dernière écriture), ne jamais deviner
+    un nom. lines : les N dernières lignes (1..2000) ; start_line/end_line (1-based, dans la
+    fenêtre lue) les remplacent. grep : sous-chaîne qui filtre les lignes retenues. Les jetons et
+    mots de passe sont masqués.
     """
+    if not (path or '').strip():
+        return {'journals': _journals()}
     p = _inside(base_dir() / 'logs', path)
     if not p.is_file() or not LOG_NAME.search(p.name):
-        raise DevToolError(f"journal introuvable dans logs/ : {path!r}")
+        # Le refus dit ce qui EXISTE (2026-11-12 : l'assistant a demandé « gunicorn.log », que
+        # l'aide de cet outil citait en exemple et qui n'existe pas — il a renoncé au diagnostic).
+        import difflib
+        names = [j['name'] for j in _journals()]
+        close = difflib.get_close_matches(Path(path).name, names, n=5, cutoff=0.4)
+        raise DevToolError(f"journal introuvable dans logs/ : {path!r} — "
+                           + (f"proches : {', '.join(close)}" if close
+                              else f"existants : {', '.join(names[:20]) or 'aucun'}"))
     size = p.stat().st_size
     with open(p, 'rb') as fh:
         if size > LOG_WINDOW_BYTES:
@@ -297,6 +321,54 @@ def dev_list_code(user, path: str = '.', pattern: str = '*', limit: int = 100) -
         if not recursive:
             break
     return {'paths': found, 'truncated': False}
+
+
+@admin_only
+def dev_search_code(user, pattern: str, path: str = '.', glob: str = '*.py', regex: bool = False,
+                    limit: int = 50) -> dict:
+    """Cherche un texte dans les fichiers du dépôt et rend « chemin:ligne: texte » (mêmes refus que dev_read_code) — ADMIN. Pour trouver d'où vient un message d'erreur, où une fonction est définie ou appelée, avant de lire le fichier avec dev_read_code.
+
+    pattern : le texte cherché (sous-chaîne, casse respectée) ; regex=true le lit comme une
+    expression régulière. path : dossier de départ, relatif au dépôt. glob : motif sur le NOM des
+    fichiers (« *.py », « *.html », « *.js », « * »). limit : 1..100 correspondances.
+    """
+    if not (pattern or '').strip():
+        raise DevToolError("« pattern » vide : donner le texte à chercher")
+    if '/' in (glob or '') or '..' in (glob or ''):
+        raise DevToolError("motif refusé : `glob` porte sur le nom du fichier, `path` sur le dossier")
+    try:
+        matcher = re.compile(pattern if regex else re.escape(pattern))
+    except re.error as e:
+        raise DevToolError(f"expression régulière illisible : {e}")
+    root = base_dir().resolve()
+    base = _code_path(path)
+    if not base.is_dir():
+        raise DevToolError(f"dossier introuvable : {path!r}")
+    cap = _clamp(limit, 1, MAX_MATCHES, 50)
+    matches, scanned = [], 0
+    for dirpath, dirnames, filenames in os.walk(base):
+        dirnames[:] = sorted(d for d in dirnames
+                             if not _refused_code_path(Path(dirpath, d).relative_to(root)))
+        for name in sorted(filenames):
+            full = Path(dirpath, name)
+            rel = full.relative_to(root)
+            if not fnmatch.fnmatch(name, glob or '*') or _refused_code_path(rel) or full.is_symlink():
+                continue
+            try:
+                if full.stat().st_size > MAX_CODE_BYTES:
+                    continue
+                raw = full.read_bytes()
+            except OSError:
+                continue
+            if b'\x00' in raw[:4096]:
+                continue
+            scanned += 1
+            for n, line in enumerate(raw.decode('utf-8', errors='replace').splitlines(), 1):
+                if matcher.search(line):
+                    matches.append(f"{rel.as_posix()}:{n}: {line.strip()[:MAX_MATCH_CHARS]}")
+                    if len(matches) >= cap:
+                        return {'matches': matches, 'files_scanned': scanned, 'truncated': True}
+    return {'matches': matches, 'files_scanned': scanned, 'truncated': False}
 
 
 # En PIED de module : `dev_tools` importe ce module pour remplir DEV_TOOLS, et ces deux noms ne
