@@ -77,6 +77,11 @@ def hf_task_to_wama(pipeline_tag: str, tags=()):
     # `optical-music-recognition` (mesuré sur sa carte) ; sans cette règle il entrait en OCR.
     if bag & {'optical-music-recognition', 'omr', 'image-to-score'}:
         return 'image-to-score', 'music'
+    # SÉPARATION DE SOURCES (2026-11-12) — tranchée par la CARTE, AVANT `audio-to-audio` : les
+    # séparateurs publient ce tag de pipeline, celui des débruiteurs (`audio-enhance`).
+    if bag & {'music-source-separation', 'source-separation', 'audio-source-separation',
+              'stem-separation'}:
+        return 'audio-source-separation', 'music'
     if t == 'image-to-image':
         if any(k in bag for k in ('super-resolution', 'upscaling', 'upscale', 'image-restoration')):
             return 'upscale', 'upscaling'

@@ -202,6 +202,10 @@ MODEL_PATHS = {
         # (`copisteria_backend.COPISTERIA_FILES`, Hub à un commit), posés par le pilote `files`. Le
         # code vit à part (route `library` vendorisée) ; on lui passe les chemins de ces fichiers.
         'copisteria': AI_MODELS_DIR / "models" / "music" / "copisteria",
+        # SÉPARATION DE SOURCES (2026-11-12, tâche `audio-source-separation`) — Demucs v4 (Meta) :
+        # les poids de `htdemucs_6s` et `htdemucs_ft`, DÉCLARÉS dans le backend
+        # (`demucs_backend.DEMUCS_FILES`, serveur de poids de Meta) et posés par le pilote `files`.
+        'demucs': AI_MODELS_DIR / "models" / "music" / "demucs",
     },
     # Langage naturel hors génération (ModelType.NLP, 2026-10-28) — détecteurs de DONNÉES
     # PERSONNELLES de `common/privacy` (ROADMAP §16.4bis). Fichiers DÉCLARÉS dans leur backend,

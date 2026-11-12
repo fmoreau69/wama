@@ -4560,6 +4560,60 @@ ABC plus bas.
   huggingface.co/stanford-crfm/music-small-ar-800k ; huggingface.co/google/magenta-realtime-2. Les
   points marqués « à confirmer » ou « non vérifiés » n'ont pas pu l'être.
 
+### Pistes séparées : veille, décisions, livraison (2026-11-12)
+
+Demande de Fabien : *« dans le Composer, après avoir ajouté un audio qui devient une card unitaire,
+pouvoir découper l'audio en stems et que ça devienne un lot contenant les stems séparés — pour
+déchiffrer la partition d'un élément séparé »*, avec quatre pistes proposées (open-unmix,
+spleeter, album-splitter, un article sur Spleeter).
+
+**Relu (2026-11-12)** :
+- **Spleeter** (Deezer) : TensorFlow, ~6 dB de SDR, plus suivi — incompatible avec le venv torch /
+  py3.12. ❌
+- **Open-Unmix** : déjà dans `venv_linux` (1.3.0, par demucs) mais ~5-6 dB, quatre pistes. ❌ dépassé.
+- **album-splitter** : découpe un ALBUM en morceaux d'après une liste de minutages — pas une
+  séparation de sources (ffmpeg le ferait). ❌ hors sujet.
+- **Demucs v4** (`htdemucs_6s` six pistes, `htdemucs_ft` quatre pistes affinées ~9,2 dB) : DÉJÀ
+  dans `venv_linux` (4.0.1, par audiocraft) ; licence MIT (le README ne nomme aucune licence à
+  part pour les poids — la note « usage recherche » du 2026-11-08 ci-dessus n'a pas été retrouvée
+  à la source) ; dépôt plus maintenu (l'auteur pointe un fork `adefossez/demucs`).
+- **BS-RoFormer SW** (six pistes, le meilleur relevé) : code `audio-separator` 0.48 (MIT) qui
+  épingle `rotary-embedding-torch<0.7` (venv 0.9.1), `beartype<0.19`, `samplerate==0.1.0`,
+  `onnx-weekly` → installation sans dépendances seulement, et la librairie TÉLÉCHARGE ses poids
+  elle-même (à neutraliser) ; licence des poids NON TRANCHÉE (CC-BY-NC-SA selon `Ryan5453/unblend`,
+  MIT selon une conversion GGUF ; le compte d'origine `jarredou` supprimé, miroir
+  `enerjazzer/BS-ROFO-SW-Fixed`).
+
+**Décisions de Fabien (2026-11-12)** : (a) **Demucs d'abord** — `htdemucs_6s` + `htdemucs_ft`, sans
+librairie neuve ; BS-RoFormer SW au même contrat quand la licence de ses poids sera éclaircie ;
+(b) **la card DEVIENT le lot** : le mélange reste en tête, une card par piste le rejoint, chacune
+avec ses réglages.
+
+✅ **Livré** :
+- tâche `audio-source-separation` (`ModelTask`, tags de carte lus par `hf_task_to_wama`), contrat
+  LIANT `SourceSeparationBackend.separate_sources(...) -> {piste: chemin}`
+  (`common/backends/source_separation_base.py`, vocabulaire des pistes `STEM_LABELS`) ;
+- `DemucsBackend` (`common/backends/demucs_backend.py`) : poids DÉCLARÉS (`DEMUCS_FILES`, cinq
+  `.th` mesurés — taille et sha256, préfixe égal au nom), source `demucs` au registre (serveur de
+  Meta, famille « poids », patron d'EnCodec), dossier `MODEL_PATHS['music']['demucs']` ; chargés
+  depuis ce dossier (`LocalRepo`), les sacs lus dans les `.yaml` EMBARQUÉS par la librairie — aucun
+  accès réseau ; `torch.load` en `weights_only` avec les SEULS objets que les fichiers nomment
+  (`checkpoint_globals`, relevés par `get_unsafe_globals_in_checkpoint`) ; progression comptée par
+  tranche (`_CountingPool`) ;
+- lignes `demucs:htdemucs_6s` / `demucs:htdemucs_ft` (`_discover_source_separation_models`,
+  capacité `stems`), manifeste de librairie `demucs` (extrait des métadonnées installées) ;
+- brique commune `common/utils/derived_cards.py` (mécanisme `derived_cards`) et mixin
+  `DerivedCardMixin` ; process optionnel `separate` du composer (« Pistes séparées », réglages
+  `separate_stems` / `separation_model`, sortie `stems_index`, migration 0032 additive).
+
+**Mesuré** (RTX 4090, morceau ACE-Step de 30 s, moteur appelé directement, poids d'une copie
+locale) : 6 pistes en 22 s chargement compris, pic 0,61 Go ; 4 pistes affinées en 9 s, 0,54 Go ;
+la somme des pistes retrouve le mélange à 15 % / 8,6 % près (écart RMS relatif).
+
+⏳ **Reste** : installation par la route en service — les workers lancés avant le code ont refusé
+la source `demucs` (InstallEvent 89/90), à relancer ; un passage réel de bout en bout (card →
+lot) ; BS-RoFormer SW (licence) ; la séparation pour le transcriber (voix isolée) et l'enhancer.
+
 ### Décisions de Fabien et livraison (2026-11-08, suite de la session ci-dessus)
 
 Décisions : *« SpessaSynth pour 2, FluidSynth oui. Pour 2, on pourrait tester les 2 pour voir ce qui

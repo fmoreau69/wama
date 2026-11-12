@@ -24,6 +24,7 @@
       "models": [
         {
           "bases": [
+            "wama.common.models.DerivedCardMixin",
             "wama.common.models.KeptOutputsMixin",
             "wama.common.models.ProcessingTimeMixin",
             "wama.common.models.NativeOutputsMixin",
@@ -674,6 +675,77 @@
             },
             {
               "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Pistes séparées : une card par piste de l'entrée\"",
+                  "imports": []
+                }
+              },
+              "name": "separate_stems"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "db_default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Clé de catalogue du modèle de séparation de sources, ou « auto ».'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "200",
+                  "imports": []
+                }
+              },
+              "name": "separation_model"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "500",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('composer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "stems_index"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "default": {
@@ -1035,6 +1107,8 @@
         "composer:musicgen-medium",
         "composer:musicgen-melody",
         "composer:musicgen-small",
+        "demucs:htdemucs_6s",
+        "demucs:htdemucs_ft",
         "huggingface:ACE-Step/Ace-Step1.5",
         "huggingface:MuScriptor/muscriptor-large",
         "huggingface:aihpi/FrWhisper",
@@ -1695,6 +1769,120 @@
             ],
             "step": null,
             "type": "toggle",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsSeparateStems",
+              "item": "settingsSeparateStems",
+              "panel": "separateStems"
+            },
+            "group": "",
+            "help": "Sépare l'audio repris en pistes (voix, batterie, basse, guitare, piano, autres) : chaque piste devient une card du lot de celle-ci, avec ses propres réglages — par exemple pour écrire la partition d'un seul instrument, plus juste que celle du mélange. Les cards des pistes ne se lancent pas d'elles-mêmes.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-layer-group",
+            "inline": false,
+            "label": "Pistes séparées",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "separate_stems",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "separate"
+            ],
+            "step": null,
+            "type": "toggle",
+            "unit": "",
+            "write_from": null
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": "auto",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsSeparationModel",
+              "item": "settingsSeparationModel",
+              "panel": "separationModel"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": {
+              "auto": "Choisi au lancement : le meilleur modèle de séparation installé tenant dans la mémoire GPU libre."
+            },
+            "help_html": "",
+            "help_source": "composer",
+            "icon": "fa-layer-group",
+            "inline": false,
+            "label": "Modèle des pistes séparées",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "separation_model",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": true,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": {
+              "task": "audio-source-separation"
+            },
+            "options_resolution": null,
+            "options_source": "catalog",
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "separate"
+            ],
+            "step": null,
+            "type": "select",
             "unit": "",
             "write_from": null
           },
@@ -2454,6 +2642,8 @@
             "seed",
             "extract_reduced_score",
             "generate_audio",
+            "separate_stems",
+            "separation_model",
             "extract_parts",
             "extract_rendered_parts",
             "extract_rendered_score",
@@ -2674,6 +2864,8 @@
             "prompt": "textarea — Prompt (requis)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "seed": "seed — Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine. [0–2147483647]",
+            "separate_stems": "toggle — Sépare l'audio repris en pistes (voix, batterie, basse, guitare, piano, autres) : chaque piste devient une card du lot de celle-ci, avec ses propres réglages — par exemple pour écrire la partition d'un seul instrument, plus juste que celle du mélange. Les cards des pistes ne se lancent pas d'elles-mêmes.",
+            "separation_model": "select — Modèle des pistes séparées (défaut : 'auto')",
             "temperature": "temperature — Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0. [0–2.0]",
             "vocals": "select — « Auto » : chanté si le prompt porte des paroles balisées ([Verse], [Chorus]…) sous la description, instrumental sinon. « Chanson » sans paroles : elles sont écrites pour vous, dans une langue que le modèle chante. Seuls certains modèles chantent ; en automatique, le tirage les retient. (choix : auto | instrumental | song) (défaut : 'auto')",
             "work_audio": "str",
@@ -2754,6 +2946,14 @@
       "kind": "model"
     },
     {
+      "key": "demucs:htdemucs_6s",
+      "kind": "model"
+    },
+    {
+      "key": "demucs:htdemucs_ft",
+      "kind": "model"
+    },
+    {
       "key": "huggingface:ACE-Step/Ace-Step1.5",
       "kind": "model"
     },
@@ -2807,6 +3007,10 @@
     },
     {
       "key": "beat-this",
+      "kind": "library"
+    },
+    {
+      "key": "demucs",
       "kind": "library"
     },
     {

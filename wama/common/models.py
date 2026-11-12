@@ -224,6 +224,28 @@ class KeptOutputsMixin(models.Model):
         abstract = True
 
 
+class DerivedCardMixin(models.Model):
+    """Une card NÉE d'une autre — un résultat d'une card devenu l'entrée d'une card sœur, dans le
+    même lot (2026-11-12, demande de Fabien : séparer l'audio d'une card du composer en pistes,
+    chaque piste devenant une card pour être transcrite seule). Écrit par la brique
+    `common/utils/derived_cards.py`, jamais par une app.
+
+    `derived_from` : la card source ; `derived_role` : ce que cette card en reçoit (`vocals`,
+    `drums`…), qui fait l'IDENTITÉ de la card dérivée — relancer le process de la source remplace
+    l'entrée des cards existantes au lieu d'en créer de nouvelles. Le FICHIER, lui, garde sa
+    provenance par la brique commune (`InputProvenance`, kind `app`) : ce lien-ci relie les CARDS.
+
+    `SET_NULL` : retirer la source ne retire pas ses pistes, qui possèdent leurs fichiers. Modèle
+    ABSTRAIT → une migration additive par app concrète ; `db_default` pour le code en service."""
+
+    derived_from = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='derived_cards')
+    derived_role = models.CharField(max_length=64, blank=True, default='', db_default='')
+
+    class Meta:
+        abstract = True
+
+
 class QueueOrderMixin(models.Model):
     """Position MANUELLE de l'entrée dans la file (CARD_DESIGN §3bis — manipulation directe).
 

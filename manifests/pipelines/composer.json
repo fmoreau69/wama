@@ -61,6 +61,29 @@
     "nodes": [
       {
         "app": null,
+        "function": "composer.separate",
+        "id": "separate",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "eta": "composer.tasks:separate_eta",
+          "gpu": true,
+          "label": "Pistes séparées",
+          "outputs": [
+            "stems_index"
+          ],
+          "toggle": "separate_stems",
+          "watched": [
+            "separate_stems",
+            "separation_model",
+            "melody_reference",
+            "source_url"
+          ]
+        }
+      },
+      {
+        "app": null,
         "function": "composer.extract_score",
         "id": "extract_score",
         "kind": "function",
@@ -291,7 +314,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "composer",
   "manifest_kind": "pipeline",
-  "name": "Composer — partition, rendu, sortie (10 process)",
+  "name": "Composer — partition, rendu, sortie (11 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

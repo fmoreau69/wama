@@ -864,6 +864,13 @@ SOURCES: tuple[ExternalSource, ...] = (
         "(`facebook/encodec_24khz`) est au format transformers, pas celui que lit la librairie "
         "(2026-10-19)",
         kind='poids'),
+    ExternalSource(
+        'demucs', 'Demucs (Meta, serveur de ses auteurs)',
+        'https://dl.fbaipublicfiles.com/demucs',
+        "Points de contrôle publiés par les auteurs de Demucs v4 — `hybrid_transformer/<sig>-"
+        "<empreinte>.th` (l'empreinte du fichier est dans son nom, convention torch.hub), que la "
+        "séparation de sources du composer charge ; aucun dépôt officiel sur le Hub (2026-11-12)",
+        kind='poids'),
     # ── Ressources front et banques de sons (2026-11-08, décision de Fabien : « on ajoute bien les
     # sources dans le registre des sources ») — la lecture MIDI des partitions (SpessaSynth).
     ExternalSource(

@@ -14,6 +14,7 @@ What each test holds:
 No model, no GPU: the engines are stand-ins (the ones of `tests_pipeline`, plus a transcriber).
 """
 import io
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -33,6 +34,8 @@ from wama.composer.tests_task import _celery_task
 TRANSCRIBER = 'huggingface:MuScriptor/muscriptor-large'
 #: A second model of the task, CHOSEN on the card (`parts_model`) — the draw never returns it.
 OTHER_TRANSCRIBER = 'huggingface:org/other-transcriber'
+#: The model of the `separate` process (2026-11-12), drawn by its task.
+SEPARATOR = 'demucs:htdemucs_6s'
 
 
 def _two_parts_midi() -> bytes:
@@ -66,7 +69,29 @@ class _Transcriber:
         return _two_parts_midi()
 
 
-class FullScoreTest(TestCase):
+class _Separator:
+    """Stand-in of a source-separation backend (`SourceSeparationBackend`): two stems, written."""
+    built, unloaded, calls = 0, 0, []
+
+    def __init__(self):
+        type(self).built += 1
+
+    def unload(self):
+        _Separator.unloaded += 1
+
+    def separate_sources(self, model_id, audio_path, output_dir, progress_callback=None):
+        _Separator.calls.append({'model_id': model_id, 'audio_path': audio_path})
+        out = {}
+        for stem in ('vocals', 'drums'):
+            path = Path(output_dir) / f'{stem}.wav'
+            path.write_bytes(b'RIFF' + stem.encode() + b'\0' * 32)
+            out[stem] = str(path)
+        return out
+
+
+class _InputProcessCase(TestCase):
+    """What the processes that read the INPUT audio with a model of THEIR OWN task share (the full
+    score, the separated stems) : the cover, the draw by task, the run with stand-in engines."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
@@ -77,6 +102,7 @@ class FullScoreTest(TestCase):
         self.user = get_user_model().objects.create_user('composer_parts', password='x')
         _PlainEngine.renders = []
         _Transcriber.built, _Transcriber.unloaded, _Transcriber.calls, _Transcriber.error = 0, 0, [], None
+        _Separator.built, _Separator.unloaded, _Separator.calls = 0, 0, []
         self.installed = True
         self.draws, self.asked = [], []
         catalogue_rows()
@@ -85,7 +111,8 @@ class FullScoreTest(TestCase):
         """The common selector's draw (`select_model_id`), stood in BELOW the composer's choice
         (`model_choice.parts_extractor`), which these tests hold : the installed model of the task."""
         self.draws.append({'task': task, **domain})
-        return TRANSCRIBER if (self.installed and task == 'audio-to-midi') else fallback
+        drawn = {'audio-to-midi': TRANSCRIBER, 'audio-source-separation': SEPARATOR}.get(task)
+        return drawn if (self.installed and drawn) else fallback
 
     def _cover(self) -> str:
         """An audio of the song to cover (`melody_reference`) : the INPUT the full score reads."""
@@ -94,13 +121,14 @@ class FullScoreTest(TestCase):
         (Path(self.tmp) / rel).write_bytes(b'RIFF' + b'\0' * 64)
         return rel
 
-    def _run(self, gen=None, **fields):
+    def _run(self, gen=None, process=None, **fields):
         if gen is None:
             # A model that TAKES a cover (`ProcessSpec.needs` of `parts`, 2026-11-05) : the full
             # score of a cover has no object under a model that takes none.
             gen = ComposerGeneration.objects.create(user=self.user, prompt='pop song',
                                                     model=COVER_MODEL, status='RUNNING', **fields)
-        engines = {**ENGINES, TRANSCRIBER: _Transcriber, OTHER_TRANSCRIBER: _Transcriber}
+        engines = {**ENGINES, TRANSCRIBER: _Transcriber, OTHER_TRANSCRIBER: _Transcriber,
+                   SEPARATOR: _Separator}
         with mock.patch('wama.common.utils.task_skeleton.close_old_connections'), \
                 mock.patch('wama.common.backends.manager.backend_for_key',
                            side_effect=lambda key: engines.get(key)), \
@@ -109,6 +137,8 @@ class FullScoreTest(TestCase):
                            side_effect=lambda key, **kw: self.asked.append(key) or True), \
                 mock.patch('wama.composer.utils.model_choice.parts_extraction_available',
                            side_effect=lambda: self.installed), \
+                mock.patch('wama.composer.utils.model_choice.stem_separation_available',
+                           side_effect=lambda: self.installed), \
                 mock.patch('wama.common.utils.audio_rhythm.beat_grid', return_value=None), \
                 mock.patch('wama.common.utils.app_metadata.process_prompt_for',
                            side_effect=lambda app, field, text, **kw: text), \
@@ -116,11 +146,14 @@ class FullScoreTest(TestCase):
                 mock.patch('wama.composer.utils.model_config.clamp_duration',
                            side_effect=lambda value, model_id=None: value), \
                 mock.patch('wama.model_manager.services.eta_estimator.record_run'):
-            tasks.compose_task.run.__func__(_celery_task(), gen.pk, None)
+            tasks.compose_task.run.__func__(_celery_task(), gen.pk, process)
         return ComposerGeneration.objects.get(pk=gen.pk)
 
     def _states(self, gen):
         return {row.node_id: row.status for row in process_runs.lines(gen)}
+
+
+class FullScoreTest(_InputProcessCase):
 
     def test_the_full_score_reads_the_input_audio_when_the_card_asks(self):
         """2026-10-26, Fabien : « la partition devrait refléter cet audio d'entrée » — the full
@@ -255,6 +288,75 @@ class FullScoreTest(TestCase):
         self.assertEqual(JOB_SUCCESS, self._states(gen)['output'], 'the song itself is kept')
         self.assertEqual(1, _Transcriber.unloaded)
         self.assertFalse(gen.parts_score)
+
+
+class StemSeparationTest(_InputProcessCase):
+    """The optional process `separate` (2026-11-12, Fabien : « découper l'audio en stems, que ça
+    devienne un lot contenant les stems séparés ») : the INPUT audio → one stem per source, each
+    stem a card of the source's lot (`common/utils/derived_cards.py`) — the card BECOMES the lot,
+    the mix staying first."""
+
+    def _stems(self, gen):
+        return {c.derived_role: c for c in ComposerGeneration.objects.filter(derived_from=gen)}
+
+    def test_the_input_becomes_a_lot_of_stem_cards(self):
+        from django.conf import settings
+        from wama.common.utils.batch_common import batch_of
+        cover = self._cover()
+        gen = self._run(separate_stems=True, extract_parts=True, melody_reference=cover)
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['separate'], gen.error_message)
+        self.assertEqual(str(Path(settings.MEDIA_ROOT) / cover), _Separator.calls[0]['audio_path'])
+        self.assertEqual((1, 1), (_Separator.built, _Separator.unloaded), 'released at once')
+        stems = self._stems(gen)
+        self.assertEqual({'vocals', 'drums'}, set(stems))
+        lot = batch_of(gen)
+        self.assertEqual(3, lot.items.count(), 'the mix and its two stems')
+        self.assertEqual(3, lot.total)
+        rows = {link.generation_id: link.row_index for link in lot.items.all()}
+        self.assertEqual(0, rows[gen.pk], 'the mix stays first')
+        for role, card in stems.items():
+            with self.subTest(role=role):
+                self.assertEqual(lot.pk, batch_of(card).pk)
+                self.assertTrue((Path(self.tmp) / card.melody_reference.name).is_file())
+                self.assertIn('/composer/input/', card.melody_reference.name, 'an INPUT of its card')
+                self.assertIn(f'_{role}_', card.melody_reference.name)
+                self.assertEqual(('PENDING', False, True, ''),
+                                 (card.status, card.separate_stems, card.extract_parts, card.source_url),
+                                 "its own settings from the source's, not launched, not split again")
+                self.assertFalse(card.parts_score, "never the source's results")
+        index = json.loads((Path(self.tmp) / gen.stems_index.name).read_text(encoding='utf-8'))
+        self.assertEqual((SEPARATOR, {stems['vocals'].pk, stems['drums'].pk}),
+                         (index['model'], {s['card'] for s in index['stems']}))
+        self.assertEqual(SEPARATOR, process_runs.line(gen, 'separate').model_key)
+
+    def test_a_relaunch_replaces_the_stems_never_adds_cards(self):
+        gen = self._run(separate_stems=True, melody_reference=self._cover())
+        first = {role: card.pk for role, card in self._stems(gen).items()}
+        ComposerGeneration.objects.filter(pk=gen.pk).update(status='RUNNING')
+        gen = self._run(ComposerGeneration.objects.get(pk=gen.pk), process='separate')
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['separate'], gen.error_message)
+        self.assertEqual(2, len(_Separator.calls))
+        from wama.common.utils.batch_common import batch_of
+        # COUNTED, not read by role : a dict by role keeps one card per stem and would hide doubles.
+        self.assertEqual(2, ComposerGeneration.objects.filter(derived_from=gen).count())
+        self.assertEqual(3, batch_of(gen).items.count())
+        self.assertEqual(first, {role: card.pk for role, card in self._stems(gen).items()})
+
+    def test_a_stem_card_is_not_split_again(self):
+        from wama.composer.function_specs import PIPELINE
+        gen = self._run(separate_stems=True, melody_reference=self._cover())
+        stem = self._stems(gen)['vocals']
+        stem.separate_stems = True
+        self.assertFalse(PIPELINE.spec('separate').applies(stem, None))
+        self.assertTrue(PIPELINE.spec('separate').applies(gen, None))
+
+    def test_without_the_toggle_or_a_model_nothing_is_separated(self):
+        gen = self._run(melody_reference=self._cover())
+        self.assertNotIn('separate', self._states(gen))
+        self.installed = False
+        gen = self._run(separate_stems=True, melody_reference=self._cover())
+        self.assertNotIn('separate', self._states(gen))
+        self.assertEqual(([], {}), (_Separator.calls, self._stems(gen)))
 
 
 class TheToggleReachesTheCardTest(TestCase):

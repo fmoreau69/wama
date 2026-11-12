@@ -10,7 +10,7 @@ from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import Param, schema_to_dicts, seed_param, temperature_param
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.composer.utils.model_choice import (AUTO_MUSIC, AUTO_SFX, LYRICS_RESOLUTION, LYRICS_TASK,
-                                              PARTS_EXTRACTION_TASK, TASKS)
+                                              PARTS_EXTRACTION_TASK, SEPARATION_TASK, TASKS)
 from wama.composer.utils.vocals import (AUTO as VOCALS_AUTO, CAPABILITY as VOCALS_CAPABILITY,
                                         CHOICES as VOCALS_CHOICES, SONG as VOCALS_SONG)
 
@@ -149,6 +149,32 @@ PARAMS = [
           dom_id={"panel": "generateAudio", "item": "settingsGenerateAudio",
                   "batch": "batchSettingsGenerateAudio"},
           contexts=PANEL_ITEM_BATCH, stales=("render",)),
+    # PISTES SÉPARÉES (2026-11-12, demande de Fabien) : la case du process optionnel `separate` —
+    # l'audio repris → une piste par source (voix, batterie, basse…), chacune devenant une card du
+    # lot de celle-ci, à transcrire seule. Ne périme qu'elle-même.
+    Param(name="separate_stems", type="toggle", label="Pistes séparées",
+          icon="fa-layer-group",
+          help="Sépare l'audio repris en pistes (voix, batterie, basse, guitare, piano, autres) : "
+               "chaque piste devient une card du lot de celle-ci, avec ses propres réglages — par "
+               "exemple pour écrire la partition d'un seul instrument, plus juste que celle du "
+               "mélange. Les cards des pistes ne se lancent pas d'elles-mêmes.",
+          dom_id={"panel": "separateStems", "item": "settingsSeparateStems",
+                  "batch": "batchSettingsSeparateStems"},
+          contexts=PANEL_ITEM_BATCH, stales=("separate",)),
+    # Le MODÈLE des pistes séparées : le patron de `parts_model` (options du CATALOGUE bornées par
+    # la TÂCHE, « auto » en tête). Le nombre de pistes est une capacité du modèle (`stems`).
+    Param(name="separation_model", type="select", label="Modèle des pistes séparées",
+          icon="fa-layer-group",
+          options_source="catalog",
+          options_query={"task": SEPARATION_TASK},
+          options_auto=True,
+          help_source="composer",
+          help_fallback={"auto": "Choisi au lancement : le meilleur modèle de séparation installé "
+                                 "tenant dans la mémoire GPU libre."},
+          default="auto",
+          dom_id={"panel": "separationModel", "item": "settingsSeparationModel",
+                  "batch": "batchSettingsSeparationModel"},
+          contexts=PANEL_ITEM_BATCH, stales=("separate",)),
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
     # `parts` (`ProcessSpec.toggle`) — depuis le 2026-10-26 sur l'ENTRÉE : l'audio repris, comme la
     # partition réduite. Ne périme qu'elle-même : le rendu suit la réduite, jamais celle-ci.

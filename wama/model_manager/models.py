@@ -143,6 +143,12 @@ class ModelTask(models.TextChoices):
     # les confondre ferait tirer un MIDI à N parties pour le rendu. 1er modèle : MuScriptor, dont la
     # carte se déclare elle-même `audio-to-midi`.
     AUDIO_TO_MIDI = 'audio-to-midi', 'Audio → MIDI multi-instrument'
+    # SÉPARATION DE SOURCES (2026-11-12, demande de Fabien : découper l'audio d'une card du composer
+    # en pistes — voix, batterie, basse… — pour transcrire chacune seule) : un audio → une piste par
+    # source. Ni `audio-enhance` (il ne débruite pas : il rend PLUSIEURS audios), ni le tag
+    # `audio-to-audio` de HuggingFace, qui range les deux sous un même mot. Les pistes rendues sont
+    # une CAPACITÉ du modèle (`stems`). 1ᵉʳ moteur : Demucs v4.
+    AUDIO_SOURCE_SEPARATION = 'audio-source-separation', 'Séparation de sources audio'
     # Lecture optique de PARTITION (2026-11-06, demande de Fabien : « l'utilisateur scanne une
     # partition, la partition est rendue typographiée et éditable ») : une page imprimée (image,
     # PDF) → sa partition. Ni `ocr` (il ne rend pas de texte), ni `audio-to-score` (l'entrée est une
@@ -240,6 +246,10 @@ TASK_TO_PLATFORM_TAGS = {
     # Pas de tâche de PIPELINE chez HuggingFace non plus ; la carte porte le tag `audio-to-midi`
     # (lu par `prospector.hf_task_to_wama`, comme `layout_detection`).
     ModelTask.AUDIO_TO_MIDI:      (None,                           None,        None,        None),
+    # HuggingFace range la séparation sous `audio-to-audio`, déjà projeté par `audio-enhance` :
+    # le reprendre ferait de tout débruiteur un séparateur au tirage. La carte départagera par ses
+    # tags (`music-source-separation`), lus par `prospector.hf_task_to_wama`.
+    ModelTask.AUDIO_SOURCE_SEPARATION: (None,                      None,        None,        None),
     # Pas de tâche de PIPELINE pour la lecture de partition : les cartes portent les tags
     # `optical-music-recognition` / `omr` (Transcoda), lus par `prospector.hf_task_to_wama` ;
     # `image-to-text`, que certaines portent aussi, est celui de l'OCR.
@@ -654,6 +664,9 @@ class ModelSource(models.TextChoices):
     # le rangement ») : LPIPS (dorsale AlexNet de torchvision) et les gestes de la main.
     PYTORCH_DOWNLOAD = 'pytorch_download'
     MEDIAPIPE_MODELS = 'mediapipe_models'
+    # Demucs v4 (2026-11-12) : la séparation de sources, brique commune ; ses points de contrôle
+    # viennent du serveur de poids de ses auteurs (`external_sources['demucs']`).
+    DEMUCS = 'demucs'
 
 
 #: Les relations qu'une carte du Hub nomme entre un modèle et son `base_model` — vocabulaire repris

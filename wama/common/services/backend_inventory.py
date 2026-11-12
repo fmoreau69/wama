@@ -718,6 +718,10 @@ TASK_CONTRACTS = {
     # 2026-11-06 : une page de partition imprimée → son MusicXML (copisteria), la lecture de
     # partition du Reader. Écrit avant le backend, non liant comme les deux autres tâches de partition.
     'image-to-score': ('score_reading_base', 'ScoreReadingBackend', False),
+    # 2026-11-12 : un audio → une piste par source (Demucs v4), les pistes séparées du composer.
+    # LIANT : `torch` n'est pas un moteur, mais `demucs` pourrait servir une autre tâche un jour —
+    # c'est ce contrat qui borne le séparateur à la sienne.
+    'audio-source-separation': ('source_separation_base', 'SourceSeparationBackend', True),
     'transcription': ('speech_to_text_base', 'SpeechToTextBackend', True),
     # 2026-11-06 : la langue PARLÉE d'un audio (Whisper tiny, la sonde du transcriber), chargée
     # jusque-là hors du contrat par `spoken_language`. LIANT : `faster-whisper` est le moteur de

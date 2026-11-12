@@ -48,7 +48,8 @@ def compose_task(self, generation_id: int, process: str | None = None):
     try:
         run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
                       pipeline=PIPELINE,
-                      processes={'extract_score': _extract_score, 'extract_lyrics': _extract_lyrics,
+                      processes={'separate': _separate,
+                                 'extract_score': _extract_score, 'extract_lyrics': _extract_lyrics,
                                  'write_lyrics': _write_lyrics,
                                  'plan': _plan, 'render': _render, 'output': _output, 'parts': _parts,
                                  'rendered_score': _rendered_score, 'rendered_parts': _rendered_parts,
@@ -127,6 +128,18 @@ def parts_eta_key_size(gen) -> tuple[str, float, str]:
 def parts_eta(gen):
     """ETA déclarée du process `parts` : apprise seulement (clé de process, cf. `plan_eta`)."""
     return (*parts_eta_key_size(gen), False, 0.0)
+
+
+def separate_eta_key_size(gen) -> tuple[str, float, str]:
+    """(clé, taille, unité) de l'ETA du process `separate` : ∝ durée du morceau (mesuré le
+    2026-11-12, Demucs 6 pistes : 22 s pour 30 s, chargement compris) — la durée DEMANDÉE de la
+    card en tient lieu (la règle de `parts_eta_key_size`)."""
+    return 'composer:separate', float(gen.duration or 0), 'audio_sec'
+
+
+def separate_eta(gen):
+    """ETA déclarée du process `separate` : apprise seulement (clé de process, cf. `plan_eta`)."""
+    return (*separate_eta_key_size(gen), False, 0.0)
 
 
 def lyrics_eta_key_size(gen) -> tuple[str, float, str]:
@@ -359,6 +372,86 @@ def _reduced_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: 
         'console_success': f"✓ {label} : {name}",
         'models': [extractor_key],
         'eta': extract_score_eta_key_size(gen),
+    }
+
+
+def _separate(gen, ctx):
+    """GLU du process `separate` (2026-11-12) : l'audio de l'ENTRÉE → une piste par source, chacune
+    rangée dans une card du lot de celle-ci (`derived_cards`, brique commune).
+
+    Le modèle est celui que la card désigne (`separation_model`), ou sous « auto » celui de la tâche
+    `audio-source-separation` ; absent, la ROUTE l'installe et la tâche attend (`ctx.ensure_model`) ;
+    DÉCHARGÉ aussitôt. Les pistes sont des ENTRÉES (celles des cards qu'elles deviennent) : rangées
+    dans le dossier d'entrée de l'app, nommées d'après le morceau et la piste. La sortie déclarée
+    du process est leur index (JSON), qui dit ce qui a été rendu et par quoi."""
+    import json
+    import shutil
+    import tempfile
+    from django.conf import settings
+    from wama.common.backends.manager import backend_for_key
+    from wama.common.backends.source_separation_base import stem_label
+    from wama.common.utils.derived_cards import derive_cards
+    from wama.common.utils.model_keys import model_id
+    from .models import ComposerBatchItem
+    from .utils.model_choice import stem_separator
+    from .views import _batch_item_extra
+
+    if not gen.melody_reference:
+        raise RuntimeError("Aucun audio à séparer : les pistes se tirent de l'entrée.")
+    audio_abs = os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
+    separator_key = stem_separator(gen)
+    if not separator_key:
+        raise RuntimeError("Aucun modèle de séparation n'est installé (tâche « audio-source-separation »).")
+    ctx.ensure_model(separator_key)        # absent : la route l'installe, la tâche attend
+    backend_class = backend_for_key(separator_key)
+    if backend_class is None:
+        raise RuntimeError(f"« {separator_key} » : aucun backend résolu depuis le catalogue.")
+    ctx.console(f"[Composer] Pistes séparées : {separator_key} — {os.path.basename(audio_abs)}")
+    backend = backend_class()
+    work = tempfile.mkdtemp(prefix='wama_stems_')
+    try:
+        try:
+            written = backend.separate_sources(model_id=model_id(separator_key), audio_path=audio_abs,
+                                               output_dir=work, progress_callback=ctx.progress)
+        except Exception:
+            ctx.reset_progress()
+            raise
+        finally:
+            try:
+                backend.unload()
+            except Exception:
+                logger.warning("[composer] modèle de séparation de #%s non déchargé", gen.pk,
+                               exc_info=True)
+        parts = []
+        for stem, path in written.items():
+            rel, abs_path = ctx.output_place('.wav', nature=stem, model=model_id(separator_key),
+                                             source_name=gen.melody_reference.name, folder='input')
+            shutil.move(path, abs_path)
+            parts.append((stem, rel))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)       # le dossier jetable que la glu a créé
+
+    # Une piste naît en ATTENTE et sans ce que la source avait de propre au mélange : elle ne se
+    # sépare pas à son tour, et son audio est un fichier (pas l'adresse d'où venait le mélange).
+    cards = derive_cards(gen, parts, field='melody_reference', item_model=ComposerBatchItem,
+                         fk_name='generation', item_extra=_batch_item_extra,
+                         reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': None,
+                                       'error_message': None, 'separate_stems': False,
+                                       'source_url': '', 'exported_to_library': False})
+    index = {'model': separator_key,
+             'stems': [{'stem': stem, 'label': stem_label(stem), 'path': rel, 'card': card.pk}
+                       for (stem, rel), card in zip(parts, cards)]}
+    index_rel, index_abs = ctx.output_place('.json', nature='stems', model=model_id(separator_key))
+    with open(index_abs, 'w', encoding='utf-8') as handle:
+        json.dump(index, handle, ensure_ascii=False, indent=1)
+    labels = ', '.join(stem_label(stem) for stem, _rel in parts)
+    return {
+        'fields': {'stems_index': index_rel},
+        'output_ref': index_rel,
+        'label': f'{len(parts)} pistes',
+        'console_success': f"✓ Pistes séparées : {labels} — {len(cards)} card(s) dans le lot",
+        'models': [separator_key],
+        'eta': separate_eta_key_size(gen),
     }
 
 

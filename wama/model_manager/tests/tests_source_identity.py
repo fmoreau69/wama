@@ -252,7 +252,7 @@ class BrickModelsFiledUnderTheirWeightsSourceTest(TestCase):
 
     DISCOVERIES = ('_discover_quality_metric_models', '_discover_hand_gesture_models',
                    '_discover_road_models', '_discover_image_to_3d_models',
-                   '_discover_midi_extraction_models')
+                   '_discover_midi_extraction_models', '_discover_source_separation_models')
 
     def _brick_rows(self):
         from wama.model_manager.services.model_registry import ModelRegistry

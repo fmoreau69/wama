@@ -1,8 +1,9 @@
 from functools import cached_property
 
 from django.db import models
-from wama.common.models import (JOB_STATUS_CHOICES, KeptOutputsMixin, NativeOutputsMixin,
-                                ProcessingTimeMixin, PromptScoped, ScopedManager, ScopedVisibility)
+from wama.common.models import (JOB_STATUS_CHOICES, DerivedCardMixin, KeptOutputsMixin,
+                                NativeOutputsMixin, ProcessingTimeMixin, PromptScoped, ScopedManager,
+                                ScopedVisibility)
 from django.contrib.auth.models import User
 
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
@@ -13,8 +14,10 @@ from wama.composer.utils.vocals import AUTO as VOCALS_AUTO, CHOICES as VOCALS_CH
 # `prompt_processed` ce qui part au modèle — enrichi à l'ingestion, éditable à deux états, annulable.
 # `KeptOutputsMixin` (2026-10-15, 2ᵉ app après le Writer) : chaque révision GARDE sa partition —
 # la brique « Versions » de la surface « Éditer la partition » (`surfaces.py`) la reprend.
-class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMixin, PromptScoped,
-                         ScopedVisibility):
+# `DerivedCardMixin` (2026-11-12) : une card PISTE naît d'une autre (process `separate`, brique
+# `common/utils/derived_cards.py`) et la relie par `derived_from` / `derived_role`.
+class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMixin,
+                         PromptScoped, ScopedVisibility):
     # Partage F7 (PROFILES_PERMISSIONS §7.4bis) : lectures via visible_to()/visible_or_404,
     # mutations inchangées (filtrées par user) → lecture seule par construction.
     objects = ScopedManager()
@@ -176,6 +179,21 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
         max_length=500, upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )
+
+    # PISTES SÉPARÉES (2026-11-12, demande de Fabien : « découper l'audio en stems, que ça devienne
+    # un lot contenant les stems séparés, pour déchiffrer la partition d'un élément séparé ») :
+    # process OPTIONNEL `separate` — l'audio de l'ENTRÉE → une piste par source (tâche
+    # `audio-source-separation`, Demucs v4), chaque piste devenant une card du lot de celle-ci.
+    # `stems_index` : ce que le process a rendu (JSON : pistes, fichiers, cards) — sa sortie
+    # déclarée, qui date sa ligne d'exécution. `db_default` : le code en service crée des
+    # générations sans connaître les colonnes.
+    separate_stems = models.BooleanField(
+        default=False, db_default=False, help_text="Pistes séparées : une card par piste de l'entrée")
+    separation_model = models.CharField(
+        max_length=200, blank=True, default='auto', db_default='auto',
+        help_text="Clé de catalogue du modèle de séparation de sources, ou « auto ».")
+    stems_index = models.FileField(
+        max_length=500, upload_to=upload_to_user_output('composer'), blank=True, null=True)
 
     # Format de sortie (conversion inline via Converter) — 'original' = WAV natif
     output_format = models.CharField(max_length=20, default='original')

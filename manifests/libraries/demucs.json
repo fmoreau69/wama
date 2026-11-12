@@ -1,0 +1,44 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "dora-search",
+      "einops",
+      "julius",
+      "lameenc",
+      "openunmix",
+      "pyyaml",
+      "torch",
+      "torchaudio",
+      "tqdm"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "demucs"
+      ]
+    },
+    "identity": {
+      "author": "Alexandre Défossez",
+      "license": "MIT License",
+      "repository": "https://github.com/facebookresearch/demucs",
+      "summary": "Music source separation in the waveform domain.",
+      "version": "4.0.1"
+    },
+    "install": {
+      "pip": "demucs==4.0.1",
+      "requires_python": ">=3.8.0"
+    }
+  },
+  "description": "Music source separation in the waveform domain.",
+  "key": "demucs",
+  "manifest_kind": "library",
+  "name": "demucs",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:demucs==4.0.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

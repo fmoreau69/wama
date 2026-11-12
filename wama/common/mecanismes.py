@@ -2078,6 +2078,16 @@ MECHANISMS = (
               'wama/common/utils/queue_duplication.py', 'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
               annexes=('wama/common/services/released_files.py',
                        'wama/common/static/common/js/released-files.js')),
+    Mechanism('derived_cards', 'Cards dérivées (une card → N cards dans son lot)',
+              "Les résultats d'un process deviennent des cards SŒURS dans le lot de la card source, "
+              "qui DEVIENT le lot (2026-11-12, demande de Fabien : séparer l'audio d'une card du "
+              "composer en pistes, chacune une card, pour transcrire un instrument seul). Copie des "
+              "réglages sans les résultats (`duplicate_instance`), rattachement au lot "
+              "(`attach_to_batch`), lien card → card (`DerivedCardMixin` : `derived_from`, "
+              "`derived_role`, qui fait l'identité — une relance REMPLACE l'entrée des cards "
+              "existantes), provenance du fichier (`input_provenance`, kind `app`). Une card dérivée "
+              "ne se lance pas seule. 1ᵉʳ consommateur : le process `separate` du composer",
+              'wama/common/utils/derived_cards.py', 'wama/model_manager/PROSPECTION_PIPELINE.md'),
     Mechanism('batch', 'Import par lot',
               "Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le "
               "2026-10-20 : `parse_batch_lines` (les lignes normalisées, toutes familles) et "

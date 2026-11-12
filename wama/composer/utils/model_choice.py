@@ -148,6 +148,21 @@ def parts_extraction_available() -> bool:
     return task_installed(PARTS_EXTRACTION_TASK)
 
 
+#: La tâche du modèle qui SÉPARE l'audio en pistes (process `separate`, 2026-11-12).
+SEPARATION_TASK = 'audio-source-separation'
+
+
+def stem_separator(gen) -> str:
+    """Le modèle qui sépare l'audio de CETTE card en pistes : son réglage `separation_model`, ou
+    le tirage « auto »."""
+    return model_for_task(SEPARATION_TASK, getattr(gen, 'separation_model', None), item=gen)
+
+
+def stem_separation_available() -> bool:
+    """La disponibilité du process `separate`."""
+    return task_installed(SEPARATION_TASK)
+
+
 def lyrics_transcriber(gen) -> str:
     """Le modèle qui écoute les paroles de CETTE card : son réglage `lyrics_model`, ou le tirage."""
     return model_for_task(LYRICS_TASK, getattr(gen, 'lyrics_model', None), item=gen, **LYRICS_RESOLUTION)

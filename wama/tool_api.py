@@ -756,6 +756,8 @@ def compose_music(
                   is replayed in the prompt's style (port `work_audio`, MusicGen Melody)
         Steps are switches of the schema, passed as settings : `extract_reduced_score=True`
         (the melody score of the song), `extract_parts=True` (one part per instrument),
+        `separate_stems=True` (split the work audio into stems — vocals, drums, bass… — each
+        becoming a card of this card's lot, to transcribe one instrument alone),
         `generate_audio=False` (render NOTHING : only the scores — the prompt may then be empty).
         app_label: INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 

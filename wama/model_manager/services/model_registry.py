@@ -494,6 +494,7 @@ class ModelRegistry:
         self._discover_quality_metric_models()
         self._discover_precision_weights_models()
         self._discover_midi_extraction_models()
+        self._discover_source_separation_models()
         self._discover_score_reading_models()
         self._discover_image_to_3d_models()
         self._discover_face_analyzer_models()
@@ -2024,6 +2025,67 @@ class ModelRegistry:
             )
         except Exception as e:
             self.discovery_errors.append(f'audio-to-midi: {e}')
+
+    def _discover_source_separation_models(self):
+        """Séparation de sources, un audio → une piste par source (task=audio-source-separation,
+        2026-11-12) — les « Pistes séparées » du composer, tirées par tâche par le sélecteur commun.
+
+        Patron de `_discover_quality_metric_models` : backend COMMUN, aucune app propriétaire, la
+        ligne rangée sous la source de ses fichiers DÉCLARÉS (`demucs`, le serveur de ses auteurs) ;
+        elle existe même absente, installable et désinstallable par le pilote `files`. Les PISTES
+        rendues sont une capacité (`stems`), que la page et le composer lisent."""
+        try:
+            from wama.common.backends.demucs_backend import (
+                DEMUCS_FILES, STEMS, SUPPORTED_MODELS, model_folder,
+            )
+            from wama.common.utils.model_keys import split_key
+            from wama.model_manager.services.model_installer import declared_files_present
+            root = model_folder()
+            described = {
+                'htdemucs_6s': ("Demucs v4 — 6 stems",
+                                "Demucs v4 hybrid transformer, six-stem model (Meta): vocals, "
+                                "drums, bass, guitar, piano and other. The piano stem leaks the "
+                                "most (authors' note). MIT license (the README names no separate "
+                                "license for the weights).",
+                                "Six stems: vocals, drums, bass, guitar, piano, other"),
+                'htdemucs_ft': ("Demucs v4 — 4 stems (fine-tuned)",
+                                "Demucs v4 hybrid transformer, fine-tuned bag of four models, one "
+                                "per stem (Meta): vocals, drums, bass and other — the best Demucs "
+                                "on MUSDB18-HQ (about 9.2 dB SDR), four times slower than a single "
+                                "model. MIT license (the README names no separate license for "
+                                "the weights).",
+                                "Four stems, best quality: vocals, drums, bass, other"),
+            }
+            for name, (label, description, short) in described.items():
+                key = SUPPORTED_MODELS[name]['model_key']
+                files = DEMUCS_FILES[name]
+                self._models[key] = ModelInfo(
+                    id=name,
+                    name=label,
+                    model_type=ModelType.MUSIC,
+                    source=ModelSource(split_key(key)[0]),        # la clé dit la source
+                    description=description,
+                    description_short=short,
+                    platform_ref='github:facebookresearch/demucs',
+                    # Pic MESURÉ le 2026-11-12 (RTX 4090, `max_memory_allocated`, morceau de 30 s) :
+                    # 0,61 Go (6 pistes), 0,54 Go (sac affiné) — par tranches de 7,8 s, il ne croît
+                    # pas avec la durée ; arrondi au-dessus.
+                    vram_gb=1.0,
+                    format='th',
+                    is_downloaded=declared_files_present(root, files),
+                    extra_info={'path': str(root),
+                                'size_bytes': sum(f['size'] for f in files),
+                                'install_dir': str(root),
+                                'declared_files': files,
+                                'license': 'mit'},
+                    capabilities={'task': 'audio-source-separation', 'modalities': ['audio'],
+                                  'inputs_required': ['work_audio'], 'stems': list(STEMS[name])},
+                    composition={'runtime': {'engine': 'demucs'},
+                                 'components': [{'role': 'model', 'pattern': '*.th',
+                                                 'format': 'th'}]},
+                )
+        except Exception as e:
+            self.discovery_errors.append(f'audio-source-separation: {e}')
 
     def _discover_score_reading_models(self):
         """Lecture optique de partition, une page imprimée → son MusicXML (task=image-to-score,

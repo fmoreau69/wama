@@ -20,6 +20,8 @@ Et deux process OPTIONNELS de lecture (2026-10-26, décision de Fabien), qui ne 
   • `parts` — la partition COMPLÈTE de l'ENTRÉE (l'audio du cover), à côté de la réduite ;
   • `rendered_parts` — la partition complète du morceau PRODUIT, dérivée du rendu, pour comparer ;
   • `rendered_score` (2026-11-08, la symétrie) — sa partition réduite, le pendant d'`extract_score`.
+Et un process qui produit des CARDS (2026-11-12, demande de Fabien) :
+  • `separate` — l'audio repris → une piste par source, chacune une card du lot de celle-ci.
 Et deux process d'ÉCOUTE, optionnels sans interrupteur (2026-11-03, décision de Fabien), qui
 remplissent le champ « Paroles » quand il est vide et que le modèle chante :
   • `extract_lyrics` — les paroles du morceau repris, avant ce qui les chante ;
@@ -94,6 +96,20 @@ def _plan_applies(gen, model_key) -> bool:
     return not getattr(gen, 'reference_score', None) and not extracts_score(gen, model_key)
 
 
+def _separate_applies(gen, model_key) -> bool:
+    """Les PISTES SÉPARÉES (2026-11-12) : il faut un audio repris — fichier, ou URL qui le remplira
+    au lancement —, et la card n'est pas elle-même une piste (`derived_role`) : séparer une piste
+    de batterie en six n'a pas de sens, et rangerait des pistes de pistes dans le lot."""
+    if getattr(gen, 'derived_role', ''):
+        return False
+    return bool(getattr(gen, 'melody_reference', None) or getattr(gen, 'source_url', ''))
+
+
+def _separate_available() -> bool:
+    from .utils.model_choice import stem_separation_available
+    return stem_separation_available()
+
+
 def _lyrics_available() -> bool:
     from .utils.model_choice import lyrics_transcription_available
     return lyrics_transcription_available()
@@ -152,6 +168,19 @@ register(FunctionSpec(
     inputs=[PortSpec('work_audio', 'audio', group='travail',
                      description="Audio du morceau à reprendre (cover).")],
     outputs=[PortSpec('score', 'score', description="La partition, une partie par instrument.")]))
+
+register(FunctionSpec(
+    key='composer.separate', name="Composer — pistes séparées de l'entrée",
+    description="Sépare l'audio du morceau repris en pistes — voix, batterie, basse, guitare, piano, "
+                "autres, selon le modèle de la tâche `audio-source-separation` (Demucs v4) — et "
+                "range chaque piste dans une card du lot de celle-ci, avec ses réglages : une "
+                "partition écrite sur un instrument seul est plus juste que sur le mélange. "
+                "Optionnelle ; les cards des pistes ne se lancent pas d'elles-mêmes.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['audio', 'music', 'gpu'],
+    inputs=[PortSpec('work_audio', 'audio', group='travail',
+                     description="Audio du morceau à séparer (cover).")],
+    outputs=[PortSpec('stems', 'audio', description="Les pistes, une card chacune dans le lot.")]))
 
 register(FunctionSpec(
     key='composer.rendered_score', name='Composer — partition réduite jouée',
@@ -279,6 +308,14 @@ def _requested_model(gen):
 
 
 PIPELINE = register_app_pipeline(_APP, (
+    # PISTES SÉPARÉES (2026-11-12, demande de Fabien) : en tête, sans amont — l'audio repris seul
+    # en décide. Ce qu'elle produit, ce sont des CARDS (une par piste, dans le lot de celle-ci,
+    # `common/utils/derived_cards.py`) ; sa sortie déclarée est leur index (`stems_index`), qui
+    # date sa ligne. Rien de la card ne la lit : aucun aval à périmer.
+    ProcessSpec('separate', label='Pistes séparées', watched=('melody_reference', 'source_url'),
+                degree=OPTIONAL, toggle='separate_stems', gpu=True, share=1, needs=MAKES_MUSIC,
+                applies=_separate_applies, available=_separate_available,
+                outputs=('stems_index',), eta='composer.tasks:separate_eta'),
     # La partition EXTRAITE ne dépend que de l'audio (remarque d'ae, 2026-10-03) : changer le
     # modèle de RENDU ne la périme pas — s'il cesse de suivre une partition, c'est `applies` qui
     # écarte le process, pas la péremption. `source_url` remplit l'audio au lancement.

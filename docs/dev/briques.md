@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**240 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**241 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -2393,6 +2393,15 @@ Les vues `start`, `start_all` et `clear_all` d'une app — `make_item_views` (20
 
 ## File d'attente & lots
 
+### Cards dérivées (une card → N cards dans son lot)
+
+Les résultats d'un process deviennent des cards SŒURS dans le lot de la card source, qui DEVIENT le lot (2026-11-12, demande de Fabien : séparer l'audio d'une card du composer en pistes, chacune une card, pour transcrire un instrument seul). Copie des réglages sans les résultats (`duplicate_instance`), rattachement au lot (`attach_to_batch`), lien card → card (`DerivedCardMixin` : `derived_from`, `derived_role`, qui fait l'identité — une relance REMPLACE l'entrée des cards existantes), provenance du fichier (`input_provenance`, kind `app`). Une card dérivée ne se lance pas seule. 1ᵉʳ consommateur : le process `separate` du composer
+
+- **Domicile** : `wama/common/utils/derived_cards.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
+- **Module** : CARDS DÉRIVÉES — les résultats d'une card deviennent des cards sœurs, dans SON lot.
+- **API publique** (1) :
+  - `derive_cards(source, parts, *, field, item_model=None, fk_name=None, item_extra=None, reset_fields=None, clear_fields=None)` — Range dans le lot de `source` une card par `(rôle, fichier)` de `parts` — `fichier` relatif
+
 ### Dossier de travail jetable
 
 Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le 2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de PNG — les frames de CodeFormer, écrites dans le dossier de sortie du job et jamais nettoyées ; `job_11` portait 1715,7 Mo pour une vidéo de 0,70 Mo. `media/` ne contient que `<app>/<user>/input|output/` et `users/` (MEDIA_STORAGE_TIERING.md) : un fichier de travail y est sauvegardé par le miroir, compté par le tiering et servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être une convention qu'on oublie. ADOPTÉ par 5 sites (avatarizer/codeformer, describer/views, enhancer/views, reader/glm_ocr, describer/video_describer) ; le dernier site, la boucle vidéo de l'enhancer (ex-`tasks.py:534`), porté le 26/08, n'écrit plus d'intermédiaire depuis le 2026-10-29 (rendu commun `video_render`, qui agrandit et encode au fil de la lecture) ; la glu `enhancer/tasks.py` garde le sien pour ranger la sortie. ⚠⚠ L'audit AUTOMATIQUE des `mkdtemp` a mal classé 2 sites sur 6 — `glm_ocr` déléguait par contrat DOCUMENTÉ, `enhancer/tasks` nettoyait déjà — mais la lecture site par site a trouvé l'inverse, des fuites qu'aucun motif ne voyait : un `rmdir` conditionné à « si le dossier est vide » qui ne se déclenchait donc jamais, un nettoyage placé APRÈS l'appel qui sautait sur exception, et un `except ImportError` qui empêchait un repli d'exister. Un relevé par motif oriente ; il ne conclut pas. Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés
@@ -2531,12 +2540,13 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (48) :
+- **API publique** (49) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
   - `class NativeOutputsMixin(models.Model)` — Les fichiers D'ORIGINE d'une card dont les réglages de sortie transforment le rendu
   - `class KeptOutputsMixin(models.Model)` — Les fichiers de RÉVISION gardés d'une card — ses sorties telles que chaque révision les a
+  - `class DerivedCardMixin(models.Model)` — Une card NÉE d'une autre — un résultat d'une card devenu l'entrée d'une card sœur, dans le
   - `class QueueOrderMixin(models.Model)` — Position MANUELLE de l'entrée dans la file (CARD_DESIGN §3bis — manipulation directe).
   - `class BatchMixin` — Sémantique + cycle de fichiers communs aux modèles Batch (tout est batch ; unitaire = card unique).
   - `class OrgUnit(models.Model)` — Unité organisationnelle = nœud de l'arbre institut/université → département →
@@ -3984,12 +3994,13 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (48) :
+- **API publique** (49) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
   - `class NativeOutputsMixin(models.Model)` — Les fichiers D'ORIGINE d'une card dont les réglages de sortie transforment le rendu
   - `class KeptOutputsMixin(models.Model)` — Les fichiers de RÉVISION gardés d'une card — ses sorties telles que chaque révision les a
+  - `class DerivedCardMixin(models.Model)` — Une card NÉE d'une autre — un résultat d'une card devenu l'entrée d'une card sœur, dans le
   - `class QueueOrderMixin(models.Model)` — Position MANUELLE de l'entrée dans la file (CARD_DESIGN §3bis — manipulation directe).
   - `class BatchMixin` — Sémantique + cycle de fichiers communs aux modèles Batch (tout est batch ; unitaire = card unique).
   - `class OrgUnit(models.Model)` — Unité organisationnelle = nœud de l'arbre institut/université → département →

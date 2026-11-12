@@ -722,7 +722,9 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertIsNotNone(manifest, 'the registry is not a pipeline source')
         self.assertEqual([], validate(manifest))
         self.assertEqual('media', manifest['world'])
-        self.assertEqual([('extract_score', 'composer.extract_score'), ('parts', 'composer.parts'),
+        # The separated stems (2026-11-12) first : the input alone decides, nothing reads them.
+        self.assertEqual([('separate', 'composer.separate'),
+                          ('extract_score', 'composer.extract_score'), ('parts', 'composer.parts'),
                           ('extract_lyrics', 'composer.extract_lyrics'),
                           ('write_lyrics', 'composer.write_lyrics'),
                           ('plan', 'composer.plan'), ('render', 'composer.render'),
@@ -756,8 +758,9 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertIn('composer', _pipeline_keys())
 
     def test_the_task_has_a_glue_for_every_process(self):
-        self.assertEqual({'extract_score', 'extract_lyrics', 'write_lyrics', 'plan', 'render',
-                          'output', 'parts', 'rendered_score', 'rendered_parts', 'rendered_lyrics'},
+        self.assertEqual({'separate', 'extract_score', 'extract_lyrics', 'write_lyrics', 'plan',
+                          'render', 'output', 'parts', 'rendered_score', 'rendered_parts',
+                          'rendered_lyrics'},
                          {spec.key for spec in PIPELINE.specs})
         for spec in PIPELINE.specs:
             self.assertTrue(callable(getattr(tasks, f'_{spec.key}')), spec.key)
