@@ -1056,6 +1056,24 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     ⚠ Ce que ce dernier point met en lumière : la page des applications ne dit aujourd'hui ni
     les DOMAINES d'une app, ni ses PAGES D'ÉDITION (les futurs onglets, `WAMA_DATA_WORLD §11.8`) —
     à compléter sur la page existante, de façon claire, plutôt que par une page de plus.
+  - 🔄 **Premier pas, 2026-11-12 — le TRANSPORT lit une action, plus une touche.**
+    `wama-keys.js` gagne `WamaKeys.action(frappe, propriétaire, défauts)` et `WamaKeys.remap` : une
+    touche se dit par sa position (`KeyJ`, `Shift+ArrowLeft`) ou par le caractère qu'elle produit
+    (`,` — où que la disposition du clavier la mette) ; une surcharge redonne ses touches à une
+    action par son NOM, les autres gardent les leurs ; la page peut en servir (`keymap` de
+    `#wama-page-controls` — rien ne l'écrit encore). `Shortcut.names` nomme l'action de chaque
+    touche. Le magnéto (`WamaAxis.keys`, donc les surfaces et la visionneuse) demande l'action à sa
+    table `TRANSPORT_KEYS` ; aucune touche existante ne change. NEUF : `,` et `.` reculent et
+    avancent d'un pas, la lecture arrêtée — premier appelant de `axis.step` ; ⚠ le pas reste celui
+    de la cadence la plus fine déclarée (point ouvert ci-dessus). Gardes : `BrickShortcutsTest`
+    (la table du transport ET le registre disent la même chose, touche par touche et nom par nom —
+    contre-épreuve : un nom changé dans le code → rouge ; résolution et surcharge jouées en V8).
+    Au navigateur : `common.preview_sync` 18/18 (touches de la visionneuse). ⚠ Non rejoué :
+    `transcriber.editor_parity` (75 gestes, demande un serveur).
+    ⏳ Restent, dans l'ordre : le relâché d'une touche ; les autres briques sur `WamaKeys.action`
+    (segments, ligne de temps, écriture, partition, zones, file, inspecteur, visionneuse) ; le
+    préréglage DÉCLARÉ d'une page et celui du transcriber ; alors seulement les défauts décidés
+    (←/→ = un pas, Ctrl 1 s, Maj 5 s, Alt 30 s) ; le réglage par compte et ses pages.
 - ⏳ **VISION, à ne pas oublier (Fabien, 2026-11-12) — composer une page D'ÉDITION DE ZÉRO.** On a
   le catalogue des briques et des pages dont on arrange les briques ; rien ne permet de partir
   d'une page vierge, d'y tirer des briques du catalogue et de les disposer pour créer une

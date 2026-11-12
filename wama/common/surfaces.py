@@ -200,7 +200,12 @@ class Shortcut:
     clavier commun, `wama-keys.js` — la pile de la file suit la card choisie).
     `targets` (2026-10-29) : le CONTRÔLE que chaque touche actionne, un sélecteur par touche, dans
     l'ordre de `keys` ('' : aucun) — l'infobulle de ce bouton dit alors sa touche, lue d'ici
-    (`wama-page-controls.js`), au lieu de l'écrire à la main dans le code de la brique."""
+    (`wama-page-controls.js`), au lieu de l'écrire à la main dans le code de la brique.
+    `names` (2026-11-12, raccourcis surchargeables — `WAMA_VOLETS §3-ter`) : le NOM de l'action de
+    chaque touche, dans l'ordre de `keys` (`('reverse', 'stop', 'forward')` pour J / K / L) — ce par
+    quoi un préréglage d'application ou un réglage d'utilisateur redonne ses touches à une action
+    (`WamaKeys.remap`), et ce que la brique lit d'une frappe (`WamaKeys.action`). Vide : la brique
+    teste encore ses touches elle-même, rien ne les surcharge."""
     keys: tuple
     action: str
     scope: str = 'brick'
@@ -208,6 +213,7 @@ class Shortcut:
     handled_by: str = ''
     follows: bool = False
     targets: tuple = ()
+    names: tuple = ()
 
     @property
     def label(self) -> str:
@@ -216,7 +222,7 @@ class Shortcut:
     def to_dict(self) -> dict:
         return {'keys': list(self.keys), 'label': self.label, 'action': self.action,
                 'scope': self.scope, 'where': SHORTCUT_SCOPES.get(self.scope, ''),
-                'option': self.option, 'follows': self.follows,
+                'option': self.option, 'follows': self.follows, 'names': list(self.names),
                 'targets': [{'selector': t, 'label': key_label(k)}
                             for k, t in zip(self.keys, self.targets) if t]}
 
@@ -921,16 +927,21 @@ register_brick(UIBrick(
     consumes=('audio',),
     # Brique PRIORITAIRE (Fabien, 2026-10-29) : ses touches agissent partout sur la page, hors
     # d'un champ où l'on écrit ; un bouton cliqué ne les garde pas (`wama-axis.js`).
-    shortcuts=(Shortcut(('Space',), 'lecture / pause', 'page', targets=('[data-transport="play"]',)),
-               Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe', 'page'),
+    shortcuts=(Shortcut(('Space',), 'lecture / pause', 'page', targets=('[data-transport="play"]',),
+                        names=('toggle',)),
+               Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe', 'page',
+                        names=('toggle_always',)),
                Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'lecture arrière / pause / lecture avant, par crans '
-                        'de vitesse', 'page'),
+                        'de vitesse', 'page', names=('reverse', 'stop', 'forward')),
                Shortcut(('ArrowLeft', 'ArrowRight'), "reculer / avancer d'un saut", 'page',
-                        targets=('[data-transport="skip-back"]', '[data-transport="skip-fwd"]')),
+                        targets=('[data-transport="skip-back"]', '[data-transport="skip-fwd"]'),
+                        names=('jump_back', 'jump_forward')),
                Shortcut(('Shift+ArrowLeft', 'Shift+ArrowRight'), 'reculer / avancer de six sauts',
-                        'page'),
+                        'page', names=('jump_back_far', 'jump_forward_far')),
+               Shortcut((',', '.'), "reculer / avancer d'un pas (une image), la lecture arrêtée",
+                        'page', names=('step_back', 'step_forward')),
                Shortcut(('Home', 'End'), 'aller au début / à la fin', 'page',
-                        targets=('[data-transport="start"]', '')),
+                        targets=('[data-transport="start"]', ''), names=('start', 'end')),
                Shortcut(('Enter',), 'aller au temps tapé', 'field', option='goto'),
                Shortcut(('Escape',), 'rendre le clavier au transport', 'field', option='goto'))))
 
@@ -1200,10 +1211,14 @@ register_brick(UIBrick(
     # Les touches du magnéto sont traitées par l'axe (`WamaAxis.keys`, un script qu'elle requiert).
     shortcuts=(Shortcut(('Space',), 'lecture / pause de la vidéo montrée (son lecteur natif la garde '
                                     "quand il a le focus)"),
-               Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe'),
+               Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe',
+                        names=('toggle_always',)),
                Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'lecture arrière / pause / lecture avant, par crans '
-                        'de vitesse'),
-               Shortcut(('Home', 'End'), 'aller au début / à la fin de la vidéo'),
+                        'de vitesse', names=('reverse', 'stop', 'forward')),
+               Shortcut((',', '.'), "reculer / avancer d'un pas (une image), la lecture arrêtée",
+                        names=('step_back', 'step_forward')),
+               Shortcut(('Home', 'End'), 'aller au début / à la fin de la vidéo',
+                        names=('start', 'end')),
                Shortcut(('ArrowLeft', 'ArrowRight'), "fichier précédent / suivant de l'élément",
                         handled_by='common/js/media-preview.js',
                         targets=('.wama-preview-nav-prev', '.wama-preview-nav-next')),

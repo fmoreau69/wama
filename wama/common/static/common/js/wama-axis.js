@@ -92,6 +92,18 @@
     var DEFAULT_STEP = 1 / 30;
     /** Les avis aux abonnés s'espacent au plus jusqu'à un sur `MAX_SKIP` images. */
     var MAX_SKIP = 6;
+    /** Les touches du magnéto PAR DÉFAUT, `{touche: action}` — celles que la brique déclare au
+     *  registre (`surfaces.py`, `media_transport.shortcuts`, tenues égales par `BrickShortcutsTest`).
+     *  Une touche se dit par sa position (`KeyJ`) ou par son caractère (`,`). Une page ou un compte
+     *  les SURCHARGE par le nom de l'action (`WamaKeys.remap`, `WAMA_VOLETS §3-ter`). */
+    var TRANSPORT_KEYS = {
+        'Ctrl+Space': 'toggle_always', 'Space': 'toggle',
+        'ArrowLeft': 'jump_back', 'ArrowRight': 'jump_forward',
+        'Shift+ArrowLeft': 'jump_back_far', 'Shift+ArrowRight': 'jump_forward_far',
+        'Home': 'start', 'End': 'end',
+        'KeyJ': 'reverse', 'KeyK': 'stop', 'KeyL': 'forward',
+        ',': 'step_back', '.': 'step_forward',
+    };
     /** Le temps d'une image (ms) : le budget d'un avis. Pas l'écart mesuré entre deux battements,
      *  qui contient déjà le temps passé chez les abonnés — un abonné lent n'y paraîtrait jamais lent. */
     var FRAME_MS = 1000 / 60;
@@ -594,24 +606,38 @@
                 function ownSpace(t) {
                     return !!(t && (t.tagName === 'VIDEO' || t.tagName === 'AUDIO') && t.controls);
                 }
+                var owner = o.owner || 'media_transport';
+                /** L'ACTION d'une frappe (2026-11-12) : lue à la table du magnéto par le clavier
+                 *  commun (`WamaKeys.action` — défauts `TRANSPORT_KEYS`, surcharges d'une page ou
+                 *  d'un compte), plus jamais à la touche. Maj SEULE ne retire pas une touche que
+                 *  la table ne distingue pas (Maj+J recule, comme avant) ; Méta n'est à personne. */
+                function actionOf(e) {
+                    if (e.metaKey) return null;
+                    var Keys = global.WamaKeys;
+                    // Sans le clavier commun (un banc qui ne charge que l'axe) : la touche nue.
+                    if (!Keys || !Keys.action) return TRANSPORT_KEYS[e.code] || null;
+                    var found = Keys.action(e, owner, TRANSPORT_KEYS);
+                    if (found || !e.shiftKey || e.ctrlKey || e.altKey) return found;
+                    return Keys.action({ code: e.code, key: e.key, shiftKey: false }, owner, TRANSPORT_KEYS);
+                }
                 function handle(e) {
                     if (o.enabled && !o.enabled()) return false;
-                    if (e.code === 'Space' && e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
-                        axis.toggle();
-                        return true;
-                    }
-                    if (e.ctrlKey || e.metaKey || e.altKey) return false;
-                    switch (e.code) {
-                        case 'Space':
+                    switch (actionOf(e)) {
+                        case 'toggle_always': axis.toggle(); return true;
+                        case 'toggle':
                             if (ownSpace(e.target)) return false;
                             axis.toggle(); spaceTarget = e.target; return true;
-                        case 'ArrowLeft': axis.jump(e.shiftKey ? -jump * 6 : -jump); return true;
-                        case 'ArrowRight': axis.jump(e.shiftKey ? jump * 6 : jump); return true;
-                        case 'Home': axis.seek(0); return true;
-                        case 'End': if (s.duration) axis.seek(s.duration); return true;
-                        case 'KeyL': if (o.shuttle) { o.shuttle.forward(); return true; } return false;
-                        case 'KeyJ': if (o.shuttle) { o.shuttle.reverse(); return true; } return false;
-                        case 'KeyK': if (o.shuttle) { o.shuttle.stop(); return true; } return false;
+                        case 'jump_back': axis.jump(-jump); return true;
+                        case 'jump_forward': axis.jump(jump); return true;
+                        case 'jump_back_far': axis.jump(-jump * 6); return true;
+                        case 'jump_forward_far': axis.jump(jump * 6); return true;
+                        case 'step_back': axis.step(-1); return true;
+                        case 'step_forward': axis.step(1); return true;
+                        case 'start': axis.seek(0); return true;
+                        case 'end': if (s.duration) axis.seek(s.duration); return true;
+                        case 'forward': if (o.shuttle) { o.shuttle.forward(); return true; } return false;
+                        case 'reverse': if (o.shuttle) { o.shuttle.reverse(); return true; } return false;
+                        case 'stop': if (o.shuttle) { o.shuttle.stop(); return true; } return false;
                         default: return false;
                     }
                 }
@@ -642,5 +668,6 @@
     global.WamaAxis = {
         create: create, formatTime: formatTime, parseTime: parseTime,
         MEDIA_MAX_RATE: MEDIA_MAX_RATE, SYNC: SYNC, DEFAULT_STEP: DEFAULT_STEP,
+        TRANSPORT_KEYS: TRANSPORT_KEYS,
     };
 })(window);

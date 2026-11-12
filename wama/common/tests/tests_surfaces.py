@@ -1913,6 +1913,59 @@ class BrickShortcutsTest(SimpleTestCase):
         self.assertEqual([('Space', 'media_transport', 'rival')],
                          clashes([FakeSlot('media_transport'), FakeSlot('rival', rival.shortcuts)]))
 
+    def test_the_transport_reads_an_action_and_its_table_matches_the_registry(self):
+        """2026-11-12 (Fabien : shortcuts a user, or an application, can override) — the transport
+        no longer tests a key : it asks the common keyboard for the ACTION of a keystroke, from its
+        table (`WamaAxis.TRANSPORT_KEYS`). That table and the registry say the same thing, key by
+        key and name by name ; the viewer names a subset of it."""
+        import re
+
+        from wama.common.surfaces import BRICKS, load_all
+        load_all()
+        axis = _js('common/js/wama-axis.js')
+        block = axis.split('var TRANSPORT_KEYS = {', 1)[1].split('};', 1)[0]
+        table = dict(re.findall(r"'([^']+)':\s*'(\w+)'", block))
+        declared = {key: name for s in BRICKS['media_transport'].shortcuts if s.scope == 'page'
+                    for key, name in zip(s.keys, s.names)}
+        self.assertEqual(declared, table)
+        for shortcut in BRICKS['media_transport'].shortcuts:
+            if shortcut.scope == 'page':
+                self.assertEqual(len(shortcut.keys), len(shortcut.names), shortcut.keys)
+        viewer = {key: name for s in BRICKS['media_viewer'].shortcuts for key, name in zip(s.keys, s.names)}
+        self.assertTrue(viewer)
+        self.assertEqual({}, {k: n for k, n in viewer.items() if table.get(k) != n})
+        self.assertNotIn("case 'KeyL'", axis, 'no key is tested by hand any more')
+        self.assertIn('Keys.action(e, owner, TRANSPORT_KEYS)', axis)
+
+    def test_an_action_is_resolved_from_the_defaults_then_from_an_override(self):
+        """`WamaKeys.action` : the key by its position (`KeyJ`, `Shift+ArrowLeft`) or by the character
+        it produces (`,` — wherever the layout puts it) ; `remap` gives an action other keys, by its
+        NAME, and leaves the other actions theirs. Counterproof inside : without the override the
+        old key still answers."""
+        from py_mini_racer import MiniRacer
+        v8 = MiniRacer()
+        v8.eval(KeyDispatcherTest.SETUP + _js('common/js/wama-keys.js'))
+        out = v8.eval('''(function () {
+            var K = window.WamaKeys, table = {'KeyJ': 'reverse', 'Shift+ArrowLeft': 'far', ',': 'step_back'};
+            function ev(code, key, mods) { return Object.assign({code: code, key: key}, mods || {}); }
+            var before = [K.action(ev('KeyJ', 'j'), 'x', table),
+                          K.action(ev('ArrowLeft', 'ArrowLeft', {shiftKey: true}), 'x', table),
+                          K.action(ev('ArrowLeft', 'ArrowLeft'), 'x', table),
+                          K.action(ev('KeyM', ','), 'x', table),            // AZERTY : « , » is on M
+                          K.action(ev('Comma', ',', {ctrlKey: true}), 'x', table)];
+            K.remap('x', {reverse: ['KeyH'], step_back: []});
+            var after = [K.action(ev('KeyJ', 'j'), 'x', table), K.action(ev('KeyH', 'h'), 'x', table),
+                         K.action(ev('KeyM', ','), 'x', table),
+                         K.action(ev('ArrowLeft', 'ArrowLeft', {shiftKey: true}), 'x', table),
+                         K.action(ev('KeyJ', 'j'), 'other', table)];
+            K.remap('x', null);
+            return {before: before, after: after, back: K.action(ev('KeyJ', 'j'), 'x', table)};
+        })()''')
+        self.assertEqual(['reverse', 'far', None, 'step_back', None], list(out['before']))
+        self.assertEqual([None, 'reverse', None, 'far', 'reverse'], list(out['after']),
+                         'the overridden action moved, a silenced one is gone, the others kept theirs')
+        self.assertEqual('reverse', out['back'])
+
     def test_the_surface_serves_the_declarations_and_the_page_help_lists_them(self):
         from wama.common.surfaces import key_label, surface
         served = surface('transcriber', 'correct').to_dict()['bricks']

@@ -131,6 +131,63 @@
         doc.addEventListener('keydown', dispatch);
     }
 
+    // ── TOUCHE → ACTION (2026-11-12, `WAMA_VOLETS §3-ter` « raccourcis surchargeables ») ────────
+    // Une brique ne teste plus une touche : elle demande l'ACTION d'une frappe, d'après SA table
+    // (`{touche: action}`, ses défauts — les mêmes que sa déclaration au registre, tenus égaux par
+    // `BrickShortcutsTest`). Une SURCHARGE (`remap`, ou la page : préréglage d'une application,
+    // réglage d'un utilisateur — `keymap` de `#wama-page-controls`) redonne ses touches à une
+    // action, par son nom ; les autres actions gardent les leurs. Une touche se dit par sa
+    // POSITION (`KeyJ`, `Shift+ArrowLeft` — `combo`) ou par le CARACTÈRE qu'elle produit (`,`,
+    // `?` — la disposition du clavier décide alors où elle est, Maj comprise).
+    var overrides = {}, served = false, resolvedTables = [];
+
+    /** Le caractère produit, avec Ctrl / Alt : `,`, `Ctrl+z` ; null pour une touche nommée. */
+    function charCombo(e) {
+        var k = e.key;
+        if (typeof k !== 'string' || k.length !== 1 || k === ' ') return null;
+        return (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + k;
+    }
+    function readServed() {
+        if (served) return;
+        served = true;
+        var source = doc && doc.getElementById ? doc.getElementById('wama-page-controls') : null;
+        if (!source) return;
+        try {
+            var keymap = (JSON.parse(source.textContent) || {}).keymap || {};
+            Object.keys(keymap).forEach(function (owner) {
+                if (!overrides[owner]) overrides[owner] = keymap[owner];
+            });
+        } catch (err) { /* une page sans configuration : les défauts des briques */ }
+    }
+    /** La table d'un propriétaire, ses surcharges appliquées : `{touche: action}`. */
+    function tableOf(owner, defaults) {
+        readServed();
+        for (var i = 0; i < resolvedTables.length; i++) {
+            if (resolvedTables[i].owner === owner && resolvedTables[i].defaults === defaults) return resolvedTables[i].table;
+        }
+        var table = {}, over = overrides[owner] || {};
+        Object.keys(defaults || {}).forEach(function (key) {
+            if (!Object.prototype.hasOwnProperty.call(over, defaults[key])) table[key] = defaults[key];
+        });
+        Object.keys(over).forEach(function (name) {
+            (over[name] || []).forEach(function (key) { table[key] = name; });
+        });
+        resolvedTables.push({ owner: owner, defaults: defaults, table: table });
+        return table;
+    }
+    /** L'action de la frappe `e` pour `owner`, d'après ses défauts et ses surcharges ; null. */
+    function action(e, owner, defaults) {
+        var table = tableOf(owner, defaults);
+        var byChar = charCombo(e);
+        return table[combo(e)] || (byChar && table[byChar]) || null;
+    }
+    /** Surcharge les touches de `owner` : `{action: [touches]}` (une liste vide la tait). */
+    function remap(owner, table) {
+        readServed();
+        if (table) overrides[owner] = table; else delete overrides[owner];
+        resolvedTables = [];
+    }
+
     /** Inscrit un propriétaire de touches ; rend la fonction qui le désinscrit. */
     function register(entry) {
         entry = Object.assign({ scope: 'page' }, entry);
@@ -145,6 +202,8 @@
         register: register,
         typing: typing,
         combo: combo,
+        action: action,
+        remap: remap,
         /** Le contrôle `t` a-t-il été CLIQUÉ (et non atteint au clavier) ? */
         clicked: function (t) { return !!t && t === pointerFocus; },
     };
