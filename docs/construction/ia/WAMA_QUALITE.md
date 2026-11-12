@@ -351,6 +351,108 @@ demande de l'utilisateur, sans omettre de modèle. »*
   « mauvais » (`model_selector._rank_key`, docstring) ; un étage classe s'il compare (ci-dessus).
   Rien d'implémenté.
 
+📜 **AVIS DU 2026-11-12 ET DÉCISIONS DE FABIEN** (session neuve, Opus 5.5 ; avis du concile à la
+suite). Rien d'implémenté. Tout passe par le COMMUN — le sélecteur (`_quality_scalars`,
+`intent_choice`, lus par toutes les apps et par `best_installed`), les méthodes M4/M8/M9, les
+déclarations par tâche — et rien par une app : *« Ce que je ne veux pas, c'est un désalignement,
+des pansements, ou des spécificités dans une app »* (Fabien). Une spécificité de modèle qui
+apparaît en l'évaluant entre dans le commun.
+- **Cas de départ : les effets sonores du Composer** (`text-to-audio`, `composer/utils/auto_model.py:46`).
+  Aujourd'hui le lot n'a qu'un modèle (`composer:audiogen-medium`), sans banc ni a priori
+  (`DECLARED_PRIORS` ne couvre que la musique) : curseur inerte par construction — un trou du
+  catalogue, pas encore Q10. Avec les candidats de la veille du 11/11 (Stable Audio 3 Small-SFX
+  et Medium, MOSS-SoundEffect v2, `PROSPECTION_PIPELINE §Veille 2026-11-11`), la seule note
+  serait la table AUTO-DÉCLARÉE du rapport de Stable Audio 3 (FAD et CLAP sur des clips BBC de
+  5 s : deux échelles) ; si elle note les deux Stable Audio 3, l'étage compare, et
+  `rankable = [m for m in pool if id(m) in values] or pool` (`model_selector.py:491`) écarte
+  AudioGen et MOSS à TOUTES les positions, curseur 0 compris — où la qualité ne pèse rien.
+- **① SÉLECTION — borner l'inconnu, jamais lui inventer une valeur.** Hypothèse unique, dite
+  telle quelle : un modèle sans note n'est ni meilleur que le meilleur mesuré du lot, ni pire que
+  le pire. Avec `S = w·q + (1−w)(1−c)`, son score est l'intervalle `[(1−w)(1−c), w + (1−w)(1−c)]`,
+  de largeur exactement `w` : *l'ignorance pèse le poids que l'utilisateur donne à la qualité.*
+  Trois verdicts, aucun ne mélange deux échelles : **battu même au mieux** → écarté, dit ;
+  **gagnant même au pire** → tiré, dit (c'est ce qui rend « rapide » honnête) ; **indéterminé** →
+  PRUDENCE. Les relations d'ordre sans valeur resserrent les bornes sans placer le modèle :
+  une quantisation ≤ son modèle d'origine (déjà écrit pour MiniMax, « borne haute »,
+  `model_quality.py:122-123`), « Small ≤ Medium » déclaré par un auteur. Les modèles d'un étage
+  INFÉRIEUR sont « inconnus » sur l'échelle de l'étage retenu, même règle. Chaque choix rend
+  l'étage qui a classé, son échelle, sa population, les modèles non comparés et pourquoi.
+  ✅ **Fabien : d'accord sur l'hypothèse** (le concile la confirme ou la borne autrement).
+- **② Indéterminé → PRUDENCE, sans interface de plus** (décision de Fabien) : le meilleur modèle
+  noté ; le modèle prévu est affiché, l'utilisateur choisit lui-même un modèle non noté s'il le
+  veut. Les descriptions courtes et longues portent les notes pertinentes pour ce choix manuel —
+  **CALCULÉES à l'affichage** depuis `benchmark_meta` et les mesures internes, avec échelle et
+  population, dans l'aide commune des modèles ; jamais recopiées dans `description_long` (un
+  chiffre ne vit qu'à un endroit ; `describe_model`, `model_selector.py:1077-1085`, ne rend
+  aujourd'hui que le texte).
+- **③ NOTATION — le trou ne se supprime pas, il se borne dans le temps** : un modèle sans note est
+  un ÉTAT daté (« à mesurer depuis… »). Ordre, du gratuit au coûteux : identité et héritage
+  (`quantized_base`, alias) ; bancs tiers et tableaux officiels dès l'installation
+  (`queue_benchmarks`) ; table d'auteur dans sa seule population ; **mesure d'entrée** — qui n'est
+  pas un mécanisme neuf : c'est **P4 précisé** (§9, 2026-09-30 : tableau corpus × modèles ×
+  réglages, cases PÉRIMÉES à l'arrivée d'un modèle, la nuit ne recalcule qu'elles), freiné par la
+  décision du 28/09 (« à la demande seulement »). **Priorité de mesure** = les modèles en verdict
+  « indéterminé » sur des tirages réels : ceux dont la mesure changerait une décision — le trou de
+  sélection ordonne le comblement du trou de notation.
+  ⚠ **Inquiétude de Fabien : la pertinence des corpus** (*« on risque d'introduire des notations
+  imprécises »*). Bornes proposées : (a) une note ne vaut que dans sa population, jamais mélangée ;
+  (b) un corpus n'est admis que DÉCLARÉ (`dataset`, Q1), avec sa catégorie (§4.4) et sa source de
+  vérité (§1), et si possible confronté une fois à un verdict humain ; (c) le corpus le plus
+  pertinent est l'USAGE de WAMA — corrections des utilisateurs comme références (déjà captées par
+  le transcriber), jeu FIGÉ de prompts tirés de demandes réelles pour la génération ; (d) une
+  tâche sans corpus admis n'a pas de mesure d'entrée, et le sélecteur le dit.
+- **④ DEUX ÉCHELLES D'UNE TÂCHE — dissociées, jamais additionnées** (Fabien : *« on fait les 2 avec
+  des scores dissociés qui rentrent dans le calcul s'ils existent »*). Aujourd'hui
+  `_internal_values` s'abstient devant deux échelles comparables (`model_selector.py:225-226`) ;
+  il faut donc une DÉCLARATION PAR TÂCHE, dans le commun, de l'échelle PRINCIPALE ; la seconde ne
+  joue que par dominance (meilleur sur les deux → devant ; sinon la principale tranche). Effets
+  sonores : **CLAP** principal (modèle entraîné sur des sons et leurs descriptions — le score dit
+  si le son correspond au prompt, sans référence ; par fenêtres glissantes pour « l'instant où
+  c'est demandé » ; M4, à calibrer contre l'humain), **FAD** seulement là où existe une référence
+  réelle de la catégorie (compare un ENSEMBLE de sons générés à un ensemble de vrais sons ; ne juge
+  pas un clip ; plus bas = mieux). ⚠ Une M4 « n'entre jamais dans `ResultEvaluation` » (M4 plus
+  bas) : pour classer des modèles, CLAP doit tourner sur un jeu de prompts FIGÉ qui fait la
+  population (`reference_set`) — décision.
+- **⑤ Étoiles des utilisateurs → M8**, **répétabilité et reproductibilité → M9** (détail en §2).
+- ⏳ **Question consignée pour plus tard, rien à faire — musique et paysages sonores** (Fabien) :
+  plus la composition musicale se spécialise (partitions, paroles, covers), plus ses réglages
+  divergent de ceux des ambiances ; *« en faire 2 domaines n'est pas envisageable, il s'agirait
+  plutôt de 2 modes »* — peut-être un faux problème. ⚠ À rapprocher le jour venu de la décision
+  écrite `composer/utils/model_choice.py:13-14` (« un auto par groupe, groupé côté serveur, pas de
+  2 modes ») : le type musique/bruitage s'y DÉRIVE de la tâche du modèle ; ce « pas de 2 modes »
+  visait un sélecteur de type à l'écran, pas le sens de « mode » de la doctrine domaines/modes.
+- ⏳ **Publication, à terme** (Fabien) : quand la notation sera éprouvée sur assez de modèles,
+  publier résultats et rapports d'évaluation — site web de WAMA qui présente la plateforme et
+  compile ce qu'elle a appris. Intention portée par `WAMA_VISION_COMPLET §10.4` et
+  `ROADMAP §30` ; les rapports générés existent déjà (§9, « Rapports d'évaluation GÉNÉRÉS »).
+
+📜 **AVIS DU CONCILE DE WAMA (2026-11-12) — et sa lecture.** Dossier autonome (le problème, les
+règles, A à E ci-dessus, sept questions), lancé par la délégation de l'assistant
+(`assistant_engine._delegate_wave`, quatre agents `methodology` / `critique` / `dev` /
+`methodology`, `decide: review`) : 366 s, parent Albert `gemma-4-31b-it`, avis d'Albert
+gemma-4-31b, ILaaS gemma-4-31b, ILaaS qwen-3.8-27b (seul à avoir utilisé ses outils), Albert
+deepseek-v4-flash, arbitre ILaaS qwen-3.6-35b. Verdict unanime : **« proposition correcte avec
+corrections »**. ⚠ Un avis, pas une mesure : les agents n'ont pas lu le code — chaque point est
+confronté ci-dessous. Rien d'implémenté ; les ✅ sont des corrections RETENUES dans la proposition,
+pas des décisions de Fabien.
+
+| point du concile | lecture |
+|---|---|
+| borner l'inconnu par l'étendue du LOT crée un biais local : un lot faible plafonne un excellent inconnu ; borner par la POPULATION du banc ne mélange pas les échelles (c'est elle qui DÉFINIT l'échelle) | ✅ **retenu** : la borne est l'étendue de la population de l'échelle retenue quand elle est connue (bancs tiers : cache des sources ; rang centile : 0-100 par construction), celle du lot sinon (a priori déclarés, mesure interne). L'intervalle s'élargit, donc plus d'« indéterminés » et plus de prudence — conforme au choix de Fabien. Pire cas restant, dit : un modèle hors de toute étendue connue |
+| exiger ≥ 2 modèles notés pour appliquer l'hypothèse (correction « prioritaire » de l'arbitre) | ✅ déjà la règle « un étage classe s'il COMPARE » (`model_selector.py:308-314`) ; avec un seul noté l'étendue est un point, tout inconnu est indéterminé → prudence, le comportement d'aujourd'hui |
+| ⭐ verdict « gagnant même au pire » seulement si le COÛT est MESURÉ (vitesse apprise sur cette machine, VRAM mesurée), sinon indéterminé | ✅ **retenu, point le plus utile** : le verdict repose ENTIÈREMENT sur le coût, et la provenance de la VRAM est déjà portée (`vram_provenance` : `declared` / `estimated` / `heuristic`…, `model_registry.py:350`) ; la vitesse apprise ne joue que si tout le lot en a une (`eta_estimator.comparable_speeds`). C'est la garde « pas mesuré n'est pas gratuit » (02/09) appliquée à la borne basse |
+| un seuil de qualité minimal `q_min` contre les modèles « gratuits mais inutilisables » | ❌ **écarté** : une valeur inventée sur l'échelle. Le « cassé » se juge à l'ADMISSION — sans backend (`backend_missing`), défaut mesuré (`quality.defect`, `model_quality.py:150-160`) —, pas par la qualité |
+| le verdict (2) tire SYSTÉMATIQUEMENT l'inconnu au curseur 0 et perpétue le trou | ❌ **faux**, corrigé par l'arbitre lui-même : à w = 0 l'intervalle est un point, l'inconnu n'est tiré que s'il est réellement le moins coûteux |
+| boucle de rétroaction : un modèle jamais tiré n'est jamais « indéterminé », donc jamais mesuré → tirage forcé d'un inconnu 1 fois sur 10 | ❌ **le constat est faux et le remède écarté** : le verdict se calcule sur CHAQUE tirage, pour tout le lot, quel que soit le modèle retenu ; au curseur haut l'intervalle est large, c'est là que les inconnus sont indéterminés. Un tirage forcé serait une exploration sur le travail d'un utilisateur, à son insu (refusée : prudence) |
+| ⭐ mesure d'entrée : un EFFECTIF minimal et une INCERTITUDE déclarée, sinon l'étage interne est plus bruité que le banc qu'il supplante | ✅ **retenu, sans N figé** (le concile proposait ≥ 30 items) : chaque note interne porte son intervalle de confiance (bootstrap sur les items), et la même logique d'intervalles s'y applique — deux modèles dont les intervalles se chevauchent sont INDÉTERMINÉS l'un par rapport à l'autre. C'est le « N passes non fixé » de Q3 enfin chiffré par la mesure elle-même, et « accumulation avant confiance » (§4.1) rendu mécanique |
+| péremption du CORPUS lui-même (l'usage dérive) | ✅ retenu : un corpus porte sa date et sa catégorie, se revalide ; P4 rend déjà ses cases PÉRIMÉES quand le corpus change (§9) — ce qui manquait est la date de revalidation |
+| la seconde échelle en FILTRE d'exclusion (seuil déclaré par tâche) plutôt que par dominance, trop rarement décisive | ⏳ **à Fabien** : deux formes sans mélange. La dominance ne demande aucun nombre ; le filtre demande un seuil (absolu ou relatif) qu'il faut justifier — une EXIGENCE déclarée par tâche, comme une capacité. Proposition : dominance par défaut, seuil seulement quand il se justifie |
+| étoiles : randomiser l'ordre de présentation des deux sorties ; effectif minimal par paire ; plafonner le poids d'une personne très active ; agréger les duels de personnes DIFFÉRENTES (un avis voulait l'interdire, l'arbitre l'a contredit) | ✅ retenu (le duel est intra-personne, l'agrégat inter-personnes, c'est ce que propose M8) ; l'effectif se lit à l'intervalle, comme ci-dessus |
+| répétabilité / reproductibilité : terminologie exacte, dispersions bien séparées ; mesurer AUSSI leur rapport (la sensibilité de la métrique : un CLAP stable sur des sorties qui varient, et l'inverse) ; pilote sur trois modèles avant de généraliser | ✅ retenu (M9). Références citées par les agents, **non vérifiées ici** : « Quantifying Variance in Evaluation Benchmarks » (arXiv 2406.10229), « The Silent Hyperparameter » (CISPA, 2026, effet du moteur d'inférence), la sensibilité du FID à la taille d'échantillon (attribuée à Heusel et al. 2017 — à confirmer, Chong & Forsyth 2020 la traite) |
+| ⭐ la mesure d'entrée peut saturer la carte de 24 Go la nuit et retarder les tâches du matin : budget GPU dédié, priorité basse, créneau | ✅ juste, et déjà borné en partie : priorités nommées du worker `gpu`, gouverneur de ressources, Q7 (la nocturne comparative visait le R760xa), décision du 28/09 « à la demande seulement ». À dire dans P4 : la mesure d'entrée est la priorité la plus BASSE, dans un créneau déclaré |
+| une quantisation peut casser une capacité précise sans baisser le score global | ✅ noté : « quantisée ≤ origine » reste une borne HAUTE valide, elle ne dit rien d'une capacité ; la population (catégorie) s'applique aussi aux variantes |
+| à curseur 0 et coûts égaux, aucun départage défini | ✅ existe : epsilon de qualité, puis ordre du catalogue (`intent_choice`, `model_selector.py:547`) |
+
 ⏳ **`AIModel.cost_tier` reste NON LU, et c'est délibéré** (question tranchée le 26/09,
 demande initiale de Fabien de « brancher l'arbitrage honnête », retirée après mesure). Le
 champ est bien renseigné par source (`external_sources` : albert `free` + souverain,
@@ -556,6 +658,20 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
 - ⚠ `ROADMAP.md §16.7` a posé : *`RunOutcome` se nourrit de ce que l'utilisateur fait DÉJÀ, jamais
   d'un geste ajouté* (« les boucles qui demandent à l'utilisateur de noter le système meurent »).
   Un vote A/B est un geste ajouté. → **décision Q4** (§8).
+- 📜 **Forme proposée le 2026-11-12 : des ÉTOILES, lues comme des DUELS** (Fabien : 1 à 5 étoiles
+  sur une échelle continue, fractions d'étoile comprises — *« explicite et précis »* ; laissé pour
+  plus tard, après le travail en cours et si c'est vraiment pertinent). Une note absolue est la plus
+  fragile qui soit (chacun son échelle ; le MOS d'écoute, note absolue sur 5, est critiqué pour sa
+  faible fiabilité face aux tests par comparaison, MUSHRA/CMOS) : ne compter que l'écart d'étoiles
+  d'une MÊME personne entre deux modèles sur une MÊME demande — un duel —, agrégé à la manière des
+  arènes. Le cadre s'y prête : un lot « même prompt, une card par modèle » (motif du transcriber,
+  §9bis). **Accord de Fabien** : une évaluation isolée ne fait pas foi, trop peu faussent un tirage
+  (déjà la règle M7 et « accumulation avant confiance », §4.1). **Nuance retenue** : une échelle À
+  PART (préférence humaine, population = les demandes réelles de WAMA) qui entre comme un étage aux
+  mêmes règles, avec un écart SIGNIFICATIF (intervalles de confiance disjoints) plutôt qu'un seuil
+  N — « seulement départager des modèles déjà notés » priverait de note les tâches qui en ont le
+  plus besoin (musique, effets sonores : vérité nulle, matrice §3). Second usage : calibrer M4
+  (CLAP) et M5 contre l'humain (§1).
 
 ### M9 — Auto-consistance ⏳
 - **Mesure** : le **même** modèle, rejoué avec d'autres graines, températures ou paramètres ; la
@@ -566,6 +682,30 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
 - **Coût** : k inférences par item.
 - **Code** : rien de dédié ; `bench` accepte `runs` pour la génération de texte (le débit, pas la
   variance des sorties).
+- 📜 **Précisé le 2026-11-12 (idée de Fabien) : DEUX notes, RÉPÉTABILITÉ et REPRODUCTIBILITÉ**, au
+  sens de la métrologie (VIM, ISO 5725 : mêmes conditions / conditions changées ; l'ACM, en 2020,
+  dit repeatability / reproducibility / replicability selon l'équipe et les artefacts) :
+  - **répétabilité** — même modèle, même entrée, mêmes réglages, même machine. Graine FIXÉE : le
+    DÉTERMINISME (identique ou non — pas garanti même à température 0 : Atil et al., arXiv
+    2408.04667 ; Blackwell et al., 2410.03492) ; graine LIBRE : la DISPERSION à température donnée ;
+  - **reproductibilité** — une condition change : quantification (GGUF Q8 / BF16), moteur
+    (Ollama / transformers), version de librairie ou d'environnement (multi-venv), GPU, local /
+    distant ;
+  - **la courbe par modèle** (Fabien) : dispersion en fonction de la température (de la guidance,
+    du nombre de pas…), linéaire ou à seuil — un PLAN D'EXPÉRIENCE (`axes[]` : température ×
+    graine × répétition, A1/A5 livrées), sur les réglages de tirage déjà déclarés par moteur
+    (température, graine, top_p — 2026-10-22, `WAMA_VISION_COMPLET §1.5`) ;
+  - **deux dispersions à ne pas confondre** : celle des SORTIES (distance entre deux passes, par la
+    méthode de la tâche — M1, M2, distance CLAP, LPIPS) et celle du SCORE (écart-type d'un WER) ;
+  - **ce ne sont PAS des notes de qualité** (un modèle peut être stablement faux ; en génération la
+    variété est souvent voulue) : jamais dans l'échelle des signaux ; affichées sur la fiche du
+    modèle, EXIGENCE possible à l'admission (stimuli reproductibles d'une expérience), et mesure
+    du nombre de passes qu'une autre note exige (condition déjà posée par Q5) ;
+  - **l'existant externe** : surtout des LLM, peu de modèles, rien de lisible par machine — Atil et
+    al. (TARr@N / TARa@N sur 10 passes), τ-bench (pass^k : réussir k fois sur k), balayages de
+    température (Renze & Guven, EMNLP Findings 2024 : pas d'effet significatif sur la justesse
+    entre 0 et 1 ; « Hot or Cold? », arXiv 2506.07295 : le seuil de dégradation monte avec la
+    taille). Aucun banc de répétabilité trouvé pour l'audio ou l'image : mesure INTERNE.
 
 ### M10 — Aller-retour (round-trip) ⏳
 - **Mesure** : chaîner deux modèles **indépendants** et mesurer la perte au retour : voix →
@@ -916,13 +1056,13 @@ catégorie est un réglage à part) ; où la catégorie vit sur la card.
 | **Q1** | **où vivent les jeux d'échantillons** : manifestes `dataset` (provenance A2) pointant vers la médiathèque ? un dossier de référence sous `AI-models` ? | ① | manifeste `dataset` + fichiers en médiathèque (déjà la voie d'entrée des médias, copie et dédup) ; un jeu par tâche, petit, français, versionné. 🔄 **Appliqué de fait (constaté le 2026-10-31)** : manifestes `dataset` + médiathèque SYSTÈME (`media_library/system_files.py`, `ingest_system_file`) pour les corpus ASR (2026-09-29) ; racine déplaçable des jeux pour les bancs (`mirror_sync.resolve_remote_root('DATASETS', 'WAMA_DATASETS_ROOT')`, lue par `bench.benchmark_reference`, 2026-10-10) — décision générale à confirmer par Fabien |
 | **Q2** | **persistance des sorties du banc** : une table (`BenchRun` : tâche, jeu, modèle, version, sortie sérialisée ou chemin, mesures) ou des fichiers seuls | ③ ④ ⑧ | une table — c'est ce que confrontent ④ et ce que lit ⑧ ; les fichiers lourds (images, audio) en médiathèque, la ligne pointe. ✅ **Tranché pour les MESURES (Fabien, 2026-09-23)** : table COMMUNE `ResultEvaluation` (une ligne par élément et métrique, le résultat COURANT — la sortie, elle, reste dans l'élément de l'app). La persistance des sorties d'un banc HORS des apps (③) reste ouverte |
 | **Q3** | **l'indice interne entre-t-il dans le TRI**, ou reste-t-il en lecture (phase 1) | ⑨ | lecture d'abord, tri quand une tâche a ≥ N passes sur le même jeu (N à fixer) — même règle que le rang centile. 🔄 **Appliquée à UN cas le 2026-10-10, à confirmer** : le choix des détecteurs d'une classe par l'anonymizer (lot entier mesuré sur la même référence, une passe) — sans elle, le curseur « Équilibré » retenait un YOLO plaques au rappel mesuré de 13 % devant EgoBlur (59,5 %). Revenir en arrière = retirer le terme ~~`_mesure`~~ `measured` (`measured_miss_rates`, `model_coverage.py:193`, `:315-320` — relocalisé le 2026-10-31) de `couvrir_classes`. ✅ **TRANCHÉ par Fabien le 2026-10-14 : « étage 3 générique »** — la mesure interne entre dans le tri de TOUTES les sélections (`model_selector._internal_values`, en tête de l'échelle), avec la règle de population (même échelle, même jeu de références, ≥ 2 modèles) et une seule échelle comparable par lot. Le cas de l'anonymizer (`couvrir_classes`) reste le sien. Le « N passes » n'a pas été fixé : une passe complète sur un jeu figé suffit (le jeu EST la population). Déclencheur : le curseur de l'enhancer, inerte faute de toute note de qualité au catalogue |
-| **Q4** | **M8 (vote A/B humain)** : geste ajouté, contraire au principe de `§16.7` — l'admettre pour les tâches subjectives seulement ? | M8, génératifs | admettre, **opt-in**, cantonné aux tâches sans vérité (image, musique, voix), jamais dans le flux normal |
+| **Q4** | **M8 (vote A/B humain)** : geste ajouté, contraire au principe de `§16.7` — l'admettre pour les tâches subjectives seulement ? | M8, génératifs | admettre, **opt-in**, cantonné aux tâches sans vérité (image, musique, voix), jamais dans le flux normal. ⏳ *Forme proposée le 2026-11-12* : des étoiles (1 à 5, continues) lues comme des duels d'une même personne sur une même demande, échelle à part, écart significatif exigé (M8) — reportée par Fabien après le travail en cours |
 | **Q5** | **gouvernance de l'auto-amélioration** : humain toujours pour les consignes ; auto-ajustement borné pour les paramètres numériques ? | ⑪ | oui à la séparation ; l'auto-ajustement borné vient **en dernier**, après que M3/M9 aient prouvé la stabilité de la mesure |
 | **Q6** | **porte d'entrée des corpus externes** (audio + transcription tierce + correction manuelle de Fabien) : médiathèque ? commande d'import ? formats acceptés (SRT, VTT, TXT, DOCX ?) | ⑤, calibration de tout juge | ✅ **Tranché (Fabien, 2026-09-23)** : les jeux vivent comme n'importe quel média d'app ; la porte est la CARD — ses ports du RÉSULTAT `reference_result` (comparer la sortie) et `work_result` (reprendre un résultat fait ailleurs), `INPUT_MODEL_MATCHING §6.7` ; l'appariement audio ↔ texte EST la card (plus de convention de nom) ; formats SRT, VTT, TXT, MD, DOCX, PDF, exports Sonal compris (`TRANSCRIBER_CORRECTION §10`) |
 | **Q7** | **où tourne la nocturne comparative** | ② | R760xa ; l'hôte de dev ne joue plus aucun banc GPU. ⚠ **Précision de Fabien (2026-09-30)** : *« aujourd'hui la machine est stable »* — l'instabilité de l'hôte est résolue (`INFRA_WSL_VS_WINDOWS`), la condition « machine stable » de P4 ne bloque plus sur l'hôte actuel |
 | **Q8** | **domicile de l'indice interne** : `benchmark_meta` source `internal` (vérifier ce que `synchronize` fait d'une source inconnue) ou champ dédié | ⑧ | `benchmark_meta`, après vérification ; un champ de plus serait une 3ᵉ échelle de plus à ne pas mélanger. ✅ **Vérifié (2026-09-23)** : `synchronize` REMPLACE `benchmark_meta` des modèles appariés — `benchmark_meta` n'est PAS un domicile sûr sans le modifier. En phase lecture, aucun domicile : la note est calculée à la lecture (`internal_quality`). La question renaît avec Q3. ✅ **Close avec Q3 (2026-10-14)** : le tri LIT la note calculée, rien n'est écrit — aucun domicile n'est nécessaire |
 | **Q9** | **la consistance de lignée** dans M6 : pondérer l'accord par la diversité des familles (deux YOLO ≠ un YOLO + un DETR) — déclarer la famille où ? | M6 | `AIModel.extra_info['family']` existe pour les snapshots HF ; à généraliser, ou ignorer en phase 1 |
-| **Q10** | **trous de notation et trous de sélection** (Fabien, 2026-11-10) : comment le curseur répond honnêtement, sans omettre de modèle, quand une partie du lot n'a aucune note — et comment compléter les notes, sachant que des modèles neufs en arriveront toujours sans | le curseur de toutes les apps, `best_installed` | aucune — session neuve (Fable 5.2) + concile ; constat mesuré et pistes au §0, « TROUS DE NOTATION, TROUS DE SÉLECTION » |
+| **Q10** | **trous de notation et trous de sélection** (Fabien, 2026-11-10) : comment le curseur répond honnêtement, sans omettre de modèle, quand une partie du lot n'a aucune note — et comment compléter les notes, sachant que des modèles neufs en arriveront toujours sans | le curseur de toutes les apps, `best_installed` | 🔄 **avis du 2026-11-12 et décisions de Fabien** au §0 (« AVIS DU 2026-11-12 ») : bornes de l'inconnu et trois verdicts (hypothèse acceptée) ; indéterminé → prudence, notes calculées dans les descriptions ; mesure d'entrée = P4 ; échelle principale par tâche + dominance ; étoiles → M8, répétabilité / reproductibilité → M9. Avis du concile (« correcte avec corrections ») lu au §0, à la suite : bornes par la POPULATION de l'échelle, verdict « gagnant même au pire » sur coût MESURÉ seulement, intervalle de confiance sur toute note interne, date de revalidation du corpus, mesure d'entrée en priorité la plus basse. ⏳ À Fabien : seconde échelle par dominance ou par seuil |
 
 ---
 
@@ -1644,3 +1784,7 @@ derniers — décision à prendre à ce moment-là, pas avant.
   méthodes avec état au code, matrice tâche × méthode, les deux consommateurs et la voie
   finetuning, chaîne en douze chaînons, contraintes, neuf décisions, six paliers. Rien d'implémenté.
   L'« idée 3 » du 14/09 (rubrique LLM par rôle) est retirée comme chantier et absorbée dans M3.
+- **2026-11-12** — Q10 : avis complémentaire et décisions de Fabien (§0, « AVIS DU 2026-11-12 »),
+  M8 (étoiles lues comme des duels), M9 (répétabilité et reproductibilité, courbe par modèle),
+  question des modes musique / paysages sonores, intention de publier les évaluations
+  (`WAMA_VISION_COMPLET §10.4`, `ROADMAP §30`). Rien d'implémenté.

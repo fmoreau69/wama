@@ -8193,3 +8193,41 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
 Relation avec S3 (`AccessGrant`, `PROFILES_PERMISSIONS §8.7`) : S3 répond à « qui a le droit »,
 ce chantier répond à « à qui c'est ». Les deux se composent dans `accessible()`, et aucun ne
 remplace l'autre.
+
+## 30. NOTATION COMPLÈTE DES MODÈLES, puis PUBLICATION des évaluations — site web de WAMA (ouvert le 2026-11-12, demande de Fabien) 💡
+
+> Intention : `WAMA_VISION_COMPLET §10.4` (publier) et `§1.5` (répétabilité, reproductibilité).
+> Méthode et décisions : `WAMA_QUALITE` §0 « AVIS DU 2026-11-12 », M8, M9, Q10. Rien d'implémenté ;
+> ce plan dit l'ORDRE, il ne recopie pas la méthode.
+
+**30.1 Trous de sélection et de notation (Q10)** — 🔄 avis et décisions de Fabien le 2026-11-12,
+avis du concile (« correcte avec corrections ») lu dans `WAMA_QUALITE §0` :
+1. ⏳ le curseur borne l'inconnu par l'étendue de la POPULATION de l'échelle retenue (du lot à
+   défaut), trois verdicts (battu même au mieux ; gagnant même au pire, sur un coût MESURÉ
+   seulement ; indéterminé → prudence) et dit l'étage, l'échelle, la population, les modèles non
+   comparés — dans le sélecteur commun seul (`model_selector._quality_scalars` / `intent_choice`),
+   donc pour toutes les apps et `best_installed` ;
+2. ⏳ les notes pertinentes dans les descriptions des modèles, CALCULÉES à l'affichage (aide
+   commune des modèles), jamais recopiées ;
+3. ⏳ une échelle PRINCIPALE déclarée par tâche, la seconde par dominance — ou par un seuil
+   déclaré, décision de Fabien (1ᵉʳ cas : effets sonores du Composer, CLAP puis FAD) ;
+4. ⏳ la mesure d'entrée d'un modèle neuf = `WAMA_QUALITE §9` P4 précisé (cases PÉRIMÉES,
+   nocturne), à lever de la décision du 28/09 ; priorité aux modèles « indéterminés », mesure en
+   priorité GPU la plus basse dans un créneau déclaré ; corpus admis sous conditions (déclaré,
+   catégorie, source de vérité, confronté à l'humain, date de revalidation) ; toute note interne
+   porte son intervalle de confiance, des intervalles qui se chevauchent ne classent pas.
+
+**30.2 Notes complémentaires** — ⏳ répétabilité et reproductibilité par plan d'expérience (M9,
+hors de l'échelle de qualité) ; ⏳ étoiles des utilisateurs lues comme des duels (M8, Q4) —
+**après le travail en cours, et seulement si c'est vraiment pertinent** (Fabien).
+
+**30.3 Publication** — 💡 quand la notation est éprouvée sur assez de modèles : rapports
+d'évaluation publiés, puis un site web de WAMA (présentation + connaissances acquises). Préalables :
+les rapports GÉNÉRÉS de toutes les tâches mesurées (`WAMA_QUALITE §9`, transcription encore
+recopiée), le quatrième public dérivé de la doc (`§25`), un export séparé de l'instance (`§18.3`,
+même logique), la règle de licence et de données (`WAMA_VISION_COMPLET §9.1`). Décision de Fabien
+au moment venu.
+
+**30.4 Question consignée, rien à faire** — musique et paysages sonores dans le Composer : deux
+MODES plutôt que deux domaines, si leurs réglages divergent (`WAMA_QUALITE §0`, à rapprocher de
+`composer/utils/model_choice.py:13-14`).

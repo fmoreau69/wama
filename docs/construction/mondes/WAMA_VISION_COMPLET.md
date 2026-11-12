@@ -190,6 +190,12 @@ card, empreinte comprise, `InputProvenance`, 2026-09-11 ; réglages de tirage co
 graine, top_p — déclarés par moteur, 2026-10-22) ; l'érection en garantie exportable de premier
 rang est en chantier. Pour une plateforme de recherche, c'est la provenance qui est l'objet
 scientifique — l'abstraction devient un argument au lieu d'une contradiction.
+⏳ *Visé (2026-11-12, idée de Fabien)* : la reproductibilité vaut aussi pour les MODÈLES. Chaque
+modèle porterait deux notes mesurées, au sens de la métrologie — sa **répétabilité** (mêmes
+conditions : déterminisme à graine fixée, dispersion à graine libre) et sa **reproductibilité**
+(une condition change : quantification, moteur, environnement, machine) —, avec la courbe de sa
+dispersion en fonction des réglages de tirage. Ce ne sont pas des notes de qualité : elles disent
+ce qu'une fiche de méthode peut promettre (`WAMA_QUALITE` M9).
 
 ---
 
@@ -866,6 +872,36 @@ jeu de test par capacité déclarée et le delta mesuré exigé par la veille.
 🔄 *Constaté le 2026-10-29* : un remplacement ACCEPTÉ se propage seul — la nouvelle version installée
 succède à l'ancienne dans les cards, les réglages et le tirage (`succession.py`) ; la décision de
 remplacer reste humaine et le delta mesuré reste ⏳.
+📜 *Précisé le 2026-11-12 (question Q10, `WAMA_QUALITE §0`)* : un modèle sans note n'est ni
+« mauvais » ni écarté d'office. Le tirage borne ce qu'il ignore (l'inconnu est supposé dans
+l'étendue de la population mesurée sur la même échelle), dit sur quelle échelle il a choisi et ce
+qu'il n'a pas pu comparer, et en cas de doute garde le modèle mesuré ; le trou de notation devient
+un état daté, comblé dans l'ordre où une mesure changerait une décision. Avis du concile de WAMA :
+« correct avec corrections », lu dans `WAMA_QUALITE §0`. Rien d'implémenté.
+
+## 10.4 Publier ce que WAMA apprend ⏳ `[INGÉNIERIE]` — visé, après la notation
+
+Intention de Fabien (2026-11-12) : quand le système de notation sera complet, éprouvé et disponible
+sur suffisamment de modèles, **publier les résultats et les rapports d'évaluation** — et, plus
+largement, **un site web de WAMA** qui présente la plateforme et porte, compile, les
+connaissances qu'elle a acquises et apprises : évaluations des modèles par tâche et par catégorie
+d'entrée, protocoles, répétabilité et reproductibilité, décisions et leurs raisons.
+
+Ce que la doctrine en dit déjà, et qui borne l'intention :
+- **une publication est DÉRIVÉE, jamais rédigée en parallèle** — c'est la règle des docs
+  développeur et utilisateur (« trois docs, trois publics », `ROADMAP §25`) prolongée à un
+  quatrième public, extérieur : faits tirés des registres et des mesures (`ResultEvaluation`,
+  rapports d'évaluation déjà GÉNÉRÉS, `WAMA_QUALITE §9`), pourquoi tiré de la doc de construction ;
+- **une note publiée garde son échelle, sa population, son protocole et sa date** — une mesure
+  WAMA n'est pas un banc universel, et elle se périme quand le modèle ou le corpus change ;
+- **rien de ce qui transite ne se publie** : ni média, ni donnée d'utilisateur, ni corpus dont la
+  licence ne le permet pas (§9.1) ; ce qui sort, ce sont des mesures et des méthodes ;
+- **un site public est une surface séparée de l'instance** : il ne l'expose pas, il en reçoit un
+  export (même règle que l'export d'application, §3.6).
+
+C'est la suite naturelle de la garantie §1.5 (fiche de méthode citable) et de §10.3 (évaluation
+continue) : ce que le laboratoire mesure pour choisir ses modèles devient une connaissance
+partageable. Plan et ordre : `ROADMAP §30`.
 
 ---
 
