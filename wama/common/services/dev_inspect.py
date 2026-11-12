@@ -11,7 +11,8 @@ DROITS : `accounts.permissions.is_admin_tier`, vérifié ICI dans le corps de ch
 (`@admin_only`) ET par `dev_tools.ADMIN_ONLY` à l'annonce et à l'appel. Un développeur non
 administrateur ne les voit pas et ne peut pas les appeler.
 
-LECTURE SEULE : aucune écriture, aucun SQL libre, aucune jointure. Chaque appel est journalisé
+LECTURE SEULE : aucune écriture, aucun SQL libre, aucune jointure — sauf `dev_run_tests`, qui
+lance UN test ciblé par le lanceur de WAMA (base de test, médias de test), en tâche de fond. Chaque appel est journalisé
 (qui, quoi) — les messages de l'assistant contiennent les conversations d'autres comptes.
 """
 from __future__ import annotations
@@ -283,6 +284,23 @@ def dev_read_code(user, path: str, start_line: int = 0, end_line: int = 0) -> di
             'text': _clip(body)}
 
 
+def _code_files(base: Path, recursive: bool = True):
+    """Les fichiers LISIBLES sous `base`, triés : `(chemin, chemin relatif au dépôt)` — LE parcours
+    des outils de code (lister, chercher), avec les refus de `_refused_code_path` appliqués aux
+    dossiers comme aux fichiers. `recursive=False` : le seul dossier `base`."""
+    root = base_dir().resolve()
+    for dirpath, dirnames, filenames in os.walk(base):
+        dirnames[:] = sorted(d for d in dirnames
+                             if not _refused_code_path(Path(dirpath, d).relative_to(root)))
+        for name in sorted(filenames):
+            full = Path(dirpath, name)
+            rel = full.relative_to(root)
+            if not _refused_code_path(rel):
+                yield full, rel
+        if not recursive:
+            break
+
+
 @admin_only
 def dev_list_code(user, path: str = '.', pattern: str = '*', limit: int = 100) -> dict:
     """Liste les fichiers d'un dossier du dépôt (mêmes refus que dev_read_code) — ADMIN.
@@ -299,15 +317,8 @@ def dev_list_code(user, path: str = '.', pattern: str = '*', limit: int = 100) -
     recursive = '**' in pattern
     cap = _clamp(limit, 1, MAX_LIST, MAX_LIST)
     found = []
-    for dirpath, dirnames, filenames in os.walk(base):
-        dirnames[:] = sorted(d for d in dirnames
-                             if not _refused_code_path(Path(dirpath, d).relative_to(root)))
-        for name in sorted(filenames):
-            full = Path(dirpath, name)
-            rel_root = full.relative_to(root)
-            rel_base = str(full.relative_to(base))
-            if _refused_code_path(rel_root):
-                continue
+    for full, rel_root in _code_files(base, recursive=recursive):
+            name, rel_base = full.name, str(full.relative_to(base))
             if recursive:
                 tail = pattern.removeprefix('**/')       # « **/tasks.py » vaut aussi à la racine
                 hit = fnmatch.fnmatch(rel_base, pattern) or ('/' not in tail
@@ -318,8 +329,6 @@ def dev_list_code(user, path: str = '.', pattern: str = '*', limit: int = 100) -
                 found.append(str(rel_root))
                 if len(found) >= cap:
                     return {'paths': found, 'truncated': True}
-        if not recursive:
-            break
     return {'paths': found, 'truncated': False}
 
 
@@ -346,13 +355,8 @@ def dev_search_code(user, pattern: str, path: str = '.', glob: str = '*.py', reg
         raise DevToolError(f"dossier introuvable : {path!r}")
     cap = _clamp(limit, 1, MAX_MATCHES, 50)
     matches, scanned = [], 0
-    for dirpath, dirnames, filenames in os.walk(base):
-        dirnames[:] = sorted(d for d in dirnames
-                             if not _refused_code_path(Path(dirpath, d).relative_to(root)))
-        for name in sorted(filenames):
-            full = Path(dirpath, name)
-            rel = full.relative_to(root)
-            if not fnmatch.fnmatch(name, glob or '*') or _refused_code_path(rel) or full.is_symlink():
+    for full, rel in _code_files(base):
+            if not fnmatch.fnmatch(full.name, glob or '*') or full.is_symlink():
                 continue
             try:
                 if full.stat().st_size > MAX_CODE_BYTES:
@@ -371,6 +375,27 @@ def dev_search_code(user, pattern: str, path: str = '.', glob: str = '*.py', reg
     return {'matches': matches, 'files_scanned': scanned, 'truncated': False}
 
 
+#: Un libellé de test : un module ou une classe sous l'une des trois racines du projet — jamais la
+#: suite entière (plus d'une heure, et la base de test est partagée).
+_TEST_LABEL = re.compile(r'^(wama|wama_lab|wama_data)(\.\w+)+$')
+
+
+@admin_only
+def dev_run_tests(user, label: str) -> dict:
+    """Lance les tests d'UN module ou d'UNE classe par le lanceur de WAMA (manage.py test, base de test, médias de test), en TÂCHE DE FOND — ADMIN. Pour vérifier une correction : la fin du journal donne « OK » ou les tests en échec.
+
+    label : chemin pointé, par exemple wama.common.tests.tests_user_settings ou
+    wama.reader.tests.MaClasseTest. La suite entière n'est pas lançable d'ici.
+    """
+    import sys
+    label = (label or '').strip()
+    if not _TEST_LABEL.match(label):
+        raise DevToolError(f"libellé refusé : {label!r} — attendu un module ou une classe de tests "
+                           "(wama.<app>.tests…, wama.common.tests.tests_…), pas la suite entière")
+    return start_job(user, 'tests', [sys.executable, str(base_dir() / 'manage.py'), 'test', label,
+                                     '--keepdb'])
+
+
 # En PIED de module : `dev_tools` importe ce module pour remplir DEV_TOOLS, et ces deux noms ne
 # servent qu'à l'appel — l'ordre d'import (l'un ou l'autre en premier) est donc indifférent.
-from wama.common.services.dev_tools import DevToolError, base_dir  # noqa: E402
+from wama.common.services.dev_tools import DevToolError, base_dir, start_job  # noqa: E402

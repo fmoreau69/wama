@@ -357,14 +357,16 @@ supervise_one() {
 # surveillance lisent la même commande. Lue aussi par le Python
 # (`service_supervision.declared_companions`).
 # ------------------------------------------------------------------------------------------
-WAMA_COMPANIONS="gateway_discord mcp_wama mcp_dev"
+# Un serveur MCP porte la clé de sa SOURCE déclarée (`common/external_sources.py`) : son libellé
+# et ce que coupe son arrêt s'y lisent, comme pour un service.
+WAMA_COMPANIONS="gateway_discord wama_mcp wama_mcp_dev"
 
 # "<journal> <arguments de manage.py…>".
 wama_companion_spec() {
     case "$1" in
         gateway_discord) echo "gateway-discord.log run_gateway discord" ;;
-        mcp_wama)        echo "mcp.log run_mcp_server --surface wama" ;;
-        mcp_dev)         echo "mcp-dev.log run_mcp_server --surface dev" ;;
+        wama_mcp)        echo "mcp.log run_mcp_server --surface wama" ;;
+        wama_mcp_dev)    echo "mcp-dev.log run_mcp_server --surface dev" ;;
         *) return 1 ;;
     esac
 }

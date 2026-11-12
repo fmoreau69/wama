@@ -675,28 +675,6 @@ def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> di
                      env=prepared['env'], shown=shown)
 
 
-#: Un libellé de test : un module ou une classe sous l'une des trois racines du projet — jamais la
-#: suite entière (plus d'une heure, et la base de test est partagée).
-_TEST_LABEL = re.compile(r'^(wama|wama_lab|wama_data)(\.\w+)+$')
-
-
-def dev_run_tests(user, label: str) -> dict:
-    """Lance les tests d'UN module ou d'UNE classe par le lanceur de WAMA (manage.py test, base de test, médias de test), en TÂCHE DE FOND — ADMIN. Pour vérifier une correction : la fin du journal donne « OK » ou les tests en échec.
-
-    label : chemin pointé, par exemple wama.common.tests.tests_user_settings ou
-    wama.reader.tests.MaClasseTest. La suite entière n'est pas lançable d'ici.
-    """
-    from wama.accounts.permissions import is_admin_tier
-    if not is_admin_tier(user):
-        return {'error': 'forbidden', 'detail': "Outil réservé aux administrateurs."}
-    label = (label or '').strip()
-    if not _TEST_LABEL.match(label):
-        raise DevToolError(f"libellé refusé : {label!r} — attendu un module ou une classe de tests "
-                           "(wama.<app>.tests…, wama.common.tests.tests_…), pas la suite entière")
-    return start_job(user, 'tests', [sys.executable, str(base_dir() / 'manage.py'), 'test', label,
-                                     '--keepdb'])
-
-
 def dev_job_status(user, job_id: str) -> dict:
     """État d'une tâche de développement : en cours, terminée, échouée ou interrompue ; fin du journal et propositions écrites."""
     state = job_state(job_id)
@@ -807,7 +785,8 @@ def _validate_now(relative: str):
 
 
 from wama.common.services.dev_inspect import (  # noqa: E402 — après DevToolError/base_dir
-    dev_db_query, dev_db_schema, dev_list_code, dev_read_code, dev_read_log, dev_search_code)
+    dev_db_query, dev_db_schema, dev_list_code, dev_read_code, dev_read_log, dev_run_tests,
+    dev_search_code)
 
 DEV_TOOLS = {fn.__name__: fn for fn in (dev_run_role, dev_sandbox, dev_regen_check, dev_reload_web,
                                          dev_claude_code, dev_job_status, dev_read_report,

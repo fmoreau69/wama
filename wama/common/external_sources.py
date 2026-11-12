@@ -509,6 +509,7 @@ SOURCES: tuple[ExternalSource, ...] = (
         'wama_mcp', 'Serveur MCP WAMA', 'http://127.0.0.1:8770',
         "Les outils tool_api exposés en MCP — même contrat pour tout client (Claude Code, IDE, "
         "assistant)", kind='service', scope=LOCAL, env='WAMA_MCP_URL',
+        when_off="Les clients MCP externes (Claude Code, IDE) n'ont plus les outils de WAMA.",
         doc='docs/construction/suivi/ROADMAP.md'),
     # Serveur des outils de DÉVELOPPEMENT : un AUTRE process (ROADMAP §16 — jamais chargé dans
     # le process de prod), donc une autre adresse.
@@ -516,6 +517,8 @@ SOURCES: tuple[ExternalSource, ...] = (
         'wama_mcp_dev', 'Serveur MCP WAMA — développement', 'http://127.0.0.1:8771',
         "Outils de développement (rôles wama-dev-ai, bac à sable d'apps) — process séparé, "
         "réservé aux développeurs", kind='service', scope=LOCAL, env='WAMA_MCP_DEV_URL',
+        when_off="L'assistant répond normalement, mais sans outil de développement ; les tâches "
+                 "de fond déjà lancées continuent.",
         doc='docs/construction/suivi/ROADMAP.md'),
 
     # ── Fournisseurs LLM distants ───────────────────────────────────────────────────────

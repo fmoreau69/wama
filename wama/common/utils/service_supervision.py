@@ -221,16 +221,22 @@ _PROCESS_TEXTS = {
                                   "du jour ; les tâches en file attendent."),
 }
 
-#: Les COMPAGNONS (`WAMA_COMPANIONS` du script) : libellé, et ce que coupe leur relance.
+#: Un COMPAGNON (`WAMA_COMPANIONS` du script) qui n'est pas une source déclarée : libellé, et ce
+#: que coupe sa relance. Un serveur MCP porte la clé de sa source (`external_sources`), où ces deux
+#: textes se lisent déjà — comme pour un service (`_describe`).
 _COMPANION_TEXTS = {
     'gateway_discord': ('Passerelle Discord', "Le bot se déconnecte quelques secondes ; une réponse en "
                                               "cours sur Discord est perdue."),
-    'mcp_wama': ('Serveur MCP (outils de WAMA)', "Les clients MCP externes perdent la connexion le "
-                                                  "temps du redémarrage (environ une minute)."),
-    'mcp_dev': ('Serveur MCP de développement', "L'assistant n'a plus ses outils de développement le "
-                                                "temps du redémarrage (environ une minute) ; les tâches "
-                                                "de fond déjà lancées continuent."),
 }
+
+
+def _companion_texts(companion: str) -> tuple:
+    """(libellé, ce que coupe son arrêt) : ceux de sa source déclarée, sinon `_COMPANION_TEXTS`."""
+    from wama.common.external_sources import by_key
+    source = by_key().get(companion)
+    if source is not None:
+        return source.label, source.when_off
+    return _COMPANION_TEXTS.get(companion, (companion, ''))
 
 
 def declared_companions() -> list:
@@ -312,7 +318,7 @@ def processes_overview() -> list:
                      'actions': ['restart'] if waiting else []})
     for companion in declared_companions():
         state = _companion_state(companion)
-        label, when = _COMPANION_TEXTS.get(companion, (companion, ''))
+        label, when = _companion_texts(companion)
         rows.append({'key': companion, 'label': label, 'kind': 'companion', 'when_off': when,
                      'state': state, 'state_label': _STATES[state][0], 'tone': _STATES[state][1],
                      'actions': ['restart'] if state in ('ok', 'down') else []})
@@ -354,7 +360,7 @@ def control_process(key: str, action: str) -> tuple:
     if key == WEB:
         return True, "Rechargement du serveur web demandé : les pages restent servies."
     if key in companions:
-        return True, f"{_COMPANION_TEXTS.get(key, (key, ''))[0]} : relance demandée."
+        return True, f"{_companion_texts(key)[0]} : relance demandée."
     return True, f"Worker {key} : relance demandée — il finit sa tâche en cours avant de redémarrer."
 
 

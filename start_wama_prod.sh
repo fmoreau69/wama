@@ -523,13 +523,14 @@ mcp_attend() {
 
 # $1 = surface (wama|dev), $2 = port, $3 = journal, $4 = ce qui manque s'il ne répond pas.
 supervise_mcp() {
-    local surface=$1 port=$2 log=$3 missing=$4
+    local surface=$1 port=$2 log=$3 missing=$4 companion=wama_mcp
+    [ "$surface" = dev ] && companion=wama_mcp_dev      # la clé de sa source déclarée
     # Motif EXACT de la ligne de commande : `run_mcp_server --surface wama` ne serait pas
     # trouvé par `--surface dev`, et inversement — d'où l'option toujours explicite.
     # (`wama_companion_pattern` le porte ; la commande est celle de `start_wama_companion`.)
-    if ! wama_companion_alive "mcp_$surface"; then
+    if ! wama_companion_alive "$companion"; then
         echo "=== Starting MCP $surface server (port $port) ==="
-        start_wama_companion "mcp_$surface"
+        start_wama_companion "$companion"
         local pid=$!
         if [ $FAST -eq 1 ]; then
             echo "  MCP $surface server started (PID $pid) — fire & forget (--fast)"
