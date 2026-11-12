@@ -294,10 +294,9 @@ def new_reading_settings(user, model=None, app='reader', post=None, inputs=None)
     `quality_intent_of` le relit au lancement dans les réglages de l'auteur. Une langue postée
     VIDE (détection automatique voulue) retire la préférence au dépôt : le défaut, vide, joue."""
     from wama.common.utils.user_settings import new_element_settings
-    from wama.reader.params import PARAMS_JSON, user_setting_key
+    from wama.reader.params import PARAMS_JSON
     return new_element_settings(user, app, PARAMS_JSON, model or ReadingItem, post=post,
-                                inputs=inputs,
-                                key=user_setting_key, empty_is_value=SETTINGS_EMPTY_IS_VALUE)
+                                inputs=inputs, empty_is_value=SETTINGS_EMPTY_IS_VALUE)
 
 
 def _deposit_settings(user, post, inputs=None):
@@ -305,8 +304,8 @@ def _deposit_settings(user, post, inputs=None):
     préférences (`save_panel_settings`, curseur compris), puis la lecture naît par la cascade —
     `inputs` : le fichier reçu, sous son port, qui propose ses réglages (`inputs_by_port`)."""
     from wama.common.utils.user_settings import save_panel_settings
-    from wama.reader.params import PARAMS_JSON, user_setting_key
-    save_panel_settings(user, 'reader', PARAMS_JSON, post, key=user_setting_key)
+    from wama.reader.params import PARAMS_JSON
+    save_panel_settings(user, 'reader', PARAMS_JSON, post)
     return new_reading_settings(user, post=post, inputs=inputs)
 
 

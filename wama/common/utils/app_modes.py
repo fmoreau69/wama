@@ -530,6 +530,19 @@ def domain_schema(app: str, domain_id: str) -> list:
     return list(((declared_param_schemas(app) or {}).get('schemas') or {}).get(name) or [])
 
 
+def home_domain(app: str) -> str | None:
+    """Le domaine qui porte le schéma PRINCIPAL de l'app — celui d'un réglage du volet HORS schéma
+    (`classes2blur` de l'anonymizer, lu et gardé avec l'image / vidéo) : le seul domaine d'une app
+    qui n'en a qu'un, sinon le seul dont le schéma est le principal. `None` quand la question n'a
+    pas de réponse (aucun domaine, ou plusieurs sur le schéma principal) — on ne devine pas."""
+    from wama.common.utils.param_schema import schema_for_app
+    ids = [d.get('id') for d in get_domains(app)]
+    if len(ids) > 1:
+        principal = schema_for_app(app) or []
+        ids = [d for d in ids if domain_schema(app, d) == principal]
+    return ids[0] if len(ids) == 1 else None
+
+
 def app_schemas(app: str) -> list:
     """`[(domaine | None, schéma)]` — TOUS les schémas de réglages de l'app : le principal
     (`None`), puis celui de chaque domaine qui en NOMME un. Un domaine sans `params_schema` lit le

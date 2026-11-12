@@ -222,9 +222,7 @@ MEDIA_PARAMS_JSON = schema_to_dicts(MEDIA_PARAMS)
 AUDIO_PARAMS_JSON = schema_to_dicts(AUDIO_PARAMS)
 
 # ── Réglages UTILISATEUR — dérivés du schéma (contrat 3 de `WAMA_VERIFICATION §8`, 2026-10-18) ──
-# Gardés par la brique commune `user_settings` sous la clé du VOLET (`panel_dom_id`, la règle par
-# défaut — c'était déjà le cas depuis le 2026-09-29), pour les deux domaines. Une amélioration
+# Gardés par la brique commune `user_settings`, pour les deux domaines. Une amélioration
 # image/vidéo naît avec eux (`new_element_settings`).
-from wama.common.utils.param_schema import panel_defaults  # noqa: E402
-
-USER_SETTINGS_DEFAULTS = {**panel_defaults(MEDIA_PARAMS), **panel_defaults(AUDIO_PARAMS)}
+# La clé de stockage est celle de TOUTES les apps, `<domaine>.<nom>` d'un réglage retenu
+# (`param_schema.setting_key`, bascule du 2026-11-12) : rien à déclarer ici.

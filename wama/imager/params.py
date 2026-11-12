@@ -276,22 +276,11 @@ VIDEO_PARAMS = VIDEO_PARAMS + output_format_params_for_app(
 # DÉRIVÉS DU SCHÉMA — aucune seconde liste de défauts à tenir à jour (c'est la
 # divergence que la brique A5-22 supprime). Seuls les params ayant une surface
 # `panel` sont persistés : le volet EST la surface des défauts utilisateur.
-# La CLÉ de stockage est le `dom_id` du volet — unique par construction (ce sont des
-# ids DOM), donc aucune table de correspondance clé↔champ à maintenir : image et vidéo
-# partagent les noms `model`, `steps`, `seed`, `guidance_scale`, un dict à plat par nom les
-# écraserait. Les trois helpers vivaient ici ; ils sont au COMMUN depuis le 2026-09-26
-# (`common/utils/param_schema`, clé par défaut = ce `dom_id`), le transcriber en est le 2ᵉ
-# adoptant.
-from wama.common.utils.param_schema import (  # noqa: E402
-    panel_defaults as _panel_defaults, panel_prefs_from_post, panel_values_by_name)
-
-
-USER_SETTINGS_DEFAULTS = {**_panel_defaults(IMAGE_PARAMS), **_panel_defaults(VIDEO_PARAMS)}
-# Le modèle par défaut est « auto » (tirage VRAM-aware AU LANCEMENT), pas un modèle figé :
-# l'ancien modèle Django `UserSettings` codait « stable-diffusion-v1-5 », ce qui faisait que
-# le volet n'affichait JAMAIS « Auto » alors que la card, elle, poste bien 'auto'.
-USER_SETTINGS_DEFAULTS["model"] = "auto"
-USER_SETTINGS_DEFAULTS["panel_video_model"] = "auto"
+# Image et vidéo partagent les noms `model`, `steps`, `seed`, `guidance_scale` : le DOMAINE les
+# sépare (`image.model`, `video.model`).
+# La clé de stockage est celle de TOUTES les apps, `<domaine>.<nom>` d'un réglage retenu
+# (`param_schema.setting_key`, bascule du 2026-11-12) : rien à déclarer ici.
+# Le modèle par défaut est « auto » : c'est le défaut que les deux schémas déclarent.
 
 
 IMAGE_PARAMS_JSON = schema_to_dicts(IMAGE_PARAMS)

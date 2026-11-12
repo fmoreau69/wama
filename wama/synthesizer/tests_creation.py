@@ -162,5 +162,9 @@ class PanelSettingsFollowTheSchemaTest(TestCase):
         # Une valeur ÉGALE au défaut n'est pas figée : la préférence est retirée (règle commune).
         self._typed(language='fr', tts_model='synthesizer:kokoro')
         self.assertFalse(UserAppSetting.objects.filter(
-            user=self.user, app='synthesizer', name='preferred_language').exists())
+            user=self.user, app='synthesizer', name='audio.language').exists())
+        # Ce qui reste retenu l'est sous la clé commune `<domaine>.<nom>` (2026-11-12).
+        names = set(UserAppSetting.objects.filter(user=self.user, app='synthesizer')
+                    .values_list('name', flat=True))
+        self.assertTrue(all(n.startswith('audio.') for n in names), names)
         self.assertEqual('fr', synthesis_panel_values(self.user)['language'])

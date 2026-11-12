@@ -325,8 +325,8 @@ class TheCardShowsItsProcessesTest(TestCase):
 
 
 class WhatADepositRemembersTest(TestCase):
-    """The avatarizer's own rules on top of the common cascade (`params.user_setting_key`,
-    2026-10-18): the VOICE is remembered only when it was used (a job carrying text), the
+    """The avatarizer's own rules on top of the common cascade (declared on the params since
+    2026-11-12, `remember=True/False`): the VOICE is remembered only when it was used (a job carrying text), the
     animation model is never remembered — a named model fits ONE nature of avatar."""
 
     def setUp(self):

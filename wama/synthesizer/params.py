@@ -153,16 +153,7 @@ PARAMS_JSON = schema_to_dicts(PARAMS)
 # chez les autres apps qui rendent un fichier (2026-10-28, étape 1 du rangement des réglages —
 # Fabien : le synthesizer retient tout son volet ; le reste du volet suit à l'étape de la clé
 # commune `<domaine>.<nom>`). Cette déclaration vivait dans les vues (`_PANEL_PREF_KEYS`).
-from wama.common.utils.param_schema import _pget, panel_defaults  # noqa: E402
-
-STORED_UNDER = {'tts_model': 'preferred_tts_model', 'language': 'preferred_language',
-                'voice_preset': 'preferred_voice_preset',
-                'output_format': 'output_format', 'output_quality': 'output_quality'}
-
-
-def user_setting_key(p):
-    """Clé de stockage d'un réglage RETENU, None s'il ne se retient pas."""
-    return STORED_UNDER.get(_pget(p, 'name'))
-
-
-USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)
+# Depuis le 2026-11-12 (décision de Fabien) le synthesizer retient TOUT son volet, comme les
+# autres apps ; ses clés `preferred_*` ont été rangées par `align_setting_keys`.
+# La clé de stockage est celle de TOUTES les apps, `<domaine>.<nom>` d'un réglage retenu
+# (`param_schema.setting_key`, bascule du 2026-11-12) : rien à déclarer ici.

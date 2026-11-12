@@ -24,7 +24,7 @@ from django.core.files.base import ContentFile
 
 import json
 from .models import VoiceSynthesis, BatchSynthesis, BatchSynthesisItem
-from .params import PARAMS_JSON as _SYNTH_PARAMS_JSON, user_setting_key
+from .params import PARAMS_JSON as _SYNTH_PARAMS_JSON
 from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
 from wama.common.utils.auto_model import read_quality_intent
 from wama.common.utils.console_utils import get_console_lines
@@ -69,9 +69,9 @@ def synthesis_panel_values(user, app='synthesizer') -> dict:
     affiche et ce que la card poste ; une synthèse créée SANS volet (import du gestionnaire de
     fichiers, « Envoyer vers ») le reçoit tel quel en `params` de `create_synthesis`.
     `app` : une jumelle de bac à sable passe le sien. Ce qui se retient, et sous quelle clé, est
-    déclaré dans `params.py` (`user_setting_key`)."""
+    retenu sous la clé commune `<domaine>.<nom>`."""
     from wama.common.utils.user_settings import read_panel_settings
-    return read_panel_settings(user, app, _SYNTH_PARAMS_JSON, key=user_setting_key)
+    return read_panel_settings(user, app, _SYNTH_PARAMS_JSON)
 
 
 def new_synthesis_settings(user, model=None, app='synthesizer', post=None, inputs=None) -> dict:
@@ -82,7 +82,7 @@ def new_synthesis_settings(user, model=None, app='synthesizer', post=None, input
     `model`/`app` : une jumelle de bac à sable passe les siens."""
     from wama.common.utils.user_settings import new_element_settings
     return new_element_settings(user, app, _SYNTH_PARAMS_JSON, model or VoiceSynthesis, inputs=inputs,
-                                post=post, key=user_setting_key)
+                                post=post)
 
 
 def synthesis_params(user, post, model=None, app='synthesizer', inputs=None) -> dict:
@@ -107,7 +107,7 @@ def _deposit_params(user, post, work_file=None):
     from wama.common.utils.user_settings import inputs_by_port, save_panel_settings
     posted = post.dict() if hasattr(post, 'dict') else dict(post)
     params = synthesis_params(user, posted, inputs=inputs_by_port('synthesizer', work_file))
-    save_panel_settings(user, 'synthesizer', _SYNTH_PARAMS_JSON, posted, key=user_setting_key)
+    save_panel_settings(user, 'synthesizer', _SYNTH_PARAMS_JSON, posted)
     return params
 
 

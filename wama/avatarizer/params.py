@@ -170,18 +170,9 @@ PARAMS_JSON = schema_to_dicts(PARAMS)
 #     par la vue de création) ;
 #   • PAS le modèle d'animation : un modèle nommé ne convient qu'à UNE nature d'avatar, et le
 #     suivant peut en changer.
-from wama.common.utils.param_schema import _pget, panel_defaults, panel_name_key  # noqa: E402
-
+# Ce qui se retient est DÉCLARÉ sur le param (`remember=True` pour la voix, `remember=False` pour
+# le modèle d'animation) ; `VOICE_SETTINGS` ne sert plus qu'à la vue de création, qui ne retient
+# la voix que lorsqu'elle a servi.
 VOICE_SETTINGS = ('tts_model', 'language', 'voice_preset')
-NOT_REMEMBERED = ('animation_model',)
-
-
-def user_setting_key(p):
-    """Clé de stockage d'un réglage RETENU — son nom —, None s'il ne se retient pas."""
-    name = _pget(p, 'name')
-    if name in NOT_REMEMBERED:
-        return None
-    return name if name in VOICE_SETTINGS else panel_name_key(p)
-
-
-USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)
+# La clé de stockage est celle de TOUTES les apps, `<domaine>.<nom>` d'un réglage retenu
+# (`param_schema.setting_key`, bascule du 2026-11-12) : rien à déclarer ici.

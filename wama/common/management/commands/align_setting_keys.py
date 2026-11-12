@@ -35,24 +35,65 @@ from django.db import transaction
 PLAN_DIR = Path(settings.BASE_DIR) / 'logs' / 'setting_keys'
 
 
+#: Les règles de clé D'AVANT la bascule du 2026-11-12, telles que chaque `params.py` les déclarait
+#: (`user_setting_key`) — recopiées ICI ce jour-là, quand les apps ont cessé de les porter : la
+#: commande reste rejouable sur une base restaurée d'avant la bascule, et c'est le seul endroit où
+#: ces règles existent encore. `'name'` : le nom du param du volet ; `'dom_id'` : l'identifiant
+#: du volet ; un dict : {nom du param: ancienne clé}, les autres params du volet sous leur nom
+#: (`None` = seuls ceux du dict se retenaient). Une app absente (jumelle, app née) : `'name'`,
+#: la règle que le générateur émettait.
+LEGACY_RULES = {
+    'anonymizer': 'name', 'reader': 'name', 'describer': 'name', 'composer': 'name',
+    'enhancer': 'dom_id', 'converter': 'dom_id', 'imager': 'dom_id',
+    'transcriber': ({'enable_diarization': 'diarization',
+                     'preprocess_audio': 'preprocessing_enabled'}, 'name'),
+    'avatarizer': ({'tts_model': 'tts_model', 'language': 'language',
+                    'voice_preset': 'voice_preset', 'animation_model': None}, 'name'),
+    'synthesizer': ({'tts_model': 'preferred_tts_model', 'language': 'preferred_language',
+                     'voice_preset': 'preferred_voice_preset', 'output_format': 'output_format',
+                     'output_quality': 'output_quality'}, None),
+}
+
+
 def legacy_rule(app):
-    """(règle de clé d'avant, réglages hors schéma) d'une app — lus dans son `params.py`."""
-    from wama.common.utils.param_schema import _params_location, panel_dom_id
+    """(règle de clé d'avant la bascule, réglages hors schéma) d'une app — `LEGACY_RULES` ; les
+    réglages hors schéma se lisent toujours dans son `params.py` (`USER_SETTINGS_EXTRA`)."""
+    from wama.common.utils.param_schema import (_params_location, _pget, panel_dom_id,
+                                                panel_name_key)
     module_name, _attr = _params_location(app)
     try:
         module = importlib.import_module(module_name)
     except Exception:
-        return panel_dom_id, {}
-    return (getattr(module, 'user_setting_key', None) or panel_dom_id,
-            dict(getattr(module, 'USER_SETTINGS_EXTRA', None) or {}))
+        module = None
+    base = {'name': panel_name_key, 'dom_id': panel_dom_id}
+    if app in LEGACY_RULES:
+        rule = LEGACY_RULES[app]
+    elif getattr(module, 'user_setting_key', None):
+        # Une jumelle pas encore régénérée porte la règle que le générateur lui a émise.
+        return module.user_setting_key, dict(getattr(module, 'USER_SETTINGS_EXTRA', None) or {})
+    else:
+        # Jumelle au `params` recopié de sa source : la règle de sa source ; app née : le nom.
+        from wama.common.sandbox import twin_source
+        rule = LEGACY_RULES.get(twin_source(app), 'name')
+    if isinstance(rule, tuple):
+        named, rest = rule
+
+        def old_key(p, named=named, rest=base.get(rest)):
+            name = _pget(p, 'name')
+            if name in named:
+                return named[name]
+            return rest(p) if rest else None
+    else:
+        old_key = base[rule]
+    return old_key, dict(getattr(module, 'USER_SETTINGS_EXTRA', None) or {})
 
 
 def app_mapping(app):
     """{domaine: {'schema', 'old', 'new', 'extra'}} et {ancienne clé: [nouvelles clés]} d'une app,
     ou (None, None) si elle ne déclare aucun domaine. `old`/`new` : la règle de clé, en fonction ;
     `extra` : {nom hors schéma: (ancienne clé, nouvelle clé, défaut)}."""
-    from wama.common.utils.app_modes import domain_schema, get_domains
-    from wama.common.utils.param_schema import domain_key, schema_for_app
+    from wama.common.utils.app_modes import domain_schema, get_domains, home_domain
+    from wama.common.utils.param_schema import domain_key
     domains = [d.get('id') for d in get_domains(app)]
     if not domains:
         return None, None
@@ -61,8 +102,8 @@ def app_mapping(app):
     # lit et le garde (`PANEL_SETTINGS`, l'anonymizer : `classes2blur` et l'image / vidéo, pas le
     # document, 2026-11-02). Il appartient donc au domaine qui porte ce schéma, s'il est seul ;
     # sinon la question n'a pas de réponse ici, et on refuse de deviner.
-    principal = schema_for_app(app) or []
-    homes = domains if len(domains) == 1 else [d for d in domains if domain_schema(app, d) == principal]
+    home = home_domain(app)                # la règle que la brique `user_settings` applique
+    homes = [home] if home else []
     surfaces, moves = {}, {}
     for dom in domains:
         schema = domain_schema(app, dom)
@@ -76,7 +117,7 @@ def app_mapping(app):
                 moves[old].append(new)
     if extra and len(homes) != 1:
         raise CommandError(f'{app} : réglages hors schéma sur une app à {len(domains)} domaines, '
-                           f'dont {len(homes)} portent son schéma principal')
+                           'sans domaine unique pour son schéma principal')
     return surfaces, moves
 
 

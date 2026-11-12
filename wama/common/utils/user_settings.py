@@ -77,6 +77,25 @@ def get_user_app_setting(user, app, name, default=None):
     return _read(user, app, [name]).get(name, default)
 
 
+def remembered_setting(user, app, name, default=None, domain=None):
+    """UN réglage retenu du volet, lu par son NOM — pour qui n'a pas le schéma en main (le curseur
+    au lancement, `auto_model.quality_intent_of`). Le domaine nommé, sinon chaque domaine de l'app
+    dont le schéma porte ce nom, dans l'ordre déclaré : le premier où l'utilisateur l'a posé."""
+    from wama.common.utils import app_modes
+    from wama.common.utils.param_schema import _pget, domain_key
+    ids = [domain] if domain else [d.get('id') for d in app_modes.get_domains(app)]
+    if not ids:
+        return get_user_app_setting(user, app, name, default)
+    keys = []
+    for dom in ids:
+        key = next((domain_key(dom)(p) for p in app_modes.domain_schema(app, dom)
+                    if _pget(p, 'name') == name), None)
+        if key:
+            keys.append(key)
+    posed = _read(user, app, keys)
+    return next((posed[k] for k in keys if k in posed), default)
+
+
 def clear_user_app_settings(user, app, names):
     """Retire les réglages `names` de ``user`` pour ``app`` : ils reprennent le défaut que
     l'app déclare. C'est la RÉINITIALISATION — écrire les défauts à la place les figerait, et
@@ -93,8 +112,10 @@ def clear_user_app_settings(user, app, names):
 # naître un élément avec ces défauts s'écrivait dans chaque app (transcriber, anonymizer,
 # imager) : c'est ici, une fois. L'app DÉCLARE seulement, dans son params.py :
 #   • `params`  — son schéma (seuls les params du contexte `panel` sont gardés) ;
-#   • `key`     — la clé de stockage d'un param (défaut : `panel_dom_id`), pour les clés déjà en
-#                 base sous un autre nom (frontière des données) ;
+#   • RIEN pour la clé de stockage : c'est `<domaine>.<nom>` d'un réglage retenu, pour toutes les
+#                 apps (`param_schema.setting_key`, bascule du 2026-11-12 — trois règles
+#                 coexistaient). `domain=` nomme le domaine quand le schéma ne le dit pas seul ;
+#                 `key=` reste le point d'extension d'une surface hors `app_modes` ;
 #   • `extra`   — {nom: défaut} des réglages du volet HORS schéma (anonymizer : `classes2blur`),
 #                 et `clean` — {nom: fonction} qui assainit une valeur postée avant de la garder.
 # Toutes les fonctions acceptent la même déclaration (l'app la passe telle quelle, `**`).
@@ -107,22 +128,39 @@ from wama.common.utils.param_schema import EMPTY_IS_NONE_TYPES  # noqa: E402 (fe
 _EMPTY_IS_VALUE = ('text', 'textarea', 'select') + EMPTY_IS_NONE_TYPES
 
 
-def _panel_defaults(params, key, extra):
+def _storage(app, params, key, extra, domain):
+    """`(règle de clé, {nom hors schéma: clé de stockage})` — LA règle commune quand l'appelant
+    n'en impose aucune (`param_schema.setting_key`) ; un réglage hors schéma se range avec le
+    domaine qui porte le schéma principal (`app_modes.home_domain`)."""
+    names = list(extra or {})
+    if key is not None:
+        return key, {n: n for n in names}
+    from wama.common.utils.app_modes import home_domain
+    from wama.common.utils.param_schema import setting_key
+    home = (domain or home_domain(app)) if names else None
+    return setting_key(app, params, domain), {n: f'{home}.{n}' if home else n for n in names}
+
+
+def _panel_defaults(params, key, extra, stored_as):
     from wama.common.utils.param_schema import panel_defaults
-    return {**panel_defaults(params, key=key), **dict(extra or {})}
+    return {**panel_defaults(params, key=key),
+            **{stored_as[name]: default for name, default in (extra or {}).items()}}
 
 
-def read_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict:
+def read_panel_settings(user, app, params, *, key=None, extra=None, clean=None,
+                        domain=None) -> dict:
     """Les réglages du volet de ``user``, par NOM de param (ce que `WamaParams.render` attend),
     défauts du schéma sous ce que l'utilisateur a posé — réglages hors schéma compris."""
     from wama.common.utils.param_schema import panel_values_by_name
-    stored = get_user_app_settings(user, app, _panel_defaults(params, key, extra))
+    key, stored_as = _storage(app, params, key, extra, domain)
+    stored = get_user_app_settings(user, app, _panel_defaults(params, key, extra, stored_as))
     values = panel_values_by_name(stored, params, key=key)
-    values.update({name: stored[name] for name in (extra or {})})
+    values.update({name: stored[stored_as[name]] for name in (extra or {})})
     return values
 
 
-def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None) -> dict:
+def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None,
+                        domain=None) -> dict:
     """Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
     le schéma. Une clé absente n'écrase rien ; un nombre ou un interrupteur vide non plus.
 
@@ -133,19 +171,25 @@ def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=
     Rend ce qui a été gardé, par clé de stockage."""
     from wama.common.utils.param_schema import (_pget, coerce_schema_values,
                                                 panel_prefs_from_post)
+    key, stored_as = _storage(app, params, key, extra, domain)
+    # Un formulaire posté (`request.POST`) se déplie en LISTES (`{**QueryDict}`) : un texte laissé
+    # vide se gardait `['']` (mesuré le 2026-11-12 sur `language`, `hotwords`, `output_format`).
+    # Une seule valeur postée est cette valeur ; plusieurs restent une liste.
+    if hasattr(data, 'getlist'):
+        data = {name: (values[0] if len(values) == 1 else values)
+                for name in data if (values := data.getlist(name)) is not None}
     typed = {**data, **coerce_schema_values(params, data)}
     textual = {_pget(p, 'name') for p in params if _pget(p, 'type') in _EMPTY_IS_VALUE}
     prefs = {}
     for p in params:
-        stored_as = panel_prefs_from_post(typed, [p], key=key)
-        for k, v in stored_as.items():
+        for k, v in panel_prefs_from_post(typed, [p], key=key).items():
             if v not in (None, '') or _pget(p, 'name') in textual:
                 prefs[k] = v
     for name in (extra or {}):
         if name in data:
             fix = (clean or {}).get(name)
-            prefs[name] = fix(data[name]) if fix else data[name]
-    defaults = _panel_defaults(params, key, extra)
+            prefs[stored_as[name]] = fix(data[name]) if fix else data[name]
+    defaults = _panel_defaults(params, key, extra, stored_as)
     # Vide et `None` disent la même chose pour un texte (défaut `None`, formulaire rend '').
     same = [k for k, v in prefs.items() if k in defaults and (
         v == defaults[k] or (v in ('', None) and defaults[k] in ('', None)))]
@@ -157,11 +201,13 @@ def save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=
     return prefs
 
 
-def reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict:
+def reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None,
+                         domain=None) -> dict:
     """Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
     réécrites avec les défauts du jour). Rend les réglages tels qu'ils sont alors lus."""
-    clear_user_app_settings(user, app, _panel_defaults(params, key, extra))
-    return read_panel_settings(user, app, params, key=key, extra=extra)
+    rule, stored_as = _storage(app, params, key, extra, domain)
+    clear_user_app_settings(user, app, _panel_defaults(params, rule, extra, stored_as))
+    return read_panel_settings(user, app, params, key=key, extra=extra, domain=domain)
 
 
 def input_proposals(params, inputs) -> dict:
@@ -231,7 +277,7 @@ def inputs_by_port(app_id, *received) -> dict:
 
 def new_element_settings(user, app, params, model, *, post=None, context=None, key=None,
                          extra=None, clean=None, options_field=None, preset=None,
-                         empty_is_value=(), inputs=None) -> dict:
+                         empty_is_value=(), inputs=None, domain=None) -> dict:
     """Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
     et sa tâche ne lit plus que ses colonnes.
 
@@ -258,7 +304,8 @@ def new_element_settings(user, app, params, model, *, post=None, context=None, k
     # Ce que l'auteur a POSÉ, rien d'autre (2026-10-18) : `read_panel_settings` complète par les
     # défauts du volet, que la cascade prenait pour des choix — un préréglage ne pouvait alors
     # jamais jouer, ni un `show_if` écarter un défaut. Les défauts viennent d'`effective_settings`.
-    posed = _read(user, app, list(_panel_defaults(params, key, extra)))
+    key, stored_as = _storage(app, params, key, extra, domain)
+    posed = _read(user, app, list(_panel_defaults(params, key, extra, stored_as)))
     prefs = panel_values_by_name(posed, params, key=key)
     posted = coerce_schema_values(params, post) if post is not None else {}
     proposed = {name: p['value'] for name, p in input_proposals(params, inputs).items()} if inputs else {}
@@ -277,7 +324,8 @@ def new_element_settings(user, app, params, model, *, post=None, context=None, k
             given.pop(name, None)
     values = effective_settings(params, posees=given, preset=preset, contexte=context)
     # Réglages HORS schéma : ceux de l'auteur, leur défaut déclaré sinon (aucun dépôt ne les poste).
-    values.update({name: posed.get(name, default) for name, default in (extra or {}).items()})
+    values.update({name: posed.get(stored_as[name], default)
+                   for name, default in (extra or {}).items()})
     columns = element_columns(values, model)
     if options_field:
         declared = {_pget(p, 'name') for p in params}
@@ -295,7 +343,7 @@ def element_columns(values, model) -> dict:
     return {k: v for k, v in values.items() if k in concrete}
 
 
-def make_panel_settings_views(app, params, *, key=None, extra=None, clean=None):
+def make_panel_settings_views(app, params, *, key=None, extra=None, clean=None, domain=None):
     """Les deux vues JSON du volet — lecture (GET) et enregistrement (POST, JSON par NOM, clés
     absentes inchangées) —, identiques d'une app à l'autre. Rend `(get_view, save_view)`,
     à router sur `user_settings/` et `user_settings/save/`."""
@@ -312,7 +360,7 @@ def make_panel_settings_views(app, params, *, key=None, extra=None, clean=None):
 
     def get_view(request):
         return JsonResponse(read_panel_settings(_user(request), app, params,
-                                                key=key, extra=extra))
+                                                key=key, extra=extra, domain=domain))
 
     @require_POST
     def save_view(request):
@@ -322,8 +370,9 @@ def make_panel_settings_views(app, params, *, key=None, extra=None, clean=None):
         except (ValueError, UnicodeDecodeError):
             data = {}
         save_panel_settings(user, app, params, data if isinstance(data, dict) else {},
-                            key=key, extra=extra, clean=clean)
-        return JsonResponse(read_panel_settings(user, app, params, key=key, extra=extra))
+                            key=key, extra=extra, clean=clean, domain=domain)
+        return JsonResponse(read_panel_settings(user, app, params, key=key, extra=extra,
+                                                domain=domain))
 
     return get_view, save_view
 

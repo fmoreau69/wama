@@ -231,9 +231,9 @@ PARAMS_JSON = schema_to_dicts(PARAMS)
 GROUPS_JSON = groups_to_dicts(GROUPS)
 
 # ── Réglages UTILISATEUR — dérivés du schéma (contrat 3 de `WAMA_VERIFICATION §8`, 2026-10-18) ──
-# Ce que le volet retient se déclare par la clé du VOLET (`dom_id` du contexte panel, la règle par
-# défaut de la brique `user_settings`) : le curseur seul. Le FORMAT de sortie se retient à part,
-# PAR NATURE (`format_router.output_format_for`), et la nature est détectée, jamais retenue.
-from wama.common.utils.param_schema import panel_defaults  # noqa: E402
-
-USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS)
+# Le volet se retient en entier, comme celui de toutes les apps (2026-11-12 — sous l'ancienne
+# règle du `dom_id`, seul le curseur se retenait). Le FORMAT de sortie qui VAUT se retient à part,
+# PAR NATURE (`format_router.output_format_for`) ; la naissance d'une conversion écarte celui du
+# volet (`views.apply_birth_settings`), et la nature est détectée, jamais retenue.
+# La clé de stockage est celle de TOUTES les apps, `<domaine>.<nom>` d'un réglage retenu
+# (`param_schema.setting_key`, bascule du 2026-11-12) : rien à déclarer ici.

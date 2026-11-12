@@ -19,7 +19,7 @@ from django.core.exceptions import ValidationError
 
 import json
 from .models import AvatarJob, BatchAvatarJob, BatchAvatarJobItem
-from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON, VOICE_SETTINGS, user_setting_key
+from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON, VOICE_SETTINGS
 
 #: Les noms de réglages DÉCLARÉS — lus au schéma, pour reconnaître ce qu'une ligne de lot poste.
 _SETTING_NAMES = {p['name'] for p in _AVATAR_PARAMS_JSON}
@@ -129,8 +129,7 @@ class IndexView(View):
             # Valeurs du VOLET généré (contexte 'panel') : les réglages que l'utilisateur a
             # employés en dernier (mémorisés au dépôt, `create`), sous les défauts du schéma.
             'panel_values_json': json.dumps(
-                read_panel_settings(user, 'avatarizer', _AVATAR_PARAMS_JSON,
-                                    key=user_setting_key)),
+                read_panel_settings(user, 'avatarizer', _AVATAR_PARAMS_JSON)),
             # Groupes de voix (brique commune, per-user) pour le select GÉNÉRÉ de la modale
             # (options_source='voices') — remplace les optgroups hardcodés du template.
             # Le repli fail-safe vit DANS la brique depuis le 2026-09-23 (l'aide locale qui
@@ -157,8 +156,7 @@ def new_avatar_settings(user, model=None, app='avatarizer', post=None, inputs=No
     Avant, cinq réglages relus avec leurs défauts recopiés dans la vue, et une ligne de lot
     écrivait les siens en dur."""
     values = new_element_settings(user, app, _AVATAR_PARAMS_JSON, model or AvatarJob, post=post,
-                                  inputs=inputs,
-                                  key=user_setting_key)
+                                  inputs=inputs)
     if values.get('tts_model'):
         values['tts_model'] = tts_catalog_key(values['tts_model'])
     return values
@@ -169,7 +167,7 @@ def _remember_settings(user, post, spoke):
     seulement quand elle a servi (`spoke` : un job porteur de texte)."""
     if not spoke:
         post = {k: v for k, v in post.items() if k not in VOICE_SETTINGS}
-    save_panel_settings(user, 'avatarizer', _AVATAR_PARAMS_JSON, post, key=user_setting_key)
+    save_panel_settings(user, 'avatarizer', _AVATAR_PARAMS_JSON, post)
 
 
 def create(request):

@@ -35,10 +35,9 @@ def new_description_settings(user, model=None, app='describer', post=None, input
     style mémorisé qui n'est plus proposé (« meeting », devenu un type de résumé) retombe sur le
     défaut par la règle de la brique."""
     from wama.common.utils.user_settings import new_element_settings
-    from wama.describer.params import PARAMS_JSON, user_setting_key
+    from wama.describer.params import PARAMS_JSON
     return new_element_settings(user, app, PARAMS_JSON, model or Description, post=post,
-                                inputs=inputs,
-                                key=user_setting_key)
+                                inputs=inputs)
 
 
 def _deposit_settings(user, post, inputs=None):
@@ -46,8 +45,8 @@ def _deposit_settings(user, post, inputs=None):
     préférences (`save_panel_settings`), puis la description naît par la cascade COMMUNE —
     `inputs` : le fichier reçu, sous son port, qui propose ses réglages (`inputs_by_port`)."""
     from wama.common.utils.user_settings import save_panel_settings
-    from wama.describer.params import PARAMS_JSON, user_setting_key
-    save_panel_settings(user, 'describer', PARAMS_JSON, post, key=user_setting_key)
+    from wama.describer.params import PARAMS_JSON
+    save_panel_settings(user, 'describer', PARAMS_JSON, post)
     return new_description_settings(user, post=post, inputs=inputs)
 
 

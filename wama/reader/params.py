@@ -201,7 +201,5 @@ PARAMS_JSON = schema_to_dicts(PARAMS)
 # (`new_element_settings`). Ils se gardent sous le NOM du réglage : c'était déjà le cas (moteur,
 # mode, format, langue et curseur, écrits par une liste à la main dans les vues) — frontière des
 # données, rien à migrer —, et c'est sous ce nom que `auto_model.quality_intent_of` relit le curseur.
-from wama.common.utils.param_schema import panel_defaults, panel_name_key  # noqa: E402
-
-user_setting_key = panel_name_key
-USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)
+# La clé de stockage est celle de TOUTES les apps, `<domaine>.<nom>` d'un réglage retenu
+# (`param_schema.setting_key`, bascule du 2026-11-12) : rien à déclarer ici.

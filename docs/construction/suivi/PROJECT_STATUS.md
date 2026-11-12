@@ -31158,3 +31158,57 @@ confirmation par mot de passe, `0d191644a`), `tests_route_for_nature`
 (`synthesizer_01`, `avatarizer_01`), `enhancer.tests_declared_weights` (26 occurrences dans le
 code vendorisé d'ACE-Step, gitignoré), `kinematics.tests_gap_fill` (`box_iou` : même fonction,
 objet différent dans la suite — `multicam_tracker.py:421` délègue bien). Non traités ici.
+
+## §PALIER 2026-11-12 (après-midi), « ⑤ LA BASCULE : une seule clé `<domaine>.<nom>` pour les réglages retenus, plan appliqué » — commit local, non poussé — 🔴 relancer gunicorn ET les workers (le service sert déjà ce code EN PARTIE : des workers relancés pendant la session l'ont chargé) — 🔚 recréer `transcriber_01` ; ⑥ puis ⑦ ; le sélecteur de domaine au-dessus de la page (forme A retenue)
+
+**Décisions de Fabien (12/11)** : sélecteur de domaine = forme A (le titre porte le domaine et ouvre un
+menu de liens ; la 3D est mise de côté, aucun bouton ajouté — elle doit seulement rester possible sans
+gros changement) ; (a) plan et preuve rejoués puis appliqués ; (b) le synthesizer retient TOUT son
+volet ; (c) les lignes orphelines de `writer_01` / `translator_01` rendues au volet.
+
+**Livré** (`ROUTE §11 #42`, point ⑤) :
+- `param_schema.setting_key(app, params, domain=None)` — LA règle, dérivée : le domaine nommé, sinon
+  le seul de l'app, sinon celui dont le schéma porte le réglage (deux domaines portant le même nom :
+  celui dont le schéma couvre tout `params` ; deux domaines sur un même schéma : le premier déclaré ;
+  sinon `ValueError`, on ne devine pas) ; une surface hors `app_modes` garde le `dom_id` ;
+- `app_modes.home_domain` — le domaine d'un réglage du volet hors schéma (`classes2blur`) ;
+- `user_settings` : lecture, garde, remise à zéro, naissance et vues JSON appliquent la règle seules
+  (`domain=` en option, `key=` reste le point d'extension) ; `remembered_setting` lit UN réglage par
+  son nom (le curseur au lancement, `auto_model.quality_intent_of`) ;
+- les dix `params.py` ne déclarent plus ni `user_setting_key` ni `USER_SETTINGS_DEFAULTS` ; les vues
+  ne passent plus `key=` ; le bouton de prétraitement du transcriber écrit le réglage du volet ;
+  l'imager lit ses deux volets par la brique ; le générateur (`params_gen`) n'émet plus de règle ;
+- `align_setting_keys` : les règles d'avant vivent dans `LEGACY_RULES` (seul endroit), la commande
+  reste rejouable sur une base d'avant la bascule.
+
+**En base** : plan `logs/setting_keys/plan_20261112T122138.json` APPLIQUÉ — 132 lignes, 15 comptes,
+preuve 69/69 ; rejoué avec le code basculé : mêmes 132 déplacements ; vérifié après coup : 0 ligne
+absente, 0 ancienne clé restante, valeurs rendues au volet par la brique. Réversible : `--revert`.
+
+**Défaut trouvé au passage, corrigé** : un formulaire posté se déplie en listes (`{**QueryDict}`) et
+un texte laissé VIDE se gardait `['']` (la coercition saute une valeur vide). L'écrivain du volet
+prend désormais la valeur. 6 lignes `['']` restent en base (3 sur le compte de test nocturne, 1 sur
+`fabien.moreau` — `transcriber/audio.hotwords` —, 1 `wama_ui_smoke_v3`, 1 `wama_nightly_dev`) : non
+touchées, elles se retirent au prochain enregistrement du volet.
+
+**Changement visible** : le converter retient tout son volet (sous la règle du `dom_id`, seul le
+curseur se retenait) ; le format qui vaut reste retenu par nature (`format_router`).
+
+**Jumelles** : `params` régénérés et tenus pour 11 sur 12. `transcriber_01` : ses vues sont une copie
+de la source d'avant la bascule (la version générée ne tient pas : `surfaces.py` importe
+`_editor_segments` et `correction_saved`), donc ses `params` sont revenus au témoin avec elles — elle
+garde SA règle par `key=`, cohérente mais hors de la clé commune, jusqu'à sa recréation.
+`translator_01` déclare deux domaines sur un même schéma (écart à la doctrine, toléré par la règle).
+
+**Gardes** : `tests_panel_user_settings` réécrit (clé par domaine sur chaque app et chaque domaine,
+aucune règle propre dans un `params.py`, refus de deviner), `tests_setting_keys`,
+`tests_birth_settings` (valeur postée), `tests_sandbox_coherence` (le générateur n'émet aucune règle),
+`transcriber/tests_panel_settings` (les deux anciennes clés, le bouton de prétraitement),
+`tests_intent_vision`, `tests_temperature`. Contre-épreuves par mutation, ROUGES : la brique remise
+sur le `dom_id` (6 tests), le générateur réémettant une règle (1), le correctif des listes retiré (1 —
+la première version de cette garde était aveugle, réécrite sur le cas vide).
+
+**État du service pendant la session (à savoir)** : des workers gunicorn et le worker `default` ont
+été relancés entre 12:24 et 12:51 et ont chargé le code en cours d'écriture ; le compte de test
+nocturne a écrit 9 lignes sous les nouvelles clés (12:37–12:44). D'où l'application du plan sans
+attendre, pour sortir de l'état mixte.

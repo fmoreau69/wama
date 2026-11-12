@@ -628,10 +628,12 @@ def applicable_defaults(schema, values=None) -> dict:
 # une fonction du param — le `dom_id` du volet par défaut (la forme de l'imager, unique entre
 # ses deux domaines) ; une app dont les clés stockées suivent une autre règle la DÉCLARE
 # (`key=`), les clés déjà en base restant ce qu'elles sont (frontière des données).
-# ⏳ 2026-10-21 : LA règle commune est posée (`domain_key` : `<domaine>.<nom>` d'un réglage
-# `remembered`), et `manage.py align_setting_keys` en fait le plan et la preuve sur la base ; les
-# trois règles du parc (ce `dom_id`, `panel_name_key`, les règles écrites des apps) restent lues
-# jusqu'à la bascule, qui se fait dans le même geste que l'exécution du plan validé.
+# ✅ 2026-11-12, la BASCULE : LA règle est `<domaine>.<nom>` d'un réglage `remembered`
+# (`domain_key`, posée le 2026-10-21), dérivée pour toute app par `setting_key` — que la brique
+# `user_settings` applique seule. Les trois règles d'avant (ce `dom_id`, `panel_name_key`, les
+# règles écrites des apps) ne sont plus lues que par `manage.py align_setting_keys`, qui range
+# les lignes d'avant la bascule (plan, preuve, `--apply`, `--revert`), et par une surface hors
+# `app_modes` (`dom_id`, le défaut ci-dessous).
 def panel_dom_id(p):
     """dom_id du param sur la surface VOLET, ou None s'il n'y figure pas.
 
@@ -672,6 +674,45 @@ def domain_key(domain: str):
     def key(p):
         name = _pget(p, 'name')
         return f'{domain}.{name}' if name and remembered(p) else None
+    return key
+
+
+def setting_key(app: str, params, domain: str = None):
+    """La règle de clé des réglages RETENUS de `params` pour `app` — ce que la brique
+    `user_settings` applique quand on ne lui en impose aucune (bascule du 2026-11-12 : plus
+    aucune app ne déclare la sienne).
+
+    `<domaine>.<nom>` (`domain_key`), le domaine étant : celui qu'on NOMME (`domain`) ; sinon le
+    seul de l'app ; sinon, param par param, le seul domaine dont le schéma porte ce nom — et quand
+    deux domaines portent le même nom (`model`, image et vidéo de l'imager), le seul dont le schéma
+    porte TOUS les noms de `params` ; deux domaines sur un même schéma : le premier déclaré. Un nom
+    que rien ne départage lève : on ne devine pas, l'appelant nomme son domaine. Une surface SANS domaine déclaré (hors `app_modes`) garde le `dom_id` du volet."""
+    from wama.common.utils import app_modes
+    ids = [d.get('id') for d in app_modes.get_domains(app)]
+    if not ids:
+        return panel_dom_id
+    if domain or len(ids) == 1:
+        return domain_key(domain or ids[0])
+    schemas = {d: app_modes.domain_schema(app, d) for d in ids}
+    names = {d: {_pget(p, 'name') for p in schemas[d]} for d in ids}
+    asked = {_pget(p, 'name') for p in params or ()}
+    covering = [d for d in ids if asked <= names[d]]
+
+    def key(p):
+        name = _pget(p, 'name')
+        owners = [d for d in ids if name in names[d]]
+        if len(owners) > 1:
+            owners = [d for d in owners if d in covering]
+            # Deux domaines sur UN MÊME schéma (une app née d'un manifeste qui ne les sépare pas
+            # par leurs réglages — `translator_01`) ne se distinguent pas ici : le premier déclaré
+            # porte la mémoire des deux.
+            if len(owners) > 1 and all(schemas[d] == schemas[owners[0]] for d in owners):
+                owners = owners[:1]
+            if len(owners) != 1:
+                raise ValueError(f'{app} : le réglage « {name} » existe dans plusieurs domaines '
+                                 f'({", ".join(d for d in ids if name in names[d])}) — nommer le sien '
+                                 '(`domain=`)')
+        return domain_key(owners[0])(p) if owners else None
     return key
 
 

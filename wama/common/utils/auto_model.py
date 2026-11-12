@@ -320,8 +320,12 @@ def quality_intent_of(item=None, app_id=None, user=None) -> int:
         user = getattr(item, 'user', None)
     if user is not None and getattr(user, 'pk', None) and app_id:
         try:
-            from wama.common.utils.user_settings import get_user_app_setting
-            value = get_user_app_setting(user, app_id, name)
+            # Le réglage retenu du volet, sous la clé commune `<domaine>.<nom>` : le domaine de
+            # l'élément quand il y en a un, sinon le premier domaine où l'utilisateur l'a posé.
+            from wama.common.utils.app_modes import element_domain
+            from wama.common.utils.user_settings import remembered_setting
+            domain = element_domain(item) if item is not None else None
+            value = remembered_setting(user, app_id, name, domain=domain)
             if value is not None and str(value).strip() != '':
                 return read_quality_intent(value)
         except Exception:

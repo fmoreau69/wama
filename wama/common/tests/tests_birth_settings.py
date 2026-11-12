@@ -54,6 +54,26 @@ class NewElementSettingsTest(TestCase):
                          self._born(model, post={'quality': '90', 'flip': 'true'}))
         self.assertEqual({'quality': 70, 'flip': False}, self._born(model, post={'flip': 'false'}))
 
+    def test_a_posted_form_keeps_values_not_lists(self):
+        """`{**request.POST}` unfolds into LISTS: a text field was kept as `['fr']`, an empty one
+        as `['']` (measured in base on 2026-11-12). One posted value is that value."""
+        from django.http import QueryDict
+        schema = SCHEMA + [{'name': 'note', 'type': 'text', 'dom_id': 'n',
+                            'contexts': ['panel', 'item']}]
+        kept = user_settings.save_panel_settings(self.user, self.app, schema,
+                                                 QueryDict('note=fr&quality=70'))
+        self.assertEqual('fr', kept['n'])
+        self.assertEqual('fr', user_settings.read_panel_settings(self.user, self.app, schema)['note'])
+        # The EMPTY text is the case that was kept as a list (the coercion skips an empty value,
+        # the raw `['']` stayed): it is the default, so nothing is kept at all.
+        self.assertEqual({'q': 70}, user_settings.save_panel_settings(
+            self.user, self.app, schema, QueryDict('note=&quality=70')))
+        self.assertIn(user_settings.read_panel_settings(self.user, self.app, schema)['note'],
+                      ('', None))
+        # Counter-check: a plain dict (the JSON route of the panel) is taken as it is.
+        self.assertEqual('en', user_settings.save_panel_settings(
+            self.user, self.app, schema, {'note': 'en'})['n'])
+
     def test_a_value_outside_the_declared_choices_is_never_written(self):
         schema = SCHEMA + [{'name': 'style', 'type': 'select', 'default': 'detailed',
                             'choices': [('detailed', 'Détaillé'), ('short', 'Court')],

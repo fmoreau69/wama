@@ -257,14 +257,10 @@ DOCUMENT_PARAMS_JSON = schema_to_dicts(DOCUMENT_PARAMS)
 # Remplace les tables `UserSettings` (défauts recopiés à la main du modèle `Media`) et
 # `GlobalSettings` (défauts semés par une liste en dur) : un défaut ne vit plus qu'à UN endroit,
 # la colonne de `Media` dont le schéma le dérive. Clé de stockage = le NOM du param.
-from wama.common.utils.param_schema import panel_defaults, panel_name_key  # noqa: E402
 from wama.anonymizer.models import default_classes2blur  # noqa: E402
 
-user_setting_key = panel_name_key
-# Chaque schéma déclaré a ses réglages du volet — le domaine document compris (`ocr_scanned_pages`,
-# 2026-11-02) —, comme l'imager et l'enhancer.
-USER_SETTINGS_DEFAULTS = {**panel_defaults(PARAMS, key=user_setting_key),
-                          **panel_defaults(DOCUMENT_PARAMS, key=user_setting_key)}
+# La clé de stockage est celle de TOUTES les apps, `<domaine>.<nom>` d'un réglage retenu
+# (`param_schema.setting_key`, bascule du 2026-11-12) : rien à déclarer ici.
 
 #: `classes2blur` est hors schéma (multi-sélection à cases, cf. en-tête) mais c'est un réglage
 #: du volet comme les autres : même stockage, même naissance de l'élément.
@@ -279,5 +275,5 @@ def clean_classes(classes):
 
 
 #: Tout ce que la brique commune doit savoir des réglages du volet de l'anonymizer.
-PANEL_SETTINGS = dict(key=user_setting_key, extra=USER_SETTINGS_EXTRA,
+PANEL_SETTINGS = dict(extra=USER_SETTINGS_EXTRA,
                       clean={CLASSES_SETTING: clean_classes})

@@ -1114,8 +1114,8 @@ def set_preprocessing_preference(request):
     else:
         enabled = bool(enabled)
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.user_settings import save_user_app_settings
-    save_user_app_settings(user, 'transcriber', {'preprocessing_enabled': enabled})
+    # Le réglage du volet `preprocess_audio`, gardé par la brique commune sous sa clé commune.
+    save_panel_settings(user, 'transcriber', _SCHEMA, {'preprocess_audio': enabled})
     return JsonResponse({'enabled': enabled})
 
 
@@ -1215,16 +1215,15 @@ def _apply_transcript_settings(t, data):
 # Ici vivaient trois listes écrites à la main (défauts, noms JSON acceptés, correspondance
 # nom↔clé) plus une quatrième dans la page et une cinquième dans l'upload : un réglage ajouté à
 # `params.py` n'était lu par AUCUNE (le filtre de parole n'apparaissait donc que dans la
-# modale). La clé de stockage est déclarée dans `params.py` (`user_setting_key`) ; lire, garder
+# modale). La clé de stockage est la clé commune `<domaine>.<nom>` (2026-11-12) ; lire, garder
 # et les deux routes JSON sont la brique COMMUNE `user_settings` (2026-09-27, partagée avec
 # l'anonymizer — ces fonctions étaient recopiées d'une app à l'autre).
-from wama.transcriber.params import user_setting_key  # noqa: E402
 from wama.common.utils.user_settings import (  # noqa: E402
     make_panel_settings_views, read_panel_settings, save_panel_settings,
 )
 
 get_user_transcriber_settings, save_user_transcriber_settings = make_panel_settings_views(
-    'transcriber', _SCHEMA, key=user_setting_key)
+    'transcriber', _SCHEMA)
 
 
 def _user_panel_values(user):
@@ -1232,7 +1231,7 @@ def _user_panel_values(user):
     Le modèle est lu dans l'ESPACE DES CLÉS (route F4b ⑦) : une préférence gardée avant le
     2026-09-30 porte un nom de moteur (`whisper`), que le select ne propose plus."""
     from wama.transcriber.backends.manager import catalogue_value
-    values = read_panel_settings(user, 'transcriber', _SCHEMA, key=user_setting_key)
+    values = read_panel_settings(user, 'transcriber', _SCHEMA)
     if 'backend' in values:
         values['backend'] = catalogue_value(values['backend']) or 'auto'
     return values
@@ -1240,7 +1239,7 @@ def _user_panel_values(user):
 
 def _save_user_panel_values(user, data):
     """Garde comme préférences les réglages du volet présents dans `data` (brique commune)."""
-    return save_panel_settings(user, 'transcriber', _SCHEMA, data, key=user_setting_key)
+    return save_panel_settings(user, 'transcriber', _SCHEMA, data)
 
 
 def new_transcript_settings(user, model=None, app='transcriber', post=None, inputs=None):
@@ -1250,8 +1249,7 @@ def new_transcript_settings(user, model=None, app='transcriber', post=None, inpu
     donc sans POST) passent ici ; `model`/`app` : une jumelle de bac à sable passe les siens."""
     from wama.common.utils.user_settings import new_element_settings
     return new_element_settings(user, app, _SCHEMA, model or Transcript, post=post,
-                                inputs=inputs,
-                                key=user_setting_key)
+                                inputs=inputs)
 
 
 def _deposit_settings(user, post, inputs=None):

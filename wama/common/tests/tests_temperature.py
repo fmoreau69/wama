@@ -246,14 +246,16 @@ class ThePanelForgetsAPreferenceGivenBackTest(TestCase):
     def test_choosing_the_models_own_clears_the_kept_value(self):
         from django.contrib.auth import get_user_model
 
-        from wama.common.utils.user_settings import get_user_app_setting, save_panel_settings
+        from wama.common.utils.user_settings import read_panel_settings, save_panel_settings
         user = get_user_model().objects.create_user('temperature-panel', password='x')
         schema = [{'name': 'temperature', 'contexts': ('panel',),
                    **temperature_param('model', dom_id={'panel': 'temperature'})}]
         save_panel_settings(user, 'describer', schema, {'temperature': '0.6'})
-        self.assertEqual(0.6, get_user_app_setting(user, 'describer', 'temperature'))
+        self.assertEqual(0.6, read_panel_settings(user, 'describer', schema)['temperature'])
         save_panel_settings(user, 'describer', schema, {'temperature': ''})
-        self.assertIsNone(get_user_app_setting(user, 'describer', 'temperature'))
+        self.assertIsNone(read_panel_settings(user, 'describer', schema)['temperature'])
+        from wama.common.models import UserAppSetting
+        self.assertFalse(UserAppSetting.objects.filter(user=user, app='describer').exists())
 
 
 class TheAppsCarryItToTheCallTest(SimpleTestCase):

@@ -198,7 +198,5 @@ PARAMS_JSON = schema_to_dicts(PARAMS)
 # garde, les relit et fait naître une description avec eux (`new_element_settings`). Ils se gardent
 # sous le NOM du réglage : les trois préférences d'avant (style, langue, longueur, écrites par une
 # liste à la main dans les vues) l'étaient déjà — frontière des données, rien à migrer.
-from wama.common.utils.param_schema import panel_defaults, panel_name_key  # noqa: E402
-
-user_setting_key = panel_name_key
-USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)
+# La clé de stockage est celle de TOUTES les apps, `<domaine>.<nom>` d'un réglage retenu
+# (`param_schema.setting_key`, bascule du 2026-11-12) : rien à déclarer ici.

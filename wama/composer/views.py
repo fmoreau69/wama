@@ -101,10 +101,9 @@ def new_generation_settings(user, model=None, app='composer', post=None, inputs=
     normalisé et validé, la durée bornée par ce qu'il sait produire, la voix normalisée.
     `model`/`app` : une jumelle de bac à sable passe les siens."""
     from wama.common.utils.user_settings import new_element_settings
-    from wama.composer.params import PARAMS_JSON, user_setting_key
+    from wama.composer.params import PARAMS_JSON
     return new_element_settings(user, app, PARAMS_JSON, model or ComposerGeneration, post=post,
-                                inputs=inputs,
-                                key=user_setting_key)
+                                inputs=inputs)
 
 
 def composer_rules(values) -> dict:
@@ -164,8 +163,8 @@ def _remember_settings(user, post):
     validation : un modèle refusé ne doit pas devenir la préférence qui ferait échouer les
     dépôts suivants."""
     from wama.common.utils.user_settings import save_panel_settings
-    from wama.composer.params import PARAMS_JSON, user_setting_key
-    save_panel_settings(user, 'composer', PARAMS_JSON, post, key=user_setting_key)
+    from wama.composer.params import PARAMS_JSON
+    save_panel_settings(user, 'composer', PARAMS_JSON, post)
 
 
 def _reset_for_relaunch(gen, only=None):

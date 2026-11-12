@@ -100,21 +100,20 @@ class ParamsRenderedAsLiteralsTest(SimpleTestCase):
         with self.assertRaisesRegex(ValueError, 'non littérale'):
             render_params(_manifeste(schemas={'PARAMS_JSON': [{'name': 'a', 'default': object()}]}))
 
-    def test_the_generated_params_carry_the_common_storage_key_like_the_real_apps(self):
-        """Every real `params.py` declares its settings storage key since the birth cascade
-        (`user_setting_key`, 2026-10-18); the template did not, and COPIED views importing it sent
-        `params` back to the witness on four twins (2026-10-20). For an app on the common rule the
-        generated defaults equal the real ones."""
+    def test_the_generated_params_carry_no_storage_key_like_the_real_apps(self):
+        """Since 2026-11-12 the storage key of a panel setting is derived by the common brick
+        (`<domain>.<name>`, `param_schema.setting_key`): a real `params.py` declares none, so the
+        generated one does not either — a generated app keeps its panel exactly as its source."""
         from wama.common.manifests.ingest import extract
         from wama.describer import params as real
         src, _ = render_params(extract('app', 'describer'))
         space = {}
         exec(compile(src, '<params_gen>', 'exec'), space)     # noqa: S102 — c'est le sujet
-        self.assertIn('user_setting_key', space)
-        self.assertEqual(real.USER_SETTINGS_DEFAULTS, space['USER_SETTINGS_DEFAULTS'])
-        # Counter-check: a schema without a main `PARAMS_JSON` declares no key of its own.
-        other, _ = render_params(_manifeste(schemas={'AUDIO_PARAMS_JSON': [{'name': 'a'}]}))
-        self.assertNotIn('user_setting_key', other)
+        for name in ('user_setting_key', 'USER_SETTINGS_DEFAULTS'):
+            self.assertNotIn(name, space)
+            self.assertFalse(hasattr(real, name), f'the real app declares {name} again')
+        # Counter-check: the schema itself is still generated.
+        self.assertEqual(real.PARAMS_JSON, space['PARAMS_JSON'])
 
 
 class CorpsComposeDesDeuxSaveursTest(SimpleTestCase):

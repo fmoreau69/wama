@@ -201,19 +201,6 @@ PARAMS = derive_from_model(
 PARAMS_JSON = schema_to_dicts(PARAMS)
 
 # ── Réglages UTILISATEUR du volet (brique commune `user_settings`) — dérivés du schéma ────
-# Même forme que l'imager (`common/utils/param_schema.panel_defaults` & co., 2026-09-26) : le
-# volet EST la surface des défauts utilisateur. La clé de stockage est le NOM du param, sauf
-# deux clés déjà en base sous un autre nom (frontière des données : elles restent).
-_STORED_UNDER = {'enable_diarization': 'diarization', 'preprocess_audio': 'preprocessing_enabled'}
-
-
-from wama.common.utils.param_schema import panel_defaults, panel_name_key  # noqa: E402
-
-
-def user_setting_key(p):
-    """Clé de stockage d'un param du volet, None s'il n'y figure pas."""
-    name = panel_name_key(p)
-    return _STORED_UNDER.get(name, name) if name else None
-
-
-USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)
+# Le volet EST la surface des défauts utilisateur.
+# La clé de stockage est celle de TOUTES les apps, `<domaine>.<nom>` d'un réglage retenu
+# (`param_schema.setting_key`, bascule du 2026-11-12) : rien à déclarer ici.

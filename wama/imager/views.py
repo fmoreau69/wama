@@ -89,17 +89,14 @@ def index(request):
     # il n'y a plus de hiérarchie parent/enfant, tout item appartient à un GenerationBatch.
     generations = ImageGeneration.objects.filter(user=user).order_by('-created_at')
 
-    # Réglages user — brique commune (A5-22) : clés + défauts uniques (USER_SETTINGS_DEFAULTS,
-    # DÉRIVÉS du schéma params.py). Remplace le modèle Django `UserSettings` (5 colonnes), qui
+    # Réglages user — brique commune (A5-22) : le volet de chaque DOMAINE lu par
+    # `read_panel_settings` (clé commune `<domaine>.<nom>`, 2026-11-12). Remplace le modèle Django `UserSettings` (5 colonnes), qui
     # n'était écrit par personne : son seul écrivain, la vue `update_settings`, n'était appelée
     # depuis AUCUN JS/template — et son défaut codé en dur 'stable-diffusion-v1-5' empêchait le
     # volet d'afficher « Auto » (donc de proposer le tirage VRAM-aware commun).
     # Le modèle lui-même est retiré au palier suivant, une fois la bascule vérifiée.
-    from wama.common.utils.user_settings import get_user_app_settings
-    from wama.imager.params import (
-        IMAGE_PARAMS, USER_SETTINGS_DEFAULTS, VIDEO_PARAMS, panel_values_by_name,
-    )
-    panel_settings = get_user_app_settings(user, 'imager', USER_SETTINGS_DEFAULTS)
+    from wama.common.utils.user_settings import read_panel_settings
+    from wama.imager.params import IMAGE_PARAMS, VIDEO_PARAMS
 
     # ⚠ LISTE DE MODÈLES : plus rien ici (route F4b, 2026-09-29). La page construisait la liste
     # depuis `DiffusersBackend.SUPPORTED_MODELS`, l'ENRICHISSAIT du catalogue « sans jamais
@@ -193,8 +190,10 @@ def index(request):
         # Valeurs du VOLET pour WamaParams.render(..., {context:'panel', values}) : ré-indexées
         # par NOM de param (ce que render attend), une surface par domaine. Le stockage, lui,
         # reste clé par dom_id — cf. params.panel_values_by_name.
-        'image_panel_values_json': json.dumps(panel_values_by_name(panel_settings, IMAGE_PARAMS)),
-        'video_panel_values_json': json.dumps(panel_values_by_name(panel_settings, VIDEO_PARAMS)),
+        'image_panel_values_json': json.dumps(
+            read_panel_settings(user, 'imager', IMAGE_PARAMS, domain='image')),
+        'video_panel_values_json': json.dumps(
+            read_panel_settings(user, 'imager', VIDEO_PARAMS, domain='video')),
         # Méta d'appariement de la card d'entrée (les OPTIONS des selects de modèle viennent du
         # catalogue par WamaParams — route F4b, plus de groupes construits ici).
         'input_match_meta': json.dumps(input_match_meta),

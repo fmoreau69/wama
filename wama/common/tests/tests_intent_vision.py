@@ -134,7 +134,6 @@ class PostedIntentAndNearestPresetTest(SimpleTestCase):
 class IntentCascadeTest(TestCase):
 
     def test_the_schema_names_the_field_and_the_cascade_reads_item_then_user_then_default(self):
-        from wama.common.utils.user_settings import save_user_app_settings
         self.assertEqual(auto_model.intent_field_for('synthesizer'), 'quality_intent')
         self.assertEqual(auto_model.intent_field_for('anonymizer'), 'precision_level')
         self.assertEqual(auto_model.intent_field_for('converter'), 'quality_intent')   # rallié le 20/09
@@ -150,7 +149,10 @@ class IntentCascadeTest(TestCase):
 
         self.assertEqual(auto_model.quality_intent_of(_Item(), 'synthesizer'), 85)
         self.assertEqual(auto_model.quality_intent_of(None, 'synthesizer', u), 50)
-        save_user_app_settings(u, 'reader', {'quality_intent': 20})
+        # The setting kept by the panel, under the common key `<domain>.<name>` (2026-11-12).
+        from wama.common.utils.param_schema import schema_for_app
+        from wama.common.utils.user_settings import save_panel_settings
+        save_panel_settings(u, 'reader', schema_for_app('reader'), {'quality_intent': '20'})
         self.assertEqual(auto_model.quality_intent_of(None, 'reader', u), 20)
 
         class _Blank:
@@ -225,7 +227,7 @@ class ReaderCarriesTheSliderAsAnAppSettingTest(TestCase):
         from django.contrib.auth.models import Group
 
         from wama.accounts.permissions import GROUP_PREFIX
-        from wama.common.utils.user_settings import get_user_app_setting
+        from wama.common.utils.user_settings import remembered_setting
         u = get_user_model().objects.create_user('c_reader', password='x')
         # `AppAccessMiddleware` redirige (302) tout compte sans le rôle de l'app : le test
         # franchit le portier, il ne le contourne pas (rôle `recherche`, cf. tests_import_contract).
@@ -236,12 +238,12 @@ class ReaderCarriesTheSliderAsAnAppSettingTest(TestCase):
         r = self.client.post(reverse('wama.reader:upload'),
                              {'files': png, 'backend': 'auto', 'quality_intent': '88'})
         self.assertEqual(r.status_code, 200, r.content)
-        self.assertEqual(get_user_app_setting(u, 'reader', 'quality_intent'), 88)
+        self.assertEqual(remembered_setting(u, 'reader', 'quality_intent'), 88)
         item = type('I', (), {'user': u, 'quality_intent': None})()
         self.assertEqual(auto_model.quality_intent_of(item, 'reader'), 88)
         png2 = SimpleUploadedFile('page2.png', b'\x89PNG\r\n\x1a\n' + b'\0' * 32, content_type='image/png')
         self.client.post(reverse('wama.reader:upload'), {'files': png2, 'backend': 'auto'})
-        self.assertEqual(get_user_app_setting(u, 'reader', 'quality_intent'), 88,
+        self.assertEqual(remembered_setting(u, 'reader', 'quality_intent'), 88,
                          'sans POST, le dernier réglage tient')
 
 

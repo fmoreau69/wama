@@ -765,7 +765,7 @@ def _request_user(request):
 #: Le schéma de NAISSANCE de chaque domaine, par le nom que le domaine déclare (`params_schema`) —
 #: le volet de l'image / vidéo porte en plus les classes à flouter (hors schéma).
 _BIRTH = {'PARAMS_JSON': (_PARAMS, PANEL_SETTINGS),
-          'DOCUMENT_PARAMS_JSON': (_DOCUMENT_PARAMS, {'key': PANEL_SETTINGS['key']})}
+          'DOCUMENT_PARAMS_JSON': (_DOCUMENT_PARAMS, {})}
 
 
 def new_media_settings(user, model=None, app='anonymizer', post=None, inputs=None, nature=None):
@@ -906,7 +906,7 @@ def reset_user_settings(request):
 
 # `init_user_settings`, `init_global_settings`, `ensure_global_settings`,
 # `reset_global_settings_safe` RETIRÉS le 2026-09-27 avec les tables `UserSettings` et
-# `GlobalSettings` : les défauts sont ceux du schéma (`params.USER_SETTINGS_DEFAULTS`).
+# `GlobalSettings` : les défauts sont ceux du schéma (lus par la brique `user_settings`).
 
 
 # ========================================
