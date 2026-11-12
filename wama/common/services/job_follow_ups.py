@@ -158,7 +158,7 @@ def record(conversation, note, response: str, step: dict, title: str = None) -> 
     from wama.common.services import conversation_store
     conversation_store.record_exchange(
         conversation, NOTICE_PREFIX + (title or note.title),
-        {'response': response, 'tool_steps': [step], 'model': 'notification WAMA'})
+        {'response': response, 'tool_steps': [step], 'model': conversation_store.NOTICE_SOURCE})
 
 
 #: L'outil que joue la fin racontée d'un LOT : l'état et le ZIP du lot, le bouton ⬇ de sa card mère.
@@ -441,8 +441,9 @@ def web_follow_ups(user, notification_ids, absolute=lambda url: url) -> list:
             # AUTRE fil web (fil de vérification ouvert par l'API) y est racontée — elle n'apparaît
             # pas dans une conversation où elle n'a jamais été demandée.
             if not conversation.thread_key:
+                from wama.common.services import conversation_store
                 told.append({'notification_id': note.pk, 'response': response,
-                             'tool_steps': [step], 'model': 'notification WAMA'})
+                             'tool_steps': [step], 'model': conversation_store.NOTICE_SOURCE})
         except Exception:
             logger.exception("[job_follow_ups] fin de tâche non racontée (notification #%s)",
                              note.pk)

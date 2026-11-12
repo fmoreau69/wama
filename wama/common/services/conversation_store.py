@@ -135,11 +135,18 @@ def last_loaded_domain(conversation, limite: int = MAX_TOURS) -> str:
     return ''
 
 
+#: Ce qu'un tour porte à la place d'un modèle quand AUCUN modèle n'a répondu : la fin d'une tâche
+#: racontée par WAMA (`job_follow_ups.record`). Une surface le montre comme la source de la bulle,
+#: jamais comme « le modèle en cours » (2026-11-12 : il restait affiché sous la zone de saisie).
+NOTICE_SOURCE = 'notification WAMA'
+
+
 def display_entries(conversation, limite: int = 60) -> list:
     """Les derniers tours du fil au format d'AFFICHAGE d'une surface : les étapes d'outils
     précèdent la réponse, comme au moment où elle a été reçue.
 
-    [{'type': 'user'|'assistant'|'tool_steps', 'content'?, 'steps'?, 'model'?}]
+    [{'type': 'user'|'assistant'|'tool_steps', 'content'?, 'steps'?, 'model'?, 'notice'?}]
+    `notice` : la bulle vient d'une notification de WAMA, pas d'un modèle (`NOTICE_SOURCE`).
     """
     if conversation is None:
         return []
@@ -151,6 +158,8 @@ def display_entries(conversation, limite: int = 60) -> list:
         entry = {'type': t.role, 'content': t.content}
         if t.role == 'assistant' and t.model:
             entry['model'] = t.model
+            if t.model == NOTICE_SOURCE:
+                entry['notice'] = True
         entries.append(entry)
     return entries
 

@@ -70,6 +70,20 @@ class WebThreadTellsTheEndOfItsTasksTest(TestCase):
         self.assertEqual('assistant', last.role)
         self.assertEqual('get_describer_status', last.tool_steps[0]['tool'])
 
+    def test_an_end_told_by_wama_is_marked_as_a_notice_not_as_the_model_in_use(self):
+        """2026-11-12: « notification WAMA » stayed under the input as the model being talked to.
+        The thread says which bubbles come from WAMA; the page keeps the last REAL model."""
+        from wama.common.services import conversation_store
+        conversation = self._launched_from('web')
+        (told,) = self._relay(self._end().pk)
+        self.assertEqual(conversation_store.NOTICE_SOURCE, told['model'])
+        shown = [e for e in conversation_store.display_entries(conversation) if e['type'] == 'assistant']
+        self.assertTrue(shown[-1].get('notice'))
+        self.assertFalse(any(e.get('notice') for e in shown[:-1]), 'a real answer is not a notice')
+        from wama.common.tests.tests_poller_js import JS
+        self.assertIn('if (!entry.notice) lastModel = entry.model || lastModel;',
+                      (JS / 'wama-assistant-chat.js').read_text(encoding='utf-8'))
+
     def test_each_end_is_told_once_whatever_the_number_of_tabs(self):
         self._launched_from('web')
         note = self._end()

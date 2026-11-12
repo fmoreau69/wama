@@ -800,7 +800,10 @@
         // Un traitement lancé par cette réponse (`_chat_thread`) : sa barre, ou sa Sortie s'il est fini.
         var block = self.jobsBlock(entry.jobs);
         if (block) self.feed.appendChild(block);
-        lastModel = entry.model || lastModel;
+        // Le modèle EN COURS, sous la zone de saisie : celui de la dernière RÉPONSE d'un modèle.
+        // Une fin de tâche racontée par WAMA (`notice`) n'en est pas une — elle y restait affichée
+        // et l'on ne savait plus à qui l'on parlait (2026-11-12).
+        if (!entry.notice) lastModel = entry.model || lastModel;
       } else if (entry.type === 'error') self.feed.appendChild(self.bubble(entry.content, 'error'));
     });
     if (!entries || !entries.length) this.showGreeting();
