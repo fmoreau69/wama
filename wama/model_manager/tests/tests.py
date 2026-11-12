@@ -2928,16 +2928,27 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
         from ..models import AIModel
         from ..services import benchmark_sync as bs
         ident = ('qwen', (3, 8), 27.0)
+        other = ('llama', (3, 1), 8.0)
         sources = {'aa': {'llm': [{'name': 'Qwen3.8 27B', 'slug': 'qwen3-8-27b', 'value': 20.1,
                                    'scale': 'aa_intelligence_index_v5', 'identity': ident,
+                                   'family_scores': {}},
+                                  {'name': 'Llama 3.1 8B', 'slug': 'llama-3-1-8b', 'value': 9.0,
+                                   'scale': 'aa_intelligence_index_v5', 'identity': other,
                                    'family_scores': {}}]},
                    'arena': {'llm': [{'name': 'Qwen3.8-27B', 'elo': 1438.4, 'votes': 9,
-                                      'identity': ident}]}}
+                                      'identity': ident},
+                                     {'name': 'Llama-3.1-8B', 'elo': 1210.0, 'votes': 9,
+                                      'identity': other}]}}
         row = AIModel(model_key='ilaas:qwen-3.8-27b', name='qwen-3.8-27b')
         benchmark, _ = bs._benchmark_for_category(row, 'llm', None, sources)
         self.assertEqual('aa_intelligence_index_v5', benchmark['scale'])
         self.assertEqual([('aa_intelligence_index_v5', 20.1), ('arena_elo_text', 1438.4)],
                          [(s['scale'], s['value']) for s in benchmark['scales']])
+        # 2026-11-12 (Q10) : l'ÉTENDUE de la population de chaque échelle, où la sélection borne un
+        # modèle sans note ; celle du porteur au niveau du banc, comme son rang.
+        self.assertEqual([[9.0, 20.1], [1210.0, 1438.4]],
+                         [s['population_range'] for s in benchmark['scales']])
+        self.assertEqual([9.0, 20.1], benchmark['population_range'])
 
     def test_the_served_variant_picks_the_entry_and_keeps_the_other_boards(self):
         """2026-10-31, mesuré chez ILaaS : « xhigh (default), medium, and low ». La variante SERVIE

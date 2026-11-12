@@ -30,7 +30,8 @@ from wama.model_manager.services.model_selector import (
 
 
 def _row(key, *, vram=None, coding=None, quality_index=None, cloud=False,
-           benchmark_index=None, scale=None, rank=None, scales=None):
+           benchmark_index=None, scale=None, rank=None, scales=None, population_range=None,
+           measured_vram=None):
     meta = {}
     if coding is not None:
         meta['family_scores'] = {'coding': coding}
@@ -40,9 +41,12 @@ def _row(key, *, vram=None, coding=None, quality_index=None, cloud=False,
         meta['percentile_rank'] = rank
     if scales is not None:
         meta['scales'] = [{'scale': s, 'value': v, 'direction': d} for s, v, d in scales]
+    if population_range is not None:
+        meta['population_range'] = population_range
+    extra = {'vram_measured': {'max_gb': measured_vram, 'n': 1}} if measured_vram else {}
     return AIModel(model_key=key, name=key, vram_gb=vram, quality_index=quality_index,
                    benchmark_index=benchmark_index, benchmark_meta=meta or None,
-                   execution=EXECUTION_CLOUD if cloud else EXECUTION_LOCAL)
+                   extra_info=extra, execution=EXECUTION_CLOUD if cloud else EXECUTION_LOCAL)
 
 
 class SubsetScaleTest(TestCase):
@@ -165,6 +169,92 @@ class AStageRanksOnlyIfItComparesTest(TestCase):
         devant un modèle que rien ne note, même plus gros."""
         lot = [_row('rated', benchmark_index=1000.0, scale='x', vram=4.0), _row('unrated', vram=20.0)]
         self.assertEqual('rated', _best_by_vram(lot, budget_gb=None, quality_intent=100).model_key)
+
+
+class UnknownQualityIsBoundedTest(TestCase):
+    """Q10, 2026-11-12 (`WAMA_QUALITE §0`, avis du concile) : un modèle SANS note n'est plus écarté
+    d'office. Son score est borné — ni meilleur que le meilleur, ni pire que le pire de la
+    population de l'échelle (du lot à défaut) — et trois verdicts en sortent ; seul « gagnant même
+    au pire », sur un coût MESURÉ, change le choix."""
+
+    def _lot(self, *, measured=None, unrated_vram=2.0):
+        return [_row('a', benchmark_index=60.0, scale='s', vram=10.0),
+                _row('b', benchmark_index=50.0, scale='s', vram=8.0),
+                _row('u', vram=unrated_vram, measured_vram=measured)]
+
+    def _verdicts(self, lot, intent):
+        from wama.model_manager.services.model_selector import (
+            _quality_ladder, unrated_verdicts)
+        costs = {id(m): m.vram_gb for m in lot if m.vram_gb}    # comme `_best_by_vram`
+        found = unrated_verdicts(lot, _quality_ladder(lot), costs, False, intent)
+        return {m.model_key: found[id(m)][0] for m in lot if id(m) in found}
+
+    def test_fast_takes_the_lighter_unrated_model_once_its_cost_is_measured(self):
+        """Le défaut de Q10 : au curseur 0 la qualité ne pèse rien, et le plus léger était écarté
+        parce que rien ne le notait."""
+        lot = self._lot(measured=2.5)
+        self.assertEqual('u', _best_by_vram(lot, budget_gb=None, quality_intent=0).model_key)
+        self.assertEqual({'u': 'wins'}, self._verdicts(lot, 0))
+
+    def test_a_declared_cost_does_not_make_an_unknown_model_win(self):
+        """Garde du concile : sur une VRAM seulement déclarée, prudence — le meilleur noté."""
+        lot = self._lot()
+        self.assertEqual('b', _best_by_vram(lot, budget_gb=None, quality_intent=0).model_key)
+        self.assertEqual({'u': 'undetermined'}, self._verdicts(lot, 0))
+
+    def test_at_full_quality_the_unknown_stays_undetermined_and_the_rated_wins(self):
+        lot = self._lot(measured=2.5)
+        self.assertEqual('a', _best_by_vram(lot, budget_gb=None, quality_intent=100).model_key)
+        self.assertEqual({'u': 'undetermined'}, self._verdicts(lot, 100))
+
+    def test_a_model_beaten_even_at_its_best_is_said_dominated(self):
+        lot = [_row('a', benchmark_index=60.0, scale='s', vram=4.0),
+               _row('b', benchmark_index=50.0, scale='s', vram=6.0),
+               _row('u', vram=40.0, measured_vram=40.0)]
+        self.assertEqual('a', _best_by_vram(lot, budget_gb=None, quality_intent=50).model_key)
+        self.assertEqual({'u': 'dominated'}, self._verdicts(lot, 50))
+
+    def test_the_population_of_the_scale_widens_the_unknown(self):
+        """Correction du concile : borner par le LOT plafonne un excellent inconnu dans un lot faible.
+        Au rang centile, la population va de 0 à 100 : l'inconnu bien plus léger ne gagne plus « à
+        coup sûr » à 40 (il gagnerait avec les bornes du lot, 40ᵉ–60ᵉ centile)."""
+        lot = [_row('r1', benchmark_index=1.0, scale='s1', rank=40.0, vram=8.0),
+               _row('r2', benchmark_index=2.0, scale='s2', rank=60.0, vram=10.0),
+               _row('u', vram=2.0, measured_vram=2.0)]
+        self.assertEqual('r2', _best_by_vram(lot, budget_gb=None, quality_intent=40).model_key)
+        self.assertEqual({'u': 'undetermined'}, self._verdicts(lot, 40))
+
+    def test_a_benchmark_scale_reads_the_population_range_the_sync_wrote(self):
+        """Même borne sur une échelle de banc : l'étendue que la synchro écrit (`population_range`)."""
+        from wama.model_manager.services.model_selector import _quality_ladder
+        lot = [_row('a', benchmark_index=60.0, scale='s', vram=10.0, population_range=[0.0, 100.0]),
+               _row('b', benchmark_index=50.0, scale='s', vram=8.0, population_range=[0.0, 100.0]),
+               _row('u', vram=2.0)]
+        ladder = _quality_ladder(lot)
+        self.assertEqual(('benchmark', (0.0, 100.0)), (ladder.stage, ladder.bounds))
+        lot[0].benchmark_meta.pop('population_range')
+        lot[1].benchmark_meta.pop('population_range')
+        self.assertIsNone(_quality_ladder(lot).bounds, 'sans étendue écrite : bornes du lot')
+
+    def test_a_lower_is_better_scale_turns_its_bounds_around(self):
+        from wama.model_manager.services.benchmark_sync import scale_population_bounds
+        row = _row('wer', benchmark_index=12.0, scale='wer_fr', population_range=[5.0, 40.0])
+        row.benchmark_meta['direction'] = 'lower'
+        self.assertEqual((-40.0, -5.0), scale_population_bounds([row]))
+
+    def test_an_unknown_cost_is_neither_beaten_nor_winning(self):
+        """Un local à `vram_gb = 0` n'a pas de coût connu (Phonon, mesuré le 2026-11-12) : « au
+        mieux » il pourrait être le plus léger, « au pire » le plus lourd — indéterminé, jamais
+        « battu même au mieux », jamais tiré."""
+        lot = self._lot(unrated_vram=0.0)
+        self.assertEqual({'u': 'undetermined'}, self._verdicts(lot, 0))
+        self.assertEqual('b', _best_by_vram(lot, budget_gb=None, quality_intent=0).model_key)
+
+    def test_a_fully_rated_lot_has_no_verdict(self):
+        """Contre-épreuve : sans modèle inconnu, rien ne change — le curseur comme avant."""
+        lot = self._lot()[:2]
+        self.assertEqual({}, self._verdicts(lot, 0))
+        self.assertEqual('b', _best_by_vram(lot, budget_gb=None, quality_intent=0).model_key)
 
 
 class CommonScaleTest(TestCase):

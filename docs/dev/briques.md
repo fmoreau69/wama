@@ -502,7 +502,7 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
 
 - **Domicile** : `wama/model_manager/services/benchmark_sync.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Signal qualité « BENCHMARK TIERS CONFRONTÉ » — 2e étage de l'échelle des signaux.
-- **API publique** (18) :
+- **API publique** (21) :
   - `class SourceUnavailable(Exception)` — Réseau/clé/format absents — la source est SKIPPÉE, jamais un score partiel inventé.
   - `aa_scale(spec: dict, version=None) -> str` — L'échelle d'une catégorie AA, VERSIONNÉE quand la réponse déclare la version de son indice.
   - `load_aa()` — {'categorie': [{'nom','slug','valeur','echelle','identite'}]} ; motifs par catégorie.
@@ -515,11 +515,14 @@ Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation
   - `load_mteb()` — {'embedding': [{'nom','slug','score','identite','taches','revision'}]} depuis le dépôt
   - `benchmarks_comparable(pool) -> bool` — Vrai si les `benchmark_index` du lot peuvent être ORDONNÉS entre eux.
   - `common_scale_values(pool) -> dict` — `{id(m): valeur ordonnable}` sur la première échelle (priorité des sources) que TOUT le lot
+  - `common_scale(pool) -> tuple` — `(échelle, sens, valeurs)` de `common_scale_values` — l'échelle retenue dite avec ses valeurs,
+  - `scale_population_bounds(pool, scale=None)` — Bornes ORDONNABLES (plus haut = meilleur) de la population d'une échelle, lues sur le lot :
   - `shared_percentile_values(pool) -> dict` — `{id(m): rang centile}` sur les modèles du lot qui en portent un, chacun lu dans la
   - `orderable_value(m)` — La valeur d'un `benchmark_index` telle qu'on peut la TRIER (plus grand = meilleur), ou
   - `category_task(cat: str)` — La tâche du catalogue qu'un banc mesure — lecture INVERSE de `TASK_TO_BENCH_CATEGORY`,
   - `leaderboard_repos(cache: str='read')` — Les CLASSEMENTS comme source de DÉCOUVERTE (2026-10-10, demande de Fabien) :
   - `percentile_rank(value, population, key, direction: str='higher')` — Position de `valeur` dans la population de SON banc, en centiles (0-100), ou None.
+  - `value_range(population, key)` — `[min, max]` des valeurs BRUTES d'une population (telles que la source les publie, sans
   - `synchronize(dry_run: bool=False, include_proposed: bool=True, keys=None, cache: str='off')` — Apparie le catalogue (téléchargés + candidats de prospection `proposed:`) aux deux
 
 ### Cache HF scopé — dernier recours
@@ -909,11 +912,13 @@ Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité —
 
 - **Domicile** : `wama/model_manager/services/model_selector.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Sélection intelligente de modèles — centralisée pour toutes les apps WAMA.
-- **API publique** (12) :
+- **API publique** (14) :
   - `get_free_vram_gb() -> Optional[float]` — VRAM libre (Go) du GPU le plus libre, MOINS ce que d'autres process ont réservé.
   - `is_cloud(model) -> bool` — Ce modèle s'exécute-t-il CHEZ UN TIERS ? Lit le champ DÉCLARÉ (`AIModel.execution`),
+  - `class QualityLadder(NamedTuple)` — Ce que l'échelle des signaux rend pour UN lot (2026-11-12, Q10 — `WAMA_QUALITE §0`).
   - `abilities_of(model) -> list` — Libellés des aptitudes déclarées par `model`, lus dans `ModelAbility` (+ sa spécialité).
   - `domain_q(domain: dict)` — Le filtre (`Q`) d'un DOMAINE déclaré au schéma d'une app (`options_query` : `task`, une ou
+  - `unrated_verdicts(pool, ladder: QualityLadder, costs: dict, speeds_known: bool, quality_intent) -> dict` — `{id(m): (verdict, plancher)}` des modèles du lot que l'étage retenu ne note pas — {} quand
   - `intent_choice(candidates, quality: dict, cost: dict, quality_intent, key=id)` — Le candidat que le CURSEUR rapide/qualité désigne — la règle de TOUTES les apps :
   - `select_model(source: Optional[str]=None, *, model_type: Optional[str]=None, requires: Optional[List[str]]=None, classes: Optional[List[str]]=None, prefer_loade…` — Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
   - `list_models(source: str, downloaded_only: bool=True, user=None) -> List[dict]` — Liste des modèles d'une source (dicts to_dict — description courte/longue + vram), ceux

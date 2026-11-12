@@ -12,7 +12,7 @@ Principe : model_manager = cerveau + source de vérité ; les apps appellent ce 
 """
 
 import logging
-from typing import List, Optional
+from typing import List, NamedTuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -265,9 +265,33 @@ def _quality_scalars(pool, family=None):
 
     Retour : ({id(m): valeur} sur le sous-ensemble COMPARABLE, proxy_vram) — le drapeau dit
     si la « qualité » n'est que la taille (utile aux appelants pour doser leur confiance).
+    L'étage qui a classé et ses bornes : `_quality_ladder`, dont ceci est la lecture courte.
     """
-    from .benchmark_sync import (STALE_KEY, benchmarks_comparable, common_scale_values,
-                                 orderable_value, shared_percentile_values)
+    ladder = _quality_ladder(pool, family)
+    return ladder.values, ladder.proxy_vram
+
+
+class QualityLadder(NamedTuple):
+    """Ce que l'échelle des signaux rend pour UN lot (2026-11-12, Q10 — `WAMA_QUALITE §0`).
+
+    `values` : `{id(m): valeur ordonnable}` des modèles que l'étage retenu note ; `proxy_vram` : la
+    « qualité » n'est que la taille ; `stage` : l'étage qui a classé ; `bounds` : `(bas, haut)`
+    ordonnables de la POPULATION de son échelle quand elle est connue (le rang centile vit dans
+    0-100 par construction ; une échelle de banc, par l'étendue que la synchro écrit), None sinon —
+    l'appelant borne alors par le lot. Les bornes servent à juger un modèle SANS note sans jamais
+    lui inventer une valeur (`selection_verdicts`)."""
+    values: dict
+    proxy_vram: bool
+    stage: str
+    bounds: Optional[tuple] = None
+
+
+def _quality_ladder(pool, family=None) -> QualityLadder:
+    """L'échelle des signaux de `_quality_scalars`, avec l'étage et les bornes (cf. `QualityLadder`).
+    Les règles des étages sont celles de `_quality_scalars` — elles vivent ICI."""
+    from .benchmark_sync import (STALE_KEY, benchmarks_comparable, common_scale,
+                                 orderable_value, scale_population_bounds,
+                                 shared_percentile_values)
 
     def _family_score(m):
         # Un sous-indice PÉRIMÉ (`STALE_KEY` : plus aucune source ne le confirme) ne classe pas
@@ -284,14 +308,14 @@ def _quality_scalars(pool, family=None):
 
     batch = list(pool)
     if not batch:
-        return {}, False
+        return QualityLadder({}, False, 'none')
 
     # Étage MESURE INTERNE — celui qui « primera toujours » (contrainte `qc.py`, ROADMAP §16.5),
     # en tête depuis le 2026-10-14 (Q3) : ce que WAMA a mesuré lui-même, sur une référence,
     # passe devant tout banc tiers et tout a priori (`_internal_values`).
     internal = _internal_values(batch)
     if internal:
-        return internal, False
+        return QualityLadder(internal, False, 'internal')
 
     # ⚠ UN ÉTAGE CLASSE S'IL COMPARE (2026-11-10, régression du Composer relevée par Fabien :
     # « on ne laisse pas un tel piège en suspens »). La règle de la mesure interne — au moins DEUX
@@ -305,12 +329,12 @@ def _quality_scalars(pool, family=None):
     # de qualité : elle ne prend la place de personne.
     single = None
 
-    def stage(values):
+    def stage(values, name, bounds=None):
         nonlocal single
         if len(values) >= 2:
-            return values
+            return QualityLadder(values, False, name, bounds)
         if values and single is None:
-            single = values
+            single = QualityLadder(values, False, name, bounds)
         return None
 
     if family:
@@ -319,24 +343,28 @@ def _quality_scalars(pool, family=None):
         # comparent pas plus que leurs indices généraux (`benchmark_sync.aa_scale`, 2026-10-30).
         # Plusieurs échelles parmi les couverts → l'étage s'abstient, comme la mesure interne.
         scales = {(getattr(m, 'benchmark_meta', None) or {}).get('scale') for m in covered}
-        values = stage({id(m): _family_score(m) for m in covered}) if len(scales) == 1 else None
-        if values:
-            return values, False
+        ladder = (stage({id(m): _family_score(m) for m in covered}, 'family')
+                  if len(scales) == 1 else None)
+        if ladder:
+            return ladder
 
     # Étage benchmark TIERS : le sous-ensemble mesuré doit AUSSI partager une seule échelle
     # (un Elo et un Intelligence Index ne se classent pas ensemble — `benchmarks_comparable`).
     measured = [m for m in batch if getattr(m, 'benchmark_index', None) is not None]
     if measured and benchmarks_comparable(measured):
-        values = stage({id(m): orderable_value(m) for m in measured})
-        if values:
-            return values, False
+        ladder = stage({id(m): orderable_value(m) for m in measured}, 'benchmark',
+                       scale_population_bounds(measured))
+        if ladder:
+            return ladder
 
     # Étage ÉCHELLE COMMUNE (2026-10-30, décision de Fabien) : des porteurs différents, mais une
     # échelle que TOUT le sous-ensemble mesuré porte aussi (l'Arena derrière un porteur AA) — la
     # valeur sur cette échelle avant le rang centile (`benchmark_sync.common_scale_values`).
-    common = stage(common_scale_values(measured))
-    if common:
-        return common, False
+    common_name, _direction, common_values = common_scale(measured)
+    ladder = stage(common_values, 'common_scale',
+                   scale_population_bounds(measured, common_name) if common_name else None)
+    if ladder:
+        return ladder
 
     # Étage RANG CENTILE — la lecture INTER-ÉCHELLES (branché le 2026-09-26, demande de Fabien).
     # `benchmark_sync.percentile_rank` a été écrit le 01/09 pour exactement cette question
@@ -357,23 +385,24 @@ def _quality_scalars(pool, family=None):
     # ⚠ Et chaque modèle s'y lit dans la population la plus PARTAGÉE du lot (2026-11-06) : le
     # rang du seul porteur faisait comparer trois populations à des modèles que l'Arena notait
     # presque tous (`benchmark_sync.shared_percentile_values`).
-    ranked = stage(shared_percentile_values(batch))
+    # Le rang centile vit dans 0-100 PAR CONSTRUCTION : c'est l'étendue de toute population.
+    ranked = stage(shared_percentile_values(batch), 'percentile', (0.0, 100.0))
     if ranked:
-        return ranked, False
+        return ranked
 
-    rated = stage({id(m): m.quality_index for m in batch if m.quality_index is not None})
+    rated = stage({id(m): m.quality_index for m in batch if m.quality_index is not None}, 'prior')
     if rated:
-        return rated, False
+        return rated
     if single:
-        return single, False
+        return single
 
     sized = [m for m in batch if not is_cloud(m) and m.vram_gb]
     if sized:
-        return {id(m): m.vram_gb for m in sized}, True
+        return QualityLadder({id(m): m.vram_gb for m in sized}, True, 'vram')
 
     # Rien de comparable dans ce lot : aucun ne prime, l'appelant départagera autrement
     # (résidence, ordre du catalogue). Mieux vaut l'égalité qu'un classement inventé.
-    return {id(m): 0 for m in batch}, True
+    return QualityLadder({id(m): 0 for m in batch}, True, 'none')
 
 
 def _minmax(values: dict) -> dict:
@@ -487,7 +516,8 @@ def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_inten
     # L'échelle ne couvre que les modèles COMPARABLES entre eux (2026-09-26) : le classement
     # se fait sur eux, pas sur le lot entier. Un modèle que rien ne mesure ne gagne pas par
     # défaut — et il ne fait plus tomber les autres d'un étage.
-    values, _ = _quality_scalars(pool, family)
+    ladder = _quality_ladder(pool, family)
+    values = ladder.values
     rankable = [m for m in pool if id(m) in values] or pool
 
     # Coût = VRAM (à défaut de vitesse apprise, cf. plus bas). Trois cas, et on ne les confond plus (Fabien, 26/09) :
@@ -526,7 +556,107 @@ def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_inten
     else:
         costs = {id(m): (0.0 if is_cloud(m) else m.vram_gb)
                  for m in pool if is_cloud(m) or m.vram_gb}
+
+    # Les modèles SANS note (Q10, 2026-11-12 — `WAMA_QUALITE §0`, avis du concile) : on borne ce
+    # qu'on ignore au lieu de l'écarter d'office. Seul le verdict « gagnant même au pire » change le
+    # choix ; « battu même au mieux » et « indéterminé » gardent le meilleur modèle noté (prudence,
+    # décision de Fabien) — ils ne servent qu'à le DIRE.
+    verdicts = unrated_verdicts(pool, ladder, costs, bool(speeds), quality_intent)
+    if verdicts:
+        logger.info('[model_selector] étage %s (bornes : %s) ; sans note : %s', ladder.stage,
+                    'population' if ladder.bounds else 'lot',
+                    {m.model_key: verdicts[id(m)][0] for m in pool if id(m) in verdicts})
+    winners = [m for m in pool if verdicts.get(id(m), ('',))[0] == VERDICT_WINS]
+    if winners:
+        return max(winners, key=lambda m: verdicts[id(m)][1])
     return intent_choice(rankable, values, costs, quality_intent)
+
+
+#: Verdicts d'un modèle SANS note sur l'échelle retenue (`unrated_verdicts`).
+VERDICT_DOMINATED = 'dominated'        # battu même au mieux : écarté, et on le dit
+VERDICT_WINS = 'wins'                  # gagnant même au pire : tiré, et on le dit
+VERDICT_UNDETERMINED = 'undetermined'  # ni l'un ni l'autre : prudence, le meilleur noté
+
+
+def _cost_is_measured(model, speeds_known: bool) -> bool:
+    """Le coût de ce modèle est-il MESURÉ ? — la vitesse apprise sur ce matériel (tout le lot, cf.
+    `comparable_speeds`), un distant (il ne prend rien sur cette carte, par nature), ou une VRAM
+    relevée au chargement (`extra_info['vram_measured']`). Une VRAM seulement déclarée ne l'est pas."""
+    if speeds_known or is_cloud(model):
+        return True
+    return bool(((getattr(model, 'extra_info', None) or {}).get('vram_measured') or {}).get('max_gb'))
+
+
+def _known_costs(model, costs: dict, speeds_known: bool) -> list:
+    """Les coûts qu'on sait de ce modèle : la vitesse apprise, 0 pour un distant, sinon sa VRAM
+    déclarée et sa VRAM mesurée (un plancher : la résidence finale, pas le pic). [] s'il n'en a
+    aucun — un local à `vram_gb = 0` n'est pas « gratuit », il est inconnu."""
+    if speeds_known or is_cloud(model):
+        return [costs[id(model)]] if id(model) in costs else []
+    measured = float(((getattr(model, 'extra_info', None) or {}).get('vram_measured') or {})
+                     .get('max_gb') or 0)
+    return [v for v in (costs.get(id(model)), measured) if v]
+
+
+def unrated_verdicts(pool, ladder: QualityLadder, costs: dict, speeds_known: bool,
+                     quality_intent) -> dict:
+    """`{id(m): (verdict, plancher)}` des modèles du lot que l'étage retenu ne note pas — {} quand
+    tous le sont, ou quand la « qualité » n'est que la taille (aucune note du tout).
+
+    Q10 (2026-11-12, `WAMA_QUALITE §0`, hypothèse acceptée par Fabien, bornes corrigées par le
+    concile) : un modèle sans note n'est ni meilleur que le meilleur, ni pire que le pire de la
+    POPULATION de l'échelle (`ladder.bounds`), du lot à défaut. Avec le score du curseur
+    `S = w·q + (1−w)·(1−c)` (`intent_choice`, valeurs normalisées sur le lot), son score est un
+    INTERVALLE, de largeur `w` sur le lot : l'ignorance pèse le poids que l'utilisateur donne à la
+    qualité. On ne lui invente aucune valeur, on ne mélange aucune échelle.
+      • battu même au mieux — sa borne haute reste sous le meilleur noté ;
+      • gagnant même au pire — sa borne basse, au coût le plus défavorable, le dépasse, ET son coût
+        est MESURÉ (garde du concile : un coût seulement déclaré ne fait pas gagner un inconnu) ;
+      • indéterminé — sinon : prudence, le meilleur noté (décision de Fabien, aucune interface de plus).
+    `plancher` départage plusieurs gagnants."""
+    if ladder.proxy_vram:
+        return {}
+    values = ladder.values
+    rated = [m for m in pool if id(m) in values]
+    unrated = [m for m in pool if id(m) not in values]
+    if not rated or not unrated:
+        return {}
+    w = _quality_weight(quality_intent)
+    q, c = _minmax(values), _minmax(costs)
+    best = max(w * q[id(m)] + (1.0 - w) * (1.0 - c.get(id(m), 1.0)) for m in rated)
+
+    q_lo, q_hi = min(values.values()), max(values.values())
+    if ladder.bounds:
+        b_lo, b_hi = min(ladder.bounds[0], q_lo), max(ladder.bounds[1], q_hi)
+    else:
+        b_lo, b_hi = q_lo, q_hi
+    if q_hi > q_lo:
+        lo, hi = (b_lo - q_lo) / (q_hi - q_lo), (b_hi - q_lo) / (q_hi - q_lo)
+    else:
+        lo, hi = 0.0, 1.0          # les notés sont à égalité (0,5) : l'inconnu de part et d'autre
+    c_lo, c_hi = (min(costs.values()), max(costs.values())) if costs else (0.0, 0.0)
+
+    def normalized_cost(value):
+        if c_hi > c_lo:
+            return (value - c_lo) / (c_hi - c_lo)
+        return 0.5 if value == c_lo else (1.0 if value > c_hi else 0.0)
+
+    verdicts = {}
+    for m in unrated:
+        known = _known_costs(m, costs, speeds_known)
+        # « Au mieux » prend aussi le coût le plus FAVORABLE : un coût inconnu peut être le plus bas
+        # du lot (0). « Au pire », le plus DÉFAVORABLE : inconnu, c'est le pire (garde du 02/09).
+        best_cost = normalized_cost(min(known)) if known else 0.0
+        worst_cost = normalized_cost(max(known)) if known else 1.0
+        ceiling = w * hi + (1.0 - w) * (1.0 - best_cost)
+        floor = w * lo + (1.0 - w) * (1.0 - worst_cost)
+        if ceiling < best:
+            verdicts[id(m)] = (VERDICT_DOMINATED, floor)
+        elif floor > best and _cost_is_measured(m, speeds_known):
+            verdicts[id(m)] = (VERDICT_WINS, floor)
+        else:
+            verdicts[id(m)] = (VERDICT_UNDETERMINED, floor)
+    return verdicts
 
 
 def intent_choice(candidates, quality: dict, cost: dict, quality_intent, key=id):

@@ -1332,9 +1332,16 @@ def common_scale_values(pool) -> dict:
     deux sont notés par l'Arena (1438 et 1443). Une valeur sur une même échelle dit plus qu'un
     rang sur deux. Les échelles viennent de la synchro (`benchmark_meta['scales']`) ; le sens
     voyage avec chacune (un taux d'erreur se lit à l'envers)."""
+    return common_scale(pool)[2]
+
+
+def common_scale(pool) -> tuple:
+    """`(échelle, sens, valeurs)` de `common_scale_values` — l'échelle retenue dite avec ses valeurs,
+    pour que la sélection en lise l'étendue de population (2026-11-12, Q10) ; `(None, None, {})`
+    s'il n'y en a aucune."""
     batch = list(pool)
     if len(batch) < 2:
-        return {}
+        return None, None, {}
 
     def carried(m):
         meta = getattr(m, 'benchmark_meta', None) or {}
@@ -1349,8 +1356,27 @@ def common_scale_values(pool) -> dict:
                 break
             values[id(m)] = -float(hit) if direction == 'lower' else float(hit)
         else:
-            return values
-    return {}
+            return scale, direction, values
+    return None, None, {}
+
+
+def scale_population_bounds(pool, scale=None):
+    """Bornes ORDONNABLES (plus haut = meilleur) de la population d'une échelle, lues sur le lot :
+    l'étendue écrite par la synchro (`population_range`) pour `scale` — l'échelle du porteur si
+    `scale` est None —, retournée pour une échelle « plus bas = mieux ». None si aucune ligne ne la
+    porte encore (synchronisée avant le 2026-11-12) : l'appelant borne alors par le lot."""
+    for m in pool:
+        meta = getattr(m, 'benchmark_meta', None) or {}
+        if scale is None:
+            span, direction = meta.get('population_range'), meta.get('direction') or 'higher'
+        else:
+            entry = next((e for e in meta.get('scales') or [] if e.get('scale') == scale), None)
+            span = (entry or {}).get('population_range')
+            direction = (entry or {}).get('direction') or 'higher'
+        if span and len(span) == 2:
+            lo, hi = float(span[0]), float(span[1])
+            return (-hi, -lo) if direction == 'lower' else (lo, hi)
+    return None
 
 
 def shared_percentile_values(pool) -> dict:
@@ -1772,6 +1798,14 @@ def percentile_rank(value, population, key, direction: str = 'higher'):
     return round(100.0 * beaten / len(values), 1)
 
 
+def value_range(population, key):
+    """`[min, max]` des valeurs BRUTES d'une population (telles que la source les publie, sans
+    sens appliqué), ou None si elle n'en porte aucune. Les bornes d'une échelle, pas une mesure :
+    le sélecteur y borne un modèle sans note (`model_selector._quality_ladder`)."""
+    values = [v for v in (key(e) for e in population or []) if isinstance(v, (int, float))]
+    return [min(values), max(values)] if values else None
+
+
 def _benchmark_for_category(m, cat, alias, sources):
     """
     Mesure d'UNE catégorie pour un modèle → `(banc, idents)`, `banc` à None si non apparié.
@@ -1836,13 +1870,20 @@ def _benchmark_for_category(m, cat, alias, sources):
         if s['value'](chosen) is not None:
             entry = {'scale': s['scale'](chosen, cat), 'value': s['value'](chosen),
                      'direction': _direction(s, chosen)}
+            population = sources.get(s['key'], {}).get(cat, [])
+            # L'ÉTENDUE de la population de CETTE échelle (2026-11-12, Q10, `WAMA_QUALITE §0`) : la
+            # sélection y borne un modèle sans note (« ni meilleur que le meilleur, ni pire que le
+            # pire » de la population qui DÉFINIT l'échelle, plus large que le lot du moment). Une
+            # étendue n'est pas un rang : elle vaut aussi pour un tableau d'auteur (sa population).
+            span = value_range(population, s['value'])
+            if span:
+                entry['population_range'] = span
             # Le rang dans la population de CETTE échelle (2026-11-06, demande de Fabien) : le
             # porteur seul ne donnait que le sien, et deux porteurs se comparaient par deux
             # populations alors que l'Arena les classait tous deux (`shared_percentile_values`).
             # Même règle que le rang du porteur : un banc indépendant seulement.
             if (chosen.get('provenance')
                     or s.get('provenance', PROVENANCE_INDEPENDENT)) == PROVENANCE_INDEPENDENT:
-                population = sources.get(s['key'], {}).get(cat, [])
                 entry['percentile_rank'] = percentile_rank(entry['value'], population,
                                                            s['value'], entry['direction'])
                 entry['population'] = len(population)
@@ -1873,6 +1914,8 @@ def _benchmark_for_category(m, cat, alias, sources):
     population = sources.get(carrier['key'], {}).get(cat, []) if carrier else []
     benchmark['percentile_rank'] = scales[0].get('percentile_rank') if carrier and scales else None
     benchmark['population'] = len(population)
+    # L'étendue de l'échelle du porteur, comme son rang : celle de la première de `scales`.
+    benchmark['population_range'] = scales[0].get('population_range') if carrier and scales else None
     return benchmark, idents
 
 

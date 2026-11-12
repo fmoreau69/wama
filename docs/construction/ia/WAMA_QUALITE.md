@@ -480,6 +480,34 @@ pas des décisions de Fabien.
   du MODÈLE (dispersion entre passes = répétabilité). Pour un modèle stochastique elles se
   cumulent : la répétabilité dit combien de passes, l'intervalle combien d'items.
 
+✅ **MARCHE 1 LIVRÉE (2026-11-12, feu vert de Fabien) — le sélecteur borne l'inconnu.**
+- **Code** : `model_selector._quality_ladder` (l'échelle des signaux dit désormais l'ÉTAGE qui a
+  classé et les BORNES de sa population — `QualityLadder` ; `_quality_scalars` en reste la lecture
+  courte, ses appelants inchangés), `unrated_verdicts` (les trois verdicts, coût le plus favorable
+  « au mieux », le plus défavorable « au pire », gain seulement sur coût MESURÉ :
+  `_cost_is_measured`, `_known_costs`), branché en fin de `_best_by_vram`. Bornes : rang centile
+  0-100 par construction ; échelle de banc par l'étendue que la synchro écrit désormais
+  (`benchmark_sync.value_range` → `population_range`, par échelle et pour le porteur ;
+  `scale_population_bounds`, sens « plus bas = mieux » retourné ; `common_scale` dit l'échelle
+  commune retenue) ; a priori et mesure interne : le lot. ⚠ Les lignes synchronisées AVANT ce jour
+  n'ont pas d'étendue : bornes du lot jusqu'à la prochaine synchro (nuit, `benchmarks-refresh`).
+- **Mesuré avant/après** (lecture seule, tous les lots réels du catalogue — tâche × local /
+  distant / les deux × 3 budgets × 5 positions, `coding` pour `llm`/`vlm`, distants autorisés) :
+  **1 365 tirages, 18 changent, tous au curseur 0 ou 15, deux tâches** — `text-to-speech` :
+  coqui-xtts → Kokoro-82M ONNX (non noté, VRAM MESURÉE 1,04 Go sur 40 chargements, contre 2,0) ;
+  `transcription` : qwen3-asr-0.6b → LinTO FR (non noté au rang, VRAM mesurée 0,88 Go sur 16 — et
+  12,96 % de WER chez Linagora). Rien d'autre ne bouge. ⚠ Le Transcriber réel tire dans ses paliers
+  `priority` (whisper d'abord) : la bascule y est sans effet ; le Synthesizer en « Rapide » rend
+  désormais Kokoro ONNX.
+- **Trouvé à la mesure, corrigé** : un local à `vram_gb = 0` (Phonon) sortait « battu même au
+  mieux » — un coût INCONNU peut être le plus bas : il est indéterminé.
+- **Gardes** : `tests_signal_scale_subset.UnknownQualityIsBoundedTest` (9) + l'étendue écrite par
+  la synchro (`tests.TroisiemeBancEtSensTest.test_every_source_that_rates_the_model_is_recorded_in_priority_order`) ;
+  contre-épreuve en processus (`mutate_in_process`), 7 mutations, 7 rouges distincts.
+- ⏳ **Reste de la marche** : le DIRE à l'écran — la prévision « Prévu : … » (`auto_model.
+  predict_model_choice`, `wama-params.js`) ne reçoit que la clé ; elle dira l'étage et les modèles
+  non comparés (marche 2, avec les notes calculées dans `WamaModelHelp`).
+
 ⏳ **`AIModel.cost_tier` reste NON LU, et c'est délibéré** (question tranchée le 26/09,
 demande initiale de Fabien de « brancher l'arbitrage honnête », retirée après mesure). Le
 champ est bien renseigné par source (`external_sources` : albert `free` + souverain,

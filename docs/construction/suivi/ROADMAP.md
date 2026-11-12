@@ -1368,9 +1368,10 @@ chaud, traduction→Ollama.
 - `priority` (préférence ordonnée, domine la VRAM) pour les apps « par moteur » (Transcriber
   whisper-first) ; logique VRAM-greedy (le plus gros qui tient) pour les apps « par variante ».
   *Relevé du 2026-11-10* : `select_model` reçoit aussi `benchmark_family`, `specialization`, `quality_intent`, `cloud_keys`, `user` ; le tirage pondère qualité et légèreté au curseur, le budget VRAM est un filtre, levé à curseur haut (`_best_by_vram`).
-  ⏳ *2026-11-12, Q10* : un modèle sans note n'est plus écarté d'office — le tirage bornera
-  l'inconnu (trois verdicts), dira ce qu'il n'a pas comparé, et l'aide `WamaModelHelp` montrera
-  les notes calculées → **§30.1** (méthode : `WAMA_QUALITE §0`).
+  🔄 *2026-11-12, Q10* : un modèle sans note n'est plus écarté d'office — ✅ le tirage borne
+  l'inconnu (trois verdicts, `model_selector.unrated_verdicts`) ; ⏳ il dira ce qu'il n'a pas
+  comparé, et l'aide `WamaModelHelp` montrera les notes calculées → **§30.1** (méthode :
+  `WAMA_QUALITE §0`).
 - **Descriptions à deux tiers** : `AIModel.description` (long) + `description_short` (court),
   dérivation auto, migration 0003. `WamaModelHelp` : court sous le sélecteur + long en ⓘ.
 - **Étape 3 (✅ — relevé du 2026-10-26 : 9/9 apps à modèle, par `resolve_model_choice` ou la
@@ -8211,7 +8212,9 @@ remplace l'autre.
 
 **30.1 Trous de sélection et de notation (Q10)** — 🔄 avis et décisions de Fabien le 2026-11-12,
 avis du concile (« correcte avec corrections ») lu dans `WAMA_QUALITE §0` :
-1. ⏳ le curseur borne l'inconnu par l'étendue de la POPULATION de l'échelle retenue (du lot à
+1. 🔄 *(sélecteur ✅ le 2026-11-12 — 1 365 tirages mesurés, 18 changent, tous en « Rapide » :
+   `WAMA_QUALITE §0` « MARCHE 1 LIVRÉE » ; ⏳ le dire à l'écran, avec le point 2)* le curseur
+   borne l'inconnu par l'étendue de la POPULATION de l'échelle retenue (du lot à
    défaut), trois verdicts (battu même au mieux ; gagnant même au pire, sur un coût MESURÉ
    seulement ; indéterminé → prudence) et dit l'étage, l'échelle, la population, les modèles non
    comparés — dans le sélecteur commun seul (`model_selector._quality_scalars` / `intent_choice`),
