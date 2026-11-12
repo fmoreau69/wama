@@ -1368,6 +1368,9 @@ chaud, traduction→Ollama.
 - `priority` (préférence ordonnée, domine la VRAM) pour les apps « par moteur » (Transcriber
   whisper-first) ; logique VRAM-greedy (le plus gros qui tient) pour les apps « par variante ».
   *Relevé du 2026-11-10* : `select_model` reçoit aussi `benchmark_family`, `specialization`, `quality_intent`, `cloud_keys`, `user` ; le tirage pondère qualité et légèreté au curseur, le budget VRAM est un filtre, levé à curseur haut (`_best_by_vram`).
+  ⏳ *2026-11-12, Q10* : un modèle sans note n'est plus écarté d'office — le tirage bornera
+  l'inconnu (trois verdicts), dira ce qu'il n'a pas comparé, et l'aide `WamaModelHelp` montrera
+  les notes calculées → **§30.1** (méthode : `WAMA_QUALITE §0`).
 - **Descriptions à deux tiers** : `AIModel.description` (long) + `description_short` (court),
   dérivation auto, migration 0003. `WamaModelHelp` : court sous le sélecteur + long en ⓘ.
 - **Étape 3 (✅ — relevé du 2026-10-26 : 9/9 apps à modèle, par `resolve_model_choice` ou la
@@ -7086,6 +7089,10 @@ faits des registres. Toutes sont des `.md`, lisibles depuis le dépôt ET depuis
 (`/common/docs/`), rangées par audience puis par sous-catégorie. Les registres seuls ne suffisent
 pas à les générer : ils disent ce qui existe, pas pourquoi ni comment s'en servir.
 
+💡 *2026-11-12 (Fabien)* : un **quatrième public**, extérieur — un site web de WAMA qui publie ses
+évaluations et ce qu'elle a appris — dériverait de la même façon (jamais rédigé à part) : `§30.3`,
+intention `WAMA_VISION_COMPLET §10.4`.
+
 **Ce qui existe au 2026-09-11** : le catalogue des docs (`common/docs_catalog.py`, lecteur,
 registre `docs`) ; `check_docs` (doc → code) ; `doc_facts` (blocs `WAMA:FAITS`) ; trois pages
 développeur CALCULÉES à la lecture (`common/dev_docs.py`) — un amorçage, pas la cible.
@@ -8198,7 +8205,9 @@ remplace l'autre.
 
 > Intention : `WAMA_VISION_COMPLET §10.4` (publier) et `§1.5` (répétabilité, reproductibilité).
 > Méthode et décisions : `WAMA_QUALITE` §0 « AVIS DU 2026-11-12 », M8, M9, Q10. Rien d'implémenté ;
-> ce plan dit l'ORDRE, il ne recopie pas la méthode.
+> ce plan dit l'ORDRE, il ne recopie pas la méthode. ⚠ Deux domiciles qu'il ne double pas : la
+> SÉLECTION centralisée vit en **§5b** (30.1 en est la suite, pointée là-bas), l'ordre des paliers
+> de MESURE en `WAMA_QUALITE §9` (P0–P6, la mesure d'entrée est P4).
 
 **30.1 Trous de sélection et de notation (Q10)** — 🔄 avis et décisions de Fabien le 2026-11-12,
 avis du concile (« correcte avec corrections ») lu dans `WAMA_QUALITE §0` :
@@ -8207,8 +8216,9 @@ avis du concile (« correcte avec corrections ») lu dans `WAMA_QUALITE §0` :
    seulement ; indéterminé → prudence) et dit l'étage, l'échelle, la population, les modèles non
    comparés — dans le sélecteur commun seul (`model_selector._quality_scalars` / `intent_choice`),
    donc pour toutes les apps et `best_installed` ;
-2. ⏳ les notes pertinentes dans les descriptions des modèles, CALCULÉES à l'affichage (aide
-   commune des modèles), jamais recopiées ;
+2. ⏳ les notes pertinentes dans les descriptions des modèles, CALCULÉES à l'affichage dans l'aide
+   commune `WamaModelHelp` (court sous le sélecteur, long en ⓘ — §5b « Descriptions à deux
+   tiers »), jamais recopiées dans `description` / `description_short` ;
 3. ⏳ une échelle de qualité PRINCIPALE déclarée par tâche, les autres (N, pas deux) par
    dominance — un seuil déclaré seulement s'il se justifie (tranché par Fabien le 2026-11-12 ;
    1ᵉʳ cas : effets sonores du Composer, CLAP puis FAD) ;
@@ -8225,7 +8235,7 @@ hors de l'échelle de qualité) ; ⏳ étoiles des utilisateurs lues comme des d
 
 **30.3 Publication** — 💡 quand la notation est éprouvée sur assez de modèles : rapports
 d'évaluation publiés, puis un site web de WAMA (présentation + connaissances acquises). Préalables :
-les rapports GÉNÉRÉS de toutes les tâches mesurées (`WAMA_QUALITE §9`, transcription encore
+les rapports GÉNÉRÉS de toutes les tâches mesurées (`WAMA_QUALITE §9bis`, transcription encore
 recopiée), le quatrième public dérivé de la doc (`§25`), un export séparé de l'instance (`§18.3`,
 même logique), la règle de licence et de données (`WAMA_VISION_COMPLET §9.1`). Décision de Fabien
 au moment venu.

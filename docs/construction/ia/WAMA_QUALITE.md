@@ -382,7 +382,8 @@ apparaît en l'évaluant entre dans le commun.
   noté ; le modèle prévu est affiché, l'utilisateur choisit lui-même un modèle non noté s'il le
   veut. Les descriptions courtes et longues portent les notes pertinentes pour ce choix manuel —
   **CALCULÉES à l'affichage** depuis `benchmark_meta` et les mesures internes, avec échelle et
-  population, dans l'aide commune des modèles ; jamais recopiées dans `description_long` (un
+  population, dans l'aide commune des modèles (`WamaModelHelp`, `common/js/wama-model-help.js` :
+  court sous le sélecteur, long en ⓘ) ; jamais recopiées dans `description_long` (un
   chiffre ne vit qu'à un endroit ; `describe_model`, `model_selector.py:1077-1085`, ne rend
   aujourd'hui que le texte).
 - **③ NOTATION — le trou ne se supprime pas, il se borne dans le temps** : un modèle sans note est
@@ -424,7 +425,7 @@ apparaît en l'évaluant entre dans le commun.
 - ⏳ **Publication, à terme** (Fabien) : quand la notation sera éprouvée sur assez de modèles,
   publier résultats et rapports d'évaluation — site web de WAMA qui présente la plateforme et
   compile ce qu'elle a appris. Intention portée par `WAMA_VISION_COMPLET §10.4` et
-  `ROADMAP §30` ; les rapports générés existent déjà (§9, « Rapports d'évaluation GÉNÉRÉS »).
+  `ROADMAP §30` ; les rapports générés existent déjà (§9bis, « Rapports d'évaluation GÉNÉRÉS »).
 
 📜 **AVIS DU CONCILE DE WAMA (2026-11-12) — et sa lecture.** Dossier autonome (le problème, les
 règles, A à E ci-dessus, sept questions), lancé par la délégation de l'assistant

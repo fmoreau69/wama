@@ -891,7 +891,7 @@ Ce que la doctrine en dit déjà, et qui borne l'intention :
 - **une publication est DÉRIVÉE, jamais rédigée en parallèle** — c'est la règle des docs
   développeur et utilisateur (« trois docs, trois publics », `ROADMAP §25`) prolongée à un
   quatrième public, extérieur : faits tirés des registres et des mesures (`ResultEvaluation`,
-  rapports d'évaluation déjà GÉNÉRÉS, `WAMA_QUALITE §9`), pourquoi tiré de la doc de construction ;
+  rapports d'évaluation déjà GÉNÉRÉS, `WAMA_QUALITE §9bis`), pourquoi tiré de la doc de construction ;
 - **une note publiée garde son échelle, sa population, son protocole et sa date** — une mesure
   WAMA n'est pas un banc universel, et elle se périme quand le modèle ou le corpus change ;
 - **rien de ce qui transite ne se publie** : ni média, ni donnée d'utilisateur, ni corpus dont la
