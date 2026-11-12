@@ -2737,7 +2737,7 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (29) :
+- **API publique** (31) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs.
@@ -2750,6 +2750,8 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
   - `surface_domains(app: str, surface: str) -> list` — Les domaines de l'app que cette surface sert — un seul, sauf quand deux domaines
   - `domain_schema_name(app: str, domain_id: str) -> str` — Le nom du schéma de réglages de ce domaine (`*PARAMS_JSON` du module `params` de l'app),
   - `domain_schema(app: str, domain_id: str) -> list` — Le schéma de réglages de ce domaine : celui qu'il nomme, sinon le principal de l'app.
+  - `home_domain(app: str) -> str | None` — Le domaine qui porte le schéma PRINCIPAL de l'app — celui d'un réglage du volet HORS schéma
+  - `app_schemas(app: str) -> list` — `[(domaine | None, schéma)]` — TOUS les schémas de réglages de l'app : le principal
   - `element_domain(element) -> str | None` — Le domaine d'un ÉLÉMENT, dérivé de ce qui est déjà déclaré : la surface de son modèle
   - `element_domain_or_first(element) -> str | None` — Le domaine d'un élément (`element_domain`), sinon le PREMIER que son app déclare — celui
   - `element_schema_name(element) -> str` — Le nom du schéma de réglages du domaine d'un élément (`element_domain_or_first`), '' : le
@@ -2976,7 +2978,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (44) :
+- **API publique** (45) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
@@ -2998,6 +3000,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `panel_name_key(p)` — Clé de stockage = le NOM du param, s'il figure au volet (None sinon). L'autre règle que
   - `remembered(p) -> bool` — Le réglage se retient-il (préférence de l'utilisateur) ? Sa déclaration `remember`, sinon
   - `domain_key(domain: str)` — LA règle de clé de stockage (2026-10-21, « une seule règle pour tous ») : `<domaine>.<nom>`
+  - `setting_key(app: str, params, domain: str=None)` — La règle de clé des réglages RETENUS de `params` pour `app` — ce que la brique
   - `panel_defaults(params, key=None) -> dict` — {clé de stockage: défaut} des params du volet.
   - `panel_values_by_name(stored, params, key=None) -> dict` — Ré-indexe les réglages STOCKÉS vers ce que `WamaParams.render` attend (le `name` du
   - `panel_prefs_from_post(post, params, key=None) -> dict` — Chemin INVERSE de `panel_values_by_name` : les valeurs postées par NOM, re-clées pour le
@@ -3012,7 +3015,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `schema_arg_names(app_id: str) -> set` — Noms de params qu'une app DÉCLARE — surface d'arguments acceptable d'un outil `**params`.
   - `choice_values(p) -> List[str]` — Valeurs VALIDES d'un select/radio : ses `choices` statiques. UNE fonction pour la porte
   - `catalog_options(p) -> List[Tuple[str, str]]` — [(valeur, libellé)] d'un select tiré du CATALOGUE (`options_source='catalog'`), lus sur le
-  - `catalog_choice_keys(app_id: str) -> List[Tuple[dict, List[str]]]` — [(champ, [clés de catalogue])] des selects de catalogue d'une app, dans l'ordre du schéma —
+  - `catalog_choice_keys(app_id: str, domain: str=None) -> List[Tuple[dict, List[str]]]` — [(champ, [clés de catalogue])] des selects de catalogue d'une app, dans l'ordre du schéma —
   - `invalid_choice_values(schema, data) -> dict` — {nom: (valeurs_refusées, choices_valides_triés)} pour chaque valeur PRÉSENTE hors
   - `unapplicable_numeric_values(schema, data) -> dict` — {nom: (valeur_refusée, explication)} pour chaque nombre PRÉSENT que le schéma ne peut
   - `schema_choice_values(app_id, name) -> set` — Valeurs valides d'un param à `choices`, DÉRIVÉES du schéma — jamais recopiées.
@@ -3692,18 +3695,19 @@ Réglages durables en base (UserAppSetting, cache devant) ; réglages du VOLET d
 
 - **Domicile** : `wama/common/utils/user_settings.py`
 - **Module** : WAMA Common — Réglages UTILISATEUR par app, DURABLES en base (cache en lecture devant).
-- **API publique** (12) :
+- **API publique** (13) :
   - `get_user_app_settings(user, app, defaults)` — Retourne le dict complet des réglages de ``user`` pour ``app``.
   - `get_user_app_setting(user, app, name, default=None)` — Lecture d'UN réglage.
+  - `remembered_setting(user, app, name, default=None, domain=None)` — UN réglage retenu du volet, lu par son NOM — pour qui n'a pas le schéma en main (le curseur
   - `clear_user_app_settings(user, app, names)` — Retire les réglages `names` de ``user`` pour ``app`` : ils reprennent le défaut que
-  - `read_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict` — Les réglages du volet de ``user``, par NOM de param (ce que `WamaParams.render` attend),
-  - `save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None) -> dict` — Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
-  - `reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict` — Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
+  - `read_panel_settings(user, app, params, *, key=None, extra=None, clean=None, domain=None) -> dict` — Les réglages du volet de ``user``, par NOM de param (ce que `WamaParams.render` attend),
+  - `save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None, domain=None) -> dict` — Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
+  - `reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None, domain=None) -> dict` — Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
   - `input_proposals(params, inputs) -> dict` — `{réglage: {'value', 'note'}}` que les ENTRÉES proposent (`Param.default_from`, 2026-10-29) :
   - `inputs_by_port(app_id, *received) -> dict` — `{port: fichier}` des fichiers qu'un geste TIENT (dépôt, « Envoyer vers… », outil), chacun
   - `new_element_settings(user, app, params, model, *, post=None, context=None, key=None, extra=None, clean=None, options_field=None, preset=None, empty_is_value=()…` — Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
   - `element_columns(values, model) -> dict` — `values` restreint aux colonnes concrètes de `model` — ce qu'un `objects.create(**…)`
-  - `make_panel_settings_views(app, params, *, key=None, extra=None, clean=None)` — Les deux vues JSON du volet — lecture (GET) et enregistrement (POST, JSON par NOM, clés
+  - `make_panel_settings_views(app, params, *, key=None, extra=None, clean=None, domain=None)` — Les deux vues JSON du volet — lecture (GET) et enregistrement (POST, JSON par NOM, clés
   - `save_user_app_settings(user, app, values, *, timeout=DEFAULT_TIMEOUT)` — Persiste chaque réglage fourni (en base, et en cache pour la lecture).
 
 ### Rétention des médias
