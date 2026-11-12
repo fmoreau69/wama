@@ -1488,6 +1488,94 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       l'aperçu sur l'axe (rappel « initialisé » de `WamaAudioPlayer`) ;
       une barre de transport dans la visionneuse (vitesse, pas image) — à décider ; puis le
       face_analyzer (Lab), avant le cam_analyzer (③).
+    - 🗺 **2026-11-12 — CARTOGRAPHIE DES ÉCARTS : le transport commun contre tout ce qui lit du
+      temps, et ce que le monde Data en attend** (demande de Fabien : *« parfaitement aligné, ne
+      rien réinventer, ne rien casser, ni ne rien perdre. Si des fonctionnalités ne sont pas au
+      commun, on complète le commun et on porte. Le fonctionnement doit être flexible par options
+      à tirer comme c'est déjà fait dans les briques UI existantes »* ; périmètre : aperçus, pages
+      d'édition — dont la future page VIDÉO de l'anonymizer —, Studio, Lab, monde Data). Lue au
+      code le jour même ; rien joué au navigateur. Elle complète la carte du 03/11 (qui LIT du
+      temps) par ce que chaque lecteur SAIT FAIRE. Les raccourcis : `WAMA_VOLETS §3-ter`, bloc du
+      même jour.
+      **Ce que le commun sait faire** (à ne pas réécrire) :
+      | pièce | fonctions |
+      |---|---|
+      | axe (`wama-axis.js`) | lecture, pause, bascule, `stop`, `seek` (dont le temps NOMMÉ `goto`), `jump`, `playFrom`, vitesse choisie / vitesse signée / cran de shuttle, `cadence` et pas (`step`, `stepSize`), N suiveurs à `offset`, recalage réglable (`SYNC`), attente d'un média qui charge, avis espacés sous charge, touches (`bindKeys`, `keys`) |
+      | transport (`wama-transport.js`) | début, saut arrière / avant (`jump`), lecture / pause, vitesse en liste (×0,5 à ×2) ou par pas de 0,25 (`speed: 'steps'`), horloge temps / durée, « aller à » (`goto`, temps illisible signalé), libellé du cran de shuttle ; une seule rangée |
+      | brique `media_transport` | la source par le lecteur commun (lecture exclusive, position reposée, onde sur pics serveur ou tue : `wave`), `offset`, sans média (`media: false`), la VERSION écoutée (retenue sur la card, `sources_setting` ; rendue dans la page), l'état du process rejoué et le rechargement à la même position, épinglable (`dockable`) |
+      | ligne de temps (`wama-timeline.js`) | onde fenêtrée (4 s à la durée, 240 s à l'ouverture), molette autour du pointeur, glisser, pincer, minimap, fenêtre qui suit, silences hachurés, repères, bande de qualité (clic = écouter), plages MARQUÉES par d'autres briques (bus `bands`, fin ouverte = tête de lecture), outil Bornes (calcul serveur) |
+      | outils abonnés | segments (segment joué, défilement, ▶ par segment, verrou de suivi gardé au navigateur, Tab = segment suivant, coupe à la tête), écriture à la lecture (quatre modes, plages, propositions) |
+      | clavier (`wama-keys.js`, `Shortcut`) | une touche, un propriétaire ; Espace, Ctrl+Espace, J/K/L (17 crans jusqu'à ±16, arrière silencieux), ←/→ saut, Maj = six sauts, Début / Fin ; l'aide « ? » lit les déclarations des briques de la page |
+      `axis.step` et `axis.stop` n'ont aucun appelant (motif `axis\.step\(|axis\.stop\(` sur les
+      scripts de `wama/` et `wama_lab/`).
+      **Ce que l'existant non porté a, et que le commun n'a pas** — chaque ligne entre au commun
+      par une OPTION avant le portage de sa page :
+      | existant | fonction |
+      |---|---|
+      | contrôles natifs des vidéos de l'aperçu | curseur de POSITION, volume et muet, plein écran, image dans l'image |
+      | lecteur de son (`wama-audio-player.js` : cards, aperçu) | l'onde cliquable comme position, lecture / pause, temps ; hors de l'axe — d'où Espace et J/K/L MUETS sur un son de la visionneuse (`media-preview.js`, `_viewerTransport` : le magnéto n'existe que si un média suit l'axe), que l'aide annonce pourtant ; aucune touche dans le volet ni les cards |
+      | cam_analyzer (`index.js:1890-2185`) | STOP ; image précédente / suivante (←/→, Maj = dix), sur la cadence de la PREMIÈRE caméra ; lecture arrière image par image (R, bouton, minuterie) ; vitesse dès ×0,25 ; crans −4 à 4 ; position gardée toutes les 2 s et restaurée ; barre de position glissée, ses repères d'intersections ; horloge de la première caméra, repositionnement au-delà de 0,3 s |
+      | anciennes pages du face_analyzer | saut de ±10 s, vitesse, plein écran (F) |
+      | spec du magnéto (`WAMA_DATA_WORLD §5`) | curseur de vitesse continu, logarithmique, symétrique (×32) ; temps restant ; +/- ; ShuttlePro |
+      | Studio | aucun lecteur de temps aujourd'hui (rien à porter) ; la ligne de temps de montage de `STUDIO_VISION` s'écrira sur ces briques |
+      **Ce que le clavier commun n'a pas** : le RELÂCHÉ d'une touche (Touch de l'écriture et Espace
+      écoutent `keyup` de leur côté) ; une seule lecture d'une touche (le registre déclare la
+      position, `KeyC`, trois briques lisent le caractère) ; la résolution touche → action depuis
+      la déclaration (chaque touche est écrite deux fois : déclarée, et en dur dans la brique) —
+      sans laquelle aucune surcharge n'agit.
+      **Ce que le monde Data attend en plus** (`WAMA_DATA_WORLD §8.4`, points confiés, inchangés) :
+      la brique des courbes lit TOUTE la donnée dans le contexte de la page, une colonne de temps
+      par graphe, zoom coupé — ni fenêtre, ni décimation, ni flux à cadences différentes sur un
+      graphe ; `view.series()` n'a aucun appelant hors de ses tests ; la ligne de temps demande
+      l'onde d'un son et écrit ses couleurs en dur (les courbes lisent le thème) ; il manque les
+      vues tableau, valeur à l'instant, bandes d'événements et de situations (le bus `bands` en
+      est la forme), carte, et des zones de détection qui suivent une VIDÉO (`image_boxes` ne lit
+      qu'une image — c'est la pièce de la page vidéo de l'anonymizer, le dessin à l'image
+      présentée existant dans `WamaPreviewOverlay`) ; la conversion d'unités à l'affichage
+      (`common/utils/units.py`) n'a aucun appelant ; aucune bibliothèque de grille vendorée.
+      **Décidé par Fabien le 12/11** : (1) UNE barre de transport à géométrie variable — la forme
+      complète du transcriber, inchangée, et une BANDE FINE pour l'aperçu (son, vidéo, donnée
+      temporelle) : une seule ligne étroite, toutes les capacités, tous les raccourcis ; les
+      contrôles natifs ne partent qu'à parité mesurée ; (2) dans la visionneuse, Espace et J/K/L
+      agissent toujours ; au repos les quatre flèches naviguent ; transport en usage, ←/→ lui
+      reviennent et ↑/↓ restent à la navigation ; (3) la partition reprend la stratégie du
+      transcriber : qui a la main garde ses touches, Échap les rend.
+      **Ordre des marches** (chacune : compléter le commun par option, porter un consommateur,
+      geste rejoué avant et après — la règle de la matrice de parité du 01/10) :
+      ⓪ l'écart de Comparer à l'arrêt (`common.preview_sync` 15/16 les 10 et 11/11) ;
+      ① le clavier : résolution touche → action, relâché, lecture unifiée, surcharges
+      (`WAMA_VOLETS §3-ter`) ; ② le transport : pas image, arrêt, arrière, position, volume,
+      temps restant, position gardée, vitesse continue — et la bande fine ; ③ l'aperçu : sons sur
+      l'axe, bande fine à la place des contrôles natifs ; ④ la ligne de temps sans média, bandes
+      de données, couleurs du thème ; ⑤ zones de détection sur vidéo, page vidéo de l'anonymizer ;
+      ⑥ première vue Django de `wama_data` : fenêtre décimée, plusieurs flux sur un graphe ;
+      ⑦ Lab : anciennes pages du face_analyzer, puis le cam_analyzer (son décalage établi
+      d'abord) ; ⑧ réglages typés d'une vue, ajout à chaud, onglets par module.
+      ⚠ Non lus en entier : `wama-brick-layout.js`, `wama-gestures.js`, le reste de
+      `media-preview.js` ; les chiffres du cam_analyzer hors des lignes citées viennent de la
+      matrice du 01/10.
+    - ✅ **2026-11-12 — marche ⓪ : Comparer à l'arrêt, un défaut de MESURE et un défaut de
+      SURCOUCHE, pas de l'axe.** `common.preview_sync` rougissait les 10 et 11/11 (« pause2 :
+      [208, 207] ») et passait de jour : il ne tombe que machine chargée (rejoué 16 cœurs
+      occupés : 2 rouges sur 4, puis 1 sur 8). Mesuré à l'instant de la pause : les deux vidéos
+      ont le MÊME temps (8,2783 s) et montrent la MÊME image (pixels 206 et 206) — l'axe les a
+      bien posées. Mais le navigateur ne rappelle pas toujours l'image qu'un positionnement à
+      l'arrêt vient de poser : le dernier rappel d'image de la vidéo de référence restait celui
+      de la lecture d'avant (208). Deux conséquences, deux corrections :
+      la mesure jugeait « même image » au dernier rappel — elle lit désormais les PIXELS à l'arrêt
+      (`rest_frames`) ; la SURCOUCHE des détections suit ce même rappel et dessinait donc les
+      cadres de l'image 208 sur une vidéo qui montre la 206 — `WamaPreviewOverlay` tient pour
+      périmée, à l'arrêt après un positionnement, une image notée qui ne peut pas être celle du
+      temps du média (dans l'image qui contient ce temps, à 2 ms près), et se redessine au
+      `seeked` même sans rappel. Mesure NEUVE au scénario : à l'arrêt, la surcouche est sur
+      l'image montrée (visionneuse et Comparer ; 18 mesures au lieu de 16). Gardes :
+      `PreviewOverlayTest.test_at_rest_a_stale_presented_frame_gives_way_to_the_time_of_the_medium`
+      (contre-épreuve : règle neutralisée → rouge, `['f2'] != ['f4']`),
+      `PreviewSyncVerdictTest.test_rest_gaps_and_speed`. Rejoué sous charge après correction :
+      13 passes, 18/18 chacune. ⚠ Le rouge de la surcouche n'a pas été vu AU NAVIGATEUR avant correction
+      (le cas tombe une fois sur huit) : sa preuve est la mesure des rappels et la garde V8.
+      ⚠ Sous cette même charge artificielle, l'écart d'horloge de Comparer dépasse parfois son
+      seuil (p95 20,6 et 23,9 ms pour 20) ; jamais vu la nuit, laissé tel quel.
   - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
     Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
     tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS
