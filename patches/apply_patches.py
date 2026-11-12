@@ -21,6 +21,19 @@ def find_site_packages(venv_dir: str) -> Path:
         return p
     raise FileNotFoundError(f"site-packages not found under {venv_dir}")
 
+def write_replacing(path: Path, text: str) -> None:
+    """Write *text* to *path* by REPLACING the file (temporary file in the same folder, then
+    `os.replace`), never in place. Multi-venv (2026-11-11): a second venv shares the identical files
+    of the reference venv through HARD LINKS; writing in place would patch both venvs at once.
+    Measured on D: from WSL: a replace breaks the link and leaves the other name untouched. The
+    file's permission bits are kept."""
+    import shutil
+    tmp = path.with_name(f".{path.name}.wama-patch")
+    tmp.write_text(text, encoding="utf-8")
+    shutil.copymode(path, tmp)
+    os.replace(tmp, path)
+
+
 def apply_patch(path: Path, search: str, replace: str, description: str) -> bool:
     """
     Apply one search→replace patch to *path*.
@@ -36,7 +49,7 @@ def apply_patch(path: Path, search: str, replace: str, description: str) -> bool
         print(f"    → The library may have been updated; review manually.")
         return False
     patched = text.replace(search, replace, 1)
-    path.write_text(patched, encoding="utf-8")
+    write_replacing(path, patched)
     print(f"  [OK] {description}")
     return True
 

@@ -31065,3 +31065,25 @@ officielles (effet normal de la route). Les venvs de sonde de `/tmp` sont suppri
 GGUF `unsloth/flux-3-image-klein-GGUF` reste installé (10,3 Go, inutilisable seul) : à retirer par
 la route quand l'officiel sera installé. Aucun worker recyclé par cette session ; la relance de
 17:41 n'est pas de son fait.
+
+## §PALIER — 2026-11-12, « MULTI-VENV : TROIS QUICK WINS » — fait — 🔚 inchangé : la route des librairies par environnement (`§CLÔTURE 2026-11-11 (soir) « POIDS D'ORIGINE… SOCLE MULTI-VENV »`, restes 1 et suivants)
+
+Demande de Fabien (« on lance les quick wins et le retrait par la route ») :
+- **Patches sans écriture sur place** — `apply_patches.write_replacing` (temporaire du même dossier
+  puis `os.replace`, droits gardés) : un fichier partagé par lien dur avec un autre venv n'est
+  jamais patché des deux côtés. Rejoué sur `venv_linux` : tous les patches « déjà appliqués »,
+  aucun fichier du venv modifié (mesuré : aucun `.py` du site-packages modifié dans les 15 min).
+- **Découverte d'un pipeline MODULAIRE** — `model_registry.snapshot_engine_verdict` lit
+  `modular_model_index.json` (moteur `diffusers`, classe `_class_name`) par la liste de la pesée
+  (`model_installer.DIFFUSERS_PIPELINE_INDEXES`). L'ANATOMIE reste à faire : l'index réel de
+  `flux-3-image-klein` (lu le 2026-11-12) range le tokenizer dans le dossier de l'encodeur et tire
+  un « prompt upsampler » d'un autre dépôt (`black-forest-labs/flux-3-image-klein-pup`) —
+  consigné dans `INFRA_WSL_VS_WINDOWS §Plan multi-venv`.
+- **Retrait du GGUF partiel par la route** (accord explicite de Fabien) — `tool_api.uninstall_model`
+  sur `huggingface:unsloth/flux-3-image-klein-GGUF` : 10,3 Go libérés, retiré des choix, marqué
+  désinstallé, son manifeste retiré du corpus. Le GGUF partiel de Fibo (même cas) est laissé :
+  pas d'accord donné pour lui.
+Gardes : `tests_library_install.PatchesLandInTheInterpreterVenvTest.test_a_file_shared_by_hard_link_is_patched_without_touching_the_other_venv`
+(un vrai venv jetable, un fichier Higgs lié par lien dur), `tests_engine_derivation.DerivationDuMoteurTest.test_a_modular_pipeline_index_gives_diffusers_and_its_class`
+— chacune prouvée par une mutation. Mesuré : 91 tests OK (patches, dérivation, corpus après
+désinstallation, retrait des choix, gardes transverses).

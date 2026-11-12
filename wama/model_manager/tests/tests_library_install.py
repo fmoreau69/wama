@@ -333,6 +333,25 @@ class PatchesLandInTheInterpreterVenvTest(SimpleTestCase):
         self.assertIn(str(Path(tmp)), line)
         self.assertNotIn('venv_linux', line)
 
+    def test_a_file_shared_by_hard_link_is_patched_without_touching_the_other_venv(self):
+        """A second venv shares the reference venv's identical files by HARD LINKS (2026-11-11):
+        a patch written in place would land in both. The script must REPLACE the file."""
+        if not Path('/proc/version').exists():
+            self.skipTest('Linux venv layout (lib/python*/site-packages) required')
+        rel = Path('boson_multimodal/model/higgs_audio/modeling_higgs_audio.py')
+        original = 'audio_present_key_value = _audio_attn_out[2]\n'
+        with tempfile.TemporaryDirectory() as tmp:
+            venv.create(Path(tmp) / 'venv', with_pip=False)
+            target = next((Path(tmp) / 'venv').glob('lib/python*/site-packages')) / rel
+            target.parent.mkdir(parents=True)
+            target.write_text(original, encoding='utf-8')
+            other = Path(tmp) / 'other_venv_copy.py'
+            os.link(target, other)
+            self._site_line(str(Path(tmp) / 'venv' / 'bin' / 'python'))
+            self.assertIn('if len(_audio_attn_out) > 2 else None', target.read_text(encoding='utf-8'))
+            self.assertEqual(original, other.read_text(encoding='utf-8'), 'the other venv was patched')
+            self.assertEqual(1, other.stat().st_nlink)
+
     def test_the_reference_venv_still_patches_itself(self):
         if not Path('/proc/version').exists():
             self.skipTest('Linux venv layout (lib/python*/site-packages) required')
