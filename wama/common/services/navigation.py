@@ -109,6 +109,20 @@ def remember_page_domain(user, app: str, domain: str) -> bool:
     return True
 
 
+def domain_links(app: str, url: str) -> list:
+    """Un LIEN par domaine d'une app qui en a plusieurs : `[{'id', 'label', 'icon', 'description',
+    'url'}]`, `url` étant l'adresse de la page de l'app ; [] pour un seul domaine. La lecture du
+    titre de la page (`page_domain`) et du menu Applications : les mêmes liens, de la même
+    déclaration (`app_modes`)."""
+    from wama.common.utils import app_modes
+    domains = app_modes.get_domains(app) if app else []
+    if len(domains) < 2:
+        return []
+    return [{'id': d.get('id'), 'label': d.get('label') or d.get('id'), 'icon': d.get('icon') or '',
+             'description': d.get('description') or '',
+             'url': f"{url}?{PAGE_DOMAIN_PARAM}={d.get('id')}"} for d in domains]
+
+
 def page_domain(request, app: str):
     """Le DOMAINE de la page d'app que sert `request` (`MODES_QUEUE_UX §2ter`, décision de Fabien
     du 2026-11-12 : le domaine se choisit AU-DESSUS de la page, le titre est le sélecteur).
@@ -122,10 +136,10 @@ def page_domain(request, app: str):
     from wama.common.utils import app_modes
     from wama.common.utils.user_settings import get_user_app_setting
 
-    domains = app_modes.get_domains(app) if app else []
-    if len(domains) < 2:
+    links = domain_links(app, request.path)
+    if not links:
         return None
-    ids = [d.get('id') for d in domains]
+    ids = [d['id'] for d in links]
     user = getattr(request, 'user', None)
     known = bool(getattr(user, 'is_authenticated', False))
     retained = get_user_app_setting(user, app, PAGE_DOMAIN_SETTING) if known else None
@@ -136,14 +150,10 @@ def page_domain(request, app: str):
             remember_page_domain(user, app, asked)
     else:
         current = retained if retained in ids else ids[0]
-    chosen = next(d for d in domains if d.get('id') == current)
-    return {'app': app, 'current': current, 'label': chosen.get('label') or current,
-            'icon': chosen.get('icon') or '', 'description': chosen.get('description') or '',
-            'domains': [{'id': d.get('id'), 'label': d.get('label') or d.get('id'),
-                         'icon': d.get('icon') or '', 'current': d.get('id') == current,
-                         'description': d.get('description') or '',
-                         'url': f"{request.path}?{PAGE_DOMAIN_PARAM}={d.get('id')}"}
-                        for d in domains]}
+    chosen = next(d for d in links if d['id'] == current)
+    return {'app': app, 'current': current, 'label': chosen['label'], 'icon': chosen['icon'],
+            'description': chosen['description'],
+            'domains': [dict(d, current=d['id'] == current) for d in links]}
 
 
 def navigable_pages(user) -> list:

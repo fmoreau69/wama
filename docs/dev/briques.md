@@ -1874,6 +1874,7 @@ Les pages du menu Applications — apps du catalogue et surfaces déclarées, lu
   - `scene_pages(user, allowed_apps=None) -> list` — Les SCÈNES 3D que `user` peut ouvrir (`common/scenes.py`, 2026-10-30 — demande de Fabien :
   - `find_page(user, page: str)` — La page que `page` désigne (clé, libellé ou alias, casse et accents ignorés) parmi celles
   - `absolute_url(path: str) -> str` — L'adresse COMPLÈTE d'une page, pour une surface hors navigateur (un canal) — '' si
+  - `domain_links(app: str, url: str) -> list` — Un LIEN par domaine d'une app qui en a plusieurs : `[{'id', 'label', 'icon', 'description',
 
 ### Pipeline de prompts
 

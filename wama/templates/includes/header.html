@@ -47,11 +47,31 @@
                     {% else %}
                     {% if not forloop.first %}<li><hr class="dropdown-divider"></li>{% endif %}
                     <li class="dropdown-header small">{{ group.meta.icon }} {{ group.meta.label }}</li>
-                    {% for a in group.apps %}<li>
+                    {% for a in group.apps %}
+                    {% if a.domains %}
+                    {# App à PLUSIEURS DOMAINES (2026-11-12) : ses domaines en sous-menu — on arrive directement au bon. Le clic sur l'app elle-même garde son sens (sa page, sur le domaine retenu). #}
+                    <li class="wama-nav-sous" data-wama-nav-sous="link">
+                        <a class="dropdown-item d-flex align-items-center justify-content-between {% if a.name in request.path %}active{% endif %}"
+                           href="{{ a.url }}" aria-haspopup="true" aria-expanded="false">
+                            <span><i class="{{ a.icon }} me-2"{% if a.color %} style="color:{{ a.color }};"{% endif %}></i> {{ a.label }}</span>
+                            <i class="fas fa-chevron-right small ms-2"></i>
+                        </a>
+                        <ul class="dropdown-menu wama-nav-sous-menu" id="navDomains-{{ a.name }}">
+                            {% for d in a.domains %}<li>
+                                <a class="dropdown-item d-flex align-items-center" href="{{ d.url }}" data-nav-domain="{{ d.id }}">
+                                    {% if d.icon %}<i class="fas {{ d.icon }} me-2"></i>{% endif %} {{ d.label }}
+                                </a>
+                            </li>{% endfor %}
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li>
                         <a class="dropdown-item d-flex align-items-center {% if a.name in request.path %}active{% endif %}" href="{{ a.url }}">
                             <i class="{{ a.icon }} me-2"{% if a.color %} style="color:{{ a.color }};"{% endif %}></i> {{ a.label }}
                         </a>
-                    </li>{% endfor %}
+                    </li>
+                    {% endif %}
+                    {% endfor %}
                     {% for l in group.links %}<li>
                         <a class="dropdown-item d-flex align-items-center {% if l.url in request.path %}active{% endif %}" href="{{ l.url }}">
                             <i class="fas {{ l.icon }} me-2"{% if l.color %} style="color:{{ l.color }};"{% endif %}></i> {{ l.label }}
@@ -121,6 +141,9 @@
                         if (premiere) premiere.focus();
                     }
                     declencheur.addEventListener('click', function (ev) {
+                        // Un déclencheur qui est AUSSI un lien (une app et ses domaines) : le clic
+                        // de souris suit le lien ; le survol et le clavier ouvrent le sous-menu.
+                        if (li.dataset.wamaNavSous === 'link' && ev.detail !== 0) return;
                         ev.preventDefault();
                         ev.stopPropagation();
                         // Le clic OUVRE, il ne bascule pas : on survole « Bac à sable » (déjà

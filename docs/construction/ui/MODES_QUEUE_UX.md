@@ -247,7 +247,10 @@ propre raccourci ; la page d'un domaine ne demande que ses lignes et celles de l
 (`get_console_lines(domain=…)`, `console.js`). Une ligne d'avant ce jour n'a pas de domaine : elle
 reste montrée partout.
 
-**Reste, dans l'ordre** : le sous-menu par domaine dans le menu Apps ;
+**Le menu Applications** offre les domaines d'une app qui en a plusieurs, en sous-menu : les liens du
+titre, de la même lecture (`navigation.domain_links`) ; le clic sur l'app garde son sens.
+
+**Reste, dans l'ordre** :
 le compte de la file sur l'onglet (`#queueCount` compte encore l'app entière) ; puis ⑥ et ⑦ de
 `ROUTE §11 #42` — le générateur hérite du sélecteur par le socle, mais la page générée doit ranger
 ses volets par domaine. À juger à l'écran par Fabien : la mise en forme du sélecteur.

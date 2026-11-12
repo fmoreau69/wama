@@ -213,6 +213,20 @@ class TheServedPageCarriesTheDomainsTest(TestCase):
                 self.assertIn(f'data-about-domain="{second["id"]}"',
                               about.content.decode(errors='replace'))
 
+    def test_the_applications_menu_offers_the_domains_of_an_app_with_several(self):
+        """« Arriver directement au bon domaine » : les liens du titre, dans le menu Applications."""
+        from wama.common.services.navigation import domain_links
+        app = MULTI[0]
+        html = self._get(app)
+        index = reverse(f'{app}:index')
+        self.assertIn(f'id="navDomains-{app}"', html)
+        for link in domain_links(app, index):
+            self.assertIn(f'href="{link["url"]}" data-nav-domain="{link["id"]}"', html)
+        # Contre-épreuve : une app d'un seul domaine garde son entrée simple.
+        single = sorted(set(REAL_APPS) - set(MULTI))[0]
+        self.assertEqual([], domain_links(single, reverse(f'{single}:index')))
+        self.assertNotIn(f'id="navDomains-{single}"', html)
+
     def test_the_address_names_the_domain_and_the_account_keeps_it(self):
         from wama.common.models import UserAppSetting
         from wama.common.tests.tests_endpoints import EveryEndpointAnswersTest

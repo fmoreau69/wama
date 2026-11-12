@@ -136,6 +136,10 @@ def user_role(request):
                     _entry['label'] = f"{_base} ({_name})"
                     _sandbox_entries.append(_entry)
                     continue
+                # Une app à plusieurs domaines offre ses domaines en sous-menu (2026-11-12) : on
+                # arrive directement au bon — les liens du titre de sa page, de la même déclaration.
+                from wama.common.services.navigation import domain_links as _domain_links
+                _entry['domains'] = _domain_links(_name, _entry['url'])
                 _entries.append(_entry)
             _links = []
             for _link in _group['links']:
