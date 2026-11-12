@@ -250,10 +250,13 @@ reste montrée partout.
 **Le menu Applications** offre les domaines d'une app qui en a plusieurs, en sous-menu : les liens du
 titre, de la même lecture (`navigation.domain_links`) ; le clic sur l'app garde son sens.
 
-**Reste, dans l'ordre** :
-le compte de la file sur l'onglet (`#queueCount` compte encore l'app entière) ; puis ⑥ et ⑦ de
-`ROUTE §11 #42` — le générateur hérite du sélecteur par le socle, mais la page générée doit ranger
-ses volets par domaine. À juger à l'écran par Fabien : la mise en forme du sélecteur.
+**Le compte de l'onglet « File d'attente »** est celui du domaine de la page (`wama:domain-stats`,
+`wama-modes.js`) ; le second `#queueCount` de la page de l'anonymizer reste à retirer.
+
+**Reste, dans l'ordre** : ⑥ puis ⑦ de `ROUTE §11 #42` — le nœud du Studio, l'outil de l'assistant et
+la grille (`audio_enhancer` en dur), puis le générateur, qui hérite du sélecteur par le socle mais
+dont la page générée doit ranger ses volets par domaine. À juger à l'écran par Fabien : la mise en
+forme du sélecteur et des sous-menus.
 
 ## 3. Le MODE = norme applicative (LA couche d'abstraction ajoutée)
 - Chaque app **déclare ses modes** en métadonnée :

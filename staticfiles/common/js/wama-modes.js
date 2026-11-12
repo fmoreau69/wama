@@ -319,6 +319,13 @@
             document.querySelectorAll('[data-domain-count="' + d.domain + '"]').forEach(function (badge) {
                 badge.textContent = d.total;
             });
+            // Le compte de l'onglet « File d'attente » est celui du domaine de la PAGE : le serveur
+            // y pose celui de l'app entière, que la page d'un domaine ne montre pas.
+            if (d.domain === page.domain) {
+                document.querySelectorAll('#queueCount').forEach(function (badge) {
+                    badge.textContent = d.total;
+                });
+            }
         });
     }
 

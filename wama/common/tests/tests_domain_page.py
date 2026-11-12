@@ -275,6 +275,7 @@ class DomainSwitchTest(SimpleTestCase):
     var sets = [el({dataset: {domainSettings: 'image'}}), el({dataset: {domainSettings: 'video'}})];
     var badge = el({textContent: ''});
     var events = [], listeners = {}, chosen = null;
+    var queueBadge = el({textContent: '12'});
     function CustomEvent(t, o) { this.type = t; this.detail = (o || {}).detail; }
     document.addEventListener = function (t, f) { (listeners[t] = listeners[t] || []).push(f); };
     document.dispatchEvent = function (e) { events.push(e.type);
@@ -283,6 +284,7 @@ class DomainSwitchTest(SimpleTestCase):
         if (sel === '.tab-pane[data-domain]') return panes;
         if (sel === '[data-domain-settings]') return sets;
         if (sel === '[data-domain-count="video"]') return [badge];
+        if (sel === '#queueCount') return [queueBadge];
         return []; };
     // Ce que le SOCLE rend dans le titre : le domaine choisi par le serveur (ou rien).
     document.querySelector = function (sel) {
@@ -324,6 +326,10 @@ class DomainSwitchTest(SimpleTestCase):
         self.v8.eval("document.dispatchEvent(new CustomEvent('wama:domain-stats',"
                      " {detail: {domain: 'video', total: 7}}));")
         self.assertEqual(7, self._js('badge.textContent'), 'the count goes to the title menu')
+        self.assertEqual(7, self._js('queueBadge.textContent'), 'the queue tab counts THIS domain')
+        self.v8.eval("document.dispatchEvent(new CustomEvent('wama:domain-stats',"
+                     " {detail: {domain: 'image', total: 5}}));")
+        self.assertEqual(7, self._js('queueBadge.textContent'), 'another domain leaves it alone')
         self.assertEqual({'app': 'imager', 'domain': 'video'}, self._js('window.WamaModes.pageDomain()'))
 
     def test_a_page_from_a_server_not_restarted_yet_keeps_its_tabs(self):
