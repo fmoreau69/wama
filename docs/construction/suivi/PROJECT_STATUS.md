@@ -31212,3 +31212,43 @@ la première version de cette garde était aveugle, réécrite sur le cas vide).
 été relancés entre 12:24 et 12:51 et ont chargé le code en cours d'écriture ; le compte de test
 nocturne a écrit 9 lignes sous les nouvelles clés (12:37–12:44). D'où l'application du plan sans
 attendre, pour sortir de l'état mixte.
+
+## §PALIER 2026-11-12 (soir), « PARENTHÈSE ASSISTANT : diagnostic par l'administrateur, geste Copier commun, export PDF gardé » — commits locaux, non poussés — 🔴 relancer gunicorn (JS servis, vue des relances) ET le serveur MCP `--surface dev` (outils de diagnostic) — 🔚 où OUVRIR la notification d'une tâche de développement sans proposition (décision de Fabien) ; puis reprise des domaines (le domaine dans le socle)
+
+**Vécu (fil de l'assistant, 12/11)** : devant « Export PDF indisponible », l'assistant a confié la panne
+à Claude Code sans diagnostiquer — son seul essai, `dev_read_log('gunicorn.log')`, a été refusé nu
+(« journal introuvable ») : le fichier s'appelle `gunicorn-error.log`, et l'aide de l'outil citait
+`gunicorn.log` en exemple.
+
+**Livré — diagnostic, ADMINISTRATEURS seuls** (`dev_inspect`, `dev_tools.ADMIN_ONLY`, lecture seule
+sauf le test ciblé) :
+- `dev_read_log` sans chemin LISTE les journaux (le plus récemment écrit d'abord) ; un nom deviné est
+  refusé EN DISANT les noms proches ;
+- `dev_search_code` : chercher un texte ou une expression régulière dans le dépôt (mêmes refus que
+  `dev_read_code` : `.env`, venvs, journaux, médias, clés, liens symboliques) ;
+- `dev_run_tests` : UN module ou UNE classe de tests par `manage.py test`, en tâche de fond — jamais
+  la suite entière ;
+- l'aide de `dev_claude_code` dit de diagnostiquer d'abord et de confier la correction avec ce qui
+  a été trouvé.
+L'état des services se lisait déjà (`get_memory_state(view='services')`) : rien d'ajouté.
+
+**Livré — « Copier »** : UN geste au commun, `WamaApp.copyText` (coche sur le bouton, repli hors
+https, échec dit). Branché sur l'aperçu texte (qui avait le sien), la cloche, la page des
+notifications, les bulles de l'assistant (demande et réponse, deux densités) et le calendrier.
+Restent deux copies écrites à la main, listées dans la garde : le profil et le Cam Analyzer.
+
+**Notifications sans rien à ouvrir — mesuré en base** : `process_restart` (16/16) → mène désormais
+au model manager, d'où la relance se suit ; tâches de développement sans proposition (57 terminées
+sur 84, 17 en échec sur 17) → RESTE OUVERT. Le rapport vit dans le process du serveur MCP de
+développement, que le serveur web ne charge jamais (règle de `dev_tools`) : l'ouvrir demande soit une
+page qui le lit par `mcp_client`, soit de mener au fil de l'assistant d'où la tâche est partie
+(`job_follow_ups.dev_origin_conversation`). Aucune notification de mémoire ou de souvenir n'existe
+en base : rien à mesurer de ce côté.
+
+**Export PDF** : le correctif écrit par Claude Code sur demande de l'assistant (`page_pdf.make_fetcher`
+joue la vue hors de la boucle asyncio de Playwright) est relu, gardé et commité —
+`tests_page_pdf`, contre-épreuve ROUGE (`SynchronousOnlyOperation`) sans le correctif.
+
+**Gardes** : `tests_dev_inspect` (+5), `tests_notifications` (+4, dont « une seule écriture au
+presse-papiers »), `tests_service_control` (le lien), `tests_page_pdf` (2). 434 tests du périmètre
+verts ; les cinq scripts servis parsés sous V8 ; `docs/dev/briques.md` régénérée.

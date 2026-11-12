@@ -51,7 +51,23 @@ def make_fetcher(request):
         body = b''.join(resp.streaming_content) if resp.streaming else resp.content
         return resp.status_code, resp.get('Content-Type', 'application/octet-stream'), body
 
-    return fetch
+    def fetch_off_loop(target):
+        # Le gestionnaire de route de Playwright s'exécute DANS sa boucle asyncio : l'ORM de Django y
+        # lève `SynchronousOnlyOperation` (vu le 2026-11-12 sur `api_released_files`, d'où « Export PDF
+        # indisponible »). La vue est donc jouée dans un fil sans boucle, dont la connexion est fermée.
+        from concurrent.futures import ThreadPoolExecutor
+        from django.db import connection
+
+        def run():
+            try:
+                return fetch(target)
+            finally:
+                connection.close()
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(run).result()
+
+    return fetch_off_loop
 
 
 def page_pdf(request, template, *, page_path, slides=False, context=None):
