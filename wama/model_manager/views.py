@@ -588,7 +588,8 @@ def _reconfirmed(request, password: str, *, window: bool = True) -> bool:
 @require_POST
 def api_service_control(request):
     """API: dépose un ordre, exécuté par la surveillance — un service (`start`, `stop`, `restart`),
-    ou, pour un ADMINISTRATEUR, la relance d'un worker, du serveur web ou de WAMA entier (2026-11-11).
+    ou, pour un ADMINISTRATEUR, la relance d'un worker, de tous les workers, de la passerelle, d'un
+    serveur MCP, du serveur web ou de WAMA entier (2026-11-11, 2026-11-12).
     Un geste qui coupe un travail (`needs_password`) exige le mot de passe WAMA (`password`)."""
     from wama.accounts.permissions import is_admin_tier
     from wama.common.utils import service_supervision as supervision

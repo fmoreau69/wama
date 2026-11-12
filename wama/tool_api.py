@@ -3121,7 +3121,9 @@ def control_service(user, service: str, action: str, confirm: bool = False) -> d
     Their state and keys: get_memory_state(view='services'). Reserved to developers and administrators.
 
     An ADMINISTRATOR may also 'restart' a Celery worker ('gpu', 'default', 'studio', 'nightly',
-    'beat' — it finishes its current task first) or reload the web server ('web'). A gesture that
+    'beat' — it finishes its current task first), ALL the workers at once ('workers'), the Discord
+    gateway ('gateway_discord'), an MCP server ('mcp_wama', 'mcp_dev' — they keep the code of their
+    start until restarted) or reload the web server ('web'). A gesture that
     would cut a running task (a busy worker) or restart the whole of WAMA needs the administrator's
     WAMA password: never ask for it here — tell the user to do it from the model manager page.
 
@@ -3130,8 +3132,9 @@ def control_service(user, service: str, action: str, confirm: bool = False) -> d
     confirm=true.
 
     Args:
-        service: the service key ('tts_service', 'tensorflow_service'…), a worker ('gpu'…) or 'web'.
-        action: 'start', 'stop' or 'restart' (only 'restart' for a worker or 'web').
+        service: the service key ('tts_service', 'tensorflow_service'…), a worker ('gpu'…),
+            'workers', 'gateway_discord', 'mcp_wama', 'mcp_dev' or 'web'.
+        action: 'start', 'stop' or 'restart' (only 'restart' for anything but a service).
         confirm: true once the user has agreed to stop or restart it.
     """
     if refusal := _registry_management_refusal(user):

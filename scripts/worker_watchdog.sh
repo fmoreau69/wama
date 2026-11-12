@@ -73,6 +73,7 @@ while true; do
     [ -f "$PAUSE_FILE" ] && continue
     for w in $WAMA_CELERY_WORKERS; do supervise_one "$w" celery; done
     for s in $WAMA_SERVICES; do supervise_one "$s" service; done
+    for c in $WAMA_COMPANIONS; do supervise_companion "$c"; done
     supervise_web
     supervise_wama_restart
 done

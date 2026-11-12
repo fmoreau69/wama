@@ -205,8 +205,9 @@ def services_overview() -> dict:
 #: Une reconfirmation du mot de passe vaut pour les gestes suivants de la même session, ce temps-là.
 REAUTH_WINDOW_S = 300
 
-#: Le serveur web et WAMA entier : deux clés de plus, à côté des services et des workers.
-WEB, WAMA = 'web', 'wama'
+#: Le serveur web et WAMA entier : deux clés de plus, à côté des services et des workers ; et le
+#: GROUPE des workers, relancés d'un geste (2026-11-12 : serveur web + workers = deux clics).
+WEB, WAMA, WORKERS = 'web', 'wama', 'workers'
 
 #: Ce que redit l'ordre à l'administrateur, et ce qu'il coupe (la confirmation de la page).
 _PROCESS_TEXTS = {
@@ -216,7 +217,35 @@ _PROCESS_TEXTS = {
                           "plusieurs minutes (mesuré le 2026-11-11 : environ 7 min avant que les "
                           "pages reviennent, les traitements reprennent ensuite), les traitements en "
                           "cours sont interrompus."),
+    WORKERS: ('Tous les workers', "Chaque worker finit sa tâche en cours, puis redémarre avec le code "
+                                  "du jour ; les tâches en file attendent."),
 }
+
+#: Les COMPAGNONS (`WAMA_COMPANIONS` du script) : libellé, et ce que coupe leur relance.
+_COMPANION_TEXTS = {
+    'gateway_discord': ('Passerelle Discord', "Le bot se déconnecte quelques secondes ; une réponse en "
+                                              "cours sur Discord est perdue."),
+    'mcp_wama': ('Serveur MCP (outils de WAMA)', "Les clients MCP externes perdent la connexion le "
+                                                  "temps du redémarrage (environ une minute)."),
+    'mcp_dev': ('Serveur MCP de développement', "L'assistant n'a plus ses outils de développement le "
+                                                "temps du redémarrage (environ une minute) ; les tâches "
+                                                "de fond déjà lancées continuent."),
+}
+
+
+def declared_companions() -> list:
+    """La passerelle et les serveurs MCP que la surveillance sait relancer : la liste du script."""
+    return _script_list('WAMA_COMPANIONS')
+
+
+def _companion_state(companion: str) -> str:
+    if _flag('launch', companion).exists():
+        return 'restarting'
+    try:
+        seen = time.time() - (_logs() / f'companion_seen.{companion}').stat().st_mtime
+    except OSError:
+        return 'down'
+    return 'ok' if seen <= WATCHDOG_SILENCE_S else 'down'
 
 
 def declared_workers() -> list:
@@ -248,6 +277,8 @@ def needs_password(key: str, action: str) -> bool:
     tâche. Recharger le serveur web, lancer ou arrêter un service : la confirmation habituelle."""
     if key == WAMA:
         return True
+    if key == WORKERS:
+        return action == 'restart' and any(_worker_busy(worker) for worker in declared_workers())
     return key in declared_workers() and action == 'restart' and _worker_busy(key)
 
 
@@ -263,13 +294,27 @@ def _worker_state(worker: str) -> str:
 
 
 def processes_overview() -> list:
-    """Les workers, le serveur web et WAMA entier — ce que la page offre de relancer."""
+    """Les workers (un par un, et tous d'un geste), la passerelle et les serveurs MCP, le serveur
+    web et WAMA entier — ce que la page offre de relancer."""
     rows = []
     for worker in declared_workers():
         state = _worker_state(worker)
         label, tone = _STATES[state]
         rows.append({'key': worker, 'label': f'Worker {worker}', 'kind': 'worker', 'state': state,
                      'state_label': label, 'tone': tone,
+                     'actions': ['restart'] if state in ('ok', 'down') else []})
+    if rows:
+        waiting = [row for row in rows if row['actions']]
+        state = 'ok' if waiting else 'restarting'
+        label, when = _PROCESS_TEXTS[WORKERS]
+        rows.append({'key': WORKERS, 'label': label, 'kind': WORKERS, 'when_off': when, 'state': state,
+                     'state_label': _STATES[state][0], 'tone': _STATES[state][1],
+                     'actions': ['restart'] if waiting else []})
+    for companion in declared_companions():
+        state = _companion_state(companion)
+        label, when = _COMPANION_TEXTS.get(companion, (companion, ''))
+        rows.append({'key': companion, 'label': label, 'kind': 'companion', 'when_off': when,
+                     'state': state, 'state_label': _STATES[state][0], 'tone': _STATES[state][1],
                      'actions': ['restart'] if state in ('ok', 'down') else []})
     for key in (WEB, WAMA):
         label, when = _PROCESS_TEXTS[key]
@@ -286,7 +331,8 @@ def control_process(key: str, action: str) -> tuple:
     Seul `restart` existe : arrêter un worker laisserait sa file sans consommateur."""
     if action != 'restart':
         return False, f"Action inconnue : {action}."
-    if key not in declared_workers() and key not in (WEB, WAMA):
+    companions = declared_companions()
+    if key not in declared_workers() and key not in companions and key not in (WEB, WAMA, WORKERS):
         return False, f"Processus inconnu : {key}."
     watchdog = watchdog_state()
     if watchdog != 'running':
@@ -297,11 +343,18 @@ def control_process(key: str, action: str) -> tuple:
             return True, ("Relance de WAMA demandée : la page va se couper plusieurs minutes (mesuré "
                           "le 2026-11-11 : environ 7 min), puis revenir ; les traitements reprennent "
                           "ensuite.")
+        if key == WORKERS:
+            for worker in declared_workers():
+                _flag('launch', worker).touch()
+            return True, ("Relance de tous les workers demandée — chacun finit sa tâche en cours "
+                          "avant de redémarrer.")
         _flag('launch', key).touch()
     except OSError as exc:
         return False, f"{key} : ordre non déposé ({exc})."
     if key == WEB:
         return True, "Rechargement du serveur web demandé : les pages restent servies."
+    if key in companions:
+        return True, f"{_COMPANION_TEXTS.get(key, (key, ''))[0]} : relance demandée."
     return True, f"Worker {key} : relance demandée — il finit sa tâche en cours avant de redémarrer."
 
 

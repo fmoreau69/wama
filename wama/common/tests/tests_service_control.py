@@ -40,7 +40,8 @@ class _WithLogs(SimpleTestCase):
         self.logs.mkdir()
         (self.root / 'scripts').mkdir()
         (self.root / 'scripts' / 'wama_services.sh').write_text(
-            'x=1\nWAMA_CELERY_WORKERS="gpu default"\nWAMA_SERVICES="tts_service tensorflow_service"\n',
+            'x=1\nWAMA_CELERY_WORKERS="gpu default"\nWAMA_SERVICES="tts_service tensorflow_service"\n'
+            'WAMA_COMPANIONS=""\n',
             encoding='utf-8')
         override = override_settings(BASE_DIR=self.root)
         override.enable()
@@ -374,7 +375,8 @@ class ProcessOrdersTest(_WithLogs):
     def setUp(self):
         super().setUp()
         (self.root / 'scripts' / 'wama_services.sh').write_text(
-            'WAMA_CELERY_WORKERS="gpu default beat"\nWAMA_SERVICES="tts_service"\n', encoding='utf-8')
+            'WAMA_CELERY_WORKERS="gpu default beat"\nWAMA_SERVICES="tts_service"\n'
+            'WAMA_COMPANIONS="gateway_discord mcp_dev"\n', encoding='utf-8')
 
     def _files(self):
         return {p.name for p in self.logs.iterdir() if not p.name.startswith('worker_watchdog')}
@@ -387,6 +389,38 @@ class ProcessOrdersTest(_WithLogs):
                 accepted, _ = supervision.control_process(key, 'restart')
                 self.assertTrue(accepted)
                 self.assertIn(flag, self._files())
+
+    def test_all_the_workers_are_restarted_by_one_order(self):
+        """2026-11-12 : le serveur web, puis tous les workers — deux gestes pour servir du code neuf."""
+        self._watchdog_alive()
+        accepted, _ = supervision.control_process('workers', 'restart')
+        self.assertTrue(accepted)
+        self.assertEqual({'service_launch.gpu', 'service_launch.default', 'service_launch.beat'},
+                         self._files())
+        rows = {p['key']: p for p in supervision.processes_overview()}
+        self.assertEqual(('restarting', []), (rows['workers']['state'], rows['workers']['actions']))
+        with mock.patch.object(supervision, '_worker_busy', side_effect=lambda w: w == 'gpu'):
+            self.assertTrue(supervision.needs_password('workers', 'restart'), 'un worker en pleine tâche')
+        with mock.patch.object(supervision, '_worker_busy', return_value=False):
+            self.assertFalse(supervision.needs_password('workers', 'restart'))
+
+    def test_the_gateway_and_the_mcp_servers_are_processes_one_can_restart(self):
+        """Ils gardaient le code de leur démarrage : aucun geste de WAMA ne les relançait."""
+        self._watchdog_alive()
+        (self.logs / 'companion_seen.mcp_dev').touch()
+        rows = {p['key']: p for p in supervision.processes_overview()}
+        self.assertEqual(('ok', ['restart'], 'companion'),
+                         (rows['mcp_dev']['state'], rows['mcp_dev']['actions'], rows['mcp_dev']['kind']))
+        self.assertEqual(('down', ['restart']),
+                         (rows['gateway_discord']['state'], rows['gateway_discord']['actions']))
+        self.assertTrue(rows['gateway_discord']['label'] and rows['gateway_discord']['when_off'])
+        self.assertTrue(supervision.control_process('mcp_dev', 'restart')[0])
+        self.assertIn('service_launch.mcp_dev', self._files())
+        self.assertEqual('restarting', {p['key']: p['state']
+                                        for p in supervision.processes_overview()}['mcp_dev'])
+        self.assertFalse(supervision.needs_password('mcp_dev', 'restart'))
+        # Contre-épreuve : un compagnon que le script ne déclare pas n'est pas un processus.
+        self.assertFalse(supervision.control_process('mcp_wama', 'restart')[0])
 
     def test_only_a_restart_of_a_known_process_is_taken_and_never_without_a_watchdog(self):
         self.assertFalse(supervision.control_process('gpu', 'restart')[0])   # pas de surveillance
@@ -565,6 +599,54 @@ class ProcessOrdersShellTest(SimpleTestCase):
         (self.logs / 'service_launch.web').touch()
         out = self._run('kill() { echo "KILL $*"; }; supervise_web; supervise_web')
         self.assertEqual('KILL -HUP 777\n', out.stdout, out.stderr)
+
+    def test_a_companion_is_stopped_and_started_once_on_order_and_never_by_itself(self):
+        (self.logs / 'service_launch.mcp_dev').touch()
+        out = self._run("""
+            UP=1
+            wama_companion_alive() { [ "$UP" = 1 ]; }
+            stop_wama_companion() { echo "STOP $1"; UP=0; }
+            start_wama_companion() { echo "START $1"; }
+            supervise_companion mcp_dev
+            supervise_companion mcp_dev
+            supervise_companion gateway_discord
+        """)
+        self.assertEqual('STOP mcp_dev\nSTART mcp_dev\n', out.stdout, out.stderr)
+        self.assertFalse((self.logs / 'service_launch.mcp_dev').exists())
+        # Éteint et sans ordre : laissé éteint, sans signe de vie (le script de développement ne
+        # les lance pas, exprès).
+        self.assertFalse((self.logs / 'companion_seen.gateway_discord').exists())
+
+    def test_a_running_companion_leaves_its_sign_of_life_and_its_pattern_is_exact(self):
+        out = self._run("""
+            wama_companion_alive() { true; }
+            supervise_companion mcp_wama
+            wama_companion_pattern mcp_wama; wama_companion_pattern mcp_dev
+            wama_companion_pattern no_such || echo REFUSED
+        """)
+        self.assertTrue((self.logs / 'companion_seen.mcp_wama').exists())
+        self.assertEqual('[m]anage.py run_mcp_server --surface wama\n'
+                         '[m]anage.py run_mcp_server --surface dev\nREFUSED\n', out.stdout, out.stderr)
+
+    def test_the_gateway_is_checked_before_it_is_launched(self):
+        out = self._run("""
+            python() { echo "PY $*"; case " $* " in *" --check "*) return 1 ;; esac; }
+            nohup() { echo "NOHUP $*"; }
+            start_wama_companion gateway_discord || echo NOT_STARTED
+        """)
+        # La vérification refuse : rien n'est lancé, et son message est au journal de la passerelle.
+        self.assertEqual('NOT_STARTED\n', out.stdout, out.stderr)
+        self.assertEqual('PY manage.py run_gateway discord --check --settings=wama.settings\n',
+                         (self.logs / 'gateway-discord.log').read_text())
+
+    def test_the_start_script_launches_them_by_the_shared_command(self):
+        source = (BASE / 'start_wama_prod.sh').read_text(encoding='utf-8')
+        self.assertIn('start_wama_companion gateway_discord', source)
+        self.assertIn('start_wama_companion "mcp_$surface"', source)
+        self.assertEqual([], re.findall(r'^\s*nohup python manage\.py run_(?:gateway|mcp_server)',
+                                        source, re.M))
+        watchdog = (BASE / 'scripts' / 'worker_watchdog.sh').read_text(encoding='utf-8')
+        self.assertIn('for c in $WAMA_COMPANIONS; do supervise_companion "$c"; done', watchdog)
 
     def test_a_restart_of_wama_runs_the_start_script_once(self):
         starter = self.logs / 'fake_start.sh'

@@ -350,6 +350,84 @@ supervise_one() {
     fi
 }
 
+# ------------------------------------------------------------------------------------------
+# Les COMPAGNONS (2026-11-12) : la passerelle Discord et les deux serveurs MCP — des processus de
+# longue durée que le script de démarrage de PRODUCTION lance, et qu'aucun geste de WAMA ne savait
+# relancer (ils gardent le code de leur démarrage). Déclarés ICI, une fois : le démarrage et la
+# surveillance lisent la même commande. Lue aussi par le Python
+# (`service_supervision.declared_companions`).
+# ------------------------------------------------------------------------------------------
+WAMA_COMPANIONS="gateway_discord mcp_wama mcp_dev"
+
+# "<journal> <arguments de manage.py…>".
+wama_companion_spec() {
+    case "$1" in
+        gateway_discord) echo "gateway-discord.log run_gateway discord" ;;
+        mcp_wama)        echo "mcp.log run_mcp_server --surface wama" ;;
+        mcp_dev)         echo "mcp-dev.log run_mcp_server --surface dev" ;;
+        *) return 1 ;;
+    esac
+}
+
+# Motif EXACT de la ligne de commande, crochets pour que `pgrep -f` ne se trouve pas lui-même :
+# `--surface wama` ne doit pas être pris pour `--surface dev`.
+wama_companion_pattern() {
+    local spec
+    spec=$(wama_companion_spec "$1") || return 1
+    echo "[m]anage.py ${spec#* }"
+}
+
+wama_companion_alive() {
+    local pattern
+    pattern=$(wama_companion_pattern "$1") || return 1    # un motif VIDE ferait tout matcher
+    pgrep -f -- "$pattern" > /dev/null
+}
+
+# La passerelle se vérifie AVANT de se lancer (`--check` : jeton, salons, dépendance) — sans quoi
+# `nohup` enverrait l'échec dans un journal que personne ne lit. 1 = vérification refusée.
+start_wama_companion() {
+    local spec log_file settings=${DJANGO_SETTINGS_MODULE:-wama.settings}
+    spec=$(wama_companion_spec "$1") || { echo "compagnon inconnu : $1" >&2; return 1; }
+    log_file=${spec%% *}
+    # shellcheck disable=SC2086 — les arguments sont une liste, découpée exprès.
+    set -- "$1" ${spec#* }
+    if [ "$1" = gateway_discord ]; then
+        python manage.py "${@:2}" --check --settings="$settings" >> "$LOG_DIR/$log_file" 2>&1 || return 1
+    fi
+    nohup python manage.py "${@:2}" --settings="$settings" >> "$LOG_DIR/$log_file" 2>&1 &
+    disown $!
+}
+
+stop_wama_companion() {
+    local pattern waited=0
+    pattern=$(wama_companion_pattern "$1") || return 1
+    pkill -f -- "$pattern" 2>/dev/null || true
+    while [ "$waited" -lt "${WAMA_SERVICE_STOP_WAIT_S:-10}" ] && pgrep -f -- "$pattern" > /dev/null; do
+        sleep 1
+        waited=$((waited + 1))
+    done
+    pkill -9 -f -- "$pattern" 2>/dev/null || true
+}
+
+# UN passage de la surveillance sur UN compagnon : son signe de vie, et l'ordre de relance d'un
+# administrateur (`service_launch.<nom>`, `service_supervision.control_process`). Un compagnon
+# éteint n'est PAS relancé de lui-même : le script de développement ne les lance pas, exprès.
+supervise_companion() {
+    local c=$1 order="$LOG_DIR/service_launch.$1"
+    if [ -f "$order" ]; then
+        rm -f "$order"
+        log "$c : (re)lancé par un administrateur"
+        if wama_companion_alive "$c"; then stop_wama_companion "$c"; fi
+        if (cd "$PROJECT_DIR" && start_wama_companion "$c"); then
+            log "$c : relancé"
+        else
+            log "$c : NON relancé — vérification refusée, voir son journal"
+        fi
+        return 0
+    fi
+    if wama_companion_alive "$c"; then touch "$LOG_DIR/companion_seen.$c"; fi
+}
+
 # Le SERVEUR WEB que l'administrateur recharge (2026-11-11) : `HUP` au maître gunicorn, lu dans son
 # fichier de PID (jamais par `pgrep`, cf. le démarrage) — ses workers relisent le code, le port reste
 # ouvert. Appelant : la surveillance, à chaque passage.

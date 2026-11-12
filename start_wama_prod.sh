@@ -460,15 +460,12 @@ fi
 # l'échec dans un fichier que personne ne lit et le démarrage annoncerait un bot qui
 # n'existe pas — soit exactement la panne muette qu'on ferme ici. Une instance non
 # configurée saute donc le bloc EN LE DISANT.
-if ! pgrep -f "manage.py run_gateway discord" > /dev/null; then
-    if python manage.py run_gateway discord --check --settings=$DJANGO_SETTINGS_MODULE \
-            >> $LOG_DIR/gateway-discord.log 2>&1; then
+# La commande est celle de `scripts/wama_services.sh` (`start_wama_companion`, 2026-11-12) : la
+# surveillance relance le même processus quand un administrateur le demande depuis WAMA.
+if ! wama_companion_alive gateway_discord; then
+    if start_wama_companion gateway_discord; then
         echo "=== Starting Discord gateway ==="
-        nohup python manage.py run_gateway discord --settings=$DJANGO_SETTINGS_MODULE \
-            >> $LOG_DIR/gateway-discord.log 2>&1 &
-        GATEWAY_PID=$!
-        disown $GATEWAY_PID
-        echo "  Discord gateway started (PID $GATEWAY_PID) → $LOG_DIR/gateway-discord.log"
+        echo "  Discord gateway started (PID $!) → $LOG_DIR/gateway-discord.log"
     else
         echo "  Discord gateway NOT started — configuration incomplete."
         echo "  Détail : tail -n 20 $LOG_DIR/gateway-discord.log"
@@ -529,13 +526,11 @@ supervise_mcp() {
     local surface=$1 port=$2 log=$3 missing=$4
     # Motif EXACT de la ligne de commande : `run_mcp_server --surface wama` ne serait pas
     # trouvé par `--surface dev`, et inversement — d'où l'option toujours explicite.
-    local motif="manage.py run_mcp_server --surface $surface"
-    if ! pgrep -f "$motif" > /dev/null; then
+    # (`wama_companion_pattern` le porte ; la commande est celle de `start_wama_companion`.)
+    if ! wama_companion_alive "mcp_$surface"; then
         echo "=== Starting MCP $surface server (port $port) ==="
-        nohup python manage.py run_mcp_server --surface "$surface" \
-            --settings=$DJANGO_SETTINGS_MODULE >> "$LOG_DIR/$log" 2>&1 &
+        start_wama_companion "mcp_$surface"
         local pid=$!
-        disown $pid
         if [ $FAST -eq 1 ]; then
             echo "  MCP $surface server started (PID $pid) — fire & forget (--fast)"
         elif mcp_attend "$port" 150; then
