@@ -1142,11 +1142,20 @@ def _label_from_key(app: str) -> str:
 # à une surface qui est aussi une entrée de ce menu (Registres, Models) — sa route et son droit
 # se lisent alors chez la surface, sans seconde déclaration.
 
-#: Les sections du menu, dans leur ordre (arbitrage de Fabien du 01/09) : ce qui appartient à
-#: l'UTILISATEUR, puis ce que la PLATEFORME est.
+#: Les sections du menu, dans leur ordre. Deux le 01/09 (ce qui appartient à l'UTILISATEUR, ce que
+#: la PLATEFORME est) ; QUATRE depuis le 2026-11-12 (décision de Fabien — « Mon espace » portait
+#: onze entrées, dont quatre qui n'étaient pas personnelles) :
+#:   • `mine`     — ce qui n'appartient qu'à moi (ses libellés disent « Mon », « Mes ») ;
+#:   • `workshop` — ce que chacun PERSONNALISE et peut partager ou faire promouvoir (`ROADMAP §29`) ;
+#:   • `wama`     — ce que la plateforme est, pareil pour tous ;
+#:   • `admin`    — ce qui administre WAMA (la décision d'accès reste celle de chaque page).
+#: `submenu` : la section se replie en sous-menu en cascade (le mécanisme du menu Applications) ;
+#: « Mon espace » reste dépliée. `icon` : celle de l'entrée repliée.
 ACCOUNT_SECTIONS = {
-    'mine': {'label': 'Mon espace', 'order': 1},
-    'wama': {'label': 'WAMA', 'order': 2},
+    'mine': {'label': 'Mon espace', 'order': 1, 'submenu': False, 'icon': 'fa-user'},
+    'workshop': {'label': 'Mon atelier', 'order': 2, 'submenu': True, 'icon': 'fa-screwdriver-wrench'},
+    'wama': {'label': 'WAMA', 'order': 3, 'submenu': True, 'icon': 'fa-cubes'},
+    'admin': {'label': 'Administration', 'order': 4, 'submenu': True, 'icon': 'fa-shield-halved'},
 }
 
 #: Ce que la VUE de la page exige, et rien d'autre — la même chose que son décorateur :

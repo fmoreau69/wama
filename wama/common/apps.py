@@ -205,14 +205,14 @@ class CommonConfig(AppConfig):
                  color='#c4b5fd', access='account', url_name='common:shares', order=60,
                  description="Ce que vous avez partagé et ce qu'on vous a partagé, avec les "
                              "demandes d'accès en attente.")
-            page('skills', section='mine', label='Skills', icon='fa-wand-magic-sparkles',
+            page('skills', section='workshop', label='Skills', icon='fa-wand-magic-sparkles',
                  tone='info', access='public', url_name='common:skills_catalog', order=80)
             # Comment la voix dit un terme (registre `pronunciations`, 2026-10-27) : comme les
             # skills, des entrées système et les siennes.
-            page('pronunciations', section='mine', label='Prononciations', icon='fa-volume-high',
+            page('pronunciations', section='workshop', label='Prononciations', icon='fa-volume-high',
                  tone='success', access='public', url_name='common:pronunciations_catalog',
                  order=85)
-            page('notifications', section='mine', label='Notifications', icon='fa-bell',
+            page('notifications', section='mine', label='Mes notifications', icon='fa-bell',
                  access='account', url_name='common:notifications', menu=False,
                  description="Vos notifications dans WAMA, lues et non lues.")
             page('apps', section='wama', label='Apps', icon='fa-cubes', tone='primary',

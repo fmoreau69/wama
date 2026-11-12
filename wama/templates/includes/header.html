@@ -80,7 +80,9 @@
                il serait ROGNÉ par l'`overflow-y: auto` qui fait défiler « Applications » quand il
                dépasse la fenêtre (base.html). Et le clic sur le déclencheur ne remonte PAS au
                document : Bootstrap y referme ses menus — c'est le défaut de l'ancien accordéon. */
-            (function () {
+            /* Posé au chargement du DOCUMENT (2026-11-12) : le menu du compte, plus bas dans la
+               page, replie aussi ses sections en sous-menus — ce script s'exécutait avant lui. */
+            document.addEventListener('DOMContentLoaded', function () {
                 var DELAI = 160;             // ms : laisse traverser l'écart entre menu et sous-menu
                 document.querySelectorAll('[data-wama-nav-sous]').forEach(function (li) {
                     var declencheur = li.querySelector(':scope > .dropdown-item');
@@ -163,7 +165,7 @@
                     var menu = li.closest('.dropdown');
                     if (menu) menu.addEventListener('hide.bs.dropdown', cacher);
                 });
-            })();
+            });
             </script>
             {% comment %}Les CONTRÔLES DE PAGE (2026-10-29, décision de Fabien : « une barre de page ») —
             ce qui vaut pour toute la page vit ici, jamais dans une brique, qui peut se déplacer ou
@@ -262,12 +264,30 @@
                     <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                         {% for section in account_menu %}
                         {% if not forloop.first %}<li><hr class="dropdown-divider"></li>{% endif %}
+                        {% if section.submenu %}
+                        {# Section REPLIÉE (déclarée `submenu`, 2026-11-12) : le sous-menu en cascade du menu Applications — même script, même clavier. #}
+                        <li class="wama-nav-sous" data-wama-nav-sous>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between"
+                               href="#" role="button" aria-haspopup="true" aria-expanded="false">
+                                <span><i class="fas {{ section.icon }} me-2"></i> {{ section.label }}</span>
+                                <i class="fas fa-chevron-right small ms-2"></i>
+                            </a>
+                            <ul class="dropdown-menu wama-nav-sous-menu" id="accountSousMenu-{{ section.key }}">
+                                {% for p in section.pages %}<li>
+                                    <a class="dropdown-item d-flex align-items-center" href="{{ p.url }}">
+                                        <i class="fas {{ p.icon }} me-2{% if p.tone %} text-{{ p.tone }}{% endif %}"{% if p.color %} style="color:{{ p.color }};"{% endif %}></i> {{ p.label }}
+                                    </a>
+                                </li>{% endfor %}
+                            </ul>
+                        </li>
+                        {% else %}
                         <li><h6 class="dropdown-header">{{ section.label }}</h6></li>
                         {% for p in section.pages %}<li>
                             <a class="dropdown-item d-flex align-items-center" href="{{ p.url }}">
                                 <i class="fas {{ p.icon }} me-2{% if p.tone %} text-{{ p.tone }}{% endif %}"{% if p.color %} style="color:{{ p.color }};"{% endif %}></i> {{ p.label }}
                             </a>
                         </li>{% endfor %}
+                        {% endif %}
                         {% endfor %}
                         <li><hr class="dropdown-divider"></li>
                         <li>

@@ -76,11 +76,13 @@ def account_pages_for(user, allowed_apps=None) -> list:
 
 
 def account_menu(user, allowed_apps=None) -> list:
-    """Le menu du COMPTE de `user` : `[{'key', 'label', 'pages': […]}]`, une entrée par section
-    non vide, dans l'ordre déclaré (`app_registry.ACCOUNT_SECTIONS`)."""
+    """Le menu du COMPTE de `user` : `[{'key', 'label', 'icon', 'submenu', 'pages': […]}]`, une
+    entrée par section non vide, dans l'ordre déclaré (`app_registry.ACCOUNT_SECTIONS`) ; `submenu`
+    dit si la section se replie en sous-menu."""
     from wama.common.app_registry import ACCOUNT_SECTIONS
 
-    sections = {key: {'key': key, 'label': spec['label'], 'pages': []}
+    sections = {key: {'key': key, 'label': spec['label'], 'icon': spec.get('icon', ''),
+                      'submenu': bool(spec.get('submenu')), 'pages': []}
                 for key, spec in sorted(ACCOUNT_SECTIONS.items(), key=lambda kv: kv[1]['order'])}
     for page in account_pages_for(user, allowed_apps):
         if page['menu']:
@@ -167,12 +169,22 @@ def find_page(user, page: str):
     """La page que `page` désigne (clé, libellé ou alias, casse et accents ignorés) parmi celles
     que `user` peut ouvrir — `(page, pages)`, `page` valant None si rien ne correspond."""
     pages = navigable_pages(user)
-    wanted = fold(page)
+    wanted = _bare(fold(page))
     for entry in pages:
         names = [entry['key'], entry['label'], *entry.get('aliases', ())]
-        if wanted in (fold(n) for n in names):
+        if wanted in (_bare(fold(n)) for n in names):
             return entry, pages
     return None, pages
+
+
+#: Les possessifs d'un libellé PERSONNEL du menu du compte (« Mon profil », « Mes partages ») :
+#: une convention d'affichage — « profil » et « mon profil » désignent la même page (2026-11-12).
+_POSSESSIVES = ('mon ', 'ma ', 'mes ')
+
+
+def _bare(name: str) -> str:
+    """`name` (déjà plié) sans son possessif de tête."""
+    return next((name[len(p):] for p in _POSSESSIVES if name.startswith(p)), name)
 
 
 def absolute_url(path: str) -> str:

@@ -46,7 +46,7 @@ class ModelManagerConfig(AppConfig):
         # surface, sans redire sa route. `access='account'` : les trois vues sont `login_required`
         # (la politique `registries` et la fermeture au visiteur se lisent du chemin).
         from wama.common.app_registry import register_account_page
-        register_account_page('functions', section='mine', label='Fonctions',
+        register_account_page('functions', section='workshop', label='Fonctions',
                               icon='fa-project-diagram', tone='info', access='account',
                               url_name='model_manager:functions_catalog', order=10)
         register_account_page('libraries', section='wama', label='Librairies', icon='fa-book',

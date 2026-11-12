@@ -8267,5 +8267,25 @@ Studio. Question d'ordre laissée ouverte : avant ou après l'explorateur du mon
 déjà les données d'un dataset (`WAMA_DATA_WORLD.md`) — les deux lisent des tables, une seule brique
 de consultation est à viser.
 
-**31.4 Le menu du compte** ⏳ — voir `§CLÔTURE`/`§PALIER` du 2026-11-12 dans `PROJECT_STATUS` pour la
-proposition ; à trancher par Fabien, concile si besoin.
+**31.4 Le menu du compte** ✅ 2026-11-12 (décision de Fabien, « parfaitement schéma-driven ») — quatre
+sections DÉCLARÉES (`app_registry.ACCOUNT_SECTIONS` : libellé, rang, icône, `submenu`) : « Mon espace »
+dépliée (ce qui n'appartient qu'à moi, libellés en « Mon / Mes »), puis « Mon atelier » (Skills,
+Prononciations, Fonctions), « WAMA » et « Administration » repliées en sous-menus — le mécanisme du
+menu Applications. Une page change de section par sa déclaration (`register_account_page(section=…)`).
+L'intitulé « Mon atelier » reste à confirmer par Fabien (« Ma personnalisation » envisagé) : il se
+change en un mot, dans la déclaration.
+
+**31.5 Écrire une FONCTION à soi** ⏳ — trou relevé par Fabien dans « Mon atelier » : les skills et les
+prononciations se personnalisent, pas les fonctions (prévu au chantier du monde Data). Idée : un petit
+éditeur de code dans la page Fonctions pour en ajouter une à la main, et l'assistant pour l'écrire en
+langage naturel — comme pour les skills et les prononciations. À rapprocher de 31.2 (même éditeur).
+
+**31.6 WeasyPrint, sous-exploité ?** ⏳ à vérifier (question de Fabien, 2026-11-12). Mesuré : il est
+DÉJÀ dans WAMA, comme moteur de REPLI du rendu HTML → PDF (`common/utils/html_render.py`, en-tête :
+Chromium préféré — CSS moderne complet, JavaScript exécuté ; WeasyPrint — CSS partiel, pas de
+JavaScript, mais aucun navigateur à provisionner) et dans le converter
+(`converter/backends/document_backend.py`). Il ne peut donc pas rendre la présentation (scène 3D,
+scripts). À auditer : ce qu'il apporterait pour les DOCUMENTS paginés (en-têtes et pieds de page,
+numérotation, signets, métadonnées, pièces jointes, PDF/A) — exports du transcriber, du writer, des
+rapports — là où Chromium imprime une page d'écran. Lié : la vidéo lisible dans le PDF de la
+présentation (proposition du 12/11, `PROJECT_STATUS`), qui demande une retouche du PDF après rendu.
