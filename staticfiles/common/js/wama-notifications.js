@@ -109,6 +109,8 @@
       + '</div>'
       + renderActions(n, state)
       + '<div class="wn-tools wama-reveal">'
+      + '<button type="button" class="wn-tool" data-wn-copy title="Copier" aria-label="Copier">'
+      + '<i class="fas fa-copy" aria-hidden="true"></i></button>'
       + '<button type="button" class="wn-tool" data-wn-toggle title="' + label + '" aria-label="' + label + '">'
       + '<i class="fas ' + (n.read ? 'fa-envelope' : 'fa-envelope-open') + '" aria-hidden="true"></i></button>'
       + '<button type="button" class="wn-tool" data-wn-delete title="Supprimer" aria-label="Supprimer">'
@@ -333,6 +335,11 @@
     });
   }
 
+  /** Ce que « Copier » emporte d'une notification : son titre, puis son texte ENTIER. */
+  function noteText(n) {
+    return n.body ? n.title + '\n\n' + n.body : n.title;
+  }
+
   function openItem(id) {
     const n = itemById(id);
     if (!n) return;
@@ -454,7 +461,10 @@
       if (c) runAction(id, c.index, true);
     } else if (hit('[data-wn-consent-cancel]')) { delete state.consent[id]; render(); }
     else if ((el = hit('[data-wn-do]'))) runAction(id, Number(el.getAttribute('data-wn-do')), false);
-    else if (hit('[data-wn-toggle]')) toggleRead(id);
+    else if ((el = hit('[data-wn-copy]'))) {
+      const n = itemById(id);
+      if (n) global.WamaApp.copyText(noteText(n), el);
+    } else if (hit('[data-wn-toggle]')) toggleRead(id);
     else if (hit('[data-wn-delete]')) remove(id);
     else if (hit('[data-wn-open]')) openItem(id);
   }
@@ -475,6 +485,17 @@
 
   // Gestes de la PAGE complète (`notifications.html`) : mêmes routes, puis la page se relit.
   function onPageAct(e) {
+    // « Copier » sur la page complète : le texte de la notification, lu dans la page.
+    const copy = e.target.closest ? e.target.closest('[data-wn-page-copy]') : null;
+    if (copy) {
+      const item = copy.closest('.notif-item');
+      const part = function (sel) {
+        const node = item && item.querySelector(sel);
+        return node ? (node.innerText || node.textContent || '').trim() : '';
+      };
+      global.WamaApp.copyText(noteText({ title: part('.notif-title'), body: part('.notif-body') }), copy);
+      return;
+    }
     const btn = e.target.closest ? e.target.closest('[data-wn-page-act]') : null;
     if (!btn) return;
     e.preventDefault();
@@ -512,6 +533,7 @@
     reload: load,
     // Pour les tests (rendu pur) :
     _renderPanel: renderPanel,
+    _noteText: noteText,
     _relativeTime: relativeTime,
   };
 

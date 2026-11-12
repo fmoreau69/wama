@@ -1645,7 +1645,41 @@
     document.head.appendChild(link);
   }
 
+  /** « Copier » — LE geste, pour toute surface (aperçu texte, cloche, page des notifications,
+   *  bulles de l'assistant ; 2026-11-12, demande de Fabien). Copie `text` et le DIT sur `button` :
+   *  une coche pendant deux secondes, puis son contenu d'avant. Hors contexte sécurisé (http sur
+   *  le réseau local) `navigator.clipboard` n'existe pas : repli sur une zone de texte
+   *  sélectionnée. Un échec est dit par un toast, jamais tu. Rend une promesse. */
+  function copyText(text, button) {
+    var value = text == null ? '' : String(text);
+    var viaSelection = function () {
+      var area = document.createElement('textarea');
+      area.value = value;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      var copied = false;
+      try { copied = document.execCommand('copy'); } catch (err) { copied = false; }
+      area.remove();
+      return copied ? Promise.resolve() : Promise.reject(new Error('copy'));
+    };
+    var written = (global.navigator && global.navigator.clipboard && global.navigator.clipboard.writeText)
+      ? global.navigator.clipboard.writeText(value).catch(viaSelection)
+      : viaSelection();
+    return written.then(function () {
+      if (!button || button.classList.contains('is-done')) return;
+      var before = button.innerHTML;
+      var labelled = !!button.querySelector('span');
+      button.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>' + (labelled ? '<span>Copié</span>' : '');
+      button.classList.add('is-done');
+      setTimeout(function () { button.innerHTML = before; button.classList.remove('is-done'); }, 2000);
+    }).catch(function () { toast('Copie impossible', 'error'); });
+  }
+
   global.WamaApp = {
+    copyText: copyText,
     loadScript: loadScript,
     loadStyle: loadStyle,
     themeColor: themeColor,

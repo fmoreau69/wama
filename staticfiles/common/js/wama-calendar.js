@@ -222,10 +222,8 @@
             });
         });
         document.getElementById('wama-calendar-feed-copy').addEventListener('click', function () {
-            var input = document.getElementById('wama-calendar-feed-url');
-            if (navigator.clipboard) { navigator.clipboard.writeText(input.value); }
-            else { input.select(); document.execCommand('copy'); }
-            if (window.WamaApp && WamaApp.toast) { WamaApp.toast('Lien copié', 'success'); }
+            // Le geste commun (`WamaApp.copyText`) : la coche sur le bouton, le repli hors https.
+            window.WamaApp.copyText(document.getElementById('wama-calendar-feed-url').value, this);
         });
         document.getElementById('wama-calendar-feed-regenerate').addEventListener('click', function () {
             requestFeed(true).then(function () {

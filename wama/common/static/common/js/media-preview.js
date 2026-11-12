@@ -1871,12 +1871,9 @@
             + (!drawn && !formatted && CODE_TEXT.test(mimeType || '') ? ' is-code' : '');
         body.textContent = 'Chargement…';
 
+        // Le geste commun (`WamaApp.copyText`) : la coche, le repli hors https, l'échec dit.
         copyBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText((formatted || drawn) ? data.content : body.textContent).then(() => {
-                copyBtn.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i><span>Copié</span>';
-                copyBtn.classList.add('is-done');
-                setTimeout(() => { copyBtn.innerHTML = copyLabel; copyBtn.classList.remove('is-done'); }, 2000);
-            }).catch(() => {});
+            window.WamaApp.copyText((formatted || drawn) ? data.content : body.textContent, copyBtn);
         });
 
         pane.appendChild(toolbar);

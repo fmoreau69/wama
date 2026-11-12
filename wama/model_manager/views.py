@@ -614,8 +614,12 @@ def api_service_control(request):
             logger.warning("[processus] %s : %s demandé par %s", key, action, request.user)
             if cuts:
                 from wama.common.utils.notifications import notify_admins
+                # « Ouvrir » mène à la page d'où la relance se suit (2026-11-12 : ces 16
+                # notifications n'avaient rien à ouvrir).
+                from django.urls import reverse
                 notify_admins('process_restart', f"Relance demandée : {key}",
-                              f"{request.user} a demandé : {message}")
+                              f"{request.user} a demandé : {message}",
+                              url=reverse('model_manager:index'))
     if not accepted:
         return JsonResponse({'success': False, 'error': message}, status=409)
     return JsonResponse({'success': True, 'message': message})

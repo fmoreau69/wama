@@ -548,6 +548,16 @@ class BellPanelRenderingTest(SimpleTestCase):
         self.assertIn('Valider et accorder', consent)
         self.assertNotIn('data-wn-do=', consent)
 
+    def test_every_notification_offers_to_copy_its_title_and_whole_text(self):
+        """2026-11-12: « Copier », as in the text preview — the title, then the WHOLE body."""
+        import json
+        html = self._render(items=[self._item(), self._item(id=8, open_url='')])
+        self.assertEqual(2, html.count('data-wn-copy'))
+        text = self.v8.eval('window.WamaNotifications._noteText(%s)' % json.dumps(
+            {'title': 'Fini', 'body': 'ligne 1\nligne 2'}))
+        self.assertEqual('Fini\n\nligne 1\nligne 2', text)
+        self.assertEqual('Fini', self.v8.eval('window.WamaNotifications._noteText({"title":"Fini","body":""})'))
+
     def test_a_deletion_waiting_for_undo_and_the_empty_states(self):
         self.assertIn('data-wn-undo="7"', self._render(items=[self._item()], pending={'7': 1}))
         self.assertIn('Tout est lu.', self._render(filter='unread'))
@@ -566,3 +576,64 @@ class BellPanelRenderingTest(SimpleTestCase):
         import json
         self.assertEqual(['à l’instant', 'il y a 5 min', 'il y a 2 h', 'hier', 'il y a 3 j'],
                          json.loads(said))
+
+
+class OneCopyGestureTest(SimpleTestCase):
+    """« Copier » is ONE gesture, `WamaApp.copyText` (2026-11-12): the tick on the button, the
+    fallback outside https, the failure said. The text preview, the bell, the notifications page,
+    the assistant's bubbles and the calendar go through it; two hand-written copies remain, named
+    below — the list can only shrink."""
+
+    #: Hand-written clipboard writes that existed the day the gesture was made common.
+    DECLARED_GAPS = {'wama/accounts/templates/accounts/profile.html',
+                     'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js'}
+
+    def test_nothing_else_writes_to_the_clipboard_by_hand(self):
+        import re
+        from pathlib import Path
+        from django.conf import settings
+        root = Path(settings.BASE_DIR)
+        own = 'wama/common/static/common/js/wama-app-base.js'
+        twin = re.compile(r'_\d\d$')
+        found = set()
+        for top in ('wama', 'wama_lab', 'wama_data'):
+            for path in (root / top).rglob('*'):
+                if path.suffix not in ('.js', '.html') or path.name.endswith('.min.js'):
+                    continue
+                rel = path.relative_to(root).as_posix()
+                parts = rel.split('/')
+                if 'vendors' in parts or 'node_modules' in parts or any(twin.search(p) for p in parts[:2]):
+                    continue
+                if rel != own and 'clipboard.writeText' in path.read_text(encoding='utf-8', errors='replace'):
+                    found.add(rel)
+        self.assertEqual(self.DECLARED_GAPS, found)
+
+    def test_the_four_surfaces_call_the_common_gesture(self):
+        from wama.common.tests.tests_poller_js import JS
+        for name in ('media-preview.js', 'wama-notifications.js', 'wama-assistant-chat.js',
+                     'wama-calendar.js'):
+            with self.subTest(script=name):
+                self.assertIn('WamaApp.copyText(', (JS / name).read_text(encoding='utf-8'))
+
+    def test_the_gesture_copies_marks_the_button_and_says_a_failure(self):
+        import importlib.util
+        if importlib.util.find_spec('py_mini_racer') is None:
+            self.skipTest('py_mini_racer absent de ce venv')
+        from py_mini_racer import MiniRacer
+        from wama.common.tests.tests_cap_from_js import FAKE_DOM
+        from wama.common.tests.tests_poller_js import HARNESS, JS
+        v8 = MiniRacer()
+        v8.eval(FAKE_DOM + HARNESS)
+        v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
+        v8.eval('''
+            var copied = [], said = [];
+            window.navigator = { clipboard: { writeText: function (t) { copied.push(t); return { then: function (ok) { ok(); return { catch: function () {} }; }, catch: function () { return this; } }; } } };
+            var button = { innerHTML: '<i></i><span>Copier</span>', _done: false,
+                           classList: { contains: function () { return button._done; },
+                                        add: function () { button._done = true; }, remove: function () { button._done = false; } },
+                           querySelector: function () { return {}; } };
+            var setTimeout = function () {};
+        ''')
+        self.assertTrue(v8.eval('typeof window.WamaApp.copyText === "function"'))
+        v8.eval('window.WamaApp.copyText("bonjour", button)')
+        self.assertEqual(['bonjour'], list(v8.eval('copied')))

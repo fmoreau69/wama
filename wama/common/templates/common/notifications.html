@@ -65,7 +65,9 @@ Les préférences type × canal (§5.2) sont la marche 5, pas cette page.
       {# Gestes du panneau de la cloche, mêmes routes (`wama-notifications.js`, 2026-10-13). #}
       <button type="button" class="btn btn-sm btn-outline-info" data-wn-page-act="unread" data-id="{{ n.pk }}">Marquer comme non lu</button>
       {% endif %}
-      <button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-wn-page-act="delete" data-id="{{ n.pk }}"
+      <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" data-wn-page-copy
+              title="Copier le texte de cette notification"><i class="fas fa-copy" aria-hidden="true"></i><span class="ms-1">Copier</span></button>
+      <button type="button" class="btn btn-sm btn-outline-danger" data-wn-page-act="delete" data-id="{{ n.pk }}"
               title="Supprimer cette notification"><i class="fas fa-trash-alt"></i></button>
     </div>
   </div>

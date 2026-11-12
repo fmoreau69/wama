@@ -296,9 +296,23 @@
     else bubble.textContent = content;
     if (role === 'assistant') this.markModel(bubble, model);
     wrap.appendChild(bubble);
+    var self = this;
+    // « Copier » : le texte d'un message, dans les deux densités — la demande comme la réponse
+    // (2026-11-12). Lu au clic : une réponse en flux se remplit après la création de sa bulle.
+    if (role === 'assistant' || role === 'user') {
+      var copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'btn btn-sm btn-link text-secondary p-0 ms-1 align-top wama-assistant-copy';
+      copy.title = 'Copier';
+      copy.setAttribute('aria-label', 'Copier ce message');
+      copy.innerHTML = '<i class="fas fa-copy" style="font-size:.8em" aria-hidden="true"></i>';
+      copy.addEventListener('click', function () {
+        global.WamaApp.copyText(self.textOf(bubble), copy);
+      });
+      wrap.appendChild(copy);
+    }
     // « Écouter » : un geste EXPLICITE, donc il lit même quand la voix est coupée.
     if (this.full && role === 'assistant') {
-      var self = this;
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn btn-sm btn-link text-secondary p-0 ms-1 align-top';

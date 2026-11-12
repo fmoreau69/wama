@@ -448,7 +448,8 @@ class ProcessRoutesTest(TestCase):
         with mock.patch.object(supervision, 'declared_workers', return_value=['gpu']), \
                 mock.patch.object(supervision, '_worker_busy', return_value=True), \
                 mock.patch.object(supervision, 'control_process', return_value=(True, 'fait')) as order, \
-                mock.patch('wama.common.utils.notifications.notify_admins', return_value=(1, False)):
+                mock.patch('wama.common.utils.notifications.notify_admins',
+                           return_value=(1, False)) as told:
             refused = self._order('gpu')
             self.assertEqual((403, True), (refused.status_code, refused.json().get('needs_password')))
             self.assertEqual(403, self._order('gpu', 'wrong').status_code)
@@ -456,6 +457,9 @@ class ProcessRoutesTest(TestCase):
             self.assertEqual(200, self._order('gpu', 'the-password').status_code)
             self.assertEqual(200, self._order('gpu').status_code, "la fenêtre de reconfirmation")
             self.assertEqual(2, order.call_count)
+            # The notification can be OPENED: it leads to the page where the restart is followed.
+            from django.urls import reverse
+            self.assertEqual(reverse('model_manager:index'), told.call_args.kwargs.get('url'))
 
     def test_an_idle_worker_or_the_web_server_need_no_password(self):
         with mock.patch.object(supervision, 'declared_workers', return_value=['gpu']), \
