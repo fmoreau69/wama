@@ -115,9 +115,9 @@ def domain_links(app: str, url: str) -> list:
     titre de la page (`page_domain`) et du menu Applications : les mêmes liens, de la même
     déclaration (`app_modes`)."""
     from wama.common.utils import app_modes
-    domains = app_modes.get_domains(app) if app else []
-    if len(domains) < 2:
+    if not app or not app_modes.has_domain_tabs(app):
         return []
+    domains = app_modes.get_domains(app)
     return [{'id': d.get('id'), 'label': d.get('label') or d.get('id'), 'icon': d.get('icon') or '',
              'description': d.get('description') or '',
              'url': f"{url}?{PAGE_DOMAIN_PARAM}={d.get('id')}"} for d in domains]

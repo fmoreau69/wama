@@ -153,17 +153,24 @@ class OpenAccountPageTest(TestCase):
     def test_the_assistant_opens_an_app_on_the_domain_it_names(self):
         """2026-11-12 : « ouvre l'anonymizer sur les documents » — the address carries the domain,
         the account keeps it ; an unknown one is refused with those the app has."""
+        from wama.common.app_registry import APP_CATALOG
         from wama.common.models import UserAppSetting
-        opened = tool_api.open_page(self.admin, 'anonymizer', domain='Document')
-        self.assertTrue(opened['url'].endswith('?domain=document'), opened)
-        self.assertEqual('document', UserAppSetting.objects.get(
-            user=self.admin, app='anonymizer', name='domain').value)
-        refused = tool_api.open_page(self.admin, 'anonymizer', domain='audio')
-        self.assertEqual(['image_video', 'document'], [d['key'] for d in refused['domains']])
-        self.assertEqual([], tool_api.open_page(self.admin, 'reader', domain='x')['domains'])
+        from wama.common.utils.app_modes import get_domains, has_domain_tabs
+        real = sorted(a for a, spec in APP_CATALOG.items() if not spec.get('sandbox'))
+        several = [a for a in real if has_domain_tabs(a)]
+        single = next(a for a in real if not has_domain_tabs(a))
+        app, other = several[0], several[1]
+        second = get_domains(app)[1]
+        opened = tool_api.open_page(self.admin, app, domain=second['label'])
+        self.assertTrue(opened['url'].endswith(f"?domain={second['id']}"), opened)
+        self.assertEqual(second['id'], UserAppSetting.objects.get(
+            user=self.admin, app=app, name='domain').value)
+        refused = tool_api.open_page(self.admin, app, domain='no-such-domain')
+        self.assertEqual([d['id'] for d in get_domains(app)], [d['key'] for d in refused['domains']])
+        self.assertEqual([], tool_api.open_page(self.admin, single, domain='x')['domains'])
         # Counter-check: without a domain, the page opens as before and nothing is written.
-        self.assertNotIn('?', tool_api.open_page(self.admin, 'imager')['url'])
-        self.assertFalse(UserAppSetting.objects.filter(user=self.admin, app='imager').exists())
+        self.assertNotIn('?', tool_api.open_page(self.admin, other)['url'])
+        self.assertFalse(UserAppSetting.objects.filter(user=self.admin, app=other).exists())
 
     def test_the_assistant_opens_a_page_of_the_account_menu(self):
         for name, url_name in (('Profil', 'accounts:profile'), ('mon journal', 'common:journal'),

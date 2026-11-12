@@ -271,11 +271,11 @@
                         <span class="wama-header-label wama-header-name">{{ user.first_name|default:user.username }} {{ user.last_name }}</span>
                     </a>
                     {% comment %}
-                      DEUX SECTIONS, nommées (Fabien, 01/09) : « Mon espace » = ce qui appartient
-                      à l'UTILISATEUR (son profil, son journal, son RAG, les consignes et
-                      traitements qu'il mobilise — et la gestion des comptes pour l'admin) ;
-                      « WAMA » = ce que la PLATEFORME est (ses apps, ses briques, ses obligations,
-                      la carte des registres). Un menu plat de 10+ entrées ne se lisait plus.
+                      QUATRE SECTIONS, déclarées (`app_registry.ACCOUNT_SECTIONS` — deux le 01/09,
+                      quatre le 2026-11-12, décision de Fabien) : « Mon espace » = ce qui n'appartient
+                      qu'à l'UTILISATEUR, dépliée ; « Mon atelier » = ce qu'il personnalise et peut
+                      partager ; « WAMA » = ce que la PLATEFORME est ; « Administration » — ces trois
+                      repliées en sous-menus (`submenu`), par le mécanisme du menu Applications.
 
                       GÉNÉRÉ depuis le 2026-10-14 (demande de Fabien) des pages DÉCLARÉES — chacune
                       depuis le `ready()` de l'app qui la porte (`app_registry.register_account_page`)

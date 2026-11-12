@@ -584,6 +584,14 @@
   // Depuis le 2026-11-12 le domaine se retient PAR COMPTE, côté serveur (`navigation.page_domain`) :
   // il vivait dans le `localStorage`, donc par navigateur. Ce geste le dit au serveur — la page
   // de l'app s'ouvrira dessus.
+  /** Le domaine que le SOCLE a choisi pour la page (`_page_domain.html`) : `{app, domain}`, ou
+   *  null sur une page sans domaine. La seule lecture de cette marque — la bascule des volets
+   *  (`wama-modes.js`) et la Console (`console.js`) la prennent ici. */
+  function pageDomain() {
+    var el = document.querySelector('[data-wama-page-domain]');
+    return el ? { app: el.dataset.app, domain: el.dataset.wamaPageDomain } : null;
+  }
+
   function rememberDomain(app, domain) {
     if (!app || !domain) return Promise.resolve(false);
     var body = 'app=' + encodeURIComponent(app) + '&domain=' + encodeURIComponent(domain);
@@ -1726,6 +1734,7 @@
     progressBlockHtml: progressBlockHtml,
     paintProgress: paintProgress,
     rememberDomain: rememberDomain,
+    pageDomain: pageDomain,
   };
 
   // ══ NOTIFICATIONS EN DIRECT (2026-10-03, question de Fabien) ═══════════════════════════════

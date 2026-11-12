@@ -271,11 +271,10 @@
         });
     }
 
-    /** Le domaine que le SOCLE a choisi pour la page (`_page_domain.html`, 2026-11-12) : lu de
-     *  l'adresse, sinon retenu par compte — `{app, domain}`, ou null sur une page sans domaine. */
+    /** Le domaine que le SOCLE a choisi pour la page (2026-11-12) : lu de l'adresse, sinon retenu
+     *  par compte — la lecture commune `WamaApp.pageDomain`. */
     function pageDomain() {
-        const el = document.querySelector('[data-wama-page-domain]');
-        return el ? { app: el.dataset.app, domain: el.dataset.wamaPageDomain } : null;
+        return global.WamaApp && global.WamaApp.pageDomain ? global.WamaApp.pageDomain() : null;
     }
 
     /** Les onglets d'AVANT le 2026-11-12, pour la seule page qu'un serveur pas encore relancé

@@ -1041,6 +1041,7 @@
             "image",
             "video"
           ],
+          "description": "Flouter les visages, les plaques et ce que l'on décrit dans une image ou une vidéo.",
           "icon": "fa-photo-film",
           "id": "image_video",
           "label": "Image / Vidéo",
@@ -1072,6 +1073,7 @@
           "accepts": [
             "document"
           ],
+          "description": "Occulter les données personnelles d'un document, sa mise en forme gardée.",
           "icon": "fa-file-shield",
           "id": "document",
           "inputs": [

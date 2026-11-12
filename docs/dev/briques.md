@@ -1874,12 +1874,12 @@ Les pages du menu Applications — apps du catalogue et surfaces déclarées, lu
   - `account_pages_for(user, allowed_apps=None) -> list` — Les pages du COMPTE que `user` peut ouvrir, dans l'ordre du menu : `[{'key', 'label',
   - `account_menu(user, allowed_apps=None) -> list` — Le menu du COMPTE de `user` : `[{'key', 'label', 'icon', 'submenu', 'pages': […]}]`, une
   - `remember_page_domain(user, app: str, domain: str) -> bool` — Retient `domain` comme celui de `user` pour `app` — s'il est DÉCLARÉ par l'app. Rend False
+  - `domain_links(app: str, url: str) -> list` — Un LIEN par domaine d'une app qui en a plusieurs : `[{'id', 'label', 'icon', 'description',
   - `page_domain(request, app: str)` — Le DOMAINE de la page d'app que sert `request` (`MODES_QUEUE_UX §2ter`, décision de Fabien
   - `navigable_pages(user) -> list` — Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world',
   - `scene_pages(user, allowed_apps=None) -> list` — Les SCÈNES 3D que `user` peut ouvrir (`common/scenes.py`, 2026-10-30 — demande de Fabien :
   - `find_page(user, page: str)` — La page que `page` désigne (clé, libellé ou alias, casse et accents ignorés) parmi celles
   - `absolute_url(path: str) -> str` — L'adresse COMPLÈTE d'une page, pour une surface hors navigateur (un canal) — '' si
-  - `domain_links(app: str, url: str) -> list` — Un LIEN par domaine d'une app qui en a plusieurs : `[{'id', 'label', 'icon', 'description',
 
 ### Pipeline de prompts
 
@@ -2761,7 +2761,7 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
 - **API publique** (31) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
-  - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs.
+  - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines : sa page se choisit par domaine — le titre du socle en
   - `library_nature_for(app: str, port_id: str) -> str` — La nature de médiathèque sur laquelle s'ouvre la sélection pour ce PORT ('' si aucune).
   - `get_domain(app: str, domain_id: str) -> dict`
   - `get_mode(app: str, domain_id: str, mode_id: str) -> dict`

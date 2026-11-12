@@ -1263,6 +1263,7 @@
             "image",
             "video"
           ],
+          "description": "Agrandir et restaurer une image ou une vidéo.",
           "extension_natures": {
             "gif": "video"
           },
@@ -1286,6 +1287,7 @@
           "accepts": [
             "audio"
           ],
+          "description": "Débruiter et restaurer un enregistrement sonore.",
           "icon": "fa-volume-high",
           "id": "audio",
           "label": "Audio",

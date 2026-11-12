@@ -201,7 +201,8 @@ PY = ['**/*.py']
 #: quatre critères (2026-11-12, `ROUTE §11 #42` ⑥). `_ROUTE_PREFIX` : facultatif ; `…_REQUIRED` : exigé.
 from wama.common.utils.app_modes import route_prefixes as _route_prefixes  # noqa: E402
 
-_ROUTE_PREFIX_REQUIRED = '(?:' + '|'.join(re.escape(p) + '_' for p in _route_prefixes()) + ')'
+_ROUTE_PREFIX_REQUIRED = ('(?:' + '|'.join(re.escape(p) + '_' for p in _route_prefixes()) + ')'
+                          if _route_prefixes() else '(?!)')
 _ROUTE_PREFIX = _ROUTE_PREFIX_REQUIRED + '?'
 PARAMS = ['params.py']
 

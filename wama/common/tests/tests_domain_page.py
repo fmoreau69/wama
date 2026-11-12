@@ -398,6 +398,9 @@ class ConsoleByDomainTest(TestCase):
     """2026-11-12 : la Console de la page d'un domaine ne mêle plus les lignes d'un autre — une
     ligne porte le domaine de l'élément traité, posé par le squelette à l'ouverture de la tâche."""
 
+    #: Any app name: the console reads the lines' own marks, no declaration.
+    APP = 'witness_app'
+
     def setUp(self):
         import uuid
         from wama.common.utils import console_utils
@@ -406,38 +409,39 @@ class ConsoleByDomainTest(TestCase):
         self.console = console_utils
         self.addCleanup(console_utils.set_line_domain, '')
         console_utils.set_line_domain('')
-        console_utils.push_console_line(self.USER, 'whole app', app='imager')
+        console_utils.push_console_line(self.USER, 'whole app', app=self.APP)
         console_utils.set_line_domain('video')
-        console_utils.push_console_line(self.USER, 'a video line', app='imager')
+        console_utils.push_console_line(self.USER, 'a video line', app=self.APP)
         console_utils.set_line_domain('image')
-        console_utils.push_console_line(self.USER, 'an image line', app='imager')
+        console_utils.push_console_line(self.USER, 'an image line', app=self.APP)
 
     def _shown(self, **kwargs):
         return [line['msg'] for line in self.console.get_console_lines(self.USER, **kwargs)
                 if line['msg'] in ('whole app', 'a video line', 'an image line')]
 
     def test_the_page_of_a_domain_shows_its_lines_and_those_of_the_whole_app(self):
-        self.assertEqual(['whole app', 'an image line'], self._shown(app='imager', domain='image'))
-        self.assertEqual(['whole app', 'a video line'], self._shown(app='imager', domain='video'))
+        self.assertEqual(['whole app', 'an image line'], self._shown(app=self.APP, domain='image'))
+        self.assertEqual(['whole app', 'a video line'], self._shown(app=self.APP, domain='video'))
 
     def test_without_a_domain_or_across_all_apps_nothing_is_set_aside(self):
         every = ['whole app', 'a video line', 'an image line']
-        self.assertEqual(every, self._shown(app='imager'))
+        self.assertEqual(every, self._shown(app=self.APP))
         self.assertEqual(every, self._shown(app='all', domain='image'))
 
     def test_a_line_can_name_its_domain_and_a_task_never_inherits_the_last_one(self):
-        self.console.push_console_line(self.USER, 'an image line', app='imager', domain='image')
+        self.console.push_console_line(self.USER, 'an image line', app=self.APP, domain='image')
         self.console.set_line_domain('')                     # ce que fait la tâche suivante
-        self.console.push_console_line(self.USER, 'whole app', app='imager')
-        last = self.console.get_console_lines(self.USER, app='imager')[-1]
+        self.console.push_console_line(self.USER, 'whole app', app=self.APP)
+        last = self.console.get_console_lines(self.USER, app=self.APP)[-1]
         self.assertEqual(('whole app', ''), (last['msg'], last['domain']))
 
     def test_the_skeleton_sets_it_and_the_page_asks_for_it(self):
         skeleton = (ROOT / 'wama' / 'common' / 'utils' / 'task_skeleton.py').read_text(encoding='utf-8')
         self.assertIn("set_line_domain(element_domain(item) if has_domain_tabs(app_id) else '')", skeleton)
         script = (JS / 'console.js').read_text(encoding='utf-8')
-        self.assertIn("params.push('domain=' + encodeURIComponent(chosen.dataset.wamaPageDomain));", script)
+        self.assertIn("params.push('domain=' + encodeURIComponent(chosen.domain));", script)
+        self.assertNotIn('data-wama-page-domain', script, 'the mark is read once, by WamaApp.pageDomain')
         self.client.force_login(__import__('django.contrib.auth', fromlist=['x']).get_user_model()
                                 .objects.create_user('console_domain', password='x'))
-        answer = self.client.get(reverse('common:console'), {'app': 'imager', 'domain': 'image'})
+        answer = self.client.get(reverse('common:console'), {'app': self.APP, 'domain': 'image'})
         self.assertEqual(200, answer.status_code)

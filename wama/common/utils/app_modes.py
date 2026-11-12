@@ -24,6 +24,10 @@ divergent**, pas quand la nature du fichier diverge. Décrire une image, un PDF 
 règle pareil (style, langue, longueur) → un domaine. Produire une image ou une vidéo n'a ni les
 mêmes réglages ni le même moteur → deux domaines.
 
+**Un domaine qu'on peut CHOISIR dit ce qu'il fait** (`description`, 2026-11-12) : dès qu'une app en
+a plusieurs, chacun déclare sa phrase — le menu du titre de la page, son sous-titre et son
+À propos la lisent (`tests_domain_declaration`).
+
 **Un domaine est TOUJOURS déclaré et NOMMÉ, même seul.** Jamais de `default` implicite : le jour
 où une app en gagne un second, on se retrouverait avec `default` + `audio` + `document`, et le
 nommage perdrait sa cohérence pour toujours. Une app mono-domaine nomme son workflow
@@ -464,7 +468,9 @@ def get_domains(app: str) -> list:
 
 
 def has_domain_tabs(app: str) -> bool:
-    """True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs."""
+    """True si l'app a PLUSIEURS domaines : sa page se choisit par domaine — le titre du socle en
+    est le sélecteur depuis le 2026-11-12 (`navigation.page_domain`), il n'y a plus d'onglets ;
+    le nom de la fonction est resté. Sinon : modes directs."""
     return len(get_domains(app)) > 1
 
 
