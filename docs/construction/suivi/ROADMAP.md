@@ -8209,13 +8209,15 @@ avis du concile (« correcte avec corrections ») lu dans `WAMA_QUALITE §0` :
    donc pour toutes les apps et `best_installed` ;
 2. ⏳ les notes pertinentes dans les descriptions des modèles, CALCULÉES à l'affichage (aide
    commune des modèles), jamais recopiées ;
-3. ⏳ une échelle PRINCIPALE déclarée par tâche, la seconde par dominance — ou par un seuil
-   déclaré, décision de Fabien (1ᵉʳ cas : effets sonores du Composer, CLAP puis FAD) ;
+3. ⏳ une échelle de qualité PRINCIPALE déclarée par tâche, les autres (N, pas deux) par
+   dominance — un seuil déclaré seulement s'il se justifie (tranché par Fabien le 2026-11-12 ;
+   1ᵉʳ cas : effets sonores du Composer, CLAP puis FAD) ;
 4. ⏳ la mesure d'entrée d'un modèle neuf = `WAMA_QUALITE §9` P4 précisé (cases PÉRIMÉES,
    nocturne), à lever de la décision du 28/09 ; priorité aux modèles « indéterminés », mesure en
    priorité GPU la plus basse dans un créneau déclaré ; corpus admis sous conditions (déclaré,
    catégorie, source de vérité, confronté à l'humain, date de revalidation) ; toute note interne
-   porte son intervalle de confiance, des intervalles qui se chevauchent ne classent pas.
+   porte son intervalle de confiance (bootstrap sur les items ; bootstrap APPARIÉ pour comparer
+   deux modèles sur les mêmes références) — un écart non significatif ne classe pas.
 
 **30.2 Notes complémentaires** — ⏳ répétabilité et reproductibilité par plan d'expérience (M9,
 hors de l'échelle de qualité) ; ⏳ étoiles des utilisateurs lues comme des duels (M8, Q4) —
