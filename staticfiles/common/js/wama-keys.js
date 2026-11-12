@@ -108,7 +108,7 @@
             try { if (claimers[i][0].handle(e)) owner = claimers[i][0]; }
             catch (err) { console.error('[keys]', claimers[i][0].owner, err); }
         }
-        if (owner) e.preventDefault();
+        if (owner) { e.preventDefault(); taken[e.code] = owner; }
         live.forEach(function (x) {
             if (!x.observe) return;
             try { x.handle(e, owner ? owner.owner : null); }
@@ -116,7 +116,21 @@
         });
     }
 
+    /** Le RELÂCHÉ d'une touche (2026-11-12) va à celui qui a PRIS son appui (`up(e)` de son
+     *  inscription), et à personne d'autre — un mode tenu tant qu'une touche est enfoncée (le
+     *  Touch de l'écriture à la lecture), Espace relâché sur un bouton cliqué (le transport). Une
+     *  frappe que nul n'a prise n'a pas de relâché. */
+    var taken = {};
+    function released(e) {
+        var owner = taken[e.code];
+        if (!owner) return;
+        delete taken[e.code];
+        if (entries.indexOf(owner) < 0 || typeof owner.up !== 'function') return;
+        try { owner.up(e); } catch (err) { console.error('[keys]', owner.owner, err); }
+    }
+
     if (doc && doc.addEventListener) {
+        doc.addEventListener('keyup', released);
         doc.addEventListener('pointerdown', function (e) {
             lastPointer = e.target || null;
             pointerFocus = e.target && e.target.closest ? e.target.closest(CONTROL) : null;

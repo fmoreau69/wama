@@ -1070,7 +1070,14 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     contre-épreuve : un nom changé dans le code → rouge ; résolution et surcharge jouées en V8).
     Au navigateur : `common.preview_sync` 18/18 (touches de la visionneuse). ⚠ Non rejoué :
     `transcriber.editor_parity` (75 gestes, demande un serveur).
-    ⏳ Restent, dans l'ordre : le relâché d'une touche ; les autres briques sur `WamaKeys.action`
+    ✅ **Le RELÂCHÉ d'une touche, même jour** : le clavier commun le donne à celui qui a PRIS
+    l'appui (`up(e)` d'une inscription), et à personne d'autre — une frappe que nul n'a prise n'a
+    pas de relâché. Le Touch de l'écriture à la lecture (R maintenu) et le transport (Espace
+    relâché sur un bouton cliqué) n'écoutent plus le `keyup` de la page de leur côté ; la
+    visionneuse, couche qui garde le clavier, le passe au magnéto comme l'appui. Le compte des
+    écoutes directes (`PageKeyListenersTest.REMAINING`) perd ses deux dernières entrées de
+    briques. Garde : `BrickShortcutsTest.test_the_release_of_a_key_goes_to_the_one_who_took_its_press`.
+    ⏳ Restent, dans l'ordre : les autres briques sur `WamaKeys.action`
     (segments, ligne de temps, écriture, partition, zones, file, inspecteur, visionneuse) ; le
     préréglage DÉCLARÉ d'une page et celui du transcriber ; alors seulement les défauts décidés
     (←/→ = un pas, Ctrl 1 s, Maj 5 s, Alt 30 s) ; le réglage par compte et ses pages.

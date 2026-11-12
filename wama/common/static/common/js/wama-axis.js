@@ -589,7 +589,8 @@
                 o = o || {};
                 var keys = axis.keys(o);
                 var off = global.WamaKeys.register({ owner: 'media_transport', scope: 'page',
-                                                     typing: ['Ctrl+Space'], handle: keys.handle });
+                                                     typing: ['Ctrl+Space'], handle: keys.handle,
+                                                     up: keys.up });
                 return function () { off(); keys.release(); };
             },
             /** Les touches du magnéto SANS inscription au clavier commun : `{handle(e) → prise ?,
@@ -642,12 +643,13 @@
                     }
                 }
                 // Espace pris au transport sur un contrôle cliqué : son relâché ne l'active pas
-                // (un bouton s'active au relâché d'Espace).
-                function onKeyUp(e) {
+                // (un bouton s'active au relâché d'Espace). Le relâché vient du clavier commun, à
+                // celui qui a pris l'appui (`up` d'une inscription) — la couche qui garde le
+                // clavier (la visionneuse) le passe comme elle passe l'appui.
+                function up(e) {
                     if (e.code === 'Space' && spaceTarget && e.target === spaceTarget) e.preventDefault();
                     if (e.code === 'Space') spaceTarget = null;
                 }
-                document.addEventListener('keyup', onKeyUp);
                 // Le shuttle RENDU par l'axe (Espace, arrivée au bord, lecture sur le média) : son
                 // échelle repart du stop, sinon le prochain L reprendrait au cran d'avant.
                 var unsubscribe = o.shuttle && o.shuttle.reset ? axis.subscribe(function (st) {
@@ -655,10 +657,8 @@
                 }) : null;
                 return {
                     handle: handle,
-                    release: function () {
-                        document.removeEventListener('keyup', onKeyUp);
-                        if (unsubscribe) unsubscribe();
-                    },
+                    up: up,
+                    release: function () { if (unsubscribe) unsubscribe(); },
                 };
             },
         };

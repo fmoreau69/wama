@@ -1508,6 +1508,11 @@
             }
             const transport = _viewerTransport();
             return !!(transport && transport.handle(e));
+        },
+        // Le relâché d'une touche prise : au magnéto de ce qu'elle montre, comme l'appui.
+        up: function (e) {
+            const transport = _viewerKeys && _viewerKeys.keys;
+            if (transport && transport.up) transport.up(e);
         } });
     }
 

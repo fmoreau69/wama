@@ -191,11 +191,10 @@
             if (writeMode !== 'touch' && writeMode !== 'latch') return false;
             if (!e.repeat) arm();
             return true;
-        } });
-        // Le RELÂCHÉ reste écouté ici : le module ne distribue que l'appui.
-        document.addEventListener('keyup', function (e) {           // Touch : relâcher R ferme la plage
-            if (writeMode === 'touch' && (e.key || '').toLowerCase() === 'r') disarm();
-        });
+        },
+        // Touch : relâcher R ferme la plage — le relâché vient du clavier commun, à celui qui a
+        // pris l'appui (2026-11-12 ; la brique écoutait le `keyup` de la page de son côté).
+        up: function () { if (writeMode === 'touch') disarm(); } });
 
         return {
             help: 'Écriture à la lecture : une proposition se clique pour l’écouter, ✓ remplace la plage, ✗ la refuse',

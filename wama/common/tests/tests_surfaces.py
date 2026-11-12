@@ -1769,10 +1769,8 @@ class PageKeyListenersTest(SimpleTestCase):
     #: path → (page-wide key listeners, why it is still there).
     REMAINING = {
         # They never act on the key press : a first gesture, a release, a standalone page.
-        'wama/common/static/common/js/surfaces/brick-playback-writing.js': (1, "keyup : le relâché de R ferme la plage"),
         'wama/common/static/common/js/wama-app-base.js': (1, "le 1er geste déverrouille le son (once)"),
         'wama/common/static/common/js/wama-assistant-listen.js': (1, "le 1er geste reprend le micro suspendu"),
-        'wama/common/static/common/js/wama-axis.js': (1, "keyup : le module ne distribue que keydown"),
         'wama/static/presentation/wama-presentation.js': (1, "page autonome, sans le gabarit de base"),
         'wama/templates/includes/_presentation_nav.html': (1, "inclus par deux pages d'archive autonomes"),
         # Only while the focus is INSIDE its submenu (a control keeping its keys), in capture on
@@ -1965,6 +1963,37 @@ class BrickShortcutsTest(SimpleTestCase):
         self.assertEqual([None, 'reverse', None, 'far', 'reverse'], list(out['after']),
                          'the overridden action moved, a silenced one is gone, the others kept theirs')
         self.assertEqual('reverse', out['back'])
+
+    def test_the_release_of_a_key_goes_to_the_one_who_took_its_press(self):
+        """2026-11-12 — the common keyboard only gave out the PRESS : the Touch mode of the writing
+        brick (R held) and the transport (Space on a clicked button) each listened to the page's
+        `keyup` on their side. The release now goes to the owner that took the press of that key,
+        and to nobody else ; a press nobody took has no release."""
+        from py_mini_racer import MiniRacer
+        v8 = MiniRacer()
+        v8.eval(KeyDispatcherTest.SETUP + _js('common/js/wama-keys.js'))
+        out = v8.eval('''(function () {
+            var ups = [];
+            window.WamaKeys.register({owner: 'a', scope: 'page',
+                handle: function (e) { return e.code === 'KeyR'; },
+                up: function (e) { ups.push('a:' + e.code); }});
+            window.WamaKeys.register({owner: 'b', scope: 'page',
+                handle: function (e) { return e.code === 'Space'; },
+                up: function (e) { ups.push('b:' + e.code); }});
+            function fire(kind, code) {
+                var e = {target: el('page'), code: code, key: code, defaultPrevented: false,
+                         preventDefault: function () { this.defaultPrevented = true; }};
+                (handlers[kind] || []).forEach(function (fn) { fn(e); });
+            }
+            fire('keydown', 'KeyR'); fire('keyup', 'KeyR');
+            fire('keyup', 'KeyR');                               // already released : nothing
+            fire('keydown', 'KeyX'); fire('keyup', 'KeyX');      // nobody took it : nothing
+            fire('keydown', 'Space'); fire('keyup', 'Space');
+            return ups;
+        })()''')
+        self.assertEqual(['a:KeyR', 'b:Space'], list(out))
+        for path in ('common/js/wama-axis.js', 'common/js/surfaces/brick-playback-writing.js'):
+            self.assertNotIn("addEventListener('keyup'", _js(path), path)
 
     def test_the_surface_serves_the_declarations_and_the_page_help_lists_them(self):
         from wama.common.surfaces import key_label, surface
