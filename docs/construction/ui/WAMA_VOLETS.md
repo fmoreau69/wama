@@ -994,6 +994,77 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   contre-épreuves rouges ; sonde au navigateur (6 graphes, trait de l'axe, clic → lecture,
   retaille). ⏳ Le face_analyzer passe ensuite à la FILE COMMUNE (décision de Fabien, 29/10).
 
+- ⏳ **Les RACCOURCIS SURCHARGEABLES — décidé le 2026-11-12, rien n'est écrit** (Fabien, pendant la
+  cartographie du transport : `ROUTE §F3b`, bloc du même jour).
+  - **Ce qui existe** (étapes 0 à 3 ci-dessus) : chaque brique PORTE ses raccourcis
+    (`UIBrick.shortcuts`), une page en fait l'UNION (celles de page par `volet.page_controls_config`,
+    celles d'une surface par `ctx.shortcuts()`), et l'aide « ? » se construit de ces déclarations.
+  - **La discussion d'origine, du 2026-10-27, jamais consignée** (retrouvée le 12/11 dans la
+    transcription de la session « Briques UI », 14:07 → 21:31). Fabien : une page du PROFIL pour
+    gérer les raccourcis de WAMA ; des PRÉRÉGLAGES de logiciels en plus du jeu par défaut de WAMA
+    (cités dans la réponse : Premiere, DaVinci, Audacity, Reaper), ou des touches personnalisées
+    par utilisateur ; et, « l'un n'empêche pas l'autre », un sélecteur de préréglage dans chaque
+    application, hérité par toutes, en accordéon replié — il suit le profil par défaut, on le
+    change pour cette application seulement. Puis, le soir : *« Ok pour lier les raccourcis
+    clavier aux briques UI […] comme on le fait pour les modèles, les choix de presets seraient
+    l'union des capacités des briques UI qui composent la page d'application. Mais toute brique
+    UI n'a pas forcément de raccourcis clavier. Et surtout, il faudra bien faire attention à ne
+    rien casser des raccourcis clavier existant. »* Ordre retenu alors : le registre d'actions
+    d'abord (fait, étapes 0 à 3), les préréglages en données ensuite (une table « action →
+    touche » chacun, conflits détectés), puis les deux endroits où choisir.
+    ⚠ À accorder : le 27/10 plaçait la personnalisation sur une page du profil ; le 12/11 la
+    place sur la page des briques UI, brique par brique, le profil regroupant.
+  - **Ce qui manque** : aucune surcharge dans le code (`shortcut|raccourci` : rien dans
+    `wama/accounts`). Et chaque touche est écrite DEUX fois — déclarée au registre, puis en dur dans
+    le code de la brique (`e.code === 'KeyL'`) : une surcharge ne peut agir que si le clavier
+    commun résout « touche → action » depuis la déclaration et ne passe à la brique que l'action.
+  - **Décidé** : un utilisateur personnalise ses raccourcis, PAR BRIQUE, depuis la page des
+    briques UI ; un PROFIL regroupe ces réglages — l'union des raccourcis des briques présentes ;
+    il y a aussi des profils PAR APPLICATION, qui gardent le comportement d'aujourd'hui d'une page
+    (le transcriber : ←/→ sautent de 5 s) et laissent converger à l'usage. Tout reste déclaré :
+    l'aide « ? » montre les touches RÉSOLUES, jamais une liste écrite.
+  - **Défauts du transport, validés le 12/11** (lecture de Fabien : Alt = le plus large, Maj =
+    intermédiaire, Ctrl = le plus fin, les flèches seules = le plus petit pas). Les flèches et
+    leurs combinaisons restent en TEMPS, uniformes dans tout WAMA, parce que la ligne de temps est
+    maîtresse : ←/→ un pas de l'axe (`DEFAULT_STEP`, 1/30 s) ; Ctrl+←/→ 1 s ; Maj+←/→ 5 s ;
+    Alt+←/→ 30 s ; Espace, J/K/L, Début / Fin inchangés. Le profil d'une application garde ses
+    touches d'aujourd'hui (le transcriber : ←/→ = 5 s).
+    ⏳ **Ouvert, consigné pour ne pas le redécouvrir** — le pas PROPRE À UNE SOURCE : une vidéo se
+    lit image par image, une courbe échantillon par échantillon, mais un son à 44,1 kHz ne donne
+    rien d'utile à l'échantillon, et une page du monde Data mêle des cadences sans commune mesure
+    (GPS 1 Hz, vidéo 25 i/s, conduite et simulateur 60 Hz, ECG / EEG 1 000 à 2 000 Hz, son
+    44,1 kHz) : un pas qui s'adapterait « aux sources » y deviendrait illisible. Piste (Fabien) :
+    `,` et `.` pour le pas d'une source. ⚠ Aucune source n'a « la main » : l'axe est maître et
+    porte la consigne de temps dans tout WAMA (`WAMA_DATA_WORLD §2`, §8.4) ; on parle de
+    PRIORITÉ, déclarée — dans une app d'image et de vidéo elle va à la vidéo, dans une app de son
+    au son ; une source sans pas utile (un son à l'échantillon) retombe sur le pas commun. ⚠ `axis.stepSize()` rend
+    aujourd'hui la période de la cadence la PLUS FINE déclarée (1 ms dès qu'une courbe à 1 000 Hz
+    est posée) : à revoir avec cette règle ; `step` n'a encore aucun appelant. ⚠ Relevé du jour (pages lues,
+    non officielles) : les logiciels de montage donnent l'image aux flèches et un pas plus grand à
+    Maj (5 images ou 1 s) ; VLC ordonne Maj 3 s, Alt 10 s, Ctrl 1 min — l'ordre de Ctrl et d'Alt
+    n'a pas de norme. ⚠ Alt+←/→ est « page précédente / suivante » du navigateur : la touche doit
+    être PRISE à chaque fois ; Alt+↑/↓ sont aux segments.
+  - **Validé le 12/11** : le préréglage d'une page se DÉCLARE (la surface, comme une option
+    d'emplacement, « action → touches ») ; ordre de résolution : défaut de la brique, puis
+    préréglage de l'application, puis réglage de l'utilisateur.
+  - **Où chaque chose se règle** (Fabien, 12/11 — une page par objet, aucune page de plus) :
+    | quoi | où |
+    |---|---|
+    | la DISPOSITION DU CLAVIER (azerty, qwerty…) et le choix d'un préréglage de logiciel | le profil de l'utilisateur, avec la langue et les unités |
+    | les touches d'une BRIQUE | la page des briques UI (le catalogue), brique par brique |
+    | le préréglage d'une APPLICATION | la page des applications |
+    ⚠ Ce que ce dernier point met en lumière : la page des applications ne dit aujourd'hui ni
+    les DOMAINES d'une app, ni ses PAGES D'ÉDITION (les futurs onglets, `WAMA_DATA_WORLD §11.8`) —
+    à compléter sur la page existante, de façon claire, plutôt que par une page de plus.
+- ⏳ **VISION, à ne pas oublier (Fabien, 2026-11-12) — composer une page D'ÉDITION DE ZÉRO.** On a
+  le catalogue des briques et des pages dont on arrange les briques ; rien ne permet de partir
+  d'une page vierge, d'y tirer des briques du catalogue et de les disposer pour créer une
+  nouvelle page (à la façon de KNIME). Le besoin viendra aussi du monde Data : composer des pages
+  de visualisation pour les rapports statistiques. Elle compléterait la création de pages
+  depuis le Studio, si celle-ci reste pertinente — une discussion a eu lieu, son issue n'a pas
+  été retrouvée le 12/11 (à chercher avant d'ouvrir le sujet). Proche des points confiés au monde
+  Data (`WAMA_DATA_WORLD §8.4`, point 4 : le montage à chaud d'une vue). Rien n'est décidé.
+
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
 déclare, il n'hérite pas) ; ~~④ le centre des pages d'apps (card d'entrée, file) sur la même

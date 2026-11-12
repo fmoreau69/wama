@@ -923,7 +923,8 @@ register_brick(UIBrick(
     # d'un champ où l'on écrit ; un bouton cliqué ne les garde pas (`wama-axis.js`).
     shortcuts=(Shortcut(('Space',), 'lecture / pause', 'page', targets=('[data-transport="play"]',)),
                Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe', 'page'),
-               Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'arrière / arrêt / avant, par crans', 'page'),
+               Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'lecture arrière / pause / lecture avant, par crans '
+                        'de vitesse', 'page'),
                Shortcut(('ArrowLeft', 'ArrowRight'), "reculer / avancer d'un saut", 'page',
                         targets=('[data-transport="skip-back"]', '[data-transport="skip-fwd"]')),
                Shortcut(('Shift+ArrowLeft', 'Shift+ArrowRight'), 'reculer / avancer de six sauts',
@@ -1200,7 +1201,8 @@ register_brick(UIBrick(
     shortcuts=(Shortcut(('Space',), 'lecture / pause de la vidéo montrée (son lecteur natif la garde '
                                     "quand il a le focus)"),
                Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe'),
-               Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'arrière / arrêt / avant, par crans'),
+               Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'lecture arrière / pause / lecture avant, par crans '
+                        'de vitesse'),
                Shortcut(('Home', 'End'), 'aller au début / à la fin de la vidéo'),
                Shortcut(('ArrowLeft', 'ArrowRight'), "fichier précédent / suivant de l'élément",
                         handled_by='common/js/media-preview.js',

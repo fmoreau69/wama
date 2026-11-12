@@ -470,7 +470,16 @@ class PreviewSyncVerdictTest(SimpleTestCase):
                                                                 rest_frames, speed_of)
         result = self._result()
         frames = presented_frames(result)
-        self.assertEqual({'pause1': [2, 1]}, rest_frames(result, frames))
+        self.assertEqual({'pause1': [2, 1]}, rest_frames(result), 'read at the pixels')
+        stale = dict(result, presented=result['presented'] + [{'n': 0, 'at': 88, 'mediaTime': 0.2}])
+        self.assertEqual({'pause1': [2, 1]}, rest_frames(stale),
+                         'a late frame callback does not change the frame shown')
+        from wama.common.services.ui_smoke_preview_sync import overlay_at_rest
+        self.assertEqual({'pause1': ('1', 2)}, overlay_at_rest(result),
+                         'the overlay last drew frame 1, the reference shows frame 2')
+        later = dict(result, drawn=result['drawn'] + [{'ts': 90, 'text': '9'}])
+        self.assertEqual({'pause1': ('1', 2)}, overlay_at_rest(later),
+                         'a drawing made after the last record of the phase carries its instant : not judged')
         self.assertEqual([1.0, 15.0], [round(g, 6) for g in clock_gaps_ms(result)])
         self.assertEqual(15.0, round(p95(clock_gaps_ms(result)), 6))
         self.assertIsNone(p95([]))

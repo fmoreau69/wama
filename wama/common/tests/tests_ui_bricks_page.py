@@ -105,7 +105,8 @@ class BrickCompositionTest(TestCase):
         page = self._page()
         card = page.split('data-id="media_transport"', 1)[1].split('wama-cat-card', 1)[0]
         self.assertIn('<b>Clavier</b>', card)
-        self.assertIn('<kbd>J / K / L</kbd> arrière / arrêt / avant, par crans', card)
+        self.assertIn('<kbd>J / K / L</kbd> lecture arrière / pause / lecture avant, par crans '
+                      'de vitesse', card)
         quiet = page.split('data-id="html_preview"', 1)[1].split('wama-cat-card', 1)[0]
         self.assertNotIn('<b>Clavier</b>', quiet)
 

@@ -112,14 +112,32 @@
     var canvas = document.createElement('canvas');
     canvas.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;';
     holder.appendChild(canvas);
-    var state = { doc: null, raf: null, presented: null };
+    var state = { doc: null, raf: null, presented: null, settled: false };
     mediaEl._wamaOverlay = state;
     var video = mediaEl.tagName === 'VIDEO';
     var frames = video && typeof mediaEl.requestVideoFrameCallback === 'function';
 
+    // L'image notée est-elle celle que montre un média POSÉ à `t` — son instant dans l'image qui
+    // contient `t`, à la précision d'un conteneur près (2 ms) ?
+    function shows(mediaTime, t) {
+      var fps = state.doc && state.doc.fps;
+      if (!fps) return true;
+      return mediaTime <= t + 0.002 && mediaTime > t - 1 / fps - 0.002;
+    }
+
     function index() {
       if (!video) return 0;
-      if (frames && state.presented != null) return presentedFrameAt(state.doc, state.presented);
+      if (frames && state.presented != null) {
+        // À l'arrêt, après un positionnement : le navigateur ne rappelle pas toujours l'image qu'il
+        // vient de poser (mesuré sous charge, 2026-11-12 : la vidéo montre l'image 206, son dernier
+        // rappel dit 208, celui de la lecture d'avant la pause). Une image notée qui ne peut pas
+        // être celle du temps du média est périmée : le temps du média dit l'image.
+        if (state.settled && mediaEl.paused && !mediaEl.seeking
+            && !shows(state.presented, mediaEl.currentTime)) {
+          return frameAt(state.doc, mediaEl.currentTime);
+        }
+        return presentedFrameAt(state.doc, state.presented);
+      }
       return frameAt(state.doc, mediaEl.currentTime);
     }
 
@@ -162,8 +180,19 @@
       .catch(function () { holder.title = 'Détections indisponibles'; });
     ['loadedmetadata', 'loadeddata', 'load'].concat(frames ? [] : ['seeked', 'timeupdate'])
       .forEach(function (ev) { mediaEl.addEventListener(ev, render); });
-    if (frames) mediaEl.requestVideoFrameCallback(onFrame);
-    if (video) mediaEl.addEventListener('play', function () { if (!state.raf) loop(); });
+    if (frames) {
+      mediaEl.requestVideoFrameCallback(onFrame);
+      // Posé à l'arrêt : on redessine même sans rappel d'image (il ne vient pas toujours).
+      mediaEl.addEventListener('seeked', function () {
+        if (!mediaEl.paused) return;
+        state.settled = true;
+        render();
+      });
+    }
+    if (video) mediaEl.addEventListener('play', function () {
+      state.settled = false;
+      if (!state.raf) loop();
+    });
     if (global.ResizeObserver) new global.ResizeObserver(render).observe(mediaEl);
   }
 

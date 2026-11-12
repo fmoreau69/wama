@@ -1230,6 +1230,51 @@ class PreviewOverlayTest(SimpleTestCase):
         self.assertEqual(['f1'], list(out['rest']), 'at rest the callback draws the frame shown')
         self.assertEqual('function', out['asked'], 'the next presented frame is asked for')
 
+    def test_at_rest_a_stale_presented_frame_gives_way_to_the_time_of_the_medium(self):
+        """Measured under load on the preview bench (2026-11-12) : paused then put by the axis, the
+        video SHOWED frame 206 while its last frame callback still said 208 (the playback before
+        the pause) — the browser does not always call back the frame a seek at rest puts. The boxes
+        stayed two frames ahead. A noted frame that cannot be the one holding the time of a medium
+        put at rest is stale ; a consistent one keeps the word, and so does a plain pause that no
+        seek followed (a paused video may still show the next frame)."""
+        self.v8.eval("""
+            var drawn = [], frameCb = null, listeners = {};
+            window.requestAnimationFrame = function () { return 1; };
+            document.createElement = function (tag) {
+                return {tagName: tag.toUpperCase(), style: {}, appendChild: function () {},
+                        getContext: function () { return {clearRect: function () {}, strokeRect: function () {},
+                            beginPath: function () {}, fillText: function (t) { drawn.push(t); }}; }};
+            };
+            var video = {tagName: 'VIDEO', clientWidth: 400, clientHeight: 300, videoWidth: 400,
+                         videoHeight: 300, currentTime: 0, paused: true, seeking: false,
+                         parentNode: {insertBefore: function () {}},
+                         addEventListener: function (k, fn) { (listeners[k] = listeners[k] || []).push(fn); },
+                         requestVideoFrameCallback: function (fn) { frameCb = fn; return 1; }};
+            var doc = {media: 'video', fps: 25, width: 400, frames: [0, 1, 2, 3, 4].map(function (i) {
+                return {i: i, d: [{box: [1, 1, 9, 9], label: 'f' + i}]}; })};
+            window.fetch = function () { return Promise.resolve({ok: true, json: function () { return doc; }}); };
+            fetch = window.fetch;
+            window.WamaPreviewOverlay.attach(video, {url: '/doc.json', confidence: false});
+        """)
+        out = self.v8.eval("""(function () {
+            function seeked() { listeners.seeked.forEach(function (fn) { fn(); }); }
+            frameCb(0, {mediaTime: 4 / 25});                  // the playback before the pause : frame 4
+            video.currentTime = 2 / 25 + 0.01; drawn = [];
+            var plainPause = (function () { frameCb(0, {mediaTime: 3 / 25}); return drawn.slice(); })();
+            drawn = []; frameCb(0, {mediaTime: 4 / 25}); drawn = [];
+            seeked();                                          // put at rest, no callback for it
+            var stale = drawn.slice(); drawn = [];
+            frameCb(0, {mediaTime: 2 / 25 - 1e-6});            // the callback of the frame put, when it comes
+            var consistent = drawn.slice(); drawn = [];
+            video.seeking = true; frameCb(0, {mediaTime: 4 / 25});
+            var whileSeeking = drawn.slice();
+            return {plainPause: plainPause, stale: stale, consistent: consistent, whileSeeking: whileSeeking};
+        })()""")
+        self.assertEqual(['f3'], list(out['plainPause']), 'a pause no seek followed : the frame presented')
+        self.assertEqual(['f2'], list(out['stale']), 'put at rest : the time of the medium, not frame 4')
+        self.assertEqual(['f2'], list(out['consistent']))
+        self.assertEqual(['f4'], list(out['whileSeeking']), 'a seek in progress is not judged')
+
     def test_compare_has_no_clock_of_its_own(self):
         """`syncVideos` recalled the compared video on the reference beyond 120 ms only : measured on
         the bench, a one-frame gap could last a whole playback, and at rest. Retired on 2026-11-05 —

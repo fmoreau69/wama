@@ -15,9 +15,12 @@ surcouche ; aucune ne voit ce que l'ÉCRAN montre. Celui-ci le voit :
     Chromium ;
   • le juge : l'image PRÉSENTÉE à l'écran (`requestVideoFrameCallback`, `mediaTime`) — une lecture
     de pixels par `drawImage` devance l'écran d'une image, mesuré sur le banc du 2026-11-05.
+    À L'ARRÊT seulement, le juge est le PIXEL (2026-11-12) : une vidéo posée ne bouge plus, et le
+    navigateur ne rappelle pas toujours l'image qu'un positionnement vient de poser — sous charge,
+    le dernier rappel restait celui de la lecture d'avant, deux images plus loin.
 
-Seuils (absolus, jamais relatifs au code d'avant) : la surcouche sur l'image présentée ≥ 99 % ;
-Comparer à l'arrêt sur la même image, toujours ; l'écart d'horloge entre les deux vidéos de
+Seuils (absolus, jamais relatifs au code d'avant) : la surcouche sur l'image présentée ≥ 99 % en
+lecture, et sur l'image montrée à l'arrêt ; Comparer à l'arrêt sur la même image, toujours ; l'écart d'horloge entre les deux vidéos de
 Comparer ≤ la tolérance de l'axe (p95) et sous son seuil de repositionnement (max) ; la vitesse
 choisie tenue par les deux ; chaque touche du magnéto prise et suivie de son effet.
 
@@ -191,12 +194,31 @@ def overlay_on_presented(result: dict, frames: list) -> tuple:
     return right, judged
 
 
-def rest_frames(result: dict, frames: list) -> dict:
-    """Les images présentées par chaque vidéo à la FIN de chaque phase d'arrêt."""
+def rest_frames(result: dict) -> dict:
+    """Les images MONTRÉES par chaque vidéo à la FIN de chaque phase d'arrêt — lues à leurs
+    PIXELS. Pas au dernier rappel d'image : posée à l'arrêt, une vidéo n'en reçoit pas toujours un
+    (mesuré sous charge le 2026-11-12 : les deux vidéos montraient l'image 206, le dernier rappel
+    de la première disait 208 — le scénario rougissait deux nuits de suite sur un écart que
+    l'écran n'avait pas)."""
     out = {}
-    for s, row in zip(result.get('samples') or [], frames):
+    for s in result.get('samples') or []:
         if s['phase'] in STILL:
-            out[s['phase']] = row
+            out[s['phase']] = list(s['shown'])
+    return out
+
+
+def overlay_at_rest(result: dict) -> dict:
+    """Pour chaque phase d'arrêt : (le numéro que la surcouche a dessiné en dernier, l'image que
+    la vidéo de référence montre) à la fin de la phase. Un dessin porte l'instant du dernier rendu
+    d'AVANT lui : celui qui suit le dernier relevé d'une phase (le positionnement de la phase
+    suivante) a le même instant que ce relevé — d'où la comparaison stricte."""
+    drawn = sorted(result.get('drawn') or [], key=lambda d: d['ts'])
+    out = {}
+    for s in result.get('samples') or []:
+        if s['phase'] not in STILL:
+            continue
+        before = [d for d in drawn if d['ts'] < s['ts']]
+        out[s['phase']] = (before[-1]['text'] if before else None, s['shown'][0])
     return out
 
 
@@ -365,9 +387,12 @@ def _native_gestures(browser, url, mode, verdict, ignored):
     verdict(judged and right >= 0.99 * judged,
             f"{mode} : la surcouche est sur l'image présentée ({right}/{judged})")
     verdict(not shown, f"{mode} : aucune erreur JS ({shown[:3]})")
+    still = overlay_at_rest(result)
+    verdict(set(still) == set(STILL) and all(text == str(frame) for text, frame in still.values()),
+            f"{mode} : à l'arrêt, la surcouche est sur l'image montrée ({still})")
     if mode != 'compare':
         return
-    rest = rest_frames(result, frames)
+    rest = rest_frames(result)
     verdict(set(rest) == set(STILL) and all(r[0] is not None and r[0] == r[1] for r in rest.values()),
             f"Comparer : à l'arrêt, les deux vidéos sur la même image ({rest})")
     gaps = clock_gaps_ms(result)
