@@ -31252,3 +31252,40 @@ joue la vue hors de la boucle asyncio de Playwright) est relu, gardé et commit�
 **Gardes** : `tests_dev_inspect` (+5), `tests_notifications` (+4, dont « une seule écriture au
 presse-papiers »), `tests_service_control` (le lien), `tests_page_pdf` (2). 434 tests du périmètre
 verts ; les cinq scripts servis parsés sous V8 ; `docs/dev/briques.md` régénérée.
+
+## §PALIER 2026-11-12 (soir, suite), « PARENTHÈSE : relancer tous les workers, la passerelle et les serveurs MCP ; le modèle en cours de l'assistant ; idées consignées » — commits locaux, non poussés — 🔴 relancer WAMA ENTIER une fois (la surveillance ne lit les compagnons qu'à son démarrage) — 🔚 décisions de Fabien : menu du compte, page d'exploitation, vidéo dans le PDF ; puis reprise des domaines (le domaine dans le socle)
+
+**Livré** :
+- **Relancer depuis WAMA** (`12ef869f7`) : une ligne « Tous les workers » (un ordre par worker, chacun
+  finit sa tâche ; mot de passe si l'un travaille) ; la passerelle Discord et les deux serveurs MCP
+  deviennent des processus relançables (`WAMA_COMPANIONS` du script des services — commande, motif et
+  journal déclarés UNE fois, lus par `start_wama_prod.sh` et par la surveillance). Un compagnon éteint
+  n'est pas relancé de lui-même (le script de développement ne les lance pas). La page les rend sans
+  retouche (elle boucle sur `processes`) ; l'outil `control_service` de l'assistant les nomme.
+  ⚠ Non éprouvé en service : la surveillance en cours a été lancée avant et ne connaît pas
+  `supervise_companion` — vrai après la prochaine relance complète. Motifs vérifiés sur les trois
+  processus vivants ; ordres joués sous bash avec des bouchons.
+- **Assistant** (`717cd9a5a`) : une fin de tâche racontée par WAMA portait « notification WAMA » à la
+  place du modèle, et la page la reprenait comme modèle EN COURS sous la zone de saisie. Le fil marque
+  ces bulles (`notice`), la page garde le dernier vrai modèle. La mention reste au pied de la bulle :
+  elle dit qui parle.
+- **Notification d'une tâche de développement** (`27b4e874d`) : sans proposition à décider, « Ouvrir »
+  mène au fil de l'assistant (décision de Fabien, « pour le moment »).
+- **Idées consignées**, rien de décidé : `ROADMAP §31` (page d'exploitation, app « Coder », consultation
+  de la base).
+
+**Proposé à Fabien, à trancher** :
+- **Menu du compte** (mesuré : 21 entrées, 11 sous « Mon espace », dont « Users », « Fonctions »,
+  « Skills », « Prononciations » qui ne sont pas personnelles ; les sections se DÉCLARENT,
+  `app_registry.ACCOUNT_SECTIONS` + `register_account_page(section=…)`, donc changer coûte une ligne
+  par page) — quatre sections : « Mon espace » (Mon profil, Mon calendrier, Mon journal, Mon RAG, Mes
+  souvenirs, Mes notifications, Mes partages) ; « Mon atelier » (Skills, Prononciations, Fonctions :
+  ce que chacun personnalise et peut partager ou faire promouvoir, `ROADMAP §29`) ; « WAMA » (les dix
+  pages communes) ; « Administration » (Users, puis la page d'exploitation), aux administrateurs.
+  « Mon espace » déplié, les trois autres en sous-menus — le mécanisme existe dans le menu Apps
+  (groupe « Bac à sable », clavier compris).
+- **Vidéo lisible dans le PDF de la présentation** : possible dans UN seul fichier (vidéo embarquée),
+  lue par Acrobat, Foxit et PDF-XChange sur ordinateur, PAS par les lecteurs des navigateurs, Aperçu
+  ni les téléphones, qui montrent l'image de couverture. Proposition : vidéo embarquée en qualité
+  réduite, image de couverture toujours visible, lien vers la version en ligne sous la vidéo ; un
+  prototype sur la présentation pour MESURER la taille et la lecture réelle avant de généraliser.
