@@ -621,7 +621,8 @@
                 function handle(e) {
                     if (o.enabled && !o.enabled()) return false;
                     switch (actionOf(e)) {
-                        case 'toggle_always': axis.toggle(); return true;
+                        // Ctrl+Maj+Espace n'a jamais été au magnéto : Maj ne s'y ignore pas.
+                        case 'toggle_always': if (e.shiftKey) return false; axis.toggle(); return true;
                         case 'toggle':
                             if (ownSpace(e.target)) return false;
                             axis.toggle(); spaceTarget = e.target; return true;

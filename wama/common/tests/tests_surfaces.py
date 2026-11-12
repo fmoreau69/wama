@@ -1942,7 +1942,8 @@ class BrickShortcutsTest(SimpleTestCase):
         # writing brick — each a table equal to what its brick names in the registry.
         for brick, path, table_name in (
                 ('media_timeline', 'common/js/wama-timeline.js', 'TIMELINE_KEYS'),
-                ('playback_writing', 'common/js/surfaces/brick-playback-writing.js', 'WRITING_KEYS')):
+                ('playback_writing', 'common/js/surfaces/brick-playback-writing.js', 'WRITING_KEYS'),
+                ('segment_list', 'common/js/surfaces/brick-segment-list.js', 'SEGMENT_KEYS')):
             with self.subTest(brick=brick):
                 code = _js(path)
                 block = code.split(f'var {table_name} = {{', 1)[1].split('};', 1)[0]
@@ -1961,7 +1962,8 @@ class BrickShortcutsTest(SimpleTestCase):
         v8 = MiniRacer()
         v8.eval(KeyDispatcherTest.SETUP + _js('common/js/wama-keys.js'))
         out = v8.eval('''(function () {
-            var K = window.WamaKeys, table = {'KeyJ': 'reverse', 'Shift+ArrowLeft': 'far', ',': 'step_back'};
+            var K = window.WamaKeys, table = {'KeyJ': 'reverse', 'Shift+ArrowLeft': 'far', ',': 'step_back',
+                                              'Alt+KeyL': 'follow'};
             function ev(code, key, mods) { return Object.assign({code: code, key: key}, mods || {}); }
             var before = [K.action(ev('KeyJ', 'j'), 'x', table),
                           K.action(ev('ArrowLeft', 'ArrowLeft', {shiftKey: true}), 'x', table),
@@ -1976,10 +1978,13 @@ class BrickShortcutsTest(SimpleTestCase):
             K.remap('x', null);
             return {before: before, after: after, back: K.action(ev('KeyJ', 'j'), 'x', table),
                     shifted: [K.action(ev('KeyJ', 'J', {shiftKey: true}), 'x', table),
-                              K.action(ev('KeyJ', 'j', {shiftKey: true, ctrlKey: true}), 'x', table)]};
+                              K.action(ev('KeyJ', 'j', {shiftKey: true, ctrlKey: true}), 'x', table),
+                              K.action(ev('KeyL', 'L', {shiftKey: true, altKey: true}), 'x', table),
+                              K.action(ev('KeyL', 'l', {altKey: true, ctrlKey: true}), 'x', table)]};
         })()''')
-        self.assertEqual(['reverse', None], list(out['shifted']),
-                         'Shift alone does not take a key away, Ctrl+Shift is another key')
+        self.assertEqual(['reverse', None, 'follow', None], list(out['shifted']),
+                         'Shift never takes a key away (Alt+Shift+L still follows) ; Ctrl and Alt '
+                         'always make another key')
         self.assertEqual(['reverse', 'far', None, 'step_back', None], list(out['before']))
         self.assertEqual([None, 'reverse', None, 'far', 'reverse'], list(out['after']),
                          'the overridden action moved, a silenced one is gone, the others kept theirs')

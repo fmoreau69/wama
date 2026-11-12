@@ -177,14 +177,15 @@
         return table;
     }
     /** L'action de la frappe `e` pour `owner`, d'après ses défauts et ses surcharges ; null.
-     *  Maj SEULE ne retire pas une touche que la table ne distingue pas (Maj+J recule, Maj+C
-     *  prend l'outil, comme chaque brique le faisait) ; une table qui nomme `Shift+…` l'emporte. */
+     *  MAJ ne retire pas une touche que la table ne distingue pas (Maj+J recule, Maj+C prend
+     *  l'outil, Alt+Maj+L suit la lecture, comme chaque brique le faisait) ; une table qui nomme
+     *  `Shift+…` l'emporte. Ctrl et Alt, eux, font toujours une autre touche. */
     function action(e, owner, defaults) {
         var table = tableOf(owner, defaults);
         var byChar = charCombo(e);
         var found = table[combo(e)] || (byChar && table[byChar]) || null;
-        if (found || !e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return found;
-        return table[e.code] || null;
+        if (found || !e.shiftKey) return found;
+        return table[(e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + e.code] || null;
     }
     /** Surcharge les touches de `owner` : `{action: [touches]}` (une liste vide la tait). */
     function remap(owner, table) {

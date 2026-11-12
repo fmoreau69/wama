@@ -1088,6 +1088,20 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     ne distingue pas » est au clavier commun, une fois. La garde de présence compte le clavier
     commun parmi les sources d'une brique qui lui demande ses actions (les modificateurs s'y
     lisent).
+    ✅ **La liste de segments, 2026-11-13** : sa Navigation lit ses actions à `SEGMENT_KEYS`
+    (↑/↓, Tab / Maj+Tab, Entrée, Ctrl+Entrée, Alt+↑/↓, Alt+L). Une même action vaut dans les deux
+    modes : « segment suivant » déplace la lecture en Navigation et change de champ en Édition.
+    Les touches de l'Édition qui dépendent de la place du curseur (scinder, fusionner en bout de
+    texte) et Échap restent lues dans le champ. **Aucune régression admise** (Fabien, 13/11) :
+    les frappes que l'ancien code acceptait sans les dire sont DÉCLARÉES — Ctrl+↑/↓ choisit un
+    segment comme ↑/↓, Alt+Entrée édite comme Entrée — et MAJ ne retire jamais une touche que
+    la table ne distingue pas (Alt+Maj+L, Ctrl+Maj+Entrée ; règle du clavier commun, Ctrl et Alt
+    faisant toujours une autre touche ; Ctrl+Maj+Espace reste hors du magnéto, comme avant).
+    ⚠ Restent non reprises, jamais déclarées et sans usage connu : Ctrl+Alt+Entrée, Ctrl+Alt+↑/↓.
+    La partition (`SCORE_KEYS`) est portée le même jour par la session du composer, qui ajoute la
+    garde GÉNÉRIQUE `EveryKeyTableFollowsTheRegistryTest` (toute brique qui appelle littéralement
+    `WamaKeys.action(e, '<brique>', TABLE)` a sa table égale au registre) ; la table du
+    transport, lue sous un autre nom, garde sa vérification propre.
     ⏳ Restent, dans l'ordre : les autres briques sur `WamaKeys.action`
     (segments, ligne de temps, écriture, partition, zones, file, inspecteur, visionneuse) ; le
     préréglage DÉCLARÉ d'une page et celui du transcriber ; alors seulement les défauts décidés

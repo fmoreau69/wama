@@ -23,6 +23,18 @@
     'use strict';
 
     var FOLLOW_KEY = 'wama.segments.follow';
+    /** Les touches de la Navigation PAR DÉFAUT, `{touche: action}` — celles que la brique déclare
+     *  au registre (`surfaces.py`, `segment_list.shortcuts`, tenues égales par
+     *  `BrickShortcutsTest`). Les touches de l'ÉDITION (scinder au curseur, fusionner en bout de
+     *  texte) dépendent de la place du curseur : elles restent lues dans le champ. */
+    var SEGMENT_KEYS = {
+        'ArrowUp': 'select_previous', 'ArrowDown': 'select_next',
+        'Ctrl+ArrowUp': 'select_previous', 'Ctrl+ArrowDown': 'select_next',
+        'Tab': 'seek_next', 'Shift+Tab': 'seek_previous',
+        'Enter': 'edit', 'Alt+Enter': 'edit', 'Ctrl+Enter': 'cut',
+        'Alt+ArrowUp': 'step_previous', 'Alt+ArrowDown': 'step_next',
+        'Alt+KeyL': 'toggle_follow',
+    };
 
     function esc(t) {
         var d = document.createElement('div'); d.textContent = t == null ? '' : t;
@@ -356,20 +368,25 @@
             // Frappe dans un champ (aller à, locuteur…) : ni transport ni navigation, sauf Ctrl/Alt/Échap.
             if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT')
                 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== 'Escape') return false;
-            if (e.altKey && (e.key === 'l' || e.key === 'L')) { follow.toggle(); return true; }
+            // L'ACTION de la frappe, lue à la table de la brique (`WamaKeys.action`, 2026-11-12) —
+            // la même action vaut dans les deux modes : en Édition elle change de champ, en
+            // Navigation elle déplace la sélection ou la lecture.
+            var act = global.WamaKeys.action(e, 'segment_list', SEGMENT_KEYS);
+            if (act === 'toggle_follow') { follow.toggle(); return true; }
             if (e.key === 'Escape') {
                 if (!inField) return false;
                 document.activeElement.blur();
                 return true;
             }
-            if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                var d = e.key === 'ArrowDown' ? 1 : -1;
+            if (act === 'step_previous' || act === 'step_next') {
+                var d = act === 'step_next' ? 1 : -1;
                 if (inField) focusSeg(d); else selectSeg(selIndex < 0 ? 0 : selIndex + d);
                 return true;
             }
-            if (e.key === 'Tab') {
+            if (act === 'seek_previous' || act === 'seek_next') {
                 if (!segsOf().length) return false;
-                if (inField) focusSeg(e.shiftKey ? -1 : 1); else seekSegment(e.shiftKey ? -1 : 1);
+                var dir = act === 'seek_next' ? 1 : -1;
+                if (inField) focusSeg(dir); else seekSegment(dir);
                 return true;
             }
             var a = document.activeElement;
@@ -383,16 +400,16 @@
                 }
             }
             if (inField) return false;                             // en Édition, le reste sert à taper
-            if (e.key === 'ArrowUp') { selectSeg(selIndex < 0 ? 0 : selIndex - 1); return true; }
-            if (e.key === 'ArrowDown') { selectSeg(selIndex < 0 ? 0 : selIndex + 1); return true; }
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            if (act === 'select_previous') { selectSeg(selIndex < 0 ? 0 : selIndex - 1); return true; }
+            if (act === 'select_next') { selectSeg(selIndex < 0 ? 0 : selIndex + 1); return true; }
+            if (act === 'cut') {
                 // Couper à la TÊTE DE LECTURE — les ciseaux de l'outil Bornes (`WamaSegments.cutAt`).
                 Seg.cutAt({ url: routes.retime, segments: segsOf(), t: axis.time(), duration: axis.duration(),
                             edit: function (fn) { ctx.edit(fn); }, select: ctx.select,
                             toast: function (m, k) { if (global.WamaApp) WamaApp.toast(m, k); } });
                 return true;
             }
-            if (e.key === 'Enter') { enterEdit(selIndex); return true; }
+            if (act === 'edit') { enterEdit(selIndex); return true; }
             return false;
         } });
 
