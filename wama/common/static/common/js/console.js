@@ -100,6 +100,11 @@ document.addEventListener('DOMContentLoaded', function () {
       params.push('app=all');
     } else {
       params.push('app=' + encodeURIComponent(appName));
+      // La page d'un domaine (`_page_domain.html`) ne montre que les lignes de ce domaine.
+      var chosen = document.querySelector('[data-wama-page-domain]');
+      if (chosen && chosen.dataset.wamaPageDomain) {
+        params.push('domain=' + encodeURIComponent(chosen.dataset.wamaPageDomain));
+      }
     }
     return endpoint + (params.length ? '?' + params.join('&') : '');
   }

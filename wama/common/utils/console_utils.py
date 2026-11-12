@@ -60,6 +60,23 @@ def _key(user_id: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Le DOMAINE des lignes (2026-11-12, `MODES_QUEUE_UX §2ter`) : la Console de la page d'un domaine ne
+# mêle plus les lignes d'un autre. Le squelette de tâche le pose à l'ouverture de CHAQUE tâche
+# (`task_skeleton.run_item_task`, le domaine de l'élément traité, '' s'il n'en a pas) : toutes les
+# lignes écrites pendant la tâche le portent, y compris celles que la glu d'une app pousse par son
+# propre raccourci — aucun des appelants n'a eu à changer.
+# ---------------------------------------------------------------------------
+import contextvars  # noqa: E402
+
+_line_domain = contextvars.ContextVar('wama_console_line_domain', default='')
+
+
+def set_line_domain(domain) -> None:
+    """Le domaine des lignes écrites à partir de maintenant dans ce fil d'exécution ('' : aucun)."""
+    _line_domain.set(domain or '')
+
+
+# ---------------------------------------------------------------------------
 # Push
 # ---------------------------------------------------------------------------
 
@@ -69,6 +86,7 @@ def push_console_line(
     level: str = "info",
     app: str = "system",
     maxlen: int = 500,
+    domain: str = None,
 ) -> None:
     """
     Append a structured log line to the user's console buffer.
@@ -79,12 +97,15 @@ def push_console_line(
         level: 'info' | 'warning' | 'error' | 'debug'
         app: Application name (anonymizer, imager, enhancer, ...)
         maxlen: Max buffer size in Redis
+        domain: the domain of the element being processed — defaults to the one the running
+            task declared (`set_line_domain`); a line without one belongs to the whole app.
     """
     ts = datetime.now().strftime("%H:%M:%S")
-    entry = json.dumps(
-        {"ts": ts, "level": level, "app": app, "msg": line},
-        ensure_ascii=False,
-    )
+    record = {"ts": ts, "level": level, "app": app, "msg": line}
+    domain = _line_domain.get() if domain is None else domain
+    if domain:
+        record["domain"] = domain
+    entry = json.dumps(record, ensure_ascii=False)
 
     # Write to Redis
     r = _redis()
@@ -127,6 +148,7 @@ def get_console_lines(
     levels: Optional[List[str]] = None,
     app: Optional[str] = None,
     limit: int = 200,
+    domain: Optional[str] = None,
 ) -> List[dict]:
     """
     Retrieve structured console lines for a user.
@@ -152,6 +174,11 @@ def get_console_lines(
 
         # Filter by app
         if app and app != "all" and entry["app"] != app:
+            continue
+
+        # Le domaine de la page : les lignes d'un AUTRE domaine sont écartées ; une ligne sans
+        # domaine (l'app entière, une ligne d'avant le 2026-11-12) reste montrée partout.
+        if domain and app and app != "all" and entry.get("domain") not in ("", domain):
             continue
 
         result.append(entry)
@@ -196,6 +223,7 @@ def _parse_line(raw: str) -> dict:
                 "level": entry.get("level", "info"),
                 "app": entry.get("app", "system"),
                 "msg": entry.get("msg", ""),
+                "domain": entry.get("domain", ""),
             }
     except (json.JSONDecodeError, TypeError):
         pass
@@ -206,4 +234,5 @@ def _parse_line(raw: str) -> dict:
         "level": "info",
         "app": "system",
         "msg": raw,
+        "domain": "",
     }

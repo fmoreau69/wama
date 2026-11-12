@@ -2716,9 +2716,10 @@ Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via R
 
 - **Domicile** : `wama/common/utils/console_utils.py`
 - **Module** : WAMA Unified Console Logging
-- **API publique** (2) :
-  - `push_console_line(user_id: int, line: str, level: str='info', app: str='system', maxlen: int=500) -> None` — Append a structured log line to the user's console buffer.
-  - `get_console_lines(user_id: int, levels: Optional[List[str]]=None, app: Optional[str]=None, limit: int=200) -> List[dict]` — Retrieve structured console lines for a user.
+- **API publique** (3) :
+  - `set_line_domain(domain) -> None` — Le domaine des lignes écrites à partir de maintenant dans ce fil d'exécution ('' : aucun).
+  - `push_console_line(user_id: int, line: str, level: str='info', app: str='system', maxlen: int=500, domain: str=None) -> None` — Append a structured log line to the user's console buffer.
+  - `get_console_lines(user_id: int, levels: Optional[List[str]]=None, app: Optional[str]=None, limit: int=200, domain: Optional[str]=None) -> List[dict]` — Retrieve structured console lines for a user.
 
 ### Contrôles de page (disposition, aide)
 

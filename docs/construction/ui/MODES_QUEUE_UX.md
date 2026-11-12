@@ -240,8 +240,14 @@ le sous-titre de l'app et dans le menu du titre ; l'À propos de la page est cel
 (`app_about.about_facts(domain=…)`, `model_publications.app_models(domain=…)` : libellé, phrase,
 entrées acceptées, modèles de ce seul domaine). L'Aide n'a rien de propre à un domaine aujourd'hui.
 
-**Reste, dans l'ordre** : la Console par
-domaine (une ligne de journal ne porte que l'app) ; le sous-menu par domaine dans le menu Apps ;
+**La Console par domaine, livrée le même soir** : une ligne de journal porte le domaine de l'élément
+traité — le squelette de tâche le pose à l'ouverture de chaque tâche (`console_utils.set_line_domain`),
+donc toutes les lignes de la tâche le portent, y compris celles que la glu d'une app pousse par son
+propre raccourci ; la page d'un domaine ne demande que ses lignes et celles de l'app entière
+(`get_console_lines(domain=…)`, `console.js`). Une ligne d'avant ce jour n'a pas de domaine : elle
+reste montrée partout.
+
+**Reste, dans l'ordre** : le sous-menu par domaine dans le menu Apps ;
 le compte de la file sur l'onglet (`#queueCount` compte encore l'app entière) ; puis ⑥ et ⑦ de
 `ROUTE §11 #42` — le générateur hérite du sélecteur par le socle, mais la page générée doit ranger
 ses volets par domaine. À juger à l'écran par Fabien : la mise en forme du sélecteur.

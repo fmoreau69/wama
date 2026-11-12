@@ -225,6 +225,8 @@ def console_content(request):
         levels=levels,
         app=app if app else None,
         limit=200,
+        # La page d'un domaine ne montre que ses lignes (et celles de l'app entière).
+        domain=request.GET.get('domain') or None,
     )
 
     return JsonResponse({

@@ -899,6 +899,14 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         _signal(item, app_id, 'relance', None, {})
 
     ctx = TaskContext(app_id, model, item, progress_fn=progress_fn)
+    # Les lignes de console de CETTE tâche portent le domaine de son élément ('' pour une app
+    # d'un seul domaine ou un élément hors registre) — posé à chaque tâche, donc jamais hérité.
+    try:
+        from wama.common.utils.app_modes import element_domain, has_domain_tabs
+        from wama.common.utils.console_utils import set_line_domain
+        set_line_domain(element_domain(item) if has_domain_tabs(app_id) else '')
+    except Exception:
+        logger.debug("[task_skeleton] domaine des lignes de console non posé", exc_info=True)
 
     # ── Ressources : AU GRAIN DU PROCESS (2026-10-14) ────────────────────────────────────
     # L'attente de VRAM, la déclaration « tâche GPU en cours » et la FILE se décident désormais
