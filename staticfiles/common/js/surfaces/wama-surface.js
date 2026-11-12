@@ -77,16 +77,37 @@
      *  sources_setting`) — seulement une version que le serveur propose encore : un process
      *  décoché, une sortie libérée, laissent l'original. Lue AVANT le montage des briques, qui
      *  jouent `ctx.source(rôle)` à leur montage. Pure (testée en V8). */
-    function keptSources(sources, values, setting) {
+    function keptSources(sources, values, setting, reads) {
         var kept = (setting && (values || {})[setting]) || {};
         var chosen = {};
         Object.keys(sources || {}).forEach(function (role) {
             var key = kept[role];
-            if (key && (sources[role] || []).some(function (v) { return v.key === key; })) {
+            var list = sources[role] || [];
+            if (key && list.some(function (v) { return v.key === key; })) {
                 chosen[role] = key;
+            } else if (!(reads || {})[role] && list.length && list[0].key) {
+                // Le champ lu est VIDE (un cover sans rendu, 2026-11-12, #1516) : la première
+                // version servie — l'Entrée — est jouée d'office, plutôt qu'un lecteur muet.
+                chosen[role] = list[0].key;
             }
         });
         return chosen;
+    }
+
+    /** Les versions SERVIES, plus celles que la page a rendues elle-même (`render` : la lecture
+     *  MIDI d'une partition, `ctx.addSource`) — une actualisation de l'état ne les efface plus
+     *  (2026-11-12 : `res.sources || state.sources` les remplaçait par la liste du serveur). */
+    function mergedSources(served, current) {
+        var merged = {};
+        Object.keys(served || {}).forEach(function (role) { merged[role] = served[role].slice(); });
+        Object.keys(current || {}).forEach(function (role) {
+            (current[role] || []).forEach(function (version) {
+                if (!version.render) return;
+                var list = merged[role] = merged[role] || [];
+                if (!list.some(function (v) { return v.key === version.key; })) list.push(version);
+            });
+        });
+        return merged;
     }
 
 
@@ -201,6 +222,20 @@
                 var at = -1;
                 for (var i = 0; i < list.length; i++) if (list[i].key === version.key) at = i;
                 if (at < 0) list.push(version); else list[at] = version;
+                emit('sources', { role: role });
+            },
+            /** Retire une version que la page avait ajoutée (`addSource`) — une partition devenue
+             *  vide n'a plus rien à faire entendre (2026-11-12, #1516). Choisie, la lecture revient
+             *  à la version par défaut. */
+            removeSource: function (role, key) {
+                var list = state.sources[role] || [];
+                var kept = list.filter(function (v) { return v.key !== key; });
+                if (kept.length === list.length) return;
+                state.sources[role] = kept;
+                if (state.chosen[role] === key) {
+                    state.chosen[role] = '';
+                    emit('source', { role: role, key: '' });
+                }
                 emit('sources', { role: role });
             },
             context: function () { return state.context; },
@@ -432,7 +467,12 @@
                     .then(function (res) {
                         state.reads = res.reads || state.reads;
                         state.media = res.media || state.media;
-                        state.sources = res.sources || state.sources;
+                        if (res.sources) {
+                            state.sources = mergedSources(res.sources, state.sources);
+                            Object.keys(state.sources).forEach(function (role) {
+                                emit('sources', { role: role });
+                            });
+                        }
                         state.processes = res.processes || {};
                         emit('processes', state.processes);
                         var s = state.processes[key];
@@ -546,7 +586,7 @@
                 if (data.settings) state.settings = { schema: data.settings.schema || [],
                                                       values: data.settings.values || {} };
                 state.chosen = keptSources(state.sources, state.settings.values,
-                                           surface.sources_setting);
+                                           surface.sources_setting, state.reads);
                 ctx.canEdit = !!data.can_edit;
                 history.reset();
                 layout.build();

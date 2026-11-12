@@ -2090,6 +2090,14 @@ class ComposerScoreSurfaceTest(TestCase):
         self.gen.refresh_from_db()
         with ports[0], ports[1]:
             self.assertEqual([], found.sources_of(self.gen, 'audio'), 'one file, one version')
+        # No render (2026-11-12, #1516 : the render became optional on 2026-11-07) : the input
+        # ALONE is the one thing to listen to — it stays offered, the read field being empty.
+        type(self.gen).objects.filter(pk=self.gen.pk).update(melody_reference=f'{rel}/cover.mp3',
+                                                             audio_output='')
+        self.gen.refresh_from_db()
+        with ports[0], ports[1]:
+            self.assertEqual([(INPUT_SOURCE, f'{rel}/cover.mp3')],
+                             [(v['key'], v['name']) for v in found.sources_of(self.gen, 'audio')])
 
     def test_the_filled_alternative_is_the_one_edited(self):
         from wama.common.surfaces import surface

@@ -52,11 +52,16 @@
             '<i class="fas fa-list-check"></i> <span data-segments="review-count">0 / 0</span>' +
             '<span class="review-bar"><span data-segments="review-fill"></span></span></span>' +
             '<button type="button" class="btn btn-sm btn-outline-emphasis py-0" data-segments="compact" ' +
-            'title="Fusionner les segments consécutifs d\'un même locuteur"><i class="fas fa-compress"></i> Compacter</button>' +
-            '<button type="button" class="btn btn-sm btn-outline-emphasis py-0" data-segments="follow" aria-pressed="false"></button>';
-        var lockBtn = tools.querySelector('[data-segments="follow"]');
+            'title="Fusionner les segments consécutifs d\'un même locuteur"><i class="fas fa-compress"></i> Compacter</button>';
+        // Le verrou « suivre la lecture » : la brique commune (`WamaFollow`, extraite d'ici le
+        // 2026-11-12 quand la partition l'a demandé), gardé pour ce lecteur.
+        var follow = global.WamaFollow.lock(FOLLOW_KEY, {
+            on: 'Suivi de lecture ACTIVÉ — clic pour débrayer',
+            off: 'Suivre la lecture (la liste suit l\'audio même en édition)' });
+        follow.button.dataset.segments = 'follow';
+        tools.appendChild(follow.button);
 
-        var activeIndex = -1, selIndex = -1, followLock = false, quiet = false, renderedSig = null;
+        var activeIndex = -1, selIndex = -1, quiet = false, renderedSig = null;
 
         function names() {
             return ((ctx.settings() || {}).values || {})[options.names] || {};
@@ -113,10 +118,7 @@
             if (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') return true;
             return !!(a.classList && a.classList.contains('seg-text'));
         }
-        function scrollIntoBody(row) {
-            var cr = body.getBoundingClientRect(), r = row.getBoundingClientRect();
-            if (r.top < cr.top + 8 || r.bottom > cr.bottom - 8) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        }
+        function scrollIntoBody(row) { global.WamaFollow.into(body, row); }
 
         /** Le segment JOUÉ se surligne ; la liste le suit en Navigation, ou toujours sous verrou. */
         function highlight(idx, force) {
@@ -128,7 +130,7 @@
             var row = rowAt(idx);
             if (!row) return;
             row.classList.add('seg-active');
-            if (!force && (followLock || !editing())) scrollIntoBody(row);
+            if (!force && (follow.locked() || !editing())) scrollIntoBody(row);
         }
 
         function updateReviewProgress() {
@@ -308,25 +310,11 @@
             ctx.edit(function (v) { return Seg.compact(v); });
         });
 
-        // ── Verrou « suivre la lecture » (Alt+L), gardé pour cet utilisateur ────────────────
-        function applyFollowLock() {
-            lockBtn.classList.toggle('btn-info', followLock);
-            lockBtn.classList.toggle('btn-outline-emphasis', !followLock);
-            lockBtn.setAttribute('aria-pressed', followLock ? 'true' : 'false');
-            lockBtn.innerHTML = followLock ? '<i class="fas fa-lock"></i>' : '<i class="fas fa-lock-open"></i>';
-            lockBtn.title = followLock ? 'Suivi de lecture ACTIVÉ — clic pour débrayer'
-                                       : 'Suivre la lecture (la liste suit l\'audio même en édition)';
-        }
-        function toggleFollowLock() {
-            followLock = !followLock;
-            try { localStorage.setItem(FOLLOW_KEY, followLock ? '1' : '0'); } catch (_) {}
-            applyFollowLock();
-            var row = followLock && activeIndex >= 0 ? rowAt(activeIndex) : null;
+        // ── Verrou « suivre la lecture » (Alt+L) : mis, il ramène aussitôt le segment joué ────
+        follow.onLock = function () {
+            var row = activeIndex >= 0 ? rowAt(activeIndex) : null;
             if (row) row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        }
-        try { followLock = localStorage.getItem(FOLLOW_KEY) === '1'; } catch (_) {}
-        applyFollowLock();
-        lockBtn.addEventListener('click', toggleFollowLock);
+        };
 
         // ── « Charger la dernière transcription » (un rôle lu, `options.latest`) ────────────
         function latest() {
@@ -368,7 +356,7 @@
             // Frappe dans un champ (aller à, locuteur…) : ni transport ni navigation, sauf Ctrl/Alt/Échap.
             if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT')
                 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== 'Escape') return false;
-            if (e.altKey && (e.key === 'l' || e.key === 'L')) { toggleFollowLock(); return true; }
+            if (e.altKey && (e.key === 'l' || e.key === 'L')) { follow.toggle(); return true; }
             if (e.key === 'Escape') {
                 if (!inField) return false;
                 document.activeElement.blur();

@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**239 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**240 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -3054,6 +3054,12 @@ La couche JS commune d'une page d'app — `_app_scripts.html` : formulaires du s
 Plomberie commune file/cards : csrfFetch, urls et `Poller` — LA boucle d'interrogation du navigateur : jamais deux requêtes en vol, muette en onglet caché (2026-10-13 ; toute boucle des apps passe par lui, garde `tests_poller_js`) ; `loadScript` / `loadStyle` — LE chargement à la demande d'un module ou d'une feuille (2026-10-28 : trois copies privées réunies, garde `tests_script_loader`)
 
 - **Domicile** : `wama/common/static/common/js/wama-app-base.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+
+### Suivre la lecture (verrou)
+
+Une brique garde en vue ce qui est joué — le cadre de la brique ou la PAGE, selon qui défile — et un verrou (cadenas, Alt+L, gardé par le navigateur du lecteur) l'y oblige même en édition. Extrait le 2026-11-12 de la liste des segments du transcriber quand la partition l'a demandé (#1516) : `segment_list` et `score_view` l'emploient
+
+- **Domicile** : `wama/common/static/common/js/wama-follow.js`
 
 ### Suivre la tête de lecture (traitement au fil de la lecture)
 

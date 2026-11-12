@@ -597,7 +597,11 @@ class Surface:
         en tête : le composer fait écouter le cover à côté du rendu (2026-10-26, Fabien :
         « comparer les audios et les partitions »). Le transcriber, dont le champ lu EST
         l'entrée, n'en gagne rien. Dérivées des déclarations, comme les faces de l'aperçu : aucune
-        app ne les nomme. [] quand il n'y a rien à choisir (une seule version)."""
+        app ne les nomme. [] quand il n'y a rien à choisir : une seule version, ET c'est le champ
+        lu, que la page joue déjà. ⚠ Le champ lu VIDE (2026-11-12, #1516, relevé par Fabien : un
+        cover sans rendu ne laissait écouter que le MIDI) : depuis que le rendu est facultatif
+        (`generate_audio`, 2026-11-07), l'Entrée peut être la SEULE version — elle n'a rien de
+        superflu, c'est la seule chose à écouter."""
         field_name = self.reads.get(role)
         if not field_name or role in self.documents or role in self.texts:
             return []
@@ -627,7 +631,7 @@ class Surface:
         entry = work_input_name(self.app, item)
         if entry and entry not in seen and category_of_path(entry) in kinds:
             found.insert(0, {'key': INPUT_SOURCE, 'label': INPUT_FACE, 'name': entry})
-        return found if len(found) > 1 else []
+        return found if len(found) > 1 or not own else []
 
     def bricks(self) -> list:
         return [BRICKS[slot.brick] for slot in self.slots]
@@ -987,7 +991,7 @@ register_brick(UIBrick(
                 "plage au glisser, compactage par locuteur, relecture (✓ et progression), verrou "
                 "« suivre la lecture », noms des intervenants, reprise d'une version lue.",
     script='common/js/surfaces/brick-segment-list.js',
-    requires=('common/js/wama-axis.js', 'common/js/wama-segments.js'),
+    requires=('common/js/wama-axis.js', 'common/js/wama-segments.js', 'common/js/wama-follow.js'),
     consumes=('segments',), emits=('segments',),
     # La Navigation écoute toute la page (hors saisie) : sa portée DIT ce qui est ; l'ordre de
     # passage d'une brique qui a la main est l'étape suivante (`WAMA_VOLETS §3-ter`).
@@ -1026,7 +1030,9 @@ register_brick(UIBrick(
 register_brick(UIBrick(
     key='score_view', name='Partition',
     description="Une partition ABC gravée (abcjs, vendorisé), abonnée à l'axe partagé : les notes "
-                "JOUÉES se colorent, voix par voix, et la partition défile avec elles ; un clic sur "
+                "JOUÉES se colorent, voix par voix, et la partition défile avec elles (la page aussi, "
+                "quand c'est elle qui défile ; verrou « suivre la lecture » commun, `WamaFollow`, "
+                "pour suivre même avec une note choisie) ; un clic sur "
                 "une note y amène la lecture. Glisser une note vers le haut ou le bas la transpose "
                 "d'un degré par cran — un geste d'édition annulable. Le temps de la PARTITION "
                 "guide : chaque temps écrit est calé sur un temps joué de l'audio lu "
@@ -1039,7 +1045,9 @@ register_brick(UIBrick(
     requires=('vendors/abcjs-6.4.4/abcjs-basic-min.js', 'common/js/wama-axis.js',
               'common/js/wama-score.js',
               # La LECTURE MIDI de la partition (2026-11-08) : des versions de plus au transport.
-              'common/js/wama-midi-player.js'),
+              'common/js/wama-midi-player.js',
+              # Suivre la lecture (2026-11-12) : le verrou de la liste des segments, mis en commun.
+              'common/js/wama-follow.js'),
     consumes=('score',), emits=('score',),
     # « A la main » : le clavier dans la partition (son cadre a le focus), une note choisie.
     shortcuts=(Shortcut(('ArrowUp', 'ArrowDown'), "monter / descendre la note choisie d'un degré"),
@@ -1048,7 +1056,9 @@ register_brick(UIBrick(
                Shortcut(('-',), "la raccourcir d'un pas"),
                Shortcut(('2', '3', '4', '5', '6', '7'), 'le pas : une figure, comme MuseScore'),
                Shortcut(('0',), 'le pas : automatique'),
-               Shortcut(('Escape',), 'ne plus choisir de note'))))
+               Shortcut(('Escape',), 'ne plus choisir de note'),
+               Shortcut(('Alt+KeyL',), 'suivre la lecture : verrouiller / libérer',
+                        targets=('[data-score="follow"]',)))))
 
 # ── 2026-10-29 : les premiers PLUGINS GRAPHIQUES du monde Data (`WAMA_DATA_WORLD §8.4`, marche F),
 # écrits sur le face_analyzer — des briques universelles, abonnées à l'axe partagé.

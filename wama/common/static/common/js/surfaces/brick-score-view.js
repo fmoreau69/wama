@@ -113,11 +113,22 @@
         syncLabel.appendChild(syncText);
         tools.appendChild(warn);
         tools.appendChild(syncLabel);
+        // SUIVRE LA LECTURE (2026-11-12, #1516, demande de Fabien) : le verrou de la liste des
+        // segments, brique commune (`WamaFollow`). La partition suit la note jouée pendant la
+        // lecture — sauf quand une note est CHOISIE pour l'éditer, à moins que le verrou soit mis.
+        var follow = global.WamaFollow.lock('wama.score.follow', {
+            on: 'Suivi de lecture ACTIVÉ — la partition suit la note jouée, même en édition (Alt+L)',
+            off: 'Suivre la lecture, même avec une note choisie (Alt+L)' });
+        follow.button.dataset.score = 'follow';
+        tools.appendChild(follow.button);
         // Les outils vivent dans la poignée de la brique : un clic ne doit pas la déplacer.
         tools.addEventListener('mousedown', function (e) { e.stopPropagation(); });
 
         var timings = [], tl = null, lit = [], rendered = null, pending = null, tune = null;
         var msPerBeat = 0, notes = [], grid = null, alignment = null;
+        /** Les lectures MIDI proposées (`WamaMidiPlayer.choices`), null tant qu'elles ne sont pas
+         *  posées — `render` passe avant leur mise en place, en fin de brique. */
+        var midiChoices = null;
         var versions = (options.versions && options.versions.length) ? options.versions
             : [{ role: options.role || '', empty: options.empty }];
         var chosen = 0;
@@ -383,6 +394,7 @@
             if (abc === rendered) return;
             rendered = abc;
             shown = abc;
+            syncMidi();
             inserts = placed.inserts;
             var top = body.scrollTop;
             lit = [];
@@ -441,7 +453,7 @@
             pending = setTimeout(render, RENDER_DELAY_MS);
         }
 
-        function paint(seconds, follow) {
+        function paint(seconds, following) {
             var now = tl ? Score.playingAt(tl, scoreMs(seconds)) : [];
             var keep = new Set(now);
             lit.forEach(function (els) {
@@ -450,16 +462,15 @@
             now.forEach(function (els) { els.forEach(function (el) { el.classList && el.classList.add(PLAYING); }); });
             var changed = now.length !== lit.length || now.some(function (els, i) { return els !== lit[i]; });
             lit = now;
-            if (follow && changed && now.length && now[0][0]) keepVisible(now[0][0]);
-        }
-
-        /** Fait défiler la BRIQUE (jamais la page) pour garder la note jouée en vue. */
-        function keepVisible(el) {
-            var box = body.getBoundingClientRect(), r = el.getBoundingClientRect();
-            if (r.top < box.top + 8 || r.bottom > box.bottom - 8) {
-                body.scrollTop += (r.top - box.top) - box.height / 3;
+            if (following && changed && now.length && now[0][0]
+                && (follow.locked() || !selection)) {
+                global.WamaFollow.into(body, now[0][0]);
             }
         }
+        // ⚠ La brique ne faisait défiler QU'ELLE-MÊME (`body.scrollTop`, « jamais la page ») : sous un
+        // transport épinglé, la partition est assez haute pour tout contenir et c'est la PAGE qui
+        // défile — rien ne bougeait (#1516). `WamaFollow.into` défile le cadre ou la page.
+        follow.onLock = function () { if (lit.length && lit[0][0]) global.WamaFollow.into(body, lit[0][0]); };
 
         function onNote(abcelem, tuneNumber, classes, analysis, drag) {
             if (!abcelem || abcelem.startChar == null) return;
@@ -512,6 +523,10 @@
         // propre à la note, n'est donc pas sur le chemin de la frappe.
         body.tabIndex = 0;
         global.WamaKeys.register({ owner: 'score_view', scope: 'brick', root: body, handle: function (e) {
+            if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'l' || e.key === 'L')) {
+                follow.toggle();
+                return true;
+            }
             if (e.ctrlKey || e.metaKey || e.altKey) return false;
             if (e.key === 'Escape' && selection) { selection = null; highlight(); return true; }
             if (STEP_KEYS.hasOwnProperty(e.key)) { setStep(STEP_KEYS[e.key]); return true; }
@@ -555,24 +570,34 @@
         // Des versions de plus pour le transport du média lu (`options.media`), une par lecture
         // proposée (`WamaMidiPlayer.choices` : les banques de sons, et abcjs) : la partition
         // MONTRÉE (la piste choisie, ses paroles) rendue en audio à la demande, sans rien générer.
-        // Une partition modifiée se rend de nouveau (le rendu fait est oublié).
-        var midiVersions = [];
+        // Une partition modifiée se rend de nouveau : chaque gravure neuve repose ses versions,
+        // rendu oublié (`syncMidi`, appelée par `render`).
+        // ⚠ 2026-11-12 (#1516, relevé par Fabien : six lectures, dont trois d'une partition jouée
+        // qui n'existait pas) : une vue ne propose ses lectures QUE si la partition montrée a des
+        // notes, les retire quand elle n'en a plus (`ctx.removeSource`), et le libellé nomme la
+        // version montrée (« Réduite », « Complète ») — la lecture rend celle-là.
         var midiConfig = (ctx.config || {}).sound_banks;
-        if (options.media && midiConfig && global.WamaMidiPlayer && ctx.addSource) {
-            var heading = options.title || 'Partition';
-            global.WamaMidiPlayer.choices(midiConfig).forEach(function (choice) {
-                var version = {
-                    key: 'midi:' + heading + ':' + choice.key,
-                    label: choice.label + ' · ' + heading,
+        var heading = options.title || 'Partition';
+        if (options.media && midiConfig && global.WamaMidiPlayer && ctx.addSource && ctx.removeSource) {
+            midiChoices = global.WamaMidiPlayer.choices(midiConfig);
+            syncMidi();
+        }
+        function syncMidi() {
+            if (!midiChoices) return;                 // pas encore posées : la mise en place l'appelle
+            var playable = !!String(shown || '').trim();
+            var which = versions.length > 1 ? (current().label || '') : '';
+            midiChoices.forEach(function (choice) {
+                var key = 'midi:' + heading + ':' + choice.key;
+                if (!playable) { ctx.removeSource(options.media, key); return; }
+                ctx.addSource(options.media, {
+                    key: key,
+                    label: choice.label + ' · ' + heading + (which ? ' (' + which + ')' : ''),
                     url: '',
                     render: function () {
                         return global.WamaMidiPlayer.render(shown || text(), choice.key, midiConfig);
                     },
-                };
-                midiVersions.push(version);
-                ctx.addSource(options.media, version);
+                });
             });
-            ctx.on('change', function () { midiVersions.forEach(function (v) { v.url = ''; }); });
         }
         var anyEdited = versions.some(function (version) { return !version.role; });
         return {

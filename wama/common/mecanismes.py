@@ -2566,6 +2566,13 @@ MECHANISMS = (
               "s'appliquer à l'AXE commun (`axis.shuttle`) plutôt qu'à un lecteur — `forAxis(axis)`, "
               "le shuttle d'un axe, celui du transport et de la visionneuse (2026-11-05)",
               'wama/common/static/common/js/wama-shuttle.js', ''),
+    Mechanism('follow_playback', 'Suivre la lecture (verrou)',
+              "Une brique garde en vue ce qui est joué — le cadre de la brique ou la PAGE, selon qui "
+              "défile — et un verrou (cadenas, Alt+L, gardé par le navigateur du lecteur) l'y oblige "
+              "même en édition. Extrait le 2026-11-12 de la liste des segments du transcriber quand "
+              "la partition l'a demandé (#1516) : `segment_list` et `score_view` l'emploient",
+              'wama/common/static/common/js/wama-follow.js', '',
+              symbol='WamaFollow'),
     Mechanism('media_axis', 'Axe de temps partagé (transport commun)',
               "L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue "
               "(`WAMA_DATA_WORLD §5bis`) : lecture, pause, aller, sauts, vitesse signée, shuttle ; "
