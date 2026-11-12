@@ -610,16 +610,13 @@
                 var owner = o.owner || 'media_transport';
                 /** L'ACTION d'une frappe (2026-11-12) : lue à la table du magnéto par le clavier
                  *  commun (`WamaKeys.action` — défauts `TRANSPORT_KEYS`, surcharges d'une page ou
-                 *  d'un compte), plus jamais à la touche. Maj SEULE ne retire pas une touche que
-                 *  la table ne distingue pas (Maj+J recule, comme avant) ; Méta n'est à personne. */
+                 *  d'un compte), plus jamais à la touche. Méta n'est à personne. */
                 function actionOf(e) {
                     if (e.metaKey) return null;
                     var Keys = global.WamaKeys;
                     // Sans le clavier commun (un banc qui ne charge que l'axe) : la touche nue.
                     if (!Keys || !Keys.action) return TRANSPORT_KEYS[e.code] || null;
-                    var found = Keys.action(e, owner, TRANSPORT_KEYS);
-                    if (found || !e.shiftKey || e.ctrlKey || e.altKey) return found;
-                    return Keys.action({ code: e.code, key: e.key, shiftKey: false }, owner, TRANSPORT_KEYS);
+                    return Keys.action(e, owner, TRANSPORT_KEYS);
                 }
                 function handle(e) {
                     if (o.enabled && !o.enabled()) return false;

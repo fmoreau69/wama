@@ -1077,6 +1077,15 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     visionneuse, couche qui garde le clavier, le passe au magnéto comme l'appui. Le compte des
     écoutes directes (`PageKeyListenersTest.REMAINING`) perd ses deux dernières entrées de
     briques. Garde : `BrickShortcutsTest.test_the_release_of_a_key_goes_to_the_one_who_took_its_press`.
+    ✅ **Les deux outils du temps, même jour** : l'outil Bornes de la ligne de temps (C,
+    `TIMELINE_KEYS`) et l'enregistrement de l'écriture à la lecture (R, `WRITING_KEYS`) lisent
+    leur action au clavier commun ; Échap ne se redonne pas. Une touche se lit désormais par sa
+    POSITION, comme le registre la déclare (`KeyC`, `KeyR` — les trois briques lisaient le
+    caractère) : identique en azerty et en qwerty ; une autre disposition passera par le
+    préréglage de clavier du profil. La règle « Maj seule ne retire pas une touche que la table
+    ne distingue pas » est au clavier commun, une fois. La garde de présence compte le clavier
+    commun parmi les sources d'une brique qui lui demande ses actions (les modificateurs s'y
+    lisent).
     ⏳ Restent, dans l'ordre : les autres briques sur `WamaKeys.action`
     (segments, ligne de temps, écriture, partition, zones, file, inspecteur, visionneuse) ; le
     préréglage DÉCLARÉ d'une page et celui du transcriber ; alors seulement les défauts décidés

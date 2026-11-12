@@ -22,7 +22,10 @@
     var WRITE_SLICE = 20;             // une plage enregistrée se referme toutes les 20 s
     var COMPLEMENT_AHEAD = 20;        // Complément regarde 20 s devant la tête de lecture
     var WAIT_RESULTS_MS = 60000;
-    var PROPOSAL_BAND = 'rgba(239,68,68,0.16)', RECORDING_BAND = 'rgba(239,68,68,0.32)';
+    /** Les touches de la brique PAR DÉFAUT, `{touche: action}` — celles qu'elle déclare au registre
+     *  (`surfaces.py`, `playback_writing.shortcuts`, tenues égales par `BrickShortcutsTest`). */
+    var WRITING_KEYS = { 'KeyR': 'record' };
+    var PROPOSAL_BAND ='rgba(239,68,68,0.16)', RECORDING_BAND = 'rgba(239,68,68,0.32)';
 
     function mount(body, ctx) {
         var Seg = global.WamaSegments, Axis = global.WamaAxis;
@@ -187,7 +190,8 @@
             return true;
         } });
         global.WamaKeys.register({ owner: 'playback_writing', scope: 'page', handle: function (e) {
-            if (e.ctrlKey || e.metaKey || e.altKey || (e.key || '').toLowerCase() !== 'r') return false;
+            // L'ACTION de la frappe, lue à la table de la brique (`WamaKeys.action`, 2026-11-12).
+            if (global.WamaKeys.action(e, 'playback_writing', WRITING_KEYS) !== 'record') return false;
             if (writeMode !== 'touch' && writeMode !== 'latch') return false;
             if (!e.repeat) arm();
             return true;

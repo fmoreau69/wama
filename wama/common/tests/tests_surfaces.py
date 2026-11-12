@@ -1848,6 +1848,10 @@ class BrickShortcutsTest(SimpleTestCase):
             found = finders.find(path)
             self.assertTrue(found, f'{brick.key} : {path} is not served')
             texts.append(Path(found).read_text(encoding='utf-8', errors='ignore'))
+        # 2026-11-12 : a brick that asks the common keyboard for the ACTION of a keystroke has
+        # its modifiers read there (`WamaKeys.action`) — that module is then part of its code.
+        if any('Keys.action(' in text for text in texts):
+            texts.append(_js('common/js/wama-keys.js'))
         return '\n'.join(texts)
 
     def test_every_declared_key_is_handled_by_the_brick_code(self):
@@ -1934,6 +1938,19 @@ class BrickShortcutsTest(SimpleTestCase):
         self.assertEqual({}, {k: n for k, n in viewer.items() if table.get(k) != n})
         self.assertNotIn("case 'KeyL'", axis, 'no key is tested by hand any more')
         self.assertIn('Keys.action(e, owner, TRANSPORT_KEYS)', axis)
+        # The tools of time follow : the Boundaries tool of the timeline, the recording of the
+        # writing brick — each a table equal to what its brick names in the registry.
+        for brick, path, table_name in (
+                ('media_timeline', 'common/js/wama-timeline.js', 'TIMELINE_KEYS'),
+                ('playback_writing', 'common/js/surfaces/brick-playback-writing.js', 'WRITING_KEYS')):
+            with self.subTest(brick=brick):
+                code = _js(path)
+                block = code.split(f'var {table_name} = {{', 1)[1].split('};', 1)[0]
+                named = {key: name for s in BRICKS[brick].shortcuts for key, name in zip(s.keys, s.names)}
+                self.assertTrue(named)
+                self.assertEqual(named, dict(re.findall(r"'([^']+)':\s*'(\w+)'", block)))
+                self.assertIn(f"WamaKeys.action(e, '{brick}', {table_name})", code)
+                self.assertNotIn('.toLowerCase() !==', code, 'the letter is no longer read by hand')
 
     def test_an_action_is_resolved_from_the_defaults_then_from_an_override(self):
         """`WamaKeys.action` : the key by its position (`KeyJ`, `Shift+ArrowLeft`) or by the character
@@ -1957,8 +1974,12 @@ class BrickShortcutsTest(SimpleTestCase):
                          K.action(ev('ArrowLeft', 'ArrowLeft', {shiftKey: true}), 'x', table),
                          K.action(ev('KeyJ', 'j'), 'other', table)];
             K.remap('x', null);
-            return {before: before, after: after, back: K.action(ev('KeyJ', 'j'), 'x', table)};
+            return {before: before, after: after, back: K.action(ev('KeyJ', 'j'), 'x', table),
+                    shifted: [K.action(ev('KeyJ', 'J', {shiftKey: true}), 'x', table),
+                              K.action(ev('KeyJ', 'j', {shiftKey: true, ctrlKey: true}), 'x', table)]};
         })()''')
+        self.assertEqual(['reverse', None], list(out['shifted']),
+                         'Shift alone does not take a key away, Ctrl+Shift is another key')
         self.assertEqual(['reverse', 'far', None, 'step_back', None], list(out['before']))
         self.assertEqual([None, 'reverse', None, 'far', 'reverse'], list(out['after']),
                          'the overridden action moved, a silenced one is gone, the others kept theirs')

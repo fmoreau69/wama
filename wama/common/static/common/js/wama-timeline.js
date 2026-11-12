@@ -34,6 +34,9 @@
     var LEGIBLE_PXPS = 1.5;           // en dessous, l'onde se tait (la minimap fait la vue d'ensemble)
     var HANDLE_PX = 6, HANDLE_PX_TOUCH = 16;
     var PEAKS_POLL_MS = 2500;
+    /** Les touches de la vue PAR DÉFAUT, `{touche: action}` — celles que la brique déclare au
+     *  registre (`surfaces.py`, `media_timeline.shortcuts`, tenues égales par `BrickShortcutsTest`). */
+    var TIMELINE_KEYS = { 'KeyC': 'boundaries' };
 
     function el(tag, cls, attrs) {
         var e = document.createElement(tag);
@@ -400,7 +403,9 @@
                 setBoundaryTool(false);
                 return true;
             }
-            if (e.ctrlKey || e.metaKey || e.altKey || (e.key || '').toLowerCase() !== 'c') return false;
+            // L'ACTION de la frappe, lue à la table de la vue (`WamaKeys.action`, 2026-11-12) —
+            // surchargeable par son nom ; Échap, lui, ne se redonne pas.
+            if (global.WamaKeys.action(e, 'media_timeline', TIMELINE_KEYS) !== 'boundaries') return false;
             setBoundaryTool(!boundaryTool);
             return true;
         } });

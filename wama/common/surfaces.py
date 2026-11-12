@@ -962,7 +962,7 @@ register_brick(UIBrick(
     requires=('common/js/wama-axis.js', 'common/js/wama-segments.js', 'common/js/wama-timeline.js'),
     consumes=('audio', 'segments'), emits=('segments',),
     shortcuts=(Shortcut(('KeyC',), "prendre / quitter l'outil Bornes", 'page', option='boundaries',
-                        targets=('[data-timeline="boundaries"]',)),
+                        targets=('[data-timeline="boundaries"]',), names=('boundaries',)),
                Shortcut(('Escape',), "quitter l'outil Bornes", 'page', option='boundaries',
                         targets=('[data-timeline="boundaries"]',)))))
 
@@ -978,7 +978,7 @@ register_brick(UIBrick(
     requires=('common/js/wama-axis.js', 'common/js/wama-segments.js'),
     consumes=('segments',), emits=('segments',),
     shortcuts=(Shortcut(('KeyR',), "enregistrer (Touch : tant que R est maintenu ; Latch : "
-                                   "jusqu'à l'arrêt)", 'page'),
+                                   "jusqu'à l'arrêt)", 'page', names=('record',)),
                Shortcut(('Escape',), 'rendre le clavier', 'field'))))
 
 # ── 2026-10-21 : la page de correction du transcriber devenue surface (ROUTE §F3b, étape 2) ──
