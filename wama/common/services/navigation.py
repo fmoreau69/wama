@@ -90,6 +90,60 @@ def account_menu(user, allowed_apps=None) -> list:
     return [s for s in sections.values() if s['pages']]
 
 
+#: Le réglage qui retient, par compte et par app, le domaine de la dernière visite.
+PAGE_DOMAIN_SETTING = 'domain'
+#: Le paramètre d'adresse qui nomme le domaine d'une page : `/anonymizer/?domain=document`.
+PAGE_DOMAIN_PARAM = 'domain'
+
+
+def remember_page_domain(user, app: str, domain: str) -> bool:
+    """Retient `domain` comme celui de `user` pour `app` — s'il est DÉCLARÉ par l'app. Rend False
+    sinon (app sans ce domaine, visiteur sans compte) : rien n'est écrit."""
+    from wama.common.utils import app_modes
+    from wama.common.utils.user_settings import save_user_app_settings
+    if not getattr(user, 'is_authenticated', False):
+        return False
+    if domain not in [d.get('id') for d in app_modes.get_domains(app)]:
+        return False
+    save_user_app_settings(user, app, {PAGE_DOMAIN_SETTING: domain})
+    return True
+
+
+def page_domain(request, app: str):
+    """Le DOMAINE de la page d'app que sert `request` (`MODES_QUEUE_UX §2ter`, décision de Fabien
+    du 2026-11-12 : le domaine se choisit AU-DESSUS de la page, le titre est le sélecteur).
+
+    None pour une app d'un seul domaine : sa page n'a rien à choisir. Sinon
+    `{'app', 'current', 'label', 'icon', 'domains': [{'id', 'label', 'icon', 'url', 'current'}]}`.
+    Le domaine est celui que l'ADRESSE nomme (`?domain=…` — une adresse par domaine : favori,
+    partage, bouton Retour), sinon celui que le compte a retenu, sinon le premier déclaré. Une
+    adresse qui en nomme un le retient pour le compte ; un domaine inconnu est ignoré."""
+    from wama.common.utils import app_modes
+    from wama.common.utils.user_settings import get_user_app_setting
+
+    domains = app_modes.get_domains(app) if app else []
+    if len(domains) < 2:
+        return None
+    ids = [d.get('id') for d in domains]
+    user = getattr(request, 'user', None)
+    known = bool(getattr(user, 'is_authenticated', False))
+    retained = get_user_app_setting(user, app, PAGE_DOMAIN_SETTING) if known else None
+    asked = request.GET.get(PAGE_DOMAIN_PARAM)
+    if asked in ids:
+        current = asked
+        if known and retained != asked:
+            remember_page_domain(user, app, asked)
+    else:
+        current = retained if retained in ids else ids[0]
+    chosen = next(d for d in domains if d.get('id') == current)
+    return {'app': app, 'current': current, 'label': chosen.get('label') or current,
+            'icon': chosen.get('icon') or '',
+            'domains': [{'id': d.get('id'), 'label': d.get('label') or d.get('id'),
+                         'icon': d.get('icon') or '', 'current': d.get('id') == current,
+                         'url': f"{request.path}?{PAGE_DOMAIN_PARAM}={d.get('id')}"}
+                        for d in domains]}
+
+
 def navigable_pages(user) -> list:
     """Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world',
     'description', 'aliases'}]` — les apps et surfaces dans l'ordre du menu Applications, puis

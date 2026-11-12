@@ -103,7 +103,7 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
   transcriber (normal/temps réel) — et toutes trois les rendent **depuis la déclaration**. Anonymizer a
   été la dernière branchée : elle déclarait ses modes ET les rendait à la main (deux sources non reliées).
 
-## 2ter. OÙ se choisit le domaine — question ouverte (Fabien, 2026-11-10) ⏳ session de conception, concile si besoin
+## 2ter. OÙ se choisit le domaine — au-dessus de la page, le titre en sélecteur (question du 2026-11-10, décidée et livrée le 2026-11-12) 🔄
 
 > Rien n'est décidé ni implémenté : cette section consigne la question, le constat mesuré, l'état
 > de l'art et les options, pour une session neuve. Venue des restes du domaine `document` de
@@ -206,6 +206,40 @@ ou une variante) ; la forme du sélecteur ; le domaine par URL et par compte ; l
 modèle ↔ domaine (mesurer d'abord) ; l'ordre : socle → À propos/Aide → Console → générateur.
 Outils de la session : le plugin `frontend-design` (déjà prescrit pour la direction visuelle,
 `ROADMAP.md:297-301`), le skill `/smoke` pour juger sur la page servie.
+
+### ✅ Décidé par Fabien et livré le 2026-11-12 — le socle
+
+**Décisions** : le domaine se choisit AU-DESSUS de la page ; le sélecteur est le TITRE (« le titre me
+convient ») ; la 3D est mise de côté — aucun bouton pour elle, elle doit seulement rester possible
+sans gros changement (idée de Fabien, encore floue : une page qui contient de la 3D allume l'icône
+main de l'en-tête, qui suffit à la manipuler) ; toute app a un domaine nommé, même seule, pour
+pouvoir lui en adjoindre un autre à la demande (aucune route « créer un domaine » n'existe encore).
+
+**Constat corrigé** : le rattachement d'un modèle à un domaine n'est pas « déclaré nulle part », il se
+DÉRIVE — domaine → son schéma (`params_schema`) → ses selects de catalogue
+(`param_schema.catalog_choice_keys(app, domain)`). L'À propos montre depuis les modèles de tous les
+domaines, groupés par domaine.
+
+**Livré** :
+- `navigation.page_domain(request, app)` : le domaine de la page — celui que l'ADRESSE nomme
+  (`?domain=<id>` : une adresse par domaine, sans une route de plus dans aucune app ni dans le
+  générateur), sinon celui que le COMPTE a retenu (`UserAppSetting`, réglage `domain`), sinon le
+  premier déclaré ; une adresse qui en nomme un le retient. Posé au contexte de toute page
+  (`page_domain`), `None` pour une app d'un seul domaine ;
+- `common/_page_domain.html`, inclus par le socle (`app_modern_base.html`) dans le titre : « App /
+  Domaine ▾ », un `<nav>` de LIENS avec `aria-current`, le compte de chaque domaine posé par sa barre
+  de progression ;
+- `wama-modes.js` : la page MONTRE le domaine choisi par le socle et ne rend plus d'onglets (une page
+  servie par un serveur pas encore relancé garde les siens, le temps de la relance) ;
+- « Envoyer vers » dit au serveur quel domaine a reçu le fichier (`common:api_page_domain`) : le
+  `localStorage` n'est plus lu.
+
+**Reste, dans l'ordre** : le sous-titre et l'À propos / l'Aide PAR domaine (l'À propos montre déjà
+les modèles par domaine ; le fragment ne reçoit pas encore le domaine de la page) ; la Console par
+domaine (une ligne de journal ne porte que l'app) ; le sous-menu par domaine dans le menu Apps ;
+le compte de la file sur l'onglet (`#queueCount` compte encore l'app entière) ; puis ⑥ et ⑦ de
+`ROUTE §11 #42` — le générateur hérite du sélecteur par le socle, mais la page générée doit ranger
+ses volets par domaine. À juger à l'écran par Fabien : la mise en forme du sélecteur.
 
 ## 3. Le MODE = norme applicative (LA couche d'abstraction ajoutée)
 - Chaque app **déclare ses modes** en métadonnée :

@@ -1,0 +1,23 @@
+{% comment %}
+Le DOMAINE d'une page d'app, dans son TITRE (2026-11-12, `MODES_QUEUE_UX §2ter` — décision de Fabien :
+le domaine se choisit au-dessus de la page, le titre est le sélecteur ; plus de seconde ligne d'onglets).
+
+Rendu par le socle (`app_modern_base.html`) quand la page a plusieurs domaines — `page_domain`
+vient du contexte commun (`navigation.page_domain`) : aucune app ne l'écrit. Chaque domaine est un
+LIEN (une adresse par domaine), donc un `<nav>` et `aria-current`, pas une `tablist`. Le compte de
+chaque domaine est posé par sa barre de progression (`wama:domain-stats`, `wama-modes.js`).
+{% endcomment %}
+<span class="wama-page-domain dropdown" data-wama-page-domain="{{ page_domain.current }}" data-app="{{ page_domain.app }}">
+    <span class="wama-page-domain-sep" aria-hidden="true">/</span>
+    <a class="wama-page-domain-toggle dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+       aria-expanded="false" aria-label="Domaine : {{ page_domain.label }} — changer de domaine">{{ page_domain.label }}</a>
+    <nav class="dropdown-menu" aria-label="Domaines de l'application">
+        {% for d in page_domain.domains %}
+        <a class="dropdown-item d-flex align-items-center" href="{{ d.url }}"{% if d.current %} aria-current="page"{% endif %}>
+            {% if d.icon %}<i class="fas {{ d.icon }} me-2" aria-hidden="true"></i>{% endif %}
+            <span class="flex-grow-1">{{ d.label }}</span>
+            <span class="badge bg-secondary ms-3" data-domain-count="{{ d.id }}"></span>
+        </a>
+        {% endfor %}
+    </nav>
+</span>

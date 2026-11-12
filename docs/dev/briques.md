@@ -1865,9 +1865,11 @@ Les pages du menu Applications — apps du catalogue et surfaces déclarées, lu
 
 - **Domicile** : `wama/common/services/navigation.py` · **doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 - **Module** : Les PAGES qu'un utilisateur peut ouvrir — ce que l'assistant propose quand on lui demande « emmène-moi sur… » (outil `open_page`, 2026-10-11), et le menu du compte (2026-10-14).
-- **API publique** (6) :
+- **API publique** (8) :
   - `account_pages_for(user, allowed_apps=None) -> list` — Les pages du COMPTE que `user` peut ouvrir, dans l'ordre du menu : `[{'key', 'label',
   - `account_menu(user, allowed_apps=None) -> list` — Le menu du COMPTE de `user` : `[{'key', 'label', 'icon', 'submenu', 'pages': […]}]`, une
+  - `remember_page_domain(user, app: str, domain: str) -> bool` — Retient `domain` comme celui de `user` pour `app` — s'il est DÉCLARÉ par l'app. Rend False
+  - `page_domain(request, app: str)` — Le DOMAINE de la page d'app que sert `request` (`MODES_QUEUE_UX §2ter`, décision de Fabien
   - `navigable_pages(user) -> list` — Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world',
   - `scene_pages(user, allowed_apps=None) -> list` — Les SCÈNES 3D que `user` peut ouvrir (`common/scenes.py`, 2026-10-30 — demande de Fabien :
   - `find_page(user, page: str)` — La page que `page` désigne (clé, libellé ou alias, casse et accents ignorés) parmi celles

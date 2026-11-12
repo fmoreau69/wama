@@ -201,6 +201,16 @@ def user_role(request):
     except Exception:
         pass
 
+    # Le DOMAINE de la page (2026-11-12) : une app à plusieurs domaines le reçoit du socle — lu de
+    # l'adresse, sinon retenu par compte (`navigation.page_domain`). None pour un seul domaine.
+    current_page_domain = None
+    if current_app:
+        try:
+            from wama.common.services.navigation import page_domain as _page_domain
+            current_page_domain = _page_domain(request, current_app)
+        except Exception:
+            logging.getLogger('wama.nav').warning('Domaine de la page non résolu', exc_info=True)
+
     # Les PROCESS de l'app courante, dans l'ordre de son pipeline (2026-10-26, demande de Fabien :
     # « des sections automatiques en accordéon par sous-process » dans la modale et le volet) —
     # `WamaParams.render` y range chaque réglage d'après les process qu'il périme (`stales`).
@@ -248,6 +258,7 @@ def user_role(request):
         'nav_apps_grouped': nav_apps_grouped,
         'account_menu': account_menu,
         'current_app': current_app,
+        'page_domain': current_page_domain,
         'current_app_color': current_app_color,
         'current_app_spec': current_app_spec,
         'converter_output_formats_json': converter_output_formats_json,

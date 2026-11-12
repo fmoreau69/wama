@@ -80,6 +80,18 @@
         color: var(--wama-text-small);
     }
 
+    /* Le domaine dans le titre (`_page_domain.html`) : le nom du domaine EST le bouton. */
+    .wama-page-domain { display: inline-flex; align-items: baseline; gap: .3em; }
+    .wama-page-domain-sep { color: var(--wama-border-strong); }
+    .wama-page-domain-toggle { color: var(--wama-accent-text); text-decoration: none;
+                               border-bottom: 2px solid rgba(var(--wama-accent-rgb), .45); }
+    .wama-page-domain-toggle:hover, .wama-page-domain-toggle:focus-visible {
+        color: var(--wama-accent-text); border-bottom-color: var(--wama-accent); }
+    .wama-page-domain-toggle::after { font-size: .45em; vertical-align: .35em; }
+    .wama-page-domain .dropdown-menu { min-width: 16rem; }
+    .wama-page-domain .dropdown-item[aria-current="page"] {
+        background: rgba(var(--wama-accent-rgb), .16); }
+
     /* App blocks spécifiques */
     {% block app_styles %}{% endblock %}
 </style>
@@ -109,6 +121,8 @@
         <h1 class="display-4 mb-3">
             {% block app_icon %}<i class="fas fa-cog"></i>{% endblock %}
             {% block app_title %}Application{% endblock %}
+            {# Le DOMAINE de la page, dans le titre (2026-11-12) : rien pour une app d'un seul domaine. #}
+            {% if page_domain %}{% include 'common/_page_domain.html' %}{% endif %}
         </h1>
         <p class="lead text-body-emphasis">
             {# Le sous-titre : la description DÉCLARÉE de l'app (`APP_CATALOG`, 2026-11-06) — une page qui l'écrit à la main la recopie. #}

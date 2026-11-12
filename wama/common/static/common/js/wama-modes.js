@@ -271,35 +271,54 @@
         });
     }
 
-    /** Les onglets de domaine de la page dans `container` (`data-wama-domain-tabs="<app>"`). */
-    function domainTabs(container) {
-        const app = container.dataset.wamaDomainTabs;
-        if (!app || container._wamaDomainTabs) return;
-        container._wamaDomainTabs = true;
+    /** Le domaine que le SOCLE a choisi pour la page (`_page_domain.html`, 2026-11-12) : lu de
+     *  l'adresse, sinon retenu par compte — `{app, domain}`, ou null sur une page sans domaine. */
+    function pageDomain() {
+        const el = document.querySelector('[data-wama-page-domain]');
+        return el ? { app: el.dataset.app, domain: el.dataset.wamaPageDomain } : null;
+    }
+
+    /** Les onglets d'AVANT le 2026-11-12, pour la seule page qu'un serveur pas encore relancé
+     *  sert sans domaine choisi : un onglet par domaine, le premier montré, rien de retenu. */
+    function tabsOfAnOlderPage(container, app) {
         return global.WamaModes.fetch(app).then(function (schema) {
             const ds = (schema && schema.domains) || [];
             if (ds.length < 2) return null;
-            let initial = global.WamaApp ? global.WamaApp.rememberedDomain(app) : null;
-            if (!ds.some(function (d) { return d.id === initial; })) initial = ds[0].id;
-            const wm = new WamaModes({
+            return new WamaModes({
                 container: container, schema: schema, renderInputs: false, modes: false,
-                counts: true, domain: initial,
+                domain: ds[0].id,
                 onChange: function (s) {
                     showDomain(s.domain);
-                    if (global.WamaApp) global.WamaApp.rememberDomain(app, s.domain);
                     document.dispatchEvent(new CustomEvent('wama:domain-change',
                         { detail: { app: app, domain: s.domain } }));
                 },
             });
-            // Le compte de chaque domaine vient de SA barre de progression (le serveur compte).
-            document.addEventListener('wama:domain-stats', function (e) {
-                const d = e.detail || {};
-                if (!d.domain || wm.counts[d.domain] === d.total) return;
-                wm.counts[d.domain] = d.total;
-                const badge = container.querySelector('[data-domain-count="' + d.domain + '"]');
-                if (badge) badge.textContent = d.total;
+        });
+    }
+
+    /** La page d'une app à plusieurs domaines (`data-wama-domain-tabs="<app>"`) : elle MONTRE le
+     *  domaine que le socle a choisi. Aucun onglet n'est rendu depuis le 2026-11-12 — on change de
+     *  domaine par le titre de la page, un lien par domaine ; le nom de la pièce est resté. */
+    function domainTabs(container) {
+        const app = container.dataset.wamaDomainTabs;
+        if (!app || container._wamaDomainTabs) return;
+        container._wamaDomainTabs = true;
+        const page = pageDomain();
+        // Le socle n'a rien choisi : la page vient d'un serveur d'AVANT ce code (un script servi
+        // est lu aussitôt copié, le serveur web seulement à sa relance). Elle garde ses onglets,
+        // sans quoi on ne pourrait plus changer de domaine entre les deux.
+        if (!page || page.app !== app) return tabsOfAnOlderPage(container, app);
+        showDomain(page.domain);
+        document.dispatchEvent(new CustomEvent('wama:domain-change',
+            { detail: { app: app, domain: page.domain } }));
+        // Le compte de chaque domaine vient de SA barre de progression (le serveur compte) : posé
+        // dans le menu du titre, sur chaque marque qui porte ce domaine.
+        document.addEventListener('wama:domain-stats', function (e) {
+            const d = e.detail || {};
+            if (!d.domain) return;
+            document.querySelectorAll('[data-domain-count="' + d.domain + '"]').forEach(function (badge) {
+                badge.textContent = d.total;
             });
-            return wm;
         });
     }
 
@@ -308,6 +327,7 @@
         fetch: function (app) { return fetch('/common/api/app-modes/' + app + '/').then(r => r.json()); },
         domainTabs: domainTabs,
         showDomain: showDomain,
+        pageDomain: pageDomain,
     };
 
     function autoInit() {

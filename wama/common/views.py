@@ -134,6 +134,17 @@ def system_stats(request):
     return JsonResponse(stats)
 
 
+@login_required
+@require_POST
+def api_page_domain(request):
+    """Retient le domaine d'une app pour le compte (`navigation.remember_page_domain`) — le geste
+    de « Envoyer vers », qui ouvre ensuite la page sur le domaine qui a reçu le fichier."""
+    from .services.navigation import remember_page_domain
+    done = remember_page_domain(request.user, request.POST.get('app') or '',
+                                request.POST.get('domain') or '')
+    return JsonResponse({'done': done}, status=200 if done else 400)
+
+
 def api_app_modes(request, app):
     """
     Schéma déclaratif domaines→modes d'une app (clé de voûte UX, consommé par WamaModes JS).

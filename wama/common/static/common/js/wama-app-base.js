@@ -581,15 +581,18 @@
   // (« Envoyer vers », `WamaSendTo`) : un son envoyé à l'enhancer s'y retrouve sous l'onglet
   // Audio. La clé vit ICI, une fois, parce que les deux briques la lisent et que seule celle-ci
   // est chargée sur toutes les pages.
-  function domainKey(app) { return app + 'Domain'; }
-
-  function rememberedDomain(app) {
-    try { return global.localStorage.getItem(domainKey(app)); } catch (e) { return null; }
-  }
-
+  // Depuis le 2026-11-12 le domaine se retient PAR COMPTE, côté serveur (`navigation.page_domain`) :
+  // il vivait dans le `localStorage`, donc par navigateur. Ce geste le dit au serveur — la page
+  // de l'app s'ouvrira dessus.
   function rememberDomain(app, domain) {
-    if (!app || !domain) return;
-    try { global.localStorage.setItem(domainKey(app), domain); } catch (e) { /* stockage refusé */ }
+    if (!app || !domain) return Promise.resolve(false);
+    var body = 'app=' + encodeURIComponent(app) + '&domain=' + encodeURIComponent(domain);
+    var headers = csrfHeaders(csrfToken(), { 'Content-Type': 'application/x-www-form-urlencoded' });
+    // `keepalive` : l'envoi d'un fichier recharge la page aussitôt après.
+    return fetch('/common/api/page-domain/', { method: 'POST', headers: headers, body: body,
+                                             keepalive: true })
+      .then(function (r) { return r.ok; })
+      .catch(function () { return false; });
   }
 
   // ── Lecture exclusive globale (source UNIQUE ; fix transcriber edit.js porté 2026-08-04) ──
@@ -1722,7 +1725,6 @@
     statusBadge: statusBadge,
     progressBlockHtml: progressBlockHtml,
     paintProgress: paintProgress,
-    rememberedDomain: rememberedDomain,
     rememberDomain: rememberDomain,
   };
 

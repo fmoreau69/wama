@@ -255,18 +255,19 @@ class SentFileLandsInItsDomainTest(SendToTestBase):
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class SendToRemembersTheDomainTest(SimpleTestCase):
     """`WamaSendTo.envoyer` retient le domaine qui a reçu (`WamaApp.rememberDomain`) : la page
-    de l'app s'ouvrira sur lui (`WamaModes.domainTabs`, même clé)."""
+    de l'app s'ouvrira sur lui. Depuis le 2026-11-12 il le dit au SERVEUR (retenu par compte,
+    `navigation.remember_page_domain`) — il vivait dans le `localStorage`, par navigateur."""
 
     PAGE = """
     var stored = {}, events = [];
-    window.localStorage = {getItem: function (k) { return stored[k] || null; },
-                           setItem: function (k, v) { stored[k] = v; }};
     function CustomEvent(t, o) { this.type = t; this.detail = (o || {}).detail; }
     document.dispatchEvent = function (e) { events.push(e.detail); };
     document.cookie = '';
     var ANSWER = null;
-    function fetch() { return Promise.resolve({ok: true, status: 200,
-        json: function () { return Promise.resolve(ANSWER); }}); }
+    function fetch(url, opts) {
+        if (url === '/common/api/page-domain/') stored[opts.method + ' ' + url] = opts.body;
+        return Promise.resolve({ok: true, status: 200,
+            json: function () { return Promise.resolve(ANSWER); }}); }
     """
 
     def setUp(self):
@@ -286,7 +287,7 @@ class SendToRemembersTheDomainTest(SimpleTestCase):
     def test_the_receiving_domain_is_remembered_for_the_app(self):
         stored = self._send({'imported': True, 'count': 1,
                              'results': [{'id': 1, 'path': 'a.wav', 'domain': 'audio'}]})
-        self.assertEqual({'enhancerDomain': 'audio'}, stored)
+        self.assertEqual({'POST /common/api/page-domain/': 'app=enhancer&domain=audio'}, stored)
 
     def test_files_landing_in_several_domains_leave_the_choice_alone(self):
         stored = self._send({'imported': True, 'count': 2,
@@ -294,7 +295,8 @@ class SendToRemembersTheDomainTest(SimpleTestCase):
                                          {'id': 2, 'domain': 'image_video'}]})
         self.assertEqual({}, stored)
 
-    def test_the_key_is_the_one_the_domain_tabs_read(self):
+    def test_nothing_is_kept_in_the_browser_any_more(self):
         self._send({'imported': True, 'id': 1, 'path': 'a.wav', 'domain': 'audio'})
-        self.assertEqual('audio', json.loads(self.v8.eval(
-            "JSON.stringify(window.WamaApp.rememberedDomain('enhancer'))")))
+        self.assertEqual('undefined', self.v8.eval("typeof window.WamaApp.rememberedDomain"))
+        self.assertNotIn('localStorage.setItem(domainKey',
+                         (JS / 'wama-app-base.js').read_text(encoding='utf-8'))

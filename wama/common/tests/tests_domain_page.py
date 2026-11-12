@@ -11,8 +11,10 @@ barre à la main (`WAMA_GLOBAL_PROGRESS_URL`).
 Ce que ce fichier tient :
   • la barre lit son adresse et sa clé de la déclaration (`queue_context`), par la règle de la file ;
   • la pièce rend une barre par domaine, qui démarre seule ;
-  • les onglets de domaine sont une pièce (`_domain_tabs.html`), la bascule est celle de
-    `WamaModes` (volets de file, réglages du volet, domaine retenu, compte par onglet) ;
+  • la page d'un domaine est montrée par une pièce (`_domain_tabs.html`, `WamaModes` : volets de
+    file, réglages du volet) ; depuis le 2026-11-12 le domaine se choisit AU-DESSUS de la page —
+    le socle le lit de l'adresse, le retient par compte, et le titre est le sélecteur
+    (`navigation.page_domain`, `_page_domain.html`) : plus de seconde ligne d'onglets ;
   • aucune page d'app ni aucun script d'app ne refait l'une ou l'autre à côté.
 V8 vient de `py_mini_racer` (AGENTS.md §JS) : les tests qui l'exécutent sautent sans lui.
 """
@@ -173,6 +175,61 @@ class TheServedPageCarriesTheDomainsTest(TestCase):
                 self.assertEqual(1, html.count('data-wama-brick="global_progress"'))
                 self.assertIn(f'data-progress-url="{queue_context(app)["progress_url"]}"', html)
                 self.assertNotIn('data-wama-domain-tabs', html)
+                self.assertNotIn('data-wama-page-domain', html, 'nothing to choose: no selector')
+
+    def test_the_title_of_a_page_with_several_domains_is_their_selector(self):
+        """2026-11-12 : un LIEN par domaine dans le titre, celui de la page marqué — et le
+        premier déclaré tant que le compte n'a rien choisi."""
+        for app in MULTI:
+            with self.subTest(app=app):
+                html = self._get(app)
+                domains = get_domains(app)
+                self.assertIn(f'data-wama-page-domain="{domains[0]["id"]}" data-app="{app}"', html)
+                index = reverse(f'{app}:index')
+                for domain in domains:
+                    self.assertIn(f'href="{index}?domain={domain["id"]}"', html)
+                    self.assertIn(f'data-domain-count="{domain["id"]}"', html)
+                self.assertRegex(html, rf'href="{re.escape(index)}\?domain={domains[0]["id"]}" '
+                                       r'aria-current="page"')
+                for other in domains[1:]:
+                    self.assertNotRegex(html, rf'href="{re.escape(index)}\?domain={other["id"]}" '
+                                              r'aria-current="page"')
+
+    def test_the_address_names_the_domain_and_the_account_keeps_it(self):
+        from wama.common.models import UserAppSetting
+        from wama.common.tests.tests_endpoints import EveryEndpointAnswersTest
+        app = MULTI[0]
+        account = EveryEndpointAnswersTest._account_for(self, app)
+        self.client.force_login(account)
+        index, (first, second) = reverse(f'{app}:index'), [d['id'] for d in get_domains(app)][:2]
+        named = self.client.get(index, {'domain': second}).content.decode(errors='replace')
+        self.assertIn(f'data-wama-page-domain="{second}"', named)
+        self.assertEqual(second, UserAppSetting.objects.get(user=account, app=app, name='domain').value)
+        # Sans rien dans l'adresse, la page s'ouvre sur le domaine RETENU par le compte.
+        again = self.client.get(index).content.decode(errors='replace')
+        self.assertIn(f'data-wama-page-domain="{second}"', again)
+        # Contre-épreuve : un domaine que l'app ne déclare pas est ignoré, et rien n'est écrit.
+        unknown = self.client.get(index, {'domain': 'no-such'}).content.decode(errors='replace')
+        self.assertIn(f'data-wama-page-domain="{second}"', unknown)
+        self.assertEqual(second, UserAppSetting.objects.get(user=account, app=app, name='domain').value)
+        self.assertNotEqual(first, second)
+
+    def test_the_arrival_of_a_file_tells_the_server_which_domain_received_it(self):
+        """« Envoyer vers » retenait le domaine dans le navigateur ; il le dit au serveur."""
+        from wama.common.models import UserAppSetting
+        from wama.common.tests.tests_endpoints import EveryEndpointAnswersTest
+        app = MULTI[0]
+        account = EveryEndpointAnswersTest._account_for(self, app)
+        self.client.force_login(account)
+        second = get_domains(app)[1]['id']
+        route = reverse('common:api_page_domain')
+        self.assertEqual(200, self.client.post(route, {'app': app, 'domain': second}).status_code)
+        self.assertEqual(second, UserAppSetting.objects.get(user=account, app=app, name='domain').value)
+        for refused in ({'app': app, 'domain': 'no-such'}, {'app': 'no-such', 'domain': second}, {}):
+            with self.subTest(refused=refused):
+                self.assertEqual(400, self.client.post(route, refused).status_code)
+        self.assertEqual(1, UserAppSetting.objects.filter(user=account, name='domain').count())
+        self.assertIn("'/common/api/page-domain/'", (JS / 'wama-app-base.js').read_text(encoding='utf-8'))
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
@@ -185,10 +242,7 @@ class DomainSwitchTest(SimpleTestCase):
     panes[0].classList.add('active'); panes[0].classList.add('show');
     var sets = [el({dataset: {domainSettings: 'image'}}), el({dataset: {domainSettings: 'video'}})];
     var badge = el({textContent: ''});
-    var stored = {}, events = [], listeners = {};
-    var localStorage = {getItem: function (k) { return stored[k] || null; },
-                        setItem: function (k, v) { stored[k] = v; }};
-    window.localStorage = localStorage;
+    var events = [], listeners = {}, chosen = null;
     function CustomEvent(t, o) { this.type = t; this.detail = (o || {}).detail; }
     document.addEventListener = function (t, f) { (listeners[t] = listeners[t] || []).push(f); };
     document.dispatchEvent = function (e) { events.push(e.type);
@@ -196,7 +250,11 @@ class DomainSwitchTest(SimpleTestCase):
     document.querySelectorAll = function (sel) {
         if (sel === '.tab-pane[data-domain]') return panes;
         if (sel === '[data-domain-settings]') return sets;
+        if (sel === '[data-domain-count="video"]') return [badge];
         return []; };
+    // Ce que le SOCLE rend dans le titre : le domaine choisi par le serveur (ou rien).
+    document.querySelector = function (sel) {
+        return sel === '[data-wama-page-domain]' ? chosen : null; };
     var host = {dataset: {wamaDomainTabs: 'imager'}, innerHTML: '',
                 querySelectorAll: function () { return []; },
                 querySelector: function (s) { return s.indexOf('data-domain-count') >= 0 ? badge : null; },
@@ -210,7 +268,6 @@ class DomainSwitchTest(SimpleTestCase):
         from py_mini_racer import MiniRacer
         self.v8 = MiniRacer()
         self.v8.eval(FAKE_DOM + self.PAGE)
-        # La clé du domaine retenu est celle de la brique globale (`WamaApp.rememberedDomain`).
         self.v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
         self.v8.eval('var WamaApp = window.WamaApp;')   # `window` est l'objet global d'une page
         self.v8.eval((JS / 'wama-modes.js').read_text(encoding='utf-8'))
@@ -225,30 +282,25 @@ class DomainSwitchTest(SimpleTestCase):
         self.v8.eval("window.WamaModes.showDomain('video');")
         self.assertEqual([False, True, 'none', ''], self._js(self.STATE))
 
-    def test_the_tabs_restore_the_remembered_domain_and_count_by_the_bars(self):
-        self.v8.eval("stored.imagerDomain = 'video'; window.WamaModes.domainTabs(host);")
-        self.assertEqual([False, True, 'none', ''], self._js(self.STATE),
-                         'the remembered domain is shown at load')
+    def test_the_page_shows_the_domain_the_base_chose_without_any_tab(self):
+        """2026-11-12 : le serveur choisit (adresse, sinon compte) ; la page montre, et compte."""
+        self.v8.eval("chosen = {dataset: {app: 'imager', wamaPageDomain: 'video'}};"
+                     " window.WamaModes.domainTabs(host);")
+        self.assertEqual([False, True, 'none', ''], self._js(self.STATE))
         self.assertIn('wama:domain-change', self._js('events'))
-        self.assertIn('wm-domain-count', self._js('host.innerHTML'), 'each tab has its count')
+        self.assertEqual('', self._js('host.innerHTML'), 'no second row of tabs')
         self.v8.eval("document.dispatchEvent(new CustomEvent('wama:domain-stats',"
                      " {detail: {domain: 'video', total: 7}}));")
-        self.assertEqual(7, self._js('badge.textContent'))
+        self.assertEqual(7, self._js('badge.textContent'), 'the count goes to the title menu')
+        self.assertEqual({'app': 'imager', 'domain': 'video'}, self._js('window.WamaModes.pageDomain()'))
 
-    def test_an_unknown_remembered_domain_falls_back_to_the_first(self):
-        self.v8.eval("stored.imagerDomain = 'gone'; window.WamaModes.domainTabs(host);")
-        self.assertEqual([True, False, '', 'none'], self._js(self.STATE))
-        self.assertEqual('image', self._js('stored.imagerDomain'))
-
-    def test_the_page_tabs_render_no_mode_switch(self):
-        """L'instance de PAGE ne rend que les onglets : le switch de mode d'un domaine (l'anonymizer)
-        a sa propre instance, et deux switches se disputeraient le même réglage."""
-        self.v8.eval("""SCHEMA.domains[0].modes = [{id: 'a', label: 'A'}, {id: 'b', label: 'B'}];
-                        SCHEMA.domains[0].mode_param = 'target_mode';
-                        window.WamaModes.domainTabs(host);""")
-        html = self._js('host.innerHTML')
-        self.assertNotIn('wm-mode', html)
-        self.assertNotIn('wm-param', html)
+    def test_a_page_from_a_server_not_restarted_yet_keeps_its_tabs(self):
+        """Un script servi est lu aussitôt copié, le serveur web à sa relance seulement : entre
+        les deux, la page n'a pas de domaine choisi — sans onglets, on ne pourrait plus en changer."""
+        self.v8.eval("window.WamaModes.domainTabs(host);")
+        self.assertIn('wm-domain', self._js('host.innerHTML'))
+        self.assertNotIn('wm-mode', self._js('host.innerHTML'), 'the page tabs render no mode switch')
+        self.assertIsNone(self._js('window.WamaModes.pageDomain()'))
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')

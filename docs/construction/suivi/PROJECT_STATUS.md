@@ -31289,3 +31289,33 @@ verts ; les cinq scripts servis parsés sous V8 ; `docs/dev/briques.md` régén�
   ni les téléphones, qui montrent l'image de couverture. Proposition : vidéo embarquée en qualité
   réduite, image de couverture toujours visible, lien vers la version en ligne sous la vidéo ; un
   prototype sur la présentation pour MESURER la taille et la lecture réelle avant de généraliser.
+
+## §PALIER 2026-11-12 (nuit), « MENU DU COMPTE en quatre sections ; revérification de la parenthèse ; LE DOMAINE DANS LE SOCLE » — commits locaux, non poussés — 🔴 relancer gunicorn (contexte `page_domain`, route `api_page_domain`, menu) ; WAMA entier pour que la surveillance connaisse les compagnons — 🔚 juger le sélecteur à l'écran ; puis le sous-titre et l'À propos / l'Aide par domaine → la Console par domaine → ⑥ → ⑦
+
+**Menu du compte** (`a36dc39b1`, décision de Fabien : « parfaitement schéma-driven ») : quatre sections
+déclarées (`app_registry.ACCOUNT_SECTIONS` : libellé, rang, icône, `submenu`) — « Mon espace » dépliée,
+« Mon atelier » (Skills, Prononciations, Fonctions), « WAMA », « Administration » (Users) repliées en
+sous-menus par le mécanisme du menu Applications (son script se pose désormais au chargement du
+document : il s'exécutait avant le menu du compte). « Mon profil », « Mes notifications » ; l'assistant
+trouve une page avec ou sans son possessif (`navigation._bare`). Intitulé « Mon atelier » à confirmer.
+
+**Revérification de la parenthèse** (`2bdc6964f`) — trois recopies de ma main ramenées : un serveur MCP
+porte la clé de sa SOURCE déclarée (`wama_mcp`, `wama_mcp_dev` : libellé et « ce que coupe son arrêt »
+lus dans `external_sources`, comme un service) ; un seul parcours du code pour `dev_list_code` et
+`dev_search_code` (`dev_inspect._code_files`) ; `dev_run_tests` sous la garde commune `@admin_only`.
+Table de sortie : aligné ✓ (ces trois écarts ramenés) ; testé ✓ (213 puis 107 tests des périmètres,
+contre-épreuves de la bascule et de l'export PDF rouges) ; rouge restant `tests_password_autofill`,
+d'un commit du 11/11 (`0d191644a`), pas de cette session ; consigné ✓ (`ROADMAP §31`,
+`MODES_QUEUE_UX §2ter`) ; commité ✓. Deux blocs générés restent périmés avec le travail d'une autre
+session (`WAMA_MECANISMES.md`, skill `conformite`).
+
+**Le domaine dans le socle** (`MODES_QUEUE_UX §2ter`, section réécrite) : `navigation.page_domain` —
+l'adresse (`?domain=`), sinon le compte, sinon le premier domaine ; `_page_domain.html` dans le titre
+du socle ; plus d'onglets (`wama-modes.js`), sauf pour une page servie par un serveur non relancé ;
+« Envoyer vers » le dit au serveur (`common:api_page_domain`). Aucune route ajoutée dans une app ni
+dans le générateur. Gardes : `tests_domain_page` (titre-sélecteur sur la page SERVIE des trois apps,
+adresse → domaine → compte, domaine inconnu ignoré, V8 : la page montre sans onglets) et
+`tests_domain_arrival`. ⚠ Non vu à l'écran par la session.
+
+**Consigné, à faire plus tard** : page « Exploitation » (après les domaines, d'accord avec Fabien),
+éditeur de fonctions, audit de WeasyPrint (`ROADMAP §31.1`, `§31.5`, `§31.6`).
