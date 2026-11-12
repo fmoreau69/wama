@@ -516,6 +516,29 @@ def domain_surface(app: str, domain_id: str) -> str:
     return surface_name(app, route_prefix(app, domain_id))
 
 
+def surface_app(surface: str) -> str:
+    """L'app qui PORTE cette surface — la lecture inverse de `domain_surface` : `audio_enhancer` →
+    `enhancer`, parce que le domaine audio de l'enhancer DÉCLARE son préfixe de routes. Une
+    surface qui est une app, ou que rien ne déclare, se rend elle-même. Remplace la table écrite
+    à la main de l'assistant (`tool_api.TOOL_APP_ALIAS`, une paire, 2026-11-12) : un domaine qui
+    gagne ses routes y entre sans une ligne."""
+    from wama.common.app_registry import APP_CATALOG
+    if surface in APP_CATALOG:
+        return surface
+    for app in APP_CATALOG:
+        for d in get_domains(app):
+            if d.get('route_prefix') and domain_surface(app, d.get('id')) == surface:
+                return app
+    return surface
+
+
+def route_prefixes() -> list:
+    """Les préfixes de routes que des domaines DÉCLARENT, tous confondus, triés (`['audio']`) —
+    ce qu'un lecteur de code doit reconnaître devant un nom de vue (`audio_delete`)."""
+    return sorted({d['route_prefix'] for decl in APP_MODES.values()
+                   for d in decl.get('domains', []) if d.get('route_prefix')})
+
+
 def surface_domains(app: str, surface: str) -> list:
     """Les domaines de l'app que cette surface sert — un seul, sauf quand deux domaines
     partagent un modèle d'élément (imager : image et vidéo, surface `imager`)."""

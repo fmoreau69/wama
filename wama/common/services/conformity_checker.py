@@ -195,6 +195,14 @@ URLS = ['urls.py']
 APPS_PY = ['apps.py']
 CARD_TPL = ['templates/**/*card*.html', 'templates/**/index.html', 'templates/**/media_table.html']
 PY = ['**/*.py']
+
+#: Le préfixe de routes d'un DOMAINE devant un nom de vue (`audio_delete`), en expression régulière :
+#: ceux que les domaines DÉCLARENT (`app_modes.route_prefixes`) — `audio_` était écrit en dur dans
+#: quatre critères (2026-11-12, `ROUTE §11 #42` ⑥). `_ROUTE_PREFIX` : facultatif ; `…_REQUIRED` : exigé.
+from wama.common.utils.app_modes import route_prefixes as _route_prefixes  # noqa: E402
+
+_ROUTE_PREFIX_REQUIRED = '(?:' + '|'.join(re.escape(p) + '_' for p in _route_prefixes()) + ')'
+_ROUTE_PREFIX = _ROUTE_PREFIX_REQUIRED + '?'
 PARAMS = ['params.py']
 
 
@@ -697,7 +705,7 @@ def _queue_zip_common(f: _AppFiles):
     route = f.find(URLS, r'download_all|download-all')
     if not route:
         return False, None
-    hand = f.find_code(VIEWS, r'(?m)^def (?:audio_)?download_all(?:_media)?\s*\(')
+    hand = f.find_code(VIEWS, rf'(?m)^def {_ROUTE_PREFIX}download_all(?:_media)?\s*\(')
     if hand:
         return 'partial', f"ZIP de file écrit dans l'app ({hand}) — `_pv['download_all']`"
     factory = f.find_code(VIEWS, r"_a?pv\[['\"]download_all['\"]\]")
@@ -1283,7 +1291,7 @@ def _progress_views_common(f: _AppFiles):
     à la main ; N/A : aucune vue de progression. `status` (converter) et `get_process_progress`
     (ancien anonymizer) sont des graphies de la vue d'une card.
     """
-    local_re = (r'(?m)^def ((audio_)?(global_)?progress|status|get_process_progress'
+    local_re = (rf'(?m)^def ({_ROUTE_PREFIX}(global_)?progress|status|get_process_progress'
                 r'|process_progress)\(')
     brique = f.find_code(VIEWS, r'\bmake_progress_views\(')
     local = f.find_code(VIEWS, local_re)
@@ -1327,7 +1335,7 @@ def _item_views_common(f: _AppFiles):
     vue encore locale (anonymizer : « tout lancer » par sa chaîne de lot, en attente de décision) ;
     FAUX : tout à la main ; N/A : aucune de ces vues. Les graphies déviantes comptent
     (`start_generation`, `start_all_generations`, `clear_all_media`, domaine `audio_`)."""
-    local_re = (r'(?m)^def ((audio_)?(start|start_all|clear_all)|start_generation'
+    local_re = (rf'(?m)^def ({_ROUTE_PREFIX}(start|start_all|clear_all)|start_generation'
                 r'|restart_generation|start_all_generations|clear_all_media)\(')
     brique = f.find_code(VIEWS, r'\bmake_item_views\(')
     local = f.find_code(VIEWS, local_re)
@@ -1344,8 +1352,8 @@ def _item_views_common(f: _AppFiles):
 #: Les gestes d'une card que `make_item_views` fabrique depuis le 2026-11-01 (ROUTE §11 #42 ④),
 #: et les graphies sous lesquelles les apps les écrivent encore à la main.
 ELEMENT_GESTURES = ('stop', 'delete', 'duplicate', 'download', 'update_settings')
-_LOCAL_ELEMENT_GESTURE = (r'(?m)^def ((audio_)?(stop|delete|duplicate|download|update_settings)'
-                          r'|audio_update|update_job|cancel'
+_LOCAL_ELEMENT_GESTURE = (rf'(?m)^def ({_ROUTE_PREFIX}(stop|delete|duplicate|download|update_settings)'
+                          rf'|{_ROUTE_PREFIX_REQUIRED}update|update_job|cancel'
                           r'|(delete|duplicate|force_reset)_generation)\(')
 
 

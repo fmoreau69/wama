@@ -2768,6 +2768,8 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
   - `route_prefix(app: str, domain_id: str) -> str` — Préfixe des routes de ce domaine (`audio` → `audio_batch_delete`), '' par défaut.
   - `surface_name(app: str, prefix: str='') -> str` — La SURFACE d'une famille de routes : l'app, préfixée par le `route_prefix` de son domaine
   - `domain_surface(app: str, domain_id: str) -> str` — La surface de ce domaine (`surface_name` de son `route_prefix`).
+  - `surface_app(surface: str) -> str` — L'app qui PORTE cette surface — la lecture inverse de `domain_surface` : `audio_enhancer` →
+  - `route_prefixes() -> list` — Les préfixes de routes que des domaines DÉCLARENT, tous confondus, triés (`['audio']`) —
   - `surface_domains(app: str, surface: str) -> list` — Les domaines de l'app que cette surface sert — un seul, sauf quand deux domaines
   - `domain_schema_name(app: str, domain_id: str) -> str` — Le nom du schéma de réglages de ce domaine (`*PARAMS_JSON` du module `params` de l'app),
   - `domain_schema(app: str, domain_id: str) -> list` — Le schéma de réglages de ce domaine : celui qu'il nomme, sinon le principal de l'app.
@@ -4147,7 +4149,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
   - `fold_side_panels(user, folded: bool=True) -> dict` — Fold or unfold the two side panels of the page (file explorer on the left, panel on the
   - `use_hand_mode(user, on: bool=True) -> dict` — Turn the HAND mode on or off — driving a 3D scene with the hands, through the webcam ("active
-  - `open_page(user, page: str) -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
+  - `open_page(user, page: str, domain: str='') -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
   - `get_page_interface(user, page: str) -> dict` — Describe the INTERFACE of a WAMA page: the bricks it shows (what each does, and its keyboard
   - `reset_page_layout(user, page: str) -> dict` — Put the layout of a page back to its default, for this user — what "Par défaut" does in the
   - `get_media_asset_url(user, asset_id: int) -> dict` — Get the file URL of a specific media library asset.

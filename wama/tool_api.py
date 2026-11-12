@@ -1361,7 +1361,7 @@ def use_hand_mode(user, on: bool = True) -> dict:
 
 @tool_effect(READ, sub_agent=False,
              reason="une action que le chat du PARENT exécute ; l'étape d'un sous-agent n'y arrive pas")
-def open_page(user, page: str) -> dict:
+def open_page(user, page: str, domain: str = '') -> dict:
     """
     Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
     médiathèque") or a page of their account menu ("mon profil", "mon journal", "mes
@@ -1372,13 +1372,20 @@ def open_page(user, page: str) -> dict:
     give the returned `link` instead. Only pages this user is allowed to open are offered: a
     page reserved to administrators is never proposed to anyone else.
 
+    An application with SEVERAL DOMAINS (the Anonymizer: images and videos, or documents; the
+    Imager: image or video; the Enhancer: image and video, or audio) opens on the domain you name
+    — "ouvre l'anonymizer sur les documents" — and keeps it for the user's next visits.
+
     Args:
         page: the page's key or its name as shown in the menus (e.g. 'anonymizer',
               'Transcriber', 'Médiathèque', 'Profil', 'Mon journal', 'Registres').
+        domain: the domain to open the application on (its key or its label, e.g. 'document',
+              'Vidéo'); empty = the one the user chose last.
 
     Returns:
         {"action": "navigate", "url", "link", "label", "message"} or
-        {"error", "pages": [{"key", "label"}]} — the pages that CAN be opened.
+        {"error", "pages": [{"key", "label"}]} — the pages that CAN be opened ; or
+        {"error", "domains": [{"key", "label"}]} — the domains this application has.
     """
     # La brique COMMUNE (`common/services/navigation.py`) : les pages du MENU, avec le droit du
     # menu — aucune liste ici. Le résultat `action: navigate` est exécuté par le chat web
@@ -1390,8 +1397,22 @@ def open_page(user, page: str) -> dict:
     if entry is None:
         return {'error': f"Page inconnue ou non accessible : « {page} ».",
                 'pages': [{'key': p['key'], 'label': p['label']} for p in pages]}
-    return {'action': 'navigate', 'url': entry['url'], 'link': absolute_url(entry['url']),
-            'label': entry['label'], 'message': f"Ouverture de la page {entry['label']}."}
+    url, label = entry['url'], entry['label']
+    if (domain or '').strip():
+        # Les liens du titre de la page (`navigation.domain_links`) : le domaine se nomme par sa
+        # clé ou son libellé, il est retenu pour le compte, et l'adresse le porte.
+        from wama.common.services.navigation import domain_links, fold, remember_page_domain
+        links = domain_links(entry['key'], url)
+        wanted = fold(domain)
+        chosen = next((d for d in links if wanted in (fold(d['id']), fold(d['label']))), None)
+        if chosen is None:
+            return {'error': (f"« {label} » n'a pas de domaine « {domain} »." if links else
+                              f"« {label} » n'a qu'un seul domaine : rien à choisir."),
+                    'domains': [{'key': d['id'], 'label': d['label']} for d in links]}
+        remember_page_domain(user, entry['key'], chosen['id'])
+        url, label = chosen['url'], f"{label} / {chosen['label']}"
+    return {'action': 'navigate', 'url': url, 'link': absolute_url(url),
+            'label': label, 'message': f"Ouverture de la page {label}."}
 
 
 @tool_effect(READ)
@@ -4500,7 +4521,7 @@ def _batch_view(user, app: str, gesture: str, batch_id: int, what: str, *, metho
 
 def _batch_write_refusal(user, app: str):
     """La garde d'app d'une écriture de lot — celle des verbes de cycle (`_refus_app`)."""
-    return _refus_app(user, TOOL_APP_ALIAS.get(app, app))
+    return _refus_app(user, surface_app(app))
 
 
 @tool_effect(WRITE)
@@ -4624,7 +4645,7 @@ def _batch_zip_url(app: str, batch_id: int) -> str:
     route du DOMAINE : `audio_batch_download` pour un lot audio de l'enhancer) ; '' sans route."""
     from django.urls import reverse
     from wama.common.manifests.codegen.urls_gen import served_route
-    base = TOOL_APP_ALIAS.get(app, app)
+    base = surface_app(app)
     prefix = app[:-len(base)] if app != base and app.endswith(base) else ''
     route = served_route(base, 'batch_download', [batch_id], prefix=prefix)
     return reverse(f'{base}:{route}', args=[batch_id]) if route else ''
@@ -5709,8 +5730,10 @@ TOOL_APP_OVERRIDE = {
     'get_studio_run_status': 'studio',
 }
 
-# Sous-domaines portés par une app gardée (l'enhancer couvre image/vidéo ET audio).
-TOOL_APP_ALIAS = {'audio_enhancer': 'enhancer'}
+# Une SURFACE portée par une app gardée (le domaine audio de l'enhancer a ses propres routes, donc
+# sa surface `audio_enhancer`) se ramène à son app par la déclaration des domaines
+# (`app_modes.surface_app`) — la table écrite ici (`TOOL_APP_ALIAS`, une paire) est retirée.
+from wama.common.utils.app_modes import surface_app  # noqa: E402
 
 
 # ── Triades DÉCLARATIVES (route §10.3, marche A4) ────────────────────────────────
@@ -5859,7 +5882,8 @@ TRIAD_SPECS = {
             'output_url': {'attr': 'output_file', 'url': True},
         },
     },
-    # Sous-domaine audio de l'enhancer (`TOOL_APP_ALIAS`) : sa propre file, ses propres outils.
+    # Domaine audio de l'enhancer (surface `audio_enhancer`, `app_modes.domain_surface`) : sa
+    # propre file, ses propres outils.
     'audio_enhancer': {
         'model': 'wama.enhancer.models.AudioEnhancement',
         'id_kwarg': 'audio_enhancement_id',
@@ -6304,7 +6328,7 @@ def _split_triad(tool_name):
         if tool_name.startswith(prefix) and tool_name.endswith(suffix) and \
                 len(tool_name) > len(prefix) + len(suffix):
             app = tool_name[len(prefix):len(tool_name) - len(suffix) or None]
-            return role, TOOL_APP_ALIAS.get(app, app)
+            return role, surface_app(app)
     return None, None
 
 

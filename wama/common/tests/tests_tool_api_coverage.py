@@ -76,6 +76,8 @@ ASSISTANT_CHANNEL_ROUTES = {                   # the conversation with the assis
 #: maps nowhere counts in the budget below. One tool may serve several routes (a page's poller of a
 #: gesture is that gesture's tool, called again).
 ROUTE_TOOLS = {
+    # The domain of an app page (2026-11-12) : `open_page(page, domain=…)` keeps it for the account.
+    'common:api_page_domain': 'open_page',
     'model_manager:api_models_db': 'list_ai_models',
     'model_manager:api_prospect_ollama': 'prospect_models',
     'model_manager:api_prospect_install': 'install_model',

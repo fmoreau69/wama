@@ -12,6 +12,7 @@ surface of a domain (`route_prefix` + app) is the key of its element model in th
 registry; when two domains share a model, the schema the detail spec picks per element names the
 domain. No app is named below except to build witness elements.
 """
+from pathlib import Path
 from unittest import mock
 
 from django.test import RequestFactory, SimpleTestCase, TestCase
@@ -362,6 +363,40 @@ def _wired_view(app, model, name, required=True):
         with shared, mock.patch.object(DetailRegistry, 'get', return_value=by_property):
             with self.assertRaises(ValueError):
                 domain_filters('twin', 'twin')
+
+
+class TheSurfaceOfADomainLeadsBackToItsAppTest(SimpleTestCase):
+    """2026-11-12 (`ROUTE §11 #42` ⑥) : the assistant kept a hand-written table of ONE pair
+    (`audio_enhancer` → `enhancer`) and the grid wrote `audio_` in four criteria. Both are read
+    from the declaration: a domain that gains its own routes enters without a line."""
+
+    def test_every_surface_of_a_prefixed_domain_names_its_app(self):
+        checked = 0
+        for app, decl in sorted(APP_MODES.items()):
+            for d in decl.get('domains', []):
+                with self.subTest(app=app, domain=d['id']):
+                    self.assertEqual(app, app_modes.surface_app(domain_surface(app, d['id'])))
+                checked += bool(d.get('route_prefix'))
+        self.assertGreaterEqual(checked, 1, 'the fleet has a domain with its own routes')
+
+    def test_an_app_or_an_unknown_name_is_given_back(self):
+        # Counter-check: nothing is invented for what no domain declares.
+        self.assertEqual('reader', app_modes.surface_app('reader'))
+        self.assertEqual('no_such_surface', app_modes.surface_app('no_such_surface'))
+
+    def test_the_grid_and_the_assistant_read_the_declared_prefixes(self):
+        from wama import tool_api
+        from wama.common.services import conformity_checker
+        prefixes = app_modes.route_prefixes()
+        self.assertEqual(sorted({d['route_prefix'] for decl in APP_MODES.values()
+                                 for d in decl.get('domains', []) if d.get('route_prefix')}), prefixes)
+        for prefix in prefixes:
+            self.assertRegex(f'{prefix}_delete', '^' + conformity_checker._ROUTE_PREFIX + 'delete$')
+        self.assertRegex('delete', '^' + conformity_checker._ROUTE_PREFIX + 'delete$')
+        self.assertNotRegex('delete', '^' + conformity_checker._ROUTE_PREFIX_REQUIRED + 'delete$')
+        self.assertFalse(hasattr(tool_api, 'TOOL_APP_ALIAS'), 'the hand-written table is back')
+        source = (Path(conformity_checker.__file__)).read_text(encoding='utf-8')
+        self.assertNotRegex(source, r"\(\?:?audio_\)\?", 'a route prefix written by hand in a criterion')
 
 
 class StartToolFollowsTheSurfaceTest(SimpleTestCase):

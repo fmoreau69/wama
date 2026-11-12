@@ -150,6 +150,21 @@ class OpenAccountPageTest(TestCase):
         self.member = User.objects.create_user('nav_member', password='x')
         self.admin = User.objects.create_superuser('nav_admin', password='x')
 
+    def test_the_assistant_opens_an_app_on_the_domain_it_names(self):
+        """2026-11-12 : « ouvre l'anonymizer sur les documents » — the address carries the domain,
+        the account keeps it ; an unknown one is refused with those the app has."""
+        from wama.common.models import UserAppSetting
+        opened = tool_api.open_page(self.admin, 'anonymizer', domain='Document')
+        self.assertTrue(opened['url'].endswith('?domain=document'), opened)
+        self.assertEqual('document', UserAppSetting.objects.get(
+            user=self.admin, app='anonymizer', name='domain').value)
+        refused = tool_api.open_page(self.admin, 'anonymizer', domain='audio')
+        self.assertEqual(['image_video', 'document'], [d['key'] for d in refused['domains']])
+        self.assertEqual([], tool_api.open_page(self.admin, 'reader', domain='x')['domains'])
+        # Counter-check: without a domain, the page opens as before and nothing is written.
+        self.assertNotIn('?', tool_api.open_page(self.admin, 'imager')['url'])
+        self.assertFalse(UserAppSetting.objects.filter(user=self.admin, app='imager').exists())
+
     def test_the_assistant_opens_a_page_of_the_account_menu(self):
         for name, url_name in (('Profil', 'accounts:profile'), ('mon journal', 'common:journal'),
                                ('mes partages', 'common:shares'), ('Documentation', 'common:docs_catalog')):
