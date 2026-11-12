@@ -113,11 +113,8 @@ def snapshot_engine_verdict(path) -> Optional[tuple]:
     quand il ne porte aucune signature (chemin absent, aucun fichier de config, illisible).
 
       • `prouvé` — le moteur que le disque établit : le format des poids
-        (`_engine_proven_by_format`), sinon la convention HuggingFace (un index de pipeline →
-        diffusers, `config.json` → transformers). Les index sont ceux que diffusers publie,
-        `model_index.json` et, pour un pipeline MODULAIRE, `modular_model_index.json`
-        (`model_installer.DIFFUSERS_PIPELINE_INDEXES`, la liste de la pesée — 2026-11-11,
-        `black-forest-labs/flux-3-image-klein`, qui ne porte que le second) ;
+        (`_engine_proven_by_format`), sinon la convention HuggingFace (`model_index.json` →
+        diffusers, `config.json` → transformers) ;
       • `réfuté` — le moteur que la signature NOMME mais que sa preuve écarte : un `config.json`
         de code DISTANT seul (`_remote_only`) nomme `transformers`, que le transformers installé
         n'exécute pas par ses classes.
@@ -126,16 +123,12 @@ def snapshot_engine_verdict(path) -> Optional[tuple]:
     (`_overlay_engines_derived_from_disk`) et la pose des faits de la CARTE à l'installation
     (`provenance.record_after_install`) — voir `refuted_engine`."""
     import json as _json
-
-    from .model_installer import DIFFUSERS_PIPELINE_INDEXES
     if not path:
         return None
     root = Path(path)
     revisions = sorted(root.glob('snapshots/*')) or ([root] if root.is_dir() else [])
     for rev in revisions:
-        config = rev / 'config.json'
-        index = next((rev / name for name in DIFFUSERS_PIPELINE_INDEXES if (rev / name).is_file()),
-                     rev / DIFFUSERS_PIPELINE_INDEXES[0])
+        index, config = rev / 'model_index.json', rev / 'config.json'
         try:
             proven_engine = _engine_proven_by_format(rev)
             if proven_engine:

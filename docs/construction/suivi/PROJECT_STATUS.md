@@ -31102,3 +31102,25 @@ d'anatomie (`model_anatomy.components_from_snapshot`) reste sur `model_index.jso
 l'anatomie modulaire, consignée pour l'étape FLUX 3. Mesuré : 119 tests du pont, 66 tests des gardes
 transverses et des modules touchés, OK ; `check_docs` 0 cassée sur 4090 ; `check_redundancy` 97,
 aucune dans les fichiers de la session.
+
+## §PALIER — 2026-11-12 (correction), « LA DÉCOUVERTE NE LIT PLUS L'INDEX MODULAIRE — LA ROUTE D'INTÉGRATION DÉCLARE » — fait — 🔚 inchangé : la route des librairies par environnement
+
+Question de Fabien (« tu as fait d'une exception la règle […] tout existe déjà pour installer un
+modèle de A à Z, avec le backend compris ») — fondée, et MESURÉE : le quick win « la découverte
+reconnaît un pipeline modulaire » (`66c60ad7c`) posait `diffusers` sur un flux-3 installé, un moteur
+NON prouvé (sa classe est inconnue de diffusers 0.37), et la ligne n'était PAS grisée pour la tâche
+`image-to-image` (`backend_missing` → None, faux snapshot + ligne non enregistrée) : proposable, puis
+en échec au chargement. Avant, elle était grisée « aucun moteur déclaré », l'état voulu d'un modèle
+installé et non intégré. Aucune des 14 lignes réelles à moteur diffusers n'était touchée (mesuré).
+**Retiré** : `model_registry.snapshot_engine_verdict` et sa garde reviennent à leur état d'avant
+`66c60ad7c` (inversion des seuls hunks de la session). La dérivation depuis le disque n'est qu'un
+repli qui « ne comble que le vide » (`model_registry._overlay_engines_derived_from_disk`) : un modèle
+neuf prend son moteur, son anatomie et son backend de la ROUTE D'INTÉGRATION — scout, rôle `model`
+(manifeste prouvé), génération du backend, validation —, que l'assistant et la prospection
+empruntent tous deux ; ses informations viennent de sa SOURCE.
+**Gardé** : `role_utils.diffusers_pipeline_class` lit aussi l'index modulaire — c'est la preuve DU
+rôle `model`, dans la route, et sa conclusion reste « classe inconnue de diffusers » (moteur retiré,
+modèle grisé) ; la pesée des candidats (`d69f677fe`) lit les fichiers de la source.
+**Plan corrigé** (`INFRA_WSL_VS_WINDOWS §Plan multi-venv`) : FLUX 3 passe par la route
+d'intégration, que le multi-venv doit rendre consciente de l'environnement (preuve du moteur, essai
+du backend généré et anatomie joués dans le venv qui exécutera le modèle).

@@ -24,8 +24,7 @@ from tempfile import TemporaryDirectory
 
 from django.test import TestCase
 
-from wama.model_manager.services.model_registry import (
-    ModelInfo, ModelRegistry, ModelSource, ModelType, snapshot_engine_verdict)
+from wama.model_manager.services.model_registry import ModelInfo, ModelRegistry, ModelSource, ModelType
 
 
 def _snapshot(racine: Path, fichier: str, contenu: dict) -> Path:
@@ -54,23 +53,6 @@ class DerivationDuMoteurTest(TestCase):
             info = r._models['huggingface:x/y']
             self.assertEqual(info.composition['runtime']['engine'], 'diffusers')
             self.assertEqual(info.extra_info['pipeline_class'], 'WanDMDPipeline')
-
-    def test_a_modular_pipeline_index_gives_diffusers_and_its_class(self):
-        """`black-forest-labs/flux-3-image-klein` (2026-11-11) carries ONLY a
-        `modular_model_index.json`, whose `_class_name` names a `ModularPipeline`."""
-        with TemporaryDirectory() as d:
-            p = _snapshot(Path(d) / 'models--bfl--klein', 'modular_model_index.json',
-                          {'_class_name': 'Flux3DistilledModularPipeline',
-                           'transformer': ['diffusers', 'Flux3Transformer2DModel', {'subfolder': 'transformer'}]})
-            r = self._registre('huggingface:bfl/klein', p)
-            r._overlay_engines_derived_from_disk()
-            info = r._models['huggingface:bfl/klein']
-            self.assertEqual(info.composition['runtime']['engine'], 'diffusers')
-            self.assertEqual(info.extra_info['pipeline_class'], 'Flux3DistilledModularPipeline')
-        # Counter-check: an index under another name signs nothing.
-        with TemporaryDirectory() as d:
-            p = _snapshot(Path(d) / 'models--o--n', 'some_index.json', {'_class_name': 'X'})
-            self.assertIsNone(snapshot_engine_verdict(p))
 
     def test_config_json_donne_transformers_et_consigne_l_architecture(self):
         with TemporaryDirectory() as d:

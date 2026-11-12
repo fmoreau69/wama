@@ -99,9 +99,12 @@ def diffusers_class_known(class_name) -> bool:
 
 def diffusers_pipeline_class(repo_id):
     """(`_class_name` de l'index de pipeline racine, ou None ; raison lisible) — fait MÉCANIQUE.
-    Les index sont ceux de la découverte et de la pesée (`model_installer.DIFFUSERS_PIPELINE_INDEXES` :
-    `model_index.json`, puis `modular_model_index.json` d'un pipeline MODULAIRE — 2026-11-12,
-    `flux-3-image-klein` ne porte que le second)."""
+    Les index sont ceux de la pesée et de l'anatomie, lues dans les fichiers de la SOURCE
+    (`model_installer.DIFFUSERS_PIPELINE_INDEXES` : `model_index.json`, puis
+    `modular_model_index.json` d'un pipeline MODULAIRE — 2026-11-12, `flux-3-image-klein` ne porte
+    que le second). La preuve reste celle du moteur INSTALLÉ (`diffusers_class_known`) : une classe
+    que ce diffusers ne connaît pas retire le moteur, et le modèle reste grisé jusqu'à son
+    intégration."""
     import json as _json
     from huggingface_hub import hf_hub_download
     from wama.model_manager.services.model_installer import DIFFUSERS_PIPELINE_INDEXES
