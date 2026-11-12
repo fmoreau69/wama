@@ -31319,3 +31319,39 @@ adresse → domaine → compte, domaine inconnu ignoré, V8 : la page montre san
 
 **Consigné, à faire plus tard** : page « Exploitation » (après les domaines, d'accord avec Fabien),
 éditeur de fonctions, audit de WeasyPrint (`ROADMAP §31.1`, `§31.5`, `§31.6`).
+
+## §PALIER 2026-11-12 (fin de soirée), « DOMAINES : À propos, Console, menu Applications et compte de la file PAR DOMAINE ; ⑥ aux deux tiers » — commits locaux, non poussés — 🔴 relancer gunicorn ET les workers (le squelette de tâche pose le domaine des lignes de console) — 🔚 ⑦ le générateur (quatre restes nommés ci-dessous) ; décision de Fabien sur le nœud du Studio par domaine
+
+**Livré, dans l'ordre** (`MODES_QUEUE_UX §2ter`, `ROUTE §11 #42`) :
+- `b04fdd296` — chaque domaine d'une app qui en a plusieurs DÉCLARE ce qu'il fait (`description`, six
+  phrases) : affiché sous le sous-titre et dans le menu du titre ; l'À propos de la page est celui de
+  son domaine (`about_facts(domain=…)`, `app_models(domain=…)` : libellé, phrase, entrées acceptées,
+  modèles de ce seul domaine) ;
+- `fd05e8b3f` — la Console par domaine : `console_utils.set_line_domain`, posé par le squelette à
+  l'ouverture de chaque tâche, donc porté par TOUTES les lignes de la tâche (les 80 appels des
+  raccourcis de l'imager et de l'anonymizer compris, sans les toucher) ; `get_console_lines(domain=…)`
+  écarte les lignes d'un autre domaine, garde celles de l'app entière ; contre-épreuve rouge ;
+- `2ba03d556` — le menu Applications offre les domaines en sous-menu (`navigation.domain_links`, la
+  lecture du titre) ; le clic sur l'app garde son sens ;
+- `6f016ad64` — l'onglet « File d'attente » compte le domaine de la page ;
+- `f1ea710ff`, `b8f8665c2` — ⑥ : `app_modes.surface_app` remplace `tool_api.TOOL_APP_ALIAS` ;
+  `app_modes.route_prefixes` remplace `audio_` écrit dans quatre critères de la grille (remesurée :
+  sources à 100 %, jumelles inchangées) ; l'assistant ouvre une app sur un domaine
+  (`open_page(page, domain=…)`, la route `api_page_domain` a son outil).
+
+**Reste de ⑥** : le nœud du Studio ne lit que le schéma principal d'une app (`generic_runner.GENERIC_APPS`,
+`params_attr`). Un nœud par domaine, ou un nœud dont le domaine est un réglage : décision de
+conception, non prise.
+
+**⑦, le générateur — non commencé** (`ROUTE §11 #42`, restes de l'anonymizer_01) : (a) `function_specs_gen`
+ne rend pas `applies` (les process d'un domaine proposés à tous) ; (b) la page générée doit ranger
+ses volets par domaine (`.tab-pane[data-domain]`, `[data-domain-settings]`) — le sélecteur, lui, vient
+du socle ; (c) la porte de dépôt générée lit `category_of_path`, pas `surface_file_nature` ; (d) les
+vues d'URL et de lot générées peuvent lire `surface_source_nature`. Puis les 31 bouchons de
+`enhancer_01`, et la régénération des jumelles (dont la recréation de `transcriber_01`).
+
+**Tests** : périmètres verts à chaque lot (`tests_domain_page` 27, `tests_domain_declaration`,
+`tests_account_pages`, `tests_tool_api_coverage`, `tests_identifier_language`, `tests_doc_plans`) ; la
+suite entière n'a pas été relancée depuis la bascule de l'après-midi. Rien de vu à l'écran par la
+session. `docs/dev/briques.md` : mes seuls passages commités, le reste porte le travail d'une autre
+session.
