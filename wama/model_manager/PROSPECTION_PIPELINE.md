@@ -4668,6 +4668,52 @@ d'orchestre symphonique, comment se passe le découpage ? »*
 ⏳ **Reste** : BS-RoFormer SW (licence) ; la séparation par requête (Banquet / SAM Audio) — décision ;
 la séparation pour le transcriber (voix isolée) et l'enhancer.
 
+### SAM Audio : décision et terrain mesuré (2026-11-13)
+
+✅ **Décision de Fabien** (2026-11-13) : *« ok pour intégrer SAM Audio »* — la séparation par
+requête texte, licence SAM acceptée (même famille que SAM3, déjà au catalogue).
+
+**Mesuré avant d'écrire une ligne** (lecture seule — Hub, PyPI, code du dépôt `facebookresearch/sam-audio`) :
+- **Poids sous accès MANUEL** (`gated: "manual"`, validé par Meta) : `facebook/sam-audio-small`
+  (`checkpoint.pt`, 5,1 Go), `-base`, `-large` (14,9 Go), variantes `-tv`, `sam-audio-judge`. Le jeton
+  de WAMA (`HF_TOKEN`) **n'y a PAS accès** (`auth_check` : GatedRepoError ×3) ; il a accès à
+  `facebook/pe-av-large` et `facebook/sam3`. ⇒ **demande d'accès à faire par Fabien** sur le Hub, avec
+  le compte du jeton.
+- **Code hors PyPI** (`sam-audio` : 404) ; ses dépendances tirent QUATRE dépôts git (`dacvae`,
+  `ImageBind`, un fork de `CLAP`, `perception_models@unpin-deps`). **La route accepte un dépôt git**
+  — par la voie VENDOR, pas par pip (relu dans le code, question de Fabien) : une librairie
+  s'installe par pip OU se vendorise (`common/manifests/builtin/library.py:49-58`), un dépôt GitHub
+  `owner/name` au SHA exact, correctif sous `patches/` (`vendor_spec_error`, l.107-137 ; exécuteur
+  `model_manager/services/vendor_installer.py`) ; seul pip refuse `git+` (`model_installer.py:2936`).
+  Le rôle `librarian --repo` pose ce canal par les faits du dépôt, commit mesuré par l'API GitHub
+  (`role_utils.enforce_install_channel`, l.777) — ROADMAP D-a. UN dépôt par manifeste : SAM Audio et
+  chacune de ses dépendances git = une librairie vendorisée chacune.
+  **Deux trous de la route, mesurés** : ① `role_utils.requirements_verdict` SAUTE les lignes `git+`
+  (l.725) — le verdict ne dirait rien des quatre dépendances git ; ② un moteur vendorisé n'importe
+  que depuis SON clone (`BaseModelBackend.import_vendored`, `backends/base.py:730-739`) et rien ne lit
+  le `requires` d'une librairie vers une autre (champ d'enveloppe commun, `WAMA_MANIFEST_SPEC` §
+  composition ; aucune librairie du corpus n'en déclare, `install_library` ne le parcourt pas).
+  PyPI manquant : `audiobox_aesthetics` (son `--dry-run` installerait `nvidia-nccl-cu12 2.27.5`, une
+  dépendance de torch → `no_deps`) ; présents : `einops`, `pydub`, `torchdiffeq`, `transformers
+  4.57.6` (≥ 4.54 exigé).
+- **`torchcodec` est importé au chargement** (`sam_audio/processor.py`, `from torchcodec.decoders
+  import …`) et ne se charge pas dans `venv_linux` (ABI de torch 2.9.1) ; `torchaudio.load`, qui lit
+  les fichiers, passe par lui. ⇒ correctif vendorisé (import différé, celui du juge) et audio décodé
+  par `common/utils/audio_decode`, rééchantillonné à 48 kHz (`DACVAEConfig.sample_rate`), passé en
+  tenseur. Le modèle charge aussi `t5-base` (sous-dépendance : cache partagé) ; requête texte seule :
+  ni ImageBind ni le juge ni la prédiction d'intervalles.
+
+**Plan proposé** (⏳ en attente de l'accès aux poids) : combler les deux trous DANS la route — le
+verdict nomme une dépendance `git+` (« à vendoriser », son dépôt) au lieu de la taire ; une librairie
+vendorisée déclare les librairies vendorisées qu'elle requiert (`requires`), `install_library` les
+installe d'abord et `import_vendored` pose leurs clones sur le chemin d'import ; les cinq manifestes
+produits par le rôle `librarian --repo`, correctif `torchcodec` différé sous `patches/` ; backend
+`SourceSeparationBackend` en sous-processus (le patron des moteurs vendorisés), capacité `stems: open`
+(N pistes demandées) ; réglage « pistes à extraire » sur le process `separate`, vocabulaire de
+`midi_score.INSTRUMENT_LABELS` ; lignes de catalogue `sam-audio-small` / `-large` par le pilote `hf`
+(jeton passé, empreinte publiée par le Hub). Alternative si la voie vendor ne suffit pas : un
+environnement à part (socle multi-venv du 2026-11-11).
+
 ### Décisions de Fabien et livraison (2026-11-08, suite de la session ci-dessus)
 
 Décisions : *« SpessaSynth pour 2, FluidSynth oui. Pour 2, on pourrait tester les 2 pour voir ce qui
