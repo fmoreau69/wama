@@ -63,7 +63,7 @@ retrouve-t-elle TOUT ? »*
 
 ## 2. Contrôles mécaniques
 
-> Ces contrôles, plus une passe d'ALIGNEMENT (route, mondes, un seul chemin), se jouent aussi
+> Ces contrôles, plus une passe d'ALIGNEMENT (route, mondes, un seul chemin, schéma-driven), se jouent aussi
 > EN COURS de session, sans handoff : `/reverif` (2026-10-12) — il renvoie ici, il ne recopie pas.
 
 ### 2a. 🔴 LES TESTS DE TON PÉRIMÈTRE — inconditionnel, jamais « si la session l'a rendu nécessaire »
@@ -290,7 +290,7 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
   (vidéo : `media_probe`, `video_utils`, `ffmpeg_utils` ; géométrie : `detections`, `bounds`) —
   le doublon le plus fréquent est à quelques lignes, pas dans un autre monde.
 
-### 2a quater. 🔴 ALIGNÉ — route, mondes, un seul chemin (inconditionnel dès que la session écrit du code)
+### 2a quater. 🔴 ALIGNÉ — route, mondes, un seul chemin, schéma-driven (inconditionnel dès que la session écrit du code)
 
 > **Ajouté le 2026-10-16.** La description de `/reverif` dit que la clôture « inclut ce passage »
 > — elle ne l'incluait pas : seul un renvoi en tête du §2 le nommait, et la table de coche du §6
@@ -299,8 +299,10 @@ python manage.py check_redundancy          # compter AVANT/APRÈS ses propres co
 Dérouler **`/reverif §1`** sur chaque livrable — ne pas le recopier ici : la section de ROUTE qui
 le porte, la règle des mondes, et les deux questions qui ont trouvé ce que le gardien du §2a ter
 ne voit pas (*quelle lecture de même NATURE existe déjà ?* et *qui déclare DÉJÀ chaque DONNÉE
-que le livrable déclare ?*). Si `/reverif` a été déroulé dans la session APRÈS le dernier commit
-de code, citer son verdict ; sinon le refaire.
+que le livrable déclare ?*), et sa question 4 (2026-11-13, Fabien : « parfaitement schéma-driven »)
+— ce qui varie d'une app à l'autre est DÉCLARÉ et lu par le commun, le générateur suit, la
+jumelle est régénérée puis mesurée. Si `/reverif` a été déroulé dans la session APRÈS le dernier
+commit de code, citer son verdict ; sinon le refaire.
 
 ### 2b. Les autres — seulement ceux que la session a rendus nécessaires
 - Un ajout FONCTIONNEL de la session (app, geste, route d'action) a-t-il son outil ? →
@@ -527,7 +529,7 @@ de code, citer son verdict ; sinon le refaire.
   | 2a tests | ✓/✗ | le chiffre MESURÉ + les noms des rouges s'il y en a |
   | 2a bis gardes AJOUTÉES | ✓/✗ | **une ligne PAR livrable** : son symbole → le fichier de test qui le nomme, ou « non gardé, parce que… ». ⚠ Un chiffre global ne coche PAS cette case — c'est celle du §2a |
   | 2a ter réinvention | ✓/✗ | `check_redundancy` : le total, **et** le nombre de trouvailles dans TES fichiers (attendu : zéro, ou la brique adoptée). ⚠ « je n'ai rien réinventé » ne coche pas cette case — on ne réinvente que ce qu'on ignore |
-  | 2a quater aligné | ✓/✗ | par livrable : la section de ROUTE qui le porte, et ce que `/reverif §1` a trouvé (écart ramené / consigné / aucun, avec la lecture qui l'établit) |
+  | 2a quater aligné | ✓/✗ | par livrable : la section de ROUTE qui le porte, sa déclaration lue par le commun (et la jumelle régénérée si le générateur a bougé), et ce que `/reverif §1` a trouvé (écart ramené / consigné / aucun, avec la lecture qui l'établit) |
   | 2b/2c contrôles | ✓/–/N-A | chiffres (corpus N, cibles distinctes N) OU « aucun registre n'a bougé » |
   | 3 balayage | ✓/✗ | nb de ⚠ balayés → réglés/pendings ; artefacts+effets de bord déclarés |
   | 4 handoff | ✓/✗ | l'ancre du bloc écrit |

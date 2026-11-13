@@ -174,5 +174,9 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `docs/construction/a
 - Checklist de fin d'app : `docs/construction/architecture/TRANSCRIBER_REFERENCE_AUDIT.md §6` (le compte vit là-bas) + vérif `/apps/`.
 - Validation empirique : `manage.py check` (venv WSL), page 200, endpoints unifiés ; si Playwright
   MCP disponible → `/smoke` sur les parcours de l'app.
+- 🔴 **Schéma-driven, mesuré** (`/reverif §1`, question 4, 2026-11-13) : aucune spécificité codée
+  en dur dans le commun (pas de nom d'app), tout ce que l'app porte de propre est DÉCLARÉ ; si le
+  port a changé une forme que le générateur émet, le générateur suit et la jumelle de l'app se
+  régénère (`app_sandbox substitute <app>_NN <cible>`), ses tests rejoués après.
 - Consigner via `/palier` (PROJECT_STATUS + ROUTE si une facette a bougé).
 - 🔴 **Passe courte `/doc-sync §1`** (2026-10-26, Fabien : « pas seulement à la clôture ») : le doc du domaine, le STATUT de la section de `ROADMAP` qui planifiait le livrable (⏳ → 🔄/✅, daté, sha) et la MARQUE de la section de vision qui en porte l'intention — rien ne les faisait suivre.

@@ -19,6 +19,11 @@ Objectif : ne jamais laisser un palier non consigné ni non validé. À déroule
 - Si du JS/CSS d'app a changé : copier `wama/<app>/static/` → `staticfiles/<app>/`.
 - Si du Python runtime a changé : noter que le restart du process WSL2 est requis (le signaler à l'utilisateur, ne pas restarter soi-même sans demande).
 - Smoke test réel quand c'est transverse (charger la page, appeler l'endpoint) — pas seulement `check`.
+- 🔴 **Schéma-driven** (`/reverif §1`, question 4 — 2026-11-13, demande de Fabien) : ce que le palier
+  fait varier d'une app à l'autre est-il DÉCLARÉ (schéma, catalogue, pipeline, surfaces, registres,
+  manifeste) et lu par le commun ? Un gabarit, une vue ou un JS d'app touché → le générateur
+  (`common/manifests/codegen/*_gen.py`) porte le même changement, la jumelle se régénère
+  (`app_sandbox substitute <app>_NN <cible>`) et ses tests se rejouent APRÈS.
 
 ## 2. Consignation (exhaustive, pas lossy)
 - `docs/construction/suivi/PROJECT_STATUS.md` : mettre à jour la/les sections du chantier (✅/🔄/⏳, date, ce qui RESTE — y compris « validation navigateur en attente » si on n'a pas pu cliquer).

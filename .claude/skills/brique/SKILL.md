@@ -98,6 +98,11 @@ Trois questions, dans l'ordre, AVANT d'extraire :
 - Supprimer le code local remplacé (pas de double chemin) ; si la suppression doit attendre une
   validation navigateur → l'inscrire dans `docs/construction/suivi/REMOVAL_LEDGER.md` (R*).
 - JS/CSS modifiés → copier vers `staticfiles/<app>/` ; Python → restart WSL2 à signaler.
+- 🔴 **Et les apps GÉNÉRÉES l'adoptent aussi** (`/reverif §1`, question 4, 2026-11-13) : ce que la
+  brique remplace dans un gabarit, une vue ou un JS d'app réelle, le générateur
+  (`common/manifests/codegen/*_gen.py`) cesse de l'émettre, et les jumelles se régénèrent
+  (`app_sandbox substitute <app>_NN <cible>`) avant de relancer la garde générique. Vécu : la coupe
+  serveur du nom des cards retirée des apps et du générateur restait dans six jumelles.
 
 ## 4. Tracer
 - **Mécanisme transversal créé/déplacé → entrée dans le registre `wama/common/mecanismes.py`**
