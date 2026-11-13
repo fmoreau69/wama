@@ -335,6 +335,28 @@ class ManifestProposalTest(TestCase):
         self.assertEqual(manifest['requires'], extract_library(key)['requires'])
         self.assertNotIn('requires', proposals.propose(_llm_manifest(), origin='test').as_manifest())
 
+    def test_an_arriving_proposal_warns_the_administrators_once(self):
+        """2026-11-13, Fabien : « je n'ai pas eu de notifications pour la validation des
+        librairies ». Seul le lanceur d'une tâche de développement l'était, à sa fin. Une
+        proposition est une DEMANDE DE PROMOTION : les administrateurs en sont prévenus à son
+        arrivée — pas un développeur, et pas une seconde fois quand elle est redéposée."""
+        from django.contrib.auth import get_user_model
+
+        from wama.accounts.models import UserProfile
+        from wama.common.models import Notification
+        users = get_user_model().objects
+        admin = users.create_user('proposal_notified_admin', password='x')
+        UserProfile.objects.update_or_create(user=admin, defaults={'account_tier': 'admin'})
+        dev = users.create_user('proposal_silent_dev', password='x')
+        UserProfile.objects.update_or_create(user=dev, defaults={'account_tier': 'developpeur'})
+        proposals.propose(_llm_manifest(), origin='outputs/model_x.json')
+        proposals.propose(_llm_manifest(), origin='outputs/model_x.json')       # redéposée
+        sent = Notification.objects.filter(kind='promotion_requested')
+        self.assertEqual([admin.pk], list(sent.values_list('recipient_id', flat=True)))
+        self.assertIn('#wamaProposals', sent.get().url)
+        self.assertEqual(1, proposals.announce('backend', 'x:y', 'outputs/backend_x.json')
+                         and sent.filter(object_type='backend').count())
+
     def test_fill_empty_treats_lists_as_values(self):
         merged, filled, diverged = proposals.fill_empty(
             {'a': [], 'b': ['x'], 'c': {'d': ''}}, {'a': ['y'], 'b': ['z'], 'c': {'d': 'e'}})

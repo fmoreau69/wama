@@ -86,9 +86,47 @@ def propose(manifest: dict, *, origin: str = '', user=None):
     proposal['visibility'] = 'private'
     proposal['source'] = {'type': 'proposal', 'ref': origin or 'inconnue'}
     obj = ingest(proposal, user=user, strict=False)
+    already = obj.promotion_requested_at is not None
     obj.promotion_requested_at = timezone.now()
     obj.save(update_fields=['promotion_requested_at'])
+    if not already:                          # une proposition redéposée n'est pas une demande neuve
+        announce(obj.manifest_kind, obj.key, origin, item=obj)
     return obj
+
+
+#: Le nom, pour un humain, de ce qu'une proposition fait entrer — le kind du manifeste, ou
+#: `backend` (une proposition de code, `services/backend_proposals`).
+PROPOSAL_NOUNS = {'model': 'le modèle', 'library': 'la librairie', 'app': "l'application",
+                  'backend': 'le backend', 'function': 'la fonction', 'pipeline': 'le pipeline',
+                  'dataset': 'le jeu de données', 'project': 'le projet'}
+
+
+def announce(kind: str, key: str, origin: str = '', *, item=None) -> int:
+    """Prévient les ADMINISTRATEURS qu'une proposition attend leur décision (2026-11-13, Fabien :
+    « je n'ai pas eu de notifications pour la validation des librairies »).
+
+    Une proposition est une DEMANDE DE PROMOTION au système (`promotion_requested_at`) : la même
+    nature que celle d'un auteur (`access_requests.request_promotion`), donc les mêmes destinataires
+    (`promotion_validators`) et le même type de notification. Seul le lanceur d'une tâche de
+    développement était prévenu, à sa FIN (`dev_tools.notify_finished_jobs`) — un rôle lancé
+    autrement, ou une mesure qui propose (`model_quality.propose_defect`), ne prévenait personne.
+    « Ouvrir » mène à la file de la page qui la décide (`dev_tools.proposals_page`). Fail-safe :
+    rend le nombre de notifications créées."""
+    try:
+        from wama.common.services.access_requests import promotion_validators
+        from wama.common.services.dev_tools import proposals_page
+        from wama.common.utils.notifications import notify_in_app
+        noun = PROPOSAL_NOUNS.get(kind, kind)
+        return notify_in_app(
+            promotion_validators(), 'promotion_requested',
+            f"Proposition à valider : {noun} « {key} »",
+            body=(f"Proposée par {origin}. " if origin else '')
+            + "Inspectez-la dans la file « Propositions à valider », puis validez ou refusez.",
+            url=proposals_page('model' if kind == 'backend' else kind), item=item,
+            **({} if item is not None else {'object_type': kind, 'object_id': key}))
+    except Exception:
+        logger.warning("[proposals] proposition %s:%s non annoncée", kind, key, exc_info=True)
+        return 0
 
 
 def pending(kind: str = None):

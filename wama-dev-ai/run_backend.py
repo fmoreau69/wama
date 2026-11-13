@@ -491,6 +491,9 @@ def main():
     if smoke:
         print(f'[backend] smoke : {smoke}')
     print('[backend] à valider au model manager (section « Propositions »)')
+    # Les administrateurs sont prévenus, comme pour un manifeste proposé (2026-11-13).
+    from wama.common.manifests.proposals import announce
+    announce('backend', args.catalog, str(out.relative_to(REPO_ROOT)))
 
 
 if __name__ == '__main__':

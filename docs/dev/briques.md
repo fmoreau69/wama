@@ -2259,9 +2259,10 @@ Le cycle sandbox → vérifié → promu (WAMA_MANIFEST_ARCHITECTURE §4) reçoi
 
 - **Domicile** : `wama/common/manifests/proposals.py` · **doc** : [docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md](../construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md)
 - **Module** : PROPOSITIONS de manifestes — le geste de validation qui manquait entre un rôle LLM et l'ingest.
-- **API publique** (7) :
+- **API publique** (8) :
   - `fill_empty(current, proposed, path='')` — Superpose `proposed` sur `current` en ne comblant que les VIDES — récursif sur les dicts.
   - `propose(manifest: dict, *, origin: str='', user=None)` — Dépose un manifeste PROPOSÉ au magasin, en bac à sable. Rien n'est projeté.
+  - `announce(kind: str, key: str, origin: str='', *, item=None) -> int` — Prévient les ADMINISTRATEURS qu'une proposition attend leur décision (2026-11-13, Fabien :
   - `pending(kind: str=None)` — Promotions DEMANDÉES et non tranchées, plus récentes d'abord — pas tout ce qui est privé.
   - `judge(manifest: dict) -> list` — Ce que « Valider » refuserait de ce manifeste s'il était proposé MAINTENANT — la même
   - `plan(obj) -> dict` — Ce que `apply()` FERAIT — sans rien écrire. `write_back` est le dry-run du kind.
