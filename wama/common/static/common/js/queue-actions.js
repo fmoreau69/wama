@@ -368,6 +368,30 @@
         updateBatchHeader(group, batch, removedId);
     }
 
+    // Un traitement qui fait NAÎTRE des cards dans son lot (2026-11-13, relevé par Fabien : les
+    // pistes séparées du composer — la card unitaire ne passait en lot qu'après F5). La réponse de
+    // suivi d'un élément dit son lot (`batch` : id, total — `progress_views`) ; le `Poller` commun
+    // l'annonce (`wama:poll-data`). Quand l'entrée qui porte la card n'en montre pas autant, la
+    // règle est celle d'`applyBatchState` : seul le rendu serveur de la page est juste — la card
+    // est marquée pour être retrouvée (`WamaQueue.markFocus`, le geste du ⧉) et la page se
+    // recharge. Une fois par (élément, total) : une entrée que la page ne peut pas montrer en
+    // entier (une file filtrée) ne fait jamais boucler le rechargement.
+    document.addEventListener('wama:poll-data', function (e) {
+        const detail = e.detail || {}, data = detail.data || {}, batch = data.batch;
+        if (!batch || data.id == null) return;
+        const card = document.querySelector('.wama-card[data-id="' + data.id + '"]');
+        const holder = card && (card.closest('.batch-group') || card.closest('.wama-queue-entry'));
+        if (!holder) return;
+        if (holder.querySelectorAll('.wama-card[data-id]').length === batch.total) return;
+        const key = 'wama.queue.reshaped.' + data.id + '.' + batch.total;
+        try {
+            if (sessionStorage.getItem(key)) return;
+            sessionStorage.setItem(key, '1');
+        } catch (_) { return; }     // sans stockage, rien ne garantit « une fois » : on ne recharge pas
+        if (window.WamaQueue && WamaQueue.markFocus) WamaQueue.markFocus(data.id, false);
+        location.reload();
+    });
+
     // Lot réduit à UNE card : il redevient une entrée UNITAIRE, exactement comme la file la rend
     // — enrobage `.wama-queue-entry[data-entry-batch-id]` (jumeau de `_queue_entry.html`, gardé
     // par `tests_queue_delete_contract`) et card REDEMANDÉE au serveur, qui la rend cette fois

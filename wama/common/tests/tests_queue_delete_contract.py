@@ -1146,6 +1146,48 @@ class EnrobageUnitaireJumeauTest(TestCase):
             self.assertIn(trace, corps)
 
 
+class APollSaysTheLotOfItsElementTest(TestCase):
+    """The other direction of the same contract (2026-11-13, relevé par Fabien : une card devenue
+    lot par ses pistes séparées ne s'affichait en lot qu'après F5). A process may make cards BORN
+    in its element's lot (`derived_cards`) : the common progress view says the element's lot
+    (`batch` : id, total), the common `Poller` announces each answer (`wama:poll-data`), and the
+    queue brick (`queue-actions.js`) reshapes an entry that shows fewer cards — both lot forms."""
+
+    def test_the_progress_of_an_element_says_its_lot_in_both_forms(self):
+        from django.test import RequestFactory
+        from wama.common.utils.progress_views import make_progress_views
+        from wama.converter.models import ConversionJob
+        from wama.imager.models import ImageGeneration
+        user = User.objects.create_user('poll_lot', password='x')
+        for model in (ConversionJob, ImageGeneration):
+            with self.subTest(model=model.__name__):
+                lot, elements = _lot_de(model, user, 3)
+                view = make_progress_views(work_model=model, app_id=model._meta.app_label,
+                                           get_user=lambda r: r.user)['progress']
+                request = RequestFactory().get('/x/')
+                request.user = user
+                data = json.loads(view(request, elements[0].pk).content)
+                self.assertEqual({'id': lot.pk, 'total': 3}, data['batch'])
+        alone = _instance(ConversionJob, user)
+        view = make_progress_views(work_model=ConversionJob, app_id='converter',
+                                   get_user=lambda r: r.user)['progress']
+        request = RequestFactory().get('/x/')
+        request.user = user
+        self.assertNotIn('batch', json.loads(view(request, alone.pk).content), 'no lot, nothing said')
+
+    def test_the_event_the_poller_announces_is_the_one_the_queue_brick_reads(self):
+        js = Path(__file__).parent.parent / 'static/common/js'
+        poller = (js / 'wama-app-base.js').read_text(encoding='utf-8')
+        queue = (js / 'queue-actions.js').read_text(encoding='utf-8')
+        announced = set(re.findall(r"new CustomEvent\('(wama:[\w-]+)'", poller))
+        read = set(re.findall(r"addEventListener\('(wama:[\w-]+)'", queue))
+        self.assertIn('wama:poll-data', announced & read)
+        body = queue[queue.index("addEventListener('wama:poll-data'"):]
+        body = body[:body.index('});')]
+        for trace in ('batch.total', 'markFocus', 'location.reload', 'sessionStorage'):
+            self.assertIn(trace, body, 'reshaped by the server render, focused, once per total')
+
+
 # ── La grille : les critères qui tiennent ce palier ───────────────────────────────────────────
 
 class CriteresDeLaGrilleTest(SimpleTestCase):

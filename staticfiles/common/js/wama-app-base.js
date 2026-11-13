@@ -203,6 +203,14 @@
     pending
       .then(function (data) {
         st.fails = 0;
+        // Chaque réponse est ANNONCÉE à la page (2026-11-13) : une brique commune peut y lire ce
+        // qui ne regarde pas l'app — le lot d'un élément suivi (`queue-actions.js`). Aucune app
+        // n'a de ligne à écrire ; l'événement ne change rien à son `onData`.
+        if (typeof document !== 'undefined' && typeof CustomEvent === 'function') {
+          try {
+            document.dispatchEvent(new CustomEvent('wama:poll-data', { detail: { id: id, data: data } }));
+          } catch (e) { /* une écoute fautive ne casse pas le suivi */ }
+        }
         let out;
         try { out = self.onData(id, data); }
         catch (e) { console.error('[WamaApp.Poller] onData', id, e); }

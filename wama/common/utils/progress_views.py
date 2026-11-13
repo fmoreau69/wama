@@ -242,6 +242,14 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
             # Les PROCESS bougent pendant le traitement (`WamaApp.updateProcessRows`) ; `status`
             # reste celui de l'ÉLÉMENT — c'est lui qui dit « en vol » au front.
             data['processes'], data['shown_state'] = view[0], view[1]
+        # Le LOT de l'élément (2026-11-13, relevé par Fabien : une card devenue lot par ses pistes
+        # séparées n'apparaissait en lot qu'après F5) : un traitement peut faire naître des cards
+        # dans son lot (`derived_cards`). La brique de file (`queue-actions.js`) compare ce total à
+        # ce que la page montre — la forme de `batch_state`, sans ses compteurs (relu à chaque tour).
+        from wama.common.utils.batch_common import batch_of
+        lot = batch_of(item)
+        if lot is not None:
+            data['batch'] = {'id': lot.pk, 'total': lot.total}
         if extra is not None:
             data.update(extra(item) or {})
         return JsonResponse(data)
