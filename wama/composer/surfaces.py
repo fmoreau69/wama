@@ -48,6 +48,15 @@ def _score_available(generation) -> tuple:
     # coupé, partition complète d'un audio — a bien une partition à éditer.
     if model and not any(PIPELINE.takes_place(PIPELINE.spec(key), generation, model)
                          for key in ('plan', 'extract_score', 'parts')):
+        # Un AUDIO repris dont les partitions ne sont simplement pas cochées (2026-11-13 : une card
+        # PISTE, née d'une séparation, hérite les cases de sa source) : dire lesquelles cocher —
+        # leurs libellés sont ceux des étapes déclarées —, pas que le modèle compose sans partition.
+        possible = [spec for spec in map(PIPELINE.spec, ('extract_score', 'parts'))
+                    if spec.applies(generation, model)]
+        if possible:
+            steps = ' ou '.join(f'« {spec.label} »' for spec in possible)
+            return False, (f"Pas encore de partition : cocher {steps} dans les réglages de la card, "
+                           "puis la lancer.")
         return False, ("Ce modèle compose sans partition : seuls les modèles qui écrivent ou suivent "
                        "une partition (YuE2) en ont une à éditer.")
     return True, ''

@@ -2271,6 +2271,17 @@ class ComposerScoreSurfaceTest(TestCase):
         plain = ComposerGeneration.objects.create(user=self.user, prompt='rain', model='composer:musicgen-small')
         page = self.client.get(f'/common/surface/composer/score/{plain.pk}/')
         self.assertContains(page, 'compose sans partition')
+        # An input AUDIO whose scores are simply not ticked (2026-11-13 : a STEM card inherits its
+        # source's boxes) : the page names the declared steps to tick, not a model's limit.
+        from wama.common.surfaces import surface
+        from wama.composer.function_specs import PIPELINE
+        cover = ComposerGeneration.objects.create(user=self.user, prompt='', model='composer:musicgen-small',
+                                                  melody_reference='users/1/temp/stem.wav')
+        ok, reason = surface('composer', 'score').can_open(cover)
+        self.assertFalse(ok)
+        self.assertNotIn('compose sans partition', reason)
+        for key in ('extract_score', 'parts'):
+            self.assertIn(f'« {PIPELINE.spec(key).label} »', reason)
 
     def test_someone_else_neither_reads_nor_writes(self):
         other = get_user_model().objects.create_user('score_other', password='x')
