@@ -392,6 +392,16 @@ def replacing_weights(row, backbone) -> Optional[dict]:
             'total_gb': round(sum(sizes), 3), 'largest_gb': round(max(sizes), 3)}
 
 
+def measured_vram_gb(row) -> Optional[float]:
+    """La VRAM MESURÉE au chargement (`extra_info['vram_measured']['max_gb']`, rendue au catalogue
+    par `persist_measured_vram`), ou None si ce modèle n'a jamais été mesuré ici. Un PLANCHER (la
+    résidence finale, pas le pic — cf. `model_footprint_gb`). Le seul lecteur de cette clé
+    (2026-11-13) : la cascade ci-dessous, le sélecteur (« coût mesuré », Q10) et le contrôle de
+    complétude l'empruntent au lieu de la relire chacun."""
+    info = getattr(row, 'extra_info', None) or {}
+    return float(((info.get('vram_measured') or {}).get('max_gb')) or 0) or None
+
+
 def model_footprint_gb(row, *, offload: bool = True, count_backbone: bool = True) -> tuple:
     """`(Go, provenance)` que ce modèle EXIGE — ou `(None, 'unknown')` si personne ne sait.
 
@@ -450,7 +460,7 @@ def model_footprint_gb(row, *, offload: bool = True, count_backbone: bool = True
     peaks = peaks_for_precision(weights, info.get('quantization') or '') \
         or peaks_from_weights(weights)
     source = peaks.get('offload' if offload else 'full')
-    measured = float(((info.get('vram_measured') or {}).get('max_gb')) or 0) or None
+    measured = measured_vram_gb(row)
 
     def _with_backbone(gb, provenance):
         """Ajoute la dorsale au chiffre de l'adaptateur, et le DIT dans la provenance."""

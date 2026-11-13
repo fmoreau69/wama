@@ -108,8 +108,10 @@ class Command(BaseCommand):
             if not (m.license or '').strip():
                 license_missing.append(m)
             # Empreinte MESURÉE au chargement, rendue au catalogue depuis le 2026-09-14
-            # (`extra_info['vram_measured']`) — distincte de `vram_gb`, déclarée ou estimée.
-            measured_max = float(((m.extra_info or {}).get('vram_measured') or {}).get('max_gb') or 0)
+            # (`extra_info['vram_measured']`) — distincte de `vram_gb`, déclarée ou estimée. Lue
+            # par l'accesseur commun (`memory_manager.measured_vram_gb`, 2026-11-13).
+            from wama.model_manager.services.memory_manager import measured_vram_gb
+            measured_max = measured_vram_gb(m) or 0.0
             if not m.vram_gb:
                 vram_missing.append(m)
             elif (m.extra_info or {}).get('vram_estimated') and not measured_max:

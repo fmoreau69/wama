@@ -524,6 +524,13 @@ l'inventaire du trou de notation, désormais visible. Gardes : `tests_auto_model
 PreviewSaysWhatItCouldNotCompareTest` (4, V8 sur le fichier servi), contre-épreuve 4 mutations, 4
 rouges. 🔴 Le serveur web à relancer pour qu'elle serve. ⏳ Reste du §30.1 : les notes calculées
 dans `WamaModelHelp` (point 2), l'échelle principale par tâche (point 3), la mesure d'entrée (P4).
+🔧 **Revérification (2026-11-13) — un second chemin de ma main, ramené** : « coût mesuré » et « coût
+au pire » relisaient `extra_info['vram_measured']` à côté de la CASCADE commune
+(`memory_manager.model_footprint_gb`, mesurée sans jamais descendre sous le poids des fichiers — la
+mesure n'est qu'un plancher). L'accesseur `memory_manager.measured_vram_gb` est désormais le seul
+lecteur de cette clé (la cascade, le sélecteur et `check_model_completeness` l'empruntent) ; le coût
+au pire est l'empreinte de la cascade. Remesuré : mêmes 18 changements sur 1 395 tirages ; 532
+tests des modules de la cascade et du sélecteur verts ; accesseur neutralisé → garde rouge.
 
 ⏳ **`AIModel.cost_tier` reste NON LU, et c'est délibéré** (question tranchée le 26/09,
 demande initiale de Fabien de « brancher l'arbitrage honnête », retirée après mesure). Le

@@ -614,18 +614,21 @@ def _cost_is_measured(model, speeds_known: bool) -> bool:
     relevée au chargement (`extra_info['vram_measured']`). Une VRAM seulement déclarée ne l'est pas."""
     if speeds_known or is_cloud(model):
         return True
-    return bool(((getattr(model, 'extra_info', None) or {}).get('vram_measured') or {}).get('max_gb'))
+    from .memory_manager import measured_vram_gb
+    return measured_vram_gb(model) is not None
 
 
 def _known_costs(model, costs: dict, speeds_known: bool) -> list:
     """Les coûts qu'on sait de ce modèle : la vitesse apprise, 0 pour un distant, sinon sa VRAM
-    déclarée et sa VRAM mesurée (un plancher : la résidence finale, pas le pic). [] s'il n'en a
-    aucun — un local à `vram_gb = 0` n'est pas « gratuit », il est inconnu."""
+    déclarée (celle que le tirage compare) et son empreinte par la CASCADE commune
+    (`memory_manager.model_footprint_gb` : mesurée, sans jamais descendre sous ce que pèsent ses
+    poids — la mesure est un plancher). [] s'il n'en a aucun — un local à `vram_gb = 0` n'est pas
+    « gratuit », il est inconnu."""
     if speeds_known or is_cloud(model):
         return [costs[id(model)]] if id(model) in costs else []
-    measured = float(((getattr(model, 'extra_info', None) or {}).get('vram_measured') or {})
-                     .get('max_gb') or 0)
-    return [v for v in (costs.get(id(model)), measured) if v]
+    from .memory_manager import model_footprint_gb
+    footprint, _provenance = model_footprint_gb(model, offload=False)
+    return [v for v in (costs.get(id(model)), footprint) if v]
 
 
 def unrated_verdicts(pool, ladder: QualityLadder, costs: dict, speeds_known: bool,

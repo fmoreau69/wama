@@ -333,7 +333,7 @@ Choisit la stratégie de chargement (plein GPU, déchargement) sur la vue de SON
 
 - **Domicile** : `wama/model_manager/services/memory_manager.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Memory Manager - GPU/RAM memory utilities for model management.
-- **API publique** (13) :
+- **API publique** (14) :
   - `peaks_from_weights(weights: dict) -> dict` — Les DEUX pics d'un modèle, dérivés du poids par composant — `{}` si on ne sait pas.
   - `class MemoryStrategy(Enum)` — Memory loading strategies for AI models.
   - `preset_vram_gb(model_key: str) -> Optional[float]` — Empreinte VRAM d'exécution d'un modèle, depuis `MODEL_SIZE_PRESETS`.
@@ -342,6 +342,7 @@ Choisit la stratégie de chargement (plein GPU, déchargement) sur la vue de SON
   - `reduced_peak_gb(weights: dict, precision, *, offload: bool, reduced_gb: Optional[float]=None) -> Optional[float]` — Le pic d'un modèle chargé dans une précision que son moteur DÉCLARE (`backends.base.
   - `backbone_row(row)` — La ligne de catalogue de la DORSALE d'un adaptateur, ou None si ce n'en est pas un.
   - `replacing_weights(row, backbone) -> Optional[dict]` — Le relevé de poids d'une VARIANTE qui REMPLACE des composants de sa dorsale — ou None.
+  - `measured_vram_gb(row) -> Optional[float]` — La VRAM MESURÉE au chargement (`extra_info['vram_measured']['max_gb']`, rendue au catalogue
   - `model_footprint_gb(row, *, offload: bool=True, count_backbone: bool=True) -> tuple` — `(Go, provenance)` que ce modèle EXIGE — ou `(None, 'unknown')` si personne ne sait.
   - `fits_full_gpu(model_key: str, total_vram_gb: float, headroom_gb: float=4.0) -> Optional[bool]` — Ce modèle peut-il tenir ENTIÈREMENT sur la carte (donc tourner en FULL_GPU, sans offload) ?
   - `register_vram_unloader(name: str, fn) -> None` — Déclare un callable qui libère la VRAM d'une app (idempotent par `name`).
