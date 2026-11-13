@@ -2756,6 +2756,21 @@ class EveryKeyTableFollowsTheRegistryTest(SimpleTestCase):
     #: `Keys.action(e, owner, TRANSPORT_KEYS)` — the owner is a variable) : held by
     #: `BrickShortcutsTest.test_the_transport_reads_an_action_and_its_table_matches_the_registry`.
     READ_THROUGH_THE_TRANSPORT = ('media_transport', 'media_viewer')
+    #: Bricks whose keys are still TESTED BY HAND (no `names`) — measured on 2026-11-13, the rest of
+    #: the port to `WamaKeys.action` (`WAMA_VOLETS §3-ter`). A list that can only SHRINK : a ported
+    #: brick leaves it in the same commit, a new brick never enters it. Keys not named by design
+    #: are not counted : those typed in a field, those the brick only follows, Escape.
+    NOT_YET_NAMED = ('inspector_panel', 'media_viewer', 'surface_actions')
+
+    def test_every_brick_names_its_keys_but_the_declared_gaps(self):
+        from wama.common.surfaces import BRICKS, load_all
+        load_all()
+        unnamed = {key for key, brick in BRICKS.items()
+                   if any(not s.names and s.scope != 'field' and not s.follows
+                          and s.keys != ('Escape',) for s in brick.shortcuts)}
+        self.assertEqual(set(self.NOT_YET_NAMED), unnamed,
+                         'a brick tests its keys by hand (add its names), or a ported brick is still '
+                         'listed (take it out)')
 
     def test_each_literal_key_table_is_the_declared_one(self):
         import re
