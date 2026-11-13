@@ -392,6 +392,7 @@
     <script src="{% static_v 'common/js/wama-keys.js' %}"></script>  {# WamaKeys global : le clavier des briques, une touche = UN propriétaire — AVANT tout module qui s'y inscrit (transport, inspecteur, file) #}
     {{ page_controls|json_script:"wama-page-controls" }}
     <script src="{% static_v 'common/js/wama-page-controls.js' %}"></script>  {# WamaPageControls global : cadenas de la disposition et aide de la page (en-tête) — APRÈS le clavier commun (touche « ? »), AVANT le volet et les surfaces, qui s'y déclarent #}
+    <script src="{% static_v 'common/js/wama-full-text.js' %}"></script>  {# WamaFullText global : le texte COMPLET d'un texte que le CSS coupe, au survol et à l'appui long (cards, lots, arbre, volets) #}
     <script src="{% static_v 'common/js/wama-gestures.js' %}"></script>  {# WamaGestures global : gestes au pointeur (track : glisser/pincer), glisser HTML5 et appui long AU DOIGT — AVANT les pages qui l'adoptent (studio, éditeur du transcriber) #}
     <script src="{% static_v 'common/js/wama-notifications.js' %}"></script>  {# WamaNotifications global : panneau de la cloche — APRÈS wama-app-base (csrfFetch, toast, pastille) #}
     {# WamaAssistantVoice global : la voix de l'assistant (phrases, bouton 🔊/🔇/⏹) — AVANT le volet, qui la configure #}

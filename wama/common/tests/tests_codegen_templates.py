@@ -911,9 +911,10 @@ class GeneratedCardOpensItsEntryTest(SimpleTestCase):
         card, reason = self._card(source_text='prompt')
         if not card:
             self.skipTest(f'card non générée : {reason}')
-        self.assertIn('elem.input_filename|default:elem.prompt|truncatechars:80', card)
+        self.assertIn('elem.input_filename|default:elem.prompt|default:elem.id', card)
         plain, _ = self._card()
-        self.assertNotIn('elem.prompt|truncatechars', plain, 'no prompt label without a declared prompt')
+        self.assertNotIn('elem.prompt', plain.split('wcv3-in-name', 1)[-1].split('</span>', 1)[0],
+                         'no prompt label without a declared prompt')
 
 
 class GeneratedTemplatesCompileTest(SimpleTestCase):

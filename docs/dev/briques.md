@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**241 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**242 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -3095,6 +3095,12 @@ Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, mo
 Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta (`onSelect`), ou de l'asset SEUL, sans téléchargement, pour qui le DÉSIGNE (`onPick`, 2026-09-28 — la tuile de card)
 
 - **Domicile** : `wama/common/static/common/js/media-picker.js`
+
+### Texte complet au survol
+
+Un texte que le CSS coupe — ellipse, limite de lignes, ou une ligne qui dépasse du volet qui la rogne (l'arbre des fichiers) — montre son texte entier au survol (et à l'appui long au doigt), l'indication que la page avait écrite gardée dessous ; un texte qui tient n'est pas touché. Monté par `base.html`, donc sur toute page : aucune page n'écrit son texte dans `title`, aucun gabarit ne coupe un nom côté serveur. Posé le 2026-11-13 (le nom d'une card ne s'affichait pas en entier) à la place de cinq variantes
+
+- **Domicile** : `wama/common/static/common/js/wama-full-text.js`
 
 ### Thèmes et tokens de couleur
 

@@ -17,6 +17,7 @@ inline text, server and modal ; the cards open their entry by the common gesture
 """
 import importlib.util
 import io
+import json
 import os
 import re
 import shutil
@@ -310,6 +311,110 @@ class CardsOpenTheirEntryByTheCommonGestureTest(SimpleTestCase):
         self.assertNotIn('/filemanager/api/preview/', source)
         self.assertIn("preview-media-link", source)
         self.assertIn("elem.id %}}?side=input", source)
+
+    def test_no_card_cuts_its_entry_name_on_the_server(self):
+        """2026-11-13 (Fabien : « survolant le titre d'une card, le nom complet ne s'affiche pas ») :
+        the CSS cuts the name (ellipsis) and the common brick `WamaFullText` shows it whole on
+        hover — a name cut on the SERVER (`truncatechars`) no longer exists anywhere in the page."""
+        name = re.compile(r'class="[^"]*\bwcv3-in-name\b[^"]*"[^>]*>(.*?)</span>', re.S)
+        cut = [card.parent.name + '/' + card.name for card in self.CARDS
+               if any('truncatechars' in body for body in name.findall(card.read_text(encoding='utf-8')))]
+        self.assertEqual([], cut)
+        from wama.common.manifests.codegen import templates_gen
+        source = Path(templates_gen.__file__).read_text(encoding='utf-8')
+        label = re.search(r'entry_label = \((.*?)\)\n', source, re.S)
+        self.assertIsNotNone(label, 'the instrument sees the generated entry label')
+        self.assertNotIn('truncatechars', label.group(1))
+
+
+class FullTextOnHoverTest(SimpleTestCase):
+    """`WamaFullText` (base.html, 2026-11-13) : the ONE place that shows the whole text of a text
+    the CSS cuts — cards, lots, the file tree, panels. No page writes its text into `title` itself
+    (five variants found that day : the file tree, the viewer's title, eight cards that put a hint
+    there instead of the name, two the prompt, two the name)."""
+
+    BRICK = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'wama-full-text.js'
+    #: An element of the fake page : its computed style, its box, its parent.
+    FAKE = r"""
+        var handlers = {};
+        var document = {addEventListener: function (t, f) { handlers[t] = f; }};
+        function El(text, style, box, parent, title) {
+            this.nodeType = 1; this.tagName = 'SPAN'; this.textContent = text;
+            this._style = style; this._box = box; this.parentElement = parent || null;
+            this.firstElementChild = null; this.dataset = {}; this._attrs = {};
+            if (title) this._attrs.title = title;
+            this.scrollWidth = box.sw || box.w; this.clientWidth = box.w;
+            this.scrollHeight = box.h; this.clientHeight = box.h;
+        }
+        El.prototype.getAttribute = function (n) { return n in this._attrs ? this._attrs[n] : null; };
+        El.prototype.setAttribute = function (n, v) { this._attrs[n] = String(v); };
+        El.prototype.getBoundingClientRect = function () {
+            var b = this._box; return {left: b.x, right: b.x + b.w, width: b.w, height: b.h};
+        };
+        var window = {getComputedStyle: function (el) {
+            var s = el._style;
+            return {textOverflow: s.textOverflow || 'clip', whiteSpace: s.whiteSpace || 'normal',
+                    overflowX: s.overflowX || 'visible', webkitLineClamp: s.clamp || 'none',
+                    getPropertyValue: function () { return s.clamp || 'none'; }};
+        }};
+    """
+
+    def _ctx(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8')
+        ctx = MiniRacer()
+        ctx.eval(self.FAKE)
+        ctx.eval(self.BRICK.read_text(encoding='utf-8'))
+        return ctx
+
+    def test_a_cut_name_shows_whole_with_the_hint_of_the_page_and_a_whole_name_is_left_alone(self):
+        ctx = self._ctx()
+        result = ctx.eval(r"""
+            var ellipsis = {textOverflow: 'ellipsis', whiteSpace: 'nowrap'};
+            var cut = new El('Keep Hope — version longue.mp3', ellipsis, {x: 0, w: 120, sw: 300, h: 20}, null, 'Aperçu');
+            var whole = new El('court.mp3', ellipsis, {x: 0, w: 120, h: 20}, null, 'Aperçu');
+            handlers.mouseover({target: cut}); handlers.mouseover({target: whole});
+            handlers.mouseover({target: cut});      // twice : the hint is not stacked
+            JSON.stringify([cut.getAttribute('title'), whole.getAttribute('title')]);
+        """)
+        self.assertEqual(['Keep Hope — version longue.mp3\nAperçu', 'Aperçu'], json.loads(result))
+
+    def test_a_tree_node_wider_than_its_panel_shows_whole_and_one_that_fits_does_not(self):
+        """The file tree (2026-11-13) : no ellipsis there, the panel CLIPS a one-line node — what
+        `addFilenameTitles` covered by writing the title of EVERY node."""
+        ctx = self._ctx()
+        result = ctx.eval(r"""
+            var panel = new El('', {overflowX: 'auto'}, {x: 10, w: 200, h: 400});
+            var li = new El('', {}, {x: 10, w: 200, h: 20}, panel);
+            var nowrap = {whiteSpace: 'nowrap'};
+            var wide = new El('un_dossier_au_nom_tres_long', nowrap, {x: 30, w: 320, h: 20}, li);
+            var fits = new El('court', nowrap, {x: 30, w: 60, h: 20}, li);
+            // Without a box, at the origin of the page — what the browser gives the option of a
+            // closed list (measured on 2026-11-13 : 48 « cut » elements, mostly options).
+            var hidden = new El('option fermée', nowrap, {x: 0, w: 0, h: 0}, li);
+            [wide, fits, hidden].forEach(function (e) { handlers.mouseover({target: e}); });
+            JSON.stringify([wide.getAttribute('title'), fits.getAttribute('title'), hidden.getAttribute('title')]);
+        """)
+        self.assertEqual(['un_dossier_au_nom_tres_long', None, None], json.loads(result))
+
+    def test_the_brick_is_mounted_on_every_page(self):
+        base = (Path(settings.BASE_DIR) / 'wama' / 'templates' / 'base.html').read_text(encoding='utf-8')
+        self.assertIn("common/js/wama-full-text.js", base)
+
+    def test_no_page_copies_a_text_into_its_title(self):
+        """A copy is the variant the brick replaces. ⚠ Read by pattern : a copy through a variable
+        (`const t = el.textContent; el.title = t`) escapes it."""
+        copy = re.compile(r"(?:\.title\s*=|setAttribute\(\s*['\"]title['\"]\s*,)[^;\n]*(?:textContent|innerText)")
+        found = []
+        for js in Path(settings.BASE_DIR, 'wama').glob('**/static/**/*.js'):
+            if 'vendors' in js.parts or js.name == 'wama-full-text.js':
+                continue
+            for number, line in enumerate(js.read_text(encoding='utf-8', errors='replace').splitlines(), 1):
+                if copy.search(line):
+                    found.append(f'{js.relative_to(settings.BASE_DIR)}:{number}')
+        self.assertEqual([], found)
 
 
 class CardPreviewsOpenTheCommonViewerTest(SimpleTestCase):

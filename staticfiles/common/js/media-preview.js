@@ -1567,8 +1567,8 @@
         const container = modal.querySelector('.preview-container');
         const meta = modal.querySelector('.preview-meta');
 
+        // Le nom entier au survol, s'il est coupé : brique commune `WamaFullText` (base.html).
         title.textContent = shown.name || data.name || 'Preview';
-        title.title = title.textContent;
         // Le fichier montré, dans un nouvel onglet (les liens sous le PDF et le HTML, et « Ouvrir »
         // de la barre d'un texte, réunis ici le 2026-10-14).
         const open = modal.querySelector('.wama-preview-open');

@@ -227,18 +227,13 @@
         $(treeContainer).on('loaded.jstree', handleTreeLoaded);
         $(treeContainer).on('refresh.jstree', handleTreeRefreshed);
 
-        // Tooltips on newly revealed children (l'état plié/déplié est persisté
-        // automatiquement par le plugin 'state').
-        $(treeContainer).on('open_node.jstree', function(e, data) {
-            const nodeEl = document.getElementById(data.node.id);
-            if (nodeEl) setTimeout(() => addFilenameTitles(nodeEl), 50);
-        });
-
-        // Le plugin 'state' a fini de restaurer l'arbre → on force l'expansion
-        // de l'app courante par-dessus (sans toucher la section utilisateur).
+        // Le nom entier d'un nœud coupé, au survol : brique commune `WamaFullText` (base.html) —
+        // la copie locale qui écrivait le texte de CHAQUE nœud dans `title` est retirée le
+        // 2026-11-13. L'état plié/déplié est persisté par le plugin 'state' ; quand il a fini de
+        // restaurer l'arbre, on force l'expansion de l'app courante (sans toucher la section
+        // utilisateur).
         $(treeContainer).on('state_ready.jstree', function() {
             autoExpandCurrentAppFolder();
-            setTimeout(() => addFilenameTitles(), 100);
         });
 
         // Handle internal move (drag & drop within tree)
@@ -928,20 +923,6 @@
         });
     }
 
-    function addFilenameTitles(container) {
-        // Add title attribute to all tree anchors for full filename tooltip on hover
-        const el = container || document.getElementById('filemanager-tree');
-        if (!el) return;
-        const anchors = el.querySelectorAll('.jstree-anchor');
-        anchors.forEach(anchor => {
-            // Get text content without the icon
-            const text = anchor.textContent.trim();
-            if (text && anchor.getAttribute('title') !== text) {
-                anchor.setAttribute('title', text);
-            }
-        });
-    }
-
     function handleTreeLoaded() {
         console.log('FileManager tree loaded');
         // L'état plié/déplié est restauré par le plugin 'state' (event
@@ -952,10 +933,9 @@
         console.log('FileManager tree refreshed');
 
         // Le plugin 'state' restaure l'ouverture après refresh (state_ready) ;
-        // on garde un filet pour l'app courante + tooltips.
+        // on garde un filet pour l'app courante.
         setTimeout(() => {
             autoExpandCurrentAppFolder();
-            addFilenameTitles();
         }, 100);
     }
 

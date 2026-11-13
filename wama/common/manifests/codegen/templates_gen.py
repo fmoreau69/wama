@@ -699,7 +699,9 @@ document.addEventListener('DOMContentLoaded', function () {{
     # en déclare une (`source_text` — Writer, comme imager et composer), sinon le numéro.
     source_text = str((((manifest.get('body') or {}).get('inspector') or {}).get('detail_spec')
                        or {}).get('source_text') or '')
-    entry_label = ('{{ elem.input_filename|default:elem.%s|truncatechars:80|default:elem.id }}'
+    # Le nom ENTIER : la coupe est celle du CSS (`.wcv3-in-name`, ellipse), et le survol le montre
+    # (`wama-full-text.js`) — une coupe serveur le retirait de la page (2026-11-13).
+    entry_label = ('{{ elem.input_filename|default:elem.%s|default:elem.id }}'
                    % source_text if source_text.isidentifier()
                    else '{{ elem.input_filename|default:elem.id }}')
 

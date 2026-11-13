@@ -53,7 +53,7 @@ pas la variable de gabarit.
           dans la spec (URL dérivée, `avatar_gallery_url`) : l'aperçu montre alors l'audio.{% endcomment %}
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu de l'entrée"
                 data-preview-url="{% url 'common:unified_preview' 'avatarizer' elem.id %}?side=input">
-            {{ elem.avatar_label|default:"—"|truncatechars:24 }}
+            {{ elem.avatar_label|default:"—" }}
           </span>
           <span class="wcv3-in-props">avatar animé</span>
         </div>

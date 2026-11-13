@@ -2586,6 +2586,16 @@ MECHANISMS = (
               "la partition l'a demandé (#1516) : `segment_list` et `score_view` l'emploient",
               'wama/common/static/common/js/wama-follow.js', '',
               symbol='WamaFollow'),
+    Mechanism('full_text_on_hover', 'Texte complet au survol',
+              "Un texte que le CSS coupe — ellipse, limite de lignes, ou une ligne qui dépasse du "
+              "volet qui la rogne (l'arbre des fichiers) — montre son texte entier au survol (et à "
+              "l'appui long au doigt), l'indication que la page avait écrite gardée dessous ; un "
+              "texte qui tient n'est pas touché. Monté par `base.html`, donc sur toute page : aucune "
+              "page n'écrit son texte dans `title`, aucun gabarit ne coupe un nom côté serveur. Posé "
+              "le 2026-11-13 (le nom d'une card ne s'affichait pas en entier) à la place de cinq "
+              "variantes",
+              'wama/common/static/common/js/wama-full-text.js', '',
+              symbol='WamaFullText'),
     Mechanism('media_axis', 'Axe de temps partagé (transport commun)',
               "L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue "
               "(`WAMA_DATA_WORLD §5bis`) : lecture, pause, aller, sauts, vitesse signée, shuttle ; "

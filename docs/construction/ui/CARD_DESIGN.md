@@ -20,7 +20,11 @@
 ```
 
 1. **En-tête** (compacte, une ligne `d-flex flex-wrap`) :
-   - icône type média + **nom** (cliquable → aperçu de l'entrée, via `preview-media-link` commun) + badge cible/format
+   - icône type média + **nom** (cliquable → aperçu de l'entrée, via `preview-media-link` commun) + badge cible/format.
+     Le nom est rendu ENTIER et coupé par le CSS (ellipse) ; au survol il s'affiche en entier —
+     brique commune `WamaFullText` (mécanisme `full_text_on_hover`, 2026-11-13), qui garde dessous
+     l'indication que la card avait écrite (« Aperçu »). Jamais de `truncatechars` côté serveur
+     sur le nom (garde : `tests_preview_entry`)
    - **ETA** (`wama-eta`, `data-eta-card`) + **badge statut** (En attente / En cours / Terminé / Échec)
    - **boutons d'action** (`ms-auto`) — ordre + couleurs canoniques (§2)
 2. **Barre de progression PLEINE LARGEUR** (`wama-progress-track` + `wama-progress-fill`) quand
