@@ -155,11 +155,12 @@
     // `?` — la disposition du clavier décide alors où elle est, Maj comprise).
     var overrides = {}, resolvedTables = [];
 
-    /** Le caractère produit, avec Ctrl / Alt : `,`, `Ctrl+z` ; null pour une touche nommée. */
+    /** Le caractère produit, avec Ctrl / Alt : `,`, `Ctrl+a` ; null pour une touche nommée. Une
+     *  lettre se dit en minuscule : Maj et le verrouillage des majuscules ne la changent pas. */
     function charCombo(e) {
         var k = e.key;
         if (typeof k !== 'string' || k.length !== 1 || k === ' ') return null;
-        return (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + k;
+        return (e.ctrlKey || e.metaKey ? 'Ctrl+' : '') + (e.altKey ? 'Alt+' : '') + k.toLowerCase();
     }
     /** La table d'un propriétaire, ses surcharges appliquées : `{touche: action}`. */
     function tableOf(owner, defaults) {

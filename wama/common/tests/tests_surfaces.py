@@ -1838,7 +1838,9 @@ class BrickShortcutsTest(SimpleTestCase):
         elif len(name) > 1:
             return re.search(rf'\b{name}\b', code) is not None
         else:
-            tokens = (f"'{name}'",)
+            # A character : alone (`'+'`), or the last part of a combination in a table of keys
+            # (`'Ctrl+a'` — a letter whose PLACE depends on the keyboard layout).
+            tokens = (f"'{name}'", f"+{name}'")
         return any(t in code for t in tokens)
 
     def _sources(self, brick, shortcut):
@@ -1944,10 +1946,11 @@ class BrickShortcutsTest(SimpleTestCase):
                 ('media_timeline', 'common/js/wama-timeline.js', 'TIMELINE_KEYS'),
                 ('playback_writing', 'common/js/surfaces/brick-playback-writing.js', 'WRITING_KEYS'),
                 ('segment_list', 'common/js/surfaces/brick-segment-list.js', 'SEGMENT_KEYS'),
-                ('image_boxes', 'common/js/surfaces/brick-image-boxes.js', 'BOXES_KEYS')):
+                ('image_boxes', 'common/js/surfaces/brick-image-boxes.js', 'BOXES_KEYS'),
+                ('queue', 'common/js/wama-queue-dnd.js', 'QUEUE_KEYS')):
             with self.subTest(brick=brick):
                 code = _js(path)
-                block = code.split(f'var {table_name} = {{', 1)[1].split('};', 1)[0]
+                block = re.split(rf'(?:var|const) {table_name} = {{', code, maxsplit=1)[1].split('};', 1)[0]
                 named = {key: name for s in BRICKS[brick].shortcuts for key, name in zip(s.keys, s.names)}
                 self.assertTrue(named)
                 self.assertEqual(named, dict(re.findall(r"'([^']+)':\s*'(\w+)'", block)))

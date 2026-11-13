@@ -737,13 +737,20 @@
         return visibleQueues[0] || queues[0];
     }
 
+    /** Les touches de la file PAR DÉFAUT, `{touche: action}` — celles que la brique déclare au
+     *  registre (`surfaces.py`, `queue.shortcuts`, tenues égales par `tests_surfaces`). */
+    const QUEUE_KEYS = { 'Ctrl+a': 'select_all' };
+
     function initSelectAll() {
         // Une touche PRIORITAIRE de la file au clavier commun (`wama-keys.js`, 2026-10-29) : il ne
         // la lui transmet JAMAIS depuis une saisie — dans un champ, Ctrl+A veut dire « tout le
         // texte », et c'est ce que l'utilisateur attend jusque dans une file.
         window.WamaKeys.register({ owner: 'queue', scope: 'page', handle: function (ev) {
-            if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return false;
-            if ((ev.key || '').toLowerCase() !== 'a') return false;
+            // L'ACTION de la frappe, lue à la table de la file (`WamaKeys.action`, 2026-11-13). La
+            // touche se dit par son CARACTÈRE : en azerty, A n'est pas à la place de `KeyA`.
+            // Maj en fait une autre frappe (Ctrl+Maj+A n'a jamais été à la file).
+            if (ev.shiftKey || ev.altKey) return false;
+            if (window.WamaKeys.action(ev, 'queue', QUEUE_KEYS) !== 'select_all') return false;
             const q = activeQueue();
             if (!q) return false;
             const everyCard = cards(q);

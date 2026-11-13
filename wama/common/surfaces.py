@@ -180,11 +180,14 @@ MODIFIER_LABELS = {'Ctrl': 'Ctrl', 'Shift': 'Maj', 'Alt': 'Alt'}
 
 
 def key_label(key: str) -> str:
-    """`Shift+ArrowLeft` → `Maj+←`, `KeyJ` → `J`, `Ctrl+Space` → `Ctrl+Espace`."""
+    """`Shift+ArrowLeft` → `Maj+←`, `KeyJ` → `J`, `Ctrl+Space` → `Ctrl+Espace`, `Ctrl+a` → `Ctrl+A`
+    (une lettre dite par son CARACTÈRE, quand sa place dépend de la disposition du clavier)."""
     *modifiers, name = key.split('+') if key != '+' else ['+']
     if not name:                                   # `Ctrl++`
         modifiers, name = modifiers[:-1], '+'
     shown = name[3:] if name.startswith('Key') and len(name) == 4 else KEY_LABELS.get(name, name)
+    if len(shown) == 1 and shown.isalpha():
+        shown = shown.upper()
     return '+'.join([*(MODIFIER_LABELS.get(m, m) for m in modifiers), shown])
 
 
@@ -1119,8 +1122,8 @@ register_brick(UIBrick(
     declarations=('app.modes', 'pipeline'),
     # Au clavier commun (`wama-keys.js`, 2026-10-29) : Ctrl+A est à elle ; ↑/↓ et Échap sont à
     # l'inspecteur, qu'elle SUIT (la pile, la sélection multiple).
-    shortcuts=(Shortcut(('Ctrl+KeyA',), 'sélectionner toutes les cards de la file', 'page',
-                        handled_by='common/js/wama-queue-dnd.js'),
+    shortcuts=(Shortcut(('Ctrl+a',), 'sélectionner toutes les cards de la file', 'page',
+                        handled_by='common/js/wama-queue-dnd.js', names=('select_all',)),
                Shortcut(('Escape',), 'relâcher la sélection multiple, avec la card choisie', 'page',
                         handled_by='common/js/wama-queue-dnd.js', follows=True),
                Shortcut(('ArrowUp', 'ArrowDown'), 'en pile : la card de premier plan suit la card '
