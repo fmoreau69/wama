@@ -1940,22 +1940,10 @@ class BrickShortcutsTest(SimpleTestCase):
         self.assertEqual({}, {k: n for k, n in viewer.items() if table.get(k) != n})
         self.assertNotIn("case 'KeyL'", axis, 'no key is tested by hand any more')
         self.assertIn('Keys.action(e, owner, TRANSPORT_KEYS)', axis)
-        # The tools of time follow : the Boundaries tool of the timeline, the recording of the
-        # writing brick — each a table equal to what its brick names in the registry.
-        for brick, path, table_name in (
-                ('media_timeline', 'common/js/wama-timeline.js', 'TIMELINE_KEYS'),
-                ('playback_writing', 'common/js/surfaces/brick-playback-writing.js', 'WRITING_KEYS'),
-                ('segment_list', 'common/js/surfaces/brick-segment-list.js', 'SEGMENT_KEYS'),
-                ('image_boxes', 'common/js/surfaces/brick-image-boxes.js', 'BOXES_KEYS'),
-                ('queue', 'common/js/wama-queue-dnd.js', 'QUEUE_KEYS')):
-            with self.subTest(brick=brick):
-                code = _js(path)
-                block = re.split(rf'(?:var|const) {table_name} = {{', code, maxsplit=1)[1].split('};', 1)[0]
-                named = {key: name for s in BRICKS[brick].shortcuts for key, name in zip(s.keys, s.names)}
-                self.assertTrue(named)
-                self.assertEqual(named, dict(re.findall(r"'([^']+)':\s*'(\w+)'", block)))
-                self.assertRegex(code, rf"WamaKeys\.action\(\w+, '{brick}', {table_name}\)")
-                self.assertNotIn('.toLowerCase() !==', code, 'the letter is no longer read by hand')
+        # The other bricks (timeline, writing, segments, boxes, queue, score) are held by the generic
+        # guard `EveryKeyTableFollowsTheRegistryTest` : it reads a LITERAL call
+        # `WamaKeys.action(e, '<brick>', TABLE)`, which the transport — read under another name,
+        # for the surfaces and the viewer alike — is not.
 
     def test_an_action_is_resolved_from_the_defaults_then_from_an_override(self):
         """`WamaKeys.action` : the key by its position (`KeyJ`, `Shift+ArrowLeft`) or by the character
