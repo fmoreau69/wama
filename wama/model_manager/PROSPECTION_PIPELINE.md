@@ -4713,10 +4713,27 @@ importe — installées d'abord, posées sur le chemin d'import à leur `import_
 import, `requires` circulaire), `test_a_git_dependency_is_named_to_vendor_never_skipped` ;
 contre-épreuve : trois neutralisations, six rouges.
 
-**Suite** (⏳ en attente de l'accès aux poids) : les cinq manifestes produits par le rôle
-`librarian --repo` (dépendances d'abord, chacune validée par Fabien), correctif `torchcodec` différé
-sous `patches/` ; backend
-`SourceSeparationBackend` en sous-processus (le patron des moteurs vendorisés), capacité `stems: open`
+✅ **Accès aux poids accordé** (2026-11-13, `auth_check` : `sam-audio-small/-base/-large` OK).
+✅ **Trois manifestes proposés par la route** (rôle `librarian --repo`, Ollama local, file « Propositions
+à valider ») — tous voie VENDOR, commit mesuré par l'API GitHub :
+- `dacvae` @ `414c20785fc3` (Apache-2.0) ; dépendances toutes au venv (`audiotools`, `argbind`,
+  `numba`…), seule « manquante » `jupyterlab`, que le code n'importe pas ;
+- `perception_models` @ `e72b6810b113` (branche `unpin-deps`, lue par `--branch`) ; ses 8 « manquantes »
+  (`lm-eval`, `rouge-score`, `datatrove`…) sont d'entraînement : la partie chargée
+  (`core/audio_visual_encoder`, `core/vision_encoder`) n'importe que `torch`, `transformers`,
+  `safetensors`, `timm`, `einops`, `ftfy`, `regex`, `torchvision` — tous au venv — et `torchcodec` ;
+- `sam_audio` @ `bb4c6999d267` (SAM License) ; `requires` RÉDUIT à `dacvae` + `perception_models`
+  (redéposé) : `laion_clap` s'importe dans des fonctions, `imagebind` dans un `try` — ils ne servent
+  qu'au reclassement et à la requête visuelle. `audiobox_aesthetics` n'est importé que par `eval/`.
+**Correctifs à exporter après clonage** (la règle du README vendor) : `torchcodec` importé au
+chargement dans `sam_audio/processor.py`, `sam_audio/ranking/sound_activity.py` et
+`core/audio_visual_encoder/transforms.py` → import différé. Poids : `from_pretrained(<dossier local>)`
+lit `config.json` + `checkpoint.pt` (`torch.load(weights_only=True)`) — le dossier que le pilote `hf`
+installe ; `t5-base` (encodeur de texte) au cache partagé, sous-dépendance.
+
+**Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs
+manifestes résolvent le `requires` de sam_audio), puis `install_library` (requises d'abord) ;
+correctifs `torchcodec` exportés sous `patches/` et déclarés ; backend `SourceSeparationBackend` en sous-processus (le patron des moteurs vendorisés), capacité `stems: open`
 (N pistes demandées) ; réglage « pistes à extraire » sur le process `separate`, vocabulaire de
 `midi_score.INSTRUMENT_LABELS` ; lignes de catalogue `sam-audio-small` / `-large` par le pilote `hf`
 (jeton passé, empreinte publiée par le Hub). Alternative si la voie vendor ne suffit pas : un
