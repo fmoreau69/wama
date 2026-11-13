@@ -4626,9 +4626,47 @@ rien réinventé ») — quatre écarts de ma main, ramenés :
 - le raccourci Alt+L de la partition lisait sa touche à la main : `score_view` porte désormais ses
   ACTIONS (`SCORE_KEYS`, `names=` au registre), garde générique `EveryKeyTableFollowsTheRegistryTest`.
 
-⏳ **Reste** : un passage réel de bout en bout en service APRÈS relance des workers (le correctif de
-taxonomie n'est lu qu'au démarrage) ; BS-RoFormer SW (licence) ; la séparation pour le transcriber
-(voix isolée) et l'enhancer.
+✅ **Passage RÉEL sur GPU** (2026-11-13, en service, compte de test, morceau ACE-Step de 30 s) : la
+card « Pistes séparées + Partition complète » rend 4 pistes (`htdemucs_ft` tiré) et la partition
+complète du MÉLANGE en 75 s — MuScriptor n'y entend que « Guitare acoustique » (138 notes) et
+« Batterie » (61) ; sur la piste BASSE seule (35 s), il écrit « Basse électrique » (41 notes), que
+le mélange avait manquée. La piste voix d'un morceau instrumental, quasi muette, fait échouer sa
+partition (« rien transcrit ») : attendu, à dire peut-être à la naissance des cards (⏳ décision).
+Le passage a montré qu'une card qui n'a QUE sa partition complète n'ouvrait pas la page :
+corrigé dans la règle commune des surfaces (`Surface.target`, `also_edits`).
+
+### Au-delà de 6 pistes, et l'orchestre (veille du 2026-11-13, question de Fabien)
+
+*« Suno monte à 10 stems ; y a-t-il des modèles ouverts à 10 pistes ou plus ? Pour une partition
+d'orchestre symphonique, comment se passe le découpage ? »*
+
+- **Aucun modèle ouvert à liste FIXE de 10+ pistes** de qualité comparable n'a été trouvé. Les
+  poids ouverts du dépôt ZFTurbo sont surtout à 4 pistes (MUSDB18) ; le « Mega 53-Stem » de MVSEP
+  est un service, poids non publiés.
+- **La voie ouverte au-delà de 6 : la séparation PAR REQUÊTE** — on demande l'instrument voulu.
+  *Banquet* (`query-bandit`, ISMIR 2024, ~25 M de paramètres, poids sur Zenodo, entraîné sur
+  MoisesDB : cordes, cuivres, anches, orgue, synthés… ; licence à vérifier) ; *SAM Audio* (Meta,
+  2025-12, requête par texte, instant ou image, poids sous **SAM License** — la même famille que
+  SAM3, déjà au catalogue en « communautaire qualifiée », accès contrôlé sur le Hub) ; *AudioSep*
+  (texte, généraliste). Côté WAMA : le contrat `SourceSeparationBackend` et `derive_cards` prennent
+  N pistes ; il faudrait une capacité `stems: open` et un réglage « pistes à extraire » (vocabulaire
+  `INSTRUMENT_LABELS`) — à décider.
+- **Cascade** : 6 pistes puis des séparateurs spécialisés (batterie en fût/caisse claire/charley…).
+- **Orchestre** : la séparation y reste un problème de RECHERCHE. Benchmark *Spheres* (2025-11) :
+  SDR ≈ −10 dB pour la plupart des sources par famille ; *SynthSOD* (synthétique) : > 2 dB pour les
+  cordes ; *SCISSOR* (arXiv 2609.33265, 2026-09) : séparation conditionnée par la PARTITION alignée
+  (la partition sert de requête image par image) — exactement la boucle partition ↔ audio de WAMA.
+  Pour une partition d'orchestre, la voie réaliste aujourd'hui est la transcription
+  multi-instrument DIRECTE (MuScriptor : 36 groupes, cordes, bois et cuivres compris), la
+  séparation par familles en appoint quand elle progresse.
+- Sources : arxiv.org/abs/2406.18747 (Banquet), github.com/kwatcharasupat/query-bandit,
+  github.com/facebookresearch/sam-audio, arxiv.org/abs/2512.18099 (SAM Audio),
+  arxiv.org/abs/2511.21247 (Spheres), arxiv.org/html/2409.10995v1 (SynthSOD),
+  arxiv.org/abs/2609.33265 (SCISSOR), github.com/ZFTurbo/Music-Source-Separation-Training,
+  mvsep.com/algorithms. Licences de Banquet et AudioSep NON vérifiées.
+
+⏳ **Reste** : BS-RoFormer SW (licence) ; la séparation par requête (Banquet / SAM Audio) — décision ;
+la séparation pour le transcriber (voix isolée) et l'enhancer.
 
 ### Décisions de Fabien et livraison (2026-11-08, suite de la session ci-dessus)
 
