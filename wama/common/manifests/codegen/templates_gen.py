@@ -746,7 +746,7 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
       <div class="wcv3-sec wcv3-sec--output">
         <span class="wcv3-lbl">Sortie</span>
         {{% if elem.status == 'FAILURE' and elem.error_message %}}
-        <span class="wcv3-out-error" title="{{{{ elem.error_message|escape }}}}"><i class="fas fa-triangle-exclamation"></i> {{{{ elem.error_message|truncatechars:120|escape }}}}</span>
+        <span class="wcv3-out-error"><i class="fas fa-triangle-exclamation"></i> {{{{ elem.error_message|escape }}}}</span>
         {{% else %}}
         <div class="wcv3-out">
           {{% include 'common/_card_chips.html' with chips=elem.chips.output %}}

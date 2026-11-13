@@ -326,6 +326,18 @@ class CardsOpenTheirEntryByTheCommonGestureTest(SimpleTestCase):
         self.assertIsNotNone(label, 'the instrument sees the generated entry label')
         self.assertNotIn('truncatechars', label.group(1))
 
+    def test_no_card_cuts_its_error_on_the_server(self):
+        """The same double cut on the error (2026-11-13) : `.wcv3-out-error` is cut by the CSS, the
+        server cut it again at 120 characters and a `title` repeated it whole — ten cards and the
+        generator. Rendered whole, shown whole on hover by `WamaFullText`."""
+        server_cut = [card.parent.name + '/' + card.name for card in self.CARDS
+                      if 'error_message|truncatechars' in card.read_text(encoding='utf-8')]
+        self.assertEqual([], server_cut)
+        from wama.common.manifests.codegen import templates_gen
+        source = Path(templates_gen.__file__).read_text(encoding='utf-8')
+        self.assertIn('wcv3-out-error', source, 'the instrument sees the generated error')
+        self.assertNotIn('error_message|truncatechars', source)
+
 
 class FullTextOnHoverTest(SimpleTestCase):
     """`WamaFullText` (base.html, 2026-11-13) : the ONE place that shows the whole text of a text
@@ -403,17 +415,43 @@ class FullTextOnHoverTest(SimpleTestCase):
         base = (Path(settings.BASE_DIR) / 'wama' / 'templates' / 'base.html').read_text(encoding='utf-8')
         self.assertIn("common/js/wama-full-text.js", base)
 
+    #: The forms of a copy measured on 2026-11-13 : the text read back into `title`, the same value
+    #: given to both (`x.title = v; x.textContent = v`, either order), and a JS template that
+    #: writes it twice (`title="${v}">${v}`).
+    JS_COPIES = (
+        re.compile(r"(?:\.title\s*=|setAttribute\(\s*['\"]title['\"]\s*,)[^;\n]*(?:textContent|innerText)"),
+        re.compile(r"\.title\s*=\s*([\w.$]+)\s*;\s*[\w.$]+\.textContent\s*=\s*\1\b"),
+        re.compile(r"\.textContent\s*=\s*([\w.$]+)\s*;\s*[\w.$]+\.title\s*=\s*\1\b"),
+        re.compile(r'title="\$\{([^}]+)\}"[^>]*>\$\{\1\}'),
+    )
+    #: A served tag cut by the CSS (`text-truncate`, a card's entry name) whose `title` is the
+    #: variable it displays.
+    TAG = re.compile(r'<[a-z]+\b([^>]*)>\s*\{\{\s*([\w.]+)')
+    CUT = re.compile(r'class="[^"]*\b(?:text-truncate|wcv3-in-name)\b')
+
     def test_no_page_copies_a_text_into_its_title(self):
-        """A copy is the variant the brick replaces. ⚠ Read by pattern : a copy through a variable
-        (`const t = el.textContent; el.title = t`) escapes it."""
-        copy = re.compile(r"(?:\.title\s*=|setAttribute\(\s*['\"]title['\"]\s*,)[^;\n]*(?:textContent|innerText)")
+        """A copy is the variant the brick replaces (it also lost the name : the schedule gesture
+        read a card's `title` as its name, « Aperçu » on eight cards). ⚠ Read by pattern : a copy
+        through a variable read elsewhere escapes it."""
+        from wama.common.sandbox import twins_with_copied_views
+        base = Path(settings.BASE_DIR)
         found = []
-        for js in Path(settings.BASE_DIR, 'wama').glob('**/static/**/*.js'):
+        for js in (base / 'wama').glob('**/static/**/*.js'):
             if 'vendors' in js.parts or js.name == 'wama-full-text.js':
                 continue
             for number, line in enumerate(js.read_text(encoding='utf-8', errors='replace').splitlines(), 1):
-                if copy.search(line):
-                    found.append(f'{js.relative_to(settings.BASE_DIR)}:{number}')
+                if any(copy.search(line) for copy in self.JS_COPIES):
+                    found.append(f'{js.relative_to(base)}:{number}')
+        copied = twins_with_copied_views()
+        for page in (base / 'wama').glob('**/templates/**/*.html'):
+            if len(page.parts) > len(base.parts) + 1 and page.parts[len(base.parts) + 1] in copied:
+                continue
+            text = page.read_text(encoding='utf-8', errors='replace')
+            for tag in self.TAG.finditer(text):
+                attrs, shown = tag.group(1), tag.group(2)
+                title = re.search(r'title="\{\{\s*([\w.]+)', attrs)
+                if self.CUT.search(attrs) and title and title.group(1) == shown:
+                    found.append(f'{page.relative_to(base)}:{text.count(chr(10), 0, tag.start()) + 1}')
         self.assertEqual([], found)
 
 

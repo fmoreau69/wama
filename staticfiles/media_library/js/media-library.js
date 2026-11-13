@@ -522,9 +522,9 @@
             ${actionsHtml}
             ${previewHtml}
             <div class="asset-card-body">
-                <div class="asset-name" title="${esc(asset.name)}" data-id="${asset.id}">${esc(asset.name)}</div>
+                <div class="asset-name" data-id="${asset.id}">${esc(asset.name)}</div>
                 ${audioPlayerHtml}
-                ${asset.description ? `<div class="asset-meta text-truncate mt-1" title="${esc(asset.description)}">${esc(asset.description)}</div>` : ''}
+                ${asset.description ? `<div class="asset-meta text-truncate mt-1">${esc(asset.description)}</div>` : ''}
                 ${attrsHtml}
                 <div class="asset-meta">${metaParts.join(' · ')}</div>
                 ${tagsHtml ? `<div class="asset-tags">${tagsHtml}</div>` : ''}
@@ -658,7 +658,8 @@
 
     function updateCard(card, asset) {
         const nameEl = card.querySelector('.asset-name');
-        if (nameEl) { nameEl.textContent = asset.name; nameEl.title = asset.name; }
+        // Le nom entier au survol s'il est coupé : `WamaFullText` (base.html).
+        if (nameEl) { nameEl.textContent = asset.name; }
 
         const descEl = card.querySelector('.asset-meta.text-truncate');
         if (descEl && asset.description) {
@@ -895,7 +896,7 @@
                 <i class="fas fa-plus"></i>
             </button>
             <div class="sr-body">
-                <div class="sr-title" title="${esc(r.title)}">${esc(r.title)}</div>
+                <div class="sr-title">${esc(r.title)}</div>
                 <div class="sr-meta">
                     ${r.license ? `<span class="sr-license">${esc(r.license)}</span> ` : ''}
                     ${meta.join(' · ')}

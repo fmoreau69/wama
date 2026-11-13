@@ -658,12 +658,12 @@
         card.dataset.batchTitle = title;
         card.dataset.batchLabel = identity.manual || '';
         var span = card.querySelector('[data-batch-field="title"]');
-        if (span) { span.textContent = title || 'Batch'; span.title = title; }
+        // Le titre entier au survol s'il est coupé : `WamaFullText` (base.html), pas un `title` recopié.
+        if (span) { span.textContent = title || 'Batch'; }
         var details = card.querySelector('[data-batch-field="details"]');
         if (details) {
             var text = (identity.details || []).join(' · ');
             details.textContent = text;
-            details.title = text;
         }
     }
 
@@ -839,11 +839,13 @@
                         WamaSchedule.open({
                             url: d.scheduleUrl, tool: d.scheduleTool,
                             ids: toSchedule.map(function (c) { return c.dataset.id; }),
-                            // Le NOM d'entrée de la card v3 (anatomie commune), pas tout son texte.
+                            // Le NOM d'entrée de la card v3 (anatomie commune), pas tout son texte —
+                            // lu dans le texte, rendu ENTIER depuis le 2026-11-13 (son `title` est
+                            // une indication, « Aperçu », ou celui de `WamaFullText`).
                             subject: toSchedule.length > 1
                                 ? toSchedule.length + ' éléments'
-                                : ((toSchedule[0].querySelector('.wcv3-in-name') || {}).title
-                                   || (card.textContent || '').trim()).slice(0, 80),
+                                : ((toSchedule[0].querySelector('.wcv3-in-name') || {}).textContent
+                                   || card.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80),
                         });
                     },
                 });

@@ -610,14 +610,14 @@
         if (name) {
             const cap = document.createElement('small');
             cap.className = 'text-body-secondary d-block text-truncate mt-1';
-            cap.title = name; cap.textContent = name;
+            cap.textContent = name;            // entier au survol s'il est coupé : WamaFullText
             host.appendChild(cap);
         }
         (data ? _previewMeta(data) : []).forEach(function (t) {
             const el = document.createElement('small');
             el.className = 'text-muted d-block text-truncate';
             el.style.fontSize = '.7rem';
-            el.title = t; el.textContent = t;
+            el.textContent = t;
             host.appendChild(el);
         });
     }

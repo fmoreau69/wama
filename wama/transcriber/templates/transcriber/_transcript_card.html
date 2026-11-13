@@ -104,7 +104,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                         de card. Seule la BARRE traverse toute la largeur (voir wcv3-bar-cell).{% endcomment %}
                         {% include 'common/_card_progress.html' with status=elem.status label=elem.get_status_display progress=elem.progress elapsed=elem.processing_display no_bar=True %}
                         {% if elem.status == 'FAILURE' and elem.error_message %}
-                        <small class="text-danger d-block mt-1 text-truncate" title="{{ elem.error_message }}">{{ elem.error_message|truncatechars:120 }}</small>
+                        <small class="text-danger d-block mt-1 text-truncate">{{ elem.error_message }}</small>
                         {% endif %}
                     </div>
 

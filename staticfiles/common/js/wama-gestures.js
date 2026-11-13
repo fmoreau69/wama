@@ -225,7 +225,8 @@
     }
 
     /** Le `title` d'une commande EXPLIQUE-t-il quelque chose ? Pas s'il redit son texte visible
-     *  (les entrées de l'arbre portent leur propre nom en `title`, pour les noms tronqués) : son
+     *  (une entrée de l'arbre au nom coupé reçoit son nom en `title`, de `WamaFullText` — chargée
+     *  avant cette brique, elle le pose aussi à l'appui d'un doigt) : son
      *  appui long ouvre alors le menu, comme le clic droit — mesuré le 2026-10-16, l'arbre
      *  montrait « Temporaires » en infobulle au lieu de son menu. Un bouton-icône, lui, n'a pas de
      *  texte visible : son `title` est sa seule explication. */

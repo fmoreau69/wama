@@ -60,8 +60,8 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
       {% if elem.status == 'FAILURE' and elem.error_message %}
-        <span class="wcv3-out-error error-message" title="{{ elem.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
+        <span class="wcv3-out-error error-message">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">

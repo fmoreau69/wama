@@ -42,7 +42,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
         <div class="wcv3-in-lines">
           {% comment %}Geste COMMUN d'aperçu de l'entrée (2026-10-12) : l'image de travail si la
           génération en a une (`source_file`), sinon la consigne entière (`source_text`).{% endcomment %}
-          <span role="button" class="wcv3-in-name preview-media-link" title="{{ elem.prompt }}"
+          <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu"
                 data-preview-url="{% url 'common:unified_preview' 'imager' elem.id %}?side=input">{{ elem.prompt|default:'(sans prompt)' }}</span>
         </div>
       </div>
@@ -60,8 +60,8 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
       {% if elem.status == 'FAILURE' and elem.error_message %}
-        <span class="wcv3-out-error" title="{{ elem.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
+        <span class="wcv3-out-error">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">

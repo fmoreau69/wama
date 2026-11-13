@@ -55,7 +55,7 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
             {{ elem.input_filename }}
           </span>
           {% else %}
-          <span class="wcv3-in-name" title="{{ elem.input_filename }}">{{ elem.input_filename }}</span>
+          <span class="wcv3-in-name">{{ elem.input_filename }}</span>
           {% endif %}
           <span class="wcv3-in-props">{{ elem.media_type|default:'—' }}</span>
         </div>
@@ -74,8 +74,8 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
       {% if elem.status == 'FAILURE' and elem.error_message %}
-        <span class="wcv3-out-error" title="{{ elem.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
+        <span class="wcv3-out-error">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">
