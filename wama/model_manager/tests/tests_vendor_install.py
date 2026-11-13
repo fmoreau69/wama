@@ -69,6 +69,11 @@ class VendorSpecLocksTest(TestCase):
         self.assertTrue(validate_library_body(dict(body, install={})))
         self.assertTrue(validate_library_body(dict(body, install={'vendor': {'repo': 'x'}})))
 
+    def test_the_import_root_is_a_path_inside_the_clone(self):
+        self.assertIsNone(vendor_spec_error(_valid_vendor(import_root='src')))
+        for root in ('../src', '/abs', 'src/../..'):
+            self.assertIsNotNone(vendor_spec_error(_valid_vendor(import_root=root)), root)
+
     def test_projection_carries_vendor_but_never_the_allowlist(self):
         manifest = {'key': 'fake_engine', 'name': 'Fake',
                     'body': {'identity': {'version': 'aaaa'},
@@ -182,6 +187,115 @@ class VendorInstallTest(TestCase):
         self.assertTrue(res['ok'], res.get('error'))
         self.assertEqual(_git(self.clone, 'rev-parse', 'HEAD'), self.pinned)
         self.assertEqual((self.clone / 'engine.py').read_text(), "VALUE = 42\n")
+
+
+class VendorRequiresTest(TestCase):
+    """Une librairie vendorisée qui REQUIERT une autre librairie vendorisée (2026-11-13, SAM Audio :
+    `dacvae`, `perception_models`… tirés par `git+`) — deux vrais dépôts git LOCAUX, un corpus
+    jetable qui porte le `requires`."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix='wama-vendor-requires-'))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.repos, self.commits = {}, {}
+        for repo, files in (('owner/engine-repo', {'engine.py': 'import depmod\nVALUE = depmod.DEP\n'}),
+                            ('owner/dep-repo', {'src/depmod.py': 'DEP = 7\n'})):
+            upstream = self.tmp / repo.replace('/', '_')
+            for name, text in files.items():
+                (upstream / name).parent.mkdir(parents=True, exist_ok=True)
+                (upstream / name).write_text(text, encoding='utf-8', newline='\n')
+            _git(upstream, 'init', '-q')
+            _git(upstream, 'add', '.')
+            _git(upstream, 'commit', '-q', '-m', 'first')
+            self.repos[repo], self.commits[repo] = upstream, _git(upstream, 'rev-parse', 'HEAD')
+        self.vendor_root = self.tmp / 'vendor'
+        self.corpus = self.tmp / 'base'
+        (self.corpus / 'manifests' / 'libraries').mkdir(parents=True)
+        self.vendors = {
+            'fake_engine': {'repo': 'owner/engine-repo', 'commit': self.commits['owner/engine-repo'],
+                            'engine': 'fake_engine'},
+            'fake_dep': {'repo': 'owner/dep-repo', 'commit': self.commits['owner/dep-repo'],
+                         'engine': 'fake_dep', 'import_root': 'src'}}
+        self._write_manifest('fake_engine', requires=['fake_dep'])
+        self._write_manifest('fake_dep')
+        for key, vendor in self.vendors.items():
+            Library.objects.create(key=key, name=key, version=vendor['commit'][:12], vendor=vendor)
+        patcher = mock.patch.object(vendor_installer, 'repo_url', lambda repo: str(self.repos[repo]))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        override = override_settings(BACKEND_VENDOR_DIR=self.vendor_root, BASE_DIR=self.corpus)
+        override.enable()
+        self.addCleanup(override.disable)
+        from wama.common.manifests.builtin.library import forget_vendor_engines
+        forget_vendor_engines()
+        self.addCleanup(forget_vendor_engines)
+
+    def _write_manifest(self, key, requires=()):
+        manifest = {'manifest_kind': 'library', 'key': key, 'name': key, 'schema_version': '1.0',
+                    'world': 'transverse', 'visibility': 'public', 'projects': [],
+                    'source': {'type': 'authored', 'ref': f"github:{self.vendors[key]['repo']}"},
+                    'requires': [{'kind': 'library', 'key': r} for r in requires],
+                    'body': {'identity': {'version': 'a' * 12},
+                             'install': {'vendor': self.vendors[key]}}}
+        (self.corpus / 'manifests' / 'libraries' / f'{key}.json').write_text(
+            json.dumps(manifest), encoding='utf-8')
+
+    def test_the_plan_names_the_required_library_and_installs_nothing(self):
+        res = install_library('fake_engine', apply=False)
+        self.assertTrue(res['ok'], res)
+        self.assertEqual(['fake_dep'], [r['key'] for r in res['plan']['requires']])
+        self.assertTrue(res['plan']['requires'][0]['would_install'])
+        self.assertFalse(self.vendor_root.exists())
+
+    def test_the_required_library_is_installed_first_and_its_refusal_stops_everything(self):
+        Library.objects.filter(key='fake_engine').update(is_allowed=True)
+        refused = install_library('fake_engine', apply=True)
+        self.assertFalse(refused['ok'])
+        self.assertIn('fake_dep', refused['error'])
+        self.assertFalse((self.vendor_root / 'fake_engine').exists(), "rien sans sa requise")
+        Library.objects.filter(key='fake_dep').update(is_allowed=True)
+        res = install_library('fake_engine', apply=True)
+        self.assertTrue(res['ok'], res.get('error'))
+        for key, vendor in self.vendors.items():
+            self.assertEqual(vendor['commit'], _git(self.vendor_root / key, 'rev-parse', 'HEAD'))
+
+    def test_the_engine_imports_the_code_of_its_required_clone(self):
+        """Le geste commun `import_vendored` pose aussi le clone REQUIS, à son `import_root` ;
+        `missing_packages` nomme un clone requis absent. Contre-épreuve : sans le `requires`, le
+        moteur ne voit pas `depmod`."""
+        import sys
+
+        from wama.common.backends.base import BaseModelBackend
+        from wama.common.manifests.builtin.library import required_vendor_roots
+
+        class FakeEngine(BaseModelBackend):
+            ENGINE, VENDORED, REQUIRED_PACKAGES = 'fake_engine', True, ()
+
+        self.assertEqual([('fake_dep', self.vendor_root / 'fake_dep' / 'src')],
+                         required_vendor_roots('fake_engine'))
+        self.assertIn('vendor:fake_dep (manage.py install_library fake_dep)',
+                      FakeEngine.missing_packages())
+        Library.objects.update(is_allowed=True)
+        self.assertTrue(install_library('fake_engine', apply=True)['ok'])
+        self.assertEqual([], FakeEngine.missing_packages())
+        saved = list(sys.path)
+        self.addCleanup(lambda: (sys.path.__setitem__(slice(None), saved),
+                                 [sys.modules.pop(m, None) for m in ('engine', 'depmod')]))
+        self.assertEqual(7, FakeEngine.import_vendored('engine').VALUE)
+
+        sys.path[:] = saved
+        for name in ('engine', 'depmod'):
+            sys.modules.pop(name, None)
+        self._write_manifest('fake_engine')                      # contre-épreuve : plus de `requires`
+        with self.assertRaises(ModuleNotFoundError):
+            FakeEngine.import_vendored('engine')
+
+    def test_a_circular_requires_stops_instead_of_looping(self):
+        self._write_manifest('fake_dep', requires=['fake_engine'])
+        Library.objects.update(is_allowed=True)
+        res = install_library('fake_engine', apply=True)
+        self.assertFalse(res['ok'])
+        self.assertIn('circulaire', res['error'])
 
 
 class VendoredEnginesCorpusTest(TestCase):

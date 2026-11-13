@@ -34,6 +34,14 @@ pour lui (relevé : seuls `musetalk`, `codeformer`, `image_to_3d` et `yue2_3b` l
   cette route. Le nom du sous-dossier est le nom du MOTEUR (`BaseModelBackend.ENGINE`, qui
   déclare `VENDORED = True`), et la racine est DÉCLARÉE une fois dans `settings.py`
   (`BACKEND_VENDOR_DIR`) — jamais recalculée depuis un paquet Python.
+- **Un moteur qui importe le code d'AUTRES dépôts** (2026-11-13, SAM Audio : `dacvae`,
+  `perception_models`… tirés par `git+`) : chaque dépôt est sa PROPRE librairie vendorisée (un
+  dépôt, un commit), et le moteur la déclare dans le `requires` de son manifeste (`{kind:
+  library, key}`). `install_library` installe les requises d'abord (un refus arrête tout, un
+  `requires` circulaire aussi) ; `import_vendored` pose leurs clones sur le chemin, chacun à son
+  `install.vendor.import_root` (`src` pour une disposition src/) ; `missing_packages` nomme un
+  clone requis absent. Le rôle `librarian --repo` les trouve : une dépendance `git+` d'un dépôt
+  GitHub entre au `requires` et se nomme dans ses notes (`--branch` pour la lire à sa branche).
 - **Pas de `__init__.py` ici** : la découverte de tests et le balayage du vivier (`glob('*.py')`,
   non récursif) n'y entrent pas.
 - 🔴 **Ne jamais corriger un clone à la main sans exporter le correctif** : la route REFUSE

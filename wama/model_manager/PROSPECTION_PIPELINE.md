@@ -4703,11 +4703,19 @@ requête texte, licence SAM acceptée (même famille que SAM3, déjà au catalog
   tenseur. Le modèle charge aussi `t5-base` (sous-dépendance : cache partagé) ; requête texte seule :
   ni ImageBind ni le juge ni la prédiction d'intervalles.
 
-**Plan proposé** (⏳ en attente de l'accès aux poids) : combler les deux trous DANS la route — le
-verdict nomme une dépendance `git+` (« à vendoriser », son dépôt) au lieu de la taire ; une librairie
-vendorisée déclare les librairies vendorisées qu'elle requiert (`requires`), `install_library` les
-installe d'abord et `import_vendored` pose leurs clones sur le chemin d'import ; les cinq manifestes
-produits par le rôle `librarian --repo`, correctif `torchcodec` différé sous `patches/` ; backend
+✅ **Les deux trous comblés dans la route** (2026-11-13, accès aux poids demandé par Fabien, en
+attente) : le verdict nomme une dépendance `git+` (`role_utils.git_requirement` — dépôt, branche,
+clé ; hors GitHub dit refusé) et `run_librarian` l'inscrit au `requires` avec la commande qui la
+propose (`--branch` ajouté) ; une librairie vendorisée REQUIERT les librairies vendorisées qu'elle
+importe — installées d'abord, posées sur le chemin d'import à leur `import_root`
+(`library.required_vendor_roots`, `vendor_installer._install_required`, `import_vendored`,
+`missing_packages`). Gardes : `VendorRequiresTest` (deux dépôts git locaux : plan, ordre, refus,
+import, `requires` circulaire), `test_a_git_dependency_is_named_to_vendor_never_skipped` ;
+contre-épreuve : trois neutralisations, six rouges.
+
+**Suite** (⏳ en attente de l'accès aux poids) : les cinq manifestes produits par le rôle
+`librarian --repo` (dépendances d'abord, chacune validée par Fabien), correctif `torchcodec` différé
+sous `patches/` ; backend
 `SourceSeparationBackend` en sous-processus (le patron des moteurs vendorisés), capacité `stems: open`
 (N pistes demandées) ; réglage « pistes à extraire » sur le process `separate`, vocabulaire de
 `midi_score.INSTRUMENT_LABELS` ; lignes de catalogue `sam-audio-small` / `-large` par le pilote `hf`

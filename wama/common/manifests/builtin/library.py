@@ -11,10 +11,15 @@ absent plutôt qu'inventé — c'est le rôle wama-dev-ai « projet GitHub → m
 library » (§7.4-4) de les remplir, ce corpus servant d'exemples.
 
 `key` = nom de distribution (PyPI), p.ex. 'faster-whisper'.
+
+Une librairie VENDORISÉE qui importe le code d'une AUTRE librairie que pip ne sait pas installer
+la déclare dans son `requires` d'enveloppe (2026-11-13) — `body.dependencies` reste la liste des
+noms PyPI, dans le venv ; `requires` désigne un manifeste qui doit exister et s'installer d'abord.
 """
 
 from __future__ import annotations
 
+import functools
 import re
 from typing import Optional
 
@@ -101,7 +106,10 @@ _VENDOR_COMMIT_RE = re.compile(r'^[0-9a-f]{40}$')
 _VENDOR_ENGINE_RE = re.compile(r'^[a-z][a-z0-9_]*$')
 _VENDOR_PATCH_RE = re.compile(r'^patches/[A-Za-z0-9._-]+\.(diff|patch)$')
 _VENDOR_IGNORE_RE = re.compile(r'^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*/?$')
-VENDOR_FIELDS = ('repo', 'commit', 'engine', 'patch', 'ignore')
+#: `import_root` (2026-11-13) : le dossier du clone d'où ses paquets s'IMPORTENT (`src` pour un dépôt
+#: en disposition src/), vide = la racine. Lu quand une AUTRE librairie vendorisée la requiert
+#: (`required_vendor_roots`) : son code fait `import dacvae`, le clone doit être sur le chemin.
+VENDOR_FIELDS = ('repo', 'commit', 'engine', 'patch', 'ignore', 'import_root')
 
 
 def vendor_spec_error(vendor) -> Optional[str]:
@@ -134,7 +142,90 @@ def vendor_spec_error(vendor) -> Optional[str]:
         for p in ignore:
             if not isinstance(p, str) or not _VENDOR_IGNORE_RE.match(p) or '..' in p:
                 return f"ignore refusé : {p!r} — chemin relatif au clone, sans « .. »"
+    root = vendor.get('import_root')
+    if root and (not isinstance(root, str) or not _VENDOR_IGNORE_RE.match(root) or '..' in root):
+        return f"import_root refusé : {root!r} — chemin relatif au clone, sans « .. »"
     return None
+
+
+# ── Librairies REQUISES par une librairie (2026-11-13, SAM Audio) ───────────────────────────
+# Un moteur vendorisé peut importer le code d'AUTRES dépôts que pip ne sait pas installer (SAM
+# Audio : `dacvae`, `perception_models`… tirés par `git+`). Chacun est sa propre librairie
+# vendorisée (un dépôt, un commit) ; le lien se DÉCLARE par le `requires` de l'enveloppe — le
+# champ commun à tous les kinds (`envelope.py`, `resolve_requires`), qu'aucune librairie ne lisait.
+# L'installation pose les requises d'abord (`vendor_installer.install_vendor`) et l'import met
+# leurs clones sur le chemin (`BaseModelBackend.import_vendored`).
+
+def required_library_keys(key: str) -> list:
+    """Les clés des librairies que le manifeste AUTORÉ de `key` requiert (`requires`, kind
+    `library`), dans l'ordre déclaré ; [] sans manifeste ni `requires`."""
+    manifest = authored_vendor_manifest(key) or {}
+    return [ref['key'] for ref in manifest.get('requires') or []
+            if isinstance(ref, dict) and ref.get('kind') == 'library' and ref.get('key')]
+
+
+@functools.lru_cache(maxsize=1)
+def _corpus_vendor_engines() -> dict:
+    """`{moteur: clé}` des librairies vendorisées du corpus — lu UNE fois par processus (la
+    disponibilité d'un backend se demande à chaque rendu de page) ; l'installation vendor l'oublie
+    (`forget_vendor_engines`)."""
+    import json
+    from pathlib import Path
+
+    from django.conf import settings
+    engines = {}
+    for path in sorted((Path(settings.BASE_DIR) / 'manifests' / 'libraries').glob('*.json')):
+        try:
+            manifest = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        vendor = ((manifest.get('body') or {}).get('install') or {}).get('vendor') or {}
+        if vendor.get('engine') and manifest.get('key'):
+            engines.setdefault(vendor['engine'], manifest['key'])
+    return engines
+
+
+def forget_vendor_engines() -> None:
+    """Oublie la lecture du corpus (après une installation ou une validation vendor)."""
+    _corpus_vendor_engines.cache_clear()
+
+
+def vendor_library_key(engine: str) -> str:
+    """La clé de la librairie vendorisée dont le moteur est `engine` — '' sans elle. Lue au corpus
+    (`install.vendor.engine`), puis au registre pour une librairie validée pas encore exportée."""
+    key = _corpus_vendor_engines().get(engine)
+    if key:
+        return key
+    from wama.common.models import Library
+    return Library.objects.filter(vendor__engine=engine).values_list('key', flat=True).first() or ''
+
+
+def required_vendor_roots(engine: str) -> list:
+    """`[(moteur, chemin d'import)]` des librairies VENDORISÉES que le moteur `engine` requiert,
+    transitivement, les plus profondes d'abord — chacune sous la racine déclarée
+    (`BACKEND_VENDOR_DIR/<moteur>/<import_root>`). Une requise PyPI n'y figure pas : elle est dans
+    le venv."""
+    from pathlib import Path
+
+    from django.conf import settings
+    found, seen = [], {engine}
+
+    def walk(key):
+        for required in required_library_keys(key):
+            manifest = authored_vendor_manifest(required) or {}
+            vendor = ((manifest.get('body') or {}).get('install') or {}).get('vendor') or {}
+            dep = vendor.get('engine') or ''
+            if not dep or dep in seen:
+                continue
+            seen.add(dep)
+            walk(required)
+            root = Path(settings.BACKEND_VENDOR_DIR) / dep
+            found.append((dep, root / vendor['import_root'] if vendor.get('import_root') else root))
+
+    key = vendor_library_key(engine)
+    if key:
+        walk(key)
+    return found
 
 
 def licence_courte(meta) -> Optional[str]:

@@ -45,13 +45,14 @@ OUTPUTS = Path(__file__).parent / 'outputs'
 MAX_SOURCE_CHARS = 20000   # tâche étroite : on tronque plutôt que de faire dériver
 
 
-def sources_repo(repo):
-    """README + pyproject/setup d'un dépôt GitHub (branche par défaut main puis master).
+def sources_repo(repo, branch_asked=''):
+    """README + pyproject/setup d'un dépôt GitHub (branche par défaut main puis master, ou celle
+    DEMANDÉE — la branche qu'une dépendance `git+…@<branche>` désigne, 2026-11-13).
 
     Rend aussi les FAITS dont le canal d'installation dépend : la branche lue et les fichiers
     de paquet trouvés (`enforce_install_channel`)."""
     parts, packaging, found_branch = [], [], None
-    for branch in ('main', 'master'):
+    for branch in ((branch_asked,) if branch_asked else ('main', 'master')):
         # Métadonnées d'ABORD, README en DERNIER : c'est lui qui déborde du budget de
         # troncature, pas l'inverse (vécu : requirements/LICENSE n'atteignaient pas le prompt).
         for fname in ('pyproject.toml', 'setup.py', 'setup.cfg', 'requirements.txt',
@@ -104,12 +105,15 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument('--repo', help='Dépôt GitHub owner/name')
     g.add_argument('--dist', help='Distribution Python installée, sinon publiée sur PyPI')
+    ap.add_argument('--branch', default='',
+                    help="--repo : la branche à lire (celle qu'une dépendance git désigne) ; "
+                         "défaut main puis master — sa tête est mesurée en commit")
     add_llm_arguments(ap, role='dev')
     args = ap.parse_args()
 
     branch, packaging, published_facts = None, [], None
     if args.repo:
-        provenance, matiere, branch, packaging = sources_repo(args.repo)
+        provenance, matiere, branch, packaging = sources_repo(args.repo, args.branch)
     else:
         provenance, matiere, published_facts = sources_dist(args.dist)
     matiere = matiere[:MAX_SOURCE_CHARS]
@@ -156,6 +160,22 @@ def main():
             except Exception:
                 continue
         deps_verdict = requirements_verdict(repo_requirements(files))
+        # Une dépendance tirée d'un DÉPÔT GitHub est sa propre librairie vendorisée, REQUISE par
+        # celle-ci (2026-11-13) : le `requires` la nomme — il reste pendant, donc la validation le
+        # dit, tant que son manifeste n'est pas proposé à son tour (`--repo <son dépôt>`).
+        for dep in deps_verdict['vendor']:
+            if not dep['repo']:
+                notes.append(f"dépendance {dep['requirement']!r} hors GitHub : la voie vendor ne "
+                             "l'accepte pas — à résoudre à la main")
+                continue
+            requires = manifest.setdefault('requires', [])
+            ref = {'kind': 'library', 'key': dep['key']}
+            if ref not in requires:
+                requires.append(ref)
+            notes.append(f"dépendance git {dep['requirement']!r} → librairie vendorisée requise "
+                         f"« {dep['key']} » : run_librarian --repo {dep['repo']}"
+                         + (f" --branch {dep['ref']}" if dep['ref'] else '')
+                         + " (sa tête est mesurée en commit)")
         if any(deps_verdict[k] for k in ('conflicts', 'pinned', 'missing')):
             notes.append(f"dépendances vs venv de référence : {len(deps_verdict['conflicts'])} "
                          f"conflit(s) de borne, {len(deps_verdict['pinned'])} épingle(s) d'amont, "

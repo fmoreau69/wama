@@ -731,11 +731,19 @@ class BaseModelBackend(ABC):
         """Importe un module du code VENDORISÉ du moteur — jamais installé dans le venv, mis sur
         le chemin d'import le temps de l'importer (`subdir` : `src` pour un dépôt en disposition
         src/). Un seul geste pour tous les moteurs vendorisés (2026-10-01 ; TripoSR le faisait à
-        la main, et le backend de YuE2 proposé par le rôle `backend` l'avait oublié)."""
+        la main, et le backend de YuE2 proposé par le rôle `backend` l'avait oublié).
+
+        Les clones des librairies vendorisées que le moteur REQUIERT (`requires` de son manifeste,
+        2026-11-13 : SAM Audio importe `dacvae`, `perception_models`…) vont sur le chemin aussi,
+        après le sien (`library.required_vendor_roots`)."""
         import sys
+        from wama.common.manifests.builtin.library import required_vendor_roots
         root = cls.vendor_dir() / subdir if subdir else cls.vendor_dir()
         if str(root) not in sys.path:
             sys.path.insert(0, str(root))
+        for _engine, required in required_vendor_roots(cls.ENGINE):
+            if str(required) not in sys.path:
+                sys.path.append(str(required))
         return importlib.import_module(module)
 
     #: POURQUOI ce backend est conservé alors qu'aucun modèle ne le désigne — vide = en service.
@@ -886,6 +894,13 @@ class BaseModelBackend(ABC):
         if cls.VENDORED and cls.ENGINE:
             if not (cls.vendor_dir() / '.git').exists():
                 missing.append(f'vendor:{cls.ENGINE} (manage.py install_library {cls.ENGINE})')
+            # Les clones REQUIS (2026-11-13) : sans eux, l'import du moteur échoue de la même façon.
+            from wama.common.manifests.builtin.library import (required_vendor_roots,
+                                                               vendor_library_key)
+            for engine, _root in required_vendor_roots(cls.ENGINE):
+                if not (cls.vendor_dir().parent / engine / '.git').exists():
+                    missing.append(f'vendor:{engine} (manage.py install_library '
+                                   f'{vendor_library_key(engine) or engine})')
         return missing
 
     @classmethod

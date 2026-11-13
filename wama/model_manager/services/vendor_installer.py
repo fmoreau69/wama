@@ -20,6 +20,7 @@ Contrat — le même que la voie pip, verrou pour verrou :
 """
 from __future__ import annotations
 
+import contextvars
 import functools
 import os
 import shutil
@@ -221,15 +222,47 @@ def _apply_patch(vendor: dict, target: Path) -> None:
         raise RuntimeError(f"git apply : {(proc.stderr or proc.stdout).strip()[-500:]}")
 
 
+#: Les librairies dont l'installation est EN COURS dans ce fil — un `requires` circulaire
+#: s'arrête au lieu de boucler.
+_INSTALLING = contextvars.ContextVar('wama_vendor_installing', default=())
+
+
+def _install_required(key: str, apply: bool, via: str) -> tuple:
+    """Les librairies que `key` REQUIERT (`requires` de son manifeste, 2026-11-13), installées —
+    ou planifiées — AVANT elle, par la même route (`install_library`, pip ou vendor). Rend
+    `(résumés, erreur)` ; la première requise qui échoue à l'exécution arrête tout."""
+    from wama.common.manifests.builtin.library import required_library_keys
+
+    from .model_installer import install_library
+    done, stack = [], _INSTALLING.get()
+    for required in required_library_keys(key):
+        if required in stack:
+            return done, f"requires circulaire : {' → '.join((*stack, key, required))}"
+        token = _INSTALLING.set((*stack, key))
+        try:
+            res = install_library(required, apply=apply, via=via or f'requires:{key}')
+        finally:
+            _INSTALLING.reset(token)
+        done.append({'key': required, 'ok': res.get('ok'), 'error': res.get('error'),
+                     'would_install': res.get('would_install'), 'installed': res.get('installed')})
+        if not res.get('ok') and apply:
+            return done, f"librairie requise « {required} » : {res.get('error')}"
+    return done, ''
+
+
 def install_vendor(lib, apply: bool = False, via: str = '') -> dict:
     """Installe (plan/apply) une librairie VENDORISÉE du registre — appelé par
-    `model_installer.install_library` quand `Library.vendor` est renseigné."""
+    `model_installer.install_library` quand `Library.vendor` est renseigné. Les librairies
+    qu'elle REQUIERT passent d'abord (`_install_required`)."""
     from .model_installer import PIP_KILL_SWITCH_ENV
 
     key, vendor = lib.key, dict(lib.vendor or {})
     err = vendor_spec_error(vendor)
     if err:
         return {'ok': False, 'library': key, 'error': f"install.vendor : {err}"}
+    required, required_error = _install_required(key, apply, via)
+    if required_error:
+        return {'ok': False, 'library': key, 'requires': required, 'error': required_error}
     if vendor.get('patch') and not (repo_root() / vendor['patch']).is_file():
         return {'ok': False, 'library': key,
                 'error': f"correctif déclaré introuvable : {vendor['patch']}"}
@@ -239,13 +272,15 @@ def install_vendor(lib, apply: bool = False, via: str = '') -> dict:
     plan = {'library': key, 'route': 'vendor', 'repo': vendor['repo'],
             'url': repo_url(vendor['repo']), 'commit': vendor['commit'],
             'patch': vendor.get('patch'), 'dir': str(target), 'state': state,
-            'actions': _actions_for(state, vendor), 'allowed': lib.is_allowed}
+            'actions': _actions_for(state, vendor), 'allowed': lib.is_allowed,
+            'requires': required}
     if state['verdict'] == 'local_changes':
         plan['blocked'] = ("modifications locales NON déclarées — jamais écrasées : les exporter "
                            "en correctif (`patches/`) et le déclarer, ou les retirer à la main")
 
     if not apply:
-        return {'ok': True, 'plan': plan, 'would_install': bool(plan['actions'])}
+        return {'ok': True, 'plan': plan,
+                'would_install': bool(plan['actions']) or any(r['would_install'] for r in required)}
 
     if os.environ.get(PIP_KILL_SWITCH_ENV):
         return {'ok': False, 'library': key, 'plan': plan,
@@ -287,6 +322,8 @@ def install_vendor(lib, apply: bool = False, via: str = '') -> dict:
                         'error': error}
             outcome.update({'ok': True, 'version': vendor['commit'][:12]})
         _code_names.cache_clear()             # le code a changé : ce qu'il nomme aussi
+        from wama.common.manifests.builtin.library import forget_vendor_engines
+        forget_vendor_engines()               # et quels moteurs le corpus déclare
         from wama.common.utils.download_calls import forget_readings
         forget_readings()                     # et ce qu'il télécharge ou écrit
         try:

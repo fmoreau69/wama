@@ -695,6 +695,30 @@ def enforce_published_facts(manifest: dict, published: dict, notes: list) -> dic
     return manifest
 
 
+_GIT_REQUIREMENT = re.compile(
+    r'^(?:(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[^\]]*\])?\s*@\s*)?'
+    r'git\+(?P<url>[^\s#;@]+?(?:\.git)?)(?:@(?P<ref>[^\s#;]+))?(?:#egg=(?P<egg>[A-Za-z0-9._-]+))?'
+    r'\s*(?:;.*)?$')
+_GITHUB_REPO = re.compile(r'^https?://github\.com/(?P<repo>[\w.-]+/[\w.-]+?)(?:\.git)?/?$')
+
+
+def git_requirement(line: str):
+    """Une exigence tirée d'un dépôt git — `{requirement, name, repo, ref, key}` — ou None.
+
+    `repo` est « owner/name » pour un dépôt GitHub (la seule forme que la voie vendor accepte,
+    `library.vendor_spec_error`), '' sinon ; `ref` la branche, le tag ou le commit demandé (une
+    branche se MESURE en commit par `github_head_sha` avant d'entrer dans un manifeste) ; `key` la
+    clé que sa librairie vendorisée porterait (`vendor_engine_name`)."""
+    text = (line or '').strip()
+    match = _GIT_REQUIREMENT.match(text)
+    if match is None:
+        return None
+    github = _GITHUB_REPO.match(match['url'])
+    repo = github['repo'] if github else ''
+    return {'requirement': text, 'name': match['name'] or match['egg'] or '', 'repo': repo,
+            'ref': match['ref'] or '', 'key': vendor_engine_name(repo) if repo else ''}
+
+
 def requirements_verdict(requirement_lines, installed=None) -> dict:
     """Exigences d'un dépôt confrontées au venv de RÉFÉRENCE — `{satisfied, conflicts, missing}`.
 
@@ -719,14 +743,26 @@ def requirements_verdict(requirement_lines, installed=None) -> dict:
     # l'auteur a testée, pas une incompatibilité — MuseTalk en épingle quatre (numpy, transformers,
     # tensorflow, diffusers) et tourne avec le venv (`setup_avatarizer.sh`, 2026-09-07). Seule une
     # BORNE non satisfaite (`transformers>=5`, `numpy<2`) est un conflit.
-    verdict = {'satisfied': [], 'conflicts': [], 'pinned': [], 'missing': []}
+    # `vendor` (2026-11-13, SAM Audio) : une dépendance tirée d'un DÉPÔT (`nom @ git+https://…`,
+    # `git+https://…#egg=nom`) n'est ni satisfaite ni « manquante sur PyPI » : pip ne l'installera
+    # pas (verrou de la route), elle se VENDORISE — sa propre librairie, un dépôt, un commit,
+    # requise par celle-ci. Elle était sautée en silence : SAM Audio en tire quatre.
+    verdict = {'satisfied': [], 'conflicts': [], 'pinned': [], 'missing': [], 'vendor': []}
     for raw in requirement_lines or []:
+        direct = git_requirement(raw)
+        if direct is not None:
+            verdict['vendor'].append(direct)
+            continue
         line = raw.split('#', 1)[0].strip()
-        if not line or line.startswith(('-', 'git+', 'http')):
+        if not line or line.startswith(('-', 'http')):
             continue
         try:
             req = Requirement(line)
         except InvalidRequirement:
+            continue
+        if req.url:
+            verdict['vendor'].append({'requirement': line, 'name': req.name, 'repo': '', 'ref': '',
+                                      'key': ''})
             continue
         if req.marker is not None and not req.marker.evaluate({'extra': ''}):
             continue

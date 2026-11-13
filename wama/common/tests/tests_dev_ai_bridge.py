@@ -756,6 +756,25 @@ class InstallChannelFromRepoFactsTest(SimpleTestCase):
         self.assertEqual({'numpy', 'torch'}, set(verdict['satisfied']),
                          'une exigence d\'une AUTRE plateforme (pywin32) ne compte pas')
 
+    def test_a_git_dependency_is_named_to_vendor_never_skipped(self):
+        """2026-11-13, SAM Audio : quatre dépendances tirées d'un dépôt, que le verdict sautait en
+        silence (ou comptait « manquantes sur PyPI »). Chacune se nomme : son dépôt GitHub, la
+        branche demandée, la clé de sa librairie vendorisée ; une URL hors GitHub se dit refusée."""
+        lines = ['dacvae@git+https://github.com/facebookresearch/dacvae.git',
+                 'perception-models@git+https://github.com/facebookresearch/perception_models@unpin-deps',
+                 'git+https://github.com/lematt1991/CLAP.git#egg=laion-clap',
+                 'other @ git+https://gitlab.com/x/y.git', 'einops', 'pydub']
+        verdict = self.role_utils.requirements_verdict(lines, installed={'einops': '0.8.1'})
+        self.assertEqual(
+            [('dacvae', 'facebookresearch/dacvae', '', 'dacvae'),
+             ('perception-models', 'facebookresearch/perception_models', 'unpin-deps',
+              'perception_models'),
+             ('laion-clap', 'lematt1991/CLAP', '', 'clap'),
+             ('other', '', '', '')],
+            [(d['name'], d['repo'], d['ref'], d['key']) for d in verdict['vendor']])
+        self.assertEqual(['einops'], verdict['satisfied'], 'contre-épreuve : PyPI reste PyPI')
+        self.assertEqual(['pydub'], verdict['missing'])
+
     def test_the_envelope_constants_are_filled_never_overwritten(self):
         from wama.common.manifests.ingest import validate
         manifest = self._llm_manifest({'pip': 'x==1'})
