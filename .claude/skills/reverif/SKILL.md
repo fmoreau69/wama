@@ -1,6 +1,6 @@
 ---
 name: reverif
-description: Revérification COMPLÈTE de ce qu'une session a livré, à la demande et sans la clore — aligné sur le fonctionnement inter-mondes et la route de génération, rien réinventé, aucun chemin parallèle, tests nécessaires ajoutés et prouvés, rien cassé, doc confrontée au code, tout consigné, tout commité. Utiliser quand l'utilisateur demande « revérifie », « revérification complète », « rien réinventé ? », « c'est bien aligné ? », « on n'a rien cassé ? », « tout est consigné ? tout commité ? », « méticuleusement, en profondeur ». Pour la FIN de session (handoff, mémoire), c'est /cloture, qui inclut ce passage.
+description: Revérification COMPLÈTE de ce qu'une session a livré, à la demande et sans la clore — aligné sur le fonctionnement inter-mondes et la route de génération, schéma-driven (déclaré, lu par le commun, porté par le générateur et la jumelle régénérée), rien réinventé, aucun chemin parallèle, tests nécessaires ajoutés et prouvés, rien cassé, doc confrontée au code, tout consigné, tout commité. Utiliser quand l'utilisateur demande « revérifie », « revérification complète », « rien réinventé ? », « c'est bien aligné ? », « on n'a rien cassé ? », « tout est consigné ? tout commité ? », « méticuleusement, en profondeur ». Pour la FIN de session (handoff, mémoire), c'est /cloture, qui inclut ce passage.
 ---
 
 # /reverif — revérifier une session, en profondeur, sans la clore
@@ -26,7 +26,7 @@ les étapes suivantes. Un fichier de l'arbre qui n'est pas à moi se laisse, se 
 
 ## 1. Aligné — la seule étape propre à ce skill
 
-Pour CHAQUE livrable, trois questions, chacune tranchée par une lecture :
+Pour CHAQUE livrable, quatre questions, chacune tranchée par une lecture :
 1. **La route** — quelle section de `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md`
    le porte (§10.x, §F…, palier) ? Le livrable la suit-il, ou en crée-t-il une variante ? Les
    quatre sources d'autorité d'`AGENTS.md` (mécanismes, ROUTE §S/§10.5, `registries.overview()`,
@@ -37,6 +37,22 @@ Pour CHAQUE livrable, trois questions, chacune tranchée par une lecture :
 3. **Un seul chemin** — existe-t-il DÉJÀ, dans WAMA, une déclaration ou une lecture de la même
    NATURE ? Pas du même nom : de la même nature (un langage de champs, une lecture AST, une
    résolution de chemin, un lecteur de fichier).
+4. **Schéma-driven** (philosophie d'`AGENTS.md`, points 3 et 4 : métadonnée-driven, spécificités
+   DÉCLARÉES) — ce que le livrable fait varier d'une app à l'autre vient-il d'une DÉCLARATION
+   (schéma `params.py`, `APP_CATALOG`, `ProcessSpec` du pipeline, `surfaces.py`,
+   `element_declaration`, registres, manifeste) lue par une brique commune, ou est-il écrit à la
+   main dans le gabarit, le JS ou la vue d'UNE app ? Un nom d'app en dur dans `common/` est un
+   écart. Et **le générateur suit-il** : ce qui change dans une app réelle change aussi dans
+   `common/manifests/codegen/*_gen.py`, la jumelle se RÉGÉNÈRE (`app_sandbox substitute <app>_NN
+   <cible>`), et sa conformité se mesure APRÈS (tests générés, `run_nightly_tests --id <app>_NN.`).
+
+🔴 **Vécu le 2026-11-13 — la question 4 manquait, et Fabien la posait à chaque fois** (« parfaitement
+aligné sur le fonctionnement de wama, sans rien réinventer et parfaitement schéma-driven »). Deux
+cas de la même session : les réglages remis à zéro d'une card PISTE d'abord passés en paramètre
+d'appel, puis dans un registre neuf, avant d'être lus de la déclaration qui les portait déjà
+(`batch_views.element_declaration`) ; et une coupe du nom des cards retirée des apps réelles et du
+générateur, mais restée dans six jumelles générées avant le changement — vue par la garde
+générique, réparée par leur régénération.
 
 🔴 **Vécu le 2026-10-12 — le gardien n'a RIEN vu, la lecture a trouvé quatre écarts.**
 `check_redundancy` filtré sur les fichiers de la session : une seule trouvaille, antérieure et
