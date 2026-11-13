@@ -1,0 +1,66 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "numpy",
+      "omegaconf",
+      "msgspec",
+      "rouge-score",
+      "sacrebleu",
+      "sentencepiece",
+      "tiktoken",
+      "blobfile",
+      "wandb",
+      "viztracer",
+      "lm-eval",
+      "scipy",
+      "pynvml",
+      "orjson",
+      "einops",
+      "pillow",
+      "pyahocorasick",
+      "iopath",
+      "torchdata",
+      "torchcodec",
+      "timm",
+      "decord",
+      "opencv-python",
+      "pycocoevalcap",
+      "scikit-learn",
+      "tokenizers",
+      "webdataset",
+      "fsspec",
+      "datatrove",
+      "ftfy",
+      "transformers",
+      "xformers"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Meta AI Research, FAIR",
+      "license": "FAIR Noncommercial Research License",
+      "repository": "https://github.com/facebookresearch/perception_models",
+      "summary": "Models of the Perception family.",
+      "version": "e72b6810b113"
+    },
+    "install": {
+      "vendor": {
+        "commit": "e72b6810b1133e1c879f2cc965d276eb73803f1f",
+        "engine": "perception_models",
+        "repo": "facebookresearch/perception_models"
+      }
+    }
+  },
+  "description": "Models of the Perception family.",
+  "key": "perception_models",
+  "manifest_kind": "library",
+  "name": "perception_models",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "github:facebookresearch/perception_models@e72b6810b1133e1c879f2cc965d276eb73803f1f",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

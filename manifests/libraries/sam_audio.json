@@ -1,0 +1,60 @@
+{
+  "body": {
+    "constraints": {
+      "gpu": "CUDA-compatible GPU (recommended)"
+    },
+    "dependencies": [
+      "dacvae",
+      "audiobox_aesthetics",
+      "einops",
+      "imagebind",
+      "laion-clap",
+      "numpy",
+      "perception-models",
+      "pydub",
+      "torch",
+      "torchaudio",
+      "torchcodec",
+      "torchdiffeq",
+      "torchvision",
+      "transformers"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Andros Tjandra, Ann Lee, Bowen Shi, Julius Richter, Matt Le, Yi-Chiao Wu",
+      "license": "SAM License",
+      "repository": "https://github.com/facebookresearch/sam-audio",
+      "summary": "Segment Anything Audio",
+      "version": "bb4c6999d267"
+    },
+    "install": {
+      "vendor": {
+        "commit": "bb4c6999d2677c7402360e426afc01ddfad6dce0",
+        "engine": "sam_audio",
+        "repo": "facebookresearch/sam-audio"
+      }
+    }
+  },
+  "description": "Segment Anything Audio",
+  "key": "sam_audio",
+  "manifest_kind": "library",
+  "name": "SAM-Audio",
+  "projects": [],
+  "requires": [
+    {
+      "key": "dacvae",
+      "kind": "library"
+    },
+    {
+      "key": "perception_models",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "github:facebookresearch/sam-audio@bb4c6999d2677c7402360e426afc01ddfad6dce0",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

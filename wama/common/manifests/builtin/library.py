@@ -328,14 +328,19 @@ def _vendor_manifest_from_registry(key: str) -> Optional[dict]:
     retour, l'export d'une première librairie vendorisée ne trouvait rien — ni corpus, ni paquet
     installé — et le geste annonçait un corpus écrit qui ne l'était pas (2026-10-01, YuE).
     """
-    from wama.common.models import Library
+    from wama.common.models import Library, Manifest
     lib = Library.objects.filter(key=key).exclude(vendor={}).first()
     if lib is None or not lib.vendor:
         return None
+    # Le `requires` n'est pas une facette du registre (ce que la librairie EST) : il vient du
+    # magasin, où la proposition validée l'a déposé (2026-11-13 — sinon l'export le perdait).
+    stored = Manifest.objects.filter(manifest_kind='library', key=key).first()
+    requires = list(getattr(stored, 'requires', None) or [])
     return {
         'manifest_kind': 'library', 'key': lib.key, 'schema_version': '1.0',
         'name': lib.name or lib.key, 'description': (lib.summary or '')[:500],
         'world': 'transverse', 'visibility': 'public', 'projects': [],
+        **({'requires': requires} if requires else {}),
         'source': {'type': 'authored',
                    'ref': f"github:{lib.vendor.get('repo')}@{lib.vendor.get('commit')}"},
         'body': {

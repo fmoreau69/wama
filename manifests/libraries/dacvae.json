@@ -1,0 +1,42 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "argbind",
+      "descript-audiotools",
+      "einops",
+      "huggingface-hub",
+      "numpy",
+      "torch",
+      "torchaudio",
+      "tqdm"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Yi-Chiao Wu",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/facebookresearch/dacvae",
+      "summary": "A high-quality general neural audio codec with a continuous latent space (VAE version of Descript Audio Codec)",
+      "version": "414c20785fc3"
+    },
+    "install": {
+      "vendor": {
+        "commit": "414c20785fc3a28373073ea8ef7a1316eeeaca6e",
+        "engine": "dacvae",
+        "repo": "facebookresearch/dacvae"
+      }
+    }
+  },
+  "description": "A high-quality general neural audio codec with a continuous latent space (VAE version of Descript Audio Codec)",
+  "key": "dacvae",
+  "manifest_kind": "library",
+  "name": "DACVAE",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "github:facebookresearch/dacvae@414c20785fc3a28373073ea8ef7a1316eeeaca6e",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -315,6 +315,26 @@ class ManifestProposalTest(TestCase):
         self.assertIn('REFUSERAIT', now['note'])
         self.assertNotIn('validate_now', alone)
 
+    def test_the_requires_of_a_vendored_library_survives_its_validation(self):
+        """2026-11-13, SAM Audio : le `requires` d'une librairie vendorisée (les dépôts git qu'elle
+        importe) ne se ré-extrait de rien — le magasin le perdait au dépôt, l'export après « Valider »
+        sortait sans lui. Il traverse désormais proposition, validation et extraction. Contre-épreuve :
+        un manifeste sans `requires` reste sans la clé."""
+        from wama.common.manifests.builtin.library import extract_library
+        key = 'fake_vendor_requiring'
+        manifest = {'manifest_kind': 'library', 'key': key, 'name': key, 'schema_version': '1.0',
+                    'world': 'transverse', 'visibility': 'public', 'projects': [],
+                    'requires': [{'kind': 'library', 'key': 'musetalk'}],
+                    'body': {'identity': {'version': 'a' * 12},
+                             'install': {'vendor': {'repo': 'owner/fake', 'commit': 'a' * 40,
+                                                    'engine': key}}}}
+        obj = proposals.propose(manifest, origin='test')
+        self.assertEqual(manifest['requires'], obj.as_manifest()['requires'])
+        result = proposals.apply(obj)
+        self.assertTrue(result['applied'], result)
+        self.assertEqual(manifest['requires'], extract_library(key)['requires'])
+        self.assertNotIn('requires', proposals.propose(_llm_manifest(), origin='test').as_manifest())
+
     def test_fill_empty_treats_lists_as_values(self):
         merged, filled, diverged = proposals.fill_empty(
             {'a': [], 'b': ['x'], 'c': {'d': ''}}, {'a': ['y'], 'b': ['z'], 'c': {'d': 'e'}})

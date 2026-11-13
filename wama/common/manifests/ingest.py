@@ -107,6 +107,7 @@ def ingest(manifest: dict, *, user=None, promote_to: Optional[str] = None,
     obj.scope_org_unit = env.scope_org_unit or ''
     obj.projects = env.projects
     obj.source = env.source
+    obj.requires = list(env.requires or [])
     obj.body = env.body
     obj.errors = errs
     obj.save()

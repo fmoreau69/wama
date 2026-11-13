@@ -1122,6 +1122,12 @@ class Manifest(models.Model):
     projects = models.JSONField(default=list, blank=True)            # traçabilité qualité
     source = models.JSONField(default=dict, blank=True)              # {type, ref}
     body = models.JSONField(default=dict, blank=True)                # spécifique au kind
+    #: Le `requires` de l'enveloppe (`[{kind, key}]`, SPEC §7.3), gardé tel que proposé
+    #: (2026-11-13) : celui d'une app se RÉ-EXTRAIT de son code, celui d'une librairie vendorisée
+    #: ne s'extrait de rien — sans cette colonne, il se perdait au dépôt de la proposition (SAM
+    #: Audio). `db_default` : le code en service insère sans connaître la colonne.
+    requires = models.JSONField(default=list, blank=True,
+                                db_default=models.Value([], output_field=models.JSONField()))
     errors = models.JSONField(default=list, blank=True)             # dernières erreurs de validation
     #: La DEMANDE de promotion au système (rôle qui propose, auteur qui demande) ; vide = aucune.
     #: Nullable : le code en service avant sa relance insère sans cette colonne.
@@ -1161,7 +1167,11 @@ class Manifest(models.Model):
 
     def as_manifest(self) -> dict:
         """Reconstruit le dict manifeste complet (enveloppe + body)."""
+        # `requires` seulement s'il y en a un : un manifeste qui n'en porte pas reste tel qu'avant
+        # la colonne (2026-11-13).
+        requires = list(getattr(self, 'requires', None) or [])
         return {
+            **({'requires': requires} if requires else {}),
             'manifest_kind': self.manifest_kind,
             'key': self.key,
             'schema_version': self.schema_version,
