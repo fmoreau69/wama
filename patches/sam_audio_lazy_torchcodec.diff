@@ -1,0 +1,53 @@
+diff --git a/sam_audio/processor.py b/sam_audio/processor.py
+index 7935644..fe7701b 100644
+--- a/sam_audio/processor.py
++++ b/sam_audio/processor.py
+@@ -10,11 +10,24 @@ import torch
+ import torchaudio
+ from huggingface_hub import hf_hub_download
+ from torch.nn.utils.rnn import pad_sequence
+-from torchcodec.decoders import AudioDecoder, VideoDecoder
+ from transformers import AutoTokenizer, BatchFeature
+ 
+ from sam_audio.model.config import SAMAudioConfig, SAMAudioJudgeConfig
+ 
++
++def AudioDecoder(*args, **kwargs):
++    # WAMA : torchcodec importé à l'appel, pas au chargement du module — il ne se charge pas sur
++    # tout environnement, et la séparation par requête texte ne s'en sert pas.
++    from torchcodec.decoders import AudioDecoder as _AudioDecoder
++    return _AudioDecoder(*args, **kwargs)
++
++
++def VideoDecoder(*args, **kwargs):
++    # WAMA : torchcodec importé à l'appel, pas au chargement du module — il ne se charge pas sur
++    # tout environnement, et la séparation par requête texte ne s'en sert pas.
++    from torchcodec.decoders import VideoDecoder as _VideoDecoder
++    return _VideoDecoder(*args, **kwargs)
++
+ logger = logging.getLogger(__name__)
+ 
+ Anchor = Tuple[str, float, float]
+diff --git a/sam_audio/ranking/sound_activity.py b/sam_audio/ranking/sound_activity.py
+index 42ae3c2..8a26764 100644
+--- a/sam_audio/ranking/sound_activity.py
++++ b/sam_audio/ranking/sound_activity.py
+@@ -4,11 +4,17 @@ from io import BytesIO
+ from typing import Tuple, Union
+ 
+ import torch
+-from torchcodec.encoders import AudioEncoder
+ 
+ from ..model.config import SoundActivityRankerConfig
+ from .ranker import Ranker
+ 
++
++def AudioEncoder(*args, **kwargs):
++    # WAMA : torchcodec importé à l'appel, pas au chargement du module — il ne se charge pas sur
++    # tout environnement, et la séparation par requête texte ne s'en sert pas.
++    from torchcodec.encoders import AudioEncoder as _AudioEncoder
++    return _AudioEncoder(*args, **kwargs)
++
+ try:
+     import pydub
+ except ImportError:

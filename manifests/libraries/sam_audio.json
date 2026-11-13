@@ -31,6 +31,7 @@
       "vendor": {
         "commit": "bb4c6999d2677c7402360e426afc01ddfad6dce0",
         "engine": "sam_audio",
+        "patch": "patches/sam_audio_lazy_torchcodec.diff",
         "repo": "facebookresearch/sam-audio"
       }
     }

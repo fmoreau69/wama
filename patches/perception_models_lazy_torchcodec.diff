@@ -1,0 +1,33 @@
+diff --git a/core/audio_visual_encoder/transforms.py b/core/audio_visual_encoder/transforms.py
+index 734b641..a2002ac 100644
+--- a/core/audio_visual_encoder/transforms.py
++++ b/core/audio_visual_encoder/transforms.py
+@@ -4,7 +4,6 @@ from transformers import BatchFeature
+ from typing import Optional
+ import logging
+ import torch
+-from torchcodec.decoders import AudioDecoder, VideoDecoder
+ from torch.nn.utils.rnn import pad_sequence
+ import torchvision.transforms as T
+ from ..vision_encoder.config import PE_VISION_CONFIG
+@@ -13,6 +12,20 @@ import os
+ import json
+ 
+ 
++def AudioDecoder(*args, **kwargs):
++    # WAMA : torchcodec importé à l'appel, pas au chargement du module — il ne se charge pas sur
++    # tout environnement, et la séparation par requête texte ne s'en sert pas.
++    from torchcodec.decoders import AudioDecoder as _AudioDecoder
++    return _AudioDecoder(*args, **kwargs)
++
++
++def VideoDecoder(*args, **kwargs):
++    # WAMA : torchcodec importé à l'appel, pas au chargement du module — il ne se charge pas sur
++    # tout environnement, et la séparation par requête texte ne s'en sert pas.
++    from torchcodec.decoders import VideoDecoder as _VideoDecoder
++    return _VideoDecoder(*args, **kwargs)
++
++
+ logger = logging.getLogger(__name__)
+ 
+ 

@@ -47,6 +47,7 @@
       "vendor": {
         "commit": "e72b6810b1133e1c879f2cc965d276eb73803f1f",
         "engine": "perception_models",
+        "patch": "patches/perception_models_lazy_torchcodec.diff",
         "repo": "facebookresearch/perception_models"
       }
     }

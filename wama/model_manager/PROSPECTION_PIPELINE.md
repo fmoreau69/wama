@@ -4731,6 +4731,20 @@ chargement dans `sam_audio/processor.py`, `sam_audio/ranking/sound_activity.py` 
 lit `config.json` + `checkpoint.pt` (`torch.load(weights_only=True)`) — le dossier que le pilote `hf`
 installe ; `t5-base` (encodeur de texte) au cache partagé, sous-dépendance.
 
+✅ **Validées par Fabien et INSTALLÉES PAR LA ROUTE** (2026-11-13) : `install_library <clé> --allow
+--apply`, requises d'abord — clones au commit, `vendor_state` CONFORME. La validation avait perdu le
+`requires` de sam_audio (le magasin n'avait pas de place pour lui) : comblé dans la route
+(`Manifest.requires`, `5ab036d40`), rétabli au manifeste autoré. **Import réel mesuré** : sans
+correctif, `torchcodec` (ABI de torch, `libavutil.so.56` absente) arrête `import sam_audio` ;
+correctifs exportés et déclarés — `patches/sam_audio_lazy_torchcodec.diff` (`processor.py`,
+`ranking/sound_activity.py`), `patches/perception_models_lazy_torchcodec.diff`
+(`core/audio_visual_encoder/transforms.py`) : `AudioDecoder`/`VideoDecoder`/`AudioEncoder` importés
+à l'appel. Après : `SAMAudio`, `SAMAudioProcessor` s'importent, `missing_packages` vide, état
+`conform` avec correctif. ⚠ **Licence à trancher (Fabien)** : le manifeste de `perception_models`
+dit « FAIR Noncommercial Research License » ; mesuré, le code chargé (Perception Encoder, `core/`)
+est Apache-2.0 (`LICENSE.PE`, README « Code License Apache 2.0 ») — la licence FAIR (`LICENSE.PLM`)
+couvre PLM, non utilisé.
+
 **Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs
 manifestes résolvent le `requires` de sam_audio), puis `install_library` (requises d'abord) ;
 correctifs `torchcodec` exportés sous `patches/` et déclarés ; backend `SourceSeparationBackend` en sous-processus (le patron des moteurs vendorisés), capacité `stems: open`
