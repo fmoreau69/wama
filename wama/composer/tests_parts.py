@@ -169,6 +169,7 @@ class FullScoreTest(_InputProcessCase):
         written = (Path(self.tmp) / gen.parts_score.name).read_text(encoding='utf-8')
         self.assertIn('name="Voix"', written)
         self.assertIn('name="Basse électrique"', written)
+        self.assertIn('\nT:cover\n', written, 'titled by its song, not by the number of the card')
         from wama.composer.function_specs import PIPELINE
         self.assertEqual([], list(PIPELINE.spec('parts').depends_on), 'an INPUT reading')
 

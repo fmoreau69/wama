@@ -237,6 +237,35 @@ class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin
         # L'enrichi accompagne le prompt : la modale le rend à deux états (`WamaPromptEnrich`).
         return gear_data(self, PARAMS, extra={'prompt_processed': self.prompt_processed})
 
+    def input_stem(self, *, ingested: bool = True) -> str:
+        """Ce qui nomme l'ENTRÉE de la card, sans extension : le fichier du morceau repris (ou de la
+        partition importée), sinon le chemin de son URL ; '' sans rien. Le chemin d'une adresse de
+        plateforme (`/watch`) ne nomme rien : le titre de la vidéo arrive avec son fichier.
+        `ingested=False` : avant le téléchargement de l'URL (`views._ingested_name`)."""
+        import os
+        from urllib.parse import urlsplit
+        from wama.common.utils.url_ingest import is_media_platform
+        source = (self.melody_reference if ingested else None) or self.reference_score
+        url = self.source_url or ''
+        if source:
+            named = source.name
+        else:
+            named = '' if is_media_platform(url) else urlsplit(url).path
+        return os.path.splitext(os.path.basename(named))[0]
+
+    @property
+    def work_title(self) -> str:
+        """Le TITRE du morceau, celui qu'une partition de la card porte (2026-11-13, demande de
+        Fabien : « la partition porte le numéro de la card, on aimerait le titre du morceau ») : le
+        nom de l'entrée, sinon la consigne. Une PISTE séparée (`derived_from`) porte celui de son
+        morceau et son instrument — son fichier, lui, est nommé par la séparation."""
+        if self.derived_from_id:
+            from wama.common.utils.midi_score import instrument_label
+            base = self.derived_from.work_title if self.derived_from else ''
+            part = instrument_label(self.derived_role) if self.derived_role else ''
+            return ' — '.join(p for p in (base, part) if p)
+        return self.input_stem() or ' '.join((self.prompt or '').split())[:80]
+
     @property
     def duration_display(self):
         return f"{int(self.duration)}s"

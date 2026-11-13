@@ -513,7 +513,8 @@ def _full_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str
             logger.warning("[composer] modèle de partition complète de #%s non déchargé", gen.pk,
                            exc_info=True)
     grid = beat_grid(audio_abs) or {}
-    text = midi_to_abc(midi, title=f'#{gen.pk}', beat_times=grid.get('beats'))
+    # Le titre du MORCEAU, pas le numéro de la card (2026-11-13, demande de Fabien).
+    text = midi_to_abc(midi, title=gen.work_title or f'#{gen.pk}', beat_times=grid.get('beats'))
     score_rel, abs_path = ctx.output_place('.abc', nature=nature, model=model_id(extractor_key))
     name = os.path.basename(score_rel)
     with open(abs_path, 'w', encoding='utf-8') as handle:

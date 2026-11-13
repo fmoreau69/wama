@@ -33,3 +33,23 @@ class OutputNameTest(SimpleTestCase):
 
     def test_a_truly_random_generation_says_so(self):
         self.assertEqual('generation_aleatoire_7.wav', _name())
+
+
+class WorkTitleTest(SimpleTestCase):
+    """The TITLE a score of the card carries (2026-11-13, Fabien : « the score carries the number
+    of the card, #1516 — we would rather see the title of the song »). The same input as the name
+    of the card, without its number ; a separated track adds its instrument."""
+
+    def test_a_cover_is_titled_by_its_song(self):
+        gen = ComposerGeneration(id=7, melody_reference='users/1/temp/Keep Hope_V02.mp3', prompt='folk')
+        self.assertEqual('Keep Hope_V02', gen.work_title)
+
+    def test_without_an_input_the_prompt_titles_it(self):
+        self.assertEqual('upbeat jazz', ComposerGeneration(id=7, prompt='  upbeat\n jazz ').work_title)
+
+    def test_a_track_carries_its_song_and_its_instrument_not_its_file(self):
+        song = ComposerGeneration(id=7, melody_reference='users/1/temp/Keep Hope.mp3')
+        track = ComposerGeneration(
+            id=8, derived_from=song, derived_role='piano',
+            melody_reference='users/1/composer/input/Keep Hope_piano_htdemucs_6s_7.wav')
+        self.assertEqual('Keep Hope — Piano', track.work_title)

@@ -5,7 +5,6 @@ Composer Views — Music and SFX generation.
 import json
 import logging
 import os
-from urllib.parse import urlsplit
 
 from django.core.cache import cache
 from django.http import JsonResponse
@@ -41,15 +40,9 @@ def _output_name(generation: ComposerGeneration, *, ingested: bool = True) -> st
     `ingested=False` : le nom d'AVANT le téléchargement de l'URL — celui que la card a reçu à sa
     création, que `_ingested_name` reconnaît pour le remplacer. Le chemin d'une adresse de
     plateforme (`/watch`) ne nomme rien : le titre de la vidéo arrive avec son fichier (2026-11-07,
-    une card nommée « watch_1355 »)."""
-    from wama.common.utils.url_ingest import is_media_platform
-    source = (generation.melody_reference if ingested else None) or generation.reference_score
-    url = generation.source_url or ''
-    if source:
-        named = source.name
-    else:
-        named = '' if is_media_platform(url) else urlsplit(url).path
-    stem = os.path.splitext(os.path.basename(named))[0] or generation.prompt[:30].replace(' ', '_')
+    une card nommée « watch_1355 »). Le nom de l'entrée est celui du modèle (`input_stem`), que
+    porte aussi le titre de ses partitions (`work_title`)."""
+    stem = generation.input_stem(ingested=ingested) or generation.prompt[:30].replace(' ', '_')
     return f"{stem or 'generation_aleatoire'}_{generation.id}.wav"
 
 
