@@ -2283,6 +2283,27 @@ class ComposerScoreSurfaceTest(TestCase):
         for key in ('extract_score', 'parts'):
             self.assertIn(f'« {PIPELINE.spec(key).label} »', reason)
 
+    def test_a_card_with_only_its_full_score_opens_on_it(self):
+        """2026-11-13 (real run : a separated stem, « Partition complète » only) : the page said
+        « rien à éditer » while the surface declares the full score editable (`also_edits`). An
+        empty main field yields to the first filled `also_edits` — opened, served, saved there."""
+        from wama.common.surfaces import surface
+        from wama.common.utils.media_paths import app_media_dir, get_app_media_path
+        from wama.composer.models import ComposerGeneration
+        (get_app_media_path('composer', self.user.id, 'output') / 'parts.abc').write_text(ABC)
+        rel = app_media_dir('composer', self.user.id, 'output') + '/parts.abc'
+        stem = ComposerGeneration.objects.create(user=self.user, prompt='', parts_score=rel,
+                                                 melody_reference='users/1/temp/stem.wav')
+        score = surface('composer', 'score')
+        self.assertEqual((True, ''), score.can_open(stem))
+        self.assertEqual('parts_score', score.target(stem))
+        data = self.client.get(f'/common/surface/composer/score/{stem.pk}/data/').json()
+        self.assertEqual(('parts_score', ABC), (data['field'], data['value']))
+        # Counter-check : nothing filled at all — still nothing to edit.
+        empty = ComposerGeneration.objects.create(user=self.user, prompt='', extract_parts=True,
+                                                  melody_reference='users/1/temp/stem.wav')
+        self.assertEqual(score.edited(empty), score.target(empty))
+
     def test_someone_else_neither_reads_nor_writes(self):
         other = get_user_model().objects.create_user('score_other', password='x')
         self.client.force_login(other)

@@ -582,6 +582,9 @@
                 state.value = data.value == null ? {} : data.value;
                 state.saved = JSON.stringify(state.value);
                 state.token = data.token || '';
+                // Le serveur peut servir un `also_edits` d'emblée — le principal vide, celui-ci
+                // rempli (`Surface.target`, 2026-11-13) : la page édite alors ce champ-là.
+                target = (surface.also_edits || []).indexOf(data.field) >= 0 ? data.field : '';
                 state.processes = data.processes || {};
                 if (data.settings) state.settings = { schema: data.settings.schema || [],
                                                       values: data.settings.values || {} };

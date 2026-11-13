@@ -34,13 +34,17 @@ from wama.composer.models import ComposerGeneration
 SCORE_FIELDS = ComposerGeneration.SCORE_FIELDS
 #: La partition d'ENTRÉE que la page édite : l'IMPORTÉE d'abord (2026-10-26), puis les sorties.
 INPUT_SCORE_FIELDS = ('reference_score',) + tuple(SCORE_FIELDS)
+#: Les autres partitions que la page CORRIGE (`Surface.also_edits`) : la complète de l'entrée.
+ALSO_EDITED = ('parts_score',)
 
 
 def _score_available(generation) -> tuple:
     """Une card sans partition l'aura-t-elle un jour ? Un modèle qui compose SANS partition
     (MusicGen…) n'en écrit jamais : on le dit, plutôt que « lancer d'abord la partition ». Sous
-    « auto » le modèle n'est connu qu'au lancement : la règle commune nomme alors les process."""
-    if any(getattr(getattr(generation, name, None), 'name', '') for name in INPUT_SCORE_FIELDS):
+    « auto » le modèle n'est connu qu'au lancement : la règle commune nomme alors les process.
+    Une partition COMPLÈTE déjà écrite ouvre la page (2026-11-13 : une piste séparée qui n'a qu'elle)."""
+    if any(getattr(getattr(generation, name, None), 'name', '')
+           for name in INPUT_SCORE_FIELDS + ALSO_EDITED):
         return True, ''
     from wama.composer.function_specs import PIPELINE
     model = PIPELINE.requested_model(generation)
@@ -100,7 +104,7 @@ register_surface(Surface(
            'lyrics_in': 'input_lyrics_timed', 'lyrics_out': 'rendered_lyrics_timed'},
     texts=('rendered', 'rendered_score', 'lyrics_in', 'lyrics_out'),
     edits=INPUT_SCORE_FIELDS,
-    also_edits=('parts_score',),
+    also_edits=ALSO_EDITED,
     reruns='render', available=_score_available,
     # L'élément témoin des vignettes du catalogue des briques (nocturne) : une partition, sa
     # partition complète et un rendu audio — rien n'est lancé, les fichiers sont des témoins.

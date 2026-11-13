@@ -145,7 +145,12 @@
         var midiChoices = null;
         var versions = (options.versions && options.versions.length) ? options.versions
             : [{ role: options.role || '', empty: options.empty }];
-        var chosen = 0;
+        // La version montrée d'abord : celle du champ que la page ÉDITE (2026-11-13) — le serveur
+        // ouvre sur un `also_edits` rempli quand le principal est vide (`Surface.target`).
+        var editedField = ctx.target ? ctx.target() : '';
+        var chosen = Math.max(0, versions.findIndex(function (version) {
+            return !version.role && (version.field || '') === editedField;
+        }));
         /** La note CHOISIE (`[start, end)` dans le texte) : ce que le clavier modifie. */
         var selection = null;
 
@@ -197,6 +202,7 @@
                 option.textContent = version.label || ('Partition ' + (i + 1));
                 pick.appendChild(option);
             });
+            pick.value = String(chosen);
             pick.addEventListener('change', function () {
                 var next = Number(pick.value) || 0, version = versions[next];
                 // Une version ÉDITÉE (sans `role`) devient la valeur de la page : ce qui est en

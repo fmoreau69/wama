@@ -89,6 +89,11 @@ DOCK_EDGES = ('top', 'bottom', 'left', 'right')
 #: Clé de la version « Entrée » d'un média lu (`Surface.sources_of`) — hors de l'espace des clés
 #: de process (un identifiant), pour qu'aucun process ne la prenne.
 INPUT_SOURCE = '_input'
+
+
+def _file_name(item, field: str) -> str:
+    """Le nom du fichier que porte `item.<field>`, '' s'il est vide."""
+    return getattr(getattr(item, field, None), 'name', '') or ''
 #: Lignes au-delà desquelles une place gardée est refusée : une disposition postée reste une page.
 MAX_LAYOUT_ROWS = 400
 #: Plafond d'un texte édité sur une surface : un document qu'on relit et corrige, pas un flux.
@@ -506,9 +511,16 @@ class Surface:
     def target(self, item, requested: str = '') -> str:
         """Le champ qu'une requête édite : `requested` s'il est l'un des `also_edits`, sinon le
         champ principal (`edited`). Lève `ValueError` pour un champ que la surface ne déclare pas —
-        jamais un champ nommé par la page."""
+        jamais un champ nommé par la page.
+
+        Sans champ demandé, un principal VIDE cède au premier `also_edits` rempli (2026-11-13 : une
+        card qui n'a que sa partition complète — une piste séparée, « partitions seules » — ne
+        s'ouvrait pas, « rien à éditer », alors que la surface la déclare corrigeable)."""
         if not requested:
-            return self.edited(item)
+            main = self.edited(item)
+            if self.text_value and not _file_name(item, main):
+                return next((name for name in self.also_edits if _file_name(item, name)), main)
+            return main
         if requested not in self.also_edits:
             raise ValueError(f"surface {self.id} : « {requested} » ne s'édite pas ici")
         return requested
@@ -569,7 +581,7 @@ class Surface:
                 return False, f"Page indisponible : {error}"
             if not ok:
                 return ok, reason
-        if self.text_value and not getattr(getattr(item, self.edited(item), None), 'name', ''):
+        if self.text_value and not _file_name(item, self.target(item)):
             return False, f"Rien à éditer : lancer d'abord {self._producer_label(item)}."
         return True, ''
 
