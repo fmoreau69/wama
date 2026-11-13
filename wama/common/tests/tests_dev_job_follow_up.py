@@ -116,8 +116,11 @@ class FinishedJobIsAnnouncedOnceTest(TestCase):
         # Contre-épreuve : un modèle proposé se décide au model manager.
         self.assertEqual(reverse('model_manager:index') + '#' + dev_tools.PROPOSALS_ANCHOR,
                          dev_tools.proposals_page('model'))
-        self.assertEqual('', urls['20261105-170000-eeeeee'],
-                         "an output that no queue lists has no page where it is decided")
+        # Une sortie que rien ne liste n'a pas de page où elle se DÉCIDE (`proposals_url` rend '') ;
+        # sa notification ouvre alors le fil de l'assistant, où la fin est racontée (2026-11-12,
+        # décision de Fabien — 74 notifications de tâche n'avaient rien à ouvrir).
+        self.assertEqual('', dev_tools.proposals_url(['wama-dev-ai/outputs/codegen_nothing_waits.json']))
+        self.assertEqual(reverse('home'), urls['20261105-170000-eeeeee'])
 
 
 class ChannelFollowUpOfADevJobTest(TestCase):

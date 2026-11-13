@@ -31355,3 +31355,26 @@ vues d'URL et de lot générées peuvent lire `surface_source_nature`. Puis les 
 suite entière n'a pas été relancée depuis la bascule de l'après-midi. Rien de vu à l'écran par la
 session. `docs/dev/briques.md` : mes seuls passages commités, le reste porte le travail d'une autre
 session.
+
+## §PALIER 2026-11-13 (nuit), « REVÉRIFICATION des domaines du 12/11 au soir + verdict de la suite complète » — commits locaux, non poussés — 🔚 ⑦ le générateur ; décision de Fabien sur le nœud du Studio par domaine
+
+**Écarts de ma main ramenés** (`0bae1e19a`) : « plusieurs domaines » redécidé dans `domain_links` au lieu
+de `has_domain_tabs` ; le domaine de la page lu à deux endroits du navigateur (une lecture,
+`WamaApp.pageDomain`) ; le préfixe de routes « exigé » de la grille reconnaissait le vide sans préfixe
+déclaré ; deux gardes de contrat nommaient des apps (elles bouclent sur les déclarations) ; second
+compteur de file de l'anonymizer retiré ; commentaire du menu (« deux sections ») corrigé ; manifestes
+d'app de l'anonymizer et de l'enhancer régénérés (la `description` des domaines).
+
+**Suite complète** (lancée le 12/11 à 23:30, 11 241 tests, 5 173 s) : 12 rouges. UN de ma main —
+`tests_dev_job_follow_up` attendait encore « aucun lien » pour une tâche sans proposition : la garde
+existante est alignée, et celle que j'avais ajoutée à part dans `tests_dev_inspect` y est FUSIONNÉE
+(elle doublait le même contrat). Trois étaient des artefacts de mes écritures PENDANT la suite
+(`tests_domain_page`, `tests_gestures`, `tests_served_assets_contract` : verts rejoués seuls), un
+quatrième suit la doc dérivée co-éditée (`tests_doc_plans`, vert rejoué). Cinq datent d'avant la
+session (`tests_password_autofill`, `tests_route_for_nature`, `tests_voice_refs`,
+`enhancer.tests_declared_weights`, `kinematics.tests_gap_fill`) ; deux sont au chantier d'une autre
+session (`model_manager.tests` : tâche `audio-source-separation`).
+
+⚠ **À savoir** : `manifest_export --kind app` a réécrit 18 manifestes, pas les deux visés — seize
+restent régénérés dans l'arbre, non commités (dont des modèles d'une autre session) ; ma correction
+du registre des mécanismes est partie dans le commit `f94a799b8` d'une autre session (fichier entier).
