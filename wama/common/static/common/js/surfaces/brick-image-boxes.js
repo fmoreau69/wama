@@ -21,6 +21,12 @@
 
     var D = global.WamaDetections;
     var HANDLE = 6;
+    /** Les touches de la brique PAR DÉFAUT, `{touche: action}` — celles qu'elle déclare au registre
+     *  (`surfaces.py`, `image_boxes.shortcuts`, tenues égales par `tests_surfaces`). */
+    var BOXES_KEYS = {
+        'Delete': 'remove', 'Backspace': 'remove',
+        'KeyR': 'restore', 'KeyN': 'add', 'KeyF': 'fit',
+    };
     var COLORS = { detected: '#ffc107', manual: '#20c997', removed: '#dc3545', selected: '#0dcaf0' };
 
     function mount(body, ctx, options) {
@@ -294,18 +300,20 @@
             // l'image, qui n'a alors pas la main).
             if (ev.ctrlKey || ev.metaKey || ev.altKey) return false;
             var sel = byId(ctx.selected());
-            var k = ev.key;
-            if ((k === 'Delete' || k === 'Backspace') && sel && !sel.removed && ctx.canEdit) {
+            // L'ACTION de la frappe, lue à la table de la brique (`WamaKeys.action`, 2026-11-13) ;
+            // Échap ne se redonne pas.
+            var act = global.WamaKeys.action(ev, 'image_boxes', BOXES_KEYS);
+            if (act === 'remove' && sel && !sel.removed && ctx.canEdit) {
                 ctx.edit(function (v) { return D.remove(v, sel, frameIndex); });
                 if (sel.origin === 'manual') ctx.select(null);
-            } else if ((k === 'r' || k === 'R') && sel && sel.removed && ctx.canEdit) {
+            } else if (act === 'restore' && sel && sel.removed && ctx.canEdit) {
                 ctx.edit(function (v) { return D.restore(v, sel, frameIndex); });
-            } else if (k === 'n' || k === 'N') {
+            } else if (act === 'add') {
                 setTool('add');
-            } else if (k === 'Escape') {
+            } else if (ev.key === 'Escape') {
                 setTool('select');
                 ctx.select(null);
-            } else if (k === 'f' || k === 'F') {
+            } else if (act === 'fit') {
                 fit();
             } else {
                 return false;

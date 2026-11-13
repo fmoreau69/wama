@@ -1102,6 +1102,10 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     garde GÉNÉRIQUE `EveryKeyTableFollowsTheRegistryTest` (toute brique qui appelle littéralement
     `WamaKeys.action(e, '<brique>', TABLE)` a sa table égale au registre) ; la table du
     transport, lue sous un autre nom, garde sa vérification propre.
+    ✅ **Les zones de détection, 2026-11-13** (`BOXES_KEYS` : Suppr / ⌫, R, N, F ; Échap lu à
+    part) — même ensemble de frappes qu'avant (Ctrl et Alt refusés, Maj sans effet). ⚠ Aucun
+    scénario ne joue ces touches au navigateur : `common.ui_bricks_capture` n'atteste que
+    l'ouverture de la page sans erreur de script.
     ⏳ Restent, dans l'ordre : les autres briques sur `WamaKeys.action`
     (segments, ligne de temps, écriture, partition, zones, file, inspecteur, visionneuse) ; le
     préréglage DÉCLARÉ d'une page et celui du transcriber ; alors seulement les défauts décidés

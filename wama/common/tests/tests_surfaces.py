@@ -1943,14 +1943,15 @@ class BrickShortcutsTest(SimpleTestCase):
         for brick, path, table_name in (
                 ('media_timeline', 'common/js/wama-timeline.js', 'TIMELINE_KEYS'),
                 ('playback_writing', 'common/js/surfaces/brick-playback-writing.js', 'WRITING_KEYS'),
-                ('segment_list', 'common/js/surfaces/brick-segment-list.js', 'SEGMENT_KEYS')):
+                ('segment_list', 'common/js/surfaces/brick-segment-list.js', 'SEGMENT_KEYS'),
+                ('image_boxes', 'common/js/surfaces/brick-image-boxes.js', 'BOXES_KEYS')):
             with self.subTest(brick=brick):
                 code = _js(path)
                 block = code.split(f'var {table_name} = {{', 1)[1].split('};', 1)[0]
                 named = {key: name for s in BRICKS[brick].shortcuts for key, name in zip(s.keys, s.names)}
                 self.assertTrue(named)
                 self.assertEqual(named, dict(re.findall(r"'([^']+)':\s*'(\w+)'", block)))
-                self.assertIn(f"WamaKeys.action(e, '{brick}', {table_name})", code)
+                self.assertRegex(code, rf"WamaKeys\.action\(\w+, '{brick}', {table_name}\)")
                 self.assertNotIn('.toLowerCase() !==', code, 'the letter is no longer read by hand')
 
     def test_an_action_is_resolved_from_the_defaults_then_from_an_override(self):

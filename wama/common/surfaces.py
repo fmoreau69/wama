@@ -868,12 +868,13 @@ register_brick(UIBrick(
     requires=('common/js/wama-detections.js',),
     consumes=('image', 'detections'), emits=('detection_corrections',),
     # « A la main » : après un clic dans l'image (`active`), jamais ailleurs.
-    shortcuts=(Shortcut(('Delete', 'Backspace'), 'retirer la zone choisie'),
-               Shortcut(('KeyR',), 'rétablir la zone retirée'),
+    shortcuts=(Shortcut(('Delete', 'Backspace'), 'retirer la zone choisie',
+                        names=('remove', 'remove')),
+               Shortcut(('KeyR',), 'rétablir la zone retirée', names=('restore',)),
                Shortcut(('KeyN',), 'tracer une zone neuve',
-                        targets=('.wama-image-tools [data-tool="add"]',)),
+                        targets=('.wama-image-tools [data-tool="add"]',), names=('add',)),
                Shortcut(('KeyF',), "voir l'image entière",
-                        targets=('.wama-image-tools [data-act="fit"]',)),
+                        targets=('.wama-image-tools [data-act="fit"]',), names=('fit',)),
                Shortcut(('Escape',), 'revenir à la sélection, plus rien de choisi',
                         targets=('.wama-image-tools [data-tool="select"]',)))))
 
