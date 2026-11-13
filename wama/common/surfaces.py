@@ -175,7 +175,7 @@ SHORTCUT_SCOPES = {
 #: un modificateur la précède (`Ctrl+`, `Shift+`, `Alt+`).
 KEY_LABELS = {'Space': 'Espace', 'ArrowLeft': '←', 'ArrowRight': '→', 'ArrowUp': '↑',
               'ArrowDown': '↓', 'Enter': 'Entrée', 'Escape': 'Échap', 'Delete': 'Suppr',
-              'Backspace': '⌫', 'Home': 'Début', 'End': 'Fin', '-': '−'}
+              'Backspace': '⌫', 'Home': 'Début', 'End': 'Fin', '-': '−', 'Equal': '='}
 MODIFIER_LABELS = {'Ctrl': 'Ctrl', 'Shift': 'Maj', 'Alt': 'Alt'}
 
 
@@ -1058,15 +1058,20 @@ register_brick(UIBrick(
               'common/js/wama-follow.js'),
     consumes=('score',), emits=('score',),
     # « A la main » : le clavier dans la partition (son cadre a le focus), une note choisie.
-    shortcuts=(Shortcut(('ArrowUp', 'ArrowDown'), "monter / descendre la note choisie d'un degré"),
-               Shortcut(('ArrowLeft', 'ArrowRight'), "la décaler d'un pas, la mesure s'ajuste"),
-               Shortcut(('+', '='), "l'allonger d'un pas"),
-               Shortcut(('-',), "la raccourcir d'un pas"),
-               Shortcut(('2', '3', '4', '5', '6', '7'), 'le pas : une figure, comme MuseScore'),
-               Shortcut(('0',), 'le pas : automatique'),
+    # Chaque touche NOMME son action (2026-11-13, `WamaKeys.action`) : la table `SCORE_KEYS` de la
+    # brique dit la même chose, touche par touche (`BrickShortcutsTest`).
+    shortcuts=(Shortcut(('ArrowUp', 'ArrowDown'), "monter / descendre la note choisie d'un degré",
+                        names=('note_up', 'note_down')),
+               Shortcut(('ArrowLeft', 'ArrowRight'), "la décaler d'un pas, la mesure s'ajuste",
+                        names=('note_earlier', 'note_later')),
+               Shortcut(('+', 'Equal'), "l'allonger d'un pas", names=('note_longer', 'note_longer')),
+               Shortcut(('-',), "la raccourcir d'un pas", names=('note_shorter',)),
+               Shortcut(('2', '3', '4', '5', '6', '7'), 'le pas : une figure, comme MuseScore',
+                        names=('step_32', 'step_16', 'step_8', 'step_4', 'step_2', 'step_1')),
+               Shortcut(('0',), 'le pas : automatique', names=('step_auto',)),
                Shortcut(('Escape',), 'ne plus choisir de note'),
                Shortcut(('Alt+KeyL',), 'suivre la lecture : verrouiller / libérer',
-                        targets=('[data-score="follow"]',)))))
+                        targets=('[data-score="follow"]',), names=('toggle_follow',)))))
 
 # ── 2026-10-29 : les premiers PLUGINS GRAPHIQUES du monde Data (`WAMA_DATA_WORLD §8.4`, marche F),
 # écrits sur le face_analyzer — des briques universelles, abonnées à l'axe partagé.

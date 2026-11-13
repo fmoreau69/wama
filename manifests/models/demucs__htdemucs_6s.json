@@ -1,0 +1,93 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "stems": [
+        "drums",
+        "bass",
+        "other",
+        "vocals",
+        "guitar",
+        "piano"
+      ],
+      "task": "audio-source-separation"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "th",
+          "pattern": "*.th",
+          "role": "model"
+        }
+      ],
+      "runtime": {
+        "engine": "demucs"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "hybrid_transformer/5c90dfd2-34c22ccb.th",
+            "source": "demucs"
+          },
+          "path": "5c90dfd2-34c22ccb.th",
+          "sha256": "34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd",
+          "size": 54996327
+        }
+      ],
+      "license": "mit",
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "th"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Six stems: vocals, drums, bass, guitar, piano, other",
+      "license": null,
+      "model_type": "music",
+      "platform_ref": "github:facebookresearch/demucs",
+      "source": "demucs"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.051219320856034756,
+      "ram_gb": 0.0,
+      "vram_gb": 1.0
+    }
+  },
+  "description": "Demucs v4 hybrid transformer, six-stem model (Meta): vocals, drums, bass, guitar, piano and other. The piano stem leaks the most (authors' note). MIT license (the README names no separate license for the weights).",
+  "key": "demucs:htdemucs_6s",
+  "manifest_kind": "model",
+  "name": "Demucs v4 — 6 stems",
+  "projects": [],
+  "requires": [
+    {
+      "key": "demucs",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:demucs:htdemucs_6s",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

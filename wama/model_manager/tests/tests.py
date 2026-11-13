@@ -1172,6 +1172,16 @@ class EntreesParDefautDeLaTacheTest(TestCase):
                 self.assertTrue(set(modalites) <= set(MODALITIES))
                 self.assertTrue(set(requises) | set(optionnelles) <= set(INPUT_TYPES))
 
+    def test_every_task_has_its_category(self):
+        """`TASK_TO_MODEL_TYPE` — the sister table, which the draw by task reads to bound itself
+        (`select_model_id`, `model_type_for_tasks`). A task without it draws NOTHING : measured on
+        2026-11-12, `audio-source-separation` had two installed models and the stems process found
+        none, in silence. `check_model_taxonomy` says it, but runs outside the suite."""
+        from ..models import TASK_TO_MODEL_TYPE, ModelTask, ModelType
+        for t in ModelTask:
+            with self.subTest(task=t.value):
+                self.assertIn(TASK_TO_MODEL_TYPE.get(t), set(ModelType))
+
     def test_les_defauts_redisent_ce_que_le_registre_ecrit_en_dur(self):
         """La table n'invente rien : elle reprend les valeurs des 13 sites de `model_registry`."""
         from ..models import default_inputs_for

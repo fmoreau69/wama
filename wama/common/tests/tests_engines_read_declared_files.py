@@ -26,7 +26,7 @@ from unittest import mock
 from django.conf import settings
 from django.test import SimpleTestCase
 
-from wama.common.backends import coqui_backend, doctr_backend, ocr_base, whisper_backend
+from wama.common.backends import coqui_backend, demucs_backend, doctr_backend, ocr_base, whisper_backend
 from wama.common.utils import spoken_language
 
 
@@ -46,6 +46,9 @@ class DeclarationsTest(SimpleTestCase):
                                    {('huggingface', 'coqui/XTTS-v2')}),
         doctr_backend.DOCTR_KEY: (doctr_backend.DOCTR_FILES, {('github', None)}),
         ocr_base.PAGE_ORIENTATION_KEY: (ocr_base.PAGE_ORIENTATION_FILES, {('github', None)}),
+        # Demucs v4 (2026-11-12) : the authors' weights server, declared at the registry of sources.
+        **{entry['model_key']: (demucs_backend.DEMUCS_FILES[name], {('demucs', None)})
+           for name, entry in demucs_backend.SUPPORTED_MODELS.items()},
     }
 
     def test_every_declaration_passes_the_lock_with_a_frozen_origin(self):
@@ -67,6 +70,16 @@ class DeclarationsTest(SimpleTestCase):
                 self.assertTrue(f['sha256'].startswith(name.rsplit('-', 1)[1].split('.')[0]))
                 self.assertTrue(f['origin']['release'].startswith('mindee/doctr:'))
 
+    def test_demucs_files_sit_flat_and_carry_their_hash_prefix(self):
+        """`LocalRepo` reads `<sig>-<sha8>.th` at the folder's ROOT (no sub-folder) and checks the
+        prefix against the file's sha256 — the convention of the authors' server."""
+        for name, files in demucs_backend.DEMUCS_FILES.items():
+            for f in files:
+                with self.subTest(model=name, file=f['path']):
+                    self.assertEqual(Path(f['path']).name, f['path'], 'flat in the folder')
+                    self.assertEqual(f"{demucs_backend.REMOTE_FOLDER}/{f['path']}", f['origin']['file'])
+                    self.assertTrue(f['sha256'].startswith(Path(f['path']).stem.split('-')[1]))
+
     def test_coqui_files_keep_the_folder_the_library_used(self):
         folder = {Path(f['path']).parent for f in coqui_backend.COQUI_FILES['coqui-xtts']}
         self.assertEqual({Path('tts/tts_models--multilingual--multi-dataset--xtts_v2')}, folder)
@@ -86,8 +99,10 @@ def _discover(test, root):
               'whisper': root / 'models' / 'speech' / 'whisper',
               'coqui': root / 'models' / 'speech' / 'coqui'}
     ocr = {**settings.MODEL_PATHS.get('ocr', {}), 'doctr': root / 'models' / 'ocr' / 'doctr'}
+    music = {**settings.MODEL_PATHS.get('music', {}), 'demucs': root / 'models' / 'music' / 'demucs'}
     with test.settings(AI_MODELS_DIR=root,
-                       MODEL_PATHS={**settings.MODEL_PATHS, 'speech': speech, 'ocr': ocr}):
+                       MODEL_PATHS={**settings.MODEL_PATHS, 'speech': speech, 'ocr': ocr,
+                                    'music': music}):
         registry = ModelRegistry()
         registry._models = {}
         registry._discover_transcriber_models()
@@ -95,6 +110,7 @@ def _discover(test, root):
         registry._discover_reader_models()
         registry._discover_language_identification_models()
         registry._discover_page_orientation_models()
+        registry._discover_source_separation_models()
         test.assertEqual([], registry.discovery_errors)
         specs = {key: spec_for_catalog_row(AIModel(model_key=key,
                                                    platform_ref=registry._models[key].platform_ref or '',
@@ -121,7 +137,9 @@ class CatalogueRowsAreMeasuredTest(SimpleTestCase):
             models, specs, speech, ocr = _discover(self, root)
         expected_dir = {'synthesizer:coqui-xtts': speech['coqui'],
                         doctr_backend.DOCTR_KEY: ocr['doctr'],
-                        ocr_base.PAGE_ORIENTATION_KEY: ocr['doctr']}
+                        ocr_base.PAGE_ORIENTATION_KEY: ocr['doctr'],
+                        **{e['model_key']: Path(root) / 'models' / 'music' / 'demucs'
+                           for e in demucs_backend.SUPPORTED_MODELS.values()}}
         for key, (files, _origins) in DeclarationsTest.DECLARED.items():
             with self.subTest(model=key):
                 self.assertFalse(models[key].is_downloaded, 'measured, never assumed')
@@ -141,6 +159,8 @@ class CatalogueRowsAreMeasuredTest(SimpleTestCase):
             root = Path(root)
             _fill(root / 'models' / 'speech' / 'coqui', coqui_backend.COQUI_FILES['coqui-xtts'])
             _fill(root / 'models' / 'ocr' / 'doctr', doctr_backend.DOCTR_FILES + ocr_base.PAGE_ORIENTATION_FILES)
+            _fill(root / 'models' / 'music' / 'demucs',
+                  [f for files in demucs_backend.DEMUCS_FILES.values() for f in files])
             models, _specs, _speech, _ocr = _discover(self, root)
         for key in DeclarationsTest.DECLARED:
             with self.subTest(model=key):
@@ -419,6 +439,52 @@ class DocTRReadsItsFilesTest(SimpleTestCase):
                                   return_value=True):
             self.assertTrue(backend.load())
         self.assertEqual([('orientation', {'pretrained': True})], calls)
+
+
+class DemucsReadsItsFolderTest(SimpleTestCase):
+    """Demucs v4 (2026-11-12) : the library would fetch its checkpoints from the authors' server into
+    `torch.hub` (the `$HOME`) ; the engine hands it the declared FOLDER (`LocalRepo`) and the bags
+    the library ships (`demucs/remote/*.yaml`) — no network — and loads them in `weights_only`
+    with the sole objects the files name (`checkpoint_globals`)."""
+
+    def test_an_absent_model_never_reaches_the_library_and_says_the_route(self):
+        with mock.patch.object(demucs_backend, 'installed', return_value=False), \
+                mock.patch('demucs.repo.LocalRepo') as local:
+            with self.assertRaisesRegex(RuntimeError, 'demucs:htdemucs_6s.*model manager'):
+                demucs_backend.DemucsBackend().load('htdemucs_6s')
+        local.assert_not_called()
+
+    def test_an_installed_model_is_read_from_its_folder_and_the_shipped_bags(self):
+        import torch
+        from demucs.pretrained import REMOTE_ROOT
+        seen = {}
+
+        class FakeAny:
+            def __init__(self, models, bags):
+                seen['models'], seen['bags'] = models, bags
+
+            def get_model(self, name):
+                seen['name'] = name
+                seen['safe'] = set(map(str, torch.serialization.get_safe_globals()))
+                return mock.Mock()
+
+        with mock.patch.object(demucs_backend, 'installed', return_value=True), \
+                mock.patch('demucs.repo.LocalRepo', side_effect=lambda root: ('local', root)), \
+                mock.patch('demucs.repo.BagOnlyRepo', side_effect=lambda root, repo: ('bags', root)), \
+                mock.patch('demucs.repo.AnyModelRepo', FakeAny):
+            self.assertTrue(demucs_backend.DemucsBackend().load('htdemucs_ft'))
+        self.assertEqual(('local', demucs_backend.model_folder()), seen['models'])
+        self.assertEqual(('bags', REMOTE_ROOT), seen['bags'], 'the bags the library ships')
+        self.assertEqual('htdemucs_ft', seen['name'])
+        self.assertTrue(any('HTDemucs' in g for g in seen['safe']), 'loaded with its allowed objects')
+
+    def test_the_allowed_objects_are_only_those_the_checkpoints_name(self):
+        """Relevé le 2026-11-12 (`get_unsafe_globals_in_checkpoint` sur les cinq fichiers) :
+        HTDemucs, Fraction, numpy's scalar and dtypes — nothing that executes arbitrary code."""
+        names = {g[1] if isinstance(g, tuple) else g.__name__
+                 for g in demucs_backend.checkpoint_globals()}
+        self.assertTrue({'HTDemucs', 'Fraction', 'numpy.core.multiarray.scalar', 'dtype'} <= names)
+        self.assertFalse({'eval', 'exec', 'system', 'getattr'} & names)
 
 
 class KokoroReadsItsVoicesTest(SimpleTestCase):

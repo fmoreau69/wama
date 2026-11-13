@@ -10,29 +10,15 @@ chacune SEULE — une partition d'un instrument isolé est plus juste que celle 
 contrat rend, ce sont des FICHIERS ; ce qu'on en fait (des cards, un lot) n'est pas son affaire :
 c'est la brique commune `common/utils/derived_cards.py`.
 
-Les pistes qu'un modèle rend sont une CAPACITÉ déclarée au catalogue (`capabilities.stems`), dans
-le vocabulaire `STEM_LABELS` ci-dessous — jamais déduites du nom du modèle.
+Les pistes qu'un modèle rend sont une CAPACITÉ déclarée au catalogue (`capabilities.stems`) —
+jamais déduites du nom du modèle —, nommées par leur moteur (les noms de Demucs, standard du
+domaine : MUSDB18 pour `vocals`, `drums`, `bass`, `other`). Leur libellé affiché est celui de tout
+instrument (`midi_score.instrument_label`, une seule table).
 """
 from abc import abstractmethod
 from typing import Callable, Dict, Optional
 
 from .base import BaseModelBackend
-
-#: Le vocabulaire des pistes, et leur libellé affiché (les noms de Demucs, standard du domaine :
-#: MUSDB18 pour les quatre premières). Une piste hors de cette table s'affiche sous son nom.
-STEM_LABELS = {
-    'vocals': 'Voix',
-    'drums': 'Batterie',
-    'bass': 'Basse',
-    'guitar': 'Guitare',
-    'piano': 'Piano',
-    'other': 'Autres',
-}
-
-
-def stem_label(stem: str) -> str:
-    """Le libellé affiché d'une piste (`vocals` → « Voix ») ; une piste inconnue garde son nom."""
-    return STEM_LABELS.get(str(stem or ''), str(stem or ''))
 
 
 class SourceSeparationBackend(BaseModelBackend):

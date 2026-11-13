@@ -389,12 +389,10 @@ def _separate(gen, ctx):
     import tempfile
     from django.conf import settings
     from wama.common.backends.manager import backend_for_key
-    from wama.common.backends.source_separation_base import stem_label
     from wama.common.utils.derived_cards import derive_cards
+    from wama.common.utils.midi_score import instrument_label as stem_label
     from wama.common.utils.model_keys import model_id
-    from .models import ComposerBatchItem
     from .utils.model_choice import stem_separator
-    from .views import _batch_item_extra
 
     if not gen.melody_reference:
         raise RuntimeError("Aucun audio à séparer : les pistes se tirent de l'entrée.")
@@ -431,13 +429,12 @@ def _separate(gen, ctx):
     finally:
         shutil.rmtree(work, ignore_errors=True)       # le dossier jetable que la glu a créé
 
-    # Une piste naît en ATTENTE et sans ce que la source avait de propre au mélange : elle ne se
-    # sépare pas à son tour, et son audio est un fichier (pas l'adresse d'où venait le mélange).
-    cards = derive_cards(gen, parts, field='melody_reference', item_model=ComposerBatchItem,
-                         fk_name='generation', item_extra=_batch_item_extra,
-                         reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': None,
-                                       'error_message': None, 'separate_stems': False,
-                                       'source_url': '', 'exported_to_library': False})
+    # Une piste est une COPIE de la card (la remise à zéro du ⧉, sa ligne nommée d'après elle —
+    # `derived_cards` les lit à la déclaration de lot de l'app), sans ce que la source avait de
+    # propre au mélange : elle ne se sépare pas à son tour, et son audio est un fichier (pas
+    # l'adresse d'où venait le mélange).
+    cards = derive_cards(gen, parts, field='melody_reference',
+                         reset_fields={'separate_stems': False, 'source_url': ''})
     index = {'model': separator_key,
              'stems': [{'stem': stem, 'label': stem_label(stem), 'path': rel, 'card': card.pk}
                        for (stem, rel), card in zip(parts, cards)]}

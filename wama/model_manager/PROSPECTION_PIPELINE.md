@@ -4610,9 +4610,25 @@ avec ses réglages.
 locale) : 6 pistes en 22 s chargement compris, pic 0,61 Go ; 4 pistes affinées en 9 s, 0,54 Go ;
 la somme des pistes retrouve le mélange à 15 % / 8,6 % près (écart RMS relatif).
 
-⏳ **Reste** : installation par la route en service — les workers lancés avant le code ont refusé
-la source `demucs` (InstallEvent 89/90), à relancer ; un passage réel de bout en bout (card →
-lot) ; BS-RoFormer SW (licence) ; la séparation pour le transcriber (voix isolée) et l'enhancer.
+✅ **Installé par la route en service** (2026-11-13, workers relancés) : InstallEvent 91/92, fichiers
+vérifiés contre les empreintes épinglées (1 et 4).
+
+**Revérification du 2026-11-13** (`/reverif`, demande de Fabien : « parfaitement aligné, schéma-driven,
+rien réinventé ») — quatre écarts de ma main, ramenés :
+- la tâche manquait aux tables `TASK_TO_MODEL_TYPE` et `TASK_DEFAULT_INPUTS` : le tirage par tâche,
+  borné par la catégorie, ne trouvait AUCUN séparateur — le process s'achevait en échec optionnel,
+  la card en SUCCESS sans piste (vu au premier passage réel). Complété ; garde de la suite neuve
+  (`EntreesParDefautDeLaTacheTest.test_every_task_has_its_category`), la sœur des entrées existait ;
+- `derive_cards` se faisait repasser par la glu la liaison de lot et la remise à zéro : elles sont
+  DÉCLARÉES à la fabrique (`batch_views.element_declaration`, celle que lit le geste ⧉) — lues ;
+- une seconde table de libellés d'instruments (`STEM_LABELS`) à côté de `midi_score.INSTRUMENT_LABELS` :
+  fondue dans celle-ci ;
+- le raccourci Alt+L de la partition lisait sa touche à la main : `score_view` porte désormais ses
+  ACTIONS (`SCORE_KEYS`, `names=` au registre), garde générique `EveryKeyTableFollowsTheRegistryTest`.
+
+⏳ **Reste** : un passage réel de bout en bout en service APRÈS relance des workers (le correctif de
+taxonomie n'est lu qu'au démarrage) ; BS-RoFormer SW (licence) ; la séparation pour le transcriber
+(voix isolée) et l'enhancer.
 
 ### Décisions de Fabien et livraison (2026-11-08, suite de la session ci-dessus)
 

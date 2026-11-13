@@ -2401,7 +2401,7 @@ Les résultats d'un process deviennent des cards SŒURS dans le lot de la card s
 - **Domicile** : `wama/common/utils/derived_cards.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : CARDS DÉRIVÉES — les résultats d'une card deviennent des cards sœurs, dans SON lot.
 - **API publique** (1) :
-  - `derive_cards(source, parts, *, field, item_model=None, fk_name=None, item_extra=None, reset_fields=None, clear_fields=None)` — Range dans le lot de `source` une card par `(rôle, fichier)` de `parts` — `fichier` relatif
+  - `derive_cards(source, parts, *, field, reset_fields=None)` — Range dans le lot de `source` une card par `(rôle, fichier)` de `parts` — `fichier` relatif
 
 ### Dossier de travail jetable
 

@@ -1,0 +1,118 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "stems": [
+        "drums",
+        "bass",
+        "other",
+        "vocals"
+      ],
+      "task": "audio-source-separation"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "th",
+          "pattern": "*.th",
+          "role": "model"
+        }
+      ],
+      "runtime": {
+        "engine": "demucs"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "hybrid_transformer/f7e0c4bc-ba3fe64a.th",
+            "source": "demucs"
+          },
+          "path": "f7e0c4bc-ba3fe64a.th",
+          "sha256": "ba3fe64ae8ef66ac9a4857222ce48efbdc5eb3ad375cb79dd13debee5aaa4066",
+          "size": 84141271
+        },
+        {
+          "origin": {
+            "file": "hybrid_transformer/d12395a8-e57c48e6.th",
+            "source": "demucs"
+          },
+          "path": "d12395a8-e57c48e6.th",
+          "sha256": "e57c48e6b0e38af4f7118d7bd08c49f0a0c0edf7d09143bdd902ea0d237303e6",
+          "size": 84141271
+        },
+        {
+          "origin": {
+            "file": "hybrid_transformer/92cfc3b6-ef3bcb9c.th",
+            "source": "demucs"
+          },
+          "path": "92cfc3b6-ef3bcb9c.th",
+          "sha256": "ef3bcb9c8b40d14ae5d51b6db2587339cc12c6b77c0be151ce6d69002e087bf2",
+          "size": 84141271
+        },
+        {
+          "origin": {
+            "file": "hybrid_transformer/04573f0d-f3cf25b2.th",
+            "source": "demucs"
+          },
+          "path": "04573f0d-f3cf25b2.th",
+          "sha256": "f3cf25b222c4eed7cd49dd8b2c9597d50c18bd154090f7b919cfa5f93cf22c49",
+          "size": 84141271
+        }
+      ],
+      "license": "mit",
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "th"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Four stems, best quality: vocals, drums, bass, other",
+      "license": null,
+      "model_type": "music",
+      "platform_ref": "github:facebookresearch/demucs",
+      "source": "demucs"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.3134506605565548,
+      "ram_gb": 0.0,
+      "vram_gb": 1.0
+    }
+  },
+  "description": "Demucs v4 hybrid transformer, fine-tuned bag of four models, one per stem (Meta): vocals, drums, bass and other — the best Demucs on MUSDB18-HQ (about 9.2 dB SDR), four times slower than a single model. MIT license (the README names no separate license for the weights).",
+  "key": "demucs:htdemucs_ft",
+  "manifest_kind": "model",
+  "name": "Demucs v4 — 4 stems (fine-tuned)",
+  "projects": [],
+  "requires": [
+    {
+      "key": "demucs",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:demucs:htdemucs_ft",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -322,6 +322,7 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.TEXT_TO_AUDIO:      ModelType.MUSIC,
     ModelTask.AUDIO_TO_SCORE:     ModelType.MUSIC,
     ModelTask.AUDIO_TO_MIDI:      ModelType.MUSIC,
+    ModelTask.AUDIO_SOURCE_SEPARATION: ModelType.MUSIC,
     ModelTask.IMAGE_TO_SCORE:     ModelType.MUSIC,
     ModelTask.ROAD_SEGMENTATION:  ModelType.VISION,
     ModelTask.QUALITY_METRIC:     ModelType.VISION,
@@ -447,6 +448,7 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.TEXT_TO_AUDIO:      (('audio',),                     ('prompt',),               ()),
     ModelTask.AUDIO_TO_SCORE:     (('audio',),                     ('work_audio',),           ()),
     ModelTask.AUDIO_TO_MIDI:      (('audio',),                     ('work_audio',),           ()),
+    ModelTask.AUDIO_SOURCE_SEPARATION: (('audio',),                ('work_audio',),           ()),
     # Une PAGE de partition (scan, photo, PDF) — l'entrée de l'OCR.
     ModelTask.IMAGE_TO_SCORE:     (('image', 'document'),          ('work_file',),            ()),
     ModelTask.ROAD_SEGMENTATION:  (('image', 'video'),             ('work_file',),            ()),

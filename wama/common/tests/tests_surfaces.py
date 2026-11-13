@@ -2754,3 +2754,49 @@ class AnUnreadableAvailabilityClosesThePageTest(SimpleTestCase):
     def test_a_refusal_of_the_app_is_still_said_as_written(self):
         ok, reason = self._surface(lambda item: (False, 'Rien à lire.')).can_open(object())
         self.assertEqual((False, 'Rien à lire.'), (ok, reason))
+
+
+class EveryKeyTableFollowsTheRegistryTest(SimpleTestCase):
+    """Generic (2026-11-13) : a brick that asks the common keyboard for the ACTION of a keystroke
+    (`WamaKeys.action(e, '<brick>', TABLE)`, in its script or a module it requires) has a table
+    equal, key by key and name by name, to what it declares in the registry (`Shortcut.names`) —
+    whichever brick, no list to keep : the score view joins by declaring, like the next one.
+    And a brick that NAMES its actions without being found turns it red — the first version read
+    only a listener named `e` and skipped `image_boxes` (`ev`) in silence (d5's counter-proof)."""
+
+    #: Bricks whose named keys are read through the TRANSPORT's table (`wama-axis.js`,
+    #: `Keys.action(e, owner, TRANSPORT_KEYS)` — the owner is a variable) : held by
+    #: `BrickShortcutsTest.test_the_transport_reads_an_action_and_its_table_matches_the_registry`.
+    READ_THROUGH_THE_TRANSPORT = ('media_transport', 'media_viewer')
+
+    def test_each_literal_key_table_is_the_declared_one(self):
+        import re
+
+        from django.contrib.staticfiles import finders
+
+        from wama.common.surfaces import BRICKS, load_all
+        load_all()
+        checked = []
+        for key, brick in BRICKS.items():
+            # The brick's code as `BrickShortcutsTest._sources` reads it : its scripts, and the
+            # module that handles a key for it (`handled_by` — a PAGE brick has no script).
+            paths = [*brick.scripts(), *{s.handled_by for s in brick.shortcuts if s.handled_by}]
+            for path in paths:
+                found = finders.find(path) if str(path).endswith('.js') else None
+                if not found:
+                    continue
+                code = Path(found).read_text(encoding='utf-8', errors='ignore')
+                call = re.search(r"WamaKeys\.action\(\w+, '%s', (\w+)\)" % re.escape(key), code)
+                if not call:
+                    continue
+                table = re.search(r'(?:var|const|let)\s+%s\s*=\s*\{(.*?)\}\s*;' % call.group(1),
+                                  code, re.S)
+                declared = {k: n for s in brick.shortcuts for k, n in zip(s.keys, s.names)}
+                with self.subTest(brick=key):
+                    self.assertTrue(table, f'{key} : table {call.group(1)} not declared in {path}')
+                    self.assertEqual(declared, dict(re.findall(r"'([^']+)':\s*'(\w+)'", table.group(1))))
+                checked.append(key)
+        named = {key for key, brick in BRICKS.items() if any(s.names for s in brick.shortcuts)}
+        self.assertEqual(set(), named - set(checked) - set(self.READ_THROUGH_THE_TRANSPORT),
+                         'a brick names its actions but no literal `WamaKeys.action` reads its table')
+        self.assertIn('score_view', checked, 'the rule measures nothing without its first bricks')

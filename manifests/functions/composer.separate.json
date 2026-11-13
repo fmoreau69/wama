@@ -1,0 +1,55 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "composer.tasks:compose_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Audio du morceau à séparer (cover).",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.separate",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Les pistes, une card chacune dans le lot.",
+        "key": "stems",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "music",
+      "gpu"
+    ]
+  },
+  "description": "Sépare l'audio du morceau repris en pistes — voix, batterie, basse, guitare, piano, autres, selon le modèle de la tâche `audio-source-separation` (Demucs v4) — et range chaque piste dans une card du lot de celle-ci, avec ses réglages : une partition écrite sur un instrument seul est plus juste que sur le mélange. Optionnelle ; les cards des pistes ne se lancent pas d'elles-mêmes.",
+  "key": "composer.separate",
+  "manifest_kind": "function",
+  "name": "Composer — pistes séparées de l'entrée",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.separate",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

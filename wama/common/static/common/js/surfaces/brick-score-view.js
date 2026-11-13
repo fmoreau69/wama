@@ -56,16 +56,30 @@
 
     var RENDER_DELAY_MS = 250;
     var PLAYING = 'wama-score-playing';
-    /** Touche → geste rythmique (`WamaScore.retime`). `=` : le + sans Maj d'un clavier français. */
-    var RETIME_KEYS = { ArrowLeft: 'left', ArrowRight: 'right', '+': 'longer', '=': 'longer',
-                        '-': 'shorter' };
     /** Le PAS des gestes rythmiques (2026-10-22, Fabien : « forcer une rythmique précise ») : le
      *  dénominateur de la figure (4 = la noire) ; '' = automatique, le défaut. */
     var STEPS = [['', 'Pas : auto'], ['1', 'Pas : ronde'], ['2', 'Pas : blanche'], ['4', 'Pas : noire'],
                  ['8', 'Pas : croche'], ['16', 'Pas : double croche'], ['32', 'Pas : triple croche']];
-    /** Chiffres → pas : la convention de MuseScore (vers qui on exporte), le chiffre monte avec la
-     *  durée ; 0 rend l'automatique. */
-    var STEP_KEYS = { '0': '', '2': '32', '3': '16', '4': '8', '5': '4', '6': '2', '7': '1' };
+    /** Les touches PAR DÉFAUT de la partition, `{touche: action}` — celles que la brique déclare au
+     *  registre (`surfaces.py`, `score_view.shortcuts`, tenues égales par `BrickShortcutsTest`) ;
+     *  le clavier commun rend l'ACTION d'une frappe (`WamaKeys.action`, 2026-11-13), qu'une
+     *  surcharge peut redonner à d'autres touches. Une touche se dit par sa POSITION ; le
+     *  caractère seulement pour `+`, `-` et les chiffres (règle du clavier commun) : les chiffres
+     *  suivent la convention de MuseScore (vers qui on exporte), le chiffre monte avec la durée,
+     *  0 rend l'automatique ; `Equal` est la touche du `=` (le + sans Maj d'un clavier français).
+     *  Échap ne se nomme pas (il ne se redonne pas) : il se lit à part. */
+    var SCORE_KEYS = {
+        'ArrowUp': 'note_up', 'ArrowDown': 'note_down',
+        'ArrowLeft': 'note_earlier', 'ArrowRight': 'note_later',
+        '+': 'note_longer', 'Equal': 'note_longer', '-': 'note_shorter',
+        '2': 'step_32', '3': 'step_16', '4': 'step_8', '5': 'step_4', '6': 'step_2', '7': 'step_1',
+        '0': 'step_auto', 'Alt+KeyL': 'toggle_follow',
+    };
+    /** Action → geste rythmique (`WamaScore.retime`) et action → pas (dénominateur, '' = auto). */
+    var RETIME_ACTIONS = { note_earlier: 'left', note_later: 'right', note_longer: 'longer',
+                           note_shorter: 'shorter' };
+    var STEP_ACTIONS = { step_32: '32', step_16: '16', step_8: '8', step_4: '4', step_2: '2',
+                         step_1: '1', step_auto: '' };
     var STEP_STORE = 'wama.score.step';           // un confort du lecteur : son dernier pas
 
     function readStep() {
@@ -523,19 +537,19 @@
         // propre à la note, n'est donc pas sur le chemin de la frappe.
         body.tabIndex = 0;
         global.WamaKeys.register({ owner: 'score_view', scope: 'brick', root: body, handle: function (e) {
-            if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'l' || e.key === 'L')) {
-                follow.toggle();
-                return true;
+            if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                if (!selection) return false;
+                selection = null; highlight(); return true;
             }
-            if (e.ctrlKey || e.metaKey || e.altKey) return false;
-            if (e.key === 'Escape' && selection) { selection = null; highlight(); return true; }
-            if (STEP_KEYS.hasOwnProperty(e.key)) { setStep(STEP_KEYS[e.key]); return true; }
+            var act = global.WamaKeys.action(e, 'score_view', SCORE_KEYS);
+            if (!act) return false;
+            if (act === 'toggle_follow') { follow.toggle(); return true; }
+            if (STEP_ACTIONS.hasOwnProperty(act)) { setStep(STEP_ACTIONS[act]); return true; }
             if (!selection || !editable()) return false;
-            var op = RETIME_KEYS[e.key];
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                transpose(selection.start, selection.end, e.key === 'ArrowUp' ? -1 : 1);
-            } else if (op) {
-                retime(op);
+            if (act === 'note_up' || act === 'note_down') {
+                transpose(selection.start, selection.end, act === 'note_up' ? -1 : 1);
+            } else if (RETIME_ACTIONS[act]) {
+                retime(RETIME_ACTIONS[act]);
             } else {
                 return false;
             }

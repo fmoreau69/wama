@@ -101,9 +101,12 @@ _WRITABLE = (16, 12, 8, 6, 4, 3, 2, 1)
 #: Un instrument de clavier : deux portées (main droite / main gauche).
 _KEYBOARD_WORDS = ('piano', 'keyboard', 'clavier', 'harpsichord', 'organ', 'orgue')
 #: Libellés AFFICHÉS des pistes (la langue de l'interface est le français) : le vocabulaire fermé
-#: des 35 groupes d'instruments de MuScriptor (`MT3_FULL_PLUS`, relu le 2026-10-16) ; un nom
-#: inconnu s'affiche tel quel, capitalisé.
+#: des 35 groupes d'instruments de MuScriptor (`MT3_FULL_PLUS`, relu le 2026-10-16), et depuis le
+#: 2026-11-12 les PISTES des séparateurs de sources (Demucs : `vocals`, `bass`, `guitar`, `piano`,
+#: `other` — `drums` y était déjà) : un instrument se nomme à un seul endroit, qu'un moteur
+#: l'écrive ou le sépare ; un nom inconnu s'affiche tel quel, capitalisé.
 INSTRUMENT_LABELS = {
+    'vocals': 'Voix', 'bass': 'Basse', 'guitar': 'Guitare', 'piano': 'Piano', 'other': 'Autres',
     'acoustic bass': 'Contrebasse jazz', 'acoustic guitar': 'Guitare acoustique',
     'acoustic piano': 'Piano', 'baritone sax': 'Saxophone baryton', 'bassoon': 'Basson',
     'brass section': 'Cuivres', 'cello': 'Violoncelle', 'chromatic percussion': 'Percussions à clavier',

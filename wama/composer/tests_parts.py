@@ -314,12 +314,15 @@ class StemSeparationTest(_InputProcessCase):
         self.assertEqual(3, lot.total)
         rows = {link.generation_id: link.row_index for link in lot.items.all()}
         self.assertEqual(0, rows[gen.pk], 'the mix stays first')
+        names = {link.generation_id: link.output_filename for link in lot.items.all()}
+        self.assertEqual(len(names), len(set(names.values())), 'each line named after its own input')
         for role, card in stems.items():
             with self.subTest(role=role):
                 self.assertEqual(lot.pk, batch_of(card).pk)
                 self.assertTrue((Path(self.tmp) / card.melody_reference.name).is_file())
                 self.assertIn('/composer/input/', card.melody_reference.name, 'an INPUT of its card')
                 self.assertIn(f'_{role}_', card.melody_reference.name)
+                self.assertIn(f'_{role}_', names[card.pk], 'its line is named after its stem')
                 self.assertEqual(('PENDING', False, True, ''),
                                  (card.status, card.separate_stems, card.extract_parts, card.source_url),
                                  "its own settings from the source's, not launched, not split again")
