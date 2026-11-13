@@ -438,20 +438,36 @@ def predict_model_choice(spec):
     groupe du menu). Fabien, 2026-10-13 : « Prévu : qwen-3.8-27b » ne disait pas que c'était ILaaS.
     `quantization` (2026-10-29) : la PRÉCISION des poids — une quantification hérite la note de son
     modèle d'origine, et la prévision le dit (`AIModel.quantization`).
+    `basis` / `unranked` (2026-11-12, Q10 marche 2, `WAMA_QUALITE §0`) : sur quoi le choix repose
+    et les modèles SANS note que le tirage n'a pas pu départager (verdict « indéterminé » : ils
+    auraient pu faire mieux) — dits seulement quand il y a quelque chose à dire (un modèle non
+    comparé, un choix sans note, un lot qu'aucune note ne classe) ; sinon vides, et la phrase
+    reste celle d'avant. Rempli par le tirage lui-même (`select_model(report=…)`).
     """
-    key = resolve_model_choice(AUTO, spec=dict(spec or {}))
+    report = {}
+    key = resolve_model_choice(AUTO, spec={**dict(spec or {}), 'report': report})
     if not key:
         return None
     source = (spec or {}).get('source')
     model_key = f'{source}:{key}' if source and ':' not in str(key) else key
     from wama.model_manager.models import AIModel
+    from wama.model_manager.services.model_selector import VERDICT_UNDETERMINED
     m = AIModel.objects.filter(model_key=model_key).first()
+    verdicts = report.get('verdicts') or {}
+    undetermined = [k for k, verdict in verdicts.items() if verdict == VERDICT_UNDETERMINED]
+    names = dict(AIModel.objects.filter(model_key__in=undetermined).values_list('model_key', 'name'))
+    # Un lot d'UN modèle n'a rien comparé : rien à dire (AudioGen, seul des ambiances aujourd'hui).
+    compared_lot = len(report.get('compared') or []) + len(verdicts)
+    worth_saying = compared_lot >= 2 and (bool(undetermined) or report.get('chosen') in verdicts
+                                          or report.get('stage') in ('vram', 'none'))
     return {
         'id': key,
         'name': (m.name if m else str(key)),
         'vram_gb': (m.vram_gb if m else None),
         'origin': (m.origin_label if m else ''),
         'quantization': (m.quantization if m else ''),
+        'basis': report.get('basis', '') if worth_saying else '',
+        'unranked': [names.get(k) or k for k in undetermined],
     }
 
 

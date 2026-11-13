@@ -200,6 +200,58 @@ class PreviewOriginTest(TestCase):
             self.assertEqual('', predict_model_choice({'task': 'text-to-speech'})['quantization'])
 
 
+class PreviewSaysWhatItCouldNotCompareTest(TestCase):
+    """Q10 marche 2 (2026-11-12, `WAMA_QUALITE §0`) : la prévision dit SUR QUOI le choix repose et
+    les modèles SANS note qu'elle n'a pas pu départager — rempli par le tirage lui-même
+    (`select_model(report=…)`), jamais recalculé à côté ; rien de plus quand il n'y a rien à dire."""
+
+    def _rated(self, key, name, vram, quality):
+        row = _tts(key, name, vram)
+        row.quality_index = quality
+        row.save(update_fields=['quality_index'])
+        return row
+
+    def test_an_unranked_model_is_named_with_the_basis(self):
+        self._rated('synthesizer:a', 'A', 2.0, 60.0)
+        self._rated('synthesizer:b', 'B', 3.0, 50.0)
+        _tts('synthesizer:u', 'U', 1.0)          # sans note, VRAM seulement déclarée
+        p = predict_model_choice({'task': 'text-to-speech', 'quality_intent': 100})
+        self.assertEqual(('synthesizer:a', 'a priori déclaré', ['U']),
+                         (p['id'], p['basis'], p['unranked']))
+
+    def test_a_fully_rated_lot_says_nothing_more(self):
+        self._rated('synthesizer:a', 'A', 2.0, 60.0)
+        self._rated('synthesizer:b', 'B', 3.0, 50.0)
+        p = predict_model_choice({'task': 'text-to-speech', 'quality_intent': 100})
+        self.assertEqual(('', []), (p['basis'], p['unranked']))
+
+    def test_a_lone_model_compared_nothing(self):
+        """AudioGen, seul des ambiances : un lot d'un modèle n'a rien comparé, rien à dire."""
+        _tts('synthesizer:u', 'U', 1.0)
+        p = predict_model_choice({'task': 'text-to-speech', 'quality_intent': 100})
+        self.assertEqual(('synthesizer:u', '', []), (p['id'], p['basis'], p['unranked']))
+
+    def test_the_note_under_the_select_says_it(self):
+        """Sur le fichier SERVI, en V8 : la phrase de la page, trois noms au plus."""
+        from pathlib import Path
+        from django.conf import settings
+        from py_mini_racer import MiniRacer
+        v8 = MiniRacer()
+        v8.eval("var window = {}; var document = {readyState: 'complete', "
+                "addEventListener: function () {}, querySelectorAll: function () { return []; }};")
+        v8.eval((Path(settings.BASE_DIR) / 'staticfiles/common/js/wama-params.js')
+                .read_text(encoding='utf-8'))
+        self.assertEqual(
+            'Prévu : A (2 Go) — selon : a priori déclaré ; sans note, non comparés : U, V, W (+1)'
+            ' — réévalué au lancement',
+            v8.eval("window.WamaParams.autoPreviewText({name: 'A', vram_gb: 2, "
+                    "basis: 'a priori déclaré', unranked: ['U', 'V', 'W', 'X']})"))
+        # Contre-épreuve : sans rien à dire, la phrase d'avant.
+        self.assertEqual('Prévu : A (2 Go) — réévalué au lancement',
+                         v8.eval("window.WamaParams.autoPreviewText({name: 'A', vram_gb: 2, "
+                                 "basis: '', unranked: []})"))
+
+
 class EndpointOptionsAutoTest(TestCase):
 
     URL = '/model-manager/api/models/options/'

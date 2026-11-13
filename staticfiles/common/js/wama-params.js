@@ -1388,11 +1388,22 @@
   // gratuit (quota) ». Un modèle distant n'a pas de VRAM locale : rien ne s'affiche à sa place.
   // La PRÉCISION des poids suit le nom (2026-10-29, Fabien) : une version quantisée hérite la note
   // de son modèle d'origine — « Q6_K » dit ce que cette note ne dit pas.
+  // SUR QUOI le choix repose, et les modèles SANS note que le tirage n'a pas pu départager
+  // (2026-11-12, Q10 — `WAMA_QUALITE §0`) : phrases du serveur (`auto_model.predict_model_choice`,
+  // `model_selector.STAGE_LABELS`), vides quand il n'y a rien à dire — la phrase reste alors
+  // celle d'avant. Trois noms au plus, le reste compté.
   function _autoPreviewText(preview) {
     var quant = preview.quantization ? ' · ' + preview.quantization : '';
     var vram = preview.vram_gb ? ' (' + preview.vram_gb + ' Go)' : '';
     var origin = preview.origin ? ' · ' + preview.origin : '';
-    return 'Prévu : ' + preview.name + quant + vram + origin + ' — réévalué au lancement';
+    var basis = preview.basis ? ' — selon : ' + preview.basis : '';
+    var unranked = preview.unranked || [];
+    var others = unranked.length
+      ? ' ; sans note, non comparés : ' + unranked.slice(0, 3).join(', ')
+        + (unranked.length > 3 ? ' (+' + (unranked.length - 3) + ')' : '')
+      : '';
+    return 'Prévu : ' + preview.name + quant + vram + origin + basis + others
+      + ' — réévalué au lancement';
   }
 
   // ── Sources d'options adossées à une DONNÉE DE PAGE (résolution SYNCHRONE) ──────────────

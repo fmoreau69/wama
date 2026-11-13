@@ -271,6 +271,22 @@ def _quality_scalars(pool, family=None):
     return ladder.values, ladder.proxy_vram
 
 
+#: Ce qu'un étage dit à l'utilisateur, dans la prévision (Q10 marche 2, 2026-11-12) — le libellé vit
+#: à côté des étages, la page n'en écrit aucun. `vram` et `none` : aucune note ne classe le lot.
+STAGE_LABELS = {
+    'internal': 'mesure WAMA',
+    'family': 'banc tiers (sous-indice)',
+    'benchmark': 'banc tiers',
+    'common_scale': 'banc tiers (échelle commune)',
+    'percentile': 'rang centile des bancs',
+    'prior': 'a priori déclaré',
+    'vram': 'taille seule, aucune note',
+    'none': 'aucune note',
+}
+#: Le choix d'un modèle SANS note, gagnant même au pire (`unrated_verdicts`).
+UNRATED_WIN_LABEL = 'le plus léger, coût mesuré, sans note'
+
+
 class QualityLadder(NamedTuple):
     """Ce que l'échelle des signaux rend pour UN lot (2026-11-12, Q10 — `WAMA_QUALITE §0`).
 
@@ -478,7 +494,8 @@ def domain_q(domain: dict):
     return q if q.children else None
 
 
-def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_intent=None):
+def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_intent=None,
+                  report: Optional[dict] = None):
     """
     Parmi `models`, le meilleur compromis QUALITÉ/COÛT au poids du CURSEUR (0-100) :
 
@@ -568,8 +585,21 @@ def _best_by_vram(models, budget_gb: Optional[float], family=None, quality_inten
                     {m.model_key: verdicts[id(m)][0] for m in pool if id(m) in verdicts})
     winners = [m for m in pool if verdicts.get(id(m), ('',))[0] == VERDICT_WINS]
     if winners:
-        return max(winners, key=lambda m: verdicts[id(m)][1])
-    return intent_choice(rankable, values, costs, quality_intent)
+        choice = max(winners, key=lambda m: verdicts[id(m)][1])
+    else:
+        choice = intent_choice(rankable, values, costs, quality_intent)
+    if report is not None:
+        # Ce que le tirage a fait, pour le DIRE (Q10 marche 2) : l'étage, ses bornes, les modèles
+        # comparés et le verdict de chaque modèle sans note — rempli pour l'appelant qui le demande.
+        report.update({
+            'stage': ladder.stage, 'bounds': 'population' if ladder.bounds else 'lot',
+            'compared': [m.model_key for m in rankable if id(m) in values],
+            'verdicts': {m.model_key: verdicts[id(m)][0] for m in pool if id(m) in verdicts},
+            'chosen': choice.model_key,
+            'basis': (UNRATED_WIN_LABEL if id(choice) in verdicts
+                      else STAGE_LABELS.get(ladder.stage, '')),
+        })
+    return choice
 
 
 #: Verdicts d'un modèle SANS note sur l'échelle retenue (`unrated_verdicts`).
@@ -697,6 +727,7 @@ def select_model(
     quality_intent=None,
     cloud_keys=None,
     user=None,
+    report: Optional[dict] = None,
 ):
     """
     Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
@@ -746,6 +777,9 @@ def select_model(
                          qu'il voit entrent au lot (`catalogue_visible_q` — système, publics,
                          les siens, sa portée ; tout pour l'admin). Sans compte, le système et le
                          public seuls : un modèle privé n'est jamais tiré pour un inconnu.
+        report:          dict que le tirage REMPLIT (Q10, 2026-11-12) : l'étage qui a classé, ses
+                         bornes, les modèles comparés, le verdict de chaque modèle sans note et la
+                         phrase qui dit sur quoi le choix repose (`basis`) — lu par la prévision.
 
     Returns:
         AIModel | None.
@@ -856,8 +890,8 @@ def select_model(
         if prefer_loaded and (_w * 100.0) < QUALITY_OFFLOAD_THRESHOLD:
             loaded = [m for m in pool if m.is_loaded or m.model_key in residents]
             if loaded:
-                return _best_by_vram(loaded, budget, benchmark_family, quality_intent)
-        return _best_by_vram(pool, budget, benchmark_family, quality_intent)
+                return _best_by_vram(loaded, budget, benchmark_family, quality_intent, report)
+        return _best_by_vram(pool, budget, benchmark_family, quality_intent, report)
 
     # Priorité explicite : le 1er palier ayant des candidats l'emporte (domine la VRAM).
     if priority:

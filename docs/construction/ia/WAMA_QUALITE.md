@@ -504,9 +504,26 @@ pas des décisions de Fabien.
 - **Gardes** : `tests_signal_scale_subset.UnknownQualityIsBoundedTest` (9) + l'étendue écrite par
   la synchro (`tests.TroisiemeBancEtSensTest.test_every_source_that_rates_the_model_is_recorded_in_priority_order`) ;
   contre-épreuve en processus (`mutate_in_process`), 7 mutations, 7 rouges distincts.
-- ⏳ **Reste de la marche** : le DIRE à l'écran — la prévision « Prévu : … » (`auto_model.
-  predict_model_choice`, `wama-params.js`) ne reçoit que la clé ; elle dira l'étage et les modèles
-  non comparés (marche 2, avec les notes calculées dans `WamaModelHelp`).
+- ✅ **Vérifié en service le 2026-11-13** (après la relance de Fabien : web 00:20, workers 00:28,
+  commit 22:25) : la route de la prévision du gunicorn servi rend, au compte de test, LinTO pour la
+  transcription aux curseurs 0 et 15 (qwen3-asr-0.6b avec le sélecteur d'avant, rejoué au même
+  instant) ; rien d'autre ne change sur ce chemin.
+
+✅ **MARCHE 2 LIVRÉE (2026-11-13) — la prévision le DIT.** Le tirage remplit un rapport
+(`select_model(report=…)`, rempli dans `_best_by_vram` : étage, bornes, modèles comparés, verdict de
+chaque modèle sans note, `basis`) ; `auto_model.predict_model_choice` en tire `basis` (la phrase de
+l'étage, `model_selector.STAGE_LABELS`, ou `UNRATED_WIN_LABEL` quand le choix est un modèle sans
+note) et `unranked` (les noms des modèles « indéterminés ») ; `wama-params.js` (`_autoPreviewText`)
+écrit « Prévu : … — selon : … ; sans note, non comparés : A, B, C (+n) — réévalué au lancement ».
+Rien de plus quand il n'y a rien à dire (lot entièrement noté, ou lot d'UN modèle : AudioGen seul
+des ambiances) — décision de Fabien, aucune interface de plus. Relevé sur le catalogue réel (compte
+de test, curseurs 15 et 85) : **25 prévisions sur 39 tâches en disent plus** ; sept tâches n'ont
+AUCUNE note (« taille seule, aucune note » : débruitage audio, profondeur, analyse de visage, mise
+en page, synchronisation labiale, détection de données personnelles, texte vers vidéo) — c'est
+l'inventaire du trou de notation, désormais visible. Gardes : `tests_auto_model.
+PreviewSaysWhatItCouldNotCompareTest` (4, V8 sur le fichier servi), contre-épreuve 4 mutations, 4
+rouges. 🔴 Le serveur web à relancer pour qu'elle serve. ⏳ Reste du §30.1 : les notes calculées
+dans `WamaModelHelp` (point 2), l'échelle principale par tâche (point 3), la mesure d'entrée (P4).
 
 ⏳ **`AIModel.cost_tier` reste NON LU, et c'est délibéré** (question tranchée le 26/09,
 demande initiale de Fabien de « brancher l'arbitrage honnête », retirée après mesure). Le
