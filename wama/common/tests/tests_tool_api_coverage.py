@@ -76,6 +76,10 @@ ASSISTANT_CHANNEL_ROUTES = {                   # the conversation with the assis
 #: maps nowhere counts in the budget below. One tool may serve several routes (a page's poller of a
 #: gesture is that gesture's tool, called again).
 ROUTE_TOOLS = {
+    # The « Exploitation » page (2026-11-14) relays to the DEVELOPMENT tools, which the assistant
+    # reaches through its development surface — the same tools, one path.
+    'common:api_operations_run': 'dev_run_operation',
+    'common:api_operations_jobs': 'dev_list_jobs',
     # The domain of an app page (2026-11-12) : `open_page(page, domain=…)` keeps it for the account.
     'common:api_page_domain': 'open_page',
     'model_manager:api_models_db': 'list_ai_models',
@@ -258,7 +262,12 @@ class EveryActionRouteHasItsToolTest(SimpleTestCase):
         for route, tool in ROUTE_TOOLS.items():
             with self.subTest(route=route):
                 self.assertIn(route, routes, 'route renommée ou retirée : corriger ROUTE_TOOLS')
-                self.assertIn(tool, T.TOOL_REGISTRY)
+                # A route may be served by a DEVELOPMENT tool (`dev_*`, the separate surface).
+                from wama.common.services import dev_tools, mcp_client
+                if mcp_client.is_dev_tool(tool):
+                    self.assertIn(tool, dev_tools.DEV_TOOLS)
+                else:
+                    self.assertIn(tool, T.TOOL_REGISTRY)
 
     def test_the_budget_of_routes_without_tool_is_exact(self):
         """It FAILS when it keeps a margin too : a margin is a permission to add a route without

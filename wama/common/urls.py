@@ -275,6 +275,10 @@ urlpatterns = [
     # Schéma domaines→modes d'une app (clé de voûte UX, consommé par WamaModes JS)
     path('api/app-modes/<str:app>/', views.api_app_modes, name='api_app_modes'),
     path('api/page-domain/', views.api_page_domain, name='api_page_domain'),
+    # La page « Exploitation » (2026-11-14) : processus à relancer, opérations déclarées, rapports.
+    path('operations/', views.operations_page, name='operations'),
+    path('api/operations/run/', views.api_operations_run, name='api_operations_run'),
+    path('api/operations/jobs/', views.api_operations_jobs, name='api_operations_jobs'),
     path('modes-demo/', views.modes_demo, name='modes_demo'),
 
 ]

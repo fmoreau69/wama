@@ -515,8 +515,8 @@ def _crontab_occurrences(schedule, start, end, tz):
 
 
 def _nightly_reports_dir() -> Path:
-    from django.conf import settings
-    return Path(settings.BASE_DIR) / 'logs' / 'nightly_tests'
+    from wama.common.services.nightly_tests import reports_dir
+    return reports_dir()
 
 
 def measured_nightly_minutes(stage=None, reports_dir=None, cadence=None) -> float | None:

@@ -712,16 +712,9 @@ class ThePageTest(TestCase):
         v8.eval(f"updateServices({{watchdog:'absent',watchdog_message:'pas de surveillance',services:[{service}]}})")
         self.assertIn('disabled', v8.eval("nodes['services-list'].innerHTML"))
         self.assertFalse(v8.eval("nodes['services-watchdog'].hidden"))
-        # Les processus : rendus pour l'administrateur seul (la vue les retire pour un développeur).
-        self.assertTrue(v8.eval("nodes['processes-block'].hidden"))
-        process = ("{key:'gpu',label:'Worker gpu',kind:'worker',state:'ok',state_label:'En marche',"
-                   "tone:'success',actions:['restart'],when_off:'w'}")
-        v8.eval(f"updateServices({{watchdog:'running',watchdog_message:'',services:[{service}],"
-                f"processes:[{process}]}})")
-        self.assertFalse(v8.eval("nodes['processes-block'].hidden"))
-        html = v8.eval("nodes['processes-list'].innerHTML")
-        self.assertIn('data-process="gpu"', html)
-        self.assertNotIn('disabled', html)
+        # Les PROCESSUS ne sont plus rendus ici (2026-11-14) : ils vivent à la page
+        # « Exploitation » (`wama-processes.js`, `tests_operations`).
+        self.assertNotIn('processes', script)
 
     @skipUnless(HAS_V8, 'V8 (py_mini_racer) absent')
     def test_the_password_is_never_asked_in_clear_without_the_modal(self):

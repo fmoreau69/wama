@@ -785,19 +785,21 @@ def _validate_now(relative: str):
 
 
 from wama.common.services.dev_inspect import (  # noqa: E402 — après DevToolError/base_dir
-    dev_db_query, dev_db_schema, dev_list_code, dev_read_code, dev_read_log, dev_run_tests,
-    dev_search_code)
+    dev_db_query, dev_db_schema, dev_list_code, dev_list_operations, dev_read_code, dev_read_log,
+    dev_run_operation, dev_search_code)
 
 DEV_TOOLS = {fn.__name__: fn for fn in (dev_run_role, dev_sandbox, dev_regen_check, dev_reload_web,
                                          dev_claude_code, dev_job_status, dev_read_report,
                                          dev_list_jobs, dev_read_output, dev_db_query, dev_db_schema,
                                          dev_read_log, dev_read_code, dev_list_code,
-                                         dev_search_code, dev_run_tests)}
+                                         dev_search_code, dev_list_operations,
+                                         dev_run_operation)}
 
 #: Outils d'inspection (`dev_inspect`) réservés aux ADMINISTRATEURS : ni annoncés ni appelables
 #: par un développeur qui ne l'est pas — chacun double la garde dans son corps (`@admin_only`).
 ADMIN_ONLY = frozenset({'dev_db_query', 'dev_db_schema', 'dev_read_log', 'dev_read_code',
-                        'dev_list_code', 'dev_search_code', 'dev_run_tests'})
+                        'dev_list_code', 'dev_search_code', 'dev_list_operations',
+                        'dev_run_operation'})
 
 
 # ── L'interface qu'attend `mcp_server` : lister, appeler ────────────────────────────────────

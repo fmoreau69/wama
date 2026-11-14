@@ -53,7 +53,6 @@ class AdminGuardTest(_Base):
             self.assertEqual('forbidden', fn(self.dev, 'x')['error'])
         self.assertEqual('forbidden', dev_inspect.dev_list_code(self.dev)['error'])
         self.assertEqual('forbidden', dev_inspect.dev_search_code(self.dev, 'x')['error'])
-        self.assertEqual('forbidden', dev_inspect.dev_run_tests(self.dev, 'wama.common.tests')['error'])
 
 
 class DatabaseTest(_Base):
@@ -136,17 +135,6 @@ class FilesTest(_Base):
                         {'pattern': 'x', 'glob': '../*'}, {'pattern': ''}):
             with self.subTest(refused=refused):
                 self.assertIn('error', self._call(self.admin, 'dev_search_code', **refused))
-
-    def test_dev_run_tests_starts_one_label_and_never_the_whole_suite(self):
-        with mock.patch.object(dev_inspect, 'start_job', return_value={'job_id': 'j'}) as started:
-            self.assertEqual({'job_id': 'j'}, self._call(self.admin, 'dev_run_tests',
-                                                         label='wama.common.tests.tests_user_settings'))
-            argv = started.call_args.args[2]
-            self.assertEqual(['test', 'wama.common.tests.tests_user_settings', '--keepdb'], argv[2:])
-            for label in ('', 'wama', 'os.system', 'wama.common; rm -rf x', '--help', 'wama..tests'):
-                with self.subTest(label=label):
-                    self.assertIn('error', self._call(self.admin, 'dev_run_tests', label=label))
-            self.assertEqual(1, started.call_count)
 
     def test_dev_read_code_numbers_lines(self):
         (self.root / 'pkg' / 'a.py').write_text('x = 1\ny = 2\n', encoding='utf-8')

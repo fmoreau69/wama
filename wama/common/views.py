@@ -134,6 +134,61 @@ def system_stats(request):
     return JsonResponse(stats)
 
 
+def _operations_admin(view):
+    """Les vues de la page « Exploitation » : administrateurs seuls (`accounts.views.admin_required`)."""
+    from wama.accounts.views import admin_required
+    return admin_required(view)
+
+
+@_operations_admin
+def operations_page(request):
+    """La page « EXPLOITATION » (2026-11-14, `ROADMAP §31.1`) : ce qui fait TOURNER WAMA et ce qui le
+    CONTRÔLE, au même endroit — les processus à relancer (ils alourdissaient la page des modèles,
+    qu'ils ne concernent pas), les opérations déclarées (`common/operations.py`), les derniers
+    rapports nocturnes. La page n'exécute rien : une relance est un ordre déposé pour la
+    surveillance, une opération une tâche de fond du serveur de développement."""
+    from django.urls import reverse
+
+    from .operations import operations
+    from .services.nightly_tests import recent_reports
+    return render(request, 'common/operations.html', {
+        'operations': operations(),
+        'reports': recent_reports(),
+        'services_api': reverse('model_manager:api_services'),
+        'services_control_api': reverse('model_manager:api_service_control'),
+    })
+
+
+@_operations_admin
+@require_POST
+def api_operations_run(request):
+    """Lance une opération déclarée — relayée au serveur de développement (`dev_run_operation`),
+    qui seul possède les tâches de fond ; le serveur web n'importe jamais ses outils."""
+    from .services import mcp_client
+    result = mcp_client.call_dev_tool(request.user, 'dev_run_operation', {
+        'operation': request.POST.get('operation') or '',
+        'argument': request.POST.get('argument') or ''})
+    return JsonResponse(result, status=400 if result.get('error') else 200)
+
+
+@_operations_admin
+@require_GET
+def api_operations_jobs(request):
+    """Les opérations lancées, la plus récente d'abord — ou UNE, avec la fin de son journal
+    (`?job=<id>`). Lues au serveur de développement (`dev_list_jobs`, `dev_job_status`)."""
+    from .services import mcp_client
+    job = request.GET.get('job')
+    if job:
+        return JsonResponse(mcp_client.call_dev_tool(request.user, 'dev_job_status', {'job_id': job}))
+    listing = mcp_client.call_dev_tool(request.user, 'dev_list_jobs', {'limit': 60})
+    if listing.get('error'):
+        return JsonResponse(listing, status=503)
+    # Le préfixe est celui de `dev_inspect.OPERATION_TOOL` — écrit ici parce que ce processus
+    # n'importe pas les outils de développement (`tests_operations` tient les deux d'accord).
+    jobs = [j for j in listing.get('jobs') or [] if str(j.get('tool', '')).startswith('operation:')]
+    return JsonResponse({'jobs': jobs[:15]})
+
+
 @login_required
 @require_POST
 def api_page_domain(request):

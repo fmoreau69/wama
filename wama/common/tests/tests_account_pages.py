@@ -105,19 +105,19 @@ class AccountMenuTest(TestCase):
         what administers it — the last three folded into sub-menus, as DECLARED."""
         menu = account_menu(self.admin)
         self.assertEqual([('Mon espace', False), ('Mon atelier', True), ('WAMA', True),
-                          ('Administration', True)], [(s['label'], s['submenu']) for s in menu])
+                          ('Admin', True)], [(s['label'], s['submenu']) for s in menu])
         self.assertEqual(['Mon calendrier', 'Mon journal', 'Mon RAG', 'Mes souvenirs',
                           'Mes partages', 'Mon profil'], [p['label'] for p in menu[0]['pages']])
         self.assertTrue(all(p['label'].startswith(('Mon ', 'Ma ', 'Mes ')) for p in menu[0]['pages']))
         self.assertEqual(['Fonctions', 'Skills', 'Prononciations'],
                          [p['label'] for p in menu[1]['pages']])
-        self.assertEqual(['Users'], [p['label'] for p in menu[3]['pages']])
+        self.assertEqual({'Users', 'Exploitation'}, {p['label'] for p in menu[3]['pages']})
         self.assertTrue(all(s['icon'] for s in menu if s['submenu']))
 
     def test_a_member_sees_no_empty_section(self):
         # Counter-check: a section whose pages are all closed to the account is not rendered.
         labels = [s['label'] for s in account_menu(self.member)]
-        self.assertNotIn('Administration', labels)
+        self.assertNotIn('Admin', labels)
         self.assertEqual('Mon espace', labels[0])
 
     def test_the_platform_section_keeps_its_ten_pages(self):

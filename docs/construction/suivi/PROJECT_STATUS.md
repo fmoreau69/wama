@@ -31410,3 +31410,32 @@ défaut DU SOCLE (gabarit lu à chaud, donc servi aussitôt) ; restauré avant t
 **Blocs générés périmés** : `outils` (ROUTE) l'est aussi de ma main (`open_page` a gagné l'argument
 `domain`) mais le bloc porte déjà le travail non commité d'une autre session — un `doc_facts`
 complet après son commit le soldera, avec `mecanismes`, `conformite` et `briques`.
+
+## §PALIER 2026-11-14 (après-midi), « PAGE EXPLOITATION (`ROADMAP §31.1`, première version) ; menu : Admin » — commit local, non poussé — 🔴 recharger gunicorn ET relancer le serveur MCP de développement — 🔚 suivre une opération comme une card (`job_families`)
+
+**Livré** (`common:operations`, menu du compte → Admin → Exploitation, administrateurs seuls) :
+- **Processus** : sortis de la page des modèles (qui ne garde que les services et un lien) ; rendus
+  par `wama-processes.js` depuis `service_supervision.processes_overview`, mêmes ordres
+  (`control_process`).
+- **Opérations** : déclarées dans `wama/common/operations.py` (`OPERATIONS` — sept commandes de
+  `manage.py` aux arguments FIGÉS, un seul argument libre, borné par une expression régulière,
+  pour le test ciblé). La page ne lance rien : `api_operations_run` relaie à l'outil de
+  développement `dev_run_operation` (`mcp_client.call_dev_tool`), que l'assistant appelle aussi ;
+  `dev_run_tests` est RETIRÉ au profit de l'opération `tests`. Suivi : `api_operations_jobs`.
+- **Rapports nocturnes** : `nightly_tests.recent_reports` (rouges et verdicts absents,
+  `nightly_suite.NO_VERDICT`) ; `reports_dir()` devient LE chemin (le calendrier le lit aussi).
+- **Charte** : la page suit les pages de gestion (`wama-catalog.css`, `_catalog_header.html`).
+- **Menu** : la section « Administration » s'appelle « Admin » (`ACCOUNT_SECTIONS`).
+
+**Gardes** : `wama/common/tests/tests_operations.py` (neuf) ; `tests_service_control`,
+`tests_dev_inspect`, `tests_tool_api_coverage` (une route peut être servie par un outil `dev_*`,
+vérifié contre `dev_tools.DEV_TOOLS`), `tests_account_pages` alignés. Périmètre et gardes
+transverses : 371 tests, OK. **Contre-épreuves** : argument non borné → 5 rouges ; route de
+lancement sans `_operations_admin` → d'abord VERTE (le refus venait du relais, pas de la vue) —
+garde réécrite avec le relais simulé (`assert_not_called`), puis 2 rouges.
+
+**Non fait, nommé** : suite complète non rejouée depuis le 12/11 ; la page n'a pas été vue dans le
+navigateur (le serveur en service ne connaît pas encore la route — après rechargement) ; une
+opération se suit en liste, pas comme une card ; les opérations qui ÉCRIVENT ne sont pas offertes.
+Blocs générés : `mecanismes` et `outils` régénérés dans l'arbre, seuls mes hunks de `mecanismes`
+commités ; `conformite` reste périmé (fichier d'une autre session).

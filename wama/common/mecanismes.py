@@ -600,12 +600,32 @@ MECHANISMS = (
               "(signe de vie dans `logs/`), aucun ordre n'est accepté. RELANCER (2026-11-11, "
               "administrateur seul) : un worker Celery à chaud, le serveur web (`HUP` à gunicorn), "
               "WAMA entier (`WAMA_START_SCRIPT`) — ce qui coupe un travail demande le mot de passe WAMA "
-              "(`needs_password`, fenêtre de session), jamais le mot de passe système",
+              "(`needs_password`, fenêtre de session), jamais le mot de passe système. Depuis le "
+              "2026-11-14 ces relances (et celles de tous les workers, de la passerelle et des "
+              "serveurs MCP, `WAMA_COMPANIONS`) se font à la page « Exploitation » (`operations`) ; "
+              "la page des modèles ne garde que les services",
               'wama/common/utils/service_supervision.py',
               'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
               annexes=('scripts/wama_services.sh', 'scripts/worker_watchdog.sh',
                        'wama/common/tests/tests_service_control.py'),
               depends_on=('external_sources',)),
+    Mechanism('operations', 'Exploitation — relancer, contrôler, depuis WAMA',
+              "La page « Exploitation » (`common:operations`, administrateurs) rassemble ce qui fait "
+              "TOURNER WAMA et ce qui le CONTRÔLE (2026-11-14, `ROADMAP §31.1`) : les processus à "
+              "relancer (`service_supervision.processes_overview`, brique `wama-processes.js` — sortis "
+              "de la page des modèles), les OPÉRATIONS déclarées (`OPERATIONS` : une commande de "
+              "`manage.py` aux arguments FIGÉS, au plus un argument libre borné par une expression "
+              "régulière — contrôles de la doc, des manifestes, de la conformité, test ciblé) et les "
+              "derniers rapports nocturnes (`nightly_tests.recent_reports`). La page n'exécute rien : "
+              "une opération est une tâche de fond du serveur de développement (`dev_run_operation`, "
+              "que l'assistant appelle aussi), relayée par `mcp_client` — le serveur web n'importe "
+              "jamais les outils de développement",
+              'wama/common/operations.py', 'docs/construction/suivi/ROADMAP.md §31.1',
+              annexes=('wama/common/static/common/js/wama-processes.js',
+                       'wama/common/static/common/js/wama-operations.js',
+                       'wama/common/templates/common/operations.html',
+                       'wama/common/tests/tests_operations.py'),
+              depends_on=('service_supervision', 'nightly_tests')),
     Mechanism('document_text', 'Couche TEXTE d\'un document — lire, réécrire sur place',
               "Lire les passages d'un document (segments : page d'un PDF natif, paragraphe `w:p` "
               "d'un DOCX — corps, tableaux, zones de texte, en-têtes, pieds, commentaires, notes —, "

@@ -11,8 +11,9 @@ DROITS : `accounts.permissions.is_admin_tier`, vérifié ICI dans le corps de ch
 (`@admin_only`) ET par `dev_tools.ADMIN_ONLY` à l'annonce et à l'appel. Un développeur non
 administrateur ne les voit pas et ne peut pas les appeler.
 
-LECTURE SEULE : aucune écriture, aucun SQL libre, aucune jointure — sauf `dev_run_tests`, qui
-lance UN test ciblé par le lanceur de WAMA (base de test, médias de test), en tâche de fond. Chaque appel est journalisé
+LECTURE SEULE : aucune écriture, aucun SQL libre, aucune jointure — sauf `dev_run_operation`, qui
+lance UNE opération d'exploitation déclarée (`common/operations.py` : des contrôles, et un test
+ciblé par le lanceur de WAMA), en tâche de fond. Chaque appel est journalisé
 (qui, quoi) — les messages de l'assistant contiennent les conversations d'autres comptes.
 """
 from __future__ import annotations
@@ -375,25 +376,33 @@ def dev_search_code(user, pattern: str, path: str = '.', glob: str = '*.py', reg
     return {'matches': matches, 'files_scanned': scanned, 'truncated': False}
 
 
-#: Un libellé de test : un module ou une classe sous l'une des trois racines du projet — jamais la
-#: suite entière (plus d'une heure, et la base de test est partagée).
-_TEST_LABEL = re.compile(r'^(wama|wama_lab|wama_data)(\.\w+)+$')
+#: Préfixe du nom de tâche d'une opération d'exploitation (`operation:check_docs`) : ce par quoi la
+#: page « Exploitation » retrouve les siennes parmi les tâches de développement.
+OPERATION_TOOL = 'operation:'
 
 
 @admin_only
-def dev_run_tests(user, label: str) -> dict:
-    """Lance les tests d'UN module ou d'UNE classe par le lanceur de WAMA (manage.py test, base de test, médias de test), en TÂCHE DE FOND — ADMIN. Pour vérifier une correction : la fin du journal donne « OK » ou les tests en échec.
+def dev_list_operations(user) -> dict:
+    """Les OPÉRATIONS d'exploitation qu'on peut lancer (contrôles de la doc, des manifestes, de la conformité, tests ciblés) : leur clé, ce qu'elles font, l'argument qu'elles prennent — ADMIN. À lire avant dev_run_operation."""
+    from wama.common.operations import operations
+    return {'operations': operations()}
 
-    label : chemin pointé, par exemple wama.common.tests.tests_user_settings ou
-    wama.reader.tests.MaClasseTest. La suite entière n'est pas lançable d'ici.
+
+@admin_only
+def dev_run_operation(user, operation: str, argument: str = '') -> dict:
+    """Lance UNE opération d'exploitation de WAMA en TÂCHE DE FOND (manage.py, arguments figés) — ADMIN : check_docs, doc_facts, manifest_export, manifest_roundtrip, conformity, identifier_language, ou tests (un module ou une classe de tests, jamais la suite entière). La fin du journal donne le verdict ; la même opération se lance depuis la page « Exploitation ».
+
+    operation : sa clé (dev_list_operations les décrit). argument : pour `tests` seulement, le
+    chemin pointé du module ou de la classe (wama.common.tests.tests_user_settings).
     """
     import sys
-    label = (label or '').strip()
-    if not _TEST_LABEL.match(label):
-        raise DevToolError(f"libellé refusé : {label!r} — attendu un module ou une classe de tests "
-                           "(wama.<app>.tests…, wama.common.tests.tests_…), pas la suite entière")
-    return start_job(user, 'tests', [sys.executable, str(base_dir() / 'manage.py'), 'test', label,
-                                     '--keepdb'])
+    from wama.common.operations import command
+    try:
+        argv = command((operation or '').strip(), argument)
+    except ValueError as refusal:
+        raise DevToolError(str(refusal))
+    return start_job(user, OPERATION_TOOL + operation.strip(),
+                     [sys.executable, str(base_dir() / 'manage.py'), *argv])
 
 
 # En PIED de module : `dev_tools` importe ce module pour remplir DEV_TOOLS, et ces deux noms ne

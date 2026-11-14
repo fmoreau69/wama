@@ -215,6 +215,11 @@ class CommonConfig(AppConfig):
             page('notifications', section='mine', label='Mes notifications', icon='fa-bell',
                  access='account', url_name='common:notifications', menu=False,
                  description="Vos notifications dans WAMA, lues et non lues.")
+            page('operations', section='admin', label='Exploitation', icon='fa-gears', tone='warning',
+                 access='admin', url_name='common:operations', order=20,
+                 description="Relancer les processus de WAMA, lancer ses contrôles "
+                             "(documentation, manifestes, conformité, tests ciblés) et lire les "
+                             "derniers rapports nocturnes")
             page('apps', section='wama', label='Apps', icon='fa-cubes', tone='primary',
                  access='public', url_name='common:apps_catalog', order=10)
             page('docs', section='wama', label='Documentation', icon='fa-file-lines',

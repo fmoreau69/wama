@@ -84,6 +84,11 @@ def test_labels() -> list:
     return sorted(labels)
 
 
+#: Ce que dit le détail d'un scénario qui n'a PAS rendu de verdict (délai dépassé) — la marque que
+#: lisent ceux qui comptent ces mesures absentes (`nightly_tests.recent_reports`).
+NO_VERDICT = 'sans rendre son verdict'
+
+
 def _run_label(label: str):
     """(ok, detail) du lancement de `manage.py test <label>` — la SORTIE fait foi."""
     def run(ctx):
@@ -92,7 +97,7 @@ def _run_label(label: str):
             done = subprocess.run(command, cwd=str(settings.BASE_DIR), capture_output=True,
                                   text=True, timeout=TIMEOUT_S)
         except subprocess.TimeoutExpired:
-            return False, f"{label} : dépassé {TIMEOUT_S} s sans rendre son verdict"
+            return False, f"{label} : dépassé {TIMEOUT_S} s {NO_VERDICT}"
         output = f"{done.stdout}\n{done.stderr}"
 
         ran = RAN.search(output)

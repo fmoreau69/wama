@@ -480,13 +480,45 @@ def build_report(results: List[ScenarioResult]) -> dict:
     }
 
 
+def reports_dir() -> Path:
+    """Le dossier des rapports nocturnes — LE chemin, pour qui les écrit et qui les relit."""
+    return Path(settings.BASE_DIR) / "logs" / "nightly_tests"
+
+
 def write_report(report: dict) -> Path:
-    out_dir = Path(settings.BASE_DIR) / "logs" / "nightly_tests"
+    out_dir = reports_dir()
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     path = out_dir / f"nightly_{stamp}.json"
     path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     return path
+
+
+def recent_reports(limit: int = 6) -> list:
+    """Les derniers rapports nocturnes, le plus récent d'abord : `[{'file', 'generated_at',
+    'cadence', 'total', 'passed', 'skipped', 'failed', 'minutes', 'unanswered'}]` — ce que la page
+    « Exploitation » en montre. `unanswered` : les scénarios dont le détail dit n'avoir PAS rendu
+    de verdict (un rouge se voit, une mesure qui n'a pas eu lieu non — `WAMA_VERIFICATION §11`).
+    Un fichier illisible est sauté."""
+    from wama.common.nightly_suite import NO_VERDICT
+    rows = []
+    for path in sorted(reports_dir().glob("nightly_*.json"), reverse=True)[:max(1, int(limit))]:
+        try:
+            report = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        results = report.get("results") or []
+        summary = report.get("summary") or {}
+        rows.append({
+            "file": path.name, "generated_at": report.get("generated_at", ""),
+            "cadence": report.get("cadence", ""),
+            "total": summary.get("total", len(results)), "passed": summary.get("passed", 0),
+            "skipped": summary.get("skipped", 0), "failed": summary.get("failed", 0),
+            "minutes": round(sum(float(r.get("duration_s") or 0) for r in results) / 60),
+            "unanswered": sum(1 for r in results if not r.get("ok") and not r.get("skipped")
+                              and NO_VERDICT in str(r.get("detail") or "")),
+        })
+    return rows
 
 
 def _compute_functional_grid(out_dir: Path) -> dict:

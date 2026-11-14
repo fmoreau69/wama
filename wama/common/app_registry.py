@@ -1155,7 +1155,7 @@ ACCOUNT_SECTIONS = {
     'mine': {'label': 'Mon espace', 'order': 1, 'submenu': False, 'icon': 'fa-user'},
     'workshop': {'label': 'Mon atelier', 'order': 2, 'submenu': True, 'icon': 'fa-screwdriver-wrench'},
     'wama': {'label': 'WAMA', 'order': 3, 'submenu': True, 'icon': 'fa-cubes'},
-    'admin': {'label': 'Administration', 'order': 4, 'submenu': True, 'icon': 'fa-shield-halved'},
+    'admin': {'label': 'Admin', 'order': 4, 'submenu': True, 'icon': 'fa-shield-halved'},
 }
 
 #: Ce que la VUE de la page exige, et rien d'autre — la même chose que son décorateur :

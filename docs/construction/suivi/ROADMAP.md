@@ -8263,7 +8263,7 @@ MODES plutôt que deux domaines, si leurs réglages divergent (`WAMA_QUALITE §0
 > depuis WAMA « fait gagner du temps et permet de continuer à travailler en relançant par étapes,
 > comme les étapes du Cam Analyzer — une uniformité de comportement ».
 
-**31.1 Une page d'EXPLOITATION** ⏳ — la page du model manager porte désormais des gestes qui ne
+**31.1 Une page d'EXPLOITATION** ✅ 2026-11-14, première version (`common:operations`, menu Admin → Exploitation ; `common/operations.py`, `wama-processes.js`, `wama-operations.js`, `tests_operations`) : les processus y ont déménagé (la page des modèles ne garde que les services), sept opérations déclarées se lancent en tâche de fond (`dev_run_operation`, que l'assistant appelle aussi), les six derniers rapports nocturnes s'y lisent avec leurs rouges et leurs verdicts absents. ⏳ Restent : suivre une opération COMME UNE CARD (aujourd'hui une liste avec la fin du journal ; les familles suivies hors des files, `job_families`, sont la voie) ; lancer un scénario nocturne à la demande (`run_nightly_tests --id` écrit un rapport, qui se mêlerait aux nocturnes) ; les opérations qui ÉCRIVENT (régénérer le corpus, les blocs de doc) — non offertes, à décider. Le constat d'origine — la page du model manager porte désormais des gestes qui ne
 concernent plus les modèles : relancer un worker, tous les workers, la passerelle, un serveur MCP,
 le serveur web, WAMA entier (✅ 2026-11-11 et 12, `service_supervision.processes_overview`). Fabien :
 *« à force de multiplier ce que j'ai le droit de relancer, on alourdit la page du model manager

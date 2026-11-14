@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**242 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**243 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -431,7 +431,9 @@ Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/con
   - `run_one(sc: Scenario, ctx: dict) -> ScenarioResult` — Exécute UN scénario (timing + capture d'exception). NB : timeout dur = TODO prod
   - `run_all(scenarios: Optional[List[Scenario]]=None, write: bool=True, cadence: Optional[str]=None) -> dict` — Joue les scénarios EN SÉRIE, téardown VRAM avant/après chacun. Retourne le rapport.
   - `build_report(results: List[ScenarioResult]) -> dict`
+  - `reports_dir() -> Path` — Le dossier des rapports nocturnes — LE chemin, pour qui les écrit et qui les relit.
   - `write_report(report: dict) -> Path`
+  - `recent_reports(limit: int=6) -> list` — Les derniers rapports nocturnes, le plus récent d'abord : `[{'file', 'generated_at',
   - `functional_grid() -> dict` — La grille FONCTIONNELLE (2ᵉ grille de `WAMA_VERIFICATION §2`, décidée le 22/08 et
   - `register_examples() -> None`
 
@@ -631,6 +633,16 @@ L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leu
   - `engine_of(model_key: str) -> str` — Le moteur DÉCLARÉ au catalogue — la lecture commune (`backends.manager.engine_of`).
   - `class DetectorSet` — Les détecteurs d'un ensemble, CHARGÉS UNE FOIS puis appliqués média par média
   - `detect_with_models(models, *, user=None, source_dir=None, destination_dir=None, **kwargs) -> dict` — Le document `detections` de l'ENSEMBLE `models` sur UN média — `DetectorSet` à usage
+
+### Exploitation — relancer, contrôler, depuis WAMA
+
+La page « Exploitation » (`common:operations`, administrateurs) rassemble ce qui fait TOURNER WAMA et ce qui le CONTRÔLE (2026-11-14, `ROADMAP §31.1`) : les processus à relancer (`service_supervision.processes_overview`, brique `wama-processes.js` — sortis de la page des modèles), les OPÉRATIONS déclarées (`OPERATIONS` : une commande de `manage.py` aux arguments FIGÉS, au plus un argument libre borné par une expression régulière — contrôles de la doc, des manifestes, de la conformité, test ciblé) et les derniers rapports nocturnes (`nightly_tests.recent_reports`). La page n'exécute rien : une opération est une tâche de fond du serveur de développement (`dev_run_operation`, que l'assistant appelle aussi), relayée par `mcp_client` — le serveur web n'importe jamais les outils de développement
+
+- **Domicile** : `wama/common/operations.py` · **doc** : [docs/construction/suivi/ROADMAP.md §31.1](../construction/suivi/ROADMAP.md)
+- **Module** : Les OPÉRATIONS d'exploitation de WAMA — ce qu'un administrateur lance depuis la page « Exploitation » (`common:operations`) ou par l'assistant (`dev_run_operation`), au lieu d'ouvrir un terminal (2026-11-14, `ROADMAP §31.1`, demande de Fabien : « certaines fonctions pourraient être intéressantes à exécuter depuis WAMA, comme les tests, check_docs »).
+- **API publique** (2) :
+  - `operations() -> list` — Les opérations, dans l'ordre déclaré : `[{'key', 'label', 'icon', 'description', 'argument'}]`
+  - `command(key: str, argument: str='') -> list` — Les arguments de `manage.py` pour l'opération `key` — `ValueError` (lisible) pour une
 
 ### Indice de qualité a priori
 
@@ -853,7 +865,7 @@ Délimité par son MOTEUR (2026-11-09, décisions de Fabien, `WAMA_MANIFEST_SPEC
 
 ### Services uvicorn — voir, lancer, arrêter
 
-Le volet droit du model manager et l'outil `control_service` montrent l'état des services (leur `/health`, leurs drapeaux) et déposent un ORDRE dans `logs/` ; le serveur web ne touche à aucun processus. La surveillance (`supervise_one`) l'exécute avec les fonctions et l'environnement du démarrage, hors budget et sans rapport. Arrêté à la main, un service le reste jusqu'à un « Lancer » ou au prochain démarrage de WAMA. La section `WAMA_SERVICES_AT_START` des scripts `start_wama` décide (décision de Fabien, 2026-11-10) : dans la liste, il démarre avec WAMA et il est relancé s'il tombe ; hors de la liste, il démarre au premier appelant qui le trouve éteint. Sans surveillance vivante (signe de vie dans `logs/`), aucun ordre n'est accepté. RELANCER (2026-11-11, administrateur seul) : un worker Celery à chaud, le serveur web (`HUP` à gunicorn), WAMA entier (`WAMA_START_SCRIPT`) — ce qui coupe un travail demande le mot de passe WAMA (`needs_password`, fenêtre de session), jamais le mot de passe système
+Le volet droit du model manager et l'outil `control_service` montrent l'état des services (leur `/health`, leurs drapeaux) et déposent un ORDRE dans `logs/` ; le serveur web ne touche à aucun processus. La surveillance (`supervise_one`) l'exécute avec les fonctions et l'environnement du démarrage, hors budget et sans rapport. Arrêté à la main, un service le reste jusqu'à un « Lancer » ou au prochain démarrage de WAMA. La section `WAMA_SERVICES_AT_START` des scripts `start_wama` décide (décision de Fabien, 2026-11-10) : dans la liste, il démarre avec WAMA et il est relancé s'il tombe ; hors de la liste, il démarre au premier appelant qui le trouve éteint. Sans surveillance vivante (signe de vie dans `logs/`), aucun ordre n'est accepté. RELANCER (2026-11-11, administrateur seul) : un worker Celery à chaud, le serveur web (`HUP` à gunicorn), WAMA entier (`WAMA_START_SCRIPT`) — ce qui coupe un travail demande le mot de passe WAMA (`needs_password`, fenêtre de session), jamais le mot de passe système. Depuis le 2026-11-14 ces relances (et celles de tous les workers, de la passerelle et des serveurs MCP, `WAMA_COMPANIONS`) se font à la page « Exploitation » (`operations`) ; la page des modèles ne garde que les services
 
 - **Domicile** : `wama/common/utils/service_supervision.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Ce qu'un processus Python dit à la surveillance des services (`scripts/worker_watchdog.sh`), et ce qu'il lit de leur état.
@@ -2756,7 +2768,7 @@ data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui li
 
 ### Domaines → modes
 
-Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines rend leurs onglets par la pièce `_domain_tabs.html` (`WamaModes.domainTabs` : volets de file, réglages du volet, domaine retenu, 2026-11-01) ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE (`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit sans la porte (`domain_nature`), et une SOURCE pas encore arrivée dit sa nature par son adresse (`surface_source_nature`, 2026-11-10)
+Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`), et se cherche en base par la même déclaration (`domain_filter`, 2026-11-01) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`) ; une page à plusieurs domaines montre les volets de UN domaine (`_domain_tabs.html`, `WamaModes.domainTabs` : volets de file, réglages du volet, 2026-11-01) — celui que le SOCLE choisit depuis le 2026-11-12 : l'adresse (`?domain=`), sinon le compte (`navigation.page_domain`), le titre de la page en sélecteur (`_page_domain.html`), plus d'onglets ; chaque domaine déclare ce qu'il fait (`description`) et l'À propos, la Console et le compte de la file sont ceux du domaine de la page ; un fichier arrivé hors de sa card rejoint le domaine de sa NATURE (`arrival_domain`, `file_nature`, `surface_file_nature` — la lecture propre d'un domaine déclarée par `extension_natures`), et « Envoyer vers » retient ce domaine pour la page de l'app (2026-11-01) ; un fichier déjà reçu (URL, ligne de lot) se lit sans la porte (`domain_nature`), et une SOURCE pas encore arrivée dit sa nature par son adresse (`surface_source_nature`, 2026-11-10)
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).

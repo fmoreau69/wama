@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_catalog %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  La page « EXPLOITATION » (2026-11-14, `ROADMAP §31.1`) — administrateurs seuls. Ce qui fait TOURNER
+  WAMA et ce qui le CONTRÔLE, au même endroit :
+    • les PROCESSUS à relancer — la brique `wama-processes.js`, sortie de la page des modèles ; la
+      liste et l'état viennent du serveur (`service_supervision.processes_overview`) ;
+    • les OPÉRATIONS — déclarées (`common/operations.py`), lancées en tâche de fond par le serveur
+      de développement (`dev_run_operation`), suivies ici (`wama-operations.js`) ;
+    • les derniers RAPPORTS NOCTURNES (`nightly_tests.recent_reports`).
+  La page n'exécute rien elle-même.
+
+  Même charte que les pages de gestion existantes (registres, licences, librairies, backends) :
+  l'en-tête commun (`_catalog_header.html`, titre et icône lus de l'entrée de menu), le bandeau,
+  les compteurs, puis des cartes — squelette `wama-catalog.css`, aucune couleur écrite ici.
+{% endcomment %}
+
+{% block extra_css %}
+<style>
+  /* Squelette = brique COMMUNE `wama-catalog.css` — ne restent que les spécificités de la page. */
+  .ops-section { font-size: .8rem; letter-spacing: .06em; text-transform: uppercase;
+                 color: var(--wama-cat-meta); margin: 1.5rem 0 .6rem; }
+  .ops-argument { margin-top: .5rem; }
+  .ops-job { cursor: pointer; }
+  .ops-log { white-space: pre-wrap; font-size: .78rem; max-height: 22rem; overflow: auto; margin: .5rem 0 0;
+             padding: .6rem .75rem; border-radius: .4rem; background: var(--wama-surface-raised);
+             color: var(--wama-text-body); }
+  .ops-reports { font-size: .88rem; margin: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wama-cat-wrap">
+
+  {% include 'common/_catalog_header.html' %}
+
+  <div class="wama-cat-hero">
+    <h3>Ce qui fait tourner WAMA, et ce qui le contrôle</h3>
+    <p>
+      Une <strong>relance</strong> est un ordre déposé : la surveillance l'exécute à son prochain
+      passage, et un geste qui couperait un travail en cours redemande votre mot de passe WAMA.
+      Une <strong>opération</strong> est un contrôle déclaré, lancé en tâche de fond ; son journal
+      se lit ici. Rien de cette page ne modifie le code.
+    </p>
+  </div>
+
+  <div class="wama-cat-stats">
+    <div class="wama-cat-stat"><b id="opsProcessCount">–</b> processus</div>
+    <div class="wama-cat-stat"><b>{{ operations|length }}</b> opération{{ operations|length|pluralize }}</div>
+    {% with last=reports.0 %}{% if last %}
+    <div class="wama-cat-stat"><b>{{ last.failed }}</b> rouge{{ last.failed|pluralize }} au dernier rapport nocturne</div>
+    <div class="wama-cat-stat"><b>{{ last.unanswered }}</b> sans verdict</div>
+    {% endif %}{% endwith %}
+  </div>
+
+  <h4 class="ops-section"><i class="fas fa-rotate me-1"></i>Processus</h4>
+  <p class="small text-warning" data-processes-notice-for="opsProcesses" hidden></p>
+  <div class="wama-cat-grid" id="opsProcesses" data-wama-processes data-count="#opsProcessCount"
+       data-api="{{ services_api }}" data-control-api="{{ services_control_api }}">
+    <p class="text-body-secondary" data-processes-list>Lecture…</p>
+  </div>
+
+  <h4 class="ops-section"><i class="fas fa-list-check me-1"></i>Opérations</h4>
+  <div class="wama-cat-grid" id="wamaOperations"
+       data-run-api="{% url 'common:api_operations_run' %}" data-jobs-api="{% url 'common:api_operations_jobs' %}">
+    {% for op in operations %}
+    <form class="wama-cat-card" data-operation="{{ op.key }}" data-id="{{ op.key }}">
+      <h4><i class="fas {{ op.icon }} me-1"></i>{{ op.label }}</h4>
+      <div class="wama-cat-desc">{{ op.description }}</div>
+      <div class="wama-cat-meta"><code>{{ op.key }}</code></div>
+      {% if op.argument %}
+      <input type="text" class="form-control form-control-sm ops-argument" name="argument" required
+             aria-label="{{ op.argument.label }}" placeholder="{{ op.argument.example }}" pattern="{{ op.argument.pattern }}">
+      {% endif %}
+      <div class="wama-cat-actions">
+        <button type="submit" class="btn btn-outline-primary btn-sm">
+          <i class="fas fa-play me-1" aria-hidden="true"></i>Lancer
+        </button>
+      </div>
+    </form>
+    {% endfor %}
+  </div>
+
+  <h4 class="ops-section"><i class="fas fa-clock-rotate-left me-1"></i>Opérations lancées</h4>
+  <div class="wama-cat-grid" id="wamaOperationJobs"><p class="text-body-secondary">Lecture…</p></div>
+
+  <h4 class="ops-section"><i class="fas fa-moon me-1"></i>Rapports nocturnes</h4>
+  <div class="wama-cat-card">
+    {% if reports %}
+    <table class="table table-sm align-middle ops-reports">
+      <thead><tr><th>Rapport</th><th class="text-end">Scénarios</th><th class="text-end">Rouges</th><th class="text-end">Sans verdict</th><th class="text-end">Durée</th></tr></thead>
+      <tbody>
+      {% for r in reports %}
+      <tr>
+        <td>{{ r.generated_at|slice:":16"|default:r.file }}{% if r.cadence %} <span class="wama-cat-badge">{{ r.cadence }}</span>{% endif %}</td>
+        <td class="text-end">{{ r.total }}</td>
+        <td class="text-end">{% if r.failed %}<span class="badge bg-danger">{{ r.failed }}</span>{% else %}0{% endif %}</td>
+        <td class="text-end">{% if r.unanswered %}<span class="badge bg-warning text-dark">{{ r.unanswered }}</span>{% else %}0{% endif %}</td>
+        <td class="text-end">{{ r.minutes }} min</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-body-secondary mb-0">Aucun rapport nocturne.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'common/js/wama-processes.js' %}"></script>
+<script src="{% static 'common/js/wama-operations.js' %}"></script>
+{% endblock %}
