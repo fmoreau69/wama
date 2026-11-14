@@ -500,7 +500,7 @@ clés que le suivi, construites des mêmes crochets — jamais une seconde liste
 
 ```
 common/app_modern_base.html   ← base de toutes les apps
-    └── <app>/base.html       ← définit app_icon, app_title, about, help, footer
+    └── <app>/base.html       ← définit footer, styles et scripts propres (le titre, l'icône et le sous-titre se lisent à la déclaration)
         └── <app>/index.html  ← queue content, settings panel, JS config
 ```
 
@@ -510,9 +510,8 @@ common/app_modern_base.html   ← base de toutes les apps
 |------|-------|
 | `extra_css` | CSS spécifiques à l'app |
 | `app_styles` | Styles inline |
-| `app_icon` | Icône FontAwesome dans le header |
-| `app_title` | Titre de l'application |
-| `app_description` | Sous-titre — **par défaut la description DÉCLARÉE de l'app** (`APP_CATALOG[...]['description']`, lue par `current_app_spec`, 2026-11-06) : ne pas le surcharger. Le composer citait à la main « MusicGen et AudioGen » quand YuE2, MiniMax et ACE-Step étaient au catalogue ; ⏳ les neuf autres apps le surchargent encore d'un texte voisin de leur déclaration (le retrait change leur libellé : à décider) |
+| `app_icon` / `app_title` | Icône et titre de la page — **par défaut ceux que l'app DÉCLARE** (`APP_CATALOG` : `icon`, `color`, `label`, lus par `current_app_spec`, 2026-11-14) : ne pas les surcharger. Dix pages les réécrivaient, plus longs que le libellé (« Media Anonymizer », « AI Image & Video Generation ») ; le générateur ne les écrit plus. Une app HORS du catalogue (monde Lab) garde les siens. Les domaines d'une app qui en a plusieurs s'affichent sous le titre, par le socle (`_page_domain.html`) |
+| `app_description` | Sous-titre — **par défaut la description DÉCLARÉE de l'app** (`APP_CATALOG[...]['description']`, lue par `current_app_spec`, 2026-11-06) : ne pas le surcharger. Le composer citait à la main « MusicGen et AudioGen » quand YuE2, MiniMax et ACE-Step étaient au catalogue ; ✅ les neuf autres surcharges sont retirées le 2026-11-14 (le sous-titre de ces pages est désormais leur description déclarée) |
 | `footer_text` | **Obligatoire** — pied de page. Format : `AppName - Description | WAMA` (ex. `Converter - Media Format Conversion | WAMA`). Sans override, l'app affiche le défaut générique « WAMA - Web App for Multimodal Automation ». |
 | `queue_content` | Contenu de l'onglet File d'attente |
 | `console_content_id` | ID du div console (défaut : `console-content`) |

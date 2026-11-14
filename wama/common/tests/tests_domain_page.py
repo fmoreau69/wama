@@ -193,7 +193,7 @@ class TheServedPageCarriesTheDomainsTest(TestCase):
                 self.assertNotIn('data-wama-domain-tabs', html)
                 self.assertNotIn('data-wama-page-domain', html, 'nothing to choose: no selector')
 
-    def test_the_title_of_a_page_is_the_label_its_app_declares(self):
+    def test_the_title_of_a_page_is_the_label_of_its_app(self):
         for app in REAL_APPS:
             with self.subTest(app=app):
                 html = self._get(app)

@@ -31378,3 +31378,35 @@ session (`model_manager.tests` : tâche `audio-source-separation`).
 ⚠ **À savoir** : `manifest_export --kind app` a réécrit 18 manifestes, pas les deux visés — seize
 restent régénérés dans l'arbre, non commités (dont des modèles d'une autre session) ; ma correction
 du registre des mécanismes est partie dans le commit `f94a799b8` d'une autre session (fichier entier).
+
+## §PALIER 2026-11-14, « DOMAINES : liens directs sous le titre, titre déclaré ; un nœud du Studio par domaine DÉCIDÉ » — commits locaux, non poussés — aucun redémarrage (gabarits lus à chaud) — 🔚 le nœud du Studio par domaine (à concevoir avec la facette `studio`), puis ⑦ le générateur et la recréation des jumelles
+
+**Retour de Fabien à l'écran** : le titre « App / Domaine ▾ » était trop long et demandait deux clics ;
+« Media Anonymizer » n'a pas à dire « Media » dans le monde Médias ; le Studio aura un nœud par domaine.
+
+**Livré** (`0217ddb02`) : les domaines d'une page sont des LIENS directs sous le titre (un clic,
+`_page_domain.html`) ; le titre, l'icône et le sous-titre d'une page sont ceux que l'app DÉCLARE
+(`APP_CATALOG`, lus par le socle) — dix pages les réécrivaient à la main, plus longs que leur
+libellé ; le générateur (`templates_gen.render_base`) ne les écrit plus. ⚠ Changement visible sur les
+DIX apps : « Anonymizer », « Imager », « Enhancer », « Reader », « Transcriber », « Synthesizer »,
+« Describer »… et leur sous-titre devient la description du catalogue (`WAMA_APP_CONVENTIONS §4.2`,
+mis à jour — sa ligne disait « à décider » ; décidé par l'accord du 12/11 sur la recommandation de
+`MODES_QUEUE_UX §2ter`, point 2). Les apps du Lab, hors catalogue, gardent leurs blocs.
+
+**Revérification** (quatre questions, dont « schéma-driven ») : aligné ✓ ; testé ✓ — `tests_domain_page`
+(titre = libellé déclaré sur la page SERVIE des dix apps, aucune page ne réécrit titre / icône /
+sous-titre, le générateur non plus), contre-épreuve ROUGE (un bloc `app_title` remis dans une page),
+148 tests des gardes transverses verts ; consigné ✓ (`MODES_QUEUE_UX §2ter`, `WAMA_APP_CONVENTIONS
+§4.1-4.2`, `ROUTE §11 #42`) ; commité ✓.
+
+**Écart de schéma-driven NOMMÉ, non ramené** : les douze jumelles gardent un `base.html` COPIÉ ou généré
+d'avant ce jour, qui réécrit encore son titre — la cible `base` est facultative pour une jumelle
+(elle écraserait ce que son `base.html` copié porte en propre). Il part avec la recréation des
+jumelles, prévue en fin de chantier (accord de Fabien : « on régénèrera quand on aura terminé »).
+
+**Incident de la session, réparé en une minute** : un motif trop large a retiré aussi le sous-titre par
+défaut DU SOCLE (gabarit lu à chaud, donc servi aussitôt) ; restauré avant tout commit.
+
+**Blocs générés périmés** : `outils` (ROUTE) l'est aussi de ma main (`open_page` a gagné l'argument
+`domain`) mais le bloc porte déjà le travail non commité d'une autre session — un `doc_facts`
+complet après son commit le soldera, avec `mecanismes`, `conformite` et `briques`.
