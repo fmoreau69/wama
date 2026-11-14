@@ -101,6 +101,16 @@ def witness_guards(surfaces, label: str):
     return [witness_guard(surface, label) for surface in by_model.values()]
 
 
+#: L'action que le clavier commun de la page donne à chaque touche, pour une brique — demandée
+#: avec une table de défauts VIDE : seule une surcharge posée par la page peut répondre.
+_PRESET_KEYS_JS = """([brick, keys]) => { const out = {};
+    keys.forEach(k => { const parts = k === '+' ? ['+'] : k.split('+'), name = parts.pop();
+        const e = {code: name, key: name, ctrlKey: parts.includes('Ctrl'), altKey: parts.includes('Alt'),
+                   shiftKey: parts.includes('Shift'), metaKey: false};
+        const a = window.WamaKeys.action(e, brick, {}); if (a) out[k] = a; });
+    return out; }"""
+
+
 def _capture_surface(context, token, surface, pk, captured, opened, faults, reverse):
     """Ouvre UNE surface sur son témoin et capture celles de ses briques pas encore capturées.
 
@@ -124,6 +134,14 @@ def _capture_surface(context, token, surface, pk, captured, opened, faults, reve
     if errors:
         faults.append(f"{surface.id} : erreurs JS {errors[:3]}")
     opened.append(surface.id)
+    # Le PRÉRÉGLAGE de touches de la page (`Surface.keymap`, 2026-11-14) est arrivé au clavier
+    # commun : chaque touche qu'il donne y répond par SON action, sans rien lire des défauts.
+    for brick, table in surface.keymap().items():
+        expected = {key: name for name, keys in table.items() for key in keys}
+        answered = page.evaluate(_PRESET_KEYS_JS, [brick, sorted(expected)])
+        if answered != expected:
+            faults.append(f"{surface.id} : le préréglage de touches de {brick} n'est pas au "
+                          f"clavier commun (attendu {expected}, lu {answered})")
     for slot in surface.slots:
         # La présentation de RÉFÉRENCE d'une brique est un emplacement sans options : « Texte en
         # sections » renommé « Source ABC » sur la partition ne dit pas ce que la brique est

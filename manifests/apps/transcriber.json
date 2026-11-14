@@ -2540,6 +2540,20 @@
             "id": "transport",
             "options": {
               "goto": true,
+              "keys": {
+                "jump_back": [
+                  "ArrowLeft"
+                ],
+                "jump_back_far": [
+                  "Shift+ArrowLeft"
+                ],
+                "jump_forward": [
+                  "ArrowRight"
+                ],
+                "jump_forward_far": [
+                  "Shift+ArrowRight"
+                ]
+              },
               "role": "audio",
               "speed": "steps",
               "wave": false

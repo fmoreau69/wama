@@ -1887,14 +1887,18 @@ class BrickShortcutsTest(SimpleTestCase):
     def test_two_priority_bricks_of_a_surface_never_claim_one_key(self):
         """Counterproof inside : a fake surface putting the transport beside a brick that claims
         Space at page scope is reported."""
-        from wama.common.surfaces import BRICKS, SURFACES, Shortcut, UIBrick, load_all
+        from wama.common.surfaces import (BRICKS, KEYS_OPTION, SURFACES, Shortcut, UIBrick, load_all,
+                                          resolve_shortcuts)
         load_all()
 
         def clashes(slots):
             owner = {}
             found = []
             for slot in slots:
-                for shortcut in BRICKS[slot.brick].shortcuts if slot.brick in BRICKS else slot.shortcuts:
+                # The keys AS THE PAGE RESOLVES THEM : its preset applied (`KEYS_OPTION`).
+                declared = (resolve_shortcuts(BRICKS[slot.brick].shortcuts, slot.options.get(KEYS_OPTION))
+                            if slot.brick in BRICKS else slot.shortcuts)
+                for shortcut in declared:
                     if shortcut.scope != 'page' or shortcut.follows                             or (shortcut.option and not slot.options.get(shortcut.option)):
                         continue
                     for key in shortcut.keys:
@@ -1916,6 +1920,91 @@ class BrickShortcutsTest(SimpleTestCase):
                         shortcuts=(Shortcut(('Space',), 'autre chose', 'page'),))
         self.assertEqual([('Space', 'media_transport', 'rival')],
                          clashes([FakeSlot('media_transport'), FakeSlot('rival', rival.shortcuts)]))
+        # A preset that hands the transport a key of the timeline is a clash too.
+        self.assertEqual([('KeyC', 'media_transport', 'media_timeline')],
+                         clashes([FakeSlot('media_transport', options={KEYS_OPTION: {'toggle': ['KeyC']}}),
+                                  FakeSlot('media_timeline', options={'boundaries': 'retime'})]))
+
+    def test_the_key_preset_of_a_page_is_resolved_alike_by_the_server_and_the_common_keyboard(self):
+        """2026-11-14 (Fabien, 12/11 : « le préréglage d'une page se déclare ») — a slot option
+        (`keys`, action → keys) ; order : brick default, then the page preset. EVERY registered
+        surface's preset names actions its brick names ; the server resolves the shortcuts the
+        page help shows by the very rule of `WamaKeys.remap` (played here in V8 on each preset and
+        on a moved one) ; the kernel hands the preset to the common keyboard before mounting."""
+        from dataclasses import replace
+
+        from py_mini_racer import MiniRacer
+
+        from wama.common.surfaces import (BRICKS, KEYS_OPTION, SURFACES, BrickSlot, load_all,
+                                          resolve_shortcuts)
+        load_all()
+        v8 = MiniRacer()
+        v8.eval(KeyDispatcherTest.SETUP + _js('common/js/wama-keys.js'))
+
+        def by_the_server(brick, override):
+            return {key: name for s in resolve_shortcuts(BRICKS[brick].shortcuts, override)
+                    for key, name in zip(s.keys, s.names)}
+
+        presets = [(name, brick, table) for name, surface in SURFACES.items()
+                   for brick, table in surface.keymap().items()]
+        self.assertIn('transcriber.correct', {name for name, _b, _t in presets},
+                      'the correction page keeps its keys by a declared preset')
+        for name, surface in SURFACES.items():
+            with self.subTest(surface=name):
+                self.assertEqual([], surface.keymap_problems())
+        moved = {'jump_back': ['KeyK'], 'reverse': [], 'toggle': ['Space', 'Enter']}
+        for name, brick, table in [*presets, ('moved', 'media_transport', moved)]:
+            with self.subTest(preset=name, brick=brick):
+                self.assertEqual(self._keyboard_table(v8, brick, table), by_the_server(brick, table))
+        # What the moved preset says : K now jumps back (taken from the shuttle's stop), the
+        # backward shuttle is silenced, ← is left to nobody, Space and Enter both toggle — and the
+        # labels follow, no key shown twice.
+        resolved = by_the_server('media_transport', moved)
+        self.assertEqual(('jump_back', 'toggle', 'toggle'),
+                         (resolved['KeyK'], resolved['Space'], resolved['Enter']))
+        self.assertNotIn('ArrowLeft', resolved)
+        self.assertNotIn('reverse', resolved.values())
+        shown = resolve_shortcuts(BRICKS['media_transport'].shortcuts, moved)
+        labels = [s.label for s in shown]
+        self.assertIn('Espace / Entrée', labels)
+        self.assertIn('L', labels, 'of J / K / L only L is left to the shuttle')
+        self.assertIn('K / →', labels)
+        named = [key for s in shown if s.names for key in s.keys]
+        self.assertEqual(len(named), len(set(named)))
+        # TODAY the preset of the correction page says what the defaults say : nothing moves.
+        correct = SURFACES['transcriber.correct']
+        self.assertEqual(by_the_server('media_transport', None),
+                         {k: n for s in correct.shortcuts_of('media_transport')
+                          for k, n in zip(s.keys, s.names)})
+        self.assertEqual(correct.keymap(), correct.to_dict()['keys'])
+        # A preset that cannot apply is refused when the surface registers.
+        slot = next(s for s in correct.slots if s.brick == 'media_transport')
+        for bad, said in (({'fly': ['KeyF']}, 'ne nomme pas'),
+                          ({'toggle': ['KeyX'], 'stop': ['KeyX']}, 'KeyX'),
+                          ({'toggle': 'Space'}, 'liste')):
+            broken = replace(correct, slots=(BrickSlot(slot.id, slot.brick, 0, 0, 12, 2, {KEYS_OPTION: bad}),))
+            with self.subTest(bad=bad):
+                self.assertIn(said, ' ; '.join(broken.keymap_problems()))
+        kernel = _js('common/js/surfaces/wama-surface.js')
+        self.assertIn('global.WamaKeys.remap(brick, surface.keys[brick]);', kernel)
+        self.assertLess(kernel.index('WamaKeys.remap(brick'), kernel.index('def.mount(rec.body'),
+                        'the preset is given before any brick mounts')
+
+    @staticmethod
+    def _keyboard_table(v8, brick, override):
+        """`{key: action}` of the NAMED keys of a brick and of an override, as `wama-keys.js`
+        resolves them — each key pressed for real (`WamaKeys.action`)."""
+        from wama.common.surfaces import BRICKS
+        defaults = {key: name for s in BRICKS[brick].shortcuts for key, name in zip(s.keys, s.names)}
+        return json.loads(v8.eval(
+            '(function (d, o) { var K = window.WamaKeys, t = {}; K.remap("b", o);'
+            ' var keys = Object.keys(d); Object.keys(o).forEach(function (n) { keys = keys.concat(o[n]); });'
+            ' keys.forEach(function (k) { var parts = k === "+" ? ["+"] : k.split("+"), name = parts.pop();'
+            '   var e = {code: name, key: name, ctrlKey: parts.indexOf("Ctrl") >= 0,'
+            '            altKey: parts.indexOf("Alt") >= 0, shiftKey: parts.indexOf("Shift") >= 0};'
+            '   var a = K.action(e, "b", d); if (a) t[k] = a; });'
+            ' K.remap("b", null); return JSON.stringify(t); })'
+            f'({json.dumps(defaults)}, {json.dumps(override)})'))
 
     def test_the_transport_reads_an_action_and_its_table_matches_the_registry(self):
         """2026-11-12 (Fabien : shortcuts a user, or an application, can override) — the transport

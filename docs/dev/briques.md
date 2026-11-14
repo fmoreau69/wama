@@ -902,13 +902,14 @@ Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit
 
 - **Domicile** : `wama/common/surfaces.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : SURFACES et BRIQUES UI — le registre (2026-10-10, ouverture du chantier SURFACES).
-- **API publique** (15) :
+- **API publique** (16) :
   - `thumbnail_path(key: str)` — Le fichier de la vignette d'une brique (qu'il existe ou non).
   - `thumbnail(key: str) -> Optional[dict]` — La vignette d'une brique — `{'url', 'taken_at'}`, ou None tant qu'aucune capture n'existe
   - `validate_text(value) -> str` — Le texte d'un champ fichier édité, assaini : une chaîne, fins de ligne `\n`, plafonnée.
   - `source_file(path: str) -> Optional[str]` — Le fichier SOURCE d'un chemin nommé comme une page le nomme — un gabarit comme
   - `key_label(key: str) -> str` — `Shift+ArrowLeft` → `Maj+←`, `KeyJ` → `J`, `Ctrl+Space` → `Ctrl+Espace`, `Ctrl+a` → `Ctrl+A`
   - `class Shortcut` — Un raccourci clavier DÉCLARÉ par une brique — la source unique de la liste que montrent la
+  - `resolve_shortcuts(shortcuts, override) -> tuple` — Les raccourcis d'une brique, une SURCHARGE appliquée (`{action: [touches]}`) — la règle
   - `class UIBrick`
   - `class BrickSlot` — Une brique placée sur une surface : position et taille PAR DÉFAUT (l'utilisateur les
   - `class Surface`

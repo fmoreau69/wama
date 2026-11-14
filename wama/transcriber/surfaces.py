@@ -83,7 +83,13 @@ register_surface(Surface(
                      {'role': 'audio', 'segments': True, 'quality': True, 'minimap': True,
                       'zoom': True, 'boundaries': 'retime'}),
            BrickSlot('transport', 'media_transport', 0, 14, 12, 2,
-                     {'role': 'audio', 'wave': False, 'goto': True, 'speed': 'steps'}),
+                     {'role': 'audio', 'wave': False, 'goto': True, 'speed': 'steps',
+                      # Le préréglage de la page (décision de Fabien, 12/11) : ←/→ sautent de
+                      # 5 s et Maj+←/→ de 30 s, comme l'éditeur l'a toujours fait — quels que
+                      # soient les défauts du transport.
+                      'keys': {'jump_back': ['ArrowLeft'], 'jump_forward': ['ArrowRight'],
+                               'jump_back_far': ['Shift+ArrowLeft'],
+                               'jump_forward_far': ['Shift+ArrowRight']}}),
            BrickSlot('writing', 'playback_writing', 0, 16, 12, 3),
            BrickSlot('actions', 'surface_actions', 0, 0, 1, 6, zone='panel'),
            BrickSlot('document', 'item_settings', 0, 6, 1, 5,

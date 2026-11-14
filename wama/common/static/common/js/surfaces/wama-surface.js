@@ -123,6 +123,12 @@
     function mount(root, config) {
         var App = global.WamaApp || {};
         var surface = config.surface;
+        // Le PRÉRÉGLAGE de touches de la page (`Surface.keymap`, 2026-11-14) : donné au clavier
+        // commun AVANT de monter les briques — chacune y lit ensuite l'action d'une frappe
+        // (`WamaKeys.action`), et l'aide montre les touches que le serveur a résolues de même.
+        if (global.WamaKeys) Object.keys(surface.keys || {}).forEach(function (brick) {
+            global.WamaKeys.remap(brick, surface.keys[brick]);
+        });
         var listeners = {};
         var statusEl = document.querySelector('.wama-surface-status');
         var state = { reads: {}, media: {}, sources: {}, chosen: {}, context: {}, value: {}, saved: '{}',

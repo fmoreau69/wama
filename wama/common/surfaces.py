@@ -69,7 +69,7 @@ automatique, geste « Terminer » et sa suite côté serveur (`saved`), RÉGLAGE
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable, Optional
 
 #: Mondes où une brique se monte — par défaut TOUS : une brique est universelle (décision 10/10).
@@ -233,6 +233,43 @@ class Shortcut:
                 'option': self.option, 'follows': self.follows, 'names': list(self.names),
                 'targets': [{'selector': t, 'label': key_label(k)}
                             for k, t in zip(self.keys, self.targets) if t]}
+
+
+#: L'option d'emplacement qui porte le PRÉRÉGLAGE de touches d'une page (2026-11-14, décision de
+#: Fabien du 12/11 — `WAMA_VOLETS §3-ter`) : `{action: [touches]}`, les actions étant celles que
+#: la brique de l'emplacement NOMME (`Shortcut.names`). Ordre de résolution : défaut de la brique,
+#: puis ce préréglage, puis (à venir) le réglage du compte.
+KEYS_OPTION = 'keys'
+
+
+def resolve_shortcuts(shortcuts, override) -> tuple:
+    """Les raccourcis d'une brique, une SURCHARGE appliquée (`{action: [touches]}`) — la règle
+    même de `WamaKeys.remap` (`wama-keys.js`, `tableOf`), pour que l'aide de la page dise les
+    touches RÉSOLUES : une action surchargée prend ses touches de la surcharge (aucune : elle se
+    tait), et une touche que la surcharge donne quitte l'action qui l'avait par défaut. Un
+    raccourci sans nom d'action (Échap) ne se surcharge pas."""
+    if not override:
+        return tuple(shortcuts)
+    taken = {key for keys in override.values() for key in keys}
+    placed, resolved = set(), []
+    for shortcut in shortcuts:
+        if not shortcut.names:
+            resolved.append(shortcut)
+            continue
+        rows = []
+        for index, (key, name) in enumerate(zip(shortcut.keys, shortcut.names)):
+            target = shortcut.targets[index] if index < len(shortcut.targets) else ''
+            if name not in override:
+                if key not in taken:
+                    rows.append((key, name, target))
+            elif name not in placed:
+                placed.add(name)
+                rows.extend((given, name, target) for given in override[name])
+        if rows:
+            keys, names, targets = zip(*rows)
+            resolved.append(replace(shortcut, keys=keys, names=names,
+                                    targets=targets if shortcut.targets else ()))
+    return tuple(resolved)
 
 
 #: Le raccourci de la PAGE elle-même (2026-10-29, contrôles de page) : l'aide de la page. Déclaré
@@ -651,6 +688,52 @@ class Surface:
     def bricks(self) -> list:
         return [BRICKS[slot.brick] for slot in self.slots]
 
+    def keymap(self) -> dict:
+        """Le PRÉRÉGLAGE de touches de la page : `{brique: {action: [touches]}}`, lu des
+        emplacements qui le déclarent (`KEYS_OPTION`). Le noyau de la surface le donne au clavier
+        commun (`WamaKeys.remap`) avant de monter les briques."""
+        found = {}
+        for slot in self.slots:
+            for name, keys in ((slot.options or {}).get(KEYS_OPTION) or {}).items():
+                found.setdefault(slot.brick, {})[name] = list(keys)
+        return found
+
+    def keymap_problems(self) -> list:
+        """Ce qui rend le préréglage inapplicable — [] s'il est juste : une action que la brique
+        ne nomme pas, une touche donnée à deux actions, deux emplacements d'une même brique qui
+        se contredisent (le clavier commun surcharge par BRIQUE)."""
+        problems, said = [], {}
+        for slot in self.slots:
+            declared = (slot.options or {}).get(KEYS_OPTION)
+            if declared is None:
+                continue
+            known = {name for s in BRICKS[slot.brick].shortcuts for name in s.names}
+            owner = {}
+            for name, keys in (declared.items() if isinstance(declared, dict) else ()):
+                if name not in known:
+                    problems.append(f"surface {self.id} : « {slot.id} » donne des touches à "
+                                    f"« {name} », que la brique {slot.brick} ne nomme pas")
+                if not isinstance(keys, (list, tuple)) or not all(
+                        isinstance(k, str) and k for k in keys):
+                    problems.append(f"surface {self.id} : « {slot.id} » — les touches de "
+                                    f"« {name} » sont une liste de noms de touches")
+                    continue
+                for key in keys:
+                    if owner.setdefault(key, name) != name:
+                        problems.append(f"surface {self.id} : « {slot.id} » donne {key} à "
+                                        f"« {owner[key]} » et à « {name} »")
+                if said.setdefault((slot.brick, name), list(keys)) != list(keys):
+                    problems.append(f"surface {self.id} : deux emplacements de {slot.brick} "
+                                    f"donnent des touches différentes à « {name} »")
+            if not isinstance(declared, dict):
+                problems.append(f"surface {self.id} : « {slot.id} » — `{KEYS_OPTION}` est une "
+                                "table « action → touches »")
+        return problems
+
+    def shortcuts_of(self, brick: str) -> tuple:
+        """Les raccourcis d'une brique TELS QUE CETTE PAGE les résout (son préréglage appliqué)."""
+        return resolve_shortcuts(BRICKS[brick].shortcuts, self.keymap().get(brick))
+
     def scripts(self) -> list:
         """Les scripts à charger, dépendances d'abord, sans doublon, dans l'ordre des briques."""
         return list(dict.fromkeys(path for b in self.bricks() for path in b.scripts()))
@@ -670,7 +753,12 @@ class Surface:
                 'autosave': self.autosave, 'finish': self.finish,
                 'settings': list(self.page_settings()),
                 'sources_setting': self.sources_setting,
-                'bricks': {b.key: b.to_dict() for b in self.bricks()}}
+                # Le préréglage de touches de la page, et les raccourcis qu'il RÉSOUT : l'aide et
+                # les infobulles disent les touches de cette page, pas les défauts.
+                'keys': self.keymap(),
+                'bricks': {b.key: {**b.to_dict(),
+                                   'shortcuts': [s.to_dict() for s in self.shortcuts_of(b.key)]}
+                           for b in self.bricks()}}
 
 
 def clean_layout(surface: Surface, payload) -> dict:
@@ -818,6 +906,9 @@ def register_surface(surface: Surface) -> Surface:
         if slot.zone not in ZONES or slot.x < 0 or slot.w < 1 or slot.x + slot.w > columns:
             raise ValueError(f"surface {surface.id} : emplacement « {slot.id} » hors de sa zone "
                              f"({slot.zone}, x={slot.x}, w={slot.w})")
+    problems = surface.keymap_problems()
+    if problems:
+        raise ValueError(' ; '.join(problems))
     SURFACES[surface.id] = surface
     return surface
 

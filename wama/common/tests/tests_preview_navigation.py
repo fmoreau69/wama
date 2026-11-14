@@ -472,6 +472,13 @@ class ViewerTransportKeysTest(SimpleTestCase):
             r.up = [press('ArrowUp', 'ArrowUp'), axis.time(), axis.playing()];
             press('Space', ' ');
             r.restAgain = [press('ArrowLeft', 'ArrowLeft'), axis.time(), axis.playing()];
+            // The key preset a page gives ITS transport is not the viewer's : it reads its
+            // actions under its own name.
+            window.WamaKeys.remap('media_transport', {jump_forward: []});
+            press('Space', ' ');
+            r.pagePreset = [press('ArrowRight', 'ArrowRight'), axis.time()];
+            window.WamaKeys.remap('media_viewer', {jump_forward: []});
+            r.ownPreset = [press('ArrowRight', 'ArrowRight'), axis.time()];
             return r;
         })()""")
         self.assertEqual([True, 10], list(out['rest']), 'at rest → browses, the time does not move')
@@ -480,6 +487,9 @@ class ViewerTransportKeysTest(SimpleTestCase):
         self.assertEqual([True, 10], list(out['left']))
         self.assertEqual([True, 10, True], list(out['up']), 'playing, ↑ still browses')
         self.assertEqual([True, 10, False], list(out['restAgain']), 'paused again → browses again')
+        self.assertEqual([True, 15], list(out['pagePreset']),
+                         'a preset given to the transport of a page leaves the viewer its keys')
+        self.assertEqual(15, out['ownPreset'][1], 'its own preset does reach it')
 
 
 class PreviewSyncVerdictTest(SimpleTestCase):

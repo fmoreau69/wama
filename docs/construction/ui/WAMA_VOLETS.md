@@ -1140,8 +1140,29 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     a toujours ignorés (même choix que la navigation de la visionneuse). C'était la dernière
     brique : la liste `NOT_YET_NAMED` de la garde générique est VIDE, toute brique qui teste
     encore ses touches à la main est désormais un écart neuf.
-    ⏳ Restent, dans l'ordre : le
-    préréglage DÉCLARÉ d'une page et celui du transcriber ; alors seulement les défauts décidés
+    ✅ **Le PRÉRÉGLAGE DÉCLARÉ d'une page, 2026-11-14** — une option d'emplacement, `keys`
+    (`surfaces.KEYS_OPTION`) : « action → touches », les actions étant celles que la brique de
+    l'emplacement nomme. `Surface.keymap()` le rassemble par brique, `keymap_problems()` le refuse
+    à l'enregistrement de la surface (action inconnue de la brique, touche donnée à deux actions,
+    deux emplacements d'une même brique qui se contredisent). Le noyau (`wama-surface.js`) le
+    donne au clavier commun (`WamaKeys.remap`) AVANT de monter les briques ; le serveur résout les
+    raccourcis servis par la même règle (`resolve_shortcuts` : une action surchargée prend ses
+    touches de la surcharge, une touche donnée quitte l'action qui l'avait) — l'aide « ? » et les
+    infobulles disent donc les touches de CETTE page. Option d'emplacement : le manifeste de
+    l'app la porte et le générateur la rend sans une ligne de plus.
+    Premier préréglage : la page de correction du transcriber garde ←/→ = 5 s et Maj+←/→ = 30 s
+    (`transcriber/surfaces.py`, emplacement `transport`) ; il dit aujourd'hui ce que disent les
+    défauts, rien ne bouge — il tiendra la page quand les défauts changeront.
+    La visionneuse lit désormais ses actions sous SON nom (`media_viewer`, plus celui du
+    transport) : le préréglage d'une page ne change pas ses touches, dont l'aide montre les siennes.
+    Gardes : `BrickShortcutsTest` (serveur et clavier commun résolvent pareil, touche par touche,
+    en V8 — contre-épreuve : la règle « une touche donnée quitte son action » retirée → rouge ;
+    un préréglage qui donne au transport une touche de la ligne de temps est un conflit),
+    `ViewerTransportKeysTest`, et au navigateur `common.ui_bricks_capture` : sur chaque surface
+    ouverte, chaque touche du préréglage répond par son action au clavier commun de la page
+    (contre-épreuve : préréglage non transmis → échec). ⚠ La jumelle `transcriber_01` n'est pas
+    régénérée (sa recréation est à la session des domaines).
+    ⏳ Restent, dans l'ordre : les défauts décidés
     (←/→ = un pas, Ctrl 1 s, Maj 5 s, Alt 30 s) ; le réglage par compte et ses pages.
 - ⏳ **VISION, à ne pas oublier (Fabien, 2026-11-12) — composer une page D'ÉDITION DE ZÉRO.** On a
   le catalogue des briques et des pages dont on arrange les briques ; rien ne permet de partir

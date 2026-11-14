@@ -1490,7 +1490,9 @@
         if (_viewerKeys && _viewerKeys.axis === axis) return _viewerKeys.keys;
         _releaseViewerKeys();
         const shuttle = window.WamaShuttle ? window.WamaShuttle.forAxis(axis) : null;
-        _viewerKeys = { axis: axis, keys: axis.keys({ shuttle: shuttle }) };
+        // Sous SON nom : le préréglage qu'une page donne à son transport ne change pas les
+        // touches de la visionneuse, dont l'aide montre les siennes.
+        _viewerKeys = { axis: axis, keys: axis.keys({ shuttle: shuttle, owner: 'media_viewer' }) };
         return _viewerKeys.keys;
     }
 
