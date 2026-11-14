@@ -31,8 +31,9 @@
         'ArrowUp': 'select_previous', 'ArrowDown': 'select_next',
         'Ctrl+ArrowUp': 'select_previous', 'Ctrl+ArrowDown': 'select_next',
         'Tab': 'seek_next', 'Shift+Tab': 'seek_previous',
-        'Enter': 'edit', 'Alt+Enter': 'edit', 'Ctrl+Enter': 'cut',
+        'Enter': 'edit', 'Alt+Enter': 'edit', 'Ctrl+Enter': 'cut', 'Ctrl+Alt+Enter': 'cut',
         'Alt+ArrowUp': 'step_previous', 'Alt+ArrowDown': 'step_next',
+        'Ctrl+Alt+ArrowUp': 'step_previous', 'Ctrl+Alt+ArrowDown': 'step_next',
         'Alt+KeyL': 'toggle_follow',
     };
 

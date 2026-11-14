@@ -1097,7 +1097,9 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     segment comme ↑/↓, Alt+Entrée édite comme Entrée — et MAJ ne retire jamais une touche que
     la table ne distingue pas (Alt+Maj+L, Ctrl+Maj+Entrée ; règle du clavier commun, Ctrl et Alt
     faisant toujours une autre touche ; Ctrl+Maj+Espace reste hors du magnéto, comme avant).
-    ⚠ Restent non reprises, jamais déclarées et sans usage connu : Ctrl+Alt+Entrée, Ctrl+Alt+↑/↓.
+    Ctrl+Alt+Entrée (couper) et Ctrl+Alt+↑/↓ (segment précédent / suivant), que l'ancien code
+    acceptait parce qu'il ne regardait qu'un modificateur à la fois, sont déclarées aussi
+    (2026-11-14) : plus aucune frappe de l'ancien éditeur n'est perdue.
     La partition (`SCORE_KEYS`) est portée le même jour par la session du composer, qui ajoute la
     garde GÉNÉRIQUE `EveryKeyTableFollowsTheRegistryTest` (toute brique qui appelle littéralement
     `WamaKeys.action(e, '<brique>', TABLE)` a sa table égale au registre) ; la table du
