@@ -8227,7 +8227,8 @@ avis du concile (« correcte avec corrections ») lu dans `WAMA_QUALITE §0` :
    seulement ; indéterminé → prudence) et dit l'étage, l'échelle, la population, les modèles non
    comparés — dans le sélecteur commun seul (`model_selector._quality_scalars` / `intent_choice`),
    donc pour toutes les apps et `best_installed` ;
-2. ⏳ les notes pertinentes dans les descriptions des modèles, CALCULÉES à l'affichage dans l'aide
+2. ✅ *(2026-11-14 : `WamaModelHelp.qualityNote`, `WAMA_QUALITE §0` « POINT 2 LIVRÉ »)* les notes
+   pertinentes dans les descriptions des modèles, CALCULÉES à l'affichage dans l'aide
    commune `WamaModelHelp` (court sous le sélecteur, long en ⓘ — §5b « Descriptions à deux
    tiers »), jamais recopiées dans `description` / `description_short` ;
 3. ⏳ une échelle de qualité PRINCIPALE déclarée par tâche, les autres (N, pas deux) par

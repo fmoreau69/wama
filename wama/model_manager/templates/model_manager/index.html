@@ -1088,10 +1088,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Une valeur de banc s'AFFICHE à une décimale (Fabien, 02/09) : un Elo Arena arrive
     // avec 12 décimales (1069.516569087065) qui ne portent aucune information de rang ; la
     // donnée brute reste dans `benchmark_index`, seul l'affichage arrondit.
-    function benchVal(v) {
-        const n = Number(v);
-        return Number.isFinite(n) ? n.toFixed(1) : String(v);
-    }
+    // La règle commune (`WamaModelHelp.benchValue`, 2026-11-14) : la même valeur se lit pareil
+    // sur la carte d'un modèle et sous le select d'une app.
+    function benchVal(v) { return WamaModelHelp.benchValue(v); }
 
     // FIABILITÉ d'une valeur de banc (2026-10-10) : QUI l'a produite (`provenance`) et COMMENT
     // elle a été rattachée au modèle (`matched_by`) — écrits par `benchmark_sync`. Une valeur
@@ -1740,8 +1739,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             + '<i class="fas fa-chart-column me-1"></i>' + esc(r.label) + '</a>'
                             + (r.date ? ' (' + esc(r.date) + ')' : '');
                     }).join('');
-                    return esc(s.metric.toUpperCase() + ' ' + (s.value * 100).toFixed(1) + ' %'
-                        + (s.direction === 'lower' ? ' (plus bas = mieux)' : '')
+                    return esc(WamaModelHelp.internalValueText(s)
                         + ' — ' + s.items + ' élément' + (s.items > 1 ? 's' : '') + ', '
                         + s.references + ' référence' + (s.references > 1 ? 's' : '') + ', '
                         + Math.round(s.reference_words) + ({ character: ' caractères',

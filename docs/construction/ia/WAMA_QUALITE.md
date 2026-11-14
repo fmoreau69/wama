@@ -531,6 +531,22 @@ mesure n'est qu'un plancher). L'accesseur `memory_manager.measured_vram_gb` est 
 lecteur de cette clé (la cascade, le sélecteur et `check_model_completeness` l'empruntent) ; le coût
 au pire est l'empreinte de la cascade. Remesuré : mêmes 18 changements sur 1 395 tirages ; 532
 tests des modules de la cascade et du sélecteur verts ; accesseur neutralisé → garde rouge.
+✅ **Vérifiée en service le 2026-11-14** (relance de 09:35) : la route de prévision du gunicorn rend
+`basis` / `unranked` (transcription au curseur 50 : « rang centile des bancs ; non comparés :
+FrWhisper, linto… »). ⚠ La voix aux curseurs bas : Kokoro ONNX sans phrase — le chemin « déjà
+chargé » (`prefer_loaded`) ne compare que les résidents, ici un seul ; la prévision pourrait dire
+« déjà chargé » (noté, non fait).
+
+✅ **POINT 2 LIVRÉ (2026-11-14) — les notes sous le select.** `WamaModelHelp.qualityNote` (brique
+globale `wama-model-help.js`) dit la note la plus forte d'un modèle, avec son échelle : mesure WAMA
+(`internal_quality`), sinon banc tiers (échelle, sens, rang dans SA population, « déclaré par
+l'auteur », « périmée »), sinon a priori ; lue sur `/model-manager/api/models/db/`, qui portait déjà
+ces champs — rien n'est recopié dans une description. « sans note » ne se dit que si un autre modèle
+de la liste en a une (la règle de l'origine). La valeur d'un banc et celle d'une mesure WAMA se lisent
+désormais par `WamaModelHelp.benchValue` / `internalValueText`, que la page du model manager emprunte
+(ses deux écritures locales retirées). Gardes : `tests_cap_from_js.SortAndFactsTest` (2 tests neufs,
+V8 — formes, règle « sans note », rendu sous le select) ; contre-épreuve 4 mutations, 4 rouges ; page
+du model manager rendue (200) et ses 10 scripts inline analysés par V8 sans erreur.
 
 ⏳ **`AIModel.cost_tier` reste NON LU, et c'est délibéré** (question tranchée le 26/09,
 demande initiale de Fabien de « brancher l'arbitrage honnête », retirée après mesure). Le

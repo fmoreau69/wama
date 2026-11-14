@@ -707,6 +707,47 @@ class SortAndFactsTest(SimpleTestCase):
         self.assertEqual('natif ≤ 10,7 s (continuable), 24 i/s, 1216×704', facts)
         self.assertEqual('', self.v8.eval("window.WamaModelHelp.capabilityFacts({task: 'text-to-image'})"))
 
+    def test_the_model_notes_are_derived_from_the_catalogue(self):
+        """Q10, 2026-11-14 (`WAMA_QUALITE §0`) : la note la plus forte d'un modèle, sous son select,
+        avec son échelle — mesure WAMA, sinon banc tiers, sinon a priori ; rien sinon."""
+        self.v8.eval((JS / 'wama-model-help.js').read_text(encoding='utf-8'))
+        note = lambda js: self.v8.eval('window.WamaModelHelp.qualityNote(' + js + ')')  # noqa: E731
+        self.assertEqual('mesure WAMA : WER 28.9 % (plus bas = mieux)', note(
+            "{internal_quality: [{metric: 'wer', value: 0.2888, direction: 'lower'}],"
+            " benchmark_index: 1438, benchmark_meta: {scale: 'arena_elo_text'}}"))
+        self.assertEqual('banc tiers : 13.0 wer_fr (plus bas = mieux) · 80e centile sur 20 · '
+                         "déclaré par l'auteur · périmée", note(
+            "{benchmark_index: 12.96, benchmark_meta: {scale: 'wer_fr', direction: 'lower',"
+            " percentile_rank: 80, population: 20, provenance: 'self_declared',"
+            " stale_since: '2026-11-02'}}"))
+        self.assertEqual('a priori : 67.3', note('{quality_index: 67.32}'))
+        self.assertEqual('', note('{}'))
+
+    def test_without_note_is_said_only_when_the_list_rates_others(self):
+        """La règle de l'origine : une mention ne se dit que si elle APPREND quelque chose."""
+        self.v8.eval((JS / 'wama-model-help.js').read_text(encoding='utf-8'))
+
+        def meta_of(models):
+            self.v8.eval("globalThis.fetch = function () { return Promise.resolve({json: function () {"
+                         " return Promise.resolve({models: " + json.dumps(models) + "}); }}); };"
+                         "window._meta = null; window.WamaModelHelp.fetchCatalogMeta('s', {keyBy:"
+                         " 'model_key'}).then(function (m) { window._meta = m; });")
+            return json.loads(self.v8.eval('JSON.stringify(window._meta)'))
+        mixed = meta_of([{'model_key': 'a', 'quality_index': 50}, {'model_key': 'b'}])
+        self.assertEqual(('a priori : 50.0', 'sans note'),
+                         (mixed['a']['quality_note'], mixed['b']['quality_note']))
+        bare = meta_of([{'model_key': 'a'}, {'model_key': 'b'}])
+        self.assertEqual(('', ''), (bare['a']['quality_note'], bare['b']['quality_note']))
+        # Et la ligne sous le select la porte, après les limites du modèle.
+        shown = self.v8.eval("""(function () {
+            var sel = {value: 'a', addEventListener: function () {}}, help = {textContent: ''};
+            globalThis.document = {getElementById: function (id) { return id === 's' ? sel : help; }};
+            window.WamaModelHelp.init({selectId: 's', helpId: 'h',
+                meta: {a: {description: 'D', vram_gb: 2, quality_note: 'a priori : 50.0'}}});
+            return help.textContent;
+        })()""")
+        self.assertEqual('D · 2 Go VRAM · a priori : 50.0', shown)
+
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class ProcessSectionsTest(SimpleTestCase):

@@ -50,6 +50,45 @@
     return out.join(', ');
   }
 
+  // Une valeur de banc telle qu'elle se lit (la règle de la page du model manager, venue ici le
+  // 2026-11-14 pour n'être écrite qu'une fois) : une décimale.
+  function benchValue(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n.toFixed(1) : String(v);
+  }
+
+  // Une MESURE WAMA (`internal_quality` : un taux, erreurs / longueur de référence) telle qu'elle se
+  // lit — la métrique, le taux en %, le sens. Partagée avec la page du model manager.
+  function internalValueText(s) {
+    return String(s.metric || s.scale || '').toUpperCase() + ' ' + (Number(s.value) * 100).toFixed(1)
+      + ' %' + (s.direction === 'lower' ? ' (plus bas = mieux)' : '');
+  }
+
+  // Les NOTES d'un modèle dites sous son sélecteur (2026-11-14, Q10 — `WAMA_QUALITE §0`, décision de
+  // Fabien : « compléter les descriptions avec les notes pertinentes pour aider l'utilisateur dans
+  // son choix manuel »), DÉRIVÉES du catalogue à l'affichage, jamais recopiées dans une description.
+  // La plus forte de l'échelle des signaux : la mesure WAMA, sinon le banc tiers (son échelle, son
+  // sens, son rang dans SA population, sa provenance, sa péremption), sinon l'a priori. Une note
+  // garde son échelle : deux notes ne se comparent que sur la même.
+  function qualityNote(m) {
+    if (!m) return '';
+    const internal = (m.internal_quality || [])[0];
+    if (internal && internal.value != null) return 'mesure WAMA : ' + internalValueText(internal);
+    if (m.benchmark_index != null) {
+      const meta = m.benchmark_meta || {};
+      let note = 'banc tiers : ' + benchValue(m.benchmark_index) + ' ' + (meta.scale || meta.category || '')
+        + (meta.direction === 'lower' ? ' (plus bas = mieux)' : '');
+      if (meta.percentile_rank != null) {
+        note += ' · ' + meta.percentile_rank + 'e centile sur ' + (meta.population || '?');
+      }
+      if (meta.provenance === 'self_declared') note += " · déclaré par l'auteur";
+      if (meta.stale_since) note += ' · périmée';
+      return note;
+    }
+    if (m.quality_index != null) return 'a priori : ' + benchValue(m.quality_index);
+    return '';
+  }
+
   function init(cfg) {
     cfg = cfg || {};
     const sel = document.getElementById(cfg.selectId);
@@ -75,6 +114,7 @@
       if (txt && vram) txt += ' · ' + vram + ' Go VRAM';
       const facts = capabilityFacts(m.capabilities);
       if (txt && facts) txt += ' · ' + facts;
+      if (txt && m.quality_note) txt += ' · ' + m.quality_note;
 
       const long = m.description_long || '';
       if (txt && long && long !== (m.description || '')) {
@@ -124,6 +164,9 @@
         // distant ; pour un modèle local, seulement quand la liste en propose aussi des
         // distants. Un sélecteur d'app tout local n'affiche pas « Local » sur chaque ligne.
         const mixed = (data.models || []).some(function (m) { return m.execution === 'cloud'; });
+        // Même règle pour la NOTE : « sans note » ne se dit que si un autre modèle de la liste en a
+        // une — une liste où rien n'est noté n'affiche pas « sans note » sur chaque ligne.
+        const anyRated = (data.models || []).some(function (m) { return qualityNote(m) !== ''; });
         (data.models || []).forEach(function (m) {
           const key = m[keyBy];
           if (key == null) return;
@@ -133,6 +176,7 @@
             vram_gb: m.vram_gb,
             capabilities: m.capabilities || null,
             origin: (m.execution === 'cloud' || mixed) ? (m.origin || '') : '',
+            quality_note: qualityNote(m) || (anyRated ? 'sans note' : ''),
           };
           // La meta s'indexe sous la clé ENTIÈRE et sous l'id NU (2026-09-29) : un select peuplé
           // du catalogue porte des clés entières (`synthesizer:kokoro`, `huggingface:org/nom`),
@@ -149,5 +193,6 @@
   }
 
   global.WamaModelHelp = { init: init, fetchCatalogMeta: fetchCatalogMeta,
-                           capabilityFacts: capabilityFacts };
+                           capabilityFacts: capabilityFacts, qualityNote: qualityNote,
+                           benchValue: benchValue, internalValueText: internalValueText };
 })(window);
