@@ -128,6 +128,27 @@ def instrument_label(name: str) -> str:
     return INSTRUMENT_LABELS.get(key) or (name or '').strip().capitalize()
 
 
+def instrument_keys(text: str) -> list:
+    """Les clés d'instruments d'une liste TAPÉE (« Batterie, cordes, piano ») — la même table, lue
+    à l'envers (2026-11-13, les pistes demandées à un séparateur par requête) : un libellé français
+    connu donne sa clé (« Cordes » → `string ensemble`), le premier du vocabulaire quand deux clés
+    le partagent ; un nom inconnu est gardé tel quel, en minuscules — un modèle par requête sait le
+    lire. Séparateurs : virgule, point-virgule, retour à la ligne ; doublons retirés."""
+    import re
+    by_label = {}
+    for key, label in INSTRUMENT_LABELS.items():
+        by_label.setdefault(label.lower(), key)
+    keys = []
+    for raw in re.split(r'[,;\n]+', text or ''):
+        word = ' '.join(raw.split()).lower()
+        if not word:
+            continue
+        key = word if word in INSTRUMENT_LABELS else by_label.get(word, word)
+        if key not in keys:
+            keys.append(key)
+    return keys
+
+
 class MidiPart:
     """Une partie du MIDI — une piste et un canal : son nom (`track_name`), batterie ou non (canal
     10), ses notes `(début, fin, hauteur)` en TICKS ; et depuis le 2026-11-08 (question de Fabien :

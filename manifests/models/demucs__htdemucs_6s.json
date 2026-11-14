@@ -15,6 +15,7 @@
         "guitar",
         "piano"
       ],
+      "stems_by_query": false,
       "task": "audio-source-separation"
     },
     "composition": {
@@ -51,7 +52,7 @@
     "identity": {
       "author": null,
       "description_short": "Six stems: vocals, drums, bass, guitar, piano, other",
-      "license": null,
+      "license": "mit",
       "model_type": "music",
       "platform_ref": "github:facebookresearch/demucs",
       "source": "demucs"

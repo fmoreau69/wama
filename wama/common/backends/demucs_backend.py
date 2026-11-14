@@ -204,7 +204,9 @@ class DemucsBackend(SourceSeparationBackend):
         audio_path: str,
         output_dir: str,
         progress_callback: Optional[Callable[[int], None]] = None,
+        stems=None,
     ) -> Dict[str, str]:
+        # `stems` : liste fixe chez Demucs — le modèle rend toujours ses pistes (le contrat).
         import numpy as np
         import soundfile as sf
         import torch

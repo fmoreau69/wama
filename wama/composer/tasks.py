@@ -404,13 +404,21 @@ def _separate(gen, ctx):
     backend_class = backend_for_key(separator_key)
     if backend_class is None:
         raise RuntimeError(f"« {separator_key} » : aucun backend résolu depuis le catalogue.")
-    ctx.console(f"[Composer] Pistes séparées : {separator_key} — {os.path.basename(audio_abs)}")
+    # Les pistes DEMANDÉES (2026-11-13) : lues seulement par un modèle par requête (sa capacité
+    # `stems_by_query`) ; vide = la liste qu'il propose. Un modèle à pistes fixes rend les siennes.
+    from wama.common.utils.midi_score import instrument_keys
+    from wama.common.utils.model_capabilities import catalog_capabilities
+    requested = (instrument_keys(getattr(gen, 'separation_stems', '') or '') or None
+                 if catalog_capabilities(separator_key).get('stems_by_query') else None)
+    ctx.console(f"[Composer] Pistes séparées : {separator_key} — {os.path.basename(audio_abs)}"
+                + (f" ({', '.join(requested)})" if requested else ''))
     backend = backend_class()
     work = tempfile.mkdtemp(prefix='wama_stems_')
     try:
         try:
             written = backend.separate_sources(model_id=model_id(separator_key), audio_path=audio_abs,
-                                               output_dir=work, progress_callback=ctx.progress)
+                                               output_dir=work, progress_callback=ctx.progress,
+                                               stems=requested)
         except Exception:
             ctx.reset_progress()
             raise

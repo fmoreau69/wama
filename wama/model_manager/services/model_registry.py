@@ -2078,14 +2078,61 @@ class ModelRegistry:
                                 'install_dir': str(root),
                                 'declared_files': files,
                                 'license': 'mit'},
+                    # `stems_by_query: False` DIT qu'il ne lit pas la liste des pistes demandées :
+                    # le réglage se grise (une capacité absente le laisserait actif, 2026-11-13).
                     capabilities={'task': 'audio-source-separation', 'modalities': ['audio'],
-                                  'inputs_required': ['work_audio'], 'stems': list(STEMS[name])},
+                                  'inputs_required': ['work_audio'], 'stems': list(STEMS[name]),
+                                  'stems_by_query': False},
                     composition={'runtime': {'engine': 'demucs'},
                                  'components': [{'role': 'model', 'pattern': '*.th',
                                                  'format': 'th'}]},
                 )
         except Exception as e:
             self.discovery_errors.append(f'audio-source-separation: {e}')
+        # SAM Audio (2026-11-13) : la séparation PAR REQUÊTE — la même tâche, des fichiers du Hub
+        # DÉCLARÉS à côté du moteur (`sam_audio_backend.SAM_AUDIO_FILES`, accès contrôlé) ; ses
+        # pistes ne sont pas une liste fixe mais celles qu'on lui nomme (`stems_by_query`), `stems`
+        # étant sa proposition par défaut.
+        try:
+            from wama.common.backends.sam_audio_backend import (
+                DEFAULT_STEMS, SAM_AUDIO_FILES, SUPPORTED_MODELS, folder_name, model_folder,
+            )
+            from wama.model_manager.services.model_installer import declared_files_present
+            root = model_folder()
+            for repo, files in SAM_AUDIO_FILES.items():
+                key = SUPPORTED_MODELS[repo]['model_key']
+                folder = root / folder_name(repo)
+                self._models[key] = ModelInfo(
+                    id=key,
+                    name='SAM Audio — small',
+                    model_type=ModelType.MUSIC,
+                    source=ModelSource.HUGGINGFACE,
+                    description="SAM Audio (Meta, Segment Anything Audio): separates the source a "
+                                "text query names (« piano », « drums », « string ensemble »…), one "
+                                "pass per source — beyond the fixed stems of Demucs. SAM License "
+                                "(code and weights), gated repository.",
+                    description_short="Stems by text query: one track per instrument named",
+                    platform_ref=hf_platform_ref(repo),
+                    # Pic MESURÉ le 2026-11-13 (RTX 4090, `max_memory_allocated`, « Keep Hope »,
+                    # 223 s, quatre sources) : 11,49 Go dont 5,56 de poids — par tranches de 20 s
+                    # (`sam_audio_backend.CHUNK_SECONDS`), il ne croît pas avec la durée.
+                    vram_gb=11.5,
+                    format='pt',
+                    is_downloaded=declared_files_present(root, files),
+                    extra_info={'path': str(folder),
+                                'size_bytes': sum(f['size'] for f in files),
+                                'install_dir': str(root),
+                                'declared_files': files,
+                                'license': 'SAM License'},
+                    capabilities={'task': 'audio-source-separation', 'modalities': ['audio'],
+                                  'inputs_required': ['work_audio'], 'stems': list(DEFAULT_STEMS),
+                                  'stems_by_query': True},
+                    composition={'runtime': {'engine': 'sam_audio'},
+                                 'components': [{'role': 'model', 'pattern': '*/checkpoint.pt',
+                                                 'format': 'pt'}]},
+                )
+        except Exception as e:
+            self.discovery_errors.append(f'audio-source-separation (SAM Audio): {e}')
 
     def _discover_score_reading_models(self):
         """Lecture optique de partition, une page imprimée → son MusicXML (task=image-to-score,

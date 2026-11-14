@@ -1503,6 +1503,16 @@ def pull_declared_files(spec: dict, timeout: int = 600, dry_run: bool = False,
         for f, _target in kept:
             meter.add(f['size'])
     archives = {}                         # adresse de l'archive → chemin local, tirée UNE fois
+    # `token=None` (sans utilisateur : ligne de commande, tâche planifiée) = le jeton de l'INSTANCE,
+    # la règle de `api_keys.download_token` — que ce pilote, qui télécharge en HTTP et non par
+    # `huggingface_hub`, ne tenait pas : un dépôt à accès contrôlé répondait 401 (2026-11-13, SAM
+    # Audio). `False` reste « aucun jeton » (une personne qui n'en a pas posé).
+    if token is None and any(f['origin']['source'] == 'huggingface' for f, _t in missing):
+        try:
+            from huggingface_hub import get_token
+            token = get_token() or None
+        except Exception:
+            token = None
     try:
         for f, target in missing:
             target.parent.mkdir(parents=True, exist_ok=True)

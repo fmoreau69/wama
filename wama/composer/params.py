@@ -175,6 +175,20 @@ PARAMS = [
           dom_id={"panel": "separationModel", "item": "settingsSeparationModel",
                   "batch": "batchSettingsSeparationModel"},
           contexts=PANEL_ITEM_BATCH, stales=("separate",)),
+    # Les PISTES À EXTRAIRE (2026-11-13, SAM Audio) : un modèle par REQUÊTE extrait chaque source
+    # qu'on lui nomme ; un modèle à liste fixe (Demucs) ne lit pas ce réglage — grisé, raison dite
+    # (capacité `stems_by_query`). Libellés français du vocabulaire commun ou noms libres.
+    Param(name="separation_stems", type="text", label="Pistes à extraire",
+          icon="fa-list-check",
+          help="Les instruments à extraire, séparés par des virgules (ex. « Voix, Batterie, Piano, "
+               "Cordes ») — un nom par piste, une passe par piste. Vide : la liste que le modèle "
+               "propose. Seuls les modèles qui séparent sur demande (SAM Audio) le lisent.",
+          default="",
+          cap_from={"field": "separation_model", "capability": "stems_by_query", "mode": "reads",
+                    "reason": "Ce modèle rend des pistes fixes : il ne lit pas cette liste."},
+          dom_id={"panel": "separationStems", "item": "settingsSeparationStems",
+                  "batch": "batchSettingsSeparationStems"},
+          contexts=PANEL_ITEM_BATCH, stales=("separate",)),
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
     # `parts` (`ProcessSpec.toggle`) — depuis le 2026-10-26 sur l'ENTRÉE : l'audio repris, comme la
     # partition réduite. Ne périme qu'elle-même : le rendu suit la réduite, jamais celle-ci.

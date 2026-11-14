@@ -14,9 +14,13 @@ Les pistes qu'un modèle rend sont une CAPACITÉ déclarée au catalogue (`capab
 jamais déduites du nom du modèle —, nommées par leur moteur (les noms de Demucs, standard du
 domaine : MUSDB18 pour `vocals`, `drums`, `bass`, `other`). Leur libellé affiché est celui de tout
 instrument (`midi_score.instrument_label`, une seule table).
+
+Un modèle PAR REQUÊTE (2026-11-13, SAM Audio) ne rend pas une liste fixe : il extrait chaque source
+qu'on lui NOMME (`stems`). Sa capacité le dit (`capabilities.stems_by_query`), sa liste `stems` étant
+alors celle qu'il propose par défaut ; un modèle à liste fixe ignore `stems`.
 """
 from abc import abstractmethod
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Sequence
 
 from .base import BaseModelBackend
 
@@ -46,6 +50,7 @@ class SourceSeparationBackend(BaseModelBackend):
         audio_path: str,
         output_dir: str,
         progress_callback: Optional[Callable[[int], None]] = None,
+        stems: Optional[Sequence[str]] = None,
     ) -> Dict[str, str]:
         """Écrit une piste WAV par source de `audio_path` dans `output_dir` et rend
         `{piste: chemin absolu}`, dans l'ordre du modèle (`vocals`, `drums`…).
@@ -53,7 +58,10 @@ class SourceSeparationBackend(BaseModelBackend):
         `model_id`          : identifiant du modèle (dernier segment de sa clé de catalogue) ;
         `audio_path`        : chemin absolu de l'audio (tout format que `audio_decode` lit) ;
         `output_dir`        : dossier existant où écrire les pistes ;
-        `progress_callback` : reçoit un pourcentage (0-100).
+        `progress_callback` : reçoit un pourcentage (0-100) ;
+        `stems`             : les sources DEMANDÉES (clés de `midi_score.INSTRUMENT_LABELS`), pour un
+                              modèle par requête ; None = celles du modèle. Ignoré par un modèle à
+                              liste fixe.
 
         Les pistes gardent la fréquence d'échantillonnage du modèle et sont en stéréo. Un audio
         illisible LÈVE en le disant — jamais une liste vide."""

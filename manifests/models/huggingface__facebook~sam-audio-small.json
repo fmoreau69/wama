@@ -1,0 +1,119 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "stems": [
+        "vocals",
+        "drums",
+        "bass",
+        "guitar",
+        "piano",
+        "string ensemble",
+        "brass section",
+        "synth lead"
+      ],
+      "stems_by_query": true,
+      "task": "audio-source-separation"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "pt",
+          "pattern": "*/checkpoint.pt",
+          "role": "model"
+        }
+      ],
+      "runtime": {
+        "engine": "sam_audio"
+      }
+    },
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "config.json",
+            "repo": "facebook/sam-audio-small",
+            "revision": "20b65f56888142eebe7c37448c6f6b3b32600e9b",
+            "source": "huggingface"
+          },
+          "path": "sam-audio-small/config.json",
+          "sha256": "50a67c841676043afdd3af6484ef6a1b47e300e36ee24eb3e07c31da8216f47b",
+          "size": 2251
+        },
+        {
+          "origin": {
+            "file": "checkpoint.pt",
+            "repo": "facebook/sam-audio-small",
+            "revision": "20b65f56888142eebe7c37448c6f6b3b32600e9b",
+            "source": "huggingface"
+          },
+          "path": "sam-audio-small/checkpoint.pt",
+          "sha256": "8c44fda9821fd9f2ec8977304e3c0f55290d9eacb6bbf25b4b8fb1f69c2a8c06",
+          "size": 5100547943
+        }
+      ],
+      "license": "SAM License",
+      "vram_measured": {
+        "at": "2026-11-14T09:53:36+00:00",
+        "last_gb": 5.18,
+        "max_gb": 5.18,
+        "n": 3
+      },
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "pt"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Stems by text query: one track per instrument named",
+      "license": "SAM License",
+      "model_type": "music",
+      "platform_ref": "huggingface:facebook/sam-audio-small",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 4.750257538631558,
+      "ram_gb": 0.0,
+      "vram_gb": 11.5
+    }
+  },
+  "description": "SAM Audio (Meta, Segment Anything Audio): separates the source a text query names (« piano », « drums », « string ensemble »…), one pass per source — beyond the fixed stems of Demucs. SAM License (code and weights), gated repository.",
+  "key": "huggingface:facebook/sam-audio-small",
+  "manifest_kind": "model",
+  "name": "SAM Audio — small",
+  "projects": [],
+  "requires": [
+    {
+      "key": "einops",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    }
+  ],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:facebook/sam-audio-small",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

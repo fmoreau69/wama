@@ -192,6 +192,12 @@ class ComposerGeneration(DerivedCardMixin, KeptOutputsMixin, ProcessingTimeMixin
     separation_model = models.CharField(
         max_length=200, blank=True, default='auto', db_default='auto',
         help_text="Clé de catalogue du modèle de séparation de sources, ou « auto ».")
+    # Les PISTES DEMANDÉES à un séparateur par requête (2026-11-13, SAM Audio) — texte libre lu par
+    # `midi_score.instrument_keys` ; vide = la liste que le modèle propose. Ignoré par un modèle à
+    # pistes fixes.
+    separation_stems = models.CharField(
+        max_length=300, blank=True, default='', db_default='',
+        help_text="Pistes à extraire (séparation par requête), séparées par des virgules.")
     stems_index = models.FileField(
         max_length=500, upload_to=upload_to_user_output('composer'), blank=True, null=True)
 

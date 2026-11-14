@@ -4756,6 +4756,23 @@ load/save, datasets Audio, pyannote, transformers, Coqui, Demucs) 3/8 → 8/8, 5
 pas une VERSION proposée qui contredit la version installée (elle ne comble que des vides,
 `proposals.py:23-29`) : une librairie PyPI dont on fixe la version passe par un manifeste AUTORÉ.
 
+✅ **SAM Audio INTÉGRÉ** (2026-11-14) : backend `common/backends/sam_audio_backend.py` (contrat
+`SourceSeparationBackend`, élargi d'un paramètre `stems` — les sources DEMANDÉES, ignoré par un modèle
+à pistes fixes), ligne de catalogue `huggingface:facebook/sam-audio-small` (fichiers déclarés au commit
+`20b65f56`, pilote `files`, licence en colonne, capacité `stems_by_query`), installée par la route
+(`pull_model` → tâche `install_catalog`, empreintes vérifiées). La configuration publiée est chargée
+SANS ses reclasseurs ni son prédicteur d'intervalles (qui téléchargeaient `sam-audio-judge` et
+`pe-a-frame-large`). **Mesuré sur GPU** (RTX 4090, « Keep Hope », lu seulement) : 30 s d'un tenant =
+14,3 Go ; 60 s = CUDA out of memory (décodage du codec) ⇒ tranches de 20 s recouvertes d'1 s, raccordées
+par fondu : morceau entier (223 s, quatre sources) en 96,9 s, pic **11,5 Go** (`vram_gb`), chargement
+~170 s (5 Go lus sur `/mnt/d`). Composer : réglage « Pistes à extraire » (`separation_stems`, libellés
+français du vocabulaire commun lus à l'envers par `midi_score.instrument_keys`), grisé sous Demucs
+(`stems_by_query: False` déclaré). **Trou de la route comblé au passage** : le pilote `files` n'envoyait
+aucun jeton à un dépôt à accès contrôlé quand l'installation n'a pas d'utilisateur (ligne de commande) —
+`None` = le jeton de l'instance, la règle de `api_keys.download_token` (401 sur `config.json`).
+⏳ L'essai de bout en bout dans le Composer (workers à relancer : tâche et colonne neuves) ; la jumelle
+`composer_01` (réglage neuf, générateur) ; `large` (14,9 Go) non servi.
+
 **Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs
 manifestes résolvent le `requires` de sam_audio), puis `install_library` (requises d'abord) ;
 correctifs `torchcodec` exportés sous `patches/` et déclarés ; backend `SourceSeparationBackend` en sous-processus (le patron des moteurs vendorisés), capacité `stems: open`

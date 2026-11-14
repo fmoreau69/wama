@@ -136,6 +136,15 @@ class MidiToAbcTest(SimpleTestCase):
         self.assertEqual('Guitare saturée', instrument_label('distorted_electric_guitar'))
         self.assertEqual('Kazoo', instrument_label('kazoo'))
 
+    def test_a_typed_list_reads_the_same_table_backwards(self):
+        """2026-11-13 (pistes demandées à un séparateur par requête) : un libellé français donne sa
+        clé — la première quand deux clés le partagent (« Voix » → `vocals`) —, une clé reste une
+        clé, un nom inconnu passe en minuscules ; doublons et vides retirés."""
+        from wama.common.utils.midi_score import instrument_keys
+        self.assertEqual(['vocals', 'string ensemble', 'electric bass', 'piano', 'theremin'],
+                         instrument_keys('Voix, Cordes;\nBasse électrique, piano, VOIX, , Theremin'))
+        self.assertEqual([], instrument_keys(''))
+
 
 class ReadMidiTest(SimpleTestCase):
     """`read_midi`, the MIDI reading shared by the notation and the YuE2 engine."""

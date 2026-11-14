@@ -26,7 +26,8 @@ from unittest import mock
 from django.conf import settings
 from django.test import SimpleTestCase
 
-from wama.common.backends import coqui_backend, demucs_backend, doctr_backend, ocr_base, whisper_backend
+from wama.common.backends import (coqui_backend, demucs_backend, doctr_backend, ocr_base,
+                                  sam_audio_backend, whisper_backend)
 from wama.common.utils import spoken_language
 
 
@@ -485,6 +486,45 @@ class DemucsReadsItsFolderTest(SimpleTestCase):
                  for g in demucs_backend.checkpoint_globals()}
         self.assertTrue({'HTDemucs', 'Fraction', 'numpy.core.multiarray.scalar', 'dtype'} <= names)
         self.assertFalse({'eval', 'exec', 'system', 'getattr'} & names)
+
+
+class SamAudioReadsItsFolderTest(SimpleTestCase):
+    """SAM Audio (2026-11-13) : read from the declared folder of its size, its published config
+    stripped of the three pieces a text query does not use (the visual ranker, the text rankers
+    that fetch `facebook/sam-audio-judge`, the span predictor that fetches `pe-a-frame-large`) ; a
+    song is separated by overlapping CHUNKS (60 s did not fit), stitched by a crossfade."""
+
+    def test_an_absent_model_never_reaches_the_library_and_says_the_route(self):
+        with mock.patch.object(sam_audio_backend, 'installed', return_value=False), \
+                mock.patch.object(sam_audio_backend.SamAudioBackend, 'import_vendored') as imp:
+            with self.assertRaisesRegex(RuntimeError, 'facebook/sam-audio-small.*model manager'):
+                sam_audio_backend.SamAudioBackend().load('facebook/sam-audio-small')
+        imp.assert_not_called()
+
+    def test_an_installed_model_is_read_from_its_folder_without_the_unused_pieces(self):
+        seen = {}
+        fake = types.SimpleNamespace(
+            SAMAudio=types.SimpleNamespace(from_pretrained=lambda folder, **kw: seen.update(
+                folder=folder, kwargs=kw) or mock.MagicMock()),
+            SAMAudioProcessor=types.SimpleNamespace(from_pretrained=lambda folder: mock.Mock()))
+        with mock.patch.object(sam_audio_backend, 'installed', return_value=True), \
+                mock.patch.object(sam_audio_backend.SamAudioBackend, 'import_vendored',
+                                  return_value=fake):
+            self.assertTrue(sam_audio_backend.SamAudioBackend().load('facebook/sam-audio-small'))
+        self.assertEqual(str(sam_audio_backend.model_folder() / 'sam-audio-small'), seen['folder'])
+        self.assertEqual({'visual_ranker': None, 'text_ranker': None, 'span_predictor': None},
+                         seen['kwargs'])
+
+    def test_a_song_is_cut_into_overlapping_chunks_and_stitched_back_seamlessly(self):
+        import numpy as np
+        rate = 10
+        bounds = sam_audio_backend.chunk_bounds(450, rate)          # 45 s at 10 Hz
+        self.assertEqual([(0, 200), (190, 390), (380, 450)], bounds, 'chunks of 20 s, 1 s overlap')
+        self.assertEqual([(0, 120)], sam_audio_backend.chunk_bounds(120, rate), 'a short clip : one')
+        signal = np.sin(np.arange(450) / 7.0).astype(np.float32)
+        pieces = [signal[s:e] for s, e in bounds]
+        np.testing.assert_allclose(signal, sam_audio_backend.stitch(pieces, bounds, 450, rate),
+                                   atol=1e-6, err_msg='the same signal in each chunk : no seam')
 
 
 class KokoroReadsItsVoicesTest(SimpleTestCase):

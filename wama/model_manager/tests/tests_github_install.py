@@ -784,10 +784,20 @@ class DeclaredFilesTest(TestCase):
         sent = [c.kwargs['headers'] for c in dl.call_args_list]
         self.assertEqual([None, {'Authorization': 'Bearer hf_secret'}, None], sent,
                          'github, huggingface, pytorch_download — in the declared order')
-        with patch.object(mi, 'download_asset', return_value={'ok': True}) as dl:
+        # 2026-11-13, SAM Audio : sans utilisateur (`None`, ligne de commande), le jeton de
+        # l'INSTANCE — la règle de `api_keys.download_token` ; `False` (une personne qui n'en a
+        # pas posé) : aucun en-tête.
+        with patch.object(mi, 'download_asset', return_value={'ok': True}) as dl, \
+                patch('huggingface_hub.get_token', return_value='hf_instance'):
             mi.pull_declared_files(self._spec())
+        self.assertEqual([None, {'Authorization': 'Bearer hf_instance'}, None],
+                         [c.kwargs['headers'] for c in dl.call_args_list],
+                         "no user : the instance's token, to the Hub only")
+        with patch.object(mi, 'download_asset', return_value={'ok': True}) as dl, \
+                patch('huggingface_hub.get_token', return_value='hf_instance'):
+            mi.pull_declared_files(self._spec(), token=False)
         self.assertEqual([None, None, None], [c.kwargs['headers'] for c in dl.call_args_list],
-                         'no token, no header')
+                         'a person without a token : no header')
 
     def test_install_from_spec_hands_the_token_to_the_files_driver(self):
         with patch.object(mi, 'pull_declared_files', return_value={'ok': True}) as files, \

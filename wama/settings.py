@@ -206,6 +206,11 @@ MODEL_PATHS = {
         # les poids de `htdemucs_6s` et `htdemucs_ft`, DÉCLARÉS dans le backend
         # (`demucs_backend.DEMUCS_FILES`, serveur de poids de Meta) et posés par le pilote `files`.
         'demucs': AI_MODELS_DIR / "models" / "music" / "demucs",
+        # Séparation PAR REQUÊTE TEXTE (2026-11-13, même tâche) — SAM Audio (Meta) : `config.json`
+        # et `checkpoint.pt` de chaque taille sous son dossier, DÉCLARÉS dans le backend
+        # (`sam_audio_backend.SAM_AUDIO_FILES`, Hub à un commit, accès contrôlé) et posés par le
+        # pilote `files`. Le code vit à part (route `library` vendorisée, `sam_audio`).
+        'sam_audio': AI_MODELS_DIR / "models" / "music" / "sam-audio",
     },
     # Langage naturel hors génération (ModelType.NLP, 2026-10-28) — détecteurs de DONNÉES
     # PERSONNELLES de `common/privacy` (ROADMAP §16.4bis). Fichiers DÉCLARÉS dans leur backend,

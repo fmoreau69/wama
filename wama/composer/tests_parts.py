@@ -79,8 +79,8 @@ class _Separator:
     def unload(self):
         _Separator.unloaded += 1
 
-    def separate_sources(self, model_id, audio_path, output_dir, progress_callback=None):
-        _Separator.calls.append({'model_id': model_id, 'audio_path': audio_path})
+    def separate_sources(self, model_id, audio_path, output_dir, progress_callback=None, stems=None):
+        _Separator.calls.append({'model_id': model_id, 'audio_path': audio_path, 'stems': stems})
         out = {}
         for stem in ('vocals', 'drums'):
             path = Path(output_dir) / f'{stem}.wav'
@@ -299,6 +299,29 @@ class StemSeparationTest(_InputProcessCase):
 
     def _stems(self, gen):
         return {c.derived_role: c for c in ComposerGeneration.objects.filter(derived_from=gen)}
+
+    def _separator_reads_a_list(self, reads: bool):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.update_or_create(model_key=SEPARATOR, defaults={
+            'name': SEPARATOR, 'source': 'demucs',
+            'capabilities': {'task': 'audio-source-separation', 'stems_by_query': reads}})
+
+    def test_a_query_separator_receives_the_stems_typed_in_french(self):
+        """2026-11-13, SAM Audio : un modèle PAR REQUÊTE (`stems_by_query`) reçoit les pistes que la
+        card nomme — les libellés français du vocabulaire commun deviennent ses clés, un nom inconnu
+        passe tel quel."""
+        self._separator_reads_a_list(True)
+        gen = self._run(separate_stems=True, melody_reference=self._cover(),
+                        separation_stems='Voix, Cordes ; theremin')
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['separate'], gen.error_message)
+        self.assertEqual(['vocals', 'string ensemble', 'theremin'], _Separator.calls[0]['stems'])
+
+    def test_a_fixed_stem_separator_ignores_the_list(self):
+        """Contre-épreuve : un modèle à pistes fixes (Demucs) rend les siennes — la liste saisie ne
+        lui est pas passée."""
+        self._separator_reads_a_list(False)
+        self._run(separate_stems=True, melody_reference=self._cover(), separation_stems='Voix')
+        self.assertIsNone(_Separator.calls[0]['stems'])
 
     def test_the_input_becomes_a_lot_of_stem_cards(self):
         from django.conf import settings
