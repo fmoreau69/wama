@@ -847,7 +847,7 @@ déclaration de l'app (`APP_CATALOG`), comme pour toute page d'app.{{% endcommen
 {{% block queue_content %}}
     {{% block {app}_content %}}{{% endblock %}}
 {{% endblock %}}
-
-{{% block footer_text %}}{escape(title)} | WAMA{{% endblock %}}
 '''
+    # Le pied de page n'est pas écrit non plus : il recopiait le titre (retiré le 2026-11-14, et sa
+    # ligne restée ici faisait lever `render_base` — toute création d'app de zéro tombait).
     return {'base.html': src}, None
