@@ -1,0 +1,33 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true,
+      "notes": "Aligné sur torch 2.9 (table de compatibilité de torchcodec : 0.9 ↔ torch 2.9, 0.10 ↔ torch 2.10). La 0.10.0 ne se chargeait pas (`undefined symbol c10::MessageLogger::stream`, ABI de torch). Mesuré le 2026-11-13 : 0.9.1 décode WAV/MP3, torchaudio.load/save, datasets Audio et pyannote refonctionnent ; 522/523 tests audio verts (rouge préexistant). Sans dépendances : pip ne doit pas re-résoudre torch (canal +cu128). Validé par Fabien."
+    },
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "PyTorch Team <packages@pytorch.org>",
+      "license": null,
+      "repository": null,
+      "summary": "A video decoder for PyTorch",
+      "version": "0.9.1"
+    },
+    "install": {
+      "pip": "torchcodec==0.9.1",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "A video decoder for PyTorch",
+  "key": "torchcodec",
+  "manifest_kind": "library",
+  "name": "torchcodec",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:torchcodec==0.9.1",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

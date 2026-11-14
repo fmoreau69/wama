@@ -4745,6 +4745,17 @@ dit « FAIR Noncommercial Research License » ; mesuré, le code chargé (Percep
 est Apache-2.0 (`LICENSE.PE`, README « Code License Apache 2.0 ») — la licence FAIR (`LICENSE.PLM`)
 couvre PLM, non utilisé.
 
+✅ **Correctifs `torchcodec` RETIRÉS le même jour** (question de Fabien : « ne faut-il pas faire
+tourner torchcodec ? ») : la cause n'était pas FFmpeg (WSL a FFmpeg 6, `libtorchcodec_core6.so` le
+trouve) mais l'ABI de torch — torchcodec 0.10.0 est fait pour torch 2.10, le venv porte 2.9.1. Réaligné
+PAR LA ROUTE sur 0.9.1 (manifeste autoré `manifests/libraries/torchcodec.json`, `no_deps`, validé par
+Fabien, `install_library`) après preuve de non-régression : huit usages réels (torchcodec, torchaudio
+load/save, datasets Audio, pyannote, transformers, Coqui, Demucs) 3/8 → 8/8, 522/523 tests audio verts
+(le rouge, la porte des voix des jumelles, est identique sans 0.9.1). Clones revenus à l'amont exact,
+`vendor_state` conforme, `import sam_audio` vérifié sans correctif. ⚠ La route de validation n'applique
+pas une VERSION proposée qui contredit la version installée (elle ne comble que des vides,
+`proposals.py:23-29`) : une librairie PyPI dont on fixe la version passe par un manifeste AUTORÉ.
+
 **Suite** : validation des trois propositions par Fabien (dacvae et perception_models d'abord, leurs
 manifestes résolvent le `requires` de sam_audio), puis `install_library` (requises d'abord) ;
 correctifs `torchcodec` exportés sous `patches/` et déclarés ; backend `SourceSeparationBackend` en sous-processus (le patron des moteurs vendorisés), capacité `stems: open`
