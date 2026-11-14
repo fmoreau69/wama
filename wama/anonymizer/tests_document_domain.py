@@ -84,7 +84,7 @@ class TheGateIsTheCommonOneTest(SimpleTestCase):
 
 
 class EachDomainHasItsProcessesTest(SimpleTestCase):
-    """One pipeline per app; each process takes place for ITS domain (`ProcessSpec.applies`)."""
+    """One pipeline per app; each process takes place for ITS domain (`ProcessSpec.domains`)."""
 
     def _keys(self, media):
         from wama.anonymizer.function_specs import PIPELINE

@@ -32,6 +32,9 @@
         "params": {},
         "process": {
           "degree": "required",
+          "domains": [
+            "image_video"
+          ],
           "eta": "anonymizer.tasks:anonymizer_eta_key_size",
           "gpu": true,
           "label": "Détection",
@@ -59,6 +62,9 @@
         "params": {},
         "process": {
           "degree": "required",
+          "domains": [
+            "image_video"
+          ],
           "eta": "anonymizer.tasks:blur_eta",
           "gpu": false,
           "label": "Floutage",
@@ -86,6 +92,9 @@
         "params": {},
         "process": {
           "degree": "required",
+          "domains": [
+            "image_video"
+          ],
           "gpu": false,
           "label": "Sortie",
           "watched": [
@@ -103,6 +112,9 @@
         "params": {},
         "process": {
           "degree": "optional",
+          "domains": [
+            "document"
+          ],
           "eta": "anonymizer.tasks:ocr_eta",
           "gpu": true,
           "label": "OCR des scans et des images",
@@ -124,6 +136,9 @@
         "params": {},
         "process": {
           "degree": "required",
+          "domains": [
+            "document"
+          ],
           "eta": "anonymizer.tasks:detect_text_eta",
           "gpu": false,
           "label": "Détection des données personnelles",
@@ -144,6 +159,9 @@
         "params": {},
         "process": {
           "degree": "required",
+          "domains": [
+            "document"
+          ],
           "eta": "anonymizer.tasks:occult_text_eta",
           "gpu": false,
           "label": "Occultation",

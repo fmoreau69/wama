@@ -14,7 +14,8 @@ Ce qui est rendu, et rien d'autre :
     (`options_source: catalog`) : `None` sous « auto », la tâche tranchera.
 Ce qui n'est PAS rendu : `applies` / `available` (logique de moteur — un process qui n'a pas
 toujours lieu s'écrit à la main, comme le `plan` du composer) ; le corps des process (la GLU,
-`tasks.py`, marche B).
+`tasks.py`, marche B). Ce qui réserve un process à un DOMAINE de l'app, en revanche, est une
+donnée du manifeste (`process.domains`) et se rend (2026-11-14).
 
 Le LABEL de l'app n'est jamais écrit en dur : le module le lit de son propre nom de paquet. Une
 jumelle (`writer_01`) déclare donc ses fonctions `writer_01.<process>` et son pipeline sous
@@ -179,7 +180,8 @@ def render_function_specs(manifest: dict) -> tuple:
             # Un process COMMUN déclaré par sa brique (la « Sortie » : réglages de sortie
             # surveillés, toujours joué) — jamais recopié champ par champ.
             share = f", share={s['share']}" if s['share'] != 1 else ''
-            lines.append(f"    output_spec(depends_on={tuple(s['depends_on'])!r}{share}),")
+            domains = f", domains={tuple(s['domains'])!r}" if s.get('domains') else ''
+            lines.append(f"    output_spec(depends_on={tuple(s['depends_on'])!r}{share}{domains}),")
             continue
         args = [repr(s['key'])]
         if s['label']:
@@ -200,6 +202,8 @@ def render_function_specs(manifest: dict) -> tuple:
             args.append(f"outputs={tuple(s['outputs'])!r}")
         if s['toggle']:
             args.append(f"toggle={s['toggle']!r}")
+        if s.get('domains'):
+            args.append(f"domains={tuple(s['domains'])!r}")
         if s.get('upstream_switch'):
             args.append(f"upstream_switch={s['upstream_switch']!r}")
         # Une ETA ou un résultat logés dans un module de tâches que le `tasks.py` GÉNÉRÉ remplace

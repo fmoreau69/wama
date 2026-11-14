@@ -145,6 +145,13 @@ class ProcessSpec:
       applies     `(item, model_key) -> bool` : le process a-t-il lieu pour CET élément ? Absent =
                   toujours. C'est ce qui laisse un pipeline à deux process n'en jouer qu'un pour
                   un modèle qui ne sait pas faire le premier ;
+      domains     les DOMAINES de l'app pour lesquels le process a lieu, en DONNÉE — des ids de
+                  ses domaines déclarés (`app_modes`) ; vide = tous. Le domaine d'un élément est
+                  celui que sa déclaration désigne (`app_modes.element_domain_or_first`). Une app
+                  à plusieurs domaines garde UN pipeline : les process d'un document et ceux
+                  d'une image y cohabitent, chacun réservé au sien (2026-11-14 ; l'anonymizer
+                  l'écrivait en deux fonctions `applies`, que le générateur ne pouvait pas
+                  rendre). Exporté au manifeste, rendu par `function_specs_gen` ;
       needs       ce que le process exige des CAPACITÉS du modèle de la card, en DONNÉE — une
                   condition de la grammaire `show_if` jugée sur la fiche du catalogue
                   (`param_schema.condition_met`) : `'supports_vocals'` (le modèle chante),
@@ -243,6 +250,7 @@ class ProcessSpec:
     card_model: bool = False
     share: int = 1
     applies: Callable = None
+    domains: tuple = ()
     needs: object = None
     outputs: tuple = ()
     toggle: str = ''
@@ -348,6 +356,14 @@ class AppPipeline:
             if spec.required_by and not spec.toggle:
                 raise ValueError(f"pipeline de {app} : « {spec.key} » est imposé par le modèle "
                                  f"(`required_by`) sans interrupteur à imposer (`toggle`)")
+            if spec.domains:
+                from wama.common.utils.app_modes import get_domains
+                declared = [d['id'] for d in get_domains(app)]
+                unknown = [d for d in spec.domains if d not in declared]
+                if unknown:
+                    raise ValueError(f"pipeline de {app} : « {spec.key} » se réserve à un domaine "
+                                     f"que l'app ne déclare pas ({', '.join(unknown)} ; déclarés : "
+                                     f"{', '.join(declared) or 'aucun'})")
             if spec.split_from and spec.key not in getattr(
                     self._by_key.get(spec.split_from), 'depends_on', ()):
                 raise ValueError(f"pipeline de {app} : « {spec.key} » se dit détaché de "
@@ -537,6 +553,8 @@ class AppPipeline:
                   'process': {'degree': spec.degree, 'gpu': spec.gpu,
                              'watched': list(self.watched_of(spec)),
                              **({'toggle': spec.toggle} if spec.toggle else {}),
+                             # 2026-11-14 : écrit seulement quand il est posé (ajout pur).
+                             **({'domains': list(spec.domains)} if spec.domains else {}),
                              # 2026-10-14 (ROADMAP §8d étape 4) : écrit seulement quand il est
                              # vrai — ajout pur, les autres pipelines exportés ne bougent pas.
                              **({'card_model': True} if spec.card_model else {}),
@@ -898,17 +916,26 @@ class AppPipeline:
         from wama.common.utils.param_schema import condition_met
         return condition_met(spec.needs, catalog_capabilities(model_key))
 
+    @staticmethod
+    def in_domain(spec: ProcessSpec, item) -> bool:
+        """L'élément est-il d'un domaine auquel le process se réserve (`ProcessSpec.domains`) ?
+        Oui sans réserve déclarée."""
+        if not spec.domains:
+            return True
+        from wama.common.utils.app_modes import element_domain_or_first
+        return element_domain_or_first(item) in spec.domains
+
     @classmethod
     def applies(cls, spec: ProcessSpec, item, model_key=None) -> bool:
-        """Le modèle sert-il ce process pour cet élément ? Ses CAPACITÉS d'abord
-        (`ProcessSpec.needs`, une donnée), puis ce qui juge l'élément (`ProcessSpec.applies`).
-        Dans une fenêtre de `preload`, la réponse est retenue par (process, modèle) : hors d'elle
-        (la tâche), elle est reposée à chaque fois."""
-        if spec.applies is None and not spec.needs:
+        """Le process a-t-il lieu pour cet élément ? Son DOMAINE d'abord (`ProcessSpec.domains`,
+        une donnée), puis les CAPACITÉS du modèle (`ProcessSpec.needs`, une donnée), puis ce qui
+        juge l'élément (`ProcessSpec.applies`). Dans une fenêtre de `preload`, la réponse est
+        retenue par (process, modèle) : hors d'elle (la tâche), elle est reposée à chaque fois."""
+        if spec.applies is None and not spec.needs and not spec.domains:
             return True
 
         def judge():
-            return cls.model_serves(spec, model_key) and (
+            return cls.in_domain(spec, item) and cls.model_serves(spec, model_key) and (
                 spec.applies is None or bool(spec.applies(item, model_key)))
         memo = getattr(item, '__dict__', {}).get(APPLIES_MEMO)
         if memo is None:

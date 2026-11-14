@@ -132,6 +132,25 @@ class WritingAPipelineDownTest(SimpleTestCase):
         with self.assertRaises(ValueError):
             AppPipeline('demo', (ProcessSpec('render', degree='sometimes'),), label='x')
 
+    def test_a_process_reserved_to_a_domain_takes_place_for_it_alone(self):
+        """`ProcessSpec.domains` (2026-11-14) is DATA: judged by the common pipeline on the domain
+        of the element, checked against the domains the app declares, written to the manifest."""
+        declared = [{'id': 'photo'}, {'id': 'paper'}]
+        with mock.patch('wama.common.utils.app_modes.get_domains', return_value=declared):
+            pipeline = AppPipeline('demo', (ProcessSpec('scan', domains=('paper',)),
+                                            ProcessSpec('store')), label='x')
+            with self.assertRaisesMessage(ValueError, 'nowhere'):
+                AppPipeline('demo', (ProcessSpec('scan', domains=('nowhere',)),), label='x')
+        for domain, expected in (('paper', True), ('photo', False)):
+            with self.subTest(domain=domain), mock.patch(
+                    'wama.common.utils.app_modes.element_domain_or_first', return_value=domain):
+                self.assertEqual(expected, AppPipeline.applies(pipeline.spec('scan'), object()))
+                self.assertTrue(AppPipeline.applies(pipeline.spec('store'), object()),
+                                'counter-check: a process without a reserve always takes place')
+        nodes = pipeline.graph()['nodes']
+        self.assertEqual(['paper'], nodes[0]['process']['domains'])
+        self.assertNotIn('domains', nodes[1]['process'])
+
     def test_the_order_is_the_order_of_the_graph_whatever_the_writing_order(self):
         pipeline = AppPipeline('demo', (ProcessSpec('render', depends_on=('plan',)),
                                         ProcessSpec('plan')), label='x')
@@ -1886,6 +1905,22 @@ class EveryAppPipelineTest(SimpleTestCase):
 
     def test_the_fleet_is_measured(self):
         self.assertIn('composer', self.pipelines)
+
+    def test_every_domain_of_an_app_that_reserves_processes_has_its_own(self):
+        """A pipeline that reserves processes to domains (`ProcessSpec.domains`) leaves no declared
+        domain without a process: a card of that domain would have nothing to run."""
+        from wama.common.utils.app_modes import get_domains
+        measured, empty = 0, []
+        for app, pipeline in sorted(self.pipelines.items()):
+            if not any(spec.domains for spec in pipeline.specs):
+                continue
+            measured += 1
+            for domain in get_domains(app):
+                if not any(not spec.domains or domain['id'] in spec.domains
+                           for spec in pipeline.specs):
+                    empty.append(f"{app}:{domain['id']}")
+        self.assertEqual([], empty)
+        self.assertTrue(measured, 'no pipeline reserves a process to a domain: nothing measured')
 
     def test_a_card_with_a_switch_or_a_check_passes_its_settings_route_to_the_strip(self):
         """The checkbox of an optional process (`ProcessSpec.toggle`) and the « Relancer avec »

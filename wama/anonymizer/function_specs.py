@@ -15,7 +15,7 @@ floutage ») :
     fichier flouté d'origine est gardé tant que la sortie le transforme.
 
 Et, pour un DOCUMENT (2026-11-02, domaine `document`, ROADMAP §16.4bis), TROIS autres, réservés à
-son domaine (`ProcessSpec.applies`, comme ceux du dessus le sont à l'image et à la vidéo) :
+son domaine (`ProcessSpec.domains`, comme ceux du dessus le sont à l'image et à la vidéo) :
   • `ocr`         — « OCR des scans et des images » : le process COMMUN (`ocr_process`), optionnel ;
   • `detect_text` — les données personnelles du texte (`common/privacy`), lignes de l'OCR comprises ;
   • `occult_text` — le document réécrit sur place, passages remplacés par leur libellé.
@@ -108,16 +108,10 @@ register(FunctionSpec(
                                                         "et sa forme d'origine.")]))
 
 
-def _is_document(media, _model_key=None) -> bool:
-    """Le média est-il du domaine DOCUMENT (`app_modes.element_domain`, la nature que la spec de
-    détail lit) ? `ProcessSpec.applies` : les process d'un domaine n'ont lieu que pour lui."""
-    from wama.common.utils.app_modes import element_domain
-    return element_domain(media) == 'document'
-
-
-def _is_image_or_video(media, _model_key=None) -> bool:
-    return not _is_document(media)
-
+#: Les domaines de l'app (`app_modes`) auxquels chaque process se RÉSERVE (`ProcessSpec.domains`,
+#: une donnée depuis le 2026-11-14 — deux fonctions `applies` l'écrivaient ici).
+MEDIA_DOMAINS = ('image_video',)
+DOCUMENT_DOMAINS = ('document',)
 
 #: Ce que la DÉTECTION surveille HORS schéma : le fichier et les classes (liste éditée à part).
 #: Les RÉGLAGES déclarent eux-mêmes ce qu'ils périment (`Param.stales`, params.py, 2026-10-05) —
@@ -134,21 +128,21 @@ from wama.common.services.ocr_process import OCR_KEY, OCR_LABEL  # noqa: E402
 PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('detect', label='Détection', watched=DETECT_WATCHED, gpu=True, share=7,
                 outputs=('detections_file',), eta='anonymizer.tasks:anonymizer_eta_key_size',
-                applies=_is_image_or_video),
+                domains=MEDIA_DOMAINS),
     ProcessSpec('blur', label='Floutage', depends_on=('detect',), watched=BLUR_WATCHED, share=3,
                 outputs=('output_file',), eta='anonymizer.tasks:blur_eta',
-                applies=_is_image_or_video),
-    output_spec(depends_on=('blur',), applies=_is_image_or_video),
-    # Domaine document : chacun n'a lieu que pour un document (`applies`). L'OCR est OPTIONNEL,
+                domains=MEDIA_DOMAINS),
+    output_spec(depends_on=('blur',), domains=MEDIA_DOMAINS),
+    # Domaine document : chacun n'a lieu que pour un document (`domains`). L'OCR est OPTIONNEL,
     # à interrupteur — le fichier propose sa valeur (`Param.default_from`, `needs_ocr`).
     ProcessSpec(OCR_KEY, label=OCR_LABEL, watched=('file',), degree='optional', gpu=True, share=2,
-                outputs=('ocr_file',), toggle='ocr_scanned_pages', applies=_is_document,
+                outputs=('ocr_file',), toggle='ocr_scanned_pages', domains=DOCUMENT_DOMAINS,
                 eta='anonymizer.tasks:ocr_eta'),
     ProcessSpec('detect_text', label='Détection des données personnelles', depends_on=(OCR_KEY,),
-                watched=('file',), share=3, outputs=('detections_file',), applies=_is_document,
+                watched=('file',), share=3, outputs=('detections_file',), domains=DOCUMENT_DOMAINS,
                 eta='anonymizer.tasks:detect_text_eta'),
     ProcessSpec('occult_text', label='Occultation', depends_on=('detect_text',),
-                watched=BLUR_WATCHED, share=1, outputs=('output_file',), applies=_is_document,
+                watched=BLUR_WATCHED, share=1, outputs=('output_file',), domains=DOCUMENT_DOMAINS,
                 eta='anonymizer.tasks:occult_text_eta'),
 ), label='Anonymizer — détection, floutage, réglages de sortie ; document : OCR, détection et '
          'occultation des données personnelles',
